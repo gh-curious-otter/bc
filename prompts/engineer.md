@@ -53,10 +53,15 @@ Read your assignment carefully. It should include:
 
 ### 2. Create Your Branch
 
+Use the bead ID as your branch name for traceability:
+
 ```bash
 git checkout main
 git pull origin main
-git checkout -b feature/your-branch-name
+# If your task has bead bc-34b.5, use that as branch name:
+git checkout -b bc-34b.5
+# If no bead ID, use work item ID:
+git checkout -b work-014
 ```
 
 ### 3. Report You're Working

@@ -180,9 +180,9 @@ func buildBootstrapPrompt(workers []string, items []queue.WorkItem, rootDir stri
 	b.WriteString("  Distribute work evenly across workers.\n\n")
 
 	b.WriteString("Phase 2 — REVIEW:\n")
-	b.WriteString("  After workers report done, review their branches:\n")
-	b.WriteString("    git log <branch> --oneline\n")
-	b.WriteString("    git diff main..<branch>\n")
+	b.WriteString("  After workers report done, review their branches (named by bead ID):\n")
+	b.WriteString("    git log <bead-id> --oneline  # e.g. git log bc-34b.5\n")
+	b.WriteString("    git diff main..<bead-id>\n")
 	b.WriteString("  Verify the implementation matches the task description.\n")
 	b.WriteString("  If a worker's branch needs fixes, send feedback via bc send.\n\n")
 
