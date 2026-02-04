@@ -47,3 +47,24 @@ description = "Cursor AI"
 name = "codex"
 command = "codex --full-auto"
 description = "OpenAI Codex"
+
+# Role definitions with system prompts
+# Roles define agent behavior and available commands
+
+[[roles]]
+name = "product_manager"
+prompt_file = "prompts/product_manager.md"
+description = "Defines product vision, creates epics, reviews proposals"
+permissions = ["queue.add", "queue.view", "send", "report"]
+
+[[roles]]
+name = "manager"
+prompt_file = "prompts/manager.md"
+description = "Breaks down epics, spawns engineers, assigns work, reviews code"
+permissions = ["queue.add", "queue.assign", "queue.complete", "spawn", "send", "report", "git.merge"]
+
+[[roles]]
+name = "engineer"
+prompt_file = "prompts/engineer.md"
+description = "Implements assigned tasks, writes code and tests"
+permissions = ["queue.view", "report", "git.branch", "git.commit"]
