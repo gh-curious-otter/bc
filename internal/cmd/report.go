@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/queue"
 	"github.com/spf13/cobra"
@@ -94,6 +95,17 @@ func runReport(cmd *cobra.Command, args []string) error {
 					Message: message,
 					Data:    map[string]any{"work_id": item.ID},
 				})
+				// Close linked beads issue if present
+				if item.BeadsID != "" {
+					if err := beads.CloseIssue(ws.RootDir, item.BeadsID); err != nil {
+						// Log but don't fail - beads sync is best-effort
+						log.Append(events.Event{
+							Type:    events.AgentReport,
+							Agent:   agentID,
+							Message: fmt.Sprintf("warning: failed to close beads issue %s: %v", item.BeadsID, err),
+						})
+					}
+				}
 			}
 		}
 	}

@@ -146,6 +146,13 @@ func runQueueAssign(cmd *cobra.Command, args []string) error {
 	agentName := args[1]
 
 	q := loadQueue(ws)
+
+	// Get item before assigning to check BeadsID
+	item := q.Get(itemID)
+	if item == nil {
+		return fmt.Errorf("work item %s not found", itemID)
+	}
+
 	if err := q.Assign(itemID, agentName); err != nil {
 		return err
 	}
@@ -160,6 +167,18 @@ func runQueueAssign(cmd *cobra.Command, args []string) error {
 		Agent: agentName,
 		Data:  map[string]any{"work_id": itemID},
 	})
+
+	// Sync assignment to beads if linked
+	if item.BeadsID != "" {
+		if err := beads.AssignIssue(ws.RootDir, item.BeadsID, agentName); err != nil {
+			// Log but don't fail - beads sync is best-effort
+			log.Append(events.Event{
+				Type:    events.AgentReport,
+				Agent:   agentName,
+				Message: fmt.Sprintf("warning: failed to assign beads issue %s: %v", item.BeadsID, err),
+			})
+		}
+	}
 
 	fmt.Printf("Assigned %s to %s\n", itemID, agentName)
 	return nil
