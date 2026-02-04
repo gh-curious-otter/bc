@@ -45,3 +45,6 @@ tmp/
 
 # bc workspace state (local, not committed)
 .bc/
+
+# beads issue tracker state (local to each project)
+.beads/
