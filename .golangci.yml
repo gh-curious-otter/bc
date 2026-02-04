@@ -1,0 +1,64 @@
+# golangci-lint configuration
+# https://golangci-lint.run/usage/configuration/
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+    - unconvert
+    - bodyclose
+    - noctx
+    - gosec
+    - prealloc
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+  
+  govet:
+    enable-all: true
+  
+  gofmt:
+    simplify: true
+  
+  goimports:
+    local-prefixes: github.com/prai-git/bc
+  
+  misspell:
+    locale: US
+  
+  gosec:
+    excludes:
+      - G104 # Audit errors not checked (we check where needed)
+
+issues:
+  exclude-rules:
+    # Ignore long lines in comments
+    - linters:
+        - lll
+      source: "^//.*"
+    
+    # Ignore magic numbers in test files
+    - path: _test\.go
+      linters:
+        - gomnd
+    
+    # Ignore certain checks in main.go
+    - path: cmd/bc/main\.go
+      linters:
+        - gochecknoglobals
+
+  max-issues-per-linter: 0
+  max-same-issues: 0
