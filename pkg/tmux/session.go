@@ -127,15 +127,21 @@ func (m *Manager) KillSession(name string) error {
 	return nil
 }
 
-// SendKeys sends keys to a session.
+// SendKeys sends keys to a session. submitKey is the key to send after the message
+// (e.g. "Enter", "C-Enter", "M-Enter"). Use "" to send no key (message is left in the
+// input buffer; useful when the agent treats Enter as newline, e.g. Cursor Agent).
 // For messages longer than 500 chars, uses tmux load-buffer/paste-buffer to avoid truncation.
-// Trailing newlines are trimmed so the final Enter we send produces a single newline (avoids double newline).
-func (m *Manager) SendKeys(name, keys string) error {
+// Trailing newlines are trimmed so the final submit key produces a single newline.
+func (m *Manager) SendKeys(name, keys, submitKey string) error {
 	keys = strings.TrimRight(keys, "\n")
 	fullName := m.SessionName(name)
 
 	if len(keys) <= 500 {
-		cmd := exec.Command("tmux", "send-keys", "-t", fullName, keys, "Enter")
+		args := []string{"send-keys", "-t", fullName, keys}
+		if submitKey != "" {
+			args = append(args, submitKey)
+		}
+		cmd := exec.Command("tmux", args...)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("failed to send keys to %s: %w (%s)", fullName, err, string(output))
@@ -169,12 +175,16 @@ func (m *Manager) SendKeys(name, keys string) error {
 		return fmt.Errorf("failed to paste buffer to %s: %w (%s)", fullName, err, string(output))
 	}
 
-	// Wait for paste to complete before sending Enter
+	if submitKey == "" {
+		return nil
+	}
+
+	// Wait for paste to complete before sending submit key
 	time.Sleep(500 * time.Millisecond)
 
-	enterCmd := exec.Command("tmux", "send-keys", "-t", fullName, "Enter")
-	if output, err := enterCmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to send Enter to %s: %w (%s)", fullName, err, string(output))
+	submitCmd := exec.Command("tmux", "send-keys", "-t", fullName, submitKey)
+	if output, err := submitCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to send %q to %s: %w (%s)", submitKey, fullName, err, string(output))
 	}
 
 	return nil

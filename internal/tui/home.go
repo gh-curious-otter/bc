@@ -28,12 +28,13 @@ type TickMsg struct{}
 
 // WorkspaceInfo holds summary data for a workspace in the home view.
 type WorkspaceInfo struct {
-	Entry    workspace.RegistryEntry
-	Running  int
-	Total    int
-	Issues   int
-	PRs      int
-	HasBeads bool
+	Entry      workspace.RegistryEntry
+	Running    int
+	Total      int
+	MaxWorkers int
+	Issues     int
+	PRs        int
+	HasBeads   bool
 }
 
 // HomeModel is the root TUI model for bc home.
@@ -44,8 +45,9 @@ type HomeModel struct {
 	height int
 
 	// Home screen state
-	workspaces []WorkspaceInfo
-	homeCursor int
+	workspaces  []WorkspaceInfo
+	homeCursor  int
+	maxWorkers  int
 
 	// Workspace detail state
 	wsModel *WorkspaceModel
@@ -57,12 +59,13 @@ type HomeModel struct {
 	statusMsg string
 }
 
-// NewHomeModel creates the root TUI model.
-func NewHomeModel(workspaces []WorkspaceInfo) *HomeModel {
+// NewHomeModel creates the root TUI model. maxWorkers is the configured agent limit (0 = no limit).
+func NewHomeModel(workspaces []WorkspaceInfo, maxWorkers int) *HomeModel {
 	return &HomeModel{
 		screen:     ScreenHome,
 		styles:     style.DefaultStyles(),
 		workspaces: workspaces,
+		maxWorkers: maxWorkers,
 	}
 }
 
@@ -309,6 +312,8 @@ func (m *HomeModel) renderHomeScreen() string {
 
 		if selected {
 			b.WriteString(m.styles.Selected.Render(line))
+		} else if m.maxWorkers > 0 && ws.Running > m.maxWorkers {
+			b.WriteString(m.styles.Error.Render(line))
 		} else if ws.Running > 0 {
 			b.WriteString(m.styles.Success.Render(line))
 		} else {

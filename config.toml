@@ -12,8 +12,10 @@ state_dir = ".bc"              # Directory for bc state (relative to project roo
 max_workers = 3                # Maximum number of worker agents
 
 # Agent settings
+# For Cursor Agent: use --force (no confirmations) and --print (headless, full tool access like Claude Code).
+# Then bc send and Enter will work; agents run non-interactively with all permissions.
 [agent]
-command = "claude --dangerously-skip-permissions"  # Default agent command
+command = "cursor-agent --force --print"
 coordinator_name = "coordinator"                    # Name for the coordinator agent
 worker_prefix = "worker"                           # Prefix for worker agent names
 
@@ -42,6 +44,11 @@ description = "Anthropic Claude Code"
 name = "cursor"
 command = "cursor --dangerously-skip-permissions"
 description = "Cursor AI"
+
+[[agents]]
+name = "cursor-agent"
+command = "cursor-agent --force --print"
+description = "Cursor Agent (headless, all permissions, stdin/Enter submits)"
 
 [[agents]]
 name = "codex"

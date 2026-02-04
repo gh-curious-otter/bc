@@ -32,9 +32,22 @@ func HasBeads(workspacePath string) bool {
 	return err == nil
 }
 
-// ListIssues returns beads issues for a workspace.
+// ListIssues returns beads issues for a workspace (excluding epics).
 // Falls back to empty list if bd is not available or .beads/ doesn't exist.
 func ListIssues(workspacePath string) []Issue {
+	all := ListAllIssues(workspacePath)
+	var filtered []Issue
+	for _, issue := range all {
+		if issue.Type != "epic" {
+			filtered = append(filtered, issue)
+		}
+	}
+	return filtered
+}
+
+// ListAllIssues returns all beads issues for a workspace (including epics).
+// Falls back to empty list if bd is not available or .beads/ doesn't exist.
+func ListAllIssues(workspacePath string) []Issue {
 	if !HasBeads(workspacePath) {
 		return nil
 	}
@@ -53,16 +66,12 @@ func ListIssues(workspacePath string) []Issue {
 		return parseJSONL(output)
 	}
 
-	// Tag source and filter out epics
-	var filtered []Issue
+	// Tag source
 	for i := range issues {
 		issues[i].Source = "beads"
-		if issues[i].Type != "epic" {
-			filtered = append(filtered, issues[i])
-		}
 	}
 
-	return filtered
+	return issues
 }
 
 // parseJSONL parses newline-delimited JSON.

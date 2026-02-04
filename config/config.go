@@ -22,6 +22,13 @@ type CostsConfig struct {
 	WarnThreshold float64
 }
 
+type RolesItem struct {
+	Description string
+	Name        string
+	Permissions []string
+	PromptFile  string
+}
+
 type TmuxConfig struct {
 	SessionPrefix string
 }
@@ -38,7 +45,7 @@ type WorkspaceConfig struct {
 
 var (
 	Agent = AgentConfig{
-		Command:         "claude --dangerously-skip-permissions",
+		Command:         "cursor-agent --force --print",
 		CoordinatorName: "coordinator",
 		WorkerPrefix:    "worker",
 	}
@@ -54,6 +61,11 @@ var (
 			Name:        "cursor",
 		},
 		{
+			Command:     "cursor-agent --force --print",
+			Description: "Cursor Agent (headless, all permissions, stdin/Enter submits)",
+			Name:        "cursor-agent",
+		},
+		{
 			Command:     "codex --full-auto",
 			Description: "OpenAI Codex",
 			Name:        "codex",
@@ -64,8 +76,28 @@ var (
 		Limit:         100,
 		WarnThreshold: 10,
 	}
-	Name string = "bc"
-	Tmux        = TmuxConfig{
+	Name  string = "bc"
+	Roles        = []RolesItem{
+		{
+			Description: "Defines product vision, creates epics, reviews proposals",
+			Name:        "product_manager",
+			Permissions: []string{"queue.add", "queue.view", "send", "report"},
+			PromptFile:  "prompts/product_manager.md",
+		},
+		{
+			Description: "Breaks down epics, spawns engineers, assigns work, reviews code",
+			Name:        "manager",
+			Permissions: []string{"queue.add", "queue.assign", "queue.complete", "spawn", "send", "report", "git.merge"},
+			PromptFile:  "prompts/manager.md",
+		},
+		{
+			Description: "Implements assigned tasks, writes code and tests",
+			Name:        "engineer",
+			Permissions: []string{"queue.view", "report", "git.branch", "git.commit"},
+			PromptFile:  "prompts/engineer.md",
+		},
+	}
+	Tmux = TmuxConfig{
 		SessionPrefix: "bc-",
 	}
 	Tui = TuiConfig{

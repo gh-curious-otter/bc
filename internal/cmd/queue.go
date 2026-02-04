@@ -47,12 +47,21 @@ var queueLoadCmd = &cobra.Command{
 	RunE:  runQueueLoad,
 }
 
+var queueCompleteCmd = &cobra.Command{
+	Use:   "complete <item-id>",
+	Short: "Mark a work item as done (e.g. when work was done outside agent session)",
+	Long:  `Marks the item done, saves the queue, and closes the linked beads issue if any.`,
+	Args:  cobra.ExactArgs(1),
+	RunE:  runQueueComplete,
+}
+
 var queueDesc string
 
 func init() {
 	queueAddCmd.Flags().StringVarP(&queueDesc, "desc", "d", "", "Work item description")
 	queueCmd.AddCommand(queueAddCmd)
 	queueCmd.AddCommand(queueAssignCmd)
+	queueCmd.AddCommand(queueCompleteCmd)
 	queueCmd.AddCommand(queueLoadCmd)
 	rootCmd.AddCommand(queueCmd)
 }
@@ -225,6 +234,50 @@ func runQueueLoad(cmd *cobra.Command, args []string) error {
 	})
 
 	fmt.Printf("Loaded %d new items from beads (%d already in queue)\n", added, len(issues)-added)
+	return nil
+}
+
+func runQueueComplete(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	itemID := args[0]
+	q := loadQueue(ws)
+	item := q.Get(itemID)
+	if item == nil {
+		return fmt.Errorf("work item %s not found", itemID)
+	}
+
+	if err := q.UpdateStatus(itemID, queue.StatusDone); err != nil {
+		return err
+	}
+	if err := q.Save(); err != nil {
+		return fmt.Errorf("failed to save queue: %w", err)
+	}
+
+	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
+	log.Append(events.Event{
+		Type:    events.WorkCompleted,
+		Message: fmt.Sprintf("marked %s done via bc queue complete", itemID),
+		Data:    map[string]any{"work_id": itemID},
+	})
+
+	if item.BeadsID != "" {
+		if err := beads.CloseIssue(ws.RootDir, item.BeadsID); err != nil {
+			log.Append(events.Event{
+				Type:    events.AgentReport,
+				Message: fmt.Sprintf("warning: failed to close beads issue %s: %v", item.BeadsID, err),
+			})
+		}
+	}
+
+	fmt.Printf("Marked %s done", itemID)
+	if item.BeadsID != "" {
+		fmt.Printf(" (closed %s)", item.BeadsID)
+	}
+	fmt.Println()
 	return nil
 }
 
