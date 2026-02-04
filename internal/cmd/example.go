@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/prai-git/bc/pkg/tui"
+	"github.com/rpuneet/bc/pkg/tui"
 	"github.com/spf13/cobra"
 )
 

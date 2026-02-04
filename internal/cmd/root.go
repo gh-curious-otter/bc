@@ -35,7 +35,7 @@ Key features:
   • Cost-aware operation
   • Predictable behavior
 
-Documentation: https://github.com/prai-git/bc`,
+Documentation: https://github.com/rpuneet/bc`,
 	// Run with no args shows help
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()

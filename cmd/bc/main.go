@@ -4,7 +4,7 @@ package main
 import (
 	"os"
 
-	"github.com/prai-git/bc/internal/cmd"
+	"github.com/rpuneet/bc/internal/cmd"
 )
 
 // Version information set by ldflags during build.

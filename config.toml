@@ -1,0 +1,49 @@
+# bc configuration
+# This file defines the default configuration schema.
+# Run `go generate ./...` to regenerate config/config.go
+
+# Application metadata
+name = "bc"
+version = "0.1.0"
+
+# Workspace settings
+[workspace]
+state_dir = ".bc"              # Directory for bc state (relative to project root)
+max_workers = 3                # Maximum number of worker agents
+
+# Agent settings
+[agent]
+command = "claude --dangerously-skip-permissions"  # Default agent command
+coordinator_name = "coordinator"                    # Name for the coordinator agent
+worker_prefix = "worker"                           # Prefix for worker agent names
+
+# Tmux settings
+[tmux]
+session_prefix = "bc-"         # Prefix for all tmux session names
+
+# TUI settings
+[tui]
+refresh_interval = "2s"        # How often to refresh agent status
+theme = "ayu-dark"             # Color theme (ayu-dark, nord, etc.)
+
+# Cost tracking
+[costs]
+enabled = true                 # Enable cost tracking
+warn_threshold = 10.0          # Warn when session cost exceeds this (USD)
+limit = 100.0                  # Hard limit per session (USD), 0 = no limit
+
+# Supported agent types (for future use)
+[[agents]]
+name = "claude"
+command = "claude --dangerously-skip-permissions"
+description = "Anthropic Claude Code"
+
+[[agents]]
+name = "cursor"
+command = "cursor --dangerously-skip-permissions"
+description = "Cursor AI"
+
+[[agents]]
+name = "codex"
+command = "codex --full-auto"
+description = "OpenAI Codex"

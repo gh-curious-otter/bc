@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/prai-git/bc/pkg/tui/style"
+	"github.com/rpuneet/bc/pkg/tui/style"
 )
 
 // App is the main application container that manages views and navigation.

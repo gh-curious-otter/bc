@@ -6,7 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/prai-git/bc/pkg/tui/style"
+	"github.com/rpuneet/bc/pkg/tui/style"
 )
 
 // TableView is a navigable table component with vim-style keybindings.

@@ -1,0 +1,49 @@
+package cmd
+
+import (
+	"fmt"
+
+	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/spf13/cobra"
+)
+
+var attachCmd = &cobra.Command{
+	Use:   "attach <agent>",
+	Short: "Attach to an agent's tmux session",
+	Long: `Attach to an agent's tmux session to interact with it directly.
+
+This opens the tmux session where the agent (Claude) is running.
+Use Ctrl+b d to detach and return to your shell.
+
+Example:
+  bc attach coordinator   # Attach to coordinator
+  bc attach worker-01     # Attach to worker 1`,
+	Args: cobra.ExactArgs(1),
+	RunE: runAttach,
+}
+
+func init() {
+	rootCmd.AddCommand(attachCmd)
+}
+
+func runAttach(cmd *cobra.Command, args []string) error {
+	agentName := args[0]
+	
+	// Find workspace
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+	
+	// Create agent manager
+	mgr := agent.NewManager(ws.AgentsDir())
+	
+	// Check if session exists
+	if !mgr.Tmux().HasSession(agentName) {
+		return fmt.Errorf("agent '%s' not running (session bc-%s not found)", agentName, agentName)
+	}
+	
+	fmt.Printf("Attaching to %s (use Ctrl+b d to detach)...\n", agentName)
+	
+	return mgr.AttachToAgent(agentName)
+}
