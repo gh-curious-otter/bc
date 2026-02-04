@@ -234,13 +234,18 @@ func (m *Manager) ListSessions() ([]Session, error) {
 		}
 		
 		name := parts[0]
+		// Build full prefix including workspace hash
+		fullPrefix := m.SessionPrefix
+		if m.workspaceHash != "" {
+			fullPrefix = m.SessionPrefix + m.workspaceHash + "-"
+		}
 		// Only include sessions with our prefix
-		if !strings.HasPrefix(name, m.SessionPrefix) {
+		if !strings.HasPrefix(name, fullPrefix) {
 			continue
 		}
-		
+
 		sessions = append(sessions, Session{
-			Name:      strings.TrimPrefix(name, m.SessionPrefix),
+			Name:      strings.TrimPrefix(name, fullPrefix),
 			Created:   parts[1],
 			Attached:  parts[2] == "1",
 			Directory: parts[4],
