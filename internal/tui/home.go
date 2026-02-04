@@ -121,7 +121,7 @@ func (m *HomeModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Dispatch to active screen
 	switch m.screen {
 	case ScreenHome:
-		return m.handleHomeKey(key)
+		return m.handleHomeKey(msg)
 	case ScreenWorkspace:
 		return m.handleWorkspaceKey(msg)
 	case ScreenAgent:
@@ -131,7 +131,8 @@ func (m *HomeModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *HomeModel) handleHomeKey(key string) (tea.Model, tea.Cmd) {
+func (m *HomeModel) handleHomeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
 	switch key {
 	case "j", "down":
 		if m.homeCursor < len(m.workspaces)-1 {
@@ -147,7 +148,10 @@ func (m *HomeModel) handleHomeKey(key string) (tea.Model, tea.Cmd) {
 		if len(m.workspaces) > 0 {
 			m.homeCursor = len(m.workspaces) - 1
 		}
-	case "enter":
+	case "r":
+		m.statusMsg = "Refreshed"
+	}
+	if isEnterKey(msg) {
 		if m.homeCursor < len(m.workspaces) {
 			ws := m.workspaces[m.homeCursor]
 			m.wsModel = NewWorkspaceModel(ws, m.styles)
@@ -156,8 +160,6 @@ func (m *HomeModel) handleHomeKey(key string) (tea.Model, tea.Cmd) {
 			m.screen = ScreenWorkspace
 			m.statusMsg = ""
 		}
-	case "r":
-		m.statusMsg = "Refreshed"
 	}
 	return m, nil
 }

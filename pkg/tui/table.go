@@ -138,7 +138,8 @@ func (t *TableView) handleKey(msg tea.KeyMsg) (Model, Cmd) {
 	}
 
 	// Built-in navigation
-	switch msg.String() {
+	keyStr := msg.String()
+	switch keyStr {
 	case "j", "down":
 		t.MoveDown()
 	case "k", "up":
@@ -147,10 +148,9 @@ func (t *TableView) handleKey(msg tea.KeyMsg) (Model, Cmd) {
 		t.MoveToTop()
 	case "G", "end":
 		t.MoveToBottom()
-	case "enter":
-		if t.onSelect != nil && t.cursor < len(t.rows) {
-			return t, t.onSelect(t.rows[t.cursor])
-		}
+	}
+	if isEnterKey(msg) && t.onSelect != nil && t.cursor < len(t.rows) {
+		return t, t.onSelect(t.rows[t.cursor])
 	}
 
 	return t, nil

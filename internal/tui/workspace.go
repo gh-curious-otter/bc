@@ -110,7 +110,8 @@ func (m *WorkspaceModel) HandleKey(msg tea.KeyMsg) Action {
 	case "r":
 		m.refresh()
 		return NoAction
-	case "enter":
+	}
+	if isEnterKey(msg) {
 		return m.selectCurrent()
 	}
 
