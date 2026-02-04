@@ -3,9 +3,13 @@ package tmux
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"time"
 )
 
 // Session represents a tmux session.
@@ -21,12 +25,24 @@ type Session struct {
 type Manager struct {
 	// SessionPrefix is prepended to all session names (e.g., "bc-")
 	SessionPrefix string
+	// workspaceHash is included in session names for workspace isolation.
+	workspaceHash string
 }
 
 // NewManager creates a new tmux manager with the given prefix.
 func NewManager(prefix string) *Manager {
 	return &Manager{
 		SessionPrefix: prefix,
+	}
+}
+
+// NewWorkspaceManager creates a tmux manager scoped to a workspace.
+// Session names include a short hash of the workspace path for isolation.
+func NewWorkspaceManager(prefix, workspacePath string) *Manager {
+	h := sha256.Sum256([]byte(workspacePath))
+	return &Manager{
+		SessionPrefix: prefix,
+		workspaceHash: fmt.Sprintf("%x", h[:3]),
 	}
 }
 
@@ -37,8 +53,11 @@ func NewDefaultManager() *Manager {
 	}
 }
 
-// SessionName returns the full session name with prefix.
+// SessionName returns the full session name with prefix (and workspace hash if set).
 func (m *Manager) SessionName(name string) string {
+	if m.workspaceHash != "" {
+		return m.SessionPrefix + m.workspaceHash + "-" + name
+	}
 	return m.SessionPrefix + name
 }
 
@@ -84,6 +103,32 @@ func (m *Manager) CreateSessionWithCommand(name, dir, command string) error {
 	return nil
 }
 
+// CreateSessionWithEnv creates a session with env vars baked into the shell command.
+func (m *Manager) CreateSessionWithEnv(name, dir, command string, env map[string]string) error {
+	fullName := m.SessionName(name)
+
+	// Build shell command with env vars prefixed
+	var parts []string
+	for k, v := range env {
+		parts = append(parts, fmt.Sprintf("export %s=%q;", k, v))
+	}
+	parts = append(parts, command)
+	shellCmd := strings.Join(parts, " ")
+
+	args := []string{"new-session", "-d", "-s", fullName}
+	if dir != "" {
+		args = append(args, "-c", dir)
+	}
+	args = append(args, "bash", "-c", shellCmd)
+
+	cmd := exec.Command("tmux", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to create session %s: %w (%s)", fullName, err, string(output))
+	}
+	return nil
+}
+
 // KillSession kills a tmux session.
 func (m *Manager) KillSession(name string) error {
 	fullName := m.SessionName(name)
@@ -96,13 +141,53 @@ func (m *Manager) KillSession(name string) error {
 }
 
 // SendKeys sends keys to a session.
+// For messages longer than 500 chars, uses tmux load-buffer/paste-buffer to avoid truncation.
 func (m *Manager) SendKeys(name, keys string) error {
 	fullName := m.SessionName(name)
-	cmd := exec.Command("tmux", "send-keys", "-t", fullName, keys, "Enter")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to send keys to %s: %w (%s)", fullName, err, string(output))
+
+	if len(keys) <= 500 {
+		cmd := exec.Command("tmux", "send-keys", "-t", fullName, keys, "Enter")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to send keys to %s: %w (%s)", fullName, err, string(output))
+		}
+		return nil
 	}
+
+	// Long message: use temp file + load-buffer + paste-buffer
+	tmpDir := filepath.Join(os.TempDir(), "bc-tmux")
+	os.MkdirAll(tmpDir, 0700)
+	tmpFile, err := os.CreateTemp(tmpDir, "send-*.txt")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	defer os.Remove(tmpPath)
+
+	if _, err := tmpFile.WriteString(keys); err != nil {
+		tmpFile.Close()
+		return fmt.Errorf("failed to write temp file: %w", err)
+	}
+	tmpFile.Close()
+
+	loadCmd := exec.Command("tmux", "load-buffer", tmpPath)
+	if output, err := loadCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to load buffer: %w (%s)", err, string(output))
+	}
+
+	pasteCmd := exec.Command("tmux", "paste-buffer", "-t", fullName)
+	if output, err := pasteCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to paste buffer to %s: %w (%s)", fullName, err, string(output))
+	}
+
+	// Wait for paste to complete before sending Enter
+	time.Sleep(500 * time.Millisecond)
+
+	enterCmd := exec.Command("tmux", "send-keys", "-t", fullName, "Enter")
+	if output, err := enterCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to send Enter to %s: %w (%s)", fullName, err, string(output))
+	}
+
 	return nil
 }
 

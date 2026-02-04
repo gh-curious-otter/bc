@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -58,9 +60,12 @@ type Manager struct {
 	agents   map[string]*Agent
 	tmux     *tmux.Manager
 	stateDir string
-	
+
 	// Agent command (e.g., "claude" or "claude --dangerously-skip-permissions")
 	agentCmd string
+
+	// Workspace path for env vars
+	workspacePath string
 }
 
 // NewManager creates a new agent manager.
@@ -70,6 +75,18 @@ func NewManager(stateDir string) *Manager {
 		tmux:     tmux.NewManager(config.Tmux.SessionPrefix),
 		stateDir: stateDir,
 		agentCmd: config.Agent.Command,
+	}
+}
+
+// NewWorkspaceManager creates an agent manager scoped to a workspace.
+// Tmux session names will be unique per workspace to avoid collisions.
+func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
+	return &Manager{
+		agents:        make(map[string]*Agent),
+		tmux:          tmux.NewWorkspaceManager(config.Tmux.SessionPrefix, workspacePath),
+		stateDir:      stateDir,
+		agentCmd:      config.Agent.Command,
+		workspacePath: workspacePath,
 	}
 }
 
@@ -91,15 +108,29 @@ func (m *Manager) SetAgentByName(name string) bool {
 }
 
 // SpawnAgent creates and starts a new agent.
+// Idempotent: if the agent already exists and its tmux session is alive, reuse it.
 func (m *Manager) SpawnAgent(name string, role Role, workspace string) (*Agent, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
-	// Check if already exists
-	if _, exists := m.agents[name]; exists {
-		return nil, fmt.Errorf("agent %s already exists", name)
+
+	// Check if already exists in our state
+	if existing, exists := m.agents[name]; exists {
+		// If its tmux session is still alive, reuse it
+		if m.tmux.HasSession(name) {
+			existing.State = StateIdle
+			existing.UpdatedAt = time.Now()
+			m.saveState()
+			return existing, nil
+		}
+		// Session is dead — clean up stale entry and respawn
+		delete(m.agents, name)
 	}
-	
+
+	// If a tmux session exists from a previous crash, kill it first
+	if m.tmux.HasSession(name) {
+		_ = m.tmux.KillSession(name)
+	}
+
 	// Create agent
 	agent := &Agent{
 		ID:        name,
@@ -111,25 +142,27 @@ func (m *Manager) SpawnAgent(name string, role Role, workspace string) (*Agent, 
 		StartedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	
-	// Create tmux session with claude
-	if err := m.tmux.CreateSessionWithCommand(name, workspace, m.agentCmd); err != nil {
+
+	// Build env vars so the spawned process sees them immediately
+	env := map[string]string{
+		"BC_AGENT_ID":   name,
+		"BC_AGENT_ROLE": string(role),
+		"BC_WORKSPACE":  workspace,
+	}
+
+	// Create tmux session with env vars baked into the command
+	if err := m.tmux.CreateSessionWithEnv(name, workspace, m.agentCmd, env); err != nil {
 		return nil, fmt.Errorf("failed to create tmux session: %w", err)
 	}
-	
-	// Set environment variables for the agent
-	m.tmux.SetEnvironment(name, "BC_AGENT_ID", name)
-	m.tmux.SetEnvironment(name, "BC_AGENT_ROLE", string(role))
-	m.tmux.SetEnvironment(name, "BC_WORKSPACE", workspace)
-	
+
 	// Update state
 	agent.State = StateIdle
 	agent.UpdatedAt = time.Now()
 	m.agents[name] = agent
-	
+
 	// Save state
 	m.saveState()
-	
+
 	return agent, nil
 }
 
@@ -178,43 +211,130 @@ func (m *Manager) GetAgent(name string) *Agent {
 	return m.agents[name]
 }
 
-// ListAgents returns all agents.
+// ListAgents returns all agents sorted: coordinator first, then workers by name.
 func (m *Manager) ListAgents() []*Agent {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	agents := make([]*Agent, 0, len(m.agents))
 	for _, a := range m.agents {
 		agents = append(agents, a)
 	}
+
+	sort.Slice(agents, func(i, j int) bool {
+		if agents[i].Role == RoleCoordinator && agents[j].Role != RoleCoordinator {
+			return true
+		}
+		if agents[i].Role != RoleCoordinator && agents[j].Role == RoleCoordinator {
+			return false
+		}
+		return agents[i].Name < agents[j].Name
+	})
+
 	return agents
 }
 
 // RefreshState updates agent states from tmux.
+// Also captures a live task summary from each agent's tmux pane.
 func (m *Manager) RefreshState() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	sessions, err := m.tmux.ListSessions()
 	if err != nil {
 		return err
 	}
-	
+
 	// Build map of active sessions
 	active := make(map[string]bool)
 	for _, s := range sessions {
 		active[s.Name] = true
 	}
-	
-	// Update agent states
-	for name, agent := range m.agents {
-		if !active[name] && agent.State != StateStopped {
-			agent.State = StateStopped
-			agent.UpdatedAt = time.Now()
+
+	// Update agent states and capture live tasks
+	for name, a := range m.agents {
+		if !active[name] && a.State != StateStopped {
+			a.State = StateStopped
+			a.UpdatedAt = time.Now()
+			continue
+		}
+		if !active[name] {
+			continue
+		}
+
+		// Capture live task from tmux pane
+		if live := m.captureLiveTask(name); live != "" {
+			a.Task = live
 		}
 	}
-	
+
 	return nil
+}
+
+// captureLiveTask extracts a one-line activity summary from an agent's tmux pane.
+func (m *Manager) captureLiveTask(name string) string {
+	output, err := m.tmux.Capture(name, 15)
+	if err != nil {
+		return ""
+	}
+
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line == "" || line == "❯" {
+			continue
+		}
+
+		// Skip status bar
+		if strings.Contains(line, "bypass permissions") ||
+			strings.Contains(line, "shift+Tab to cycle") ||
+			strings.Contains(line, "Update available") {
+			continue
+		}
+
+		// Spinner lines: active work
+		if strings.HasPrefix(line, "✻") ||
+			strings.HasPrefix(line, "✳") ||
+			strings.HasPrefix(line, "✽") ||
+			strings.HasPrefix(line, "·") {
+			if idx := strings.LastIndex(line, "("); idx > 20 {
+				line = strings.TrimSpace(line[:idx])
+			}
+			return line
+		}
+
+		// Tool call lines
+		if strings.HasPrefix(line, "⏺") {
+			return line
+		}
+
+		// Prompt line — agent waiting for input
+		if strings.HasPrefix(line, "❯") && len(line) > 2 {
+			return line
+		}
+	}
+
+	return ""
+}
+
+// AgentCount returns the number of agents.
+func (m *Manager) AgentCount() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.agents)
+}
+
+// RunningCount returns the number of non-stopped agents.
+func (m *Manager) RunningCount() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	count := 0
+	for _, a := range m.agents {
+		if a.State != StateStopped {
+			count++
+		}
+	}
+	return count
 }
 
 // UpdateAgentState updates an agent's state and task.

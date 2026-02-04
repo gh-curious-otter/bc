@@ -37,7 +37,7 @@ func runDown(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Stopping bc agents in %s\n\n", ws.RootDir)
 	
 	// Create agent manager and load state
-	mgr := agent.NewManager(ws.AgentsDir())
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
 	mgr.LoadState()
 	
 	agents := mgr.ListAgents()

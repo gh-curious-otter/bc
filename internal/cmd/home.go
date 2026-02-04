@@ -41,7 +41,7 @@ func runHome(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create agent manager
-	mgr := agent.NewManager(ws.AgentsDir())
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
 	mgr.LoadState()
 
 	// Create pipes for TUI communication

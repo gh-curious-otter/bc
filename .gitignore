@@ -42,3 +42,6 @@ __debug_bin*
 # Temporary files
 tmp/
 .tmp/
+
+# bc workspace state (local, not committed)
+.bc/
