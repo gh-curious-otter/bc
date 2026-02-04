@@ -129,7 +129,9 @@ func (m *Manager) KillSession(name string) error {
 
 // SendKeys sends keys to a session.
 // For messages longer than 500 chars, uses tmux load-buffer/paste-buffer to avoid truncation.
+// Trailing newlines are trimmed so the final Enter we send produces a single newline (avoids double newline).
 func (m *Manager) SendKeys(name, keys string) error {
+	keys = strings.TrimRight(keys, "\n")
 	fullName := m.SessionName(name)
 
 	if len(keys) <= 500 {

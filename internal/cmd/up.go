@@ -199,7 +199,7 @@ func buildBootstrapPrompt(workers []string, items []queue.WorkItem, rootDir stri
 	b.WriteString("  bc queue assign    # Assign work to agent\n")
 	b.WriteString("  bc send <a> <msg>  # Send message to agent\n")
 	b.WriteString("  bc report <state>  # Report your state\n")
-	b.WriteString("  bc logs            # View event log\n")
+	b.WriteString("  bc logs            # View event log")
 
 	return b.String()
 }
