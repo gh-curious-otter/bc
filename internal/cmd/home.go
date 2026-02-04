@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/rpuneet/bc/config"
 	itui "github.com/rpuneet/bc/internal/tui"
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/beads"
@@ -56,8 +57,9 @@ func runHome(cmd *cobra.Command, args []string) error {
 	var workspaces []itui.WorkspaceInfo
 	for _, entry := range reg.List() {
 		info := itui.WorkspaceInfo{
-			Entry:    entry,
-			HasBeads: beads.HasBeads(entry.Path),
+			Entry:      entry,
+			MaxWorkers: int(config.Workspace.MaxWorkers),
+			HasBeads:   beads.HasBeads(entry.Path),
 		}
 
 		// Count running agents
@@ -79,7 +81,7 @@ func runHome(cmd *cobra.Command, args []string) error {
 	}
 
 	// Run the Bubble Tea TUI
-	model := itui.NewHomeModel(workspaces)
+	model := itui.NewHomeModel(workspaces, int(config.Workspace.MaxWorkers))
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	_, err = p.Run()
 	return err

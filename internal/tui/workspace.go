@@ -245,11 +245,13 @@ func (m *WorkspaceModel) renderAgents() string {
 		taskWidth = 20
 	}
 
+	runningCount := 0
 	for i, a := range m.agents {
 		selected := i == m.cursor
 
 		uptime := "-"
 		if a.State != agent.StateStopped {
+			runningCount++
 			uptime = fmtDuration(time.Since(a.StartedAt))
 		}
 
@@ -265,8 +267,11 @@ func (m *WorkspaceModel) renderAgents() string {
 			a.Name, a.Role, a.State, uptime, task,
 		)
 
+		overLimit := m.info.MaxWorkers > 0 && a.State != agent.StateStopped && runningCount > m.info.MaxWorkers
 		if selected {
 			b.WriteString(m.styles.Selected.Render(line))
+		} else if overLimit {
+			b.WriteString(m.styles.Error.Render(line))
 		} else {
 			b.WriteString(m.styles.StatusStyle(mapState(a.State)).Render(line))
 		}

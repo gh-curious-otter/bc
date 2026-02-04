@@ -633,9 +633,18 @@ func (m *Manager) UpdateAgentState(name string, state State, task string) error 
 	return nil
 }
 
-// SendToAgent sends a message/command to an agent's session.
+// SendToAgent sends a message/command to an agent's session. It sends Enter after
+// the message so the agent receives it as submitted. For agents that treat Enter
+// as newline (e.g. Cursor Agent), use SendToAgentWithSubmitKey with submitKey "".
 func (m *Manager) SendToAgent(name, message string) error {
-	return m.tmux.SendKeys(name, message)
+	return m.SendToAgentWithSubmitKey(name, message, "Enter")
+}
+
+// SendToAgentWithSubmitKey sends a message to an agent's session, then the given
+// key (e.g. "Enter", "C-Enter", or "" for no key). Use "" when the agent treats
+// Enter as newline so the message is pasted and you can attach and submit manually.
+func (m *Manager) SendToAgentWithSubmitKey(name, message, submitKey string) error {
+	return m.tmux.SendKeys(name, message, submitKey)
 }
 
 // CaptureOutput captures recent output from an agent's session.

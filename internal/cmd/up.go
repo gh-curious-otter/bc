@@ -20,20 +20,24 @@ var upCmd = &cobra.Command{
 
 This will:
 1. Start the coordinator agent
-2. Start worker agents (based on max-workers setting)
-3. Load beads issues into the work queue
-4. Send bootstrap prompt to coordinator
+2. Start the product-manager and manager agents
+3. Start worker agents (based on max-workers or --workers)
+4. Load beads issues into the work queue
+5. Send bootstrap prompts to coordinator, product-manager, and manager
 
 Example:
-  bc up              # Start with default settings
-  bc up --workers 5  # Start with 5 workers`,
+  bc up                    # Start with default settings
+  bc up --workers 5        # Start with 5 workers
+  bc up --agent cursor    # Use Cursor AI for all agents`,
 	RunE: runUp,
 }
 
 var upWorkers int
+var upAgent string
 
 func init() {
 	upCmd.Flags().IntVar(&upWorkers, "workers", 0, "Number of workers (0 = use config default)")
+	upCmd.Flags().StringVar(&upAgent, "agent", "", "Agent type from config (e.g. claude, cursor, cursor-agent, codex)")
 	rootCmd.AddCommand(upCmd)
 }
 
@@ -49,9 +53,13 @@ func runUp(cmd *cobra.Command, args []string) error {
 	// Create workspace-scoped agent manager
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
 
-	// Use custom agent command if configured
+	// Use custom agent command: workspace config > --agent flag > default
 	if ws.Config.AgentCommand != "" {
 		mgr.SetAgentCommand(ws.Config.AgentCommand)
+	} else if upAgent != "" {
+		if !mgr.SetAgentByName(upAgent) {
+			return fmt.Errorf("unknown agent %q (check config [[agents]] for valid names)", upAgent)
+		}
 	}
 
 	// Determine worker count
@@ -103,9 +111,29 @@ func runUp(cmd *cobra.Command, args []string) error {
 		Type:  events.AgentSpawned,
 		Agent: "coordinator",
 	})
+	time.Sleep(300 * time.Millisecond)
 
-	// Give coordinator time to initialize
-	time.Sleep(500 * time.Millisecond)
+	// Start product-manager
+	fmt.Print("Starting product-manager... ")
+	_, err = mgr.SpawnAgent("product-manager", agent.RoleProductManager, ws.RootDir)
+	if err != nil {
+		fmt.Println("✗")
+		return fmt.Errorf("failed to start product-manager: %w", err)
+	}
+	fmt.Println("✓")
+	log.Append(events.Event{Type: events.AgentSpawned, Agent: "product-manager"})
+	time.Sleep(300 * time.Millisecond)
+
+	// Start manager
+	fmt.Print("Starting manager... ")
+	_, err = mgr.SpawnAgent("manager", agent.RoleManager, ws.RootDir)
+	if err != nil {
+		fmt.Println("✗")
+		return fmt.Errorf("failed to start manager: %w", err)
+	}
+	fmt.Println("✓")
+	log.Append(events.Event{Type: events.AgentSpawned, Agent: "manager"})
+	time.Sleep(300 * time.Millisecond)
 
 	// Start workers
 	workerNames := make([]string, 0, numWorkers)
@@ -131,17 +159,38 @@ func runUp(cmd *cobra.Command, args []string) error {
 		time.Sleep(300 * time.Millisecond)
 	}
 
-	// Build and send bootstrap prompt to coordinator
+	// Build and send bootstrap prompts
 	queueItems := q.ListAll()
-	if len(queueItems) > 0 && len(workerNames) > 0 {
+
+	// Coordinator: full bootstrap with queue and all agent names (product-manager, manager, workers)
+	allAgents := append([]string{"product-manager", "manager"}, workerNames...)
+	if len(queueItems) > 0 && len(allAgents) > 0 {
 		fmt.Print("\nSending bootstrap prompt to coordinator... ")
-		prompt := buildBootstrapPrompt(workerNames, queueItems, ws.RootDir)
+		prompt := buildBootstrapPrompt(allAgents, queueItems, ws.RootDir)
 		if err := mgr.SendToAgent("coordinator", prompt); err != nil {
 			fmt.Println("✗")
 			fmt.Printf("  Warning: failed to send bootstrap prompt: %v\n", err)
 		} else {
 			fmt.Println("✓")
 		}
+	}
+
+	// Product-manager: brief bootstrap so it starts working
+	fmt.Print("Sending bootstrap to product-manager... ")
+	pmPrompt := fmt.Sprintf("You are the product-manager. Workspace: %s\n\nRun: bc queue && bc status\nThen create or prioritize epics and coordinate with the manager.\n", ws.RootDir)
+	if err := mgr.SendToAgent("product-manager", pmPrompt); err != nil {
+		fmt.Println("✗")
+	} else {
+		fmt.Println("✓")
+	}
+
+	// Manager: brief bootstrap so it starts working
+	fmt.Print("Sending bootstrap to manager... ")
+	mgrPrompt := fmt.Sprintf("You are the manager. Workspace: %s\n\nRun: bc queue && bc status\nWorkers: %s\nBreak down epics into tasks and assign to workers. Coordinate with product-manager for priorities.\n", ws.RootDir, strings.Join(workerNames, ", "))
+	if err := mgr.SendToAgent("manager", mgrPrompt); err != nil {
+		fmt.Println("✗")
+	} else {
+		fmt.Println("✓")
 	}
 
 	fmt.Println()
@@ -155,12 +204,12 @@ func runUp(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func buildBootstrapPrompt(workers []string, items []queue.WorkItem, rootDir string) string {
+func buildBootstrapPrompt(agentNames []string, items []queue.WorkItem, rootDir string) string {
 	var b strings.Builder
 
 	b.WriteString("You are the coordinator agent for a bc workspace.\n\n")
 	b.WriteString(fmt.Sprintf("Workspace: %s\n", rootDir))
-	b.WriteString(fmt.Sprintf("Workers: %s\n\n", strings.Join(workers, ", ")))
+	b.WriteString(fmt.Sprintf("Team: %s\n\n", strings.Join(agentNames, ", ")))
 
 	b.WriteString("=== WORK QUEUE ===\n")
 	for _, item := range items {
