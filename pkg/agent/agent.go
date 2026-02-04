@@ -19,9 +19,88 @@ import (
 type Role string
 
 const (
+	// Legacy roles (for backward compatibility)
 	RoleCoordinator Role = "coordinator"
 	RoleWorker      Role = "worker"
+
+	// Hierarchical roles
+	RoleProductManager Role = "product-manager" // Owns product vision, creates epics
+	RoleManager        Role = "manager"         // Breaks down epics, manages engineers
+	RoleEngineer       Role = "engineer"        // Implements tasks (like worker)
 )
+
+// Capability defines what actions a role can perform.
+type Capability string
+
+const (
+	CapCreateAgents   Capability = "create_agents"   // Can spawn child agents
+	CapAssignWork     Capability = "assign_work"     // Can assign work to others
+	CapCreateEpics    Capability = "create_epics"    // Can create high-level epics
+	CapImplementTasks Capability = "implement_tasks" // Can write code/implement
+	CapReviewWork     Capability = "review_work"     // Can review others' work
+)
+
+// RoleCapabilities defines what each role can do.
+var RoleCapabilities = map[Role][]Capability{
+	RoleProductManager: {CapCreateAgents, CapAssignWork, CapCreateEpics, CapReviewWork},
+	RoleManager:        {CapCreateAgents, CapAssignWork, CapReviewWork},
+	RoleEngineer:       {CapImplementTasks},
+	// Legacy mappings
+	RoleCoordinator: {CapCreateAgents, CapAssignWork, CapReviewWork},
+	RoleWorker:      {CapImplementTasks},
+}
+
+// RoleHierarchy defines which roles can create which child roles.
+var RoleHierarchy = map[Role][]Role{
+	RoleProductManager: {RoleManager},
+	RoleManager:        {RoleEngineer},
+	RoleEngineer:       {}, // Cannot create children
+	// Legacy mappings
+	RoleCoordinator: {RoleWorker, RoleManager, RoleEngineer},
+	RoleWorker:      {},
+}
+
+// CanCreateRole checks if a parent role can create a child role.
+func CanCreateRole(parent, child Role) bool {
+	allowed, ok := RoleHierarchy[parent]
+	if !ok {
+		return false
+	}
+	for _, r := range allowed {
+		if r == child {
+			return true
+		}
+	}
+	return false
+}
+
+// HasCapability checks if a role has a specific capability.
+func HasCapability(role Role, cap Capability) bool {
+	caps, ok := RoleCapabilities[role]
+	if !ok {
+		return false
+	}
+	for _, c := range caps {
+		if c == cap {
+			return true
+		}
+	}
+	return false
+}
+
+// RoleLevel returns the hierarchy level (0 = top, higher = lower in hierarchy).
+func RoleLevel(role Role) int {
+	switch role {
+	case RoleProductManager, RoleCoordinator:
+		return 0
+	case RoleManager:
+		return 1
+	case RoleEngineer, RoleWorker:
+		return 2
+	default:
+		return 99
+	}
+}
 
 // State represents the current state of an agent.
 type State string
@@ -50,8 +129,32 @@ type Agent struct {
 	// Session info
 	Session string `json:"session"`
 
-	// For workers
+	// Hierarchy info
+	ParentID string   `json:"parent_id,omitempty"` // ID of parent agent (who created this agent)
+	Children []string `json:"children,omitempty"`  // IDs of child agents
+
+	// For workers/engineers
 	HookedWork string `json:"hooked_work,omitempty"`
+}
+
+// HasCapability checks if this agent has a specific capability.
+func (a *Agent) HasCapability(cap Capability) bool {
+	return HasCapability(a.Role, cap)
+}
+
+// CanCreate checks if this agent can create an agent with the given role.
+func (a *Agent) CanCreate(childRole Role) bool {
+	return CanCreateRole(a.Role, childRole)
+}
+
+// IsLeaf returns true if this agent has no children.
+func (a *Agent) IsLeaf() bool {
+	return len(a.Children) == 0
+}
+
+// Level returns the hierarchy level of this agent.
+func (a *Agent) Level() int {
+	return RoleLevel(a.Role)
 }
 
 // Manager handles agent lifecycle.
@@ -109,19 +212,36 @@ func (m *Manager) SetAgentByName(name string) bool {
 // SpawnAgent creates and starts a new agent.
 // Idempotent: if the agent already exists and its tmux session is alive, reuse it.
 func (m *Manager) SpawnAgent(name string, role Role, workspace string) (*Agent, error) {
+	return m.SpawnAgentWithParent(name, role, workspace, "")
+}
+
+// SpawnAgentWithParent creates and starts a new agent with a parent relationship.
+// Idempotent: if the agent already exists and its tmux session is alive, reuse it.
+func (m *Manager) SpawnAgentWithParent(name string, role Role, workspace string, parentID string) (*Agent, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	// Validate parent relationship if specified
+	if parentID != "" {
+		parent, exists := m.agents[parentID]
+		if !exists {
+			return nil, fmt.Errorf("parent agent %s not found", parentID)
+		}
+		if !CanCreateRole(parent.Role, role) {
+			return nil, fmt.Errorf("agent %s (role %s) cannot create child with role %s", parentID, parent.Role, role)
+		}
+	}
 
 	// Check if already exists in our state
 	if existing, exists := m.agents[name]; exists {
 		// If its tmux session is still alive, reuse it
 		if m.tmux.HasSession(name) {
-			existing.State = StateIdle
 			existing.UpdatedAt = time.Now()
 			m.saveState()
 			return existing, nil
 		}
 		// Session is dead — clean up stale entry and respawn
+		m.removeFromParent(name)
 		delete(m.agents, name)
 	}
 
@@ -138,6 +258,8 @@ func (m *Manager) SpawnAgent(name string, role Role, workspace string) (*Agent, 
 		State:     StateStarting,
 		Workspace: workspace,
 		Session:   name,
+		ParentID:  parentID,
+		Children:  []string{},
 		StartedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -147,6 +269,9 @@ func (m *Manager) SpawnAgent(name string, role Role, workspace string) (*Agent, 
 		"BC_AGENT_ID":   name,
 		"BC_AGENT_ROLE": string(role),
 		"BC_WORKSPACE":  workspace,
+	}
+	if parentID != "" {
+		env["BC_PARENT_ID"] = parentID
 	}
 
 	// Create tmux session with env vars baked into the command
@@ -159,10 +284,48 @@ func (m *Manager) SpawnAgent(name string, role Role, workspace string) (*Agent, 
 	agent.UpdatedAt = time.Now()
 	m.agents[name] = agent
 
+	// Update parent's children list
+	if parentID != "" {
+		if parent, exists := m.agents[parentID]; exists {
+			parent.Children = append(parent.Children, name)
+			parent.UpdatedAt = time.Now()
+		}
+	}
+
 	// Save state
 	m.saveState()
 
 	return agent, nil
+}
+
+// SpawnChildAgent creates a child agent under a parent agent.
+// Validates that the parent has permission to create the child role.
+func (m *Manager) SpawnChildAgent(parentID, childName string, childRole Role, workspace string) (*Agent, error) {
+	return m.SpawnAgentWithParent(childName, childRole, workspace, parentID)
+}
+
+// removeFromParent removes an agent from its parent's children list.
+// Must be called while holding the lock.
+func (m *Manager) removeFromParent(name string) {
+	agent, exists := m.agents[name]
+	if !exists || agent.ParentID == "" {
+		return
+	}
+
+	parent, exists := m.agents[agent.ParentID]
+	if !exists {
+		return
+	}
+
+	// Remove from parent's children
+	newChildren := make([]string, 0, len(parent.Children))
+	for _, childID := range parent.Children {
+		if childID != name {
+			newChildren = append(newChildren, childID)
+		}
+	}
+	parent.Children = newChildren
+	parent.UpdatedAt = time.Now()
 }
 
 // StopAgent stops an agent.
@@ -183,7 +346,44 @@ func (m *Manager) StopAgent(name string) error {
 	agent.State = StateStopped
 	agent.UpdatedAt = time.Now()
 
+	// Remove from parent's children list
+	m.removeFromParent(name)
+
 	m.saveState()
+
+	return nil
+}
+
+// StopAgentTree stops an agent and all its children recursively.
+func (m *Manager) StopAgentTree(name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return m.stopAgentTreeLocked(name)
+}
+
+// stopAgentTreeLocked stops an agent tree while holding the lock.
+func (m *Manager) stopAgentTreeLocked(name string) error {
+	agent, exists := m.agents[name]
+	if !exists {
+		return fmt.Errorf("agent %s not found", name)
+	}
+
+	// Stop all children first (depth-first)
+	for _, childID := range agent.Children {
+		if err := m.stopAgentTreeLocked(childID); err != nil {
+			// Continue stopping other children even if one fails
+		}
+	}
+
+	// Kill this agent's tmux session
+	if err := m.tmux.KillSession(name); err != nil {
+		// Session might already be dead
+	}
+
+	agent.State = StateStopped
+	agent.UpdatedAt = time.Now()
+	agent.Children = []string{} // Clear children since they're stopped
 
 	return nil
 }
@@ -210,7 +410,8 @@ func (m *Manager) GetAgent(name string) *Agent {
 	return m.agents[name]
 }
 
-// ListAgents returns all agents sorted: coordinator first, then workers by name.
+// ListAgents returns all agents sorted by role hierarchy then by name.
+// Order: ProductManager/Coordinator → Manager → Engineer/Worker
 func (m *Manager) ListAgents() []*Agent {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -221,13 +422,90 @@ func (m *Manager) ListAgents() []*Agent {
 	}
 
 	sort.Slice(agents, func(i, j int) bool {
-		// Coordinator always first
-		if agents[i].Role == RoleCoordinator && agents[j].Role != RoleCoordinator {
-			return true
+		// Sort by hierarchy level first
+		levelI := RoleLevel(agents[i].Role)
+		levelJ := RoleLevel(agents[j].Role)
+		if levelI != levelJ {
+			return levelI < levelJ
 		}
-		if agents[i].Role != RoleCoordinator && agents[j].Role == RoleCoordinator {
-			return false
+		// Then by name
+		return agents[i].Name < agents[j].Name
+	})
+
+	return agents
+}
+
+// ListChildren returns all direct children of an agent.
+func (m *Manager) ListChildren(parentID string) []*Agent {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	parent, exists := m.agents[parentID]
+	if !exists {
+		return nil
+	}
+
+	children := make([]*Agent, 0, len(parent.Children))
+	for _, childID := range parent.Children {
+		if child, exists := m.agents[childID]; exists {
+			children = append(children, child)
 		}
+	}
+
+	return children
+}
+
+// ListDescendants returns all descendants of an agent (children, grandchildren, etc.).
+func (m *Manager) ListDescendants(parentID string) []*Agent {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var descendants []*Agent
+	m.collectDescendants(parentID, &descendants)
+	return descendants
+}
+
+// collectDescendants recursively collects all descendants.
+func (m *Manager) collectDescendants(parentID string, result *[]*Agent) {
+	parent, exists := m.agents[parentID]
+	if !exists {
+		return
+	}
+
+	for _, childID := range parent.Children {
+		if child, exists := m.agents[childID]; exists {
+			*result = append(*result, child)
+			m.collectDescendants(childID, result)
+		}
+	}
+}
+
+// GetParent returns the parent agent, or nil if no parent.
+func (m *Manager) GetParent(agentID string) *Agent {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	agent, exists := m.agents[agentID]
+	if !exists || agent.ParentID == "" {
+		return nil
+	}
+
+	return m.agents[agent.ParentID]
+}
+
+// ListByRole returns all agents with a specific role.
+func (m *Manager) ListByRole(role Role) []*Agent {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var agents []*Agent
+	for _, a := range m.agents {
+		if a.Role == role {
+			agents = append(agents, a)
+		}
+	}
+
+	sort.Slice(agents, func(i, j int) bool {
 		return agents[i].Name < agents[j].Name
 	})
 
