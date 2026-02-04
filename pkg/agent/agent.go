@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -44,10 +45,10 @@ type Agent struct {
 	Task      string    `json:"task,omitempty"`
 	StartedAt time.Time `json:"started_at"`
 	UpdatedAt time.Time `json:"updated_at"`
-	
+
 	// Session info
-	Session   string `json:"session"`
-	
+	Session string `json:"session"`
+
 	// For workers
 	HookedWork string `json:"hooked_work,omitempty"`
 }
@@ -58,12 +59,15 @@ type Manager struct {
 	agents   map[string]*Agent
 	tmux     *tmux.Manager
 	stateDir string
-	
+
 	// Agent command (e.g., "claude" or "claude --dangerously-skip-permissions")
 	agentCmd string
+
+	// Workspace path for env vars
+	workspacePath string
 }
 
-// NewManager creates a new agent manager.
+// NewManager creates a new agent manager with workspace-scoped tmux sessions.
 func NewManager(stateDir string) *Manager {
 	return &Manager{
 		agents:   make(map[string]*Agent),
@@ -73,8 +77,19 @@ func NewManager(stateDir string) *Manager {
 	}
 }
 
+// NewWorkspaceManager creates an agent manager scoped to a workspace.
+// Tmux session names will be unique per workspace to avoid collisions.
+func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
+	return &Manager{
+		agents:        make(map[string]*Agent),
+		tmux:          tmux.NewWorkspaceManager(config.Tmux.SessionPrefix, workspacePath),
+		stateDir:      stateDir,
+		agentCmd:      config.Agent.Command,
+		workspacePath: workspacePath,
+	}
+}
+
 // SetAgentCommand sets the command to run for agents.
-// Use config.Agents to see available agent types.
 func (m *Manager) SetAgentCommand(cmd string) {
 	m.agentCmd = cmd
 }
@@ -91,15 +106,29 @@ func (m *Manager) SetAgentByName(name string) bool {
 }
 
 // SpawnAgent creates and starts a new agent.
+// Idempotent: if the agent already exists and its tmux session is alive, reuse it.
 func (m *Manager) SpawnAgent(name string, role Role, workspace string) (*Agent, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
-	// Check if already exists
-	if _, exists := m.agents[name]; exists {
-		return nil, fmt.Errorf("agent %s already exists", name)
+
+	// Check if already exists in our state
+	if existing, exists := m.agents[name]; exists {
+		// If its tmux session is still alive, reuse it
+		if m.tmux.HasSession(name) {
+			existing.State = StateIdle
+			existing.UpdatedAt = time.Now()
+			m.saveState()
+			return existing, nil
+		}
+		// Session is dead — clean up stale entry and respawn
+		delete(m.agents, name)
 	}
-	
+
+	// If a tmux session exists from a previous crash, kill it first
+	if m.tmux.HasSession(name) {
+		_ = m.tmux.KillSession(name)
+	}
+
 	// Create agent
 	agent := &Agent{
 		ID:        name,
@@ -111,25 +140,27 @@ func (m *Manager) SpawnAgent(name string, role Role, workspace string) (*Agent, 
 		StartedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	
-	// Create tmux session with claude
-	if err := m.tmux.CreateSessionWithCommand(name, workspace, m.agentCmd); err != nil {
+
+	// Build env vars so the spawned process sees them immediately
+	env := map[string]string{
+		"BC_AGENT_ID":   name,
+		"BC_AGENT_ROLE": string(role),
+		"BC_WORKSPACE":  workspace,
+	}
+
+	// Create tmux session with env vars baked into the command
+	if err := m.tmux.CreateSessionWithEnv(name, workspace, m.agentCmd, env); err != nil {
 		return nil, fmt.Errorf("failed to create tmux session: %w", err)
 	}
-	
-	// Set environment variables for the agent
-	m.tmux.SetEnvironment(name, "BC_AGENT_ID", name)
-	m.tmux.SetEnvironment(name, "BC_AGENT_ROLE", string(role))
-	m.tmux.SetEnvironment(name, "BC_WORKSPACE", workspace)
-	
+
 	// Update state
 	agent.State = StateIdle
 	agent.UpdatedAt = time.Now()
 	m.agents[name] = agent
-	
+
 	// Save state
 	m.saveState()
-	
+
 	return agent, nil
 }
 
@@ -137,22 +168,22 @@ func (m *Manager) SpawnAgent(name string, role Role, workspace string) (*Agent, 
 func (m *Manager) StopAgent(name string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	agent, exists := m.agents[name]
 	if !exists {
 		return fmt.Errorf("agent %s not found", name)
 	}
-	
+
 	// Kill tmux session
 	if err := m.tmux.KillSession(name); err != nil {
-		// Session might already be dead
+		// Session might already be dead — that's fine
 	}
-	
+
 	agent.State = StateStopped
 	agent.UpdatedAt = time.Now()
-	
+
 	m.saveState()
-	
+
 	return nil
 }
 
@@ -160,13 +191,13 @@ func (m *Manager) StopAgent(name string) error {
 func (m *Manager) StopAll() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	for name, agent := range m.agents {
 		m.tmux.KillSession(name)
 		agent.State = StateStopped
 		agent.UpdatedAt = time.Now()
 	}
-	
+
 	m.saveState()
 	return nil
 }
@@ -178,15 +209,27 @@ func (m *Manager) GetAgent(name string) *Agent {
 	return m.agents[name]
 }
 
-// ListAgents returns all agents.
+// ListAgents returns all agents sorted: coordinator first, then workers by name.
 func (m *Manager) ListAgents() []*Agent {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	agents := make([]*Agent, 0, len(m.agents))
 	for _, a := range m.agents {
 		agents = append(agents, a)
 	}
+
+	sort.Slice(agents, func(i, j int) bool {
+		// Coordinator always first
+		if agents[i].Role == RoleCoordinator && agents[j].Role != RoleCoordinator {
+			return true
+		}
+		if agents[i].Role != RoleCoordinator && agents[j].Role == RoleCoordinator {
+			return false
+		}
+		return agents[i].Name < agents[j].Name
+	})
+
 	return agents
 }
 
@@ -194,18 +237,18 @@ func (m *Manager) ListAgents() []*Agent {
 func (m *Manager) RefreshState() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	sessions, err := m.tmux.ListSessions()
 	if err != nil {
 		return err
 	}
-	
+
 	// Build map of active sessions
 	active := make(map[string]bool)
 	for _, s := range sessions {
 		active[s.Name] = true
 	}
-	
+
 	// Update agent states
 	for name, agent := range m.agents {
 		if !active[name] && agent.State != StateStopped {
@@ -213,7 +256,7 @@ func (m *Manager) RefreshState() error {
 			agent.UpdatedAt = time.Now()
 		}
 	}
-	
+
 	return nil
 }
 
@@ -221,16 +264,16 @@ func (m *Manager) RefreshState() error {
 func (m *Manager) UpdateAgentState(name string, state State, task string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	agent, exists := m.agents[name]
 	if !exists {
 		return fmt.Errorf("agent %s not found", name)
 	}
-	
+
 	agent.State = state
 	agent.Task = task
 	agent.UpdatedAt = time.Now()
-	
+
 	m.saveState()
 	return nil
 }
@@ -259,16 +302,16 @@ func (m *Manager) saveState() error {
 	if m.stateDir == "" {
 		return nil
 	}
-	
+
 	if err := os.MkdirAll(m.stateDir, 0755); err != nil {
 		return err
 	}
-	
+
 	data, err := json.MarshalIndent(m.agents, "", "  ")
 	if err != nil {
 		return err
 	}
-	
+
 	return os.WriteFile(filepath.Join(m.stateDir, "agents.json"), data, 0644)
 }
 
@@ -277,7 +320,7 @@ func (m *Manager) LoadState() error {
 	if m.stateDir == "" {
 		return nil
 	}
-	
+
 	data, err := os.ReadFile(filepath.Join(m.stateDir, "agents.json"))
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -285,14 +328,34 @@ func (m *Manager) LoadState() error {
 		}
 		return err
 	}
-	
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	return json.Unmarshal(data, &m.agents)
 }
 
 // Tmux returns the underlying tmux manager.
 func (m *Manager) Tmux() *tmux.Manager {
 	return m.tmux
+}
+
+// AgentCount returns the number of agents.
+func (m *Manager) AgentCount() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.agents)
+}
+
+// RunningCount returns the number of non-stopped agents.
+func (m *Manager) RunningCount() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	count := 0
+	for _, a := range m.agents {
+		if a.State != StateStopped {
+			count++
+		}
+	}
+	return count
 }
