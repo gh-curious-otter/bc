@@ -46,10 +46,10 @@ type Agent struct {
 	Task      string    `json:"task,omitempty"`
 	StartedAt time.Time `json:"started_at"`
 	UpdatedAt time.Time `json:"updated_at"`
-	
+
 	// Session info
-	Session   string `json:"session"`
-	
+	Session string `json:"session"`
+
 	// For workers
 	HookedWork string `json:"hooked_work,omitempty"`
 }
@@ -68,7 +68,7 @@ type Manager struct {
 	workspacePath string
 }
 
-// NewManager creates a new agent manager.
+// NewManager creates a new agent manager with workspace-scoped tmux sessions.
 func NewManager(stateDir string) *Manager {
 	return &Manager{
 		agents:   make(map[string]*Agent),
@@ -91,7 +91,6 @@ func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 }
 
 // SetAgentCommand sets the command to run for agents.
-// Use config.Agents to see available agent types.
 func (m *Manager) SetAgentCommand(cmd string) {
 	m.agentCmd = cmd
 }
@@ -170,22 +169,22 @@ func (m *Manager) SpawnAgent(name string, role Role, workspace string) (*Agent, 
 func (m *Manager) StopAgent(name string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	agent, exists := m.agents[name]
 	if !exists {
 		return fmt.Errorf("agent %s not found", name)
 	}
-	
+
 	// Kill tmux session
 	if err := m.tmux.KillSession(name); err != nil {
-		// Session might already be dead
+		// Session might already be dead — that's fine
 	}
-	
+
 	agent.State = StateStopped
 	agent.UpdatedAt = time.Now()
-	
+
 	m.saveState()
-	
+
 	return nil
 }
 
@@ -193,13 +192,13 @@ func (m *Manager) StopAgent(name string) error {
 func (m *Manager) StopAll() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	for name, agent := range m.agents {
 		m.tmux.KillSession(name)
 		agent.State = StateStopped
 		agent.UpdatedAt = time.Now()
 	}
-	
+
 	m.saveState()
 	return nil
 }
@@ -222,6 +221,7 @@ func (m *Manager) ListAgents() []*Agent {
 	}
 
 	sort.Slice(agents, func(i, j int) bool {
+		// Coordinator always first
 		if agents[i].Role == RoleCoordinator && agents[j].Role != RoleCoordinator {
 			return true
 		}
@@ -341,16 +341,16 @@ func (m *Manager) RunningCount() int {
 func (m *Manager) UpdateAgentState(name string, state State, task string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	agent, exists := m.agents[name]
 	if !exists {
 		return fmt.Errorf("agent %s not found", name)
 	}
-	
+
 	agent.State = state
 	agent.Task = task
 	agent.UpdatedAt = time.Now()
-	
+
 	m.saveState()
 	return nil
 }
@@ -379,16 +379,16 @@ func (m *Manager) saveState() error {
 	if m.stateDir == "" {
 		return nil
 	}
-	
+
 	if err := os.MkdirAll(m.stateDir, 0755); err != nil {
 		return err
 	}
-	
+
 	data, err := json.MarshalIndent(m.agents, "", "  ")
 	if err != nil {
 		return err
 	}
-	
+
 	return os.WriteFile(filepath.Join(m.stateDir, "agents.json"), data, 0644)
 }
 
@@ -397,7 +397,7 @@ func (m *Manager) LoadState() error {
 	if m.stateDir == "" {
 		return nil
 	}
-	
+
 	data, err := os.ReadFile(filepath.Join(m.stateDir, "agents.json"))
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -405,10 +405,10 @@ func (m *Manager) LoadState() error {
 		}
 		return err
 	}
-	
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	return json.Unmarshal(data, &m.agents)
 }
 

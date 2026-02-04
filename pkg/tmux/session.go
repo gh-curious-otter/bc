@@ -71,12 +71,12 @@ func (m *Manager) HasSession(name string) bool {
 // CreateSession creates a new tmux session.
 func (m *Manager) CreateSession(name, dir string) error {
 	fullName := m.SessionName(name)
-	
+
 	args := []string{"new-session", "-d", "-s", fullName}
 	if dir != "" {
 		args = append(args, "-c", dir)
 	}
-	
+
 	cmd := exec.Command("tmux", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -87,20 +87,7 @@ func (m *Manager) CreateSession(name, dir string) error {
 
 // CreateSessionWithCommand creates a session and runs a command.
 func (m *Manager) CreateSessionWithCommand(name, dir, command string) error {
-	fullName := m.SessionName(name)
-	
-	args := []string{"new-session", "-d", "-s", fullName}
-	if dir != "" {
-		args = append(args, "-c", dir)
-	}
-	args = append(args, command)
-	
-	cmd := exec.Command("tmux", args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to create session %s: %w (%s)", fullName, err, string(output))
-	}
-	return nil
+	return m.CreateSessionWithEnv(name, dir, command, nil)
 }
 
 // CreateSessionWithEnv creates a session with env vars baked into the shell command.
@@ -194,12 +181,12 @@ func (m *Manager) SendKeys(name, keys string) error {
 // Capture captures the current pane content.
 func (m *Manager) Capture(name string, lines int) (string, error) {
 	fullName := m.SessionName(name)
-	
+
 	args := []string{"capture-pane", "-t", fullName, "-p"}
 	if lines > 0 {
 		args = append(args, "-S", fmt.Sprintf("-%d", lines))
 	}
-	
+
 	cmd := exec.Command("tmux", args...)
 	output, err := cmd.Output()
 	if err != nil {
@@ -212,7 +199,7 @@ func (m *Manager) Capture(name string, lines int) (string, error) {
 func (m *Manager) ListSessions() ([]Session, error) {
 	cmd := exec.Command("tmux", "list-sessions", "-F",
 		"#{session_name}|#{session_created_string}|#{session_attached}|#{session_windows}|#{session_path}")
-	
+
 	output, err := cmd.Output()
 	if err != nil {
 		// No sessions might return error
@@ -221,18 +208,18 @@ func (m *Manager) ListSessions() ([]Session, error) {
 		}
 		return nil, err
 	}
-	
+
 	var sessions []Session
 	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
 		if line == "" {
 			continue
 		}
-		
+
 		parts := strings.Split(line, "|")
 		if len(parts) < 5 {
 			continue
 		}
-		
+
 		name := parts[0]
 		// Build full prefix including workspace hash
 		fullPrefix := m.SessionPrefix
@@ -251,7 +238,7 @@ func (m *Manager) ListSessions() ([]Session, error) {
 			Directory: parts[4],
 		})
 	}
-	
+
 	return sessions, nil
 }
 
