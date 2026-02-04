@@ -58,11 +58,18 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	
+	// Register in global registry
+	reg, err := workspace.LoadRegistry()
+	if err == nil {
+		reg.Register(ws.RootDir, ws.Config.Name)
+		reg.Save()
+	}
+
 	fmt.Printf("Initialized bc workspace in %s\n", ws.RootDir)
 	fmt.Printf("  State directory: %s\n", ws.StateDir())
 	fmt.Printf("  Max workers: %d\n", ws.Config.MaxWorkers)
 	fmt.Printf("  Agents run with full permissions\n")
-	
+
 	return nil
 }
 

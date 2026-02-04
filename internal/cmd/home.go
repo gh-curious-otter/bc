@@ -1,30 +1,32 @@
 package cmd
 
 import (
-	"bufio"
-	"encoding/json"
 	"fmt"
-	"os"
-	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+	itui "github.com/rpuneet/bc/internal/tui"
 	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/tui/runtime"
+	"github.com/rpuneet/bc/pkg/beads"
+	"github.com/rpuneet/bc/pkg/workspace"
 	"github.com/spf13/cobra"
 )
 
 var homeCmd = &cobra.Command{
 	Use:   "home",
 	Short: "Open the bc home screen TUI",
-	Long: `Open the interactive home screen showing agent status.
+	Long: `Open the interactive home screen showing all workspaces and agents.
 
 The TUI updates in real-time as agents start, stop, and report progress.
-You can attach to agents, send commands, and monitor the system.
+You can drill into workspaces, view agents/issues/PRs, and peek at output.
 
 Navigation:
   j/k      Move up/down
-  Enter    Attach to selected agent
+  Enter    Select / drill down
+  Tab      Switch tabs (in workspace view)
   p        Peek at agent output
-  r        Refresh status
+  a        Attach to agent (in agent view)
+  Esc      Go back
+  r        Refresh
   q        Quit`,
 	RunE: runHome,
 }
@@ -34,278 +36,51 @@ func init() {
 }
 
 func runHome(cmd *cobra.Command, args []string) error {
-	// Find workspace
-	ws, err := getWorkspace()
+	// Load workspace registry
+	reg, err := workspace.LoadRegistry()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w\nRun 'bc init' first", err)
+		return fmt.Errorf("failed to load workspace registry: %w", err)
 	}
+	reg.Prune()
 
-	// Create agent manager
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
-	mgr.LoadState()
-
-	// Create pipes for TUI communication
-	aiToTUI, tuiInput, _ := os.Pipe()
-	tuiOutput, tuiToAI, _ := os.Pipe()
-
-	// Start the driver with our pipes
-	driver := runtime.NewDriver().
-		WithTitle("bc - " + ws.Config.Name).
-		WithIO(aiToTUI, tuiOutput)
-
-	// Start home controller in background
-	go runHomeController(tuiInput, tuiToAI, mgr, ws.RootDir)
-
-	return driver.Run()
-}
-
-func runHomeController(toTUI *os.File, fromTUI *os.File, mgr *agent.Manager, rootDir string) {
-	send := func(v any) {
-		data, _ := json.Marshal(v)
-		fmt.Fprintln(toTUI, string(data))
-	}
-
-	// Wait for ready
-	scanner := bufio.NewScanner(fromTUI)
-	for scanner.Scan() {
-		var msg runtime.Message
-		if json.Unmarshal(scanner.Bytes(), &msg) == nil {
-			if msg.Type == runtime.MsgReady {
-				break
-			}
+	// If no workspaces registered, try to register the current one
+	if len(reg.Workspaces) == 0 {
+		ws, err := getWorkspace()
+		if err == nil {
+			reg.Register(ws.RootDir, ws.Config.Name)
+			reg.Save()
 		}
 	}
 
-	// Initial delay
-	time.Sleep(100 * time.Millisecond)
-
-	// Show home view
-	refreshAgentTable(send, mgr)
-
-	// Handle events
-	for scanner.Scan() {
-		var keyEvent runtime.KeyEvent
-		if err := json.Unmarshal(scanner.Bytes(), &keyEvent); err != nil {
-			continue
+	// Build workspace info for each registered workspace
+	var workspaces []itui.WorkspaceInfo
+	for _, entry := range reg.List() {
+		info := itui.WorkspaceInfo{
+			Entry:    entry,
+			HasBeads: beads.HasBeads(entry.Path),
 		}
 
-		if keyEvent.Type != runtime.MsgKey {
-			continue
+		// Count running agents
+		mgr := agent.NewWorkspaceManager(
+			entry.Path+"/.bc/agents",
+			entry.Path,
+		)
+		mgr.LoadState()
+		mgr.RefreshState()
+		info.Total = mgr.AgentCount()
+		info.Running = mgr.RunningCount()
+
+		// Count beads issues
+		if info.HasBeads {
+			info.Issues = len(beads.ListIssues(entry.Path))
 		}
 
-		switch keyEvent.Key {
-		case "r":
-			// Refresh
-			mgr.RefreshState()
-			refreshAgentTable(send, mgr)
-
-		case "enter":
-			// Would attach to agent - but that requires exiting TUI
-			// For now, show detail view
-			if keyEvent.Selected != nil && len(keyEvent.Selected.Values) > 0 {
-				showAgentDetailView(send, mgr, keyEvent.Selected.Values[0])
-			}
-
-		case "esc":
-			// Back to main view
-			refreshAgentTable(send, mgr)
-
-		case "p":
-			// Peek at agent output
-			if keyEvent.Selected != nil && len(keyEvent.Selected.Values) > 0 {
-				showAgentPeek(send, mgr, keyEvent.Selected.Values[0])
-			}
-		}
-	}
-}
-
-func refreshAgentTable(send func(any), mgr *agent.Manager) {
-	// Create table view
-	send(runtime.ViewMessage{
-		Type:    runtime.MsgView,
-		View:    runtime.ViewTable,
-		ID:      "agents",
-		Title:   "Agents",
-		Loading: true,
-	})
-
-	// Set columns
-	send(runtime.SetMessage{
-		Type: runtime.MsgSet,
-		Path: "columns",
-		Value: []runtime.ColumnSpec{
-			{Name: "AGENT", Width: 15},
-			{Name: "ROLE", Width: 12},
-			{Name: "STATE", Width: 10},
-			{Name: "UPTIME", Width: 12},
-			{Name: "TASK", Width: 30},
-		},
-	})
-
-	// Refresh state
-	mgr.RefreshState()
-	agents := mgr.ListAgents()
-
-	// Stream rows
-	for _, a := range agents {
-		uptime := "-"
-		if a.State != agent.StateStopped {
-			uptime = formatDuration(time.Since(a.StartedAt))
-		}
-
-		task := a.Task
-		if task == "" {
-			task = "-"
-		}
-
-		status := mapAgentState(a.State)
-
-		send(runtime.AppendMessage{
-			Type: runtime.MsgAppend,
-			Path: "rows",
-			Value: runtime.RowSpec{
-				ID:     a.ID,
-				Values: []string{a.Name, string(a.Role), string(a.State), uptime, task},
-				Status: status,
-			},
-		})
-		time.Sleep(50 * time.Millisecond)
+		workspaces = append(workspaces, info)
 	}
 
-	// If no agents, show empty state
-	if len(agents) == 0 {
-		send(runtime.SetMessage{
-			Type:  runtime.MsgSet,
-			Path:  "empty",
-			Value: "No agents running. Use 'bc up' to start agents.",
-		})
-	}
-
-	// Set bindings
-	send(runtime.SetMessage{
-		Type: runtime.MsgSet,
-		Path: "bindings",
-		Value: []runtime.BindingSpec{
-			{Key: "enter", Label: "Details", Action: "select"},
-			{Key: "p", Label: "Peek", Action: "peek"},
-			{Key: "r", Label: "Refresh", Action: "refresh"},
-		},
-	})
-
-	send(runtime.DoneMessage{Type: runtime.MsgDone})
-}
-
-func showAgentDetailView(send func(any), mgr *agent.Manager, name string) {
-	a := mgr.GetAgent(name)
-	if a == nil {
-		return
-	}
-
-	send(runtime.ViewMessage{
-		Type:    runtime.MsgView,
-		View:    runtime.ViewDetail,
-		ID:      "agent-detail",
-		Title:   a.Name,
-		Loading: true,
-	})
-
-	// Set sections
-	send(runtime.SetMessage{
-		Type: runtime.MsgSet,
-		Path: "sections",
-		Value: []runtime.SectionSpec{
-			{Title: "Agent Info"},
-		},
-	})
-
-	// Stream fields
-	fields := []runtime.FieldSpec{
-		{Label: "Name", Value: a.Name},
-		{Label: "Role", Value: string(a.Role)},
-		{Label: "State", Value: string(a.State), Style: mapAgentState(a.State)},
-		{Label: "Session", Value: "bc-" + a.Session, Style: "code"},
-		{Label: "Workspace", Value: a.Workspace},
-		{Label: "Started", Value: a.StartedAt.Format(time.RFC3339)},
-	}
-
-	if a.Task != "" {
-		fields = append(fields, runtime.FieldSpec{Label: "Task", Value: a.Task})
-	}
-
-	for _, f := range fields {
-		send(runtime.AppendMessage{
-			Type:  runtime.MsgAppend,
-			Path:  "sections[0].fields",
-			Value: f,
-		})
-		time.Sleep(50 * time.Millisecond)
-	}
-
-	send(runtime.SetMessage{
-		Type: runtime.MsgSet,
-		Path: "bindings",
-		Value: []runtime.BindingSpec{
-			{Key: "esc", Label: "Back", Action: "back"},
-			{Key: "p", Label: "Peek", Action: "peek"},
-		},
-	})
-
-	send(runtime.DoneMessage{Type: runtime.MsgDone})
-}
-
-func showAgentPeek(send func(any), mgr *agent.Manager, name string) {
-	output, err := mgr.CaptureOutput(name, 30)
-	if err != nil {
-		output = "Error: " + err.Error()
-	}
-
-	send(runtime.ViewMessage{
-		Type:  runtime.MsgView,
-		View:  runtime.ViewDetail,
-		ID:    "agent-peek",
-		Title: name + " - Output",
-	})
-
-	send(runtime.SetMessage{
-		Type: runtime.MsgSet,
-		Path: "sections",
-		Value: []runtime.SectionSpec{
-			{
-				Title: "Recent Output",
-				Fields: []runtime.FieldSpec{
-					{Label: "", Value: output, Style: "code"},
-				},
-			},
-		},
-	})
-
-	send(runtime.SetMessage{
-		Type: runtime.MsgSet,
-		Path: "bindings",
-		Value: []runtime.BindingSpec{
-			{Key: "esc", Label: "Back", Action: "back"},
-			{Key: "r", Label: "Refresh", Action: "refresh"},
-		},
-	})
-
-	send(runtime.DoneMessage{Type: runtime.MsgDone})
-}
-
-func mapAgentState(s agent.State) string {
-	switch s {
-	case agent.StateIdle:
-		return "info"
-	case agent.StateWorking:
-		return "ok"
-	case agent.StateDone:
-		return "ok"
-	case agent.StateStuck:
-		return "warning"
-	case agent.StateError:
-		return "error"
-	case agent.StateStopped:
-		return "muted"
-	default:
-		return ""
-	}
+	// Run the Bubble Tea TUI
+	model := itui.NewHomeModel(workspaces)
+	p := tea.NewProgram(model, tea.WithAltScreen())
+	_, err = p.Run()
+	return err
 }
