@@ -790,15 +790,6 @@ func (m *WorkspaceModel) computeStats() {
 	}
 }
 
-func (m *WorkspaceModel) loadPkgStats() {
-	stateDir := filepath.Join(m.info.Entry.Path, ".bc")
-	s, err := stats.Load(stateDir)
-	if err != nil {
-		return
-	}
-	m.pkgStats = s
-}
-
 func (m *WorkspaceModel) renderStats() string {
 	var b strings.Builder
 
