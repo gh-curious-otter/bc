@@ -1661,3 +1661,89 @@ func TestConcurrentRunningCount(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// --- Git wrapper tests ---
+
+func TestEnsureGitWrapper_CreatesFile(t *testing.T) {
+	workspace := t.TempDir()
+
+	if err := ensureGitWrapper(workspace); err != nil {
+		t.Fatalf("ensureGitWrapper failed: %v", err)
+	}
+
+	wrapperPath := filepath.Join(workspace, ".bc", "bin", "git")
+	info, err := os.Stat(wrapperPath)
+	if err != nil {
+		t.Fatalf("wrapper not created: %v", err)
+	}
+
+	// Check executable permission
+	if info.Mode()&0111 == 0 {
+		t.Errorf("wrapper not executable: mode %v", info.Mode())
+	}
+
+	// Check content contains key elements
+	content, err := os.ReadFile(wrapperPath)
+	if err != nil {
+		t.Fatalf("failed to read wrapper: %v", err)
+	}
+	s := string(content)
+	if s == "" {
+		t.Fatal("wrapper is empty")
+	}
+	for _, want := range []string{"/usr/bin/git", "BC_AGENT_WORKTREE", "exec"} {
+		found := false
+		for i := 0; i <= len(s)-len(want); i++ {
+			if s[i:i+len(want)] == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("wrapper missing expected string %q", want)
+		}
+	}
+}
+
+func TestEnsureGitWrapper_Idempotent(t *testing.T) {
+	workspace := t.TempDir()
+
+	if err := ensureGitWrapper(workspace); err != nil {
+		t.Fatalf("first call failed: %v", err)
+	}
+
+	wrapperPath := filepath.Join(workspace, ".bc", "bin", "git")
+	info1, _ := os.Stat(wrapperPath)
+
+	// Second call should be a no-op (file already exists)
+	if err := ensureGitWrapper(workspace); err != nil {
+		t.Fatalf("second call failed: %v", err)
+	}
+
+	info2, _ := os.Stat(wrapperPath)
+	if info1.ModTime() != info2.ModTime() {
+		t.Error("wrapper was rewritten on second call (not idempotent)")
+	}
+}
+
+func TestEnsureGitWrapper_CreatesBinDir(t *testing.T) {
+	workspace := t.TempDir()
+	binDir := filepath.Join(workspace, ".bc", "bin")
+
+	// .bc/bin should not exist yet
+	if _, err := os.Stat(binDir); err == nil {
+		t.Fatal(".bc/bin already exists before test")
+	}
+
+	if err := ensureGitWrapper(workspace); err != nil {
+		t.Fatalf("ensureGitWrapper failed: %v", err)
+	}
+
+	info, err := os.Stat(binDir)
+	if err != nil {
+		t.Fatalf(".bc/bin not created: %v", err)
+	}
+	if !info.IsDir() {
+		t.Error(".bc/bin is not a directory")
+	}
+}

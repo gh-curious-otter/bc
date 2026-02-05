@@ -387,11 +387,17 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 				}
 			}
 
+			// Install git wrapper for worktree enforcement
+			if wrapErr := ensureGitWrapper(workspace); wrapErr != nil {
+				log.Warn("failed to install git wrapper", "error", wrapErr)
+			}
+
 			env := map[string]string{
 				"BC_AGENT_ID":        name,
 				"BC_AGENT_ROLE":      string(existing.Role),
 				"BC_WORKSPACE":       workspace,
 				"BC_AGENT_WORKTREE":  sessionDir,
+				"PATH":               filepath.Join(workspace, ".bc", "bin") + ":" + os.Getenv("PATH"),
 			}
 			if existing.Tool != "" {
 				env["BC_AGENT_TOOL"] = existing.Tool
@@ -448,12 +454,18 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	}
 	agent.WorktreeDir = worktreeDir
 
+	// Install git wrapper for worktree enforcement
+	if err := ensureGitWrapper(workspace); err != nil {
+		log.Warn("failed to install git wrapper", "error", err)
+	}
+
 	// Build env vars so the spawned process sees them immediately
 	env := map[string]string{
 		"BC_AGENT_ID":        name,
 		"BC_AGENT_ROLE":      string(role),
 		"BC_WORKSPACE":       workspace,
 		"BC_AGENT_WORKTREE":  worktreeDir,
+		"PATH":               filepath.Join(workspace, ".bc", "bin") + ":" + os.Getenv("PATH"),
 	}
 	if tool != "" {
 		env["BC_AGENT_TOOL"] = tool
@@ -523,6 +535,57 @@ func createWorktree(workspace, agentName string) (string, error) {
 
 	log.Debug("created worktree", "agent", agentName, "dir", worktreeDir)
 	return worktreeDir, nil
+}
+
+// gitWrapperScript is the shell script that shadows git to warn on write
+// operations outside the agent's worktree. It always execs real git — never
+// blocks — and is a no-op when BC_AGENT_WORKTREE is unset (tests, humans).
+const gitWrapperScript = `#!/bin/bash
+# bc worktree enforcement — warns on git write ops outside agent worktree
+REAL_GIT="/usr/bin/git"
+
+# No-op when BC_AGENT_WORKTREE is unset (tests, human usage)
+if [ -z "$BC_AGENT_WORKTREE" ]; then
+    exec "$REAL_GIT" "$@"
+fi
+
+# Check if CWD is inside the agent's worktree
+case "$PWD" in
+    "$BC_AGENT_WORKTREE"*) ;; # Inside worktree — OK
+    *)
+        # Warn only on write operations, not reads
+        case "$1" in
+            checkout|commit|push|reset|clean|merge|rebase|stash|add|rm|mv|init)
+                echo "WARNING: git $1 outside worktree ($PWD != $BC_AGENT_WORKTREE)" >&2
+                ;;
+        esac
+        ;;
+esac
+
+exec "$REAL_GIT" "$@"
+`
+
+// ensureGitWrapper creates the .bc/bin/git wrapper script if it does not
+// already exist. The wrapper shadows /usr/bin/git on PATH and warns when
+// agents run git write operations outside their worktree.
+func ensureGitWrapper(workspace string) error {
+	binDir := filepath.Join(workspace, ".bc", "bin")
+	wrapperPath := filepath.Join(binDir, "git")
+
+	// Idempotent — skip if already exists
+	if _, err := os.Stat(wrapperPath); err == nil {
+		return nil
+	}
+
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		return fmt.Errorf("failed to create .bc/bin: %w", err)
+	}
+
+	if err := os.WriteFile(wrapperPath, []byte(gitWrapperScript), 0755); err != nil {
+		return fmt.Errorf("failed to write git wrapper: %w", err)
+	}
+
+	return nil
 }
 
 // removeWorktree removes a per-agent git worktree.
