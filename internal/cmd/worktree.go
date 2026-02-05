@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/spf13/cobra"
 )
 
@@ -28,9 +30,24 @@ Useful for QA diagnostics and agent self-checks.`,
 	RunE: runWorktreeCheck,
 }
 
+var worktreeListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all agent worktrees and their status",
+	Long: `Scans all agents in the workspace and reports worktree status for each.
+
+Status per agent:
+  OK       — worktree directory exists and is properly linked
+  MISSING  — agent has no worktree directory
+  ORPHANED — worktree directory exists but agent is not registered
+
+Also detects orphaned worktree directories that don't belong to any agent.`,
+	RunE: runWorktreeList,
+}
+
 func init() {
 	rootCmd.AddCommand(worktreeCmd)
 	worktreeCmd.AddCommand(worktreeCheckCmd)
+	worktreeCmd.AddCommand(worktreeListCmd)
 }
 
 // WorktreeStatus holds the result of a worktree check.
@@ -109,4 +126,91 @@ func isWithinDir(child, parent string) bool {
 	}
 	// rel should not start with ".." if child is within parent
 	return rel == "." || (len(rel) > 0 && rel[0] != '.')
+}
+
+// WorktreeListEntry holds the status of one agent's worktree.
+type WorktreeListEntry struct {
+	Agent  string `json:"agent"`
+	Path   string `json:"path"`
+	Status string `json:"status"` // OK, MISSING, ORPHANED
+}
+
+func runWorktreeList(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	worktreesDir := filepath.Join(ws.RootDir, ".bc", "worktrees")
+
+	// Load registered agents
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr.LoadState()
+	agents := mgr.ListAgents()
+
+	agentNames := make(map[string]bool)
+	var entries []WorktreeListEntry
+
+	// Check each agent's worktree
+	for _, a := range agents {
+		agentNames[a.Name] = true
+		wtDir := filepath.Join(worktreesDir, a.Name)
+
+		status := "OK"
+		if _, err := os.Stat(wtDir); os.IsNotExist(err) {
+			status = "MISSING"
+		}
+
+		entries = append(entries, WorktreeListEntry{
+			Agent:  a.Name,
+			Path:   wtDir,
+			Status: status,
+		})
+	}
+
+	// Scan for orphaned worktrees (dirs in worktrees/ not matching any agent)
+	dirEntries, err := os.ReadDir(worktreesDir)
+	if err == nil {
+		for _, d := range dirEntries {
+			if !d.IsDir() {
+				continue
+			}
+			if !agentNames[d.Name()] {
+				entries = append(entries, WorktreeListEntry{
+					Agent:  d.Name(),
+					Path:   filepath.Join(worktreesDir, d.Name()),
+					Status: "ORPHANED",
+				})
+			}
+		}
+	}
+
+	jsonOutput, _ := cmd.Flags().GetBool("json")
+	if jsonOutput {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(entries)
+	}
+
+	// Table output
+	fmt.Printf("%-20s %-10s %s\n", "AGENT", "STATUS", "PATH")
+	for _, e := range entries {
+		fmt.Printf("%-20s %-10s %s\n", e.Agent, e.Status, e.Path)
+	}
+
+	// Summary
+	ok, missing, orphaned := 0, 0, 0
+	for _, e := range entries {
+		switch e.Status {
+		case "OK":
+			ok++
+		case "MISSING":
+			missing++
+		case "ORPHANED":
+			orphaned++
+		}
+	}
+	fmt.Printf("\nTotal: %d  OK: %d  Missing: %d  Orphaned: %d\n", len(entries), ok, missing, orphaned)
+
+	return nil
 }
