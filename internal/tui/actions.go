@@ -12,6 +12,7 @@ const (
 	ActionDrillQueue
 	ActionAttach
 	ActionRefresh
+	ActionCreateIssue
 )
 
 // Action is returned by sub-screen key handlers to request parent navigation.
