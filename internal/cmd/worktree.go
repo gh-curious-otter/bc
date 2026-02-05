@@ -50,6 +50,10 @@ func init() {
 	worktreeCmd.AddCommand(worktreeListCmd)
 }
 
+// getCwd is the function used to get the current working directory.
+// It defaults to os.Getwd and can be overridden in tests.
+var getCwd = os.Getwd
+
 // WorktreeStatus holds the result of a worktree check.
 type WorktreeStatus struct {
 	Expected string `json:"expected_worktree"`
@@ -68,7 +72,7 @@ func runWorktreeCheck(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("BC_AGENT_WORKTREE not set")
 	}
 
-	cwd, err := os.Getwd()
+	cwd, err := getCwd()
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}

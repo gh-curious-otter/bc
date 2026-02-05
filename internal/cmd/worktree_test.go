@@ -36,15 +36,18 @@ func TestIsWithinDir(t *testing.T) {
 	}
 }
 
+// mockCwd sets getCwd to return the given directory and restores it on cleanup.
+func mockCwd(t *testing.T, dir string) {
+	t.Helper()
+	orig := getCwd
+	getCwd = func() (string, error) { return dir, nil }
+	t.Cleanup(func() { getCwd = orig })
+}
+
 func TestWorktreeCheckNoEnvVar(t *testing.T) {
 	// Unset BC_AGENT_WORKTREE to test graceful error
-	orig := os.Getenv("BC_AGENT_WORKTREE")
-	os.Unsetenv("BC_AGENT_WORKTREE")
-	defer func() {
-		if orig != "" {
-			os.Setenv("BC_AGENT_WORKTREE", orig)
-		}
-	}()
+	t.Setenv("BC_AGENT_WORKTREE", "")
+	os.Unsetenv("BC_AGENT_WORKTREE") //nolint:errcheck
 
 	err := runWorktreeCheck(nil, nil)
 	if err == nil {
@@ -53,18 +56,13 @@ func TestWorktreeCheckNoEnvVar(t *testing.T) {
 }
 
 func TestWorktreeCheckMatch(t *testing.T) {
-	// Create a temp dir to use as worktree
 	dir := t.TempDir()
 
-	os.Setenv("BC_AGENT_WORKTREE", dir)
-	os.Setenv("BC_AGENT_ID", "test-agent")
-	defer os.Unsetenv("BC_AGENT_WORKTREE")
-	defer os.Unsetenv("BC_AGENT_ID")
+	t.Setenv("BC_AGENT_WORKTREE", dir)
+	t.Setenv("BC_AGENT_ID", "test-agent")
 
-	// cd into the dir
-	origDir, _ := os.Getwd()
-	os.Chdir(dir)
-	defer os.Chdir(origDir)
+	// Mock getCwd to return the worktree directory
+	mockCwd(t, dir)
 
 	err := runWorktreeCheck(nil, nil)
 	if err != nil {
@@ -76,15 +74,11 @@ func TestWorktreeCheckMismatch(t *testing.T) {
 	dir1 := t.TempDir()
 	dir2 := t.TempDir()
 
-	os.Setenv("BC_AGENT_WORKTREE", dir1)
-	os.Setenv("BC_AGENT_ID", "test-agent")
-	defer os.Unsetenv("BC_AGENT_WORKTREE")
-	defer os.Unsetenv("BC_AGENT_ID")
+	t.Setenv("BC_AGENT_WORKTREE", dir1)
+	t.Setenv("BC_AGENT_ID", "test-agent")
 
-	// cd into a different dir
-	origDir, _ := os.Getwd()
-	os.Chdir(dir2)
-	defer os.Chdir(origDir)
+	// Mock getCwd to return a different directory
+	mockCwd(t, dir2)
 
 	err := runWorktreeCheck(nil, nil)
 	if err == nil {
@@ -95,17 +89,15 @@ func TestWorktreeCheckMismatch(t *testing.T) {
 func TestWorktreeCheckSubdirectory(t *testing.T) {
 	dir := t.TempDir()
 	subdir := filepath.Join(dir, "sub")
-	os.MkdirAll(subdir, 0755)
+	if err := os.MkdirAll(subdir, 0o750); err != nil {
+		t.Fatal(err)
+	}
 
-	os.Setenv("BC_AGENT_WORKTREE", dir)
-	os.Setenv("BC_AGENT_ID", "test-agent")
-	defer os.Unsetenv("BC_AGENT_WORKTREE")
-	defer os.Unsetenv("BC_AGENT_ID")
+	t.Setenv("BC_AGENT_WORKTREE", dir)
+	t.Setenv("BC_AGENT_ID", "test-agent")
 
-	// cd into a subdirectory of the worktree
-	origDir, _ := os.Getwd()
-	os.Chdir(subdir)
-	defer os.Chdir(origDir)
+	// Mock getCwd to return a subdirectory of the worktree
+	mockCwd(t, subdir)
 
 	err := runWorktreeCheck(nil, nil)
 	if err != nil {
@@ -114,10 +106,8 @@ func TestWorktreeCheckSubdirectory(t *testing.T) {
 }
 
 func TestWorktreeCheckMissingDir(t *testing.T) {
-	os.Setenv("BC_AGENT_WORKTREE", "/nonexistent/worktree/path")
-	os.Setenv("BC_AGENT_ID", "test-agent")
-	defer os.Unsetenv("BC_AGENT_WORKTREE")
-	defer os.Unsetenv("BC_AGENT_ID")
+	t.Setenv("BC_AGENT_WORKTREE", "/nonexistent/worktree/path")
+	t.Setenv("BC_AGENT_ID", "test-agent")
 
 	err := runWorktreeCheck(nil, nil)
 	if err == nil {
@@ -127,13 +117,8 @@ func TestWorktreeCheckMissingDir(t *testing.T) {
 
 func TestCheckWorktreeWarningNoEnv(t *testing.T) {
 	// When BC_AGENT_WORKTREE is not set, should silently return
-	orig := os.Getenv("BC_AGENT_WORKTREE")
-	os.Unsetenv("BC_AGENT_WORKTREE")
-	defer func() {
-		if orig != "" {
-			os.Setenv("BC_AGENT_WORKTREE", orig)
-		}
-	}()
+	t.Setenv("BC_AGENT_WORKTREE", "")
+	os.Unsetenv("BC_AGENT_WORKTREE") //nolint:errcheck
 
 	// Should not panic
 	checkWorktreeWarning("test-agent", nil)
@@ -145,17 +130,27 @@ func TestWorktreeListOKAndOrphaned(t *testing.T) {
 
 	// Create worktrees dir and a worktree for an agent
 	worktreesDir := filepath.Join(wsDir, ".bc", "worktrees")
-	os.MkdirAll(filepath.Join(worktreesDir, "eng-01"), 0755)
+	if err := os.MkdirAll(filepath.Join(worktreesDir, "eng-01"), 0o750); err != nil {
+		t.Fatal(err)
+	}
 	// Create an orphaned worktree (no matching agent)
-	os.MkdirAll(filepath.Join(worktreesDir, "ghost-agent"), 0755)
+	if err := os.MkdirAll(filepath.Join(worktreesDir, "ghost-agent"), 0o750); err != nil {
+		t.Fatal(err)
+	}
 
 	// Register eng-01 as an agent
 	agentsDir := filepath.Join(wsDir, ".bc", "agents")
 	agents := map[string]*agent.Agent{
 		"eng-01": {Name: "eng-01", Role: agent.RoleEngineer, State: agent.StateIdle},
 	}
-	data, _ := json.Marshal(agents)
-	os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0644)
+	data, err := json.Marshal(agents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	stdout, _, err := executeIntegrationCmd("worktree", "list")
 	if err != nil {
@@ -185,11 +180,20 @@ func TestWorktreeListMissing(t *testing.T) {
 	agents := map[string]*agent.Agent{
 		"eng-02": {Name: "eng-02", Role: agent.RoleEngineer, State: agent.StateIdle},
 	}
-	data, _ := json.Marshal(agents)
-	os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0644)
+	data, err := json.Marshal(agents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Ensure worktrees dir exists but no eng-02 subdir
-	os.MkdirAll(filepath.Join(wsDir, ".bc", "worktrees"), 0755)
+	err = os.MkdirAll(filepath.Join(wsDir, ".bc", "worktrees"), 0o750)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	stdout, _, err := executeIntegrationCmd("worktree", "list")
 	if err != nil {
