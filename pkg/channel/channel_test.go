@@ -268,7 +268,7 @@ func TestAddHistory(t *testing.T) {
 	s := newTestStore(t)
 	s.Create("ch")
 
-	if err := s.AddHistory("ch", "hello world"); err != nil {
+	if err := s.AddHistory("ch", "test-user", "hello world"); err != nil {
 		t.Fatalf("AddHistory: %v", err)
 	}
 
@@ -290,7 +290,7 @@ func TestAddHistory(t *testing.T) {
 func TestAddHistoryChannelNotFound(t *testing.T) {
 	s := newTestStore(t)
 
-	err := s.AddHistory("nonexistent", "msg")
+	err := s.AddHistory("nonexistent", "test-user", "msg")
 	if err == nil {
 		t.Fatal("AddHistory nonexistent: expected error, got nil")
 	}
@@ -301,7 +301,7 @@ func TestAddHistoryTruncatesAt100(t *testing.T) {
 	s.Create("ch")
 
 	for i := 0; i < 110; i++ {
-		if err := s.AddHistory("ch", fmt.Sprintf("msg-%d", i)); err != nil {
+		if err := s.AddHistory("ch", "test-user", fmt.Sprintf("msg-%d", i)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -324,7 +324,7 @@ func TestAddHistoryTruncatesAt100(t *testing.T) {
 func TestGetHistoryReturnsCopy(t *testing.T) {
 	s := newTestStore(t)
 	s.Create("ch")
-	s.AddHistory("ch", "original")
+	s.AddHistory("ch", "test-user", "original")
 
 	history, _ := s.GetHistory("ch")
 	history[0].Message = "MUTATED"
@@ -368,7 +368,7 @@ func TestSaveAndLoad(t *testing.T) {
 	s1.Create("general")
 	s1.AddMember("general", "alice")
 	s1.AddMember("general", "bob")
-	s1.AddHistory("general", "hello")
+	s1.AddHistory("general", "alice", "hello")
 	s1.Create("engineering")
 	s1.AddMember("engineering", "charlie")
 
@@ -482,7 +482,7 @@ func TestConcurrentAddHistory(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			s.AddHistory("ch", fmt.Sprintf("msg-%d", i))
+			s.AddHistory("ch", "test-user", fmt.Sprintf("msg-%d", i))
 		}(i)
 	}
 	wg.Wait()

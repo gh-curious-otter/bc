@@ -1463,8 +1463,8 @@ func TestChannelHistory_WithMessages(t *testing.T) {
 	}
 
 	store.Create("devs")
-	store.AddHistory("devs", "first message")
-	store.AddHistory("devs", "second message")
+	store.AddHistory("devs", "eng-01", "first message")
+	store.AddHistory("devs", "eng-01", "second message")
 	store.Save()
 
 	output, err2 := executeCmd("channel", "history", "devs")

@@ -268,7 +268,11 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 	}
 
 	// Add to channel history
-	if err := store.AddHistory(channelName, message); err != nil {
+	sender := os.Getenv("BC_AGENT_ID")
+	if sender == "" {
+		sender = "cli"
+	}
+	if err := store.AddHistory(channelName, sender, message); err != nil {
 		fmt.Printf("Warning: failed to record history: %v\n", err)
 	}
 	if err := store.Save(); err != nil {
@@ -414,7 +418,11 @@ func runChannelHistory(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Message history for #%s:\n", channelName)
 	fmt.Println(strings.Repeat("-", 60))
 	for _, entry := range history {
-		fmt.Printf("[%s] %s\n", entry.Time.Format("15:04:05"), entry.Message)
+		if entry.Sender != "" {
+			fmt.Printf("[%s] %s: %s\n", entry.Time.Format("15:04:05"), entry.Sender, entry.Message)
+		} else {
+			fmt.Printf("[%s] %s\n", entry.Time.Format("15:04:05"), entry.Message)
+		}
 	}
 
 	return nil

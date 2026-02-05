@@ -17,6 +17,7 @@ import (
 // HistoryEntry represents a message in channel history.
 type HistoryEntry struct {
 	Time    time.Time `json:"time"`
+	Sender  string    `json:"sender,omitempty"`
 	Message string    `json:"message"`
 }
 
@@ -204,7 +205,7 @@ func (s *Store) GetMembers(channelName string) ([]string, error) {
 }
 
 // AddHistory adds a message to the channel's history.
-func (s *Store) AddHistory(channelName, message string) error {
+func (s *Store) AddHistory(channelName, sender, message string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -215,6 +216,7 @@ func (s *Store) AddHistory(channelName, message string) error {
 
 	entry := HistoryEntry{
 		Time:    time.Now(),
+		Sender:  sender,
 		Message: message,
 	}
 	ch.History = append(ch.History, entry)
