@@ -30,26 +30,26 @@ type WorkItemMetrics struct {
 	Other int `json:"other"`
 
 	// Derived metrics
-	CompletionRate   float64       `json:"completion_rate"`   // Done / Total
-	FailureRate      float64       `json:"failure_rate"`      // Failed / Total
+	CompletionRate    float64       `json:"completion_rate"` // Done / Total
+	FailureRate       float64       `json:"failure_rate"`    // Failed / Total
 	AvgTimeToComplete time.Duration `json:"avg_time_to_complete"`
 }
 
 // AgentMetrics tracks agent statistics.
 type AgentMetrics struct {
 	// Counts
-	TotalAgents   int `json:"total_agents"`
-	ActiveAgents  int `json:"active_agents"`
-	Coordinators  int `json:"coordinators"`
-	Workers       int `json:"workers"`
+	TotalAgents  int `json:"total_agents"`
+	ActiveAgents int `json:"active_agents"`
+	Coordinators int `json:"coordinators"`
+	Workers      int `json:"workers"`
 
 	// By state
-	Idle     int `json:"idle"`
-	Working  int `json:"working"`
-	Done     int `json:"done"`
-	Stuck    int `json:"stuck"`
-	Error    int `json:"error"`
-	Stopped  int `json:"stopped"`
+	Idle    int `json:"idle"`
+	Working int `json:"working"`
+	Done    int `json:"done"`
+	Stuck   int `json:"stuck"`
+	Error   int `json:"error"`
+	Stopped int `json:"stopped"`
 
 	// Per-agent stats
 	AgentStats []AgentStat `json:"agent_stats"`

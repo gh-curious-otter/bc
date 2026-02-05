@@ -146,9 +146,9 @@ func TestDeleteNotFound(t *testing.T) {
 
 func TestAddMember(t *testing.T) {
 	tests := []struct {
-		name     string
-		members  []string
-		wantLen  int
+		name    string
+		members []string
+		wantLen int
 	}{
 		{"single member", []string{"alice"}, 1},
 		{"two members", []string{"alice", "bob"}, 2},

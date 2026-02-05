@@ -6,8 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/spf13/cobra"
+
+	"github.com/rpuneet/bc/pkg/agent"
 )
 
 var worktreeCmd = &cobra.Command{

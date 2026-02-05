@@ -7,8 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/events"
 	"github.com/spf13/cobra"
+
+	"github.com/rpuneet/bc/pkg/events"
 )
 
 var logsCmd = &cobra.Command{

@@ -134,10 +134,10 @@ type InitEvent struct {
 
 // RowRef identifies a row in a table.
 type RowRef struct {
-	ID     string `json:"id"`
-	Index  int    `json:"index"`
+	ID     string   `json:"id"`
+	Index  int      `json:"index"`
 	Values []string `json:"values,omitempty"`
-	Data   any    `json:"data,omitempty"`
+	Data   any      `json:"data,omitempty"`
 }
 
 // --- View Specs ---
@@ -155,12 +155,12 @@ const (
 
 // TableSpec defines a table view.
 type TableSpec struct {
-	ID       string       `json:"id"`
-	Title    string       `json:"title,omitempty"`
-	Columns  []ColumnSpec `json:"columns"`
-	Rows     []RowSpec    `json:"rows,omitempty"`
-	Loading  bool         `json:"loading,omitempty"`
-	Empty    string       `json:"empty,omitempty"` // Empty state message
+	ID       string        `json:"id"`
+	Title    string        `json:"title,omitempty"`
+	Columns  []ColumnSpec  `json:"columns"`
+	Rows     []RowSpec     `json:"rows,omitempty"`
+	Loading  bool          `json:"loading,omitempty"`
+	Empty    string        `json:"empty,omitempty"` // Empty state message
 	Bindings []BindingSpec `json:"bindings,omitempty"`
 }
 

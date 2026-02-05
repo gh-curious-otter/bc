@@ -35,7 +35,7 @@ type Manager struct {
 
 	// sessionMu protects per-session SendKeys serialization.
 	// Concurrent sends to the same session are serialized to prevent interleaving.
-	sessionMu   sync.Mutex
+	sessionMu    sync.Mutex
 	sessionLocks map[string]*sync.Mutex
 
 	// execCommand creates exec.Cmd objects. Defaults to exec.Command.

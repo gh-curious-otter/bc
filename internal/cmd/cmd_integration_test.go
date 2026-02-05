@@ -9,12 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/pflag"
+
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/queue"
 	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/spf13/pflag"
 )
 
 func durationFromSeconds(s int) time.Duration {

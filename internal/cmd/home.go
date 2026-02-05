@@ -4,12 +4,13 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/spf13/cobra"
+
 	"github.com/rpuneet/bc/config"
 	itui "github.com/rpuneet/bc/internal/tui"
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/spf13/cobra"
 )
 
 var homeCmd = &cobra.Command{

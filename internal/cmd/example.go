@@ -1,8 +1,9 @@
 package cmd
 
 import (
-	"github.com/rpuneet/bc/pkg/tui"
 	"github.com/spf13/cobra"
+
+	"github.com/rpuneet/bc/pkg/tui"
 )
 
 // exampleCmd demonstrates the TUI builder.

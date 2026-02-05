@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/rpuneet/bc/pkg/tui/style"
 )
 
@@ -170,7 +171,7 @@ func (r *Renderer) RenderDetail(spec *DetailSpec) string {
 
 func (r *Renderer) renderField(field *FieldSpec) string {
 	label := r.styles.Muted.Width(15).Render(field.Label + ":")
-	
+
 	valueStyle := r.styles.Normal
 	switch field.Style {
 	case "code":

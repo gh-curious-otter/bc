@@ -3,9 +3,10 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/spf13/cobra"
+
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/log"
-	"github.com/spf13/cobra"
 )
 
 var downCmd = &cobra.Command{
@@ -34,21 +35,21 @@ func runDown(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("not in a bc workspace: %w", err)
 	}
-	
+
 	fmt.Printf("Stopping bc agents in %s\n\n", ws.RootDir)
-	
+
 	// Create agent manager and load state
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
 	if err := mgr.LoadState(); err != nil {
 		log.Warn("failed to load agent state", "error", err)
 	}
-	
+
 	agents := mgr.ListAgents()
 	if len(agents) == 0 {
 		fmt.Println("No agents running")
 		return nil
 	}
-	
+
 	// Stop all agents
 	for _, a := range agents {
 		fmt.Printf("Stopping %s... ", a.Name)
@@ -59,9 +60,9 @@ func runDown(cmd *cobra.Command, args []string) error {
 			fmt.Println("✓")
 		}
 	}
-	
+
 	fmt.Println()
 	fmt.Println("All agents stopped")
-	
+
 	return nil
 }

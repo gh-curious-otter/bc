@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/rpuneet/bc/pkg/stats"
 	"github.com/spf13/cobra"
+
+	"github.com/rpuneet/bc/pkg/stats"
 )
 
 var statsCmd = &cobra.Command{

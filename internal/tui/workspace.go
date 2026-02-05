@@ -10,6 +10,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/channel"
@@ -89,10 +90,10 @@ type WorkspaceModel struct {
 	manager      *agent.Manager
 
 	// Data
-	agents     []*agent.Agent
-	issues     []beads.Issue
-	issuesErr  error
-	channels   []*channel.Channel
+	agents             []*agent.Agent
+	issues             []beads.Issue
+	issuesErr          error
+	channels           []*channel.Channel
 	queueItems         []queue.WorkItem
 	filteredQueueItems []queue.WorkItem
 	queueFilter        QueueFilter

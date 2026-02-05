@@ -8,9 +8,10 @@ import (
 	"time"
 
 	"github.com/charmbracelet/x/term"
+	"github.com/spf13/cobra"
+
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/log"
-	"github.com/spf13/cobra"
 )
 
 var statusCmd = &cobra.Command{

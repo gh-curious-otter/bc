@@ -323,7 +323,7 @@ func TestEnsureDirsIdempotent(t *testing.T) {
 
 func TestIsWorkspace(t *testing.T) {
 	tests := []struct {
-		name string
+		name  string
 		setup func(t *testing.T) string
 		want  bool
 	}{

@@ -10,10 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/pflag"
+
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/queue"
-	"github.com/spf13/pflag"
 )
 
 // --- Test helpers ---
@@ -225,7 +226,7 @@ func TestParseRole(t *testing.T) {
 		{"coordinator", agent.RoleCoordinator, false},
 		{"coord", agent.RoleCoordinator, false},
 		{"qa", agent.RoleQA, false},
-		{"WORKER", agent.RoleWorker, false},    // case insensitive
+		{"WORKER", agent.RoleWorker, false},     // case insensitive
 		{"Engineer", agent.RoleEngineer, false}, // case insensitive
 		{"invalid", "", true},
 		{"", "", true},

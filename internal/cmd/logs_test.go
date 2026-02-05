@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/pflag"
+
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/spf13/pflag"
 )
 
 // setupLogsWorkspace creates a temporary bc workspace, changes into it,

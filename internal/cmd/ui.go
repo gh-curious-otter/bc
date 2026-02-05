@@ -7,8 +7,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/tui/runtime"
 	"github.com/spf13/cobra"
+
+	"github.com/rpuneet/bc/pkg/tui/runtime"
 )
 
 // uiCmd runs the streaming TUI runtime.
