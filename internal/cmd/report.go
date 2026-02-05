@@ -79,6 +79,7 @@ func runReport(cmd *cobra.Command, args []string) error {
 
 	// Find work items assigned to this agent
 	agentItems := q.ListByAgent(agentID)
+itemLoop:
 	for _, item := range agentItems {
 		switch state {
 		case agent.StateWorking:
@@ -94,7 +95,7 @@ func runReport(cmd *cobra.Command, args []string) error {
 				}
 			}
 		case agent.StateDone:
-			if item.Status == queue.StatusWorking || item.Status == queue.StatusAssigned {
+			if item.Status == queue.StatusWorking {
 				q.UpdateStatus(item.ID, queue.StatusDone)
 				if err := log.Append(events.Event{
 					Type:    events.WorkCompleted,
@@ -117,6 +118,7 @@ func runReport(cmd *cobra.Command, args []string) error {
 						}
 					}
 				}
+				break itemLoop // Only complete the first working item
 			}
 		}
 	}
