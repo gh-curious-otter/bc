@@ -41,7 +41,10 @@ func init() {
 }
 
 func runSpawn(cmd *cobra.Command, args []string) error {
-	agentName := args[0]
+	agentName := strings.TrimSpace(args[0])
+	if agentName == "" {
+		return fmt.Errorf("agent name cannot be empty")
+	}
 
 	// Find workspace
 	ws, err := getWorkspace()
