@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -180,6 +181,10 @@ type Agent struct {
 
 	// For workers/engineers
 	HookedWork string `json:"hooked_work,omitempty"`
+
+	// WorktreeDir is the per-agent git worktree directory.
+	// Each agent gets its own worktree so git operations don't clobber other agents.
+	WorktreeDir string `json:"worktree_dir,omitempty"`
 
 	// Memory holds role-specific prompts and context
 	Memory *AgentMemory `json:"memory,omitempty"`
@@ -364,6 +369,18 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 					agentCmd = cmd
 				}
 			}
+
+			// Ensure worktree exists for respawn
+			sessionDir := workspace
+			if existing.WorktreeDir != "" {
+				sessionDir = existing.WorktreeDir
+			} else {
+				if wtDir, err := createWorktree(workspace, name); err == nil {
+					sessionDir = wtDir
+					existing.WorktreeDir = wtDir
+				}
+			}
+
 			env := map[string]string{
 				"BC_AGENT_ID":   name,
 				"BC_AGENT_ROLE": string(existing.Role),
@@ -375,7 +392,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 			if existing.ParentID != "" {
 				env["BC_PARENT_ID"] = existing.ParentID
 			}
-			if err := m.tmux.CreateSessionWithEnv(name, workspace, agentCmd, env); err != nil {
+			if err := m.tmux.CreateSessionWithEnv(name, sessionDir, agentCmd, env); err != nil {
 				return nil, fmt.Errorf("failed to recreate tmux session: %w", err)
 			}
 			existing.UpdatedAt = time.Now()
@@ -416,6 +433,14 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 		UpdatedAt: time.Now(),
 	}
 
+	// Create per-agent git worktree so agents don't clobber each other
+	worktreeDir, err := createWorktree(workspace, name)
+	if err != nil {
+		log.Warn("failed to create worktree, falling back to shared workspace", "agent", name, "error", err)
+		worktreeDir = workspace
+	}
+	agent.WorktreeDir = worktreeDir
+
 	// Build env vars so the spawned process sees them immediately
 	env := map[string]string{
 		"BC_AGENT_ID":   name,
@@ -429,8 +454,8 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 		env["BC_PARENT_ID"] = parentID
 	}
 
-	// Create tmux session with env vars baked into the command
-	if err := m.tmux.CreateSessionWithEnv(name, workspace, agentCmd, env); err != nil {
+	// Create tmux session in the agent's worktree directory
+	if err := m.tmux.CreateSessionWithEnv(name, worktreeDir, agentCmd, env); err != nil {
 		return nil, fmt.Errorf("failed to create tmux session: %w", err)
 	}
 
@@ -463,6 +488,46 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	m.saveState()
 
 	return agent, nil
+}
+
+// createWorktree creates a per-agent git worktree so agents don't clobber each other.
+// Returns the worktree directory path.
+func createWorktree(workspace, agentName string) (string, error) {
+	worktreeDir := filepath.Join(workspace, ".bc", "worktrees", agentName)
+
+	// If worktree already exists, reuse it
+	if _, err := os.Stat(worktreeDir); err == nil {
+		log.Debug("reusing existing worktree", "agent", agentName, "dir", worktreeDir)
+		return worktreeDir, nil
+	}
+
+	// Create parent directory
+	if err := os.MkdirAll(filepath.Dir(worktreeDir), 0755); err != nil {
+		return "", fmt.Errorf("failed to create worktrees dir: %w", err)
+	}
+
+	// Create detached worktree at HEAD (current main)
+	cmd := exec.Command("git", "-C", workspace, "worktree", "add", "--detach", worktreeDir, "HEAD")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to create worktree for %s: %w (%s)", agentName, err, string(output))
+	}
+
+	log.Debug("created worktree", "agent", agentName, "dir", worktreeDir)
+	return worktreeDir, nil
+}
+
+// removeWorktree removes a per-agent git worktree.
+func removeWorktree(workspace, worktreeDir string) {
+	if worktreeDir == "" {
+		return
+	}
+	cmd := exec.Command("git", "-C", workspace, "worktree", "remove", "--force", worktreeDir)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		log.Warn("failed to remove worktree", "dir", worktreeDir, "error", err, "output", string(output))
+	} else {
+		log.Debug("removed worktree", "dir", worktreeDir)
+	}
 }
 
 // SpawnChildAgent creates a child agent under a parent agent.
@@ -517,6 +582,12 @@ func (m *Manager) StopAgent(name string) error {
 	// Kill tmux session
 	if err := m.tmux.KillSession(name); err != nil {
 		// Session might already be dead — that's fine
+	}
+
+	// Clean up per-agent git worktree
+	if agent.WorktreeDir != "" && agent.WorktreeDir != agent.Workspace {
+		removeWorktree(agent.Workspace, agent.WorktreeDir)
+		agent.WorktreeDir = ""
 	}
 
 	agent.State = StateStopped
