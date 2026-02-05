@@ -287,14 +287,10 @@ func (m *Manager) ListSessions() ([]Session, error) {
 
 	output, err := cmd.Output()
 	if err != nil {
-		// No sessions might return error — check both err.Error() and
-		// stderr (exec.ExitError) for the "no server running" message
-		errMsg := err.Error()
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			errMsg += " " + string(exitErr.Stderr)
-		}
-		if strings.Contains(errMsg, "no server running") ||
-			strings.Contains(errMsg, "no current session") {
+		// tmux list-sessions fails with various messages when no server/sessions
+		// exist: "no server running", "error connecting to ...", etc.
+		// If it's an exit error, there are simply no sessions available.
+		if _, ok := err.(*exec.ExitError); ok {
 			return nil, nil
 		}
 		return nil, err

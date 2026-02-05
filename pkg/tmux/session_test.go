@@ -832,11 +832,17 @@ func TestListSessions_Empty(t *testing.T) {
 	}
 }
 
-func TestListSessions_Error(t *testing.T) {
+func TestListSessions_ExitError_ReturnsEmpty(t *testing.T) {
+	// When tmux list-sessions fails with an exit error (e.g., no server
+	// running, socket not found), ListSessions treats it as "no sessions"
+	// rather than propagating the error.
 	m := newTestManager("bc-", mockCmd("", "", 1))
-	_, err := m.ListSessions()
-	if err == nil {
-		t.Error("expected error")
+	sessions, err := m.ListSessions()
+	if err != nil {
+		t.Errorf("expected nil error for exit error, got: %v", err)
+	}
+	if len(sessions) != 0 {
+		t.Errorf("expected 0 sessions, got %d", len(sessions))
 	}
 }
 
