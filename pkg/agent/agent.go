@@ -348,6 +348,12 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	if existing, exists := m.agents[name]; exists {
 		// If its tmux session is still alive, reuse it
 		if m.tmux.HasSession(name) {
+			// Create worktree if missing (agents created before worktree feature)
+			if existing.WorktreeDir == "" {
+				if wtDir, err := createWorktree(workspace, name); err == nil {
+					existing.WorktreeDir = wtDir
+				}
+			}
 			existing.UpdatedAt = time.Now()
 			m.saveState()
 			return existing, nil

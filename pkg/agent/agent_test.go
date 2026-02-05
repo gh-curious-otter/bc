@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -1527,6 +1528,66 @@ func TestConcurrentAgentCount(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+func TestSpawnAgent_ExistingSessionCreatesWorktree(t *testing.T) {
+	// Setup: create a real git repo so createWorktree works
+	workspace := t.TempDir()
+	cmd := exec.Command("git", "init", workspace)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git init failed: %v (%s)", err, out)
+	}
+	// Need at least one commit for git worktree add to work
+	cmd = exec.Command("git", "-C", workspace, "commit", "--allow-empty", "-m", "init")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git commit failed: %v (%s)", err, out)
+	}
+
+	m := newTestManager(t)
+	m.stateDir = filepath.Join(workspace, ".bc", "agents")
+	if err := os.MkdirAll(m.stateDir, 0755); err != nil {
+		t.Fatalf("failed to create state dir: %v", err)
+	}
+
+	// Create a real tmux session so HasSession returns true
+	sessionName := m.tmux.SessionName("eng-1")
+	cmd = exec.Command("tmux", "new-session", "-d", "-s", sessionName)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("tmux new-session failed: %v (%s)", err, out)
+	}
+	t.Cleanup(func() {
+		exec.Command("tmux", "kill-session", "-t", sessionName).Run()
+	})
+
+	// Pre-populate agent WITHOUT WorktreeDir (simulates pre-worktree agent)
+	m.agents["eng-1"] = &Agent{
+		ID:        "eng-1",
+		Name:      "eng-1",
+		Role:      RoleEngineer,
+		State:     StateIdle,
+		Workspace: workspace,
+		Session:   "eng-1",
+		Children:  []string{},
+	}
+
+	// SpawnAgentWithOptions should reuse session but create worktree
+	agent, err := m.SpawnAgentWithOptions("eng-1", RoleEngineer, workspace, "", "")
+	if err != nil {
+		t.Fatalf("SpawnAgentWithOptions failed: %v", err)
+	}
+
+	expectedDir := filepath.Join(workspace, ".bc", "worktrees", "eng-1")
+	if agent.WorktreeDir != expectedDir {
+		t.Errorf("WorktreeDir = %q, want %q", agent.WorktreeDir, expectedDir)
+	}
+
+	// Verify worktree actually exists on disk
+	if _, err := os.Stat(expectedDir); os.IsNotExist(err) {
+		t.Error("worktree directory was not created on disk")
+	}
+
+	// Cleanup worktree
+	exec.Command("git", "-C", workspace, "worktree", "remove", "--force", expectedDir).Run()
 }
 
 func TestConcurrentRunningCount(t *testing.T) {
