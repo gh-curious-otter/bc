@@ -184,6 +184,17 @@ func (m *WorkspaceModel) loadQueueItems() {
 	if err := q.Load(); err == nil {
 		m.queueItems = q.ListAll()
 	}
+	// Sort in place so display order matches selectCurrent() indexing.
+	sort.SliceStable(m.queueItems, func(i, j int) bool {
+		ri, rj := queueStatusRank(m.queueItems[i].Status), queueStatusRank(m.queueItems[j].Status)
+		if ri != rj {
+			return ri < rj
+		}
+		if m.queueItems[i].Status == queue.StatusDone {
+			return m.queueItems[i].ID > m.queueItems[j].ID
+		}
+		return m.queueItems[i].ID < m.queueItems[j].ID
+	})
 	m.queueLoaded = true
 }
 
@@ -552,28 +563,15 @@ func (m *WorkspaceModel) renderQueue() string {
 		return b.String()
 	}
 
-	// Sort a copy: active first (pending/assigned/working by ID asc),
-	// then failed (by ID asc), then done (by ID desc — most recent first).
-	sorted := make([]queue.WorkItem, len(m.queueItems))
-	copy(sorted, m.queueItems)
-	sort.SliceStable(sorted, func(i, j int) bool {
-		ri, rj := queueStatusRank(sorted[i].Status), queueStatusRank(sorted[j].Status)
-		if ri != rj {
-			return ri < rj
-		}
-		// Done items: reverse ID order (most recent first)
-		if sorted[i].Status == queue.StatusDone {
-			return sorted[i].ID > sorted[j].ID
-		}
-		return sorted[i].ID < sorted[j].ID
-	})
+	// m.queueItems is already sorted in loadQueueItems() so display
+	// order matches selectCurrent() indexing.
 
 	// Header
 	header := fmt.Sprintf("  %-10s %-12s %-10s %-10s %-15s %s", "ID", "BEAD", "STATUS", "MERGE", "ASSIGNED", "TITLE")
 	b.WriteString(m.styles.Bold.Render(header))
 	b.WriteString("\n")
 
-	for i, item := range sorted {
+	for i, item := range m.queueItems {
 		selected := i == m.cursor
 
 		title := item.Title
