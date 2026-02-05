@@ -19,7 +19,7 @@ func initGitRepo(t *testing.T) string {
 	dir := t.TempDir()
 
 	cmds := [][]string{
-		{"git", "init", dir},
+		{"git", "init", "-b", "main", dir},
 		{"git", "-C", dir, "config", "user.email", "test@test.com"},
 		{"git", "-C", dir, "config", "user.name", "Test"},
 		{"git", "-C", dir, "commit", "--allow-empty", "-m", "init"},
