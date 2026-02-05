@@ -16,6 +16,7 @@ import (
 
 var (
 	mergeSkipTests bool
+	mergeDryRun    bool
 	mergeWorkID    string
 )
 
@@ -33,13 +34,15 @@ The merge command:
 Examples:
   bc merge engineer-01
   bc merge engineer-01 --work-id work-090
-  bc merge fix/enter-submit-reliability --skip-tests`,
+  bc merge fix/enter-submit-reliability --skip-tests
+  bc merge engineer-01 --dry-run`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMerge,
 }
 
 func init() {
 	mergeCmd.Flags().BoolVar(&mergeSkipTests, "skip-tests", false, "Skip build/test/vet validation")
+	mergeCmd.Flags().BoolVar(&mergeDryRun, "dry-run", false, "Check conflicts and validation without merging")
 	mergeCmd.Flags().StringVar(&mergeWorkID, "work-id", "", "Queue work item ID to mark done on success")
 	rootCmd.AddCommand(mergeCmd)
 }
@@ -62,28 +65,38 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Merging branch %s into main...\n", branch)
+	if mergeDryRun {
+		fmt.Printf("Dry-run: checking branch %s against main...\n", branch)
+	} else {
+		fmt.Printf("Merging branch %s into main...\n", branch)
+	}
 
 	// Step 1: Check that the branch exists
 	if err := gitBranchExists(rootDir, branch); err != nil {
 		return fmt.Errorf("branch %s not found: %w", branch, err)
 	}
 
-	// Step 2: Check for conflicts with main
+	// Step 2: Report divergence from main
+	behind, ahead, divErr := branchDivergence(rootDir, branch)
+	if divErr == nil {
+		fmt.Printf("  Branch is %d commit(s) ahead, %d commit(s) behind main\n", ahead, behind)
+	}
+
+	// Step 3: Check for conflicts with main
 	conflicts, err := checkMergeConflicts(rootDir, branch)
 	if err != nil {
 		return fmt.Errorf("failed to check conflicts: %w", err)
 	}
 	if len(conflicts) > 0 {
-		fmt.Println("Conflicting files:")
+		fmt.Println("  Conflicting files:")
 		for _, f := range conflicts {
-			fmt.Printf("  - %s\n", f)
+			fmt.Printf("    - %s\n", f)
 		}
 		return fmt.Errorf("branch %s has conflicts with main — resolve before merging", branch)
 	}
 	fmt.Println("  No conflicts with main")
 
-	// Step 3: Run validation (build, test, vet) in the source directory
+	// Step 4: Run validation (build, test, vet) in the source directory
 	if !mergeSkipTests {
 		validateDir := worktreeDir
 		if validateDir == "" {
@@ -96,14 +109,20 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		fmt.Println("  Skipping validation (--skip-tests)")
 	}
 
-	// Step 4: Merge into main
+	// Dry-run stops here — report results without merging
+	if mergeDryRun {
+		fmt.Printf("Dry-run complete: branch %s is ready to merge\n", branch)
+		return nil
+	}
+
+	// Step 5: Merge into main
 	commitHash, err := mergeBranch(rootDir, branch)
 	if err != nil {
 		return fmt.Errorf("merge failed: %w", err)
 	}
 	fmt.Printf("  Merged at %s\n", commitHash)
 
-	// Step 5: Mark queue item done if specified
+	// Step 6: Mark queue item done if specified
 	if mergeWorkID != "" {
 		if err := markQueueDone(ws.StateDir(), ws.RootDir, mergeWorkID); err != nil {
 			fmt.Printf("  Warning: failed to mark %s done: %v\n", mergeWorkID, err)
@@ -112,7 +131,7 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Step 6: Log event
+	// Step 7: Log event
 	evLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
 	evLog.Append(events.Event{
 		Type:    events.WorkCompleted,
@@ -225,6 +244,25 @@ func checkMergeConflicts(repoDir, branch string) ([]string, error) {
 		return conflicts, nil
 	}
 	return nil, fmt.Errorf("merge-tree failed: %s", strings.TrimSpace(string(out)))
+}
+
+// branchDivergence returns how many commits the branch is behind and ahead
+// of main. Used to report divergence before merge.
+func branchDivergence(repoDir, branch string) (behind, ahead int, err error) {
+	// git rev-list --left-right --count main...branch
+	// Output: "<behind>\t<ahead>"
+	cmd := exec.Command("git", "-C", repoDir, "rev-list", "--left-right", "--count", "main..."+branch)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return 0, 0, fmt.Errorf("rev-list failed: %s", strings.TrimSpace(string(out)))
+	}
+	parts := strings.Fields(strings.TrimSpace(string(out)))
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("unexpected rev-list output: %s", string(out))
+	}
+	fmt.Sscanf(parts[0], "%d", &behind)
+	fmt.Sscanf(parts[1], "%d", &ahead)
+	return behind, ahead, nil
 }
 
 // gitRevParse returns the SHA of a ref.

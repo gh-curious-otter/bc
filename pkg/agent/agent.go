@@ -538,16 +538,32 @@ func createWorktree(workspace, agentName string) (string, error) {
 }
 
 // gitWrapperScript is the shell script that shadows git to warn on write
-// operations outside the agent's worktree. It always execs real git — never
-// blocks — and is a no-op when BC_AGENT_WORKTREE is unset (tests, humans).
+// operations outside the agent's worktree and prevent direct commits to main.
+// It always execs real git — never blocks — and is a no-op when
+// BC_AGENT_WORKTREE is unset (tests, humans).
+//
+// v2: added branch protection (warn on commit to main).
 const gitWrapperScript = `#!/bin/bash
-# bc worktree enforcement — warns on git write ops outside agent worktree
+# bc worktree enforcement v2 — warns on git write ops outside agent worktree
+# and on direct commits to main branch
 REAL_GIT="/usr/bin/git"
 
 # No-op when BC_AGENT_WORKTREE is unset (tests, human usage)
 if [ -z "$BC_AGENT_WORKTREE" ]; then
     exec "$REAL_GIT" "$@"
 fi
+
+# Branch protection: warn when committing directly to main
+case "$1" in
+    commit)
+        CURRENT_BRANCH=$("$REAL_GIT" rev-parse --abbrev-ref HEAD 2>/dev/null)
+        if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
+            echo "WARNING: committing directly to $CURRENT_BRANCH is not allowed." >&2
+            echo "  Create a feature branch first: git checkout -b $BC_AGENT_ID/my-branch" >&2
+            echo "  Then use 'bc merge' to merge into main after validation." >&2
+        fi
+        ;;
+esac
 
 # Check if CWD is inside the agent's worktree
 case "$PWD" in
@@ -565,16 +581,20 @@ esac
 exec "$REAL_GIT" "$@"
 `
 
-// ensureGitWrapper creates the .bc/bin/git wrapper script if it does not
-// already exist. The wrapper shadows /usr/bin/git on PATH and warns when
-// agents run git write operations outside their worktree.
+// ensureGitWrapper creates or updates the .bc/bin/git wrapper script. The
+// wrapper shadows /usr/bin/git on PATH and warns when agents run git write
+// operations outside their worktree. If the on-disk script differs from
+// the embedded version (e.g. after a bc upgrade), it is overwritten.
 func ensureGitWrapper(workspace string) error {
 	binDir := filepath.Join(workspace, ".bc", "bin")
 	wrapperPath := filepath.Join(binDir, "git")
 
-	// Idempotent — skip if already exists
-	if _, err := os.Stat(wrapperPath); err == nil {
-		return nil
+	// Skip if file exists with identical content
+	if existing, err := os.ReadFile(wrapperPath); err == nil {
+		if string(existing) == gitWrapperScript {
+			return nil
+		}
+		// Content differs — overwrite below
 	}
 
 	if err := os.MkdirAll(binDir, 0755); err != nil {
