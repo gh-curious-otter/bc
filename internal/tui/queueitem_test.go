@@ -183,6 +183,7 @@ func TestMapQueueStatusStyle(t *testing.T) {
 		{queue.StatusWorking, "ok"},
 		{queue.StatusDone, "ok"},
 		{queue.StatusFailed, "error"},
+		{queue.ItemStatus("unknown"), "info"},
 	}
 
 	for _, tt := range tests {
@@ -192,5 +193,88 @@ func TestMapQueueStatusStyle(t *testing.T) {
 				t.Errorf("mapQueueStatusStyle(%q) = %q, want %q", tt.status, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestFindBranch_EmptyWorkspace(t *testing.T) {
+	m := &QueueItemModel{
+		item:          queue.WorkItem{ID: "work-001"},
+		workspacePath: "",
+	}
+	if m.findBranch() != "" {
+		t.Error("findBranch with empty workspace should return empty")
+	}
+}
+
+func TestQueueItemView_NoAssignee(t *testing.T) {
+	m := newTestQueueItemModel(queue.WorkItem{
+		ID:     "work-001",
+		Title:  "Unassigned task",
+		Status: queue.StatusPending,
+	})
+
+	output := m.View()
+	if strings.Contains(output, "Assigned To") {
+		t.Error("should not show Assigned To when empty")
+	}
+}
+
+func TestQueueItemView_NoBeadsID(t *testing.T) {
+	m := newTestQueueItemModel(queue.WorkItem{
+		ID:     "work-001",
+		Title:  "Non-beads task",
+		Status: queue.StatusPending,
+	})
+
+	output := m.View()
+	if strings.Contains(output, "Bead ID") {
+		t.Error("should not show Bead ID when empty")
+	}
+}
+
+func TestQueueItemView_Description(t *testing.T) {
+	m := newTestQueueItemModel(queue.WorkItem{
+		ID:          "work-001",
+		Title:       "Task with desc",
+		Status:      queue.StatusWorking,
+		Description: "Line one\nLine two",
+	})
+
+	output := m.View()
+	if !strings.Contains(output, "Description") {
+		t.Error("expected Description section")
+	}
+	if !strings.Contains(output, "Line one") {
+		t.Error("expected description content")
+	}
+}
+
+func TestQueueItemView_NoDescription(t *testing.T) {
+	m := newTestQueueItemModel(queue.WorkItem{
+		ID:     "work-001",
+		Title:  "No desc",
+		Status: queue.StatusPending,
+	})
+
+	output := m.View()
+	if strings.Contains(output, "Description") {
+		t.Error("should not show Description section when empty")
+	}
+}
+
+func TestQueueItemView_WithBranch(t *testing.T) {
+	m := newTestQueueItemModel(queue.WorkItem{
+		ID:     "work-001",
+		Title:  "Task with branch",
+		Status: queue.StatusWorking,
+	})
+	m.branch = "engineer-01/fix-bug"
+
+	output := m.View()
+	if !strings.Contains(output, "Branch") {
+		t.Error("expected Branch field")
+	}
+	if !strings.Contains(output, "engineer-01/fix-bug") {
+		t.Error("expected branch name")
 	}
 }
