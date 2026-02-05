@@ -11,6 +11,7 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/queue"
 	"github.com/rpuneet/bc/pkg/stats"
 	"github.com/rpuneet/bc/pkg/tui/style"
@@ -24,6 +25,7 @@ const (
 	TabIssues
 	TabQueue
 	TabChannels
+	TabDashboard
 
 	tabCount = 5
 )
@@ -64,6 +66,9 @@ type WorkspaceModel struct {
 
 	// Per-agent stats from pkg/stats
 	agentStats map[string]stats.AgentStat
+
+	// Activity feed
+	recentEvents []events.Event
 
 	// Dashboard stats
 	stats    WorkspaceStats
@@ -107,6 +112,9 @@ func NewWorkspaceModel(info WorkspaceInfo, s style.Styles) *WorkspaceModel {
 
 	// Load per-agent stats from pkg/stats
 	m.loadAgentStats()
+
+	// Load recent events for activity feed
+	m.loadRecentEvents()
 
 	// Compute dashboard stats
 	m.computeStats()
@@ -163,6 +171,7 @@ func (m *WorkspaceModel) refresh() {
 	m.loadChannels()
 	m.loadQueueStats()
 	m.loadQueueItems()
+	m.loadRecentEvents()
 	m.computeStats()
 	m.loadPkgStats()
 }
@@ -234,6 +243,8 @@ func (m *WorkspaceModel) maxCursor() int {
 		if len(m.queueItems) > 0 {
 			return len(m.queueItems) - 1
 		}
+	case TabDashboard:
+		return 0
 	}
 	return 0
 }
@@ -267,6 +278,8 @@ func (m *WorkspaceModel) View() string {
 		b.WriteString(m.renderChannels())
 	case TabQueue:
 		b.WriteString(m.renderQueue())
+	case TabDashboard:
+		b.WriteString(m.renderDashboard())
 	}
 
 	return b.String()
@@ -282,6 +295,7 @@ func (m *WorkspaceModel) renderTabBar() string {
 		{"Issues", TabIssues, len(m.issues)},
 		{"Queue", TabQueue, len(m.queueItems)},
 		{"Channels", TabChannels, len(m.channels)},
+		{"Dashboard", TabDashboard, m.stats.OpenIssues},
 	}
 
 	var parts []string
@@ -643,6 +657,115 @@ func (m *WorkspaceModel) renderStatsBar() string {
 	}
 
 	return m.styles.Muted.Render(strings.Join(parts, "  |  "))
+}
+
+const (
+	dashboardMaxEvents       = 10
+	dashboardMaxClosedIssues = 5
+)
+
+func (m *WorkspaceModel) loadRecentEvents() {
+	evtLog := events.NewLog(filepath.Join(m.info.Entry.Path, ".bc", "events.jsonl"))
+	evts, err := evtLog.ReadLast(dashboardMaxEvents)
+	if err != nil {
+		m.recentEvents = nil
+		return
+	}
+	m.recentEvents = evts
+}
+
+func (m *WorkspaceModel) renderDashboard() string {
+	var b strings.Builder
+
+	// --- Issue Overview ---
+	b.WriteString(m.styles.Bold.Render("  Issue Overview"))
+	b.WriteString("\n")
+
+	if m.stats.TotalIssues == 0 {
+		b.WriteString(m.styles.Muted.Render("    No issues tracked."))
+		b.WriteString("\n")
+	} else {
+		openLabel := fmt.Sprintf("    Open: %d", m.stats.OpenIssues)
+		closedLabel := fmt.Sprintf("  Closed: %d", m.stats.ClosedIssues)
+		totalLabel := fmt.Sprintf("  Total: %d", m.stats.TotalIssues)
+
+		if m.stats.OpenIssues > 0 {
+			b.WriteString(m.styles.Warning.Render(openLabel))
+		} else {
+			b.WriteString(m.styles.Success.Render(openLabel))
+		}
+		b.WriteString(m.styles.Success.Render(closedLabel))
+		b.WriteString(m.styles.Muted.Render(totalLabel))
+		b.WriteString("\n")
+	}
+	b.WriteString("\n")
+
+	// --- Recently Closed Issues ---
+	b.WriteString(m.styles.Bold.Render("  Recently Closed"))
+	b.WriteString("\n")
+
+	closedIssues := m.getRecentlyClosedIssues()
+	if len(closedIssues) == 0 {
+		b.WriteString(m.styles.Muted.Render("    No recently closed issues."))
+		b.WriteString("\n")
+	} else {
+		for _, issue := range closedIssues {
+			title := issue.Title
+			if len(title) > 50 {
+				title = title[:47] + "..."
+			}
+			line := fmt.Sprintf("    %-12s %-10s %s", issue.ID, issue.Status, title)
+			b.WriteString(m.styles.Success.Render(line))
+			b.WriteString("\n")
+		}
+	}
+	b.WriteString("\n")
+
+	// --- Activity Feed ---
+	b.WriteString(m.styles.Bold.Render("  Activity Feed"))
+	b.WriteString("\n")
+
+	if len(m.recentEvents) == 0 {
+		b.WriteString(m.styles.Muted.Render("    No recent activity."))
+		b.WriteString("\n")
+	} else {
+		for _, ev := range m.recentEvents {
+			ts := ev.Timestamp.Format("15:04:05")
+			agentStr := ""
+			if ev.Agent != "" {
+				agentStr = fmt.Sprintf(" [%s]", ev.Agent)
+			}
+			msg := string(ev.Type)
+			if ev.Message != "" {
+				msg = ev.Message
+				if len(msg) > 60 {
+					msg = msg[:57] + "..."
+				}
+			}
+			line := fmt.Sprintf("    %s %-18s%s %s", ts, ev.Type, agentStr, msg)
+			b.WriteString(m.styles.Normal.Render(line))
+			b.WriteString("\n")
+		}
+	}
+
+	return b.String()
+}
+
+// getRecentlyClosedIssues returns the most recently closed issues (up to dashboardMaxClosedIssues).
+// It scans from the end of the issues list since issues loaded later tend to be more recently updated.
+func (m *WorkspaceModel) getRecentlyClosedIssues() []beads.Issue {
+	var closed []beads.Issue
+	for i := len(m.issues) - 1; i >= 0; i-- {
+		issue := m.issues[i]
+		switch issue.Status {
+		case "closed", "done", "resolved":
+			closed = append(closed, issue)
+			if len(closed) >= dashboardMaxClosedIssues {
+				return closed
+			}
+		}
+	}
+	return closed
 }
 
 func (m *WorkspaceModel) computeStats() {
