@@ -15,14 +15,20 @@ type IssueModel struct {
 	styles style.Styles
 	width  int
 	height int
+
+	// Scroll state
+	scrollOffset int
+	contentLines []string
 }
 
 // NewIssueModel creates an issue detail view.
 func NewIssueModel(issue beads.Issue, s style.Styles) *IssueModel {
-	return &IssueModel{
+	m := &IssueModel{
 		issue:  issue,
 		styles: s,
 	}
+	m.buildContent()
+	return m
 }
 
 // HandleKey processes a key event and returns an action for the parent.
@@ -31,68 +37,105 @@ func (m *IssueModel) HandleKey(msg tea.KeyMsg) Action {
 	switch key {
 	case "esc":
 		return Action{Type: ActionBack}
+	case "j", "down":
+		m.scrollDown()
+		return NoAction
+	case "k", "up":
+		m.scrollUp()
+		return NoAction
+	case "g", "home":
+		m.scrollOffset = 0
+		return NoAction
+	case "G", "end":
+		m.scrollToEnd()
+		return NoAction
 	}
 	return NoAction
 }
 
-// View renders the issue detail screen.
-func (m *IssueModel) View() string {
-	var b strings.Builder
-
-	b.WriteString(m.styles.Title.Render(m.issue.Title))
-	b.WriteString("\n\n")
-
-	b.WriteString(m.styles.Bold.Render("Issue Info"))
-	b.WriteString("\n")
-
-	statusStyle := "info"
-	switch m.issue.Status {
-	case "open", "ready":
-		statusStyle = "ok"
-	case "closed", "done":
-		statusStyle = "warning"
+func (m *IssueModel) scrollDown() {
+	maxOffset := m.maxScrollOffset()
+	if m.scrollOffset < maxOffset {
+		m.scrollOffset++
 	}
+}
 
-	fields := []struct {
+func (m *IssueModel) scrollUp() {
+	if m.scrollOffset > 0 {
+		m.scrollOffset--
+	}
+}
+
+func (m *IssueModel) scrollToEnd() {
+	m.scrollOffset = m.maxScrollOffset()
+}
+
+func (m *IssueModel) maxScrollOffset() int {
+	viewHeight := m.viewableHeight()
+	if len(m.contentLines) <= viewHeight {
+		return 0
+	}
+	return len(m.contentLines) - viewHeight
+}
+
+func (m *IssueModel) viewableHeight() int {
+	h := m.height - 4 // Reserve space for header and scroll indicator
+	if h < 5 {
+		h = 5
+	}
+	return h
+}
+
+// issueStatusStyle returns the style key for an issue status.
+func issueStatusStyle(status string) string {
+	switch status {
+	case "open", "ready":
+		return "ok"
+	case "in_progress", "pending":
+		return "warning"
+	case "closed", "done", "resolved":
+		return "info"
+	default:
+		return ""
+	}
+}
+
+// buildContent renders the full issue detail into lines for scrolling.
+func (m *IssueModel) buildContent() {
+	var lines []string
+
+	// Info section header
+	lines = append(lines, m.styles.Bold.Render("Issue Info"))
+	lines = append(lines, "")
+
+	type field struct {
 		label string
 		value string
 		style string
-	}{
+	}
+
+	statusSt := issueStatusStyle(m.issue.Status)
+
+	fields := []field{
 		{"ID", m.issue.ID, "code"},
-		{"Status", m.issue.Status, statusStyle},
+		{"Status", m.issue.Status, statusSt},
 		{"Source", m.issue.Source, ""},
 	}
 
 	if m.issue.Type != "" {
-		fields = append(fields, struct {
-			label string
-			value string
-			style string
-		}{"Type", m.issue.Type, ""})
+		fields = append(fields, field{"Type", m.issue.Type, ""})
 	}
 
 	if m.issue.Assignee != "" {
-		fields = append(fields, struct {
-			label string
-			value string
-			style string
-		}{"Assignee", m.issue.Assignee, ""})
+		fields = append(fields, field{"Assignee", m.issue.Assignee, ""})
 	}
 
 	if m.issue.Priority != nil {
-		fields = append(fields, struct {
-			label string
-			value string
-			style string
-		}{"Priority", fmt.Sprintf("%v", m.issue.Priority), ""})
+		fields = append(fields, field{"Priority", fmt.Sprintf("%v", m.issue.Priority), "warning"})
 	}
 
 	if len(m.issue.Dependencies) > 0 {
-		fields = append(fields, struct {
-			label string
-			value string
-			style string
-		}{"Dependencies", strings.Join(m.issue.Dependencies, ", "), "code"})
+		fields = append(fields, field{"Dependencies", strings.Join(m.issue.Dependencies, ", "), "code"})
 	}
 
 	for _, f := range fields {
@@ -110,16 +153,57 @@ func (m *IssueModel) View() string {
 		case "info":
 			valueStyle = m.styles.Info
 		}
-		b.WriteString(fmt.Sprintf("  %s %s\n", label, valueStyle.Render(f.value)))
+		lines = append(lines, fmt.Sprintf("  %s %s", label, valueStyle.Render(f.value)))
 	}
 
+	// Description section
 	if m.issue.Description != "" {
-		b.WriteString("\n")
-		b.WriteString(m.styles.Bold.Render("Description"))
-		b.WriteString("\n")
+		lines = append(lines, "")
+		lines = append(lines, m.styles.Bold.Render("Description"))
+		lines = append(lines, "")
 		for _, line := range strings.Split(m.issue.Description, "\n") {
-			b.WriteString("  " + m.styles.Normal.Render(line) + "\n")
+			lines = append(lines, "  "+m.styles.Normal.Render(line))
 		}
+	}
+
+	m.contentLines = lines
+}
+
+// View renders the issue detail screen with scroll support.
+func (m *IssueModel) View() string {
+	var b strings.Builder
+
+	// Title (always visible, outside scroll area)
+	b.WriteString(m.styles.Title.Render(m.issue.Title))
+	b.WriteString("\n\n")
+
+	// Scrollable content
+	viewHeight := m.viewableHeight()
+	end := m.scrollOffset + viewHeight
+	if end > len(m.contentLines) {
+		end = len(m.contentLines)
+	}
+
+	visible := m.contentLines[m.scrollOffset:end]
+	for _, line := range visible {
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+
+	// Scroll indicator
+	if len(m.contentLines) > viewHeight {
+		pos := ""
+		if m.scrollOffset == 0 {
+			pos = "top"
+		} else if m.scrollOffset >= m.maxScrollOffset() {
+			pos = "end"
+		} else {
+			pct := float64(m.scrollOffset) / float64(m.maxScrollOffset()) * 100
+			pos = fmt.Sprintf("%d%%", int(pct))
+		}
+		indicator := fmt.Sprintf("  -- %s (%d/%d lines) --", pos, m.scrollOffset+viewHeight, len(m.contentLines))
+		b.WriteString("\n")
+		b.WriteString(m.styles.Muted.Render(indicator))
 	}
 
 	return b.String()
