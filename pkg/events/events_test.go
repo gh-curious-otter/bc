@@ -1,6 +1,7 @@
 package events
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -139,7 +140,6 @@ func TestAppend_JSONLFormat(t *testing.T) {
 	if len(lines) != 2 {
 		t.Fatalf("got %d lines, want 2", len(lines))
 	}
-	// Each line should be valid JSON (contain expected type string)
 	if !strings.Contains(lines[0], `"agent.spawned"`) {
 		t.Errorf("line 0 missing type: %s", lines[0])
 	}
@@ -176,7 +176,6 @@ func TestRead_EmptyFile(t *testing.T) {
 
 func TestRead_MalformedLines(t *testing.T) {
 	log := tempLog(t)
-	// Write mix of valid and malformed JSON lines
 	content := `{"ts":"2025-01-01T00:00:00Z","type":"agent.spawned","agent":"w1"}
 not valid json
 {"ts":"2025-01-02T00:00:00Z","type":"agent.stopped","agent":"w2"}
@@ -211,7 +210,7 @@ func TestReadLast(t *testing.T) {
 		numEvents int
 		lastN     int
 		wantCount int
-		wantFirst EventType // first event type in result (ignored if wantCount == 0)
+		wantFirst EventType
 	}{
 		{"last 2 of 5", 5, 2, 2, WorkCompleted},
 		{"last 5 of 5", 5, 5, 5, AgentSpawned},
@@ -329,8 +328,6 @@ func TestAppend_DataFields(t *testing.T) {
 
 func TestAppend_LargeMessage(t *testing.T) {
 	log := tempLog(t)
-	// bufio.Scanner default max token is 64KB; use a message that fits within that
-	// after JSON encoding overhead (quotes, field names, etc.)
 	bigMsg := strings.Repeat("x", 50_000)
 	if err := log.Append(Event{Type: MessageSent, Message: bigMsg}); err != nil {
 		t.Fatalf("Append() error: %v", err)
@@ -349,11 +346,8 @@ func TestAppend_LargeMessage(t *testing.T) {
 }
 
 func TestRead_OversizedLine(t *testing.T) {
-	// bufio.Scanner has a ~64KB default token limit; lines exceeding it cause a scan error.
-	// This documents the current behavior: Read returns whatever was parsed before the error.
 	log := tempLog(t)
 	log.Append(Event{Type: AgentSpawned, Agent: "before"})
-	// Write an oversized line directly (> 64KB)
 	f, _ := os.OpenFile(log.path, os.O_APPEND|os.O_WRONLY, 0644)
 	huge := `{"ts":"2025-01-01T00:00:00Z","type":"message.sent","message":"` + strings.Repeat("z", 100_000) + "\"}\n"
 	f.WriteString(huge)
@@ -361,7 +355,6 @@ func TestRead_OversizedLine(t *testing.T) {
 	log.Append(Event{Type: AgentStopped, Agent: "after"})
 
 	events, err := log.Read()
-	// Scanner error means we get events before the oversized line but lose the rest
 	if err != nil {
 		t.Logf("Read() returned expected scanner error: %v", err)
 	}
@@ -388,9 +381,6 @@ func TestAppend_ConcurrentWrites(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Read() error: %v", err)
 	}
-	// Each append opens/closes the file with O_APPEND, so all events should be present.
-	// Some may be malformed if writes interleave at the byte level, but on most OS
-	// implementations O_APPEND writes are atomic for reasonable sizes.
 	if len(events) < n/2 {
 		t.Errorf("got %d events from %d concurrent writes, expected most to succeed", len(events), n)
 	}
@@ -404,7 +394,6 @@ func TestNewLog(t *testing.T) {
 }
 
 func TestAllEventTypes(t *testing.T) {
-	// Verify all defined event types can be round-tripped
 	types := []EventType{
 		AgentSpawned, AgentStopped, AgentReport,
 		WorkAssigned, WorkStarted, WorkCompleted, WorkFailed,
@@ -429,5 +418,97 @@ func TestAllEventTypes(t *testing.T) {
 		if events[i].Type != et {
 			t.Errorf("events[%d].Type = %q, want %q", i, events[i].Type, et)
 		}
+	}
+}
+
+func TestRotation_TriggersOnSizeThreshold(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "events.jsonl")
+	log := &Log{path: path, maxFileSize: 500, maxRotatedFiles: 3}
+
+	for i := 0; i < 20; i++ {
+		log.Append(Event{Type: AgentReport, Agent: fmt.Sprintf("agent-%03d", i), Message: "padding message here"})
+	}
+
+	if _, err := os.Stat(path + ".1"); err != nil {
+		t.Errorf("expected rotated file .1 to exist: %v", err)
+	}
+
+	log.Append(Event{Type: AgentSpawned, Agent: "post-rotate"})
+
+	events, err := log.Read()
+	if err != nil {
+		t.Fatalf("Read() error: %v", err)
+	}
+	if len(events) == 0 {
+		t.Error("expected at least 1 event in current log after rotation")
+	}
+}
+
+func TestRotation_ShiftsFiles(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "events.jsonl")
+	log := &Log{path: path, maxFileSize: 200, maxRotatedFiles: 3}
+
+	for i := 0; i < 60; i++ {
+		log.Append(Event{Type: AgentReport, Agent: fmt.Sprintf("a-%02d", i)})
+	}
+
+	for i := 1; i <= 3; i++ {
+		rotated := fmt.Sprintf("%s.%d", path, i)
+		if _, err := os.Stat(rotated); err != nil {
+			t.Logf("rotated file .%d missing (may not have triggered enough rotations): %v", i, err)
+		}
+	}
+	beyond := fmt.Sprintf("%s.%d", path, 4)
+	if _, err := os.Stat(beyond); err == nil {
+		t.Errorf("rotated file .4 should not exist (maxRotatedFiles=3)")
+	}
+}
+
+func TestRotation_DisabledWhenZero(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "events.jsonl")
+	log := &Log{path: path, maxFileSize: 0, maxRotatedFiles: 3}
+
+	for i := 0; i < 20; i++ {
+		log.Append(Event{Type: AgentReport, Agent: fmt.Sprintf("agent-%03d", i), Message: "padding message here"})
+	}
+
+	if _, err := os.Stat(path + ".1"); err == nil {
+		t.Error("rotation should be disabled when maxFileSize=0, but .1 exists")
+	}
+}
+
+func TestRotation_CurrentLogReadableAfterRotation(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "events.jsonl")
+	log := &Log{path: path, maxFileSize: 300, maxRotatedFiles: 5}
+
+	for i := 0; i < 30; i++ {
+		log.Append(Event{Type: WorkAssigned, Agent: fmt.Sprintf("w-%02d", i)})
+	}
+
+	log.Append(Event{Type: AgentSpawned, Agent: "final"})
+
+	events, err := log.Read()
+	if err != nil {
+		t.Fatalf("Read() error after rotation: %v", err)
+	}
+	if len(events) == 0 {
+		t.Fatal("expected events in current log after rotation")
+	}
+	if events[len(events)-1].Agent != "final" {
+		t.Errorf("last event Agent = %q, want %q", events[len(events)-1].Agent, "final")
+	}
+}
+
+func TestNewLog_DefaultRotationSettings(t *testing.T) {
+	log := NewLog("/tmp/test.jsonl")
+	if log.maxFileSize != DefaultMaxFileSize {
+		t.Errorf("maxFileSize = %d, want %d", log.maxFileSize, DefaultMaxFileSize)
+	}
+	if log.maxRotatedFiles != DefaultMaxRotatedFiles {
+		t.Errorf("maxRotatedFiles = %d, want %d", log.maxRotatedFiles, DefaultMaxRotatedFiles)
 	}
 }

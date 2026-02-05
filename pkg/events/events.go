@@ -8,6 +8,7 @@ package events
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"os"
 	"time"
 )
@@ -27,6 +28,13 @@ const (
 	QueueLoaded   EventType = "queue.loaded"
 )
 
+const (
+	// DefaultMaxFileSize is the size threshold (in bytes) that triggers rotation.
+	DefaultMaxFileSize int64 = 10 * 1024 * 1024 // 10 MB
+	// DefaultMaxRotatedFiles is the number of rotated files to keep.
+	DefaultMaxRotatedFiles = 5
+)
+
 // Event is a single log entry.
 type Event struct {
 	Timestamp time.Time      `json:"ts"`
@@ -38,15 +46,22 @@ type Event struct {
 
 // Log manages the append-only event log file.
 type Log struct {
-	path string
+	path            string
+	maxFileSize     int64
+	maxRotatedFiles int
 }
 
 // NewLog creates a Log that writes to the given file path.
 func NewLog(path string) *Log {
-	return &Log{path: path}
+	return &Log{
+		path:            path,
+		maxFileSize:     DefaultMaxFileSize,
+		maxRotatedFiles: DefaultMaxRotatedFiles,
+	}
 }
 
 // Append writes a single event to the log file.
+// After writing, if the file exceeds maxFileSize the log is rotated.
 func (l *Log) Append(event Event) error {
 	if event.Timestamp.IsZero() {
 		event.Timestamp = time.Now()
@@ -56,15 +71,41 @@ func (l *Log) Append(event Event) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
 	data, err := json.Marshal(event)
 	if err != nil {
+		f.Close()
 		return err
 	}
 	data = append(data, '\n')
-	_, err = f.Write(data)
-	return err
+	if _, err = f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+
+	if l.maxFileSize > 0 {
+		if info, statErr := f.Stat(); statErr == nil && info.Size() >= l.maxFileSize {
+			f.Close()
+			l.rotate()
+			return nil
+		}
+	}
+
+	return f.Close()
+}
+
+// rotate shifts rotated log files and renames the current file.
+// events.jsonl -> events.jsonl.1, events.jsonl.1 -> events.jsonl.2, etc.
+// Files beyond maxRotatedFiles are removed.
+func (l *Log) rotate() {
+	oldest := fmt.Sprintf("%s.%d", l.path, l.maxRotatedFiles)
+	os.Remove(oldest)
+	for i := l.maxRotatedFiles - 1; i >= 1; i-- {
+		from := fmt.Sprintf("%s.%d", l.path, i)
+		to := fmt.Sprintf("%s.%d", l.path, i+1)
+		os.Rename(from, to)
+	}
+	os.Rename(l.path, fmt.Sprintf("%s.1", l.path))
 }
 
 // Read returns all events from the log.
