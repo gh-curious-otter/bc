@@ -68,6 +68,8 @@ func executeIntegrationCmd(args ...string) (string, string, error) {
 	// Reset persistent flags to prevent leaking between tests
 	rootCmd.PersistentFlags().Set("json", "false")
 	rootCmd.PersistentFlags().Set("verbose", "false")
+	defer rootCmd.PersistentFlags().Set("json", "false")
+	defer rootCmd.PersistentFlags().Set("verbose", "false")
 
 	err := rootCmd.Execute()
 
