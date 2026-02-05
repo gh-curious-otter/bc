@@ -27,7 +27,7 @@ const (
 	TabChannels
 	TabDashboard
 
-	tabCount = 5
+	tabCount // 5
 )
 
 // WorkspaceStats holds aggregated statistics for the workspace.
@@ -602,6 +602,105 @@ func (m *WorkspaceModel) renderQueue() string {
 		} else {
 			b.WriteString(m.styles.StatusStyle(mapQueueStatus(item.Status)).Render(line))
 		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+func (m *WorkspaceModel) renderDashboard() string {
+	var b strings.Builder
+
+	// --- Utilization section ---
+	b.WriteString(m.styles.Bold.Render("  AGENT UTILIZATION"))
+	b.WriteString("\n")
+
+	totalAgents := len(m.agents)
+	working := m.stats.WorkingAgents
+	idle := m.stats.IdleAgents
+	stuck := m.stats.StuckAgents
+	stopped := m.stats.StoppedAgents
+
+	// Utilization = working / (total - stopped), i.e. working / active
+	active := totalAgents - stopped
+	var utilPct float64
+	if active > 0 {
+		utilPct = float64(working) / float64(active) * 100
+	}
+
+	// Render utilization bar
+	barWidth := 30
+	if m.width > 80 {
+		barWidth = 40
+	}
+	filled := 0
+	if active > 0 {
+		filled = int(float64(barWidth) * float64(working) / float64(active))
+	}
+	bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
+	b.WriteString(fmt.Sprintf("  Utilization: %s %5.1f%%\n", m.styles.Success.Render(bar), utilPct))
+	b.WriteString("\n")
+
+	// --- State breakdown ---
+	b.WriteString(m.styles.Bold.Render("  STATE BREAKDOWN"))
+	b.WriteString("\n")
+
+	states := []struct {
+		label string
+		count int
+		style string
+	}{
+		{"Working", working, "ok"},
+		{"Idle", idle, "info"},
+		{"Stuck", stuck, "warning"},
+		{"Stopped", stopped, "stopped"},
+	}
+
+	for _, s := range states {
+		countBar := ""
+		if totalAgents > 0 {
+			w := int(float64(barWidth) * float64(s.count) / float64(totalAgents))
+			if s.count > 0 && w == 0 {
+				w = 1
+			}
+			countBar = strings.Repeat("█", w)
+		}
+		line := fmt.Sprintf("  %-10s %3d  %s", s.label, s.count, countBar)
+		b.WriteString(m.styles.StatusStyle(s.style).Render(line))
+		b.WriteString("\n")
+	}
+
+	totalLine := fmt.Sprintf("  %-10s %3d", "Total", totalAgents)
+	b.WriteString(m.styles.Muted.Render(totalLine))
+	b.WriteString("\n\n")
+
+	// --- Per-agent health table ---
+	b.WriteString(m.styles.Bold.Render("  AGENT HEALTH"))
+	b.WriteString("\n")
+
+	if len(m.agents) == 0 {
+		b.WriteString(m.styles.Muted.Render("  No agents running."))
+		b.WriteString("\n")
+		return b.String()
+	}
+
+	header := fmt.Sprintf("  %-15s %-12s %-10s %-12s %-6s %-6s",
+		"NAME", "ROLE", "STATE", "UPTIME", "DONE", "FAIL")
+	b.WriteString(m.styles.Bold.Render(header))
+	b.WriteString("\n")
+
+	for _, a := range m.agents {
+		as := m.agentStats[a.Name]
+		uptime := "-"
+		if as.Uptime > 0 {
+			uptime = fmtDuration(as.Uptime)
+		} else if a.State != agent.StateStopped && !a.StartedAt.IsZero() {
+			uptime = fmtDuration(time.Since(a.StartedAt))
+		}
+
+		line := fmt.Sprintf("  %-15s %-12s %-10s %-12s %-6d %-6d",
+			a.Name, a.Role, a.State, uptime, as.TasksCompleted, as.TasksFailed)
+		b.WriteString(m.styles.StatusStyle(mapState(a.State)).Render(line))
 		b.WriteString("\n")
 	}
 
