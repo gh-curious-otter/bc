@@ -229,6 +229,13 @@ func (m *HomeModel) handleWorkspaceKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.channelModel.height = m.height
 				m.screen = ScreenChannel
 			}
+		case ActionDrillQueue:
+			if item, ok := action.Data.(queue.WorkItem); ok {
+				m.queueItemModel = NewQueueItemModel(item, m.styles)
+				m.queueItemModel.width = m.width
+				m.queueItemModel.height = m.height
+				m.screen = ScreenQueueItem
+			}
 		}
 	}
 

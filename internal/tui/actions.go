@@ -9,6 +9,7 @@ const (
 	ActionDrillAgent
 	ActionDrillIssue
 	ActionDrillChannel
+	ActionDrillQueue
 	ActionAttach
 	ActionRefresh
 )
