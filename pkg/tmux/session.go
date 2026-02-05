@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -287,8 +288,19 @@ func (m *Manager) ListSessions() ([]Session, error) {
 
 	output, err := cmd.Output()
 	if err != nil {
-		// No sessions might return error
-		if strings.Contains(err.Error(), "no server running") {
+		// tmux list-sessions fails when no server is running or tmux
+		// is not installed (e.g. in CI). In all cases this means no
+		// sessions are available. cmd.Output() returns *exec.ExitError
+		// whose Error() is "exit status N", not the stderr text, so
+		// check stderr explicitly for known messages and treat any
+		// exit error as "no sessions".
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return nil, nil
+		}
+		// tmux binary not found in PATH
+		var pathErr *exec.Error
+		if errors.As(err, &pathErr) {
 			return nil, nil
 		}
 		return nil, err

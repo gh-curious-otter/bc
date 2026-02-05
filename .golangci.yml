@@ -36,6 +36,23 @@ linters:
       excludes:
         - G104 # Audit errors not checked (we check where needed)
 
+  exclusions:
+    rules:
+      # Ignore long lines in comments
+      - linters:
+          - lll
+        source: "^//.*"
+
+      # Ignore magic numbers in test files
+      - path: _test\.go
+        linters:
+          - mnd
+
+      # Ignore certain checks in main.go
+      - path: cmd/bc/main\.go
+        linters:
+          - gochecknoglobals
+
 formatters:
   enable:
     - gofmt
@@ -46,24 +63,9 @@ formatters:
       simplify: true
 
     goimports:
-      local-prefixes: github.com/rpuneet/bc
+      local-prefixes:
+        - github.com/rpuneet/bc
 
 issues:
-  exclude-rules:
-    # Ignore long lines in comments
-    - linters:
-        - lll
-      source: "^//.*"
-
-    # Ignore magic numbers in test files
-    - path: _test\.go
-      linters:
-        - mnd
-
-    # Ignore certain checks in main.go
-    - path: cmd/bc/main\.go
-      linters:
-        - gochecknoglobals
-
   max-issues-per-linter: 0
   max-same-issues: 0
