@@ -9,6 +9,7 @@ import (
 
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/spf13/pflag"
 )
 
 // setupLogsWorkspace creates a temporary bc workspace, changes into it,
@@ -52,12 +53,13 @@ func seedLogsEvents(t *testing.T, wsDir string, evts []events.Event) {
 func runLogsCmd(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 
-	// Reset all logs flags to defaults
+	// Reset all logs flags to defaults (both variable and cobra Changed state)
 	logsAgent = ""
 	logsTail = 0
 	logsType = ""
 	logsSince = ""
 	logsFull = false
+	logsCmd.Flags().VisitAll(func(f *pflag.Flag) { f.Changed = false })
 
 	origStdout := os.Stdout
 	r, w, _ := os.Pipe()
@@ -470,5 +472,26 @@ func TestLogs_SinceFilter_AllOld(t *testing.T) {
 
 	if !strings.Contains(stdout, "No events found") {
 		t.Errorf("expected 'No events found' when all events are old, got: %s", stdout)
+	}
+}
+
+func TestLogs_TailRejectsNegativeAndZero(t *testing.T) {
+	tests := []struct {
+		name string
+		val  string
+	}{
+		{"zero", "0"},
+		{"negative", "-5"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := runLogsCmd(t, "logs", "--tail", tt.val)
+			if err == nil {
+				t.Fatal("expected error for --tail " + tt.val + ", got nil")
+			}
+			if !strings.Contains(err.Error(), "tail must be a positive number") {
+				t.Errorf("expected 'tail must be a positive number', got: %v", err)
+			}
+		})
 	}
 }

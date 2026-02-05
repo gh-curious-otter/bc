@@ -13,6 +13,7 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/queue"
+	"github.com/spf13/pflag"
 )
 
 // --- Test helpers ---
@@ -82,6 +83,11 @@ func executeCmd(args ...string) (string, error) {
 	// Reset persistent flags to prevent leaking between tests
 	rootCmd.PersistentFlags().Set("json", "false")
 	rootCmd.PersistentFlags().Set("verbose", "false")
+
+	// Reset subcommand flags (e.g. logs --tail) to prevent Changed state leaking
+	for _, sub := range rootCmd.Commands() {
+		sub.Flags().VisitAll(func(f *pflag.Flag) { f.Changed = false })
+	}
 
 	// Capture stdout
 	oldStdout := os.Stdout
