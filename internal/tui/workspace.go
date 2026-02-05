@@ -370,8 +370,6 @@ func (m *WorkspaceModel) renderAgents() string {
 		overLimit := isWorkerRole && m.info.MaxWorkers > 0 && a.State != agent.StateStopped && workerCount > m.info.MaxWorkers
 		if selected {
 			b.WriteString(m.styles.Selected.Render(line))
-		} else if overLimit {
-			b.WriteString(m.styles.Error.Render(line))
 		} else {
 			b.WriteString(m.styles.StatusStyle(mapState(a.State)).Render(line))
 		}
