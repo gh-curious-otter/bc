@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -107,7 +108,8 @@ func (m *ChannelModel) sendMessage(message string) {
 	}
 
 	// Record in history
-	if err := m.store.AddHistory(m.channel.Name, message); err != nil {
+	sender := os.Getenv("BC_AGENT_ID")
+	if err := m.store.AddHistory(m.channel.Name, sender, message); err != nil {
 		m.sendMsg = "Error recording history: " + err.Error()
 		return
 	}
@@ -176,7 +178,12 @@ func (m *ChannelModel) View() string {
 		for _, entry := range m.channel.History[start:] {
 			ts := m.styles.Muted.Render(entry.Time.Format("15:04:05"))
 			msg := m.styles.Normal.Render(entry.Message)
-			b.WriteString(fmt.Sprintf("  %s  %s\n", ts, msg))
+			if entry.Sender != "" {
+				sender := m.styles.Info.Render("[" + entry.Sender + "]")
+				b.WriteString(fmt.Sprintf("  %s  %s %s\n", ts, sender, msg))
+			} else {
+				b.WriteString(fmt.Sprintf("  %s  %s\n", ts, msg))
+			}
 		}
 	}
 
