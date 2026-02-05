@@ -213,7 +213,7 @@ func (m *HomeModel) handleWorkspaceKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch action.Type {
 		case ActionDrillAgent:
 			if a, ok := action.Data.(*agent.Agent); ok {
-				m.agentModel = NewAgentModel(a, m.wsModel.manager, m.styles)
+				m.agentModel = NewAgentModel(a, m.wsModel.manager, m.wsModel.info.Entry.Path, m.styles)
 				m.agentModel.width = m.width
 				m.agentModel.height = m.height
 				m.screen = ScreenAgent
