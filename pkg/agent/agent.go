@@ -120,6 +120,35 @@ const (
 	StateStopped  State = "stopped"
 )
 
+// validTransitions defines allowed state transitions. Internal transitions
+// (e.g. spawn setting starting→idle, stop setting →stopped) bypass this
+// validation and set state directly. This map governs transitions through
+// UpdateAgentState, which is called by bc report.
+var validTransitions = map[State][]State{
+	StateStarting: {StateIdle, StateError, StateStopped},
+	StateIdle:     {StateWorking, StateDone, StateStuck, StateError, StateStopped},
+	StateWorking:  {StateIdle, StateDone, StateStuck, StateError, StateStopped},
+	StateDone:     {StateIdle, StateWorking, StateStopped},
+	StateStuck:    {StateIdle, StateWorking, StateError, StateStopped},
+	StateError:    {StateIdle, StateWorking, StateStopped},
+	StateStopped:  {StateIdle, StateStarting},
+}
+
+// ValidateTransition checks whether a state transition from → to is allowed.
+// Returns an error if the transition is invalid.
+func ValidateTransition(from, to State) error {
+	allowed, ok := validTransitions[from]
+	if !ok {
+		return fmt.Errorf("unknown current state: %s", from)
+	}
+	for _, s := range allowed {
+		if s == to {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid state transition: %s → %s", from, to)
+}
+
 // AgentMemory holds role-specific content loaded from prompts/<role>.md.
 type AgentMemory struct {
 	// RolePrompt is the full content of the role's prompt file.
@@ -790,6 +819,7 @@ func (m *Manager) RunningCount() int {
 }
 
 // UpdateAgentState updates an agent's state and task.
+// Returns an error if the transition is invalid per the state machine.
 func (m *Manager) UpdateAgentState(name string, state State, task string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -797,6 +827,10 @@ func (m *Manager) UpdateAgentState(name string, state State, task string) error 
 	agent, exists := m.agents[name]
 	if !exists {
 		return fmt.Errorf("agent %s not found", name)
+	}
+
+	if err := ValidateTransition(agent.State, state); err != nil {
+		return fmt.Errorf("agent %s: %w", name, err)
 	}
 
 	agent.State = state

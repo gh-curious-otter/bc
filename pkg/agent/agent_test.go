@@ -252,3 +252,96 @@ func TestRoleLevel(t *testing.T) {
 		}
 	}
 }
+
+// TestValidateTransition tests that valid transitions are allowed and invalid ones rejected.
+func TestValidateTransition(t *testing.T) {
+	valid := []struct {
+		from, to State
+	}{
+		{StateIdle, StateWorking},
+		{StateWorking, StateIdle},
+		{StateWorking, StateDone},
+		{StateWorking, StateStuck},
+		{StateWorking, StateError},
+		{StateWorking, StateStopped},
+		{StateDone, StateIdle},
+		{StateDone, StateWorking},
+		{StateStuck, StateIdle},
+		{StateStuck, StateWorking},
+		{StateError, StateIdle},
+		{StateError, StateWorking},
+		{StateStopped, StateIdle},
+		{StateStopped, StateStarting},
+		{StateStarting, StateIdle},
+		{StateStarting, StateError},
+		{StateIdle, StateStopped},
+		{StateDone, StateStopped},
+		{StateStuck, StateError},
+	}
+
+	for _, tc := range valid {
+		if err := ValidateTransition(tc.from, tc.to); err != nil {
+			t.Errorf("ValidateTransition(%s, %s) should be valid, got error: %v", tc.from, tc.to, err)
+		}
+	}
+
+	invalid := []struct {
+		from, to State
+	}{
+		{StateIdle, StateIdle},
+		{StateIdle, StateStarting},
+		{StateWorking, StateWorking},
+		{StateWorking, StateStarting},
+		{StateDone, StateDone},
+		{StateDone, StateStuck},
+		{StateStopped, StateWorking},
+		{StateStopped, StateDone},
+		{StateStarting, StateWorking},
+		{StateStarting, StateDone},
+	}
+
+	for _, tc := range invalid {
+		if err := ValidateTransition(tc.from, tc.to); err == nil {
+			t.Errorf("ValidateTransition(%s, %s) should be invalid, but returned nil", tc.from, tc.to)
+		}
+	}
+}
+
+// TestUpdateAgentStateValidation tests that UpdateAgentState rejects invalid transitions.
+func TestUpdateAgentStateValidation(t *testing.T) {
+	m := &Manager{
+		agents: make(map[string]*Agent),
+	}
+	m.agents["test-agent"] = &Agent{
+		Name:  "test-agent",
+		Role:  RoleWorker,
+		State: StateIdle,
+	}
+
+	// Valid: idle → working
+	if err := m.UpdateAgentState("test-agent", StateWorking, "starting task"); err != nil {
+		t.Errorf("idle→working should be valid: %v", err)
+	}
+	if m.agents["test-agent"].State != StateWorking {
+		t.Errorf("expected state working, got %s", m.agents["test-agent"].State)
+	}
+
+	// Valid: working → done
+	if err := m.UpdateAgentState("test-agent", StateDone, "finished"); err != nil {
+		t.Errorf("working→done should be valid: %v", err)
+	}
+
+	// Invalid: done → stuck
+	if err := m.UpdateAgentState("test-agent", StateStuck, "stuck"); err == nil {
+		t.Error("done→stuck should be invalid, but returned nil")
+	}
+	// State should remain done after rejected transition
+	if m.agents["test-agent"].State != StateDone {
+		t.Errorf("state should remain done after rejected transition, got %s", m.agents["test-agent"].State)
+	}
+
+	// Agent not found
+	if err := m.UpdateAgentState("nonexistent", StateWorking, ""); err == nil {
+		t.Error("should error for nonexistent agent")
+	}
+}
