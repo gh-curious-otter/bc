@@ -11,6 +11,7 @@ import (
 	"github.com/rpuneet/bc/pkg/events"
 	bclog "github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/queue"
+	"github.com/rpuneet/bc/pkg/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -59,6 +60,9 @@ func runReport(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("not in a bc workspace: %w", err)
 	}
+
+	// Worktree validation: warn if agent is outside its assigned worktree
+	checkWorktreeWarning(agentID, ws)
 
 	// Update agent state
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
@@ -137,4 +141,47 @@ itemLoop:
 
 	fmt.Printf("Reported: %s %s\n", state, message)
 	return nil
+}
+
+// checkWorktreeWarning warns (to stderr + event log) if the agent is outside its worktree.
+// Never blocks — the report always proceeds.
+func checkWorktreeWarning(agentID string, ws *workspace.Workspace) {
+	worktree := os.Getenv("BC_AGENT_WORKTREE")
+	if worktree == "" {
+		return // Not set (pre-Phase A agent, or test environment)
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return // Can't determine cwd, skip check
+	}
+
+	// Resolve symlinks for accurate comparison
+	worktreeAbs, err := filepath.EvalSymlinks(worktree)
+	if err != nil {
+		return // Worktree doesn't exist, skip (will be caught by bc worktree check)
+	}
+	cwdAbs, err := filepath.EvalSymlinks(cwd)
+	if err != nil {
+		return
+	}
+
+	if isWithinDir(cwdAbs, worktreeAbs) {
+		return // All good
+	}
+
+	// Agent is outside its worktree — warn but don't block
+	fmt.Fprintf(os.Stderr, "WARNING: %s is reporting from outside its worktree (cwd: %s, expected: %s)\n",
+		agentID, cwdAbs, worktreeAbs)
+
+	// Log to events
+	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
+	if err := log.Append(events.Event{
+		Type:    events.AgentReport,
+		Agent:   agentID,
+		Message: fmt.Sprintf("worktree violation: cwd=%s expected=%s", cwdAbs, worktreeAbs),
+		Data:    map[string]any{"violation": "worktree_mismatch", "cwd": cwdAbs, "worktree": worktreeAbs},
+	}); err != nil {
+		bclog.Warn("failed to log worktree violation", "error", err)
+	}
 }
