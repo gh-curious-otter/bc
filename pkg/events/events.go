@@ -74,18 +74,18 @@ func (l *Log) Append(event Event) error {
 
 	data, err := json.Marshal(event)
 	if err != nil {
-		f.Close()
+		_ = f.Close() //nolint:errcheck // closing on error path
 		return err
 	}
 	data = append(data, '\n')
 	if _, err = f.Write(data); err != nil {
-		f.Close()
+		_ = f.Close() //nolint:errcheck // closing on error path
 		return err
 	}
 
 	if l.maxFileSize > 0 {
 		if info, statErr := f.Stat(); statErr == nil && info.Size() >= l.maxFileSize {
-			f.Close()
+			_ = f.Close() //nolint:errcheck // closing before rotate
 			l.rotate()
 			return nil
 		}
@@ -99,13 +99,13 @@ func (l *Log) Append(event Event) error {
 // Files beyond maxRotatedFiles are removed.
 func (l *Log) rotate() {
 	oldest := fmt.Sprintf("%s.%d", l.path, l.maxRotatedFiles)
-	os.Remove(oldest)
+	_ = os.Remove(oldest) //nolint:errcheck // best-effort rotation cleanup
 	for i := l.maxRotatedFiles - 1; i >= 1; i-- {
 		from := fmt.Sprintf("%s.%d", l.path, i)
 		to := fmt.Sprintf("%s.%d", l.path, i+1)
-		os.Rename(from, to)
+		_ = os.Rename(from, to) //nolint:errcheck // best-effort rotation
 	}
-	os.Rename(l.path, fmt.Sprintf("%s.1", l.path))
+	_ = os.Rename(l.path, fmt.Sprintf("%s.1", l.path)) //nolint:errcheck // best-effort rotation
 }
 
 // Read returns all events from the log.
@@ -117,7 +117,7 @@ func (l *Log) Read() ([]Event, error) {
 		}
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }() //nolint:errcheck // deferred close
 
 	var events []Event
 	scanner := bufio.NewScanner(f)

@@ -67,7 +67,9 @@ func TestCreateMultiple(t *testing.T) {
 func TestGet(t *testing.T) {
 	s := newTestStore(t)
 
-	s.Create("general")
+	if _, err := s.Create("general"); err != nil {
+		t.Fatal(err)
+	}
 
 	ch, ok := s.Get("general")
 	if !ok {
@@ -101,8 +103,12 @@ func TestListEmpty(t *testing.T) {
 func TestList(t *testing.T) {
 	s := newTestStore(t)
 
-	s.Create("alpha")
-	s.Create("beta")
+	if _, err := s.Create("alpha"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Create("beta"); err != nil {
+		t.Fatal(err)
+	}
 
 	channels := s.List()
 	if len(channels) != 2 {
@@ -123,7 +129,9 @@ func TestList(t *testing.T) {
 func TestDelete(t *testing.T) {
 	s := newTestStore(t)
 
-	s.Create("general")
+	if _, err := s.Create("general"); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := s.Delete("general"); err != nil {
 		t.Fatalf("Delete: %v", err)
@@ -146,9 +154,9 @@ func TestDeleteNotFound(t *testing.T) {
 
 func TestAddMember(t *testing.T) {
 	tests := []struct {
-		name     string
-		members  []string
-		wantLen  int
+		name    string
+		members []string
+		wantLen int
 	}{
 		{"single member", []string{"alice"}, 1},
 		{"two members", []string{"alice", "bob"}, 2},
@@ -158,7 +166,9 @@ func TestAddMember(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newTestStore(t)
-			s.Create("ch")
+			if _, err := s.Create("ch"); err != nil {
+				t.Fatal(err)
+			}
 
 			for _, m := range tt.members {
 				if err := s.AddMember("ch", m); err != nil {
@@ -179,8 +189,12 @@ func TestAddMember(t *testing.T) {
 
 func TestAddMemberDuplicate(t *testing.T) {
 	s := newTestStore(t)
-	s.Create("ch")
-	s.AddMember("ch", "alice")
+	if _, err := s.Create("ch"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddMember("ch", "alice"); err != nil {
+		t.Fatal(err)
+	}
 
 	err := s.AddMember("ch", "alice")
 	if err == nil {
@@ -201,15 +215,24 @@ func TestAddMemberChannelNotFound(t *testing.T) {
 
 func TestRemoveMember(t *testing.T) {
 	s := newTestStore(t)
-	s.Create("ch")
-	s.AddMember("ch", "alice")
-	s.AddMember("ch", "bob")
+	if _, err := s.Create("ch"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddMember("ch", "alice"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddMember("ch", "bob"); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := s.RemoveMember("ch", "alice"); err != nil {
 		t.Fatalf("RemoveMember: %v", err)
 	}
 
-	members, _ := s.GetMembers("ch")
+	members, err := s.GetMembers("ch")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(members) != 1 {
 		t.Fatalf("members len = %d, want 1", len(members))
 	}
@@ -220,7 +243,9 @@ func TestRemoveMember(t *testing.T) {
 
 func TestRemoveMemberNotAMember(t *testing.T) {
 	s := newTestStore(t)
-	s.Create("ch")
+	if _, err := s.Create("ch"); err != nil {
+		t.Fatal(err)
+	}
 
 	err := s.RemoveMember("ch", "alice")
 	if err == nil {
@@ -241,13 +266,23 @@ func TestRemoveMemberChannelNotFound(t *testing.T) {
 
 func TestGetMembersReturnsCopy(t *testing.T) {
 	s := newTestStore(t)
-	s.Create("ch")
-	s.AddMember("ch", "alice")
+	if _, err := s.Create("ch"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddMember("ch", "alice"); err != nil {
+		t.Fatal(err)
+	}
 
-	members, _ := s.GetMembers("ch")
+	members, err := s.GetMembers("ch")
+	if err != nil {
+		t.Fatal(err)
+	}
 	members[0] = "MUTATED"
 
-	original, _ := s.GetMembers("ch")
+	original, err := s.GetMembers("ch")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if original[0] != "alice" {
 		t.Error("GetMembers did not return a copy; mutation leaked")
 	}
@@ -266,7 +301,9 @@ func TestGetMembersChannelNotFound(t *testing.T) {
 
 func TestAddHistory(t *testing.T) {
 	s := newTestStore(t)
-	s.Create("ch")
+	if _, err := s.Create("ch"); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := s.AddHistory("ch", "test-user", "hello world"); err != nil {
 		t.Fatalf("AddHistory: %v", err)
@@ -298,7 +335,9 @@ func TestAddHistoryChannelNotFound(t *testing.T) {
 
 func TestAddHistoryTruncatesAt100(t *testing.T) {
 	s := newTestStore(t)
-	s.Create("ch")
+	if _, err := s.Create("ch"); err != nil {
+		t.Fatal(err)
+	}
 
 	for i := 0; i < 110; i++ {
 		if err := s.AddHistory("ch", "test-user", fmt.Sprintf("msg-%d", i)); err != nil {
@@ -306,7 +345,10 @@ func TestAddHistoryTruncatesAt100(t *testing.T) {
 		}
 	}
 
-	history, _ := s.GetHistory("ch")
+	history, err := s.GetHistory("ch")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(history) != 100 {
 		t.Fatalf("history len = %d, want 100", len(history))
 	}
@@ -323,13 +365,23 @@ func TestAddHistoryTruncatesAt100(t *testing.T) {
 
 func TestGetHistoryReturnsCopy(t *testing.T) {
 	s := newTestStore(t)
-	s.Create("ch")
-	s.AddHistory("ch", "test-user", "original")
+	if _, err := s.Create("ch"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddHistory("ch", "test-user", "original"); err != nil {
+		t.Fatal(err)
+	}
 
-	history, _ := s.GetHistory("ch")
+	history, err := s.GetHistory("ch")
+	if err != nil {
+		t.Fatal(err)
+	}
 	history[0].Message = "MUTATED"
 
-	original, _ := s.GetHistory("ch")
+	original, err := s.GetHistory("ch")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if original[0].Message != "original" {
 		t.Error("GetHistory did not return a copy; mutation leaked")
 	}
@@ -346,7 +398,9 @@ func TestGetHistoryChannelNotFound(t *testing.T) {
 
 func TestGetHistoryEmpty(t *testing.T) {
 	s := newTestStore(t)
-	s.Create("ch")
+	if _, err := s.Create("ch"); err != nil {
+		t.Fatal(err)
+	}
 
 	history, err := s.GetHistory("ch")
 	if err != nil {
@@ -361,16 +415,30 @@ func TestGetHistoryEmpty(t *testing.T) {
 
 func TestSaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".bc"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	// Populate and save
 	s1 := NewStore(dir)
-	s1.Create("general")
-	s1.AddMember("general", "alice")
-	s1.AddMember("general", "bob")
-	s1.AddHistory("general", "alice", "hello")
-	s1.Create("engineering")
-	s1.AddMember("engineering", "charlie")
+	if _, err := s1.Create("general"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s1.AddMember("general", "alice"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s1.AddMember("general", "bob"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s1.AddHistory("general", "alice", "hello"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s1.Create("engineering"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s1.AddMember("engineering", "charlie"); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := s1.Save(); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -423,8 +491,12 @@ func TestLoadNonexistentFile(t *testing.T) {
 func TestLoadInvalidJSON(t *testing.T) {
 	dir := t.TempDir()
 	bcDir := filepath.Join(dir, ".bc")
-	os.MkdirAll(bcDir, 0755)
-	os.WriteFile(filepath.Join(bcDir, "channels.json"), []byte("{bad json"), 0644)
+	if err := os.MkdirAll(bcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bcDir, "channels.json"), []byte("{bad json"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	s := NewStore(dir)
 	err := s.Load()
@@ -443,7 +515,9 @@ func TestConcurrentCreateAndList(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			s.Create(fmt.Sprintf("ch-%d", i))
+			if _, err := s.Create(fmt.Sprintf("ch-%d", i)); err != nil {
+				t.Error(err)
+			}
 		}(i)
 	}
 	wg.Wait()
@@ -455,19 +529,26 @@ func TestConcurrentCreateAndList(t *testing.T) {
 
 func TestConcurrentAddMember(t *testing.T) {
 	s := newTestStore(t)
-	s.Create("ch")
+	if _, err := s.Create("ch"); err != nil {
+		t.Fatal(err)
+	}
 
 	var wg sync.WaitGroup
 	for i := 0; i < 20; i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			s.AddMember("ch", fmt.Sprintf("agent-%d", i))
+			if err := s.AddMember("ch", fmt.Sprintf("agent-%d", i)); err != nil {
+				t.Error(err)
+			}
 		}(i)
 	}
 	wg.Wait()
 
-	members, _ := s.GetMembers("ch")
+	members, err := s.GetMembers("ch")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(members) != 20 {
 		t.Errorf("members after concurrent adds = %d, want 20", len(members))
 	}
@@ -475,19 +556,26 @@ func TestConcurrentAddMember(t *testing.T) {
 
 func TestConcurrentAddHistory(t *testing.T) {
 	s := newTestStore(t)
-	s.Create("ch")
+	if _, err := s.Create("ch"); err != nil {
+		t.Fatal(err)
+	}
 
 	var wg sync.WaitGroup
 	for i := 0; i < 50; i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			s.AddHistory("ch", "test-user", fmt.Sprintf("msg-%d", i))
+			if err := s.AddHistory("ch", "test-user", fmt.Sprintf("msg-%d", i)); err != nil {
+				t.Error(err)
+			}
 		}(i)
 	}
 	wg.Wait()
 
-	history, _ := s.GetHistory("ch")
+	history, err := s.GetHistory("ch")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(history) != 50 {
 		t.Errorf("history after concurrent adds = %d, want 50", len(history))
 	}

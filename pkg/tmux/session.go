@@ -35,7 +35,7 @@ type Manager struct {
 
 	// sessionMu protects per-session SendKeys serialization.
 	// Concurrent sends to the same session are serialized to prevent interleaving.
-	sessionMu   sync.Mutex
+	sessionMu    sync.Mutex
 	sessionLocks map[string]*sync.Mutex
 
 	// execCommand creates exec.Cmd objects. Defaults to exec.Command.
@@ -204,19 +204,21 @@ func (m *Manager) SendKeysWithSubmit(name, keys, submitKey string) error {
 		bufferName := generateBufferName()
 
 		tmpDir := filepath.Join(os.TempDir(), "bc-tmux")
-		os.MkdirAll(tmpDir, 0700)
+		if err := os.MkdirAll(tmpDir, 0700); err != nil {
+			return fmt.Errorf("failed to create temp dir: %w", err)
+		}
 		tmpFile, err := os.CreateTemp(tmpDir, "send-*.txt")
 		if err != nil {
 			return fmt.Errorf("failed to create temp file: %w", err)
 		}
 		tmpPath := tmpFile.Name()
-		defer os.Remove(tmpPath)
+		defer func() { _ = os.Remove(tmpPath) }() //nolint:errcheck // deferred cleanup
 
 		if _, err := tmpFile.WriteString(keys); err != nil {
-			tmpFile.Close()
+			_ = tmpFile.Close() //nolint:errcheck // closing on error path
 			return fmt.Errorf("failed to write temp file: %w", err)
 		}
-		tmpFile.Close()
+		_ = tmpFile.Close() //nolint:errcheck // closing before load
 
 		// Load into named buffer
 		loadCmd := m.command("tmux", "load-buffer", "-b", bufferName, tmpPath)
@@ -228,7 +230,7 @@ func (m *Manager) SendKeysWithSubmit(name, keys, submitKey string) error {
 		pasteCmd := m.command("tmux", "paste-buffer", "-b", bufferName, "-d", "-t", fullName)
 		if output, err := pasteCmd.CombinedOutput(); err != nil {
 			// Clean up buffer on error
-			m.command("tmux", "delete-buffer", "-b", bufferName).Run()
+			_ = m.command("tmux", "delete-buffer", "-b", bufferName).Run() //nolint:errcheck // best-effort cleanup
 			return fmt.Errorf("failed to paste buffer to %s: %w (%s)", fullName, err, string(output))
 		}
 	}
@@ -368,6 +370,6 @@ func (m *Manager) SetEnvironment(name, key, value string) error {
 // This prevents race conditions when multiple goroutines send keys concurrently.
 func generateBufferName() string {
 	b := make([]byte, 8)
-	rand.Read(b)
+	_, _ = rand.Read(b) //nolint:errcheck // crypto/rand.Read always returns len(b), nil
 	return "bc-" + hex.EncodeToString(b)
 }

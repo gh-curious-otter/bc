@@ -30,7 +30,9 @@ func TestLoadMissingFile(t *testing.T) {
 func TestLoadInvalidJSON(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad.json")
-	os.WriteFile(path, []byte("{not json"), 0644)
+	if err := os.WriteFile(path, []byte("{not json"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	q := New(path)
 	if err := q.Load(); err == nil {
@@ -156,7 +158,9 @@ func TestAssignSuccess(t *testing.T) {
 func TestAssignNotPending(t *testing.T) {
 	q := New(filepath.Join(t.TempDir(), "q.json"))
 	q.Add("task", "", "")
-	q.Assign("work-001", "agent-1") // now assigned
+	if err := q.Assign("work-001", "agent-1"); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := q.Assign("work-001", "agent-2"); err == nil {
 		t.Fatal("expected error assigning non-pending item")
@@ -205,7 +209,9 @@ func TestListPending(t *testing.T) {
 	q := New(filepath.Join(t.TempDir(), "q.json"))
 	q.Add("a", "", "")
 	q.Add("b", "", "")
-	q.Assign("work-001", "agent")
+	if err := q.Assign("work-001", "agent"); err != nil {
+		t.Fatal(err)
+	}
 
 	pending := q.ListPending()
 	if len(pending) != 1 {
@@ -220,7 +226,9 @@ func TestListByAgent(t *testing.T) {
 	q := New(filepath.Join(t.TempDir(), "q.json"))
 	q.Add("a", "", "")
 	q.Add("b", "", "")
-	q.Assign("work-001", "alice")
+	if err := q.Assign("work-001", "alice"); err != nil {
+		t.Fatal(err)
+	}
 
 	items := q.ListByAgent("alice")
 	if len(items) != 1 {
@@ -239,7 +247,9 @@ func TestListByStatus(t *testing.T) {
 	q := New(filepath.Join(t.TempDir(), "q.json"))
 	q.Add("a", "", "")
 	q.Add("b", "", "")
-	q.UpdateStatus("work-002", StatusFailed)
+	if err := q.UpdateStatus("work-002", StatusFailed); err != nil {
+		t.Fatal(err)
+	}
 
 	failed := q.ListByStatus(StatusFailed)
 	if len(failed) != 1 {
@@ -277,10 +287,18 @@ func TestStats(t *testing.T) {
 	q.Add("d", "", "")
 	q.Add("e", "", "")
 
-	q.Assign("work-001", "agent")
-	q.UpdateStatus("work-002", StatusWorking)
-	q.UpdateStatus("work-003", StatusDone)
-	q.UpdateStatus("work-004", StatusFailed)
+	if err := q.Assign("work-001", "agent"); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateStatus("work-002", StatusWorking); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateStatus("work-003", StatusDone); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateStatus("work-004", StatusFailed); err != nil {
+		t.Fatal(err)
+	}
 	// work-005 stays pending
 
 	s := q.Stats()
@@ -317,7 +335,9 @@ func TestUpdateStatusUpdatesTimestamp(t *testing.T) {
 	item := q.Add("task", "", "")
 	created := item.UpdatedAt
 
-	q.UpdateStatus("work-001", StatusDone)
+	if err := q.UpdateStatus("work-001", StatusDone); err != nil {
+		t.Fatal(err)
+	}
 
 	updated := q.Get("work-001").UpdatedAt
 	if !updated.After(created) && updated != created {
@@ -330,7 +350,9 @@ func TestAssignUpdatesTimestamp(t *testing.T) {
 	item := q.Add("task", "", "")
 	created := item.UpdatedAt
 
-	q.Assign("work-001", "agent")
+	if err := q.Assign("work-001", "agent"); err != nil {
+		t.Fatal(err)
+	}
 
 	updated := q.Get("work-001").UpdatedAt
 	if !updated.After(created) && updated != created {

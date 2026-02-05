@@ -30,26 +30,26 @@ type WorkItemMetrics struct {
 	Other int `json:"other"`
 
 	// Derived metrics
-	CompletionRate   float64       `json:"completion_rate"`   // Done / Total
-	FailureRate      float64       `json:"failure_rate"`      // Failed / Total
+	CompletionRate    float64       `json:"completion_rate"` // Done / Total
+	FailureRate       float64       `json:"failure_rate"`    // Failed / Total
 	AvgTimeToComplete time.Duration `json:"avg_time_to_complete"`
 }
 
 // AgentMetrics tracks agent statistics.
 type AgentMetrics struct {
 	// Counts
-	TotalAgents   int `json:"total_agents"`
-	ActiveAgents  int `json:"active_agents"`
-	Coordinators  int `json:"coordinators"`
-	Workers       int `json:"workers"`
+	TotalAgents  int `json:"total_agents"`
+	ActiveAgents int `json:"active_agents"`
+	Coordinators int `json:"coordinators"`
+	Workers      int `json:"workers"`
 
 	// By state
-	Idle     int `json:"idle"`
-	Working  int `json:"working"`
-	Done     int `json:"done"`
-	Stuck    int `json:"stuck"`
-	Error    int `json:"error"`
-	Stopped  int `json:"stopped"`
+	Idle    int `json:"idle"`
+	Working int `json:"working"`
+	Done    int `json:"done"`
+	Stuck   int `json:"stuck"`
+	Error   int `json:"error"`
+	Stopped int `json:"stopped"`
 
 	// Per-agent stats
 	AgentStats []AgentStat `json:"agent_stats"`
@@ -98,7 +98,7 @@ func Load(stateDir string) (*Stats, error) {
 	// Try to load existing stats for historical data
 	data, err := os.ReadFile(s.path)
 	if err == nil {
-		json.Unmarshal(data, s) // Ignore error, use defaults
+		_ = json.Unmarshal(data, s) //nolint:errcheck // ignore error, use defaults
 	}
 
 	// Refresh with live data
@@ -135,7 +135,7 @@ func (s *Stats) refresh(stateDir string) error {
 			return fmt.Errorf("failed to load agents: %w", err)
 		}
 	}
-	mgr.RefreshState()
+	_ = mgr.RefreshState() //nolint:errcheck // best-effort refresh
 	s.collectAgentMetrics(mgr, q)
 
 	return nil

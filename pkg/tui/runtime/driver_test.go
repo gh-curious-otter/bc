@@ -256,7 +256,10 @@ func TestDriverHandleIncoming(t *testing.T) {
 	d.output = &out
 
 	t.Run("view message", func(t *testing.T) {
-		data, _ := json.Marshal(ViewMessage{Type: MsgView, View: ViewTable, ID: "t"})
+		data, err := json.Marshal(ViewMessage{Type: MsgView, View: ViewTable, ID: "t"})
+		if err != nil {
+			t.Fatal(err)
+		}
 		d.handleIncoming(incomingMessage{data: data})
 		if d.currentView != ViewTable {
 			t.Error("expected table view after incoming view message")
@@ -264,7 +267,10 @@ func TestDriverHandleIncoming(t *testing.T) {
 	})
 
 	t.Run("set message", func(t *testing.T) {
-		data, _ := json.Marshal(SetMessage{Type: MsgSet, Path: "title", Value: "Hi"})
+		data, err := json.Marshal(SetMessage{Type: MsgSet, Path: "title", Value: "Hi"})
+		if err != nil {
+			t.Fatal(err)
+		}
 		d.handleIncoming(incomingMessage{data: data})
 		if d.tableSpec.Title != "Hi" {
 			t.Errorf("expected title 'Hi', got '%s'", d.tableSpec.Title)
@@ -272,7 +278,10 @@ func TestDriverHandleIncoming(t *testing.T) {
 	})
 
 	t.Run("append message", func(t *testing.T) {
-		data, _ := json.Marshal(AppendMessage{Type: MsgAppend, Path: "rows", Value: RowSpec{ID: "1", Values: []string{"x"}}})
+		data, err := json.Marshal(AppendMessage{Type: MsgAppend, Path: "rows", Value: RowSpec{ID: "1", Values: []string{"x"}}})
+		if err != nil {
+			t.Fatal(err)
+		}
 		d.handleIncoming(incomingMessage{data: data})
 		if len(d.tableSpec.Rows) != 1 {
 			t.Errorf("expected 1 row, got %d", len(d.tableSpec.Rows))
@@ -281,7 +290,10 @@ func TestDriverHandleIncoming(t *testing.T) {
 
 	t.Run("done message clears loading", func(t *testing.T) {
 		d.tableSpec.Loading = true
-		data, _ := json.Marshal(DoneMessage{Type: MsgDone})
+		data, err := json.Marshal(DoneMessage{Type: MsgDone})
+		if err != nil {
+			t.Fatal(err)
+		}
 		d.handleIncoming(incomingMessage{data: data})
 		if d.tableSpec.Loading {
 			t.Error("expected loading to be cleared after done")
@@ -289,7 +301,10 @@ func TestDriverHandleIncoming(t *testing.T) {
 	})
 
 	t.Run("error message", func(t *testing.T) {
-		data, _ := json.Marshal(ErrorMessage{Type: MsgError, Message: "something failed"})
+		data, err := json.Marshal(ErrorMessage{Type: MsgError, Message: "something failed"})
+		if err != nil {
+			t.Fatal(err)
+		}
 		d.handleIncoming(incomingMessage{data: data})
 		// Should not crash
 	})
@@ -566,7 +581,10 @@ func TestDriverDoneMessageClearsLoadingBoth(t *testing.T) {
 	d.tableSpec = &TableSpec{Loading: true}
 	d.detailSpec = &DetailSpec{Loading: true}
 
-	data, _ := json.Marshal(DoneMessage{Type: MsgDone})
+	data, err := json.Marshal(DoneMessage{Type: MsgDone})
+	if err != nil {
+		t.Fatal(err)
+	}
 	d.handleIncoming(incomingMessage{data: data})
 
 	if d.tableSpec.Loading {

@@ -27,13 +27,7 @@ func TestIsWriteOp(t *testing.T) {
 }
 
 func TestValidateWorktree_NoEnvVar(t *testing.T) {
-	orig := os.Getenv("BC_AGENT_WORKTREE")
-	os.Unsetenv("BC_AGENT_WORKTREE")
-	defer func() {
-		if orig != "" {
-			os.Setenv("BC_AGENT_WORKTREE", orig)
-		}
-	}()
+	t.Setenv("BC_AGENT_WORKTREE", "")
 
 	// Should pass when env var is unset (non-agent context)
 	if err := validateWorktree("/any/path"); err != nil {
@@ -44,17 +38,11 @@ func TestValidateWorktree_NoEnvVar(t *testing.T) {
 func TestValidateWorktree_InsideWorktree(t *testing.T) {
 	dir := t.TempDir()
 	subdir := filepath.Join(dir, "sub")
-	os.MkdirAll(subdir, 0755)
+	if err := os.MkdirAll(subdir, 0755); err != nil {
+		t.Fatal(err)
+	}
 
-	orig := os.Getenv("BC_AGENT_WORKTREE")
-	os.Setenv("BC_AGENT_WORKTREE", dir)
-	defer func() {
-		if orig != "" {
-			os.Setenv("BC_AGENT_WORKTREE", orig)
-		} else {
-			os.Unsetenv("BC_AGENT_WORKTREE")
-		}
-	}()
+	t.Setenv("BC_AGENT_WORKTREE", dir)
 
 	// Exact match
 	if err := validateWorktree(dir); err != nil {
@@ -70,15 +58,7 @@ func TestValidateWorktree_OutsideWorktree(t *testing.T) {
 	dir1 := t.TempDir()
 	dir2 := t.TempDir()
 
-	orig := os.Getenv("BC_AGENT_WORKTREE")
-	os.Setenv("BC_AGENT_WORKTREE", dir1)
-	defer func() {
-		if orig != "" {
-			os.Setenv("BC_AGENT_WORKTREE", orig)
-		} else {
-			os.Unsetenv("BC_AGENT_WORKTREE")
-		}
-	}()
+	t.Setenv("BC_AGENT_WORKTREE", dir1)
 
 	err := validateWorktree(dir2)
 	if err == nil {
@@ -97,15 +77,7 @@ func TestRunRejectsWriteOutsideWorktree(t *testing.T) {
 	dir1 := t.TempDir()
 	dir2 := t.TempDir()
 
-	orig := os.Getenv("BC_AGENT_WORKTREE")
-	os.Setenv("BC_AGENT_WORKTREE", dir1)
-	defer func() {
-		if orig != "" {
-			os.Setenv("BC_AGENT_WORKTREE", orig)
-		} else {
-			os.Unsetenv("BC_AGENT_WORKTREE")
-		}
-	}()
+	t.Setenv("BC_AGENT_WORKTREE", dir1)
 
 	// Write op outside worktree should fail
 	_, err := Run(dir2, "add", ".")
@@ -132,15 +104,7 @@ func TestReadOpsAllowedOutsideWorktree(t *testing.T) {
 	dir1 := t.TempDir()
 	dir2 := t.TempDir()
 
-	orig := os.Getenv("BC_AGENT_WORKTREE")
-	os.Setenv("BC_AGENT_WORKTREE", dir1)
-	defer func() {
-		if orig != "" {
-			os.Setenv("BC_AGENT_WORKTREE", orig)
-		} else {
-			os.Unsetenv("BC_AGENT_WORKTREE")
-		}
-	}()
+	t.Setenv("BC_AGENT_WORKTREE", dir1)
 
 	// Read operations should not be blocked by worktree enforcement
 	// They'll fail because dir2 isn't a git repo, but NOT with ErrOutsideWorktree

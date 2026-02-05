@@ -48,10 +48,14 @@ func TestUpdateStatus_DoesNotOverwriteExistingMerge(t *testing.T) {
 	id := item.ID
 
 	// Set merge status to merged first
-	q.UpdateMergeStatus(id, MergeMerged, "abc123")
+	if err := q.UpdateMergeStatus(id, MergeMerged, "abc123"); err != nil {
+		t.Fatal(err)
+	}
 
 	// Transition to done — should not overwrite merged status
-	q.UpdateStatus(id, StatusDone)
+	if err := q.UpdateStatus(id, StatusDone); err != nil {
+		t.Fatal(err)
+	}
 
 	got := q.Get(id)
 	if got.Merge != MergeMerged {
@@ -105,7 +109,9 @@ func TestUpdateMergeStatus_Conflict(t *testing.T) {
 	q := New(filepath.Join(dir, "q.json"))
 	item := q.Add("Test task", "", "")
 
-	q.UpdateMergeStatus(item.ID, MergeConflict, "")
+	if err := q.UpdateMergeStatus(item.ID, MergeConflict, ""); err != nil {
+		t.Fatal(err)
+	}
 
 	got := q.Get(item.ID)
 	if got.Merge != MergeConflict {
@@ -147,7 +153,9 @@ func TestFindByBranch(t *testing.T) {
 	q := New(filepath.Join(dir, "q.json"))
 	q.Add("Task 1", "", "")
 	item2 := q.Add("Task 2", "", "")
-	q.SetBranch(item2.ID, "engineer-01/work-200/feature")
+	if err := q.SetBranch(item2.ID, "engineer-01/work-200/feature"); err != nil {
+		t.Fatal(err)
+	}
 
 	found := q.FindByBranch("engineer-01/work-200/feature")
 	if found == nil {
@@ -175,18 +183,30 @@ func TestListMergeable(t *testing.T) {
 
 	// Add items in various states
 	item1 := q.Add("Done unmerged", "", "")
-	q.UpdateStatus(item1.ID, StatusDone) // auto-sets MergeUnmerged
+	if err := q.UpdateStatus(item1.ID, StatusDone); err != nil {
+		t.Fatal(err)
+	}
 
 	item2 := q.Add("Done merged", "", "")
-	q.UpdateStatus(item2.ID, StatusDone)
-	q.UpdateMergeStatus(item2.ID, MergeMerged, "abc")
+	if err := q.UpdateStatus(item2.ID, StatusDone); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateMergeStatus(item2.ID, MergeMerged, "abc"); err != nil {
+		t.Fatal(err)
+	}
 
 	item3 := q.Add("Still working", "", "")
-	q.UpdateStatus(item3.ID, StatusWorking)
+	if err := q.UpdateStatus(item3.ID, StatusWorking); err != nil {
+		t.Fatal(err)
+	}
 
 	item4 := q.Add("Done conflict", "", "")
-	q.UpdateStatus(item4.ID, StatusDone)
-	q.UpdateMergeStatus(item4.ID, MergeConflict, "")
+	if err := q.UpdateStatus(item4.ID, StatusDone); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateMergeStatus(item4.ID, MergeConflict, ""); err != nil {
+		t.Fatal(err)
+	}
 
 	mergeable := q.ListMergeable()
 
@@ -218,11 +238,17 @@ func TestStats_IncludesMergeCount(t *testing.T) {
 	q := New(filepath.Join(dir, "q.json"))
 
 	item1 := q.Add("Task 1", "", "")
-	q.UpdateStatus(item1.ID, StatusDone) // auto MergeUnmerged
+	if err := q.UpdateStatus(item1.ID, StatusDone); err != nil {
+		t.Fatal(err)
+	}
 
 	item2 := q.Add("Task 2", "", "")
-	q.UpdateStatus(item2.ID, StatusDone)
-	q.UpdateMergeStatus(item2.ID, MergeMerged, "abc")
+	if err := q.UpdateStatus(item2.ID, StatusDone); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateMergeStatus(item2.ID, MergeMerged, "abc"); err != nil {
+		t.Fatal(err)
+	}
 
 	item3 := q.Add("Task 3", "", "")
 	_ = item3 // pending, no merge status
@@ -243,8 +269,12 @@ func TestMergeFields_Persist(t *testing.T) {
 	// Create and save
 	q := New(path)
 	item := q.Add("Test task", "", "")
-	q.SetBranch(item.ID, "feature/test")
-	q.UpdateMergeStatus(item.ID, MergeMerged, "deadbeef")
+	if err := q.SetBranch(item.ID, "feature/test"); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateMergeStatus(item.ID, MergeMerged, "deadbeef"); err != nil {
+		t.Fatal(err)
+	}
 	if err := q.Save(); err != nil {
 		t.Fatalf("Save: %v", err)
 	}

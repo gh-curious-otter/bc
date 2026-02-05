@@ -53,10 +53,18 @@ func TestCollectWorkItemMetricsStatusCounts(t *testing.T) {
 	q.Add("Done task", "", "")
 	q.Add("Failed task", "", "")
 
-	q.Assign("work-002", "agent-1")
-	q.UpdateStatus("work-003", queue.StatusWorking)
-	q.UpdateStatus("work-004", queue.StatusDone)
-	q.UpdateStatus("work-005", queue.StatusFailed)
+	if err := q.Assign("work-002", "agent-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateStatus("work-003", queue.StatusWorking); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateStatus("work-004", queue.StatusDone); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateStatus("work-005", queue.StatusFailed); err != nil {
+		t.Fatal(err)
+	}
 
 	s.collectWorkItemMetrics(q)
 
@@ -90,9 +98,15 @@ func TestCollectWorkItemMetricsRates(t *testing.T) {
 	q.Add("c", "", "")
 	q.Add("d", "", "")
 
-	q.UpdateStatus("work-001", queue.StatusDone)
-	q.UpdateStatus("work-002", queue.StatusDone)
-	q.UpdateStatus("work-003", queue.StatusFailed)
+	if err := q.UpdateStatus("work-001", queue.StatusDone); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateStatus("work-002", queue.StatusDone); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateStatus("work-003", queue.StatusFailed); err != nil {
+		t.Fatal(err)
+	}
 
 	s.collectWorkItemMetrics(q)
 
@@ -159,7 +173,9 @@ func TestCollectWorkItemMetricsHistorical(t *testing.T) {
 	q := queue.New(filepath.Join(t.TempDir(), "q.json"))
 	for i := 0; i < 15; i++ {
 		q.Add("task", "", "")
-		q.UpdateStatus(q.ListAll()[i].ID, queue.StatusDone)
+		if err := q.UpdateStatus(q.ListAll()[i].ID, queue.StatusDone); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	s.collectWorkItemMetrics(q)
@@ -392,7 +408,9 @@ func seedQueueFile(t *testing.T, stateDir string, items []queue.WorkItem) {
 func TestCollectAgentMetricsEmpty(t *testing.T) {
 	stateDir := t.TempDir()
 	agentsDir := filepath.Join(stateDir, "agents")
-	os.MkdirAll(agentsDir, 0755)
+	if err := os.MkdirAll(agentsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	s := New(stateDir)
 	mgr := agent.NewWorkspaceManager(agentsDir, filepath.Dir(stateDir))
@@ -551,12 +569,24 @@ func TestCollectAgentMetricsTaskCounts(t *testing.T) {
 	q.Add("task 1", "", "")
 	q.Add("task 2", "", "")
 	q.Add("task 3", "", "")
-	q.Assign("work-001", "worker-1")
-	q.Assign("work-002", "worker-1")
-	q.Assign("work-003", "worker-1")
-	q.UpdateStatus("work-001", queue.StatusDone)
-	q.UpdateStatus("work-002", queue.StatusDone)
-	q.UpdateStatus("work-003", queue.StatusFailed)
+	if err := q.Assign("work-001", "worker-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.Assign("work-002", "worker-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.Assign("work-003", "worker-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateStatus("work-001", queue.StatusDone); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateStatus("work-002", queue.StatusDone); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateStatus("work-003", queue.StatusFailed); err != nil {
+		t.Fatal(err)
+	}
 
 	s := New(stateDir)
 	s.collectAgentMetrics(mgr, q)
@@ -753,7 +783,9 @@ func TestLoadInvalidQueueFile(t *testing.T) {
 func TestLoadInvalidAgentsFile(t *testing.T) {
 	stateDir := t.TempDir()
 	agentsDir := filepath.Join(stateDir, "agents")
-	os.MkdirAll(agentsDir, 0755)
+	if err := os.MkdirAll(agentsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := os.WriteFile(filepath.Join(agentsDir, "agents.json"), []byte("not json{{{"), 0644); err != nil {
 		t.Fatalf("write: %v", err)
