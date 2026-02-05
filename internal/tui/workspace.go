@@ -48,13 +48,14 @@ type WorkspaceStats struct {
 
 // WorkspaceModel shows the detail view for a single workspace.
 type WorkspaceModel struct {
-	info    WorkspaceInfo
-	styles  style.Styles
-	width   int
-	height  int
-	tab     Tab
-	cursor  int
-	manager *agent.Manager
+	info         WorkspaceInfo
+	styles       style.Styles
+	width        int
+	height       int
+	tab          Tab
+	cursor       int
+	scrollOffset int // first visible item index for current tab
+	manager      *agent.Manager
 
 	// Data
 	agents     []*agent.Agent
@@ -129,25 +130,31 @@ func (m *WorkspaceModel) HandleKey(msg tea.KeyMsg) Action {
 	case "tab":
 		m.tab = (m.tab + 1) % tabCount
 		m.cursor = 0
+		m.scrollOffset = 0
 		return NoAction
 	case "shift+tab":
 		m.tab = (m.tab + tabCount - 1) % tabCount
 		m.cursor = 0
+		m.scrollOffset = 0
 		return NoAction
 	case "j", "down":
 		m.cursor++
 		m.clampCursor()
+		m.ensureCursorVisible()
 		return NoAction
 	case "k", "up":
 		if m.cursor > 0 {
 			m.cursor--
 		}
+		m.ensureCursorVisible()
 		return NoAction
 	case "g", "home":
 		m.cursor = 0
+		m.scrollOffset = 0
 		return NoAction
 	case "G", "end":
 		m.cursor = m.maxCursor()
+		m.ensureCursorVisible()
 		return NoAction
 	case "r":
 		m.refresh()
@@ -170,6 +177,8 @@ func (m *WorkspaceModel) refresh() {
 	m.loadRecentEvents()
 	m.computeStats()
 	m.loadPkgStats()
+	m.clampCursor()
+	m.ensureCursorVisible()
 }
 
 func (m *WorkspaceModel) loadQueueStats() {
@@ -265,6 +274,62 @@ func (m *WorkspaceModel) clampCursor() {
 	}
 }
 
+// visibleRows returns the number of data rows that fit in the viewport.
+// Accounts for overhead: stats bar (1) + gap (1) + tab bar (1) + gap (2) + header (1) + position indicator (1) = 7.
+const viewportOverhead = 7
+
+func (m *WorkspaceModel) visibleRows() int {
+	rows := m.height - viewportOverhead
+	if rows < 1 {
+		rows = 1
+	}
+	return rows
+}
+
+// ensureCursorVisible adjusts scrollOffset so the cursor is within the viewport.
+func (m *WorkspaceModel) ensureCursorVisible() {
+	visible := m.visibleRows()
+	if m.cursor < m.scrollOffset {
+		m.scrollOffset = m.cursor
+	}
+	if m.cursor >= m.scrollOffset+visible {
+		m.scrollOffset = m.cursor - visible + 1
+	}
+	if m.scrollOffset < 0 {
+		m.scrollOffset = 0
+	}
+}
+
+// viewportRange returns the [start, end) range of items to render for the current viewport.
+func (m *WorkspaceModel) viewportRange(total int) (int, int) {
+	if total == 0 {
+		return 0, 0
+	}
+	visible := m.visibleRows()
+	start := m.scrollOffset
+	if start > total {
+		start = total
+	}
+	end := start + visible
+	if end > total {
+		end = total
+	}
+	return start, end
+}
+
+// renderPositionIndicator returns a "start-end of total" indicator string.
+func (m *WorkspaceModel) renderPositionIndicator(total int) string {
+	if total == 0 {
+		return ""
+	}
+	visible := m.visibleRows()
+	if total <= visible {
+		return "" // everything fits, no indicator needed
+	}
+	start, end := m.viewportRange(total)
+	return m.styles.Muted.Render(fmt.Sprintf("  %d-%d of %d", start+1, end, total)) + "\n"
+}
+
 // View renders the workspace detail screen.
 func (m *WorkspaceModel) View() string {
 	var b strings.Builder
@@ -350,18 +415,12 @@ func (m *WorkspaceModel) renderAgents() string {
 		taskWidth = 20
 	}
 
-	workerCount := 0
-	for i, a := range m.agents {
+	// Render only the visible viewport.
+	start, end := m.viewportRange(len(m.agents))
+	for i := start; i < end; i++ {
+		a := m.agents[i]
 		selected := i == m.cursor
 
-		isWorkerRole := a.Role == agent.RoleWorker || a.Role == agent.RoleEngineer
-		if a.State != agent.StateStopped {
-			if isWorkerRole {
-				workerCount++
-			}
-		}
-
-		// Pull stats from pkg/stats
 		as := m.agentStats[a.Name]
 		uptime := "-"
 		if as.Uptime > 0 {
@@ -392,6 +451,7 @@ func (m *WorkspaceModel) renderAgents() string {
 		b.WriteString("\n")
 	}
 
+	b.WriteString(m.renderPositionIndicator(len(m.agents)))
 	return b.String()
 }
 
@@ -408,7 +468,9 @@ func (m *WorkspaceModel) renderIssues() string {
 	b.WriteString(m.styles.Bold.Render(header))
 	b.WriteString("\n")
 
-	for i, issue := range m.issues {
+	start, end := m.viewportRange(len(m.issues))
+	for i := start; i < end; i++ {
+		issue := m.issues[i]
 		selected := i == m.cursor
 
 		title := issue.Title
@@ -435,6 +497,7 @@ func (m *WorkspaceModel) renderIssues() string {
 		b.WriteString("\n")
 	}
 
+	b.WriteString(m.renderPositionIndicator(len(m.issues)))
 	return b.String()
 }
 
@@ -507,7 +570,9 @@ func (m *WorkspaceModel) renderChannels() string {
 	b.WriteString(m.styles.Bold.Render(header))
 	b.WriteString("\n")
 
-	for i, ch := range m.channels {
+	start, end := m.viewportRange(len(m.channels))
+	for i := start; i < end; i++ {
+		ch := m.channels[i]
 		selected := i == m.cursor
 
 		msgCount := len(ch.History)
@@ -532,6 +597,7 @@ func (m *WorkspaceModel) renderChannels() string {
 		b.WriteString("\n")
 	}
 
+	b.WriteString(m.renderPositionIndicator(len(m.channels)))
 	return b.String()
 }
 
@@ -571,7 +637,9 @@ func (m *WorkspaceModel) renderQueue() string {
 	b.WriteString(m.styles.Bold.Render(header))
 	b.WriteString("\n")
 
-	for i, item := range m.queueItems {
+	start, end := m.viewportRange(len(m.queueItems))
+	for i := start; i < end; i++ {
+		item := m.queueItems[i]
 		selected := i == m.cursor
 
 		title := item.Title
@@ -606,6 +674,7 @@ func (m *WorkspaceModel) renderQueue() string {
 		b.WriteString("\n")
 	}
 
+	b.WriteString(m.renderPositionIndicator(len(m.queueItems)))
 	return b.String()
 }
 
