@@ -130,13 +130,18 @@ func runQueueList(cmd *cobra.Command, args []string) error {
 }
 
 func runQueueAdd(cmd *cobra.Command, args []string) error {
+	title := strings.TrimSpace(args[0])
+	if title == "" {
+		return fmt.Errorf("work item title cannot be empty")
+	}
+
 	ws, err := getWorkspace()
 	if err != nil {
 		return fmt.Errorf("not in a bc workspace: %w", err)
 	}
 
 	q := loadQueue(ws)
-	item := q.Add(args[0], queueDesc, "")
+	item := q.Add(title, queueDesc, "")
 	if err := q.Save(); err != nil {
 		return fmt.Errorf("failed to save queue: %w", err)
 	}

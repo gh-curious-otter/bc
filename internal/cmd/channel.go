@@ -164,7 +164,10 @@ func runChannelCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	name := args[0]
+	name := strings.TrimSpace(args[0])
+	if name == "" {
+		return fmt.Errorf("channel name cannot be empty")
+	}
 	if _, err := store.Create(name); err != nil {
 		return err
 	}
