@@ -3,8 +3,9 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/spf13/cobra"
+
+	"github.com/rpuneet/bc/pkg/agent"
 )
 
 var attachCmd = &cobra.Command{
@@ -28,22 +29,22 @@ func init() {
 
 func runAttach(cmd *cobra.Command, args []string) error {
 	agentName := args[0]
-	
+
 	// Find workspace
 	ws, err := getWorkspace()
 	if err != nil {
 		return fmt.Errorf("not in a bc workspace: %w", err)
 	}
-	
+
 	// Create agent manager
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
-	
+
 	// Check if session exists
 	if !mgr.Tmux().HasSession(agentName) {
 		return fmt.Errorf("agent '%s' not running (session bc-%s not found)", agentName, agentName)
 	}
-	
+
 	fmt.Printf("Attaching to %s (use Ctrl+b d to detach)...\n", agentName)
-	
+
 	return mgr.AttachToAgent(agentName)
 }

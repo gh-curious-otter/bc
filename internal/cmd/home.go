@@ -4,12 +4,13 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/spf13/cobra"
+
 	"github.com/rpuneet/bc/config"
 	itui "github.com/rpuneet/bc/internal/tui"
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/spf13/cobra"
 )
 
 var homeCmd = &cobra.Command{
@@ -49,7 +50,7 @@ func runHome(cmd *cobra.Command, args []string) error {
 		ws, err := getWorkspace()
 		if err == nil {
 			reg.Register(ws.RootDir, ws.Config.Name)
-			reg.Save()
+			_ = reg.Save()
 		}
 	}
 
@@ -67,8 +68,8 @@ func runHome(cmd *cobra.Command, args []string) error {
 			entry.Path+"/.bc/agents",
 			entry.Path,
 		)
-		mgr.LoadState()
-		mgr.RefreshState()
+		_ = mgr.LoadState()
+		_ = mgr.RefreshState()
 		info.Total = mgr.AgentCount()
 		info.Running = mgr.RunningCount()
 

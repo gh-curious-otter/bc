@@ -170,10 +170,13 @@ func TestAppUpdatePassesToActiveView(t *testing.T) {
 
 	// Send j key to move cursor down in the table
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}}
-	app.Update(msg)
+	_, _ = app.Update(msg)
 
 	// Get updated table from views
-	updatedTable := app.views["main"].(*TableView)
+	updatedTable, ok := app.views["main"].(*TableView)
+	if !ok {
+		t.Fatal("expected views[main] to be *TableView")
+	}
 	if updatedTable.cursor != 1 {
 		t.Errorf("expected cursor 1 after j key, got %d", updatedTable.cursor)
 	}

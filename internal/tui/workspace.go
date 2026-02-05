@@ -10,6 +10,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/channel"
@@ -89,10 +90,10 @@ type WorkspaceModel struct {
 	manager      *agent.Manager
 
 	// Data
-	agents     []*agent.Agent
-	issues     []beads.Issue
-	issuesErr  error
-	channels   []*channel.Channel
+	agents             []*agent.Agent
+	issues             []beads.Issue
+	issuesErr          error
+	channels           []*channel.Channel
 	queueItems         []queue.WorkItem
 	filteredQueueItems []queue.WorkItem
 	queueFilter        QueueFilter
@@ -128,8 +129,8 @@ func NewWorkspaceModel(info WorkspaceInfo, s style.Styles) *WorkspaceModel {
 		info.Entry.Path+"/.bc/agents",
 		info.Entry.Path,
 	)
-	m.manager.LoadState()
-	m.manager.RefreshState()
+	_ = m.manager.LoadState()
+	_ = m.manager.RefreshState()
 	m.agents = m.manager.ListAgents()
 	m.agentsLoaded = true
 
@@ -210,7 +211,7 @@ func (m *WorkspaceModel) HandleKey(msg tea.KeyMsg) Action {
 }
 
 func (m *WorkspaceModel) refresh() {
-	m.manager.RefreshState()
+	_ = m.manager.RefreshState()
 	m.agents = m.manager.ListAgents()
 	m.issues, m.issuesErr = beads.ListIssues(m.info.Entry.Path)
 	m.loadChannels()

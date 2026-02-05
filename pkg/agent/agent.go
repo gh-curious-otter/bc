@@ -355,7 +355,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 				}
 			}
 			existing.UpdatedAt = time.Now()
-			m.saveState()
+			_ = m.saveState() //nolint:errcheck // best-effort state persistence
 			return existing, nil
 		}
 		// Session is dead but agent is in an active state — only respawn
@@ -393,11 +393,11 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 			}
 
 			env := map[string]string{
-				"BC_AGENT_ID":        name,
-				"BC_AGENT_ROLE":      string(existing.Role),
-				"BC_WORKSPACE":       workspace,
-				"BC_AGENT_WORKTREE":  sessionDir,
-				"PATH":               filepath.Join(workspace, ".bc", "bin") + ":" + os.Getenv("PATH"),
+				"BC_AGENT_ID":       name,
+				"BC_AGENT_ROLE":     string(existing.Role),
+				"BC_WORKSPACE":      workspace,
+				"BC_AGENT_WORKTREE": sessionDir,
+				"PATH":              filepath.Join(workspace, ".bc", "bin") + ":" + os.Getenv("PATH"),
 			}
 			if existing.Tool != "" {
 				env["BC_AGENT_TOOL"] = existing.Tool
@@ -409,7 +409,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 				return nil, fmt.Errorf("failed to recreate tmux session: %w", err)
 			}
 			existing.UpdatedAt = time.Now()
-			m.saveState()
+			_ = m.saveState() //nolint:errcheck // best-effort state persistence
 			return existing, nil
 		}
 	}
@@ -461,11 +461,11 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 
 	// Build env vars so the spawned process sees them immediately
 	env := map[string]string{
-		"BC_AGENT_ID":        name,
-		"BC_AGENT_ROLE":      string(role),
-		"BC_WORKSPACE":       workspace,
-		"BC_AGENT_WORKTREE":  worktreeDir,
-		"PATH":               filepath.Join(workspace, ".bc", "bin") + ":" + os.Getenv("PATH"),
+		"BC_AGENT_ID":       name,
+		"BC_AGENT_ROLE":     string(role),
+		"BC_WORKSPACE":      workspace,
+		"BC_AGENT_WORKTREE": worktreeDir,
+		"PATH":              filepath.Join(workspace, ".bc", "bin") + ":" + os.Getenv("PATH"),
 	}
 	if tool != "" {
 		env["BC_AGENT_TOOL"] = tool
@@ -505,7 +505,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	}
 
 	// Save state
-	m.saveState()
+	_ = m.saveState() //nolint:errcheck // best-effort state persistence
 
 	return agent, nil
 }
@@ -667,7 +667,7 @@ func (m *Manager) StopAgent(name string) error {
 	// Remove from parent's children list
 	m.removeFromParent(name)
 
-	m.saveState()
+	_ = m.saveState() //nolint:errcheck // best-effort state persistence
 
 	return nil
 }
@@ -712,12 +712,12 @@ func (m *Manager) StopAll() error {
 	defer m.mu.Unlock()
 
 	for name, agent := range m.agents {
-		m.tmux.KillSession(name)
+		_ = m.tmux.KillSession(name) //nolint:errcheck // best-effort cleanup
 		agent.State = StateStopped
 		agent.UpdatedAt = time.Now()
 	}
 
-	m.saveState()
+	_ = m.saveState() //nolint:errcheck // best-effort state persistence
 	return nil
 }
 
@@ -979,7 +979,7 @@ func (m *Manager) UpdateAgentState(name string, state State, task string) error 
 	agent.Task = task
 	agent.UpdatedAt = time.Now()
 
-	m.saveState()
+	_ = m.saveState() //nolint:errcheck // best-effort state persistence
 	return nil
 }
 

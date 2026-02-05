@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/rpuneet/bc/pkg/workspace"
 	"github.com/spf13/cobra"
+
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 var initCmd = &cobra.Command{
@@ -34,35 +35,35 @@ func runInit(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		dir = args[0]
 	}
-	
+
 	// Check if already initialized
 	if workspace.IsWorkspace(dir) {
 		return fmt.Errorf("workspace already initialized in %s", dir)
 	}
-	
+
 	// Initialize workspace
 	ws, err := workspace.Init(dir)
 	if err != nil {
 		return err
 	}
-	
+
 	// Apply flags
 	ws.Config.MaxWorkers = initMaxWorkers
-	
+
 	if err := ws.Save(); err != nil {
 		return err
 	}
-	
+
 	// Ensure directories exist
 	if err := ws.EnsureDirs(); err != nil {
 		return err
 	}
-	
+
 	// Register in global registry
 	reg, err := workspace.LoadRegistry()
 	if err == nil {
 		reg.Register(ws.RootDir, ws.Config.Name)
-		reg.Save()
+		_ = reg.Save()
 	}
 
 	fmt.Printf("Initialized bc workspace in %s\n", ws.RootDir)

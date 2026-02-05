@@ -25,8 +25,8 @@ type Config struct {
 
 // Workspace represents an active workspace.
 type Workspace struct {
-	Config   Config
-	RootDir  string
+	Config  Config
+	RootDir string
 }
 
 // DefaultConfig returns default workspace configuration.
@@ -46,16 +46,16 @@ func Init(rootDir string) (*Workspace, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Create state directory
 	stateDir := filepath.Join(absRoot, ".bc")
 	if err := os.MkdirAll(stateDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create state directory: %w", err)
 	}
-	
+
 	// Create default config
 	config := DefaultConfig(absRoot)
-	
+
 	// Save config
 	configPath := filepath.Join(stateDir, "config.json")
 	data, err := json.MarshalIndent(config, "", "  ")
@@ -65,7 +65,7 @@ func Init(rootDir string) (*Workspace, error) {
 	if err := os.WriteFile(configPath, data, 0644); err != nil {
 		return nil, err
 	}
-	
+
 	return &Workspace{
 		Config:  config,
 		RootDir: absRoot,
@@ -78,10 +78,10 @@ func Load(rootDir string) (*Workspace, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	stateDir := filepath.Join(absRoot, ".bc")
 	configPath := filepath.Join(stateDir, "config.json")
-	
+
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -89,16 +89,16 @@ func Load(rootDir string) (*Workspace, error) {
 		}
 		return nil, err
 	}
-	
+
 	var config Config
 	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("invalid config.json: %w", err)
 	}
-	
+
 	// Update paths if directory was moved
 	config.RootDir = absRoot
 	config.StateDir = stateDir
-	
+
 	return &Workspace{
 		Config:  config,
 		RootDir: absRoot,
@@ -111,7 +111,7 @@ func Find(dir string) (*Workspace, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	current := absDir
 	for {
 		// Check for .bc directory
@@ -119,7 +119,7 @@ func Find(dir string) (*Workspace, error) {
 		if _, err := os.Stat(stateDir); err == nil {
 			return Load(current)
 		}
-		
+
 		// Go up one directory
 		parent := filepath.Dir(current)
 		if parent == current {
@@ -162,13 +162,13 @@ func (w *Workspace) EnsureDirs() error {
 		w.AgentsDir(),
 		w.LogsDir(),
 	}
-	
+
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 

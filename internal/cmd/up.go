@@ -7,12 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/queue"
-	"github.com/spf13/cobra"
 )
 
 var upCmd = &cobra.Command{
@@ -88,7 +89,9 @@ func runUp(cmd *cobra.Command, args []string) error {
 
 	// Load beads issues into queue
 	q := queue.New(filepath.Join(ws.StateDir(), "queue.json"))
-	q.Load()
+	if err := q.Load(); err != nil {
+		return fmt.Errorf("failed to load queue: %w", err)
+	}
 
 	issues := beads.ReadyIssues(ws.RootDir)
 	if len(issues) == 0 {
@@ -104,9 +107,11 @@ func runUp(cmd *cobra.Command, args []string) error {
 		added++
 	}
 	if added > 0 {
-		q.Save()
+		if err := q.Save(); err != nil {
+			return fmt.Errorf("failed to save queue: %w", err)
+		}
 		fmt.Printf("Loaded %d items into work queue from beads\n", added)
-		log.Append(events.Event{
+		_ = log.Append(events.Event{
 			Type:    events.QueueLoaded,
 			Message: fmt.Sprintf("loaded %d items from beads", added),
 			Data:    map[string]any{"added": added},
@@ -122,7 +127,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("✓ (session: %s)\n", mgr.Tmux().SessionName(coord.Session))
 
-	log.Append(events.Event{
+	_ = log.Append(events.Event{
 		Type:  events.AgentSpawned,
 		Agent: "coordinator",
 	})
@@ -136,7 +141,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to start product-manager: %w", err)
 	}
 	fmt.Println("✓")
-	log.Append(events.Event{Type: events.AgentSpawned, Agent: "product-manager"})
+	_ = log.Append(events.Event{Type: events.AgentSpawned, Agent: "product-manager"})
 	time.Sleep(300 * time.Millisecond)
 
 	// Start manager
@@ -147,7 +152,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to start manager: %w", err)
 	}
 	fmt.Println("✓")
-	log.Append(events.Event{Type: events.AgentSpawned, Agent: "manager"})
+	_ = log.Append(events.Event{Type: events.AgentSpawned, Agent: "manager"})
 	time.Sleep(300 * time.Millisecond)
 
 	// Start engineers
@@ -165,7 +170,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 		fmt.Printf("✓ (session: %s)\n", mgr.Tmux().SessionName(eng.Session))
 		engineerNames = append(engineerNames, name)
 
-		log.Append(events.Event{
+		_ = log.Append(events.Event{
 			Type:  events.AgentSpawned,
 			Agent: name,
 		})
@@ -188,7 +193,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 		fmt.Printf("✓ (session: %s)\n", mgr.Tmux().SessionName(qa.Session))
 		qaNames = append(qaNames, name)
 
-		log.Append(events.Event{
+		_ = log.Append(events.Event{
 			Type:  events.AgentSpawned,
 			Agent: name,
 		})

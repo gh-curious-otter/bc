@@ -22,14 +22,19 @@ func TestHelperProcess(t *testing.T) {
 		return
 	}
 	if s := os.Getenv("MOCK_STDOUT"); s != "" {
-		fmt.Fprint(os.Stdout, s)
+		_, _ = fmt.Fprint(os.Stdout, s) //nolint:errcheck // test helper output
 	}
 	if s := os.Getenv("MOCK_STDERR"); s != "" {
-		fmt.Fprint(os.Stderr, s)
+		_, _ = fmt.Fprint(os.Stderr, s) //nolint:errcheck // test helper output
 	}
 	exitCode := 0
 	if v := os.Getenv("MOCK_EXIT_CODE"); v != "" {
-		exitCode, _ = strconv.Atoi(v)
+		var err error
+		exitCode, err = strconv.Atoi(v)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "invalid MOCK_EXIT_CODE: %v\n", err)
+			os.Exit(2)
+		}
 	}
 	os.Exit(exitCode)
 }
@@ -1070,7 +1075,7 @@ func TestSendKeysPreservesSpaces(t *testing.T) {
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Fatalf("failed to create session: %v (%s)", err, out)
 			}
-			defer exec.Command("tmux", "kill-session", "-t", fullName).Run()
+			defer func() { _ = exec.Command("tmux", "kill-session", "-t", fullName).Run() }() //nolint:errcheck // best-effort cleanup
 
 			time.Sleep(200 * time.Millisecond)
 
@@ -1129,7 +1134,7 @@ func TestPasteBufferPreservesSpaces(t *testing.T) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("failed to create session: %v (%s)", err, out)
 	}
-	defer exec.Command("tmux", "kill-session", "-t", fullName).Run()
+	defer func() { _ = exec.Command("tmux", "kill-session", "-t", fullName).Run() }() //nolint:errcheck // best-effort cleanup
 
 	time.Sleep(200 * time.Millisecond)
 

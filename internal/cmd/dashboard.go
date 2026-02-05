@@ -8,11 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/queue"
-	"github.com/spf13/cobra"
 )
 
 var dashboardCmd = &cobra.Command{
@@ -62,7 +63,10 @@ func runDashboard(cmd *cobra.Command, args []string) error {
 	}
 
 	// JSON output
-	jsonOutput, _ := cmd.Flags().GetBool("json")
+	jsonOutput, err := cmd.Flags().GetBool("json")
+	if err != nil {
+		return err
+	}
 	if jsonOutput {
 		return printJSONDashboard(ws.RootDir, ws.Config.Name, agents, qs, recentEvents)
 	}
@@ -231,17 +235,17 @@ type agentOutput struct {
 
 // dashboardOutput is the JSON structure for dashboard output.
 type dashboardOutput struct {
-	Workspace string            `json:"workspace"`
-	Name      string            `json:"name"`
-	Agents    dashboardAgents   `json:"agents"`
-	Queue     queue.Stats       `json:"queue"`
-	Events    []dashboardEvent  `json:"recent_events"`
+	Workspace string           `json:"workspace"`
+	Name      string           `json:"name"`
+	Agents    dashboardAgents  `json:"agents"`
+	Queue     queue.Stats      `json:"queue"`
+	Events    []dashboardEvent `json:"recent_events"`
 }
 
 type dashboardAgents struct {
-	Total   int            `json:"total"`
-	Running int            `json:"running"`
-	List    []agentOutput  `json:"list"`
+	Total   int           `json:"total"`
+	Running int           `json:"running"`
+	List    []agentOutput `json:"list"`
 }
 
 type dashboardEvent struct {

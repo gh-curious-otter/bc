@@ -92,7 +92,9 @@ func TestInitIdempotent(t *testing.T) {
 
 func TestLoad(t *testing.T) {
 	dir := t.TempDir()
-	Init(dir)
+	if _, err := Init(dir); err != nil {
+		t.Fatal(err)
+	}
 
 	ws, err := Load(dir)
 	if err != nil {
@@ -115,8 +117,12 @@ func TestLoadNotAWorkspace(t *testing.T) {
 func TestLoadInvalidJSON(t *testing.T) {
 	dir := t.TempDir()
 	bcDir := filepath.Join(dir, ".bc")
-	os.MkdirAll(bcDir, 0755)
-	os.WriteFile(filepath.Join(bcDir, "config.json"), []byte("{bad"), 0644)
+	if err := os.MkdirAll(bcDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bcDir, "config.json"), []byte("{bad"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err := Load(dir)
 	if err == nil {
@@ -127,22 +133,34 @@ func TestLoadInvalidJSON(t *testing.T) {
 func TestLoadUpdatesPathsIfMoved(t *testing.T) {
 	// Init in one location, then copy .bc to a new location and Load
 	orig := t.TempDir()
-	Init(orig)
+	if _, err := Init(orig); err != nil {
+		t.Fatal(err)
+	}
 
 	moved := t.TempDir()
 	// Copy .bc directory
 	srcCfg := filepath.Join(orig, ".bc", "config.json")
 	dstDir := filepath.Join(moved, ".bc")
-	os.MkdirAll(dstDir, 0755)
-	data, _ := os.ReadFile(srcCfg)
-	os.WriteFile(filepath.Join(dstDir, "config.json"), data, 0644)
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(srcCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dstDir, "config.json"), data, 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	ws, err := Load(moved)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	absDir, _ := filepath.Abs(moved)
+	absDir, err := filepath.Abs(moved)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if ws.Config.RootDir != absDir {
 		t.Errorf("RootDir = %q, want %q", ws.Config.RootDir, absDir)
 	}
@@ -156,14 +174,19 @@ func TestLoadUpdatesPathsIfMoved(t *testing.T) {
 
 func TestFindInCurrentDir(t *testing.T) {
 	dir := t.TempDir()
-	Init(dir)
+	if _, err := Init(dir); err != nil {
+		t.Fatal(err)
+	}
 
 	ws, err := Find(dir)
 	if err != nil {
 		t.Fatalf("Find: %v", err)
 	}
 
-	absDir, _ := filepath.Abs(dir)
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if ws.RootDir != absDir {
 		t.Errorf("RootDir = %q, want %q", ws.RootDir, absDir)
 	}
@@ -171,18 +194,25 @@ func TestFindInCurrentDir(t *testing.T) {
 
 func TestFindInParentDir(t *testing.T) {
 	parent := t.TempDir()
-	Init(parent)
+	if _, err := Init(parent); err != nil {
+		t.Fatal(err)
+	}
 
 	// Create a child directory (no workspace of its own)
 	child := filepath.Join(parent, "subdir", "deep")
-	os.MkdirAll(child, 0755)
+	if err := os.MkdirAll(child, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	ws, err := Find(child)
 	if err != nil {
 		t.Fatalf("Find from child: %v", err)
 	}
 
-	absParent, _ := filepath.Abs(parent)
+	absParent, err := filepath.Abs(parent)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if ws.RootDir != absParent {
 		t.Errorf("RootDir = %q, want %q (parent)", ws.RootDir, absParent)
 	}
@@ -191,26 +221,37 @@ func TestFindInParentDir(t *testing.T) {
 func TestFindNestedWorkspaces(t *testing.T) {
 	// Outer workspace
 	outer := t.TempDir()
-	Init(outer)
+	if _, err := Init(outer); err != nil {
+		t.Fatal(err)
+	}
 
 	// Inner workspace inside outer
 	inner := filepath.Join(outer, "projects", "sub")
-	os.MkdirAll(inner, 0755)
-	Init(inner)
+	if err := os.MkdirAll(inner, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Init(inner); err != nil {
+		t.Fatal(err)
+	}
 
 	// Find from inner should find the inner workspace, not outer
 	ws, err := Find(inner)
 	if err != nil {
 		t.Fatal(err)
 	}
-	absInner, _ := filepath.Abs(inner)
+	absInner, err := filepath.Abs(inner)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if ws.RootDir != absInner {
 		t.Errorf("RootDir = %q, want inner %q", ws.RootDir, absInner)
 	}
 
 	// Find from a child of inner should still find inner
 	deepChild := filepath.Join(inner, "src", "pkg")
-	os.MkdirAll(deepChild, 0755)
+	if err := os.MkdirAll(deepChild, 0755); err != nil {
+		t.Fatal(err)
+	}
 	ws2, err := Find(deepChild)
 	if err != nil {
 		t.Fatal(err)
@@ -233,7 +274,10 @@ func TestFindNoWorkspace(t *testing.T) {
 
 func TestSave(t *testing.T) {
 	dir := t.TempDir()
-	ws, _ := Init(dir)
+	ws, err := Init(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Modify config
 	ws.Config.MaxWorkers = 10
@@ -260,9 +304,15 @@ func TestSave(t *testing.T) {
 
 func TestPathHelpers(t *testing.T) {
 	dir := t.TempDir()
-	ws, _ := Init(dir)
+	ws, err := Init(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	absDir, _ := filepath.Abs(dir)
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	bcDir := filepath.Join(absDir, ".bc")
 
 	tests := []struct {
@@ -288,7 +338,10 @@ func TestPathHelpers(t *testing.T) {
 
 func TestEnsureDirs(t *testing.T) {
 	dir := t.TempDir()
-	ws, _ := Init(dir)
+	ws, err := Init(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if err := ws.EnsureDirs(); err != nil {
 		t.Fatalf("EnsureDirs: %v", err)
@@ -308,7 +361,10 @@ func TestEnsureDirs(t *testing.T) {
 
 func TestEnsureDirsIdempotent(t *testing.T) {
 	dir := t.TempDir()
-	ws, _ := Init(dir)
+	ws, err := Init(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Call twice — should not error
 	if err := ws.EnsureDirs(); err != nil {
@@ -323,7 +379,7 @@ func TestEnsureDirsIdempotent(t *testing.T) {
 
 func TestIsWorkspace(t *testing.T) {
 	tests := []struct {
-		name string
+		name  string
 		setup func(t *testing.T) string
 		want  bool
 	}{
@@ -331,7 +387,9 @@ func TestIsWorkspace(t *testing.T) {
 			"initialized workspace",
 			func(t *testing.T) string {
 				dir := t.TempDir()
-				Init(dir)
+				if _, err := Init(dir); err != nil {
+					t.Fatal(err)
+				}
 				return dir
 			},
 			true,
@@ -526,8 +584,13 @@ func TestRegistryPrune(t *testing.T) {
 
 	// Create a real workspace
 	realDir := t.TempDir()
-	Init(realDir)
-	absReal, _ := filepath.Abs(realDir)
+	if _, err := Init(realDir); err != nil {
+		t.Fatal(err)
+	}
+	absReal, err := filepath.Abs(realDir)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Register it plus a fake one
 	r.Register(absReal, "real")
@@ -564,8 +627,13 @@ func TestRegistryPruneNothingToPrune(t *testing.T) {
 	r := newTestRegistry(t)
 
 	realDir := t.TempDir()
-	Init(realDir)
-	absReal, _ := filepath.Abs(realDir)
+	if _, err := Init(realDir); err != nil {
+		t.Fatal(err)
+	}
+	absReal, err := filepath.Abs(realDir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	r.Register(absReal, "real")
 
 	pruned := r.Prune()

@@ -7,8 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/events"
 	"github.com/spf13/cobra"
+
+	"github.com/rpuneet/bc/pkg/events"
 )
 
 var logsCmd = &cobra.Command{
@@ -132,7 +133,10 @@ func runLogs(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	jsonOutput, _ := cmd.Flags().GetBool("json")
+	jsonOutput, err := cmd.Flags().GetBool("json")
+	if err != nil {
+		return err
+	}
 	if jsonOutput {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")

@@ -5,10 +5,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
-	"github.com/spf13/cobra"
 )
 
 var sendCmd = &cobra.Command{
@@ -66,7 +67,7 @@ func runSend(cmd *cobra.Command, args []string) error {
 
 	// Log event
 	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	log.Append(events.Event{
+	_ = log.Append(events.Event{
 		Type:    events.MessageSent,
 		Agent:   agentName,
 		Message: message,

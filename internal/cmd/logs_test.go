@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/pflag"
+
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/spf13/pflag"
 )
 
 // setupLogsWorkspace creates a temporary bc workspace, changes into it,
@@ -34,7 +35,7 @@ func setupLogsWorkspace(t *testing.T) (string, func()) {
 		t.Fatalf("failed to chdir: %v", err)
 	}
 
-	return tmpDir, func() { os.Chdir(origDir) }
+	return tmpDir, func() { _ = os.Chdir(origDir) }
 }
 
 // seedLogsEvents writes events to the workspace events.jsonl file.
@@ -62,7 +63,10 @@ func runLogsCmd(t *testing.T, args ...string) (string, error) {
 	logsCmd.Flags().VisitAll(func(f *pflag.Flag) { f.Changed = false })
 
 	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
 	os.Stdout = w
 
 	rootCmd.SetOut(w)
@@ -70,11 +74,11 @@ func runLogsCmd(t *testing.T, args ...string) (string, error) {
 	rootCmd.SetArgs(args)
 
 	// Reset persistent flags too
-	rootCmd.PersistentFlags().Set("json", "false")
+	_ = rootCmd.PersistentFlags().Set("json", "false")
 
 	err := rootCmd.Execute()
 
-	w.Close()
+	_ = w.Close()
 	var buf [64 * 1024]byte
 	n, _ := r.Read(buf[:])
 	os.Stdout = origStdout

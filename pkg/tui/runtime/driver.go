@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
 	"github.com/rpuneet/bc/pkg/tui/style"
 )
 
@@ -21,13 +22,13 @@ type Driver struct {
 	output io.Writer
 
 	// State
-	currentView  ViewType
-	tableSpec    *TableSpec
-	detailSpec   *DetailSpec
-	modalSpec    *ModalSpec
-	cursor       int
-	width        int
-	height       int
+	currentView ViewType
+	tableSpec   *TableSpec
+	detailSpec  *DetailSpec
+	modalSpec   *ModalSpec
+	cursor      int
+	width       int
+	height      int
 
 	// Components
 	renderer *Renderer
@@ -438,7 +439,7 @@ func (d *Driver) sendEvent(event any) {
 	if err != nil {
 		return
 	}
-	fmt.Fprint(d.output, string(data))
+	_, _ = fmt.Fprint(d.output, string(data)) //nolint:errcheck // best-effort output
 }
 
 // Run starts the runtime driver.

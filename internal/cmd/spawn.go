@@ -5,10 +5,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
-	"github.com/spf13/cobra"
 )
 
 var spawnCmd = &cobra.Command{
@@ -98,7 +99,7 @@ func runSpawn(cmd *cobra.Command, args []string) error {
 
 	// Log event
 	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	log.Append(events.Event{
+	_ = log.Append(events.Event{
 		Type:    events.AgentSpawned,
 		Agent:   agentName,
 		Message: fmt.Sprintf("dynamically spawned with role %s", role),

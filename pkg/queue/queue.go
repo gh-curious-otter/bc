@@ -27,7 +27,7 @@ const (
 type MergeStatus string
 
 const (
-	MergeNone     MergeStatus = ""         // not applicable (item not done)
+	MergeNone     MergeStatus = "" // not applicable (item not done)
 	MergeUnmerged MergeStatus = "unmerged"
 	MergeMerging  MergeStatus = "merging"
 	MergeMerged   MergeStatus = "merged"
