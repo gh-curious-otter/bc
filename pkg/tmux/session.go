@@ -17,6 +17,42 @@ import (
 	"github.com/rpuneet/bc/pkg/log"
 )
 
+// execer abstracts command execution for testability.
+type execer interface {
+	combinedOutput(name string, args ...string) ([]byte, error)
+	output(name string, args ...string) ([]byte, error)
+	run(name string, args ...string) error
+	runStderr(name string, args ...string) (error, string)
+	command(name string, args ...string) *exec.Cmd
+}
+
+// realExecer executes real shell commands.
+type realExecer struct{}
+
+func (realExecer) combinedOutput(name string, args ...string) ([]byte, error) {
+	return exec.Command(name, args...).CombinedOutput()
+}
+
+func (realExecer) output(name string, args ...string) ([]byte, error) {
+	return exec.Command(name, args...).Output()
+}
+
+func (realExecer) run(name string, args ...string) error {
+	return exec.Command(name, args...).Run()
+}
+
+func (realExecer) runStderr(name string, args ...string) (error, string) {
+	cmd := exec.Command(name, args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	return err, stderr.String()
+}
+
+func (realExecer) command(name string, args ...string) *exec.Cmd {
+	return exec.Command(name, args...)
+}
+
 // Session represents a tmux session.
 type Session struct {
 	Name      string
@@ -35,14 +71,18 @@ type Manager struct {
 
 	// sessionMu protects per-session SendKeys serialization.
 	// Concurrent sends to the same session are serialized to prevent interleaving.
-	sessionMu   sync.Mutex
+	sessionMu    sync.Mutex
 	sessionLocks map[string]*sync.Mutex
+
+	// exec abstracts command execution (defaults to realExecer).
+	exec execer
 }
 
 // NewManager creates a new tmux manager with the given prefix.
 func NewManager(prefix string) *Manager {
 	return &Manager{
 		SessionPrefix: prefix,
+		exec:          realExecer{},
 	}
 }
 
@@ -53,6 +93,7 @@ func NewWorkspaceManager(prefix, workspacePath string) *Manager {
 	return &Manager{
 		SessionPrefix: prefix,
 		workspaceHash: fmt.Sprintf("%x", h[:3]),
+		exec:          realExecer{},
 	}
 }
 
@@ -60,6 +101,7 @@ func NewWorkspaceManager(prefix, workspacePath string) *Manager {
 func NewDefaultManager() *Manager {
 	return &Manager{
 		SessionPrefix: "bc-",
+		exec:          realExecer{},
 	}
 }
 
@@ -74,8 +116,7 @@ func (m *Manager) SessionName(name string) string {
 // HasSession checks if a session exists.
 func (m *Manager) HasSession(name string) bool {
 	fullName := m.SessionName(name)
-	cmd := exec.Command("tmux", "has-session", "-t", fullName)
-	return cmd.Run() == nil
+	return m.exec.run("tmux", "has-session", "-t", fullName) == nil
 }
 
 // CreateSession creates a new tmux session.
@@ -88,8 +129,7 @@ func (m *Manager) CreateSession(name, dir string) error {
 		args = append(args, "-c", dir)
 	}
 
-	cmd := exec.Command("tmux", args...)
-	output, err := cmd.CombinedOutput()
+	output, err := m.exec.combinedOutput("tmux", args...)
 	if err != nil {
 		return fmt.Errorf("failed to create session %s: %w (%s)", fullName, err, string(output))
 	}
@@ -119,8 +159,7 @@ func (m *Manager) CreateSessionWithEnv(name, dir, command string, env map[string
 	}
 	args = append(args, "bash", "-c", shellCmd)
 
-	cmd := exec.Command("tmux", args...)
-	output, err := cmd.CombinedOutput()
+	output, err := m.exec.combinedOutput("tmux", args...)
 	if err != nil {
 		return fmt.Errorf("failed to create session %s: %w (%s)", fullName, err, string(output))
 	}
@@ -131,8 +170,7 @@ func (m *Manager) CreateSessionWithEnv(name, dir, command string, env map[string
 func (m *Manager) KillSession(name string) error {
 	fullName := m.SessionName(name)
 	log.Debug("killing tmux session", "name", fullName)
-	cmd := exec.Command("tmux", "kill-session", "-t", fullName)
-	output, err := cmd.CombinedOutput()
+	output, err := m.exec.combinedOutput("tmux", "kill-session", "-t", fullName)
 	if err != nil {
 		return fmt.Errorf("failed to kill session %s: %w (%s)", fullName, err, string(output))
 	}
@@ -178,8 +216,7 @@ func (m *Manager) SendKeysWithSubmit(name, keys, submitKey string) error {
 
 	if len(keys) <= 500 {
 		// Send text literally (no key-name lookup)
-		cmd := exec.Command("tmux", "send-keys", "-t", fullName, "-l", keys)
-		output, err := cmd.CombinedOutput()
+		output, err := m.exec.combinedOutput("tmux", "send-keys", "-t", fullName, "-l", keys)
 		if err != nil {
 			return fmt.Errorf("failed to send keys to %s: %w (%s)", fullName, err, string(output))
 		}
@@ -204,16 +241,14 @@ func (m *Manager) SendKeysWithSubmit(name, keys, submitKey string) error {
 		tmpFile.Close()
 
 		// Load into named buffer
-		loadCmd := exec.Command("tmux", "load-buffer", "-b", bufferName, tmpPath)
-		if output, err := loadCmd.CombinedOutput(); err != nil {
+		if output, err := m.exec.combinedOutput("tmux", "load-buffer", "-b", bufferName, tmpPath); err != nil {
 			return fmt.Errorf("failed to load buffer: %w (%s)", err, string(output))
 		}
 
 		// Paste from named buffer and delete it afterward
-		pasteCmd := exec.Command("tmux", "paste-buffer", "-b", bufferName, "-d", "-t", fullName)
-		if output, err := pasteCmd.CombinedOutput(); err != nil {
+		if output, err := m.exec.combinedOutput("tmux", "paste-buffer", "-b", bufferName, "-d", "-t", fullName); err != nil {
 			// Clean up buffer on error
-			exec.Command("tmux", "delete-buffer", "-b", bufferName).Run()
+			m.exec.run("tmux", "delete-buffer", "-b", bufferName)
 			return fmt.Errorf("failed to paste buffer to %s: %w (%s)", fullName, err, string(output))
 		}
 	}
@@ -229,8 +264,7 @@ func (m *Manager) SendKeysWithSubmit(name, keys, submitKey string) error {
 	// Instead, send "Enter" as a tmux key name so tmux generates a proper key event.
 	time.Sleep(50 * time.Millisecond)
 
-	submitCmd := exec.Command("tmux", "send-keys", "-t", fullName, submitKey)
-	if output, err := submitCmd.CombinedOutput(); err != nil {
+	if output, err := m.exec.combinedOutput("tmux", "send-keys", "-t", fullName, submitKey); err != nil {
 		return fmt.Errorf("failed to send submit key to %s: %w (%s)", fullName, err, string(output))
 	}
 
@@ -246,8 +280,7 @@ func (m *Manager) Capture(name string, lines int) (string, error) {
 		args = append(args, "-S", fmt.Sprintf("-%d", lines))
 	}
 
-	cmd := exec.Command("tmux", args...)
-	output, err := cmd.Output()
+	output, err := m.exec.output("tmux", args...)
 	if err != nil {
 		return "", fmt.Errorf("failed to capture pane %s: %w", fullName, err)
 	}
@@ -256,10 +289,8 @@ func (m *Manager) Capture(name string, lines int) (string, error) {
 
 // ListSessions lists all sessions with our prefix.
 func (m *Manager) ListSessions() ([]Session, error) {
-	cmd := exec.Command("tmux", "list-sessions", "-F",
+	output, err := m.exec.output("tmux", "list-sessions", "-F",
 		"#{session_name}|#{session_created_string}|#{session_attached}|#{session_windows}|#{session_path}")
-
-	output, err := cmd.Output()
 	if err != nil {
 		// No sessions might return error
 		if strings.Contains(err.Error(), "no server running") {
@@ -305,18 +336,15 @@ func (m *Manager) ListSessions() ([]Session, error) {
 // The caller should set Stdin/Stdout/Stderr and run it.
 func (m *Manager) AttachCmd(name string) *exec.Cmd {
 	fullName := m.SessionName(name)
-	return exec.Command("tmux", "attach-session", "-t", fullName)
+	return m.exec.command("tmux", "attach-session", "-t", fullName)
 }
 
 // IsRunning checks if tmux server is running.
 func (m *Manager) IsRunning() bool {
-	cmd := exec.Command("tmux", "list-sessions")
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	err := cmd.Run()
+	err, stderr := m.exec.runStderr("tmux", "list-sessions")
 	if err != nil {
 		// "no server running" means tmux is available but no sessions
-		if strings.Contains(stderr.String(), "no server running") {
+		if strings.Contains(stderr, "no server running") {
 			return false
 		}
 	}
@@ -325,15 +353,13 @@ func (m *Manager) IsRunning() bool {
 
 // KillServer kills the tmux server (all sessions).
 func (m *Manager) KillServer() error {
-	cmd := exec.Command("tmux", "kill-server")
-	return cmd.Run()
+	return m.exec.run("tmux", "kill-server")
 }
 
 // SetEnvironment sets an environment variable in a session.
 func (m *Manager) SetEnvironment(name, key, value string) error {
 	fullName := m.SessionName(name)
-	cmd := exec.Command("tmux", "set-environment", "-t", fullName, key, value)
-	return cmd.Run()
+	return m.exec.run("tmux", "set-environment", "-t", fullName, key, value)
 }
 
 // generateBufferName creates a unique buffer name for tmux operations.
