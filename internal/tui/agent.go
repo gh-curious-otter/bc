@@ -35,6 +35,11 @@ type AgentModel struct {
 	// Peek output
 	peekOutput string
 	peekActive bool
+
+	// Send message mode
+	sendMode bool
+	input    string
+	sendMsg  string
 }
 
 // NewAgentModel creates an agent detail view.
@@ -53,6 +58,10 @@ func NewAgentModel(a *agent.Agent, mgr *agent.Manager, wsPath string, s style.St
 
 // HandleKey processes a key event and returns an action for the parent.
 func (m *AgentModel) HandleKey(msg tea.KeyMsg) Action {
+	if m.sendMode {
+		return m.handleSendKey(msg)
+	}
+
 	key := msg.String()
 
 	switch key {
@@ -67,9 +76,52 @@ func (m *AgentModel) HandleKey(msg tea.KeyMsg) Action {
 		return NoAction
 	case "a":
 		return Action{Type: ActionAttach, Data: m.agent.Name}
+	case "s":
+		m.sendMode = true
+		m.input = ""
+		m.sendMsg = ""
+		return NoAction
 	case "r":
 		m.refresh()
 		return NoAction
+	}
+
+	return NoAction
+}
+
+func (m *AgentModel) handleSendKey(msg tea.KeyMsg) Action {
+	key := msg.String()
+
+	switch key {
+	case "esc":
+		m.sendMode = false
+		m.input = ""
+		return NoAction
+	case "backspace":
+		if len(m.input) > 0 {
+			m.input = m.input[:len(m.input)-1]
+		}
+		return NoAction
+	}
+
+	if isEnterKey(msg) {
+		if m.input != "" {
+			if err := m.manager.SendToAgent(m.agent.Name, m.input); err != nil {
+				m.sendMsg = "Error: " + err.Error()
+			} else {
+				m.sendMsg = "Message sent to " + m.agent.Name
+			}
+		}
+		m.sendMode = false
+		m.input = ""
+		return NoAction
+	}
+
+	// Append typed characters
+	if msg.Type == tea.KeyRunes {
+		m.input += string(msg.Runes)
+	} else if msg.Type == tea.KeySpace {
+		m.input += " "
 	}
 
 	return NoAction

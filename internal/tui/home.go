@@ -450,7 +450,7 @@ func (m *HomeModel) renderStatusBar() string {
 	case ScreenWorkspace:
 		hints = "j/k:navigate | tab:switch tab | enter:details | esc:back | q:quit"
 	case ScreenAgent:
-		hints = "p:peek | a:attach | esc:back | q:quit"
+		hints = "p:peek | a:attach | s:send message | r:refresh | esc:back | q:quit"
 	case ScreenChannel:
 		hints = "s:send message | r:refresh | esc:back | q:quit"
 	case ScreenIssue:
