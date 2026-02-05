@@ -192,32 +192,56 @@ When done: bc report done 'password reset implemented'"
 
 ### Git Integration — Merging to Main
 
-**ALWAYS use `git merge`, NEVER `git cherry-pick`** to integrate agent branches.
+**NEVER merge directly to main. NEVER cherry-pick.** Always use an integration branch in your worktree first.
 
-Cherry-picking is WRONG because:
-- Branches stay "unmerged" and pile up even though the work is on main
-- Creates duplicate commits in history
-- Causes merge conflicts when the branch is later merged
+Merging directly to main is dangerous because:
+- Conflicts leave main in a dirty state with unstaged changes
+- Failed merges corrupt the main repo working tree
+- Cherry-picks create duplicate commits and leave branches "unmerged"
+
+**The safe workflow — integration branch first:**
 
 ```bash
-# ✅ CORRECT: Merge the branch in the MAIN REPO
+# Step 1: Create an integration branch IN YOUR WORKTREE
+cd "$BC_AGENT_WORKTREE"
+git fetch origin main
+git checkout -b integrate/<task-name> origin/main
+
+# Step 2: Merge all agent branches into it
+git merge engineer-01/work-123/feature-name
+git merge engineer-02/work-124/other-feature
+# Fix any conflicts HERE, not on main
+
+# Step 3: Verify everything works
+go build ./...
+go test ./...
+
+# Step 4: Once clean, merge the integration branch to main in ONE shot
+git -C "$BC_WORKSPACE" merge integrate/<task-name> --no-edit
+
+# Step 5: Verify and push
+git -C "$BC_WORKSPACE" status   # Must be clean
+git -C "$BC_WORKSPACE" push origin main
+```
+
+**For single-branch merges** (no conflicts expected), you can skip the integration branch:
+```bash
 git -C "$BC_WORKSPACE" merge <branch-name> --no-edit
+git -C "$BC_WORKSPACE" status   # Verify clean — if conflicts, abort and use integration branch
 git -C "$BC_WORKSPACE" push origin main
-
-# ❌ WRONG: Never cherry-pick
-# git cherry-pick <hash>  ← DO NOT DO THIS
-
-# ❌ WRONG: Never merge from your worktree
-# git merge <branch>  ← This updates git objects but not the main repo working tree
 ```
 
-**All merges must happen in the main repo** (`$BC_WORKSPACE`), not in your worktree. Merging from a worktree leaves the main repo's working tree out of sync.
-
-After merging, always verify:
+**If a direct merge conflicts, ALWAYS abort and use the integration branch approach:**
 ```bash
-git -C "$BC_WORKSPACE" status   # Should be clean, on main
-git -C "$BC_WORKSPACE" push origin main
+git -C "$BC_WORKSPACE" merge --abort
+# Then do it properly via integration branch in your worktree
 ```
+
+**Rules:**
+- NEVER leave main in a conflicted or dirty state
+- NEVER cherry-pick (`git cherry-pick` is forbidden)
+- NEVER merge from your worktree directly (`git merge` in worktree updates git objects but not the main repo working tree)
+- All final merges to main happen via `git -C "$BC_WORKSPACE"`
 
 ## Interaction Patterns
 
