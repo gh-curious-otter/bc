@@ -263,7 +263,6 @@ func (m *WorkspaceModel) renderTabBar() string {
 		{"Issues", TabIssues, len(m.issues)},
 		{"Queue", TabQueue, len(m.queueItems)},
 		{"Channels", TabChannels, len(m.channels)},
-		{"Queue", TabQueue, len(m.queueItems)},
 	}
 
 	var parts []string
@@ -316,13 +315,16 @@ func (m *WorkspaceModel) renderAgents() string {
 		taskWidth = 20
 	}
 
-	runningCount := 0
+	workerCount := 0
 	for i, a := range m.agents {
 		selected := i == m.cursor
 
+		isWorkerRole := a.Role == agent.RoleWorker || a.Role == agent.RoleEngineer
 		uptime := "-"
 		if a.State != agent.StateStopped {
-			runningCount++
+			if isWorkerRole {
+				workerCount++
+			}
 			uptime = fmtDuration(time.Since(a.StartedAt))
 		}
 
@@ -341,7 +343,7 @@ func (m *WorkspaceModel) renderAgents() string {
 			a.Name, a.Role, a.State, uptime, done, failed, task,
 		)
 
-		overLimit := m.info.MaxWorkers > 0 && a.State != agent.StateStopped && runningCount > m.info.MaxWorkers
+		overLimit := isWorkerRole && m.info.MaxWorkers > 0 && a.State != agent.StateStopped && workerCount > m.info.MaxWorkers
 		if selected {
 			b.WriteString(m.styles.Selected.Render(line))
 		} else if overLimit {
