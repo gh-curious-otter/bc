@@ -127,10 +127,10 @@ const (
 // UpdateAgentState, which is called by bc report.
 var validTransitions = map[State][]State{
 	StateStarting: {StateIdle, StateError, StateStopped},
-	StateIdle:     {StateWorking, StateDone, StateStuck, StateError, StateStopped},
-	StateWorking:  {StateIdle, StateDone, StateStuck, StateError, StateStopped},
+	StateIdle:     {StateIdle, StateWorking, StateDone, StateStuck, StateError, StateStopped},
+	StateWorking:  {StateWorking, StateIdle, StateDone, StateStuck, StateError, StateStopped},
 	StateDone:     {StateIdle, StateWorking, StateStopped},
-	StateStuck:    {StateIdle, StateWorking, StateError, StateStopped},
+	StateStuck:    {StateStuck, StateIdle, StateWorking, StateError, StateStopped},
 	StateError:    {StateIdle, StateWorking, StateStopped},
 	StateStopped:  {StateIdle, StateStarting},
 }
