@@ -72,10 +72,11 @@ func runHome(cmd *cobra.Command, args []string) error {
 		info.Total = mgr.AgentCount()
 		info.Running = mgr.RunningCount()
 
-		// Count beads issues
+		// Count beads issues (best-effort; errors leave count at 0)
 		if info.HasBeads {
-			issues, _ := beads.ListIssues(entry.Path)
-			info.Issues = len(issues)
+			if issues, err := beads.ListIssues(entry.Path); err == nil {
+				info.Issues = len(issues)
+			}
 		}
 
 		workspaces = append(workspaces, info)

@@ -6,6 +6,7 @@
 package beads
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -61,7 +62,7 @@ func ListAllIssues(workspacePath string) ([]Issue, error) {
 	}
 
 	// Try running bd list --all --json
-	cmd := exec.Command("bd", "list", "--all", "--json")
+	cmd := exec.CommandContext(context.TODO(), "bd", "list", "--all", "--json")
 	cmd.Dir = workspacePath
 	output, err := cmd.Output()
 	if err != nil {

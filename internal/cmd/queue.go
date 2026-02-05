@@ -305,7 +305,9 @@ func runQueueLoad(cmd *cobra.Command, args []string) error {
 	// Try ready issues first, fall back to all issues
 	issues := beads.ReadyIssues(ws.RootDir)
 	if len(issues) == 0 {
-		issues, _ = beads.ListIssues(ws.RootDir)
+		if allIssues, err := beads.ListIssues(ws.RootDir); err == nil {
+			issues = allIssues
+		}
 	}
 
 	if len(issues) == 0 {

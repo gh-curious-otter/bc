@@ -650,7 +650,9 @@ func TestListAllIssuesBdFails(t *testing.T) {
 
 func TestListAllIssuesBdNotFound(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	// Set PATH to empty dir so bd is not found
 	t.Setenv("PATH", t.TempDir())
@@ -679,7 +681,9 @@ func TestListIssuesPropagatesError(t *testing.T) {
 
 func TestListIssuesBdFails(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	mockBd := createMockBdFailing(t)
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
