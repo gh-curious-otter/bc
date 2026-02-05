@@ -74,7 +74,10 @@ func TestAppend_AutoTimestamp(t *testing.T) {
 	}
 	after := time.Now()
 
-	events, _ := log.Read()
+	events, err := log.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(events) != 1 {
 		t.Fatalf("got %d events, want 1", len(events))
 	}
@@ -91,7 +94,10 @@ func TestAppend_PreservesExplicitTimestamp(t *testing.T) {
 		t.Fatalf("Append() error: %v", err)
 	}
 
-	events, _ := log.Read()
+	events, err := log.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(events) != 1 {
 		t.Fatalf("got %d events, want 1", len(events))
 	}
@@ -225,7 +231,9 @@ func TestReadLast(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			log := tempLog(t)
 			for i := 0; i < tt.numEvents; i++ {
-				log.Append(Event{Type: orderedTypes[i%len(orderedTypes)]})
+				if err := log.Append(Event{Type: orderedTypes[i%len(orderedTypes)]}); err != nil {
+					t.Fatal(err)
+				}
 			}
 
 			events, err := log.ReadLast(tt.lastN)
@@ -255,11 +263,21 @@ func TestReadLast_EmptyLog(t *testing.T) {
 
 func TestReadByAgent(t *testing.T) {
 	log := tempLog(t)
-	log.Append(Event{Type: AgentSpawned, Agent: "alice"})
-	log.Append(Event{Type: AgentSpawned, Agent: "bob"})
-	log.Append(Event{Type: WorkAssigned, Agent: "alice"})
-	log.Append(Event{Type: WorkCompleted, Agent: "bob"})
-	log.Append(Event{Type: AgentStopped, Agent: "alice"})
+	if err := log.Append(Event{Type: AgentSpawned, Agent: "alice"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := log.Append(Event{Type: AgentSpawned, Agent: "bob"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := log.Append(Event{Type: WorkAssigned, Agent: "alice"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := log.Append(Event{Type: WorkCompleted, Agent: "bob"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := log.Append(Event{Type: AgentStopped, Agent: "alice"}); err != nil {
+		t.Fatal(err)
+	}
 
 	tests := []struct {
 		agent     string
@@ -310,7 +328,10 @@ func TestAppend_DataFields(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	events, _ := log.Read()
+	events, err := log.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(events) != 1 {
 		t.Fatalf("got %d events, want 1", len(events))
 	}
@@ -347,12 +368,23 @@ func TestAppend_LargeMessage(t *testing.T) {
 
 func TestRead_OversizedLine(t *testing.T) {
 	log := tempLog(t)
-	log.Append(Event{Type: AgentSpawned, Agent: "before"})
-	f, _ := os.OpenFile(log.path, os.O_APPEND|os.O_WRONLY, 0644)
+	if err := log.Append(Event{Type: AgentSpawned, Agent: "before"}); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.OpenFile(log.path, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
 	huge := `{"ts":"2025-01-01T00:00:00Z","type":"message.sent","message":"` + strings.Repeat("z", 100_000) + "\"}\n"
-	f.WriteString(huge)
-	f.Close()
-	log.Append(Event{Type: AgentStopped, Agent: "after"})
+	if _, err := f.WriteString(huge); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := log.Append(Event{Type: AgentStopped, Agent: "after"}); err != nil {
+		t.Fatal(err)
+	}
 
 	events, err := log.Read()
 	if err != nil {
@@ -372,7 +404,7 @@ func TestAppend_ConcurrentWrites(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			log.Append(Event{Type: AgentReport, Agent: "concurrent"})
+			_ = log.Append(Event{Type: AgentReport, Agent: "concurrent"}) //nolint:errcheck // goroutine context
 		}()
 	}
 	wg.Wait()
@@ -427,14 +459,18 @@ func TestRotation_TriggersOnSizeThreshold(t *testing.T) {
 	log := &Log{path: path, maxFileSize: 500, maxRotatedFiles: 3}
 
 	for i := 0; i < 20; i++ {
-		log.Append(Event{Type: AgentReport, Agent: fmt.Sprintf("agent-%03d", i), Message: "padding message here"})
+		if err := log.Append(Event{Type: AgentReport, Agent: fmt.Sprintf("agent-%03d", i), Message: "padding message here"}); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	if _, err := os.Stat(path + ".1"); err != nil {
 		t.Errorf("expected rotated file .1 to exist: %v", err)
 	}
 
-	log.Append(Event{Type: AgentSpawned, Agent: "post-rotate"})
+	if err := log.Append(Event{Type: AgentSpawned, Agent: "post-rotate"}); err != nil {
+		t.Fatal(err)
+	}
 
 	events, err := log.Read()
 	if err != nil {
@@ -451,7 +487,9 @@ func TestRotation_ShiftsFiles(t *testing.T) {
 	log := &Log{path: path, maxFileSize: 200, maxRotatedFiles: 3}
 
 	for i := 0; i < 60; i++ {
-		log.Append(Event{Type: AgentReport, Agent: fmt.Sprintf("a-%02d", i)})
+		if err := log.Append(Event{Type: AgentReport, Agent: fmt.Sprintf("a-%02d", i)}); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	for i := 1; i <= 3; i++ {
@@ -472,7 +510,9 @@ func TestRotation_DisabledWhenZero(t *testing.T) {
 	log := &Log{path: path, maxFileSize: 0, maxRotatedFiles: 3}
 
 	for i := 0; i < 20; i++ {
-		log.Append(Event{Type: AgentReport, Agent: fmt.Sprintf("agent-%03d", i), Message: "padding message here"})
+		if err := log.Append(Event{Type: AgentReport, Agent: fmt.Sprintf("agent-%03d", i), Message: "padding message here"}); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	if _, err := os.Stat(path + ".1"); err == nil {
@@ -486,10 +526,14 @@ func TestRotation_CurrentLogReadableAfterRotation(t *testing.T) {
 	log := &Log{path: path, maxFileSize: 300, maxRotatedFiles: 5}
 
 	for i := 0; i < 30; i++ {
-		log.Append(Event{Type: WorkAssigned, Agent: fmt.Sprintf("w-%02d", i)})
+		if err := log.Append(Event{Type: WorkAssigned, Agent: fmt.Sprintf("w-%02d", i)}); err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	log.Append(Event{Type: AgentSpawned, Agent: "final"})
+	if err := log.Append(Event{Type: AgentSpawned, Agent: "final"}); err != nil {
+		t.Fatal(err)
+	}
 
 	events, err := log.Read()
 	if err != nil {

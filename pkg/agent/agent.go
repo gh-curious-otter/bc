@@ -355,7 +355,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 				}
 			}
 			existing.UpdatedAt = time.Now()
-			m.saveState()
+			_ = m.saveState() //nolint:errcheck // best-effort state persistence
 			return existing, nil
 		}
 		// Session is dead but agent is in an active state — only respawn
@@ -409,7 +409,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 				return nil, fmt.Errorf("failed to recreate tmux session: %w", err)
 			}
 			existing.UpdatedAt = time.Now()
-			m.saveState()
+			_ = m.saveState() //nolint:errcheck // best-effort state persistence
 			return existing, nil
 		}
 	}
@@ -505,7 +505,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	}
 
 	// Save state
-	m.saveState()
+	_ = m.saveState() //nolint:errcheck // best-effort state persistence
 
 	return agent, nil
 }
@@ -667,7 +667,7 @@ func (m *Manager) StopAgent(name string) error {
 	// Remove from parent's children list
 	m.removeFromParent(name)
 
-	m.saveState()
+	_ = m.saveState() //nolint:errcheck // best-effort state persistence
 
 	return nil
 }
@@ -712,12 +712,12 @@ func (m *Manager) StopAll() error {
 	defer m.mu.Unlock()
 
 	for name, agent := range m.agents {
-		m.tmux.KillSession(name)
+		_ = m.tmux.KillSession(name) //nolint:errcheck // best-effort cleanup
 		agent.State = StateStopped
 		agent.UpdatedAt = time.Now()
 	}
 
-	m.saveState()
+	_ = m.saveState() //nolint:errcheck // best-effort state persistence
 	return nil
 }
 
@@ -979,7 +979,7 @@ func (m *Manager) UpdateAgentState(name string, state State, task string) error 
 	agent.Task = task
 	agent.UpdatedAt = time.Now()
 
-	m.saveState()
+	_ = m.saveState() //nolint:errcheck // best-effort state persistence
 	return nil
 }
 

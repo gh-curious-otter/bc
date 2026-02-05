@@ -439,7 +439,7 @@ func (d *Driver) sendEvent(event any) {
 	if err != nil {
 		return
 	}
-	fmt.Fprint(d.output, string(data))
+	_, _ = fmt.Fprint(d.output, string(data)) //nolint:errcheck // best-effort output
 }
 
 // Run starts the runtime driver.

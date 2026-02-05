@@ -1592,8 +1592,12 @@ func TestSpawnAgent_ExistingSessionCreatesWorktree(t *testing.T) {
 		t.Fatalf("git init failed: %v (%s)", err, out)
 	}
 	// Configure git user for CI environments where global config is absent
-	exec.Command("git", "-C", workspace, "config", "user.email", "test@test.com").Run()
-	exec.Command("git", "-C", workspace, "config", "user.name", "Test").Run()
+	if err := exec.Command("git", "-C", workspace, "config", "user.email", "test@test.com").Run(); err != nil {
+		t.Fatal(err)
+	}
+	if err := exec.Command("git", "-C", workspace, "config", "user.name", "Test").Run(); err != nil {
+		t.Fatal(err)
+	}
 	// Need at least one commit for git worktree add to work
 	cmd = exec.Command("git", "-C", workspace, "commit", "--allow-empty", "-m", "init")
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -1613,7 +1617,7 @@ func TestSpawnAgent_ExistingSessionCreatesWorktree(t *testing.T) {
 		t.Fatalf("tmux new-session failed: %v (%s)", err, out)
 	}
 	t.Cleanup(func() {
-		exec.Command("tmux", "kill-session", "-t", sessionName).Run()
+		_ = exec.Command("tmux", "kill-session", "-t", sessionName).Run() //nolint:errcheck // best-effort cleanup
 	})
 
 	// Pre-populate agent WITHOUT WorktreeDir (simulates pre-worktree agent)
@@ -1644,7 +1648,7 @@ func TestSpawnAgent_ExistingSessionCreatesWorktree(t *testing.T) {
 	}
 
 	// Cleanup worktree
-	exec.Command("git", "-C", workspace, "worktree", "remove", "--force", expectedDir).Run()
+	_ = exec.Command("git", "-C", workspace, "worktree", "remove", "--force", expectedDir).Run() //nolint:errcheck // best-effort cleanup
 }
 
 func TestConcurrentRunningCount(t *testing.T) {
@@ -1716,14 +1720,20 @@ func TestEnsureGitWrapper_Idempotent(t *testing.T) {
 	}
 
 	wrapperPath := filepath.Join(workspace, ".bc", "bin", "git")
-	info1, _ := os.Stat(wrapperPath)
+	info1, err := os.Stat(wrapperPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Second call should be a no-op (file already exists)
 	if err := ensureGitWrapper(workspace); err != nil {
 		t.Fatalf("second call failed: %v", err)
 	}
 
-	info2, _ := os.Stat(wrapperPath)
+	info2, err := os.Stat(wrapperPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if info1.ModTime() != info2.ModTime() {
 		t.Error("wrapper was rewritten on second call (not idempotent)")
 	}

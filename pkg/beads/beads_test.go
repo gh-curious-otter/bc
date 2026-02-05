@@ -14,25 +14,29 @@ import (
 func TestHasBeads(t *testing.T) {
 	tests := []struct {
 		name      string
-		setup     func(dir string)
+		setup     func(t *testing.T, dir string)
 		wantBeads bool
 	}{
 		{
 			name:      "no .beads directory",
-			setup:     func(dir string) {},
+			setup:     func(t *testing.T, dir string) {},
 			wantBeads: false,
 		},
 		{
 			name: "with .beads directory",
-			setup: func(dir string) {
-				os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+			setup: func(t *testing.T, dir string) {
+				if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+					t.Fatal(err)
+				}
 			},
 			wantBeads: true,
 		},
 		{
 			name: ".beads is a file not directory",
-			setup: func(dir string) {
-				os.WriteFile(filepath.Join(dir, ".beads"), []byte("not a dir"), 0644)
+			setup: func(t *testing.T, dir string) {
+				if err := os.WriteFile(filepath.Join(dir, ".beads"), []byte("not a dir"), 0644); err != nil {
+					t.Fatal(err)
+				}
 			},
 			wantBeads: true, // os.Stat succeeds for files too
 		},
@@ -41,7 +45,7 @@ func TestHasBeads(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			tt.setup(dir)
+			tt.setup(t, dir)
 
 			got := HasBeads(dir)
 			if got != tt.wantBeads {
@@ -202,7 +206,9 @@ func TestReadyIssuesNoBeadsDir(t *testing.T) {
 func TestListIssuesFiltersEpics(t *testing.T) {
 	// Create a workspace with .beads dir and a mock bd script
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	// Create mock bd that outputs JSON with mixed types
 	issues := []Issue{
@@ -210,7 +216,10 @@ func TestListIssuesFiltersEpics(t *testing.T) {
 		{ID: "b", Title: "Bug fix", Status: "open", Type: "bug"},
 		{ID: "c", Title: "Regular task", Status: "open", Type: "task"},
 	}
-	data, _ := json.Marshal(issues)
+	data, err := json.Marshal(issues)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	mockBd := createMockBd(t, string(data))
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
@@ -233,13 +242,18 @@ func TestListIssuesFiltersEpics(t *testing.T) {
 
 func TestListAllIssuesIncludesEpics(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	issues := []Issue{
 		{ID: "a", Title: "Epic task", Status: "open", Type: "epic"},
 		{ID: "b", Title: "Bug fix", Status: "open", Type: "bug"},
 	}
-	data, _ := json.Marshal(issues)
+	data, err := json.Marshal(issues)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	mockBd := createMockBd(t, string(data))
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
@@ -263,7 +277,9 @@ func TestListAllIssuesIncludesEpics(t *testing.T) {
 
 func TestListAllIssuesJSONLFallback(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	// Output JSONL instead of a JSON array — the function should fall back to parseJSONL
 	jsonl := "{\"id\":\"a\",\"title\":\"First\",\"status\":\"open\"}\n{\"id\":\"b\",\"title\":\"Second\",\"status\":\"open\"}\n"
@@ -286,7 +302,9 @@ func TestListAllIssuesJSONLFallback(t *testing.T) {
 
 func TestListAllIssuesEmptyOutput(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	mockBd := createMockBd(t, "[]")
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
@@ -303,7 +321,9 @@ func TestListAllIssuesEmptyOutput(t *testing.T) {
 
 func TestListAllIssuesMalformedOutput(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	// Totally broken output — not valid JSON or JSONL
 	mockBd := createMockBd(t, "this is not json at all")
@@ -324,13 +344,18 @@ func TestListAllIssuesMalformedOutput(t *testing.T) {
 
 func TestReadyIssuesFiltersEpics(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	issues := []Issue{
 		{ID: "a", Title: "Epic", Status: "open", Type: "epic"},
 		{ID: "b", Title: "Ready bug", Status: "open", Type: "bug"},
 	}
-	data, _ := json.Marshal(issues)
+	data, err := json.Marshal(issues)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// ReadyIssues calls "bd ready --json", so mock needs to respond to that
 	mockBd := createMockBd(t, string(data))
@@ -351,7 +376,9 @@ func TestReadyIssuesFiltersEpics(t *testing.T) {
 
 func TestReadyIssuesEmptyResult(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	mockBd := createMockBd(t, "[]")
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
@@ -502,7 +529,9 @@ func TestIssueJSONOmitsEmpty(t *testing.T) {
 
 	// Optional fields with omitempty should not be present
 	var raw map[string]any
-	json.Unmarshal(data, &raw)
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatal(err)
+	}
 
 	for _, field := range []string{"description", "priority", "assignee", "issue_type", "dependencies"} {
 		if _, exists := raw[field]; exists {
@@ -524,7 +553,9 @@ func TestGetIssueNoBeadsDir(t *testing.T) {
 
 func TestGetIssueBdFails(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	mockBd := createMockBdFailing(t)
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
@@ -537,7 +568,9 @@ func TestGetIssueBdFails(t *testing.T) {
 
 func TestGetIssueMalformedJSON(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	mockBd := createMockBd(t, "this is not json")
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
@@ -550,7 +583,9 @@ func TestGetIssueMalformedJSON(t *testing.T) {
 
 func TestGetIssueEmptyArray(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	mockBd := createMockBd(t, "[]")
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
@@ -563,12 +598,17 @@ func TestGetIssueEmptyArray(t *testing.T) {
 
 func TestGetIssueSuccess(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	issues := []Issue{
 		{ID: "bc-42", Title: "Test bug", Status: "open", Type: "bug", Assignee: "alice"},
 	}
-	data, _ := json.Marshal(issues)
+	data, err := json.Marshal(issues)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	mockBd := createMockBd(t, string(data))
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
@@ -593,13 +633,18 @@ func TestGetIssueSuccess(t *testing.T) {
 
 func TestGetIssueReturnsFirst(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	issues := []Issue{
 		{ID: "bc-1", Title: "First", Status: "open"},
 		{ID: "bc-2", Title: "Second", Status: "open"},
 	}
-	data, _ := json.Marshal(issues)
+	data, err := json.Marshal(issues)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	mockBd := createMockBd(t, string(data))
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
@@ -618,7 +663,9 @@ func TestGetIssueReturnsFirst(t *testing.T) {
 
 func TestGetIssueEmptyID(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	// Mock bd that outputs empty array for any query
 	mockBd := createMockBd(t, "[]")
@@ -634,7 +681,9 @@ func TestGetIssueEmptyID(t *testing.T) {
 
 func TestListAllIssuesBdFails(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	mockBd := createMockBdFailing(t)
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
@@ -701,7 +750,9 @@ func TestListIssuesBdFails(t *testing.T) {
 
 func TestReadyIssuesBdFails(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	mockBd := createMockBdFailing(t)
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
@@ -714,7 +765,9 @@ func TestReadyIssuesBdFails(t *testing.T) {
 
 func TestReadyIssuesMalformedJSON(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	mockBd := createMockBd(t, "not valid json")
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
@@ -727,13 +780,18 @@ func TestReadyIssuesMalformedJSON(t *testing.T) {
 
 func TestReadyIssuesAllEpics(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	issues := []Issue{
 		{ID: "a", Title: "Epic 1", Status: "open", Type: "epic"},
 		{ID: "b", Title: "Epic 2", Status: "open", Type: "epic"},
 	}
-	data, _ := json.Marshal(issues)
+	data, err := json.Marshal(issues)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	mockBd := createMockBd(t, string(data))
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))

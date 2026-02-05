@@ -98,7 +98,7 @@ func Load(stateDir string) (*Stats, error) {
 	// Try to load existing stats for historical data
 	data, err := os.ReadFile(s.path)
 	if err == nil {
-		json.Unmarshal(data, s) // Ignore error, use defaults
+		_ = json.Unmarshal(data, s) //nolint:errcheck // ignore error, use defaults
 	}
 
 	// Refresh with live data
@@ -135,7 +135,7 @@ func (s *Stats) refresh(stateDir string) error {
 			return fmt.Errorf("failed to load agents: %w", err)
 		}
 	}
-	mgr.RefreshState()
+	_ = mgr.RefreshState() //nolint:errcheck // best-effort refresh
 	s.collectAgentMetrics(mgr, q)
 
 	return nil
