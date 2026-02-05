@@ -24,6 +24,7 @@ const (
 	TabIssues
 	TabQueue
 	TabChannels
+	TabStats
 
 	tabCount = 5
 )
@@ -267,6 +268,8 @@ func (m *WorkspaceModel) View() string {
 		b.WriteString(m.renderChannels())
 	case TabQueue:
 		b.WriteString(m.renderQueue())
+	case TabStats:
+		b.WriteString(m.renderStatsPanel())
 	}
 
 	return b.String()
@@ -282,11 +285,17 @@ func (m *WorkspaceModel) renderTabBar() string {
 		{"Issues", TabIssues, len(m.issues)},
 		{"Queue", TabQueue, len(m.queueItems)},
 		{"Channels", TabChannels, len(m.channels)},
+		{"Stats", TabStats, -1}, // -1 means no count shown
 	}
 
 	var parts []string
 	for _, t := range tabs {
-		label := fmt.Sprintf(" %s (%d) ", t.label, t.count)
+		var label string
+		if t.count >= 0 {
+			label = fmt.Sprintf(" %s (%d) ", t.label, t.count)
+		} else {
+			label = fmt.Sprintf(" %s ", t.label)
+		}
 		if t.tab == m.tab {
 			parts = append(parts, m.styles.Header.Render(label))
 		} else {
@@ -638,6 +647,182 @@ func (m *WorkspaceModel) renderStatsBar() string {
 	}
 
 	return m.styles.Muted.Render(strings.Join(parts, "  |  "))
+}
+
+func (m *WorkspaceModel) renderStatsPanel() string {
+	var b strings.Builder
+
+	// Section 1: Work Items Overview
+	b.WriteString(m.styles.Bold.Render("Work Items"))
+	b.WriteString("\n")
+
+	wi := m.queueStats
+	total := wi.Total
+	completionPct := 0.0
+	failurePct := 0.0
+	if total > 0 {
+		completionPct = float64(wi.Done) / float64(total) * 100
+		failurePct = float64(wi.Failed) / float64(total) * 100
+	}
+
+	workFields := []struct {
+		label string
+		value string
+		style string
+	}{
+		{"Total", fmt.Sprintf("%d", total), ""},
+		{"Pending", fmt.Sprintf("%d", wi.Pending+wi.Assigned), "warning"},
+		{"Working", fmt.Sprintf("%d", wi.Working), "ok"},
+		{"Done", fmt.Sprintf("%d", wi.Done), "ok"},
+		{"Failed", fmt.Sprintf("%d", wi.Failed), ""},
+		{"Completion", fmt.Sprintf("%.1f%%", completionPct), ""},
+		{"Failure", fmt.Sprintf("%.1f%%", failurePct), ""},
+	}
+
+	if wi.Failed > 0 {
+		workFields[4].style = "error"
+	}
+	if completionPct >= 80 {
+		workFields[5].style = "ok"
+	}
+	if failurePct > 10 {
+		workFields[6].style = "error"
+	}
+
+	for _, f := range workFields {
+		label := m.styles.Muted.Width(15).Render(f.label + ":")
+		valueStyle := m.styles.Normal
+		switch f.style {
+		case "ok":
+			valueStyle = m.styles.Success
+		case "warning":
+			valueStyle = m.styles.Warning
+		case "error":
+			valueStyle = m.styles.Error
+		}
+		b.WriteString(fmt.Sprintf("  %s %s\n", label, valueStyle.Render(f.value)))
+	}
+	b.WriteString("\n")
+
+	// Section 2: Agent Overview
+	b.WriteString(m.styles.Bold.Render("Agents"))
+	b.WriteString("\n")
+
+	activeCount := m.stats.WorkingAgents + m.stats.IdleAgents + m.stats.StuckAgents
+	utilPct := 0.0
+	if activeCount > 0 {
+		utilPct = float64(m.stats.WorkingAgents) / float64(activeCount) * 100
+	}
+
+	agentFields := []struct {
+		label string
+		value string
+		style string
+	}{
+		{"Total", fmt.Sprintf("%d", len(m.agents)), ""},
+		{"Active", fmt.Sprintf("%d", activeCount), "ok"},
+		{"Working", fmt.Sprintf("%d", m.stats.WorkingAgents), "ok"},
+		{"Idle", fmt.Sprintf("%d", m.stats.IdleAgents), "info"},
+		{"Stuck", fmt.Sprintf("%d", m.stats.StuckAgents), ""},
+		{"Stopped", fmt.Sprintf("%d", m.stats.StoppedAgents), ""},
+		{"Utilization", fmt.Sprintf("%.0f%%", utilPct), ""},
+	}
+
+	if m.stats.StuckAgents > 0 {
+		agentFields[4].style = "error"
+	}
+
+	for _, f := range agentFields {
+		label := m.styles.Muted.Width(15).Render(f.label + ":")
+		valueStyle := m.styles.Normal
+		switch f.style {
+		case "ok":
+			valueStyle = m.styles.Success
+		case "warning":
+			valueStyle = m.styles.Warning
+		case "error":
+			valueStyle = m.styles.Error
+		case "info":
+			valueStyle = m.styles.Info
+		}
+		b.WriteString(fmt.Sprintf("  %s %s\n", label, valueStyle.Render(f.value)))
+	}
+	b.WriteString("\n")
+
+	// Section 3: Per-Agent Completion Rates
+	b.WriteString(m.styles.Bold.Render("Per-Agent Stats"))
+	b.WriteString("\n")
+
+	if len(m.agentStats) == 0 {
+		b.WriteString(m.styles.Muted.Render("  No agent stats available."))
+		b.WriteString("\n")
+	} else {
+		header := fmt.Sprintf("  %-15s %-10s %-8s %-8s %-10s %s",
+			"NAME", "STATE", "DONE", "FAIL", "RATE", "UPTIME")
+		b.WriteString(m.styles.Bold.Render(header))
+		b.WriteString("\n")
+
+		for _, a := range m.agents {
+			as, ok := m.agentStats[a.Name]
+			if !ok {
+				continue
+			}
+
+			totalTasks := as.TasksCompleted + as.TasksFailed
+			ratePct := 0.0
+			if totalTasks > 0 {
+				ratePct = float64(as.TasksCompleted) / float64(totalTasks) * 100
+			}
+
+			uptime := "-"
+			if as.Uptime > 0 {
+				uptime = fmtDuration(as.Uptime)
+			} else if a.State != agent.StateStopped && !a.StartedAt.IsZero() {
+				uptime = fmtDuration(time.Since(a.StartedAt))
+			}
+
+			rateStr := "-"
+			if totalTasks > 0 {
+				rateStr = fmt.Sprintf("%.0f%%", ratePct)
+			}
+
+			line := fmt.Sprintf("  %-15s %-10s %-8d %-8d %-10s %s",
+				as.Name, as.State, as.TasksCompleted, as.TasksFailed, rateStr, uptime)
+			b.WriteString(m.styles.StatusStyle(mapState(a.State)).Render(line))
+			b.WriteString("\n")
+		}
+	}
+	b.WriteString("\n")
+
+	// Section 4: Extended metrics from pkg/stats if available
+	if m.pkgStats != nil {
+		b.WriteString(m.styles.Bold.Render("Work Item Types"))
+		b.WriteString("\n")
+
+		typeFields := []struct {
+			label string
+			value string
+		}{
+			{"Epics", fmt.Sprintf("%d", m.pkgStats.WorkItems.Epics)},
+			{"Tasks", fmt.Sprintf("%d", m.pkgStats.WorkItems.Tasks)},
+			{"Bugs", fmt.Sprintf("%d", m.pkgStats.WorkItems.Bugs)},
+			{"Other", fmt.Sprintf("%d", m.pkgStats.WorkItems.Other)},
+		}
+
+		if m.pkgStats.WorkItems.AvgTimeToComplete > 0 {
+			typeFields = append(typeFields, struct {
+				label string
+				value string
+			}{"Avg Completion", fmtDuration(m.pkgStats.WorkItems.AvgTimeToComplete)})
+		}
+
+		for _, f := range typeFields {
+			label := m.styles.Muted.Width(15).Render(f.label + ":")
+			b.WriteString(fmt.Sprintf("  %s %s\n", label, m.styles.Normal.Render(f.value)))
+		}
+	}
+
+	return b.String()
 }
 
 func (m *WorkspaceModel) computeStats() {
