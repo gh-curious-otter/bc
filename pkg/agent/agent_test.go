@@ -1424,7 +1424,9 @@ func TestValidateTransition(t *testing.T) {
 	valid := []struct {
 		from, to State
 	}{
+		{StateIdle, StateIdle},
 		{StateIdle, StateWorking},
+		{StateWorking, StateWorking},
 		{StateWorking, StateIdle},
 		{StateWorking, StateDone},
 		{StateWorking, StateStuck},
@@ -1432,6 +1434,7 @@ func TestValidateTransition(t *testing.T) {
 		{StateWorking, StateStopped},
 		{StateDone, StateIdle},
 		{StateDone, StateWorking},
+		{StateStuck, StateStuck},
 		{StateStuck, StateIdle},
 		{StateStuck, StateWorking},
 		{StateError, StateIdle},
@@ -1454,9 +1457,7 @@ func TestValidateTransition(t *testing.T) {
 	invalid := []struct {
 		from, to State
 	}{
-		{StateIdle, StateIdle},
 		{StateIdle, StateStarting},
-		{StateWorking, StateWorking},
 		{StateWorking, StateStarting},
 		{StateDone, StateDone},
 		{StateDone, StateStuck},
@@ -1507,6 +1508,59 @@ func TestUpdateAgentStateValidation(t *testing.T) {
 	// Agent not found
 	if err := m.UpdateAgentState("nonexistent", StateWorking, ""); err == nil {
 		t.Error("should error for nonexistent agent")
+	}
+}
+
+func TestUpdateAgentState_SameStateMessageUpdate(t *testing.T) {
+	m := &Manager{
+		agents: make(map[string]*Agent),
+	}
+	m.agents["test-agent"] = &Agent{
+		Name:  "test-agent",
+		Role:  RoleWorker,
+		State: StateIdle,
+	}
+
+	// idle → working
+	if err := m.UpdateAgentState("test-agent", StateWorking, "starting task"); err != nil {
+		t.Fatalf("idle→working should be valid: %v", err)
+	}
+
+	// working → working (update message)
+	if err := m.UpdateAgentState("test-agent", StateWorking, "now testing edge cases"); err != nil {
+		t.Errorf("working→working should be valid: %v", err)
+	}
+	if m.agents["test-agent"].Task != "now testing edge cases" {
+		t.Errorf("expected task 'now testing edge cases', got %q", m.agents["test-agent"].Task)
+	}
+	if m.agents["test-agent"].State != StateWorking {
+		t.Errorf("expected state working, got %s", m.agents["test-agent"].State)
+	}
+
+	// working → stuck
+	if err := m.UpdateAgentState("test-agent", StateStuck, "blocked on dependency"); err != nil {
+		t.Fatalf("working→stuck should be valid: %v", err)
+	}
+
+	// stuck → stuck (update message)
+	if err := m.UpdateAgentState("test-agent", StateStuck, "still blocked, filed issue"); err != nil {
+		t.Errorf("stuck→stuck should be valid: %v", err)
+	}
+	if m.agents["test-agent"].Task != "still blocked, filed issue" {
+		t.Errorf("expected updated stuck message, got %q", m.agents["test-agent"].Task)
+	}
+
+	// stuck → idle
+	if err := m.UpdateAgentState("test-agent", StateIdle, ""); err != nil {
+		t.Fatalf("stuck→idle should be valid: %v", err)
+	}
+
+	// idle → idle (update message)
+	if err := m.UpdateAgentState("test-agent", StateIdle, "waiting for assignment"); err != nil {
+		t.Errorf("idle→idle should be valid: %v", err)
+	}
+	if m.agents["test-agent"].Task != "waiting for assignment" {
+		t.Errorf("expected updated idle message, got %q", m.agents["test-agent"].Task)
 	}
 }
 
