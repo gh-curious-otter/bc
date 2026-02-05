@@ -380,7 +380,7 @@ func (m *WorkspaceModel) renderIssues() string {
 		return b.String()
 	}
 
-	header := fmt.Sprintf("  %-12s %-10s %-40s %s", "ID", "STATUS", "TITLE", "SOURCE")
+	header := fmt.Sprintf("  %-12s %-10s %-18s %-40s", "ID", "STATUS", "SOURCE", "TITLE")
 	b.WriteString(m.styles.Bold.Render(header))
 	b.WriteString("\n")
 
@@ -392,8 +392,10 @@ func (m *WorkspaceModel) renderIssues() string {
 			title = title[:35] + "..."
 		}
 
-		line := fmt.Sprintf("  %-12s %-10s %-40s %s",
-			issue.ID, issue.Status, title, issue.Source,
+		source := issueSource(issue)
+
+		line := fmt.Sprintf("  %-12s %-10s %-18s %-40s",
+			issue.ID, issue.Status, source, title,
 		)
 
 		if selected {
@@ -441,6 +443,15 @@ func (m *WorkspaceModel) renderPRs() string {
 	}
 
 	return b.String()
+}
+
+// issueSource returns a human-readable source attribution for an issue.
+// For beads issues: "bd/<assignee>" or "bd" if unassigned.
+func issueSource(issue beads.Issue) string {
+	if issue.Assignee != "" {
+		return "bd/" + issue.Assignee
+	}
+	return "bd"
 }
 
 func mapState(s agent.State) string {
