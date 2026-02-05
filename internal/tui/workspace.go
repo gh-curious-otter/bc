@@ -22,7 +22,6 @@ const (
 	TabIssues
 	TabQueue
 	TabChannels
-	TabQueue
 
 	tabCount = 5
 )
@@ -393,6 +392,15 @@ func (m *WorkspaceModel) renderIssues() string {
 	}
 
 	return b.String()
+}
+
+// issueSource returns a human-readable source attribution for an issue.
+// For beads issues: "bd/<assignee>" or "bd" if unassigned.
+func issueSource(issue beads.Issue) string {
+	if issue.Assignee != "" {
+		return "bd/" + issue.Assignee
+	}
+	return "bd"
 }
 
 func mapState(s agent.State) string {

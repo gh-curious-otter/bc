@@ -12,6 +12,7 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/queue"
 	"github.com/rpuneet/bc/pkg/tui/style"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -25,6 +26,7 @@ const (
 	ScreenAgent
 	ScreenChannel
 	ScreenIssue
+	ScreenQueueItem
 )
 
 // TickMsg triggers a periodic refresh.
@@ -63,6 +65,9 @@ type HomeModel struct {
 
 	// Issue detail state
 	issueModel *IssueModel
+
+	// Queue item detail state
+	queueItemModel *QueueItemModel
 
 	// Status message
 	statusMsg string

@@ -62,7 +62,7 @@ func TestPrintAgentSummary_NoAgents(t *testing.T) {
 	}
 }
 
-func TestPrintAgentSummary_WithAgents(t *testing.T) {
+func TestPrintAgentSummary_WithAgents_Dashboard(t *testing.T) {
 	agents := []*agent.Agent{
 		{
 			Name:      "engineer-01",
@@ -132,7 +132,7 @@ func TestPrintAgentSummary_TaskTruncation(t *testing.T) {
 	}
 }
 
-func TestPrintQueueStats_Empty(t *testing.T) {
+func TestPrintQueueStats_Empty_Dashboard(t *testing.T) {
 	origStdout := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
@@ -204,7 +204,7 @@ func TestPrintQueueStats_WithFailures(t *testing.T) {
 	}
 }
 
-func TestPrintRecentActivity_Empty(t *testing.T) {
+func TestPrintRecentActivity_Empty_Dashboard(t *testing.T) {
 	origStdout := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
@@ -222,7 +222,7 @@ func TestPrintRecentActivity_Empty(t *testing.T) {
 	}
 }
 
-func TestPrintRecentActivity_WithEvents(t *testing.T) {
+func TestPrintRecentActivity_WithEvents_Dashboard(t *testing.T) {
 	evts := []events.Event{
 		{
 			Timestamp: time.Now().Add(-5 * time.Minute),
@@ -313,7 +313,7 @@ func TestPrintRecentActivity_EventTypeAsFallback(t *testing.T) {
 	}
 }
 
-func TestPrintJSONDashboard(t *testing.T) {
+func TestPrintJSONDashboard_Dashboard(t *testing.T) {
 	agents := []*agent.Agent{
 		{
 			Name:      "coordinator",

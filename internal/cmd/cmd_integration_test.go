@@ -20,10 +20,10 @@ func durationFromSeconds(s int) time.Duration {
 	return time.Duration(s) * time.Second
 }
 
-// setupTestWorkspace creates a temporary bc workspace and changes into it.
+// setupIntegrationWorkspace creates a temporary bc workspace and changes into it.
 // Returns the workspace root path and a cleanup function that restores
 // the original working directory and removes the temp directory.
-func setupTestWorkspace(t *testing.T) (string, func()) {
+func setupIntegrationWorkspace(t *testing.T) (string, func()) {
 	t.Helper()
 
 	origDir, err := os.Getwd()
@@ -51,10 +51,10 @@ func setupTestWorkspace(t *testing.T) (string, func()) {
 	}
 }
 
-// executeCmd runs rootCmd with the given args, capturing real stdout output.
+// executeIntegrationCmd runs rootCmd with the given args, capturing real stdout output.
 // Commands use fmt.Printf/Println (writing to os.Stdout), so we redirect
 // os.Stdout to a pipe to capture output. Returns captured stdout and any error.
-func executeCmd(args ...string) (string, string, error) {
+func executeIntegrationCmd(args ...string) (string, string, error) {
 	// Save and redirect os.Stdout
 	origStdout := os.Stdout
 	r, w, _ := os.Pipe()
@@ -107,10 +107,10 @@ func seedQueue(t *testing.T, wsDir string, items []queue.WorkItem) {
 // --- Queue command tests ---
 
 func TestQueueListEmpty(t *testing.T) {
-	_, cleanup := setupTestWorkspace(t)
+	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	stdout, _, err := executeCmd("queue")
+	stdout, _, err := executeIntegrationCmd("queue")
 	if err != nil {
 		t.Fatalf("queue list returned error: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestQueueListNoWorkspace(t *testing.T) {
 	os.Chdir(tmpDir)
 	defer os.Chdir(origDir)
 
-	_, _, err = executeCmd("queue")
+	_, _, err = executeIntegrationCmd("queue")
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
@@ -140,11 +140,11 @@ func TestQueueListNoWorkspace(t *testing.T) {
 }
 
 func TestQueueAddAndList(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	// Add a work item
-	stdout, _, err := executeCmd("queue", "add", "Fix the login bug")
+	stdout, _, err := executeIntegrationCmd("queue", "add", "Fix the login bug")
 	if err != nil {
 		t.Fatalf("queue add returned error: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestQueueAddAndList(t *testing.T) {
 	}
 
 	// Add a second item
-	stdout, _, err = executeCmd("queue", "add", "Add user auth")
+	stdout, _, err = executeIntegrationCmd("queue", "add", "Add user auth")
 	if err != nil {
 		t.Fatalf("second queue add returned error: %v", err)
 	}
@@ -172,10 +172,10 @@ func TestQueueAddAndList(t *testing.T) {
 }
 
 func TestQueueAddEmptyTitle(t *testing.T) {
-	_, cleanup := setupTestWorkspace(t)
+	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	_, _, err := executeCmd("queue", "add", "   ")
+	_, _, err := executeIntegrationCmd("queue", "add", "   ")
 	if err == nil {
 		t.Fatal("expected error for empty title, got nil")
 	}
@@ -185,7 +185,7 @@ func TestQueueAddEmptyTitle(t *testing.T) {
 }
 
 func TestQueueListWithItems(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedQueue(t, wsDir, []queue.WorkItem{
@@ -193,7 +193,7 @@ func TestQueueListWithItems(t *testing.T) {
 		{ID: "work-002", Title: "Second task", Status: queue.StatusDone},
 	})
 
-	stdout, _, err := executeCmd("queue")
+	stdout, _, err := executeIntegrationCmd("queue")
 	if err != nil {
 		t.Fatalf("queue list returned error: %v", err)
 	}
@@ -216,10 +216,10 @@ func TestQueueListWithItems(t *testing.T) {
 }
 
 func TestQueueAssignNotFound(t *testing.T) {
-	_, cleanup := setupTestWorkspace(t)
+	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	_, _, err := executeCmd("queue", "assign", "work-999", "worker-01")
+	_, _, err := executeIntegrationCmd("queue", "assign", "work-999", "worker-01")
 	if err == nil {
 		t.Fatal("expected error for missing item, got nil")
 	}
@@ -229,14 +229,14 @@ func TestQueueAssignNotFound(t *testing.T) {
 }
 
 func TestQueueAssignSuccess(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedQueue(t, wsDir, []queue.WorkItem{
 		{ID: "work-001", Title: "Test task", Status: queue.StatusPending},
 	})
 
-	stdout, _, err := executeCmd("queue", "assign", "work-001", "worker-01")
+	stdout, _, err := executeIntegrationCmd("queue", "assign", "work-001", "worker-01")
 	if err != nil {
 		t.Fatalf("queue assign returned error: %v", err)
 	}
@@ -262,10 +262,10 @@ func TestQueueAssignSuccess(t *testing.T) {
 }
 
 func TestQueueCompleteNotFound(t *testing.T) {
-	_, cleanup := setupTestWorkspace(t)
+	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	_, _, err := executeCmd("queue", "complete", "work-999")
+	_, _, err := executeIntegrationCmd("queue", "complete", "work-999")
 	if err == nil {
 		t.Fatal("expected error for missing item, got nil")
 	}
@@ -275,14 +275,14 @@ func TestQueueCompleteNotFound(t *testing.T) {
 }
 
 func TestQueueCompleteSuccess(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedQueue(t, wsDir, []queue.WorkItem{
 		{ID: "work-001", Title: "Test task", Status: queue.StatusWorking, AssignedTo: "worker-01"},
 	})
 
-	stdout, _, err := executeCmd("queue", "complete", "work-001")
+	stdout, _, err := executeIntegrationCmd("queue", "complete", "work-001")
 	if err != nil {
 		t.Fatalf("queue complete returned error: %v", err)
 	}
@@ -305,10 +305,10 @@ func TestQueueCompleteSuccess(t *testing.T) {
 }
 
 func TestQueueLoadNoBeads(t *testing.T) {
-	_, cleanup := setupTestWorkspace(t)
+	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	stdout, _, err := executeCmd("queue", "load")
+	stdout, _, err := executeIntegrationCmd("queue", "load")
 	if err != nil {
 		t.Fatalf("queue load returned error: %v", err)
 	}
@@ -329,7 +329,7 @@ func TestSendNoWorkspace(t *testing.T) {
 	os.Chdir(tmpDir)
 	defer os.Chdir(origDir)
 
-	_, _, err = executeCmd("send", "worker-01", "hello")
+	_, _, err = executeIntegrationCmd("send", "worker-01", "hello")
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
@@ -339,10 +339,10 @@ func TestSendNoWorkspace(t *testing.T) {
 }
 
 func TestSendAgentNotFound(t *testing.T) {
-	_, cleanup := setupTestWorkspace(t)
+	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	_, _, err := executeCmd("send", "nonexistent-agent", "hello")
+	_, _, err := executeIntegrationCmd("send", "nonexistent-agent", "hello")
 	if err == nil {
 		t.Fatal("expected error for missing agent, got nil")
 	}
@@ -352,7 +352,7 @@ func TestSendAgentNotFound(t *testing.T) {
 }
 
 func TestSendRequiresArgs(t *testing.T) {
-	_, _, err := executeCmd("send")
+	_, _, err := executeIntegrationCmd("send")
 	if err == nil {
 		t.Fatal("expected error for missing args, got nil")
 	}
@@ -370,7 +370,7 @@ func TestReportNoAgentID(t *testing.T) {
 		}
 	}()
 
-	_, _, err := executeCmd("report", "working", "testing")
+	_, _, err := executeIntegrationCmd("report", "working", "testing")
 	if err == nil {
 		t.Fatal("expected error when BC_AGENT_ID not set, got nil")
 	}
@@ -383,7 +383,7 @@ func TestReportInvalidState(t *testing.T) {
 	os.Setenv("BC_AGENT_ID", "test-agent")
 	defer os.Unsetenv("BC_AGENT_ID")
 
-	_, _, err := executeCmd("report", "invalid-state")
+	_, _, err := executeIntegrationCmd("report", "invalid-state")
 	if err == nil {
 		t.Fatal("expected error for invalid state, got nil")
 	}
@@ -405,7 +405,7 @@ func TestReportNoWorkspace(t *testing.T) {
 	os.Setenv("BC_AGENT_ID", "test-agent")
 	defer os.Unsetenv("BC_AGENT_ID")
 
-	_, _, err = executeCmd("report", "working", "testing")
+	_, _, err = executeIntegrationCmd("report", "working", "testing")
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
@@ -430,7 +430,7 @@ func TestReportValidStates(t *testing.T) {
 			os.Chdir(tmpDir)
 			defer os.Chdir(origDir)
 
-			_, _, err := executeCmd("report", state, "test message")
+			_, _, err := executeIntegrationCmd("report", state, "test message")
 			// Should fail with workspace error, NOT invalid state error
 			if err == nil {
 				t.Fatal("expected workspace error, got nil")
@@ -443,7 +443,7 @@ func TestReportValidStates(t *testing.T) {
 }
 
 func TestReportRequiresArgs(t *testing.T) {
-	_, _, err := executeCmd("report")
+	_, _, err := executeIntegrationCmd("report")
 	if err == nil {
 		t.Fatal("expected error for missing args, got nil")
 	}
@@ -461,7 +461,7 @@ func TestStatusNoWorkspace(t *testing.T) {
 	os.Chdir(tmpDir)
 	defer os.Chdir(origDir)
 
-	_, _, err = executeCmd("status")
+	_, _, err = executeIntegrationCmd("status")
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
@@ -471,13 +471,13 @@ func TestStatusNoWorkspace(t *testing.T) {
 }
 
 func TestStatusEmptyWorkspace(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	// Create agents dir so LoadState doesn't warn
 	os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755)
 
-	stdout, _, err := executeCmd("status")
+	stdout, _, err := executeIntegrationCmd("status")
 	if err != nil {
 		t.Fatalf("status returned error: %v", err)
 	}
@@ -491,7 +491,7 @@ func TestStatusEmptyWorkspace(t *testing.T) {
 
 // --- Helper function tests ---
 
-func TestFormatDuration(t *testing.T) {
+func TestFormatDurationIntegration(t *testing.T) {
 	tests := []struct {
 		name     string
 		seconds  int
@@ -513,7 +513,7 @@ func TestFormatDuration(t *testing.T) {
 	}
 }
 
-func TestColorQueueStatus(t *testing.T) {
+func TestColorQueueStatusIntegration(t *testing.T) {
 	statuses := []queue.ItemStatus{
 		queue.StatusPending,
 		queue.StatusAssigned,
@@ -533,7 +533,7 @@ func TestColorQueueStatus(t *testing.T) {
 	}
 }
 
-func TestColorState(t *testing.T) {
+func TestColorStateIntegration(t *testing.T) {
 	tests := []struct {
 		state    string
 		contains string
@@ -581,7 +581,7 @@ func TestColorQueueStatus_Default(t *testing.T) {
 // --- Queue detail tests ---
 
 func TestQueueDetailByPositionalArg(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	now := time.Now()
@@ -597,7 +597,7 @@ func TestQueueDetailByPositionalArg(t *testing.T) {
 		},
 	})
 
-	stdout, _, err := executeCmd("queue", "work-001")
+	stdout, _, err := executeIntegrationCmd("queue", "work-001")
 	if err != nil {
 		t.Fatalf("queue detail returned error: %v", err)
 	}
@@ -619,10 +619,10 @@ func TestQueueDetailByPositionalArg(t *testing.T) {
 }
 
 func TestQueueDetailNotFound(t *testing.T) {
-	_, cleanup := setupTestWorkspace(t)
+	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	_, _, err := executeCmd("queue", "work-999")
+	_, _, err := executeIntegrationCmd("queue", "work-999")
 	if err == nil {
 		t.Fatal("expected error for missing item, got nil")
 	}
@@ -654,7 +654,7 @@ func TestLogsNoWorkspace(t *testing.T) {
 	os.Chdir(tmpDir)
 	defer os.Chdir(origDir)
 
-	_, _, err = executeCmd("logs")
+	_, _, err = executeIntegrationCmd("logs")
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
@@ -664,10 +664,10 @@ func TestLogsNoWorkspace(t *testing.T) {
 }
 
 func TestLogsEmpty(t *testing.T) {
-	_, cleanup := setupTestWorkspace(t)
+	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	stdout, _, err := executeCmd("logs")
+	stdout, _, err := executeIntegrationCmd("logs")
 	if err != nil {
 		t.Fatalf("logs returned error: %v", err)
 	}
@@ -677,7 +677,7 @@ func TestLogsEmpty(t *testing.T) {
 }
 
 func TestLogsWithEvents(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedEvents(t, wsDir, []events.Event{
@@ -701,7 +701,7 @@ func TestLogsWithEvents(t *testing.T) {
 		},
 	})
 
-	stdout, _, err := executeCmd("logs")
+	stdout, _, err := executeIntegrationCmd("logs")
 	if err != nil {
 		t.Fatalf("logs returned error: %v", err)
 	}
@@ -717,7 +717,7 @@ func TestLogsWithEvents(t *testing.T) {
 }
 
 func TestLogsTail(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	// Seed 5 events
@@ -736,7 +736,7 @@ func TestLogsTail(t *testing.T) {
 	logsTail = 2
 	defer func() { logsTail = 0 }()
 
-	stdout, _, err := executeCmd("logs", "--tail", "2")
+	stdout, _, err := executeIntegrationCmd("logs", "--tail", "2")
 	if err != nil {
 		t.Fatalf("logs --tail returned error: %v", err)
 	}
@@ -756,7 +756,7 @@ func TestLogsTail(t *testing.T) {
 }
 
 func TestLogsAgentFilter(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedEvents(t, wsDir, []events.Event{
@@ -769,7 +769,7 @@ func TestLogsAgentFilter(t *testing.T) {
 	logsAgent = "worker-01"
 	defer func() { logsAgent = "" }()
 
-	stdout, _, err := executeCmd("logs", "--agent", "worker-01")
+	stdout, _, err := executeIntegrationCmd("logs", "--agent", "worker-01")
 	if err != nil {
 		t.Fatalf("logs --agent returned error: %v", err)
 	}
@@ -793,7 +793,7 @@ func TestStatsNoWorkspace(t *testing.T) {
 	os.Chdir(tmpDir)
 	defer os.Chdir(origDir)
 
-	_, _, err = executeCmd("stats")
+	_, _, err = executeIntegrationCmd("stats")
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
@@ -803,7 +803,7 @@ func TestStatsNoWorkspace(t *testing.T) {
 }
 
 func TestStatsEmptyWorkspace(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	// Create agents dir
@@ -813,7 +813,7 @@ func TestStatsEmptyWorkspace(t *testing.T) {
 	statsJSON = false
 	statsSave = false
 
-	stdout, _, err := executeCmd("stats")
+	stdout, _, err := executeIntegrationCmd("stats")
 	if err != nil {
 		t.Fatalf("stats returned error: %v", err)
 	}
@@ -826,7 +826,7 @@ func TestStatsEmptyWorkspace(t *testing.T) {
 }
 
 func TestStatsWithQueue(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755)
@@ -840,7 +840,7 @@ func TestStatsWithQueue(t *testing.T) {
 	statsJSON = false
 	statsSave = false
 
-	stdout, _, err := executeCmd("stats")
+	stdout, _, err := executeIntegrationCmd("stats")
 	if err != nil {
 		t.Fatalf("stats returned error: %v", err)
 	}
@@ -853,7 +853,7 @@ func TestStatsWithQueue(t *testing.T) {
 }
 
 func TestStatsSave(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755)
@@ -862,7 +862,7 @@ func TestStatsSave(t *testing.T) {
 	statsJSON = false
 	defer func() { statsSave = false }()
 
-	stdout, _, err := executeCmd("stats", "--save")
+	stdout, _, err := executeIntegrationCmd("stats", "--save")
 	if err != nil {
 		t.Fatalf("stats --save returned error: %v", err)
 	}
@@ -889,7 +889,7 @@ func TestDashboardNoWorkspace(t *testing.T) {
 	os.Chdir(tmpDir)
 	defer os.Chdir(origDir)
 
-	_, _, err = executeCmd("dashboard")
+	_, _, err = executeIntegrationCmd("dashboard")
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
@@ -899,12 +899,12 @@ func TestDashboardNoWorkspace(t *testing.T) {
 }
 
 func TestDashboardEmptyWorkspace(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755)
 
-	stdout, _, err := executeCmd("dashboard")
+	stdout, _, err := executeIntegrationCmd("dashboard")
 	if err != nil {
 		t.Fatalf("dashboard returned error: %v", err)
 	}
@@ -947,7 +947,7 @@ func TestChannelListNoWorkspace(t *testing.T) {
 	os.Chdir(tmpDir)
 	defer os.Chdir(origDir)
 
-	_, _, err = executeCmd("channel")
+	_, _, err = executeIntegrationCmd("channel")
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
@@ -957,10 +957,10 @@ func TestChannelListNoWorkspace(t *testing.T) {
 }
 
 func TestChannelListEmpty(t *testing.T) {
-	_, cleanup := setupTestWorkspace(t)
+	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	stdout, _, err := executeCmd("channel")
+	stdout, _, err := executeIntegrationCmd("channel")
 	if err != nil {
 		t.Fatalf("channel list returned error: %v", err)
 	}
@@ -970,7 +970,7 @@ func TestChannelListEmpty(t *testing.T) {
 }
 
 func TestChannelListWithChannels(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedChannels(t, wsDir, []*channel.Channel{
@@ -978,7 +978,7 @@ func TestChannelListWithChannels(t *testing.T) {
 		{Name: "all", Members: []string{"coordinator", "worker-01", "qa-01"}},
 	})
 
-	stdout, _, err := executeCmd("channel", "list")
+	stdout, _, err := executeIntegrationCmd("channel", "list")
 	if err != nil {
 		t.Fatalf("channel list returned error: %v", err)
 	}
@@ -994,11 +994,11 @@ func TestChannelListWithChannels(t *testing.T) {
 }
 
 func TestChannelCreateAndDelete(t *testing.T) {
-	_, cleanup := setupTestWorkspace(t)
+	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	// Create
-	stdout, _, err := executeCmd("channel", "create", "test-channel")
+	stdout, _, err := executeIntegrationCmd("channel", "create", "test-channel")
 	if err != nil {
 		t.Fatalf("channel create returned error: %v", err)
 	}
@@ -1007,7 +1007,7 @@ func TestChannelCreateAndDelete(t *testing.T) {
 	}
 
 	// Delete
-	stdout, _, err = executeCmd("channel", "delete", "test-channel")
+	stdout, _, err = executeIntegrationCmd("channel", "delete", "test-channel")
 	if err != nil {
 		t.Fatalf("channel delete returned error: %v", err)
 	}
@@ -1017,14 +1017,14 @@ func TestChannelCreateAndDelete(t *testing.T) {
 }
 
 func TestChannelCreateDuplicate(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedChannels(t, wsDir, []*channel.Channel{
 		{Name: "existing", Members: []string{}},
 	})
 
-	_, _, err := executeCmd("channel", "create", "existing")
+	_, _, err := executeIntegrationCmd("channel", "create", "existing")
 	if err == nil {
 		t.Fatal("expected error for duplicate channel, got nil")
 	}
@@ -1034,14 +1034,14 @@ func TestChannelCreateDuplicate(t *testing.T) {
 }
 
 func TestChannelAddMember(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedChannels(t, wsDir, []*channel.Channel{
 		{Name: "team", Members: []string{}},
 	})
 
-	stdout, _, err := executeCmd("channel", "add", "team", "worker-01", "worker-02")
+	stdout, _, err := executeIntegrationCmd("channel", "add", "team", "worker-01", "worker-02")
 	if err != nil {
 		t.Fatalf("channel add returned error: %v", err)
 	}
@@ -1064,14 +1064,14 @@ func TestChannelAddMember(t *testing.T) {
 }
 
 func TestChannelRemoveMember(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedChannels(t, wsDir, []*channel.Channel{
 		{Name: "team", Members: []string{"worker-01", "worker-02"}},
 	})
 
-	stdout, _, err := executeCmd("channel", "remove", "team", "worker-01")
+	stdout, _, err := executeIntegrationCmd("channel", "remove", "team", "worker-01")
 	if err != nil {
 		t.Fatalf("channel remove returned error: %v", err)
 	}
@@ -1081,10 +1081,10 @@ func TestChannelRemoveMember(t *testing.T) {
 }
 
 func TestChannelDeleteNotFound(t *testing.T) {
-	_, cleanup := setupTestWorkspace(t)
+	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	_, _, err := executeCmd("channel", "delete", "nonexistent")
+	_, _, err := executeIntegrationCmd("channel", "delete", "nonexistent")
 	if err == nil {
 		t.Fatal("expected error for missing channel, got nil")
 	}
@@ -1094,7 +1094,7 @@ func TestChannelDeleteNotFound(t *testing.T) {
 }
 
 func TestChannelJoinNoAgentID(t *testing.T) {
-	_, cleanup := setupTestWorkspace(t)
+	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	orig := os.Getenv("BC_AGENT_ID")
@@ -1105,7 +1105,7 @@ func TestChannelJoinNoAgentID(t *testing.T) {
 		}
 	}()
 
-	_, _, err := executeCmd("channel", "join", "standup")
+	_, _, err := executeIntegrationCmd("channel", "join", "standup")
 	if err == nil {
 		t.Fatal("expected error when BC_AGENT_ID not set, got nil")
 	}
@@ -1115,7 +1115,7 @@ func TestChannelJoinNoAgentID(t *testing.T) {
 }
 
 func TestChannelJoinSuccess(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedChannels(t, wsDir, []*channel.Channel{
@@ -1125,7 +1125,7 @@ func TestChannelJoinSuccess(t *testing.T) {
 	os.Setenv("BC_AGENT_ID", "test-agent")
 	defer os.Unsetenv("BC_AGENT_ID")
 
-	stdout, _, err := executeCmd("channel", "join", "standup")
+	stdout, _, err := executeIntegrationCmd("channel", "join", "standup")
 	if err != nil {
 		t.Fatalf("channel join returned error: %v", err)
 	}
@@ -1135,7 +1135,7 @@ func TestChannelJoinSuccess(t *testing.T) {
 }
 
 func TestChannelLeaveSuccess(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedChannels(t, wsDir, []*channel.Channel{
@@ -1145,7 +1145,7 @@ func TestChannelLeaveSuccess(t *testing.T) {
 	os.Setenv("BC_AGENT_ID", "test-agent")
 	defer os.Unsetenv("BC_AGENT_ID")
 
-	stdout, _, err := executeCmd("channel", "leave", "standup")
+	stdout, _, err := executeIntegrationCmd("channel", "leave", "standup")
 	if err != nil {
 		t.Fatalf("channel leave returned error: %v", err)
 	}
@@ -1155,7 +1155,7 @@ func TestChannelLeaveSuccess(t *testing.T) {
 }
 
 func TestChannelLeaveNoAgentID(t *testing.T) {
-	_, cleanup := setupTestWorkspace(t)
+	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	orig := os.Getenv("BC_AGENT_ID")
@@ -1166,7 +1166,7 @@ func TestChannelLeaveNoAgentID(t *testing.T) {
 		}
 	}()
 
-	_, _, err := executeCmd("channel", "leave", "standup")
+	_, _, err := executeIntegrationCmd("channel", "leave", "standup")
 	if err == nil {
 		t.Fatal("expected error when BC_AGENT_ID not set, got nil")
 	}
@@ -1176,14 +1176,14 @@ func TestChannelLeaveNoAgentID(t *testing.T) {
 }
 
 func TestChannelHistoryEmpty(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedChannels(t, wsDir, []*channel.Channel{
 		{Name: "standup", Members: []string{}},
 	})
 
-	stdout, _, err := executeCmd("channel", "history", "standup")
+	stdout, _, err := executeIntegrationCmd("channel", "history", "standup")
 	if err != nil {
 		t.Fatalf("channel history returned error: %v", err)
 	}
@@ -1193,7 +1193,7 @@ func TestChannelHistoryEmpty(t *testing.T) {
 }
 
 func TestChannelHistoryWithMessages(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedChannels(t, wsDir, []*channel.Channel{
@@ -1207,7 +1207,7 @@ func TestChannelHistoryWithMessages(t *testing.T) {
 		},
 	})
 
-	stdout, _, err := executeCmd("channel", "history", "standup")
+	stdout, _, err := executeIntegrationCmd("channel", "history", "standup")
 	if err != nil {
 		t.Fatalf("channel history returned error: %v", err)
 	}
@@ -1223,10 +1223,10 @@ func TestChannelHistoryWithMessages(t *testing.T) {
 }
 
 func TestChannelHistoryNotFound(t *testing.T) {
-	_, cleanup := setupTestWorkspace(t)
+	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	_, _, err := executeCmd("channel", "history", "nonexistent")
+	_, _, err := executeIntegrationCmd("channel", "history", "nonexistent")
 	if err == nil {
 		t.Fatal("expected error for missing channel, got nil")
 	}
@@ -1238,7 +1238,7 @@ func TestChannelHistoryNotFound(t *testing.T) {
 // --- Report command tests (with workspace) ---
 
 func TestReportWorkingInWorkspace(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedAgents(t, wsDir, map[string]*agent.Agent{
@@ -1254,7 +1254,7 @@ func TestReportWorkingInWorkspace(t *testing.T) {
 	os.Setenv("BC_AGENT_ID", "test-agent")
 	defer os.Unsetenv("BC_AGENT_ID")
 
-	stdout, _, err := executeCmd("report", "working", "fixing auth bug")
+	stdout, _, err := executeIntegrationCmd("report", "working", "fixing auth bug")
 	if err != nil {
 		t.Fatalf("report returned error: %v", err)
 	}
@@ -1264,7 +1264,7 @@ func TestReportWorkingInWorkspace(t *testing.T) {
 }
 
 func TestReportDoneInWorkspace(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedAgents(t, wsDir, map[string]*agent.Agent{
@@ -1281,7 +1281,7 @@ func TestReportDoneInWorkspace(t *testing.T) {
 	os.Setenv("BC_AGENT_ID", "test-agent")
 	defer os.Unsetenv("BC_AGENT_ID")
 
-	stdout, _, err := executeCmd("report", "done", "auth bug fixed")
+	stdout, _, err := executeIntegrationCmd("report", "done", "auth bug fixed")
 	if err != nil {
 		t.Fatalf("report returned error: %v", err)
 	}
@@ -1311,7 +1311,7 @@ func TestReportDoneInWorkspace(t *testing.T) {
 }
 
 func TestReportStuckInWorkspace(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedAgents(t, wsDir, map[string]*agent.Agent{
@@ -1328,7 +1328,7 @@ func TestReportStuckInWorkspace(t *testing.T) {
 	os.Setenv("BC_AGENT_ID", "test-agent")
 	defer os.Unsetenv("BC_AGENT_ID")
 
-	stdout, _, err := executeCmd("report", "stuck", "need database credentials")
+	stdout, _, err := executeIntegrationCmd("report", "stuck", "need database credentials")
 	if err != nil {
 		t.Fatalf("report returned error: %v", err)
 	}
@@ -1340,7 +1340,7 @@ func TestReportStuckInWorkspace(t *testing.T) {
 // --- Report + Queue integration test ---
 
 func TestReportWorkingTransitionsQueueItem(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedAgents(t, wsDir, map[string]*agent.Agent{
@@ -1361,7 +1361,7 @@ func TestReportWorkingTransitionsQueueItem(t *testing.T) {
 	os.Setenv("BC_AGENT_ID", "test-agent")
 	defer os.Unsetenv("BC_AGENT_ID")
 
-	_, _, err := executeCmd("report", "working", "starting task")
+	_, _, err := executeIntegrationCmd("report", "working", "starting task")
 	if err != nil {
 		t.Fatalf("report returned error: %v", err)
 	}
@@ -1381,7 +1381,7 @@ func TestReportWorkingTransitionsQueueItem(t *testing.T) {
 }
 
 func TestReportDoneTransitionsQueueItem(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedAgents(t, wsDir, map[string]*agent.Agent{
@@ -1403,7 +1403,7 @@ func TestReportDoneTransitionsQueueItem(t *testing.T) {
 	os.Setenv("BC_AGENT_ID", "test-agent")
 	defer os.Unsetenv("BC_AGENT_ID")
 
-	_, _, err := executeCmd("report", "done", "task completed")
+	_, _, err := executeIntegrationCmd("report", "done", "task completed")
 	if err != nil {
 		t.Fatalf("report returned error: %v", err)
 	}
@@ -1455,7 +1455,7 @@ func TestVersionOutput(t *testing.T) {
 // --- JSON output tests ---
 
 func TestQueueListJSON(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedQueue(t, wsDir, []queue.WorkItem{
@@ -1463,7 +1463,7 @@ func TestQueueListJSON(t *testing.T) {
 		{ID: "work-002", Title: "Second task", Status: queue.StatusDone},
 	})
 
-	stdout, _, err := executeCmd("queue", "--json")
+	stdout, _, err := executeIntegrationCmd("queue", "--json")
 	if err != nil {
 		t.Fatalf("queue --json returned error: %v", err)
 	}
@@ -1478,7 +1478,7 @@ func TestQueueListJSON(t *testing.T) {
 }
 
 func TestQueueDetailJSON(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedQueue(t, wsDir, []queue.WorkItem{
@@ -1490,7 +1490,7 @@ func TestQueueDetailJSON(t *testing.T) {
 		},
 	})
 
-	stdout, _, err := executeCmd("queue", "--json", "work-001")
+	stdout, _, err := executeIntegrationCmd("queue", "--json", "work-001")
 	if err != nil {
 		t.Fatalf("queue --json detail returned error: %v", err)
 	}
@@ -1505,14 +1505,14 @@ func TestQueueDetailJSON(t *testing.T) {
 }
 
 func TestLogsJSON(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedEvents(t, wsDir, []events.Event{
 		{Timestamp: time.Now(), Type: events.AgentSpawned, Agent: "w-01", Message: "spawned"},
 	})
 
-	stdout, _, err := executeCmd("logs", "--json")
+	stdout, _, err := executeIntegrationCmd("logs", "--json")
 	if err != nil {
 		t.Fatalf("logs --json returned error: %v", err)
 	}
@@ -1527,7 +1527,7 @@ func TestLogsJSON(t *testing.T) {
 }
 
 func TestStatsJSON(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755)
@@ -1536,7 +1536,7 @@ func TestStatsJSON(t *testing.T) {
 	statsSave = false
 	defer func() { statsJSON = false }()
 
-	stdout, _, err := executeCmd("stats", "--json")
+	stdout, _, err := executeIntegrationCmd("stats", "--json")
 	if err != nil {
 		t.Fatalf("stats --json returned error: %v", err)
 	}
@@ -1552,12 +1552,12 @@ func TestStatsJSON(t *testing.T) {
 }
 
 func TestDashboardJSON(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755)
 
-	stdout, _, err := executeCmd("dashboard", "--json")
+	stdout, _, err := executeIntegrationCmd("dashboard", "--json")
 	if err != nil {
 		t.Fatalf("dashboard --json returned error: %v", err)
 	}
@@ -1585,7 +1585,7 @@ func TestInitNewDirectory(t *testing.T) {
 	os.Chdir(targetDir)
 	defer os.Chdir(origDir)
 
-	stdout, _, err := executeCmd("init")
+	stdout, _, err := executeIntegrationCmd("init")
 	if err != nil {
 		t.Fatalf("init returned error: %v", err)
 	}
@@ -1600,10 +1600,10 @@ func TestInitNewDirectory(t *testing.T) {
 }
 
 func TestInitAlreadyInitialized(t *testing.T) {
-	_, cleanup := setupTestWorkspace(t)
+	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	_, _, err := executeCmd("init")
+	_, _, err := executeIntegrationCmd("init")
 	if err == nil {
 		t.Fatal("expected error for already initialized workspace, got nil")
 	}
@@ -1615,7 +1615,7 @@ func TestInitAlreadyInitialized(t *testing.T) {
 // --- Send command tests (more coverage) ---
 
 func TestSendToStoppedAgent(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedAgents(t, wsDir, map[string]*agent.Agent{
@@ -1628,7 +1628,7 @@ func TestSendToStoppedAgent(t *testing.T) {
 		},
 	})
 
-	_, _, err := executeCmd("send", "worker-01", "hello")
+	_, _, err := executeIntegrationCmd("send", "worker-01", "hello")
 	if err == nil {
 		t.Fatal("expected error for stopped agent, got nil")
 	}
@@ -1639,7 +1639,7 @@ func TestSendToStoppedAgent(t *testing.T) {
 
 // --- createDefaultChannels test ---
 
-func TestCreateDefaultChannels(t *testing.T) {
+func TestCreateDefaultChannelsIntegration(t *testing.T) {
 	tmpDir := t.TempDir()
 	os.MkdirAll(filepath.Join(tmpDir, ".bc"), 0755)
 
@@ -1683,7 +1683,7 @@ func TestCreateDefaultChannels(t *testing.T) {
 }
 
 func TestStatusWithAgents(t *testing.T) {
-	wsDir, cleanup := setupTestWorkspace(t)
+	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
 	seedAgents(t, wsDir, map[string]*agent.Agent{
@@ -1704,7 +1704,7 @@ func TestStatusWithAgents(t *testing.T) {
 		},
 	})
 
-	stdout, _, err := executeCmd("status")
+	stdout, _, err := executeIntegrationCmd("status")
 	if err != nil {
 		t.Fatalf("status returned error: %v", err)
 	}
