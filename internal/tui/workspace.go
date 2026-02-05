@@ -678,27 +678,26 @@ func (m *WorkspaceModel) renderDashboard() string {
 	if len(m.agents) == 0 {
 		b.WriteString(m.styles.Muted.Render("  No agents running."))
 		b.WriteString("\n")
-		return b.String()
-	}
-
-	header := fmt.Sprintf("  %-15s %-12s %-10s %-12s %-6s %-6s",
-		"NAME", "ROLE", "STATE", "UPTIME", "DONE", "FAIL")
-	b.WriteString(m.styles.Bold.Render(header))
-	b.WriteString("\n")
-
-	for _, a := range m.agents {
-		as := m.agentStats[a.Name]
-		uptime := "-"
-		if as.Uptime > 0 {
-			uptime = fmtDuration(as.Uptime)
-		} else if a.State != agent.StateStopped && !a.StartedAt.IsZero() {
-			uptime = fmtDuration(time.Since(a.StartedAt))
-		}
-
-		line := fmt.Sprintf("  %-15s %-12s %-10s %-12s %-6d %-6d",
-			a.Name, a.Role, a.State, uptime, as.TasksCompleted, as.TasksFailed)
-		b.WriteString(m.styles.StatusStyle(mapState(a.State)).Render(line))
+	} else {
+		header := fmt.Sprintf("  %-15s %-12s %-10s %-12s %-6s %-6s",
+			"NAME", "ROLE", "STATE", "UPTIME", "DONE", "FAIL")
+		b.WriteString(m.styles.Bold.Render(header))
 		b.WriteString("\n")
+
+		for _, a := range m.agents {
+			as := m.agentStats[a.Name]
+			uptime := "-"
+			if as.Uptime > 0 {
+				uptime = fmtDuration(as.Uptime)
+			} else if a.State != agent.StateStopped && !a.StartedAt.IsZero() {
+				uptime = fmtDuration(time.Since(a.StartedAt))
+			}
+
+			line := fmt.Sprintf("  %-15s %-12s %-10s %-12s %-6d %-6d",
+				a.Name, a.Role, a.State, uptime, as.TasksCompleted, as.TasksFailed)
+			b.WriteString(m.styles.StatusStyle(mapState(a.State)).Render(line))
+			b.WriteString("\n")
+		}
 	}
 	b.WriteString("\n")
 
