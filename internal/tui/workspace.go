@@ -375,7 +375,7 @@ func (m *WorkspaceModel) renderIssues() string {
 		return b.String()
 	}
 
-	header := fmt.Sprintf("  %-12s %-10s %-18s %-40s", "ID", "STATUS", "SOURCE", "TITLE")
+	header := fmt.Sprintf("  %-12s %-10s %-15s %-15s %s", "ID", "STATUS", "ASSIGNED", "SOURCE", "TITLE")
 	b.WriteString(m.styles.Bold.Render(header))
 	b.WriteString("\n")
 
@@ -389,8 +389,13 @@ func (m *WorkspaceModel) renderIssues() string {
 
 		source := issueSource(issue)
 
-		line := fmt.Sprintf("  %-12s %-10s %-18s %-40s",
-			issue.ID, issue.Status, source, title,
+		assignee := issue.Assignee
+		if assignee == "" {
+			assignee = "-"
+		}
+
+		line := fmt.Sprintf("  %-12s %-10s %-15s %-15s %s",
+			issue.ID, issue.Status, assignee, source, title,
 		)
 
 		if selected {
