@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -501,6 +502,25 @@ func (m *WorkspaceModel) renderChannels() string {
 	return b.String()
 }
 
+// queueStatusRank returns a sort rank for queue item status.
+// Lower rank = higher in the list.
+func queueStatusRank(s queue.ItemStatus) int {
+	switch s {
+	case queue.StatusWorking:
+		return 0
+	case queue.StatusAssigned:
+		return 1
+	case queue.StatusPending:
+		return 2
+	case queue.StatusFailed:
+		return 3
+	case queue.StatusDone:
+		return 4
+	default:
+		return 5
+	}
+}
+
 func (m *WorkspaceModel) renderQueue() string {
 	var b strings.Builder
 
@@ -510,12 +530,28 @@ func (m *WorkspaceModel) renderQueue() string {
 		return b.String()
 	}
 
+	// Sort a copy: active first (pending/assigned/working by ID asc),
+	// then failed (by ID asc), then done (by ID desc — most recent first).
+	sorted := make([]queue.WorkItem, len(m.queueItems))
+	copy(sorted, m.queueItems)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		ri, rj := queueStatusRank(sorted[i].Status), queueStatusRank(sorted[j].Status)
+		if ri != rj {
+			return ri < rj
+		}
+		// Done items: reverse ID order (most recent first)
+		if sorted[i].Status == queue.StatusDone {
+			return sorted[i].ID > sorted[j].ID
+		}
+		return sorted[i].ID < sorted[j].ID
+	})
+
 	// Header
 	header := fmt.Sprintf("  %-10s %-12s %-10s %-15s %s", "ID", "BEAD", "STATUS", "ASSIGNED", "TITLE")
 	b.WriteString(m.styles.Bold.Render(header))
 	b.WriteString("\n")
 
-	for i, item := range m.queueItems {
+	for i, item := range sorted {
 		selected := i == m.cursor
 
 		title := item.Title
