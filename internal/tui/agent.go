@@ -49,11 +49,20 @@ func (m *AgentModel) HandleKey(msg tea.KeyMsg) Action {
 	case "a":
 		return Action{Type: ActionAttach, Data: m.agent.Name}
 	case "r":
+		m.refresh()
 		m.loadPeek()
 		return NoAction
 	}
 
 	return NoAction
+}
+
+// refresh reloads the agent's state data from the manager.
+func (m *AgentModel) refresh() {
+	m.manager.RefreshState()
+	if a := m.manager.GetAgent(m.agent.Name); a != nil {
+		m.agent = a
+	}
 }
 
 func (m *AgentModel) loadPeek() {

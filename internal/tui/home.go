@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/rpuneet/bc/config"
 	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/tui/style"
 	"github.com/rpuneet/bc/pkg/workspace"
@@ -109,6 +110,9 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.wsModel != nil {
 			m.wsModel.refresh()
 		}
+		if m.agentModel != nil {
+			m.agentModel.refresh()
+		}
 		return m, tickCmd()
 
 	case tea.KeyMsg:
@@ -163,6 +167,7 @@ func (m *HomeModel) handleHomeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.homeCursor = len(m.workspaces) - 1
 		}
 	case "r":
+		m.refreshWorkspaces()
 		m.statusMsg = "Refreshed"
 	}
 	if isEnterKey(msg) {
@@ -254,6 +259,24 @@ func (m *HomeModel) handleChannelKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// refreshWorkspaces re-scans each workspace entry to update agent counts and issue counts.
+func (m *HomeModel) refreshWorkspaces() {
+	for i, ws := range m.workspaces {
+		mgr := agent.NewWorkspaceManager(
+			ws.Entry.Path+"/.bc/agents",
+			ws.Entry.Path,
+		)
+		mgr.LoadState()
+		mgr.RefreshState()
+		m.workspaces[i].Total = mgr.AgentCount()
+		m.workspaces[i].Running = mgr.RunningCount()
+		m.workspaces[i].HasBeads = beads.HasBeads(ws.Entry.Path)
+		if m.workspaces[i].HasBeads {
+			m.workspaces[i].Issues = len(beads.ListIssues(ws.Entry.Path))
+		}
+	}
 }
 
 // View implements tea.Model.
