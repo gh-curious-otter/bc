@@ -1591,6 +1591,9 @@ func TestSpawnAgent_ExistingSessionCreatesWorktree(t *testing.T) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git init failed: %v (%s)", err, out)
 	}
+	// Configure git user for CI environments where global config is absent
+	exec.Command("git", "-C", workspace, "config", "user.email", "test@test.com").Run()
+	exec.Command("git", "-C", workspace, "config", "user.name", "Test").Run()
 	// Need at least one commit for git worktree add to work
 	cmd = exec.Command("git", "-C", workspace, "commit", "--allow-empty", "-m", "init")
 	if out, err := cmd.CombinedOutput(); err != nil {

@@ -1,3 +1,5 @@
+version: "2"
+
 # golangci-lint configuration
 # https://golangci-lint.run/usage/configuration/
 
@@ -8,13 +10,10 @@ run:
 linters:
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
     - unused
-    - gofmt
-    - goimports
     - misspell
     - unconvert
     - bodyclose
@@ -22,26 +21,32 @@ linters:
     - gosec
     - prealloc
 
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-  
-  govet:
-    enable-all: true
-  
-  gofmt:
-    simplify: true
-  
-  goimports:
-    local-prefixes: github.com/rpuneet/bc
-  
-  misspell:
-    locale: US
-  
-  gosec:
-    excludes:
-      - G104 # Audit errors not checked (we check where needed)
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+
+    govet:
+      enable-all: true
+
+    misspell:
+      locale: US
+
+    gosec:
+      excludes:
+        - G104 # Audit errors not checked (we check where needed)
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+  settings:
+    gofmt:
+      simplify: true
+
+    goimports:
+      local-prefixes: github.com/rpuneet/bc
 
 issues:
   exclude-rules:
@@ -49,12 +54,12 @@ issues:
     - linters:
         - lll
       source: "^//.*"
-    
+
     # Ignore magic numbers in test files
     - path: _test\.go
       linters:
-        - gomnd
-    
+        - mnd
+
     # Ignore certain checks in main.go
     - path: cmd/bc/main\.go
       linters:
