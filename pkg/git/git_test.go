@@ -178,7 +178,7 @@ func initTestRepo(t *testing.T) string {
 		{"config", "user.email", "test@test.com"},
 		{"config", "user.name", "Test"},
 	} {
-		cmd := exec.Command("git", args...)
+		cmd := exec.Command("git", args...) //nolint:gosec,noctx // G204: test helper with variable args
 		cmd.Dir = dir
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v failed: %v (%s)", args, err, out)
@@ -187,15 +187,15 @@ func initTestRepo(t *testing.T) string {
 
 	// Create initial commit
 	f := filepath.Join(dir, "README.md")
-	if err := os.WriteFile(f, []byte("# test\n"), 0644); err != nil {
+	if err := os.WriteFile(f, []byte("# test\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command("git", "add", ".")
+	cmd := exec.Command("git", "add", ".") //nolint:noctx
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git add failed: %v (%s)", err, out)
 	}
-	cmd = exec.Command("git", "commit", "-m", "initial")
+	cmd = exec.Command("git", "commit", "-m", "initial") //nolint:noctx
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git commit failed: %v (%s)", err, out)
@@ -220,7 +220,7 @@ func TestStatus(t *testing.T) {
 	}
 
 	// Create an untracked file — status should show it
-	if err := os.WriteFile(filepath.Join(dir, "new.txt"), []byte("hello"), 0644); err != nil {
+	if err = os.WriteFile(filepath.Join(dir, "new.txt"), []byte("hello"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	out, err = Status(dir)
@@ -236,7 +236,7 @@ func TestAdd(t *testing.T) {
 	dir := initTestRepo(t)
 
 	f := filepath.Join(dir, "staged.txt")
-	if err := os.WriteFile(f, []byte("content"), 0644); err != nil {
+	if err := os.WriteFile(f, []byte("content"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -258,7 +258,7 @@ func TestCommit(t *testing.T) {
 	dir := initTestRepo(t)
 
 	f := filepath.Join(dir, "committed.txt")
-	if err := os.WriteFile(f, []byte("content"), 0644); err != nil {
+	if err := os.WriteFile(f, []byte("content"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := Add(dir, "committed.txt"); err != nil {
@@ -319,7 +319,7 @@ func TestDiff(t *testing.T) {
 	}
 
 	// Modify tracked file
-	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("# changed\n"), 0644); err != nil {
+	if err = os.WriteFile(filepath.Join(dir, "README.md"), []byte("# changed\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	out, err = Diff(dir)
