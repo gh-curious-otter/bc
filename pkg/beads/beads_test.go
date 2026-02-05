@@ -650,7 +650,7 @@ func TestListAllIssuesBdFails(t *testing.T) {
 
 func TestListAllIssuesBdNotFound(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -681,7 +681,7 @@ func TestListIssuesPropagatesError(t *testing.T) {
 
 func TestListIssuesBdFails(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
