@@ -164,9 +164,9 @@ func (m *Manager) SendKeys(name, keys string) error {
 // SendKeysWithSubmit sends keys to a session with a specified submit key.
 // For messages longer than 500 chars, uses tmux load-buffer/paste-buffer to avoid truncation.
 // Trailing newlines are trimmed. submitKey specifies what to send after the message:
-// - "Enter" sends literal \r (carriage return) which works for both Claude and Cursor agents
+// - "Enter" sends the Enter key as a tmux key-name event
 // - "" sends nothing (message is left in input buffer)
-// - Other values are sent as-is (e.g., "C-Enter" for Ctrl+Enter)
+// - Other values are sent as tmux key names (e.g., "C-m" for Ctrl+M)
 func (m *Manager) SendKeysWithSubmit(name, keys, submitKey string) error {
 	keys = strings.TrimRight(keys, "\n")
 	fullName := m.SessionName(name)
@@ -177,81 +177,61 @@ func (m *Manager) SendKeysWithSubmit(name, keys, submitKey string) error {
 	defer mu.Unlock()
 
 	if len(keys) <= 500 {
-		// Use -l (literal) with \r to submit. This works for both Claude and Cursor agents.
-		// Cursor agent interprets tmux "Enter" as newline, but literal \r is submit.
-		if submitKey == "Enter" || submitKey == "" {
-			text := keys
-			if submitKey == "Enter" {
-				text += "\r"
-			}
-			cmd := exec.Command("tmux", "send-keys", "-t", fullName, "-l", text)
-			output, err := cmd.CombinedOutput()
-			if err != nil {
-				return fmt.Errorf("failed to send keys to %s: %w (%s)", fullName, err, string(output))
-			}
-			return nil
-		}
-		// For other submit keys (C-Enter, etc.), use standard approach
-		args := []string{"send-keys", "-t", fullName, keys, submitKey}
-		cmd := exec.Command("tmux", args...)
+		// Send text literally (no key-name lookup)
+		cmd := exec.Command("tmux", "send-keys", "-t", fullName, "-l", keys)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("failed to send keys to %s: %w (%s)", fullName, err, string(output))
 		}
-		return nil
-	}
+	} else {
+		// Long message: use temp file + load-buffer + paste-buffer with named buffer
+		// Use a unique buffer name to avoid race conditions with concurrent sends
+		bufferName := generateBufferName()
 
-	// Long message: use temp file + load-buffer + paste-buffer with named buffer
-	// Use a unique buffer name to avoid race conditions with concurrent sends
-	bufferName := generateBufferName()
+		tmpDir := filepath.Join(os.TempDir(), "bc-tmux")
+		os.MkdirAll(tmpDir, 0700)
+		tmpFile, err := os.CreateTemp(tmpDir, "send-*.txt")
+		if err != nil {
+			return fmt.Errorf("failed to create temp file: %w", err)
+		}
+		tmpPath := tmpFile.Name()
+		defer os.Remove(tmpPath)
 
-	tmpDir := filepath.Join(os.TempDir(), "bc-tmux")
-	os.MkdirAll(tmpDir, 0700)
-	tmpFile, err := os.CreateTemp(tmpDir, "send-*.txt")
-	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
-	}
-	tmpPath := tmpFile.Name()
-	defer os.Remove(tmpPath)
-
-	if _, err := tmpFile.WriteString(keys); err != nil {
+		if _, err := tmpFile.WriteString(keys); err != nil {
+			tmpFile.Close()
+			return fmt.Errorf("failed to write temp file: %w", err)
+		}
 		tmpFile.Close()
-		return fmt.Errorf("failed to write temp file: %w", err)
-	}
-	tmpFile.Close()
 
-	// Load into named buffer
-	loadCmd := exec.Command("tmux", "load-buffer", "-b", bufferName, tmpPath)
-	if output, err := loadCmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to load buffer: %w (%s)", err, string(output))
-	}
+		// Load into named buffer
+		loadCmd := exec.Command("tmux", "load-buffer", "-b", bufferName, tmpPath)
+		if output, err := loadCmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("failed to load buffer: %w (%s)", err, string(output))
+		}
 
-	// Paste from named buffer and delete it afterward
-	pasteCmd := exec.Command("tmux", "paste-buffer", "-b", bufferName, "-d", "-t", fullName)
-	if output, err := pasteCmd.CombinedOutput(); err != nil {
-		// Clean up buffer on error
-		exec.Command("tmux", "delete-buffer", "-b", bufferName).Run()
-		return fmt.Errorf("failed to paste buffer to %s: %w (%s)", fullName, err, string(output))
+		// Paste from named buffer and delete it afterward
+		pasteCmd := exec.Command("tmux", "paste-buffer", "-b", bufferName, "-d", "-t", fullName)
+		if output, err := pasteCmd.CombinedOutput(); err != nil {
+			// Clean up buffer on error
+			exec.Command("tmux", "delete-buffer", "-b", bufferName).Run()
+			return fmt.Errorf("failed to paste buffer to %s: %w (%s)", fullName, err, string(output))
+		}
 	}
 
 	if submitKey == "" {
 		return nil
 	}
 
-	// Wait for paste to complete before sending submit key
-	time.Sleep(500 * time.Millisecond)
+	// Send the submit key as a separate operation.
+	// IMPORTANT: Do NOT use -l (literal) for the submit key. The -l flag processes
+	// keys as literal UTF-8 characters, but control characters like \r (0x0D) can be
+	// silently dropped by modern tmux versions, causing Enter to never fire.
+	// Instead, send "Enter" as a tmux key name so tmux generates a proper key event.
+	time.Sleep(50 * time.Millisecond)
 
-	// Use -l with \r for Enter to work with Cursor agent
-	if submitKey == "Enter" {
-		submitCmd := exec.Command("tmux", "send-keys", "-t", fullName, "-l", "\r")
-		if output, err := submitCmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("failed to send submit key to %s: %w (%s)", fullName, err, string(output))
-		}
-	} else {
-		submitCmd := exec.Command("tmux", "send-keys", "-t", fullName, submitKey)
-		if output, err := submitCmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("failed to send %q to %s: %w (%s)", submitKey, fullName, err, string(output))
-		}
+	submitCmd := exec.Command("tmux", "send-keys", "-t", fullName, submitKey)
+	if output, err := submitCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to send submit key to %s: %w (%s)", fullName, err, string(output))
 	}
 
 	return nil
