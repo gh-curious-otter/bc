@@ -23,6 +23,17 @@ const (
 	StatusFailed   ItemStatus = "failed"
 )
 
+// MergeStatus tracks whether a completed work item's branch has been merged.
+type MergeStatus string
+
+const (
+	MergeNone     MergeStatus = ""         // not applicable (item not done)
+	MergeUnmerged MergeStatus = "unmerged"
+	MergeMerging  MergeStatus = "merging"
+	MergeMerged   MergeStatus = "merged"
+	MergeConflict MergeStatus = "conflict"
+)
+
 // WorkItem is a unit of work in the queue.
 type WorkItem struct {
 	ID          string     `json:"id"`
@@ -33,6 +44,12 @@ type WorkItem struct {
 	AssignedTo  string     `json:"assigned_to,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
+
+	// Merge tracking
+	Branch      string      `json:"branch,omitempty"`
+	Merge       MergeStatus `json:"merge,omitempty"`
+	MergedAt    time.Time   `json:"merged_at,omitempty"`
+	MergeCommit string      `json:"merge_commit,omitempty"`
 }
 
 // Stats summarizes queue state.
@@ -43,6 +60,8 @@ type Stats struct {
 	Working  int `json:"working"`
 	Done     int `json:"done"`
 	Failed   int `json:"failed"`
+	Merged   int `json:"merged"`
+	Unmerged int `json:"unmerged"`
 }
 
 // Queue manages work items persisted to a JSON file.
@@ -138,6 +157,7 @@ func (q *Queue) Assign(id, agentName string) error {
 }
 
 // UpdateStatus changes the status of a work item.
+// When transitioning to done, merge status is automatically set to unmerged.
 func (q *Queue) UpdateStatus(id string, s ItemStatus) error {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -146,6 +166,10 @@ func (q *Queue) UpdateStatus(id string, s ItemStatus) error {
 		if q.items[i].ID == id {
 			q.items[i].Status = s
 			q.items[i].UpdatedAt = time.Now()
+			// Auto-set merge status when work is done
+			if s == StatusDone && q.items[i].Merge == MergeNone {
+				q.items[i].Merge = MergeUnmerged
+			}
 			return nil
 		}
 	}
@@ -221,6 +245,19 @@ func (q *Queue) FindByTitle(title string) *WorkItem {
 	return nil
 }
 
+// FindByBranch returns the first item with the given branch name, or nil if none found.
+func (q *Queue) FindByBranch(branch string) *WorkItem {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
+	for i := range q.items {
+		if q.items[i].Branch == branch {
+			return &q.items[i]
+		}
+	}
+	return nil
+}
+
 // LinkBeadsID sets the beads ID on an existing work item, linking it for future dedup.
 func (q *Queue) LinkBeadsID(id, beadsID string) error {
 	q.mu.Lock()
@@ -234,6 +271,55 @@ func (q *Queue) LinkBeadsID(id, beadsID string) error {
 		}
 	}
 	return fmt.Errorf("item %s not found", id)
+}
+
+// SetBranch records the branch name associated with a work item.
+func (q *Queue) SetBranch(id, branch string) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	for i := range q.items {
+		if q.items[i].ID == id {
+			q.items[i].Branch = branch
+			q.items[i].UpdatedAt = time.Now()
+			return nil
+		}
+	}
+	return fmt.Errorf("item %s not found", id)
+}
+
+// UpdateMergeStatus sets the merge status and optionally the commit hash.
+func (q *Queue) UpdateMergeStatus(id string, ms MergeStatus, commitHash string) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	for i := range q.items {
+		if q.items[i].ID == id {
+			q.items[i].Merge = ms
+			q.items[i].UpdatedAt = time.Now()
+			if ms == MergeMerged {
+				q.items[i].MergedAt = time.Now()
+				q.items[i].MergeCommit = commitHash
+			}
+			return nil
+		}
+	}
+	return fmt.Errorf("item %s not found", id)
+}
+
+// ListMergeable returns done items that have not been merged yet.
+// Items are returned in ID order (oldest first) for consistent merge ordering.
+func (q *Queue) ListMergeable() []WorkItem {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
+	var out []WorkItem
+	for _, item := range q.items {
+		if item.Status == StatusDone && item.Merge != MergeMerged {
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 // Stats returns a summary of queue state.
@@ -255,6 +341,12 @@ func (q *Queue) Stats() Stats {
 			s.Done++
 		case StatusFailed:
 			s.Failed++
+		}
+		switch item.Merge {
+		case MergeMerged:
+			s.Merged++
+		case MergeUnmerged, MergeMerging, MergeConflict:
+			s.Unmerged++
 		}
 	}
 	return s

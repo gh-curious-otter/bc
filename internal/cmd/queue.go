@@ -114,8 +114,8 @@ func runQueueList(cmd *cobra.Command, args []string) error {
 	}
 
 	// Table header
-	fmt.Printf("%-10s %-10s %-15s %-40s %s\n", "ID", "STATUS", "ASSIGNED", "TITLE", "BEADS")
-	fmt.Println(strings.Repeat("-", 90))
+	fmt.Printf("%-10s %-10s %-10s %-15s %-40s %s\n", "ID", "STATUS", "MERGE", "ASSIGNED", "TITLE", "BEADS")
+	fmt.Println(strings.Repeat("-", 100))
 
 	for _, item := range items {
 		assigned := item.AssignedTo
@@ -132,16 +132,17 @@ func runQueueList(cmd *cobra.Command, args []string) error {
 		}
 
 		stateStr := colorQueueStatus(item.Status)
+		mergeStr := colorMergeStatus(item.Merge)
 
-		fmt.Printf("%-10s %s %-15s %-40s %s\n",
-			item.ID, stateStr, assigned, title, beadsID,
+		fmt.Printf("%-10s %s %s %-15s %-40s %s\n",
+			item.ID, stateStr, mergeStr, assigned, title, beadsID,
 		)
 	}
 
 	fmt.Println()
 	stats := q.Stats()
-	fmt.Printf("Total: %d | Pending: %d | Assigned: %d | Working: %d | Done: %d | Failed: %d\n",
-		stats.Total, stats.Pending, stats.Assigned, stats.Working, stats.Done, stats.Failed)
+	fmt.Printf("Total: %d | Pending: %d | Assigned: %d | Working: %d | Done: %d | Failed: %d | Merged: %d | Unmerged: %d\n",
+		stats.Total, stats.Pending, stats.Assigned, stats.Working, stats.Done, stats.Failed, stats.Merged, stats.Unmerged)
 
 	return nil
 }
@@ -181,6 +182,21 @@ func runQueueDetail(cmd *cobra.Command, itemID string) error {
 	fmt.Printf("Beads ID:  %s\n", beadsID)
 	fmt.Printf("Created:   %s\n", item.CreatedAt.Format(time.RFC3339))
 	fmt.Printf("Updated:   %s\n", item.UpdatedAt.Format(time.RFC3339))
+
+	// Merge info
+	if item.Merge != "" {
+		fmt.Printf("\nMerge:\n")
+		fmt.Printf("  Status:  %s\n", item.Merge)
+		if item.Branch != "" {
+			fmt.Printf("  Branch:  %s\n", item.Branch)
+		}
+		if item.MergeCommit != "" {
+			fmt.Printf("  Commit:  %s\n", item.MergeCommit)
+		}
+		if !item.MergedAt.IsZero() {
+			fmt.Printf("  Merged:  %s\n", item.MergedAt.Format(time.RFC3339))
+		}
+	}
 
 	if item.Description != "" {
 		fmt.Printf("\nDescription:\n  %s\n", strings.ReplaceAll(item.Description, "\n", "\n  "))
@@ -378,6 +394,35 @@ func runQueueComplete(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 	return nil
+}
+
+func colorMergeStatus(s queue.MergeStatus) string {
+	const (
+		reset  = "\033[0m"
+		green  = "\033[32m"
+		yellow = "\033[33m"
+		red    = "\033[31m"
+		gray   = "\033[90m"
+	)
+
+	if s == "" {
+		return fmt.Sprintf("%-10s", "-")
+	}
+
+	padded := fmt.Sprintf("%-10s", s)
+
+	switch s {
+	case queue.MergeMerged:
+		return green + padded + reset
+	case queue.MergeUnmerged:
+		return yellow + padded + reset
+	case queue.MergeMerging:
+		return yellow + padded + reset
+	case queue.MergeConflict:
+		return red + padded + reset
+	default:
+		return gray + padded + reset
+	}
 }
 
 func colorQueueStatus(s queue.ItemStatus) string {
