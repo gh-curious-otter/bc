@@ -10,7 +10,6 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/channel"
-	"github.com/rpuneet/bc/pkg/github"
 	"github.com/rpuneet/bc/pkg/queue"
 	"github.com/rpuneet/bc/pkg/tui/style"
 )
@@ -21,11 +20,10 @@ type Tab int
 const (
 	TabAgents Tab = iota
 	TabIssues
-	TabPRs
-	TabChannels
 	TabQueue
+	TabChannels
 
-	tabCount = 5
+	tabCount = 4
 )
 
 // WorkspaceStats holds aggregated statistics for the workspace.
@@ -56,7 +54,6 @@ type WorkspaceModel struct {
 	// Data
 	agents     []*agent.Agent
 	issues     []beads.Issue
-	prs        []github.PR
 	channels   []*channel.Channel
 	queueItems []queue.WorkItem
 
@@ -69,7 +66,6 @@ type WorkspaceModel struct {
 	// Loaded flags
 	agentsLoaded   bool
 	issuesLoaded   bool
-	prsLoaded      bool
 	channelsLoaded bool
 	queueLoaded    bool
 }
@@ -95,10 +91,6 @@ func NewWorkspaceModel(info WorkspaceInfo, s style.Styles) *WorkspaceModel {
 	// Load beads issues
 	m.issues = beads.ListIssues(info.Entry.Path)
 	m.issuesLoaded = true
-
-	// Load GitHub PRs and issues
-	m.prs = github.ListPRs(info.Entry.Path)
-	m.prsLoaded = true
 
 	// Load channels
 	m.loadChannels()
@@ -156,7 +148,6 @@ func (m *WorkspaceModel) refresh() {
 	m.manager.RefreshState()
 	m.agents = m.manager.ListAgents()
 	m.issues = beads.ListIssues(m.info.Entry.Path)
-	m.prs = github.ListPRs(m.info.Entry.Path)
 	m.loadChannels()
 	m.loadQueueStats()
 	m.loadQueueItems()
@@ -187,10 +178,6 @@ func (m *WorkspaceModel) selectCurrent() Action {
 		if m.cursor < len(m.issues) {
 			return Action{Type: ActionDrillIssue, Data: m.issues[m.cursor]}
 		}
-	case TabPRs:
-		if m.cursor < len(m.prs) {
-			return Action{Type: ActionDrillPR, Data: m.prs[m.cursor]}
-		}
 	case TabChannels:
 		if m.cursor < len(m.channels) {
 			return Action{Type: ActionDrillChannel, Data: m.channels[m.cursor]}
@@ -208,10 +195,6 @@ func (m *WorkspaceModel) maxCursor() int {
 	case TabIssues:
 		if len(m.issues) > 0 {
 			return len(m.issues) - 1
-		}
-	case TabPRs:
-		if len(m.prs) > 0 {
-			return len(m.prs) - 1
 		}
 	case TabChannels:
 		if len(m.channels) > 0 {
@@ -258,8 +241,6 @@ func (m *WorkspaceModel) View() string {
 		b.WriteString(m.renderAgents())
 	case TabIssues:
 		b.WriteString(m.renderIssues())
-	case TabPRs:
-		b.WriteString(m.renderPRs())
 	case TabChannels:
 		b.WriteString(m.renderChannels())
 	case TabQueue:
@@ -277,9 +258,8 @@ func (m *WorkspaceModel) renderTabBar() string {
 	}{
 		{"Agents", TabAgents, len(m.agents)},
 		{"Issues", TabIssues, len(m.issues)},
-		{"PRs", TabPRs, len(m.prs)},
-		{"Channels", TabChannels, len(m.channels)},
 		{"Queue", TabQueue, len(m.queueItems)},
+		{"Channels", TabChannels, len(m.channels)},
 	}
 
 	var parts []string
@@ -375,42 +355,6 @@ func (m *WorkspaceModel) renderIssues() string {
 
 		line := fmt.Sprintf("  %-12s %-10s %-40s %s",
 			issue.ID, issue.Status, title, issue.Source,
-		)
-
-		if selected {
-			b.WriteString(m.styles.Selected.Render(line))
-		} else {
-			b.WriteString(m.styles.Normal.Render(line))
-		}
-		b.WriteString("\n")
-	}
-
-	return b.String()
-}
-
-func (m *WorkspaceModel) renderPRs() string {
-	var b strings.Builder
-
-	if len(m.prs) == 0 {
-		b.WriteString(m.styles.Muted.Render("  No pull requests found."))
-		b.WriteString("\n")
-		return b.String()
-	}
-
-	header := fmt.Sprintf("  %-8s %-12s %-45s %s", "NUMBER", "STATE", "TITLE", "REVIEW")
-	b.WriteString(m.styles.Bold.Render(header))
-	b.WriteString("\n")
-
-	for i, pr := range m.prs {
-		selected := i == m.cursor
-
-		title := pr.Title
-		if len(title) > 43 {
-			title = title[:40] + "..."
-		}
-
-		line := fmt.Sprintf("  %-8s %-12s %-45s %s",
-			fmt.Sprintf("#%d", pr.Number), pr.State, title, pr.ReviewDecision,
 		)
 
 		if selected {
@@ -522,7 +466,7 @@ func (m *WorkspaceModel) renderQueue() string {
 	}
 
 	// Header
-	header := fmt.Sprintf("  %-10s %-10s %-15s %s", "ID", "STATUS", "ASSIGNED", "TITLE")
+	header := fmt.Sprintf("  %-10s %-12s %-10s %-15s %s", "ID", "BEAD", "STATUS", "ASSIGNED", "TITLE")
 	b.WriteString(m.styles.Bold.Render(header))
 	b.WriteString("\n")
 
@@ -530,8 +474,8 @@ func (m *WorkspaceModel) renderQueue() string {
 		selected := i == m.cursor
 
 		title := item.Title
-		if len(title) > 45 {
-			title = title[:42] + "..."
+		if len(title) > 40 {
+			title = title[:37] + "..."
 		}
 
 		assignedTo := item.AssignedTo
@@ -539,8 +483,13 @@ func (m *WorkspaceModel) renderQueue() string {
 			assignedTo = "-"
 		}
 
-		line := fmt.Sprintf("  %-10s %-10s %-15s %s",
-			item.ID, string(item.Status), assignedTo, title,
+		beadsID := item.BeadsID
+		if beadsID == "" {
+			beadsID = "-"
+		}
+
+		line := fmt.Sprintf("  %-10s %-12s %-10s %-15s %s",
+			item.ID, beadsID, string(item.Status), assignedTo, title,
 		)
 
 		if selected {
