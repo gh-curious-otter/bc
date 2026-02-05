@@ -61,7 +61,7 @@ func ListAllIssues(workspacePath string) ([]Issue, error) {
 	}
 
 	// Try running bd list --all --json
-	cmd := exec.Command("bd", "list", "--all", "--json")
+	cmd := exec.Command("bd", "list", "--all", "--json") //nolint:noctx // no caller context available yet
 	cmd.Dir = workspacePath
 	output, err := cmd.Output()
 	if err != nil {

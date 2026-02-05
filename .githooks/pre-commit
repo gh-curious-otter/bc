@@ -1,0 +1,75 @@
+#!/bin/sh
+#
+# Pre-commit hook: blocks commits that fail build, vet, or lint.
+# Installed via: git config core.hooksPath .githooks
+#
+
+set -e
+
+# ── bd flush (preserve existing behavior) ──────────────────────────
+if command -v bd >/dev/null 2>&1; then
+    BEADS_DIR=""
+    if git rev-parse --git-dir >/dev/null 2>&1; then
+        if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
+            MAIN_REPO_ROOT="$(dirname "$(git rev-parse --git-common-dir)")"
+            [ -d "$MAIN_REPO_ROOT/.beads" ] && BEADS_DIR="$MAIN_REPO_ROOT/.beads"
+        else
+            [ -d .beads ] && BEADS_DIR=".beads"
+        fi
+    fi
+    if [ -n "$BEADS_DIR" ]; then
+        bd sync --flush-only >/dev/null 2>&1 || {
+            echo "Error: Failed to flush bd changes to JSONL" >&2
+            exit 1
+        }
+        if [ -f "$BEADS_DIR/issues.jsonl" ]; then
+            if [ "$(git rev-parse --git-dir)" = "$(git rev-parse --git-common-dir)" ]; then
+                git add "$BEADS_DIR/issues.jsonl" 2>/dev/null || true
+            fi
+        fi
+    fi
+fi
+
+# ── Go checks ──────────────────────────────────────────────────────
+
+echo "pre-commit: running go build..."
+if ! go build ./... 2>&1; then
+    echo ""
+    echo "COMMIT BLOCKED: go build failed. Fix compilation errors before committing." >&2
+    exit 1
+fi
+
+echo "pre-commit: running go vet..."
+if ! go vet ./... 2>&1; then
+    echo ""
+    echo "COMMIT BLOCKED: go vet found issues. Fix them before committing." >&2
+    exit 1
+fi
+
+# ── Lint (only if golangci-lint is installed) ──────────────────────
+if command -v golangci-lint >/dev/null 2>&1; then
+    echo "pre-commit: running golangci-lint..."
+    if ! golangci-lint run ./... 2>&1; then
+        echo ""
+        echo "COMMIT BLOCKED: golangci-lint found issues. Fix them before committing." >&2
+        exit 1
+    fi
+else
+    # Fallback: check goimports formatting on staged .go files
+    STAGED_GO=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$' || true)
+    if [ -n "$STAGED_GO" ]; then
+        if command -v goimports >/dev/null 2>&1; then
+            echo "pre-commit: checking goimports formatting..."
+            UNFORMATTED=$(echo "$STAGED_GO" | xargs goimports -l 2>/dev/null || true)
+            if [ -n "$UNFORMATTED" ]; then
+                echo ""
+                echo "COMMIT BLOCKED: goimports formatting issues:" >&2
+                echo "$UNFORMATTED" >&2
+                echo "Run 'goimports -w <file>' or 'make fmt' to fix." >&2
+                exit 1
+            fi
+        fi
+    fi
+fi
+
+echo "pre-commit: all checks passed."

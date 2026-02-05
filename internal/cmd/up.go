@@ -92,7 +92,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 
 	issues := beads.ReadyIssues(ws.RootDir)
 	if len(issues) == 0 {
-		issues, _ = beads.ListIssues(ws.RootDir)
+		issues, _ = beads.ListIssues(ws.RootDir) //nolint:errcheck // best-effort fallback
 	}
 
 	added := 0
