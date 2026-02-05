@@ -471,6 +471,7 @@ func TestRenderQueue_Paginated(t *testing.T) {
 	m.height = 12 // visibleRows = 5
 	m.tab = TabQueue
 	m.scrollOffset = 0
+	m.queueFilter = QueueFilterAll
 
 	// Create 20 queue items
 	for i := 0; i < 20; i++ {
@@ -480,6 +481,7 @@ func TestRenderQueue_Paginated(t *testing.T) {
 			Status: queue.StatusDone,
 		})
 	}
+	m.applyQueueFilter()
 
 	output := m.renderQueue()
 
@@ -577,5 +579,152 @@ func TestCursorMovement_AdjustsViewport(t *testing.T) {
 	visible := m.visibleRows()
 	if m.cursor >= m.scrollOffset+visible {
 		t.Errorf("cursor %d not visible in viewport [%d, %d)", m.cursor, m.scrollOffset, m.scrollOffset+visible)
+	}
+}
+
+// --- Queue filter tests ---
+
+func testQueueItems() []queue.WorkItem {
+	return []queue.WorkItem{
+		{ID: "work-001", Title: "Pending task", Status: queue.StatusPending},
+		{ID: "work-002", Title: "Assigned task", Status: queue.StatusAssigned},
+		{ID: "work-003", Title: "Working task", Status: queue.StatusWorking},
+		{ID: "work-004", Title: "Done task", Status: queue.StatusDone},
+		{ID: "work-005", Title: "Failed task", Status: queue.StatusFailed},
+		{ID: "work-006", Title: "Another done", Status: queue.StatusDone},
+	}
+}
+
+func TestQueueFilter_DefaultIsActive(t *testing.T) {
+	m := newTestModel()
+	m.queueItems = testQueueItems()
+	m.applyQueueFilter()
+
+	if m.queueFilter != QueueFilterActive {
+		t.Errorf("default filter = %d, want QueueFilterActive", m.queueFilter)
+	}
+	// Active = everything except done (4 items)
+	if len(m.filteredQueueItems) != 4 {
+		t.Errorf("filtered count = %d, want 4 (active items)", len(m.filteredQueueItems))
+	}
+	for _, item := range m.filteredQueueItems {
+		if item.Status == queue.StatusDone {
+			t.Errorf("active filter should not include done items, found: %s", item.ID)
+		}
+	}
+}
+
+func TestQueueFilter_AllShowsEverything(t *testing.T) {
+	m := newTestModel()
+	m.queueItems = testQueueItems()
+	m.queueFilter = QueueFilterAll
+	m.applyQueueFilter()
+
+	if len(m.filteredQueueItems) != len(m.queueItems) {
+		t.Errorf("filtered count = %d, want %d", len(m.filteredQueueItems), len(m.queueItems))
+	}
+}
+
+func TestQueueFilter_DoneShowsOnlyDone(t *testing.T) {
+	m := newTestModel()
+	m.queueItems = testQueueItems()
+	m.queueFilter = QueueFilterDone
+	m.applyQueueFilter()
+
+	if len(m.filteredQueueItems) != 2 {
+		t.Errorf("filtered count = %d, want 2 done items", len(m.filteredQueueItems))
+	}
+	for _, item := range m.filteredQueueItems {
+		if item.Status != queue.StatusDone {
+			t.Errorf("done filter should only include done items, found: %s (%s)", item.ID, item.Status)
+		}
+	}
+}
+
+func TestQueueFilter_CyclesCorrectly(t *testing.T) {
+	f := QueueFilterActive
+	f = f.next()
+	if f != QueueFilterAll {
+		t.Errorf("active.next() = %d, want QueueFilterAll", f)
+	}
+	f = f.next()
+	if f != QueueFilterDone {
+		t.Errorf("all.next() = %d, want QueueFilterDone", f)
+	}
+	f = f.next()
+	if f != QueueFilterActive {
+		t.Errorf("done.next() = %d, want QueueFilterActive", f)
+	}
+}
+
+func TestQueueFilter_TabBarShowsFilterLabel(t *testing.T) {
+	m := newTestModel()
+	m.queueItems = testQueueItems()
+	m.queueFilter = QueueFilterActive
+	m.applyQueueFilter()
+	m.computeStats()
+
+	output := m.renderTabBar()
+	if !strings.Contains(output, "active") {
+		t.Errorf("tab bar should show 'active' filter label, got: %s", output)
+	}
+
+	// All filter should show plain count
+	m.queueFilter = QueueFilterAll
+	m.applyQueueFilter()
+	output = m.renderTabBar()
+	if strings.Contains(output, "active") || strings.Contains(output, "done") {
+		t.Errorf("tab bar with All filter should not show filter label, got: %s", output)
+	}
+}
+
+func TestQueueFilter_SelectCurrentUsesFilteredSlice(t *testing.T) {
+	m := newTestModel()
+	m.tab = TabQueue
+	m.queueItems = testQueueItems()
+	m.queueFilter = QueueFilterDone
+	m.applyQueueFilter()
+	m.cursor = 0
+
+	action := m.selectCurrent()
+	if action.Type != ActionDrillQueue {
+		t.Fatalf("expected ActionDrillQueue, got %d", action.Type)
+	}
+
+	item, ok := action.Data.(queue.WorkItem)
+	if !ok {
+		t.Fatal("expected WorkItem data")
+	}
+	if item.Status != queue.StatusDone {
+		t.Errorf("selected item status = %s, want done (should select from filtered slice)", item.Status)
+	}
+}
+
+func TestQueueFilter_MaxCursorUsesFilteredSlice(t *testing.T) {
+	m := newTestModel()
+	m.tab = TabQueue
+	m.queueItems = testQueueItems()
+	m.queueFilter = QueueFilterDone
+	m.applyQueueFilter()
+
+	max := m.maxCursor()
+	if max != 1 { // 2 done items, max cursor = 1
+		t.Errorf("maxCursor = %d, want 1 (2 done items)", max)
+	}
+}
+
+func TestQueueFilter_EmptyFilterShowsMessage(t *testing.T) {
+	m := newTestModel()
+	m.tab = TabQueue
+	// Items exist but all are done
+	m.queueItems = []queue.WorkItem{
+		{ID: "work-001", Title: "Done", Status: queue.StatusDone},
+	}
+	m.queueFilter = QueueFilterActive
+	m.applyQueueFilter()
+
+	output := m.renderQueue()
+	if !strings.Contains(output, "Press 'f' to change filter") {
+		t.Errorf("empty filtered queue should show filter hint, got: %s", output)
 	}
 }
