@@ -22,8 +22,9 @@ const (
 	TabIssues
 	TabQueue
 	TabChannels
+	TabQueue
 
-	tabCount = 4
+	tabCount = 5
 )
 
 // WorkspaceStats holds aggregated statistics for the workspace.
@@ -260,6 +261,7 @@ func (m *WorkspaceModel) renderTabBar() string {
 		{"Issues", TabIssues, len(m.issues)},
 		{"Queue", TabQueue, len(m.queueItems)},
 		{"Channels", TabChannels, len(m.channels)},
+		{"Queue", TabQueue, len(m.queueItems)},
 	}
 
 	var parts []string
