@@ -98,7 +98,7 @@ func runSpawn(cmd *cobra.Command, args []string) error {
 
 	// Log event
 	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	log.Append(events.Event{
+	_ = log.Append(events.Event{
 		Type:    events.AgentSpawned,
 		Agent:   agentName,
 		Message: fmt.Sprintf("dynamically spawned with role %s", role),

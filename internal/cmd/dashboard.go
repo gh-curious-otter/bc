@@ -62,7 +62,10 @@ func runDashboard(cmd *cobra.Command, args []string) error {
 	}
 
 	// JSON output
-	jsonOutput, _ := cmd.Flags().GetBool("json")
+	jsonOutput, err := cmd.Flags().GetBool("json")
+	if err != nil {
+		return err
+	}
 	if jsonOutput {
 		return printJSONDashboard(ws.RootDir, ws.Config.Name, agents, qs, recentEvents)
 	}

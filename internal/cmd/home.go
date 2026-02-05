@@ -49,7 +49,7 @@ func runHome(cmd *cobra.Command, args []string) error {
 		ws, err := getWorkspace()
 		if err == nil {
 			reg.Register(ws.RootDir, ws.Config.Name)
-			reg.Save()
+			_ = reg.Save()
 		}
 	}
 
@@ -67,8 +67,8 @@ func runHome(cmd *cobra.Command, args []string) error {
 			entry.Path+"/.bc/agents",
 			entry.Path,
 		)
-		mgr.LoadState()
-		mgr.RefreshState()
+		_ = mgr.LoadState()
+		_ = mgr.RefreshState()
 		info.Total = mgr.AgentCount()
 		info.Running = mgr.RunningCount()
 

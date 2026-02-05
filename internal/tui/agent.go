@@ -129,7 +129,7 @@ func (m *AgentModel) handleSendKey(msg tea.KeyMsg) Action {
 
 // refresh reloads the agent's state data from the manager.
 func (m *AgentModel) refresh() {
-	m.manager.RefreshState()
+	_ = m.manager.RefreshState()
 	if a := m.manager.GetAgent(m.agent.Name); a != nil {
 		m.agent = a
 	}

@@ -128,8 +128,8 @@ func NewWorkspaceModel(info WorkspaceInfo, s style.Styles) *WorkspaceModel {
 		info.Entry.Path+"/.bc/agents",
 		info.Entry.Path,
 	)
-	m.manager.LoadState()
-	m.manager.RefreshState()
+	_ = m.manager.LoadState()
+	_ = m.manager.RefreshState()
 	m.agents = m.manager.ListAgents()
 	m.agentsLoaded = true
 
@@ -210,7 +210,7 @@ func (m *WorkspaceModel) HandleKey(msg tea.KeyMsg) Action {
 }
 
 func (m *WorkspaceModel) refresh() {
-	m.manager.RefreshState()
+	_ = m.manager.RefreshState()
 	m.agents = m.manager.ListAgents()
 	m.issues, m.issuesErr = beads.ListIssues(m.info.Entry.Path)
 	m.loadChannels()

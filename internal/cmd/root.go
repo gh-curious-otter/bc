@@ -39,12 +39,14 @@ Key features:
 Documentation: https://github.com/rpuneet/bc`,
 	// PersistentPreRun initializes logging based on flags
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		verbose, _ := cmd.Flags().GetBool("verbose")
-		log.SetVerbose(verbose)
+		verbose, err := cmd.Flags().GetBool("verbose")
+		if err == nil {
+			log.SetVerbose(verbose)
+		}
 	},
 	// Run with no args shows help
 	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Help()
+		_ = cmd.Help()
 	},
 }
 
@@ -53,9 +55,9 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Fprintf(cmd.OutOrStdout(), "bc %s\n", version)
-		fmt.Fprintf(cmd.OutOrStdout(), "  commit: %s\n", commit)
-		fmt.Fprintf(cmd.OutOrStdout(), "  built:  %s\n", date)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "bc %s\n", version)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  commit: %s\n", commit)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  built:  %s\n", date)
 	},
 }
 

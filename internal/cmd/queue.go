@@ -74,10 +74,12 @@ func init() {
 	rootCmd.AddCommand(queueCmd)
 }
 
-func loadQueue(ws interface{ StateDir() string }) *queue.Queue {
+func loadQueue(ws interface{ StateDir() string }) (*queue.Queue, error) {
 	q := queue.New(filepath.Join(ws.StateDir(), "queue.json"))
-	q.Load()
-	return q
+	if err := q.Load(); err != nil {
+		return nil, fmt.Errorf("failed to load queue: %w", err)
+	}
+	return q, nil
 }
 
 func runQueueList(cmd *cobra.Command, args []string) error {
@@ -95,10 +97,16 @@ func runQueueList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not in a bc workspace: %w", err)
 	}
 
-	q := loadQueue(ws)
+	q, err := loadQueue(ws)
+	if err != nil {
+		return err
+	}
 	items := q.ListAll()
 
-	jsonOutput, _ := cmd.Flags().GetBool("json")
+	jsonOutput, err := cmd.Flags().GetBool("json")
+	if err != nil {
+		return err
+	}
 	if jsonOutput {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
@@ -153,13 +161,19 @@ func runQueueDetail(cmd *cobra.Command, itemID string) error {
 		return fmt.Errorf("not in a bc workspace: %w", err)
 	}
 
-	q := loadQueue(ws)
+	q, err := loadQueue(ws)
+	if err != nil {
+		return err
+	}
 	item := q.Get(itemID)
 	if item == nil {
 		return fmt.Errorf("work item %s not found", itemID)
 	}
 
-	jsonOutput, _ := cmd.Flags().GetBool("json")
+	jsonOutput, err := cmd.Flags().GetBool("json")
+	if err != nil {
+		return err
+	}
 	if jsonOutput {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
@@ -236,7 +250,10 @@ func runQueueAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not in a bc workspace: %w", err)
 	}
 
-	q := loadQueue(ws)
+	q, err := loadQueue(ws)
+	if err != nil {
+		return err
+	}
 	item := q.Add(title, queueDesc, "")
 	if err := q.Save(); err != nil {
 		return fmt.Errorf("failed to save queue: %w", err)
@@ -255,7 +272,10 @@ func runQueueAssign(cmd *cobra.Command, args []string) error {
 	itemID := args[0]
 	agentName := args[1]
 
-	q := loadQueue(ws)
+	q, err := loadQueue(ws)
+	if err != nil {
+		return err
+	}
 
 	// Get item before assigning to check BeadsID
 	item := q.Get(itemID)
@@ -272,7 +292,7 @@ func runQueueAssign(cmd *cobra.Command, args []string) error {
 
 	// Log event
 	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	log.Append(events.Event{
+	_ = log.Append(events.Event{
 		Type:  events.WorkAssigned,
 		Agent: agentName,
 		Data:  map[string]any{"work_id": itemID},
@@ -282,7 +302,7 @@ func runQueueAssign(cmd *cobra.Command, args []string) error {
 	if item.BeadsID != "" {
 		if err := beads.AssignIssue(ws.RootDir, item.BeadsID, agentName); err != nil {
 			// Log but don't fail - beads sync is best-effort
-			log.Append(events.Event{
+			_ = log.Append(events.Event{
 				Type:    events.AgentReport,
 				Agent:   agentName,
 				Message: fmt.Sprintf("warning: failed to assign beads issue %s: %v", item.BeadsID, err),
@@ -300,7 +320,10 @@ func runQueueLoad(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not in a bc workspace: %w", err)
 	}
 
-	q := loadQueue(ws)
+	q, err := loadQueue(ws)
+	if err != nil {
+		return err
+	}
 
 	// Try ready issues first, fall back to all issues
 	issues := beads.ReadyIssues(ws.RootDir)
@@ -323,7 +346,7 @@ func runQueueLoad(cmd *cobra.Command, args []string) error {
 		if existing := q.FindByTitle(issue.Title); existing != nil {
 			// Link the beads ID to the existing item so future syncs skip it
 			if existing.BeadsID == "" {
-				q.LinkBeadsID(existing.ID, issue.ID)
+				_ = q.LinkBeadsID(existing.ID, issue.ID)
 				linked++
 			}
 			continue
@@ -338,7 +361,7 @@ func runQueueLoad(cmd *cobra.Command, args []string) error {
 
 	// Log event
 	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	log.Append(events.Event{
+	_ = log.Append(events.Event{
 		Type:    events.QueueLoaded,
 		Message: fmt.Sprintf("loaded %d items from beads", added),
 		Data:    map[string]any{"added": added, "linked": linked, "total_issues": len(issues)},
@@ -359,7 +382,10 @@ func runQueueComplete(cmd *cobra.Command, args []string) error {
 	}
 
 	itemID := args[0]
-	q := loadQueue(ws)
+	q, err := loadQueue(ws)
+	if err != nil {
+		return err
+	}
 	item := q.Get(itemID)
 	if item == nil {
 		return fmt.Errorf("work item %s not found", itemID)
@@ -373,7 +399,7 @@ func runQueueComplete(cmd *cobra.Command, args []string) error {
 	}
 
 	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	log.Append(events.Event{
+	_ = log.Append(events.Event{
 		Type:    events.WorkCompleted,
 		Message: fmt.Sprintf("marked %s done via bc queue complete", itemID),
 		Data:    map[string]any{"work_id": itemID},
@@ -381,7 +407,7 @@ func runQueueComplete(cmd *cobra.Command, args []string) error {
 
 	if item.BeadsID != "" {
 		if err := beads.CloseIssue(ws.RootDir, item.BeadsID); err != nil {
-			log.Append(events.Event{
+			_ = log.Append(events.Event{
 				Type:    events.AgentReport,
 				Message: fmt.Sprintf("warning: failed to close beads issue %s: %v", item.BeadsID, err),
 			})
