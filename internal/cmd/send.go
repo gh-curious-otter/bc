@@ -32,7 +32,10 @@ func init() {
 
 func runSend(cmd *cobra.Command, args []string) error {
 	agentName := args[0]
-	message := strings.Join(args[1:], " ")
+	message := strings.TrimSpace(strings.Join(args[1:], " "))
+	if message == "" {
+		return fmt.Errorf("message cannot be empty")
+	}
 
 	// Find workspace
 	ws, err := getWorkspace()
