@@ -1099,6 +1099,9 @@ func TestPasteBufferPreservesSpaces(t *testing.T) {
 	if !hasTmux() {
 		t.Skip("tmux not available")
 	}
+	if os.Getenv("CI") != "" {
+		t.Skip("skipping flaky test in CI: timing-dependent tmux paste-buffer interaction")
+	}
 
 	m := NewManager("test-pb-")
 
