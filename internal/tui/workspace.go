@@ -11,6 +11,7 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/queue"
 	"github.com/rpuneet/bc/pkg/stats"
 	"github.com/rpuneet/bc/pkg/tui/style"
@@ -24,6 +25,7 @@ const (
 	TabIssues
 	TabQueue
 	TabChannels
+	TabDashboard
 
 	tabCount = 5
 )
@@ -234,6 +236,8 @@ func (m *WorkspaceModel) maxCursor() int {
 		if len(m.queueItems) > 0 {
 			return len(m.queueItems) - 1
 		}
+	case TabDashboard:
+		return 0
 	}
 	return 0
 }
@@ -267,6 +271,8 @@ func (m *WorkspaceModel) View() string {
 		b.WriteString(m.renderChannels())
 	case TabQueue:
 		b.WriteString(m.renderQueue())
+	case TabDashboard:
+		b.WriteString(m.renderDashboard())
 	}
 
 	return b.String()
