@@ -488,7 +488,203 @@ func TestIssueJSONOmitsEmpty(t *testing.T) {
 	}
 }
 
+// --- GetIssue ---
+
+func TestGetIssueNoBeadsDir(t *testing.T) {
+	dir := t.TempDir()
+	// No .beads directory — should return nil
+	result := GetIssue(dir, "bc-123")
+	if result != nil {
+		t.Errorf("GetIssue without .beads should return nil, got %+v", result)
+	}
+}
+
+func TestGetIssueBdFails(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+
+	mockBd := createMockBdFailing(t)
+	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
+
+	result := GetIssue(dir, "bc-123")
+	if result != nil {
+		t.Errorf("GetIssue when bd fails should return nil, got %+v", result)
+	}
+}
+
+func TestGetIssueMalformedJSON(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+
+	mockBd := createMockBd(t, "this is not json")
+	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
+
+	result := GetIssue(dir, "bc-123")
+	if result != nil {
+		t.Errorf("GetIssue with malformed JSON should return nil, got %+v", result)
+	}
+}
+
+func TestGetIssueEmptyArray(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+
+	mockBd := createMockBd(t, "[]")
+	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
+
+	result := GetIssue(dir, "bc-123")
+	if result != nil {
+		t.Errorf("GetIssue with empty array should return nil, got %+v", result)
+	}
+}
+
+func TestGetIssueSuccess(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+
+	issues := []Issue{
+		{ID: "bc-42", Title: "Test bug", Status: "open", Type: "bug", Assignee: "alice"},
+	}
+	data, _ := json.Marshal(issues)
+
+	mockBd := createMockBd(t, string(data))
+	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
+
+	result := GetIssue(dir, "bc-42")
+	if result == nil {
+		t.Fatal("GetIssue should return an issue, got nil")
+	}
+	if result.ID != "bc-42" {
+		t.Errorf("ID = %q, want %q", result.ID, "bc-42")
+	}
+	if result.Title != "Test bug" {
+		t.Errorf("Title = %q, want %q", result.Title, "Test bug")
+	}
+	if result.Status != "open" {
+		t.Errorf("Status = %q, want %q", result.Status, "open")
+	}
+	if result.Source != "beads" {
+		t.Errorf("Source = %q, want %q", result.Source, "beads")
+	}
+}
+
+func TestGetIssueReturnsFirst(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+
+	issues := []Issue{
+		{ID: "bc-1", Title: "First", Status: "open"},
+		{ID: "bc-2", Title: "Second", Status: "open"},
+	}
+	data, _ := json.Marshal(issues)
+
+	mockBd := createMockBd(t, string(data))
+	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
+
+	result := GetIssue(dir, "bc-1")
+	if result == nil {
+		t.Fatal("GetIssue should return an issue, got nil")
+	}
+	if result.ID != "bc-1" {
+		t.Errorf("ID = %q, want %q", result.ID, "bc-1")
+	}
+	if result.Title != "First" {
+		t.Errorf("Title = %q, want %q", result.Title, "First")
+	}
+}
+
+func TestGetIssueEmptyID(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+
+	// Mock bd that outputs empty array for any query
+	mockBd := createMockBd(t, "[]")
+	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
+
+	result := GetIssue(dir, "")
+	if result != nil {
+		t.Errorf("GetIssue with empty ID should return nil, got %+v", result)
+	}
+}
+
+// --- ListAllIssues bd failure ---
+
+func TestListAllIssuesBdFails(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+
+	mockBd := createMockBdFailing(t)
+	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
+
+	result := ListAllIssues(dir)
+	if result != nil {
+		t.Errorf("ListAllIssues when bd fails should return nil, got %d issues", len(result))
+	}
+}
+
+// --- ReadyIssues coverage gaps ---
+
+func TestReadyIssuesBdFails(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+
+	mockBd := createMockBdFailing(t)
+	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
+
+	result := ReadyIssues(dir)
+	if result != nil {
+		t.Errorf("ReadyIssues when bd fails should return nil, got %d issues", len(result))
+	}
+}
+
+func TestReadyIssuesMalformedJSON(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+
+	mockBd := createMockBd(t, "not valid json")
+	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
+
+	result := ReadyIssues(dir)
+	if result != nil {
+		t.Errorf("ReadyIssues with malformed JSON should return nil, got %d issues", len(result))
+	}
+}
+
+func TestReadyIssuesAllEpics(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+
+	issues := []Issue{
+		{ID: "a", Title: "Epic 1", Status: "open", Type: "epic"},
+		{ID: "b", Title: "Epic 2", Status: "open", Type: "epic"},
+	}
+	data, _ := json.Marshal(issues)
+
+	mockBd := createMockBd(t, string(data))
+	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
+
+	result := ReadyIssues(dir)
+	if result != nil {
+		t.Errorf("ReadyIssues with only epics should return nil, got %d issues", len(result))
+	}
+}
+
 // --- helpers ---
+
+// createMockBdFailing creates a mock "bd" script that exits with status 1.
+// Returns the path to the mock script.
+func createMockBdFailing(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	mockPath := filepath.Join(dir, "bd")
+
+	script := "#!/bin/sh\nexit 1\n"
+	if err := os.WriteFile(mockPath, []byte(script), 0755); err != nil {
+		t.Fatalf("failed to create mock bd: %v", err)
+	}
+
+	return mockPath
+}
 
 // createMockBd creates a mock "bd" script that outputs the given string to stdout.
 // Returns the path to the mock script.
