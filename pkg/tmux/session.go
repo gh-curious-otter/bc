@@ -223,13 +223,24 @@ func (m *Manager) SendKeysWithSubmit(name, keys, submitKey string) error {
 	}
 
 	// Send the submit key as a separate operation.
-	// IMPORTANT: Do NOT use -l (literal) for the submit key. The -l flag processes
-	// keys as literal UTF-8 characters, but control characters like \r (0x0D) can be
-	// silently dropped by modern tmux versions, causing Enter to never fire.
-	// Instead, send "Enter" as a tmux key name so tmux generates a proper key event.
-	time.Sleep(50 * time.Millisecond)
+	// Use -H 0D (raw hex carriage return byte) for Enter instead of the key name.
+	// In tmux 3.5+, "send-keys Enter" (key name resolution) is unreliable after
+	// paste-buffer operations — the key is silently dropped after bracketed paste.
+	// The -H flag sends the raw byte directly, bypassing key resolution, and works
+	// reliably in all scenarios including after paste-buffer.
+	delay := 100 * time.Millisecond
+	if len(keys) > 500 {
+		delay = 500 * time.Millisecond
+	}
+	time.Sleep(delay)
 
-	submitCmd := exec.Command("tmux", "send-keys", "-t", fullName, submitKey)
+	var submitCmd *exec.Cmd
+	if submitKey == "Enter" {
+		// Send raw CR byte (0x0D) via -H flag — reliable after paste-buffer.
+		submitCmd = exec.Command("tmux", "send-keys", "-t", fullName, "-H", "0D")
+	} else {
+		submitCmd = exec.Command("tmux", "send-keys", "-t", fullName, submitKey)
+	}
 	if output, err := submitCmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to send submit key to %s: %w (%s)", fullName, err, string(output))
 	}
