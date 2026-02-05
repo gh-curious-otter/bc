@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,20 +10,32 @@ import (
 	"github.com/rpuneet/bc/pkg/tui/style"
 )
 
+// queueField is a label/value pair for display in the queue item detail view.
+type queueField struct {
+	label string
+	value string
+	style string
+}
+
 // QueueItemModel shows the detail view for a single work queue item.
 type QueueItemModel struct {
-	item   queue.WorkItem
-	styles style.Styles
-	width  int
-	height int
+	item          queue.WorkItem
+	styles        style.Styles
+	width         int
+	height        int
+	workspacePath string
+	branch        string
 }
 
 // NewQueueItemModel creates a queue item detail view.
-func NewQueueItemModel(item queue.WorkItem, s style.Styles) *QueueItemModel {
-	return &QueueItemModel{
-		item:   item,
-		styles: s,
+func NewQueueItemModel(item queue.WorkItem, workspacePath string, s style.Styles) *QueueItemModel {
+	m := &QueueItemModel{
+		item:          item,
+		styles:        s,
+		workspacePath: workspacePath,
 	}
+	m.branch = m.findBranch()
+	return m
 }
 
 // HandleKey processes a key event and returns an action for the parent.
@@ -33,6 +46,37 @@ func (m *QueueItemModel) HandleKey(msg tea.KeyMsg) Action {
 		return Action{Type: ActionBack}
 	}
 	return NoAction
+}
+
+// findBranch looks up git branches matching this work item's ID or beads ID.
+func (m *QueueItemModel) findBranch() string {
+	if m.workspacePath == "" {
+		return ""
+	}
+
+	// Search patterns: try item ID first, then beads ID
+	patterns := []string{"*" + m.item.ID + "*"}
+	if m.item.BeadsID != "" {
+		patterns = append(patterns, "*"+m.item.BeadsID+"*")
+	}
+
+	for _, pattern := range patterns {
+		cmd := exec.Command("git", "-C", m.workspacePath, "branch", "-a", "--list", pattern)
+		out, err := cmd.Output()
+		if err != nil || len(out) == 0 {
+			continue
+		}
+		// Return first matching branch, trimmed
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			branch := strings.TrimSpace(line)
+			branch = strings.TrimPrefix(branch, "* ")
+			branch = strings.TrimPrefix(branch, "remotes/origin/")
+			if branch != "" {
+				return branch
+			}
+		}
+	}
+	return ""
 }
 
 // View renders the queue item detail screen.
@@ -47,42 +91,25 @@ func (m *QueueItemModel) View() string {
 
 	statusStyle := mapQueueStatusStyle(m.item.Status)
 
-	fields := []struct {
-		label string
-		value string
-		style string
-	}{
+	fields := []queueField{
 		{"ID", m.item.ID, "code"},
 		{"Status", string(m.item.Status), statusStyle},
 	}
 
 	if m.item.AssignedTo != "" {
-		fields = append(fields, struct {
-			label string
-			value string
-			style string
-		}{"Assigned To", m.item.AssignedTo, ""})
+		fields = append(fields, queueField{"Assigned To", m.item.AssignedTo, ""})
 	}
 
 	if m.item.BeadsID != "" {
-		fields = append(fields, struct {
-			label string
-			value string
-			style string
-		}{"Bead ID", m.item.BeadsID, "code"})
+		fields = append(fields, queueField{"Bead ID", m.item.BeadsID, "code"})
 	}
 
-	fields = append(fields, struct {
-		label string
-		value string
-		style string
-	}{"Created", m.item.CreatedAt.Format("2006-01-02 15:04:05"), ""})
+	if m.branch != "" {
+		fields = append(fields, queueField{"Branch", m.branch, "code"})
+	}
 
-	fields = append(fields, struct {
-		label string
-		value string
-		style string
-	}{"Updated", m.item.UpdatedAt.Format("2006-01-02 15:04:05"), ""})
+	fields = append(fields, queueField{"Created", m.item.CreatedAt.Format("2006-01-02 15:04:05"), ""})
+	fields = append(fields, queueField{"Updated", m.item.UpdatedAt.Format("2006-01-02 15:04:05"), ""})
 
 	for _, f := range fields {
 		label := m.styles.Muted.Width(15).Render(f.label + ":")
