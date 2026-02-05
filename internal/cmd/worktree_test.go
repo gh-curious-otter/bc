@@ -1,9 +1,13 @@
 package cmd
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/rpuneet/bc/pkg/agent"
 )
 
 func TestIsWithinDir(t *testing.T) {
@@ -133,4 +137,69 @@ func TestCheckWorktreeWarningNoEnv(t *testing.T) {
 
 	// Should not panic
 	checkWorktreeWarning("test-agent", nil)
+}
+
+func TestWorktreeListOKAndOrphaned(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Create worktrees dir and a worktree for an agent
+	worktreesDir := filepath.Join(wsDir, ".bc", "worktrees")
+	os.MkdirAll(filepath.Join(worktreesDir, "eng-01"), 0755)
+	// Create an orphaned worktree (no matching agent)
+	os.MkdirAll(filepath.Join(worktreesDir, "ghost-agent"), 0755)
+
+	// Register eng-01 as an agent
+	agentsDir := filepath.Join(wsDir, ".bc", "agents")
+	agents := map[string]*agent.Agent{
+		"eng-01": {Name: "eng-01", Role: agent.RoleEngineer, State: agent.StateIdle},
+	}
+	data, _ := json.Marshal(agents)
+	os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0644)
+
+	stdout, _, err := executeIntegrationCmd("worktree", "list")
+	if err != nil {
+		t.Fatalf("worktree list failed: %v", err)
+	}
+
+	if !strings.Contains(stdout, "eng-01") {
+		t.Error("expected eng-01 in output")
+	}
+	if !strings.Contains(stdout, "OK") {
+		t.Error("expected OK status for eng-01")
+	}
+	if !strings.Contains(stdout, "ghost-agent") {
+		t.Error("expected ghost-agent in output")
+	}
+	if !strings.Contains(stdout, "ORPHANED") {
+		t.Error("expected ORPHANED status for ghost-agent")
+	}
+}
+
+func TestWorktreeListMissing(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Register an agent but don't create its worktree directory
+	agentsDir := filepath.Join(wsDir, ".bc", "agents")
+	agents := map[string]*agent.Agent{
+		"eng-02": {Name: "eng-02", Role: agent.RoleEngineer, State: agent.StateIdle},
+	}
+	data, _ := json.Marshal(agents)
+	os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0644)
+
+	// Ensure worktrees dir exists but no eng-02 subdir
+	os.MkdirAll(filepath.Join(wsDir, ".bc", "worktrees"), 0755)
+
+	stdout, _, err := executeIntegrationCmd("worktree", "list")
+	if err != nil {
+		t.Fatalf("worktree list failed: %v", err)
+	}
+
+	if !strings.Contains(stdout, "eng-02") {
+		t.Error("expected eng-02 in output")
+	}
+	if !strings.Contains(stdout, "MISSING") {
+		t.Error("expected MISSING status for eng-02")
+	}
 }
