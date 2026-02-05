@@ -703,45 +703,9 @@ func (m *WorkspaceModel) renderDashboard() string {
 		b.WriteString(m.styles.StatusStyle(mapState(a.State)).Render(line))
 		b.WriteString("\n")
 	}
+	b.WriteString("\n")
 
-	return b.String()
-}
-
-func mapQueueStatus(s queue.ItemStatus) string {
-	switch s {
-	case queue.StatusPending:
-		return "pending"
-	case queue.StatusAssigned:
-		return "queued"
-	case queue.StatusWorking:
-		return "running"
-	case queue.StatusDone:
-		return "success"
-	case queue.StatusFailed:
-		return "failed"
-	default:
-		return ""
-	}
-}
-
-const (
-	dashboardMaxEvents       = 10
-	dashboardMaxClosedIssues = 5
-)
-
-func (m *WorkspaceModel) loadRecentEvents() {
-	evtLog := events.NewLog(filepath.Join(m.info.Entry.Path, ".bc", "events.jsonl"))
-	evts, err := evtLog.ReadLast(dashboardMaxEvents)
-	if err != nil {
-		m.recentEvents = nil
-		return
-	}
-	m.recentEvents = evts
-}
-
-func (m *WorkspaceModel) renderDashboard() string {
-	var b strings.Builder
-
+	// --- Issue Overview ---
 	b.WriteString(m.styles.Bold.Render("  Issue Overview"))
 	b.WriteString("\n")
 
@@ -813,6 +777,28 @@ func (m *WorkspaceModel) renderDashboard() string {
 	return b.String()
 }
 
+func mapQueueStatus(s queue.ItemStatus) string {
+	switch s {
+	case queue.StatusPending:
+		return "pending"
+	case queue.StatusAssigned:
+		return "queued"
+	case queue.StatusWorking:
+		return "running"
+	case queue.StatusDone:
+		return "success"
+	case queue.StatusFailed:
+		return "failed"
+	default:
+		return ""
+	}
+}
+
+const (
+	dashboardMaxEvents       = 10
+	dashboardMaxClosedIssues = 5
+)
+
 func (m *WorkspaceModel) getRecentlyClosedIssues() []beads.Issue {
 	var closed []beads.Issue
 	for i := len(m.issues) - 1; i >= 0; i-- {
@@ -826,6 +812,16 @@ func (m *WorkspaceModel) getRecentlyClosedIssues() []beads.Issue {
 		}
 	}
 	return closed
+}
+
+func (m *WorkspaceModel) loadRecentEvents() {
+	evtLog := events.NewLog(filepath.Join(m.info.Entry.Path, ".bc", "events.jsonl"))
+	evts, err := evtLog.ReadLast(dashboardMaxEvents)
+	if err != nil {
+		m.recentEvents = nil
+		return
+	}
+	m.recentEvents = evts
 }
 
 func (m *WorkspaceModel) loadPkgStats() {
