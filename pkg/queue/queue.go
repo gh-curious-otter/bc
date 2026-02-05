@@ -75,8 +75,8 @@ func (q *Queue) Load() error {
 
 // Save writes queue state to disk.
 func (q *Queue) Save() error {
-	q.mu.RLock()
-	defer q.mu.RUnlock()
+	q.mu.Lock()
+	defer q.mu.Unlock()
 
 	data, err := json.MarshalIndent(q.items, "", "  ")
 	if err != nil {
