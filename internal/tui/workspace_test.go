@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/queue"
@@ -337,5 +338,244 @@ func TestRenderDashboard_AllOpenZero(t *testing.T) {
 	// With 0 open issues, the Open label should use success styling (green)
 	if !strings.Contains(output, "Open: 0") {
 		t.Errorf("expected 'Open: 0', got: %s", output)
+	}
+}
+
+// --- Pagination / viewport tests ---
+
+func TestVisibleRows(t *testing.T) {
+	m := newTestModel()
+	m.height = 40
+
+	visible := m.visibleRows()
+	expected := 40 - viewportOverhead
+	if visible != expected {
+		t.Errorf("visibleRows() = %d, want %d", visible, expected)
+	}
+}
+
+func TestVisibleRows_SmallTerminal(t *testing.T) {
+	m := newTestModel()
+	m.height = 5 // smaller than overhead
+
+	visible := m.visibleRows()
+	if visible < 1 {
+		t.Errorf("visibleRows() should be at least 1, got %d", visible)
+	}
+}
+
+func TestEnsureCursorVisible_ScrollsDown(t *testing.T) {
+	m := newTestModel()
+	m.height = 12 // visibleRows = 12 - 7 = 5
+	m.tab = TabIssues
+	m.issues = make([]beads.Issue, 20)
+
+	// Move cursor past the viewport
+	m.cursor = 8
+	m.scrollOffset = 0
+	m.ensureCursorVisible()
+
+	// scrollOffset should adjust so cursor is visible
+	visible := m.visibleRows()
+	if m.cursor < m.scrollOffset || m.cursor >= m.scrollOffset+visible {
+		t.Errorf("cursor %d not visible in viewport [%d, %d)", m.cursor, m.scrollOffset, m.scrollOffset+visible)
+	}
+}
+
+func TestEnsureCursorVisible_ScrollsUp(t *testing.T) {
+	m := newTestModel()
+	m.height = 12 // visibleRows = 5
+	m.tab = TabIssues
+	m.issues = make([]beads.Issue, 20)
+
+	// Viewport is scrolled down, cursor moves up
+	m.scrollOffset = 10
+	m.cursor = 5
+	m.ensureCursorVisible()
+
+	if m.scrollOffset != 5 {
+		t.Errorf("scrollOffset = %d, want 5", m.scrollOffset)
+	}
+}
+
+func TestViewportRange(t *testing.T) {
+	m := newTestModel()
+	m.height = 12 // visibleRows = 5
+	m.scrollOffset = 3
+
+	start, end := m.viewportRange(20)
+	if start != 3 {
+		t.Errorf("start = %d, want 3", start)
+	}
+	if end != 8 {
+		t.Errorf("end = %d, want 8", end)
+	}
+}
+
+func TestViewportRange_ClampedToTotal(t *testing.T) {
+	m := newTestModel()
+	m.height = 12 // visibleRows = 5
+	m.scrollOffset = 18
+
+	start, end := m.viewportRange(20)
+	if end != 20 {
+		t.Errorf("end = %d, want 20 (clamped to total)", end)
+	}
+	if start != 18 {
+		t.Errorf("start = %d, want 18", start)
+	}
+}
+
+func TestViewportRange_Empty(t *testing.T) {
+	m := newTestModel()
+	start, end := m.viewportRange(0)
+	if start != 0 || end != 0 {
+		t.Errorf("viewportRange(0) = (%d, %d), want (0, 0)", start, end)
+	}
+}
+
+func TestViewportRange_AllFit(t *testing.T) {
+	m := newTestModel()
+	m.height = 40 // visibleRows = 33
+	m.scrollOffset = 0
+
+	start, end := m.viewportRange(5)
+	if start != 0 || end != 5 {
+		t.Errorf("viewportRange(5) = (%d, %d), want (0, 5)", start, end)
+	}
+}
+
+func TestPositionIndicator_NoIndicatorWhenAllFit(t *testing.T) {
+	m := newTestModel()
+	m.height = 40 // visibleRows = 33
+
+	indicator := m.renderPositionIndicator(10) // 10 items < 33 visible
+	if indicator != "" {
+		t.Errorf("expected empty indicator when all items fit, got %q", indicator)
+	}
+}
+
+func TestPositionIndicator_ShowsRange(t *testing.T) {
+	m := newTestModel()
+	m.height = 12 // visibleRows = 5
+	m.scrollOffset = 10
+
+	indicator := m.renderPositionIndicator(50)
+	if !strings.Contains(indicator, "11-15 of 50") {
+		t.Errorf("expected '11-15 of 50' in indicator, got %q", indicator)
+	}
+}
+
+func TestRenderQueue_Paginated(t *testing.T) {
+	m := newTestModel()
+	m.height = 12 // visibleRows = 5
+	m.tab = TabQueue
+	m.scrollOffset = 0
+
+	// Create 20 queue items
+	for i := 0; i < 20; i++ {
+		m.queueItems = append(m.queueItems, queue.WorkItem{
+			ID:     fmt.Sprintf("work-%03d", i+1),
+			Title:  fmt.Sprintf("Task %d", i+1),
+			Status: queue.StatusDone,
+		})
+	}
+
+	output := m.renderQueue()
+
+	// Should contain first 5 items (viewport)
+	if !strings.Contains(output, "work-001") {
+		t.Errorf("expected work-001 in viewport, got: %s", output)
+	}
+	if !strings.Contains(output, "work-005") {
+		t.Errorf("expected work-005 in viewport, got: %s", output)
+	}
+	// Should NOT contain items outside viewport
+	if strings.Contains(output, "work-006") {
+		t.Errorf("work-006 should not be in viewport, got: %s", output)
+	}
+	// Should show position indicator
+	if !strings.Contains(output, "1-5 of 20") {
+		t.Errorf("expected position indicator '1-5 of 20', got: %s", output)
+	}
+}
+
+func TestRenderIssues_Paginated(t *testing.T) {
+	m := newTestModel()
+	m.height = 12 // visibleRows = 5
+	m.tab = TabIssues
+	m.scrollOffset = 2
+
+	for i := 0; i < 15; i++ {
+		m.issues = append(m.issues, beads.Issue{
+			ID:     fmt.Sprintf("bd-%03d", i+1),
+			Title:  fmt.Sprintf("Issue %d", i+1),
+			Status: "open",
+		})
+	}
+
+	output := m.renderIssues()
+
+	// With scrollOffset=2, should show items 3-7
+	if !strings.Contains(output, "bd-003") {
+		t.Errorf("expected bd-003 in viewport, got: %s", output)
+	}
+	if !strings.Contains(output, "bd-007") {
+		t.Errorf("expected bd-007 in viewport, got: %s", output)
+	}
+	// Should NOT contain items before viewport
+	if strings.Contains(output, "bd-001") {
+		t.Errorf("bd-001 should not be in viewport")
+	}
+	// Should NOT contain items after viewport
+	if strings.Contains(output, "bd-008") {
+		t.Errorf("bd-008 should not be in viewport")
+	}
+	if !strings.Contains(output, "3-7 of 15") {
+		t.Errorf("expected position indicator '3-7 of 15', got: %s", output)
+	}
+}
+
+func TestTabSwitch_ResetsCursorAndScroll(t *testing.T) {
+	m := newTestModel()
+	m.cursor = 10
+	m.scrollOffset = 5
+	m.tab = TabQueue
+	m.issues = make([]beads.Issue, 20)
+	m.queueItems = make([]queue.WorkItem, 20)
+
+	// Simulate pressing tab
+	msg := tea.KeyMsg{Type: tea.KeyTab}
+	m.HandleKey(msg)
+
+	if m.cursor != 0 {
+		t.Errorf("cursor should be 0 after tab switch, got %d", m.cursor)
+	}
+	if m.scrollOffset != 0 {
+		t.Errorf("scrollOffset should be 0 after tab switch, got %d", m.scrollOffset)
+	}
+}
+
+func TestCursorMovement_AdjustsViewport(t *testing.T) {
+	m := newTestModel()
+	m.height = 12 // visibleRows = 5
+	m.tab = TabIssues
+	m.issues = make([]beads.Issue, 20)
+	m.cursor = 0
+	m.scrollOffset = 0
+
+	// Move cursor down past viewport
+	for i := 0; i < 7; i++ {
+		msg := tea.KeyMsg{Type: tea.KeyDown}
+		m.HandleKey(msg)
+	}
+
+	// Cursor should be at 7, viewport should have scrolled
+	if m.cursor != 7 {
+		t.Errorf("cursor = %d, want 7", m.cursor)
+	}
+	visible := m.visibleRows()
+	if m.cursor >= m.scrollOffset+visible {
+		t.Errorf("cursor %d not visible in viewport [%d, %d)", m.cursor, m.scrollOffset, m.scrollOffset+visible)
 	}
 }
