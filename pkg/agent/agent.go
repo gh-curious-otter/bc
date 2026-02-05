@@ -42,16 +42,17 @@ const (
 	CapImplementTasks Capability = "implement_tasks" // Can write code/implement
 	CapReviewWork     Capability = "review_work"     // Can review others' work
 	CapTestWork       Capability = "test_work"       // Can test and validate implementations
+	CapMergeWork      Capability = "merge_work"      // Can merge branches into main
 )
 
 // RoleCapabilities defines what each role can do.
 var RoleCapabilities = map[Role][]Capability{
 	RoleProductManager: {CapCreateAgents, CapAssignWork, CapCreateEpics, CapReviewWork},
-	RoleManager:        {CapCreateAgents, CapAssignWork, CapReviewWork},
+	RoleManager:        {CapCreateAgents, CapAssignWork, CapReviewWork, CapMergeWork},
 	RoleEngineer:       {CapImplementTasks},
 	RoleQA:             {CapTestWork, CapReviewWork},
 	// Legacy mappings
-	RoleCoordinator: {CapCreateAgents, CapAssignWork, CapReviewWork},
+	RoleCoordinator: {CapCreateAgents, CapAssignWork, CapReviewWork, CapMergeWork},
 	RoleWorker:      {CapImplementTasks},
 }
 

@@ -187,19 +187,41 @@ When done: bc report done 'password reset implemented'"
 3. Review changes: `git diff main..<branch>`
 4. Run tests: `go test ./...`
 5. Build: `go build ./...`
-6. If good: merge to main (see Git Integration below)
+6. If good: merge to main using `bc merge` (see Merging below)
 7. If issues: send feedback, keep task assigned
 
-### Git Integration — Merging to Main
+### Merging — Your Core Responsibility
 
-**NEVER merge directly to main. NEVER cherry-pick.** Always use an integration branch in your worktree first.
+As manager, **you are responsible for merging engineer branches into main**. Only the manager role has merge permission — engineers cannot merge their own work.
 
-Merging directly to main is dangerous because:
-- Conflicts leave main in a dirty state with unstaged changes
-- Failed merges corrupt the main repo working tree
-- Cherry-picks create duplicate commits and leave branches "unmerged"
+#### Using `bc merge` (recommended)
 
-**The safe workflow — integration branch first:**
+The `bc merge` command handles conflict detection, validation, and safe merging:
+
+```bash
+# Merge a single engineer's branch (by agent name)
+bc merge engineer-01
+
+# Merge and mark a queue item done
+bc merge engineer-01 --work-id work-090
+
+# Merge a specific branch by name
+bc merge engineer-01/work-123/feature-name
+
+# Skip tests if you've already validated manually
+bc merge engineer-01 --skip-tests
+```
+
+`bc merge` automatically:
+1. Resolves the agent's current branch
+2. Checks for conflicts with main
+3. Runs `go build`, `go test`, `go vet` in the agent's worktree
+4. Merges into main (fast-forward or merge commit)
+5. Optionally marks the queue item done
+
+#### Multi-branch Integration (manual)
+
+When merging multiple engineer branches that may conflict with each other, use an integration branch:
 
 ```bash
 # Step 1: Create an integration branch IN YOUR WORKTREE
@@ -216,32 +238,17 @@ git merge engineer-02/work-124/other-feature
 go build ./...
 go test ./...
 
-# Step 4: Once clean, merge the integration branch to main in ONE shot
-git -C "$BC_WORKSPACE" merge integrate/<task-name> --no-edit
-
-# Step 5: Verify and push
-git -C "$BC_WORKSPACE" status   # Must be clean
-git -C "$BC_WORKSPACE" push origin main
+# Step 4: Merge the integration branch using bc merge
+bc merge integrate/<task-name>
 ```
 
-**For single-branch merges** (no conflicts expected), you can skip the integration branch:
-```bash
-git -C "$BC_WORKSPACE" merge <branch-name> --no-edit
-git -C "$BC_WORKSPACE" status   # Verify clean — if conflicts, abort and use integration branch
-git -C "$BC_WORKSPACE" push origin main
-```
+#### Rules
 
-**If a direct merge conflicts, ALWAYS abort and use the integration branch approach:**
-```bash
-git -C "$BC_WORKSPACE" merge --abort
-# Then do it properly via integration branch in your worktree
-```
-
-**Rules:**
+- **Use `bc merge` as your primary merge tool** — it validates before merging
 - NEVER leave main in a conflicted or dirty state
 - NEVER cherry-pick (`git cherry-pick` is forbidden)
 - NEVER merge from your worktree directly (`git merge` in worktree updates git objects but not the main repo working tree)
-- All final merges to main happen via `git -C "$BC_WORKSPACE"`
+- When using manual git commands, all final merges to main happen via `git -C "$BC_WORKSPACE"`
 
 ## Interaction Patterns
 

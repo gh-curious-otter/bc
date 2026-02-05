@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -46,6 +47,14 @@ func init() {
 
 func runMerge(cmd *cobra.Command, args []string) error {
 	target := args[0]
+
+	// Check merge permission: if running as an agent, the role must have CapMergeWork.
+	// When BC_AGENT_ROLE is unset (human user), the check is skipped.
+	if role := os.Getenv("BC_AGENT_ROLE"); role != "" {
+		if !agent.HasCapability(agent.Role(role), agent.CapMergeWork) {
+			return fmt.Errorf("role %q does not have merge permission — only managers can merge", role)
+		}
+	}
 
 	ws, err := getWorkspace()
 	if err != nil {
