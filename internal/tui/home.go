@@ -71,6 +71,9 @@ type HomeModel struct {
 
 	// Status message
 	statusMsg string
+
+	// Help overlay
+	helpActive bool
 }
 
 // NewHomeModel creates the root TUI model. maxWorkers is the configured agent limit (0 = no limit).
@@ -140,9 +143,24 @@ func (m *HomeModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Global keys
 	switch key {
 	case "ctrl+c", "q":
+		if m.helpActive {
+			m.helpActive = false
+			return m, nil
+		}
 		return m, tea.Quit
 	case "?":
-		m.statusMsg = "j/k:navigate  enter:select  esc:back  tab:switch  q:quit"
+		m.helpActive = !m.helpActive
+		return m, nil
+	case "esc":
+		if m.helpActive {
+			m.helpActive = false
+			return m, nil
+		}
+	}
+
+	// Don't process other keys while help is active
+	if m.helpActive {
+		m.helpActive = false
 		return m, nil
 	}
 
@@ -328,24 +346,28 @@ func (m *HomeModel) View() string {
 	sections = append(sections, m.renderHeader())
 
 	// Content
-	switch m.screen {
-	case ScreenHome:
-		sections = append(sections, m.renderHomeScreen())
-	case ScreenWorkspace:
-		if m.wsModel != nil {
-			sections = append(sections, m.wsModel.View())
-		}
-	case ScreenAgent:
-		if m.agentModel != nil {
-			sections = append(sections, m.agentModel.View())
-		}
-	case ScreenChannel:
-		if m.channelModel != nil {
-			sections = append(sections, m.channelModel.View())
-		}
-	case ScreenIssue:
-		if m.issueModel != nil {
-			sections = append(sections, m.issueModel.View())
+	if m.helpActive {
+		sections = append(sections, m.renderHelp())
+	} else {
+		switch m.screen {
+		case ScreenHome:
+			sections = append(sections, m.renderHomeScreen())
+		case ScreenWorkspace:
+			if m.wsModel != nil {
+				sections = append(sections, m.wsModel.View())
+			}
+		case ScreenAgent:
+			if m.agentModel != nil {
+				sections = append(sections, m.agentModel.View())
+			}
+		case ScreenChannel:
+			if m.channelModel != nil {
+				sections = append(sections, m.channelModel.View())
+			}
+		case ScreenIssue:
+			if m.issueModel != nil {
+				sections = append(sections, m.issueModel.View())
+			}
 		}
 	}
 
@@ -442,19 +464,106 @@ func (m *HomeModel) renderHomeScreen() string {
 	return b.String()
 }
 
-func (m *HomeModel) renderStatusBar() string {
-	var hints string
+func (m *HomeModel) renderHelp() string {
+	var b strings.Builder
+
+	b.WriteString(m.styles.Title.Render("Keyboard Shortcuts"))
+	b.WriteString("\n\n")
+
+	// Global shortcuts
+	b.WriteString(m.styles.Bold.Render("  Global"))
+	b.WriteString("\n")
+	globalKeys := [][2]string{
+		{"?", "Toggle this help overlay"},
+		{"q / Ctrl+C", "Quit"},
+		{"Esc", "Go back / close overlay"},
+	}
+	for _, k := range globalKeys {
+		key := m.styles.Code.Width(14).Render(k[0])
+		b.WriteString(fmt.Sprintf("    %s %s\n", key, m.styles.Normal.Render(k[1])))
+	}
+
+	// Context-specific shortcuts
+	b.WriteString("\n")
 	switch m.screen {
 	case ScreenHome:
-		hints = "j/k:navigate | enter:open | r:refresh | ?:help | q:quit"
+		b.WriteString(m.styles.Bold.Render("  Home"))
+		b.WriteString("\n")
+		for _, k := range [][2]string{
+			{"j / Down", "Move cursor down"},
+			{"k / Up", "Move cursor up"},
+			{"g / Home", "Jump to top"},
+			{"G / End", "Jump to bottom"},
+			{"Enter", "Open workspace"},
+			{"r", "Refresh workspaces"},
+		} {
+			key := m.styles.Code.Width(14).Render(k[0])
+			b.WriteString(fmt.Sprintf("    %s %s\n", key, m.styles.Normal.Render(k[1])))
+		}
+
 	case ScreenWorkspace:
-		hints = "j/k:navigate | tab:switch tab | enter:details | esc:back | q:quit"
+		b.WriteString(m.styles.Bold.Render("  Workspace"))
+		b.WriteString("\n")
+		for _, k := range [][2]string{
+			{"j / Down", "Move cursor down"},
+			{"k / Up", "Move cursor up"},
+			{"g / Home", "Jump to top"},
+			{"G / End", "Jump to bottom"},
+			{"Tab", "Next tab"},
+			{"Shift+Tab", "Previous tab"},
+			{"Enter", "Open selected item"},
+			{"r", "Refresh data"},
+		} {
+			key := m.styles.Code.Width(14).Render(k[0])
+			b.WriteString(fmt.Sprintf("    %s %s\n", key, m.styles.Normal.Render(k[1])))
+		}
+
 	case ScreenAgent:
 		hints = "p:peek | a:attach | s:send message | r:refresh | esc:back | q:quit"
 	case ScreenChannel:
-		hints = "s:send message | r:refresh | esc:back | q:quit"
-	case ScreenIssue:
-		hints = "esc:back | q:quit"
+		b.WriteString(m.styles.Bold.Render("  Channel"))
+		b.WriteString("\n")
+		for _, k := range [][2]string{
+			{"s", "Send message to channel"},
+			{"r", "Refresh channel"},
+		} {
+			key := m.styles.Code.Width(14).Render(k[0])
+			b.WriteString(fmt.Sprintf("    %s %s\n", key, m.styles.Normal.Render(k[1])))
+		}
+
+	case ScreenIssue, ScreenQueueItem:
+		b.WriteString(m.styles.Bold.Render("  Detail View"))
+		b.WriteString("\n")
+		key := m.styles.Code.Width(14).Render("Esc")
+		b.WriteString(fmt.Sprintf("    %s %s\n", key, m.styles.Normal.Render("Return to workspace")))
+	}
+
+	b.WriteString("\n")
+	b.WriteString(m.styles.Muted.Render("  Press any key to close"))
+	b.WriteString("\n")
+
+	return b.String()
+}
+
+func (m *HomeModel) renderStatusBar() string {
+	var hints string
+	if m.helpActive {
+		hints = "?:close help | q:quit"
+	} else {
+		switch m.screen {
+		case ScreenHome:
+			hints = "j/k:navigate | enter:open | r:refresh | ?:help | q:quit"
+		case ScreenWorkspace:
+			hints = "j/k:navigate | tab:switch tab | enter:details | ?:help | esc:back | q:quit"
+		case ScreenAgent:
+			hints = "p:peek | a:attach | s:send | r:refresh | ?:help | esc:back | q:quit"
+		case ScreenChannel:
+			hints = "s:send message | r:refresh | ?:help | esc:back | q:quit"
+		case ScreenIssue:
+			hints = "?:help | esc:back | q:quit"
+		case ScreenQueueItem:
+			hints = "?:help | esc:back | q:quit"
+		}
 	}
 
 	if m.statusMsg != "" {
