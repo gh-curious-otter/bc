@@ -23,8 +23,9 @@ const (
 	TabIssues
 	TabPRs
 	TabChannels
+	TabQueue
 
-	tabCount = 4
+	tabCount = 5
 )
 
 // WorkspaceStats holds aggregated statistics for the workspace.
@@ -53,10 +54,11 @@ type WorkspaceModel struct {
 	manager *agent.Manager
 
 	// Data
-	agents   []*agent.Agent
-	issues   []beads.Issue
-	prs      []github.PR
-	channels []*channel.Channel
+	agents     []*agent.Agent
+	issues     []beads.Issue
+	prs        []github.PR
+	channels   []*channel.Channel
+	queueItems []queue.WorkItem
 
 	// Queue stats
 	queueStats queue.Stats
@@ -69,6 +71,7 @@ type WorkspaceModel struct {
 	issuesLoaded   bool
 	prsLoaded      bool
 	channelsLoaded bool
+	queueLoaded    bool
 }
 
 // NewWorkspaceModel creates a workspace detail view.
@@ -100,8 +103,9 @@ func NewWorkspaceModel(info WorkspaceInfo, s style.Styles) *WorkspaceModel {
 	// Load channels
 	m.loadChannels()
 
-	// Load queue stats
+	// Load queue stats and items
 	m.loadQueueStats()
+	m.loadQueueItems()
 
 	// Compute dashboard stats
 	m.computeStats()
@@ -155,6 +159,7 @@ func (m *WorkspaceModel) refresh() {
 	m.prs = github.ListPRs(m.info.Entry.Path)
 	m.loadChannels()
 	m.loadQueueStats()
+	m.loadQueueItems()
 }
 
 func (m *WorkspaceModel) loadQueueStats() {
@@ -162,6 +167,14 @@ func (m *WorkspaceModel) loadQueueStats() {
 	if err := q.Load(); err == nil {
 		m.queueStats = q.Stats()
 	}
+}
+
+func (m *WorkspaceModel) loadQueueItems() {
+	q := queue.New(filepath.Join(m.info.Entry.Path, ".bc", "queue.json"))
+	if err := q.Load(); err == nil {
+		m.queueItems = q.ListAll()
+	}
+	m.queueLoaded = true
 }
 
 func (m *WorkspaceModel) selectCurrent() Action {
@@ -204,6 +217,10 @@ func (m *WorkspaceModel) maxCursor() int {
 		if len(m.channels) > 0 {
 			return len(m.channels) - 1
 		}
+	case TabQueue:
+		if len(m.queueItems) > 0 {
+			return len(m.queueItems) - 1
+		}
 	}
 	return 0
 }
@@ -245,6 +262,8 @@ func (m *WorkspaceModel) View() string {
 		b.WriteString(m.renderPRs())
 	case TabChannels:
 		b.WriteString(m.renderChannels())
+	case TabQueue:
+		b.WriteString(m.renderQueue())
 	}
 
 	return b.String()
@@ -260,6 +279,7 @@ func (m *WorkspaceModel) renderTabBar() string {
 		{"Issues", TabIssues, len(m.issues)},
 		{"PRs", TabPRs, len(m.prs)},
 		{"Channels", TabChannels, len(m.channels)},
+		{"Queue", TabQueue, len(m.queueItems)},
 	}
 
 	var parts []string
@@ -490,6 +510,65 @@ func (m *WorkspaceModel) renderChannels() string {
 	}
 
 	return b.String()
+}
+
+func (m *WorkspaceModel) renderQueue() string {
+	var b strings.Builder
+
+	if len(m.queueItems) == 0 {
+		b.WriteString(m.styles.Muted.Render("  No queue items. Run 'bc queue add <title>' to create one."))
+		b.WriteString("\n")
+		return b.String()
+	}
+
+	// Header
+	header := fmt.Sprintf("  %-10s %-10s %-15s %s", "ID", "STATUS", "ASSIGNED", "TITLE")
+	b.WriteString(m.styles.Bold.Render(header))
+	b.WriteString("\n")
+
+	for i, item := range m.queueItems {
+		selected := i == m.cursor
+
+		title := item.Title
+		if len(title) > 45 {
+			title = title[:42] + "..."
+		}
+
+		assignedTo := item.AssignedTo
+		if assignedTo == "" {
+			assignedTo = "-"
+		}
+
+		line := fmt.Sprintf("  %-10s %-10s %-15s %s",
+			item.ID, string(item.Status), assignedTo, title,
+		)
+
+		if selected {
+			b.WriteString(m.styles.Selected.Render(line))
+		} else {
+			b.WriteString(m.styles.StatusStyle(mapQueueStatus(item.Status)).Render(line))
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+func mapQueueStatus(s queue.ItemStatus) string {
+	switch s {
+	case queue.StatusPending:
+		return "pending"
+	case queue.StatusAssigned:
+		return "queued"
+	case queue.StatusWorking:
+		return "running"
+	case queue.StatusDone:
+		return "success"
+	case queue.StatusFailed:
+		return "failed"
+	default:
+		return ""
+	}
 }
 
 func (m *WorkspaceModel) computeStats() {
