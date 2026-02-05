@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/beads"
+	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/github"
 	"github.com/rpuneet/bc/pkg/queue"
 	"github.com/rpuneet/bc/pkg/tui/style"
@@ -21,6 +22,9 @@ const (
 	TabAgents Tab = iota
 	TabIssues
 	TabPRs
+	TabChannels
+
+	tabCount = 4
 )
 
 // WorkspaceStats holds aggregated statistics for the workspace.
@@ -49,9 +53,10 @@ type WorkspaceModel struct {
 	manager *agent.Manager
 
 	// Data
-	agents []*agent.Agent
-	issues []beads.Issue
-	prs    []github.PR
+	agents   []*agent.Agent
+	issues   []beads.Issue
+	prs      []github.PR
+	channels []*channel.Channel
 
 	// Queue stats
 	queueStats queue.Stats
@@ -60,9 +65,10 @@ type WorkspaceModel struct {
 	stats WorkspaceStats
 
 	// Loaded flags
-	agentsLoaded bool
-	issuesLoaded bool
-	prsLoaded    bool
+	agentsLoaded   bool
+	issuesLoaded   bool
+	prsLoaded      bool
+	channelsLoaded bool
 }
 
 // NewWorkspaceModel creates a workspace detail view.
@@ -91,6 +97,9 @@ func NewWorkspaceModel(info WorkspaceInfo, s style.Styles) *WorkspaceModel {
 	m.prs = github.ListPRs(info.Entry.Path)
 	m.prsLoaded = true
 
+	// Load channels
+	m.loadChannels()
+
 	// Load queue stats
 	m.loadQueueStats()
 
@@ -106,11 +115,11 @@ func (m *WorkspaceModel) HandleKey(msg tea.KeyMsg) Action {
 
 	switch key {
 	case "tab":
-		m.tab = (m.tab + 1) % 3
+		m.tab = (m.tab + 1) % tabCount
 		m.cursor = 0
 		return NoAction
 	case "shift+tab":
-		m.tab = (m.tab + 2) % 3
+		m.tab = (m.tab + tabCount - 1) % tabCount
 		m.cursor = 0
 		return NoAction
 	case "j", "down":
@@ -144,6 +153,7 @@ func (m *WorkspaceModel) refresh() {
 	m.agents = m.manager.ListAgents()
 	m.issues = beads.ListIssues(m.info.Entry.Path)
 	m.prs = github.ListPRs(m.info.Entry.Path)
+	m.loadChannels()
 	m.loadQueueStats()
 }
 
@@ -159,6 +169,10 @@ func (m *WorkspaceModel) selectCurrent() Action {
 	case TabAgents:
 		if m.cursor < len(m.agents) {
 			return Action{Type: ActionDrillAgent, Data: m.agents[m.cursor]}
+		}
+	case TabChannels:
+		if m.cursor < len(m.channels) {
+			return Action{Type: ActionDrillChannel, Data: m.channels[m.cursor]}
 		}
 	}
 	return NoAction
@@ -177,6 +191,10 @@ func (m *WorkspaceModel) maxCursor() int {
 	case TabPRs:
 		if len(m.prs) > 0 {
 			return len(m.prs) - 1
+		}
+	case TabChannels:
+		if len(m.channels) > 0 {
+			return len(m.channels) - 1
 		}
 	}
 	return 0
@@ -217,6 +235,8 @@ func (m *WorkspaceModel) View() string {
 		b.WriteString(m.renderIssues())
 	case TabPRs:
 		b.WriteString(m.renderPRs())
+	case TabChannels:
+		b.WriteString(m.renderChannels())
 	}
 
 	return b.String()
@@ -231,6 +251,7 @@ func (m *WorkspaceModel) renderTabBar() string {
 		{"Agents", TabAgents, len(m.agents)},
 		{"Issues", TabIssues, len(m.issues)},
 		{"PRs", TabPRs, len(m.prs)},
+		{"Channels", TabChannels, len(m.channels)},
 	}
 
 	var parts []string
@@ -409,6 +430,58 @@ func fmtDuration(d time.Duration) string {
 		return fmt.Sprintf("%dm %ds", m, s)
 	}
 	return fmt.Sprintf("%ds", s)
+}
+
+func (m *WorkspaceModel) loadChannels() {
+	store := channel.NewStore(m.info.Entry.Path)
+	if err := store.Load(); err != nil {
+		m.channels = nil
+		return
+	}
+	m.channels = store.List()
+	m.channelsLoaded = true
+}
+
+func (m *WorkspaceModel) renderChannels() string {
+	var b strings.Builder
+
+	if len(m.channels) == 0 {
+		b.WriteString(m.styles.Muted.Render("  No channels. Run 'bc channel create <name>' to create one."))
+		b.WriteString("\n")
+		return b.String()
+	}
+
+	// Header
+	header := fmt.Sprintf("  %-20s %-8s %-8s %s", "CHANNEL", "MEMBERS", "MSGS", "LAST MESSAGE")
+	b.WriteString(m.styles.Bold.Render(header))
+	b.WriteString("\n")
+
+	for i, ch := range m.channels {
+		selected := i == m.cursor
+
+		msgCount := len(ch.History)
+		lastMsg := "-"
+		if msgCount > 0 {
+			last := ch.History[msgCount-1]
+			lastMsg = last.Message
+			if len(lastMsg) > 40 {
+				lastMsg = lastMsg[:37] + "..."
+			}
+		}
+
+		line := fmt.Sprintf("  %-20s %-8d %-8d %s",
+			"#"+ch.Name, len(ch.Members), msgCount, lastMsg,
+		)
+
+		if selected {
+			b.WriteString(m.styles.Selected.Render(line))
+		} else {
+			b.WriteString(m.styles.Normal.Render(line))
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
 }
 
 func (m *WorkspaceModel) computeStats() {

@@ -318,9 +318,41 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 			m.saveState()
 			return existing, nil
 		}
-		// Session is dead — clean up stale entry and respawn
-		m.removeFromParent(name)
-		delete(m.agents, name)
+		// Session is dead but agent is in an active state — only respawn
+		// if agent is in a terminal state (stopped/error). Otherwise preserve
+		// the record so we don't overwrite working/stuck state.
+		switch existing.State {
+		case StateStopped, StateError:
+			// Terminal state — clean up and respawn below
+			m.removeFromParent(name)
+			delete(m.agents, name)
+		default:
+			// Active state (working, idle, stuck, etc.) with dead session —
+			// restart the tmux session but preserve agent state.
+			agentCmd := m.agentCmd
+			if existing.Tool != "" {
+				if cmd, ok := GetAgentCommand(existing.Tool); ok {
+					agentCmd = cmd
+				}
+			}
+			env := map[string]string{
+				"BC_AGENT_ID":   name,
+				"BC_AGENT_ROLE": string(existing.Role),
+				"BC_WORKSPACE":  workspace,
+			}
+			if existing.Tool != "" {
+				env["BC_AGENT_TOOL"] = existing.Tool
+			}
+			if existing.ParentID != "" {
+				env["BC_PARENT_ID"] = existing.ParentID
+			}
+			if err := m.tmux.CreateSessionWithEnv(name, workspace, agentCmd, env); err != nil {
+				return nil, fmt.Errorf("failed to recreate tmux session: %w", err)
+			}
+			existing.UpdatedAt = time.Now()
+			m.saveState()
+			return existing, nil
+		}
 	}
 
 	// If a tmux session exists from a previous crash, kill it first

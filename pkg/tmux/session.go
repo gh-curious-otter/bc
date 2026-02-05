@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rpuneet/bc/pkg/log"
@@ -31,6 +32,11 @@ type Manager struct {
 	SessionPrefix string
 	// workspaceHash is included in session names for workspace isolation.
 	workspaceHash string
+
+	// sessionMu protects per-session SendKeys serialization.
+	// Concurrent sends to the same session are serialized to prevent interleaving.
+	sessionMu   sync.Mutex
+	sessionLocks map[string]*sync.Mutex
 }
 
 // NewManager creates a new tmux manager with the given prefix.
@@ -133,6 +139,22 @@ func (m *Manager) KillSession(name string) error {
 	return nil
 }
 
+// getSessionLock returns a mutex for the given session name, creating one if needed.
+// This serializes concurrent SendKeys calls to the same session.
+func (m *Manager) getSessionLock(sessionName string) *sync.Mutex {
+	m.sessionMu.Lock()
+	defer m.sessionMu.Unlock()
+	if m.sessionLocks == nil {
+		m.sessionLocks = make(map[string]*sync.Mutex)
+	}
+	mu, ok := m.sessionLocks[sessionName]
+	if !ok {
+		mu = &sync.Mutex{}
+		m.sessionLocks[sessionName] = mu
+	}
+	return mu
+}
+
 // SendKeys sends keys to a session with Enter as submit key.
 // This is a convenience wrapper around SendKeysWithSubmit.
 func (m *Manager) SendKeys(name, keys string) error {
@@ -148,6 +170,11 @@ func (m *Manager) SendKeys(name, keys string) error {
 func (m *Manager) SendKeysWithSubmit(name, keys, submitKey string) error {
 	keys = strings.TrimRight(keys, "\n")
 	fullName := m.SessionName(name)
+
+	// Serialize sends to the same session to prevent interleaving
+	mu := m.getSessionLock(fullName)
+	mu.Lock()
+	defer mu.Unlock()
 
 	if len(keys) <= 500 {
 		// Use -l (literal) with \r to submit. This works for both Claude and Cursor agents.

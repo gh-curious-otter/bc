@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/rpuneet/bc/config"
 	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/tui/style"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -21,6 +22,7 @@ const (
 	ScreenHome Screen = iota
 	ScreenWorkspace
 	ScreenAgent
+	ScreenChannel
 )
 
 // TickMsg triggers a periodic refresh.
@@ -54,6 +56,9 @@ type HomeModel struct {
 
 	// Agent detail state
 	agentModel *AgentModel
+
+	// Channel detail state
+	channelModel *ChannelModel
 
 	// Status message
 	statusMsg string
@@ -94,6 +99,10 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.agentModel.width = msg.Width
 			m.agentModel.height = msg.Height
 		}
+		if m.channelModel != nil {
+			m.channelModel.width = msg.Width
+			m.channelModel.height = msg.Height
+		}
 		return m, nil
 
 	case TickMsg:
@@ -129,6 +138,8 @@ func (m *HomeModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleWorkspaceKey(msg)
 	case ScreenAgent:
 		return m.handleAgentKey(msg)
+	case ScreenChannel:
+		return m.handleChannelKey(msg)
 	}
 
 	return m, nil
@@ -188,6 +199,15 @@ func (m *HomeModel) handleWorkspaceKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.agentModel.height = m.height
 				m.screen = ScreenAgent
 			}
+		case ActionDrillChannel:
+			if ch, ok := action.Data.(*channel.Channel); ok {
+				store := channel.NewStore(m.wsModel.info.Entry.Path)
+				_ = store.Load()
+				m.channelModel = NewChannelModel(ch, store, m.wsModel.manager, m.wsModel.info.Entry.Path, m.styles)
+				m.channelModel.width = m.width
+				m.channelModel.height = m.height
+				m.screen = ScreenChannel
+			}
 		}
 	}
 
@@ -219,6 +239,23 @@ func (m *HomeModel) handleAgentKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m *HomeModel) handleChannelKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.channelModel != nil {
+		action := m.channelModel.HandleKey(msg)
+		switch action.Type {
+		case ActionBack:
+			m.screen = ScreenWorkspace
+			m.channelModel = nil
+			// Refresh channels in workspace view
+			if m.wsModel != nil {
+				m.wsModel.loadChannels()
+			}
+		}
+	}
+
+	return m, nil
+}
+
 // View implements tea.Model.
 func (m *HomeModel) View() string {
 	var sections []string
@@ -237,6 +274,10 @@ func (m *HomeModel) View() string {
 	case ScreenAgent:
 		if m.agentModel != nil {
 			sections = append(sections, m.agentModel.View())
+		}
+	case ScreenChannel:
+		if m.channelModel != nil {
+			sections = append(sections, m.channelModel.View())
 		}
 	}
 
@@ -259,6 +300,10 @@ func (m *HomeModel) renderHeader() string {
 	case ScreenAgent:
 		if m.agentModel != nil {
 			screenLabel = m.agentModel.agent.Name
+		}
+	case ScreenChannel:
+		if m.channelModel != nil {
+			screenLabel = "#" + m.channelModel.channel.Name
 		}
 	}
 	if screenLabel != "" {
@@ -334,6 +379,8 @@ func (m *HomeModel) renderStatusBar() string {
 		hints = "j/k:navigate | tab:switch tab | enter:details | esc:back | q:quit"
 	case ScreenAgent:
 		hints = "p:peek | a:attach | esc:back | q:quit"
+	case ScreenChannel:
+		hints = "s:send message | r:refresh | esc:back | q:quit"
 	}
 
 	if m.statusMsg != "" {
