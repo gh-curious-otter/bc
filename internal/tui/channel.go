@@ -21,6 +21,9 @@ type ChannelModel struct {
 	width         int
 	height        int
 
+	// Scroll position (index of first visible message from end)
+	scroll int
+
 	// Send message mode
 	sendMode bool
 	input    string
@@ -56,6 +59,30 @@ func (m *ChannelModel) HandleKey(msg tea.KeyMsg) Action {
 		return NoAction
 	case "r":
 		m.reloadChannel()
+		return NoAction
+	case "j", "down":
+		if m.scroll > 0 {
+			m.scroll--
+		}
+		return NoAction
+	case "k", "up":
+		maxScroll := len(m.channel.History) - m.visibleMsgCount()
+		if maxScroll < 0 {
+			maxScroll = 0
+		}
+		if m.scroll < maxScroll {
+			m.scroll++
+		}
+		return NoAction
+	case "g", "home":
+		maxScroll := len(m.channel.History) - m.visibleMsgCount()
+		if maxScroll < 0 {
+			maxScroll = 0
+		}
+		m.scroll = maxScroll
+		return NoAction
+	case "G", "end":
+		m.scroll = 0
 		return NoAction
 	}
 
@@ -141,54 +168,111 @@ func (m *ChannelModel) reloadChannel() {
 	}
 }
 
+// visibleMsgCount returns how many messages fit in the visible area.
+func (m *ChannelModel) visibleMsgCount() int {
+	// Reserve lines: title(1) + blank(1) + members(1) + member list + blank(1)
+	// + divider(1) + blank(1) + input/status(2) + scroll hint(1)
+	overhead := 8 + len(m.channel.Members)
+	// Each message takes ~3 lines (sender+time, content, blank separator)
+	available := m.height - overhead
+	if available < 3 {
+		available = 3
+	}
+	return available / 3
+}
+
 // View renders the channel detail screen.
 func (m *ChannelModel) View() string {
 	var b strings.Builder
 
+	// Channel header
 	b.WriteString(m.styles.Title.Render("#" + m.channel.Name))
-	b.WriteString("\n\n")
 
-	// Members section
-	b.WriteString(m.styles.Bold.Render("Members"))
+	// Inline members
+	if len(m.channel.Members) > 0 {
+		memberList := strings.Join(m.channel.Members, ", ")
+		b.WriteString("  ")
+		b.WriteString(m.styles.Muted.Render(fmt.Sprintf("(%d members: %s)", len(m.channel.Members), memberList)))
+	}
 	b.WriteString("\n")
-	if len(m.channel.Members) == 0 {
-		b.WriteString(m.styles.Muted.Render("  No members"))
+
+	// Divider
+	divWidth := m.width - 2
+	if divWidth < 20 {
+		divWidth = 20
+	}
+	b.WriteString(m.styles.Muted.Render("  " + strings.Repeat("─", divWidth)))
+	b.WriteString("\n")
+
+	// Message history
+	if len(m.channel.History) == 0 {
+		b.WriteString("\n")
+		b.WriteString(m.styles.Muted.Render("  No messages yet. Press 's' to send a message."))
 		b.WriteString("\n")
 	} else {
-		for _, member := range m.channel.Members {
-			b.WriteString(m.styles.Normal.Render("  " + member))
+		visible := m.visibleMsgCount()
+		total := len(m.channel.History)
+
+		// Calculate visible window based on scroll offset from end
+		end := total - m.scroll
+		start := end - visible
+		if start < 0 {
+			start = 0
+		}
+		if end < 0 {
+			end = 0
+		}
+
+		// Scroll indicator (top)
+		if start > 0 {
+			b.WriteString(m.styles.Muted.Render(fmt.Sprintf("  ▲ %d older messages", start)))
+			b.WriteString("\n")
+		}
+
+		msgWidth := m.width - 6
+		if msgWidth < 30 {
+			msgWidth = 30
+		}
+
+		for i, entry := range m.channel.History[start:end] {
+			if i > 0 {
+				b.WriteString("\n")
+			}
+
+			// Sender and timestamp line
+			sender := entry.Sender
+			if sender == "" {
+				sender = "system"
+			}
+			ts := entry.Time.Format("15:04:05")
+			b.WriteString("  ")
+			b.WriteString(m.styles.Info.Render(sender))
+			b.WriteString("  ")
+			b.WriteString(m.styles.Muted.Render(ts))
+			b.WriteString("\n")
+
+			// Message content — wrap long lines
+			lines := wrapText(entry.Message, msgWidth)
+			for _, line := range lines {
+				b.WriteString("  ")
+				b.WriteString(m.styles.Normal.Render("  " + line))
+				b.WriteString("\n")
+			}
+		}
+
+		// Scroll indicator (bottom)
+		if m.scroll > 0 {
+			b.WriteString("\n")
+			b.WriteString(m.styles.Muted.Render(fmt.Sprintf("  ▼ %d newer messages", m.scroll)))
 			b.WriteString("\n")
 		}
 	}
 
+	// Bottom divider
+	b.WriteString(m.styles.Muted.Render("  " + strings.Repeat("─", divWidth)))
 	b.WriteString("\n")
-
-	// History section
-	b.WriteString(m.styles.Bold.Render("Recent Messages"))
-	b.WriteString("\n")
-	if len(m.channel.History) == 0 {
-		b.WriteString(m.styles.Muted.Render("  No messages"))
-		b.WriteString("\n")
-	} else {
-		// Show last 20 messages
-		start := 0
-		if len(m.channel.History) > 20 {
-			start = len(m.channel.History) - 20
-		}
-		for _, entry := range m.channel.History[start:] {
-			ts := m.styles.Muted.Render(entry.Time.Format("15:04:05"))
-			msg := m.styles.Normal.Render(entry.Message)
-			if entry.Sender != "" {
-				sender := m.styles.Info.Render("[" + entry.Sender + "]")
-				b.WriteString(fmt.Sprintf("  %s  %s %s\n", ts, sender, msg))
-			} else {
-				b.WriteString(fmt.Sprintf("  %s  %s\n", ts, msg))
-			}
-		}
-	}
 
 	// Send mode or status
-	b.WriteString("\n")
 	if m.sendMode {
 		prompt := m.styles.Info.Render("  > ")
 		b.WriteString(prompt)
@@ -198,7 +282,31 @@ func (m *ChannelModel) View() string {
 	} else if m.sendMsg != "" {
 		b.WriteString(m.styles.Success.Render("  " + m.sendMsg))
 		b.WriteString("\n")
+	} else {
+		b.WriteString(m.styles.Muted.Render("  [s]end  [j/k]scroll  [r]efresh  [esc]back"))
+		b.WriteString("\n")
 	}
 
 	return b.String()
+}
+
+// wrapText splits text into lines of at most width characters, breaking at spaces.
+func wrapText(text string, width int) []string {
+	if width <= 0 || len(text) <= width {
+		return []string{text}
+	}
+	var lines []string
+	for len(text) > width {
+		// Find last space within width
+		i := strings.LastIndex(text[:width], " ")
+		if i <= 0 {
+			i = width
+		}
+		lines = append(lines, text[:i])
+		text = strings.TrimLeft(text[i:], " ")
+	}
+	if text != "" {
+		lines = append(lines, text)
+	}
+	return lines
 }
