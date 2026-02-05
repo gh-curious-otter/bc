@@ -61,6 +61,9 @@ type WorkspaceModel struct {
 	// Queue stats
 	queueStats queue.Stats
 
+	// Per-agent stats from pkg/stats
+	agentStats map[string]stats.AgentStat
+
 	// Dashboard stats
 	stats    WorkspaceStats
 	pkgStats *stats.Stats
@@ -100,6 +103,9 @@ func NewWorkspaceModel(info WorkspaceInfo, s style.Styles) *WorkspaceModel {
 	// Load queue stats and items
 	m.loadQueueStats()
 	m.loadQueueItems()
+
+	// Load per-agent stats from pkg/stats
+	m.loadAgentStats()
 
 	// Compute dashboard stats
 	m.computeStats()
@@ -173,6 +179,18 @@ func (m *WorkspaceModel) loadQueueItems() {
 		m.queueItems = q.ListAll()
 	}
 	m.queueLoaded = true
+}
+
+func (m *WorkspaceModel) loadAgentStats() {
+	m.agentStats = make(map[string]stats.AgentStat)
+	stateDir := filepath.Join(m.info.Entry.Path, ".bc")
+	s, err := stats.Load(stateDir)
+	if err != nil {
+		return
+	}
+	for _, as := range s.Agents.AgentStats {
+		m.agentStats[as.Name] = as
+	}
 }
 
 func (m *WorkspaceModel) selectCurrent() Action {
@@ -287,21 +305,6 @@ func (m *WorkspaceModel) renderAgents() string {
 		return b.String()
 	}
 
-	// Build per-agent task counts from queue items
-	agentDone := make(map[string]int)
-	agentFailed := make(map[string]int)
-	for _, item := range m.queueItems {
-		if item.AssignedTo == "" {
-			continue
-		}
-		switch item.Status {
-		case queue.StatusDone:
-			agentDone[item.AssignedTo]++
-		case queue.StatusFailed:
-			agentFailed[item.AssignedTo]++
-		}
-	}
-
 	// Header
 	header := fmt.Sprintf("  %-15s %-12s %-10s %-12s %-5s %-5s %s",
 		"NAME", "ROLE", "STATE", "UPTIME", "DONE", "FAIL", "TASK")
@@ -320,13 +323,22 @@ func (m *WorkspaceModel) renderAgents() string {
 		selected := i == m.cursor
 
 		isWorkerRole := a.Role == agent.RoleWorker || a.Role == agent.RoleEngineer
-		uptime := "-"
 		if a.State != agent.StateStopped {
 			if isWorkerRole {
 				workerCount++
 			}
+		}
+
+		// Pull stats from pkg/stats
+		as := m.agentStats[a.Name]
+		uptime := "-"
+		if as.Uptime > 0 {
+			uptime = fmtDuration(as.Uptime)
+		} else if a.State != agent.StateStopped && !a.StartedAt.IsZero() {
 			uptime = fmtDuration(time.Since(a.StartedAt))
 		}
+		done := as.TasksCompleted
+		failed := as.TasksFailed
 
 		task := a.Task
 		if task == "" {
@@ -335,9 +347,6 @@ func (m *WorkspaceModel) renderAgents() string {
 		if len(task) > taskWidth {
 			task = task[:taskWidth-3] + "..."
 		}
-
-		done := agentDone[a.Name]
-		failed := agentFailed[a.Name]
 
 		line := fmt.Sprintf("  %-15s %-12s %-10s %-12s %-5d %-5d %s",
 			a.Name, a.Role, a.State, uptime, done, failed, task,

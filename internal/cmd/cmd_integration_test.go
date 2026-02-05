@@ -65,6 +65,10 @@ func executeIntegrationCmd(args ...string) (string, string, error) {
 	rootCmd.SetErr(stderr)
 	rootCmd.SetArgs(args)
 
+	// Reset persistent flags to prevent leaking between tests
+	rootCmd.PersistentFlags().Set("json", "false")
+	rootCmd.PersistentFlags().Set("verbose", "false")
+
 	err := rootCmd.Execute()
 
 	// Close writer and read all captured output
