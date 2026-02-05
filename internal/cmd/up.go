@@ -9,6 +9,7 @@ import (
 
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/beads"
+	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/queue"
 	"github.com/spf13/cobra"
@@ -195,6 +196,12 @@ func runUp(cmd *cobra.Command, args []string) error {
 		time.Sleep(300 * time.Millisecond)
 	}
 
+	// Create default channels
+	allAgents := []string{"coordinator", "product-manager", "manager"}
+	allAgents = append(allAgents, engineerNames...)
+	allAgents = append(allAgents, qaNames...)
+	createDefaultChannels(ws.RootDir, engineerNames, qaNames, allAgents)
+
 	// Send engineer prompts
 	engineerPrompt := loadRolePrompt(ws.RootDir, "engineer")
 	for _, engName := range engineerNames {
@@ -232,10 +239,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 	// Build and send bootstrap prompts
 	queueItems := q.ListAll()
 
-	// Coordinator: full bootstrap with queue and all agent names
-	allAgents := []string{"product-manager", "manager"}
-	allAgents = append(allAgents, engineerNames...)
-	allAgents = append(allAgents, qaNames...)
+	// Coordinator: full bootstrap with queue and all agent names (reuse allAgents from above)
 	if len(queueItems) > 0 && len(allAgents) > 0 {
 		fmt.Print("\nSending bootstrap prompt to coordinator... ")
 		prompt := buildBootstrapPrompt(allAgents, queueItems, ws.RootDir)
@@ -345,4 +349,59 @@ func buildBootstrapPrompt(agentNames []string, items []queue.WorkItem, rootDir s
 	b.WriteString("  bc logs            # View event log")
 
 	return b.String()
+}
+
+// createDefaultChannels sets up the default communication channels.
+// Channels: #standup (all), #leadership (coordinator, pm, manager),
+// #engineering (manager, engineers), #qa (manager, qa), #all (everyone).
+func createDefaultChannels(rootDir string, engineerNames, qaNames, allAgents []string) {
+	store := channel.NewStore(rootDir)
+	if err := store.Load(); err != nil {
+		fmt.Printf("  Warning: failed to load channels: %v\n", err)
+	}
+
+	type chanDef struct {
+		name    string
+		members []string
+	}
+
+	leadershipMembers := []string{"coordinator", "product-manager", "manager"}
+
+	engineeringMembers := []string{"manager"}
+	engineeringMembers = append(engineeringMembers, engineerNames...)
+
+	qaMembers := []string{"manager"}
+	qaMembers = append(qaMembers, qaNames...)
+
+	channels := []chanDef{
+		{"standup", allAgents},
+		{"leadership", leadershipMembers},
+		{"engineering", engineeringMembers},
+		{"qa", qaMembers},
+		{"all", allAgents},
+	}
+
+	created := 0
+	for _, ch := range channels {
+		// Create channel if it doesn't already exist
+		if _, exists := store.Get(ch.name); !exists {
+			if _, err := store.Create(ch.name); err != nil {
+				fmt.Printf("  Warning: failed to create channel #%s: %v\n", ch.name, err)
+				continue
+			}
+		}
+		// Add members (skip if already present)
+		for _, member := range ch.members {
+			_ = store.AddMember(ch.name, member)
+		}
+		created++
+	}
+
+	if created > 0 {
+		if err := store.Save(); err != nil {
+			fmt.Printf("  Warning: failed to save channels: %v\n", err)
+			return
+		}
+		fmt.Printf("Created %d default channels\n", created)
+	}
 }
