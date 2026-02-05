@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -46,6 +47,13 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	agents := mgr.ListAgents()
+
+	jsonOutput, _ := cmd.Flags().GetBool("json")
+	if jsonOutput {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(agents)
+	}
 
 	fmt.Printf("bc workspace: %s\n", ws.RootDir)
 	fmt.Println()

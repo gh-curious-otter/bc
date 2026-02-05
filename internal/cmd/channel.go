@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -130,6 +131,14 @@ func runChannelList(cmd *cobra.Command, args []string) error {
 	}
 
 	channels := store.List()
+
+	jsonOutput, _ := cmd.Flags().GetBool("json")
+	if jsonOutput {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(channels)
+	}
+
 	if len(channels) == 0 {
 		fmt.Println("No channels defined")
 		fmt.Println()
@@ -408,6 +417,13 @@ func runChannelHistory(cmd *cobra.Command, args []string) error {
 	history, err := store.GetHistory(channelName)
 	if err != nil {
 		return err
+	}
+
+	jsonOutput, _ := cmd.Flags().GetBool("json")
+	if jsonOutput {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(history)
 	}
 
 	if len(history) == 0 {
