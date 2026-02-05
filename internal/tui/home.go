@@ -519,7 +519,18 @@ func (m *HomeModel) renderHelp() string {
 		}
 
 	case ScreenAgent:
-		hints = "p:peek | a:attach | s:send message | r:refresh | esc:back | q:quit"
+		b.WriteString(m.styles.Bold.Render("  Agent"))
+		b.WriteString("\n")
+		for _, k := range [][2]string{
+			{"p", "Peek at agent output"},
+			{"a", "Attach to agent session"},
+			{"s", "Send message to agent"},
+			{"r", "Refresh data"},
+		} {
+			key := m.styles.Code.Width(14).Render(k[0])
+			b.WriteString(fmt.Sprintf("    %s %s\n", key, m.styles.Normal.Render(k[1])))
+		}
+
 	case ScreenChannel:
 		b.WriteString(m.styles.Bold.Render("  Channel"))
 		b.WriteString("\n")
