@@ -69,6 +69,23 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("branch %s not found: %w", branch, err)
 	}
 
+	// Resolve associated queue item (by --work-id or by branch match)
+	q := queue.New(filepath.Join(ws.StateDir(), "queue.json"))
+	_ = q.Load()
+	workID := mergeWorkID
+	if workID == "" {
+		// Try to find queue item by branch name
+		if item := q.FindByBranch(branch); item != nil {
+			workID = item.ID
+		}
+	}
+
+	// Mark queue item as merging
+	if workID != "" {
+		_ = q.UpdateMergeStatus(workID, queue.MergeMerging, "")
+		_ = q.Save()
+	}
+
 	// Step 2: Check for conflicts with main
 	conflicts, err := checkMergeConflicts(rootDir, branch)
 	if err != nil {
@@ -78,6 +95,11 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		fmt.Println("Conflicting files:")
 		for _, f := range conflicts {
 			fmt.Printf("  - %s\n", f)
+		}
+		// Mark as conflict
+		if workID != "" {
+			_ = q.UpdateMergeStatus(workID, queue.MergeConflict, "")
+			_ = q.Save()
 		}
 		return fmt.Errorf("branch %s has conflicts with main — resolve before merging", branch)
 	}
@@ -103,13 +125,17 @@ func runMerge(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("  Merged at %s\n", commitHash)
 
-	// Step 5: Mark queue item done if specified
-	if mergeWorkID != "" {
-		if err := markQueueDone(ws.StateDir(), ws.RootDir, mergeWorkID); err != nil {
-			fmt.Printf("  Warning: failed to mark %s done: %v\n", mergeWorkID, err)
+	// Step 5: Mark queue item done and merged
+	if workID != "" {
+		if err := markQueueDone(ws.StateDir(), ws.RootDir, workID); err != nil {
+			fmt.Printf("  Warning: failed to mark %s done: %v\n", workID, err)
 		} else {
-			fmt.Printf("  Marked %s done\n", mergeWorkID)
+			fmt.Printf("  Marked %s done\n", workID)
 		}
+		// Update merge status to merged
+		_ = q.UpdateMergeStatus(workID, queue.MergeMerged, commitHash)
+		_ = q.Save()
+		fmt.Printf("  Merge status: merged (%s)\n", commitHash)
 	}
 
 	// Step 6: Log event
@@ -120,7 +146,7 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		Data: map[string]any{
 			"branch":  branch,
 			"commit":  commitHash,
-			"work_id": mergeWorkID,
+			"work_id": workID,
 		},
 	})
 

@@ -129,6 +129,64 @@ func (m *QueueItemModel) View() string {
 		b.WriteString(fmt.Sprintf("  %s %s\n", label, valueStyle.Render(f.value)))
 	}
 
+	// Merge info section
+	if m.item.Merge != "" {
+		b.WriteString("\n")
+		b.WriteString(m.styles.Bold.Render("Merge Info"))
+		b.WriteString("\n")
+
+		mergeStyle := mapMergeStatusStyle(m.item.Merge)
+		mergeFields := []struct {
+			label string
+			value string
+			style string
+		}{
+			{"Merge Status", string(m.item.Merge), mergeStyle},
+		}
+
+		if m.item.Branch != "" {
+			mergeFields = append(mergeFields, struct {
+				label string
+				value string
+				style string
+			}{"Branch", m.item.Branch, "code"})
+		}
+
+		if m.item.MergeCommit != "" {
+			mergeFields = append(mergeFields, struct {
+				label string
+				value string
+				style string
+			}{"Commit", m.item.MergeCommit, "code"})
+		}
+
+		if !m.item.MergedAt.IsZero() {
+			mergeFields = append(mergeFields, struct {
+				label string
+				value string
+				style string
+			}{"Merged At", m.item.MergedAt.Format("2006-01-02 15:04:05"), ""})
+		}
+
+		for _, f := range mergeFields {
+			label := m.styles.Muted.Width(15).Render(f.label + ":")
+			valueStyle := m.styles.Normal
+			switch f.style {
+			case "code":
+				valueStyle = m.styles.Code
+			case "ok":
+				valueStyle = m.styles.Success
+			case "warning":
+				valueStyle = m.styles.Warning
+			case "error":
+				valueStyle = m.styles.Error
+			case "info":
+				valueStyle = m.styles.Info
+			}
+			b.WriteString(fmt.Sprintf("  %s %s\n", label, valueStyle.Render(f.value)))
+		}
+	}
+
 	if m.item.Description != "" {
 		b.WriteString("\n")
 		b.WriteString(m.styles.Bold.Render("Description"))
@@ -155,5 +213,20 @@ func mapQueueStatusStyle(s queue.ItemStatus) string {
 		return "error"
 	default:
 		return "info"
+	}
+}
+
+func mapMergeStatusStyle(s queue.MergeStatus) string {
+	switch s {
+	case queue.MergeMerged:
+		return "ok"
+	case queue.MergeUnmerged:
+		return "warning"
+	case queue.MergeMerging:
+		return "info"
+	case queue.MergeConflict:
+		return "error"
+	default:
+		return ""
 	}
 }

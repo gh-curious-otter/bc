@@ -565,7 +565,7 @@ func (m *WorkspaceModel) renderQueue() string {
 	})
 
 	// Header
-	header := fmt.Sprintf("  %-10s %-12s %-10s %-15s %s", "ID", "BEAD", "STATUS", "ASSIGNED", "TITLE")
+	header := fmt.Sprintf("  %-10s %-12s %-10s %-10s %-15s %s", "ID", "BEAD", "STATUS", "MERGE", "ASSIGNED", "TITLE")
 	b.WriteString(m.styles.Bold.Render(header))
 	b.WriteString("\n")
 
@@ -573,8 +573,8 @@ func (m *WorkspaceModel) renderQueue() string {
 		selected := i == m.cursor
 
 		title := item.Title
-		if len(title) > 40 {
-			title = title[:37] + "..."
+		if len(title) > 36 {
+			title = title[:33] + "..."
 		}
 
 		assignedTo := item.AssignedTo
@@ -587,8 +587,13 @@ func (m *WorkspaceModel) renderQueue() string {
 			beadsID = "-"
 		}
 
-		line := fmt.Sprintf("  %-10s %-12s %-10s %-15s %s",
-			item.ID, beadsID, string(item.Status), assignedTo, title,
+		mergeStr := "-"
+		if item.Merge != "" {
+			mergeStr = string(item.Merge)
+		}
+
+		line := fmt.Sprintf("  %-10s %-12s %-10s %-10s %-15s %s",
+			item.ID, beadsID, string(item.Status), mergeStr, assignedTo, title,
 		)
 
 		if selected {
