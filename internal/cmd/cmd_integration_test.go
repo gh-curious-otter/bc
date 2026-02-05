@@ -14,6 +14,7 @@ import (
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/queue"
 	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/spf13/pflag"
 )
 
 func durationFromSeconds(s int) time.Duration {
@@ -70,6 +71,11 @@ func executeIntegrationCmd(args ...string) (string, string, error) {
 	rootCmd.PersistentFlags().Set("verbose", "false")
 	defer rootCmd.PersistentFlags().Set("json", "false")
 	defer rootCmd.PersistentFlags().Set("verbose", "false")
+
+	// Reset subcommand flags (e.g. logs --tail) to prevent Changed state leaking
+	for _, sub := range rootCmd.Commands() {
+		sub.Flags().VisitAll(func(f *pflag.Flag) { f.Changed = false })
+	}
 
 	err := rootCmd.Execute()
 

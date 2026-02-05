@@ -68,6 +68,10 @@ func truncateMessage(s string, maxLen int) string {
 }
 
 func runLogs(cmd *cobra.Command, args []string) error {
+	if cmd.Flags().Changed("tail") && logsTail <= 0 {
+		return fmt.Errorf("tail must be a positive number")
+	}
+
 	ws, err := getWorkspace()
 	if err != nil {
 		return fmt.Errorf("not in a bc workspace: %w", err)
