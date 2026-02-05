@@ -284,14 +284,30 @@ func (m *WorkspaceModel) renderAgents() string {
 		return b.String()
 	}
 
+	// Build per-agent task counts from queue items
+	agentDone := make(map[string]int)
+	agentFailed := make(map[string]int)
+	for _, item := range m.queueItems {
+		if item.AssignedTo == "" {
+			continue
+		}
+		switch item.Status {
+		case queue.StatusDone:
+			agentDone[item.AssignedTo]++
+		case queue.StatusFailed:
+			agentFailed[item.AssignedTo]++
+		}
+	}
+
 	// Header
-	header := fmt.Sprintf("  %-15s %-12s %-10s %-15s %s", "NAME", "ROLE", "STATE", "UPTIME", "TASK")
+	header := fmt.Sprintf("  %-15s %-12s %-10s %-12s %-5s %-5s %s",
+		"NAME", "ROLE", "STATE", "UPTIME", "DONE", "FAIL", "TASK")
 	b.WriteString(m.styles.Bold.Render(header))
 	b.WriteString("\n")
 
-	// Fixed columns: 2(indent) + NAME(15) + ROLE(12) + STATE(10) + UPTIME(15) = 54
+	// Fixed columns: 2(indent) + NAME(15) + ROLE(12) + STATE(10) + UPTIME(12) + DONE(5) + FAIL(5) = 61
 	// Task gets the rest of the terminal width
-	taskWidth := m.width - 54
+	taskWidth := m.width - 61
 	if taskWidth < 20 {
 		taskWidth = 20
 	}
@@ -314,8 +330,11 @@ func (m *WorkspaceModel) renderAgents() string {
 			task = task[:taskWidth-3] + "..."
 		}
 
-		line := fmt.Sprintf("  %-15s %-12s %-10s %-15s %s",
-			a.Name, a.Role, a.State, uptime, task,
+		done := agentDone[a.Name]
+		failed := agentFailed[a.Name]
+
+		line := fmt.Sprintf("  %-15s %-12s %-10s %-12s %-5d %-5d %s",
+			a.Name, a.Role, a.State, uptime, done, failed, task,
 		)
 
 		overLimit := m.info.MaxWorkers > 0 && a.State != agent.StateStopped && runningCount > m.info.MaxWorkers
@@ -341,7 +360,7 @@ func (m *WorkspaceModel) renderIssues() string {
 		return b.String()
 	}
 
-	header := fmt.Sprintf("  %-12s %-10s %-40s %s", "ID", "STATUS", "TITLE", "SOURCE")
+	header := fmt.Sprintf("  %-12s %-10s %-18s %-40s", "ID", "STATUS", "SOURCE", "TITLE")
 	b.WriteString(m.styles.Bold.Render(header))
 	b.WriteString("\n")
 
@@ -353,8 +372,10 @@ func (m *WorkspaceModel) renderIssues() string {
 			title = title[:35] + "..."
 		}
 
-		line := fmt.Sprintf("  %-12s %-10s %-40s %s",
-			issue.ID, issue.Status, title, issue.Source,
+		source := issueSource(issue)
+
+		line := fmt.Sprintf("  %-12s %-10s %-18s %-40s",
+			issue.ID, issue.Status, source, title,
 		)
 
 		if selected {
