@@ -1,7 +1,9 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -60,6 +62,7 @@ type WorkspaceModel struct {
 	// Data
 	agents     []*agent.Agent
 	issues     []beads.Issue
+	issuesErr  error
 	channels   []*channel.Channel
 	queueItems []queue.WorkItem
 
@@ -99,7 +102,7 @@ func NewWorkspaceModel(info WorkspaceInfo, s style.Styles) *WorkspaceModel {
 	m.agentsLoaded = true
 
 	// Load beads issues
-	m.issues = beads.ListIssues(info.Entry.Path)
+	m.issues, m.issuesErr = beads.ListIssues(info.Entry.Path)
 	m.issuesLoaded = true
 
 	// Load channels
@@ -170,7 +173,7 @@ func (m *WorkspaceModel) HandleKey(msg tea.KeyMsg) Action {
 func (m *WorkspaceModel) refresh() {
 	m.manager.RefreshState()
 	m.agents = m.manager.ListAgents()
-	m.issues = beads.ListIssues(m.info.Entry.Path)
+	m.issues, m.issuesErr = beads.ListIssues(m.info.Entry.Path)
 	m.loadChannels()
 	m.loadQueueStats()
 	m.loadQueueItems()
@@ -458,6 +461,13 @@ func (m *WorkspaceModel) renderAgents() string {
 func (m *WorkspaceModel) renderIssues() string {
 	var b strings.Builder
 
+	if m.issuesErr != nil {
+		msg := m.issuesErrorMessage()
+		b.WriteString(m.styles.Muted.Render("  " + msg))
+		b.WriteString("\n")
+		return b.String()
+	}
+
 	if len(m.issues) == 0 {
 		b.WriteString(m.styles.Muted.Render("  No issues found."))
 		b.WriteString("\n")
@@ -499,6 +509,18 @@ func (m *WorkspaceModel) renderIssues() string {
 
 	b.WriteString(m.renderPositionIndicator(len(m.issues)))
 	return b.String()
+}
+
+// issuesErrorMessage returns a user-facing message for the issues loading error.
+func (m *WorkspaceModel) issuesErrorMessage() string {
+	if errors.Is(m.issuesErr, beads.ErrNoBeadsDir) {
+		return "No issue tracker configured. Run bd init to set up beads."
+	}
+	var execErr *exec.Error
+	if errors.As(m.issuesErr, &execErr) {
+		return "No issue tracker configured. Run bd init to set up beads."
+	}
+	return "Failed to load issues: " + m.issuesErr.Error()
 }
 
 // issueSource returns a human-readable source attribution for an issue.

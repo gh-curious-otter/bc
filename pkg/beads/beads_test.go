@@ -2,7 +2,9 @@ package beads
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -166,18 +168,24 @@ func TestParseJSONLPreservesFields(t *testing.T) {
 
 func TestListAllIssuesNoBeadsDir(t *testing.T) {
 	dir := t.TempDir()
-	// No .beads directory — should return nil
-	issues := ListAllIssues(dir)
+	// No .beads directory — should return ErrNoBeadsDir
+	issues, err := ListAllIssues(dir)
+	if !errors.Is(err, ErrNoBeadsDir) {
+		t.Errorf("ListAllIssues without .beads should return ErrNoBeadsDir, got %v", err)
+	}
 	if issues != nil {
-		t.Errorf("ListAllIssues without .beads should return nil, got %d issues", len(issues))
+		t.Errorf("ListAllIssues without .beads should return nil issues, got %d", len(issues))
 	}
 }
 
 func TestListIssuesNoBeadsDir(t *testing.T) {
 	dir := t.TempDir()
-	issues := ListIssues(dir)
+	issues, err := ListIssues(dir)
+	if !errors.Is(err, ErrNoBeadsDir) {
+		t.Errorf("ListIssues without .beads should return ErrNoBeadsDir, got %v", err)
+	}
 	if issues != nil {
-		t.Errorf("ListIssues without .beads should return nil, got %d issues", len(issues))
+		t.Errorf("ListIssues without .beads should return nil issues, got %d", len(issues))
 	}
 }
 
@@ -207,7 +215,10 @@ func TestListIssuesFiltersEpics(t *testing.T) {
 	mockBd := createMockBd(t, string(data))
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
 
-	result := ListIssues(dir)
+	result, err := ListIssues(dir)
+	if err != nil {
+		t.Fatalf("ListIssues unexpected error: %v", err)
+	}
 
 	// Should filter out the epic
 	if len(result) != 2 {
@@ -233,7 +244,10 @@ func TestListAllIssuesIncludesEpics(t *testing.T) {
 	mockBd := createMockBd(t, string(data))
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
 
-	result := ListAllIssues(dir)
+	result, err := ListAllIssues(dir)
+	if err != nil {
+		t.Fatalf("ListAllIssues unexpected error: %v", err)
+	}
 
 	if len(result) != 2 {
 		t.Fatalf("ListAllIssues returned %d issues, want 2", len(result))
@@ -257,7 +271,10 @@ func TestListAllIssuesJSONLFallback(t *testing.T) {
 	mockBd := createMockBd(t, jsonl)
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
 
-	result := ListAllIssues(dir)
+	result, err := ListAllIssues(dir)
+	if err != nil {
+		t.Fatalf("ListAllIssues JSONL unexpected error: %v", err)
+	}
 
 	if len(result) != 2 {
 		t.Fatalf("ListAllIssues with JSONL returned %d issues, want 2", len(result))
@@ -274,7 +291,10 @@ func TestListAllIssuesEmptyOutput(t *testing.T) {
 	mockBd := createMockBd(t, "[]")
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
 
-	result := ListAllIssues(dir)
+	result, err := ListAllIssues(dir)
+	if err != nil {
+		t.Fatalf("ListAllIssues empty unexpected error: %v", err)
+	}
 
 	if len(result) != 0 {
 		t.Errorf("ListAllIssues with empty array returned %d issues, want 0", len(result))
@@ -289,7 +309,10 @@ func TestListAllIssuesMalformedOutput(t *testing.T) {
 	mockBd := createMockBd(t, "this is not json at all")
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
 
-	result := ListAllIssues(dir)
+	result, err := ListAllIssues(dir)
+	if err != nil {
+		t.Fatalf("ListAllIssues malformed unexpected error: %v", err)
+	}
 
 	// Should gracefully return empty (parseJSONL will fail on non-JSON)
 	if len(result) != 0 {
@@ -616,9 +639,57 @@ func TestListAllIssuesBdFails(t *testing.T) {
 	mockBd := createMockBdFailing(t)
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
 
-	result := ListAllIssues(dir)
+	result, err := ListAllIssues(dir)
+	if err == nil {
+		t.Error("ListAllIssues when bd fails should return an error")
+	}
 	if result != nil {
-		t.Errorf("ListAllIssues when bd fails should return nil, got %d issues", len(result))
+		t.Errorf("ListAllIssues when bd fails should return nil issues, got %d", len(result))
+	}
+}
+
+func TestListAllIssuesBdNotFound(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+
+	// Set PATH to empty dir so bd is not found
+	t.Setenv("PATH", t.TempDir())
+
+	result, err := ListAllIssues(dir)
+	if err == nil {
+		t.Fatal("ListAllIssues when bd not in PATH should return an error")
+	}
+	var execErr *exec.Error
+	if !errors.As(err, &execErr) {
+		t.Errorf("expected error wrapping exec.Error, got %T: %v", err, err)
+	}
+	if result != nil {
+		t.Errorf("expected nil issues, got %d", len(result))
+	}
+}
+
+func TestListIssuesPropagatesError(t *testing.T) {
+	dir := t.TempDir()
+	// No .beads dir — ListIssues should propagate ErrNoBeadsDir from ListAllIssues
+	_, err := ListIssues(dir)
+	if !errors.Is(err, ErrNoBeadsDir) {
+		t.Errorf("ListIssues should propagate ErrNoBeadsDir, got %v", err)
+	}
+}
+
+func TestListIssuesBdFails(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, ".beads"), 0755)
+
+	mockBd := createMockBdFailing(t)
+	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
+
+	result, err := ListIssues(dir)
+	if err == nil {
+		t.Error("ListIssues when bd fails should return an error")
+	}
+	if result != nil {
+		t.Errorf("ListIssues when bd fails should return nil issues, got %d", len(result))
 	}
 }
 
