@@ -12,6 +12,7 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/github"
 	"github.com/rpuneet/bc/pkg/tui/style"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -24,6 +25,8 @@ const (
 	ScreenWorkspace
 	ScreenAgent
 	ScreenChannel
+	ScreenIssue
+	ScreenPR
 )
 
 // TickMsg triggers a periodic refresh.
@@ -48,9 +51,9 @@ type HomeModel struct {
 	height int
 
 	// Home screen state
-	workspaces  []WorkspaceInfo
-	homeCursor  int
-	maxWorkers  int
+	workspaces []WorkspaceInfo
+	homeCursor int
+	maxWorkers int
 
 	// Workspace detail state
 	wsModel *WorkspaceModel
@@ -60,6 +63,12 @@ type HomeModel struct {
 
 	// Channel detail state
 	channelModel *ChannelModel
+
+	// Issue detail state
+	issueModel *IssueModel
+
+	// PR detail state
+	prModel *PRModel
 
 	// Status message
 	statusMsg string
@@ -104,6 +113,14 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.channelModel.width = msg.Width
 			m.channelModel.height = msg.Height
 		}
+		if m.issueModel != nil {
+			m.issueModel.width = msg.Width
+			m.issueModel.height = msg.Height
+		}
+		if m.prModel != nil {
+			m.prModel.width = msg.Width
+			m.prModel.height = msg.Height
+		}
 		return m, nil
 
 	case TickMsg:
@@ -144,6 +161,10 @@ func (m *HomeModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleAgentKey(msg)
 	case ScreenChannel:
 		return m.handleChannelKey(msg)
+	case ScreenIssue:
+		return m.handleIssueKey(msg)
+	case ScreenPR:
+		return m.handlePRKey(msg)
 	}
 
 	return m, nil
@@ -204,6 +225,20 @@ func (m *HomeModel) handleWorkspaceKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.agentModel.height = m.height
 				m.screen = ScreenAgent
 			}
+		case ActionDrillIssue:
+			if issue, ok := action.Data.(beads.Issue); ok {
+				m.issueModel = NewIssueModel(issue, m.styles)
+				m.issueModel.width = m.width
+				m.issueModel.height = m.height
+				m.screen = ScreenIssue
+			}
+		case ActionDrillPR:
+			if pr, ok := action.Data.(github.PR); ok {
+				m.prModel = NewPRModel(pr, m.styles)
+				m.prModel.width = m.width
+				m.prModel.height = m.height
+				m.screen = ScreenPR
+			}
 		case ActionDrillChannel:
 			if ch, ok := action.Data.(*channel.Channel); ok {
 				store := channel.NewStore(m.wsModel.info.Entry.Path)
@@ -261,6 +296,32 @@ func (m *HomeModel) handleChannelKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m *HomeModel) handleIssueKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.issueModel != nil {
+		action := m.issueModel.HandleKey(msg)
+		switch action.Type {
+		case ActionBack:
+			m.screen = ScreenWorkspace
+			m.issueModel = nil
+		}
+	}
+
+	return m, nil
+}
+
+func (m *HomeModel) handlePRKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.prModel != nil {
+		action := m.prModel.HandleKey(msg)
+		switch action.Type {
+		case ActionBack:
+			m.screen = ScreenWorkspace
+			m.prModel = nil
+		}
+	}
+
+	return m, nil
+}
+
 // refreshWorkspaces re-scans each workspace entry to update agent counts and issue counts.
 func (m *HomeModel) refreshWorkspaces() {
 	for i, ws := range m.workspaces {
@@ -302,6 +363,14 @@ func (m *HomeModel) View() string {
 		if m.channelModel != nil {
 			sections = append(sections, m.channelModel.View())
 		}
+	case ScreenIssue:
+		if m.issueModel != nil {
+			sections = append(sections, m.issueModel.View())
+		}
+	case ScreenPR:
+		if m.prModel != nil {
+			sections = append(sections, m.prModel.View())
+		}
 	}
 
 	// Status bar
@@ -327,6 +396,14 @@ func (m *HomeModel) renderHeader() string {
 	case ScreenChannel:
 		if m.channelModel != nil {
 			screenLabel = "#" + m.channelModel.channel.Name
+		}
+	case ScreenIssue:
+		if m.issueModel != nil {
+			screenLabel = m.issueModel.issue.ID
+		}
+	case ScreenPR:
+		if m.prModel != nil {
+			screenLabel = fmt.Sprintf("PR #%d", m.prModel.pr.Number)
 		}
 	}
 	if screenLabel != "" {
@@ -404,6 +481,10 @@ func (m *HomeModel) renderStatusBar() string {
 		hints = "p:peek | a:attach | esc:back | q:quit"
 	case ScreenChannel:
 		hints = "s:send message | r:refresh | esc:back | q:quit"
+	case ScreenIssue:
+		hints = "esc:back | q:quit"
+	case ScreenPR:
+		hints = "esc:back | q:quit"
 	}
 
 	if m.statusMsg != "" {

@@ -170,6 +170,14 @@ func (m *WorkspaceModel) selectCurrent() Action {
 		if m.cursor < len(m.agents) {
 			return Action{Type: ActionDrillAgent, Data: m.agents[m.cursor]}
 		}
+	case TabIssues:
+		if m.cursor < len(m.issues) {
+			return Action{Type: ActionDrillIssue, Data: m.issues[m.cursor]}
+		}
+	case TabPRs:
+		if m.cursor < len(m.prs) {
+			return Action{Type: ActionDrillPR, Data: m.prs[m.cursor]}
+		}
 	case TabChannels:
 		if m.cursor < len(m.channels) {
 			return Action{Type: ActionDrillChannel, Data: m.channels[m.cursor]}
