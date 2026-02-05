@@ -1,7 +1,9 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -31,6 +33,35 @@ const (
 	tabCount = 6
 )
 
+// QueueFilter controls which queue items are displayed.
+type QueueFilter int
+
+const (
+	// QueueFilterActive shows pending, assigned, working, and failed items.
+	QueueFilterActive QueueFilter = iota
+	// QueueFilterAll shows all items including done.
+	QueueFilterAll
+	// QueueFilterDone shows only done items.
+	QueueFilterDone
+)
+
+func (f QueueFilter) label() string {
+	switch f {
+	case QueueFilterActive:
+		return "active"
+	case QueueFilterAll:
+		return "all"
+	case QueueFilterDone:
+		return "done"
+	default:
+		return ""
+	}
+}
+
+func (f QueueFilter) next() QueueFilter {
+	return (f + 1) % 3
+}
+
 // WorkspaceStats holds aggregated statistics for the workspace.
 type WorkspaceStats struct {
 	// Issue stats
@@ -48,19 +79,23 @@ type WorkspaceStats struct {
 
 // WorkspaceModel shows the detail view for a single workspace.
 type WorkspaceModel struct {
-	info    WorkspaceInfo
-	styles  style.Styles
-	width   int
-	height  int
-	tab     Tab
-	cursor  int
-	manager *agent.Manager
+	info         WorkspaceInfo
+	styles       style.Styles
+	width        int
+	height       int
+	tab          Tab
+	cursor       int
+	scrollOffset int // first visible item index for current tab
+	manager      *agent.Manager
 
 	// Data
 	agents     []*agent.Agent
 	issues     []beads.Issue
+	issuesErr  error
 	channels   []*channel.Channel
-	queueItems []queue.WorkItem
+	queueItems         []queue.WorkItem
+	filteredQueueItems []queue.WorkItem
+	queueFilter        QueueFilter
 
 	// Queue stats
 	queueStats queue.Stats
@@ -82,9 +117,10 @@ type WorkspaceModel struct {
 // NewWorkspaceModel creates a workspace detail view.
 func NewWorkspaceModel(info WorkspaceInfo, s style.Styles) *WorkspaceModel {
 	m := &WorkspaceModel{
-		info:   info,
-		styles: s,
-		tab:    TabAgents,
+		info:        info,
+		styles:      s,
+		tab:         TabAgents,
+		queueFilter: QueueFilterActive,
 	}
 
 	// Load agent data
@@ -98,7 +134,7 @@ func NewWorkspaceModel(info WorkspaceInfo, s style.Styles) *WorkspaceModel {
 	m.agentsLoaded = true
 
 	// Load beads issues
-	m.issues = beads.ListIssues(info.Entry.Path)
+	m.issues, m.issuesErr = beads.ListIssues(info.Entry.Path)
 	m.issuesLoaded = true
 
 	// Load channels
@@ -129,29 +165,42 @@ func (m *WorkspaceModel) HandleKey(msg tea.KeyMsg) Action {
 	case "tab":
 		m.tab = (m.tab + 1) % tabCount
 		m.cursor = 0
+		m.scrollOffset = 0
 		return NoAction
 	case "shift+tab":
 		m.tab = (m.tab + tabCount - 1) % tabCount
 		m.cursor = 0
+		m.scrollOffset = 0
 		return NoAction
 	case "j", "down":
 		m.cursor++
 		m.clampCursor()
+		m.ensureCursorVisible()
 		return NoAction
 	case "k", "up":
 		if m.cursor > 0 {
 			m.cursor--
 		}
+		m.ensureCursorVisible()
 		return NoAction
 	case "g", "home":
 		m.cursor = 0
+		m.scrollOffset = 0
 		return NoAction
 	case "G", "end":
 		m.cursor = m.maxCursor()
+		m.ensureCursorVisible()
 		return NoAction
 	case "r":
 		m.refresh()
 		return NoAction
+	case "f":
+		if m.tab == TabQueue {
+			m.queueFilter = m.queueFilter.next()
+			m.applyQueueFilter()
+			m.cursor = 0
+			return NoAction
+		}
 	}
 	if isEnterKey(msg) {
 		return m.selectCurrent()
@@ -163,13 +212,15 @@ func (m *WorkspaceModel) HandleKey(msg tea.KeyMsg) Action {
 func (m *WorkspaceModel) refresh() {
 	m.manager.RefreshState()
 	m.agents = m.manager.ListAgents()
-	m.issues = beads.ListIssues(m.info.Entry.Path)
+	m.issues, m.issuesErr = beads.ListIssues(m.info.Entry.Path)
 	m.loadChannels()
 	m.loadQueueStats()
 	m.loadQueueItems()
 	m.loadRecentEvents()
 	m.computeStats()
 	m.loadPkgStats()
+	m.clampCursor()
+	m.ensureCursorVisible()
 }
 
 func (m *WorkspaceModel) loadQueueStats() {
@@ -196,6 +247,30 @@ func (m *WorkspaceModel) loadQueueItems() {
 		return m.queueItems[i].ID < m.queueItems[j].ID
 	})
 	m.queueLoaded = true
+	m.applyQueueFilter()
+}
+
+func (m *WorkspaceModel) applyQueueFilter() {
+	switch m.queueFilter {
+	case QueueFilterAll:
+		m.filteredQueueItems = m.queueItems
+	case QueueFilterDone:
+		filtered := make([]queue.WorkItem, 0)
+		for _, item := range m.queueItems {
+			if item.Status == queue.StatusDone {
+				filtered = append(filtered, item)
+			}
+		}
+		m.filteredQueueItems = filtered
+	default: // QueueFilterActive
+		filtered := make([]queue.WorkItem, 0)
+		for _, item := range m.queueItems {
+			if item.Status != queue.StatusDone {
+				filtered = append(filtered, item)
+			}
+		}
+		m.filteredQueueItems = filtered
+	}
 }
 
 func (m *WorkspaceModel) loadAgentStats() {
@@ -225,8 +300,8 @@ func (m *WorkspaceModel) selectCurrent() Action {
 			return Action{Type: ActionDrillChannel, Data: m.channels[m.cursor]}
 		}
 	case TabQueue:
-		if m.cursor < len(m.queueItems) {
-			return Action{Type: ActionDrillQueue, Data: m.queueItems[m.cursor]}
+		if m.cursor < len(m.filteredQueueItems) {
+			return Action{Type: ActionDrillQueue, Data: m.filteredQueueItems[m.cursor]}
 		}
 	}
 	return NoAction
@@ -247,8 +322,8 @@ func (m *WorkspaceModel) maxCursor() int {
 			return len(m.channels) - 1
 		}
 	case TabQueue:
-		if len(m.queueItems) > 0 {
-			return len(m.queueItems) - 1
+		if len(m.filteredQueueItems) > 0 {
+			return len(m.filteredQueueItems) - 1
 		}
 	case TabDashboard:
 		return 0
@@ -263,6 +338,62 @@ func (m *WorkspaceModel) clampCursor() {
 	if m.cursor > max {
 		m.cursor = max
 	}
+}
+
+// visibleRows returns the number of data rows that fit in the viewport.
+// Accounts for overhead: stats bar (1) + gap (1) + tab bar (1) + gap (2) + header (1) + position indicator (1) = 7.
+const viewportOverhead = 7
+
+func (m *WorkspaceModel) visibleRows() int {
+	rows := m.height - viewportOverhead
+	if rows < 1 {
+		rows = 1
+	}
+	return rows
+}
+
+// ensureCursorVisible adjusts scrollOffset so the cursor is within the viewport.
+func (m *WorkspaceModel) ensureCursorVisible() {
+	visible := m.visibleRows()
+	if m.cursor < m.scrollOffset {
+		m.scrollOffset = m.cursor
+	}
+	if m.cursor >= m.scrollOffset+visible {
+		m.scrollOffset = m.cursor - visible + 1
+	}
+	if m.scrollOffset < 0 {
+		m.scrollOffset = 0
+	}
+}
+
+// viewportRange returns the [start, end) range of items to render for the current viewport.
+func (m *WorkspaceModel) viewportRange(total int) (int, int) {
+	if total == 0 {
+		return 0, 0
+	}
+	visible := m.visibleRows()
+	start := m.scrollOffset
+	if start > total {
+		start = total
+	}
+	end := start + visible
+	if end > total {
+		end = total
+	}
+	return start, end
+}
+
+// renderPositionIndicator returns a "start-end of total" indicator string.
+func (m *WorkspaceModel) renderPositionIndicator(total int) string {
+	if total == 0 {
+		return ""
+	}
+	visible := m.visibleRows()
+	if total <= visible {
+		return "" // everything fits, no indicator needed
+	}
+	start, end := m.viewportRange(total)
+	return m.styles.Muted.Render(fmt.Sprintf("  %d-%d of %d", start+1, end, total)) + "\n"
 }
 
 // View renders the workspace detail screen.
@@ -304,7 +435,7 @@ func (m *WorkspaceModel) renderTabBar() string {
 	}{
 		{"Agents", TabAgents, len(m.agents)},
 		{"Issues", TabIssues, len(m.issues)},
-		{"Queue", TabQueue, len(m.queueItems)},
+		{"Queue", TabQueue, len(m.filteredQueueItems)},
 		{"Channels", TabChannels, len(m.channels)},
 		{"Dashboard", TabDashboard, m.stats.OpenIssues},
 		{"Stats", TabStats, -1},
@@ -313,7 +444,9 @@ func (m *WorkspaceModel) renderTabBar() string {
 	var parts []string
 	for _, t := range tabs {
 		var label string
-		if t.count >= 0 {
+		if t.tab == TabQueue && m.queueFilter != QueueFilterAll {
+			label = fmt.Sprintf(" %s (%d %s) ", t.label, t.count, m.queueFilter.label())
+		} else if t.count >= 0 {
 			label = fmt.Sprintf(" %s (%d) ", t.label, t.count)
 		} else {
 			label = fmt.Sprintf(" %s ", t.label)
@@ -350,18 +483,12 @@ func (m *WorkspaceModel) renderAgents() string {
 		taskWidth = 20
 	}
 
-	workerCount := 0
-	for i, a := range m.agents {
+	// Render only the visible viewport.
+	start, end := m.viewportRange(len(m.agents))
+	for i := start; i < end; i++ {
+		a := m.agents[i]
 		selected := i == m.cursor
 
-		isWorkerRole := a.Role == agent.RoleWorker || a.Role == agent.RoleEngineer
-		if a.State != agent.StateStopped {
-			if isWorkerRole {
-				workerCount++
-			}
-		}
-
-		// Pull stats from pkg/stats
 		as := m.agentStats[a.Name]
 		uptime := "-"
 		if as.Uptime > 0 {
@@ -392,11 +519,19 @@ func (m *WorkspaceModel) renderAgents() string {
 		b.WriteString("\n")
 	}
 
+	b.WriteString(m.renderPositionIndicator(len(m.agents)))
 	return b.String()
 }
 
 func (m *WorkspaceModel) renderIssues() string {
 	var b strings.Builder
+
+	if m.issuesErr != nil {
+		msg := m.issuesErrorMessage()
+		b.WriteString(m.styles.Muted.Render("  " + msg))
+		b.WriteString("\n")
+		return b.String()
+	}
 
 	if len(m.issues) == 0 {
 		b.WriteString(m.styles.Muted.Render("  No issues found."))
@@ -408,7 +543,9 @@ func (m *WorkspaceModel) renderIssues() string {
 	b.WriteString(m.styles.Bold.Render(header))
 	b.WriteString("\n")
 
-	for i, issue := range m.issues {
+	start, end := m.viewportRange(len(m.issues))
+	for i := start; i < end; i++ {
+		issue := m.issues[i]
 		selected := i == m.cursor
 
 		title := issue.Title
@@ -435,7 +572,20 @@ func (m *WorkspaceModel) renderIssues() string {
 		b.WriteString("\n")
 	}
 
+	b.WriteString(m.renderPositionIndicator(len(m.issues)))
 	return b.String()
+}
+
+// issuesErrorMessage returns a user-facing message for the issues loading error.
+func (m *WorkspaceModel) issuesErrorMessage() string {
+	if errors.Is(m.issuesErr, beads.ErrNoBeadsDir) {
+		return "No issue tracker configured. Run bd init to set up beads."
+	}
+	var execErr *exec.Error
+	if errors.As(m.issuesErr, &execErr) {
+		return "No issue tracker configured. Run bd init to set up beads."
+	}
+	return "Failed to load issues: " + m.issuesErr.Error()
 }
 
 // issueSource returns a human-readable source attribution for an issue.
@@ -507,7 +657,9 @@ func (m *WorkspaceModel) renderChannels() string {
 	b.WriteString(m.styles.Bold.Render(header))
 	b.WriteString("\n")
 
-	for i, ch := range m.channels {
+	start, end := m.viewportRange(len(m.channels))
+	for i := start; i < end; i++ {
+		ch := m.channels[i]
 		selected := i == m.cursor
 
 		msgCount := len(ch.History)
@@ -532,6 +684,7 @@ func (m *WorkspaceModel) renderChannels() string {
 		b.WriteString("\n")
 	}
 
+	b.WriteString(m.renderPositionIndicator(len(m.channels)))
 	return b.String()
 }
 
@@ -557,21 +710,24 @@ func queueStatusRank(s queue.ItemStatus) int {
 func (m *WorkspaceModel) renderQueue() string {
 	var b strings.Builder
 
-	if len(m.queueItems) == 0 {
-		b.WriteString(m.styles.Muted.Render("  No queue items. Run 'bc queue add <title>' to create one."))
+	if len(m.filteredQueueItems) == 0 {
+		if m.queueFilter != QueueFilterAll && len(m.queueItems) > 0 {
+			b.WriteString(m.styles.Muted.Render(fmt.Sprintf("  No %s queue items. Press 'f' to change filter.", m.queueFilter.label())))
+		} else {
+			b.WriteString(m.styles.Muted.Render("  No queue items. Run 'bc queue add <title>' to create one."))
+		}
 		b.WriteString("\n")
 		return b.String()
 	}
-
-	// m.queueItems is already sorted in loadQueueItems() so display
-	// order matches selectCurrent() indexing.
 
 	// Header
 	header := fmt.Sprintf("  %-10s %-12s %-10s %-10s %-15s %s", "ID", "BEAD", "STATUS", "MERGE", "ASSIGNED", "TITLE")
 	b.WriteString(m.styles.Bold.Render(header))
 	b.WriteString("\n")
 
-	for i, item := range m.queueItems {
+	start, end := m.viewportRange(len(m.filteredQueueItems))
+	for i := start; i < end; i++ {
+		item := m.filteredQueueItems[i]
 		selected := i == m.cursor
 
 		title := item.Title
@@ -606,6 +762,7 @@ func (m *WorkspaceModel) renderQueue() string {
 		b.WriteString("\n")
 	}
 
+	b.WriteString(m.renderPositionIndicator(len(m.filteredQueueItems)))
 	return b.String()
 }
 

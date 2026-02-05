@@ -318,7 +318,7 @@ func (m *HomeModel) handleChannelKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.statusMsg = "Error creating issue: " + err.Error()
 				} else {
 					m.statusMsg = "Issue created from message"
-					m.wsModel.issues = beads.ListIssues(wsPath)
+					m.wsModel.issues, _ = beads.ListIssues(wsPath)
 				}
 			}
 		}
@@ -353,7 +353,8 @@ func (m *HomeModel) refreshWorkspaces() {
 		m.workspaces[i].Running = mgr.RunningCount()
 		m.workspaces[i].HasBeads = beads.HasBeads(ws.Entry.Path)
 		if m.workspaces[i].HasBeads {
-			m.workspaces[i].Issues = len(beads.ListIssues(ws.Entry.Path))
+			issues, _ := beads.ListIssues(ws.Entry.Path)
+			m.workspaces[i].Issues = len(issues)
 		}
 	}
 }

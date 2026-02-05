@@ -74,7 +74,8 @@ func runHome(cmd *cobra.Command, args []string) error {
 
 		// Count beads issues
 		if info.HasBeads {
-			info.Issues = len(beads.ListIssues(entry.Path))
+			issues, _ := beads.ListIssues(entry.Path)
+			info.Issues = len(issues)
 		}
 
 		workspaces = append(workspaces, info)

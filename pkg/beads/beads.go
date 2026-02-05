@@ -7,11 +7,16 @@ package beads
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 )
+
+// ErrNoBeadsDir indicates the workspace has no .beads directory configured.
+var ErrNoBeadsDir = errors.New("no .beads directory found")
 
 // Issue represents a beads issue.
 type Issue struct {
@@ -33,37 +38,40 @@ func HasBeads(workspacePath string) bool {
 }
 
 // ListIssues returns beads issues for a workspace (excluding epics).
-// Falls back to empty list if bd is not available or .beads/ doesn't exist.
-func ListIssues(workspacePath string) []Issue {
-	all := ListAllIssues(workspacePath)
+// Returns ErrNoBeadsDir if the workspace has no .beads directory.
+func ListIssues(workspacePath string) ([]Issue, error) {
+	all, err := ListAllIssues(workspacePath)
+	if err != nil {
+		return nil, err
+	}
 	var filtered []Issue
 	for _, issue := range all {
 		if issue.Type != "epic" {
 			filtered = append(filtered, issue)
 		}
 	}
-	return filtered
+	return filtered, nil
 }
 
 // ListAllIssues returns all beads issues for a workspace (including epics).
-// Falls back to empty list if bd is not available or .beads/ doesn't exist.
-func ListAllIssues(workspacePath string) []Issue {
+// Returns ErrNoBeadsDir if the workspace has no .beads directory.
+func ListAllIssues(workspacePath string) ([]Issue, error) {
 	if !HasBeads(workspacePath) {
-		return nil
+		return nil, ErrNoBeadsDir
 	}
 
-	// Try running bd list --json
-	cmd := exec.Command("bd", "list", "--json")
+	// Try running bd list --all --json
+	cmd := exec.Command("bd", "list", "--all", "--json")
 	cmd.Dir = workspacePath
 	output, err := cmd.Output()
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("bd list failed: %w", err)
 	}
 
 	var issues []Issue
 	if err := json.Unmarshal(output, &issues); err != nil {
 		// Try line-by-line JSONL parsing
-		return parseJSONL(output)
+		return parseJSONL(output), nil
 	}
 
 	// Tag source
@@ -71,7 +79,7 @@ func ListAllIssues(workspacePath string) []Issue {
 		issues[i].Source = "beads"
 	}
 
-	return issues
+	return issues, nil
 }
 
 // parseJSONL parses newline-delimited JSON.
