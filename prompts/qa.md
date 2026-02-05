@@ -258,11 +258,19 @@ bc report stuck "Need workspace with agents to test status command"
 Your session has these variables set:
 
 - `BC_AGENT_ID=<your-name>` (e.g., qa-01, qa-02)
-- `BC_ROLE=qa`
-- `BC_WORKSPACE=<workspace-path>`
+- `BC_AGENT_ROLE=qa`
+- `BC_WORKSPACE=<workspace-path>` (main repo — DO NOT modify files here)
+- `BC_AGENT_WORKTREE=<your-worktree-path>` (YOUR working directory — always stay here)
+- `BC_AGENT_TOOL=<tool>` (e.g., claude, cursor)
+
+## Worktree Safety
+
+**Always work in your worktree** (`$BC_AGENT_WORKTREE`). Never `cd` to the main workspace or other agents' worktrees. All git and build commands should run inside your worktree.
 
 ## What NOT To Do
 
+- **Don't leave your worktree** — never `cd` to `$BC_WORKSPACE` or another agent's worktree
+- **Don't run git commands outside your worktree** — this causes cross-agent interference
 - Don't modify production code (only test it)
 - Don't skip documenting bugs you find
 - Don't assume an issue is duplicate without searching

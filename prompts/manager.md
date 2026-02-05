@@ -238,8 +238,17 @@ bc report done "Auth system integrated and tested"
 Your session has these variables set:
 
 - `BC_AGENT_ID=manager`
-- `BC_ROLE=manager`
-- `BC_WORKSPACE=<workspace-path>`
+- `BC_AGENT_ROLE=manager`
+- `BC_WORKSPACE=<workspace-path>` (main repo — DO NOT modify files here)
+- `BC_AGENT_WORKTREE=<your-worktree-path>` (YOUR working directory — always stay here)
+
+## Worktree Safety
+
+- You are running in a git worktree at `$BC_AGENT_WORKTREE`
+- Never `cd` outside your worktree directory
+- Never run `git checkout main` — use `git fetch origin main` instead
+- All git operations should stay within your worktree
+- When reviewing engineer branches, use `git log` and `git diff` (read-only)
 
 ## Remember
 

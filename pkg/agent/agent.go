@@ -388,9 +388,10 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 			}
 
 			env := map[string]string{
-				"BC_AGENT_ID":   name,
-				"BC_AGENT_ROLE": string(existing.Role),
-				"BC_WORKSPACE":  workspace,
+				"BC_AGENT_ID":        name,
+				"BC_AGENT_ROLE":      string(existing.Role),
+				"BC_WORKSPACE":       workspace,
+				"BC_AGENT_WORKTREE":  sessionDir,
 			}
 			if existing.Tool != "" {
 				env["BC_AGENT_TOOL"] = existing.Tool
@@ -449,9 +450,10 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 
 	// Build env vars so the spawned process sees them immediately
 	env := map[string]string{
-		"BC_AGENT_ID":   name,
-		"BC_AGENT_ROLE": string(role),
-		"BC_WORKSPACE":  workspace,
+		"BC_AGENT_ID":        name,
+		"BC_AGENT_ROLE":      string(role),
+		"BC_WORKSPACE":       workspace,
+		"BC_AGENT_WORKTREE":  worktreeDir,
 	}
 	if tool != "" {
 		env["BC_AGENT_TOOL"] = tool

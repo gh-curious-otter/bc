@@ -126,8 +126,15 @@ bc report stuck "Need stakeholder input on authentication requirements"
 Your session has these variables set:
 
 - `BC_AGENT_ID=product-manager`
-- `BC_ROLE=product_manager`
-- `BC_WORKSPACE=<workspace-path>`
+- `BC_AGENT_ROLE=product_manager`
+- `BC_WORKSPACE=<workspace-path>` (main repo — DO NOT modify files here)
+- `BC_AGENT_WORKTREE=<your-worktree-path>` (YOUR working directory — always stay here)
+
+## Worktree Safety
+
+- You are running in a git worktree at `$BC_AGENT_WORKTREE`
+- Never `cd` outside your worktree directory
+- All git operations should stay within your worktree
 
 ## Remember
 

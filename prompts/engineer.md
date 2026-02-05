@@ -53,15 +53,18 @@ Read your assignment carefully. It should include:
 
 ### 2. Create Your Branch
 
-Use the bead ID as your branch name for traceability:
+**IMPORTANT: Always work in your worktree.** Your worktree path is in `$BC_AGENT_WORKTREE`. Never `cd` to the main workspace (`$BC_WORKSPACE`) or other agents' worktrees. All git commands should run inside your worktree.
+
+Create your branch from within your worktree:
 
 ```bash
-git checkout main
-git pull origin main
-# If your task has bead bc-34b.5, use that as branch name:
-git checkout -b bc-34b.5
-# If no bead ID, use work item ID:
-git checkout -b work-014
+# Verify you're in your worktree
+pwd  # Should match $BC_AGENT_WORKTREE
+
+# Create branch from current HEAD
+git checkout -b $BC_AGENT_ID/work-014/description
+# Or with bead ID:
+git checkout -b $BC_AGENT_ID/bc-34b.5/description
 ```
 
 ### 3. Report You're Working
@@ -181,11 +184,11 @@ func TestLogin(t *testing.T) {
 ### Starting a New Feature
 
 ```bash
-# Get latest main
-git checkout main && git pull
+# Verify you're in your worktree
+pwd  # Should show $BC_AGENT_WORKTREE
 
-# Create feature branch
-git checkout -b feature/my-feature
+# Create feature branch (include your agent name for traceability)
+git checkout -b $BC_AGENT_ID/feature/my-feature
 
 # Report status
 bc report working "Starting my-feature implementation"
@@ -193,7 +196,7 @@ bc report working "Starting my-feature implementation"
 # ... implement ...
 
 # Commit
-git add . && git commit -m "Implement my-feature"
+git add <files> && git commit -m "Implement my-feature"
 
 # Report done
 bc report done "my-feature complete"
@@ -257,10 +260,23 @@ go test -v ./pkg/auth/...
 go test -v -run TestLogin ./pkg/auth/...
 ```
 
+## Worktree Safety
+
+You are running in a git worktree at `$BC_AGENT_WORKTREE`. This keeps your work isolated from other agents.
+
+- Never `cd` outside your worktree directory
+- Never run `git checkout main` — it detaches HEAD in a worktree
+- To branch from latest main: `git fetch origin main && git checkout -b mybranch origin/main`
+- Use absolute paths from `$BC_AGENT_WORKTREE`, not relative `../` paths
+- Read-only git commands (`git log`, `git diff main...HEAD`) are safe
+- All write operations (commit, checkout, reset) must target your worktree
+
 ## What NOT To Do
 
+- **Don't leave your worktree** — never `cd` to `$BC_WORKSPACE` or another agent's worktree
+- **Don't commit to main** — always work on your own branch (`$BC_AGENT_ID/work-xxx/...`)
+- **Don't run git commands outside your worktree** — use `git -C $BC_AGENT_WORKTREE` if needed
 - Don't work on unassigned tasks
-- Don't push directly to main
 - Don't skip tests
 - Don't leave the codebase in a broken state
 - Don't ignore review feedback
@@ -270,10 +286,11 @@ go test -v -run TestLogin ./pkg/auth/...
 
 Your session has these variables set:
 
-- `BC_AGENT_ID=<your-name>` (e.g., alice, bob)
-- `BC_ROLE=engineer`
-- `BC_WORKSPACE=<workspace-path>`
-- `BC_WORK_ID=<assigned-work-id>` (if assigned)
+- `BC_AGENT_ID=<your-name>` (e.g., engineer-01)
+- `BC_AGENT_ROLE=engineer`
+- `BC_WORKSPACE=<workspace-path>` (main repo — DO NOT work here)
+- `BC_AGENT_WORKTREE=<your-worktree-path>` (YOUR working directory — always stay here)
+- `BC_AGENT_TOOL=<tool>` (e.g., claude, cursor)
 
 ## Communication Guidelines
 
