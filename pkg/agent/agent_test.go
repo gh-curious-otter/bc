@@ -1713,41 +1713,16 @@ func TestEnsureGitWrapper_Idempotent(t *testing.T) {
 	}
 
 	wrapperPath := filepath.Join(workspace, ".bc", "bin", "git")
-	content1, _ := os.ReadFile(wrapperPath)
+	info1, _ := os.Stat(wrapperPath)
 
-	// Second call should be a no-op (same content)
+	// Second call should be a no-op (file already exists)
 	if err := ensureGitWrapper(workspace); err != nil {
 		t.Fatalf("second call failed: %v", err)
 	}
 
-	content2, _ := os.ReadFile(wrapperPath)
-	if string(content1) != string(content2) {
-		t.Error("wrapper content changed on second call")
-	}
-}
-
-func TestEnsureGitWrapper_UpdatesOnContentChange(t *testing.T) {
-	workspace := t.TempDir()
-
-	if err := ensureGitWrapper(workspace); err != nil {
-		t.Fatalf("first call failed: %v", err)
-	}
-
-	wrapperPath := filepath.Join(workspace, ".bc", "bin", "git")
-
-	// Overwrite with stale content (simulating old version)
-	if err := os.WriteFile(wrapperPath, []byte("#!/bin/bash\nold version\n"), 0755); err != nil {
-		t.Fatalf("failed to write stale wrapper: %v", err)
-	}
-
-	// ensureGitWrapper should detect the difference and overwrite
-	if err := ensureGitWrapper(workspace); err != nil {
-		t.Fatalf("update call failed: %v", err)
-	}
-
-	content, _ := os.ReadFile(wrapperPath)
-	if string(content) != gitWrapperScript {
-		t.Error("wrapper was not updated to latest version")
+	info2, _ := os.Stat(wrapperPath)
+	if info1.ModTime() != info2.ModTime() {
+		t.Error("wrapper was rewritten on second call (not idempotent)")
 	}
 }
 

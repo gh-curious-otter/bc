@@ -187,27 +187,36 @@ When done: bc report done 'password reset implemented'"
 3. Review changes: `git diff main..<branch>`
 4. Run tests: `go test ./...`
 5. Build: `go build ./...`
-6. If good: mark complete, consider merging
+6. If good: merge to main (see Git Integration below)
 7. If issues: send feedback, keep task assigned
 
-### Integration
+### Git Integration — Merging to Main
 
-When multiple engineers complete related work:
+**ALWAYS use `git merge`, NEVER `git cherry-pick`** to integrate agent branches.
+
+Cherry-picking is WRONG because:
+- Branches stay "unmerged" and pile up even though the work is on main
+- Creates duplicate commits in history
+- Causes merge conflicts when the branch is later merged
 
 ```bash
-# Create integration branch
-git checkout -b integrate/auth-system main
+# ✅ CORRECT: Merge the branch in the MAIN REPO
+git -C "$BC_WORKSPACE" merge <branch-name> --no-edit
+git -C "$BC_WORKSPACE" push origin main
 
-# Merge engineer branches
-git merge feature/auth-login-api
-git merge feature/auth-password-reset
-git merge feature/auth-tests
+# ❌ WRONG: Never cherry-pick
+# git cherry-pick <hash>  ← DO NOT DO THIS
 
-# Run full test suite
-go test ./...
+# ❌ WRONG: Never merge from your worktree
+# git merge <branch>  ← This updates git objects but not the main repo working tree
+```
 
-# If all good
-bc report done "Auth system integrated and tested"
+**All merges must happen in the main repo** (`$BC_WORKSPACE`), not in your worktree. Merging from a worktree leaves the main repo's working tree out of sync.
+
+After merging, always verify:
+```bash
+git -C "$BC_WORKSPACE" status   # Should be clean, on main
+git -C "$BC_WORKSPACE" push origin main
 ```
 
 ## Interaction Patterns
