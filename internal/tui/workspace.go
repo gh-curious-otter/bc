@@ -195,6 +195,10 @@ func (m *WorkspaceModel) selectCurrent() Action {
 		if m.cursor < len(m.channels) {
 			return Action{Type: ActionDrillChannel, Data: m.channels[m.cursor]}
 		}
+	case TabQueue:
+		if m.cursor < len(m.queueItems) {
+			return Action{Type: ActionDrillQueue, Data: m.queueItems[m.cursor]}
+		}
 	}
 	return NoAction
 }

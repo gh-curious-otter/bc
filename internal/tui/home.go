@@ -13,6 +13,7 @@ import (
 	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/github"
+	"github.com/rpuneet/bc/pkg/queue"
 	"github.com/rpuneet/bc/pkg/tui/style"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -27,6 +28,7 @@ const (
 	ScreenChannel
 	ScreenIssue
 	ScreenPR
+	ScreenQueueItem
 )
 
 // TickMsg triggers a periodic refresh.
@@ -69,6 +71,9 @@ type HomeModel struct {
 
 	// PR detail state
 	prModel *PRModel
+
+	// Queue item detail state
+	queueItemModel *QueueItemModel
 
 	// Status message
 	statusMsg string
@@ -121,6 +126,10 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.prModel.width = msg.Width
 			m.prModel.height = msg.Height
 		}
+		if m.queueItemModel != nil {
+			m.queueItemModel.width = msg.Width
+			m.queueItemModel.height = msg.Height
+		}
 		return m, nil
 
 	case TickMsg:
@@ -165,6 +174,8 @@ func (m *HomeModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleIssueKey(msg)
 	case ScreenPR:
 		return m.handlePRKey(msg)
+	case ScreenQueueItem:
+		return m.handleQueueItemKey(msg)
 	}
 
 	return m, nil
@@ -248,6 +259,13 @@ func (m *HomeModel) handleWorkspaceKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.channelModel.height = m.height
 				m.screen = ScreenChannel
 			}
+		case ActionDrillQueue:
+			if item, ok := action.Data.(queue.WorkItem); ok {
+				m.queueItemModel = NewQueueItemModel(item, m.styles)
+				m.queueItemModel.width = m.width
+				m.queueItemModel.height = m.height
+				m.screen = ScreenQueueItem
+			}
 		}
 	}
 
@@ -322,6 +340,19 @@ func (m *HomeModel) handlePRKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m *HomeModel) handleQueueItemKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.queueItemModel != nil {
+		action := m.queueItemModel.HandleKey(msg)
+		switch action.Type {
+		case ActionBack:
+			m.screen = ScreenWorkspace
+			m.queueItemModel = nil
+		}
+	}
+
+	return m, nil
+}
+
 // refreshWorkspaces re-scans each workspace entry to update agent counts and issue counts.
 func (m *HomeModel) refreshWorkspaces() {
 	for i, ws := range m.workspaces {
@@ -371,6 +402,10 @@ func (m *HomeModel) View() string {
 		if m.prModel != nil {
 			sections = append(sections, m.prModel.View())
 		}
+	case ScreenQueueItem:
+		if m.queueItemModel != nil {
+			sections = append(sections, m.queueItemModel.View())
+		}
 	}
 
 	// Status bar
@@ -404,6 +439,10 @@ func (m *HomeModel) renderHeader() string {
 	case ScreenPR:
 		if m.prModel != nil {
 			screenLabel = fmt.Sprintf("PR #%d", m.prModel.pr.Number)
+		}
+	case ScreenQueueItem:
+		if m.queueItemModel != nil {
+			screenLabel = m.queueItemModel.item.ID
 		}
 	}
 	if screenLabel != "" {
@@ -484,6 +523,8 @@ func (m *HomeModel) renderStatusBar() string {
 	case ScreenIssue:
 		hints = "esc:back | q:quit"
 	case ScreenPR:
+		hints = "esc:back | q:quit"
+	case ScreenQueueItem:
 		hints = "esc:back | q:quit"
 	}
 
