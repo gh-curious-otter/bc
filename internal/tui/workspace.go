@@ -26,8 +26,9 @@ const (
 	TabQueue
 	TabChannels
 	TabDashboard
+	TabStats
 
-	tabCount // 5
+	tabCount = 6
 )
 
 // WorkspaceStats holds aggregated statistics for the workspace.
@@ -66,7 +67,6 @@ type WorkspaceModel struct {
 
 	// Per-agent stats from pkg/stats
 	agentStats map[string]stats.AgentStat
-
 	// Dashboard stats
 	stats        WorkspaceStats
 	pkgStats     *stats.Stats
@@ -111,11 +111,11 @@ func NewWorkspaceModel(info WorkspaceInfo, s style.Styles) *WorkspaceModel {
 	// Load per-agent stats from pkg/stats
 	m.loadAgentStats()
 
+	// Load recent events for activity feed
+	m.loadRecentEvents()
+
 	// Compute dashboard stats
 	m.computeStats()
-	m.loadPkgStats()
-
-	// Load full workspace stats via pkg/stats
 	m.loadPkgStats()
 
 	return m
@@ -167,6 +167,7 @@ func (m *WorkspaceModel) refresh() {
 	m.loadChannels()
 	m.loadQueueStats()
 	m.loadQueueItems()
+	m.loadRecentEvents()
 	m.computeStats()
 	m.loadPkgStats()
 }
@@ -240,6 +241,8 @@ func (m *WorkspaceModel) maxCursor() int {
 		}
 	case TabDashboard:
 		return 0
+	case TabStats:
+		return 0
 	}
 	return 0
 }
@@ -275,6 +278,8 @@ func (m *WorkspaceModel) View() string {
 		b.WriteString(m.renderQueue())
 	case TabDashboard:
 		b.WriteString(m.renderDashboard())
+	case TabStats:
+		b.WriteString(m.renderStats())
 	}
 
 	return b.String()
@@ -290,7 +295,8 @@ func (m *WorkspaceModel) renderTabBar() string {
 		{"Issues", TabIssues, len(m.issues)},
 		{"Queue", TabQueue, len(m.queueItems)},
 		{"Channels", TabChannels, len(m.channels)},
-		{"Dashboard", TabDashboard, -1}, // -1 means no count shown
+		{"Dashboard", TabDashboard, m.stats.OpenIssues},
+		{"Stats", TabStats, -1},
 	}
 
 	var parts []string
@@ -605,6 +611,46 @@ func (m *WorkspaceModel) renderQueue() string {
 	return b.String()
 }
 
+func (m *WorkspaceModel) loadPkgStats() {
+	stateDir := filepath.Join(m.info.Entry.Path, ".bc")
+	s, err := stats.Load(stateDir)
+	if err != nil {
+		return
+	}
+	m.pkgStats = s
+}
+
+func (m *WorkspaceModel) renderStatsBar() string {
+	var parts []string
+
+	parts = append(parts, fmt.Sprintf("Issues: %d (%d open, %d closed)",
+		m.stats.TotalIssues, m.stats.OpenIssues, m.stats.ClosedIssues))
+	parts = append(parts, fmt.Sprintf("Epics: %d", m.stats.EpicsCount))
+	activeCount := m.stats.WorkingAgents + m.stats.IdleAgents + m.stats.StuckAgents
+	parts = append(parts, fmt.Sprintf("Agents: %d (%d active, %d idle, %d stuck)",
+		len(m.agents), activeCount, m.stats.IdleAgents, m.stats.StuckAgents))
+	parts = append(parts, fmt.Sprintf("Queue: %d pending, %d working, %d done",
+		m.queueStats.Pending+m.queueStats.Assigned,
+		m.queueStats.Working,
+		m.queueStats.Done))
+	if m.pkgStats != nil && m.pkgStats.WorkItems.Total > 0 {
+		parts = append(parts, fmt.Sprintf("Completion: %.1f%%",
+			m.pkgStats.WorkItems.CompletionRate*100))
+	}
+
+	return m.styles.Muted.Render(strings.Join(parts, "  |  "))
+}
+
+func (m *WorkspaceModel) loadRecentEvents() {
+	evtLog := events.NewLog(filepath.Join(m.info.Entry.Path, ".bc", "events.jsonl"))
+	evts, err := evtLog.ReadLast(dashboardMaxEvents)
+	if err != nil {
+		m.recentEvents = nil
+		return
+	}
+	m.recentEvents = evts
+}
+
 func (m *WorkspaceModel) renderDashboard() string {
 	var b strings.Builder
 
@@ -808,55 +854,6 @@ func (m *WorkspaceModel) getRecentlyClosedIssues() []beads.Issue {
 		}
 	}
 	return closed
-}
-
-func (m *WorkspaceModel) loadRecentEvents() {
-	evtLog := events.NewLog(filepath.Join(m.info.Entry.Path, ".bc", "events.jsonl"))
-	evts, err := evtLog.ReadLast(dashboardMaxEvents)
-	if err != nil {
-		m.recentEvents = nil
-		return
-	}
-	m.recentEvents = evts
-}
-
-func (m *WorkspaceModel) loadPkgStats() {
-	stateDir := filepath.Join(m.info.Entry.Path, ".bc")
-	s, err := stats.Load(stateDir)
-	if err != nil {
-		return
-	}
-	m.pkgStats = s
-}
-
-func (m *WorkspaceModel) renderStatsBar() string {
-	var parts []string
-
-	// Issues: total (open/closed)
-	parts = append(parts, fmt.Sprintf("Issues: %d (%d open, %d closed)",
-		m.stats.TotalIssues, m.stats.OpenIssues, m.stats.ClosedIssues))
-
-	// Epics
-	parts = append(parts, fmt.Sprintf("Epics: %d", m.stats.EpicsCount))
-
-	// Agents: count (active/idle/stuck)
-	activeCount := m.stats.WorkingAgents + m.stats.IdleAgents + m.stats.StuckAgents
-	parts = append(parts, fmt.Sprintf("Agents: %d (%d active, %d idle, %d stuck)",
-		len(m.agents), activeCount, m.stats.IdleAgents, m.stats.StuckAgents))
-
-	// Queue: pending/working/done
-	parts = append(parts, fmt.Sprintf("Queue: %d pending, %d working, %d done",
-		m.queueStats.Pending+m.queueStats.Assigned,
-		m.queueStats.Working,
-		m.queueStats.Done))
-
-	// Completion rate from pkg/stats
-	if m.pkgStats != nil && m.pkgStats.WorkItems.Total > 0 {
-		parts = append(parts, fmt.Sprintf("Completion: %.1f%%",
-			m.pkgStats.WorkItems.CompletionRate*100))
-	}
-
-	return m.styles.Muted.Render(strings.Join(parts, "  |  "))
 }
 
 func (m *WorkspaceModel) renderStatsPanel() string {

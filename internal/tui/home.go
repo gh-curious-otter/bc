@@ -301,6 +301,26 @@ func (m *HomeModel) handleChannelKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.wsModel != nil {
 				m.wsModel.loadChannels()
 			}
+		case ActionCreateIssue:
+			if entry, ok := action.Data.(channel.HistoryEntry); ok && m.wsModel != nil {
+				wsPath := m.wsModel.info.Entry.Path
+				title := entry.Message
+				if len(title) > 120 {
+					title = title[:120]
+				}
+				desc := fmt.Sprintf("From channel #%s by %s at %s\n\n%s",
+					m.channelModel.channel.Name,
+					entry.Sender,
+					entry.Time.Format("2006-01-02 15:04:05"),
+					entry.Message,
+				)
+				if err := beads.AddIssue(wsPath, title, desc); err != nil {
+					m.statusMsg = "Error creating issue: " + err.Error()
+				} else {
+					m.statusMsg = "Issue created from message"
+					m.wsModel.issues = beads.ListIssues(wsPath)
+				}
+			}
 		}
 	}
 
@@ -535,6 +555,8 @@ func (m *HomeModel) renderHelp() string {
 		b.WriteString(m.styles.Bold.Render("  Channel"))
 		b.WriteString("\n")
 		for _, k := range [][2]string{
+			{"j/k", "Select message"},
+			{"i", "Create issue from message"},
 			{"s", "Send message to channel"},
 			{"r", "Refresh channel"},
 		} {
@@ -569,7 +591,7 @@ func (m *HomeModel) renderStatusBar() string {
 		case ScreenAgent:
 			hints = "p:peek | a:attach | s:send | r:refresh | ?:help | esc:back | q:quit"
 		case ScreenChannel:
-			hints = "s:send message | r:refresh | ?:help | esc:back | q:quit"
+			hints = "j/k:select msg | i:create issue | s:send | r:refresh | ?:help | esc:back | q:quit"
 		case ScreenIssue:
 			hints = "?:help | esc:back | q:quit"
 		case ScreenQueueItem:

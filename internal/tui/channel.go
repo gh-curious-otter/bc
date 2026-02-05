@@ -23,6 +23,8 @@ type ChannelModel struct {
 
 	// Scroll position (index of first visible message from end)
 	scroll int
+	// Message selection cursor
+	cursor int
 
 	// Send message mode
 	sendMode bool
@@ -52,17 +54,12 @@ func (m *ChannelModel) HandleKey(msg tea.KeyMsg) Action {
 	switch key {
 	case "esc":
 		return Action{Type: ActionBack}
-	case "s":
-		m.sendMode = true
-		m.input = ""
-		m.sendMsg = ""
-		return NoAction
-	case "r":
-		m.reloadChannel()
-		return NoAction
 	case "j", "down":
 		if m.scroll > 0 {
 			m.scroll--
+		}
+		if m.cursor < m.visibleCount()-1 {
+			m.cursor++
 		}
 		return NoAction
 	case "k", "up":
@@ -73,6 +70,17 @@ func (m *ChannelModel) HandleKey(msg tea.KeyMsg) Action {
 		if m.scroll < maxScroll {
 			m.scroll++
 		}
+		if m.cursor > 0 {
+			m.cursor--
+		}
+		return NoAction
+	case "s":
+		m.sendMode = true
+		m.input = ""
+		m.sendMsg = ""
+		return NoAction
+	case "r":
+		m.reloadChannel()
 		return NoAction
 	case "g", "home":
 		maxScroll := len(m.channel.History) - m.visibleMsgCount()
@@ -84,9 +92,40 @@ func (m *ChannelModel) HandleKey(msg tea.KeyMsg) Action {
 	case "G", "end":
 		m.scroll = 0
 		return NoAction
+	case "i":
+		if entry, ok := m.selectedMessage(); ok {
+			return Action{Type: ActionCreateIssue, Data: entry}
+		}
+		return NoAction
 	}
 
 	return NoAction
+}
+
+// visibleCount returns the number of messages currently displayed.
+func (m *ChannelModel) visibleCount() int {
+	n := len(m.channel.History)
+	if n > 20 {
+		return 20
+	}
+	return n
+}
+
+// selectedMessage returns the currently selected history entry.
+func (m *ChannelModel) selectedMessage() (channel.HistoryEntry, bool) {
+	n := len(m.channel.History)
+	if n == 0 {
+		return channel.HistoryEntry{}, false
+	}
+	start := 0
+	if n > 20 {
+		start = n - 20
+	}
+	visible := m.channel.History[start:]
+	if m.cursor < 0 || m.cursor >= len(visible) {
+		return channel.HistoryEntry{}, false
+	}
+	return visible[m.cursor], true
 }
 
 func (m *ChannelModel) handleSendKey(msg tea.KeyMsg) Action {
@@ -271,6 +310,43 @@ func (m *ChannelModel) View() string {
 	// Bottom divider
 	b.WriteString(m.styles.Muted.Render("  " + strings.Repeat("─", divWidth)))
 	b.WriteString("\n")
+
+	// History section
+	b.WriteString(m.styles.Bold.Render("Recent Messages"))
+	b.WriteString("\n")
+	if len(m.channel.History) == 0 {
+		b.WriteString(m.styles.Muted.Render("  No messages"))
+		b.WriteString("\n")
+	} else {
+		// Show last 20 messages
+		start := 0
+		if len(m.channel.History) > 20 {
+			start = len(m.channel.History) - 20
+		}
+		for i, entry := range m.channel.History[start:] {
+			selected := i == m.cursor
+			var line string
+			if entry.Sender != "" {
+				line = fmt.Sprintf("  %s  [%s] %s", entry.Time.Format("15:04:05"), entry.Sender, entry.Message)
+			} else {
+				line = fmt.Sprintf("  %s  %s", entry.Time.Format("15:04:05"), entry.Message)
+			}
+			if selected {
+				b.WriteString(m.styles.Selected.Render(line))
+			} else {
+				ts := m.styles.Muted.Render(entry.Time.Format("15:04:05"))
+				msg := m.styles.Normal.Render(entry.Message)
+				if entry.Sender != "" {
+					sender := m.styles.Info.Render("[" + entry.Sender + "]")
+					line = fmt.Sprintf("  %s  %s %s", ts, sender, msg)
+				} else {
+					line = fmt.Sprintf("  %s  %s", ts, msg)
+				}
+				b.WriteString(line)
+			}
+			b.WriteString("\n")
+		}
+	}
 
 	// Send mode or status
 	if m.sendMode {
