@@ -3,13 +3,17 @@ package tmux
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // Session represents a tmux session.
@@ -71,6 +75,7 @@ func (m *Manager) HasSession(name string) bool {
 // CreateSession creates a new tmux session.
 func (m *Manager) CreateSession(name, dir string) error {
 	fullName := m.SessionName(name)
+	log.Debug("creating tmux session", "name", fullName, "dir", dir)
 
 	args := []string{"new-session", "-d", "-s", fullName}
 	if dir != "" {
@@ -119,6 +124,7 @@ func (m *Manager) CreateSessionWithEnv(name, dir, command string, env map[string
 // KillSession kills a tmux session.
 func (m *Manager) KillSession(name string) error {
 	fullName := m.SessionName(name)
+	log.Debug("killing tmux session", "name", fullName)
 	cmd := exec.Command("tmux", "kill-session", "-t", fullName)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -127,20 +133,39 @@ func (m *Manager) KillSession(name string) error {
 	return nil
 }
 
-// SendKeys sends keys to a session. submitKey is the key to send after the message
-// (e.g. "Enter", "C-Enter", "M-Enter"). Use "" to send no key (message is left in the
-// input buffer; useful when the agent treats Enter as newline, e.g. Cursor Agent).
+// SendKeys sends keys to a session with Enter as submit key.
+// This is a convenience wrapper around SendKeysWithSubmit.
+func (m *Manager) SendKeys(name, keys string) error {
+	return m.SendKeysWithSubmit(name, keys, "Enter")
+}
+
+// SendKeysWithSubmit sends keys to a session with a specified submit key.
 // For messages longer than 500 chars, uses tmux load-buffer/paste-buffer to avoid truncation.
-// Trailing newlines are trimmed so the final submit key produces a single newline.
-func (m *Manager) SendKeys(name, keys, submitKey string) error {
+// Trailing newlines are trimmed. submitKey specifies what to send after the message:
+// - "Enter" sends literal \r (carriage return) which works for both Claude and Cursor agents
+// - "" sends nothing (message is left in input buffer)
+// - Other values are sent as-is (e.g., "C-Enter" for Ctrl+Enter)
+func (m *Manager) SendKeysWithSubmit(name, keys, submitKey string) error {
 	keys = strings.TrimRight(keys, "\n")
 	fullName := m.SessionName(name)
 
 	if len(keys) <= 500 {
-		args := []string{"send-keys", "-t", fullName, keys}
-		if submitKey != "" {
-			args = append(args, submitKey)
+		// Use -l (literal) with \r to submit. This works for both Claude and Cursor agents.
+		// Cursor agent interprets tmux "Enter" as newline, but literal \r is submit.
+		if submitKey == "Enter" || submitKey == "" {
+			text := keys
+			if submitKey == "Enter" {
+				text += "\r"
+			}
+			cmd := exec.Command("tmux", "send-keys", "-t", fullName, "-l", text)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				return fmt.Errorf("failed to send keys to %s: %w (%s)", fullName, err, string(output))
+			}
+			return nil
 		}
+		// For other submit keys (C-Enter, etc.), use standard approach
+		args := []string{"send-keys", "-t", fullName, keys, submitKey}
 		cmd := exec.Command("tmux", args...)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
@@ -149,7 +174,10 @@ func (m *Manager) SendKeys(name, keys, submitKey string) error {
 		return nil
 	}
 
-	// Long message: use temp file + load-buffer + paste-buffer
+	// Long message: use temp file + load-buffer + paste-buffer with named buffer
+	// Use a unique buffer name to avoid race conditions with concurrent sends
+	bufferName := generateBufferName()
+
 	tmpDir := filepath.Join(os.TempDir(), "bc-tmux")
 	os.MkdirAll(tmpDir, 0700)
 	tmpFile, err := os.CreateTemp(tmpDir, "send-*.txt")
@@ -165,13 +193,17 @@ func (m *Manager) SendKeys(name, keys, submitKey string) error {
 	}
 	tmpFile.Close()
 
-	loadCmd := exec.Command("tmux", "load-buffer", tmpPath)
+	// Load into named buffer
+	loadCmd := exec.Command("tmux", "load-buffer", "-b", bufferName, tmpPath)
 	if output, err := loadCmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to load buffer: %w (%s)", err, string(output))
 	}
 
-	pasteCmd := exec.Command("tmux", "paste-buffer", "-t", fullName)
+	// Paste from named buffer and delete it afterward
+	pasteCmd := exec.Command("tmux", "paste-buffer", "-b", bufferName, "-d", "-t", fullName)
 	if output, err := pasteCmd.CombinedOutput(); err != nil {
+		// Clean up buffer on error
+		exec.Command("tmux", "delete-buffer", "-b", bufferName).Run()
 		return fmt.Errorf("failed to paste buffer to %s: %w (%s)", fullName, err, string(output))
 	}
 
@@ -182,9 +214,17 @@ func (m *Manager) SendKeys(name, keys, submitKey string) error {
 	// Wait for paste to complete before sending submit key
 	time.Sleep(500 * time.Millisecond)
 
-	submitCmd := exec.Command("tmux", "send-keys", "-t", fullName, submitKey)
-	if output, err := submitCmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to send %q to %s: %w (%s)", submitKey, fullName, err, string(output))
+	// Use -l with \r for Enter to work with Cursor agent
+	if submitKey == "Enter" {
+		submitCmd := exec.Command("tmux", "send-keys", "-t", fullName, "-l", "\r")
+		if output, err := submitCmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("failed to send submit key to %s: %w (%s)", fullName, err, string(output))
+		}
+	} else {
+		submitCmd := exec.Command("tmux", "send-keys", "-t", fullName, submitKey)
+		if output, err := submitCmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("failed to send %q to %s: %w (%s)", submitKey, fullName, err, string(output))
+		}
 	}
 
 	return nil
@@ -287,4 +327,12 @@ func (m *Manager) SetEnvironment(name, key, value string) error {
 	fullName := m.SessionName(name)
 	cmd := exec.Command("tmux", "set-environment", "-t", fullName, key, value)
 	return cmd.Run()
+}
+
+// generateBufferName creates a unique buffer name for tmux operations.
+// This prevents race conditions when multiple goroutines send keys concurrently.
+func generateBufferName() string {
+	b := make([]byte, 8)
+	rand.Read(b)
+	return "bc-" + hex.EncodeToString(b)
 }

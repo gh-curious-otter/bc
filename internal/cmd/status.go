@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/x/term"
 	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/log"
 	"github.com/spf13/cobra"
 )
 
@@ -35,10 +36,14 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Create agent manager and load state
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
-	mgr.LoadState()
+	if err := mgr.LoadState(); err != nil {
+		log.Warn("failed to load agent state", "error", err)
+	}
 
 	// Refresh state from tmux
-	mgr.RefreshState()
+	if err := mgr.RefreshState(); err != nil {
+		log.Warn("failed to refresh agent state", "error", err)
+	}
 
 	agents := mgr.ListAgents()
 

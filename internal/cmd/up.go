@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -16,27 +17,38 @@ import (
 var upCmd = &cobra.Command{
 	Use:   "up",
 	Short: "Start bc agents",
-	Long: `Start the bc agent system.
+	Long: `Start the bc agent system with the default roster.
+
+Default roster:
+  - coordinator (orchestrates work)
+  - product-manager (creates epics)
+  - manager (assigns tasks)
+  - engineer-01, engineer-02, engineer-03 (implement tasks)
+  - qa-01, qa-02 (test implementations)
 
 This will:
-1. Start the coordinator agent
-2. Start the product-manager and manager agents
-3. Start worker agents (based on max-workers or --workers)
-4. Load beads issues into the work queue
-5. Send bootstrap prompts to coordinator, product-manager, and manager
+1. Start all agents in the roster
+2. Load beads issues into the work queue
+3. Send role prompts from prompts/ directory
+4. Send bootstrap prompts to all agents
 
 Example:
-  bc up                    # Start with default settings
-  bc up --workers 5        # Start with 5 workers
-  bc up --agent cursor    # Use Cursor AI for all agents`,
+  bc up                      # Start with default roster (3 engineers, 2 QA)
+  bc up --engineers 5        # Start with 5 engineers
+  bc up --qa 3               # Start with 3 QA agents
+  bc up --agent cursor       # Use Cursor AI for all agents`,
 	RunE: runUp,
 }
 
 var upWorkers int
+var upEngineers int
+var upQA int
 var upAgent string
 
 func init() {
-	upCmd.Flags().IntVar(&upWorkers, "workers", 0, "Number of workers (0 = use config default)")
+	upCmd.Flags().IntVar(&upWorkers, "workers", 0, "Number of workers (deprecated, use --engineers)")
+	upCmd.Flags().IntVar(&upEngineers, "engineers", 3, "Number of engineer agents")
+	upCmd.Flags().IntVar(&upQA, "qa", 2, "Number of QA agents")
 	upCmd.Flags().StringVar(&upAgent, "agent", "", "Agent type from config (e.g. claude, cursor, cursor-agent, codex)")
 	rootCmd.AddCommand(upCmd)
 }
@@ -62,10 +74,12 @@ func runUp(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Determine worker count
-	numWorkers := ws.Config.MaxWorkers
+	// Determine agent counts (--workers is deprecated, use --engineers)
+	numEngineers := upEngineers
+	numQA := upQA
 	if upWorkers > 0 {
-		numWorkers = upWorkers
+		// Legacy: if --workers is set, use it for engineers
+		numEngineers = upWorkers
 	}
 
 	// Event log
@@ -135,35 +149,93 @@ func runUp(cmd *cobra.Command, args []string) error {
 	log.Append(events.Event{Type: events.AgentSpawned, Agent: "manager"})
 	time.Sleep(300 * time.Millisecond)
 
-	// Start workers
-	workerNames := make([]string, 0, numWorkers)
-	for i := 1; i <= numWorkers; i++ {
-		name := fmt.Sprintf("worker-%02d", i)
+	// Start engineers
+	engineerNames := make([]string, 0, numEngineers)
+	for i := 1; i <= numEngineers; i++ {
+		name := fmt.Sprintf("engineer-%02d", i)
 		fmt.Printf("Starting %s... ", name)
 
-		worker, err := mgr.SpawnAgent(name, agent.RoleWorker, ws.RootDir)
+		eng, err := mgr.SpawnAgent(name, agent.RoleEngineer, ws.RootDir)
 		if err != nil {
 			fmt.Println("✗")
 			fmt.Printf("  Warning: failed to start %s: %v\n", name, err)
 			continue
 		}
-		fmt.Printf("✓ (session: %s)\n", mgr.Tmux().SessionName(worker.Session))
-		workerNames = append(workerNames, name)
+		fmt.Printf("✓ (session: %s)\n", mgr.Tmux().SessionName(eng.Session))
+		engineerNames = append(engineerNames, name)
 
 		log.Append(events.Event{
 			Type:  events.AgentSpawned,
 			Agent: name,
 		})
 
-		// Small delay between spawns
 		time.Sleep(300 * time.Millisecond)
+	}
+
+	// Start QA agents
+	qaNames := make([]string, 0, numQA)
+	for i := 1; i <= numQA; i++ {
+		name := fmt.Sprintf("qa-%02d", i)
+		fmt.Printf("Starting %s... ", name)
+
+		qa, err := mgr.SpawnAgent(name, agent.RoleQA, ws.RootDir)
+		if err != nil {
+			fmt.Println("✗")
+			fmt.Printf("  Warning: failed to start %s: %v\n", name, err)
+			continue
+		}
+		fmt.Printf("✓ (session: %s)\n", mgr.Tmux().SessionName(qa.Session))
+		qaNames = append(qaNames, name)
+
+		log.Append(events.Event{
+			Type:  events.AgentSpawned,
+			Agent: name,
+		})
+
+		time.Sleep(300 * time.Millisecond)
+	}
+
+	// Send engineer prompts
+	engineerPrompt := loadRolePrompt(ws.RootDir, "engineer")
+	for _, engName := range engineerNames {
+		fmt.Printf("Sending bootstrap to %s... ", engName)
+		prompt := engineerPrompt
+		if prompt == "" {
+			prompt = fmt.Sprintf("You are an engineer. Workspace: %s\n\nWait for assignments from the manager. When assigned work:\n1. bc report working \"<task>\"\n2. Implement the task\n3. bc report done \"<summary>\"\n", ws.RootDir)
+		} else {
+			prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nYour agent ID: %s\n", ws.RootDir, engName)
+		}
+		if err := mgr.SendToAgent(engName, prompt); err != nil {
+			fmt.Println("✗")
+		} else {
+			fmt.Println("✓")
+		}
+	}
+
+	// Send QA prompts
+	qaPrompt := loadRolePrompt(ws.RootDir, "qa")
+	for _, qaName := range qaNames {
+		fmt.Printf("Sending bootstrap to %s... ", qaName)
+		prompt := qaPrompt
+		if prompt == "" {
+			prompt = fmt.Sprintf("You are a QA engineer. Workspace: %s\n\nYour job is to test and validate implementations. When assigned work:\n1. bc report working \"testing <feature>\"\n2. Run tests, review code, check for issues\n3. bc report done \"<test results summary>\"\n", ws.RootDir)
+		} else {
+			prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nYour agent ID: %s\n", ws.RootDir, qaName)
+		}
+		if err := mgr.SendToAgent(qaName, prompt); err != nil {
+			fmt.Println("✗")
+		} else {
+			fmt.Println("✓")
+		}
 	}
 
 	// Build and send bootstrap prompts
 	queueItems := q.ListAll()
 
-	// Coordinator: full bootstrap with queue and all agent names (product-manager, manager, workers)
-	allAgents := append([]string{"product-manager", "manager"}, workerNames...)
+	// Coordinator: full bootstrap with queue and all agent names
+	allAgents := []string{"product-manager", "manager"}
+	allAgents = append(allAgents, engineerNames...)
+	allAgents = append(allAgents, qaNames...)
 	if len(queueItems) > 0 && len(allAgents) > 0 {
 		fmt.Print("\nSending bootstrap prompt to coordinator... ")
 		prompt := buildBootstrapPrompt(allAgents, queueItems, ws.RootDir)
@@ -175,18 +247,29 @@ func runUp(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Product-manager: brief bootstrap so it starts working
+	// Product-manager: send rich role prompt from prompts/product_manager.md
 	fmt.Print("Sending bootstrap to product-manager... ")
-	pmPrompt := fmt.Sprintf("You are the product-manager. Workspace: %s\n\nRun: bc queue && bc status\nThen create or prioritize epics and coordinate with the manager.\n", ws.RootDir)
+	pmPrompt := loadRolePrompt(ws.RootDir, "product_manager")
+	if pmPrompt == "" {
+		pmPrompt = fmt.Sprintf("You are the product-manager. Workspace: %s\n\nRun: bc queue && bc status\nThen create or prioritize epics and coordinate with the manager.\n", ws.RootDir)
+	}
 	if err := mgr.SendToAgent("product-manager", pmPrompt); err != nil {
 		fmt.Println("✗")
 	} else {
 		fmt.Println("✓")
 	}
 
-	// Manager: brief bootstrap so it starts working
+	// Manager: send rich role prompt from prompts/manager.md
 	fmt.Print("Sending bootstrap to manager... ")
-	mgrPrompt := fmt.Sprintf("You are the manager. Workspace: %s\n\nRun: bc queue && bc status\nWorkers: %s\nBreak down epics into tasks and assign to workers. Coordinate with product-manager for priorities.\n", ws.RootDir, strings.Join(workerNames, ", "))
+	mgrPrompt := loadRolePrompt(ws.RootDir, "manager")
+	teamList := strings.Join(append(engineerNames, qaNames...), ", ")
+	if mgrPrompt == "" {
+		mgrPrompt = fmt.Sprintf("You are the manager. Workspace: %s\n\nRun: bc queue && bc status\nEngineers: %s\nQA: %s\nBreak down epics into tasks and assign to engineers. Assign QA to test completed work.\n", ws.RootDir, strings.Join(engineerNames, ", "), strings.Join(qaNames, ", "))
+	} else {
+		// Append dynamic info to the rich prompt
+		mgrPrompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nEngineers: %s\nQA: %s\n", ws.RootDir, strings.Join(engineerNames, ", "), strings.Join(qaNames, ", "))
+	}
+	_ = teamList // used in coordinator bootstrap
 	if err := mgr.SendToAgent("manager", mgrPrompt); err != nil {
 		fmt.Println("✗")
 	} else {
@@ -202,6 +285,17 @@ func runUp(cmd *cobra.Command, args []string) error {
 	fmt.Println("  bc down            # Stop all agents")
 
 	return nil
+}
+
+// loadRolePrompt reads the prompt file for a role from the prompts/ directory.
+// Returns empty string if the file doesn't exist or can't be read.
+func loadRolePrompt(rootDir, role string) string {
+	promptPath := filepath.Join(rootDir, "prompts", role+".md")
+	data, err := os.ReadFile(promptPath)
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
 
 func buildBootstrapPrompt(agentNames []string, items []queue.WorkItem, rootDir string) string {

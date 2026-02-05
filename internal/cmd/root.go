@@ -4,6 +4,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/rpuneet/bc/pkg/log"
 	"github.com/spf13/cobra"
 )
 
@@ -36,6 +37,11 @@ Key features:
   • Predictable behavior
 
 Documentation: https://github.com/rpuneet/bc`,
+	// PersistentPreRun initializes logging based on flags
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		verbose, _ := cmd.Flags().GetBool("verbose")
+		log.SetVerbose(verbose)
+	},
 	// Run with no args shows help
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()

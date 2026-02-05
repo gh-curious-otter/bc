@@ -9,6 +9,7 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/events"
+	bclog "github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/queue"
 	"github.com/spf13/cobra"
 )
@@ -61,14 +62,18 @@ func runReport(cmd *cobra.Command, args []string) error {
 
 	// Update agent state
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
-	mgr.LoadState()
+	if err := mgr.LoadState(); err != nil {
+		bclog.Warn("failed to load agent state", "error", err)
+	}
 	if err := mgr.UpdateAgentState(agentID, state, message); err != nil {
 		return fmt.Errorf("failed to update agent state: %w", err)
 	}
 
 	// Update queue items based on state transition
 	q := queue.New(filepath.Join(ws.StateDir(), "queue.json"))
-	q.Load()
+	if err := q.Load(); err != nil {
+		bclog.Warn("failed to load queue", "error", err)
+	}
 
 	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
 
@@ -79,44 +84,54 @@ func runReport(cmd *cobra.Command, args []string) error {
 		case agent.StateWorking:
 			if item.Status == queue.StatusAssigned {
 				q.UpdateStatus(item.ID, queue.StatusWorking)
-				log.Append(events.Event{
+				if err := log.Append(events.Event{
 					Type:    events.WorkStarted,
 					Agent:   agentID,
 					Message: message,
 					Data:    map[string]any{"work_id": item.ID},
-				})
+				}); err != nil {
+					bclog.Warn("failed to append work started event", "error", err)
+				}
 			}
 		case agent.StateDone:
 			if item.Status == queue.StatusWorking || item.Status == queue.StatusAssigned {
 				q.UpdateStatus(item.ID, queue.StatusDone)
-				log.Append(events.Event{
+				if err := log.Append(events.Event{
 					Type:    events.WorkCompleted,
 					Agent:   agentID,
 					Message: message,
 					Data:    map[string]any{"work_id": item.ID},
-				})
+				}); err != nil {
+					bclog.Warn("failed to append work completed event", "error", err)
+				}
 				// Close linked beads issue if present
 				if item.BeadsID != "" {
 					if err := beads.CloseIssue(ws.RootDir, item.BeadsID); err != nil {
 						// Log but don't fail - beads sync is best-effort
-						log.Append(events.Event{
+						if appendErr := log.Append(events.Event{
 							Type:    events.AgentReport,
 							Agent:   agentID,
 							Message: fmt.Sprintf("warning: failed to close beads issue %s: %v", item.BeadsID, err),
-						})
+						}); appendErr != nil {
+							bclog.Warn("failed to append beads close warning event", "error", appendErr)
+						}
 					}
 				}
 			}
 		}
 	}
-	q.Save()
+	if err := q.Save(); err != nil {
+		bclog.Warn("failed to save queue", "error", err)
+	}
 
 	// Log the report event
-	log.Append(events.Event{
+	if err := log.Append(events.Event{
 		Type:    events.AgentReport,
 		Agent:   agentID,
 		Message: fmt.Sprintf("%s: %s", state, message),
-	})
+	}); err != nil {
+		bclog.Warn("failed to append agent report event", "error", err)
+	}
 
 	fmt.Printf("Reported: %s %s\n", state, message)
 	return nil

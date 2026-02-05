@@ -410,3 +410,31 @@ func fmtDuration(d time.Duration) string {
 	}
 	return fmt.Sprintf("%ds", s)
 }
+
+func (m *WorkspaceModel) computeStats() {
+	m.stats = WorkspaceStats{}
+	for _, issue := range m.issues {
+		m.stats.TotalIssues++
+		if issue.Type == "epic" {
+			m.stats.EpicsCount++
+		}
+		switch issue.Status {
+		case "open", "pending", "in_progress":
+			m.stats.OpenIssues++
+		case "closed", "done", "resolved":
+			m.stats.ClosedIssues++
+		}
+	}
+	for _, a := range m.agents {
+		switch a.State {
+		case agent.StateIdle:
+			m.stats.IdleAgents++
+		case agent.StateWorking:
+			m.stats.WorkingAgents++
+		case agent.StateStuck:
+			m.stats.StuckAgents++
+		case agent.StateStopped:
+			m.stats.StoppedAgents++
+		}
+	}
+}

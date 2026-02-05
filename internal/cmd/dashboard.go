@@ -10,6 +10,7 @@ import (
 
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/events"
+	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/queue"
 	"github.com/spf13/cobra"
 )
@@ -38,18 +39,27 @@ func runDashboard(cmd *cobra.Command, args []string) error {
 
 	// Load agents
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
-	mgr.LoadState()
-	mgr.RefreshState()
+	if err := mgr.LoadState(); err != nil {
+		log.Warn("failed to load agent state", "error", err)
+	}
+	if err := mgr.RefreshState(); err != nil {
+		log.Warn("failed to refresh agent state", "error", err)
+	}
 	agents := mgr.ListAgents()
 
 	// Load queue
 	q := queue.New(filepath.Join(ws.StateDir(), "queue.json"))
-	q.Load()
+	if err := q.Load(); err != nil {
+		log.Warn("failed to load queue", "error", err)
+	}
 	qs := q.Stats()
 
 	// Load recent events
-	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	recentEvents, _ := log.ReadLast(10)
+	evtLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
+	recentEvents, err := evtLog.ReadLast(10)
+	if err != nil {
+		log.Warn("failed to read recent events", "error", err)
+	}
 
 	// JSON output
 	jsonOutput, _ := cmd.Flags().GetBool("json")

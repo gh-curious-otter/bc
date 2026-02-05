@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/log"
 	"github.com/spf13/cobra"
 )
 
@@ -38,7 +39,9 @@ func runDown(cmd *cobra.Command, args []string) error {
 	
 	// Create agent manager and load state
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
-	mgr.LoadState()
+	if err := mgr.LoadState(); err != nil {
+		log.Warn("failed to load agent state", "error", err)
+	}
 	
 	agents := mgr.ListAgents()
 	if len(agents) == 0 {

@@ -42,8 +42,8 @@ description = "Anthropic Claude Code"
 
 [[agents]]
 name = "cursor"
-command = "cursor --dangerously-skip-permissions"
-description = "Cursor AI"
+command = "cursor-agent --force"
+description = "Cursor Agent (all permissions)"
 
 [[agents]]
 name = "cursor-agent"
@@ -54,6 +54,11 @@ description = "Cursor Agent (headless, all permissions, stdin/Enter submits)"
 name = "codex"
 command = "codex --full-auto"
 description = "OpenAI Codex"
+
+[[agents]]
+name = "server"
+command = "claude mcp serve"
+description = "Claude MCP Server"
 
 # Role definitions with system prompts
 # Roles define agent behavior and available commands

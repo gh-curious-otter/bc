@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rpuneet/bc/config"
+	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/tmux"
 )
 
@@ -27,6 +28,7 @@ const (
 	RoleProductManager Role = "product-manager" // Owns product vision, creates epics
 	RoleManager        Role = "manager"         // Breaks down epics, manages engineers
 	RoleEngineer       Role = "engineer"        // Implements tasks (like worker)
+	RoleQA             Role = "qa"              // Tests and validates implementations
 )
 
 // Capability defines what actions a role can perform.
@@ -38,6 +40,7 @@ const (
 	CapCreateEpics    Capability = "create_epics"    // Can create high-level epics
 	CapImplementTasks Capability = "implement_tasks" // Can write code/implement
 	CapReviewWork     Capability = "review_work"     // Can review others' work
+	CapTestWork       Capability = "test_work"       // Can test and validate implementations
 )
 
 // RoleCapabilities defines what each role can do.
@@ -45,6 +48,7 @@ var RoleCapabilities = map[Role][]Capability{
 	RoleProductManager: {CapCreateAgents, CapAssignWork, CapCreateEpics, CapReviewWork},
 	RoleManager:        {CapCreateAgents, CapAssignWork, CapReviewWork},
 	RoleEngineer:       {CapImplementTasks},
+	RoleQA:             {CapTestWork, CapReviewWork},
 	// Legacy mappings
 	RoleCoordinator: {CapCreateAgents, CapAssignWork, CapReviewWork},
 	RoleWorker:      {CapImplementTasks},
@@ -53,10 +57,11 @@ var RoleCapabilities = map[Role][]Capability{
 // RoleHierarchy defines which roles can create which child roles.
 var RoleHierarchy = map[Role][]Role{
 	RoleProductManager: {RoleManager},
-	RoleManager:        {RoleEngineer},
+	RoleManager:        {RoleEngineer, RoleQA},
 	RoleEngineer:       {}, // Cannot create children
+	RoleQA:             {}, // Cannot create children
 	// Legacy mappings
-	RoleCoordinator: {RoleWorker, RoleManager, RoleEngineer},
+	RoleCoordinator: {RoleWorker, RoleManager, RoleEngineer, RoleQA},
 	RoleWorker:      {},
 }
 
@@ -95,7 +100,7 @@ func RoleLevel(role Role) int {
 		return 0
 	case RoleManager:
 		return 1
-	case RoleEngineer, RoleWorker:
+	case RoleEngineer, RoleWorker, RoleQA:
 		return 2
 	default:
 		return 99
@@ -114,6 +119,14 @@ const (
 	StateError    State = "error"
 	StateStopped  State = "stopped"
 )
+
+// AgentMemory holds role-specific content loaded from prompts/<role>.md.
+type AgentMemory struct {
+	// RolePrompt is the full content of the role's prompt file.
+	RolePrompt string `json:"role_prompt,omitempty"`
+	// LoadedAt is when the memory was loaded.
+	LoadedAt time.Time `json:"loaded_at,omitempty"`
+}
 
 // Agent represents a running AI agent.
 type Agent struct {
@@ -138,6 +151,9 @@ type Agent struct {
 
 	// For workers/engineers
 	HookedWork string `json:"hooked_work,omitempty"`
+
+	// Memory holds role-specific prompts and context
+	Memory *AgentMemory `json:"memory,omitempty"`
 }
 
 // HasCapability checks if this agent has a specific capability.
@@ -158,6 +174,26 @@ func (a *Agent) IsLeaf() bool {
 // Level returns the hierarchy level of this agent.
 func (a *Agent) Level() int {
 	return RoleLevel(a.Role)
+}
+
+// LoadRoleMemory loads role-specific prompt content from prompts/<role>.md.
+// The role name is normalized (e.g., "product-manager" -> "product_manager").
+// Returns nil AgentMemory if the file doesn't exist.
+func LoadRoleMemory(workspacePath string, role Role) *AgentMemory {
+	// Normalize role name for filename: product-manager -> product_manager
+	roleName := strings.ReplaceAll(string(role), "-", "_")
+	promptPath := filepath.Join(workspacePath, "prompts", roleName+".md")
+
+	data, err := os.ReadFile(promptPath)
+	if err != nil {
+		log.Debug("no role prompt found", "role", role, "path", promptPath)
+		return nil
+	}
+
+	return &AgentMemory{
+		RolePrompt: string(data),
+		LoadedAt:   time.Now(),
+	}
 }
 
 // Manager handles agent lifecycle.
@@ -198,11 +234,15 @@ func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 
 // SetAgentCommand sets the command to run for agents.
 func (m *Manager) SetAgentCommand(cmd string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.agentCmd = cmd
 }
 
 // SetAgentByName sets the agent command by looking up the agent name in config.
 func (m *Manager) SetAgentByName(name string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	for _, a := range config.Agents {
 		if a.Name == name {
 			m.agentCmd = a.Command
@@ -235,14 +275,29 @@ func ListAvailableTools() []string {
 // SpawnAgent creates and starts a new agent.
 // Idempotent: if the agent already exists and its tmux session is alive, reuse it.
 func (m *Manager) SpawnAgent(name string, role Role, workspace string) (*Agent, error) {
-	return m.SpawnAgentWithParent(name, role, workspace, "")
+	return m.SpawnAgentWithOptions(name, role, workspace, "", "")
+}
+
+// SpawnAgentWithTool creates and starts a new agent with a specific tool.
+// If tool is empty, uses the manager's default agent command.
+func (m *Manager) SpawnAgentWithTool(name string, role Role, workspace string, tool string) (*Agent, error) {
+	return m.SpawnAgentWithOptions(name, role, workspace, "", tool)
 }
 
 // SpawnAgentWithParent creates and starts a new agent with a parent relationship.
 // Idempotent: if the agent already exists and its tmux session is alive, reuse it.
 func (m *Manager) SpawnAgentWithParent(name string, role Role, workspace string, parentID string) (*Agent, error) {
+	return m.SpawnAgentWithOptions(name, role, workspace, parentID, "")
+}
+
+// SpawnAgentWithOptions creates and starts a new agent with all options.
+// If tool is empty, uses the manager's default agent command.
+// Idempotent: if the agent already exists and its tmux session is alive, reuse it.
+func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string, parentID string, tool string) (*Agent, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	log.Debug("spawning agent", "name", name, "role", role, "workspace", workspace, "parentID", parentID, "tool", tool)
 
 	// Validate parent relationship if specified
 	if parentID != "" {
@@ -270,7 +325,19 @@ func (m *Manager) SpawnAgentWithParent(name string, role Role, workspace string,
 
 	// If a tmux session exists from a previous crash, kill it first
 	if m.tmux.HasSession(name) {
-		_ = m.tmux.KillSession(name)
+		if err := m.tmux.KillSession(name); err != nil {
+			log.Warn("failed to kill existing session", "session", name, "error", err)
+		}
+	}
+
+	// Determine the command to use
+	agentCmd := m.agentCmd
+	if tool != "" {
+		if cmd, ok := GetAgentCommand(tool); ok {
+			agentCmd = cmd
+		} else {
+			return nil, fmt.Errorf("unknown tool %q, available tools: %v", tool, ListAvailableTools())
+		}
 	}
 
 	// Create agent
@@ -281,6 +348,7 @@ func (m *Manager) SpawnAgentWithParent(name string, role Role, workspace string,
 		State:     StateStarting,
 		Workspace: workspace,
 		Session:   name,
+		Tool:      tool,
 		ParentID:  parentID,
 		Children:  []string{},
 		StartedAt: time.Now(),
@@ -293,19 +361,34 @@ func (m *Manager) SpawnAgentWithParent(name string, role Role, workspace string,
 		"BC_AGENT_ROLE": string(role),
 		"BC_WORKSPACE":  workspace,
 	}
+	if tool != "" {
+		env["BC_AGENT_TOOL"] = tool
+	}
 	if parentID != "" {
 		env["BC_PARENT_ID"] = parentID
 	}
 
 	// Create tmux session with env vars baked into the command
-	if err := m.tmux.CreateSessionWithEnv(name, workspace, m.agentCmd, env); err != nil {
+	if err := m.tmux.CreateSessionWithEnv(name, workspace, agentCmd, env); err != nil {
 		return nil, fmt.Errorf("failed to create tmux session: %w", err)
 	}
+
+	// Load role memory from prompts/<role>.md
+	agent.Memory = LoadRoleMemory(workspace, role)
 
 	// Update state
 	agent.State = StateIdle
 	agent.UpdatedAt = time.Now()
 	m.agents[name] = agent
+
+	// Send role prompt as bootstrap if memory was loaded
+	if agent.Memory != nil && agent.Memory.RolePrompt != "" {
+		// Append workspace info to the prompt
+		prompt := agent.Memory.RolePrompt + fmt.Sprintf("\n\n---\n\nWorkspace: %s\nAgent ID: %s\n", workspace, name)
+		if err := m.tmux.SendKeys(name, prompt); err != nil {
+			log.Warn("failed to send bootstrap prompt", "agent", name, "error", err)
+		}
+	}
 
 	// Update parent's children list
 	if parentID != "" {
@@ -324,7 +407,13 @@ func (m *Manager) SpawnAgentWithParent(name string, role Role, workspace string,
 // SpawnChildAgent creates a child agent under a parent agent.
 // Validates that the parent has permission to create the child role.
 func (m *Manager) SpawnChildAgent(parentID, childName string, childRole Role, workspace string) (*Agent, error) {
-	return m.SpawnAgentWithParent(childName, childRole, workspace, parentID)
+	return m.SpawnAgentWithOptions(childName, childRole, workspace, parentID, "")
+}
+
+// SpawnChildAgentWithTool creates a child agent under a parent agent with a specific tool.
+// Validates that the parent has permission to create the child role.
+func (m *Manager) SpawnChildAgentWithTool(parentID, childName string, childRole Role, workspace, tool string) (*Agent, error) {
+	return m.SpawnAgentWithOptions(childName, childRole, workspace, parentID, tool)
 }
 
 // removeFromParent removes an agent from its parent's children list.
@@ -356,8 +445,11 @@ func (m *Manager) StopAgent(name string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	log.Debug("stopping agent", "name", name)
+
 	agent, exists := m.agents[name]
 	if !exists {
+		log.Warn("agent not found", "name", name)
 		return fmt.Errorf("agent %s not found", name)
 	}
 
@@ -426,22 +518,33 @@ func (m *Manager) StopAll() error {
 	return nil
 }
 
-// GetAgent returns an agent by name.
+// GetAgent returns a copy of an agent by name.
+// Returns nil if the agent doesn't exist.
 func (m *Manager) GetAgent(name string) *Agent {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.agents[name]
+	a, exists := m.agents[name]
+	if !exists {
+		return nil
+	}
+	// Return a copy to avoid data races
+	copy := *a
+	copy.Children = append([]string{}, a.Children...)
+	return &copy
 }
 
-// ListAgents returns all agents sorted by role hierarchy then by name.
+// ListAgents returns copies of all agents sorted by role hierarchy then by name.
 // Order: ProductManager/Coordinator → Manager → Engineer/Worker
 func (m *Manager) ListAgents() []*Agent {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
+	// Return copies to avoid data races
 	agents := make([]*Agent, 0, len(m.agents))
 	for _, a := range m.agents {
-		agents = append(agents, a)
+		copy := *a
+		copy.Children = append([]string{}, a.Children...)
+		agents = append(agents, &copy)
 	}
 
 	sort.Slice(agents, func(i, j int) bool {
@@ -458,7 +561,7 @@ func (m *Manager) ListAgents() []*Agent {
 	return agents
 }
 
-// ListChildren returns all direct children of an agent.
+// ListChildren returns copies of all direct children of an agent.
 func (m *Manager) ListChildren(parentID string) []*Agent {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -471,7 +574,10 @@ func (m *Manager) ListChildren(parentID string) []*Agent {
 	children := make([]*Agent, 0, len(parent.Children))
 	for _, childID := range parent.Children {
 		if child, exists := m.agents[childID]; exists {
-			children = append(children, child)
+			// Return copy to avoid data races
+			copy := *child
+			copy.Children = append([]string{}, child.Children...)
+			children = append(children, &copy)
 		}
 	}
 
@@ -488,7 +594,7 @@ func (m *Manager) ListDescendants(parentID string) []*Agent {
 	return descendants
 }
 
-// collectDescendants recursively collects all descendants.
+// collectDescendants recursively collects copies of all descendants.
 func (m *Manager) collectDescendants(parentID string, result *[]*Agent) {
 	parent, exists := m.agents[parentID]
 	if !exists {
@@ -497,13 +603,16 @@ func (m *Manager) collectDescendants(parentID string, result *[]*Agent) {
 
 	for _, childID := range parent.Children {
 		if child, exists := m.agents[childID]; exists {
-			*result = append(*result, child)
+			// Return copy to avoid data races
+			copy := *child
+			copy.Children = append([]string{}, child.Children...)
+			*result = append(*result, &copy)
 			m.collectDescendants(childID, result)
 		}
 	}
 }
 
-// GetParent returns the parent agent, or nil if no parent.
+// GetParent returns a copy of the parent agent, or nil if no parent.
 func (m *Manager) GetParent(agentID string) *Agent {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -513,10 +622,17 @@ func (m *Manager) GetParent(agentID string) *Agent {
 		return nil
 	}
 
-	return m.agents[agent.ParentID]
+	parent, exists := m.agents[agent.ParentID]
+	if !exists {
+		return nil
+	}
+	// Return copy to avoid data races
+	copy := *parent
+	copy.Children = append([]string{}, parent.Children...)
+	return &copy
 }
 
-// ListByRole returns all agents with a specific role.
+// ListByRole returns copies of all agents with a specific role.
 func (m *Manager) ListByRole(role Role) []*Agent {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -524,7 +640,10 @@ func (m *Manager) ListByRole(role Role) []*Agent {
 	var agents []*Agent
 	for _, a := range m.agents {
 		if a.Role == role {
-			agents = append(agents, a)
+			// Return copy to avoid data races
+			copy := *a
+			copy.Children = append([]string{}, a.Children...)
+			agents = append(agents, &copy)
 		}
 	}
 
@@ -656,18 +775,10 @@ func (m *Manager) UpdateAgentState(name string, state State, task string) error 
 	return nil
 }
 
-// SendToAgent sends a message/command to an agent's session. It sends Enter after
-// the message so the agent receives it as submitted. For agents that treat Enter
-// as newline (e.g. Cursor Agent), use SendToAgentWithSubmitKey with submitKey "".
+// SendToAgent sends a message/command to an agent's session.
+// Sends Enter after the message to submit it.
 func (m *Manager) SendToAgent(name, message string) error {
-	return m.SendToAgentWithSubmitKey(name, message, "Enter")
-}
-
-// SendToAgentWithSubmitKey sends a message to an agent's session, then the given
-// key (e.g. "Enter", "C-Enter", or "" for no key). Use "" when the agent treats
-// Enter as newline so the message is pasted and you can attach and submit manually.
-func (m *Manager) SendToAgentWithSubmitKey(name, message, submitKey string) error {
-	return m.tmux.SendKeys(name, message, submitKey)
+	return m.tmux.SendKeys(name, message)
 }
 
 // CaptureOutput captures recent output from an agent's session.

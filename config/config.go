@@ -56,8 +56,8 @@ var (
 			Name:        "claude",
 		},
 		{
-			Command:     "cursor --dangerously-skip-permissions",
-			Description: "Cursor AI",
+			Command:     "cursor-agent --force",
+			Description: "Cursor Agent (all permissions)",
 			Name:        "cursor",
 		},
 		{
@@ -69,6 +69,11 @@ var (
 			Command:     "codex --full-auto",
 			Description: "OpenAI Codex",
 			Name:        "codex",
+		},
+		{
+			Command:     "claude mcp serve",
+			Description: "Claude MCP Server",
+			Name:        "server",
 		},
 	}
 	Costs = CostsConfig{
