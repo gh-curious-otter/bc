@@ -213,8 +213,18 @@ func runQueueLoad(cmd *cobra.Command, args []string) error {
 	}
 
 	added := 0
+	linked := 0
 	for _, issue := range issues {
 		if q.HasBeadsID(issue.ID) {
+			continue
+		}
+		// Check if a work item with the same title already exists (added manually)
+		if existing := q.FindByTitle(issue.Title); existing != nil {
+			// Link the beads ID to the existing item so future syncs skip it
+			if existing.BeadsID == "" {
+				q.LinkBeadsID(existing.ID, issue.ID)
+				linked++
+			}
 			continue
 		}
 		q.Add(issue.Title, issue.Description, issue.ID)
@@ -230,10 +240,14 @@ func runQueueLoad(cmd *cobra.Command, args []string) error {
 	log.Append(events.Event{
 		Type:    events.QueueLoaded,
 		Message: fmt.Sprintf("loaded %d items from beads", added),
-		Data:    map[string]any{"added": added, "total_issues": len(issues)},
+		Data:    map[string]any{"added": added, "linked": linked, "total_issues": len(issues)},
 	})
 
-	fmt.Printf("Loaded %d new items from beads (%d already in queue)\n", added, len(issues)-added)
+	fmt.Printf("Loaded %d new items from beads (%d already in queue", added, len(issues)-added-linked)
+	if linked > 0 {
+		fmt.Printf(", %d linked to existing items", linked)
+	}
+	fmt.Println(")")
 	return nil
 }
 

@@ -208,6 +208,34 @@ func (q *Queue) HasBeadsID(beadsID string) bool {
 	return false
 }
 
+// FindByTitle returns the first item matching the given title, or nil if none found.
+func (q *Queue) FindByTitle(title string) *WorkItem {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
+	for i := range q.items {
+		if q.items[i].Title == title {
+			return &q.items[i]
+		}
+	}
+	return nil
+}
+
+// LinkBeadsID sets the beads ID on an existing work item, linking it for future dedup.
+func (q *Queue) LinkBeadsID(id, beadsID string) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	for i := range q.items {
+		if q.items[i].ID == id {
+			q.items[i].BeadsID = beadsID
+			q.items[i].UpdatedAt = time.Now()
+			return nil
+		}
+	}
+	return fmt.Errorf("item %s not found", id)
+}
+
 // Stats returns a summary of queue state.
 func (q *Queue) Stats() Stats {
 	q.mu.RLock()

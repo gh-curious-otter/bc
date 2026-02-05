@@ -337,3 +337,100 @@ func TestAssignUpdatesTimestamp(t *testing.T) {
 		t.Error("UpdatedAt was not advanced after Assign")
 	}
 }
+
+func TestFindByTitle(t *testing.T) {
+	q := New(filepath.Join(t.TempDir(), "q.json"))
+	q.Add("Fix auth bug", "", "")
+	q.Add("Add dashboard", "", "bead-1")
+
+	item := q.FindByTitle("Fix auth bug")
+	if item == nil {
+		t.Fatal("FindByTitle returned nil for existing title")
+	}
+	if item.ID != "work-001" {
+		t.Errorf("ID = %q, want work-001", item.ID)
+	}
+
+	item = q.FindByTitle("Add dashboard")
+	if item == nil {
+		t.Fatal("FindByTitle returned nil for existing title")
+	}
+	if item.ID != "work-002" {
+		t.Errorf("ID = %q, want work-002", item.ID)
+	}
+
+	if q.FindByTitle("nonexistent") != nil {
+		t.Error("FindByTitle should return nil for missing title")
+	}
+}
+
+func TestFindByTitleEmpty(t *testing.T) {
+	q := New(filepath.Join(t.TempDir(), "q.json"))
+	if q.FindByTitle("anything") != nil {
+		t.Error("expected nil on empty queue")
+	}
+}
+
+func TestLinkBeadsID(t *testing.T) {
+	q := New(filepath.Join(t.TempDir(), "q.json"))
+	q.Add("Fix auth bug", "", "")
+
+	if err := q.LinkBeadsID("work-001", "bead-42"); err != nil {
+		t.Fatalf("LinkBeadsID: %v", err)
+	}
+
+	item := q.Get("work-001")
+	if item.BeadsID != "bead-42" {
+		t.Errorf("BeadsID = %q, want bead-42", item.BeadsID)
+	}
+
+	// Now HasBeadsID should find it
+	if !q.HasBeadsID("bead-42") {
+		t.Error("HasBeadsID should return true after linking")
+	}
+}
+
+func TestLinkBeadsIDNotFound(t *testing.T) {
+	q := New(filepath.Join(t.TempDir(), "q.json"))
+	if err := q.LinkBeadsID("missing", "bead-1"); err == nil {
+		t.Fatal("expected error for missing item")
+	}
+}
+
+func TestDedupByTitlePreventsDoubleAdd(t *testing.T) {
+	// Simulate the real bug: manual item added without beads ID,
+	// then bc queue load tries to add the same item from beads.
+	q := New(filepath.Join(t.TempDir(), "q.json"))
+
+	// Step 1: item added manually (no beads ID)
+	q.Add("Fix SendKeys race condition", "", "")
+
+	// Step 2: beads sync finds an issue with the same title
+	beadsID := "bc-rgb.3"
+
+	// Without dedup fix, HasBeadsID returns false and a duplicate is created.
+	// With fix, FindByTitle catches it.
+	if q.HasBeadsID(beadsID) {
+		t.Fatal("HasBeadsID should be false before linking")
+	}
+
+	existing := q.FindByTitle("Fix SendKeys race condition")
+	if existing == nil {
+		t.Fatal("FindByTitle should find the manually added item")
+	}
+
+	// Link the beads ID to the existing item
+	if err := q.LinkBeadsID(existing.ID, beadsID); err != nil {
+		t.Fatalf("LinkBeadsID: %v", err)
+	}
+
+	// Verify: only 1 item in queue, not 2
+	if items := q.ListAll(); len(items) != 1 {
+		t.Errorf("expected 1 item, got %d", len(items))
+	}
+
+	// Verify: future HasBeadsID check now succeeds
+	if !q.HasBeadsID(beadsID) {
+		t.Error("HasBeadsID should return true after linking")
+	}
+}
