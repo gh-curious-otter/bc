@@ -290,7 +290,7 @@ func (m *WorkspaceModel) renderTabBar() string {
 		{"Issues", TabIssues, len(m.issues)},
 		{"Queue", TabQueue, len(m.queueItems)},
 		{"Channels", TabChannels, len(m.channels)},
-		{"Stats", TabStats, -1}, // -1 means no count shown
+		{"Dashboard", TabDashboard, -1}, // -1 means no count shown
 	}
 
 	var parts []string
