@@ -1039,15 +1039,15 @@ func TestMapQueueStatus(t *testing.T) {
 
 func TestFmtDuration(t *testing.T) {
 	tests := []struct {
-		d    time.Duration
 		want string
+		d    time.Duration
 	}{
-		{0, "0s"},
-		{30 * time.Second, "30s"},
-		{5 * time.Minute, "5m 0s"},
-		{5*time.Minute + 30*time.Second, "5m 30s"},
-		{2 * time.Hour, "2h 0m"},
-		{2*time.Hour + 15*time.Minute, "2h 15m"},
+		{"0s", 0},
+		{"30s", 30 * time.Second},
+		{"5m 0s", 5 * time.Minute},
+		{"5m 30s", 5*time.Minute + 30*time.Second},
+		{"2h 0m", 2 * time.Hour},
+		{"2h 15m", 2*time.Hour + 15*time.Minute},
 	}
 
 	for _, tt := range tests {
@@ -1071,7 +1071,11 @@ func TestSelectCurrent_Agents(t *testing.T) {
 	if action.Type != ActionDrillAgent {
 		t.Fatalf("expected ActionDrillAgent, got %d", action.Type)
 	}
-	if action.Data.(*agent.Agent).Name != "eng-01" {
+	a, ok := action.Data.(*agent.Agent)
+	if !ok {
+		t.Fatal("expected *agent.Agent data")
+	}
+	if a.Name != "eng-01" {
 		t.Error("wrong agent returned")
 	}
 }
@@ -1086,7 +1090,10 @@ func TestSelectCurrent_Issues(t *testing.T) {
 	if action.Type != ActionDrillIssue {
 		t.Fatalf("expected ActionDrillIssue, got %d", action.Type)
 	}
-	issue := action.Data.(beads.Issue)
+	issue, ok := action.Data.(beads.Issue)
+	if !ok {
+		t.Fatal("expected beads.Issue data")
+	}
 	if issue.ID != "bd-001" {
 		t.Errorf("wrong issue: %s", issue.ID)
 	}
@@ -1424,13 +1431,13 @@ func TestRenderQueue_WithItems(t *testing.T) {
 
 func TestQueueFilterLabel(t *testing.T) {
 	tests := []struct {
-		f    QueueFilter
 		want string
+		f    QueueFilter
 	}{
-		{QueueFilterActive, "active"},
-		{QueueFilterAll, "all"},
-		{QueueFilterDone, "done"},
-		{QueueFilter(99), ""},
+		{"active", QueueFilterActive},
+		{"all", QueueFilterAll},
+		{"done", QueueFilterDone},
+		{"", QueueFilter(99)},
 	}
 	for _, tt := range tests {
 		got := tt.f.label()

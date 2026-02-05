@@ -25,7 +25,7 @@ func initGitRepo(t *testing.T) string {
 		{"git", "-C", dir, "commit", "--allow-empty", "-m", "init"},
 	}
 	for _, args := range cmds {
-		cmd := exec.Command(args[0], args[1:]...)
+		cmd := exec.Command(args[0], args[1:]...) //nolint:gosec,noctx // G204: test helper with variable args
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("%s failed: %v (%s)", strings.Join(args, " "), err, out)
 		}
@@ -42,7 +42,7 @@ func createBranch(t *testing.T, repoDir, branch string) {
 		{"git", "-C", repoDir, "checkout", "main"},
 	}
 	for _, args := range cmds {
-		cmd := exec.Command(args[0], args[1:]...)
+		cmd := exec.Command(args[0], args[1:]...) //nolint:gosec,noctx // G204: test helper with variable args
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("%s failed: %v (%s)", strings.Join(args, " "), err, out)
 		}
@@ -90,7 +90,7 @@ func TestGitCurrentBranch_Main(t *testing.T) {
 
 func TestGitCurrentBranch_FeatureBranch(t *testing.T) {
 	repo := initGitRepo(t)
-	cmd := exec.Command("git", "-C", repo, "checkout", "-b", "feature/xyz")
+	cmd := exec.Command("git", "-C", repo, "checkout", "-b", "feature/xyz") //nolint:gosec,noctx // G204
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("checkout failed: %v (%s)", err, out)
 	}
@@ -106,7 +106,7 @@ func TestGitCurrentBranch_FeatureBranch(t *testing.T) {
 func TestGitCurrentBranch_DetachedHEAD(t *testing.T) {
 	repo := initGitRepo(t)
 	// Detach HEAD
-	cmd := exec.Command("git", "-C", repo, "checkout", "--detach")
+	cmd := exec.Command("git", "-C", repo, "checkout", "--detach") //nolint:gosec,noctx // G204
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("detach failed: %v (%s)", err, out)
 	}
@@ -166,15 +166,15 @@ func TestCheckMergeConflicts_FastForward(t *testing.T) {
 	repo := initGitRepo(t)
 	// Create a branch that is ahead of main — main hasn't moved, so
 	// merge-base == main HEAD → fast-forward path
-	cmd := exec.Command("git", "-C", repo, "checkout", "-b", "feature/ff")
+	cmd := exec.Command("git", "-C", repo, "checkout", "-b", "feature/ff") //nolint:gosec,noctx // G204
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("checkout failed: %v (%s)", err, out)
 	}
-	cmd = exec.Command("git", "-C", repo, "commit", "--allow-empty", "-m", "ff commit")
+	cmd = exec.Command("git", "-C", repo, "commit", "--allow-empty", "-m", "ff commit") //nolint:gosec,noctx // G204
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("commit failed: %v (%s)", err, out)
 	}
-	cmd = exec.Command("git", "-C", repo, "checkout", "main")
+	cmd = exec.Command("git", "-C", repo, "checkout", "main") //nolint:gosec,noctx // G204
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("checkout main failed: %v (%s)", err, out)
 	}
@@ -193,16 +193,16 @@ func TestCheckMergeConflicts_WithConflicts(t *testing.T) {
 
 	// Create a file on main
 	filePath := filepath.Join(repo, "conflict.txt")
-	os.WriteFile(filePath, []byte("main content\n"), 0644)
-	exec.Command("git", "-C", repo, "add", "conflict.txt").Run()
-	exec.Command("git", "-C", repo, "commit", "-m", "main: add conflict.txt").Run()
+	os.WriteFile(filePath, []byte("main content\n"), 0o600)                         //nolint:errcheck
+	exec.Command("git", "-C", repo, "add", "conflict.txt").Run()                    //nolint:errcheck,gosec,noctx
+	exec.Command("git", "-C", repo, "commit", "-m", "main: add conflict.txt").Run() //nolint:errcheck,gosec,noctx
 
 	// Create branch from parent of the above commit with different content
-	exec.Command("git", "-C", repo, "checkout", "-b", "feature/conflict", "HEAD~1").Run()
-	os.WriteFile(filePath, []byte("branch content\n"), 0644)
-	exec.Command("git", "-C", repo, "add", "conflict.txt").Run()
-	exec.Command("git", "-C", repo, "commit", "-m", "branch: add conflict.txt").Run()
-	exec.Command("git", "-C", repo, "checkout", "main").Run()
+	exec.Command("git", "-C", repo, "checkout", "-b", "feature/conflict", "HEAD~1").Run() //nolint:errcheck,gosec,noctx
+	os.WriteFile(filePath, []byte("branch content\n"), 0o600)                             //nolint:errcheck
+	exec.Command("git", "-C", repo, "add", "conflict.txt").Run()                          //nolint:errcheck,gosec,noctx
+	exec.Command("git", "-C", repo, "commit", "-m", "branch: add conflict.txt").Run()     //nolint:errcheck,gosec,noctx
+	exec.Command("git", "-C", repo, "checkout", "main").Run()                             //nolint:errcheck,gosec,noctx
 
 	conflicts, err := checkMergeConflicts(repo, "feature/conflict")
 	if err != nil {
@@ -218,7 +218,7 @@ func TestCheckMergeConflicts_WithConflicts(t *testing.T) {
 func TestResolveMergeTarget_LiteralBranch(t *testing.T) {
 	repo := initGitRepo(t)
 	agentsDir := filepath.Join(repo, ".bc", "agents")
-	os.MkdirAll(agentsDir, 0755)
+	os.MkdirAll(agentsDir, 0o750) //nolint:errcheck
 
 	branch, worktreeDir, err := resolveMergeTarget(agentsDir, repo, "feature/my-branch")
 	if err != nil {
@@ -235,16 +235,16 @@ func TestResolveMergeTarget_LiteralBranch(t *testing.T) {
 func TestResolveMergeTarget_AgentName(t *testing.T) {
 	repo := initGitRepo(t)
 	agentsDir := filepath.Join(repo, ".bc", "agents")
-	os.MkdirAll(agentsDir, 0755)
+	os.MkdirAll(agentsDir, 0o750) //nolint:errcheck
 
 	// Create a worktree for the agent
 	worktreePath := filepath.Join(repo, ".bc", "worktrees", "eng-1")
-	cmd := exec.Command("git", "-C", repo, "worktree", "add", "-b", "eng-1/work", worktreePath)
+	cmd := exec.Command("git", "-C", repo, "worktree", "add", "-b", "eng-1/work", worktreePath) //nolint:gosec,noctx // G204
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("worktree add failed: %v (%s)", err, out)
 	}
 	t.Cleanup(func() {
-		exec.Command("git", "-C", repo, "worktree", "remove", "--force", worktreePath).Run()
+		exec.Command("git", "-C", repo, "worktree", "remove", "--force", worktreePath).Run() //nolint:errcheck,gosec,noctx
 	})
 
 	// Seed agent state
@@ -257,8 +257,11 @@ func TestResolveMergeTarget_AgentName(t *testing.T) {
 			Children:    []string{},
 		},
 	}
-	data, _ := json.MarshalIndent(agents, "", "  ")
-	os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0644)
+	data, err := json.MarshalIndent(agents, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0o600) //nolint:errcheck
 
 	branch, worktreeDir, err := resolveMergeTarget(agentsDir, repo, "eng-1")
 	if err != nil {
@@ -278,8 +281,8 @@ func TestRunValidation_Success(t *testing.T) {
 	// runValidation runs go build/test/vet in a directory.
 	// Use a minimal Go module that will pass all checks.
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module testmod\n\ngo 1.25\n"), 0644)
-	os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0644)
+	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module testmod\n\ngo 1.25\n"), 0o600)       //nolint:errcheck
+	os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o600) //nolint:errcheck
 
 	err := runValidation(dir)
 	if err != nil {
@@ -289,8 +292,8 @@ func TestRunValidation_Success(t *testing.T) {
 
 func TestRunValidation_BuildFailure(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module testmod\n\ngo 1.25\n"), 0644)
-	os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\n\nfunc main() { undefined() }\n"), 0644)
+	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module testmod\n\ngo 1.25\n"), 0o600)                    //nolint:errcheck
+	os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\n\nfunc main() { undefined() }\n"), 0o600) //nolint:errcheck
 
 	err := runValidation(dir)
 	if err == nil {
@@ -306,7 +309,7 @@ func TestRunValidation_BuildFailure(t *testing.T) {
 func TestMarkQueueDone_Success(t *testing.T) {
 	dir := t.TempDir()
 	stateDir := filepath.Join(dir, ".bc")
-	os.MkdirAll(stateDir, 0755)
+	os.MkdirAll(stateDir, 0o750) //nolint:errcheck
 
 	// Create a queue with an item
 	q := queue.New(filepath.Join(stateDir, "queue.json"))
@@ -316,7 +319,7 @@ func TestMarkQueueDone_Success(t *testing.T) {
 		t.Fatal("expected at least one item")
 	}
 	workID := items[0].ID
-	q.Save()
+	q.Save() //nolint:errcheck
 
 	err := markQueueDone(stateDir, dir, workID)
 	if err != nil {
@@ -325,7 +328,7 @@ func TestMarkQueueDone_Success(t *testing.T) {
 
 	// Verify item is now done
 	q2 := queue.New(filepath.Join(stateDir, "queue.json"))
-	q2.Load()
+	q2.Load() //nolint:errcheck
 	item := q2.Get(workID)
 	if item == nil {
 		t.Fatal("item not found after markQueueDone")
@@ -338,11 +341,11 @@ func TestMarkQueueDone_Success(t *testing.T) {
 func TestMarkQueueDone_NotFound(t *testing.T) {
 	dir := t.TempDir()
 	stateDir := filepath.Join(dir, ".bc")
-	os.MkdirAll(stateDir, 0755)
+	os.MkdirAll(stateDir, 0o750) //nolint:errcheck
 
 	// Create empty queue
 	q := queue.New(filepath.Join(stateDir, "queue.json"))
-	q.Save()
+	q.Save() //nolint:errcheck
 
 	err := markQueueDone(stateDir, dir, "nonexistent")
 	if err == nil {
@@ -359,18 +362,18 @@ func TestMergeBranch_FastForward(t *testing.T) {
 	repo := initGitRepo(t)
 
 	// Create a branch ahead of main
-	cmd := exec.Command("git", "-C", repo, "checkout", "-b", "feature/ff-merge")
+	cmd := exec.Command("git", "-C", repo, "checkout", "-b", "feature/ff-merge") //nolint:gosec,noctx // G204
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("checkout failed: %v (%s)", err, out)
 	}
 	filePath := filepath.Join(repo, "new.txt")
-	os.WriteFile(filePath, []byte("new content\n"), 0644)
-	exec.Command("git", "-C", repo, "add", "new.txt").Run()
-	cmd = exec.Command("git", "-C", repo, "commit", "-m", "add new.txt")
+	os.WriteFile(filePath, []byte("new content\n"), 0o600)               //nolint:errcheck
+	exec.Command("git", "-C", repo, "add", "new.txt").Run()              //nolint:errcheck,gosec,noctx
+	cmd = exec.Command("git", "-C", repo, "commit", "-m", "add new.txt") //nolint:gosec,noctx // G204
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("commit failed: %v (%s)", err, out)
 	}
-	cmd = exec.Command("git", "-C", repo, "checkout", "main")
+	cmd = exec.Command("git", "-C", repo, "checkout", "main") //nolint:gosec,noctx // G204
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("checkout main failed: %v (%s)", err, out)
 	}
@@ -384,8 +387,8 @@ func TestMergeBranch_FastForward(t *testing.T) {
 	}
 
 	// Verify main now has the file
-	mainHead, _ := gitRevParse(repo, "main")
-	branchHead, _ := gitRevParse(repo, "feature/ff-merge")
+	mainHead, _ := gitRevParse(repo, "main")               //nolint:errcheck
+	branchHead, _ := gitRevParse(repo, "feature/ff-merge") //nolint:errcheck
 	if mainHead != branchHead {
 		t.Errorf("main (%s) should equal branch (%s) after fast-forward", mainHead, branchHead)
 	}
@@ -396,19 +399,19 @@ func TestMergeBranch_NonFastForward(t *testing.T) {
 
 	// Create diverged branches: main gets one commit, feature gets another
 	// First create the feature branch from current main
-	cmd := exec.Command("git", "-C", repo, "checkout", "-b", "feature/merge-nff")
+	cmd := exec.Command("git", "-C", repo, "checkout", "-b", "feature/merge-nff") //nolint:gosec,noctx // G204
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("checkout failed: %v (%s)", err, out)
 	}
-	os.WriteFile(filepath.Join(repo, "feature.txt"), []byte("feature\n"), 0644)
-	exec.Command("git", "-C", repo, "add", "feature.txt").Run()
-	exec.Command("git", "-C", repo, "commit", "-m", "feature commit").Run()
+	os.WriteFile(filepath.Join(repo, "feature.txt"), []byte("feature\n"), 0o600) //nolint:errcheck
+	exec.Command("git", "-C", repo, "add", "feature.txt").Run()                  //nolint:errcheck,gosec,noctx
+	exec.Command("git", "-C", repo, "commit", "-m", "feature commit").Run()      //nolint:errcheck,gosec,noctx
 
 	// Go back to main and make a different commit
-	exec.Command("git", "-C", repo, "checkout", "main").Run()
-	os.WriteFile(filepath.Join(repo, "main.txt"), []byte("main\n"), 0644)
-	exec.Command("git", "-C", repo, "add", "main.txt").Run()
-	exec.Command("git", "-C", repo, "commit", "-m", "main commit").Run()
+	exec.Command("git", "-C", repo, "checkout", "main").Run()              //nolint:errcheck,gosec,noctx
+	os.WriteFile(filepath.Join(repo, "main.txt"), []byte("main\n"), 0o600) //nolint:errcheck
+	exec.Command("git", "-C", repo, "add", "main.txt").Run()               //nolint:errcheck,gosec,noctx
+	exec.Command("git", "-C", repo, "commit", "-m", "main commit").Run()   //nolint:errcheck,gosec,noctx
 
 	hash, err := mergeBranch(repo, "feature/merge-nff")
 	if err != nil {
