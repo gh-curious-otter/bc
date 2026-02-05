@@ -127,8 +127,10 @@ func parseRole(roleStr string) (agent.Role, error) {
 		return agent.RoleProductManager, nil
 	case "coordinator", "coord":
 		return agent.RoleCoordinator, nil
+	case "qa":
+		return agent.RoleQA, nil
 	default:
-		validRoles := []string{"worker", "engineer", "manager", "product-manager", "coordinator"}
+		validRoles := []string{"worker", "engineer", "manager", "product-manager", "coordinator", "qa"}
 		return "", fmt.Errorf("unknown role %q (valid roles: %s)", roleStr, strings.Join(validRoles, ", "))
 	}
 }
