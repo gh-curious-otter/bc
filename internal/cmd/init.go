@@ -63,7 +63,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	reg, err := workspace.LoadRegistry()
 	if err == nil {
 		reg.Register(ws.RootDir, ws.Config.Name)
-		reg.Save()
+		_ = reg.Save()
 	}
 
 	fmt.Printf("Initialized bc workspace in %s\n", ws.RootDir)

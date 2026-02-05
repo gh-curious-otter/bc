@@ -150,7 +150,9 @@ func runWorktreeList(cmd *cobra.Command, args []string) error {
 
 	// Load registered agents
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
-	mgr.LoadState()
+	if err := mgr.LoadState(); err != nil {
+		return fmt.Errorf("failed to load agent state: %w", err)
+	}
 	agents := mgr.ListAgents()
 
 	agentNames := make(map[string]bool)
@@ -190,7 +192,10 @@ func runWorktreeList(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	jsonOutput, _ := cmd.Flags().GetBool("json")
+	jsonOutput, err := cmd.Flags().GetBool("json")
+	if err != nil {
+		return err
+	}
 	if jsonOutput {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")

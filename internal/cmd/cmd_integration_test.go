@@ -49,7 +49,7 @@ func setupIntegrationWorkspace(t *testing.T) (string, func()) {
 	}
 
 	return tmpDir, func() {
-		os.Chdir(origDir)
+		_ = os.Chdir(origDir)
 	}
 }
 
@@ -59,7 +59,10 @@ func setupIntegrationWorkspace(t *testing.T) (string, func()) {
 func executeIntegrationCmd(args ...string) (string, string, error) {
 	// Save and redirect os.Stdout
 	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		return "", "", pipeErr
+	}
 	os.Stdout = w
 
 	stderr := new(bytes.Buffer)
@@ -68,10 +71,10 @@ func executeIntegrationCmd(args ...string) (string, string, error) {
 	rootCmd.SetArgs(args)
 
 	// Reset persistent flags to prevent leaking between tests
-	rootCmd.PersistentFlags().Set("json", "false")
-	rootCmd.PersistentFlags().Set("verbose", "false")
-	defer rootCmd.PersistentFlags().Set("json", "false")
-	defer rootCmd.PersistentFlags().Set("verbose", "false")
+	_ = rootCmd.PersistentFlags().Set("json", "false")
+	_ = rootCmd.PersistentFlags().Set("verbose", "false")
+	defer func() { _ = rootCmd.PersistentFlags().Set("json", "false") }()
+	defer func() { _ = rootCmd.PersistentFlags().Set("verbose", "false") }()
 
 	// Reset subcommand flags (e.g. logs --tail) to prevent Changed state leaking
 	for _, sub := range rootCmd.Commands() {
@@ -81,9 +84,9 @@ func executeIntegrationCmd(args ...string) (string, string, error) {
 	err := rootCmd.Execute()
 
 	// Close writer and read all captured output
-	w.Close()
+	_ = w.Close()
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	os.Stdout = origStdout
 
 	return buf.String(), stderr.String(), err
@@ -94,7 +97,9 @@ func executeIntegrationCmd(args ...string) (string, string, error) {
 func seedAgents(t *testing.T, wsDir string, agents map[string]*agent.Agent) {
 	t.Helper()
 	agentsDir := filepath.Join(wsDir, ".bc", "agents")
-	os.MkdirAll(agentsDir, 0755)
+	if err := os.MkdirAll(agentsDir, 0755); err != nil {
+		t.Fatalf("failed to create agents dir: %v", err)
+	}
 	data, err := json.MarshalIndent(agents, "", "  ")
 	if err != nil {
 		t.Fatalf("failed to marshal agents: %v", err)
@@ -140,8 +145,10 @@ func TestQueueListNoWorkspace(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir() // No .bc directory
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	if err = os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	_, _, err = executeIntegrationCmd("queue")
 	if err == nil {
@@ -339,8 +346,10 @@ func TestSendNoWorkspace(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	if err = os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	_, _, err = executeIntegrationCmd("send", "worker-01", "hello")
 	if err == nil {
@@ -376,10 +385,12 @@ func TestSendRequiresArgs(t *testing.T) {
 func TestReportNoAgentID(t *testing.T) {
 	// Ensure BC_AGENT_ID is not set
 	orig := os.Getenv("BC_AGENT_ID")
-	os.Unsetenv("BC_AGENT_ID")
+	if err := os.Unsetenv("BC_AGENT_ID"); err != nil {
+		t.Fatalf("failed to unsetenv: %v", err)
+	}
 	defer func() {
 		if orig != "" {
-			os.Setenv("BC_AGENT_ID", orig)
+			_ = os.Setenv("BC_AGENT_ID", orig)
 		}
 	}()
 
@@ -393,8 +404,7 @@ func TestReportNoAgentID(t *testing.T) {
 }
 
 func TestReportInvalidState(t *testing.T) {
-	os.Setenv("BC_AGENT_ID", "test-agent")
-	defer os.Unsetenv("BC_AGENT_ID")
+	t.Setenv("BC_AGENT_ID", "test-agent")
 
 	_, _, err := executeIntegrationCmd("report", "invalid-state")
 	if err == nil {
@@ -412,11 +422,12 @@ func TestReportNoWorkspace(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	if err = os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
-	os.Setenv("BC_AGENT_ID", "test-agent")
-	defer os.Unsetenv("BC_AGENT_ID")
+	t.Setenv("BC_AGENT_ID", "test-agent")
 
 	_, _, err = executeIntegrationCmd("report", "working", "testing")
 	if err == nil {
@@ -432,18 +443,22 @@ func TestReportValidStates(t *testing.T) {
 
 	for _, state := range validStates {
 		t.Run(state, func(t *testing.T) {
-			os.Setenv("BC_AGENT_ID", "test-agent")
-			defer os.Unsetenv("BC_AGENT_ID")
+			t.Setenv("BC_AGENT_ID", "test-agent")
 
 			// State validation happens before workspace lookup, but
 			// invalid states are rejected. Valid states proceed to
 			// workspace lookup, which we test fails correctly outside a workspace.
-			origDir, _ := os.Getwd()
+			origDir, err := os.Getwd()
+			if err != nil {
+				t.Fatalf("failed to get cwd: %v", err)
+			}
 			tmpDir := t.TempDir()
-			os.Chdir(tmpDir)
-			defer os.Chdir(origDir)
+			if err := os.Chdir(tmpDir); err != nil {
+				t.Fatalf("failed to chdir: %v", err)
+			}
+			defer func() { _ = os.Chdir(origDir) }()
 
-			_, _, err := executeIntegrationCmd("report", state, "test message")
+			_, _, err = executeIntegrationCmd("report", state, "test message")
 			// Should fail with workspace error, NOT invalid state error
 			if err == nil {
 				t.Fatal("expected workspace error, got nil")
@@ -471,8 +486,10 @@ func TestStatusNoWorkspace(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	if err = os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	_, _, err = executeIntegrationCmd("status")
 	if err == nil {
@@ -488,7 +505,9 @@ func TestStatusEmptyWorkspace(t *testing.T) {
 	defer cleanup()
 
 	// Create agents dir so LoadState doesn't warn
-	os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755)
+	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755); err != nil {
+		t.Fatalf("failed to create agents dir: %v", err)
+	}
 
 	stdout, _, err := executeIntegrationCmd("status")
 	if err != nil {
@@ -664,8 +683,10 @@ func TestLogsNoWorkspace(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	if err = os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	_, _, err = executeIntegrationCmd("logs")
 	if err == nil {
@@ -803,8 +824,10 @@ func TestStatsNoWorkspace(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	if err = os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	_, _, err = executeIntegrationCmd("stats")
 	if err == nil {
@@ -820,7 +843,9 @@ func TestStatsEmptyWorkspace(t *testing.T) {
 	defer cleanup()
 
 	// Create agents dir
-	os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755)
+	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755); err != nil {
+		t.Fatalf("failed to create agents dir: %v", err)
+	}
 
 	// Reset flags
 	statsJSON = false
@@ -842,7 +867,9 @@ func TestStatsWithQueue(t *testing.T) {
 	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755)
+	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755); err != nil {
+		t.Fatalf("failed to create agents dir: %v", err)
+	}
 
 	seedQueue(t, wsDir, []queue.WorkItem{
 		{ID: "work-001", Title: "Task one", Status: queue.StatusPending},
@@ -869,7 +896,9 @@ func TestStatsSave(t *testing.T) {
 	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755)
+	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755); err != nil {
+		t.Fatalf("failed to create agents dir: %v", err)
+	}
 
 	statsSave = true
 	statsJSON = false
@@ -899,8 +928,10 @@ func TestDashboardNoWorkspace(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	if err = os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	_, _, err = executeIntegrationCmd("dashboard")
 	if err == nil {
@@ -915,7 +946,9 @@ func TestDashboardEmptyWorkspace(t *testing.T) {
 	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755)
+	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755); err != nil {
+		t.Fatalf("failed to create agents dir: %v", err)
+	}
 
 	stdout, _, err := executeIntegrationCmd("dashboard")
 	if err != nil {
@@ -957,8 +990,10 @@ func TestChannelListNoWorkspace(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	if err = os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	_, _, err = executeIntegrationCmd("channel")
 	if err == nil {
@@ -1111,10 +1146,12 @@ func TestChannelJoinNoAgentID(t *testing.T) {
 	defer cleanup()
 
 	orig := os.Getenv("BC_AGENT_ID")
-	os.Unsetenv("BC_AGENT_ID")
+	if err := os.Unsetenv("BC_AGENT_ID"); err != nil {
+		t.Fatalf("failed to unsetenv: %v", err)
+	}
 	defer func() {
 		if orig != "" {
-			os.Setenv("BC_AGENT_ID", orig)
+			_ = os.Setenv("BC_AGENT_ID", orig)
 		}
 	}()
 
@@ -1135,8 +1172,7 @@ func TestChannelJoinSuccess(t *testing.T) {
 		{Name: "standup", Members: []string{}},
 	})
 
-	os.Setenv("BC_AGENT_ID", "test-agent")
-	defer os.Unsetenv("BC_AGENT_ID")
+	t.Setenv("BC_AGENT_ID", "test-agent")
 
 	stdout, _, err := executeIntegrationCmd("channel", "join", "standup")
 	if err != nil {
@@ -1155,8 +1191,7 @@ func TestChannelLeaveSuccess(t *testing.T) {
 		{Name: "standup", Members: []string{"test-agent"}},
 	})
 
-	os.Setenv("BC_AGENT_ID", "test-agent")
-	defer os.Unsetenv("BC_AGENT_ID")
+	t.Setenv("BC_AGENT_ID", "test-agent")
 
 	stdout, _, err := executeIntegrationCmd("channel", "leave", "standup")
 	if err != nil {
@@ -1172,10 +1207,12 @@ func TestChannelLeaveNoAgentID(t *testing.T) {
 	defer cleanup()
 
 	orig := os.Getenv("BC_AGENT_ID")
-	os.Unsetenv("BC_AGENT_ID")
+	if err := os.Unsetenv("BC_AGENT_ID"); err != nil {
+		t.Fatalf("failed to unsetenv: %v", err)
+	}
 	defer func() {
 		if orig != "" {
-			os.Setenv("BC_AGENT_ID", orig)
+			_ = os.Setenv("BC_AGENT_ID", orig)
 		}
 	}()
 
@@ -1264,8 +1301,7 @@ func TestReportWorkingInWorkspace(t *testing.T) {
 		},
 	})
 
-	os.Setenv("BC_AGENT_ID", "test-agent")
-	defer os.Unsetenv("BC_AGENT_ID")
+	t.Setenv("BC_AGENT_ID", "test-agent")
 
 	stdout, _, err := executeIntegrationCmd("report", "working", "fixing auth bug")
 	if err != nil {
@@ -1291,8 +1327,7 @@ func TestReportDoneInWorkspace(t *testing.T) {
 		},
 	})
 
-	os.Setenv("BC_AGENT_ID", "test-agent")
-	defer os.Unsetenv("BC_AGENT_ID")
+	t.Setenv("BC_AGENT_ID", "test-agent")
 
 	stdout, _, err := executeIntegrationCmd("report", "done", "auth bug fixed")
 	if err != nil {
@@ -1338,8 +1373,7 @@ func TestReportStuckInWorkspace(t *testing.T) {
 		},
 	})
 
-	os.Setenv("BC_AGENT_ID", "test-agent")
-	defer os.Unsetenv("BC_AGENT_ID")
+	t.Setenv("BC_AGENT_ID", "test-agent")
 
 	stdout, _, err := executeIntegrationCmd("report", "stuck", "need database credentials")
 	if err != nil {
@@ -1371,8 +1405,7 @@ func TestReportWorkingTransitionsQueueItem(t *testing.T) {
 		{ID: "work-001", Title: "Test task", Status: queue.StatusAssigned, AssignedTo: "test-agent"},
 	})
 
-	os.Setenv("BC_AGENT_ID", "test-agent")
-	defer os.Unsetenv("BC_AGENT_ID")
+	t.Setenv("BC_AGENT_ID", "test-agent")
 
 	_, _, err := executeIntegrationCmd("report", "working", "starting task")
 	if err != nil {
@@ -1413,8 +1446,7 @@ func TestReportDoneTransitionsQueueItem(t *testing.T) {
 		{ID: "work-001", Title: "Test task", Status: queue.StatusWorking, AssignedTo: "test-agent"},
 	})
 
-	os.Setenv("BC_AGENT_ID", "test-agent")
-	defer os.Unsetenv("BC_AGENT_ID")
+	t.Setenv("BC_AGENT_ID", "test-agent")
 
 	_, _, err := executeIntegrationCmd("report", "done", "task completed")
 	if err != nil {
@@ -1543,7 +1575,9 @@ func TestStatsJSON(t *testing.T) {
 	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755)
+	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755); err != nil {
+		t.Fatalf("failed to create agents dir: %v", err)
+	}
 
 	statsJSON = true
 	statsSave = false
@@ -1568,7 +1602,9 @@ func TestDashboardJSON(t *testing.T) {
 	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755)
+	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755); err != nil {
+		t.Fatalf("failed to create agents dir: %v", err)
+	}
 
 	stdout, _, err := executeIntegrationCmd("dashboard", "--json")
 	if err != nil {
@@ -1594,9 +1630,13 @@ func TestInitNewDirectory(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	targetDir := filepath.Join(tmpDir, "myproject")
-	os.MkdirAll(targetDir, 0755)
-	os.Chdir(targetDir)
-	defer os.Chdir(origDir)
+	if err = os.MkdirAll(targetDir, 0755); err != nil {
+		t.Fatalf("failed to create target dir: %v", err)
+	}
+	if err = os.Chdir(targetDir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	stdout, _, err := executeIntegrationCmd("init")
 	if err != nil {
@@ -1654,21 +1694,26 @@ func TestSendToStoppedAgent(t *testing.T) {
 
 func TestCreateDefaultChannelsIntegration(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.MkdirAll(filepath.Join(tmpDir, ".bc"), 0755)
+	if err := os.MkdirAll(filepath.Join(tmpDir, ".bc"), 0755); err != nil {
+		t.Fatalf("failed to create .bc dir: %v", err)
+	}
 
 	engineers := []string{"engineer-01", "engineer-02"}
 	qaNames := []string{"qa-01"}
 	allAgents := []string{"coordinator", "product-manager", "manager", "engineer-01", "engineer-02", "qa-01"}
 
 	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
 	os.Stdout = w
 
 	createDefaultChannels(tmpDir, engineers, qaNames, allAgents)
 
-	w.Close()
+	_ = w.Close()
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	os.Stdout = origStdout
 
 	output := buf.String()

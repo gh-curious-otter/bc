@@ -89,7 +89,7 @@ itemLoop:
 		switch state {
 		case agent.StateWorking:
 			if item.Status == queue.StatusAssigned {
-				q.UpdateStatus(item.ID, queue.StatusWorking)
+				_ = q.UpdateStatus(item.ID, queue.StatusWorking)
 				if err := log.Append(events.Event{
 					Type:    events.WorkStarted,
 					Agent:   agentID,
@@ -101,7 +101,7 @@ itemLoop:
 			}
 		case agent.StateDone:
 			if item.Status == queue.StatusWorking {
-				q.UpdateStatus(item.ID, queue.StatusDone)
+				_ = q.UpdateStatus(item.ID, queue.StatusDone)
 				if err := log.Append(events.Event{
 					Type:    events.WorkCompleted,
 					Agent:   agentID,

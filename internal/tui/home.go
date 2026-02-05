@@ -348,8 +348,8 @@ func (m *HomeModel) refreshWorkspaces() {
 			ws.Entry.Path+"/.bc/agents",
 			ws.Entry.Path,
 		)
-		mgr.LoadState()
-		mgr.RefreshState()
+		_ = mgr.LoadState()
+		_ = mgr.RefreshState()
 		m.workspaces[i].Total = mgr.AgentCount()
 		m.workspaces[i].Running = mgr.RunningCount()
 		m.workspaces[i].HasBeads = beads.HasBeads(ws.Entry.Path)

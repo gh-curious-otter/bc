@@ -67,7 +67,7 @@ func runSend(cmd *cobra.Command, args []string) error {
 
 	// Log event
 	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	log.Append(events.Event{
+	_ = log.Append(events.Event{
 		Type:    events.MessageSent,
 		Agent:   agentName,
 		Message: message,

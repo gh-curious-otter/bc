@@ -52,8 +52,14 @@ func runUI(cmd *cobra.Command, args []string) error {
 // runUIDemo simulates an AI sending streaming updates.
 func runUIDemo() error {
 	// Create pipes for communication
-	aiToTUI, tuiInput, _ := os.Pipe()
-	tuiOutput, tuiToAI, _ := os.Pipe()
+	aiToTUI, tuiInput, err := os.Pipe()
+	if err != nil {
+		return fmt.Errorf("failed to create pipe: %w", err)
+	}
+	tuiOutput, tuiToAI, err := os.Pipe()
+	if err != nil {
+		return fmt.Errorf("failed to create pipe: %w", err)
+	}
 
 	// Start the driver with our pipes
 	driver := runtime.NewDriver().
@@ -69,8 +75,11 @@ func runUIDemo() error {
 func simulateAI(toTUI *os.File, fromTUI *os.File) {
 	// Helper to send messages
 	send := func(v any) {
-		data, _ := json.Marshal(v)
-		fmt.Fprintln(toTUI, string(data))
+		data, err := json.Marshal(v)
+		if err != nil {
+			return
+		}
+		_, _ = fmt.Fprintln(toTUI, string(data))
 	}
 
 	// Wait for ready event

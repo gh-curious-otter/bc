@@ -25,17 +25,29 @@ func setupTestWorkspace(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	bcDir := filepath.Join(dir, ".bc")
-	os.MkdirAll(filepath.Join(bcDir, "agents"), 0755)
+	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	// Write config.json (what workspace.Find looks for)
-	absDir, _ := filepath.Abs(dir)
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	wsConfig := `{"version":1,"name":"test-ws","state_dir":"` + bcDir + `","root_dir":"` + absDir + `","max_workers":3}`
-	os.WriteFile(filepath.Join(bcDir, "config.json"), []byte(wsConfig), 0644)
+	if err := os.WriteFile(filepath.Join(bcDir, "config.json"), []byte(wsConfig), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Change to workspace dir
-	origDir, _ := os.Getwd()
-	t.Cleanup(func() { os.Chdir(origDir) })
-	os.Chdir(dir)
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(origDir) })
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
 
 	return dir
 }
@@ -57,7 +69,9 @@ func setupEventsFile(t *testing.T, stateDir string, evts []events.Event) {
 	t.Helper()
 	log := events.NewLog(filepath.Join(stateDir, "events.jsonl"))
 	for _, ev := range evts {
-		log.Append(ev)
+		if err := log.Append(ev); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
@@ -68,7 +82,9 @@ func setupAgentState(t *testing.T, agentsDir string, agents map[string]*agent.Ag
 	if err != nil {
 		t.Fatalf("failed to marshal agents: %v", err)
 	}
-	os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0644)
+	if err := os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0644); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // executeCmd runs a cobra command with the given args.
@@ -82,8 +98,8 @@ func executeCmd(args ...string) (string, error) {
 	rootCmd.SetArgs(args)
 
 	// Reset persistent flags to prevent leaking between tests
-	rootCmd.PersistentFlags().Set("json", "false")
-	rootCmd.PersistentFlags().Set("verbose", "false")
+	_ = rootCmd.PersistentFlags().Set("json", "false")
+	_ = rootCmd.PersistentFlags().Set("verbose", "false")
 
 	// Reset subcommand flags (e.g. logs --tail) to prevent Changed state leaking
 	for _, sub := range rootCmd.Commands() {
@@ -92,20 +108,23 @@ func executeCmd(args ...string) (string, error) {
 
 	// Capture stdout
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		return "", err
+	}
 	os.Stdout = w
 
-	err := rootCmd.Execute()
+	execErr := rootCmd.Execute()
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var stdoutBuf bytes.Buffer
-	stdoutBuf.ReadFrom(r)
+	_, _ = stdoutBuf.ReadFrom(r)
 
 	// Combine cobra output and stdout
 	combined := buf.String() + stdoutBuf.String()
-	return combined, err
+	return combined, execErr
 }
 
 // --- formatDuration tests ---
@@ -249,10 +268,14 @@ func TestParseRole(t *testing.T) {
 func TestLoadRolePrompt(t *testing.T) {
 	dir := t.TempDir()
 	promptDir := filepath.Join(dir, "prompts")
-	os.MkdirAll(promptDir, 0755)
+	if err := os.MkdirAll(promptDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	// Create a test prompt file
-	os.WriteFile(filepath.Join(promptDir, "engineer.md"), []byte("You are an engineer."), 0644)
+	if err := os.WriteFile(filepath.Join(promptDir, "engineer.md"), []byte("You are an engineer."), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	t.Run("existing prompt", func(t *testing.T) {
 		got := loadRolePrompt(dir, "engineer")
@@ -306,7 +329,9 @@ func TestBuildBootstrapPrompt(t *testing.T) {
 
 func TestCreateDefaultChannels(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".bc"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	engineers := []string{"eng-01", "eng-02"}
 	qa := []string{"qa-01"}
@@ -314,10 +339,13 @@ func TestCreateDefaultChannels(t *testing.T) {
 
 	// Capture stdout from createDefaultChannels
 	oldStdout := os.Stdout
-	_, w, _ := os.Pipe()
+	_, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
 	createDefaultChannels(dir, engineers, qa, all)
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	// Verify channels file was created at .bc/channels.json
@@ -326,7 +354,10 @@ func TestCreateDefaultChannels(t *testing.T) {
 		t.Fatal("channels.json not created")
 	}
 
-	data, _ := os.ReadFile(channelsFile)
+	data, err := os.ReadFile(channelsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
 	content := string(data)
 
 	for _, ch := range []string{"standup", "leadership", "engineering", "qa", "all"} {
@@ -341,11 +372,18 @@ func TestCreateDefaultChannels(t *testing.T) {
 func TestInitCommand(t *testing.T) {
 	dir := t.TempDir()
 	subdir := filepath.Join(dir, "myproject")
-	os.MkdirAll(subdir, 0755)
+	if err := os.MkdirAll(subdir, 0755); err != nil {
+		t.Fatal(err)
+	}
 
-	origDir, _ := os.Getwd()
-	t.Cleanup(func() { os.Chdir(origDir) })
-	os.Chdir(subdir)
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(origDir) })
+	if err := os.Chdir(subdir); err != nil {
+		t.Fatal(err)
+	}
 
 	output, err := executeCmd("init")
 	if err != nil {
@@ -437,7 +475,9 @@ func TestQueueAdd(t *testing.T) {
 	// Verify item exists in queue file
 	stateDir := filepath.Join(root, ".bc")
 	q := queue.New(filepath.Join(stateDir, "queue.json"))
-	q.Load()
+	if err := q.Load(); err != nil {
+		t.Fatal(err)
+	}
 	items := q.ListAll()
 	if len(items) != 1 || items[0].Title != "New feature request" {
 		t.Errorf("queue should have 1 item 'New feature request', got %v", items)
@@ -463,7 +503,9 @@ func TestQueueAssign(t *testing.T) {
 
 	// Reload to get the generated ID
 	q := queue.New(filepath.Join(stateDir, "queue.json"))
-	q.Load()
+	if err := q.Load(); err != nil {
+		t.Fatal(err)
+	}
 	items := q.ListAll()
 	itemID := items[0].ID
 
@@ -492,7 +534,9 @@ func TestQueueComplete(t *testing.T) {
 	// Create queue with an item, then set it to working status
 	q := queue.New(filepath.Join(stateDir, "queue.json"))
 	item := q.Add("Fix auth", "", "")
-	q.Save()
+	if err := q.Save(); err != nil {
+		t.Fatal(err)
+	}
 
 	output, err := executeCmd("queue", "complete", item.ID)
 	if err != nil {
@@ -606,7 +650,9 @@ func TestLogsCommand_Tail(t *testing.T) {
 func TestReportCommand_NoAgentID(t *testing.T) {
 	setupTestWorkspace(t)
 
-	os.Unsetenv("BC_AGENT_ID")
+	if err := os.Unsetenv("BC_AGENT_ID"); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err := executeCmd("report", "working", "fixing auth")
 	if err == nil {
@@ -667,9 +713,15 @@ func TestReportCommand_Done(t *testing.T) {
 	// Add a working queue item assigned to eng-01
 	q := queue.New(filepath.Join(stateDir, "queue.json"))
 	item := q.Add("Fix auth", "", "")
-	q.Assign(item.ID, "eng-01")
-	q.UpdateStatus(item.ID, queue.StatusWorking)
-	q.Save()
+	if err := q.Assign(item.ID, "eng-01"); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateStatus(item.ID, queue.StatusWorking); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.Save(); err != nil {
+		t.Fatal(err)
+	}
 
 	t.Setenv("BC_AGENT_ID", "eng-01")
 
@@ -683,7 +735,9 @@ func TestReportCommand_Done(t *testing.T) {
 
 	// Verify queue item was marked done
 	q2 := queue.New(filepath.Join(stateDir, "queue.json"))
-	q2.Load()
+	if err := q2.Load(); err != nil {
+		t.Fatal(err)
+	}
 	completed := q2.Get(item.ID)
 	if completed != nil && completed.Status != queue.StatusDone {
 		t.Errorf("item status = %s, want done", completed.Status)
@@ -911,7 +965,7 @@ func TestChannelAdd(t *testing.T) {
 	setupTestWorkspace(t)
 
 	// Create channel first
-	executeCmd("channel", "create", "devs")
+	_, _ = executeCmd("channel", "create", "devs")
 
 	output, err := executeCmd("channel", "add", "devs", "eng-01", "eng-02")
 	if err != nil {
@@ -925,8 +979,8 @@ func TestChannelAdd(t *testing.T) {
 func TestChannelRemove(t *testing.T) {
 	setupTestWorkspace(t)
 
-	executeCmd("channel", "create", "devs")
-	executeCmd("channel", "add", "devs", "eng-01")
+	_, _ = executeCmd("channel", "create", "devs")
+	_, _ = executeCmd("channel", "add", "devs", "eng-01")
 
 	output, err := executeCmd("channel", "remove", "devs", "eng-01")
 	if err != nil {
@@ -940,7 +994,7 @@ func TestChannelRemove(t *testing.T) {
 func TestChannelDelete(t *testing.T) {
 	setupTestWorkspace(t)
 
-	executeCmd("channel", "create", "temp-channel")
+	_, _ = executeCmd("channel", "create", "temp-channel")
 
 	output, err := executeCmd("channel", "delete", "temp-channel")
 	if err != nil {
@@ -953,7 +1007,9 @@ func TestChannelDelete(t *testing.T) {
 
 func TestChannelJoin_NoAgentID(t *testing.T) {
 	setupTestWorkspace(t)
-	os.Unsetenv("BC_AGENT_ID")
+	if err := os.Unsetenv("BC_AGENT_ID"); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err := executeCmd("channel", "join", "devs")
 	if err == nil {
@@ -965,7 +1021,7 @@ func TestChannelJoin(t *testing.T) {
 	setupTestWorkspace(t)
 	t.Setenv("BC_AGENT_ID", "eng-01")
 
-	executeCmd("channel", "create", "devs")
+	_, _ = executeCmd("channel", "create", "devs")
 
 	output, err := executeCmd("channel", "join", "devs")
 	if err != nil {
@@ -978,7 +1034,9 @@ func TestChannelJoin(t *testing.T) {
 
 func TestChannelLeave_NoAgentID(t *testing.T) {
 	setupTestWorkspace(t)
-	os.Unsetenv("BC_AGENT_ID")
+	if err := os.Unsetenv("BC_AGENT_ID"); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err := executeCmd("channel", "leave", "devs")
 	if err == nil {
@@ -990,8 +1048,8 @@ func TestChannelLeave(t *testing.T) {
 	setupTestWorkspace(t)
 	t.Setenv("BC_AGENT_ID", "eng-01")
 
-	executeCmd("channel", "create", "devs")
-	executeCmd("channel", "add", "devs", "eng-01")
+	_, _ = executeCmd("channel", "create", "devs")
+	_, _ = executeCmd("channel", "add", "devs", "eng-01")
 
 	output, err := executeCmd("channel", "leave", "devs")
 	if err != nil {
@@ -1005,7 +1063,7 @@ func TestChannelLeave(t *testing.T) {
 func TestChannelHistory_Empty(t *testing.T) {
 	setupTestWorkspace(t)
 
-	executeCmd("channel", "create", "devs")
+	_, _ = executeCmd("channel", "create", "devs")
 
 	output, err := executeCmd("channel", "history", "devs")
 	if err != nil {
@@ -1020,11 +1078,16 @@ func TestChannelHistory_Empty(t *testing.T) {
 
 func TestSendCommand_NoWorkspace(t *testing.T) {
 	dir := t.TempDir()
-	origDir, _ := os.Getwd()
-	t.Cleanup(func() { os.Chdir(origDir) })
-	os.Chdir(dir)
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(origDir) })
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
 
-	_, err := executeCmd("send", "eng-01", "hello")
+	_, err = executeCmd("send", "eng-01", "hello")
 	if err == nil {
 		t.Error("expected error when not in a workspace")
 	}
@@ -1079,20 +1142,25 @@ func TestPrintJSONDashboard(t *testing.T) {
 
 	// Redirect stdout to capture JSON
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
 
-	err := printJSONDashboard("/test", "test-ws", agents, qs, evts)
+	printErr := printJSONDashboard("/test", "test-ws", agents, qs, evts)
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
-	if err != nil {
-		t.Fatalf("printJSONDashboard error: %v", err)
+	if printErr != nil {
+		t.Fatalf("printJSONDashboard error: %v", printErr)
 	}
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	if _, err := buf.ReadFrom(r); err != nil {
+		t.Fatal(err)
+	}
 	output := buf.String()
 
 	var result dashboardOutput
@@ -1129,7 +1197,7 @@ func TestSetVersionInfo(t *testing.T) {
 	rootCmd.SetOut(buf)
 	rootCmd.SetErr(buf)
 	rootCmd.SetArgs([]string{"version"})
-	rootCmd.Execute()
+	_ = rootCmd.Execute()
 
 	output := buf.String()
 	if !strings.Contains(output, "2.0.0") {
@@ -1152,7 +1220,10 @@ func TestLoadQueue(t *testing.T) {
 	})
 
 	ws := mockStateDir{dir: stateDir}
-	q := loadQueue(ws)
+	q, err := loadQueue(ws)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	items := q.ListAll()
 	if len(items) != 1 {
@@ -1251,8 +1322,12 @@ func TestReportCommand_WorkingWithQueueItem(t *testing.T) {
 	// Add queue item assigned to eng-01
 	q := queue.New(filepath.Join(stateDir, "queue.json"))
 	item := q.Add("Fix auth", "", "")
-	q.Assign(item.ID, "eng-01")
-	q.Save()
+	if err := q.Assign(item.ID, "eng-01"); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.Save(); err != nil {
+		t.Fatal(err)
+	}
 
 	t.Setenv("BC_AGENT_ID", "eng-01")
 
@@ -1263,7 +1338,9 @@ func TestReportCommand_WorkingWithQueueItem(t *testing.T) {
 
 	// Verify queue item status changed to working
 	q2 := queue.New(filepath.Join(stateDir, "queue.json"))
-	q2.Load()
+	if err := q2.Load(); err != nil {
+		t.Fatal(err)
+	}
 	updated := q2.Get(item.ID)
 	if updated != nil && updated.Status != queue.StatusWorking {
 		t.Errorf("item status = %s, want working", updated.Status)
@@ -1412,7 +1489,7 @@ func TestChannelSend_NoMembers(t *testing.T) {
 	setupTestWorkspace(t)
 
 	// Create channel with no members
-	executeCmd("channel", "create", "empty-channel")
+	_, _ = executeCmd("channel", "create", "empty-channel")
 
 	output, err := executeCmd("channel", "send", "empty-channel", "hello")
 	if err != nil {
@@ -1439,8 +1516,8 @@ func TestChannelSend_WithMembers(t *testing.T) {
 	}
 	setupAgentState(t, agentsDir, agentMap)
 
-	executeCmd("channel", "create", "devs")
-	executeCmd("channel", "add", "devs", "eng-01")
+	_, _ = executeCmd("channel", "create", "devs")
+	_, _ = executeCmd("channel", "add", "devs", "eng-01")
 
 	// This will try to send but fail since there's no tmux session
 	// It should not error out - it just prints failures per member
@@ -1469,10 +1546,18 @@ func TestChannelHistory_WithMessages(t *testing.T) {
 		t.Skip("cannot load channel store")
 	}
 
-	store.Create("devs")
-	store.AddHistory("devs", "eng-01", "first message")
-	store.AddHistory("devs", "eng-01", "second message")
-	store.Save()
+	if _, err := store.Create("devs"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AddHistory("devs", "eng-01", "first message"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AddHistory("devs", "eng-01", "second message"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save(); err != nil {
+		t.Fatal(err)
+	}
 
 	output, err2 := executeCmd("channel", "history", "devs")
 	if err2 != nil {
@@ -1698,8 +1783,12 @@ func TestQueueList_WithAssignedAndBeads(t *testing.T) {
 
 	q := queue.New(filepath.Join(stateDir, "queue.json"))
 	item := q.Add("Fix auth", "Fix the auth bug", "bc-123")
-	q.Assign(item.ID, "eng-01")
-	q.Save()
+	if err := q.Assign(item.ID, "eng-01"); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.Save(); err != nil {
+		t.Fatal(err)
+	}
 
 	output, err := executeCmd("queue")
 	if err != nil {
@@ -1718,11 +1807,18 @@ func TestQueueList_WithAssignedAndBeads(t *testing.T) {
 func TestInitCommand_CustomDir(t *testing.T) {
 	dir := t.TempDir()
 	subdir := filepath.Join(dir, "custom-project")
-	os.MkdirAll(subdir, 0755)
+	if err := os.MkdirAll(subdir, 0755); err != nil {
+		t.Fatal(err)
+	}
 
-	origDir, _ := os.Getwd()
-	t.Cleanup(func() { os.Chdir(origDir) })
-	os.Chdir(dir)
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(origDir) })
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
 
 	output, err := executeCmd("init", subdir)
 	if err != nil {
@@ -1765,11 +1861,16 @@ func TestRoot(t *testing.T) {
 
 func TestGetWorkspace_NotInWorkspace(t *testing.T) {
 	dir := t.TempDir()
-	origDir, _ := os.Getwd()
-	t.Cleanup(func() { os.Chdir(origDir) })
-	os.Chdir(dir)
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(origDir) })
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
 
-	_, err := executeCmd("status")
+	_, err = executeCmd("status")
 	if err == nil {
 		t.Error("expected error when not in a workspace")
 	}
@@ -1792,7 +1893,9 @@ func TestQueueAdd_WithDescription(t *testing.T) {
 
 	stateDir := filepath.Join(root, ".bc")
 	q := queue.New(filepath.Join(stateDir, "queue.json"))
-	q.Load()
+	if err := q.Load(); err != nil {
+		t.Fatal(err)
+	}
 	items := q.ListAll()
 	if len(items) != 1 {
 		t.Fatalf("expected 1 item, got %d", len(items))
@@ -1806,7 +1909,9 @@ func TestQueueAdd_WithDescription(t *testing.T) {
 
 func TestCreateDefaultChannels_AlreadyExist(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".bc"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	engineers := []string{"eng-01"}
 	qa := []string{"qa-01"}
@@ -1814,11 +1919,14 @@ func TestCreateDefaultChannels_AlreadyExist(t *testing.T) {
 
 	// Create channels twice - second time should not error
 	oldStdout := os.Stdout
-	_, w, _ := os.Pipe()
+	_, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
 	createDefaultChannels(dir, engineers, qa, all)
 	createDefaultChannels(dir, engineers, qa, all)
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 }
 
@@ -1826,11 +1934,16 @@ func TestCreateDefaultChannels_AlreadyExist(t *testing.T) {
 
 func TestAttachCommand_NoWorkspace(t *testing.T) {
 	dir := t.TempDir()
-	origDir, _ := os.Getwd()
-	t.Cleanup(func() { os.Chdir(origDir) })
-	os.Chdir(dir)
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(origDir) })
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
 
-	_, err := executeCmd("attach", "coordinator")
+	_, err = executeCmd("attach", "coordinator")
 	if err == nil {
 		t.Error("expected error when not in a workspace")
 	}
@@ -1874,7 +1987,9 @@ func TestQueueAssign_BeadsSync(t *testing.T) {
 	// Create item with BeadsID
 	q := queue.New(filepath.Join(stateDir, "queue.json"))
 	item := q.Add("Fix auth", "", "bc-123")
-	q.Save()
+	if err := q.Save(); err != nil {
+		t.Fatal(err)
+	}
 
 	output, err := executeCmd("queue", "assign", item.ID, "eng-01")
 	if err != nil {
@@ -1893,7 +2008,9 @@ func TestQueueComplete_WithBeads(t *testing.T) {
 
 	q := queue.New(filepath.Join(stateDir, "queue.json"))
 	item := q.Add("Fix auth", "", "bc-123")
-	q.Save()
+	if err := q.Save(); err != nil {
+		t.Fatal(err)
+	}
 
 	output, err := executeCmd("queue", "complete", item.ID)
 	if err != nil {
@@ -1957,21 +2074,33 @@ func TestAttachCommand_SessionNotFound(t *testing.T) {
 func TestSpawnCommand_WorkspaceToolConfig(t *testing.T) {
 	dir := t.TempDir()
 	bcDir := filepath.Join(dir, ".bc")
-	os.MkdirAll(filepath.Join(bcDir, "agents"), 0755)
+	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
-	absDir, _ := filepath.Abs(dir)
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	wsConfig := `{"version":1,"name":"test-ws","state_dir":"` + bcDir + `","root_dir":"` + absDir + `","max_workers":3,"tool":"cursor"}`
-	os.WriteFile(filepath.Join(bcDir, "config.json"), []byte(wsConfig), 0644)
+	if err := os.WriteFile(filepath.Join(bcDir, "config.json"), []byte(wsConfig), 0644); err != nil {
+		t.Fatal(err)
+	}
 
-	origDir, _ := os.Getwd()
-	t.Cleanup(func() { os.Chdir(origDir) })
-	os.Chdir(dir)
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(origDir) })
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
 
 	spawnRole = "worker"
 	defer func() { spawnRole = "worker" }()
 
 	// This will fail at SpawnAgentWithTool (no tmux), but should get past tool config
-	_, err := executeCmd("spawn", "test-agent")
+	_, err = executeCmd("spawn", "test-agent")
 	// We expect an error (tmux not available), but it should not be about the tool
 	if err != nil && strings.Contains(err.Error(), "unknown tool") {
 		t.Error("should recognize tool from workspace config")
@@ -1983,15 +2112,27 @@ func TestSpawnCommand_WorkspaceToolConfig(t *testing.T) {
 func TestSpawnCommand_WorkspaceAgentCommandConfig(t *testing.T) {
 	dir := t.TempDir()
 	bcDir := filepath.Join(dir, ".bc")
-	os.MkdirAll(filepath.Join(bcDir, "agents"), 0755)
+	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
-	absDir, _ := filepath.Abs(dir)
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	wsConfig := `{"version":1,"name":"test-ws","state_dir":"` + bcDir + `","root_dir":"` + absDir + `","max_workers":3,"agent_command":"custom-agent"}`
-	os.WriteFile(filepath.Join(bcDir, "config.json"), []byte(wsConfig), 0644)
+	if err := os.WriteFile(filepath.Join(bcDir, "config.json"), []byte(wsConfig), 0644); err != nil {
+		t.Fatal(err)
+	}
 
-	origDir, _ := os.Getwd()
-	t.Cleanup(func() { os.Chdir(origDir) })
-	os.Chdir(dir)
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(origDir) })
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
 
 	spawnRole = "worker"
 	defer func() { spawnRole = "worker" }()
@@ -2090,8 +2231,8 @@ func TestChannelSend_MixedAgentStates(t *testing.T) {
 	}
 	setupAgentState(t, agentsDir, agents)
 
-	executeCmd("channel", "create", "devs")
-	executeCmd("channel", "add", "devs", "eng-01", "eng-02")
+	_, _ = executeCmd("channel", "create", "devs")
+	_, _ = executeCmd("channel", "add", "devs", "eng-01", "eng-02")
 
 	output, err := executeCmd("channel", "send", "devs", "test message")
 	if err != nil {
@@ -2138,9 +2279,15 @@ func TestReportCommand_DoneWithBeads(t *testing.T) {
 	// Add queue item with BeadsID
 	q := queue.New(filepath.Join(stateDir, "queue.json"))
 	item := q.Add("Fix auth", "", "bc-123")
-	q.Assign(item.ID, "eng-01")
-	q.UpdateStatus(item.ID, queue.StatusWorking)
-	q.Save()
+	if err := q.Assign(item.ID, "eng-01"); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateStatus(item.ID, queue.StatusWorking); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.Save(); err != nil {
+		t.Fatal(err)
+	}
 
 	t.Setenv("BC_AGENT_ID", "eng-01")
 
@@ -2157,11 +2304,16 @@ func TestReportCommand_DoneWithBeads(t *testing.T) {
 
 func TestUpCommand_NoWorkspace(t *testing.T) {
 	dir := t.TempDir()
-	origDir, _ := os.Getwd()
-	t.Cleanup(func() { os.Chdir(origDir) })
-	os.Chdir(dir)
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(origDir) })
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
 
-	_, err := executeCmd("up")
+	_, err = executeCmd("up")
 	if err == nil {
 		t.Error("expected error when not in a workspace")
 	}
@@ -2252,15 +2404,27 @@ func TestUpCommand_WithWorkersFlag(t *testing.T) {
 func TestUpCommand_WithAgentCommandConfig(t *testing.T) {
 	dir := t.TempDir()
 	bcDir := filepath.Join(dir, ".bc")
-	os.MkdirAll(filepath.Join(bcDir, "agents"), 0755)
+	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
-	absDir, _ := filepath.Abs(dir)
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	wsConfig := `{"version":1,"name":"test-ws","state_dir":"` + bcDir + `","root_dir":"` + absDir + `","max_workers":3,"agent_command":"custom-command"}`
-	os.WriteFile(filepath.Join(bcDir, "config.json"), []byte(wsConfig), 0644)
+	if err := os.WriteFile(filepath.Join(bcDir, "config.json"), []byte(wsConfig), 0644); err != nil {
+		t.Fatal(err)
+	}
 
-	origDir, _ := os.Getwd()
-	t.Cleanup(func() { os.Chdir(origDir) })
-	os.Chdir(dir)
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(origDir) })
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
 
 	oldWorkers := upWorkers
 	oldEngineers := upEngineers
@@ -2367,12 +2531,24 @@ func TestQueueList_AllStatuses(t *testing.T) {
 	item4 := q.Add("Done task", "", "")
 	item5 := q.Add("Failed task", "", "")
 
-	q.Assign(item2.ID, "eng-01")
-	q.Assign(item3.ID, "eng-02")
-	q.UpdateStatus(item3.ID, queue.StatusWorking)
-	q.UpdateStatus(item4.ID, queue.StatusDone)
-	q.UpdateStatus(item5.ID, queue.StatusFailed)
-	q.Save()
+	if err := q.Assign(item2.ID, "eng-01"); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.Assign(item3.ID, "eng-02"); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateStatus(item3.ID, queue.StatusWorking); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateStatus(item4.ID, queue.StatusDone); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpdateStatus(item5.ID, queue.StatusFailed); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.Save(); err != nil {
+		t.Fatal(err)
+	}
 	_ = item1 // pending by default
 
 	output, err := executeCmd("queue")
@@ -2411,8 +2587,8 @@ func TestStatsCommand_SaveAndJSON(t *testing.T) {
 func TestChannelList_WithMembers(t *testing.T) {
 	setupTestWorkspace(t)
 
-	executeCmd("channel", "create", "devs")
-	executeCmd("channel", "add", "devs", "eng-01", "eng-02")
+	_, _ = executeCmd("channel", "create", "devs")
+	_, _ = executeCmd("channel", "add", "devs", "eng-01", "eng-02")
 
 	output, err := executeCmd("channel", "list")
 	if err != nil {

@@ -46,14 +46,17 @@ func TestStateIcon_Unknown(t *testing.T) {
 
 func TestPrintAgentSummary_NoAgents(t *testing.T) {
 	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
 	os.Stdout = w
 
 	printAgentSummary(nil)
 
-	w.Close()
+	_ = w.Close()
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	os.Stdout = origStdout
 
 	output := buf.String()
@@ -79,14 +82,17 @@ func TestPrintAgentSummary_WithAgents_Dashboard(t *testing.T) {
 	}
 
 	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
 	os.Stdout = w
 
 	printAgentSummary(agents)
 
-	w.Close()
+	_ = w.Close()
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	os.Stdout = origStdout
 
 	output := buf.String()
@@ -116,14 +122,17 @@ func TestPrintAgentSummary_TaskTruncation(t *testing.T) {
 	}
 
 	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
 	os.Stdout = w
 
 	printAgentSummary(agents)
 
-	w.Close()
+	_ = w.Close()
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	os.Stdout = origStdout
 
 	output := buf.String()
@@ -134,14 +143,17 @@ func TestPrintAgentSummary_TaskTruncation(t *testing.T) {
 
 func TestPrintQueueStats_Empty_Dashboard(t *testing.T) {
 	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
 	os.Stdout = w
 
 	printQueueStats(queue.Stats{})
 
-	w.Close()
+	_ = w.Close()
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	os.Stdout = origStdout
 
 	output := buf.String()
@@ -161,14 +173,17 @@ func TestPrintQueueStats_WithItems(t *testing.T) {
 	}
 
 	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
 	os.Stdout = w
 
 	printQueueStats(qs)
 
-	w.Close()
+	_ = w.Close()
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	os.Stdout = origStdout
 
 	output := buf.String()
@@ -188,14 +203,17 @@ func TestPrintQueueStats_WithFailures(t *testing.T) {
 	}
 
 	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
 	os.Stdout = w
 
 	printQueueStats(qs)
 
-	w.Close()
+	_ = w.Close()
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	os.Stdout = origStdout
 
 	output := buf.String()
@@ -206,14 +224,17 @@ func TestPrintQueueStats_WithFailures(t *testing.T) {
 
 func TestPrintRecentActivity_Empty_Dashboard(t *testing.T) {
 	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
 	os.Stdout = w
 
 	printRecentActivity(nil)
 
-	w.Close()
+	_ = w.Close()
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	os.Stdout = origStdout
 
 	output := buf.String()
@@ -239,14 +260,17 @@ func TestPrintRecentActivity_WithEvents_Dashboard(t *testing.T) {
 	}
 
 	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
 	os.Stdout = w
 
 	printRecentActivity(evts)
 
-	w.Close()
+	_ = w.Close()
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	os.Stdout = origStdout
 
 	output := buf.String()
@@ -268,14 +292,17 @@ func TestPrintRecentActivity_NoAgent(t *testing.T) {
 	}
 
 	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
 	os.Stdout = w
 
 	printRecentActivity(evts)
 
-	w.Close()
+	_ = w.Close()
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	os.Stdout = origStdout
 
 	output := buf.String()
@@ -297,14 +324,17 @@ func TestPrintRecentActivity_EventTypeAsFallback(t *testing.T) {
 	}
 
 	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
 	os.Stdout = w
 
 	printRecentActivity(evts)
 
-	w.Close()
+	_ = w.Close()
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	os.Stdout = origStdout
 
 	output := buf.String()
@@ -347,14 +377,17 @@ func TestPrintJSONDashboard_Dashboard(t *testing.T) {
 	}
 
 	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
 	os.Stdout = w
 
 	err := printJSONDashboard("/test/workspace", "test-project", agents, qs, evts)
 
-	w.Close()
+	_ = w.Close()
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	os.Stdout = origStdout
 
 	if err != nil {
@@ -389,14 +422,17 @@ func TestPrintJSONDashboard_Dashboard(t *testing.T) {
 
 func TestPrintJSONDashboard_EmptyData(t *testing.T) {
 	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatalf("failed to create pipe: %v", pipeErr)
+	}
 	os.Stdout = w
 
 	err := printJSONDashboard("/test", "empty", nil, queue.Stats{}, nil)
 
-	w.Close()
+	_ = w.Close()
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	os.Stdout = origStdout
 
 	if err != nil {

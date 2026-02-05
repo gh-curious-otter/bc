@@ -72,7 +72,9 @@ func runMerge(cmd *cobra.Command, args []string) error {
 
 	// Resolve associated queue item (by --work-id or by branch match)
 	q := queue.New(filepath.Join(ws.StateDir(), "queue.json"))
-	_ = q.Load()
+	if err := q.Load(); err != nil {
+		return fmt.Errorf("failed to load queue: %w", err)
+	}
 	workID := mergeWorkID
 	if workID == "" {
 		// Try to find queue item by branch name
@@ -83,8 +85,12 @@ func runMerge(cmd *cobra.Command, args []string) error {
 
 	// Mark queue item as merging
 	if workID != "" {
-		_ = q.UpdateMergeStatus(workID, queue.MergeMerging, "")
-		_ = q.Save()
+		if err := q.UpdateMergeStatus(workID, queue.MergeMerging, ""); err != nil {
+			return fmt.Errorf("failed to update merge status: %w", err)
+		}
+		if err := q.Save(); err != nil {
+			return fmt.Errorf("failed to save queue: %w", err)
+		}
 	}
 
 	// Step 2: Check for conflicts with main
@@ -99,8 +105,12 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		}
 		// Mark as conflict
 		if workID != "" {
-			_ = q.UpdateMergeStatus(workID, queue.MergeConflict, "")
-			_ = q.Save()
+			if updateErr := q.UpdateMergeStatus(workID, queue.MergeConflict, ""); updateErr != nil {
+				return fmt.Errorf("failed to update merge status: %w", updateErr)
+			}
+			if saveErr := q.Save(); saveErr != nil {
+				return fmt.Errorf("failed to save queue: %w", saveErr)
+			}
 		}
 		return fmt.Errorf("branch %s has conflicts with main — resolve before merging", branch)
 	}
@@ -134,14 +144,18 @@ func runMerge(cmd *cobra.Command, args []string) error {
 			fmt.Printf("  Marked %s done\n", workID)
 		}
 		// Update merge status to merged
-		_ = q.UpdateMergeStatus(workID, queue.MergeMerged, commitHash)
-		_ = q.Save()
+		if updateErr := q.UpdateMergeStatus(workID, queue.MergeMerged, commitHash); updateErr != nil {
+			return fmt.Errorf("failed to update merge status: %w", updateErr)
+		}
+		if saveErr := q.Save(); saveErr != nil {
+			return fmt.Errorf("failed to save queue: %w", saveErr)
+		}
 		fmt.Printf("  Merge status: merged (%s)\n", commitHash)
 	}
 
 	// Step 6: Log event
 	evLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	evLog.Append(events.Event{
+	_ = evLog.Append(events.Event{
 		Type:    events.WorkCompleted,
 		Message: fmt.Sprintf("merged %s into main at %s", branch, commitHash),
 		Data: map[string]any{
@@ -356,7 +370,9 @@ func mergeBranch(repoDir, branch string) (string, error) {
 // markQueueDone marks a queue item as done and closes its beads issue.
 func markQueueDone(stateDir, rootDir, workID string) error {
 	q := queue.New(filepath.Join(stateDir, "queue.json"))
-	q.Load()
+	if err := q.Load(); err != nil {
+		return fmt.Errorf("failed to load queue: %w", err)
+	}
 	item := q.Get(workID)
 	if item == nil {
 		return fmt.Errorf("work item %s not found", workID)

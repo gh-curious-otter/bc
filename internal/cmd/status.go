@@ -49,7 +49,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	agents := mgr.ListAgents()
 
-	jsonOutput, _ := cmd.Flags().GetBool("json")
+	jsonOutput, err := cmd.Flags().GetBool("json")
+	if err != nil {
+		return err
+	}
 	if jsonOutput {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
