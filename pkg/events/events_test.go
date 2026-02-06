@@ -212,17 +212,17 @@ not valid json
 
 func TestReadLast(t *testing.T) {
 	tests := []struct {
+		wantFirst EventType
 		name      string
 		numEvents int
 		lastN     int
 		wantCount int
-		wantFirst EventType
 	}{
-		{"last 2 of 5", 5, 2, 2, WorkCompleted},
-		{"last 5 of 5", 5, 5, 5, AgentSpawned},
-		{"last 10 of 3", 3, 10, 3, AgentSpawned},
-		{"last 0 of 3", 3, 0, 0, ""},
-		{"last 1 of 1", 1, 1, 1, AgentSpawned},
+		{WorkCompleted, "last 2 of 5", 5, 2, 2},
+		{AgentSpawned, "last 5 of 5", 5, 5, 5},
+		{AgentSpawned, "last 10 of 3", 3, 10, 3},
+		{"", "last 0 of 3", 3, 0, 0},
+		{AgentSpawned, "last 1 of 1", 1, 1, 1},
 	}
 
 	orderedTypes := []EventType{AgentSpawned, WorkAssigned, WorkStarted, WorkCompleted, AgentStopped}

@@ -25,8 +25,8 @@ type Config struct {
 
 // Workspace represents an active workspace.
 type Workspace struct {
-	Config  Config
 	RootDir string
+	Config  Config
 }
 
 // DefaultConfig returns default workspace configuration.

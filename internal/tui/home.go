@@ -45,37 +45,20 @@ type WorkspaceInfo struct {
 
 // HomeModel is the root TUI model for bc home.
 type HomeModel struct {
-	// Home screen state
-	workspaces []WorkspaceInfo
-
-	// Workspace detail state
-	wsModel *WorkspaceModel
-
-	// Agent detail state
-	agentModel *AgentModel
-
-	// Channel detail state
-	channelModel *ChannelModel
-
-	// Issue detail state
-	issueModel *IssueModel
-
-	// Queue item detail state
+	wsModel        *WorkspaceModel
+	agentModel     *AgentModel
+	channelModel   *ChannelModel
+	issueModel     *IssueModel
 	queueItemModel *QueueItemModel
-
-	styles style.Styles
-
-	// Status message
-	statusMsg string
-
-	screen     Screen
-	width      int
-	height     int
-	homeCursor int
-	maxWorkers int
-
-	// Help overlay
-	helpActive bool
+	styles         style.Styles
+	statusMsg      string
+	workspaces     []WorkspaceInfo
+	screen         Screen
+	maxWorkers     int
+	width          int
+	height         int
+	homeCursor     int
+	helpActive     bool
 }
 
 // NewHomeModel creates the root TUI model. maxWorkers is the configured agent limit (0 = no limit).

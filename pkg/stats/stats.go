@@ -67,20 +67,13 @@ type AgentStat struct {
 
 // Stats holds all workspace statistics.
 type Stats struct {
-	// Metrics
-	WorkItems WorkItemMetrics `json:"work_items"`
-	Agents    AgentMetrics    `json:"agents"`
-
-	// Metadata
-	CollectedAt   time.Time `json:"collected_at"`
-	WorkspacePath string    `json:"workspace_path"`
-
-	// Internal
-	path string
-
-	// Historical tracking
-	TotalTasksEverCompleted int `json:"total_tasks_ever_completed"`
-	TotalTasksEverFailed    int `json:"total_tasks_ever_failed"`
+	CollectedAt             time.Time `json:"collected_at"`
+	path                    string
+	WorkspacePath           string          `json:"workspace_path"`
+	Agents                  AgentMetrics    `json:"agents"`
+	WorkItems               WorkItemMetrics `json:"work_items"`
+	TotalTasksEverCompleted int             `json:"total_tasks_ever_completed"`
+	TotalTasksEverFailed    int             `json:"total_tasks_ever_failed"`
 }
 
 // New creates a new Stats instance for the given workspace.

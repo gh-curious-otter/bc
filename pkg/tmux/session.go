@@ -29,19 +29,20 @@ type Session struct {
 
 // Manager handles tmux session operations.
 type Manager struct {
-	// sessionMu protects per-session SendKeys serialization.
-	// Concurrent sends to the same session are serialized to prevent interleaving.
-	sessionMu    sync.Mutex
-	sessionLocks map[string]*sync.Mutex
-
 	// execCommand creates exec.Cmd objects. Defaults to exec.Command.
 	// Override in tests for mocking.
 	execCommand func(name string, arg ...string) *exec.Cmd
+
+	sessionLocks map[string]*sync.Mutex
 
 	// SessionPrefix is prepended to all session names (e.g., "bc-")
 	SessionPrefix string
 	// workspaceHash is included in session names for workspace isolation.
 	workspaceHash string
+
+	// sessionMu protects per-session SendKeys serialization.
+	// Concurrent sends to the same session are serialized to prevent interleaving.
+	sessionMu sync.Mutex
 }
 
 // command returns an exec.Cmd using the configured executor.

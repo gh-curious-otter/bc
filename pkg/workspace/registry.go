@@ -17,8 +17,8 @@ type RegistryEntry struct {
 
 // Registry manages the global list of workspaces at ~/.bc/workspaces.json.
 type Registry struct {
+	path       string
 	Workspaces []RegistryEntry `json:"workspaces"`
-	path       string          // already optimal: slice (24) + string (16) = 40 bytes
 }
 
 // GlobalDir returns the path to ~/.bc/.

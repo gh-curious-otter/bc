@@ -105,9 +105,9 @@ type KeyEvent struct {
 
 // SelectEvent is sent when a row/item is selected.
 type SelectEvent struct {
-	Row  RowRef      `json:"row"`
+	Type MessageType `json:"type"`
 	View string      `json:"view"`
-	Type MessageType `json:"type"` // "select"
+	Row  RowRef      `json:"row"`
 }
 
 // InputEvent is sent when text input is submitted.
@@ -135,8 +135,8 @@ type InitEvent struct {
 // RowRef identifies a row in a table.
 type RowRef struct {
 	Data   any      `json:"data,omitempty"`
-	Values []string `json:"values,omitempty"`
 	ID     string   `json:"id"`
+	Values []string `json:"values,omitempty"`
 	Index  int      `json:"index"`
 }
 
@@ -155,12 +155,12 @@ const (
 
 // TableSpec defines a table view.
 type TableSpec struct {
+	ID       string        `json:"id"`
+	Title    string        `json:"title,omitempty"`
+	Empty    string        `json:"empty,omitempty"`
 	Columns  []ColumnSpec  `json:"columns"`
 	Rows     []RowSpec     `json:"rows,omitempty"`
 	Bindings []BindingSpec `json:"bindings,omitempty"`
-	ID       string        `json:"id"`
-	Title    string        `json:"title,omitempty"`
-	Empty    string        `json:"empty,omitempty"` // Empty state message
 	Loading  bool          `json:"loading,omitempty"`
 }
 
@@ -173,18 +173,18 @@ type ColumnSpec struct {
 
 // RowSpec defines a table row.
 type RowSpec struct {
-	Data   any      `json:"data,omitempty"` // Arbitrary attached data
-	Values []string `json:"values"`
+	Data   any      `json:"data,omitempty"`
 	ID     string   `json:"id"`
-	Status string   `json:"status,omitempty"` // ok, error, warning, info
+	Status string   `json:"status,omitempty"`
+	Values []string `json:"values"`
 }
 
 // DetailSpec defines a detail view.
 type DetailSpec struct {
+	Title    string        `json:"title"`
+	ID       string        `json:"id"`
 	Sections []SectionSpec `json:"sections,omitempty"`
 	Bindings []BindingSpec `json:"bindings,omitempty"`
-	ID       string        `json:"id"`
-	Title    string        `json:"title"`
 	Loading  bool          `json:"loading,omitempty"`
 }
 

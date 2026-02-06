@@ -18,26 +18,21 @@ const agentMaxRecentEvents = 10
 
 // AgentModel shows the detail view for a single agent.
 type AgentModel struct {
-	agent   *agent.Agent
-	manager *agent.Manager
-
-	taskItems    []queue.WorkItem // items assigned to this agent
-	recentEvents []events.Event
-
-	styles     style.Styles
-	wsPath     string
-	peekOutput string
-	input      string
-	sendMsg    string
-
-	// Stats
-	tasksCompleted int
-	tasksFailed    int
+	manager        *agent.Manager
+	agent          *agent.Agent
+	styles         style.Styles
+	sendMsg        string
+	wsPath         string
+	peekOutput     string
+	input          string
+	recentEvents   []events.Event
+	taskItems      []queue.WorkItem
 	width          int
 	height         int
-
-	peekActive bool
-	sendMode   bool
+	tasksCompleted int
+	tasksFailed    int
+	peekActive     bool
+	sendMode       bool
 }
 
 // NewAgentModel creates an agent detail view.

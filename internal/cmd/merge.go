@@ -292,7 +292,7 @@ func runValidation(dir string) error {
 
 	for _, check := range checks {
 		fmt.Printf("  Running go %s...\n", check.name)
-		cmd := exec.Command(check.args[0], check.args[1:]...) //nolint:gosec // G204: args from hardcoded list
+		cmd := exec.CommandContext(context.Background(), check.args[0], check.args[1:]...) //nolint:gosec // G204: args from hardcoded list
 		cmd.Dir = dir
 		out, err := cmd.CombinedOutput()
 		if err != nil {

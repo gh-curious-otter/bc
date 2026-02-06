@@ -161,37 +161,21 @@ type AgentMemory struct {
 
 // Agent represents a running AI agent.
 type Agent struct {
-	StartedAt time.Time `json:"started_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-
-	// Hierarchy info
-	Children []string `json:"children,omitempty"` // IDs of child agents
-
-	// Memory holds role-specific prompts and context
-	Memory *AgentMemory `json:"memory,omitempty"`
-
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Workspace string `json:"workspace"`
-	Task      string `json:"task,omitempty"`
-
-	// Session info
-	Session string `json:"session"`
-
-	// Tool type (claude, cursor, codex, server)
-	Tool string `json:"tool,omitempty"`
-
-	ParentID string `json:"parent_id,omitempty"` // ID of parent agent (who created this agent)
-
-	// For workers/engineers
-	HookedWork string `json:"hooked_work,omitempty"`
-
-	// WorktreeDir is the per-agent git worktree directory.
-	// Each agent gets its own worktree so git operations don't clobber other agents.
-	WorktreeDir string `json:"worktree_dir,omitempty"`
-
-	Role  Role  `json:"role"`
-	State State `json:"state"`
+	UpdatedAt   time.Time    `json:"updated_at"`
+	StartedAt   time.Time    `json:"started_at"`
+	Memory      *AgentMemory `json:"memory,omitempty"`
+	Workspace   string       `json:"workspace"`
+	ID          string       `json:"id"`
+	Name        string       `json:"name"`
+	Task        string       `json:"task,omitempty"`
+	Session     string       `json:"session"`
+	Tool        string       `json:"tool,omitempty"`
+	ParentID    string       `json:"parent_id,omitempty"`
+	HookedWork  string       `json:"hooked_work,omitempty"`
+	WorktreeDir string       `json:"worktree_dir,omitempty"`
+	Role        Role         `json:"role"`
+	State       State        `json:"state"`
+	Children    []string     `json:"children,omitempty"`
 }
 
 // HasCapability checks if this agent has a specific capability.
@@ -236,7 +220,6 @@ func LoadRoleMemory(workspacePath string, role Role) *AgentMemory {
 
 // Manager handles agent lifecycle.
 type Manager struct {
-	mu     sync.RWMutex
 	agents map[string]*Agent
 	tmux   *tmux.Manager
 
@@ -247,6 +230,8 @@ type Manager struct {
 
 	// Workspace path for env vars
 	workspacePath string
+
+	mu sync.RWMutex
 }
 
 // NewManager creates a new agent manager with workspace-scoped tmux sessions.

@@ -12,26 +12,19 @@ import (
 
 // TableView is a navigable table component with vim-style keybindings.
 type TableView struct {
-	columns  []Column
+	onRender func(Row, int, bool) string
+	onSelect func(Row) Cmd
+	styles   style.Styles
+	id       string
+	title    string
 	rows     []Row
 	bindings []KeyBinding
-
-	// Callbacks
-	onSelect func(Row) Cmd
-	onRender func(Row, int, bool) string // Custom row renderer
-
-	id    string
-	title string
-
-	// Styling
-	styles style.Styles
-
-	// State
-	cursor  int
-	offset  int
-	width   int
-	height  int
-	focused bool
+	columns  []Column
+	width    int
+	height   int
+	cursor   int
+	offset   int
+	focused  bool
 }
 
 // TableBuilder provides a fluent API for constructing TableView.

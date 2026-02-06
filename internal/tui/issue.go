@@ -15,12 +15,12 @@ type IssueModel struct {
 	// Scroll state
 	contentLines []string
 
-	issue  beads.Issue
 	styles style.Styles
+	issue  beads.Issue
 
+	scrollOffset int
 	width        int
 	height       int
-	scrollOffset int
 }
 
 // NewIssueModel creates an issue detail view.

@@ -66,8 +66,8 @@ type Stats struct {
 
 // Queue manages work items persisted to a JSON file.
 type Queue struct {
-	items []WorkItem
 	path  string
+	items []WorkItem
 	mu    sync.RWMutex
 }
 

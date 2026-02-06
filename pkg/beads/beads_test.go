@@ -13,8 +13,8 @@ import (
 
 func TestHasBeads(t *testing.T) {
 	tests := []struct {
-		name      string
 		setup     func(t *testing.T, dir string)
+		name      string
 		wantBeads bool
 	}{
 		{
@@ -68,8 +68,8 @@ func TestParseJSONL(t *testing.T) {
 	tests := []struct {
 		name      string
 		input     string
-		wantCount int
 		wantFirst string // title of first issue
+		wantCount int
 	}{
 		{
 			name:      "single issue",

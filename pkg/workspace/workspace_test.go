@@ -379,12 +379,11 @@ func TestEnsureDirsIdempotent(t *testing.T) {
 
 func TestIsWorkspace(t *testing.T) {
 	tests := []struct {
-		name  string
 		setup func(t *testing.T) string
+		name  string
 		want  bool
 	}{
 		{
-			"initialized workspace",
 			func(t *testing.T) string {
 				dir := t.TempDir()
 				if _, err := Init(dir); err != nil {
@@ -392,20 +391,21 @@ func TestIsWorkspace(t *testing.T) {
 				}
 				return dir
 			},
+			"initialized workspace",
 			true,
 		},
 		{
-			"empty directory",
 			func(t *testing.T) string {
 				return t.TempDir()
 			},
+			"empty directory",
 			false,
 		},
 		{
-			"nonexistent directory",
 			func(t *testing.T) string {
 				return filepath.Join(t.TempDir(), "nonexistent")
 			},
+			"nonexistent directory",
 			false,
 		},
 	}

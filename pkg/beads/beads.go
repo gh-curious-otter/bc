@@ -21,15 +21,15 @@ var ErrNoBeadsDir = errors.New("no .beads directory found")
 
 // Issue represents a beads issue.
 type Issue struct {
-	Dependencies []string `json:"dependencies,omitempty"`
+	Priority     any      `json:"priority,omitempty"`
 	ID           string   `json:"id"`
 	Title        string   `json:"title"`
 	Description  string   `json:"description,omitempty"`
 	Status       string   `json:"status"`
-	Priority     any      `json:"priority,omitempty"`
 	Assignee     string   `json:"assignee,omitempty"`
 	Type         string   `json:"issue_type,omitempty"`
-	Source       string   `json:"source"` // "beads"
+	Source       string   `json:"source"`
+	Dependencies []string `json:"dependencies,omitempty"`
 }
 
 // HasBeads checks if the workspace has a .beads directory.

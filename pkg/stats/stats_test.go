@@ -277,15 +277,15 @@ func TestUtilization(t *testing.T) {
 func TestFormatDuration(t *testing.T) {
 	tests := []struct {
 		name string
-		d    time.Duration
 		want string
+		d    time.Duration
 	}{
-		{"zero", 0, "0s"},
-		{"seconds", 45 * time.Second, "45s"},
-		{"minutes and seconds", 3*time.Minute + 12*time.Second, "3m 12s"},
-		{"hours and minutes", 2*time.Hour + 30*time.Minute, "2h 30m"},
-		{"hours only", 1 * time.Hour, "1h 0m"},
-		{"sub-second rounds down", 500 * time.Millisecond, "1s"},
+		{"zero", "0s", 0},
+		{"seconds", "45s", 45 * time.Second},
+		{"minutes and seconds", "3m 12s", 3*time.Minute + 12*time.Second},
+		{"hours and minutes", "2h 30m", 2*time.Hour + 30*time.Minute},
+		{"hours only", "1h 0m", 1 * time.Hour},
+		{"sub-second rounds down", "1s", 500 * time.Millisecond},
 	}
 
 	for _, tt := range tests {

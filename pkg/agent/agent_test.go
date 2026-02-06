@@ -32,16 +32,16 @@ func newTestManager(t *testing.T) *Manager {
 func TestAgent_HasCapability(t *testing.T) {
 	tests := []struct {
 		name     string
-		agent    Agent
 		cap      Capability
+		agent    Agent
 		expected bool
 	}{
-		{"engineer can implement", Agent{Role: RoleEngineer}, CapImplementTasks, true},
-		{"engineer cannot create agents", Agent{Role: RoleEngineer}, CapCreateAgents, false},
-		{"manager can assign work", Agent{Role: RoleManager}, CapAssignWork, true},
-		{"qa can test work", Agent{Role: RoleQA}, CapTestWork, true},
-		{"qa can review work", Agent{Role: RoleQA}, CapReviewWork, true},
-		{"product manager can create epics", Agent{Role: RoleProductManager}, CapCreateEpics, true},
+		{"engineer can implement", CapImplementTasks, Agent{Role: RoleEngineer}, true},
+		{"engineer cannot create agents", CapCreateAgents, Agent{Role: RoleEngineer}, false},
+		{"manager can assign work", CapAssignWork, Agent{Role: RoleManager}, true},
+		{"qa can test work", CapTestWork, Agent{Role: RoleQA}, true},
+		{"qa can review work", CapReviewWork, Agent{Role: RoleQA}, true},
+		{"product manager can create epics", CapCreateEpics, Agent{Role: RoleProductManager}, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -55,15 +55,15 @@ func TestAgent_HasCapability(t *testing.T) {
 func TestAgent_CanCreate(t *testing.T) {
 	tests := []struct {
 		name      string
-		agent     Agent
 		childRole Role
+		agent     Agent
 		expected  bool
 	}{
-		{"manager can create engineer", Agent{Role: RoleManager}, RoleEngineer, true},
-		{"manager can create qa", Agent{Role: RoleManager}, RoleQA, true},
-		{"engineer cannot create anything", Agent{Role: RoleEngineer}, RoleWorker, false},
-		{"product manager can create manager", Agent{Role: RoleProductManager}, RoleManager, true},
-		{"coordinator can create worker", Agent{Role: RoleCoordinator}, RoleWorker, true},
+		{"manager can create engineer", RoleEngineer, Agent{Role: RoleManager}, true},
+		{"manager can create qa", RoleQA, Agent{Role: RoleManager}, true},
+		{"engineer cannot create anything", RoleWorker, Agent{Role: RoleEngineer}, false},
+		{"product manager can create manager", RoleManager, Agent{Role: RoleProductManager}, true},
+		{"coordinator can create worker", RoleWorker, Agent{Role: RoleCoordinator}, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

@@ -26,10 +26,10 @@ type Model interface {
 
 // Row represents a single row of data in a table.
 type Row struct {
-	Values []string // Cell values
-	ID     string   // Unique identifier for the row
-	Data   any      // Optional attached data
-	Status string   // Optional status for styling (ok, error, warning, etc.)
+	Data   any
+	ID     string
+	Status string
+	Values []string
 }
 
 // Column defines a table column.

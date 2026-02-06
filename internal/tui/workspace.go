@@ -91,18 +91,14 @@ type WorkspaceModel struct {
 	// Per-agent stats from pkg/stats
 	agentStats map[string]stats.AgentStat
 
-	manager  *agent.Manager
-	pkgStats *stats.Stats
-
-	info      WorkspaceInfo
-	styles    style.Styles
+	manager   *agent.Manager
+	pkgStats  *stats.Stats
 	issuesErr error
 
-	// Queue stats
+	styles     style.Styles
+	info       WorkspaceInfo
 	queueStats queue.Stats
-
-	// Dashboard stats
-	stats WorkspaceStats
+	stats      WorkspaceStats
 
 	width        int
 	height       int
