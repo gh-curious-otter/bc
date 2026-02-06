@@ -350,7 +350,7 @@ func TestCreateDefaultChannels(t *testing.T) {
 
 	// Verify channels file was created at .bc/channels.json
 	channelsFile := filepath.Join(dir, ".bc", "channels.json")
-	if _, err := os.Stat(channelsFile); os.IsNotExist(err) {
+	if _, statErr := os.Stat(channelsFile); os.IsNotExist(statErr) {
 		t.Fatal("channels.json not created")
 	}
 
@@ -381,8 +381,8 @@ func TestInitCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chdir(origDir) })
-	if err := os.Chdir(subdir); err != nil {
-		t.Fatal(err)
+	if chdirErr := os.Chdir(subdir); chdirErr != nil {
+		t.Fatal(chdirErr)
 	}
 
 	output, err := executeCmd("init")
@@ -1083,8 +1083,8 @@ func TestSendCommand_NoWorkspace(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chdir(origDir) })
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
+	if chdirErr := os.Chdir(dir); chdirErr != nil {
+		t.Fatal(chdirErr)
 	}
 
 	_, err = executeCmd("send", "eng-01", "hello")
@@ -1816,8 +1816,8 @@ func TestInitCommand_CustomDir(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chdir(origDir) })
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
+	if chdirErr := os.Chdir(dir); chdirErr != nil {
+		t.Fatal(chdirErr)
 	}
 
 	output, err := executeCmd("init", subdir)
@@ -1866,8 +1866,8 @@ func TestGetWorkspace_NotInWorkspace(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chdir(origDir) })
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
+	if chdirErr := os.Chdir(dir); chdirErr != nil {
+		t.Fatal(chdirErr)
 	}
 
 	_, err = executeCmd("status")
@@ -1939,8 +1939,8 @@ func TestAttachCommand_NoWorkspace(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chdir(origDir) })
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
+	if chdirErr := os.Chdir(dir); chdirErr != nil {
+		t.Fatal(chdirErr)
 	}
 
 	_, err = executeCmd("attach", "coordinator")
@@ -2083,8 +2083,8 @@ func TestSpawnCommand_WorkspaceToolConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	wsConfig := `{"version":1,"name":"test-ws","state_dir":"` + bcDir + `","root_dir":"` + absDir + `","max_workers":3,"tool":"cursor"}`
-	if err := os.WriteFile(filepath.Join(bcDir, "config.json"), []byte(wsConfig), 0644); err != nil {
-		t.Fatal(err)
+	if writeErr := os.WriteFile(filepath.Join(bcDir, "config.json"), []byte(wsConfig), 0644); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 
 	origDir, err := os.Getwd()
@@ -2092,8 +2092,8 @@ func TestSpawnCommand_WorkspaceToolConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chdir(origDir) })
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
+	if chdirErr := os.Chdir(dir); chdirErr != nil {
+		t.Fatal(chdirErr)
 	}
 
 	spawnRole = "worker"
@@ -2309,8 +2309,8 @@ func TestUpCommand_NoWorkspace(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chdir(origDir) })
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
+	if chdirErr := os.Chdir(dir); chdirErr != nil {
+		t.Fatal(chdirErr)
 	}
 
 	_, err = executeCmd("up")

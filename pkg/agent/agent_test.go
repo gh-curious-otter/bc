@@ -1726,8 +1726,8 @@ func TestEnsureGitWrapper_Idempotent(t *testing.T) {
 	}
 
 	// Second call should be a no-op (file already exists)
-	if err := ensureGitWrapper(workspace); err != nil {
-		t.Fatalf("second call failed: %v", err)
+	if ensureErr := ensureGitWrapper(workspace); ensureErr != nil {
+		t.Fatalf("second call failed: %v", ensureErr)
 	}
 
 	info2, err := os.Stat(wrapperPath)

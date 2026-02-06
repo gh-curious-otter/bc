@@ -376,14 +376,14 @@ func TestRead_OversizedLine(t *testing.T) {
 		t.Fatal(err)
 	}
 	huge := `{"ts":"2025-01-01T00:00:00Z","type":"message.sent","message":"` + strings.Repeat("z", 100_000) + "\"}\n"
-	if _, err := f.WriteString(huge); err != nil {
-		t.Fatal(err)
+	if _, writeErr := f.WriteString(huge); writeErr != nil {
+		t.Fatal(writeErr)
 	}
-	if err := f.Close(); err != nil {
-		t.Fatal(err)
+	if closeErr := f.Close(); closeErr != nil {
+		t.Fatal(closeErr)
 	}
-	if err := log.Append(Event{Type: AgentStopped, Agent: "after"}); err != nil {
-		t.Fatal(err)
+	if appendErr := log.Append(Event{Type: AgentStopped, Agent: "after"}); appendErr != nil {
+		t.Fatal(appendErr)
 	}
 
 	events, err := log.Read()

@@ -51,8 +51,8 @@ func TestInit(t *testing.T) {
 
 	// .bc directory was created
 	stateDir := filepath.Join(dir, ".bc")
-	if _, err := os.Stat(stateDir); err != nil {
-		t.Errorf(".bc directory not created: %v", err)
+	if _, statErr := os.Stat(stateDir); statErr != nil {
+		t.Errorf(".bc directory not created: %v", statErr)
 	}
 
 	// config.json was written
@@ -283,8 +283,8 @@ func TestSave(t *testing.T) {
 	ws.Config.MaxWorkers = 10
 	ws.Config.Name = "renamed"
 
-	if err := ws.Save(); err != nil {
-		t.Fatalf("Save: %v", err)
+	if saveErr := ws.Save(); saveErr != nil {
+		t.Fatalf("Save: %v", saveErr)
 	}
 
 	// Reload and verify

@@ -278,7 +278,7 @@ func SetPath(spec any, path string, value any) error {
 	}
 
 	var m map[string]any
-	if err := json.Unmarshal(data, &m); err != nil {
+	if err = json.Unmarshal(data, &m); err != nil {
 		return err
 	}
 
@@ -317,7 +317,7 @@ func AppendPath(spec any, path string, value any) error {
 	}
 
 	var m map[string]any
-	if err := json.Unmarshal(data, &m); err != nil {
+	if err = json.Unmarshal(data, &m); err != nil {
 		return err
 	}
 

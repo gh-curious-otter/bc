@@ -89,7 +89,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 
 	// Load beads issues into queue
 	q := queue.New(filepath.Join(ws.StateDir(), "queue.json"))
-	if err := q.Load(); err != nil {
+	if err = q.Load(); err != nil {
 		return fmt.Errorf("failed to load queue: %w", err)
 	}
 
@@ -107,7 +107,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 		added++
 	}
 	if added > 0 {
-		if err := q.Save(); err != nil {
+		if err = q.Save(); err != nil {
 			return fmt.Errorf("failed to save queue: %w", err)
 		}
 		fmt.Printf("Loaded %d items into work queue from beads\n", added)

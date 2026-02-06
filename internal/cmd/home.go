@@ -47,8 +47,8 @@ func runHome(cmd *cobra.Command, args []string) error {
 
 	// If no workspaces registered, try to register the current one
 	if len(reg.Workspaces) == 0 {
-		ws, err := getWorkspace()
-		if err == nil {
+		ws, wsErr := getWorkspace()
+		if wsErr == nil {
 			reg.Register(ws.RootDir, ws.Config.Name)
 			_ = reg.Save()
 		}

@@ -66,13 +66,13 @@ func runMerge(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Merging branch %s into main...\n", branch)
 
 	// Step 1: Check that the branch exists
-	if err := gitBranchExists(rootDir, branch); err != nil {
+	if err = gitBranchExists(rootDir, branch); err != nil {
 		return fmt.Errorf("branch %s not found: %w", branch, err)
 	}
 
 	// Resolve associated queue item (by --work-id or by branch match)
 	q := queue.New(filepath.Join(ws.StateDir(), "queue.json"))
-	if err := q.Load(); err != nil {
+	if err = q.Load(); err != nil {
 		return fmt.Errorf("failed to load queue: %w", err)
 	}
 	workID := mergeWorkID
@@ -85,10 +85,10 @@ func runMerge(cmd *cobra.Command, args []string) error {
 
 	// Mark queue item as merging
 	if workID != "" {
-		if err := q.UpdateMergeStatus(workID, queue.MergeMerging, ""); err != nil {
+		if err = q.UpdateMergeStatus(workID, queue.MergeMerging, ""); err != nil {
 			return fmt.Errorf("failed to update merge status: %w", err)
 		}
-		if err := q.Save(); err != nil {
+		if err = q.Save(); err != nil {
 			return fmt.Errorf("failed to save queue: %w", err)
 		}
 	}
@@ -122,7 +122,7 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		if validateDir == "" {
 			validateDir = rootDir
 		}
-		if err := runValidation(validateDir); err != nil {
+		if err = runValidation(validateDir); err != nil {
 			return fmt.Errorf("validation failed: %w", err)
 		}
 	} else {
@@ -321,12 +321,12 @@ func mergeBranch(repoDir, branch string) (string, error) {
 	if mergeBase == mainHead {
 		// Fast-forward: move main to branch HEAD using update-ref
 		// (works even when main is checked out in another worktree)
-		branchHead, err := gitRevParse(repoDir, branch)
-		if err != nil {
-			return "", err
+		branchHead, branchErr := gitRevParse(repoDir, branch)
+		if branchErr != nil {
+			return "", branchErr
 		}
 		cmd := exec.Command("git", "-C", repoDir, "update-ref", "refs/heads/main", branchHead)
-		if out, err := cmd.CombinedOutput(); err != nil {
+		if out, cmdErr := cmd.CombinedOutput(); cmdErr != nil {
 			return "", fmt.Errorf("fast-forward failed: %s", strings.TrimSpace(string(out)))
 		}
 		return branchHead[:12], nil

@@ -38,12 +38,12 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Create agent manager and load state
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
-	if err := mgr.LoadState(); err != nil {
+	if err = mgr.LoadState(); err != nil {
 		log.Warn("failed to load agent state", "error", err)
 	}
 
 	// Refresh state from tmux
-	if err := mgr.RefreshState(); err != nil {
+	if err = mgr.RefreshState(); err != nil {
 		log.Warn("failed to refresh agent state", "error", err)
 	}
 

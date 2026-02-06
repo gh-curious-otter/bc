@@ -150,7 +150,7 @@ func runWorktreeList(cmd *cobra.Command, args []string) error {
 
 	// Load registered agents
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
-	if err := mgr.LoadState(); err != nil {
+	if err = mgr.LoadState(); err != nil {
 		return fmt.Errorf("failed to load agent state: %w", err)
 	}
 	agents := mgr.ListAgents()
@@ -164,7 +164,7 @@ func runWorktreeList(cmd *cobra.Command, args []string) error {
 		wtDir := filepath.Join(worktreesDir, a.Name)
 
 		status := "OK"
-		if _, err := os.Stat(wtDir); os.IsNotExist(err) {
+		if _, statErr := os.Stat(wtDir); os.IsNotExist(statErr) {
 			status = "MISSING"
 		}
 

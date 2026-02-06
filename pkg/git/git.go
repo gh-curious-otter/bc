@@ -111,7 +111,7 @@ func validateWorktree(dir string) error {
 		return fmt.Errorf("worktree path %q does not exist: %w", worktree, err)
 	}
 
-	if resolved, err := filepath.EvalSymlinks(absDir); err == nil {
+	if resolved, evalErr := filepath.EvalSymlinks(absDir); evalErr == nil {
 		absDir = resolved
 	}
 

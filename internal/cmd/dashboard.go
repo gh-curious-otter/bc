@@ -40,17 +40,17 @@ func runDashboard(cmd *cobra.Command, args []string) error {
 
 	// Load agents
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
-	if err := mgr.LoadState(); err != nil {
+	if err = mgr.LoadState(); err != nil {
 		log.Warn("failed to load agent state", "error", err)
 	}
-	if err := mgr.RefreshState(); err != nil {
+	if err = mgr.RefreshState(); err != nil {
 		log.Warn("failed to refresh agent state", "error", err)
 	}
 	agents := mgr.ListAgents()
 
 	// Load queue
 	q := queue.New(filepath.Join(ws.StateDir(), "queue.json"))
-	if err := q.Load(); err != nil {
+	if err = q.Load(); err != nil {
 		log.Warn("failed to load queue", "error", err)
 	}
 	qs := q.Stats()

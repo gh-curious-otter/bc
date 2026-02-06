@@ -50,12 +50,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// Apply flags
 	ws.Config.MaxWorkers = initMaxWorkers
 
-	if err := ws.Save(); err != nil {
+	if err = ws.Save(); err != nil {
 		return err
 	}
 
 	// Ensure directories exist
-	if err := ws.EnsureDirs(); err != nil {
+	if err = ws.EnsureDirs(); err != nil {
 		return err
 	}
 

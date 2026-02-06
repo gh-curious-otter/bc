@@ -177,7 +177,7 @@ func TestQueueAddAndList(t *testing.T) {
 
 	// Verify queue.json was created
 	queuePath := filepath.Join(wsDir, ".bc", "queue.json")
-	if _, err := os.Stat(queuePath); os.IsNotExist(err) {
+	if _, statErr := os.Stat(queuePath); os.IsNotExist(statErr) {
 		t.Fatal("queue.json was not created")
 	}
 
@@ -453,8 +453,8 @@ func TestReportValidStates(t *testing.T) {
 				t.Fatalf("failed to get cwd: %v", err)
 			}
 			tmpDir := t.TempDir()
-			if err := os.Chdir(tmpDir); err != nil {
-				t.Fatalf("failed to chdir: %v", err)
+			if chdirErr := os.Chdir(tmpDir); chdirErr != nil {
+				t.Fatalf("failed to chdir: %v", chdirErr)
 			}
 			defer func() { _ = os.Chdir(origDir) }()
 
@@ -1099,8 +1099,8 @@ func TestChannelAddMember(t *testing.T) {
 
 	// Verify on disk
 	store := channel.NewStore(wsDir)
-	if err := store.Load(); err != nil {
-		t.Fatalf("failed to load channels: %v", err)
+	if loadErr := store.Load(); loadErr != nil {
+		t.Fatalf("failed to load channels: %v", loadErr)
 	}
 	members, err := store.GetMembers("team")
 	if err != nil {
