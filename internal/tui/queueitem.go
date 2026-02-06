@@ -62,7 +62,7 @@ func (m *QueueItemModel) findBranch() string {
 	}
 
 	for _, pattern := range patterns {
-		cmd := exec.Command("git", "-C", m.workspacePath, "branch", "-a", "--list", pattern)
+		cmd := exec.Command("git", "-C", m.workspacePath, "branch", "-a", "--list", pattern) //nolint:gosec // G204: pattern derived from trusted work item ID
 		out, err := cmd.Output()
 		if err != nil || len(out) == 0 {
 			continue

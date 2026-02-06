@@ -97,14 +97,14 @@ func executeIntegrationCmd(args ...string) (string, string, error) {
 func seedAgents(t *testing.T, wsDir string, agents map[string]*agent.Agent) {
 	t.Helper()
 	agentsDir := filepath.Join(wsDir, ".bc", "agents")
-	if err := os.MkdirAll(agentsDir, 0755); err != nil {
+	if err := os.MkdirAll(agentsDir, 0750); err != nil {
 		t.Fatalf("failed to create agents dir: %v", err)
 	}
 	data, err := json.MarshalIndent(agents, "", "  ")
 	if err != nil {
 		t.Fatalf("failed to marshal agents: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0600); err != nil {
 		t.Fatalf("failed to write agents.json: %v", err)
 	}
 }
@@ -117,7 +117,7 @@ func seedQueue(t *testing.T, wsDir string, items []queue.WorkItem) {
 	if err != nil {
 		t.Fatalf("failed to marshal queue: %v", err)
 	}
-	if err := os.WriteFile(queuePath, data, 0644); err != nil {
+	if err := os.WriteFile(queuePath, data, 0600); err != nil {
 		t.Fatalf("failed to write queue.json: %v", err)
 	}
 }
@@ -505,7 +505,7 @@ func TestStatusEmptyWorkspace(t *testing.T) {
 	defer cleanup()
 
 	// Create agents dir so LoadState doesn't warn
-	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0750); err != nil {
 		t.Fatalf("failed to create agents dir: %v", err)
 	}
 
@@ -843,7 +843,7 @@ func TestStatsEmptyWorkspace(t *testing.T) {
 	defer cleanup()
 
 	// Create agents dir
-	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0750); err != nil {
 		t.Fatalf("failed to create agents dir: %v", err)
 	}
 
@@ -867,7 +867,7 @@ func TestStatsWithQueue(t *testing.T) {
 	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0750); err != nil {
 		t.Fatalf("failed to create agents dir: %v", err)
 	}
 
@@ -896,7 +896,7 @@ func TestStatsSave(t *testing.T) {
 	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0750); err != nil {
 		t.Fatalf("failed to create agents dir: %v", err)
 	}
 
@@ -946,7 +946,7 @@ func TestDashboardEmptyWorkspace(t *testing.T) {
 	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0750); err != nil {
 		t.Fatalf("failed to create agents dir: %v", err)
 	}
 
@@ -978,7 +978,7 @@ func seedChannels(t *testing.T, wsDir string, channels []*channel.Channel) {
 	if err != nil {
 		t.Fatalf("failed to marshal channels: %v", err)
 	}
-	if err := os.WriteFile(channelPath, data, 0644); err != nil {
+	if err := os.WriteFile(channelPath, data, 0600); err != nil {
 		t.Fatalf("failed to write channels.json: %v", err)
 	}
 }
@@ -1575,7 +1575,7 @@ func TestStatsJSON(t *testing.T) {
 	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0750); err != nil {
 		t.Fatalf("failed to create agents dir: %v", err)
 	}
 
@@ -1602,7 +1602,7 @@ func TestDashboardJSON(t *testing.T) {
 	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0750); err != nil {
 		t.Fatalf("failed to create agents dir: %v", err)
 	}
 
@@ -1630,7 +1630,7 @@ func TestInitNewDirectory(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	targetDir := filepath.Join(tmpDir, "myproject")
-	if err = os.MkdirAll(targetDir, 0755); err != nil {
+	if err = os.MkdirAll(targetDir, 0750); err != nil {
 		t.Fatalf("failed to create target dir: %v", err)
 	}
 	if err = os.Chdir(targetDir); err != nil {
@@ -1694,7 +1694,7 @@ func TestSendToStoppedAgent(t *testing.T) {
 
 func TestCreateDefaultChannelsIntegration(t *testing.T) {
 	tmpDir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(tmpDir, ".bc"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, ".bc"), 0750); err != nil {
 		t.Fatalf("failed to create .bc dir: %v", err)
 	}
 

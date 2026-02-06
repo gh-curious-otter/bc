@@ -25,7 +25,7 @@ func setupTestWorkspace(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	bcDir := filepath.Join(dir, ".bc")
-	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -35,7 +35,7 @@ func setupTestWorkspace(t *testing.T) string {
 		t.Fatal(err)
 	}
 	wsConfig := `{"version":1,"name":"test-ws","state_dir":"` + bcDir + `","root_dir":"` + absDir + `","max_workers":3}`
-	if err := os.WriteFile(filepath.Join(bcDir, "config.json"), []byte(wsConfig), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(bcDir, "config.json"), []byte(wsConfig), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -82,7 +82,7 @@ func setupAgentState(t *testing.T, agentsDir string, agents map[string]*agent.Ag
 	if err != nil {
 		t.Fatalf("failed to marshal agents: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0600); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -268,12 +268,12 @@ func TestParseRole(t *testing.T) {
 func TestLoadRolePrompt(t *testing.T) {
 	dir := t.TempDir()
 	promptDir := filepath.Join(dir, "prompts")
-	if err := os.MkdirAll(promptDir, 0755); err != nil {
+	if err := os.MkdirAll(promptDir, 0750); err != nil {
 		t.Fatal(err)
 	}
 
 	// Create a test prompt file
-	if err := os.WriteFile(filepath.Join(promptDir, "engineer.md"), []byte("You are an engineer."), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(promptDir, "engineer.md"), []byte("You are an engineer."), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -329,7 +329,7 @@ func TestBuildBootstrapPrompt(t *testing.T) {
 
 func TestCreateDefaultChannels(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -354,7 +354,7 @@ func TestCreateDefaultChannels(t *testing.T) {
 		t.Fatal("channels.json not created")
 	}
 
-	data, err := os.ReadFile(channelsFile)
+	data, err := os.ReadFile(channelsFile) //nolint:gosec // G304: test file reads from test-created path
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -372,7 +372,7 @@ func TestCreateDefaultChannels(t *testing.T) {
 func TestInitCommand(t *testing.T) {
 	dir := t.TempDir()
 	subdir := filepath.Join(dir, "myproject")
-	if err := os.MkdirAll(subdir, 0755); err != nil {
+	if err := os.MkdirAll(subdir, 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1807,7 +1807,7 @@ func TestQueueList_WithAssignedAndBeads(t *testing.T) {
 func TestInitCommand_CustomDir(t *testing.T) {
 	dir := t.TempDir()
 	subdir := filepath.Join(dir, "custom-project")
-	if err := os.MkdirAll(subdir, 0755); err != nil {
+	if err := os.MkdirAll(subdir, 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1909,7 +1909,7 @@ func TestQueueAdd_WithDescription(t *testing.T) {
 
 func TestCreateDefaultChannels_AlreadyExist(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2074,7 +2074,7 @@ func TestAttachCommand_SessionNotFound(t *testing.T) {
 func TestSpawnCommand_WorkspaceToolConfig(t *testing.T) {
 	dir := t.TempDir()
 	bcDir := filepath.Join(dir, ".bc")
-	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2083,7 +2083,7 @@ func TestSpawnCommand_WorkspaceToolConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	wsConfig := `{"version":1,"name":"test-ws","state_dir":"` + bcDir + `","root_dir":"` + absDir + `","max_workers":3,"tool":"cursor"}`
-	if err := os.WriteFile(filepath.Join(bcDir, "config.json"), []byte(wsConfig), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(bcDir, "config.json"), []byte(wsConfig), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2112,7 +2112,7 @@ func TestSpawnCommand_WorkspaceToolConfig(t *testing.T) {
 func TestSpawnCommand_WorkspaceAgentCommandConfig(t *testing.T) {
 	dir := t.TempDir()
 	bcDir := filepath.Join(dir, ".bc")
-	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2121,7 +2121,7 @@ func TestSpawnCommand_WorkspaceAgentCommandConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	wsConfig := `{"version":1,"name":"test-ws","state_dir":"` + bcDir + `","root_dir":"` + absDir + `","max_workers":3,"agent_command":"custom-agent"}`
-	if err := os.WriteFile(filepath.Join(bcDir, "config.json"), []byte(wsConfig), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(bcDir, "config.json"), []byte(wsConfig), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2404,7 +2404,7 @@ func TestUpCommand_WithWorkersFlag(t *testing.T) {
 func TestUpCommand_WithAgentCommandConfig(t *testing.T) {
 	dir := t.TempDir()
 	bcDir := filepath.Join(dir, ".bc")
-	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2413,7 +2413,7 @@ func TestUpCommand_WithAgentCommandConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	wsConfig := `{"version":1,"name":"test-ws","state_dir":"` + bcDir + `","root_dir":"` + absDir + `","max_workers":3,"agent_command":"custom-command"}`
-	if err := os.WriteFile(filepath.Join(bcDir, "config.json"), []byte(wsConfig), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(bcDir, "config.json"), []byte(wsConfig), 0600); err != nil {
 		t.Fatal(err)
 	}
 

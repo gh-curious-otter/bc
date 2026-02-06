@@ -291,7 +291,7 @@ func runValidation(dir string) error {
 
 	for _, check := range checks {
 		fmt.Printf("  Running go %s...\n", check.name)
-		cmd := exec.Command(check.args[0], check.args[1:]...)
+		cmd := exec.Command(check.args[0], check.args[1:]...) //nolint:gosec // G204: args from hardcoded list
 		cmd.Dir = dir
 		out, err := cmd.CombinedOutput()
 		if err != nil {
@@ -325,7 +325,7 @@ func mergeBranch(repoDir, branch string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		cmd := exec.Command("git", "-C", repoDir, "update-ref", "refs/heads/main", branchHead)
+		cmd := exec.Command("git", "-C", repoDir, "update-ref", "refs/heads/main", branchHead) //nolint:gosec // G204: git command with validated repo dir and branch head
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return "", fmt.Errorf("fast-forward failed: %s", strings.TrimSpace(string(out)))
 		}
@@ -350,7 +350,7 @@ func mergeBranch(repoDir, branch string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	commitCmd := exec.Command("git", "-C", repoDir, "commit-tree", treeHash,
+	commitCmd := exec.Command("git", "-C", repoDir, "commit-tree", treeHash, //nolint:gosec // G204: git command with validated git objects
 		"-p", mainHead, "-p", branchHead, "-m", mergeMsg)
 	commitOut, err := commitCmd.CombinedOutput()
 	if err != nil {
@@ -359,7 +359,7 @@ func mergeBranch(repoDir, branch string) (string, error) {
 	mergeCommit := strings.TrimSpace(string(commitOut))
 
 	// Update main ref to point to the merge commit
-	updateCmd := exec.Command("git", "-C", repoDir, "update-ref", "refs/heads/main", mergeCommit)
+	updateCmd := exec.Command("git", "-C", repoDir, "update-ref", "refs/heads/main", mergeCommit) //nolint:gosec // G204: git command with validated commit hash
 	if out, err := updateCmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("update-ref failed: %s", strings.TrimSpace(string(out)))
 	}
