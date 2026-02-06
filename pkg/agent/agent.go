@@ -2,6 +2,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -527,7 +528,7 @@ func createWorktree(workspace, agentName string) (string, error) {
 	}
 
 	// Create detached worktree at HEAD (current main)
-	cmd := exec.Command("git", "-C", workspace, "worktree", "add", "--detach", worktreeDir, "HEAD") //nolint:gosec // args are trusted internal paths
+	cmd := exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "add", "--detach", worktreeDir, "HEAD") //nolint:gosec // args are trusted internal paths
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to create worktree for %s: %w (%s)", agentName, err, string(output))
@@ -593,7 +594,7 @@ func removeWorktree(workspace, worktreeDir string) {
 	if worktreeDir == "" {
 		return
 	}
-	cmd := exec.Command("git", "-C", workspace, "worktree", "remove", "--force", worktreeDir)
+	cmd := exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "remove", "--force", worktreeDir)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		log.Warn("failed to remove worktree", "dir", worktreeDir, "error", err, "output", string(output))
 	} else {

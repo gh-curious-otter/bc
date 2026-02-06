@@ -1,6 +1,7 @@
 package beads
 
 import (
+	"context"
 	"encoding/json"
 	"os/exec"
 )
@@ -12,7 +13,7 @@ func GetIssue(workspacePath, issueID string) *Issue {
 		return nil
 	}
 
-	cmd := exec.Command("bd", "show", issueID, "--json")
+	cmd := exec.CommandContext(context.Background(), "bd", "show", issueID, "--json")
 	cmd.Dir = workspacePath
 	output, err := cmd.Output()
 	if err != nil {

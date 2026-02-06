@@ -1,6 +1,7 @@
 package github
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -20,7 +21,7 @@ func TestHasGitRemoteNoRepo(t *testing.T) {
 func TestHasGitRemoteNoOrigin(t *testing.T) {
 	dir := t.TempDir()
 	// Init a git repo but don't add a remote
-	cmd := exec.Command("git", "init")
+	cmd := exec.CommandContext(context.Background(), "git", "init")
 	cmd.Dir = dir
 	if err := cmd.Run(); err != nil {
 		t.Skipf("git not available: %v", err)
@@ -33,13 +34,13 @@ func TestHasGitRemoteNoOrigin(t *testing.T) {
 
 func TestHasGitRemoteWithOrigin(t *testing.T) {
 	dir := t.TempDir()
-	cmd := exec.Command("git", "init")
+	cmd := exec.CommandContext(context.Background(), "git", "init")
 	cmd.Dir = dir
 	if err := cmd.Run(); err != nil {
 		t.Skipf("git not available: %v", err)
 	}
 
-	addRemote := exec.Command("git", "remote", "add", "origin", "https://example.com/repo.git")
+	addRemote := exec.CommandContext(context.Background(), "git", "remote", "add", "origin", "https://example.com/repo.git")
 	addRemote.Dir = dir
 	if err := addRemote.Run(); err != nil {
 		t.Fatalf("failed to add remote: %v", err)
@@ -266,13 +267,13 @@ func setupGitRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 
-	cmd := exec.Command("git", "init")
+	cmd := exec.CommandContext(context.Background(), "git", "init")
 	cmd.Dir = dir
 	if err := cmd.Run(); err != nil {
 		t.Skipf("git not available: %v", err)
 	}
 
-	addRemote := exec.Command("git", "remote", "add", "origin", "https://example.com/repo.git")
+	addRemote := exec.CommandContext(context.Background(), "git", "remote", "add", "origin", "https://example.com/repo.git")
 	addRemote.Dir = dir
 	if err := addRemote.Run(); err != nil {
 		t.Fatalf("failed to add remote: %v", err)

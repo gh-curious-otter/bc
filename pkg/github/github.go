@@ -5,6 +5,7 @@
 package github
 
 import (
+	"context"
 	"encoding/json"
 	"os/exec"
 )
@@ -48,7 +49,7 @@ type ghPR struct {
 
 // HasGitRemote checks if the workspace has a git remote configured.
 func HasGitRemote(workspacePath string) bool {
-	cmd := exec.Command("git", "remote", "get-url", "origin")
+	cmd := exec.CommandContext(context.Background(), "git", "remote", "get-url", "origin")
 	cmd.Dir = workspacePath
 	return cmd.Run() == nil
 }
@@ -60,7 +61,7 @@ func ListIssues(workspacePath string) []Issue {
 		return nil
 	}
 
-	cmd := exec.Command("gh", "issue", "list",
+	cmd := exec.CommandContext(context.Background(), "gh", "issue", "list",
 		"--json", "number,title,state,labels",
 		"--limit", "50",
 	)
@@ -99,7 +100,7 @@ func ListPRs(workspacePath string) []PR {
 		return nil
 	}
 
-	cmd := exec.Command("gh", "pr", "list",
+	cmd := exec.CommandContext(context.Background(), "gh", "pr", "list",
 		"--json", "number,title,state,reviewDecision,isDraft",
 		"--limit", "50",
 	)
@@ -128,7 +129,7 @@ func CreateIssue(workspacePath, title, body string) error {
 	if body != "" {
 		args = append(args, "--body", body)
 	}
-	cmd := exec.Command("gh", args...) //nolint:gosec // gh command with trusted args
+	cmd := exec.CommandContext(context.Background(), "gh", args...) //nolint:gosec // gh command with trusted args
 	cmd.Dir = workspacePath
 	return cmd.Run()
 }

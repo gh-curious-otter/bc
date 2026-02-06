@@ -6,6 +6,7 @@
 package beads
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -103,7 +104,7 @@ func AddIssue(workspacePath, title, description string) error {
 	if description != "" {
 		args = append(args, "-d", description)
 	}
-	cmd := exec.Command("bd", args...) //nolint:gosec // bd command with trusted args
+	cmd := exec.CommandContext(context.Background(), "bd", args...) //nolint:gosec // bd command with trusted args
 	cmd.Dir = workspacePath
 	return cmd.Run()
 }
@@ -114,7 +115,7 @@ func ReadyIssues(workspacePath string) []Issue {
 		return nil
 	}
 
-	cmd := exec.Command("bd", "ready", "--json")
+	cmd := exec.CommandContext(context.Background(), "bd", "ready", "--json")
 	cmd.Dir = workspacePath
 	output, err := cmd.Output()
 	if err != nil {
@@ -140,14 +141,14 @@ func ReadyIssues(workspacePath string) []Issue {
 
 // AssignIssue assigns an issue to an agent.
 func AssignIssue(workspacePath, issueID, agentName string) error {
-	cmd := exec.Command("bd", "update", issueID, "--assign", agentName)
+	cmd := exec.CommandContext(context.Background(), "bd", "update", issueID, "--assign", agentName)
 	cmd.Dir = workspacePath
 	return cmd.Run()
 }
 
 // CloseIssue closes an issue.
 func CloseIssue(workspacePath, issueID string) error {
-	cmd := exec.Command("bd", "close", issueID)
+	cmd := exec.CommandContext(context.Background(), "bd", "close", issueID)
 	cmd.Dir = workspacePath
 	return cmd.Run()
 }
