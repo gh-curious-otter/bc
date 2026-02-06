@@ -49,7 +49,7 @@ func Init(rootDir string) (*Workspace, error) {
 
 	// Create state directory
 	stateDir := filepath.Join(absRoot, ".bc")
-	if err := os.MkdirAll(stateDir, 0750); err != nil {
+	if err = os.MkdirAll(stateDir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create state directory: %w", err)
 	}
 

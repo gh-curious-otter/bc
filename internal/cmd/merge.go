@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -198,7 +199,7 @@ func resolveMergeTarget(agentsDir, rootDir, target string) (branch string, workt
 
 // gitBranchExists checks if a branch exists.
 func gitBranchExists(repoDir, branch string) error {
-	cmd := exec.Command("git", "-C", repoDir, "rev-parse", "--verify", branch)
+	cmd := exec.CommandContext(context.Background(), "git", "-C", repoDir, "rev-parse", "--verify", branch)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("%s: %s", err, strings.TrimSpace(string(out)))
 	}
@@ -207,7 +208,7 @@ func gitBranchExists(repoDir, branch string) error {
 
 // gitCurrentBranch returns the current branch of a directory.
 func gitCurrentBranch(dir string) (string, error) {
-	cmd := exec.Command("git", "-C", dir, "rev-parse", "--abbrev-ref", "HEAD")
+	cmd := exec.CommandContext(context.Background(), "git", "-C", dir, "rev-parse", "--abbrev-ref", "HEAD")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("git rev-parse failed: %w", err)
@@ -223,7 +224,7 @@ func gitCurrentBranch(dir string) (string, error) {
 // changing the working tree. Returns the list of conflicting files.
 func checkMergeConflicts(repoDir, branch string) ([]string, error) {
 	// Get merge base
-	baseCmd := exec.Command("git", "-C", repoDir, "merge-base", "main", branch)
+	baseCmd := exec.CommandContext(context.Background(), "git", "-C", repoDir, "merge-base", "main", branch)
 	baseOut, err := baseCmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("merge-base: %s", strings.TrimSpace(string(baseOut)))
@@ -243,7 +244,7 @@ func checkMergeConflicts(repoDir, branch string) ([]string, error) {
 	// Exit code 0 = clean merge, exit code 1 = conflicts detected.
 	// The first line of output is the resulting tree hash.
 	// With --name-only, conflicting file paths follow after a blank line.
-	treeCmd := exec.Command("git", "-C", repoDir, "merge-tree", "--write-tree", "--name-only", "main", branch)
+	treeCmd := exec.CommandContext(context.Background(), "git", "-C", repoDir, "merge-tree", "--write-tree", "--name-only", "main", branch)
 	out, err := treeCmd.CombinedOutput()
 	if err == nil {
 		return nil, nil // Clean merge possible
@@ -270,7 +271,7 @@ func checkMergeConflicts(repoDir, branch string) ([]string, error) {
 
 // gitRevParse returns the SHA of a ref.
 func gitRevParse(repoDir, ref string) (string, error) {
-	cmd := exec.Command("git", "-C", repoDir, "rev-parse", ref)
+	cmd := exec.CommandContext(context.Background(), "git", "-C", repoDir, "rev-parse", ref)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("rev-parse %s: %s", ref, strings.TrimSpace(string(out)))
@@ -311,7 +312,7 @@ func mergeBranch(repoDir, branch string) (string, error) {
 		return "", err
 	}
 
-	baseCmd := exec.Command("git", "-C", repoDir, "merge-base", "main", branch)
+	baseCmd := exec.CommandContext(context.Background(), "git", "-C", repoDir, "merge-base", "main", branch)
 	baseOut, err := baseCmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("merge-base: %s", strings.TrimSpace(string(baseOut)))
@@ -325,7 +326,7 @@ func mergeBranch(repoDir, branch string) (string, error) {
 		if branchErr != nil {
 			return "", branchErr
 		}
-		cmd := exec.Command("git", "-C", repoDir, "update-ref", "refs/heads/main", branchHead) //nolint:gosec // G204: git command with validated repo dir and branch head
+		cmd := exec.CommandContext(context.Background(), "git", "-C", repoDir, "update-ref", "refs/heads/main", branchHead) //nolint:gosec // G204: git command with validated repo dir and branch head
 		if out, cmdErr := cmd.CombinedOutput(); cmdErr != nil {
 			return "", fmt.Errorf("fast-forward failed: %s", strings.TrimSpace(string(out)))
 		}
@@ -338,7 +339,7 @@ func mergeBranch(repoDir, branch string) (string, error) {
 	mergeMsg := fmt.Sprintf("Merge branch '%s' into main", branch)
 
 	// Try direct merge first (works if we can update main ref)
-	cmd := exec.Command("git", "-C", repoDir, "merge-tree", "--write-tree", "main", branch)
+	cmd := exec.CommandContext(context.Background(), "git", "-C", repoDir, "merge-tree", "--write-tree", "main", branch)
 	treeOut, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("merge-tree failed: %s", strings.TrimSpace(string(treeOut)))
@@ -350,7 +351,7 @@ func mergeBranch(repoDir, branch string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	commitCmd := exec.Command("git", "-C", repoDir, "commit-tree", treeHash, //nolint:gosec // G204: git command with validated git objects
+	commitCmd := exec.CommandContext(context.Background(), "git", "-C", repoDir, "commit-tree", treeHash, //nolint:gosec // G204: git command with validated git objects
 		"-p", mainHead, "-p", branchHead, "-m", mergeMsg)
 	commitOut, err := commitCmd.CombinedOutput()
 	if err != nil {
@@ -359,7 +360,7 @@ func mergeBranch(repoDir, branch string) (string, error) {
 	mergeCommit := strings.TrimSpace(string(commitOut))
 
 	// Update main ref to point to the merge commit
-	updateCmd := exec.Command("git", "-C", repoDir, "update-ref", "refs/heads/main", mergeCommit) //nolint:gosec // G204: git command with validated commit hash
+	updateCmd := exec.CommandContext(context.Background(), "git", "-C", repoDir, "update-ref", "refs/heads/main", mergeCommit) //nolint:gosec // G204: git command with validated commit hash
 	if out, err := updateCmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("update-ref failed: %s", strings.TrimSpace(string(out)))
 	}

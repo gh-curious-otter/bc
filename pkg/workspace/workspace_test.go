@@ -148,8 +148,8 @@ func TestLoadUpdatesPathsIfMoved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dstDir, "config.json"), data, 0600); err != nil {
-		t.Fatal(err)
+	if writeErr := os.WriteFile(filepath.Join(dstDir, "config.json"), data, 0600); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 
 	ws, err := Load(moved)
@@ -249,8 +249,8 @@ func TestFindNestedWorkspaces(t *testing.T) {
 
 	// Find from a child of inner should still find inner
 	deepChild := filepath.Join(inner, "src", "pkg")
-	if err := os.MkdirAll(deepChild, 0750); err != nil {
-		t.Fatal(err)
+	if mkdirErr := os.MkdirAll(deepChild, 0750); mkdirErr != nil {
+		t.Fatal(mkdirErr)
 	}
 	ws2, err := Find(deepChild)
 	if err != nil {
