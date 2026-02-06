@@ -1046,10 +1046,10 @@ func (m *WorkspaceModel) renderStatsPanel() string {
 		workFields[4].style = "error"
 	}
 	if completionPct >= 80 {
-		workFields[5].style = "ok"
+		workFields[5].style = "ok" //nolint:gosec // G602: slice has 7 elements, index 5 is valid
 	}
 	if failurePct > 10 {
-		workFields[6].style = "error"
+		workFields[6].style = "error" //nolint:gosec // G602: slice has 7 elements, index 6 is valid
 	}
 
 	for _, f := range workFields {

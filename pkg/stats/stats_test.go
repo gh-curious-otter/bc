@@ -738,8 +738,8 @@ func TestLoadPreservesHistorical(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(stateDir, "stats.json"), data, 0600); err != nil {
-		t.Fatalf("write stats.json: %v", err)
+	if writeErr := os.WriteFile(filepath.Join(stateDir, "stats.json"), data, 0600); writeErr != nil {
+		t.Fatalf("write stats.json: %v", writeErr)
 	}
 
 	// Seed queue with fewer done items than historical

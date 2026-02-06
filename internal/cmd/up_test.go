@@ -12,12 +12,12 @@ import (
 func TestLoadRolePrompt_ExistingFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	promptDir := filepath.Join(tmpDir, "prompts")
-	if err := os.MkdirAll(promptDir, 0755); err != nil {
+	if err := os.MkdirAll(promptDir, 0750); err != nil {
 		t.Fatalf("failed to create prompts dir: %v", err)
 	}
 
 	content := "You are an engineer. Build great software."
-	if err := os.WriteFile(filepath.Join(promptDir, "engineer.md"), []byte(content), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(promptDir, "engineer.md"), []byte(content), 0600); err != nil {
 		t.Fatalf("failed to write prompt file: %v", err)
 	}
 
@@ -46,10 +46,10 @@ func TestLoadRolePrompt_MissingDir(t *testing.T) {
 func TestLoadRolePrompt_EmptyFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	promptDir := filepath.Join(tmpDir, "prompts")
-	if err := os.MkdirAll(promptDir, 0755); err != nil {
+	if err := os.MkdirAll(promptDir, 0750); err != nil {
 		t.Fatalf("failed to create prompts dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(promptDir, "empty.md"), []byte(""), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(promptDir, "empty.md"), []byte(""), 0600); err != nil {
 		t.Fatalf("failed to write prompt file: %v", err)
 	}
 

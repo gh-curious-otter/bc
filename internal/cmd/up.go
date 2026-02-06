@@ -300,7 +300,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 // Returns empty string if the file doesn't exist or can't be read.
 func loadRolePrompt(rootDir, role string) string {
 	promptPath := filepath.Join(rootDir, "prompts", role+".md")
-	data, err := os.ReadFile(promptPath)
+	data, err := os.ReadFile(promptPath) //nolint:gosec // G304: path is constructed from trusted rootDir and role name
 	if err != nil {
 		return ""
 	}
