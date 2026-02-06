@@ -650,10 +650,8 @@ func (m *Manager) StopAgent(name string) error {
 		return fmt.Errorf("agent %s not found", name)
 	}
 
-	// Kill tmux session
-	if err := m.tmux.KillSession(name); err != nil {
-		// Session might already be dead — that's fine
-	}
+	// Kill tmux session (ignore error - session might already be dead)
+	_ = m.tmux.KillSession(name)
 
 	// Clean up per-agent git worktree
 	if agent.WorktreeDir != "" && agent.WorktreeDir != agent.Workspace {
@@ -687,17 +685,13 @@ func (m *Manager) stopAgentTreeLocked(name string) error {
 		return fmt.Errorf("agent %s not found", name)
 	}
 
-	// Stop all children first (depth-first)
+	// Stop all children first (depth-first, continue on errors)
 	for _, childID := range agent.Children {
-		if err := m.stopAgentTreeLocked(childID); err != nil {
-			// Continue stopping other children even if one fails
-		}
+		_ = m.stopAgentTreeLocked(childID)
 	}
 
-	// Kill this agent's tmux session
-	if err := m.tmux.KillSession(name); err != nil {
-		// Session might already be dead
-	}
+	// Kill this agent's tmux session (ignore error - session might already be dead)
+	_ = m.tmux.KillSession(name)
 
 	agent.State = StateStopped
 	agent.UpdatedAt = time.Now()

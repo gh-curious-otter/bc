@@ -153,9 +153,10 @@ func (m *ChannelModel) handleSendKey(msg tea.KeyMsg) Action {
 	}
 
 	// Append typed characters
-	if msg.Type == tea.KeyRunes {
+	switch msg.Type {
+	case tea.KeyRunes:
 		m.input += string(msg.Runes)
-	} else if msg.Type == tea.KeySpace {
+	case tea.KeySpace:
 		m.input += " "
 	}
 

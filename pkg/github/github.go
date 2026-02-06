@@ -116,13 +116,7 @@ func ListPRs(workspacePath string) []PR {
 
 	prs := make([]PR, 0, len(raw))
 	for _, r := range raw {
-		prs = append(prs, PR{
-			Number:         r.Number,
-			Title:          r.Title,
-			State:          r.State,
-			ReviewDecision: r.ReviewDecision,
-			IsDraft:        r.IsDraft,
-		})
+		prs = append(prs, PR(r))
 	}
 
 	return prs

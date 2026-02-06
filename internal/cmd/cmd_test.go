@@ -1850,7 +1850,7 @@ func TestExecute(t *testing.T) {
 func TestRoot(t *testing.T) {
 	cmd := Root()
 	if cmd == nil {
-		t.Error("Root() should return non-nil command")
+		t.Fatal("Root() should return non-nil command")
 	}
 	if cmd.Use != "bc" {
 		t.Errorf("Root().Use = %q, want 'bc'", cmd.Use)

@@ -77,7 +77,7 @@ func (r *Renderer) RenderTable(spec *TableSpec, cursor int) string {
 }
 
 func (r *Renderer) renderTableHeader(columns []ColumnSpec) string {
-	var cells []string
+	cells := make([]string, 0, len(columns))
 	for _, col := range columns {
 		width := col.Width
 		if width == 0 {
@@ -90,7 +90,7 @@ func (r *Renderer) renderTableHeader(columns []ColumnSpec) string {
 }
 
 func (r *Renderer) renderTableRow(columns []ColumnSpec, row *RowSpec, selected bool) string {
-	var cells []string
+	cells := make([]string, 0, len(columns))
 	for i, col := range columns {
 		width := col.Width
 		if width == 0 {

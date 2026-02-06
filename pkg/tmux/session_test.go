@@ -46,7 +46,8 @@ func TestHelperProcess(t *testing.T) {
 // mockCmd creates a mock execCommand that always returns the same result.
 func mockCmd(stdout, stderr string, exitCode int) func(string, ...string) *exec.Cmd {
 	return func(name string, args ...string) *exec.Cmd {
-		cs := []string{"-test.run=TestHelperProcess", "--", name}
+		cs := make([]string, 0, 3+len(args))
+		cs = append(cs, "-test.run=TestHelperProcess", "--", name)
 		cs = append(cs, args...)
 		cmd := exec.Command(os.Args[0], cs...) //nolint:gosec // test helper
 		cmd.Env = []string{
@@ -80,7 +81,8 @@ func mockCmdSequence(responses ...mockResponse) func(string, ...string) *exec.Cm
 		idx++
 		mu.Unlock()
 
-		cs := []string{"-test.run=TestHelperProcess", "--", name}
+		cs := make([]string, 0, 3+len(args))
+		cs = append(cs, "-test.run=TestHelperProcess", "--", name)
 		cs = append(cs, args...)
 		cmd := exec.Command(os.Args[0], cs...) //nolint:gosec // test helper
 		cmd.Env = []string{
@@ -110,7 +112,8 @@ func recordingMock(stdout string) (func(string, ...string) *exec.Cmd, *[]cmdReco
 		records = append(records, cmdRecord{name: name, args: argsCopy})
 		mu.Unlock()
 
-		cs := []string{"-test.run=TestHelperProcess", "--", name}
+		cs := make([]string, 0, 3+len(args))
+		cs = append(cs, "-test.run=TestHelperProcess", "--", name)
 		cs = append(cs, args...)
 		cmd := exec.Command(os.Args[0], cs...) //nolint:gosec // test helper
 		cmd.Env = []string{

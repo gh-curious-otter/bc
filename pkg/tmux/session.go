@@ -121,7 +121,7 @@ func (m *Manager) CreateSessionWithEnv(name, dir, command string, env map[string
 	fullName := m.SessionName(name)
 
 	// Build shell command with env vars prefixed
-	var parts []string
+	parts := make([]string, 0, len(env)+1)
 	for k, v := range env {
 		parts = append(parts, fmt.Sprintf("export %s=%q;", k, v))
 	}

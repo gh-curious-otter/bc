@@ -312,7 +312,7 @@ func (d *Driver) handleAppendMessage(msg *AppendMessage) {
 
 // View implements tea.Model.
 func (d *Driver) View() string {
-	var sections []string
+	sections := make([]string, 0, 3)
 
 	// Header
 	viewID := ""

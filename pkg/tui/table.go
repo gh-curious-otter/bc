@@ -189,7 +189,7 @@ func (t *TableView) View() string {
 }
 
 func (t *TableView) renderHeader() string {
-	var cells []string
+	cells := make([]string, 0, len(t.columns))
 	for _, col := range t.columns {
 		cell := t.styles.Bold.Width(col.Width).Render(col.Name)
 		cells = append(cells, cell)

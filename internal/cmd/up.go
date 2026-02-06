@@ -202,7 +202,8 @@ func runUp(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create default channels
-	allAgents := []string{"coordinator", "product-manager", "manager"}
+	allAgents := make([]string, 0, 3+len(engineerNames)+len(qaNames))
+	allAgents = append(allAgents, "coordinator", "product-manager", "manager")
 	allAgents = append(allAgents, engineerNames...)
 	allAgents = append(allAgents, qaNames...)
 	createDefaultChannels(ws.RootDir, engineerNames, qaNames, allAgents)
@@ -372,10 +373,12 @@ func createDefaultChannels(rootDir string, engineerNames, qaNames, allAgents []s
 
 	leadershipMembers := []string{"coordinator", "product-manager", "manager"}
 
-	engineeringMembers := []string{"manager"}
+	engineeringMembers := make([]string, 0, 1+len(engineerNames))
+	engineeringMembers = append(engineeringMembers, "manager")
 	engineeringMembers = append(engineeringMembers, engineerNames...)
 
-	qaMembers := []string{"manager"}
+	qaMembers := make([]string, 0, 1+len(qaNames))
+	qaMembers = append(qaMembers, "manager")
 	qaMembers = append(qaMembers, qaNames...)
 
 	channels := []chanDef{
