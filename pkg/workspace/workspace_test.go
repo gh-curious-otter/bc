@@ -57,7 +57,7 @@ func TestInit(t *testing.T) {
 
 	// config.json was written
 	configPath := filepath.Join(stateDir, "config.json")
-	data, err := os.ReadFile(configPath)
+	data, err := os.ReadFile(configPath) //nolint:gosec // test file read
 	if err != nil {
 		t.Fatalf("config.json not written: %v", err)
 	}
@@ -117,10 +117,10 @@ func TestLoadNotAWorkspace(t *testing.T) {
 func TestLoadInvalidJSON(t *testing.T) {
 	dir := t.TempDir()
 	bcDir := filepath.Join(dir, ".bc")
-	if err := os.MkdirAll(bcDir, 0755); err != nil {
+	if err := os.MkdirAll(bcDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(bcDir, "config.json"), []byte("{bad"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(bcDir, "config.json"), []byte("{bad"), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -141,14 +141,14 @@ func TestLoadUpdatesPathsIfMoved(t *testing.T) {
 	// Copy .bc directory
 	srcCfg := filepath.Join(orig, ".bc", "config.json")
 	dstDir := filepath.Join(moved, ".bc")
-	if err := os.MkdirAll(dstDir, 0755); err != nil {
+	if err := os.MkdirAll(dstDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(srcCfg)
+	data, err := os.ReadFile(srcCfg) //nolint:gosec // test file read
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dstDir, "config.json"), data, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dstDir, "config.json"), data, 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -200,7 +200,7 @@ func TestFindInParentDir(t *testing.T) {
 
 	// Create a child directory (no workspace of its own)
 	child := filepath.Join(parent, "subdir", "deep")
-	if err := os.MkdirAll(child, 0755); err != nil {
+	if err := os.MkdirAll(child, 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -227,7 +227,7 @@ func TestFindNestedWorkspaces(t *testing.T) {
 
 	// Inner workspace inside outer
 	inner := filepath.Join(outer, "projects", "sub")
-	if err := os.MkdirAll(inner, 0755); err != nil {
+	if err := os.MkdirAll(inner, 0750); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := Init(inner); err != nil {
@@ -249,7 +249,7 @@ func TestFindNestedWorkspaces(t *testing.T) {
 
 	// Find from a child of inner should still find inner
 	deepChild := filepath.Join(inner, "src", "pkg")
-	if err := os.MkdirAll(deepChild, 0755); err != nil {
+	if err := os.MkdirAll(deepChild, 0750); err != nil {
 		t.Fatal(err)
 	}
 	ws2, err := Find(deepChild)
@@ -658,7 +658,7 @@ func TestRegistrySaveAndLoad(t *testing.T) {
 
 	// Load into a fresh registry
 	r2 := &Registry{path: path}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // test file read
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -13,7 +13,7 @@ import (
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0750); err != nil {
 		t.Fatal(err)
 	}
 	return NewStore(dir)
@@ -415,7 +415,7 @@ func TestGetHistoryEmpty(t *testing.T) {
 
 func TestSaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -491,10 +491,10 @@ func TestLoadNonexistentFile(t *testing.T) {
 func TestLoadInvalidJSON(t *testing.T) {
 	dir := t.TempDir()
 	bcDir := filepath.Join(dir, ".bc")
-	if err := os.MkdirAll(bcDir, 0755); err != nil {
+	if err := os.MkdirAll(bcDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(bcDir, "channels.json"), []byte("{bad json"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(bcDir, "channels.json"), []byte("{bad json"), 0600); err != nil {
 		t.Fatal(err)
 	}
 

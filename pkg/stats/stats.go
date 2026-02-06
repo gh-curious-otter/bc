@@ -290,7 +290,7 @@ func (s *Stats) collectAgentMetrics(mgr *agent.Manager, q *queue.Queue) {
 // Save persists stats to disk.
 func (s *Stats) Save() error {
 	dir := filepath.Dir(s.path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return err
 	}
 
@@ -299,7 +299,7 @@ func (s *Stats) Save() error {
 		return err
 	}
 
-	return os.WriteFile(s.path, data, 0644)
+	return os.WriteFile(s.path, data, 0600)
 }
 
 // Summary returns a formatted string for display.

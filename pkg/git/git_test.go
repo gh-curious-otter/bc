@@ -38,7 +38,7 @@ func TestValidateWorktree_NoEnvVar(t *testing.T) {
 func TestValidateWorktree_InsideWorktree(t *testing.T) {
 	dir := t.TempDir()
 	subdir := filepath.Join(dir, "sub")
-	if err := os.MkdirAll(subdir, 0755); err != nil {
+	if err := os.MkdirAll(subdir, 0750); err != nil {
 		t.Fatal(err)
 	}
 

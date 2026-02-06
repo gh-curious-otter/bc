@@ -103,7 +103,7 @@ func AddIssue(workspacePath, title, description string) error {
 	if description != "" {
 		args = append(args, "-d", description)
 	}
-	cmd := exec.Command("bd", args...)
+	cmd := exec.Command("bd", args...) //nolint:gosec // bd command with trusted args
 	cmd.Dir = workspacePath
 	return cmd.Run()
 }

@@ -652,7 +652,7 @@ func TestSaveState_EmptyStateDir(t *testing.T) {
 func TestLoadState_InvalidJSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	stateFile := filepath.Join(tmpDir, "agents.json")
-	if err := os.WriteFile(stateFile, []byte("not json"), 0644); err != nil {
+	if err := os.WriteFile(stateFile, []byte("not json"), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -670,13 +670,13 @@ func TestLoadState_InvalidJSON(t *testing.T) {
 func TestLoadRoleMemory(t *testing.T) {
 	tmpDir := t.TempDir()
 	promptsDir := filepath.Join(tmpDir, "prompts")
-	if err := os.MkdirAll(promptsDir, 0755); err != nil {
+	if err := os.MkdirAll(promptsDir, 0750); err != nil {
 		t.Fatal(err)
 	}
 
 	t.Run("file exists", func(t *testing.T) {
 		content := "You are an engineer. Write code and tests."
-		if err := os.WriteFile(filepath.Join(promptsDir, "engineer.md"), []byte(content), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(promptsDir, "engineer.md"), []byte(content), 0600); err != nil {
 			t.Fatal(err)
 		}
 
@@ -701,7 +701,7 @@ func TestLoadRoleMemory(t *testing.T) {
 
 	t.Run("product-manager normalizes to underscore", func(t *testing.T) {
 		content := "You are a product manager."
-		if err := os.WriteFile(filepath.Join(promptsDir, "product_manager.md"), []byte(content), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(promptsDir, "product_manager.md"), []byte(content), 0600); err != nil {
 			t.Fatal(err)
 		}
 
@@ -1587,37 +1587,37 @@ func TestConcurrentAgentCount(t *testing.T) {
 func TestSpawnAgent_ExistingSessionCreatesWorktree(t *testing.T) {
 	// Setup: create a real git repo so createWorktree works
 	workspace := t.TempDir()
-	cmd := exec.Command("git", "init", workspace)
+	cmd := exec.Command("git", "init", workspace) //nolint:gosec // test helper
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git init failed: %v (%s)", err, out)
 	}
 	// Configure git user for CI environments where global config is absent
-	if err := exec.Command("git", "-C", workspace, "config", "user.email", "test@test.com").Run(); err != nil {
+	if err := exec.Command("git", "-C", workspace, "config", "user.email", "test@test.com").Run(); err != nil { //nolint:gosec // test helper
 		t.Fatal(err)
 	}
-	if err := exec.Command("git", "-C", workspace, "config", "user.name", "Test").Run(); err != nil {
+	if err := exec.Command("git", "-C", workspace, "config", "user.name", "Test").Run(); err != nil { //nolint:gosec // test helper
 		t.Fatal(err)
 	}
 	// Need at least one commit for git worktree add to work
-	cmd = exec.Command("git", "-C", workspace, "commit", "--allow-empty", "-m", "init")
+	cmd = exec.Command("git", "-C", workspace, "commit", "--allow-empty", "-m", "init") //nolint:gosec // test helper
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git commit failed: %v (%s)", err, out)
 	}
 
 	m := newTestManager(t)
 	m.stateDir = filepath.Join(workspace, ".bc", "agents")
-	if err := os.MkdirAll(m.stateDir, 0755); err != nil {
+	if err := os.MkdirAll(m.stateDir, 0750); err != nil {
 		t.Fatalf("failed to create state dir: %v", err)
 	}
 
 	// Create a real tmux session so HasSession returns true
 	sessionName := m.tmux.SessionName("eng-1")
-	cmd = exec.Command("tmux", "new-session", "-d", "-s", sessionName)
+	cmd = exec.Command("tmux", "new-session", "-d", "-s", sessionName) //nolint:gosec // test helper
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("tmux new-session failed: %v (%s)", err, out)
 	}
 	t.Cleanup(func() {
-		_ = exec.Command("tmux", "kill-session", "-t", sessionName).Run() //nolint:errcheck // best-effort cleanup
+		_ = exec.Command("tmux", "kill-session", "-t", sessionName).Run() //nolint:errcheck,gosec // best-effort cleanup
 	})
 
 	// Pre-populate agent WITHOUT WorktreeDir (simulates pre-worktree agent)
@@ -1648,7 +1648,7 @@ func TestSpawnAgent_ExistingSessionCreatesWorktree(t *testing.T) {
 	}
 
 	// Cleanup worktree
-	_ = exec.Command("git", "-C", workspace, "worktree", "remove", "--force", expectedDir).Run() //nolint:errcheck // best-effort cleanup
+	_ = exec.Command("git", "-C", workspace, "worktree", "remove", "--force", expectedDir).Run() //nolint:errcheck,gosec // best-effort cleanup
 }
 
 func TestConcurrentRunningCount(t *testing.T) {
@@ -1690,7 +1690,7 @@ func TestEnsureGitWrapper_CreatesFile(t *testing.T) {
 	}
 
 	// Check content contains key elements
-	content, err := os.ReadFile(wrapperPath)
+	content, err := os.ReadFile(wrapperPath) //nolint:gosec // test file read
 	if err != nil {
 		t.Fatalf("failed to read wrapper: %v", err)
 	}

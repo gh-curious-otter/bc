@@ -218,7 +218,7 @@ func LoadRoleMemory(workspacePath string, role Role) *AgentMemory {
 	roleName := strings.ReplaceAll(string(role), "-", "_")
 	promptPath := filepath.Join(workspacePath, "prompts", roleName+".md")
 
-	data, err := os.ReadFile(promptPath)
+	data, err := os.ReadFile(promptPath) //nolint:gosec // path constructed from trusted role name
 	if err != nil {
 		log.Debug("no role prompt found", "role", role, "path", promptPath)
 		return nil
@@ -522,12 +522,12 @@ func createWorktree(workspace, agentName string) (string, error) {
 	}
 
 	// Create parent directory
-	if err := os.MkdirAll(filepath.Dir(worktreeDir), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(worktreeDir), 0750); err != nil {
 		return "", fmt.Errorf("failed to create worktrees dir: %w", err)
 	}
 
 	// Create detached worktree at HEAD (current main)
-	cmd := exec.Command("git", "-C", workspace, "worktree", "add", "--detach", worktreeDir, "HEAD")
+	cmd := exec.Command("git", "-C", workspace, "worktree", "add", "--detach", worktreeDir, "HEAD") //nolint:gosec // args are trusted internal paths
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to create worktree for %s: %w (%s)", agentName, err, string(output))
@@ -577,11 +577,11 @@ func ensureGitWrapper(workspace string) error {
 		return nil
 	}
 
-	if err := os.MkdirAll(binDir, 0755); err != nil {
+	if err := os.MkdirAll(binDir, 0750); err != nil {
 		return fmt.Errorf("failed to create .bc/bin: %w", err)
 	}
 
-	if err := os.WriteFile(wrapperPath, []byte(gitWrapperScript), 0755); err != nil {
+	if err := os.WriteFile(wrapperPath, []byte(gitWrapperScript), 0700); err != nil { //nolint:gosec // executable script needs 0700
 		return fmt.Errorf("failed to write git wrapper: %w", err)
 	}
 
@@ -1009,7 +1009,7 @@ func (m *Manager) saveState() error {
 		return nil
 	}
 
-	if err := os.MkdirAll(m.stateDir, 0755); err != nil {
+	if err := os.MkdirAll(m.stateDir, 0750); err != nil {
 		return err
 	}
 
@@ -1018,7 +1018,7 @@ func (m *Manager) saveState() error {
 		return err
 	}
 
-	return os.WriteFile(filepath.Join(m.stateDir, "agents.json"), data, 0644)
+	return os.WriteFile(filepath.Join(m.stateDir, "agents.json"), data, 0600)
 }
 
 // LoadState loads agent state from disk.

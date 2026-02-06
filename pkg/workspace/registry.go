@@ -58,7 +58,7 @@ func LoadRegistry() (*Registry, error) {
 // Save persists the registry to disk.
 func (r *Registry) Save() error {
 	dir := filepath.Dir(r.path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return err
 	}
 
@@ -67,7 +67,7 @@ func (r *Registry) Save() error {
 		return err
 	}
 
-	return os.WriteFile(r.path, data, 0644)
+	return os.WriteFile(r.path, data, 0600)
 }
 
 // Register adds or updates a workspace in the registry.
