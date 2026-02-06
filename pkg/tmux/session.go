@@ -21,18 +21,13 @@ import (
 type Session struct {
 	Name      string
 	Created   string
-	Attached  bool
-	Windows   int
 	Directory string
+	Windows   int
+	Attached  bool
 }
 
 // Manager handles tmux session operations.
 type Manager struct {
-	// SessionPrefix is prepended to all session names (e.g., "bc-")
-	SessionPrefix string
-	// workspaceHash is included in session names for workspace isolation.
-	workspaceHash string
-
 	// sessionMu protects per-session SendKeys serialization.
 	// Concurrent sends to the same session are serialized to prevent interleaving.
 	sessionMu    sync.Mutex
@@ -41,6 +36,11 @@ type Manager struct {
 	// execCommand creates exec.Cmd objects. Defaults to exec.Command.
 	// Override in tests for mocking.
 	execCommand func(name string, arg ...string) *exec.Cmd
+
+	// SessionPrefix is prepended to all session names (e.g., "bc-")
+	SessionPrefix string
+	// workspaceHash is included in session names for workspace isolation.
+	workspaceHash string
 }
 
 // command returns an exec.Cmd using the configured executor.

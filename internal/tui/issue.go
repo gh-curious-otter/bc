@@ -12,14 +12,15 @@ import (
 
 // IssueModel shows the detail view for a single beads issue.
 type IssueModel struct {
+	// Scroll state
+	contentLines []string
+
 	issue  beads.Issue
 	styles style.Styles
-	width  int
-	height int
 
-	// Scroll state
+	width        int
+	height       int
 	scrollOffset int
-	contentLines []string
 }
 
 // NewIssueModel creates an issue detail view.

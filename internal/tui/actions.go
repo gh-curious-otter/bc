@@ -17,8 +17,8 @@ const (
 
 // Action is returned by sub-screen key handlers to request parent navigation.
 type Action struct {
-	Type ActionType
 	Data any
+	Type ActionType
 }
 
 // NoAction is the default no-op action.

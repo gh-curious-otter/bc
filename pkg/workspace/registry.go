@@ -9,16 +9,16 @@ import (
 
 // RegistryEntry represents a registered workspace.
 type RegistryEntry struct {
-	Path         string    `json:"path"`
-	Name         string    `json:"name"`
 	CreatedAt    time.Time `json:"created_at"`
 	LastAccessed time.Time `json:"last_accessed"`
+	Path         string    `json:"path"`
+	Name         string    `json:"name"`
 }
 
 // Registry manages the global list of workspaces at ~/.bc/workspaces.json.
 type Registry struct {
 	Workspaces []RegistryEntry `json:"workspaces"`
-	path       string
+	path       string          // already optimal: slice (24) + string (16) = 40 bytes
 }
 
 // GlobalDir returns the path to ~/.bc/.

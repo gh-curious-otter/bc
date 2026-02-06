@@ -132,17 +132,17 @@ func executeCmd(args ...string) (string, error) {
 func TestFormatDuration(t *testing.T) {
 	tests := []struct {
 		name string
-		d    time.Duration
 		want string
+		d    time.Duration
 	}{
-		{"zero", 0, "0s"},
-		{"seconds only", 45 * time.Second, "45s"},
-		{"one minute", 60 * time.Second, "1m 0s"},
-		{"minutes and seconds", 2*time.Minute + 30*time.Second, "2m 30s"},
-		{"one hour", time.Hour, "1h 0m"},
-		{"hours and minutes", 2*time.Hour + 15*time.Minute, "2h 15m"},
-		{"sub-second rounds up", 500 * time.Millisecond, "1s"},
-		{"large duration", 48*time.Hour + 30*time.Minute, "48h 30m"},
+		{"zero", "0s", 0},
+		{"seconds only", "45s", 45 * time.Second},
+		{"one minute", "1m 0s", 60 * time.Second},
+		{"minutes and seconds", "2m 30s", 2*time.Minute + 30*time.Second},
+		{"one hour", "1h 0m", time.Hour},
+		{"hours and minutes", "2h 15m", 2*time.Hour + 15*time.Minute},
+		{"sub-second rounds up", "1s", 500 * time.Millisecond},
+		{"large duration", "48h 30m", 48*time.Hour + 30*time.Minute},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -235,17 +235,17 @@ type agentOutput struct {
 
 // dashboardOutput is the JSON structure for dashboard output.
 type dashboardOutput struct {
-	Workspace string           `json:"workspace"`
-	Name      string           `json:"name"`
+	Events    []dashboardEvent `json:"recent_events"`
 	Agents    dashboardAgents  `json:"agents"`
 	Queue     queue.Stats      `json:"queue"`
-	Events    []dashboardEvent `json:"recent_events"`
+	Workspace string           `json:"workspace"`
+	Name      string           `json:"name"`
 }
 
 type dashboardAgents struct {
+	List    []agentOutput `json:"list"`
 	Total   int           `json:"total"`
 	Running int           `json:"running"`
-	List    []agentOutput `json:"list"`
 }
 
 type dashboardEvent struct {

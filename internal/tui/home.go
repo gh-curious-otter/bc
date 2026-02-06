@@ -45,15 +45,8 @@ type WorkspaceInfo struct {
 
 // HomeModel is the root TUI model for bc home.
 type HomeModel struct {
-	screen Screen
-	styles style.Styles
-	width  int
-	height int
-
 	// Home screen state
 	workspaces []WorkspaceInfo
-	homeCursor int
-	maxWorkers int
 
 	// Workspace detail state
 	wsModel *WorkspaceModel
@@ -70,8 +63,16 @@ type HomeModel struct {
 	// Queue item detail state
 	queueItemModel *QueueItemModel
 
+	styles style.Styles
+
 	// Status message
 	statusMsg string
+
+	screen     Screen
+	width      int
+	height     int
+	homeCursor int
+	maxWorkers int
 
 	// Help overlay
 	helpActive bool

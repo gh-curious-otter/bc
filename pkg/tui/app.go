@@ -16,21 +16,21 @@ type App struct {
 	viewOrder  []string // For navigation order
 	activeView string
 
-	// Layout
-	showHeader    bool
-	showStatusBar bool
-	title         string
-
-	// State
-	width  int
-	height int
-
 	// Callbacks
 	globalBindings []KeyBinding
 	onQuit         func() Cmd
 
+	// Layout
+	title string
+
 	// Styling
 	styles style.Styles
+
+	// State
+	width         int
+	height        int
+	showHeader    bool
+	showStatusBar bool
 }
 
 // AppBuilder provides a fluent API for constructing App.

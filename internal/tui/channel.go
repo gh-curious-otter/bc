@@ -14,23 +14,23 @@ import (
 
 // ChannelModel shows the detail view for a single channel.
 type ChannelModel struct {
-	channel       *channel.Channel
-	store         *channel.Store
-	manager       *agent.Manager
-	workspacePath string
-	styles        style.Styles
-	width         int
-	height        int
+	channel *channel.Channel
+	store   *channel.Store
+	manager *agent.Manager
 
+	styles        style.Styles
+	workspacePath string
+	input         string
+	sendMsg       string // status message after send
+
+	width  int
+	height int
 	// Scroll position (index of first visible message from end)
 	scroll int
 	// Message selection cursor
 	cursor int
 
-	// Send message mode
 	sendMode bool
-	input    string
-	sendMsg  string // status message after send
 }
 
 // NewChannelModel creates a channel detail view.

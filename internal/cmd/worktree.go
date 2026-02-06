@@ -59,9 +59,9 @@ var getCwd = os.Getwd
 type WorktreeStatus struct {
 	Expected string `json:"expected_worktree"`
 	Actual   string `json:"actual_cwd"`
+	AgentID  string `json:"agent_id"`
 	Exists   bool   `json:"worktree_exists"`
 	Match    bool   `json:"match"`
-	AgentID  string `json:"agent_id"`
 }
 
 func runWorktreeCheck(cmd *cobra.Command, args []string) error {

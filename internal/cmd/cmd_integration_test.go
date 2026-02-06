@@ -526,13 +526,13 @@ func TestStatusEmptyWorkspace(t *testing.T) {
 func TestFormatDurationIntegration(t *testing.T) {
 	tests := []struct {
 		name     string
-		seconds  int
 		expected string
+		seconds  int
 	}{
-		{"zero", 0, "0s"},
-		{"seconds", 45, "45s"},
-		{"minutes", 125, "2m 5s"},
-		{"hours", 3725, "1h 2m"},
+		{"zero", "0s", 0},
+		{"seconds", "45s", 45},
+		{"minutes", "2m 5s", 125},
+		{"hours", "1h 2m", 3725},
 	}
 
 	for _, tt := range tests {

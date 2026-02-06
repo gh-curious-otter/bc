@@ -11,38 +11,38 @@ import (
 
 // Issue represents a GitHub issue.
 type Issue struct {
-	Number int      `json:"number"`
 	Title  string   `json:"title"`
 	State  string   `json:"state"`
-	Labels []string `json:"labels,omitempty"`
 	Source string   `json:"source"` // "github"
+	Labels []string `json:"labels,omitempty"`
+	Number int      `json:"number"`
 }
 
 // PR represents a GitHub pull request.
 type PR struct {
-	Number         int    `json:"number"`
 	Title          string `json:"title"`
 	State          string `json:"state"`
 	ReviewDecision string `json:"reviewDecision,omitempty"`
+	Number         int    `json:"number"`
 	IsDraft        bool   `json:"isDraft,omitempty"`
 }
 
 // ghIssue is the raw JSON shape from gh issue list.
 type ghIssue struct {
-	Number int    `json:"number"`
 	Title  string `json:"title"`
 	State  string `json:"state"`
 	Labels []struct {
 		Name string `json:"name"`
 	} `json:"labels"`
+	Number int `json:"number"`
 }
 
 // ghPR is the raw JSON shape from gh pr list.
 type ghPR struct {
-	Number         int    `json:"number"`
 	Title          string `json:"title"`
 	State          string `json:"state"`
 	ReviewDecision string `json:"reviewDecision"`
+	Number         int    `json:"number"`
 	IsDraft        bool   `json:"isDraft"`
 }
 

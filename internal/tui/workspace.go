@@ -80,33 +80,36 @@ type WorkspaceStats struct {
 
 // WorkspaceModel shows the detail view for a single workspace.
 type WorkspaceModel struct {
-	info         WorkspaceInfo
-	styles       style.Styles
-	width        int
-	height       int
-	tab          Tab
-	cursor       int
-	scrollOffset int // first visible item index for current tab
-	manager      *agent.Manager
-
 	// Data
 	agents             []*agent.Agent
-	issues             []beads.Issue
-	issuesErr          error
 	channels           []*channel.Channel
 	queueItems         []queue.WorkItem
 	filteredQueueItems []queue.WorkItem
-	queueFilter        QueueFilter
+	issues             []beads.Issue
+	recentEvents       []events.Event
+
+	// Per-agent stats from pkg/stats
+	agentStats map[string]stats.AgentStat
+
+	manager  *agent.Manager
+	pkgStats *stats.Stats
+
+	info      WorkspaceInfo
+	styles    style.Styles
+	issuesErr error
 
 	// Queue stats
 	queueStats queue.Stats
 
-	// Per-agent stats from pkg/stats
-	agentStats map[string]stats.AgentStat
 	// Dashboard stats
-	stats        WorkspaceStats
-	pkgStats     *stats.Stats
-	recentEvents []events.Event
+	stats WorkspaceStats
+
+	width        int
+	height       int
+	cursor       int
+	scrollOffset int // first visible item index for current tab
+	tab          Tab
+	queueFilter  QueueFilter
 
 	// Loaded flags
 	agentsLoaded   bool
@@ -846,13 +849,13 @@ func (m *WorkspaceModel) renderDashboard() string {
 
 	states := []struct {
 		label string
-		count int
 		style string
+		count int
 	}{
-		{"Working", working, "ok"},
-		{"Idle", idle, "info"},
-		{"Stuck", stuck, "warning"},
-		{"Stopped", stopped, "stopped"},
+		{"Working", "ok", working},
+		{"Idle", "info", idle},
+		{"Stuck", "warning", stuck},
+		{"Stopped", "stopped", stopped},
 	}
 
 	for _, s := range states {

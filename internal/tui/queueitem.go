@@ -23,10 +23,10 @@ type queueField struct {
 type QueueItemModel struct {
 	item          queue.WorkItem
 	styles        style.Styles
-	width         int
-	height        int
 	workspacePath string
 	branch        string
+	width         int
+	height        int
 }
 
 // NewQueueItemModel creates a queue item detail view.
