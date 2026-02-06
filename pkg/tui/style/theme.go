@@ -57,8 +57,6 @@ func DefaultTheme() Theme {
 
 // Styles contains pre-built lipgloss styles for common elements.
 type Styles struct {
-	theme Theme
-
 	// Text styles
 	Normal lipgloss.Style
 	Bold   lipgloss.Style
@@ -77,6 +75,8 @@ type Styles struct {
 	Border    lipgloss.Style
 	Selected  lipgloss.Style
 	Title     lipgloss.Style
+
+	theme Theme
 }
 
 // NewStyles creates a Styles instance from a theme.

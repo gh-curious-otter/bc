@@ -63,16 +63,16 @@ type ViewMessage struct {
 
 // SetMessage sets a value at a path.
 type SetMessage struct {
-	Type  MessageType `json:"type"` // "set"
 	Path  string      `json:"path"` // JSON path: "title", "columns", "rows[0].status"
 	Value any         `json:"value"`
+	Type  MessageType `json:"type"` // "set"
 }
 
 // AppendMessage appends to an array at a path.
 type AppendMessage struct {
-	Type  MessageType `json:"type"` // "append"
 	Path  string      `json:"path"` // Path to array: "rows", "sections[0].fields"
 	Value any         `json:"value"`
+	Type  MessageType `json:"type"` // "append"
 }
 
 // DeleteMessage removes a path.
@@ -97,17 +97,17 @@ type ErrorMessage struct {
 
 // KeyEvent is sent when a key is pressed.
 type KeyEvent struct {
-	Type     MessageType `json:"type"` // "key"
 	Key      string      `json:"key"`  // "enter", "p", "q", "ctrl+c"
 	View     string      `json:"view"` // Current view ID
 	Selected *RowRef     `json:"selected,omitempty"`
+	Type     MessageType `json:"type"` // "key"
 }
 
 // SelectEvent is sent when a row/item is selected.
 type SelectEvent struct {
-	Type MessageType `json:"type"` // "select"
-	View string      `json:"view"`
 	Row  RowRef      `json:"row"`
+	View string      `json:"view"`
+	Type MessageType `json:"type"` // "select"
 }
 
 // InputEvent is sent when text input is submitted.
@@ -134,10 +134,10 @@ type InitEvent struct {
 
 // RowRef identifies a row in a table.
 type RowRef struct {
+	Data   any      `json:"data,omitempty"`
+	Values []string `json:"values,omitempty"`
 	ID     string   `json:"id"`
 	Index  int      `json:"index"`
-	Values []string `json:"values,omitempty"`
-	Data   any      `json:"data,omitempty"`
 }
 
 // --- View Specs ---
@@ -155,37 +155,37 @@ const (
 
 // TableSpec defines a table view.
 type TableSpec struct {
-	ID       string        `json:"id"`
-	Title    string        `json:"title,omitempty"`
 	Columns  []ColumnSpec  `json:"columns"`
 	Rows     []RowSpec     `json:"rows,omitempty"`
-	Loading  bool          `json:"loading,omitempty"`
-	Empty    string        `json:"empty,omitempty"` // Empty state message
 	Bindings []BindingSpec `json:"bindings,omitempty"`
+	ID       string        `json:"id"`
+	Title    string        `json:"title,omitempty"`
+	Empty    string        `json:"empty,omitempty"` // Empty state message
+	Loading  bool          `json:"loading,omitempty"`
 }
 
 // ColumnSpec defines a table column.
 type ColumnSpec struct {
 	Name  string `json:"name"`
-	Width int    `json:"width,omitempty"` // 0 = auto
 	Align string `json:"align,omitempty"` // left, center, right
+	Width int    `json:"width,omitempty"` // 0 = auto
 }
 
 // RowSpec defines a table row.
 type RowSpec struct {
-	ID     string   `json:"id"`
+	Data   any      `json:"data,omitempty"` // Arbitrary attached data
 	Values []string `json:"values"`
+	ID     string   `json:"id"`
 	Status string   `json:"status,omitempty"` // ok, error, warning, info
-	Data   any      `json:"data,omitempty"`   // Arbitrary attached data
 }
 
 // DetailSpec defines a detail view.
 type DetailSpec struct {
+	Sections []SectionSpec `json:"sections,omitempty"`
+	Bindings []BindingSpec `json:"bindings,omitempty"`
 	ID       string        `json:"id"`
 	Title    string        `json:"title"`
-	Sections []SectionSpec `json:"sections,omitempty"`
 	Loading  bool          `json:"loading,omitempty"`
-	Bindings []BindingSpec `json:"bindings,omitempty"`
 }
 
 // SectionSpec defines a section in a detail view.

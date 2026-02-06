@@ -17,26 +17,27 @@ import (
 
 // Driver is the main runtime that communicates with an AI via stdin/stdout.
 type Driver struct {
+	// Components
+	renderer *Renderer
+	styles   style.Styles
+
 	// I/O
 	input  io.Reader
 	output io.Writer
 
 	// State
-	currentView ViewType
 	tableSpec   *TableSpec
 	detailSpec  *DetailSpec
 	modalSpec   *ModalSpec
-	cursor      int
-	width       int
-	height      int
-
-	// Components
-	renderer *Renderer
-	styles   style.Styles
+	currentView ViewType
 
 	// App info
 	title   string
 	version string
+
+	cursor int
+	width  int
+	height int
 }
 
 // NewDriver creates a new runtime driver.

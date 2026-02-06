@@ -12,15 +12,15 @@ import (
 
 // Config represents workspace configuration.
 type Config struct {
-	Version  int    `json:"version"`
 	Name     string `json:"name"`
 	RootDir  string `json:"root_dir"`
 	StateDir string `json:"state_dir"`
 
 	// Agent settings
-	MaxWorkers   int    `json:"max_workers"`
 	AgentCommand string `json:"agent_command,omitempty"` // Custom command (overrides Tool)
 	Tool         string `json:"tool,omitempty"`          // Tool type: claude, cursor, codex, server
+	Version      int    `json:"version"`
+	MaxWorkers   int    `json:"max_workers"`
 }
 
 // Workspace represents an active workspace.

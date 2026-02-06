@@ -21,6 +21,7 @@ var ErrNoBeadsDir = errors.New("no .beads directory found")
 
 // Issue represents a beads issue.
 type Issue struct {
+	Dependencies []string `json:"dependencies,omitempty"`
 	ID           string   `json:"id"`
 	Title        string   `json:"title"`
 	Description  string   `json:"description,omitempty"`
@@ -28,7 +29,6 @@ type Issue struct {
 	Priority     any      `json:"priority,omitempty"`
 	Assignee     string   `json:"assignee,omitempty"`
 	Type         string   `json:"issue_type,omitempty"`
-	Dependencies []string `json:"dependencies,omitempty"`
 	Source       string   `json:"source"` // "beads"
 }
 

@@ -37,11 +37,11 @@ const (
 
 // Event is a single log entry.
 type Event struct {
+	Data      map[string]any `json:"data,omitempty"`
 	Timestamp time.Time      `json:"ts"`
 	Type      EventType      `json:"type"`
 	Agent     string         `json:"agent,omitempty"`
 	Message   string         `json:"message,omitempty"`
-	Data      map[string]any `json:"data,omitempty"`
 }
 
 // Log manages the append-only event log file.

@@ -92,15 +92,15 @@ func TestTruncateMessage(t *testing.T) {
 	tests := []struct {
 		name   string
 		input  string
-		maxLen int
 		want   string
+		maxLen int
 	}{
-		{"short message unchanged", "hello", 80, "hello"},
-		{"exact length unchanged", "abcde", 5, "abcde"},
-		{"long message truncated", "this is a long message that exceeds the limit", 20, "this is a long me..."},
-		{"very short limit", "hello world", 3, "hel"},
-		{"empty string", "", 80, ""},
-		{"limit of 4", "abcdefgh", 4, "a..."},
+		{"short message unchanged", "hello", "hello", 80},
+		{"exact length unchanged", "abcde", "abcde", 5},
+		{"long message truncated", "this is a long message that exceeds the limit", "this is a long me...", 20},
+		{"very short limit", "hello world", "hel", 3},
+		{"empty string", "", "", 80},
+		{"limit of 4", "abcdefgh", "a...", 4},
 	}
 
 	for _, tt := range tests {

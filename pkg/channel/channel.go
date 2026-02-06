@@ -30,8 +30,8 @@ type Channel struct {
 
 // Store manages channel persistence and operations.
 type Store struct {
-	path     string
 	channels map[string]*Channel
+	path     string
 	mu       sync.RWMutex
 }
 

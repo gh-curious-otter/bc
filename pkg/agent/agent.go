@@ -153,22 +153,27 @@ func ValidateTransition(from, to State) error {
 
 // AgentMemory holds role-specific content loaded from prompts/<role>.md.
 type AgentMemory struct {
-	// RolePrompt is the full content of the role's prompt file.
-	RolePrompt string `json:"role_prompt,omitempty"`
 	// LoadedAt is when the memory was loaded.
 	LoadedAt time.Time `json:"loaded_at,omitempty"`
+	// RolePrompt is the full content of the role's prompt file.
+	RolePrompt string `json:"role_prompt,omitempty"`
 }
 
 // Agent represents a running AI agent.
 type Agent struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Role      Role      `json:"role"`
-	State     State     `json:"state"`
-	Workspace string    `json:"workspace"`
-	Task      string    `json:"task,omitempty"`
 	StartedAt time.Time `json:"started_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+
+	// Hierarchy info
+	Children []string `json:"children,omitempty"` // IDs of child agents
+
+	// Memory holds role-specific prompts and context
+	Memory *AgentMemory `json:"memory,omitempty"`
+
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Workspace string `json:"workspace"`
+	Task      string `json:"task,omitempty"`
 
 	// Session info
 	Session string `json:"session"`
@@ -176,9 +181,7 @@ type Agent struct {
 	// Tool type (claude, cursor, codex, server)
 	Tool string `json:"tool,omitempty"`
 
-	// Hierarchy info
-	ParentID string   `json:"parent_id,omitempty"` // ID of parent agent (who created this agent)
-	Children []string `json:"children,omitempty"`  // IDs of child agents
+	ParentID string `json:"parent_id,omitempty"` // ID of parent agent (who created this agent)
 
 	// For workers/engineers
 	HookedWork string `json:"hooked_work,omitempty"`
@@ -187,8 +190,8 @@ type Agent struct {
 	// Each agent gets its own worktree so git operations don't clobber other agents.
 	WorktreeDir string `json:"worktree_dir,omitempty"`
 
-	// Memory holds role-specific prompts and context
-	Memory *AgentMemory `json:"memory,omitempty"`
+	Role  Role  `json:"role"`
+	State State `json:"state"`
 }
 
 // HasCapability checks if this agent has a specific capability.
@@ -233,9 +236,10 @@ func LoadRoleMemory(workspacePath string, role Role) *AgentMemory {
 
 // Manager handles agent lifecycle.
 type Manager struct {
-	mu       sync.RWMutex
-	agents   map[string]*Agent
-	tmux     *tmux.Manager
+	mu     sync.RWMutex
+	agents map[string]*Agent
+	tmux   *tmux.Manager
+
 	stateDir string
 
 	// Agent command (e.g., "claude" or "claude --dangerously-skip-permissions")
