@@ -167,7 +167,7 @@ func TestRead_NonExistentFile(t *testing.T) {
 
 func TestRead_EmptyFile(t *testing.T) {
 	log := tempLog(t)
-	if err := os.WriteFile(log.path, []byte{}, 0644); err != nil {
+	if err := os.WriteFile(log.path, []byte{}, 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -188,7 +188,7 @@ not valid json
 {broken
 {"ts":"2025-01-03T00:00:00Z","type":"work.assigned","agent":"w3"}
 `
-	if err := os.WriteFile(log.path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(log.path, []byte(content), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -371,7 +371,7 @@ func TestRead_OversizedLine(t *testing.T) {
 	if err := log.Append(Event{Type: AgentSpawned, Agent: "before"}); err != nil {
 		t.Fatal(err)
 	}
-	f, err := os.OpenFile(log.path, os.O_APPEND|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(log.path, os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -25,7 +25,7 @@ func TestHasBeads(t *testing.T) {
 		{
 			name: "with .beads directory",
 			setup: func(t *testing.T, dir string) {
-				if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+				if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0750); err != nil {
 					t.Fatal(err)
 				}
 			},
@@ -34,7 +34,7 @@ func TestHasBeads(t *testing.T) {
 		{
 			name: ".beads is a file not directory",
 			setup: func(t *testing.T, dir string) {
-				if err := os.WriteFile(filepath.Join(dir, ".beads"), []byte("not a dir"), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, ".beads"), []byte("not a dir"), 0600); err != nil {
 					t.Fatal(err)
 				}
 			},
@@ -206,7 +206,7 @@ func TestReadyIssuesNoBeadsDir(t *testing.T) {
 func TestListIssuesFiltersEpics(t *testing.T) {
 	// Create a workspace with .beads dir and a mock bd script
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -242,7 +242,7 @@ func TestListIssuesFiltersEpics(t *testing.T) {
 
 func TestListAllIssuesIncludesEpics(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -277,7 +277,7 @@ func TestListAllIssuesIncludesEpics(t *testing.T) {
 
 func TestListAllIssuesJSONLFallback(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -302,7 +302,7 @@ func TestListAllIssuesJSONLFallback(t *testing.T) {
 
 func TestListAllIssuesEmptyOutput(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -321,7 +321,7 @@ func TestListAllIssuesEmptyOutput(t *testing.T) {
 
 func TestListAllIssuesMalformedOutput(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -344,7 +344,7 @@ func TestListAllIssuesMalformedOutput(t *testing.T) {
 
 func TestReadyIssuesFiltersEpics(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -376,7 +376,7 @@ func TestReadyIssuesFiltersEpics(t *testing.T) {
 
 func TestReadyIssuesEmptyResult(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -553,7 +553,7 @@ func TestGetIssueNoBeadsDir(t *testing.T) {
 
 func TestGetIssueBdFails(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -568,7 +568,7 @@ func TestGetIssueBdFails(t *testing.T) {
 
 func TestGetIssueMalformedJSON(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -583,7 +583,7 @@ func TestGetIssueMalformedJSON(t *testing.T) {
 
 func TestGetIssueEmptyArray(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -598,7 +598,7 @@ func TestGetIssueEmptyArray(t *testing.T) {
 
 func TestGetIssueSuccess(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -633,7 +633,7 @@ func TestGetIssueSuccess(t *testing.T) {
 
 func TestGetIssueReturnsFirst(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -663,7 +663,7 @@ func TestGetIssueReturnsFirst(t *testing.T) {
 
 func TestGetIssueEmptyID(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -681,7 +681,7 @@ func TestGetIssueEmptyID(t *testing.T) {
 
 func TestListAllIssuesBdFails(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -750,7 +750,7 @@ func TestListIssuesBdFails(t *testing.T) {
 
 func TestReadyIssuesBdFails(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -765,7 +765,7 @@ func TestReadyIssuesBdFails(t *testing.T) {
 
 func TestReadyIssuesMalformedJSON(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -780,7 +780,7 @@ func TestReadyIssuesMalformedJSON(t *testing.T) {
 
 func TestReadyIssuesAllEpics(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".beads"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -812,7 +812,7 @@ func createMockBdFailing(t *testing.T) string {
 	mockPath := filepath.Join(dir, "bd")
 
 	script := "#!/bin/sh\nexit 1\n"
-	if err := os.WriteFile(mockPath, []byte(script), 0755); err != nil {
+	if err := os.WriteFile(mockPath, []byte(script), 0700); err != nil { //nolint:gosec // executable script
 		t.Fatalf("failed to create mock bd: %v", err)
 	}
 
@@ -828,7 +828,7 @@ func createMockBd(t *testing.T, output string) string {
 
 	// Write a shell script that just echoes the output
 	script := "#!/bin/sh\nprintf '%s' " + shellQuote(output) + "\n"
-	if err := os.WriteFile(mockPath, []byte(script), 0755); err != nil {
+	if err := os.WriteFile(mockPath, []byte(script), 0700); err != nil { //nolint:gosec // executable script
 		t.Fatalf("failed to create mock bd: %v", err)
 	}
 

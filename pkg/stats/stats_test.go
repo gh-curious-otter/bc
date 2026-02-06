@@ -203,7 +203,7 @@ func TestSaveAndLoad(t *testing.T) {
 	}
 
 	// Verify file exists
-	data, err := os.ReadFile(filepath.Join(dir, "stats.json"))
+	data, err := os.ReadFile(filepath.Join(dir, "stats.json")) //nolint:gosec // test file read
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
@@ -380,14 +380,14 @@ func TestSummaryNoAgentStatsSection(t *testing.T) {
 func seedAgentsFile(t *testing.T, stateDir string, agents map[string]*agent.Agent) {
 	t.Helper()
 	agentsDir := filepath.Join(stateDir, "agents")
-	if err := os.MkdirAll(agentsDir, 0755); err != nil {
+	if err := os.MkdirAll(agentsDir, 0750); err != nil {
 		t.Fatalf("mkdir agents: %v", err)
 	}
 	data, err := json.MarshalIndent(agents, "", "  ")
 	if err != nil {
 		t.Fatalf("marshal agents: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0600); err != nil {
 		t.Fatalf("write agents.json: %v", err)
 	}
 }
@@ -398,7 +398,7 @@ func seedQueueFile(t *testing.T, stateDir string, items []queue.WorkItem) {
 	if err != nil {
 		t.Fatalf("marshal queue: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(stateDir, "queue.json"), data, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(stateDir, "queue.json"), data, 0600); err != nil {
 		t.Fatalf("write queue.json: %v", err)
 	}
 }
@@ -408,7 +408,7 @@ func seedQueueFile(t *testing.T, stateDir string, items []queue.WorkItem) {
 func TestCollectAgentMetricsEmpty(t *testing.T) {
 	stateDir := t.TempDir()
 	agentsDir := filepath.Join(stateDir, "agents")
-	if err := os.MkdirAll(agentsDir, 0755); err != nil {
+	if err := os.MkdirAll(agentsDir, 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -738,7 +738,7 @@ func TestLoadPreservesHistorical(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(stateDir, "stats.json"), data, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(stateDir, "stats.json"), data, 0600); err != nil {
 		t.Fatalf("write stats.json: %v", err)
 	}
 
@@ -767,7 +767,7 @@ func TestLoadPreservesHistorical(t *testing.T) {
 func TestLoadInvalidQueueFile(t *testing.T) {
 	stateDir := t.TempDir()
 
-	if err := os.WriteFile(filepath.Join(stateDir, "queue.json"), []byte("not json{{{"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(stateDir, "queue.json"), []byte("not json{{{"), 0600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 
@@ -783,11 +783,11 @@ func TestLoadInvalidQueueFile(t *testing.T) {
 func TestLoadInvalidAgentsFile(t *testing.T) {
 	stateDir := t.TempDir()
 	agentsDir := filepath.Join(stateDir, "agents")
-	if err := os.MkdirAll(agentsDir, 0755); err != nil {
+	if err := os.MkdirAll(agentsDir, 0750); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := os.WriteFile(filepath.Join(agentsDir, "agents.json"), []byte("not json{{{"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(agentsDir, "agents.json"), []byte("not json{{{"), 0600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 

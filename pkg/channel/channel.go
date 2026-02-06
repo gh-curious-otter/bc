@@ -87,11 +87,11 @@ func (s *Store) Save() error {
 	}
 
 	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(s.path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(s.path), 0750); err != nil {
 		return fmt.Errorf("failed to create channels directory: %w", err)
 	}
 
-	if err := os.WriteFile(s.path, data, 0644); err != nil {
+	if err := os.WriteFile(s.path, data, 0600); err != nil {
 		return fmt.Errorf("failed to write channels file: %w", err)
 	}
 

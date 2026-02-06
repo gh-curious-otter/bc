@@ -30,7 +30,7 @@ func TestLoadMissingFile(t *testing.T) {
 func TestLoadInvalidJSON(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad.json")
-	if err := os.WriteFile(path, []byte("{not json"), 0644); err != nil {
+	if err := os.WriteFile(path, []byte("{not json"), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -51,7 +51,7 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 	}
 
 	// Verify file exists and is valid JSON.
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // test file read
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}

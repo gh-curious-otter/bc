@@ -49,7 +49,7 @@ func Init(rootDir string) (*Workspace, error) {
 
 	// Create state directory
 	stateDir := filepath.Join(absRoot, ".bc")
-	if err := os.MkdirAll(stateDir, 0755); err != nil {
+	if err := os.MkdirAll(stateDir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create state directory: %w", err)
 	}
 
@@ -62,7 +62,7 @@ func Init(rootDir string) (*Workspace, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
+	if err := os.WriteFile(configPath, data, 0600); err != nil {
 		return nil, err
 	}
 
@@ -82,7 +82,7 @@ func Load(rootDir string) (*Workspace, error) {
 	stateDir := filepath.Join(absRoot, ".bc")
 	configPath := filepath.Join(stateDir, "config.json")
 
-	data, err := os.ReadFile(configPath)
+	data, err := os.ReadFile(configPath) //nolint:gosec // path constructed from known state dir
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("not a bc workspace (no .bc/config.json found)")
@@ -137,7 +137,7 @@ func (w *Workspace) Save() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(configPath, data, 0644)
+	return os.WriteFile(configPath, data, 0600)
 }
 
 // StateDir returns the state directory path.
@@ -164,7 +164,7 @@ func (w *Workspace) EnsureDirs() error {
 	}
 
 	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0750); err != nil {
 			return err
 		}
 	}

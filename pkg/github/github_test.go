@@ -288,7 +288,7 @@ func createMockCLI(t *testing.T, name, output string) string {
 	mockPath := filepath.Join(dir, name)
 
 	script := "#!/bin/sh\nprintf '%s' " + shellQuote(output) + "\n"
-	if err := os.WriteFile(mockPath, []byte(script), 0755); err != nil {
+	if err := os.WriteFile(mockPath, []byte(script), 0700); err != nil { //nolint:gosec // executable script
 		t.Fatalf("failed to create mock %s: %v", name, err)
 	}
 	return mockPath

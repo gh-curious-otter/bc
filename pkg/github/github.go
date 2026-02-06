@@ -134,7 +134,7 @@ func CreateIssue(workspacePath, title, body string) error {
 	if body != "" {
 		args = append(args, "--body", body)
 	}
-	cmd := exec.Command("gh", args...)
+	cmd := exec.Command("gh", args...) //nolint:gosec // gh command with trusted args
 	cmd.Dir = workspacePath
 	return cmd.Run()
 }
