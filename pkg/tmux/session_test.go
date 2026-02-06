@@ -1,6 +1,7 @@
 package tmux
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -48,7 +49,7 @@ func mockCmd(stdout, stderr string, exitCode int) func(string, ...string) *exec.
 	return func(name string, args ...string) *exec.Cmd {
 		cs := []string{"-test.run=TestHelperProcess", "--", name}
 		cs = append(cs, args...)
-		cmd := exec.Command(os.Args[0], cs...) //nolint:gosec // test helper
+		cmd := exec.CommandContext(context.Background(), os.Args[0], cs...) //nolint:gosec // test helper
 		cmd.Env = []string{
 			"GO_WANT_HELPER_PROCESS=1",
 			"MOCK_STDOUT=" + stdout,
@@ -82,7 +83,7 @@ func mockCmdSequence(responses ...mockResponse) func(string, ...string) *exec.Cm
 
 		cs := []string{"-test.run=TestHelperProcess", "--", name}
 		cs = append(cs, args...)
-		cmd := exec.Command(os.Args[0], cs...) //nolint:gosec // test helper
+		cmd := exec.CommandContext(context.Background(), os.Args[0], cs...) //nolint:gosec // test helper
 		cmd.Env = []string{
 			"GO_WANT_HELPER_PROCESS=1",
 			"MOCK_STDOUT=" + r.stdout,
@@ -112,7 +113,7 @@ func recordingMock(stdout string) (func(string, ...string) *exec.Cmd, *[]cmdReco
 
 		cs := []string{"-test.run=TestHelperProcess", "--", name}
 		cs = append(cs, args...)
-		cmd := exec.Command(os.Args[0], cs...) //nolint:gosec // test helper
+		cmd := exec.CommandContext(context.Background(), os.Args[0], cs...) //nolint:gosec // test helper
 		cmd.Env = []string{
 			"GO_WANT_HELPER_PROCESS=1",
 			"MOCK_STDOUT=" + stdout,
@@ -342,7 +343,7 @@ func TestCommand_UsesExecCommand(t *testing.T) {
 		SessionPrefix: "bc-",
 		execCommand: func(name string, arg ...string) *exec.Cmd {
 			called = true
-			return exec.Command(name, arg...)
+			return exec.CommandContext(context.Background(), name, arg...)
 		},
 	}
 	m.command("echo", "test")
@@ -1041,7 +1042,7 @@ func TestPrefixIsolation_SessionName(t *testing.T) {
 
 // hasTmux returns true if tmux is available.
 func hasTmux() bool {
-	return exec.Command("tmux", "-V").Run() == nil
+	return exec.CommandContext(context.Background(), "tmux", "-V").Run() == nil
 }
 
 // TestSendKeysPreservesSpaces verifies that spaces in messages survive the
@@ -1071,11 +1072,11 @@ func TestSendKeysPreservesSpaces(t *testing.T) {
 			fullName := m.SessionName(sessionName)
 
 			// Create session running cat (echoes stdin to PTY)
-			cmd := exec.Command("tmux", "new-session", "-d", "-s", fullName, "cat") //nolint:gosec // test helper
+			cmd := exec.CommandContext(context.Background(), "tmux", "new-session", "-d", "-s", fullName, "cat") //nolint:gosec // test helper
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Fatalf("failed to create session: %v (%s)", err, out)
 			}
-			defer func() { _ = exec.Command("tmux", "kill-session", "-t", fullName).Run() }() //nolint:errcheck,gosec // best-effort cleanup
+			defer func() { _ = exec.CommandContext(context.Background(), "tmux", "kill-session", "-t", fullName).Run() }() //nolint:errcheck,gosec // best-effort cleanup
 
 			time.Sleep(200 * time.Millisecond)
 
@@ -1130,11 +1131,11 @@ func TestPasteBufferPreservesSpaces(t *testing.T) {
 	sessionName := "pb-test"
 	fullName := m.SessionName(sessionName)
 
-	cmd := exec.Command("tmux", "new-session", "-d", "-s", fullName, "cat") //nolint:gosec // test helper
+	cmd := exec.CommandContext(context.Background(), "tmux", "new-session", "-d", "-s", fullName, "cat") //nolint:gosec // test helper
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("failed to create session: %v (%s)", err, out)
 	}
-	defer func() { _ = exec.Command("tmux", "kill-session", "-t", fullName).Run() }() //nolint:errcheck,gosec // best-effort cleanup
+	defer func() { _ = exec.CommandContext(context.Background(), "tmux", "kill-session", "-t", fullName).Run() }() //nolint:errcheck,gosec // best-effort cleanup
 
 	time.Sleep(200 * time.Millisecond)
 

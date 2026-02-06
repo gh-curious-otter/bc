@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -1587,19 +1588,19 @@ func TestConcurrentAgentCount(t *testing.T) {
 func TestSpawnAgent_ExistingSessionCreatesWorktree(t *testing.T) {
 	// Setup: create a real git repo so createWorktree works
 	workspace := t.TempDir()
-	cmd := exec.Command("git", "init", workspace) //nolint:gosec // test helper
+	cmd := exec.CommandContext(context.Background(), "git", "init", workspace) //nolint:gosec // test helper
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git init failed: %v (%s)", err, out)
 	}
 	// Configure git user for CI environments where global config is absent
-	if err := exec.Command("git", "-C", workspace, "config", "user.email", "test@test.com").Run(); err != nil { //nolint:gosec // test helper
+	if err := exec.CommandContext(context.Background(), "git", "-C", workspace, "config", "user.email", "test@test.com").Run(); err != nil { //nolint:gosec // test helper
 		t.Fatal(err)
 	}
-	if err := exec.Command("git", "-C", workspace, "config", "user.name", "Test").Run(); err != nil { //nolint:gosec // test helper
+	if err := exec.CommandContext(context.Background(), "git", "-C", workspace, "config", "user.name", "Test").Run(); err != nil { //nolint:gosec // test helper
 		t.Fatal(err)
 	}
 	// Need at least one commit for git worktree add to work
-	cmd = exec.Command("git", "-C", workspace, "commit", "--allow-empty", "-m", "init") //nolint:gosec // test helper
+	cmd = exec.CommandContext(context.Background(), "git", "-C", workspace, "commit", "--allow-empty", "-m", "init") //nolint:gosec // test helper
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git commit failed: %v (%s)", err, out)
 	}
@@ -1612,12 +1613,12 @@ func TestSpawnAgent_ExistingSessionCreatesWorktree(t *testing.T) {
 
 	// Create a real tmux session so HasSession returns true
 	sessionName := m.tmux.SessionName("eng-1")
-	cmd = exec.Command("tmux", "new-session", "-d", "-s", sessionName) //nolint:gosec // test helper
+	cmd = exec.CommandContext(context.Background(), "tmux", "new-session", "-d", "-s", sessionName) //nolint:gosec // test helper
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("tmux new-session failed: %v (%s)", err, out)
 	}
 	t.Cleanup(func() {
-		_ = exec.Command("tmux", "kill-session", "-t", sessionName).Run() //nolint:errcheck,gosec // best-effort cleanup
+		_ = exec.CommandContext(context.Background(), "tmux", "kill-session", "-t", sessionName).Run() //nolint:errcheck,gosec // best-effort cleanup
 	})
 
 	// Pre-populate agent WITHOUT WorktreeDir (simulates pre-worktree agent)
@@ -1648,7 +1649,7 @@ func TestSpawnAgent_ExistingSessionCreatesWorktree(t *testing.T) {
 	}
 
 	// Cleanup worktree
-	_ = exec.Command("git", "-C", workspace, "worktree", "remove", "--force", expectedDir).Run() //nolint:errcheck,gosec // best-effort cleanup
+	_ = exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "remove", "--force", expectedDir).Run() //nolint:errcheck,gosec // best-effort cleanup
 }
 
 func TestConcurrentRunningCount(t *testing.T) {

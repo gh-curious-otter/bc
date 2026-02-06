@@ -3,6 +3,7 @@ package tmux
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -48,7 +49,7 @@ func (m *Manager) command(name string, args ...string) *exec.Cmd {
 	if m.execCommand != nil {
 		return m.execCommand(name, args...)
 	}
-	return exec.Command(name, args...)
+	return exec.CommandContext(context.Background(), name, args...)
 }
 
 // NewManager creates a new tmux manager with the given prefix.
