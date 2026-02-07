@@ -344,7 +344,8 @@ func TestCreateDefaultChannels(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = w
-	createDefaultChannels(dir, engineers, qa, all)
+	techLeads := []string{} // No tech leads in this test
+	createDefaultChannels(dir, techLeads, engineers, qa, all)
 	_ = w.Close()
 	os.Stdout = oldStdout
 
@@ -1924,8 +1925,9 @@ func TestCreateDefaultChannels_AlreadyExist(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.Stdout = w
-	createDefaultChannels(dir, engineers, qa, all)
-	createDefaultChannels(dir, engineers, qa, all)
+	techLeads := []string{} // No tech leads in this test
+	createDefaultChannels(dir, techLeads, engineers, qa, all)
+	createDefaultChannels(dir, techLeads, engineers, qa, all)
 	_ = w.Close()
 	os.Stdout = oldStdout
 }
