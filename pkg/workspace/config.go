@@ -21,6 +21,7 @@ type V2Config struct {
 	Memory    MemoryConfig    `toml:"memory"`
 	Beads     BeadsConfig     `toml:"beads"`
 	Channels  ChannelsConfig  `toml:"channels"`
+	Roster    RosterConfig    `toml:"roster"`
 }
 
 // WorkspaceConfig holds core workspace settings.
@@ -67,6 +68,19 @@ type ChannelsConfig struct {
 	Default []string `toml:"default"`
 }
 
+// RosterConfig configures the default agent roster for bc up.
+type RosterConfig struct {
+	Engineers int `toml:"engineers"`  // Number of engineer agents (default: 4)
+	TechLeads int `toml:"tech_leads"` // Number of tech-lead agents (default: 2)
+	QA        int `toml:"qa"`         // Number of QA agents (default: 2)
+}
+
+// Roster limits.
+const (
+	RosterMinPerRole = 0  // Minimum agents per role
+	RosterMaxPerRole = 10 // Maximum agents per role
+)
+
 // Validation errors.
 var (
 	ErrMissingWorkspaceName = errors.New("workspace.name is required")
@@ -75,6 +89,9 @@ var (
 	ErrDefaultToolNotFound  = errors.New("tools.default references undefined tool")
 	ErrMissingMemoryBackend = errors.New("memory.backend is required")
 	ErrMissingMemoryPath    = errors.New("memory.path is required")
+	ErrRosterEngineersRange = errors.New("roster.engineers must be between 0 and 10")
+	ErrRosterTechLeadsRange = errors.New("roster.tech_leads must be between 0 and 10")
+	ErrRosterQARange        = errors.New("roster.qa must be between 0 and 10")
 )
 
 // DefaultV2Config returns sensible defaults for a new v2 workspace.
@@ -105,6 +122,11 @@ func DefaultV2Config(name string) V2Config {
 		},
 		Channels: ChannelsConfig{
 			Default: []string{"general", "engineering"},
+		},
+		Roster: RosterConfig{
+			Engineers: 4,
+			TechLeads: 2,
+			QA:        2,
 		},
 	}
 }
@@ -153,6 +175,17 @@ func (c *V2Config) Validate() error {
 	}
 	if c.Memory.Path == "" {
 		return ErrMissingMemoryPath
+	}
+
+	// Roster validation
+	if c.Roster.Engineers < RosterMinPerRole || c.Roster.Engineers > RosterMaxPerRole {
+		return ErrRosterEngineersRange
+	}
+	if c.Roster.TechLeads < RosterMinPerRole || c.Roster.TechLeads > RosterMaxPerRole {
+		return ErrRosterTechLeadsRange
+	}
+	if c.Roster.QA < RosterMinPerRole || c.Roster.QA > RosterMaxPerRole {
+		return ErrRosterQARange
 	}
 
 	return nil

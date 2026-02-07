@@ -19,15 +19,23 @@ import (
 var upCmd = &cobra.Command{
 	Use:   "up",
 	Short: "Start bc agents",
-	Long: `Start the bc agent system with the default roster.
+	Long: `Start the bc agent system with the configured roster.
 
-Default roster:
+Default roster (configurable in .bc/config.toml [roster]):
   - coordinator (orchestrates work)
   - product-manager (creates epics)
   - manager (assigns tasks)
   - tech-lead-01, tech-lead-02 (technical leadership, code review)
   - engineer-01, engineer-02, engineer-03 (implement tasks)
   - qa-01, qa-02 (test implementations)
+
+Roster configuration in .bc/config.toml:
+  [roster]
+  engineers = 4   # Number of engineers (0-10)
+  tech_leads = 2  # Number of tech-leads (0-10)
+  qa = 2          # Number of QA agents (0-10)
+
+CLI flags override config.toml values.
 
 This will:
 1. Start all agents in the roster
@@ -36,10 +44,10 @@ This will:
 4. Send bootstrap prompts to all agents
 
 Example:
-  bc up                      # Start with default roster (2 tech-leads, 3 engineers, 2 QA)
-  bc up --engineers 5        # Start with 5 engineers
-  bc up --tech-leads 3       # Start with 3 tech-lead agents
-  bc up --qa 3               # Start with 3 QA agents
+  bc up                      # Start with roster from config.toml
+  bc up --engineers 5        # Override engineers count
+  bc up --tech-leads 3       # Override tech-leads count
+  bc up --qa 3               # Override QA count
   bc up --agent cursor       # Use Cursor AI for all agents`,
 	RunE: runUp,
 }
@@ -110,12 +118,40 @@ func runUp(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
-	// Determine agent counts (--workers is deprecated, use --engineers)
+	// Determine agent counts from config, with CLI flag overrides
+	// Priority: CLI flags > config.toml > hardcoded defaults
 	numEngineers := upEngineers
 	numTechLeads := upTechLeads
 	numQA := upQA
+
+	// Read roster from config if V2Config is available
+	if ws.V2Config != nil {
+		roster := ws.V2Config.Roster
+		// Use config values as base (only if not zero, indicating it was set)
+		if roster.Engineers > 0 || roster.Engineers == 0 {
+			numEngineers = roster.Engineers
+		}
+		if roster.TechLeads > 0 || roster.TechLeads == 0 {
+			numTechLeads = roster.TechLeads
+		}
+		if roster.QA > 0 || roster.QA == 0 {
+			numQA = roster.QA
+		}
+	}
+
+	// CLI flags override config values (check if flag was explicitly set)
+	if cmd.Flags().Changed("engineers") {
+		numEngineers = upEngineers
+	}
+	if cmd.Flags().Changed("tech-leads") {
+		numTechLeads = upTechLeads
+	}
+	if cmd.Flags().Changed("qa") {
+		numQA = upQA
+	}
+
+	// Legacy: if --workers is set, use it for engineers (deprecated)
 	if upWorkers > 0 {
-		// Legacy: if --workers is set, use it for engineers
 		numEngineers = upWorkers
 	}
 

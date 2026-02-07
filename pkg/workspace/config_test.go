@@ -24,6 +24,16 @@ func TestDefaultV2Config(t *testing.T) {
 	if cfg.Memory.Backend != "file" {
 		t.Errorf("expected memory backend 'file', got %q", cfg.Memory.Backend)
 	}
+	// Test default roster values
+	if cfg.Roster.Engineers != 4 {
+		t.Errorf("expected roster.engineers = 4, got %d", cfg.Roster.Engineers)
+	}
+	if cfg.Roster.TechLeads != 2 {
+		t.Errorf("expected roster.tech_leads = 2, got %d", cfg.Roster.TechLeads)
+	}
+	if cfg.Roster.QA != 2 {
+		t.Errorf("expected roster.qa = 2, got %d", cfg.Roster.QA)
+	}
 }
 
 func TestParseV2Config(t *testing.T) {
@@ -101,6 +111,45 @@ default = ["general", "engineering"]
 	}
 }
 
+func TestParseV2ConfigWithRoster(t *testing.T) {
+	tomlData := []byte(`
+[workspace]
+name = "roster-project"
+version = 2
+
+[tools]
+default = "claude"
+
+[tools.claude]
+command = "claude"
+enabled = true
+
+[memory]
+backend = "file"
+path = ".bc/memory"
+
+[roster]
+engineers = 5
+tech_leads = 3
+qa = 1
+`)
+
+	cfg, err := ParseV2Config(tomlData)
+	if err != nil {
+		t.Fatalf("failed to parse config: %v", err)
+	}
+
+	if cfg.Roster.Engineers != 5 {
+		t.Errorf("expected roster.engineers = 5, got %d", cfg.Roster.Engineers)
+	}
+	if cfg.Roster.TechLeads != 3 {
+		t.Errorf("expected roster.tech_leads = 3, got %d", cfg.Roster.TechLeads)
+	}
+	if cfg.Roster.QA != 1 {
+		t.Errorf("expected roster.qa = 1, got %d", cfg.Roster.QA)
+	}
+}
+
 func TestV2ConfigValidation(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -155,6 +204,53 @@ func TestV2ConfigValidation(t *testing.T) {
 			name:    "valid config",
 			wantErr: nil,
 			cfg:     DefaultV2Config("test"),
+		},
+		{
+			name:    "roster engineers too high",
+			wantErr: ErrRosterEngineersRange,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Roster.Engineers = 11
+				return cfg
+			}(),
+		},
+		{
+			name:    "roster engineers negative",
+			wantErr: ErrRosterEngineersRange,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Roster.Engineers = -1
+				return cfg
+			}(),
+		},
+		{
+			name:    "roster tech_leads too high",
+			wantErr: ErrRosterTechLeadsRange,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Roster.TechLeads = 11
+				return cfg
+			}(),
+		},
+		{
+			name:    "roster qa too high",
+			wantErr: ErrRosterQARange,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Roster.QA = 11
+				return cfg
+			}(),
+		},
+		{
+			name:    "roster zero values valid",
+			wantErr: nil,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Roster.Engineers = 0
+				cfg.Roster.TechLeads = 0
+				cfg.Roster.QA = 0
+				return cfg
+			}(),
 		},
 	}
 
