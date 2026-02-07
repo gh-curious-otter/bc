@@ -937,3 +937,218 @@ func containsHelper(s, substr string) bool {
 	}
 	return false
 }
+
+// --- Crash Handling Tests ---
+
+func TestRootStateStore_RecordCrash(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// Create root with a session
+	state, createErr := store.Create("root", RoleManager, "claude")
+	if createErr != nil {
+		t.Fatalf("Create failed: %v", createErr)
+	}
+	state.Session = "old-session"
+	if saveErr := store.Save(state); saveErr != nil {
+		t.Fatalf("Save failed: %v", saveErr)
+	}
+
+	// Record a crash
+	if crashErr := store.RecordCrash("old-session"); crashErr != nil {
+		t.Fatalf("RecordCrash failed: %v", crashErr)
+	}
+
+	// Verify crash was recorded
+	loaded, loadErr := store.Load()
+	if loadErr != nil {
+		t.Fatalf("Load failed: %v", loadErr)
+	}
+
+	if loaded.CrashCount != 1 {
+		t.Errorf("CrashCount = %d, want 1", loaded.CrashCount)
+	}
+	if loaded.LastCrashTime == nil {
+		t.Error("LastCrashTime should be set")
+	}
+	if loaded.RecoveredFrom != "old-session" {
+		t.Errorf("RecoveredFrom = %q, want old-session", loaded.RecoveredFrom)
+	}
+	if loaded.State != StateStopped {
+		t.Errorf("State = %q, want %q", loaded.State, StateStopped)
+	}
+}
+
+func TestRootStateStore_RecordCrash_MultipleCrashes(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	if _, err := store.Create("root", RoleManager, "claude"); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// Record multiple crashes
+	for i := 0; i < 3; i++ {
+		if err := store.RecordCrash("session-" + string(rune('a'+i))); err != nil {
+			t.Fatalf("RecordCrash %d failed: %v", i, err)
+		}
+	}
+
+	loaded, loadErr := store.Load()
+	if loadErr != nil {
+		t.Fatalf("Load failed: %v", loadErr)
+	}
+
+	if loaded.CrashCount != 3 {
+		t.Errorf("CrashCount = %d, want 3", loaded.CrashCount)
+	}
+}
+
+func TestRootStateStore_RecoverFromCrash(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// Create root and simulate crash
+	if _, err := store.Create("root", RoleManager, "claude"); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if err := store.RecordCrash("crashed-session"); err != nil {
+		t.Fatalf("RecordCrash failed: %v", err)
+	}
+
+	// Recover with new session
+	if err := store.RecoverFromCrash("new-session"); err != nil {
+		t.Fatalf("RecoverFromCrash failed: %v", err)
+	}
+
+	loaded, loadErr := store.Load()
+	if loadErr != nil {
+		t.Fatalf("Load failed: %v", loadErr)
+	}
+
+	if loaded.Session != "new-session" {
+		t.Errorf("Session = %q, want new-session", loaded.Session)
+	}
+	if loaded.State != StateIdle {
+		t.Errorf("State = %q, want %q", loaded.State, StateIdle)
+	}
+	if loaded.RecoveredFrom != "" {
+		t.Errorf("RecoveredFrom should be cleared, got %q", loaded.RecoveredFrom)
+	}
+	// CrashCount should be preserved for diagnostics
+	if loaded.CrashCount != 1 {
+		t.Errorf("CrashCount = %d, want 1 (should be preserved)", loaded.CrashCount)
+	}
+}
+
+func TestRootStateStore_GetCrashInfo(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	if _, createErr := store.Create("root", RoleManager, "claude"); createErr != nil {
+		t.Fatalf("Create failed: %v", createErr)
+	}
+
+	// No crashes yet
+	info, infoErr := store.GetCrashInfo()
+	if infoErr != nil {
+		t.Fatalf("GetCrashInfo failed: %v", infoErr)
+	}
+	if info.HasCrashed() {
+		t.Error("HasCrashed should be false initially")
+	}
+	if info.TimeSinceLastCrash() != 0 {
+		t.Error("TimeSinceLastCrash should be 0 with no crashes")
+	}
+
+	// Record a crash
+	if crashErr := store.RecordCrash("session-1"); crashErr != nil {
+		t.Fatalf("RecordCrash failed: %v", crashErr)
+	}
+
+	info, infoErr = store.GetCrashInfo()
+	if infoErr != nil {
+		t.Fatalf("GetCrashInfo failed: %v", infoErr)
+	}
+	if !info.HasCrashed() {
+		t.Error("HasCrashed should be true after crash")
+	}
+	if info.CrashCount != 1 {
+		t.Errorf("CrashCount = %d, want 1", info.CrashCount)
+	}
+	if info.TimeSinceLastCrash() <= 0 {
+		t.Error("TimeSinceLastCrash should be positive after crash")
+	}
+}
+
+func TestRootStateStore_ClearCrashHistory(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	if _, err := store.Create("root", RoleManager, "claude"); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// Record crashes
+	for i := 0; i < 5; i++ {
+		if err := store.RecordCrash("session"); err != nil {
+			t.Fatalf("RecordCrash failed: %v", err)
+		}
+	}
+
+	// Clear history
+	if err := store.ClearCrashHistory(); err != nil {
+		t.Fatalf("ClearCrashHistory failed: %v", err)
+	}
+
+	info, infoErr := store.GetCrashInfo()
+	if infoErr != nil {
+		t.Fatalf("GetCrashInfo failed: %v", infoErr)
+	}
+	if info.HasCrashed() {
+		t.Error("HasCrashed should be false after clearing history")
+	}
+	if info.CrashCount != 0 {
+		t.Errorf("CrashCount = %d, want 0", info.CrashCount)
+	}
+}
+
+func TestRootStateStore_CrashPreservesChildren(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	if _, err := store.Create("root", RoleManager, "claude"); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// Add children
+	children := []string{"engineer-01", "engineer-02", "qa-01"}
+	for _, child := range children {
+		if err := store.AddChild(child); err != nil {
+			t.Fatalf("AddChild(%s) failed: %v", child, err)
+		}
+	}
+
+	// Crash and recover
+	if err := store.RecordCrash("old-session"); err != nil {
+		t.Fatalf("RecordCrash failed: %v", err)
+	}
+	if err := store.RecoverFromCrash("new-session"); err != nil {
+		t.Fatalf("RecoverFromCrash failed: %v", err)
+	}
+
+	// Verify children preserved
+	loaded, loadErr := store.Load()
+	if loadErr != nil {
+		t.Fatalf("Load failed: %v", loadErr)
+	}
+
+	if len(loaded.Children) != len(children) {
+		t.Errorf("Children count = %d, want %d", len(loaded.Children), len(children))
+	}
+	for i, child := range children {
+		if loaded.Children[i] != child {
+			t.Errorf("Children[%d] = %q, want %q", i, loaded.Children[i], child)
+		}
+	}
+}
