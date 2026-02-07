@@ -22,6 +22,9 @@ import (
 type Role string
 
 const (
+	// Root role (singleton)
+	RoleRoot Role = "root" // Singleton root agent - only one can exist
+
 	// Legacy roles (for backward compatibility)
 	RoleCoordinator Role = "coordinator"
 	RoleWorker      Role = "worker"
@@ -47,6 +50,7 @@ const (
 
 // RoleCapabilities defines what each role can do.
 var RoleCapabilities = map[Role][]Capability{
+	RoleRoot:           {CapCreateAgents, CapAssignWork, CapCreateEpics, CapReviewWork}, // Root can do everything
 	RoleProductManager: {CapCreateAgents, CapAssignWork, CapCreateEpics, CapReviewWork},
 	RoleManager:        {CapCreateAgents, CapAssignWork, CapReviewWork},
 	RoleEngineer:       {CapImplementTasks},
@@ -58,6 +62,7 @@ var RoleCapabilities = map[Role][]Capability{
 
 // RoleHierarchy defines which roles can create which child roles.
 var RoleHierarchy = map[Role][]Role{
+	RoleRoot:           {RoleProductManager, RoleManager, RoleEngineer, RoleQA}, // Root can create all
 	RoleProductManager: {RoleManager},
 	RoleManager:        {RoleEngineer, RoleQA},
 	RoleEngineer:       {}, // Cannot create children
@@ -98,6 +103,8 @@ func HasCapability(role Role, cap Capability) bool {
 // RoleLevel returns the hierarchy level (0 = top, higher = lower in hierarchy).
 func RoleLevel(role Role) int {
 	switch role {
+	case RoleRoot:
+		return -1 // Root is above all
 	case RoleProductManager, RoleCoordinator:
 		return 0
 	case RoleManager:
@@ -322,6 +329,13 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	defer m.mu.Unlock()
 
 	log.Debug("spawning agent", "name", name, "role", role, "workspace", workspace, "parentID", parentID, "tool", tool)
+
+	// Enforce root singleton constraint
+	if role == RoleRoot {
+		if err := m.enforceRootSingleton(workspace); err != nil {
+			return nil, err
+		}
+	}
 
 	// Validate parent relationship if specified
 	if parentID != "" {
@@ -1028,4 +1042,36 @@ func (m *Manager) LoadState() error {
 // Tmux returns the underlying tmux manager.
 func (m *Manager) Tmux() *tmux.Manager {
 	return m.tmux
+}
+
+// enforceRootSingleton checks if a root agent can be spawned.
+// Returns ErrRootExists if a root already exists and is running.
+// Allows respawn if root is stopped or in error state.
+func (m *Manager) enforceRootSingleton(workspace string) error {
+	bcDir := filepath.Join(workspace, ".bc")
+	rootStore := NewRootStateStore(bcDir)
+
+	// Check if root state exists
+	rootState, err := rootStore.Load()
+	if err != nil {
+		if err == ErrRootNotFound {
+			// No root exists - allow creation
+			return nil
+		}
+		return fmt.Errorf("failed to check root state: %w", err)
+	}
+
+	// Root exists - check if it's in a terminal state that allows respawn
+	switch rootState.State {
+	case StateStopped, StateError:
+		// Terminal state - allow respawn by deleting old state
+		log.Debug("root in terminal state, allowing respawn", "state", rootState.State)
+		if delErr := rootStore.Delete(); delErr != nil {
+			log.Warn("failed to delete old root state", "error", delErr)
+		}
+		return nil
+	default:
+		// Root is active (idle, working, stuck, etc.) - deny new spawn
+		return fmt.Errorf("%w: existing root is in state %q", ErrRootExists, rootState.State)
+	}
 }
