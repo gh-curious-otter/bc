@@ -5,18 +5,17 @@ import (
 	"testing"
 
 	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/queue"
 )
 
 func TestTaskTypeToRoleMapping(t *testing.T) {
 	tests := []struct {
-		taskType queue.TaskType
+		taskType TaskType
 		wantRole agent.Role
 	}{
-		{queue.TaskTypeCode, agent.RoleEngineer},
-		{queue.TaskTypeReview, agent.RoleTechLead},
-		{queue.TaskTypeMerge, agent.RoleManager},
-		{queue.TaskTypeQA, agent.RoleQA},
+		{TaskTypeCode, agent.RoleEngineer},
+		{TaskTypeReview, agent.RoleTechLead},
+		{TaskTypeMerge, agent.RoleManager},
+		{TaskTypeQA, agent.RoleQA},
 	}
 
 	for _, tt := range tests {
@@ -34,14 +33,14 @@ func TestTaskTypeToRoleMapping(t *testing.T) {
 
 func TestGetRoleForTaskType(t *testing.T) {
 	tests := []struct {
-		taskType queue.TaskType
+		taskType TaskType
 		wantRole agent.Role
 		wantErr  bool
 	}{
-		{queue.TaskTypeCode, agent.RoleEngineer, false},
-		{queue.TaskTypeReview, agent.RoleTechLead, false},
-		{queue.TaskTypeMerge, agent.RoleManager, false},
-		{queue.TaskTypeQA, agent.RoleQA, false},
+		{TaskTypeCode, agent.RoleEngineer, false},
+		{TaskTypeReview, agent.RoleTechLead, false},
+		{TaskTypeMerge, agent.RoleManager, false},
+		{TaskTypeQA, agent.RoleQA, false},
 		{"unknown", "", true},
 	}
 
@@ -59,7 +58,7 @@ func TestGetRoleForTaskType(t *testing.T) {
 	}
 }
 
-func TestRouterRouteTask(t *testing.T) {
+func TestRouterRouteTaskType(t *testing.T) {
 	dir := t.TempDir()
 	agentsDir := filepath.Join(dir, ".bc", "agents")
 	mgr := agent.NewManager(agentsDir)
@@ -67,16 +66,9 @@ func TestRouterRouteTask(t *testing.T) {
 	router := NewRouter(mgr)
 
 	// Test with no agents - should fail
-	item := &queue.WorkItem{Type: queue.TaskTypeCode}
-	_, err := router.RouteTask(item)
+	_, err := router.RouteTaskType(TaskTypeCode)
 	if err == nil {
 		t.Error("expected error when no agents available")
-	}
-
-	// Test with nil item
-	_, err = router.RouteTask(nil)
-	if err == nil {
-		t.Error("expected error for nil work item")
 	}
 }
 

@@ -246,7 +246,7 @@ func TestRenderStatusBar_HelpActive(t *testing.T) {
 }
 
 func TestRenderStatusBar_AllScreens(t *testing.T) {
-	screens := []Screen{ScreenHome, ScreenWorkspace, ScreenAgent, ScreenChannel, ScreenIssue, ScreenQueueItem}
+	screens := []Screen{ScreenHome, ScreenWorkspace, ScreenAgent, ScreenChannel, ScreenIssue}
 	for _, screen := range screens {
 		m := newTestHomeModel()
 		m.screen = screen

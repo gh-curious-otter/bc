@@ -8,25 +8,21 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
-
-	"github.com/rpuneet/bc/pkg/queue"
 )
 
 // AgentState represents the persistent state of an agent.
 // This is stored as a per-agent JSON file in .bc/agents/<name>.json
 type AgentState struct {
-	StartedAt  time.Time        `json:"started_at"`
-	UpdatedAt  time.Time        `json:"updated_at"`
-	Name       string           `json:"name"`
-	Tool       string           `json:"tool,omitempty"`
-	Team       string           `json:"team,omitempty"`
-	Parent     string           `json:"parent,omitempty"`
-	Worktree   string           `json:"worktree,omitempty"`
-	Session    string           `json:"session,omitempty"`
-	Role       Role             `json:"role"`
-	State      State            `json:"state"`
-	WorkQueue  []queue.WorkItem `json:"work_queue,omitempty"`
-	MergeQueue []queue.WorkItem `json:"merge_queue,omitempty"`
+	StartedAt time.Time `json:"started_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Name      string    `json:"name"`
+	Tool      string    `json:"tool,omitempty"`
+	Team      string    `json:"team,omitempty"`
+	Parent    string    `json:"parent,omitempty"`
+	Worktree  string    `json:"worktree,omitempty"`
+	Session   string    `json:"session,omitempty"`
+	Role      Role      `json:"role"`
+	State     State     `json:"state"`
 }
 
 // StateStore manages per-agent state files in .bc/agents/
@@ -182,74 +178,6 @@ func (s *StateStore) Exists(name string) bool {
 
 	_, err := os.Stat(s.agentFilePath(name))
 	return err == nil
-}
-
-// AddToWorkQueue adds a work item to an agent's work queue.
-func (s *StateStore) AddToWorkQueue(name string, item queue.WorkItem) error {
-	state, err := s.Load(name)
-	if err != nil {
-		return err
-	}
-	if state == nil {
-		return fmt.Errorf("agent %s not found", name)
-	}
-
-	state.WorkQueue = append(state.WorkQueue, item)
-	return s.Save(state)
-}
-
-// AddToMergeQueue adds a work item to an agent's merge queue.
-func (s *StateStore) AddToMergeQueue(name string, item queue.WorkItem) error {
-	state, err := s.Load(name)
-	if err != nil {
-		return err
-	}
-	if state == nil {
-		return fmt.Errorf("agent %s not found", name)
-	}
-
-	state.MergeQueue = append(state.MergeQueue, item)
-	return s.Save(state)
-}
-
-// RemoveFromWorkQueue removes a work item from an agent's work queue by ID.
-func (s *StateStore) RemoveFromWorkQueue(name, itemID string) error {
-	state, err := s.Load(name)
-	if err != nil {
-		return err
-	}
-	if state == nil {
-		return fmt.Errorf("agent %s not found", name)
-	}
-
-	filtered := make([]queue.WorkItem, 0, len(state.WorkQueue))
-	for _, item := range state.WorkQueue {
-		if item.ID != itemID {
-			filtered = append(filtered, item)
-		}
-	}
-	state.WorkQueue = filtered
-	return s.Save(state)
-}
-
-// RemoveFromMergeQueue removes a work item from an agent's merge queue by ID.
-func (s *StateStore) RemoveFromMergeQueue(name, itemID string) error {
-	state, err := s.Load(name)
-	if err != nil {
-		return err
-	}
-	if state == nil {
-		return fmt.Errorf("agent %s not found", name)
-	}
-
-	filtered := make([]queue.WorkItem, 0, len(state.MergeQueue))
-	for _, item := range state.MergeQueue {
-		if item.ID != itemID {
-			filtered = append(filtered, item)
-		}
-	}
-	state.MergeQueue = filtered
-	return s.Save(state)
 }
 
 // UpdateState updates an agent's state field.

@@ -11,7 +11,6 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/events"
 	bclog "github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/queue"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
@@ -73,50 +72,7 @@ func runReport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to update agent state: %w", err)
 	}
 
-	// Update queue items based on state transition
-	q := queue.New(filepath.Join(ws.StateDir(), "queue.json"))
-	if err := q.Load(); err != nil {
-		bclog.Warn("failed to load queue", "error", err)
-	}
-
 	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-
-	// Find work items assigned to this agent
-	agentItems := q.ListByAgent(agentID)
-itemLoop:
-	for _, item := range agentItems {
-		switch state {
-		case agent.StateWorking:
-			if item.Status == queue.StatusAssigned {
-				_ = q.UpdateStatus(item.ID, queue.StatusWorking)
-				if err := log.Append(events.Event{
-					Type:    events.WorkStarted,
-					Agent:   agentID,
-					Message: message,
-					Data:    map[string]any{"work_id": item.ID},
-				}); err != nil {
-					bclog.Warn("failed to append work started event", "error", err)
-				}
-			}
-		case agent.StateDone:
-			if item.Status == queue.StatusWorking {
-				_ = q.UpdateStatus(item.ID, queue.StatusDone)
-				if err := log.Append(events.Event{
-					Type:    events.WorkCompleted,
-					Agent:   agentID,
-					Message: message,
-					Data:    map[string]any{"work_id": item.ID},
-				}); err != nil {
-					bclog.Warn("failed to append work completed event", "error", err)
-				}
-				// Note: Issue tracking now uses GitHub Issues (beads removed)
-				break itemLoop // Only complete the first working item
-			}
-		}
-	}
-	if err := q.Save(); err != nil {
-		bclog.Warn("failed to save queue", "error", err)
-	}
 
 	// Log the report event
 	if err := log.Append(events.Event{
