@@ -324,7 +324,7 @@ func TestQueueCompleteSuccess(t *testing.T) {
 	}
 }
 
-func TestQueueLoadNoBeads(t *testing.T) {
+func TestQueueLoadDeprecated(t *testing.T) {
 	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
@@ -332,8 +332,11 @@ func TestQueueLoadNoBeads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("queue load returned error: %v", err)
 	}
-	if !strings.Contains(stdout, "No beads issues found") {
-		t.Errorf("expected no beads message, got: %s", stdout)
+	if !strings.Contains(stdout, "deprecated") {
+		t.Errorf("expected deprecation message, got: %s", stdout)
+	}
+	if !strings.Contains(stdout, "GitHub Issues") {
+		t.Errorf("expected GitHub Issues reference, got: %s", stdout)
 	}
 }
 
@@ -1732,7 +1735,7 @@ func TestCreateDefaultChannelsIntegration(t *testing.T) {
 	defer func() { _ = store.Close() }()
 
 	// Check required channels exist
-	for _, name := range []string{"standup", "leadership", "engineering", "qa", "all"} {
+	for _, name := range []string{"standup", "leadership", "engineering", "qa", "reviews", "all"} {
 		ch, getErr := store.GetChannel(name)
 		if getErr != nil {
 			t.Errorf("error getting channel %q: %v", name, getErr)

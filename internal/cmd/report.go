@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/events"
 	bclog "github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/queue"
@@ -110,19 +109,7 @@ itemLoop:
 				}); err != nil {
 					bclog.Warn("failed to append work completed event", "error", err)
 				}
-				// Close linked beads issue if present
-				if item.BeadsID != "" {
-					if err := beads.CloseIssue(ws.RootDir, item.BeadsID); err != nil {
-						// Log but don't fail - beads sync is best-effort
-						if appendErr := log.Append(events.Event{
-							Type:    events.AgentReport,
-							Agent:   agentID,
-							Message: fmt.Sprintf("warning: failed to close beads issue %s: %v", item.BeadsID, err),
-						}); appendErr != nil {
-							bclog.Warn("failed to append beads close warning event", "error", appendErr)
-						}
-					}
-				}
+				// Note: Issue tracking now uses GitHub Issues (beads removed)
 				break itemLoop // Only complete the first working item
 			}
 		}
