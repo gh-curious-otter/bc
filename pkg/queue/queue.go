@@ -38,12 +38,23 @@ const (
 	MergeConflict MergeStatus = "conflict"
 )
 
+// TaskType distinguishes between different kinds of work items.
+type TaskType string
+
+const (
+	TaskTypeCode   TaskType = "code"   // Implementation work (default)
+	TaskTypeReview TaskType = "review" // PR review work
+	TaskTypeMerge  TaskType = "merge"  // Merge approved PRs
+	TaskTypeQA     TaskType = "qa"     // Testing/validation work
+)
+
 // WorkItem is a unit of work in the queue.
 type WorkItem struct {
 	ID          string     `json:"id"`
 	BeadsID     string     `json:"beads_id,omitempty"`
 	Title       string     `json:"title"`
 	Description string     `json:"description,omitempty"`
+	Type        TaskType   `json:"type,omitempty"` // Defaults to TaskTypeCode if empty
 	Status      ItemStatus `json:"status"`
 	AssignedTo  string     `json:"assigned_to,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
@@ -54,6 +65,14 @@ type WorkItem struct {
 	Merge       MergeStatus `json:"merge,omitempty"`
 	MergedAt    time.Time   `json:"merged_at,omitempty"`
 	MergeCommit string      `json:"merge_commit,omitempty"`
+}
+
+// EffectiveType returns the task type, defaulting to TaskTypeCode if not set.
+func (w *WorkItem) EffectiveType() TaskType {
+	if w.Type == "" {
+		return TaskTypeCode
+	}
+	return w.Type
 }
 
 // Stats summarizes queue state.
@@ -109,7 +128,13 @@ func (q *Queue) Save() error {
 }
 
 // Add creates a new work item with an auto-generated ID.
+// The item defaults to TaskTypeCode.
 func (q *Queue) Add(title, description, beadsID string) *WorkItem {
+	return q.AddWithType(title, description, beadsID, TaskTypeCode)
+}
+
+// AddWithType creates a new work item with the specified type.
+func (q *Queue) AddWithType(title, description, beadsID string, taskType TaskType) *WorkItem {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
@@ -120,6 +145,7 @@ func (q *Queue) Add(title, description, beadsID string) *WorkItem {
 		BeadsID:     beadsID,
 		Title:       title,
 		Description: description,
+		Type:        taskType,
 		Status:      StatusPending,
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -217,6 +243,21 @@ func (q *Queue) ListByStatus(s ItemStatus) []WorkItem {
 	var out []WorkItem
 	for _, item := range q.items {
 		if item.Status == s {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+// ListByType returns items with the given task type.
+// Items with empty Type are treated as TaskTypeCode.
+func (q *Queue) ListByType(t TaskType) []WorkItem {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+
+	var out []WorkItem
+	for _, item := range q.items {
+		if item.EffectiveType() == t {
 			out = append(out, item)
 		}
 	}
