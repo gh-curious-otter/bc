@@ -1,7 +1,9 @@
 package process
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -363,5 +365,149 @@ func TestRegistryProcessesDir(t *testing.T) {
 	expected := filepath.Join("/home/user/project", ".bc", "processes")
 	if got := reg.ProcessesDir(); got != expected {
 		t.Errorf("ProcessesDir() = %q, want %q", got, expected)
+	}
+}
+
+func TestRegistryLogPath(t *testing.T) {
+	reg := NewRegistry("/home/user/project")
+	expected := filepath.Join("/home/user/project", ".bc", "processes", "logs", "web.log")
+	if got := reg.LogPath("web"); got != expected {
+		t.Errorf("LogPath() = %q, want %q", got, expected)
+	}
+}
+
+func TestRegistryCreateLogFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	reg := NewRegistry(tmpDir)
+	if err := reg.Init(); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	f, err := reg.CreateLogFile("test-proc")
+	if err != nil {
+		t.Fatalf("CreateLogFile failed: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	// Write some content
+	_, _ = f.WriteString("test log line\n")
+
+	// Verify file exists
+	logPath := reg.LogPath("test-proc")
+	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+		t.Error("log file should exist")
+	}
+}
+
+func TestRegistryReadLogs(t *testing.T) {
+	tmpDir := t.TempDir()
+	reg := NewRegistry(tmpDir)
+	if err := reg.Init(); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	// Create and write to log file
+	f, err := reg.CreateLogFile("test-proc")
+	if err != nil {
+		t.Fatalf("CreateLogFile failed: %v", err)
+	}
+
+	lines := []string{"line1", "line2", "line3", "line4", "line5"}
+	for _, line := range lines {
+		_, _ = f.WriteString(line + "\n")
+	}
+	_ = f.Close()
+
+	// Read all lines
+	content, err := reg.ReadLogs("test-proc", 0)
+	if err != nil {
+		t.Fatalf("ReadLogs failed: %v", err)
+	}
+	if content == "" {
+		t.Error("expected log content, got empty")
+	}
+
+	// Read last 2 lines
+	content, err = reg.ReadLogs("test-proc", 2)
+	if err != nil {
+		t.Fatalf("ReadLogs failed: %v", err)
+	}
+	if !strings.Contains(content, "line4") || !strings.Contains(content, "line5") {
+		t.Errorf("expected last 2 lines, got: %s", content)
+	}
+}
+
+func TestRegistryReadLogsNonExistent(t *testing.T) {
+	tmpDir := t.TempDir()
+	reg := NewRegistry(tmpDir)
+	if err := reg.Init(); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	content, err := reg.ReadLogs("nonexistent", 10)
+	if err != nil {
+		t.Fatalf("ReadLogs should not error for nonexistent: %v", err)
+	}
+	if content != "" {
+		t.Errorf("expected empty content, got: %s", content)
+	}
+}
+
+func TestRegistryTailLogs(t *testing.T) {
+	tmpDir := t.TempDir()
+	reg := NewRegistry(tmpDir)
+	if err := reg.Init(); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	// Create log file with content
+	f, err := reg.CreateLogFile("test-proc")
+	if err != nil {
+		t.Fatalf("CreateLogFile failed: %v", err)
+	}
+	_, _ = f.WriteString("log output\n")
+	_ = f.Close()
+
+	content, err := reg.TailLogs("test-proc")
+	if err != nil {
+		t.Fatalf("TailLogs failed: %v", err)
+	}
+	if !strings.Contains(content, "log output") {
+		t.Errorf("expected log output, got: %s", content)
+	}
+}
+
+func TestRegistrySetLogFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	reg := NewRegistry(tmpDir)
+	if err := reg.Init(); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	p := &Process{Name: "log-proc", Command: "echo"}
+	if err := reg.Register(p); err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
+
+	logPath := "/custom/path/to.log"
+	if err := reg.SetLogFile("log-proc", logPath); err != nil {
+		t.Fatalf("SetLogFile failed: %v", err)
+	}
+
+	got := reg.Get("log-proc")
+	if got.LogFile != logPath {
+		t.Errorf("LogFile = %q, want %q", got.LogFile, logPath)
+	}
+}
+
+func TestRegistrySetLogFileNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	reg := NewRegistry(tmpDir)
+	if err := reg.Init(); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	if err := reg.SetLogFile("nonexistent", "/path/to.log"); err == nil {
+		t.Error("expected error for nonexistent process")
 	}
 }
