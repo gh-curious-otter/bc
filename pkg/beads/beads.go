@@ -1,5 +1,9 @@
 // Package beads provides integration with the beads (bd) issue tracker.
 //
+// Deprecated: This package is deprecated and will be removed in a future version.
+// Use GitHub Issues for task tracking and the channels package for work routing.
+// See pkg/channel for the new implementation.
+//
 // Beads is a distributed, git-backed graph issue tracker for AI agents.
 // Issues are stored as JSONL in .beads/ directories. This package wraps
 // the bd CLI to query and manage issues.

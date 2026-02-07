@@ -1,5 +1,9 @@
 // Package queue manages the work queue for bc.
 //
+// Deprecated: This package is deprecated and will be removed in a future version.
+// Use the channels package for message-based work routing instead.
+// See pkg/channel for the new implementation.
+//
 // Work items are persisted to .bc/queue.json. Items flow from beads issues
 // to agents: pending → assigned → working → done/failed.
 package queue
