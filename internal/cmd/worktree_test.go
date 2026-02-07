@@ -207,3 +207,272 @@ func TestWorktreeListMissing(t *testing.T) {
 		t.Error("expected MISSING status for eng-02")
 	}
 }
+
+func TestWorktreePruneNoOrphans(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Create worktrees dir but no orphaned worktrees
+	err := os.MkdirAll(filepath.Join(wsDir, ".bc", "worktrees"), 0o750)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, _, err := executeIntegrationCmd("worktree", "prune")
+	if err != nil {
+		t.Fatalf("worktree prune failed: %v", err)
+	}
+
+	if !strings.Contains(stdout, "No orphaned worktrees found") {
+		t.Errorf("expected 'No orphaned worktrees found', got: %s", stdout)
+	}
+}
+
+func TestWorktreePruneNoWorktreesDir(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Don't create worktrees dir
+	stdout, _, err := executeIntegrationCmd("worktree", "prune")
+	if err != nil {
+		t.Fatalf("worktree prune failed: %v", err)
+	}
+
+	if !strings.Contains(stdout, "No worktrees directory found") {
+		t.Errorf("expected 'No worktrees directory found', got: %s", stdout)
+	}
+}
+
+func TestWorktreePruneDryRun(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Create worktrees dir and an orphaned worktree (no matching agent)
+	worktreesDir := filepath.Join(wsDir, ".bc", "worktrees")
+	orphanedDir := filepath.Join(worktreesDir, "ghost-agent")
+	if err := os.MkdirAll(orphanedDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	// Create a dummy file so it's not empty
+	if err := os.WriteFile(filepath.Join(orphanedDir, "dummy.txt"), []byte("test"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reset flag to ensure dry-run mode
+	worktreePruneForce = false
+
+	stdout, _, err := executeIntegrationCmd("worktree", "prune")
+	if err != nil {
+		t.Fatalf("worktree prune failed: %v", err)
+	}
+
+	if !strings.Contains(stdout, "ghost-agent") {
+		t.Errorf("expected ghost-agent in output, got: %s", stdout)
+	}
+	if !strings.Contains(stdout, "dry-run") {
+		t.Errorf("expected 'dry-run' message, got: %s", stdout)
+	}
+	if !strings.Contains(stdout, "not registered") {
+		t.Errorf("expected 'not registered' reason, got: %s", stdout)
+	}
+
+	// Verify worktree was NOT removed (dry-run)
+	if _, err := os.Stat(orphanedDir); os.IsNotExist(err) {
+		t.Error("orphaned worktree should NOT be removed in dry-run mode")
+	}
+}
+
+func TestWorktreePruneForce(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Create worktrees dir and an orphaned worktree (no matching agent)
+	worktreesDir := filepath.Join(wsDir, ".bc", "worktrees")
+	orphanedDir := filepath.Join(worktreesDir, "orphan-agent")
+	if err := os.MkdirAll(orphanedDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	// Create a dummy file
+	if err := os.WriteFile(filepath.Join(orphanedDir, "dummy.txt"), []byte("test"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Set force flag
+	worktreePruneForce = true
+	defer func() { worktreePruneForce = false }()
+
+	stdout, _, err := executeIntegrationCmd("worktree", "prune", "--force")
+	if err != nil {
+		t.Fatalf("worktree prune --force failed: %v", err)
+	}
+
+	if !strings.Contains(stdout, "orphan-agent") {
+		t.Errorf("expected orphan-agent in output, got: %s", stdout)
+	}
+	if !strings.Contains(stdout, "Pruning") {
+		t.Errorf("expected 'Pruning' message, got: %s", stdout)
+	}
+	if !strings.Contains(stdout, "OK") {
+		t.Errorf("expected 'OK' status, got: %s", stdout)
+	}
+
+	// Verify worktree was removed
+	if _, err := os.Stat(orphanedDir); !os.IsNotExist(err) {
+		t.Error("orphaned worktree should be removed with --force")
+	}
+}
+
+func TestWorktreePruneStoppedAgent(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Create worktrees dir and a worktree for a stopped agent
+	worktreesDir := filepath.Join(wsDir, ".bc", "worktrees")
+	stoppedDir := filepath.Join(worktreesDir, "stopped-eng")
+	if err := os.MkdirAll(stoppedDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stoppedDir, "dummy.txt"), []byte("test"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Register the agent as stopped
+	agentsDir := filepath.Join(wsDir, ".bc", "agents")
+	agents := map[string]*agent.Agent{
+		"stopped-eng": {Name: "stopped-eng", Role: agent.RoleEngineer, State: agent.StateStopped},
+	}
+	data, err := json.Marshal(agents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Reset flag for dry-run
+	worktreePruneForce = false
+
+	stdout, _, err := executeIntegrationCmd("worktree", "prune")
+	if err != nil {
+		t.Fatalf("worktree prune failed: %v", err)
+	}
+
+	if !strings.Contains(stdout, "stopped-eng") {
+		t.Errorf("expected stopped-eng in output, got: %s", stdout)
+	}
+	if !strings.Contains(stdout, "stopped") {
+		t.Errorf("expected 'stopped' reason, got: %s", stdout)
+	}
+}
+
+func TestWorktreePruneJSON(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Create worktrees dir and an orphaned worktree
+	worktreesDir := filepath.Join(wsDir, ".bc", "worktrees")
+	orphanedDir := filepath.Join(worktreesDir, "json-orphan")
+	if err := os.MkdirAll(orphanedDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(orphanedDir, "dummy.txt"), []byte("test"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reset flag for dry-run
+	worktreePruneForce = false
+
+	stdout, _, err := executeIntegrationCmd("worktree", "prune", "--json")
+	if err != nil {
+		t.Fatalf("worktree prune --json failed: %v", err)
+	}
+
+	var result PruneResult
+	if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+		t.Fatalf("output is not valid JSON: %v\noutput: %s", err, stdout)
+	}
+
+	if !result.DryRun {
+		t.Error("expected DryRun to be true")
+	}
+	if len(result.Orphaned) != 1 {
+		t.Errorf("expected 1 orphaned worktree, got %d", len(result.Orphaned))
+	}
+	if result.Orphaned[0].Name != "json-orphan" {
+		t.Errorf("expected orphan name 'json-orphan', got %s", result.Orphaned[0].Name)
+	}
+}
+
+func TestIsEmptyDir(t *testing.T) {
+	// Create empty directory
+	emptyDir := t.TempDir()
+
+	isEmpty, err := isEmptyDir(emptyDir)
+	if err != nil {
+		t.Fatalf("isEmptyDir failed: %v", err)
+	}
+	if !isEmpty {
+		t.Error("expected empty directory to return true")
+	}
+
+	// Create non-empty directory
+	nonEmptyDir := t.TempDir()
+	if writeErr := os.WriteFile(filepath.Join(nonEmptyDir, "file.txt"), []byte("data"), 0o600); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+
+	isEmpty, err = isEmptyDir(nonEmptyDir)
+	if err != nil {
+		t.Fatalf("isEmptyDir failed: %v", err)
+	}
+	if isEmpty {
+		t.Error("expected non-empty directory to return false")
+	}
+}
+
+func TestWorktreePruneMultipleOrphans(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Create worktrees dir with multiple orphaned worktrees
+	worktreesDir := filepath.Join(wsDir, ".bc", "worktrees")
+	for _, name := range []string{"orphan-a", "orphan-b", "orphan-c"} {
+		dir := filepath.Join(worktreesDir, name)
+		if err := os.MkdirAll(dir, 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "dummy.txt"), []byte("test"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Set force flag
+	worktreePruneForce = true
+	defer func() { worktreePruneForce = false }()
+
+	stdout, _, err := executeIntegrationCmd("worktree", "prune", "--force")
+	if err != nil {
+		t.Fatalf("worktree prune --force failed: %v", err)
+	}
+
+	// Check all orphans are mentioned
+	for _, name := range []string{"orphan-a", "orphan-b", "orphan-c"} {
+		if !strings.Contains(stdout, name) {
+			t.Errorf("expected %s in output, got: %s", name, stdout)
+		}
+	}
+
+	// Check count message
+	if !strings.Contains(stdout, "Pruned 3 worktree(s)") {
+		t.Errorf("expected 'Pruned 3 worktree(s)' message, got: %s", stdout)
+	}
+
+	// Verify all worktrees were removed
+	for _, name := range []string{"orphan-a", "orphan-b", "orphan-c"} {
+		dir := filepath.Join(worktreesDir, name)
+		if _, err := os.Stat(dir); !os.IsNotExist(err) {
+			t.Errorf("worktree %s should be removed", name)
+		}
+	}
+}
