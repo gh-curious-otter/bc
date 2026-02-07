@@ -325,6 +325,114 @@ func TestHandleKey_AnyKeyClosesHelp(t *testing.T) {
 	}
 }
 
+// --- Input mode tests (Bug #175: keybinds while typing) ---
+
+func TestHandleKey_InputModeBlocksQuit(t *testing.T) {
+	// When in sendMode (typing a message), 'q' should NOT quit the TUI
+	m := newTestHomeModel()
+	m.screen = ScreenChannel
+	m.channelModel = &ChannelModel{
+		channel:  &channel.Channel{Name: "test"},
+		styles:   m.styles,
+		sendMode: true, // User is typing a message
+	}
+
+	// Press 'q' while in send mode - should NOT quit
+	_, cmd := m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	if cmd != nil {
+		t.Error("'q' should not trigger quit when in input mode")
+	}
+}
+
+func TestHandleKey_InputModeAllowsTyping(t *testing.T) {
+	// Typing letters like 'u', 'i', 't' should work in send mode
+	m := newTestHomeModel()
+	m.screen = ScreenChannel
+	m.channelModel = &ChannelModel{
+		channel:  &channel.Channel{Name: "test"},
+		styles:   m.styles,
+		sendMode: true,
+		input:    "",
+	}
+
+	// Type 'quit' - all letters should be captured, not trigger actions
+	for _, r := range "quit" {
+		m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	}
+
+	if m.channelModel.input != "quit" {
+		t.Errorf("expected input 'quit', got %q", m.channelModel.input)
+	}
+}
+
+func TestHandleKey_AgentSendModeBlocksQuit(t *testing.T) {
+	// Same test for agent screen
+	m := newTestHomeModel()
+	m.screen = ScreenAgent
+	m.agentModel = &AgentModel{
+		agent:    &agent.Agent{Name: "test-agent"},
+		styles:   m.styles,
+		sendMode: true,
+	}
+
+	_, cmd := m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	if cmd != nil {
+		t.Error("'q' should not trigger quit when in agent send mode")
+	}
+}
+
+func TestIsInputActive_ChannelSendMode(t *testing.T) {
+	m := newTestHomeModel()
+	m.screen = ScreenChannel
+	m.channelModel = &ChannelModel{
+		channel:  &channel.Channel{Name: "test"},
+		sendMode: false,
+	}
+
+	if m.isInputActive() {
+		t.Error("isInputActive should be false when sendMode is false")
+	}
+
+	m.channelModel.sendMode = true
+	if !m.isInputActive() {
+		t.Error("isInputActive should be true when sendMode is true")
+	}
+}
+
+func TestIsInputActive_AgentSendMode(t *testing.T) {
+	m := newTestHomeModel()
+	m.screen = ScreenAgent
+	m.agentModel = &AgentModel{
+		agent:    &agent.Agent{Name: "test"},
+		sendMode: false,
+	}
+
+	if m.isInputActive() {
+		t.Error("isInputActive should be false when sendMode is false")
+	}
+
+	m.agentModel.sendMode = true
+	if !m.isInputActive() {
+		t.Error("isInputActive should be true when sendMode is true")
+	}
+}
+
+func TestIsInputActive_OtherScreens(t *testing.T) {
+	m := newTestHomeModel()
+
+	// Home screen should never have input active
+	m.screen = ScreenHome
+	if m.isInputActive() {
+		t.Error("isInputActive should be false for home screen")
+	}
+
+	// Workspace screen should never have input active
+	m.screen = ScreenWorkspace
+	if m.isInputActive() {
+		t.Error("isInputActive should be false for workspace screen")
+	}
+}
+
 // --- handleHomeKey tests ---
 
 func TestHandleHomeKey_CursorDown(t *testing.T) {
