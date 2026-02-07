@@ -1042,3 +1042,199 @@ func TestView_ShowsStatsBar(t *testing.T) {
 		t.Errorf("expected stats bar with 'Issues:', got: %s", output)
 	}
 }
+
+// --- Queue view tests ---
+
+func TestRenderQueue_Empty(t *testing.T) {
+	m := newTestModel()
+	m.tab = TabQueue
+	m.queueFilter = QueueFilterAll
+	m.applyQueueFilter()
+
+	output := m.renderQueue()
+
+	if !strings.Contains(output, "No items in queue") {
+		t.Errorf("expected 'No items in queue', got: %s", output)
+	}
+	if !strings.Contains(output, "Filter: All") {
+		t.Errorf("expected 'Filter: All', got: %s", output)
+	}
+}
+
+func TestRenderQueue_WithWorkItems(t *testing.T) {
+	m := newTestModel()
+	m.tab = TabQueue
+	m.queueItems = []QueueItem{
+		{ID: "bd-001", Title: "Fix bug", Status: "open", Type: "work"},
+		{ID: "bd-002", Title: "Add feature", Status: "open", Type: "work", Assignee: "eng-01"},
+	}
+	m.queueFilter = QueueFilterAll
+	m.applyQueueFilter()
+
+	output := m.renderQueue()
+
+	if !strings.Contains(output, "bd-001") {
+		t.Errorf("expected 'bd-001' in queue, got: %s", output)
+	}
+	if !strings.Contains(output, "work") {
+		t.Errorf("expected 'work' type in queue, got: %s", output)
+	}
+}
+
+func TestRenderQueue_WithMergeItems(t *testing.T) {
+	m := newTestModel()
+	m.tab = TabQueue
+	m.queueItems = []QueueItem{
+		{ID: "eng-01", Title: "PR work", Status: "working", Type: "merge", Agent: "eng-01", Branch: "feat/new-feature"},
+	}
+	m.queueFilter = QueueFilterAll
+	m.applyQueueFilter()
+
+	output := m.renderQueue()
+
+	if !strings.Contains(output, "eng-01") {
+		t.Errorf("expected 'eng-01' in queue, got: %s", output)
+	}
+	if !strings.Contains(output, "merge") {
+		t.Errorf("expected 'merge' type in queue, got: %s", output)
+	}
+	if !strings.Contains(output, "feat/new-feature") {
+		t.Errorf("expected branch name in queue, got: %s", output)
+	}
+}
+
+func TestQueueFilter_ReadyOnly(t *testing.T) {
+	m := newTestModel()
+	m.queueItems = []QueueItem{
+		{ID: "bd-001", Type: "work"},
+		{ID: "eng-01", Type: "merge"},
+	}
+	m.queueFilter = QueueFilterReady
+	m.applyQueueFilter()
+
+	if len(m.filteredQueue) != 1 {
+		t.Errorf("expected 1 item with Ready filter, got %d", len(m.filteredQueue))
+	}
+	if m.filteredQueue[0].Type != "work" {
+		t.Errorf("expected work item, got %s", m.filteredQueue[0].Type)
+	}
+}
+
+func TestQueueFilter_InProgressOnly(t *testing.T) {
+	m := newTestModel()
+	m.queueItems = []QueueItem{
+		{ID: "bd-001", Type: "work"},
+		{ID: "eng-01", Type: "merge"},
+	}
+	m.queueFilter = QueueFilterInProgress
+	m.applyQueueFilter()
+
+	if len(m.filteredQueue) != 1 {
+		t.Errorf("expected 1 item with InProgress filter, got %d", len(m.filteredQueue))
+	}
+	if m.filteredQueue[0].Type != "merge" {
+		t.Errorf("expected merge item, got %s", m.filteredQueue[0].Type)
+	}
+}
+
+func TestQueueFilter_ByAgent(t *testing.T) {
+	m := newTestModel()
+	m.queueItems = []QueueItem{
+		{ID: "bd-001", Type: "work"},
+		{ID: "bd-002", Type: "work", Assignee: "eng-01"},
+		{ID: "eng-01", Type: "merge", Agent: "eng-01"},
+	}
+	m.queueFilter = QueueFilterByAgent
+	m.applyQueueFilter()
+
+	if len(m.filteredQueue) != 2 {
+		t.Errorf("expected 2 items with ByAgent filter, got %d", len(m.filteredQueue))
+	}
+}
+
+func TestCycleQueueFilter(t *testing.T) {
+	m := newTestModel()
+	m.queueFilter = QueueFilterAll
+
+	m.cycleQueueFilter()
+	if m.queueFilter != QueueFilterReady {
+		t.Errorf("expected Ready after first cycle, got %d", m.queueFilter)
+	}
+
+	m.cycleQueueFilter()
+	if m.queueFilter != QueueFilterInProgress {
+		t.Errorf("expected InProgress after second cycle, got %d", m.queueFilter)
+	}
+
+	m.cycleQueueFilter()
+	if m.queueFilter != QueueFilterByAgent {
+		t.Errorf("expected ByAgent after third cycle, got %d", m.queueFilter)
+	}
+
+	m.cycleQueueFilter()
+	if m.queueFilter != QueueFilterAll {
+		t.Errorf("expected All after fourth cycle (wrap), got %d", m.queueFilter)
+	}
+}
+
+func TestQueueFilterLabel(t *testing.T) {
+	m := newTestModel()
+
+	m.queueFilter = QueueFilterAll
+	if label := m.queueFilterLabel(); label != "All" {
+		t.Errorf("expected 'All', got %s", label)
+	}
+
+	m.queueFilter = QueueFilterReady
+	if label := m.queueFilterLabel(); label != "Work Queue" {
+		t.Errorf("expected 'Work Queue', got %s", label)
+	}
+
+	m.queueFilter = QueueFilterInProgress
+	if label := m.queueFilterLabel(); label != "Merge Queue" {
+		t.Errorf("expected 'Merge Queue', got %s", label)
+	}
+
+	m.queueFilter = QueueFilterByAgent
+	if label := m.queueFilterLabel(); label != "Assigned" {
+		t.Errorf("expected 'Assigned', got %s", label)
+	}
+}
+
+func TestMaxCursor_Queue(t *testing.T) {
+	m := newTestModel()
+	m.tab = TabQueue
+	m.filteredQueue = []QueueItem{
+		{ID: "1"}, {ID: "2"}, {ID: "3"},
+	}
+
+	max := m.maxCursor()
+	if max != 2 {
+		t.Errorf("maxCursor for 3 queue items = %d, want 2", max)
+	}
+}
+
+func TestRenderTabBar_Shows6Tabs(t *testing.T) {
+	m := newTestModel()
+	output := m.renderTabBar()
+
+	// Should have all 6 tabs including Queue
+	if !strings.Contains(output, "Agents") {
+		t.Error("expected 'Agents' tab")
+	}
+	if !strings.Contains(output, "Issues") {
+		t.Error("expected 'Issues' tab")
+	}
+	if !strings.Contains(output, "Channels") {
+		t.Error("expected 'Channels' tab")
+	}
+	if !strings.Contains(output, "Queue") {
+		t.Error("expected 'Queue' tab")
+	}
+	if !strings.Contains(output, "Dashboard") {
+		t.Error("expected 'Dashboard' tab")
+	}
+	if !strings.Contains(output, "Stats") {
+		t.Error("expected 'Stats' tab")
+	}
+}

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -25,11 +26,33 @@ const (
 	TabAgents Tab = iota
 	TabIssues
 	TabChannels
+	TabQueue
 	TabDashboard
 	TabStats
 
-	tabCount = 5
+	tabCount = 6
 )
+
+// QueueFilter defines the filter mode for the queue view.
+type QueueFilter int
+
+const (
+	QueueFilterAll QueueFilter = iota
+	QueueFilterReady
+	QueueFilterInProgress
+	QueueFilterByAgent
+)
+
+// QueueItem represents an item in the work or merge queue.
+type QueueItem struct {
+	ID       string
+	Title    string
+	Status   string
+	Assignee string
+	Type     string // "work" or "merge"
+	Agent    string // Associated agent name
+	Branch   string // Branch name for merge queue
+}
 
 // WorkspaceStats holds aggregated statistics for the workspace.
 type WorkspaceStats struct {
@@ -38,6 +61,11 @@ type WorkspaceStats struct {
 	OpenIssues   int
 	ClosedIssues int
 	EpicsCount   int
+
+	// Queue stats
+	ReadyIssues      int // Issues unblocked and ready for work
+	InProgressIssues int // Issues currently being worked on
+	AssignedIssues   int // Issues assigned to agents
 
 	// Agent stats by state
 	IdleAgents    int
@@ -48,33 +76,44 @@ type WorkspaceStats struct {
 
 // WorkspaceModel shows the detail view for a single workspace.
 type WorkspaceModel struct {
-	// Data
-	agents       []*agent.Agent
-	channels     []*channel.Channel
-	issues       []beads.Issue
-	recentEvents []events.Event
+	// Data - slices (24 bytes each)
+	agents        []*agent.Agent
+	channels      []*channel.Channel
+	issues        []beads.Issue
+	recentEvents  []events.Event
+	queueItems    []QueueItem
+	filteredQueue []QueueItem
 
-	// Per-agent stats from pkg/stats
+	// Per-agent stats from pkg/stats - map (8 bytes)
 	agentStats map[string]stats.AgentStat
 
-	manager   *agent.Manager
-	pkgStats  *stats.Stats
+	// Pointers (8 bytes each)
+	manager  *agent.Manager
+	pkgStats *stats.Stats
+
+	// Error interface (16 bytes)
 	issuesErr error
 
+	// Structs
 	styles style.Styles
 	info   WorkspaceInfo
 	stats  WorkspaceStats
 
+	// Ints (8 bytes each on 64-bit)
 	width        int
 	height       int
 	cursor       int
 	scrollOffset int // first visible item index for current tab
-	tab          Tab
 
-	// Loaded flags
+	// Small types
+	tab         Tab         // int
+	queueFilter QueueFilter // int
+
+	// Bools (1 byte each, but padded)
 	agentsLoaded   bool
 	issuesLoaded   bool
 	channelsLoaded bool
+	queueLoaded    bool
 }
 
 // NewWorkspaceModel creates a workspace detail view.
@@ -107,6 +146,9 @@ func NewWorkspaceModel(info WorkspaceInfo, s style.Styles) *WorkspaceModel {
 
 	// Load recent events for activity feed
 	m.loadRecentEvents()
+
+	// Load queue data
+	m.loadQueue()
 
 	// Compute dashboard stats
 	m.computeStats()
@@ -152,6 +194,12 @@ func (m *WorkspaceModel) HandleKey(msg tea.KeyMsg) Action {
 	case "r":
 		m.refresh()
 		return NoAction
+	case "f":
+		// Cycle queue filter when on queue tab
+		if m.tab == TabQueue {
+			m.cycleQueueFilter()
+			return NoAction
+		}
 	}
 	if isEnterKey(msg) {
 		return m.selectCurrent()
@@ -165,6 +213,7 @@ func (m *WorkspaceModel) refresh() {
 	m.agents = m.manager.ListAgents()
 	m.issues, m.issuesErr = beads.ListIssues(m.info.Entry.Path)
 	m.loadChannels()
+	m.loadQueue()
 	m.loadRecentEvents()
 	m.computeStats()
 	m.loadPkgStats()
@@ -181,6 +230,114 @@ func (m *WorkspaceModel) loadAgentStats() {
 	}
 	for _, as := range s.Agents.AgentStats {
 		m.agentStats[as.Name] = as
+	}
+}
+
+// loadQueue loads work queue and merge queue items.
+func (m *WorkspaceModel) loadQueue() {
+	m.queueItems = nil
+
+	// Load work queue items from ready issues
+	readyIssues := beads.ReadyIssues(m.info.Entry.Path)
+	for _, issue := range readyIssues {
+		m.queueItems = append(m.queueItems, QueueItem{
+			ID:       issue.ID,
+			Title:    issue.Title,
+			Status:   issue.Status,
+			Assignee: issue.Assignee,
+			Type:     "work",
+		})
+	}
+
+	// Load merge queue items from agents with active branches
+	for _, a := range m.agents {
+		if a.State == agent.StateWorking || a.State == agent.StateDone {
+			branch := ""
+			if a.WorktreeDir != "" {
+				// Try to get the current branch from the agent's worktree
+				branch = m.getAgentBranch(a)
+			}
+			if branch != "" && branch != "main" && branch != "master" {
+				m.queueItems = append(m.queueItems, QueueItem{
+					ID:     a.Name,
+					Title:  a.Task,
+					Status: string(a.State),
+					Agent:  a.Name,
+					Branch: branch,
+					Type:   "merge",
+				})
+			}
+		}
+	}
+
+	m.queueLoaded = true
+	m.applyQueueFilter()
+}
+
+// getAgentBranch returns the current branch for an agent's worktree.
+func (m *WorkspaceModel) getAgentBranch(a *agent.Agent) string {
+	if a.WorktreeDir == "" {
+		return ""
+	}
+	// Use git to get current branch
+	cmd := exec.CommandContext(context.Background(), "git", "-C", a.WorktreeDir, "rev-parse", "--abbrev-ref", "HEAD") //nolint:gosec // WorktreeDir is from trusted agent data
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// cycleQueueFilter cycles through the available queue filters.
+func (m *WorkspaceModel) cycleQueueFilter() {
+	m.queueFilter = (m.queueFilter + 1) % 4 // 4 filter modes
+	m.applyQueueFilter()
+	m.cursor = 0
+	m.scrollOffset = 0
+}
+
+// applyQueueFilter applies the current filter to the queue items.
+func (m *WorkspaceModel) applyQueueFilter() {
+	switch m.queueFilter {
+	case QueueFilterAll:
+		m.filteredQueue = m.queueItems
+	case QueueFilterReady:
+		m.filteredQueue = nil
+		for _, item := range m.queueItems {
+			if item.Type == "work" {
+				m.filteredQueue = append(m.filteredQueue, item)
+			}
+		}
+	case QueueFilterInProgress:
+		m.filteredQueue = nil
+		for _, item := range m.queueItems {
+			if item.Type == "merge" {
+				m.filteredQueue = append(m.filteredQueue, item)
+			}
+		}
+	case QueueFilterByAgent:
+		m.filteredQueue = nil
+		for _, item := range m.queueItems {
+			if item.Assignee != "" || item.Agent != "" {
+				m.filteredQueue = append(m.filteredQueue, item)
+			}
+		}
+	}
+}
+
+// queueFilterLabel returns a display label for the current queue filter.
+func (m *WorkspaceModel) queueFilterLabel() string {
+	switch m.queueFilter {
+	case QueueFilterAll:
+		return "All"
+	case QueueFilterReady:
+		return "Work Queue"
+	case QueueFilterInProgress:
+		return "Merge Queue"
+	case QueueFilterByAgent:
+		return "Assigned"
+	default:
+		return "All"
 	}
 }
 
@@ -215,6 +372,10 @@ func (m *WorkspaceModel) maxCursor() int {
 	case TabChannels:
 		if len(m.channels) > 0 {
 			return len(m.channels) - 1
+		}
+	case TabQueue:
+		if len(m.filteredQueue) > 0 {
+			return len(m.filteredQueue) - 1
 		}
 	case TabDashboard:
 		return 0
@@ -307,6 +468,8 @@ func (m *WorkspaceModel) View() string {
 		b.WriteString(m.renderIssues())
 	case TabChannels:
 		b.WriteString(m.renderChannels())
+	case TabQueue:
+		b.WriteString(m.renderQueue())
 	case TabDashboard:
 		b.WriteString(m.renderDashboard())
 	case TabStats:
@@ -325,6 +488,7 @@ func (m *WorkspaceModel) renderTabBar() string {
 		{"Agents", TabAgents, len(m.agents)},
 		{"Issues", TabIssues, len(m.issues)},
 		{"Channels", TabChannels, len(m.channels)},
+		{"Queue", TabQueue, len(m.filteredQueue)},
 		{"Dashboard", TabDashboard, m.stats.OpenIssues},
 		{"Stats", TabStats, -1},
 	}
@@ -572,6 +736,65 @@ func (m *WorkspaceModel) renderChannels() string {
 	return b.String()
 }
 
+func (m *WorkspaceModel) renderQueue() string {
+	var b strings.Builder
+
+	// Filter indicator
+	filterLabel := m.queueFilterLabel()
+	b.WriteString(m.styles.Muted.Render(fmt.Sprintf("  Filter: %s (press 'f' to cycle)", filterLabel)))
+	b.WriteString("\n\n")
+
+	if len(m.filteredQueue) == 0 {
+		b.WriteString(m.styles.Muted.Render("  No items in queue."))
+		b.WriteString("\n")
+		return b.String()
+	}
+
+	// Header
+	header := fmt.Sprintf("  %-12s %-8s %-12s %-15s %s", "ID", "TYPE", "STATUS", "AGENT", "TITLE/BRANCH")
+	b.WriteString(m.styles.Bold.Render(header))
+	b.WriteString("\n")
+
+	start, end := m.viewportRange(len(m.filteredQueue))
+	for i := start; i < end; i++ {
+		item := m.filteredQueue[i]
+		selected := i == m.cursor
+
+		// Format title/branch
+		titleOrBranch := item.Title
+		if item.Type == "merge" && item.Branch != "" {
+			titleOrBranch = item.Branch
+		}
+		if len(titleOrBranch) > 35 {
+			titleOrBranch = titleOrBranch[:32] + "..."
+		}
+
+		agentName := item.Assignee
+		if agentName == "" {
+			agentName = item.Agent
+		}
+		if agentName == "" {
+			agentName = "-"
+		}
+
+		line := fmt.Sprintf("  %-12s %-8s %-12s %-15s %s",
+			item.ID, item.Type, item.Status, agentName, titleOrBranch,
+		)
+
+		if selected {
+			b.WriteString(m.styles.Selected.Render(line))
+		} else if item.Type == "merge" {
+			b.WriteString(m.styles.Success.Render(line))
+		} else {
+			b.WriteString(m.styles.Normal.Render(line))
+		}
+		b.WriteString("\n")
+	}
+
+	b.WriteString(m.renderPositionIndicator(len(m.filteredQueue)))
+	return b.String()
+}
+
 func (m *WorkspaceModel) loadPkgStats() {
 	stateDir := filepath.Join(m.info.Entry.Path, ".bc")
 	s, err := stats.Load(stateDir)
@@ -800,12 +1023,23 @@ func (m *WorkspaceModel) computeStats() {
 			m.stats.EpicsCount++
 		}
 		switch issue.Status {
-		case "open", "pending", "in_progress":
+		case "open", "pending":
 			m.stats.OpenIssues++
+		case "in_progress":
+			m.stats.OpenIssues++
+			m.stats.InProgressIssues++
 		case "closed", "done", "resolved":
 			m.stats.ClosedIssues++
 		}
+		if issue.Assignee != "" {
+			m.stats.AssignedIssues++
+		}
 	}
+
+	// Count ready issues
+	readyIssues := beads.ReadyIssues(m.info.Entry.Path)
+	m.stats.ReadyIssues = len(readyIssues)
+
 	for _, a := range m.agents {
 		switch a.State {
 		case agent.StateIdle:
