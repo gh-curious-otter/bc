@@ -1,21 +1,22 @@
-.PHONY: dev build build-release build-all clean gen test coverage bench fmt vet lint check deps help
+.PHONY: dev build build-release build-all clean gen test test-integration coverage bench fmt vet lint check deps help
 
 help:
 	@echo "Available targets:"
-	@echo "  dev           - Run in development mode"
-	@echo "  build         - Build the binary"
-	@echo "  build-release - Build optimized release binary"
-	@echo "  build-all     - Cross-compile for all platforms to dist/"
-	@echo "  clean         - Remove build artifacts"
-	@echo "  gen           - Generate config code from config.toml"
-	@echo "  test          - Run tests"
-	@echo "  coverage      - Run tests with coverage report"
-	@echo "  bench         - Run benchmarks"
-	@echo "  fmt           - Format code"
-	@echo "  vet           - Run go vet"
-	@echo "  lint          - Run golangci-lint"
-	@echo "  check         - Run all checks (gen + fmt + vet + lint + test)"
-	@echo "  deps          - Download and tidy dependencies"
+	@echo "  dev              - Run in development mode"
+	@echo "  build            - Build the binary"
+	@echo "  build-release    - Build optimized release binary"
+	@echo "  build-all        - Cross-compile for all platforms to dist/"
+	@echo "  clean            - Remove build artifacts"
+	@echo "  gen              - Generate config code from config.toml"
+	@echo "  test             - Run tests"
+	@echo "  test-integration - Run integration tests only"
+	@echo "  coverage         - Run tests with coverage report"
+	@echo "  bench            - Run benchmarks"
+	@echo "  fmt              - Format code"
+	@echo "  vet              - Run go vet"
+	@echo "  lint             - Run golangci-lint"
+	@echo "  check            - Run all checks (gen + fmt + vet + lint + test)"
+	@echo "  deps             - Download and tidy dependencies"
 
 dev:
 	go run ./cmd/bc
@@ -42,6 +43,9 @@ gen:
 
 test:
 	go test -race ./...
+
+test-integration:
+	go test -race -v ./internal/cmd/...
 
 coverage: gen
 	go test -coverprofile=coverage.out ./...

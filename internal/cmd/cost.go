@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -119,11 +118,11 @@ func runCostShow(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(records) == 0 {
-		fmt.Println("No cost records found")
+		cmd.Println("No cost records found")
 		return nil
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 	_, _ = fmt.Fprintln(w, "TIMESTAMP\tAGENT\tMODEL\tINPUT\tOUTPUT\tTOTAL\tCOST")
 
 	for _, r := range records {
@@ -154,7 +153,7 @@ func runCostSummary(cmd *cobra.Command, args []string) error {
 		if summaryErr != nil {
 			return fmt.Errorf("failed to get agent summary: %w", summaryErr)
 		}
-		printSingleSummary("Agent", costAgentFlag, summary)
+		printSingleSummary(cmd, "Agent", costAgentFlag, summary)
 		return nil
 	}
 
@@ -164,7 +163,7 @@ func runCostSummary(cmd *cobra.Command, args []string) error {
 		if summaryErr != nil {
 			return fmt.Errorf("failed to get team summary: %w", summaryErr)
 		}
-		printSingleSummary("Team", costTeamFlag, summary)
+		printSingleSummary(cmd, "Team", costTeamFlag, summary)
 		return nil
 	}
 
@@ -174,7 +173,7 @@ func runCostSummary(cmd *cobra.Command, args []string) error {
 		if summaryErr != nil {
 			return fmt.Errorf("failed to get model summary: %w", summaryErr)
 		}
-		printModelSummary(summaries)
+		printModelSummary(cmd, summaries)
 		return nil
 	}
 
@@ -184,13 +183,13 @@ func runCostSummary(cmd *cobra.Command, args []string) error {
 		if summaryErr != nil {
 			return fmt.Errorf("failed to get workspace summary: %w", summaryErr)
 		}
-		printWorkspaceSummary(summary)
+		printWorkspaceSummary(cmd, summary)
 
 		// Also show per-agent breakdown
 		agentSummaries, agentErr := store.SummaryByAgent()
 		if agentErr == nil && len(agentSummaries) > 0 {
-			fmt.Println("\nBy Agent:")
-			printCostAgentSummary(agentSummaries)
+			cmd.Println("\nBy Agent:")
+			printCostAgentSummary(cmd, agentSummaries)
 		}
 
 		return nil
@@ -199,27 +198,27 @@ func runCostSummary(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func printSingleSummary(label, name string, s *cost.Summary) {
-	fmt.Printf("%s: %s\n", label, name)
-	fmt.Printf("  Records:      %d\n", s.RecordCount)
-	fmt.Printf("  Input Tokens: %d\n", s.InputTokens)
-	fmt.Printf("  Output Tokens: %d\n", s.OutputTokens)
-	fmt.Printf("  Total Tokens: %d\n", s.TotalTokens)
-	fmt.Printf("  Total Cost:   $%.4f\n", s.TotalCostUSD)
+func printSingleSummary(cmd *cobra.Command, label, name string, s *cost.Summary) {
+	cmd.Printf("%s: %s\n", label, name)
+	cmd.Printf("  Records:      %d\n", s.RecordCount)
+	cmd.Printf("  Input Tokens: %d\n", s.InputTokens)
+	cmd.Printf("  Output Tokens: %d\n", s.OutputTokens)
+	cmd.Printf("  Total Tokens: %d\n", s.TotalTokens)
+	cmd.Printf("  Total Cost:   $%.4f\n", s.TotalCostUSD)
 }
 
-func printWorkspaceSummary(s *cost.Summary) {
-	fmt.Println("Workspace Summary")
-	fmt.Println("=================")
-	fmt.Printf("  API Calls:    %d\n", s.RecordCount)
-	fmt.Printf("  Input Tokens: %d\n", s.InputTokens)
-	fmt.Printf("  Output Tokens: %d\n", s.OutputTokens)
-	fmt.Printf("  Total Tokens: %d\n", s.TotalTokens)
-	fmt.Printf("  Total Cost:   $%.4f\n", s.TotalCostUSD)
+func printWorkspaceSummary(cmd *cobra.Command, s *cost.Summary) {
+	cmd.Println("Workspace Summary")
+	cmd.Println("=================")
+	cmd.Printf("  API Calls:    %d\n", s.RecordCount)
+	cmd.Printf("  Input Tokens: %d\n", s.InputTokens)
+	cmd.Printf("  Output Tokens: %d\n", s.OutputTokens)
+	cmd.Printf("  Total Tokens: %d\n", s.TotalTokens)
+	cmd.Printf("  Total Cost:   $%.4f\n", s.TotalCostUSD)
 }
 
-func printCostAgentSummary(summaries []*cost.Summary) {
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+func printCostAgentSummary(cmd *cobra.Command, summaries []*cost.Summary) {
+	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 	_, _ = fmt.Fprintln(w, "  AGENT\tCALLS\tTOKENS\tCOST")
 
 	for _, s := range summaries {
@@ -233,16 +232,16 @@ func printCostAgentSummary(summaries []*cost.Summary) {
 	_ = w.Flush()
 }
 
-func printModelSummary(summaries []*cost.Summary) {
+func printModelSummary(cmd *cobra.Command, summaries []*cost.Summary) {
 	if len(summaries) == 0 {
-		fmt.Println("No cost records found")
+		cmd.Println("No cost records found")
 		return
 	}
 
-	fmt.Println("Cost by Model")
-	fmt.Println("=============")
+	cmd.Println("Cost by Model")
+	cmd.Println("=============")
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 	_, _ = fmt.Fprintln(w, "MODEL\tCALLS\tINPUT\tOUTPUT\tTOTAL\tCOST")
 
 	var totalCost float64
@@ -258,7 +257,7 @@ func printModelSummary(summaries []*cost.Summary) {
 		totalCost += s.TotalCostUSD
 	}
 	_ = w.Flush()
-	fmt.Printf("\nTotal: $%.4f\n", totalCost)
+	cmd.Printf("\nTotal: $%.4f\n", totalCost)
 }
 
 func runCostDashboard(cmd *cobra.Command, args []string) error {

@@ -70,7 +70,7 @@ make lint
 
 2. **Context Propagation**: Pass `context.Context` through all call chains.
 
-3. **Testing**: Write tests for new functionality. Use table-driven tests where appropriate.
+3. **Testing**: Write tests for new functionality. Use table-driven tests where appropriate. See [Testing Guide](#testing-guide) below.
 
 4. **Documentation**: Document exported functions and types.
 
@@ -136,6 +136,77 @@ Include:
 - Steps to reproduce (for bugs)
 - Expected vs actual behavior
 - Environment details
+
+## Testing Guide
+
+### Running Tests
+
+```bash
+# Run all tests
+make test
+
+# Run tests with race detector and verbose output
+go test -race -v ./...
+
+# Run integration tests only (CLI commands)
+make test-integration
+
+# Run tests with coverage
+make coverage
+
+# Run specific test
+go test -v ./internal/cmd/... -run TestCostDashboard
+
+# Run tests for a specific package
+go test -v ./pkg/cost/...
+```
+
+### Test Structure
+
+Tests are organized by package:
+
+- `internal/cmd/*_test.go` - CLI command tests
+- `pkg/*_test.go` - Package unit tests
+
+### Writing CLI Command Tests
+
+For CLI commands, use the helper functions in `cmd_test.go`:
+
+```go
+func TestMyCommand(t *testing.T) {
+    // Set up temporary workspace
+    wsDir := setupTestWorkspace(t)
+
+    // Execute command
+    output, err := executeCmd("mycommand", "arg1", "--flag", "value")
+    if err != nil {
+        t.Fatalf("expected no error, got: %v", err)
+    }
+
+    // Verify output
+    if !strings.Contains(output, "expected text") {
+        t.Errorf("expected 'expected text', got: %s", output)
+    }
+}
+```
+
+### Test Output Capture
+
+For command output to be captured in tests, use:
+- `cmd.Printf()` instead of `fmt.Printf()`
+- `cmd.Println()` instead of `fmt.Println()`
+- `tabwriter.NewWriter(cmd.OutOrStdout(), ...)` instead of `tabwriter.NewWriter(os.Stdout, ...)`
+
+### Coverage
+
+Coverage reports are generated in `coverage.out` and uploaded to Codecov in CI.
+
+To view coverage locally:
+
+```bash
+make coverage
+go tool cover -html=coverage.out
+```
 
 ## Questions?
 

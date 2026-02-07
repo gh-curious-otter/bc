@@ -209,9 +209,9 @@ func runProcessStart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to register process: %w", regErr)
 	}
 
-	fmt.Printf("Started process %q (PID %d)\n", name, proc.PID)
+	cmd.Printf("Started process %q (PID %d)\n", name, proc.PID)
 	if processPort > 0 {
-		fmt.Printf("  Port: %d\n", processPort)
+		cmd.Printf("  Port: %d\n", processPort)
 	}
 
 	return nil
@@ -225,11 +225,11 @@ func runProcessList(cmd *cobra.Command, args []string) error {
 
 	procs := reg.List()
 	if len(procs) == 0 {
-		fmt.Println("No processes")
+		cmd.Println("No processes")
 		return nil
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 	_, _ = fmt.Fprintln(w, "NAME\tSTATUS\tPID\tPORT\tOWNER\tSTARTED")
 
 	for _, p := range procs {
@@ -283,7 +283,7 @@ func runProcessStop(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to update registry: %w", stopErr)
 	}
 
-	fmt.Printf("Stopped process %q\n", name)
+	cmd.Printf("Stopped process %q\n", name)
 	return nil
 }
 
@@ -307,11 +307,11 @@ func runProcessLogs(cmd *cobra.Command, args []string) error {
 	}
 
 	if logs == "" {
-		fmt.Printf("No logs available for process %q\n", name)
+		cmd.Printf("No logs available for process %q\n", name)
 		return nil
 	}
 
-	fmt.Print(logs)
+	cmd.Print(logs)
 	return nil
 }
 
@@ -328,23 +328,23 @@ func runProcessInfo(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("process %q not found", name)
 	}
 
-	fmt.Printf("Process: %s\n", proc.Name)
-	fmt.Printf("Command: %s\n", proc.Command)
-	fmt.Printf("Status: %s\n", statusStr(proc.Running))
-	fmt.Printf("PID: %d\n", proc.PID)
+	cmd.Printf("Process: %s\n", proc.Name)
+	cmd.Printf("Command: %s\n", proc.Command)
+	cmd.Printf("Status: %s\n", statusStr(proc.Running))
+	cmd.Printf("PID: %d\n", proc.PID)
 	if proc.Port > 0 {
-		fmt.Printf("Port: %d\n", proc.Port)
+		cmd.Printf("Port: %d\n", proc.Port)
 	}
 	if proc.Owner != "" {
-		fmt.Printf("Owner: %s\n", proc.Owner)
+		cmd.Printf("Owner: %s\n", proc.Owner)
 	}
 	if proc.WorkDir != "" {
-		fmt.Printf("WorkDir: %s\n", proc.WorkDir)
+		cmd.Printf("WorkDir: %s\n", proc.WorkDir)
 	}
 	if proc.LogFile != "" {
-		fmt.Printf("LogFile: %s\n", proc.LogFile)
+		cmd.Printf("LogFile: %s\n", proc.LogFile)
 	}
-	fmt.Printf("Started: %s\n", proc.StartedAt.Format(time.RFC3339))
+	cmd.Printf("Started: %s\n", proc.StartedAt.Format(time.RFC3339))
 	return nil
 }
 
@@ -366,10 +366,10 @@ func runProcessAttach(cmd *cobra.Command, args []string) error {
 	}
 
 	// Print process info header
-	fmt.Printf("=== Attached to %s (PID %d) ===\n", proc.Name, proc.PID)
-	fmt.Printf("Command: %s\n", proc.Command)
-	fmt.Printf("Log file: %s\n", reg.LogPath(name))
-	fmt.Println("---")
+	cmd.Printf("=== Attached to %s (PID %d) ===\n", proc.Name, proc.PID)
+	cmd.Printf("Command: %s\n", proc.Command)
+	cmd.Printf("Log file: %s\n", reg.LogPath(name))
+	cmd.Println("---")
 
 	// Show recent logs
 	logs, readErr := reg.ReadLogs(name, 50)
@@ -378,10 +378,10 @@ func runProcessAttach(cmd *cobra.Command, args []string) error {
 	}
 
 	if logs != "" {
-		fmt.Print(logs)
+		cmd.Print(logs)
 	}
 
-	fmt.Println("\n(Detached - process continues in background)")
+	cmd.Println("\n(Detached - process continues in background)")
 	return nil
 }
 
