@@ -1516,9 +1516,16 @@ func TestQueueListJSON(t *testing.T) {
 		t.Fatalf("queue --json returned error: %v", err)
 	}
 
+	// Strip deprecation warning before JSON (Cobra prints "Command ... is deprecated" to stdout)
+	jsonStart := strings.Index(stdout, "[")
+	if jsonStart == -1 {
+		t.Fatalf("no JSON array found in output: %s", stdout)
+	}
+	jsonOutput := stdout[jsonStart:]
+
 	var items []queue.WorkItem
-	if err := json.Unmarshal([]byte(stdout), &items); err != nil {
-		t.Fatalf("output is not valid JSON: %v\noutput: %s", err, stdout)
+	if err := json.Unmarshal([]byte(jsonOutput), &items); err != nil {
+		t.Fatalf("output is not valid JSON: %v\noutput: %s", err, jsonOutput)
 	}
 	if len(items) != 2 {
 		t.Errorf("expected 2 items, got %d", len(items))
@@ -1543,9 +1550,16 @@ func TestQueueDetailJSON(t *testing.T) {
 		t.Fatalf("queue --json detail returned error: %v", err)
 	}
 
+	// Strip deprecation warning before JSON (Cobra prints "Command ... is deprecated" to stdout)
+	jsonStart := strings.Index(stdout, "{")
+	if jsonStart == -1 {
+		t.Fatalf("no JSON object found in output: %s", stdout)
+	}
+	jsonOutput := stdout[jsonStart:]
+
 	var item queue.WorkItem
-	if err := json.Unmarshal([]byte(stdout), &item); err != nil {
-		t.Fatalf("output is not valid JSON: %v\noutput: %s", err, stdout)
+	if err := json.Unmarshal([]byte(jsonOutput), &item); err != nil {
+		t.Fatalf("output is not valid JSON: %v\noutput: %s", err, jsonOutput)
 	}
 	if item.ID != "work-001" {
 		t.Errorf("expected ID work-001, got %s", item.ID)
