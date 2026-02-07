@@ -338,3 +338,219 @@ func TestRootAgentState_InheritsAgentState(t *testing.T) {
 		t.Errorf("Children count = %d, want 2", len(state.Children))
 	}
 }
+
+// mockTmuxChecker implements TmuxChecker for testing.
+type mockTmuxChecker struct {
+	sessions map[string]bool
+}
+
+func (m *mockTmuxChecker) HasSession(name string) bool {
+	return m.sessions[name]
+}
+
+func TestRootStateStore_CheckRecovery_NoRoot(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+	mock := &mockTmuxChecker{sessions: map[string]bool{}}
+
+	result, err := store.CheckRecovery(mock)
+	if err != nil {
+		t.Fatalf("CheckRecovery failed: %v", err)
+	}
+
+	if !result.NeedsCreate {
+		t.Error("NeedsCreate should be true when no root exists")
+	}
+	if result.NeedsRecover {
+		t.Error("NeedsRecover should be false")
+	}
+	if result.IsRunning {
+		t.Error("IsRunning should be false")
+	}
+	if result.State != nil {
+		t.Error("State should be nil")
+	}
+}
+
+func TestRootStateStore_CheckRecovery_Running(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// Create root with session
+	state, err := store.Create("root", RoleCoordinator, "claude")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if updateErr := store.UpdateSession("bc-root-session"); updateErr != nil {
+		t.Fatalf("UpdateSession failed: %v", updateErr)
+	}
+
+	// Mock tmux says session is alive
+	mock := &mockTmuxChecker{sessions: map[string]bool{"bc-root-session": true}}
+
+	result, err := store.CheckRecovery(mock)
+	if err != nil {
+		t.Fatalf("CheckRecovery failed: %v", err)
+	}
+
+	if result.NeedsCreate {
+		t.Error("NeedsCreate should be false")
+	}
+	if result.NeedsRecover {
+		t.Error("NeedsRecover should be false")
+	}
+	if !result.IsRunning {
+		t.Error("IsRunning should be true when tmux session is alive")
+	}
+	if result.State == nil {
+		t.Error("State should not be nil")
+	}
+	if result.State.Name != state.Name {
+		t.Errorf("State.Name = %q, want %q", result.State.Name, state.Name)
+	}
+}
+
+func TestRootStateStore_CheckRecovery_NeedsRecovery(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// Create root with session and children
+	if _, err := store.Create("root", RoleCoordinator, "claude"); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if err := store.UpdateSession("bc-dead-session"); err != nil {
+		t.Fatalf("UpdateSession failed: %v", err)
+	}
+	if err := store.AddChild("engineer-01"); err != nil {
+		t.Fatalf("AddChild failed: %v", err)
+	}
+	if err := store.AddChild("engineer-02"); err != nil {
+		t.Fatalf("AddChild failed: %v", err)
+	}
+
+	// Mock tmux says session is dead
+	mock := &mockTmuxChecker{sessions: map[string]bool{}}
+
+	result, err := store.CheckRecovery(mock)
+	if err != nil {
+		t.Fatalf("CheckRecovery failed: %v", err)
+	}
+
+	if result.NeedsCreate {
+		t.Error("NeedsCreate should be false")
+	}
+	if !result.NeedsRecover {
+		t.Error("NeedsRecover should be true when tmux session is dead")
+	}
+	if result.IsRunning {
+		t.Error("IsRunning should be false")
+	}
+	if result.State == nil {
+		t.Error("State should not be nil")
+	}
+	if len(result.State.Children) != 2 {
+		t.Errorf("Children count = %d, want 2", len(result.State.Children))
+	}
+}
+
+func TestRootStateStore_MarkRecovered(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// Create root with error state
+	if _, err := store.Create("root", RoleCoordinator, "claude"); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if err := store.UpdateState(StateError); err != nil {
+		t.Fatalf("UpdateState failed: %v", err)
+	}
+
+	// Mark as recovered with new session
+	if err := store.MarkRecovered("bc-new-session"); err != nil {
+		t.Fatalf("MarkRecovered failed: %v", err)
+	}
+
+	// Verify state
+	state, err := store.Load()
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if state.Session != "bc-new-session" {
+		t.Errorf("Session = %q, want bc-new-session", state.Session)
+	}
+	if state.State != StateIdle {
+		t.Errorf("State = %q, want %q", state.State, StateIdle)
+	}
+}
+
+func TestRootStateStore_GetChildren(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// No root - should error
+	_, noRootErr := store.GetChildren()
+	if !errors.Is(noRootErr, ErrRootNotFound) {
+		t.Errorf("GetChildren without root should return ErrRootNotFound, got: %v", noRootErr)
+	}
+
+	// Create root with children
+	if _, createErr := store.Create("root", RoleCoordinator, "claude"); createErr != nil {
+		t.Fatalf("Create failed: %v", createErr)
+	}
+	if addErr := store.AddChild("engineer-01"); addErr != nil {
+		t.Fatalf("AddChild failed: %v", addErr)
+	}
+	if addErr := store.AddChild("qa-01"); addErr != nil {
+		t.Fatalf("AddChild failed: %v", addErr)
+	}
+
+	children, err := store.GetChildren()
+	if err != nil {
+		t.Fatalf("GetChildren failed: %v", err)
+	}
+
+	if len(children) != 2 {
+		t.Errorf("Children count = %d, want 2", len(children))
+	}
+	// Verify children names
+	hasEngineer := false
+	hasQA := false
+	for _, c := range children {
+		if c == "engineer-01" {
+			hasEngineer = true
+		}
+		if c == "qa-01" {
+			hasQA = true
+		}
+	}
+	if !hasEngineer || !hasQA {
+		t.Errorf("Children = %v, want [engineer-01, qa-01]", children)
+	}
+}
+
+func TestRootStateStore_CheckRecovery_EmptySession(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// Create root without setting session
+	if _, err := store.Create("root", RoleCoordinator, "claude"); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// Mock tmux - doesn't matter, session is empty
+	mock := &mockTmuxChecker{sessions: map[string]bool{"anything": true}}
+
+	result, err := store.CheckRecovery(mock)
+	if err != nil {
+		t.Fatalf("CheckRecovery failed: %v", err)
+	}
+
+	// Empty session should trigger recovery
+	if !result.NeedsRecover {
+		t.Error("NeedsRecover should be true when session is empty")
+	}
+	if result.IsRunning {
+		t.Error("IsRunning should be false when session is empty")
+	}
+}
