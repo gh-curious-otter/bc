@@ -14,6 +14,7 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/names"
 )
 
 // agentCmd is the parent command for all agent operations
@@ -33,15 +34,18 @@ Examples:
 
 // agentCreateCmd creates a new agent (replaces bc spawn)
 var agentCreateCmd = &cobra.Command{
-	Use:   "create <name>",
+	Use:   "create [name]",
 	Short: "Create a new agent",
 	Long: `Create and start a new agent.
 
+If no name is provided, a random memorable name is generated (e.g., swift-falcon).
+
 Examples:
-  bc agent create worker-01                    # Create with default role/tool
+  bc agent create --role engineer              # Create with random name
+  bc agent create worker-01                    # Create with explicit name
   bc agent create eng-01 --role engineer       # Create engineer
   bc agent create qa-01 --role qa --tool cursor # Create QA with Cursor`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runAgentCreate,
 }
 
@@ -149,11 +153,6 @@ func init() {
 }
 
 func runAgentCreate(cmd *cobra.Command, args []string) error {
-	agentName := strings.TrimSpace(args[0])
-	if agentName == "" {
-		return fmt.Errorf("agent name cannot be empty")
-	}
-
 	ws, err := getWorkspace()
 	if err != nil {
 		return fmt.Errorf("not in a bc workspace: %w", err)
@@ -162,6 +161,25 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
 	if loadErr := mgr.LoadState(); loadErr != nil {
 		log.Warn("failed to load agent state", "error", loadErr)
+	}
+
+	// Determine agent name: use provided name or generate one
+	var agentName string
+	if len(args) > 0 && strings.TrimSpace(args[0]) != "" {
+		agentName = strings.TrimSpace(args[0])
+	} else {
+		// Generate unique name
+		existingAgents := mgr.ListAgents()
+		existingNames := make([]string, len(existingAgents))
+		for i, a := range existingAgents {
+			existingNames[i] = a.Name
+		}
+		generatedName, genErr := names.GenerateUniqueFromList(existingNames, 100)
+		if genErr != nil {
+			return fmt.Errorf("failed to generate agent name: %w", genErr)
+		}
+		agentName = generatedName
+		fmt.Printf("Generated name: %s\n", agentName)
 	}
 
 	// Check if agent already exists
