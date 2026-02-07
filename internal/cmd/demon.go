@@ -233,7 +233,7 @@ func runDemonRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("demon %q not found", name)
 	}
 
-	fmt.Printf("Running demon %q: %s\n", name, d.Command)
+	cmd.Printf("Running demon %q: %s\n", name, d.Command)
 
 	// Execute the command
 	ctx := context.Background()
@@ -257,18 +257,18 @@ func runDemonRun(cmd *cobra.Command, args []string) error {
 
 	// Print output
 	if len(output) > 0 {
-		fmt.Println("---")
-		fmt.Print(string(output))
+		cmd.Println("---")
+		cmd.Print(string(output))
 		if output[len(output)-1] != '\n' {
-			fmt.Println()
+			cmd.Println()
 		}
-		fmt.Println("---")
+		cmd.Println("---")
 	}
 
 	if exitCode != 0 {
-		fmt.Printf("Exit code: %d\n", exitCode)
+		cmd.Printf("Exit code: %d\n", exitCode)
 	}
-	fmt.Println("Run recorded.")
+	cmd.Println("Run recorded.")
 
 	return nil
 }
@@ -287,9 +287,9 @@ func runDemonEnable(cmd *cobra.Command, args []string) error {
 	}
 
 	d, _ := store.Get(name)
-	fmt.Printf("Enabled demon %q\n", name)
+	cmd.Printf("Enabled demon %q\n", name)
 	if d != nil && !d.NextRun.IsZero() {
-		fmt.Printf("Next run: %s\n", d.NextRun.Format("2006-01-02 15:04:05"))
+		cmd.Printf("Next run: %s\n", d.NextRun.Format("2006-01-02 15:04:05"))
 	}
 
 	return nil
@@ -308,6 +308,6 @@ func runDemonDisable(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Disabled demon %q\n", name)
+	cmd.Printf("Disabled demon %q\n", name)
 	return nil
 }
