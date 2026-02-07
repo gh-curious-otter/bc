@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -28,6 +29,65 @@ func executeCmd(args ...string) (string, error) {
 
 	err := rootCmd.Execute()
 	return buf.String(), err
+}
+
+// setupTestWorkspace creates a temporary bc workspace and changes into it.
+// Returns the workspace root directory path (for use with demon.NewStore, etc.).
+func setupTestWorkspace(t *testing.T) string {
+	t.Helper()
+
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get cwd: %v", err)
+	}
+
+	tmpDir := t.TempDir()
+	bcDir := filepath.Join(tmpDir, ".bc")
+	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0750); err != nil {
+		t.Fatalf("failed to create .bc/agents: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(bcDir, "demons"), 0750); err != nil {
+		t.Fatalf("failed to create .bc/demons: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(bcDir, "memory"), 0750); err != nil {
+		t.Fatalf("failed to create .bc/memory: %v", err)
+	}
+
+	// Create minimal config.toml for v2 workspace detection
+	configPath := filepath.Join(bcDir, "config.toml")
+	configContent := `[workspace]
+name = "test"
+version = 2
+
+[tools]
+default = "claude"
+
+[tools.claude]
+command = "claude"
+enabled = true
+
+[memory]
+backend = "file"
+path = ".bc/memory"
+
+[roster]
+engineers = 4
+tech_leads = 2
+qa = 2
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0600); err != nil {
+		t.Fatalf("failed to write config.toml: %v", err)
+	}
+
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = os.Chdir(origDir)
+	})
+
+	return tmpDir // Return workspace root, not .bc directory
 }
 
 // --- formatDuration tests ---
