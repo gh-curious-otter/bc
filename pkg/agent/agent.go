@@ -32,6 +32,7 @@ const (
 	// Hierarchical roles
 	RoleProductManager Role = "product-manager" // Owns product vision, creates epics
 	RoleManager        Role = "manager"         // Breaks down epics, manages engineers
+	RoleTechLead       Role = "tech-lead"       // Technical architecture, code review
 	RoleEngineer       Role = "engineer"        // Implements tasks (like worker)
 	RoleQA             Role = "qa"              // Tests and validates implementations
 )
@@ -53,6 +54,7 @@ var RoleCapabilities = map[Role][]Capability{
 	RoleRoot:           {CapCreateAgents, CapAssignWork, CapCreateEpics, CapReviewWork}, // Root can do everything
 	RoleProductManager: {CapCreateAgents, CapAssignWork, CapCreateEpics, CapReviewWork},
 	RoleManager:        {CapCreateAgents, CapAssignWork, CapReviewWork},
+	RoleTechLead:       {CapReviewWork, CapImplementTasks}, // Tech leads review and can implement
 	RoleEngineer:       {CapImplementTasks},
 	RoleQA:             {CapTestWork, CapReviewWork},
 	// Legacy mappings
@@ -62,13 +64,14 @@ var RoleCapabilities = map[Role][]Capability{
 
 // RoleHierarchy defines which roles can create which child roles.
 var RoleHierarchy = map[Role][]Role{
-	RoleRoot:           {RoleProductManager, RoleManager, RoleEngineer, RoleQA}, // Root can create all
+	RoleRoot:           {RoleProductManager, RoleManager, RoleTechLead, RoleEngineer, RoleQA}, // Root can create all
 	RoleProductManager: {RoleManager},
-	RoleManager:        {RoleEngineer, RoleQA},
+	RoleManager:        {RoleTechLead, RoleEngineer, RoleQA},
+	RoleTechLead:       {}, // Tech leads don't create children
 	RoleEngineer:       {}, // Cannot create children
 	RoleQA:             {}, // Cannot create children
 	// Legacy mappings
-	RoleCoordinator: {RoleWorker, RoleManager, RoleEngineer, RoleQA},
+	RoleCoordinator: {RoleWorker, RoleManager, RoleTechLead, RoleEngineer, RoleQA},
 	RoleWorker:      {},
 }
 

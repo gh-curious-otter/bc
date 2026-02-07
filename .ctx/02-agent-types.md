@@ -6,12 +6,14 @@ This document describes the agent role system in bc, including capabilities, hie
 
 ## Overview
 
-bc uses a hierarchical role-based agent system with four primary roles plus two legacy roles for backward compatibility:
+bc uses a hierarchical role-based agent system with a singleton Root agent at the top and specialized roles beneath:
 
 | Role | Level | Primary Responsibility |
 |------|-------|------------------------|
-| ProductManager | 0 | Product vision, creates epics |
+| Root | 0 | Singleton orchestrator, top-level merge integration |
+| ProductManager | 1 | Product vision, creates epics |
 | Manager | 1 | Breaks down epics, manages engineers |
+| TechLead | 1 | Code review, architectural decisions |
 | Engineer | 2 | Implements tasks (code) |
 | QA | 2 | Tests and validates implementations |
 
@@ -23,9 +25,32 @@ Legacy roles (for backward compatibility):
 
 ## Role Definitions
 
-### ProductManager (Level 0)
+### Root (Level 0) - Singleton
 
-The **ProductManager** (PM) is the top-level coordinator responsible for product vision and high-level work organization.
+The **Root** agent is the singleton orchestrator at the top of the hierarchy. Only one root agent can exist per workspace.
+
+**Capabilities:**
+- `create_agents` - Can spawn ProductManager, Manager, TechLead
+- `assign_work` - Can assign work items to other agents
+- `review_work` - Can review work from other agents
+- `merge_to_main` - Exclusive: Only root can merge to main branch
+
+**Can Create:** ProductManager, Manager, TechLead
+
+**Typical Tasks:**
+- Orchestrate the entire workspace
+- Final merge integration to main branch
+- Resolve escalated conflicts
+- Top-level coordination
+
+**Notes:**
+- Created automatically by `bc init`
+- Started by `bc up`
+- Singleton constraint enforced in spawn
+
+### ProductManager (Level 1)
+
+The **ProductManager** (PM) is responsible for product vision and high-level work organization.
 
 **Capabilities:**
 - `create_agents` - Can spawn child agents (Managers)
@@ -44,6 +69,27 @@ The **ProductManager** (PM) is the top-level coordinator responsible for product
 **Example Spawn:**
 ```bash
 bc spawn pm-01 --role product-manager
+```
+
+### TechLead (Level 1)
+
+The **TechLead** provides technical oversight, code review, and architectural guidance.
+
+**Capabilities:**
+- `review_work` - Can review implementations
+- `assign_work` - Can delegate or reassign tasks
+
+**Can Create:** (none - advisory role)
+
+**Typical Tasks:**
+- Review code from engineers
+- Make architectural decisions
+- Provide technical guidance
+- Unblock engineers when stuck
+
+**Example Spawn:**
+```bash
+bc spawn tech-lead-01 --role tech-lead
 ```
 
 ### Manager (Level 1)
@@ -114,38 +160,44 @@ bc spawn qa-01 --role qa
 ## Role Hierarchy
 
 ```
-                    ┌─────────────────┐
-                    │ ProductManager  │  Level 0
-                    │    (pm-01)      │
-                    └────────┬────────┘
-                             │
-                             │ creates
-                             ▼
-                    ┌─────────────────┐
-                    │    Manager      │  Level 1
-                    │   (mgr-01)      │
-                    └────────┬────────┘
-                             │
-              ┌──────────────┼──────────────┐
-              │              │              │
-              ▼              ▼              ▼
-       ┌───────────┐  ┌───────────┐  ┌───────────┐
-       │ Engineer  │  │ Engineer  │  │    QA     │  Level 2
-       │ (eng-01)  │  │ (eng-02)  │  │  (qa-01)  │
-       └───────────┘  └───────────┘  └───────────┘
+                         ┌─────────────────┐
+                         │      Root       │  Level 0 (singleton)
+                         │    (root)       │
+                         └────────┬────────┘
+                                  │
+           ┌──────────────────────┼──────────────────────┐
+           │                      │                      │
+           ▼                      ▼                      ▼
+  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+  │ ProductManager  │    │    Manager      │    │   TechLead      │  Level 1
+  │    (pm-01)      │    │   (mgr-01)      │    │ (tech-lead-01)  │
+  └────────┬────────┘    └────────┬────────┘    └─────────────────┘
+           │                      │
+           │         ┌────────────┼────────────┐
+           │         │            │            │
+           │         ▼            ▼            ▼
+           │   ┌───────────┐ ┌───────────┐ ┌───────────┐
+           │   │ Engineer  │ │ Engineer  │ │    QA     │  Level 2
+           │   │ (eng-01)  │ │ (eng-02)  │ │  (qa-01)  │
+           │   └───────────┘ └───────────┘ └───────────┘
+           │
+           └──── Can create multi-level hierarchies
 ```
 
 ### Hierarchy Rules
 
-1. **Parent-child relationships** - Agents can only create roles allowed by `RoleHierarchy`
-2. **Capability-based access** - Actions are gated by role capabilities
-3. **Level-based sorting** - Agents are sorted by level (0=top) then by name
+1. **Root singleton** - Only one root agent per workspace, enforced on spawn
+2. **Parent-child relationships** - Agents can only create roles allowed by `RoleHierarchy`
+3. **Capability-based access** - Actions are gated by role capabilities
+4. **Level-based sorting** - Agents are sorted by level (0=top) then by name
 
 ```go
 // Role hierarchy from pkg/agent/agent.go
 var RoleHierarchy = map[Role][]Role{
+    RoleRoot:           {RoleProductManager, RoleManager, RoleTechLead},
     RoleProductManager: {RoleManager},
     RoleManager:        {RoleEngineer, RoleQA},
+    RoleTechLead:       {}, // Advisory role
     RoleEngineer:       {}, // Cannot create children
     RoleQA:             {}, // Cannot create children
 }

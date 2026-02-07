@@ -14,17 +14,18 @@ This directory contains architecture documentation, design patterns, and referen
 
 | Document | Description |
 |----------|-------------|
-| [01-architecture-overview.md](01-architecture-overview.md) | Core concepts: workspace, agents, work queue, worktrees. Hierarchical roles (PM → Manager → Engineer/QA), tmux-based agent isolation, git-backed state persistence. |
-| [02-agent-types.md](02-agent-types.md) | Agent roles and capabilities: ProductManager (creates epics), Manager (breaks down work), Engineer (implements), QA (tests). Role hierarchy and state machine. |
+| [01-architecture-overview.md](01-architecture-overview.md) | Core concepts: workspace, agents, work queue, worktrees. Hierarchical roles (Root → PM/Manager → Engineer/QA), tmux-based agent isolation, git-backed state persistence. |
+| [02-agent-types.md](02-agent-types.md) | Agent roles and capabilities: Root (singleton), ProductManager, Manager, TechLead, Engineer, QA. Role hierarchy and state machine. |
 | [03-cli-reference.md](03-cli-reference.md) | Complete `bc` CLI reference: agent lifecycle (spawn, status, up, down), work queue (queue add/list), communication (send, channel), and diagnostics. |
-| [04-data-models.md](04-data-models.md) | Data structures: .bc/ directory layout, agents.json, queue.json, events.jsonl, channels.json, config.json. |
+| [04-data-models.md](04-data-models.md) | Data structures: .bc/ directory layout, config.toml, per-agent state files, events.jsonl, channels. |
 | [05-workflows.md](05-workflows.md) | Operational workflows: work assignment, agent lifecycle, merge queue processing, parent-child agent relationships. |
 | [06-gtn-tui.md](06-gtn-tui.md) | Reference: gtn TUI patterns (Bubble Tea). Useful for bc TUI development. |
 | [07-design-lessons.md](07-design-lessons.md) | Key lessons from Gas Town development applied to bc's simpler design. |
 | [08-tui-builder.md](08-tui-builder.md) | Declarative TUI builder pattern for AI-generated terminal interfaces. |
 | [cursor-agent-cli.md](cursor-agent-cli.md) | Using Cursor Agent CLI as an alternative to Claude Code in bc. |
-| [audit-dead-code-bc-34b.10.md](audit-dead-code-bc-34b.10.md) | Dead code audit and cleanup list. |
-| [bc-v1-audit.md](bc-v1-audit.md) | V1 feature audit and status. |
+| [bc-v1-audit.md](bc-v1-audit.md) | V1 feature audit and status (Lint-Zero complete). |
+| [bc-v2-vision-qa.md](bc-v2-vision-qa.md) | V2 vision Q&A clarifications from product owner. |
+| [epic-1.1-design.md](epic-1.1-design.md) | Epic 1.1: Workspace Restructure technical design (TOML, roles, per-agent state). |
 
 ---
 
@@ -42,8 +43,10 @@ bc is a multi-agent orchestration system that coordinates Claude Code agents thr
 
 | Role | Level | Capabilities | Can Create |
 |------|-------|--------------|------------|
-| ProductManager | 0 | create_agents, assign_work, create_epics, review_work | Manager |
+| Root | 0 | create_agents, assign_work, review_work, merge_to_main | PM, Manager, TechLead |
+| ProductManager | 1 | create_agents, assign_work, create_epics, review_work | Manager |
 | Manager | 1 | create_agents, assign_work, review_work | Engineer, QA |
+| TechLead | 1 | review_work, assign_work | (none) |
 | Engineer | 2 | implement_tasks | (none) |
 | QA | 2 | test_work, review_work | (none) |
 

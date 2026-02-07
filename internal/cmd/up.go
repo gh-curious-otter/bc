@@ -25,7 +25,8 @@ Default roster:
   - coordinator (orchestrates work)
   - product-manager (creates epics)
   - manager (assigns tasks)
-  - engineer-01, engineer-02, engineer-03 (implement tasks)
+  - tech-lead-01, tech-lead-02 (code review, architecture)
+  - engineer-01 to engineer-04 (implement tasks)
   - qa-01, qa-02 (test implementations)
 
 This will:
@@ -35,8 +36,9 @@ This will:
 4. Send bootstrap prompts to all agents
 
 Example:
-  bc up                      # Start with default roster (3 engineers, 2 QA)
+  bc up                      # Start with default roster (2 tech-leads, 4 engineers, 2 QA)
   bc up --engineers 5        # Start with 5 engineers
+  bc up --tech-leads 3       # Start with 3 tech-leads
   bc up --qa 3               # Start with 3 QA agents
   bc up --agent cursor       # Use Cursor AI for all agents`,
 	RunE: runUp,
@@ -44,12 +46,14 @@ Example:
 
 var upWorkers int
 var upEngineers int
+var upTechLeads int
 var upQA int
 var upAgent string
 
 func init() {
 	upCmd.Flags().IntVar(&upWorkers, "workers", 0, "Number of workers (deprecated, use --engineers)")
-	upCmd.Flags().IntVar(&upEngineers, "engineers", 3, "Number of engineer agents")
+	upCmd.Flags().IntVar(&upEngineers, "engineers", 4, "Number of engineer agents")
+	upCmd.Flags().IntVar(&upTechLeads, "tech-leads", 2, "Number of tech-lead agents")
 	upCmd.Flags().IntVar(&upQA, "qa", 2, "Number of QA agents")
 	upCmd.Flags().StringVar(&upAgent, "agent", "", "Agent type from config (e.g. claude, cursor, cursor-agent, codex)")
 	rootCmd.AddCommand(upCmd)
@@ -78,6 +82,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 
 	// Determine agent counts (--workers is deprecated, use --engineers)
 	numEngineers := upEngineers
+	numTechLeads := upTechLeads
 	numQA := upQA
 	if upWorkers > 0 {
 		// Legacy: if --workers is set, use it for engineers
@@ -155,6 +160,29 @@ func runUp(cmd *cobra.Command, args []string) error {
 	_ = log.Append(events.Event{Type: events.AgentSpawned, Agent: "manager"})
 	time.Sleep(300 * time.Millisecond)
 
+	// Start tech-leads
+	techLeadNames := make([]string, 0, numTechLeads)
+	for i := 1; i <= numTechLeads; i++ {
+		name := fmt.Sprintf("tech-lead-%02d", i)
+		fmt.Printf("Starting %s... ", name)
+
+		tl, tlErr := mgr.SpawnAgent(name, agent.RoleTechLead, ws.RootDir)
+		if tlErr != nil {
+			fmt.Println("✗")
+			fmt.Printf("  Warning: failed to start %s: %v\n", name, tlErr)
+			continue
+		}
+		fmt.Printf("✓ (session: %s)\n", mgr.Tmux().SessionName(tl.Session))
+		techLeadNames = append(techLeadNames, name)
+
+		_ = log.Append(events.Event{
+			Type:  events.AgentSpawned,
+			Agent: name,
+		})
+
+		time.Sleep(300 * time.Millisecond)
+	}
+
 	// Start engineers
 	engineerNames := make([]string, 0, numEngineers)
 	for i := 1; i <= numEngineers; i++ {
@@ -202,11 +230,29 @@ func runUp(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create default channels
-	allAgents := make([]string, 0, 3+len(engineerNames)+len(qaNames))
+	allAgents := make([]string, 0, 3+len(techLeadNames)+len(engineerNames)+len(qaNames))
 	allAgents = append(allAgents, "coordinator", "product-manager", "manager")
+	allAgents = append(allAgents, techLeadNames...)
 	allAgents = append(allAgents, engineerNames...)
 	allAgents = append(allAgents, qaNames...)
-	createDefaultChannels(ws.RootDir, engineerNames, qaNames, allAgents)
+	createDefaultChannelsWithTechLeads(ws.RootDir, techLeadNames, engineerNames, qaNames, allAgents)
+
+	// Send tech-lead prompts
+	techLeadPrompt := loadRolePrompt(ws.RootDir, "tech_lead")
+	for _, tlName := range techLeadNames {
+		fmt.Printf("Sending bootstrap to %s... ", tlName)
+		prompt := techLeadPrompt
+		if prompt == "" {
+			prompt = fmt.Sprintf("You are a tech-lead. Workspace: %s\n\nYour responsibilities:\n1. Review code from engineers\n2. Make architectural decisions\n3. Provide technical guidance\n4. Unblock engineers when stuck\n\nUse: bc report working \"<task>\" and bc report done \"<summary>\"\n", ws.RootDir)
+		} else {
+			prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nYour agent ID: %s\n", ws.RootDir, tlName)
+		}
+		if sendErr := mgr.SendToAgent(tlName, prompt); sendErr != nil {
+			fmt.Println("✗")
+		} else {
+			fmt.Println("✓")
+		}
+	}
 
 	// Send engineer prompts
 	engineerPrompt := loadRolePrompt(ws.RootDir, "engineer")
@@ -218,7 +264,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 		} else {
 			prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nYour agent ID: %s\n", ws.RootDir, engName)
 		}
-		if err := mgr.SendToAgent(engName, prompt); err != nil {
+		if sendErr := mgr.SendToAgent(engName, prompt); sendErr != nil {
 			fmt.Println("✗")
 		} else {
 			fmt.Println("✓")
@@ -235,7 +281,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 		} else {
 			prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nYour agent ID: %s\n", ws.RootDir, qaName)
 		}
-		if err := mgr.SendToAgent(qaName, prompt); err != nil {
+		if sendErr := mgr.SendToAgent(qaName, prompt); sendErr != nil {
 			fmt.Println("✗")
 		} else {
 			fmt.Println("✓")
@@ -272,15 +318,15 @@ func runUp(cmd *cobra.Command, args []string) error {
 	// Manager: send rich role prompt from prompts/manager.md
 	fmt.Print("Sending bootstrap to manager... ")
 	mgrPrompt := loadRolePrompt(ws.RootDir, "manager")
-	teamList := strings.Join(append(engineerNames, qaNames...), ", ")
+	teamList := strings.Join(append(append(techLeadNames, engineerNames...), qaNames...), ", ")
 	if mgrPrompt == "" {
-		mgrPrompt = fmt.Sprintf("You are the manager. Workspace: %s\n\nRun: bc queue && bc status\nEngineers: %s\nQA: %s\nBreak down epics into tasks and assign to engineers. Assign QA to test completed work.\n", ws.RootDir, strings.Join(engineerNames, ", "), strings.Join(qaNames, ", "))
+		mgrPrompt = fmt.Sprintf("You are the manager. Workspace: %s\n\nRun: bc queue && bc status\nTech Leads: %s\nEngineers: %s\nQA: %s\nBreak down epics into tasks and assign to engineers. Tech leads review code and make architectural decisions.\n", ws.RootDir, strings.Join(techLeadNames, ", "), strings.Join(engineerNames, ", "), strings.Join(qaNames, ", "))
 	} else {
 		// Append dynamic info to the rich prompt
-		mgrPrompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nEngineers: %s\nQA: %s\n", ws.RootDir, strings.Join(engineerNames, ", "), strings.Join(qaNames, ", "))
+		mgrPrompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nTech Leads: %s\nEngineers: %s\nQA: %s\n", ws.RootDir, strings.Join(techLeadNames, ", "), strings.Join(engineerNames, ", "), strings.Join(qaNames, ", "))
 	}
 	_ = teamList // used in coordinator bootstrap
-	if err := mgr.SendToAgent("manager", mgrPrompt); err != nil {
+	if mgrErr := mgr.SendToAgent("manager", mgrPrompt); mgrErr != nil {
 		fmt.Println("✗")
 	} else {
 		fmt.Println("✓")
@@ -357,10 +403,10 @@ func buildBootstrapPrompt(agentNames []string, items []queue.WorkItem, rootDir s
 	return b.String()
 }
 
-// createDefaultChannels sets up the default communication channels.
-// Channels: #standup (all), #leadership (coordinator, pm, manager),
-// #engineering (manager, engineers), #qa (manager, qa), #all (everyone).
-func createDefaultChannels(rootDir string, engineerNames, qaNames, allAgents []string) {
+// createDefaultChannelsWithTechLeads sets up the default communication channels.
+// Channels: #standup (all), #leadership (coordinator, pm, manager, tech-leads),
+// #engineering (manager, tech-leads, engineers), #qa (manager, qa), #all (everyone).
+func createDefaultChannelsWithTechLeads(rootDir string, techLeadNames, engineerNames, qaNames, allAgents []string) {
 	store := channel.NewStore(rootDir)
 	if err := store.Load(); err != nil {
 		fmt.Printf("  Warning: failed to load channels: %v\n", err)
@@ -371,10 +417,15 @@ func createDefaultChannels(rootDir string, engineerNames, qaNames, allAgents []s
 		members []string
 	}
 
-	leadershipMembers := []string{"coordinator", "product-manager", "manager"}
+	// Leadership includes tech-leads
+	leadershipMembers := make([]string, 0, 3+len(techLeadNames))
+	leadershipMembers = append(leadershipMembers, "coordinator", "product-manager", "manager")
+	leadershipMembers = append(leadershipMembers, techLeadNames...)
 
-	engineeringMembers := make([]string, 0, 1+len(engineerNames))
+	// Engineering includes tech-leads and engineers
+	engineeringMembers := make([]string, 0, 1+len(techLeadNames)+len(engineerNames))
 	engineeringMembers = append(engineeringMembers, "manager")
+	engineeringMembers = append(engineeringMembers, techLeadNames...)
 	engineeringMembers = append(engineeringMembers, engineerNames...)
 
 	qaMembers := make([]string, 0, 1+len(qaNames))
@@ -393,8 +444,8 @@ func createDefaultChannels(rootDir string, engineerNames, qaNames, allAgents []s
 	for _, ch := range channels {
 		// Create channel if it doesn't already exist
 		if _, exists := store.Get(ch.name); !exists {
-			if _, err := store.Create(ch.name); err != nil {
-				fmt.Printf("  Warning: failed to create channel #%s: %v\n", ch.name, err)
+			if _, createErr := store.Create(ch.name); createErr != nil {
+				fmt.Printf("  Warning: failed to create channel #%s: %v\n", ch.name, createErr)
 				continue
 			}
 		}
@@ -412,4 +463,10 @@ func createDefaultChannels(rootDir string, engineerNames, qaNames, allAgents []s
 		}
 		fmt.Printf("Created %d default channels\n", created)
 	}
+}
+
+// createDefaultChannels is a backward-compatible wrapper for tests.
+// It calls createDefaultChannelsWithTechLeads with empty tech-lead list.
+func createDefaultChannels(rootDir string, engineerNames, qaNames, allAgents []string) {
+	createDefaultChannelsWithTechLeads(rootDir, nil, engineerNames, qaNames, allAgents)
 }
