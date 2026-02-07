@@ -296,3 +296,97 @@ func TestStateStore_DeleteNonexistent(t *testing.T) {
 		t.Errorf("Delete of nonexistent should not error: %v", err)
 	}
 }
+
+func TestStateStore_UpdateStateNonexistent(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStateStore(tmpDir)
+
+	// Ensure agents directory exists but agent doesn't
+	if err := store.EnsureDir(); err != nil {
+		t.Fatalf("EnsureDir failed: %v", err)
+	}
+
+	// UpdateState on nonexistent agent should error
+	err := store.UpdateState("nonexistent", StateWorking)
+	if err == nil {
+		t.Error("UpdateState on nonexistent agent should error")
+	}
+	if err != nil && err.Error() != "agent nonexistent not found" {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestStateStore_ListSkipsTempFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStateStore(tmpDir)
+
+	// Create agents directory
+	if err := store.EnsureDir(); err != nil {
+		t.Fatalf("EnsureDir failed: %v", err)
+	}
+
+	// Create a real agent
+	state := &AgentState{
+		Name:      "real-agent",
+		Role:      RoleEngineer,
+		StartedAt: time.Now(),
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	// Create a temp file (should be skipped)
+	tempPath := filepath.Join(tmpDir, "agents", ".temp-agent.json.tmp")
+	if err := os.WriteFile(tempPath, []byte("{}"), 0600); err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+
+	// List should only return real agent
+	names, err := store.List()
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+
+	if len(names) != 1 {
+		t.Errorf("List returned %d names, want 1", len(names))
+	}
+	if len(names) > 0 && names[0] != "real-agent" {
+		t.Errorf("List returned %q, want 'real-agent'", names[0])
+	}
+}
+
+func TestStateStore_ListSkipsDirectories(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStateStore(tmpDir)
+
+	// Create agents directory
+	if err := store.EnsureDir(); err != nil {
+		t.Fatalf("EnsureDir failed: %v", err)
+	}
+
+	// Create a real agent
+	state := &AgentState{
+		Name:      "real-agent",
+		Role:      RoleEngineer,
+		StartedAt: time.Now(),
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	// Create a subdirectory (should be skipped)
+	subDir := filepath.Join(tmpDir, "agents", "subdir")
+	if err := os.MkdirAll(subDir, 0750); err != nil {
+		t.Fatalf("failed to create subdir: %v", err)
+	}
+
+	// List should only return real agent
+	names, err := store.List()
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+
+	if len(names) != 1 {
+		t.Errorf("List returned %d names, want 1", len(names))
+	}
+}
