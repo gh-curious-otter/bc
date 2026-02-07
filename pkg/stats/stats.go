@@ -10,30 +10,7 @@ import (
 	"time"
 
 	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/queue"
 )
-
-// WorkItemMetrics tracks work item statistics.
-type WorkItemMetrics struct {
-	// By status
-	Total    int `json:"total"`
-	Pending  int `json:"pending"`
-	Assigned int `json:"assigned"`
-	Working  int `json:"working"`
-	Done     int `json:"done"`
-	Failed   int `json:"failed"`
-
-	// By type (parsed from title prefixes like [epic], [task], [bug])
-	Epics int `json:"epics"`
-	Tasks int `json:"tasks"`
-	Bugs  int `json:"bugs"`
-	Other int `json:"other"`
-
-	// Derived metrics
-	CompletionRate    float64       `json:"completion_rate"` // Done / Total
-	FailureRate       float64       `json:"failure_rate"`    // Failed / Total
-	AvgTimeToComplete time.Duration `json:"avg_time_to_complete"`
-}
 
 // AgentMetrics tracks agent statistics.
 type AgentMetrics struct {
@@ -57,23 +34,18 @@ type AgentMetrics struct {
 
 // AgentStat holds stats for a single agent.
 type AgentStat struct {
-	Name           string        `json:"name"`
-	Role           string        `json:"role"`
-	State          string        `json:"state"`
-	TasksCompleted int           `json:"tasks_completed"`
-	TasksFailed    int           `json:"tasks_failed"`
-	Uptime         time.Duration `json:"uptime"`
+	Name   string        `json:"name"`
+	Role   string        `json:"role"`
+	State  string        `json:"state"`
+	Uptime time.Duration `json:"uptime"`
 }
 
 // Stats holds all workspace statistics.
 type Stats struct {
-	CollectedAt             time.Time `json:"collected_at"`
-	path                    string
-	WorkspacePath           string          `json:"workspace_path"`
-	Agents                  AgentMetrics    `json:"agents"`
-	WorkItems               WorkItemMetrics `json:"work_items"`
-	TotalTasksEverCompleted int             `json:"total_tasks_ever_completed"`
-	TotalTasksEverFailed    int             `json:"total_tasks_ever_failed"`
+	CollectedAt   time.Time `json:"collected_at"`
+	path          string
+	WorkspacePath string       `json:"workspace_path"`
+	Agents        AgentMetrics `json:"agents"`
 }
 
 // New creates a new Stats instance for the given workspace.
@@ -107,16 +79,6 @@ func (s *Stats) refresh(stateDir string) error {
 	s.CollectedAt = time.Now()
 	s.WorkspacePath = filepath.Dir(stateDir)
 
-	// Load work queue
-	q := queue.New(filepath.Join(stateDir, "queue.json"))
-	if err := q.Load(); err != nil {
-		// Queue might not exist yet
-		if !os.IsNotExist(err) {
-			return fmt.Errorf("failed to load queue: %w", err)
-		}
-	}
-	s.collectWorkItemMetrics(q)
-
 	// Load agents
 	mgr := agent.NewWorkspaceManager(
 		filepath.Join(stateDir, "agents"),
@@ -129,86 +91,13 @@ func (s *Stats) refresh(stateDir string) error {
 		}
 	}
 	_ = mgr.RefreshState() //nolint:errcheck // best-effort refresh
-	s.collectAgentMetrics(mgr, q)
+	s.collectAgentMetrics(mgr)
 
 	return nil
 }
 
-// collectWorkItemMetrics populates work item stats from the queue.
-func (s *Stats) collectWorkItemMetrics(q *queue.Queue) {
-	items := q.ListAll()
-	m := &s.WorkItems
-
-	m.Total = len(items)
-	m.Pending = 0
-	m.Assigned = 0
-	m.Working = 0
-	m.Done = 0
-	m.Failed = 0
-	m.Epics = 0
-	m.Tasks = 0
-	m.Bugs = 0
-	m.Other = 0
-
-	var totalCompletionTime time.Duration
-	completedCount := 0
-
-	for _, item := range items {
-		// Count by status
-		switch item.Status {
-		case queue.StatusPending:
-			m.Pending++
-		case queue.StatusAssigned:
-			m.Assigned++
-		case queue.StatusWorking:
-			m.Working++
-		case queue.StatusDone:
-			m.Done++
-			// Track completion time
-			if !item.CreatedAt.IsZero() && !item.UpdatedAt.IsZero() {
-				totalCompletionTime += item.UpdatedAt.Sub(item.CreatedAt)
-				completedCount++
-			}
-		case queue.StatusFailed:
-			m.Failed++
-		}
-
-		// Count by type (parse from title)
-		titleLower := strings.ToLower(item.Title)
-		switch {
-		case strings.HasPrefix(titleLower, "[epic]") || strings.Contains(titleLower, "epic:"):
-			m.Epics++
-		case strings.HasPrefix(titleLower, "[bug]") || strings.Contains(titleLower, "bug:") || strings.HasPrefix(titleLower, "fix"):
-			m.Bugs++
-		case strings.HasPrefix(titleLower, "[task]") || strings.Contains(titleLower, "task:"):
-			m.Tasks++
-		default:
-			m.Other++
-		}
-	}
-
-	// Calculate rates
-	if m.Total > 0 {
-		m.CompletionRate = float64(m.Done) / float64(m.Total)
-		m.FailureRate = float64(m.Failed) / float64(m.Total)
-	}
-
-	// Calculate average completion time
-	if completedCount > 0 {
-		m.AvgTimeToComplete = totalCompletionTime / time.Duration(completedCount)
-	}
-
-	// Update historical totals
-	if m.Done > s.TotalTasksEverCompleted {
-		s.TotalTasksEverCompleted = m.Done
-	}
-	if m.Failed > s.TotalTasksEverFailed {
-		s.TotalTasksEverFailed = m.Failed
-	}
-}
-
 // collectAgentMetrics populates agent stats from the manager.
-func (s *Stats) collectAgentMetrics(mgr *agent.Manager, q *queue.Queue) {
+func (s *Stats) collectAgentMetrics(mgr *agent.Manager) {
 	agents := mgr.ListAgents()
 	m := &s.Agents
 
@@ -265,17 +154,6 @@ func (s *Stats) collectAgentMetrics(mgr *agent.Manager, q *queue.Queue) {
 			stat.Uptime = time.Since(a.StartedAt)
 		}
 
-		// Count tasks by agent
-		agentItems := q.ListByAgent(a.Name)
-		for _, item := range agentItems {
-			switch item.Status {
-			case queue.StatusDone:
-				stat.TasksCompleted++
-			case queue.StatusFailed:
-				stat.TasksFailed++
-			}
-		}
-
 		m.AgentStats = append(m.AgentStats, stat)
 	}
 }
@@ -302,29 +180,6 @@ func (s *Stats) Summary() string {
 	b.WriteString("=== Workspace Stats ===\n")
 	b.WriteString(fmt.Sprintf("Collected: %s\n\n", s.CollectedAt.Format(time.RFC3339)))
 
-	// Work Items
-	b.WriteString("--- Work Items ---\n")
-	b.WriteString(fmt.Sprintf("Total:    %d\n", s.WorkItems.Total))
-	b.WriteString(fmt.Sprintf("Pending:  %d\n", s.WorkItems.Pending))
-	b.WriteString(fmt.Sprintf("Assigned: %d\n", s.WorkItems.Assigned))
-	b.WriteString(fmt.Sprintf("Working:  %d\n", s.WorkItems.Working))
-	b.WriteString(fmt.Sprintf("Done:     %d\n", s.WorkItems.Done))
-	b.WriteString(fmt.Sprintf("Failed:   %d\n", s.WorkItems.Failed))
-	b.WriteString("\n")
-
-	b.WriteString("By Type:\n")
-	b.WriteString(fmt.Sprintf("  Epics: %d  Tasks: %d  Bugs: %d  Other: %d\n",
-		s.WorkItems.Epics, s.WorkItems.Tasks, s.WorkItems.Bugs, s.WorkItems.Other))
-	b.WriteString("\n")
-
-	b.WriteString("Rates:\n")
-	b.WriteString(fmt.Sprintf("  Completion: %.1f%%\n", s.WorkItems.CompletionRate*100))
-	b.WriteString(fmt.Sprintf("  Failure:    %.1f%%\n", s.WorkItems.FailureRate*100))
-	if s.WorkItems.AvgTimeToComplete > 0 {
-		b.WriteString(fmt.Sprintf("  Avg Time:   %s\n", formatDuration(s.WorkItems.AvgTimeToComplete)))
-	}
-	b.WriteString("\n")
-
 	// Agents
 	b.WriteString("--- Agents ---\n")
 	b.WriteString(fmt.Sprintf("Total:  %d (%d active)\n", s.Agents.TotalAgents, s.Agents.ActiveAgents))
@@ -341,8 +196,8 @@ func (s *Stats) Summary() string {
 			if a.Uptime > 0 {
 				uptimeStr = formatDuration(a.Uptime)
 			}
-			b.WriteString(fmt.Sprintf("  %-15s %-12s %-10s completed:%d failed:%d uptime:%s\n",
-				a.Name, a.Role, a.State, a.TasksCompleted, a.TasksFailed, uptimeStr))
+			b.WriteString(fmt.Sprintf("  %-15s %-12s %-10s uptime:%s\n",
+				a.Name, a.Role, a.State, uptimeStr))
 		}
 	}
 

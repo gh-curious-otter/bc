@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
-
-	"github.com/rpuneet/bc/pkg/queue"
 )
 
 func TestStateStore_SaveAndLoad(t *testing.T) {
@@ -169,103 +167,6 @@ func TestStateStore_LoadAll(t *testing.T) {
 
 	if len(states) != 3 {
 		t.Errorf("LoadAll returned %d states, want 3", len(states))
-	}
-}
-
-func TestStateStore_WithQueues(t *testing.T) {
-	tmpDir := t.TempDir()
-	store := NewStateStore(tmpDir)
-
-	state := &AgentState{
-		Name:      "engineer-01",
-		Role:      RoleEngineer,
-		StartedAt: time.Now(),
-		WorkQueue: []queue.WorkItem{
-			{ID: "work-1", Title: "Fix bug", Status: queue.StatusWorking},
-			{ID: "work-2", Title: "Add feature", Status: queue.StatusPending},
-		},
-		MergeQueue: []queue.WorkItem{
-			{ID: "merge-1", Title: "PR #123", Status: queue.StatusDone},
-		},
-	}
-
-	if err := store.Save(state); err != nil {
-		t.Fatalf("Save failed: %v", err)
-	}
-
-	loaded, err := store.Load("engineer-01")
-	if err != nil {
-		t.Fatalf("Load failed: %v", err)
-	}
-
-	if len(loaded.WorkQueue) != 2 {
-		t.Errorf("WorkQueue has %d items, want 2", len(loaded.WorkQueue))
-	}
-	if len(loaded.MergeQueue) != 1 {
-		t.Errorf("MergeQueue has %d items, want 1", len(loaded.MergeQueue))
-	}
-	if loaded.WorkQueue[0].ID != "work-1" {
-		t.Errorf("First work item ID = %q, want work-1", loaded.WorkQueue[0].ID)
-	}
-}
-
-func TestStateStore_AddToWorkQueue(t *testing.T) {
-	tmpDir := t.TempDir()
-	store := NewStateStore(tmpDir)
-
-	// Create agent
-	state := &AgentState{
-		Name:      "engineer-01",
-		Role:      RoleEngineer,
-		StartedAt: time.Now(),
-	}
-	if err := store.Save(state); err != nil {
-		t.Fatalf("Save failed: %v", err)
-	}
-
-	// Add work item
-	item := queue.WorkItem{ID: "work-new", Title: "New task", Status: queue.StatusPending}
-	if err := store.AddToWorkQueue("engineer-01", item); err != nil {
-		t.Fatalf("AddToWorkQueue failed: %v", err)
-	}
-
-	// Verify
-	loaded, _ := store.Load("engineer-01")
-	if len(loaded.WorkQueue) != 1 {
-		t.Errorf("WorkQueue has %d items, want 1", len(loaded.WorkQueue))
-	}
-	if loaded.WorkQueue[0].ID != "work-new" {
-		t.Errorf("Work item ID = %q, want work-new", loaded.WorkQueue[0].ID)
-	}
-}
-
-func TestStateStore_RemoveFromWorkQueue(t *testing.T) {
-	tmpDir := t.TempDir()
-	store := NewStateStore(tmpDir)
-
-	state := &AgentState{
-		Name:      "engineer-01",
-		Role:      RoleEngineer,
-		StartedAt: time.Now(),
-		WorkQueue: []queue.WorkItem{
-			{ID: "keep", Title: "Keep this"},
-			{ID: "remove", Title: "Remove this"},
-		},
-	}
-	if err := store.Save(state); err != nil {
-		t.Fatalf("Save failed: %v", err)
-	}
-
-	if err := store.RemoveFromWorkQueue("engineer-01", "remove"); err != nil {
-		t.Fatalf("RemoveFromWorkQueue failed: %v", err)
-	}
-
-	loaded, _ := store.Load("engineer-01")
-	if len(loaded.WorkQueue) != 1 {
-		t.Errorf("WorkQueue has %d items, want 1", len(loaded.WorkQueue))
-	}
-	if loaded.WorkQueue[0].ID != "keep" {
-		t.Errorf("Remaining item ID = %q, want keep", loaded.WorkQueue[0].ID)
 	}
 }
 

@@ -9,10 +9,7 @@ import (
 	"time"
 
 	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/queue"
 )
-
-// --- New ---
 
 func TestNew(t *testing.T) {
 	s := New("/tmp/test-state")
@@ -27,176 +24,12 @@ func TestNew(t *testing.T) {
 	}
 }
 
-// --- collectWorkItemMetrics ---
-
-func TestCollectWorkItemMetricsEmpty(t *testing.T) {
-	s := New(t.TempDir())
-	q := queue.New(filepath.Join(t.TempDir(), "q.json"))
-
-	s.collectWorkItemMetrics(q)
-
-	if s.WorkItems.Total != 0 {
-		t.Errorf("Total = %d, want 0", s.WorkItems.Total)
-	}
-	if s.WorkItems.CompletionRate != 0 {
-		t.Errorf("CompletionRate = %f, want 0", s.WorkItems.CompletionRate)
-	}
-}
-
-func TestCollectWorkItemMetricsStatusCounts(t *testing.T) {
-	s := New(t.TempDir())
-	q := queue.New(filepath.Join(t.TempDir(), "q.json"))
-
-	q.Add("Pending task", "", "")
-	q.Add("Assigned task", "", "")
-	q.Add("Working task", "", "")
-	q.Add("Done task", "", "")
-	q.Add("Failed task", "", "")
-
-	if err := q.Assign("work-002", "agent-1"); err != nil {
-		t.Fatal(err)
-	}
-	if err := q.UpdateStatus("work-003", queue.StatusWorking); err != nil {
-		t.Fatal(err)
-	}
-	if err := q.UpdateStatus("work-004", queue.StatusDone); err != nil {
-		t.Fatal(err)
-	}
-	if err := q.UpdateStatus("work-005", queue.StatusFailed); err != nil {
-		t.Fatal(err)
-	}
-
-	s.collectWorkItemMetrics(q)
-
-	if s.WorkItems.Total != 5 {
-		t.Errorf("Total = %d, want 5", s.WorkItems.Total)
-	}
-	if s.WorkItems.Pending != 1 {
-		t.Errorf("Pending = %d, want 1", s.WorkItems.Pending)
-	}
-	if s.WorkItems.Assigned != 1 {
-		t.Errorf("Assigned = %d, want 1", s.WorkItems.Assigned)
-	}
-	if s.WorkItems.Working != 1 {
-		t.Errorf("Working = %d, want 1", s.WorkItems.Working)
-	}
-	if s.WorkItems.Done != 1 {
-		t.Errorf("Done = %d, want 1", s.WorkItems.Done)
-	}
-	if s.WorkItems.Failed != 1 {
-		t.Errorf("Failed = %d, want 1", s.WorkItems.Failed)
-	}
-}
-
-func TestCollectWorkItemMetricsRates(t *testing.T) {
-	s := New(t.TempDir())
-	q := queue.New(filepath.Join(t.TempDir(), "q.json"))
-
-	// 4 items: 2 done, 1 failed, 1 pending
-	q.Add("a", "", "")
-	q.Add("b", "", "")
-	q.Add("c", "", "")
-	q.Add("d", "", "")
-
-	if err := q.UpdateStatus("work-001", queue.StatusDone); err != nil {
-		t.Fatal(err)
-	}
-	if err := q.UpdateStatus("work-002", queue.StatusDone); err != nil {
-		t.Fatal(err)
-	}
-	if err := q.UpdateStatus("work-003", queue.StatusFailed); err != nil {
-		t.Fatal(err)
-	}
-
-	s.collectWorkItemMetrics(q)
-
-	expectedCompletion := 0.5 // 2/4
-	if s.WorkItems.CompletionRate != expectedCompletion {
-		t.Errorf("CompletionRate = %f, want %f", s.WorkItems.CompletionRate, expectedCompletion)
-	}
-	expectedFailure := 0.25 // 1/4
-	if s.WorkItems.FailureRate != expectedFailure {
-		t.Errorf("FailureRate = %f, want %f", s.WorkItems.FailureRate, expectedFailure)
-	}
-}
-
-func TestCollectWorkItemMetricsTypeClassification(t *testing.T) {
-	tests := []struct {
-		title    string
-		wantType string // "epic", "bug", "task", "other"
-	}{
-		{"[epic] Big project", "epic"},
-		{"Epic: Redesign system", "epic"},
-		{"[bug] Crash on login", "bug"},
-		{"Bug: Fix null pointer", "bug"},
-		{"Fix authentication", "bug"},
-		{"fix broken tests", "bug"},
-		{"[task] Add logging", "task"},
-		{"Task: Implement cache", "task"},
-		{"Add new feature", "other"},
-		{"Refactor database layer", "other"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.title, func(t *testing.T) {
-			s := New(t.TempDir())
-			q := queue.New(filepath.Join(t.TempDir(), "q.json"))
-			q.Add(tt.title, "", "")
-
-			s.collectWorkItemMetrics(q)
-
-			var got int
-			switch tt.wantType {
-			case "epic":
-				got = s.WorkItems.Epics
-			case "bug":
-				got = s.WorkItems.Bugs
-			case "task":
-				got = s.WorkItems.Tasks
-			case "other":
-				got = s.WorkItems.Other
-			}
-
-			if got != 1 {
-				t.Errorf("%q classified as: epics=%d bugs=%d tasks=%d other=%d, want %s=1",
-					tt.title, s.WorkItems.Epics, s.WorkItems.Bugs, s.WorkItems.Tasks, s.WorkItems.Other, tt.wantType)
-			}
-		})
-	}
-}
-
-func TestCollectWorkItemMetricsHistorical(t *testing.T) {
-	s := New(t.TempDir())
-	s.TotalTasksEverCompleted = 10
-	s.TotalTasksEverFailed = 3
-
-	q := queue.New(filepath.Join(t.TempDir(), "q.json"))
-	for i := 0; i < 15; i++ {
-		q.Add("task", "", "")
-		if err := q.UpdateStatus(q.ListAll()[i].ID, queue.StatusDone); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	s.collectWorkItemMetrics(q)
-
-	// Should update historical totals when current exceeds them
-	if s.TotalTasksEverCompleted != 15 {
-		t.Errorf("TotalTasksEverCompleted = %d, want 15", s.TotalTasksEverCompleted)
-	}
-}
-
-// --- Save / Load ---
-
 func TestSaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
 
 	s := New(dir)
 	s.WorkspacePath = "/test/workspace"
-	s.WorkItems.Total = 10
-	s.WorkItems.Done = 7
 	s.Agents.TotalAgents = 3
-	s.TotalTasksEverCompleted = 15
 
 	if err := s.Save(); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -220,18 +53,12 @@ func TestSaveAndLoad(t *testing.T) {
 	if loaded.WorkspacePath != "/test/workspace" {
 		t.Errorf("WorkspacePath = %q, want %q", loaded.WorkspacePath, "/test/workspace")
 	}
-	if loaded.WorkItems.Total != 10 {
-		t.Errorf("Total = %d, want 10", loaded.WorkItems.Total)
-	}
-	if loaded.TotalTasksEverCompleted != 15 {
-		t.Errorf("TotalTasksEverCompleted = %d, want 15", loaded.TotalTasksEverCompleted)
-	}
 }
 
 func TestSaveCreatesDirectory(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "nested", "dir")
 	s := New(dir)
-	s.WorkItems.Total = 1
+	s.Agents.TotalAgents = 1
 
 	if err := s.Save(); err != nil {
 		t.Fatalf("Save to nested dir: %v", err)
@@ -241,8 +68,6 @@ func TestSaveCreatesDirectory(t *testing.T) {
 		t.Errorf("stats.json not created: %v", err)
 	}
 }
-
-// --- Utilization ---
 
 func TestUtilization(t *testing.T) {
 	tests := []struct {
@@ -272,8 +97,6 @@ func TestUtilization(t *testing.T) {
 	}
 }
 
-// --- formatDuration ---
-
 func TestFormatDuration(t *testing.T) {
 	tests := []struct {
 		name string
@@ -298,22 +121,15 @@ func TestFormatDuration(t *testing.T) {
 	}
 }
 
-// --- Summary ---
-
 func TestSummaryContainsExpectedSections(t *testing.T) {
 	s := &Stats{
 		CollectedAt: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC),
-		WorkItems: WorkItemMetrics{
-			Total:   10,
-			Done:    7,
-			Pending: 3,
-		},
 		Agents: AgentMetrics{
 			TotalAgents:  3,
 			ActiveAgents: 2,
 			Working:      1,
 			AgentStats: []AgentStat{
-				{Name: "coord", Role: "coordinator", State: "working", TasksCompleted: 5, Uptime: 1 * time.Hour},
+				{Name: "coord", Role: "coordinator", State: "working", Uptime: 1 * time.Hour},
 			},
 		},
 	}
@@ -322,10 +138,6 @@ func TestSummaryContainsExpectedSections(t *testing.T) {
 
 	expectedParts := []string{
 		"Workspace Stats",
-		"Work Items",
-		"Total:    10",
-		"Done:     7",
-		"Pending:  3",
 		"Agents",
 		"Total:  3 (2 active)",
 		"Per Agent:",
@@ -339,31 +151,6 @@ func TestSummaryContainsExpectedSections(t *testing.T) {
 	}
 }
 
-func TestSummaryAvgTimeShownWhenNonZero(t *testing.T) {
-	s := &Stats{
-		CollectedAt: time.Now(),
-		WorkItems: WorkItemMetrics{
-			AvgTimeToComplete: 30 * time.Minute,
-		},
-	}
-
-	summary := s.Summary()
-	if !strings.Contains(summary, "Avg Time:") {
-		t.Error("Summary should show Avg Time when non-zero")
-	}
-}
-
-func TestSummaryAvgTimeHiddenWhenZero(t *testing.T) {
-	s := &Stats{
-		CollectedAt: time.Now(),
-	}
-
-	summary := s.Summary()
-	if strings.Contains(summary, "Avg Time:") {
-		t.Error("Summary should not show Avg Time when zero")
-	}
-}
-
 func TestSummaryNoAgentStatsSection(t *testing.T) {
 	s := &Stats{
 		CollectedAt: time.Now(),
@@ -374,8 +161,6 @@ func TestSummaryNoAgentStatsSection(t *testing.T) {
 		t.Error("Summary should not show Per Agent section with no agents")
 	}
 }
-
-// --- Helpers ---
 
 func seedAgentsFile(t *testing.T, stateDir string, agents map[string]*agent.Agent) {
 	t.Helper()
@@ -392,19 +177,6 @@ func seedAgentsFile(t *testing.T, stateDir string, agents map[string]*agent.Agen
 	}
 }
 
-func seedQueueFile(t *testing.T, stateDir string, items []queue.WorkItem) {
-	t.Helper()
-	data, err := json.MarshalIndent(items, "", "  ")
-	if err != nil {
-		t.Fatalf("marshal queue: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(stateDir, "queue.json"), data, 0600); err != nil {
-		t.Fatalf("write queue.json: %v", err)
-	}
-}
-
-// --- collectAgentMetrics ---
-
 func TestCollectAgentMetricsEmpty(t *testing.T) {
 	stateDir := t.TempDir()
 	agentsDir := filepath.Join(stateDir, "agents")
@@ -414,9 +186,8 @@ func TestCollectAgentMetricsEmpty(t *testing.T) {
 
 	s := New(stateDir)
 	mgr := agent.NewWorkspaceManager(agentsDir, filepath.Dir(stateDir))
-	q := queue.New(filepath.Join(stateDir, "queue.json"))
 
-	s.collectAgentMetrics(mgr, q)
+	s.collectAgentMetrics(mgr)
 
 	if s.Agents.TotalAgents != 0 {
 		t.Errorf("TotalAgents = %d, want 0", s.Agents.TotalAgents)
@@ -448,8 +219,7 @@ func TestCollectAgentMetricsRoleCounts(t *testing.T) {
 	}
 
 	s := New(stateDir)
-	q := queue.New(filepath.Join(stateDir, "queue.json"))
-	s.collectAgentMetrics(mgr, q)
+	s.collectAgentMetrics(mgr)
 
 	if s.Agents.TotalAgents != 5 {
 		t.Errorf("TotalAgents = %d, want 5", s.Agents.TotalAgents)
@@ -482,8 +252,7 @@ func TestCollectAgentMetricsStateCounts(t *testing.T) {
 	}
 
 	s := New(stateDir)
-	q := queue.New(filepath.Join(stateDir, "queue.json"))
-	s.collectAgentMetrics(mgr, q)
+	s.collectAgentMetrics(mgr)
 
 	if s.Agents.Idle != 1 {
 		t.Errorf("Idle = %d, want 1", s.Agents.Idle)
@@ -527,8 +296,7 @@ func TestCollectAgentMetricsUptime(t *testing.T) {
 	}
 
 	s := New(stateDir)
-	q := queue.New(filepath.Join(stateDir, "queue.json"))
-	s.collectAgentMetrics(mgr, q)
+	s.collectAgentMetrics(mgr)
 
 	for _, stat := range s.Agents.AgentStats {
 		switch stat.Name {
@@ -541,102 +309,12 @@ func TestCollectAgentMetricsUptime(t *testing.T) {
 				t.Errorf("stopped agent uptime = %v, want 0", stat.Uptime)
 			}
 		case "no-time":
-			// StartedAt is zero, so uptime should still be computed but may be huge;
-			// the code checks !a.StartedAt.IsZero(), so it should be 0
 			if stat.Uptime != 0 {
 				t.Errorf("no-time agent uptime = %v, want 0", stat.Uptime)
 			}
 		}
 	}
 }
-
-func TestCollectAgentMetricsTaskCounts(t *testing.T) {
-	stateDir := t.TempDir()
-	agentsDir := filepath.Join(stateDir, "agents")
-
-	agents := map[string]*agent.Agent{
-		"worker-1": {Name: "worker-1", Role: agent.RoleWorker, State: agent.StateWorking, StartedAt: time.Now()},
-	}
-	seedAgentsFile(t, stateDir, agents)
-
-	mgr := agent.NewWorkspaceManager(agentsDir, filepath.Dir(stateDir))
-	if err := mgr.LoadState(); err != nil {
-		t.Fatalf("LoadState: %v", err)
-	}
-
-	// Create queue with items assigned to worker-1
-	q := queue.New(filepath.Join(stateDir, "queue.json"))
-	q.Add("task 1", "", "")
-	q.Add("task 2", "", "")
-	q.Add("task 3", "", "")
-	if err := q.Assign("work-001", "worker-1"); err != nil {
-		t.Fatal(err)
-	}
-	if err := q.Assign("work-002", "worker-1"); err != nil {
-		t.Fatal(err)
-	}
-	if err := q.Assign("work-003", "worker-1"); err != nil {
-		t.Fatal(err)
-	}
-	if err := q.UpdateStatus("work-001", queue.StatusDone); err != nil {
-		t.Fatal(err)
-	}
-	if err := q.UpdateStatus("work-002", queue.StatusDone); err != nil {
-		t.Fatal(err)
-	}
-	if err := q.UpdateStatus("work-003", queue.StatusFailed); err != nil {
-		t.Fatal(err)
-	}
-
-	s := New(stateDir)
-	s.collectAgentMetrics(mgr, q)
-
-	if len(s.Agents.AgentStats) != 1 {
-		t.Fatalf("AgentStats len = %d, want 1", len(s.Agents.AgentStats))
-	}
-	stat := s.Agents.AgentStats[0]
-	if stat.TasksCompleted != 2 {
-		t.Errorf("TasksCompleted = %d, want 2", stat.TasksCompleted)
-	}
-	if stat.TasksFailed != 1 {
-		t.Errorf("TasksFailed = %d, want 1", stat.TasksFailed)
-	}
-}
-
-func TestCollectAgentMetricsPerAgentFields(t *testing.T) {
-	stateDir := t.TempDir()
-	agentsDir := filepath.Join(stateDir, "agents")
-
-	agents := map[string]*agent.Agent{
-		"coord": {Name: "coord", Role: agent.RoleCoordinator, State: agent.StateIdle, StartedAt: time.Now()},
-	}
-	seedAgentsFile(t, stateDir, agents)
-
-	mgr := agent.NewWorkspaceManager(agentsDir, filepath.Dir(stateDir))
-	if err := mgr.LoadState(); err != nil {
-		t.Fatalf("LoadState: %v", err)
-	}
-
-	s := New(stateDir)
-	q := queue.New(filepath.Join(stateDir, "queue.json"))
-	s.collectAgentMetrics(mgr, q)
-
-	if len(s.Agents.AgentStats) != 1 {
-		t.Fatalf("AgentStats len = %d, want 1", len(s.Agents.AgentStats))
-	}
-	stat := s.Agents.AgentStats[0]
-	if stat.Name != "coord" {
-		t.Errorf("Name = %q, want %q", stat.Name, "coord")
-	}
-	if stat.Role != string(agent.RoleCoordinator) {
-		t.Errorf("Role = %q, want %q", stat.Role, agent.RoleCoordinator)
-	}
-	if stat.State != string(agent.StateIdle) {
-		t.Errorf("State = %q, want %q", stat.State, agent.StateIdle)
-	}
-}
-
-// --- Load integration ---
 
 func TestLoadEmptyStateDir(t *testing.T) {
 	stateDir := t.TempDir()
@@ -646,9 +324,6 @@ func TestLoadEmptyStateDir(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 
-	if s.WorkItems.Total != 0 {
-		t.Errorf("WorkItems.Total = %d, want 0", s.WorkItems.Total)
-	}
 	if s.Agents.TotalAgents != 0 {
 		t.Errorf("Agents.TotalAgents = %d, want 0", s.Agents.TotalAgents)
 	}
@@ -657,42 +332,6 @@ func TestLoadEmptyStateDir(t *testing.T) {
 	}
 	if s.WorkspacePath != filepath.Dir(stateDir) {
 		t.Errorf("WorkspacePath = %q, want %q", s.WorkspacePath, filepath.Dir(stateDir))
-	}
-}
-
-func TestLoadWithQueueData(t *testing.T) {
-	stateDir := t.TempDir()
-
-	now := time.Now()
-	items := []queue.WorkItem{
-		{ID: "work-001", Title: "pending task", Status: queue.StatusPending, CreatedAt: now, UpdatedAt: now},
-		{ID: "work-002", Title: "[bug] fix crash", Status: queue.StatusDone, CreatedAt: now.Add(-1 * time.Hour), UpdatedAt: now},
-		{ID: "work-003", Title: "[epic] redesign", Status: queue.StatusWorking, CreatedAt: now, UpdatedAt: now},
-	}
-	seedQueueFile(t, stateDir, items)
-
-	s, err := Load(stateDir)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-
-	if s.WorkItems.Total != 3 {
-		t.Errorf("Total = %d, want 3", s.WorkItems.Total)
-	}
-	if s.WorkItems.Pending != 1 {
-		t.Errorf("Pending = %d, want 1", s.WorkItems.Pending)
-	}
-	if s.WorkItems.Done != 1 {
-		t.Errorf("Done = %d, want 1", s.WorkItems.Done)
-	}
-	if s.WorkItems.Working != 1 {
-		t.Errorf("Working = %d, want 1", s.WorkItems.Working)
-	}
-	if s.WorkItems.Bugs != 1 {
-		t.Errorf("Bugs = %d, want 1", s.WorkItems.Bugs)
-	}
-	if s.WorkItems.Epics != 1 {
-		t.Errorf("Epics = %d, want 1", s.WorkItems.Epics)
 	}
 }
 
@@ -723,60 +362,6 @@ func TestLoadWithAgentsData(t *testing.T) {
 	}
 	if s.Agents.Stopped != 3 {
 		t.Errorf("Stopped = %d, want 3", s.Agents.Stopped)
-	}
-}
-
-func TestLoadPreservesHistorical(t *testing.T) {
-	stateDir := t.TempDir()
-
-	// Write existing stats.json with historical data
-	existing := &Stats{
-		TotalTasksEverCompleted: 50,
-		TotalTasksEverFailed:    10,
-	}
-	data, err := json.MarshalIndent(existing, "", "  ")
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-	if writeErr := os.WriteFile(filepath.Join(stateDir, "stats.json"), data, 0600); writeErr != nil {
-		t.Fatalf("write stats.json: %v", writeErr)
-	}
-
-	// Seed queue with fewer done items than historical
-	now := time.Now()
-	items := []queue.WorkItem{
-		{ID: "work-001", Title: "task 1", Status: queue.StatusDone, CreatedAt: now, UpdatedAt: now},
-		{ID: "work-002", Title: "task 2", Status: queue.StatusDone, CreatedAt: now, UpdatedAt: now},
-	}
-	seedQueueFile(t, stateDir, items)
-
-	s, err := Load(stateDir)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-
-	// Historical should be preserved (50 > current 2)
-	if s.TotalTasksEverCompleted != 50 {
-		t.Errorf("TotalTasksEverCompleted = %d, want 50", s.TotalTasksEverCompleted)
-	}
-	if s.TotalTasksEverFailed != 10 {
-		t.Errorf("TotalTasksEverFailed = %d, want 10", s.TotalTasksEverFailed)
-	}
-}
-
-func TestLoadInvalidQueueFile(t *testing.T) {
-	stateDir := t.TempDir()
-
-	if err := os.WriteFile(filepath.Join(stateDir, "queue.json"), []byte("not json{{{"), 0600); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-
-	_, err := Load(stateDir)
-	if err == nil {
-		t.Fatal("expected error for invalid queue.json")
-	}
-	if !strings.Contains(err.Error(), "failed to load queue") {
-		t.Errorf("error = %q, want contains 'failed to load queue'", err)
 	}
 }
 

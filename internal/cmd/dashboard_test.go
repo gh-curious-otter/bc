@@ -10,7 +10,6 @@ import (
 
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/queue"
 )
 
 func TestStateIcon_AllStates(t *testing.T) {
@@ -138,87 +137,6 @@ func TestPrintAgentSummary_TaskTruncation(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, "...") {
 		t.Errorf("expected truncated task with '...', got: %s", output)
-	}
-}
-
-func TestPrintQueueStats_Empty_Dashboard(t *testing.T) {
-	origStdout := os.Stdout
-	r, w, pipeErr := os.Pipe()
-	if pipeErr != nil {
-		t.Fatalf("failed to create pipe: %v", pipeErr)
-	}
-	os.Stdout = w
-
-	printQueueStats(queue.Stats{})
-
-	_ = w.Close()
-	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
-	os.Stdout = origStdout
-
-	output := buf.String()
-	if !strings.Contains(output, "No work items") {
-		t.Errorf("expected 'No work items', got: %s", output)
-	}
-}
-
-func TestPrintQueueStats_WithItems(t *testing.T) {
-	qs := queue.Stats{
-		Total:    10,
-		Pending:  3,
-		Assigned: 2,
-		Working:  1,
-		Done:     4,
-		Failed:   0,
-	}
-
-	origStdout := os.Stdout
-	r, w, pipeErr := os.Pipe()
-	if pipeErr != nil {
-		t.Fatalf("failed to create pipe: %v", pipeErr)
-	}
-	os.Stdout = w
-
-	printQueueStats(qs)
-
-	_ = w.Close()
-	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
-	os.Stdout = origStdout
-
-	output := buf.String()
-	if !strings.Contains(output, "Total: 10") {
-		t.Errorf("expected 'Total: 10', got: %s", output)
-	}
-	if !strings.Contains(output, "40%") {
-		t.Errorf("expected '40%%' progress, got: %s", output)
-	}
-}
-
-func TestPrintQueueStats_WithFailures(t *testing.T) {
-	qs := queue.Stats{
-		Total:  5,
-		Done:   3,
-		Failed: 2,
-	}
-
-	origStdout := os.Stdout
-	r, w, pipeErr := os.Pipe()
-	if pipeErr != nil {
-		t.Fatalf("failed to create pipe: %v", pipeErr)
-	}
-	os.Stdout = w
-
-	printQueueStats(qs)
-
-	_ = w.Close()
-	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
-	os.Stdout = origStdout
-
-	output := buf.String()
-	if !strings.Contains(output, "Failed") {
-		t.Errorf("expected 'Failed' in output, got: %s", output)
 	}
 }
 
@@ -361,12 +279,6 @@ func TestPrintJSONDashboard_Dashboard(t *testing.T) {
 		},
 	}
 
-	qs := queue.Stats{
-		Total:   5,
-		Pending: 2,
-		Done:    3,
-	}
-
 	evts := []events.Event{
 		{
 			Timestamp: time.Now(),
@@ -383,7 +295,7 @@ func TestPrintJSONDashboard_Dashboard(t *testing.T) {
 	}
 	os.Stdout = w
 
-	err := printJSONDashboard("/test/workspace", "test-project", agents, qs, evts)
+	err := printJSONDashboard("/test/workspace", "test-project", agents, evts)
 
 	_ = w.Close()
 	var buf bytes.Buffer
@@ -412,9 +324,6 @@ func TestPrintJSONDashboard_Dashboard(t *testing.T) {
 	if result.Agents.Running != 1 {
 		t.Errorf("agents.running = %d, want 1", result.Agents.Running)
 	}
-	if result.Queue.Total != 5 {
-		t.Errorf("queue.total = %d, want 5", result.Queue.Total)
-	}
 	if len(result.Events) != 1 {
 		t.Errorf("events length = %d, want 1", len(result.Events))
 	}
@@ -428,7 +337,7 @@ func TestPrintJSONDashboard_EmptyData(t *testing.T) {
 	}
 	os.Stdout = w
 
-	err := printJSONDashboard("/test", "empty", nil, queue.Stats{}, nil)
+	err := printJSONDashboard("/test", "empty", nil, nil)
 
 	_ = w.Close()
 	var buf bytes.Buffer
