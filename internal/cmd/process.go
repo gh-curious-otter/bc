@@ -1,0 +1,285 @@
+package cmd
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+	"syscall"
+	"text/tabwriter"
+	"time"
+
+	"github.com/spf13/cobra"
+
+	"github.com/rpuneet/bc/pkg/process"
+)
+
+var processCmd = &cobra.Command{
+	Use:   "process",
+	Short: "Manage background processes",
+	Long: `Commands for managing background processes in the workspace.
+
+Example:
+  bc process start web --cmd 'npm run dev'
+  bc process list
+  bc process logs web
+  bc process stop web`,
+}
+
+var processStartCmd = &cobra.Command{
+	Use:   "start <name>",
+	Short: "Start a background process",
+	Long: `Start a named background process.
+
+Example:
+  bc process start web --cmd 'npm run dev'
+  bc process start api --cmd 'go run ./cmd/server' --port 8080`,
+	Args: cobra.ExactArgs(1),
+	RunE: runProcessStart,
+}
+
+var processListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List processes",
+	Long: `List all managed processes.
+
+Example:
+  bc process list`,
+	RunE: runProcessList,
+}
+
+var processStopCmd = &cobra.Command{
+	Use:   "stop <name>",
+	Short: "Stop a process",
+	Long: `Stop a running process.
+
+Example:
+  bc process stop web`,
+	Args: cobra.ExactArgs(1),
+	RunE: runProcessStop,
+}
+
+var processLogsCmd = &cobra.Command{
+	Use:   "logs <name>",
+	Short: "Show process info",
+	Long: `Show information for a process.
+
+Example:
+  bc process logs web`,
+	Args: cobra.ExactArgs(1),
+	RunE: runProcessLogs,
+}
+
+var (
+	processCommand string
+	processPort    int
+	processWorkDir string
+)
+
+func init() {
+	processStartCmd.Flags().StringVar(&processCommand, "cmd", "", "Command to run (required)")
+	processStartCmd.Flags().IntVar(&processPort, "port", 0, "Port the process will use (for conflict detection)")
+	processStartCmd.Flags().StringVar(&processWorkDir, "dir", "", "Working directory for the process")
+	_ = processStartCmd.MarkFlagRequired("cmd")
+
+	processCmd.AddCommand(processStartCmd)
+	processCmd.AddCommand(processListCmd)
+	processCmd.AddCommand(processStopCmd)
+	processCmd.AddCommand(processLogsCmd)
+	rootCmd.AddCommand(processCmd)
+}
+
+func getProcessRegistry() (*process.Registry, error) {
+	ws, err := getWorkspace()
+	if err != nil {
+		return nil, fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	reg := process.NewRegistry(ws.RootDir)
+	if err := reg.Init(); err != nil {
+		return nil, fmt.Errorf("failed to init process registry: %w", err)
+	}
+
+	return reg, nil
+}
+
+func runProcessStart(cmd *cobra.Command, args []string) error {
+	name := args[0]
+
+	reg, err := getProcessRegistry()
+	if err != nil {
+		return err
+	}
+
+	// Check if already registered
+	if existing := reg.Get(name); existing != nil && existing.Running {
+		return fmt.Errorf("process %q is already running (PID %d)", name, existing.PID)
+	}
+
+	// Check port conflict
+	if processPort > 0 && reg.IsPortInUse(processPort) {
+		conflict := reg.GetByPort(processPort)
+		return fmt.Errorf("port %d is already in use by process %q", processPort, conflict.Name)
+	}
+
+	// Parse command string into command and args
+	parts := strings.Fields(processCommand)
+	if len(parts) == 0 {
+		return fmt.Errorf("empty command")
+	}
+
+	command := parts[0]
+	cmdArgs := parts[1:]
+
+	// Get owner from environment
+	owner := os.Getenv("BC_AGENT_ID")
+
+	// Use current directory if no workdir specified
+	workDir := processWorkDir
+	if workDir == "" {
+		workDir, _ = os.Getwd()
+	}
+
+	// Start the process
+	execCmd := exec.CommandContext(context.Background(), command, cmdArgs...) //nolint:gosec // user-provided command
+	execCmd.Dir = workDir
+	execCmd.Stdout = nil // Detached
+	execCmd.Stderr = nil
+
+	if startErr := execCmd.Start(); startErr != nil {
+		return fmt.Errorf("failed to start process: %w", startErr)
+	}
+
+	// Register the process
+	proc := &process.Process{
+		Name:    name,
+		Command: processCommand,
+		Owner:   owner,
+		WorkDir: workDir,
+		PID:     execCmd.Process.Pid,
+		Port:    processPort,
+	}
+
+	if regErr := reg.Register(proc); regErr != nil {
+		// Kill the process if we can't register it
+		_ = execCmd.Process.Kill()
+		return fmt.Errorf("failed to register process: %w", regErr)
+	}
+
+	fmt.Printf("Started process %q (PID %d)\n", name, proc.PID)
+	if processPort > 0 {
+		fmt.Printf("  Port: %d\n", processPort)
+	}
+
+	return nil
+}
+
+func runProcessList(cmd *cobra.Command, args []string) error {
+	reg, err := getProcessRegistry()
+	if err != nil {
+		return err
+	}
+
+	procs := reg.List()
+	if len(procs) == 0 {
+		fmt.Println("No processes")
+		return nil
+	}
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintln(w, "NAME\tSTATUS\tPID\tPORT\tOWNER\tSTARTED")
+
+	for _, p := range procs {
+		status := "stopped"
+		if p.Running {
+			status = "running"
+		}
+		started := p.StartedAt.Format(time.RFC3339)
+		port := "-"
+		if p.Port > 0 {
+			port = fmt.Sprintf("%d", p.Port)
+		}
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\n",
+			p.Name, status, p.PID, port, p.Owner, started)
+	}
+
+	return w.Flush()
+}
+
+func runProcessStop(cmd *cobra.Command, args []string) error {
+	name := args[0]
+
+	reg, err := getProcessRegistry()
+	if err != nil {
+		return err
+	}
+
+	proc := reg.Get(name)
+	if proc == nil {
+		return fmt.Errorf("process %q not found", name)
+	}
+
+	if !proc.Running {
+		return fmt.Errorf("process %q is not running", name)
+	}
+
+	// Try to stop the process
+	if proc.PID > 0 {
+		p, findErr := os.FindProcess(proc.PID)
+		if findErr == nil {
+			// Try graceful shutdown first (SIGTERM)
+			if sigErr := p.Signal(syscall.SIGTERM); sigErr != nil {
+				// If SIGTERM fails, try SIGKILL
+				_ = p.Kill()
+			}
+		}
+	}
+
+	// Mark as stopped in registry
+	if stopErr := reg.MarkStopped(name); stopErr != nil {
+		return fmt.Errorf("failed to update registry: %w", stopErr)
+	}
+
+	fmt.Printf("Stopped process %q\n", name)
+	return nil
+}
+
+func runProcessLogs(cmd *cobra.Command, args []string) error {
+	name := args[0]
+
+	reg, err := getProcessRegistry()
+	if err != nil {
+		return err
+	}
+
+	proc := reg.Get(name)
+	if proc == nil {
+		return fmt.Errorf("process %q not found", name)
+	}
+
+	fmt.Printf("Process: %s\n", proc.Name)
+	fmt.Printf("Command: %s\n", proc.Command)
+	fmt.Printf("Status: %s\n", statusStr(proc.Running))
+	fmt.Printf("PID: %d\n", proc.PID)
+	if proc.Port > 0 {
+		fmt.Printf("Port: %d\n", proc.Port)
+	}
+	if proc.Owner != "" {
+		fmt.Printf("Owner: %s\n", proc.Owner)
+	}
+	if proc.WorkDir != "" {
+		fmt.Printf("WorkDir: %s\n", proc.WorkDir)
+	}
+	fmt.Printf("Started: %s\n", proc.StartedAt.Format(time.RFC3339))
+
+	fmt.Println("\n(Full log capture not yet implemented)")
+	return nil
+}
+
+func statusStr(running bool) string {
+	if running {
+		return "running"
+	}
+	return "stopped"
+}
