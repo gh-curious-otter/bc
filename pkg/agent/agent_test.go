@@ -1969,3 +1969,67 @@ func TestEnforceRootSingleton_RootErrorAllows(t *testing.T) {
 		t.Error("old root state should be deleted after allowing respawn")
 	}
 }
+
+// --- Memory Directory Tests ---
+
+func TestCreateMemoryDir(t *testing.T) {
+	workspace := t.TempDir()
+	agentName := "test-agent"
+
+	memoryDir, err := createMemoryDir(workspace, agentName)
+	if err != nil {
+		t.Fatalf("createMemoryDir failed: %v", err)
+	}
+
+	expectedDir := filepath.Join(workspace, ".bc", "memory", agentName)
+	if memoryDir != expectedDir {
+		t.Errorf("memoryDir = %q, want %q", memoryDir, expectedDir)
+	}
+
+	// Verify directory exists
+	if _, statErr := os.Stat(memoryDir); os.IsNotExist(statErr) {
+		t.Error("memory directory was not created")
+	}
+
+	// Verify experiences.jsonl exists
+	experiencesPath := filepath.Join(memoryDir, "experiences.jsonl")
+	if _, statErr := os.Stat(experiencesPath); os.IsNotExist(statErr) {
+		t.Error("experiences.jsonl was not created")
+	}
+
+	// Verify learnings.md exists and has header
+	learningsPath := filepath.Join(memoryDir, "learnings.md")
+	if _, statErr := os.Stat(learningsPath); os.IsNotExist(statErr) {
+		t.Error("learnings.md was not created")
+	}
+
+	// Read learnings.md content - path is constructed from test inputs
+	content, readErr := os.ReadFile(learningsPath) //nolint:gosec // test file path from t.TempDir()
+	if readErr != nil {
+		t.Fatalf("failed to read learnings.md: %v", readErr)
+	}
+	if len(content) == 0 {
+		t.Error("learnings.md is empty, expected header")
+	}
+}
+
+func TestCreateMemoryDir_Idempotent(t *testing.T) {
+	workspace := t.TempDir()
+	agentName := "test-agent"
+
+	// Create once
+	memoryDir1, err := createMemoryDir(workspace, agentName)
+	if err != nil {
+		t.Fatalf("first createMemoryDir failed: %v", err)
+	}
+
+	// Create again - should reuse existing
+	memoryDir2, err := createMemoryDir(workspace, agentName)
+	if err != nil {
+		t.Fatalf("second createMemoryDir failed: %v", err)
+	}
+
+	if memoryDir1 != memoryDir2 {
+		t.Errorf("memory dirs should match: %q != %q", memoryDir1, memoryDir2)
+	}
+}
