@@ -554,3 +554,386 @@ func TestRootStateStore_CheckRecovery_EmptySession(t *testing.T) {
 		t.Error("IsRunning should be false when session is empty")
 	}
 }
+
+// =============================================================================
+// Error Path Tests
+// =============================================================================
+
+func TestRootStateStore_LoadCorruptedJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// Create agents directory and write corrupted JSON
+	agentsDir := filepath.Join(tmpDir, "agents")
+	if err := os.MkdirAll(agentsDir, 0750); err != nil {
+		t.Fatalf("failed to create agents dir: %v", err)
+	}
+
+	corruptedJSON := []byte(`{"name": "manager", "role": "manager", invalid json here}`)
+	rootPath := filepath.Join(agentsDir, RootFileName)
+	if err := os.WriteFile(rootPath, corruptedJSON, 0600); err != nil {
+		t.Fatalf("failed to write corrupted file: %v", err)
+	}
+
+	_, err := store.Load()
+	if err == nil {
+		t.Fatal("Load should fail with corrupted JSON")
+	}
+
+	// Verify error message mentions unmarshal failure
+	if !errors.Is(err, err) || err.Error() == "" {
+		t.Logf("Got expected error: %v", err)
+	}
+	// The error should wrap the JSON unmarshal error
+	expectedSubstring := "failed to unmarshal root state"
+	if !containsSubstring(err.Error(), expectedSubstring) {
+		t.Errorf("error should contain %q, got: %v", expectedSubstring, err)
+	}
+}
+
+func TestRootStateStore_LoadReadPermissionError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// Create agents directory and valid root.json
+	agentsDir := filepath.Join(tmpDir, "agents")
+	if err := os.MkdirAll(agentsDir, 0750); err != nil {
+		t.Fatalf("failed to create agents dir: %v", err)
+	}
+
+	validJSON := []byte(`{"name": "manager", "role": "manager"}`)
+	rootPath := filepath.Join(agentsDir, RootFileName)
+	if err := os.WriteFile(rootPath, validJSON, 0600); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	// Remove read permissions
+	if err := os.Chmod(rootPath, 0000); err != nil {
+		t.Fatalf("failed to chmod: %v", err)
+	}
+	defer func() { _ = os.Chmod(rootPath, 0600) }() // Restore for cleanup
+
+	_, err := store.Load()
+	if err == nil {
+		t.Fatal("Load should fail with permission denied")
+	}
+
+	// Should NOT be ErrRootNotFound
+	if errors.Is(err, ErrRootNotFound) {
+		t.Error("error should NOT be ErrRootNotFound for permission issues")
+	}
+
+	// Should contain "failed to read"
+	if !containsSubstring(err.Error(), "failed to read root state") {
+		t.Errorf("error should mention read failure, got: %v", err)
+	}
+}
+
+func TestRootStateStore_SavePermissionError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// Create agents directory with no write permission
+	agentsDir := filepath.Join(tmpDir, "agents")
+	if err := os.MkdirAll(agentsDir, 0750); err != nil {
+		t.Fatalf("failed to create agents dir: %v", err)
+	}
+
+	// Remove write permissions from agents directory
+	if err := os.Chmod(agentsDir, 0500); err != nil { //nolint:gosec // testing permission errors
+		t.Fatalf("failed to chmod: %v", err)
+	}
+	defer func() { _ = os.Chmod(agentsDir, 0750) }() //nolint:gosec // restore for cleanup
+
+	state := &RootAgentState{
+		AgentState: AgentState{
+			Name: "manager",
+			Role: RoleManager,
+		},
+	}
+
+	err := store.Save(state)
+	if err == nil {
+		t.Fatal("Save should fail with permission denied")
+	}
+
+	// Should contain "failed to write temp file"
+	if !containsSubstring(err.Error(), "failed to write temp file") {
+		t.Errorf("error should mention write failure, got: %v", err)
+	}
+}
+
+func TestRootStateStore_SaveDirCreationError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	tmpDir := t.TempDir()
+
+	// Make the base directory read-only so agents subdir can't be created
+	if err := os.Chmod(tmpDir, 0500); err != nil { //nolint:gosec // testing permission errors
+		t.Fatalf("failed to chmod: %v", err)
+	}
+	defer func() { _ = os.Chmod(tmpDir, 0750) }() //nolint:gosec // restore for cleanup
+
+	store := NewRootStateStore(tmpDir)
+
+	state := &RootAgentState{
+		AgentState: AgentState{
+			Name: "manager",
+			Role: RoleManager,
+		},
+	}
+
+	err := store.Save(state)
+	if err == nil {
+		t.Fatal("Save should fail when agents directory cannot be created")
+	}
+
+	// Should contain "failed to create agents directory"
+	if !containsSubstring(err.Error(), "failed to create agents directory") {
+		t.Errorf("error should mention directory creation failure, got: %v", err)
+	}
+}
+
+func TestRootStateStore_GetOrCreate_LoadError(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// Create agents directory and write corrupted JSON
+	agentsDir := filepath.Join(tmpDir, "agents")
+	if err := os.MkdirAll(agentsDir, 0750); err != nil {
+		t.Fatalf("failed to create agents dir: %v", err)
+	}
+
+	corruptedJSON := []byte(`{invalid}`)
+	rootPath := filepath.Join(agentsDir, RootFileName)
+	if err := os.WriteFile(rootPath, corruptedJSON, 0600); err != nil {
+		t.Fatalf("failed to write corrupted file: %v", err)
+	}
+
+	// GetOrCreate should return the Load error (not ErrRootNotFound)
+	_, _, err := store.GetOrCreate("manager", RoleManager, "claude")
+	if err == nil {
+		t.Fatal("GetOrCreate should fail with corrupted existing file")
+	}
+
+	// Should NOT be ErrRootNotFound
+	if errors.Is(err, ErrRootNotFound) {
+		t.Error("should propagate unmarshal error, not ErrRootNotFound")
+	}
+}
+
+func TestRootStateStore_AddChildLoadError(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// Don't create any root - AddChild should fail on Load
+	err := store.AddChild("engineer-01")
+	if err == nil {
+		t.Fatal("AddChild should fail when root doesn't exist")
+	}
+
+	if !errors.Is(err, ErrRootNotFound) {
+		t.Errorf("expected ErrRootNotFound, got: %v", err)
+	}
+}
+
+func TestRootStateStore_RemoveChildLoadError(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// Don't create any root - RemoveChild should fail on Load
+	err := store.RemoveChild("engineer-01")
+	if err == nil {
+		t.Fatal("RemoveChild should fail when root doesn't exist")
+	}
+
+	if !errors.Is(err, ErrRootNotFound) {
+		t.Errorf("expected ErrRootNotFound, got: %v", err)
+	}
+}
+
+func TestRootStateStore_UpdateStateLoadError(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// Don't create any root - UpdateState should fail on Load
+	err := store.UpdateState(StateWorking)
+	if err == nil {
+		t.Fatal("UpdateState should fail when root doesn't exist")
+	}
+
+	if !errors.Is(err, ErrRootNotFound) {
+		t.Errorf("expected ErrRootNotFound, got: %v", err)
+	}
+}
+
+func TestRootStateStore_UpdateSessionLoadError(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// Don't create any root - UpdateSession should fail on Load
+	err := store.UpdateSession("bc-test")
+	if err == nil {
+		t.Fatal("UpdateSession should fail when root doesn't exist")
+	}
+
+	if !errors.Is(err, ErrRootNotFound) {
+		t.Errorf("expected ErrRootNotFound, got: %v", err)
+	}
+}
+
+func TestRootStateStore_CreateSaveError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	tmpDir := t.TempDir()
+
+	// Make the base directory read-only so agents subdir can't be created
+	if err := os.Chmod(tmpDir, 0500); err != nil { //nolint:gosec // testing permission errors
+		t.Fatalf("failed to chmod: %v", err)
+	}
+	defer func() { _ = os.Chmod(tmpDir, 0750) }() //nolint:gosec // restore for cleanup
+
+	store := NewRootStateStore(tmpDir)
+
+	_, err := store.Create("manager", RoleManager, "claude")
+	if err == nil {
+		t.Fatal("Create should fail when Save fails")
+	}
+
+	// Error should propagate from Save
+	if !containsSubstring(err.Error(), "failed to create agents directory") {
+		t.Errorf("error should mention directory creation failure, got: %v", err)
+	}
+}
+
+func TestRootStateStore_SaveRenameError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// Create agents directory normally
+	agentsDir := filepath.Join(tmpDir, "agents")
+	if err := os.MkdirAll(agentsDir, 0750); err != nil {
+		t.Fatalf("failed to create agents dir: %v", err)
+	}
+
+	// Create root.json as a directory (which will cause rename to fail)
+	rootPath := filepath.Join(agentsDir, RootFileName)
+	if err := os.MkdirAll(rootPath, 0750); err != nil {
+		t.Fatalf("failed to create root.json as dir: %v", err)
+	}
+
+	state := &RootAgentState{
+		AgentState: AgentState{
+			Name: "manager",
+			Role: RoleManager,
+		},
+	}
+
+	err := store.Save(state)
+	if err == nil {
+		t.Fatal("Save should fail when rename fails (target is directory)")
+	}
+
+	// Should contain "failed to rename temp file"
+	if !containsSubstring(err.Error(), "failed to rename temp file") {
+		t.Errorf("error should mention rename failure, got: %v", err)
+	}
+
+	// Temp file should be cleaned up
+	tempPath := filepath.Join(agentsDir, "."+RootFileName+".tmp")
+	if _, statErr := os.Stat(tempPath); !os.IsNotExist(statErr) {
+		t.Error("temp file should be cleaned up after rename failure")
+	}
+}
+
+func TestRootStateStore_GetOrCreate_CreateError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	tmpDir := t.TempDir()
+
+	// Make the base directory read-only so agents subdir can't be created
+	if err := os.Chmod(tmpDir, 0500); err != nil { //nolint:gosec // testing permission errors
+		t.Fatalf("failed to chmod: %v", err)
+	}
+	defer func() { _ = os.Chmod(tmpDir, 0750) }() //nolint:gosec // restore for cleanup
+
+	store := NewRootStateStore(tmpDir)
+
+	// GetOrCreate should try to create (no existing root) and fail
+	_, _, err := store.GetOrCreate("manager", RoleManager, "claude")
+	if err == nil {
+		t.Fatal("GetOrCreate should fail when Create fails")
+	}
+
+	// Error should propagate from Create/Save
+	if !containsSubstring(err.Error(), "failed to create agents directory") {
+		t.Errorf("error should mention directory creation failure, got: %v", err)
+	}
+}
+
+func TestRootStateStore_DeleteError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// Create agents directory
+	agentsDir := filepath.Join(tmpDir, "agents")
+	if err := os.MkdirAll(agentsDir, 0750); err != nil {
+		t.Fatalf("failed to create agents dir: %v", err)
+	}
+
+	// Create root.json as a non-empty directory (can't be removed with os.Remove)
+	rootPath := filepath.Join(agentsDir, RootFileName)
+	if err := os.MkdirAll(rootPath, 0750); err != nil {
+		t.Fatalf("failed to create root.json as dir: %v", err)
+	}
+	// Add a file inside so it's not empty
+	if err := os.WriteFile(filepath.Join(rootPath, "dummy.txt"), []byte("test"), 0600); err != nil {
+		t.Fatalf("failed to write dummy file: %v", err)
+	}
+
+	err := store.Delete()
+	if err == nil {
+		t.Fatal("Delete should fail when target is non-empty directory")
+	}
+
+	// Should contain "failed to delete"
+	if !containsSubstring(err.Error(), "failed to delete root state") {
+		t.Errorf("error should mention delete failure, got: %v", err)
+	}
+}
+
+// containsSubstring is a helper to check if a string contains a substring.
+func containsSubstring(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
+}
+
+func containsHelper(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
