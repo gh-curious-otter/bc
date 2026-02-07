@@ -249,3 +249,371 @@ func TestParseV2ConfigInvalid(t *testing.T) {
 		t.Error("expected error for invalid TOML")
 	}
 }
+
+func TestV2ConfigGetTool_Cursor(t *testing.T) {
+	cfg := V2Config{
+		Workspace: WorkspaceConfig{Name: "test", Version: 2},
+		Tools: ToolsConfig{
+			Default: "cursor",
+			Cursor: &ToolConfig{
+				Command: "cursor --wait",
+				Enabled: true,
+			},
+		},
+		Memory: MemoryConfig{Backend: "file", Path: ".bc/memory"},
+	}
+
+	// Validate should pass with cursor as default
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("validation failed: %v", err)
+	}
+
+	// GetTool should return cursor config
+	tool := cfg.GetTool("cursor")
+	if tool == nil {
+		t.Fatal("expected cursor tool config")
+	}
+	if tool.Command != "cursor --wait" {
+		t.Errorf("expected command 'cursor --wait', got %q", tool.Command)
+	}
+	if !tool.Enabled {
+		t.Error("expected cursor to be enabled")
+	}
+
+	// Claude should be nil when not configured
+	if cfg.GetTool("claude") != nil {
+		t.Error("expected nil for unconfigured claude")
+	}
+}
+
+func TestV2ConfigGetTool_Codex(t *testing.T) {
+	cfg := V2Config{
+		Workspace: WorkspaceConfig{Name: "test", Version: 2},
+		Tools: ToolsConfig{
+			Default: "codex",
+			Codex: &ToolConfig{
+				Command: "codex --full-auto",
+				Enabled: true,
+			},
+		},
+		Memory: MemoryConfig{Backend: "file", Path: ".bc/memory"},
+	}
+
+	// Validate should pass with codex as default
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("validation failed: %v", err)
+	}
+
+	// GetTool should return codex config
+	tool := cfg.GetTool("codex")
+	if tool == nil {
+		t.Fatal("expected codex tool config")
+	}
+	if tool.Command != "codex --full-auto" {
+		t.Errorf("expected command 'codex --full-auto', got %q", tool.Command)
+	}
+	if !tool.Enabled {
+		t.Error("expected codex to be enabled")
+	}
+
+	// Cursor should be nil when not configured
+	if cfg.GetTool("cursor") != nil {
+		t.Error("expected nil for unconfigured cursor")
+	}
+}
+
+func TestV2ConfigCustomTools(t *testing.T) {
+	cfg := V2Config{
+		Workspace: WorkspaceConfig{Name: "test", Version: 2},
+		Tools: ToolsConfig{
+			Default: "my-custom-agent",
+			Custom: map[string]ToolConfig{
+				"my-custom-agent": {
+					Command: "/usr/local/bin/my-agent --special-flag",
+					Enabled: true,
+				},
+				"another-tool": {
+					Command: "another-tool run",
+					Enabled: false,
+				},
+			},
+		},
+		Memory: MemoryConfig{Backend: "file", Path: ".bc/memory"},
+	}
+
+	// Validate should pass with custom tool as default
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("validation failed: %v", err)
+	}
+
+	// GetTool should return custom tool config
+	tool := cfg.GetTool("my-custom-agent")
+	if tool == nil {
+		t.Fatal("expected custom tool config")
+	}
+	if tool.Command != "/usr/local/bin/my-agent --special-flag" {
+		t.Errorf("unexpected command: %q", tool.Command)
+	}
+	if !tool.Enabled {
+		t.Error("expected custom tool to be enabled")
+	}
+
+	// GetTool should return second custom tool
+	tool2 := cfg.GetTool("another-tool")
+	if tool2 == nil {
+		t.Fatal("expected another-tool config")
+	}
+	if tool2.Command != "another-tool run" {
+		t.Errorf("unexpected command: %q", tool2.Command)
+	}
+	if tool2.Enabled {
+		t.Error("expected another-tool to be disabled")
+	}
+
+	// GetDefaultTool should return the custom default
+	defaultTool := cfg.GetDefaultTool()
+	if defaultTool == nil {
+		t.Fatal("expected default tool config")
+	}
+	if defaultTool.Command != "/usr/local/bin/my-agent --special-flag" {
+		t.Errorf("unexpected default tool command: %q", defaultTool.Command)
+	}
+
+	// Non-existent custom tool should return nil
+	if cfg.GetTool("undefined-tool") != nil {
+		t.Error("expected nil for undefined custom tool")
+	}
+}
+
+func TestV2ConfigHasToolDefined(t *testing.T) {
+	tests := []struct {
+		name     string
+		toolName string
+		cfg      V2Config
+		want     bool
+	}{
+		{
+			name:     "claude defined",
+			toolName: "claude",
+			cfg: V2Config{
+				Tools: ToolsConfig{Claude: &ToolConfig{Command: "claude"}},
+			},
+			want: true,
+		},
+		{
+			name:     "claude not defined",
+			toolName: "claude",
+			cfg:      V2Config{Tools: ToolsConfig{}},
+			want:     false,
+		},
+		{
+			name:     "cursor defined",
+			toolName: "cursor",
+			cfg: V2Config{
+				Tools: ToolsConfig{Cursor: &ToolConfig{Command: "cursor"}},
+			},
+			want: true,
+		},
+		{
+			name:     "cursor not defined",
+			toolName: "cursor",
+			cfg:      V2Config{Tools: ToolsConfig{}},
+			want:     false,
+		},
+		{
+			name:     "codex defined",
+			toolName: "codex",
+			cfg: V2Config{
+				Tools: ToolsConfig{Codex: &ToolConfig{Command: "codex"}},
+			},
+			want: true,
+		},
+		{
+			name:     "codex not defined",
+			toolName: "codex",
+			cfg:      V2Config{Tools: ToolsConfig{}},
+			want:     false,
+		},
+		{
+			name:     "custom tool defined",
+			toolName: "my-agent",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					Custom: map[string]ToolConfig{
+						"my-agent": {Command: "my-agent"},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name:     "custom tool not defined",
+			toolName: "my-agent",
+			cfg: V2Config{
+				Tools: ToolsConfig{Custom: map[string]ToolConfig{}},
+			},
+			want: false,
+		},
+		{
+			name:     "custom tool with nil map",
+			toolName: "my-agent",
+			cfg:      V2Config{Tools: ToolsConfig{}},
+			want:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.cfg.hasToolDefined(tt.toolName)
+			if got != tt.want {
+				t.Errorf("hasToolDefined(%q) = %v, want %v", tt.toolName, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestV2ConfigValidation_ToolVariants(t *testing.T) {
+	tests := []struct {
+		name    string
+		wantErr error
+		cfg     V2Config
+	}{
+		{
+			name:    "valid with cursor default",
+			wantErr: nil,
+			cfg: V2Config{
+				Workspace: WorkspaceConfig{Name: "test", Version: 2},
+				Tools: ToolsConfig{
+					Default: "cursor",
+					Cursor:  &ToolConfig{Command: "cursor", Enabled: true},
+				},
+				Memory: MemoryConfig{Backend: "file", Path: ".bc/memory"},
+			},
+		},
+		{
+			name:    "valid with codex default",
+			wantErr: nil,
+			cfg: V2Config{
+				Workspace: WorkspaceConfig{Name: "test", Version: 2},
+				Tools: ToolsConfig{
+					Default: "codex",
+					Codex:   &ToolConfig{Command: "codex", Enabled: true},
+				},
+				Memory: MemoryConfig{Backend: "file", Path: ".bc/memory"},
+			},
+		},
+		{
+			name:    "valid with custom tool default",
+			wantErr: nil,
+			cfg: V2Config{
+				Workspace: WorkspaceConfig{Name: "test", Version: 2},
+				Tools: ToolsConfig{
+					Default: "my-tool",
+					Custom: map[string]ToolConfig{
+						"my-tool": {Command: "my-tool", Enabled: true},
+					},
+				},
+				Memory: MemoryConfig{Backend: "file", Path: ".bc/memory"},
+			},
+		},
+		{
+			name:    "cursor default but not defined",
+			wantErr: ErrDefaultToolNotFound,
+			cfg: V2Config{
+				Workspace: WorkspaceConfig{Name: "test", Version: 2},
+				Tools:     ToolsConfig{Default: "cursor"},
+				Memory:    MemoryConfig{Backend: "file", Path: ".bc/memory"},
+			},
+		},
+		{
+			name:    "codex default but not defined",
+			wantErr: ErrDefaultToolNotFound,
+			cfg: V2Config{
+				Workspace: WorkspaceConfig{Name: "test", Version: 2},
+				Tools:     ToolsConfig{Default: "codex"},
+				Memory:    MemoryConfig{Backend: "file", Path: ".bc/memory"},
+			},
+		},
+		{
+			name:    "custom default but not defined",
+			wantErr: ErrDefaultToolNotFound,
+			cfg: V2Config{
+				Workspace: WorkspaceConfig{Name: "test", Version: 2},
+				Tools:     ToolsConfig{Default: "undefined-custom"},
+				Memory:    MemoryConfig{Backend: "file", Path: ".bc/memory"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cfg.Validate()
+			if err != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestParseV2Config_MultipleTools(t *testing.T) {
+	tomlData := []byte(`
+[workspace]
+name = "multi-tool-project"
+version = 2
+
+[tools]
+default = "claude"
+
+[tools.claude]
+command = "claude --dangerously-skip-permissions"
+enabled = true
+
+[tools.cursor]
+command = "cursor --wait"
+enabled = true
+
+[tools.codex]
+command = "codex --full-auto"
+enabled = false
+
+[memory]
+backend = "file"
+path = ".bc/memory"
+`)
+
+	cfg, err := ParseV2Config(tomlData)
+	if err != nil {
+		t.Fatalf("failed to parse config: %v", err)
+	}
+
+	// Verify all tools are parsed
+	if cfg.Tools.Claude == nil {
+		t.Error("expected claude to be configured")
+	}
+	if cfg.Tools.Cursor == nil {
+		t.Error("expected cursor to be configured")
+	}
+	if cfg.Tools.Codex == nil {
+		t.Error("expected codex to be configured")
+	}
+
+	// Verify tool properties
+	if cfg.Tools.Cursor.Command != "cursor --wait" {
+		t.Errorf("unexpected cursor command: %q", cfg.Tools.Cursor.Command)
+	}
+	if !cfg.Tools.Cursor.Enabled {
+		t.Error("expected cursor to be enabled")
+	}
+
+	if cfg.Tools.Codex.Command != "codex --full-auto" {
+		t.Errorf("unexpected codex command: %q", cfg.Tools.Codex.Command)
+	}
+	if cfg.Tools.Codex.Enabled {
+		t.Error("expected codex to be disabled")
+	}
+
+	// Validation should pass
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("validation failed: %v", err)
+	}
+}
