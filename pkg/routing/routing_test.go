@@ -117,3 +117,112 @@ func TestRouteToRoleNoAgents(t *testing.T) {
 		t.Error("expected error when no engineers available")
 	}
 }
+
+func TestRouteTaskUnknownType(t *testing.T) {
+	dir := t.TempDir()
+	agentsDir := filepath.Join(dir, ".bc", "agents")
+	mgr := agent.NewManager(agentsDir)
+
+	router := NewRouter(mgr)
+
+	item := &queue.WorkItem{Type: "unknown-type"}
+	_, err := router.RouteTask(item)
+	if err == nil {
+		t.Error("expected error for unknown task type")
+	}
+}
+
+func TestNewRouter(t *testing.T) {
+	dir := t.TempDir()
+	agentsDir := filepath.Join(dir, ".bc", "agents")
+	mgr := agent.NewManager(agentsDir)
+
+	router := NewRouter(mgr)
+
+	if router == nil {
+		t.Fatal("NewRouter returned nil")
+	}
+	if router.mgr != mgr {
+		t.Error("router.mgr not set correctly")
+	}
+	if router.lastAssigned == nil {
+		t.Error("router.lastAssigned not initialized")
+	}
+}
+
+func TestRouteTaskAllTaskTypes(t *testing.T) {
+	dir := t.TempDir()
+	agentsDir := filepath.Join(dir, ".bc", "agents")
+	mgr := agent.NewManager(agentsDir)
+
+	router := NewRouter(mgr)
+
+	// Test all known task types route to expected roles (without agents = error)
+	taskTypes := []queue.TaskType{
+		queue.TaskTypeCode,
+		queue.TaskTypeReview,
+		queue.TaskTypeMerge,
+		queue.TaskTypeQA,
+	}
+
+	for _, taskType := range taskTypes {
+		t.Run(string(taskType), func(t *testing.T) {
+			item := &queue.WorkItem{Type: taskType}
+			_, err := router.RouteTask(item)
+			// Should fail due to no agents, but should get past the type check
+			if err == nil {
+				t.Error("expected error (no agents), got nil")
+			}
+			// Error should be about no agents, not unknown type
+			if err != nil && err.Error() == "unknown task type: "+string(taskType) {
+				t.Errorf("task type %s should be known", taskType)
+			}
+		})
+	}
+}
+
+func TestTaskTypeToRoleAllMapped(t *testing.T) {
+	// Verify all expected task types are mapped
+	expectedMappings := map[queue.TaskType]agent.Role{
+		queue.TaskTypeCode:   agent.RoleEngineer,
+		queue.TaskTypeReview: agent.RoleTechLead,
+		queue.TaskTypeMerge:  agent.RoleManager,
+		queue.TaskTypeQA:     agent.RoleQA,
+	}
+
+	for taskType, expectedRole := range expectedMappings {
+		role, ok := TaskTypeToRole[taskType]
+		if !ok {
+			t.Errorf("TaskTypeToRole missing mapping for %s", taskType)
+			continue
+		}
+		if role != expectedRole {
+			t.Errorf("TaskTypeToRole[%s] = %s, want %s", taskType, role, expectedRole)
+		}
+	}
+}
+
+func TestRouteToRoleMultipleRoles(t *testing.T) {
+	dir := t.TempDir()
+	agentsDir := filepath.Join(dir, ".bc", "agents")
+	mgr := agent.NewManager(agentsDir)
+
+	router := NewRouter(mgr)
+
+	// Test all roles fail without agents
+	roles := []agent.Role{
+		agent.RoleEngineer,
+		agent.RoleTechLead,
+		agent.RoleManager,
+		agent.RoleQA,
+	}
+
+	for _, role := range roles {
+		t.Run(string(role), func(t *testing.T) {
+			_, err := router.RouteToRole(role)
+			if err == nil {
+				t.Errorf("expected error for role %s with no agents", role)
+			}
+		})
+	}
+}
