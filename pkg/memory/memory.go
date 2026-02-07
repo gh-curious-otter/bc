@@ -1,0 +1,181 @@
+// Package memory provides per-agent memory storage for experiences and learnings.
+package memory
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"time"
+)
+
+// Experience represents a recorded task outcome.
+type Experience struct {
+	Timestamp   time.Time      `json:"timestamp"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
+	TaskID      string         `json:"task_id,omitempty"`
+	TaskType    string         `json:"task_type,omitempty"`
+	Description string         `json:"description"`
+	Outcome     string         `json:"outcome"`
+	Learnings   []string       `json:"learnings,omitempty"`
+}
+
+// Store provides memory storage for an agent.
+type Store struct {
+	agentName string
+	memoryDir string
+}
+
+// NewStore creates a new memory store for an agent.
+func NewStore(rootDir, agentName string) *Store {
+	return &Store{
+		agentName: agentName,
+		memoryDir: filepath.Join(rootDir, ".bc", "memory", agentName),
+	}
+}
+
+// Init creates the memory directory structure for an agent.
+// Creates:
+//   - .bc/memory/<agent-name>/
+//   - .bc/memory/<agent-name>/experiences.jsonl
+//   - .bc/memory/<agent-name>/learnings.md
+func (s *Store) Init() error {
+	// Create memory directory
+	if err := os.MkdirAll(s.memoryDir, 0750); err != nil {
+		return fmt.Errorf("failed to create memory directory: %w", err)
+	}
+
+	// Initialize experiences.jsonl if it doesn't exist
+	experiencesPath := s.experiencesPath()
+	if _, err := os.Stat(experiencesPath); os.IsNotExist(err) {
+		f, createErr := os.Create(experiencesPath) //nolint:gosec // path constructed from trusted memoryDir
+		if createErr != nil {
+			return fmt.Errorf("failed to create experiences file: %w", createErr)
+		}
+		_ = f.Close()
+	}
+
+	// Initialize learnings.md if it doesn't exist
+	learningsPath := s.learningsPath()
+	if _, err := os.Stat(learningsPath); os.IsNotExist(err) {
+		initialContent := fmt.Sprintf("# %s Learnings\n\nThis file contains insights and learnings accumulated by %s.\n\n", s.agentName, s.agentName)
+		if writeErr := os.WriteFile(learningsPath, []byte(initialContent), 0600); writeErr != nil { //nolint:gosec // path constructed from trusted memoryDir
+			return fmt.Errorf("failed to create learnings file: %w", writeErr)
+		}
+	}
+
+	return nil
+}
+
+// Exists checks if the memory directory exists for this agent.
+func (s *Store) Exists() bool {
+	_, err := os.Stat(s.memoryDir)
+	return err == nil
+}
+
+// RecordExperience appends an experience to the experiences.jsonl file.
+func (s *Store) RecordExperience(exp Experience) error {
+	if exp.Timestamp.IsZero() {
+		exp.Timestamp = time.Now().UTC()
+	}
+
+	f, err := os.OpenFile(s.experiencesPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) //nolint:gosec // path constructed from trusted memoryDir
+	if err != nil {
+		return fmt.Errorf("failed to open experiences file: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	data, marshalErr := json.Marshal(exp)
+	if marshalErr != nil {
+		return fmt.Errorf("failed to marshal experience: %w", marshalErr)
+	}
+
+	if _, writeErr := f.Write(append(data, '\n')); writeErr != nil {
+		return fmt.Errorf("failed to write experience: %w", writeErr)
+	}
+
+	return nil
+}
+
+// AddLearning appends a learning to the learnings.md file.
+func (s *Store) AddLearning(category, learning string) error {
+	f, err := os.OpenFile(s.learningsPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) //nolint:gosec // path constructed from trusted memoryDir
+	if err != nil {
+		return fmt.Errorf("failed to open learnings file: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	entry := fmt.Sprintf("\n## %s\n\n- %s\n", category, learning)
+	if _, writeErr := f.WriteString(entry); writeErr != nil {
+		return fmt.Errorf("failed to write learning: %w", writeErr)
+	}
+
+	return nil
+}
+
+// GetExperiences reads all experiences from the experiences.jsonl file.
+func (s *Store) GetExperiences() ([]Experience, error) {
+	data, err := os.ReadFile(s.experiencesPath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to read experiences: %w", err)
+	}
+
+	var experiences []Experience
+	lines := splitLines(data)
+	for _, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
+		var exp Experience
+		if unmarshalErr := json.Unmarshal(line, &exp); unmarshalErr != nil {
+			continue // Skip malformed lines
+		}
+		experiences = append(experiences, exp)
+	}
+
+	return experiences, nil
+}
+
+// GetLearnings reads the learnings.md file content.
+func (s *Store) GetLearnings() (string, error) {
+	data, err := os.ReadFile(s.learningsPath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("failed to read learnings: %w", err)
+	}
+	return string(data), nil
+}
+
+// MemoryDir returns the path to the agent's memory directory.
+func (s *Store) MemoryDir() string {
+	return s.memoryDir
+}
+
+func (s *Store) experiencesPath() string {
+	return filepath.Join(s.memoryDir, "experiences.jsonl")
+}
+
+func (s *Store) learningsPath() string {
+	return filepath.Join(s.memoryDir, "learnings.md")
+}
+
+// splitLines splits byte data into lines.
+func splitLines(data []byte) [][]byte {
+	var lines [][]byte
+	start := 0
+	for i, b := range data {
+		if b == '\n' {
+			lines = append(lines, data[start:i])
+			start = i + 1
+		}
+	}
+	if start < len(data) {
+		lines = append(lines, data[start:])
+	}
+	return lines
+}
