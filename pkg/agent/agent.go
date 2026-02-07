@@ -183,6 +183,7 @@ type Agent struct {
 	ParentID    string       `json:"parent_id,omitempty"`
 	HookedWork  string       `json:"hooked_work,omitempty"`
 	WorktreeDir string       `json:"worktree_dir,omitempty"`
+	MemoryDir   string       `json:"memory_dir,omitempty"`
 	Team        string       `json:"team,omitempty"`
 	Role        Role         `json:"role"`
 	State       State        `json:"state"`
@@ -462,6 +463,14 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	}
 	agent.WorktreeDir = worktreeDir
 
+	// Create memory directory for agent
+	memoryDir, err := createMemoryDir(workspace, name)
+	if err != nil {
+		log.Warn("failed to create memory dir", "agent", name, "error", err)
+	} else {
+		agent.MemoryDir = memoryDir
+	}
+
 	// Install git wrapper for worktree enforcement
 	if err := ensureGitWrapper(workspace); err != nil {
 		log.Warn("failed to install git wrapper", "error", err)
@@ -480,6 +489,9 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	}
 	if parentID != "" {
 		env["BC_PARENT_ID"] = parentID
+	}
+	if agent.MemoryDir != "" {
+		env["BC_AGENT_MEMORY"] = agent.MemoryDir
 	}
 
 	// Create tmux session in the agent's worktree directory
@@ -594,6 +606,41 @@ func ensureGitWrapper(workspace string) error {
 	}
 
 	return nil
+}
+
+// createMemoryDir creates the per-agent memory directory structure.
+// Memory is stored in .bc/memory/<agent-name>/ with:
+// - experiences.jsonl for task outcomes
+// - learnings.md for agent insights
+func createMemoryDir(workspace, agentName string) (string, error) {
+	memoryDir := filepath.Join(workspace, ".bc", "memory", agentName)
+
+	// If memory dir already exists, reuse it
+	if _, err := os.Stat(memoryDir); err == nil {
+		log.Debug("reusing existing memory dir", "agent", agentName, "dir", memoryDir)
+		return memoryDir, nil
+	}
+
+	// Create memory directory
+	if err := os.MkdirAll(memoryDir, 0750); err != nil {
+		return "", fmt.Errorf("failed to create memory dir: %w", err)
+	}
+
+	// Initialize experiences.jsonl (empty JSONL file)
+	experiencesPath := filepath.Join(memoryDir, "experiences.jsonl")
+	if err := os.WriteFile(experiencesPath, []byte{}, 0600); err != nil {
+		return "", fmt.Errorf("failed to create experiences.jsonl: %w", err)
+	}
+
+	// Initialize learnings.md with header
+	learningsPath := filepath.Join(memoryDir, "learnings.md")
+	learningsContent := fmt.Sprintf("# %s Learnings\n\nAgent insights and lessons learned.\n", agentName)
+	if err := os.WriteFile(learningsPath, []byte(learningsContent), 0600); err != nil {
+		return "", fmt.Errorf("failed to create learnings.md: %w", err)
+	}
+
+	log.Debug("created memory dir", "agent", agentName, "dir", memoryDir)
+	return memoryDir, nil
 }
 
 // removeWorktree removes a per-agent git worktree.
