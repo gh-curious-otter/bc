@@ -61,13 +61,17 @@ var queueCompleteCmd = &cobra.Command{
 }
 
 var (
-	queueDesc     string
-	queueDetailID string
+	queueDesc       string
+	queueDetailID   string
+	queueFilterType string
+	queueAddType    string
 )
 
 func init() {
 	queueAddCmd.Flags().StringVarP(&queueDesc, "desc", "d", "", "Work item description")
+	queueAddCmd.Flags().StringVar(&queueAddType, "type", "code", "Task type (code, review, merge, qa)")
 	queueCmd.Flags().StringVar(&queueDetailID, "detail", "", "Show full details for a specific work item")
+	queueCmd.Flags().StringVar(&queueFilterType, "type", "", "Filter by task type (code, review, merge, qa)")
 	queueCmd.AddCommand(queueAddCmd)
 	queueCmd.AddCommand(queueAssignCmd)
 	queueCmd.AddCommand(queueCompleteCmd)
@@ -102,7 +106,18 @@ func runQueueList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	items := q.ListAll()
+
+	// Get items - filter by type if specified
+	var items []queue.WorkItem
+	if queueFilterType != "" {
+		taskType := queue.TaskType(queueFilterType)
+		if !isValidTaskType(taskType) {
+			return fmt.Errorf("invalid task type: %s (valid: code, review, merge, qa)", queueFilterType)
+		}
+		items = q.ListByType(taskType)
+	} else {
+		items = q.ListAll()
+	}
 
 	jsonOutput, err := cmd.Flags().GetBool("json")
 	if err != nil {
@@ -123,8 +138,8 @@ func runQueueList(cmd *cobra.Command, args []string) error {
 	}
 
 	// Table header
-	fmt.Printf("%-10s %-10s %-10s %-15s %-40s %s\n", "ID", "STATUS", "MERGE", "ASSIGNED", "TITLE", "BEADS")
-	fmt.Println(strings.Repeat("-", 100))
+	fmt.Printf("%-10s %-8s %-10s %-10s %-12s %-35s %s\n", "ID", "TYPE", "STATUS", "MERGE", "ASSIGNED", "TITLE", "BEADS")
+	fmt.Println(strings.Repeat("-", 105))
 
 	for _, item := range items {
 		assigned := item.AssignedTo
@@ -136,15 +151,16 @@ func runQueueList(cmd *cobra.Command, args []string) error {
 			beadsID = "-"
 		}
 		title := item.Title
-		if len(title) > 38 {
-			title = title[:35] + "..."
+		if len(title) > 33 {
+			title = title[:30] + "..."
 		}
 
 		stateStr := colorQueueStatus(item.Status)
 		mergeStr := colorMergeStatus(item.Merge)
+		typeStr := colorTaskType(item.EffectiveType())
 
-		fmt.Printf("%-10s %s %s %-15s %-40s %s\n",
-			item.ID, stateStr, mergeStr, assigned, title, beadsID,
+		fmt.Printf("%-10s %s %s %s %-12s %-35s %s\n",
+			item.ID, typeStr, stateStr, mergeStr, assigned, title, beadsID,
 		)
 	}
 
@@ -192,6 +208,7 @@ func runQueueDetail(cmd *cobra.Command, itemID string) error {
 
 	fmt.Printf("ID:        %s\n", item.ID)
 	fmt.Printf("Title:     %s\n", item.Title)
+	fmt.Printf("Type:      %s\n", item.EffectiveType())
 	fmt.Printf("Status:    %s\n", item.Status)
 	fmt.Printf("Assigned:  %s\n", assigned)
 	fmt.Printf("Beads ID:  %s\n", beadsID)
@@ -255,12 +272,19 @@ func runQueueAdd(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	item := q.Add(title, queueDesc, "")
+
+	// Parse task type
+	taskType := queue.TaskType(queueAddType)
+	if !isValidTaskType(taskType) {
+		return fmt.Errorf("invalid task type: %s (valid: code, review, merge, qa)", queueAddType)
+	}
+
+	item := q.AddWithType(title, queueDesc, "", taskType)
 	if err := q.Save(); err != nil {
 		return fmt.Errorf("failed to save queue: %w", err)
 	}
 
-	fmt.Printf("Added %s: %s\n", item.ID, item.Title)
+	fmt.Printf("Added %s (%s): %s\n", item.ID, item.Type, item.Title)
 	return nil
 }
 
@@ -477,5 +501,39 @@ func colorQueueStatus(s queue.ItemStatus) string {
 		return red + padded + reset
 	default:
 		return padded
+	}
+}
+
+func colorTaskType(t queue.TaskType) string {
+	const (
+		reset  = "\033[0m"
+		blue   = "\033[34m"
+		green  = "\033[32m"
+		yellow = "\033[33m"
+		cyan   = "\033[36m"
+	)
+
+	padded := fmt.Sprintf("%-8s", t)
+
+	switch t {
+	case queue.TaskTypeCode:
+		return cyan + padded + reset
+	case queue.TaskTypeReview:
+		return blue + padded + reset
+	case queue.TaskTypeMerge:
+		return green + padded + reset
+	case queue.TaskTypeQA:
+		return yellow + padded + reset
+	default:
+		return padded
+	}
+}
+
+func isValidTaskType(t queue.TaskType) bool {
+	switch t {
+	case queue.TaskTypeCode, queue.TaskTypeReview, queue.TaskTypeMerge, queue.TaskTypeQA:
+		return true
+	default:
+		return false
 	}
 }
