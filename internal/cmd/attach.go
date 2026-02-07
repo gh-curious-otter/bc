@@ -9,8 +9,9 @@ import (
 )
 
 var attachCmd = &cobra.Command{
-	Use:   "attach <agent>",
-	Short: "Attach to an agent's tmux session",
+	Use:        "attach <agent>",
+	Short:      "Attach to an agent's tmux session (deprecated: use 'bc agent attach')",
+	Deprecated: "use 'bc agent attach' instead",
 	Long: `Attach to an agent's tmux session to interact with it directly.
 
 This opens the tmux session where the agent (Claude) is running.
