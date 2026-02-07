@@ -1724,20 +1724,26 @@ func TestCreateDefaultChannelsIntegration(t *testing.T) {
 		t.Errorf("expected creation message, got: %s", output)
 	}
 
-	// Verify channels were created
-	store := channel.NewStore(tmpDir)
-	if err := store.Load(); err != nil {
-		t.Fatalf("failed to load channels: %v", err)
+	// Verify channels were created in SQLite store
+	store := channel.NewSQLiteStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("failed to open channel store: %v", err)
 	}
+	defer func() { _ = store.Close() }()
 
 	// Check required channels exist
 	for _, name := range []string{"standup", "leadership", "engineering", "qa", "all"} {
-		ch, exists := store.Get(name)
-		if !exists {
+		ch, getErr := store.GetChannel(name)
+		if getErr != nil {
+			t.Errorf("error getting channel %q: %v", name, getErr)
+			continue
+		}
+		if ch == nil {
 			t.Errorf("expected channel %q to exist", name)
 			continue
 		}
-		if len(ch.Members) == 0 {
+		members, _ := store.GetMembers(name)
+		if len(members) == 0 {
 			t.Errorf("channel %q should have members", name)
 		}
 	}
