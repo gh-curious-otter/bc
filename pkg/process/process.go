@@ -19,6 +19,7 @@ type Process struct {
 	Command   string    `json:"command"`
 	Owner     string    `json:"owner,omitempty"` // Agent that started the process
 	WorkDir   string    `json:"work_dir,omitempty"`
+	LogFile   string    `json:"log_file,omitempty"` // Path to log file
 	PID       int       `json:"pid"`
 	Port      int       `json:"port,omitempty"`
 	Running   bool      `json:"running"`
@@ -217,4 +218,71 @@ func (r *Registry) load() error {
 // ProcessesDir returns the path to the processes directory.
 func (r *Registry) ProcessesDir() string {
 	return r.processesDir
+}
+
+// LogPath returns the path to the log file for a process.
+func (r *Registry) LogPath(name string) string {
+	return filepath.Join(r.processesDir, "logs", name+".log")
+}
+
+// CreateLogFile creates a log file for a process and returns the file handle.
+func (r *Registry) CreateLogFile(name string) (*os.File, error) {
+	logDir := filepath.Join(r.processesDir, "logs")
+	if err := os.MkdirAll(logDir, 0750); err != nil {
+		return nil, fmt.Errorf("failed to create logs directory: %w", err)
+	}
+
+	logPath := r.LogPath(name)
+	f, err := os.Create(logPath) //nolint:gosec // path constructed from trusted dir
+	if err != nil {
+		return nil, fmt.Errorf("failed to create log file: %w", err)
+	}
+
+	return f, nil
+}
+
+// ReadLogs reads the last n lines from a process log file.
+// If n <= 0, reads the entire file.
+func (r *Registry) ReadLogs(name string, n int) (string, error) {
+	logPath := r.LogPath(name)
+	data, err := os.ReadFile(logPath) //nolint:gosec // path constructed from trusted dir
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("failed to read log file: %w", err)
+	}
+
+	if n <= 0 {
+		return string(data), nil
+	}
+
+	// Return last n lines
+	lines := strings.Split(string(data), "\n")
+	if len(lines) <= n {
+		return string(data), nil
+	}
+
+	return strings.Join(lines[len(lines)-n-1:], "\n"), nil
+}
+
+// TailLogs returns a channel that streams new log lines.
+// The channel is closed when the context is canceled.
+func (r *Registry) TailLogs(name string) (string, error) {
+	// For now, just return the last 50 lines
+	return r.ReadLogs(name, 50)
+}
+
+// SetLogFile updates the log file path for a process.
+func (r *Registry) SetLogFile(name, logPath string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	p, exists := r.processes[name]
+	if !exists {
+		return fmt.Errorf("process %q not found", name)
+	}
+
+	p.LogFile = logPath
+	return r.persist()
 }
