@@ -1,7 +1,9 @@
 package process
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -363,5 +365,121 @@ func TestRegistryProcessesDir(t *testing.T) {
 	expected := filepath.Join("/home/user/project", ".bc", "processes")
 	if got := reg.ProcessesDir(); got != expected {
 		t.Errorf("ProcessesDir() = %q, want %q", got, expected)
+	}
+}
+
+func TestLogsDir(t *testing.T) {
+	reg := NewRegistry("/tmp/test")
+	expected := filepath.Join("/tmp/test", ".bc", "processes", "myproc.logs")
+	if got := reg.LogsDir("myproc"); got != expected {
+		t.Errorf("LogsDir() = %q, want %q", got, expected)
+	}
+}
+
+func TestGetLogPath(t *testing.T) {
+	reg := NewRegistry("/tmp/test")
+	expected := filepath.Join("/tmp/test", ".bc", "processes", "myproc.logs", "output.log")
+	if got := reg.GetLogPath("myproc"); got != expected {
+		t.Errorf("GetLogPath() = %q, want %q", got, expected)
+	}
+}
+
+func TestEnsureLogsDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	reg := NewRegistry(tmpDir)
+	_ = reg.Init()
+
+	if err := reg.EnsureLogsDir("test-proc"); err != nil {
+		t.Fatalf("EnsureLogsDir failed: %v", err)
+	}
+
+	logsDir := reg.LogsDir("test-proc")
+	if _, err := os.Stat(logsDir); os.IsNotExist(err) {
+		t.Errorf("logs dir should exist: %s", logsDir)
+	}
+}
+
+func TestGetLogs(t *testing.T) {
+	tmpDir := t.TempDir()
+	reg := NewRegistry(tmpDir)
+	_ = reg.Init()
+	_ = reg.EnsureLogsDir("log-test")
+
+	// Write some log content
+	logPath := reg.GetLogPath("log-test")
+	content := "line1\nline2\nline3\n"
+	if err := os.WriteFile(logPath, []byte(content), 0600); err != nil {
+		t.Fatalf("failed to write log: %v", err)
+	}
+
+	// Read all logs
+	logs, err := reg.GetLogs("log-test", 0)
+	if err != nil {
+		t.Fatalf("GetLogs failed: %v", err)
+	}
+	if string(logs) != content {
+		t.Errorf("logs = %q, want %q", string(logs), content)
+	}
+}
+
+func TestGetLogsTail(t *testing.T) {
+	tmpDir := t.TempDir()
+	reg := NewRegistry(tmpDir)
+	_ = reg.Init()
+	_ = reg.EnsureLogsDir("tail-test")
+
+	// Write many lines
+	logPath := reg.GetLogPath("tail-test")
+	var lines []string
+	for i := 1; i <= 100; i++ {
+		lines = append(lines, "line"+string(rune('0'+(i%10))))
+	}
+	content := strings.Join(lines, "\n") + "\n"
+	if err := os.WriteFile(logPath, []byte(content), 0600); err != nil {
+		t.Fatalf("failed to write log: %v", err)
+	}
+
+	// Read last 10 lines
+	logs, err := reg.GetLogs("tail-test", 10)
+	if err != nil {
+		t.Fatalf("GetLogs failed: %v", err)
+	}
+
+	resultLines := strings.Split(strings.TrimSpace(string(logs)), "\n")
+	if len(resultLines) > 15 {
+		t.Errorf("expected around 10 lines, got %d", len(resultLines))
+	}
+}
+
+func TestGetLogsNoFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	reg := NewRegistry(tmpDir)
+	_ = reg.Init()
+
+	logs, err := reg.GetLogs("nonexistent", 0)
+	if err != nil {
+		t.Fatalf("GetLogs should not error for missing file: %v", err)
+	}
+	if logs != nil {
+		t.Error("logs should be nil for missing file")
+	}
+}
+
+func TestClearLogs(t *testing.T) {
+	tmpDir := t.TempDir()
+	reg := NewRegistry(tmpDir)
+	_ = reg.Init()
+	_ = reg.EnsureLogsDir("clear-test")
+
+	logPath := reg.GetLogPath("clear-test")
+	_ = os.WriteFile(logPath, []byte("content"), 0600)
+
+	if err := reg.ClearLogs("clear-test"); err != nil {
+		t.Fatalf("ClearLogs failed: %v", err)
+	}
+
+	logsDir := reg.LogsDir("clear-test")
+	if _, err := os.Stat(logsDir); !os.IsNotExist(err) {
+		t.Error("logs dir should be removed")
 	}
 }

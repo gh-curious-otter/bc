@@ -218,3 +218,51 @@ func (r *Registry) load() error {
 func (r *Registry) ProcessesDir() string {
 	return r.processesDir
 }
+
+// LogsDir returns the path to the logs directory for a process.
+func (r *Registry) LogsDir(name string) string {
+	return filepath.Join(r.processesDir, name+".logs")
+}
+
+// EnsureLogsDir creates the logs directory for a process if it doesn't exist.
+func (r *Registry) EnsureLogsDir(name string) error {
+	return os.MkdirAll(r.LogsDir(name), 0750)
+}
+
+// GetLogPath returns the path to the current log file for a process.
+func (r *Registry) GetLogPath(name string) string {
+	return filepath.Join(r.LogsDir(name), "output.log")
+}
+
+// GetLogs reads the log content for a process.
+func (r *Registry) GetLogs(name string, tailLines int) ([]byte, error) {
+	logPath := r.GetLogPath(name)
+	data, err := os.ReadFile(logPath) //nolint:gosec // path constructed from trusted dir
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to read logs: %w", err)
+	}
+
+	if tailLines <= 0 {
+		return data, nil
+	}
+
+	// Return last N lines
+	lines := strings.Split(string(data), "\n")
+	if len(lines) <= tailLines {
+		return data, nil
+	}
+
+	start := len(lines) - tailLines - 1 // -1 for potential trailing empty line
+	if start < 0 {
+		start = 0
+	}
+	return []byte(strings.Join(lines[start:], "\n")), nil
+}
+
+// ClearLogs removes all log files for a process.
+func (r *Registry) ClearLogs(name string) error {
+	return os.RemoveAll(r.LogsDir(name))
+}
