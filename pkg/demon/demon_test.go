@@ -293,3 +293,241 @@ func TestInit(t *testing.T) {
 		t.Errorf("Demons directory not created: %s", demonsDir)
 	}
 }
+
+func TestStoreUpdate(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	_, err := store.Create("test-demon", "0 * * * *", "echo hello")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	err = store.Update("test-demon", func(d *Demon) {
+		d.Command = "echo updated"
+		d.Description = "test description"
+	})
+	if err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
+
+	got, err := store.Get("test-demon")
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if got.Command != "echo updated" {
+		t.Errorf("Command = %q, want %q", got.Command, "echo updated")
+	}
+	if got.Description != "test description" {
+		t.Errorf("Description = %q, want %q", got.Description, "test description")
+	}
+}
+
+func TestStoreUpdateNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	err := store.Update("nonexistent", func(d *Demon) {
+		d.Command = "test"
+	})
+	if err == nil {
+		t.Error("Expected error for updating nonexistent demon")
+	}
+}
+
+func TestStoreListByOwner(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create demons with different owners
+	d1, _ := store.Create("demon1", "0 * * * *", "echo one")
+	_ = store.SetOwner(d1.Name, "engineer-01")
+
+	d2, _ := store.Create("demon2", "*/5 * * * *", "echo two")
+	_ = store.SetOwner(d2.Name, "engineer-01")
+
+	d3, _ := store.Create("demon3", "0 0 * * *", "echo three")
+	_ = store.SetOwner(d3.Name, "qa-01")
+
+	// List by owner
+	eng01Demons, err := store.ListByOwner("engineer-01")
+	if err != nil {
+		t.Fatalf("ListByOwner failed: %v", err)
+	}
+	if len(eng01Demons) != 2 {
+		t.Errorf("ListByOwner(engineer-01) len = %d, want 2", len(eng01Demons))
+	}
+
+	qa01Demons, err := store.ListByOwner("qa-01")
+	if err != nil {
+		t.Fatalf("ListByOwner failed: %v", err)
+	}
+	if len(qa01Demons) != 1 {
+		t.Errorf("ListByOwner(qa-01) len = %d, want 1", len(qa01Demons))
+	}
+
+	// No demons for this owner
+	noneDemon, err := store.ListByOwner("unknown")
+	if err != nil {
+		t.Fatalf("ListByOwner failed: %v", err)
+	}
+	if len(noneDemon) != 0 {
+		t.Errorf("ListByOwner(unknown) len = %d, want 0", len(noneDemon))
+	}
+}
+
+func TestStoreListEnabled(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	_, _ = store.Create("enabled1", "0 * * * *", "echo one")
+	_, _ = store.Create("enabled2", "*/5 * * * *", "echo two")
+	d3, _ := store.Create("disabled1", "0 0 * * *", "echo three")
+	_ = store.Disable(d3.Name)
+
+	enabled, err := store.ListEnabled()
+	if err != nil {
+		t.Fatalf("ListEnabled failed: %v", err)
+	}
+	if len(enabled) != 2 {
+		t.Errorf("ListEnabled len = %d, want 2", len(enabled))
+	}
+
+	// All should be enabled
+	for _, d := range enabled {
+		if !d.Enabled {
+			t.Errorf("Demon %q should be enabled", d.Name)
+		}
+	}
+}
+
+func TestStoreEnableDisable(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	_, err := store.Create("test-demon", "0 * * * *", "echo hello")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// Disable
+	err = store.Disable("test-demon")
+	if err != nil {
+		t.Fatalf("Disable failed: %v", err)
+	}
+	got, _ := store.Get("test-demon")
+	if got.Enabled {
+		t.Error("Demon should be disabled")
+	}
+
+	// Enable
+	err = store.Enable("test-demon")
+	if err != nil {
+		t.Fatalf("Enable failed: %v", err)
+	}
+	got, _ = store.Get("test-demon")
+	if !got.Enabled {
+		t.Error("Demon should be enabled")
+	}
+}
+
+func TestStoreRecordRun(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	_, err := store.Create("test-demon", "0 * * * *", "echo hello")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// Record a run
+	err = store.RecordRun("test-demon")
+	if err != nil {
+		t.Fatalf("RecordRun failed: %v", err)
+	}
+
+	got, _ := store.Get("test-demon")
+	if got.RunCount != 1 {
+		t.Errorf("RunCount = %d, want 1", got.RunCount)
+	}
+	if got.LastRun.IsZero() {
+		t.Error("LastRun should be set")
+	}
+	if got.NextRun.IsZero() {
+		t.Error("NextRun should be set")
+	}
+
+	// Record another run
+	err = store.RecordRun("test-demon")
+	if err != nil {
+		t.Fatalf("Second RecordRun failed: %v", err)
+	}
+	got, _ = store.Get("test-demon")
+	if got.RunCount != 2 {
+		t.Errorf("RunCount = %d, want 2", got.RunCount)
+	}
+}
+
+func TestStoreSetOwner(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	_, err := store.Create("test-demon", "0 * * * *", "echo hello")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	err = store.SetOwner("test-demon", "engineer-01")
+	if err != nil {
+		t.Fatalf("SetOwner failed: %v", err)
+	}
+
+	got, _ := store.Get("test-demon")
+	if got.Owner != "engineer-01" {
+		t.Errorf("Owner = %q, want %q", got.Owner, "engineer-01")
+	}
+}
+
+func TestStoreSetDescription(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	_, err := store.Create("test-demon", "0 * * * *", "echo hello")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	err = store.SetDescription("test-demon", "This is a test demon")
+	if err != nil {
+		t.Fatalf("SetDescription failed: %v", err)
+	}
+
+	got, _ := store.Get("test-demon")
+	if got.Description != "This is a test demon" {
+		t.Errorf("Description = %q, want %q", got.Description, "This is a test demon")
+	}
+}
+
+func TestDemonOwnerField(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	demon, err := store.Create("test-demon", "0 * * * *", "echo hello")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// Initially no owner
+	if demon.Owner != "" {
+		t.Errorf("Initial Owner = %q, want empty", demon.Owner)
+	}
+
+	// Set owner
+	_ = store.SetOwner("test-demon", "engineer-01")
+
+	// Verify persistence
+	got, _ := store.Get("test-demon")
+	if got.Owner != "engineer-01" {
+		t.Errorf("Owner after reload = %q, want %q", got.Owner, "engineer-01")
+	}
+}
