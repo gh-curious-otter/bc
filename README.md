@@ -212,7 +212,7 @@ bc up --agent cursor
 
 Create role-specific prompts in the `prompts/` directory:
 
-- `prompts/coordinator.md` - Coordinator instructions
+- `prompts/root.md` - Root agent instructions
 - `prompts/product_manager.md` - Product manager instructions
 - `prompts/manager.md` - Manager instructions
 - `prompts/engineer.md` - Engineer instructions
