@@ -10,7 +10,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/queue"
 )
@@ -217,24 +216,9 @@ func runQueueDetail(cmd *cobra.Command, itemID string) error {
 		fmt.Printf("\nDescription:\n  %s\n", strings.ReplaceAll(item.Description, "\n", "\n  "))
 	}
 
-	// Show bead metadata if linked
+	// Note: Issue details now come from GitHub Issues (beads removed)
 	if item.BeadsID != "" {
-		issue := beads.GetIssue(ws.RootDir, item.BeadsID)
-		if issue != nil {
-			fmt.Printf("\nBead (%s):\n", item.BeadsID)
-			if issue.Type != "" {
-				fmt.Printf("  Type:         %s\n", issue.Type)
-			}
-			if issue.Priority != nil {
-				fmt.Printf("  Priority:     %v\n", issue.Priority)
-			}
-			if issue.Status != "" {
-				fmt.Printf("  Bead Status:  %s\n", issue.Status)
-			}
-			if len(issue.Dependencies) > 0 {
-				fmt.Printf("  Dependencies: %s\n", strings.Join(issue.Dependencies, ", "))
-			}
-		}
+		fmt.Printf("\nLegacy Bead ID: %s\n", item.BeadsID)
 	}
 
 	return nil
@@ -299,80 +283,19 @@ func runQueueAssign(cmd *cobra.Command, args []string) error {
 		Data:  map[string]any{"work_id": itemID},
 	})
 
-	// Sync assignment to beads if linked
-	if item.BeadsID != "" {
-		if err := beads.AssignIssue(ws.RootDir, item.BeadsID, agentName); err != nil {
-			// Log but don't fail - beads sync is best-effort
-			_ = log.Append(events.Event{
-				Type:    events.AgentReport,
-				Agent:   agentName,
-				Message: fmt.Sprintf("warning: failed to assign beads issue %s: %v", item.BeadsID, err),
-			})
-		}
-	}
+	// Note: Issue tracking now uses GitHub Issues (beads removed)
 
 	fmt.Printf("Assigned %s to %s\n", itemID, agentName)
 	return nil
 }
 
 func runQueueLoad(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
-	}
-
-	q, err := loadQueue(ws)
-	if err != nil {
-		return err
-	}
-
-	// Try ready issues first, fall back to all issues
-	issues := beads.ReadyIssues(ws.RootDir)
-	if len(issues) == 0 {
-		issues, _ = beads.ListIssues(ws.RootDir) //nolint:errcheck // best-effort fallback
-	}
-
-	if len(issues) == 0 {
-		fmt.Println("No beads issues found")
-		return nil
-	}
-
-	added := 0
-	linked := 0
-	for _, issue := range issues {
-		if q.HasBeadsID(issue.ID) {
-			continue
-		}
-		// Check if a work item with the same title already exists (added manually)
-		if existing := q.FindByTitle(issue.Title); existing != nil {
-			// Link the beads ID to the existing item so future syncs skip it
-			if existing.BeadsID == "" {
-				_ = q.LinkBeadsID(existing.ID, issue.ID)
-				linked++
-			}
-			continue
-		}
-		q.Add(issue.Title, issue.Description, issue.ID)
-		added++
-	}
-
-	if err := q.Save(); err != nil {
-		return fmt.Errorf("failed to save queue: %w", err)
-	}
-
-	// Log event
-	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	_ = log.Append(events.Event{
-		Type:    events.QueueLoaded,
-		Message: fmt.Sprintf("loaded %d items from beads", added),
-		Data:    map[string]any{"added": added, "linked": linked, "total_issues": len(issues)},
-	})
-
-	fmt.Printf("Loaded %d new items from beads (%d already in queue", added, len(issues)-added-linked)
-	if linked > 0 {
-		fmt.Printf(", %d linked to existing items", linked)
-	}
-	fmt.Println(")")
+	// Note: beads package has been deprecated. Use GitHub Issues for task tracking.
+	fmt.Println("The 'bc queue load' command is deprecated.")
+	fmt.Println("Work items are now tracked via GitHub Issues.")
+	fmt.Println()
+	fmt.Println("To view issues:  gh issue list --state open")
+	fmt.Println("To create:       gh issue create --title '<title>'")
 	return nil
 }
 
@@ -406,14 +329,7 @@ func runQueueComplete(cmd *cobra.Command, args []string) error {
 		Data:    map[string]any{"work_id": itemID},
 	})
 
-	if item.BeadsID != "" {
-		if err := beads.CloseIssue(ws.RootDir, item.BeadsID); err != nil {
-			_ = log.Append(events.Event{
-				Type:    events.AgentReport,
-				Message: fmt.Sprintf("warning: failed to close beads issue %s: %v", item.BeadsID, err),
-			})
-		}
-	}
+	// Note: Issue tracking now uses GitHub Issues (beads removed)
 
 	fmt.Printf("Marked %s done", itemID)
 	if item.BeadsID != "" {

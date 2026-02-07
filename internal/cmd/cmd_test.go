@@ -296,25 +296,16 @@ func TestLoadRolePrompt(t *testing.T) {
 
 func TestBuildBootstrapPrompt(t *testing.T) {
 	agents := []string{"coordinator", "manager", "engineer-01"}
-	items := []queue.WorkItem{
-		{ID: "work-001", Title: "Fix auth", Description: "Fix the authentication bug", BeadsID: "bc-123"},
-		{ID: "work-002", Title: "Add tests", BeadsID: ""},
-	}
 
-	result := buildBootstrapPrompt(agents, items, "/test/workspace")
+	result := buildBootstrapPrompt(agents, "/test/workspace")
 
 	checks := []string{
 		"coordinator",
 		"manager",
 		"engineer-01",
 		"/test/workspace",
-		"work-001",
-		"Fix auth",
-		"Fix the authentication bug",
-		"bc-123",
-		"work-002",
-		"Add tests",
-		"WORK QUEUE",
+		"WORK TRACKING",
+		"gh issue list",
 		"YOUR WORKFLOW",
 		"BC COMMANDS",
 	}
@@ -1646,17 +1637,20 @@ func TestChannelHistory_WithMessages(t *testing.T) {
 	}
 }
 
-// --- Queue load (no beads) ---
+// --- Queue load (deprecated) ---
 
-func TestQueueLoad_NoBeads(t *testing.T) {
+func TestQueueLoad_Deprecated(t *testing.T) {
 	setupTestWorkspace(t)
 
 	output, err := executeCmd("queue", "load")
 	if err != nil {
 		t.Fatalf("queue load failed: %v\nOutput: %s", err, output)
 	}
-	if !strings.Contains(output, "No beads") && !strings.Contains(output, "Loaded 0") {
-		t.Errorf("queue load should indicate no beads or 0 loaded, got: %s", output)
+	if !strings.Contains(output, "deprecated") {
+		t.Errorf("queue load should indicate deprecation, got: %s", output)
+	}
+	if !strings.Contains(output, "GitHub Issues") {
+		t.Errorf("queue load should reference GitHub Issues, got: %s", output)
 	}
 }
 
