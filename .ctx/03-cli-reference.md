@@ -1,943 +1,502 @@
-# Gas Town CLI Reference
+# bc CLI Reference
 
-The `gt` command-line interface provides comprehensive control over Gas Town workspaces, agents, and workflows.
+The `bc` command-line interface provides control over agent orchestration, work queue management, and workspace diagnostics.
 
 ## Command Categories
 
 | Category | Commands | Purpose |
 |----------|----------|---------|
-| **Work Management** | sling, convoy, done, hook, mq | Assign, track, and complete work |
-| **Agent Operations** | agents, polecat, witness, refinery, deacon, mayor, prime, attach | Manage agent lifecycle |
-| **Communication** | mail, nudge, broadcast, handoff | Inter-agent messaging |
-| **Services** | up, down, daemon, boot, feed | Control infrastructure |
-| **Workspace** | rig, crew, init, install | Manage workspaces and workers |
-| **Configuration** | config, role, plugin, theme | System settings |
-| **Diagnostics** | doctor, status, log, costs, activity | Health checks and monitoring |
+| **Agent Lifecycle** | spawn, up, down, status, attach | Manage agent sessions |
+| **Work Queue** | queue | Manage work items |
+| **Communication** | send, channel | Inter-agent messaging |
+| **Workspace** | init, home, worktree | Workspace management |
+| **Diagnostics** | logs, stats, dashboard | Monitoring and debugging |
+| **Merge** | merge | Merge queue processing |
 
 ---
 
-## Work Management
+## Agent Lifecycle
 
-### gt sling
+### bc up
 
-Assign work to an agent by attaching it to their hook.
+Start the workspace coordinator and optionally restore agents.
 
 ```bash
-gt sling <bead-id> <target>
-gt sling gt-abc123 gastown/toast       # Assign to polecat
-gt sling gt-abc123 gastown/crew/max    # Assign to crew member
-gt sling gt-abc123 gastown/witness     # Assign to witness
+bc up                          # Start coordinator
+bc up --restore                # Restore previous agents
+bc up --agent claude           # Use specific AI tool
 ```
 
 **Flags:**
-- `--nudge`, `-n` - Send notification after slinging
-- `--message`, `-m <text>` - Include message with the assignment
+- `--restore` - Restore agents from previous session
+- `--agent <name>` - AI tool to use (default: from config)
 
 **Behavior:**
-1. Validates the bead exists
-2. Pins the bead to the target agent's hook
-3. Optionally nudges the agent to start work
+1. Creates `.bc/` directory structure if needed
+2. Starts coordinator agent in tmux session
+3. Loads workspace configuration
 
-### gt convoy
+### bc down
 
-Orchestrate multi-step workflows with dependencies.
-
-```bash
-gt convoy create <name> --steps "step1,step2,step3"
-gt convoy status <convoy-id>
-gt convoy cancel <convoy-id>
-```
-
-**Use Cases:**
-- Sequential task execution
-- Parallel task fan-out
-- Dependency-based workflows
-
-### gt done
-
-Mark work as complete and release the hook.
+Stop all agents and optionally clean up.
 
 ```bash
-gt done                          # Complete current work
-gt done --exit COMPLETE          # Exit with completion status
-gt done --exit DEFERRED          # Defer work for later
-gt done --status blocked         # Mark as blocked
-gt done --message "Finished X"   # Add completion message
+bc down                        # Stop all agents
+bc down --force                # Force stop without cleanup
 ```
 
-**Exit Types:**
-- `COMPLETE` - Work finished successfully
-- `DEFERRED` - Work paused, will resume later
-- `BLOCKED` - Waiting on external dependency
-- `FAILED` - Work could not be completed
+**Flags:**
+- `--force` - Skip graceful shutdown
+- `--clean` - Remove worktrees after stop
 
-**Polecat Behavior:**
-- Polecats use `gt done` to signal completion
-- Witness handles cleanup and potential respawn
+**Behavior:**
+1. Sends stop signal to all agents
+2. Waits for graceful shutdown
+3. Kills tmux sessions
+4. Optionally removes worktrees
 
-### gt hook
+### bc spawn
 
-View and manage the current agent's work hook.
+Spawn a new agent with the specified role.
 
 ```bash
-gt hook                    # Show what's on the hook
-gt hook show               # Detailed view of hooked work
-gt hook clear              # Clear the hook (unsling)
-gt hook --json             # JSON output
+bc spawn <name> --role <role>
+bc spawn eng-01 --role engineer
+bc spawn pm-01 --role product-manager
+bc spawn qa-01 --role qa --parent mgr-01
+bc spawn eng-02 --role engineer --tool cursor-agent
 ```
 
-**The Hook Concept:**
-- Each agent has exactly one hook
-- Work is "pinned" to the hook when assigned
-- Hook represents the agent's current focus
-- Prevents agents from juggling multiple tasks
+**Arguments:**
+- `<name>` - Unique agent identifier
 
-### gt mq
+**Flags:**
+- `--role <role>` - Agent role: product-manager, manager, engineer, qa (required)
+- `--parent <id>` - Parent agent ID for hierarchy
+- `--tool <name>` - AI tool override (claude, cursor-agent)
 
-Manage the merge queue (Refinery work queue).
+**Roles:**
+| Role | Description |
+|------|-------------|
+| `product-manager` | Top-level coordinator, creates epics |
+| `manager` | Breaks down work, manages team |
+| `engineer` | Implements code |
+| `qa` | Tests and validates |
+| `coordinator` | Legacy: maps to product-manager |
+| `worker` | Legacy: maps to engineer |
+
+**Behavior:**
+1. Validates role and parent hierarchy
+2. Creates git worktree at `.bc/worktrees/<name>/`
+3. Starts tmux session with environment variables
+4. Loads role prompt from `prompts/<role>.md`
+
+### bc status
+
+Show agent status overview.
 
 ```bash
-gt mq list                 # List queued merge requests
-gt mq status               # Show queue health
-gt mq add <branch>         # Add branch to merge queue
-gt mq prioritize <id>      # Move item to front
-gt mq remove <id>          # Remove from queue
+bc status                      # Show all agents
+bc status --json               # JSON output
+bc status <agent>              # Show specific agent
 ```
 
-**Queue States:**
-- `idle` - No work being processed
-- `processing` - Refinery actively merging
-- `blocked` - Items waiting on dependencies
+**Flags:**
+- `--json` - Output in JSON format
+- `--watch` - Continuous refresh
 
----
-
-## Agent Operations
-
-### gt agents
-
-List all running agent sessions.
-
-```bash
-gt agents                  # List all agents
-gt agents --rig gastown    # Filter by rig
-gt agents --type polecat   # Filter by type
-gt agents --json           # JSON output
-gt agents --running        # Only running agents
+**Output:**
+```
+AGENT      ROLE       STATE     TASK
+pm-01      product    idle
+mgr-01     manager    working   Planning sprint
+eng-01     engineer   working   Implementing login
+qa-01      qa         idle
 ```
 
-**Agent Types:**
-- `mayor` - Global work coordinator
-- `deacon` - Health orchestrator
-- `witness` - Per-rig polecat manager
-- `refinery` - Per-rig merge processor
-- `polecat` - Ephemeral worker
-- `crew` - Persistent human workspace
-
-### gt polecat
-
-Manage ephemeral polecat workers.
-
-```bash
-gt polecat list                           # List polecats
-gt polecat spawn <name> --rig gastown     # Create polecat
-gt polecat stop <name>                    # Stop polecat
-gt polecat stopall                        # Stop all polecats
-gt polecat logs <name>                    # View logs
-```
-
-**Polecat Lifecycle:**
-1. Spawned by Witness when work is available
-2. Receives work assignment via sling
-3. Executes work autonomously
-4. Calls `gt done` when complete
-5. Witness handles cleanup
-
-### gt witness
-
-Control the Witness agent for a rig.
-
-```bash
-gt witness start --rig gastown    # Start witness
-gt witness stop --rig gastown     # Stop witness
-gt witness status --rig gastown   # Check status
-gt witness restart --rig gastown  # Restart
-```
-
-**Witness Responsibilities:**
-- Monitor work queue for the rig
-- Spawn polecats when work is ready
-- Track polecat health and progress
-- Handle polecat completion/failure
-
-### gt refinery
-
-Control the Refinery agent for a rig.
-
-```bash
-gt refinery start --rig gastown   # Start refinery
-gt refinery stop --rig gastown    # Stop refinery
-gt refinery status --rig gastown  # Check status
-gt refinery queue --rig gastown   # View merge queue
-```
-
-**Refinery Responsibilities:**
-- Process merge requests
-- Validate changes
-- Execute merge operations
-- Handle merge conflicts
-
-### gt deacon
-
-Manage the Deacon health orchestrator.
-
-```bash
-gt deacon start              # Start deacon
-gt deacon stop               # Stop deacon
-gt deacon status             # Check status
-gt deacon restart            # Restart
-```
-
-**Deacon Responsibilities:**
-- Monitor Mayor and Witness health
-- Handle agent failures
-- Orchestrate restarts
-- Manage Boot watchdog
-
-### gt mayor
-
-Control the Mayor global coordinator.
-
-```bash
-gt mayor start               # Start mayor
-gt mayor stop                # Stop mayor
-gt mayor status              # Check status
-gt mayor restart             # Restart
-```
-
-**Mayor Responsibilities:**
-- Global work coordination
-- Cross-rig orchestration
-- Priority management
-- Escalation handling
-
-### gt prime
-
-Output role context for the current directory.
-
-```bash
-gt prime                     # Detect role and output context
-gt prime --hook              # Hook mode for session startup
-gt prime --state             # Show session state only
-gt prime --dry-run           # Preview without side effects
-gt prime --explain           # Show why sections were included
-```
-
-**Role Detection:**
-- Town root / mayor/ -> Mayor context
-- `<rig>/witness/` -> Witness context
-- `<rig>/refinery/rig/` -> Refinery context
-- `<rig>/polecats/<name>/` -> Polecat context
-- `<rig>/crew/<name>/` -> Crew context
-
-**Hook Mode:**
-Used by Claude Code SessionStart hook:
-```json
-{"hooks": [{"type": "command", "command": "gt prime --hook"}]}
-```
-
-### gt attach
+### bc attach
 
 Attach to an agent's tmux session.
 
 ```bash
-gt attach <target>                    # Attach to agent
-gt attach gastown/toast               # Attach to polecat
-gt attach gastown/witness             # Attach to witness
-gt attach mayor                       # Attach to mayor
+bc attach <agent>
+bc attach eng-01
 ```
+
+**Arguments:**
+- `<agent>` - Agent identifier
+
+**Usage:**
+- Use `Ctrl+b d` to detach from session
+- Session continues running after detach
+
+---
+
+## Work Queue
+
+### bc queue
+
+Manage the work queue.
+
+#### bc queue add
+
+Add a work item to the queue.
+
+```bash
+bc queue add "Title"
+bc queue add "Fix login bug" --description "Users can't login with SSO"
+bc queue add "Implement feature" --beads-id gt-123
+```
+
+**Arguments:**
+- `<title>` - Work item title (required)
+
+**Flags:**
+- `--description <text>` - Detailed description
+- `--beads-id <id>` - Link to beads issue
+
+#### bc queue list
+
+List work items.
+
+```bash
+bc queue list                  # List all items
+bc queue list --status pending # Filter by status
+bc queue list --agent eng-01   # Filter by assignee
+bc queue list --json           # JSON output
+```
+
+**Flags:**
+- `--status <status>` - Filter: pending, assigned, working, done, failed
+- `--agent <id>` - Filter by assigned agent
+- `--json` - JSON output
+
+**Output:**
+```
+ID         STATUS    TITLE                    ASSIGNED TO
+work-001   pending   Fix login bug
+work-002   working   Implement auth           eng-01
+work-003   done      Update docs              eng-02
+```
+
+#### bc queue assign
+
+Assign a work item to an agent.
+
+```bash
+bc queue assign <work-id> <agent>
+bc queue assign work-001 eng-01
+```
+
+#### bc queue status
+
+Update work item status.
+
+```bash
+bc queue status <work-id> <status>
+bc queue status work-001 working
+bc queue status work-001 done
+```
+
+**Statuses:**
+| Status | Description |
+|--------|-------------|
+| `pending` | Available for assignment |
+| `assigned` | Claimed by agent |
+| `working` | Being executed |
+| `done` | Completed successfully |
+| `failed` | Execution failed |
 
 ---
 
 ## Communication
 
-### gt mail
+### bc send
 
-Agent messaging system.
-
-#### Send Messages
+Send a message to an agent's tmux session.
 
 ```bash
-gt mail send <address> -s "Subject" -m "Body"
-gt mail send gastown/toast -s "Status" -m "How's the bug fix?"
-gt mail send mayor/ -s "Complete" -m "Finished gt-abc"
-gt mail send --self -s "Handoff" -m "Context for next session"
+bc send <agent> <message>
+bc send eng-01 "Check your work queue"
+bc send pm-01 "Status update needed"
 ```
 
-**Flags:**
-- `-s, --subject <text>` - Message subject (required)
-- `-m, --message <text>` - Message body
-- `--type <type>` - Message type (task, scavenge, notification, reply)
-- `--priority <0-4>` - Priority (0=urgent, 2=normal, 4=backlog)
-- `--urgent` - Set priority=0
-- `--notify` - Send tmux notification
-- `--reply-to <id>` - Reply to message
-- `--cc <address>` - CC recipients
-- `--self` - Send to self
+**Arguments:**
+- `<agent>` - Target agent identifier
+- `<message>` - Message text
 
-**Address Formats:**
-- `mayor/` - Mayor inbox
-- `<rig>/witness` - Rig's Witness
-- `<rig>/refinery` - Rig's Refinery
-- `<rig>/<polecat>` - Polecat
-- `<rig>/crew/<name>` - Crew worker
+**Behavior:**
+1. Finds agent's tmux session
+2. Sends message via `tmux send-keys`
+3. Sends Enter to submit
 
-#### Check Inbox
+### bc channel
+
+Manage communication channels.
+
+#### bc channel list
+
+List channels.
 
 ```bash
-gt mail inbox                  # Current context inbox
-gt mail inbox --unread         # Unread only
-gt mail inbox mayor/           # Mayor's inbox
-gt mail inbox --json           # JSON output
+bc channel list
+bc channel list --json
 ```
 
-#### Read Messages
+#### bc channel send
+
+Broadcast to a channel.
 
 ```bash
-gt mail read <message-id>      # Read specific message
-gt mail thread <thread-id>     # View conversation thread
-gt mail peek                   # Preview first unread
+bc channel send <channel> <message>
+bc channel send announcements "System maintenance at 5pm"
 ```
 
-#### Manage Messages
+#### bc channel create
+
+Create a new channel.
 
 ```bash
-gt mail mark-read <id>         # Mark as read
-gt mail mark-unread <id>       # Mark as unread
-gt mail archive <id>           # Archive message
-gt mail delete <id>            # Delete message
-gt mail clear                  # Clear all messages
+bc channel create <name>
+bc channel create team-updates
 ```
-
-#### Reply
-
-```bash
-gt mail reply <message-id> -m "Response text"
-gt mail reply msg-abc123 -s "Custom subject" -m "Reply body"
-```
-
-#### Search
-
-```bash
-gt mail search "urgent"                    # Find messages
-gt mail search "error" --from witness      # Filter by sender
-gt mail search "status" --subject          # Search subjects only
-gt mail search "" --archive                # Include archived
-```
-
-#### Queues and Claims
-
-```bash
-gt mail claim <queue-name>     # Claim from work queue
-gt mail release <message-id>   # Release claimed message
-```
-
-### gt nudge
-
-Send synchronous messages to any Gas Town worker.
-
-```bash
-gt nudge <target> <message>
-gt nudge gastown/toast "Check your mail and start working"
-gt nudge witness "Check polecat health"
-gt nudge mayor "Status update requested"
-gt nudge channel:workers "New priority work"
-```
-
-**Flags:**
-- `-m, --message <text>` - Message to send
-- `-f, --force` - Send even if target has DND enabled
-
-**Role Shortcuts:**
-- `mayor` -> gt-mayor session
-- `deacon` -> gt-deacon session
-- `witness` -> Current rig's witness
-- `refinery` -> Current rig's refinery
-
-**Channel Syntax:**
-```bash
-gt nudge channel:<name> "Message"
-```
-Channels defined in `~/gt/config/messaging.json`
-
-**DND (Do Not Disturb):**
-- Respects target's notification settings
-- Use `--force` to override
-
-### gt broadcast
-
-Send nudge to all workers.
-
-```bash
-gt broadcast "Check your mail"
-gt broadcast --rig gastown "New priority work available"
-gt broadcast --all "System maintenance in 5 minutes"
-gt broadcast --dry-run "Test message"
-```
-
-**Flags:**
-- `--rig <name>` - Only broadcast to specific rig
-- `--all` - Include infrastructure agents (mayor, witness, etc.)
-- `--dry-run` - Show what would be sent
-
-### gt handoff
-
-Hand off to a fresh session with context preservation.
-
-```bash
-gt handoff                          # Hand off current session
-gt handoff -c                       # Collect state into handoff mail
-gt handoff -s "Context" -m "Notes"  # Custom handoff message
-gt handoff gt-abc                   # Hook bead, then restart
-gt handoff crew                     # Hand off crew session
-gt handoff mayor                    # Hand off mayor session
-```
-
-**Flags:**
-- `-s, --subject <text>` - Subject for handoff mail
-- `-m, --message <text>` - Message body
-- `-c, --collect` - Auto-collect state (inbox, hooks, ready beads)
-- `-w, --watch` - Switch to new session
-- `-n, --dry-run` - Preview what would happen
-
-**Collected State (with -c):**
-- Hooked work
-- Inbox summary
-- Ready beads
-- In-progress items
-
----
-
-## Services
-
-### gt up
-
-Bring up all Gas Town services.
-
-```bash
-gt up                      # Start infrastructure
-gt up --restore            # Also start crew and polecats with hooks
-gt up --quiet              # Only show errors
-```
-
-**Started Services:**
-- Daemon - Go background process
-- Deacon - Health orchestrator
-- Mayor - Global coordinator
-- Witnesses - Per-rig polecat managers
-- Refineries - Per-rig merge processors
-
-**With --restore:**
-- Crew from settings (settings/config.json)
-- Polecats with pinned beads
-
-### gt down
-
-Stop all Gas Town services.
-
-```bash
-gt down                    # Stop infrastructure
-gt down --polecats         # Also stop all polecats
-gt down --all              # Also stop bd daemons
-gt down --nuke             # Kill tmux server (DESTRUCTIVE)
-gt down --dry-run          # Preview shutdown
-```
-
-**Shutdown Levels:**
-1. Default: Infrastructure only (refineries, witnesses, mayor, deacon, daemon)
-2. `--polecats`: Also stop polecat sessions
-3. `--all`: Also stop bd daemons and verify
-4. `--nuke`: Kill entire tmux server
-
-**Flags:**
-- `-q, --quiet` - Only show errors
-- `-f, --force` - Skip graceful shutdown
-- `-p, --polecats` - Stop all polecat sessions
-- `-a, --all` - Full shutdown with verification
-- `--nuke` - Kill tmux server (requires `GT_NUKE_ACKNOWLEDGED=1`)
-- `--dry-run` - Preview actions
-
-### gt daemon
-
-Control the Gas Town daemon process.
-
-```bash
-gt daemon run              # Start daemon
-gt daemon status           # Check status
-gt daemon stop             # Stop daemon
-```
-
-**Daemon Responsibilities:**
-- Background Go process
-- Periodic agent health pokes
-- Event monitoring
-
-### gt boot
-
-Boot the system watchdog.
-
-```bash
-gt boot start              # Start boot watchdog
-gt boot status             # Check status
-gt boot stop               # Stop watchdog
-```
-
-### gt feed
-
-View activity feed.
-
-```bash
-gt feed                    # Show recent activity
-gt feed --follow           # Continuous stream
-gt feed --type nudge       # Filter by event type
-gt feed --json             # JSON output
-```
-
-**Event Types:**
-- `nudge` - Agent notifications
-- `handoff` - Session handoffs
-- `boot` - Service starts
-- `halt` - Service stops
 
 ---
 
 ## Workspace
 
-### gt rig
+### bc init
 
-Manage rigs (project containers) in the workspace.
-
-#### Add Rig
+Initialize a new bc workspace.
 
 ```bash
-gt rig add <name> <git-url>
-gt rig add gastown https://github.com/user/gastown
-gt rig add myproject git@github.com:user/repo.git --prefix mp
-gt rig add myproject <url> --branch develop
+bc init                        # Initialize current directory
+bc init <path>                 # Initialize specific path
 ```
 
-**Flags:**
-- `--prefix <prefix>` - Beads issue prefix (default: derived from name)
-- `--local-repo <path>` - Local repo to share git objects
-- `--branch <name>` - Default branch (default: auto-detected)
-
-**Created Structure:**
+**Creates:**
 ```
-<name>/
-  config.json
-  .repo.git/        (shared bare repo)
-  .beads/           (rig-level issues)
-  plugins/          (rig-level plugins)
-  mayor/rig/        (Mayor's clone)
-  refinery/rig/     (Refinery worktree)
-  crew/             (empty)
-  witness/
-  polecats/
+.bc/
+├── agents/
+├── bin/
+├── logs/
+├── worktrees/
+├── config.json
+├── queue.json
+├── channels.json
+└── events.jsonl
 ```
 
-#### List Rigs
+### bc home
+
+Open the bc home screen TUI.
 
 ```bash
-gt rig list                # List all rigs
+bc home                        # Launch home TUI
 ```
 
-#### Remove Rig
+**Features:**
+- Workspace registry
+- Quick workspace switching
+- Recent activity
+
+### bc worktree
+
+Manage per-agent git worktrees.
+
+#### bc worktree list
+
+List all worktrees.
 
 ```bash
-gt rig remove <name>       # Remove from registry (keeps files)
+bc worktree list
+bc worktree list --json
 ```
 
-#### Rig Status
+#### bc worktree clean
+
+Clean up orphaned worktrees.
 
 ```bash
-gt rig status              # Infer rig from cwd
-gt rig status gastown      # Specific rig
-```
-
-**Shows:**
-- Rig information (name, path, prefix)
-- Witness status
-- Refinery status and queue
-- Polecats (name, state, issue)
-- Crew (name, branch, git status)
-
-#### Rig Lifecycle
-
-```bash
-gt rig boot <name>         # Start witness + refinery
-gt rig start <name>...     # Start multiple rigs
-gt rig shutdown <name>     # Graceful shutdown
-gt rig stop <name>...      # Stop multiple rigs
-gt rig reboot <name>       # Restart rig
-gt rig restart <name>...   # Restart multiple rigs
-```
-
-**Safety Checks:**
-- Checks for uncommitted polecat work
-- Use `--force` to skip graceful shutdown
-- Use `--nuclear` to bypass ALL checks (loses uncommitted work!)
-
-#### Rig Reset
-
-```bash
-gt rig reset               # Reset all state
-gt rig reset --handoff     # Clear handoff content
-gt rig reset --mail        # Clear stale mail
-gt rig reset --stale       # Reset orphaned in_progress issues
-gt rig reset --dry-run     # Preview changes
-```
-
-### gt crew
-
-Manage persistent crew workspaces for humans.
-
-#### Add Crew
-
-```bash
-gt crew add <name>                    # Create workspace
-gt crew add joe max emma              # Create multiple
-gt crew add fred --rig gastown        # Specific rig
-gt crew add alice --branch            # Create feature branch
-```
-
-#### List Crew
-
-```bash
-gt crew list                          # List in current rig
-gt crew list --rig gastown            # List in specific rig
-gt crew list --all                    # List in all rigs
-gt crew list --json                   # JSON output
-```
-
-#### Manage Sessions
-
-```bash
-gt crew start <rig> [names...]        # Start crew sessions
-gt crew start beads                   # Start all crew in beads
-gt crew start beads grip fang         # Start specific crew
-
-gt crew stop [names...]               # Stop sessions
-gt crew stop beads                    # Stop all in beads
-gt crew stop --all                    # Stop all running
-
-gt crew restart [names...]            # Restart sessions
-gt crew restart --all                 # Restart all running
-gt crew restart --dry-run             # Preview
-```
-
-#### Attach to Crew
-
-```bash
-gt crew at <name>                     # Attach to session
-gt crew at                            # Auto-detect from cwd
-gt crew at dave --detached            # Start without attaching
-gt crew at dave --no-tmux             # Just print path
-gt crew at dave --agent gemini        # Use different agent
-```
-
-**Flags:**
-- `--rig <name>` - Specify rig
-- `--no-tmux` - Print directory only
-- `-d, --detached` - Start without attaching
-- `--account <handle>` - Claude Code account
-- `--agent <alias>` - Agent override
-
-#### Other Commands
-
-```bash
-gt crew remove <name...>              # Remove workspace(s)
-gt crew remove dave --force           # Skip safety checks
-gt crew remove test --purge           # Delete agent bead entirely
-
-gt crew refresh <name>                # Context cycle with handoff
-gt crew refresh dave -m "Notes"       # Custom message
-
-gt crew status [name]                 # Detailed status
-gt crew rename <old> <new>            # Rename workspace
-gt crew pristine [name]               # Sync with remote
-```
-
-### gt init
-
-Initialize a new Gas Town workspace.
-
-```bash
-gt init                    # Initialize current directory
-gt init <path>             # Initialize specific path
-gt init --name "My Town"   # Set town name
-```
-
-### gt install
-
-Install Gas Town dependencies and configuration.
-
-```bash
-gt install                 # Full installation
-gt install --check         # Verify installation
-gt install --hooks         # Install git hooks only
-```
-
----
-
-## Configuration
-
-### gt config
-
-Manage Gas Town configuration.
-
-#### Agent Configuration
-
-```bash
-gt config agent list                    # List all agents
-gt config agent list --json             # JSON output
-gt config agent get <name>              # Show agent config
-gt config agent set <name> <command>    # Set custom agent
-gt config agent remove <name>           # Remove custom agent
-```
-
-**Built-in Agents:**
-- `claude` - Claude Code (default)
-- `gemini` - Gemini CLI
-- `codex` - Codex CLI
-
-**Custom Agent Example:**
-```bash
-gt config agent set claude-glm "claude-glm --model glm-4"
-```
-
-#### Default Agent
-
-```bash
-gt config default-agent                 # Show current
-gt config default-agent claude          # Set default
-```
-
-#### Agent Email Domain
-
-```bash
-gt config agent-email-domain                    # Show current
-gt config agent-email-domain gastown.local      # Set domain
-```
-
-Used for git commit emails: `gastown/crew/joe` -> `gastown.crew.joe@domain`
-
-### gt role
-
-Display current role information.
-
-```bash
-gt role                    # Show detected role
-gt role --json             # JSON output
-```
-
-### gt plugin
-
-Manage plugins.
-
-```bash
-gt plugin list             # List installed plugins
-gt plugin install <name>   # Install plugin
-gt plugin remove <name>    # Remove plugin
-```
-
-### gt theme
-
-Manage visual themes.
-
-```bash
-gt theme list              # List themes
-gt theme set <name>        # Set active theme
-gt theme show              # Show current theme
+bc worktree clean
+bc worktree clean --dry-run
 ```
 
 ---
 
 ## Diagnostics
 
-### gt doctor
+### bc logs
 
-Run health checks on the workspace.
-
-```bash
-gt doctor                  # Run all checks
-gt doctor --fix            # Auto-fix issues
-gt doctor --rig gastown    # Check specific rig
-gt doctor --verbose        # Detailed output
-```
-
-**Check Categories:**
-
-**Workspace:**
-- `town-config-exists` - Check mayor/town.json
-- `town-config-valid` - Validate config
-- `rigs-registry-exists` - Check rigs.json (fixable)
-- `mayor-exists` - Check mayor/ structure
-
-**Town Root Protection:**
-- `town-git` - Verify version control
-- `town-root-branch` - Verify on main branch (fixable)
-- `pre-checkout-hook` - Verify hook exists (fixable)
-
-**Infrastructure:**
-- `stale-binary` - Check gt binary freshness
-- `daemon` - Check daemon running (fixable)
-- `repo-fingerprint` - Validate fingerprint (fixable)
-- `boot-health` - Check watchdog health
-
-**Cleanup (fixable):**
-- `orphan-sessions` - Detect orphaned tmux sessions
-- `orphan-processes` - Detect orphaned Claude processes
-- `wisp-gc` - Clean abandoned wisps (>1h)
-
-**Clone Divergence:**
-- `persistent-role-branches` - Detect non-main branches
-- `clone-divergence` - Detect behind origin/main
-
-**Rig Checks (with --rig):**
-- `rig-is-git-repo` - Valid git repository
-- `git-exclude-configured` - Check .git/info/exclude (fixable)
-- `witness-exists` - Verify witness structure (fixable)
-- `refinery-exists` - Verify refinery structure (fixable)
-- `polecat-clones-valid` - Verify polecat directories
-
-### gt status
-
-Show overall town status.
+View the event log.
 
 ```bash
-gt status                  # Show status
-gt status --json           # JSON output
-gt status --fast           # Skip mail lookups
-gt status --watch          # Continuous refresh
-gt status -n 5             # 5-second interval
-gt status --verbose        # Detailed per-agent
+bc logs                        # Recent events
+bc logs --follow               # Tail events
+bc logs -n 50                  # Last 50 events
+bc logs --json                 # JSON output
 ```
 
-**Displays:**
-- Town name and location
-- Overseer (human operator) info
-- Global agents (Mayor, Deacon)
-- Per-rig status (witness, refinery, crew, polecats)
-- Merge queue summary
-- Hook status and mail counts
+**Flags:**
+- `--follow`, `-f` - Continuous streaming
+- `-n <count>` - Number of events
+- `--json` - JSON output
 
-### gt log
+**Event Types:**
+- `spawn` - Agent spawned
+- `stop` - Agent stopped
+- `state_change` - Agent state changed
+- `work_assigned` - Work item assigned
+- `work_completed` - Work item completed
 
-View Gas Town logs.
+### bc stats
+
+Show workspace statistics.
 
 ```bash
-gt log                     # Show recent logs
-gt log --follow            # Tail logs
-gt log --rig gastown       # Filter by rig
-gt log --level error       # Filter by level
+bc stats                       # Summary stats
+bc stats --json                # JSON output
 ```
 
-### gt costs
+**Output:**
+```
+Agents:     5 total (3 running, 2 stopped)
+Work Queue: 12 items (3 pending, 5 working, 4 done)
+Worktrees:  3 active
+Uptime:     2h 15m
+```
 
-View API usage costs.
+### bc dashboard
+
+Show workspace dashboard with rich stats.
 
 ```bash
-gt costs                   # Show cost summary
-gt costs --period day      # Daily breakdown
-gt costs --period week     # Weekly breakdown
-gt costs --json            # JSON output
+bc dashboard                   # Launch dashboard
 ```
 
-### gt activity
+**Features:**
+- Real-time agent status
+- Work queue summary
+- Event feed
 
-View activity history.
+### bc report
+
+Report agent state (called by agents).
 
 ```bash
-gt activity                # Recent activity
-gt activity --rig gastown  # Filter by rig
-gt activity --agent toast  # Filter by agent
-gt activity --json         # JSON output
+bc report <state> [message]
+bc report working "Implementing login"
+bc report done "Completed implementation"
+bc report stuck "Need help with auth flow"
 ```
+
+**States:**
+| State | Description |
+|-------|-------------|
+| `idle` | Ready for work |
+| `working` | Actively working |
+| `done` | Task completed |
+| `stuck` | Needs assistance |
+| `error` | Error occurred |
+
+**Environment:**
+Expects `BC_AGENT_ID` environment variable to identify caller.
 
 ---
 
-## Typical Workflows
+## Merge Queue
 
-### Starting Work for the Day
+### bc merge
+
+Manage the merge queue.
+
+#### bc merge list
+
+List items ready for merge.
 
 ```bash
-# Start all services
-gt up
-
-# Check status
-gt status
-
-# Attach to crew workspace
-gt crew at dave
+bc merge list
+bc merge list --json
 ```
 
-### Assigning Work
+#### bc merge process
+
+Process the next item in merge queue.
 
 ```bash
-# Create a task
-bd create "Fix login bug" --type task --priority 1
-
-# Assign to a polecat
-gt sling gt-abc123 gastown/toast --nudge
-
-# Or let Witness auto-assign
-# (Witness monitors ready queue and spawns polecats)
+bc merge process
+bc merge process --dry-run
 ```
 
-### Ending a Session
+#### bc merge status
+
+Show merge queue status.
 
 ```bash
-# Save context and hand off
-gt handoff -c
-
-# Or complete work and signal done
-gt done --exit COMPLETE
+bc merge status
 ```
 
-### Stopping for the Night
+**Merge Statuses:**
+| Status | Description |
+|--------|-------------|
+| `unmerged` | Ready for merge |
+| `merging` | Currently being merged |
+| `merged` | Successfully merged |
+| `conflict` | Has merge conflicts |
 
-```bash
-# Stop all services
-gt down
+---
 
-# Or stop polecats but keep infrastructure
-gt down --polecats
+## Global Flags
+
+These flags work with all commands:
+
+| Flag | Description |
+|------|-------------|
+| `--verbose`, `-v` | Enable verbose output |
+| `--json` | Output in JSON format |
+| `--help`, `-h` | Show help |
+
+---
+
+## Configuration
+
+### Config Files
+
+| File | Location | Purpose |
+|------|----------|---------|
+| `config.toml` | `~/.config/bc/config.toml` | Global config |
+| `config.json` | `.bc/config.json` | Workspace config |
+
+### Global Config (config.toml)
+
+```toml
+[agent]
+command = "claude --dangerously-skip-permissions"
+
+[[agents]]
+name = "claude"
+command = "claude --dangerously-skip-permissions"
+
+[[agents]]
+name = "cursor-agent"
+command = "cursor-agent --force --print"
+
+[tmux]
+session_prefix = "bc"
+
+[tui]
+refresh_interval = "1s"
+theme = "ayu-dark"
 ```
 
-### Debugging Issues
+### Workspace Config (.bc/config.json)
 
-```bash
-# Run health checks
-gt doctor
-
-# Auto-fix common issues
-gt doctor --fix
-
-# Check specific rig
-gt doctor --rig gastown --verbose
-```
-
-### Communication Between Agents
-
-```bash
-# Send message
-gt mail send gastown/witness -s "Status" -m "How are the polecats?"
-
-# Check inbox
-gt mail inbox
-
-# Read and reply
-gt mail read msg-abc123
-gt mail reply msg-abc123 -m "All good!"
+```json
+{
+  "workspace": "/path/to/project",
+  "agent_command": "claude --dangerously-skip-permissions",
+  "created_at": "2026-01-15T10:00:00Z"
+}
 ```
 
 ---
@@ -946,16 +505,12 @@ gt mail reply msg-abc123 -m "All good!"
 
 | Variable | Purpose |
 |----------|---------|
-| `GT_ROLE` | Current agent role |
-| `GT_RIG` | Current rig name |
-| `GT_POLECAT` | Polecat name (if applicable) |
-| `GT_CREW` | Crew name (if applicable) |
-| `GT_AGENT` | Agent override |
-| `GT_SESSION_ID` | Session identifier |
-| `BD_ACTOR` | Actor identity for beads |
-| `TMUX_PANE` | Current tmux pane |
-| `ANTHROPIC_API_KEY` | Claude API key |
-| `GT_NUKE_ACKNOWLEDGED` | Required for destructive operations |
+| `BC_WORKSPACE` | Workspace root path |
+| `BC_AGENT_ID` | Current agent identifier |
+| `BC_AGENT_ROLE` | Current agent role |
+| `BC_AGENT_WORKTREE` | Agent's worktree directory |
+| `BC_AGENT_TOOL` | AI tool name |
+| `BC_PARENT_ID` | Parent agent ID |
 
 ---
 
@@ -966,15 +521,71 @@ gt mail reply msg-abc123 -m "All good!"
 | 0 | Success |
 | 1 | General error |
 | 2 | Invalid arguments |
-| 3 | Not in workspace |
-| 4 | Agent not found |
-| 5 | Permission denied |
+| 3 | Agent not found |
+| 4 | Workspace not initialized |
+
+---
+
+## Typical Workflows
+
+### Starting a Session
+
+```bash
+# Initialize workspace (first time)
+bc init
+
+# Start coordinator
+bc up
+
+# Check status
+bc status
+
+# Spawn workers
+bc spawn eng-01 --role engineer
+bc spawn eng-02 --role engineer
+```
+
+### Assigning Work
+
+```bash
+# Add work to queue
+bc queue add "Implement user auth"
+
+# Assign to agent
+bc queue assign work-001 eng-01
+
+# Agent reports progress
+bc report working "Starting implementation"
+bc report done "Auth implemented"
+```
+
+### Monitoring
+
+```bash
+# Watch status
+bc status --watch
+
+# View logs
+bc logs --follow
+
+# Check stats
+bc stats
+```
+
+### Ending Session
+
+```bash
+# Stop all agents
+bc down
+
+# Clean up worktrees
+bc worktree clean
+```
 
 ---
 
 ## See Also
 
-- [Agent Types](02-agent-types.md) - Detailed agent documentation
-- [Data Models](04-data-models.md) - Beads and data structures
+- [Agent Types](02-agent-types.md) - Role definitions and capabilities
+- [Data Models](04-data-models.md) - Data structures and files
 - [Workflows](05-workflows.md) - Common workflow patterns
-- [GTN TUI](06-gtn-tui.md) - Terminal user interface

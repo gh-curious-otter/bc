@@ -1,776 +1,371 @@
-# Gas Town Agent Types
+# bc Agent Roles and Hierarchy
 
-This document describes all agent types in the Gas Town system, their roles, responsibilities, lifecycles, and how they interact with each other.
+This document describes the agent role system in bc, including capabilities, hierarchy, and state management.
 
 ---
 
 ## Overview
 
-Gas Town operates as a distributed work coordination system with six distinct agent types:
+bc uses a hierarchical role-based agent system with four primary roles plus two legacy roles for backward compatibility:
 
-| Agent | Type | Lifecycle | Primary Role |
-|-------|------|-----------|--------------|
-| Mayor | AI Coordinator | Persistent | Work orchestration and rig management |
-| Deacon | Town Daemon | Persistent | System monitoring and plugin management |
-| Witness | Polecat Monitor | Persistent | State tracking and issue detection |
-| Refinery | Merge Queue | Persistent | MR processing and conflict resolution |
-| Polecats | Ephemeral Workers | Ephemeral | Task execution |
-| Crew | Human Workers | Persistent | Personal workspace and manual work |
+| Role | Level | Primary Responsibility |
+|------|-------|------------------------|
+| ProductManager | 0 | Product vision, creates epics |
+| Manager | 1 | Breaks down epics, manages engineers |
+| Engineer | 2 | Implements tasks (code) |
+| QA | 2 | Tests and validates implementations |
 
+Legacy roles (for backward compatibility):
+- `coordinator` - Maps to ProductManager capabilities
+- `worker` - Maps to Engineer capabilities
+
+---
+
+## Role Definitions
+
+### ProductManager (Level 0)
+
+The **ProductManager** (PM) is the top-level coordinator responsible for product vision and high-level work organization.
+
+**Capabilities:**
+- `create_agents` - Can spawn child agents (Managers)
+- `assign_work` - Can assign work items to other agents
+- `create_epics` - Can create high-level epics
+- `review_work` - Can review work from other agents
+
+**Can Create:** Manager
+
+**Typical Tasks:**
+- Define product requirements
+- Create and prioritize epics
+- Spawn Manager agents for complex features
+- Review completed work
+
+**Example Spawn:**
+```bash
+bc spawn pm-01 --role product-manager
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        GAS TOWN                                 │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│   ┌─────────┐     coordinates      ┌──────────────────────┐    │
-│   │  MAYOR  │ ─────────────────▶   │      POLECATS        │    │
-│   │   (AI)  │                      │  (Ephemeral Workers) │    │
-│   └────┬────┘                      └──────────────────────┘    │
-│        │                                      ▲                 │
-│        │ manages                              │ monitors        │
-│        ▼                                      │                 │
-│   ┌─────────┐                          ┌──────┴─────┐          │
-│   │  RIGS   │                          │  WITNESS   │          │
-│   │ (Slots) │                          │ (Monitor)  │          │
-│   └─────────┘                          └────────────┘          │
-│                                                                 │
-│   ┌─────────┐     processes      ┌─────────────┐               │
-│   │ REFINERY│ ◀───────────────── │  MR QUEUE   │               │
-│   │ (Merge) │                    └─────────────┘               │
-│   └─────────┘                                                  │
-│                                                                 │
-│   ┌─────────┐                    ┌─────────────┐               │
-│   │ DEACON  │ ───────────────▶   │  PLUGINS    │               │
-│   │(Daemon) │    manages         └─────────────┘               │
-│   └─────────┘                                                  │
-│                                                                 │
-│   ┌─────────┐                                                  │
-│   │  CREW   │  (Human Workers - Personal Workspaces)           │
-│   └─────────┘                                                  │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+
+### Manager (Level 1)
+
+The **Manager** breaks down epics into actionable tasks and coordinates Engineer and QA agents.
+
+**Capabilities:**
+- `create_agents` - Can spawn child agents (Engineers, QA)
+- `assign_work` - Can assign tasks to engineers and QA
+- `review_work` - Can review implementations
+
+**Can Create:** Engineer, QA
+
+**Typical Tasks:**
+- Break down epics into implementation tasks
+- Spawn Engineer agents for implementation
+- Spawn QA agents for testing
+- Coordinate work across team
+
+**Example Spawn:**
+```bash
+bc spawn mgr-01 --role manager
+```
+
+### Engineer (Level 2)
+
+The **Engineer** implements code changes and features.
+
+**Capabilities:**
+- `implement_tasks` - Can write code and implement features
+
+**Can Create:** (none - leaf role)
+
+**Typical Tasks:**
+- Implement features
+- Fix bugs
+- Write unit tests
+- Create pull requests
+
+**Example Spawn:**
+```bash
+bc spawn eng-01 --role engineer
+```
+
+### QA (Level 2)
+
+The **QA** agent tests and validates implementations.
+
+**Capabilities:**
+- `test_work` - Can test and validate implementations
+- `review_work` - Can review implementations
+
+**Can Create:** (none - leaf role)
+
+**Typical Tasks:**
+- Write integration tests
+- Run test suites
+- Validate implementations
+- Report issues found
+
+**Example Spawn:**
+```bash
+bc spawn qa-01 --role qa
 ```
 
 ---
 
-## 1. Mayor - AI Coordinator
-
-The **Mayor** is the central AI coordinator responsible for orchestrating all work within Gas Town. It manages rigs (work slots), assigns tasks to polecats, and maintains session continuity.
-
-### Role and Responsibilities
-
-- **Work Orchestration**: Breaks down high-level tasks into actionable work items
-- **Rig Management**: Allocates and monitors work slots for polecats
-- **Session Management**: Maintains context across work sessions
-- **Priority Management**: Determines task ordering and resource allocation
-- **Coordination**: Ensures polecats don't conflict on shared resources
-
-### Capabilities
-
-| Capability | Description |
-|------------|-------------|
-| Task Decomposition | Breaks complex work into polecat-sized chunks |
-| Resource Allocation | Assigns polecats to available rigs |
-| State Persistence | Maintains work context across restarts |
-| Conflict Detection | Prevents overlapping work assignments |
-| Progress Tracking | Monitors completion status of all active work |
-
-### How Mayor Manages Rigs
-
-Rigs are work slots that polecats occupy while performing tasks. The Mayor maintains a registry of available rigs and their current occupants.
+## Role Hierarchy
 
 ```
-┌────────────────────────────────────────────────────┐
-│                    MAYOR                           │
-│                                                    │
-│   ┌──────────────────────────────────────────┐    │
-│   │              RIG REGISTRY                 │    │
-│   ├──────────┬──────────┬──────────┬─────────┤    │
-│   │  Rig 1   │  Rig 2   │  Rig 3   │  Rig 4  │    │
-│   │ (furiosa)│  (nux)   │  (empty) │ (slit)  │    │
-│   │ [active] │ [active] │  [free]  │ [active]│    │
-│   └──────────┴──────────┴──────────┴─────────┘    │
-│                                                    │
-│   Work Queue: [task-1, task-2, task-3, ...]       │
-└────────────────────────────────────────────────────┘
+                    ┌─────────────────┐
+                    │ ProductManager  │  Level 0
+                    │    (pm-01)      │
+                    └────────┬────────┘
+                             │
+                             │ creates
+                             ▼
+                    ┌─────────────────┐
+                    │    Manager      │  Level 1
+                    │   (mgr-01)      │
+                    └────────┬────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+              ▼              ▼              ▼
+       ┌───────────┐  ┌───────────┐  ┌───────────┐
+       │ Engineer  │  │ Engineer  │  │    QA     │  Level 2
+       │ (eng-01)  │  │ (eng-02)  │  │  (qa-01)  │
+       └───────────┘  └───────────┘  └───────────┘
 ```
 
-### Session Management
+### Hierarchy Rules
 
-The Mayor maintains session state to enable:
-- Resumption after interruptions
-- Context preservation across polecat lifecycles
-- Work history and audit trails
+1. **Parent-child relationships** - Agents can only create roles allowed by `RoleHierarchy`
+2. **Capability-based access** - Actions are gated by role capabilities
+3. **Level-based sorting** - Agents are sorted by level (0=top) then by name
 
-### Configuration Example
-
-```yaml
-# mayor.yaml
-mayor:
-  max_concurrent_rigs: 5
-  session:
-    persistence: true
-    state_dir: .gtn/mayor/sessions
-    ttl: 24h
-  coordination:
-    work_queue: .gtn/mayor/queue
-    assignment_strategy: round_robin
-  hooks:
-    on_task_complete: notify
-    on_error: escalate
+```go
+// Role hierarchy from pkg/agent/agent.go
+var RoleHierarchy = map[Role][]Role{
+    RoleProductManager: {RoleManager},
+    RoleManager:        {RoleEngineer, RoleQA},
+    RoleEngineer:       {}, // Cannot create children
+    RoleQA:             {}, // Cannot create children
+}
 ```
 
 ---
 
-## 2. Deacon - Town Daemon
+## Agent State Machine
 
-The **Deacon** is the persistent background daemon that keeps Gas Town running. It manages the plugin system and monitors system health.
+Each agent has a lifecycle state that tracks its operational status.
 
-### Purpose
+### States
 
-- Maintain persistent system processes
-- Load and manage plugins
-- Provide system-level monitoring
-- Handle graceful shutdown and restart
+| State | Description |
+|-------|-------------|
+| `starting` | Agent session is initializing |
+| `idle` | Ready for work, no active task |
+| `working` | Actively executing a task |
+| `done` | Task completed successfully |
+| `stuck` | Agent needs assistance |
+| `error` | Error occurred |
+| `stopped` | Agent session terminated |
 
-### Lifecycle
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    DEACON LIFECYCLE                         │
-│                                                             │
-│   ┌──────────┐    ┌──────────┐    ┌──────────────────────┐ │
-│   │  START   │───▶│  INIT    │───▶│   LOAD PLUGINS       │ │
-│   └──────────┘    │  CONFIG  │    └──────────┬───────────┘ │
-│                   └──────────┘               │              │
-│                                              ▼              │
-│   ┌──────────┐    ┌──────────┐    ┌──────────────────────┐ │
-│   │ SHUTDOWN │◀───│ SIGNAL   │◀───│   RUNNING (LOOP)     │ │
-│   └──────────┘    │ RECEIVED │    │   - Health checks    │ │
-│        │          └──────────┘    │   - Plugin events    │ │
-│        ▼                          │   - State sync       │ │
-│   ┌──────────┐                    └──────────────────────┘ │
-│   │ CLEANUP  │                                             │
-│   │ PLUGINS  │                                             │
-│   └──────────┘                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Plugin System
-
-The Deacon manages a plugin architecture that extends Gas Town functionality:
+### State Transitions
 
 ```
-┌─────────────────────────────────────────────┐
-│                 DEACON                      │
-│                                             │
-│   ┌─────────────────────────────────────┐  │
-│   │          PLUGIN MANAGER             │  │
-│   └─────────────────────────────────────┘  │
-│        │           │            │          │
-│        ▼           ▼            ▼          │
-│   ┌─────────┐ ┌─────────┐ ┌─────────┐     │
-│   │ Plugin  │ │ Plugin  │ │ Plugin  │     │
-│   │   A     │ │   B     │ │   C     │     │
-│   └─────────┘ └─────────┘ └─────────┘     │
-│                                             │
-│   Plugin Hooks:                            │
-│   - on_polecat_spawn                       │
-│   - on_task_complete                       │
-│   - on_merge_ready                         │
-│   - on_error                               │
-└─────────────────────────────────────────────┘
+                    ┌─────────┐
+                    │starting │
+                    └────┬────┘
+                         │
+                         ▼
+┌──────────────────────────────────────────────────────┐
+│                                                       │
+│     ┌──────┐        ┌─────────┐        ┌──────┐     │
+│     │ idle │◀──────▶│ working │───────▶│ done │     │
+│     └──┬───┘        └────┬────┘        └───┬──┘     │
+│        │                 │                  │        │
+│        │                 ▼                  │        │
+│        │           ┌─────────┐              │        │
+│        └──────────▶│  stuck  │◀─────────────┘        │
+│                    └────┬────┘                       │
+│                         │                            │
+└─────────────────────────┼────────────────────────────┘
+                          │
+                          ▼
+                    ┌─────────┐
+                    │  error  │
+                    └────┬────┘
+                         │
+                         ▼
+                    ┌─────────┐
+                    │ stopped │
+                    └─────────┘
 ```
 
-### Monitoring Responsibilities
+### Valid Transitions
 
-| Area | What Deacon Monitors |
-|------|---------------------|
-| System Health | CPU, memory, disk usage |
-| Agent Status | Liveness of all persistent agents |
-| Plugin Health | Plugin responsiveness and errors |
-| Queue Depths | Work queue backlog alerts |
+From `pkg/agent/agent.go`:
 
-### Configuration Example
-
-```yaml
-# deacon.yaml
-deacon:
-  daemon:
-    pid_file: .gtn/deacon.pid
-    log_file: .gtn/logs/deacon.log
-  plugins:
-    directory: .gtn/plugins
-    autoload: true
-    enabled:
-      - notifications
-      - metrics
-      - git-hooks
-  monitoring:
-    interval: 30s
-    health_endpoint: /health
-  signals:
-    graceful_shutdown: SIGTERM
-    reload_config: SIGHUP
-```
+| From State | Valid Transitions To |
+|------------|---------------------|
+| `starting` | idle, error, stopped |
+| `idle` | idle, working, done, stuck, error, stopped |
+| `working` | working, idle, done, stuck, error, stopped |
+| `done` | idle, working, stopped |
+| `stuck` | stuck, idle, working, error, stopped |
+| `error` | idle, working, stopped |
+| `stopped` | idle, starting |
 
 ---
 
-## 3. Witness - Polecat Monitor
+## Agent Structure
 
-The **Witness** is a specialized monitor that observes polecat activity, tracks state, and detects issues requiring intervention.
+Each agent has the following attributes:
 
-### Auto-Spawn Logic
-
-The Witness automatically spawns when:
-1. A polecat enters `working` state
-2. Multiple polecats are active simultaneously
-3. Long-running tasks exceed threshold duration
-4. Error conditions are detected
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                  WITNESS AUTO-SPAWN                         │
-│                                                             │
-│   Trigger Conditions:                                       │
-│                                                             │
-│   ┌─────────────────┐                                      │
-│   │ Polecat Active? │───Yes───▶ Spawn Witness              │
-│   └─────────────────┘                                      │
-│            │                                                │
-│           No                                                │
-│            ▼                                                │
-│   ┌─────────────────┐                                      │
-│   │ Tasks Pending?  │───Yes───▶ Spawn Witness (standby)    │
-│   └─────────────────┘                                      │
-│            │                                                │
-│           No                                                │
-│            ▼                                                │
-│   [Witness remains dormant]                                 │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+```go
+type Agent struct {
+    ID          string       // Unique identifier (e.g., "eng-01")
+    Name        string       // Display name
+    Role        Role         // Agent role
+    State       State        // Current state
+    Workspace   string       // Workspace path
+    Session     string       // Tmux session name
+    ParentID    string       // Parent agent ID (if any)
+    Children    []string     // Child agent IDs
+    HookedWork  string       // Currently assigned work item
+    WorktreeDir string       // Per-agent git worktree path
+    Tool        string       // AI tool (claude, cursor-agent)
+    Task        string       // Current task description
+    Memory      *AgentMemory // Role-specific prompt content
+    StartedAt   time.Time
+    UpdatedAt   time.Time
+}
 ```
 
-### State Tracking
+### Per-Agent Worktrees
 
-The Witness maintains a real-time view of all polecat states:
+Each agent gets its own git worktree to prevent conflicts:
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│                 WITNESS STATE TRACKER                      │
-│                                                            │
-│   Polecat        State       Duration    Issues           │
-│   ─────────────────────────────────────────────────────   │
-│   furiosa        working     12m 34s     none             │
-│   nux            working     3m 12s      none             │
-│   slit           done        -           cleanup pending  │
-│   rictus         idle        45m 00s     stale?           │
-│   dementus       spawning    0m 15s      none             │
-│                                                            │
-│   Active: 2    Idle: 1    Done: 1    Spawning: 1          │
-└────────────────────────────────────────────────────────────┘
+.bc/worktrees/
+├── pm-01/              # PM's worktree
+├── mgr-01/             # Manager's worktree
+├── eng-01/             # Engineer's worktree
+└── qa-01/              # QA's worktree
 ```
 
-### Issue Monitoring
-
-| Issue Type | Detection | Response |
-|------------|-----------|----------|
-| Stuck Polecat | No progress for N minutes | Alert Mayor |
-| Error State | Exception or failure logged | Log and notify |
-| Resource Contention | Multiple polecats on same resource | Flag conflict |
-| Orphaned Work | Polecat died with incomplete task | Mark for reassignment |
-| Timeout | Task exceeds max duration | Terminate and report |
-
-### Configuration Example
-
-```yaml
-# witness.yaml
-witness:
-  auto_spawn:
-    on_polecat_active: true
-    on_pending_tasks: true
-    spawn_delay: 5s
-  monitoring:
-    poll_interval: 10s
-    stuck_threshold: 30m
-    timeout_threshold: 2h
-  alerts:
-    channels:
-      - log
-      - webhook
-    escalation_after: 3
-  state:
-    persistence: .gtn/witness/state.json
-    history_retention: 7d
-```
+Worktrees are created at spawn time and cleaned up when the agent is stopped.
 
 ---
 
-## 4. Refinery - Merge Queue Processor
+## Environment Variables
 
-The **Refinery** handles the merge queue, processing merge requests, resolving conflicts, and managing git integration.
+Agents receive these environment variables in their tmux session:
 
-### MR Handling Workflow
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    REFINERY MR WORKFLOW                         │
-│                                                                 │
-│   ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐ │
-│   │   MR     │───▶│  QUEUE   │───▶│ VALIDATE │───▶│  MERGE   │ │
-│   │ CREATED  │    │  ENTRY   │    │          │    │          │ │
-│   └──────────┘    └──────────┘    └────┬─────┘    └────┬─────┘ │
-│                                        │               │        │
-│                                        ▼               ▼        │
-│                                   ┌──────────┐   ┌──────────┐  │
-│                                   │ CONFLICT │   │ COMPLETE │  │
-│                                   │ DETECTED │   │          │  │
-│                                   └────┬─────┘   └──────────┘  │
-│                                        │                        │
-│                                        ▼                        │
-│                                   ┌──────────┐                  │
-│                                   │  RESOLVE │                  │
-│                                   │   AUTO   │                  │
-│                                   └────┬─────┘                  │
-│                                        │                        │
-│                            ┌───────────┴───────────┐            │
-│                            ▼                       ▼            │
-│                       ┌──────────┐           ┌──────────┐       │
-│                       │ SUCCESS  │           │  MANUAL  │       │
-│                       │  MERGE   │           │ REQUIRED │       │
-│                       └──────────┘           └──────────┘       │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Conflict Resolution
-
-The Refinery employs a multi-stage conflict resolution strategy:
-
-```
-┌────────────────────────────────────────────────────────────┐
-│              CONFLICT RESOLUTION STAGES                    │
-│                                                            │
-│   Stage 1: Auto-Resolution                                 │
-│   ─────────────────────────────                           │
-│   - Whitespace conflicts                                   │
-│   - Import ordering                                        │
-│   - Non-overlapping changes                               │
-│                                                            │
-│   Stage 2: Semantic Analysis                               │
-│   ──────────────────────────                              │
-│   - Function signature changes                             │
-│   - Dependency updates                                     │
-│   - Configuration merges                                   │
-│                                                            │
-│   Stage 3: Human Escalation                                │
-│   ─────────────────────────                               │
-│   - Logic conflicts                                        │
-│   - Semantic incompatibilities                             │
-│   - High-risk file changes                                 │
-│                                                            │
-└────────────────────────────────────────────────────────────┘
-```
-
-### Integration with Git
-
-| Operation | Refinery Action |
-|-----------|-----------------|
-| Branch Creation | Creates merge staging branches |
-| Rebase | Keeps MRs up-to-date with target |
-| Merge | Fast-forward or merge commit based on config |
-| Tag | Optionally tags merged commits |
-| Push | Pushes merged result to remote |
-
-### Configuration Example
-
-```yaml
-# refinery.yaml
-refinery:
-  queue:
-    directory: .gtn/refinery/queue
-    max_concurrent: 3
-    priority_order: fifo  # or priority-based
-  merge:
-    strategy: rebase  # or merge, squash
-    require_clean: true
-    run_checks: true
-    auto_resolve:
-      enabled: true
-      strategies:
-        - whitespace
-        - imports
-        - lockfiles
-  conflict:
-    auto_resolve_threshold: low  # low, medium, high
-    escalation_timeout: 1h
-  git:
-    remote: origin
-    protected_branches:
-      - main
-      - release/*
-    commit_message_template: |
-      Merge: {title}
-
-      {description}
-
-      Closes: {issue_ref}
-```
+| Variable | Description |
+|----------|-------------|
+| `BC_AGENT_ID` | Agent identifier |
+| `BC_AGENT_ROLE` | Agent role (e.g., "engineer") |
+| `BC_WORKSPACE` | Workspace root path |
+| `BC_AGENT_WORKTREE` | Agent's worktree directory |
+| `BC_AGENT_TOOL` | AI tool name (if specified) |
+| `BC_PARENT_ID` | Parent agent ID (if any) |
 
 ---
 
-## 5. Polecats - Ephemeral Workers
+## Capability Checks
 
-**Polecats** are ephemeral worker agents that perform actual tasks. They spawn, do work, and are cleaned up when done.
+Use capabilities to gate actions:
 
-### Lifecycle
+```go
+// Check if agent can create other agents
+if agent.HasCapability(CapCreateAgents) {
+    // Can spawn children
+}
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     POLECAT LIFECYCLE                           │
-│                                                                 │
-│   ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────────┐ │
-│   │  SPAWN  │───▶│  INIT   │───▶│  WORK   │───▶│    DONE     │ │
-│   └─────────┘    └─────────┘    └─────────┘    └──────┬──────┘ │
-│       │              │              │                  │        │
-│       │              │              │                  ▼        │
-│       │              │              │           ┌─────────────┐ │
-│       │              │              │           │   CLEANUP   │ │
-│       │              │              │           └─────────────┘ │
-│       │              │              │                           │
-│       ▼              ▼              ▼                           │
-│   ┌─────────────────────────────────────────────────────────┐  │
-│   │                    STATE DETAILS                         │  │
-│   ├─────────────────────────────────────────────────────────┤  │
-│   │ SPAWN:   Mayor requests worker, rig allocated           │  │
-│   │ INIT:    Clone/setup workspace, load context            │  │
-│   │ WORK:    Execute assigned task via hooks                │  │
-│   │ DONE:    Task complete, results reported                │  │
-│   │ CLEANUP: Workspace removed, rig released                │  │
-│   └─────────────────────────────────────────────────────────┘  │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+// Check if agent can implement code
+if agent.HasCapability(CapImplementTasks) {
+    // Can write code
+}
+
+// Check if parent can create specific child role
+if agent.CanCreate(RoleEngineer) {
+    // Can spawn an engineer
+}
 ```
 
-### Naming Convention
+### Capability Summary
 
-Polecats are named after War Boys from Mad Max: Fury Road:
-
-| Name | Origin | Typical Assignment |
-|------|--------|-------------------|
-| **furiosa** | Imperator Furiosa | Primary/lead tasks |
-| **nux** | War Boy Nux | General development |
-| **slit** | War Boy Slit | Testing/validation |
-| **rictus** | Rictus Erectus | Heavy processing |
-| **dementus** | Dementus | Cleanup/maintenance |
-
-Names are assigned round-robin from the pool as polecats spawn.
-
-### Session and Slot Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                  SESSION & SLOT ARCHITECTURE                    │
-│                                                                 │
-│   ┌─────────────────────────────────────────────────────────┐  │
-│   │                      SESSION                             │  │
-│   │   ID: session-2024-01-15-abc123                         │  │
-│   │   Created: 2024-01-15T10:00:00Z                         │  │
-│   │   Context: Feature implementation                        │  │
-│   └─────────────────────────────────────────────────────────┘  │
-│                              │                                  │
-│              ┌───────────────┼───────────────┐                  │
-│              ▼               ▼               ▼                  │
-│   ┌──────────────┐ ┌──────────────┐ ┌──────────────┐           │
-│   │    SLOT 1    │ │    SLOT 2    │ │    SLOT 3    │           │
-│   │   (Rig A)    │ │   (Rig B)    │ │   (Rig C)    │           │
-│   ├──────────────┤ ├──────────────┤ ├──────────────┤           │
-│   │ Polecat:     │ │ Polecat:     │ │ Polecat:     │           │
-│   │   furiosa    │ │   nux        │ │   (empty)    │           │
-│   │ Task:        │ │ Task:        │ │ Task:        │           │
-│   │   impl-auth  │ │   write-test │ │   available  │           │
-│   │ State:       │ │ State:       │ │ State:       │           │
-│   │   working    │ │   working    │ │   free       │           │
-│   └──────────────┘ └──────────────┘ └──────────────┘           │
-│                                                                 │
-│   Slot Properties:                                              │
-│   - Isolated workspace (worktree or container)                  │
-│   - Dedicated git branch                                        │
-│   - Resource limits (CPU, memory)                               │
-│   - Independent environment                                     │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Hook-Based Work Assignment
-
-Polecats receive work through a hook system:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    HOOK-BASED ASSIGNMENT                        │
-│                                                                 │
-│   MAYOR                          POLECAT (furiosa)              │
-│   ──────                         ─────────────────              │
-│      │                                  │                       │
-│      │  1. Assign task via hook         │                       │
-│      │ ─────────────────────────────▶   │                       │
-│      │    .gtn/hooks/polecat-start      │                       │
-│      │                                  │                       │
-│      │                                  │  2. Read hook file    │
-│      │                                  │     Parse task spec   │
-│      │                                  │                       │
-│      │                                  │  3. Execute work      │
-│      │                                  │     ...               │
-│      │                                  │                       │
-│      │  4. Progress hooks (optional)    │                       │
-│      │ ◀─────────────────────────────   │                       │
-│      │    .gtn/hooks/polecat-progress   │                       │
-│      │                                  │                       │
-│      │  5. Completion hook              │                       │
-│      │ ◀─────────────────────────────   │                       │
-│      │    .gtn/hooks/polecat-done       │                       │
-│      │                                  │                       │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Configuration Example
-
-```yaml
-# polecat.yaml
-polecat:
-  naming:
-    pool:
-      - furiosa
-      - nux
-      - slit
-      - rictus
-      - dementus
-    assignment: round_robin
-  workspace:
-    type: worktree  # or container, directory
-    base_path: .gtn/polecats
-    cleanup_on_done: true
-  resources:
-    max_memory: 4G
-    max_cpu: 2
-    timeout: 2h
-  hooks:
-    start: .gtn/hooks/polecat-start
-    progress: .gtn/hooks/polecat-progress
-    done: .gtn/hooks/polecat-done
-    error: .gtn/hooks/polecat-error
-  state:
-    file: .gtn/polecats/{name}/state.json
-    report_interval: 30s
-```
+| Capability | PM | Manager | Engineer | QA |
+|------------|:--:|:-------:|:--------:|:--:|
+| create_agents | ✓ | ✓ | | |
+| assign_work | ✓ | ✓ | | |
+| create_epics | ✓ | | | |
+| implement_tasks | | | ✓ | |
+| review_work | ✓ | ✓ | | ✓ |
+| test_work | | | | ✓ |
 
 ---
 
-## 6. Crew - Human Workers
+## Agent Lifecycle
 
-**Crew** members are human workers who interact with Gas Town through personal, persistent workspaces.
+### 1. Spawn
 
-### Personal Workspace Model
-
-Unlike ephemeral polecats, crew members have persistent workspaces that survive across sessions:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                   CREW WORKSPACE MODEL                          │
-│                                                                 │
-│   ┌─────────────────────────────────────────────────────────┐  │
-│   │                    CREW MEMBER: alice                    │  │
-│   ├─────────────────────────────────────────────────────────┤  │
-│   │                                                          │  │
-│   │   Personal Workspace: ~/projects/gastown                 │  │
-│   │   ──────────────────────────────────────                │  │
-│   │   - Persistent across sessions                          │  │
-│   │   - Personal git configuration                          │  │
-│   │   - Custom tool preferences                             │  │
-│   │   - Local environment settings                          │  │
-│   │                                                          │  │
-│   │   Active Branches:                                       │  │
-│   │   ──────────────────                                    │  │
-│   │   - feature/alice-auth-work                             │  │
-│   │   - bugfix/alice-login-fix                              │  │
-│   │                                                          │  │
-│   │   Session History:                                       │  │
-│   │   ────────────────                                      │  │
-│   │   - 2024-01-15: Auth implementation (8h)                │  │
-│   │   - 2024-01-14: Code review (2h)                        │  │
-│   │   - 2024-01-13: Bug investigation (4h)                  │  │
-│   │                                                          │  │
-│   └─────────────────────────────────────────────────────────┘  │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```bash
+bc spawn eng-01 --role engineer
 ```
 
-### Persistence vs Ephemeral Polecats
+Creates:
+1. Agent record in memory/state
+2. Git worktree at `.bc/worktrees/eng-01/`
+3. Tmux session with environment variables
+4. Loads role prompt from `prompts/engineer.md` (if exists)
 
-| Aspect | Crew (Human) | Polecats (AI) |
-|--------|--------------|---------------|
-| **Workspace** | Persistent, personal | Ephemeral, disposable |
-| **State** | Survives indefinitely | Destroyed on completion |
-| **Context** | Accumulated knowledge | Fresh each spawn |
-| **Branches** | Personal feature branches | Task-specific branches |
-| **Tools** | Personal preferences | Standardized tooling |
-| **Concurrent Work** | Single focus typical | Parallel execution |
-| **Cleanup** | Manual | Automatic |
+### 2. Work Execution
 
-### Crew Interaction with Gas Town
+Agent checks for work, executes tasks, reports state:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│              CREW INTERACTION PATTERNS                          │
-│                                                                 │
-│   ┌──────────┐                                                 │
-│   │   CREW   │                                                 │
-│   │  (alice) │                                                 │
-│   └────┬─────┘                                                 │
-│        │                                                        │
-│        ├───▶ Request work from Mayor                           │
-│        │     - "I'll take the auth feature"                    │
-│        │                                                        │
-│        ├───▶ Collaborate with Polecats                         │
-│        │     - "Polecat: write tests for my changes"           │
-│        │                                                        │
-│        ├───▶ Submit to Refinery                                │
-│        │     - "Ready for merge review"                        │
-│        │                                                        │
-│        ├───▶ Monitor via Witness                               │
-│        │     - "Show me polecat progress"                      │
-│        │                                                        │
-│        └───▶ Use Deacon plugins                                │
-│              - Notifications, metrics, integrations            │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+```bash
+# Agent reports state change
+bc report working "Implementing login feature"
+bc report done "Completed login implementation"
 ```
 
-### Configuration Example
+### 3. Stop
 
-```yaml
-# crew.yaml
-crew:
-  members:
-    alice:
-      workspace: ~/projects/gastown
-      email: alice@example.com
-      preferences:
-        editor: vscode
-        shell: zsh
-      permissions:
-        - submit_mr
-        - spawn_polecat
-        - view_all
-    bob:
-      workspace: ~/dev/gastown
-      email: bob@example.com
-      preferences:
-        editor: vim
-        shell: bash
-      permissions:
-        - submit_mr
-        - view_own
-  defaults:
-    branch_prefix: "{username}/"
-    commit_template: .gtn/templates/commit.txt
-  notifications:
-    on_polecat_done: true
-    on_mr_merged: true
-    on_conflict: true
+```bash
+bc down           # Stop all agents
 ```
+
+Cleans up:
+1. Kills tmux session
+2. Removes git worktree
+3. Updates agent state to `stopped`
 
 ---
 
-## State Diagram Summary
+## Role Prompts
+
+Role-specific prompts are loaded from `prompts/<role>.md`:
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│              GAS TOWN COMPLETE STATE FLOW                       │
-│                                                                 │
-│                        ┌─────────┐                              │
-│                        │  CREW   │                              │
-│                        │ Request │                              │
-│                        └────┬────┘                              │
-│                             │                                   │
-│                             ▼                                   │
-│   ┌──────────────────────────────────────────────────────────┐ │
-│   │                       MAYOR                               │ │
-│   │                                                           │ │
-│   │   ┌─────────────┐    ┌─────────────┐    ┌─────────────┐  │ │
-│   │   │ Decompose   │───▶│   Assign    │───▶│   Monitor   │  │ │
-│   │   │   Task      │    │  to Rig     │    │  Progress   │  │ │
-│   │   └─────────────┘    └─────────────┘    └─────────────┘  │ │
-│   │                             │                             │ │
-│   └─────────────────────────────┼─────────────────────────────┘ │
-│                                 │                               │
-│                                 ▼                               │
-│   ┌──────────────────────────────────────────────────────────┐ │
-│   │                     POLECAT                               │ │
-│   │   spawn ──▶ init ──▶ work ──▶ done ──▶ cleanup           │ │
-│   └──────────────────────────────┬───────────────────────────┘ │
-│                                  │                              │
-│            ┌─────────────────────┼─────────────────────┐        │
-│            │                     │                     │        │
-│            ▼                     ▼                     ▼        │
-│   ┌─────────────────┐   ┌─────────────────┐   ┌─────────────┐  │
-│   │    WITNESS      │   │    REFINERY     │   │   DEACON    │  │
-│   │   (monitors)    │   │   (merges)      │   │  (plugins)  │  │
-│   └─────────────────┘   └─────────────────┘   └─────────────┘  │
-│                                  │                              │
-│                                  ▼                              │
-│                         ┌─────────────────┐                     │
-│                         │    MERGED       │                     │
-│                         │    TO MAIN      │                     │
-│                         └─────────────────┘                     │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+prompts/
+├── product_manager.md    # PM instructions
+├── manager.md            # Manager instructions
+├── engineer.md           # Engineer instructions
+└── qa.md                 # QA instructions
 ```
+
+The prompt is sent to the agent's Claude session at spawn time.
 
 ---
 
-## Quick Reference
+## Legacy Roles
 
-### Agent Communication Channels
+For backward compatibility with older configurations:
 
-| From | To | Channel |
-|------|-----|---------|
-| Mayor | Polecat | Hooks (.gtn/hooks/) |
-| Polecat | Mayor | State files, hooks |
-| Witness | Mayor | Alerts, state reports |
-| Refinery | Mayor | MR status updates |
-| Crew | Mayor | CLI commands, requests |
-| Deacon | All | Plugin events, health |
+| Legacy Role | Equivalent | Capabilities |
+|-------------|------------|--------------|
+| `coordinator` | ProductManager | create_agents, assign_work, review_work |
+| `worker` | Engineer | implement_tasks |
 
-### File System Layout
-
-```
-.gtn/
-├── mayor/
-│   ├── sessions/
-│   ├── queue/
-│   └── state.json
-├── deacon/
-│   ├── deacon.pid
-│   └── plugins/
-├── witness/
-│   └── state.json
-├── refinery/
-│   └── queue/
-├── polecats/
-│   ├── furiosa/
-│   ├── nux/
-│   ├── slit/
-│   ├── rictus/
-│   └── dementus/
-├── crew/
-│   └── {username}/
-├── hooks/
-│   ├── polecat-start
-│   ├── polecat-progress
-│   ├── polecat-done
-│   └── polecat-error
-└── logs/
-    └── *.log
-```
+These roles can still be used but new code should use the hierarchical roles.

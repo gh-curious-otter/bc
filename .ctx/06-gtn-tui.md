@@ -1,5 +1,7 @@
 # gtn - Gas Town Navigator TUI
 
+> **Note**: This is reference documentation from the Gas Town project. It documents the gtn TUI patterns and Bubble Tea architecture that can inform bc's TUI development.
+
 A k9s-style terminal user interface for Gas Town multi-agent orchestration.
 
 ## Overview

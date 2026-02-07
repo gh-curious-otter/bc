@@ -1,4 +1,4 @@
-# Gas Town Architecture Overview
+# bc Architecture Overview
 
 ## Table of Contents
 
@@ -8,247 +8,151 @@
 4. [Data Flow](#data-flow)
 5. [Key Design Principles](#key-design-principles)
 6. [Technology Stack](#technology-stack)
-7. [Component Deep Dives](#component-deep-dives)
 
 ---
 
 ## System Overview
 
-**Gas Town** is a multi-agent orchestration system for Claude Code (and other AI coding assistants) with persistent work tracking. It solves the fundamental challenge of coordinating multiple AI agents working on different tasks without losing context when agents restart.
+**bc** (beads coordinator) is a multi-agent orchestration system for Claude Code with predictable behavior and cost awareness. It coordinates multiple AI agents working on different tasks without losing context when agents restart.
 
-### The Problem Gas Town Solves
+### The Problem bc Solves
 
-| Challenge | Gas Town Solution |
-|-----------|-------------------|
-| Agents lose context on restart | Work persists in git-backed hooks |
-| Manual agent coordination | Built-in mailboxes, identities, and handoffs |
-| 4-10 agents become chaotic | Scale comfortably to 20-30 agents |
-| Work state lost in agent memory | Work state stored in Beads ledger |
+| Challenge | bc Solution |
+|-----------|-------------|
+| Agents lose context on restart | State persists in git-backed `.bc/` directory |
+| Multiple agents clobber each other | Per-agent git worktrees provide isolation |
+| Work tracking lost in agent memory | Work queue stored in `queue.json` |
+| Complex agent hierarchies | Simple 3-level hierarchy: PM → Manager → Engineer/QA |
+| Unpredictable agent behavior | Role-based capabilities restrict actions |
 
-### What Gas Town Is
+### What bc Is
 
-Gas Town is a **workspace manager** that:
+bc is a **workspace orchestrator** that:
 - Coordinates multiple Claude Code agents working on different tasks
-- Persists work state in git-backed hooks, enabling reliable multi-agent workflows
-- Provides a structured hierarchy for organizing projects, agents, and work items
-- Uses tmux sessions as the source of truth for agent liveness (ZFC-compliant)
+- Persists work state in git-backed files, enabling reliable multi-agent workflows
+- Provides a clear hierarchy (PM → Manager → Engineer/QA) for organizing work
+- Uses tmux sessions for agent isolation and liveness detection
+- Gives each agent its own git worktree to prevent merge conflicts
 
 ---
 
 ## Core Concepts
 
-### Town
+### Workspace
 
-The **Town** is your top-level workspace directory (e.g., `~/gt/`). It contains:
-- All projects (Rigs)
-- Town-level agents (Mayor, Deacon)
-- Shared configuration
-- The town-level beads database
-
-```
-~/gt/                          # Town root
-├── mayor/                     # Town-level Mayor
-│   └── town.json              # Town configuration (workspace marker)
-├── deacon/                    # Town-level Deacon
-├── plugins/                   # Town-level plugins
-├── .beads/                    # Town-level issue tracking
-└── <rig-name>/                # Project containers (Rigs)
-```
-
-### Rig
-
-A **Rig** is a project container that wraps a git repository and manages its associated agents. Each rig is NOT a git clone itself but a container holding multiple clones.
+The **workspace** is your project directory containing the `.bc/` subdirectory. It contains:
+- Agent state and configuration
+- Work queue
+- Per-agent worktrees
+- Event log
 
 ```
-<rig>/                         # Container (NOT a git clone)
-├── config.json                # Rig configuration
-├── .beads/                    # Rig-level issue tracking (or redirect)
-├── .repo.git/                 # Shared bare repository
-├── mayor/rig/                 # Mayor's working clone
-├── refinery/rig/              # Refinery's worktree (merge queue)
-├── witness/                   # Witness agent (no clone needed)
-├── polecats/                  # Worker agent directories
-│   └── <name>/<rig>/          # Polecat worktree
-└── crew/                      # Human workspace directories
-    └── <name>/                # Crew member clone
+project/                       # Workspace root
+├── .bc/                       # bc state directory
+│   ├── agents/                # Agent state
+│   ├── worktrees/             # Per-agent worktrees
+│   │   ├── pm-01/
+│   │   ├── mgr-01/
+│   │   └── eng-01/
+│   ├── queue.json             # Work queue
+│   ├── events.jsonl           # Event log
+│   └── config.json            # Workspace config
+├── src/                       # Your code
+└── ...
 ```
 
-### Mayor
+### Agents
 
-The **Mayor** is your primary AI coordinator - a Claude Code instance with full context about your workspace, projects, and agents. Start here by telling the Mayor what you want to accomplish.
+**Agents** are Claude Code instances running in isolated tmux sessions. Each agent:
+- Has a unique identifier (e.g., `eng-01`)
+- Has a specific role with defined capabilities
+- Runs in its own tmux session
+- Works in its own git worktree
 
-**Key characteristics:**
-- Town-level agent (one per Town)
-- Human-facing coordinator
-- Creates convoys and orchestrates work
-- Spawns Polecats for batch work
-- Session name: `gt-mayor`
+### Roles
 
-### Deacon
+bc uses a **role-based hierarchy** with four primary roles:
 
-The **Deacon** is the Mayor's daemon - a background agent that handles:
-- Periodic health checks (heartbeat)
-- Callback processing
-- Cleanup operations
-- Session lifecycle management
+| Role | Level | Capabilities |
+|------|-------|--------------|
+| **ProductManager** | 0 | Creates epics, spawns managers, assigns work, reviews |
+| **Manager** | 1 | Spawns engineers/QA, assigns work, reviews |
+| **Engineer** | 2 | Implements code |
+| **QA** | 2 | Tests and validates |
 
-**Key characteristics:**
-- Town-level agent (one per Town)
-- Autonomous patrol loop
-- Restarted by the daemon process on failure
-- Session name: `gt-deacon`
+### Work Queue
 
-### Witness
+The **work queue** (`queue.json`) tracks work items through their lifecycle:
 
-The **Witness** is a per-rig monitoring agent that:
-- Monitors polecat health and progress
-- Detects stalled or stuck workers
-- Handles progressive nudging
-- Cleans up zombie sessions
+```
+pending → assigned → working → done
+                              ↘ failed
+```
 
-**Key characteristics:**
-- Rig-level agent (one per Rig)
-- Autonomous patrol loop
-- Uses ZFC-compliant state derivation (tmux = source of truth)
-- Session name: `gt-<rig>-witness`
+Each work item has:
+- Unique ID (e.g., `work-001`)
+- Title and description
+- Assigned agent
+- Status and merge state
 
-### Refinery
+### Worktrees
 
-The **Refinery** is a per-rig merge queue processor that:
-- Processes merge requests from polecats
-- Runs tests and validates merges
-- Handles conflicts and failures
-- Pushes successful merges to remote
-
-**Key characteristics:**
-- Rig-level agent (one per Rig)
-- Worktree from shared `.repo.git`
-- Can see polecat branches (shared repository)
-- Session name: `gt-<rig>-refinery`
-
-### Crew
-
-**Crew members** are persistent, user-managed workspaces within a rig. Unlike polecats, crew workspaces are never auto-garbage-collected.
-
-**Key characteristics:**
-- Human workspace (your personal working area)
-- Full git clone (not worktree)
-- Persistent across sessions
-- Session name: `gt-<rig>-crew-<name>`
-
-### Polecats
-
-**Polecats** are ephemeral worker agents that:
-- Spawn with a specific work assignment
-- Complete the task
-- Submit to merge queue
-- Exit (cleaned up by Witness)
-
-**Key characteristics:**
-- Transient (spawn-work-die lifecycle)
-- Git worktree from shared `.repo.git`
-- Unique timestamped branches
-- Session name: `gt-<rig>-<name>`
-
-**Polecat States:**
-- `working` - Actively working on assigned issue
-- `done` - Work complete, ready for cleanup
-- `stuck` - Explicitly signaled need for assistance
-
-### Beads
-
-**Beads** is a git-backed issue tracking system that stores work state as structured data. Issue IDs use a prefix + 5-character alphanumeric format (e.g., `gt-abc12`).
-
-**Key characteristics:**
-- CLI-first design (works with AI agents)
-- Stored in `.beads/` directory
-- JSONL format for git-friendly merging
-- Supports custom types (agent, role, convoy, etc.)
-
-### Convoy
-
-A **Convoy** is a work tracking unit that bundles multiple beads/issues assigned to agents. Convoys provide visibility into parallel work progress.
+Each agent gets its own **git worktree** at `.bc/worktrees/<agent>/`. This provides:
+- Isolation between agents (no merge conflicts)
+- Independent branches for each agent's work
+- Clean state for each agent
 
 ---
 
 ## Hierarchical Organization
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                              TOWN (~gt/)                                 │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────┐  │
-│  │     MAYOR       │  │     DEACON      │  │    .beads/ (town)       │  │
-│  │  (coordinator)  │  │    (daemon)     │  │   routes.jsonl          │  │
-│  └────────┬────────┘  └────────┬────────┘  └─────────────────────────┘  │
-│           │                    │                                         │
-│  ┌────────┴────────────────────┴─────────────────────────────────────┐  │
-│  │                           RIGS                                     │  │
-│  │  ┌─────────────────────────────────────────────────────────────┐  │  │
-│  │  │                      RIG: project-a                          │  │  │
-│  │  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────────┐  │  │  │
-│  │  │  │ .repo.git│  │ WITNESS  │  │ REFINERY │  │   .beads/   │  │  │  │
-│  │  │  │ (shared) │  │(monitor) │  │  (merge) │  │ (rig-level) │  │  │  │
-│  │  │  └────┬─────┘  └──────────┘  └────┬─────┘  └─────────────┘  │  │  │
-│  │  │       │                           │                          │  │  │
-│  │  │       │         WORKTREES         │                          │  │  │
-│  │  │       ▼                           ▼                          │  │  │
-│  │  │  ┌─────────────────────────────────────────────────────┐    │  │  │
-│  │  │  │  POLECATS (ephemeral workers)                       │    │  │  │
-│  │  │  │  ┌────────┐  ┌────────┐  ┌────────┐  ┌────────┐    │    │  │  │
-│  │  │  │  │Toast-01│  │Toast-02│  │Toast-03│  │  ...   │    │    │  │  │
-│  │  │  │  └────────┘  └────────┘  └────────┘  └────────┘    │    │  │  │
-│  │  │  └─────────────────────────────────────────────────────┘    │  │  │
-│  │  │                                                              │  │  │
-│  │  │  ┌─────────────────────────────────────────────────────┐    │  │  │
-│  │  │  │  CREW (persistent human workspaces)                 │    │  │  │
-│  │  │  │  ┌────────┐  ┌────────┐                             │    │  │  │
-│  │  │  │  │  alice │  │   bob  │                             │    │  │  │
-│  │  │  │  └────────┘  └────────┘                             │    │  │  │
-│  │  │  └─────────────────────────────────────────────────────┘    │  │  │
-│  │  │                                                              │  │  │
-│  │  │  ┌─────────────────────────────────────────────────────┐    │  │  │
-│  │  │  │  mayor/rig/ (Mayor's clone for this rig)            │    │  │  │
-│  │  │  └─────────────────────────────────────────────────────┘    │  │  │
-│  │  └──────────────────────────────────────────────────────────────┘  │  │
-│  │                                                                     │  │
-│  │  ┌──────────────────────────────────────────────────────────────┐  │  │
-│  │  │                      RIG: project-b                           │  │  │
-│  │  │                        (same structure)                       │  │  │
-│  │  └──────────────────────────────────────────────────────────────┘  │  │
-│  └─────────────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
 ### Agent Hierarchy
 
 ```
-                    ┌─────────────┐
-                    │   DAEMON    │  (Go process, not AI)
-                    │ (scheduler) │
-                    └──────┬──────┘
-                           │ heartbeat
-                           ▼
-                    ┌─────────────┐
-                    │   DEACON    │  (AI agent, town-level)
-                    │  (daemon's  │
-                    │   agent)    │
-                    └──────┬──────┘
-                           │
-           ┌───────────────┼───────────────┐
-           ▼               ▼               ▼
-    ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
-    │   MAYOR     │ │  WITNESS    │ │  REFINERY   │
-    │(coordinator)│ │ (per-rig)   │ │ (per-rig)   │
-    └──────┬──────┘ └──────┬──────┘ └─────────────┘
-           │               │
-           │         monitors
-           │               ▼
-           │        ┌─────────────┐
-           │        │  POLECATS   │
-           │        │ (workers)   │
-           └───────▶└─────────────┘
-                 spawns
+┌─────────────────────────────────────────────────────────────────┐
+│                         WORKSPACE                                │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   ┌─────────────────┐                                           │
+│   │ ProductManager  │  Level 0 - Top-level coordinator          │
+│   │    (pm-01)      │                                           │
+│   └────────┬────────┘                                           │
+│            │ creates                                             │
+│            ▼                                                     │
+│   ┌─────────────────┐                                           │
+│   │    Manager      │  Level 1 - Work decomposition             │
+│   │   (mgr-01)      │                                           │
+│   └────────┬────────┘                                           │
+│            │ creates                                             │
+│   ┌────────┴────────┬───────────────┐                           │
+│   ▼                 ▼               ▼                           │
+│ ┌──────────┐  ┌──────────┐  ┌──────────┐                       │
+│ │ Engineer │  │ Engineer │  │    QA    │  Level 2 - Execution  │
+│ │ (eng-01) │  │ (eng-02) │  │ (qa-01)  │                       │
+│ └──────────┘  └──────────┘  └──────────┘                       │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
+
+### Role Capabilities
+
+```go
+var RoleCapabilities = map[Role][]Capability{
+    RoleProductManager: {CapCreateAgents, CapAssignWork, CapCreateEpics, CapReviewWork},
+    RoleManager:        {CapCreateAgents, CapAssignWork, CapReviewWork},
+    RoleEngineer:       {CapImplementTasks},
+    RoleQA:             {CapTestWork, CapReviewWork},
+}
+```
+
+### Creation Rules
+
+| Parent Role | Can Create |
+|-------------|------------|
+| ProductManager | Manager |
+| Manager | Engineer, QA |
+| Engineer | (none) |
+| QA | (none) |
 
 ---
 
@@ -257,75 +161,83 @@ A **Convoy** is a work tracking unit that bundles multiple beads/issues assigned
 ### Work Assignment Flow
 
 ```
-┌─────────┐     ┌─────────┐     ┌──────────┐     ┌─────────┐
-│  Human  │────▶│  Mayor  │────▶│  Convoy  │────▶│ Polecat │
-│         │     │         │     │ (beads)  │     │         │
-└─────────┘     └─────────┘     └──────────┘     └────┬────┘
-                                                      │
-                                                      ▼ work
-                                                 ┌─────────┐
-                                                 │  Hook   │
-                                                 │ (work   │
-                                                 │  item)  │
-                                                 └────┬────┘
-                                                      │
-                                                      ▼ complete
-                                                 ┌──────────┐
-                                                 │ Refinery │
-                                                 │  (merge  │
-                                                 │  queue)  │
-                                                 └────┬─────┘
-                                                      │
-                                                      ▼ merge
-                                                 ┌──────────┐
-                                                 │  Remote  │
-                                                 │ (origin) │
-                                                 └──────────┘
-```
-
-### Session Lifecycle Flow
-
-```
-┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│ gt sling     │───▶│ Spawn        │───▶│ gt prime     │
-│ (assign work)│    │ Worktree     │    │ (context)    │
-└──────────────┘    └──────────────┘    └──────┬───────┘
-                                               │
-                         ┌─────────────────────┘
-                         ▼
-┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│ Work on      │───▶│ git commit   │───▶│ gt done      │
-│ Issue        │    │ bd sync      │    │ (MQ submit)  │
-└──────────────┘    └──────────────┘    └──────┬───────┘
-                                               │
-                         ┌─────────────────────┘
-                         ▼
-┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│ Refinery     │───▶│ Tests Pass   │───▶│ Merge &      │
-│ Processes    │    │ Conflicts?   │    │ Push         │
-└──────────────┘    └──────────────┘    └──────────────┘
-```
-
-### Beads Data Flow
-
-```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        BEADS ROUTING                             │
-│                                                                  │
-│   ┌──────────────┐         routes.jsonl        ┌──────────────┐ │
-│   │ Town .beads/ │◀───────────────────────────▶│ Rig .beads/  │ │
-│   │              │                              │              │ │
-│   │ - hq-* beads │                              │ - gt-* beads │ │
-│   │ - mayor      │                              │ - polecats   │ │
-│   │ - deacon     │                              │ - issues     │ │
-│   │ - roles      │                              │ - merge reqs │ │
-│   └──────────────┘                              └──────────────┘ │
-│                                                                  │
-│   Polecats use redirect files to share rig's beads database      │
-│                                                                  │
-│   polecat/.beads/redirect ─────▶ ../../.beads/                  │
-│                                                                  │
+│                    1. WORK CREATION                              │
+│  bc queue add "Implement auth"                                  │
+│  → Creates: work-001 in queue.json (status: pending)            │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    2. AGENT SPAWN                                │
+│  bc spawn eng-01 --role engineer                                │
+│  → Creates: worktree at .bc/worktrees/eng-01/                   │
+│  → Starts: tmux session with environment                        │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    3. WORK ASSIGNMENT                            │
+│  bc queue assign work-001 eng-01                                │
+│  → Updates: work-001 status to "assigned"                       │
+│  → Sets: assigned_to = "eng-01"                                 │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    4. EXECUTION                                  │
+│  Agent works in worktree, reports progress:                     │
+│  bc report working "Implementing login"                         │
+│  → Updates: agent state and task                                │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    5. COMPLETION                                 │
+│  bc report done "Auth implemented"                              │
+│  → Updates: work-001 status to "done"                           │
+│  → Sets: merge status to "unmerged"                             │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    6. MERGE                                      │
+│  bc merge process                                               │
+│  → Merges: agent's branch to main                               │
+│  → Updates: merge status to "merged"                            │
+│  → Cleans up: worktree                                          │
 └─────────────────────────────────────────────────────────────────┘
+```
+
+### Agent State Flow
+
+```
+┌──────────┐     spawn     ┌──────────┐
+│ (none)   │──────────────▶│ starting │
+└──────────┘               └────┬─────┘
+                                │
+                                ▼
+                           ┌──────────┐
+                           │   idle   │◀─────────────────────────┐
+                           └────┬─────┘                          │
+                                │                                │
+                                ▼ work assigned                  │
+                           ┌──────────┐                          │
+                           │ working  │──────────────────────────┤
+                           └────┬─────┘                          │
+                                │                                │
+                ┌───────────────┼───────────────┐                │
+                ▼               ▼               ▼                │
+           ┌──────────┐   ┌──────────┐   ┌──────────┐           │
+           │   done   │   │  stuck   │   │  error   │           │
+           └────┬─────┘   └────┬─────┘   └────┬─────┘           │
+                │              │              │                  │
+                └──────────────┴──────────────┴──────────────────┘
+                                │
+                                ▼ bc down
+                           ┌──────────┐
+                           │ stopped  │
+                           └──────────┘
 ```
 
 ---
@@ -334,77 +246,69 @@ A **Convoy** is a work tracking unit that bundles multiple beads/issues assigned
 
 ### 1. Git-Backed Persistence
 
-All work state is stored in git-tracked files:
-- **Beads database** (`.beads/issues.jsonl`) - Issue tracking
-- **Hooks** - Work assignments attached to agents
-- **Configuration** - Town and rig settings
+All state is stored in git-tracked files:
+- **Agent state** - `.bc/agents/agents.json`
+- **Work queue** - `.bc/queue.json`
+- **Events** - `.bc/events.jsonl`
 
 Benefits:
 - Survives crashes and restarts
 - Provides rollback capability
-- Enables multi-agent coordination through git
+- Enables debugging via history
 
-### 2. ZFC (Zero File-Based State Coupling)
+### 2. Tmux Session Isolation
 
-**tmux session = source of truth for agent liveness**
+Each agent runs in its own tmux session:
+- Session name = agent ID
+- `tmux has-session` determines liveness
+- No PID files or heartbeats needed
 
-The system does not maintain state files to track whether agents are running. Instead:
-- `tmux has-session` determines if an agent is alive
-- `tmux` session existence is the authoritative source
-- No PID files or state files for liveness detection
+Session naming: `bc-<workspace-hash>-<agent-id>`
 
-This eliminates:
-- Stale state files after crashes
-- Race conditions between state and reality
-- Complex state synchronization logic
+### 3. Per-Agent Worktrees
 
-### 3. Event Sourcing via Beads
-
-Work state is derived from the beads ledger:
-- Issue assignments determine who is working on what
-- Status transitions are recorded as events
-- State is computed, not stored
-
-### 4. The Propulsion Principle (GUPP)
-
-**Gas Town Universal Propulsion Principle:**
-
-> "If you find work on your hook, YOU RUN IT."
-
-No confirmation. No waiting. No announcements. The hook having work IS the assignment. This is physics, not politeness.
-
-**Failure mode prevented:**
-- Agent starts with work on hook
-- Agent announces itself and waits for human
-- Human is AFK
-- Work sits idle, system stalls
-
-### 5. Transient Worker Model
-
-Polecats follow a strict lifecycle:
-1. **Spawn** - Created with work assignment
-2. **Work** - Execute the assigned task
-3. **Submit** - Send to merge queue via `gt done`
-4. **Exit** - Session terminates, Witness cleans up
-
-There is NO idle pool. Polecats without work should be garbage collected.
-
-### 6. Shared Bare Repository Architecture
-
+Each agent gets a git worktree:
 ```
-.repo.git/                    # Shared bare repo
-    │
-    ├──▶ refinery/rig/        # Worktree on main
-    │
-    ├──▶ polecats/a/rig/      # Worktree on polecat/a-xxx
-    │
-    └──▶ polecats/b/rig/      # Worktree on polecat/b-xxx
+.bc/worktrees/
+├── pm-01/              # PM's isolated copy
+├── mgr-01/             # Manager's isolated copy
+└── eng-01/             # Engineer's isolated copy
 ```
 
 Benefits:
-- Refinery sees all polecat branches without pushing
-- Fast worktree creation (no network clone)
-- Shared git objects reduce disk usage
+- No merge conflicts between agents
+- Each agent has clean git state
+- Parallel work on same files
+
+### 4. Role-Based Capabilities
+
+Actions are gated by role capabilities:
+
+```go
+// Only PMs and Managers can spawn agents
+if !agent.HasCapability(CapCreateAgents) {
+    return errors.New("not authorized to spawn agents")
+}
+```
+
+This prevents:
+- Engineers spawning other agents
+- QA assigning work
+- Unauthorized hierarchy creation
+
+### 5. Simple State Machine
+
+Agent states follow a clear state machine with validated transitions:
+
+| Current State | Valid Transitions |
+|--------------|-------------------|
+| starting | idle, error, stopped |
+| idle | working, done, stuck, error, stopped |
+| working | idle, done, stuck, error, stopped |
+| done | idle, working, stopped |
+| stuck | idle, working, error, stopped |
+| error | idle, working, stopped |
+| stopped | idle, starting |
 
 ---
 
@@ -417,13 +321,12 @@ Benefits:
 | CLI Framework | **Go + Cobra** | Command-line interface |
 | TUI Components | **Bubble Tea** | Interactive terminal UI |
 | Session Management | **tmux** | Agent session lifecycle |
-| Issue Tracking | **Beads** | Git-backed work state |
-| Configuration | **JSON/TOML** | Settings and formulas |
-| Version Control | **Git** | Worktrees, persistence |
+| State Persistence | **JSON/JSONL** | Configuration and events |
+| Version Control | **Git worktrees** | Agent isolation |
 
 ### Language: Go
 
-Gas Town is written in Go (1.23+) for:
+bc is written in Go for:
 - Single binary distribution
 - Cross-platform support
 - Strong concurrency primitives
@@ -431,154 +334,43 @@ Gas Town is written in Go (1.23+) for:
 
 ### CLI: Cobra
 
-The `gt` CLI uses Cobra for:
-- Subcommand structure
+The `bc` CLI uses Cobra for:
+- Subcommand structure (`bc spawn`, `bc status`, etc.)
 - Flag parsing
 - Shell completions
 - Help generation
-
-### TUI: Bubble Tea
-
-Interactive components use Bubble Tea:
-- Dashboard views
-- Convoy monitoring
-- Agent status displays
 
 ### Session Management: tmux
 
 tmux provides:
 - Detached session management
 - Session persistence
-- Multi-pane layouts
 - Programmatic control via CLI
 
-Session naming convention:
-```
-gt-mayor                      # Town Mayor
-gt-deacon                     # Town Deacon
-gt-<rig>-witness              # Rig Witness
-gt-<rig>-refinery             # Rig Refinery (if AI-powered)
-gt-<rig>-<polecat>            # Polecat worker
-gt-<rig>-crew-<name>          # Crew member
-```
-
-### Issue Tracking: Beads
-
-Beads (`bd` CLI) provides:
-- Git-native issue storage
-- JSONL format (merge-friendly)
-- Dependency tracking
-- Custom issue types
-
-Key commands:
+Session operations:
 ```bash
-bd create "Title"             # Create issue
-bd list --status open         # List issues
-bd update <id> --status done  # Update status
-bd sync                       # Sync with remote
-bd ready                      # Find unblocked issues
+# Create session
+tmux new-session -d -s <name> -c <dir>
+
+# Check if session exists
+tmux has-session -t <name>
+
+# Send keys to session
+tmux send-keys -t <name> "message" Enter
+
+# Kill session
+tmux kill-session -t <name>
 ```
 
----
+### State Storage: JSON
 
-## Component Deep Dives
+Simple JSON files for state:
+- `agents.json` - Agent records
+- `queue.json` - Work items
+- `config.json` - Configuration
 
-### Daemon Process
-
-The daemon is a **Go process** (not an AI agent) that:
-1. Runs in the background
-2. Sends periodic heartbeats
-3. Processes lifecycle requests
-4. Restarts agents when needed
-
-```go
-type Config struct {
-    HeartbeatInterval time.Duration  // Default: 5 minutes
-    TownRoot          string
-    LogFile           string
-    PidFile           string
-}
-```
-
-### Polecat Manager
-
-Manages polecat lifecycle:
-
-```go
-type Manager struct {
-    rig      *rig.Rig
-    git      *git.Git
-    beads    *beads.Beads
-    namePool *NamePool
-    tmux     *tmux.Tmux
-}
-```
-
-Key operations:
-- `Add()` - Create polecat worktree
-- `Remove()` - Clean up worktree (with safety checks)
-- `List()` - Enumerate polecats
-- `DetectStalePolecats()` - Find cleanup candidates
-
-### Name Pool
-
-Polecats get names from a pool:
-- Custom names from rig settings
-- Default numbered names (polecat-01 through polecat-50)
-- Overflow names when pool exhausted
-
-### Merge Request Lifecycle
-
-```
-┌────────┐      ┌─────────────┐      ┌────────┐
-│  open  │─────▶│ in_progress │─────▶│ closed │
-└────────┘      └─────────────┘      └────────┘
-     │                │                   │
-     │                │                   │
-     ▼                ▼                   ▼
- (waiting)      (Engineer       (merged, rejected,
-                 claims)         conflict, superseded)
-```
-
-Close reasons:
-- `merged` - Successfully merged
-- `rejected` - Manually rejected
-- `conflict` - Unresolvable conflicts
-- `superseded` - Replaced by another MR
-
-### Formula System
-
-TOML-based workflow definitions:
-
-```toml
-formula = "release"
-description = "Standard release process"
-type = "workflow"
-
-[vars.version]
-description = "Version to release"
-required = true
-
-[[steps]]
-id = "test"
-title = "Run Tests"
-
-[[steps]]
-id = "build"
-title = "Build"
-needs = ["test"]
-
-[[steps]]
-id = "publish"
-title = "Publish"
-needs = ["build"]
-```
-
-Formula types:
-- **workflow** - Sequential steps with dependencies
-- **convoy** - Parallel legs with synthesis
-- **expansion** - Template-based parameterized workflows
-- **aspect** - Multi-aspect parallel analysis
+JSONL for append-only logs:
+- `events.jsonl` - Event history
 
 ---
 
@@ -588,55 +380,61 @@ Formula types:
 
 ```bash
 # Workspace
-gt install ~/gt --git          # Initialize workspace
-gt rig add <name> <url>        # Add project
+bc init                        # Initialize workspace
+bc up                          # Start coordinator
+bc down                        # Stop all agents
 
 # Agents
-gt mayor attach                # Start Mayor
-gt agents                      # List active agents
-gt sling <id> <rig>            # Assign work
+bc spawn <name> --role <role>  # Spawn agent
+bc status                      # List agents
+bc attach <agent>              # Attach to session
 
-# Work tracking
-gt convoy create "Name" <ids>  # Create convoy
-gt convoy list                 # List convoys
-gt hook                        # Check your hook
+# Work queue
+bc queue add "Title"           # Add work item
+bc queue assign <id> <agent>   # Assign work
+bc queue list                  # List items
 
-# Session management
-gt prime                       # Recover context
-gt done                        # Complete and exit
-gt cycle                       # Request session restart
+# State reporting
+bc report working "Task"       # Report working
+bc report done "Complete"      # Report done
+
+# Merging
+bc merge list                  # List mergeable
+bc merge process               # Process merge queue
 ```
 
 ### Environment Variables
 
-```bash
-GT_TOWN_ROOT     # Town workspace root
-GT_ROLE          # Current agent role
-GT_RIG           # Current rig name
-BD_ACTOR         # Beads actor identity
-BEADS_DIR        # Beads database directory
-```
+| Variable | Purpose |
+|----------|---------|
+| `BC_WORKSPACE` | Workspace root |
+| `BC_AGENT_ID` | Agent identifier |
+| `BC_AGENT_ROLE` | Agent role |
+| `BC_AGENT_WORKTREE` | Worktree path |
+| `BC_AGENT_TOOL` | AI tool name |
+| `BC_PARENT_ID` | Parent agent ID |
 
-### File Markers
+### File Locations
 
-```
-mayor/town.json               # Town root marker (primary)
-mayor/                        # Town root marker (secondary)
-config.json                   # Rig configuration
-.beads/redirect               # Beads database redirect
-state.json                    # Agent/worker state
-```
+| File | Location | Purpose |
+|------|----------|---------|
+| Agent state | `.bc/agents/agents.json` | Agent records |
+| Work queue | `.bc/queue.json` | Work items |
+| Events | `.bc/events.jsonl` | Event log |
+| Config | `.bc/config.json` | Workspace config |
+| Worktrees | `.bc/worktrees/<agent>/` | Per-agent code |
+| Git wrapper | `.bc/bin/git` | Worktree enforcement |
 
 ---
 
 ## Summary
 
-Gas Town is an orchestration layer that turns chaotic multi-agent development into a coordinated system. Key insights:
+bc is a streamlined orchestration layer that enables coordinated multi-agent development. Key insights:
 
 1. **Git is the persistence layer** - All state survives restarts
-2. **tmux is the liveness layer** - Session existence = agent alive
-3. **Beads is the coordination layer** - Work state as structured data
-4. **Polecats are disposable** - Spawn, work, submit, die
-5. **GUPP drives autonomy** - Work on hook = immediate execution
+2. **Tmux is the isolation layer** - Each agent in its own session
+3. **Worktrees prevent conflicts** - Parallel work without merge issues
+4. **Roles constrain behavior** - Predictable, auditable actions
+5. **Simple queue model** - Clear work lifecycle
 
-The architecture enables scaling from a single developer with a few agents to teams coordinating dozens of AI workers across multiple projects.
+The architecture prioritizes simplicity and predictability over flexibility, making it easier to understand, debug, and trust.
