@@ -17,15 +17,18 @@ import (
 type EventType string
 
 const (
-	AgentSpawned  EventType = "agent.spawned"
-	AgentStopped  EventType = "agent.stopped"
-	AgentReport   EventType = "agent.report"
-	WorkAssigned  EventType = "work.assigned"
-	WorkStarted   EventType = "work.started"
-	WorkCompleted EventType = "work.completed"
-	WorkFailed    EventType = "work.failed"
-	MessageSent   EventType = "message.sent"
-	QueueLoaded   EventType = "queue.loaded"
+	AgentSpawned    EventType = "agent.spawned"
+	AgentStopped    EventType = "agent.stopped"
+	AgentReport     EventType = "agent.report"
+	WorkAssigned    EventType = "work.assigned"
+	WorkStarted     EventType = "work.started"
+	WorkCompleted   EventType = "work.completed"
+	WorkFailed      EventType = "work.failed"
+	MessageSent     EventType = "message.sent"
+	QueueLoaded     EventType = "queue.loaded"
+	HealthCheck     EventType = "health.check"
+	HealthFailed    EventType = "health.failed"
+	HealthRecovered EventType = "health.recovered"
 )
 
 const (
