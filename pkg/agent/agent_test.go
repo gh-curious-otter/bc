@@ -1761,3 +1761,211 @@ func TestEnsureGitWrapper_CreatesBinDir(t *testing.T) {
 		t.Error(".bc/bin is not a directory")
 	}
 }
+
+// --- RoleRoot tests ---
+
+func TestRoleRoot_Capabilities(t *testing.T) {
+	caps, ok := RoleCapabilities[RoleRoot]
+	if !ok {
+		t.Fatal("RoleRoot should have capabilities defined")
+	}
+
+	expected := []Capability{CapCreateAgents, CapAssignWork, CapCreateEpics, CapReviewWork}
+	for _, cap := range expected {
+		found := false
+		for _, c := range caps {
+			if c == cap {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("RoleRoot should have capability %s", cap)
+		}
+	}
+}
+
+func TestRoleRoot_Hierarchy(t *testing.T) {
+	children, ok := RoleHierarchy[RoleRoot]
+	if !ok {
+		t.Fatal("RoleRoot should have hierarchy defined")
+	}
+
+	expected := []Role{RoleProductManager, RoleManager, RoleEngineer, RoleQA}
+	for _, role := range expected {
+		found := false
+		for _, r := range children {
+			if r == role {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("RoleRoot should be able to create %s", role)
+		}
+	}
+}
+
+func TestRoleRoot_Level(t *testing.T) {
+	level := RoleLevel(RoleRoot)
+	if level != -1 {
+		t.Errorf("RoleRoot level = %d, want -1", level)
+	}
+
+	// Root should be above all other roles
+	if level >= RoleLevel(RoleProductManager) {
+		t.Error("RoleRoot should be above RoleProductManager")
+	}
+	if level >= RoleLevel(RoleManager) {
+		t.Error("RoleRoot should be above RoleManager")
+	}
+}
+
+func TestRoleRoot_CanCreateRole(t *testing.T) {
+	tests := []struct {
+		child    Role
+		expected bool
+	}{
+		{RoleProductManager, true},
+		{RoleManager, true},
+		{RoleEngineer, true},
+		{RoleQA, true},
+		{RoleRoot, false}, // Cannot create another root
+	}
+
+	for _, tc := range tests {
+		t.Run(string(tc.child), func(t *testing.T) {
+			got := CanCreateRole(RoleRoot, tc.child)
+			if got != tc.expected {
+				t.Errorf("CanCreateRole(RoleRoot, %s) = %v, want %v", tc.child, got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestRoleRoot_HasCapability(t *testing.T) {
+	tests := []struct {
+		cap      Capability
+		expected bool
+	}{
+		{CapCreateAgents, true},
+		{CapAssignWork, true},
+		{CapCreateEpics, true},
+		{CapReviewWork, true},
+		{CapImplementTasks, false}, // Root delegates, doesn't implement
+		{CapTestWork, false},       // Root delegates, doesn't test
+	}
+
+	for _, tc := range tests {
+		t.Run(string(tc.cap), func(t *testing.T) {
+			got := HasCapability(RoleRoot, tc.cap)
+			if got != tc.expected {
+				t.Errorf("HasCapability(RoleRoot, %s) = %v, want %v", tc.cap, got, tc.expected)
+			}
+		})
+	}
+}
+
+// --- Singleton enforcement tests ---
+
+func TestEnforceRootSingleton_NoRootExists(t *testing.T) {
+	workspace := t.TempDir()
+	m := newTestManager(t)
+
+	// No root exists - should allow creation
+	if err := m.enforceRootSingleton(workspace); err != nil {
+		t.Errorf("enforceRootSingleton should allow creation when no root exists: %v", err)
+	}
+}
+
+func TestEnforceRootSingleton_RootActiveBlocks(t *testing.T) {
+	workspace := t.TempDir()
+	m := newTestManager(t)
+
+	// Create root in active state (idle)
+	bcDir := filepath.Join(workspace, ".bc")
+	store := NewRootStateStore(bcDir)
+	if _, err := store.Create("root", RoleRoot, "claude"); err != nil {
+		t.Fatalf("failed to create root: %v", err)
+	}
+
+	// Active root should block new spawn
+	err := m.enforceRootSingleton(workspace)
+	if err == nil {
+		t.Error("enforceRootSingleton should block when active root exists")
+	}
+	if err != nil && err.Error() == "" {
+		t.Error("error message should not be empty")
+	}
+}
+
+func TestEnforceRootSingleton_RootWorkingBlocks(t *testing.T) {
+	workspace := t.TempDir()
+	m := newTestManager(t)
+
+	// Create root in working state
+	bcDir := filepath.Join(workspace, ".bc")
+	store := NewRootStateStore(bcDir)
+	if _, err := store.Create("root", RoleRoot, "claude"); err != nil {
+		t.Fatalf("failed to create root: %v", err)
+	}
+	if err := store.UpdateState(StateWorking); err != nil {
+		t.Fatalf("failed to update state: %v", err)
+	}
+
+	// Working root should block new spawn
+	err := m.enforceRootSingleton(workspace)
+	if err == nil {
+		t.Error("enforceRootSingleton should block when working root exists")
+	}
+}
+
+func TestEnforceRootSingleton_RootStoppedAllows(t *testing.T) {
+	workspace := t.TempDir()
+	m := newTestManager(t)
+
+	// Create root in stopped state
+	bcDir := filepath.Join(workspace, ".bc")
+	store := NewRootStateStore(bcDir)
+	if _, err := store.Create("root", RoleRoot, "claude"); err != nil {
+		t.Fatalf("failed to create root: %v", err)
+	}
+	if err := store.UpdateState(StateStopped); err != nil {
+		t.Fatalf("failed to update state: %v", err)
+	}
+
+	// Stopped root should allow respawn
+	if err := m.enforceRootSingleton(workspace); err != nil {
+		t.Errorf("enforceRootSingleton should allow respawn when root is stopped: %v", err)
+	}
+
+	// Verify old root state was deleted
+	if store.Exists() {
+		t.Error("old root state should be deleted after allowing respawn")
+	}
+}
+
+func TestEnforceRootSingleton_RootErrorAllows(t *testing.T) {
+	workspace := t.TempDir()
+	m := newTestManager(t)
+
+	// Create root in error state
+	bcDir := filepath.Join(workspace, ".bc")
+	store := NewRootStateStore(bcDir)
+	if _, err := store.Create("root", RoleRoot, "claude"); err != nil {
+		t.Fatalf("failed to create root: %v", err)
+	}
+	if err := store.UpdateState(StateError); err != nil {
+		t.Fatalf("failed to update state: %v", err)
+	}
+
+	// Error state should allow respawn
+	if err := m.enforceRootSingleton(workspace); err != nil {
+		t.Errorf("enforceRootSingleton should allow respawn when root is in error: %v", err)
+	}
+
+	// Verify old root state was deleted
+	if store.Exists() {
+		t.Error("old root state should be deleted after allowing respawn")
+	}
+}
