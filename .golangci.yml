@@ -53,6 +53,12 @@ linters:
         linters:
           - gochecknoglobals
 
+      # Allow importing deprecated queue/beads packages during migration
+      # TODO: Remove this exclusion once migration to channels is complete
+      - linters:
+          - staticcheck
+        text: "SA1019.*pkg/(queue|beads)"
+
 formatters:
   enable:
     - gofmt
