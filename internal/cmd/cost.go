@@ -47,6 +47,22 @@ Example:
 	RunE: runCostSummary,
 }
 
+var costDashboardCmd = &cobra.Command{
+	Use:   "dashboard",
+	Short: "Show comprehensive cost dashboard",
+	Long: `Display a comprehensive cost dashboard with all aggregations.
+
+Shows:
+  - Workspace totals (headline numbers)
+  - Per-agent breakdown
+  - Per-team breakdown
+  - Per-model breakdown
+
+Example:
+  bc cost dashboard`,
+	RunE: runCostDashboard,
+}
+
 var (
 	costTeamFlag      string
 	costAgentFlag     string
@@ -65,6 +81,7 @@ func init() {
 
 	costCmd.AddCommand(costShowCmd)
 	costCmd.AddCommand(costSummaryCmd)
+	costCmd.AddCommand(costDashboardCmd)
 	rootCmd.AddCommand(costCmd)
 }
 
@@ -242,4 +259,106 @@ func printModelSummary(summaries []*cost.Summary) {
 	}
 	_ = w.Flush()
 	fmt.Printf("\nTotal: $%.4f\n", totalCost)
+}
+
+func runCostDashboard(cmd *cobra.Command, args []string) error {
+	store, err := getCostStore()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = store.Close() }()
+
+	// Workspace summary (headline)
+	wsSummary, err := store.WorkspaceSummary()
+	if err != nil {
+		return fmt.Errorf("failed to get workspace summary: %w", err)
+	}
+
+	cmd.Println("╔══════════════════════════════════════════════════════════════╗")
+	cmd.Println("║                     COST DASHBOARD                           ║")
+	cmd.Println("╚══════════════════════════════════════════════════════════════╝")
+	cmd.Println()
+
+	// Workspace totals
+	cmd.Println("WORKSPACE TOTALS")
+	cmd.Println("────────────────")
+	cmd.Printf("  Total Cost:     $%.4f\n", wsSummary.TotalCostUSD)
+	cmd.Printf("  API Calls:      %d\n", wsSummary.RecordCount)
+	cmd.Printf("  Total Tokens:   %d\n", wsSummary.TotalTokens)
+	cmd.Printf("  Input Tokens:   %d\n", wsSummary.InputTokens)
+	cmd.Printf("  Output Tokens:  %d\n", wsSummary.OutputTokens)
+	cmd.Println()
+
+	// Per-agent breakdown
+	agentSummaries, err := store.SummaryByAgent()
+	if err == nil && len(agentSummaries) > 0 {
+		cmd.Println("BY AGENT")
+		cmd.Println("────────")
+		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+		_, _ = fmt.Fprintln(w, "  AGENT\tCALLS\tTOKENS\tCOST\t% OF TOTAL")
+		for _, s := range agentSummaries {
+			pct := 0.0
+			if wsSummary.TotalCostUSD > 0 {
+				pct = (s.TotalCostUSD / wsSummary.TotalCostUSD) * 100
+			}
+			_, _ = fmt.Fprintf(w, "  %s\t%d\t%d\t$%.4f\t%.1f%%\n",
+				s.AgentID,
+				s.RecordCount,
+				s.TotalTokens,
+				s.TotalCostUSD,
+				pct,
+			)
+		}
+		_ = w.Flush()
+		cmd.Println()
+	}
+
+	// Per-team breakdown
+	teamSummaries, err := store.SummaryByTeam()
+	if err == nil && len(teamSummaries) > 0 {
+		cmd.Println("BY TEAM")
+		cmd.Println("───────")
+		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+		_, _ = fmt.Fprintln(w, "  TEAM\tCALLS\tTOKENS\tCOST\t% OF TOTAL")
+		for _, s := range teamSummaries {
+			pct := 0.0
+			if wsSummary.TotalCostUSD > 0 {
+				pct = (s.TotalCostUSD / wsSummary.TotalCostUSD) * 100
+			}
+			_, _ = fmt.Fprintf(w, "  %s\t%d\t%d\t$%.4f\t%.1f%%\n",
+				s.TeamID,
+				s.RecordCount,
+				s.TotalTokens,
+				s.TotalCostUSD,
+				pct,
+			)
+		}
+		_ = w.Flush()
+		cmd.Println()
+	}
+
+	// Per-model breakdown
+	modelSummaries, err := store.SummaryByModel()
+	if err == nil && len(modelSummaries) > 0 {
+		cmd.Println("BY MODEL")
+		cmd.Println("────────")
+		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+		_, _ = fmt.Fprintln(w, "  MODEL\tCALLS\tTOKENS\tCOST\t% OF TOTAL")
+		for _, s := range modelSummaries {
+			pct := 0.0
+			if wsSummary.TotalCostUSD > 0 {
+				pct = (s.TotalCostUSD / wsSummary.TotalCostUSD) * 100
+			}
+			_, _ = fmt.Fprintf(w, "  %s\t%d\t%d\t$%.4f\t%.1f%%\n",
+				s.Model,
+				s.RecordCount,
+				s.TotalTokens,
+				s.TotalCostUSD,
+				pct,
+			)
+		}
+		_ = w.Flush()
+	}
+
+	return nil
 }
