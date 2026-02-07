@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/rpuneet/bc/pkg/agent"
@@ -356,5 +357,88 @@ func TestAgentStopFlags(t *testing.T) {
 
 	if flags.Lookup("force") == nil {
 		t.Error("expected --force flag")
+	}
+}
+
+// --- Integration Tests using executeCmd ---
+
+func TestAgentListEmpty(t *testing.T) {
+	setupTestWorkspace(t)
+
+	// Command should succeed even with no agents
+	_, err := executeCmd("agent", "list")
+	if err != nil {
+		t.Fatalf("agent list failed: %v", err)
+	}
+}
+
+func TestAgentListJSON(t *testing.T) {
+	setupTestWorkspace(t)
+
+	// Command should succeed with --json flag
+	_, err := executeCmd("agent", "list", "--json")
+	if err != nil {
+		t.Fatalf("agent list --json failed: %v", err)
+	}
+}
+
+func TestAgentStopNonexistent(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("agent", "stop", "nonexistent-agent")
+	if err == nil {
+		t.Error("expected error for stopping nonexistent agent")
+	}
+	if err != nil && !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention 'not found': %v", err)
+	}
+}
+
+func TestAgentSendNonexistent(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("agent", "send", "nonexistent-agent", "hello")
+	if err == nil {
+		t.Error("expected error for sending to nonexistent agent")
+	}
+	if err != nil && !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention 'not found': %v", err)
+	}
+}
+
+func TestAgentPeekNonexistent(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("agent", "peek", "nonexistent-agent")
+	if err == nil {
+		t.Error("expected error for peeking nonexistent agent")
+	}
+}
+
+func TestAgentAttachNonexistent(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("agent", "attach", "nonexistent-agent")
+	if err == nil {
+		t.Error("expected error for attaching to nonexistent agent")
+	}
+}
+
+func TestAgentListWithRoleFilter(t *testing.T) {
+	setupTestWorkspace(t)
+
+	// Should succeed with valid role filter
+	_, err := executeCmd("agent", "list", "--role", "engineer")
+	if err != nil {
+		t.Fatalf("agent list --role failed: %v", err)
+	}
+}
+
+func TestAgentListInvalidRole(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("agent", "list", "--role", "invalid-role")
+	if err == nil {
+		t.Error("expected error for invalid role filter")
 	}
 }
