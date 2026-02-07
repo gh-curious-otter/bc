@@ -32,7 +32,7 @@ const (
 	// Hierarchical roles
 	RoleProductManager Role = "product-manager" // Owns product vision, creates epics
 	RoleManager        Role = "manager"         // Breaks down epics, manages engineers
-	RoleTechLead       Role = "tech-lead"       // Technical architecture, code review
+	RoleTechLead       Role = "tech-lead"       // Technical leadership, code review, architecture
 	RoleEngineer       Role = "engineer"        // Implements tasks (like worker)
 	RoleQA             Role = "qa"              // Tests and validates implementations
 )
@@ -54,7 +54,7 @@ var RoleCapabilities = map[Role][]Capability{
 	RoleRoot:           {CapCreateAgents, CapAssignWork, CapCreateEpics, CapReviewWork}, // Root can do everything
 	RoleProductManager: {CapCreateAgents, CapAssignWork, CapCreateEpics, CapReviewWork},
 	RoleManager:        {CapCreateAgents, CapAssignWork, CapReviewWork},
-	RoleTechLead:       {CapReviewWork, CapImplementTasks}, // Tech leads review and can implement
+	RoleTechLead:       {CapCreateAgents, CapAssignWork, CapReviewWork, CapImplementTasks}, // Tech lead can create agents, review, and implement
 	RoleEngineer:       {CapImplementTasks},
 	RoleQA:             {CapTestWork, CapReviewWork},
 	// Legacy mappings
@@ -67,9 +67,9 @@ var RoleHierarchy = map[Role][]Role{
 	RoleRoot:           {RoleProductManager, RoleManager, RoleTechLead, RoleEngineer, RoleQA}, // Root can create all
 	RoleProductManager: {RoleManager},
 	RoleManager:        {RoleTechLead, RoleEngineer, RoleQA},
-	RoleTechLead:       {}, // Tech leads don't create children
-	RoleEngineer:       {}, // Cannot create children
-	RoleQA:             {}, // Cannot create children
+	RoleTechLead:       {RoleEngineer}, // Tech lead can create engineers
+	RoleEngineer:       {},             // Cannot create children
+	RoleQA:             {},             // Cannot create children
 	// Legacy mappings
 	RoleCoordinator: {RoleWorker, RoleManager, RoleTechLead, RoleEngineer, RoleQA},
 	RoleWorker:      {},
@@ -110,7 +110,7 @@ func RoleLevel(role Role) int {
 		return -1 // Root is above all
 	case RoleProductManager, RoleCoordinator:
 		return 0
-	case RoleManager:
+	case RoleManager, RoleTechLead:
 		return 1
 	case RoleEngineer, RoleWorker, RoleQA:
 		return 2

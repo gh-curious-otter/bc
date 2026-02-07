@@ -1711,7 +1711,8 @@ func TestCreateDefaultChannelsIntegration(t *testing.T) {
 	}
 	os.Stdout = w
 
-	createDefaultChannels(tmpDir, engineers, qaNames, allAgents)
+	techLeads := []string{} // No tech leads in this test
+	createDefaultChannels(tmpDir, techLeads, engineers, qaNames, allAgents)
 
 	_ = w.Close()
 	var buf bytes.Buffer
