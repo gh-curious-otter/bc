@@ -695,3 +695,315 @@ func TestRegistrySaveCreatesDirectory(t *testing.T) {
 		t.Errorf("file not created: %v", err)
 	}
 }
+
+// =====================
+// V2 Workspace Tests
+// =====================
+
+func TestInitV2(t *testing.T) {
+	dir := t.TempDir()
+
+	ws, err := InitV2(dir)
+	if err != nil {
+		t.Fatalf("InitV2: %v", err)
+	}
+
+	// Check version
+	if ws.ConfigVersion() != 2 {
+		t.Errorf("ConfigVersion = %d, want 2", ws.ConfigVersion())
+	}
+	if !ws.IsV2() {
+		t.Error("IsV2 should return true")
+	}
+
+	// Check V2Config is set
+	if ws.V2Config == nil {
+		t.Fatal("V2Config is nil")
+	}
+	if ws.V2Config.Workspace.Name != filepath.Base(dir) {
+		t.Errorf("V2Config.Workspace.Name = %q, want %q", ws.V2Config.Workspace.Name, filepath.Base(dir))
+	}
+
+	// Check config.toml was created
+	tomlPath := filepath.Join(dir, ".bc", "config.toml")
+	if _, err := os.Stat(tomlPath); err != nil {
+		t.Errorf("config.toml not created: %v", err)
+	}
+
+	// Check roles directory and default root.md
+	rolesDir := filepath.Join(dir, ".bc", "roles")
+	if _, err := os.Stat(rolesDir); err != nil {
+		t.Errorf("roles directory not created: %v", err)
+	}
+	rootRole := filepath.Join(rolesDir, "root.md")
+	if _, err := os.Stat(rootRole); err != nil {
+		t.Errorf("root.md not created: %v", err)
+	}
+
+	// Check RoleManager is initialized
+	if ws.RoleManager == nil {
+		t.Error("RoleManager is nil")
+	}
+}
+
+func TestLoadV2Workspace(t *testing.T) {
+	dir := t.TempDir()
+
+	// Initialize v2 workspace
+	_, err := InitV2(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Load it back
+	ws, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	if ws.ConfigVersion() != 2 {
+		t.Errorf("ConfigVersion = %d, want 2", ws.ConfigVersion())
+	}
+	if ws.V2Config == nil {
+		t.Fatal("V2Config is nil after load")
+	}
+	if ws.RoleManager == nil {
+		t.Error("RoleManager is nil after load")
+	}
+
+	// Check that root role was loaded
+	role, ok := ws.RoleManager.GetRole("root")
+	if !ok {
+		t.Error("root role should be loaded")
+	}
+	if role.Metadata.Name != "root" {
+		t.Errorf("root role name = %q, want %q", role.Metadata.Name, "root")
+	}
+}
+
+func TestLoadV1WorkspaceFallback(t *testing.T) {
+	dir := t.TempDir()
+
+	// Initialize v1 workspace
+	_, err := Init(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Load it - should work with deprecation warning
+	ws, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load v1: %v", err)
+	}
+
+	if ws.ConfigVersion() != 1 {
+		t.Errorf("ConfigVersion = %d, want 1", ws.ConfigVersion())
+	}
+	if ws.IsV2() {
+		t.Error("IsV2 should return false for v1 workspace")
+	}
+	if ws.V2Config != nil {
+		t.Error("V2Config should be nil for v1 workspace")
+	}
+	if ws.RoleManager != nil {
+		t.Error("RoleManager should be nil for v1 workspace")
+	}
+}
+
+func TestLoadPrefersTOMLOverJSON(t *testing.T) {
+	dir := t.TempDir()
+	stateDir := filepath.Join(dir, ".bc")
+	if err := os.MkdirAll(stateDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create both config.json (v1) and config.toml (v2)
+	jsonPath := filepath.Join(stateDir, "config.json")
+	jsonCfg := Config{Version: 1, Name: "v1-name", RootDir: dir, StateDir: stateDir}
+	jsonData, _ := json.Marshal(jsonCfg)
+	if err := os.WriteFile(jsonPath, jsonData, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	tomlCfg := DefaultV2Config("v2-name")
+	if err := tomlCfg.Save(filepath.Join(stateDir, "config.toml")); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create roles dir for v2
+	rolesDir := filepath.Join(stateDir, "roles")
+	if err := os.MkdirAll(rolesDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rolesDir, "root.md"), []byte(DefaultRootRole), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Load should prefer TOML
+	ws, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	if ws.ConfigVersion() != 2 {
+		t.Errorf("should load v2, got version %d", ws.ConfigVersion())
+	}
+	if ws.Config.Name != "v2-name" {
+		t.Errorf("Name = %q, want %q", ws.Config.Name, "v2-name")
+	}
+}
+
+func TestWorkspaceV2Directories(t *testing.T) {
+	dir := t.TempDir()
+
+	ws, err := InitV2(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Check all v2 directories exist
+	dirs := map[string]string{
+		"RolesDir":     ws.RolesDir(),
+		"MemoryDir":    ws.MemoryDir(),
+		"WorktreesDir": ws.WorktreesDir(),
+		"ChannelsDir":  ws.ChannelsDir(),
+	}
+
+	for name, path := range dirs {
+		if _, err := os.Stat(path); err != nil {
+			t.Errorf("%s (%s) not created: %v", name, path, err)
+		}
+	}
+}
+
+func TestWorkspaceGetRole(t *testing.T) {
+	dir := t.TempDir()
+
+	ws, err := InitV2(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Get default root role
+	role, err := ws.GetRole("root")
+	if err != nil {
+		t.Fatalf("GetRole(root): %v", err)
+	}
+	if !role.Metadata.IsSingleton {
+		t.Error("root role should be singleton")
+	}
+
+	// Get nonexistent role
+	_, err = ws.GetRole("nonexistent")
+	if err == nil {
+		t.Error("GetRole should fail for nonexistent role")
+	}
+}
+
+func TestWorkspaceGetRolePrompt(t *testing.T) {
+	dir := t.TempDir()
+
+	ws, err := InitV2(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	prompt := ws.GetRolePrompt("root")
+	if prompt == "" {
+		t.Error("GetRolePrompt(root) should not be empty")
+	}
+
+	// Nonexistent role returns empty
+	prompt = ws.GetRolePrompt("nonexistent")
+	if prompt != "" {
+		t.Error("GetRolePrompt(nonexistent) should be empty")
+	}
+}
+
+func TestWorkspaceDefaultTool(t *testing.T) {
+	dir := t.TempDir()
+
+	// v2 workspace
+	ws, err := InitV2(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if ws.DefaultTool() != "claude" {
+		t.Errorf("DefaultTool = %q, want %q", ws.DefaultTool(), "claude")
+	}
+
+	cmd := ws.DefaultToolCommand()
+	if cmd != "claude --dangerously-skip-permissions" {
+		t.Errorf("DefaultToolCommand = %q, want claude command", cmd)
+	}
+}
+
+func TestWorkspaceSaveV2(t *testing.T) {
+	dir := t.TempDir()
+
+	ws, err := InitV2(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Modify config
+	ws.V2Config.Workspace.Name = "modified-name"
+
+	// Save
+	if saveErr := ws.Save(); saveErr != nil {
+		t.Fatalf("Save: %v", saveErr)
+	}
+
+	// Reload and verify
+	ws2, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load after save: %v", err)
+	}
+
+	if ws2.Config.Name != "modified-name" {
+		t.Errorf("Name after reload = %q, want %q", ws2.Config.Name, "modified-name")
+	}
+}
+
+func TestWorkspaceV1GetRoleError(t *testing.T) {
+	dir := t.TempDir()
+
+	ws, err := Init(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// v1 workspace should error on GetRole
+	_, err = ws.GetRole("root")
+	if err == nil {
+		t.Error("GetRole should fail for v1 workspace")
+	}
+}
+
+func TestWorkspaceBeadsEnabled(t *testing.T) {
+	dir := t.TempDir()
+
+	ws, err := InitV2(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !ws.BeadsEnabled() {
+		t.Error("BeadsEnabled should default to true")
+	}
+}
+
+func TestWorkspaceDefaultChannels(t *testing.T) {
+	dir := t.TempDir()
+
+	ws, err := InitV2(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	channels := ws.DefaultChannels()
+	if len(channels) != 2 {
+		t.Errorf("DefaultChannels len = %d, want 2", len(channels))
+	}
+}
