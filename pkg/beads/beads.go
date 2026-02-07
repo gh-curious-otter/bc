@@ -1,5 +1,9 @@
 // Package beads provides integration with the beads (bd) issue tracker.
 //
+// NOTE: This package is being phased out. Use GitHub Issues for task tracking
+// and pkg/channel for work routing. The beads system is no longer used in bc v2.
+// This package will be removed in a future release.
+//
 // Beads is a distributed, git-backed graph issue tracker for AI agents.
 // Issues are stored as JSONL in .beads/ directories. This package wraps
 // the bd CLI to query and manage issues.

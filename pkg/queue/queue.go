@@ -1,5 +1,9 @@
 // Package queue manages the work queue for bc.
 //
+// NOTE: This package is being phased out in favor of pkg/channel which provides
+// SQLite-backed message persistence with typed messages for work routing.
+// Use pkg/channel for new code. This package will be removed in a future release.
+//
 // Work items are persisted to .bc/queue.json. Items flow from beads issues
 // to agents: pending → assigned → working → done/failed.
 package queue
