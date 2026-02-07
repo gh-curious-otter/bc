@@ -456,3 +456,147 @@ func TestDedupByTitlePreventsDoubleAdd(t *testing.T) {
 		t.Error("HasBeadsID should return true after linking")
 	}
 }
+
+// --- TaskType Tests ---
+
+func TestTaskTypeConstants(t *testing.T) {
+	// Verify all task type constants are defined
+	types := []TaskType{TaskTypeCode, TaskTypeReview, TaskTypeMerge, TaskTypeQA}
+	expected := []string{"code", "review", "merge", "qa"}
+
+	for i, tt := range types {
+		if string(tt) != expected[i] {
+			t.Errorf("TaskType %d = %q, want %q", i, tt, expected[i])
+		}
+	}
+}
+
+func TestAddDefaultsToCodeType(t *testing.T) {
+	q := New(filepath.Join(t.TempDir(), "q.json"))
+	item := q.Add("Test task", "desc", "")
+
+	if item.Type != TaskTypeCode {
+		t.Errorf("Type = %q, want %q", item.Type, TaskTypeCode)
+	}
+	if item.EffectiveType() != TaskTypeCode {
+		t.Errorf("EffectiveType = %q, want %q", item.EffectiveType(), TaskTypeCode)
+	}
+}
+
+func TestAddWithType(t *testing.T) {
+	q := New(filepath.Join(t.TempDir(), "q.json"))
+
+	tests := []struct {
+		taskType TaskType
+	}{
+		{TaskTypeCode},
+		{TaskTypeReview},
+		{TaskTypeMerge},
+		{TaskTypeQA},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.taskType), func(t *testing.T) {
+			item := q.AddWithType("Task", "desc", "", tt.taskType)
+			if item.Type != tt.taskType {
+				t.Errorf("Type = %q, want %q", item.Type, tt.taskType)
+			}
+		})
+	}
+}
+
+func TestEffectiveTypeDefaultsToCode(t *testing.T) {
+	// Test that empty Type defaults to TaskTypeCode
+	item := &WorkItem{Type: ""}
+	if item.EffectiveType() != TaskTypeCode {
+		t.Errorf("EffectiveType for empty = %q, want %q", item.EffectiveType(), TaskTypeCode)
+	}
+
+	// Test that explicit type is returned
+	item.Type = TaskTypeReview
+	if item.EffectiveType() != TaskTypeReview {
+		t.Errorf("EffectiveType = %q, want %q", item.EffectiveType(), TaskTypeReview)
+	}
+}
+
+func TestListByType(t *testing.T) {
+	q := New(filepath.Join(t.TempDir(), "q.json"))
+
+	// Add items with different types
+	q.AddWithType("Code task 1", "", "", TaskTypeCode)
+	q.AddWithType("Review task 1", "", "", TaskTypeReview)
+	q.AddWithType("Code task 2", "", "", TaskTypeCode)
+	q.AddWithType("QA task 1", "", "", TaskTypeQA)
+	q.AddWithType("Merge task 1", "", "", TaskTypeMerge)
+
+	tests := []struct {
+		taskType TaskType
+		want     int
+	}{
+		{TaskTypeCode, 2},
+		{TaskTypeReview, 1},
+		{TaskTypeMerge, 1},
+		{TaskTypeQA, 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.taskType), func(t *testing.T) {
+			items := q.ListByType(tt.taskType)
+			if len(items) != tt.want {
+				t.Errorf("ListByType(%q) = %d items, want %d", tt.taskType, len(items), tt.want)
+			}
+		})
+	}
+}
+
+func TestListByTypeIncludesEmptyAsCode(t *testing.T) {
+	q := New(filepath.Join(t.TempDir(), "q.json"))
+
+	// Add item with empty type (simulating legacy items)
+	q.mu.Lock()
+	q.items = append(q.items, WorkItem{
+		ID:    "legacy-001",
+		Title: "Legacy task",
+		Type:  "", // Empty type
+	})
+	q.mu.Unlock()
+
+	// Add explicit code task
+	q.AddWithType("Code task", "", "", TaskTypeCode)
+
+	// ListByType(TaskTypeCode) should include both
+	items := q.ListByType(TaskTypeCode)
+	if len(items) != 2 {
+		t.Errorf("ListByType(code) = %d items, want 2 (including legacy)", len(items))
+	}
+}
+
+func TestTaskTypePersistence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "q.json")
+	q := New(path)
+
+	q.AddWithType("Review PR #42", "", "", TaskTypeReview)
+	q.AddWithType("Merge approved", "", "", TaskTypeMerge)
+
+	if err := q.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	// Load into new queue
+	q2 := New(path)
+	if err := q2.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	items := q2.ListAll()
+	if len(items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(items))
+	}
+
+	if items[0].Type != TaskTypeReview {
+		t.Errorf("items[0].Type = %q, want review", items[0].Type)
+	}
+	if items[1].Type != TaskTypeMerge {
+		t.Errorf("items[1].Type = %q, want merge", items[1].Type)
+	}
+}
