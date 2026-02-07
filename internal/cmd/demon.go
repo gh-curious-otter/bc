@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"os/exec"
 
 	"github.com/spf13/cobra"
 
@@ -58,6 +61,39 @@ var demonDeleteCmd = &cobra.Command{
 	RunE:  runDemonDelete,
 }
 
+var demonRunCmd = &cobra.Command{
+	Use:   "run <name>",
+	Short: "Run a demon manually",
+	Long: `Run a demon's command manually, regardless of schedule.
+
+Example:
+  bc demon run backup`,
+	Args: cobra.ExactArgs(1),
+	RunE: runDemonRun,
+}
+
+var demonStopCmd = &cobra.Command{
+	Use:   "stop <name>",
+	Short: "Stop/disable a demon",
+	Long: `Disable a demon from running on its schedule.
+
+Example:
+  bc demon stop backup`,
+	Args: cobra.ExactArgs(1),
+	RunE: runDemonStop,
+}
+
+var demonEnableCmd = &cobra.Command{
+	Use:   "enable <name>",
+	Short: "Enable a stopped demon",
+	Long: `Re-enable a previously stopped demon.
+
+Example:
+  bc demon enable backup`,
+	Args: cobra.ExactArgs(1),
+	RunE: runDemonEnable,
+}
+
 var (
 	demonSchedule string
 	demonCommand  string
@@ -73,6 +109,9 @@ func init() {
 	demonCmd.AddCommand(demonListCmd)
 	demonCmd.AddCommand(demonShowCmd)
 	demonCmd.AddCommand(demonDeleteCmd)
+	demonCmd.AddCommand(demonRunCmd)
+	demonCmd.AddCommand(demonStopCmd)
+	demonCmd.AddCommand(demonEnableCmd)
 	rootCmd.AddCommand(demonCmd)
 }
 
@@ -183,5 +222,77 @@ func runDemonDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Deleted demon %q\n", name)
+	return nil
+}
+
+func runDemonRun(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	name := args[0]
+	store := demon.NewStore(ws.RootDir)
+
+	d, err := store.Get(name)
+	if err != nil {
+		return err
+	}
+	if d == nil {
+		return fmt.Errorf("demon %q not found", name)
+	}
+
+	fmt.Printf("Running demon %q: %s\n", name, d.Command)
+
+	// Execute the command
+	execCmd := exec.CommandContext(context.Background(), "sh", "-c", d.Command) //nolint:gosec // command from user config
+	execCmd.Dir = ws.RootDir
+	execCmd.Stdout = os.Stdout
+	execCmd.Stderr = os.Stderr
+
+	if runErr := execCmd.Run(); runErr != nil {
+		return fmt.Errorf("command failed: %w", runErr)
+	}
+
+	// Record the run
+	if recordErr := store.RecordRun(name); recordErr != nil {
+		fmt.Printf("Warning: failed to record run: %v\n", recordErr)
+	}
+
+	fmt.Printf("\nDemon %q completed successfully\n", name)
+	return nil
+}
+
+func runDemonStop(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	name := args[0]
+	store := demon.NewStore(ws.RootDir)
+
+	if err := store.Disable(name); err != nil {
+		return err
+	}
+
+	fmt.Printf("Stopped demon %q\n", name)
+	return nil
+}
+
+func runDemonEnable(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	name := args[0]
+	store := demon.NewStore(ws.RootDir)
+
+	if err := store.Enable(name); err != nil {
+		return err
+	}
+
+	fmt.Printf("Enabled demon %q\n", name)
 	return nil
 }
