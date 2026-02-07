@@ -80,6 +80,36 @@ func runUp(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Check for existing root state and handle recovery
+	rootStore := agent.NewRootStateStore(ws.StateDir())
+	recovery, err := rootStore.CheckRecovery(mgr.Tmux())
+	if err != nil {
+		return fmt.Errorf("failed to check root state: %w", err)
+	}
+
+	if recovery.IsRunning {
+		// Root is already running
+		fmt.Println("Root agent already running!")
+		fmt.Printf("  Session: %s\n", recovery.State.Session)
+		fmt.Printf("  State: %s\n", recovery.State.State)
+		if len(recovery.State.Children) > 0 {
+			fmt.Printf("  Children: %s\n", strings.Join(recovery.State.Children, ", "))
+		}
+		fmt.Println()
+		fmt.Println("Use 'bc attach coordinator' to attach or 'bc down' first to restart.")
+		return nil
+	}
+
+	if recovery.NeedsRecover {
+		// Root state exists but session is dead - recover
+		fmt.Println("Recovering crashed root agent...")
+		fmt.Printf("  Previous session: %s\n", recovery.State.Session)
+		if len(recovery.State.Children) > 0 {
+			fmt.Printf("  Children to preserve: %s\n", strings.Join(recovery.State.Children, ", "))
+		}
+		fmt.Println()
+	}
+
 	// Determine agent counts (--workers is deprecated, use --engineers)
 	numEngineers := upEngineers
 	numTechLeads := upTechLeads
@@ -123,7 +153,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 		})
 	}
 
-	// Start coordinator
+	// Start coordinator (acts as root agent)
 	fmt.Print("Starting coordinator... ")
 	coord, err := mgr.SpawnAgent("coordinator", agent.RoleCoordinator, ws.RootDir)
 	if err != nil {
@@ -131,6 +161,21 @@ func runUp(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to start coordinator: %w", err)
 	}
 	fmt.Printf("✓ (session: %s)\n", mgr.Tmux().SessionName(coord.Session))
+
+	// Create or update root state
+	if recovery.NeedsCreate || recovery.NeedsRecover {
+		if recovery.NeedsCreate {
+			// Create new root state
+			_, createErr := rootStore.Create("root", agent.RoleCoordinator, "claude")
+			if createErr != nil && createErr != agent.ErrRootExists {
+				fmt.Printf("  Warning: failed to create root state: %v\n", createErr)
+			}
+		}
+		// Update session in root state
+		if updateErr := rootStore.MarkRecovered(coord.Session); updateErr != nil {
+			fmt.Printf("  Warning: failed to update root session: %v\n", updateErr)
+		}
+	}
 
 	_ = log.Append(events.Event{
 		Type:  events.AgentSpawned,
@@ -147,6 +192,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println("✓")
 	_ = log.Append(events.Event{Type: events.AgentSpawned, Agent: "product-manager"})
+	_ = rootStore.AddChild("product-manager")
 	time.Sleep(300 * time.Millisecond)
 
 	// Start manager
@@ -158,6 +204,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println("✓")
 	_ = log.Append(events.Event{Type: events.AgentSpawned, Agent: "manager"})
+	_ = rootStore.AddChild("manager")
 	time.Sleep(300 * time.Millisecond)
 
 	// Start tech-leads
@@ -179,6 +226,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 			Type:  events.AgentSpawned,
 			Agent: name,
 		})
+		_ = rootStore.AddChild(name)
 
 		time.Sleep(300 * time.Millisecond)
 	}
@@ -202,6 +250,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 			Type:  events.AgentSpawned,
 			Agent: name,
 		})
+		_ = rootStore.AddChild(name)
 
 		time.Sleep(300 * time.Millisecond)
 	}
@@ -225,6 +274,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 			Type:  events.AgentSpawned,
 			Agent: name,
 		})
+		_ = rootStore.AddChild(name)
 
 		time.Sleep(300 * time.Millisecond)
 	}
