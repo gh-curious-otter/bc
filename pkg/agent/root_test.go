@@ -338,3 +338,157 @@ func TestRootAgentState_InheritsAgentState(t *testing.T) {
 		t.Errorf("Children count = %d, want 2", len(state.Children))
 	}
 }
+
+// mockTmuxChecker implements TmuxChecker for testing
+type mockTmuxChecker struct {
+	sessions map[string]bool
+}
+
+func (m *mockTmuxChecker) HasSession(name string) bool {
+	return m.sessions[name]
+}
+
+func TestRootStateStore_CheckRecovery_NoRoot(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+	tmux := &mockTmuxChecker{sessions: map[string]bool{}}
+
+	result, err := store.CheckRecovery(tmux)
+	if err != nil {
+		t.Fatalf("CheckRecovery failed: %v", err)
+	}
+
+	if !result.NeedsCreate {
+		t.Error("NeedsCreate should be true when no root exists")
+	}
+	if result.NeedsRecover {
+		t.Error("NeedsRecover should be false when no root exists")
+	}
+	if result.IsRunning {
+		t.Error("IsRunning should be false when no root exists")
+	}
+}
+
+func TestRootStateStore_CheckRecovery_RootRunning(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// Create root with session
+	if _, err := store.Create("manager", RoleManager, "claude"); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if err := store.UpdateSession("bc-manager"); err != nil {
+		t.Fatalf("UpdateSession failed: %v", err)
+	}
+
+	// Mock tmux with session alive
+	tmux := &mockTmuxChecker{sessions: map[string]bool{"bc-manager": true}}
+
+	result, err := store.CheckRecovery(tmux)
+	if err != nil {
+		t.Fatalf("CheckRecovery failed: %v", err)
+	}
+
+	if result.NeedsCreate {
+		t.Error("NeedsCreate should be false when root exists")
+	}
+	if result.NeedsRecover {
+		t.Error("NeedsRecover should be false when session alive")
+	}
+	if !result.IsRunning {
+		t.Error("IsRunning should be true when session alive")
+	}
+	if result.State == nil {
+		t.Error("State should be set")
+	}
+}
+
+func TestRootStateStore_CheckRecovery_RootDead(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// Create root with session
+	if _, err := store.Create("manager", RoleManager, "claude"); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if err := store.UpdateSession("bc-manager"); err != nil {
+		t.Fatalf("UpdateSession failed: %v", err)
+	}
+	if err := store.AddChild("engineer-01"); err != nil {
+		t.Fatalf("AddChild failed: %v", err)
+	}
+
+	// Mock tmux with session dead
+	tmux := &mockTmuxChecker{sessions: map[string]bool{}}
+
+	result, err := store.CheckRecovery(tmux)
+	if err != nil {
+		t.Fatalf("CheckRecovery failed: %v", err)
+	}
+
+	if result.NeedsCreate {
+		t.Error("NeedsCreate should be false when root state exists")
+	}
+	if !result.NeedsRecover {
+		t.Error("NeedsRecover should be true when session dead")
+	}
+	if result.IsRunning {
+		t.Error("IsRunning should be false when session dead")
+	}
+	if result.State == nil {
+		t.Fatal("State should be set for recovery")
+	}
+	if len(result.State.Children) != 1 {
+		t.Errorf("Children should be preserved, got %d", len(result.State.Children))
+	}
+}
+
+func TestRootStateStore_MarkRecovered(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// Create root
+	if _, err := store.Create("manager", RoleManager, "claude"); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if err := store.UpdateSession("old-session"); err != nil {
+		t.Fatalf("UpdateSession failed: %v", err)
+	}
+	if err := store.UpdateState(StateStuck); err != nil {
+		t.Fatalf("UpdateState failed: %v", err)
+	}
+
+	// Mark recovered with new session
+	if err := store.MarkRecovered("new-session"); err != nil {
+		t.Fatalf("MarkRecovered failed: %v", err)
+	}
+
+	state, _ := store.Load()
+	if state.Session != "new-session" {
+		t.Errorf("Session = %q, want new-session", state.Session)
+	}
+	if state.State != StateIdle {
+		t.Errorf("State = %q, want %q", state.State, StateIdle)
+	}
+}
+
+func TestRootStateStore_GetChildren(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewRootStateStore(tmpDir)
+
+	// Create root with children
+	if _, err := store.Create("manager", RoleManager, "claude"); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	_ = store.AddChild("engineer-01")
+	_ = store.AddChild("qa-01")
+
+	children, err := store.GetChildren()
+	if err != nil {
+		t.Fatalf("GetChildren failed: %v", err)
+	}
+
+	if len(children) != 2 {
+		t.Errorf("GetChildren returned %d, want 2", len(children))
+	}
+}

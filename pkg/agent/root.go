@@ -254,3 +254,66 @@ func (s *RootStateStore) UpdateSession(session string) error {
 	state.Session = session
 	return s.Save(state)
 }
+
+// RootRecoveryResult describes the outcome of a root recovery check.
+type RootRecoveryResult struct {
+	State        *RootAgentState
+	NeedsCreate  bool // No root state exists
+	NeedsRecover bool // Root state exists but session dead
+	IsRunning    bool // Root is running normally
+}
+
+// CheckRecovery checks if root needs to be created or recovered.
+// This is the first step in `bc up` to determine what action to take.
+func (s *RootStateStore) CheckRecovery(tmux TmuxChecker) (*RootRecoveryResult, error) {
+	state, err := s.Load()
+	if errors.Is(err, ErrRootNotFound) {
+		return &RootRecoveryResult{NeedsCreate: true}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to load root state: %w", err)
+	}
+
+	// Check if tmux session is alive
+	if state.Session != "" && tmux.HasSession(state.Session) {
+		return &RootRecoveryResult{
+			State:     state,
+			IsRunning: true,
+		}, nil
+	}
+
+	// Session dead or missing - needs recovery
+	return &RootRecoveryResult{
+		State:        state,
+		NeedsRecover: true,
+	}, nil
+}
+
+// TmuxChecker interface for checking tmux session status.
+// This allows for easier testing without real tmux.
+type TmuxChecker interface {
+	HasSession(name string) bool
+}
+
+// MarkRecovered updates root state after successful recovery.
+func (s *RootStateStore) MarkRecovered(session string) error {
+	state, err := s.Load()
+	if err != nil {
+		return err
+	}
+
+	state.Session = session
+	state.State = StateIdle
+	state.UpdatedAt = time.Now()
+
+	return s.Save(state)
+}
+
+// GetChildren returns the list of child agent names.
+func (s *RootStateStore) GetChildren() ([]string, error) {
+	state, err := s.Load()
+	if err != nil {
+		return nil, err
+	}
+	return state.Children, nil
+}
