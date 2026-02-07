@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 
 	"github.com/rpuneet/bc/config"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
-// Config represents workspace configuration.
+// Config represents workspace configuration (v1 format, deprecated).
 type Config struct {
 	Name     string `json:"name"`
 	RootDir  string `json:"root_dir"`
@@ -25,11 +26,14 @@ type Config struct {
 
 // Workspace represents an active workspace.
 type Workspace struct {
-	RootDir string
-	Config  Config
+	V2Config    *V2Config    // v2 TOML config (nil if v1 workspace)
+	RoleManager *RoleManager // Role file manager
+	RootDir     string
+	Config      Config // v1 config (deprecated, for backward compat)
+	version     int    // Detected config version (1 or 2)
 }
 
-// DefaultConfig returns default workspace configuration.
+// DefaultConfig returns default workspace configuration (v1 format).
 func DefaultConfig(rootDir string) Config {
 	return Config{
 		Version:    1,
@@ -41,6 +45,7 @@ func DefaultConfig(rootDir string) Config {
 }
 
 // Init initializes a new workspace in the given directory.
+// For v2 workspaces, use InitV2 instead.
 func Init(rootDir string) (*Workspace, error) {
 	absRoot, err := filepath.Abs(rootDir)
 	if err != nil {
@@ -54,11 +59,11 @@ func Init(rootDir string) (*Workspace, error) {
 	}
 
 	// Create default config
-	config := DefaultConfig(absRoot)
+	cfg := DefaultConfig(absRoot)
 
 	// Save config
 	configPath := filepath.Join(stateDir, "config.json")
-	data, err := json.MarshalIndent(config, "", "  ")
+	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return nil, err
 	}
@@ -67,12 +72,72 @@ func Init(rootDir string) (*Workspace, error) {
 	}
 
 	return &Workspace{
-		Config:  config,
+		Config:  cfg,
 		RootDir: absRoot,
+		version: 1,
+	}, nil
+}
+
+// InitV2 initializes a new v2 workspace with TOML config.
+func InitV2(rootDir string) (*Workspace, error) {
+	absRoot, err := filepath.Abs(rootDir)
+	if err != nil {
+		return nil, err
+	}
+
+	stateDir := filepath.Join(absRoot, ".bc")
+
+	// Create required directories
+	dirs := []string{
+		stateDir,
+		filepath.Join(stateDir, "agents"),
+		filepath.Join(stateDir, "roles"),
+		filepath.Join(stateDir, "memory"),
+		filepath.Join(stateDir, "worktrees"),
+		filepath.Join(stateDir, "channels"),
+	}
+	for _, dir := range dirs {
+		if err = os.MkdirAll(dir, 0750); err != nil {
+			return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
+		}
+	}
+
+	// Create default v2 config
+	v2cfg := DefaultV2Config(filepath.Base(absRoot))
+
+	// Save config.toml
+	configPath := filepath.Join(stateDir, "config.toml")
+	if err := v2cfg.Save(configPath); err != nil {
+		return nil, fmt.Errorf("failed to save config: %w", err)
+	}
+
+	// Initialize role manager and create default root.md
+	rm := NewRoleManager(stateDir)
+	if _, err := rm.EnsureDefaultRoot(); err != nil {
+		return nil, fmt.Errorf("failed to create default role: %w", err)
+	}
+
+	// Create legacy config for backward compat
+	legacyCfg := Config{
+		Version:  2,
+		Name:     v2cfg.Workspace.Name,
+		RootDir:  absRoot,
+		StateDir: stateDir,
+		Tool:     v2cfg.Tools.Default,
+	}
+
+	return &Workspace{
+		RootDir:     absRoot,
+		Config:      legacyCfg,
+		V2Config:    &v2cfg,
+		RoleManager: rm,
+		version:     2,
 	}, nil
 }
 
 // Load loads a workspace from a directory.
+// Prefers config.toml (v2) over config.json (v1).
+// Falls back to config.json with deprecation warning if config.toml not found.
 func Load(rootDir string) (*Workspace, error) {
 	absRoot, err := filepath.Abs(rootDir)
 	if err != nil {
@@ -80,28 +145,83 @@ func Load(rootDir string) (*Workspace, error) {
 	}
 
 	stateDir := filepath.Join(absRoot, ".bc")
-	configPath := filepath.Join(stateDir, "config.json")
 
+	// Check for v2 config.toml first
+	tomlPath := filepath.Join(stateDir, "config.toml")
+	if _, err := os.Stat(tomlPath); err == nil {
+		return loadV2Workspace(absRoot, stateDir, tomlPath)
+	}
+
+	// Fall back to v1 config.json
+	jsonPath := filepath.Join(stateDir, "config.json")
+	if _, err := os.Stat(jsonPath); err == nil {
+		log.Warn("deprecated v1 workspace detected, consider migrating to v2",
+			"path", absRoot,
+			"hint", "backup .bc/ and run 'bc init' to create v2 workspace")
+		return loadV1Workspace(absRoot, stateDir, jsonPath)
+	}
+
+	return nil, fmt.Errorf("not a bc workspace (no .bc/config.toml or .bc/config.json found)")
+}
+
+// loadV2Workspace loads a v2 workspace with TOML config.
+func loadV2Workspace(absRoot, stateDir, configPath string) (*Workspace, error) {
+	v2cfg, err := LoadV2Config(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config.toml: %w", err)
+	}
+
+	if err := v2cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid config.toml: %w", err)
+	}
+
+	// Initialize role manager
+	rm := NewRoleManager(stateDir)
+	if _, err := rm.LoadAllRoles(); err != nil {
+		return nil, fmt.Errorf("failed to load roles: %w", err)
+	}
+
+	// Create legacy config for backward compat
+	legacyCfg := Config{
+		Version:  2,
+		Name:     v2cfg.Workspace.Name,
+		RootDir:  absRoot,
+		StateDir: stateDir,
+		Tool:     v2cfg.Tools.Default,
+	}
+	if tool := v2cfg.GetDefaultTool(); tool != nil {
+		legacyCfg.AgentCommand = tool.Command
+	}
+
+	return &Workspace{
+		RootDir:     absRoot,
+		Config:      legacyCfg,
+		V2Config:    v2cfg,
+		RoleManager: rm,
+		version:     2,
+	}, nil
+}
+
+// loadV1Workspace loads a legacy v1 workspace with JSON config.
+func loadV1Workspace(absRoot, stateDir, configPath string) (*Workspace, error) {
 	data, err := os.ReadFile(configPath) //nolint:gosec // path constructed from known state dir
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("not a bc workspace (no .bc/config.json found)")
-		}
 		return nil, err
 	}
 
-	var config Config
-	if err := json.Unmarshal(data, &config); err != nil {
+	var cfg Config
+	if err := json.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("invalid config.json: %w", err)
 	}
 
 	// Update paths if directory was moved
-	config.RootDir = absRoot
-	config.StateDir = stateDir
+	cfg.RootDir = absRoot
+	cfg.StateDir = stateDir
 
 	return &Workspace{
-		Config:  config,
+		Config:  cfg,
 		RootDir: absRoot,
+		version: 1,
 	}, nil
 }
 
@@ -131,7 +251,14 @@ func Find(dir string) (*Workspace, error) {
 }
 
 // Save saves the workspace configuration.
+// For v2 workspaces, saves config.toml. For v1, saves config.json.
 func (w *Workspace) Save() error {
+	if w.version == 2 && w.V2Config != nil {
+		configPath := filepath.Join(w.Config.StateDir, "config.toml")
+		return w.V2Config.Save(configPath)
+	}
+
+	// v1 fallback
 	configPath := filepath.Join(w.Config.StateDir, "config.json")
 	data, err := json.MarshalIndent(w.Config, "", "  ")
 	if err != nil {
@@ -155,12 +282,47 @@ func (w *Workspace) LogsDir() string {
 	return filepath.Join(w.Config.StateDir, "logs")
 }
 
+// RolesDir returns the roles directory path.
+func (w *Workspace) RolesDir() string {
+	return filepath.Join(w.Config.StateDir, "roles")
+}
+
+// MemoryDir returns the memory directory path.
+func (w *Workspace) MemoryDir() string {
+	if w.V2Config != nil {
+		return filepath.Join(w.RootDir, w.V2Config.Memory.Path)
+	}
+	return filepath.Join(w.Config.StateDir, "memory")
+}
+
+// WorktreesDir returns the worktrees directory path.
+func (w *Workspace) WorktreesDir() string {
+	if w.V2Config != nil {
+		return filepath.Join(w.RootDir, w.V2Config.Worktrees.Path)
+	}
+	return filepath.Join(w.Config.StateDir, "worktrees")
+}
+
+// ChannelsDir returns the channels directory path.
+func (w *Workspace) ChannelsDir() string {
+	return filepath.Join(w.Config.StateDir, "channels")
+}
+
 // EnsureDirs creates all required directories.
 func (w *Workspace) EnsureDirs() error {
 	dirs := []string{
 		w.Config.StateDir,
 		w.AgentsDir(),
 		w.LogsDir(),
+	}
+
+	if w.version == 2 {
+		dirs = append(dirs,
+			w.RolesDir(),
+			w.MemoryDir(),
+			w.WorktreesDir(),
+			w.ChannelsDir(),
+		)
 	}
 
 	for _, dir := range dirs {
@@ -177,4 +339,80 @@ func IsWorkspace(dir string) bool {
 	stateDir := filepath.Join(dir, config.Workspace.StateDir)
 	_, err := os.Stat(stateDir)
 	return err == nil
+}
+
+// ConfigVersion returns the detected config version (1 or 2).
+func (w *Workspace) ConfigVersion() int {
+	return w.version
+}
+
+// IsV2 returns true if this is a v2 workspace.
+func (w *Workspace) IsV2() bool {
+	return w.version == 2
+}
+
+// GetRole returns a role by name, loading it if necessary.
+// Returns nil if no role manager is available (v1 workspace).
+func (w *Workspace) GetRole(name string) (*Role, error) {
+	if w.RoleManager == nil {
+		return nil, fmt.Errorf("role management not available in v1 workspace")
+	}
+
+	// Check if already loaded
+	if role, ok := w.RoleManager.GetRole(name); ok {
+		return role, nil
+	}
+
+	// Try to load
+	return w.RoleManager.LoadRole(name)
+}
+
+// GetRolePrompt returns the prompt content for a role.
+// Returns empty string if role not found or v1 workspace.
+func (w *Workspace) GetRolePrompt(name string) string {
+	role, err := w.GetRole(name)
+	if err != nil {
+		return ""
+	}
+	return role.Prompt
+}
+
+// DefaultTool returns the default tool name for this workspace.
+func (w *Workspace) DefaultTool() string {
+	if w.V2Config != nil {
+		return w.V2Config.Tools.Default
+	}
+	if w.Config.Tool != "" {
+		return w.Config.Tool
+	}
+	return "claude"
+}
+
+// DefaultToolCommand returns the command for the default tool.
+func (w *Workspace) DefaultToolCommand() string {
+	if w.V2Config != nil {
+		if tool := w.V2Config.GetDefaultTool(); tool != nil {
+			return tool.Command
+		}
+	}
+	if w.Config.AgentCommand != "" {
+		return w.Config.AgentCommand
+	}
+	return "claude --dangerously-skip-permissions"
+}
+
+// BeadsEnabled returns whether beads integration is enabled.
+func (w *Workspace) BeadsEnabled() bool {
+	if w.V2Config != nil {
+		return w.V2Config.Beads.Enabled
+	}
+	return true // Default to enabled for v1
+}
+
+// DefaultChannels returns the default channel names.
+func (w *Workspace) DefaultChannels() []string {
+	if w.V2Config != nil {
+		return w.V2Config.Channels.Default
+	}
+	return []string{"general", "engineering"}
 }
