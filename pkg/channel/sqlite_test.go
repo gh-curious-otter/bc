@@ -204,18 +204,18 @@ func TestSQLiteStore_Messages(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg1, err := store.AddMessage("dev", "engineer-01", "Hello world", MessageTypeText, "")
+	msg1, err := store.AddMessage("dev", "engineer-01", "Hello world", TypeText, "")
 	if err != nil {
 		t.Fatalf("failed to add message: %v", err)
 	}
 	if msg1.Sender != "engineer-01" {
 		t.Errorf("expected sender 'engineer-01', got %q", msg1.Sender)
 	}
-	if msg1.Type != MessageTypeText {
+	if msg1.Type != TypeText {
 		t.Errorf("expected type 'text', got %q", msg1.Type)
 	}
 
-	msg2, err := store.AddMessage("dev", "manager", "@engineer-01 implement feature X", MessageTypeTask, `{"pr":"#123"}`)
+	msg2, err := store.AddMessage("dev", "manager", "@engineer-01 implement feature X", TypeTask, `{"pr":"#123"}`)
 	if err != nil {
 		t.Fatalf("failed to add task message: %v", err)
 	}
@@ -252,20 +252,20 @@ func TestSQLiteStore_GetMessagesByType(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := store.AddMessage("work", "user1", "text 1", MessageTypeText, ""); err != nil {
+	if _, err := store.AddMessage("work", "user1", "text 1", TypeText, ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.AddMessage("work", "user1", "task 1", MessageTypeTask, ""); err != nil {
+	if _, err := store.AddMessage("work", "user1", "task 1", TypeTask, ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.AddMessage("work", "user1", "text 2", MessageTypeText, ""); err != nil {
+	if _, err := store.AddMessage("work", "user1", "text 2", TypeText, ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.AddMessage("work", "user1", "review 1", MessageTypeReview, ""); err != nil {
+	if _, err := store.AddMessage("work", "user1", "review 1", TypeReview, ""); err != nil {
 		t.Fatal(err)
 	}
 
-	tasks, err := store.GetMessagesByType("work", MessageTypeTask, 10)
+	tasks, err := store.GetMessagesByType("work", TypeTask, 10)
 	if err != nil {
 		t.Fatalf("failed to get tasks: %v", err)
 	}
@@ -273,7 +273,7 @@ func TestSQLiteStore_GetMessagesByType(t *testing.T) {
 		t.Errorf("expected 1 task, got %d", len(tasks))
 	}
 
-	texts, err := store.GetMessagesByType("work", MessageTypeText, 10)
+	texts, err := store.GetMessagesByType("work", TypeText, 10)
 	if err != nil {
 		t.Fatalf("failed to get texts: %v", err)
 	}
@@ -289,7 +289,7 @@ func TestSQLiteStore_Mentions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg, err := store.AddMessage("mentions-test", "manager", "@engineer-01 do this", MessageTypeTask, "")
+	msg, err := store.AddMessage("mentions-test", "manager", "@engineer-01 do this", TypeTask, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,13 +376,13 @@ func TestSQLiteStore_SearchMessages(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := store.AddMessage("search-test", "user1", "The quick brown fox", MessageTypeText, ""); err != nil {
+	if _, err := store.AddMessage("search-test", "user1", "The quick brown fox", TypeText, ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.AddMessage("search-test", "user2", "jumps over the lazy dog", MessageTypeText, ""); err != nil {
+	if _, err := store.AddMessage("search-test", "user2", "jumps over the lazy dog", TypeText, ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.AddMessage("search-test", "user1", "authentication bug in login", MessageTypeTask, ""); err != nil {
+	if _, err := store.AddMessage("search-test", "user1", "authentication bug in login", TypeTask, ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -428,7 +428,7 @@ func TestSQLiteStore_MessageMetadata(t *testing.T) {
 	}
 
 	metadata := `{"pr_number": 123, "branch": "feature/test"}`
-	msg, err := store.AddMessage("meta-test", "bot", "Review PR #123", MessageTypeReview, metadata)
+	msg, err := store.AddMessage("meta-test", "bot", "Review PR #123", TypeReview, metadata)
 	if err != nil {
 		t.Fatalf("failed to add message: %v", err)
 	}
@@ -454,7 +454,7 @@ func TestSQLiteStore_Timestamps(t *testing.T) {
 		t.Errorf("unexpected created_at: %v (expected between %v and %v)", ch.CreatedAt, before, after)
 	}
 
-	if _, err := store.AddMessage("timestamp-test", "user", "test", MessageTypeText, ""); err != nil {
+	if _, err := store.AddMessage("timestamp-test", "user", "test", TypeText, ""); err != nil {
 		t.Fatal(err)
 	}
 	history, _ := store.GetHistory("timestamp-test", 10)
