@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/queue"
 	"github.com/rpuneet/bc/pkg/stats"
 	"github.com/rpuneet/bc/pkg/tui/style"
 )
@@ -26,42 +24,12 @@ type Tab int
 const (
 	TabAgents Tab = iota
 	TabIssues
-	TabQueue
 	TabChannels
 	TabDashboard
 	TabStats
 
-	tabCount = 6
+	tabCount = 5
 )
-
-// QueueFilter controls which queue items are displayed.
-type QueueFilter int
-
-const (
-	// QueueFilterActive shows pending, assigned, working, and failed items.
-	QueueFilterActive QueueFilter = iota
-	// QueueFilterAll shows all items including done.
-	QueueFilterAll
-	// QueueFilterDone shows only done items.
-	QueueFilterDone
-)
-
-func (f QueueFilter) label() string {
-	switch f {
-	case QueueFilterActive:
-		return "active"
-	case QueueFilterAll:
-		return "all"
-	case QueueFilterDone:
-		return "done"
-	default:
-		return ""
-	}
-}
-
-func (f QueueFilter) next() QueueFilter {
-	return (f + 1) % 3
-}
 
 // WorkspaceStats holds aggregated statistics for the workspace.
 type WorkspaceStats struct {
@@ -81,12 +49,10 @@ type WorkspaceStats struct {
 // WorkspaceModel shows the detail view for a single workspace.
 type WorkspaceModel struct {
 	// Data
-	agents             []*agent.Agent
-	channels           []*channel.Channel
-	queueItems         []queue.WorkItem
-	filteredQueueItems []queue.WorkItem
-	issues             []beads.Issue
-	recentEvents       []events.Event
+	agents       []*agent.Agent
+	channels     []*channel.Channel
+	issues       []beads.Issue
+	recentEvents []events.Event
 
 	// Per-agent stats from pkg/stats
 	agentStats map[string]stats.AgentStat
@@ -95,32 +61,28 @@ type WorkspaceModel struct {
 	pkgStats  *stats.Stats
 	issuesErr error
 
-	styles     style.Styles
-	info       WorkspaceInfo
-	queueStats queue.Stats
-	stats      WorkspaceStats
+	styles style.Styles
+	info   WorkspaceInfo
+	stats  WorkspaceStats
 
 	width        int
 	height       int
 	cursor       int
 	scrollOffset int // first visible item index for current tab
 	tab          Tab
-	queueFilter  QueueFilter
 
 	// Loaded flags
 	agentsLoaded   bool
 	issuesLoaded   bool
 	channelsLoaded bool
-	queueLoaded    bool
 }
 
 // NewWorkspaceModel creates a workspace detail view.
 func NewWorkspaceModel(info WorkspaceInfo, s style.Styles) *WorkspaceModel {
 	m := &WorkspaceModel{
-		info:        info,
-		styles:      s,
-		tab:         TabAgents,
-		queueFilter: QueueFilterActive,
+		info:   info,
+		styles: s,
+		tab:    TabAgents,
 	}
 
 	// Load agent data
@@ -139,10 +101,6 @@ func NewWorkspaceModel(info WorkspaceInfo, s style.Styles) *WorkspaceModel {
 
 	// Load channels
 	m.loadChannels()
-
-	// Load queue stats and items
-	m.loadQueueStats()
-	m.loadQueueItems()
 
 	// Load per-agent stats from pkg/stats
 	m.loadAgentStats()
@@ -194,13 +152,6 @@ func (m *WorkspaceModel) HandleKey(msg tea.KeyMsg) Action {
 	case "r":
 		m.refresh()
 		return NoAction
-	case "f":
-		if m.tab == TabQueue {
-			m.queueFilter = m.queueFilter.next()
-			m.applyQueueFilter()
-			m.cursor = 0
-			return NoAction
-		}
 	}
 	if isEnterKey(msg) {
 		return m.selectCurrent()
@@ -214,63 +165,11 @@ func (m *WorkspaceModel) refresh() {
 	m.agents = m.manager.ListAgents()
 	m.issues, m.issuesErr = beads.ListIssues(m.info.Entry.Path)
 	m.loadChannels()
-	m.loadQueueStats()
-	m.loadQueueItems()
 	m.loadRecentEvents()
 	m.computeStats()
 	m.loadPkgStats()
 	m.clampCursor()
 	m.ensureCursorVisible()
-}
-
-func (m *WorkspaceModel) loadQueueStats() {
-	q := queue.New(filepath.Join(m.info.Entry.Path, ".bc", "queue.json"))
-	if err := q.Load(); err == nil {
-		m.queueStats = q.Stats()
-	}
-}
-
-func (m *WorkspaceModel) loadQueueItems() {
-	q := queue.New(filepath.Join(m.info.Entry.Path, ".bc", "queue.json"))
-	if err := q.Load(); err == nil {
-		m.queueItems = q.ListAll()
-	}
-	// Sort in place so display order matches selectCurrent() indexing.
-	sort.SliceStable(m.queueItems, func(i, j int) bool {
-		ri, rj := queueStatusRank(m.queueItems[i].Status), queueStatusRank(m.queueItems[j].Status)
-		if ri != rj {
-			return ri < rj
-		}
-		if m.queueItems[i].Status == queue.StatusDone {
-			return m.queueItems[i].ID > m.queueItems[j].ID
-		}
-		return m.queueItems[i].ID < m.queueItems[j].ID
-	})
-	m.queueLoaded = true
-	m.applyQueueFilter()
-}
-
-func (m *WorkspaceModel) applyQueueFilter() {
-	switch m.queueFilter {
-	case QueueFilterAll:
-		m.filteredQueueItems = m.queueItems
-	case QueueFilterDone:
-		filtered := make([]queue.WorkItem, 0)
-		for _, item := range m.queueItems {
-			if item.Status == queue.StatusDone {
-				filtered = append(filtered, item)
-			}
-		}
-		m.filteredQueueItems = filtered
-	default: // QueueFilterActive
-		filtered := make([]queue.WorkItem, 0)
-		for _, item := range m.queueItems {
-			if item.Status != queue.StatusDone {
-				filtered = append(filtered, item)
-			}
-		}
-		m.filteredQueueItems = filtered
-	}
 }
 
 func (m *WorkspaceModel) loadAgentStats() {
@@ -299,10 +198,6 @@ func (m *WorkspaceModel) selectCurrent() Action {
 		if m.cursor < len(m.channels) {
 			return Action{Type: ActionDrillChannel, Data: m.channels[m.cursor]}
 		}
-	case TabQueue:
-		if m.cursor < len(m.filteredQueueItems) {
-			return Action{Type: ActionDrillQueue, Data: m.filteredQueueItems[m.cursor]}
-		}
 	}
 	return NoAction
 }
@@ -320,10 +215,6 @@ func (m *WorkspaceModel) maxCursor() int {
 	case TabChannels:
 		if len(m.channels) > 0 {
 			return len(m.channels) - 1
-		}
-	case TabQueue:
-		if len(m.filteredQueueItems) > 0 {
-			return len(m.filteredQueueItems) - 1
 		}
 	case TabDashboard:
 		return 0
@@ -416,8 +307,6 @@ func (m *WorkspaceModel) View() string {
 		b.WriteString(m.renderIssues())
 	case TabChannels:
 		b.WriteString(m.renderChannels())
-	case TabQueue:
-		b.WriteString(m.renderQueue())
 	case TabDashboard:
 		b.WriteString(m.renderDashboard())
 	case TabStats:
@@ -435,7 +324,6 @@ func (m *WorkspaceModel) renderTabBar() string {
 	}{
 		{"Agents", TabAgents, len(m.agents)},
 		{"Issues", TabIssues, len(m.issues)},
-		{"Queue", TabQueue, len(m.filteredQueueItems)},
 		{"Channels", TabChannels, len(m.channels)},
 		{"Dashboard", TabDashboard, m.stats.OpenIssues},
 		{"Stats", TabStats, -1},
@@ -444,9 +332,7 @@ func (m *WorkspaceModel) renderTabBar() string {
 	var parts []string
 	for _, t := range tabs {
 		var label string
-		if t.tab == TabQueue && m.queueFilter != QueueFilterAll {
-			label = fmt.Sprintf(" %s (%d %s) ", t.label, t.count, m.queueFilter.label())
-		} else if t.count >= 0 {
+		if t.count >= 0 {
 			label = fmt.Sprintf(" %s (%d) ", t.label, t.count)
 		} else {
 			label = fmt.Sprintf(" %s ", t.label)
@@ -471,14 +357,14 @@ func (m *WorkspaceModel) renderAgents() string {
 	}
 
 	// Header
-	header := fmt.Sprintf("  %-15s %-12s %-10s %-12s %-5s %-5s %s",
-		"NAME", "ROLE", "STATE", "UPTIME", "DONE", "FAIL", "TASK")
+	header := fmt.Sprintf("  %-15s %-12s %-10s %-12s %s",
+		"NAME", "ROLE", "STATE", "UPTIME", "TASK")
 	b.WriteString(m.styles.Bold.Render(header))
 	b.WriteString("\n")
 
-	// Fixed columns: 2(indent) + NAME(15) + ROLE(12) + STATE(10) + UPTIME(12) + DONE(5) + FAIL(5) = 61
+	// Fixed columns: 2(indent) + NAME(15) + ROLE(12) + STATE(10) + UPTIME(12) = 51
 	// Task gets the rest of the terminal width
-	taskWidth := m.width - 61
+	taskWidth := m.width - 51
 	if taskWidth < 20 {
 		taskWidth = 20
 	}
@@ -496,8 +382,6 @@ func (m *WorkspaceModel) renderAgents() string {
 		} else if a.State != agent.StateStopped && !a.StartedAt.IsZero() {
 			uptime = fmtDuration(time.Since(a.StartedAt))
 		}
-		done := as.TasksCompleted
-		failed := as.TasksFailed
 
 		task := a.Task
 		if task == "" {
@@ -507,8 +391,8 @@ func (m *WorkspaceModel) renderAgents() string {
 			task = task[:taskWidth-3] + "..."
 		}
 
-		line := fmt.Sprintf("  %-15s %-12s %-10s %-12s %-5d %-5d %s",
-			a.Name, a.Role, a.State, uptime, done, failed, task,
+		line := fmt.Sprintf("  %-15s %-12s %-10s %-12s %s",
+			a.Name, a.Role, a.State, uptime, task,
 		)
 
 		if selected {
@@ -688,84 +572,6 @@ func (m *WorkspaceModel) renderChannels() string {
 	return b.String()
 }
 
-// queueStatusRank returns a sort rank for queue item status.
-// Lower rank = higher in the list.
-func queueStatusRank(s queue.ItemStatus) int {
-	switch s {
-	case queue.StatusWorking:
-		return 0
-	case queue.StatusAssigned:
-		return 1
-	case queue.StatusPending:
-		return 2
-	case queue.StatusFailed:
-		return 3
-	case queue.StatusDone:
-		return 4
-	default:
-		return 5
-	}
-}
-
-func (m *WorkspaceModel) renderQueue() string {
-	var b strings.Builder
-
-	if len(m.filteredQueueItems) == 0 {
-		if m.queueFilter != QueueFilterAll && len(m.queueItems) > 0 {
-			b.WriteString(m.styles.Muted.Render(fmt.Sprintf("  No %s queue items. Press 'f' to change filter.", m.queueFilter.label())))
-		} else {
-			b.WriteString(m.styles.Muted.Render("  No queue items. Run 'bc queue add <title>' to create one."))
-		}
-		b.WriteString("\n")
-		return b.String()
-	}
-
-	// Header
-	header := fmt.Sprintf("  %-10s %-12s %-10s %-10s %-15s %s", "ID", "BEAD", "STATUS", "MERGE", "ASSIGNED", "TITLE")
-	b.WriteString(m.styles.Bold.Render(header))
-	b.WriteString("\n")
-
-	start, end := m.viewportRange(len(m.filteredQueueItems))
-	for i := start; i < end; i++ {
-		item := m.filteredQueueItems[i]
-		selected := i == m.cursor
-
-		title := item.Title
-		if len(title) > 36 {
-			title = title[:33] + "..."
-		}
-
-		assignedTo := item.AssignedTo
-		if assignedTo == "" {
-			assignedTo = "-"
-		}
-
-		beadsID := item.BeadsID
-		if beadsID == "" {
-			beadsID = "-"
-		}
-
-		mergeStr := "-"
-		if item.Merge != "" {
-			mergeStr = string(item.Merge)
-		}
-
-		line := fmt.Sprintf("  %-10s %-12s %-10s %-10s %-15s %s",
-			item.ID, beadsID, string(item.Status), mergeStr, assignedTo, title,
-		)
-
-		if selected {
-			b.WriteString(m.styles.Selected.Render(line))
-		} else {
-			b.WriteString(m.styles.StatusStyle(mapQueueStatus(item.Status)).Render(line))
-		}
-		b.WriteString("\n")
-	}
-
-	b.WriteString(m.renderPositionIndicator(len(m.filteredQueueItems)))
-	return b.String()
-}
-
 func (m *WorkspaceModel) loadPkgStats() {
 	stateDir := filepath.Join(m.info.Entry.Path, ".bc")
 	s, err := stats.Load(stateDir)
@@ -776,7 +582,7 @@ func (m *WorkspaceModel) loadPkgStats() {
 }
 
 func (m *WorkspaceModel) renderStatsBar() string {
-	var parts []string
+	parts := make([]string, 0, 3)
 
 	parts = append(parts, fmt.Sprintf("Issues: %d (%d open, %d closed)",
 		m.stats.TotalIssues, m.stats.OpenIssues, m.stats.ClosedIssues))
@@ -784,14 +590,6 @@ func (m *WorkspaceModel) renderStatsBar() string {
 	activeCount := m.stats.WorkingAgents + m.stats.IdleAgents + m.stats.StuckAgents
 	parts = append(parts, fmt.Sprintf("Agents: %d (%d active, %d idle, %d stuck)",
 		len(m.agents), activeCount, m.stats.IdleAgents, m.stats.StuckAgents))
-	parts = append(parts, fmt.Sprintf("Queue: %d pending, %d working, %d done",
-		m.queueStats.Pending+m.queueStats.Assigned,
-		m.queueStats.Working,
-		m.queueStats.Done))
-	if m.pkgStats != nil && m.pkgStats.WorkItems.Total > 0 {
-		parts = append(parts, fmt.Sprintf("Completion: %.1f%%",
-			m.pkgStats.WorkItems.CompletionRate*100))
-	}
 
 	return m.styles.Muted.Render(strings.Join(parts, "  |  "))
 }
@@ -880,8 +678,8 @@ func (m *WorkspaceModel) renderDashboard() string {
 		b.WriteString(m.styles.Muted.Render("  No agents running."))
 		b.WriteString("\n")
 	} else {
-		header := fmt.Sprintf("  %-15s %-12s %-10s %-12s %-6s %-6s",
-			"NAME", "ROLE", "STATE", "UPTIME", "DONE", "FAIL")
+		header := fmt.Sprintf("  %-15s %-12s %-10s %-12s",
+			"NAME", "ROLE", "STATE", "UPTIME")
 		b.WriteString(m.styles.Bold.Render(header))
 		b.WriteString("\n")
 
@@ -894,8 +692,8 @@ func (m *WorkspaceModel) renderDashboard() string {
 				uptime = fmtDuration(time.Since(a.StartedAt))
 			}
 
-			line := fmt.Sprintf("  %-15s %-12s %-10s %-12s %-6d %-6d",
-				a.Name, a.Role, a.State, uptime, as.TasksCompleted, as.TasksFailed)
+			line := fmt.Sprintf("  %-15s %-12s %-10s %-12s",
+				a.Name, a.Role, a.State, uptime)
 			b.WriteString(m.styles.StatusStyle(mapState(a.State)).Render(line))
 			b.WriteString("\n")
 		}
@@ -974,23 +772,6 @@ func (m *WorkspaceModel) renderDashboard() string {
 	return b.String()
 }
 
-func mapQueueStatus(s queue.ItemStatus) string {
-	switch s {
-	case queue.StatusPending:
-		return "pending"
-	case queue.StatusAssigned:
-		return "queued"
-	case queue.StatusWorking:
-		return "running"
-	case queue.StatusDone:
-		return "success"
-	case queue.StatusFailed:
-		return "failed"
-	default:
-		return ""
-	}
-}
-
 const (
 	dashboardMaxEvents       = 10
 	dashboardMaxClosedIssues = 5
@@ -1009,182 +790,6 @@ func (m *WorkspaceModel) getRecentlyClosedIssues() []beads.Issue {
 		}
 	}
 	return closed
-}
-
-func (m *WorkspaceModel) renderStatsPanel() string {
-	var b strings.Builder
-
-	// Section 1: Work Items Overview
-	b.WriteString(m.styles.Bold.Render("Work Items"))
-	b.WriteString("\n")
-
-	wi := m.queueStats
-	total := wi.Total
-	completionPct := 0.0
-	failurePct := 0.0
-	if total > 0 {
-		completionPct = float64(wi.Done) / float64(total) * 100
-		failurePct = float64(wi.Failed) / float64(total) * 100
-	}
-
-	workFields := []struct {
-		label string
-		value string
-		style string
-	}{
-		{"Total", fmt.Sprintf("%d", total), ""},
-		{"Pending", fmt.Sprintf("%d", wi.Pending+wi.Assigned), "warning"},
-		{"Working", fmt.Sprintf("%d", wi.Working), "ok"},
-		{"Done", fmt.Sprintf("%d", wi.Done), "ok"},
-		{"Failed", fmt.Sprintf("%d", wi.Failed), ""},
-		{"Completion", fmt.Sprintf("%.1f%%", completionPct), ""},
-		{"Failure", fmt.Sprintf("%.1f%%", failurePct), ""},
-	}
-
-	if wi.Failed > 0 {
-		workFields[4].style = "error"
-	}
-	if completionPct >= 80 {
-		workFields[5].style = "ok" //nolint:gosec // G602: slice has 7 elements, index 5 is valid
-	}
-	if failurePct > 10 {
-		workFields[6].style = "error" //nolint:gosec // G602: slice has 7 elements, index 6 is valid
-	}
-
-	for _, f := range workFields {
-		label := m.styles.Muted.Width(15).Render(f.label + ":")
-		valueStyle := m.styles.Normal
-		switch f.style {
-		case "ok":
-			valueStyle = m.styles.Success
-		case "warning":
-			valueStyle = m.styles.Warning
-		case "error":
-			valueStyle = m.styles.Error
-		}
-		b.WriteString(fmt.Sprintf("  %s %s\n", label, valueStyle.Render(f.value)))
-	}
-	b.WriteString("\n")
-
-	// Section 2: Agent Overview
-	b.WriteString(m.styles.Bold.Render("Agents"))
-	b.WriteString("\n")
-
-	activeCount := m.stats.WorkingAgents + m.stats.IdleAgents + m.stats.StuckAgents
-	utilPct := 0.0
-	if activeCount > 0 {
-		utilPct = float64(m.stats.WorkingAgents) / float64(activeCount) * 100
-	}
-
-	agentFields := []struct {
-		label string
-		value string
-		style string
-	}{
-		{"Total", fmt.Sprintf("%d", len(m.agents)), ""},
-		{"Active", fmt.Sprintf("%d", activeCount), "ok"},
-		{"Working", fmt.Sprintf("%d", m.stats.WorkingAgents), "ok"},
-		{"Idle", fmt.Sprintf("%d", m.stats.IdleAgents), "info"},
-		{"Stuck", fmt.Sprintf("%d", m.stats.StuckAgents), ""},
-		{"Stopped", fmt.Sprintf("%d", m.stats.StoppedAgents), ""},
-		{"Utilization", fmt.Sprintf("%.0f%%", utilPct), ""},
-	}
-
-	if m.stats.StuckAgents > 0 {
-		agentFields[4].style = "error"
-	}
-
-	for _, f := range agentFields {
-		label := m.styles.Muted.Width(15).Render(f.label + ":")
-		valueStyle := m.styles.Normal
-		switch f.style {
-		case "ok":
-			valueStyle = m.styles.Success
-		case "warning":
-			valueStyle = m.styles.Warning
-		case "error":
-			valueStyle = m.styles.Error
-		case "info":
-			valueStyle = m.styles.Info
-		}
-		b.WriteString(fmt.Sprintf("  %s %s\n", label, valueStyle.Render(f.value)))
-	}
-	b.WriteString("\n")
-
-	// Section 3: Per-Agent Completion Rates
-	b.WriteString(m.styles.Bold.Render("Per-Agent Stats"))
-	b.WriteString("\n")
-
-	if len(m.agentStats) == 0 {
-		b.WriteString(m.styles.Muted.Render("  No agent stats available."))
-		b.WriteString("\n")
-	} else {
-		header := fmt.Sprintf("  %-15s %-10s %-8s %-8s %-10s %s",
-			"NAME", "STATE", "DONE", "FAIL", "RATE", "UPTIME")
-		b.WriteString(m.styles.Bold.Render(header))
-		b.WriteString("\n")
-
-		for _, a := range m.agents {
-			as, ok := m.agentStats[a.Name]
-			if !ok {
-				continue
-			}
-
-			totalTasks := as.TasksCompleted + as.TasksFailed
-			ratePct := 0.0
-			if totalTasks > 0 {
-				ratePct = float64(as.TasksCompleted) / float64(totalTasks) * 100
-			}
-
-			uptime := "-"
-			if as.Uptime > 0 {
-				uptime = fmtDuration(as.Uptime)
-			} else if a.State != agent.StateStopped && !a.StartedAt.IsZero() {
-				uptime = fmtDuration(time.Since(a.StartedAt))
-			}
-
-			rateStr := "-"
-			if totalTasks > 0 {
-				rateStr = fmt.Sprintf("%.0f%%", ratePct)
-			}
-
-			line := fmt.Sprintf("  %-15s %-10s %-8d %-8d %-10s %s",
-				as.Name, as.State, as.TasksCompleted, as.TasksFailed, rateStr, uptime)
-			b.WriteString(m.styles.StatusStyle(mapState(a.State)).Render(line))
-			b.WriteString("\n")
-		}
-	}
-	b.WriteString("\n")
-
-	// Section 4: Extended metrics from pkg/stats if available
-	if m.pkgStats != nil {
-		b.WriteString(m.styles.Bold.Render("Work Item Types"))
-		b.WriteString("\n")
-
-		typeFields := []struct {
-			label string
-			value string
-		}{
-			{"Epics", fmt.Sprintf("%d", m.pkgStats.WorkItems.Epics)},
-			{"Tasks", fmt.Sprintf("%d", m.pkgStats.WorkItems.Tasks)},
-			{"Bugs", fmt.Sprintf("%d", m.pkgStats.WorkItems.Bugs)},
-			{"Other", fmt.Sprintf("%d", m.pkgStats.WorkItems.Other)},
-		}
-
-		if m.pkgStats.WorkItems.AvgTimeToComplete > 0 {
-			typeFields = append(typeFields, struct {
-				label string
-				value string
-			}{"Avg Completion", fmtDuration(m.pkgStats.WorkItems.AvgTimeToComplete)})
-		}
-
-		for _, f := range typeFields {
-			label := m.styles.Muted.Width(15).Render(f.label + ":")
-			b.WriteString(fmt.Sprintf("  %s %s\n", label, m.styles.Normal.Render(f.value)))
-		}
-	}
-
-	return b.String()
 }
 
 func (m *WorkspaceModel) computeStats() {
@@ -1224,7 +829,6 @@ func (m *WorkspaceModel) renderStats() string {
 		return b.String()
 	}
 
-	wi := m.pkgStats.WorkItems
 	am := m.pkgStats.Agents
 
 	// --- Aggregate Overview ---
@@ -1254,34 +858,9 @@ func (m *WorkspaceModel) renderStats() string {
 	if am.Stopped > 0 {
 		b.WriteString(m.styles.Muted.Render(fmt.Sprintf("%d stopped", am.Stopped)))
 	}
-	b.WriteString("\n")
-
-	// Queue row
-	b.WriteString(m.styles.Muted.Render(fmt.Sprintf("  %-20s", "Queue:")))
-	b.WriteString(m.styles.Normal.Render(fmt.Sprintf("%d total  ", wi.Total)))
-	b.WriteString(m.styles.Warning.Render(fmt.Sprintf("%d pending  ", wi.Pending+wi.Assigned)))
-	b.WriteString(m.styles.Success.Render(fmt.Sprintf("%d working  ", wi.Working)))
-	b.WriteString(m.styles.Muted.Render(fmt.Sprintf("%d done", wi.Done)))
-	if wi.Failed > 0 {
-		b.WriteString(m.styles.Error.Render(fmt.Sprintf("  %d failed", wi.Failed)))
-	}
-	b.WriteString("\n")
-
-	// Completion rate row
-	b.WriteString(m.styles.Muted.Render(fmt.Sprintf("  %-20s", "Completion Rate:")))
-	rate := wi.CompletionRate * 100
-	rateStr := fmt.Sprintf("%.1f%%", rate)
-	if rate >= 75 {
-		b.WriteString(m.styles.Success.Render(rateStr))
-	} else if rate >= 50 {
-		b.WriteString(m.styles.Warning.Render(rateStr))
-	} else {
-		b.WriteString(m.styles.Normal.Render(rateStr))
-	}
-	b.WriteString("\n")
+	b.WriteString("\n\n")
 
 	// --- Per-Agent Metrics ---
-	b.WriteString("\n")
 	b.WriteString(m.styles.Bold.Render("  Per-Agent Metrics"))
 	b.WriteString("\n\n")
 
@@ -1300,8 +879,8 @@ func (m *WorkspaceModel) renderStats() string {
 	}
 
 	// Header
-	header := fmt.Sprintf("  %-15s %-14s %-10s %6s %6s %6s %12s",
-		"NAME", "ROLE", "STATE", "DONE", "FAIL", "ISSUES", "UPTIME")
+	header := fmt.Sprintf("  %-15s %-14s %-10s %8s %12s",
+		"NAME", "ROLE", "STATE", "ISSUES", "UPTIME")
 	b.WriteString(m.styles.Bold.Render(header))
 	b.WriteString("\n")
 
@@ -1313,8 +892,8 @@ func (m *WorkspaceModel) renderStats() string {
 
 		issues := issuesByAgent[as.Name]
 
-		line := fmt.Sprintf("  %-15s %-14s %-10s %6d %6d %6d %12s",
-			as.Name, as.Role, as.State, as.TasksCompleted, as.TasksFailed, issues, uptime)
+		line := fmt.Sprintf("  %-15s %-14s %-10s %8d %12s",
+			as.Name, as.Role, as.State, issues, uptime)
 
 		b.WriteString(m.styles.StatusStyle(mapState(agent.State(as.State))).Render(line))
 		b.WriteString("\n")

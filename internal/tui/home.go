@@ -13,7 +13,6 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/channel"
-	"github.com/rpuneet/bc/pkg/queue"
 	"github.com/rpuneet/bc/pkg/tui/style"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -27,7 +26,6 @@ const (
 	ScreenAgent
 	ScreenChannel
 	ScreenIssue
-	ScreenQueueItem
 )
 
 // TickMsg triggers a periodic refresh.
@@ -45,20 +43,19 @@ type WorkspaceInfo struct {
 
 // HomeModel is the root TUI model for bc home.
 type HomeModel struct {
-	wsModel        *WorkspaceModel
-	agentModel     *AgentModel
-	channelModel   *ChannelModel
-	issueModel     *IssueModel
-	queueItemModel *QueueItemModel
-	styles         style.Styles
-	statusMsg      string
-	workspaces     []WorkspaceInfo
-	screen         Screen
-	maxWorkers     int
-	width          int
-	height         int
-	homeCursor     int
-	helpActive     bool
+	wsModel      *WorkspaceModel
+	agentModel   *AgentModel
+	channelModel *ChannelModel
+	issueModel   *IssueModel
+	styles       style.Styles
+	statusMsg    string
+	workspaces   []WorkspaceInfo
+	screen       Screen
+	maxWorkers   int
+	width        int
+	height       int
+	homeCursor   int
+	helpActive   bool
 }
 
 // NewHomeModel creates the root TUI model. maxWorkers is the configured agent limit (0 = no limit).
@@ -236,13 +233,6 @@ func (m *HomeModel) handleWorkspaceKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.channelModel.width = m.width
 				m.channelModel.height = m.height
 				m.screen = ScreenChannel
-			}
-		case ActionDrillQueue:
-			if item, ok := action.Data.(queue.WorkItem); ok {
-				m.queueItemModel = NewQueueItemModel(item, m.wsModel.info.Entry.Path, m.styles)
-				m.queueItemModel.width = m.width
-				m.queueItemModel.height = m.height
-				m.screen = ScreenQueueItem
 			}
 		}
 	}
@@ -551,7 +541,7 @@ func (m *HomeModel) renderHelp() string {
 			b.WriteString(fmt.Sprintf("    %s %s\n", key, m.styles.Normal.Render(k[1])))
 		}
 
-	case ScreenIssue, ScreenQueueItem:
+	case ScreenIssue:
 		b.WriteString(m.styles.Bold.Render("  Detail View"))
 		b.WriteString("\n")
 		key := m.styles.Code.Width(14).Render("Esc")
@@ -580,8 +570,6 @@ func (m *HomeModel) renderStatusBar() string {
 		case ScreenChannel:
 			hints = "j/k:select msg | i:create issue | s:send | r:refresh | ?:help | esc:back | q:quit"
 		case ScreenIssue:
-			hints = "?:help | esc:back | q:quit"
-		case ScreenQueueItem:
 			hints = "?:help | esc:back | q:quit"
 		}
 	}

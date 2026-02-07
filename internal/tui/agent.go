@@ -10,7 +10,6 @@ import (
 
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/queue"
 	"github.com/rpuneet/bc/pkg/tui/style"
 )
 
@@ -18,25 +17,22 @@ const agentMaxRecentEvents = 10
 
 // AgentModel shows the detail view for a single agent.
 type AgentModel struct {
-	manager        *agent.Manager
-	agent          *agent.Agent
-	styles         style.Styles
-	sendMsg        string
-	wsPath         string
-	peekOutput     string
-	input          string
-	recentEvents   []events.Event
-	taskItems      []queue.WorkItem
-	width          int
-	height         int
-	tasksCompleted int
-	tasksFailed    int
-	peekActive     bool
-	sendMode       bool
+	manager      *agent.Manager
+	agent        *agent.Agent
+	styles       style.Styles
+	sendMsg      string
+	wsPath       string
+	peekOutput   string
+	input        string
+	recentEvents []events.Event
+	width        int
+	height       int
+	peekActive   bool
+	sendMode     bool
 }
 
 // NewAgentModel creates an agent detail view.
-// wsPath is the workspace root path for loading queue and event data.
+// wsPath is the workspace root path for loading event data.
 func NewAgentModel(a *agent.Agent, mgr *agent.Manager, wsPath string, s style.Styles) *AgentModel {
 	m := &AgentModel{
 		agent:   a,
@@ -44,7 +40,6 @@ func NewAgentModel(a *agent.Agent, mgr *agent.Manager, wsPath string, s style.St
 		styles:  s,
 		wsPath:  wsPath,
 	}
-	m.loadStats()
 	m.loadRecentActivity()
 	return m
 }
@@ -127,7 +122,6 @@ func (m *AgentModel) refresh() {
 	if a := m.manager.GetAgent(m.agent.Name); a != nil {
 		m.agent = a
 	}
-	m.loadStats()
 	m.loadRecentActivity()
 }
 
@@ -139,28 +133,6 @@ func (m *AgentModel) loadPeek() {
 		m.peekOutput = output
 	}
 	m.peekActive = true
-}
-
-func (m *AgentModel) loadStats() {
-	if m.wsPath == "" {
-		return
-	}
-	q := queue.New(filepath.Join(m.wsPath, ".bc", "queue.json"))
-	if err := q.Load(); err != nil {
-		return
-	}
-	items := q.ListByAgent(m.agent.Name)
-	m.taskItems = items
-	m.tasksCompleted = 0
-	m.tasksFailed = 0
-	for _, item := range items {
-		switch item.Status {
-		case queue.StatusDone:
-			m.tasksCompleted++
-		case queue.StatusFailed:
-			m.tasksFailed++
-		}
-	}
 }
 
 func (m *AgentModel) loadRecentActivity() {
@@ -194,12 +166,6 @@ func (m *AgentModel) View() string {
 
 	// Info section
 	b.WriteString(m.renderInfo())
-
-	// Stats section
-	b.WriteString(m.renderStats())
-
-	// Task list section
-	b.WriteString(m.renderTaskList())
 
 	// Recent activity section
 	b.WriteString(m.renderRecentActivity())
@@ -261,92 +227,6 @@ func (m *AgentModel) renderInfo() string {
 
 	b.WriteString("\n")
 	return b.String()
-}
-
-func (m *AgentModel) renderStats() string {
-	var b strings.Builder
-
-	b.WriteString(m.styles.Bold.Render("Task Stats"))
-	b.WriteString("\n")
-
-	totalAssigned := len(m.taskItems)
-	completedLabel := fmt.Sprintf("%d", m.tasksCompleted)
-	failedLabel := fmt.Sprintf("%d", m.tasksFailed)
-
-	type field struct {
-		label string
-		value string
-		style string
-	}
-
-	fields := []field{
-		{"Assigned", fmt.Sprintf("%d", totalAssigned), ""},
-		{"Completed", completedLabel, "ok"},
-		{"Failed", failedLabel, ""},
-	}
-
-	if m.tasksFailed > 0 {
-		fields[2].style = "error"
-	}
-
-	for _, f := range fields {
-		label := m.styles.Muted.Width(15).Render(f.label + ":")
-		valueStyle := m.styles.Normal
-		switch f.style {
-		case "ok":
-			valueStyle = m.styles.Success
-		case "error":
-			valueStyle = m.styles.Error
-		}
-		b.WriteString(fmt.Sprintf("  %s %s\n", label, valueStyle.Render(f.value)))
-	}
-
-	b.WriteString("\n")
-	return b.String()
-}
-
-func (m *AgentModel) renderTaskList() string {
-	var b strings.Builder
-
-	// Show active/recent tasks
-	active := m.activeAndRecentTasks()
-	if len(active) == 0 {
-		return ""
-	}
-
-	b.WriteString(m.styles.Bold.Render("Tasks"))
-	b.WriteString("\n")
-
-	for _, item := range active {
-		title := item.Title
-		if len(title) > 50 {
-			title = title[:47] + "..."
-		}
-		line := fmt.Sprintf("  %-10s %-10s %s", item.ID, string(item.Status), title)
-		b.WriteString(m.styles.StatusStyle(mapQueueStatus(item.Status)).Render(line))
-		b.WriteString("\n")
-	}
-
-	b.WriteString("\n")
-	return b.String()
-}
-
-// activeAndRecentTasks returns non-done tasks first, then last few done/failed.
-func (m *AgentModel) activeAndRecentTasks() []queue.WorkItem {
-	var active, finished []queue.WorkItem
-	for _, item := range m.taskItems {
-		switch item.Status {
-		case queue.StatusDone, queue.StatusFailed:
-			finished = append(finished, item)
-		default:
-			active = append(active, item)
-		}
-	}
-	// Show up to 5 recent finished tasks
-	if len(finished) > 5 {
-		finished = finished[len(finished)-5:]
-	}
-	return append(active, finished...)
 }
 
 func (m *AgentModel) renderRecentActivity() string {

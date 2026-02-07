@@ -12,12 +12,10 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/queue"
 )
 
 var (
 	mergeSkipTests bool
-	mergeWorkID    string
 )
 
 var mergeCmd = &cobra.Command{
@@ -29,11 +27,9 @@ The merge command:
   1. Checks for conflicts with main
   2. Runs go build, go test, go vet in the agent worktree
   3. Merges the branch into main (fast-forward or merge commit)
-  4. Optionally marks the associated queue item as done
 
 Examples:
   bc merge engineer-01
-  bc merge engineer-01 --work-id work-090
   bc merge fix/enter-submit-reliability --skip-tests`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMerge,
@@ -41,7 +37,6 @@ Examples:
 
 func init() {
 	mergeCmd.Flags().BoolVar(&mergeSkipTests, "skip-tests", false, "Skip build/test/vet validation")
-	mergeCmd.Flags().StringVar(&mergeWorkID, "work-id", "", "Queue work item ID to mark done on success")
 	rootCmd.AddCommand(mergeCmd)
 }
 
@@ -70,29 +65,6 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("branch %s not found: %w", branch, err)
 	}
 
-	// Resolve associated queue item (by --work-id or by branch match)
-	q := queue.New(filepath.Join(ws.StateDir(), "queue.json"))
-	if err = q.Load(); err != nil {
-		return fmt.Errorf("failed to load queue: %w", err)
-	}
-	workID := mergeWorkID
-	if workID == "" {
-		// Try to find queue item by branch name
-		if item := q.FindByBranch(branch); item != nil {
-			workID = item.ID
-		}
-	}
-
-	// Mark queue item as merging
-	if workID != "" {
-		if err = q.UpdateMergeStatus(workID, queue.MergeMerging, ""); err != nil {
-			return fmt.Errorf("failed to update merge status: %w", err)
-		}
-		if err = q.Save(); err != nil {
-			return fmt.Errorf("failed to save queue: %w", err)
-		}
-	}
-
 	// Step 2: Check for conflicts with main
 	conflicts, err := checkMergeConflicts(rootDir, branch)
 	if err != nil {
@@ -102,15 +74,6 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		fmt.Println("Conflicting files:")
 		for _, f := range conflicts {
 			fmt.Printf("  - %s\n", f)
-		}
-		// Mark as conflict
-		if workID != "" {
-			if updateErr := q.UpdateMergeStatus(workID, queue.MergeConflict, ""); updateErr != nil {
-				return fmt.Errorf("failed to update merge status: %w", updateErr)
-			}
-			if saveErr := q.Save(); saveErr != nil {
-				return fmt.Errorf("failed to save queue: %w", saveErr)
-			}
 		}
 		return fmt.Errorf("branch %s has conflicts with main — resolve before merging", branch)
 	}
@@ -136,32 +99,14 @@ func runMerge(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("  Merged at %s\n", commitHash)
 
-	// Step 5: Mark queue item done and merged
-	if workID != "" {
-		if err := markQueueDone(ws.StateDir(), ws.RootDir, workID); err != nil {
-			fmt.Printf("  Warning: failed to mark %s done: %v\n", workID, err)
-		} else {
-			fmt.Printf("  Marked %s done\n", workID)
-		}
-		// Update merge status to merged
-		if updateErr := q.UpdateMergeStatus(workID, queue.MergeMerged, commitHash); updateErr != nil {
-			return fmt.Errorf("failed to update merge status: %w", updateErr)
-		}
-		if saveErr := q.Save(); saveErr != nil {
-			return fmt.Errorf("failed to save queue: %w", saveErr)
-		}
-		fmt.Printf("  Merge status: merged (%s)\n", commitHash)
-	}
-
-	// Step 6: Log event
+	// Step 5: Log event
 	evLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
 	_ = evLog.Append(events.Event{
 		Type:    events.WorkCompleted,
 		Message: fmt.Sprintf("merged %s into main at %s", branch, commitHash),
 		Data: map[string]any{
-			"branch":  branch,
-			"commit":  commitHash,
-			"work_id": workID,
+			"branch": branch,
+			"commit": commitHash,
 		},
 	})
 
@@ -365,24 +310,4 @@ func mergeBranch(repoDir, branch string) (string, error) {
 	}
 
 	return mergeCommit[:12], nil
-}
-
-// markQueueDone marks a queue item as done.
-func markQueueDone(stateDir, rootDir, workID string) error {
-	q := queue.New(filepath.Join(stateDir, "queue.json"))
-	if err := q.Load(); err != nil {
-		return fmt.Errorf("failed to load queue: %w", err)
-	}
-	item := q.Get(workID)
-	if item == nil {
-		return fmt.Errorf("work item %s not found", workID)
-	}
-	if err := q.UpdateStatus(workID, queue.StatusDone); err != nil {
-		return err
-	}
-	if err := q.Save(); err != nil {
-		return err
-	}
-	// Note: Issue tracking now uses GitHub Issues (beads removed)
-	return nil
 }

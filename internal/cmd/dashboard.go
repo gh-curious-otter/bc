@@ -13,14 +13,13 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/queue"
 )
 
 var dashboardCmd = &cobra.Command{
 	Use:   "dashboard",
 	Short: "Show workspace dashboard with stats",
-	Long: `Show a dashboard with workspace stats including agent status,
-queue metrics, and recent activity.
+	Long: `Show a dashboard with workspace stats including agent status
+and recent activity.
 
 Example:
   bc dashboard          # Show dashboard
@@ -48,13 +47,6 @@ func runDashboard(cmd *cobra.Command, args []string) error {
 	}
 	agents := mgr.ListAgents()
 
-	// Load queue
-	q := queue.New(filepath.Join(ws.StateDir(), "queue.json"))
-	if err = q.Load(); err != nil {
-		log.Warn("failed to load queue", "error", err)
-	}
-	qs := q.Stats()
-
 	// Load recent events
 	evtLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
 	recentEvents, err := evtLog.ReadLast(10)
@@ -68,7 +60,7 @@ func runDashboard(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if jsonOutput {
-		return printJSONDashboard(ws.RootDir, ws.Config.Name, agents, qs, recentEvents)
+		return printJSONDashboard(ws.RootDir, ws.Config.Name, agents, recentEvents)
 	}
 
 	// Header
@@ -79,16 +71,12 @@ func runDashboard(cmd *cobra.Command, args []string) error {
 	// Agents section
 	printAgentSummary(agents)
 
-	// Queue section
-	printQueueStats(qs)
-
 	// Recent activity
 	printRecentActivity(recentEvents)
 
 	// Hints
 	fmt.Println("Commands:")
 	fmt.Println("  bc status     # Detailed agent status")
-	fmt.Println("  bc queue      # View work queue")
 	fmt.Println("  bc home       # Open TUI dashboard")
 
 	return nil
@@ -143,35 +131,6 @@ func printAgentSummary(agents []*agent.Agent) {
 			uptime = formatDuration(time.Since(a.StartedAt))
 		}
 		fmt.Printf("  %-14s %-11s %s  %s  %s\n", a.Name, a.Role, colorState(a.State), uptime, task)
-	}
-	fmt.Println()
-}
-
-func printQueueStats(qs queue.Stats) {
-	fmt.Println("Queue")
-	fmt.Println(strings.Repeat("-", 40))
-
-	if qs.Total == 0 {
-		fmt.Println("  No work items (run 'bc queue add')")
-		fmt.Println()
-		return
-	}
-
-	fmt.Printf("  Total: %d\n", qs.Total)
-	fmt.Printf("  Pending:  %-4d  Assigned: %d\n", qs.Pending, qs.Assigned)
-	fmt.Printf("  Working:  %-4d  Done:     %d\n", qs.Working, qs.Done)
-	if qs.Failed > 0 {
-		fmt.Printf("  Failed:   %d\n", qs.Failed)
-	}
-
-	// Progress bar
-	if qs.Total > 0 {
-		completed := qs.Done
-		pct := (completed * 100) / qs.Total
-		barWidth := 20
-		filled := (completed * barWidth) / qs.Total
-		bar := strings.Repeat("=", filled) + strings.Repeat(" ", barWidth-filled)
-		fmt.Printf("  Progress: [%s] %d%%\n", bar, pct)
 	}
 	fmt.Println()
 }
@@ -239,7 +198,6 @@ type dashboardOutput struct {
 	Workspace string           `json:"workspace"`
 	Events    []dashboardEvent `json:"recent_events"`
 	Agents    dashboardAgents  `json:"agents"`
-	Queue     queue.Stats      `json:"queue"`
 }
 
 type dashboardAgents struct {
@@ -255,7 +213,7 @@ type dashboardEvent struct {
 	Message   string `json:"message,omitempty"`
 }
 
-func printJSONDashboard(workspace, name string, agents []*agent.Agent, qs queue.Stats, evts []events.Event) error {
+func printJSONDashboard(workspace, name string, agents []*agent.Agent, evts []events.Event) error {
 	running := 0
 	for _, a := range agents {
 		if a.State != agent.StateStopped {
@@ -298,7 +256,6 @@ func printJSONDashboard(workspace, name string, agents []*agent.Agent, qs queue.
 			Running: running,
 			List:    agentList,
 		},
-		Queue:  qs,
 		Events: eventList,
 	}
 

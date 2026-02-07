@@ -90,11 +90,11 @@ func runDemonCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Created demon %q\n", d.Name)
-	fmt.Printf("  Schedule: %s\n", d.Schedule)
-	fmt.Printf("  Command:  %s\n", d.Command)
+	cmd.Printf("Created demon %q\n", d.Name)
+	cmd.Printf("  Schedule: %s\n", d.Schedule)
+	cmd.Printf("  Command:  %s\n", d.Command)
 	if !d.NextRun.IsZero() {
-		fmt.Printf("  Next run: %s\n", d.NextRun.Format("2006-01-02 15:04:05"))
+		cmd.Printf("  Next run: %s\n", d.NextRun.Format("2006-01-02 15:04:05"))
 	}
 
 	return nil
@@ -113,14 +113,14 @@ func runDemonList(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(demons) == 0 {
-		fmt.Println("No demons configured")
-		fmt.Println()
-		fmt.Println("Create one with: bc demon create <name> --schedule '<cron>' --cmd '<command>'")
+		cmd.Println("No demons configured")
+		cmd.Println()
+		cmd.Println("Create one with: bc demon create <name> --schedule '<cron>' --cmd '<command>'")
 		return nil
 	}
 
-	fmt.Printf("%-20s %-20s %-10s %s\n", "NAME", "SCHEDULE", "ENABLED", "COMMAND")
-	fmt.Println("--------------------------------------------------------------------")
+	cmd.Printf("%-20s %-20s %-10s %s\n", "NAME", "SCHEDULE", "ENABLED", "COMMAND")
+	cmd.Println("--------------------------------------------------------------------")
 	for _, d := range demons {
 		enabled := "yes"
 		if !d.Enabled {
@@ -130,7 +130,7 @@ func runDemonList(cmd *cobra.Command, args []string) error {
 		if len(command) > 30 {
 			command = command[:27] + "..."
 		}
-		fmt.Printf("%-20s %-20s %-10s %s\n", d.Name, d.Schedule, enabled, command)
+		cmd.Printf("%-20s %-20s %-10s %s\n", d.Name, d.Schedule, enabled, command)
 	}
 
 	return nil
@@ -153,17 +153,17 @@ func runDemonShow(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("demon %q not found", name)
 	}
 
-	fmt.Printf("Name:      %s\n", d.Name)
-	fmt.Printf("Schedule:  %s\n", d.Schedule)
-	fmt.Printf("Command:   %s\n", d.Command)
-	fmt.Printf("Enabled:   %t\n", d.Enabled)
-	fmt.Printf("Created:   %s\n", d.CreatedAt.Format("2006-01-02 15:04:05"))
-	fmt.Printf("Updated:   %s\n", d.UpdatedAt.Format("2006-01-02 15:04:05"))
+	cmd.Printf("Name:      %s\n", d.Name)
+	cmd.Printf("Schedule:  %s\n", d.Schedule)
+	cmd.Printf("Command:   %s\n", d.Command)
+	cmd.Printf("Enabled:   %t\n", d.Enabled)
+	cmd.Printf("Created:   %s\n", d.CreatedAt.Format("2006-01-02 15:04:05"))
+	cmd.Printf("Updated:   %s\n", d.UpdatedAt.Format("2006-01-02 15:04:05"))
 	if !d.LastRun.IsZero() {
-		fmt.Printf("Last run:  %s\n", d.LastRun.Format("2006-01-02 15:04:05"))
+		cmd.Printf("Last run:  %s\n", d.LastRun.Format("2006-01-02 15:04:05"))
 	}
 	if !d.NextRun.IsZero() {
-		fmt.Printf("Next run:  %s\n", d.NextRun.Format("2006-01-02 15:04:05"))
+		cmd.Printf("Next run:  %s\n", d.NextRun.Format("2006-01-02 15:04:05"))
 	}
 
 	return nil
@@ -182,6 +182,6 @@ func runDemonDelete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Deleted demon %q\n", name)
+	cmd.Printf("Deleted demon %q\n", name)
 	return nil
 }
