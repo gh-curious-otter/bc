@@ -22,10 +22,15 @@ var ErrRootNotFound = errors.New("root agent not found")
 
 // RootAgentState extends AgentState with root-specific fields.
 // The root agent is special: it's the singleton entry point created by `bc up`.
+//
+//nolint:govet // embedding AgentState causes unavoidable alignment padding
 type RootAgentState struct {
 	AgentState
-	Children    []string `json:"children,omitempty"`
-	IsSingleton bool     `json:"is_singleton"`
+	Children      []string   `json:"children,omitempty"`
+	LastCrashTime *time.Time `json:"last_crash_time,omitempty"`
+	RecoveredFrom string     `json:"recovered_from,omitempty"` // session that crashed
+	CrashCount    int        `json:"crash_count,omitempty"`
+	IsSingleton   bool       `json:"is_singleton"`
 }
 
 // RootStateStore manages the root agent state file at .bc/agents/root.json
@@ -316,4 +321,90 @@ func (s *RootStateStore) GetChildren() ([]string, error) {
 		return nil, err
 	}
 	return state.Children, nil
+}
+
+// RecordCrash marks that the root agent has crashed.
+// It preserves the existing state (including children and queues) while
+// recording crash metadata for diagnostics and recovery.
+func (s *RootStateStore) RecordCrash(deadSession string) error {
+	state, err := s.Load()
+	if err != nil {
+		return err
+	}
+
+	now := time.Now()
+	state.State = StateStopped
+	state.CrashCount++
+	state.LastCrashTime = &now
+	state.RecoveredFrom = deadSession
+
+	return s.Save(state)
+}
+
+// RecoverFromCrash updates the root state after recovering from a crash.
+// It creates a new session while preserving existing children and work state.
+func (s *RootStateStore) RecoverFromCrash(newSession string) error {
+	state, err := s.Load()
+	if err != nil {
+		return err
+	}
+
+	state.Session = newSession
+	state.State = StateIdle
+	state.UpdatedAt = time.Now()
+	// Keep CrashCount and LastCrashTime for diagnostics
+	// Clear RecoveredFrom since we've now recovered
+	state.RecoveredFrom = ""
+
+	return s.Save(state)
+}
+
+// GetCrashInfo returns crash statistics for the root agent.
+func (s *RootStateStore) GetCrashInfo() (*CrashInfo, error) {
+	state, err := s.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	return &CrashInfo{
+		CrashCount:    state.CrashCount,
+		LastCrashTime: state.LastCrashTime,
+		RecoveredFrom: state.RecoveredFrom,
+	}, nil
+}
+
+// CrashInfo contains crash statistics for the root agent.
+type CrashInfo struct {
+	LastCrashTime *time.Time
+	RecoveredFrom string
+	CrashCount    int
+}
+
+// HasCrashed returns true if the root has crashed at least once.
+func (c *CrashInfo) HasCrashed() bool {
+	return c.CrashCount > 0
+}
+
+// TimeSinceLastCrash returns the duration since the last crash.
+// Returns 0 if no crash has occurred.
+func (c *CrashInfo) TimeSinceLastCrash() time.Duration {
+	if c.LastCrashTime == nil {
+		return 0
+	}
+	return time.Since(*c.LastCrashTime)
+}
+
+// ClearCrashHistory resets crash statistics.
+// This can be called after a period of stability.
+func (s *RootStateStore) ClearCrashHistory() error {
+	state, err := s.Load()
+	if err != nil {
+		return err
+	}
+
+	state.CrashCount = 0
+	state.LastCrashTime = nil
+	state.RecoveredFrom = ""
+
+	return s.Save(state)
 }
