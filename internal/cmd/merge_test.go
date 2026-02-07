@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/queue"
 )
 
 // initGitRepo creates a bare-minimum git repo in a temp directory with one commit.
@@ -301,58 +300,6 @@ func TestRunValidation_BuildFailure(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "go build failed") {
 		t.Errorf("expected 'go build failed', got: %v", err)
-	}
-}
-
-// --- markQueueDone tests ---
-
-func TestMarkQueueDone_Success(t *testing.T) {
-	dir := t.TempDir()
-	stateDir := filepath.Join(dir, ".bc")
-	os.MkdirAll(stateDir, 0o750) //nolint:errcheck
-
-	// Create a queue with an item
-	q := queue.New(filepath.Join(stateDir, "queue.json"))
-	q.Add("Test item", "", "")
-	items := q.ListAll()
-	if len(items) == 0 {
-		t.Fatal("expected at least one item")
-	}
-	workID := items[0].ID
-	q.Save() //nolint:errcheck
-
-	err := markQueueDone(stateDir, dir, workID)
-	if err != nil {
-		t.Fatalf("markQueueDone failed: %v", err)
-	}
-
-	// Verify item is now done
-	q2 := queue.New(filepath.Join(stateDir, "queue.json"))
-	q2.Load() //nolint:errcheck
-	item := q2.Get(workID)
-	if item == nil {
-		t.Fatal("item not found after markQueueDone")
-	}
-	if item.Status != queue.StatusDone {
-		t.Errorf("status = %s, want done", item.Status)
-	}
-}
-
-func TestMarkQueueDone_NotFound(t *testing.T) {
-	dir := t.TempDir()
-	stateDir := filepath.Join(dir, ".bc")
-	os.MkdirAll(stateDir, 0o750) //nolint:errcheck
-
-	// Create empty queue
-	q := queue.New(filepath.Join(stateDir, "queue.json"))
-	q.Save() //nolint:errcheck
-
-	err := markQueueDone(stateDir, dir, "nonexistent")
-	if err == nil {
-		t.Error("expected error for nonexistent work item")
-	}
-	if !strings.Contains(err.Error(), "not found") {
-		t.Errorf("expected 'not found' error, got: %v", err)
 	}
 }
 

@@ -143,7 +143,7 @@ func runMemoryRecord(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to record experience: %w", err)
 	}
 
-	fmt.Printf("Recorded experience: %s\n", args[0])
+	cmd.Printf("Recorded experience: %s\n", args[0])
 	return nil
 }
 
@@ -172,7 +172,7 @@ func runMemoryLearn(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to add learning: %w", err)
 	}
 
-	fmt.Printf("Added learning (%s): %s\n", category, learning)
+	cmd.Printf("Added learning (%s): %s\n", category, learning)
 	return nil
 }
 
@@ -195,7 +195,7 @@ func runMemoryShow(cmd *cobra.Command, args []string) error {
 
 	store := memory.NewStore(ws.RootDir, agentID)
 	if !store.Exists() {
-		fmt.Printf("No memory found for agent %s\n", agentID)
+		cmd.Printf("No memory found for agent %s\n", agentID)
 		return nil
 	}
 
@@ -208,25 +208,25 @@ func runMemoryShow(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to get experiences: %w", err)
 		}
 
-		fmt.Printf("=== %s Experiences ===\n\n", agentID)
+		cmd.Printf("=== %s Experiences ===\n\n", agentID)
 		if len(experiences) == 0 {
-			fmt.Println("No experiences recorded.")
-			fmt.Println()
+			cmd.Println("No experiences recorded.")
+			cmd.Println()
 		} else {
 			for i, exp := range experiences {
-				fmt.Printf("%d. [%s] %s\n", i+1, exp.Outcome, exp.Description)
+				cmd.Printf("%d. [%s] %s\n", i+1, exp.Outcome, exp.Description)
 				if exp.TaskID != "" {
-					fmt.Printf("   Task: %s", exp.TaskID)
+					cmd.Printf("   Task: %s", exp.TaskID)
 					if exp.TaskType != "" {
-						fmt.Printf(" (%s)", exp.TaskType)
+						cmd.Printf(" (%s)", exp.TaskType)
 					}
-					fmt.Println()
+					cmd.Println()
 				}
 				if !exp.Timestamp.IsZero() {
-					fmt.Printf("   Time: %s\n", exp.Timestamp.Format("2006-01-02 15:04:05"))
+					cmd.Printf("   Time: %s\n", exp.Timestamp.Format("2006-01-02 15:04:05"))
 				}
 			}
-			fmt.Println()
+			cmd.Println()
 		}
 	}
 
@@ -237,12 +237,12 @@ func runMemoryShow(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to get learnings: %w", err)
 		}
 
-		fmt.Printf("=== %s Learnings ===\n\n", agentID)
+		cmd.Printf("=== %s Learnings ===\n\n", agentID)
 		if learnings == "" {
-			fmt.Println("No learnings recorded.")
-			fmt.Println()
+			cmd.Println("No learnings recorded.")
+			cmd.Println()
 		} else {
-			fmt.Println(learnings)
+			cmd.Println(learnings)
 		}
 	}
 
@@ -267,7 +267,7 @@ func runMemorySearch(cmd *cobra.Command, args []string) error {
 		entries, err := os.ReadDir(memoryRoot)
 		if err != nil {
 			if os.IsNotExist(err) {
-				fmt.Println("No agent memories found")
+				cmd.Println("No agent memories found")
 				return nil
 			}
 			return fmt.Errorf("failed to read memory directory: %w", err)
@@ -280,7 +280,7 @@ func runMemorySearch(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(agents) == 0 {
-		fmt.Println("No agent memories found")
+		cmd.Println("No agent memories found")
 		return nil
 	}
 
@@ -294,13 +294,13 @@ func runMemorySearch(cmd *cobra.Command, args []string) error {
 			if strings.Contains(strings.ToLower(exp.Description), query) ||
 				strings.Contains(strings.ToLower(exp.Outcome), query) {
 				if !found {
-					fmt.Println("=== Search Results ===")
-					fmt.Println()
+					cmd.Println("=== Search Results ===")
+					cmd.Println()
 					found = true
 				}
-				fmt.Printf("[%s] Experience: %s\n", agentID, exp.Description)
-				fmt.Printf("  Outcome: %s\n", exp.Outcome)
-				fmt.Println()
+				cmd.Printf("[%s] Experience: %s\n", agentID, exp.Description)
+				cmd.Printf("  Outcome: %s\n", exp.Outcome)
+				cmd.Println()
 			}
 		}
 
@@ -310,18 +310,18 @@ func runMemorySearch(cmd *cobra.Command, args []string) error {
 		for i, line := range lines {
 			if strings.Contains(strings.ToLower(line), query) {
 				if !found {
-					fmt.Println("=== Search Results ===")
-					fmt.Println()
+					cmd.Println("=== Search Results ===")
+					cmd.Println()
 					found = true
 				}
 				// Print context: the line and surrounding lines
-				fmt.Printf("[%s] Learnings (line %d): %s\n\n", agentID, i+1, strings.TrimSpace(line))
+				cmd.Printf("[%s] Learnings (line %d): %s\n\n", agentID, i+1, strings.TrimSpace(line))
 			}
 		}
 	}
 
 	if !found {
-		fmt.Printf("No results found for '%s'\n", args[0])
+		cmd.Printf("No results found for '%s'\n", args[0])
 	}
 
 	return nil

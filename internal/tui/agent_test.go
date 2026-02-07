@@ -9,7 +9,6 @@ import (
 
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/queue"
 	"github.com/rpuneet/bc/pkg/tui/style"
 )
 
@@ -114,99 +113,6 @@ func TestAgentView_NoUptimeWhenStopped(t *testing.T) {
 
 	if strings.Contains(output, "Uptime:") {
 		t.Errorf("should not show Uptime when agent is stopped")
-	}
-}
-
-func TestAgentView_StatsSection(t *testing.T) {
-	a := &agent.Agent{
-		Name:  "engineer-01",
-		Role:  agent.RoleEngineer,
-		State: agent.StateIdle,
-	}
-	m := newTestAgentModel(a)
-	m.taskItems = []queue.WorkItem{
-		{ID: "w-1", Status: queue.StatusDone, AssignedTo: "engineer-01", Title: "Task 1"},
-		{ID: "w-2", Status: queue.StatusDone, AssignedTo: "engineer-01", Title: "Task 2"},
-		{ID: "w-3", Status: queue.StatusFailed, AssignedTo: "engineer-01", Title: "Task 3"},
-		{ID: "w-4", Status: queue.StatusWorking, AssignedTo: "engineer-01", Title: "Task 4"},
-	}
-	m.tasksCompleted = 2
-	m.tasksFailed = 1
-
-	output := m.View()
-
-	if !strings.Contains(output, "Task Stats") {
-		t.Errorf("expected 'Task Stats' header in output")
-	}
-	if !strings.Contains(output, "4") {
-		t.Errorf("expected assigned count '4' in output")
-	}
-	if !strings.Contains(output, "2") {
-		t.Errorf("expected completed count '2' in output")
-	}
-}
-
-func TestAgentView_TaskListSection(t *testing.T) {
-	a := &agent.Agent{
-		Name:  "engineer-01",
-		Role:  agent.RoleEngineer,
-		State: agent.StateWorking,
-	}
-	m := newTestAgentModel(a)
-	m.taskItems = []queue.WorkItem{
-		{ID: "w-10", Status: queue.StatusWorking, Title: "Implement login"},
-		{ID: "w-11", Status: queue.StatusDone, Title: "Add tests"},
-	}
-
-	output := m.View()
-
-	if !strings.Contains(output, "Tasks") {
-		t.Errorf("expected 'Tasks' header in output")
-	}
-	if !strings.Contains(output, "w-10") {
-		t.Errorf("expected task ID 'w-10' in output")
-	}
-	if !strings.Contains(output, "Implement login") {
-		t.Errorf("expected task title 'Implement login' in output")
-	}
-}
-
-func TestAgentView_TaskListEmpty(t *testing.T) {
-	a := &agent.Agent{
-		Name:  "engineer-01",
-		Role:  agent.RoleEngineer,
-		State: agent.StateIdle,
-	}
-	m := newTestAgentModel(a)
-	m.taskItems = nil
-
-	output := m.View()
-
-	// When no tasks, the Tasks section should not appear
-	if strings.Contains(output, "\nTasks\n") {
-		t.Errorf("should not show Tasks section when no tasks assigned")
-	}
-}
-
-func TestAgentView_TaskTitleTruncation(t *testing.T) {
-	a := &agent.Agent{
-		Name:  "engineer-01",
-		Role:  agent.RoleEngineer,
-		State: agent.StateWorking,
-	}
-	m := newTestAgentModel(a)
-	m.taskItems = []queue.WorkItem{
-		{ID: "w-1", Status: queue.StatusWorking, Title: "This is a very long task title that should be truncated at fifty characters"},
-	}
-
-	output := m.View()
-
-	if !strings.Contains(output, "...") {
-		t.Errorf("expected truncation '...' for long title")
-	}
-	// Original full title should NOT appear
-	if strings.Contains(output, "fifty characters") {
-		t.Errorf("long title should be truncated")
 	}
 }
 
@@ -374,47 +280,5 @@ func TestAgentView_PeekEmpty(t *testing.T) {
 
 	if !strings.Contains(output, "No output captured") {
 		t.Errorf("expected 'No output captured' placeholder in empty peek")
-	}
-}
-
-func TestActiveAndRecentTasks(t *testing.T) {
-	a := &agent.Agent{Name: "engineer-01", State: agent.StateIdle}
-	m := newTestAgentModel(a)
-	m.taskItems = []queue.WorkItem{
-		{ID: "w-1", Status: queue.StatusDone, Title: "Done 1"},
-		{ID: "w-2", Status: queue.StatusDone, Title: "Done 2"},
-		{ID: "w-3", Status: queue.StatusDone, Title: "Done 3"},
-		{ID: "w-4", Status: queue.StatusDone, Title: "Done 4"},
-		{ID: "w-5", Status: queue.StatusDone, Title: "Done 5"},
-		{ID: "w-6", Status: queue.StatusDone, Title: "Done 6"},
-		{ID: "w-7", Status: queue.StatusDone, Title: "Done 7"},
-		{ID: "w-8", Status: queue.StatusWorking, Title: "Active 1"},
-		{ID: "w-9", Status: queue.StatusPending, Title: "Pending 1"},
-	}
-
-	result := m.activeAndRecentTasks()
-
-	// Active items come first
-	if result[0].ID != "w-8" {
-		t.Errorf("expected active task first, got %s", result[0].ID)
-	}
-	if result[1].ID != "w-9" {
-		t.Errorf("expected pending task second, got %s", result[1].ID)
-	}
-
-	// Only 5 most recent finished tasks should appear (w-3 through w-7)
-	finishedCount := 0
-	for _, item := range result {
-		if item.Status == queue.StatusDone {
-			finishedCount++
-		}
-	}
-	if finishedCount != 5 {
-		t.Errorf("expected 5 finished tasks, got %d", finishedCount)
-	}
-
-	// Total: 2 active + 5 finished = 7
-	if len(result) != 7 {
-		t.Errorf("expected 7 total tasks, got %d", len(result))
 	}
 }

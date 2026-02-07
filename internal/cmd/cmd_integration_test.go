@@ -14,7 +14,6 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/queue"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
@@ -106,237 +105,6 @@ func seedAgents(t *testing.T, wsDir string, agents map[string]*agent.Agent) {
 	}
 	if err := os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0600); err != nil {
 		t.Fatalf("failed to write agents.json: %v", err)
-	}
-}
-
-// seedQueue creates a queue.json file in the workspace with the given items.
-func seedQueue(t *testing.T, wsDir string, items []queue.WorkItem) {
-	t.Helper()
-	queuePath := filepath.Join(wsDir, ".bc", "queue.json")
-	data, err := json.MarshalIndent(items, "", "  ")
-	if err != nil {
-		t.Fatalf("failed to marshal queue: %v", err)
-	}
-	if err := os.WriteFile(queuePath, data, 0600); err != nil {
-		t.Fatalf("failed to write queue.json: %v", err)
-	}
-}
-
-// --- Queue command tests ---
-
-func TestQueueListEmpty(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	stdout, _, err := executeIntegrationCmd("queue")
-	if err != nil {
-		t.Fatalf("queue list returned error: %v", err)
-	}
-
-	if !strings.Contains(stdout, "No work items in queue") {
-		t.Errorf("expected empty queue message, got: %s", stdout)
-	}
-}
-
-func TestQueueListNoWorkspace(t *testing.T) {
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get cwd: %v", err)
-	}
-
-	tmpDir := t.TempDir() // No .bc directory
-	if err = os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to chdir: %v", err)
-	}
-	defer func() { _ = os.Chdir(origDir) }()
-
-	_, _, err = executeIntegrationCmd("queue")
-	if err == nil {
-		t.Fatal("expected error when not in workspace, got nil")
-	}
-	if !strings.Contains(err.Error(), "not in a bc workspace") {
-		t.Errorf("expected workspace error, got: %v", err)
-	}
-}
-
-func TestQueueAddAndList(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	// Add a work item
-	stdout, _, err := executeIntegrationCmd("queue", "add", "Fix the login bug")
-	if err != nil {
-		t.Fatalf("queue add returned error: %v", err)
-	}
-	if !strings.Contains(stdout, "Added work-001") {
-		t.Errorf("expected 'Added work-001', got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "Fix the login bug") {
-		t.Errorf("expected title in output, got: %s", stdout)
-	}
-
-	// Verify queue.json was created
-	queuePath := filepath.Join(wsDir, ".bc", "queue.json")
-	if _, statErr := os.Stat(queuePath); os.IsNotExist(statErr) {
-		t.Fatal("queue.json was not created")
-	}
-
-	// Add a second item
-	stdout, _, err = executeIntegrationCmd("queue", "add", "Add user auth")
-	if err != nil {
-		t.Fatalf("second queue add returned error: %v", err)
-	}
-	if !strings.Contains(stdout, "Added work-002") {
-		t.Errorf("expected 'Added work-002', got: %s", stdout)
-	}
-}
-
-func TestQueueAddEmptyTitle(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	_, _, err := executeIntegrationCmd("queue", "add", "   ")
-	if err == nil {
-		t.Fatal("expected error for empty title, got nil")
-	}
-	if !strings.Contains(err.Error(), "title cannot be empty") {
-		t.Errorf("expected empty title error, got: %v", err)
-	}
-}
-
-func TestQueueListWithItems(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	seedQueue(t, wsDir, []queue.WorkItem{
-		{ID: "work-001", Title: "First task", Status: queue.StatusPending},
-		{ID: "work-002", Title: "Second task", Status: queue.StatusDone},
-	})
-
-	stdout, _, err := executeIntegrationCmd("queue")
-	if err != nil {
-		t.Fatalf("queue list returned error: %v", err)
-	}
-
-	// Check header
-	if !strings.Contains(stdout, "ID") || !strings.Contains(stdout, "STATUS") {
-		t.Errorf("expected table header, got: %s", stdout)
-	}
-
-	// Check stats line
-	if !strings.Contains(stdout, "Total: 2") {
-		t.Errorf("expected 'Total: 2' in stats, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "Pending: 1") {
-		t.Errorf("expected 'Pending: 1' in stats, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "Done: 1") {
-		t.Errorf("expected 'Done: 1' in stats, got: %s", stdout)
-	}
-}
-
-func TestQueueAssignNotFound(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	_, _, err := executeIntegrationCmd("queue", "assign", "work-999", "worker-01")
-	if err == nil {
-		t.Fatal("expected error for missing item, got nil")
-	}
-	if !strings.Contains(err.Error(), "not found") {
-		t.Errorf("expected not found error, got: %v", err)
-	}
-}
-
-func TestQueueAssignSuccess(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	seedQueue(t, wsDir, []queue.WorkItem{
-		{ID: "work-001", Title: "Test task", Status: queue.StatusPending},
-	})
-
-	stdout, _, err := executeIntegrationCmd("queue", "assign", "work-001", "worker-01")
-	if err != nil {
-		t.Fatalf("queue assign returned error: %v", err)
-	}
-	if !strings.Contains(stdout, "Assigned work-001 to worker-01") {
-		t.Errorf("expected assignment confirmation, got: %s", stdout)
-	}
-
-	// Verify the queue was updated on disk
-	q := queue.New(filepath.Join(wsDir, ".bc", "queue.json"))
-	if err := q.Load(); err != nil {
-		t.Fatalf("failed to reload queue: %v", err)
-	}
-	item := q.Get("work-001")
-	if item == nil {
-		t.Fatal("work-001 not found after assign")
-	}
-	if item.Status != queue.StatusAssigned {
-		t.Errorf("expected status assigned, got: %s", item.Status)
-	}
-	if item.AssignedTo != "worker-01" {
-		t.Errorf("expected assigned to worker-01, got: %s", item.AssignedTo)
-	}
-}
-
-func TestQueueCompleteNotFound(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	_, _, err := executeIntegrationCmd("queue", "complete", "work-999")
-	if err == nil {
-		t.Fatal("expected error for missing item, got nil")
-	}
-	if !strings.Contains(err.Error(), "not found") {
-		t.Errorf("expected not found error, got: %v", err)
-	}
-}
-
-func TestQueueCompleteSuccess(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	seedQueue(t, wsDir, []queue.WorkItem{
-		{ID: "work-001", Title: "Test task", Status: queue.StatusWorking, AssignedTo: "worker-01"},
-	})
-
-	stdout, _, err := executeIntegrationCmd("queue", "complete", "work-001")
-	if err != nil {
-		t.Fatalf("queue complete returned error: %v", err)
-	}
-	if !strings.Contains(stdout, "Marked work-001 done") {
-		t.Errorf("expected completion message, got: %s", stdout)
-	}
-
-	// Verify on disk
-	q := queue.New(filepath.Join(wsDir, ".bc", "queue.json"))
-	if err := q.Load(); err != nil {
-		t.Fatalf("failed to reload queue: %v", err)
-	}
-	item := q.Get("work-001")
-	if item == nil {
-		t.Fatal("work-001 not found after complete")
-	}
-	if item.Status != queue.StatusDone {
-		t.Errorf("expected status done, got: %s", item.Status)
-	}
-}
-
-func TestQueueLoadDeprecated(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	stdout, _, err := executeIntegrationCmd("queue", "load")
-	if err != nil {
-		t.Fatalf("queue load returned error: %v", err)
-	}
-	if !strings.Contains(stdout, "deprecated") {
-		t.Errorf("expected deprecation message, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "GitHub Issues") {
-		t.Errorf("expected GitHub Issues reference, got: %s", stdout)
 	}
 }
 
@@ -548,26 +316,6 @@ func TestFormatDurationIntegration(t *testing.T) {
 	}
 }
 
-func TestColorQueueStatusIntegration(t *testing.T) {
-	statuses := []queue.ItemStatus{
-		queue.StatusPending,
-		queue.StatusAssigned,
-		queue.StatusWorking,
-		queue.StatusDone,
-		queue.StatusFailed,
-	}
-
-	for _, s := range statuses {
-		t.Run(string(s), func(t *testing.T) {
-			result := colorQueueStatus(s)
-			// Should contain the status text
-			if !strings.Contains(result, string(s)) {
-				t.Errorf("colorQueueStatus(%s) = %q, should contain status text", s, result)
-			}
-		})
-	}
-}
-
 func TestColorStateIntegration(t *testing.T) {
 	tests := []struct {
 		state    string
@@ -599,70 +347,6 @@ func TestColorState_Default(t *testing.T) {
 	// Default should NOT contain ANSI escape codes
 	if strings.Contains(result, "\033[") {
 		t.Errorf("colorState(unknown) should not have color codes, got: %q", result)
-	}
-}
-
-func TestColorQueueStatus_Default(t *testing.T) {
-	result := colorQueueStatus(queue.ItemStatus("custom"))
-	if !strings.Contains(result, "custom") {
-		t.Errorf("colorQueueStatus(custom) = %q, should contain 'custom'", result)
-	}
-	// Default should NOT contain ANSI escape codes
-	if strings.Contains(result, "\033[") {
-		t.Errorf("colorQueueStatus(custom) should not have color codes, got: %q", result)
-	}
-}
-
-// --- Queue detail tests ---
-
-func TestQueueDetailByPositionalArg(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	now := time.Now()
-	seedQueue(t, wsDir, []queue.WorkItem{
-		{
-			ID:          "work-001",
-			Title:       "Fix auth bug",
-			Status:      queue.StatusWorking,
-			AssignedTo:  "engineer-01",
-			Description: "Authentication is broken for OAuth users",
-			CreatedAt:   now.Add(-1 * time.Hour),
-			UpdatedAt:   now,
-		},
-	})
-
-	stdout, _, err := executeIntegrationCmd("queue", "work-001")
-	if err != nil {
-		t.Fatalf("queue detail returned error: %v", err)
-	}
-	if !strings.Contains(stdout, "ID:") {
-		t.Errorf("expected 'ID:' field, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "work-001") {
-		t.Errorf("expected work-001 in output, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "Fix auth bug") {
-		t.Errorf("expected title in output, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "engineer-01") {
-		t.Errorf("expected assigned agent in output, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "Authentication is broken") {
-		t.Errorf("expected description in output, got: %s", stdout)
-	}
-}
-
-func TestQueueDetailNotFound(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	_, _, err := executeIntegrationCmd("queue", "work-999")
-	if err == nil {
-		t.Fatal("expected error for missing item, got nil")
-	}
-	if !strings.Contains(err.Error(), "not found") {
-		t.Errorf("expected not found error, got: %v", err)
 	}
 }
 
@@ -866,35 +550,6 @@ func TestStatsEmptyWorkspace(t *testing.T) {
 	}
 }
 
-func TestStatsWithQueue(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0750); err != nil {
-		t.Fatalf("failed to create agents dir: %v", err)
-	}
-
-	seedQueue(t, wsDir, []queue.WorkItem{
-		{ID: "work-001", Title: "Task one", Status: queue.StatusPending},
-		{ID: "work-002", Title: "Task two", Status: queue.StatusDone},
-		{ID: "work-003", Title: "Task three", Status: queue.StatusWorking, AssignedTo: "worker-01"},
-	})
-
-	statsJSON = false
-	statsSave = false
-
-	stdout, _, err := executeIntegrationCmd("stats")
-	if err != nil {
-		t.Fatalf("stats returned error: %v", err)
-	}
-	if !strings.Contains(stdout, "Pending:  1") {
-		t.Errorf("expected 'Pending:  1' in output, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "Done:     1") {
-		t.Errorf("expected 'Done:     1' in output, got: %s", stdout)
-	}
-}
-
 func TestStatsSave(t *testing.T) {
 	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
@@ -962,9 +617,6 @@ func TestDashboardEmptyWorkspace(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "No agents configured") {
 		t.Errorf("expected 'No agents configured', got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "No work items") {
-		t.Errorf("expected 'No work items', got: %s", stdout)
 	}
 	if !strings.Contains(stdout, "No events yet") {
 		t.Errorf("expected 'No events yet', got: %s", stdout)
@@ -1387,89 +1039,6 @@ func TestReportStuckInWorkspace(t *testing.T) {
 	}
 }
 
-// --- Report + Queue integration test ---
-
-func TestReportWorkingTransitionsQueueItem(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	seedAgents(t, wsDir, map[string]*agent.Agent{
-		"test-agent": {
-			Name:      "test-agent",
-			Role:      agent.RoleWorker,
-			State:     agent.StateIdle,
-			StartedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		},
-	})
-
-	// Seed queue with assigned item
-	seedQueue(t, wsDir, []queue.WorkItem{
-		{ID: "work-001", Title: "Test task", Status: queue.StatusAssigned, AssignedTo: "test-agent"},
-	})
-
-	t.Setenv("BC_AGENT_ID", "test-agent")
-
-	_, _, err := executeIntegrationCmd("report", "working", "starting task")
-	if err != nil {
-		t.Fatalf("report returned error: %v", err)
-	}
-
-	// Verify queue item transitioned to working
-	q := queue.New(filepath.Join(wsDir, ".bc", "queue.json"))
-	if err := q.Load(); err != nil {
-		t.Fatalf("failed to reload queue: %v", err)
-	}
-	item := q.Get("work-001")
-	if item == nil {
-		t.Fatal("work-001 not found after report")
-	}
-	if item.Status != queue.StatusWorking {
-		t.Errorf("expected status working after report, got: %s", item.Status)
-	}
-}
-
-func TestReportDoneTransitionsQueueItem(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	seedAgents(t, wsDir, map[string]*agent.Agent{
-		"test-agent": {
-			Name:      "test-agent",
-			Role:      agent.RoleWorker,
-			State:     agent.StateWorking,
-			Task:      "some task",
-			StartedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		},
-	})
-
-	// Seed queue with working item
-	seedQueue(t, wsDir, []queue.WorkItem{
-		{ID: "work-001", Title: "Test task", Status: queue.StatusWorking, AssignedTo: "test-agent"},
-	})
-
-	t.Setenv("BC_AGENT_ID", "test-agent")
-
-	_, _, err := executeIntegrationCmd("report", "done", "task completed")
-	if err != nil {
-		t.Fatalf("report returned error: %v", err)
-	}
-
-	// Verify queue item transitioned to done
-	q := queue.New(filepath.Join(wsDir, ".bc", "queue.json"))
-	if err := q.Load(); err != nil {
-		t.Fatalf("failed to reload queue: %v", err)
-	}
-	item := q.Get("work-001")
-	if item == nil {
-		t.Fatal("work-001 not found after report")
-	}
-	if item.Status != queue.StatusDone {
-		t.Errorf("expected status done after report, got: %s", item.Status)
-	}
-}
-
 // --- Version command tests ---
 
 func TestVersionOutput(t *testing.T) {
@@ -1501,70 +1070,6 @@ func TestVersionOutput(t *testing.T) {
 // --- Status with agents written to disk ---
 
 // --- JSON output tests ---
-
-func TestQueueListJSON(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	seedQueue(t, wsDir, []queue.WorkItem{
-		{ID: "work-001", Title: "First task", Status: queue.StatusPending},
-		{ID: "work-002", Title: "Second task", Status: queue.StatusDone},
-	})
-
-	stdout, _, err := executeIntegrationCmd("queue", "--json")
-	if err != nil {
-		t.Fatalf("queue --json returned error: %v", err)
-	}
-
-	// Strip deprecation warning before JSON (Cobra prints "Command ... is deprecated" to stdout)
-	jsonStart := strings.Index(stdout, "[")
-	if jsonStart == -1 {
-		t.Fatalf("no JSON array found in output: %s", stdout)
-	}
-	jsonOutput := stdout[jsonStart:]
-
-	var items []queue.WorkItem
-	if err := json.Unmarshal([]byte(jsonOutput), &items); err != nil {
-		t.Fatalf("output is not valid JSON: %v\noutput: %s", err, jsonOutput)
-	}
-	if len(items) != 2 {
-		t.Errorf("expected 2 items, got %d", len(items))
-	}
-}
-
-func TestQueueDetailJSON(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	seedQueue(t, wsDir, []queue.WorkItem{
-		{
-			ID:          "work-001",
-			Title:       "Fix auth bug",
-			Status:      queue.StatusPending,
-			Description: "Auth is broken",
-		},
-	})
-
-	stdout, _, err := executeIntegrationCmd("queue", "--json", "work-001")
-	if err != nil {
-		t.Fatalf("queue --json detail returned error: %v", err)
-	}
-
-	// Strip deprecation warning before JSON (Cobra prints "Command ... is deprecated" to stdout)
-	jsonStart := strings.Index(stdout, "{")
-	if jsonStart == -1 {
-		t.Fatalf("no JSON object found in output: %s", stdout)
-	}
-	jsonOutput := stdout[jsonStart:]
-
-	var item queue.WorkItem
-	if err := json.Unmarshal([]byte(jsonOutput), &item); err != nil {
-		t.Fatalf("output is not valid JSON: %v\noutput: %s", err, jsonOutput)
-	}
-	if item.ID != "work-001" {
-		t.Errorf("expected ID work-001, got %s", item.ID)
-	}
-}
 
 func TestLogsJSON(t *testing.T) {
 	wsDir, cleanup := setupIntegrationWorkspace(t)
@@ -1610,8 +1115,8 @@ func TestStatsJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &result); err != nil {
 		t.Fatalf("output is not valid JSON: %v\noutput: %s", err, stdout)
 	}
-	if _, ok := result["work_items"]; !ok {
-		t.Error("expected 'work_items' key in JSON output")
+	if _, ok := result["agents"]; !ok {
+		t.Error("expected 'agents' key in JSON output")
 	}
 }
 

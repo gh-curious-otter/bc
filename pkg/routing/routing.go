@@ -6,15 +6,24 @@ import (
 	"sync"
 
 	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/queue"
+)
+
+// TaskType distinguishes between different kinds of work items.
+type TaskType string
+
+const (
+	TaskTypeCode   TaskType = "code"   // Implementation work (default)
+	TaskTypeReview TaskType = "review" // PR review work
+	TaskTypeMerge  TaskType = "merge"  // Merge approved PRs
+	TaskTypeQA     TaskType = "qa"     // Testing/validation work
 )
 
 // TaskTypeToRole maps task types to the roles that should handle them.
-var TaskTypeToRole = map[queue.TaskType]agent.Role{
-	queue.TaskTypeCode:   agent.RoleEngineer,
-	queue.TaskTypeReview: agent.RoleTechLead,
-	queue.TaskTypeMerge:  agent.RoleManager,
-	queue.TaskTypeQA:     agent.RoleQA,
+var TaskTypeToRole = map[TaskType]agent.Role{
+	TaskTypeCode:   agent.RoleEngineer,
+	TaskTypeReview: agent.RoleTechLead,
+	TaskTypeMerge:  agent.RoleManager,
+	TaskTypeQA:     agent.RoleQA,
 }
 
 // Router assigns tasks to agents based on task type and agent availability.
@@ -33,15 +42,10 @@ func NewRouter(mgr *agent.Manager) *Router {
 	}
 }
 
-// RouteTask finds an appropriate agent for the given work item based on its type.
+// RouteTaskType finds an appropriate agent for the given task type.
 // Returns the agent ID (name) that should handle this task.
 // Uses round-robin distribution among agents of the same role.
-func (r *Router) RouteTask(item *queue.WorkItem) (string, error) {
-	if item == nil {
-		return "", fmt.Errorf("nil work item")
-	}
-
-	taskType := item.EffectiveType()
+func (r *Router) RouteTaskType(taskType TaskType) (string, error) {
 	role, ok := TaskTypeToRole[taskType]
 	if !ok {
 		return "", fmt.Errorf("unknown task type: %s", taskType)
@@ -81,7 +85,7 @@ func (r *Router) RouteToRole(role agent.Role) (string, error) {
 }
 
 // GetRoleForTaskType returns the role that should handle a given task type.
-func GetRoleForTaskType(taskType queue.TaskType) (agent.Role, error) {
+func GetRoleForTaskType(taskType TaskType) (agent.Role, error) {
 	role, ok := TaskTypeToRole[taskType]
 	if !ok {
 		return "", fmt.Errorf("unknown task type: %s", taskType)
