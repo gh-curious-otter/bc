@@ -87,7 +87,7 @@ func runTeamCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Created team %q\n", t.Name)
+	cmd.Printf("Created team %q\n", t.Name)
 	return nil
 }
 
@@ -104,14 +104,14 @@ func runTeamList(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(teams) == 0 {
-		fmt.Println("No teams configured")
-		fmt.Println()
-		fmt.Println("Create one with: bc team create <name>")
+		cmd.Println("No teams configured")
+		cmd.Println()
+		cmd.Println("Create one with: bc team create <name>")
 		return nil
 	}
 
-	fmt.Printf("%-20s %-10s %-20s %s\n", "NAME", "MEMBERS", "LEAD", "DESCRIPTION")
-	fmt.Println("--------------------------------------------------------------------")
+	cmd.Printf("%-20s %-10s %-20s %s\n", "NAME", "MEMBERS", "LEAD", "DESCRIPTION")
+	cmd.Println("--------------------------------------------------------------------")
 	for _, t := range teams {
 		lead := t.Lead
 		if lead == "" {
@@ -124,7 +124,7 @@ func runTeamList(cmd *cobra.Command, args []string) error {
 		if desc == "" {
 			desc = "-"
 		}
-		fmt.Printf("%-20s %-10d %-20s %s\n", t.Name, len(t.Members), lead, desc)
+		cmd.Printf("%-20s %-10d %-20s %s\n", t.Name, len(t.Members), lead, desc)
 	}
 
 	return nil
@@ -147,21 +147,21 @@ func runTeamShow(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("team %q not found", name)
 	}
 
-	fmt.Printf("Name:        %s\n", t.Name)
+	cmd.Printf("Name:        %s\n", t.Name)
 	if t.Description != "" {
-		fmt.Printf("Description: %s\n", t.Description)
+		cmd.Printf("Description: %s\n", t.Description)
 	}
 	if t.Lead != "" {
-		fmt.Printf("Lead:        %s\n", t.Lead)
+		cmd.Printf("Lead:        %s\n", t.Lead)
 	}
-	fmt.Printf("Members:     %d\n", len(t.Members))
+	cmd.Printf("Members:     %d\n", len(t.Members))
 	if len(t.Members) > 0 {
 		for _, m := range t.Members {
-			fmt.Printf("  - %s\n", m)
+			cmd.Printf("  - %s\n", m)
 		}
 	}
-	fmt.Printf("Created:     %s\n", t.CreatedAt.Format("2006-01-02 15:04:05"))
-	fmt.Printf("Updated:     %s\n", t.UpdatedAt.Format("2006-01-02 15:04:05"))
+	cmd.Printf("Created:     %s\n", t.CreatedAt.Format("2006-01-02 15:04:05"))
+	cmd.Printf("Updated:     %s\n", t.UpdatedAt.Format("2006-01-02 15:04:05"))
 
 	return nil
 }
@@ -179,7 +179,7 @@ func runTeamDelete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Deleted team %q\n", name)
+	cmd.Printf("Deleted team %q\n", name)
 	return nil
 }
 
@@ -197,7 +197,7 @@ func runTeamAdd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Added %q to team %q\n", agentName, teamName)
+	cmd.Printf("Added %q to team %q\n", agentName, teamName)
 	return nil
 }
 
@@ -215,6 +215,6 @@ func runTeamRemove(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Removed %q from team %q\n", agentName, teamName)
+	cmd.Printf("Removed %q from team %q\n", agentName, teamName)
 	return nil
 }
