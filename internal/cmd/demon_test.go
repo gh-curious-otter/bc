@@ -168,3 +168,124 @@ func TestDemonDeleteNotFound(t *testing.T) {
 		t.Errorf("error should mention not found: %v", err)
 	}
 }
+
+func TestDemonRun(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	// Create a demon with a simple command
+	store := demon.NewStore(wsDir)
+	_, _ = store.Create("run-demon", "0 * * * *", "echo 'hello world'")
+
+	output, err := executeCmd("demon", "run", "run-demon")
+	if err != nil {
+		t.Fatalf("demon run failed: %v\nOutput: %s", err, output)
+	}
+	if !strings.Contains(output, "Running demon") {
+		t.Errorf("output should indicate running: %s", output)
+	}
+	if !strings.Contains(output, "hello world") {
+		t.Errorf("output should contain command output: %s", output)
+	}
+	if !strings.Contains(output, "Run recorded") {
+		t.Errorf("output should confirm recording: %s", output)
+	}
+
+	// Verify run count was incremented
+	d, _ := store.Get("run-demon")
+	if d.RunCount != 1 {
+		t.Errorf("expected run count 1, got %d", d.RunCount)
+	}
+}
+
+func TestDemonRunNotFound(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("demon", "run", "nonexistent")
+	if err == nil {
+		t.Error("expected error for nonexistent demon")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention not found: %v", err)
+	}
+}
+
+func TestDemonEnable(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	// Create a demon and disable it first
+	store := demon.NewStore(wsDir)
+	_, _ = store.Create("enable-demon", "0 * * * *", "echo hello")
+	_ = store.Disable("enable-demon")
+
+	// Verify it's disabled
+	d, _ := store.Get("enable-demon")
+	if d.Enabled {
+		t.Fatal("demon should be disabled before test")
+	}
+
+	output, err := executeCmd("demon", "enable", "enable-demon")
+	if err != nil {
+		t.Fatalf("demon enable failed: %v\nOutput: %s", err, output)
+	}
+	if !strings.Contains(output, "Enabled demon") {
+		t.Errorf("output should confirm enabling: %s", output)
+	}
+
+	// Verify it's now enabled
+	d, _ = store.Get("enable-demon")
+	if !d.Enabled {
+		t.Error("demon should be enabled after command")
+	}
+}
+
+func TestDemonEnableNotFound(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("demon", "enable", "nonexistent")
+	if err == nil {
+		t.Error("expected error for nonexistent demon")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention not found: %v", err)
+	}
+}
+
+func TestDemonDisable(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	// Create a demon (enabled by default)
+	store := demon.NewStore(wsDir)
+	_, _ = store.Create("disable-demon", "0 * * * *", "echo hello")
+
+	// Verify it's enabled
+	d, _ := store.Get("disable-demon")
+	if !d.Enabled {
+		t.Fatal("demon should be enabled before test")
+	}
+
+	output, err := executeCmd("demon", "disable", "disable-demon")
+	if err != nil {
+		t.Fatalf("demon disable failed: %v\nOutput: %s", err, output)
+	}
+	if !strings.Contains(output, "Disabled demon") {
+		t.Errorf("output should confirm disabling: %s", output)
+	}
+
+	// Verify it's now disabled
+	d, _ = store.Get("disable-demon")
+	if d.Enabled {
+		t.Error("demon should be disabled after command")
+	}
+}
+
+func TestDemonDisableNotFound(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("demon", "disable", "nonexistent")
+	if err == nil {
+		t.Error("expected error for nonexistent demon")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention not found: %v", err)
+	}
+}
