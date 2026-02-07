@@ -58,9 +58,24 @@ var channelRemoveCmd = &cobra.Command{
 var channelSendCmd = &cobra.Command{
 	Use:   "send <channel> <message>",
 	Short: "Send a message to all channel members",
-	Args:  cobra.MinimumNArgs(2),
-	RunE:  runChannelSend,
+	Long: `Send a message to all members of a channel.
+
+Message types:
+  message   - Regular chat message (default)
+  task      - Work assignment
+  review    - PR review request
+  approval  - PR approval notification
+  merge     - Merge request
+
+Examples:
+  bc channel send engineering "deploy complete"
+  bc channel send engineering --type=task "implement feature X"
+  bc channel send engineering --type=review "please review PR #42"`,
+	Args: cobra.MinimumNArgs(2),
+	RunE: runChannelSend,
 }
+
+var channelSendType string
 
 var channelListCmd = &cobra.Command{
 	Use:   "list",
@@ -94,10 +109,24 @@ var channelLeaveCmd = &cobra.Command{
 var channelHistoryCmd = &cobra.Command{
 	Use:   "history <channel>",
 	Short: "Show channel message history",
-	Long:  `Display the history of messages sent to a channel.`,
-	Args:  cobra.ExactArgs(1),
-	RunE:  runChannelHistory,
+	Long: `Display the history of messages sent to a channel.
+
+Use --type to filter by message type:
+  message   - Regular chat messages
+  task      - Work assignments
+  review    - PR review requests
+  approval  - PR approvals
+  merge     - Merge requests
+
+Examples:
+  bc channel history engineering
+  bc channel history engineering --type=task
+  bc channel history engineering --type=review`,
+	Args: cobra.ExactArgs(1),
+	RunE: runChannelHistory,
 }
+
+var channelHistoryType string
 
 func init() {
 	channelCmd.AddCommand(channelCreateCmd)
@@ -110,6 +139,14 @@ func init() {
 	channelCmd.AddCommand(channelLeaveCmd)
 	channelCmd.AddCommand(channelHistoryCmd)
 	rootCmd.AddCommand(channelCmd)
+
+	// Add --type flag for send command
+	channelSendCmd.Flags().StringVar(&channelSendType, "type", "message",
+		"Message type: message, task, review, approval, merge")
+
+	// Add --type flag for history command (filter)
+	channelHistoryCmd.Flags().StringVar(&channelHistoryType, "type", "",
+		"Filter by message type: message, task, review, approval, merge")
 }
 
 func loadChannelStore(rootDir string) (*channel.Store, error) {
@@ -264,6 +301,12 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 	channelName := args[0]
 	message := strings.Join(args[1:], " ")
 
+	// Validate message type
+	if !channel.IsValidMessageType(channelSendType) {
+		return fmt.Errorf("invalid message type %q (valid: message, task, review, approval, merge)", channelSendType)
+	}
+	msgType := channel.MessageType(channelSendType)
+
 	members, err := store.GetMembers(channelName)
 	if err != nil {
 		return err
@@ -280,12 +323,12 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Warning: failed to load agent state: %v\n", err)
 	}
 
-	// Add to channel history
+	// Add to channel history with type
 	sender := os.Getenv("BC_AGENT_ID")
 	if sender == "" {
 		sender = "cli"
 	}
-	if err := store.AddHistory(channelName, sender, message); err != nil {
+	if err := store.AddHistoryWithType(channelName, sender, message, msgType); err != nil {
 		fmt.Printf("Warning: failed to record history: %v\n", err)
 	}
 	if err := store.Save(); err != nil {
@@ -418,7 +461,17 @@ func runChannelHistory(cmd *cobra.Command, args []string) error {
 	}
 
 	channelName := args[0]
-	history, err := store.GetHistory(channelName)
+
+	var history []channel.HistoryEntry
+	if channelHistoryType != "" {
+		// Filter by type
+		if !channel.IsValidMessageType(channelHistoryType) {
+			return fmt.Errorf("invalid message type %q (valid: message, task, review, approval, merge)", channelHistoryType)
+		}
+		history, err = store.GetHistoryByType(channelName, channel.MessageType(channelHistoryType))
+	} else {
+		history, err = store.GetHistory(channelName)
+	}
 	if err != nil {
 		return err
 	}
@@ -434,17 +487,29 @@ func runChannelHistory(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(history) == 0 {
-		fmt.Printf("No message history for channel %q\n", channelName)
+		if channelHistoryType != "" {
+			fmt.Printf("No %s messages for channel %q\n", channelHistoryType, channelName)
+		} else {
+			fmt.Printf("No message history for channel %q\n", channelName)
+		}
 		return nil
 	}
 
-	fmt.Printf("Message history for #%s:\n", channelName)
+	if channelHistoryType != "" {
+		fmt.Printf("Message history for #%s (type: %s):\n", channelName, channelHistoryType)
+	} else {
+		fmt.Printf("Message history for #%s:\n", channelName)
+	}
 	fmt.Println(strings.Repeat("-", 60))
 	for _, entry := range history {
+		typeTag := ""
+		if entry.Type != "" && entry.Type != channel.TypeMessage {
+			typeTag = fmt.Sprintf("[%s] ", entry.Type)
+		}
 		if entry.Sender != "" {
-			fmt.Printf("[%s] %s: %s\n", entry.Time.Format("15:04:05"), entry.Sender, entry.Message)
+			fmt.Printf("[%s] %s%s: %s\n", entry.Time.Format("15:04:05"), typeTag, entry.Sender, entry.Message)
 		} else {
-			fmt.Printf("[%s] %s\n", entry.Time.Format("15:04:05"), entry.Message)
+			fmt.Printf("[%s] %s%s\n", entry.Time.Format("15:04:05"), typeTag, entry.Message)
 		}
 	}
 

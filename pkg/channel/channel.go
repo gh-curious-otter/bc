@@ -14,11 +14,43 @@ import (
 	"time"
 )
 
+// MessageType defines the type of message for routing and filtering.
+type MessageType string
+
+const (
+	// TypeMessage is a regular chat message (default).
+	TypeMessage MessageType = "message"
+	// TypeTask is a work assignment.
+	TypeTask MessageType = "task"
+	// TypeReview is a PR review request.
+	TypeReview MessageType = "review"
+	// TypeApproval is a PR approval notification.
+	TypeApproval MessageType = "approval"
+	// TypeMerge is a merge request.
+	TypeMerge MessageType = "merge"
+)
+
+// ValidMessageTypes returns all valid message types.
+func ValidMessageTypes() []MessageType {
+	return []MessageType{TypeMessage, TypeTask, TypeReview, TypeApproval, TypeMerge}
+}
+
+// IsValidMessageType checks if a string is a valid message type.
+func IsValidMessageType(t string) bool {
+	for _, valid := range ValidMessageTypes() {
+		if string(valid) == t {
+			return true
+		}
+	}
+	return false
+}
+
 // HistoryEntry represents a message in channel history.
 type HistoryEntry struct {
-	Time    time.Time `json:"time"`
-	Sender  string    `json:"sender,omitempty"`
-	Message string    `json:"message"`
+	Time    time.Time   `json:"time"`
+	Sender  string      `json:"sender,omitempty"`
+	Message string      `json:"message"`
+	Type    MessageType `json:"type,omitempty"`
 }
 
 // Channel represents a named communication channel with a list of members.
@@ -205,7 +237,13 @@ func (s *Store) GetMembers(channelName string) ([]string, error) {
 }
 
 // AddHistory adds a message to the channel's history.
+// Deprecated: Use AddHistoryWithType instead.
 func (s *Store) AddHistory(channelName, sender, message string) error {
+	return s.AddHistoryWithType(channelName, sender, message, TypeMessage)
+}
+
+// AddHistoryWithType adds a typed message to the channel's history.
+func (s *Store) AddHistoryWithType(channelName, sender, message string, msgType MessageType) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -214,10 +252,16 @@ func (s *Store) AddHistory(channelName, sender, message string) error {
 		return fmt.Errorf("channel %q not found", channelName)
 	}
 
+	// Default to TypeMessage if empty
+	if msgType == "" {
+		msgType = TypeMessage
+	}
+
 	entry := HistoryEntry{
 		Time:    time.Now(),
 		Sender:  sender,
 		Message: message,
+		Type:    msgType,
 	}
 	ch.History = append(ch.History, entry)
 
@@ -243,4 +287,30 @@ func (s *Store) GetHistory(channelName string) ([]HistoryEntry, error) {
 	history := make([]HistoryEntry, len(ch.History))
 	copy(history, ch.History)
 	return history, nil
+}
+
+// GetHistoryByType returns messages filtered by type.
+func (s *Store) GetHistoryByType(channelName string, msgType MessageType) ([]HistoryEntry, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	ch, exists := s.channels[channelName]
+	if !exists {
+		return nil, fmt.Errorf("channel %q not found", channelName)
+	}
+
+	// Filter by type
+	filtered := make([]HistoryEntry, 0)
+	for _, entry := range ch.History {
+		// Match type (empty type matches TypeMessage for backward compatibility)
+		entryType := entry.Type
+		if entryType == "" {
+			entryType = TypeMessage
+		}
+		if entryType == msgType {
+			filtered = append(filtered, entry)
+		}
+	}
+
+	return filtered, nil
 }

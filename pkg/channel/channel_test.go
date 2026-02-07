@@ -580,3 +580,158 @@ func TestConcurrentAddHistory(t *testing.T) {
 		t.Errorf("history after concurrent adds = %d, want 50", len(history))
 	}
 }
+
+// --- Message Types ---
+
+func TestValidMessageTypes(t *testing.T) {
+	types := ValidMessageTypes()
+	if len(types) != 5 {
+		t.Errorf("ValidMessageTypes() returned %d types, want 5", len(types))
+	}
+
+	expected := []MessageType{TypeMessage, TypeTask, TypeReview, TypeApproval, TypeMerge}
+	for _, e := range expected {
+		found := false
+		for _, mt := range types {
+			if mt == e {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("ValidMessageTypes() missing %q", e)
+		}
+	}
+}
+
+func TestIsValidMessageType(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"message", true},
+		{"task", true},
+		{"review", true},
+		{"approval", true},
+		{"merge", true},
+		{"invalid", false},
+		{"", false},
+		{"MESSAGE", false}, // case sensitive
+	}
+
+	for _, tt := range tests {
+		got := IsValidMessageType(tt.input)
+		if got != tt.want {
+			t.Errorf("IsValidMessageType(%q) = %v, want %v", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestAddHistoryWithType(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.Create("ch"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.AddHistoryWithType("ch", "user", "task message", TypeTask); err != nil {
+		t.Fatalf("AddHistoryWithType: %v", err)
+	}
+
+	history, err := s.GetHistory("ch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(history) != 1 {
+		t.Fatalf("history len = %d, want 1", len(history))
+	}
+	if history[0].Type != TypeTask {
+		t.Errorf("Type = %q, want %q", history[0].Type, TypeTask)
+	}
+}
+
+func TestAddHistoryWithTypeDefaultsToMessage(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.Create("ch"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.AddHistoryWithType("ch", "user", "msg", ""); err != nil {
+		t.Fatalf("AddHistoryWithType: %v", err)
+	}
+
+	history, err := s.GetHistory("ch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if history[0].Type != TypeMessage {
+		t.Errorf("Type = %q, want %q", history[0].Type, TypeMessage)
+	}
+}
+
+func TestGetHistoryByType(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.Create("ch"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Add messages of different types
+	_ = s.AddHistoryWithType("ch", "user", "msg1", TypeMessage)
+	_ = s.AddHistoryWithType("ch", "user", "task1", TypeTask)
+	_ = s.AddHistoryWithType("ch", "user", "task2", TypeTask)
+	_ = s.AddHistoryWithType("ch", "user", "review1", TypeReview)
+
+	// Filter by task
+	tasks, err := s.GetHistoryByType("ch", TypeTask)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 2 {
+		t.Errorf("GetHistoryByType(task) = %d, want 2", len(tasks))
+	}
+
+	// Filter by review
+	reviews, err := s.GetHistoryByType("ch", TypeReview)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reviews) != 1 {
+		t.Errorf("GetHistoryByType(review) = %d, want 1", len(reviews))
+	}
+
+	// Filter by message
+	messages, err := s.GetHistoryByType("ch", TypeMessage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 1 {
+		t.Errorf("GetHistoryByType(message) = %d, want 1", len(messages))
+	}
+}
+
+func TestGetHistoryByTypeBackwardCompatibility(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.Create("ch"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Use old AddHistory (no type) - should default to message
+	_ = s.AddHistory("ch", "user", "old message")
+
+	// Filter by message should include it
+	messages, err := s.GetHistoryByType("ch", TypeMessage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 1 {
+		t.Errorf("GetHistoryByType(message) = %d, want 1 (backward compat)", len(messages))
+	}
+}
+
+func TestGetHistoryByTypeChannelNotFound(t *testing.T) {
+	s := newTestStore(t)
+
+	_, err := s.GetHistoryByType("nonexistent", TypeTask)
+	if err == nil {
+		t.Fatal("GetHistoryByType nonexistent: expected error, got nil")
+	}
+}
