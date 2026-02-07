@@ -1,12 +1,12 @@
-# bc Context Documentation
+# bc Documentation
 
-Context documentation for building **bc**, a new agent orchestrator inspired by Gas Town.
+Technical documentation for **bc** (beads coordinator), a multi-agent orchestration system for Claude Code.
 
 ---
 
 ## Purpose
 
-This directory contains architectural documentation, design patterns, and reference materials extracted from the Gas Town (gt) multi-agent orchestration system. These documents serve as the foundation for building bc - a streamlined agent orchestrator that incorporates lessons learned from Gas Town's development.
+This directory contains architecture documentation, design patterns, and reference materials for bc. The system coordinates multiple Claude Code agents working on different tasks with predictable behavior and cost awareness.
 
 ---
 
@@ -14,13 +14,17 @@ This directory contains architectural documentation, design patterns, and refere
 
 | Document | Description |
 |----------|-------------|
-| [01-architecture-overview.md](01-architecture-overview.md) | Core concepts: Town, Rig, Mayor, Deacon, Witness, Refinery, Polecats, Crew. Hierarchical organization, data flow, and key design principles including ZFC and GUPP. |
-| [02-agent-types.md](02-agent-types.md) | Detailed documentation of all six agent types: Mayor (coordinator), Deacon (daemon), Witness (monitor), Refinery (merge queue), Polecats (ephemeral workers), and Crew (human workers). |
-| [03-cli-reference.md](03-cli-reference.md) | Complete `gt` CLI reference: work management (sling, convoy, done, hook), agent operations, communication (mail, nudge, broadcast, handoff), services, workspace, and diagnostics. |
-| [04-data-models.md](04-data-models.md) | Data structures: configuration files (town.json, rigs.json), runtime state, event log format, Beads integration (issues, MRs, agents), and mail system. |
-| [05-workflows.md](05-workflows.md) | Operational workflows: work assignment flow, polecat lifecycle, merge queue processing, communication patterns, and manual intervention procedures. |
-| [06-gtn-tui.md](06-gtn-tui.md) | gtn TUI documentation: Bubble Tea architecture, views (status, sessions, convoys, MQ, costs), components (table, modal, tree), keyboard shortcuts, and gt client wrapper. |
-| 07-design-lessons.md | *(Planned)* Key lessons and design decisions from Gas Town development for bc. |
+| [01-architecture-overview.md](01-architecture-overview.md) | Core concepts: workspace, agents, work queue, worktrees. Hierarchical roles (PM → Manager → Engineer/QA), tmux-based agent isolation, git-backed state persistence. |
+| [02-agent-types.md](02-agent-types.md) | Agent roles and capabilities: ProductManager (creates epics), Manager (breaks down work), Engineer (implements), QA (tests). Role hierarchy and state machine. |
+| [03-cli-reference.md](03-cli-reference.md) | Complete `bc` CLI reference: agent lifecycle (spawn, status, up, down), work queue (queue add/list), communication (send, channel), and diagnostics. |
+| [04-data-models.md](04-data-models.md) | Data structures: .bc/ directory layout, agents.json, queue.json, events.jsonl, channels.json, config.json. |
+| [05-workflows.md](05-workflows.md) | Operational workflows: work assignment, agent lifecycle, merge queue processing, parent-child agent relationships. |
+| [06-gtn-tui.md](06-gtn-tui.md) | Reference: gtn TUI patterns (Bubble Tea). Useful for bc TUI development. |
+| [07-design-lessons.md](07-design-lessons.md) | Key lessons from Gas Town development applied to bc's simpler design. |
+| [08-tui-builder.md](08-tui-builder.md) | Declarative TUI builder pattern for AI-generated terminal interfaces. |
+| [cursor-agent-cli.md](cursor-agent-cli.md) | Using Cursor Agent CLI as an alternative to Claude Code in bc. |
+| [audit-dead-code-bc-34b.10.md](audit-dead-code-bc-34b.10.md) | Dead code audit and cleanup list. |
+| [bc-v1-audit.md](bc-v1-audit.md) | V1 feature audit and status. |
 
 ---
 
@@ -28,60 +32,101 @@ This directory contains architectural documentation, design patterns, and refere
 
 ### Key Concepts
 
-Gas Town is a multi-agent orchestration system that solves agent coordination through **git-backed persistence** (work survives restarts), **tmux-based liveness** (ZFC - session existence = agent alive), and **hook-based work assignment** (GUPP - if work is on your hook, you run it). The hierarchy flows from Town (workspace) to Rigs (projects) to Agents (Mayor coordinates, Polecats execute, Witness monitors, Refinery merges).
+bc is a multi-agent orchestration system that coordinates Claude Code agents through:
+- **Git-backed persistence** - State survives restarts via `.bc/` directory
+- **Tmux-based isolation** - Each agent runs in its own tmux session
+- **Per-agent worktrees** - Each agent gets its own git worktree to avoid conflicts
+- **Hierarchical roles** - PM → Manager → Engineer/QA role hierarchy with capabilities
+
+### Agent Roles
+
+| Role | Level | Capabilities | Can Create |
+|------|-------|--------------|------------|
+| ProductManager | 0 | create_agents, assign_work, create_epics, review_work | Manager |
+| Manager | 1 | create_agents, assign_work, review_work | Engineer, QA |
+| Engineer | 2 | implement_tasks | (none) |
+| QA | 2 | test_work, review_work | (none) |
+
+### Agent States
+
+| State | Description |
+|-------|-------------|
+| `idle` | Ready for work |
+| `starting` | Session initializing |
+| `working` | Actively executing task |
+| `done` | Task completed |
+| `stuck` | Needs assistance |
+| `error` | Encountered error |
+| `stopped` | Session terminated |
 
 ### Essential Commands
 
 ```bash
 # Start/stop services
-gt up                          # Start all services
-gt down                        # Stop all services
+bc up                          # Start coordinator agent
+bc down                        # Stop all agents
 
-# Work assignment
-gt sling <bead-id> <rig>       # Assign work to polecat
-gt convoy create "Name" <ids>  # Bundle work items
-gt done                        # Complete work and submit to MQ
+# Spawn agents
+bc spawn pm-01 --role product-manager   # Spawn PM
+bc spawn eng-01 --role engineer         # Spawn engineer
+
+# Work queue
+bc queue add "Fix login bug"            # Add work item
+bc queue list                           # List work items
 
 # Agent interaction
-gt prime                       # Load context for current role
-gt hook                        # Check current work assignment
-gt nudge <target> <message>    # Send message to agent
-gt mail inbox                  # Check mail
+bc send <agent> "message"               # Send message to agent
+bc attach <agent>                       # Attach to agent tmux session
 
 # Monitoring
-gt status                      # Town overview
-gt agents                      # List active agents
-gt mq list                     # View merge queue
+bc status                               # Agent overview
+bc stats                                # Workspace statistics
+bc logs                                 # View event log
 ```
+
+### Work Item States
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Available for assignment |
+| `assigned` | Claimed by agent |
+| `working` | Being executed |
+| `done` | Completed successfully |
+| `failed` | Execution failed |
 
 ### Critical Data Structures
 
 | Structure | Location | Purpose |
 |-----------|----------|---------|
-| `town.json` | `mayor/town.json` | Town configuration and identity |
-| `rigs.json` | `mayor/rigs.json` | Registry of all project rigs |
-| `issues.jsonl` | `.beads/issues.jsonl` | Beads issue tracking database |
-| `routes.jsonl` | `.beads/routes.jsonl` | Issue prefix to rig routing |
-| `.events.jsonl` | Town root | Append-only event log |
+| `agents.json` | `.bc/agents/` | Agent state persistence |
+| `queue.json` | `.bc/queue.json` | Work queue items |
+| `events.jsonl` | `.bc/events.jsonl` | Append-only event log |
+| `channels.json` | `.bc/channels.json` | Communication channels |
+| `config.json` | `.bc/config.json` | Workspace configuration |
+
+### Directory Structure
+
+```
+.bc/                           # bc workspace root
+├── agents/                    # Agent state files
+│   └── agents.json            # All agent states
+├── bin/                       # Wrapper scripts (git)
+├── logs/                      # Agent logs
+├── worktrees/                 # Per-agent git worktrees
+│   ├── pm-01/                 # PM worktree
+│   └── eng-01/                # Engineer worktree
+├── config.json                # Workspace config
+├── queue.json                 # Work queue
+├── channels.json              # Communication channels
+└── events.jsonl               # Event log
+```
 
 ---
 
-## Source Materials
+## Design Principles
 
-| Source | Location | Description |
-|--------|----------|-------------|
-| **Gas Town repo** | [github.com/steveyegge/gastown](https://github.com/steveyegge/gastown) | Original gt orchestrator codebase |
-| **gtn TUI** | `~/Projects/gtn/gtn` | Terminal UI for Gas Town (Bubble Tea) |
-| **Beads** | `bd` command | Git-backed issue tracking CLI |
-
----
-
-## Next Steps for bc Development
-
-1. **Define core abstractions** - Identify which Gas Town concepts to keep, simplify, or replace
-2. **Design agent model** - Decide on agent types and their responsibilities
-3. **Plan persistence layer** - Determine state storage (git-backed, SQLite, or hybrid)
-4. **Build CLI foundation** - Set up Cobra CLI structure with core commands
-5. **Implement work assignment** - Hook-based work routing with Beads integration
-6. **Add TUI** - Consider porting gtn patterns or building fresh with Bubble Tea
-7. **Document design decisions** - Capture lessons learned in 07-design-lessons.md
+1. **Simplicity** - Two-tier hierarchy (coordinator + workers) vs complex Gas Town hierarchy
+2. **Predictability** - Constrained agent actions, explicit capabilities per role
+3. **Cost awareness** - Budget tracking (planned) and on-demand execution
+4. **Git-native** - All state in git-tracked files for crash recovery
+5. **Tmux isolation** - Each agent in isolated tmux session
