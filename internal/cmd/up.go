@@ -492,6 +492,7 @@ func buildBootstrapPrompt(agentNames []string, items []queue.WorkItem, rootDir s
 // createDefaultChannels sets up the default communication channels.
 // Channels: #standup (all), #leadership (coordinator, pm, manager, tech-leads),
 // #engineering (manager, tech-leads, engineers), #qa (manager, qa), #all (everyone).
+// Also creates per-agent channels (#agent-name) for direct messaging.
 func createDefaultChannels(rootDir string, techLeadNames, engineerNames, qaNames, allAgents []string) {
 	store := channel.NewStore(rootDir)
 	if err := store.Load(); err != nil {
@@ -518,12 +519,21 @@ func createDefaultChannels(rootDir string, techLeadNames, engineerNames, qaNames
 	qaMembers = append(qaMembers, "manager")
 	qaMembers = append(qaMembers, qaNames...)
 
-	channels := []chanDef{
-		{"standup", allAgents},
-		{"leadership", leadershipMembers},
-		{"engineering", engineeringMembers},
-		{"qa", qaMembers},
-		{"all", allAgents},
+	// Group channels + per-agent channels
+	// Preallocate: 5 group channels + 1 per agent
+	channels := make([]chanDef, 0, 5+len(allAgents))
+	channels = append(channels,
+		chanDef{"standup", allAgents},
+		chanDef{"leadership", leadershipMembers},
+		chanDef{"engineering", engineeringMembers},
+		chanDef{"qa", qaMembers},
+		chanDef{"all", allAgents},
+	)
+
+	// Per-agent channels for direct messaging
+	// Each agent gets their own channel and is auto-subscribed
+	for _, agentName := range allAgents {
+		channels = append(channels, chanDef{agentName, []string{agentName}})
 	}
 
 	created := 0
@@ -534,12 +544,12 @@ func createDefaultChannels(rootDir string, techLeadNames, engineerNames, qaNames
 				fmt.Printf("  Warning: failed to create channel #%s: %v\n", ch.name, createErr)
 				continue
 			}
+			created++
 		}
 		// Add members (skip if already present)
 		for _, member := range ch.members {
 			_ = store.AddMember(ch.name, member)
 		}
-		created++
 	}
 
 	if created > 0 {
@@ -547,6 +557,22 @@ func createDefaultChannels(rootDir string, techLeadNames, engineerNames, qaNames
 			fmt.Printf("  Warning: failed to save channels: %v\n", err)
 			return
 		}
-		fmt.Printf("Created %d default channels\n", created)
+		fmt.Printf("Created %d channels (%d group + %d per-agent)\n", created, min(created, 5), max(0, created-5))
 	}
+}
+
+// min returns the smaller of two integers.
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// max returns the larger of two integers.
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

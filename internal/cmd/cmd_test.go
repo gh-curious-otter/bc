@@ -368,6 +368,80 @@ func TestCreateDefaultChannels(t *testing.T) {
 	}
 }
 
+func TestCreateDefaultChannels_PerAgentChannels(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	techLeads := []string{"tech-lead-01"}
+	engineers := []string{"engineer-01", "engineer-02"}
+	qa := []string{"qa-01"}
+	all := []string{"coordinator", "product-manager", "manager", "tech-lead-01", "engineer-01", "engineer-02", "qa-01"}
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	_, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+	createDefaultChannels(dir, techLeads, engineers, qa, all)
+	_ = w.Close()
+	os.Stdout = oldStdout
+
+	// Verify channels file was created
+	channelsFile := filepath.Join(dir, ".bc", "channels.json")
+	data, err := os.ReadFile(channelsFile) //nolint:gosec // test file
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+
+	// Verify per-agent channels are created
+	for _, agentName := range all {
+		if !strings.Contains(content, fmt.Sprintf(`"name": "%s"`, agentName)) {
+			t.Errorf("channels.json missing per-agent channel for %q", agentName)
+		}
+	}
+}
+
+func TestCreateDefaultChannels_NoDuplicatesOnRestart(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	engineers := []string{"engineer-01"}
+	qa := []string{"qa-01"}
+	all := []string{"coordinator", "manager", "engineer-01", "qa-01"}
+
+	// Suppress stdout
+	oldStdout := os.Stdout
+	_, w, _ := os.Pipe()
+	os.Stdout = w
+
+	// Run twice to simulate restart
+	createDefaultChannels(dir, []string{}, engineers, qa, all)
+	createDefaultChannels(dir, []string{}, engineers, qa, all)
+
+	_ = w.Close()
+	os.Stdout = oldStdout
+
+	// Read and count channel occurrences
+	channelsFile := filepath.Join(dir, ".bc", "channels.json")
+	data, err := os.ReadFile(channelsFile) //nolint:gosec // test file
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Count occurrences of "engineer-01" channel name
+	count := strings.Count(string(data), `"name": "engineer-01"`)
+	if count != 1 {
+		t.Errorf("expected 1 engineer-01 channel, got %d (duplicate channels created)", count)
+	}
+}
+
 // --- Init command tests ---
 
 func TestInitCommand(t *testing.T) {
