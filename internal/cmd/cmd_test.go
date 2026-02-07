@@ -354,7 +354,7 @@ func TestCreateDefaultChannels(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	for _, chName := range []string{"standup", "leadership", "engineering", "qa", "all"} {
+	for _, chName := range []string{"standup", "leadership", "engineering", "qa", "reviews", "all"} {
 		ch, getErr := store.GetChannel(chName)
 		if getErr != nil {
 			t.Errorf("error getting channel %q: %v", chName, getErr)
