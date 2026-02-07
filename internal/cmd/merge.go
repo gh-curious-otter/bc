@@ -10,7 +10,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/queue"
@@ -368,7 +367,7 @@ func mergeBranch(repoDir, branch string) (string, error) {
 	return mergeCommit[:12], nil
 }
 
-// markQueueDone marks a queue item as done and closes its beads issue.
+// markQueueDone marks a queue item as done.
 func markQueueDone(stateDir, rootDir, workID string) error {
 	q := queue.New(filepath.Join(stateDir, "queue.json"))
 	if err := q.Load(); err != nil {
@@ -384,10 +383,6 @@ func markQueueDone(stateDir, rootDir, workID string) error {
 	if err := q.Save(); err != nil {
 		return err
 	}
-	if item.BeadsID != "" {
-		if err := beads.CloseIssue(rootDir, item.BeadsID); err != nil {
-			log.Warn("failed to close beads issue", "id", item.BeadsID, "error", err)
-		}
-	}
+	// Note: Issue tracking now uses GitHub Issues (beads removed)
 	return nil
 }

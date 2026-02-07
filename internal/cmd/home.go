@@ -9,7 +9,6 @@ import (
 	"github.com/rpuneet/bc/config"
 	itui "github.com/rpuneet/bc/internal/tui"
 	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
@@ -60,7 +59,6 @@ func runHome(cmd *cobra.Command, args []string) error {
 		info := itui.WorkspaceInfo{
 			Entry:      entry,
 			MaxWorkers: int(config.Workspace.MaxWorkers),
-			HasBeads:   beads.HasBeads(entry.Path),
 		}
 
 		// Count running agents
@@ -73,12 +71,7 @@ func runHome(cmd *cobra.Command, args []string) error {
 		info.Total = mgr.AgentCount()
 		info.Running = mgr.RunningCount()
 
-		// Count beads issues
-		if info.HasBeads {
-			if issues, listErr := beads.ListIssues(entry.Path); listErr == nil {
-				info.Issues = len(issues)
-			}
-		}
+		// Note: Issue tracking now uses GitHub Issues (beads removed)
 
 		workspaces = append(workspaces, info)
 	}

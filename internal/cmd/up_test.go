@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/rpuneet/bc/pkg/queue"
 )
 
 func TestLoadRolePrompt_ExistingFile(t *testing.T) {
@@ -61,12 +59,8 @@ func TestLoadRolePrompt_EmptyFile(t *testing.T) {
 
 func TestBuildBootstrapPrompt_Structure(t *testing.T) {
 	agents := []string{"coordinator", "engineer-01", "qa-01"}
-	items := []queue.WorkItem{
-		{ID: "work-001", Title: "Fix auth bug", BeadsID: "bc-1a.1", Description: "Auth is broken"},
-		{ID: "work-002", Title: "Add dark mode", BeadsID: "bc-2b.1"},
-	}
 
-	prompt := buildBootstrapPrompt(agents, items, "/test/workspace")
+	prompt := buildBootstrapPrompt(agents, "/test/workspace")
 
 	// Verify workspace info
 	if !strings.Contains(prompt, "/test/workspace") {
@@ -78,26 +72,12 @@ func TestBuildBootstrapPrompt_Structure(t *testing.T) {
 		t.Error("prompt should contain team listing")
 	}
 
-	// Verify work queue header
-	if !strings.Contains(prompt, "=== WORK QUEUE ===") {
-		t.Error("prompt should contain work queue header")
+	// Verify work tracking section (now uses GitHub Issues)
+	if !strings.Contains(prompt, "=== WORK TRACKING ===") {
+		t.Error("prompt should contain work tracking header")
 	}
-
-	// Verify work items
-	if !strings.Contains(prompt, "[work-001]") {
-		t.Error("prompt should contain work-001 ID")
-	}
-	if !strings.Contains(prompt, "Fix auth bug") {
-		t.Error("prompt should contain work item title")
-	}
-	if !strings.Contains(prompt, "bc-1a.1") {
-		t.Error("prompt should contain beads ID")
-	}
-	if !strings.Contains(prompt, "Auth is broken") {
-		t.Error("prompt should contain description")
-	}
-	if !strings.Contains(prompt, "[work-002]") {
-		t.Error("prompt should contain work-002 ID")
+	if !strings.Contains(prompt, "gh issue list") {
+		t.Error("prompt should reference gh issue list command")
 	}
 
 	// Verify workflow sections
@@ -118,44 +98,26 @@ func TestBuildBootstrapPrompt_Structure(t *testing.T) {
 	if !strings.Contains(prompt, "bc status") {
 		t.Error("prompt should reference bc status command")
 	}
-	if !strings.Contains(prompt, "bc queue assign") {
-		t.Error("prompt should reference bc queue assign command")
-	}
 }
 
-func TestBuildBootstrapPrompt_EmptyItems(t *testing.T) {
+func TestBuildBootstrapPrompt_MinimalAgents(t *testing.T) {
 	agents := []string{"coordinator"}
-	items := []queue.WorkItem{}
 
-	prompt := buildBootstrapPrompt(agents, items, "/test")
+	prompt := buildBootstrapPrompt(agents, "/test")
 
-	// Should still have structure even with no items
-	if !strings.Contains(prompt, "=== WORK QUEUE ===") {
-		t.Error("prompt should contain work queue header even when empty")
+	// Should still have structure with single agent
+	if !strings.Contains(prompt, "=== WORK TRACKING ===") {
+		t.Error("prompt should contain work tracking header")
 	}
 	if !strings.Contains(prompt, "=== YOUR WORKFLOW ===") {
 		t.Error("prompt should contain workflow section")
 	}
 }
 
-func TestBuildBootstrapPrompt_ItemWithoutDescription(t *testing.T) {
-	agents := []string{"coordinator"}
-	items := []queue.WorkItem{
-		{ID: "work-001", Title: "Simple task", BeadsID: "bc-1a.1"},
-	}
-
-	prompt := buildBootstrapPrompt(agents, items, "/test")
-
-	if !strings.Contains(prompt, "Simple task") {
-		t.Error("prompt should contain item title")
-	}
-}
-
 func TestBuildBootstrapPrompt_CoordinatorRole(t *testing.T) {
 	agents := []string{"coordinator"}
-	items := []queue.WorkItem{}
 
-	prompt := buildBootstrapPrompt(agents, items, "/test")
+	prompt := buildBootstrapPrompt(agents, "/test")
 
 	if !strings.Contains(prompt, "You are the coordinator agent") {
 		t.Error("prompt should identify the coordinator role")
