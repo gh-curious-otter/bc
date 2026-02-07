@@ -1732,7 +1732,7 @@ func TestCreateDefaultChannelsIntegration(t *testing.T) {
 	defer func() { _ = store.Close() }()
 
 	// Check required channels exist
-	for _, name := range []string{"standup", "leadership", "engineering", "qa", "all"} {
+	for _, name := range []string{"standup", "leadership", "engineering", "qa", "reviews", "all"} {
 		ch, getErr := store.GetChannel(name)
 		if getErr != nil {
 			t.Errorf("error getting channel %q: %v", name, getErr)

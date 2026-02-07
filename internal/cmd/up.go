@@ -524,14 +524,21 @@ func createDefaultChannels(rootDir string, techLeadNames, engineerNames, qaNames
 	qaMembers = append(qaMembers, "manager")
 	qaMembers = append(qaMembers, qaNames...)
 
+	// Reviews channel: tech-leads, manager, and engineers can post review requests
+	reviewsMembers := make([]string, 0, 1+len(techLeadNames)+len(engineerNames))
+	reviewsMembers = append(reviewsMembers, "manager")
+	reviewsMembers = append(reviewsMembers, techLeadNames...)
+	reviewsMembers = append(reviewsMembers, engineerNames...)
+
 	// Group channels + per-agent channels
-	// Preallocate: 5 group channels + 1 per agent
-	channels := make([]chanDef, 0, 5+len(allAgents))
+	// Preallocate: 6 group channels + 1 per agent
+	channels := make([]chanDef, 0, 6+len(allAgents))
 	channels = append(channels,
 		chanDef{name: "standup", description: "Daily standup channel", channelType: channel.ChannelTypeGroup, members: allAgents},
 		chanDef{name: "leadership", description: "Leadership coordination", channelType: channel.ChannelTypeGroup, members: leadershipMembers},
 		chanDef{name: "engineering", description: "Engineering team channel", channelType: channel.ChannelTypeGroup, members: engineeringMembers},
 		chanDef{name: "qa", description: "QA team channel", channelType: channel.ChannelTypeGroup, members: qaMembers},
+		chanDef{name: "reviews", description: "Code review requests and discussions", channelType: channel.ChannelTypeGroup, members: reviewsMembers},
 		chanDef{name: "all", description: "Broadcast channel for announcements", channelType: channel.ChannelTypeGroup, members: allAgents},
 	)
 
