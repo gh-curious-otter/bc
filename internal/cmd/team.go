@@ -49,11 +49,27 @@ var teamDeleteCmd = &cobra.Command{
 	RunE:  runTeamDelete,
 }
 
+var teamAddCmd = &cobra.Command{
+	Use:   "add <team> <agent>",
+	Short: "Add an agent to a team",
+	Args:  cobra.ExactArgs(2),
+	RunE:  runTeamAdd,
+}
+
+var teamRemoveCmd = &cobra.Command{
+	Use:   "remove <team> <agent>",
+	Short: "Remove an agent from a team",
+	Args:  cobra.ExactArgs(2),
+	RunE:  runTeamRemove,
+}
+
 func init() {
 	teamCmd.AddCommand(teamCreateCmd)
 	teamCmd.AddCommand(teamListCmd)
 	teamCmd.AddCommand(teamShowCmd)
 	teamCmd.AddCommand(teamDeleteCmd)
+	teamCmd.AddCommand(teamAddCmd)
+	teamCmd.AddCommand(teamRemoveCmd)
 	rootCmd.AddCommand(teamCmd)
 }
 
@@ -164,5 +180,41 @@ func runTeamDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Deleted team %q\n", name)
+	return nil
+}
+
+func runTeamAdd(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	teamName := args[0]
+	agentName := args[1]
+	store := team.NewStore(ws.RootDir)
+
+	if err := store.AddMember(teamName, agentName); err != nil {
+		return err
+	}
+
+	fmt.Printf("Added %q to team %q\n", agentName, teamName)
+	return nil
+}
+
+func runTeamRemove(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	teamName := args[0]
+	agentName := args[1]
+	store := team.NewStore(ws.RootDir)
+
+	if err := store.RemoveMember(teamName, agentName); err != nil {
+		return err
+	}
+
+	fmt.Printf("Removed %q from team %q\n", agentName, teamName)
 	return nil
 }
