@@ -117,18 +117,22 @@ Examples:
 
 // Flags
 var (
-	agentCreateTool string
-	agentCreateRole string
-	agentListRole   string
-	agentListJSON   bool
-	agentPeekLines  int
-	agentStopForce  bool
+	agentCreateTool   string
+	agentCreateRole   string
+	agentCreateParent string
+	agentCreateTeam   string
+	agentListRole     string
+	agentListJSON     bool
+	agentPeekLines    int
+	agentStopForce    bool
 )
 
 func init() {
 	// Create flags
 	agentCreateCmd.Flags().StringVar(&agentCreateTool, "tool", "", "Agent tool (claude, cursor, codex)")
 	agentCreateCmd.Flags().StringVar(&agentCreateRole, "role", "worker", "Agent role (worker, engineer, manager, product-manager, tech-lead, qa)")
+	agentCreateCmd.Flags().StringVar(&agentCreateParent, "parent", "", "Parent agent ID (creates hierarchical relationship)")
+	agentCreateCmd.Flags().StringVar(&agentCreateTeam, "team", "", "Team name for organizational grouping")
 
 	// List flags
 	agentListCmd.Flags().StringVar(&agentListRole, "role", "", "Filter by role")
@@ -209,22 +213,54 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		return roleErr
 	}
 
-	// Spawn the agent
+	// Validate parent if specified
+	if agentCreateParent != "" {
+		parent := mgr.GetAgent(agentCreateParent)
+		if parent == nil {
+			return fmt.Errorf("parent agent %q not found", agentCreateParent)
+		}
+		if !agent.CanCreateRole(parent.Role, role) {
+			return fmt.Errorf("agent %q (role %s) cannot create child with role %s", agentCreateParent, parent.Role, role)
+		}
+	}
+
+	// Validate team name if specified (alphanumeric with hyphens/underscores)
+	if agentCreateTeam != "" {
+		if !isValidTeamName(agentCreateTeam) {
+			return fmt.Errorf("invalid team name %q: must be alphanumeric (hyphens and underscores allowed)", agentCreateTeam)
+		}
+	}
+
+	// Spawn the agent with parent if specified
 	fmt.Printf("Creating %s (%s)... ", agentName, role)
-	spawned, spawnErr := mgr.SpawnAgentWithTool(agentName, role, ws.RootDir, toolName)
+	spawned, spawnErr := mgr.SpawnAgentWithOptions(agentName, role, ws.RootDir, agentCreateParent, toolName)
 	if spawnErr != nil {
 		fmt.Println("✗")
 		return fmt.Errorf("failed to create %s: %w", agentName, spawnErr)
 	}
 	fmt.Printf("✓ (session: %s)\n", mgr.Tmux().SessionName(spawned.Session))
 
+	// Set team if specified
+	if agentCreateTeam != "" {
+		if teamErr := mgr.SetAgentTeam(agentName, agentCreateTeam); teamErr != nil {
+			log.Warn("failed to set team", "error", teamErr)
+		}
+	}
+
 	// Log event
+	eventData := map[string]any{"role": string(role), "tool": toolName}
+	if agentCreateParent != "" {
+		eventData["parent"] = agentCreateParent
+	}
+	if agentCreateTeam != "" {
+		eventData["team"] = agentCreateTeam
+	}
 	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
 	_ = eventLog.Append(events.Event{
 		Type:    events.AgentSpawned,
 		Agent:   agentName,
 		Message: fmt.Sprintf("created with role %s", role),
-		Data:    map[string]any{"role": string(role), "tool": toolName},
+		Data:    eventData,
 	})
 
 	fmt.Println()
@@ -452,4 +488,31 @@ func runAgentSend(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Sent to %s: %s\n", agentName, message)
 	return nil
+}
+
+// isValidTeamName checks if a team name is valid (alphanumeric with hyphens/underscores).
+func isValidTeamName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for i, r := range name {
+		if r >= 'a' && r <= 'z' {
+			continue
+		}
+		if r >= 'A' && r <= 'Z' {
+			continue
+		}
+		if r >= '0' && r <= '9' {
+			continue
+		}
+		if r == '-' || r == '_' {
+			// Hyphens and underscores not allowed at start
+			if i == 0 {
+				return false
+			}
+			continue
+		}
+		return false
+	}
+	return true
 }

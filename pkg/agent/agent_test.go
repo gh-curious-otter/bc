@@ -1969,3 +1969,35 @@ func TestEnforceRootSingleton_RootErrorAllows(t *testing.T) {
 		t.Error("old root state should be deleted after allowing respawn")
 	}
 }
+
+func TestSetAgentTeam(t *testing.T) {
+	m := NewManager(t.TempDir())
+	m.agentCmd = "echo test"
+
+	// Create a mock agent directly
+	m.mu.Lock()
+	m.agents["eng-01"] = &Agent{
+		ID:    "eng-01",
+		Name:  "eng-01",
+		Role:  RoleEngineer,
+		State: StateIdle,
+	}
+	m.mu.Unlock()
+
+	// Test setting team
+	err := m.SetAgentTeam("eng-01", "platform")
+	if err != nil {
+		t.Fatalf("SetAgentTeam failed: %v", err)
+	}
+
+	agent := m.GetAgent("eng-01")
+	if agent.Team != "platform" {
+		t.Errorf("expected team 'platform', got %q", agent.Team)
+	}
+
+	// Test setting team on non-existent agent
+	err = m.SetAgentTeam("nonexistent", "team")
+	if err == nil {
+		t.Error("expected error for non-existent agent")
+	}
+}

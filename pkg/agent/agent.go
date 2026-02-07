@@ -181,6 +181,7 @@ type Agent struct {
 	Session     string       `json:"session"`
 	Tool        string       `json:"tool,omitempty"`
 	ParentID    string       `json:"parent_id,omitempty"`
+	Team        string       `json:"team,omitempty"`
 	HookedWork  string       `json:"hooked_work,omitempty"`
 	WorktreeDir string       `json:"worktree_dir,omitempty"`
 	Role        Role         `json:"role"`
@@ -978,6 +979,23 @@ func (m *Manager) UpdateAgentState(name string, state State, task string) error 
 
 	agent.State = state
 	agent.Task = task
+	agent.UpdatedAt = time.Now()
+
+	_ = m.saveState() //nolint:errcheck // best-effort state persistence
+	return nil
+}
+
+// SetAgentTeam sets the team for an agent.
+func (m *Manager) SetAgentTeam(name, team string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	agent, exists := m.agents[name]
+	if !exists {
+		return fmt.Errorf("agent %s not found", name)
+	}
+
+	agent.Team = team
 	agent.UpdatedAt = time.Now()
 
 	_ = m.saveState() //nolint:errcheck // best-effort state persistence

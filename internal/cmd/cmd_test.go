@@ -263,6 +263,36 @@ func TestParseRole(t *testing.T) {
 	}
 }
 
+// --- isValidTeamName tests ---
+
+func TestIsValidTeamName(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{"valid simple", "platform", true},
+		{"valid with hyphen", "back-end", true},
+		{"valid with underscore", "front_end", true},
+		{"valid alphanumeric", "team1", true},
+		{"valid mixed", "team-1_alpha", true},
+		{"empty", "", false},
+		{"starts with hyphen", "-team", false},
+		{"starts with underscore", "_team", false},
+		{"contains space", "team one", false},
+		{"contains special char", "team@one", false},
+		{"contains dot", "team.one", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isValidTeamName(tt.input)
+			if got != tt.want {
+				t.Errorf("isValidTeamName(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 // --- loadRolePrompt tests ---
 
 func TestLoadRolePrompt(t *testing.T) {
