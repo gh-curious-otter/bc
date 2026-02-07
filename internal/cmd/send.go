@@ -13,8 +13,9 @@ import (
 )
 
 var sendCmd = &cobra.Command{
-	Use:   "send <agent> <message>",
-	Short: "Send a message to an agent",
+	Use:        "send <agent> <message>",
+	Short:      "Send a message to an agent (deprecated: use 'bc agent send')",
+	Deprecated: "use 'bc agent send' instead",
 	Long: `Send a message or command to an agent's tmux session.
 
 The message is typed into the agent's session, then submitted using carriage
