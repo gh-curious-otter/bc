@@ -10,10 +10,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/queue"
 )
 
 var upCmd = &cobra.Command{
@@ -39,9 +37,8 @@ CLI flags override config.toml values.
 
 This will:
 1. Start all agents in the roster
-2. Load beads issues into the work queue
-3. Send role prompts from prompts/ directory
-4. Send bootstrap prompts to all agents
+2. Send role prompts from prompts/ directory
+3. Send bootstrap prompts to all agents
 
 Example:
   bc up                      # Start with roster from config.toml
@@ -157,37 +154,6 @@ func runUp(cmd *cobra.Command, args []string) error {
 
 	// Event log
 	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-
-	// Load beads issues into queue
-	q := queue.New(filepath.Join(ws.StateDir(), "queue.json"))
-	if err = q.Load(); err != nil {
-		return fmt.Errorf("failed to load queue: %w", err)
-	}
-
-	issues := beads.ReadyIssues(ws.RootDir)
-	if len(issues) == 0 {
-		issues, _ = beads.ListIssues(ws.RootDir) //nolint:errcheck // best-effort fallback
-	}
-
-	added := 0
-	for _, issue := range issues {
-		if q.HasBeadsID(issue.ID) {
-			continue
-		}
-		q.Add(issue.Title, issue.Description, issue.ID)
-		added++
-	}
-	if added > 0 {
-		if err = q.Save(); err != nil {
-			return fmt.Errorf("failed to save queue: %w", err)
-		}
-		fmt.Printf("Loaded %d items into work queue from beads\n", added)
-		_ = log.Append(events.Event{
-			Type:    events.QueueLoaded,
-			Message: fmt.Sprintf("loaded %d items from beads", added),
-			Data:    map[string]any{"added": added},
-		})
-	}
 
 	// Start coordinator (acts as root agent)
 	fmt.Print("Starting coordinator... ")
@@ -375,12 +341,10 @@ func runUp(cmd *cobra.Command, args []string) error {
 	}
 
 	// Build and send bootstrap prompts
-	queueItems := q.ListAll()
-
-	// Coordinator: full bootstrap with queue and all agent names (reuse allAgents from above)
-	if len(queueItems) > 0 && len(allAgents) > 0 {
+	// Coordinator: bootstrap with team info (uses GitHub Issues for work tracking)
+	if len(allAgents) > 0 {
 		fmt.Print("\nSending bootstrap prompt to coordinator... ")
-		prompt := buildBootstrapPrompt(allAgents, queueItems, ws.RootDir)
+		prompt := buildBootstrapPrompt(allAgents, ws.RootDir)
 		if err := mgr.SendToAgent("coordinator", prompt); err != nil {
 			fmt.Println("✗")
 			fmt.Printf("  Warning: failed to send bootstrap prompt: %v\n", err)
@@ -440,48 +404,42 @@ func loadRolePrompt(rootDir, role string) string {
 	return string(data)
 }
 
-func buildBootstrapPrompt(agentNames []string, items []queue.WorkItem, rootDir string) string {
+func buildBootstrapPrompt(agentNames []string, rootDir string) string {
 	var b strings.Builder
 
 	b.WriteString("You are the coordinator agent for a bc workspace.\n\n")
 	b.WriteString(fmt.Sprintf("Workspace: %s\n", rootDir))
 	b.WriteString(fmt.Sprintf("Team: %s\n\n", strings.Join(agentNames, ", ")))
 
-	b.WriteString("=== WORK QUEUE ===\n")
-	for _, item := range items {
-		b.WriteString(fmt.Sprintf("\n[%s] %s (beads: %s)\n", item.ID, item.Title, item.BeadsID))
-		if item.Description != "" {
-			b.WriteString(item.Description)
-			b.WriteString("\n")
-		}
-	}
+	b.WriteString("=== WORK TRACKING ===\n")
+	b.WriteString("Work is tracked via GitHub Issues:\n")
+	b.WriteString("  gh issue list --state open     # View open issues\n")
+	b.WriteString("  gh issue view <number>         # View issue details\n\n")
 
-	b.WriteString("\n=== YOUR WORKFLOW ===\n\n")
+	b.WriteString("=== YOUR WORKFLOW ===\n\n")
 
 	b.WriteString("Phase 1 — ASSIGN:\n")
-	b.WriteString("  For each work item, pick a worker and send instructions:\n")
-	b.WriteString("    bc queue assign <work-id> <worker>\n")
-	b.WriteString("    bc send <worker> \"<detailed instructions>\"\n")
-	b.WriteString("  Distribute work evenly across workers.\n\n")
+	b.WriteString("  Review GitHub Issues and assign work to team members:\n")
+	b.WriteString("    gh issue list --state open\n")
+	b.WriteString("    bc send <agent> \"Work on issue #<number>: <instructions>\"\n")
+	b.WriteString("  Distribute work evenly across engineers.\n\n")
 
 	b.WriteString("Phase 2 — REVIEW:\n")
-	b.WriteString("  After workers report done, review their branches (named by bead ID):\n")
-	b.WriteString("    git log <bead-id> --oneline  # e.g. git log bc-34b.5\n")
-	b.WriteString("    git diff main..<bead-id>\n")
-	b.WriteString("  Verify the implementation matches the task description.\n")
-	b.WriteString("  If a worker's branch needs fixes, send feedback via bc send.\n\n")
+	b.WriteString("  After engineers report done, review their branches:\n")
+	b.WriteString("    gh pr list --author <agent>\n")
+	b.WriteString("    git diff main..<branch>\n")
+	b.WriteString("  Verify the implementation matches the issue requirements.\n")
+	b.WriteString("  If a branch needs fixes, send feedback via bc send.\n\n")
 
 	b.WriteString("Phase 3 — INTEGRATE:\n")
-	b.WriteString("  Create an integrate branch and merge all approved worker branches:\n")
-	b.WriteString("    git checkout -b integrate main\n")
-	b.WriteString("    git merge <branch1> <branch2> ...\n")
+	b.WriteString("  Merge approved PRs via GitHub:\n")
+	b.WriteString("    gh pr merge <number> --squash\n")
 	b.WriteString("  Build and test: go build ./... && go test ./...\n")
 	b.WriteString("  Report done: bc report done \"all tasks integrated\"\n\n")
 
 	b.WriteString("=== BC COMMANDS ===\n")
 	b.WriteString("  bc status          # View agent states\n")
-	b.WriteString("  bc queue           # View work queue\n")
-	b.WriteString("  bc queue assign    # Assign work to agent\n")
+	b.WriteString("  bc agent list      # List all agents\n")
 	b.WriteString("  bc send <a> <msg>  # Send message to agent\n")
 	b.WriteString("  bc report <state>  # Report your state\n")
 	b.WriteString("  bc logs            # View event log")
@@ -494,14 +452,19 @@ func buildBootstrapPrompt(agentNames []string, items []queue.WorkItem, rootDir s
 // #engineering (manager, tech-leads, engineers), #qa (manager, qa), #all (everyone).
 // Also creates per-agent channels (#agent-name) for direct messaging.
 func createDefaultChannels(rootDir string, techLeadNames, engineerNames, qaNames, allAgents []string) {
-	store := channel.NewStore(rootDir)
-	if err := store.Load(); err != nil {
-		fmt.Printf("  Warning: failed to load channels: %v\n", err)
+	// Use SQLite store for channels (v2)
+	store := channel.NewSQLiteStore(rootDir)
+	if err := store.Open(); err != nil {
+		fmt.Printf("  Warning: failed to open channel store: %v\n", err)
+		return
 	}
+	defer func() { _ = store.Close() }()
 
 	type chanDef struct {
-		name    string
-		members []string
+		name        string
+		description string
+		channelType channel.ChannelType
+		members     []string
 	}
 
 	// Leadership includes tech-leads
@@ -519,44 +482,61 @@ func createDefaultChannels(rootDir string, techLeadNames, engineerNames, qaNames
 	qaMembers = append(qaMembers, "manager")
 	qaMembers = append(qaMembers, qaNames...)
 
+	// Reviews channel: tech-leads, manager, and engineers can post review requests
+	reviewsMembers := make([]string, 0, 1+len(techLeadNames)+len(engineerNames))
+	reviewsMembers = append(reviewsMembers, "manager")
+	reviewsMembers = append(reviewsMembers, techLeadNames...)
+	reviewsMembers = append(reviewsMembers, engineerNames...)
+
 	// Group channels + per-agent channels
-	// Preallocate: 5 group channels + 1 per agent
-	channels := make([]chanDef, 0, 5+len(allAgents))
+	// Preallocate: 6 group channels + 1 per agent
+	channels := make([]chanDef, 0, 6+len(allAgents))
 	channels = append(channels,
-		chanDef{"standup", allAgents},
-		chanDef{"leadership", leadershipMembers},
-		chanDef{"engineering", engineeringMembers},
-		chanDef{"qa", qaMembers},
-		chanDef{"all", allAgents},
+		chanDef{name: "standup", description: "Daily standup channel", channelType: channel.ChannelTypeGroup, members: allAgents},
+		chanDef{name: "leadership", description: "Leadership coordination", channelType: channel.ChannelTypeGroup, members: leadershipMembers},
+		chanDef{name: "engineering", description: "Engineering team channel", channelType: channel.ChannelTypeGroup, members: engineeringMembers},
+		chanDef{name: "qa", description: "QA team channel", channelType: channel.ChannelTypeGroup, members: qaMembers},
+		chanDef{name: "reviews", description: "Code review requests and discussions", channelType: channel.ChannelTypeGroup, members: reviewsMembers},
+		chanDef{name: "all", description: "Broadcast channel for announcements", channelType: channel.ChannelTypeGroup, members: allAgents},
 	)
 
 	// Per-agent channels for direct messaging
-	// Each agent gets their own channel and is auto-subscribed
+	// Each agent gets their own channel with type "direct"
 	for _, agentName := range allAgents {
-		channels = append(channels, chanDef{agentName, []string{agentName}})
+		channels = append(channels, chanDef{
+			name:        agentName,
+			channelType: channel.ChannelTypeDirect,
+			members:     []string{agentName},
+			description: fmt.Sprintf("Direct channel for %s", agentName),
+		})
 	}
 
 	created := 0
 	for _, ch := range channels {
-		// Create channel if it doesn't already exist
-		if _, exists := store.Get(ch.name); !exists {
-			if _, createErr := store.Create(ch.name); createErr != nil {
-				fmt.Printf("  Warning: failed to create channel #%s: %v\n", ch.name, createErr)
-				continue
+		// Check if channel already exists
+		existing, _ := store.GetChannel(ch.name)
+		if existing != nil {
+			// Channel exists, just ensure members are added
+			for _, member := range ch.members {
+				_ = store.AddMember(ch.name, member)
 			}
-			created++
+			continue
 		}
-		// Add members (skip if already present)
+
+		// Create channel with proper type
+		if _, createErr := store.CreateChannel(ch.name, ch.channelType, ch.description); createErr != nil {
+			fmt.Printf("  Warning: failed to create channel #%s: %v\n", ch.name, createErr)
+			continue
+		}
+		created++
+
+		// Add members
 		for _, member := range ch.members {
 			_ = store.AddMember(ch.name, member)
 		}
 	}
 
 	if created > 0 {
-		if err := store.Save(); err != nil {
-			fmt.Printf("  Warning: failed to save channels: %v\n", err)
-			return
-		}
 		fmt.Printf("Created %d channels (%d group + %d per-agent)\n", created, min(created, 5), max(0, created-5))
 	}
 }

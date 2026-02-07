@@ -10,64 +10,69 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/queue"
 )
 
 var queueCmd = &cobra.Command{
-	Use:   "queue [item-id]",
-	Short: "Manage the work queue",
-	Long: `List and manage work items in the queue.
+	Use:        "queue [item-id]",
+	Short:      "[DEPRECATED] Manage the work queue",
+	Deprecated: "Work is now tracked via GitHub Issues. Use 'gh issue list' instead.",
+	Long: `[DEPRECATED] This command is deprecated. Work is now tracked via GitHub Issues.
 
-Example:
-  bc queue                            # list all items
-  bc queue work-001                   # show full details for work-001
-  bc queue --detail work-001          # same as above
-  bc queue --json                     # list as JSON
-  bc queue add "Fix auth bug"         # add work item
-  bc queue assign work-001 worker-01  # assign to worker
-  bc queue load                       # populate from beads issues`,
+Use the following commands instead:
+  gh issue list --state open          # list all open issues
+  gh issue view <number>              # show issue details
+  gh issue create --title "<title>"   # create new issue
+  gh issue edit <number> --add-assignee <user>  # assign issue`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runQueueList,
 }
 
 var queueAddCmd = &cobra.Command{
-	Use:   "add <title>",
-	Short: "Add a work item to the queue",
-	Args:  cobra.ExactArgs(1),
-	RunE:  runQueueAdd,
+	Use:        "add <title>",
+	Short:      "[DEPRECATED] Add a work item to the queue",
+	Deprecated: "Use 'gh issue create --title \"<title>\"' instead.",
+	Args:       cobra.ExactArgs(1),
+	RunE:       runQueueAdd,
 }
 
 var queueAssignCmd = &cobra.Command{
-	Use:   "assign <item-id> <agent>",
-	Short: "Assign a work item to an agent",
-	Args:  cobra.ExactArgs(2),
-	RunE:  runQueueAssign,
+	Use:        "assign <item-id> <agent>",
+	Short:      "[DEPRECATED] Assign a work item to an agent",
+	Deprecated: "Use 'gh issue edit <number> --add-assignee <user>' instead.",
+	Args:       cobra.ExactArgs(2),
+	RunE:       runQueueAssign,
 }
 
 var queueLoadCmd = &cobra.Command{
-	Use:   "load",
-	Short: "Populate queue from beads issues",
-	RunE:  runQueueLoad,
+	Use:        "load",
+	Short:      "[DEPRECATED] Populate queue from beads issues",
+	Deprecated: "Work is tracked via GitHub Issues. This command has no effect.",
+	RunE:       runQueueLoad,
 }
 
 var queueCompleteCmd = &cobra.Command{
-	Use:   "complete <item-id>",
-	Short: "Mark a work item as done (e.g. when work was done outside agent session)",
-	Long:  `Marks the item done, saves the queue, and closes the linked beads issue if any.`,
-	Args:  cobra.ExactArgs(1),
-	RunE:  runQueueComplete,
+	Use:        "complete <item-id>",
+	Short:      "[DEPRECATED] Mark a work item as done",
+	Deprecated: "Use 'gh issue close <number>' instead.",
+	Long:       `[DEPRECATED] This command is deprecated. Use 'gh issue close <number>' instead.`,
+	Args:       cobra.ExactArgs(1),
+	RunE:       runQueueComplete,
 }
 
 var (
-	queueDesc     string
-	queueDetailID string
+	queueDesc       string
+	queueDetailID   string
+	queueFilterType string
+	queueAddType    string
 )
 
 func init() {
 	queueAddCmd.Flags().StringVarP(&queueDesc, "desc", "d", "", "Work item description")
+	queueAddCmd.Flags().StringVar(&queueAddType, "type", "code", "Task type (code, review, merge, qa)")
 	queueCmd.Flags().StringVar(&queueDetailID, "detail", "", "Show full details for a specific work item")
+	queueCmd.Flags().StringVar(&queueFilterType, "type", "", "Filter by task type (code, review, merge, qa)")
 	queueCmd.AddCommand(queueAddCmd)
 	queueCmd.AddCommand(queueAssignCmd)
 	queueCmd.AddCommand(queueCompleteCmd)
@@ -102,7 +107,18 @@ func runQueueList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	items := q.ListAll()
+
+	// Get items - filter by type if specified
+	var items []queue.WorkItem
+	if queueFilterType != "" {
+		taskType := queue.TaskType(queueFilterType)
+		if !isValidTaskType(taskType) {
+			return fmt.Errorf("invalid task type: %s (valid: code, review, merge, qa)", queueFilterType)
+		}
+		items = q.ListByType(taskType)
+	} else {
+		items = q.ListAll()
+	}
 
 	jsonOutput, err := cmd.Flags().GetBool("json")
 	if err != nil {
@@ -123,8 +139,8 @@ func runQueueList(cmd *cobra.Command, args []string) error {
 	}
 
 	// Table header
-	fmt.Printf("%-10s %-10s %-10s %-15s %-40s %s\n", "ID", "STATUS", "MERGE", "ASSIGNED", "TITLE", "BEADS")
-	fmt.Println(strings.Repeat("-", 100))
+	fmt.Printf("%-10s %-8s %-10s %-10s %-12s %-35s %s\n", "ID", "TYPE", "STATUS", "MERGE", "ASSIGNED", "TITLE", "BEADS")
+	fmt.Println(strings.Repeat("-", 105))
 
 	for _, item := range items {
 		assigned := item.AssignedTo
@@ -136,15 +152,16 @@ func runQueueList(cmd *cobra.Command, args []string) error {
 			beadsID = "-"
 		}
 		title := item.Title
-		if len(title) > 38 {
-			title = title[:35] + "..."
+		if len(title) > 33 {
+			title = title[:30] + "..."
 		}
 
 		stateStr := colorQueueStatus(item.Status)
 		mergeStr := colorMergeStatus(item.Merge)
+		typeStr := colorTaskType(item.EffectiveType())
 
-		fmt.Printf("%-10s %s %s %-15s %-40s %s\n",
-			item.ID, stateStr, mergeStr, assigned, title, beadsID,
+		fmt.Printf("%-10s %s %s %s %-12s %-35s %s\n",
+			item.ID, typeStr, stateStr, mergeStr, assigned, title, beadsID,
 		)
 	}
 
@@ -192,6 +209,7 @@ func runQueueDetail(cmd *cobra.Command, itemID string) error {
 
 	fmt.Printf("ID:        %s\n", item.ID)
 	fmt.Printf("Title:     %s\n", item.Title)
+	fmt.Printf("Type:      %s\n", item.EffectiveType())
 	fmt.Printf("Status:    %s\n", item.Status)
 	fmt.Printf("Assigned:  %s\n", assigned)
 	fmt.Printf("Beads ID:  %s\n", beadsID)
@@ -217,24 +235,9 @@ func runQueueDetail(cmd *cobra.Command, itemID string) error {
 		fmt.Printf("\nDescription:\n  %s\n", strings.ReplaceAll(item.Description, "\n", "\n  "))
 	}
 
-	// Show bead metadata if linked
+	// Note: Issue details now come from GitHub Issues (beads removed)
 	if item.BeadsID != "" {
-		issue := beads.GetIssue(ws.RootDir, item.BeadsID)
-		if issue != nil {
-			fmt.Printf("\nBead (%s):\n", item.BeadsID)
-			if issue.Type != "" {
-				fmt.Printf("  Type:         %s\n", issue.Type)
-			}
-			if issue.Priority != nil {
-				fmt.Printf("  Priority:     %v\n", issue.Priority)
-			}
-			if issue.Status != "" {
-				fmt.Printf("  Bead Status:  %s\n", issue.Status)
-			}
-			if len(issue.Dependencies) > 0 {
-				fmt.Printf("  Dependencies: %s\n", strings.Join(issue.Dependencies, ", "))
-			}
-		}
+		fmt.Printf("\nLegacy Bead ID: %s\n", item.BeadsID)
 	}
 
 	return nil
@@ -255,12 +258,19 @@ func runQueueAdd(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	item := q.Add(title, queueDesc, "")
+
+	// Parse task type
+	taskType := queue.TaskType(queueAddType)
+	if !isValidTaskType(taskType) {
+		return fmt.Errorf("invalid task type: %s (valid: code, review, merge, qa)", queueAddType)
+	}
+
+	item := q.AddWithType(title, queueDesc, "", taskType)
 	if err := q.Save(); err != nil {
 		return fmt.Errorf("failed to save queue: %w", err)
 	}
 
-	fmt.Printf("Added %s: %s\n", item.ID, item.Title)
+	fmt.Printf("Added %s (%s): %s\n", item.ID, item.Type, item.Title)
 	return nil
 }
 
@@ -299,80 +309,19 @@ func runQueueAssign(cmd *cobra.Command, args []string) error {
 		Data:  map[string]any{"work_id": itemID},
 	})
 
-	// Sync assignment to beads if linked
-	if item.BeadsID != "" {
-		if err := beads.AssignIssue(ws.RootDir, item.BeadsID, agentName); err != nil {
-			// Log but don't fail - beads sync is best-effort
-			_ = log.Append(events.Event{
-				Type:    events.AgentReport,
-				Agent:   agentName,
-				Message: fmt.Sprintf("warning: failed to assign beads issue %s: %v", item.BeadsID, err),
-			})
-		}
-	}
+	// Note: Issue tracking now uses GitHub Issues (beads removed)
 
 	fmt.Printf("Assigned %s to %s\n", itemID, agentName)
 	return nil
 }
 
 func runQueueLoad(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
-	}
-
-	q, err := loadQueue(ws)
-	if err != nil {
-		return err
-	}
-
-	// Try ready issues first, fall back to all issues
-	issues := beads.ReadyIssues(ws.RootDir)
-	if len(issues) == 0 {
-		issues, _ = beads.ListIssues(ws.RootDir) //nolint:errcheck // best-effort fallback
-	}
-
-	if len(issues) == 0 {
-		fmt.Println("No beads issues found")
-		return nil
-	}
-
-	added := 0
-	linked := 0
-	for _, issue := range issues {
-		if q.HasBeadsID(issue.ID) {
-			continue
-		}
-		// Check if a work item with the same title already exists (added manually)
-		if existing := q.FindByTitle(issue.Title); existing != nil {
-			// Link the beads ID to the existing item so future syncs skip it
-			if existing.BeadsID == "" {
-				_ = q.LinkBeadsID(existing.ID, issue.ID)
-				linked++
-			}
-			continue
-		}
-		q.Add(issue.Title, issue.Description, issue.ID)
-		added++
-	}
-
-	if err := q.Save(); err != nil {
-		return fmt.Errorf("failed to save queue: %w", err)
-	}
-
-	// Log event
-	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	_ = log.Append(events.Event{
-		Type:    events.QueueLoaded,
-		Message: fmt.Sprintf("loaded %d items from beads", added),
-		Data:    map[string]any{"added": added, "linked": linked, "total_issues": len(issues)},
-	})
-
-	fmt.Printf("Loaded %d new items from beads (%d already in queue", added, len(issues)-added-linked)
-	if linked > 0 {
-		fmt.Printf(", %d linked to existing items", linked)
-	}
-	fmt.Println(")")
+	// Note: beads package has been deprecated. Use GitHub Issues for task tracking.
+	fmt.Println("The 'bc queue load' command is deprecated.")
+	fmt.Println("Work items are now tracked via GitHub Issues.")
+	fmt.Println()
+	fmt.Println("To view issues:  gh issue list --state open")
+	fmt.Println("To create:       gh issue create --title '<title>'")
 	return nil
 }
 
@@ -406,14 +355,7 @@ func runQueueComplete(cmd *cobra.Command, args []string) error {
 		Data:    map[string]any{"work_id": itemID},
 	})
 
-	if item.BeadsID != "" {
-		if err := beads.CloseIssue(ws.RootDir, item.BeadsID); err != nil {
-			_ = log.Append(events.Event{
-				Type:    events.AgentReport,
-				Message: fmt.Sprintf("warning: failed to close beads issue %s: %v", item.BeadsID, err),
-			})
-		}
-	}
+	// Note: Issue tracking now uses GitHub Issues (beads removed)
 
 	fmt.Printf("Marked %s done", itemID)
 	if item.BeadsID != "" {
@@ -477,5 +419,39 @@ func colorQueueStatus(s queue.ItemStatus) string {
 		return red + padded + reset
 	default:
 		return padded
+	}
+}
+
+func colorTaskType(t queue.TaskType) string {
+	const (
+		reset  = "\033[0m"
+		blue   = "\033[34m"
+		green  = "\033[32m"
+		yellow = "\033[33m"
+		cyan   = "\033[36m"
+	)
+
+	padded := fmt.Sprintf("%-8s", t)
+
+	switch t {
+	case queue.TaskTypeCode:
+		return cyan + padded + reset
+	case queue.TaskTypeReview:
+		return blue + padded + reset
+	case queue.TaskTypeMerge:
+		return green + padded + reset
+	case queue.TaskTypeQA:
+		return yellow + padded + reset
+	default:
+		return padded
+	}
+}
+
+func isValidTaskType(t queue.TaskType) bool {
+	switch t {
+	case queue.TaskTypeCode, queue.TaskTypeReview, queue.TaskTypeMerge, queue.TaskTypeQA:
+		return true
+	default:
+		return false
 	}
 }

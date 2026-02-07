@@ -324,7 +324,7 @@ func TestQueueCompleteSuccess(t *testing.T) {
 	}
 }
 
-func TestQueueLoadNoBeads(t *testing.T) {
+func TestQueueLoadDeprecated(t *testing.T) {
 	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
@@ -332,8 +332,11 @@ func TestQueueLoadNoBeads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("queue load returned error: %v", err)
 	}
-	if !strings.Contains(stdout, "No beads issues found") {
-		t.Errorf("expected no beads message, got: %s", stdout)
+	if !strings.Contains(stdout, "deprecated") {
+		t.Errorf("expected deprecation message, got: %s", stdout)
+	}
+	if !strings.Contains(stdout, "GitHub Issues") {
+		t.Errorf("expected GitHub Issues reference, got: %s", stdout)
 	}
 }
 
@@ -1513,9 +1516,16 @@ func TestQueueListJSON(t *testing.T) {
 		t.Fatalf("queue --json returned error: %v", err)
 	}
 
+	// Strip deprecation warning before JSON (Cobra prints "Command ... is deprecated" to stdout)
+	jsonStart := strings.Index(stdout, "[")
+	if jsonStart == -1 {
+		t.Fatalf("no JSON array found in output: %s", stdout)
+	}
+	jsonOutput := stdout[jsonStart:]
+
 	var items []queue.WorkItem
-	if err := json.Unmarshal([]byte(stdout), &items); err != nil {
-		t.Fatalf("output is not valid JSON: %v\noutput: %s", err, stdout)
+	if err := json.Unmarshal([]byte(jsonOutput), &items); err != nil {
+		t.Fatalf("output is not valid JSON: %v\noutput: %s", err, jsonOutput)
 	}
 	if len(items) != 2 {
 		t.Errorf("expected 2 items, got %d", len(items))
@@ -1540,9 +1550,16 @@ func TestQueueDetailJSON(t *testing.T) {
 		t.Fatalf("queue --json detail returned error: %v", err)
 	}
 
+	// Strip deprecation warning before JSON (Cobra prints "Command ... is deprecated" to stdout)
+	jsonStart := strings.Index(stdout, "{")
+	if jsonStart == -1 {
+		t.Fatalf("no JSON object found in output: %s", stdout)
+	}
+	jsonOutput := stdout[jsonStart:]
+
 	var item queue.WorkItem
-	if err := json.Unmarshal([]byte(stdout), &item); err != nil {
-		t.Fatalf("output is not valid JSON: %v\noutput: %s", err, stdout)
+	if err := json.Unmarshal([]byte(jsonOutput), &item); err != nil {
+		t.Fatalf("output is not valid JSON: %v\noutput: %s", err, jsonOutput)
 	}
 	if item.ID != "work-001" {
 		t.Errorf("expected ID work-001, got %s", item.ID)
@@ -1724,20 +1741,26 @@ func TestCreateDefaultChannelsIntegration(t *testing.T) {
 		t.Errorf("expected creation message, got: %s", output)
 	}
 
-	// Verify channels were created
-	store := channel.NewStore(tmpDir)
-	if err := store.Load(); err != nil {
-		t.Fatalf("failed to load channels: %v", err)
+	// Verify channels were created in SQLite store
+	store := channel.NewSQLiteStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("failed to open channel store: %v", err)
 	}
+	defer func() { _ = store.Close() }()
 
 	// Check required channels exist
-	for _, name := range []string{"standup", "leadership", "engineering", "qa", "all"} {
-		ch, exists := store.Get(name)
-		if !exists {
+	for _, name := range []string{"standup", "leadership", "engineering", "qa", "reviews", "all"} {
+		ch, getErr := store.GetChannel(name)
+		if getErr != nil {
+			t.Errorf("error getting channel %q: %v", name, getErr)
+			continue
+		}
+		if ch == nil {
 			t.Errorf("expected channel %q to exist", name)
 			continue
 		}
-		if len(ch.Members) == 0 {
+		members, _ := store.GetMembers(name)
+		if len(members) == 0 {
 			t.Errorf("channel %q should have members", name)
 		}
 	}
