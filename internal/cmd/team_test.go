@@ -157,3 +157,85 @@ func TestTeamDeleteNotFound(t *testing.T) {
 		t.Errorf("error should mention not found: %v", err)
 	}
 }
+
+func TestTeamAdd(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	// Create a team
+	store := team.NewStore(wsDir)
+	_, _ = store.Create("engineering")
+
+	output, err := executeCmd("team", "add", "engineering", "engineer-01")
+	if err != nil {
+		t.Fatalf("team add failed: %v\nOutput: %s", err, output)
+	}
+	if !strings.Contains(output, "Added") {
+		t.Errorf("output should confirm addition: %s", output)
+	}
+	if !strings.Contains(output, "engineer-01") {
+		t.Errorf("output should contain agent name: %s", output)
+	}
+
+	// Verify member was added
+	tm, _ := store.Get("engineering")
+	if len(tm.Members) != 1 {
+		t.Fatalf("Members len = %d, want 1", len(tm.Members))
+	}
+	if tm.Members[0] != "engineer-01" {
+		t.Errorf("Members[0] = %q, want %q", tm.Members[0], "engineer-01")
+	}
+}
+
+func TestTeamAddTeamNotFound(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("team", "add", "nonexistent", "agent-01")
+	if err == nil {
+		t.Error("expected error for nonexistent team")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention not found: %v", err)
+	}
+}
+
+func TestTeamRemove(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	// Create a team with a member
+	store := team.NewStore(wsDir)
+	_, _ = store.Create("engineering")
+	_ = store.AddMember("engineering", "engineer-01")
+	_ = store.AddMember("engineering", "engineer-02")
+
+	output, err := executeCmd("team", "remove", "engineering", "engineer-01")
+	if err != nil {
+		t.Fatalf("team remove failed: %v\nOutput: %s", err, output)
+	}
+	if !strings.Contains(output, "Removed") {
+		t.Errorf("output should confirm removal: %s", output)
+	}
+	if !strings.Contains(output, "engineer-01") {
+		t.Errorf("output should contain agent name: %s", output)
+	}
+
+	// Verify member was removed
+	tm, _ := store.Get("engineering")
+	if len(tm.Members) != 1 {
+		t.Fatalf("Members len = %d, want 1", len(tm.Members))
+	}
+	if tm.Members[0] != "engineer-02" {
+		t.Errorf("Members[0] = %q, want %q", tm.Members[0], "engineer-02")
+	}
+}
+
+func TestTeamRemoveTeamNotFound(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("team", "remove", "nonexistent", "agent-01")
+	if err == nil {
+		t.Error("expected error for nonexistent team")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention not found: %v", err)
+	}
+}
