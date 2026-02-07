@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/queue"
 )
@@ -349,21 +350,26 @@ func TestCreateDefaultChannels(t *testing.T) {
 	_ = w.Close()
 	os.Stdout = oldStdout
 
-	// Verify channels file was created at .bc/channels.json
-	channelsFile := filepath.Join(dir, ".bc", "channels.json")
-	if _, statErr := os.Stat(channelsFile); os.IsNotExist(statErr) {
-		t.Fatal("channels.json not created")
+	// Verify channels database was created at .bc/channels.db
+	channelsDB := filepath.Join(dir, ".bc", "channels.db")
+	if _, statErr := os.Stat(channelsDB); os.IsNotExist(statErr) {
+		t.Fatal("channels.db not created")
 	}
 
-	data, err := os.ReadFile(channelsFile) //nolint:gosec // G304: test file reads from test-created path
-	if err != nil {
-		t.Fatal(err)
+	// Verify channels exist in SQLite store
+	store := channel.NewSQLiteStore(dir)
+	if openErr := store.Open(); openErr != nil {
+		t.Fatalf("failed to open channel store: %v", openErr)
 	}
-	content := string(data)
+	defer func() { _ = store.Close() }()
 
-	for _, ch := range []string{"standup", "leadership", "engineering", "qa", "all"} {
-		if !strings.Contains(content, ch) {
-			t.Errorf("channels.json missing channel %q", ch)
+	for _, chName := range []string{"standup", "leadership", "engineering", "qa", "all"} {
+		ch, getErr := store.GetChannel(chName)
+		if getErr != nil {
+			t.Errorf("error getting channel %q: %v", chName, getErr)
+		}
+		if ch == nil {
+			t.Errorf("channel %q not created", chName)
 		}
 	}
 }
@@ -390,18 +396,28 @@ func TestCreateDefaultChannels_PerAgentChannels(t *testing.T) {
 	_ = w.Close()
 	os.Stdout = oldStdout
 
-	// Verify channels file was created
-	channelsFile := filepath.Join(dir, ".bc", "channels.json")
-	data, err := os.ReadFile(channelsFile) //nolint:gosec // test file
-	if err != nil {
-		t.Fatal(err)
+	// Verify channels database was created
+	channelsDB := filepath.Join(dir, ".bc", "channels.db")
+	if _, statErr := os.Stat(channelsDB); os.IsNotExist(statErr) {
+		t.Fatal("channels.db not created")
 	}
-	content := string(data)
 
-	// Verify per-agent channels are created
+	// Verify per-agent channels exist in SQLite store
+	store := channel.NewSQLiteStore(dir)
+	if openErr := store.Open(); openErr != nil {
+		t.Fatalf("failed to open channel store: %v", openErr)
+	}
+	defer func() { _ = store.Close() }()
+
 	for _, agentName := range all {
-		if !strings.Contains(content, fmt.Sprintf(`"name": "%s"`, agentName)) {
-			t.Errorf("channels.json missing per-agent channel for %q", agentName)
+		ch, getErr := store.GetChannel(agentName)
+		if getErr != nil {
+			t.Errorf("error getting channel %q: %v", agentName, getErr)
+		}
+		if ch == nil {
+			t.Errorf("per-agent channel %q not created", agentName)
+		} else if ch.Type != channel.ChannelTypeDirect {
+			t.Errorf("per-agent channel %q has type %q, expected %q", agentName, ch.Type, channel.ChannelTypeDirect)
 		}
 	}
 }
@@ -428,15 +444,25 @@ func TestCreateDefaultChannels_NoDuplicatesOnRestart(t *testing.T) {
 	_ = w.Close()
 	os.Stdout = oldStdout
 
-	// Read and count channel occurrences
-	channelsFile := filepath.Join(dir, ".bc", "channels.json")
-	data, err := os.ReadFile(channelsFile) //nolint:gosec // test file
+	// Verify channels in SQLite store - should not have duplicates
+	store := channel.NewSQLiteStore(dir)
+	if openErr := store.Open(); openErr != nil {
+		t.Fatalf("failed to open channel store: %v", openErr)
+	}
+	defer func() { _ = store.Close() }()
+
+	// List all channels and count engineer-01 occurrences
+	channels, err := store.ListChannels()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("failed to list channels: %v", err)
 	}
 
-	// Count occurrences of "engineer-01" channel name
-	count := strings.Count(string(data), `"name": "engineer-01"`)
+	count := 0
+	for _, ch := range channels {
+		if ch.Name == "engineer-01" {
+			count++
+		}
+	}
 	if count != 1 {
 		t.Errorf("expected 1 engineer-01 channel, got %d (duplicate channels created)", count)
 	}

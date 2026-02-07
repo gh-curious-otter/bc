@@ -494,14 +494,19 @@ func buildBootstrapPrompt(agentNames []string, items []queue.WorkItem, rootDir s
 // #engineering (manager, tech-leads, engineers), #qa (manager, qa), #all (everyone).
 // Also creates per-agent channels (#agent-name) for direct messaging.
 func createDefaultChannels(rootDir string, techLeadNames, engineerNames, qaNames, allAgents []string) {
-	store := channel.NewStore(rootDir)
-	if err := store.Load(); err != nil {
-		fmt.Printf("  Warning: failed to load channels: %v\n", err)
+	// Use SQLite store for channels (v2)
+	store := channel.NewSQLiteStore(rootDir)
+	if err := store.Open(); err != nil {
+		fmt.Printf("  Warning: failed to open channel store: %v\n", err)
+		return
 	}
+	defer func() { _ = store.Close() }()
 
 	type chanDef struct {
-		name    string
-		members []string
+		name        string
+		description string
+		channelType channel.ChannelType
+		members     []string
 	}
 
 	// Leadership includes tech-leads
@@ -523,40 +528,50 @@ func createDefaultChannels(rootDir string, techLeadNames, engineerNames, qaNames
 	// Preallocate: 5 group channels + 1 per agent
 	channels := make([]chanDef, 0, 5+len(allAgents))
 	channels = append(channels,
-		chanDef{"standup", allAgents},
-		chanDef{"leadership", leadershipMembers},
-		chanDef{"engineering", engineeringMembers},
-		chanDef{"qa", qaMembers},
-		chanDef{"all", allAgents},
+		chanDef{name: "standup", description: "Daily standup channel", channelType: channel.ChannelTypeGroup, members: allAgents},
+		chanDef{name: "leadership", description: "Leadership coordination", channelType: channel.ChannelTypeGroup, members: leadershipMembers},
+		chanDef{name: "engineering", description: "Engineering team channel", channelType: channel.ChannelTypeGroup, members: engineeringMembers},
+		chanDef{name: "qa", description: "QA team channel", channelType: channel.ChannelTypeGroup, members: qaMembers},
+		chanDef{name: "all", description: "Broadcast channel for announcements", channelType: channel.ChannelTypeGroup, members: allAgents},
 	)
 
 	// Per-agent channels for direct messaging
-	// Each agent gets their own channel and is auto-subscribed
+	// Each agent gets their own channel with type "direct"
 	for _, agentName := range allAgents {
-		channels = append(channels, chanDef{agentName, []string{agentName}})
+		channels = append(channels, chanDef{
+			name:        agentName,
+			channelType: channel.ChannelTypeDirect,
+			members:     []string{agentName},
+			description: fmt.Sprintf("Direct channel for %s", agentName),
+		})
 	}
 
 	created := 0
 	for _, ch := range channels {
-		// Create channel if it doesn't already exist
-		if _, exists := store.Get(ch.name); !exists {
-			if _, createErr := store.Create(ch.name); createErr != nil {
-				fmt.Printf("  Warning: failed to create channel #%s: %v\n", ch.name, createErr)
-				continue
+		// Check if channel already exists
+		existing, _ := store.GetChannel(ch.name)
+		if existing != nil {
+			// Channel exists, just ensure members are added
+			for _, member := range ch.members {
+				_ = store.AddMember(ch.name, member)
 			}
-			created++
+			continue
 		}
-		// Add members (skip if already present)
+
+		// Create channel with proper type
+		if _, createErr := store.CreateChannel(ch.name, ch.channelType, ch.description); createErr != nil {
+			fmt.Printf("  Warning: failed to create channel #%s: %v\n", ch.name, createErr)
+			continue
+		}
+		created++
+
+		// Add members
 		for _, member := range ch.members {
 			_ = store.AddMember(ch.name, member)
 		}
 	}
 
 	if created > 0 {
-		if err := store.Save(); err != nil {
-			fmt.Printf("  Warning: failed to save channels: %v\n", err)
-			return
-		}
 		fmt.Printf("Created %d channels (%d group + %d per-agent)\n", created, min(created, 5), max(0, created-5))
 	}
 }
