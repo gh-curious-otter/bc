@@ -1,14 +1,17 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/tmux"
 )
 
 var worktreeCmd = &cobra.Command{
@@ -45,10 +48,31 @@ Also detects orphaned worktree directories that don't belong to any agent.`,
 	RunE: runWorktreeList,
 }
 
+var worktreePruneForce bool
+
+var worktreePruneCmd = &cobra.Command{
+	Use:   "prune",
+	Short: "Clean up orphaned worktrees",
+	Long: `Identifies and removes orphaned worktrees from previous agent sessions.
+
+A worktree is considered orphaned if:
+  - Not associated with a running agent (no active tmux session)
+  - OR its agent is not registered in the workspace
+
+By default, shows what would be pruned (dry-run). Use --force to actually remove.
+
+Examples:
+  bc worktree prune           # Dry-run: show what would be pruned
+  bc worktree prune --force   # Actually prune orphaned worktrees`,
+	RunE: runWorktreePrune,
+}
+
 func init() {
 	rootCmd.AddCommand(worktreeCmd)
 	worktreeCmd.AddCommand(worktreeCheckCmd)
 	worktreeCmd.AddCommand(worktreeListCmd)
+	worktreeCmd.AddCommand(worktreePruneCmd)
+	worktreePruneCmd.Flags().BoolVarP(&worktreePruneForce, "force", "f", false, "Actually remove orphaned worktrees (default is dry-run)")
 }
 
 // getCwd is the function used to get the current working directory.
@@ -222,5 +246,251 @@ func runWorktreeList(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("\nTotal: %d  OK: %d  Missing: %d  Orphaned: %d\n", len(entries), ok, missing, orphaned)
 
+	return nil
+}
+
+// OrphanedWorktree holds information about an orphaned worktree.
+type OrphanedWorktree struct {
+	Name   string `json:"name"`
+	Path   string `json:"path"`
+	Reason string `json:"reason"`
+}
+
+// PruneResult holds the result of a prune operation.
+type PruneResult struct {
+	Orphaned []OrphanedWorktree `json:"orphaned"`
+	Pruned   []string           `json:"pruned"`
+	Errors   []string           `json:"errors,omitempty"`
+	DryRun   bool               `json:"dry_run"`
+}
+
+func runWorktreePrune(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	worktreesDir := filepath.Join(ws.RootDir, ".bc", "worktrees")
+
+	// Load registered agents
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	if err = mgr.LoadState(); err != nil {
+		// Warn but continue - missing state file is fine
+		fmt.Fprintf(os.Stderr, "Warning: failed to load agent state: %v\n", err)
+	}
+
+	// Get list of running tmux sessions
+	tmuxMgr := tmux.NewWorkspaceManager("bc-", ws.RootDir)
+	sessions, err := tmuxMgr.ListSessions()
+	if err != nil {
+		// Warn but continue - tmux might not be running
+		fmt.Fprintf(os.Stderr, "Warning: failed to list tmux sessions: %v\n", err)
+	}
+	runningAgents := make(map[string]bool)
+	for _, s := range sessions {
+		runningAgents[s.Name] = true
+	}
+
+	// Build map of registered agent names
+	agents := mgr.ListAgents()
+	registeredAgents := make(map[string]bool)
+	for _, a := range agents {
+		registeredAgents[a.Name] = true
+	}
+
+	result := PruneResult{
+		DryRun: !worktreePruneForce,
+	}
+
+	// Scan worktrees directory for orphaned worktrees
+	dirEntries, err := os.ReadDir(worktreesDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// No worktrees directory - nothing to prune
+			fmt.Println("No worktrees directory found. Nothing to prune.")
+			return nil
+		}
+		return fmt.Errorf("failed to read worktrees directory: %w", err)
+	}
+
+	for _, d := range dirEntries {
+		if !d.IsDir() {
+			continue
+		}
+
+		name := d.Name()
+		wtPath := filepath.Join(worktreesDir, name)
+
+		// Determine if this worktree is orphaned and why
+		reason := ""
+
+		if !registeredAgents[name] {
+			reason = "not registered as an agent"
+		} else if !runningAgents[name] {
+			// Agent is registered but not running - check if agent is stopped
+			if a := mgr.GetAgent(name); a != nil && a.State == agent.StateStopped {
+				reason = "agent is stopped"
+			}
+		}
+
+		// Check if worktree is empty or has detached HEAD
+		if reason == "" {
+			if isEmpty, _ := isEmptyDir(wtPath); isEmpty {
+				reason = "worktree directory is empty"
+			} else if isDetached, _ := isDetachedHead(wtPath); isDetached {
+				reason = "worktree has detached HEAD with no changes"
+			}
+		}
+
+		if reason != "" {
+			result.Orphaned = append(result.Orphaned, OrphanedWorktree{
+				Name:   name,
+				Path:   wtPath,
+				Reason: reason,
+			})
+		}
+	}
+
+	// Handle output
+	jsonOutput, _ := cmd.Flags().GetBool("json")
+	if jsonOutput {
+		// In dry-run mode, just show orphaned worktrees
+		if !worktreePruneForce {
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(result)
+		}
+	}
+
+	if len(result.Orphaned) == 0 {
+		if !jsonOutput {
+			fmt.Println("No orphaned worktrees found. Nothing to prune.")
+		}
+		// Run git worktree prune anyway to clean up stale entries
+		_ = runGitWorktreePrune(ws.RootDir)
+		return nil
+	}
+
+	// Show what would be/will be pruned
+	if !jsonOutput {
+		if worktreePruneForce {
+			fmt.Println("Pruning orphaned worktrees:")
+		} else {
+			fmt.Println("Orphaned worktrees (dry-run, use --force to remove):")
+		}
+		fmt.Println()
+		fmt.Printf("%-20s %-40s %s\n", "NAME", "PATH", "REASON")
+		for _, o := range result.Orphaned {
+			fmt.Printf("%-20s %-40s %s\n", o.Name, o.Path, o.Reason)
+		}
+		fmt.Println()
+	}
+
+	// Actually prune if --force is set
+	if worktreePruneForce {
+		for _, o := range result.Orphaned {
+			if !jsonOutput {
+				fmt.Printf("Removing %s... ", o.Name)
+			}
+
+			// Try git worktree remove first
+			if err := removeWorktreeGit(ws.RootDir, o.Path); err != nil {
+				// Fall back to removing directory directly
+				if rmErr := os.RemoveAll(o.Path); rmErr != nil {
+					errMsg := fmt.Sprintf("failed to remove %s: %v", o.Name, rmErr)
+					result.Errors = append(result.Errors, errMsg)
+					if !jsonOutput {
+						fmt.Println("FAILED")
+						fmt.Printf("  Error: %v\n", rmErr)
+					}
+					continue
+				}
+			}
+
+			result.Pruned = append(result.Pruned, o.Name)
+			if !jsonOutput {
+				fmt.Println("OK")
+			}
+		}
+
+		// Run git worktree prune to clean up any stale worktree entries
+		if !jsonOutput {
+			fmt.Print("\nRunning git worktree prune... ")
+		}
+		if err := runGitWorktreePrune(ws.RootDir); err != nil {
+			if !jsonOutput {
+				fmt.Println("WARNING")
+				fmt.Printf("  Warning: git worktree prune failed: %v\n", err)
+			}
+		} else if !jsonOutput {
+			fmt.Println("OK")
+		}
+
+		if !jsonOutput {
+			fmt.Printf("\nPruned %d worktree(s)\n", len(result.Pruned))
+		}
+	} else if !jsonOutput {
+		fmt.Printf("Found %d orphaned worktree(s). Use --force to remove.\n", len(result.Orphaned))
+	}
+
+	if jsonOutput && worktreePruneForce {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(result)
+	}
+
+	return nil
+}
+
+// isEmptyDir checks if a directory is empty.
+func isEmptyDir(path string) (bool, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return false, err
+	}
+	return len(entries) == 0, nil
+}
+
+// isDetachedHead checks if a git worktree has a detached HEAD with no uncommitted changes.
+func isDetachedHead(path string) (bool, error) {
+	// Check if HEAD is detached
+	cmd := exec.CommandContext(context.Background(), "git", "-C", path, "symbolic-ref", "-q", "HEAD")
+	if err := cmd.Run(); err == nil {
+		// symbolic-ref succeeded, so HEAD is not detached
+		return false, nil
+	}
+
+	// HEAD is detached - check if there are uncommitted changes
+	cmd = exec.CommandContext(context.Background(), "git", "-C", path, "status", "--porcelain")
+	output, err := cmd.Output()
+	if err != nil {
+		return false, err
+	}
+
+	// If there are changes, don't consider it for pruning
+	if len(output) > 0 {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+// removeWorktreeGit removes a worktree using git worktree remove.
+func removeWorktreeGit(workspace, worktreePath string) error {
+	cmd := exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "remove", "--force", worktreePath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%w: %s", err, string(output))
+	}
+	return nil
+}
+
+// runGitWorktreePrune runs git worktree prune to clean up stale worktree entries.
+func runGitWorktreePrune(workspace string) error {
+	cmd := exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "prune")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%w: %s", err, string(output))
+	}
 	return nil
 }
