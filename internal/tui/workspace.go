@@ -39,6 +39,11 @@ type WorkspaceStats struct {
 	ClosedIssues int
 	EpicsCount   int
 
+	// Queue stats
+	ReadyIssues      int // Issues unblocked and ready for work
+	InProgressIssues int // Issues currently being worked on
+	AssignedIssues   int // Issues assigned to agents
+
 	// Agent stats by state
 	IdleAgents    int
 	WorkingAgents int
@@ -670,6 +675,57 @@ func (m *WorkspaceModel) renderDashboard() string {
 	b.WriteString(m.styles.Muted.Render(totalLine))
 	b.WriteString("\n\n")
 
+	// --- Queue Progress section ---
+	b.WriteString(m.styles.Bold.Render("  QUEUE PROGRESS"))
+	b.WriteString("\n")
+
+	ready := m.stats.ReadyIssues
+	inProgress := m.stats.InProgressIssues
+	assigned := m.stats.AssignedIssues
+	openIssues := m.stats.OpenIssues
+
+	// Progress through open issues
+	if openIssues > 0 {
+		// Progress bar for in-progress vs total open
+		progressFilled := 0
+		if openIssues > 0 {
+			progressFilled = int(float64(barWidth) * float64(inProgress) / float64(openIssues))
+		}
+		progressBar := strings.Repeat("█", progressFilled) + strings.Repeat("░", barWidth-progressFilled)
+		progressPct := float64(inProgress) / float64(openIssues) * 100
+		b.WriteString(fmt.Sprintf("  In Progress: %s %5.1f%% (%d/%d)\n", m.styles.Info.Render(progressBar), progressPct, inProgress, openIssues))
+	}
+
+	queueItems := []struct {
+		label string
+		style string
+		count int
+	}{
+		{"Ready (unblocked)", "ok", ready},
+		{"In Progress", "info", inProgress},
+		{"Assigned", "", assigned},
+		{"Total Open", "", openIssues},
+	}
+
+	for _, q := range queueItems {
+		countBar := ""
+		if openIssues > 0 && q.count > 0 {
+			w := int(float64(barWidth) * float64(q.count) / float64(openIssues))
+			if w == 0 {
+				w = 1
+			}
+			countBar = strings.Repeat("█", w)
+		}
+		line := fmt.Sprintf("  %-18s %3d  %s", q.label, q.count, countBar)
+		if q.style != "" {
+			b.WriteString(m.styles.StatusStyle(q.style).Render(line))
+		} else {
+			b.WriteString(m.styles.Muted.Render(line))
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("\n")
+
 	// --- Per-agent health table ---
 	b.WriteString(m.styles.Bold.Render("  AGENT HEALTH"))
 	b.WriteString("\n")
@@ -800,12 +856,23 @@ func (m *WorkspaceModel) computeStats() {
 			m.stats.EpicsCount++
 		}
 		switch issue.Status {
-		case "open", "pending", "in_progress":
+		case "open", "pending":
 			m.stats.OpenIssues++
+		case "in_progress":
+			m.stats.OpenIssues++
+			m.stats.InProgressIssues++
 		case "closed", "done", "resolved":
 			m.stats.ClosedIssues++
 		}
+		if issue.Assignee != "" {
+			m.stats.AssignedIssues++
+		}
 	}
+
+	// Count ready issues (unblocked and available for work)
+	readyIssues := beads.ReadyIssues(m.info.Entry.Path)
+	m.stats.ReadyIssues = len(readyIssues)
+
 	for _, a := range m.agents {
 		switch a.State {
 		case agent.StateIdle:
