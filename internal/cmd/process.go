@@ -62,19 +62,43 @@ Example:
 
 var processLogsCmd = &cobra.Command{
 	Use:   "logs <name>",
-	Short: "Show process info",
-	Long: `Show information for a process.
+	Short: "View process logs",
+	Long: `View logs for a process.
 
 Example:
-  bc process logs web`,
+  bc process logs web
+  bc process logs web -n 100`,
 	Args: cobra.ExactArgs(1),
 	RunE: runProcessLogs,
 }
 
+var processAttachCmd = &cobra.Command{
+	Use:   "attach <name>",
+	Short: "Attach to a running process",
+	Long: `Attach to a running process to view its output in real-time.
+
+Example:
+  bc process attach web`,
+	Args: cobra.ExactArgs(1),
+	RunE: runProcessAttach,
+}
+
+var processInfoCmd = &cobra.Command{
+	Use:   "info <name>",
+	Short: "Show process details",
+	Long: `Show detailed information about a process.
+
+Example:
+  bc process info web`,
+	Args: cobra.ExactArgs(1),
+	RunE: runProcessInfo,
+}
+
 var (
-	processCommand string
-	processPort    int
-	processWorkDir string
+	processCommand  string
+	processPort     int
+	processWorkDir  string
+	processLogLines int
 )
 
 func init() {
@@ -83,10 +107,14 @@ func init() {
 	processStartCmd.Flags().StringVar(&processWorkDir, "dir", "", "Working directory for the process")
 	_ = processStartCmd.MarkFlagRequired("cmd")
 
+	processLogsCmd.Flags().IntVarP(&processLogLines, "lines", "n", 50, "Number of lines to show")
+
 	processCmd.AddCommand(processStartCmd)
 	processCmd.AddCommand(processListCmd)
 	processCmd.AddCommand(processStopCmd)
 	processCmd.AddCommand(processLogsCmd)
+	processCmd.AddCommand(processAttachCmd)
+	processCmd.AddCommand(processInfoCmd)
 	rootCmd.AddCommand(processCmd)
 }
 
@@ -141,15 +169,28 @@ func runProcessStart(cmd *cobra.Command, args []string) error {
 		workDir, _ = os.Getwd()
 	}
 
-	// Start the process
+	// Create log file
+	logFile, logErr := reg.CreateLogFile(name)
+	if logErr != nil {
+		return fmt.Errorf("failed to create log file: %w", logErr)
+	}
+
+	// Start the process with output captured to log file
 	execCmd := exec.CommandContext(context.Background(), command, cmdArgs...) //nolint:gosec // user-provided command
 	execCmd.Dir = workDir
-	execCmd.Stdout = nil // Detached
-	execCmd.Stderr = nil
+	execCmd.Stdout = logFile
+	execCmd.Stderr = logFile
 
 	if startErr := execCmd.Start(); startErr != nil {
+		_ = logFile.Close()
 		return fmt.Errorf("failed to start process: %w", startErr)
 	}
+
+	// Close log file in background after process exits
+	go func() {
+		_ = execCmd.Wait()
+		_ = logFile.Close()
+	}()
 
 	// Register the process
 	proc := &process.Process{
@@ -157,6 +198,7 @@ func runProcessStart(cmd *cobra.Command, args []string) error {
 		Command: processCommand,
 		Owner:   owner,
 		WorkDir: workDir,
+		LogFile: reg.LogPath(name),
 		PID:     execCmd.Process.Pid,
 		Port:    processPort,
 	}
@@ -258,6 +300,34 @@ func runProcessLogs(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("process %q not found", name)
 	}
 
+	// Read logs
+	logs, readErr := reg.ReadLogs(name, processLogLines)
+	if readErr != nil {
+		return fmt.Errorf("failed to read logs: %w", readErr)
+	}
+
+	if logs == "" {
+		fmt.Printf("No logs available for process %q\n", name)
+		return nil
+	}
+
+	fmt.Print(logs)
+	return nil
+}
+
+func runProcessInfo(cmd *cobra.Command, args []string) error {
+	name := args[0]
+
+	reg, err := getProcessRegistry()
+	if err != nil {
+		return err
+	}
+
+	proc := reg.Get(name)
+	if proc == nil {
+		return fmt.Errorf("process %q not found", name)
+	}
+
 	fmt.Printf("Process: %s\n", proc.Name)
 	fmt.Printf("Command: %s\n", proc.Command)
 	fmt.Printf("Status: %s\n", statusStr(proc.Running))
@@ -271,9 +341,47 @@ func runProcessLogs(cmd *cobra.Command, args []string) error {
 	if proc.WorkDir != "" {
 		fmt.Printf("WorkDir: %s\n", proc.WorkDir)
 	}
+	if proc.LogFile != "" {
+		fmt.Printf("LogFile: %s\n", proc.LogFile)
+	}
 	fmt.Printf("Started: %s\n", proc.StartedAt.Format(time.RFC3339))
+	return nil
+}
 
-	fmt.Println("\n(Full log capture not yet implemented)")
+func runProcessAttach(cmd *cobra.Command, args []string) error {
+	name := args[0]
+
+	reg, err := getProcessRegistry()
+	if err != nil {
+		return err
+	}
+
+	proc := reg.Get(name)
+	if proc == nil {
+		return fmt.Errorf("process %q not found", name)
+	}
+
+	if !proc.Running {
+		return fmt.Errorf("process %q is not running", name)
+	}
+
+	// Print process info header
+	fmt.Printf("=== Attached to %s (PID %d) ===\n", proc.Name, proc.PID)
+	fmt.Printf("Command: %s\n", proc.Command)
+	fmt.Printf("Log file: %s\n", reg.LogPath(name))
+	fmt.Println("---")
+
+	// Show recent logs
+	logs, readErr := reg.ReadLogs(name, 50)
+	if readErr != nil {
+		return fmt.Errorf("failed to read logs: %w", readErr)
+	}
+
+	if logs != "" {
+		fmt.Print(logs)
+	}
+
+	fmt.Println("\n(Detached - process continues in background)")
 	return nil
 }
 
