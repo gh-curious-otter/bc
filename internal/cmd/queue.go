@@ -15,48 +15,50 @@ import (
 )
 
 var queueCmd = &cobra.Command{
-	Use:   "queue [item-id]",
-	Short: "Manage the work queue",
-	Long: `List and manage work items in the queue.
+	Use:        "queue [item-id]",
+	Short:      "[DEPRECATED] Manage the work queue",
+	Deprecated: "Work is now tracked via GitHub Issues. Use 'gh issue list' instead.",
+	Long: `[DEPRECATED] This command is deprecated. Work is now tracked via GitHub Issues.
 
-Example:
-  bc queue                            # list all items
-  bc queue work-001                   # show full details for work-001
-  bc queue --detail work-001          # same as above
-  bc queue --json                     # list as JSON
-  bc queue add "Fix auth bug"         # add work item
-  bc queue assign work-001 worker-01  # assign to worker
-  bc queue load                       # populate from beads issues`,
+Use the following commands instead:
+  gh issue list --state open          # list all open issues
+  gh issue view <number>              # show issue details
+  gh issue create --title "<title>"   # create new issue
+  gh issue edit <number> --add-assignee <user>  # assign issue`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runQueueList,
 }
 
 var queueAddCmd = &cobra.Command{
-	Use:   "add <title>",
-	Short: "Add a work item to the queue",
-	Args:  cobra.ExactArgs(1),
-	RunE:  runQueueAdd,
+	Use:        "add <title>",
+	Short:      "[DEPRECATED] Add a work item to the queue",
+	Deprecated: "Use 'gh issue create --title \"<title>\"' instead.",
+	Args:       cobra.ExactArgs(1),
+	RunE:       runQueueAdd,
 }
 
 var queueAssignCmd = &cobra.Command{
-	Use:   "assign <item-id> <agent>",
-	Short: "Assign a work item to an agent",
-	Args:  cobra.ExactArgs(2),
-	RunE:  runQueueAssign,
+	Use:        "assign <item-id> <agent>",
+	Short:      "[DEPRECATED] Assign a work item to an agent",
+	Deprecated: "Use 'gh issue edit <number> --add-assignee <user>' instead.",
+	Args:       cobra.ExactArgs(2),
+	RunE:       runQueueAssign,
 }
 
 var queueLoadCmd = &cobra.Command{
-	Use:   "load",
-	Short: "Populate queue from beads issues",
-	RunE:  runQueueLoad,
+	Use:        "load",
+	Short:      "[DEPRECATED] Populate queue from beads issues",
+	Deprecated: "Work is tracked via GitHub Issues. This command has no effect.",
+	RunE:       runQueueLoad,
 }
 
 var queueCompleteCmd = &cobra.Command{
-	Use:   "complete <item-id>",
-	Short: "Mark a work item as done (e.g. when work was done outside agent session)",
-	Long:  `Marks the item done, saves the queue, and closes the linked beads issue if any.`,
-	Args:  cobra.ExactArgs(1),
-	RunE:  runQueueComplete,
+	Use:        "complete <item-id>",
+	Short:      "[DEPRECATED] Mark a work item as done",
+	Deprecated: "Use 'gh issue close <number>' instead.",
+	Long:       `[DEPRECATED] This command is deprecated. Use 'gh issue close <number>' instead.`,
+	Args:       cobra.ExactArgs(1),
+	RunE:       runQueueComplete,
 }
 
 var (
