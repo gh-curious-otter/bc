@@ -358,3 +358,214 @@ func TestAgentStopFlags(t *testing.T) {
 		t.Error("expected --force flag")
 	}
 }
+
+// --- Agent Create Tool Flag Tests ---
+
+func TestAgentCreateToolFlag(t *testing.T) {
+	flags := agentCreateCmd.Flags()
+
+	// Verify --tool flag exists
+	toolFlag := flags.Lookup("tool")
+	if toolFlag == nil {
+		t.Fatal("expected --tool flag")
+	}
+
+	// Default value should be empty
+	if toolFlag.DefValue != "" {
+		t.Errorf("expected empty default value for --tool, got %q", toolFlag.DefValue)
+	}
+}
+
+func TestAvailableTools(t *testing.T) {
+	tools := agent.ListAvailableTools()
+
+	// Should return a list (may be empty if no tools configured in test)
+	if tools == nil {
+		t.Error("ListAvailableTools should not return nil")
+	}
+}
+
+// --- Parent Hierarchy Tests ---
+
+func TestCanCreateRole_ProductManagerCanCreateManager(t *testing.T) {
+	if !agent.CanCreateRole(agent.RoleProductManager, agent.RoleManager) {
+		t.Error("product-manager should be able to create manager")
+	}
+}
+
+func TestCanCreateRole_QACannotCreateAny(t *testing.T) {
+	roles := []agent.Role{
+		agent.RoleEngineer,
+		agent.RoleQA,
+		agent.RoleManager,
+		agent.RoleTechLead,
+	}
+
+	for _, role := range roles {
+		if agent.CanCreateRole(agent.RoleQA, role) {
+			t.Errorf("qa should not be able to create %s", role)
+		}
+	}
+}
+
+func TestCanCreateRole_RootCanCreateAll(t *testing.T) {
+	roles := []agent.Role{
+		agent.RoleProductManager,
+		agent.RoleManager,
+		agent.RoleTechLead,
+		agent.RoleEngineer,
+		agent.RoleQA,
+	}
+
+	for _, role := range roles {
+		if !agent.CanCreateRole(agent.RoleRoot, role) {
+			t.Errorf("root should be able to create %s", role)
+		}
+	}
+}
+
+// --- Role Capability Tests ---
+
+func TestHasCapability_EngineerCanImplement(t *testing.T) {
+	if !agent.HasCapability(agent.RoleEngineer, agent.CapImplementTasks) {
+		t.Error("engineer should have implement_tasks capability")
+	}
+}
+
+func TestHasCapability_EngineerCannotCreateAgents(t *testing.T) {
+	if agent.HasCapability(agent.RoleEngineer, agent.CapCreateAgents) {
+		t.Error("engineer should not have create_agents capability")
+	}
+}
+
+func TestHasCapability_ManagerCanAssignWork(t *testing.T) {
+	if !agent.HasCapability(agent.RoleManager, agent.CapAssignWork) {
+		t.Error("manager should have assign_work capability")
+	}
+}
+
+func TestHasCapability_QACanTestWork(t *testing.T) {
+	if !agent.HasCapability(agent.RoleQA, agent.CapTestWork) {
+		t.Error("qa should have test_work capability")
+	}
+}
+
+// --- State Transition Tests ---
+
+func TestValidateTransition_IdleToWorking(t *testing.T) {
+	err := agent.ValidateTransition(agent.StateIdle, agent.StateWorking)
+	if err != nil {
+		t.Errorf("idle->working should be valid: %v", err)
+	}
+}
+
+func TestValidateTransition_WorkingToIdle(t *testing.T) {
+	err := agent.ValidateTransition(agent.StateWorking, agent.StateIdle)
+	if err != nil {
+		t.Errorf("working->idle should be valid: %v", err)
+	}
+}
+
+func TestValidateTransition_StoppedToStarting(t *testing.T) {
+	err := agent.ValidateTransition(agent.StateStopped, agent.StateStarting)
+	if err != nil {
+		t.Errorf("stopped->starting should be valid: %v", err)
+	}
+}
+
+func TestValidateTransition_InvalidTransition(t *testing.T) {
+	// Can't go from starting directly to done
+	err := agent.ValidateTransition(agent.StateStarting, agent.StateDone)
+	if err == nil {
+		t.Error("starting->done should be invalid")
+	}
+}
+
+// --- Role Level Tests ---
+
+func TestRoleLevel_Hierarchy(t *testing.T) {
+	// Root is above all
+	if agent.RoleLevel(agent.RoleRoot) >= agent.RoleLevel(agent.RoleProductManager) {
+		t.Error("root should be above product-manager")
+	}
+
+	// Product manager is above manager
+	if agent.RoleLevel(agent.RoleProductManager) >= agent.RoleLevel(agent.RoleManager) {
+		t.Error("product-manager should be above or equal to manager")
+	}
+
+	// Engineer is below tech-lead
+	if agent.RoleLevel(agent.RoleEngineer) <= agent.RoleLevel(agent.RoleTechLead) {
+		t.Error("engineer should be below tech-lead")
+	}
+}
+
+// --- Manager Tests ---
+
+func TestManagerAgentCount(t *testing.T) {
+	dir := t.TempDir()
+	agentsDir := filepath.Join(dir, "agents")
+	if err := os.MkdirAll(agentsDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	mgr := agent.NewManager(agentsDir)
+	if count := mgr.AgentCount(); count != 0 {
+		t.Errorf("expected 0 agents, got %d", count)
+	}
+}
+
+func TestManagerRunningCount(t *testing.T) {
+	dir := t.TempDir()
+	agentsDir := filepath.Join(dir, "agents")
+	if err := os.MkdirAll(agentsDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	mgr := agent.NewManager(agentsDir)
+	if count := mgr.RunningCount(); count != 0 {
+		t.Errorf("expected 0 running agents, got %d", count)
+	}
+}
+
+func TestManagerGetNonExistentAgent(t *testing.T) {
+	dir := t.TempDir()
+	agentsDir := filepath.Join(dir, "agents")
+	if err := os.MkdirAll(agentsDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	mgr := agent.NewManager(agentsDir)
+	a := mgr.GetAgent("does-not-exist")
+	if a != nil {
+		t.Error("expected nil for non-existent agent")
+	}
+}
+
+func TestManagerListAgentsEmpty(t *testing.T) {
+	dir := t.TempDir()
+	agentsDir := filepath.Join(dir, "agents")
+	if err := os.MkdirAll(agentsDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	mgr := agent.NewManager(agentsDir)
+	agents := mgr.ListAgents()
+	if len(agents) != 0 {
+		t.Errorf("expected empty list, got %d agents", len(agents))
+	}
+}
+
+func TestManagerListByRoleEmpty(t *testing.T) {
+	dir := t.TempDir()
+	agentsDir := filepath.Join(dir, "agents")
+	if err := os.MkdirAll(agentsDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	mgr := agent.NewManager(agentsDir)
+	agents := mgr.ListByRole(agent.RoleEngineer)
+	if len(agents) != 0 {
+		t.Errorf("expected empty list for engineer role, got %d agents", len(agents))
+	}
+}
