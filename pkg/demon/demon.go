@@ -14,14 +14,17 @@ import (
 
 // Demon represents a scheduled task.
 type Demon struct {
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	LastRun   time.Time `json:"last_run,omitempty"`
-	NextRun   time.Time `json:"next_run,omitempty"`
-	Name      string    `json:"name"`
-	Schedule  string    `json:"schedule"` // Cron expression (5-field)
-	Command   string    `json:"command"`  // Command to execute
-	Enabled   bool      `json:"enabled"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	LastRun     time.Time `json:"last_run,omitempty"`
+	NextRun     time.Time `json:"next_run,omitempty"`
+	Name        string    `json:"name"`
+	Schedule    string    `json:"schedule"` // Cron expression (5-field)
+	Command     string    `json:"command"`  // Command to execute
+	Owner       string    `json:"owner,omitempty"`
+	Description string    `json:"description,omitempty"`
+	RunCount    int       `json:"run_count,omitempty"`
+	Enabled     bool      `json:"enabled"`
 }
 
 // CronSchedule represents a parsed cron expression.
@@ -146,6 +149,98 @@ func (s *Store) Delete(name string) error {
 func (s *Store) Exists(name string) bool {
 	_, err := os.Stat(s.demonPath(name))
 	return err == nil
+}
+
+// Update modifies an existing demon using the provided update function.
+func (s *Store) Update(name string, updateFn func(*Demon)) error {
+	demon, err := s.Get(name)
+	if err != nil {
+		return err
+	}
+	if demon == nil {
+		return fmt.Errorf("demon %q not found", name)
+	}
+
+	updateFn(demon)
+	demon.UpdatedAt = time.Now().UTC()
+
+	return s.save(demon)
+}
+
+// ListByOwner returns all demons owned by a specific agent.
+func (s *Store) ListByOwner(owner string) ([]*Demon, error) {
+	demons, err := s.List()
+	if err != nil {
+		return nil, err
+	}
+
+	var result []*Demon
+	for _, d := range demons {
+		if d.Owner == owner {
+			result = append(result, d)
+		}
+	}
+
+	return result, nil
+}
+
+// ListEnabled returns all enabled demons.
+func (s *Store) ListEnabled() ([]*Demon, error) {
+	demons, err := s.List()
+	if err != nil {
+		return nil, err
+	}
+
+	var result []*Demon
+	for _, d := range demons {
+		if d.Enabled {
+			result = append(result, d)
+		}
+	}
+
+	return result, nil
+}
+
+// Enable enables a demon.
+func (s *Store) Enable(name string) error {
+	return s.Update(name, func(d *Demon) {
+		d.Enabled = true
+	})
+}
+
+// Disable disables a demon.
+func (s *Store) Disable(name string) error {
+	return s.Update(name, func(d *Demon) {
+		d.Enabled = false
+	})
+}
+
+// RecordRun updates the demon after a successful run.
+func (s *Store) RecordRun(name string) error {
+	return s.Update(name, func(d *Demon) {
+		now := time.Now().UTC()
+		d.LastRun = now
+		d.RunCount++
+
+		// Calculate next run time
+		if cron, err := ParseCron(d.Schedule); err == nil {
+			d.NextRun = cron.Next(now)
+		}
+	})
+}
+
+// SetOwner sets the owner of a demon.
+func (s *Store) SetOwner(name, owner string) error {
+	return s.Update(name, func(d *Demon) {
+		d.Owner = owner
+	})
+}
+
+// SetDescription sets the description of a demon.
+func (s *Store) SetDescription(name, description string) error {
+	return s.Update(name, func(d *Demon) {
+		d.Description = description
+	})
 }
 
 func (s *Store) save(demon *Demon) error {
