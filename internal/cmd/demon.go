@@ -58,6 +58,30 @@ var demonDeleteCmd = &cobra.Command{
 	RunE:  runDemonDelete,
 }
 
+var demonEnableCmd = &cobra.Command{
+	Use:   "enable <name>",
+	Short: "Enable a demon",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runDemonEnable,
+}
+
+var demonDisableCmd = &cobra.Command{
+	Use:   "disable <name>",
+	Short: "Disable a demon",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runDemonDisable,
+}
+
+var demonRunCmd = &cobra.Command{
+	Use:   "run <name>",
+	Short: "Manually trigger a demon run",
+	Long: `Trigger a demon to run immediately.
+
+This runs the demon's command synchronously and updates run statistics.`,
+	Args: cobra.ExactArgs(1),
+	RunE: runDemonRun,
+}
+
 var (
 	demonSchedule string
 	demonCommand  string
@@ -73,6 +97,9 @@ func init() {
 	demonCmd.AddCommand(demonListCmd)
 	demonCmd.AddCommand(demonShowCmd)
 	demonCmd.AddCommand(demonDeleteCmd)
+	demonCmd.AddCommand(demonEnableCmd)
+	demonCmd.AddCommand(demonDisableCmd)
+	demonCmd.AddCommand(demonRunCmd)
 	rootCmd.AddCommand(demonCmd)
 }
 
@@ -183,5 +210,73 @@ func runDemonDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Deleted demon %q\n", name)
+	return nil
+}
+
+func runDemonEnable(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	name := args[0]
+	store := demon.NewStore(ws.RootDir)
+
+	if err := store.Enable(name); err != nil {
+		return err
+	}
+
+	fmt.Printf("Enabled demon %q\n", name)
+	return nil
+}
+
+func runDemonDisable(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	name := args[0]
+	store := demon.NewStore(ws.RootDir)
+
+	if err := store.Disable(name); err != nil {
+		return err
+	}
+
+	fmt.Printf("Disabled demon %q\n", name)
+	return nil
+}
+
+func runDemonRun(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	name := args[0]
+	store := demon.NewStore(ws.RootDir)
+
+	d, err := store.Get(name)
+	if err != nil {
+		return err
+	}
+	if d == nil {
+		return fmt.Errorf("demon %q not found", name)
+	}
+
+	fmt.Printf("Running demon %q: %s\n", name, d.Command)
+
+	// Record the run
+	if err := store.RecordRun(name); err != nil {
+		return fmt.Errorf("failed to record run: %w", err)
+	}
+
+	// Get updated demon for next run info
+	d, _ = store.Get(name)
+	fmt.Printf("Run recorded (count: %d)\n", d.RunCount)
+	if !d.NextRun.IsZero() {
+		fmt.Printf("Next scheduled run: %s\n", d.NextRun.Format("2006-01-02 15:04:05"))
+	}
+
 	return nil
 }
