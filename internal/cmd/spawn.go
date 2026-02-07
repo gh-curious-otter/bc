@@ -13,8 +13,9 @@ import (
 )
 
 var spawnCmd = &cobra.Command{
-	Use:   "spawn <name>",
-	Short: "Spawn a new worker agent",
+	Use:        "spawn <name>",
+	Short:      "Spawn a new worker agent (deprecated: use 'bc agent create')",
+	Deprecated: "use 'bc agent create' instead",
 	Long: `Spawn a new worker agent dynamically.
 
 This allows coordinators and managers to create new workers on-demand,
