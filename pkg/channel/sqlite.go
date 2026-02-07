@@ -13,18 +13,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// MessageType represents the type of a channel message.
-type MessageType string
-
-const (
-	MessageTypeText     MessageType = "text"
-	MessageTypeTask     MessageType = "task"
-	MessageTypeReview   MessageType = "review"
-	MessageTypeApproval MessageType = "approval"
-	MessageTypeMerge    MessageType = "merge"
-	MessageTypeStatus   MessageType = "status"
-)
-
 // ChannelType represents the type of a channel.
 type ChannelType string
 
@@ -54,8 +42,8 @@ type ChannelInfo struct {
 	ID          int64       `json:"id"`
 }
 
-// Mention represents an @mention in a message.
-type Mention struct {
+// MentionRecord represents a tracked @mention in the database.
+type MentionRecord struct {
 	AgentID      string `json:"agent_id"`
 	ID           int64  `json:"id"`
 	MessageID    int64  `json:"message_id"`
@@ -414,7 +402,7 @@ func (s *SQLiteStore) AddMessage(channelName, sender, content string, msgType Me
 	}
 
 	if msgType == "" {
-		msgType = MessageTypeText
+		msgType = TypeText
 	}
 
 	var metadataPtr *string
@@ -605,7 +593,7 @@ func (s *SQLiteStore) AddMention(messageID int64, agentID string) error {
 }
 
 // GetUnreadMentions returns unacknowledged mentions for an agent.
-func (s *SQLiteStore) GetUnreadMentions(agentID string) ([]*Mention, error) {
+func (s *SQLiteStore) GetUnreadMentions(agentID string) ([]*MentionRecord, error) {
 	ctx := context.Background()
 	rows, err := s.db.QueryContext(ctx,
 		"SELECT id, message_id, agent_id, acknowledged FROM mentions WHERE agent_id = ? AND acknowledged = 0",
@@ -616,9 +604,9 @@ func (s *SQLiteStore) GetUnreadMentions(agentID string) ([]*Mention, error) {
 	}
 	defer func() { _ = rows.Close() }()
 
-	var mentions []*Mention
+	var mentions []*MentionRecord
 	for rows.Next() {
-		var m Mention
+		var m MentionRecord
 		var ack int
 		if err := rows.Scan(&m.ID, &m.MessageID, &m.AgentID, &ack); err != nil {
 			return nil, err
@@ -695,7 +683,7 @@ func (s *SQLiteStore) MigrateFromJSON(jsonPath string) error {
 		for _, entry := range ch.History {
 			if _, err := tx.ExecContext(ctx,
 				"INSERT INTO messages (channel_id, sender, content, type, created_at) VALUES (?, ?, ?, ?, ?)",
-				channelID, entry.Sender, entry.Message, MessageTypeText, entry.Time.Format(time.RFC3339),
+				channelID, entry.Sender, entry.Message, TypeText, entry.Time.Format(time.RFC3339),
 			); err != nil {
 				return fmt.Errorf("failed to insert message: %w", err)
 			}
