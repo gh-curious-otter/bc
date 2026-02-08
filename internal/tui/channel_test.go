@@ -569,6 +569,31 @@ func TestChannelView_OnlineIndicator(t *testing.T) {
 	}
 }
 
+func TestChannelView_MemberListVisible(t *testing.T) {
+	m := newTestChannelModel()
+
+	output := m.View()
+	if !strings.Contains(output, "Members:") {
+		t.Errorf("expected 'Members:' label in channel summary, got: %s", output)
+	}
+	// Member names from newTestChannelModel should appear
+	for _, name := range []string{"coordinator", "eng-01", "eng-02"} {
+		if !strings.Contains(output, name) {
+			t.Errorf("expected member %q in view", name)
+		}
+	}
+}
+
+func TestChannelView_MemberListEmpty(t *testing.T) {
+	m := newTestChannelModel()
+	m.channel.Members = nil
+
+	output := m.View()
+	if !strings.Contains(output, "Members:") {
+		t.Errorf("expected 'Members:' label even with no members, got: %s", output)
+	}
+}
+
 func TestChannelView_QuickActions(t *testing.T) {
 	m := newTestChannelModel()
 
