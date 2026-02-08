@@ -708,3 +708,52 @@ func TestDescriptionPersistence(t *testing.T) {
 		t.Errorf("Description after reload = %q, want %q", ch.Description, "Persisted description")
 	}
 }
+
+// TestOpenStoreUsesSQLiteWhenDbExists verifies that OpenStore uses SQLite when .bc/channels.db exists,
+// so CLI/TUI see the same channels as bc up (part of #341/#340).
+func TestOpenStoreUsesSQLiteWhenDbExists(t *testing.T) {
+	dir := t.TempDir()
+	bcDir := filepath.Join(dir, ".bc")
+	if err := os.MkdirAll(bcDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	// Create channels.db via SQLiteStore (as bc up does)
+	sqlStore := NewSQLiteStore(dir)
+	if err := sqlStore.Open(); err != nil {
+		t.Fatalf("Open SQLite: %v", err)
+	}
+	if _, err := sqlStore.CreateChannel("standup", ChannelTypeGroup, "Daily standup"); err != nil {
+		t.Fatalf("CreateChannel: %v", err)
+	}
+	_ = sqlStore.AddMember("standup", "engineer-01")
+	_ = sqlStore.Close()
+
+	// OpenStore should use SQLite and see the channel
+	store, err := OpenStore(dir)
+	if err != nil {
+		t.Fatalf("OpenStore: %v", err)
+	}
+	if err := store.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	list := store.List()
+	if len(list) == 0 {
+		t.Fatal("OpenStore: expected at least one channel (standup), got none")
+	}
+	var found bool
+	for _, ch := range list {
+		if ch.Name == "standup" {
+			found = true
+			if ch.Description != "Daily standup" {
+				t.Errorf("standup Description = %q, want Daily standup", ch.Description)
+			}
+			if len(ch.Members) < 1 {
+				t.Error("standup should have engineer-01 as member")
+			}
+			break
+		}
+	}
+	if !found {
+		t.Errorf("OpenStore: channel list %v missing standup", list)
+	}
+}
