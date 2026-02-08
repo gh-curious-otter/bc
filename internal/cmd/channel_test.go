@@ -340,44 +340,6 @@ func TestChannelDelete_RequiresArg(t *testing.T) {
 	}
 }
 
-// --- Command Structure Tests ---
-
-func TestChannelCommandStructure(t *testing.T) {
-	subcommands := channelCmd.Commands()
-
-	expectedCmds := map[string]bool{
-		"list":    false,
-		"create":  false,
-		"delete":  false,
-		"add":     false,
-		"remove":  false,
-		"send":    false,
-		"join":    false,
-		"leave":   false,
-		"history": false,
-	}
-
-	for _, cmd := range subcommands {
-		if _, ok := expectedCmds[cmd.Name()]; ok {
-			expectedCmds[cmd.Name()] = true
-		}
-	}
-
-	for name, found := range expectedCmds {
-		if !found {
-			t.Errorf("expected subcommand %q not found", name)
-		}
-	}
-}
-
-func TestChannelHistoryNoFlags(t *testing.T) {
-	// Verify history command exists and has no special flags
-	flags := channelHistoryCmd.Flags()
-
-	// History command currently has no flags
-	if flags.Lookup("limit") != nil {
-		t.Log("--limit flag is available for history")
-	}
-}
+// Note: TestChannelCommandStructure and TestChannelListFlags are in channel_e2e_test.go
 
 // seedAgents helper is defined in cmd_integration_test.go
