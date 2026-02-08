@@ -293,3 +293,51 @@ func TestUpCmd_DefaultValues(t *testing.T) {
 		t.Errorf("workers default: got %q, want %q", workersFlag.DefValue, "0")
 	}
 }
+
+// --- min/max helper tests ---
+
+func TestMin(t *testing.T) {
+	tests := []struct {
+		name     string
+		a, b     int
+		expected int
+	}{
+		{"a smaller", 1, 5, 1},
+		{"b smaller", 5, 1, 1},
+		{"equal", 3, 3, 3},
+		{"negative a smaller", -5, -1, -5},
+		{"zero and positive", 0, 5, 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := min(tt.a, tt.b)
+			if got != tt.expected {
+				t.Errorf("min(%d, %d) = %d, want %d", tt.a, tt.b, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestMax(t *testing.T) {
+	tests := []struct {
+		name     string
+		a, b     int
+		expected int
+	}{
+		{"a larger", 5, 1, 5},
+		{"b larger", 1, 5, 5},
+		{"equal", 3, 3, 3},
+		{"negative b larger", -5, -1, -1},
+		{"zero and positive", 0, 5, 5},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := max(tt.a, tt.b)
+			if got != tt.expected {
+				t.Errorf("max(%d, %d) = %d, want %d", tt.a, tt.b, got, tt.expected)
+			}
+		})
+	}
+}
