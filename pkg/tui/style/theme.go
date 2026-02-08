@@ -281,10 +281,11 @@ func NewStyles(theme Theme) Styles {
 		Reaction: lipgloss.NewStyle().
 			Foreground(theme.Muted),
 
-		// Message bubble with subtle background tint (not heavy borders)
+		// Message bubble: subtle background, left margin for separation, padding (#304)
 		MessageBubble: lipgloss.NewStyle().
 			Background(theme.HeaderBg).
-			Padding(0, 1),
+			Padding(0, 2).
+			MarginLeft(1),
 	}
 }
 

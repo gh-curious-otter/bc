@@ -678,6 +678,8 @@ func (m *ChannelModel) View() string {
 		var lastDate time.Time
 		visibleHistory := m.channel.History[start:end]
 		for i, entry := range visibleHistory {
+			selected := i == m.cursor
+
 			// Add date separator if this is a new day
 			if i == 0 || !isSameDay(entry.Time, lastDate) {
 				if i > 0 {
@@ -710,10 +712,12 @@ func (m *ChannelModel) View() string {
 					b.WriteString("\n")
 				}
 
-				// Sender and timestamp header
+				// Sender and timestamp header; highlight when selected (#304)
 				relTime := formatRelativeTime(entry.Time)
 				b.WriteString("  ")
-
+				if selected {
+					b.WriteString(m.styles.Selected.Render("▌ "))
+				}
 				// Add message type icon if not a regular text message
 				icon := m.styles.MessageTypeIcon(msgTypeStr)
 				if icon != "" {
@@ -736,8 +740,12 @@ func (m *ChannelModel) View() string {
 				b.WriteString("\n")
 			}
 
-			// Message content with subtle background — wrap long lines with highlighting
+			// Message content with subtle background bubble; selected state for UX (#304)
 			msgStyle := m.styles.MessageTypeStyle(msgTypeStr)
+			bubbleStyle := m.styles.MessageBubble.Width(msgWidth).Inherit(msgStyle)
+			if selected {
+				bubbleStyle = bubbleStyle.Inherit(m.styles.Selected)
+			}
 			lines := wrapText(entry.Message, msgWidth-4)
 			var content strings.Builder
 			for j, line := range lines {
@@ -748,8 +756,7 @@ func (m *ChannelModel) View() string {
 				content.WriteString(highlightedLine)
 			}
 
-			// Render message with subtle background bubble
-			bubble := m.styles.MessageBubble.Width(msgWidth).Inherit(msgStyle).Render(content.String())
+			bubble := bubbleStyle.Render(content.String())
 			for _, line := range strings.Split(bubble, "\n") {
 				b.WriteString("  ")
 				b.WriteString(line)
