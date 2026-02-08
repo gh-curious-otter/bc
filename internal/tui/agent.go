@@ -32,20 +32,20 @@ type AgentModel struct {
 	peekActive      bool
 	sendMode        bool
 	hasMemory       bool
+	// Lazy-loaded: recent activity and memory loaded on first View (#324).
+	heavyDataLoaded bool
 }
 
 // NewAgentModel creates an agent detail view.
 // wsPath is the workspace root path for loading event data.
+// Heavy data (recent activity, memory) is deferred until first View (#324).
 func NewAgentModel(a *agent.Agent, mgr *agent.Manager, wsPath string, s style.Styles) *AgentModel {
-	m := &AgentModel{
+	return &AgentModel{
 		agent:   a,
 		manager: mgr,
 		styles:  s,
 		wsPath:  wsPath,
 	}
-	m.loadRecentActivity()
-	m.loadMemoryInfo()
-	return m
 }
 
 // HandleKey processes a key event and returns an action for the parent.
@@ -187,7 +187,19 @@ func (m *AgentModel) loadRecentActivity() {
 }
 
 // View renders the agent detail screen.
+// ensureHeavyDataLoaded loads recent activity and memory on first paint (#324).
+func (m *AgentModel) ensureHeavyDataLoaded() {
+	if m.heavyDataLoaded {
+		return
+	}
+	m.loadRecentActivity()
+	m.loadMemoryInfo()
+	m.heavyDataLoaded = true
+}
+
 func (m *AgentModel) View() string {
+	m.ensureHeavyDataLoaded()
+
 	var b strings.Builder
 
 	b.WriteString(m.styles.Title.Render(m.agent.Name))

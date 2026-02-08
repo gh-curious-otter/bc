@@ -43,6 +43,7 @@ func BenchmarkWorkspaceView_Agents(b *testing.B) {
 		{Name: "eng-03", State: agent.StateStopped},
 	}
 	m.agentsLoaded = true
+	m.agentStatsLoaded = true
 	m.computeStats()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -89,6 +90,7 @@ func BenchmarkWorkspaceView_Queue(b *testing.B) {
 		{ID: "bd-2", Title: "Task two", Status: "in_progress", Assignee: "eng-01", Type: "work"},
 	}
 	m.filteredQueue = m.queueItems
+	m.queueLoaded = true
 	m.computeStats()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -108,6 +110,10 @@ func BenchmarkWorkspaceView_Dashboard(b *testing.B) {
 		{Type: events.WorkCompleted, Agent: "engineer-01", Message: "Done"},
 	}
 	m.issuesLoaded = true
+	m.channelsLoaded = true
+	m.queueLoaded = true
+	m.agentStatsLoaded = true
+	m.pkgStatsLoaded = true
 	m.computeStats()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -123,6 +129,8 @@ func BenchmarkWorkspaceView_Stats(b *testing.B) {
 		{Name: "eng-02", State: agent.StateIdle},
 	}
 	m.agentsLoaded = true
+	m.agentStatsLoaded = true
+	m.pkgStatsLoaded = true
 	m.computeStats()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

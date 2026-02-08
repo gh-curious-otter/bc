@@ -109,13 +109,18 @@ type WorkspaceModel struct {
 	tab          Tab
 	queueFilter  QueueFilter
 
-	// Loaded flags
-	agentsLoaded   bool
-	issuesLoaded   bool
-	channelsLoaded bool
+	// Loaded flags (lazy-load per tab / on focus; see ensureTabDataLoaded)
+	agentsLoaded     bool
+	issuesLoaded     bool
+	channelsLoaded   bool
+	queueLoaded      bool
+	agentStatsLoaded bool
+	pkgStatsLoaded   bool
 }
 
 // NewWorkspaceModel creates a workspace detail view.
+// Heavy data (issues, channels, queue, events, stats) is deferred until the user
+// focuses the relevant tab; see ensureTabDataLoaded (epic #322 / #324).
 func NewWorkspaceModel(info WorkspaceInfo, s style.Styles) *WorkspaceModel {
 	m := &WorkspaceModel{
 		info:   info,
@@ -123,7 +128,7 @@ func NewWorkspaceModel(info WorkspaceInfo, s style.Styles) *WorkspaceModel {
 		tab:    TabAgents,
 	}
 
-	// Load agent data
+	// Only load agent data so the Agents tab can render immediately.
 	m.manager = agent.NewWorkspaceManager(
 		info.Entry.Path+"/.bc/agents",
 		info.Entry.Path,
@@ -133,28 +138,8 @@ func NewWorkspaceModel(info WorkspaceInfo, s style.Styles) *WorkspaceModel {
 	m.agents = m.manager.ListAgents()
 	m.agentsLoaded = true
 
-	// Load beads issues
-	m.issues, m.issuesErr = beads.ListIssues(info.Entry.Path)
-	m.issuesLoaded = true
-
-	// Load channels
-	m.loadChannels()
-
-	// Load per-agent stats from pkg/stats
-	m.loadAgentStats()
-
-	// Load per-agent memory info
-	m.loadMemoryInfo()
-
-	// Load queue data
-	m.loadQueue()
-
-	// Load recent events for activity feed
-	m.loadRecentEvents()
-
-	// Compute dashboard stats
-	m.computeStats()
-	m.loadPkgStats()
+	// Stats bar uses m.stats; computeStats will run when issues (or dashboard) are loaded.
+	m.issuesByAgent = make(map[string]int)
 
 	return m
 }
@@ -216,12 +201,17 @@ func (m *WorkspaceModel) refresh() {
 	_ = m.manager.RefreshState()
 	m.agents = m.manager.ListAgents()
 	m.issues, m.issuesErr = beads.ListIssues(m.info.Entry.Path)
+	m.issuesLoaded = true
 	m.loadChannels()
 	m.loadMemoryInfo()
 	m.loadQueue()
+	m.queueLoaded = true
 	m.loadRecentEvents()
 	m.computeStats()
+	m.loadAgentStats()
+	m.agentStatsLoaded = true
 	m.loadPkgStats()
+	m.pkgStatsLoaded = true
 	m.clampCursor()
 	m.ensureCursorVisible()
 }
@@ -370,8 +360,70 @@ func (m *WorkspaceModel) renderPositionIndicator(total int) string {
 	return m.styles.Muted.Render(fmt.Sprintf("  %d-%d of %d", start+1, end, total)) + "\n"
 }
 
+// ensureTabDataLoaded loads heavy data for the given tab on first focus (lazy-load per #324).
+func (m *WorkspaceModel) ensureTabDataLoaded(tab Tab) {
+	switch tab {
+	case TabAgents:
+		if !m.agentStatsLoaded {
+			m.loadAgentStats()
+			m.agentStatsLoaded = true
+		}
+		m.loadMemoryInfo()
+	case TabIssues:
+		if !m.issuesLoaded {
+			m.issues, m.issuesErr = beads.ListIssues(m.info.Entry.Path)
+			m.issuesLoaded = true
+			m.computeStats()
+		}
+	case TabChannels:
+		if !m.channelsLoaded {
+			m.loadChannels()
+		}
+	case TabQueue:
+		if !m.queueLoaded {
+			m.loadQueue()
+			m.queueLoaded = true
+		}
+	case TabDashboard:
+		if !m.issuesLoaded {
+			m.issues, m.issuesErr = beads.ListIssues(m.info.Entry.Path)
+			m.issuesLoaded = true
+		}
+		if !m.channelsLoaded {
+			m.loadChannels()
+		}
+		if !m.queueLoaded {
+			m.loadQueue()
+			m.queueLoaded = true
+		}
+		m.loadRecentEvents()
+		m.loadMemoryInfo()
+		if !m.agentStatsLoaded {
+			m.loadAgentStats()
+			m.agentStatsLoaded = true
+		}
+		m.computeStats()
+		if !m.pkgStatsLoaded {
+			m.loadPkgStats()
+			m.pkgStatsLoaded = true
+		}
+	case TabStats:
+		if !m.agentStatsLoaded {
+			m.loadAgentStats()
+			m.agentStatsLoaded = true
+		}
+		if !m.pkgStatsLoaded {
+			m.loadPkgStats()
+			m.pkgStatsLoaded = true
+		}
+	}
+}
+
 // View renders the workspace detail screen.
 func (m *WorkspaceModel) View() string {
+	// Lazy-load heavy data for the active tab on first focus (#324).
+	m.ensureTabDataLoaded(m.tab)
+
 	var b strings.Builder
 
 	// Workspace summary stats bar (above tab bar)
