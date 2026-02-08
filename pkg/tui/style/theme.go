@@ -253,3 +253,40 @@ func (s Styles) StatusStyle(status string) lipgloss.Style {
 		return s.Normal
 	}
 }
+
+// MessageTypeStyle returns the appropriate style for a channel message type.
+// Message types: text, task, review, approval, merge, status
+func (s Styles) MessageTypeStyle(msgType string) lipgloss.Style {
+	switch msgType {
+	case "task":
+		return s.Warning // Orange/yellow for tasks that need attention
+	case "review":
+		return s.Info // Blue for review requests
+	case "approval":
+		return s.Success // Green for approvals
+	case "merge":
+		return lipgloss.NewStyle().Foreground(s.theme.Accent) // Accent color for merge
+	case "status":
+		return s.Muted // Muted for status updates
+	default:
+		return s.Normal // Default for regular text messages
+	}
+}
+
+// MessageTypeIcon returns an icon/emoji prefix for a channel message type.
+func (s Styles) MessageTypeIcon(msgType string) string {
+	switch msgType {
+	case "task":
+		return "📋 "
+	case "review":
+		return "👀 "
+	case "approval":
+		return "✅ "
+	case "merge":
+		return "🔀 "
+	case "status":
+		return "📊 "
+	default:
+		return ""
+	}
+}
