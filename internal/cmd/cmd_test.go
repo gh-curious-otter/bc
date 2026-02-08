@@ -136,6 +136,29 @@ func TestColorState(t *testing.T) {
 	}
 }
 
+// TestColorState_NoANSIWhenNotTTY ensures that when stdout is not a TTY (e.g. piped to cat or in logs),
+// colorState returns plain text with no ANSI escape codes (fixes bc-siq).
+func TestColorState_NoANSIWhenNotTTY(t *testing.T) {
+	old := isStdoutTerminal
+	isStdoutTerminal = func() bool { return false }
+	t.Cleanup(func() { isStdoutTerminal = old })
+
+	states := []agent.State{
+		agent.StateIdle, agent.StateWorking, agent.StateDone,
+		agent.StateStuck, agent.StateError, agent.StateStopped,
+		agent.State("unknown"),
+	}
+	for _, s := range states {
+		result := colorState(s)
+		if strings.Contains(result, "\033[") {
+			t.Errorf("colorState(%q) should not contain ANSI codes when not TTY, got: %q", s, result)
+		}
+		if !strings.Contains(result, string(s)) {
+			t.Errorf("colorState(%q) should contain state name, got: %q", s, result)
+		}
+	}
+}
+
 // --- stateIcon tests ---
 
 func TestStateIcon(t *testing.T) {

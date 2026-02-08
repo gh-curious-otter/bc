@@ -141,7 +141,22 @@ func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%ds", s)
 }
 
+// isStdoutTerminal is used by colorState to decide whether to output ANSI colors.
+// It is set in init and can be overridden in tests to assert non-TTY behavior.
+var isStdoutTerminal func() bool
+
+func init() {
+	isStdoutTerminal = func() bool { return term.IsTerminal(os.Stdout.Fd()) }
+}
+
 func colorState(s agent.State) string {
+	padded := fmt.Sprintf("%-10s", s)
+
+	// Only colorize when stdout is a TTY; otherwise return plain text for pipes/logs
+	if !isStdoutTerminal() {
+		return padded
+	}
+
 	const (
 		reset  = "\033[0m"
 		green  = "\033[32m"
@@ -149,8 +164,6 @@ func colorState(s agent.State) string {
 		red    = "\033[31m"
 		cyan   = "\033[36m"
 	)
-
-	padded := fmt.Sprintf("%-10s", s)
 
 	switch s {
 	case agent.StateIdle:
