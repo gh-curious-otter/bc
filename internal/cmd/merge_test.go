@@ -455,3 +455,69 @@ func TestMergeFlags_SkipTestsExists(t *testing.T) {
 		t.Errorf("expected --skip-tests default to be false, got %s", flag.DefValue)
 	}
 }
+
+func TestMergeFlags_RebaseExists(t *testing.T) {
+	flag := mergeCmd.Flags().Lookup("rebase")
+	if flag == nil {
+		t.Fatal("expected --rebase flag to exist")
+	}
+	if flag.DefValue != "false" {
+		t.Errorf("expected --rebase default to be false, got %s", flag.DefValue)
+	}
+}
+
+func TestMergeFlags_NoRebaseExists(t *testing.T) {
+	flag := mergeCmd.Flags().Lookup("no-rebase")
+	if flag == nil {
+		t.Fatal("expected --no-rebase flag to exist")
+	}
+	if flag.DefValue != "false" {
+		t.Errorf("expected --no-rebase default to be false, got %s", flag.DefValue)
+	}
+}
+
+// --- isBranchStale tests ---
+
+func TestIsBranchStale_UpToDate(t *testing.T) {
+	repo := initGitRepo(t)
+	// Create a branch from current main - should not be stale
+	createBranch(t, repo, "feature/up-to-date")
+
+	stale, count, err := isBranchStale(repo, "feature/up-to-date")
+	if err != nil {
+		t.Fatalf("isBranchStale failed: %v", err)
+	}
+	if stale {
+		t.Errorf("expected branch to not be stale, but got stale with count=%d", count)
+	}
+}
+
+func TestIsBranchStale_BehindMain(t *testing.T) {
+	repo := initGitRepo(t)
+
+	// Create a branch
+	cmd := exec.Command("git", "-C", repo, "checkout", "-b", "feature/stale") //nolint:gosec,noctx // G204
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("checkout failed: %v (%s)", err, out)
+	}
+	cmd = exec.Command("git", "-C", repo, "checkout", "main") //nolint:gosec,noctx // G204
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("checkout main failed: %v (%s)", err, out)
+	}
+
+	// Add commits to main after branching
+	os.WriteFile(filepath.Join(repo, "main-update.txt"), []byte("main update\n"), 0o600) //nolint:errcheck
+	exec.Command("git", "-C", repo, "add", "main-update.txt").Run()                      //nolint:errcheck,gosec,noctx
+	exec.Command("git", "-C", repo, "commit", "-m", "main update").Run()                 //nolint:errcheck,gosec,noctx
+
+	stale, count, err := isBranchStale(repo, "feature/stale")
+	if err != nil {
+		t.Fatalf("isBranchStale failed: %v", err)
+	}
+	if !stale {
+		t.Error("expected branch to be stale")
+	}
+	if count != 1 {
+		t.Errorf("expected 1 commit behind, got %d", count)
+	}
+}

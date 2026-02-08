@@ -18,6 +18,8 @@ var (
 	mergeSkipTests bool
 	mergeDryRun    bool
 	mergeYes       bool
+	mergeRebase    bool
+	mergeNoRebase  bool
 )
 
 var mergeCmd = &cobra.Command{
@@ -27,17 +29,21 @@ var mergeCmd = &cobra.Command{
 
 The merge command:
   1. Checks for conflicts with main
-  2. Runs go build, go test, go vet in the agent worktree
-  3. Merges the branch into main (fast-forward or merge commit)
+  2. Optionally rebases branch onto main (--rebase)
+  3. Runs go build, go test, go vet in the agent worktree
+  4. Merges the branch into main (fast-forward or merge commit)
 
 Flags:
   --dry-run     Check for conflicts without merging
   --yes         Proceed without confirmation (for automation)
   --skip-tests  Skip build/test/vet validation
+  --rebase      Rebase branch onto main before merging
+  --no-rebase   Skip auto-rebase even if branch is stale
 
 Examples:
   bc merge engineer-01
   bc merge engineer-01 --dry-run
+  bc merge engineer-01 --rebase
   bc merge fix/enter-submit-reliability --skip-tests
   bc merge engineer-02 --yes`,
 	Args: cobra.ExactArgs(1),
@@ -48,6 +54,8 @@ func init() {
 	mergeCmd.Flags().BoolVar(&mergeSkipTests, "skip-tests", false, "Skip build/test/vet validation")
 	mergeCmd.Flags().BoolVar(&mergeDryRun, "dry-run", false, "Check for conflicts without merging")
 	mergeCmd.Flags().BoolVar(&mergeYes, "yes", false, "Proceed without confirmation (non-interactive)")
+	mergeCmd.Flags().BoolVar(&mergeRebase, "rebase", false, "Rebase branch onto main before merging")
+	mergeCmd.Flags().BoolVar(&mergeNoRebase, "no-rebase", false, "Skip auto-rebase even if branch is stale")
 	rootCmd.AddCommand(mergeCmd)
 }
 
@@ -80,7 +88,26 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("branch %s not found: %w", branch, err)
 	}
 
-	// Step 2: Check for conflicts with main
+	// Step 2: Auto-rebase if requested and branch is stale
+	if mergeRebase && !mergeNoRebase && worktreeDir != "" {
+		stale, behindCount, staleErr := isBranchStale(rootDir, branch)
+		if staleErr != nil {
+			return fmt.Errorf("failed to check if branch is stale: %w", staleErr)
+		}
+		if stale {
+			fmt.Printf("  Branch is %d commit(s) behind main, rebasing...\n", behindCount)
+			if rebaseErr := rebaseBranchOntoMain(worktreeDir); rebaseErr != nil {
+				return fmt.Errorf("rebase failed: %w\n\nTo resolve:\n  1. cd %s\n  2. git rebase --abort (if needed)\n  3. git fetch origin main\n  4. git rebase origin/main\n  5. Resolve conflicts and continue", rebaseErr, worktreeDir)
+			}
+			fmt.Println("  Rebase successful")
+		} else {
+			fmt.Println("  Branch is up to date with main")
+		}
+	} else if mergeRebase && worktreeDir == "" {
+		fmt.Println("  Skipping rebase (no worktree directory for literal branch)")
+	}
+
+	// Step 3: Check for conflicts with main (after potential rebase)
 	conflicts, err := checkMergeConflicts(rootDir, branch)
 	if err != nil {
 		return fmt.Errorf("failed to check conflicts: %w", err)
@@ -110,7 +137,7 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Step 3: Run validation (build, test, vet) in the source directory
+	// Step 4: Run validation (build, test, vet) in the source directory
 	if !mergeSkipTests {
 		validateDir := worktreeDir
 		if validateDir == "" {
@@ -123,7 +150,7 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		fmt.Println("  Skipping validation (--skip-tests)")
 	}
 
-	// Step 4: Save restore point and perform atomic merge
+	// Step 5: Save restore point and perform atomic merge
 	restorePoint, err := gitRevParse(rootDir, "main")
 	if err != nil {
 		return fmt.Errorf("failed to get main HEAD for restore point: %w", err)
@@ -141,7 +168,7 @@ func runMerge(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("  Merged at %s\n", commitHash)
 
-	// Step 5: Log event
+	// Step 6: Log event
 	evLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
 	_ = evLog.Append(events.Event{
 		Type:    events.WorkCompleted,
@@ -361,5 +388,45 @@ func rollbackMerge(repoDir, restorePoint string) error {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("update-ref failed: %s", strings.TrimSpace(string(out)))
 	}
+	return nil
+}
+
+// isBranchStale checks if a branch is behind main.
+// Returns true if the branch needs rebasing, along with the number of commits behind.
+func isBranchStale(repoDir, branch string) (bool, int, error) {
+	// Count commits that main has but branch doesn't
+	cmd := exec.CommandContext(context.Background(), "git", "-C", repoDir, "rev-list", "--count", branch+"..main") //nolint:gosec // G204: git command with validated branch name
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return false, 0, fmt.Errorf("rev-list failed: %s", strings.TrimSpace(string(out)))
+	}
+
+	countStr := strings.TrimSpace(string(out))
+	var count int
+	if _, parseErr := fmt.Sscanf(countStr, "%d", &count); parseErr != nil {
+		return false, 0, fmt.Errorf("failed to parse commit count: %s", countStr)
+	}
+
+	return count > 0, count, nil
+}
+
+// rebaseBranchOntoMain rebases the current branch in a worktree onto main.
+// Uses --autostash to safely handle uncommitted changes.
+func rebaseBranchOntoMain(worktreeDir string) error {
+	// Fetch latest main first
+	fetchCmd := exec.CommandContext(context.Background(), "git", "-C", worktreeDir, "fetch", "origin", "main")
+	if out, err := fetchCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("fetch failed: %s", strings.TrimSpace(string(out)))
+	}
+
+	// Rebase with autostash for safety
+	rebaseCmd := exec.CommandContext(context.Background(), "git", "-C", worktreeDir, "rebase", "--autostash", "origin/main")
+	if out, err := rebaseCmd.CombinedOutput(); err != nil {
+		// Abort the rebase to leave worktree in clean state
+		abortCmd := exec.CommandContext(context.Background(), "git", "-C", worktreeDir, "rebase", "--abort")
+		_ = abortCmd.Run() // Best effort abort
+		return fmt.Errorf("rebase conflicts detected:\n%s", strings.TrimSpace(string(out)))
+	}
+
 	return nil
 }
