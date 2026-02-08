@@ -1,0 +1,40 @@
+# bc home / dashboard — profiling and fixes (#311)
+
+## Root causes (profiling)
+
+### Slowness
+
+1. **Heavy work on every tick (2s)**  
+   `HomeModel.Update(TickMsg)` called `WorkspaceModel.refresh()` and `AgentModel.refresh()` on the main Bubble Tea goroutine.  
+   - **WorkspaceModel.refresh()** did a full reload every 2s: `RefreshState()` (tmux list + tmux capture for every running agent), `beads.ListIssues()`, `loadChannels()`, `loadMemoryInfo()` (memory store per agent), `loadQueue()` (includes `git rev-parse` per working agent), `loadRecentEvents()`, `computeStats()`, `loadPkgStats()`.  
+   - **AgentModel.refresh()** did `RefreshState()`, `loadRecentActivity()`, `loadMemoryInfo()` every 2s.  
+   Result: UI blocked every 2s on disk I/O and tmux/git subprocesses.
+
+2. **Startup blocking**  
+   `runHome` builds workspace list synchronously: for each workspace it runs `LoadState()` + `RefreshState()` before starting the TUI. With multiple workspaces, the TUI appears only after all are loaded.
+
+3. **captureLiveTask**  
+   `RefreshState()` calls `captureLiveTask(name)` for every running agent, each doing `tmux.Capture(name, 15)`. With several agents this is multiple tmux invocations per refresh.
+
+### Crashes
+
+- No nil-dereference or index panics identified in the hot paths. `issuesByAgent` is initialized in `computeStats()` before use; reading from a nil map in Go returns zero.
+
+## Fixes applied
+
+1. **Lightweight tick refresh**  
+   - **WorkspaceModel**: On `TickMsg`, call new `refreshLight()` instead of `refresh()`.  
+     `refreshLight()` does only: `RefreshState()`, `ListAgents()`, `computeStats()`, cursor clamp.  
+     Full reload (issues, channels, queue, events, memory, pkg stats) runs only on explicit 'r' via `refresh()`.  
+   - **AgentModel**: On `TickMsg`, call new `refreshLight()` instead of `refresh()`.  
+     `refreshLight()` does only: `RefreshState()`, `GetAgent()` to refresh in-memory agent, no file I/O.  
+     Full reload (recent activity, memory info) runs only on 'r' via `refresh()`.  
+   Effect: TUI stays responsive; agent state and task still update every 2s; heavy I/O only on manual refresh.
+
+2. **Documentation**  
+   This file records root causes and the above fixes for future profiling work.
+
+## Possible follow-ups
+
+- **Startup**: Show TUI immediately with “Loading…” and load workspaces in a goroutine, then send an update message (e.g. `WorkspacesLoaded`).
+- **Throttle captureLiveTask**: Run tmux capture less often or only for the focused agent; or run captures in parallel.
