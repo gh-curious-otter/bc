@@ -826,18 +826,25 @@ func (m *ChannelModel) View() string {
 
 			// Message content with subtle background — wrap long lines with highlighting
 			msgStyle := m.styles.MessageTypeStyle(msgTypeStr)
-			lines := wrapText(entry.Message, msgWidth-4)
 			var content strings.Builder
-			for j, line := range lines {
-				if j > 0 {
-					content.WriteString("\n")
+			if entry.Message == "" {
+				content.WriteString(m.styles.Muted.Render("(empty)"))
+			} else {
+				lines := wrapText(entry.Message, msgWidth-4)
+				for j, line := range lines {
+					if j > 0 {
+						content.WriteString("\n")
+					}
+					content.WriteString(m.highlightMessage(line))
 				}
-				highlightedLine := m.highlightMessage(line)
-				content.WriteString(highlightedLine)
 			}
 
-			// Render message with subtle background bubble
-			bubble := m.styles.MessageBubble.Width(msgWidth).Inherit(msgStyle).Render(content.String())
+			// Choose bubble style: own messages use distinct tint when BC_AGENT_ID matches sender
+			bubbleStyle := m.styles.MessageBubble
+			if entry.Sender != "" && entry.Sender == os.Getenv("BC_AGENT_ID") {
+				bubbleStyle = m.styles.MessageBubbleOwn
+			}
+			bubble := bubbleStyle.Width(msgWidth).Inherit(msgStyle).Render(content.String())
 			for _, line := range strings.Split(bubble, "\n") {
 				b.WriteString("  ")
 				b.WriteString(line)
