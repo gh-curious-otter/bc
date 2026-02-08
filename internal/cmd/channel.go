@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -120,19 +121,53 @@ func loadChannelStore(rootDir string) (*channel.Store, error) {
 	return store, nil
 }
 
+// openSQLiteChannelStore opens the SQLite channel store if .bc/channels.db exists.
+// Caller must call Close() when done. Returns (store, true) if SQLite is used, (nil, false) otherwise.
+func openSQLiteChannelStore(rootDir string) (*channel.SQLiteStore, bool) {
+	dbPath := filepath.Join(rootDir, ".bc", "channels.db")
+	if _, err := os.Stat(dbPath); err != nil {
+		return nil, false
+	}
+	store := channel.NewSQLiteStore(rootDir)
+	if err := store.Open(); err != nil {
+		return nil, false
+	}
+	return store, true
+}
+
 func runChannelList(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
 		return fmt.Errorf("not in a bc workspace: %w", err)
 	}
 
+	// Prefer SQLite when .bc/channels.db exists (e.g. after bc up)
+	if sqliteStore, ok := openSQLiteChannelStore(ws.RootDir); ok {
+		defer func() { _ = sqliteStore.Close() }()
+		infos, listErr := sqliteStore.ListChannels()
+		if listErr != nil {
+			return listErr
+		}
+		channels := make([]*channel.Channel, 0, len(infos))
+		for _, info := range infos {
+			members, _ := sqliteStore.GetMembers(info.Name)
+			channels = append(channels, &channel.Channel{
+				Name:        info.Name,
+				Description: info.Description,
+				Members:     members,
+			})
+		}
+		return outputChannelList(cmd, channels)
+	}
+
 	store, err := loadChannelStore(ws.RootDir)
 	if err != nil {
 		return err
 	}
+	return outputChannelList(cmd, store.List())
+}
 
-	channels := store.List()
-
+func outputChannelList(cmd *cobra.Command, channels []*channel.Channel) error {
 	jsonOutput, err := cmd.Flags().GetBool("json")
 	if err != nil {
 		return err
@@ -151,10 +186,8 @@ func runChannelList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Table header
 	fmt.Printf("%-20s %s\n", "CHANNEL", "MEMBERS")
 	fmt.Println(strings.Repeat("-", 60))
-
 	for _, ch := range channels {
 		members := "-"
 		if len(ch.Members) > 0 {
@@ -162,7 +195,6 @@ func runChannelList(cmd *cobra.Command, args []string) error {
 		}
 		fmt.Printf("%-20s %s\n", ch.Name, members)
 	}
-
 	return nil
 }
 
@@ -264,6 +296,34 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 	channelName := args[0]
 	message := strings.Join(args[1:], " ")
 
+	// Prefer SQLite when .bc/channels.db exists (e.g. after bc up)
+	if sqliteStore, ok := openSQLiteChannelStore(ws.RootDir); ok {
+		defer func() { _ = sqliteStore.Close() }()
+		members, getErr := sqliteStore.GetMembers(channelName)
+		if getErr != nil {
+			return getErr
+		}
+		if len(members) == 0 {
+			fmt.Printf("Channel %q has no members\n", channelName)
+			return nil
+		}
+		sender := os.Getenv("BC_AGENT_ID")
+		if sender == "" {
+			sender = "cli"
+		}
+		if _, addErr := sqliteStore.AddMessage(channelName, sender, message, channel.TypeText, ""); addErr != nil {
+			fmt.Printf("Warning: failed to record history: %v\n", addErr)
+		}
+		mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+		_ = mgr.LoadState()
+		sent, failed := sendToMembers(mgr, channelName, message, members)
+		fmt.Printf("\nSent to %d/%d members of channel %q\n", sent, len(members), channelName)
+		if failed > 0 {
+			fmt.Printf("  (%d failed)\n", failed)
+		}
+		return nil
+	}
+
 	members, err := store.GetMembers(channelName)
 	if err != nil {
 		return err
@@ -274,13 +334,11 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Create workspace-scoped agent manager
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
 	if err := mgr.LoadState(); err != nil {
 		fmt.Printf("Warning: failed to load agent state: %v\n", err)
 	}
 
-	// Add to channel history
 	sender := os.Getenv("BC_AGENT_ID")
 	if sender == "" {
 		sender = "cli"
@@ -292,9 +350,15 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Warning: failed to save history: %v\n", err)
 	}
 
-	// Send to all members
-	sent := 0
-	failed := 0
+	sent, failed := sendToMembers(mgr, channelName, message, members)
+	fmt.Printf("\nSent to %d/%d members of channel %q\n", sent, len(members), channelName)
+	if failed > 0 {
+		fmt.Printf("  (%d failed)\n", failed)
+	}
+	return nil
+}
+
+func sendToMembers(mgr *agent.Manager, channelName, message string, members []string) (sent, failed int) {
 	for _, member := range members {
 		a := mgr.GetAgent(member)
 		if a == nil {
@@ -307,7 +371,6 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 			failed++
 			continue
 		}
-
 		if err := mgr.SendToAgent(member, fmt.Sprintf("[#%s] %s", channelName, message)); err != nil {
 			fmt.Printf("  %s: failed - %v\n", member, err)
 			failed++
@@ -316,12 +379,7 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %s: sent\n", member)
 		sent++
 	}
-
-	fmt.Printf("\nSent to %d/%d members of channel %q\n", sent, len(members), channelName)
-	if failed > 0 {
-		fmt.Printf("  (%d failed)\n", failed)
-	}
-	return nil
+	return sent, failed
 }
 
 func runChannelDelete(cmd *cobra.Command, args []string) error {
