@@ -115,6 +115,11 @@ func init() {
 }
 
 func runMemoryRecord(cmd *cobra.Command, args []string) error {
+	description := strings.TrimSpace(args[0])
+	if description == "" {
+		return fmt.Errorf("experience cannot be empty")
+	}
+
 	agentID := os.Getenv("BC_AGENT_ID")
 	if agentID == "" {
 		return fmt.Errorf("BC_AGENT_ID not set (this command is meant to be called by agents)")
@@ -133,7 +138,7 @@ func runMemoryRecord(cmd *cobra.Command, args []string) error {
 	}
 
 	exp := memory.Experience{
-		Description: args[0],
+		Description: description,
 		Outcome:     memoryOutcome,
 		TaskID:      memoryTaskID,
 		TaskType:    memoryTaskType,
@@ -143,11 +148,20 @@ func runMemoryRecord(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to record experience: %w", err)
 	}
 
-	cmd.Printf("Recorded experience: %s\n", args[0])
+	cmd.Printf("Recorded experience: %s\n", description)
 	return nil
 }
 
 func runMemoryLearn(cmd *cobra.Command, args []string) error {
+	category := strings.TrimSpace(args[0])
+	if category == "" {
+		return fmt.Errorf("category cannot be empty")
+	}
+	learning := strings.TrimSpace(args[1])
+	if learning == "" {
+		return fmt.Errorf("learning cannot be empty")
+	}
+
 	agentID := os.Getenv("BC_AGENT_ID")
 	if agentID == "" {
 		return fmt.Errorf("BC_AGENT_ID not set (this command is meant to be called by agents)")
@@ -157,9 +171,6 @@ func runMemoryLearn(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("not in a bc workspace: %w", err)
 	}
-
-	category := args[0]
-	learning := args[1]
 
 	store := memory.NewStore(ws.RootDir, agentID)
 	if !store.Exists() {
