@@ -35,11 +35,79 @@ Example:
 	RunE: runPRNotify,
 }
 
+var prReviewCmd = &cobra.Command{
+	Use:   "review [PR number]",
+	Short: "Submit a PR review (approve, request-changes, or comment)",
+	Long: `Submit a review to a pull request using existing GitHub auth (gh auth).
+
+Review types:
+  approve         Approve the PR (optional body)
+  request-changes Request changes (body recommended)
+  comment         Comment without approving or requesting changes
+
+Examples:
+  bc pr review 5 --approve
+  bc pr review 5 --approve --body "LGTM"
+  bc pr review 5 --request-changes --body "Please fix the tests"
+  bc pr review 5 --comment --body "Nice work"`,
+	RunE: runPRReview,
+}
+
+var prCommentCmd = &cobra.Command{
+	Use:   "comment [PR number]",
+	Short: "Add a comment to a pull request",
+	Long: `Add a single comment to a PR. Uses existing GitHub auth (gh auth).
+
+Example:
+  bc pr comment 5 --body "Thanks for the fix"`,
+	RunE: runPRComment,
+}
+
+var prMergeCmd = &cobra.Command{
+	Use:   "merge [PR number]",
+	Short: "Merge a pull request",
+	Long: `Merge a pull request with optional merge method (merge, squash, rebase).
+Uses existing GitHub auth (gh auth).
+
+Examples:
+  bc pr merge 5
+  bc pr merge 5 --method squash
+  bc pr merge 5 --method rebase`,
+	RunE: runPRMerge,
+}
+
 var prNumber int
+
+// pr review flags
+var prReviewApprove, prReviewRequestChanges, prReviewComment bool
+var prReviewBody string
+
+// pr comment flags
+var prCommentBody string
+
+// pr merge flags
+var prMergeMethod string
 
 func init() {
 	prNotifyCmd.Flags().IntVar(&prNumber, "pr", 0, "Specific PR number to notify about")
 	prCmd.AddCommand(prNotifyCmd)
+
+	prReviewCmd.Flags().IntVar(&prNumber, "pr", 0, "PR number (alternative to positional argument)")
+	prReviewCmd.Flags().BoolVar(&prReviewApprove, "approve", false, "Approve the PR")
+	prReviewCmd.Flags().BoolVar(&prReviewRequestChanges, "request-changes", false, "Request changes")
+	prReviewCmd.Flags().BoolVar(&prReviewComment, "comment", false, "Comment only (no approve/request-changes)")
+	prReviewCmd.Flags().StringVar(&prReviewBody, "body", "", "Review body text")
+	prCmd.AddCommand(prReviewCmd)
+
+	prCommentCmd.Flags().IntVar(&prNumber, "pr", 0, "PR number (alternative to positional argument)")
+	prCommentCmd.Flags().StringVar(&prCommentBody, "body", "", "Comment body (required)")
+	_ = prCommentCmd.MarkFlagRequired("body")
+	prCmd.AddCommand(prCommentCmd)
+
+	prMergeCmd.Flags().IntVar(&prNumber, "pr", 0, "PR number (alternative to positional argument)")
+	prMergeCmd.Flags().StringVar(&prMergeMethod, "method", "merge", "Merge method: merge, squash, or rebase")
+	prCmd.AddCommand(prMergeCmd)
+
 	rootCmd.AddCommand(prCmd)
 }
 
@@ -148,6 +216,87 @@ func runPRNotify(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+func runPRReview(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+	num, err := prNumberFromArgs(args)
+	if err != nil {
+		return err
+	}
+	var event github.ReviewEvent
+	switch {
+	case prReviewApprove:
+		event = github.ReviewApprove
+	case prReviewRequestChanges:
+		event = github.ReviewRequestChanges
+	case prReviewComment:
+		event = github.ReviewComment
+	default:
+		return fmt.Errorf("specify one of --approve, --request-changes, or --comment")
+	}
+	if err := github.SubmitReview(ws.RootDir, num, event, prReviewBody); err != nil {
+		return err
+	}
+	fmt.Printf("Submitted %s review for PR #%d.\n", event, num)
+	return nil
+}
+
+func runPRComment(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+	num, err := prNumberFromArgs(args)
+	if err != nil {
+		return err
+	}
+	if err := github.AddPRComment(ws.RootDir, num, prCommentBody); err != nil {
+		return err
+	}
+	fmt.Printf("Added comment to PR #%d.\n", num)
+	return nil
+}
+
+func runPRMerge(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+	num, err := prNumberFromArgs(args)
+	if err != nil {
+		return err
+	}
+	method := github.MergeMethod(prMergeMethod)
+	switch method {
+	case github.MergeMerge, github.MergeSquash, github.MergeRebase:
+		// valid
+	default:
+		return fmt.Errorf("invalid --method %q (use merge, squash, or rebase)", prMergeMethod)
+	}
+	if err := github.MergePR(ws.RootDir, num, method); err != nil {
+		return err
+	}
+	fmt.Printf("Merged PR #%d (%s).\n", num, method)
+	return nil
+}
+
+// prNumberFromArgs returns PR number from args or from --pr flag; validates and errors if missing.
+func prNumberFromArgs(args []string) (int, error) {
+	if len(args) > 0 {
+		var n int
+		if _, err := fmt.Sscanf(args[0], "%d", &n); err != nil || n < 1 {
+			return 0, fmt.Errorf("invalid PR number: %q", args[0])
+		}
+		return n, nil
+	}
+	if prNumber > 0 {
+		return prNumber, nil
+	}
+	return 0, fmt.Errorf("specify PR number as argument or with --pr")
 }
 
 // formatReviewRequest creates a formatted review request message.

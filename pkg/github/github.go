@@ -138,3 +138,93 @@ func CreateIssue(workspacePath, title, body string) error {
 	cmd.Dir = workspacePath
 	return cmd.Run()
 }
+
+// ReviewEvent is the type of PR review: approve, request-changes, or comment.
+type ReviewEvent string
+
+const (
+	ReviewApprove        ReviewEvent = "approve"
+	ReviewRequestChanges ReviewEvent = "request-changes"
+	ReviewComment        ReviewEvent = "comment"
+)
+
+// SubmitReview submits a PR review (approve, request-changes, or comment).
+// Body is optional for approve; required or recommended for request-changes and comment.
+// Returns ErrNoGitRemote if no remote is configured.
+func SubmitReview(workspacePath string, prNumber int, event ReviewEvent, body string) error {
+	if !HasGitRemote(workspacePath) {
+		return ErrNoGitRemote
+	}
+	args := []string{"pr", "review", fmt.Sprintf("%d", prNumber)}
+	switch event {
+	case ReviewApprove:
+		args = append(args, "--approve")
+	case ReviewRequestChanges:
+		args = append(args, "--request-changes")
+	case ReviewComment:
+		args = append(args, "--comment")
+	default:
+		return fmt.Errorf("invalid review event: %q (use approve, request-changes, or comment)", event)
+	}
+	if body != "" {
+		args = append(args, "--body", body)
+	}
+	cmd := exec.CommandContext(context.Background(), "gh", args...) //nolint:gosec // gh command with trusted args
+	cmd.Dir = workspacePath
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("gh pr review: %w: %s", err, string(out))
+	}
+	return nil
+}
+
+// AddPRComment adds a single comment to a pull request.
+// Returns ErrNoGitRemote if no remote is configured.
+func AddPRComment(workspacePath string, prNumber int, body string) error {
+	if !HasGitRemote(workspacePath) {
+		return ErrNoGitRemote
+	}
+	if body == "" {
+		return fmt.Errorf("comment body is required")
+	}
+	args := []string{"pr", "comment", fmt.Sprintf("%d", prNumber), "--body", body}
+	cmd := exec.CommandContext(context.Background(), "gh", args...) //nolint:gosec // gh command with trusted args
+	cmd.Dir = workspacePath
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("gh pr comment: %w: %s", err, string(out))
+	}
+	return nil
+}
+
+// MergeMethod is how to merge: merge, squash, or rebase.
+type MergeMethod string
+
+const (
+	MergeMerge  MergeMethod = "merge"
+	MergeSquash MergeMethod = "squash"
+	MergeRebase MergeMethod = "rebase"
+)
+
+// MergePR merges a pull request with the given method (merge, squash, or rebase).
+// Returns ErrNoGitRemote if no remote is configured.
+func MergePR(workspacePath string, prNumber int, method MergeMethod) error {
+	if !HasGitRemote(workspacePath) {
+		return ErrNoGitRemote
+	}
+	args := []string{"pr", "merge", fmt.Sprintf("%d", prNumber)}
+	switch method {
+	case MergeMerge:
+		args = append(args, "--merge")
+	case MergeSquash:
+		args = append(args, "--squash")
+	case MergeRebase:
+		args = append(args, "--rebase")
+	default:
+		return fmt.Errorf("invalid merge method: %q (use merge, squash, or rebase)", method)
+	}
+	cmd := exec.CommandContext(context.Background(), "gh", args...) //nolint:gosec // gh command with trusted args
+	cmd.Dir = workspacePath
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("gh pr merge: %w: %s", err, string(out))
+	}
+	return nil
+}

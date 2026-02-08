@@ -281,6 +281,117 @@ func TestPRJSON(t *testing.T) {
 	}
 }
 
+// --- SubmitReview ---
+
+func TestSubmitReviewNoRemote(t *testing.T) {
+	err := SubmitReview(t.TempDir(), 1, ReviewApprove, "")
+	if err != ErrNoGitRemote {
+		t.Errorf("SubmitReview without remote: got %v, want ErrNoGitRemote", err)
+	}
+}
+
+func TestSubmitReviewInvalidEvent(t *testing.T) {
+	dir := setupGitRepo(t)
+	mockGh := createMockCLI(t, "gh", "")
+	t.Setenv("PATH", filepath.Dir(mockGh)+":"+os.Getenv("PATH"))
+
+	err := SubmitReview(dir, 5, ReviewEvent("invalid"), "")
+	if err == nil {
+		t.Error("SubmitReview with invalid event should return error")
+	}
+}
+
+func TestSubmitReviewWithMockGh(t *testing.T) {
+	dir := setupGitRepo(t)
+	mockGh := createMockCLI(t, "gh", "")
+	t.Setenv("PATH", filepath.Dir(mockGh)+":"+os.Getenv("PATH"))
+
+	tests := []struct {
+		event ReviewEvent
+		body  string
+	}{
+		{ReviewApprove, ""},
+		{ReviewApprove, "LGTM"},
+		{ReviewRequestChanges, "Please fix tests"},
+		{ReviewComment, "Nice work"},
+	}
+	for _, tt := range tests {
+		name := string(tt.event)
+		if tt.body != "" {
+			name += "-with-body"
+		}
+		t.Run(name, func(t *testing.T) {
+			if err := SubmitReview(dir, 7, tt.event, tt.body); err != nil {
+				t.Errorf("SubmitReview: %v", err)
+			}
+		})
+	}
+}
+
+// --- AddPRComment ---
+
+func TestAddPRCommentNoRemote(t *testing.T) {
+	err := AddPRComment(t.TempDir(), 1, "hello")
+	if err != ErrNoGitRemote {
+		t.Errorf("AddPRComment without remote: got %v, want ErrNoGitRemote", err)
+	}
+}
+
+func TestAddPRCommentEmptyBody(t *testing.T) {
+	dir := setupGitRepo(t)
+	mockGh := createMockCLI(t, "gh", "")
+	t.Setenv("PATH", filepath.Dir(mockGh)+":"+os.Getenv("PATH"))
+
+	err := AddPRComment(dir, 1, "")
+	if err == nil {
+		t.Error("AddPRComment with empty body should return error")
+	}
+}
+
+func TestAddPRCommentWithMockGh(t *testing.T) {
+	dir := setupGitRepo(t)
+	mockGh := createMockCLI(t, "gh", "")
+	t.Setenv("PATH", filepath.Dir(mockGh)+":"+os.Getenv("PATH"))
+
+	if err := AddPRComment(dir, 3, "Thanks for the fix"); err != nil {
+		t.Errorf("AddPRComment: %v", err)
+	}
+}
+
+// --- MergePR ---
+
+func TestMergePRNoRemote(t *testing.T) {
+	err := MergePR(t.TempDir(), 1, MergeMerge)
+	if err != ErrNoGitRemote {
+		t.Errorf("MergePR without remote: got %v, want ErrNoGitRemote", err)
+	}
+}
+
+func TestMergePRInvalidMethod(t *testing.T) {
+	dir := setupGitRepo(t)
+	mockGh := createMockCLI(t, "gh", "")
+	t.Setenv("PATH", filepath.Dir(mockGh)+":"+os.Getenv("PATH"))
+
+	err := MergePR(dir, 1, MergeMethod("invalid"))
+	if err == nil {
+		t.Error("MergePR with invalid method should return error")
+	}
+}
+
+func TestMergePRWithMockGh(t *testing.T) {
+	dir := setupGitRepo(t)
+	mockGh := createMockCLI(t, "gh", "")
+	t.Setenv("PATH", filepath.Dir(mockGh)+":"+os.Getenv("PATH"))
+
+	for _, method := range []MergeMethod{MergeMerge, MergeSquash, MergeRebase} {
+		t.Run(string(method), func(t *testing.T) {
+			if err := MergePR(dir, 2, method); err != nil {
+				t.Errorf("MergePR(%s): %v", method, err)
+			}
+		})
+	}
+}
+
 // --- helpers ---
 
 // setupGitRepo creates a temp git repo with an origin remote.
