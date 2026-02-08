@@ -7,6 +7,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os/exec"
 )
 
@@ -54,11 +55,14 @@ func HasGitRemote(workspacePath string) bool {
 	return cmd.Run() == nil
 }
 
+// ErrNoGitRemote indicates no git remote is configured.
+var ErrNoGitRemote = fmt.Errorf("no git remote configured")
+
 // ListIssues returns GitHub issues for the workspace's repo.
-// Falls back to empty list if gh is not available or no remote exists.
-func ListIssues(workspacePath string) []Issue {
+// Returns ErrNoGitRemote if no remote is configured.
+func ListIssues(workspacePath string) ([]Issue, error) {
 	if !HasGitRemote(workspacePath) {
-		return nil
+		return nil, ErrNoGitRemote
 	}
 
 	cmd := exec.CommandContext(context.Background(), "gh", "issue", "list",
@@ -68,12 +72,12 @@ func ListIssues(workspacePath string) []Issue {
 	cmd.Dir = workspacePath
 	output, err := cmd.Output()
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to list GitHub issues: %w", err)
 	}
 
 	var raw []ghIssue
 	if err := json.Unmarshal(output, &raw); err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to parse GitHub issues: %w", err)
 	}
 
 	issues := make([]Issue, 0, len(raw))
@@ -91,13 +95,14 @@ func ListIssues(workspacePath string) []Issue {
 		})
 	}
 
-	return issues
+	return issues, nil
 }
 
 // ListPRs returns GitHub pull requests for the workspace's repo.
-func ListPRs(workspacePath string) []PR {
+// Returns ErrNoGitRemote if no remote is configured.
+func ListPRs(workspacePath string) ([]PR, error) {
 	if !HasGitRemote(workspacePath) {
-		return nil
+		return nil, ErrNoGitRemote
 	}
 
 	cmd := exec.CommandContext(context.Background(), "gh", "pr", "list",
@@ -107,12 +112,12 @@ func ListPRs(workspacePath string) []PR {
 	cmd.Dir = workspacePath
 	output, err := cmd.Output()
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to list GitHub PRs: %w", err)
 	}
 
 	var raw []ghPR
 	if err := json.Unmarshal(output, &raw); err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to parse GitHub PRs: %w", err)
 	}
 
 	prs := make([]PR, 0, len(raw))
@@ -120,7 +125,7 @@ func ListPRs(workspacePath string) []PR {
 		prs = append(prs, PR(r))
 	}
 
-	return prs
+	return prs, nil
 }
 
 // CreateIssue creates a GitHub issue.

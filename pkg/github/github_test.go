@@ -55,9 +55,12 @@ func TestHasGitRemoteWithOrigin(t *testing.T) {
 
 func TestListIssuesNoRemote(t *testing.T) {
 	dir := t.TempDir()
-	issues := ListIssues(dir)
+	issues, err := ListIssues(dir)
+	if err != ErrNoGitRemote {
+		t.Errorf("ListIssues without remote should return ErrNoGitRemote, got %v", err)
+	}
 	if issues != nil {
-		t.Errorf("ListIssues without remote should return nil, got %d issues", len(issues))
+		t.Errorf("ListIssues without remote should return nil issues, got %d issues", len(issues))
 	}
 }
 
@@ -73,7 +76,10 @@ func TestListIssuesWithMockGh(t *testing.T) {
 	mockGh := createMockCLI(t, "gh", string(data))
 	t.Setenv("PATH", filepath.Dir(mockGh)+":"+os.Getenv("PATH"))
 
-	issues := ListIssues(dir)
+	issues, err := ListIssues(dir)
+	if err != nil {
+		t.Fatalf("ListIssues returned error: %v", err)
+	}
 	if len(issues) != 3 {
 		t.Fatalf("ListIssues returned %d issues, want 3", len(issues))
 	}
@@ -104,7 +110,10 @@ func TestListIssuesEmptyResult(t *testing.T) {
 	mockGh := createMockCLI(t, "gh", "[]")
 	t.Setenv("PATH", filepath.Dir(mockGh)+":"+os.Getenv("PATH"))
 
-	issues := ListIssues(dir)
+	issues, err := ListIssues(dir)
+	if err != nil {
+		t.Errorf("ListIssues returned error: %v", err)
+	}
 	if len(issues) != 0 {
 		t.Errorf("ListIssues with empty array returned %d issues, want 0", len(issues))
 	}
@@ -115,7 +124,10 @@ func TestListIssuesMalformedOutput(t *testing.T) {
 	mockGh := createMockCLI(t, "gh", "not json")
 	t.Setenv("PATH", filepath.Dir(mockGh)+":"+os.Getenv("PATH"))
 
-	issues := ListIssues(dir)
+	issues, err := ListIssues(dir)
+	if err == nil {
+		t.Error("ListIssues with malformed output should return error")
+	}
 	if issues != nil {
 		t.Errorf("ListIssues with malformed output should return nil, got %d", len(issues))
 	}
@@ -125,7 +137,10 @@ func TestListIssuesMalformedOutput(t *testing.T) {
 
 func TestListPRsNoRemote(t *testing.T) {
 	dir := t.TempDir()
-	prs := ListPRs(dir)
+	prs, err := ListPRs(dir)
+	if err != ErrNoGitRemote {
+		t.Errorf("ListPRs without remote should return ErrNoGitRemote, got %v", err)
+	}
 	if prs != nil {
 		t.Errorf("ListPRs without remote should return nil, got %d PRs", len(prs))
 	}
@@ -141,7 +156,10 @@ func TestListPRsWithMockGh(t *testing.T) {
 	mockGh := createMockCLI(t, "gh", data)
 	t.Setenv("PATH", filepath.Dir(mockGh)+":"+os.Getenv("PATH"))
 
-	prs := ListPRs(dir)
+	prs, err := ListPRs(dir)
+	if err != nil {
+		t.Fatalf("ListPRs returned error: %v", err)
+	}
 	if len(prs) != 2 {
 		t.Fatalf("ListPRs returned %d PRs, want 2", len(prs))
 	}
@@ -165,7 +183,10 @@ func TestListPRsEmptyResult(t *testing.T) {
 	mockGh := createMockCLI(t, "gh", "[]")
 	t.Setenv("PATH", filepath.Dir(mockGh)+":"+os.Getenv("PATH"))
 
-	prs := ListPRs(dir)
+	prs, err := ListPRs(dir)
+	if err != nil {
+		t.Errorf("ListPRs returned error: %v", err)
+	}
 	if len(prs) != 0 {
 		t.Errorf("ListPRs with empty array returned %d PRs, want 0", len(prs))
 	}
