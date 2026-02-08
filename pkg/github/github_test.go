@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -397,5 +398,31 @@ func TestTokenStorageInfo(t *testing.T) {
 	}
 	if !strings.Contains(info, "gh") {
 		t.Errorf("TokenStorageInfo should mention gh: %q", info)
+	}
+}
+
+// TestListIssuesReturnsErrNotAuthenticatedWhenNotLoggedIn: when gh issue list
+// fails and auth status reports not logged in, ListIssues returns ErrNotAuthenticated.
+func TestListIssuesReturnsErrNotAuthenticatedWhenNotLoggedIn(t *testing.T) {
+	dir := setupGitRepo(t)
+	// Mock gh: "auth status ..." -> empty hosts (not logged in); anything else -> exit 1
+	script := `#!/bin/sh
+case "$1" in
+  auth) printf '%s' '{"hosts":{}}';;
+  *) exit 1;;
+esac
+`
+	mockPath := filepath.Join(t.TempDir(), "gh")
+	if err := os.WriteFile(mockPath, []byte(script), 0700); err != nil { //nolint:gosec
+		t.Fatalf("write mock gh: %v", err)
+	}
+	t.Setenv("PATH", filepath.Dir(mockPath)+":"+os.Getenv("PATH"))
+
+	issues, err := ListIssues(dir)
+	if !errors.Is(err, ErrNotAuthenticated) {
+		t.Errorf("ListIssues when not logged in should return ErrNotAuthenticated, got %v", err)
+	}
+	if issues != nil {
+		t.Errorf("ListIssues when not logged in should return nil issues, got %d", len(issues))
 	}
 }

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -86,6 +87,12 @@ func runQueueList(cmd *cobra.Command, args []string) error {
 
 	issues, err := github.ListIssues(ws.RootDir)
 	if err != nil {
+		if errors.Is(err, github.ErrNotAuthenticated) {
+			return fmt.Errorf("%w\nRun 'bc github auth login' to log in", err)
+		}
+		if errors.Is(err, github.ErrNoGitRemote) {
+			return fmt.Errorf("no git remote configured for this workspace: %w", err)
+		}
 		return fmt.Errorf("failed to list issues: %w", err)
 	}
 

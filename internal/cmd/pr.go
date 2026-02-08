@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -52,6 +53,12 @@ func runPRNotify(cmd *cobra.Command, args []string) error {
 	// Get open PRs from GitHub
 	prs, err := github.ListPRs(ws.RootDir)
 	if err != nil {
+		if errors.Is(err, github.ErrNotAuthenticated) {
+			return fmt.Errorf("%w\nRun 'bc github auth login' to log in", err)
+		}
+		if errors.Is(err, github.ErrNoGitRemote) {
+			return fmt.Errorf("no git remote configured: %w", err)
+		}
 		return fmt.Errorf("failed to list PRs: %w", err)
 	}
 

@@ -58,6 +58,10 @@ func HasGitRemote(workspacePath string) bool {
 // ErrNoGitRemote indicates no git remote is configured.
 var ErrNoGitRemote = fmt.Errorf("no git remote configured")
 
+// ErrNotAuthenticated indicates the user is not logged in to GitHub (gh).
+// Callers should prompt to run bc github auth login.
+var ErrNotAuthenticated = fmt.Errorf("not logged in to GitHub: run 'bc github auth login'")
+
 // ListIssues returns GitHub issues for the workspace's repo.
 // Returns ErrNoGitRemote if no remote is configured.
 func ListIssues(workspacePath string) ([]Issue, error) {
@@ -72,6 +76,9 @@ func ListIssues(workspacePath string) ([]Issue, error) {
 	cmd.Dir = workspacePath
 	output, err := cmd.Output()
 	if err != nil {
+		if isNotAuthenticated() {
+			return nil, ErrNotAuthenticated
+		}
 		return nil, fmt.Errorf("failed to list GitHub issues: %w", err)
 	}
 
@@ -112,6 +119,9 @@ func ListPRs(workspacePath string) ([]PR, error) {
 	cmd.Dir = workspacePath
 	output, err := cmd.Output()
 	if err != nil {
+		if isNotAuthenticated() {
+			return nil, ErrNotAuthenticated
+		}
 		return nil, fmt.Errorf("failed to list GitHub PRs: %w", err)
 	}
 
@@ -164,6 +174,13 @@ type AuthStatusResult struct {
 // authStatusJSON is the shape of `gh auth status --json hosts`.
 type authStatusJSON struct {
 	Hosts map[string][]AuthAccount `json:"hosts"`
+}
+
+// isNotAuthenticated returns true if gh reports no logged-in user.
+// Used to convert gh command failures into ErrNotAuthenticated.
+func isNotAuthenticated() bool {
+	result, err := AuthStatus()
+	return err == nil && !result.LoggedIn
 }
 
 // AuthStatus runs `gh auth status` and returns whether the user is logged in
