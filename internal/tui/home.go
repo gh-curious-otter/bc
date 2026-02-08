@@ -122,7 +122,13 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *HomeModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
 
-	// Global keys
+	// Check if a child view is in input mode - if so, skip global keybinds
+	// and pass directly to the view handler
+	if m.isInputActive() {
+		return m.dispatchToScreen(msg)
+	}
+
+	// Global keys (only processed when NOT in input mode)
 	switch key {
 	case "ctrl+c", "q":
 		if m.helpActive {
@@ -146,7 +152,26 @@ func (m *HomeModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Dispatch to active screen
+	return m.dispatchToScreen(msg)
+}
+
+// isInputActive returns true if a child view has an active text input field
+func (m *HomeModel) isInputActive() bool {
+	switch m.screen {
+	case ScreenChannel:
+		if m.channelModel != nil {
+			return m.channelModel.sendMode
+		}
+	case ScreenAgent:
+		if m.agentModel != nil {
+			return m.agentModel.sendMode
+		}
+	}
+	return false
+}
+
+// dispatchToScreen sends a key event to the appropriate screen handler
+func (m *HomeModel) dispatchToScreen(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.screen {
 	case ScreenHome:
 		return m.handleHomeKey(msg)
@@ -159,7 +184,6 @@ func (m *HomeModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case ScreenIssue:
 		return m.handleIssueKey(msg)
 	}
-
 	return m, nil
 }
 

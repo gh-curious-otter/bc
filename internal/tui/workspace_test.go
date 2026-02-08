@@ -1042,3 +1042,85 @@ func TestView_ShowsStatsBar(t *testing.T) {
 		t.Errorf("expected stats bar with 'Issues:', got: %s", output)
 	}
 }
+
+// --- Queue Progress tests ---
+
+func TestRenderDashboard_QueueProgress(t *testing.T) {
+	m := newTestModel()
+	m.issues = []beads.Issue{
+		{ID: "bd-001", Title: "Ready task", Status: "open"},
+		{ID: "bd-002", Title: "In progress task", Status: "in_progress"},
+		{ID: "bd-003", Title: "Assigned task", Status: "open", Assignee: "eng-01"},
+		{ID: "bd-004", Title: "Closed task", Status: "closed"},
+	}
+	m.computeStats()
+
+	output := m.renderDashboard()
+
+	// Should show queue progress section
+	if !strings.Contains(output, "QUEUE PROGRESS") {
+		t.Errorf("expected 'QUEUE PROGRESS' section header, got: %s", output)
+	}
+	// Should show in progress count (1 in_progress)
+	if !strings.Contains(output, "In Progress") {
+		t.Errorf("expected 'In Progress' in queue stats, got: %s", output)
+	}
+	// Should show assigned count
+	if !strings.Contains(output, "Assigned") {
+		t.Errorf("expected 'Assigned' in queue stats, got: %s", output)
+	}
+	// Should show total open count (open + pending + in_progress = 3)
+	if !strings.Contains(output, "Total Open") {
+		t.Errorf("expected 'Total Open' in queue stats, got: %s", output)
+	}
+}
+
+func TestComputeStats_QueueStats(t *testing.T) {
+	m := newTestModel()
+	m.issues = []beads.Issue{
+		{ID: "bd-001", Title: "Open task", Status: "open"},
+		{ID: "bd-002", Title: "In progress task", Status: "in_progress"},
+		{ID: "bd-003", Title: "Pending task", Status: "pending"},
+		{ID: "bd-004", Title: "Assigned open", Status: "open", Assignee: "eng-01"},
+		{ID: "bd-005", Title: "Assigned in progress", Status: "in_progress", Assignee: "eng-02"},
+		{ID: "bd-006", Title: "Closed", Status: "closed"},
+	}
+	m.computeStats()
+
+	// In progress count should be 2 (both in_progress issues)
+	if m.stats.InProgressIssues != 2 {
+		t.Errorf("InProgressIssues = %d, want 2", m.stats.InProgressIssues)
+	}
+	// Assigned count should be 2 (issues with assignee set)
+	if m.stats.AssignedIssues != 2 {
+		t.Errorf("AssignedIssues = %d, want 2", m.stats.AssignedIssues)
+	}
+	// Open count should be 5 (open + pending + in_progress)
+	if m.stats.OpenIssues != 5 {
+		t.Errorf("OpenIssues = %d, want 5", m.stats.OpenIssues)
+	}
+	// Closed count should be 1
+	if m.stats.ClosedIssues != 1 {
+		t.Errorf("ClosedIssues = %d, want 1", m.stats.ClosedIssues)
+	}
+}
+
+func TestRenderDashboard_QueueProgressBar(t *testing.T) {
+	m := newTestModel()
+	m.issues = []beads.Issue{
+		{ID: "bd-001", Title: "Open task", Status: "open"},
+		{ID: "bd-002", Title: "In progress", Status: "in_progress"},
+	}
+	m.computeStats()
+
+	output := m.renderDashboard()
+
+	// Should show progress bar with percentage
+	if !strings.Contains(output, "In Progress:") {
+		t.Errorf("expected 'In Progress:' progress bar, got: %s", output)
+	}
+	// Should contain progress percentage (50% = 1 in progress / 2 open)
+	if !strings.Contains(output, "50.0%") {
+		t.Errorf("expected '50.0%%' in progress bar, got: %s", output)
+	}
+}
