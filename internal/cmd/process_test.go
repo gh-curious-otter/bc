@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -392,5 +393,52 @@ func TestProcessLogsWithContent(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "port 8080") {
 		t.Errorf("output should contain log content, got: %s", stdout)
+	}
+}
+
+// seedStoppedProcess writes a stopped process directly to the registry file.
+// This bypasses Register() which always sets Running=true.
+func seedStoppedProcess(t *testing.T, wsDir, name string) {
+	t.Helper()
+
+	procDir := filepath.Join(wsDir, ".bc", "processes")
+	if err := os.MkdirAll(procDir, 0750); err != nil {
+		t.Fatalf("failed to create processes dir: %v", err)
+	}
+
+	processes := map[string]*process.Process{
+		name: {
+			Name:      name,
+			Command:   "test-cmd",
+			PID:       0,
+			Running:   false,
+			StartedAt: time.Now(),
+		},
+	}
+
+	data, err := json.MarshalIndent(processes, "", "  ")
+	if err != nil {
+		t.Fatalf("failed to marshal processes: %v", err)
+	}
+
+	regPath := filepath.Join(procDir, "registry.json")
+	if err := os.WriteFile(regPath, data, 0600); err != nil {
+		t.Fatalf("failed to write registry: %v", err)
+	}
+}
+
+func TestProcessStopNotRunning(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Seed a stopped process
+	seedStoppedProcess(t, wsDir, "stopped-proc")
+
+	_, _, err := executeIntegrationCmd("process", "stop", "stopped-proc")
+	if err == nil {
+		t.Fatal("expected error for stopped process, got nil")
+	}
+	if !strings.Contains(err.Error(), "not running") {
+		t.Errorf("expected 'not running' error, got: %v", err)
 	}
 }
