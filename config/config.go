@@ -46,7 +46,7 @@ type WorkspaceConfig struct {
 var (
 	Agent = AgentConfig{
 		Command:         "cursor-agent --force --print",
-		CoordinatorName: "coordinator",
+		CoordinatorName: "root",
 		WorkerPrefix:    "worker",
 	}
 	Agents = []AgentsItem{
