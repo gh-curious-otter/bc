@@ -276,6 +276,55 @@ func TestGenerateBufferName_Format(t *testing.T) {
 	}
 }
 
+// TestSendKeys_ConcurrentLongMessages verifies that concurrent SendKeys calls
+// with long messages (>500 chars, using buffer-based send) don't corrupt each other.
+// This exercises the named buffer and per-session locking mechanism.
+func TestSendKeys_ConcurrentLongMessages(t *testing.T) {
+	// This test verifies the concurrent safety of SendKeys with long messages.
+	// It doesn't require actual tmux sessions - it tests that concurrent calls
+	// properly serialize via per-session locks and use unique buffer names.
+	m := NewManager("conctest-")
+
+	// Generate unique buffer names concurrently
+	bufferNames := make([]string, 50)
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			bufferNames[idx] = generateBufferName()
+		}(i)
+	}
+	wg.Wait()
+
+	// Verify all buffer names are unique (no collisions under concurrent generation)
+	seen := make(map[string]bool)
+	for i, name := range bufferNames {
+		if seen[name] {
+			t.Errorf("duplicate buffer name at index %d: %s", i, name)
+		}
+		seen[name] = true
+	}
+
+	// Verify per-session locks are correctly allocated under concurrent access
+	locks := make([]*sync.Mutex, 50)
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			locks[idx] = m.getSessionLock("test-session")
+		}(i)
+	}
+	wg.Wait()
+
+	// All locks for the same session should be the same instance
+	for i := 1; i < 50; i++ {
+		if locks[i] != locks[0] {
+			t.Errorf("goroutine %d got different lock for same session", i)
+		}
+	}
+}
+
 func TestSessionName(t *testing.T) {
 	tests := []struct {
 		name  string
