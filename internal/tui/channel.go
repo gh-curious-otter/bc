@@ -652,30 +652,65 @@ func (m *ChannelModel) visibleWindow() (start, end int) {
 
 // visibleMsgCount returns how many messages fit in the visible area.
 func (m *ChannelModel) visibleMsgCount() int {
-	// Reserve lines: title(1) + summary(0 or more) + member stats(1) + member list(1+)
-	// + actions(1) + divider(1) + input/status(2) + scroll hint(1)
-	overhead := 10
+	// Reserve: title(1) + description(0|1) + stats(1) + member list(2) + actions(1) + divider(1) + bottom(2)
+	overhead := 8
 	if m.channel.Description != "" {
-		w := m.width - 4
-		if w < 20 {
-			w = 20
-		}
-		overhead += len(wrapText(m.channel.Description, w-9)) // "Summary: " = 9
+		overhead++
 	}
-	memberList := strings.Join(m.channel.Members, ", ")
-	if memberList != "" {
-		w := m.width - 4
-		if w < 20 {
-			w = 20
-		}
-		overhead += len(wrapText(memberList, w-11)) // "  Members: " = 11
-	}
+	// Member list uses label + names (wrapped); reserve 2 lines
+	overhead += 2
 	// Each message takes ~3 lines (sender+time, content, blank separator)
 	available := m.height - overhead
 	if available < 3 {
 		available = 3
 	}
 	return available / 3
+}
+
+// renderMemberList returns the "Members:" label and list of member names with online status.
+func (m *ChannelModel) renderMemberList() string {
+	if len(m.channel.Members) == 0 {
+		return "  " + m.styles.Muted.Render("Members: (none)") + "\n"
+	}
+	var b strings.Builder
+	b.WriteString("  ")
+	b.WriteString(m.styles.Bold.Render("Members:"))
+	b.WriteString("\n  ")
+	lineWidth := m.width - 4
+	if lineWidth < 20 {
+		lineWidth = 20
+	}
+	var lineLen int
+	for i, member := range m.channel.Members {
+		online := false
+		if m.manager != nil {
+			if a := m.manager.GetAgent(member); a != nil && a.State != agent.StateStopped {
+				online = true
+			}
+		}
+		role := style.RoleFromAgentName(member)
+		senderStyle := m.styles.RoleStyle(role)
+		var indicator string
+		if online {
+			indicator = m.styles.Success.Render("●")
+		} else {
+			indicator = m.styles.Muted.Render("○")
+		}
+		seg := senderStyle.Render(member) + " " + indicator
+		if i > 0 {
+			b.WriteString("  ")
+			lineLen += 2
+		}
+		b.WriteString(seg)
+		lineLen += len(member) + 2
+		// Wrap if we exceed width (approximate)
+		if lineLen > lineWidth && i < len(m.channel.Members)-1 {
+			b.WriteString("\n  ")
+			lineLen = 0
+		}
+	}
+	b.WriteString("\n")
+	return b.String()
 }
 
 // View renders the channel detail screen.
@@ -733,7 +768,7 @@ func (m *ChannelModel) View() string {
 		}
 	}
 
-	// Member stats line
+	// Summary: member count and list
 	b.WriteString("  ")
 	if activeCount > 0 {
 		b.WriteString(m.styles.Success.Render(fmt.Sprintf("● %d online", activeCount)))
@@ -741,6 +776,9 @@ func (m *ChannelModel) View() string {
 	} else {
 		b.WriteString(m.styles.Muted.Render(fmt.Sprintf("○ %d members", totalMembers)))
 	}
+	b.WriteString("\n")
+
+	b.WriteString(m.renderMemberList())
 
 	// Member list: names visible in channel view
 	if totalMembers > 0 {

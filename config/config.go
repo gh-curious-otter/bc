@@ -45,20 +45,25 @@ type WorkspaceConfig struct {
 
 var (
 	Agent = AgentConfig{
-		Command:         "cursor-agent --force",
+		Command:         "cursor-agent --force --print",
 		CoordinatorName: "root",
 		WorkerPrefix:    "worker",
 	}
 	Agents = []AgentsItem{
 		{
-			Command:     "cursor-agent --force",
-			Description: "Cursor Agent (default, skip permissions, for tmux)",
-			Name:        "cursor-agent",
+			Command:     "claude --dangerously-skip-permissions",
+			Description: "Anthropic Claude Code",
+			Name:        "claude",
 		},
 		{
 			Command:     "cursor-agent --force",
 			Description: "Cursor Agent (all permissions)",
 			Name:        "cursor",
+		},
+		{
+			Command:     "cursor-agent --force --print",
+			Description: "Cursor Agent (headless, all permissions, stdin/Enter submits)",
+			Name:        "cursor-agent",
 		},
 		{
 			Command:     "codex --full-auto",
