@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 )
@@ -117,6 +119,12 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		for _, f := range conflicts {
 			fmt.Printf("  - %s\n", f)
 		}
+
+		// Notify the responsible agent about the conflicts
+		if notifyErr := notifyConflicts(rootDir, branch, conflicts); notifyErr != nil {
+			log.Warn("failed to send conflict notification", "error", notifyErr)
+		}
+
 		if mergeDryRun {
 			return fmt.Errorf("dry-run: branch %s has %d conflicting file(s) with main", branch, len(conflicts))
 		}
@@ -429,4 +437,111 @@ func rebaseBranchOntoMain(worktreeDir string) error {
 	}
 
 	return nil
+}
+
+// notifyConflicts sends a notification to the agent responsible for the conflicts.
+// It identifies the agent from the branch name and sends a channel notification
+// with conflict details and resolution steps.
+func notifyConflicts(rootDir, branch string, conflicts []string) error {
+	// Get the branch head commit for context
+	branchHead, err := gitRevParse(rootDir, branch)
+	if err != nil {
+		branchHead = "unknown"
+	}
+
+	mainHead, err := gitRevParse(rootDir, "main")
+	if err != nil {
+		mainHead = "unknown"
+	}
+
+	// Identify the agent from the branch name (e.g., engineer-01/issue-123/feature)
+	responsibleAgent := extractAgentFromBranch(branch)
+
+	// Build notification message
+	var sb strings.Builder
+	sb.WriteString("⚠️ **Merge Conflict Detected**\n\n")
+	sb.WriteString(fmt.Sprintf("Branch `%s` has conflicts with `main`.\n\n", branch))
+	sb.WriteString("**Conflicting files:**\n")
+	for _, f := range conflicts {
+		sb.WriteString(fmt.Sprintf("  - `%s`\n", f))
+	}
+	sb.WriteString("\n**Commit details:**\n")
+	sb.WriteString(fmt.Sprintf("  - Branch HEAD: `%s`\n", truncateSHA(branchHead)))
+	sb.WriteString(fmt.Sprintf("  - Main HEAD: `%s`\n", truncateSHA(mainHead)))
+	sb.WriteString("\n**Resolution steps:**\n")
+	sb.WriteString("1. `git fetch origin main`\n")
+	sb.WriteString("2. `git rebase origin/main`\n")
+	sb.WriteString("3. Resolve conflicts in listed files\n")
+	sb.WriteString("4. `git add .`\n")
+	sb.WriteString("5. `git rebase --continue`\n")
+	sb.WriteString("6. `git push --force-with-lease`\n")
+
+	message := sb.String()
+
+	// Load channel store and send notification
+	store := channel.NewStore(rootDir)
+	if err := store.Load(); err != nil {
+		return fmt.Errorf("failed to load channel store: %w", err)
+	}
+
+	// Determine which channel to notify
+	// Priority: engineering channel if available, otherwise all channel
+	notifyChannel := "engineering"
+	if _, exists := store.Get(notifyChannel); !exists {
+		notifyChannel = "all"
+		if _, exists := store.Get(notifyChannel); !exists {
+			// Create all channel if it doesn't exist
+			if _, err := store.Create("all"); err != nil {
+				return fmt.Errorf("failed to create all channel: %w", err)
+			}
+		}
+	}
+
+	// Add message to channel history
+	sender := "merge-bot"
+	if envSender := os.Getenv("BC_AGENT_ID"); envSender != "" {
+		sender = envSender
+	}
+
+	if err := store.AddHistory(notifyChannel, sender, message); err != nil {
+		return fmt.Errorf("failed to add conflict notification to history: %w", err)
+	}
+
+	if err := store.Save(); err != nil {
+		return fmt.Errorf("failed to save channel store: %w", err)
+	}
+
+	fmt.Printf("  Conflict notification sent to #%s", notifyChannel)
+	if responsibleAgent != "" {
+		fmt.Printf(" (responsible: @%s)", responsibleAgent)
+	}
+	fmt.Println()
+
+	return nil
+}
+
+// extractAgentFromBranch extracts the agent name from a branch name.
+// Branch naming convention: agent-name/issue-XXX/description
+func extractAgentFromBranch(branch string) string {
+	parts := strings.SplitN(branch, "/", 2)
+	if len(parts) > 0 {
+		// Check if the first part looks like an agent name
+		agentName := parts[0]
+		if strings.HasPrefix(agentName, "engineer-") ||
+			strings.HasPrefix(agentName, "tech-lead-") ||
+			strings.HasPrefix(agentName, "qa-") ||
+			agentName == "coordinator" ||
+			agentName == "manager" {
+			return agentName
+		}
+	}
+	return ""
+}
+
+// truncateSHA returns the first 12 characters of a SHA, or the full string if shorter.
+func truncateSHA(sha string) string {
+	if len(sha) > 12 {
+		return sha[:12]
+	}
+	return sha
 }
