@@ -580,3 +580,40 @@ func TestConcurrentAddHistory(t *testing.T) {
 		t.Errorf("history after concurrent adds = %d, want 50", len(history))
 	}
 }
+
+// --- List Stable Ordering ---
+
+func TestListStableOrdering(t *testing.T) {
+	s := newTestStore(t)
+
+	// Create channels in random order
+	names := []string{"zebra", "alpha", "middle", "beta"}
+	for _, name := range names {
+		if _, err := s.Create(name); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// List should return channels sorted alphabetically
+	channels := s.List()
+	if len(channels) != 4 {
+		t.Fatalf("List() returned %d channels, want 4", len(channels))
+	}
+
+	expected := []string{"alpha", "beta", "middle", "zebra"}
+	for i, ch := range channels {
+		if ch.Name != expected[i] {
+			t.Errorf("List()[%d].Name = %q, want %q", i, ch.Name, expected[i])
+		}
+	}
+
+	// Call List multiple times - order should be stable
+	for iter := 0; iter < 10; iter++ {
+		channels := s.List()
+		for i, ch := range channels {
+			if ch.Name != expected[i] {
+				t.Errorf("iter %d: List()[%d].Name = %q, want %q", iter, i, ch.Name, expected[i])
+			}
+		}
+	}
+}

@@ -81,6 +81,17 @@ func (s *Store) Save() error {
 		channels = append(channels, ch)
 	}
 
+	// Sort by name for stable file output
+	slices.SortFunc(channels, func(a, b *Channel) int {
+		if a.Name < b.Name {
+			return -1
+		}
+		if a.Name > b.Name {
+			return 1
+		}
+		return 0
+	})
+
 	data, err := json.MarshalIndent(channels, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal channels: %w", err)
@@ -125,7 +136,7 @@ func (s *Store) Get(name string) (*Channel, bool) {
 	return ch, exists
 }
 
-// List returns all channels.
+// List returns all channels sorted by name for stable ordering.
 func (s *Store) List() []*Channel {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -134,6 +145,18 @@ func (s *Store) List() []*Channel {
 	for _, ch := range s.channels {
 		channels = append(channels, ch)
 	}
+
+	// Sort by name for stable ordering in UI
+	slices.SortFunc(channels, func(a, b *Channel) int {
+		if a.Name < b.Name {
+			return -1
+		}
+		if a.Name > b.Name {
+			return 1
+		}
+		return 0
+	})
+
 	return channels
 }
 
