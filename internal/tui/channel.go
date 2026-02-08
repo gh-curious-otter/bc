@@ -655,6 +655,14 @@ func (m *ChannelModel) View() string {
 	} else {
 		b.WriteString(m.styles.Muted.Render(fmt.Sprintf("○ %d members", totalMembers)))
 	}
+	b.WriteString("\n")
+
+	// Member list: names visible for #300
+	if totalMembers > 0 {
+		memberList := strings.Join(m.channel.Members, ", ")
+		b.WriteString(m.styles.Muted.Render("  Members: " + memberList))
+		b.WriteString("\n")
+	}
 
 	// Member list: names visible in channel view
 	if totalMembers > 0 {

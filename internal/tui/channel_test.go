@@ -569,6 +569,45 @@ func TestChannelView_OnlineIndicator(t *testing.T) {
 	}
 }
 
+// TestChannelView_MemberListVisible ensures #300: member list is visible in channel header.
+func TestChannelView_MemberListVisible(t *testing.T) {
+	m := newTestChannelModel()
+
+	output := m.View()
+	// Must show "Members:" and each member name
+	if !strings.Contains(output, "Members:") {
+		t.Errorf("expected 'Members:' in header, got: %s", output[:min(500, len(output))])
+	}
+	for _, name := range m.channel.Members {
+		if !strings.Contains(output, name) {
+			t.Errorf("expected member %q in view, got: %s", name, output[:min(500, len(output))])
+		}
+	}
+}
+
+// TestChannelView_ScrollIndicators ensures #302: scroll indicators when scrolling messages.
+func TestChannelView_ScrollIndicators(t *testing.T) {
+	m := newTestChannelModel()
+	// Enough history to require scrolling
+	for i := 0; i < 50; i++ {
+		m.channel.History = append(m.channel.History, channel.HistoryEntry{
+			Sender:  "bot",
+			Message: "msg",
+			Time:    time.Now(),
+		})
+	}
+	m.height = 20
+	m.scroll = 10
+
+	output := m.View()
+	if !strings.Contains(output, "older messages") {
+		t.Errorf("expected 'older messages' scroll indicator when scrolled, got: %s", output[:min(400, len(output))])
+	}
+	if !strings.Contains(output, "newer messages") {
+		t.Errorf("expected 'newer messages' scroll indicator when scrolled, got: %s", output[:min(400, len(output))])
+	}
+}
+
 func TestChannelView_QuickActions(t *testing.T) {
 	m := newTestChannelModel()
 
