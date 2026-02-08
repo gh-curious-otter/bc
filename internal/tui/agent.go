@@ -10,6 +10,7 @@ import (
 
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/events"
+	"github.com/rpuneet/bc/pkg/memory"
 	"github.com/rpuneet/bc/pkg/tui/style"
 )
 
@@ -17,18 +18,20 @@ const agentMaxRecentEvents = 10
 
 // AgentModel shows the detail view for a single agent.
 type AgentModel struct {
-	manager      *agent.Manager
-	agent        *agent.Agent
-	styles       style.Styles
-	sendMsg      string
-	wsPath       string
-	peekOutput   string
-	input        string
-	recentEvents []events.Event
-	width        int
-	height       int
-	peekActive   bool
-	sendMode     bool
+	manager         *agent.Manager
+	agent           *agent.Agent
+	styles          style.Styles
+	sendMsg         string
+	wsPath          string
+	peekOutput      string
+	input           string
+	recentEvents    []events.Event
+	width           int
+	height          int
+	experienceCount int
+	peekActive      bool
+	sendMode        bool
+	hasMemory       bool
 }
 
 // NewAgentModel creates an agent detail view.
@@ -41,6 +44,7 @@ func NewAgentModel(a *agent.Agent, mgr *agent.Manager, wsPath string, s style.St
 		wsPath:  wsPath,
 	}
 	m.loadRecentActivity()
+	m.loadMemoryInfo()
 	return m
 }
 
@@ -123,6 +127,26 @@ func (m *AgentModel) refresh() {
 		m.agent = a
 	}
 	m.loadRecentActivity()
+	m.loadMemoryInfo()
+}
+
+func (m *AgentModel) loadMemoryInfo() {
+	if m.wsPath == "" {
+		return
+	}
+	store := memory.NewStore(m.wsPath, m.agent.Name)
+	if !store.Exists() {
+		m.hasMemory = false
+		m.experienceCount = 0
+		return
+	}
+	m.hasMemory = true
+	experiences, err := store.GetExperiences()
+	if err != nil {
+		m.experienceCount = 0
+		return
+	}
+	m.experienceCount = len(experiences)
 }
 
 func (m *AgentModel) loadPeek() {
@@ -205,6 +229,11 @@ func (m *AgentModel) renderInfo() string {
 
 	if m.agent.Task != "" {
 		fields = append(fields, field{"Task", m.agent.Task, ""})
+	}
+
+	// Add memory info
+	if m.hasMemory {
+		fields = append(fields, field{"Experiences", fmt.Sprintf("%d", m.experienceCount), ""})
 	}
 
 	for _, f := range fields {

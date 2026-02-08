@@ -14,6 +14,7 @@ import (
 	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/events"
+	"github.com/rpuneet/bc/pkg/memory"
 	"github.com/rpuneet/bc/pkg/stats"
 	"github.com/rpuneet/bc/pkg/tui/style"
 )
@@ -62,6 +63,12 @@ type WorkspaceModel struct {
 	// Per-agent stats from pkg/stats
 	agentStats map[string]stats.AgentStat
 
+	// Per-agent issue counts
+	issuesByAgent map[string]int
+
+	// Per-agent memory experience counts
+	experiencesByAgent map[string]int
+
 	manager   *agent.Manager
 	pkgStats  *stats.Stats
 	issuesErr error
@@ -109,6 +116,9 @@ func NewWorkspaceModel(info WorkspaceInfo, s style.Styles) *WorkspaceModel {
 
 	// Load per-agent stats from pkg/stats
 	m.loadAgentStats()
+
+	// Load per-agent memory info
+	m.loadMemoryInfo()
 
 	// Load recent events for activity feed
 	m.loadRecentEvents()
@@ -170,6 +180,7 @@ func (m *WorkspaceModel) refresh() {
 	m.agents = m.manager.ListAgents()
 	m.issues, m.issuesErr = beads.ListIssues(m.info.Entry.Path)
 	m.loadChannels()
+	m.loadMemoryInfo()
 	m.loadRecentEvents()
 	m.computeStats()
 	m.loadPkgStats()
@@ -186,6 +197,21 @@ func (m *WorkspaceModel) loadAgentStats() {
 	}
 	for _, as := range s.Agents.AgentStats {
 		m.agentStats[as.Name] = as
+	}
+}
+
+func (m *WorkspaceModel) loadMemoryInfo() {
+	m.experiencesByAgent = make(map[string]int)
+	for _, a := range m.agents {
+		store := memory.NewStore(m.info.Entry.Path, a.Name)
+		if !store.Exists() {
+			continue
+		}
+		experiences, err := store.GetExperiences()
+		if err != nil {
+			continue
+		}
+		m.experiencesByAgent[a.Name] = len(experiences)
 	}
 }
 
@@ -361,15 +387,15 @@ func (m *WorkspaceModel) renderAgents() string {
 		return b.String()
 	}
 
-	// Header
-	header := fmt.Sprintf("  %-15s %-12s %-10s %-12s %s",
-		"NAME", "ROLE", "STATE", "UPTIME", "TASK")
+	// Header with ISSUES and MEM columns for queue/memory info
+	header := fmt.Sprintf("  %-15s %-12s %-10s %-8s %-6s %-12s %s",
+		"NAME", "ROLE", "STATE", "ISSUES", "MEM", "UPTIME", "TASK")
 	b.WriteString(m.styles.Bold.Render(header))
 	b.WriteString("\n")
 
-	// Fixed columns: 2(indent) + NAME(15) + ROLE(12) + STATE(10) + UPTIME(12) = 51
+	// Fixed columns: 2(indent) + NAME(15) + ROLE(12) + STATE(10) + ISSUES(8) + MEM(6) + UPTIME(12) = 65
 	// Task gets the rest of the terminal width
-	taskWidth := m.width - 51
+	taskWidth := m.width - 65
 	if taskWidth < 20 {
 		taskWidth = 20
 	}
@@ -388,6 +414,20 @@ func (m *WorkspaceModel) renderAgents() string {
 			uptime = fmtDuration(time.Since(a.StartedAt))
 		}
 
+		// Get issues count for this agent
+		issues := m.issuesByAgent[a.Name]
+		issuesStr := "-"
+		if issues > 0 {
+			issuesStr = fmt.Sprintf("%d", issues)
+		}
+
+		// Get experience count for this agent (memory info)
+		experiences := m.experiencesByAgent[a.Name]
+		memStr := "-"
+		if experiences > 0 {
+			memStr = fmt.Sprintf("%d", experiences)
+		}
+
 		task := a.Task
 		if task == "" {
 			task = "-"
@@ -396,8 +436,8 @@ func (m *WorkspaceModel) renderAgents() string {
 			task = task[:taskWidth-3] + "..."
 		}
 
-		line := fmt.Sprintf("  %-15s %-12s %-10s %-12s %s",
-			a.Name, a.Role, a.State, uptime, task,
+		line := fmt.Sprintf("  %-15s %-12s %-10s %-8s %-6s %-12s %s",
+			a.Name, a.Role, a.State, issuesStr, memStr, uptime, task,
 		)
 
 		if selected {
@@ -850,6 +890,7 @@ func (m *WorkspaceModel) getRecentlyClosedIssues() []beads.Issue {
 
 func (m *WorkspaceModel) computeStats() {
 	m.stats = WorkspaceStats{}
+	m.issuesByAgent = make(map[string]int)
 	for _, issue := range m.issues {
 		m.stats.TotalIssues++
 		if issue.Type == "epic" {
@@ -866,6 +907,7 @@ func (m *WorkspaceModel) computeStats() {
 		}
 		if issue.Assignee != "" {
 			m.stats.AssignedIssues++
+			m.issuesByAgent[issue.Assignee]++
 		}
 	}
 
