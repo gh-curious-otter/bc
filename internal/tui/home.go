@@ -122,6 +122,7 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.channelModel != nil {
 			m.channelModel.width = msg.Width
 			m.channelModel.height = msg.Height
+			m.channelModel.clampScroll()
 		}
 		if m.issueModel != nil {
 			m.issueModel.width = msg.Width
