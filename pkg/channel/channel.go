@@ -23,9 +23,10 @@ type HistoryEntry struct {
 
 // Channel represents a named communication channel with a list of members.
 type Channel struct {
-	Name    string         `json:"name"`
-	Members []string       `json:"members"`
-	History []HistoryEntry `json:"history,omitempty"`
+	Name        string         `json:"name"`
+	Description string         `json:"description,omitempty"`
+	Members     []string       `json:"members"`
+	History     []HistoryEntry `json:"history,omitempty"`
 }
 
 // Store manages channel persistence and operations.
@@ -266,4 +267,31 @@ func (s *Store) GetHistory(channelName string) ([]HistoryEntry, error) {
 	history := make([]HistoryEntry, len(ch.History))
 	copy(history, ch.History)
 	return history, nil
+}
+
+// SetDescription sets the description for a channel.
+func (s *Store) SetDescription(channelName, description string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	ch, exists := s.channels[channelName]
+	if !exists {
+		return fmt.Errorf("channel %q not found", channelName)
+	}
+
+	ch.Description = description
+	return nil
+}
+
+// GetDescription returns the description for a channel.
+func (s *Store) GetDescription(channelName string) (string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	ch, exists := s.channels[channelName]
+	if !exists {
+		return "", fmt.Errorf("channel %q not found", channelName)
+	}
+
+	return ch.Description, nil
 }

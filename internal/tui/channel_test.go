@@ -290,7 +290,7 @@ func TestChannelView_NoMessages(t *testing.T) {
 	m.channel.History = nil
 
 	output := m.View()
-	if !strings.Contains(output, "#standup") {
+	if !strings.Contains(output, "# standup") {
 		t.Errorf("expected channel name, got: %s", output)
 	}
 	if !strings.Contains(output, "No messages") {
@@ -302,7 +302,7 @@ func TestChannelView_WithMessages(t *testing.T) {
 	m := newTestChannelModel()
 
 	output := m.View()
-	if !strings.Contains(output, "#standup") {
+	if !strings.Contains(output, "# standup") {
 		t.Errorf("expected channel name, got: %s", output)
 	}
 	if !strings.Contains(output, "eng-01") {
@@ -346,6 +346,42 @@ func TestChannelView_NoSender(t *testing.T) {
 	output := m.View()
 	if !strings.Contains(output, "system") {
 		t.Errorf("expected 'system' for empty sender, got: %s", output)
+	}
+}
+
+func TestChannelView_WithDescription(t *testing.T) {
+	m := newTestChannelModel()
+	m.channel.Description = "Team standup updates"
+
+	output := m.View()
+	if !strings.Contains(output, "Team standup updates") {
+		t.Errorf("expected description in header, got: %s", output)
+	}
+}
+
+func TestChannelView_OnlineIndicator(t *testing.T) {
+	m := newTestChannelModel()
+
+	output := m.View()
+	// Should show member count with online indicator
+	if !strings.Contains(output, "members") {
+		t.Errorf("expected member count in header, got: %s", output)
+	}
+}
+
+func TestChannelView_QuickActions(t *testing.T) {
+	m := newTestChannelModel()
+
+	output := m.View()
+	// Should show quick action hints in header
+	if !strings.Contains(output, "[s]") {
+		t.Errorf("expected send action hint, got: %s", output)
+	}
+	if !strings.Contains(output, "[r]") {
+		t.Errorf("expected refresh action hint, got: %s", output)
+	}
+	if !strings.Contains(output, "[esc]") {
+		t.Errorf("expected back action hint, got: %s", output)
 	}
 }
 
