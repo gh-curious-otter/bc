@@ -4,12 +4,23 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/memory"
 )
+
+// SearchResult represents a ranked search result.
+type SearchResult struct {
+	AgentID    string
+	Source     string // "experience" or "learning"
+	Content    string
+	Context    string // additional context (outcome, task type, etc.)
+	Score      int    // relevance score (higher = more relevant)
+	LineNumber int    // for learnings: line number in file
+}
 
 var memoryCmd = &cobra.Command{
 	Use:   "memory",
@@ -295,23 +306,31 @@ func runMemorySearch(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	found := false
+	// Collect and score all results
+	var results []SearchResult
+
 	for _, agentID := range agents {
 		store := memory.NewStore(ws.RootDir, agentID)
 
 		// Search experiences
 		experiences, _ := store.GetExperiences()
 		for _, exp := range experiences {
-			if strings.Contains(strings.ToLower(exp.Description), query) ||
-				strings.Contains(strings.ToLower(exp.Outcome), query) {
-				if !found {
-					cmd.Println("=== Search Results ===")
-					cmd.Println()
-					found = true
+			score := scoreExperience(exp, query)
+			if score > 0 {
+				context := fmt.Sprintf("Outcome: %s", exp.Outcome)
+				if exp.TaskType != "" {
+					context += fmt.Sprintf(", Type: %s", exp.TaskType)
 				}
-				cmd.Printf("[%s] Experience: %s\n", agentID, exp.Description)
-				cmd.Printf("  Outcome: %s\n", exp.Outcome)
-				cmd.Println()
+				if exp.TaskID != "" {
+					context += fmt.Sprintf(", Task: %s", exp.TaskID)
+				}
+				results = append(results, SearchResult{
+					AgentID: agentID,
+					Source:  "experience",
+					Content: exp.Description,
+					Context: context,
+					Score:   score,
+				})
 			}
 		}
 
@@ -319,21 +338,119 @@ func runMemorySearch(cmd *cobra.Command, args []string) error {
 		learnings, _ := store.GetLearnings()
 		lines := strings.Split(learnings, "\n")
 		for i, line := range lines {
-			if strings.Contains(strings.ToLower(line), query) {
-				if !found {
-					cmd.Println("=== Search Results ===")
-					cmd.Println()
-					found = true
-				}
-				// Print context: the line and surrounding lines
-				cmd.Printf("[%s] Learnings (line %d): %s\n\n", agentID, i+1, strings.TrimSpace(line))
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "" {
+				continue
+			}
+			score := scoreLearning(trimmed, query)
+			if score > 0 {
+				results = append(results, SearchResult{
+					AgentID:    agentID,
+					Source:     "learning",
+					Content:    trimmed,
+					LineNumber: i + 1,
+					Score:      score,
+				})
 			}
 		}
 	}
 
-	if !found {
+	if len(results) == 0 {
 		cmd.Printf("No results found for '%s'\n", args[0])
+		return nil
+	}
+
+	// Sort by score (highest first)
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Score > results[j].Score
+	})
+
+	// Display ranked results
+	cmd.Printf("=== Search Results for '%s' (%d found) ===\n\n", args[0], len(results))
+
+	for i, r := range results {
+		if r.Source == "experience" {
+			cmd.Printf("%d. [%s] Experience (score: %d)\n", i+1, r.AgentID, r.Score)
+			cmd.Printf("   %s\n", r.Content)
+			cmd.Printf("   %s\n\n", r.Context)
+		} else {
+			cmd.Printf("%d. [%s] Learning (score: %d, line %d)\n", i+1, r.AgentID, r.Score, r.LineNumber)
+			cmd.Printf("   %s\n\n", r.Content)
+		}
 	}
 
 	return nil
+}
+
+// scoreExperience calculates relevance score for an experience.
+// Higher score = more relevant. Returns 0 if no match.
+func scoreExperience(exp memory.Experience, query string) int {
+	score := 0
+
+	// Check description (highest weight)
+	descLower := strings.ToLower(exp.Description)
+	if strings.Contains(descLower, query) {
+		score += 10
+		// Bonus for exact word match
+		if strings.Contains(descLower, " "+query+" ") ||
+			strings.HasPrefix(descLower, query+" ") ||
+			strings.HasSuffix(descLower, " "+query) {
+			score += 5
+		}
+	}
+
+	// Check outcome
+	if strings.Contains(strings.ToLower(exp.Outcome), query) {
+		score += 3
+	}
+
+	// Check task type
+	if strings.Contains(strings.ToLower(exp.TaskType), query) {
+		score += 5
+	}
+
+	// Check task ID
+	if strings.Contains(strings.ToLower(exp.TaskID), query) {
+		score += 5
+	}
+
+	// Check learnings in experience
+	for _, learning := range exp.Learnings {
+		if strings.Contains(strings.ToLower(learning), query) {
+			score += 7
+		}
+	}
+
+	return score
+}
+
+// scoreLearning calculates relevance score for a learning line.
+// Higher score = more relevant. Returns 0 if no match.
+func scoreLearning(line, query string) int {
+	lineLower := strings.ToLower(line)
+	if !strings.Contains(lineLower, query) {
+		return 0
+	}
+
+	score := 5
+
+	// Bonus for header lines (categories)
+	if strings.HasPrefix(line, "##") {
+		score += 3
+	}
+
+	// Bonus for exact word match
+	if strings.Contains(lineLower, " "+query+" ") ||
+		strings.HasPrefix(lineLower, query+" ") ||
+		strings.HasSuffix(lineLower, " "+query) {
+		score += 5
+	}
+
+	// Bonus for multiple occurrences
+	count := strings.Count(lineLower, query)
+	if count > 1 {
+		score += count - 1
+	}
+
+	return score
 }
