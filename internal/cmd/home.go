@@ -8,6 +8,8 @@ import (
 
 	"github.com/rpuneet/bc/config"
 	itui "github.com/rpuneet/bc/internal/tui"
+	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
@@ -36,7 +38,7 @@ func init() {
 }
 
 func runHome(cmd *cobra.Command, args []string) error {
-	// Load workspace registry
+	// Load workspace registry (fast: single file read)
 	reg, err := workspace.LoadRegistry()
 	if err != nil {
 		return fmt.Errorf("failed to load workspace registry: %w", err)
@@ -52,20 +54,40 @@ func runHome(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Build workspace list with zero counts; TUI will fill counts on first tick (#310).
-	// This avoids N Manager loads and RefreshState() at CLI startup, reducing memory and improving TUI appearance time.
+	// Start TUI immediately with loading state; load workspace list in background
+	// so the UI appears without waiting for RefreshState() on every workspace.
+	model := itui.NewHomeModel(nil, int(config.Workspace.MaxWorkers), true)
+	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	go loadWorkspacesAndSend(reg, p)
+	_, err = p.Run()
+	return err
+}
+
+// loadWorkspacesAndSend builds workspace info (LoadState+RefreshState per workspace)
+// and sends WorkspacesLoadedMsg so the TUI updates without blocking startup.
+func loadWorkspacesAndSend(reg *workspace.Registry, p *tea.Program) {
 	list := reg.List()
 	workspaces := make([]itui.WorkspaceInfo, 0, len(list))
 	for _, entry := range list {
-		workspaces = append(workspaces, itui.WorkspaceInfo{
+		info := itui.WorkspaceInfo{
 			Entry:      entry,
 			MaxWorkers: int(config.Workspace.MaxWorkers),
-		})
+		}
+		mgr := agent.NewWorkspaceManager(
+			entry.Path+"/.bc/agents",
+			entry.Path,
+		)
+		_ = mgr.LoadState()
+		_ = mgr.RefreshState()
+		info.Total = mgr.AgentCount()
+		info.Running = mgr.RunningCount()
+		info.HasBeads = beads.HasBeads(entry.Path)
+		if info.HasBeads {
+			if issues, err := beads.ListIssues(entry.Path); err == nil {
+				info.Issues = len(issues)
+			}
+		}
+		workspaces = append(workspaces, info)
 	}
-
-	// Run the Bubble Tea TUI
-	model := itui.NewHomeModel(workspaces, int(config.Workspace.MaxWorkers))
-	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
-	_, err = p.Run()
-	return err
+	p.Send(itui.WorkspacesLoadedMsg{Workspaces: workspaces})
 }
