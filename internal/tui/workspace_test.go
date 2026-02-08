@@ -2,7 +2,9 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -1122,5 +1124,49 @@ func TestRenderDashboard_QueueProgressBar(t *testing.T) {
 	// Should contain progress percentage (50% = 1 in progress / 2 open)
 	if !strings.Contains(output, "50.0%") {
 		t.Errorf("expected '50.0%%' in progress bar, got: %s", output)
+	}
+}
+
+func TestRenderDashboard_ManagerAgentQueues(t *testing.T) {
+	m := newTestModel()
+	m.queueItems = []QueueItem{
+		{ID: "bc-1", Title: "Task one", Type: "work", Status: "ready", Assignee: ""},
+		{ID: "bc-2", Title: "Task two", Type: "work", Status: "ready", Assignee: "eng-01"},
+		{ID: "engineer-01", Title: "Fix bug", Type: "merge", Status: "working", Agent: "engineer-01", Branch: "engineer-01/issue-1/fix"},
+	}
+	output := m.renderDashboard()
+	if !strings.Contains(output, "MANAGER / AGENT QUEUES") {
+		t.Errorf("expected 'MANAGER / AGENT QUEUES' section, got: %s", output)
+	}
+	if !strings.Contains(output, "Manager (work):") {
+		t.Errorf("expected 'Manager (work):' in dashboard, got: %s", output)
+	}
+	if !strings.Contains(output, "Agent (merge):") {
+		t.Errorf("expected 'Agent (merge):' in dashboard, got: %s", output)
+	}
+}
+
+// TestWorkspaceRefreshCompletesWithinTimeout is a regression test for #296 (bc home performance).
+// Refresh must complete within a reasonable time so the TUI stays responsive.
+func TestWorkspaceRefreshCompletesWithinTimeout(t *testing.T) {
+	dir := t.TempDir()
+	bcDir := filepath.Join(dir, ".bc", "agents")
+	if err := os.MkdirAll(bcDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	info := WorkspaceInfo{Entry: workspace.RegistryEntry{Path: dir}}
+	m := NewWorkspaceModel(info, style.DefaultStyles())
+
+	deadline := 5 * time.Second
+	done := make(chan struct{})
+	go func() {
+		m.refresh()
+		close(done)
+	}()
+	select {
+	case <-done:
+		// OK
+	case <-time.After(deadline):
+		t.Fatalf("refresh() did not complete within %v (bc home performance #296)", deadline)
 	}
 }

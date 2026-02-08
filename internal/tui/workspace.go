@@ -749,6 +749,19 @@ func (m *WorkspaceModel) applyQueueFilter() {
 	}
 }
 
+// managerAndAgentQueueItems splits queue items into manager (work) and agent (merge) queues.
+func (m *WorkspaceModel) managerAndAgentQueueItems() (work []QueueItem, merge []QueueItem) {
+	for _, item := range m.queueItems {
+		switch item.Type {
+		case "work":
+			work = append(work, item)
+		case "merge":
+			merge = append(merge, item)
+		}
+	}
+	return work, merge
+}
+
 // queueFilterLabel returns a display label for the current queue filter.
 func (m *WorkspaceModel) queueFilterLabel() string {
 	switch m.queueFilter {
@@ -970,6 +983,65 @@ func (m *WorkspaceModel) renderDashboard() string {
 			b.WriteString(m.styles.Muted.Render(line))
 		}
 		b.WriteString("\n")
+	}
+	b.WriteString("\n")
+
+	// --- Manager queue (work) and Agent queue (merge) ---
+	b.WriteString(m.styles.Bold.Render("  MANAGER / AGENT QUEUES"))
+	b.WriteString("\n")
+
+	workItems, mergeItems := m.managerAndAgentQueueItems()
+	const maxShow = 5
+
+	if len(workItems) == 0 && len(mergeItems) == 0 {
+		b.WriteString(m.styles.Muted.Render("    No work or merge items. Switch to Queue tab for filters."))
+		b.WriteString("\n")
+	} else {
+		b.WriteString(m.styles.Muted.Render("  Manager (work):"))
+		b.WriteString("\n")
+		if len(workItems) == 0 {
+			b.WriteString(m.styles.Muted.Render("    (none)"))
+			b.WriteString("\n")
+		} else {
+			for i, item := range workItems {
+				if i >= maxShow {
+					b.WriteString(m.styles.Muted.Render(fmt.Sprintf("    ... and %d more", len(workItems)-maxShow)))
+					b.WriteString("\n")
+					break
+				}
+				title := item.Title
+				if len(title) > 45 {
+					title = title[:42] + "..."
+				}
+				assignee := item.Assignee
+				if assignee == "" {
+					assignee = "-"
+				}
+				b.WriteString(fmt.Sprintf("    %-10s %-12s %s\n", item.ID, assignee, title))
+			}
+		}
+		b.WriteString(m.styles.Muted.Render("  Agent (merge):"))
+		b.WriteString("\n")
+		if len(mergeItems) == 0 {
+			b.WriteString(m.styles.Muted.Render("    (none)"))
+			b.WriteString("\n")
+		} else {
+			for i, item := range mergeItems {
+				if i >= maxShow {
+					b.WriteString(m.styles.Muted.Render(fmt.Sprintf("    ... and %d more", len(mergeItems)-maxShow)))
+					b.WriteString("\n")
+					break
+				}
+				title := item.Branch
+				if title == "" {
+					title = item.Title
+				}
+				if len(title) > 45 {
+					title = title[:42] + "..."
+				}
+				b.WriteString(fmt.Sprintf("    %-15s %-12s %s\n", item.Agent, item.Status, title))
+			}
+		}
 	}
 	b.WriteString("\n")
 

@@ -126,9 +126,14 @@ func TestVisibleCount_Large(t *testing.T) {
 	for i := 0; i < 50; i++ {
 		m.channel.History = append(m.channel.History, channel.HistoryEntry{Sender: "a", Message: "msg"})
 	}
-
-	if m.visibleCount() != 20 {
-		t.Errorf("visibleCount = %d, want 20 (max)", m.visibleCount())
+	// visibleCount must match visible window size (viewport-based), not a fixed 20
+	got := m.visibleCount()
+	want := m.visibleMsgCount()
+	if got != want {
+		t.Errorf("visibleCount = %d, want %d (visibleMsgCount for scroll/summary consistency)", got, want)
+	}
+	if got > 50 {
+		t.Errorf("visibleCount = %d, cannot exceed history length 50", got)
 	}
 }
 

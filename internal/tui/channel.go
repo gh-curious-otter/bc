@@ -88,6 +88,7 @@ func (m *ChannelModel) HandleKey(msg tea.KeyMsg) Action {
 		if m.cursor < m.visibleCount()-1 {
 			m.cursor++
 		}
+		m.clampCursorToVisible()
 		return NoAction
 	case "k", "up":
 		maxScroll := len(m.channel.History) - m.visibleMsgCount()
@@ -100,6 +101,7 @@ func (m *ChannelModel) HandleKey(msg tea.KeyMsg) Action {
 		if m.cursor > 0 {
 			m.cursor--
 		}
+		m.clampCursorToVisible()
 		return NoAction
 	case "s":
 		m.sendMode = true
@@ -121,9 +123,11 @@ func (m *ChannelModel) HandleKey(msg tea.KeyMsg) Action {
 			maxScroll = 0
 		}
 		m.scroll = maxScroll
+		m.clampCursorToVisible()
 		return NoAction
 	case "G", "end":
 		m.scroll = 0
+		m.clampCursorToVisible()
 		return NoAction
 	case "i":
 		if entry, ok := m.selectedMessage(); ok {
@@ -135,26 +139,31 @@ func (m *ChannelModel) HandleKey(msg tea.KeyMsg) Action {
 	return NoAction
 }
 
-// visibleCount returns the number of messages currently displayed.
-func (m *ChannelModel) visibleCount() int {
-	n := len(m.channel.History)
-	if n > 20 {
-		return 20
+// clampCursorToVisible keeps cursor within the current visible window.
+func (m *ChannelModel) clampCursorToVisible() {
+	n := m.visibleCount()
+	if n <= 0 {
+		m.cursor = 0
+		return
 	}
-	return n
+	if m.cursor >= n {
+		m.cursor = n - 1
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+}
+
+// visibleCount returns the number of messages currently displayed (matches visible window).
+func (m *ChannelModel) visibleCount() int {
+	start, end := m.visibleWindow()
+	return end - start
 }
 
 // selectedMessage returns the currently selected history entry.
 func (m *ChannelModel) selectedMessage() (channel.HistoryEntry, bool) {
-	n := len(m.channel.History)
-	if n == 0 {
-		return channel.HistoryEntry{}, false
-	}
-	start := 0
-	if n > 20 {
-		start = n - 20
-	}
-	visible := m.channel.History[start:]
+	start, end := m.visibleWindow()
+	visible := m.channel.History[start:end]
 	if m.cursor < 0 || m.cursor >= len(visible) {
 		return channel.HistoryEntry{}, false
 	}
@@ -163,15 +172,8 @@ func (m *ChannelModel) selectedMessage() (channel.HistoryEntry, bool) {
 
 // selectedMessageIndex returns the index of the selected message in the full history.
 func (m *ChannelModel) selectedMessageIndex() int {
-	n := len(m.channel.History)
-	if n == 0 {
-		return -1
-	}
-	start := 0
-	if n > 20 {
-		start = n - 20
-	}
-	if m.cursor < 0 || m.cursor >= n-start {
+	start, end := m.visibleWindow()
+	if m.cursor < 0 || m.cursor >= end-start {
 		return -1
 	}
 	return start + m.cursor
@@ -585,6 +587,28 @@ func (m *ChannelModel) visibleMsgCount() int {
 	return available / 3
 }
 
+// visibleWindow returns the [start, end) indices into History for the current scroll position.
+// Used so scroll position, ▲/▼ summary, and cursor selection all use the same window.
+func (m *ChannelModel) visibleWindow() (start, end int) {
+	total := len(m.channel.History)
+	if total == 0 {
+		return 0, 0
+	}
+	visible := m.visibleMsgCount()
+	if visible > total {
+		visible = total
+	}
+	end = total - m.scroll
+	start = end - visible
+	if start < 0 {
+		start = 0
+	}
+	if end > total {
+		end = total
+	}
+	return start, end
+}
+
 // View renders the channel detail screen.
 func (m *ChannelModel) View() string {
 	var b strings.Builder
@@ -651,18 +675,7 @@ func (m *ChannelModel) View() string {
 		b.WriteString(m.styles.Muted.Render("  No messages yet. Press 's' to send a message."))
 		b.WriteString("\n")
 	} else {
-		visible := m.visibleMsgCount()
-		total := len(m.channel.History)
-
-		// Calculate visible window based on scroll offset from end
-		end := total - m.scroll
-		start := end - visible
-		if start < 0 {
-			start = 0
-		}
-		if end < 0 {
-			end = 0
-		}
+		start, end := m.visibleWindow()
 
 		// Scroll indicator (top)
 		if start > 0 {
@@ -783,13 +796,10 @@ func (m *ChannelModel) View() string {
 		b.WriteString(m.styles.Muted.Render("  No messages"))
 		b.WriteString("\n")
 	} else {
-		// Show last 20 messages
-		start := 0
-		if len(m.channel.History) > 20 {
-			start = len(m.channel.History) - 20
-		}
+		// Show same visible window as main area so cursor/selection match
+		start, end := m.visibleWindow()
 		var lastDate time.Time
-		recentHistory := m.channel.History[start:]
+		recentHistory := m.channel.History[start:end]
 		for i, entry := range recentHistory {
 			// Add date separator if this is a new day
 			if i == 0 || !isSameDay(entry.Time, lastDate) {
