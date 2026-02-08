@@ -32,7 +32,7 @@ const (
 // TickMsg triggers a periodic refresh.
 type TickMsg struct{}
 
-// workspaceLoadedMsg is sent when async workspace load completes.
+// workspaceLoadedMsg is sent when async workspace (drill-in) load completes.
 type workspaceLoadedMsg struct {
 	Model *WorkspaceModel
 }
