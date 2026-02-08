@@ -485,3 +485,125 @@ func TestScoreLearning(t *testing.T) {
 		})
 	}
 }
+
+func TestParseDuration(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantD   string // expected duration as string for comparison
+		wantErr bool
+	}{
+		{
+			name:    "30 days",
+			input:   "30d",
+			wantErr: false,
+			wantD:   "720h0m0s", // 30 * 24 hours
+		},
+		{
+			name:    "7 days",
+			input:   "7d",
+			wantErr: false,
+			wantD:   "168h0m0s", // 7 * 24 hours
+		},
+		{
+			name:    "24 hours",
+			input:   "24h",
+			wantErr: false,
+			wantD:   "24h0m0s",
+		},
+		{
+			name:    "1 hour",
+			input:   "1h",
+			wantErr: false,
+			wantD:   "1h0m0s",
+		},
+		{
+			name:    "empty",
+			input:   "",
+			wantErr: true,
+		},
+		{
+			name:    "invalid",
+			input:   "abc",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d, err := parseDuration(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if d.String() != tt.wantD {
+				t.Errorf("parseDuration(%q) = %s, want %s", tt.input, d.String(), tt.wantD)
+			}
+		})
+	}
+}
+
+func TestFormatBytes(t *testing.T) {
+	tests := []struct { //nolint:govet // test struct alignment doesn't matter
+		bytes int64
+		name  string
+		want  string
+	}{
+		{0, "zero", "0 B"},
+		{500, "bytes", "500 B"},
+		{1500, "kilobytes", "1.5 KB"},
+		{1500000, "megabytes", "1.4 MB"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatBytes(tt.bytes)
+			if got != tt.want {
+				t.Errorf("formatBytes(%d) = %q, want %q", tt.bytes, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMemoryPruneCmdExists(t *testing.T) {
+	if memoryPruneCmd == nil {
+		t.Fatal("memoryPruneCmd should not be nil")
+	}
+	if memoryPruneCmd.Use != "prune" {
+		t.Errorf("memoryPruneCmd.Use = %q, want %q", memoryPruneCmd.Use, "prune")
+	}
+}
+
+func TestMemoryPruneFlags(t *testing.T) {
+	// Check older-than flag
+	flag := memoryPruneCmd.Flags().Lookup("older-than")
+	if flag == nil {
+		t.Fatal("expected 'older-than' flag to exist")
+	}
+	if flag.DefValue != "30d" {
+		t.Errorf("older-than default = %q, want %q", flag.DefValue, "30d")
+	}
+
+	// Check dry-run flag
+	flag = memoryPruneCmd.Flags().Lookup("dry-run")
+	if flag == nil {
+		t.Fatal("expected 'dry-run' flag to exist")
+	}
+
+	// Check no-backup flag
+	flag = memoryPruneCmd.Flags().Lookup("no-backup")
+	if flag == nil {
+		t.Fatal("expected 'no-backup' flag to exist")
+	}
+
+	// Check agent flag
+	flag = memoryPruneCmd.Flags().Lookup("agent")
+	if flag == nil {
+		t.Fatal("expected 'agent' flag to exist")
+	}
+}
