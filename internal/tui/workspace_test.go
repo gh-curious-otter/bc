@@ -1043,6 +1043,92 @@ func TestView_ShowsStatsBar(t *testing.T) {
 	}
 }
 
+// --- Agents view enhancement tests ---
+
+func TestRenderAgents_ShowsMemoryStatus(t *testing.T) {
+	m := newTestModel()
+	m.tab = TabAgents
+	m.agents = []*agent.Agent{
+		{Name: "eng-01", Role: agent.RoleEngineer, State: agent.StateWorking, Memory: &agent.AgentMemory{RolePrompt: "test"}},
+		{Name: "eng-02", Role: agent.RoleEngineer, State: agent.StateIdle, Memory: nil},
+	}
+	m.agentStats = map[string]stats.AgentStat{}
+
+	output := m.renderAgents()
+
+	// Should have MEM column header
+	if !strings.Contains(output, "MEM") {
+		t.Errorf("expected 'MEM' column header, got: %s", output)
+	}
+	// eng-01 should show memory loaded indicator
+	if !strings.Contains(output, "✓") {
+		t.Errorf("expected memory loaded indicator '✓' for eng-01, got: %s", output)
+	}
+}
+
+func TestRenderAgents_ShowsIssuesCount(t *testing.T) {
+	m := newTestModel()
+	m.tab = TabAgents
+	m.agents = []*agent.Agent{
+		{Name: "eng-01", Role: agent.RoleEngineer, State: agent.StateWorking},
+		{Name: "eng-02", Role: agent.RoleEngineer, State: agent.StateIdle},
+	}
+	m.issues = []beads.Issue{
+		{ID: "bd-001", Title: "Issue 1", Status: "open", Assignee: "eng-01"},
+		{ID: "bd-002", Title: "Issue 2", Status: "open", Assignee: "eng-01"},
+		{ID: "bd-003", Title: "Issue 3", Status: "open", Assignee: "eng-02"},
+	}
+	m.agentStats = map[string]stats.AgentStat{}
+
+	output := m.renderAgents()
+
+	// Should have ISSUES column header
+	if !strings.Contains(output, "ISSUES") {
+		t.Errorf("expected 'ISSUES' column header, got: %s", output)
+	}
+}
+
+func TestCountIssuesByAgent(t *testing.T) {
+	m := newTestModel()
+	m.issues = []beads.Issue{
+		{ID: "bd-001", Assignee: "eng-01"},
+		{ID: "bd-002", Assignee: "eng-01"},
+		{ID: "bd-003", Assignee: "eng-02"},
+		{ID: "bd-004", Assignee: ""}, // unassigned
+	}
+
+	counts := m.countIssuesByAgent()
+
+	if counts["eng-01"] != 2 {
+		t.Errorf("eng-01 should have 2 issues, got %d", counts["eng-01"])
+	}
+	if counts["eng-02"] != 1 {
+		t.Errorf("eng-02 should have 1 issue, got %d", counts["eng-02"])
+	}
+	if counts["eng-03"] != 0 {
+		t.Errorf("eng-03 should have 0 issues, got %d", counts["eng-03"])
+	}
+}
+
+func TestRenderAgents_HeaderColumns(t *testing.T) {
+	m := newTestModel()
+	m.tab = TabAgents
+	m.agents = []*agent.Agent{
+		{Name: "eng-01", Role: agent.RoleEngineer, State: agent.StateIdle},
+	}
+	m.agentStats = map[string]stats.AgentStat{}
+
+	output := m.renderAgents()
+
+	// Verify all expected column headers
+	expectedHeaders := []string{"NAME", "ROLE", "STATE", "MEM", "ISSUES", "UPTIME", "TASK"}
+	for _, h := range expectedHeaders {
+		if !strings.Contains(output, h) {
+			t.Errorf("expected '%s' column header, got: %s", h, output)
+		}
+	}
+}
+
 // --- Queue Progress tests ---
 
 func TestRenderDashboard_QueueProgress(t *testing.T) {

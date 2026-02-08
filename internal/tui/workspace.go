@@ -361,17 +361,20 @@ func (m *WorkspaceModel) renderAgents() string {
 		return b.String()
 	}
 
-	// Header
-	header := fmt.Sprintf("  %-15s %-12s %-10s %-12s %s",
-		"NAME", "ROLE", "STATE", "UPTIME", "TASK")
+	// Count issues per agent
+	issuesByAgent := m.countIssuesByAgent()
+
+	// Header with memory and queue columns
+	header := fmt.Sprintf("  %-15s %-12s %-10s %-3s %-6s %-10s %s",
+		"NAME", "ROLE", "STATE", "MEM", "ISSUES", "UPTIME", "TASK")
 	b.WriteString(m.styles.Bold.Render(header))
 	b.WriteString("\n")
 
-	// Fixed columns: 2(indent) + NAME(15) + ROLE(12) + STATE(10) + UPTIME(12) = 51
+	// Fixed columns: 2(indent) + NAME(15) + ROLE(12) + STATE(10) + MEM(3) + ISSUES(6) + UPTIME(10) = 58
 	// Task gets the rest of the terminal width
-	taskWidth := m.width - 51
-	if taskWidth < 20 {
-		taskWidth = 20
+	taskWidth := m.width - 58
+	if taskWidth < 15 {
+		taskWidth = 15
 	}
 
 	// Render only the visible viewport.
@@ -388,6 +391,19 @@ func (m *WorkspaceModel) renderAgents() string {
 			uptime = fmtDuration(time.Since(a.StartedAt))
 		}
 
+		// Memory status indicator
+		memStatus := "-"
+		if a.Memory != nil && a.Memory.RolePrompt != "" {
+			memStatus = "✓"
+		}
+
+		// Issues count for this agent
+		issueCount := issuesByAgent[a.Name]
+		issueStr := "-"
+		if issueCount > 0 {
+			issueStr = fmt.Sprintf("%d", issueCount)
+		}
+
 		task := a.Task
 		if task == "" {
 			task = "-"
@@ -396,8 +412,8 @@ func (m *WorkspaceModel) renderAgents() string {
 			task = task[:taskWidth-3] + "..."
 		}
 
-		line := fmt.Sprintf("  %-15s %-12s %-10s %-12s %s",
-			a.Name, a.Role, a.State, uptime, task,
+		line := fmt.Sprintf("  %-15s %-12s %-10s %-3s %-6s %-10s %s",
+			a.Name, a.Role, a.State, memStatus, issueStr, uptime, task,
 		)
 
 		if selected {
@@ -410,6 +426,17 @@ func (m *WorkspaceModel) renderAgents() string {
 
 	b.WriteString(m.renderPositionIndicator(len(m.agents)))
 	return b.String()
+}
+
+// countIssuesByAgent returns a map of agent name to assigned issue count.
+func (m *WorkspaceModel) countIssuesByAgent() map[string]int {
+	counts := make(map[string]int)
+	for _, issue := range m.issues {
+		if issue.Assignee != "" {
+			counts[issue.Assignee]++
+		}
+	}
+	return counts
 }
 
 func (m *WorkspaceModel) renderIssues() string {
