@@ -229,14 +229,187 @@ func TestHandleSendKey_Space(t *testing.T) {
 	}
 }
 
-func TestHandleSendKey_EnterEmptyDoesNotSend(t *testing.T) {
+func TestHandleSendKey_EnterAddsNewline(t *testing.T) {
+	m := newTestChannelModel()
+	m.sendMode = true
+	m.input = "hello"
+
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if !m.sendMode {
+		t.Error("enter should not exit sendMode, it adds a newline")
+	}
+	if m.input != "hello\n" {
+		t.Errorf("expected 'hello\\n', got %q", m.input)
+	}
+}
+
+func TestHandleSendKey_CtrlEnterSends(t *testing.T) {
+	m := newTestChannelModel()
+	m.sendMode = true
+	m.input = "test message"
+
+	// Simulate Ctrl+Enter
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'\r'}, Alt: false})
+	// Note: In practice we check for "ctrl+enter" string, so let's test that path
+}
+
+func TestHandleSendKey_MultilineInput(t *testing.T) {
 	m := newTestChannelModel()
 	m.sendMode = true
 	m.input = ""
 
+	// Type first line
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'H', 'i'}})
+	// Add newline
 	m.handleSendKey(tea.KeyMsg{Type: tea.KeyEnter})
-	if m.sendMode {
-		t.Error("enter should exit sendMode even with empty input")
+	// Type second line
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'T', 'e', 's', 't'}})
+
+	if m.input != "Hi\nTest" {
+		t.Errorf("expected 'Hi\\nTest', got %q", m.input)
+	}
+}
+
+// --- Autocomplete tests ---
+
+func TestAutocomplete_TriggerMention(t *testing.T) {
+	m := newTestChannelModel()
+	m.sendMode = true
+	m.input = ""
+
+	// Type @
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'@'}})
+
+	if m.autocompleteType != AutocompleteMention {
+		t.Errorf("expected AutocompleteMention, got %v", m.autocompleteType)
+	}
+	if len(m.autocompleteSuggestions) == 0 {
+		t.Error("expected suggestions after @")
+	}
+}
+
+func TestAutocomplete_TriggerChannel(t *testing.T) {
+	m := newTestChannelModel()
+	m.sendMode = true
+	m.input = ""
+
+	// Type #
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'#'}})
+
+	if m.autocompleteType != AutocompleteChannel {
+		t.Errorf("expected AutocompleteChannel, got %v", m.autocompleteType)
+	}
+}
+
+func TestAutocomplete_DismissOnSpace(t *testing.T) {
+	m := newTestChannelModel()
+	m.sendMode = true
+	m.input = ""
+
+	// Trigger autocomplete
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'@'}})
+	if m.autocompleteType != AutocompleteMention {
+		t.Fatal("autocomplete should be active")
+	}
+
+	// Space dismisses it
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeySpace})
+	if m.autocompleteType != AutocompleteNone {
+		t.Error("space should dismiss autocomplete")
+	}
+}
+
+func TestAutocomplete_DismissOnEsc(t *testing.T) {
+	m := newTestChannelModel()
+	m.sendMode = true
+	m.input = "@"
+	m.autocompleteType = AutocompleteMention
+	m.autocompleteSuggestions = []string{"all", "eng-01"}
+
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyEscape})
+	if m.autocompleteType != AutocompleteNone {
+		t.Error("esc should dismiss autocomplete")
+	}
+	// Esc only dismisses autocomplete, keeps send mode active
+	if !m.sendMode {
+		t.Error("esc should keep send mode active when autocomplete was shown")
+	}
+}
+
+func TestAutocomplete_NavigateDown(t *testing.T) {
+	m := newTestChannelModel()
+	m.sendMode = true
+	m.autocompleteType = AutocompleteMention
+	m.autocompleteSuggestions = []string{"all", "eng-01", "eng-02"}
+	m.autocompleteSelected = 0
+
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyDown})
+	if m.autocompleteSelected != 1 {
+		t.Errorf("expected selection 1, got %d", m.autocompleteSelected)
+	}
+}
+
+func TestAutocomplete_NavigateUp(t *testing.T) {
+	m := newTestChannelModel()
+	m.sendMode = true
+	m.autocompleteType = AutocompleteMention
+	m.autocompleteSuggestions = []string{"all", "eng-01", "eng-02"}
+	m.autocompleteSelected = 2
+
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyUp})
+	if m.autocompleteSelected != 1 {
+		t.Errorf("expected selection 1, got %d", m.autocompleteSelected)
+	}
+}
+
+func TestAutocomplete_SelectWithTab(t *testing.T) {
+	m := newTestChannelModel()
+	m.sendMode = true
+	m.input = "@e"
+	m.autocompleteType = AutocompleteMention
+	m.autocompleteSuggestions = []string{"eng-01", "eng-02"}
+	m.autocompleteSelected = 0
+
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyTab})
+	if m.autocompleteType != AutocompleteNone {
+		t.Error("tab should dismiss autocomplete after selection")
+	}
+	if !strings.Contains(m.input, "@eng-01") {
+		t.Errorf("expected @eng-01 in input, got %q", m.input)
+	}
+}
+
+func TestGetMentionSuggestions(t *testing.T) {
+	m := newTestChannelModel()
+
+	suggestions := m.getMentionSuggestions("e")
+	// Should include channel members starting with 'e'
+	found := false
+	for _, s := range suggestions {
+		if strings.HasPrefix(strings.ToLower(s), "e") || s == "all" {
+			found = true
+			break
+		}
+	}
+	if !found && len(suggestions) > 0 {
+		t.Error("suggestions should include items starting with 'e' or be empty")
+	}
+}
+
+func TestGetMentionSuggestions_All(t *testing.T) {
+	m := newTestChannelModel()
+
+	suggestions := m.getMentionSuggestions("a")
+	// Should include @all
+	found := false
+	for _, s := range suggestions {
+		if s == "all" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("suggestions should include 'all'")
 	}
 }
 

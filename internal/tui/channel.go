@@ -13,25 +13,43 @@ import (
 	"github.com/rpuneet/bc/pkg/tui/style"
 )
 
+// AutocompleteType identifies the type of autocomplete being shown.
+type AutocompleteType int
+
+const (
+	AutocompleteNone AutocompleteType = iota
+	AutocompleteMention
+	AutocompleteChannel
+)
+
 // ChannelModel shows the detail view for a single channel.
 type ChannelModel struct {
+	// Pointers first for better alignment
 	channel *channel.Channel
 	store   *channel.Store
 	manager *agent.Manager
 
-	styles        style.Styles
-	workspacePath string
-	input         string
-	sendMsg       string // status message after send
+	styles style.Styles
 
-	width  int
-	height int
-	// Scroll position (index of first visible message from end)
-	scroll int
-	// Message selection cursor
-	cursor int
+	// String fields
+	workspacePath      string
+	input              string
+	sendMsg            string // status message after send
+	autocompletePrefix string // The text after @ or # being matched
 
-	sendMode bool
+	// Slice field
+	autocompleteSuggestions []string
+
+	// Int fields
+	width                int
+	height               int
+	scroll               int // Scroll position (index of first visible message from end)
+	cursor               int // Message selection cursor
+	autocompleteSelected int
+
+	// Small types last
+	autocompleteType AutocompleteType
+	sendMode         bool
 }
 
 // NewChannelModel creates a channel detail view.
@@ -133,23 +151,58 @@ func (m *ChannelModel) selectedMessage() (channel.HistoryEntry, bool) {
 func (m *ChannelModel) handleSendKey(msg tea.KeyMsg) Action {
 	key := msg.String()
 
+	// Handle autocomplete navigation first
+	if m.autocompleteType != AutocompleteNone {
+		switch key {
+		case "esc":
+			m.dismissAutocomplete()
+			return NoAction
+		case "up":
+			if m.autocompleteSelected > 0 {
+				m.autocompleteSelected--
+			}
+			return NoAction
+		case "down":
+			if m.autocompleteSelected < len(m.autocompleteSuggestions)-1 {
+				m.autocompleteSelected++
+			}
+			return NoAction
+		case "tab":
+			m.selectAutocomplete()
+			return NoAction
+		}
+		if isEnterKey(msg) {
+			m.selectAutocomplete()
+			return NoAction
+		}
+	}
+
 	switch key {
 	case "esc":
 		m.sendMode = false
 		m.input = ""
+		m.dismissAutocomplete()
 		return NoAction
 	case "backspace":
 		if len(m.input) > 0 {
 			m.input = m.input[:len(m.input)-1]
+			m.updateAutocomplete()
 		}
 		return NoAction
-	}
-
-	if isEnterKey(msg) {
+	case "ctrl+enter":
+		// Ctrl+Enter sends the message
 		if m.input != "" {
 			m.sendMessage(m.input)
 		}
 		m.sendMode = false
+		m.dismissAutocomplete()
+		return NoAction
+	}
+
+	// Regular Enter adds a new line (multi-line support)
+	if isEnterKey(msg) {
+		m.input += "\n"
+		m.dismissAutocomplete()
 		return NoAction
 	}
 
@@ -157,11 +210,236 @@ func (m *ChannelModel) handleSendKey(msg tea.KeyMsg) Action {
 	switch msg.Type {
 	case tea.KeyRunes:
 		m.input += string(msg.Runes)
+		m.updateAutocomplete()
 	case tea.KeySpace:
 		m.input += " "
+		m.dismissAutocomplete()
 	}
 
 	return NoAction
+}
+
+// updateAutocomplete checks input for @ or # triggers and updates suggestions.
+func (m *ChannelModel) updateAutocomplete() {
+	// Find the last @ or # in input that starts a word
+	input := m.input
+	atIdx := strings.LastIndex(input, "@")
+	hashIdx := strings.LastIndex(input, "#")
+
+	// Check if @ is at start or after whitespace/newline
+	if atIdx >= 0 && (atIdx == 0 || input[atIdx-1] == ' ' || input[atIdx-1] == '\n') {
+		prefix := input[atIdx+1:]
+		// Only if no space after @
+		if !strings.ContainsAny(prefix, " \n") {
+			m.autocompleteType = AutocompleteMention
+			m.autocompletePrefix = prefix
+			m.autocompleteSuggestions = m.getMentionSuggestions(prefix)
+			m.autocompleteSelected = 0
+			return
+		}
+	}
+
+	// Check if # is at start or after whitespace/newline
+	if hashIdx >= 0 && (hashIdx == 0 || input[hashIdx-1] == ' ' || input[hashIdx-1] == '\n') {
+		prefix := input[hashIdx+1:]
+		// Only if no space after #
+		if !strings.ContainsAny(prefix, " \n") {
+			m.autocompleteType = AutocompleteChannel
+			m.autocompletePrefix = prefix
+			m.autocompleteSuggestions = m.getChannelSuggestions(prefix)
+			m.autocompleteSelected = 0
+			return
+		}
+	}
+
+	m.dismissAutocomplete()
+}
+
+// getMentionSuggestions returns agent names matching the prefix.
+func (m *ChannelModel) getMentionSuggestions(prefix string) []string {
+	var suggestions []string
+	prefix = strings.ToLower(prefix)
+
+	// Add @all as first suggestion if it matches
+	if strings.HasPrefix("all", prefix) {
+		suggestions = append(suggestions, "all")
+	}
+
+	// Add channel members that match
+	for _, member := range m.channel.Members {
+		if prefix == "" || strings.HasPrefix(strings.ToLower(member), prefix) {
+			suggestions = append(suggestions, member)
+		}
+	}
+
+	// Also add agents from manager if available
+	if m.manager != nil {
+		for _, a := range m.manager.ListAgents() {
+			name := a.Name
+			if prefix == "" || strings.HasPrefix(strings.ToLower(name), prefix) {
+				// Avoid duplicates
+				found := false
+				for _, s := range suggestions {
+					if s == name {
+						found = true
+						break
+					}
+				}
+				if !found {
+					suggestions = append(suggestions, name)
+				}
+			}
+		}
+	}
+
+	// Limit to 5 suggestions
+	if len(suggestions) > 5 {
+		suggestions = suggestions[:5]
+	}
+
+	return suggestions
+}
+
+// getChannelSuggestions returns channel names matching the prefix.
+func (m *ChannelModel) getChannelSuggestions(prefix string) []string {
+	var suggestions []string
+	prefix = strings.ToLower(prefix)
+
+	if m.store != nil {
+		for _, ch := range m.store.List() {
+			if prefix == "" || strings.HasPrefix(strings.ToLower(ch.Name), prefix) {
+				suggestions = append(suggestions, ch.Name)
+			}
+		}
+	}
+
+	// Limit to 5 suggestions
+	if len(suggestions) > 5 {
+		suggestions = suggestions[:5]
+	}
+
+	return suggestions
+}
+
+// selectAutocomplete inserts the selected suggestion.
+func (m *ChannelModel) selectAutocomplete() {
+	if m.autocompleteType == AutocompleteNone || len(m.autocompleteSuggestions) == 0 {
+		return
+	}
+
+	selected := m.autocompleteSuggestions[m.autocompleteSelected]
+
+	// Find the trigger position and replace
+	var trigger string
+	if m.autocompleteType == AutocompleteMention {
+		trigger = "@"
+	} else {
+		trigger = "#"
+	}
+
+	// Find the last occurrence of the trigger
+	idx := strings.LastIndex(m.input, trigger)
+	if idx >= 0 {
+		m.input = m.input[:idx] + trigger + selected + " "
+	}
+
+	m.dismissAutocomplete()
+}
+
+// dismissAutocomplete clears the autocomplete state.
+func (m *ChannelModel) dismissAutocomplete() {
+	m.autocompleteType = AutocompleteNone
+	m.autocompleteSuggestions = nil
+	m.autocompleteSelected = 0
+	m.autocompletePrefix = ""
+}
+
+// renderAutocomplete renders the autocomplete popup.
+func (m *ChannelModel) renderAutocomplete() string {
+	var b strings.Builder
+
+	// Header based on type
+	var header string
+	if m.autocompleteType == AutocompleteMention {
+		header = "Mention"
+	} else {
+		header = "Channel"
+	}
+	b.WriteString(m.styles.Muted.Render("  ┌─ " + header + " "))
+	b.WriteString(m.styles.Muted.Render(strings.Repeat("─", 20)))
+	b.WriteString("\n")
+
+	// Suggestions
+	for i, suggestion := range m.autocompleteSuggestions {
+		selected := i == m.autocompleteSelected
+		var prefix string
+		if m.autocompleteType == AutocompleteMention {
+			prefix = "@"
+		} else {
+			prefix = "#"
+		}
+
+		line := "  │ " + prefix + suggestion
+		if selected {
+			b.WriteString(m.styles.Selected.Render(line))
+		} else {
+			b.WriteString(m.styles.Normal.Render(line))
+		}
+		b.WriteString("\n")
+	}
+
+	b.WriteString(m.styles.Muted.Render("  └" + strings.Repeat("─", 25)))
+	b.WriteString("\n")
+
+	return b.String()
+}
+
+// renderInputArea renders the multi-line input area with send hint.
+func (m *ChannelModel) renderInputArea() string {
+	var b strings.Builder
+
+	// Split input into lines
+	lines := strings.Split(m.input, "\n")
+
+	// Show up to 5 lines, scroll if more
+	maxLines := 5
+	startLine := 0
+	if len(lines) > maxLines {
+		startLine = len(lines) - maxLines
+	}
+	visibleLines := lines[startLine:]
+
+	// Render each line with prompt on first line
+	for i, line := range visibleLines {
+		if i == 0 && startLine == 0 {
+			// First line with prompt
+			b.WriteString(m.styles.Info.Render("  > "))
+		} else {
+			// Continuation lines with indent
+			b.WriteString(m.styles.Muted.Render("  │ "))
+		}
+		b.WriteString(m.styles.Normal.Render(line))
+
+		// Cursor on the last line
+		if i == len(visibleLines)-1 {
+			b.WriteString(m.styles.Muted.Render("█"))
+		}
+		b.WriteString("\n")
+	}
+
+	// If no input yet, show placeholder
+	if m.input == "" {
+		b.WriteString(m.styles.Info.Render("  > "))
+		b.WriteString(m.styles.Muted.Render("Type a message... (@mention, #channel)"))
+		b.WriteString(m.styles.Muted.Render("█"))
+		b.WriteString("\n")
+	}
+
+	// Show keyboard hints
+	b.WriteString(m.styles.Muted.Render("  Ctrl+Enter to send • Enter for new line • Esc to cancel"))
+	b.WriteString("\n")
+
+	return b.String()
 }
 
 func (m *ChannelModel) sendMessage(message string) {
@@ -448,13 +726,13 @@ func (m *ChannelModel) View() string {
 
 	// Send mode or status
 	if m.sendMode {
-		prompt := m.styles.Info.Render("  > ")
-		b.WriteString(prompt)
-		b.WriteString(m.styles.Normal.Render(m.input))
-		b.WriteString(m.styles.Muted.Render("█"))
-		b.WriteString("  ")
-		b.WriteString(m.styles.Muted.Render("Enter to send • Esc to cancel"))
-		b.WriteString("\n")
+		// Render autocomplete popup if active
+		if m.autocompleteType != AutocompleteNone && len(m.autocompleteSuggestions) > 0 {
+			b.WriteString(m.renderAutocomplete())
+		}
+
+		// Render multi-line input area
+		b.WriteString(m.renderInputArea())
 	} else if m.sendMsg != "" {
 		b.WriteString(m.styles.Success.Render("  ✓ " + m.sendMsg))
 		b.WriteString("\n")
