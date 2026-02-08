@@ -698,3 +698,29 @@ func TestUpdate_WindowSizeMsg_AllModels(t *testing.T) {
 		t.Errorf("issueModel width = %d, want 150", m.issueModel.width)
 	}
 }
+
+// TestUpdate_TickMsg_NoPanic guards #303/#311: TickMsg must be handled without panic (refreshLight
+// path, not full refresh). With no drill-down models, Update(TickMsg) returns model + tickCmd; View() still renders.
+func TestUpdate_TickMsg_NoPanic(t *testing.T) {
+	m := newTestHomeModel()
+	// No wsModel/agentModel so refreshLight is not invoked (would need manager set); we still verify TickMsg handling.
+
+	model, cmd := m.Update(TickMsg{})
+	if model == nil {
+		t.Fatal("Update(TickMsg) returned nil model")
+	}
+	if _, ok := model.(*HomeModel); !ok {
+		t.Errorf("Update(TickMsg) returned wrong model type")
+	}
+	if cmd == nil {
+		t.Error("Update(TickMsg) should return tick Cmd")
+	}
+
+	out := m.View()
+	if out == "" {
+		t.Error("View() after TickMsg returned empty string")
+	}
+	if !strings.Contains(out, "bc") {
+		t.Error("View() after TickMsg should contain header")
+	}
+}
