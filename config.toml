@@ -56,7 +56,7 @@ command = "codex --full-auto"
 description = "OpenAI Codex"
 
 [[agents]]
-name = "claude"
+name = "claude-cli"
 command = "claude"
 description = "Claude CLI agent"
 
