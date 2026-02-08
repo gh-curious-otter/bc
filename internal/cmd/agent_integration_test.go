@@ -223,6 +223,19 @@ func TestAgentCreateInvalidTeam(t *testing.T) {
 	}
 }
 
+func TestAgentCreateUnknownTool(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	_, _, err := executeIntegrationCmd("agent", "create", "test-agent", "--role", "engineer", "--tool", "nonexistent-tool")
+	if err == nil {
+		t.Error("expected error for unknown tool")
+	}
+	if err != nil && !strings.Contains(err.Error(), "unknown tool") {
+		t.Errorf("error should mention unknown tool: %v", err)
+	}
+}
+
 func TestAgentNoWorkspace(t *testing.T) {
 	origDir, err := os.Getwd()
 	if err != nil {
