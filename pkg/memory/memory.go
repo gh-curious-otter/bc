@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -178,4 +179,64 @@ func splitLines(data []byte) [][]byte {
 		lines = append(lines, data[start:])
 	}
 	return lines
+}
+
+// DefaultMemoryLimit is the default number of recent experiences to include.
+const DefaultMemoryLimit = 10
+
+// GetMemoryContext returns formatted memories suitable for prompt injection.
+// It loads the most recent experiences (up to limit) and all learnings,
+// formatting them for inclusion in an agent's context.
+// Returns empty string if no memories exist (new agent).
+func (s *Store) GetMemoryContext(limit int) (string, error) {
+	if limit <= 0 {
+		limit = DefaultMemoryLimit
+	}
+
+	var parts []string
+
+	// Load experiences (most recent first)
+	experiences, err := s.GetExperiences()
+	if err != nil {
+		return "", fmt.Errorf("failed to load experiences: %w", err)
+	}
+
+	if len(experiences) > 0 {
+		// Get the most recent experiences
+		start := 0
+		if len(experiences) > limit {
+			start = len(experiences) - limit
+		}
+		recentExperiences := experiences[start:]
+
+		parts = append(parts, "## Recent Experiences\n")
+		for _, exp := range recentExperiences {
+			entry := fmt.Sprintf("- **%s** (%s): %s",
+				exp.TaskType, exp.Outcome, exp.Description)
+			if len(exp.Learnings) > 0 {
+				entry += "\n  Learnings: " + exp.Learnings[0]
+			}
+			parts = append(parts, entry)
+		}
+		parts = append(parts, "")
+	}
+
+	// Load learnings
+	learnings, err := s.GetLearnings()
+	if err != nil {
+		return "", fmt.Errorf("failed to load learnings: %w", err)
+	}
+
+	// Only include learnings if there's meaningful content beyond the header
+	if learnings != "" && len(learnings) > 100 {
+		parts = append(parts, "## Key Learnings\n")
+		parts = append(parts, learnings)
+	}
+
+	if len(parts) == 0 {
+		return "", nil // No memories - new agent
+	}
+
+	header := "# Agent Memory\n\nThe following is your accumulated experience and learnings from previous tasks:\n\n"
+	return header + strings.Join(parts, "\n"), nil
 }

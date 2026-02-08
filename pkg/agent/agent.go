@@ -15,6 +15,7 @@ import (
 
 	"github.com/rpuneet/bc/config"
 	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/memory"
 	"github.com/rpuneet/bc/pkg/tmux"
 )
 
@@ -507,10 +508,32 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	agent.UpdatedAt = time.Now()
 	m.agents[name] = agent
 
-	// Send role prompt as bootstrap if memory was loaded
+	// Build bootstrap prompt with role prompt and agent memories
+	var promptParts []string
+
+	// Add role prompt if available
 	if agent.Memory != nil && agent.Memory.RolePrompt != "" {
-		// Append workspace info to the prompt
-		prompt := agent.Memory.RolePrompt + fmt.Sprintf("\n\n---\n\nWorkspace: %s\nAgent ID: %s\n", workspace, name)
+		promptParts = append(promptParts, agent.Memory.RolePrompt)
+	}
+
+	// Load and inject agent memories from .bc/memory/<agent-name>/
+	if agent.MemoryDir != "" {
+		memStore := memory.NewStore(workspace, name)
+		if memStore.Exists() {
+			memCtx, memErr := memStore.GetMemoryContext(memory.DefaultMemoryLimit)
+			if memErr != nil {
+				log.Warn("failed to load agent memories", "agent", name, "error", memErr)
+			} else if memCtx != "" {
+				promptParts = append(promptParts, memCtx)
+				log.Debug("injected agent memories", "agent", name)
+			}
+		}
+	}
+
+	// Send bootstrap prompt if we have content
+	if len(promptParts) > 0 {
+		prompt := strings.Join(promptParts, "\n\n---\n\n")
+		prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nAgent ID: %s\n", workspace, name)
 		if err := m.tmux.SendKeys(name, prompt); err != nil {
 			log.Warn("failed to send bootstrap prompt", "agent", name, "error", err)
 		}
