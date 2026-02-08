@@ -425,6 +425,29 @@ func TestCursorMovement_AdjustsViewport(t *testing.T) {
 	}
 }
 
+func TestDrillToManagerAndAgentQueue(t *testing.T) {
+	m := newTestModel()
+	m.tab = TabDashboard
+
+	// m: drill to manager queue (work)
+	m.HandleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+	if m.tab != TabQueue {
+		t.Errorf("after 'm' tab = %d, want TabQueue", m.tab)
+	}
+	if m.queueFilter != QueueFilterReady {
+		t.Errorf("after 'm' queueFilter = %d, want QueueFilterReady (work)", m.queueFilter)
+	}
+	if m.cursor != 0 || m.scrollOffset != 0 {
+		t.Errorf("after 'm' cursor=%d scrollOffset=%d, want 0,0", m.cursor, m.scrollOffset)
+	}
+
+	// a: drill to agent queue (merge)
+	m.HandleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	if m.queueFilter != QueueFilterInProgress {
+		t.Errorf("after 'a' queueFilter = %d, want QueueFilterInProgress (merge)", m.queueFilter)
+	}
+}
+
 // --- renderAgents tests ---
 
 func TestRenderAgents_NoAgents(t *testing.T) {

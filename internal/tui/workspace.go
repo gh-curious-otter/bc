@@ -202,6 +202,26 @@ func (m *WorkspaceModel) HandleKey(msg tea.KeyMsg) Action {
 			m.cycleQueueFilter()
 			return NoAction
 		}
+	case "m":
+		// Drill to manager queue (work) from any tab (#306)
+		if m.tab == TabDashboard || m.tab == TabQueue {
+			m.tab = TabQueue
+			m.queueFilter = QueueFilterReady
+			m.applyQueueFilter()
+			m.cursor = 0
+			m.scrollOffset = 0
+			return NoAction
+		}
+	case "a":
+		// Drill to agent queue (merge) from any tab (#306)
+		if m.tab == TabDashboard || m.tab == TabQueue {
+			m.tab = TabQueue
+			m.queueFilter = QueueFilterInProgress
+			m.applyQueueFilter()
+			m.cursor = 0
+			m.scrollOffset = 0
+			return NoAction
+		}
 	}
 	if isEnterKey(msg) {
 		return m.selectCurrent()
@@ -770,7 +790,7 @@ func (m *WorkspaceModel) renderQueue() string {
 
 	// Filter indicator
 	filterLabel := m.queueFilterLabel()
-	b.WriteString(m.styles.Muted.Render(fmt.Sprintf("  Filter: %s (press 'f' to cycle)", filterLabel)))
+	b.WriteString(m.styles.Muted.Render(fmt.Sprintf("  Filter: %s (f: cycle  m: manager queue  a: agent queue)", filterLabel)))
 	b.WriteString("\n\n")
 
 	if len(m.filteredQueue) == 0 {
