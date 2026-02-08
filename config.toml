@@ -56,11 +56,6 @@ command = "codex --full-auto"
 description = "OpenAI Codex"
 
 [[agents]]
-name = "claude"
-command = "claude"
-description = "Claude CLI agent"
-
-[[agents]]
 name = "server"
 command = "claude mcp serve"
 description = "Claude MCP Server"

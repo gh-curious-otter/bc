@@ -71,11 +71,6 @@ var (
 			Name:        "codex",
 		},
 		{
-			Command:     "claude",
-			Description: "Claude CLI agent",
-			Name:        "claude",
-		},
-		{
 			Command:     "claude mcp serve",
 			Description: "Claude MCP Server",
 			Name:        "server",
