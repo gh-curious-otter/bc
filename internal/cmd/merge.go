@@ -16,6 +16,8 @@ import (
 
 var (
 	mergeSkipTests bool
+	mergeRebase    bool
+	mergeNoRebase  bool
 )
 
 var mergeCmd = &cobra.Command{
@@ -24,12 +26,16 @@ var mergeCmd = &cobra.Command{
 	Long: `Merge an agent's work branch into main after running build, test, and vet checks.
 
 The merge command:
-  1. Checks for conflicts with main
-  2. Runs go build, go test, go vet in the agent worktree
-  3. Merges the branch into main (fast-forward or merge commit)
+  1. Checks if branch is behind main (stale)
+  2. Optionally rebases stale branches onto main
+  3. Checks for conflicts with main
+  4. Runs go build, go test, go vet in the agent worktree
+  5. Merges the branch into main (fast-forward or merge commit)
 
 Examples:
   bc merge engineer-01
+  bc merge engineer-01 --rebase       # Auto-rebase if stale
+  bc merge engineer-01 --no-rebase    # Skip auto-rebase
   bc merge fix/enter-submit-reliability --skip-tests`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMerge,
@@ -37,6 +43,8 @@ Examples:
 
 func init() {
 	mergeCmd.Flags().BoolVar(&mergeSkipTests, "skip-tests", false, "Skip build/test/vet validation")
+	mergeCmd.Flags().BoolVar(&mergeRebase, "rebase", false, "Auto-rebase stale branches onto main before merge")
+	mergeCmd.Flags().BoolVar(&mergeNoRebase, "no-rebase", false, "Skip auto-rebase even if branch is stale")
 	rootCmd.AddCommand(mergeCmd)
 }
 
@@ -65,7 +73,35 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("branch %s not found: %w", branch, err)
 	}
 
-	// Step 2: Check for conflicts with main
+	// Step 2: Check if branch is stale (behind main) and auto-rebase if requested
+	commitsBehind, err := getCommitsBehind(rootDir, branch)
+	if err != nil {
+		return fmt.Errorf("failed to check branch staleness: %w", err)
+	}
+
+	if commitsBehind > 0 {
+		fmt.Printf("  Branch is %d commit(s) behind main\n", commitsBehind)
+
+		if mergeNoRebase {
+			fmt.Println("  Skipping auto-rebase (--no-rebase)")
+		} else if mergeRebase {
+			fmt.Println("  Auto-rebasing onto main...")
+			rebaseDir := worktreeDir
+			if rebaseDir == "" {
+				rebaseDir = rootDir
+			}
+			if err = autoRebase(rebaseDir, branch); err != nil {
+				return fmt.Errorf("auto-rebase failed: %w\nResolve conflicts manually and retry, or use --no-rebase", err)
+			}
+			fmt.Println("  Rebase successful")
+		} else {
+			fmt.Printf("  Tip: Use --rebase to automatically update the branch\n")
+		}
+	} else {
+		fmt.Println("  Branch is up to date with main")
+	}
+
+	// Step 3: Check for conflicts with main
 	conflicts, err := checkMergeConflicts(rootDir, branch)
 	if err != nil {
 		return fmt.Errorf("failed to check conflicts: %w", err)
@@ -330,5 +366,56 @@ func rollbackMerge(repoDir, restorePoint string) error {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("update-ref failed: %s", strings.TrimSpace(string(out)))
 	}
+	return nil
+}
+
+// getCommitsBehind returns how many commits the branch is behind main.
+// Returns 0 if the branch is up to date or ahead of main.
+func getCommitsBehind(repoDir, branch string) (int, error) {
+	// Count commits on main that are not on branch
+	cmd := exec.CommandContext(context.Background(), "git", "-C", repoDir, "rev-list", "--count", branch+"..main") //nolint:gosec // G204: branch is validated by gitBranchExists
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return 0, fmt.Errorf("rev-list failed: %s", strings.TrimSpace(string(out)))
+	}
+
+	countStr := strings.TrimSpace(string(out))
+	var count int
+	if _, err := fmt.Sscanf(countStr, "%d", &count); err != nil {
+		return 0, fmt.Errorf("failed to parse commit count: %s", countStr)
+	}
+	return count, nil
+}
+
+// autoRebase rebases the current branch onto main.
+// The rebaseDir should be the worktree directory where the branch is checked out.
+func autoRebase(rebaseDir, branch string) error {
+	// Fetch latest main first
+	fetchCmd := exec.CommandContext(context.Background(), "git", "-C", rebaseDir, "fetch", "origin", "main")
+	if out, err := fetchCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("fetch failed: %s", strings.TrimSpace(string(out)))
+	}
+
+	// Perform the rebase
+	rebaseCmd := exec.CommandContext(context.Background(), "git", "-C", rebaseDir, "rebase", "origin/main")
+	out, err := rebaseCmd.CombinedOutput()
+	if err != nil {
+		// Check if it's a conflict
+		output := string(out)
+		if strings.Contains(output, "CONFLICT") || strings.Contains(output, "could not apply") {
+			// Abort the failed rebase
+			abortCmd := exec.CommandContext(context.Background(), "git", "-C", rebaseDir, "rebase", "--abort")
+			_ = abortCmd.Run()
+			return fmt.Errorf("rebase conflict detected:\n%s", output)
+		}
+		return fmt.Errorf("rebase failed: %s", strings.TrimSpace(output))
+	}
+
+	// Push the rebased branch
+	pushCmd := exec.CommandContext(context.Background(), "git", "-C", rebaseDir, "push", "--force-with-lease")
+	if out, err := pushCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("push failed after rebase: %s", strings.TrimSpace(string(out)))
+	}
+
 	return nil
 }

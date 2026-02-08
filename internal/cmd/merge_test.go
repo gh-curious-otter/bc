@@ -423,3 +423,94 @@ func TestRollbackMerge_InvalidRestorePoint(t *testing.T) {
 		t.Error("expected error for invalid restore point")
 	}
 }
+
+// --- getCommitsBehind tests ---
+
+func TestGetCommitsBehind_UpToDate(t *testing.T) {
+	repo := initGitRepo(t)
+	createBranch(t, repo, "feature/uptodate")
+
+	behind, err := getCommitsBehind(repo, "feature/uptodate")
+	if err != nil {
+		t.Fatalf("getCommitsBehind failed: %v", err)
+	}
+	if behind != 0 {
+		t.Errorf("expected 0 commits behind, got %d", behind)
+	}
+}
+
+func TestGetCommitsBehind_Stale(t *testing.T) {
+	repo := initGitRepo(t)
+
+	// Create branch from current main
+	createBranch(t, repo, "feature/stale")
+
+	// Add commits to main
+	os.WriteFile(filepath.Join(repo, "new1.txt"), []byte("new1\n"), 0o600) //nolint:errcheck
+	exec.Command("git", "-C", repo, "add", "new1.txt").Run()               //nolint:errcheck,gosec,noctx
+	exec.Command("git", "-C", repo, "commit", "-m", "main commit 1").Run() //nolint:errcheck,gosec,noctx
+
+	os.WriteFile(filepath.Join(repo, "new2.txt"), []byte("new2\n"), 0o600) //nolint:errcheck
+	exec.Command("git", "-C", repo, "add", "new2.txt").Run()               //nolint:errcheck,gosec,noctx
+	exec.Command("git", "-C", repo, "commit", "-m", "main commit 2").Run() //nolint:errcheck,gosec,noctx
+
+	behind, err := getCommitsBehind(repo, "feature/stale")
+	if err != nil {
+		t.Fatalf("getCommitsBehind failed: %v", err)
+	}
+	if behind != 2 {
+		t.Errorf("expected 2 commits behind, got %d", behind)
+	}
+}
+
+func TestGetCommitsBehind_Ahead(t *testing.T) {
+	repo := initGitRepo(t)
+
+	// Create branch ahead of main
+	cmd := exec.Command("git", "-C", repo, "checkout", "-b", "feature/ahead") //nolint:gosec,noctx
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("checkout failed: %v (%s)", err, out)
+	}
+	os.WriteFile(filepath.Join(repo, "ahead.txt"), []byte("ahead\n"), 0o600) //nolint:errcheck
+	exec.Command("git", "-C", repo, "add", "ahead.txt").Run()                //nolint:errcheck,gosec,noctx
+	exec.Command("git", "-C", repo, "commit", "-m", "ahead commit").Run()    //nolint:errcheck,gosec,noctx
+	exec.Command("git", "-C", repo, "checkout", "main").Run()                //nolint:errcheck,gosec,noctx
+
+	behind, err := getCommitsBehind(repo, "feature/ahead")
+	if err != nil {
+		t.Fatalf("getCommitsBehind failed: %v", err)
+	}
+	// Branch is ahead, not behind
+	if behind != 0 {
+		t.Errorf("expected 0 commits behind for ahead branch, got %d", behind)
+	}
+}
+
+func TestGetCommitsBehind_InvalidBranch(t *testing.T) {
+	repo := initGitRepo(t)
+
+	_, err := getCommitsBehind(repo, "nonexistent-branch")
+	if err == nil {
+		t.Error("expected error for nonexistent branch")
+	}
+}
+
+// --- Merge flag tests ---
+
+func TestMergeCmdFlags(t *testing.T) {
+	// Verify the merge command has the expected flags
+	skipTestsFlag := mergeCmd.Flags().Lookup("skip-tests")
+	if skipTestsFlag == nil {
+		t.Error("expected 'skip-tests' flag to exist")
+	}
+
+	rebaseFlag := mergeCmd.Flags().Lookup("rebase")
+	if rebaseFlag == nil {
+		t.Error("expected 'rebase' flag to exist")
+	}
+
+	noRebaseFlag := mergeCmd.Flags().Lookup("no-rebase")
+	if noRebaseFlag == nil {
+		t.Error("expected 'no-rebase' flag to exist")
+	}
+}
