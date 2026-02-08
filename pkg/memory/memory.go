@@ -165,6 +165,51 @@ func (s *Store) learningsPath() string {
 	return filepath.Join(s.memoryDir, "learnings.md")
 }
 
+// BackupExperiences creates a backup of the experiences file.
+// Backup is stored as experiences.jsonl.bak in the same directory.
+func (s *Store) BackupExperiences() error {
+	srcPath := s.experiencesPath()
+	dstPath := srcPath + ".bak"
+
+	data, err := os.ReadFile(srcPath) //nolint:gosec // srcPath constructed from trusted memoryDir
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // Nothing to backup
+		}
+		return fmt.Errorf("failed to read experiences: %w", err)
+	}
+
+	if err := os.WriteFile(dstPath, data, 0600); err != nil {
+		return fmt.Errorf("failed to write backup: %w", err)
+	}
+
+	return nil
+}
+
+// WriteExperiences overwrites the experiences file with the given experiences.
+// This is used for pruning/cleanup operations.
+func (s *Store) WriteExperiences(experiences []Experience) error {
+	path := s.experiencesPath()
+
+	f, err := os.Create(path) //nolint:gosec // path constructed from trusted memoryDir
+	if err != nil {
+		return fmt.Errorf("failed to create experiences file: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	for _, exp := range experiences {
+		data, marshalErr := json.Marshal(exp)
+		if marshalErr != nil {
+			return fmt.Errorf("failed to marshal experience: %w", marshalErr)
+		}
+		if _, writeErr := f.Write(append(data, '\n')); writeErr != nil {
+			return fmt.Errorf("failed to write experience: %w", writeErr)
+		}
+	}
+
+	return nil
+}
+
 // splitLines splits byte data into lines.
 func splitLines(data []byte) [][]byte {
 	var lines [][]byte

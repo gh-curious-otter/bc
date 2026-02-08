@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -99,6 +101,20 @@ Example:
 	RunE: runMemorySearch,
 }
 
+var memoryPruneCmd = &cobra.Command{
+	Use:   "prune",
+	Short: "Remove old memory entries",
+	Long: `Remove old experiences to prevent unbounded memory growth.
+
+Creates a backup before deleting. Use --dry-run to preview what would be deleted.
+
+Example:
+  bc memory prune --older-than 30d          # Remove entries older than 30 days
+  bc memory prune --older-than 7d --dry-run # Preview what would be removed
+  bc memory prune --agent engineer-01       # Prune specific agent only`,
+	RunE: runMemoryPrune,
+}
+
 var (
 	memoryOutcome     string
 	memoryTaskID      string
@@ -106,6 +122,9 @@ var (
 	memoryShowExp     bool
 	memoryShowLearn   bool
 	memorySearchAgent string
+	memoryPruneAgent  string
+	memoryPruneOlder  string
+	memoryPruneDryRun bool
 )
 
 func init() {
@@ -118,10 +137,15 @@ func init() {
 
 	memorySearchCmd.Flags().StringVar(&memorySearchAgent, "agent", "", "Search specific agent's memory")
 
+	memoryPruneCmd.Flags().StringVar(&memoryPruneAgent, "agent", "", "Prune specific agent's memory")
+	memoryPruneCmd.Flags().StringVar(&memoryPruneOlder, "older-than", "30d", "Remove entries older than duration (e.g., 7d, 30d)")
+	memoryPruneCmd.Flags().BoolVar(&memoryPruneDryRun, "dry-run", false, "Preview what would be deleted without removing")
+
 	memoryCmd.AddCommand(memoryRecordCmd)
 	memoryCmd.AddCommand(memoryLearnCmd)
 	memoryCmd.AddCommand(memoryShowCmd)
 	memoryCmd.AddCommand(memorySearchCmd)
+	memoryCmd.AddCommand(memoryPruneCmd)
 	rootCmd.AddCommand(memoryCmd)
 }
 
@@ -453,4 +477,130 @@ func scoreLearning(line, query string) int {
 	}
 
 	return score
+}
+
+func runMemoryPrune(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	// Parse duration
+	cutoff, err := parseDuration(memoryPruneOlder)
+	if err != nil {
+		return fmt.Errorf("invalid duration: %w", err)
+	}
+	cutoffTime := time.Now().Add(-cutoff)
+
+	// Determine which agents to prune
+	var agents []string
+	if memoryPruneAgent != "" {
+		agents = []string{memoryPruneAgent}
+	} else {
+		// Prune all agents with memory directories
+		memoryRoot := filepath.Join(ws.RootDir, ".bc", "memory")
+		entries, err := os.ReadDir(memoryRoot)
+		if err != nil {
+			if os.IsNotExist(err) {
+				cmd.Println("No agent memories found")
+				return nil
+			}
+			return fmt.Errorf("failed to read memory directory: %w", err)
+		}
+		for _, entry := range entries {
+			if entry.IsDir() {
+				agents = append(agents, entry.Name())
+			}
+		}
+	}
+
+	if len(agents) == 0 {
+		cmd.Println("No agent memories found")
+		return nil
+	}
+
+	totalPruned := 0
+	for _, agentID := range agents {
+		store := memory.NewStore(ws.RootDir, agentID)
+		if !store.Exists() {
+			continue
+		}
+
+		// Get experiences
+		experiences, err := store.GetExperiences()
+		if err != nil {
+			cmd.Printf("Warning: failed to read %s experiences: %v\n", agentID, err)
+			continue
+		}
+
+		// Find entries to prune
+		var toKeep []memory.Experience
+		var toPrune []memory.Experience
+		for _, exp := range experiences {
+			if exp.Timestamp.Before(cutoffTime) {
+				toPrune = append(toPrune, exp)
+			} else {
+				toKeep = append(toKeep, exp)
+			}
+		}
+
+		if len(toPrune) == 0 {
+			continue
+		}
+
+		if memoryPruneDryRun {
+			cmd.Printf("[%s] Would prune %d entries (keeping %d)\n", agentID, len(toPrune), len(toKeep))
+			for _, exp := range toPrune {
+				cmd.Printf("  - [%s] %s\n", exp.Timestamp.Format("2006-01-02"), exp.Description)
+			}
+		} else {
+			// Create backup before pruning
+			if err := store.BackupExperiences(); err != nil {
+				cmd.Printf("Warning: failed to backup %s: %v (continuing anyway)\n", agentID, err)
+			}
+
+			// Write kept experiences back
+			if err := store.WriteExperiences(toKeep); err != nil {
+				return fmt.Errorf("failed to write pruned experiences for %s: %w", agentID, err)
+			}
+
+			cmd.Printf("[%s] Pruned %d entries (kept %d)\n", agentID, len(toPrune), len(toKeep))
+			totalPruned += len(toPrune)
+		}
+	}
+
+	if memoryPruneDryRun {
+		cmd.Println("\nDry run - no changes made. Remove --dry-run to prune.")
+	} else if totalPruned > 0 {
+		cmd.Printf("\nTotal pruned: %d entries\n", totalPruned)
+	} else {
+		cmd.Printf("No entries older than %s found\n", memoryPruneOlder)
+	}
+
+	return nil
+}
+
+// parseDuration parses duration strings like "7d", "30d", "1h".
+func parseDuration(s string) (time.Duration, error) {
+	if len(s) < 2 {
+		return 0, fmt.Errorf("duration too short: %s", s)
+	}
+
+	unit := s[len(s)-1]
+	valueStr := s[:len(s)-1]
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid number: %s", valueStr)
+	}
+
+	switch unit {
+	case 'd':
+		return time.Duration(value) * 24 * time.Hour, nil
+	case 'h':
+		return time.Duration(value) * time.Hour, nil
+	case 'm':
+		return time.Duration(value) * time.Minute, nil
+	default:
+		return 0, fmt.Errorf("unknown unit: %c (use d, h, or m)", unit)
+	}
 }

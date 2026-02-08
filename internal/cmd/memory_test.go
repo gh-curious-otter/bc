@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rpuneet/bc/pkg/memory"
 )
@@ -483,5 +484,177 @@ func TestScoreLearning(t *testing.T) {
 				t.Errorf("scoreLearning() = %d, want >= %d", score, tt.minScore)
 			}
 		})
+	}
+}
+
+// --- Memory Prune Tests ---
+
+func TestParseDuration(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected time.Duration
+		wantErr  bool
+	}{
+		{"7d", 7 * 24 * time.Hour, false},
+		{"30d", 30 * 24 * time.Hour, false},
+		{"1h", 1 * time.Hour, false},
+		{"60m", 60 * time.Minute, false},
+		{"x", 0, true},   // too short
+		{"abc", 0, true}, // invalid number
+		{"7x", 0, true},  // unknown unit
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got, err := parseDuration(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("parseDuration(%q) expected error", tt.input)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("parseDuration(%q) error: %v", tt.input, err)
+				return
+			}
+			if got != tt.expected {
+				t.Errorf("parseDuration(%q) = %v, want %v", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestMemoryPruneDryRun(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	// Reset flags (they persist between tests)
+	memoryPruneDryRun = false
+	memoryPruneAgent = ""
+	memoryPruneOlder = "30d"
+
+	// Create memory with old experience
+	store := memory.NewStore(wsDir, "prune-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Record an old experience (manually set timestamp in the past)
+	oldExp := memory.Experience{
+		Timestamp:   time.Now().Add(-60 * 24 * time.Hour), // 60 days ago
+		Description: "Old task",
+		Outcome:     "success",
+	}
+	if err := store.RecordExperience(oldExp); err != nil {
+		t.Fatalf("failed to record old experience: %v", err)
+	}
+
+	// Record a recent experience
+	newExp := memory.Experience{
+		Description: "Recent task",
+		Outcome:     "success",
+	}
+	if err := store.RecordExperience(newExp); err != nil {
+		t.Fatalf("failed to record new experience: %v", err)
+	}
+
+	output, err := executeCmd("memory", "prune", "--agent", "prune-agent", "--older-than", "30d", "--dry-run")
+	if err != nil {
+		t.Fatalf("memory prune failed: %v\nOutput: %s", err, output)
+	}
+
+	// Should mention dry run
+	if !strings.Contains(output, "Dry run") {
+		t.Errorf("output should mention dry run: %s", output)
+	}
+
+	// Should still have both experiences (dry run doesn't delete)
+	experiences, _ := store.GetExperiences()
+	if len(experiences) != 2 {
+		t.Errorf("expected 2 experiences after dry run, got %d", len(experiences))
+	}
+}
+
+func TestMemoryPruneActual(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	// Reset flags via Cobra (they persist between tests)
+	_ = memoryPruneCmd.Flags().Set("dry-run", "false")
+
+	// Create memory with old experience
+	store := memory.NewStore(wsDir, "prune-real")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Record an old experience
+	oldExp := memory.Experience{
+		Timestamp:   time.Now().Add(-60 * 24 * time.Hour), // 60 days ago
+		Description: "Old task to prune",
+		Outcome:     "success",
+	}
+	if err := store.RecordExperience(oldExp); err != nil {
+		t.Fatalf("failed to record old experience: %v", err)
+	}
+
+	// Record a recent experience
+	newExp := memory.Experience{
+		Description: "Recent task to keep",
+		Outcome:     "success",
+	}
+	if err := store.RecordExperience(newExp); err != nil {
+		t.Fatalf("failed to record new experience: %v", err)
+	}
+
+	output, err := executeCmd("memory", "prune", "--agent", "prune-real", "--older-than", "30d", "--dry-run=false")
+	if err != nil {
+		t.Fatalf("memory prune failed: %v\nOutput: %s", err, output)
+	}
+
+	// Should report pruning
+	if !strings.Contains(output, "Pruned") {
+		t.Errorf("output should report pruning: %s", output)
+	}
+
+	// Should only have 1 experience now
+	experiences, _ := store.GetExperiences()
+	if len(experiences) != 1 {
+		t.Errorf("expected 1 experience after prune, got %d", len(experiences))
+	}
+	if experiences[0].Description != "Recent task to keep" {
+		t.Errorf("wrong experience kept: %s", experiences[0].Description)
+	}
+}
+
+func TestMemoryPruneCreatesBackup(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	// Reset flags via Cobra (they persist between tests)
+	_ = memoryPruneCmd.Flags().Set("dry-run", "false")
+
+	// Create memory with old experience
+	store := memory.NewStore(wsDir, "backup-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Record an old experience
+	oldExp := memory.Experience{
+		Timestamp:   time.Now().Add(-60 * 24 * time.Hour),
+		Description: "Old task",
+		Outcome:     "success",
+	}
+	if err := store.RecordExperience(oldExp); err != nil {
+		t.Fatalf("failed to record experience: %v", err)
+	}
+
+	_, err := executeCmd("memory", "prune", "--agent", "backup-agent", "--older-than", "30d", "--dry-run=false")
+	if err != nil {
+		t.Fatalf("memory prune failed: %v", err)
+	}
+
+	// Check backup was created
+	backupPath := filepath.Join(store.MemoryDir(), "experiences.jsonl.bak")
+	if _, statErr := os.Stat(backupPath); os.IsNotExist(statErr) {
+		t.Error("backup file should exist after prune")
 	}
 }
