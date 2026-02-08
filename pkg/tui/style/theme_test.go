@@ -141,3 +141,56 @@ func TestStatusStyle(t *testing.T) {
 		})
 	}
 }
+
+func TestMessageTypeStyle(t *testing.T) {
+	styles := DefaultStyles()
+
+	tests := []struct {
+		msgType string
+	}{
+		{"text"},
+		{"task"},
+		{"review"},
+		{"approval"},
+		{"merge"},
+		{"status"},
+		{"unknown"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.msgType, func(t *testing.T) {
+			style := styles.MessageTypeStyle(tt.msgType)
+			// Verify we get a valid style back (non-panic)
+			rendered := style.Render("test message")
+			if rendered == "" {
+				t.Errorf("MessageTypeStyle(%q) should render text", tt.msgType)
+			}
+		})
+	}
+}
+
+func TestMessageTypeIcon(t *testing.T) {
+	styles := DefaultStyles()
+
+	tests := []struct {
+		msgType  string
+		wantIcon string
+	}{
+		{"task", "📋 "},
+		{"review", "👀 "},
+		{"approval", "✅ "},
+		{"merge", "🔀 "},
+		{"status", "📊 "},
+		{"text", ""},
+		{"unknown", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.msgType, func(t *testing.T) {
+			icon := styles.MessageTypeIcon(tt.msgType)
+			if icon != tt.wantIcon {
+				t.Errorf("MessageTypeIcon(%q) = %q, want %q", tt.msgType, icon, tt.wantIcon)
+			}
+		})
+	}
+}
