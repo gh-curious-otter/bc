@@ -201,6 +201,9 @@ type Styles struct {
 	Channel lipgloss.Style // #channel references
 	Link    lipgloss.Style // GitHub issue/PR links
 
+	// Reaction style for emoji reactions on messages
+	Reaction lipgloss.Style
+
 	theme Theme
 }
 
@@ -271,6 +274,10 @@ func NewStyles(theme Theme) Styles {
 		Link: lipgloss.NewStyle().
 			Foreground(theme.Accent).
 			Underline(true),
+
+		Reaction: lipgloss.NewStyle().
+			Foreground(theme.Muted).
+			Padding(0, 1),
 	}
 }
 
