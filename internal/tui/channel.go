@@ -335,7 +335,17 @@ func (m *ChannelModel) View() string {
 				b.WriteString(icon)
 			}
 
-			b.WriteString(m.styles.Info.Render(sender))
+			// Render sender with role-specific color
+			role := style.RoleFromAgentName(sender)
+			senderStyle := m.styles.RoleStyle(role)
+			b.WriteString(senderStyle.Render(sender))
+
+			// Add role badge
+			if role != sender && role != "" {
+				b.WriteString(" ")
+				b.WriteString(m.styles.RoleBadge(role).Render(role))
+			}
+
 			b.WriteString("  ")
 			b.WriteString(m.styles.Muted.Render(ts))
 			b.WriteString("\n")
@@ -395,7 +405,10 @@ func (m *ChannelModel) View() string {
 				msgStyle := m.styles.MessageTypeStyle(msgTypeStr)
 				msg := msgStyle.Render(entry.Message)
 				if entry.Sender != "" {
-					sender := m.styles.Info.Render("[" + entry.Sender + "]")
+					// Use role-specific color for sender
+					role := style.RoleFromAgentName(entry.Sender)
+					senderStyle := m.styles.RoleStyle(role)
+					sender := senderStyle.Render("[" + entry.Sender + "]")
 					line = fmt.Sprintf("  %s%s  %s %s", icon, ts, sender, msg)
 				} else {
 					line = fmt.Sprintf("  %s%s  %s", icon, ts, msg)
