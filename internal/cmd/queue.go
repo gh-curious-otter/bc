@@ -27,6 +27,7 @@ Examples:
   bc queue list               # list all work items
   bc queue add "Fix bug"      # add a task to the queue
   bc queue add "New feature" --epic  # add an epic`,
+	Args: cobra.NoArgs,
 	RunE: runQueueList,
 }
 
