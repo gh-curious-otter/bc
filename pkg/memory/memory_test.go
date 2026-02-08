@@ -387,3 +387,166 @@ func containsHelper(s, substr string) bool {
 	}
 	return false
 }
+
+func TestStore_GetMemoryContext_Empty(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// New agent with no memories should return empty string
+	ctx, err := store.GetMemoryContext(DefaultMemoryLimit)
+	if err != nil {
+		t.Fatalf("GetMemoryContext failed: %v", err)
+	}
+
+	if ctx != "" {
+		t.Errorf("expected empty context for new agent, got %q", ctx)
+	}
+}
+
+func TestStore_GetMemoryContext_WithExperiences(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Add some experiences
+	for i := 0; i < 3; i++ {
+		exp := Experience{
+			TaskType:    "code",
+			Description: "Implemented feature " + string(rune('A'+i)),
+			Outcome:     "success",
+			Learnings:   []string{"Learning " + string(rune('A'+i))},
+		}
+		if err := store.RecordExperience(exp); err != nil {
+			t.Fatalf("failed to record experience: %v", err)
+		}
+	}
+
+	ctx, err := store.GetMemoryContext(DefaultMemoryLimit)
+	if err != nil {
+		t.Fatalf("GetMemoryContext failed: %v", err)
+	}
+
+	// Should contain header
+	if !contains(ctx, "# Agent Memory") {
+		t.Error("context should contain header")
+	}
+
+	// Should contain experiences section
+	if !contains(ctx, "## Recent Experiences") {
+		t.Error("context should contain experiences section")
+	}
+
+	// Should contain experience content
+	if !contains(ctx, "Implemented feature A") {
+		t.Error("context should contain experience description")
+	}
+}
+
+func TestStore_GetMemoryContext_Limit(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Add 15 experiences
+	for i := 0; i < 15; i++ {
+		exp := Experience{
+			TaskType:    "code",
+			Description: "Task " + string(rune('A'+i)),
+			Outcome:     "success",
+		}
+		if err := store.RecordExperience(exp); err != nil {
+			t.Fatalf("failed to record experience: %v", err)
+		}
+	}
+
+	// With limit of 5, should only include last 5 experiences
+	ctx, err := store.GetMemoryContext(5)
+	if err != nil {
+		t.Fatalf("GetMemoryContext failed: %v", err)
+	}
+
+	// Should contain later experiences (K, L, M, N, O)
+	if !contains(ctx, "Task O") {
+		t.Error("context should contain most recent task (O)")
+	}
+
+	// Should NOT contain early experiences (A, B, C)
+	if contains(ctx, "Task A") {
+		t.Error("context should NOT contain old task (A) when limited")
+	}
+}
+
+func TestStore_GetMemoryContext_WithLearnings(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Add substantial learnings
+	for i := 0; i < 5; i++ {
+		if err := store.AddLearning("Category "+string(rune('A'+i)), "Important learning about topic "+string(rune('A'+i))); err != nil {
+			t.Fatalf("failed to add learning: %v", err)
+		}
+	}
+
+	ctx, err := store.GetMemoryContext(DefaultMemoryLimit)
+	if err != nil {
+		t.Fatalf("GetMemoryContext failed: %v", err)
+	}
+
+	// Should contain learnings section
+	if !contains(ctx, "## Key Learnings") {
+		t.Error("context should contain learnings section")
+	}
+}
+
+func TestStore_GetMemoryContext_DefaultLimit(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Add an experience
+	exp := Experience{
+		TaskType:    "code",
+		Description: "Test task",
+		Outcome:     "success",
+	}
+	if err := store.RecordExperience(exp); err != nil {
+		t.Fatalf("failed to record experience: %v", err)
+	}
+
+	// Passing 0 should use default limit
+	ctx, err := store.GetMemoryContext(0)
+	if err != nil {
+		t.Fatalf("GetMemoryContext failed: %v", err)
+	}
+
+	if !contains(ctx, "Test task") {
+		t.Error("context should contain the experience with default limit")
+	}
+}
+
+func TestStore_GetMemoryContext_NonExistent(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "nonexistent-agent")
+
+	// Store doesn't exist - should return empty without error
+	ctx, err := store.GetMemoryContext(DefaultMemoryLimit)
+	if err != nil {
+		t.Fatalf("GetMemoryContext should not error for nonexistent store: %v", err)
+	}
+
+	if ctx != "" {
+		t.Errorf("expected empty context for nonexistent agent, got %q", ctx)
+	}
+}
