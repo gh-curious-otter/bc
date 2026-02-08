@@ -39,8 +39,8 @@ func TestAgentDefaults(t *testing.T) {
 	if Agent.Command == "" {
 		t.Error("Agent.Command should not be empty")
 	}
-	if Agent.CoordinatorName != "coordinator" {
-		t.Errorf("Agent.CoordinatorName = %q, want %q", Agent.CoordinatorName, "coordinator")
+	if Agent.CoordinatorName != "root" {
+		t.Errorf("Agent.CoordinatorName = %q, want %q", Agent.CoordinatorName, "root")
 	}
 	if Agent.WorkerPrefix != "worker" {
 		t.Errorf("Agent.WorkerPrefix = %q, want %q", Agent.WorkerPrefix, "worker")
