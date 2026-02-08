@@ -159,3 +159,16 @@ func TestQueueItemStruct(t *testing.T) {
 		t.Errorf("URL = %q, want %q", item.URL, "https://github.com/owner/repo/issues/123")
 	}
 }
+
+func TestQueueCmdRejectsUnknownSubcommands(t *testing.T) {
+	// queueCmd should have Args: cobra.NoArgs to reject unknown subcommands
+	if queueCmd.Args == nil {
+		t.Fatal("queueCmd should have Args validator set")
+	}
+
+	// Test that Args rejects extra arguments
+	err := queueCmd.Args(queueCmd, []string{"foobar"})
+	if err == nil {
+		t.Error("expected error for unknown subcommand 'foobar', got nil")
+	}
+}
