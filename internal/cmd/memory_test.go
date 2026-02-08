@@ -206,3 +206,63 @@ func TestMemoryShowNoMemory(t *testing.T) {
 		t.Errorf("output should indicate no memory: %s", output)
 	}
 }
+
+func TestMemoryRecordRejectsEmpty(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_ = os.Setenv("BC_AGENT_ID", "test-agent")
+	defer func() { _ = os.Unsetenv("BC_AGENT_ID") }()
+
+	_, err := executeCmd("memory", "record", "")
+	if err == nil {
+		t.Error("expected error for empty experience")
+	}
+	if !strings.Contains(err.Error(), "experience cannot be empty") {
+		t.Errorf("error should mention empty experience: %v", err)
+	}
+}
+
+func TestMemoryRecordRejectsWhitespace(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_ = os.Setenv("BC_AGENT_ID", "test-agent")
+	defer func() { _ = os.Unsetenv("BC_AGENT_ID") }()
+
+	_, err := executeCmd("memory", "record", "   ")
+	if err == nil {
+		t.Error("expected error for whitespace-only experience")
+	}
+	if !strings.Contains(err.Error(), "experience cannot be empty") {
+		t.Errorf("error should mention empty experience: %v", err)
+	}
+}
+
+func TestMemoryLearnRejectsEmptyCategory(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_ = os.Setenv("BC_AGENT_ID", "test-agent")
+	defer func() { _ = os.Unsetenv("BC_AGENT_ID") }()
+
+	_, err := executeCmd("memory", "learn", "", "some learning")
+	if err == nil {
+		t.Error("expected error for empty category")
+	}
+	if !strings.Contains(err.Error(), "category cannot be empty") {
+		t.Errorf("error should mention empty category: %v", err)
+	}
+}
+
+func TestMemoryLearnRejectsEmptyLearning(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_ = os.Setenv("BC_AGENT_ID", "test-agent")
+	defer func() { _ = os.Unsetenv("BC_AGENT_ID") }()
+
+	_, err := executeCmd("memory", "learn", "patterns", "")
+	if err == nil {
+		t.Error("expected error for empty learning")
+	}
+	if !strings.Contains(err.Error(), "learning cannot be empty") {
+		t.Errorf("error should mention empty learning: %v", err)
+	}
+}
