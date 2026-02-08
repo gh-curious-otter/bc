@@ -368,3 +368,58 @@ func TestMergeBranch_NonFastForward(t *testing.T) {
 		t.Errorf("expected 12-char short hash, got %q (len=%d)", hash, len(hash))
 	}
 }
+
+// --- rollbackMerge tests ---
+
+func TestRollbackMerge_RestoresMainRef(t *testing.T) {
+	repo := initGitRepo(t)
+
+	// Get the original main HEAD
+	originalHead, err := gitRevParse(repo, "main")
+	if err != nil {
+		t.Fatalf("gitRevParse failed: %v", err)
+	}
+
+	// Create and merge a branch to move main forward
+	cmd := exec.Command("git", "-C", repo, "checkout", "-b", "feature/to-rollback") //nolint:gosec,noctx // G204
+	if out, cmdErr := cmd.CombinedOutput(); cmdErr != nil {
+		t.Fatalf("checkout failed: %v (%s)", cmdErr, out)
+	}
+	os.WriteFile(filepath.Join(repo, "rollback.txt"), []byte("will be rolled back\n"), 0o600) //nolint:errcheck
+	exec.Command("git", "-C", repo, "add", "rollback.txt").Run()                              //nolint:errcheck,gosec,noctx
+	exec.Command("git", "-C", repo, "commit", "-m", "commit to rollback").Run()               //nolint:errcheck,gosec,noctx
+	exec.Command("git", "-C", repo, "checkout", "main").Run()                                 //nolint:errcheck,gosec,noctx
+
+	// Merge the branch (moves main forward)
+	_, err = mergeBranch(repo, "feature/to-rollback")
+	if err != nil {
+		t.Fatalf("mergeBranch failed: %v", err)
+	}
+
+	// Verify main has moved
+	newHead, _ := gitRevParse(repo, "main") //nolint:errcheck
+	if newHead == originalHead {
+		t.Fatal("main should have moved after merge")
+	}
+
+	// Now rollback
+	err = rollbackMerge(repo, originalHead)
+	if err != nil {
+		t.Fatalf("rollbackMerge failed: %v", err)
+	}
+
+	// Verify main is back to original
+	restoredHead, _ := gitRevParse(repo, "main") //nolint:errcheck
+	if restoredHead != originalHead {
+		t.Errorf("main should be restored to %s, got %s", originalHead, restoredHead)
+	}
+}
+
+func TestRollbackMerge_InvalidRestorePoint(t *testing.T) {
+	repo := initGitRepo(t)
+
+	err := rollbackMerge(repo, "invalid-sha-that-does-not-exist")
+	if err == nil {
+		t.Error("expected error for invalid restore point")
+	}
+}
