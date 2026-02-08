@@ -266,3 +266,344 @@ func TestMemoryLearnRejectsEmptyLearning(t *testing.T) {
 		t.Errorf("error should mention empty learning: %v", err)
 	}
 }
+
+func TestMemorySearchRankedResults(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	// Create memory with multiple experiences to test ranking
+	store := memory.NewStore(wsDir, "ranked-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Experience with auth in description (should rank higher)
+	if err := store.RecordExperience(memory.Experience{
+		Description: "Fixed authentication auth flow",
+		Outcome:     "success",
+		TaskType:    "bugfix",
+	}); err != nil {
+		t.Fatalf("failed to record experience: %v", err)
+	}
+
+	// Experience with auth in task type only (lower rank)
+	if err := store.RecordExperience(memory.Experience{
+		Description: "Updated login page",
+		Outcome:     "success",
+		TaskType:    "auth",
+	}); err != nil {
+		t.Fatalf("failed to record experience: %v", err)
+	}
+
+	output, err := executeCmd("memory", "search", "auth")
+	if err != nil {
+		t.Fatalf("memory search failed: %v\nOutput: %s", err, output)
+	}
+
+	// Should show count of results
+	if !strings.Contains(output, "2 found") {
+		t.Errorf("output should show result count: %s", output)
+	}
+
+	// Should show score
+	if !strings.Contains(output, "score:") {
+		t.Errorf("output should show relevance score: %s", output)
+	}
+
+	// First result should have higher score (auth in description)
+	if !strings.Contains(output, "1. [ranked-agent]") {
+		t.Errorf("output should number results: %s", output)
+	}
+}
+
+func TestMemorySearchMultipleAgents(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	// Create memories for two agents
+	store1 := memory.NewStore(wsDir, "agent-one")
+	if err := store1.Init(); err != nil {
+		t.Fatalf("failed to init store1: %v", err)
+	}
+	if err := store1.RecordExperience(memory.Experience{
+		Description: "Fixed auth bug in agent one",
+		Outcome:     "success",
+	}); err != nil {
+		t.Fatalf("failed to record: %v", err)
+	}
+
+	store2 := memory.NewStore(wsDir, "agent-two")
+	if err := store2.Init(); err != nil {
+		t.Fatalf("failed to init store2: %v", err)
+	}
+	if err := store2.RecordExperience(memory.Experience{
+		Description: "Auth system redesign",
+		Outcome:     "success",
+	}); err != nil {
+		t.Fatalf("failed to record: %v", err)
+	}
+
+	output, err := executeCmd("memory", "search", "auth")
+	if err != nil {
+		t.Fatalf("memory search failed: %v\nOutput: %s", err, output)
+	}
+
+	// Should find results from both agents
+	if !strings.Contains(output, "agent-one") {
+		t.Errorf("output should contain agent-one: %s", output)
+	}
+	if !strings.Contains(output, "agent-two") {
+		t.Errorf("output should contain agent-two: %s", output)
+	}
+}
+
+func TestMemorySearchSpecificAgent(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	// Create memories for two agents
+	store1 := memory.NewStore(wsDir, "target-agent")
+	if err := store1.Init(); err != nil {
+		t.Fatalf("failed to init store1: %v", err)
+	}
+	if err := store1.RecordExperience(memory.Experience{
+		Description: "Fixed bug in target",
+		Outcome:     "success",
+	}); err != nil {
+		t.Fatalf("failed to record: %v", err)
+	}
+
+	store2 := memory.NewStore(wsDir, "other-agent")
+	if err := store2.Init(); err != nil {
+		t.Fatalf("failed to init store2: %v", err)
+	}
+	if err := store2.RecordExperience(memory.Experience{
+		Description: "Fixed bug in other",
+		Outcome:     "success",
+	}); err != nil {
+		t.Fatalf("failed to record: %v", err)
+	}
+
+	// Search only target-agent
+	output, err := executeCmd("memory", "search", "--agent", "target-agent", "bug")
+	if err != nil {
+		t.Fatalf("memory search failed: %v\nOutput: %s", err, output)
+	}
+
+	// Should only find target-agent
+	if !strings.Contains(output, "target-agent") {
+		t.Errorf("output should contain target-agent: %s", output)
+	}
+	if strings.Contains(output, "other-agent") {
+		t.Errorf("output should NOT contain other-agent: %s", output)
+	}
+}
+
+func TestScoreExperience(t *testing.T) {
+	tests := []struct { //nolint:govet // test struct alignment doesn't matter
+		name     string
+		exp      memory.Experience
+		query    string
+		minScore int
+	}{
+		{
+			name: "match in description",
+			exp: memory.Experience{
+				Description: "Fixed authentication bug",
+			},
+			query:    "auth",
+			minScore: 10,
+		},
+		{
+			name: "match in task type",
+			exp: memory.Experience{
+				Description: "Updated login",
+				TaskType:    "auth",
+			},
+			query:    "auth",
+			minScore: 5,
+		},
+		{
+			name: "match in outcome",
+			exp: memory.Experience{
+				Description: "Some task",
+				Outcome:     "auth failed",
+			},
+			query:    "auth",
+			minScore: 3,
+		},
+		{
+			name: "no match",
+			exp: memory.Experience{
+				Description: "Updated UI",
+			},
+			query:    "auth",
+			minScore: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			score := scoreExperience(tt.exp, tt.query)
+			if score < tt.minScore {
+				t.Errorf("scoreExperience() = %d, want >= %d", score, tt.minScore)
+			}
+		})
+	}
+}
+
+func TestScoreLearning(t *testing.T) {
+	tests := []struct {
+		name     string
+		line     string
+		query    string
+		minScore int
+	}{
+		{
+			name:     "simple match",
+			line:     "Always check authentication",
+			query:    "auth",
+			minScore: 5,
+		},
+		{
+			name:     "header match",
+			line:     "## Authentication Patterns",
+			query:    "auth",
+			minScore: 8, // 5 + 3 for header
+		},
+		{
+			name:     "no match",
+			line:     "Some other content",
+			query:    "auth",
+			minScore: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			score := scoreLearning(tt.line, tt.query)
+			if score < tt.minScore {
+				t.Errorf("scoreLearning() = %d, want >= %d", score, tt.minScore)
+			}
+		})
+	}
+}
+
+func TestParseDuration(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantD   string // expected duration as string for comparison
+		wantErr bool
+	}{
+		{
+			name:    "30 days",
+			input:   "30d",
+			wantErr: false,
+			wantD:   "720h0m0s", // 30 * 24 hours
+		},
+		{
+			name:    "7 days",
+			input:   "7d",
+			wantErr: false,
+			wantD:   "168h0m0s", // 7 * 24 hours
+		},
+		{
+			name:    "24 hours",
+			input:   "24h",
+			wantErr: false,
+			wantD:   "24h0m0s",
+		},
+		{
+			name:    "1 hour",
+			input:   "1h",
+			wantErr: false,
+			wantD:   "1h0m0s",
+		},
+		{
+			name:    "empty",
+			input:   "",
+			wantErr: true,
+		},
+		{
+			name:    "invalid",
+			input:   "abc",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d, err := parseDuration(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if d.String() != tt.wantD {
+				t.Errorf("parseDuration(%q) = %s, want %s", tt.input, d.String(), tt.wantD)
+			}
+		})
+	}
+}
+
+func TestFormatBytes(t *testing.T) {
+	tests := []struct { //nolint:govet // test struct alignment doesn't matter
+		bytes int64
+		name  string
+		want  string
+	}{
+		{0, "zero", "0 B"},
+		{500, "bytes", "500 B"},
+		{1500, "kilobytes", "1.5 KB"},
+		{1500000, "megabytes", "1.4 MB"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatBytes(tt.bytes)
+			if got != tt.want {
+				t.Errorf("formatBytes(%d) = %q, want %q", tt.bytes, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMemoryPruneCmdExists(t *testing.T) {
+	if memoryPruneCmd == nil {
+		t.Fatal("memoryPruneCmd should not be nil")
+	}
+	if memoryPruneCmd.Use != "prune" {
+		t.Errorf("memoryPruneCmd.Use = %q, want %q", memoryPruneCmd.Use, "prune")
+	}
+}
+
+func TestMemoryPruneFlags(t *testing.T) {
+	// Check older-than flag
+	flag := memoryPruneCmd.Flags().Lookup("older-than")
+	if flag == nil {
+		t.Fatal("expected 'older-than' flag to exist")
+	}
+	if flag.DefValue != "30d" {
+		t.Errorf("older-than default = %q, want %q", flag.DefValue, "30d")
+	}
+
+	// Check dry-run flag
+	flag = memoryPruneCmd.Flags().Lookup("dry-run")
+	if flag == nil {
+		t.Fatal("expected 'dry-run' flag to exist")
+	}
+
+	// Check no-backup flag
+	flag = memoryPruneCmd.Flags().Lookup("no-backup")
+	if flag == nil {
+		t.Fatal("expected 'no-backup' flag to exist")
+	}
+
+	// Check agent flag
+	flag = memoryPruneCmd.Flags().Lookup("agent")
+	if flag == nil {
+		t.Fatal("expected 'agent' flag to exist")
+	}
+}

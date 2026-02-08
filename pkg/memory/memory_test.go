@@ -387,3 +387,461 @@ func containsHelper(s, substr string) bool {
 	}
 	return false
 }
+
+func TestStore_GetMemoryContext_Empty(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// New agent with no memories should return empty string
+	ctx, err := store.GetMemoryContext(DefaultMemoryLimit)
+	if err != nil {
+		t.Fatalf("GetMemoryContext failed: %v", err)
+	}
+
+	if ctx != "" {
+		t.Errorf("expected empty context for new agent, got %q", ctx)
+	}
+}
+
+func TestStore_GetMemoryContext_WithExperiences(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Add some experiences
+	for i := 0; i < 3; i++ {
+		exp := Experience{
+			TaskType:    "code",
+			Description: "Implemented feature " + string(rune('A'+i)),
+			Outcome:     "success",
+			Learnings:   []string{"Learning " + string(rune('A'+i))},
+		}
+		if err := store.RecordExperience(exp); err != nil {
+			t.Fatalf("failed to record experience: %v", err)
+		}
+	}
+
+	ctx, err := store.GetMemoryContext(DefaultMemoryLimit)
+	if err != nil {
+		t.Fatalf("GetMemoryContext failed: %v", err)
+	}
+
+	// Should contain header
+	if !contains(ctx, "# Agent Memory") {
+		t.Error("context should contain header")
+	}
+
+	// Should contain experiences section
+	if !contains(ctx, "## Recent Experiences") {
+		t.Error("context should contain experiences section")
+	}
+
+	// Should contain experience content
+	if !contains(ctx, "Implemented feature A") {
+		t.Error("context should contain experience description")
+	}
+}
+
+func TestStore_GetMemoryContext_Limit(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Add 15 experiences
+	for i := 0; i < 15; i++ {
+		exp := Experience{
+			TaskType:    "code",
+			Description: "Task " + string(rune('A'+i)),
+			Outcome:     "success",
+		}
+		if err := store.RecordExperience(exp); err != nil {
+			t.Fatalf("failed to record experience: %v", err)
+		}
+	}
+
+	// With limit of 5, should only include last 5 experiences
+	ctx, err := store.GetMemoryContext(5)
+	if err != nil {
+		t.Fatalf("GetMemoryContext failed: %v", err)
+	}
+
+	// Should contain later experiences (K, L, M, N, O)
+	if !contains(ctx, "Task O") {
+		t.Error("context should contain most recent task (O)")
+	}
+
+	// Should NOT contain early experiences (A, B, C)
+	if contains(ctx, "Task A") {
+		t.Error("context should NOT contain old task (A) when limited")
+	}
+}
+
+func TestStore_GetMemoryContext_WithLearnings(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Add substantial learnings
+	for i := 0; i < 5; i++ {
+		if err := store.AddLearning("Category "+string(rune('A'+i)), "Important learning about topic "+string(rune('A'+i))); err != nil {
+			t.Fatalf("failed to add learning: %v", err)
+		}
+	}
+
+	ctx, err := store.GetMemoryContext(DefaultMemoryLimit)
+	if err != nil {
+		t.Fatalf("GetMemoryContext failed: %v", err)
+	}
+
+	// Should contain learnings section
+	if !contains(ctx, "## Key Learnings") {
+		t.Error("context should contain learnings section")
+	}
+}
+
+func TestStore_GetMemoryContext_DefaultLimit(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Add an experience
+	exp := Experience{
+		TaskType:    "code",
+		Description: "Test task",
+		Outcome:     "success",
+	}
+	if err := store.RecordExperience(exp); err != nil {
+		t.Fatalf("failed to record experience: %v", err)
+	}
+
+	// Passing 0 should use default limit
+	ctx, err := store.GetMemoryContext(0)
+	if err != nil {
+		t.Fatalf("GetMemoryContext failed: %v", err)
+	}
+
+	if !contains(ctx, "Test task") {
+		t.Error("context should contain the experience with default limit")
+	}
+}
+
+func TestStore_GetMemoryContext_NonExistent(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "nonexistent-agent")
+
+	// Store doesn't exist - should return empty without error
+	ctx, err := store.GetMemoryContext(DefaultMemoryLimit)
+	if err != nil {
+		t.Fatalf("GetMemoryContext should not error for nonexistent store: %v", err)
+	}
+
+	if ctx != "" {
+		t.Errorf("expected empty context for nonexistent agent, got %q", ctx)
+	}
+}
+
+func TestStore_Prune_DryRun(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Add old experience (45 days ago)
+	oldExp := Experience{
+		Timestamp:   time.Now().Add(-45 * 24 * time.Hour),
+		Description: "Old task",
+		Outcome:     "success",
+	}
+	if err := store.RecordExperience(oldExp); err != nil {
+		t.Fatalf("failed to record old experience: %v", err)
+	}
+
+	// Add recent experience
+	recentExp := Experience{
+		Timestamp:   time.Now().Add(-5 * 24 * time.Hour),
+		Description: "Recent task",
+		Outcome:     "success",
+	}
+	if err := store.RecordExperience(recentExp); err != nil {
+		t.Fatalf("failed to record recent experience: %v", err)
+	}
+
+	// Prune with dry run (30 day threshold)
+	result, err := store.Prune(PruneOptions{
+		OlderThan: 30 * 24 * time.Hour,
+		DryRun:    true,
+	})
+	if err != nil {
+		t.Fatalf("Prune failed: %v", err)
+	}
+
+	if result.TotalExperiences != 2 {
+		t.Errorf("expected 2 total experiences, got %d", result.TotalExperiences)
+	}
+	if result.PrunedExperiences != 1 {
+		t.Errorf("expected 1 pruned experience, got %d", result.PrunedExperiences)
+	}
+
+	// Verify nothing was actually deleted (dry run)
+	experiences, _ := store.GetExperiences()
+	if len(experiences) != 2 {
+		t.Errorf("dry run should not delete, but got %d experiences", len(experiences))
+	}
+}
+
+func TestStore_Prune_ActualDeletion(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Add old experience (45 days ago)
+	oldExp := Experience{
+		Timestamp:   time.Now().Add(-45 * 24 * time.Hour),
+		Description: "Old task",
+		Outcome:     "success",
+	}
+	if err := store.RecordExperience(oldExp); err != nil {
+		t.Fatalf("failed to record old experience: %v", err)
+	}
+
+	// Add recent experience
+	recentExp := Experience{
+		Timestamp:   time.Now().Add(-5 * 24 * time.Hour),
+		Description: "Recent task",
+		Outcome:     "success",
+	}
+	if err := store.RecordExperience(recentExp); err != nil {
+		t.Fatalf("failed to record recent experience: %v", err)
+	}
+
+	// Prune without dry run (30 day threshold, no backup)
+	result, err := store.Prune(PruneOptions{
+		OlderThan: 30 * 24 * time.Hour,
+		DryRun:    false,
+		Backup:    false,
+	})
+	if err != nil {
+		t.Fatalf("Prune failed: %v", err)
+	}
+
+	if result.PrunedExperiences != 1 {
+		t.Errorf("expected 1 pruned experience, got %d", result.PrunedExperiences)
+	}
+
+	// Verify old experience was deleted
+	experiences, _ := store.GetExperiences()
+	if len(experiences) != 1 {
+		t.Errorf("expected 1 experience after prune, got %d", len(experiences))
+	}
+	if experiences[0].Description != "Recent task" {
+		t.Errorf("wrong experience kept: %s", experiences[0].Description)
+	}
+}
+
+func TestStore_Prune_PreservesPinned(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Add old pinned experience (should be preserved)
+	pinnedExp := Experience{
+		Timestamp:   time.Now().Add(-60 * 24 * time.Hour),
+		Description: "Important pinned task",
+		Outcome:     "success",
+		Pinned:      true,
+	}
+	if err := store.RecordExperience(pinnedExp); err != nil {
+		t.Fatalf("failed to record pinned experience: %v", err)
+	}
+
+	// Add old non-pinned experience (should be pruned)
+	oldExp := Experience{
+		Timestamp:   time.Now().Add(-45 * 24 * time.Hour),
+		Description: "Old non-pinned task",
+		Outcome:     "success",
+		Pinned:      false,
+	}
+	if err := store.RecordExperience(oldExp); err != nil {
+		t.Fatalf("failed to record old experience: %v", err)
+	}
+
+	// Prune
+	result, err := store.Prune(PruneOptions{
+		OlderThan: 30 * 24 * time.Hour,
+		DryRun:    false,
+		Backup:    false,
+	})
+	if err != nil {
+		t.Fatalf("Prune failed: %v", err)
+	}
+
+	if result.PreservedPinned != 1 {
+		t.Errorf("expected 1 preserved pinned, got %d", result.PreservedPinned)
+	}
+	if result.PrunedExperiences != 1 {
+		t.Errorf("expected 1 pruned, got %d", result.PrunedExperiences)
+	}
+
+	// Verify pinned was kept
+	experiences, _ := store.GetExperiences()
+	if len(experiences) != 1 {
+		t.Errorf("expected 1 experience after prune, got %d", len(experiences))
+	}
+	if !experiences[0].Pinned {
+		t.Error("remaining experience should be pinned")
+	}
+}
+
+func TestStore_Prune_WithBackup(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Add old experience
+	oldExp := Experience{
+		Timestamp:   time.Now().Add(-45 * 24 * time.Hour),
+		Description: "Old task",
+		Outcome:     "success",
+	}
+	if err := store.RecordExperience(oldExp); err != nil {
+		t.Fatalf("failed to record old experience: %v", err)
+	}
+
+	// Prune with backup
+	result, err := store.Prune(PruneOptions{
+		OlderThan: 30 * 24 * time.Hour,
+		DryRun:    false,
+		Backup:    true,
+	})
+	if err != nil {
+		t.Fatalf("Prune failed: %v", err)
+	}
+
+	if result.BackupPath == "" {
+		t.Error("expected backup path to be set")
+	}
+
+	// Verify backup file exists
+	if _, err := os.Stat(result.BackupPath); os.IsNotExist(err) {
+		t.Error("backup file should exist")
+	}
+}
+
+func TestStore_Prune_NothingToPrune(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Add only recent experience
+	recentExp := Experience{
+		Timestamp:   time.Now().Add(-5 * 24 * time.Hour),
+		Description: "Recent task",
+		Outcome:     "success",
+	}
+	if err := store.RecordExperience(recentExp); err != nil {
+		t.Fatalf("failed to record recent experience: %v", err)
+	}
+
+	// Prune
+	result, err := store.Prune(PruneOptions{
+		OlderThan: 30 * 24 * time.Hour,
+		DryRun:    false,
+		Backup:    true,
+	})
+	if err != nil {
+		t.Fatalf("Prune failed: %v", err)
+	}
+
+	if result.PrunedExperiences != 0 {
+		t.Errorf("expected 0 pruned, got %d", result.PrunedExperiences)
+	}
+	if result.BackupPath != "" {
+		t.Error("backup should not be created when nothing to prune")
+	}
+}
+
+func TestStore_GetSize(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Add some content
+	for i := 0; i < 10; i++ {
+		exp := Experience{
+			Description: "Task with some description content " + string(rune('A'+i)),
+			Outcome:     "success",
+		}
+		if err := store.RecordExperience(exp); err != nil {
+			t.Fatalf("failed to record experience: %v", err)
+		}
+	}
+
+	size, err := store.GetSize()
+	if err != nil {
+		t.Fatalf("GetSize failed: %v", err)
+	}
+
+	if size <= 0 {
+		t.Errorf("expected positive size, got %d", size)
+	}
+}
+
+func TestStore_NeedsPruning(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Add some content
+	exp := Experience{
+		Description: "A task",
+		Outcome:     "success",
+	}
+	if err := store.RecordExperience(exp); err != nil {
+		t.Fatalf("failed to record experience: %v", err)
+	}
+
+	// With very low threshold, should need pruning
+	needs, size, err := store.NeedsPruning(1) // 1 byte threshold
+	if err != nil {
+		t.Fatalf("NeedsPruning failed: %v", err)
+	}
+	if !needs {
+		t.Error("should need pruning with 1 byte threshold")
+	}
+	if size <= 0 {
+		t.Errorf("expected positive size, got %d", size)
+	}
+
+	// With high threshold, should not need pruning
+	needs, _, err = store.NeedsPruning(1024 * 1024) // 1MB threshold
+	if err != nil {
+		t.Fatalf("NeedsPruning failed: %v", err)
+	}
+	if needs {
+		t.Error("should not need pruning with 1MB threshold")
+	}
+}

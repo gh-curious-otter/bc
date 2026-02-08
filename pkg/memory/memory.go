@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -18,6 +19,7 @@ type Experience struct {
 	Description string         `json:"description"`
 	Outcome     string         `json:"outcome"`
 	Learnings   []string       `json:"learnings,omitempty"`
+	Pinned      bool           `json:"pinned,omitempty"`
 }
 
 // Store provides memory storage for an agent.
@@ -178,4 +180,217 @@ func splitLines(data []byte) [][]byte {
 		lines = append(lines, data[start:])
 	}
 	return lines
+}
+
+// DefaultMemoryLimit is the default number of recent experiences to include.
+const DefaultMemoryLimit = 10
+
+// DefaultSizeThreshold is the default size in bytes before automatic cleanup triggers.
+const DefaultSizeThreshold = 1024 * 1024 // 1MB
+
+// PruneOptions configures the prune operation.
+type PruneOptions struct {
+	OlderThan time.Duration // Remove experiences older than this duration
+	DryRun    bool          // If true, don't actually delete, just report
+	Backup    bool          // If true, create backup before pruning
+}
+
+// PruneResult contains statistics from a prune operation.
+type PruneResult struct {
+	BackupPath        string
+	BytesBeforePrune  int64
+	BytesAfterPrune   int64
+	TotalExperiences  int
+	PrunedExperiences int
+	PreservedPinned   int
+}
+
+// Prune removes old experiences based on the provided options.
+// Pinned experiences are always preserved regardless of age.
+func (s *Store) Prune(opts PruneOptions) (*PruneResult, error) {
+	result := &PruneResult{}
+
+	// Get current experiences
+	experiences, err := s.GetExperiences()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get experiences: %w", err)
+	}
+	result.TotalExperiences = len(experiences)
+
+	// Get file size before prune
+	if info, statErr := os.Stat(s.experiencesPath()); statErr == nil {
+		result.BytesBeforePrune = info.Size()
+	}
+
+	// Determine cutoff time
+	cutoff := time.Now().Add(-opts.OlderThan)
+
+	// Filter experiences to keep
+	var kept []Experience
+	for _, exp := range experiences {
+		// Always keep pinned experiences
+		if exp.Pinned {
+			kept = append(kept, exp)
+			result.PreservedPinned++
+			continue
+		}
+
+		// Keep if newer than cutoff
+		if exp.Timestamp.After(cutoff) || exp.Timestamp.Equal(cutoff) {
+			kept = append(kept, exp)
+			continue
+		}
+
+		// This experience will be pruned
+		result.PrunedExperiences++
+	}
+
+	// If dry run, just return the result
+	if opts.DryRun {
+		return result, nil
+	}
+
+	// If nothing to prune, return early
+	if result.PrunedExperiences == 0 {
+		return result, nil
+	}
+
+	// Create backup if requested
+	if opts.Backup {
+		backupPath, backupErr := s.createBackup()
+		if backupErr != nil {
+			return nil, fmt.Errorf("failed to create backup: %w", backupErr)
+		}
+		result.BackupPath = backupPath
+	}
+
+	// Write the filtered experiences back
+	if err := s.writeExperiences(kept); err != nil {
+		return nil, fmt.Errorf("failed to write pruned experiences: %w", err)
+	}
+
+	// Get file size after prune
+	if info, statErr := os.Stat(s.experiencesPath()); statErr == nil {
+		result.BytesAfterPrune = info.Size()
+	}
+
+	return result, nil
+}
+
+// GetSize returns the total size of memory files in bytes.
+func (s *Store) GetSize() (int64, error) {
+	var total int64
+
+	paths := []string{s.experiencesPath(), s.learningsPath()}
+	for _, path := range paths {
+		if info, err := os.Stat(path); err == nil {
+			total += info.Size()
+		}
+	}
+
+	return total, nil
+}
+
+// NeedsPruning checks if the memory store exceeds the size threshold.
+func (s *Store) NeedsPruning(threshold int64) (bool, int64, error) {
+	size, err := s.GetSize()
+	if err != nil {
+		return false, 0, err
+	}
+	return size > threshold, size, nil
+}
+
+// createBackup creates a timestamped backup of the experiences file.
+func (s *Store) createBackup() (string, error) {
+	timestamp := time.Now().Format("20060102-150405")
+	backupPath := filepath.Join(s.memoryDir, fmt.Sprintf("experiences.%s.backup.jsonl", timestamp))
+
+	src, err := os.ReadFile(s.experiencesPath())
+	if err != nil {
+		return "", fmt.Errorf("failed to read experiences file: %w", err)
+	}
+
+	if err := os.WriteFile(backupPath, src, 0600); err != nil { //nolint:gosec // backup path in trusted memory dir
+		return "", fmt.Errorf("failed to write backup: %w", err)
+	}
+
+	return backupPath, nil
+}
+
+// writeExperiences overwrites the experiences file with the given experiences.
+func (s *Store) writeExperiences(experiences []Experience) error {
+	f, err := os.Create(s.experiencesPath()) //nolint:gosec // path constructed from trusted memoryDir
+	if err != nil {
+		return fmt.Errorf("failed to create experiences file: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	for _, exp := range experiences {
+		data, marshalErr := json.Marshal(exp)
+		if marshalErr != nil {
+			return fmt.Errorf("failed to marshal experience: %w", marshalErr)
+		}
+		if _, writeErr := f.Write(append(data, '\n')); writeErr != nil {
+			return fmt.Errorf("failed to write experience: %w", writeErr)
+		}
+	}
+
+	return nil
+}
+
+// GetMemoryContext returns formatted memories suitable for prompt injection.
+// It loads the most recent experiences (up to limit) and all learnings,
+// formatting them for inclusion in an agent's context.
+// Returns empty string if no memories exist (new agent).
+func (s *Store) GetMemoryContext(limit int) (string, error) {
+	if limit <= 0 {
+		limit = DefaultMemoryLimit
+	}
+
+	var parts []string
+
+	// Load experiences (most recent first)
+	experiences, err := s.GetExperiences()
+	if err != nil {
+		return "", fmt.Errorf("failed to load experiences: %w", err)
+	}
+
+	if len(experiences) > 0 {
+		// Get the most recent experiences
+		start := 0
+		if len(experiences) > limit {
+			start = len(experiences) - limit
+		}
+		recentExperiences := experiences[start:]
+
+		parts = append(parts, "## Recent Experiences\n")
+		for _, exp := range recentExperiences {
+			entry := fmt.Sprintf("- **%s** (%s): %s",
+				exp.TaskType, exp.Outcome, exp.Description)
+			if len(exp.Learnings) > 0 {
+				entry += "\n  Learnings: " + exp.Learnings[0]
+			}
+			parts = append(parts, entry)
+		}
+		parts = append(parts, "")
+	}
+
+	// Load learnings
+	learnings, err := s.GetLearnings()
+	if err != nil {
+		return "", fmt.Errorf("failed to load learnings: %w", err)
+	}
+
+	// Only include learnings if there's meaningful content beyond the header
+	if learnings != "" && len(learnings) > 100 {
+		parts = append(parts, "## Key Learnings\n")
+		parts = append(parts, learnings)
+	}
+
+	if len(parts) == 0 {
+		return "", nil // No memories - new agent
+	}
+
+	header := "# Agent Memory\n\nThe following is your accumulated experience and learnings from previous tasks:\n\n"
+	return header + strings.Join(parts, "\n"), nil
 }

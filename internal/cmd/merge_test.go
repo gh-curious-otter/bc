@@ -426,6 +426,25 @@ func TestRollbackMerge_InvalidRestorePoint(t *testing.T) {
 
 // --- Flag initialization tests ---
 
+func TestMergeFlags_StatusExists(t *testing.T) {
+	flag := mergeCmd.Flags().Lookup("status")
+	if flag == nil {
+		t.Fatal("expected --status flag to exist")
+	}
+	if flag.DefValue != "false" {
+		t.Errorf("expected --status default to be false, got %s", flag.DefValue)
+	}
+}
+
+func TestMergeFlags_JSONAccessible(t *testing.T) {
+	// The --json flag is a persistent flag on rootCmd, inherited by all subcommands
+	// Verify it's accessible from mergeCmd
+	_, err := mergeCmd.Flags().GetBool("json")
+	if err != nil {
+		t.Errorf("--json flag should be accessible from mergeCmd: %v", err)
+	}
+}
+
 func TestMergeFlags_DryRunExists(t *testing.T) {
 	flag := mergeCmd.Flags().Lookup("dry-run")
 	if flag == nil {
@@ -519,5 +538,160 @@ func TestIsBranchStale_BehindMain(t *testing.T) {
 	}
 	if count != 1 {
 		t.Errorf("expected 1 commit behind, got %d", count)
+	}
+}
+
+// --- extractAgentFromBranch tests ---
+
+func TestExtractAgentFromBranch(t *testing.T) {
+	tests := []struct {
+		name     string
+		branch   string
+		expected string
+	}{
+		{
+			name:     "engineer branch",
+			branch:   "engineer-01/issue-123/feature",
+			expected: "engineer-01",
+		},
+		{
+			name:     "tech-lead branch",
+			branch:   "tech-lead-02/issue-456/fix",
+			expected: "tech-lead-02",
+		},
+		{
+			name:     "qa branch",
+			branch:   "qa-01/issue-789/test",
+			expected: "qa-01",
+		},
+		{
+			name:     "coordinator branch",
+			branch:   "coordinator/issue-100/update",
+			expected: "coordinator",
+		},
+		{
+			name:     "manager branch",
+			branch:   "manager/issue-200/config",
+			expected: "manager",
+		},
+		{
+			name:     "feature branch without agent",
+			branch:   "feature/add-login",
+			expected: "",
+		},
+		{
+			name:     "fix branch without agent",
+			branch:   "fix/bug-123",
+			expected: "",
+		},
+		{
+			name:     "simple branch name",
+			branch:   "main",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractAgentFromBranch(tt.branch)
+			if result != tt.expected {
+				t.Errorf("extractAgentFromBranch(%q) = %q, want %q", tt.branch, result, tt.expected)
+			}
+		})
+	}
+}
+
+// --- truncateSHA tests ---
+
+func TestTruncateSHA(t *testing.T) {
+	tests := []struct {
+		name     string
+		sha      string
+		expected string
+	}{
+		{
+			name:     "full SHA",
+			sha:      "abc123def456789012345678901234567890",
+			expected: "abc123def456",
+		},
+		{
+			name:     "short SHA",
+			sha:      "abc123",
+			expected: "abc123",
+		},
+		{
+			name:     "exactly 12 chars",
+			sha:      "abc123def456",
+			expected: "abc123def456",
+		},
+		{
+			name:     "empty",
+			sha:      "",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := truncateSHA(tt.sha)
+			if result != tt.expected {
+				t.Errorf("truncateSHA(%q) = %q, want %q", tt.sha, result, tt.expected)
+			}
+		})
+	}
+}
+
+// --- notifyConflicts tests ---
+
+func TestNotifyConflicts_CreatesChannelMessage(t *testing.T) {
+	// Create a temp directory with workspace structure
+	tmpDir := t.TempDir()
+	bcDir := filepath.Join(tmpDir, ".bc")
+	if err := os.MkdirAll(bcDir, 0750); err != nil {
+		t.Fatalf("failed to create .bc dir: %v", err)
+	}
+
+	// Initialize a git repo for gitRevParse to work
+	cmds := [][]string{
+		{"git", "init", "-b", "main", tmpDir},
+		{"git", "-C", tmpDir, "config", "user.email", "test@test.com"},
+		{"git", "-C", tmpDir, "config", "user.name", "Test"},
+		{"git", "-C", tmpDir, "commit", "--allow-empty", "-m", "init"},
+	}
+	for _, args := range cmds {
+		cmd := exec.Command(args[0], args[1:]...) //nolint:gosec,noctx // G204: test helper
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%s failed: %v (%s)", strings.Join(args, " "), err, out)
+		}
+	}
+
+	// Create a feature branch
+	exec.Command("git", "-C", tmpDir, "checkout", "-b", "engineer-04/issue-257/conflict-notify").Run() //nolint:errcheck,gosec,noctx
+	exec.Command("git", "-C", tmpDir, "commit", "--allow-empty", "-m", "feature").Run()                //nolint:errcheck,gosec,noctx
+	exec.Command("git", "-C", tmpDir, "checkout", "main").Run()                                        //nolint:errcheck,gosec,noctx
+
+	// Call notifyConflicts
+	conflicts := []string{"pkg/merge/merge.go", "internal/cmd/merge.go"}
+	err := notifyConflicts(tmpDir, "engineer-04/issue-257/conflict-notify", conflicts)
+	if err != nil {
+		t.Fatalf("notifyConflicts failed: %v", err)
+	}
+
+	// Verify channel file was created with notification
+	channelFile := filepath.Join(bcDir, "channels.json")
+	data, err := os.ReadFile(channelFile) //nolint:gosec // G304: test file with controlled path
+	if err != nil {
+		t.Fatalf("failed to read channels file: %v", err)
+	}
+
+	// Check that the notification message is in the file
+	if !strings.Contains(string(data), "Merge Conflict Detected") {
+		t.Error("expected 'Merge Conflict Detected' in channel history")
+	}
+	if !strings.Contains(string(data), "pkg/merge/merge.go") {
+		t.Error("expected conflicting file in channel history")
+	}
+	if !strings.Contains(string(data), "Resolution steps") {
+		t.Error("expected resolution steps in channel history")
 	}
 }

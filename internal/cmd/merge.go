@@ -2,16 +2,21 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 var (
@@ -20,10 +25,11 @@ var (
 	mergeYes       bool
 	mergeRebase    bool
 	mergeNoRebase  bool
+	mergeStatus    bool
 )
 
 var mergeCmd = &cobra.Command{
-	Use:   "merge <agent-name|branch>",
+	Use:   "merge [agent-name|branch]",
 	Short: "Merge an agent branch into main after validation",
 	Long: `Merge an agent's work branch into main after running build, test, and vet checks.
 
@@ -33,20 +39,25 @@ The merge command:
   3. Runs go build, go test, go vet in the agent worktree
   4. Merges the branch into main (fast-forward or merge commit)
 
+Use --status to view pending merges and their state.
+
 Flags:
   --dry-run     Check for conflicts without merging
   --yes         Proceed without confirmation (for automation)
   --skip-tests  Skip build/test/vet validation
   --rebase      Rebase branch onto main before merging
   --no-rebase   Skip auto-rebase even if branch is stale
+  --status      Show merge queue status
 
 Examples:
   bc merge engineer-01
   bc merge engineer-01 --dry-run
   bc merge engineer-01 --rebase
   bc merge fix/enter-submit-reliability --skip-tests
-  bc merge engineer-02 --yes`,
-	Args: cobra.ExactArgs(1),
+  bc merge engineer-02 --yes
+  bc merge --status              # Show pending merges
+  bc merge --status --json       # JSON output`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: runMerge,
 }
 
@@ -56,17 +67,28 @@ func init() {
 	mergeCmd.Flags().BoolVar(&mergeYes, "yes", false, "Proceed without confirmation (non-interactive)")
 	mergeCmd.Flags().BoolVar(&mergeRebase, "rebase", false, "Rebase branch onto main before merging")
 	mergeCmd.Flags().BoolVar(&mergeNoRebase, "no-rebase", false, "Skip auto-rebase even if branch is stale")
+	mergeCmd.Flags().BoolVar(&mergeStatus, "status", false, "Show merge queue status")
+	mergeCmd.Flags().Bool("json", false, "Output status as JSON (with --status)")
 	rootCmd.AddCommand(mergeCmd)
 }
 
 func runMerge(cmd *cobra.Command, args []string) error {
-	target := args[0]
-
 	ws, err := getWorkspace()
 	if err != nil {
 		return fmt.Errorf("not in a bc workspace: %w", err)
 	}
 
+	// Handle --status flag
+	if mergeStatus {
+		return runMergeStatus(cmd, ws)
+	}
+
+	// Require target for actual merge
+	if len(args) == 0 {
+		return fmt.Errorf("requires agent-name or branch argument (use --status to view queue)")
+	}
+
+	target := args[0]
 	rootDir := ws.RootDir
 
 	// Determine the branch to merge. If target matches an agent name,
@@ -117,6 +139,12 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		for _, f := range conflicts {
 			fmt.Printf("  - %s\n", f)
 		}
+
+		// Notify the responsible agent about the conflicts
+		if notifyErr := notifyConflicts(rootDir, branch, conflicts); notifyErr != nil {
+			log.Warn("failed to send conflict notification", "error", notifyErr)
+		}
+
 		if mergeDryRun {
 			return fmt.Errorf("dry-run: branch %s has %d conflicting file(s) with main", branch, len(conflicts))
 		}
@@ -426,6 +454,222 @@ func rebaseBranchOntoMain(worktreeDir string) error {
 		abortCmd := exec.CommandContext(context.Background(), "git", "-C", worktreeDir, "rebase", "--abort")
 		_ = abortCmd.Run() // Best effort abort
 		return fmt.Errorf("rebase conflicts detected:\n%s", strings.TrimSpace(string(out)))
+	}
+
+	return nil
+}
+
+// notifyConflicts sends a notification to the agent responsible for the conflicts.
+// It identifies the agent from the branch name and sends a channel notification
+// with conflict details and resolution steps.
+func notifyConflicts(rootDir, branch string, conflicts []string) error {
+	// Get the branch head commit for context
+	branchHead, err := gitRevParse(rootDir, branch)
+	if err != nil {
+		branchHead = "unknown"
+	}
+
+	mainHead, err := gitRevParse(rootDir, "main")
+	if err != nil {
+		mainHead = "unknown"
+	}
+
+	// Identify the agent from the branch name (e.g., engineer-01/issue-123/feature)
+	responsibleAgent := extractAgentFromBranch(branch)
+
+	// Build notification message
+	var sb strings.Builder
+	sb.WriteString("⚠️ **Merge Conflict Detected**\n\n")
+	sb.WriteString(fmt.Sprintf("Branch `%s` has conflicts with `main`.\n\n", branch))
+	sb.WriteString("**Conflicting files:**\n")
+	for _, f := range conflicts {
+		sb.WriteString(fmt.Sprintf("  - `%s`\n", f))
+	}
+	sb.WriteString("\n**Commit details:**\n")
+	sb.WriteString(fmt.Sprintf("  - Branch HEAD: `%s`\n", truncateSHA(branchHead)))
+	sb.WriteString(fmt.Sprintf("  - Main HEAD: `%s`\n", truncateSHA(mainHead)))
+	sb.WriteString("\n**Resolution steps:**\n")
+	sb.WriteString("1. `git fetch origin main`\n")
+	sb.WriteString("2. `git rebase origin/main`\n")
+	sb.WriteString("3. Resolve conflicts in listed files\n")
+	sb.WriteString("4. `git add .`\n")
+	sb.WriteString("5. `git rebase --continue`\n")
+	sb.WriteString("6. `git push --force-with-lease`\n")
+
+	message := sb.String()
+
+	// Load channel store and send notification
+	store := channel.NewStore(rootDir)
+	if err := store.Load(); err != nil {
+		return fmt.Errorf("failed to load channel store: %w", err)
+	}
+
+	// Determine which channel to notify
+	// Priority: engineering channel if available, otherwise all channel
+	notifyChannel := "engineering"
+	if _, exists := store.Get(notifyChannel); !exists {
+		notifyChannel = "all"
+		if _, exists := store.Get(notifyChannel); !exists {
+			// Create all channel if it doesn't exist
+			if _, err := store.Create("all"); err != nil {
+				return fmt.Errorf("failed to create all channel: %w", err)
+			}
+		}
+	}
+
+	// Add message to channel history
+	sender := "merge-bot"
+	if envSender := os.Getenv("BC_AGENT_ID"); envSender != "" {
+		sender = envSender
+	}
+
+	if err := store.AddHistory(notifyChannel, sender, message); err != nil {
+		return fmt.Errorf("failed to add conflict notification to history: %w", err)
+	}
+
+	if err := store.Save(); err != nil {
+		return fmt.Errorf("failed to save channel store: %w", err)
+	}
+
+	fmt.Printf("  Conflict notification sent to #%s", notifyChannel)
+	if responsibleAgent != "" {
+		fmt.Printf(" (responsible: @%s)", responsibleAgent)
+	}
+	fmt.Println()
+
+	return nil
+}
+
+// extractAgentFromBranch extracts the agent name from a branch name.
+// Branch naming convention: agent-name/issue-XXX/description
+func extractAgentFromBranch(branch string) string {
+	parts := strings.SplitN(branch, "/", 2)
+	if len(parts) > 0 {
+		// Check if the first part looks like an agent name
+		agentName := parts[0]
+		if strings.HasPrefix(agentName, "engineer-") ||
+			strings.HasPrefix(agentName, "tech-lead-") ||
+			strings.HasPrefix(agentName, "qa-") ||
+			agentName == "coordinator" ||
+			agentName == "manager" {
+			return agentName
+		}
+	}
+	return ""
+}
+
+// truncateSHA returns the first 12 characters of a SHA, or the full string if shorter.
+func truncateSHA(sha string) string {
+	if len(sha) > 12 {
+		return sha[:12]
+	}
+	return sha
+}
+
+// MergeQueueItem represents a pending or in-progress merge.
+type MergeQueueItem struct {
+	StartedAt   time.Time `json:"started_at,omitempty"`
+	Agent       string    `json:"agent"`
+	Branch      string    `json:"branch"`
+	Target      string    `json:"target"`
+	State       string    `json:"state"` // pending, in-progress, blocked
+	HasConflict bool      `json:"has_conflict,omitempty"`
+}
+
+// runMergeStatus displays the merge queue status.
+func runMergeStatus(cmd *cobra.Command, ws *workspace.Workspace) error {
+	rootDir := ws.RootDir
+	agentsDir := ws.AgentsDir()
+
+	// Load agents
+	mgr := agent.NewWorkspaceManager(agentsDir, rootDir)
+	if err := mgr.LoadState(); err != nil {
+		log.Warn("failed to load agent state", "error", err)
+	}
+
+	agents := mgr.ListAgents()
+	var items []MergeQueueItem
+
+	// Check each agent for mergeable branches
+	for _, a := range agents {
+		if a.State == agent.StateStopped || a.State == agent.StateError {
+			continue
+		}
+
+		// Get agent's worktree directory
+		wDir := a.WorktreeDir
+		if wDir == "" {
+			wDir = filepath.Join(rootDir, ".bc", "worktrees", a.Name)
+		}
+
+		// Check if worktree exists
+		if _, err := os.Stat(wDir); os.IsNotExist(err) {
+			continue
+		}
+
+		// Get current branch
+		branch, err := gitCurrentBranch(wDir)
+		if err != nil {
+			continue
+		}
+
+		// Skip if on main
+		if branch == "main" {
+			continue
+		}
+
+		// Check for conflicts
+		conflicts, err := checkMergeConflicts(rootDir, branch)
+		hasConflict := err == nil && len(conflicts) > 0
+
+		state := "pending"
+		if hasConflict {
+			state = "blocked"
+		}
+		if a.State == agent.StateWorking {
+			state = "in-progress"
+		}
+
+		items = append(items, MergeQueueItem{
+			Agent:       a.Name,
+			Branch:      branch,
+			Target:      "main",
+			State:       state,
+			HasConflict: hasConflict,
+		})
+	}
+
+	// Check for JSON output
+	jsonOutput, err := cmd.Flags().GetBool("json")
+	if err != nil {
+		return err
+	}
+
+	if jsonOutput {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(items)
+	}
+
+	// Display table format
+	if len(items) == 0 {
+		fmt.Println("No pending merges")
+		return nil
+	}
+
+	fmt.Printf("%-15s %-40s %-10s %s\n", "AGENT", "BRANCH", "TARGET", "STATE")
+	fmt.Println(strings.Repeat("-", 75))
+
+	for _, item := range items {
+		branch := item.Branch
+		if len(branch) > 38 {
+			branch = branch[:35] + "..."
+		}
+		stateDisplay := item.State
+		if item.HasConflict {
+			stateDisplay = "blocked (conflicts)"
+		}
+		fmt.Printf("%-15s %-40s %-10s %s\n", item.Agent, branch, item.Target, stateDisplay)
 	}
 
 	return nil
