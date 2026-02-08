@@ -704,7 +704,7 @@ func TestChannelView_OnlineIndicator(t *testing.T) {
 	}
 }
 
-func TestChannelView_MemberListVisible(t *testing.T) {
+func TestChannelView_MemberListInSummary(t *testing.T) {
 	m := newTestChannelModel()
 
 	output := m.View()
