@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 )
@@ -20,6 +21,7 @@ var (
 	mergeYes       bool
 	mergeRebase    bool
 	mergeNoRebase  bool
+	mergeNotify    bool
 )
 
 var mergeCmd = &cobra.Command{
@@ -39,6 +41,8 @@ Flags:
   --skip-tests  Skip build/test/vet validation
   --rebase      Rebase branch onto main before merging
   --no-rebase   Skip auto-rebase even if branch is stale
+  --notify      Send conflict notifications to channel (default: true)
+  --no-notify   Disable conflict notifications
 
 Examples:
   bc merge engineer-01
@@ -56,6 +60,7 @@ func init() {
 	mergeCmd.Flags().BoolVar(&mergeYes, "yes", false, "Proceed without confirmation (non-interactive)")
 	mergeCmd.Flags().BoolVar(&mergeRebase, "rebase", false, "Rebase branch onto main before merging")
 	mergeCmd.Flags().BoolVar(&mergeNoRebase, "no-rebase", false, "Skip auto-rebase even if branch is stale")
+	mergeCmd.Flags().BoolVar(&mergeNotify, "notify", true, "Send conflict notifications to channel")
 	rootCmd.AddCommand(mergeCmd)
 }
 
@@ -117,6 +122,14 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		for _, f := range conflicts {
 			fmt.Printf("  - %s\n", f)
 		}
+
+		// Send conflict notification if enabled
+		if mergeNotify {
+			if notifyErr := notifyConflict(rootDir, branch, target, conflicts); notifyErr != nil {
+				log.Warn("failed to send conflict notification", "error", notifyErr)
+			}
+		}
+
 		if mergeDryRun {
 			return fmt.Errorf("dry-run: branch %s has %d conflicting file(s) with main", branch, len(conflicts))
 		}
@@ -428,5 +441,52 @@ func rebaseBranchOntoMain(worktreeDir string) error {
 		return fmt.Errorf("rebase conflicts detected:\n%s", strings.TrimSpace(string(out)))
 	}
 
+	return nil
+}
+
+// notifyConflict sends a conflict notification to the reviews channel.
+// It includes the branch name, conflicting files, and resolution steps.
+func notifyConflict(rootDir, branch, agentName string, conflicts []string) error {
+	store := channel.NewStore(rootDir)
+	if err := store.Load(); err != nil {
+		return fmt.Errorf("failed to load channels: %w", err)
+	}
+
+	// Build notification message
+	var msg strings.Builder
+	msg.WriteString("⚠️ **Merge Conflict Detected**\n\n")
+	msg.WriteString(fmt.Sprintf("Branch: `%s`\n", branch))
+	if agentName != "" && agentName != branch {
+		msg.WriteString(fmt.Sprintf("Agent: @%s\n", agentName))
+	}
+	msg.WriteString(fmt.Sprintf("\n**Conflicting files (%d):**\n", len(conflicts)))
+	for _, f := range conflicts {
+		msg.WriteString(fmt.Sprintf("- `%s`\n", f))
+	}
+	msg.WriteString("\n**Resolution steps:**\n")
+	msg.WriteString("1. Fetch latest main: `git fetch origin main`\n")
+	msg.WriteString("2. Rebase onto main: `git rebase origin/main`\n")
+	msg.WriteString("3. Resolve conflicts in each file\n")
+	msg.WriteString("4. Continue rebase: `git rebase --continue`\n")
+	msg.WriteString("5. Push updated branch: `git push --force-with-lease`\n")
+
+	// Send to #reviews channel (or #engineering as fallback)
+	channelName := "reviews"
+	if _, exists := store.Get(channelName); !exists {
+		channelName = "engineering"
+		if _, exists := store.Get(channelName); !exists {
+			channelName = "all"
+		}
+	}
+
+	if err := store.AddHistory(channelName, "merge-bot", msg.String()); err != nil {
+		return fmt.Errorf("failed to add message to channel: %w", err)
+	}
+
+	if err := store.Save(); err != nil {
+		return fmt.Errorf("failed to save channel: %w", err)
+	}
+
+	fmt.Printf("  Conflict notification sent to #%s\n", channelName)
 	return nil
 }

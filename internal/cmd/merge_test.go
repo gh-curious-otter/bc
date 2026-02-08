@@ -521,3 +521,43 @@ func TestIsBranchStale_BehindMain(t *testing.T) {
 		t.Errorf("expected 1 commit behind, got %d", count)
 	}
 }
+
+func TestMergeFlags_NotifyExists(t *testing.T) {
+	flag := mergeCmd.Flags().Lookup("notify")
+	if flag == nil {
+		t.Fatal("expected --notify flag to exist")
+	}
+	if flag.DefValue != "true" {
+		t.Errorf("expected --notify default to be true, got %s", flag.DefValue)
+	}
+}
+
+func TestNotifyConflict_SendsMessage(t *testing.T) {
+	// Create temp workspace with channel store
+	dir := t.TempDir()
+	bcDir := filepath.Join(dir, ".bc")
+	os.MkdirAll(bcDir, 0o750) //nolint:errcheck
+
+	// Create a channel to receive notifications
+	channelsFile := filepath.Join(bcDir, "channels.json")
+	channelsData := `[{"name":"reviews","members":["engineer-01"]}]`
+	os.WriteFile(channelsFile, []byte(channelsData), 0o600) //nolint:errcheck
+
+	conflicts := []string{"file1.go", "file2.go"}
+	err := notifyConflict(dir, "feature/test", "engineer-01", conflicts)
+	if err != nil {
+		t.Fatalf("notifyConflict failed: %v", err)
+	}
+
+	// Verify message was added to channel
+	data, err := os.ReadFile(channelsFile) //nolint:gosec // G304: test file with controlled path
+	if err != nil {
+		t.Fatalf("failed to read channels file: %v", err)
+	}
+	if !strings.Contains(string(data), "Merge Conflict Detected") {
+		t.Error("expected notification message in channel history")
+	}
+	if !strings.Contains(string(data), "file1.go") {
+		t.Error("expected conflicting file in notification")
+	}
+}
