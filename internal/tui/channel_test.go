@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/tui/style"
 )
@@ -23,6 +24,37 @@ func newTestChannelModel() *ChannelModel {
 	}
 	return &ChannelModel{
 		channel: ch,
+		styles:  style.DefaultStyles(),
+		width:   120,
+		height:  40,
+	}
+}
+
+// newTestChannelModelWithStore returns a ChannelModel with store and manager set
+// so that sendMessage can run without panicking (e.g. for testing send key behavior).
+func newTestChannelModelWithStore(t *testing.T) *ChannelModel {
+	t.Helper()
+	dir := t.TempDir()
+	store := channel.NewStore(dir)
+	if _, err := store.Create("standup"); err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range []string{"coordinator", "eng-01", "eng-02"} {
+		if err := store.AddMember("standup", m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mgr := agent.NewManager(dir)
+	ch, _ := store.Get("standup")
+	ch.History = []channel.HistoryEntry{
+		{Sender: "eng-01", Message: "started work", Time: time.Now().Add(-5 * time.Minute)},
+		{Sender: "eng-02", Message: "fixing tests", Time: time.Now().Add(-3 * time.Minute)},
+		{Sender: "coordinator", Message: "good progress", Time: time.Now().Add(-1 * time.Minute)},
+	}
+	return &ChannelModel{
+		channel: ch,
+		store:   store,
+		manager: mgr,
 		styles:  style.DefaultStyles(),
 		width:   120,
 		height:  40,
@@ -301,44 +333,74 @@ func TestHandleSendKey_Space(t *testing.T) {
 	}
 }
 
-func TestHandleSendKey_EnterAddsNewline(t *testing.T) {
-	m := newTestChannelModel()
+func TestHandleSendKey_EnterSendsSingleLine(t *testing.T) {
+	m := newTestChannelModelWithStore(t)
 	m.sendMode = true
 	m.input = "hello"
 
 	m.handleSendKey(tea.KeyMsg{Type: tea.KeyEnter})
-	if !m.sendMode {
-		t.Error("enter should not exit sendMode, it adds a newline")
+	if m.sendMode {
+		t.Error("enter on single line should send and exit sendMode")
 	}
-	if m.input != "hello\n" {
-		t.Errorf("expected 'hello\\n', got %q", m.input)
+	if !strings.Contains(m.sendMsg, "Sent to") && !strings.Contains(m.sendMsg, "members") {
+		t.Errorf("expected send status, got %q", m.sendMsg)
+	}
+}
+
+func TestHandleSendKey_EnterAddsNewlineWhenMultiline(t *testing.T) {
+	m := newTestChannelModel()
+	m.sendMode = true
+	m.input = "line1\n"
+
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if !m.sendMode {
+		t.Error("enter in multi-line should stay in sendMode and add newline")
+	}
+	if m.input != "line1\n\n" {
+		t.Errorf("expected 'line1\\n\\n', got %q", m.input)
+	}
+}
+
+func TestHandleSendKey_AltEnterSends(t *testing.T) {
+	m := newTestChannelModelWithStore(t)
+	m.sendMode = true
+	m.input = "test message"
+
+	// Alt+Enter is the reliable send shortcut (Ctrl+Enter equals Enter in most terminals)
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyEnter, Alt: true})
+	if m.sendMode {
+		t.Error("alt+enter should send and exit sendMode")
+	}
+	if !strings.Contains(m.sendMsg, "Sent to") && !strings.Contains(m.sendMsg, "members") {
+		t.Errorf("expected send status, got %q", m.sendMsg)
 	}
 }
 
 func TestHandleSendKey_CtrlEnterSends(t *testing.T) {
-	m := newTestChannelModel()
+	// When an environment sends "ctrl+enter" (e.g. some IDEs), it should send.
+	// We test the path by simulating the key; in most terminals Ctrl+Enter = Enter.
+	m := newTestChannelModelWithStore(t)
 	m.sendMode = true
 	m.input = "test message"
-
-	// Simulate Ctrl+Enter
-	m.handleSendKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'\r'}, Alt: false})
-	// Note: In practice we check for "ctrl+enter" string, so let's test that path
+	// Simulate key that produces msg.String() == "ctrl+enter" (if present in env)
+	// Here we use Alt+Enter which we also handle and is distinguishable
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyEnter, Alt: true})
+	if m.sendMode {
+		t.Error("send shortcut should exit sendMode")
+	}
 }
 
 func TestHandleSendKey_MultilineInput(t *testing.T) {
 	m := newTestChannelModel()
 	m.sendMode = true
-	m.input = ""
+	// Start with one line and newline so Enter adds newline (single-line Enter would send)
+	m.input = "Hi\n"
 
-	// Type first line
-	m.handleSendKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'H', 'i'}})
-	// Add newline
 	m.handleSendKey(tea.KeyMsg{Type: tea.KeyEnter})
-	// Type second line
 	m.handleSendKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'T', 'e', 's', 't'}})
 
-	if m.input != "Hi\nTest" {
-		t.Errorf("expected 'Hi\\nTest', got %q", m.input)
+	if m.input != "Hi\n\nTest" {
+		t.Errorf("expected 'Hi\\n\\nTest', got %q", m.input)
 	}
 }
 
