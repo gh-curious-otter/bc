@@ -26,6 +26,13 @@ type Theme struct {
 	Selection   lipgloss.Color
 	HeaderBg    lipgloss.Color
 	StatusBarBg lipgloss.Color
+
+	// Agent role colors
+	RoleCoordinator lipgloss.Color
+	RoleEngineer    lipgloss.Color
+	RoleQA          lipgloss.Color
+	RoleTechLead    lipgloss.Color
+	RolePM          lipgloss.Color
 }
 
 // ThemeName identifies a theme by name.
@@ -71,6 +78,13 @@ func DarkTheme() Theme {
 		Selection:   lipgloss.Color("#409FFF"),
 		HeaderBg:    lipgloss.Color("#1C2028"),
 		StatusBarBg: lipgloss.Color("#1C2028"),
+
+		// Agent roles (muted/pastel for dark theme)
+		RoleCoordinator: lipgloss.Color("#6B9FD4"), // Blue
+		RoleEngineer:    lipgloss.Color("#7BC96F"), // Green
+		RoleQA:          lipgloss.Color("#B48EAD"), // Purple
+		RoleTechLead:    lipgloss.Color("#EBCB8B"), // Orange
+		RolePM:          lipgloss.Color("#88C0D0"), // Teal
 	}
 }
 
@@ -98,6 +112,13 @@ func LightTheme() Theme {
 		Selection:   lipgloss.Color("#035BD6"),
 		HeaderBg:    lipgloss.Color("#E8E9EB"),
 		StatusBarBg: lipgloss.Color("#E8E9EB"),
+
+		// Agent roles (saturated for light theme)
+		RoleCoordinator: lipgloss.Color("#2563EB"), // Blue
+		RoleEngineer:    lipgloss.Color("#16A34A"), // Green
+		RoleQA:          lipgloss.Color("#9333EA"), // Purple
+		RoleTechLead:    lipgloss.Color("#EA580C"), // Orange
+		RolePM:          lipgloss.Color("#0891B2"), // Teal
 	}
 }
 
@@ -125,6 +146,13 @@ func HighContrastTheme() Theme {
 		Selection:   lipgloss.Color("#0000FF"),
 		HeaderBg:    lipgloss.Color("#333333"),
 		StatusBarBg: lipgloss.Color("#333333"),
+
+		// Agent roles (high contrast, distinct colors)
+		RoleCoordinator: lipgloss.Color("#00BFFF"), // Blue
+		RoleEngineer:    lipgloss.Color("#00FF00"), // Green
+		RoleQA:          lipgloss.Color("#FF00FF"), // Purple
+		RoleTechLead:    lipgloss.Color("#FFA500"), // Orange
+		RolePM:          lipgloss.Color("#00FFFF"), // Teal
 	}
 }
 
@@ -167,6 +195,17 @@ type Styles struct {
 	Border    lipgloss.Style
 	Selected  lipgloss.Style
 	Title     lipgloss.Style
+
+	// Highlight styles for message content
+	Mention lipgloss.Style // @mentions
+	Channel lipgloss.Style // #channel references
+	Link    lipgloss.Style // GitHub issue/PR links
+
+	// Reaction style for emoji reactions on messages
+	Reaction lipgloss.Style
+
+	// Message bubble style (subtle background tint)
+	MessageBubble lipgloss.Style
 
 	theme Theme
 }
@@ -225,6 +264,27 @@ func NewStyles(theme Theme) Styles {
 			Foreground(theme.Primary).
 			Bold(true).
 			MarginBottom(1),
+
+		// Highlight styles for message content
+		Mention: lipgloss.NewStyle().
+			Foreground(theme.Secondary).
+			Bold(true),
+
+		Channel: lipgloss.NewStyle().
+			Foreground(theme.Primary).
+			Bold(true),
+
+		Link: lipgloss.NewStyle().
+			Foreground(theme.Accent).
+			Underline(true),
+
+		Reaction: lipgloss.NewStyle().
+			Foreground(theme.Muted),
+
+		// Message bubble with subtle background tint (not heavy borders)
+		MessageBubble: lipgloss.NewStyle().
+			Background(theme.HeaderBg).
+			Padding(0, 1),
 	}
 }
 
@@ -289,4 +349,79 @@ func (s Styles) MessageTypeIcon(msgType string) string {
 	default:
 		return ""
 	}
+}
+
+// RoleColor returns the color for an agent role.
+// Recognized roles: coordinator, engineer, qa, tech-lead, product-manager (or pm)
+func (s Styles) RoleColor(role string) lipgloss.Color {
+	switch role {
+	case "coordinator":
+		return s.theme.RoleCoordinator
+	case "engineer":
+		return s.theme.RoleEngineer
+	case "qa":
+		return s.theme.RoleQA
+	case "tech-lead":
+		return s.theme.RoleTechLead
+	case "product-manager", "pm":
+		return s.theme.RolePM
+	default:
+		return s.theme.Foreground
+	}
+}
+
+// RoleStyle returns a lipgloss style with the role's color.
+func (s Styles) RoleStyle(role string) lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(s.RoleColor(role))
+}
+
+// RoleBadge returns a pill-shaped badge style for the given role.
+// The badge has the role color as background with contrasting text.
+func (s Styles) RoleBadge(role string) lipgloss.Style {
+	return lipgloss.NewStyle().
+		Background(s.RoleColor(role)).
+		Foreground(s.theme.Background).
+		Padding(0, 1).
+		Bold(true)
+}
+
+// RoleFromAgentName extracts the role from an agent name.
+// Agent names follow the pattern: role-NN (e.g., "engineer-01", "tech-lead-02")
+func RoleFromAgentName(agentName string) string {
+	// Handle special cases
+	switch agentName {
+	case "coordinator":
+		return "coordinator"
+	case "manager":
+		return "coordinator"
+	case "product-manager":
+		return "product-manager"
+	}
+
+	// Extract role prefix from names like "engineer-01", "tech-lead-02", "qa-01"
+	// Find the last dash followed by digits
+	for i := len(agentName) - 1; i >= 0; i-- {
+		if agentName[i] == '-' {
+			suffix := agentName[i+1:]
+			if isNumeric(suffix) {
+				return agentName[:i]
+			}
+		}
+	}
+
+	// No numeric suffix found, return the whole name as role
+	return agentName
+}
+
+// isNumeric checks if a string contains only digits.
+func isNumeric(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }

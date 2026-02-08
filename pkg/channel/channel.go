@@ -16,9 +16,10 @@ import (
 
 // HistoryEntry represents a message in channel history.
 type HistoryEntry struct {
-	Time    time.Time `json:"time"`
-	Sender  string    `json:"sender,omitempty"`
-	Message string    `json:"message"`
+	Reactions map[string][]string `json:"reactions,omitempty"` // emoji -> list of users
+	Time      time.Time           `json:"time"`
+	Sender    string              `json:"sender,omitempty"`
+	Message   string              `json:"message"`
 }
 
 // Channel represents a named communication channel with a list of members.
@@ -294,4 +295,138 @@ func (s *Store) GetDescription(channelName string) (string, error) {
 	}
 
 	return ch.Description, nil
+}
+
+// CommonReactions provides a set of commonly used emoji reactions.
+var CommonReactions = []string{"👍", "👎", "❤️", "🎉", "👀", "🚀"}
+
+// AddReaction adds an emoji reaction to a message.
+// The messageIndex is the index into the channel's history.
+func (s *Store) AddReaction(channelName string, messageIndex int, emoji, user string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	ch, exists := s.channels[channelName]
+	if !exists {
+		return fmt.Errorf("channel %q not found", channelName)
+	}
+
+	if messageIndex < 0 || messageIndex >= len(ch.History) {
+		return fmt.Errorf("message index %d out of range", messageIndex)
+	}
+
+	entry := &ch.History[messageIndex]
+	if entry.Reactions == nil {
+		entry.Reactions = make(map[string][]string)
+	}
+
+	// Check if user already reacted with this emoji
+	users := entry.Reactions[emoji]
+	if slices.Contains(users, user) {
+		return nil // Already reacted
+	}
+
+	entry.Reactions[emoji] = append(users, user)
+	return nil
+}
+
+// RemoveReaction removes an emoji reaction from a message.
+func (s *Store) RemoveReaction(channelName string, messageIndex int, emoji, user string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	ch, exists := s.channels[channelName]
+	if !exists {
+		return fmt.Errorf("channel %q not found", channelName)
+	}
+
+	if messageIndex < 0 || messageIndex >= len(ch.History) {
+		return fmt.Errorf("message index %d out of range", messageIndex)
+	}
+
+	entry := &ch.History[messageIndex]
+	if entry.Reactions == nil {
+		return nil // No reactions
+	}
+
+	users := entry.Reactions[emoji]
+	idx := slices.Index(users, user)
+	if idx == -1 {
+		return nil // User hasn't reacted
+	}
+
+	entry.Reactions[emoji] = slices.Delete(users, idx, idx+1)
+
+	// Clean up empty reaction
+	if len(entry.Reactions[emoji]) == 0 {
+		delete(entry.Reactions, emoji)
+	}
+
+	return nil
+}
+
+// ToggleReaction toggles an emoji reaction on a message.
+// Returns true if the reaction was added, false if removed.
+func (s *Store) ToggleReaction(channelName string, messageIndex int, emoji, user string) (added bool, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	ch, exists := s.channels[channelName]
+	if !exists {
+		return false, fmt.Errorf("channel %q not found", channelName)
+	}
+
+	if messageIndex < 0 || messageIndex >= len(ch.History) {
+		return false, fmt.Errorf("message index %d out of range", messageIndex)
+	}
+
+	entry := &ch.History[messageIndex]
+	if entry.Reactions == nil {
+		entry.Reactions = make(map[string][]string)
+	}
+
+	users := entry.Reactions[emoji]
+	idx := slices.Index(users, user)
+
+	if idx == -1 {
+		// Add reaction
+		entry.Reactions[emoji] = append(users, user)
+		return true, nil
+	}
+
+	// Remove reaction
+	entry.Reactions[emoji] = slices.Delete(users, idx, idx+1)
+	if len(entry.Reactions[emoji]) == 0 {
+		delete(entry.Reactions, emoji)
+	}
+	return false, nil
+}
+
+// GetReactions returns all reactions for a message.
+func (s *Store) GetReactions(channelName string, messageIndex int) (map[string][]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	ch, exists := s.channels[channelName]
+	if !exists {
+		return nil, fmt.Errorf("channel %q not found", channelName)
+	}
+
+	if messageIndex < 0 || messageIndex >= len(ch.History) {
+		return nil, fmt.Errorf("message index %d out of range", messageIndex)
+	}
+
+	entry := ch.History[messageIndex]
+	if entry.Reactions == nil {
+		return nil, nil
+	}
+
+	// Return a copy
+	result := make(map[string][]string)
+	for emoji, users := range entry.Reactions {
+		usersCopy := make([]string, len(users))
+		copy(usersCopy, users)
+		result[emoji] = usersCopy
+	}
+	return result, nil
 }

@@ -1,6 +1,7 @@
 package style
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
@@ -192,5 +193,163 @@ func TestMessageTypeIcon(t *testing.T) {
 				t.Errorf("MessageTypeIcon(%q) = %q, want %q", tt.msgType, icon, tt.wantIcon)
 			}
 		})
+	}
+}
+
+func TestRoleColor(t *testing.T) {
+	styles := DefaultStyles()
+	theme := DarkTheme()
+
+	tests := []struct {
+		role      string
+		wantColor lipgloss.Color
+	}{
+		{"coordinator", theme.RoleCoordinator},
+		{"engineer", theme.RoleEngineer},
+		{"qa", theme.RoleQA},
+		{"tech-lead", theme.RoleTechLead},
+		{"product-manager", theme.RolePM},
+		{"pm", theme.RolePM},
+		{"unknown", theme.Foreground},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.role, func(t *testing.T) {
+			color := styles.RoleColor(tt.role)
+			if color != tt.wantColor {
+				t.Errorf("RoleColor(%q) = %v, want %v", tt.role, color, tt.wantColor)
+			}
+		})
+	}
+}
+
+func TestRoleStyle(t *testing.T) {
+	styles := DefaultStyles()
+
+	roles := []string{"coordinator", "engineer", "qa", "tech-lead", "product-manager"}
+
+	for _, role := range roles {
+		t.Run(role, func(t *testing.T) {
+			style := styles.RoleStyle(role)
+			// Verify we get a valid style back (non-panic)
+			rendered := style.Render("test")
+			if rendered == "" {
+				t.Errorf("RoleStyle(%q) should render text", role)
+			}
+		})
+	}
+}
+
+func TestRoleBadge(t *testing.T) {
+	styles := DefaultStyles()
+
+	roles := []string{"coordinator", "engineer", "qa", "tech-lead", "product-manager"}
+
+	for _, role := range roles {
+		t.Run(role, func(t *testing.T) {
+			badge := styles.RoleBadge(role)
+			// Verify we get a valid style back (non-panic)
+			rendered := badge.Render(role)
+			if rendered == "" {
+				t.Errorf("RoleBadge(%q) should render badge", role)
+			}
+		})
+	}
+}
+
+func TestRoleFromAgentName(t *testing.T) {
+	tests := []struct {
+		agentName string
+		wantRole  string
+	}{
+		{"engineer-01", "engineer"},
+		{"engineer-02", "engineer"},
+		{"tech-lead-01", "tech-lead"},
+		{"tech-lead-02", "tech-lead"},
+		{"qa-01", "qa"},
+		{"qa-02", "qa"},
+		{"coordinator", "coordinator"},
+		{"manager", "coordinator"},
+		{"product-manager", "product-manager"},
+		{"unknown-agent", "unknown-agent"},
+		{"simple", "simple"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.agentName, func(t *testing.T) {
+			role := RoleFromAgentName(tt.agentName)
+			if role != tt.wantRole {
+				t.Errorf("RoleFromAgentName(%q) = %q, want %q", tt.agentName, role, tt.wantRole)
+			}
+		})
+	}
+}
+
+func TestIsNumeric(t *testing.T) {
+	tests := []struct {
+		s    string
+		want bool
+	}{
+		{"01", true},
+		{"123", true},
+		{"0", true},
+		{"", false},
+		{"abc", false},
+		{"12a", false},
+		{"a12", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.s, func(t *testing.T) {
+			got := isNumeric(tt.s)
+			if got != tt.want {
+				t.Errorf("isNumeric(%q) = %v, want %v", tt.s, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestThemeHasRoleColors(t *testing.T) {
+	themes := []struct {
+		name  string
+		theme Theme
+	}{
+		{"dark", DarkTheme()},
+		{"light", LightTheme()},
+		{"high-contrast", HighContrastTheme()},
+	}
+
+	for _, tt := range themes {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.theme.RoleCoordinator == "" {
+				t.Error("Theme should have RoleCoordinator color")
+			}
+			if tt.theme.RoleEngineer == "" {
+				t.Error("Theme should have RoleEngineer color")
+			}
+			if tt.theme.RoleQA == "" {
+				t.Error("Theme should have RoleQA color")
+			}
+			if tt.theme.RoleTechLead == "" {
+				t.Error("Theme should have RoleTechLead color")
+			}
+			if tt.theme.RolePM == "" {
+				t.Error("Theme should have RolePM color")
+			}
+		})
+	}
+}
+
+func TestMessageBubbleStyle(t *testing.T) {
+	styles := DefaultStyles()
+
+	// Verify MessageBubble style renders
+	rendered := styles.MessageBubble.Render("test message")
+	if rendered == "" {
+		t.Error("MessageBubble style should render text")
+	}
+	// Verify it contains the message content
+	if !strings.Contains(rendered, "test message") {
+		t.Errorf("MessageBubble should contain message, got: %s", rendered)
 	}
 }

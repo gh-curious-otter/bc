@@ -50,7 +50,10 @@ func runPRNotify(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get open PRs from GitHub
-	prs := github.ListPRs(ws.RootDir)
+	prs, err := github.ListPRs(ws.RootDir)
+	if err != nil {
+		return fmt.Errorf("failed to list PRs: %w", err)
+	}
 
 	if len(prs) == 0 {
 		fmt.Println("No open PRs found.")

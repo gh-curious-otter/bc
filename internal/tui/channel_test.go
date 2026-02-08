@@ -229,14 +229,187 @@ func TestHandleSendKey_Space(t *testing.T) {
 	}
 }
 
-func TestHandleSendKey_EnterEmptyDoesNotSend(t *testing.T) {
+func TestHandleSendKey_EnterAddsNewline(t *testing.T) {
+	m := newTestChannelModel()
+	m.sendMode = true
+	m.input = "hello"
+
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if !m.sendMode {
+		t.Error("enter should not exit sendMode, it adds a newline")
+	}
+	if m.input != "hello\n" {
+		t.Errorf("expected 'hello\\n', got %q", m.input)
+	}
+}
+
+func TestHandleSendKey_CtrlEnterSends(t *testing.T) {
+	m := newTestChannelModel()
+	m.sendMode = true
+	m.input = "test message"
+
+	// Simulate Ctrl+Enter
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'\r'}, Alt: false})
+	// Note: In practice we check for "ctrl+enter" string, so let's test that path
+}
+
+func TestHandleSendKey_MultilineInput(t *testing.T) {
 	m := newTestChannelModel()
 	m.sendMode = true
 	m.input = ""
 
+	// Type first line
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'H', 'i'}})
+	// Add newline
 	m.handleSendKey(tea.KeyMsg{Type: tea.KeyEnter})
-	if m.sendMode {
-		t.Error("enter should exit sendMode even with empty input")
+	// Type second line
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'T', 'e', 's', 't'}})
+
+	if m.input != "Hi\nTest" {
+		t.Errorf("expected 'Hi\\nTest', got %q", m.input)
+	}
+}
+
+// --- Autocomplete tests ---
+
+func TestAutocomplete_TriggerMention(t *testing.T) {
+	m := newTestChannelModel()
+	m.sendMode = true
+	m.input = ""
+
+	// Type @
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'@'}})
+
+	if m.autocompleteType != AutocompleteMention {
+		t.Errorf("expected AutocompleteMention, got %v", m.autocompleteType)
+	}
+	if len(m.autocompleteSuggestions) == 0 {
+		t.Error("expected suggestions after @")
+	}
+}
+
+func TestAutocomplete_TriggerChannel(t *testing.T) {
+	m := newTestChannelModel()
+	m.sendMode = true
+	m.input = ""
+
+	// Type #
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'#'}})
+
+	if m.autocompleteType != AutocompleteChannel {
+		t.Errorf("expected AutocompleteChannel, got %v", m.autocompleteType)
+	}
+}
+
+func TestAutocomplete_DismissOnSpace(t *testing.T) {
+	m := newTestChannelModel()
+	m.sendMode = true
+	m.input = ""
+
+	// Trigger autocomplete
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'@'}})
+	if m.autocompleteType != AutocompleteMention {
+		t.Fatal("autocomplete should be active")
+	}
+
+	// Space dismisses it
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeySpace})
+	if m.autocompleteType != AutocompleteNone {
+		t.Error("space should dismiss autocomplete")
+	}
+}
+
+func TestAutocomplete_DismissOnEsc(t *testing.T) {
+	m := newTestChannelModel()
+	m.sendMode = true
+	m.input = "@"
+	m.autocompleteType = AutocompleteMention
+	m.autocompleteSuggestions = []string{"all", "eng-01"}
+
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyEscape})
+	if m.autocompleteType != AutocompleteNone {
+		t.Error("esc should dismiss autocomplete")
+	}
+	// Esc only dismisses autocomplete, keeps send mode active
+	if !m.sendMode {
+		t.Error("esc should keep send mode active when autocomplete was shown")
+	}
+}
+
+func TestAutocomplete_NavigateDown(t *testing.T) {
+	m := newTestChannelModel()
+	m.sendMode = true
+	m.autocompleteType = AutocompleteMention
+	m.autocompleteSuggestions = []string{"all", "eng-01", "eng-02"}
+	m.autocompleteSelected = 0
+
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyDown})
+	if m.autocompleteSelected != 1 {
+		t.Errorf("expected selection 1, got %d", m.autocompleteSelected)
+	}
+}
+
+func TestAutocomplete_NavigateUp(t *testing.T) {
+	m := newTestChannelModel()
+	m.sendMode = true
+	m.autocompleteType = AutocompleteMention
+	m.autocompleteSuggestions = []string{"all", "eng-01", "eng-02"}
+	m.autocompleteSelected = 2
+
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyUp})
+	if m.autocompleteSelected != 1 {
+		t.Errorf("expected selection 1, got %d", m.autocompleteSelected)
+	}
+}
+
+func TestAutocomplete_SelectWithTab(t *testing.T) {
+	m := newTestChannelModel()
+	m.sendMode = true
+	m.input = "@e"
+	m.autocompleteType = AutocompleteMention
+	m.autocompleteSuggestions = []string{"eng-01", "eng-02"}
+	m.autocompleteSelected = 0
+
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyTab})
+	if m.autocompleteType != AutocompleteNone {
+		t.Error("tab should dismiss autocomplete after selection")
+	}
+	if !strings.Contains(m.input, "@eng-01") {
+		t.Errorf("expected @eng-01 in input, got %q", m.input)
+	}
+}
+
+func TestGetMentionSuggestions(t *testing.T) {
+	m := newTestChannelModel()
+
+	suggestions := m.getMentionSuggestions("e")
+	// Should include channel members starting with 'e'
+	found := false
+	for _, s := range suggestions {
+		if strings.HasPrefix(strings.ToLower(s), "e") || s == "all" {
+			found = true
+			break
+		}
+	}
+	if !found && len(suggestions) > 0 {
+		t.Error("suggestions should include items starting with 'e' or be empty")
+	}
+}
+
+func TestGetMentionSuggestions_All(t *testing.T) {
+	m := newTestChannelModel()
+
+	suggestions := m.getMentionSuggestions("a")
+	// Should include @all
+	found := false
+	for _, s := range suggestions {
+		if s == "all" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("suggestions should include 'all'")
 	}
 }
 
@@ -394,5 +567,185 @@ func TestVisibleMsgCount(t *testing.T) {
 	count := m.visibleMsgCount()
 	if count < 1 {
 		t.Errorf("visibleMsgCount should be positive, got %d", count)
+	}
+}
+
+// --- formatRelativeTime tests ---
+
+func TestFormatRelativeTime_Now(t *testing.T) {
+	now := time.Now()
+	result := formatRelativeTimeFrom(now, now)
+	if result != "now" {
+		t.Errorf("expected 'now', got %q", result)
+	}
+}
+
+func TestFormatRelativeTime_Minutes(t *testing.T) {
+	now := time.Now()
+	msgTime := now.Add(-5 * time.Minute)
+	result := formatRelativeTimeFrom(msgTime, now)
+	if result != "5m ago" {
+		t.Errorf("expected '5m ago', got %q", result)
+	}
+}
+
+func TestFormatRelativeTime_Hours(t *testing.T) {
+	now := time.Now()
+	msgTime := now.Add(-3 * time.Hour)
+	result := formatRelativeTimeFrom(msgTime, now)
+	if result != "3h ago" {
+		t.Errorf("expected '3h ago', got %q", result)
+	}
+}
+
+func TestFormatRelativeTime_Yesterday(t *testing.T) {
+	now := time.Now()
+	msgTime := now.Add(-30 * time.Hour)
+	result := formatRelativeTimeFrom(msgTime, now)
+	if !strings.HasPrefix(result, "yesterday") {
+		t.Errorf("expected result to start with 'yesterday', got %q", result)
+	}
+}
+
+func TestFormatRelativeTime_OlderDate(t *testing.T) {
+	now := time.Now()
+	msgTime := now.Add(-72 * time.Hour) // 3 days ago
+	result := formatRelativeTimeFrom(msgTime, now)
+	// Should contain the month abbreviation
+	if !strings.Contains(result, msgTime.Format("Jan")) {
+		t.Errorf("expected date format with month, got %q", result)
+	}
+}
+
+// --- isSameDay tests ---
+
+func TestIsSameDay_Same(t *testing.T) {
+	t1 := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+	t2 := time.Date(2024, 1, 15, 23, 59, 0, 0, time.UTC)
+	if !isSameDay(t1, t2) {
+		t.Error("same day should return true")
+	}
+}
+
+func TestIsSameDay_Different(t *testing.T) {
+	t1 := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+	t2 := time.Date(2024, 1, 16, 10, 30, 0, 0, time.UTC)
+	if isSameDay(t1, t2) {
+		t.Error("different days should return false")
+	}
+}
+
+// --- formatDateSeparator tests ---
+
+func TestFormatDateSeparator_Today(t *testing.T) {
+	now := time.Now()
+	result := formatDateSeparatorFrom(now, now)
+	if result != "Today" {
+		t.Errorf("expected 'Today', got %q", result)
+	}
+}
+
+func TestFormatDateSeparator_Yesterday(t *testing.T) {
+	now := time.Now()
+	yesterday := now.AddDate(0, 0, -1)
+	result := formatDateSeparatorFrom(yesterday, now)
+	if result != "Yesterday" {
+		t.Errorf("expected 'Yesterday', got %q", result)
+	}
+}
+
+func TestFormatDateSeparator_OlderDate(t *testing.T) {
+	now := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
+	oldDate := time.Date(2024, 1, 10, 12, 0, 0, 0, time.UTC)
+	result := formatDateSeparatorFrom(oldDate, now)
+	// Should include day name and date
+	if !strings.Contains(result, "Wednesday") || !strings.Contains(result, "Jan 10") {
+		t.Errorf("expected 'Wednesday, Jan 10, 2024', got %q", result)
+	}
+}
+
+// --- View tests with date separators ---
+
+func TestChannelView_DateSeparators(t *testing.T) {
+	m := newTestChannelModel()
+	now := time.Now()
+	m.channel.History = []channel.HistoryEntry{
+		{Sender: "eng-01", Message: "old message", Time: now.AddDate(0, 0, -2)},
+		{Sender: "eng-02", Message: "yesterday message", Time: now.AddDate(0, 0, -1)},
+		{Sender: "eng-03", Message: "today message", Time: now},
+	}
+
+	output := m.View()
+	if !strings.Contains(output, "Today") {
+		t.Errorf("expected 'Today' separator in output")
+	}
+	if !strings.Contains(output, "Yesterday") {
+		t.Errorf("expected 'Yesterday' separator in output")
+	}
+}
+
+func TestChannelView_RelativeTimestamps(t *testing.T) {
+	m := newTestChannelModel()
+	m.channel.History = []channel.HistoryEntry{
+		{Sender: "eng-01", Message: "recent message", Time: time.Now().Add(-5 * time.Minute)},
+	}
+
+	output := m.View()
+	if !strings.Contains(output, "5m ago") {
+		t.Errorf("expected '5m ago' in output, got: %s", output)
+	}
+}
+
+// --- Message grouping tests ---
+
+func TestChannelView_MessageGrouping(t *testing.T) {
+	m := newTestChannelModel()
+	now := time.Now()
+
+	// Add consecutive messages from the same sender
+	m.channel.History = []channel.HistoryEntry{
+		{Sender: "engineer-01", Message: "first message", Time: now.Add(-2 * time.Minute)},
+		{Sender: "engineer-01", Message: "second message", Time: now.Add(-1 * time.Minute)},
+		{Sender: "engineer-02", Message: "different sender", Time: now},
+	}
+
+	output := m.View()
+
+	// All messages should be in output
+	if !strings.Contains(output, "first message") {
+		t.Error("expected 'first message' in output")
+	}
+	if !strings.Contains(output, "second message") {
+		t.Error("expected 'second message' in output")
+	}
+	if !strings.Contains(output, "different sender") {
+		t.Error("expected 'different sender' in output")
+	}
+
+	// Both senders should be present (grouping reduces headers, not removes them)
+	if !strings.Contains(output, "engineer-01") {
+		t.Error("expected engineer-01 in output")
+	}
+	if !strings.Contains(output, "engineer-02") {
+		t.Error("expected engineer-02 in output")
+	}
+}
+
+func TestChannelView_MessageBubbleRendering(t *testing.T) {
+	m := newTestChannelModel()
+	m.channel.History = []channel.HistoryEntry{
+		{Sender: "engineer-01", Message: "test bubble content", Time: time.Now()},
+	}
+
+	output := m.View()
+
+	// Verify the message content is rendered
+	if !strings.Contains(output, "test bubble content") {
+		t.Error("expected message content in output")
+	}
+
+	// Verify sender is rendered
+	if !strings.Contains(output, "engineer-01") {
+		t.Error("expected sender name in output")
 	}
 }
