@@ -1,6 +1,7 @@
 package style
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
@@ -336,5 +337,19 @@ func TestThemeHasRoleColors(t *testing.T) {
 				t.Error("Theme should have RolePM color")
 			}
 		})
+	}
+}
+
+func TestMessageBubbleStyle(t *testing.T) {
+	styles := DefaultStyles()
+
+	// Verify MessageBubble style renders
+	rendered := styles.MessageBubble.Render("test message")
+	if rendered == "" {
+		t.Error("MessageBubble style should render text")
+	}
+	// Verify it contains the message content
+	if !strings.Contains(rendered, "test message") {
+		t.Errorf("MessageBubble should contain message, got: %s", rendered)
 	}
 }

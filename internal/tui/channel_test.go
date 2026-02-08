@@ -695,3 +695,57 @@ func TestChannelView_RelativeTimestamps(t *testing.T) {
 		t.Errorf("expected '5m ago' in output, got: %s", output)
 	}
 }
+
+// --- Message grouping tests ---
+
+func TestChannelView_MessageGrouping(t *testing.T) {
+	m := newTestChannelModel()
+	now := time.Now()
+
+	// Add consecutive messages from the same sender
+	m.channel.History = []channel.HistoryEntry{
+		{Sender: "engineer-01", Message: "first message", Time: now.Add(-2 * time.Minute)},
+		{Sender: "engineer-01", Message: "second message", Time: now.Add(-1 * time.Minute)},
+		{Sender: "engineer-02", Message: "different sender", Time: now},
+	}
+
+	output := m.View()
+
+	// All messages should be in output
+	if !strings.Contains(output, "first message") {
+		t.Error("expected 'first message' in output")
+	}
+	if !strings.Contains(output, "second message") {
+		t.Error("expected 'second message' in output")
+	}
+	if !strings.Contains(output, "different sender") {
+		t.Error("expected 'different sender' in output")
+	}
+
+	// Both senders should be present (grouping reduces headers, not removes them)
+	if !strings.Contains(output, "engineer-01") {
+		t.Error("expected engineer-01 in output")
+	}
+	if !strings.Contains(output, "engineer-02") {
+		t.Error("expected engineer-02 in output")
+	}
+}
+
+func TestChannelView_MessageBubbleRendering(t *testing.T) {
+	m := newTestChannelModel()
+	m.channel.History = []channel.HistoryEntry{
+		{Sender: "engineer-01", Message: "test bubble content", Time: time.Now()},
+	}
+
+	output := m.View()
+
+	// Verify the message content is rendered
+	if !strings.Contains(output, "test bubble content") {
+		t.Error("expected message content in output")
+	}
+
+	// Verify sender is rendered
+	if !strings.Contains(output, "engineer-01") {
+		t.Error("expected sender name in output")
+	}
+}
