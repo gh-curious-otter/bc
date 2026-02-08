@@ -517,13 +517,14 @@ func notifyConflicts(rootDir, branch string, conflicts []string) error {
 		}
 	}
 
-	// Add message to channel history
+	// Add message to channel history with consistent **[agent]** prefix (#292)
 	sender := "merge-bot"
 	if envSender := os.Getenv("BC_AGENT_ID"); envSender != "" {
 		sender = envSender
 	}
+	formatted := channel.FormatAgentComment(sender, message)
 
-	if err := store.AddHistory(notifyChannel, sender, message); err != nil {
+	if err := store.AddHistory(notifyChannel, sender, formatted); err != nil {
 		return fmt.Errorf("failed to add conflict notification to history: %w", err)
 	}
 

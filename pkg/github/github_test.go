@@ -281,6 +281,81 @@ func TestPRJSON(t *testing.T) {
 	}
 }
 
+// --- ViewIssue ---
+
+func TestViewIssueNoRemote(t *testing.T) {
+	_, err := ViewIssue(t.TempDir(), 1)
+	if err != ErrNoGitRemote {
+		t.Errorf("ViewIssue without remote want ErrNoGitRemote, got %v", err)
+	}
+}
+
+func TestViewIssueWithMockGh(t *testing.T) {
+	dir := setupGitRepo(t)
+	json := `{"number":3,"title":"Test issue","state":"OPEN","body":"Issue body","url":"https://github.com/o/r/issues/3","author":{"login":"alice"},"createdAt":"2024-01-15T10:00:00Z"}`
+	mockGh := createMockCLI(t, "gh", json)
+	t.Setenv("PATH", filepath.Dir(mockGh)+":"+os.Getenv("PATH"))
+
+	detail, err := ViewIssue(dir, 3)
+	if err != nil {
+		t.Fatalf("ViewIssue: %v", err)
+	}
+	if detail.Number != 3 || detail.Title != "Test issue" || detail.State != "OPEN" {
+		t.Errorf("detail = %+v", detail)
+	}
+	if detail.Body != "Issue body" || detail.Author != "alice" {
+		t.Errorf("detail body/author = %q, %q", detail.Body, detail.Author)
+	}
+}
+
+// --- IssueComment ---
+
+func TestIssueCommentNoRemote(t *testing.T) {
+	err := IssueComment(t.TempDir(), 1, "hello")
+	if err != ErrNoGitRemote {
+		t.Errorf("IssueComment without remote want ErrNoGitRemote, got %v", err)
+	}
+}
+
+func TestIssueCommentWithMockGh(t *testing.T) {
+	dir := setupGitRepo(t)
+	mockGh := createMockCLI(t, "gh", "")
+	t.Setenv("PATH", filepath.Dir(mockGh)+":"+os.Getenv("PATH"))
+
+	err := IssueComment(dir, 2, "comment text")
+	if err != nil {
+		t.Errorf("IssueComment with mock: %v", err)
+	}
+}
+
+// --- AddReaction ---
+
+func TestAddReactionNoRemote(t *testing.T) {
+	err := AddReaction(t.TempDir(), 1, "+1")
+	if err != ErrNoGitRemote {
+		t.Errorf("AddReaction without remote want ErrNoGitRemote, got %v", err)
+	}
+}
+
+func TestAddReactionWithMockGh(t *testing.T) {
+	dir := setupGitRepo(t)
+	// Mock gh: "gh repo view" returns owner/repo; "gh api" exits 0
+	mockDir := t.TempDir()
+	mockPath := filepath.Join(mockDir, "gh")
+	script := `#!/bin/sh
+if [ "$1" = "repo" ]; then echo "owner/repo"; else exit 0; fi
+`
+	if err := os.WriteFile(mockPath, []byte(script), 0700); err != nil { //nolint:gosec
+		t.Fatalf("write mock: %v", err)
+	}
+	t.Setenv("PATH", mockDir+":"+os.Getenv("PATH"))
+
+	err := AddReaction(dir, 5, "+1")
+	if err != nil {
+		t.Errorf("AddReaction with mock: %v", err)
+	}
+}
+
 // --- helpers ---
 
 // setupGitRepo creates a temp git repo with an origin remote.

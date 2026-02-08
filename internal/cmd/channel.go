@@ -280,12 +280,13 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Warning: failed to load agent state: %v\n", err)
 	}
 
-	// Add to channel history
+	// Add to channel history with consistent **[agent]** prefix (#292)
 	sender := os.Getenv("BC_AGENT_ID")
 	if sender == "" {
 		sender = "cli"
 	}
-	if err := store.AddHistory(channelName, sender, message); err != nil {
+	formatted := channel.FormatAgentComment(sender, message)
+	if err := store.AddHistory(channelName, sender, formatted); err != nil {
 		fmt.Printf("Warning: failed to record history: %v\n", err)
 	}
 	if err := store.Save(); err != nil {

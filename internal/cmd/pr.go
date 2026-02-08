@@ -121,8 +121,9 @@ func runPRNotify(cmd *cobra.Command, args []string) error {
 	for _, pr := range needsReview {
 		message := formatReviewRequest(pr, techLeads)
 
-		// Add to channel history with review message type
-		_, msgErr := store.AddMessage("reviews", "system", message, channel.TypeReview, fmt.Sprintf(`{"pr_number":%d}`, pr.Number))
+		// Add to channel history with consistent **[agent]** prefix (#292)
+		formatted := channel.FormatAgentComment("system", message)
+		_, msgErr := store.AddMessage("reviews", "system", formatted, channel.TypeReview, fmt.Sprintf(`{"pr_number":%d}`, pr.Number))
 		if msgErr != nil {
 			fmt.Printf("Warning: failed to log message for PR #%d: %v\n", pr.Number, msgErr)
 		}

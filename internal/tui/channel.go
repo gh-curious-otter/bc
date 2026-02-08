@@ -538,9 +538,13 @@ func (m *ChannelModel) sendMessage(message string) {
 		return
 	}
 
-	// Record in history
+	// Record in history with consistent **[agent]** prefix (#292)
 	sender := os.Getenv("BC_AGENT_ID")
-	if err := m.store.AddHistory(m.channel.Name, sender, message); err != nil {
+	if sender == "" {
+		sender = "tui"
+	}
+	formatted := channel.FormatAgentComment(sender, message)
+	if err := m.store.AddHistory(m.channel.Name, sender, formatted); err != nil {
 		m.sendMsg = "Error recording history: " + err.Error()
 		return
 	}
