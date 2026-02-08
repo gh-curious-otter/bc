@@ -138,3 +138,82 @@ func CreateIssue(workspacePath, title, body string) error {
 	cmd.Dir = workspacePath
 	return cmd.Run()
 }
+
+// --- GitHub auth (login, status, token storage) ---
+
+// AuthAccount represents one logged-in GitHub account for a host.
+type AuthAccount struct {
+	Host        string `json:"host"`
+	Login       string `json:"login"`
+	State       string `json:"state"`       // "success" when logged in
+	TokenSource string `json:"tokenSource"` // e.g. "keyring", "oauth_token"
+	Scopes      string `json:"scopes"`
+	GitProtocol string `json:"gitProtocol"`
+	Active      bool   `json:"active"`
+}
+
+// AuthStatusResult is the result of AuthStatus.
+//
+//nolint:govet // fieldalignment: struct layout kept for JSON field order
+type AuthStatusResult struct {
+	Accounts []AuthAccount `json:"accounts,omitempty"`
+	LoggedIn bool          `json:"loggedIn"`
+	RawOut   string        `json:"-"` // raw stdout from gh auth status
+}
+
+// authStatusJSON is the shape of `gh auth status --json hosts`.
+type authStatusJSON struct {
+	Hosts map[string][]AuthAccount `json:"hosts"`
+}
+
+// AuthStatus runs `gh auth status` and returns whether the user is logged in
+// and account details. It does not require a workspace (gh auth is global).
+func AuthStatus() (AuthStatusResult, error) {
+	cmd := exec.CommandContext(context.Background(), "gh", "auth", "status", "--json", "hosts")
+	output, err := cmd.Output()
+	rawOut := string(output)
+	if err != nil {
+		return AuthStatusResult{LoggedIn: false, RawOut: rawOut}, fmt.Errorf("gh auth status: %w", err)
+	}
+
+	var parsed authStatusJSON
+	if err := json.Unmarshal(output, &parsed); err != nil {
+		return AuthStatusResult{RawOut: rawOut}, fmt.Errorf("parse gh auth status: %w", err)
+	}
+
+	var accounts []AuthAccount
+	for _, accts := range parsed.Hosts {
+		accounts = append(accounts, accts...)
+	}
+	loggedIn := len(accounts) > 0
+	for _, a := range accounts {
+		if a.State != "success" {
+			loggedIn = false
+			break
+		}
+	}
+
+	return AuthStatusResult{
+		LoggedIn: loggedIn,
+		Accounts: accounts,
+		RawOut:   rawOut,
+	}, nil
+}
+
+// AuthLogin runs `gh auth login` interactively. The user must complete
+// login in the terminal (browser or token). For scripted token use,
+// run `gh auth login --with-token` with token on stdin.
+func AuthLogin() error {
+	cmd := exec.CommandContext(context.Background(), "gh", "auth", "login")
+	cmd.Stdin = nil  // use terminal stdin
+	cmd.Stdout = nil // use terminal stdout
+	cmd.Stderr = nil // use terminal stderr
+	return cmd.Run()
+}
+
+// TokenStorageInfo returns a short description of where gh stores the token.
+// gh stores tokens in the system keyring (e.g. macOS Keychain) or in
+// ~/.config/gh/hosts.yml when not using keyring. This is informational only.
+func TokenStorageInfo() string {
+	return "gh stores tokens in the system credential helper (e.g. keyring) or in ~/.config/gh/hosts.yml. Use 'gh auth status' to see token source."
+}

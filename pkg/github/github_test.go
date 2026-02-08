@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -327,4 +328,74 @@ func shellQuote(s string) string {
 	}
 	quoted += "'"
 	return quoted
+}
+
+// --- AuthStatus ---
+
+func TestAuthStatusNoGh(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	_, err := AuthStatus()
+	if err == nil {
+		t.Error("AuthStatus should fail when gh is not available")
+	}
+}
+
+func TestAuthStatusWithMockGh(t *testing.T) {
+	data := `{"hosts":{"github.com":[{"host":"github.com","login":"testuser","state":"success","active":true,"tokenSource":"keyring","scopes":"repo, read:org","gitProtocol":"ssh"}]}}`
+	mockGh := createMockCLI(t, "gh", data)
+	t.Setenv("PATH", filepath.Dir(mockGh)+":"+os.Getenv("PATH"))
+
+	result, err := AuthStatus()
+	if err != nil {
+		t.Fatalf("AuthStatus: %v", err)
+	}
+	if !result.LoggedIn {
+		t.Error("AuthStatus should report logged in when state is success")
+	}
+	if len(result.Accounts) != 1 {
+		t.Fatalf("Accounts len = %d, want 1", len(result.Accounts))
+	}
+	if result.Accounts[0].Login != "testuser" {
+		t.Errorf("Accounts[0].Login = %q, want testuser", result.Accounts[0].Login)
+	}
+	if result.Accounts[0].TokenSource != "keyring" {
+		t.Errorf("Accounts[0].TokenSource = %q, want keyring", result.Accounts[0].TokenSource)
+	}
+}
+
+func TestAuthStatusNotLoggedIn(t *testing.T) {
+	data := `{"hosts":{}}`
+	mockGh := createMockCLI(t, "gh", data)
+	t.Setenv("PATH", filepath.Dir(mockGh)+":"+os.Getenv("PATH"))
+
+	result, err := AuthStatus()
+	if err != nil {
+		t.Fatalf("AuthStatus: %v", err)
+	}
+	if result.LoggedIn {
+		t.Error("AuthStatus should report not logged in when no hosts")
+	}
+	if len(result.Accounts) != 0 {
+		t.Errorf("Accounts len = %d, want 0", len(result.Accounts))
+	}
+}
+
+func TestAuthStatusMalformedJSON(t *testing.T) {
+	mockGh := createMockCLI(t, "gh", "not json")
+	t.Setenv("PATH", filepath.Dir(mockGh)+":"+os.Getenv("PATH"))
+
+	_, err := AuthStatus()
+	if err == nil {
+		t.Error("AuthStatus should fail on malformed JSON")
+	}
+}
+
+func TestTokenStorageInfo(t *testing.T) {
+	info := TokenStorageInfo()
+	if info == "" {
+		t.Error("TokenStorageInfo should return non-empty string")
+	}
+	if !strings.Contains(info, "gh") {
+		t.Errorf("TokenStorageInfo should mention gh: %q", info)
+	}
 }
