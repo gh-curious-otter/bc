@@ -378,16 +378,16 @@ func TestHandleSendKey_AltEnterSends(t *testing.T) {
 }
 
 func TestHandleSendKey_CtrlEnterSends(t *testing.T) {
-	// When an environment sends "ctrl+enter" (e.g. some IDEs), it should send.
-	// We test the path by simulating the key; in most terminals Ctrl+Enter = Enter.
 	m := newTestChannelModelWithStore(t)
 	m.sendMode = true
 	m.input = "test message"
-	// Simulate key that produces msg.String() == "ctrl+enter" (if present in env)
-	// Here we use Alt+Enter which we also handle and is distinguishable
-	m.handleSendKey(tea.KeyMsg{Type: tea.KeyEnter, Alt: true})
+	// Ctrl+J is a reliable send shortcut (Ctrl+Enter often sends as plain Enter in terminals)
+	m.handleSendKey(tea.KeyMsg{Type: tea.KeyCtrlJ})
 	if m.sendMode {
-		t.Error("send shortcut should exit sendMode")
+		t.Error("sendMode should be false after send key")
+	}
+	if m.sendMsg == "" {
+		t.Error("sendMsg should be set after send (e.g. 'No members in channel' or 'Sent to...')")
 	}
 }
 

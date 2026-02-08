@@ -300,10 +300,10 @@ func (m *ChannelModel) handleSendKey(msg tea.KeyMsg) Action {
 			m.updateAutocomplete()
 		}
 		return NoAction
-	case "ctrl+enter", "alt+enter":
-		// Ctrl+Enter / Alt+Enter send the message. In most terminals Ctrl+Enter
-		// is indistinguishable from Enter (both send Ctrl+M), so Alt+Enter is the
-		// reliable send shortcut; we handle both for environments that expose them.
+	case "ctrl+enter", "ctrl+j", "alt+enter":
+		// Ctrl+Enter / Ctrl+J / Alt+Enter send the message. In most terminals Ctrl+Enter
+		// is indistinguishable from Enter (both send Ctrl+M), so Ctrl+J and Alt+Enter
+		// are reliable send shortcuts; we handle all for different environments.
 		if m.input != "" {
 			m.sendMessage(m.input)
 		}
@@ -555,7 +555,7 @@ func (m *ChannelModel) renderInputArea() string {
 	}
 
 	// Show keyboard hints
-	b.WriteString(m.styles.Muted.Render("  Enter to send (single line) • Alt+Enter to send • Enter in multi-line adds new line • Esc to cancel"))
+	b.WriteString(m.styles.Muted.Render("  Enter to send (single line) • Alt+Enter or Ctrl+J to send • Enter in multi-line adds new line • Esc to cancel"))
 	b.WriteString("\n")
 
 	return b.String()
