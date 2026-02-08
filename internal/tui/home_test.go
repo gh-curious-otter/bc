@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/rpuneet/bc/pkg/agent"
@@ -81,6 +82,35 @@ func TestRenderHeader_WorkspaceScreen(t *testing.T) {
 	output := m.renderHeader()
 	if !strings.Contains(output, "test-project") {
 		t.Errorf("expected workspace name in header, got: %s", output)
+	}
+}
+
+func TestRenderHeader_WorkspaceLoading(t *testing.T) {
+	m := newTestHomeModel()
+	m.screen = ScreenWorkspace
+	m.workspaceLoading = true
+	m.pendingWorkspaceName = "my-workspace"
+
+	output := m.renderHeader()
+	if !strings.Contains(output, "my-workspace") {
+		t.Errorf("expected workspace name in header while loading, got: %s", output)
+	}
+	if !strings.Contains(output, "loading") {
+		t.Errorf("expected loading indicator in header, got: %s", output)
+	}
+}
+
+func TestRenderWorkspaceLoading(t *testing.T) {
+	m := newTestHomeModel()
+	m.workspaceLoading = true
+	m.loadingSpinner = spinner.New(spinner.WithSpinner(spinner.Dot))
+
+	output := m.renderWorkspaceLoading()
+	if !strings.Contains(output, "Loading workspace") {
+		t.Errorf("expected loading message, got: %s", output)
+	}
+	if !strings.Contains(output, "Agents") {
+		t.Errorf("expected hint about agents/issues, got: %s", output)
 	}
 }
 

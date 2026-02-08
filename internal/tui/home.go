@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -31,6 +32,11 @@ const (
 // TickMsg triggers a periodic refresh.
 type TickMsg struct{}
 
+// workspaceLoadedMsg is sent when async workspace load completes.
+type workspaceLoadedMsg struct {
+	Model *WorkspaceModel
+}
+
 // WorkspaceInfo holds summary data for a workspace in the home view.
 type WorkspaceInfo struct {
 	Entry      workspace.RegistryEntry
@@ -43,19 +49,22 @@ type WorkspaceInfo struct {
 
 // HomeModel is the root TUI model for bc home.
 type HomeModel struct {
-	wsModel      *WorkspaceModel
-	agentModel   *AgentModel
-	channelModel *ChannelModel
-	issueModel   *IssueModel
-	styles       style.Styles
-	statusMsg    string
-	workspaces   []WorkspaceInfo
-	screen       Screen
-	maxWorkers   int
-	width        int
-	height       int
-	homeCursor   int
-	helpActive   bool
+	wsModel              *WorkspaceModel
+	agentModel           *AgentModel
+	channelModel         *ChannelModel
+	issueModel           *IssueModel
+	styles               style.Styles
+	statusMsg            string
+	pendingWorkspaceName string // workspace name shown in header while loading
+	workspaces           []WorkspaceInfo
+	loadingSpinner       spinner.Model // spinner shown during workspace load
+	screen               Screen
+	maxWorkers           int
+	width                int
+	height               int
+	homeCursor           int
+	helpActive           bool
+	workspaceLoading     bool // true while workspace is loading after Enter
 }
 
 // NewHomeModel creates the root TUI model. maxWorkers is the configured agent limit (0 = no limit).
@@ -72,6 +81,13 @@ func tickCmd() tea.Cmd {
 	return tea.Tick(config.Tui.RefreshInterval, func(time.Time) tea.Msg {
 		return TickMsg{}
 	})
+}
+
+// loadWorkspaceCmd runs NewWorkspaceModel in the background and sends workspaceLoadedMsg when done.
+func loadWorkspaceCmd(ws WorkspaceInfo, s style.Styles) tea.Cmd {
+	return func() tea.Msg {
+		return workspaceLoadedMsg{Model: NewWorkspaceModel(ws, s)}
+	}
 }
 
 // Init implements tea.Model.
@@ -111,6 +127,23 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.agentModel.refreshLight()
 		}
 		return m, tickCmd()
+
+	case workspaceLoadedMsg:
+		m.wsModel = msg.Model
+		m.wsModel.width = m.width
+		m.wsModel.height = m.height
+		m.workspaceLoading = false
+		m.pendingWorkspaceName = ""
+		m.statusMsg = ""
+		return m, nil
+
+	case spinner.TickMsg:
+		if m.workspaceLoading {
+			var cmd tea.Cmd
+			m.loadingSpinner, cmd = m.loadingSpinner.Update(msg)
+			return m, cmd
+		}
+		return m, nil
 
 	case tea.KeyMsg:
 		return m.handleKey(msg)
@@ -211,11 +244,18 @@ func (m *HomeModel) handleHomeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if isEnterKey(msg) {
 		if m.homeCursor < len(m.workspaces) {
 			ws := m.workspaces[m.homeCursor]
-			m.wsModel = NewWorkspaceModel(ws, m.styles)
-			m.wsModel.width = m.width
-			m.wsModel.height = m.height
 			m.screen = ScreenWorkspace
-			m.statusMsg = ""
+			m.workspaceLoading = true
+			m.pendingWorkspaceName = ws.Entry.Name
+			m.wsModel = nil
+			m.loadingSpinner = spinner.New(
+				spinner.WithSpinner(spinner.Dot),
+				spinner.WithStyle(m.styles.Muted),
+			)
+			return m, tea.Batch(
+				loadWorkspaceCmd(ws, m.styles),
+				tea.Tick(80*time.Millisecond, func(time.Time) tea.Msg { return m.loadingSpinner.Tick() }),
+			)
 		}
 	}
 	return m, nil
@@ -228,6 +268,8 @@ func (m *HomeModel) handleWorkspaceKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		m.screen = ScreenHome
 		m.wsModel = nil
+		m.workspaceLoading = false
+		m.pendingWorkspaceName = ""
 		m.statusMsg = ""
 		return m, nil
 	}
@@ -374,7 +416,9 @@ func (m *HomeModel) View() string {
 		case ScreenHome:
 			sections = append(sections, m.renderHomeScreen())
 		case ScreenWorkspace:
-			if m.wsModel != nil {
+			if m.workspaceLoading {
+				sections = append(sections, m.renderWorkspaceLoading())
+			} else if m.wsModel != nil {
 				sections = append(sections, m.wsModel.View())
 			}
 		case ScreenAgent:
@@ -409,6 +453,8 @@ func (m *HomeModel) renderHeader() string {
 	case ScreenWorkspace:
 		if m.wsModel != nil {
 			parts = append(parts, sep, m.styles.Info.Render(m.wsModel.info.Entry.Name))
+		} else if m.pendingWorkspaceName != "" {
+			parts = append(parts, sep, m.styles.Muted.Render(m.pendingWorkspaceName+" (loading…)"))
 		}
 	case ScreenAgent:
 		if m.wsModel != nil {
@@ -434,6 +480,19 @@ func (m *HomeModel) renderHeader() string {
 	}
 
 	return strings.Join(parts, "")
+}
+
+// renderWorkspaceLoading shows a spinner and message while workspace data loads.
+func (m *HomeModel) renderWorkspaceLoading() string {
+	var b strings.Builder
+	b.WriteString("\n\n  ")
+	b.WriteString(m.loadingSpinner.View())
+	b.WriteString(" ")
+	b.WriteString(m.styles.Muted.Render("Loading workspace…"))
+	b.WriteString("\n\n")
+	b.WriteString(m.styles.Muted.Render("  Agents, issues, and channels are being loaded."))
+	b.WriteString("\n")
+	return b.String()
 }
 
 func (m *HomeModel) renderHomeScreen() string {
