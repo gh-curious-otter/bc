@@ -423,3 +423,79 @@ func TestRollbackMerge_InvalidRestorePoint(t *testing.T) {
 		t.Error("expected error for invalid restore point")
 	}
 }
+
+// --- MergeQueueItem tests ---
+
+func TestMergeQueueItem_Struct(t *testing.T) {
+	item := MergeQueueItem{
+		Agent:       "engineer-01",
+		Branch:      "engineer-01/issue-123/fix-bug",
+		Target:      "main",
+		State:       "pending",
+		HasConflict: false,
+	}
+
+	if item.Agent != "engineer-01" {
+		t.Errorf("Agent = %q, want %q", item.Agent, "engineer-01")
+	}
+	if item.Branch != "engineer-01/issue-123/fix-bug" {
+		t.Errorf("Branch = %q, want %q", item.Branch, "engineer-01/issue-123/fix-bug")
+	}
+	if item.Target != "main" {
+		t.Errorf("Target = %q, want %q", item.Target, "main")
+	}
+	if item.State != "pending" {
+		t.Errorf("State = %q, want %q", item.State, "pending")
+	}
+	if item.HasConflict {
+		t.Error("HasConflict should be false")
+	}
+}
+
+func TestMergeQueueItem_JSON(t *testing.T) {
+	item := MergeQueueItem{
+		Agent:       "engineer-02",
+		Branch:      "feature/test",
+		Target:      "main",
+		State:       "blocked",
+		HasConflict: true,
+	}
+
+	data, err := json.Marshal(item)
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
+
+	var decoded MergeQueueItem
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("json.Unmarshal failed: %v", err)
+	}
+
+	if decoded.Agent != item.Agent {
+		t.Errorf("Agent = %q, want %q", decoded.Agent, item.Agent)
+	}
+	if decoded.HasConflict != item.HasConflict {
+		t.Errorf("HasConflict = %v, want %v", decoded.HasConflict, item.HasConflict)
+	}
+}
+
+func TestMergeStatus_NoWorkspace(t *testing.T) {
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get cwd: %v", err)
+	}
+
+	tmpDir := t.TempDir()
+	if err = os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	_, err = executeCmd("merge", "--status")
+	if err == nil {
+		t.Fatal("expected error when not in workspace")
+	}
+	if !strings.Contains(err.Error(), "not in a bc workspace") {
+		t.Errorf("expected workspace error, got: %v", err)
+	}
+}
