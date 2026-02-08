@@ -120,3 +120,40 @@ func searchString(s, substr string) bool {
 	}
 	return false
 }
+
+// --- Spawn command tests ---
+
+func TestSpawnCmd_NoArgs(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	_, _, err := executeIntegrationCmd("spawn")
+	if err == nil {
+		t.Error("spawn without args should fail")
+	}
+}
+
+func TestSpawnCmd_Flags(t *testing.T) {
+	// Verify expected flags exist
+	toolFlag := spawnCmd.Flags().Lookup("tool")
+	if toolFlag == nil {
+		t.Fatal("expected --tool flag")
+	}
+	if toolFlag.DefValue != "" {
+		t.Errorf("tool default should be empty, got: %s", toolFlag.DefValue)
+	}
+
+	roleFlag := spawnCmd.Flags().Lookup("role")
+	if roleFlag == nil {
+		t.Fatal("expected --role flag")
+	}
+	if roleFlag.DefValue != "worker" {
+		t.Errorf("role default should be 'worker', got: %s", roleFlag.DefValue)
+	}
+}
+
+func TestSpawnCmd_DeprecationMessage(t *testing.T) {
+	if spawnCmd.Deprecated == "" {
+		t.Error("spawn should have deprecation message")
+	}
+}
