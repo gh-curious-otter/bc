@@ -231,9 +231,66 @@ func TestVisibleCount_Large(t *testing.T) {
 	for i := 0; i < 50; i++ {
 		m.channel.History = append(m.channel.History, channel.HistoryEntry{Sender: "a", Message: "msg"})
 	}
+	// visibleCount is the window size (virtualized), not a fixed 20 cap
+	got := m.visibleCount()
+	want := m.visibleMsgCount()
+	if got != want {
+		t.Errorf("visibleCount = %d, want window size visibleMsgCount() = %d", got, want)
+	}
+	if got > 50 || got <= 0 {
+		t.Errorf("visibleCount = %d, want in (0, 50] for 50 messages", got)
+	}
+}
 
-	if m.visibleCount() != 20 {
-		t.Errorf("visibleCount = %d, want 20 (max)", m.visibleCount())
+// --- visibleWindow / virtualization tests (#326) ---
+
+func TestVisibleWindow_LongHistory(t *testing.T) {
+	m := newTestChannelModel()
+	m.channel.History = nil
+	for i := 0; i < 100; i++ {
+		m.channel.History = append(m.channel.History, channel.HistoryEntry{
+			Sender:  "u",
+			Message: "msg",
+			Time:    time.Now(),
+		})
+	}
+	start, end := m.visibleWindow()
+	windowSize := end - start
+	if windowSize != m.visibleMsgCount() {
+		t.Errorf("at scroll=0 window size = %d, want visibleMsgCount() = %d", windowSize, m.visibleMsgCount())
+	}
+	if end != 100 {
+		t.Errorf("end = %d, want 100", end)
+	}
+	// Scroll up (older messages)
+	m.scroll = 50
+	start, end = m.visibleWindow()
+	if start < 0 || end > 100 || end <= start {
+		t.Errorf("visibleWindow [%d,%d) invalid for 100 messages", start, end)
+	}
+	if end-start != windowSize && end-start != 100-start {
+		t.Errorf("window size changed unexpectedly to %d", end-start)
+	}
+}
+
+func TestSelectedMessageIndex_LongHistory(t *testing.T) {
+	m := newTestChannelModel()
+	for i := 0; i < 50; i++ {
+		m.channel.History = append(m.channel.History, channel.HistoryEntry{
+			Sender:  "u",
+			Message: "msg",
+			Time:    time.Now(),
+		})
+	}
+	m.cursor = 2
+	idx := m.selectedMessageIndex()
+	start, _ := m.visibleWindow()
+	if idx != start+2 {
+		t.Errorf("selectedMessageIndex = %d, want start+cursor = %d", idx, start+2)
+	}
+	_, ok := m.selectedMessage()
+	if !ok {
+		t.Fatal("selectedMessage should be ok")
 	}
 }
 
