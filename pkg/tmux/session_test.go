@@ -1118,9 +1118,9 @@ func TestSendKeysPreservesSpaces(t *testing.T) {
 		{"special chars with spaces", "fix: handle edge case (issue #42)"},
 	}
 
-	for _, tt := range tests {
+	for i, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sessionName := "sp-test"
+			sessionName := fmt.Sprintf("sp-test-%d", i)
 			fullName := m.SessionName(sessionName)
 
 			// Create session running cat (echoes stdin to PTY)
