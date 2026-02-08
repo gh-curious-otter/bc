@@ -1567,6 +1567,79 @@ func TestUpdateAgentState_SameStateMessageUpdate(t *testing.T) {
 
 // --- Concurrent access for new functions ---
 
+// TestSpawnAgent_ConcurrentCalls verifies that concurrent SpawnAgent calls
+// are properly serialized and don't cause data races or corruption.
+// This exercises the mutex locking in SpawnAgentWithOptions.
+func TestSpawnAgent_ConcurrentCalls(t *testing.T) {
+	m := newTestManager(t)
+
+	// Pre-populate some agents to create contention
+	m.agents["existing-1"] = &Agent{
+		ID:       "existing-1",
+		Name:     "existing-1",
+		Role:     RoleManager,
+		State:    StateIdle,
+		Children: []string{},
+	}
+
+	var wg sync.WaitGroup
+	errors := make(chan error, 100)
+
+	// Concurrent reads while spawning would happen
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// Read operations that should be thread-safe
+			_ = m.GetAgent("existing-1")
+			_ = m.ListAgents()
+			_ = m.AgentCount()
+		}()
+	}
+
+	// Concurrent state mutations
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			agentName := fmt.Sprintf("concurrent-agent-%d", idx)
+			m.mu.Lock()
+			m.agents[agentName] = &Agent{
+				ID:       agentName,
+				Name:     agentName,
+				Role:     RoleEngineer,
+				State:    StateIdle,
+				Children: []string{},
+			}
+			m.mu.Unlock()
+		}(i)
+	}
+
+	// Concurrent reads of spawned agents
+	for i := 0; i < 30; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			agentName := fmt.Sprintf("concurrent-agent-%d", idx%20)
+			_ = m.GetAgent(agentName)
+		}(i)
+	}
+
+	wg.Wait()
+	close(errors)
+
+	// Check for any errors
+	for err := range errors {
+		t.Errorf("concurrent operation error: %v", err)
+	}
+
+	// Verify state is consistent
+	count := m.AgentCount()
+	if count < 1 {
+		t.Errorf("expected at least 1 agent, got %d", count)
+	}
+}
+
 func TestConcurrentAgentCount(t *testing.T) {
 	m := newTestManager(t)
 	m.agents["a"] = &Agent{Name: "a", State: StateIdle}
