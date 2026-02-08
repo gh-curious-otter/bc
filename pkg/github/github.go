@@ -128,6 +128,61 @@ func ListPRs(workspacePath string) ([]PR, error) {
 	return prs, nil
 }
 
+// ListPRsInRepo returns GitHub pull requests for the given repo (owner/repo).
+// Runs from current directory; uses gh pr list --repo.
+func ListPRsInRepo(repo string) ([]PR, error) {
+	cmd := exec.CommandContext(context.Background(), "gh", "pr", "list",
+		"--repo", repo,
+		"--json", "number,title,state,reviewDecision,isDraft",
+		"--limit", "50",
+	)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list GitHub PRs: %w", err)
+	}
+	var raw []ghPR
+	if err := json.Unmarshal(output, &raw); err != nil {
+		return nil, fmt.Errorf("failed to parse GitHub PRs: %w", err)
+	}
+	prs := make([]PR, 0, len(raw))
+	for _, r := range raw {
+		prs = append(prs, PR(r))
+	}
+	return prs, nil
+}
+
+// ListIssuesInRepo returns GitHub issues for the given repo (owner/repo).
+func ListIssuesInRepo(repo string) ([]Issue, error) {
+	cmd := exec.CommandContext(context.Background(), "gh", "issue", "list",
+		"--repo", repo,
+		"--json", "number,title,state,labels",
+		"--limit", "50",
+	)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list GitHub issues: %w", err)
+	}
+	var raw []ghIssue
+	if err := json.Unmarshal(output, &raw); err != nil {
+		return nil, fmt.Errorf("failed to parse GitHub issues: %w", err)
+	}
+	issues := make([]Issue, 0, len(raw))
+	for _, r := range raw {
+		var labels []string
+		for _, l := range r.Labels {
+			labels = append(labels, l.Name)
+		}
+		issues = append(issues, Issue{
+			Number: r.Number,
+			Title:  r.Title,
+			State:  r.State,
+			Labels: labels,
+			Source: "github",
+		})
+	}
+	return issues, nil
+}
+
 // CreateIssue creates a GitHub issue.
 func CreateIssue(workspacePath, title, body string) error {
 	args := []string{"issue", "create", "--title", title}
