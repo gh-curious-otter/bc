@@ -35,6 +35,33 @@ func newTestModel() *WorkspaceModel {
 	}
 }
 
+// --- Lazy-load / computeStatsFromAgentsOnly (#324) ---
+
+func TestComputeStatsFromAgentsOnly(t *testing.T) {
+	m := newTestModel()
+	m.agents = []*agent.Agent{
+		{Name: "a", State: agent.StateWorking},
+		{Name: "b", State: agent.StateIdle},
+		{Name: "c", State: agent.StateStopped},
+	}
+	m.computeStatsFromAgentsOnly()
+	if m.stats.WorkingAgents != 1 || m.stats.IdleAgents != 1 || m.stats.StoppedAgents != 1 {
+		t.Errorf("agent counts: working=1 idle=1 stopped=1, got working=%d idle=%d stopped=%d",
+			m.stats.WorkingAgents, m.stats.IdleAgents, m.stats.StoppedAgents)
+	}
+	if m.stats.TotalIssues != 0 || m.stats.OpenIssues != 0 {
+		t.Errorf("issue stats should be zero, got total=%d open=%d", m.stats.TotalIssues, m.stats.OpenIssues)
+	}
+}
+
+func TestEnsureTabDataLoaded_NoPanic(t *testing.T) {
+	m := newTestModel()
+	// ensureTabDataLoaded should not panic for any tab (may load or no-op)
+	for tab := TabAgents; tab < tabCount; tab++ {
+		m.ensureTabDataLoaded(tab)
+	}
+}
+
 // --- Dashboard rendering tests ---
 
 func TestRenderDashboard_NoData(t *testing.T) {

@@ -44,3 +44,9 @@
 
 - **Startup**: Show TUI immediately with “Loading…” and load workspaces in a goroutine, then send an update message (e.g. `WorkspacesLoaded`).
 - **Throttle captureLiveTask**: Run tmux capture less often or only for the focused agent; or run captures in parallel.
+
+## Fixes applied (per-screen lazy-load, #324 / #322)
+
+- **Workspace open**: `NewWorkspaceModel` now does minimal work for first paint (Agents tab only): manager, `LoadState`, `RefreshState`, agents, `loadAgentStats`, `computeStatsFromAgentsOnly`. Issues, channels, queue, recent events, memory, and pkg stats are not loaded.
+- **Tab focus load**: `ensureTabDataLoaded(tab)` loads data for the focused tab when the user switches tabs (tab / shift+tab). Issues tab loads `beads.ListIssues` + `computeStats`; Channels loads `loadChannels`; Queue loads `loadQueue`; Dashboard loads issues + `loadRecentEvents`; Stats loads issues + `loadPkgStats`. Each dataset is loaded at most once and then cached.
+- **Refresh**: Explicit `r` still runs full `refresh()` and marks all data loaded so subsequent tab switches use cache.

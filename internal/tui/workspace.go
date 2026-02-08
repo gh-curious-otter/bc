@@ -110,12 +110,13 @@ type WorkspaceModel struct {
 	queueFilter  QueueFilter
 
 	// Loaded flags (lazy-load per tab / on focus; see ensureTabDataLoaded)
-	agentsLoaded     bool
-	issuesLoaded     bool
-	channelsLoaded   bool
-	queueLoaded      bool
-	agentStatsLoaded bool
-	pkgStatsLoaded   bool
+	agentsLoaded       bool
+	issuesLoaded       bool
+	channelsLoaded     bool
+	queueLoaded        bool
+	agentStatsLoaded   bool
+	recentEventsLoaded bool
+	pkgStatsLoaded     bool
 }
 
 // NewWorkspaceModel creates a workspace detail view.
@@ -128,7 +129,7 @@ func NewWorkspaceModel(info WorkspaceInfo, s style.Styles) *WorkspaceModel {
 		tab:    TabAgents,
 	}
 
-	// Only load agent data so the Agents tab can render immediately.
+	// Minimal load for first paint (Agents tab): manager + agents + agent stats only
 	m.manager = agent.NewWorkspaceManager(
 		info.Entry.Path+"/.bc/agents",
 		info.Entry.Path,
@@ -137,9 +138,10 @@ func NewWorkspaceModel(info WorkspaceInfo, s style.Styles) *WorkspaceModel {
 	_ = m.manager.RefreshState()
 	m.agents = m.manager.ListAgents()
 	m.agentsLoaded = true
-
-	// Stats bar uses m.stats; computeStats will run when issues (or dashboard) are loaded.
 	m.issuesByAgent = make(map[string]int)
+	m.loadAgentStats()
+	m.computeStatsFromAgentsOnly()
+	// Issues, channels, queue, events, memory, pkg stats loaded on tab focus via ensureTabDataLoaded
 
 	return m
 }
@@ -153,11 +155,13 @@ func (m *WorkspaceModel) HandleKey(msg tea.KeyMsg) Action {
 		m.tab = (m.tab + 1) % tabCount
 		m.cursor = 0
 		m.scrollOffset = 0
+		m.ensureTabDataLoaded(m.tab)
 		return NoAction
 	case "shift+tab":
 		m.tab = (m.tab + tabCount - 1) % tabCount
 		m.cursor = 0
 		m.scrollOffset = 0
+		m.ensureTabDataLoaded(m.tab)
 		return NoAction
 	case "j", "down":
 		m.cursor++
@@ -203,10 +207,11 @@ func (m *WorkspaceModel) refresh() {
 	m.issues, m.issuesErr = beads.ListIssues(m.info.Entry.Path)
 	m.issuesLoaded = true
 	m.loadChannels()
-	m.loadMemoryInfo()
 	m.loadQueue()
 	m.queueLoaded = true
+	m.loadMemoryInfo()
 	m.loadRecentEvents()
+	m.recentEventsLoaded = true
 	m.computeStats()
 	m.loadAgentStats()
 	m.agentStatsLoaded = true
@@ -388,15 +393,20 @@ func (m *WorkspaceModel) ensureTabDataLoaded(tab Tab) {
 		if !m.issuesLoaded {
 			m.issues, m.issuesErr = beads.ListIssues(m.info.Entry.Path)
 			m.issuesLoaded = true
+			m.computeStats()
 		}
 		if !m.channelsLoaded {
 			m.loadChannels()
+			m.channelsLoaded = true
 		}
 		if !m.queueLoaded {
 			m.loadQueue()
 			m.queueLoaded = true
 		}
-		m.loadRecentEvents()
+		if !m.recentEventsLoaded {
+			m.loadRecentEvents()
+			m.recentEventsLoaded = true
+		}
 		m.loadMemoryInfo()
 		if !m.agentStatsLoaded {
 			m.loadAgentStats()
@@ -1157,6 +1167,23 @@ func (m *WorkspaceModel) getRecentlyClosedIssues() []beads.Issue {
 		}
 	}
 	return closed
+}
+
+// computeStatsFromAgentsOnly sets only agent state counts; used for fast first paint before issues/queue are loaded.
+func (m *WorkspaceModel) computeStatsFromAgentsOnly() {
+	m.issuesByAgent = make(map[string]int)
+	for _, a := range m.agents {
+		switch a.State {
+		case agent.StateIdle:
+			m.stats.IdleAgents++
+		case agent.StateWorking:
+			m.stats.WorkingAgents++
+		case agent.StateStuck:
+			m.stats.StuckAgents++
+		case agent.StateStopped:
+			m.stats.StoppedAgents++
+		}
+	}
 }
 
 func (m *WorkspaceModel) computeStats() {
