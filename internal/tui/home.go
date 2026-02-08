@@ -114,6 +114,12 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		return m.handleKey(msg)
+
+	case tea.MouseMsg:
+		if m.screen == ScreenChannel && m.channelModel != nil {
+			m.channelModel.HandleMouse(msg)
+		}
+		return m, nil
 	}
 
 	return m, nil

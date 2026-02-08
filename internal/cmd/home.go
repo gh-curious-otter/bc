@@ -79,7 +79,7 @@ func runHome(cmd *cobra.Command, args []string) error {
 
 	// Run the Bubble Tea TUI
 	model := itui.NewHomeModel(workspaces, int(config.Workspace.MaxWorkers))
-	p := tea.NewProgram(model, tea.WithAltScreen())
+	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err = p.Run()
 	return err
 }

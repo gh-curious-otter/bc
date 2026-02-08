@@ -88,6 +88,78 @@ func TestChannelHandleKey_HomeEnd(t *testing.T) {
 	}
 }
 
+// TestClampScroll_KeepsScrollInBounds ensures scroll is clamped after history shrinks or view changes.
+func TestClampScroll_KeepsScrollInBounds(t *testing.T) {
+	m := newTestChannelModel()
+	for i := 0; i < 50; i++ {
+		m.channel.History = append(m.channel.History, channel.HistoryEntry{
+			Sender: "u", Message: "m", Time: time.Now(),
+		})
+	}
+	m.scroll = 1000 // out of bounds
+	m.clampScroll()
+	maxScroll := len(m.channel.History) - m.visibleMsgCount()
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if m.scroll != maxScroll {
+		t.Errorf("clampScroll: scroll should be %d, got %d", maxScroll, m.scroll)
+	}
+}
+
+// TestClampScroll_ZeroStaysZero ensures scroll 0 is not changed when valid.
+func TestClampScroll_ZeroStaysZero(t *testing.T) {
+	m := newTestChannelModel()
+	m.channel.History = []channel.HistoryEntry{
+		{Sender: "a", Message: "hi", Time: time.Now()},
+	}
+	m.scroll = 0
+	m.clampScroll()
+	if m.scroll != 0 {
+		t.Errorf("scroll should stay 0, got %d", m.scroll)
+	}
+}
+
+func TestChannelHandleMouse_WheelDown(t *testing.T) {
+	m := newTestChannelModel()
+	for i := 0; i < 25; i++ {
+		m.channel.History = append(m.channel.History, channel.HistoryEntry{Sender: "u", Message: "m", Time: time.Now()})
+	}
+	m.scroll = 10
+	m.HandleMouse(tea.MouseMsg{Button: tea.MouseButtonWheelDown})
+	if m.scroll != 9 {
+		t.Errorf("wheel down should decrease scroll to 9, got %d", m.scroll)
+	}
+	m.scroll = 0
+	m.HandleMouse(tea.MouseMsg{Button: tea.MouseButtonWheelDown})
+	if m.scroll != 0 {
+		t.Errorf("wheel down at 0 should stay 0, got %d", m.scroll)
+	}
+}
+
+func TestChannelHandleMouse_WheelUp(t *testing.T) {
+	m := newTestChannelModel()
+	for i := 0; i < 25; i++ {
+		m.channel.History = append(m.channel.History, channel.HistoryEntry{Sender: "u", Message: "m", Time: time.Now()})
+	}
+	m.scroll = 5
+	m.HandleMouse(tea.MouseMsg{Button: tea.MouseButtonWheelUp})
+	if m.scroll != 6 {
+		t.Errorf("wheel up should increase scroll to 6, got %d", m.scroll)
+	}
+	maxScroll := len(m.channel.History) - m.visibleMsgCount()
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	for m.scroll < maxScroll {
+		m.HandleMouse(tea.MouseMsg{Button: tea.MouseButtonWheelUp})
+	}
+	m.HandleMouse(tea.MouseMsg{Button: tea.MouseButtonWheelUp})
+	if m.scroll != maxScroll {
+		t.Errorf("wheel up at max should stay %d, got %d", maxScroll, m.scroll)
+	}
+}
+
 func TestChannelHandleKey_CreateIssue(t *testing.T) {
 	m := newTestChannelModel()
 	m.cursor = 0
