@@ -903,11 +903,20 @@ func (m *ChannelModel) View() string {
 				content.WriteString(m.styles.Muted.Render("(empty)"))
 			} else {
 				lines := wrapText(entry.Message, msgWidth-4)
+				const maxBubbleLines = 15 // cap to avoid flooding the view
+				truncated := len(lines) > maxBubbleLines
+				if truncated {
+					lines = lines[:maxBubbleLines]
+				}
 				for j, line := range lines {
 					if j > 0 {
 						content.WriteString("\n")
 					}
 					content.WriteString(m.highlightMessage(line))
+				}
+				if truncated {
+					content.WriteString("\n")
+					content.WriteString(m.styles.Muted.Render("(…)"))
 				}
 			}
 

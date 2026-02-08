@@ -1010,6 +1010,23 @@ func TestChannelView_EmptyMessageShowsPlaceholder(t *testing.T) {
 	}
 }
 
+func TestChannelView_LongMessageTruncatedInBubble(t *testing.T) {
+	// Message that wraps to more than maxBubbleLines (15) so we show (…)
+	m := newTestChannelModel()
+	longMsg := strings.Repeat("word ", 400) // wraps to 16+ lines so bubble truncates with (…)
+	m.channel.History = []channel.HistoryEntry{
+		{Sender: "eng-01", Message: longMsg, Time: time.Now()},
+	}
+
+	output := m.View()
+	if !strings.Contains(output, "(…)") {
+		t.Error("expected long message to be truncated with (…) in bubble")
+	}
+	if !strings.Contains(output, "word") {
+		t.Error("expected start of message content in output")
+	}
+}
+
 func TestChannelView_OwnMessageUsesDistinctBubble(t *testing.T) {
 	prev := os.Getenv("BC_AGENT_ID")
 	defer func() { _ = os.Setenv("BC_AGENT_ID", prev) }()
