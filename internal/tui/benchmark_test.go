@@ -42,6 +42,18 @@ func BenchmarkHomeView_WithWorkspaces(b *testing.B) {
 	}
 }
 
+// BenchmarkHomeView_AsyncLoadFirstFrame measures time to first frame when using
+// async workspace load (#323): TUI shows "Loading workspaces..." immediately.
+func BenchmarkHomeView_AsyncLoadFirstFrame(b *testing.B) {
+	m := NewHomeModel(nil, 5, true)
+	m.width = 120
+	m.height = 40
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = m.View()
+	}
+}
+
 func BenchmarkWorkspaceView_Agents(b *testing.B) {
 	m := newTestModel()
 	m.tab = TabAgents

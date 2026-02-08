@@ -10,8 +10,8 @@
    - **AgentModel.refresh()** did `RefreshState()`, `loadRecentActivity()`, `loadMemoryInfo()` every 2s.  
    Result: UI blocked every 2s on disk I/O and tmux/git subprocesses.
 
-2. **Startup blocking**  
-   `runHome` builds workspace list synchronously: for each workspace it runs `LoadState()` + `RefreshState()` before starting the TUI. With multiple workspaces, the TUI appears only after all are loaded.
+2. **Startup blocking** (fixed in #323)  
+   Previously: `runHome` built the workspace list synchronously (LoadState + RefreshState per workspace) before starting the TUI. Now the TUI starts immediately with a “Loading workspaces…” state and loads workspace info in a goroutine; when done, a `WorkspacesLoadedMsg` updates the model. Time-to-first-frame is minimal (registry load + first paint only).
 
 3. **captureLiveTask**  
    `RefreshState()` calls `captureLiveTask(name)` for every running agent, each doing `tmux.Capture(name, 15)`. With several agents this is multiple tmux invocations per refresh.
@@ -39,6 +39,14 @@
    - **Agent**: `NewAgentModel` no longer calls `loadRecentActivity()` / `loadMemoryInfo()`; `ensureHeavyDataLoaded()` runs on first `View()`.  
    - **Channel**: `store.Load()` is deferred from home drill-down to first `ChannelModel.View()`; first paint loads store and refreshes channel.  
    Effect: Opening a workspace shows Agents tab immediately; heavy data loads when user switches to that tab or screen.
+
+## Time-to-first-frame (#323)
+
+With non-blocking startup, time-to-first-frame is the time until the first `View()` is rendered (registry load + first paint). No per-workspace I/O runs before the TUI is shown. Measure with:
+
+```bash
+go test -bench=BenchmarkHomeView_AsyncLoadFirstFrame -benchmem ./internal/tui/...
+```
 
 ## Possible follow-ups
 
