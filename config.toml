@@ -16,7 +16,7 @@ max_workers = 3                # Maximum number of worker agents
 # Then bc send and Enter will work; agents run non-interactively with all permissions.
 [agent]
 command = "cursor-agent --force --print"
-coordinator_name = "coordinator"                    # Name for the coordinator agent
+coordinator_name = "root"                           # Name for the coordinator agent
 worker_prefix = "worker"                           # Prefix for worker agent names
 
 # Tmux settings
