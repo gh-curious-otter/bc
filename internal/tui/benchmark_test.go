@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
+
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/beads"
 	"github.com/rpuneet/bc/pkg/channel"
@@ -46,6 +48,26 @@ func BenchmarkHomeView_WithWorkspaces(b *testing.B) {
 // async workspace load (#323): TUI shows "Loading workspaces..." immediately.
 func BenchmarkHomeView_AsyncLoadFirstFrame(b *testing.B) {
 	m := NewHomeModel(nil, 5, true)
+	m.width = 120
+	m.height = 40
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = m.View()
+	}
+}
+
+// BenchmarkHomeView_WorkspaceLoading measures the drill-down loading state:
+// user pressed Enter on a workspace; spinner and "Loading workspace…" are shown.
+func BenchmarkHomeView_WorkspaceLoading(b *testing.B) {
+	m := newTestHomeModel()
+	m.screen = ScreenWorkspace
+	m.wsModel = nil
+	m.workspaceLoading = true
+	m.pendingWorkspaceName = "project-a"
+	m.loadingSpinner = spinner.New(
+		spinner.WithSpinner(spinner.Dot),
+		spinner.WithStyle(m.styles.Muted),
+	)
 	m.width = 120
 	m.height = 40
 	b.ResetTimer()
