@@ -53,6 +53,8 @@ type ChannelModel struct {
 	autocompleteType AutocompleteType
 	sendMode         bool
 	reactionMode     bool // Show reaction picker for selected message
+	// storeLoaded: defer store.Load() until first View (#324).
+	storeLoaded bool
 }
 
 // NewChannelModel creates a channel detail view.
@@ -643,6 +645,14 @@ func (m *ChannelModel) visibleMsgCount() int {
 
 // View renders the channel detail screen.
 func (m *ChannelModel) View() string {
+	// Defer store load until first paint (#324).
+	if !m.storeLoaded {
+		if m.store != nil {
+			m.reloadChannel()
+		}
+		m.storeLoaded = true
+	}
+
 	var b strings.Builder
 
 	// Calculate widths

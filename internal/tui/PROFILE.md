@@ -34,6 +34,12 @@
 2. **Documentation**  
    This file records root causes and the above fixes for future profiling work.
 
+3. **Per-screen lazy-load (#324 / epic #322)**  
+   - **Workspace**: `NewWorkspaceModel` loads only manager + agents. Issues, channels, queue, events, stats load on first focus of each tab via `ensureTabDataLoaded(tab)` in `View()`. Stats bar shows zeros until Issues or Dashboard is loaded; full reload on 'r' sets all flags.  
+   - **Agent**: `NewAgentModel` no longer calls `loadRecentActivity()` / `loadMemoryInfo()`; `ensureHeavyDataLoaded()` runs on first `View()`.  
+   - **Channel**: `store.Load()` is deferred from home drill-down to first `ChannelModel.View()`; first paint loads store and refreshes channel.  
+   Effect: Opening a workspace shows Agents tab immediately; heavy data loads when user switches to that tab or screen.
+
 ## Possible follow-ups
 
 - **Startup**: Show TUI immediately with “Loading…” and load workspaces in a goroutine, then send an update message (e.g. `WorkspacesLoaded`).

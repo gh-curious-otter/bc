@@ -300,7 +300,7 @@ func (m *HomeModel) handleWorkspaceKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case ActionDrillChannel:
 			if ch, ok := action.Data.(*channel.Channel); ok {
 				store := channel.NewStore(m.wsModel.info.Entry.Path)
-				_ = store.Load()
+				// Defer store.Load() until first channel View (#324).
 				m.channelModel = NewChannelModel(ch, store, m.wsModel.manager, m.wsModel.info.Entry.Path, m.styles)
 				m.channelModel.width = m.width
 				m.channelModel.height = m.height
