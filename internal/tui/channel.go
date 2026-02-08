@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -275,7 +276,22 @@ func (m *ChannelModel) View() string {
 			msgWidth = 30
 		}
 
-		for i, entry := range m.channel.History[start:end] {
+		var lastDate time.Time
+		visibleHistory := m.channel.History[start:end]
+		for i, entry := range visibleHistory {
+			// Add date separator if this is a new day
+			if i == 0 || !isSameDay(entry.Time, lastDate) {
+				if i > 0 {
+					b.WriteString("\n")
+				}
+				dateSep := formatDateSeparator(entry.Time)
+				sepLine := fmt.Sprintf("── %s ──", dateSep)
+				b.WriteString("  ")
+				b.WriteString(m.styles.Muted.Render(sepLine))
+				b.WriteString("\n")
+			}
+			lastDate = entry.Time
+
 			if i > 0 {
 				b.WriteString("\n")
 			}
@@ -284,12 +300,12 @@ func (m *ChannelModel) View() string {
 			msgType := channel.InferMessageType(entry.Message)
 			msgTypeStr := string(msgType)
 
-			// Sender and timestamp line
+			// Sender and timestamp line with relative time
 			sender := entry.Sender
 			if sender == "" {
 				sender = "system"
 			}
-			ts := entry.Time.Format("15:04:05")
+			relTime := formatRelativeTime(entry.Time)
 			b.WriteString("  ")
 
 			// Add message type icon if not a regular text message
@@ -300,7 +316,7 @@ func (m *ChannelModel) View() string {
 
 			b.WriteString(m.styles.Info.Render(sender))
 			b.WriteString("  ")
-			b.WriteString(m.styles.Muted.Render(ts))
+			b.WriteString(m.styles.Muted.Render(relTime))
 			b.WriteString("\n")
 
 			// Message content — wrap long lines with type-specific styling
@@ -337,24 +353,35 @@ func (m *ChannelModel) View() string {
 		if len(m.channel.History) > 20 {
 			start = len(m.channel.History) - 20
 		}
-		for i, entry := range m.channel.History[start:] {
+		var lastDate time.Time
+		recentHistory := m.channel.History[start:]
+		for i, entry := range recentHistory {
+			// Add date separator if this is a new day
+			if i == 0 || !isSameDay(entry.Time, lastDate) {
+				dateSep := formatDateSeparator(entry.Time)
+				b.WriteString(m.styles.Muted.Render(fmt.Sprintf("  ─── %s ───", dateSep)))
+				b.WriteString("\n")
+			}
+			lastDate = entry.Time
+
 			selected := i == m.cursor
 
 			// Infer message type for styling
 			msgType := channel.InferMessageType(entry.Message)
 			msgTypeStr := string(msgType)
 			icon := m.styles.MessageTypeIcon(msgTypeStr)
+			relTime := formatRelativeTime(entry.Time)
 
 			var line string
 			if entry.Sender != "" {
-				line = fmt.Sprintf("  %s%s  [%s] %s", icon, entry.Time.Format("15:04:05"), entry.Sender, entry.Message)
+				line = fmt.Sprintf("  %s%s  [%s] %s", icon, relTime, entry.Sender, entry.Message)
 			} else {
-				line = fmt.Sprintf("  %s%s  %s", icon, entry.Time.Format("15:04:05"), entry.Message)
+				line = fmt.Sprintf("  %s%s  %s", icon, relTime, entry.Message)
 			}
 			if selected {
 				b.WriteString(m.styles.Selected.Render(line))
 			} else {
-				ts := m.styles.Muted.Render(entry.Time.Format("15:04:05"))
+				ts := m.styles.Muted.Render(relTime)
 				msgStyle := m.styles.MessageTypeStyle(msgTypeStr)
 				msg := msgStyle.Render(entry.Message)
 				if entry.Sender != "" {
@@ -406,4 +433,56 @@ func wrapText(text string, width int) []string {
 		lines = append(lines, text)
 	}
 	return lines
+}
+
+// formatRelativeTime returns a human-readable relative time string.
+// For times within the last hour, shows minutes (e.g., "5m ago").
+// For times within the last day, shows hours (e.g., "3h ago").
+// For older times, shows the absolute time (e.g., "15:04").
+func formatRelativeTime(t time.Time) string {
+	return formatRelativeTimeFrom(t, time.Now())
+}
+
+// formatRelativeTimeFrom returns a relative time string compared to a reference time.
+// This is useful for testing with a fixed reference time.
+func formatRelativeTimeFrom(t, now time.Time) string {
+	diff := now.Sub(t)
+
+	switch {
+	case diff < time.Minute:
+		return "now"
+	case diff < time.Hour:
+		mins := int(diff.Minutes())
+		return fmt.Sprintf("%dm ago", mins)
+	case diff < 24*time.Hour:
+		hours := int(diff.Hours())
+		return fmt.Sprintf("%dh ago", hours)
+	case diff < 48*time.Hour:
+		return "yesterday " + t.Format("15:04")
+	default:
+		return t.Format("Jan 2 15:04")
+	}
+}
+
+// isSameDay returns true if two times are on the same calendar day.
+func isSameDay(t1, t2 time.Time) bool {
+	y1, m1, d1 := t1.Date()
+	y2, m2, d2 := t2.Date()
+	return y1 == y2 && m1 == m2 && d1 == d2
+}
+
+// formatDateSeparator returns a formatted date separator string.
+func formatDateSeparator(t time.Time) string {
+	return formatDateSeparatorFrom(t, time.Now())
+}
+
+// formatDateSeparatorFrom returns a formatted date separator compared to a reference time.
+func formatDateSeparatorFrom(t, now time.Time) string {
+	if isSameDay(t, now) {
+		return "Today"
+	}
+	if isSameDay(t, now.AddDate(0, 0, -1)) {
+		return "Yesterday"
+	}
+	return t.Format("Monday, Jan 2, 2006")
 }
