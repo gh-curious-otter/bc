@@ -105,10 +105,10 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case TickMsg:
 		if m.wsModel != nil {
-			m.wsModel.refresh()
+			m.wsModel.refreshLight()
 		}
 		if m.agentModel != nil {
-			m.agentModel.refresh()
+			m.agentModel.refreshLight()
 		}
 		return m, tickCmd()
 

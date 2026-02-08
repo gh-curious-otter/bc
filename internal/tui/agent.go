@@ -120,7 +120,8 @@ func (m *AgentModel) handleSendKey(msg tea.KeyMsg) Action {
 	return NoAction
 }
 
-// refresh reloads the agent's state data from the manager.
+// refresh performs a full reload: manager state, recent activity, memory info.
+// Used on explicit 'r' key. See refreshLight for the lightweight tick path.
 func (m *AgentModel) refresh() {
 	_ = m.manager.RefreshState()
 	if a := m.manager.GetAgent(m.agent.Name); a != nil {
@@ -128,6 +129,15 @@ func (m *AgentModel) refresh() {
 	}
 	m.loadRecentActivity()
 	m.loadMemoryInfo()
+}
+
+// refreshLight updates only the in-memory agent from the manager; no file I/O.
+// Used on tick so the TUI stays responsive. Full data remains until user presses 'r'.
+func (m *AgentModel) refreshLight() {
+	_ = m.manager.RefreshState()
+	if a := m.manager.GetAgent(m.agent.Name); a != nil {
+		m.agent = a
+	}
 }
 
 func (m *AgentModel) loadMemoryInfo() {

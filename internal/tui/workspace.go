@@ -210,6 +210,8 @@ func (m *WorkspaceModel) HandleKey(msg tea.KeyMsg) Action {
 	return NoAction
 }
 
+// refresh performs a full reload: agent state, issues, channels, queue, events, stats.
+// Used on explicit 'r' key. See refreshLight for the lightweight tick path.
 func (m *WorkspaceModel) refresh() {
 	_ = m.manager.RefreshState()
 	m.agents = m.manager.ListAgents()
@@ -220,6 +222,16 @@ func (m *WorkspaceModel) refresh() {
 	m.loadRecentEvents()
 	m.computeStats()
 	m.loadPkgStats()
+	m.clampCursor()
+	m.ensureCursorVisible()
+}
+
+// refreshLight updates only agent state and derived stats; no file I/O.
+// Used on tick so the TUI stays responsive. Full data remains until user presses 'r'.
+func (m *WorkspaceModel) refreshLight() {
+	_ = m.manager.RefreshState()
+	m.agents = m.manager.ListAgents()
+	m.computeStats()
 	m.clampCursor()
 	m.ensureCursorVisible()
 }
