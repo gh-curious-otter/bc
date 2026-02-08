@@ -12,6 +12,9 @@ import (
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
+// Ensure WorkspacesLoadedMsg is a tea.Msg (compile-time check).
+var _ tea.Msg = WorkspacesLoadedMsg{}
+
 func newTestHomeModel() *HomeModel {
 	return &HomeModel{
 		screen: ScreenHome,
@@ -84,6 +87,15 @@ func TestHomeModel_WorkspacesLoadedMsg(t *testing.T) {
 	}
 	if len(m.workspaces) != 1 || m.workspaces[0].Entry.Name != "a" {
 		t.Errorf("workspaces not updated: %+v", m.workspaces)
+	}
+}
+
+func TestRenderHomeScreen_Loading(t *testing.T) {
+	m := NewHomeModel(nil, 0, true)
+	m.screen = ScreenHome
+	out := m.renderHomeScreen()
+	if !strings.Contains(out, "Loading") {
+		t.Errorf("expected Loading in output when loadingWorkspaces=true, got: %s", out)
 	}
 }
 
