@@ -27,6 +27,10 @@ type Theme struct {
 	HeaderBg    lipgloss.Color
 	StatusBarBg lipgloss.Color
 
+	// Message bubble colors (own vs others in channel chatroom)
+	MessageBubbleOwnBg    lipgloss.Color // Current user's messages
+	MessageBubbleOthersBg lipgloss.Color // Other users' messages
+
 	// Agent role colors
 	RoleCoordinator lipgloss.Color
 	RoleEngineer    lipgloss.Color
@@ -79,6 +83,10 @@ func DarkTheme() Theme {
 		HeaderBg:    lipgloss.Color("#1C2028"),
 		StatusBarBg: lipgloss.Color("#1C2028"),
 
+		// Message bubbles: own = accent tint, others = header-like
+		MessageBubbleOwnBg:    lipgloss.Color("#252A33"), // Slightly lighter than header, distinct
+		MessageBubbleOthersBg: lipgloss.Color("#1C2028"), // Same as HeaderBg for consistency
+
 		// Agent roles (muted/pastel for dark theme)
 		RoleCoordinator: lipgloss.Color("#6B9FD4"), // Blue
 		RoleEngineer:    lipgloss.Color("#7BC96F"), // Green
@@ -113,6 +121,10 @@ func LightTheme() Theme {
 		HeaderBg:    lipgloss.Color("#E8E9EB"),
 		StatusBarBg: lipgloss.Color("#E8E9EB"),
 
+		// Message bubbles: own = soft accent tint, others = header-like
+		MessageBubbleOwnBg:    lipgloss.Color("#E8EEF4"), // Soft blue tint for own
+		MessageBubbleOthersBg: lipgloss.Color("#E8E9EB"), // Same as HeaderBg
+
 		// Agent roles (saturated for light theme)
 		RoleCoordinator: lipgloss.Color("#2563EB"), // Blue
 		RoleEngineer:    lipgloss.Color("#16A34A"), // Green
@@ -146,6 +158,10 @@ func HighContrastTheme() Theme {
 		Selection:   lipgloss.Color("#0000FF"),
 		HeaderBg:    lipgloss.Color("#333333"),
 		StatusBarBg: lipgloss.Color("#333333"),
+
+		// Message bubbles: own = distinct block, others = header-like
+		MessageBubbleOwnBg:    lipgloss.Color("#1A1A2E"), // Darker block for own
+		MessageBubbleOthersBg: lipgloss.Color("#333333"), // Same as HeaderBg
 
 		// Agent roles (high contrast, distinct colors)
 		RoleCoordinator: lipgloss.Color("#00BFFF"), // Blue
@@ -204,8 +220,10 @@ type Styles struct {
 	// Reaction style for emoji reactions on messages
 	Reaction lipgloss.Style
 
-	// Message bubble style (subtle background tint)
-	MessageBubble lipgloss.Style
+	// Message bubble styles for channel chatroom (theme-aware)
+	MessageBubble       lipgloss.Style // Generic; prefer MessageBubbleOwn/Others
+	MessageBubbleOwn    lipgloss.Style // Current user's messages (distinct styling)
+	MessageBubbleOthers lipgloss.Style // Other users' messages
 
 	theme Theme
 }
@@ -281,10 +299,20 @@ func NewStyles(theme Theme) Styles {
 		Reaction: lipgloss.NewStyle().
 			Foreground(theme.Muted),
 
-		// Message bubble with subtle background tint (not heavy borders)
+		// Message bubbles: own vs others with proper spacing and theme support
 		MessageBubble: lipgloss.NewStyle().
 			Background(theme.HeaderBg).
 			Padding(0, 1),
+
+		MessageBubbleOwn: lipgloss.NewStyle().
+			Background(theme.MessageBubbleOwnBg).
+			Padding(0, 1).
+			MarginBottom(1),
+
+		MessageBubbleOthers: lipgloss.NewStyle().
+			Background(theme.MessageBubbleOthersBg).
+			Padding(0, 1).
+			MarginBottom(1),
 	}
 }
 

@@ -782,7 +782,7 @@ func (m *ChannelModel) View() string {
 				b.WriteString("\n")
 			}
 
-			// Message content with subtle background — wrap long lines with highlighting
+			// Message content: wrap long lines with highlighting
 			msgStyle := m.styles.MessageTypeStyle(msgTypeStr)
 			lines := wrapText(entry.Message, msgWidth-4)
 			var content strings.Builder
@@ -794,8 +794,16 @@ func (m *ChannelModel) View() string {
 				content.WriteString(highlightedLine)
 			}
 
-			// Render message with subtle background bubble
-			bubble := m.styles.MessageBubble.Width(msgWidth).Inherit(msgStyle).Render(content.String())
+			// Distinct bubble styling for own vs others (theme-aware)
+			currentAgent := os.Getenv("BC_AGENT_ID")
+			isOwn := currentAgent != "" && entry.Sender == currentAgent
+			var bubbleStyle lipgloss.Style
+			if isOwn {
+				bubbleStyle = m.styles.MessageBubbleOwn.Width(msgWidth).Inherit(msgStyle)
+			} else {
+				bubbleStyle = m.styles.MessageBubbleOthers.Width(msgWidth).Inherit(msgStyle)
+			}
+			bubble := bubbleStyle.Render(content.String())
 			for _, line := range strings.Split(bubble, "\n") {
 				b.WriteString("  ")
 				b.WriteString(line)

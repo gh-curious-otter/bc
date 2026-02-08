@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -774,5 +775,32 @@ func TestChannelView_MessageBubbleRendering(t *testing.T) {
 	// Verify sender is rendered
 	if !strings.Contains(output, "engineer-01") {
 		t.Error("expected sender name in output")
+	}
+}
+
+func TestChannelView_OwnVsOthersBubbleStyling(t *testing.T) {
+	// Set current agent so we have both "own" and "others" messages
+	prevAgent := os.Getenv("BC_AGENT_ID")
+	defer func() { _ = os.Setenv("BC_AGENT_ID", prevAgent) }()
+	_ = os.Setenv("BC_AGENT_ID", "engineer-02")
+
+	m := newTestChannelModel()
+	m.channel.History = []channel.HistoryEntry{
+		{Sender: "engineer-02", Message: "my message", Time: time.Now().Add(-2 * time.Minute)},
+		{Sender: "engineer-01", Message: "their message", Time: time.Now()},
+	}
+
+	output := m.View()
+
+	// Both messages must appear with bubble layout (content visible)
+	if !strings.Contains(output, "my message") {
+		t.Error("expected own message content in output")
+	}
+	if !strings.Contains(output, "their message") {
+		t.Error("expected others message content in output")
+	}
+	// Senders visible
+	if !strings.Contains(output, "engineer-02") || !strings.Contains(output, "engineer-01") {
+		t.Error("expected both senders in output")
 	}
 }

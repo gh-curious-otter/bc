@@ -348,8 +348,43 @@ func TestMessageBubbleStyle(t *testing.T) {
 	if rendered == "" {
 		t.Error("MessageBubble style should render text")
 	}
-	// Verify it contains the message content
 	if !strings.Contains(rendered, "test message") {
 		t.Errorf("MessageBubble should contain message, got: %s", rendered)
+	}
+
+	// MessageBubbleOwn and MessageBubbleOthers both render and are theme-aware
+	ownRendered := styles.MessageBubbleOwn.Render("own message")
+	othersRendered := styles.MessageBubbleOthers.Render("others message")
+	if ownRendered == "" || othersRendered == "" {
+		t.Error("MessageBubbleOwn and MessageBubbleOthers should render")
+	}
+	if !strings.Contains(ownRendered, "own message") || !strings.Contains(othersRendered, "others message") {
+		t.Error("own/others bubble styles should contain message content")
+	}
+}
+
+func TestMessageBubbleThemeSupport(t *testing.T) {
+	// All themes must define message bubble colors for own vs others
+	themes := []struct {
+		name  string
+		theme Theme
+	}{
+		{"dark", DarkTheme()},
+		{"light", LightTheme()},
+		{"high-contrast", HighContrastTheme()},
+	}
+	for _, tt := range themes {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.theme.MessageBubbleOwnBg == "" {
+				t.Error("theme must set MessageBubbleOwnBg")
+			}
+			if tt.theme.MessageBubbleOthersBg == "" {
+				t.Error("theme must set MessageBubbleOthersBg")
+			}
+			styles := NewStyles(tt.theme)
+			// Both styles should render without panic
+			_ = styles.MessageBubbleOwn.Render("test")
+			_ = styles.MessageBubbleOthers.Render("test")
+		})
 	}
 }
