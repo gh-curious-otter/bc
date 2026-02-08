@@ -135,6 +135,31 @@ func (m *ChannelModel) HandleKey(msg tea.KeyMsg) Action {
 	return NoAction
 }
 
+// HandleMouse processes a mouse event (e.g. wheel). Used when channel screen is active.
+// Wheel up = scroll toward older messages; wheel down = toward newer.
+func (m *ChannelModel) HandleMouse(msg tea.MouseMsg) {
+	if m.sendMode || m.reactionMode {
+		return
+	}
+	switch msg.Button {
+	case tea.MouseButtonWheelUp:
+		// See older messages
+		maxScroll := len(m.channel.History) - m.visibleMsgCount()
+		if maxScroll < 0 {
+			maxScroll = 0
+		}
+		if m.scroll < maxScroll {
+			m.scroll++
+		}
+	case tea.MouseButtonWheelDown:
+		// See newer messages
+		if m.scroll > 0 {
+			m.scroll--
+		}
+	}
+	m.clampScroll()
+}
+
 // visibleCount returns the number of messages currently displayed.
 func (m *ChannelModel) visibleCount() int {
 	n := len(m.channel.History)
@@ -570,6 +595,22 @@ func (m *ChannelModel) reloadChannel() {
 	if ch, ok := m.store.Get(m.channel.Name); ok {
 		m.channel = ch
 	}
+	m.clampScroll()
+}
+
+// clampScroll keeps scroll in [0, maxScroll] so the view never shows invalid range.
+// Call after reload, resize, or any change that can make scroll out of bounds.
+func (m *ChannelModel) clampScroll() {
+	maxScroll := len(m.channel.History) - m.visibleMsgCount()
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if m.scroll > maxScroll {
+		m.scroll = maxScroll
+	}
+	if m.scroll < 0 {
+		m.scroll = 0
+	}
 }
 
 // visibleMsgCount returns how many messages fit in the visible area.
@@ -697,6 +738,7 @@ func (m *ChannelModel) View() string {
 		b.WriteString(m.styles.Muted.Render("  No messages yet. Press 's' to send a message."))
 		b.WriteString("\n")
 	} else {
+		m.clampScroll()
 		visible := m.visibleMsgCount()
 		total := len(m.channel.History)
 
