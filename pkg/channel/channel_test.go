@@ -617,3 +617,94 @@ func TestListStableOrdering(t *testing.T) {
 		}
 	}
 }
+
+// --- Description ---
+
+func TestSetDescription(t *testing.T) {
+	s := newTestStore(t)
+
+	if _, err := s.Create("general"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.SetDescription("general", "Main discussion channel"); err != nil {
+		t.Fatalf("SetDescription: unexpected error: %v", err)
+	}
+
+	ch, ok := s.Get("general")
+	if !ok {
+		t.Fatal("Get: channel not found")
+	}
+	if ch.Description != "Main discussion channel" {
+		t.Errorf("Description = %q, want %q", ch.Description, "Main discussion channel")
+	}
+}
+
+func TestSetDescriptionNotFound(t *testing.T) {
+	s := newTestStore(t)
+
+	err := s.SetDescription("nonexistent", "test")
+	if err == nil {
+		t.Fatal("SetDescription: expected error for nonexistent channel")
+	}
+}
+
+func TestGetDescription(t *testing.T) {
+	s := newTestStore(t)
+
+	if _, err := s.Create("general"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetDescription("general", "Team channel"); err != nil {
+		t.Fatal(err)
+	}
+
+	desc, err := s.GetDescription("general")
+	if err != nil {
+		t.Fatalf("GetDescription: unexpected error: %v", err)
+	}
+	if desc != "Team channel" {
+		t.Errorf("GetDescription = %q, want %q", desc, "Team channel")
+	}
+}
+
+func TestGetDescriptionNotFound(t *testing.T) {
+	s := newTestStore(t)
+
+	_, err := s.GetDescription("nonexistent")
+	if err == nil {
+		t.Fatal("GetDescription: expected error for nonexistent channel")
+	}
+}
+
+func TestDescriptionPersistence(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create store, set description, save
+	s1 := NewStore(dir)
+	if _, err := s1.Create("general"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s1.SetDescription("general", "Persisted description"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s1.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create new store, load, verify description persisted
+	s2 := NewStore(dir)
+	if err := s2.Load(); err != nil {
+		t.Fatal(err)
+	}
+	ch, ok := s2.Get("general")
+	if !ok {
+		t.Fatal("Get: channel not found after reload")
+	}
+	if ch.Description != "Persisted description" {
+		t.Errorf("Description after reload = %q, want %q", ch.Description, "Persisted description")
+	}
+}

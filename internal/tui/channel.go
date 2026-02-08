@@ -226,22 +226,59 @@ func (m *ChannelModel) visibleMsgCount() int {
 func (m *ChannelModel) View() string {
 	var b strings.Builder
 
-	// Channel header
-	b.WriteString(m.styles.Title.Render("#" + m.channel.Name))
-
-	// Inline members
-	if len(m.channel.Members) > 0 {
-		memberList := strings.Join(m.channel.Members, ", ")
-		b.WriteString("  ")
-		b.WriteString(m.styles.Muted.Render(fmt.Sprintf("(%d members: %s)", len(m.channel.Members), memberList)))
-	}
-	b.WriteString("\n")
-
-	// Divider
+	// Calculate widths
 	divWidth := m.width - 2
 	if divWidth < 20 {
 		divWidth = 20
 	}
+
+	// ═══════════════════════════════════════════════════════════════════════
+	// CHANNEL HEADER
+	// ═══════════════════════════════════════════════════════════════════════
+
+	// Channel name prominently displayed
+	b.WriteString(m.styles.Title.Render("  # " + m.channel.Name))
+	b.WriteString("\n")
+
+	// Description/topic (if set)
+	if m.channel.Description != "" {
+		b.WriteString(m.styles.Muted.Render("  " + m.channel.Description))
+		b.WriteString("\n")
+	}
+
+	// Member count with online/active indicators
+	totalMembers := len(m.channel.Members)
+	activeCount := 0
+	if m.manager != nil {
+		for _, member := range m.channel.Members {
+			if a := m.manager.GetAgent(member); a != nil && a.State != agent.StateStopped {
+				activeCount++
+			}
+		}
+	}
+
+	// Member stats line
+	b.WriteString("  ")
+	if activeCount > 0 {
+		b.WriteString(m.styles.Success.Render(fmt.Sprintf("● %d online", activeCount)))
+		b.WriteString(m.styles.Muted.Render(fmt.Sprintf(" / %d members", totalMembers)))
+	} else {
+		b.WriteString(m.styles.Muted.Render(fmt.Sprintf("○ %d members", totalMembers)))
+	}
+
+	// Quick actions hint
+	b.WriteString(m.styles.Muted.Render("  │  "))
+	b.WriteString(m.styles.Info.Render("[s]"))
+	b.WriteString(m.styles.Muted.Render("end  "))
+	b.WriteString(m.styles.Info.Render("[r]"))
+	b.WriteString(m.styles.Muted.Render("efresh  "))
+	b.WriteString(m.styles.Info.Render("[i]"))
+	b.WriteString(m.styles.Muted.Render("ssue  "))
+	b.WriteString(m.styles.Info.Render("[esc]"))
+	b.WriteString(m.styles.Muted.Render("back"))
+	b.WriteString("\n")
+
+	// Header divider
 	b.WriteString(m.styles.Muted.Render("  " + strings.Repeat("─", divWidth)))
 	b.WriteString("\n")
 
@@ -355,13 +392,12 @@ func (m *ChannelModel) View() string {
 		prompt := m.styles.Info.Render("  > ")
 		b.WriteString(prompt)
 		b.WriteString(m.styles.Normal.Render(m.input))
-		b.WriteString(m.styles.Muted.Render("_"))
+		b.WriteString(m.styles.Muted.Render("█"))
+		b.WriteString("  ")
+		b.WriteString(m.styles.Muted.Render("Enter to send • Esc to cancel"))
 		b.WriteString("\n")
 	} else if m.sendMsg != "" {
-		b.WriteString(m.styles.Success.Render("  " + m.sendMsg))
-		b.WriteString("\n")
-	} else {
-		b.WriteString(m.styles.Muted.Render("  [s]end  [j/k]scroll  [r]efresh  [esc]back"))
+		b.WriteString(m.styles.Success.Render("  ✓ " + m.sendMsg))
 		b.WriteString("\n")
 	}
 
