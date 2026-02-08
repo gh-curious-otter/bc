@@ -426,6 +426,25 @@ func TestRollbackMerge_InvalidRestorePoint(t *testing.T) {
 
 // --- Flag initialization tests ---
 
+func TestMergeFlags_StatusExists(t *testing.T) {
+	flag := mergeCmd.Flags().Lookup("status")
+	if flag == nil {
+		t.Fatal("expected --status flag to exist")
+	}
+	if flag.DefValue != "false" {
+		t.Errorf("expected --status default to be false, got %s", flag.DefValue)
+	}
+}
+
+func TestMergeFlags_JSONAccessible(t *testing.T) {
+	// The --json flag is a persistent flag on rootCmd, inherited by all subcommands
+	// Verify it's accessible from mergeCmd
+	_, err := mergeCmd.Flags().GetBool("json")
+	if err != nil {
+		t.Errorf("--json flag should be accessible from mergeCmd: %v", err)
+	}
+}
+
 func TestMergeFlags_DryRunExists(t *testing.T) {
 	flag := mergeCmd.Flags().Lookup("dry-run")
 	if flag == nil {

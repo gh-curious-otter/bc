@@ -68,6 +68,7 @@ func init() {
 	mergeCmd.Flags().BoolVar(&mergeRebase, "rebase", false, "Rebase branch onto main before merging")
 	mergeCmd.Flags().BoolVar(&mergeNoRebase, "no-rebase", false, "Skip auto-rebase even if branch is stale")
 	mergeCmd.Flags().BoolVar(&mergeStatus, "status", false, "Show merge queue status")
+	mergeCmd.Flags().Bool("json", false, "Output status as JSON (with --status)")
 	rootCmd.AddCommand(mergeCmd)
 }
 
