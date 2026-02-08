@@ -12,10 +12,10 @@ state_dir = ".bc"              # Directory for bc state (relative to project roo
 max_workers = 3                # Maximum number of worker agents
 
 # Agent settings
-# For Cursor Agent: use --force (no confirmations) and --print (headless, full tool access like Claude Code).
-# Then bc send and Enter will work; agents run non-interactively with all permissions.
+# For Cursor Agent: use --force (skip confirmations, like claude --dangerously-skip-permissions).
+# Omit --print in tmux so the session stays interactive; --print can cause issues in tmux.
 [agent]
-command = "cursor-agent --force --print"
+command = "cursor-agent --force"
 coordinator_name = "root"                           # Name for the coordinator agent
 worker_prefix = "worker"                           # Prefix for worker agent names
 
@@ -35,20 +35,16 @@ warn_threshold = 10.0          # Warn when session cost exceeds this (USD)
 limit = 100.0                  # Hard limit per session (USD), 0 = no limit
 
 # Supported agent types (for future use)
+# Default: cursor-agent with --force (skip permissions like claude --dangerously-skip-permissions). No --print in tmux.
 [[agents]]
-name = "claude"
-command = "claude --dangerously-skip-permissions"
-description = "Anthropic Claude Code"
+name = "cursor-agent"
+command = "cursor-agent --force"
+description = "Cursor Agent (default, skip permissions, for tmux)"
 
 [[agents]]
 name = "cursor"
 command = "cursor-agent --force"
 description = "Cursor Agent (all permissions)"
-
-[[agents]]
-name = "cursor-agent"
-command = "cursor-agent --force --print"
-description = "Cursor Agent (headless, all permissions, stdin/Enter submits)"
 
 [[agents]]
 name = "codex"
