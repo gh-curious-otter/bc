@@ -286,7 +286,7 @@ func runAgentList(cmd *cobra.Command, args []string) error {
 		if roleErr != nil {
 			return roleErr
 		}
-		filtered := make([]*agent.Agent, 0)
+		filtered := make([]*agent.Agent, 0, len(agents))
 		for _, a := range agents {
 			if a.Role == filterRole {
 				filtered = append(filtered, a)
