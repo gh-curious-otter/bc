@@ -98,6 +98,33 @@ func TestRenderHeader_ChannelScreen(t *testing.T) {
 	}
 }
 
+func TestRenderHeader_BreadcrumbFormat(t *testing.T) {
+	m := newTestHomeModel()
+	m.screen = ScreenHome
+
+	output := m.renderHeader()
+	// Breadcrumb should contain separator
+	if !strings.Contains(output, ">") {
+		t.Errorf("expected breadcrumb separator '>' in header, got: %s", output)
+	}
+}
+
+func TestRenderHeader_AgentWithWorkspace(t *testing.T) {
+	m := newTestHomeModel()
+	m.screen = ScreenAgent
+	m.wsModel = newTestModel()
+	m.agentModel = &AgentModel{
+		agent:  &agent.Agent{Name: "engineer-01"},
+		styles: m.styles,
+	}
+
+	output := m.renderHeader()
+	// Should show both workspace and agent in breadcrumb
+	if !strings.Contains(output, "engineer-01") {
+		t.Errorf("expected agent name in header, got: %s", output)
+	}
+}
+
 // --- renderHomeScreen tests ---
 
 func TestRenderHomeScreen_WithWorkspaces(t *testing.T) {

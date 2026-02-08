@@ -399,32 +399,41 @@ func (m *HomeModel) View() string {
 }
 
 func (m *HomeModel) renderHeader() string {
-	title := m.styles.Header.Render("bc")
-	var screenLabel string
+	// Build breadcrumb navigation: bc > workspace > detail
+	parts := []string{m.styles.Header.Render("bc")}
+	sep := m.styles.Muted.Render(" > ")
+
 	switch m.screen {
 	case ScreenHome:
-		screenLabel = "home"
+		parts = append(parts, sep, m.styles.Info.Render("home"))
 	case ScreenWorkspace:
 		if m.wsModel != nil {
-			screenLabel = m.wsModel.info.Entry.Name
+			parts = append(parts, sep, m.styles.Info.Render(m.wsModel.info.Entry.Name))
 		}
 	case ScreenAgent:
+		if m.wsModel != nil {
+			parts = append(parts, sep, m.styles.Muted.Render(m.wsModel.info.Entry.Name))
+		}
 		if m.agentModel != nil {
-			screenLabel = m.agentModel.agent.Name
+			parts = append(parts, sep, m.styles.Info.Render(m.agentModel.agent.Name))
 		}
 	case ScreenChannel:
+		if m.wsModel != nil {
+			parts = append(parts, sep, m.styles.Muted.Render(m.wsModel.info.Entry.Name))
+		}
 		if m.channelModel != nil {
-			screenLabel = "#" + m.channelModel.channel.Name
+			parts = append(parts, sep, m.styles.Info.Render("#"+m.channelModel.channel.Name))
 		}
 	case ScreenIssue:
+		if m.wsModel != nil {
+			parts = append(parts, sep, m.styles.Muted.Render(m.wsModel.info.Entry.Name))
+		}
 		if m.issueModel != nil {
-			screenLabel = m.issueModel.issue.ID
+			parts = append(parts, sep, m.styles.Info.Render(m.issueModel.issue.ID))
 		}
 	}
-	if screenLabel != "" {
-		title += m.styles.Muted.Render(" [" + screenLabel + "]")
-	}
-	return title
+
+	return strings.Join(parts, "")
 }
 
 func (m *HomeModel) renderHomeScreen() string {
@@ -582,24 +591,38 @@ func (m *HomeModel) renderHelp() string {
 func (m *HomeModel) renderStatusBar() string {
 	var hints string
 	if m.helpActive {
-		hints = "?:close help | q:quit"
+		hints = "?:close help  q:quit"
 	} else {
 		switch m.screen {
 		case ScreenHome:
-			hints = "j/k:navigate | enter:open | r:refresh | ?:help | q:quit"
+			hints = "j/k:navigate  enter:open  r:refresh  ?:help  q:quit"
 		case ScreenWorkspace:
-			hints = "j/k:navigate | tab:switch tab | enter:details | ?:help | esc:back | q:quit"
+			// Add tab-specific hints
+			tabHint := ""
+			if m.wsModel != nil {
+				switch m.wsModel.tab {
+				case TabAgents:
+					tabHint = "  enter:view agent"
+				case TabIssues:
+					tabHint = "  enter:view issue"
+				case TabChannels:
+					tabHint = "  enter:join channel"
+				case TabQueue:
+					tabHint = "  f:filter"
+				}
+			}
+			hints = "j/k:navigate  tab:switch" + tabHint + "  ?:help  esc:back  q:quit"
 		case ScreenAgent:
-			hints = "p:peek | a:attach | s:send | r:refresh | ?:help | esc:back | q:quit"
+			hints = "p:peek output  a:attach  r:refresh  ?:help  esc:back  q:quit"
 		case ScreenChannel:
-			hints = "j/k:select msg | i:create issue | s:send | r:refresh | ?:help | esc:back | q:quit"
+			hints = "j/k:scroll  s:send  i:issue  r:refresh  ?:help  esc:back  q:quit"
 		case ScreenIssue:
-			hints = "?:help | esc:back | q:quit"
+			hints = "?:help  esc:back  q:quit"
 		}
 	}
 
 	if m.statusMsg != "" {
-		hints = m.statusMsg + "  |  " + hints
+		hints = m.styles.Success.Render(m.statusMsg) + "  " + hints
 	}
 
 	return m.styles.StatusBar.Width(m.width).Render(hints)
