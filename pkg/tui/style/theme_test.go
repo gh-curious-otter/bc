@@ -141,3 +141,29 @@ func TestStatusStyle(t *testing.T) {
 		})
 	}
 }
+
+func TestMessageBubbleStyle(t *testing.T) {
+	styles := DefaultStyles()
+
+	// Verify MessageBubble style renders with rounded borders
+	rendered := styles.MessageBubble.Render("test message")
+	if rendered == "" {
+		t.Error("MessageBubble style should render text")
+	}
+	// Check for rounded border characters
+	if !containsRoundedBorder(rendered) {
+		t.Error("MessageBubble should have rounded border")
+	}
+}
+
+func containsRoundedBorder(s string) bool {
+	// Check for any of the rounded border characters
+	for _, c := range []rune{'╭', '╮', '╰', '╯'} {
+		for _, r := range s {
+			if r == c {
+				return true
+			}
+		}
+	}
+	return false
+}

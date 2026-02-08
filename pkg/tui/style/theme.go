@@ -168,6 +168,9 @@ type Styles struct {
 	Selected  lipgloss.Style
 	Title     lipgloss.Style
 
+	// Message bubble styles
+	MessageBubble lipgloss.Style
+
 	theme Theme
 }
 
@@ -224,6 +227,12 @@ func NewStyles(theme Theme) Styles {
 		Title: lipgloss.NewStyle().
 			Foreground(theme.Primary).
 			Bold(true).
+			MarginBottom(1),
+
+		MessageBubble: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(theme.Border).
+			Padding(0, 1).
 			MarginBottom(1),
 	}
 }

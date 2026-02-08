@@ -360,3 +360,55 @@ func TestVisibleMsgCount(t *testing.T) {
 		t.Errorf("visibleMsgCount should be positive, got %d", count)
 	}
 }
+
+// --- Message grouping tests ---
+
+func TestChannelView_MessageGrouping(t *testing.T) {
+	m := newTestChannelModel()
+	now := time.Now()
+	// Consecutive messages from same sender
+	m.channel.History = []channel.HistoryEntry{
+		{Sender: "eng-01", Message: "first message", Time: now.Add(-5 * time.Minute)},
+		{Sender: "eng-01", Message: "second message", Time: now.Add(-4 * time.Minute)},
+		{Sender: "eng-02", Message: "different sender", Time: now.Add(-3 * time.Minute)},
+		{Sender: "eng-02", Message: "another from eng-02", Time: now.Add(-2 * time.Minute)},
+	}
+
+	output := m.View()
+
+	// Should contain all messages
+	if !strings.Contains(output, "first message") {
+		t.Errorf("expected 'first message', got: %s", output)
+	}
+	if !strings.Contains(output, "second message") {
+		t.Errorf("expected 'second message', got: %s", output)
+	}
+	if !strings.Contains(output, "different sender") {
+		t.Errorf("expected 'different sender', got: %s", output)
+	}
+
+	// Sender names should appear (for first message in each group)
+	if !strings.Contains(output, "eng-01") {
+		t.Errorf("expected 'eng-01', got: %s", output)
+	}
+	if !strings.Contains(output, "eng-02") {
+		t.Errorf("expected 'eng-02', got: %s", output)
+	}
+}
+
+func TestChannelView_MessageBubbleRendering(t *testing.T) {
+	m := newTestChannelModel()
+	m.channel.History = []channel.HistoryEntry{
+		{Sender: "eng-01", Message: "test bubble", Time: time.Now()},
+	}
+
+	output := m.View()
+
+	// Bubble should have rounded border characters
+	if !strings.Contains(output, "╭") || !strings.Contains(output, "╮") {
+		t.Errorf("expected rounded border characters in bubble, got: %s", output)
+	}
+	if !strings.Contains(output, "test bubble") {
+		t.Errorf("expected message content in bubble, got: %s", output)
+	}
+}

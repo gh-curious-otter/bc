@@ -275,28 +275,46 @@ func (m *ChannelModel) View() string {
 			msgWidth = 30
 		}
 
-		for i, entry := range m.channel.History[start:end] {
-			if i > 0 {
-				b.WriteString("\n")
-			}
-
-			// Sender and timestamp line
+		// Group consecutive messages from the same sender
+		messages := m.channel.History[start:end]
+		for i, entry := range messages {
 			sender := entry.Sender
 			if sender == "" {
 				sender = "system"
 			}
-			ts := entry.Time.Format("15:04:05")
-			b.WriteString("  ")
-			b.WriteString(m.styles.Info.Render(sender))
-			b.WriteString("  ")
-			b.WriteString(m.styles.Muted.Render(ts))
-			b.WriteString("\n")
 
-			// Message content — wrap long lines
-			lines := wrapText(entry.Message, msgWidth)
-			for _, line := range lines {
+			// Check if this is a continuation from the same sender
+			isGrouped := i > 0 && messages[i-1].Sender == entry.Sender
+
+			if !isGrouped {
+				// Add spacing between different senders
+				if i > 0 {
+					b.WriteString("\n")
+				}
+				// Sender and timestamp header
+				ts := entry.Time.Format("15:04:05")
 				b.WriteString("  ")
-				b.WriteString(m.styles.Normal.Render("  " + line))
+				b.WriteString(m.styles.Info.Render(sender))
+				b.WriteString("  ")
+				b.WriteString(m.styles.Muted.Render(ts))
+				b.WriteString("\n")
+			}
+
+			// Message content in bubble — wrap long lines
+			lines := wrapText(entry.Message, msgWidth-4)
+			var content strings.Builder
+			for j, line := range lines {
+				if j > 0 {
+					content.WriteString("\n")
+				}
+				content.WriteString(line)
+			}
+
+			// Render message bubble
+			bubble := m.styles.MessageBubble.Width(msgWidth).Render(content.String())
+			for _, line := range strings.Split(bubble, "\n") {
+				b.WriteString("  ")
+				b.WriteString(line)
 				b.WriteString("\n")
 			}
 		}
