@@ -196,6 +196,11 @@ type Styles struct {
 	Selected  lipgloss.Style
 	Title     lipgloss.Style
 
+	// Highlight styles for message content
+	Mention lipgloss.Style // @mentions
+	Channel lipgloss.Style // #channel references
+	Link    lipgloss.Style // GitHub issue/PR links
+
 	theme Theme
 }
 
@@ -253,6 +258,19 @@ func NewStyles(theme Theme) Styles {
 			Foreground(theme.Primary).
 			Bold(true).
 			MarginBottom(1),
+
+		// Highlight styles for message content
+		Mention: lipgloss.NewStyle().
+			Foreground(theme.Secondary).
+			Bold(true),
+
+		Channel: lipgloss.NewStyle().
+			Foreground(theme.Primary).
+			Bold(true),
+
+		Link: lipgloss.NewStyle().
+			Foreground(theme.Accent).
+			Underline(true),
 	}
 }
 
