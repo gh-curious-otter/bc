@@ -300,6 +300,22 @@ func TestHomeView_Regression_NoPanic(t *testing.T) {
 	_ = m2.View()
 }
 
+// TestHomeView_Regression_WorkspaceLoadingNoPanic ensures View() does not panic when workspace is loading (#311/#325).
+func TestHomeView_Regression_WorkspaceLoadingNoPanic(t *testing.T) {
+	m := newTestHomeModel()
+	m.screen = ScreenWorkspace
+	m.workspaceLoading = true
+	m.pendingWorkspaceName = "test-project"
+	m.wsModel = nil
+	out := m.View()
+	if out == "" {
+		t.Error("workspace loading view produced empty output")
+	}
+	if !strings.Contains(out, "Loading") {
+		t.Error("workspace loading view should contain Loading")
+	}
+}
+
 // TestHomeView_Regression_ExpectedSections ensures home view output contains expected structure.
 func TestHomeView_Regression_ExpectedSections(t *testing.T) {
 	m := newTestHomeModel()
