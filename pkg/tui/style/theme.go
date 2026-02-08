@@ -28,8 +28,27 @@ type Theme struct {
 	StatusBarBg lipgloss.Color
 }
 
+// ThemeName identifies a theme by name.
+type ThemeName string
+
+const (
+	ThemeDark         ThemeName = "dark"
+	ThemeLight        ThemeName = "light"
+	ThemeHighContrast ThemeName = "high-contrast"
+)
+
+// AvailableThemes returns the list of available theme names.
+func AvailableThemes() []ThemeName {
+	return []ThemeName{ThemeDark, ThemeLight, ThemeHighContrast}
+}
+
 // DefaultTheme returns the default Ayu-inspired dark theme.
 func DefaultTheme() Theme {
+	return DarkTheme()
+}
+
+// DarkTheme returns the Ayu-inspired dark theme.
+func DarkTheme() Theme {
 	return Theme{
 		// Base
 		Background: lipgloss.Color("#0B0E14"),
@@ -53,6 +72,79 @@ func DefaultTheme() Theme {
 		HeaderBg:    lipgloss.Color("#1C2028"),
 		StatusBarBg: lipgloss.Color("#1C2028"),
 	}
+}
+
+// LightTheme returns a light theme suitable for bright environments.
+func LightTheme() Theme {
+	return Theme{
+		// Base
+		Background: lipgloss.Color("#FAFAFA"),
+		Foreground: lipgloss.Color("#5C6166"),
+		Border:     lipgloss.Color("#D4D5D6"),
+		Muted:      lipgloss.Color("#8A9199"),
+
+		// Accent
+		Primary:   lipgloss.Color("#FF9940"),
+		Secondary: lipgloss.Color("#399EE6"),
+		Accent:    lipgloss.Color("#FA8D3E"),
+
+		// Status
+		Success: lipgloss.Color("#6CBF43"),
+		Warning: lipgloss.Color("#F2AE49"),
+		Error:   lipgloss.Color("#E65050"),
+		Info:    lipgloss.Color("#399EE6"),
+
+		// UI
+		Selection:   lipgloss.Color("#035BD6"),
+		HeaderBg:    lipgloss.Color("#E8E9EB"),
+		StatusBarBg: lipgloss.Color("#E8E9EB"),
+	}
+}
+
+// HighContrastTheme returns a high contrast theme for accessibility.
+func HighContrastTheme() Theme {
+	return Theme{
+		// Base - pure black/white for maximum contrast
+		Background: lipgloss.Color("#000000"),
+		Foreground: lipgloss.Color("#FFFFFF"),
+		Border:     lipgloss.Color("#FFFFFF"),
+		Muted:      lipgloss.Color("#AAAAAA"),
+
+		// Accent - bright, distinct colors
+		Primary:   lipgloss.Color("#FFFF00"),
+		Secondary: lipgloss.Color("#00FFFF"),
+		Accent:    lipgloss.Color("#FF00FF"),
+
+		// Status - vivid colors for clear distinction
+		Success: lipgloss.Color("#00FF00"),
+		Warning: lipgloss.Color("#FFFF00"),
+		Error:   lipgloss.Color("#FF0000"),
+		Info:    lipgloss.Color("#00FFFF"),
+
+		// UI
+		Selection:   lipgloss.Color("#0000FF"),
+		HeaderBg:    lipgloss.Color("#333333"),
+		StatusBarBg: lipgloss.Color("#333333"),
+	}
+}
+
+// GetTheme returns a theme by name. Falls back to dark theme if not found.
+func GetTheme(name ThemeName) Theme {
+	switch name {
+	case ThemeLight:
+		return LightTheme()
+	case ThemeHighContrast:
+		return HighContrastTheme()
+	case ThemeDark:
+		fallthrough
+	default:
+		return DarkTheme()
+	}
+}
+
+// GetThemeByString returns a theme by string name. Falls back to dark theme.
+func GetThemeByString(name string) Theme {
+	return GetTheme(ThemeName(name))
 }
 
 // Styles contains pre-built lipgloss styles for common elements.
