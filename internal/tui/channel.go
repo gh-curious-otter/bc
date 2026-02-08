@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
@@ -644,12 +645,12 @@ func (m *ChannelModel) View() string {
 			b.WriteString(m.styles.Muted.Render(relTime))
 			b.WriteString("\n")
 
-			// Message content — wrap long lines with type-specific styling
-			msgStyle := m.styles.MessageTypeStyle(msgTypeStr)
+			// Message content — wrap long lines with type-specific styling and highlighting
 			lines := wrapText(entry.Message, msgWidth)
 			for _, line := range lines {
 				b.WriteString("  ")
-				b.WriteString(msgStyle.Render("  " + line))
+				highlightedLine := m.highlightMessage(line)
+				b.WriteString("  " + highlightedLine)
 				b.WriteString("\n")
 			}
 		}
@@ -707,16 +708,15 @@ func (m *ChannelModel) View() string {
 				b.WriteString(m.styles.Selected.Render(line))
 			} else {
 				ts := m.styles.Muted.Render(relTime)
-				msgStyle := m.styles.MessageTypeStyle(msgTypeStr)
-				msg := msgStyle.Render(entry.Message)
+				highlightedMsg := m.highlightMessage(entry.Message)
 				if entry.Sender != "" {
 					// Use role-specific color for sender
 					role := style.RoleFromAgentName(entry.Sender)
 					senderStyle := m.styles.RoleStyle(role)
 					sender := senderStyle.Render("[" + entry.Sender + "]")
-					line = fmt.Sprintf("  %s%s  %s %s", icon, ts, sender, msg)
+					line = fmt.Sprintf("  %s%s  %s %s", icon, ts, sender, highlightedMsg)
 				} else {
-					line = fmt.Sprintf("  %s%s  %s", icon, ts, msg)
+					line = fmt.Sprintf("  %s%s  %s", icon, ts, highlightedMsg)
 				}
 				b.WriteString(line)
 			}
@@ -739,6 +739,25 @@ func (m *ChannelModel) View() string {
 	}
 
 	return b.String()
+}
+
+// highlightMessage applies syntax highlighting to a message.
+// It highlights @mentions, #channels, and GitHub issue/PR links.
+func (m *ChannelModel) highlightMessage(message string) string {
+	return channel.ApplyHighlights(message, func(text string, highlightType channel.HighlightType) string {
+		var s lipgloss.Style
+		switch highlightType {
+		case channel.HighlightMention:
+			s = m.styles.Mention
+		case channel.HighlightChannel:
+			s = m.styles.Channel
+		case channel.HighlightGitHubLink:
+			s = m.styles.Link
+		default:
+			s = m.styles.Normal
+		}
+		return s.Render(text)
+	})
 }
 
 // wrapText splits text into lines of at most width characters, breaking at spaces.
