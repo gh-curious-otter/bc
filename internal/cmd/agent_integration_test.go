@@ -12,7 +12,7 @@ import (
 // Agent command integration tests that don't require actual tmux sessions.
 // These tests seed agent state files directly to test display/query functionality.
 
-func TestAgentListEmpty(t *testing.T) {
+func TestAgentListEmptyIntegration(t *testing.T) {
 	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
@@ -98,7 +98,7 @@ func TestAgentListFilterByRole(t *testing.T) {
 	// Note: The filter might still show QA in the summary count, just not in the filtered list
 }
 
-func TestAgentListJSON(t *testing.T) {
+func TestAgentListJSONIntegration(t *testing.T) {
 	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
