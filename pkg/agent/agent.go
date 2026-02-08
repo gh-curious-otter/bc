@@ -232,6 +232,10 @@ type Manager struct {
 	// Workspace path for env vars
 	workspacePath string
 
+	// captureRotate is used to throttle captureLiveTask: only one agent per RefreshState (round-robin).
+	// Reduces tmux.Capture calls when many agents are running (epic #322).
+	captureRotate int
+
 	mu sync.RWMutex
 }
 
@@ -949,7 +953,8 @@ func (m *Manager) RefreshState() error {
 		active[s.Name] = true
 	}
 
-	// Update agent states and capture live tasks
+	// Update agent states
+	var activeNames []string
 	for name, a := range m.agents {
 		if !active[name] && a.State != StateStopped {
 			a.State = StateStopped
@@ -959,10 +964,20 @@ func (m *Manager) RefreshState() error {
 		if !active[name] {
 			continue
 		}
+		activeNames = append(activeNames, name)
+	}
+	sort.Strings(activeNames)
 
-		// Capture live task from tmux pane
-		if live := m.captureLiveTask(name); live != "" {
-			a.Task = live
+	// Throttle: capture live task for only one agent per RefreshState (round-robin).
+	// With N agents this does 1 tmux.Capture per tick instead of N (epic #322).
+	if len(activeNames) > 0 {
+		idx := m.captureRotate % len(activeNames)
+		m.captureRotate++
+		name := activeNames[idx]
+		if a := m.agents[name]; a != nil {
+			if live := m.captureLiveTask(name); live != "" {
+				a.Task = live
+			}
 		}
 	}
 

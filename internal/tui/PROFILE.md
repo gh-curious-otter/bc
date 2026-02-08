@@ -50,7 +50,7 @@ go test -bench=BenchmarkHomeView_AsyncLoadFirstFrame -benchmem ./internal/tui/..
 
 ## Possible follow-ups
 
-- **Throttle captureLiveTask**: Run tmux capture less often or only for the focused agent; or run captures in parallel.
+- ~~**Throttle captureLiveTask**~~: Done (epic #322). Manager now captures live task for one agent per `RefreshState` (round-robin) instead of all agents, reducing tmux.Capture calls when many agents run.
 
 ## Fixes applied (non-blocking startup, #303 / #311)
 
