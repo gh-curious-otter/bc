@@ -16,6 +16,8 @@ import (
 
 var (
 	mergeSkipTests bool
+	mergeDryRun    bool
+	mergeYes       bool
 )
 
 var mergeCmd = &cobra.Command{
@@ -28,15 +30,24 @@ The merge command:
   2. Runs go build, go test, go vet in the agent worktree
   3. Merges the branch into main (fast-forward or merge commit)
 
+Flags:
+  --dry-run     Check for conflicts without merging
+  --yes         Proceed without confirmation (for automation)
+  --skip-tests  Skip build/test/vet validation
+
 Examples:
   bc merge engineer-01
-  bc merge fix/enter-submit-reliability --skip-tests`,
+  bc merge engineer-01 --dry-run
+  bc merge fix/enter-submit-reliability --skip-tests
+  bc merge engineer-02 --yes`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMerge,
 }
 
 func init() {
 	mergeCmd.Flags().BoolVar(&mergeSkipTests, "skip-tests", false, "Skip build/test/vet validation")
+	mergeCmd.Flags().BoolVar(&mergeDryRun, "dry-run", false, "Check for conflicts without merging")
+	mergeCmd.Flags().BoolVar(&mergeYes, "yes", false, "Proceed without confirmation (non-interactive)")
 	rootCmd.AddCommand(mergeCmd)
 }
 
@@ -58,7 +69,11 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Merging branch %s into main...\n", branch)
+	if mergeDryRun {
+		fmt.Printf("Checking branch %s for conflicts with main...\n", branch)
+	} else {
+		fmt.Printf("Merging branch %s into main...\n", branch)
+	}
 
 	// Step 1: Check that the branch exists
 	if err = gitBranchExists(rootDir, branch); err != nil {
@@ -75,9 +90,25 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		for _, f := range conflicts {
 			fmt.Printf("  - %s\n", f)
 		}
-		return fmt.Errorf("branch %s has conflicts with main — resolve before merging", branch)
+		if mergeDryRun {
+			return fmt.Errorf("dry-run: branch %s has %d conflicting file(s) with main", branch, len(conflicts))
+		}
+		if !mergeYes {
+			fmt.Printf("\nBranch %s has conflicts with main. Resolve conflicts before merging.\n", branch)
+			return fmt.Errorf("branch %s has conflicts with main — resolve before merging", branch)
+		}
+		// With --yes flag, user explicitly wants to proceed despite conflicts
+		// This is unusual but allowed for automation scenarios
+		fmt.Println("  Proceeding despite conflicts (--yes flag)")
+	} else {
+		fmt.Println("  No conflicts with main")
 	}
-	fmt.Println("  No conflicts with main")
+
+	// If dry-run mode, exit after conflict check
+	if mergeDryRun {
+		fmt.Printf("Dry-run complete: branch %s can be cleanly merged into main\n", branch)
+		return nil
+	}
 
 	// Step 3: Run validation (build, test, vet) in the source directory
 	if !mergeSkipTests {
@@ -92,10 +123,21 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		fmt.Println("  Skipping validation (--skip-tests)")
 	}
 
-	// Step 4: Merge into main
+	// Step 4: Save restore point and perform atomic merge
+	restorePoint, err := gitRevParse(rootDir, "main")
+	if err != nil {
+		return fmt.Errorf("failed to get main HEAD for restore point: %w", err)
+	}
+	fmt.Printf("  Restore point: %s\n", restorePoint[:12])
+
 	commitHash, err := mergeBranch(rootDir, branch)
 	if err != nil {
-		return fmt.Errorf("merge failed: %w", err)
+		// Rollback: restore main to pre-merge state
+		if rollbackErr := rollbackMerge(rootDir, restorePoint); rollbackErr != nil {
+			return fmt.Errorf("merge failed and rollback also failed: merge error: %w, rollback error: %v", err, rollbackErr)
+		}
+		fmt.Printf("  ⚠️  Merge failed — rolled back main to %s\n", restorePoint[:12])
+		return fmt.Errorf("merge failed (rolled back): %w", err)
 	}
 	fmt.Printf("  Merged at %s\n", commitHash)
 
@@ -310,4 +352,14 @@ func mergeBranch(repoDir, branch string) (string, error) {
 	}
 
 	return mergeCommit[:12], nil
+}
+
+// rollbackMerge restores main to the given commit hash.
+// This is used when a merge operation fails partway through.
+func rollbackMerge(repoDir, restorePoint string) error {
+	cmd := exec.CommandContext(context.Background(), "git", "-C", repoDir, "update-ref", "refs/heads/main", restorePoint) //nolint:gosec // G204: git command with validated restore point
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("update-ref failed: %s", strings.TrimSpace(string(out)))
+	}
+	return nil
 }
