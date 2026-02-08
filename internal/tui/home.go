@@ -49,22 +49,23 @@ type WorkspaceInfo struct {
 
 // HomeModel is the root TUI model for bc home.
 type HomeModel struct {
-	wsModel              *WorkspaceModel
-	agentModel           *AgentModel
-	channelModel         *ChannelModel
-	issueModel           *IssueModel
-	styles               style.Styles
-	statusMsg            string
-	pendingWorkspaceName string // workspace name shown in header while loading
-	workspaces           []WorkspaceInfo
-	loadingSpinner       spinner.Model // spinner shown during workspace load
-	screen               Screen
-	maxWorkers           int
-	width                int
-	height               int
-	homeCursor           int
-	helpActive           bool
-	workspaceLoading     bool // true while workspace is loading after Enter
+	wsModel                 *WorkspaceModel
+	agentModel              *AgentModel
+	channelModel            *ChannelModel
+	issueModel              *IssueModel
+	styles                  style.Styles
+	statusMsg               string
+	pendingWorkspaceName    string // workspace name shown in header while loading
+	workspaces              []WorkspaceInfo
+	loadingSpinner          spinner.Model // spinner shown during workspace load
+	screen                  Screen
+	maxWorkers              int
+	width                   int
+	height                  int
+	homeCursor              int
+	helpActive              bool // true when help overlay is shown
+	workspaceLoading        bool // true while workspace is loading after Enter
+	homeWorkspacesRefreshed bool // true after first tick on home (populates counts deferred from CLI)
 }
 
 // NewHomeModel creates the root TUI model. maxWorkers is the configured agent limit (0 = no limit).
@@ -120,6 +121,11 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case TickMsg:
+		// Populate workspace counts once on first tick when CLI deferred loading (#310)
+		if m.screen == ScreenHome && !m.homeWorkspacesRefreshed {
+			m.refreshWorkspaces()
+			m.homeWorkspacesRefreshed = true
+		}
 		if m.wsModel != nil {
 			m.wsModel.refreshLight()
 		}

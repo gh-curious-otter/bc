@@ -8,7 +8,6 @@ import (
 
 	"github.com/rpuneet/bc/config"
 	itui "github.com/rpuneet/bc/internal/tui"
-	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
@@ -53,28 +52,15 @@ func runHome(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Build workspace info for each registered workspace (pre-allocate to reduce allocations)
+	// Build workspace list with zero counts; TUI will fill counts on first tick (#310).
+	// This avoids N Manager loads and RefreshState() at CLI startup, reducing memory and improving TUI appearance time.
 	list := reg.List()
 	workspaces := make([]itui.WorkspaceInfo, 0, len(list))
 	for _, entry := range list {
-		info := itui.WorkspaceInfo{
+		workspaces = append(workspaces, itui.WorkspaceInfo{
 			Entry:      entry,
 			MaxWorkers: int(config.Workspace.MaxWorkers),
-		}
-
-		// Count running agents
-		mgr := agent.NewWorkspaceManager(
-			entry.Path+"/.bc/agents",
-			entry.Path,
-		)
-		_ = mgr.LoadState()
-		_ = mgr.RefreshState()
-		info.Total = mgr.AgentCount()
-		info.Running = mgr.RunningCount()
-
-		// Note: Issue tracking now uses GitHub Issues (beads removed)
-
-		workspaces = append(workspaces, info)
+		})
 	}
 
 	// Run the Bubble Tea TUI
