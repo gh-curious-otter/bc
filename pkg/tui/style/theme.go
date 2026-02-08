@@ -23,9 +23,10 @@ type Theme struct {
 	Info    lipgloss.Color
 
 	// UI element colors
-	Selection   lipgloss.Color
-	HeaderBg    lipgloss.Color
-	StatusBarBg lipgloss.Color
+	Selection    lipgloss.Color
+	HeaderBg     lipgloss.Color
+	StatusBarBg  lipgloss.Color
+	OwnMessageBg lipgloss.Color // Background for messages sent by current user
 
 	// Agent role colors
 	RoleCoordinator lipgloss.Color
@@ -75,9 +76,10 @@ func DarkTheme() Theme {
 		Info:    lipgloss.Color("#59C2FF"),
 
 		// UI
-		Selection:   lipgloss.Color("#409FFF"),
-		HeaderBg:    lipgloss.Color("#1C2028"),
-		StatusBarBg: lipgloss.Color("#1C2028"),
+		Selection:    lipgloss.Color("#409FFF"),
+		HeaderBg:     lipgloss.Color("#1C2028"),
+		StatusBarBg:  lipgloss.Color("#1C2028"),
+		OwnMessageBg: lipgloss.Color("#252D3A"), // Slightly warmer tint for own messages
 
 		// Agent roles (muted/pastel for dark theme)
 		RoleCoordinator: lipgloss.Color("#6B9FD4"), // Blue
@@ -109,9 +111,10 @@ func LightTheme() Theme {
 		Info:    lipgloss.Color("#399EE6"),
 
 		// UI
-		Selection:   lipgloss.Color("#035BD6"),
-		HeaderBg:    lipgloss.Color("#E8E9EB"),
-		StatusBarBg: lipgloss.Color("#E8E9EB"),
+		Selection:    lipgloss.Color("#035BD6"),
+		HeaderBg:     lipgloss.Color("#E8E9EB"),
+		StatusBarBg:  lipgloss.Color("#E8E9EB"),
+		OwnMessageBg: lipgloss.Color("#D4E4F0"), // Light blue tint for own messages
 
 		// Agent roles (saturated for light theme)
 		RoleCoordinator: lipgloss.Color("#2563EB"), // Blue
@@ -143,9 +146,10 @@ func HighContrastTheme() Theme {
 		Info:    lipgloss.Color("#00FFFF"),
 
 		// UI
-		Selection:   lipgloss.Color("#0000FF"),
-		HeaderBg:    lipgloss.Color("#333333"),
-		StatusBarBg: lipgloss.Color("#333333"),
+		Selection:    lipgloss.Color("#0000FF"),
+		HeaderBg:     lipgloss.Color("#333333"),
+		StatusBarBg:  lipgloss.Color("#333333"),
+		OwnMessageBg: lipgloss.Color("#1A1A3A"), // Distinct tint for own messages
 
 		// Agent roles (high contrast, distinct colors)
 		RoleCoordinator: lipgloss.Color("#00BFFF"), // Blue
@@ -204,8 +208,9 @@ type Styles struct {
 	// Reaction style for emoji reactions on messages
 	Reaction lipgloss.Style
 
-	// Message bubble style (subtle background tint)
-	MessageBubble lipgloss.Style
+	// Message bubble styles (subtle background tint)
+	MessageBubble    lipgloss.Style // Others' messages
+	MessageBubbleOwn lipgloss.Style // Current user's messages
 
 	theme Theme
 }
@@ -284,6 +289,9 @@ func NewStyles(theme Theme) Styles {
 		// Message bubble with subtle background tint (not heavy borders)
 		MessageBubble: lipgloss.NewStyle().
 			Background(theme.HeaderBg).
+			Padding(0, 1),
+		MessageBubbleOwn: lipgloss.NewStyle().
+			Background(theme.OwnMessageBg).
 			Padding(0, 1),
 	}
 }

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -774,5 +775,46 @@ func TestChannelView_MessageBubbleRendering(t *testing.T) {
 	// Verify sender is rendered
 	if !strings.Contains(output, "engineer-01") {
 		t.Error("expected sender name in output")
+	}
+}
+
+func TestChannelView_EmptyMessageShowsPlaceholder(t *testing.T) {
+	m := newTestChannelModel()
+	m.channel.History = []channel.HistoryEntry{
+		{Sender: "engineer-01", Message: "", Time: time.Now()},
+	}
+
+	output := m.View()
+
+	if !strings.Contains(output, "(empty)") {
+		t.Error("expected (empty) placeholder for empty message, got output without it")
+	}
+	if !strings.Contains(output, "engineer-01") {
+		t.Error("expected sender name in output")
+	}
+}
+
+func TestChannelView_OwnMessageUsesDistinctBubble(t *testing.T) {
+	prev := os.Getenv("BC_AGENT_ID")
+	defer func() { _ = os.Setenv("BC_AGENT_ID", prev) }()
+	_ = os.Setenv("BC_AGENT_ID", "engineer-02")
+
+	m := newTestChannelModel()
+	m.channel.History = []channel.HistoryEntry{
+		{Sender: "engineer-02", Message: "my own message", Time: time.Now()},
+		{Sender: "engineer-01", Message: "other message", Time: time.Now()},
+	}
+
+	output := m.View()
+
+	// Both messages must appear; own message uses MessageBubbleOwn (we can't assert ANSI, just content)
+	if !strings.Contains(output, "my own message") {
+		t.Error("expected own message in output")
+	}
+	if !strings.Contains(output, "other message") {
+		t.Error("expected other message in output")
+	}
+	if !strings.Contains(output, "engineer-02") || !strings.Contains(output, "engineer-01") {
+		t.Error("expected both senders in output")
 	}
 }

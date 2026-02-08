@@ -353,3 +353,23 @@ func TestMessageBubbleStyle(t *testing.T) {
 		t.Errorf("MessageBubble should contain message, got: %s", rendered)
 	}
 }
+
+func TestMessageBubbleOwnStyle(t *testing.T) {
+	styles := DefaultStyles()
+	rendered := styles.MessageBubbleOwn.Render("my message")
+	if rendered == "" {
+		t.Error("MessageBubbleOwn style should render text")
+	}
+	if !strings.Contains(rendered, "my message") {
+		t.Errorf("MessageBubbleOwn should contain message, got: %s", rendered)
+	}
+}
+
+func TestAllThemesHaveOwnMessageBg(t *testing.T) {
+	for _, name := range AvailableThemes() {
+		theme := GetTheme(name)
+		if theme.OwnMessageBg == "" {
+			t.Errorf("theme %q has no OwnMessageBg", name)
+		}
+	}
+}
