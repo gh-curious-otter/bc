@@ -53,9 +53,10 @@ func runHome(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Build workspace info for each registered workspace
-	var workspaces []itui.WorkspaceInfo
-	for _, entry := range reg.List() {
+	// Build workspace info for each registered workspace (pre-allocate to reduce allocations)
+	list := reg.List()
+	workspaces := make([]itui.WorkspaceInfo, 0, len(list))
+	for _, entry := range list {
 		info := itui.WorkspaceInfo{
 			Entry:      entry,
 			MaxWorkers: int(config.Workspace.MaxWorkers),
