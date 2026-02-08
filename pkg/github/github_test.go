@@ -192,6 +192,64 @@ func TestListPRsEmptyResult(t *testing.T) {
 	}
 }
 
+// --- ListIssuesWithOpts / ListPRsWithOpts ---
+
+func TestListIssuesWithOptsNoWorkspaceNoRepo(t *testing.T) {
+	_, err := ListIssuesWithOpts(context.Background(), ListIssuesOpts{})
+	if err != ErrNoGitRemote {
+		t.Errorf("ListIssuesWithOpts with no workspace/repo want ErrNoGitRemote, got %v", err)
+	}
+}
+
+func TestListIssuesWithOptsRepoOnly(t *testing.T) {
+	data := `[{"number":1,"title":"One","state":"OPEN","labels":[{"name":"bug"}]}]`
+	mockGh := createMockCLI(t, "gh", data)
+	t.Setenv("PATH", filepath.Dir(mockGh)+":"+os.Getenv("PATH"))
+
+	issues, err := ListIssuesWithOpts(context.Background(), ListIssuesOpts{
+		Repo:  "owner/repo",
+		State: "closed",
+		Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("ListIssuesWithOpts(repo only): %v", err)
+	}
+	if len(issues) != 1 {
+		t.Fatalf("len(issues) = %d, want 1", len(issues))
+	}
+	if issues[0].Number != 1 || issues[0].Title != "One" {
+		t.Errorf("issue = #%d %q, want #1 One", issues[0].Number, issues[0].Title)
+	}
+}
+
+func TestListPRsWithOptsNoWorkspaceNoRepo(t *testing.T) {
+	_, err := ListPRsWithOpts(context.Background(), ListPROpts{})
+	if err != ErrNoGitRemote {
+		t.Errorf("ListPRsWithOpts with no workspace/repo want ErrNoGitRemote, got %v", err)
+	}
+}
+
+func TestListPRsWithOptsRepoOnly(t *testing.T) {
+	data := `[{"number":5,"title":"Fix it","state":"OPEN","reviewDecision":"APPROVED","isDraft":false}]`
+	mockGh := createMockCLI(t, "gh", data)
+	t.Setenv("PATH", filepath.Dir(mockGh)+":"+os.Getenv("PATH"))
+
+	prs, err := ListPRsWithOpts(context.Background(), ListPROpts{
+		Repo:   "owner/repo",
+		Author: "@me",
+		Limit:  20,
+	})
+	if err != nil {
+		t.Fatalf("ListPRsWithOpts(repo only): %v", err)
+	}
+	if len(prs) != 1 {
+		t.Fatalf("len(prs) = %d, want 1", len(prs))
+	}
+	if prs[0].Number != 5 || prs[0].Title != "Fix it" {
+		t.Errorf("pr = #%d %q, want #5 Fix it", prs[0].Number, prs[0].Title)
+	}
+}
+
 // --- CreateIssue ---
 
 func TestCreateIssueNoGh(t *testing.T) {

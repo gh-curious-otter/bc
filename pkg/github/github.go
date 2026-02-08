@@ -58,18 +58,78 @@ func HasGitRemote(workspacePath string) bool {
 // ErrNoGitRemote indicates no git remote is configured.
 var ErrNoGitRemote = fmt.Errorf("no git remote configured")
 
+// ListIssuesOpts holds filter options for listing issues.
+//
+//nolint:govet // fieldalignment: opts struct, readability over 8-byte packing
+type ListIssuesOpts struct {
+	State     string   // open, closed, all
+	Repo      string   // owner/repo (optional; uses workspace repo if empty)
+	Author    string   // filter by author
+	Assignee  string   // filter by assignee
+	Labels    []string // filter by labels
+	Limit     int      // max items (0 = default 50)
+	Workspace string   // directory for repo context when Repo is empty
+}
+
+// ListPROpts holds filter options for listing pull requests.
+//
+//nolint:govet // fieldalignment: opts struct, readability over 8-byte packing
+type ListPROpts struct {
+	State     string   // open, closed, merged, all
+	Repo      string   // owner/repo (optional)
+	Author    string   // filter by author
+	Assignee  string   // filter by assignee
+	Labels    []string // filter by labels
+	Limit     int      // max items (0 = default 50)
+	Workspace string   // directory for repo context when Repo is empty
+}
+
+func defaultLimit(n int) int {
+	if n <= 0 {
+		return 50
+	}
+	return n
+}
+
 // ListIssues returns GitHub issues for the workspace's repo.
 // Returns ErrNoGitRemote if no remote is configured.
 func ListIssues(workspacePath string) ([]Issue, error) {
-	if !HasGitRemote(workspacePath) {
-		return nil, ErrNoGitRemote
+	return ListIssuesWithOpts(context.Background(), ListIssuesOpts{Workspace: workspacePath})
+}
+
+// ListIssuesWithOpts returns GitHub issues with the given filters.
+// When Repo is empty, Workspace must be set and must have a git remote; otherwise Repo is used with gh -R.
+func ListIssuesWithOpts(ctx context.Context, opts ListIssuesOpts) ([]Issue, error) {
+	if opts.Repo == "" {
+		if opts.Workspace == "" || !HasGitRemote(opts.Workspace) {
+			return nil, ErrNoGitRemote
+		}
 	}
 
-	cmd := exec.CommandContext(context.Background(), "gh", "issue", "list",
+	args := []string{"issue", "list",
 		"--json", "number,title,state,labels",
-		"--limit", "50",
-	)
-	cmd.Dir = workspacePath
+		"--limit", fmt.Sprintf("%d", defaultLimit(opts.Limit)),
+	}
+	if opts.State != "" {
+		args = append(args, "--state", opts.State)
+	}
+	if opts.Repo != "" {
+		args = append(args, "--repo", opts.Repo)
+	}
+	if opts.Author != "" {
+		args = append(args, "--author", opts.Author)
+	}
+	if opts.Assignee != "" {
+		args = append(args, "--assignee", opts.Assignee)
+	}
+	for _, l := range opts.Labels {
+		args = append(args, "--label", l)
+	}
+
+	cmd := exec.CommandContext(ctx, "gh", args...) //nolint:gosec // gh with trusted args
+	if opts.Repo == "" {
+		cmd.Dir = opts.Workspace
+	}
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list GitHub issues: %w", err)
@@ -101,15 +161,42 @@ func ListIssues(workspacePath string) ([]Issue, error) {
 // ListPRs returns GitHub pull requests for the workspace's repo.
 // Returns ErrNoGitRemote if no remote is configured.
 func ListPRs(workspacePath string) ([]PR, error) {
-	if !HasGitRemote(workspacePath) {
-		return nil, ErrNoGitRemote
+	return ListPRsWithOpts(context.Background(), ListPROpts{Workspace: workspacePath})
+}
+
+// ListPRsWithOpts returns GitHub pull requests with the given filters.
+// When Repo is empty, Workspace must be set and must have a git remote; otherwise Repo is used with gh -R.
+func ListPRsWithOpts(ctx context.Context, opts ListPROpts) ([]PR, error) {
+	if opts.Repo == "" {
+		if opts.Workspace == "" || !HasGitRemote(opts.Workspace) {
+			return nil, ErrNoGitRemote
+		}
 	}
 
-	cmd := exec.CommandContext(context.Background(), "gh", "pr", "list",
+	args := []string{"pr", "list",
 		"--json", "number,title,state,reviewDecision,isDraft",
-		"--limit", "50",
-	)
-	cmd.Dir = workspacePath
+		"--limit", fmt.Sprintf("%d", defaultLimit(opts.Limit)),
+	}
+	if opts.State != "" {
+		args = append(args, "--state", opts.State)
+	}
+	if opts.Repo != "" {
+		args = append(args, "--repo", opts.Repo)
+	}
+	if opts.Author != "" {
+		args = append(args, "--author", opts.Author)
+	}
+	if opts.Assignee != "" {
+		args = append(args, "--assignee", opts.Assignee)
+	}
+	for _, l := range opts.Labels {
+		args = append(args, "--label", l)
+	}
+
+	cmd := exec.CommandContext(ctx, "gh", args...) //nolint:gosec // gh with trusted args
+	if opts.Repo == "" {
+		cmd.Dir = opts.Workspace
+	}
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list GitHub PRs: %w", err)
