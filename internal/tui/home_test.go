@@ -57,6 +57,34 @@ func TestNewHomeModel(t *testing.T) {
 	if m.maxWorkers != 5 {
 		t.Errorf("maxWorkers = %d, want 5", m.maxWorkers)
 	}
+	if m.loadingWorkspaces {
+		t.Error("loadingWorkspaces should be false when not passed")
+	}
+}
+
+func TestNewHomeModel_LoadingState(t *testing.T) {
+	m := NewHomeModel(nil, 0, true)
+	if !m.loadingWorkspaces {
+		t.Error("loadingWorkspaces should be true when third arg true")
+	}
+	out := m.renderHomeScreen()
+	if !strings.Contains(out, "Loading") {
+		t.Errorf("expected 'Loading' in home screen when loading, got: %s", out)
+	}
+}
+
+func TestHomeModel_WorkspacesLoadedMsg(t *testing.T) {
+	m := NewHomeModel(nil, 0, true)
+	ws := []WorkspaceInfo{
+		{Entry: workspace.RegistryEntry{Name: "a", Path: "/a"}, Total: 2, Running: 1},
+	}
+	_, _ = m.Update(WorkspacesLoadedMsg{Workspaces: ws})
+	if m.loadingWorkspaces {
+		t.Error("loadingWorkspaces should be false after WorkspacesLoadedMsg")
+	}
+	if len(m.workspaces) != 1 || m.workspaces[0].Entry.Name != "a" {
+		t.Errorf("workspaces not updated: %+v", m.workspaces)
+	}
 }
 
 // --- renderHeader tests ---
