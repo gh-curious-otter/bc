@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -51,6 +52,7 @@ type ChannelModel struct {
 	// Small types last
 	autocompleteType AutocompleteType
 	sendMode         bool
+	reactionMode     bool // Show reaction picker for selected message
 }
 
 // NewChannelModel creates a channel detail view.
@@ -70,6 +72,10 @@ func (m *ChannelModel) HandleKey(msg tea.KeyMsg) Action {
 
 	if m.sendMode {
 		return m.handleSendKey(msg)
+	}
+
+	if m.reactionMode {
+		return m.handleReactionKey(msg)
 	}
 
 	switch key {
@@ -99,6 +105,12 @@ func (m *ChannelModel) HandleKey(msg tea.KeyMsg) Action {
 		m.sendMode = true
 		m.input = ""
 		m.sendMsg = ""
+		return NoAction
+	case "e": // Open reaction picker
+		if len(m.channel.History) > 0 {
+			m.reactionMode = true
+			m.sendMsg = ""
+		}
 		return NoAction
 	case "r":
 		m.reloadChannel()
@@ -147,6 +159,77 @@ func (m *ChannelModel) selectedMessage() (channel.HistoryEntry, bool) {
 		return channel.HistoryEntry{}, false
 	}
 	return visible[m.cursor], true
+}
+
+// selectedMessageIndex returns the index of the selected message in the full history.
+func (m *ChannelModel) selectedMessageIndex() int {
+	n := len(m.channel.History)
+	if n == 0 {
+		return -1
+	}
+	start := 0
+	if n > 20 {
+		start = n - 20
+	}
+	if m.cursor < 0 || m.cursor >= n-start {
+		return -1
+	}
+	return start + m.cursor
+}
+
+func (m *ChannelModel) handleReactionKey(msg tea.KeyMsg) Action {
+	key := msg.String()
+
+	switch key {
+	case "esc":
+		m.reactionMode = false
+		return NoAction
+	case "1":
+		m.addReactionToSelected("👍")
+		return NoAction
+	case "2":
+		m.addReactionToSelected("👎")
+		return NoAction
+	case "3":
+		m.addReactionToSelected("❤️")
+		return NoAction
+	case "4":
+		m.addReactionToSelected("🎉")
+		return NoAction
+	case "5":
+		m.addReactionToSelected("👀")
+		return NoAction
+	case "6":
+		m.addReactionToSelected("🚀")
+		return NoAction
+	}
+
+	return NoAction
+}
+
+func (m *ChannelModel) addReactionToSelected(emoji string) {
+	idx := m.selectedMessageIndex()
+	if idx < 0 {
+		return
+	}
+
+	user := os.Getenv("BC_AGENT_ID")
+	if user == "" {
+		user = "anonymous"
+	}
+
+	added, err := m.store.ToggleReaction(m.channel.Name, idx, emoji, user)
+	if err != nil {
+		m.sendMsg = "Error: " + err.Error()
+	} else if added {
+		m.sendMsg = fmt.Sprintf("Added %s reaction", emoji)
+	} else {
+		m.sendMsg = fmt.Sprintf("Removed %s reaction", emoji)
+	}
+
+	_ = m.store.Save()
+	m.reloadChannel()
+	m.reactionMode = false
 }
 
 func (m *ChannelModel) handleSendKey(msg tea.KeyMsg) Action {
@@ -653,6 +736,13 @@ func (m *ChannelModel) View() string {
 				b.WriteString("  " + highlightedLine)
 				b.WriteString("\n")
 			}
+
+			// Display reactions if any
+			if reactionStr := m.formatReactions(entry.Reactions); reactionStr != "" {
+				b.WriteString("    ")
+				b.WriteString(reactionStr)
+				b.WriteString("\n")
+			}
 		}
 
 		// Scroll indicator (bottom)
@@ -720,11 +810,16 @@ func (m *ChannelModel) View() string {
 				}
 				b.WriteString(line)
 			}
+			// Display reactions inline if any
+			if reactionStr := m.formatReactions(entry.Reactions); reactionStr != "" {
+				b.WriteString("  ")
+				b.WriteString(reactionStr)
+			}
 			b.WriteString("\n")
 		}
 	}
 
-	// Send mode or status
+	// Send mode, reaction mode, or status
 	if m.sendMode {
 		// Render autocomplete popup if active
 		if m.autocompleteType != AutocompleteNone && len(m.autocompleteSuggestions) > 0 {
@@ -733,8 +828,15 @@ func (m *ChannelModel) View() string {
 
 		// Render multi-line input area
 		b.WriteString(m.renderInputArea())
+	} else if m.reactionMode {
+		b.WriteString(m.styles.Info.Render("  React: "))
+		b.WriteString("[1]👍  [2]👎  [3]❤️  [4]🎉  [5]👀  [6]🚀  [esc]cancel")
+		b.WriteString("\n")
 	} else if m.sendMsg != "" {
 		b.WriteString(m.styles.Success.Render("  ✓ " + m.sendMsg))
+		b.WriteString("\n")
+	} else {
+		b.WriteString(m.styles.Muted.Render("  [s]end  [e]moji  [j/k]scroll  [r]efresh  [esc]back"))
 		b.WriteString("\n")
 	}
 
@@ -758,6 +860,33 @@ func (m *ChannelModel) highlightMessage(message string) string {
 		}
 		return s.Render(text)
 	})
+}
+
+// formatReactions formats a reactions map for display.
+func (m *ChannelModel) formatReactions(reactions map[string][]string) string {
+	if len(reactions) == 0 {
+		return ""
+	}
+
+	var parts []string
+	// Sort emojis for consistent display
+	for _, emoji := range channel.CommonReactions {
+		if users, ok := reactions[emoji]; ok && len(users) > 0 {
+			parts = append(parts, fmt.Sprintf("%s %d", emoji, len(users)))
+		}
+	}
+	// Add any other emojis not in CommonReactions
+	for emoji, users := range reactions {
+		if !slices.Contains(channel.CommonReactions, emoji) && len(users) > 0 {
+			parts = append(parts, fmt.Sprintf("%s %d", emoji, len(users)))
+		}
+	}
+
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return m.styles.Reaction.Render(strings.Join(parts, "  "))
 }
 
 // wrapText splits text into lines of at most width characters, breaking at spaces.
