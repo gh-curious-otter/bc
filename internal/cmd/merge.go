@@ -92,10 +92,21 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		fmt.Println("  Skipping validation (--skip-tests)")
 	}
 
-	// Step 4: Merge into main
+	// Step 4: Save restore point and perform atomic merge
+	restorePoint, err := gitRevParse(rootDir, "main")
+	if err != nil {
+		return fmt.Errorf("failed to get main HEAD for restore point: %w", err)
+	}
+	fmt.Printf("  Restore point: %s\n", restorePoint[:12])
+
 	commitHash, err := mergeBranch(rootDir, branch)
 	if err != nil {
-		return fmt.Errorf("merge failed: %w", err)
+		// Rollback: restore main to pre-merge state
+		if rollbackErr := rollbackMerge(rootDir, restorePoint); rollbackErr != nil {
+			return fmt.Errorf("merge failed and rollback also failed: merge error: %w, rollback error: %v", err, rollbackErr)
+		}
+		fmt.Printf("  ⚠️  Merge failed — rolled back main to %s\n", restorePoint[:12])
+		return fmt.Errorf("merge failed (rolled back): %w", err)
 	}
 	fmt.Printf("  Merged at %s\n", commitHash)
 
@@ -310,4 +321,14 @@ func mergeBranch(repoDir, branch string) (string, error) {
 	}
 
 	return mergeCommit[:12], nil
+}
+
+// rollbackMerge restores main to the given commit hash.
+// This is used when a merge operation fails partway through.
+func rollbackMerge(repoDir, restorePoint string) error {
+	cmd := exec.CommandContext(context.Background(), "git", "-C", repoDir, "update-ref", "refs/heads/main", restorePoint) //nolint:gosec // G204: git command with validated restore point
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("update-ref failed: %s", strings.TrimSpace(string(out)))
+	}
+	return nil
 }
