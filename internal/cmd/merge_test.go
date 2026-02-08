@@ -423,3 +423,35 @@ func TestRollbackMerge_InvalidRestorePoint(t *testing.T) {
 		t.Error("expected error for invalid restore point")
 	}
 }
+
+// --- Flag initialization tests ---
+
+func TestMergeFlags_DryRunExists(t *testing.T) {
+	flag := mergeCmd.Flags().Lookup("dry-run")
+	if flag == nil {
+		t.Fatal("expected --dry-run flag to exist")
+	}
+	if flag.DefValue != "false" {
+		t.Errorf("expected --dry-run default to be false, got %s", flag.DefValue)
+	}
+}
+
+func TestMergeFlags_YesExists(t *testing.T) {
+	flag := mergeCmd.Flags().Lookup("yes")
+	if flag == nil {
+		t.Fatal("expected --yes flag to exist")
+	}
+	if flag.DefValue != "false" {
+		t.Errorf("expected --yes default to be false, got %s", flag.DefValue)
+	}
+}
+
+func TestMergeFlags_SkipTestsExists(t *testing.T) {
+	flag := mergeCmd.Flags().Lookup("skip-tests")
+	if flag == nil {
+		t.Fatal("expected --skip-tests flag to exist")
+	}
+	if flag.DefValue != "false" {
+		t.Errorf("expected --skip-tests default to be false, got %s", flag.DefValue)
+	}
+}

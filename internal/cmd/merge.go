@@ -16,6 +16,8 @@ import (
 
 var (
 	mergeSkipTests bool
+	mergeDryRun    bool
+	mergeYes       bool
 )
 
 var mergeCmd = &cobra.Command{
@@ -28,15 +30,24 @@ The merge command:
   2. Runs go build, go test, go vet in the agent worktree
   3. Merges the branch into main (fast-forward or merge commit)
 
+Flags:
+  --dry-run     Check for conflicts without merging
+  --yes         Proceed without confirmation (for automation)
+  --skip-tests  Skip build/test/vet validation
+
 Examples:
   bc merge engineer-01
-  bc merge fix/enter-submit-reliability --skip-tests`,
+  bc merge engineer-01 --dry-run
+  bc merge fix/enter-submit-reliability --skip-tests
+  bc merge engineer-02 --yes`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMerge,
 }
 
 func init() {
 	mergeCmd.Flags().BoolVar(&mergeSkipTests, "skip-tests", false, "Skip build/test/vet validation")
+	mergeCmd.Flags().BoolVar(&mergeDryRun, "dry-run", false, "Check for conflicts without merging")
+	mergeCmd.Flags().BoolVar(&mergeYes, "yes", false, "Proceed without confirmation (non-interactive)")
 	rootCmd.AddCommand(mergeCmd)
 }
 
@@ -58,7 +69,11 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Merging branch %s into main...\n", branch)
+	if mergeDryRun {
+		fmt.Printf("Checking branch %s for conflicts with main...\n", branch)
+	} else {
+		fmt.Printf("Merging branch %s into main...\n", branch)
+	}
 
 	// Step 1: Check that the branch exists
 	if err = gitBranchExists(rootDir, branch); err != nil {
@@ -75,9 +90,25 @@ func runMerge(cmd *cobra.Command, args []string) error {
 		for _, f := range conflicts {
 			fmt.Printf("  - %s\n", f)
 		}
-		return fmt.Errorf("branch %s has conflicts with main — resolve before merging", branch)
+		if mergeDryRun {
+			return fmt.Errorf("dry-run: branch %s has %d conflicting file(s) with main", branch, len(conflicts))
+		}
+		if !mergeYes {
+			fmt.Printf("\nBranch %s has conflicts with main. Resolve conflicts before merging.\n", branch)
+			return fmt.Errorf("branch %s has conflicts with main — resolve before merging", branch)
+		}
+		// With --yes flag, user explicitly wants to proceed despite conflicts
+		// This is unusual but allowed for automation scenarios
+		fmt.Println("  Proceeding despite conflicts (--yes flag)")
+	} else {
+		fmt.Println("  No conflicts with main")
 	}
-	fmt.Println("  No conflicts with main")
+
+	// If dry-run mode, exit after conflict check
+	if mergeDryRun {
+		fmt.Printf("Dry-run complete: branch %s can be cleanly merged into main\n", branch)
+		return nil
+	}
 
 	// Step 3: Run validation (build, test, vet) in the source directory
 	if !mergeSkipTests {
