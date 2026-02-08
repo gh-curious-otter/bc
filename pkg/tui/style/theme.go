@@ -204,6 +204,9 @@ type Styles struct {
 	// Reaction style for emoji reactions on messages
 	Reaction lipgloss.Style
 
+	// Message bubble style (subtle background tint)
+	MessageBubble lipgloss.Style
+
 	theme Theme
 }
 
@@ -276,7 +279,11 @@ func NewStyles(theme Theme) Styles {
 			Underline(true),
 
 		Reaction: lipgloss.NewStyle().
-			Foreground(theme.Muted).
+			Foreground(theme.Muted),
+
+		// Message bubble with subtle background tint (not heavy borders)
+		MessageBubble: lipgloss.NewStyle().
+			Background(theme.HeaderBg).
 			Padding(0, 1),
 	}
 }

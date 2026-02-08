@@ -691,49 +691,68 @@ func (m *ChannelModel) View() string {
 			}
 			lastDate = entry.Time
 
-			if i > 0 {
-				b.WriteString("\n")
-			}
-
 			// Infer message type for styling
 			msgType := channel.InferMessageType(entry.Message)
 			msgTypeStr := string(msgType)
 
-			// Sender and timestamp line with relative time
+			// Sender info
 			sender := entry.Sender
 			if sender == "" {
 				sender = "system"
 			}
-			relTime := formatRelativeTime(entry.Time)
-			b.WriteString("  ")
 
-			// Add message type icon if not a regular text message
-			icon := m.styles.MessageTypeIcon(msgTypeStr)
-			if icon != "" {
-				b.WriteString(icon)
-			}
+			// Check if this is a continuation from the same sender (message grouping)
+			isGrouped := i > 0 && visibleHistory[i-1].Sender == entry.Sender && isSameDay(entry.Time, visibleHistory[i-1].Time)
 
-			// Render sender with role-specific color
-			role := style.RoleFromAgentName(sender)
-			senderStyle := m.styles.RoleStyle(role)
-			b.WriteString(senderStyle.Render(sender))
+			if !isGrouped {
+				// Add spacing between different senders
+				if i > 0 {
+					b.WriteString("\n")
+				}
 
-			// Add role badge
-			if role != sender && role != "" {
-				b.WriteString(" ")
-				b.WriteString(m.styles.RoleBadge(role).Render(role))
-			}
-
-			b.WriteString("  ")
-			b.WriteString(m.styles.Muted.Render(relTime))
-			b.WriteString("\n")
-
-			// Message content — wrap long lines with type-specific styling and highlighting
-			lines := wrapText(entry.Message, msgWidth)
-			for _, line := range lines {
+				// Sender and timestamp header
+				relTime := formatRelativeTime(entry.Time)
 				b.WriteString("  ")
+
+				// Add message type icon if not a regular text message
+				icon := m.styles.MessageTypeIcon(msgTypeStr)
+				if icon != "" {
+					b.WriteString(icon)
+				}
+
+				// Render sender with role-specific color
+				role := style.RoleFromAgentName(sender)
+				senderStyle := m.styles.RoleStyle(role)
+				b.WriteString(senderStyle.Render(sender))
+
+				// Add role badge
+				if role != sender && role != "" {
+					b.WriteString(" ")
+					b.WriteString(m.styles.RoleBadge(role).Render(role))
+				}
+
+				b.WriteString("  ")
+				b.WriteString(m.styles.Muted.Render(relTime))
+				b.WriteString("\n")
+			}
+
+			// Message content with subtle background — wrap long lines with highlighting
+			msgStyle := m.styles.MessageTypeStyle(msgTypeStr)
+			lines := wrapText(entry.Message, msgWidth-4)
+			var content strings.Builder
+			for j, line := range lines {
+				if j > 0 {
+					content.WriteString("\n")
+				}
 				highlightedLine := m.highlightMessage(line)
-				b.WriteString("  " + highlightedLine)
+				content.WriteString(highlightedLine)
+			}
+
+			// Render message with subtle background bubble
+			bubble := m.styles.MessageBubble.Width(msgWidth).Inherit(msgStyle).Render(content.String())
+			for _, line := range strings.Split(bubble, "\n") {
+				b.WriteString("  ")
+				b.WriteString(line)
 				b.WriteString("\n")
 			}
 
