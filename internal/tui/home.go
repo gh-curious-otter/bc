@@ -37,6 +37,11 @@ type workspaceLoadedMsg struct {
 	Model *WorkspaceModel
 }
 
+// WorkspacesLoadedMsg is sent when workspace list has been loaded (e.g. after non-blocking startup).
+type WorkspacesLoadedMsg struct {
+	Workspaces []WorkspaceInfo
+}
+
 // WorkspaceInfo holds summary data for a workspace in the home view.
 type WorkspaceInfo struct {
 	Entry      workspace.RegistryEntry
@@ -49,32 +54,36 @@ type WorkspaceInfo struct {
 
 // HomeModel is the root TUI model for bc home.
 type HomeModel struct {
-	wsModel                 *WorkspaceModel
-	agentModel              *AgentModel
-	channelModel            *ChannelModel
-	issueModel              *IssueModel
-	styles                  style.Styles
-	statusMsg               string
-	pendingWorkspaceName    string // workspace name shown in header while loading
-	workspaces              []WorkspaceInfo
-	loadingSpinner          spinner.Model // spinner shown during workspace load
-	screen                  Screen
-	maxWorkers              int
-	width                   int
-	height                  int
-	homeCursor              int
-	helpActive              bool // true when help overlay is shown
-	workspaceLoading        bool // true while workspace is loading after Enter
-	homeWorkspacesRefreshed bool // true after first tick on home (populates counts deferred from CLI)
+	wsModel              *WorkspaceModel
+	agentModel           *AgentModel
+	channelModel         *ChannelModel
+	issueModel           *IssueModel
+	styles               style.Styles
+	statusMsg            string
+	pendingWorkspaceName string // workspace name shown in header while loading
+	workspaces           []WorkspaceInfo
+	loadingSpinner       spinner.Model // spinner shown during workspace load
+	screen               Screen
+	maxWorkers           int
+	width                int
+	height               int
+	homeCursor           int
+	loadingWorkspaces    bool // true until WorkspacesLoadedMsg (non-blocking startup)
+	helpActive           bool // true when help overlay is shown
+	workspaceLoading     bool // true while workspace is loading after Enter
 }
 
 // NewHomeModel creates the root TUI model. maxWorkers is the configured agent limit (0 = no limit).
-func NewHomeModel(workspaces []WorkspaceInfo, maxWorkers int) *HomeModel {
+// If loading is true (e.g. optional third arg), the home screen shows "Loading workspaces..." until
+// a WorkspacesLoadedMsg is received (used for non-blocking startup).
+func NewHomeModel(workspaces []WorkspaceInfo, maxWorkers int, loading ...bool) *HomeModel {
+	loadingWorkspaces := len(loading) > 0 && loading[0]
 	return &HomeModel{
-		screen:     ScreenHome,
-		styles:     style.DefaultStyles(),
-		workspaces: workspaces,
-		maxWorkers: maxWorkers,
+		screen:            ScreenHome,
+		styles:            style.DefaultStyles(),
+		workspaces:        workspaces,
+		loadingWorkspaces: loadingWorkspaces,
+		maxWorkers:        maxWorkers,
 	}
 }
 
@@ -120,12 +129,13 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case WorkspacesLoadedMsg:
+		m.workspaces = msg.Workspaces
+		m.loadingWorkspaces = false
+		m.homeCursor = 0
+		return m, tickCmd()
+
 	case TickMsg:
-		// Populate workspace counts once on first tick when CLI deferred loading (#310)
-		if m.screen == ScreenHome && !m.homeWorkspacesRefreshed {
-			m.refreshWorkspaces()
-			m.homeWorkspacesRefreshed = true
-		}
 		if m.wsModel != nil {
 			m.wsModel.refreshLight()
 		}
@@ -394,22 +404,34 @@ func (m *HomeModel) handleIssueKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // refreshWorkspaces re-scans each workspace entry to update agent counts and issue counts.
+// Each workspace is updated in isolation so a bad path or beads error cannot crash the TUI.
 func (m *HomeModel) refreshWorkspaces() {
-	for i, ws := range m.workspaces {
-		mgr := agent.NewWorkspaceManager(
-			ws.Entry.Path+"/.bc/agents",
-			ws.Entry.Path,
-		)
-		_ = mgr.LoadState()
-		_ = mgr.RefreshState()
-		m.workspaces[i].Total = mgr.AgentCount()
-		m.workspaces[i].Running = mgr.RunningCount()
-		m.workspaces[i].HasBeads = beads.HasBeads(ws.Entry.Path)
-		if m.workspaces[i].HasBeads {
-			if issues, err := beads.ListIssues(ws.Entry.Path); err == nil {
-				m.workspaces[i].Issues = len(issues)
+	if m.workspaces == nil {
+		return
+	}
+	for i := range m.workspaces {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					_ = r // Skip this workspace on any panic (bad path, beads, etc.)
+				}
+			}()
+			ws := &m.workspaces[i]
+			mgr := agent.NewWorkspaceManager(
+				ws.Entry.Path+"/.bc/agents",
+				ws.Entry.Path,
+			)
+			_ = mgr.LoadState()
+			_ = mgr.RefreshState()
+			ws.Total = mgr.AgentCount()
+			ws.Running = mgr.RunningCount()
+			ws.HasBeads = beads.HasBeads(ws.Entry.Path)
+			if ws.HasBeads {
+				if issues, err := beads.ListIssues(ws.Entry.Path); err == nil {
+					ws.Issues = len(issues)
+				}
 			}
-		}
+		}()
 	}
 }
 
@@ -513,6 +535,11 @@ func (m *HomeModel) renderHomeScreen() string {
 	b.WriteString(m.styles.Title.Render("Workspaces"))
 	b.WriteString("\n\n")
 
+	if m.loadingWorkspaces {
+		b.WriteString(m.styles.Muted.Render("  Loading workspaces..."))
+		b.WriteString("\n")
+		return b.String()
+	}
 	if len(m.workspaces) == 0 {
 		b.WriteString(m.styles.Muted.Render("  No workspaces registered. Run 'bc init' in a project directory."))
 		b.WriteString("\n")

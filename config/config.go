@@ -73,7 +73,7 @@ var (
 		{
 			Command:     "claude",
 			Description: "Claude CLI agent",
-			Name:        "claude",
+			Name:        "claude-cli",
 		},
 		{
 			Command:     "claude mcp serve",
