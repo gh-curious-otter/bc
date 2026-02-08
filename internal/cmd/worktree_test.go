@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -474,5 +475,86 @@ func TestWorktreePruneMultipleOrphans(t *testing.T) {
 		if _, err := os.Stat(dir); !os.IsNotExist(err) {
 			t.Errorf("worktree %s should be removed", name)
 		}
+	}
+}
+
+// --- isDetachedHead tests ---
+
+func TestIsDetachedHead_NotDetached(t *testing.T) {
+	// Create a git repo with a normal branch
+	dir := t.TempDir()
+	cmds := [][]string{
+		{"git", "init", "-b", "main", dir},
+		{"git", "-C", dir, "config", "user.email", "test@test.com"},
+		{"git", "-C", dir, "config", "user.name", "Test"},
+		{"git", "-C", dir, "commit", "--allow-empty", "-m", "init"},
+	}
+	for _, args := range cmds {
+		if out, err := exec.Command(args[0], args[1:]...).CombinedOutput(); err != nil { //nolint:gosec,noctx // G204: test helper
+			t.Fatalf("%s failed: %v (%s)", strings.Join(args, " "), err, out)
+		}
+	}
+
+	isDetached, err := isDetachedHead(dir)
+	if err != nil {
+		t.Fatalf("isDetachedHead failed: %v", err)
+	}
+	if isDetached {
+		t.Error("expected not detached, got detached")
+	}
+}
+
+func TestIsDetachedHead_DetachedClean(t *testing.T) {
+	// Create a git repo and detach HEAD
+	dir := t.TempDir()
+	cmds := [][]string{
+		{"git", "init", "-b", "main", dir},
+		{"git", "-C", dir, "config", "user.email", "test@test.com"},
+		{"git", "-C", dir, "config", "user.name", "Test"},
+		{"git", "-C", dir, "commit", "--allow-empty", "-m", "init"},
+		{"git", "-C", dir, "checkout", "--detach"},
+	}
+	for _, args := range cmds {
+		if out, err := exec.Command(args[0], args[1:]...).CombinedOutput(); err != nil { //nolint:gosec,noctx // G204: test helper
+			t.Fatalf("%s failed: %v (%s)", strings.Join(args, " "), err, out)
+		}
+	}
+
+	isDetached, err := isDetachedHead(dir)
+	if err != nil {
+		t.Fatalf("isDetachedHead failed: %v", err)
+	}
+	if !isDetached {
+		t.Error("expected detached, got not detached")
+	}
+}
+
+func TestIsDetachedHead_DetachedWithChanges(t *testing.T) {
+	// Create a git repo, detach HEAD, and add uncommitted changes
+	dir := t.TempDir()
+	cmds := [][]string{
+		{"git", "init", "-b", "main", dir},
+		{"git", "-C", dir, "config", "user.email", "test@test.com"},
+		{"git", "-C", dir, "config", "user.name", "Test"},
+		{"git", "-C", dir, "commit", "--allow-empty", "-m", "init"},
+		{"git", "-C", dir, "checkout", "--detach"},
+	}
+	for _, args := range cmds {
+		if out, err := exec.Command(args[0], args[1:]...).CombinedOutput(); err != nil { //nolint:gosec,noctx // G204: test helper
+			t.Fatalf("%s failed: %v (%s)", strings.Join(args, " "), err, out)
+		}
+	}
+
+	// Add an uncommitted file
+	if err := os.WriteFile(filepath.Join(dir, "uncommitted.txt"), []byte("changes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	isDetached, err := isDetachedHead(dir)
+	if err != nil {
+		t.Fatalf("isDetachedHead failed: %v", err)
+	}
+	if isDetached {
+		t.Error("expected false (has uncommitted changes), got true")
 	}
 }

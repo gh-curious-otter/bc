@@ -342,7 +342,7 @@ func TestChannelDelete_RequiresArg(t *testing.T) {
 
 // --- Command Structure Tests ---
 
-func TestChannelCommandStructure(t *testing.T) {
+func TestChannelCommandSubcommands(t *testing.T) {
 	subcommands := channelCmd.Commands()
 
 	expectedCmds := map[string]bool{
