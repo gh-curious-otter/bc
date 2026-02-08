@@ -20,7 +20,7 @@ Plan for catching behavior and performance regressions in bc home TUI/dashboard 
 - **Location:** `internal/tui/benchmark_test.go` (functions named `Benchmark*`).
 - **Coverage:** HomeView (empty, with workspaces), WorkspaceView per tab (Agents, Issues, Channels, Queue, Dashboard, Stats).
 - **Run locally:** `make bench` or `go test -bench=. -benchmem ./internal/tui/...`
-- **CI:** A **Benchmark** job runs `make bench` on every push/PR and uploads the benchmark output as an artifact. This does not fail the build (no threshold enforced yet); it provides a record for investigating performance regressions.
+- **CI:** A **Benchmark** job runs `go test -bench=. -benchmem ./internal/tui/...` on every push/PR and uploads the benchmark output as an artifact (TUI-only to avoid other packages’ tests, e.g. config). This does not fail the build (no threshold enforced yet); it provides a record for investigating performance regressions.
 
 ## How to run (actionable)
 

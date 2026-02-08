@@ -53,7 +53,7 @@ jobs:
         run: go mod download
 
       - name: Run benchmarks
-        run: make bench 2>&1 | tee benchmark.txt
+        run: go test -bench=. -benchmem ./internal/tui/... 2>&1 | tee benchmark.txt
 
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
