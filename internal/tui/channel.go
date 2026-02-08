@@ -280,6 +280,10 @@ func (m *ChannelModel) View() string {
 				b.WriteString("\n")
 			}
 
+			// Infer message type for styling
+			msgType := channel.InferMessageType(entry.Message)
+			msgTypeStr := string(msgType)
+
 			// Sender and timestamp line
 			sender := entry.Sender
 			if sender == "" {
@@ -287,16 +291,24 @@ func (m *ChannelModel) View() string {
 			}
 			ts := entry.Time.Format("15:04:05")
 			b.WriteString("  ")
+
+			// Add message type icon if not a regular text message
+			icon := m.styles.MessageTypeIcon(msgTypeStr)
+			if icon != "" {
+				b.WriteString(icon)
+			}
+
 			b.WriteString(m.styles.Info.Render(sender))
 			b.WriteString("  ")
 			b.WriteString(m.styles.Muted.Render(ts))
 			b.WriteString("\n")
 
-			// Message content — wrap long lines
+			// Message content — wrap long lines with type-specific styling
+			msgStyle := m.styles.MessageTypeStyle(msgTypeStr)
 			lines := wrapText(entry.Message, msgWidth)
 			for _, line := range lines {
 				b.WriteString("  ")
-				b.WriteString(m.styles.Normal.Render("  " + line))
+				b.WriteString(msgStyle.Render("  " + line))
 				b.WriteString("\n")
 			}
 		}
@@ -327,22 +339,29 @@ func (m *ChannelModel) View() string {
 		}
 		for i, entry := range m.channel.History[start:] {
 			selected := i == m.cursor
+
+			// Infer message type for styling
+			msgType := channel.InferMessageType(entry.Message)
+			msgTypeStr := string(msgType)
+			icon := m.styles.MessageTypeIcon(msgTypeStr)
+
 			var line string
 			if entry.Sender != "" {
-				line = fmt.Sprintf("  %s  [%s] %s", entry.Time.Format("15:04:05"), entry.Sender, entry.Message)
+				line = fmt.Sprintf("  %s%s  [%s] %s", icon, entry.Time.Format("15:04:05"), entry.Sender, entry.Message)
 			} else {
-				line = fmt.Sprintf("  %s  %s", entry.Time.Format("15:04:05"), entry.Message)
+				line = fmt.Sprintf("  %s%s  %s", icon, entry.Time.Format("15:04:05"), entry.Message)
 			}
 			if selected {
 				b.WriteString(m.styles.Selected.Render(line))
 			} else {
 				ts := m.styles.Muted.Render(entry.Time.Format("15:04:05"))
-				msg := m.styles.Normal.Render(entry.Message)
+				msgStyle := m.styles.MessageTypeStyle(msgTypeStr)
+				msg := msgStyle.Render(entry.Message)
 				if entry.Sender != "" {
 					sender := m.styles.Info.Render("[" + entry.Sender + "]")
-					line = fmt.Sprintf("  %s  %s %s", ts, sender, msg)
+					line = fmt.Sprintf("  %s%s  %s %s", icon, ts, sender, msg)
 				} else {
-					line = fmt.Sprintf("  %s  %s", ts, msg)
+					line = fmt.Sprintf("  %s%s  %s", icon, ts, msg)
 				}
 				b.WriteString(line)
 			}
