@@ -574,9 +574,24 @@ func (m *ChannelModel) reloadChannel() {
 
 // visibleMsgCount returns how many messages fit in the visible area.
 func (m *ChannelModel) visibleMsgCount() int {
-	// Reserve lines: title(1) + blank(1) + members(1) + member list + blank(1)
-	// + divider(1) + blank(1) + input/status(2) + scroll hint(1)
-	overhead := 8 + len(m.channel.Members)
+	// Reserve lines: title(1) + summary(0 or more) + member stats(1) + member list(1+)
+	// + actions(1) + divider(1) + input/status(2) + scroll hint(1)
+	overhead := 10
+	if m.channel.Description != "" {
+		w := m.width - 4
+		if w < 20 {
+			w = 20
+		}
+		overhead += len(wrapText(m.channel.Description, w-9)) // "Summary: " = 9
+	}
+	memberList := strings.Join(m.channel.Members, ", ")
+	if memberList != "" {
+		w := m.width - 4
+		if w < 20 {
+			w = 20
+		}
+		overhead += len(wrapText(memberList, w-11)) // "  Members: " = 11
+	}
 	// Each message takes ~3 lines (sender+time, content, blank separator)
 	available := m.height - overhead
 	if available < 3 {
@@ -603,10 +618,22 @@ func (m *ChannelModel) View() string {
 	b.WriteString(m.styles.Title.Render("  # " + m.channel.Name))
 	b.WriteString("\n")
 
-	// Description/topic (if set)
+	// Summary/description (if set) — clearly labeled and readable
 	if m.channel.Description != "" {
-		b.WriteString(m.styles.Muted.Render("  " + m.channel.Description))
-		b.WriteString("\n")
+		label := "Summary: "
+		msgWidth := m.width - 4
+		if msgWidth < 20 {
+			msgWidth = 20
+		}
+		wrapped := wrapText(m.channel.Description, msgWidth-len(label))
+		for i, line := range wrapped {
+			if i == 0 {
+				b.WriteString(m.styles.Muted.Render("  "+label) + m.styles.Normal.Render(line))
+			} else {
+				b.WriteString(m.styles.Muted.Render("           ") + m.styles.Normal.Render(line))
+			}
+			b.WriteString("\n")
+		}
 	}
 
 	// Member count with online/active indicators
@@ -627,6 +654,25 @@ func (m *ChannelModel) View() string {
 		b.WriteString(m.styles.Muted.Render(fmt.Sprintf(" / %d members", totalMembers)))
 	} else {
 		b.WriteString(m.styles.Muted.Render(fmt.Sprintf("○ %d members", totalMembers)))
+	}
+
+	// Member list: names visible in channel view
+	if totalMembers > 0 {
+		b.WriteString("\n")
+		memberList := strings.Join(m.channel.Members, ", ")
+		listWidth := m.width - 4
+		if listWidth < 20 {
+			listWidth = 20
+		}
+		for i, line := range wrapText(memberList, listWidth-len("  Members: ")) {
+			if i == 0 {
+				b.WriteString(m.styles.Muted.Render("  Members: "))
+			} else {
+				b.WriteString(m.styles.Muted.Render("           "))
+			}
+			b.WriteString(m.styles.Normal.Render(line))
+			b.WriteString("\n")
+		}
 	}
 
 	// Quick actions hint

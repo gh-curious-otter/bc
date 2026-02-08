@@ -532,6 +532,33 @@ func TestChannelView_WithDescription(t *testing.T) {
 	}
 }
 
+func TestChannelView_SummaryVisible(t *testing.T) {
+	m := newTestChannelModel()
+	m.channel.Description = "Daily sync and status"
+
+	output := m.View()
+	if !strings.Contains(output, "Summary:") {
+		t.Error("expected 'Summary:' label in header")
+	}
+	if !strings.Contains(output, "Daily sync and status") {
+		t.Error("expected summary text visible and readable")
+	}
+}
+
+func TestChannelView_MemberListVisible(t *testing.T) {
+	m := newTestChannelModel()
+	// newTestChannelModel has Members: coordinator, eng-01, eng-02
+	output := m.View()
+	if !strings.Contains(output, "Members:") {
+		t.Error("expected 'Members:' label in channel view")
+	}
+	for _, name := range m.channel.Members {
+		if !strings.Contains(output, name) {
+			t.Errorf("expected member %q visible in member list", name)
+		}
+	}
+}
+
 func TestChannelView_OnlineIndicator(t *testing.T) {
 	m := newTestChannelModel()
 
