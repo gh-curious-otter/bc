@@ -160,3 +160,23 @@ func TestProcessStartNoWorkspace(t *testing.T) {
 		t.Errorf("expected workspace error, got: %v", err)
 	}
 }
+
+func TestStatusStr(t *testing.T) {
+	tests := []struct {
+		name    string
+		want    string
+		running bool
+	}{
+		{name: "running process", want: "running", running: true},
+		{name: "stopped process", want: "stopped", running: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := statusStr(tt.running)
+			if got != tt.want {
+				t.Errorf("statusStr(%v) = %q, want %q", tt.running, got, tt.want)
+			}
+		})
+	}
+}
