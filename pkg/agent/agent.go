@@ -17,6 +17,7 @@ import (
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/memory"
 	"github.com/rpuneet/bc/pkg/tmux"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // Role defines the type of agent.
@@ -183,22 +184,37 @@ func (a *Agent) Level() int {
 	return RoleLevel(a.Role)
 }
 
-// LoadRoleMemory loads role-specific prompt content from prompts/<role>.md.
-// The role name is normalized (e.g., "product-manager" -> "product_manager").
+// LoadRoleMemory loads role-specific prompt content from .bc/roles/<role>.md.
+// For the root role, loads from .bc/prompts/root.md for backward compatibility.
 // Returns nil AgentMemory if the file doesn't exist.
 func LoadRoleMemory(workspacePath string, role Role) *AgentMemory {
-	// Normalize role name for filename: product-manager -> product_manager
-	roleName := strings.ReplaceAll(string(role), "-", "_")
-	promptPath := filepath.Join(workspacePath, "prompts", roleName+".md")
+	// For root role, try backward compatible location first
+	if role == RoleRoot {
+		rootPromptPath := filepath.Join(workspacePath, "prompts", "root.md")
+		//nolint:gosec // path constructed from trusted workspace root
+		if data, err := os.ReadFile(rootPromptPath); err == nil {
+			return &AgentMemory{
+				RolePrompt: string(data),
+				LoadedAt:   time.Now(),
+			}
+		}
+	}
 
-	data, err := os.ReadFile(promptPath) //nolint:gosec // path constructed from trusted role name
+	// Load role from .bc/roles/<role>.md using RoleManager
+	stateDir := filepath.Join(workspacePath, ".bc")
+	rm := workspace.NewRoleManager(stateDir)
+	roleObj, err := rm.LoadRole(string(role))
 	if err != nil {
-		log.Debug("no role prompt found", "role", role, "path", promptPath)
+		log.Debug("failed to load role prompt", "role", role, "error", err)
+		return nil
+	}
+
+	if roleObj.Prompt == "" {
 		return nil
 	}
 
 	return &AgentMemory{
-		RolePrompt: string(data),
+		RolePrompt: roleObj.Prompt,
 		LoadedAt:   time.Now(),
 	}
 }
