@@ -42,6 +42,7 @@ type ToolsConfig struct {
 	Claude  *ToolConfig           `toml:"claude,omitempty"`
 	Cursor  *ToolConfig           `toml:"cursor,omitempty"`
 	Codex   *ToolConfig           `toml:"codex,omitempty"`
+	Gemini  *ToolConfig           `toml:"gemini,omitempty"`
 	Default string                `toml:"default"`
 }
 
@@ -200,6 +201,8 @@ func (c *V2Config) hasToolDefined(name string) bool {
 		return c.Tools.Cursor != nil
 	case "codex":
 		return c.Tools.Codex != nil
+	case "gemini":
+		return c.Tools.Gemini != nil
 	default:
 		_, ok := c.Tools.Custom[name]
 		return ok
@@ -215,6 +218,8 @@ func (c *V2Config) GetTool(name string) *ToolConfig {
 		return c.Tools.Cursor
 	case "codex":
 		return c.Tools.Codex
+	case "gemini":
+		return c.Tools.Gemini
 	default:
 		if cfg, ok := c.Tools.Custom[name]; ok {
 			return &cfg

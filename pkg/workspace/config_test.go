@@ -418,6 +418,42 @@ func TestV2ConfigGetTool_Codex(t *testing.T) {
 	}
 }
 
+func TestV2ConfigGetTool_Gemini(t *testing.T) {
+	cfg := V2Config{
+		Workspace: WorkspaceConfig{Name: "test", Version: 2},
+		Tools: ToolsConfig{
+			Default: "gemini",
+			Gemini: &ToolConfig{
+				Command: "gemini --full-auto",
+				Enabled: true,
+			},
+		},
+		Memory: MemoryConfig{Backend: "file", Path: ".bc/memory"},
+	}
+
+	// Validate should pass with gemini as default
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("validation failed: %v", err)
+	}
+
+	// GetTool should return gemini config
+	tool := cfg.GetTool("gemini")
+	if tool == nil {
+		t.Fatal("expected gemini tool config")
+	}
+	if tool.Command != "gemini --full-auto" {
+		t.Errorf("expected command 'gemini --full-auto', got %q", tool.Command)
+	}
+	if !tool.Enabled {
+		t.Error("expected gemini to be enabled")
+	}
+
+	// Cursor should be nil when not configured
+	if cfg.GetTool("cursor") != nil {
+		t.Error("expected nil for unconfigured cursor")
+	}
+}
+
 func TestV2ConfigCustomTools(t *testing.T) {
 	cfg := V2Config{
 		Workspace: WorkspaceConfig{Name: "test", Version: 2},
@@ -436,6 +472,7 @@ func TestV2ConfigCustomTools(t *testing.T) {
 		},
 		Memory: MemoryConfig{Backend: "file", Path: ".bc/memory"},
 	}
+
 
 	// Validate should pass with custom tool as default
 	if err := cfg.Validate(); err != nil {
