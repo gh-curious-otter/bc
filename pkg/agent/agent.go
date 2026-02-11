@@ -520,6 +520,9 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 
 	// Send bootstrap prompt if we have content
 	if len(promptParts) > 0 {
+		// Wait for agent to initialize (Gemini/Claude needs time to start REPL)
+		time.Sleep(3 * time.Second)
+
 		prompt := strings.Join(promptParts, "\n\n---\n\n")
 		prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nAgent ID: %s\n", workspace, name)
 		if err := m.tmux.SendKeys(name, prompt); err != nil {

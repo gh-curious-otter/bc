@@ -116,7 +116,9 @@ func runUp(cmd *cobra.Command, args []string) error {
 		Type:  events.AgentSpawned,
 		Agent: "root",
 	})
-	time.Sleep(300 * time.Millisecond)
+
+	// Wait for agent to initialize (Gemini/Claude needs time to start REPL)
+	time.Sleep(3 * time.Second)
 
 	// Create default channels for root
 	createDefaultChannels(ws.RootDir, []string{"root"})
