@@ -70,9 +70,15 @@ type ToolsConfig struct {
 	Codex   ToolsCodexConfig
 	Cursor  ToolsCursorConfig
 	Default string
+	Gemini  ToolsGeminiConfig
 }
 
 type ToolsCursorConfig struct {
+	Command string
+	Enabled bool
+}
+
+type ToolsGeminiConfig struct {
 	Command string
 	Enabled bool
 }
@@ -108,6 +114,11 @@ var (
 			Command:     "claude --dangerously-skip-permissions",
 			Description: "Anthropic Claude Code",
 			Name:        "claude",
+		},
+		{
+			Command:     "gemini --yolo",
+			Description: "Gemini Agent",
+			Name:        "gemini",
 		},
 		{
 			Command:     "cursor-agent --force",
@@ -207,6 +218,10 @@ var (
 			Enabled: false,
 		},
 		Default: "claude",
+		Gemini: ToolsGeminiConfig{
+			Command: "gemini --yolo",
+			Enabled: true,
+		},
 	}
 	Tui = TuiConfig{
 		RefreshInterval: 2 * time.Second,

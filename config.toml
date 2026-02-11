@@ -37,6 +37,11 @@ default = "claude"
 command = "claude --dangerously-skip-permissions"
 enabled = true
 
+# Gemini (Google) - YOLO mode
+[tools.gemini]
+command = "gemini --yolo"
+enabled = true
+
 # Cursor Agent - Alternative option
 [tools.cursor]
 command = "cursor-agent --force --print"
@@ -136,6 +141,11 @@ limit = 100.0           # Hard limit per session (USD), 0 = no limit
 name = "claude"
 command = "claude --dangerously-skip-permissions"
 description = "Anthropic Claude Code"
+
+[[agents]]
+name = "gemini"
+command = "gemini --yolo"
+description = "Gemini Agent"
 
 [[agents]]
 name = "cursor"
