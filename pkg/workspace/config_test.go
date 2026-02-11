@@ -473,7 +473,6 @@ func TestV2ConfigCustomTools(t *testing.T) {
 		Memory: MemoryConfig{Backend: "file", Path: ".bc/memory"},
 	}
 
-
 	// Validate should pass with custom tool as default
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("validation failed: %v", err)

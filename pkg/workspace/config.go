@@ -71,9 +71,11 @@ type ChannelsConfig struct {
 
 // RosterConfig configures the default agent roster for bc up.
 type RosterConfig struct {
-	Engineers int `toml:"engineers"`  // Number of engineer agents (default: 4)
-	TechLeads int `toml:"tech_leads"` // Number of tech-lead agents (default: 2)
-	QA        int `toml:"qa"`         // Number of QA agents (default: 2)
+	ProductManager int `toml:"product_manager"` // Number of product-manager agents (default: 1)
+	Manager        int `toml:"manager"`         // Number of manager agents (default: 1)
+	Engineers      int `toml:"engineers"`       // Number of engineer agents (default: 4)
+	TechLeads      int `toml:"tech_leads"`      // Number of tech-lead agents (default: 2)
+	QA             int `toml:"qa"`              // Number of QA agents (default: 2)
 }
 
 // Roster limits.
@@ -107,9 +109,13 @@ func DefaultV2Config(name string) V2Config {
 			AutoCleanup: true,
 		},
 		Tools: ToolsConfig{
-			Default: "claude",
+			Default: "gemini",
 			Claude: &ToolConfig{
 				Command: "claude --dangerously-skip-permissions",
+				Enabled: true,
+			},
+			Gemini: &ToolConfig{
+				Command: "gemini",
 				Enabled: true,
 			},
 		},
@@ -125,9 +131,11 @@ func DefaultV2Config(name string) V2Config {
 			Default: []string{"general", "engineering"},
 		},
 		Roster: RosterConfig{
-			Engineers: 4,
-			TechLeads: 2,
-			QA:        2,
+			ProductManager: 0,
+			Manager:        0,
+			Engineers:      0,
+			TechLeads:      0,
+			QA:             0,
 		},
 	}
 }
