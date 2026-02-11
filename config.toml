@@ -1,40 +1,137 @@
-# bc configuration
-# This file defines the default configuration schema.
-# Run `go generate ./...` to regenerate config/config.go
+# bc (Beads Coordinator) Configuration
+# This is the default configuration template for bc workspaces.
+# When you run `bc init`, a copy is created at .bc/config.toml
+# Run `go generate ./...` to regenerate config/config.go from this file
 
-# Application metadata
-name = "bc"
-version = "0.1.0"
-
-# Workspace settings
+# =============================================================================
+# Workspace Settings
+# =============================================================================
 [workspace]
-state_dir = ".bc"              # Directory for bc state (relative to project root)
-max_workers = 3                # Maximum number of worker agents
+# Workspace name - typically your project name
+name = "bc"
 
-# Agent settings
-# For Cursor Agent: use --force (no confirmations) and --print (headless, full tool access like Claude Code).
-# Then bc send and Enter will work; agents run non-interactively with all permissions.
-[agent]
+# Config schema version (DO NOT CHANGE unless migrating)
+version = 2
+
+# =============================================================================
+# Git Worktrees
+# =============================================================================
+[worktrees]
+# Directory for agent-specific git worktrees (relative to workspace root)
+# Each agent gets an isolated worktree to prevent merge conflicts
+path = ".bc/worktrees"
+
+# Automatically cleanup worktrees when agents are stopped
+auto_cleanup = true
+
+# =============================================================================
+# AI Tools Configuration
+# =============================================================================
+[tools]
+# Default tool to use when spawning agents (must be defined below)
+# Options: "claude", "cursor", "codex", or custom tool name
+default = "claude"
+
+# Claude Code (Anthropic) - Recommended default
+[tools.claude]
+command = "claude --dangerously-skip-permissions"
+enabled = true
+
+# Cursor Agent - Alternative option
+[tools.cursor]
 command = "cursor-agent --force --print"
-coordinator_name = "root"                           # Name for the coordinator agent
-worker_prefix = "worker"                           # Prefix for worker agent names
+enabled = false
+
+# OpenAI Codex - Alternative option
+[tools.codex]
+command = "codex --full-auto"
+enabled = false
+
+# Custom tools can be added here
+# [tools.custom_name]
+# command = "your-agent-command"
+# enabled = true
+
+# =============================================================================
+# Agent Memory System
+# =============================================================================
+[memory]
+# Memory backend type: "file" (default), "sqlite" (future)
+backend = "file"
+
+# Directory for agent memory, experiences, and learnings
+path = ".bc/memory"
+
+# =============================================================================
+# Issue Tracker Integration (Beads)
+# =============================================================================
+[beads]
+# Enable beads issue tracker integration
+enabled = true
+
+# Directory containing beads issues
+issues_dir = ".beads/issues"
+
+# =============================================================================
+# Communication Channels
+# =============================================================================
+[channels]
+# Default channels created on workspace initialization
+# Agents can be added to channels for group messaging
+default = ["general", "engineering"]
+
+# =============================================================================
+# Default Agent Roster (for `bc up`)
+# =============================================================================
+[roster]
+# Number of engineer agents to spawn (0-10)
+# Engineers implement tasks, write code, and run tests
+engineers = 4
+
+# Number of tech-lead agents to spawn (0-10)
+# Tech leads review code, manage engineers, and coordinate work
+tech_leads = 2
+
+# Number of QA agents to spawn (0-10)
+# QA agents test features and verify quality
+qa = 2
+
+# =============================================================================
+# Legacy Settings (for backwards compatibility)
+# =============================================================================
+# Application metadata
+name_legacy = "bc"
+version_legacy = "0.1.0"
+
+# Workspace settings (v1)
+[workspace_legacy]
+state_dir = ".bc"
+max_workers = 3
+
+# Agent settings (v1)
+[agent_legacy]
+command = "cursor-agent --force --print"
+coordinator_name = "root"
+worker_prefix = "worker"
 
 # Tmux settings
 [tmux]
-session_prefix = "bc-"         # Prefix for all tmux session names
+session_prefix = "bc-"
 
 # TUI settings
 [tui]
-refresh_interval = "2s"        # How often to refresh agent status
-theme = "ayu-dark"             # Color theme (ayu-dark, nord, etc.)
+refresh_interval = "2s"
+theme = "ayu-dark"  # Options: ayu-dark, nord, gruvbox
 
 # Cost tracking
 [costs]
-enabled = true                 # Enable cost tracking
-warn_threshold = 10.0          # Warn when session cost exceeds this (USD)
-limit = 100.0                  # Hard limit per session (USD), 0 = no limit
+enabled = true
+warn_threshold = 10.0   # Warn when session cost exceeds this (USD)
+limit = 100.0           # Hard limit per session (USD), 0 = no limit
 
-# Supported agent types (for future use)
+# =============================================================================
+# Agent Type Definitions (for reference)
+# =============================================================================
 [[agents]]
 name = "claude"
 command = "claude --dangerously-skip-permissions"
@@ -65,23 +162,38 @@ name = "server"
 command = "claude mcp serve"
 description = "Claude MCP Server"
 
-# Role definitions with system prompts
-# Roles define agent behavior and available commands
+# =============================================================================
+# Role Definitions
+# =============================================================================
+# Prompts are stored in .bc/prompts/ and copied from root prompts/ on init.
+# This allows per-workspace customization of role prompts.
 
 [[roles]]
 name = "product_manager"
-prompt_file = "prompts/product_manager.md"
+prompt_file = ".bc/prompts/product_manager.md"
 description = "Defines product vision, creates epics, reviews proposals"
 permissions = ["queue.add", "queue.view", "send", "report"]
 
 [[roles]]
 name = "manager"
-prompt_file = "prompts/manager.md"
+prompt_file = ".bc/prompts/manager.md"
 description = "Breaks down epics, spawns engineers, assigns work, reviews code"
 permissions = ["queue.add", "queue.assign", "queue.complete", "spawn", "send", "report", "git.merge"]
 
 [[roles]]
 name = "engineer"
-prompt_file = "prompts/engineer.md"
+prompt_file = ".bc/prompts/engineer.md"
 description = "Implements assigned tasks, writes code and tests"
 permissions = ["queue.view", "report", "git.branch", "git.commit"]
+
+[[roles]]
+name = "tech_lead"
+prompt_file = ".bc/prompts/tech_lead.md"
+description = "Reviews code, coordinates engineers, ensures quality"
+permissions = ["queue.view", "queue.assign", "report", "git.branch", "git.commit", "spawn"]
+
+[[roles]]
+name = "qa"
+prompt_file = ".bc/prompts/qa.md"
+description = "Tests features, verifies quality, reports bugs"
+permissions = ["queue.view", "queue.add", "report", "git.branch"]

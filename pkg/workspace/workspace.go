@@ -4,6 +4,7 @@ package workspace
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -95,11 +96,18 @@ func InitV2(rootDir string) (*Workspace, error) {
 		filepath.Join(stateDir, "memory"),
 		filepath.Join(stateDir, "worktrees"),
 		filepath.Join(stateDir, "channels"),
+		filepath.Join(stateDir, "prompts"),
 	}
 	for _, dir := range dirs {
 		if err = os.MkdirAll(dir, 0750); err != nil {
 			return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
+	}
+
+	// Copy default prompts from root prompts/ to .bc/prompts/
+	if err := copyDefaultPrompts(absRoot, stateDir); err != nil {
+		log.Warn("failed to copy default prompts", "error", err)
+		// Non-fatal - workspace can still function
 	}
 
 	// Create default v2 config
@@ -415,4 +423,78 @@ func (w *Workspace) DefaultChannels() []string {
 		return w.V2Config.Channels.Default
 	}
 	return []string{"general", "engineering"}
+}
+
+// copyDefaultPrompts copies default prompt files from root prompts/ to .bc/prompts/.
+// This allows users to customize prompts per workspace.
+func copyDefaultPrompts(rootDir, stateDir string) error {
+	sourceDir := filepath.Join(rootDir, "prompts")
+	destDir := filepath.Join(stateDir, "prompts")
+
+	// Check if source prompts directory exists
+	if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
+		// No prompts directory at root, skip silently
+		return nil
+	}
+
+	// Read all files in source prompts directory
+	entries, err := os.ReadDir(sourceDir)
+	if err != nil {
+		return fmt.Errorf("failed to read prompts directory: %w", err)
+	}
+
+	// Copy each .md file
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		if filepath.Ext(name) != ".md" {
+			continue
+		}
+
+		sourcePath := filepath.Join(sourceDir, name)
+		destPath := filepath.Join(destDir, name)
+
+		// Skip if destination already exists (don't overwrite customizations)
+		if _, err := os.Stat(destPath); err == nil {
+			continue
+		}
+
+		// Copy file
+		if err := copyFile(sourcePath, destPath); err != nil {
+			return fmt.Errorf("failed to copy %s: %w", name, err)
+		}
+	}
+
+	return nil
+}
+
+// copyFile copies a single file from src to dst.
+func copyFile(src, dst string) error {
+	// #nosec G304 - src path is from internal prompts directory
+	source, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = source.Close() }()
+
+	// #nosec G304 - dst path is in workspace .bc/prompts directory
+	destination, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = destination.Close() }()
+
+	if _, err := io.Copy(destination, source); err != nil {
+		return err
+	}
+
+	// Copy file permissions
+	if info, err := os.Stat(src); err == nil {
+		_ = os.Chmod(dst, info.Mode())
+	}
+
+	return nil
 }
