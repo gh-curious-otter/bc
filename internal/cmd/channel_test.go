@@ -163,6 +163,68 @@ func TestChannelSend_RequiresMessage(t *testing.T) {
 	}
 }
 
+func TestChannelSend_SenderNotIncludedInRecipients(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Create two agents
+	seedAgents(t, wsDir, map[string]*agent.Agent{
+		"agent-01": {
+			Name:      "agent-01",
+			Role:      agent.RoleEngineer,
+			State:     agent.StateIdle,
+			Session:   "bc-agent-01",
+			StartedAt: time.Now(),
+		},
+		"agent-02": {
+			Name:      "agent-02",
+			Role:      agent.RoleEngineer,
+			State:     agent.StateIdle,
+			Session:   "bc-agent-02",
+			StartedAt: time.Now(),
+		},
+	})
+
+	// Create channel with both agents as members
+	store := channel.NewStore(wsDir)
+	if err := store.Load(); err != nil {
+		t.Fatalf("failed to load store: %v", err)
+	}
+	ch, err := store.Create("test-channel")
+	if err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+	ch.Members = []string{"agent-01", "agent-02"}
+	if saveErr := store.Save(); saveErr != nil {
+		t.Fatalf("failed to save: %v", saveErr)
+	}
+
+	// Set BC_AGENT_ID to simulate agent-01 sending
+	if setErr := os.Setenv("BC_AGENT_ID", "agent-01"); setErr != nil {
+		t.Fatalf("failed to set BC_AGENT_ID: %v", setErr)
+	}
+	defer func() {
+		if unsetErr := os.Unsetenv("BC_AGENT_ID"); unsetErr != nil {
+			t.Logf("failed to unset BC_AGENT_ID: %v", unsetErr)
+		}
+	}()
+
+	stdout, _, err := executeIntegrationCmd("channel", "send", "test-channel", "hello")
+	if err != nil {
+		t.Fatalf("channel send error: %v", err)
+	}
+
+	// Should skip sending to agent-01 (the sender)
+	if !strings.Contains(stdout, "1 skipped - sender") {
+		t.Errorf("expected '1 skipped - sender' in output, got: %s", stdout)
+	}
+
+	// Should attempt to send to only agent-02 (1 target instead of 2)
+	if !strings.Contains(stdout, "Sent to 0/1 members") {
+		t.Errorf("expected 'Sent to 0/1 members' (excluding sender), got: %s", stdout)
+	}
+}
+
 // --- Channel Create Tests ---
 
 func TestChannelCreate_RequiresName(t *testing.T) {

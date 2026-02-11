@@ -292,10 +292,17 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Warning: failed to save history: %v\n", err)
 	}
 
-	// Send to all members
+	// Send to all members except the sender
 	sent := 0
 	failed := 0
+	skipped := 0
 	for _, member := range members {
+		// Skip sending to the sender to avoid infinite loop
+		if member == sender {
+			skipped++
+			continue
+		}
+
 		a := mgr.GetAgent(member)
 		if a == nil {
 			fmt.Printf("  %s: agent not found\n", member)
@@ -308,7 +315,7 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		if err := mgr.SendToAgent(member, fmt.Sprintf("[#%s] %s", channelName, message)); err != nil {
+		if err := mgr.SendToAgent(member, fmt.Sprintf("[#%s] %s: %s", channelName, sender, message)); err != nil {
 			fmt.Printf("  %s: failed - %v\n", member, err)
 			failed++
 			continue
@@ -317,7 +324,11 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 		sent++
 	}
 
-	fmt.Printf("\nSent to %d/%d members of channel %q\n", sent, len(members), channelName)
+	totalTargets := len(members) - skipped
+	fmt.Printf("\nSent to %d/%d members of channel %q\n", sent, totalTargets, channelName)
+	if skipped > 0 {
+		fmt.Printf("  (%d skipped - sender)\n", skipped)
+	}
 	if failed > 0 {
 		fmt.Printf("  (%d failed)\n", failed)
 	}
