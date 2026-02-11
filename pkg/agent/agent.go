@@ -23,19 +23,9 @@ import (
 type Role string
 
 const (
-	// Root role (singleton)
-	RoleRoot Role = "root" // Singleton root agent - only one can exist
-
-	// Legacy roles (for backward compatibility)
-	RoleCoordinator Role = "coordinator"
-	RoleWorker      Role = "worker"
-
-	// Hierarchical roles
-	RoleProductManager Role = "product-manager" // Owns product vision, creates epics
-	RoleManager        Role = "manager"         // Breaks down epics, manages engineers
-	RoleTechLead       Role = "tech-lead"       // Technical leadership, code review, architecture
-	RoleEngineer       Role = "engineer"        // Implements tasks (like worker)
-	RoleQA             Role = "qa"              // Tests and validates implementations
+	// RoleRoot is the only hardcoded role - a singleton root agent.
+	// All other roles are defined in workspace .bc/roles/*.md files.
+	RoleRoot Role = "root"
 )
 
 // Capability defines what actions a role can perform.
@@ -50,30 +40,17 @@ const (
 	CapTestWork       Capability = "test_work"       // Can test and validate implementations
 )
 
-// RoleCapabilities defines what each role can do.
+// RoleCapabilities and RoleHierarchy are empty here.
+// All role definitions (capabilities, hierarchy, metadata) are loaded from
+// workspace .bc/roles/*.md files via RoleManager.
+// Only the root role has hardcoded capabilities.
 var RoleCapabilities = map[Role][]Capability{
-	RoleRoot:           {CapCreateAgents, CapAssignWork, CapCreateEpics, CapReviewWork}, // Root can do everything
-	RoleProductManager: {CapCreateAgents, CapAssignWork, CapCreateEpics, CapReviewWork},
-	RoleManager:        {CapCreateAgents, CapAssignWork, CapReviewWork},
-	RoleTechLead:       {CapCreateAgents, CapAssignWork, CapReviewWork, CapImplementTasks}, // Tech lead can create agents, review, and implement
-	RoleEngineer:       {CapImplementTasks},
-	RoleQA:             {CapTestWork, CapReviewWork},
-	// Legacy mappings
-	RoleCoordinator: {CapCreateAgents, CapAssignWork, CapReviewWork},
-	RoleWorker:      {CapImplementTasks},
+	RoleRoot: {CapCreateAgents, CapAssignWork, CapCreateEpics, CapReviewWork}, // Root can do everything
 }
 
-// RoleHierarchy defines which roles can create which child roles.
 var RoleHierarchy = map[Role][]Role{
-	RoleRoot:           {RoleProductManager, RoleManager, RoleTechLead, RoleEngineer, RoleQA}, // Root can create all
-	RoleProductManager: {RoleManager},
-	RoleManager:        {RoleTechLead, RoleEngineer, RoleQA},
-	RoleTechLead:       {RoleEngineer}, // Tech lead can create engineers
-	RoleEngineer:       {},             // Cannot create children
-	RoleQA:             {},             // Cannot create children
-	// Legacy mappings
-	RoleCoordinator: {RoleWorker, RoleManager, RoleTechLead, RoleEngineer, RoleQA},
-	RoleWorker:      {},
+	// Root can create any role defined in workspace (checked at runtime)
+	RoleRoot: {}, // Empty - all roles allowed, checked dynamically
 }
 
 // CanCreateRole checks if a parent role can create a child role.
@@ -104,19 +81,14 @@ func HasCapability(role Role, cap Capability) bool {
 	return false
 }
 
-// RoleLevel returns the hierarchy level (0 = top, higher = lower in hierarchy).
+// RoleLevel returns the hierarchy level for built-in roles.
+// Custom roles loaded from .bc/roles/*.md return level 1 by default.
 func RoleLevel(role Role) int {
 	switch role {
 	case RoleRoot:
-		return -1 // Root is above all
-	case RoleProductManager, RoleCoordinator:
-		return 0
-	case RoleManager, RoleTechLead:
-		return 1
-	case RoleEngineer, RoleWorker, RoleQA:
-		return 2
+		return -1 // Root is at the top
 	default:
-		return 99
+		return 1 // All custom roles are at level 1
 	}
 }
 
@@ -253,7 +225,7 @@ func NewManager(stateDir string) *Manager {
 		agents:   make(map[string]*Agent),
 		tmux:     tmux.NewManager(config.Tmux.SessionPrefix),
 		stateDir: stateDir,
-		agentCmd: config.Agent.Command,
+		agentCmd: config.AgentLegacy.Command,
 	}
 }
 
@@ -264,7 +236,7 @@ func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 		agents:        make(map[string]*Agent),
 		tmux:          tmux.NewWorkspaceManager(config.Tmux.SessionPrefix, workspacePath),
 		stateDir:      stateDir,
-		agentCmd:      config.Agent.Command,
+		agentCmd:      config.AgentLegacy.Command,
 		workspacePath: workspacePath,
 	}
 }

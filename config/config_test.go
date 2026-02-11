@@ -7,43 +7,30 @@ import (
 
 // --- Scalar defaults ---
 
-func TestName(t *testing.T) {
-	if Name != "bc" {
-		t.Errorf("Name = %q, want %q", Name, "bc")
+// Note: Name and Version are now in Roster as NameLegacy and VersionLegacy
+
+// --- WorkspaceLegacyConfig ---
+
+func TestWorkspaceLegacyDefaults(t *testing.T) {
+	if WorkspaceLegacy.StateDir != ".bc" {
+		t.Errorf("WorkspaceLegacy.StateDir = %q, want %q", WorkspaceLegacy.StateDir, ".bc")
+	}
+	if WorkspaceLegacy.MaxWorkers != 3 {
+		t.Errorf("WorkspaceLegacy.MaxWorkers = %d, want %d", WorkspaceLegacy.MaxWorkers, 3)
 	}
 }
 
-func TestVersion(t *testing.T) {
-	if Version == "" {
-		t.Error("Version should not be empty")
-	}
-	if Version != "0.1.0" {
-		t.Errorf("Version = %q, want %q", Version, "0.1.0")
-	}
-}
+// --- AgentLegacyConfig ---
 
-// --- WorkspaceConfig ---
-
-func TestWorkspaceDefaults(t *testing.T) {
-	if Workspace.StateDir != ".bc" {
-		t.Errorf("Workspace.StateDir = %q, want %q", Workspace.StateDir, ".bc")
+func TestAgentLegacyDefaults(t *testing.T) {
+	if AgentLegacy.Command == "" {
+		t.Error("AgentLegacy.Command should not be empty")
 	}
-	if Workspace.MaxWorkers != 3 {
-		t.Errorf("Workspace.MaxWorkers = %d, want %d", Workspace.MaxWorkers, 3)
+	if AgentLegacy.CoordinatorName != "root" {
+		t.Errorf("AgentLegacy.CoordinatorName = %q, want %q", AgentLegacy.CoordinatorName, "root")
 	}
-}
-
-// --- AgentConfig ---
-
-func TestAgentDefaults(t *testing.T) {
-	if Agent.Command == "" {
-		t.Error("Agent.Command should not be empty")
-	}
-	if Agent.CoordinatorName != "root" {
-		t.Errorf("Agent.CoordinatorName = %q, want %q", Agent.CoordinatorName, "root")
-	}
-	if Agent.WorkerPrefix != "worker" {
-		t.Errorf("Agent.WorkerPrefix = %q, want %q", Agent.WorkerPrefix, "worker")
+	if AgentLegacy.WorkerPrefix != "worker" {
+		t.Errorf("AgentLegacy.WorkerPrefix = %q, want %q", AgentLegacy.WorkerPrefix, "worker")
 	}
 }
 
@@ -208,13 +195,13 @@ func TestEngineerRoleHasGitPermissions(t *testing.T) {
 
 // --- Struct zero-value / mutability tests ---
 
-func TestAgentConfigZeroValue(t *testing.T) {
-	var ac AgentConfig
+func TestAgentLegacyConfigZeroValue(t *testing.T) {
+	var ac AgentLegacyConfig
 	if ac.Command != "" {
-		t.Error("zero-value AgentConfig.Command should be empty")
+		t.Error("zero-value AgentLegacyConfig.Command should be empty")
 	}
 	if ac.CoordinatorName != "" {
-		t.Error("zero-value AgentConfig.CoordinatorName should be empty")
+		t.Error("zero-value AgentLegacyConfig.CoordinatorName should be empty")
 	}
 }
 

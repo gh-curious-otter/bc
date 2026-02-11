@@ -33,7 +33,7 @@ func TestAgentListWithAgents(t *testing.T) {
 	seedAgents(t, wsDir, map[string]*agent.Agent{
 		"engineer-01": {
 			Name:      "engineer-01",
-			Role:      agent.RoleEngineer,
+			Role:      agent.Role("engineer"),
 			State:     agent.StateWorking,
 			Task:      "fixing bug",
 			Session:   "bc-engineer-01",
@@ -42,7 +42,7 @@ func TestAgentListWithAgents(t *testing.T) {
 		},
 		"qa-01": {
 			Name:      "qa-01",
-			Role:      agent.RoleQA,
+			Role:      agent.Role("qa"),
 			State:     agent.StateIdle,
 			Session:   "bc-qa-01",
 			StartedAt: time.Now().Add(-30 * time.Minute),
@@ -70,7 +70,7 @@ func TestAgentListFilterByRole(t *testing.T) {
 	seedAgents(t, wsDir, map[string]*agent.Agent{
 		"engineer-01": {
 			Name:      "engineer-01",
-			Role:      agent.RoleEngineer,
+			Role:      agent.Role("engineer"),
 			State:     agent.StateWorking,
 			Session:   "bc-engineer-01",
 			StartedAt: time.Now(),
@@ -78,7 +78,7 @@ func TestAgentListFilterByRole(t *testing.T) {
 		},
 		"qa-01": {
 			Name:      "qa-01",
-			Role:      agent.RoleQA,
+			Role:      agent.Role("qa"),
 			State:     agent.StateIdle,
 			Session:   "bc-qa-01",
 			StartedAt: time.Now(),
@@ -105,7 +105,7 @@ func TestAgentListJSONIntegration(t *testing.T) {
 	seedAgents(t, wsDir, map[string]*agent.Agent{
 		"engineer-01": {
 			Name:      "engineer-01",
-			Role:      agent.RoleEngineer,
+			Role:      agent.Role("engineer"),
 			State:     agent.StateIdle,
 			Session:   "bc-engineer-01",
 			StartedAt: time.Now(),
@@ -180,7 +180,7 @@ func TestAgentSendToStoppedAgent(t *testing.T) {
 	seedAgents(t, wsDir, map[string]*agent.Agent{
 		"stopped-agent": {
 			Name:      "stopped-agent",
-			Role:      agent.RoleEngineer,
+			Role:      agent.Role("engineer"),
 			State:     agent.StateStopped,
 			Session:   "bc-stopped-agent",
 			StartedAt: time.Now(),

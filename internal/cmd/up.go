@@ -20,7 +20,7 @@ var upCmd = &cobra.Command{
 	Long: `Start the bc agent system with the configured roster.
 
 Default roster (configurable in .bc/config.toml [roster]):
-  - coordinator (orchestrates work)
+  - root (orchestrates work)
   - product-manager (creates epics)
   - manager (assigns tasks)
   - tech-lead-01, tech-lead-02 (technical leadership, code review)
@@ -101,7 +101,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 			fmt.Printf("  Children: %s\n", strings.Join(recovery.State.Children, ", "))
 		}
 		fmt.Println()
-		fmt.Println("Use 'bc attach coordinator' to attach or 'bc down' first to restart.")
+		fmt.Println("Use 'bc attach root' to attach or 'bc down' first to restart.")
 		return nil
 	}
 
@@ -155,12 +155,12 @@ func runUp(cmd *cobra.Command, args []string) error {
 	// Event log
 	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
 
-	// Start coordinator (acts as root agent)
-	fmt.Print("Starting coordinator... ")
-	coord, err := mgr.SpawnAgent("coordinator", agent.RoleCoordinator, ws.RootDir)
+	// Start root (acts as root agent)
+	fmt.Print("Starting root... ")
+	coord, err := mgr.SpawnAgent("root", agent.RoleRoot, ws.RootDir)
 	if err != nil {
 		fmt.Println("✗")
-		return fmt.Errorf("failed to start coordinator: %w", err)
+		return fmt.Errorf("failed to start root: %w", err)
 	}
 	fmt.Printf("✓ (session: %s)\n", mgr.Tmux().SessionName(coord.Session))
 
@@ -168,7 +168,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 	if recovery.NeedsCreate || recovery.NeedsRecover {
 		if recovery.NeedsCreate {
 			// Create new root state
-			_, createErr := rootStore.Create("root", agent.RoleCoordinator, "claude")
+			_, createErr := rootStore.Create("root", agent.RoleRoot, "claude")
 			if createErr != nil && createErr != agent.ErrRootExists {
 				fmt.Printf("  Warning: failed to create root state: %v\n", createErr)
 			}
@@ -181,13 +181,13 @@ func runUp(cmd *cobra.Command, args []string) error {
 
 	_ = log.Append(events.Event{
 		Type:  events.AgentSpawned,
-		Agent: "coordinator",
+		Agent: "root",
 	})
 	time.Sleep(300 * time.Millisecond)
 
 	// Start product-manager
 	fmt.Print("Starting product-manager... ")
-	_, err = mgr.SpawnAgent("product-manager", agent.RoleProductManager, ws.RootDir)
+	_, err = mgr.SpawnAgent("product-manager", agent.Role("product-manager"), ws.RootDir)
 	if err != nil {
 		fmt.Println("✗")
 		return fmt.Errorf("failed to start product-manager: %w", err)
@@ -199,7 +199,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 
 	// Start manager
 	fmt.Print("Starting manager... ")
-	_, err = mgr.SpawnAgent("manager", agent.RoleManager, ws.RootDir)
+	_, err = mgr.SpawnAgent("manager", agent.Role("manager"), ws.RootDir)
 	if err != nil {
 		fmt.Println("✗")
 		return fmt.Errorf("failed to start manager: %w", err)
@@ -215,7 +215,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 		name := fmt.Sprintf("tech-lead-%02d", i)
 		fmt.Printf("Starting %s... ", name)
 
-		tl, tlErr := mgr.SpawnAgent(name, agent.RoleTechLead, ws.RootDir)
+		tl, tlErr := mgr.SpawnAgent(name, agent.Role("tech-lead"), ws.RootDir)
 		if tlErr != nil {
 			fmt.Println("✗")
 			fmt.Printf("  Warning: failed to start %s: %v\n", name, tlErr)
@@ -239,7 +239,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 		name := fmt.Sprintf("engineer-%02d", i)
 		fmt.Printf("Starting %s... ", name)
 
-		eng, err := mgr.SpawnAgent(name, agent.RoleEngineer, ws.RootDir)
+		eng, err := mgr.SpawnAgent(name, agent.Role("engineer"), ws.RootDir)
 		if err != nil {
 			fmt.Println("✗")
 			fmt.Printf("  Warning: failed to start %s: %v\n", name, err)
@@ -263,7 +263,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 		name := fmt.Sprintf("qa-%02d", i)
 		fmt.Printf("Starting %s... ", name)
 
-		qa, err := mgr.SpawnAgent(name, agent.RoleQA, ws.RootDir)
+		qa, err := mgr.SpawnAgent(name, agent.Role("qa"), ws.RootDir)
 		if err != nil {
 			fmt.Println("✗")
 			fmt.Printf("  Warning: failed to start %s: %v\n", name, err)
@@ -283,7 +283,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 
 	// Create default channels
 	allAgents := make([]string, 0, 3+len(techLeadNames)+len(engineerNames)+len(qaNames))
-	allAgents = append(allAgents, "coordinator", "product-manager", "manager")
+	allAgents = append(allAgents, "root", "product-manager", "manager")
 	allAgents = append(allAgents, techLeadNames...)
 	allAgents = append(allAgents, engineerNames...)
 	allAgents = append(allAgents, qaNames...)
@@ -343,9 +343,9 @@ func runUp(cmd *cobra.Command, args []string) error {
 	// Build and send bootstrap prompts
 	// Coordinator: bootstrap with team info (uses GitHub Issues for work tracking)
 	if len(allAgents) > 0 {
-		fmt.Print("\nSending bootstrap prompt to coordinator... ")
+		fmt.Print("\nSending bootstrap prompt to root... ")
 		prompt := buildBootstrapPrompt(allAgents, ws.RootDir)
-		if err := mgr.SendToAgent("coordinator", prompt); err != nil {
+		if err := mgr.SendToAgent("root", prompt); err != nil {
 			fmt.Println("✗")
 			fmt.Printf("  Warning: failed to send bootstrap prompt: %v\n", err)
 		} else {
@@ -375,7 +375,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 		// Append dynamic info to the rich prompt
 		mgrPrompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nTech Leads: %s\nEngineers: %s\nQA: %s\n", ws.RootDir, strings.Join(techLeadNames, ", "), strings.Join(engineerNames, ", "), strings.Join(qaNames, ", "))
 	}
-	_ = teamList // used in coordinator bootstrap
+	_ = teamList // used in root bootstrap
 	if mgrErr := mgr.SendToAgent("manager", mgrPrompt); mgrErr != nil {
 		fmt.Println("✗")
 	} else {
@@ -407,7 +407,7 @@ func loadRolePrompt(rootDir, role string) string {
 func buildBootstrapPrompt(agentNames []string, rootDir string) string {
 	var b strings.Builder
 
-	b.WriteString("You are the coordinator agent for a bc workspace.\n\n")
+	b.WriteString("You are the root agent for a bc workspace.\n\n")
 	b.WriteString(fmt.Sprintf("Workspace: %s\n", rootDir))
 	b.WriteString(fmt.Sprintf("Team: %s\n\n", strings.Join(agentNames, ", ")))
 
@@ -448,7 +448,7 @@ func buildBootstrapPrompt(agentNames []string, rootDir string) string {
 }
 
 // createDefaultChannels sets up the default communication channels.
-// Channels: #standup (all), #leadership (coordinator, pm, manager, tech-leads),
+// Channels: #standup (all), #leadership (root, pm, manager, tech-leads),
 // #engineering (manager, tech-leads, engineers), #qa (manager, qa), #all (everyone).
 // Also creates per-agent channels (#agent-name) for direct messaging.
 func createDefaultChannels(rootDir string, techLeadNames, engineerNames, qaNames, allAgents []string) {
@@ -469,7 +469,7 @@ func createDefaultChannels(rootDir string, techLeadNames, engineerNames, qaNames
 
 	// Leadership includes tech-leads
 	leadershipMembers := make([]string, 0, 3+len(techLeadNames))
-	leadershipMembers = append(leadershipMembers, "coordinator", "product-manager", "manager")
+	leadershipMembers = append(leadershipMembers, "root", "product-manager", "manager")
 	leadershipMembers = append(leadershipMembers, techLeadNames...)
 
 	// Engineering includes tech-leads and engineers

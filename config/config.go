@@ -4,7 +4,7 @@ package config
 
 import "time"
 
-type AgentConfig struct {
+type AgentLegacyConfig struct {
 	Command         string
 	CoordinatorName string
 	WorkerPrefix    string
@@ -16,10 +16,24 @@ type AgentsItem struct {
 	Name        string
 }
 
+type BeadsConfig struct {
+	Enabled   bool
+	IssuesDir string
+}
+
+type ChannelsConfig struct {
+	Default []string
+}
+
 type CostsConfig struct {
 	Enabled       bool
 	Limit         float64
 	WarnThreshold float64
+}
+
+type MemoryConfig struct {
+	Backend string
+	Path    string
 }
 
 type RolesItem struct {
@@ -29,8 +43,38 @@ type RolesItem struct {
 	PromptFile  string
 }
 
+type RosterConfig struct {
+	Engineers     int64
+	NameLegacy    string
+	Qa            int64
+	TechLeads     int64
+	VersionLegacy string
+}
+
 type TmuxConfig struct {
 	SessionPrefix string
+}
+
+type ToolsClaudeConfig struct {
+	Command string
+	Enabled bool
+}
+
+type ToolsCodexConfig struct {
+	Command string
+	Enabled bool
+}
+
+type ToolsConfig struct {
+	Claude  ToolsClaudeConfig
+	Codex   ToolsCodexConfig
+	Cursor  ToolsCursorConfig
+	Default string
+}
+
+type ToolsCursorConfig struct {
+	Command string
+	Enabled bool
 }
 
 type TuiConfig struct {
@@ -39,12 +83,22 @@ type TuiConfig struct {
 }
 
 type WorkspaceConfig struct {
+	Name    string
+	Version int64
+}
+
+type WorkspaceLegacyConfig struct {
 	MaxWorkers int64
 	StateDir   string
 }
 
+type WorktreesConfig struct {
+	AutoCleanup bool
+	Path        string
+}
+
 var (
-	Agent = AgentConfig{
+	AgentLegacy = AgentLegacyConfig{
 		Command:         "cursor-agent --force --print",
 		CoordinatorName: "root",
 		WorkerPrefix:    "worker",
@@ -81,42 +135,93 @@ var (
 			Name:        "server",
 		},
 	}
+	Beads = BeadsConfig{
+		Enabled:   true,
+		IssuesDir: ".beads/issues",
+	}
+	Channels = ChannelsConfig{
+		Default: []string{"general", "engineering"},
+	}
 	Costs = CostsConfig{
 		Enabled:       true,
 		Limit:         100,
 		WarnThreshold: 10,
 	}
-	Name  string = "bc"
-	Roles        = []RolesItem{
+	Memory = MemoryConfig{
+		Backend: "file",
+		Path:    ".bc/memory",
+	}
+	Roles = []RolesItem{
 		{
 			Description: "Defines product vision, creates epics, reviews proposals",
 			Name:        "product_manager",
 			Permissions: []string{"queue.add", "queue.view", "send", "report"},
-			PromptFile:  "prompts/product_manager.md",
+			PromptFile:  ".bc/prompts/product_manager.md",
 		},
 		{
 			Description: "Breaks down epics, spawns engineers, assigns work, reviews code",
 			Name:        "manager",
 			Permissions: []string{"queue.add", "queue.assign", "queue.complete", "spawn", "send", "report", "git.merge"},
-			PromptFile:  "prompts/manager.md",
+			PromptFile:  ".bc/prompts/manager.md",
 		},
 		{
 			Description: "Implements assigned tasks, writes code and tests",
 			Name:        "engineer",
 			Permissions: []string{"queue.view", "report", "git.branch", "git.commit"},
-			PromptFile:  "prompts/engineer.md",
+			PromptFile:  ".bc/prompts/engineer.md",
 		},
+		{
+			Description: "Reviews code, coordinates engineers, ensures quality",
+			Name:        "tech_lead",
+			Permissions: []string{"queue.view", "queue.assign", "report", "git.branch", "git.commit", "spawn"},
+			PromptFile:  ".bc/prompts/tech_lead.md",
+		},
+		{
+			Description: "Tests features, verifies quality, reports bugs",
+			Name:        "qa",
+			Permissions: []string{"queue.view", "queue.add", "report", "git.branch"},
+			PromptFile:  ".bc/prompts/qa.md",
+		},
+	}
+	Roster = RosterConfig{
+		Engineers:     4,
+		NameLegacy:    "bc",
+		Qa:            2,
+		TechLeads:     2,
+		VersionLegacy: "0.1.0",
 	}
 	Tmux = TmuxConfig{
 		SessionPrefix: "bc-",
+	}
+	Tools = ToolsConfig{
+		Claude: ToolsClaudeConfig{
+			Command: "claude --dangerously-skip-permissions",
+			Enabled: true,
+		},
+		Codex: ToolsCodexConfig{
+			Command: "codex --full-auto",
+			Enabled: false,
+		},
+		Cursor: ToolsCursorConfig{
+			Command: "cursor-agent --force --print",
+			Enabled: false,
+		},
+		Default: "claude",
 	}
 	Tui = TuiConfig{
 		RefreshInterval: 2 * time.Second,
 		Theme:           "ayu-dark",
 	}
-	Version   string = "0.1.0"
-	Workspace        = WorkspaceConfig{
+	Workspace = WorkspaceConfig{
+		Name:    "bc",
+		Version: 2,
+	}
+	WorkspaceLegacy = WorkspaceLegacyConfig{
 		MaxWorkers: 3,
 		StateDir:   ".bc",
+	}
+	Worktrees = WorktreesConfig{
+		AutoCleanup: true,
+		Path:        ".bc/worktrees",
 	}
 )

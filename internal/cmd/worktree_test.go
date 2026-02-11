@@ -142,7 +142,7 @@ func TestWorktreeListOKAndOrphaned(t *testing.T) {
 	// Register eng-01 as an agent
 	agentsDir := filepath.Join(wsDir, ".bc", "agents")
 	agents := map[string]*agent.Agent{
-		"eng-01": {Name: "eng-01", Role: agent.RoleEngineer, State: agent.StateIdle},
+		"eng-01": {Name: "eng-01", Role: agent.Role("engineer"), State: agent.StateIdle},
 	}
 	data, err := json.Marshal(agents)
 	if err != nil {
@@ -179,7 +179,7 @@ func TestWorktreeListMissing(t *testing.T) {
 	// Register an agent but don't create its worktree directory
 	agentsDir := filepath.Join(wsDir, ".bc", "agents")
 	agents := map[string]*agent.Agent{
-		"eng-02": {Name: "eng-02", Role: agent.RoleEngineer, State: agent.StateIdle},
+		"eng-02": {Name: "eng-02", Role: agent.Role("engineer"), State: agent.StateIdle},
 	}
 	data, err := json.Marshal(agents)
 	if err != nil {
@@ -340,7 +340,7 @@ func TestWorktreePruneStoppedAgent(t *testing.T) {
 	// Register the agent as stopped
 	agentsDir := filepath.Join(wsDir, ".bc", "agents")
 	agents := map[string]*agent.Agent{
-		"stopped-eng": {Name: "stopped-eng", Role: agent.RoleEngineer, State: agent.StateStopped},
+		"stopped-eng": {Name: "stopped-eng", Role: agent.Role("engineer"), State: agent.StateStopped},
 	}
 	data, err := json.Marshal(agents)
 	if err != nil {

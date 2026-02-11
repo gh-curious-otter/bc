@@ -13,7 +13,7 @@ func TestRootStateStore_CreateAndLoad(t *testing.T) {
 	store := NewRootStateStore(tmpDir)
 
 	// Create root
-	state, err := store.Create("manager", RoleManager, "claude")
+	state, err := store.Create("manager", RoleRoot, "claude")
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
@@ -21,8 +21,8 @@ func TestRootStateStore_CreateAndLoad(t *testing.T) {
 	if state.Name != "manager" {
 		t.Errorf("Name = %q, want manager", state.Name)
 	}
-	if state.Role != RoleManager {
-		t.Errorf("Role = %q, want %q", state.Role, RoleManager)
+	if state.Role != RoleRoot {
+		t.Errorf("Role = %q, want %q", state.Role, RoleRoot)
 	}
 	if !state.IsSingleton {
 		t.Error("IsSingleton should be true")
@@ -58,7 +58,7 @@ func TestRootStateStore_EnsureSingleton(t *testing.T) {
 	}
 
 	// Create root
-	if _, err := store.Create("manager", RoleManager, "claude"); err != nil {
+	if _, err := store.Create("manager", RoleRoot, "claude"); err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
@@ -74,12 +74,12 @@ func TestRootStateStore_CreateDuplicate(t *testing.T) {
 	store := NewRootStateStore(tmpDir)
 
 	// First create succeeds
-	if _, err := store.Create("manager", RoleManager, "claude"); err != nil {
+	if _, err := store.Create("manager", RoleRoot, "claude"); err != nil {
 		t.Fatalf("First Create failed: %v", err)
 	}
 
 	// Second create fails
-	_, err := store.Create("manager2", RoleManager, "claude")
+	_, err := store.Create("manager2", RoleRoot, "claude")
 	if !errors.Is(err, ErrRootExists) {
 		t.Errorf("Second Create should return ErrRootExists, got: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestRootStateStore_Exists(t *testing.T) {
 		t.Error("Exists should return false before creation")
 	}
 
-	if _, err := store.Create("manager", RoleManager, "claude"); err != nil {
+	if _, err := store.Create("manager", RoleRoot, "claude"); err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
@@ -116,7 +116,7 @@ func TestRootStateStore_Delete(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRootStateStore(tmpDir)
 
-	if _, err := store.Create("manager", RoleManager, "claude"); err != nil {
+	if _, err := store.Create("manager", RoleRoot, "claude"); err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
@@ -147,7 +147,7 @@ func TestRootStateStore_GetOrCreate_New(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRootStateStore(tmpDir)
 
-	state, created, err := store.GetOrCreate("manager", RoleManager, "claude")
+	state, created, err := store.GetOrCreate("manager", RoleRoot, "claude")
 	if err != nil {
 		t.Fatalf("GetOrCreate failed: %v", err)
 	}
@@ -165,13 +165,13 @@ func TestRootStateStore_GetOrCreate_Existing(t *testing.T) {
 	store := NewRootStateStore(tmpDir)
 
 	// Create first
-	original, err := store.Create("original", RoleManager, "claude")
+	original, err := store.Create("original", RoleRoot, "claude")
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
 	// GetOrCreate should return existing
-	state, created, err := store.GetOrCreate("different", RoleEngineer, "codex")
+	state, created, err := store.GetOrCreate("different", Role("engineer"), "codex")
 	if err != nil {
 		t.Fatalf("GetOrCreate failed: %v", err)
 	}
@@ -188,7 +188,7 @@ func TestRootStateStore_Children(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRootStateStore(tmpDir)
 
-	if _, err := store.Create("manager", RoleManager, "claude"); err != nil {
+	if _, err := store.Create("manager", RoleRoot, "claude"); err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
@@ -232,7 +232,7 @@ func TestRootStateStore_UpdateState(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRootStateStore(tmpDir)
 
-	if _, err := store.Create("manager", RoleManager, "claude"); err != nil {
+	if _, err := store.Create("manager", RoleRoot, "claude"); err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
@@ -250,7 +250,7 @@ func TestRootStateStore_UpdateSession(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRootStateStore(tmpDir)
 
-	if _, err := store.Create("manager", RoleManager, "claude"); err != nil {
+	if _, err := store.Create("manager", RoleRoot, "claude"); err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
@@ -268,7 +268,7 @@ func TestRootStateStore_AtomicWrite(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRootStateStore(tmpDir)
 
-	if _, err := store.Create("manager", RoleManager, "claude"); err != nil {
+	if _, err := store.Create("manager", RoleRoot, "claude"); err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
@@ -289,7 +289,7 @@ func TestRootStateStore_UpdatedAtTimestamp(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRootStateStore(tmpDir)
 
-	state, err := store.Create("manager", RoleManager, "claude")
+	state, err := store.Create("manager", RoleRoot, "claude")
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
@@ -312,7 +312,7 @@ func TestRootAgentState_InheritsAgentState(t *testing.T) {
 	state := &RootAgentState{
 		AgentState: AgentState{
 			Name:    "root",
-			Role:    RoleManager,
+			Role:    RoleRoot,
 			Tool:    "claude",
 			State:   StateWorking,
 			Session: "bc-root",
@@ -325,8 +325,8 @@ func TestRootAgentState_InheritsAgentState(t *testing.T) {
 	if state.Name != "root" {
 		t.Errorf("Name = %q, want root", state.Name)
 	}
-	if state.Role != RoleManager {
-		t.Errorf("Role = %q, want %q", state.Role, RoleManager)
+	if state.Role != RoleRoot {
+		t.Errorf("Role = %q, want %q", state.Role, RoleRoot)
 	}
 	if state.Session != "bc-root" {
 		t.Errorf("Session = %q, want bc-root", state.Session)
@@ -377,7 +377,7 @@ func TestRootStateStore_CheckRecovery_Running(t *testing.T) {
 	store := NewRootStateStore(tmpDir)
 
 	// Create root with session
-	state, err := store.Create("root", RoleCoordinator, "claude")
+	state, err := store.Create("root", RoleRoot, "claude")
 	if err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
@@ -415,7 +415,7 @@ func TestRootStateStore_CheckRecovery_NeedsRecovery(t *testing.T) {
 	store := NewRootStateStore(tmpDir)
 
 	// Create root with session and children
-	if _, err := store.Create("root", RoleCoordinator, "claude"); err != nil {
+	if _, err := store.Create("root", RoleRoot, "claude"); err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 	if err := store.UpdateSession("bc-dead-session"); err != nil {
@@ -458,7 +458,7 @@ func TestRootStateStore_MarkRecovered(t *testing.T) {
 	store := NewRootStateStore(tmpDir)
 
 	// Create root with error state
-	if _, err := store.Create("root", RoleCoordinator, "claude"); err != nil {
+	if _, err := store.Create("root", RoleRoot, "claude"); err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 	if err := store.UpdateState(StateError); err != nil {
@@ -495,7 +495,7 @@ func TestRootStateStore_GetChildren(t *testing.T) {
 	}
 
 	// Create root with children
-	if _, createErr := store.Create("root", RoleCoordinator, "claude"); createErr != nil {
+	if _, createErr := store.Create("root", RoleRoot, "claude"); createErr != nil {
 		t.Fatalf("Create failed: %v", createErr)
 	}
 	if addErr := store.AddChild("engineer-01"); addErr != nil {
@@ -534,7 +534,7 @@ func TestRootStateStore_CheckRecovery_EmptySession(t *testing.T) {
 	store := NewRootStateStore(tmpDir)
 
 	// Create root without setting session
-	if _, err := store.Create("root", RoleCoordinator, "claude"); err != nil {
+	if _, err := store.Create("root", RoleRoot, "claude"); err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
@@ -656,7 +656,7 @@ func TestRootStateStore_SavePermissionError(t *testing.T) {
 	state := &RootAgentState{
 		AgentState: AgentState{
 			Name: "manager",
-			Role: RoleManager,
+			Role: RoleRoot,
 		},
 	}
 
@@ -689,7 +689,7 @@ func TestRootStateStore_SaveDirCreationError(t *testing.T) {
 	state := &RootAgentState{
 		AgentState: AgentState{
 			Name: "manager",
-			Role: RoleManager,
+			Role: RoleRoot,
 		},
 	}
 
@@ -721,7 +721,7 @@ func TestRootStateStore_GetOrCreate_LoadError(t *testing.T) {
 	}
 
 	// GetOrCreate should return the Load error (not ErrRootNotFound)
-	_, _, err := store.GetOrCreate("manager", RoleManager, "claude")
+	_, _, err := store.GetOrCreate("manager", RoleRoot, "claude")
 	if err == nil {
 		t.Fatal("GetOrCreate should fail with corrupted existing file")
 	}
@@ -807,7 +807,7 @@ func TestRootStateStore_CreateSaveError(t *testing.T) {
 
 	store := NewRootStateStore(tmpDir)
 
-	_, err := store.Create("manager", RoleManager, "claude")
+	_, err := store.Create("manager", RoleRoot, "claude")
 	if err == nil {
 		t.Fatal("Create should fail when Save fails")
 	}
@@ -841,7 +841,7 @@ func TestRootStateStore_SaveRenameError(t *testing.T) {
 	state := &RootAgentState{
 		AgentState: AgentState{
 			Name: "manager",
-			Role: RoleManager,
+			Role: RoleRoot,
 		},
 	}
 
@@ -878,7 +878,7 @@ func TestRootStateStore_GetOrCreate_CreateError(t *testing.T) {
 	store := NewRootStateStore(tmpDir)
 
 	// GetOrCreate should try to create (no existing root) and fail
-	_, _, err := store.GetOrCreate("manager", RoleManager, "claude")
+	_, _, err := store.GetOrCreate("manager", RoleRoot, "claude")
 	if err == nil {
 		t.Fatal("GetOrCreate should fail when Create fails")
 	}
@@ -945,7 +945,7 @@ func TestRootStateStore_RecordCrash(t *testing.T) {
 	store := NewRootStateStore(tmpDir)
 
 	// Create root with a session
-	state, createErr := store.Create("root", RoleManager, "claude")
+	state, createErr := store.Create("root", RoleRoot, "claude")
 	if createErr != nil {
 		t.Fatalf("Create failed: %v", createErr)
 	}
@@ -983,7 +983,7 @@ func TestRootStateStore_RecordCrash_MultipleCrashes(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRootStateStore(tmpDir)
 
-	if _, err := store.Create("root", RoleManager, "claude"); err != nil {
+	if _, err := store.Create("root", RoleRoot, "claude"); err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
@@ -1009,7 +1009,7 @@ func TestRootStateStore_RecoverFromCrash(t *testing.T) {
 	store := NewRootStateStore(tmpDir)
 
 	// Create root and simulate crash
-	if _, err := store.Create("root", RoleManager, "claude"); err != nil {
+	if _, err := store.Create("root", RoleRoot, "claude"); err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 	if err := store.RecordCrash("crashed-session"); err != nil {
@@ -1045,7 +1045,7 @@ func TestRootStateStore_GetCrashInfo(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRootStateStore(tmpDir)
 
-	if _, createErr := store.Create("root", RoleManager, "claude"); createErr != nil {
+	if _, createErr := store.Create("root", RoleRoot, "claude"); createErr != nil {
 		t.Fatalf("Create failed: %v", createErr)
 	}
 
@@ -1085,7 +1085,7 @@ func TestRootStateStore_ClearCrashHistory(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRootStateStore(tmpDir)
 
-	if _, err := store.Create("root", RoleManager, "claude"); err != nil {
+	if _, err := store.Create("root", RoleRoot, "claude"); err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
@@ -1117,7 +1117,7 @@ func TestRootStateStore_CrashPreservesChildren(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewRootStateStore(tmpDir)
 
-	if _, err := store.Create("root", RoleManager, "claude"); err != nil {
+	if _, err := store.Create("root", RoleRoot, "claude"); err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 

@@ -191,8 +191,8 @@ func TestRenderDashboard_AgentUtilization(t *testing.T) {
 func TestRenderDashboard_AgentHealth(t *testing.T) {
 	m := newTestModel()
 	m.agents = []*agent.Agent{
-		{Name: "eng-01", Role: agent.RoleEngineer, State: agent.StateWorking},
-		{Name: "qa-01", Role: agent.RoleQA, State: agent.StateIdle},
+		{Name: "eng-01", Role: agent.Role("engineer"), State: agent.StateWorking},
+		{Name: "qa-01", Role: agent.Role("qa"), State: agent.StateIdle},
 	}
 	m.agentStats = map[string]stats.AgentStat{
 		"eng-01": {Name: "eng-01", State: "working", Uptime: time.Hour},
@@ -469,8 +469,8 @@ func TestRenderAgents_WithAgents(t *testing.T) {
 	m := newTestModel()
 	m.tab = TabAgents
 	m.agents = []*agent.Agent{
-		{Name: "engineer-01", Role: agent.RoleEngineer, State: agent.StateWorking, Task: "fixing auth"},
-		{Name: "qa-01", Role: agent.RoleQA, State: agent.StateIdle},
+		{Name: "engineer-01", Role: agent.Role("engineer"), State: agent.StateWorking, Task: "fixing auth"},
+		{Name: "qa-01", Role: agent.Role("qa"), State: agent.StateIdle},
 	}
 	m.agentStats = map[string]stats.AgentStat{
 		"engineer-01": {Name: "engineer-01", Uptime: 2 * time.Hour},
@@ -496,8 +496,8 @@ func TestRenderAgents_SelectedHighlight(t *testing.T) {
 	m := newTestModel()
 	m.tab = TabAgents
 	m.agents = []*agent.Agent{
-		{Name: "eng-01", Role: agent.RoleEngineer, State: agent.StateWorking},
-		{Name: "eng-02", Role: agent.RoleEngineer, State: agent.StateIdle},
+		{Name: "eng-01", Role: agent.Role("engineer"), State: agent.StateWorking},
+		{Name: "eng-02", Role: agent.Role("engineer"), State: agent.StateIdle},
 	}
 	m.agentStats = map[string]stats.AgentStat{}
 	m.cursor = 1 // select second agent
@@ -518,7 +518,7 @@ func TestRenderAgents_Paginated(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		m.agents = append(m.agents, &agent.Agent{
 			Name:  fmt.Sprintf("agent-%02d", i+1),
-			Role:  agent.RoleEngineer,
+			Role:  agent.Role("engineer"),
 			State: agent.StateIdle,
 		})
 	}

@@ -13,12 +13,12 @@ import (
 func TestTaskTypeToRoleMapping(t *testing.T) {
 	tests := []struct {
 		taskType TaskType
-		wantRole agent.Role
+		wantRole string
 	}{
-		{TaskTypeCode, agent.RoleEngineer},
-		{TaskTypeReview, agent.RoleTechLead},
-		{TaskTypeMerge, agent.RoleManager},
-		{TaskTypeQA, agent.RoleQA},
+		{TaskTypeCode, "engineer"},
+		{TaskTypeReview, "tech-lead"},
+		{TaskTypeMerge, "manager"},
+		{TaskTypeQA, "qa"},
 	}
 
 	for _, tt := range tests {
@@ -37,13 +37,13 @@ func TestTaskTypeToRoleMapping(t *testing.T) {
 func TestGetRoleForTaskType(t *testing.T) {
 	tests := []struct {
 		taskType TaskType
-		wantRole agent.Role
+		wantRole string
 		wantErr  bool
 	}{
-		{TaskTypeCode, agent.RoleEngineer, false},
-		{TaskTypeReview, agent.RoleTechLead, false},
-		{TaskTypeMerge, agent.RoleManager, false},
-		{TaskTypeQA, agent.RoleQA, false},
+		{TaskTypeCode, "engineer", false},
+		{TaskTypeReview, "tech-lead", false},
+		{TaskTypeMerge, "manager", false},
+		{TaskTypeQA, "qa", false},
 		{"unknown", "", true},
 	}
 
@@ -84,17 +84,17 @@ func TestRouterRoundRobin(t *testing.T) {
 
 	// Without actual agents, we can only test the round-robin index logic
 	// by checking that lastAssigned gets updated
-	router.lastAssigned[agent.RoleEngineer] = 0
+	router.lastAssigned[agent.Role("engineer")] = 0
 
 	// After incrementing, should be 1
-	nextIdx := (router.lastAssigned[agent.RoleEngineer] + 1) % 3
+	nextIdx := (router.lastAssigned[agent.Role("engineer")] + 1) % 3
 	if nextIdx != 1 {
 		t.Errorf("expected next index 1, got %d", nextIdx)
 	}
 
 	// Wrap around test
-	router.lastAssigned[agent.RoleEngineer] = 2
-	nextIdx = (router.lastAssigned[agent.RoleEngineer] + 1) % 3
+	router.lastAssigned[agent.Role("engineer")] = 2
+	nextIdx = (router.lastAssigned[agent.Role("engineer")] + 1) % 3
 	if nextIdx != 0 {
 		t.Errorf("expected wrapped index 0, got %d", nextIdx)
 	}
@@ -107,7 +107,7 @@ func TestRouteToRoleNoAgents(t *testing.T) {
 
 	router := NewRouter(mgr)
 
-	_, err := router.RouteToRole(agent.RoleEngineer)
+	_, err := router.RouteToRole("engineer")
 	if err == nil {
 		t.Error("expected error when no engineers available")
 	}
@@ -176,11 +176,11 @@ func TestRouteTaskTypeAllKnown(t *testing.T) {
 
 func TestTaskTypeToRoleAllMapped(t *testing.T) {
 	// Verify all expected task types are mapped
-	expectedMappings := map[TaskType]agent.Role{
-		TaskTypeCode:   agent.RoleEngineer,
-		TaskTypeReview: agent.RoleTechLead,
-		TaskTypeMerge:  agent.RoleManager,
-		TaskTypeQA:     agent.RoleQA,
+	expectedMappings := map[TaskType]string{
+		TaskTypeCode:   "engineer",
+		TaskTypeReview: "tech-lead",
+		TaskTypeMerge:  "manager",
+		TaskTypeQA:     "qa",
 	}
 
 	for taskType, expectedRole := range expectedMappings {
@@ -203,15 +203,15 @@ func TestRouteToRoleMultipleRoles(t *testing.T) {
 	router := NewRouter(mgr)
 
 	// Test all roles fail without agents
-	roles := []agent.Role{
-		agent.RoleEngineer,
-		agent.RoleTechLead,
-		agent.RoleManager,
-		agent.RoleQA,
+	roles := []string{
+		"engineer",
+		"tech-lead",
+		"manager",
+		"qa",
 	}
 
 	for _, role := range roles {
-		t.Run(string(role), func(t *testing.T) {
+		t.Run(role, func(t *testing.T) {
 			_, err := router.RouteToRole(role)
 			if err == nil {
 				t.Errorf("expected error for role %s with no agents", role)
@@ -234,19 +234,19 @@ func TestRouteToRoleWithAgents(t *testing.T) {
 		"engineer-01": {
 			Name:  "engineer-01",
 			ID:    "engineer-01",
-			Role:  agent.RoleEngineer,
+			Role:  agent.Role("engineer"),
 			State: agent.StateIdle,
 		},
 		"engineer-02": {
 			Name:  "engineer-02",
 			ID:    "engineer-02",
-			Role:  agent.RoleEngineer,
+			Role:  agent.Role("engineer"),
 			State: agent.StateWorking,
 		},
 		"tech-lead-01": {
 			Name:  "tech-lead-01",
 			ID:    "tech-lead-01",
-			Role:  agent.RoleTechLead,
+			Role:  agent.Role("tech-lead"),
 			State: agent.StateIdle,
 		},
 	}
@@ -268,7 +268,7 @@ func TestRouteToRoleWithAgents(t *testing.T) {
 	router := NewRouter(mgr)
 
 	// Test routing to engineers
-	agentID, err := router.RouteToRole(agent.RoleEngineer)
+	agentID, err := router.RouteToRole("engineer")
 	if err != nil {
 		t.Fatalf("RouteToRole(engineer) failed: %v", err)
 	}
@@ -277,7 +277,7 @@ func TestRouteToRoleWithAgents(t *testing.T) {
 	}
 
 	// Test routing to tech-lead
-	agentID, err = router.RouteToRole(agent.RoleTechLead)
+	agentID, err = router.RouteToRole("tech-lead")
 	if err != nil {
 		t.Fatalf("RouteToRole(tech-lead) failed: %v", err)
 	}
@@ -286,7 +286,7 @@ func TestRouteToRoleWithAgents(t *testing.T) {
 	}
 
 	// Test routing to manager (none configured) - should fail
-	_, err = router.RouteToRole(agent.RoleManager)
+	_, err = router.RouteToRole("manager")
 	if err == nil {
 		t.Error("expected error for manager with no agents")
 	}
@@ -305,19 +305,19 @@ func TestRouteToRoleRoundRobin(t *testing.T) {
 		"engineer-01": {
 			Name:  "engineer-01",
 			ID:    "engineer-01",
-			Role:  agent.RoleEngineer,
+			Role:  agent.Role("engineer"),
 			State: agent.StateIdle,
 		},
 		"engineer-02": {
 			Name:  "engineer-02",
 			ID:    "engineer-02",
-			Role:  agent.RoleEngineer,
+			Role:  agent.Role("engineer"),
 			State: agent.StateIdle,
 		},
 		"engineer-03": {
 			Name:  "engineer-03",
 			ID:    "engineer-03",
-			Role:  agent.RoleEngineer,
+			Role:  agent.Role("engineer"),
 			State: agent.StateIdle,
 		},
 	}
@@ -337,7 +337,7 @@ func TestRouteToRoleRoundRobin(t *testing.T) {
 	// Call RouteToRole 4 times to verify round-robin
 	assigned := make(map[string]int)
 	for i := 0; i < 6; i++ {
-		agentID, err := router.RouteToRole(agent.RoleEngineer)
+		agentID, err := router.RouteToRole("engineer")
 		if err != nil {
 			t.Fatalf("RouteToRole failed on iteration %d: %v", i, err)
 		}
@@ -365,19 +365,19 @@ func TestRouteToRoleFiltersByState(t *testing.T) {
 		"engineer-stopped": {
 			Name:  "engineer-stopped",
 			ID:    "engineer-stopped",
-			Role:  agent.RoleEngineer,
+			Role:  agent.Role("engineer"),
 			State: agent.StateStopped,
 		},
 		"engineer-error": {
 			Name:  "engineer-error",
 			ID:    "engineer-error",
-			Role:  agent.RoleEngineer,
+			Role:  agent.Role("engineer"),
 			State: agent.StateError,
 		},
 		"engineer-idle": {
 			Name:  "engineer-idle",
 			ID:    "engineer-idle",
-			Role:  agent.RoleEngineer,
+			Role:  agent.Role("engineer"),
 			State: agent.StateIdle,
 		},
 	}
@@ -395,7 +395,7 @@ func TestRouteToRoleFiltersByState(t *testing.T) {
 	router := NewRouter(mgr)
 
 	// Should only get the idle engineer
-	agentID, err := router.RouteToRole(agent.RoleEngineer)
+	agentID, err := router.RouteToRole("engineer")
 	if err != nil {
 		t.Fatalf("RouteToRole failed: %v", err)
 	}
@@ -417,13 +417,13 @@ func TestRouteToRoleNoRunningAgents(t *testing.T) {
 		"engineer-stopped": {
 			Name:  "engineer-stopped",
 			ID:    "engineer-stopped",
-			Role:  agent.RoleEngineer,
+			Role:  agent.Role("engineer"),
 			State: agent.StateStopped,
 		},
 		"engineer-error": {
 			Name:  "engineer-error",
 			ID:    "engineer-error",
-			Role:  agent.RoleEngineer,
+			Role:  agent.Role("engineer"),
 			State: agent.StateError,
 		},
 	}
@@ -441,7 +441,7 @@ func TestRouteToRoleNoRunningAgents(t *testing.T) {
 	router := NewRouter(mgr)
 
 	// Should fail - engineers exist but none are running
-	_, err := router.RouteToRole(agent.RoleEngineer)
+	_, err := router.RouteToRole("engineer")
 	if err == nil {
 		t.Error("expected error for no running agents")
 	}
@@ -462,25 +462,25 @@ func TestRouteTaskTypeWithAgents(t *testing.T) {
 		"engineer-01": {
 			Name:  "engineer-01",
 			ID:    "engineer-01",
-			Role:  agent.RoleEngineer,
+			Role:  agent.Role("engineer"),
 			State: agent.StateIdle,
 		},
 		"tech-lead-01": {
 			Name:  "tech-lead-01",
 			ID:    "tech-lead-01",
-			Role:  agent.RoleTechLead,
+			Role:  agent.Role("tech-lead"),
 			State: agent.StateWorking,
 		},
 		"manager-01": {
 			Name:  "manager-01",
 			ID:    "manager-01",
-			Role:  agent.RoleManager,
+			Role:  agent.Role("manager"),
 			State: agent.StateIdle,
 		},
 		"qa-01": {
 			Name:  "qa-01",
 			ID:    "qa-01",
-			Role:  agent.RoleQA,
+			Role:  agent.Role("qa"),
 			State: agent.StateIdle,
 		},
 	}

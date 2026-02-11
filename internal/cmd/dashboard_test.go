@@ -68,14 +68,14 @@ func TestPrintAgentSummary_WithAgents_Dashboard(t *testing.T) {
 	agents := []*agent.Agent{
 		{
 			Name:      "engineer-01",
-			Role:      agent.RoleEngineer,
+			Role:      agent.Role("engineer"),
 			State:     agent.StateWorking,
 			Task:      "fixing auth",
 			StartedAt: time.Now().Add(-1 * time.Hour),
 		},
 		{
 			Name:  "qa-01",
-			Role:  agent.RoleQA,
+			Role:  agent.Role("qa"),
 			State: agent.StateStopped,
 		},
 	}
@@ -113,7 +113,7 @@ func TestPrintAgentSummary_TaskTruncation(t *testing.T) {
 	agents := []*agent.Agent{
 		{
 			Name:      "worker-01",
-			Role:      agent.RoleWorker,
+			Role:      agent.Role("worker"),
 			State:     agent.StateWorking,
 			Task:      "This is a very long task description that should be truncated at 30 chars",
 			StartedAt: time.Now(),
@@ -265,7 +265,7 @@ func TestPrintJSONDashboard_Dashboard(t *testing.T) {
 	agents := []*agent.Agent{
 		{
 			Name:      "coordinator",
-			Role:      agent.RoleCoordinator,
+			Role:      agent.RoleRoot,
 			State:     agent.StateWorking,
 			Task:      "coordinating",
 			StartedAt: time.Now().Add(-30 * time.Minute),
@@ -273,7 +273,7 @@ func TestPrintJSONDashboard_Dashboard(t *testing.T) {
 		},
 		{
 			Name:    "worker-01",
-			Role:    agent.RoleWorker,
+			Role:    agent.Role("worker"),
 			State:   agent.StateStopped,
 			Session: "worker-session",
 		},

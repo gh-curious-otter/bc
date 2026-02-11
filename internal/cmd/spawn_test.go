@@ -11,12 +11,12 @@ func TestParseRole_ValidRoles(t *testing.T) {
 		input string
 		want  agent.Role
 	}{
-		{"worker", agent.RoleWorker},
-		{"engineer", agent.RoleEngineer},
-		{"manager", agent.RoleManager},
-		{"product-manager", agent.RoleProductManager},
-		{"coordinator", agent.RoleCoordinator},
-		{"qa", agent.RoleQA},
+		{"worker", agent.Role("worker")},
+		{"engineer", agent.Role("engineer")},
+		{"manager", agent.Role("manager")},
+		{"product-manager", agent.Role("product-manager")},
+		{"coordinator", agent.RoleRoot},
+		{"qa", agent.Role("qa")},
 	}
 
 	for _, tt := range tests {
@@ -37,8 +37,8 @@ func TestParseRole_Aliases(t *testing.T) {
 		input string
 		want  agent.Role
 	}{
-		{"pm", agent.RoleProductManager},
-		{"coord", agent.RoleCoordinator},
+		{"pm", agent.Role("product-manager")},
+		{"coord", agent.RoleRoot},
 	}
 
 	for _, tt := range tests {
@@ -59,14 +59,14 @@ func TestParseRole_CaseInsensitive(t *testing.T) {
 		input string
 		want  agent.Role
 	}{
-		{"Worker", agent.RoleWorker},
-		{"ENGINEER", agent.RoleEngineer},
-		{"Manager", agent.RoleManager},
-		{"Product-Manager", agent.RoleProductManager},
-		{"PM", agent.RoleProductManager},
-		{"COORD", agent.RoleCoordinator},
-		{"QA", agent.RoleQA},
-		{"Qa", agent.RoleQA},
+		{"Worker", agent.Role("worker")},
+		{"ENGINEER", agent.Role("engineer")},
+		{"Manager", agent.Role("manager")},
+		{"Product-Manager", agent.Role("product-manager")},
+		{"PM", agent.Role("product-manager")},
+		{"COORD", agent.RoleRoot},
+		{"QA", agent.Role("qa")},
+		{"Qa", agent.Role("qa")},
 	}
 
 	for _, tt := range tests {

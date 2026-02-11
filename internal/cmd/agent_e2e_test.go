@@ -517,15 +517,15 @@ func TestRoleHierarchy_CanCreate(t *testing.T) {
 		child     agent.Role
 		canCreate bool
 	}{
-		{"manager creates engineer", agent.RoleManager, agent.RoleEngineer, true},
-		{"manager creates qa", agent.RoleManager, agent.RoleQA, true},
-		{"manager creates tech-lead", agent.RoleManager, agent.RoleTechLead, true},
-		{"manager cannot create worker", agent.RoleManager, agent.RoleWorker, false},
-		{"tech-lead creates engineer", agent.RoleTechLead, agent.RoleEngineer, true},
-		{"tech-lead cannot create qa", agent.RoleTechLead, agent.RoleQA, false},
-		{"engineer cannot create engineer", agent.RoleEngineer, agent.RoleEngineer, false},
-		{"worker cannot create anything", agent.RoleWorker, agent.RoleWorker, false},
-		{"qa cannot create engineer", agent.RoleQA, agent.RoleEngineer, false},
+		{"manager creates engineer", agent.Role("manager"), agent.Role("engineer"), true},
+		{"manager creates qa", agent.Role("manager"), agent.Role("qa"), true},
+		{"manager creates tech-lead", agent.Role("manager"), agent.Role("tech-lead"), true},
+		{"manager cannot create worker", agent.Role("manager"), agent.Role("worker"), false},
+		{"tech-lead creates engineer", agent.Role("tech-lead"), agent.Role("engineer"), true},
+		{"tech-lead cannot create qa", agent.Role("tech-lead"), agent.Role("qa"), false},
+		{"engineer cannot create engineer", agent.Role("engineer"), agent.Role("engineer"), false},
+		{"worker cannot create anything", agent.Role("worker"), agent.Role("worker"), false},
+		{"qa cannot create engineer", agent.Role("qa"), agent.Role("engineer"), false},
 	}
 
 	for _, tt := range tests {

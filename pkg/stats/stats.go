@@ -116,9 +116,10 @@ func (s *Stats) collectAgentMetrics(mgr *agent.Manager) {
 	for _, a := range agents {
 		// Count by role
 		switch a.Role {
-		case agent.RoleCoordinator:
-			m.Coordinators++
-		case agent.RoleWorker:
+		case agent.RoleRoot:
+			m.Coordinators++ // Use Coordinators field for root agent count
+		default:
+			// Custom roles are counted in Workers field
 			m.Workers++
 		}
 

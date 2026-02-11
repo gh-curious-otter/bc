@@ -120,24 +120,14 @@ func runSpawn(cmd *cobra.Command, args []string) error {
 }
 
 func parseRole(roleStr string) (agent.Role, error) {
-	roleStr = strings.ToLower(roleStr)
-	switch roleStr {
-	case "worker":
-		return agent.RoleWorker, nil
-	case "engineer":
-		return agent.RoleEngineer, nil
-	case "manager":
-		return agent.RoleManager, nil
-	case "product-manager", "pm":
-		return agent.RoleProductManager, nil
-	case "coordinator", "coord":
-		return agent.RoleCoordinator, nil
-	case "tech-lead", "tl":
-		return agent.RoleTechLead, nil
-	case "qa":
-		return agent.RoleQA, nil
-	default:
-		validRoles := []string{"worker", "engineer", "manager", "product-manager", "tech-lead", "coordinator", "qa"}
-		return "", fmt.Errorf("unknown role %q (valid roles: %s)", roleStr, strings.Join(validRoles, ", "))
+	roleStr = strings.ToLower(strings.TrimSpace(roleStr))
+	if roleStr == "" {
+		return agent.RoleRoot, nil // Default to root if not specified
 	}
+	// All roles are now custom - loaded from .bc/roles/<role>.md files
+	// Just validate that the role name is sensible
+	if !isValidRoleName(roleStr) {
+		return "", fmt.Errorf("invalid role name %q (must be alphanumeric with hyphens)", roleStr)
+	}
+	return agent.Role(roleStr), nil
 }

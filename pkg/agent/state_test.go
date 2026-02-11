@@ -13,7 +13,7 @@ func TestStateStore_SaveAndLoad(t *testing.T) {
 
 	state := &AgentState{
 		Name:      "engineer-01",
-		Role:      RoleEngineer,
+		Role:      Role("engineer"),
 		Tool:      "claude",
 		Team:      "backend",
 		Parent:    "manager-01",
@@ -82,7 +82,7 @@ func TestStateStore_Delete(t *testing.T) {
 
 	state := &AgentState{
 		Name:      "to-delete",
-		Role:      RoleEngineer,
+		Role:      Role("engineer"),
 		StartedAt: time.Now(),
 	}
 
@@ -112,7 +112,7 @@ func TestStateStore_List(t *testing.T) {
 	for _, name := range agents {
 		state := &AgentState{
 			Name:      name,
-			Role:      RoleEngineer,
+			Role:      Role("engineer"),
 			StartedAt: time.Now(),
 		}
 		if err := store.Save(state); err != nil {
@@ -150,7 +150,7 @@ func TestStateStore_LoadAll(t *testing.T) {
 	for i, name := range []string{"agent-a", "agent-b", "agent-c"} {
 		state := &AgentState{
 			Name:      name,
-			Role:      RoleEngineer,
+			Role:      Role("engineer"),
 			State:     State([]string{"idle", "working", "done"}[i]),
 			StartedAt: time.Now(),
 		}
@@ -176,7 +176,7 @@ func TestStateStore_UpdateState(t *testing.T) {
 
 	state := &AgentState{
 		Name:      "engineer-01",
-		Role:      RoleEngineer,
+		Role:      Role("engineer"),
 		State:     StateIdle,
 		StartedAt: time.Now(),
 	}
@@ -200,7 +200,7 @@ func TestStateStore_AtomicWrite(t *testing.T) {
 
 	state := &AgentState{
 		Name:      "atomic-test",
-		Role:      RoleEngineer,
+		Role:      Role("engineer"),
 		StartedAt: time.Now(),
 	}
 
@@ -225,7 +225,7 @@ func TestToAgentState_Conversion(t *testing.T) {
 	agent := &Agent{
 		Name:        "test-agent",
 		ID:          "test-agent",
-		Role:        RoleEngineer,
+		Role:        Role("engineer"),
 		Tool:        "claude",
 		ParentID:    "manager-01",
 		State:       StateWorking,
@@ -251,7 +251,7 @@ func TestToAgentState_Conversion(t *testing.T) {
 func TestAgentState_ToAgent(t *testing.T) {
 	state := &AgentState{
 		Name:      "test-agent",
-		Role:      RoleEngineer,
+		Role:      Role("engineer"),
 		Tool:      "claude",
 		Parent:    "manager-01",
 		State:     StateWorking,
@@ -328,7 +328,7 @@ func TestStateStore_ListSkipsTempFiles(t *testing.T) {
 	// Create a real agent
 	state := &AgentState{
 		Name:      "real-agent",
-		Role:      RoleEngineer,
+		Role:      Role("engineer"),
 		StartedAt: time.Now(),
 	}
 	if err := store.Save(state); err != nil {
@@ -367,7 +367,7 @@ func TestStateStore_ListSkipsDirectories(t *testing.T) {
 	// Create a real agent
 	state := &AgentState{
 		Name:      "real-agent",
-		Role:      RoleEngineer,
+		Role:      Role("engineer"),
 		StartedAt: time.Now(),
 	}
 	if err := store.Save(state); err != nil {

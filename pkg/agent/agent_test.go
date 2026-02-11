@@ -36,12 +36,12 @@ func TestAgent_HasCapability(t *testing.T) {
 		agent    Agent
 		expected bool
 	}{
-		{"engineer can implement", CapImplementTasks, Agent{Role: RoleEngineer}, true},
-		{"engineer cannot create agents", CapCreateAgents, Agent{Role: RoleEngineer}, false},
-		{"manager can assign work", CapAssignWork, Agent{Role: RoleManager}, true},
-		{"qa can test work", CapTestWork, Agent{Role: RoleQA}, true},
-		{"qa can review work", CapReviewWork, Agent{Role: RoleQA}, true},
-		{"product manager can create epics", CapCreateEpics, Agent{Role: RoleProductManager}, true},
+		{"engineer can implement", CapImplementTasks, Agent{Role: Role("engineer")}, true},
+		{"engineer cannot create agents", CapCreateAgents, Agent{Role: Role("engineer")}, false},
+		{"manager can assign work", CapAssignWork, Agent{Role: Role("manager")}, true},
+		{"qa can test work", CapTestWork, Agent{Role: Role("qa")}, true},
+		{"qa can review work", CapReviewWork, Agent{Role: Role("qa")}, true},
+		{"product manager can create epics", CapCreateEpics, Agent{Role: Role("product-manager")}, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -59,11 +59,11 @@ func TestAgent_CanCreate(t *testing.T) {
 		agent     Agent
 		expected  bool
 	}{
-		{"manager can create engineer", RoleEngineer, Agent{Role: RoleManager}, true},
-		{"manager can create qa", RoleQA, Agent{Role: RoleManager}, true},
-		{"engineer cannot create anything", RoleWorker, Agent{Role: RoleEngineer}, false},
-		{"product manager can create manager", RoleManager, Agent{Role: RoleProductManager}, true},
-		{"coordinator can create worker", RoleWorker, Agent{Role: RoleCoordinator}, true},
+		{"manager can create engineer", Role("engineer"), Agent{Role: Role("manager")}, true},
+		{"manager can create qa", Role("qa"), Agent{Role: Role("manager")}, true},
+		{"engineer cannot create anything", Role("worker"), Agent{Role: Role("engineer")}, false},
+		{"product manager can create manager", Role("manager"), Agent{Role: Role("product-manager")}, true},
+		{"coordinator can create worker", Role("worker"), Agent{Role: RoleRoot}, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -100,12 +100,12 @@ func TestAgent_Level(t *testing.T) {
 		role     Role
 		expected int
 	}{
-		{RoleProductManager, 0},
-		{RoleCoordinator, 0},
-		{RoleManager, 1},
-		{RoleEngineer, 2},
-		{RoleWorker, 2},
-		{RoleQA, 2},
+		{Role("product-manager"), 1},
+		{RoleRoot, -1},
+		{Role("manager"), 1},
+		{Role("engineer"), 1},
+		{Role("worker"), 1},
+		{Role("qa"), 1},
 	}
 	for _, tc := range tests {
 		a := Agent{Role: tc.role}
@@ -118,10 +118,10 @@ func TestAgent_Level(t *testing.T) {
 // --- Pure function edge-case tests ---
 
 func TestCanCreateRole_UnknownRole(t *testing.T) {
-	if CanCreateRole(Role("unknown"), RoleEngineer) {
+	if CanCreateRole(Role("unknown"), Role("engineer")) {
 		t.Error("unknown parent role should return false")
 	}
-	if CanCreateRole(RoleManager, Role("unknown")) {
+	if CanCreateRole(Role("manager"), Role("unknown")) {
 		t.Error("unknown child role should return false")
 	}
 }
@@ -271,20 +271,20 @@ func TestListChildren(t *testing.T) {
 	m := newTestManager(t)
 	m.agents["manager-1"] = &Agent{
 		Name:     "manager-1",
-		Role:     RoleManager,
+		Role:     Role("manager"),
 		State:    StateIdle,
 		Children: []string{"eng-1", "eng-2"},
 	}
 	m.agents["eng-1"] = &Agent{
 		Name:     "eng-1",
-		Role:     RoleEngineer,
+		Role:     Role("engineer"),
 		State:    StateWorking,
 		ParentID: "manager-1",
 		Children: []string{},
 	}
 	m.agents["eng-2"] = &Agent{
 		Name:     "eng-2",
-		Role:     RoleEngineer,
+		Role:     Role("engineer"),
 		State:    StateIdle,
 		ParentID: "manager-1",
 		Children: []string{},
@@ -323,30 +323,30 @@ func TestListChildren(t *testing.T) {
 
 func TestListDescendants(t *testing.T) {
 	m := newTestManager(t)
-	// Build a 3-level hierarchy: coordinator → manager → engineer
+	// Build a 3-level hierarchy: root → manager → engineer
 	m.agents["coord"] = &Agent{
 		Name:     "coord",
-		Role:     RoleCoordinator,
+		Role:     RoleRoot,
 		State:    StateIdle,
 		Children: []string{"mgr"},
 	}
 	m.agents["mgr"] = &Agent{
 		Name:     "mgr",
-		Role:     RoleManager,
+		Role:     Role("manager"),
 		State:    StateIdle,
 		ParentID: "coord",
 		Children: []string{"eng-1", "eng-2"},
 	}
 	m.agents["eng-1"] = &Agent{
 		Name:     "eng-1",
-		Role:     RoleEngineer,
+		Role:     Role("engineer"),
 		State:    StateWorking,
 		ParentID: "mgr",
 		Children: []string{},
 	}
 	m.agents["eng-2"] = &Agent{
 		Name:     "eng-2",
-		Role:     RoleEngineer,
+		Role:     Role("engineer"),
 		State:    StateIdle,
 		ParentID: "mgr",
 		Children: []string{},
@@ -385,13 +385,13 @@ func TestGetParent(t *testing.T) {
 	m := newTestManager(t)
 	m.agents["mgr"] = &Agent{
 		Name:     "mgr",
-		Role:     RoleManager,
+		Role:     Role("manager"),
 		State:    StateIdle,
 		Children: []string{"eng-1"},
 	}
 	m.agents["eng-1"] = &Agent{
 		Name:     "eng-1",
-		Role:     RoleEngineer,
+		Role:     Role("engineer"),
 		State:    StateWorking,
 		ParentID: "mgr",
 		Children: []string{},
@@ -424,7 +424,7 @@ func TestGetParent(t *testing.T) {
 	t.Run("parent not in map", func(t *testing.T) {
 		m.agents["orphan"] = &Agent{
 			Name:     "orphan",
-			Role:     RoleEngineer,
+			Role:     Role("engineer"),
 			ParentID: "deleted-parent",
 		}
 		parent := m.GetParent("orphan")
@@ -444,13 +444,13 @@ func TestGetParent(t *testing.T) {
 
 func TestListByRole(t *testing.T) {
 	m := newTestManager(t)
-	m.agents["eng-1"] = &Agent{Name: "eng-1", Role: RoleEngineer, State: StateIdle, Children: []string{}}
-	m.agents["eng-2"] = &Agent{Name: "eng-2", Role: RoleEngineer, State: StateWorking, Children: []string{}}
-	m.agents["qa-1"] = &Agent{Name: "qa-1", Role: RoleQA, State: StateIdle, Children: []string{}}
-	m.agents["mgr"] = &Agent{Name: "mgr", Role: RoleManager, State: StateIdle, Children: []string{}}
+	m.agents["eng-1"] = &Agent{Name: "eng-1", Role: Role("engineer"), State: StateIdle, Children: []string{}}
+	m.agents["eng-2"] = &Agent{Name: "eng-2", Role: Role("engineer"), State: StateWorking, Children: []string{}}
+	m.agents["qa-1"] = &Agent{Name: "qa-1", Role: Role("qa"), State: StateIdle, Children: []string{}}
+	m.agents["mgr"] = &Agent{Name: "mgr", Role: Role("manager"), State: StateIdle, Children: []string{}}
 
 	t.Run("filter engineers", func(t *testing.T) {
-		engineers := m.ListByRole(RoleEngineer)
+		engineers := m.ListByRole(Role("engineer"))
 		if len(engineers) != 2 {
 			t.Fatalf("expected 2 engineers, got %d", len(engineers))
 		}
@@ -461,7 +461,7 @@ func TestListByRole(t *testing.T) {
 	})
 
 	t.Run("filter qa", func(t *testing.T) {
-		qas := m.ListByRole(RoleQA)
+		qas := m.ListByRole(Role("qa"))
 		if len(qas) != 1 {
 			t.Fatalf("expected 1 qa, got %d", len(qas))
 		}
@@ -471,14 +471,14 @@ func TestListByRole(t *testing.T) {
 	})
 
 	t.Run("no matches", func(t *testing.T) {
-		pms := m.ListByRole(RoleProductManager)
+		pms := m.ListByRole(Role("product-manager"))
 		if len(pms) != 0 {
 			t.Errorf("expected 0 product managers, got %d", len(pms))
 		}
 	})
 
 	t.Run("returns copies", func(t *testing.T) {
-		engineers := m.ListByRole(RoleEngineer)
+		engineers := m.ListByRole(Role("engineer"))
 		engineers[0].State = StateDone
 		if m.agents["eng-1"].State == StateDone {
 			t.Error("modifying returned agent should not affect original")
@@ -526,19 +526,19 @@ func TestGetAgent_NotFound(t *testing.T) {
 
 func TestListAgents_SortOrder(t *testing.T) {
 	m := newTestManager(t)
-	m.agents["eng-2"] = &Agent{Name: "eng-2", Role: RoleEngineer, State: StateIdle, Children: []string{}}
-	m.agents["eng-1"] = &Agent{Name: "eng-1", Role: RoleEngineer, State: StateIdle, Children: []string{}}
-	m.agents["mgr"] = &Agent{Name: "mgr", Role: RoleManager, State: StateIdle, Children: []string{}}
-	m.agents["coord"] = &Agent{Name: "coord", Role: RoleCoordinator, State: StateIdle, Children: []string{}}
-	m.agents["qa-1"] = &Agent{Name: "qa-1", Role: RoleQA, State: StateIdle, Children: []string{}}
+	m.agents["eng-2"] = &Agent{Name: "eng-2", Role: Role("engineer"), State: StateIdle, Children: []string{}}
+	m.agents["eng-1"] = &Agent{Name: "eng-1", Role: Role("engineer"), State: StateIdle, Children: []string{}}
+	m.agents["mgr"] = &Agent{Name: "mgr", Role: Role("manager"), State: StateIdle, Children: []string{}}
+	m.agents["coord"] = &Agent{Name: "coord", Role: RoleRoot, State: StateIdle, Children: []string{}}
+	m.agents["qa-1"] = &Agent{Name: "qa-1", Role: Role("qa"), State: StateIdle, Children: []string{}}
 
 	agents := m.ListAgents()
 	if len(agents) != 5 {
 		t.Fatalf("expected 5 agents, got %d", len(agents))
 	}
 
-	// Coordinator (level 0) first, then Manager (level 1), then Engineer/QA (level 2) sorted by name
-	expectedOrder := []string{"coord", "mgr", "eng-1", "eng-2", "qa-1"}
+	// Root (level -1) first, then Manager (level 1), then Engineer/QA (level 1) sorted by name
+	expectedOrder := []string{"coord", "eng-1", "eng-2", "mgr", "qa-1"}
 	for i, expected := range expectedOrder {
 		if agents[i].Name != expected {
 			t.Errorf("agents[%d].Name = %q, want %q", i, agents[i].Name, expected)
@@ -559,7 +559,7 @@ func TestSaveAndLoadState(t *testing.T) {
 	}
 	m1.agents["eng-1"] = &Agent{
 		Name:      "eng-1",
-		Role:      RoleEngineer,
+		Role:      Role("engineer"),
 		State:     StateWorking,
 		Task:      "implementing feature",
 		Children:  []string{},
@@ -568,7 +568,7 @@ func TestSaveAndLoadState(t *testing.T) {
 	}
 	m1.agents["qa-1"] = &Agent{
 		Name:     "qa-1",
-		Role:     RoleQA,
+		Role:     Role("qa"),
 		State:    StateIdle,
 		Children: []string{},
 	}
@@ -603,8 +603,8 @@ func TestSaveAndLoadState(t *testing.T) {
 	if eng == nil {
 		t.Fatal("eng-1 not found after load")
 	}
-	if eng.Role != RoleEngineer {
-		t.Errorf("eng-1 role = %s, want %s", eng.Role, RoleEngineer)
+	if eng.Role != Role("engineer") {
+		t.Errorf("eng-1 role = %s, want %s", eng.Role, Role("engineer"))
 	}
 	if eng.State != StateWorking {
 		t.Errorf("eng-1 state = %s, want %s", eng.State, StateWorking)
@@ -681,7 +681,7 @@ func TestLoadRoleMemory(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		mem := LoadRoleMemory(tmpDir, RoleEngineer)
+		mem := LoadRoleMemory(tmpDir, Role("engineer"))
 		if mem == nil {
 			t.Fatal("expected non-nil AgentMemory")
 		}
@@ -694,7 +694,7 @@ func TestLoadRoleMemory(t *testing.T) {
 	})
 
 	t.Run("file does not exist", func(t *testing.T) {
-		mem := LoadRoleMemory(tmpDir, RoleQA)
+		mem := LoadRoleMemory(tmpDir, Role("qa"))
 		if mem != nil {
 			t.Error("expected nil AgentMemory for missing file")
 		}
@@ -706,7 +706,7 @@ func TestLoadRoleMemory(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		mem := LoadRoleMemory(tmpDir, RoleProductManager)
+		mem := LoadRoleMemory(tmpDir, Role("product-manager"))
 		if mem == nil {
 			t.Fatal("expected non-nil AgentMemory for product-manager")
 		}
@@ -722,13 +722,13 @@ func TestStopAgent(t *testing.T) {
 	m := newTestManager(t)
 	m.agents["mgr"] = &Agent{
 		Name:     "mgr",
-		Role:     RoleManager,
+		Role:     Role("manager"),
 		State:    StateIdle,
 		Children: []string{"eng-1"},
 	}
 	m.agents["eng-1"] = &Agent{
 		Name:     "eng-1",
-		Role:     RoleEngineer,
+		Role:     Role("engineer"),
 		State:    StateWorking,
 		ParentID: "mgr",
 		Children: []string{},
@@ -767,7 +767,7 @@ func TestStopAgent_WithWorktree(t *testing.T) {
 	m := newTestManager(t)
 	m.agents["eng-1"] = &Agent{
 		Name:        "eng-1",
-		Role:        RoleEngineer,
+		Role:        Role("engineer"),
 		State:       StateWorking,
 		Workspace:   "/tmp/workspace",
 		WorktreeDir: "/tmp/workspace/.bc/worktrees/eng-1",
@@ -790,7 +790,7 @@ func TestStopAgent_WorktreeSameAsWorkspace(t *testing.T) {
 	m := newTestManager(t)
 	m.agents["eng-1"] = &Agent{
 		Name:        "eng-1",
-		Role:        RoleEngineer,
+		Role:        Role("engineer"),
 		State:       StateWorking,
 		Workspace:   "/tmp/workspace",
 		WorktreeDir: "/tmp/workspace", // Same as workspace
@@ -808,9 +808,9 @@ func TestStopAgent_WorktreeSameAsWorkspace(t *testing.T) {
 
 func TestStopAll(t *testing.T) {
 	m := newTestManager(t)
-	m.agents["eng-1"] = &Agent{Name: "eng-1", Role: RoleEngineer, State: StateWorking, Children: []string{}}
-	m.agents["eng-2"] = &Agent{Name: "eng-2", Role: RoleEngineer, State: StateIdle, Children: []string{}}
-	m.agents["qa-1"] = &Agent{Name: "qa-1", Role: RoleQA, State: StateDone, Children: []string{}}
+	m.agents["eng-1"] = &Agent{Name: "eng-1", Role: Role("engineer"), State: StateWorking, Children: []string{}}
+	m.agents["eng-2"] = &Agent{Name: "eng-2", Role: Role("engineer"), State: StateIdle, Children: []string{}}
+	m.agents["qa-1"] = &Agent{Name: "qa-1", Role: Role("qa"), State: StateDone, Children: []string{}}
 
 	if err := m.StopAll(); err != nil {
 		t.Fatalf("StopAll failed: %v", err)
@@ -827,20 +827,20 @@ func TestStopAgentTree(t *testing.T) {
 	m := newTestManager(t)
 	m.agents["mgr"] = &Agent{
 		Name:     "mgr",
-		Role:     RoleManager,
+		Role:     Role("manager"),
 		State:    StateIdle,
 		Children: []string{"eng-1", "eng-2"},
 	}
 	m.agents["eng-1"] = &Agent{
 		Name:     "eng-1",
-		Role:     RoleEngineer,
+		Role:     Role("engineer"),
 		State:    StateWorking,
 		ParentID: "mgr",
 		Children: []string{},
 	}
 	m.agents["eng-2"] = &Agent{
 		Name:     "eng-2",
-		Role:     RoleEngineer,
+		Role:     Role("engineer"),
 		State:    StateIdle,
 		ParentID: "mgr",
 		Children: []string{},
@@ -898,7 +898,7 @@ func TestRefreshState(t *testing.T) {
 
 func TestSpawnAgentWithOptions_ParentNotFound(t *testing.T) {
 	m := newTestManager(t)
-	_, err := m.SpawnAgentWithOptions("eng-1", RoleEngineer, "/tmp", "nonexistent-parent", "")
+	_, err := m.SpawnAgentWithOptions("eng-1", Role("engineer"), "/tmp", "nonexistent-parent", "")
 	if err == nil {
 		t.Error("expected error when parent not found")
 	}
@@ -908,13 +908,13 @@ func TestSpawnAgentWithOptions_ParentCantCreate(t *testing.T) {
 	m := newTestManager(t)
 	m.agents["eng-1"] = &Agent{
 		Name:     "eng-1",
-		Role:     RoleEngineer,
+		Role:     Role("engineer"),
 		State:    StateIdle,
 		Children: []string{},
 	}
 
 	// Engineer cannot create other engineers
-	_, err := m.SpawnAgentWithOptions("eng-2", RoleEngineer, "/tmp", "eng-1", "")
+	_, err := m.SpawnAgentWithOptions("eng-2", Role("engineer"), "/tmp", "eng-1", "")
 	if err == nil {
 		t.Error("expected error when parent can't create child role")
 	}
@@ -928,7 +928,7 @@ func TestSpawnAgentWithOptions_UnknownTool(t *testing.T) {
 	}
 
 	m := newTestManager(t)
-	_, err := m.SpawnAgentWithOptions("eng-1", RoleEngineer, "/tmp", "", "nonexistent-tool")
+	_, err := m.SpawnAgentWithOptions("eng-1", Role("engineer"), "/tmp", "", "nonexistent-tool")
 	if err == nil {
 		t.Error("expected error for unknown tool")
 	}
@@ -952,7 +952,7 @@ func TestUpdateAgentState_TaskUpdate(t *testing.T) {
 	m := newTestManager(t)
 	m.agents["eng-1"] = &Agent{
 		Name:  "eng-1",
-		Role:  RoleEngineer,
+		Role:  Role("engineer"),
 		State: StateIdle,
 	}
 
@@ -984,7 +984,7 @@ func TestRemoveFromParent(t *testing.T) {
 	t.Run("removes child from parent", func(t *testing.T) {
 		m.agents["parent"] = &Agent{
 			Name:     "parent",
-			Role:     RoleManager,
+			Role:     Role("manager"),
 			Children: []string{"child-1", "child-2", "child-3"},
 		}
 		m.agents["child-2"] = &Agent{
@@ -1041,7 +1041,7 @@ func TestSaveLoadState_ComplexHierarchy(t *testing.T) {
 	m.agents["coord"] = &Agent{
 		ID:        "coord",
 		Name:      "coord",
-		Role:      RoleCoordinator,
+		Role:      RoleRoot,
 		State:     StateIdle,
 		Workspace: "/workspace",
 		Session:   "coord",
@@ -1049,14 +1049,14 @@ func TestSaveLoadState_ComplexHierarchy(t *testing.T) {
 		StartedAt: now,
 		UpdatedAt: now,
 		Memory: &AgentMemory{
-			RolePrompt: "You are a coordinator.",
+			RolePrompt: "You are a root.",
 			LoadedAt:   now,
 		},
 	}
 	m.agents["mgr"] = &Agent{
 		ID:          "mgr",
 		Name:        "mgr",
-		Role:        RoleManager,
+		Role:        Role("manager"),
 		State:       StateWorking,
 		Workspace:   "/workspace",
 		Session:     "mgr",
@@ -1091,8 +1091,8 @@ func TestSaveLoadState_ComplexHierarchy(t *testing.T) {
 	if coord.Memory == nil {
 		t.Fatal("coord Memory should not be nil")
 	}
-	if coord.Memory.RolePrompt != "You are a coordinator." {
-		t.Errorf("RolePrompt = %q, want %q", coord.Memory.RolePrompt, "You are a coordinator.")
+	if coord.Memory.RolePrompt != "You are a root." {
+		t.Errorf("RolePrompt = %q, want %q", coord.Memory.RolePrompt, "You are a root.")
 	}
 	if len(coord.Children) != 1 || coord.Children[0] != "mgr" {
 		t.Errorf("coord children = %v, want [mgr]", coord.Children)
@@ -1138,7 +1138,7 @@ func TestAgentJSON_RoundTrip(t *testing.T) {
 	original := &Agent{
 		ID:          "eng-1",
 		Name:        "eng-1",
-		Role:        RoleEngineer,
+		Role:        Role("engineer"),
 		State:       StateWorking,
 		Workspace:   "/workspace",
 		Task:        "writing tests",
@@ -1217,7 +1217,7 @@ func TestConcurrentGetAgent(t *testing.T) {
 	}
 	m.agents["test-agent"] = &Agent{
 		Name:     "test-agent",
-		Role:     RoleWorker,
+		Role:     Role("worker"),
 		State:    StateIdle,
 		Children: []string{"child1", "child2"},
 	}
@@ -1240,9 +1240,9 @@ func TestConcurrentListAgents(t *testing.T) {
 	m := &Manager{
 		agents: make(map[string]*Agent),
 	}
-	m.agents["agent1"] = &Agent{Name: "agent1", Role: RoleWorker, State: StateIdle}
-	m.agents["agent2"] = &Agent{Name: "agent2", Role: RoleWorker, State: StateWorking}
-	m.agents["agent3"] = &Agent{Name: "agent3", Role: RoleCoordinator, State: StateIdle}
+	m.agents["agent1"] = &Agent{Name: "agent1", Role: Role("worker"), State: StateIdle}
+	m.agents["agent2"] = &Agent{Name: "agent2", Role: Role("worker"), State: StateWorking}
+	m.agents["agent3"] = &Agent{Name: "agent3", Role: RoleRoot, State: StateIdle}
 
 	var wg sync.WaitGroup
 	for i := 0; i < 100; i++ {
@@ -1264,7 +1264,7 @@ func TestGetAgentReturnsCopy(t *testing.T) {
 	}
 	m.agents["test-agent"] = &Agent{
 		Name:     "test-agent",
-		Role:     RoleWorker,
+		Role:     Role("worker"),
 		State:    StateIdle,
 		Children: []string{"child1"},
 	}
@@ -1288,7 +1288,7 @@ func TestListAgentsReturnsCopies(t *testing.T) {
 	}
 	m.agents["agent1"] = &Agent{
 		Name:     "agent1",
-		Role:     RoleWorker,
+		Role:     Role("worker"),
 		State:    StateIdle,
 		Children: []string{"child1"},
 	}
@@ -1316,7 +1316,7 @@ func TestConcurrentReadWrite(t *testing.T) {
 	}
 	m.agents["test-agent"] = &Agent{
 		Name:     "test-agent",
-		Role:     RoleWorker,
+		Role:     Role("worker"),
 		State:    StateIdle,
 		Children: []string{},
 	}
@@ -1357,15 +1357,15 @@ func TestRoleHierarchy(t *testing.T) {
 		child    Role
 		expected bool
 	}{
-		{RoleProductManager, RoleManager, true},
-		{RoleManager, RoleEngineer, true},
-		{RoleManager, RoleQA, true},
-		{RoleCoordinator, RoleWorker, true},
-		{RoleCoordinator, RoleManager, true},
-		{RoleCoordinator, RoleQA, true},
-		{RoleEngineer, RoleWorker, false},
-		{RoleWorker, RoleEngineer, false},
-		{RoleQA, RoleEngineer, false},
+		{Role("product-manager"), Role("manager"), true},
+		{Role("manager"), Role("engineer"), true},
+		{Role("manager"), Role("qa"), true},
+		{RoleRoot, Role("worker"), true},
+		{RoleRoot, Role("manager"), true},
+		{RoleRoot, Role("qa"), true},
+		{Role("engineer"), Role("worker"), false},
+		{Role("worker"), Role("engineer"), false},
+		{Role("qa"), Role("engineer"), false},
 	}
 
 	for _, tc := range tests {
@@ -1382,14 +1382,14 @@ func TestHasCapability(t *testing.T) {
 		cap      Capability
 		expected bool
 	}{
-		{RoleProductManager, CapCreateAgents, true},
-		{RoleProductManager, CapImplementTasks, false},
-		{RoleEngineer, CapImplementTasks, true},
-		{RoleEngineer, CapCreateAgents, false},
-		{RoleWorker, CapImplementTasks, true},
-		{RoleQA, CapTestWork, true},
-		{RoleQA, CapReviewWork, true},
-		{RoleQA, CapImplementTasks, false},
+		{Role("product-manager"), CapCreateAgents, true},
+		{Role("product-manager"), CapImplementTasks, false},
+		{Role("engineer"), CapImplementTasks, true},
+		{Role("engineer"), CapCreateAgents, false},
+		{Role("worker"), CapImplementTasks, true},
+		{Role("qa"), CapTestWork, true},
+		{Role("qa"), CapReviewWork, true},
+		{Role("qa"), CapImplementTasks, false},
 	}
 
 	for _, tc := range tests {
@@ -1405,12 +1405,12 @@ func TestRoleLevel(t *testing.T) {
 		role     Role
 		expected int
 	}{
-		{RoleProductManager, 0},
-		{RoleCoordinator, 0},
-		{RoleManager, 1},
-		{RoleEngineer, 2},
-		{RoleWorker, 2},
-		{RoleQA, 2},
+		{Role("product-manager"), 1},
+		{RoleRoot, -1},
+		{Role("manager"), 1},
+		{Role("engineer"), 1},
+		{Role("worker"), 1},
+		{Role("qa"), 1},
 	}
 
 	for _, tc := range tests {
@@ -1481,7 +1481,7 @@ func TestUpdateAgentStateValidation(t *testing.T) {
 	}
 	m.agents["test-agent"] = &Agent{
 		Name:  "test-agent",
-		Role:  RoleWorker,
+		Role:  Role("worker"),
 		State: StateIdle,
 	}
 
@@ -1518,7 +1518,7 @@ func TestUpdateAgentState_SameStateMessageUpdate(t *testing.T) {
 	}
 	m.agents["test-agent"] = &Agent{
 		Name:  "test-agent",
-		Role:  RoleWorker,
+		Role:  Role("worker"),
 		State: StateIdle,
 	}
 
@@ -1577,7 +1577,7 @@ func TestSpawnAgent_ConcurrentCalls(t *testing.T) {
 	m.agents["existing-1"] = &Agent{
 		ID:       "existing-1",
 		Name:     "existing-1",
-		Role:     RoleManager,
+		Role:     Role("manager"),
 		State:    StateIdle,
 		Children: []string{},
 	}
@@ -1607,7 +1607,7 @@ func TestSpawnAgent_ConcurrentCalls(t *testing.T) {
 			m.agents[agentName] = &Agent{
 				ID:       agentName,
 				Name:     agentName,
-				Role:     RoleEngineer,
+				Role:     Role("engineer"),
 				State:    StateIdle,
 				Children: []string{},
 			}
@@ -1698,7 +1698,7 @@ func TestSpawnAgent_ExistingSessionCreatesWorktree(t *testing.T) {
 	m.agents["eng-1"] = &Agent{
 		ID:        "eng-1",
 		Name:      "eng-1",
-		Role:      RoleEngineer,
+		Role:      Role("engineer"),
 		State:     StateIdle,
 		Workspace: workspace,
 		Session:   "eng-1",
@@ -1706,7 +1706,7 @@ func TestSpawnAgent_ExistingSessionCreatesWorktree(t *testing.T) {
 	}
 
 	// SpawnAgentWithOptions should reuse session but create worktree
-	agent, err := m.SpawnAgentWithOptions("eng-1", RoleEngineer, workspace, "", "")
+	agent, err := m.SpawnAgentWithOptions("eng-1", Role("engineer"), workspace, "", "")
 	if err != nil {
 		t.Fatalf("SpawnAgentWithOptions failed: %v", err)
 	}
@@ -1864,7 +1864,7 @@ func TestRoleRoot_Hierarchy(t *testing.T) {
 		t.Fatal("RoleRoot should have hierarchy defined")
 	}
 
-	expected := []Role{RoleProductManager, RoleManager, RoleEngineer, RoleQA}
+	expected := []Role{Role("product-manager"), Role("manager"), Role("engineer"), Role("qa")}
 	for _, role := range expected {
 		found := false
 		for _, r := range children {
@@ -1886,10 +1886,10 @@ func TestRoleRoot_Level(t *testing.T) {
 	}
 
 	// Root should be above all other roles
-	if level >= RoleLevel(RoleProductManager) {
+	if level >= RoleLevel(Role("product-manager")) {
 		t.Error("RoleRoot should be above RoleProductManager")
 	}
-	if level >= RoleLevel(RoleManager) {
+	if level >= RoleLevel(Role("manager")) {
 		t.Error("RoleRoot should be above RoleManager")
 	}
 }
@@ -1899,10 +1899,10 @@ func TestRoleRoot_CanCreateRole(t *testing.T) {
 		child    Role
 		expected bool
 	}{
-		{RoleProductManager, true},
-		{RoleManager, true},
-		{RoleEngineer, true},
-		{RoleQA, true},
+		{Role("product-manager"), true},
+		{Role("manager"), true},
+		{Role("engineer"), true},
+		{Role("qa"), true},
 		{RoleRoot, false}, // Cannot create another root
 	}
 

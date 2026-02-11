@@ -39,7 +39,7 @@ func TestAttachAgentNotRunning(t *testing.T) {
 	seedAgents(t, wsDir, map[string]*agent.Agent{
 		"coordinator": {
 			Name:      "coordinator",
-			Role:      agent.RoleCoordinator,
+			Role:      agent.RoleRoot,
 			State:     agent.StateStopped,
 			Session:   "bc-coordinator",
 			StartedAt: time.Now().Add(-1 * time.Hour),

@@ -40,8 +40,8 @@ func DefaultConfig(rootDir string) Config {
 		Version:    1,
 		Name:       filepath.Base(rootDir),
 		RootDir:    rootDir,
-		StateDir:   filepath.Join(rootDir, config.Workspace.StateDir),
-		MaxWorkers: int(config.Workspace.MaxWorkers),
+		StateDir:   filepath.Join(rootDir, config.WorkspaceLegacy.StateDir),
+		MaxWorkers: int(config.WorkspaceLegacy.MaxWorkers),
 	}
 }
 
@@ -344,7 +344,7 @@ func (w *Workspace) EnsureDirs() error {
 
 // IsWorkspace checks if a directory is a workspace.
 func IsWorkspace(dir string) bool {
-	stateDir := filepath.Join(dir, config.Workspace.StateDir)
+	stateDir := filepath.Join(dir, config.WorkspaceLegacy.StateDir)
 	_, err := os.Stat(stateDir)
 	return err == nil
 }

@@ -57,14 +57,14 @@ func TestDownWithAgents(t *testing.T) {
 	seedAgents(t, wsDir, map[string]*agent.Agent{
 		"coordinator": {
 			Name:      "coordinator",
-			Role:      agent.RoleCoordinator,
+			Role:      agent.RoleRoot,
 			State:     agent.StateStopped,
 			Session:   "bc-coord",
 			StartedAt: time.Now().Add(-1 * time.Hour),
 		},
 		"worker-01": {
 			Name:      "worker-01",
-			Role:      agent.RoleWorker,
+			Role:      agent.Role("worker"),
 			State:     agent.StateStopped,
 			Session:   "bc-worker-01",
 			StartedAt: time.Now().Add(-30 * time.Minute),

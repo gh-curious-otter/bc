@@ -34,7 +34,7 @@ func TestHealthChecker_Check_Healthy(t *testing.T) {
 	store := NewRootStateStore(bcDir)
 
 	// Create root with session
-	state, err := store.Create("root", RoleManager, "claude")
+	state, err := store.Create("root", RoleRoot, "claude")
 	if err != nil {
 		t.Fatalf("failed to create root: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestHealthChecker_Check_UnhealthyTmuxDead(t *testing.T) {
 	store := NewRootStateStore(bcDir)
 
 	// Create root with session
-	state, err := store.Create("root", RoleManager, "claude")
+	state, err := store.Create("root", RoleRoot, "claude")
 	if err != nil {
 		t.Fatalf("failed to create root: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestHealthChecker_Check_DegradedStaleState(t *testing.T) {
 	store := NewRootStateStore(bcDir)
 
 	// Create root first (this sets fresh timestamp)
-	state, err := store.Create("root", RoleManager, "claude")
+	state, err := store.Create("root", RoleRoot, "claude")
 	if err != nil {
 		t.Fatalf("failed to create root: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestHealthChecker_UnhealthyCallback(t *testing.T) {
 	store := NewRootStateStore(bcDir)
 
 	// Create root with dead session
-	state, err := store.Create("root", RoleManager, "claude")
+	state, err := store.Create("root", RoleRoot, "claude")
 	if err != nil {
 		t.Fatalf("failed to create root: %v", err)
 	}
@@ -200,7 +200,7 @@ func TestHealthChecker_StartStop(t *testing.T) {
 	store := NewRootStateStore(bcDir)
 
 	// Create healthy root
-	state, err := store.Create("root", RoleManager, "claude")
+	state, err := store.Create("root", RoleRoot, "claude")
 	if err != nil {
 		t.Fatalf("failed to create root: %v", err)
 	}
@@ -243,7 +243,7 @@ func TestHealthChecker_EmitsEvents(t *testing.T) {
 	store := NewRootStateStore(bcDir)
 
 	// Create root
-	state, createErr := store.Create("root", RoleManager, "claude")
+	state, createErr := store.Create("root", RoleRoot, "claude")
 	if createErr != nil {
 		t.Fatalf("failed to create root: %v", createErr)
 	}
@@ -287,7 +287,7 @@ func TestHealthChecker_LastResult(t *testing.T) {
 	store := NewRootStateStore(bcDir)
 
 	// Create root
-	_, err := store.Create("root", RoleManager, "claude")
+	_, err := store.Create("root", RoleRoot, "claude")
 	if err != nil {
 		t.Fatalf("failed to create root: %v", err)
 	}

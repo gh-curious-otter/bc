@@ -56,7 +56,7 @@ func runHome(cmd *cobra.Command, args []string) error {
 
 	// Start TUI immediately with loading state; load workspace list in background
 	// so the UI appears without waiting for RefreshState() on every workspace.
-	model := itui.NewHomeModel(nil, int(config.Workspace.MaxWorkers), true)
+	model := itui.NewHomeModel(nil, int(config.WorkspaceLegacy.MaxWorkers), true)
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	go loadWorkspacesAndSend(reg, p)
 	_, err = p.Run()
@@ -71,7 +71,7 @@ func loadWorkspacesAndSend(reg *workspace.Registry, p *tea.Program) {
 	for _, entry := range list {
 		info := itui.WorkspaceInfo{
 			Entry:      entry,
-			MaxWorkers: int(config.Workspace.MaxWorkers),
+			MaxWorkers: int(config.WorkspaceLegacy.MaxWorkers),
 		}
 		mgr := agent.NewWorkspaceManager(
 			entry.Path+"/.bc/agents",

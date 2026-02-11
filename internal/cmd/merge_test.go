@@ -250,7 +250,7 @@ func TestResolveMergeTarget_AgentName(t *testing.T) {
 	agents := map[string]*agent.Agent{
 		"eng-1": {
 			Name:        "eng-1",
-			Role:        agent.RoleEngineer,
+			Role:        agent.Role("engineer"),
 			State:       agent.StateIdle,
 			WorktreeDir: worktreePath,
 			Children:    []string{},

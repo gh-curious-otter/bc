@@ -109,7 +109,7 @@ func TestChannelSend_WithStoppedAgent(t *testing.T) {
 	seedAgents(t, wsDir, map[string]*agent.Agent{
 		"stopped-agent": {
 			Name:      "stopped-agent",
-			Role:      agent.RoleEngineer,
+			Role:      agent.Role("engineer"),
 			State:     agent.StateStopped,
 			Session:   "bc-stopped",
 			StartedAt: time.Now().Add(-1 * time.Hour),
@@ -171,14 +171,14 @@ func TestChannelSend_SenderNotIncludedInRecipients(t *testing.T) {
 	seedAgents(t, wsDir, map[string]*agent.Agent{
 		"agent-01": {
 			Name:      "agent-01",
-			Role:      agent.RoleEngineer,
+			Role:      agent.Role("engineer"),
 			State:     agent.StateIdle,
 			Session:   "bc-agent-01",
 			StartedAt: time.Now(),
 		},
 		"agent-02": {
 			Name:      "agent-02",
-			Role:      agent.RoleEngineer,
+			Role:      agent.Role("engineer"),
 			State:     agent.StateIdle,
 			Session:   "bc-agent-02",
 			StartedAt: time.Now(),

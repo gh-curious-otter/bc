@@ -19,11 +19,12 @@ const (
 )
 
 // TaskTypeToRole maps task types to the roles that should handle them.
-var TaskTypeToRole = map[TaskType]agent.Role{
-	TaskTypeCode:   agent.RoleEngineer,
-	TaskTypeReview: agent.RoleTechLead,
-	TaskTypeMerge:  agent.RoleManager,
-	TaskTypeQA:     agent.RoleQA,
+// These are role name strings that match .bc/roles/<role>.md files
+var TaskTypeToRole = map[TaskType]string{
+	TaskTypeCode:   "engineer",
+	TaskTypeReview: "tech-lead",
+	TaskTypeMerge:  "manager",
+	TaskTypeQA:     "qa",
 }
 
 // Router assigns tasks to agents based on task type and agent availability.
@@ -54,14 +55,14 @@ func (r *Router) RouteTaskType(taskType TaskType) (string, error) {
 	return r.RouteToRole(role)
 }
 
-// RouteToRole finds an available agent with the given role using round-robin.
-func (r *Router) RouteToRole(role agent.Role) (string, error) {
+// RouteToRole finds an available agent with the given role name using round-robin.
+func (r *Router) RouteToRole(roleName string) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	agents := r.mgr.ListByRole(role)
+	agents := r.mgr.ListByRole(agent.Role(roleName))
 	if len(agents) == 0 {
-		return "", fmt.Errorf("no agents available with role: %s", role)
+		return "", fmt.Errorf("no agents available with role: %s", roleName)
 	}
 
 	// Filter to only running/idle agents
@@ -73,22 +74,22 @@ func (r *Router) RouteToRole(role agent.Role) (string, error) {
 	}
 
 	if len(available) == 0 {
-		return "", fmt.Errorf("no running agents available with role: %s", role)
+		return "", fmt.Errorf("no running agents available with role: %s", roleName)
 	}
 
-	// Round-robin selection
-	lastIdx := r.lastAssigned[role]
+	// Round-robin selection (use index to track across string role names)
+	lastIdx := r.lastAssigned[agent.Role(roleName)]
 	nextIdx := (lastIdx + 1) % len(available)
-	r.lastAssigned[role] = nextIdx
+	r.lastAssigned[agent.Role(roleName)] = nextIdx
 
 	return available[nextIdx].Name, nil
 }
 
-// GetRoleForTaskType returns the role that should handle a given task type.
-func GetRoleForTaskType(taskType TaskType) (agent.Role, error) {
-	role, ok := TaskTypeToRole[taskType]
+// GetRoleForTaskType returns the role name that should handle a given task type.
+func GetRoleForTaskType(taskType TaskType) (string, error) {
+	roleName, ok := TaskTypeToRole[taskType]
 	if !ok {
 		return "", fmt.Errorf("unknown task type: %s", taskType)
 	}
-	return role, nil
+	return roleName, nil
 }

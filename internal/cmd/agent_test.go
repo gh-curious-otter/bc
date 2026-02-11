@@ -48,12 +48,12 @@ func TestAgentCreate_ValidRole(t *testing.T) {
 		role     string
 		wantRole agent.Role
 	}{
-		{"worker role", "worker", agent.RoleWorker},
-		{"engineer role", "engineer", agent.RoleEngineer},
-		{"manager role", "manager", agent.RoleManager},
-		{"qa role", "qa", agent.RoleQA},
-		{"tech-lead role", "tech-lead", agent.RoleTechLead},
-		{"product-manager role", "product-manager", agent.RoleProductManager},
+		{"worker role", "worker", agent.Role("worker")},
+		{"engineer role", "engineer", agent.Role("engineer")},
+		{"manager role", "manager", agent.Role("manager")},
+		{"qa role", "qa", agent.Role("qa")},
+		{"tech-lead role", "tech-lead", agent.Role("tech-lead")},
+		{"product-manager role", "product-manager", agent.Role("product-manager")},
 	}
 
 	for _, tt := range tests {
@@ -93,9 +93,9 @@ func TestAgentCreate_RoleAliases(t *testing.T) {
 		alias    string
 		wantRole agent.Role
 	}{
-		{"pm", agent.RoleProductManager},
-		{"coord", agent.RoleCoordinator},
-		{"tl", agent.RoleTechLead},
+		{"pm", agent.Role("product-manager")},
+		{"coord", agent.RoleRoot},
+		{"tl", agent.Role("tech-lead")},
 	}
 
 	for _, tt := range tests {
@@ -159,25 +159,25 @@ func TestAgentCreateHasTeamFlag(t *testing.T) {
 // --- Agent Role Hierarchy Tests ---
 
 func TestCanCreateRole_TechLeadCanCreateEngineer(t *testing.T) {
-	if !agent.CanCreateRole(agent.RoleTechLead, agent.RoleEngineer) {
+	if !agent.CanCreateRole(agent.Role("tech-lead"), agent.Role("engineer")) {
 		t.Error("tech-lead should be able to create engineer")
 	}
 }
 
 func TestCanCreateRole_EngineerCannotCreateEngineer(t *testing.T) {
-	if agent.CanCreateRole(agent.RoleEngineer, agent.RoleEngineer) {
+	if agent.CanCreateRole(agent.Role("engineer"), agent.Role("engineer")) {
 		t.Error("engineer should not be able to create engineer")
 	}
 }
 
 func TestCanCreateRole_ManagerCanCreateEngineer(t *testing.T) {
-	if !agent.CanCreateRole(agent.RoleManager, agent.RoleEngineer) {
+	if !agent.CanCreateRole(agent.Role("manager"), agent.Role("engineer")) {
 		t.Error("manager should be able to create engineer")
 	}
 }
 
 func TestCanCreateRole_ManagerCanCreateQA(t *testing.T) {
-	if !agent.CanCreateRole(agent.RoleManager, agent.RoleQA) {
+	if !agent.CanCreateRole(agent.Role("manager"), agent.Role("qa")) {
 		t.Error("manager should be able to create qa")
 	}
 }

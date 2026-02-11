@@ -169,16 +169,16 @@ func TestParseRole(t *testing.T) {
 		want    agent.Role
 		wantErr bool
 	}{
-		{"worker", agent.RoleWorker, false},
-		{"engineer", agent.RoleEngineer, false},
-		{"manager", agent.RoleManager, false},
-		{"product-manager", agent.RoleProductManager, false},
-		{"pm", agent.RoleProductManager, false},
-		{"coordinator", agent.RoleCoordinator, false},
-		{"coord", agent.RoleCoordinator, false},
-		{"qa", agent.RoleQA, false},
-		{"WORKER", agent.RoleWorker, false},     // case insensitive
-		{"Engineer", agent.RoleEngineer, false}, // case insensitive
+		{"worker", agent.Role("worker"), false},
+		{"engineer", agent.Role("engineer"), false},
+		{"manager", agent.Role("manager"), false},
+		{"product-manager", agent.Role("product-manager"), false},
+		{"pm", agent.Role("product-manager"), false},
+		{"coordinator", agent.RoleRoot, false},
+		{"coord", agent.RoleRoot, false},
+		{"qa", agent.Role("qa"), false},
+		{"WORKER", agent.Role("worker"), false},     // case insensitive
+		{"Engineer", agent.Role("engineer"), false}, // case insensitive
 		{"invalid", "", true},
 		{"", "", true},
 	}

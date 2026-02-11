@@ -205,11 +205,11 @@ func TestCollectAgentMetricsRoleCounts(t *testing.T) {
 	agentsDir := filepath.Join(stateDir, "agents")
 
 	agents := map[string]*agent.Agent{
-		"coord-01": {Name: "coord-01", Role: agent.RoleCoordinator, State: agent.StateIdle, StartedAt: time.Now()},
-		"coord-02": {Name: "coord-02", Role: agent.RoleCoordinator, State: agent.StateWorking, StartedAt: time.Now()},
-		"eng-01":   {Name: "eng-01", Role: agent.RoleWorker, State: agent.StateIdle, StartedAt: time.Now()},
-		"eng-02":   {Name: "eng-02", Role: agent.RoleWorker, State: agent.StateWorking, StartedAt: time.Now()},
-		"eng-03":   {Name: "eng-03", Role: agent.RoleWorker, State: agent.StateDone, StartedAt: time.Now()},
+		"coord-01": {Name: "coord-01", Role: agent.RoleRoot, State: agent.StateIdle, StartedAt: time.Now()},
+		"coord-02": {Name: "coord-02", Role: agent.RoleRoot, State: agent.StateWorking, StartedAt: time.Now()},
+		"eng-01":   {Name: "eng-01", Role: agent.Role("worker"), State: agent.StateIdle, StartedAt: time.Now()},
+		"eng-02":   {Name: "eng-02", Role: agent.Role("worker"), State: agent.StateWorking, StartedAt: time.Now()},
+		"eng-03":   {Name: "eng-03", Role: agent.Role("worker"), State: agent.StateDone, StartedAt: time.Now()},
 	}
 	seedAgentsFile(t, stateDir, agents)
 
@@ -237,12 +237,12 @@ func TestCollectAgentMetricsStateCounts(t *testing.T) {
 	agentsDir := filepath.Join(stateDir, "agents")
 
 	agents := map[string]*agent.Agent{
-		"a1": {Name: "a1", Role: agent.RoleWorker, State: agent.StateIdle, StartedAt: time.Now()},
-		"a2": {Name: "a2", Role: agent.RoleWorker, State: agent.StateWorking, StartedAt: time.Now()},
-		"a3": {Name: "a3", Role: agent.RoleWorker, State: agent.StateDone, StartedAt: time.Now()},
-		"a4": {Name: "a4", Role: agent.RoleWorker, State: agent.StateStuck, StartedAt: time.Now()},
-		"a5": {Name: "a5", Role: agent.RoleWorker, State: agent.StateError},
-		"a6": {Name: "a6", Role: agent.RoleWorker, State: agent.StateStopped},
+		"a1": {Name: "a1", Role: agent.Role("worker"), State: agent.StateIdle, StartedAt: time.Now()},
+		"a2": {Name: "a2", Role: agent.Role("worker"), State: agent.StateWorking, StartedAt: time.Now()},
+		"a3": {Name: "a3", Role: agent.Role("worker"), State: agent.StateDone, StartedAt: time.Now()},
+		"a4": {Name: "a4", Role: agent.Role("worker"), State: agent.StateStuck, StartedAt: time.Now()},
+		"a5": {Name: "a5", Role: agent.Role("worker"), State: agent.StateError},
+		"a6": {Name: "a6", Role: agent.Role("worker"), State: agent.StateStopped},
 	}
 	seedAgentsFile(t, stateDir, agents)
 
@@ -284,9 +284,9 @@ func TestCollectAgentMetricsUptime(t *testing.T) {
 
 	startTime := time.Now().Add(-2 * time.Hour)
 	agents := map[string]*agent.Agent{
-		"running": {Name: "running", Role: agent.RoleWorker, State: agent.StateWorking, StartedAt: startTime},
-		"stopped": {Name: "stopped", Role: agent.RoleWorker, State: agent.StateStopped, StartedAt: startTime},
-		"no-time": {Name: "no-time", Role: agent.RoleWorker, State: agent.StateIdle},
+		"running": {Name: "running", Role: agent.Role("worker"), State: agent.StateWorking, StartedAt: startTime},
+		"stopped": {Name: "stopped", Role: agent.Role("worker"), State: agent.StateStopped, StartedAt: startTime},
+		"no-time": {Name: "no-time", Role: agent.Role("worker"), State: agent.StateIdle},
 	}
 	seedAgentsFile(t, stateDir, agents)
 
@@ -340,9 +340,9 @@ func TestLoadWithAgentsData(t *testing.T) {
 
 	// Seed agents as already stopped so RefreshState won't change their state
 	agents := map[string]*agent.Agent{
-		"coord": {Name: "coord", Role: agent.RoleCoordinator, State: agent.StateStopped},
-		"eng-1": {Name: "eng-1", Role: agent.RoleWorker, State: agent.StateStopped},
-		"eng-2": {Name: "eng-2", Role: agent.RoleWorker, State: agent.StateStopped},
+		"coord": {Name: "coord", Role: agent.RoleRoot, State: agent.StateStopped},
+		"eng-1": {Name: "eng-1", Role: agent.Role("worker"), State: agent.StateStopped},
+		"eng-2": {Name: "eng-2", Role: agent.Role("worker"), State: agent.StateStopped},
 	}
 	seedAgentsFile(t, stateDir, agents)
 

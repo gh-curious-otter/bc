@@ -25,7 +25,7 @@ func newTestAgentModel(a *agent.Agent) *AgentModel {
 func TestAgentView_BasicInfo(t *testing.T) {
 	a := &agent.Agent{
 		Name:      "engineer-01",
-		Role:      agent.RoleEngineer,
+		Role:      agent.Role("engineer"),
 		State:     agent.StateIdle,
 		Workspace: "/tmp/ws",
 		StartedAt: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC),
@@ -50,7 +50,7 @@ func TestAgentView_BasicInfo(t *testing.T) {
 func TestAgentView_TaskField(t *testing.T) {
 	a := &agent.Agent{
 		Name:      "engineer-01",
-		Role:      agent.RoleEngineer,
+		Role:      agent.Role("engineer"),
 		State:     agent.StateWorking,
 		StartedAt: time.Now().Add(-time.Hour),
 		Task:      "work-108",
@@ -70,7 +70,7 @@ func TestAgentView_TaskField(t *testing.T) {
 func TestAgentView_NoTaskWhenEmpty(t *testing.T) {
 	a := &agent.Agent{
 		Name:      "engineer-01",
-		Role:      agent.RoleEngineer,
+		Role:      agent.Role("engineer"),
 		State:     agent.StateIdle,
 		StartedAt: time.Now(),
 	}
@@ -87,7 +87,7 @@ func TestAgentView_NoTaskWhenEmpty(t *testing.T) {
 func TestAgentView_Uptime(t *testing.T) {
 	a := &agent.Agent{
 		Name:      "engineer-01",
-		Role:      agent.RoleEngineer,
+		Role:      agent.Role("engineer"),
 		State:     agent.StateIdle,
 		StartedAt: time.Now().Add(-2 * time.Hour),
 	}
@@ -103,7 +103,7 @@ func TestAgentView_Uptime(t *testing.T) {
 func TestAgentView_NoUptimeWhenStopped(t *testing.T) {
 	a := &agent.Agent{
 		Name:      "engineer-01",
-		Role:      agent.RoleEngineer,
+		Role:      agent.Role("engineer"),
 		State:     agent.StateStopped,
 		StartedAt: time.Now().Add(-time.Hour),
 	}
@@ -119,7 +119,7 @@ func TestAgentView_NoUptimeWhenStopped(t *testing.T) {
 func TestAgentView_RecentActivity(t *testing.T) {
 	a := &agent.Agent{
 		Name:  "engineer-01",
-		Role:  agent.RoleEngineer,
+		Role:  agent.Role("engineer"),
 		State: agent.StateIdle,
 	}
 	m := newTestAgentModel(a)
@@ -154,7 +154,7 @@ func TestAgentView_RecentActivity(t *testing.T) {
 func TestAgentView_NoRecentActivity(t *testing.T) {
 	a := &agent.Agent{
 		Name:  "engineer-01",
-		Role:  agent.RoleEngineer,
+		Role:  agent.Role("engineer"),
 		State: agent.StateIdle,
 	}
 	m := newTestAgentModel(a)
@@ -173,7 +173,7 @@ func TestAgentView_NoRecentActivity(t *testing.T) {
 func TestAgentView_EventMessageTruncation(t *testing.T) {
 	a := &agent.Agent{
 		Name:  "engineer-01",
-		Role:  agent.RoleEngineer,
+		Role:  agent.Role("engineer"),
 		State: agent.StateIdle,
 	}
 	m := newTestAgentModel(a)
