@@ -564,7 +564,19 @@ func createWorktree(workspace, agentName string) (string, error) {
 	cmd := exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "add", "--detach", worktreeDir, "HEAD") //nolint:gosec // args are trusted internal paths
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("failed to create worktree for %s: %w (%s)", agentName, err, string(output))
+		// If failed because it's already registered but missing, prune and retry
+		if strings.Contains(string(output), "already registered") {
+			log.Info("pruning stale worktrees to recover", "agent", agentName)
+			_ = exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "prune").Run()
+
+			// Retry
+			cmd = exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "add", "--detach", worktreeDir, "HEAD") //nolint:gosec // args are trusted internal paths
+			output, err = cmd.CombinedOutput()
+		}
+
+		if err != nil {
+			return "", fmt.Errorf("failed to create worktree for %s: %w (%s)", agentName, err, string(output))
+		}
 	}
 
 	log.Debug("created worktree", "agent", agentName, "dir", worktreeDir)

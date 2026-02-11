@@ -115,7 +115,7 @@ func DefaultV2Config(name string) V2Config {
 				Enabled: true,
 			},
 			Gemini: &ToolConfig{
-				Command: "gemini",
+				Command: "gemini --yolo",
 				Enabled: true,
 			},
 		},

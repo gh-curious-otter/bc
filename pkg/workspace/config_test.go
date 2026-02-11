@@ -424,7 +424,7 @@ func TestV2ConfigGetTool_Gemini(t *testing.T) {
 		Tools: ToolsConfig{
 			Default: "gemini",
 			Gemini: &ToolConfig{
-				Command: "gemini --full-auto",
+				Command: "gemini --yolo",
 				Enabled: true,
 			},
 		},
@@ -441,8 +441,8 @@ func TestV2ConfigGetTool_Gemini(t *testing.T) {
 	if tool == nil {
 		t.Fatal("expected gemini tool config")
 	}
-	if tool.Command != "gemini --full-auto" {
-		t.Errorf("expected command 'gemini --full-auto', got %q", tool.Command)
+	if tool.Command != "gemini --yolo" {
+		t.Errorf("expected command 'gemini --yolo', got %q", tool.Command)
 	}
 	if !tool.Enabled {
 		t.Error("expected gemini to be enabled")
