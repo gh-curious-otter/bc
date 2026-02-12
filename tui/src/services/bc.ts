@@ -37,11 +37,6 @@ export async function execBc(args: string[]): Promise<string> {
     const bcBin = process.env.BC_BIN || 'bc';
     const bcRoot = process.env.BC_ROOT || process.cwd();
 
-    // DEBUG: Log environment and command
-    console.error('[DEBUG execBc] BC_BIN:', bcBin);
-    console.error('[DEBUG execBc] BC_ROOT:', bcRoot);
-    console.error('[DEBUG execBc] Command:', finalArgs.join(' '));
-
     const proc = spawn(bcBin, finalArgs, {
       stdio: ['ignore', 'pipe', 'pipe'],
       cwd: bcRoot,
@@ -69,11 +64,6 @@ export async function execBc(args: string[]): Promise<string> {
     });
 
     proc.on('close', (code: number | null) => {
-      // DEBUG: Log results
-      console.error('[DEBUG execBc] Exit code:', code);
-      console.error('[DEBUG execBc] stdout length:', stdout.length);
-      console.error('[DEBUG execBc] stderr:', stderr || '(empty)');
-
       if (finished) return;
       finished = true;
       clearTimeout(timeout);
@@ -85,7 +75,6 @@ export async function execBc(args: string[]): Promise<string> {
     });
 
     proc.on('error', (err: Error) => {
-      console.error('[DEBUG execBc] Spawn error:', err.message);
       if (finished) return;
       finished = true;
       clearTimeout(timeout);
@@ -114,13 +103,7 @@ export async function execBcJson<T>(args: string[]): Promise<T> {
  * Get current agent status
  */
 export async function getStatus(): Promise<StatusResponse> {
-  try {
-    return await execBcJson<StatusResponse>(['status']);
-  } catch (err) {
-    // Log error for debugging
-    console.error('getStatus error:', err);
-    throw err;
-  }
+  return execBcJson<StatusResponse>(['status']);
 }
 
 /**
