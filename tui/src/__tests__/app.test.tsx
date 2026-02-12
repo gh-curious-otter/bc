@@ -4,19 +4,20 @@ import React from 'react';
 import { App } from '../app.js';
 
 describe('App', () => {
+  // Use disableInput to avoid stdin.ref issues in test environment
   test('renders without crashing', () => {
-    const { lastFrame } = render(<App />);
+    const { lastFrame } = render(<App disableInput />);
     expect(lastFrame()).toBeDefined();
   });
 
   test('shows bc header', () => {
-    const { lastFrame } = render(<App />);
+    const { lastFrame } = render(<App disableInput />);
     const output = lastFrame() ?? '';
     expect(output).toContain('bc');
   });
 
   test('shows navigation tabs', () => {
-    const { lastFrame } = render(<App />);
+    const { lastFrame } = render(<App disableInput />);
     const output = lastFrame() ?? '';
     expect(output).toContain('Dashboard');
     expect(output).toContain('Agents');
@@ -25,14 +26,14 @@ describe('App', () => {
   });
 
   test('shows help hint in footer', () => {
-    const { lastFrame } = render(<App />);
+    const { lastFrame } = render(<App disableInput />);
     const output = lastFrame() ?? '';
     expect(output).toContain('[?] for help');
     expect(output).toContain('[q] to quit');
   });
 
   test('starts on dashboard view', () => {
-    const { lastFrame } = render(<App />);
+    const { lastFrame } = render(<App disableInput />);
     const output = lastFrame() ?? '';
     expect(output).toContain('Dashboard');
   });

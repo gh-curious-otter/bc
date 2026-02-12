@@ -13,28 +13,37 @@ const TABS: { key: string; view: View; label: string }[] = [
   { key: '?', view: 'help', label: 'Help' },
 ];
 
-export function App(): React.ReactElement {
+interface AppProps {
+  /** Disable input handling (useful for testing) */
+  disableInput?: boolean;
+}
+
+export function App({ disableInput = false }: AppProps): React.ReactElement {
   const [currentView, setCurrentView] = useState<View>('dashboard');
 
   // Handle keyboard input for navigation
-  useInput((input, key) => {
-    // Tab navigation with number keys
-    const tab = TABS.find((t) => t.key === input);
-    if (tab) {
-      setCurrentView(tab.view);
-      return;
-    }
+  // Use isActive option to conditionally enable input handling
+  useInput(
+    (input, key) => {
+      // Tab navigation with number keys
+      const tab = TABS.find((t) => t.key === input);
+      if (tab) {
+        setCurrentView(tab.view);
+        return;
+      }
 
-    // ESC to go back to dashboard
-    if (key.escape) {
-      setCurrentView('dashboard');
-    }
+      // ESC to go back to dashboard
+      if (key.escape) {
+        setCurrentView('dashboard');
+      }
 
-    // q to quit
-    if (input === 'q') {
-      process.exit(0);
-    }
-  });
+      // q to quit
+      if (input === 'q') {
+        process.exit(0);
+      }
+    },
+    { isActive: !disableInput }
+  );
 
   return (
     <Box flexDirection="column" padding={1}>
