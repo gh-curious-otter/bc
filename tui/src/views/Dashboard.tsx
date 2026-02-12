@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { Panel } from '../components/Panel.js';
 import { MetricCard } from '../components/MetricCard.js';
@@ -113,7 +114,10 @@ interface HeaderProps {
   lastRefresh: Date | null;
 }
 
-function Header({ workspaceName, isLoading, lastRefresh }: HeaderProps) {
+/**
+ * Memoized header - only re-renders when props change
+ */
+const Header = memo(function Header({ workspaceName, isLoading, lastRefresh }: HeaderProps) {
   const refreshText = lastRefresh
     ? `Updated ${formatRelativeTime(lastRefresh)}`
     : '';
@@ -133,7 +137,7 @@ function Header({ workspaceName, isLoading, lastRefresh }: HeaderProps) {
       )}
     </Box>
   );
-}
+});
 
 interface SummaryCardsProps {
   total: number;
@@ -144,7 +148,10 @@ interface SummaryCardsProps {
   errorCount: number;
 }
 
-function SummaryCards({
+/**
+ * Memoized summary cards - only re-renders when counts change
+ */
+const SummaryCards = memo(function SummaryCards({
   total,
   active,
   working,
@@ -164,7 +171,7 @@ function SummaryCards({
       )}
     </Box>
   );
-}
+});
 
 interface CostSummaryProps {
   totalCostUSD: number;
@@ -172,7 +179,10 @@ interface CostSummaryProps {
   outputTokens: number;
 }
 
-function CostSummary({
+/**
+ * Memoized cost summary - only re-renders when cost data changes
+ */
+const CostSummary = memo(function CostSummary({
   totalCostUSD,
   inputTokens,
   outputTokens,
@@ -190,7 +200,7 @@ function CostSummary({
       </Text>
     </Box>
   );
-}
+});
 
 interface AgentStatsPanelProps {
   stats: {
@@ -199,7 +209,10 @@ interface AgentStatsPanelProps {
   };
 }
 
-function AgentStatsPanel({ stats }: AgentStatsPanelProps) {
+/**
+ * Memoized agent stats panel - only re-renders when stats change
+ */
+const AgentStatsPanel = memo(function AgentStatsPanel({ stats }: AgentStatsPanelProps) {
   const hasRoles = Object.keys(stats.byRole).length > 0;
 
   if (!hasRoles) return null;
@@ -221,7 +234,7 @@ function AgentStatsPanel({ stats }: AgentStatsPanelProps) {
       </Box>
     </Panel>
   );
-}
+});
 
 interface Agent {
   name: string;
@@ -237,9 +250,12 @@ interface AgentsPanelProps {
   agents: Agent[];
 }
 
-function AgentsPanel({ agents }: AgentsPanelProps) {
-  // Show only first 5 agents in dashboard view
-  const displayAgents = agents.slice(0, 5);
+/**
+ * Memoized agents panel - only re-renders when agents array changes
+ */
+const AgentsPanel = memo(function AgentsPanel({ agents }: AgentsPanelProps) {
+  // Memoize displayed agents slice
+  const displayAgents = useMemo(() => agents.slice(0, 5), [agents]);
   const hasMore = agents.length > 5;
 
   return (
@@ -272,7 +288,7 @@ function AgentsPanel({ agents }: AgentsPanelProps) {
       )}
     </Panel>
   );
-}
+});
 
 interface Channel {
   name: string;
@@ -284,14 +300,20 @@ interface ChannelsPanelProps {
   channels: Channel[];
 }
 
-function ChannelsPanel({ channels }: ChannelsPanelProps) {
+/**
+ * Memoized channels panel - only re-renders when channels array changes
+ */
+const ChannelsPanel = memo(function ChannelsPanel({ channels }: ChannelsPanelProps) {
+  // Memoize displayed channels slice
+  const displayChannels = useMemo(() => channels.slice(0, 5), [channels]);
+
   return (
     <Panel title="Channels">
       {channels.length === 0 ? (
         <Text dimColor>No channels</Text>
       ) : (
         <Box flexDirection="column">
-          {channels.slice(0, 5).map((ch) => (
+          {displayChannels.map((ch) => (
             <Box key={ch.name}>
               <Text color="cyan">#{ch.name}</Text>
               <Text> </Text>
@@ -307,7 +329,7 @@ function ChannelsPanel({ channels }: ChannelsPanelProps) {
       )}
     </Panel>
   );
-}
+});
 
 /**
  * Format large numbers with K/M suffixes
