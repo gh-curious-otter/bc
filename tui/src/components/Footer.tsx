@@ -1,4 +1,3 @@
-
 import { Box, Text } from 'ink';
 
 export interface KeyHintProps {

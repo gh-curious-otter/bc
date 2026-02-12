@@ -1,4 +1,3 @@
-
 import { Text } from 'ink';
 
 // Agent states from eng-04's implementation

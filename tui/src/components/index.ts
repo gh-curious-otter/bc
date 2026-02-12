@@ -29,3 +29,13 @@ export type { ErrorDisplayProps } from './ErrorDisplay.js';
 
 // eng-04's MessageInput component
 export { MessageInput } from './MessageInput';
+
+// Chatroom components (eng-04 #570)
+export { Reaction, ReactionBar } from './Reaction';
+export type { ReactionProps, ReactionBarProps, ReactionType } from './Reaction';
+
+export { MentionText } from './MentionText';
+export type { MentionTextProps } from './MentionText';
+
+export { ChatMessage } from './ChatMessage';
+export type { ChatMessageProps } from './ChatMessage';

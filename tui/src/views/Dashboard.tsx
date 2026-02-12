@@ -1,4 +1,3 @@
-
 import { Box, Text } from 'ink';
 import { Panel } from '../components/Panel.js';
 import { MetricCard } from '../components/MetricCard.js';
@@ -95,7 +94,8 @@ interface Agent {
   name: string;
   role: string;
   state: string;
-  uptime: string;
+  startedAt: string;
+  updatedAt: string;
   task: string;
   [key: string]: unknown;
 }
@@ -120,7 +120,7 @@ function AgentsPanel({ agents }: AgentsPanelProps) {
               width: 10,
               render: (value) => <StatusBadge state={value as string} />,
             },
-            { key: 'uptime', header: 'UPTIME', width: 10 },
+            { key: 'startedAt', header: 'STARTED', width: 10 },
             { key: 'task', header: 'TASK' },
           ]}
           data={agents}
