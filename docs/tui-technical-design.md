@@ -151,20 +151,33 @@ Technical design for implementing the bc TUI using Ink (React renderer for termi
 
 ## Recommended Architecture
 
-**Option A: Go Spawns Ink** with JSON streaming protocol.
+**Option B: Ink Calls bc CLI** - Simple, efficient, proven pattern.
 
 ### Rationale
 
-1. **Real-time streaming** - Natural fit for pipe-based communication
-2. **Single entry point** - User runs `bc home`, everything handled
-3. **State management** - Go owns data, Ink owns rendering
-4. **Future-proof** - Easy to add HTTP layer for web later
+1. **Simplicity** - No custom protocol, uses existing `--json` flags
+2. **Efficiency** - Avoid lag issues from streaming protocol (pkg/tui/runtime had performance problems)
+3. **Independence** - Ink manages its own state and rendering
+4. **Maintainability** - Clear separation, easier debugging
+
+### Why Not Option A?
+
+The existing `pkg/tui/runtime` streaming approach had lag/efficiency issues. Option B is cleaner and leverages the already-working `--json` CLI output.
 
 ### Server Requirement
 
 **Does Ink need a server? No.**
 
-Ink is a pure terminal renderer. It reads from stdin and writes to stdout. No HTTP server is required for the TUI itself.
+Ink is a pure terminal renderer. It spawns `bc` CLI commands and parses JSON output. No HTTP server required.
+
+### Efficiency Patterns
+
+| Pattern | Description |
+|---------|-------------|
+| Batch fetching | Combine related CLI calls |
+| Smart polling | 2s default, configurable interval |
+| Virtualized lists | Render only visible rows |
+| Response caching | Avoid redundant CLI calls |
 
 ---
 
