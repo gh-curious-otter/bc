@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/rpuneet/bc/config"
 	"github.com/rpuneet/bc/pkg/log"
 )
 
@@ -40,8 +39,8 @@ func DefaultConfig(rootDir string) Config {
 		Version:    1,
 		Name:       filepath.Base(rootDir),
 		RootDir:    rootDir,
-		StateDir:   filepath.Join(rootDir, config.WorkspaceLegacy.StateDir),
-		MaxWorkers: int(config.WorkspaceLegacy.MaxWorkers),
+		StateDir:   filepath.Join(rootDir, ".bc"),
+		MaxWorkers: 3,
 	}
 }
 
@@ -344,7 +343,7 @@ func (w *Workspace) EnsureDirs() error {
 
 // IsWorkspace checks if a directory is a workspace.
 func IsWorkspace(dir string) bool {
-	stateDir := filepath.Join(dir, config.WorkspaceLegacy.StateDir)
+	stateDir := filepath.Join(dir, ".bc")
 	_, err := os.Stat(stateDir)
 	return err == nil
 }
