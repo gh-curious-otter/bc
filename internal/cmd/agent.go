@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/names"
@@ -151,13 +152,16 @@ Stuck detection criteria (enabled with --detect-stuck):
   - Repeated failures: same task failed multiple times
   - Work timeout: work started but not completed within work timeout
 
+Use --alert to send notifications to a channel when stuck agents are detected.
+
 Examples:
   bc agent health                    # Show health for all agents
   bc agent health eng-01             # Show health for specific agent
   bc agent health --json             # Output as JSON
   bc agent health --timeout 2m       # Use 2 minute stale threshold
   bc agent health --detect-stuck     # Include stuck detection analysis
-  bc agent health --detect-stuck --work-timeout 1h  # Custom work timeout`,
+  bc agent health --detect-stuck --work-timeout 1h  # Custom work timeout
+  bc agent health --detect-stuck --alert engineering  # Alert channel on stuck`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runAgentHealth,
 }
@@ -221,6 +225,7 @@ var (
 	agentHealthDetect    bool
 	agentHealthWorkTmout string
 	agentHealthMaxFail   int
+	agentHealthAlert     string
 )
 
 func init() {
@@ -249,6 +254,7 @@ func init() {
 	agentHealthCmd.Flags().BoolVar(&agentHealthDetect, "detect-stuck", false, "Enable stuck detection analysis")
 	agentHealthCmd.Flags().StringVar(&agentHealthWorkTmout, "work-timeout", "30m", "Work timeout for stuck detection (e.g., 30m, 1h)")
 	agentHealthCmd.Flags().IntVar(&agentHealthMaxFail, "max-failures", 3, "Max consecutive failures before considered stuck")
+	agentHealthCmd.Flags().StringVar(&agentHealthAlert, "alert", "", "Send alert to channel when stuck agents detected (requires --detect-stuck)")
 
 	// Add subcommands
 	agentCmd.AddCommand(agentCreateCmd)
@@ -950,6 +956,11 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid work-timeout format: %w", workParseErr)
 	}
 
+	// Validate --alert flag requires --detect-stuck
+	if agentHealthAlert != "" && !agentHealthDetect {
+		return fmt.Errorf("--alert requires --detect-stuck to be enabled")
+	}
+
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
 	if loadErr := mgr.LoadState(); loadErr != nil {
 		log.Warn("failed to load agent state", "error", loadErr)
@@ -1016,6 +1027,13 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 		}
 
 		healthResults = append(healthResults, health)
+	}
+
+	// Send alert to channel if --alert is set and there are stuck agents
+	if agentHealthAlert != "" {
+		if alertErr := sendStuckAlert(ws.RootDir, agentHealthAlert, healthResults, mgr); alertErr != nil {
+			log.Warn("failed to send stuck alert", "error", alertErr)
+		}
 	}
 
 	// Output
@@ -1126,4 +1144,85 @@ func computeAgentHealth(a *agent.Agent, mgr *agent.Manager, timeout time.Duratio
 	}
 
 	return health
+}
+
+// sendStuckAlert sends an alert to the specified channel when stuck agents are detected.
+func sendStuckAlert(rootDir, channelName string, healthResults []AgentHealth, mgr *agent.Manager) error {
+	// Collect stuck agents
+	var stuckAgents []AgentHealth
+	for _, h := range healthResults {
+		if h.IsStuck || h.Status == "stuck" {
+			stuckAgents = append(stuckAgents, h)
+		}
+	}
+
+	if len(stuckAgents) == 0 {
+		// No stuck agents, no alert needed
+		return nil
+	}
+
+	// Build alert message
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("⚠️ ALERT: %d stuck agent(s) detected\n", len(stuckAgents)))
+	for _, h := range stuckAgents {
+		reason := h.StuckReason
+		if reason == "" {
+			reason = "unknown"
+		}
+		details := h.StuckDetails
+		if details == "" {
+			details = h.ErrorMessage
+		}
+		sb.WriteString(fmt.Sprintf("  • %s (%s): %s - %s\n", h.Name, h.Role, reason, details))
+	}
+
+	message := sb.String()
+
+	// Load channel store
+	store, err := channel.OpenStore(rootDir)
+	if err != nil {
+		return fmt.Errorf("failed to open channel store: %w", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	if loadErr := store.Load(); loadErr != nil {
+		return fmt.Errorf("failed to load channel store: %w", loadErr)
+	}
+
+	// Get channel members
+	members, membersErr := store.GetMembers(channelName)
+	if membersErr != nil {
+		return fmt.Errorf("channel %q not found: %w", channelName, membersErr)
+	}
+
+	if len(members) == 0 {
+		fmt.Printf("Alert: channel %q has no members, alert not sent\n", channelName)
+		return nil
+	}
+
+	// Record in channel history
+	if err := store.AddHistory(channelName, "bc-health", message); err != nil {
+		log.Warn("failed to record alert history", "error", err)
+	}
+	if err := store.Save(); err != nil {
+		log.Warn("failed to save alert history", "error", err)
+	}
+
+	// Send to all members
+	sent := 0
+	for _, member := range members {
+		a := mgr.GetAgent(member)
+		if a == nil || a.State == agent.StateStopped {
+			continue
+		}
+		formattedMsg := fmt.Sprintf("[#%s] bc-health: %s", channelName, message)
+		if sendErr := mgr.SendToAgent(member, formattedMsg); sendErr != nil {
+			log.Warn("failed to send alert to agent", "agent", member, "error", sendErr)
+			continue
+		}
+		sent++
+	}
+
+	fmt.Printf("Alert sent to %d member(s) in channel %q\n", sent, channelName)
+	return nil
 }
