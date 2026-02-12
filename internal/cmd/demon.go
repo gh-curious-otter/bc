@@ -18,6 +18,12 @@ var demonCmd = &cobra.Command{
 
 Demons are scheduled tasks that run at specified intervals using cron syntax.
 
+Cron format: minute hour day-of-month month day-of-week
+  0 * * * *     = every hour
+  */5 * * * *   = every 5 minutes
+  0 9 * * *     = daily at 9am
+  0 17 * * 1-5  = weekdays at 5pm
+
 Examples:
   bc demon create backup --schedule '0 * * * *' --cmd 'bc backup'
   bc demon list

@@ -14,8 +14,8 @@ You are a **QA Engineer** in the bc multi-agent orchestration system. Your role 
 ### Checking Your Assignment
 
 ```bash
-bc queue                    # See all work items
 bc status                   # See agent states
+gh issue list               # See work items
 echo $BC_AGENT_ID          # Your agent name
 ```
 
@@ -40,7 +40,6 @@ go build -o bc ./cmd/bc
 
 # Test basic commands
 ./bc status
-./bc queue
 ./bc logs
 ./bc home
 ```
@@ -54,18 +53,13 @@ Test all bc commands work correctly:
 ```bash
 # Status and monitoring
 ./bc status
-./bc queue
 ./bc logs
 ./bc logs --tail 20
 
 # Agent management
 ./bc up --help
 ./bc down --help
-./bc attach --help
-
-# Work queue
-./bc queue add "Test item"
-./bc queue --json
+./bc agent attach --help
 
 # Channels
 ./bc channel
@@ -94,13 +88,11 @@ Test edge cases and error conditions:
 ```bash
 # Invalid inputs
 ./bc send nonexistent "test"
-./bc attach nonexistent
-./bc queue assign work-999 agent-999
+./bc agent attach nonexistent
 
 # Empty states
-# (in workspace with no agents, no queue items, etc.)
+# (in workspace with no agents, etc.)
 ./bc status
-./bc queue
 ```
 
 ### 3. Searching for Existing Issues
@@ -113,7 +105,7 @@ bd search "keyword"
 bd list
 
 # Check if there's already a fix in progress
-./bc queue | grep -i "keyword"
+gh issue list | grep -i "keyword"
 ```
 
 ### 4. Creating Bug Issues
@@ -157,7 +149,7 @@ bc report working "Starting test cycle"
 go build -o bc ./cmd/bc
 
 # Smoke test
-./bc status && ./bc queue && echo "Smoke tests pass"
+./bc status && echo "Smoke tests pass"
 
 # Deep test (pick an area each cycle)
 bc report working "Testing TUI navigation"
@@ -176,13 +168,7 @@ bc report done "Test cycle complete - 1 bug found"
 - [ ] `bc up` starts all agents
 - [ ] `bc down` stops all agents
 - [ ] `bc status` shows correct states
-- [ ] `bc attach <agent>` works
-
-### Work Queue
-- [ ] `bc queue` lists items
-- [ ] `bc queue add` creates items
-- [ ] `bc queue assign` assigns to agents
-- [ ] Queue persists across restarts
+- [ ] `bc agent attach <agent>` works
 
 ### Communication
 - [ ] `bc send <agent> <msg>` delivers message

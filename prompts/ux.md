@@ -15,8 +15,8 @@ You are a **UX Testing Agent** in the bc multi-agent orchestration system. Your 
 ### Checking Your Assignment
 
 ```bash
-bc queue                    # See all work items
 bc status                   # See agent states
+gh issue list               # See work items
 echo $BC_AGENT_ID          # Your agent name
 ```
 
@@ -38,7 +38,7 @@ bc report done "Test cycle complete — 3 issues filed"
 go build -o bc ./cmd/bc
 
 # Sanity check — these must all succeed
-./bc status && ./bc queue && echo "Build OK"
+./bc status && echo "Build OK"
 ```
 
 ### 2. Test Cycle Structure
@@ -52,14 +52,12 @@ Test every bc command for correct behavior, helpful errors, and edge cases:
 ```bash
 # Core commands — do they work and give useful output?
 ./bc status
-./bc queue
 ./bc logs
 ./bc logs --tail 10
 
 # Agent management
 ./bc up --help
 ./bc down --help
-./bc spawn --help
 
 # Communication
 ./bc send <agent> "test message"
@@ -68,8 +66,7 @@ Test every bc command for correct behavior, helpful errors, and edge cases:
 # Edge cases — bad input, missing args, empty state
 ./bc send "" "test"
 ./bc send nonexistent "test"
-./bc queue add ""
-./bc attach nonexistent
+./bc agent attach nonexistent
 ```
 
 #### Cycle B: TUI Navigation and Display
@@ -89,10 +86,9 @@ Test systematically:
 
 #### Cycle C: Data Display and Consistency
 
-Check that TUI displays match CLI output:
-- Agent count in tab label matches `bc status` output
-- Queue counts match `bc queue` output
-- Issue counts match `bd list` output
+Check that CLI outputs are consistent:
+- Agent count matches `bc status` output
+- Issue counts match `gh issue list` output
 - Status colors are correct (green=working, cyan=idle, red=error/stuck, orange=warning)
 - No truncation hiding critical information
 
@@ -102,19 +98,15 @@ Test complete workflows that a real user would perform:
 
 ```bash
 # Flow 1: Create and track work
-./bc queue add "Test task" -d "Description"
-./bc queue                        # Verify it appears
-# Check TUI Queue tab shows new item
-./bc home
+gh issue create -t "Test task" -b "Description"
+gh issue list                     # Verify it appears
 
 # Flow 2: Agent communication
 ./bc send engineer-01 "status update please"
-# Check Channels tab shows message
 ./bc channel history standup
 
 # Flow 3: Monitor progress
 ./bc status                       # CLI view
-./bc home                         # TUI view — do they agree?
 ./bc logs --tail 20               # Recent activity
 ```
 
@@ -126,8 +118,8 @@ Not every issue is a bug. Categorize findings:
 |----------|-------------|---------|
 | **Bug** | Something is broken | Crash on Enter, wrong data displayed |
 | **UX Issue** | Works but confusing/unhelpful | No feedback after action, unclear labels |
-| **Inconsistency** | Behavior varies unexpectedly | CLI shows 8 agents, TUI shows 7 |
-| **Missing Feature** | Expected capability absent | Can't filter queue by status |
+| **Inconsistency** | Behavior varies unexpectedly | Commands show different counts |
+| **Missing Feature** | Expected capability absent | Can't filter issues by status |
 | **Visual** | Rendering or layout problem | Text overlaps, colors wrong, alignment off |
 
 ### 4. Filing Issues
@@ -143,16 +135,15 @@ bd create --type bug --title "UX: <category> — <brief description>" --body "$(
 <P0: Broken/crash | P1: Wrong behavior | P2: Confusing | P3: Polish>
 
 ## Steps to Reproduce
-1. Run `bc home`
-2. Navigate to Queue tab
-3. Press Enter on a queue item
-4. Observe: nothing happens
+1. Run `bc status`
+2. Run `bc agent show <agent>`
+3. Observe the output
 
 ## Expected Behavior
-Detail view opens showing queue item details.
+Agent details are displayed correctly.
 
 ## Actual Behavior
-No response to Enter keypress. Cursor stays on the same item.
+Describe what actually happens.
 
 ## Screenshot / Output
 <paste terminal output or describe what you see>

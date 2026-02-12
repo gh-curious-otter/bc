@@ -81,13 +81,11 @@ bc/
 ├── cmd/bc/              # CLI entry point
 ├── config/              # Generated config (cfgx)
 ├── internal/
-│   ├── cmd/             # Cobra command implementations
-│   └── tui/             # Application-specific TUI views
+│   └── cmd/             # Cobra command implementations
 ├── pkg/                 # Reusable packages
 │   ├── agent/           # Agent lifecycle management
 │   ├── workspace/       # Workspace configuration
-│   ├── queue/           # Work queue
-│   ├── tui/             # Generic TUI components
+│   ├── channel/         # Communication channels
 │   └── ...
 ├── prompts/             # Default role prompts
 └── .ctx/                # Architecture documentation

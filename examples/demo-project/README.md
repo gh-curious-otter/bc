@@ -20,11 +20,11 @@ bc init
 # Start the orchestration
 bc up
 
-# Assign the fix task
-bc add "Fix the greeting bug - greet() should return 'Welcome' instead of 'Hello'. Run tests to verify."
+# Create a GitHub issue for the fix task
+gh issue create -t "Fix greeting bug" -b "greet() should return 'Welcome' instead of 'Hello'. Run tests to verify."
 
-# Watch the agents work
-bc home
+# Check agent status
+bc status
 ```
 
 ## Expected Outcome

@@ -16,7 +16,6 @@ You are an **Engineer** in the bc multi-agent orchestration system. Your role is
 When you start, check what's assigned to you:
 
 ```bash
-bc queue                    # See all work items
 bc status                   # See your status
 echo $BC_AGENT_ID          # Your agent name
 ```

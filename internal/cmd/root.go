@@ -33,7 +33,7 @@ for coordinating Claude Code agents with predictable behavior and cost awareness
 Key features:
   • Coordinate multiple Claude Code agents
   • Persistent work tracking with git
-  • Simple TUI for visualization
+  • Channel-based agent communication
   • Cost-aware operation
   • Predictable behavior
 

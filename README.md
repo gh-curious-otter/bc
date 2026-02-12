@@ -2,12 +2,12 @@
 
 `bc` is a CLI-first orchestration system for coordinating teams of AI agents to work on software development projects. It provides a structured, observable, and persistent environment for AI-driven engineering, emphasizing developer control and predictable behavior.
 
-Drawing inspiration from `k9s` for Kubernetes, `bc` treats the Terminal User Interface (TUI) as a powerful visualization and navigation layer on top of a robust set of command-line tools.
+Drawing inspiration from `k9s` for Kubernetes, `bc` provides a powerful CLI with channel-based communication on top of a robust set of command-line tools.
 
 ## Core Philosophy
 
 *   **Organic Growth**: Start with a single `root` agent and conversationally grow your team. The system is designed to be flexible, without enforcing a rigid, predefined structure.
-*   **CLI-First**: Every feature is accessible and scriptable through the `bc` command line. The `bc home` TUI provides a real-time dashboard for observation and interaction.
+*   **CLI-First**: Every feature is accessible and scriptable through the `bc` command line.
 *   **Agent Agnostic**: `bc` is designed to work with any AI agent that can run in a terminal. It has built-in support for Claude Code, Cursor, and OpenAI Codex, with easy configuration for custom tools.
 *   **Persistent Memory**: Agents learn from their experiences. `bc` includes a memory system that allows agents to record task outcomes and accumulate knowledge, improving their effectiveness over time.
 *   **Isolated Workspaces**: To prevent conflicts and enable parallel development, each agent operates within its own dedicated `git worktree`.
@@ -15,7 +15,7 @@ Drawing inspiration from `k9s` for Kubernetes, `bc` treats the Terminal User Int
 ## Features
 
 -   **Hierarchical Agent System**: A `root` agent manages the project and can create a team of agents with various roles (`engineer`, `qa`, `manager`, etc.). Roles are customizable via simple Markdown files.
--   **TUI Dashboard (`bc home`)**: An interactive, real-time dashboard for visualizing workspaces, agent status, communication channels, work queues, and running processes.
+-   **Dashboard (`bc dashboard`)**: View workspace statistics, agent status, and activity summaries.
 -   **Real-Time Communication (`bc channel`)**: Agents collaborate through Slack-like channels, with support for message history and agent-to-agent communication.
 -   **Persistent Memory (`bc memory`)**: Agents can record experiences and learnings, search their memory, and improve over time.
 -   **Scheduled Tasks (`bc demon`)**: Automate recurring tasks like daily builds, nightly tests, or health checks using cron-based scheduling.
@@ -56,10 +56,11 @@ make install
     ```
     *Note: `bc up` can also be used to start a default team of agents, configurable in `.bc/config.toml`.*
 
-3.  **Open the TUI Dashboard**:
-    Use the TUI to get a real-time overview of your workspace.
+3.  **Check System Status**:
+    View your workspace status and agent states.
     ```bash
-    bc home
+    bc status
+    bc dashboard
     ```
 
 4.  **Create a New Agent**:
@@ -95,7 +96,6 @@ make install
 | `init` | Initialize a new `bc` workspace in the current directory. |
 | `up` | Start the `root` agent and the configured agent roster. |
 | `down` | Stop all running agents and processes. |
-| `home` | Open the interactive TUI dashboard. |
 | `status` | Show the status of all agents. |
 | `dashboard`| Show a summary of workspace stats. |
 | **Agent Management** | |
@@ -108,7 +108,6 @@ make install
 | **Collaboration & Workflow** | |
 | `channel` | Manage communication channels for agents. |
 | `team` | Organize agents into teams. |
-| `queue` | Manage the work queue (integrates with GitHub Issues). |
 | `merge` | Merge an agent's work branch into main after validation checks. |
 | `role` | Manage custom agent roles and their prompt templates. |
 | **Automation & Tooling** | |

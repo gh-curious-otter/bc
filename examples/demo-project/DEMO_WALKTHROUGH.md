@@ -45,7 +45,6 @@ ls -la .bc/
 ```
 .bc/
 ├── agents.json      # Agent state
-├── queue.json       # Work queue
 ├── channels.json    # Communication channels
 └── worktrees/       # Per-agent git worktrees
 ```
@@ -94,21 +93,19 @@ cat src/greeting.go
 bc send product-manager "There's a typo bug in greeting.go - it says 'Helo' instead of 'Hello'. Please create a work item to fix it."
 ```
 
-**What happens:** PM analyzes and creates a work item in the queue.
+**What happens:** PM analyzes and creates a GitHub Issue for tracking.
 
 ```bash
-# After ~30 seconds, check the queue
-bc queue
+# After ~30 seconds, check the issues
+gh issue list
 ```
 
 **Expected output:**
 ```
-ID        STATUS    ASSIGNED  TITLE
-──────────────────────────────────────────
-work-001  pending   -         Fix greeting typo: Helo → Hello
+#1  Fix greeting typo: Helo → Hello   bug   OPEN
 ```
 
-**Key point:** "The PM understood the bug and created a structured work item."
+**Key point:** "The PM understood the bug and created a structured issue."
 
 ---
 
@@ -118,17 +115,17 @@ work-001  pending   -         Fix greeting typo: Helo → Hello
 
 ```bash
 # Manager assigns the work
-bc send manager "Please assign work-001 to an available engineer."
+bc send manager "Please assign issue #1 to an available engineer."
 
-# Wait for assignment, then check queue
-bc queue
+# Wait for assignment, then check status
+bc status
 ```
 
 **Expected output:**
 ```
-ID        STATUS    ASSIGNED      TITLE
-──────────────────────────────────────────────
-work-001  working   engineer-01   Fix greeting typo: Helo → Hello
+AGENT           ROLE       STATE    TASK
+─────────────────────────────────────────────
+engineer-01     engineer   working  Fix greeting typo
 ```
 
 **Key point:** "Work is now assigned. The engineer will work in their own isolated worktree."
@@ -156,12 +153,13 @@ bc attach engineer-01
 ```bash
 # Check status after fix
 bc status
-bc queue
+gh issue list
 ```
 
 **Expected output:**
 ```
-work-001  done   engineer-01   Fix greeting typo: Helo → Hello
+AGENT         ROLE      STATE  TASK
+engineer-01   engineer  idle   -
 ```
 
 **Key point:** "The engineer worked in isolation. Main branch is untouched until merge."
@@ -230,9 +228,6 @@ def5678 Previous commit...
 # Show all agents idle, work complete
 bc status
 
-# Show queue history
-bc queue
-
 # Show the fixed code
 cat src/greeting.go
 ```
@@ -263,8 +258,8 @@ Throughout the demo, emphasize these differentiators:
 
 ### 3. Real-Time Visibility
 - `bc status` shows all agent states
-- `bc attach` lets you watch any agent
-- `bc queue` tracks all work items
+- `bc agent attach` lets you watch any agent
+- `gh issue list` tracks work items
 
 ### 4. Structured Communication
 - Channels for broadcast messages
@@ -296,11 +291,11 @@ bc send <agent> "Please continue with your current task."
 
 ### Work item not appearing
 ```bash
-# Force queue refresh
-bc queue
+# Check GitHub issues
+gh issue list
 
-# Check if beads sync is needed
-bc queue load
+# Verify GitHub CLI is authenticated
+gh auth status
 ```
 
 ### Can't attach to agent
