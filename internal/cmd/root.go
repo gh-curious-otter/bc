@@ -27,7 +27,7 @@ func SetVersionInfo(v, c, d string) {
 var rootCmd = &cobra.Command{
 	Use:   "bc",
 	Short: "A simpler, more controllable agent orchestrator",
-	Long: `bc (beads coordinator) is a multi-agent orchestration system
+	Long: `bc is a multi-agent orchestration system
 for coordinating Claude Code agents with predictable behavior and cost awareness.
 
 Key features:
