@@ -27,15 +27,17 @@ func SetVersionInfo(v, c, d string) {
 var rootCmd = &cobra.Command{
 	Use:   "bc",
 	Short: "A simpler, more controllable agent orchestrator",
-	Long: `bc is a multi-agent orchestration system
-for coordinating Claude Code agents with predictable behavior and cost awareness.
+	Long: `bc is a multi-agent orchestration system for AI coding assistants.
+
+Coordinate multiple AI agents with predictable behavior and cost awareness.
+Supports Claude Code, Cursor, Codex, and other AI coding tools.
 
 Key features:
-  • Coordinate multiple Claude Code agents
-  • Persistent work tracking with git
+  • Coordinate multiple AI coding agents in parallel
+  • Isolated git worktrees per agent
   • Channel-based agent communication
-  • Cost-aware operation
-  • Predictable behavior
+  • Cost tracking and limits
+  • Hierarchical agent roles (product-manager, manager, engineer)
 
 Documentation: https://github.com/rpuneet/bc`,
 	// PersistentPreRun initializes logging based on flags
