@@ -11,6 +11,8 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // ChannelType represents the type of a channel.
@@ -237,8 +239,16 @@ func (s *SQLiteStore) scanChannel(row *sql.Row) (*ChannelInfo, error) {
 	}
 
 	ch.Description = desc.String
-	ch.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	ch.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	if t, err := time.Parse(time.RFC3339, createdAt); err != nil {
+		log.Warn("failed to parse channel created_at", "value", createdAt, "error", err)
+	} else {
+		ch.CreatedAt = t
+	}
+	if t, err := time.Parse(time.RFC3339, updatedAt); err != nil {
+		log.Warn("failed to parse channel updated_at", "value", updatedAt, "error", err)
+	} else {
+		ch.UpdatedAt = t
+	}
 	return &ch, nil
 }
 
@@ -264,8 +274,16 @@ func (s *SQLiteStore) ListChannels() ([]*ChannelInfo, error) {
 		}
 
 		ch.Description = desc.String
-		ch.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-		ch.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		if t, err := time.Parse(time.RFC3339, createdAt); err != nil {
+			log.Warn("failed to parse channel created_at", "value", createdAt, "error", err)
+		} else {
+			ch.CreatedAt = t
+		}
+		if t, err := time.Parse(time.RFC3339, updatedAt); err != nil {
+			log.Warn("failed to parse channel updated_at", "value", updatedAt, "error", err)
+		} else {
+			ch.UpdatedAt = t
+		}
 		channels = append(channels, &ch)
 	}
 	return channels, rows.Err()
@@ -404,8 +422,16 @@ func (s *SQLiteStore) GetChannelsForAgent(agentID string) ([]*ChannelInfo, error
 			return nil, err
 		}
 		ch.Description = desc.String
-		ch.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-		ch.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		if t, err := time.Parse(time.RFC3339, createdAt); err != nil {
+			log.Warn("failed to parse channel created_at", "value", createdAt, "error", err)
+		} else {
+			ch.CreatedAt = t
+		}
+		if t, err := time.Parse(time.RFC3339, updatedAt); err != nil {
+			log.Warn("failed to parse channel updated_at", "value", updatedAt, "error", err)
+		} else {
+			ch.UpdatedAt = t
+		}
 		channels = append(channels, &ch)
 	}
 	return channels, rows.Err()
@@ -467,7 +493,11 @@ func (s *SQLiteStore) GetMessage(id int64) (*Message, error) {
 	}
 
 	msg.Metadata = metadata.String
-	msg.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	if t, err := time.Parse(time.RFC3339, createdAt); err != nil {
+		log.Warn("failed to parse message created_at", "value", createdAt, "error", err)
+	} else {
+		msg.CreatedAt = t
+	}
 	return &msg, nil
 }
 
@@ -505,7 +535,11 @@ func (s *SQLiteStore) GetHistory(channelName string, limit int) ([]*Message, err
 			return nil, err
 		}
 		msg.Metadata = metadata.String
-		msg.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		if t, err := time.Parse(time.RFC3339, createdAt); err != nil {
+			log.Warn("failed to parse message created_at", "value", createdAt, "error", err)
+		} else {
+			msg.CreatedAt = t
+		}
 		messages = append(messages, &msg)
 	}
 
@@ -550,7 +584,11 @@ func (s *SQLiteStore) GetMessagesByType(channelName string, msgType MessageType,
 			return nil, err
 		}
 		msg.Metadata = metadata.String
-		msg.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		if t, err := time.Parse(time.RFC3339, createdAt); err != nil {
+			log.Warn("failed to parse message created_at", "value", createdAt, "error", err)
+		} else {
+			msg.CreatedAt = t
+		}
 		messages = append(messages, &msg)
 	}
 	return messages, rows.Err()
@@ -596,7 +634,11 @@ func (s *SQLiteStore) SearchMessages(query string, limit int) ([]*Message, error
 			return nil, err
 		}
 		msg.Metadata = metadata.String
-		msg.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		if t, err := time.Parse(time.RFC3339, createdAt); err != nil {
+			log.Warn("failed to parse message created_at", "value", createdAt, "error", err)
+		} else {
+			msg.CreatedAt = t
+		}
 		messages = append(messages, &msg)
 	}
 	return messages, rows.Err()
