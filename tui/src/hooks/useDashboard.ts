@@ -86,7 +86,7 @@ export function useDashboard() {
 
     // Handle status response
     if (statusResult.status === 'fulfilled') {
-      const statusResponse = statusResult.value;
+      const statusResponse: StatusResponse = statusResult.value;
       setWorkspaceName(statusResponse.workspace || 'bc');
       setAgents({
         data: statusResponse.agents.map((a: Agent) => ({
@@ -112,7 +112,7 @@ export function useDashboard() {
 
     // Handle channels response
     if (channelsResult.status === 'fulfilled') {
-      const channelsResponse = channelsResult.value;
+      const channelsResponse: ChannelsResponse = channelsResult.value;
       setChannels({
         data: channelsResponse.channels.map((c) => ({
           name: c.name,
