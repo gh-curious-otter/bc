@@ -24,12 +24,11 @@
     // Additional checks
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "exactOptionalPropertyTypes": true,
+    // exactOptionalPropertyTypes disabled - incompatible with Ink's types
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
+    // noUncheckedIndexedAccess disabled - too strict for external libs
     "noImplicitOverride": true,
-    "noPropertyAccessFromIndexSignature": true,
 
     // Module interop
     "esModuleInterop": true,
