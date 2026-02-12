@@ -219,6 +219,11 @@ func LoadRoleMemory(workspacePath string, role Role) *AgentMemory {
 	}
 }
 
+// DefaultBootstrapDelay is the default time to wait before sending bootstrap
+// prompts after starting an agent. Different AI tools have different startup
+// times, so this can be configured per-manager.
+const DefaultBootstrapDelay = 3 * time.Second
+
 // Manager handles agent lifecycle.
 type Manager struct {
 	agents map[string]*Agent
@@ -231,6 +236,10 @@ type Manager struct {
 
 	// Workspace path for env vars
 	workspacePath string
+
+	// BootstrapDelay is the time to wait before sending bootstrap prompts.
+	// If zero, DefaultBootstrapDelay is used.
+	BootstrapDelay time.Duration
 
 	mu sync.RWMutex
 }
@@ -275,6 +284,21 @@ func (m *Manager) SetAgentByName(name string) bool {
 		}
 	}
 	return false
+}
+
+// SetBootstrapDelay sets the delay before sending bootstrap prompts.
+func (m *Manager) SetBootstrapDelay(d time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.BootstrapDelay = d
+}
+
+// getBootstrapDelay returns the configured bootstrap delay or the default.
+func (m *Manager) getBootstrapDelay() time.Duration {
+	if m.BootstrapDelay > 0 {
+		return m.BootstrapDelay
+	}
+	return DefaultBootstrapDelay
 }
 
 // GetAgentCommand returns the command for a tool name from config.
@@ -521,7 +545,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	// Send bootstrap prompt if we have content
 	if len(promptParts) > 0 {
 		// Wait for agent to initialize (Gemini/Claude needs time to start REPL)
-		time.Sleep(3 * time.Second)
+		time.Sleep(m.getBootstrapDelay())
 
 		prompt := strings.Join(promptParts, "\n\n---\n\n")
 		prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nAgent ID: %s\n", workspace, name)

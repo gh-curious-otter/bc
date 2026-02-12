@@ -1793,6 +1793,30 @@ func TestConcurrentRunningCount(t *testing.T) {
 	wg.Wait()
 }
 
+func TestBootstrapDelay(t *testing.T) {
+	m := newTestManager(t)
+
+	// Default should be 3 seconds
+	if d := m.getBootstrapDelay(); d != DefaultBootstrapDelay {
+		t.Errorf("default bootstrap delay: got %v, want %v", d, DefaultBootstrapDelay)
+	}
+	if d := m.getBootstrapDelay(); d != 3*time.Second {
+		t.Errorf("default bootstrap delay: got %v, want 3s", d)
+	}
+
+	// Setting custom delay should work
+	m.SetBootstrapDelay(5 * time.Second)
+	if d := m.getBootstrapDelay(); d != 5*time.Second {
+		t.Errorf("custom bootstrap delay: got %v, want 5s", d)
+	}
+
+	// Setting to 0 should revert to default
+	m.SetBootstrapDelay(0)
+	if d := m.getBootstrapDelay(); d != DefaultBootstrapDelay {
+		t.Errorf("zero bootstrap delay should use default: got %v, want %v", d, DefaultBootstrapDelay)
+	}
+}
+
 // --- Git wrapper tests ---
 
 func TestEnsureGitWrapper_CreatesFile(t *testing.T) {
