@@ -3,7 +3,7 @@
  * Executes bc commands and parses JSON responses
  */
 
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import type {
   StatusResponse,
   ChannelsResponse,
@@ -306,4 +306,19 @@ export async function removeTeamMember(
   agentName: string
 ): Promise<void> {
   await execBc(['team', 'remove', teamName, agentName]);
+}
+
+/**
+ * Attach to an agent's tmux session
+ * @param sessionName - Tmux session name for the agent
+ * @throws Error if session doesn't exist or attachment fails
+ */
+export function attachToAgentSession(sessionName: string): void {
+  // Use spawnSync to attach to tmux session with full stdio inheritance
+  // This will replace the current process with the tmux session
+  spawnSync('tmux', ['attach-session', '-t', sessionName], {
+    stdio: 'inherit',
+  });
+  // Exit after attachment ends
+  process.exit(0);
 }
