@@ -19,6 +19,9 @@ Examples:
   bc team create engineering
   bc team list
   bc team show engineering
+  bc team add engineering eng-01
+  bc team remove engineering eng-01
+  bc team rename engineering backend
   bc team delete engineering`,
 }
 
@@ -52,15 +55,25 @@ var teamDeleteCmd = &cobra.Command{
 var teamAddCmd = &cobra.Command{
 	Use:   "add <team> <agent>",
 	Short: "Add an agent to a team",
-	Args:  cobra.ExactArgs(2),
-	RunE:  runTeamAdd,
+	Long: `Add an agent to a team.
+
+Examples:
+  bc team add engineering eng-01
+  bc team add frontend designer-01`,
+	Args: cobra.ExactArgs(2),
+	RunE: runTeamAdd,
 }
 
 var teamRemoveCmd = &cobra.Command{
 	Use:   "remove <team> <agent>",
 	Short: "Remove an agent from a team",
-	Args:  cobra.ExactArgs(2),
-	RunE:  runTeamRemove,
+	Long: `Remove an agent from a team.
+
+Examples:
+  bc team remove engineering eng-01
+  bc team remove frontend designer-01`,
+	Args: cobra.ExactArgs(2),
+	RunE: runTeamRemove,
 }
 
 var teamRenameCmd = &cobra.Command{
