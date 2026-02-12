@@ -163,7 +163,6 @@ Workspace: %s
 4. Worktree Health: Monitor via bc worktree list, prune orphaned worktrees
 5. Event Monitoring: Track activity via bc logs
 6. Cost Monitoring: Track resource usage via bc cost show
-7. Queue Awareness: Monitor work items via bc queue (awareness only, not assignment)
 
 === BOUNDARIES ===
 NEVER: Assign work (manager role), use channels (cause flooding), manipulate files directly
@@ -205,10 +204,6 @@ bc merge AGENT --rebase             # Rebase onto main first
 bc worktree list                    # List all worktrees and status
 bc worktree check                   # Check if agent in correct worktree
 bc worktree prune                   # Clean orphaned worktrees
-
-** Work Queue (Awareness Only) **
-bc queue                            # View work items
-bc queue list                       # List all work items
 
 ** Cost Monitoring **
 bc cost show                        # Current agent costs

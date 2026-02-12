@@ -8,9 +8,13 @@ import (
 
 // exampleCmd demonstrates the TUI builder.
 var exampleCmd = &cobra.Command{
-	Use:   "example",
-	Short: "Run an example TUI to demonstrate the builder",
+	Use:        "example",
+	Short:      "Run an example TUI to demonstrate the builder (deprecated)",
+	Deprecated: "TUI is being rebuilt with Ink. This command will be removed in a future version.",
 	Long: `Launches an example TUI showing the declarative builder pattern.
+
+DEPRECATED: This command is deprecated and will be removed in a future version.
+The TUI is being rebuilt with Ink.
 
 This demonstrates how AI agents can generate predictable TUI code:
 

@@ -14,10 +14,14 @@ import (
 
 // uiCmd runs the streaming TUI runtime.
 var uiCmd = &cobra.Command{
-	Use:   "ui",
-	Short: "Run the streaming TUI runtime",
+	Use:        "ui",
+	Short:      "Run the streaming TUI runtime (deprecated)",
+	Deprecated: "TUI is being rebuilt with Ink. This command will be removed in a future version.",
 	Long: `Runs the TUI in runtime mode where it receives UI specs from stdin
 and sends user events to stdout.
+
+DEPRECATED: This command is deprecated and will be removed in a future version.
+The TUI is being rebuilt with Ink.
 
 This allows an AI to dynamically control the interface:
 

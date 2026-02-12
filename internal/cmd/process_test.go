@@ -79,11 +79,11 @@ func TestProcessLogsNotFound(t *testing.T) {
 	}
 }
 
-func TestProcessInfoNotFound(t *testing.T) {
+func TestProcessShowNotFound(t *testing.T) {
 	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	_, _, err := executeIntegrationCmd("process", "info", "nonexistent")
+	_, _, err := executeIntegrationCmd("process", "show", "nonexistent")
 	if err == nil {
 		t.Fatal("expected error for missing process, got nil")
 	}
@@ -210,7 +210,7 @@ func seedProcess(t *testing.T, wsDir string, proc *process.Process) {
 	seedProcesses(t, wsDir, []*process.Process{proc})
 }
 
-func TestProcessInfoWithData(t *testing.T) {
+func TestProcessShowWithData(t *testing.T) {
 	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
@@ -227,9 +227,9 @@ func TestProcessInfoWithData(t *testing.T) {
 	}
 	seedProcess(t, wsDir, proc)
 
-	stdout, _, err := executeIntegrationCmd("process", "info", "test-server")
+	stdout, _, err := executeIntegrationCmd("process", "show", "test-server")
 	if err != nil {
-		t.Fatalf("process info error: %v", err)
+		t.Fatalf("process show error: %v", err)
 	}
 
 	// Check expected output fields
@@ -250,7 +250,7 @@ func TestProcessInfoWithData(t *testing.T) {
 	}
 }
 
-func TestProcessInfoWithoutOptionalFields(t *testing.T) {
+func TestProcessShowWithoutOptionalFields(t *testing.T) {
 	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
@@ -263,9 +263,9 @@ func TestProcessInfoWithoutOptionalFields(t *testing.T) {
 	}
 	seedProcess(t, wsDir, proc)
 
-	stdout, _, err := executeIntegrationCmd("process", "info", "minimal-proc")
+	stdout, _, err := executeIntegrationCmd("process", "show", "minimal-proc")
 	if err != nil {
-		t.Fatalf("process info error: %v", err)
+		t.Fatalf("process show error: %v", err)
 	}
 
 	if !strings.Contains(stdout, "minimal-proc") {
