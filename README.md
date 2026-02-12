@@ -67,8 +67,12 @@ bc down
 | `bc agent list` | List all agents |
 | `bc agent show <name>` | Show agent details |
 | `bc agent send <name> <msg>` | Send message to agent |
+| `bc agent broadcast <msg>` | Send to all running agents |
+| `bc agent send-to-role <role> <msg>` | Send to all agents of a role |
+| `bc agent send-pattern <pat> <msg>` | Send to agents matching pattern |
 | `bc agent attach <name>` | Attach to agent session |
 | `bc agent peek <name>` | Show recent output |
+| `bc agent health` | Show agent health status |
 | `bc agent stop <name>` | Stop an agent |
 | `bc agent delete <name>` | Delete an agent |
 | `bc agent rename <old> <new>` | Rename an agent |
@@ -79,8 +83,15 @@ bc down
 |---------|-------------|
 | `bc channel create <name>` | Create a channel |
 | `bc channel list` | List channels |
-| `bc channel send <ch> <msg>` | Send to channel |
 | `bc channel show <name>` | Show channel details |
+| `bc channel send <ch> <msg>` | Send to channel |
+| `bc channel add <ch> <agent>` | Add member to channel |
+| `bc channel remove <ch> <agent>` | Remove member from channel |
+| `bc channel join <name>` | Join channel (current agent) |
+| `bc channel leave <name>` | Leave channel (current agent) |
+| `bc channel history <name>` | Show channel message history |
+| `bc channel react <ch> <id> <emoji>` | React to a message |
+| `bc channel delete <name>` | Delete a channel |
 
 ### Teams
 
@@ -92,6 +103,7 @@ bc down
 | `bc team add <team> <agent>` | Add agent to team |
 | `bc team remove <team> <agent>` | Remove agent from team |
 | `bc team rename <old> <new>` | Rename a team |
+| `bc team delete <name>` | Delete a team |
 
 ### Roles
 
@@ -102,6 +114,7 @@ bc down
 | `bc role show <name>` | Show role details |
 | `bc role edit <name>` | Edit role in $EDITOR |
 | `bc role delete <name>` | Delete a role |
+| `bc role validate` | Validate all role files |
 
 ### Scheduled Tasks (Demons)
 
@@ -114,6 +127,7 @@ bc down
 | `bc demon edit <name>` | Edit demon config |
 | `bc demon enable <name>` | Enable a demon |
 | `bc demon disable <name>` | Disable a demon |
+| `bc demon delete <name>` | Delete a demon |
 | `bc demon logs <name>` | Show execution history |
 
 ### Background Processes
@@ -132,29 +146,53 @@ bc down
 
 | Command | Description |
 |---------|-------------|
-| `bc memory show` | Show agent memory |
+| `bc memory show [agent]` | Show agent memory |
+| `bc memory list` | List all agent memories |
 | `bc memory record <desc>` | Record an experience |
 | `bc memory learn <cat> <text>` | Add a learning |
+| `bc memory forget <topic>` | Remove a learning topic |
 | `bc memory search <query>` | Search memories |
 | `bc memory prune` | Remove old entries |
+| `bc memory clear <agent>` | Clear agent memory |
+| `bc memory export` | Export memory to JSON |
+| `bc memory import <file>` | Import memories from file |
 
 ### Configuration
 
 | Command | Description |
 |---------|-------------|
 | `bc config show` | Show configuration |
+| `bc config list` | List all config keys |
 | `bc config get <key>` | Get config value |
 | `bc config set <key> <val>` | Set config value |
 | `bc config edit` | Edit config in $EDITOR |
+| `bc config validate` | Validate config file |
+| `bc config reset` | Reset to defaults |
+
+### Worktree
+
+| Command | Description |
+|---------|-------------|
+| `bc worktree list` | List agent worktrees |
+| `bc worktree check` | Check agent worktree status |
+| `bc worktree prune` | Remove orphaned worktrees |
+
+### Cost
+
+| Command | Description |
+|---------|-------------|
+| `bc cost show [agent]` | Show cost records |
+| `bc cost summary` | Show cost summary |
+| `bc cost dashboard` | Show cost dashboard |
+| `bc cost by-agent` | Show costs by agent |
+| `bc cost budget` | Manage cost budgets |
+| `bc cost project` | Project future costs |
+| `bc cost trends` | Show spending trends |
 
 ### Other
 
 | Command | Description |
 |---------|-------------|
-| `bc worktree list` | List agent worktrees |
-| `bc worktree prune` | Remove orphaned worktrees |
-| `bc cost show` | Show cost records |
-| `bc cost summary` | Show cost summary |
 | `bc logs` | View event log |
 | `bc version` | Show version |
 
