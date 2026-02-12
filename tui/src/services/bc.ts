@@ -102,7 +102,13 @@ export async function execBcJson<T>(args: string[]): Promise<T> {
  * Get current agent status
  */
 export async function getStatus(): Promise<StatusResponse> {
-  return execBcJson<StatusResponse>(['status']);
+  try {
+    return await execBcJson<StatusResponse>(['status']);
+  } catch (err) {
+    // Log error for debugging
+    console.error('getStatus error:', err);
+    throw err;
+  }
 }
 
 /**
@@ -116,16 +122,15 @@ export async function getChannels(): Promise<ChannelsResponse> {
 /**
  * Get channel message history
  * @param channelName - Name of channel
- * @param limit - Max messages to return (optional)
+ * @param _limit - Unused (CLI doesn't support --limit flag)
  */
 export async function getChannelHistory(
   channelName: string,
-  limit?: number
+  _limit?: number
 ): Promise<ChannelHistory> {
+  // Note: bc channel history doesn't support --limit flag
+  // It returns all messages, TUI should handle limiting display
   const args = ['channel', 'history', channelName];
-  if (limit) {
-    args.push('--limit', String(limit));
-  }
   return execBcJson<ChannelHistory>(args);
 }
 
