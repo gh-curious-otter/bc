@@ -26,3 +26,6 @@ export type { LoadingIndicatorProps } from './LoadingIndicator.js';
 
 export { ErrorDisplay } from './ErrorDisplay.js';
 export type { ErrorDisplayProps } from './ErrorDisplay.js';
+
+// eng-04's MessageInput component
+export { MessageInput } from './MessageInput';
