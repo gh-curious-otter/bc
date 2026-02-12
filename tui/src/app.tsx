@@ -11,6 +11,7 @@ import {
   TabBar,
   type View,
 } from './navigation';
+import { ThemeProvider, useTheme, type ThemeMode } from './theme';
 import { ChannelsView } from './components/ChannelsView';
 import { CostsView } from './components/CostsView';
 
@@ -19,13 +20,21 @@ interface AppProps {
   disableInput?: boolean;
   /** Initial view to display */
   initialView?: View;
+  /** Theme mode (dark/light/auto) */
+  themeMode?: ThemeMode;
 }
 
-export function App({ disableInput = false, initialView = 'dashboard' }: AppProps): React.ReactElement {
+export function App({
+  disableInput = false,
+  initialView = 'dashboard',
+  themeMode = 'auto',
+}: AppProps): React.ReactElement {
   return (
-    <NavigationProvider initialView={initialView}>
-      <AppContent disableInput={disableInput} />
-    </NavigationProvider>
+    <ThemeProvider config={{ mode: themeMode }}>
+      <NavigationProvider initialView={initialView}>
+        <AppContent disableInput={disableInput} />
+      </NavigationProvider>
+    </ThemeProvider>
   );
 }
 
@@ -98,6 +107,7 @@ function AgentsView(): React.ReactElement {
 }
 
 function HelpView(): React.ReactElement {
+  const { theme, isDark } = useTheme();
   return (
     <Box flexDirection="column">
       <Text bold>Keyboard Shortcuts</Text>
@@ -122,15 +132,23 @@ function HelpView(): React.ReactElement {
         <Text bold>View-specific shortcuts:</Text>
         <Text dimColor>Check each view for additional shortcuts</Text>
       </Box>
+      <Box marginTop={1} flexDirection="column">
+        <Text bold>Theme:</Text>
+        <Text dimColor>
+          Current: {theme.name} ({isDark ? 'dark' : 'light'} mode)
+        </Text>
+      </Box>
     </Box>
   );
 }
 
-// Footer with hints
+// Footer with hints and theme indicator
 function Footer(): React.ReactElement {
+  const { theme } = useTheme();
   return (
-    <Box marginTop={1}>
+    <Box marginTop={1} justifyContent="space-between">
       <Text dimColor>Press [?] for help, [q] to quit</Text>
+      <Text dimColor>Theme: {theme.name}</Text>
     </Box>
   );
 }
