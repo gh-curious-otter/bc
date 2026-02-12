@@ -923,19 +923,19 @@ func TestWorkspaceGetRolePrompt(t *testing.T) {
 func TestWorkspaceDefaultTool(t *testing.T) {
 	dir := t.TempDir()
 
-	// v2 workspace
+	// v2 workspace - default tool is gemini (minimal root-only startup)
 	ws, err := InitV2(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if ws.DefaultTool() != "claude" {
-		t.Errorf("DefaultTool = %q, want %q", ws.DefaultTool(), "claude")
+	if ws.DefaultTool() != "gemini" {
+		t.Errorf("DefaultTool = %q, want %q", ws.DefaultTool(), "gemini")
 	}
 
 	cmd := ws.DefaultToolCommand()
-	if cmd != "claude --dangerously-skip-permissions" {
-		t.Errorf("DefaultToolCommand = %q, want claude command", cmd)
+	if cmd != "gemini --yolo" {
+		t.Errorf("DefaultToolCommand = %q, want %q", cmd, "gemini --yolo")
 	}
 }
 
