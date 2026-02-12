@@ -71,15 +71,22 @@ export function useDashboard() {
   const [workspaceName, setWorkspaceName] = useState('bc');
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
-  // Fetch all data
+  // Fetch all data in parallel instead of sequentially
   const fetchData = useCallback(async () => {
     setAgents((prev) => ({ ...prev, isLoading: true }));
     setChannels((prev) => ({ ...prev, isLoading: true }));
     setCost((prev) => ({ ...prev, isLoading: true }));
 
-    // Fetch status (agents)
-    try {
-      const statusResponse: StatusResponse = await getStatus();
+    // Fetch all three in parallel for better performance
+    const [statusResult, channelsResult, costResult] = await Promise.allSettled([
+      getStatus(),
+      getChannels(),
+      getCostSummary(),
+    ]);
+
+    // Handle status response
+    if (statusResult.status === 'fulfilled') {
+      const statusResponse = statusResult.value;
       setWorkspaceName(statusResponse.workspace || 'bc');
       setAgents({
         data: statusResponse.agents.map((a: Agent) => ({
@@ -94,17 +101,18 @@ export function useDashboard() {
         isLoading: false,
         error: null,
       });
-    } catch (err) {
+    } else {
+      const error = statusResult.reason;
       setAgents({
         data: [],
         isLoading: false,
-        error: err instanceof Error ? err : new Error('Failed to fetch agents'),
+        error: error instanceof Error ? error : new Error('Failed to fetch agents'),
       });
     }
 
-    // Fetch channels
-    try {
-      const channelsResponse: ChannelsResponse = await getChannels();
+    // Handle channels response
+    if (channelsResult.status === 'fulfilled') {
+      const channelsResponse = channelsResult.value;
       setChannels({
         data: channelsResponse.channels.map((c) => ({
           name: c.name,
@@ -113,27 +121,28 @@ export function useDashboard() {
         isLoading: false,
         error: null,
       });
-    } catch (err) {
+    } else {
+      const error = channelsResult.reason;
       setChannels({
         data: [],
         isLoading: false,
-        error: err instanceof Error ? err : new Error('Failed to fetch channels'),
+        error: error instanceof Error ? error : new Error('Failed to fetch channels'),
       });
     }
 
-    // Fetch costs
-    try {
-      const costResponse: CostSummary = await getCostSummary();
+    // Handle costs response
+    if (costResult.status === 'fulfilled') {
+      const costResponse = costResult.value;
       setCost({
         data: costResponse,
         isLoading: false,
         error: null,
       });
-    } catch (err) {
+    } else {
       setCost({
         data: null,
         isLoading: false,
-        error: err instanceof Error ? err : new Error('Failed to fetch costs'),
+        error: costResult.reason instanceof Error ? costResult.reason : new Error('Failed to fetch costs'),
       });
     }
 

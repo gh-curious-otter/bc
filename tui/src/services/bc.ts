@@ -50,8 +50,10 @@ export async function execBc(args: string[]): Promise<string> {
     const timeout = setTimeout(() => {
       if (!finished) {
         finished = true;
-        proc.kill();
-        reject(new Error(`bc command timed out: ${args.join(' ')}`));
+        // Kill the process forcefully to ensure cleanup
+        proc.kill('SIGKILL');
+        clearTimeout(timeout);
+        reject(new Error(`bc command timed out after 30s: ${args.join(' ')}`));
       }
     }, 30000);
 

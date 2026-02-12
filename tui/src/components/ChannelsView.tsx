@@ -23,10 +23,10 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
     (_input, key) => {
       if (viewMode === 'list') {
         // Navigate channel list
-        if (key.upArrow && selectedIndex > 0) {
+        if ((key.upArrow || input === 'k') && selectedIndex > 0) {
           setSelectedIndex(selectedIndex - 1);
         }
-        if (key.downArrow && channels && selectedIndex < channels.length - 1) {
+        if ((key.downArrow || input === 'j') && channels && selectedIndex < channels.length - 1) {
           setSelectedIndex(selectedIndex + 1);
         }
         // Enter channel
