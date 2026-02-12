@@ -192,6 +192,18 @@ func runDemonList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Check for JSON output
+	jsonOutput, _ := cmd.Flags().GetBool("json")
+	if jsonOutput {
+		// Return empty array if no demons, for TUI compatibility
+		if demons == nil {
+			demons = []*demon.Demon{}
+		}
+		enc := json.NewEncoder(cmd.OutOrStdout())
+		enc.SetIndent("", "  ")
+		return enc.Encode(demons)
+	}
+
 	if len(demons) == 0 {
 		cmd.Println("No demons configured")
 		cmd.Println()
