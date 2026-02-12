@@ -1,59 +1,52 @@
-import React, { useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+/**
+ * App - Main TUI application component
+ */
+
+import React from 'react';
+import { Box, Text } from 'ink';
+import {
+  NavigationProvider,
+  useNavigation,
+  useKeyboardNavigation,
+  TabBar,
+  type View,
+} from './navigation';
 import { ChannelsView } from './components/ChannelsView';
-
-// View types for navigation
-type View = 'dashboard' | 'agents' | 'channels' | 'costs' | 'help';
-
-// Tab configuration
-const TABS: { key: string; view: View; label: string }[] = [
-  { key: '1', view: 'dashboard', label: 'Dashboard' },
-  { key: '2', view: 'agents', label: 'Agents' },
-  { key: '3', view: 'channels', label: 'Channels' },
-  { key: '4', view: 'costs', label: 'Costs' },
-  { key: '?', view: 'help', label: 'Help' },
-];
+import { CostsView } from './components/CostsView';
 
 interface AppProps {
   /** Disable input handling (useful for testing) */
   disableInput?: boolean;
+  /** Initial view to display */
+  initialView?: View;
 }
 
-export function App({ disableInput = false }: AppProps): React.ReactElement {
-  const [currentView, setCurrentView] = useState<View>('dashboard');
-
-  // Handle keyboard input for navigation
-  // Use isActive option to conditionally enable input handling
-  useInput(
-    (input, key) => {
-      // Tab navigation with number keys
-      const tab = TABS.find((t) => t.key === input);
-      if (tab) {
-        setCurrentView(tab.view);
-        return;
-      }
-
-      // ESC to go back to dashboard
-      if (key.escape) {
-        setCurrentView('dashboard');
-      }
-
-      // q to quit
-      if (input === 'q') {
-        process.exit(0);
-      }
-    },
-    { isActive: !disableInput }
+export function App({ disableInput = false, initialView = 'dashboard' }: AppProps): React.ReactElement {
+  return (
+    <NavigationProvider initialView={initialView}>
+      <AppContent disableInput={disableInput} />
+    </NavigationProvider>
   );
+}
+
+interface AppContentProps {
+  disableInput: boolean;
+}
+
+function AppContent({ disableInput }: AppContentProps): React.ReactElement {
+  const { currentView } = useNavigation();
+
+  // Handle global keyboard navigation
+  useKeyboardNavigation({ disabled: disableInput });
 
   return (
     <Box flexDirection="column" padding={1}>
-      {/* Header */}
-      <Header currentView={currentView} />
+      {/* Header with tab bar */}
+      <TabBar />
 
       {/* Main content area */}
       <Box flexDirection="column" marginTop={1}>
-        <ViewContent view={currentView} />
+        <ViewContent view={currentView} disableInput={disableInput} />
       </Box>
 
       {/* Footer with navigation hints */}
@@ -62,42 +55,22 @@ export function App({ disableInput = false }: AppProps): React.ReactElement {
   );
 }
 
-// Header component with tabs
-function Header({ currentView }: { currentView: View }): React.ReactElement {
-  return (
-    <Box>
-      <Text bold color="cyan">
-        bc{' '}
-      </Text>
-      <Text dimColor>|</Text>
-      {TABS.map((tab, index) => (
-        <React.Fragment key={tab.view}>
-          <Text> </Text>
-          <Text
-            bold={currentView === tab.view}
-            color={currentView === tab.view ? 'green' : undefined}
-            dimColor={currentView !== tab.view}
-          >
-            [{tab.key}] {tab.label}
-          </Text>
-          {index < TABS.length - 1 && <Text dimColor> </Text>}
-        </React.Fragment>
-      ))}
-    </Box>
-  );
+interface ViewContentProps {
+  view: View;
+  disableInput: boolean;
 }
 
 // Main content router
-function ViewContent({ view }: { view: View }): React.ReactElement {
+function ViewContent({ view, disableInput }: ViewContentProps): React.ReactElement {
   switch (view) {
     case 'dashboard':
       return <DashboardView />;
     case 'agents':
       return <AgentsView />;
     case 'channels':
-      return <ChannelsView disableInput={false} />;
+      return <ChannelsView disableInput={disableInput} />;
     case 'costs':
-      return <CostsView />;
+      return <CostsView disableInput={disableInput} />;
     case 'help':
       return <HelpView />;
     default:
@@ -124,32 +97,30 @@ function AgentsView(): React.ReactElement {
   );
 }
 
-function CostsView(): React.ReactElement {
-  return (
-    <Box flexDirection="column">
-      <Text bold>Costs</Text>
-      <Text dimColor>Loading cost data...</Text>
-    </Box>
-  );
-}
-
 function HelpView(): React.ReactElement {
   return (
     <Box flexDirection="column">
       <Text bold>Keyboard Shortcuts</Text>
       <Box marginTop={1} flexDirection="column">
         <Text>
-          <Text color="yellow">1-4</Text> Switch tabs
+          <Text color="yellow">1-4</Text>       Switch tabs
         </Text>
         <Text>
-          <Text color="yellow">?</Text>   Show help
+          <Text color="yellow">?</Text>         Show help
         </Text>
         <Text>
-          <Text color="yellow">ESC</Text> Back to dashboard
+          <Text color="yellow">ESC</Text>       Go back / Home
         </Text>
         <Text>
-          <Text color="yellow">q</Text>   Quit
+          <Text color="yellow">Backspace</Text> Go back in history
         </Text>
+        <Text>
+          <Text color="yellow">q</Text>         Quit
+        </Text>
+      </Box>
+      <Box marginTop={1} flexDirection="column">
+        <Text bold>View-specific shortcuts:</Text>
+        <Text dimColor>Check each view for additional shortcuts</Text>
       </Box>
     </Box>
   );

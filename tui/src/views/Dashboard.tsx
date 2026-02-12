@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Box, Text } from 'ink';
 import { Panel } from '../components/Panel.js';
 import { MetricCard } from '../components/MetricCard.js';
@@ -97,6 +97,7 @@ interface Agent {
   state: string;
   uptime: string;
   task: string;
+  [key: string]: unknown;
 }
 
 interface AgentsPanelProps {

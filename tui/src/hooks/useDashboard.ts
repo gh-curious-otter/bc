@@ -6,8 +6,10 @@ interface Agent {
   role: string;
   state: string;
   task: string;
+  uptime: string;
   startedAt: string;
   updatedAt: string;
+  [key: string]: unknown;
 }
 
 interface Channel {
@@ -16,13 +18,14 @@ interface Channel {
   description?: string;
 }
 
-interface StatusResponse {
-  workspace: string;
-  total: number;
-  active: number;
-  working: number;
-  agents: Agent[];
-}
+// StatusResponse type for future bc CLI integration
+// interface StatusResponse {
+//   workspace: string;
+//   total: number;
+//   active: number;
+//   working: number;
+//   agents: Agent[];
+// }
 
 interface CostSummary {
   totalCostUSD: number;
@@ -73,7 +76,7 @@ export function useDashboard() {
     error: null,
   });
 
-  const [workspaceName, setWorkspaceName] = useState('bc');
+  const [workspaceName] = useState('bc');
 
   // Fetch data on mount
   useEffect(() => {
