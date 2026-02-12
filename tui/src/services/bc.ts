@@ -12,6 +12,7 @@ import type {
   Demon,
   DemonRunLog,
   ProcessListResponse,
+  TeamsResponse,
 } from '../types';
 
 /**
@@ -23,7 +24,7 @@ import type {
 export async function execBc(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     // Always add --json flag if not present and command supports it
-    const jsonCommands = ['status', 'stats', 'channel', 'cost', 'logs', 'agent', 'process', 'demon'];
+    const jsonCommands = ['status', 'stats', 'channel', 'cost', 'logs', 'agent', 'process', 'demon', 'team'];
     const hasJsonFlag = args.includes('--json');
     const command = args[0];
 
@@ -228,4 +229,35 @@ export async function getProcessLogs(
   }
   const response = await execBcJson<{ name: string; lines: string[] }>(args);
   return response.lines;
+}
+
+/**
+ * Get list of teams
+ */
+export async function getTeams(): Promise<TeamsResponse> {
+  return execBcJson<TeamsResponse>(['team', 'list']);
+}
+
+/**
+ * Add a member to a team
+ * @param teamName - Name of team
+ * @param agentName - Name of agent to add
+ */
+export async function addTeamMember(
+  teamName: string,
+  agentName: string
+): Promise<void> {
+  await execBc(['team', 'add', teamName, agentName]);
+}
+
+/**
+ * Remove a member from a team
+ * @param teamName - Name of team
+ * @param agentName - Name of agent to remove
+ */
+export async function removeTeamMember(
+  teamName: string,
+  agentName: string
+): Promise<void> {
+  await execBc(['team', 'remove', teamName, agentName]);
 }

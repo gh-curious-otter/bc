@@ -157,3 +157,18 @@ export interface ProcessLogsResponse {
   name: string;
   lines: string[];
 }
+
+// Team types
+export interface Team {
+  name: string;
+  description?: string;
+  members: string[];
+  lead?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Response from bc team list --json
+export interface TeamsResponse {
+  teams: Team[];
+}
