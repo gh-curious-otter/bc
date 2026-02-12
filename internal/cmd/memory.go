@@ -187,6 +187,33 @@ Example:
 	RunE: runMemoryForget,
 }
 
+var memoryImportCmd = &cobra.Command{
+	Use:   "import <agent> <file>",
+	Short: "Import memories from a file",
+	Long: `Import experiences and learnings from a JSON file.
+
+The import file should contain an object with optional "experiences" and "learnings" arrays.
+By default, imported memories are merged with existing ones.
+Use --replace to overwrite all existing memories.
+
+File format (JSON):
+  {
+    "experiences": [
+      {"description": "...", "outcome": "success", ...}
+    ],
+    "learnings": {
+      "category": ["learning1", "learning2"]
+    }
+  }
+
+Example:
+  bc memory import engineer-01 backup.json
+  bc memory import engineer-01 backup.json --replace
+  bc memory import engineer-01 backup.json --dry-run`,
+	Args: cobra.ExactArgs(2),
+	RunE: runMemoryImport,
+}
+
 var (
 	memoryOutcome          string
 	memoryTaskID           string
@@ -208,6 +235,8 @@ var (
 	memoryExportOutput     string
 	memoryExportExp        bool
 	memoryExportLearn      bool
+	memoryImportReplace    bool
+	memoryImportDryRun     bool
 )
 
 func init() {
@@ -238,6 +267,9 @@ func init() {
 	memoryExportCmd.Flags().BoolVar(&memoryExportExp, "experiences", false, "Export only experiences")
 	memoryExportCmd.Flags().BoolVar(&memoryExportLearn, "learnings", false, "Export only learnings")
 
+	memoryImportCmd.Flags().BoolVar(&memoryImportReplace, "replace", false, "Replace existing memories instead of merging")
+	memoryImportCmd.Flags().BoolVar(&memoryImportDryRun, "dry-run", false, "Preview what would be imported without making changes")
+
 	memoryCmd.AddCommand(memoryRecordCmd)
 	memoryCmd.AddCommand(memoryLearnCmd)
 	memoryCmd.AddCommand(memoryShowCmd)
@@ -247,6 +279,7 @@ func init() {
 	memoryCmd.AddCommand(memoryClearCmd)
 	memoryCmd.AddCommand(memoryExportCmd)
 	memoryCmd.AddCommand(memoryForgetCmd)
+	memoryCmd.AddCommand(memoryImportCmd)
 	rootCmd.AddCommand(memoryCmd)
 }
 
@@ -1057,5 +1090,102 @@ func runMemoryForget(cmd *cobra.Command, args []string) error {
 	}
 
 	cmd.Printf("Removed topic %q from %s (%d entries deleted)\n", topic, agentID, entriesRemoved)
+	return nil
+}
+
+// MemoryImport represents the import file format.
+type MemoryImport struct {
+	Learnings   map[string][]string `json:"learnings,omitempty"`
+	Experiences []memory.Experience `json:"experiences,omitempty"`
+}
+
+func runMemoryImport(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	agentID := args[0]
+	filePath := args[1]
+
+	// Read the import file
+	data, err := os.ReadFile(filePath) //nolint:gosec // path provided by user
+	if err != nil {
+		return fmt.Errorf("failed to read import file: %w", err)
+	}
+
+	// Parse the import file
+	var importData MemoryImport
+	if err := json.Unmarshal(data, &importData); err != nil {
+		return fmt.Errorf("failed to parse import file: %w", err)
+	}
+
+	store := memory.NewStore(ws.RootDir, agentID)
+
+	// Initialize memory if it doesn't exist
+	if !store.Exists() {
+		if initErr := store.Init(); initErr != nil {
+			return fmt.Errorf("failed to initialize memory: %w", initErr)
+		}
+	}
+
+	// Dry run mode - just show what would be imported
+	if memoryImportDryRun {
+		cmd.Println("=== Dry Run (no changes will be made) ===")
+		cmd.Println()
+		cmd.Printf("Agent: %s\n", agentID)
+		cmd.Printf("File: %s\n", filePath)
+		cmd.Println()
+
+		if memoryImportReplace {
+			cmd.Println("Mode: REPLACE (existing memories will be cleared)")
+		} else {
+			cmd.Println("Mode: MERGE (memories will be added to existing)")
+		}
+		cmd.Println()
+
+		cmd.Printf("Experiences to import: %d\n", len(importData.Experiences))
+		learningCount := 0
+		for _, learnings := range importData.Learnings {
+			learningCount += len(learnings)
+		}
+		cmd.Printf("Learnings to import: %d (in %d categories)\n", learningCount, len(importData.Learnings))
+		return nil
+	}
+
+	// Replace mode - clear existing memories first
+	if memoryImportReplace {
+		if _, clearErr := store.Clear(true, true); clearErr != nil {
+			return fmt.Errorf("failed to clear existing memories: %w", clearErr)
+		}
+		cmd.Printf("Cleared existing memories for %s\n", agentID)
+	}
+
+	// Import experiences
+	expCount := 0
+	for _, exp := range importData.Experiences {
+		if err := store.RecordExperience(exp); err != nil {
+			cmd.Printf("Warning: failed to import experience: %v\n", err)
+			continue
+		}
+		expCount++
+	}
+
+	// Import learnings
+	learnCount := 0
+	for category, learnings := range importData.Learnings {
+		for _, learning := range learnings {
+			if err := store.AddLearning(category, learning); err != nil {
+				cmd.Printf("Warning: failed to import learning: %v\n", err)
+				continue
+			}
+			learnCount++
+		}
+	}
+
+	cmd.Printf("Imported memories for %s:\n", agentID)
+	cmd.Printf("  Experiences: %d\n", expCount)
+	cmd.Printf("  Learnings: %d\n", learnCount)
+
 	return nil
 }
