@@ -30,7 +30,7 @@ This command:
 3. Posts review requests to #reviews channel
 4. Notifies tech-leads via @mentions
 
-Example:
+Examples:
   bc pr notify              # Notify about all PRs needing review
   bc pr notify --pr 123     # Notify about specific PR`,
 	RunE: runPRNotify,

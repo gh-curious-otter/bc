@@ -19,7 +19,7 @@ var statusCmd = &cobra.Command{
 	Short: "Show agent status",
 	Long: `Show the status of all bc agents.
 
-Example:
+Examples:
   bc status          # Show all agents
   bc status --json   # Output as JSON`,
 	RunE: runStatus,

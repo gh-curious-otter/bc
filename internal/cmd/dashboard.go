@@ -21,7 +21,7 @@ var dashboardCmd = &cobra.Command{
 	Long: `Show a dashboard with workspace stats including agent status
 and recent activity.
 
-Example:
+Examples:
   bc dashboard          # Show dashboard
   bc dashboard --json   # Output as JSON`,
 	RunE: runDashboard,

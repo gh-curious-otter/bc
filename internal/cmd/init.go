@@ -25,7 +25,7 @@ v2 workspace structure:
       root.md      # Root agent role
     agents/        # Per-agent state files
 
-Example:
+Examples:
   bc init                    # Initialize current directory
   bc init ~/Projects/myapp   # Initialize specific directory`,
 	Args: cobra.MaximumNArgs(1),

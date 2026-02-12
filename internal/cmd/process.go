@@ -20,7 +20,7 @@ var processCmd = &cobra.Command{
 	Short: "Manage background processes",
 	Long: `Commands for managing background processes in the workspace.
 
-Example:
+Examples:
   bc process start web --cmd 'npm run dev'
   bc process list
   bc process logs web
@@ -32,7 +32,7 @@ var processStartCmd = &cobra.Command{
 	Short: "Start a background process",
 	Long: `Start a named background process.
 
-Example:
+Examples:
   bc process start web --cmd 'npm run dev'
   bc process start api --cmd 'go run ./cmd/server' --port 8080`,
 	Args: cobra.ExactArgs(1),
@@ -44,7 +44,7 @@ var processListCmd = &cobra.Command{
 	Short: "List processes",
 	Long: `List all managed processes.
 
-Example:
+Examples:
   bc process list`,
 	RunE: runProcessList,
 }
@@ -54,7 +54,7 @@ var processStopCmd = &cobra.Command{
 	Short: "Stop a process",
 	Long: `Stop a running process.
 
-Example:
+Examples:
   bc process stop web`,
 	Args: cobra.ExactArgs(1),
 	RunE: runProcessStop,
@@ -65,7 +65,7 @@ var processLogsCmd = &cobra.Command{
 	Short: "View process logs",
 	Long: `View logs for a process.
 
-Example:
+Examples:
   bc process logs web
   bc process logs web -n 100`,
 	Args: cobra.ExactArgs(1),
@@ -77,7 +77,7 @@ var processAttachCmd = &cobra.Command{
 	Short: "Attach to a running process",
 	Long: `Attach to a running process to view its output in real-time.
 
-Example:
+Examples:
   bc process attach web`,
 	Args: cobra.ExactArgs(1),
 	RunE: runProcessAttach,
@@ -88,7 +88,7 @@ var processInfoCmd = &cobra.Command{
 	Short: "Show process details",
 	Long: `Show detailed information about a process.
 
-Example:
+Examples:
   bc process info web`,
 	Args: cobra.ExactArgs(1),
 	RunE: runProcessInfo,

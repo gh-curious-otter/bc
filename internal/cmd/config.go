@@ -100,7 +100,7 @@ var configEditCmd = &cobra.Command{
 
 Uses $EDITOR environment variable, falls back to 'nano' if not set.
 
-Example:
+Examples:
   bc config edit`,
 	RunE: runConfigEdit,
 }
@@ -116,7 +116,7 @@ Checks for:
   - Valid values and types
   - Tool references exist
 
-Example:
+Examples:
   bc config validate`,
 	RunE: runConfigValidate,
 }
@@ -128,7 +128,7 @@ var configResetCmd = &cobra.Command{
 
 WARNING: This will overwrite your current config. Back up first if needed.
 
-Example:
+Examples:
   bc config reset
   bc config reset --force         # Skip confirmation`,
 	RunE: runConfigReset,

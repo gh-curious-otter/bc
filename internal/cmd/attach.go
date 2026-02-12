@@ -18,7 +18,7 @@ var attachCmd = &cobra.Command{
 This opens the tmux session where the agent (Claude) is running.
 Use Ctrl+b d to detach and return to your shell.
 
-Example:
+Examples:
   bc attach coordinator   # Attach to coordinator
   bc attach worker-01     # Attach to worker 1`,
 	Args: cobra.ExactArgs(1),
