@@ -144,6 +144,61 @@ func TestStore_AddLearning(t *testing.T) {
 	}
 }
 
+func TestStore_AddLearning_NoDuplicateCategories(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Add first learning under "patterns"
+	if err := store.AddLearning("patterns", "Use context for cancellation"); err != nil {
+		t.Fatalf("failed to add first learning: %v", err)
+	}
+
+	// Add second learning under same category
+	if err := store.AddLearning("patterns", "Prefer composition over inheritance"); err != nil {
+		t.Fatalf("failed to add second learning: %v", err)
+	}
+
+	// Add third learning under different category
+	if err := store.AddLearning("testing", "Always write tests first"); err != nil {
+		t.Fatalf("failed to add third learning: %v", err)
+	}
+
+	content, err := store.GetLearnings()
+	if err != nil {
+		t.Fatalf("failed to get learnings: %v", err)
+	}
+
+	// Count occurrences of "## patterns" - should be exactly 1
+	patternCount := countOccurrences(content, "## patterns")
+	if patternCount != 1 {
+		t.Errorf("expected exactly 1 '## patterns' header, got %d", patternCount)
+	}
+
+	// Both learnings should be present
+	if !contains(content, "Use context for cancellation") {
+		t.Error("learnings should contain first pattern learning")
+	}
+	if !contains(content, "Prefer composition over inheritance") {
+		t.Error("learnings should contain second pattern learning")
+	}
+	if !contains(content, "Always write tests first") {
+		t.Error("learnings should contain testing learning")
+	}
+}
+
+func countOccurrences(s, substr string) int {
+	count := 0
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			count++
+		}
+	}
+	return count
+}
+
 func TestStore_ExperienceTimestamp(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewStore(tmpDir, "engineer-01")
