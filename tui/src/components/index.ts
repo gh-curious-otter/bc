@@ -39,3 +39,6 @@ export type { MentionTextProps } from './MentionText';
 
 export { ChatMessage } from './ChatMessage';
 export type { ChatMessageProps } from './ChatMessage';
+
+export { MentionAutocomplete } from './MentionAutocomplete';
+export type { MentionAutocompleteProps } from './MentionAutocomplete';
