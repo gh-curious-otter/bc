@@ -467,12 +467,19 @@ func runAgentSend(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to send to %s: %w", agentName, sendErr)
 	}
 
-	// Log event
+	// Log event - Agent field is the sender, recipient goes in Data
+	sender := os.Getenv("BC_AGENT_ID")
+	if sender == "" {
+		sender = "root"
+	}
 	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
 	_ = eventLog.Append(events.Event{
 		Type:    events.MessageSent,
-		Agent:   agentName,
+		Agent:   sender,
 		Message: message,
+		Data: map[string]any{
+			"recipient": agentName,
+		},
 	})
 
 	fmt.Printf("Sent to %s: %s\n", agentName, message)

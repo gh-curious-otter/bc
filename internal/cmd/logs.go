@@ -149,6 +149,12 @@ func runLogs(cmd *cobra.Command, args []string) error {
 		if ev.Agent != "" {
 			agentStr = fmt.Sprintf(" [%s]", ev.Agent)
 		}
+		// For message.sent, show sender → recipient
+		if ev.Type == events.MessageSent && ev.Data != nil {
+			if recipient, ok := ev.Data["recipient"].(string); ok && recipient != "" {
+				agentStr = fmt.Sprintf(" [%s] → [%s]", ev.Agent, recipient)
+			}
+		}
 		msg := ""
 		if ev.Message != "" {
 			m := ev.Message
