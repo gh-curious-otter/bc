@@ -449,10 +449,16 @@ func (s *Store) RemoveReaction(channelName string, messageIndex int, emoji, user
 
 // ToggleReaction toggles an emoji reaction on a message.
 // Returns true if the reaction was added, false if removed.
-// When using SQLite backend, reactions are not persisted (no-op).
 func (s *Store) ToggleReaction(channelName string, messageIndex int, emoji, user string) (added bool, err error) {
 	if s.sqlite != nil {
-		return false, nil // reactions not stored in SQLite schema
+		msgs, err := s.sqlite.GetHistory(channelName, 100)
+		if err != nil {
+			return false, err
+		}
+		if messageIndex < 0 || messageIndex >= len(msgs) {
+			return false, fmt.Errorf("message index %d out of range", messageIndex)
+		}
+		return s.sqlite.ToggleReaction(msgs[messageIndex].ID, emoji, user)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -488,10 +494,16 @@ func (s *Store) ToggleReaction(channelName string, messageIndex int, emoji, user
 }
 
 // GetReactions returns all reactions for a message.
-// When using SQLite backend, returns nil (reactions not stored).
 func (s *Store) GetReactions(channelName string, messageIndex int) (map[string][]string, error) {
 	if s.sqlite != nil {
-		return nil, nil
+		msgs, err := s.sqlite.GetHistory(channelName, 100)
+		if err != nil {
+			return nil, err
+		}
+		if messageIndex < 0 || messageIndex >= len(msgs) {
+			return nil, fmt.Errorf("message index %d out of range", messageIndex)
+		}
+		return s.sqlite.GetReactions(msgs[messageIndex].ID)
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()

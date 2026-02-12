@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -117,6 +118,13 @@ func initV2Workspace(rootDir string) error {
 		return fmt.Errorf("failed to create role files: %w", err)
 	}
 
+	// Initialize channel database
+	channelStore := channel.NewSQLiteStore(rootDir)
+	if openErr := channelStore.Open(); openErr != nil {
+		return fmt.Errorf("failed to initialize channel database: %w", openErr)
+	}
+	_ = channelStore.Close()
+
 	// Register in global registry
 	reg, err := workspace.LoadRegistry()
 	if err == nil {
@@ -134,6 +142,7 @@ func initV2Workspace(rootDir string) error {
 	if created {
 		fmt.Printf("    .bc/roles/root.md   # Root agent role\n")
 	}
+	fmt.Printf("    .bc/channels.db     # Channel database\n")
 	fmt.Printf("\n")
 	fmt.Printf("  Default tool: %s\n", cfg.Tools.Default)
 	fmt.Printf("  Memory: %s (%s)\n", cfg.Memory.Backend, cfg.Memory.Path)

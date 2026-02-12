@@ -138,6 +138,17 @@ func (s *SQLiteStore) initSchema(db *sql.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_mentions_agent ON mentions(agent_id, acknowledged);
 		CREATE INDEX IF NOT EXISTS idx_mentions_message ON mentions(message_id);
 
+		CREATE TABLE IF NOT EXISTS reactions (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			message_id  INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+			emoji       TEXT NOT NULL,
+			user_id     TEXT NOT NULL,
+			created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+			UNIQUE(message_id, emoji, user_id)
+		);
+		CREATE INDEX IF NOT EXISTS idx_reactions_message ON reactions(message_id);
+		CREATE INDEX IF NOT EXISTS idx_reactions_user ON reactions(user_id);
+
 		INSERT OR IGNORE INTO channels (name, type, description) VALUES
 			('general', 'group', 'General discussion for all agents'),
 			('engineering', 'group', 'Engineering team coordination'),
@@ -693,6 +704,87 @@ func (s *SQLiteStore) AcknowledgeMentions(agentID string) error {
 		return fmt.Errorf("failed to acknowledge mentions: %w", err)
 	}
 	return nil
+}
+
+// AddReaction adds a reaction to a message.
+func (s *SQLiteStore) AddReaction(messageID int64, emoji, userID string) error {
+	ctx := context.Background()
+	_, err := s.db.ExecContext(ctx,
+		"INSERT OR IGNORE INTO reactions (message_id, emoji, user_id) VALUES (?, ?, ?)",
+		messageID, emoji, userID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to add reaction: %w", err)
+	}
+	return nil
+}
+
+// RemoveReaction removes a reaction from a message.
+func (s *SQLiteStore) RemoveReaction(messageID int64, emoji, userID string) error {
+	ctx := context.Background()
+	result, err := s.db.ExecContext(ctx,
+		"DELETE FROM reactions WHERE message_id = ? AND emoji = ? AND user_id = ?",
+		messageID, emoji, userID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to remove reaction: %w", err)
+	}
+	affected, _ := result.RowsAffected()
+	if affected == 0 {
+		return nil // Reaction didn't exist, not an error
+	}
+	return nil
+}
+
+// ToggleReaction toggles a reaction on a message. Returns true if added, false if removed.
+func (s *SQLiteStore) ToggleReaction(messageID int64, emoji, userID string) (added bool, err error) {
+	ctx := context.Background()
+	// Check if reaction exists
+	var count int
+	err = s.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM reactions WHERE message_id = ? AND emoji = ? AND user_id = ?",
+		messageID, emoji, userID,
+	).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("failed to check reaction: %w", err)
+	}
+
+	if count > 0 {
+		// Remove existing reaction
+		if err := s.RemoveReaction(messageID, emoji, userID); err != nil {
+			return false, err
+		}
+		return false, nil
+	}
+
+	// Add new reaction
+	if err := s.AddReaction(messageID, emoji, userID); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// GetReactions returns all reactions for a message as emoji -> []userID.
+func (s *SQLiteStore) GetReactions(messageID int64) (map[string][]string, error) {
+	ctx := context.Background()
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT emoji, user_id FROM reactions WHERE message_id = ? ORDER BY created_at",
+		messageID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get reactions: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	result := make(map[string][]string)
+	for rows.Next() {
+		var emoji, userID string
+		if err := rows.Scan(&emoji, &userID); err != nil {
+			return nil, err
+		}
+		result[emoji] = append(result[emoji], userID)
+	}
+	return result, rows.Err()
 }
 
 // MigrateFromJSON migrates data from the legacy JSON store.
