@@ -207,6 +207,42 @@ func TestV2ConfigValidation(t *testing.T) {
 			cfg:     DefaultV2Config("test"),
 		},
 		{
+			name:    "roster product_manager too high",
+			wantErr: ErrRosterProductManagerRange,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Roster.ProductManager = 11
+				return cfg
+			}(),
+		},
+		{
+			name:    "roster product_manager negative",
+			wantErr: ErrRosterProductManagerRange,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Roster.ProductManager = -1
+				return cfg
+			}(),
+		},
+		{
+			name:    "roster manager too high",
+			wantErr: ErrRosterManagerRange,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Roster.Manager = 11
+				return cfg
+			}(),
+		},
+		{
+			name:    "roster manager negative",
+			wantErr: ErrRosterManagerRange,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Roster.Manager = -1
+				return cfg
+			}(),
+		},
+		{
 			name:    "roster engineers too high",
 			wantErr: ErrRosterEngineersRange,
 			cfg: func() V2Config {
@@ -247,6 +283,8 @@ func TestV2ConfigValidation(t *testing.T) {
 			wantErr: nil,
 			cfg: func() V2Config {
 				cfg := DefaultV2Config("test")
+				cfg.Roster.ProductManager = 0
+				cfg.Roster.Manager = 0
 				cfg.Roster.Engineers = 0
 				cfg.Roster.TechLeads = 0
 				cfg.Roster.QA = 0
