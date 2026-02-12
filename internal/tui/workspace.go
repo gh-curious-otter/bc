@@ -680,7 +680,10 @@ func fmtDuration(d time.Duration) string {
 }
 
 func (m *WorkspaceModel) loadChannels() {
-	store := channel.NewStore(m.info.Entry.Path)
+	store, err := channel.OpenStore(m.info.Entry.Path)
+	if err != nil {
+		store = channel.NewStore(m.info.Entry.Path)
+	}
 	if err := store.Load(); err != nil {
 		m.channels = nil
 		return
