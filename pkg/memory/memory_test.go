@@ -3,6 +3,7 @@ package memory
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -991,5 +992,103 @@ func TestStore_ClearBoth(t *testing.T) {
 	// Learnings file should still have the header
 	if learnings == "" {
 		t.Error("learnings should have header after clear")
+	}
+}
+
+func TestStore_ListTopics(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Add learnings in different topics
+	if err := store.AddLearning("patterns", "Use context"); err != nil {
+		t.Fatalf("failed to add learning: %v", err)
+	}
+	if err := store.AddLearning("tips", "Check errors"); err != nil {
+		t.Fatalf("failed to add learning: %v", err)
+	}
+	if err := store.AddLearning("gotchas", "Watch for nil"); err != nil {
+		t.Fatalf("failed to add learning: %v", err)
+	}
+
+	topics, err := store.ListTopics()
+	if err != nil {
+		t.Fatalf("ListTopics failed: %v", err)
+	}
+
+	if len(topics) != 3 {
+		t.Errorf("expected 3 topics, got %d", len(topics))
+	}
+
+	// Check topics exist
+	topicMap := make(map[string]bool)
+	for _, topic := range topics {
+		topicMap[topic] = true
+	}
+	if !topicMap["patterns"] || !topicMap["tips"] || !topicMap["gotchas"] {
+		t.Errorf("expected patterns, tips, gotchas; got %v", topics)
+	}
+}
+
+func TestStore_ForgetTopic(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Add learnings in different topics
+	if err := store.AddLearning("patterns", "Use context"); err != nil {
+		t.Fatalf("failed to add learning: %v", err)
+	}
+	if err := store.AddLearning("patterns", "Use interfaces"); err != nil {
+		t.Fatalf("failed to add learning: %v", err)
+	}
+	if err := store.AddLearning("tips", "Check errors"); err != nil {
+		t.Fatalf("failed to add learning: %v", err)
+	}
+
+	// Forget patterns topic
+	removed, err := store.ForgetTopic("patterns")
+	if err != nil {
+		t.Fatalf("ForgetTopic failed: %v", err)
+	}
+	if removed != 2 {
+		t.Errorf("expected 2 entries removed, got %d", removed)
+	}
+
+	// Verify patterns is gone
+	topics, _ := store.ListTopics()
+	for _, topic := range topics {
+		if topic == "patterns" {
+			t.Error("patterns topic should be removed")
+		}
+	}
+
+	// Verify tips is still there
+	learnings, _ := store.GetLearnings()
+	if !strings.Contains(learnings, "## tips") {
+		t.Error("tips topic should still exist")
+	}
+	if !strings.Contains(learnings, "Check errors") {
+		t.Error("tips learning should still exist")
+	}
+}
+
+func TestStore_ForgetTopic_NotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	_, err := store.ForgetTopic("nonexistent")
+	if err == nil {
+		t.Error("expected error for nonexistent topic")
 	}
 }

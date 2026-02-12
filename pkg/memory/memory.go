@@ -362,6 +362,84 @@ func (s *Store) Prune(opts PruneOptions) (*PruneResult, error) {
 	return result, nil
 }
 
+// ForgetTopic removes a specific learning topic and all its entries.
+// Returns the number of entries removed, or an error if the topic doesn't exist.
+func (s *Store) ForgetTopic(topic string) (int, error) {
+	content, err := s.GetLearnings()
+	if err != nil {
+		return 0, fmt.Errorf("failed to read learnings: %w", err)
+	}
+
+	topicHeader := "## " + topic
+	if !strings.Contains(content, topicHeader) {
+		return 0, fmt.Errorf("topic %q not found", topic)
+	}
+
+	// Find the topic section
+	lines := strings.Split(content, "\n")
+	var newLines []string
+	inTopic := false
+	entriesRemoved := 0
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Check if this is the target topic header
+		if trimmed == topicHeader {
+			inTopic = true
+			continue
+		}
+
+		// Check if we've reached the next topic (end of target topic)
+		if inTopic && strings.HasPrefix(trimmed, "## ") {
+			inTopic = false
+		}
+
+		if inTopic {
+			// Count removed entries (lines starting with -)
+			if strings.HasPrefix(trimmed, "- ") {
+				entriesRemoved++
+			}
+			continue
+		}
+
+		newLines = append(newLines, line)
+	}
+
+	// Write the updated content
+	newContent := strings.Join(newLines, "\n")
+	// Clean up any double blank lines that may result
+	for strings.Contains(newContent, "\n\n\n") {
+		newContent = strings.ReplaceAll(newContent, "\n\n\n", "\n\n")
+	}
+
+	if err := os.WriteFile(s.learningsPath(), []byte(newContent), 0600); err != nil { //nolint:gosec // path constructed from trusted memoryDir
+		return 0, fmt.Errorf("failed to write learnings: %w", err)
+	}
+
+	return entriesRemoved, nil
+}
+
+// ListTopics returns all learning topic names.
+func (s *Store) ListTopics() ([]string, error) {
+	content, err := s.GetLearnings()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read learnings: %w", err)
+	}
+
+	var topics []string
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "## ") {
+			topic := strings.TrimPrefix(trimmed, "## ")
+			topics = append(topics, topic)
+		}
+	}
+
+	return topics, nil
+}
+
 // GetSize returns the total size of memory files in bytes.
 func (s *Store) GetSize() (int64, error) {
 	var total int64
