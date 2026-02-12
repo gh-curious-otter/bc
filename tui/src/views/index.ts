@@ -3,3 +3,4 @@
 
 export { AgentsView } from './AgentsView';
 export { Dashboard } from './Dashboard.js';
+export { AgentDetailView } from './AgentDetailView';
