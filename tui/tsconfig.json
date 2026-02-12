@@ -1,24 +1,58 @@
 {
   "compilerOptions": {
+    // Target and module settings for Bun + React
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
-    "outDir": "dist",
-    "rootDir": "src",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+
+    // React/JSX settings for Ink
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+
+    // Strict type checking
     "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "useUnknownInCatchVariables": true,
+    "alwaysStrict": true,
+
+    // Additional checks
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    // exactOptionalPropertyTypes disabled - incompatible with Ink's types
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    // noUncheckedIndexedAccess disabled - too strict for external libs
+    "noImplicitOverride": true,
+
+    // Module interop
     "esModuleInterop": true,
-    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+
+    // Output settings
+    "outDir": "./dist",
+    "rootDir": "./src",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "jsx": "react-jsx",
-    "jsxImportSource": "react",
-    "noEmit": false,
-    "isolatedModules": true
+
+    // Skip library checks for faster builds
+    "skipLibCheck": true,
+
+    // Allow JSON imports
+    "resolveJsonModule": true,
+
+    // Types
+    "types": ["bun-types", "react"]
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"]
 }
