@@ -133,3 +133,27 @@ export interface DemonRunLog {
   exit_code: number;
   success: boolean;
 }
+
+// Process types matching pkg/process/process.go
+export interface Process {
+  name: string;
+  command: string;
+  owner?: string;
+  work_dir?: string;
+  log_file?: string;
+  pid: number;
+  port?: number;
+  running: boolean;
+  started_at: string;
+}
+
+// Response from bc process list --json
+export interface ProcessListResponse {
+  processes: Process[];
+}
+
+// Response from bc process logs --json
+export interface ProcessLogsResponse {
+  name: string;
+  lines: string[];
+}
