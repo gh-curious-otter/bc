@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useStdout } from 'ink';
 import {
   NavigationProvider,
   useNavigation,
@@ -46,12 +46,17 @@ interface AppContentProps {
 
 function AppContent({ disableInput }: AppContentProps): React.ReactElement {
   const { currentView } = useNavigation();
+  const { stdout } = useStdout();
 
   // Handle global keyboard navigation
   useKeyboardNavigation({ disabled: disableInput });
 
+  // Get terminal dimensions - constrain to actual terminal height
+  const terminalHeight = stdout?.rows ?? 24;
+  const terminalWidth = stdout?.columns ?? 80;
+
   return (
-    <Box flexDirection="column" padding={1} width={100} height={100}>
+    <Box flexDirection="column" padding={1} width={terminalWidth} height={terminalHeight}>
       {/* Header with tab bar */}
       <TabBar />
 
@@ -129,7 +134,7 @@ function HelpView(): React.ReactElement {
 function Footer(): React.ReactElement {
   const { theme } = useTheme();
   return (
-    <Box marginTop={1} justifyContent="space-between" width={100}>
+    <Box marginTop={1} justifyContent="space-between">
       <Text dimColor>Press [?] for help, [q] to quit</Text>
       <Text dimColor>Theme: {theme.name}</Text>
     </Box>
