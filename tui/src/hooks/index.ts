@@ -19,3 +19,14 @@ export {
   type UseStatusResult,
   type WorkspaceStatus,
 } from './useStatus';
+
+export {
+  useChannels,
+  useChannelHistory,
+  useUnreadCount,
+  useChannelsWithUnread,
+  type UseChannelsOptions,
+  type UseChannelsResult,
+  type UseChannelHistoryOptions,
+  type UseChannelHistoryResult,
+} from './useChannels';
