@@ -23,6 +23,15 @@ func executeCmd(args ...string) (string, error) {
 	rootCmd.SetArgs(args)
 
 	// Reset flags to prevent leaking state
+	// Reset root persistent flags first
+	rootCmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
+		f.Changed = false
+		// Also reset value to default for boolean flags
+		if f.Value.Type() == "bool" {
+			_ = f.Value.Set("false")
+		}
+	})
+	// Reset subcommand flags
 	for _, sub := range rootCmd.Commands() {
 		sub.Flags().VisitAll(func(f *pflag.Flag) { f.Changed = false })
 	}

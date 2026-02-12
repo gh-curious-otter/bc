@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -239,6 +240,22 @@ func runProcessList(cmd *cobra.Command, args []string) error {
 	}
 
 	procs := reg.List()
+
+	// Check for JSON output
+	jsonOutput, _ := cmd.Flags().GetBool("json")
+	if jsonOutput {
+		// Wrap in object for TUI compatibility
+		if procs == nil {
+			procs = []*process.Process{}
+		}
+		response := struct {
+			Processes []*process.Process `json:"processes"`
+		}{Processes: procs}
+		enc := json.NewEncoder(cmd.OutOrStdout())
+		enc.SetIndent("", "  ")
+		return enc.Encode(response)
+	}
+
 	if len(procs) == 0 {
 		fmt.Println("No processes")
 		return nil

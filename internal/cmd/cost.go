@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"text/tabwriter"
@@ -256,6 +257,45 @@ func runCostShow(cmd *cobra.Command, args []string) error {
 
 	if err != nil {
 		return fmt.Errorf("failed to get cost records: %w", err)
+	}
+
+	// Check for JSON output
+	jsonOutput, _ := cmd.Flags().GetBool("json")
+	if jsonOutput {
+		// Build a summary for TUI compatibility
+		var totalCost, totalInput, totalOutput float64
+		byAgent := make(map[string]float64)
+		byTeam := make(map[string]float64)
+		byModel := make(map[string]float64)
+
+		for _, r := range records {
+			totalCost += r.CostUSD
+			totalInput += float64(r.InputTokens)
+			totalOutput += float64(r.OutputTokens)
+			byAgent[r.AgentID] += r.CostUSD
+			byTeam[r.TeamID] += r.CostUSD
+			byModel[r.Model] += r.CostUSD
+		}
+
+		response := struct {
+			ByAgent           map[string]float64 `json:"by_agent"`
+			ByTeam            map[string]float64 `json:"by_team"`
+			ByModel           map[string]float64 `json:"by_model"`
+			TotalInputTokens  int64              `json:"total_input_tokens"`
+			TotalOutputTokens int64              `json:"total_output_tokens"`
+			TotalCost         float64            `json:"total_cost"`
+		}{
+			ByAgent:           byAgent,
+			ByTeam:            byTeam,
+			ByModel:           byModel,
+			TotalInputTokens:  int64(totalInput),
+			TotalOutputTokens: int64(totalOutput),
+			TotalCost:         totalCost,
+		}
+
+		enc := json.NewEncoder(cmd.OutOrStdout())
+		enc.SetIndent("", "  ")
+		return enc.Encode(response)
 	}
 
 	if len(records) == 0 {

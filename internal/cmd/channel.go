@@ -173,9 +173,13 @@ func runChannelList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if jsonOutput {
-		enc := json.NewEncoder(os.Stdout)
+		// Wrap in object for TUI compatibility
+		response := struct {
+			Channels []*channel.Channel `json:"channels"`
+		}{Channels: channels}
+		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")
-		return enc.Encode(channels)
+		return enc.Encode(response)
 	}
 
 	if len(channels) == 0 {
@@ -482,9 +486,14 @@ func runChannelHistory(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if jsonOutput {
-		enc := json.NewEncoder(os.Stdout)
+		// Wrap in object for TUI compatibility
+		response := struct {
+			Channel  string                 `json:"channel"`
+			Messages []channel.HistoryEntry `json:"messages"`
+		}{Channel: channelName, Messages: history}
+		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")
-		return enc.Encode(history)
+		return enc.Encode(response)
 	}
 
 	if len(history) == 0 {
@@ -612,7 +621,7 @@ func runChannelShow(cmd *cobra.Command, args []string) error {
 			MemberCount:  len(members),
 			HistoryCount: len(history),
 		}
-		enc := json.NewEncoder(os.Stdout)
+		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")
 		return enc.Encode(info)
 	}
