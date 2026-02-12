@@ -365,6 +365,29 @@ func TestLoadWithAgentsData(t *testing.T) {
 	}
 }
 
+func TestSummaryIncludesDoneState(t *testing.T) {
+	s := &Stats{
+		CollectedAt: time.Now(),
+		Agents: AgentMetrics{
+			TotalAgents:  5,
+			ActiveAgents: 4,
+			Idle:         1,
+			Working:      1,
+			Done:         2,
+			Stuck:        0,
+			Stopped:      1,
+		},
+	}
+
+	summary := s.Summary()
+
+	// Verify done state is included in the States line
+	expectedStates := "1 idle, 1 working, 2 done, 0 stuck, 1 stopped"
+	if !strings.Contains(summary, expectedStates) {
+		t.Errorf("Summary should include done state in States line\nExpected: %q\nGot:\n%s", expectedStates, summary)
+	}
+}
+
 func TestLoadInvalidAgentsFile(t *testing.T) {
 	stateDir := t.TempDir()
 	agentsDir := filepath.Join(stateDir, "agents")
