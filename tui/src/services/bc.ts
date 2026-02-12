@@ -6,6 +6,7 @@
 import { spawn } from 'child_process';
 import type {
   StatusResponse,
+  Channel,
   ChannelsResponse,
   ChannelHistory,
   CostSummary,
@@ -87,9 +88,11 @@ export async function getStatus(): Promise<StatusResponse> {
 
 /**
  * Get list of channels
+ * Note: bc channel list --json returns array directly, we wrap it
  */
 export async function getChannels(): Promise<ChannelsResponse> {
-  return execBcJson<ChannelsResponse>(['channel', 'list']);
+  const channels = await execBcJson<Channel[]>(['channel', 'list']);
+  return { channels };
 }
 
 /**
@@ -122,9 +125,22 @@ export async function sendChannelMessage(
 
 /**
  * Get cost summary
+ * Note: bc cost show returns text when empty, handle gracefully
  */
 export async function getCostSummary(): Promise<CostSummary> {
-  return execBcJson<CostSummary>(['cost', 'show']);
+  try {
+    return await execBcJson<CostSummary>(['cost', 'show']);
+  } catch {
+    // Return empty cost summary when no records exist
+    return {
+      total_cost: 0,
+      total_input_tokens: 0,
+      total_output_tokens: 0,
+      by_agent: {},
+      by_team: {},
+      by_model: {},
+    };
+  }
 }
 
 /**
@@ -209,9 +225,14 @@ export async function runDemon(name: string): Promise<void> {
 
 /**
  * Get list of managed processes
+ * Note: bc process list returns text when empty, handle gracefully
  */
 export async function getProcesses(): Promise<ProcessListResponse> {
-  return execBcJson<ProcessListResponse>(['process', 'list']);
+  try {
+    return await execBcJson<ProcessListResponse>(['process', 'list']);
+  } catch {
+    return { processes: [] };
+  }
 }
 
 /**
@@ -233,9 +254,14 @@ export async function getProcessLogs(
 
 /**
  * Get list of teams
+ * Note: bc team list returns text when empty, handle gracefully
  */
 export async function getTeams(): Promise<TeamsResponse> {
-  return execBcJson<TeamsResponse>(['team', 'list']);
+  try {
+    return await execBcJson<TeamsResponse>(['team', 'list']);
+  } catch {
+    return { teams: [] };
+  }
 }
 
 /**
