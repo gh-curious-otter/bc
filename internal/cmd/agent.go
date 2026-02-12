@@ -131,17 +131,39 @@ Examples:
 	RunE: runAgentDelete,
 }
 
+// agentHealthCmd shows agent health status
+var agentHealthCmd = &cobra.Command{
+	Use:   "health [agent]",
+	Short: "Show agent health status",
+	Long: `Show health status for agents, including tmux session status and state freshness.
+
+An agent is considered:
+  - healthy:   tmux session alive and state updated within timeout threshold
+  - degraded:  tmux session alive but state is stale (not updated within threshold)
+  - unhealthy: tmux session not found or agent in error state
+
+Examples:
+  bc agent health              # Show health for all agents
+  bc agent health eng-01       # Show health for specific agent
+  bc agent health --json       # Output as JSON
+  bc agent health --timeout 2m # Use 2 minute stale threshold`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: runAgentHealth,
+}
+
 // Flags
 var (
-	agentCreateTool   string
-	agentCreateRole   string
-	agentCreateParent string
-	agentCreateTeam   string
-	agentListRole     string
-	agentListJSON     bool
-	agentPeekLines    int
-	agentStopForce    bool
-	agentDeleteForce  bool
+	agentCreateTool    string
+	agentCreateRole    string
+	agentCreateParent  string
+	agentCreateTeam    string
+	agentListRole      string
+	agentListJSON      bool
+	agentPeekLines     int
+	agentStopForce     bool
+	agentDeleteForce   bool
+	agentHealthJSON    bool
+	agentHealthTimeout string
 )
 
 func init() {
@@ -164,6 +186,10 @@ func init() {
 	// Delete flags
 	agentDeleteCmd.Flags().BoolVar(&agentDeleteForce, "force", false, "Delete without confirmation")
 
+	// Health flags
+	agentHealthCmd.Flags().BoolVar(&agentHealthJSON, "json", false, "Output as JSON")
+	agentHealthCmd.Flags().StringVar(&agentHealthTimeout, "timeout", "60s", "Stale state threshold (e.g., 30s, 2m)")
+
 	// Add subcommands
 	agentCmd.AddCommand(agentCreateCmd)
 	agentCmd.AddCommand(agentListCmd)
@@ -172,6 +198,7 @@ func init() {
 	agentCmd.AddCommand(agentStopCmd)
 	agentCmd.AddCommand(agentSendCmd)
 	agentCmd.AddCommand(agentDeleteCmd)
+	agentCmd.AddCommand(agentHealthCmd)
 
 	// Add parent command to root
 	rootCmd.AddCommand(agentCmd)
@@ -583,4 +610,164 @@ func isValidTeamName(name string) bool {
 		}
 	}
 	return true
+}
+
+// AgentHealth represents the health status of an agent.
+type AgentHealth struct {
+	Name          string `json:"name"`
+	Role          string `json:"role"`
+	Status        string `json:"status"`
+	LastUpdated   string `json:"last_updated"`
+	StaleDuration string `json:"stale_duration,omitempty"`
+	ErrorMessage  string `json:"error_message,omitempty"`
+	TmuxAlive     bool   `json:"tmux_alive"`
+	StateFresh    bool   `json:"state_fresh"`
+}
+
+func runAgentHealth(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	// Parse timeout duration
+	timeout, parseErr := time.ParseDuration(agentHealthTimeout)
+	if parseErr != nil {
+		return fmt.Errorf("invalid timeout format: %w", parseErr)
+	}
+
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+
+	if refreshErr := mgr.RefreshState(); refreshErr != nil {
+		log.Warn("failed to refresh agent state", "error", refreshErr)
+	}
+
+	// Get agents to check
+	var agents []*agent.Agent
+	if len(args) > 0 {
+		// Check specific agent
+		a := mgr.GetAgent(args[0])
+		if a == nil {
+			return fmt.Errorf("agent '%s' not found", args[0])
+		}
+		agents = []*agent.Agent{a}
+	} else {
+		// Check all agents
+		agents = mgr.ListAgents()
+	}
+
+	if len(agents) == 0 {
+		fmt.Println("No agents found")
+		return nil
+	}
+
+	// Compute health for each agent
+	healthResults := make([]AgentHealth, 0, len(agents))
+	for _, a := range agents {
+		health := computeAgentHealth(a, mgr, timeout)
+		healthResults = append(healthResults, health)
+	}
+
+	// Output
+	if agentHealthJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(healthResults)
+	}
+
+	// Table output
+	fmt.Printf("%-15s %-12s %-10s %-8s %-8s %s\n", "AGENT", "ROLE", "STATUS", "TMUX", "FRESH", "LAST UPDATED")
+	fmt.Println(strings.Repeat("-", 75))
+
+	for _, h := range healthResults {
+		tmuxStr := "✗"
+		if h.TmuxAlive {
+			tmuxStr = "✓"
+		}
+		freshStr := "✗"
+		if h.StateFresh {
+			freshStr = "✓"
+		}
+
+		statusColor := h.Status
+		switch h.Status {
+		case "healthy":
+			statusColor = "\033[32m" + h.Status + "\033[0m" // green
+		case "degraded":
+			statusColor = "\033[33m" + h.Status + "\033[0m" // yellow
+		case "unhealthy":
+			statusColor = "\033[31m" + h.Status + "\033[0m" // red
+		}
+
+		fmt.Printf("%-15s %-12s %-10s %-8s %-8s %s\n",
+			h.Name,
+			h.Role,
+			statusColor,
+			tmuxStr,
+			freshStr,
+			h.LastUpdated,
+		)
+
+		if h.ErrorMessage != "" {
+			fmt.Printf("  └─ %s\n", h.ErrorMessage)
+		}
+	}
+
+	// Summary
+	var healthy, degraded, unhealthy int
+	for _, h := range healthResults {
+		switch h.Status {
+		case "healthy":
+			healthy++
+		case "degraded":
+			degraded++
+		case "unhealthy":
+			unhealthy++
+		}
+	}
+	fmt.Printf("\nSummary: %d healthy, %d degraded, %d unhealthy (threshold: %s)\n",
+		healthy, degraded, unhealthy, timeout)
+
+	return nil
+}
+
+func computeAgentHealth(a *agent.Agent, mgr *agent.Manager, timeout time.Duration) AgentHealth {
+	health := AgentHealth{
+		Name:        a.Name,
+		Role:        string(a.Role),
+		LastUpdated: a.UpdatedAt.Format(time.RFC3339),
+	}
+
+	// Check tmux session
+	health.TmuxAlive = mgr.Tmux().HasSession(a.Name)
+
+	// Check state freshness
+	staleDuration := time.Since(a.UpdatedAt)
+	health.StateFresh = staleDuration < timeout
+	if !health.StateFresh {
+		health.StaleDuration = staleDuration.Round(time.Second).String()
+	}
+
+	// Determine overall status
+	switch {
+	case a.State == agent.StateStopped:
+		health.Status = "unhealthy"
+		health.ErrorMessage = "agent stopped"
+	case a.State == agent.StateError:
+		health.Status = "unhealthy"
+		health.ErrorMessage = "agent in error state"
+	case !health.TmuxAlive:
+		health.Status = "unhealthy"
+		health.ErrorMessage = "tmux session not found"
+	case !health.StateFresh:
+		health.Status = "degraded"
+		health.ErrorMessage = fmt.Sprintf("state stale (%s since last update)", health.StaleDuration)
+	default:
+		health.Status = "healthy"
+	}
+
+	return health
 }

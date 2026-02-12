@@ -122,6 +122,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println("Commands:")
 	fmt.Println("  bc attach <agent>  # Attach to agent's session")
+	fmt.Println("  bc agent health    # Check agent health status")
 	fmt.Println("  bc down            # Stop all agents")
 
 	return nil
