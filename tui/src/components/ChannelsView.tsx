@@ -20,7 +20,7 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
   const selectedChannel = channels?.[selectedIndex];
 
   useInput(
-    (_input, key) => {
+    (input, key) => {
       if (viewMode === 'list') {
         // Navigate channel list
         if ((key.upArrow || input === 'k') && selectedIndex > 0) {
