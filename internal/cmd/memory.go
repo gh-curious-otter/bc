@@ -173,6 +173,20 @@ Example:
 	RunE: runMemoryExport,
 }
 
+var memoryForgetCmd = &cobra.Command{
+	Use:   "forget <agent> <topic>",
+	Short: "Remove a learning topic from memory",
+	Long: `Remove a specific learning topic and all its entries from an agent's memory.
+
+Use 'bc memory list' to see available topics.
+
+Example:
+  bc memory forget engineer-01 patterns      # Remove "patterns" topic
+  bc memory forget engineer-01 anti-patterns # Remove "anti-patterns" topic`,
+	Args: cobra.ExactArgs(2),
+	RunE: runMemoryForget,
+}
+
 var (
 	memoryOutcome          string
 	memoryTaskID           string
@@ -232,6 +246,7 @@ func init() {
 	memoryCmd.AddCommand(memoryListCmd)
 	memoryCmd.AddCommand(memoryClearCmd)
 	memoryCmd.AddCommand(memoryExportCmd)
+	memoryCmd.AddCommand(memoryForgetCmd)
 	rootCmd.AddCommand(memoryCmd)
 }
 
@@ -1009,5 +1024,38 @@ func runMemoryExport(cmd *cobra.Command, args []string) error {
 		cmd.Println(string(data))
 	}
 
+	return nil
+}
+
+func runMemoryForget(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	agentID := args[0]
+	topic := args[1]
+
+	store := memory.NewStore(ws.RootDir, agentID)
+	if !store.Exists() {
+		return fmt.Errorf("no memory found for agent %s", agentID)
+	}
+
+	// List available topics to help user
+	topics, listErr := store.ListTopics()
+	if listErr != nil {
+		return fmt.Errorf("failed to list topics: %w", listErr)
+	}
+
+	entriesRemoved, err := store.ForgetTopic(topic)
+	if err != nil {
+		// If topic not found, show available topics
+		if len(topics) > 0 {
+			cmd.Printf("Available topics for %s: %s\n", agentID, strings.Join(topics, ", "))
+		}
+		return err
+	}
+
+	cmd.Printf("Removed topic %q from %s (%d entries deleted)\n", topic, agentID, entriesRemoved)
 	return nil
 }
