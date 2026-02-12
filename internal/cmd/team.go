@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -127,6 +128,21 @@ func runTeamList(cmd *cobra.Command, args []string) error {
 	teams, err := store.List()
 	if err != nil {
 		return err
+	}
+
+	// Check for JSON output
+	jsonOutput, _ := cmd.Flags().GetBool("json")
+	if jsonOutput {
+		// Wrap in object for TUI compatibility
+		if teams == nil {
+			teams = []*team.Team{}
+		}
+		response := struct {
+			Teams []*team.Team `json:"teams"`
+		}{Teams: teams}
+		enc := json.NewEncoder(cmd.OutOrStdout())
+		enc.SetIndent("", "  ")
+		return enc.Encode(response)
 	}
 
 	if len(teams) == 0 {
