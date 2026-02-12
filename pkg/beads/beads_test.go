@@ -195,7 +195,10 @@ func TestListIssuesNoBeadsDir(t *testing.T) {
 
 func TestReadyIssuesNoBeadsDir(t *testing.T) {
 	dir := t.TempDir()
-	issues := ReadyIssues(dir)
+	issues, err := ReadyIssues(dir)
+	if !errors.Is(err, ErrNoBeadsDir) {
+		t.Errorf("ReadyIssues without .beads should return ErrNoBeadsDir, got %v", err)
+	}
 	if issues != nil {
 		t.Errorf("ReadyIssues without .beads should return nil, got %d issues", len(issues))
 	}
@@ -361,7 +364,10 @@ func TestReadyIssuesFiltersEpics(t *testing.T) {
 	mockBd := createMockBd(t, string(data))
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
 
-	result := ReadyIssues(dir)
+	result, err := ReadyIssues(dir)
+	if err != nil {
+		t.Fatalf("ReadyIssues unexpected error: %v", err)
+	}
 
 	if len(result) != 1 {
 		t.Fatalf("ReadyIssues returned %d issues, want 1 (epic filtered)", len(result))
@@ -383,9 +389,12 @@ func TestReadyIssuesEmptyResult(t *testing.T) {
 	mockBd := createMockBd(t, "[]")
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
 
-	result := ReadyIssues(dir)
-	if result != nil {
-		t.Errorf("ReadyIssues with empty array returned %v, want nil", result)
+	result, err := ReadyIssues(dir)
+	if err != nil {
+		t.Fatalf("ReadyIssues unexpected error: %v", err)
+	}
+	if len(result) != 0 {
+		t.Errorf("ReadyIssues with empty array returned %d issues, want 0", len(result))
 	}
 }
 
@@ -544,8 +553,11 @@ func TestIssueJSONOmitsEmpty(t *testing.T) {
 
 func TestGetIssueNoBeadsDir(t *testing.T) {
 	dir := t.TempDir()
-	// No .beads directory — should return nil
-	result := GetIssue(dir, "bc-123")
+	// No .beads directory — should return ErrNoBeadsDir
+	result, err := GetIssue(dir, "bc-123")
+	if !errors.Is(err, ErrNoBeadsDir) {
+		t.Errorf("GetIssue without .beads should return ErrNoBeadsDir, got %v", err)
+	}
 	if result != nil {
 		t.Errorf("GetIssue without .beads should return nil, got %+v", result)
 	}
@@ -560,7 +572,10 @@ func TestGetIssueBdFails(t *testing.T) {
 	mockBd := createMockBdFailing(t)
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
 
-	result := GetIssue(dir, "bc-123")
+	result, err := GetIssue(dir, "bc-123")
+	if err == nil {
+		t.Error("GetIssue when bd fails should return an error")
+	}
 	if result != nil {
 		t.Errorf("GetIssue when bd fails should return nil, got %+v", result)
 	}
@@ -575,7 +590,10 @@ func TestGetIssueMalformedJSON(t *testing.T) {
 	mockBd := createMockBd(t, "this is not json")
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
 
-	result := GetIssue(dir, "bc-123")
+	result, err := GetIssue(dir, "bc-123")
+	if err == nil {
+		t.Error("GetIssue with malformed JSON should return an error")
+	}
 	if result != nil {
 		t.Errorf("GetIssue with malformed JSON should return nil, got %+v", result)
 	}
@@ -590,7 +608,10 @@ func TestGetIssueEmptyArray(t *testing.T) {
 	mockBd := createMockBd(t, "[]")
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
 
-	result := GetIssue(dir, "bc-123")
+	result, err := GetIssue(dir, "bc-123")
+	if !errors.Is(err, ErrIssueNotFound) {
+		t.Errorf("GetIssue with empty array should return ErrIssueNotFound, got %v", err)
+	}
 	if result != nil {
 		t.Errorf("GetIssue with empty array should return nil, got %+v", result)
 	}
@@ -613,7 +634,10 @@ func TestGetIssueSuccess(t *testing.T) {
 	mockBd := createMockBd(t, string(data))
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
 
-	result := GetIssue(dir, "bc-42")
+	result, err := GetIssue(dir, "bc-42")
+	if err != nil {
+		t.Fatalf("GetIssue unexpected error: %v", err)
+	}
 	if result == nil {
 		t.Fatal("GetIssue should return an issue, got nil")
 	}
@@ -649,7 +673,10 @@ func TestGetIssueReturnsFirst(t *testing.T) {
 	mockBd := createMockBd(t, string(data))
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
 
-	result := GetIssue(dir, "bc-1")
+	result, err := GetIssue(dir, "bc-1")
+	if err != nil {
+		t.Fatalf("GetIssue unexpected error: %v", err)
+	}
 	if result == nil {
 		t.Fatal("GetIssue should return an issue, got nil")
 	}
@@ -671,7 +698,10 @@ func TestGetIssueEmptyID(t *testing.T) {
 	mockBd := createMockBd(t, "[]")
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
 
-	result := GetIssue(dir, "")
+	result, err := GetIssue(dir, "")
+	if !errors.Is(err, ErrIssueNotFound) {
+		t.Errorf("GetIssue with empty ID should return ErrIssueNotFound, got %v", err)
+	}
 	if result != nil {
 		t.Errorf("GetIssue with empty ID should return nil, got %+v", result)
 	}
@@ -757,7 +787,10 @@ func TestReadyIssuesBdFails(t *testing.T) {
 	mockBd := createMockBdFailing(t)
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
 
-	result := ReadyIssues(dir)
+	result, err := ReadyIssues(dir)
+	if err == nil {
+		t.Error("ReadyIssues when bd fails should return an error")
+	}
 	if result != nil {
 		t.Errorf("ReadyIssues when bd fails should return nil, got %d issues", len(result))
 	}
@@ -772,7 +805,10 @@ func TestReadyIssuesMalformedJSON(t *testing.T) {
 	mockBd := createMockBd(t, "not valid json")
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
 
-	result := ReadyIssues(dir)
+	result, err := ReadyIssues(dir)
+	if err == nil {
+		t.Error("ReadyIssues with malformed JSON should return an error")
+	}
 	if result != nil {
 		t.Errorf("ReadyIssues with malformed JSON should return nil, got %d issues", len(result))
 	}
@@ -796,9 +832,12 @@ func TestReadyIssuesAllEpics(t *testing.T) {
 	mockBd := createMockBd(t, string(data))
 	t.Setenv("PATH", filepath.Dir(mockBd)+":"+os.Getenv("PATH"))
 
-	result := ReadyIssues(dir)
-	if result != nil {
-		t.Errorf("ReadyIssues with only epics should return nil, got %d issues", len(result))
+	result, err := ReadyIssues(dir)
+	if err != nil {
+		t.Fatalf("ReadyIssues unexpected error: %v", err)
+	}
+	if len(result) != 0 {
+		t.Errorf("ReadyIssues with only epics should return empty, got %d issues", len(result))
 	}
 }
 

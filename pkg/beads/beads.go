@@ -114,21 +114,22 @@ func AddIssue(workspacePath, title, description string) error {
 }
 
 // ReadyIssues returns issues that are unblocked and ready for work.
-func ReadyIssues(workspacePath string) []Issue {
+// Returns ErrNoBeadsDir if the workspace has no .beads directory.
+func ReadyIssues(workspacePath string) ([]Issue, error) {
 	if !HasBeads(workspacePath) {
-		return nil
+		return nil, ErrNoBeadsDir
 	}
 
 	cmd := exec.CommandContext(context.Background(), "bd", "ready", "--json")
 	cmd.Dir = workspacePath
 	output, err := cmd.Output()
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("bd ready failed: %w", err)
 	}
 
 	var issues []Issue
 	if err := json.Unmarshal(output, &issues); err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to parse ready issues: %w", err)
 	}
 
 	// Tag source and filter out epics
@@ -140,7 +141,7 @@ func ReadyIssues(workspacePath string) []Issue {
 		}
 	}
 
-	return filtered
+	return filtered, nil
 }
 
 // AssignIssue assigns an issue to an agent.
