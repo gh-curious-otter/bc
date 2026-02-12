@@ -148,6 +148,47 @@ func TestAgentPeekNotFound(t *testing.T) {
 	// Error message varies based on implementation
 }
 
+func TestAgentShowNotFound(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	_, _, err := executeIntegrationCmd("agent", "show", "nonexistent-agent")
+	if err == nil {
+		t.Error("expected error for nonexistent agent")
+	}
+	if err != nil && !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention not found: %v", err)
+	}
+}
+
+func TestAgentShowWithAgent(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Seed an agent
+	seedAgents(t, wsDir, map[string]*agent.Agent{
+		"test-agent": {
+			Name:      "test-agent",
+			Role:      agent.Role("engineer"),
+			State:     agent.StateWorking,
+			Session:   "bc-test-agent",
+			StartedAt: time.Now().Add(-1 * time.Hour),
+			UpdatedAt: time.Now(),
+		},
+	})
+
+	stdout, _, err := executeIntegrationCmd("agent", "show", "test-agent")
+	if err != nil {
+		t.Fatalf("agent show failed: %v\nOutput: %s", err, stdout)
+	}
+	if !strings.Contains(stdout, "test-agent") {
+		t.Errorf("output should contain agent name: %s", stdout)
+	}
+	if !strings.Contains(stdout, "engineer") {
+		t.Errorf("output should contain role: %s", stdout)
+	}
+}
+
 func TestAgentAttachNotFound(t *testing.T) {
 	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()

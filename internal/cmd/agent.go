@@ -93,6 +93,19 @@ Examples:
 	RunE: runAgentPeek,
 }
 
+// agentShowCmd shows detailed information about an agent
+var agentShowCmd = &cobra.Command{
+	Use:   "show <agent>",
+	Short: "Show agent details",
+	Long: `Show detailed information about an agent.
+
+Examples:
+  bc agent show eng-01       # Show eng-01 details
+  bc agent show eng-01 --json  # Output as JSON`,
+	Args: cobra.ExactArgs(1),
+	RunE: runAgentShow,
+}
+
 // agentStopCmd stops a single agent (different from bc down which stops all)
 var agentStopCmd = &cobra.Command{
 	Use:   "stop <agent>",
@@ -238,6 +251,7 @@ var (
 	agentCreateTeam      string
 	agentListRole        string
 	agentListJSON        bool
+	agentShowJSON        bool
 	agentPeekLines       int
 	agentStopForce       bool
 	agentDeleteForce     bool
@@ -261,6 +275,9 @@ func init() {
 	// List flags
 	agentListCmd.Flags().StringVar(&agentListRole, "role", "", "Filter by role")
 	agentListCmd.Flags().BoolVar(&agentListJSON, "json", false, "Output as JSON")
+
+	// Show flags
+	agentShowCmd.Flags().BoolVar(&agentShowJSON, "json", false, "Output as JSON")
 
 	// Peek flags
 	agentPeekCmd.Flags().IntVar(&agentPeekLines, "lines", 50, "Number of lines to show")
@@ -288,6 +305,7 @@ func init() {
 	agentCmd.AddCommand(agentListCmd)
 	agentCmd.AddCommand(agentAttachCmd)
 	agentCmd.AddCommand(agentPeekCmd)
+	agentCmd.AddCommand(agentShowCmd)
 	agentCmd.AddCommand(agentStopCmd)
 	agentCmd.AddCommand(agentSendCmd)
 	agentCmd.AddCommand(agentDeleteCmd)
@@ -544,6 +562,60 @@ func runAgentPeek(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("=== %s (last %d lines) ===\n", agentName, agentPeekLines)
 	fmt.Println(output)
+
+	return nil
+}
+
+func runAgentShow(cmd *cobra.Command, args []string) error {
+	agentName := args[0]
+
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+
+	a := mgr.GetAgent(agentName)
+	if a == nil {
+		return fmt.Errorf("agent '%s' not found", agentName)
+	}
+
+	// JSON output
+	if agentShowJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(a)
+	}
+
+	// Human-readable output
+	fmt.Printf("Agent: %s\n", a.Name)
+	fmt.Printf("Role: %s\n", a.Role)
+	fmt.Printf("State: %s\n", a.State)
+	if a.Team != "" {
+		fmt.Printf("Team: %s\n", a.Team)
+	}
+	fmt.Printf("Session: %s\n", a.Session)
+	if a.WorktreeDir != "" {
+		fmt.Printf("Worktree: %s\n", a.WorktreeDir)
+	}
+	if a.Task != "" {
+		fmt.Printf("Task: %s\n", a.Task)
+	}
+	if a.Tool != "" {
+		fmt.Printf("Tool: %s\n", a.Tool)
+	}
+	if a.ParentID != "" {
+		fmt.Printf("Parent: %s\n", a.ParentID)
+	}
+	if len(a.Children) > 0 {
+		fmt.Printf("Children: %s\n", strings.Join(a.Children, ", "))
+	}
+	fmt.Printf("Started: %s\n", a.StartedAt.Format(time.RFC3339))
+	fmt.Printf("Updated: %s\n", a.UpdatedAt.Format(time.RFC3339))
 
 	return nil
 }
