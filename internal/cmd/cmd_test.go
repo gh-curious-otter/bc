@@ -164,6 +164,9 @@ func TestStateIcon(t *testing.T) {
 // --- parseRole tests ---
 
 func TestParseRole(t *testing.T) {
+	// All roles are custom now - parseRole accepts any valid alphanumeric name
+	// No alias expansion (pm, coord, tl are returned as-is)
+	// Empty defaults to root
 	tests := []struct {
 		input   string
 		want    agent.Role
@@ -173,14 +176,16 @@ func TestParseRole(t *testing.T) {
 		{"engineer", agent.Role("engineer"), false},
 		{"manager", agent.Role("manager"), false},
 		{"product-manager", agent.Role("product-manager"), false},
-		{"pm", agent.Role("product-manager"), false},
-		{"coordinator", agent.RoleRoot, false},
-		{"coord", agent.RoleRoot, false},
+		{"pm", agent.Role("pm"), false}, // No expansion, returned as-is
+		{"coordinator", agent.Role("coordinator"), false},
+		{"coord", agent.Role("coord"), false}, // No expansion, returned as-is
 		{"qa", agent.Role("qa"), false},
-		{"WORKER", agent.Role("worker"), false},     // case insensitive
-		{"Engineer", agent.Role("engineer"), false}, // case insensitive
-		{"invalid", "", true},
-		{"", "", true},
+		{"WORKER", agent.Role("worker"), false},           // case insensitive (lowercased)
+		{"Engineer", agent.Role("engineer"), false},       // case insensitive (lowercased)
+		{"custom-role", agent.Role("custom-role"), false}, // Custom roles accepted
+		{"", agent.RoleRoot, false},                       // Empty defaults to root
+		{"role@invalid", "", true},                        // Format error (contains @)
+		{"role with space", "", true},                     // Format error (contains space)
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
