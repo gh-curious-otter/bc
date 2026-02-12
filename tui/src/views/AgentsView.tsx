@@ -4,16 +4,15 @@ import { useAgents } from '../hooks';
 import { Table } from '../components/Table';
 import type { Column } from '../components/Table';
 import { StatusBadge } from '../components/StatusBadge';
+import { attachToAgentSession } from '../services/bc';
 import type { Agent } from '../types';
 
 interface AgentsViewProps {
   onBack?: () => void;
-  onSelectAgent?: (agent: Agent) => void;
 }
 
 export const AgentsView: React.FC<AgentsViewProps> = ({
   onBack,
-  onSelectAgent,
 }) => {
   const { data: agents, loading, error, refresh } = useAgents();
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -26,8 +25,10 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
     } else if (key.downArrow || input === 'j') {
       setSelectedIndex((i) => Math.min(agentList.length - 1, i + 1));
     } else if (key.return) {
-      if (agentList[selectedIndex] && onSelectAgent) {
-        onSelectAgent(agentList[selectedIndex]);
+      const selectedAgent = agentList[selectedIndex];
+      if (selectedAgent) {
+        // Attach to agent's tmux session
+        attachToAgentSession(selectedAgent.session);
       }
     } else if (input === 'r') {
       refresh();
@@ -101,7 +102,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       {/* Footer with keybindings */}
       <Box marginTop={1}>
         <Text color="gray">
-          j/k: navigate | Enter: details | r: refresh | q: back
+          j/k: navigate | Enter: attach | r: refresh | q: back
         </Text>
       </Box>
     </Box>
