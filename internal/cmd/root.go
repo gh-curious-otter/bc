@@ -65,6 +65,9 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
+	// Disable auto-generated completion command
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
+
 	// Global flags
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Enable verbose output")
 	rootCmd.PersistentFlags().Bool("json", false, "Output in JSON format")
