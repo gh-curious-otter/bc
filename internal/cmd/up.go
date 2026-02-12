@@ -192,13 +192,6 @@ bc logs --tail N                    # Last N events
 bc logs --full                      # Full messages
 bc logs --json                      # JSON output
 
-** Merge Management **
-bc merge --status                   # Show pending merges
-bc merge --status --json            # JSON format
-bc merge AGENT                      # Merge agents work
-bc merge AGENT --dry-run            # Preview without merging
-bc merge AGENT --rebase             # Rebase onto main first
-
 ** Worktree Health **
 bc worktree list                    # List all worktrees and status
 bc worktree check                   # Check if agent in correct worktree
@@ -248,10 +241,9 @@ bc stats --json                     # JSON format
 === MONITORING WORKFLOW ===
 1. Check system: bc status
 2. Review activity: bc logs --since 1h
-3. Check merges: bc merge --status
-4. Check worktrees: bc worktree list
-5. If agent stuck: bc agent peek NAME → bc agent send NAME "nudge message"
-6. Monitor costs: bc cost show (periodic)
+3. Check worktrees: bc worktree list
+4. If agent stuck: bc agent peek NAME → bc agent send NAME "nudge message"
+5. Monitor costs: bc cost show (periodic)
 
 === HEALTH CHECK PATTERNS ===
 Stuck agent detection:
