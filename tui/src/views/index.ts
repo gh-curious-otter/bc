@@ -6,3 +6,4 @@ export { AgentDetailView } from './AgentDetailView';
 export { MessageHistory } from './MessageHistory';
 export { CostDashboard } from './CostDashboard';
 export { DemonsView } from './DemonsView';
+export { ProcessesView } from './ProcessesView';

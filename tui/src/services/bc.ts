@@ -11,6 +11,7 @@ import type {
   CostSummary,
   Demon,
   DemonRunLog,
+  ProcessListResponse,
 } from '../types';
 
 /**
@@ -22,7 +23,7 @@ import type {
 export async function execBc(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     // Always add --json flag if not present and command supports it
-    const jsonCommands = ['status', 'stats', 'channel', 'cost', 'logs', 'agent'];
+    const jsonCommands = ['status', 'stats', 'channel', 'cost', 'logs', 'agent', 'process', 'demon'];
     const hasJsonFlag = args.includes('--json');
     const command = args[0];
 
@@ -203,4 +204,28 @@ export async function disableDemon(name: string): Promise<void> {
  */
 export async function runDemon(name: string): Promise<void> {
   await execBc(['demon', 'run', name]);
+}
+
+/**
+ * Get list of managed processes
+ */
+export async function getProcesses(): Promise<ProcessListResponse> {
+  return execBcJson<ProcessListResponse>(['process', 'list']);
+}
+
+/**
+ * Get logs for a specific process
+ * @param name - Process name
+ * @param lines - Number of lines to return (optional)
+ */
+export async function getProcessLogs(
+  name: string,
+  lines?: number
+): Promise<string[]> {
+  const args = ['process', 'logs', name];
+  if (lines) {
+    args.push('--lines', String(lines));
+  }
+  const response = await execBcJson<{ name: string; lines: string[] }>(args);
+  return response.lines;
 }

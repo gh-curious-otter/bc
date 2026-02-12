@@ -66,3 +66,12 @@ export {
   type UseListNavigationOptions,
   type UseListNavigationResult,
 } from './useListNavigation';
+
+export {
+  useProcesses,
+  useProcessLogs,
+  type UseProcessesOptions,
+  type UseProcessesResult,
+  type UseProcessLogsOptions,
+  type UseProcessLogsResult,
+} from './useProcesses';
