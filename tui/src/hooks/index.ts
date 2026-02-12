@@ -75,3 +75,10 @@ export {
   type UseProcessLogsOptions,
   type UseProcessLogsResult,
 } from './useProcesses';
+
+export {
+  useMentionAutocomplete,
+  type MentionSuggestion,
+  type UseMentionAutocompleteOptions,
+  type UseMentionAutocompleteResult,
+} from './useMentionAutocomplete';
