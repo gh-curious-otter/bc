@@ -53,20 +53,6 @@ func TestTuiDefaults(t *testing.T) {
 	}
 }
 
-// --- CostsConfig ---
-
-func TestCostsDefaults(t *testing.T) {
-	if !Costs.Enabled {
-		t.Error("Costs.Enabled should be true by default")
-	}
-	if Costs.Limit != 100 {
-		t.Errorf("Costs.Limit = %f, want %f", Costs.Limit, 100.0)
-	}
-	if Costs.WarnThreshold != 10 {
-		t.Errorf("Costs.WarnThreshold = %f, want %f", Costs.WarnThreshold, 10.0)
-	}
-}
-
 // --- Agents list ---
 
 func TestAgentsNotEmpty(t *testing.T) {
@@ -112,87 +98,6 @@ func TestAgentsNamesUnique(t *testing.T) {
 	}
 }
 
-// --- Roles list ---
-
-func TestRolesNotEmpty(t *testing.T) {
-	if len(Roles) == 0 {
-		t.Fatal("Roles list should not be empty")
-	}
-}
-
-func TestRolesHaveRequiredFields(t *testing.T) {
-	for i, r := range Roles {
-		if r.Name == "" {
-			t.Errorf("Roles[%d].Name is empty", i)
-		}
-		if r.Description == "" {
-			t.Errorf("Roles[%d].Description is empty (name=%q)", i, r.Name)
-		}
-		if len(r.Permissions) == 0 {
-			t.Errorf("Roles[%d].Permissions is empty (name=%q)", i, r.Name)
-		}
-	}
-}
-
-func TestRolesContainsExpectedRoles(t *testing.T) {
-	expected := map[string]bool{
-		"product_manager": false,
-		"manager":         false,
-		"engineer":        false,
-	}
-	for _, r := range Roles {
-		if _, ok := expected[r.Name]; ok {
-			expected[r.Name] = true
-		}
-	}
-	for name, found := range expected {
-		if !found {
-			t.Errorf("expected role %q not found in Roles", name)
-		}
-	}
-}
-
-func TestRolesNamesUnique(t *testing.T) {
-	seen := make(map[string]bool)
-	for _, r := range Roles {
-		if seen[r.Name] {
-			t.Errorf("duplicate role name: %q", r.Name)
-		}
-		seen[r.Name] = true
-	}
-}
-
-func TestManagerRoleHasSpawnPermission(t *testing.T) {
-	for _, r := range Roles {
-		if r.Name == "manager" {
-			for _, p := range r.Permissions {
-				if p == "spawn" {
-					return
-				}
-			}
-			t.Error("manager role should have 'spawn' permission")
-		}
-	}
-}
-
-func TestEngineerRoleHasGitPermissions(t *testing.T) {
-	for _, r := range Roles {
-		if r.Name == "engineer" {
-			perms := make(map[string]bool)
-			for _, p := range r.Permissions {
-				perms[p] = true
-			}
-			if !perms["git.branch"] {
-				t.Error("engineer role should have 'git.branch' permission")
-			}
-			if !perms["git.commit"] {
-				t.Error("engineer role should have 'git.commit' permission")
-			}
-			return
-		}
-	}
-}
-
 // --- Struct zero-value / mutability tests ---
 
 func TestAgentLegacyConfigZeroValue(t *testing.T) {
@@ -202,16 +107,6 @@ func TestAgentLegacyConfigZeroValue(t *testing.T) {
 	}
 	if ac.CoordinatorName != "" {
 		t.Error("zero-value AgentLegacyConfig.CoordinatorName should be empty")
-	}
-}
-
-func TestCostsConfigZeroValue(t *testing.T) {
-	var cc CostsConfig
-	if cc.Enabled {
-		t.Error("zero-value CostsConfig.Enabled should be false")
-	}
-	if cc.Limit != 0 {
-		t.Error("zero-value CostsConfig.Limit should be 0")
 	}
 }
 

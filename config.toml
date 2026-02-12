@@ -128,12 +128,6 @@ session_prefix = "bc-"
 refresh_interval = "2s"
 theme = "ayu-dark"  # Options: ayu-dark, nord, gruvbox
 
-# Cost tracking
-[costs]
-enabled = true
-warn_threshold = 10.0   # Warn when session cost exceeds this (USD)
-limit = 100.0           # Hard limit per session (USD), 0 = no limit
-
 # =============================================================================
 # Agent Type Definitions (for reference)
 # =============================================================================
@@ -172,38 +166,3 @@ name = "server"
 command = "claude mcp serve"
 description = "Claude MCP Server"
 
-# =============================================================================
-# Role Definitions
-# =============================================================================
-# Prompts are stored in .bc/prompts/ and copied from root prompts/ on init.
-# This allows per-workspace customization of role prompts.
-
-[[roles]]
-name = "product_manager"
-prompt_file = ".bc/prompts/product_manager.md"
-description = "Defines product vision, creates epics, reviews proposals"
-permissions = ["queue.add", "queue.view", "send", "report"]
-
-[[roles]]
-name = "manager"
-prompt_file = ".bc/prompts/manager.md"
-description = "Breaks down epics, spawns engineers, assigns work, reviews code"
-permissions = ["queue.add", "queue.assign", "queue.complete", "spawn", "send", "report", "git.merge"]
-
-[[roles]]
-name = "engineer"
-prompt_file = ".bc/prompts/engineer.md"
-description = "Implements assigned tasks, writes code and tests"
-permissions = ["queue.view", "report", "git.branch", "git.commit"]
-
-[[roles]]
-name = "tech_lead"
-prompt_file = ".bc/prompts/tech_lead.md"
-description = "Reviews code, coordinates engineers, ensures quality"
-permissions = ["queue.view", "queue.assign", "report", "git.branch", "git.commit", "spawn"]
-
-[[roles]]
-name = "qa"
-prompt_file = ".bc/prompts/qa.md"
-description = "Tests features, verifies quality, reports bugs"
-permissions = ["queue.view", "queue.add", "report", "git.branch"]
