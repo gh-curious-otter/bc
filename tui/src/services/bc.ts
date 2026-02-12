@@ -6,7 +6,6 @@
 import { spawn } from 'child_process';
 import type {
   StatusResponse,
-  Channel,
   ChannelsResponse,
   ChannelHistory,
   CostSummary,
@@ -91,11 +90,10 @@ export async function getStatus(): Promise<StatusResponse> {
 
 /**
  * Get list of channels
- * Note: bc channel list --json returns array directly, we wrap it
+ * Note: bc channel list --json now returns {channels: [...]} format (PR #589)
  */
 export async function getChannels(): Promise<ChannelsResponse> {
-  const channels = await execBcJson<Channel[]>(['channel', 'list']);
-  return { channels };
+  return execBcJson<ChannelsResponse>(['channel', 'list']);
 }
 
 /**
