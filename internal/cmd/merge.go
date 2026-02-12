@@ -503,6 +503,7 @@ func notifyConflicts(rootDir, branch string, conflicts []string) error {
 	if err != nil {
 		store = channel.NewStore(rootDir)
 	}
+	defer func() { _ = store.Close() }()
 	if err := store.Load(); err != nil {
 		return fmt.Errorf("failed to load channel store: %w", err)
 	}

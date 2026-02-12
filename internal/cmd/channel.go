@@ -133,6 +133,7 @@ func runChannelList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer func() { _ = store.Close() }()
 
 	channels := store.List()
 
@@ -179,6 +180,7 @@ func runChannelCreate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer func() { _ = store.Close() }()
 
 	name := strings.TrimSpace(args[0])
 	if name == "" {
@@ -206,6 +208,7 @@ func runChannelAdd(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer func() { _ = store.Close() }()
 
 	channelName := args[0]
 	members := args[1:]
@@ -237,6 +240,7 @@ func runChannelRemove(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer func() { _ = store.Close() }()
 
 	channelName := args[0]
 	member := args[1]
@@ -263,6 +267,7 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer func() { _ = store.Close() }()
 
 	channelName := args[0]
 	message := strings.Join(args[1:], " ")
@@ -348,6 +353,7 @@ func runChannelDelete(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer func() { _ = store.Close() }()
 
 	name := args[0]
 	if err := store.Delete(name); err != nil {
@@ -377,6 +383,7 @@ func runChannelJoin(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer func() { _ = store.Close() }()
 
 	channelName := args[0]
 	if err := store.AddMember(channelName, agentID); err != nil {
@@ -406,6 +413,7 @@ func runChannelLeave(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer func() { _ = store.Close() }()
 
 	channelName := args[0]
 	if err := store.RemoveMember(channelName, agentID); err != nil {
@@ -430,6 +438,7 @@ func runChannelHistory(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer func() { _ = store.Close() }()
 
 	channelName := args[0]
 	history, err := store.GetHistory(channelName)

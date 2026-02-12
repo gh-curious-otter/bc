@@ -138,6 +138,15 @@ func (s *Store) Save() error {
 	return nil
 }
 
+// Close closes the underlying database connection.
+// Safe to call on JSON-backed stores (no-op).
+func (s *Store) Close() error {
+	if s.sqlite != nil {
+		return s.sqlite.Close()
+	}
+	return nil
+}
+
 // Create creates a new channel with the given name.
 func (s *Store) Create(name string) (*Channel, error) {
 	if s.sqlite != nil {
