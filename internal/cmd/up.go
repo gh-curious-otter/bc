@@ -22,7 +22,7 @@ var upCmd = &cobra.Command{
 By default, this only starts the root agent which orchestrates the workspace.
 Other agents can be created or started as needed by the root agent.
 
-Example:
+Examples:
   bc up                      # Start root agent
   bc up --agent cursor       # Use Cursor AI for root agent`,
 	RunE: runUp,

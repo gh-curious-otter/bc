@@ -70,7 +70,7 @@ var agentAttachCmd = &cobra.Command{
 
 Use Ctrl+b d to detach and return to your shell.
 
-Example:
+Examples:
   bc agent attach eng-01   # Attach to eng-01`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAgentAttach,

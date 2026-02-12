@@ -18,7 +18,7 @@ var demonCmd = &cobra.Command{
 
 Demons are scheduled tasks that run at specified intervals using cron syntax.
 
-Example:
+Examples:
   bc demon create backup --schedule '0 * * * *' --cmd 'bc backup'
   bc demon list
   bc demon show backup
@@ -66,7 +66,7 @@ var demonRunCmd = &cobra.Command{
 	Short: "Manually trigger a demon",
 	Long: `Execute a demon's command immediately.
 
-Example:
+Examples:
   bc demon run backup`,
 	Args: cobra.ExactArgs(1),
 	RunE: runDemonRun,
@@ -91,7 +91,7 @@ var demonLogsCmd = &cobra.Command{
 	Short: "Show execution history for a demon",
 	Long: `Show the execution history for a demon.
 
-Example:
+Examples:
   bc demon logs backup           # Show all run history
   bc demon logs backup --tail 5  # Show last 5 runs`,
 	Args: cobra.ExactArgs(1),

@@ -16,7 +16,7 @@ var statsCmd = &cobra.Command{
 	Long: `Display statistics about the current workspace including work item
 metrics, agent utilization, and completion rates.
 
-Example:
+Examples:
   bc stats             # human-readable summary
   bc stats --json      # JSON output for scripting
   bc stats --save      # save stats snapshot to .bc/stats.json`,

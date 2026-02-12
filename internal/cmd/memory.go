@@ -33,7 +33,7 @@ Each agent has a memory directory at .bc/memory/<agent-name>/ containing:
   - experiences.jsonl: Recorded task outcomes
   - learnings.md: Accumulated insights
 
-Example:
+Examples:
   bc memory record "Fixed auth bug"         # Record experience
   bc memory learn "patterns" "Always test"  # Add learning
   bc memory show                            # Show memory for current agent
@@ -48,7 +48,7 @@ var memoryRecordCmd = &cobra.Command{
 
 Requires BC_AGENT_ID environment variable to be set.
 
-Example:
+Examples:
   bc memory record "Fixed auth bug - used JWT tokens"
   bc memory record --outcome success "Implemented feature X"
   bc memory record --task-id TASK-123 "Completed task"`,
@@ -65,7 +65,7 @@ Requires BC_AGENT_ID environment variable to be set.
 
 Categories: patterns, anti-patterns, tips, gotchas
 
-Example:
+Examples:
   bc memory learn patterns "Always check error returns"
   bc memory learn tips "Use context for cancellation"
   bc memory learn anti-patterns "Don't ignore errors"`,
@@ -80,7 +80,7 @@ var memoryShowCmd = &cobra.Command{
 
 If no agent is specified, uses BC_AGENT_ID environment variable.
 
-Example:
+Examples:
   bc memory show                # Show current agent's memory
   bc memory show engineer-01    # Show specific agent's memory
   bc memory show --experiences  # Show only experiences
@@ -94,7 +94,7 @@ var memorySearchCmd = &cobra.Command{
 	Short: "Search agent memories",
 	Long: `Search through experiences and learnings for matching content.
 
-Example:
+Examples:
   bc memory search "auth"
   bc memory search --agent engineer-01 "bug"`,
 	Args: cobra.ExactArgs(1),
@@ -113,7 +113,7 @@ By default, creates a backup before pruning. Use --no-backup to skip.
 
 Use --learnings to also clear learnings (reset to header only).
 
-Example:
+Examples:
   bc memory prune --older-than 30d              # Remove experiences older than 30 days
   bc memory prune --older-than 7d --dry-run     # Preview what would be removed
   bc memory prune --older-than 90d --no-backup  # Prune without backup
@@ -130,7 +130,7 @@ var memoryListCmd = &cobra.Command{
 By default, lists all learning topics (categories) across all agents.
 Use flags to customize the output.
 
-Example:
+Examples:
   bc memory list                    # List all learning topics
   bc memory list --experiences      # List all experiences
   bc memory list --with-size        # Show memory usage per agent

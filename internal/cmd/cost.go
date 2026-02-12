@@ -15,7 +15,7 @@ var costCmd = &cobra.Command{
 	Short: "View cost information",
 	Long: `Commands for viewing API cost information.
 
-Example:
+Examples:
   bc cost show
   bc cost show engineer-01
   bc cost summary --workspace
@@ -27,7 +27,7 @@ var costShowCmd = &cobra.Command{
 	Short: "Show cost records",
 	Long: `Show cost records, optionally filtered by agent.
 
-Example:
+Examples:
   bc cost show
   bc cost show engineer-01`,
 	Args: cobra.MaximumNArgs(1),
@@ -39,7 +39,7 @@ var costSummaryCmd = &cobra.Command{
 	Short: "Show cost summary",
 	Long: `Show aggregated cost summary.
 
-Example:
+Examples:
   bc cost summary --workspace
   bc cost summary --team engineering
   bc cost summary --agent engineer-01
@@ -58,7 +58,7 @@ Shows:
   - Per-team breakdown
   - Per-model breakdown
 
-Example:
+Examples:
   bc cost dashboard`,
 	RunE: runCostDashboard,
 }
@@ -68,7 +68,7 @@ var costBudgetCmd = &cobra.Command{
 	Short: "Manage cost budgets",
 	Long: `Commands for managing cost budgets and limits.
 
-Example:
+Examples:
   bc cost budget show
   bc cost budget set 100.00
   bc cost budget set 50.00 --agent engineer-01

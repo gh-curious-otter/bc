@@ -17,7 +17,7 @@ var logsCmd = &cobra.Command{
 	Short: "View the event log",
 	Long: `View the bc event log showing agent spawns, stops, work assignments, and reports.
 
-Example:
+Examples:
   bc logs                    # all events
   bc logs --agent worker-01  # filter by agent
   bc logs --type agent.report # filter by event type
