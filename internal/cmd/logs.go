@@ -17,7 +17,7 @@ var logsCmd = &cobra.Command{
 	Short: "View the event log",
 	Long: `View the bc event log showing agent spawns, stops, work assignments, and reports.
 
-Example:
+Examples:
   bc logs                    # all events
   bc logs --agent worker-01  # filter by agent
   bc logs --type agent.report # filter by event type
@@ -148,6 +148,12 @@ func runLogs(cmd *cobra.Command, args []string) error {
 		agentStr := ""
 		if ev.Agent != "" {
 			agentStr = fmt.Sprintf(" [%s]", ev.Agent)
+		}
+		// For message.sent, show sender → recipient
+		if ev.Type == events.MessageSent && ev.Data != nil {
+			if recipient, ok := ev.Data["recipient"].(string); ok && recipient != "" {
+				agentStr = fmt.Sprintf(" [%s] → [%s]", ev.Agent, recipient)
+			}
 		}
 		msg := ""
 		if ev.Message != "" {

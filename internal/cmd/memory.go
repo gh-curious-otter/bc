@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,7 +34,7 @@ Each agent has a memory directory at .bc/memory/<agent-name>/ containing:
   - experiences.jsonl: Recorded task outcomes
   - learnings.md: Accumulated insights
 
-Example:
+Examples:
   bc memory record "Fixed auth bug"         # Record experience
   bc memory learn "patterns" "Always test"  # Add learning
   bc memory show                            # Show memory for current agent
@@ -48,7 +49,7 @@ var memoryRecordCmd = &cobra.Command{
 
 Requires BC_AGENT_ID environment variable to be set.
 
-Example:
+Examples:
   bc memory record "Fixed auth bug - used JWT tokens"
   bc memory record --outcome success "Implemented feature X"
   bc memory record --task-id TASK-123 "Completed task"`,
@@ -65,7 +66,7 @@ Requires BC_AGENT_ID environment variable to be set.
 
 Categories: patterns, anti-patterns, tips, gotchas
 
-Example:
+Examples:
   bc memory learn patterns "Always check error returns"
   bc memory learn tips "Use context for cancellation"
   bc memory learn anti-patterns "Don't ignore errors"`,
@@ -80,7 +81,7 @@ var memoryShowCmd = &cobra.Command{
 
 If no agent is specified, uses BC_AGENT_ID environment variable.
 
-Example:
+Examples:
   bc memory show                # Show current agent's memory
   bc memory show engineer-01    # Show specific agent's memory
   bc memory show --experiences  # Show only experiences
@@ -94,7 +95,7 @@ var memorySearchCmd = &cobra.Command{
 	Short: "Search agent memories",
 	Long: `Search through experiences and learnings for matching content.
 
-Example:
+Examples:
   bc memory search "auth"
   bc memory search --agent engineer-01 "bug"`,
 	Args: cobra.ExactArgs(1),
@@ -111,25 +112,131 @@ are always preserved regardless of age.
 
 By default, creates a backup before pruning. Use --no-backup to skip.
 
-Example:
+Use --learnings to also clear learnings (reset to header only).
+
+Examples:
   bc memory prune --older-than 30d              # Remove experiences older than 30 days
   bc memory prune --older-than 7d --dry-run     # Preview what would be removed
   bc memory prune --older-than 90d --no-backup  # Prune without backup
-  bc memory prune --agent engineer-01           # Prune specific agent`,
+  bc memory prune --agent engineer-01           # Prune specific agent
+  bc memory prune --learnings                   # Also clear learnings`,
 	RunE: runMemoryPrune,
 }
 
+var memoryListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all agent memories",
+	Long: `List all learning topics, experiences, and memory usage.
+
+By default, lists all learning topics (categories) across all agents.
+Use flags to customize the output.
+
+Examples:
+  bc memory list                    # List all learning topics
+  bc memory list --experiences      # List all experiences
+  bc memory list --with-size        # Show memory usage per agent
+  bc memory list --agent NAME       # List specific agent's memory`,
+	RunE: runMemoryList,
+}
+
+var memoryClearCmd = &cobra.Command{
+	Use:   "clear <agent>",
+	Short: "Clear an agent's memory",
+	Long: `Clear all experiences and/or learnings from an agent's memory.
+
+By default, clears both experiences and learnings.
+Use --experiences or --learnings to clear selectively.
+Requires confirmation unless --force is specified.
+
+Example:
+  bc memory clear engineer-01              # Clear all (requires confirmation)
+  bc memory clear engineer-01 --force      # Clear all without confirmation
+  bc memory clear engineer-01 --experiences  # Clear only experiences
+  bc memory clear engineer-01 --learnings    # Clear only learnings`,
+	Args: cobra.ExactArgs(1),
+	RunE: runMemoryClear,
+}
+
+var memoryExportCmd = &cobra.Command{
+	Use:   "export <agent>",
+	Short: "Export agent memory to JSON",
+	Long: `Export an agent's memory (experiences and learnings) to JSON format.
+
+Output can be written to stdout or saved to a file with --output flag.
+
+Example:
+  bc memory export engineer-01                # Print JSON to stdout
+  bc memory export engineer-01 --output mem.json  # Save to file
+  bc memory export engineer-01 --experiences      # Export only experiences
+  bc memory export engineer-01 --learnings        # Export only learnings`,
+	Args: cobra.ExactArgs(1),
+	RunE: runMemoryExport,
+}
+
+var memoryForgetCmd = &cobra.Command{
+	Use:   "forget <agent> <topic>",
+	Short: "Remove a learning topic from memory",
+	Long: `Remove a specific learning topic and all its entries from an agent's memory.
+
+Use 'bc memory list' to see available topics.
+
+Example:
+  bc memory forget engineer-01 patterns      # Remove "patterns" topic
+  bc memory forget engineer-01 anti-patterns # Remove "anti-patterns" topic`,
+	Args: cobra.ExactArgs(2),
+	RunE: runMemoryForget,
+}
+
+var memoryImportCmd = &cobra.Command{
+	Use:   "import <agent> <file>",
+	Short: "Import memories from a file",
+	Long: `Import experiences and learnings from a JSON file.
+
+The import file should contain an object with optional "experiences" and "learnings" arrays.
+By default, imported memories are merged with existing ones.
+Use --replace to overwrite all existing memories.
+
+File format (JSON):
+  {
+    "experiences": [
+      {"description": "...", "outcome": "success", ...}
+    ],
+    "learnings": {
+      "category": ["learning1", "learning2"]
+    }
+  }
+
+Example:
+  bc memory import engineer-01 backup.json
+  bc memory import engineer-01 backup.json --replace
+  bc memory import engineer-01 backup.json --dry-run`,
+	Args: cobra.ExactArgs(2),
+	RunE: runMemoryImport,
+}
+
 var (
-	memoryOutcome     string
-	memoryTaskID      string
-	memoryTaskType    string
-	memoryShowExp     bool
-	memoryShowLearn   bool
-	memorySearchAgent string
-	memoryPruneAgent  string
-	memoryOlderThan   string
-	memoryDryRun      bool
-	memoryNoBackup    bool
+	memoryOutcome          string
+	memoryTaskID           string
+	memoryTaskType         string
+	memoryShowExp          bool
+	memoryShowLearn        bool
+	memorySearchAgent      string
+	memoryPruneAgent       string
+	memoryOlderThan        string
+	memoryDryRun           bool
+	memoryNoBackup         bool
+	memoryIncludeLearnings bool
+	memoryListAgent        string
+	memoryListExp          bool
+	memoryListSize         bool
+	memoryClearExp         bool
+	memoryClearLearn       bool
+	memoryClearForce       bool
+	memoryExportOutput     string
+	memoryExportExp        bool
+	memoryExportLearn      bool
+	memoryImportReplace    bool
+	memoryImportDryRun     bool
 )
 
 func init() {
@@ -146,12 +253,33 @@ func init() {
 	memoryPruneCmd.Flags().StringVar(&memoryOlderThan, "older-than", "30d", "Remove experiences older than this duration (e.g., 7d, 30d, 90d)")
 	memoryPruneCmd.Flags().BoolVar(&memoryDryRun, "dry-run", false, "Preview what would be removed without actually deleting")
 	memoryPruneCmd.Flags().BoolVar(&memoryNoBackup, "no-backup", false, "Skip creating backup before pruning")
+	memoryPruneCmd.Flags().BoolVar(&memoryIncludeLearnings, "learnings", false, "Also clear learnings (reset to header only)")
+
+	memoryListCmd.Flags().StringVar(&memoryListAgent, "agent", "", "List specific agent's memory")
+	memoryListCmd.Flags().BoolVar(&memoryListExp, "experiences", false, "List experiences instead of learning topics")
+	memoryListCmd.Flags().BoolVar(&memoryListSize, "with-size", false, "Show memory usage per agent")
+
+	memoryClearCmd.Flags().BoolVar(&memoryClearExp, "experiences", false, "Clear only experiences")
+	memoryClearCmd.Flags().BoolVar(&memoryClearLearn, "learnings", false, "Clear only learnings")
+	memoryClearCmd.Flags().BoolVar(&memoryClearForce, "force", false, "Skip confirmation prompt")
+
+	memoryExportCmd.Flags().StringVarP(&memoryExportOutput, "output", "o", "", "Output file (default: stdout)")
+	memoryExportCmd.Flags().BoolVar(&memoryExportExp, "experiences", false, "Export only experiences")
+	memoryExportCmd.Flags().BoolVar(&memoryExportLearn, "learnings", false, "Export only learnings")
+
+	memoryImportCmd.Flags().BoolVar(&memoryImportReplace, "replace", false, "Replace existing memories instead of merging")
+	memoryImportCmd.Flags().BoolVar(&memoryImportDryRun, "dry-run", false, "Preview what would be imported without making changes")
 
 	memoryCmd.AddCommand(memoryRecordCmd)
 	memoryCmd.AddCommand(memoryLearnCmd)
 	memoryCmd.AddCommand(memoryShowCmd)
 	memoryCmd.AddCommand(memorySearchCmd)
 	memoryCmd.AddCommand(memoryPruneCmd)
+	memoryCmd.AddCommand(memoryListCmd)
+	memoryCmd.AddCommand(memoryClearCmd)
+	memoryCmd.AddCommand(memoryExportCmd)
+	memoryCmd.AddCommand(memoryForgetCmd)
+	memoryCmd.AddCommand(memoryImportCmd)
 	rootCmd.AddCommand(memoryCmd)
 }
 
@@ -539,9 +667,10 @@ func runMemoryPrune(cmd *cobra.Command, args []string) error {
 		}
 
 		opts := memory.PruneOptions{
-			OlderThan: duration,
-			DryRun:    memoryDryRun,
-			Backup:    !memoryNoBackup,
+			OlderThan:        duration,
+			DryRun:           memoryDryRun,
+			Backup:           !memoryNoBackup,
+			IncludeLearnings: memoryIncludeLearnings,
 		}
 
 		result, pruneErr := store.Prune(opts)
@@ -550,7 +679,7 @@ func runMemoryPrune(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		if result.PrunedExperiences > 0 || result.PreservedPinned > 0 {
+		if result.PrunedExperiences > 0 || result.PreservedPinned > 0 || result.LearningsCleared {
 			cmd.Printf("[%s] ", agentID)
 			if memoryDryRun {
 				cmd.Printf("Would prune %d/%d experiences", result.PrunedExperiences, result.TotalExperiences)
@@ -559,6 +688,13 @@ func runMemoryPrune(cmd *cobra.Command, args []string) error {
 			}
 			if result.PreservedPinned > 0 {
 				cmd.Printf(" (preserved %d pinned)", result.PreservedPinned)
+			}
+			if result.LearningsCleared {
+				if memoryDryRun {
+					cmd.Printf(", would clear learnings")
+				} else {
+					cmd.Printf(", cleared learnings")
+				}
 			}
 			if result.BackupPath != "" {
 				cmd.Printf("\n    Backup: %s", result.BackupPath)
@@ -586,6 +722,177 @@ func runMemoryPrune(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+func runMemoryList(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	// Determine which agents to list
+	var agents []string
+	if memoryListAgent != "" {
+		agents = []string{memoryListAgent}
+	} else {
+		// List all agents with memory directories
+		memoryRoot := filepath.Join(ws.RootDir, ".bc", "memory")
+		entries, readErr := os.ReadDir(memoryRoot)
+		if readErr != nil {
+			if os.IsNotExist(readErr) {
+				cmd.Println("No agent memories found")
+				return nil
+			}
+			return fmt.Errorf("failed to read memory directory: %w", readErr)
+		}
+		for _, entry := range entries {
+			if entry.IsDir() {
+				agents = append(agents, entry.Name())
+			}
+		}
+	}
+
+	if len(agents) == 0 {
+		cmd.Println("No agent memories found")
+		return nil
+	}
+
+	// Sort agents alphabetically
+	sort.Strings(agents)
+
+	if memoryListExp {
+		// List experiences
+		return listExperiences(cmd, ws.RootDir, agents)
+	}
+
+	// List learning topics (default)
+	return listLearningTopics(cmd, ws.RootDir, agents, memoryListSize)
+}
+
+// listLearningTopics lists all learning categories across agents.
+func listLearningTopics(cmd *cobra.Command, rootDir string, agents []string, withSize bool) error {
+	// Track topics per agent
+	type agentTopics struct {
+		agent  string
+		topics []string
+		size   int64
+	}
+
+	var allAgentTopics []agentTopics
+
+	for _, agentID := range agents {
+		store := memory.NewStore(rootDir, agentID)
+		if !store.Exists() {
+			continue
+		}
+
+		at := agentTopics{agent: agentID}
+
+		// Get size if requested
+		if withSize {
+			size, _ := store.GetSize()
+			at.size = size
+		}
+
+		// Get learnings and extract topics (## headings)
+		learnings, err := store.GetLearnings()
+		if err != nil {
+			continue
+		}
+
+		lines := strings.Split(learnings, "\n")
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "## ") {
+				topic := strings.TrimPrefix(trimmed, "## ")
+				at.topics = append(at.topics, topic)
+			}
+		}
+
+		allAgentTopics = append(allAgentTopics, at)
+	}
+
+	if len(allAgentTopics) == 0 {
+		cmd.Println("No learning topics found")
+		return nil
+	}
+
+	cmd.Println("=== Learning Topics ===")
+	cmd.Println()
+
+	for _, at := range allAgentTopics {
+		if withSize {
+			cmd.Printf("[%s] (%s)\n", at.agent, formatBytes(at.size))
+		} else {
+			cmd.Printf("[%s]\n", at.agent)
+		}
+
+		if len(at.topics) == 0 {
+			cmd.Println("  (no topics)")
+		} else {
+			for _, topic := range at.topics {
+				cmd.Printf("  - %s\n", topic)
+			}
+		}
+		cmd.Println()
+	}
+
+	return nil
+}
+
+// listExperiences lists all experiences across agents.
+func listExperiences(cmd *cobra.Command, rootDir string, agents []string) error {
+	totalExp := 0
+
+	for _, agentID := range agents {
+		store := memory.NewStore(rootDir, agentID)
+		if !store.Exists() {
+			continue
+		}
+
+		experiences, err := store.GetExperiences()
+		if err != nil {
+			continue
+		}
+
+		if len(experiences) == 0 {
+			continue
+		}
+
+		cmd.Printf("[%s] %d experience(s)\n", agentID, len(experiences))
+
+		// Show most recent 5 experiences per agent
+		start := 0
+		if len(experiences) > 5 {
+			start = len(experiences) - 5
+			cmd.Printf("  (showing last 5 of %d)\n", len(experiences))
+		}
+
+		for i := start; i < len(experiences); i++ {
+			exp := experiences[i]
+			date := exp.Timestamp.Format("2006-01-02")
+			cmd.Printf("  - [%s] %s: %s\n", exp.Outcome, date, truncate(exp.Description, 60))
+		}
+		cmd.Println()
+
+		totalExp += len(experiences)
+	}
+
+	if totalExp == 0 {
+		cmd.Println("No experiences found")
+		return nil
+	}
+
+	cmd.Printf("Total: %d experience(s) across %d agent(s)\n", totalExp, len(agents))
+	return nil
+}
+
+// truncate shortens a string to maxLen characters, adding "..." if truncated.
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
 }
 
 // parseDuration parses a duration string like "30d", "7d", "24h".
@@ -620,4 +927,265 @@ func formatBytes(b int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
+}
+
+func runMemoryClear(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	agentID := args[0]
+	store := memory.NewStore(ws.RootDir, agentID)
+
+	if !store.Exists() {
+		return fmt.Errorf("no memory found for agent %s", agentID)
+	}
+
+	// Determine what to clear
+	clearExp := memoryClearExp || (!memoryClearExp && !memoryClearLearn)
+	clearLearn := memoryClearLearn || (!memoryClearExp && !memoryClearLearn)
+
+	// Get current counts for confirmation message
+	var expCount int
+	if clearExp {
+		experiences, _ := store.GetExperiences()
+		expCount = len(experiences)
+	}
+
+	// Confirmation prompt unless --force
+	if !memoryClearForce {
+		what := []string{}
+		if clearExp {
+			what = append(what, fmt.Sprintf("%d experience(s)", expCount))
+		}
+		if clearLearn {
+			what = append(what, "learnings")
+		}
+
+		cmd.Printf("This will clear %s for agent %s.\n", strings.Join(what, " and "), agentID)
+		cmd.Print("Are you sure? [y/N]: ")
+
+		var response string
+		if _, scanErr := fmt.Scanln(&response); scanErr != nil || (response != "y" && response != "Y") {
+			cmd.Println("Aborted.")
+			return nil
+		}
+	}
+
+	result, err := store.Clear(clearExp, clearLearn)
+	if err != nil {
+		return fmt.Errorf("failed to clear memory: %w", err)
+	}
+
+	// Report what was cleared
+	if result.ExperiencesCleared > 0 {
+		cmd.Printf("Cleared %d experience(s)\n", result.ExperiencesCleared)
+	}
+	if result.LearningsCleared {
+		cmd.Println("Cleared learnings (reset to header)")
+	}
+	cmd.Printf("Memory cleared for agent %s\n", agentID)
+
+	return nil
+}
+
+// MemoryExport represents the exported memory structure.
+//
+//nolint:govet // JSON field order is more important than memory layout
+type MemoryExport struct {
+	Agent       string              `json:"agent"`
+	ExportedAt  time.Time           `json:"exported_at"`
+	Experiences []memory.Experience `json:"experiences,omitempty"`
+	Learnings   string              `json:"learnings,omitempty"`
+}
+
+func runMemoryExport(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	agentID := args[0]
+	store := memory.NewStore(ws.RootDir, agentID)
+	if !store.Exists() {
+		return fmt.Errorf("no memory found for agent %s", agentID)
+	}
+
+	export := MemoryExport{
+		Agent:      agentID,
+		ExportedAt: time.Now().UTC(),
+	}
+
+	exportBoth := !memoryExportExp && !memoryExportLearn
+
+	// Get experiences
+	if exportBoth || memoryExportExp {
+		experiences, expErr := store.GetExperiences()
+		if expErr != nil {
+			return fmt.Errorf("failed to get experiences: %w", expErr)
+		}
+		export.Experiences = experiences
+	}
+
+	// Get learnings
+	if exportBoth || memoryExportLearn {
+		learnings, learnErr := store.GetLearnings()
+		if learnErr != nil {
+			return fmt.Errorf("failed to get learnings: %w", learnErr)
+		}
+		export.Learnings = learnings
+	}
+
+	// Marshal to JSON
+	data, err := json.MarshalIndent(export, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal export: %w", err)
+	}
+
+	// Write output
+	if memoryExportOutput != "" {
+		if err := os.WriteFile(memoryExportOutput, data, 0600); err != nil {
+			return fmt.Errorf("failed to write output file: %w", err)
+		}
+		cmd.Printf("Exported memory for %s to %s\n", agentID, memoryExportOutput)
+		cmd.Printf("  Experiences: %d\n", len(export.Experiences))
+		if export.Learnings != "" {
+			cmd.Printf("  Learnings: %d bytes\n", len(export.Learnings))
+		}
+	} else {
+		cmd.Println(string(data))
+	}
+
+	return nil
+}
+
+func runMemoryForget(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	agentID := args[0]
+	topic := args[1]
+
+	store := memory.NewStore(ws.RootDir, agentID)
+	if !store.Exists() {
+		return fmt.Errorf("no memory found for agent %s", agentID)
+	}
+
+	// List available topics to help user
+	topics, listErr := store.ListTopics()
+	if listErr != nil {
+		return fmt.Errorf("failed to list topics: %w", listErr)
+	}
+
+	entriesRemoved, err := store.ForgetTopic(topic)
+	if err != nil {
+		// If topic not found, show available topics
+		if len(topics) > 0 {
+			cmd.Printf("Available topics for %s: %s\n", agentID, strings.Join(topics, ", "))
+		}
+		return err
+	}
+
+	cmd.Printf("Removed topic %q from %s (%d entries deleted)\n", topic, agentID, entriesRemoved)
+	return nil
+}
+
+// MemoryImport represents the import file format.
+type MemoryImport struct {
+	Learnings   map[string][]string `json:"learnings,omitempty"`
+	Experiences []memory.Experience `json:"experiences,omitempty"`
+}
+
+func runMemoryImport(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	agentID := args[0]
+	filePath := args[1]
+
+	// Read the import file
+	data, err := os.ReadFile(filePath) //nolint:gosec // path provided by user
+	if err != nil {
+		return fmt.Errorf("failed to read import file: %w", err)
+	}
+
+	// Parse the import file
+	var importData MemoryImport
+	if err := json.Unmarshal(data, &importData); err != nil {
+		return fmt.Errorf("failed to parse import file: %w", err)
+	}
+
+	store := memory.NewStore(ws.RootDir, agentID)
+
+	// Initialize memory if it doesn't exist
+	if !store.Exists() {
+		if initErr := store.Init(); initErr != nil {
+			return fmt.Errorf("failed to initialize memory: %w", initErr)
+		}
+	}
+
+	// Dry run mode - just show what would be imported
+	if memoryImportDryRun {
+		cmd.Println("=== Dry Run (no changes will be made) ===")
+		cmd.Println()
+		cmd.Printf("Agent: %s\n", agentID)
+		cmd.Printf("File: %s\n", filePath)
+		cmd.Println()
+
+		if memoryImportReplace {
+			cmd.Println("Mode: REPLACE (existing memories will be cleared)")
+		} else {
+			cmd.Println("Mode: MERGE (memories will be added to existing)")
+		}
+		cmd.Println()
+
+		cmd.Printf("Experiences to import: %d\n", len(importData.Experiences))
+		learningCount := 0
+		for _, learnings := range importData.Learnings {
+			learningCount += len(learnings)
+		}
+		cmd.Printf("Learnings to import: %d (in %d categories)\n", learningCount, len(importData.Learnings))
+		return nil
+	}
+
+	// Replace mode - clear existing memories first
+	if memoryImportReplace {
+		if _, clearErr := store.Clear(true, true); clearErr != nil {
+			return fmt.Errorf("failed to clear existing memories: %w", clearErr)
+		}
+		cmd.Printf("Cleared existing memories for %s\n", agentID)
+	}
+
+	// Import experiences
+	expCount := 0
+	for _, exp := range importData.Experiences {
+		if err := store.RecordExperience(exp); err != nil {
+			cmd.Printf("Warning: failed to import experience: %v\n", err)
+			continue
+		}
+		expCount++
+	}
+
+	// Import learnings
+	learnCount := 0
+	for category, learnings := range importData.Learnings {
+		for _, learning := range learnings {
+			if err := store.AddLearning(category, learning); err != nil {
+				cmd.Printf("Warning: failed to import learning: %v\n", err)
+				continue
+			}
+			learnCount++
+		}
+	}
+
+	cmd.Printf("Imported memories for %s:\n", agentID)
+	cmd.Printf("  Experiences: %d\n", expCount)
+	cmd.Printf("  Learnings: %d\n", learnCount)
+
+	return nil
 }

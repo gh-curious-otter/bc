@@ -16,7 +16,7 @@ var downCmd = &cobra.Command{
 
 This will gracefully stop all agent tmux sessions.
 
-Example:
+Examples:
   bc down          # Stop all agents
   bc down --force  # Force kill without cleanup`,
 	RunE: runDown,

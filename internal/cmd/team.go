@@ -15,7 +15,7 @@ var teamCmd = &cobra.Command{
 
 Teams group agents together for collaboration and organization.
 
-Example:
+Examples:
   bc team create engineering
   bc team list
   bc team show engineering

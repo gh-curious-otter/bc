@@ -22,7 +22,7 @@ var reportCmd = &cobra.Command{
 
 Valid states: idle, working, done, stuck, error
 
-Example:
+Examples:
   bc report working "fixing auth bug"
   bc report done "auth bug fixed"
   bc report stuck "need database credentials"`,

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -322,11 +323,13 @@ func (m *Manager) ListSessions() ([]Session, error) {
 			continue
 		}
 
+		windows, _ := strconv.Atoi(parts[3])
 		sessions = append(sessions, Session{
 			Name:      strings.TrimPrefix(name, fullPrefix),
 			Created:   parts[1],
-			Attached:  parts[2] == "1",
 			Directory: parts[4],
+			Windows:   windows,
+			Attached:  parts[2] == "1",
 		})
 	}
 
@@ -358,14 +361,22 @@ func (m *Manager) IsRunning() bool {
 // KillServer kills the tmux server (all sessions).
 func (m *Manager) KillServer() error {
 	cmd := m.command("tmux", "kill-server")
-	return cmd.Run()
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to kill tmux server: %w (%s)", err, string(output))
+	}
+	return nil
 }
 
 // SetEnvironment sets an environment variable in a session.
 func (m *Manager) SetEnvironment(name, key, value string) error {
 	fullName := m.SessionName(name)
 	cmd := m.command("tmux", "set-environment", "-t", fullName, key, value)
-	return cmd.Run()
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to set environment %s=%s in session %s: %w (%s)", key, value, fullName, err, string(output))
+	}
+	return nil
 }
 
 // generateBufferName creates a unique buffer name for tmux operations.

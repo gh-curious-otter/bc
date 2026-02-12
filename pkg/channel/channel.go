@@ -12,6 +12,8 @@ import (
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // HistoryEntry represents a message in channel history.
@@ -138,6 +140,15 @@ func (s *Store) Save() error {
 	return nil
 }
 
+// Close closes the underlying database connection.
+// Safe to call on JSON-backed stores (no-op).
+func (s *Store) Close() error {
+	if s.sqlite != nil {
+		return s.sqlite.Close()
+	}
+	return nil
+}
+
 // Create creates a new channel with the given name.
 func (s *Store) Create(name string) (*Channel, error) {
 	if s.sqlite != nil {
@@ -164,8 +175,14 @@ func (s *Store) Get(name string) (*Channel, bool) {
 		if err != nil || info == nil {
 			return nil, false
 		}
-		members, _ := s.sqlite.GetMembers(name)
-		msgs, _ := s.sqlite.GetHistory(name, 100)
+		members, err := s.sqlite.GetMembers(name)
+		if err != nil {
+			log.Warn("failed to get channel members", "channel", name, "error", err)
+		}
+		msgs, err := s.sqlite.GetHistory(name, 100)
+		if err != nil {
+			log.Warn("failed to get channel history", "channel", name, "error", err)
+		}
 		ch := sqliteToChannel(info, members, msgs)
 		return ch, true
 	}
@@ -184,8 +201,14 @@ func (s *Store) List() []*Channel {
 		}
 		out := make([]*Channel, 0, len(infos))
 		for _, info := range infos {
-			members, _ := s.sqlite.GetMembers(info.Name)
-			msgs, _ := s.sqlite.GetHistory(info.Name, 100)
+			members, err := s.sqlite.GetMembers(info.Name)
+			if err != nil {
+				log.Warn("failed to get channel members", "channel", info.Name, "error", err)
+			}
+			msgs, err := s.sqlite.GetHistory(info.Name, 100)
+			if err != nil {
+				log.Warn("failed to get channel history", "channel", info.Name, "error", err)
+			}
 			out = append(out, sqliteToChannel(info, members, msgs))
 		}
 		return out

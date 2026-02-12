@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // Experience represents a recorded task outcome.
@@ -100,16 +102,44 @@ func (s *Store) RecordExperience(exp Experience) error {
 }
 
 // AddLearning appends a learning to the learnings.md file.
+// If the category already exists, the learning is appended under that category.
+// Otherwise, a new category section is created.
 func (s *Store) AddLearning(category, learning string) error {
-	f, err := os.OpenFile(s.learningsPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) //nolint:gosec // path constructed from trusted memoryDir
+	// Read existing content
+	content, err := s.GetLearnings()
 	if err != nil {
-		return fmt.Errorf("failed to open learnings file: %w", err)
+		return fmt.Errorf("failed to read learnings: %w", err)
 	}
-	defer func() { _ = f.Close() }()
 
-	entry := fmt.Sprintf("\n## %s\n\n- %s\n", category, learning)
-	if _, writeErr := f.WriteString(entry); writeErr != nil {
-		return fmt.Errorf("failed to write learning: %w", writeErr)
+	categoryHeader := "## " + category
+	newLearning := "- " + learning
+
+	var newContent string
+	if strings.Contains(content, categoryHeader) {
+		// Category exists - insert learning after the header
+		// Find the category header position
+		headerIdx := strings.Index(content, categoryHeader)
+		// Find the end of the header line
+		headerEndIdx := headerIdx + len(categoryHeader)
+		if headerEndIdx < len(content) && content[headerEndIdx] == '\n' {
+			headerEndIdx++
+		}
+
+		// Skip any blank lines after the header
+		for headerEndIdx < len(content) && content[headerEndIdx] == '\n' {
+			headerEndIdx++
+		}
+
+		// Insert the new learning
+		newContent = content[:headerEndIdx] + newLearning + "\n" + content[headerEndIdx:]
+	} else {
+		// Category doesn't exist - append new section
+		newContent = content + "\n## " + category + "\n\n" + newLearning + "\n"
+	}
+
+	// Write the updated content
+	if err := os.WriteFile(s.learningsPath(), []byte(newContent), 0600); err != nil { //nolint:gosec // path constructed from trusted memoryDir
+		return fmt.Errorf("failed to write learnings: %w", err)
 	}
 
 	return nil
@@ -127,13 +157,14 @@ func (s *Store) GetExperiences() ([]Experience, error) {
 
 	var experiences []Experience
 	lines := splitLines(data)
-	for _, line := range lines {
+	for i, line := range lines {
 		if len(line) == 0 {
 			continue
 		}
 		var exp Experience
 		if unmarshalErr := json.Unmarshal(line, &exp); unmarshalErr != nil {
-			continue // Skip malformed lines
+			log.Warn("skipping malformed experience entry", "line", i+1, "error", unmarshalErr)
+			continue
 		}
 		experiences = append(experiences, exp)
 	}
@@ -151,6 +182,48 @@ func (s *Store) GetLearnings() (string, error) {
 		return "", fmt.Errorf("failed to read learnings: %w", err)
 	}
 	return string(data), nil
+}
+
+// clearLearnings resets the learnings file to just the header.
+func (s *Store) clearLearnings() error {
+	header := fmt.Sprintf("# %s Learnings\n\nThis file contains insights and learnings accumulated by %s.\n\n", s.agentName, s.agentName)
+	if err := os.WriteFile(s.learningsPath(), []byte(header), 0600); err != nil { //nolint:gosec // path constructed from trusted memoryDir
+		return fmt.Errorf("failed to reset learnings file: %w", err)
+	}
+	return nil
+}
+
+// ClearResult holds the result of a Clear operation.
+type ClearResult struct {
+	ExperiencesCleared int  // number of experiences removed
+	LearningsCleared   bool // whether learnings were cleared
+}
+
+// Clear removes all experiences and/or learnings from the agent's memory.
+// If clearExperiences is true, removes all experiences.
+// If clearLearnings is true, resets learnings to the header.
+func (s *Store) Clear(clearExperiences, clearLearningsFlag bool) (*ClearResult, error) {
+	result := &ClearResult{}
+
+	if clearExperiences {
+		// Count existing experiences before clearing
+		existing, _ := s.GetExperiences()
+		result.ExperiencesCleared = len(existing)
+
+		// Clear by writing empty experiences file
+		if err := os.WriteFile(s.experiencesPath(), []byte{}, 0600); err != nil { //nolint:gosec // path constructed from trusted memoryDir
+			return nil, fmt.Errorf("failed to clear experiences: %w", err)
+		}
+	}
+
+	if clearLearningsFlag {
+		if err := s.clearLearnings(); err != nil {
+			return nil, err
+		}
+		result.LearningsCleared = true
+	}
+
+	return result, nil
 }
 
 // MemoryDir returns the path to the agent's memory directory.
@@ -190,9 +263,10 @@ const DefaultSizeThreshold = 1024 * 1024 // 1MB
 
 // PruneOptions configures the prune operation.
 type PruneOptions struct {
-	OlderThan time.Duration // Remove experiences older than this duration
-	DryRun    bool          // If true, don't actually delete, just report
-	Backup    bool          // If true, create backup before pruning
+	OlderThan        time.Duration // Remove experiences older than this duration
+	DryRun           bool          // If true, don't actually delete, just report
+	Backup           bool          // If true, create backup before pruning
+	IncludeLearnings bool          // If true, also clear learnings (reset to header only)
 }
 
 // PruneResult contains statistics from a prune operation.
@@ -203,6 +277,7 @@ type PruneResult struct {
 	TotalExperiences  int
 	PrunedExperiences int
 	PreservedPinned   int
+	LearningsCleared  bool // True if learnings were cleared
 }
 
 // Prune removes old experiences based on the provided options.
@@ -274,7 +349,95 @@ func (s *Store) Prune(opts PruneOptions) (*PruneResult, error) {
 		result.BytesAfterPrune = info.Size()
 	}
 
+	// Clear learnings if requested
+	if opts.IncludeLearnings && !opts.DryRun {
+		if err := s.clearLearnings(); err != nil {
+			return nil, fmt.Errorf("failed to clear learnings: %w", err)
+		}
+		result.LearningsCleared = true
+	} else if opts.IncludeLearnings && opts.DryRun {
+		result.LearningsCleared = true // Would be cleared
+	}
+
 	return result, nil
+}
+
+// ForgetTopic removes a specific learning topic and all its entries.
+// Returns the number of entries removed, or an error if the topic doesn't exist.
+func (s *Store) ForgetTopic(topic string) (int, error) {
+	content, err := s.GetLearnings()
+	if err != nil {
+		return 0, fmt.Errorf("failed to read learnings: %w", err)
+	}
+
+	topicHeader := "## " + topic
+	if !strings.Contains(content, topicHeader) {
+		return 0, fmt.Errorf("topic %q not found", topic)
+	}
+
+	// Find the topic section
+	lines := strings.Split(content, "\n")
+	var newLines []string
+	inTopic := false
+	entriesRemoved := 0
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Check if this is the target topic header
+		if trimmed == topicHeader {
+			inTopic = true
+			continue
+		}
+
+		// Check if we've reached the next topic (end of target topic)
+		if inTopic && strings.HasPrefix(trimmed, "## ") {
+			inTopic = false
+		}
+
+		if inTopic {
+			// Count removed entries (lines starting with -)
+			if strings.HasPrefix(trimmed, "- ") {
+				entriesRemoved++
+			}
+			continue
+		}
+
+		newLines = append(newLines, line)
+	}
+
+	// Write the updated content
+	newContent := strings.Join(newLines, "\n")
+	// Clean up any double blank lines that may result
+	for strings.Contains(newContent, "\n\n\n") {
+		newContent = strings.ReplaceAll(newContent, "\n\n\n", "\n\n")
+	}
+
+	if err := os.WriteFile(s.learningsPath(), []byte(newContent), 0600); err != nil { //nolint:gosec // path constructed from trusted memoryDir
+		return 0, fmt.Errorf("failed to write learnings: %w", err)
+	}
+
+	return entriesRemoved, nil
+}
+
+// ListTopics returns all learning topic names.
+func (s *Store) ListTopics() ([]string, error) {
+	content, err := s.GetLearnings()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read learnings: %w", err)
+	}
+
+	var topics []string
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "## ") {
+			topic := strings.TrimPrefix(trimmed, "## ")
+			topics = append(topics, topic)
+		}
+	}
+
+	return topics, nil
 }
 
 // GetSize returns the total size of memory files in bytes.

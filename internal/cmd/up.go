@@ -11,6 +11,7 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/events"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 var upCmd = &cobra.Command{
@@ -21,7 +22,7 @@ var upCmd = &cobra.Command{
 By default, this only starts the root agent which orchestrates the workspace.
 Other agents can be created or started as needed by the root agent.
 
-Example:
+Examples:
   bc up                      # Start root agent
   bc up --agent cursor       # Use Cursor AI for root agent`,
 	RunE: runUp,
@@ -86,7 +87,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 	}
 
 	// Event log
-	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
+	evtLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
 
 	// Start root (acts as root agent)
 	fmt.Print("Starting root... ")
@@ -112,10 +113,12 @@ func runUp(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	_ = log.Append(events.Event{
+	if err := evtLog.Append(events.Event{
 		Type:  events.AgentSpawned,
 		Agent: "root",
-	})
+	}); err != nil {
+		log.Warn("failed to log root spawn event", "error", err)
+	}
 
 	// Wait for agent to initialize (Gemini/Claude needs time to start REPL)
 	time.Sleep(3 * time.Second)

@@ -607,3 +607,124 @@ func TestMemoryPruneFlags(t *testing.T) {
 		t.Fatal("expected 'agent' flag to exist")
 	}
 }
+
+func TestMemoryImportCmdExists(t *testing.T) {
+	if memoryImportCmd == nil {
+		t.Fatal("memoryImportCmd should not be nil")
+	}
+	if memoryImportCmd.Use != "import <agent> <file>" {
+		t.Errorf("memoryImportCmd.Use = %q, want %q", memoryImportCmd.Use, "import <agent> <file>")
+	}
+}
+
+func TestMemoryImportFlags(t *testing.T) {
+	// Check replace flag
+	flag := memoryImportCmd.Flags().Lookup("replace")
+	if flag == nil {
+		t.Fatal("expected 'replace' flag to exist")
+	}
+
+	// Check dry-run flag
+	flag = memoryImportCmd.Flags().Lookup("dry-run")
+	if flag == nil {
+		t.Fatal("expected 'dry-run' flag to exist")
+	}
+}
+
+func TestMemoryImport(t *testing.T) {
+	rootDir := setupTestWorkspace(t)
+
+	// Initialize memory for an agent
+	store := memory.NewStore(rootDir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init memory: %v", err)
+	}
+
+	// Create import file
+	importData := `{
+		"experiences": [
+			{"description": "test experience", "outcome": "success"}
+		],
+		"learnings": {
+			"patterns": ["learning 1", "learning 2"]
+		}
+	}`
+	importFile := filepath.Join(rootDir, "import.json")
+	if err := os.WriteFile(importFile, []byte(importData), 0600); err != nil {
+		t.Fatalf("failed to write import file: %v", err)
+	}
+
+	// Run import
+	output, err := executeCmd("memory", "import", "test-agent", importFile)
+	if err != nil {
+		t.Fatalf("import command failed: %v", err)
+	}
+
+	// Verify output
+	if !strings.Contains(output, "Experiences: 1") {
+		t.Errorf("expected 'Experiences: 1' in output, got: %s", output)
+	}
+	if !strings.Contains(output, "Learnings: 2") {
+		t.Errorf("expected 'Learnings: 2' in output, got: %s", output)
+	}
+
+	// Verify imported data
+	experiences, err := store.GetExperiences()
+	if err != nil {
+		t.Fatalf("failed to get experiences: %v", err)
+	}
+	if len(experiences) != 1 {
+		t.Errorf("expected 1 experience, got %d", len(experiences))
+	}
+}
+
+func TestMemoryImportDryRun(t *testing.T) {
+	rootDir := setupTestWorkspace(t)
+
+	// Initialize memory for an agent
+	store := memory.NewStore(rootDir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init memory: %v", err)
+	}
+
+	// Create import file
+	importData := `{
+		"experiences": [
+			{"description": "test experience", "outcome": "success"}
+		]
+	}`
+	importFile := filepath.Join(rootDir, "import.json")
+	if err := os.WriteFile(importFile, []byte(importData), 0600); err != nil {
+		t.Fatalf("failed to write import file: %v", err)
+	}
+
+	// Run import with dry-run
+	output, err := executeCmd("memory", "import", "test-agent", importFile, "--dry-run")
+	if err != nil {
+		t.Fatalf("import command failed: %v", err)
+	}
+
+	// Verify output shows dry run
+	if !strings.Contains(output, "Dry Run") {
+		t.Errorf("expected 'Dry Run' in output, got: %s", output)
+	}
+
+	// Verify no data was imported
+	experiences, err := store.GetExperiences()
+	if err != nil {
+		t.Fatalf("failed to get experiences: %v", err)
+	}
+	if len(experiences) != 0 {
+		t.Errorf("expected 0 experiences (dry run), got %d", len(experiences))
+	}
+}
+
+func TestMemoryImportFileNotFound(t *testing.T) {
+	_ = setupTestWorkspace(t)
+
+	// Run import with non-existent file
+	_, err := executeCmd("memory", "import", "test-agent", "/nonexistent/file.json")
+	if err == nil {
+		t.Error("expected error for non-existent file")
+	}
+}

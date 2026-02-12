@@ -48,7 +48,10 @@ Also detects orphaned worktree directories that don't belong to any agent.`,
 	RunE: runWorktreeList,
 }
 
-var worktreePruneForce bool
+var (
+	worktreePruneForce bool
+	worktreeListOrphan bool
+)
 
 var worktreePruneCmd = &cobra.Command{
 	Use:   "prune",
@@ -72,6 +75,7 @@ func init() {
 	worktreeCmd.AddCommand(worktreeCheckCmd)
 	worktreeCmd.AddCommand(worktreeListCmd)
 	worktreeCmd.AddCommand(worktreePruneCmd)
+	worktreeListCmd.Flags().BoolVar(&worktreeListOrphan, "orphaned", false, "Show only orphaned worktrees")
 	worktreePruneCmd.Flags().BoolVarP(&worktreePruneForce, "force", "f", false, "Actually remove orphaned worktrees (default is dry-run)")
 }
 
@@ -216,6 +220,17 @@ func runWorktreeList(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Filter to orphaned only if requested
+	if worktreeListOrphan {
+		var filtered []WorktreeListEntry
+		for _, e := range entries {
+			if e.Status == "ORPHANED" {
+				filtered = append(filtered, e)
+			}
+		}
+		entries = filtered
+	}
+
 	jsonOutput, err := cmd.Flags().GetBool("json")
 	if err != nil {
 		return err
@@ -226,25 +241,38 @@ func runWorktreeList(cmd *cobra.Command, args []string) error {
 		return enc.Encode(entries)
 	}
 
+	if len(entries) == 0 {
+		if worktreeListOrphan {
+			fmt.Println("No orphaned worktrees found.")
+		} else {
+			fmt.Println("No worktrees found.")
+		}
+		return nil
+	}
+
 	// Table output
 	fmt.Printf("%-20s %-10s %s\n", "AGENT", "STATUS", "PATH")
 	for _, e := range entries {
 		fmt.Printf("%-20s %-10s %s\n", e.Agent, e.Status, e.Path)
 	}
 
-	// Summary
-	ok, missing, orphaned := 0, 0, 0
-	for _, e := range entries {
-		switch e.Status {
-		case "OK":
-			ok++
-		case "MISSING":
-			missing++
-		case "ORPHANED":
-			orphaned++
+	// Summary (only when not filtering)
+	if !worktreeListOrphan {
+		ok, missing, orphaned := 0, 0, 0
+		for _, e := range entries {
+			switch e.Status {
+			case "OK":
+				ok++
+			case "MISSING":
+				missing++
+			case "ORPHANED":
+				orphaned++
+			}
 		}
+		fmt.Printf("\nTotal: %d  OK: %d  Missing: %d  Orphaned: %d\n", len(entries), ok, missing, orphaned)
+	} else {
+		fmt.Printf("\nOrphaned: %d\n", len(entries))
 	}
-	fmt.Printf("\nTotal: %d  OK: %d  Missing: %d  Orphaned: %d\n", len(entries), ok, missing, orphaned)
 
 	return nil
 }

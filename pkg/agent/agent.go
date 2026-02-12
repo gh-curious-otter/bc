@@ -219,6 +219,11 @@ func LoadRoleMemory(workspacePath string, role Role) *AgentMemory {
 	}
 }
 
+// DefaultBootstrapDelay is the default time to wait before sending bootstrap
+// prompts after starting an agent. Different AI tools have different startup
+// times, so this can be configured per-manager.
+const DefaultBootstrapDelay = 3 * time.Second
+
 // Manager handles agent lifecycle.
 type Manager struct {
 	agents map[string]*Agent
@@ -231,6 +236,10 @@ type Manager struct {
 
 	// Workspace path for env vars
 	workspacePath string
+
+	// BootstrapDelay is the time to wait before sending bootstrap prompts.
+	// If zero, DefaultBootstrapDelay is used.
+	BootstrapDelay time.Duration
 
 	mu sync.RWMutex
 }
@@ -275,6 +284,21 @@ func (m *Manager) SetAgentByName(name string) bool {
 		}
 	}
 	return false
+}
+
+// SetBootstrapDelay sets the delay before sending bootstrap prompts.
+func (m *Manager) SetBootstrapDelay(d time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.BootstrapDelay = d
+}
+
+// getBootstrapDelay returns the configured bootstrap delay or the default.
+func (m *Manager) getBootstrapDelay() time.Duration {
+	if m.BootstrapDelay > 0 {
+		return m.BootstrapDelay
+	}
+	return DefaultBootstrapDelay
 }
 
 // GetAgentCommand returns the command for a tool name from config.
@@ -353,7 +377,9 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 				}
 			}
 			existing.UpdatedAt = time.Now()
-			_ = m.saveState() //nolint:errcheck // best-effort state persistence
+			if err := m.saveState(); err != nil {
+				log.Warn("failed to save agent state", "error", err)
+			}
 			return existing, nil
 		}
 		// Session is dead but agent is in an active state — only respawn
@@ -407,7 +433,9 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 				return nil, fmt.Errorf("failed to recreate tmux session: %w", err)
 			}
 			existing.UpdatedAt = time.Now()
-			_ = m.saveState() //nolint:errcheck // best-effort state persistence
+			if err := m.saveState(); err != nil {
+				log.Warn("failed to save agent state", "error", err)
+			}
 			return existing, nil
 		}
 	}
@@ -521,7 +549,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	// Send bootstrap prompt if we have content
 	if len(promptParts) > 0 {
 		// Wait for agent to initialize (Gemini/Claude needs time to start REPL)
-		time.Sleep(3 * time.Second)
+		time.Sleep(m.getBootstrapDelay())
 
 		prompt := strings.Join(promptParts, "\n\n---\n\n")
 		prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nAgent ID: %s\n", workspace, name)
@@ -539,7 +567,9 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	}
 
 	// Save state
-	_ = m.saveState() //nolint:errcheck // best-effort state persistence
+	if err := m.saveState(); err != nil {
+		log.Warn("failed to save agent state", "error", err)
+	}
 
 	return agent, nil
 }
@@ -746,7 +776,9 @@ func (m *Manager) StopAgent(name string) error {
 	// Remove from parent's children list
 	m.removeFromParent(name)
 
-	_ = m.saveState() //nolint:errcheck // best-effort state persistence
+	if err := m.saveState(); err != nil {
+		log.Warn("failed to save agent state", "error", err)
+	}
 
 	return nil
 }
@@ -781,6 +813,49 @@ func (m *Manager) stopAgentTreeLocked(name string) error {
 	return nil
 }
 
+// DeleteAgent permanently removes an agent from the workspace.
+// This stops the agent, removes its worktree, memory directory, and state.
+func (m *Manager) DeleteAgent(name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	log.Debug("deleting agent", "name", name)
+
+	agent, exists := m.agents[name]
+	if !exists {
+		return fmt.Errorf("agent %s not found", name)
+	}
+
+	// Kill tmux session (ignore error - session might already be dead)
+	_ = m.tmux.KillSession(name)
+
+	// Clean up per-agent git worktree
+	if agent.WorktreeDir != "" && agent.WorktreeDir != agent.Workspace {
+		removeWorktree(agent.Workspace, agent.WorktreeDir)
+	}
+
+	// Clean up per-agent memory directory
+	if agent.MemoryDir != "" {
+		if err := os.RemoveAll(agent.MemoryDir); err != nil {
+			log.Warn("failed to remove memory dir", "dir", agent.MemoryDir, "error", err)
+		} else {
+			log.Debug("removed memory dir", "dir", agent.MemoryDir)
+		}
+	}
+
+	// Remove from parent's children list
+	m.removeFromParent(name)
+
+	// Delete from state
+	delete(m.agents, name)
+
+	if err := m.saveState(); err != nil {
+		log.Warn("failed to save agent state", "error", err)
+	}
+
+	return nil
+}
+
 // StopAll stops all agents.
 func (m *Manager) StopAll() error {
 	m.mu.Lock()
@@ -792,7 +867,9 @@ func (m *Manager) StopAll() error {
 		agent.UpdatedAt = time.Now()
 	}
 
-	_ = m.saveState() //nolint:errcheck // best-effort state persistence
+	if err := m.saveState(); err != nil {
+		log.Warn("failed to save agent state", "error", err)
+	}
 	return nil
 }
 
@@ -1054,7 +1131,9 @@ func (m *Manager) UpdateAgentState(name string, state State, task string) error 
 	agent.Task = task
 	agent.UpdatedAt = time.Now()
 
-	_ = m.saveState() //nolint:errcheck // best-effort state persistence
+	if err := m.saveState(); err != nil {
+		log.Warn("failed to save agent state", "error", err)
+	}
 	return nil
 }
 
@@ -1071,7 +1150,9 @@ func (m *Manager) SetAgentTeam(name, team string) error {
 	agent.Team = team
 	agent.UpdatedAt = time.Now()
 
-	_ = m.saveState() //nolint:errcheck // best-effort state persistence
+	if err := m.saveState(); err != nil {
+		log.Warn("failed to save agent state", "error", err)
+	}
 	return nil
 }
 

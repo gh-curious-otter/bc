@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/names"
@@ -29,7 +30,10 @@ Examples:
   bc agent attach eng-01                 # Attach to agent session
   bc agent peek eng-01                   # View recent output
   bc agent send eng-01 "run tests"       # Send message to agent
-  bc agent stop eng-01                   # Stop agent`,
+  bc agent stop eng-01                   # Stop agent
+  bc agent broadcast "check status"      # Send to all agents
+  bc agent send-to-role engineer "test"  # Send to all engineers
+  bc agent send-pattern "eng-*" "hello"  # Send to matching agents`,
 }
 
 // agentCreateCmd creates a new agent (replaces bc spawn)
@@ -70,7 +74,7 @@ var agentAttachCmd = &cobra.Command{
 
 Use Ctrl+b d to detach and return to your shell.
 
-Example:
+Examples:
   bc agent attach eng-01   # Attach to eng-01`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAgentAttach,
@@ -115,16 +119,113 @@ Examples:
 	RunE: runAgentSend,
 }
 
+// agentDeleteCmd permanently removes an agent
+var agentDeleteCmd = &cobra.Command{
+	Use:   "delete <agent>",
+	Short: "Permanently delete an agent",
+	Long: `Permanently delete an agent from the workspace.
+
+This removes the agent's tmux session, git worktree, memory directory,
+and all state. This action cannot be undone.
+
+Examples:
+  bc agent delete eng-01       # Delete eng-01
+  bc agent delete eng-01 --force  # Delete without confirmation`,
+	Args: cobra.ExactArgs(1),
+	RunE: runAgentDelete,
+}
+
+// agentHealthCmd shows agent health status
+var agentHealthCmd = &cobra.Command{
+	Use:   "health [agent]",
+	Short: "Show agent health status",
+	Long: `Show health status for agents, including tmux session status and state freshness.
+
+An agent is considered:
+  - healthy:   tmux session alive and state updated within timeout threshold
+  - degraded:  tmux session alive but state is stale (not updated within threshold)
+  - unhealthy: tmux session not found or agent in error state
+  - stuck:     no activity, repeated failures, or work timeout (with --detect-stuck)
+
+Stuck detection criteria (enabled with --detect-stuck):
+  - No activity: no events within activity timeout period
+  - Repeated failures: same task failed multiple times
+  - Work timeout: work started but not completed within work timeout
+
+Use --alert to send notifications to a channel when stuck agents are detected.
+
+Examples:
+  bc agent health                    # Show health for all agents
+  bc agent health eng-01             # Show health for specific agent
+  bc agent health --json             # Output as JSON
+  bc agent health --timeout 2m       # Use 2 minute stale threshold
+  bc agent health --detect-stuck     # Include stuck detection analysis
+  bc agent health --detect-stuck --work-timeout 1h  # Custom work timeout
+  bc agent health --detect-stuck --alert engineering  # Alert channel on stuck`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: runAgentHealth,
+}
+
+// agentBroadcastCmd sends a message to all running agents
+var agentBroadcastCmd = &cobra.Command{
+	Use:   "broadcast <message>",
+	Short: "Send a message to all running agents",
+	Long: `Broadcast a message to all running agents in the workspace.
+
+Examples:
+  bc agent broadcast "run tests"
+  bc agent broadcast "check status"`,
+	Args: cobra.MinimumNArgs(1),
+	RunE: runAgentBroadcast,
+}
+
+// agentSendRoleCmd sends a message to all agents of a specific role
+var agentSendRoleCmd = &cobra.Command{
+	Use:   "send-to-role <role> <message>",
+	Short: "Send a message to all agents of a specific role",
+	Long: `Send a message to all running agents that have the specified role.
+
+Examples:
+  bc agent send-to-role engineer "run the tests"
+  bc agent send-to-role manager "check status"
+  bc agent send-to-role tech-lead "review PRs"`,
+	Args: cobra.MinimumNArgs(2),
+	RunE: runAgentSendRole,
+}
+
+// agentSendPatternCmd sends a message to agents matching a pattern
+var agentSendPatternCmd = &cobra.Command{
+	Use:   "send-pattern <pattern> <message>",
+	Short: "Send a message to agents matching a pattern",
+	Long: `Send a message to all running agents whose names match the given pattern.
+
+Pattern uses glob-style matching (* matches any characters).
+
+Examples:
+  bc agent send-pattern "engineer-*" "run tests"
+  bc agent send-pattern "eng-0*" "check status"
+  bc agent send-pattern "*-lead" "review PRs"`,
+	Args: cobra.MinimumNArgs(2),
+	RunE: runAgentSendPattern,
+}
+
 // Flags
 var (
-	agentCreateTool   string
-	agentCreateRole   string
-	agentCreateParent string
-	agentCreateTeam   string
-	agentListRole     string
-	agentListJSON     bool
-	agentPeekLines    int
-	agentStopForce    bool
+	agentCreateTool      string
+	agentCreateRole      string
+	agentCreateParent    string
+	agentCreateTeam      string
+	agentListRole        string
+	agentListJSON        bool
+	agentPeekLines       int
+	agentStopForce       bool
+	agentDeleteForce     bool
+	agentHealthJSON      bool
+	agentHealthTimeout   string
+	agentHealthDetect    bool
+	agentHealthWorkTmout string
+	agentHealthMaxFail   int
+	agentHealthAlert     string
 )
 
 func init() {
@@ -144,6 +245,17 @@ func init() {
 	// Stop flags
 	agentStopCmd.Flags().BoolVar(&agentStopForce, "force", false, "Force stop without cleanup")
 
+	// Delete flags
+	agentDeleteCmd.Flags().BoolVar(&agentDeleteForce, "force", false, "Delete without confirmation")
+
+	// Health flags
+	agentHealthCmd.Flags().BoolVar(&agentHealthJSON, "json", false, "Output as JSON")
+	agentHealthCmd.Flags().StringVar(&agentHealthTimeout, "timeout", "60s", "Stale state threshold (e.g., 30s, 2m)")
+	agentHealthCmd.Flags().BoolVar(&agentHealthDetect, "detect-stuck", false, "Enable stuck detection analysis")
+	agentHealthCmd.Flags().StringVar(&agentHealthWorkTmout, "work-timeout", "30m", "Work timeout for stuck detection (e.g., 30m, 1h)")
+	agentHealthCmd.Flags().IntVar(&agentHealthMaxFail, "max-failures", 3, "Max consecutive failures before considered stuck")
+	agentHealthCmd.Flags().StringVar(&agentHealthAlert, "alert", "", "Send alert to channel when stuck agents detected (requires --detect-stuck)")
+
 	// Add subcommands
 	agentCmd.AddCommand(agentCreateCmd)
 	agentCmd.AddCommand(agentListCmd)
@@ -151,6 +263,11 @@ func init() {
 	agentCmd.AddCommand(agentPeekCmd)
 	agentCmd.AddCommand(agentStopCmd)
 	agentCmd.AddCommand(agentSendCmd)
+	agentCmd.AddCommand(agentDeleteCmd)
+	agentCmd.AddCommand(agentHealthCmd)
+	agentCmd.AddCommand(agentBroadcastCmd)
+	agentCmd.AddCommand(agentSendRoleCmd)
+	agentCmd.AddCommand(agentSendPatternCmd)
 
 	// Add parent command to root
 	rootCmd.AddCommand(agentCmd)
@@ -245,12 +362,14 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		eventData["team"] = agentCreateTeam
 	}
 	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	_ = eventLog.Append(events.Event{
+	if err := eventLog.Append(events.Event{
 		Type:    events.AgentSpawned,
 		Agent:   agentName,
 		Message: fmt.Sprintf("created with role %s", role),
 		Data:    eventData,
-	})
+	}); err != nil {
+		log.Warn("failed to log agent spawn event", "error", err)
+	}
 
 	fmt.Println()
 	fmt.Println("Agent created successfully!")
@@ -428,11 +547,13 @@ func runAgentStop(cmd *cobra.Command, args []string) error {
 
 	// Log event
 	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	_ = eventLog.Append(events.Event{
+	if err := eventLog.Append(events.Event{
 		Type:    events.AgentStopped,
 		Agent:   agentName,
 		Message: "stopped via bc agent stop",
-	})
+	}); err != nil {
+		log.Warn("failed to log agent stop event", "error", err)
+	}
 
 	return nil
 }
@@ -467,15 +588,321 @@ func runAgentSend(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to send to %s: %w", agentName, sendErr)
 	}
 
+	// Log event - Agent field is the sender, recipient goes in Data
+	sender := os.Getenv("BC_AGENT_ID")
+	if sender == "" {
+		sender = "root"
+	}
+	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
+	if err := eventLog.Append(events.Event{
+		Type:    events.MessageSent,
+		Agent:   sender,
+		Message: message,
+		Data: map[string]any{
+			"recipient": agentName,
+		},
+	}); err != nil {
+		log.Warn("failed to log message sent event", "error", err)
+	}
+
+	fmt.Printf("Sent to %s: %s\n", agentName, message)
+	return nil
+}
+
+func runAgentDelete(cmd *cobra.Command, args []string) error {
+	agentName := args[0]
+
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+
+	a := mgr.GetAgent(agentName)
+	if a == nil {
+		return fmt.Errorf("agent '%s' not found", agentName)
+	}
+
+	// Confirm deletion unless --force is used
+	if !agentDeleteForce {
+		fmt.Printf("Delete agent '%s'? This will remove:\n", agentName)
+		fmt.Println("  - tmux session")
+		fmt.Println("  - git worktree")
+		fmt.Println("  - memory directory")
+		fmt.Println("  - agent state")
+		fmt.Print("\nType 'yes' to confirm: ")
+
+		var response string
+		if _, scanErr := fmt.Scanln(&response); scanErr != nil {
+			return fmt.Errorf("deletion canceled")
+		}
+		if response != "yes" {
+			return fmt.Errorf("deletion canceled")
+		}
+	}
+
+	fmt.Printf("Deleting %s... ", agentName)
+	if delErr := mgr.DeleteAgent(agentName); delErr != nil {
+		fmt.Println("✗")
+		return fmt.Errorf("failed to delete %s: %w", agentName, delErr)
+	}
+	fmt.Println("✓")
+
 	// Log event
 	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
 	_ = eventLog.Append(events.Event{
-		Type:    events.MessageSent,
+		Type:    events.AgentStopped,
 		Agent:   agentName,
-		Message: message,
+		Message: "deleted via bc agent delete",
 	})
 
-	fmt.Printf("Sent to %s: %s\n", agentName, message)
+	fmt.Printf("Agent '%s' has been permanently deleted.\n", agentName)
+	return nil
+}
+
+func runAgentBroadcast(cmd *cobra.Command, args []string) error {
+	message := strings.TrimSpace(strings.Join(args, " "))
+	if message == "" {
+		return fmt.Errorf("message cannot be empty")
+	}
+
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+
+	agents := mgr.ListAgents()
+	if len(agents) == 0 {
+		fmt.Println("No agents to broadcast to")
+		return nil
+	}
+
+	sender := os.Getenv("BC_AGENT_ID")
+	if sender == "" {
+		sender = "root"
+	}
+
+	sent := 0
+	skipped := 0
+	failed := 0
+
+	for _, a := range agents {
+		// Skip stopped agents
+		if a.State == agent.StateStopped {
+			skipped++
+			continue
+		}
+		// Skip the sender to avoid echo
+		if a.Name == sender {
+			skipped++
+			continue
+		}
+
+		if sendErr := mgr.SendToAgent(a.Name, message); sendErr != nil {
+			fmt.Printf("  %s: failed - %v\n", a.Name, sendErr)
+			failed++
+			continue
+		}
+		fmt.Printf("  %s: sent\n", a.Name)
+		sent++
+	}
+
+	// Log event
+	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
+	if err := eventLog.Append(events.Event{
+		Type:    events.MessageSent,
+		Agent:   sender,
+		Message: message,
+		Data: map[string]any{
+			"broadcast": true,
+			"sent":      sent,
+			"skipped":   skipped,
+			"failed":    failed,
+		},
+	}); err != nil {
+		log.Warn("failed to log broadcast event", "error", err)
+	}
+
+	fmt.Printf("\nBroadcast sent to %d agents (%d skipped, %d failed)\n", sent, skipped, failed)
+	return nil
+}
+
+func runAgentSendRole(cmd *cobra.Command, args []string) error {
+	roleName := args[0]
+	message := strings.TrimSpace(strings.Join(args[1:], " "))
+	if message == "" {
+		return fmt.Errorf("message cannot be empty")
+	}
+
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+
+	// Parse and validate role
+	role, roleErr := parseRole(roleName)
+	if roleErr != nil {
+		return roleErr
+	}
+
+	agents := mgr.ListAgents()
+
+	sender := os.Getenv("BC_AGENT_ID")
+	if sender == "" {
+		sender = "root"
+	}
+
+	sent := 0
+	skipped := 0
+	failed := 0
+
+	for _, a := range agents {
+		// Skip if role doesn't match
+		if a.Role != role {
+			continue
+		}
+		// Skip stopped agents
+		if a.State == agent.StateStopped {
+			skipped++
+			continue
+		}
+		// Skip the sender to avoid echo
+		if a.Name == sender {
+			skipped++
+			continue
+		}
+
+		if sendErr := mgr.SendToAgent(a.Name, message); sendErr != nil {
+			fmt.Printf("  %s: failed - %v\n", a.Name, sendErr)
+			failed++
+			continue
+		}
+		fmt.Printf("  %s: sent\n", a.Name)
+		sent++
+	}
+
+	if sent == 0 && skipped == 0 && failed == 0 {
+		fmt.Printf("No running agents with role %q found\n", roleName)
+		return nil
+	}
+
+	// Log event
+	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
+	if err := eventLog.Append(events.Event{
+		Type:    events.MessageSent,
+		Agent:   sender,
+		Message: message,
+		Data: map[string]any{
+			"role":    roleName,
+			"sent":    sent,
+			"skipped": skipped,
+			"failed":  failed,
+		},
+	}); err != nil {
+		log.Warn("failed to log role send event", "error", err)
+	}
+
+	fmt.Printf("\nSent to %d %s(s) (%d skipped, %d failed)\n", sent, roleName, skipped, failed)
+	return nil
+}
+
+func runAgentSendPattern(cmd *cobra.Command, args []string) error {
+	pattern := args[0]
+	message := strings.TrimSpace(strings.Join(args[1:], " "))
+	if message == "" {
+		return fmt.Errorf("message cannot be empty")
+	}
+
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+
+	agents := mgr.ListAgents()
+
+	sender := os.Getenv("BC_AGENT_ID")
+	if sender == "" {
+		sender = "root"
+	}
+
+	sent := 0
+	skipped := 0
+	failed := 0
+	matched := 0
+
+	for _, a := range agents {
+		// Check if name matches pattern using filepath.Match (glob-style)
+		match, matchErr := filepath.Match(pattern, a.Name)
+		if matchErr != nil {
+			return fmt.Errorf("invalid pattern %q: %w", pattern, matchErr)
+		}
+		if !match {
+			continue
+		}
+		matched++
+
+		// Skip stopped agents
+		if a.State == agent.StateStopped {
+			skipped++
+			continue
+		}
+		// Skip the sender to avoid echo
+		if a.Name == sender {
+			skipped++
+			continue
+		}
+
+		if sendErr := mgr.SendToAgent(a.Name, message); sendErr != nil {
+			fmt.Printf("  %s: failed - %v\n", a.Name, sendErr)
+			failed++
+			continue
+		}
+		fmt.Printf("  %s: sent\n", a.Name)
+		sent++
+	}
+
+	if matched == 0 {
+		fmt.Printf("No agents matching pattern %q found\n", pattern)
+		return nil
+	}
+
+	// Log event
+	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
+	if err := eventLog.Append(events.Event{
+		Type:    events.MessageSent,
+		Agent:   sender,
+		Message: message,
+		Data: map[string]any{
+			"pattern": pattern,
+			"matched": matched,
+			"sent":    sent,
+			"skipped": skipped,
+			"failed":  failed,
+		},
+	}); err != nil {
+		log.Warn("failed to log pattern send event", "error", err)
+	}
+
+	fmt.Printf("\nSent to %d of %d matching agents (%d skipped, %d failed)\n", sent, matched, skipped, failed)
 	return nil
 }
 
@@ -494,4 +921,308 @@ func isValidTeamName(name string) bool {
 		}
 	}
 	return true
+}
+
+// AgentHealth represents the health status of an agent.
+type AgentHealth struct {
+	Name          string `json:"name"`
+	Role          string `json:"role"`
+	Status        string `json:"status"`
+	LastUpdated   string `json:"last_updated"`
+	StaleDuration string `json:"stale_duration,omitempty"`
+	ErrorMessage  string `json:"error_message,omitempty"`
+	StuckReason   string `json:"stuck_reason,omitempty"`
+	StuckDetails  string `json:"stuck_details,omitempty"`
+	TmuxAlive     bool   `json:"tmux_alive"`
+	StateFresh    bool   `json:"state_fresh"`
+	IsStuck       bool   `json:"is_stuck,omitempty"`
+}
+
+func runAgentHealth(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	// Parse timeout duration
+	timeout, parseErr := time.ParseDuration(agentHealthTimeout)
+	if parseErr != nil {
+		return fmt.Errorf("invalid timeout format: %w", parseErr)
+	}
+
+	// Parse work timeout for stuck detection
+	workTimeout, workParseErr := time.ParseDuration(agentHealthWorkTmout)
+	if workParseErr != nil {
+		return fmt.Errorf("invalid work-timeout format: %w", workParseErr)
+	}
+
+	// Validate --alert flag requires --detect-stuck
+	if agentHealthAlert != "" && !agentHealthDetect {
+		return fmt.Errorf("--alert requires --detect-stuck to be enabled")
+	}
+
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+
+	if refreshErr := mgr.RefreshState(); refreshErr != nil {
+		log.Warn("failed to refresh agent state", "error", refreshErr)
+	}
+
+	// Get agents to check
+	var agents []*agent.Agent
+	if len(args) > 0 {
+		// Check specific agent
+		a := mgr.GetAgent(args[0])
+		if a == nil {
+			return fmt.Errorf("agent '%s' not found", args[0])
+		}
+		agents = []*agent.Agent{a}
+	} else {
+		// Check all agents
+		agents = mgr.ListAgents()
+	}
+
+	if len(agents) == 0 {
+		fmt.Println("No agents found")
+		return nil
+	}
+
+	// Prepare stuck detection if enabled
+	var eventLog *events.Log
+	var stuckConfig events.StuckConfig
+	if agentHealthDetect {
+		eventLog = events.NewLog(filepath.Join(ws.RootDir, ".bc", "events.jsonl"))
+		stuckConfig = events.StuckConfig{
+			ActivityTimeout: timeout,
+			WorkTimeout:     workTimeout,
+			MaxFailures:     agentHealthMaxFail,
+		}
+	}
+
+	// Compute health for each agent
+	healthResults := make([]AgentHealth, 0, len(agents))
+	for _, a := range agents {
+		health := computeAgentHealth(a, mgr, timeout)
+
+		// Add stuck detection if enabled
+		if agentHealthDetect && eventLog != nil {
+			agentEvents, readErr := eventLog.ReadByAgent(a.Name)
+			if readErr != nil {
+				log.Warn("failed to read agent events", "agent", a.Name, "error", readErr)
+			} else {
+				stuck := events.DetectStuck(agentEvents, stuckConfig)
+				if stuck.IsStuck {
+					health.IsStuck = true
+					health.StuckReason = string(stuck.Reason)
+					health.StuckDetails = stuck.Details
+					// Override status if stuck
+					if health.Status == "healthy" || health.Status == "degraded" {
+						health.Status = "stuck"
+						health.ErrorMessage = stuck.Details
+					}
+				}
+			}
+		}
+
+		healthResults = append(healthResults, health)
+	}
+
+	// Send alert to channel if --alert is set and there are stuck agents
+	if agentHealthAlert != "" {
+		if alertErr := sendStuckAlert(ws.RootDir, agentHealthAlert, healthResults, mgr); alertErr != nil {
+			log.Warn("failed to send stuck alert", "error", alertErr)
+		}
+	}
+
+	// Output
+	if agentHealthJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(healthResults)
+	}
+
+	// Table output
+	fmt.Printf("%-15s %-12s %-10s %-8s %-8s %s\n", "AGENT", "ROLE", "STATUS", "TMUX", "FRESH", "LAST UPDATED")
+	fmt.Println(strings.Repeat("-", 75))
+
+	for _, h := range healthResults {
+		tmuxStr := "✗"
+		if h.TmuxAlive {
+			tmuxStr = "✓"
+		}
+		freshStr := "✗"
+		if h.StateFresh {
+			freshStr = "✓"
+		}
+
+		statusColor := h.Status
+		switch h.Status {
+		case "healthy":
+			statusColor = "\033[32m" + h.Status + "\033[0m" // green
+		case "degraded":
+			statusColor = "\033[33m" + h.Status + "\033[0m" // yellow
+		case "unhealthy":
+			statusColor = "\033[31m" + h.Status + "\033[0m" // red
+		case "stuck":
+			statusColor = "\033[35m" + h.Status + "\033[0m" // magenta
+		}
+
+		fmt.Printf("%-15s %-12s %-10s %-8s %-8s %s\n",
+			h.Name,
+			h.Role,
+			statusColor,
+			tmuxStr,
+			freshStr,
+			h.LastUpdated,
+		)
+
+		if h.ErrorMessage != "" {
+			fmt.Printf("  └─ %s\n", h.ErrorMessage)
+		}
+	}
+
+	// Summary
+	var healthy, degraded, unhealthy, stuck int
+	for _, h := range healthResults {
+		switch h.Status {
+		case "healthy":
+			healthy++
+		case "degraded":
+			degraded++
+		case "unhealthy":
+			unhealthy++
+		case "stuck":
+			stuck++
+		}
+	}
+	if agentHealthDetect {
+		fmt.Printf("\nSummary: %d healthy, %d degraded, %d unhealthy, %d stuck (threshold: %s, work-timeout: %s)\n",
+			healthy, degraded, unhealthy, stuck, timeout, agentHealthWorkTmout)
+	} else {
+		fmt.Printf("\nSummary: %d healthy, %d degraded, %d unhealthy (threshold: %s)\n",
+			healthy, degraded, unhealthy, timeout)
+	}
+
+	return nil
+}
+
+func computeAgentHealth(a *agent.Agent, mgr *agent.Manager, timeout time.Duration) AgentHealth {
+	health := AgentHealth{
+		Name:        a.Name,
+		Role:        string(a.Role),
+		LastUpdated: a.UpdatedAt.Format(time.RFC3339),
+	}
+
+	// Check tmux session
+	health.TmuxAlive = mgr.Tmux().HasSession(a.Name)
+
+	// Check state freshness
+	staleDuration := time.Since(a.UpdatedAt)
+	health.StateFresh = staleDuration < timeout
+	if !health.StateFresh {
+		health.StaleDuration = staleDuration.Round(time.Second).String()
+	}
+
+	// Determine overall status
+	switch {
+	case a.State == agent.StateStopped:
+		health.Status = "unhealthy"
+		health.ErrorMessage = "agent stopped"
+	case a.State == agent.StateError:
+		health.Status = "unhealthy"
+		health.ErrorMessage = "agent in error state"
+	case !health.TmuxAlive:
+		health.Status = "unhealthy"
+		health.ErrorMessage = "tmux session not found"
+	case !health.StateFresh:
+		health.Status = "degraded"
+		health.ErrorMessage = fmt.Sprintf("state stale (%s since last update)", health.StaleDuration)
+	default:
+		health.Status = "healthy"
+	}
+
+	return health
+}
+
+// sendStuckAlert sends an alert to the specified channel when stuck agents are detected.
+func sendStuckAlert(rootDir, channelName string, healthResults []AgentHealth, mgr *agent.Manager) error {
+	// Collect stuck agents
+	var stuckAgents []AgentHealth
+	for _, h := range healthResults {
+		if h.IsStuck || h.Status == "stuck" {
+			stuckAgents = append(stuckAgents, h)
+		}
+	}
+
+	if len(stuckAgents) == 0 {
+		// No stuck agents, no alert needed
+		return nil
+	}
+
+	// Build alert message
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("⚠️ ALERT: %d stuck agent(s) detected\n", len(stuckAgents)))
+	for _, h := range stuckAgents {
+		reason := h.StuckReason
+		if reason == "" {
+			reason = "unknown"
+		}
+		details := h.StuckDetails
+		if details == "" {
+			details = h.ErrorMessage
+		}
+		sb.WriteString(fmt.Sprintf("  • %s (%s): %s - %s\n", h.Name, h.Role, reason, details))
+	}
+
+	message := sb.String()
+
+	// Load channel store
+	store, err := channel.OpenStore(rootDir)
+	if err != nil {
+		return fmt.Errorf("failed to open channel store: %w", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	if loadErr := store.Load(); loadErr != nil {
+		return fmt.Errorf("failed to load channel store: %w", loadErr)
+	}
+
+	// Get channel members
+	members, membersErr := store.GetMembers(channelName)
+	if membersErr != nil {
+		return fmt.Errorf("channel %q not found: %w", channelName, membersErr)
+	}
+
+	if len(members) == 0 {
+		fmt.Printf("Alert: channel %q has no members, alert not sent\n", channelName)
+		return nil
+	}
+
+	// Record in channel history
+	if err := store.AddHistory(channelName, "bc-health", message); err != nil {
+		log.Warn("failed to record alert history", "error", err)
+	}
+	if err := store.Save(); err != nil {
+		log.Warn("failed to save alert history", "error", err)
+	}
+
+	// Send to all members
+	sent := 0
+	for _, member := range members {
+		a := mgr.GetAgent(member)
+		if a == nil || a.State == agent.StateStopped {
+			continue
+		}
+		formattedMsg := fmt.Sprintf("[#%s] bc-health: %s", channelName, message)
+		if sendErr := mgr.SendToAgent(member, formattedMsg); sendErr != nil {
+			log.Warn("failed to send alert to agent", "agent", member, "error", sendErr)
+			continue
+		}
+		sent++
+	}
+
+	fmt.Printf("Alert sent to %d member(s) in channel %q\n", sent, channelName)
+	return nil
 }

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -70,13 +71,22 @@ func runSend(cmd *cobra.Command, args []string) error {
 	}
 	log.Debug("message sent successfully", "agent", agentName)
 
-	// Log event
+	// Log event - Agent field is the sender, recipient goes in Data
+	sender := os.Getenv("BC_AGENT_ID")
+	if sender == "" {
+		sender = "root"
+	}
 	evtLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	_ = evtLog.Append(events.Event{
+	if err := evtLog.Append(events.Event{
 		Type:    events.MessageSent,
-		Agent:   agentName,
+		Agent:   sender,
 		Message: message,
-	})
+		Data: map[string]any{
+			"recipient": agentName,
+		},
+	}); err != nil {
+		log.Warn("failed to log send event", "error", err)
+	}
 
 	fmt.Printf("Sent to %s: %s\n", agentName, message)
 	return nil

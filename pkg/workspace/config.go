@@ -86,15 +86,17 @@ const (
 
 // Validation errors.
 var (
-	ErrMissingWorkspaceName = errors.New("workspace.name is required")
-	ErrInvalidVersion       = errors.New("workspace.version must be 2")
-	ErrMissingDefaultTool   = errors.New("tools.default is required")
-	ErrDefaultToolNotFound  = errors.New("tools.default references undefined tool")
-	ErrMissingMemoryBackend = errors.New("memory.backend is required")
-	ErrMissingMemoryPath    = errors.New("memory.path is required")
-	ErrRosterEngineersRange = errors.New("roster.engineers must be between 0 and 10")
-	ErrRosterTechLeadsRange = errors.New("roster.tech_leads must be between 0 and 10")
-	ErrRosterQARange        = errors.New("roster.qa must be between 0 and 10")
+	ErrMissingWorkspaceName      = errors.New("workspace.name is required")
+	ErrInvalidVersion            = errors.New("workspace.version must be 2")
+	ErrMissingDefaultTool        = errors.New("tools.default is required")
+	ErrDefaultToolNotFound       = errors.New("tools.default references undefined tool")
+	ErrMissingMemoryBackend      = errors.New("memory.backend is required")
+	ErrMissingMemoryPath         = errors.New("memory.path is required")
+	ErrRosterProductManagerRange = errors.New("roster.product_manager must be between 0 and 10")
+	ErrRosterManagerRange        = errors.New("roster.manager must be between 0 and 10")
+	ErrRosterEngineersRange      = errors.New("roster.engineers must be between 0 and 10")
+	ErrRosterTechLeadsRange      = errors.New("roster.tech_leads must be between 0 and 10")
+	ErrRosterQARange             = errors.New("roster.qa must be between 0 and 10")
 )
 
 // DefaultV2Config returns sensible defaults for a new v2 workspace.
@@ -187,6 +189,12 @@ func (c *V2Config) Validate() error {
 	}
 
 	// Roster validation
+	if c.Roster.ProductManager < RosterMinPerRole || c.Roster.ProductManager > RosterMaxPerRole {
+		return ErrRosterProductManagerRange
+	}
+	if c.Roster.Manager < RosterMinPerRole || c.Roster.Manager > RosterMaxPerRole {
+		return ErrRosterManagerRange
+	}
 	if c.Roster.Engineers < RosterMinPerRole || c.Roster.Engineers > RosterMaxPerRole {
 		return ErrRosterEngineersRange
 	}

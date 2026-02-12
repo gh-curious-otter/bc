@@ -9,6 +9,101 @@ Each agent has a dedicated memory directory at `.bc/memory/<agent-name>/` contai
 - `experiences.jsonl` - Recorded task outcomes (JSON Lines format)
 - `learnings.md` - Accumulated insights and patterns (Markdown)
 
+## Experiences vs Learnings: When to Use Each
+
+Understanding the distinction between experiences and learnings is crucial for effective memory management.
+
+### Experiences: Transient Task Records
+
+**What they are:** Time-stamped records of specific task outcomes - what you did, when, and how it turned out.
+
+**Lifecycle:**
+- **Transient** - Automatically pruned by age (default: 30 days)
+- **Time-bound** - Include timestamp, can be filtered by date
+- **High volume** - Expected to accumulate rapidly
+- **Ephemeral context** - Useful for recent history, less valuable over time
+
+**When to use experiences:**
+- Recording task completions (`bc memory record "Fixed bug #123"`)
+- Tracking success/failure outcomes
+- Creating audit trail of work done
+- Capturing context that's relevant short-term
+
+**Examples:**
+```bash
+# Good experience records
+bc memory record --outcome success "Merged PR #456 - auth refactor"
+bc memory record --outcome failure --task-id 789 "Build failed - missing dependency"
+bc memory record --outcome partial "Implemented 3 of 5 endpoints"
+```
+
+### Learnings: Permanent Knowledge Base
+
+**What they are:** Enduring insights, patterns, and guidelines that remain valuable regardless of when they were learned.
+
+**Lifecycle:**
+- **Permanent** - Not automatically pruned
+- **Timeless** - Value doesn't decay with age
+- **Curated** - Should be reviewed and maintained manually
+- **Shared wisdom** - Applicable across many future tasks
+
+**When to use learnings:**
+- Documenting patterns that work (`bc memory learn patterns "..."`)
+- Recording anti-patterns to avoid
+- Capturing tips and best practices
+- Building institutional knowledge
+
+**Examples:**
+```bash
+# Good learning records
+bc memory learn patterns "Always run tests before committing"
+bc memory learn anti-patterns "Never store secrets in config files"
+bc memory learn gotchas "SQLite requires explicit Close() to avoid leaks"
+bc memory learn best-practices "Use defer for cleanup in Go"
+```
+
+### Decision Guide
+
+| Question | If Yes → | If No → |
+|----------|----------|---------|
+| Is this about a specific task? | Experience | Learning |
+| Will this be relevant in 6 months? | Learning | Experience |
+| Does it include a timestamp/date? | Experience | Learning |
+| Is it a general principle or rule? | Learning | Experience |
+| Would pruning it lose valuable info? | Learning | Experience |
+
+### Lifecycle Comparison
+
+| Aspect | Experiences | Learnings |
+|--------|-------------|-----------|
+| Storage format | JSONL (structured) | Markdown (human-readable) |
+| Pruning | Automatic by age | Manual curation |
+| Default retention | 30 days | Permanent |
+| Volume expectation | High (hundreds) | Low (tens) |
+| Search priority | Recent first | All equally weighted |
+| Update frequency | Every task | Occasionally |
+
+### Retention Policies
+
+**Experiences:**
+- Default: Prune after 30 days
+- Aggressive: Prune after 7 days (high-volume agents)
+- Conservative: Prune after 90 days (audit requirements)
+- Use `--pinned` flag to preserve critical experiences from pruning
+
+**Learnings:**
+- Review quarterly for relevance
+- Remove outdated guidance (e.g., deprecated APIs)
+- Consolidate duplicate entries
+- Keep categories organized and consistent
+
+```bash
+# Recommended maintenance schedule
+# Weekly: Record experiences as you work
+# Monthly: bc memory prune --older-than 30d --dry-run
+# Quarterly: Review learnings.md for accuracy
+```
+
 ## File Formats
 
 ### experiences.jsonl

@@ -451,3 +451,310 @@ func TestAgentListInvalidRole(t *testing.T) {
 		t.Error("expected error for invalid role filter format")
 	}
 }
+
+// --- Message Routing Command Tests ---
+
+func TestAgentBroadcast_ValidArgs(t *testing.T) {
+	cmd := agentBroadcastCmd
+
+	// Should accept message
+	err := cmd.Args(cmd, []string{"hello world"})
+	if err != nil {
+		t.Errorf("unexpected error for valid args: %v", err)
+	}
+
+	// Should accept multiple words as message
+	err = cmd.Args(cmd, []string{"hello", "world", "test"})
+	if err != nil {
+		t.Errorf("unexpected error for multi-word message: %v", err)
+	}
+}
+
+func TestAgentBroadcast_EmptyArgs(t *testing.T) {
+	cmd := agentBroadcastCmd
+
+	// MinimumNArgs(1) should reject no args
+	err := cmd.Args(cmd, []string{})
+	if err == nil {
+		t.Error("expected error for missing message")
+	}
+}
+
+func TestAgentSendRole_ValidArgs(t *testing.T) {
+	cmd := agentSendRoleCmd
+
+	// Should accept role + message
+	err := cmd.Args(cmd, []string{"engineer", "run tests"})
+	if err != nil {
+		t.Errorf("unexpected error for valid args: %v", err)
+	}
+
+	// Should accept role + multi-word message
+	err = cmd.Args(cmd, []string{"manager", "check", "status", "now"})
+	if err != nil {
+		t.Errorf("unexpected error for multi-word message: %v", err)
+	}
+}
+
+func TestAgentSendRole_InsufficientArgs(t *testing.T) {
+	cmd := agentSendRoleCmd
+
+	// MinimumNArgs(2) should reject single arg
+	err := cmd.Args(cmd, []string{"engineer"})
+	if err == nil {
+		t.Error("expected error for missing message")
+	}
+
+	// Should reject no args
+	err = cmd.Args(cmd, []string{})
+	if err == nil {
+		t.Error("expected error for no args")
+	}
+}
+
+func TestAgentSendPattern_ValidArgs(t *testing.T) {
+	cmd := agentSendPatternCmd
+
+	// Should accept pattern + message
+	err := cmd.Args(cmd, []string{"engineer-*", "run tests"})
+	if err != nil {
+		t.Errorf("unexpected error for valid args: %v", err)
+	}
+
+	// Should accept pattern + multi-word message
+	err = cmd.Args(cmd, []string{"eng-0*", "check", "status"})
+	if err != nil {
+		t.Errorf("unexpected error for multi-word message: %v", err)
+	}
+}
+
+func TestAgentSendPattern_InsufficientArgs(t *testing.T) {
+	cmd := agentSendPatternCmd
+
+	// MinimumNArgs(2) should reject single arg
+	err := cmd.Args(cmd, []string{"pattern-*"})
+	if err == nil {
+		t.Error("expected error for missing message")
+	}
+
+	// Should reject no args
+	err = cmd.Args(cmd, []string{})
+	if err == nil {
+		t.Error("expected error for no args")
+	}
+}
+
+func TestAgentBroadcast_NoAgents(t *testing.T) {
+	setupTestWorkspace(t)
+
+	// Should succeed with no agents
+	_, err := executeCmd("agent", "broadcast", "hello")
+	if err != nil {
+		t.Fatalf("agent broadcast failed: %v", err)
+	}
+}
+
+func TestAgentSendRole_NoAgents(t *testing.T) {
+	setupTestWorkspace(t)
+
+	// Should succeed with no matching agents (no error)
+	_, err := executeCmd("agent", "send-to-role", "engineer", "hello")
+	if err != nil {
+		t.Fatalf("agent send-to-role failed: %v", err)
+	}
+}
+
+func TestAgentSendPattern_NoMatches(t *testing.T) {
+	setupTestWorkspace(t)
+
+	// Should succeed with no matching agents (no error)
+	_, err := executeCmd("agent", "send-pattern", "nonexistent-*", "hello")
+	if err != nil {
+		t.Fatalf("agent send-pattern failed: %v", err)
+	}
+}
+
+func TestAgentSendRole_InvalidRole(t *testing.T) {
+	setupTestWorkspace(t)
+
+	// Only truly invalid role names (format) should error
+	_, err := executeCmd("agent", "send-to-role", "role@invalid", "hello")
+	if err == nil {
+		t.Error("expected error for invalid role format")
+	}
+}
+
+func TestAgentSendPattern_ValidPatterns(t *testing.T) {
+	// Test that various glob patterns are accepted
+	patterns := []string{
+		"engineer-*",
+		"eng-0*",
+		"*-lead",
+		"eng-[0-9]*",
+		"team-??",
+	}
+
+	for _, pattern := range patterns {
+		t.Run(pattern, func(t *testing.T) {
+			_, err := filepath.Match(pattern, "test-agent")
+			if err != nil {
+				t.Errorf("pattern %q should be valid: %v", pattern, err)
+			}
+		})
+	}
+}
+
+func TestAgentCommandStructure_MessageRouting(t *testing.T) {
+	// Verify agentCmd has the new message routing subcommands
+	subcommands := agentCmd.Commands()
+
+	expectedCmds := map[string]bool{
+		"broadcast":    false,
+		"send-to-role": false,
+		"send-pattern": false,
+	}
+
+	for _, cmd := range subcommands {
+		if _, ok := expectedCmds[cmd.Name()]; ok {
+			expectedCmds[cmd.Name()] = true
+		}
+	}
+
+	for name, found := range expectedCmds {
+		if !found {
+			t.Errorf("expected subcommand %q not found", name)
+		}
+	}
+}
+
+// --- Agent Health Tests ---
+
+func TestAgentHealthFlags(t *testing.T) {
+	flags := agentHealthCmd.Flags()
+
+	if flags.Lookup("json") == nil {
+		t.Error("expected --json flag")
+	}
+	if flags.Lookup("timeout") == nil {
+		t.Error("expected --timeout flag")
+	}
+	if flags.Lookup("detect-stuck") == nil {
+		t.Error("expected --detect-stuck flag")
+	}
+	if flags.Lookup("work-timeout") == nil {
+		t.Error("expected --work-timeout flag")
+	}
+	if flags.Lookup("max-failures") == nil {
+		t.Error("expected --max-failures flag")
+	}
+	if flags.Lookup("alert") == nil {
+		t.Error("expected --alert flag")
+	}
+}
+
+func TestAgentHealthAlertRequiresDetectStuck(t *testing.T) {
+	setupTestWorkspace(t)
+
+	// Set alert without detect-stuck
+	agentHealthAlert = "engineering"
+	agentHealthDetect = false
+	defer func() {
+		agentHealthAlert = ""
+		agentHealthDetect = false
+	}()
+
+	_, err := executeCmd("agent", "health", "--alert", "engineering")
+	if err == nil {
+		t.Error("expected error when --alert used without --detect-stuck")
+	}
+	if err != nil && !strings.Contains(err.Error(), "requires --detect-stuck") {
+		t.Errorf("error should mention '--detect-stuck' requirement: %v", err)
+	}
+}
+
+func TestAgentHealthNoAgents(t *testing.T) {
+	setupTestWorkspace(t)
+
+	// Should succeed with no agents
+	_, err := executeCmd("agent", "health")
+	if err != nil {
+		t.Fatalf("agent health failed: %v", err)
+	}
+}
+
+func TestAgentHealthJSON(t *testing.T) {
+	setupTestWorkspace(t)
+
+	// Should succeed with --json flag
+	_, err := executeCmd("agent", "health", "--json")
+	if err != nil {
+		t.Fatalf("agent health --json failed: %v", err)
+	}
+}
+
+func TestAgentHealth_StuckDetectionNoStuck(t *testing.T) {
+	// Test that no stuck agents returns empty list
+	healthResults := []AgentHealth{
+		{Name: "eng-01", Role: "engineer", Status: "healthy", IsStuck: false},
+		{Name: "eng-02", Role: "engineer", Status: "healthy", IsStuck: false},
+	}
+
+	var stuckAgents []AgentHealth
+	for _, h := range healthResults {
+		if h.IsStuck || h.Status == "stuck" {
+			stuckAgents = append(stuckAgents, h)
+		}
+	}
+
+	if len(stuckAgents) != 0 {
+		t.Errorf("expected 0 stuck agents, got %d", len(stuckAgents))
+	}
+}
+
+func TestAgentHealth_StuckDetectionWithStuck(t *testing.T) {
+	// Test that stuck agents are correctly identified
+	healthResults := []AgentHealth{
+		{Name: "eng-01", Role: "engineer", Status: "healthy", IsStuck: false},
+		{Name: "eng-02", Role: "engineer", Status: "stuck", IsStuck: true, StuckReason: "no_activity"},
+		{Name: "eng-03", Role: "engineer", Status: "stuck", IsStuck: true, StuckReason: "repeated_failures"},
+	}
+
+	var stuckAgents []AgentHealth
+	for _, h := range healthResults {
+		if h.IsStuck || h.Status == "stuck" {
+			stuckAgents = append(stuckAgents, h)
+		}
+	}
+
+	if len(stuckAgents) != 2 {
+		t.Errorf("expected 2 stuck agents, got %d", len(stuckAgents))
+	}
+}
+
+func TestAgentHealth_AlertMessageFormat(t *testing.T) {
+	// Test that alert message is formatted correctly
+	stuckAgents := []AgentHealth{
+		{Name: "eng-01", Role: "engineer", Status: "stuck", IsStuck: true, StuckReason: "no_activity", StuckDetails: "no events in 15m"},
+		{Name: "eng-02", Role: "qa", Status: "stuck", IsStuck: true, StuckReason: "repeated_failures", StuckDetails: "task failed 3 times"},
+	}
+
+	var sb strings.Builder
+	sb.WriteString("⚠️ ALERT: 2 stuck agent(s) detected\n")
+	for _, h := range stuckAgents {
+		sb.WriteString("  • " + h.Name + " (" + h.Role + "): " + h.StuckReason + " - " + h.StuckDetails + "\n")
+	}
+	message := sb.String()
+
+	if !strings.Contains(message, "eng-01") {
+		t.Error("message should contain eng-01")
+	}
+	if !strings.Contains(message, "eng-02") {
+		t.Error("message should contain eng-02")
+	}
+	if !strings.Contains(message, "no_activity") {
+		t.Error("message should contain reason 'no_activity'")
+	}
+	if !strings.Contains(message, "repeated_failures") {
+		t.Error("message should contain reason 'repeated_failures'")
+	}
+}
