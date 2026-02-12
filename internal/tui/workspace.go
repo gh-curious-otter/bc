@@ -742,7 +742,7 @@ func (m *WorkspaceModel) loadQueue() {
 	m.queueItems = nil
 
 	// Load work queue items from ready issues
-	readyIssues := beads.ReadyIssues(m.info.Entry.Path)
+	readyIssues, _ := beads.ReadyIssues(m.info.Entry.Path) // Ignore error - no beads is OK
 	for _, issue := range readyIssues {
 		m.queueItems = append(m.queueItems, QueueItem{
 			ID:       issue.ID,
@@ -1213,7 +1213,7 @@ func (m *WorkspaceModel) computeStats() {
 	}
 
 	// Count ready issues (unblocked and available for work)
-	readyIssues := beads.ReadyIssues(m.info.Entry.Path)
+	readyIssues, _ := beads.ReadyIssues(m.info.Entry.Path) // Ignore error - no beads is OK
 	m.stats.ReadyIssues = len(readyIssues)
 
 	for _, a := range m.agents {
