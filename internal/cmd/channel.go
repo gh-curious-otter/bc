@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -99,6 +100,21 @@ var channelHistoryCmd = &cobra.Command{
 	RunE:  runChannelHistory,
 }
 
+var channelReactCmd = &cobra.Command{
+	Use:   "react <channel> <message-index> <emoji>",
+	Short: "React to a channel message",
+	Long: `Add an emoji reaction to a message in a channel.
+
+The message-index is shown in 'bc channel history' output.
+Use common emoji like 👍, 👎, ❤️, 🎉, 👀, 🚀 or any emoji.
+
+Examples:
+  bc channel react engineering 5 👍
+  bc channel react general 0 🎉`,
+	Args: cobra.ExactArgs(3),
+	RunE: runChannelReact,
+}
+
 func init() {
 	channelCmd.AddCommand(channelCreateCmd)
 	channelCmd.AddCommand(channelAddCmd)
@@ -109,6 +125,7 @@ func init() {
 	channelCmd.AddCommand(channelJoinCmd)
 	channelCmd.AddCommand(channelLeaveCmd)
 	channelCmd.AddCommand(channelHistoryCmd)
+	channelCmd.AddCommand(channelReactCmd)
 	rootCmd.AddCommand(channelCmd)
 }
 
@@ -463,13 +480,63 @@ func runChannelHistory(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Message history for #%s:\n", channelName)
 	fmt.Println(strings.Repeat("-", 60))
-	for _, entry := range history {
+	for i, entry := range history {
 		if entry.Sender != "" {
-			fmt.Printf("[%s] %s: %s\n", entry.Time.Format("15:04:05"), entry.Sender, entry.Message)
+			fmt.Printf("[%d] [%s] %s: %s\n", i, entry.Time.Format("15:04:05"), entry.Sender, entry.Message)
 		} else {
-			fmt.Printf("[%s] %s\n", entry.Time.Format("15:04:05"), entry.Message)
+			fmt.Printf("[%d] [%s] %s\n", i, entry.Time.Format("15:04:05"), entry.Message)
+		}
+		// Show reactions if any
+		if len(entry.Reactions) > 0 {
+			var reactionStrs []string
+			for emoji, users := range entry.Reactions {
+				reactionStrs = append(reactionStrs, fmt.Sprintf("%s %d", emoji, len(users)))
+			}
+			fmt.Printf("    Reactions: %s\n", strings.Join(reactionStrs, " "))
 		}
 	}
 
+	return nil
+}
+
+func runChannelReact(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	store, err := loadChannelStore(ws.RootDir)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = store.Close() }()
+
+	channelName := args[0]
+	messageIndex, err := strconv.Atoi(args[1])
+	if err != nil {
+		return fmt.Errorf("invalid message index %q: %w", args[1], err)
+	}
+	emoji := args[2]
+
+	// Get user identity
+	user := os.Getenv("BC_AGENT_ID")
+	if user == "" {
+		user = "cli"
+	}
+
+	added, err := store.ToggleReaction(channelName, messageIndex, emoji, user)
+	if err != nil {
+		return err
+	}
+
+	if err := store.Save(); err != nil {
+		return fmt.Errorf("failed to save reactions: %w", err)
+	}
+
+	if added {
+		fmt.Printf("Added %s reaction to message %d in #%s\n", emoji, messageIndex, channelName)
+	} else {
+		fmt.Printf("Removed %s reaction from message %d in #%s\n", emoji, messageIndex, channelName)
+	}
 	return nil
 }
