@@ -37,13 +37,6 @@ export async function execBc(args: string[]): Promise<string> {
     const bcBin = process.env.BC_BIN || 'bc';
     const bcRoot = process.env.BC_ROOT || process.cwd();
 
-    // DEBUG: Only log if DEBUG_TUI env var is set (for troubleshooting)
-    if (process.env.DEBUG_TUI) {
-      console.error('[DEBUG execBc] BC_BIN:', bcBin);
-      console.error('[DEBUG execBc] BC_ROOT:', bcRoot);
-      console.error('[DEBUG execBc] Command:', finalArgs.join(' '));
-    }
-
     const proc = spawn(bcBin, finalArgs, {
       stdio: ['ignore', 'pipe', 'pipe'],
       cwd: bcRoot,
@@ -57,8 +50,10 @@ export async function execBc(args: string[]): Promise<string> {
     const timeout = setTimeout(() => {
       if (!finished) {
         finished = true;
-        proc.kill();
-        reject(new Error(`bc command timed out: ${args.join(' ')}`));
+        // Kill the process forcefully to ensure cleanup
+        proc.kill('SIGKILL');
+        clearTimeout(timeout);
+        reject(new Error(`bc command timed out after 30s: ${args.join(' ')}`));
       }
     }, 30000);
 
@@ -71,13 +66,6 @@ export async function execBc(args: string[]): Promise<string> {
     });
 
     proc.on('close', (code: number | null) => {
-      // DEBUG: Only log if DEBUG_TUI env var is set
-      if (process.env.DEBUG_TUI) {
-        console.error('[DEBUG execBc] Exit code:', code);
-        console.error('[DEBUG execBc] stdout length:', stdout.length);
-        console.error('[DEBUG execBc] stderr:', stderr || '(empty)');
-      }
-
       if (finished) return;
       finished = true;
       clearTimeout(timeout);
@@ -89,9 +77,6 @@ export async function execBc(args: string[]): Promise<string> {
     });
 
     proc.on('error', (err: Error) => {
-      if (process.env.DEBUG_TUI) {
-        console.error('[DEBUG execBc] Spawn error:', err.message);
-      }
       if (finished) return;
       finished = true;
       clearTimeout(timeout);
