@@ -21,6 +21,15 @@ import type {
  * @returns Promise resolving to stdout string
  * @throws Error if command fails
  */
+/** Enable debug logging via BC_DEBUG env var */
+const DEBUG = process.env.BC_DEBUG === '1';
+
+function debugLog(...args: unknown[]): void {
+  if (DEBUG) {
+    console.error('[bc-service]', ...args);
+  }
+}
+
 export async function execBc(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     // Always add --json flag if not present and command supports it
@@ -35,10 +44,15 @@ export async function execBc(args: string[]): Promise<string> {
 
     // Use BC_BIN if set, otherwise fall back to 'bc' in PATH
     const bcBin = process.env.BC_BIN || 'bc';
+    const bcRoot = process.env.BC_ROOT || process.cwd();
+
+    debugLog('BC_BIN:', bcBin);
+    debugLog('BC_ROOT:', bcRoot);
+    debugLog('Command:', finalArgs.join(' '));
 
     const proc = spawn(bcBin, finalArgs, {
       stdio: ['ignore', 'pipe', 'pipe'],
-      cwd: process.env.BC_ROOT || process.cwd(),
+      cwd: bcRoot,
     });
 
     let stdout = '';
@@ -63,6 +77,10 @@ export async function execBc(args: string[]): Promise<string> {
     });
 
     proc.on('close', (code: number | null) => {
+      debugLog('Exit code:', code);
+      debugLog('stdout length:', stdout.length);
+      debugLog('stderr:', stderr || '(empty)');
+
       if (finished) return;
       finished = true;
       clearTimeout(timeout);
@@ -74,6 +92,8 @@ export async function execBc(args: string[]): Promise<string> {
     });
 
     proc.on('error', (err: Error) => {
+      debugLog('Spawn error:', err.message);
+
       if (finished) return;
       finished = true;
       clearTimeout(timeout);
