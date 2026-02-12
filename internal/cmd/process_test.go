@@ -442,3 +442,55 @@ func TestProcessStopNotRunning(t *testing.T) {
 		t.Errorf("expected 'not running' error, got: %v", err)
 	}
 }
+
+func TestProcessRestartNotFound(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	_, _, err := executeIntegrationCmd("process", "restart", "nonexistent")
+	if err == nil {
+		t.Fatal("expected error for missing process, got nil")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("expected 'not found' error, got: %v", err)
+	}
+}
+
+func TestProcessRestartNoWorkspace(t *testing.T) {
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get cwd: %v", err)
+	}
+
+	tmpDir := t.TempDir()
+	if err = os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	_, _, err = executeIntegrationCmd("process", "restart", "test")
+	if err == nil {
+		t.Fatal("expected error when not in workspace, got nil")
+	}
+	if !strings.Contains(err.Error(), "not in a bc workspace") {
+		t.Errorf("expected workspace error, got: %v", err)
+	}
+}
+
+func TestProcessRestartCommandExists(t *testing.T) {
+	// Verify the restart command is registered
+	restartCmd := processCmd.Commands()
+	found := false
+	for _, cmd := range restartCmd {
+		if cmd.Use == "restart <name>" {
+			found = true
+			if cmd.Short != "Restart a process" {
+				t.Errorf("unexpected short description: %s", cmd.Short)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("restart command not found in process subcommands")
+	}
+}

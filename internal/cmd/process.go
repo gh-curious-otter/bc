@@ -94,6 +94,18 @@ Examples:
 	RunE: runProcessShow,
 }
 
+var processRestartCmd = &cobra.Command{
+	Use:   "restart <name>",
+	Short: "Restart a process",
+	Long: `Restart a process by stopping it gracefully and starting it again with the same configuration.
+
+Examples:
+  bc process restart web
+  bc process restart api`,
+	Args: cobra.ExactArgs(1),
+	RunE: runProcessRestart,
+}
+
 var (
 	processCommand  string
 	processPort     int
@@ -115,6 +127,7 @@ func init() {
 	processCmd.AddCommand(processLogsCmd)
 	processCmd.AddCommand(processAttachCmd)
 	processCmd.AddCommand(processShowCmd)
+	processCmd.AddCommand(processRestartCmd)
 	rootCmd.AddCommand(processCmd)
 }
 
@@ -390,4 +403,121 @@ func statusStr(running bool) string {
 		return "running"
 	}
 	return "stopped"
+}
+
+func runProcessRestart(cmd *cobra.Command, args []string) error {
+	name := args[0]
+
+	reg, err := getProcessRegistry()
+	if err != nil {
+		return err
+	}
+
+	proc := reg.Get(name)
+	if proc == nil {
+		return fmt.Errorf("process %q not found", name)
+	}
+
+	// Store config before stopping
+	savedCommand := proc.Command
+	savedPort := proc.Port
+	savedWorkDir := proc.WorkDir
+	savedOwner := proc.Owner
+
+	// Stop the process if running
+	if proc.Running && proc.PID > 0 {
+		fmt.Printf("Stopping process %q (PID %d)...\n", name, proc.PID)
+
+		p, findErr := os.FindProcess(proc.PID)
+		if findErr == nil {
+			// Try graceful shutdown first (SIGTERM)
+			if sigErr := p.Signal(syscall.SIGTERM); sigErr == nil {
+				// Wait for process to exit (with timeout)
+				done := make(chan struct{})
+				go func() {
+					_, _ = p.Wait()
+					close(done)
+				}()
+
+				select {
+				case <-done:
+					// Process exited gracefully
+				case <-time.After(5 * time.Second):
+					// Force kill after timeout
+					fmt.Println("Process did not exit gracefully, forcing...")
+					_ = p.Kill()
+				}
+			} else {
+				// If SIGTERM fails, try SIGKILL
+				_ = p.Kill()
+			}
+		}
+
+		// Mark as stopped in registry
+		if stopErr := reg.MarkStopped(name); stopErr != nil {
+			return fmt.Errorf("failed to update registry: %w", stopErr)
+		}
+	}
+
+	// Small delay to ensure cleanup
+	time.Sleep(100 * time.Millisecond)
+
+	// Parse command string into command and args
+	parts := strings.Fields(savedCommand)
+	if len(parts) == 0 {
+		return fmt.Errorf("no command stored for process %q", name)
+	}
+
+	command := parts[0]
+	cmdArgs := parts[1:]
+
+	// Use saved workdir or current directory
+	workDir := savedWorkDir
+	if workDir == "" {
+		workDir, _ = os.Getwd()
+	}
+
+	// Create log file
+	logFile, logErr := reg.CreateLogFile(name)
+	if logErr != nil {
+		return fmt.Errorf("failed to create log file: %w", logErr)
+	}
+
+	// Start the process with output captured to log file
+	execCmd := exec.CommandContext(context.Background(), command, cmdArgs...) //nolint:gosec // user-provided command
+	execCmd.Dir = workDir
+	execCmd.Stdout = logFile
+	execCmd.Stderr = logFile
+
+	fmt.Printf("Starting process %q...\n", name)
+	if startErr := execCmd.Start(); startErr != nil {
+		_ = logFile.Close()
+		return fmt.Errorf("failed to start process: %w", startErr)
+	}
+
+	// Close log file in background after process exits
+	go func() {
+		_ = execCmd.Wait()
+		_ = logFile.Close()
+	}()
+
+	// Register the process with same config
+	newProc := &process.Process{
+		Name:    name,
+		Command: savedCommand,
+		Owner:   savedOwner,
+		WorkDir: workDir,
+		LogFile: reg.LogPath(name),
+		PID:     execCmd.Process.Pid,
+		Port:    savedPort,
+	}
+
+	if regErr := reg.Register(newProc); regErr != nil {
+		// Kill the process if we can't register it
+		_ = execCmd.Process.Kill()
+		return fmt.Errorf("failed to register process: %w", regErr)
+	}
+
+	fmt.Printf("Restarted process %q (PID %d)\n", name, newProc.PID)
+	return nil
 }
