@@ -97,6 +97,31 @@ func TestChannelHandleKey_SendMode(t *testing.T) {
 	}
 }
 
+func TestChannelClampScroll_KeepsScrollInBounds(t *testing.T) {
+	m := newTestChannelModel()
+	// Few messages: maxScroll is small or 0
+	for i := 0; i < 5; i++ {
+		m.channel.History = append(m.channel.History, channel.HistoryEntry{
+			Sender: "u", Message: "m", Time: time.Now(),
+		})
+	}
+	m.scroll = 999 // out of bounds
+	m.clampScroll()
+	maxScroll := len(m.channel.History) - m.visibleMsgCount()
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if m.scroll != maxScroll {
+		t.Errorf("after clampScroll scroll = %d, want %d (maxScroll)", m.scroll, maxScroll)
+	}
+	// Negative scroll
+	m.scroll = -1
+	m.clampScroll()
+	if m.scroll < 0 {
+		t.Errorf("scroll should be >= 0 after clampScroll, got %d", m.scroll)
+	}
+}
+
 func TestChannelHandleKey_HomeEnd(t *testing.T) {
 	m := newTestChannelModel()
 	// Add enough history to scroll
