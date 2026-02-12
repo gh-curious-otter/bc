@@ -258,3 +258,147 @@ func TestAgentNoWorkspace(t *testing.T) {
 		t.Errorf("expected workspace error, got: %v", execErr)
 	}
 }
+
+func TestAgentHealthEmpty(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	stdout, _, err := executeIntegrationCmd("agent", "health")
+	if err != nil {
+		t.Fatalf("agent health failed: %v\nOutput: %s", err, stdout)
+	}
+	if !strings.Contains(stdout, "No agents") {
+		t.Errorf("expected 'No agents' message, got: %s", stdout)
+	}
+}
+
+func TestAgentHealthWithAgents(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Seed agents
+	seedAgents(t, wsDir, map[string]*agent.Agent{
+		"engineer-01": {
+			Name:      "engineer-01",
+			Role:      agent.Role("engineer"),
+			State:     agent.StateWorking,
+			Session:   "bc-engineer-01",
+			StartedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+		"stuck-agent": {
+			Name:      "stuck-agent",
+			Role:      agent.Role("engineer"),
+			State:     agent.StateError,
+			Session:   "bc-stuck-agent",
+			StartedAt: time.Now().Add(-2 * time.Hour),
+			UpdatedAt: time.Now().Add(-2 * time.Hour), // stale
+		},
+	})
+
+	stdout, _, err := executeIntegrationCmd("agent", "health")
+	if err != nil {
+		t.Fatalf("agent health failed: %v\nOutput: %s", err, stdout)
+	}
+	if !strings.Contains(stdout, "engineer-01") {
+		t.Errorf("output should contain engineer-01: %s", stdout)
+	}
+	if !strings.Contains(stdout, "stuck-agent") {
+		t.Errorf("output should contain stuck-agent: %s", stdout)
+	}
+	if !strings.Contains(stdout, "Summary:") {
+		t.Errorf("output should contain summary: %s", stdout)
+	}
+}
+
+func TestAgentHealthSpecificAgent(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	seedAgents(t, wsDir, map[string]*agent.Agent{
+		"engineer-01": {
+			Name:      "engineer-01",
+			Role:      agent.Role("engineer"),
+			State:     agent.StateWorking,
+			Session:   "bc-engineer-01",
+			StartedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+	})
+
+	stdout, _, err := executeIntegrationCmd("agent", "health", "engineer-01")
+	if err != nil {
+		t.Fatalf("agent health failed: %v\nOutput: %s", err, stdout)
+	}
+	if !strings.Contains(stdout, "engineer-01") {
+		t.Errorf("output should contain engineer-01: %s", stdout)
+	}
+}
+
+func TestAgentHealthNotFound(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	_, _, err := executeIntegrationCmd("agent", "health", "nonexistent-agent")
+	if err == nil {
+		t.Error("expected error for nonexistent agent")
+	}
+	if err != nil && !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention not found: %v", err)
+	}
+}
+
+func TestAgentHealthJSONOutput(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	seedAgents(t, wsDir, map[string]*agent.Agent{
+		"engineer-01": {
+			Name:      "engineer-01",
+			Role:      agent.Role("engineer"),
+			State:     agent.StateIdle,
+			Session:   "bc-engineer-01",
+			StartedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+	})
+
+	stdout, _, err := executeIntegrationCmd("agent", "health", "--json")
+	if err != nil {
+		t.Fatalf("agent health --json failed: %v\nOutput: %s", err, stdout)
+	}
+	// Output should be valid JSON (starts with [)
+	trimmed := strings.TrimSpace(stdout)
+	if !strings.HasPrefix(trimmed, "[") {
+		t.Errorf("output should be JSON array, got: %s", stdout)
+	}
+	if !strings.Contains(stdout, "engineer-01") {
+		t.Errorf("JSON should contain agent name: %s", stdout)
+	}
+}
+
+func TestAgentHealthCustomTimeout(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Seed an agent with stale state
+	seedAgents(t, wsDir, map[string]*agent.Agent{
+		"stale-agent": {
+			Name:      "stale-agent",
+			Role:      agent.Role("engineer"),
+			State:     agent.StateWorking,
+			Session:   "bc-stale-agent",
+			StartedAt: time.Now().Add(-5 * time.Minute),
+			UpdatedAt: time.Now().Add(-5 * time.Minute),
+		},
+	})
+
+	// With short timeout, should show degraded
+	stdout, _, err := executeIntegrationCmd("agent", "health", "--timeout", "1s")
+	if err != nil {
+		t.Fatalf("agent health --timeout failed: %v\nOutput: %s", err, stdout)
+	}
+	if !strings.Contains(stdout, "degraded") && !strings.Contains(stdout, "unhealthy") {
+		t.Errorf("stale agent should be degraded or unhealthy with 1s timeout: %s", stdout)
+	}
+}
