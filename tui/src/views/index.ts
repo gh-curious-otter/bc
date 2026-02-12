@@ -7,3 +7,4 @@ export { MessageHistory } from './MessageHistory';
 export { CostDashboard } from './CostDashboard';
 export { DemonsView } from './DemonsView';
 export { ProcessesView } from './ProcessesView';
+export { TeamsView } from './TeamsView';

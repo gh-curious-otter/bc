@@ -82,3 +82,9 @@ export {
   type UseMentionAutocompleteOptions,
   type UseMentionAutocompleteResult,
 } from './useMentionAutocomplete';
+
+export {
+  useTeams,
+  type UseTeamsOptions,
+  type UseTeamsResult,
+} from './useTeams';
