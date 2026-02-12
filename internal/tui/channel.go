@@ -780,25 +780,6 @@ func (m *ChannelModel) View() string {
 
 	b.WriteString(m.renderMemberList())
 
-	// Member list: names visible in channel view
-	if totalMembers > 0 {
-		b.WriteString("\n")
-		memberList := strings.Join(m.channel.Members, ", ")
-		listWidth := m.width - 4
-		if listWidth < 20 {
-			listWidth = 20
-		}
-		for i, line := range wrapText(memberList, listWidth-len("  Members: ")) {
-			if i == 0 {
-				b.WriteString(m.styles.Muted.Render("  Members: "))
-			} else {
-				b.WriteString(m.styles.Muted.Render("           "))
-			}
-			b.WriteString(m.styles.Normal.Render(line))
-			b.WriteString("\n")
-		}
-	}
-
 	// Quick actions hint
 	b.WriteString(m.styles.Muted.Render("  │  "))
 	b.WriteString(m.styles.Info.Render("[s]"))
@@ -925,9 +906,26 @@ func (m *ChannelModel) View() string {
 			if entry.Sender != "" && entry.Sender == os.Getenv("BC_AGENT_ID") {
 				bubbleStyle = m.styles.MessageBubbleOwn
 			}
-			bubble := bubbleStyle.Width(msgWidth).Inherit(msgStyle).Render(content.String())
-			for _, line := range strings.Split(bubble, "\n") {
+
+			// Check if this message is selected (for reactions)
+			isSelected := i == m.cursor
+			if isSelected {
+				// Add selection indicator before bubble
+				b.WriteString(m.styles.Info.Render("▶ "))
+			} else {
 				b.WriteString("  ")
+			}
+
+			bubble := bubbleStyle.Width(msgWidth).Inherit(msgStyle).Render(content.String())
+			bubbleLines := strings.Split(bubble, "\n")
+			for j, line := range bubbleLines {
+				if j > 0 {
+					if isSelected {
+						b.WriteString(m.styles.Info.Render("│ "))
+					} else {
+						b.WriteString("  ")
+					}
+				}
 				b.WriteString(line)
 				b.WriteString("\n")
 			}
@@ -945,100 +943,6 @@ func (m *ChannelModel) View() string {
 			b.WriteString("\n")
 			b.WriteString(m.styles.Muted.Render(fmt.Sprintf("  ▼ %d newer messages", m.scroll)))
 			b.WriteString("\n")
-		}
-	}
-
-	// Bottom divider
-	b.WriteString(m.styles.Muted.Render("  " + strings.Repeat("─", divWidth)))
-	b.WriteString("\n")
-
-	// History section
-	b.WriteString(m.styles.Bold.Render("Recent Messages"))
-	b.WriteString("\n")
-	if len(m.channel.History) == 0 {
-		b.WriteString(m.styles.Muted.Render("  No messages"))
-		b.WriteString("\n")
-	} else {
-		// Show last 20 messages (windowed for long history)
-		recentStart := 0
-		if len(m.channel.History) > 20 {
-			recentStart = len(m.channel.History) - 20
-		}
-		var lastDate time.Time
-		recentHistory := m.channel.History[recentStart:]
-		selectedIdx := m.selectedMessageIndex()
-		listWrapWidth := m.width - 12
-		if listWrapWidth < 20 {
-			listWrapWidth = 20
-		}
-		for i, entry := range recentHistory {
-			// Add date separator if this is a new day
-			if i == 0 || !isSameDay(entry.Time, lastDate) {
-				dateSep := formatDateSeparator(entry.Time)
-				b.WriteString(m.styles.Muted.Render(fmt.Sprintf("  ─── %s ───", dateSep)))
-				b.WriteString("\n")
-			}
-			lastDate = entry.Time
-
-			selected := (recentStart + i) == selectedIdx
-
-			// Infer message type for styling
-			msgType := channel.InferMessageType(entry.Message)
-			msgTypeStr := string(msgType)
-			icon := m.styles.MessageTypeIcon(msgTypeStr)
-			relTime := formatRelativeTime(entry.Time)
-			ts := m.styles.Muted.Render(relTime)
-
-			// Wrap long messages so they don't overflow terminal width (#304)
-			wrappedMsg := wrapText(entry.Message, listWrapWidth)
-			const continuationIndent = "             "
-			for lineIdx, msgLine := range wrappedMsg {
-				highlighted := m.highlightMessage(msgLine)
-				var line string
-				if lineIdx == 0 {
-					if entry.Sender != "" {
-						line = fmt.Sprintf("  %s%s  [%s] %s", icon, relTime, entry.Sender, msgLine)
-					} else {
-						line = fmt.Sprintf("  %s%s  %s", icon, relTime, msgLine)
-					}
-				} else {
-					line = continuationIndent + msgLine
-				}
-				if selected {
-					b.WriteString(m.styles.Selected.Render(line))
-				} else {
-					if lineIdx == 0 {
-						if entry.Sender != "" {
-							role := style.RoleFromAgentName(entry.Sender)
-							senderStyle := m.styles.RoleStyle(role)
-							sender := senderStyle.Render("[" + entry.Sender + "]")
-							b.WriteString("  ")
-							b.WriteString(icon)
-							b.WriteString(ts)
-							b.WriteString("  ")
-							b.WriteString(sender)
-							b.WriteString(" ")
-							b.WriteString(highlighted)
-						} else {
-							b.WriteString("  ")
-							b.WriteString(icon)
-							b.WriteString(ts)
-							b.WriteString("  ")
-							b.WriteString(highlighted)
-						}
-					} else {
-						b.WriteString(m.styles.Muted.Render(continuationIndent))
-						b.WriteString(highlighted)
-					}
-				}
-				b.WriteString("\n")
-			}
-			// Display reactions inline if any (after last message line)
-			if reactionStr := m.formatReactions(entry.Reactions); reactionStr != "" {
-				b.WriteString("  ")
-				b.WriteString(reactionStr)
-				b.WriteString("\n")
-			}
 		}
 	}
 
