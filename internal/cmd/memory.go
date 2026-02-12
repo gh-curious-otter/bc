@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -156,6 +157,22 @@ Example:
 	RunE: runMemoryClear,
 }
 
+var memoryExportCmd = &cobra.Command{
+	Use:   "export <agent>",
+	Short: "Export agent memory to JSON",
+	Long: `Export an agent's memory (experiences and learnings) to JSON format.
+
+Output can be written to stdout or saved to a file with --output flag.
+
+Example:
+  bc memory export engineer-01                # Print JSON to stdout
+  bc memory export engineer-01 --output mem.json  # Save to file
+  bc memory export engineer-01 --experiences      # Export only experiences
+  bc memory export engineer-01 --learnings        # Export only learnings`,
+	Args: cobra.ExactArgs(1),
+	RunE: runMemoryExport,
+}
+
 var (
 	memoryOutcome          string
 	memoryTaskID           string
@@ -174,6 +191,9 @@ var (
 	memoryClearExp         bool
 	memoryClearLearn       bool
 	memoryClearForce       bool
+	memoryExportOutput     string
+	memoryExportExp        bool
+	memoryExportLearn      bool
 )
 
 func init() {
@@ -200,6 +220,10 @@ func init() {
 	memoryClearCmd.Flags().BoolVar(&memoryClearLearn, "learnings", false, "Clear only learnings")
 	memoryClearCmd.Flags().BoolVar(&memoryClearForce, "force", false, "Skip confirmation prompt")
 
+	memoryExportCmd.Flags().StringVarP(&memoryExportOutput, "output", "o", "", "Output file (default: stdout)")
+	memoryExportCmd.Flags().BoolVar(&memoryExportExp, "experiences", false, "Export only experiences")
+	memoryExportCmd.Flags().BoolVar(&memoryExportLearn, "learnings", false, "Export only learnings")
+
 	memoryCmd.AddCommand(memoryRecordCmd)
 	memoryCmd.AddCommand(memoryLearnCmd)
 	memoryCmd.AddCommand(memoryShowCmd)
@@ -207,6 +231,7 @@ func init() {
 	memoryCmd.AddCommand(memoryPruneCmd)
 	memoryCmd.AddCommand(memoryListCmd)
 	memoryCmd.AddCommand(memoryClearCmd)
+	memoryCmd.AddCommand(memoryExportCmd)
 	rootCmd.AddCommand(memoryCmd)
 }
 
@@ -913,6 +938,76 @@ func runMemoryClear(cmd *cobra.Command, args []string) error {
 		cmd.Println("Cleared learnings (reset to header)")
 	}
 	cmd.Printf("Memory cleared for agent %s\n", agentID)
+
+	return nil
+}
+
+// MemoryExport represents the exported memory structure.
+//
+//nolint:govet // JSON field order is more important than memory layout
+type MemoryExport struct {
+	Agent       string              `json:"agent"`
+	ExportedAt  time.Time           `json:"exported_at"`
+	Experiences []memory.Experience `json:"experiences,omitempty"`
+	Learnings   string              `json:"learnings,omitempty"`
+}
+
+func runMemoryExport(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	agentID := args[0]
+	store := memory.NewStore(ws.RootDir, agentID)
+	if !store.Exists() {
+		return fmt.Errorf("no memory found for agent %s", agentID)
+	}
+
+	export := MemoryExport{
+		Agent:      agentID,
+		ExportedAt: time.Now().UTC(),
+	}
+
+	exportBoth := !memoryExportExp && !memoryExportLearn
+
+	// Get experiences
+	if exportBoth || memoryExportExp {
+		experiences, expErr := store.GetExperiences()
+		if expErr != nil {
+			return fmt.Errorf("failed to get experiences: %w", expErr)
+		}
+		export.Experiences = experiences
+	}
+
+	// Get learnings
+	if exportBoth || memoryExportLearn {
+		learnings, learnErr := store.GetLearnings()
+		if learnErr != nil {
+			return fmt.Errorf("failed to get learnings: %w", learnErr)
+		}
+		export.Learnings = learnings
+	}
+
+	// Marshal to JSON
+	data, err := json.MarshalIndent(export, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal export: %w", err)
+	}
+
+	// Write output
+	if memoryExportOutput != "" {
+		if err := os.WriteFile(memoryExportOutput, data, 0600); err != nil {
+			return fmt.Errorf("failed to write output file: %w", err)
+		}
+		cmd.Printf("Exported memory for %s to %s\n", agentID, memoryExportOutput)
+		cmd.Printf("  Experiences: %d\n", len(export.Experiences))
+		if export.Learnings != "" {
+			cmd.Printf("  Learnings: %d bytes\n", len(export.Learnings))
+		}
+	} else {
+		cmd.Println(string(data))
+	}
 
 	return nil
 }
