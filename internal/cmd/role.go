@@ -20,12 +20,13 @@ var roleCmd = &cobra.Command{
 Each role file contains YAML frontmatter with metadata and a Markdown prompt.
 
 Examples:
-  bc role list                    # List all roles
-  bc role show engineer           # Show engineer role details
-  bc role create --name my-role   # Create new role
-  bc role edit engineer           # Edit engineer role in $EDITOR
-  bc role delete custom           # Delete a role
-  bc role validate                # Validate all role files`,
+  bc role list                                      # List all roles
+  bc role show engineer                             # Show engineer role details
+  bc role create --name my-role --prompt "..."      # Create role with inline prompt
+  bc role create --name my-role --prompt-file x.md  # Create role from file
+  bc role edit engineer                             # Edit engineer role in $EDITOR
+  bc role delete custom                             # Delete a role
+  bc role validate                                  # Validate all role files`,
 	RunE: runRoleList,
 }
 
@@ -45,11 +46,13 @@ var roleShowCmd = &cobra.Command{
 var roleCreateCmd = &cobra.Command{
 	Use:   "create --name <role>",
 	Short: "Create a new role",
-	Long: `Create a new role with a template.
+	Long: `Create a new role with a custom prompt.
 
 Examples:
-  bc role create --name engineer --template engineer
-  bc role create --name custom --template blank`,
+  bc role create --name my-role --prompt "You are a specialized agent..."
+  bc role create --name my-role --prompt-file ./prompts/custom.md
+  bc role create --name my-role --description "Code reviewer" --prompt "Review code..."
+  bc role create --name my-role  # Creates blank role for editing`,
 	RunE: runRoleCreate,
 }
 
@@ -75,9 +78,12 @@ var roleValidateCmd = &cobra.Command{
 
 // Flags
 var (
-	roleName     string
-	roleTemplate string
-	roleForce    bool
+	roleName        string
+	roleTemplate    string
+	rolePrompt      string
+	rolePromptFile  string
+	roleDescription string
+	roleForce       bool
 )
 
 func init() {
@@ -89,7 +95,10 @@ func init() {
 	roleCmd.AddCommand(roleValidateCmd)
 
 	roleCreateCmd.Flags().StringVar(&roleName, "name", "", "Name for the new role (required)")
-	roleCreateCmd.Flags().StringVar(&roleTemplate, "template", "blank", "Template to use (engineer, manager, qa, blank)")
+	roleCreateCmd.Flags().StringVar(&rolePrompt, "prompt", "", "Inline prompt text for the role")
+	roleCreateCmd.Flags().StringVar(&rolePromptFile, "prompt-file", "", "Path to file containing prompt text")
+	roleCreateCmd.Flags().StringVar(&roleDescription, "description", "", "Brief description of the role")
+	roleCreateCmd.Flags().StringVar(&roleTemplate, "template", "", "Template to use (engineer, manager, qa, blank) [deprecated]")
 	_ = roleCreateCmd.MarkFlagRequired("name")
 
 	roleDeleteCmd.Flags().BoolVar(&roleForce, "force", false, "Skip confirmation")
@@ -186,20 +195,58 @@ func runRoleCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("role %q already exists", roleName)
 	}
 
-	// Get template content
-	templateContent := getTemplate(roleTemplate)
-	if templateContent == "" {
-		return fmt.Errorf("unknown template %q", roleTemplate)
+	// Warn about deprecated --template flag
+	if roleTemplate != "" {
+		fmt.Fprintln(os.Stderr, "Warning: --template is deprecated. Use --prompt or --prompt-file instead.")
 	}
 
-	// Parse template as role
-	role, err := workspace.ParseRoleFile([]byte(templateContent))
-	if err != nil {
-		return fmt.Errorf("failed to parse template: %w", err)
+	// Determine prompt content
+	var promptContent string
+	switch {
+	case rolePromptFile != "":
+		// Read prompt from file
+		content, readErr := os.ReadFile(rolePromptFile) //nolint:gosec // G304: File path is user-provided via CLI flag
+		if readErr != nil {
+			return fmt.Errorf("failed to read prompt file %q: %w", rolePromptFile, readErr)
+		}
+		promptContent = string(content)
+	case rolePrompt != "":
+		// Use inline prompt
+		promptContent = rolePrompt
+	case roleTemplate != "":
+		// Backwards compatibility: use template
+		templateContent := getTemplate(roleTemplate)
+		if templateContent == "" {
+			return fmt.Errorf("unknown template %q", roleTemplate)
+		}
+		role, parseErr := workspace.ParseRoleFile([]byte(templateContent))
+		if parseErr != nil {
+			return fmt.Errorf("failed to parse template: %w", parseErr)
+		}
+		role.Metadata.Name = roleName
+		if err := rm.WriteRole(role); err != nil {
+			return fmt.Errorf("failed to create role: %w", err)
+		}
+		fmt.Printf("✓ Created role %q\n", roleName)
+		fmt.Printf("  File: .bc/roles/%s.md\n\n", roleName)
+		fmt.Println("To edit the role:")
+		fmt.Printf("  bc role edit %s\n", roleName)
+		return nil
+	default:
+		// Create blank role
+		promptContent = fmt.Sprintf("# %s\n\nDefine the purpose and responsibilities of this role.", roleName)
 	}
 
-	// Update name in metadata
-	role.Metadata.Name = roleName
+	// Build role with custom prompt
+	role := &workspace.Role{
+		Metadata: workspace.RoleMetadata{
+			Name:         roleName,
+			Capabilities: []string{},
+			ParentRoles:  []string{},
+			IsSingleton:  false,
+		},
+		Prompt: promptContent,
+	}
 
 	// Write role file
 	if err := rm.WriteRole(role); err != nil {
