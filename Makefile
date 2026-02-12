@@ -70,7 +70,7 @@ bench:
 	go test -bench=. -benchmem ./...
 
 fmt:
-	gofmt -s -w .
+	gofmt -s -w $(shell find . -name '*.go' -not -path './.bc/*')
 
 vet:
 	go vet ./...
