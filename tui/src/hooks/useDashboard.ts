@@ -1,39 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-
-// Types matching bc CLI --json output
-interface Agent {
-  name: string;
-  role: string;
-  state: string;
-  task: string;
-  uptime: string;
-  startedAt: string;
-  updatedAt: string;
-  [key: string]: unknown;
-}
-
-interface Channel {
-  name: string;
-  members: string[];
-  description?: string;
-}
-
-// StatusResponse type for future bc CLI integration
-// interface StatusResponse {
-//   workspace: string;
-//   total: number;
-//   active: number;
-//   working: number;
-//   agents: Agent[];
-// }
-
-interface CostSummary {
-  totalCostUSD: number;
-  recordCount: number;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-}
+import { getStatus, getChannels, getCostSummary } from '../services/bc.js';
+import type { StatusResponse, ChannelsResponse, CostSummary, Agent } from '../types';
 
 interface UseDataResult<T> {
   data: T | null;
@@ -46,25 +13,50 @@ interface DashboardSummary {
   total: number;
   active: number;
   working: number;
+  idle: number;
+  stuck: number;
+  error: number;
   totalCostUSD: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+interface AgentStats {
+  byState: Record<string, number>;
+  byRole: Record<string, number>;
+}
+
+interface DashboardAgent {
+  name: string;
+  role: string;
+  state: string;
+  task: string;
+  uptime: string;
+  startedAt: string;
+  updatedAt: string;
+  [key: string]: unknown;
+}
+
+interface DashboardChannel {
+  name: string;
+  members: string[];
+  description?: string;
 }
 
 /**
  * useDashboard - Aggregates data from multiple bc CLI commands
- * Hook for Dashboard view (Issue #543)
+ * Hook for Dashboard view (Issues #543, #544)
  *
- * Note: This is a skeleton that will be connected to the service layer
- * once eng-02's PRs (#537, #538, #539) are merged.
+ * Integrates with bc CLI via service layer for real-time workspace data.
  */
 export function useDashboard() {
-  // Placeholder state - will be replaced with actual hooks from eng-02
-  const [agents, setAgents] = useState<UseDataResult<Agent[]>>({
+  const [agents, setAgents] = useState<UseDataResult<DashboardAgent[]>>({
     data: null,
     isLoading: true,
     error: null,
   });
 
-  const [channels, setChannels] = useState<UseDataResult<Channel[]>>({
+  const [channels, setChannels] = useState<UseDataResult<DashboardChannel[]>>({
     data: null,
     isLoading: true,
     error: null,
@@ -76,51 +68,119 @@ export function useDashboard() {
     error: null,
   });
 
-  const [workspaceName] = useState('bc');
+  const [workspaceName, setWorkspaceName] = useState('bc');
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
-  // Fetch data on mount
-  useEffect(() => {
-    // TODO: Replace with actual service calls when available
-    // For now, simulate loading completion with empty data
-    const timer = setTimeout(() => {
-      setAgents({ data: [], isLoading: false, error: null });
-      setChannels({ data: [], isLoading: false, error: null });
-      setCost({
-        data: { totalCostUSD: 0, recordCount: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-        isLoading: false,
-        error: null,
-      });
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Compute summary from data
-  const summary = useMemo<DashboardSummary>(() => ({
-    workspaceName,
-    total: agents.data?.length ?? 0,
-    active: agents.data?.filter((a) => a.state !== 'stopped').length ?? 0,
-    working: agents.data?.filter((a) => a.state === 'working').length ?? 0,
-    totalCostUSD: cost.data?.totalCostUSD ?? 0,
-  }), [workspaceName, agents.data, cost.data]);
-
-  const refresh = useCallback(() => {
-    // TODO: Implement refresh when service layer is available
+  // Fetch all data
+  const fetchData = useCallback(async () => {
     setAgents((prev) => ({ ...prev, isLoading: true }));
     setChannels((prev) => ({ ...prev, isLoading: true }));
     setCost((prev) => ({ ...prev, isLoading: true }));
 
-    // Simulate refresh
-    setTimeout(() => {
-      setAgents({ data: [], isLoading: false, error: null });
-      setChannels({ data: [], isLoading: false, error: null });
-      setCost({
-        data: { totalCostUSD: 0, recordCount: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+    // Fetch status (agents)
+    try {
+      const statusResponse: StatusResponse = await getStatus();
+      setWorkspaceName(statusResponse.workspace || 'bc');
+      setAgents({
+        data: statusResponse.agents.map((a: Agent) => ({
+          name: a.name,
+          role: a.role,
+          state: a.state,
+          task: a.task || '',
+          uptime: '',
+          startedAt: formatTime(a.started_at),
+          updatedAt: formatTime(a.updated_at),
+        })),
         isLoading: false,
         error: null,
       });
-    }, 500);
+    } catch (err) {
+      setAgents({
+        data: [],
+        isLoading: false,
+        error: err instanceof Error ? err : new Error('Failed to fetch agents'),
+      });
+    }
+
+    // Fetch channels
+    try {
+      const channelsResponse: ChannelsResponse = await getChannels();
+      setChannels({
+        data: channelsResponse.channels.map((c) => ({
+          name: c.name,
+          members: c.members,
+        })),
+        isLoading: false,
+        error: null,
+      });
+    } catch (err) {
+      setChannels({
+        data: [],
+        isLoading: false,
+        error: err instanceof Error ? err : new Error('Failed to fetch channels'),
+      });
+    }
+
+    // Fetch costs
+    try {
+      const costResponse: CostSummary = await getCostSummary();
+      setCost({
+        data: costResponse,
+        isLoading: false,
+        error: null,
+      });
+    } catch (err) {
+      setCost({
+        data: null,
+        isLoading: false,
+        error: err instanceof Error ? err : new Error('Failed to fetch costs'),
+      });
+    }
+
+    setLastRefresh(new Date());
   }, []);
+
+  // Initial fetch on mount
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Auto-refresh every 10 seconds
+  useEffect(() => {
+    const interval = setInterval(fetchData, 10000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  // Compute agent stats breakdown
+  const agentStats = useMemo<AgentStats>(() => {
+    const agentList = agents.data ?? [];
+    const byState: Record<string, number> = {};
+    const byRole: Record<string, number> = {};
+
+    for (const agent of agentList) {
+      byState[agent.state] = (byState[agent.state] || 0) + 1;
+      byRole[agent.role] = (byRole[agent.role] || 0) + 1;
+    }
+
+    return { byState, byRole };
+  }, [agents.data]);
+
+  // Compute summary from data
+  const summary = useMemo<DashboardSummary>(() => {
+    const agentList = agents.data ?? [];
+    return {
+      workspaceName,
+      total: agentList.length,
+      active: agentList.filter((a) => a.state !== 'stopped' && a.state !== 'idle').length,
+      working: agentList.filter((a) => a.state === 'working').length,
+      idle: agentList.filter((a) => a.state === 'idle').length,
+      stuck: agentList.filter((a) => a.state === 'stuck').length,
+      error: agentList.filter((a) => a.state === 'error').length,
+      totalCostUSD: cost.data?.total_cost ?? 0,
+      inputTokens: cost.data?.total_input_tokens ?? 0,
+      outputTokens: cost.data?.total_output_tokens ?? 0,
+    };
+  }, [workspaceName, agents.data, cost.data]);
 
   const isLoading = agents.isLoading || channels.isLoading || cost.isLoading;
   const error = agents.error || channels.error || cost.error;
@@ -130,10 +190,35 @@ export function useDashboard() {
     agents,
     channels,
     cost,
+    agentStats,
     isLoading,
     error,
-    refresh,
+    refresh: fetchData,
+    lastRefresh,
   };
+}
+
+/**
+ * Format ISO timestamp to relative time string
+ */
+function formatTime(isoString: string | undefined): string {
+  if (!isoString) return '-';
+  try {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 1) return 'now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  } catch {
+    return '-';
+  }
 }
 
 export default useDashboard;
