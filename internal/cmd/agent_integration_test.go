@@ -402,3 +402,84 @@ func TestAgentHealthCustomTimeout(t *testing.T) {
 		t.Errorf("stale agent should be degraded or unhealthy with 1s timeout: %s", stdout)
 	}
 }
+
+func TestAgentHealthDetectStuckFlag(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Seed an agent
+	seedAgents(t, wsDir, map[string]*agent.Agent{
+		"test-agent": {
+			Name:      "test-agent",
+			Role:      agent.Role("engineer"),
+			State:     agent.StateWorking,
+			Session:   "bc-test-agent",
+			StartedAt: time.Now().Add(-1 * time.Hour),
+			UpdatedAt: time.Now(),
+		},
+	})
+
+	// Test that --detect-stuck flag works (command should execute without error)
+	stdout, _, err := executeIntegrationCmd("agent", "health", "--detect-stuck")
+	if err != nil {
+		t.Fatalf("agent health --detect-stuck failed: %v\nOutput: %s", err, stdout)
+	}
+	// Command should execute and show agent
+	if !strings.Contains(stdout, "test-agent") {
+		t.Errorf("output should contain agent name: %s", stdout)
+	}
+}
+
+func TestAgentHealthDetectStuckMaxFailures(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Seed an agent
+	seedAgents(t, wsDir, map[string]*agent.Agent{
+		"test-agent": {
+			Name:      "test-agent",
+			Role:      agent.Role("engineer"),
+			State:     agent.StateWorking,
+			Session:   "bc-test-agent",
+			StartedAt: time.Now().Add(-1 * time.Hour),
+			UpdatedAt: time.Now(),
+		},
+	})
+
+	// Test custom max-failures flag (command should execute without error)
+	stdout, _, err := executeIntegrationCmd("agent", "health", "--detect-stuck", "--max-failures", "5")
+	if err != nil {
+		t.Fatalf("agent health --max-failures failed: %v\nOutput: %s", err, stdout)
+	}
+	// Command should execute and show agent
+	if !strings.Contains(stdout, "test-agent") {
+		t.Errorf("output should contain agent name: %s", stdout)
+	}
+}
+
+func TestAgentHealthDetectStuckWorkTimeout(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Seed an agent
+	seedAgents(t, wsDir, map[string]*agent.Agent{
+		"test-agent": {
+			Name:      "test-agent",
+			Role:      agent.Role("engineer"),
+			State:     agent.StateWorking,
+			Session:   "bc-test-agent",
+			StartedAt: time.Now().Add(-1 * time.Hour),
+			UpdatedAt: time.Now(),
+		},
+	})
+
+	// Test custom work-timeout flag (command should execute without error)
+	stdout, _, err := executeIntegrationCmd("agent", "health", "--detect-stuck", "--work-timeout", "1h")
+	if err != nil {
+		t.Fatalf("agent health --work-timeout failed: %v\nOutput: %s", err, stdout)
+	}
+	// Command should execute and show agent
+	if !strings.Contains(stdout, "test-agent") {
+		t.Errorf("output should contain agent name: %s", stdout)
+	}
+}

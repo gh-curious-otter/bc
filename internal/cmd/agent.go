@@ -141,29 +141,40 @@ An agent is considered:
   - healthy:   tmux session alive and state updated within timeout threshold
   - degraded:  tmux session alive but state is stale (not updated within threshold)
   - unhealthy: tmux session not found or agent in error state
+  - stuck:     no activity, repeated failures, or work timeout (with --detect-stuck)
+
+Stuck detection criteria (enabled with --detect-stuck):
+  - No activity: no events within activity timeout period
+  - Repeated failures: same task failed multiple times
+  - Work timeout: work started but not completed within work timeout
 
 Examples:
-  bc agent health              # Show health for all agents
-  bc agent health eng-01       # Show health for specific agent
-  bc agent health --json       # Output as JSON
-  bc agent health --timeout 2m # Use 2 minute stale threshold`,
+  bc agent health                    # Show health for all agents
+  bc agent health eng-01             # Show health for specific agent
+  bc agent health --json             # Output as JSON
+  bc agent health --timeout 2m       # Use 2 minute stale threshold
+  bc agent health --detect-stuck     # Include stuck detection analysis
+  bc agent health --detect-stuck --work-timeout 1h  # Custom work timeout`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runAgentHealth,
 }
 
 // Flags
 var (
-	agentCreateTool    string
-	agentCreateRole    string
-	agentCreateParent  string
-	agentCreateTeam    string
-	agentListRole      string
-	agentListJSON      bool
-	agentPeekLines     int
-	agentStopForce     bool
-	agentDeleteForce   bool
-	agentHealthJSON    bool
-	agentHealthTimeout string
+	agentCreateTool      string
+	agentCreateRole      string
+	agentCreateParent    string
+	agentCreateTeam      string
+	agentListRole        string
+	agentListJSON        bool
+	agentPeekLines       int
+	agentStopForce       bool
+	agentDeleteForce     bool
+	agentHealthJSON      bool
+	agentHealthTimeout   string
+	agentHealthDetect    bool
+	agentHealthWorkTmout string
+	agentHealthMaxFail   int
 )
 
 func init() {
@@ -189,6 +200,9 @@ func init() {
 	// Health flags
 	agentHealthCmd.Flags().BoolVar(&agentHealthJSON, "json", false, "Output as JSON")
 	agentHealthCmd.Flags().StringVar(&agentHealthTimeout, "timeout", "60s", "Stale state threshold (e.g., 30s, 2m)")
+	agentHealthCmd.Flags().BoolVar(&agentHealthDetect, "detect-stuck", false, "Enable stuck detection analysis")
+	agentHealthCmd.Flags().StringVar(&agentHealthWorkTmout, "work-timeout", "30m", "Work timeout for stuck detection (e.g., 30m, 1h)")
+	agentHealthCmd.Flags().IntVar(&agentHealthMaxFail, "max-failures", 3, "Max consecutive failures before considered stuck")
 
 	// Add subcommands
 	agentCmd.AddCommand(agentCreateCmd)
@@ -620,8 +634,11 @@ type AgentHealth struct {
 	LastUpdated   string `json:"last_updated"`
 	StaleDuration string `json:"stale_duration,omitempty"`
 	ErrorMessage  string `json:"error_message,omitempty"`
+	StuckReason   string `json:"stuck_reason,omitempty"`
+	StuckDetails  string `json:"stuck_details,omitempty"`
 	TmuxAlive     bool   `json:"tmux_alive"`
 	StateFresh    bool   `json:"state_fresh"`
+	IsStuck       bool   `json:"is_stuck,omitempty"`
 }
 
 func runAgentHealth(cmd *cobra.Command, args []string) error {
@@ -634,6 +651,12 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 	timeout, parseErr := time.ParseDuration(agentHealthTimeout)
 	if parseErr != nil {
 		return fmt.Errorf("invalid timeout format: %w", parseErr)
+	}
+
+	// Parse work timeout for stuck detection
+	workTimeout, workParseErr := time.ParseDuration(agentHealthWorkTmout)
+	if workParseErr != nil {
+		return fmt.Errorf("invalid work-timeout format: %w", workParseErr)
 	}
 
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
@@ -664,10 +687,43 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Prepare stuck detection if enabled
+	var eventLog *events.Log
+	var stuckConfig events.StuckConfig
+	if agentHealthDetect {
+		eventLog = events.NewLog(filepath.Join(ws.RootDir, ".bc", "events.jsonl"))
+		stuckConfig = events.StuckConfig{
+			ActivityTimeout: timeout,
+			WorkTimeout:     workTimeout,
+			MaxFailures:     agentHealthMaxFail,
+		}
+	}
+
 	// Compute health for each agent
 	healthResults := make([]AgentHealth, 0, len(agents))
 	for _, a := range agents {
 		health := computeAgentHealth(a, mgr, timeout)
+
+		// Add stuck detection if enabled
+		if agentHealthDetect && eventLog != nil {
+			agentEvents, readErr := eventLog.ReadByAgent(a.Name)
+			if readErr != nil {
+				log.Warn("failed to read agent events", "agent", a.Name, "error", readErr)
+			} else {
+				stuck := events.DetectStuck(agentEvents, stuckConfig)
+				if stuck.IsStuck {
+					health.IsStuck = true
+					health.StuckReason = string(stuck.Reason)
+					health.StuckDetails = stuck.Details
+					// Override status if stuck
+					if health.Status == "healthy" || health.Status == "degraded" {
+						health.Status = "stuck"
+						health.ErrorMessage = stuck.Details
+					}
+				}
+			}
+		}
+
 		healthResults = append(healthResults, health)
 	}
 
@@ -700,6 +756,8 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 			statusColor = "\033[33m" + h.Status + "\033[0m" // yellow
 		case "unhealthy":
 			statusColor = "\033[31m" + h.Status + "\033[0m" // red
+		case "stuck":
+			statusColor = "\033[35m" + h.Status + "\033[0m" // magenta
 		}
 
 		fmt.Printf("%-15s %-12s %-10s %-8s %-8s %s\n",
@@ -717,7 +775,7 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 	}
 
 	// Summary
-	var healthy, degraded, unhealthy int
+	var healthy, degraded, unhealthy, stuck int
 	for _, h := range healthResults {
 		switch h.Status {
 		case "healthy":
@@ -726,10 +784,17 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 			degraded++
 		case "unhealthy":
 			unhealthy++
+		case "stuck":
+			stuck++
 		}
 	}
-	fmt.Printf("\nSummary: %d healthy, %d degraded, %d unhealthy (threshold: %s)\n",
-		healthy, degraded, unhealthy, timeout)
+	if agentHealthDetect {
+		fmt.Printf("\nSummary: %d healthy, %d degraded, %d unhealthy, %d stuck (threshold: %s, work-timeout: %s)\n",
+			healthy, degraded, unhealthy, stuck, timeout, agentHealthWorkTmout)
+	} else {
+		fmt.Printf("\nSummary: %d healthy, %d degraded, %d unhealthy (threshold: %s)\n",
+			healthy, degraded, unhealthy, timeout)
+	}
 
 	return nil
 }
