@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // Experience represents a recorded task outcome.
@@ -127,13 +129,14 @@ func (s *Store) GetExperiences() ([]Experience, error) {
 
 	var experiences []Experience
 	lines := splitLines(data)
-	for _, line := range lines {
+	for i, line := range lines {
 		if len(line) == 0 {
 			continue
 		}
 		var exp Experience
 		if unmarshalErr := json.Unmarshal(line, &exp); unmarshalErr != nil {
-			continue // Skip malformed lines
+			log.Warn("skipping malformed experience entry", "line", i+1, "error", unmarshalErr)
+			continue
 		}
 		experiences = append(experiences, exp)
 	}
