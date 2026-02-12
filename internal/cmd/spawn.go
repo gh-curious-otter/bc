@@ -102,13 +102,15 @@ func runSpawn(cmd *cobra.Command, args []string) error {
 	fmt.Printf("✓ (session: %s)\n", mgr.Tmux().SessionName(spawned.Session))
 
 	// Log event
-	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	_ = log.Append(events.Event{
+	evtLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
+	if err := evtLog.Append(events.Event{
 		Type:    events.AgentSpawned,
 		Agent:   agentName,
 		Message: fmt.Sprintf("dynamically spawned with role %s", role),
 		Data:    map[string]any{"role": string(role), "tool": toolName},
-	})
+	}); err != nil {
+		log.Warn("failed to log spawn event", "error", err)
+	}
 
 	// Print helpful info
 	fmt.Println()

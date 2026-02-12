@@ -10,6 +10,7 @@ import (
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/github"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 var prCmd = &cobra.Command{
@@ -115,7 +116,7 @@ func runPRNotify(cmd *cobra.Command, args []string) error {
 	}
 
 	// Event log
-	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
+	evtLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
 
 	// Post review requests
 	for _, pr := range needsReview {
@@ -128,7 +129,7 @@ func runPRNotify(cmd *cobra.Command, args []string) error {
 		}
 
 		// Log event
-		_ = log.Append(events.Event{
+		if err := evtLog.Append(events.Event{
 			Type:    events.MessageSent,
 			Agent:   "system",
 			Message: fmt.Sprintf("PR review request: #%d", pr.Number),
@@ -137,7 +138,9 @@ func runPRNotify(cmd *cobra.Command, args []string) error {
 				"pr_title":  pr.Title,
 				"channel":   "reviews",
 			},
-		})
+		}); err != nil {
+			log.Warn("failed to log PR review event", "error", err, "pr", pr.Number)
+		}
 
 		fmt.Printf("Posted review request for PR #%d: %s\n", pr.Number, pr.Title)
 	}
