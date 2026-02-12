@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -322,11 +323,13 @@ func (m *Manager) ListSessions() ([]Session, error) {
 			continue
 		}
 
+		windows, _ := strconv.Atoi(parts[3])
 		sessions = append(sessions, Session{
 			Name:      strings.TrimPrefix(name, fullPrefix),
 			Created:   parts[1],
-			Attached:  parts[2] == "1",
 			Directory: parts[4],
+			Windows:   windows,
+			Attached:  parts[2] == "1",
 		})
 	}
 

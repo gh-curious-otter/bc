@@ -858,6 +858,12 @@ func TestListSessions_Success(t *testing.T) {
 	if sessions[0].Directory != "/workspace" {
 		t.Errorf("sessions[0].Directory = %q, want %q", sessions[0].Directory, "/workspace")
 	}
+	if sessions[0].Windows != 1 {
+		t.Errorf("sessions[0].Windows = %d, want %d", sessions[0].Windows, 1)
+	}
+	if sessions[1].Windows != 2 {
+		t.Errorf("sessions[1].Windows = %d, want %d", sessions[1].Windows, 2)
+	}
 }
 
 func TestListSessions_WorkspaceIsolation(t *testing.T) {
