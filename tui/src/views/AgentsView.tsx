@@ -1,0 +1,111 @@
+import React, { useState } from 'react';
+import { Box, Text, useInput } from 'ink';
+import { useAgents } from '../hooks';
+import { Table } from '../components/Table';
+import type { Column } from '../components/Table';
+import { StatusBadge } from '../components/StatusBadge';
+import type { Agent } from '../types';
+
+interface AgentsViewProps {
+  onBack?: () => void;
+  onSelectAgent?: (agent: Agent) => void;
+}
+
+export const AgentsView: React.FC<AgentsViewProps> = ({
+  onBack,
+  onSelectAgent,
+}) => {
+  const { data: agents, loading, error, refresh } = useAgents();
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const agentList = agents || [];
+
+  // Keyboard navigation
+  useInput((input, key) => {
+    if (key.upArrow || input === 'k') {
+      setSelectedIndex((i) => Math.max(0, i - 1));
+    } else if (key.downArrow || input === 'j') {
+      setSelectedIndex((i) => Math.min(agentList.length - 1, i + 1));
+    } else if (key.return) {
+      if (agentList[selectedIndex] && onSelectAgent) {
+        onSelectAgent(agentList[selectedIndex]);
+      }
+    } else if (input === 'r') {
+      refresh();
+    } else if (input === 'q' || key.escape) {
+      onBack?.();
+    }
+  });
+
+  const columns: Column<Agent>[] = [
+    {
+      key: 'name',
+      header: 'Name',
+      width: 18,
+    },
+    {
+      key: 'role',
+      header: 'Role',
+      width: 12,
+    },
+    {
+      key: 'state',
+      header: 'State',
+      width: 12,
+      render: (agent) => <StatusBadge state={agent.state} />,
+    },
+    {
+      key: 'task',
+      header: 'Task',
+      width: 40,
+      render: (agent) => (
+        <Text wrap="truncate">
+          {agent.task?.slice(0, 38) || '-'}
+        </Text>
+      ),
+    },
+  ];
+
+  if (loading && agentList.length === 0) {
+    return (
+      <Box padding={1}>
+        <Text color="yellow">Loading agents...</Text>
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box padding={1}>
+        <Text color="red">Error: {error}</Text>
+      </Box>
+    );
+  }
+
+  return (
+    <Box flexDirection="column">
+      {/* Header */}
+      <Box marginBottom={1}>
+        <Text bold color="green">
+          Agents ({agentList.length})
+        </Text>
+        {loading && <Text color="gray"> (refreshing...)</Text>}
+      </Box>
+
+      {/* Agents Table */}
+      <Table
+        data={agentList}
+        columns={columns}
+        selectedIndex={selectedIndex}
+      />
+
+      {/* Footer with keybindings */}
+      <Box marginTop={1}>
+        <Text color="gray">
+          j/k: navigate | Enter: details | r: refresh | q: back
+        </Text>
+      </Box>
+    </Box>
+  );
+};
+
+export default AgentsView;
