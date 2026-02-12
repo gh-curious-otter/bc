@@ -107,15 +107,39 @@ interface ChannelHistoryViewProps {
   disableInput?: boolean;
 }
 
+/**
+ * Format timestamp for display
+ */
+function formatTime(timestamp: string): string {
+  try {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+
+    if (isToday) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' +
+           date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '';
+  }
+}
+
 function ChannelHistoryView({
   channel,
   disableInput = false,
 }: ChannelHistoryViewProps): React.ReactElement {
   const { data: messages, loading, error, send } = useChannelHistory(channel.name, {
-    limit: 20,
+    limit: 50,
   });
   const [inputMode, setInputMode] = useState(false);
   const [messageBuffer, setMessageBuffer] = useState('');
+  const [scrollOffset, setScrollOffset] = useState(0);
+
+  const visibleCount = 12;
+  const totalMessages = messages?.length ?? 0;
+  const maxOffset = Math.max(0, totalMessages - visibleCount);
 
   useInput(
     (input, key) => {
@@ -141,34 +165,65 @@ function ChannelHistoryView({
         if (input === 'm') {
           setInputMode(true);
         }
+        // j/k or arrow keys to scroll messages
+        if ((input === 'j' || key.downArrow) && scrollOffset < maxOffset) {
+          setScrollOffset(scrollOffset + 1);
+        }
+        if ((input === 'k' || key.upArrow) && scrollOffset > 0) {
+          setScrollOffset(scrollOffset - 1);
+        }
+        // g/G to jump to start/end
+        if (input === 'g') {
+          setScrollOffset(0);
+        }
+        if (input === 'G') {
+          setScrollOffset(maxOffset);
+        }
       }
     },
     { isActive: !disableInput }
   );
 
+  // Auto-scroll to bottom when new messages arrive
+  React.useEffect(() => {
+    if (messages && messages.length > 0) {
+      setScrollOffset(maxOffset);
+    }
+  }, [messages?.length, maxOffset]);
+
+  const visibleMessages = messages?.slice(scrollOffset, scrollOffset + visibleCount) ?? [];
+
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" height="100%">
+      {/* Header */}
       <Box>
         <Text bold color="cyan">#{channel.name}</Text>
         <Text dimColor> - {channel.members.length} members</Text>
       </Box>
-      <Text dimColor>ESC to go back, m to compose message</Text>
+      <Text dimColor>ESC back | j/k scroll | g/G start/end | m compose</Text>
 
-      <Box marginTop={1} flexDirection="column" height={15}>
+      {/* Message area - takes remaining space */}
+      <Box marginTop={1} flexDirection="column" flexGrow={1}>
         {loading && <Text dimColor>Loading messages...</Text>}
         {error && <Text color="red">Error: {error}</Text>}
-        {messages?.slice(-10).map((msg, index) => (
-          <Box key={index}>
+        {visibleMessages.map((msg, index) => (
+          <Box key={scrollOffset + index}>
+            <Text dimColor>{formatTime(msg.time)} </Text>
             <Text color="yellow">{msg.sender}</Text>
             <Text dimColor>: </Text>
             <Text>{msg.message}</Text>
           </Box>
         ))}
         {messages?.length === 0 && <Text dimColor>No messages yet</Text>}
+        {totalMessages > visibleCount && (
+          <Text dimColor>
+            [{scrollOffset + 1}-{Math.min(scrollOffset + visibleCount, totalMessages)} of {totalMessages}]
+          </Text>
+        )}
       </Box>
 
-      {/* Input area */}
-      <Box marginTop={1} borderStyle="single" borderColor={inputMode ? 'cyan' : 'gray'} paddingX={1}>
+      {/* Input area - anchored at bottom */}
+      <Box borderStyle="single" borderColor={inputMode ? 'cyan' : 'gray'} paddingX={1}>
         {inputMode ? (
           <Text>
             <Text color="cyan">{'> '}</Text>
