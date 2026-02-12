@@ -17,6 +17,20 @@ import (
 var worktreeCmd = &cobra.Command{
 	Use:   "worktree",
 	Short: "Worktree management commands",
+	Long: `Manage git worktrees for bc agents.
+
+Each agent operates in its own git worktree, providing isolated working
+directories while sharing the same repository. This enables parallel
+development without branch conflicts.
+
+Worktree locations: .bc/worktrees/<agent-name>/
+
+Examples:
+  bc worktree list              # List all worktrees and their status
+  bc worktree list --orphaned   # Show only orphaned worktrees
+  bc worktree prune             # Dry-run: show what would be cleaned
+  bc worktree prune --force     # Remove orphaned worktrees
+  bc worktree check             # Verify current agent's worktree`,
 }
 
 var worktreeCheckCmd = &cobra.Command{
