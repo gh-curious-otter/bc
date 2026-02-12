@@ -981,19 +981,6 @@ func TestWorkspaceV1GetRoleError(t *testing.T) {
 	}
 }
 
-func TestWorkspaceBeadsEnabled(t *testing.T) {
-	dir := t.TempDir()
-
-	ws, err := InitV2(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !ws.BeadsEnabled() {
-		t.Error("BeadsEnabled should default to true")
-	}
-}
-
 func TestWorkspaceDefaultChannels(t *testing.T) {
 	dir := t.TempDir()
 

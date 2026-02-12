@@ -58,10 +58,6 @@ enabled = true
 backend = "file"
 path = ".bc/memory"
 
-[beads]
-enabled = true
-issues_dir = ".beads/issues"
-
 [channels]
 default = ["general", "engineering"]
 `)
@@ -100,12 +96,6 @@ default = ["general", "engineering"]
 	}
 	if cfg.Memory.Path != ".bc/memory" {
 		t.Errorf("expected memory path '.bc/memory', got %q", cfg.Memory.Path)
-	}
-	if !cfg.Beads.Enabled {
-		t.Error("expected beads to be enabled")
-	}
-	if cfg.Beads.IssuesDir != ".beads/issues" {
-		t.Errorf("expected beads issues_dir '.beads/issues', got %q", cfg.Beads.IssuesDir)
 	}
 	if len(cfg.Channels.Default) != 2 {
 		t.Errorf("expected 2 default channels, got %d", len(cfg.Channels.Default))
@@ -334,7 +324,6 @@ func TestV2ConfigSaveAndLoad(t *testing.T) {
 
 	// Create and save config
 	cfg := DefaultV2Config("save-test")
-	cfg.Beads.Enabled = false
 	cfg.Channels.Default = []string{"custom-channel"}
 
 	if err := cfg.Save(configPath); err != nil {
@@ -354,9 +343,6 @@ func TestV2ConfigSaveAndLoad(t *testing.T) {
 
 	if loaded.Workspace.Name != "save-test" {
 		t.Errorf("expected name 'save-test', got %q", loaded.Workspace.Name)
-	}
-	if loaded.Beads.Enabled {
-		t.Error("expected beads to be disabled")
 	}
 	if len(loaded.Channels.Default) != 1 || loaded.Channels.Default[0] != "custom-channel" {
 		t.Errorf("unexpected channels: %v", loaded.Channels.Default)
