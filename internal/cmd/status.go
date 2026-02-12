@@ -12,10 +12,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/log"
 )
 
-var statusWithWorktrees bool
+var (
+	statusWithWorktrees bool
+	statusActivity      bool
+)
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
@@ -23,14 +27,16 @@ var statusCmd = &cobra.Command{
 	Long: `Show the status of all bc agents.
 
 Examples:
-  bc status                 # Show all agents
-  bc status --json          # Output as JSON
-  bc status --with-worktrees  # Include worktree status`,
+  bc status                   # Show all agents
+  bc status --json            # Output as JSON
+  bc status --with-worktrees  # Include worktree status
+  bc status --activity        # Show recent channel activity`,
 	RunE: runStatus,
 }
 
 func init() {
 	statusCmd.Flags().BoolVar(&statusWithWorktrees, "with-worktrees", false, "Include worktree status for each agent")
+	statusCmd.Flags().BoolVar(&statusActivity, "activity", false, "Show recent channel activity")
 	rootCmd.AddCommand(statusCmd)
 }
 
@@ -58,17 +64,46 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	agents := mgr.ListAgents()
 	log.Debug("agents loaded", "count", len(agents))
 
+	// Count active agents
+	activeCount := 0
+	workingCount := 0
+	for _, a := range agents {
+		if a.State != agent.StateStopped && a.State != agent.StateError {
+			activeCount++
+		}
+		if a.State == agent.StateWorking {
+			workingCount++
+		}
+	}
+
 	jsonOutput, err := cmd.Flags().GetBool("json")
 	if err != nil {
 		return err
 	}
 	if jsonOutput {
+		// Enhanced JSON output with summary
+		output := struct { //nolint:govet // fieldalignment: inline struct for JSON, alignment not critical
+			Workspace string         `json:"workspace"`
+			Total     int            `json:"total"`
+			Active    int            `json:"active"`
+			Working   int            `json:"working"`
+			Agents    []*agent.Agent `json:"agents"`
+		}{
+			Workspace: filepath.Base(ws.RootDir),
+			Agents:    agents,
+			Total:     len(agents),
+			Active:    activeCount,
+			Working:   workingCount,
+		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(agents)
+		return enc.Encode(output)
 	}
 
-	fmt.Printf("bc workspace: %s\n", ws.RootDir)
+	// Summary header
+	wsName := filepath.Base(ws.RootDir)
+	fmt.Printf("Workspace: %s | Agents: %d | Active: %d | Working: %d\n", wsName, len(agents), activeCount, workingCount)
+	fmt.Println(strings.Repeat("─", 60))
 	fmt.Println()
 
 	if len(agents) == 0 {
@@ -162,6 +197,45 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Println("  ✻ ✳ ✽ ·  Thinking (agent is processing)")
 	fmt.Println("  ⏺        Tool call (agent is running a tool)")
 	fmt.Println("  ❯        Prompt (agent is waiting for input)")
+
+	// Show recent channel activity if requested
+	if statusActivity {
+		fmt.Println()
+		fmt.Println(strings.Repeat("─", 60))
+		fmt.Println("Recent Activity:")
+		fmt.Println()
+
+		store, storeErr := channel.OpenStore(ws.RootDir)
+		if storeErr == nil {
+			defer func() { _ = store.Close() }()
+			if loadErr := store.Load(); loadErr == nil {
+				channels := store.List()
+				messageCount := 0
+				for _, ch := range channels {
+					history, histErr := store.GetHistory(ch.Name)
+					if histErr != nil {
+						continue
+					}
+					// Show last 3 messages per channel
+					start := 0
+					if len(history) > 3 {
+						start = len(history) - 3
+					}
+					for _, entry := range history[start:] {
+						age := time.Since(entry.Time)
+						ageStr := formatDuration(age) + " ago"
+						msgPreview := truncateActivityMsg(entry.Message, 50)
+						fmt.Printf("  [#%s] %s: %s (%s)\n", ch.Name, entry.Sender, msgPreview, ageStr)
+						messageCount++
+					}
+				}
+				if messageCount == 0 {
+					fmt.Println("  No recent messages")
+				}
+			}
+		}
+	}
+
 	fmt.Println()
 	fmt.Println("Commands:")
 	fmt.Println("  bc attach <agent>  # Attach to agent's session")
@@ -169,6 +243,22 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Println("  bc down            # Stop all agents")
 
 	return nil
+}
+
+// truncateActivityMsg truncates a message to maxLen, removing newlines
+func truncateActivityMsg(s string, maxLen int) string {
+	// Replace newlines with spaces
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "\r", "")
+	// Collapse multiple spaces
+	for strings.Contains(s, "  ") {
+		s = strings.ReplaceAll(s, "  ", " ")
+	}
+	s = strings.TrimSpace(s)
+	if len(s) > maxLen {
+		return s[:maxLen-3] + "..."
+	}
+	return s
 }
 
 func formatDuration(d time.Duration) string {
