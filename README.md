@@ -152,7 +152,7 @@ bc down
 | Command | Description |
 |---------|-------------|
 | `bc worktree list` | List agent worktrees |
-| `bc worktree cleanup` | Remove orphaned worktrees |
+| `bc worktree prune` | Remove orphaned worktrees |
 | `bc cost show` | Show cost records |
 | `bc cost summary` | Show cost summary |
 | `bc logs` | View event log |
