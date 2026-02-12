@@ -138,6 +138,24 @@ Example:
 	RunE: runMemoryList,
 }
 
+var memoryClearCmd = &cobra.Command{
+	Use:   "clear <agent>",
+	Short: "Clear an agent's memory",
+	Long: `Clear all experiences and/or learnings from an agent's memory.
+
+By default, clears both experiences and learnings.
+Use --experiences or --learnings to clear selectively.
+Requires confirmation unless --force is specified.
+
+Example:
+  bc memory clear engineer-01              # Clear all (requires confirmation)
+  bc memory clear engineer-01 --force      # Clear all without confirmation
+  bc memory clear engineer-01 --experiences  # Clear only experiences
+  bc memory clear engineer-01 --learnings    # Clear only learnings`,
+	Args: cobra.ExactArgs(1),
+	RunE: runMemoryClear,
+}
+
 var (
 	memoryOutcome          string
 	memoryTaskID           string
@@ -153,6 +171,9 @@ var (
 	memoryListAgent        string
 	memoryListExp          bool
 	memoryListSize         bool
+	memoryClearExp         bool
+	memoryClearLearn       bool
+	memoryClearForce       bool
 )
 
 func init() {
@@ -175,12 +196,17 @@ func init() {
 	memoryListCmd.Flags().BoolVar(&memoryListExp, "experiences", false, "List experiences instead of learning topics")
 	memoryListCmd.Flags().BoolVar(&memoryListSize, "with-size", false, "Show memory usage per agent")
 
+	memoryClearCmd.Flags().BoolVar(&memoryClearExp, "experiences", false, "Clear only experiences")
+	memoryClearCmd.Flags().BoolVar(&memoryClearLearn, "learnings", false, "Clear only learnings")
+	memoryClearCmd.Flags().BoolVar(&memoryClearForce, "force", false, "Skip confirmation prompt")
+
 	memoryCmd.AddCommand(memoryRecordCmd)
 	memoryCmd.AddCommand(memoryLearnCmd)
 	memoryCmd.AddCommand(memoryShowCmd)
 	memoryCmd.AddCommand(memorySearchCmd)
 	memoryCmd.AddCommand(memoryPruneCmd)
 	memoryCmd.AddCommand(memoryListCmd)
+	memoryCmd.AddCommand(memoryClearCmd)
 	rootCmd.AddCommand(memoryCmd)
 }
 
@@ -828,4 +854,65 @@ func formatBytes(b int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
+}
+
+func runMemoryClear(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	agentID := args[0]
+	store := memory.NewStore(ws.RootDir, agentID)
+
+	if !store.Exists() {
+		return fmt.Errorf("no memory found for agent %s", agentID)
+	}
+
+	// Determine what to clear
+	clearExp := memoryClearExp || (!memoryClearExp && !memoryClearLearn)
+	clearLearn := memoryClearLearn || (!memoryClearExp && !memoryClearLearn)
+
+	// Get current counts for confirmation message
+	var expCount int
+	if clearExp {
+		experiences, _ := store.GetExperiences()
+		expCount = len(experiences)
+	}
+
+	// Confirmation prompt unless --force
+	if !memoryClearForce {
+		what := []string{}
+		if clearExp {
+			what = append(what, fmt.Sprintf("%d experience(s)", expCount))
+		}
+		if clearLearn {
+			what = append(what, "learnings")
+		}
+
+		cmd.Printf("This will clear %s for agent %s.\n", strings.Join(what, " and "), agentID)
+		cmd.Print("Are you sure? [y/N]: ")
+
+		var response string
+		if _, scanErr := fmt.Scanln(&response); scanErr != nil || (response != "y" && response != "Y") {
+			cmd.Println("Aborted.")
+			return nil
+		}
+	}
+
+	result, err := store.Clear(clearExp, clearLearn)
+	if err != nil {
+		return fmt.Errorf("failed to clear memory: %w", err)
+	}
+
+	// Report what was cleared
+	if result.ExperiencesCleared > 0 {
+		cmd.Printf("Cleared %d experience(s)\n", result.ExperiencesCleared)
+	}
+	if result.LearningsCleared {
+		cmd.Println("Cleared learnings (reset to header)")
+	}
+	cmd.Printf("Memory cleared for agent %s\n", agentID)
+
+	return nil
 }
