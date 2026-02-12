@@ -967,6 +967,10 @@ func (m *ChannelModel) View() string {
 		var lastDate time.Time
 		recentHistory := m.channel.History[recentStart:]
 		selectedIdx := m.selectedMessageIndex()
+		listWrapWidth := m.width - 12
+		if listWrapWidth < 20 {
+			listWrapWidth = 20
+		}
 		for i, entry := range recentHistory {
 			// Add date separator if this is a new day
 			if i == 0 || !isSameDay(entry.Time, lastDate) {
@@ -983,35 +987,58 @@ func (m *ChannelModel) View() string {
 			msgTypeStr := string(msgType)
 			icon := m.styles.MessageTypeIcon(msgTypeStr)
 			relTime := formatRelativeTime(entry.Time)
+			ts := m.styles.Muted.Render(relTime)
 
-			var line string
-			if entry.Sender != "" {
-				line = fmt.Sprintf("  %s%s  [%s] %s", icon, relTime, entry.Sender, entry.Message)
-			} else {
-				line = fmt.Sprintf("  %s%s  %s", icon, relTime, entry.Message)
-			}
-			if selected {
-				b.WriteString(m.styles.Selected.Render(line))
-			} else {
-				ts := m.styles.Muted.Render(relTime)
-				highlightedMsg := m.highlightMessage(entry.Message)
-				if entry.Sender != "" {
-					// Use role-specific color for sender
-					role := style.RoleFromAgentName(entry.Sender)
-					senderStyle := m.styles.RoleStyle(role)
-					sender := senderStyle.Render("[" + entry.Sender + "]")
-					line = fmt.Sprintf("  %s%s  %s %s", icon, ts, sender, highlightedMsg)
+			// Wrap long messages so they don't overflow terminal width (#304)
+			wrappedMsg := wrapText(entry.Message, listWrapWidth)
+			const continuationIndent = "             "
+			for lineIdx, msgLine := range wrappedMsg {
+				highlighted := m.highlightMessage(msgLine)
+				var line string
+				if lineIdx == 0 {
+					if entry.Sender != "" {
+						line = fmt.Sprintf("  %s%s  [%s] %s", icon, relTime, entry.Sender, msgLine)
+					} else {
+						line = fmt.Sprintf("  %s%s  %s", icon, relTime, msgLine)
+					}
 				} else {
-					line = fmt.Sprintf("  %s%s  %s", icon, ts, highlightedMsg)
+					line = continuationIndent + msgLine
 				}
-				b.WriteString(line)
+				if selected {
+					b.WriteString(m.styles.Selected.Render(line))
+				} else {
+					if lineIdx == 0 {
+						if entry.Sender != "" {
+							role := style.RoleFromAgentName(entry.Sender)
+							senderStyle := m.styles.RoleStyle(role)
+							sender := senderStyle.Render("[" + entry.Sender + "]")
+							b.WriteString("  ")
+							b.WriteString(icon)
+							b.WriteString(ts)
+							b.WriteString("  ")
+							b.WriteString(sender)
+							b.WriteString(" ")
+							b.WriteString(highlighted)
+						} else {
+							b.WriteString("  ")
+							b.WriteString(icon)
+							b.WriteString(ts)
+							b.WriteString("  ")
+							b.WriteString(highlighted)
+						}
+					} else {
+						b.WriteString(m.styles.Muted.Render(continuationIndent))
+						b.WriteString(highlighted)
+					}
+				}
+				b.WriteString("\n")
 			}
-			// Display reactions inline if any
+			// Display reactions inline if any (after last message line)
 			if reactionStr := m.formatReactions(entry.Reactions); reactionStr != "" {
 				b.WriteString("  ")
 				b.WriteString(reactionStr)
+				b.WriteString("\n")
 			}
-			b.WriteString("\n")
 		}
 	}
 
@@ -1085,23 +1112,40 @@ func (m *ChannelModel) formatReactions(reactions map[string][]string) string {
 	return m.styles.Reaction.Render(strings.Join(parts, "  "))
 }
 
-// wrapText splits text into lines of at most width characters, breaking at spaces.
+// wrapText splits text into lines of at most width runes, breaking at spaces when possible.
+// Long words are broken at width to avoid splitting UTF-8 runes mid-character (#304).
 func wrapText(text string, width int) []string {
-	if width <= 0 || len(text) <= width {
+	if width <= 0 {
+		return []string{text}
+	}
+	runes := []rune(text)
+	if len(runes) <= width {
 		return []string{text}
 	}
 	var lines []string
-	for len(text) > width {
-		// Find last space within width
-		i := strings.LastIndex(text[:width], " ")
-		if i <= 0 {
-			i = width
+	for len(runes) > width {
+		chunk := runes[:width]
+		// Find last space in chunk
+		lastSpace := -1
+		for i := len(chunk) - 1; i >= 0; i-- {
+			if chunk[i] == ' ' {
+				lastSpace = i
+				break
+			}
 		}
-		lines = append(lines, text[:i])
-		text = strings.TrimLeft(text[i:], " ")
+		splitAt := width
+		if lastSpace > 0 {
+			splitAt = lastSpace
+		}
+		lines = append(lines, string(runes[:splitAt]))
+		runes = runes[splitAt:]
+		// Trim leading spaces from remainder
+		for len(runes) > 0 && runes[0] == ' ' {
+			runes = runes[1:]
+		}
 	}
-	if text != "" {
-		lines = append(lines, text)
+	if len(runes) > 0 {
+		lines = append(lines, string(runes))
 	}
 	return lines
 }
