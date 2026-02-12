@@ -111,3 +111,25 @@ export interface BcEvent {
   message: string;
   data?: Record<string, unknown>;
 }
+
+// Demon (scheduled task) types
+export interface Demon {
+  name: string;
+  schedule: string;
+  command: string;
+  description?: string;
+  owner?: string;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+  last_run?: string;
+  next_run?: string;
+  run_count: number;
+}
+
+export interface DemonRunLog {
+  timestamp: string;
+  duration_ms: number;
+  exit_code: number;
+  success: boolean;
+}

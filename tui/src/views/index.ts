@@ -5,3 +5,4 @@ export { Dashboard } from './Dashboard';
 export { AgentDetailView } from './AgentDetailView';
 export { MessageHistory } from './MessageHistory';
 export { CostDashboard } from './CostDashboard';
+export { DemonsView } from './DemonsView';

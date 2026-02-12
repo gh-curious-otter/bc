@@ -9,6 +9,8 @@ import type {
   ChannelsResponse,
   ChannelHistory,
   CostSummary,
+  Demon,
+  DemonRunLog,
 } from '../types';
 
 /**
@@ -133,4 +135,72 @@ export async function reportState(
   message: string
 ): Promise<void> {
   await execBc(['report', state, message]);
+}
+
+/**
+ * Get list of demons (scheduled tasks)
+ */
+export async function getDemons(): Promise<Demon[]> {
+  try {
+    return await execBcJson<Demon[]>(['demon', 'list']);
+  } catch {
+    // If no demons exist, bc returns text not JSON
+    return [];
+  }
+}
+
+/**
+ * Get demon details
+ * @param name - Demon name
+ */
+export async function getDemon(name: string): Promise<Demon | null> {
+  try {
+    return await execBcJson<Demon>(['demon', 'show', name]);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get demon run logs
+ * @param name - Demon name
+ * @param tail - Number of recent entries (optional)
+ */
+export async function getDemonLogs(
+  name: string,
+  tail?: number
+): Promise<DemonRunLog[]> {
+  try {
+    const args = ['demon', 'logs', name];
+    if (tail) {
+      args.push('--tail', String(tail));
+    }
+    return await execBcJson<DemonRunLog[]>(args);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Enable a demon
+ * @param name - Demon name
+ */
+export async function enableDemon(name: string): Promise<void> {
+  await execBc(['demon', 'enable', name]);
+}
+
+/**
+ * Disable a demon
+ * @param name - Demon name
+ */
+export async function disableDemon(name: string): Promise<void> {
+  await execBc(['demon', 'disable', name]);
+}
+
+/**
+ * Manually run a demon
+ * @param name - Demon name
+ */
+export async function runDemon(name: string): Promise<void> {
+  await execBc(['demon', 'run', name]);
 }
