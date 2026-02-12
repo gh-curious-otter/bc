@@ -51,12 +51,12 @@ function AppContent({ disableInput }: AppContentProps): React.ReactElement {
   useKeyboardNavigation({ disabled: disableInput });
 
   return (
-    <Box flexDirection="column" padding={1} width={100} height={100}>
+    <Box flexDirection="column" padding={1} width="100%" height="100%">
       {/* Header with tab bar */}
       <TabBar />
 
       {/* Main content area - grows to fill available space */}
-      <Box flexDirection="column" marginTop={1} flexGrow={1}>
+      <Box flexDirection="column" marginTop={1} flexGrow={1} overflow="hidden">
         <ViewContent view={currentView} disableInput={disableInput} />
       </Box>
 
@@ -129,7 +129,7 @@ function HelpView(): React.ReactElement {
 function Footer(): React.ReactElement {
   const { theme } = useTheme();
   return (
-    <Box marginTop={1} justifyContent="space-between" width={100}>
+    <Box marginTop={1} justifyContent="space-between" width="100%">
       <Text dimColor>Press [?] for help, [q] to quit</Text>
       <Text dimColor>Theme: {theme.name}</Text>
     </Box>
