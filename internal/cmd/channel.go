@@ -117,7 +117,7 @@ Examples:
 
 var channelShowCmd = &cobra.Command{
 	Use:   "show <channel>",
-	Short: "Show detailed information about a channel",
+	Short: "Show channel details",
 	Long: `Display detailed information about a channel including members,
 description, and message history statistics.
 

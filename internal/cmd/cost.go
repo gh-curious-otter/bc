@@ -13,7 +13,7 @@ import (
 
 var costCmd = &cobra.Command{
 	Use:   "cost",
-	Short: "View cost information",
+	Short: "Show cost information",
 	Long: `Commands for viewing API cost information.
 
 Examples:

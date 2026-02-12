@@ -62,7 +62,7 @@ Examples:
 
 var processLogsCmd = &cobra.Command{
 	Use:   "logs <name>",
-	Short: "View process logs",
+	Short: "Show process logs",
 	Long: `View logs for a process.
 
 Examples:
