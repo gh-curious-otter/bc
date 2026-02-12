@@ -1099,6 +1099,25 @@ func (m *Manager) RefreshState() error {
 		// Capture live task from tmux pane
 		if live := m.captureLiveTask(name); live != "" {
 			a.Task = live
+
+			// Sync state with task symbols:
+			// - Spinner symbols (✻ ✳ ✽ ·) or tool call (⏺) → working
+			// - Prompt symbol (❯) → idle (waiting for input)
+			if strings.HasPrefix(live, "✻") ||
+				strings.HasPrefix(live, "✳") ||
+				strings.HasPrefix(live, "✽") ||
+				strings.HasPrefix(live, "·") ||
+				strings.HasPrefix(live, "⏺") {
+				if a.State != StateWorking {
+					a.State = StateWorking
+					a.UpdatedAt = time.Now()
+				}
+			} else if strings.HasPrefix(live, "❯") {
+				if a.State == StateWorking {
+					a.State = StateIdle
+					a.UpdatedAt = time.Now()
+				}
+			}
 		}
 	}
 
