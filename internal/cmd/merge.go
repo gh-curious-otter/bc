@@ -498,8 +498,11 @@ func notifyConflicts(rootDir, branch string, conflicts []string) error {
 
 	message := sb.String()
 
-	// Load channel store and send notification
-	store := channel.NewStore(rootDir)
+	// Load channel store and send notification (use OpenStore to match bc up / CLI)
+	store, err := channel.OpenStore(rootDir)
+	if err != nil {
+		store = channel.NewStore(rootDir)
+	}
 	if err := store.Load(); err != nil {
 		return fmt.Errorf("failed to load channel store: %w", err)
 	}

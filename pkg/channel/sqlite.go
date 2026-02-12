@@ -282,6 +282,23 @@ func (s *SQLiteStore) DeleteChannel(name string) error {
 	return nil
 }
 
+// SetChannelDescription updates the description for a channel.
+func (s *SQLiteStore) SetChannelDescription(channelName, description string) error {
+	ctx := context.Background()
+	result, err := s.db.ExecContext(ctx,
+		"UPDATE channels SET description = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE name = ?",
+		description, channelName,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to set description: %w", err)
+	}
+	affected, _ := result.RowsAffected()
+	if affected == 0 {
+		return fmt.Errorf("channel %q not found", channelName)
+	}
+	return nil
+}
+
 // AddMember adds a member to a channel.
 func (s *SQLiteStore) AddMember(channelName, agentID string) error {
 	ch, err := s.GetChannel(channelName)

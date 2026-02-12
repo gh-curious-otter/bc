@@ -648,6 +648,31 @@ func TestWrapText_ZeroWidth(t *testing.T) {
 	}
 }
 
+// TestWrapText_LongWordNoSpaces ensures long words break at width without splitting runes (#304).
+func TestWrapText_LongWordNoSpaces(t *testing.T) {
+	text := "abcdefghij"
+	lines := wrapText(text, 3)
+	if len(lines) != 4 {
+		t.Errorf("expected 4 lines for 10-char word width 3, got %d: %v", len(lines), lines)
+	}
+	if lines[0] != "abc" || lines[3] != "j" {
+		t.Errorf("expected first 'abc' and last 'j', got %q, %q", lines[0], lines[3])
+	}
+}
+
+// TestWrapText_UnicodeRunes ensures we don't split multi-byte runes (#304).
+func TestWrapText_UnicodeRunes(t *testing.T) {
+	// "café" = c a f é (4 runes). Width 2 should give "ca" and "fé" (not split é).
+	text := "café"
+	lines := wrapText(text, 2)
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 lines, got %d: %v", len(lines), lines)
+	}
+	if lines[0] != "ca" || lines[1] != "fé" {
+		t.Errorf("expected ['ca','fé'], got %q", lines)
+	}
+}
+
 // --- View tests ---
 
 func TestChannelView_NoMessages(t *testing.T) {
@@ -1007,6 +1032,23 @@ func TestChannelView_EmptyMessageShowsPlaceholder(t *testing.T) {
 	}
 	if !strings.Contains(output, "engineer-01") {
 		t.Error("expected sender name in output")
+	}
+}
+
+func TestChannelView_LongMessageTruncatedInBubble(t *testing.T) {
+	// Message that wraps to more than maxBubbleLines (15) so we show (…)
+	m := newTestChannelModel()
+	longMsg := strings.Repeat("word ", 400) // wraps to 16+ lines so bubble truncates with (…)
+	m.channel.History = []channel.HistoryEntry{
+		{Sender: "eng-01", Message: longMsg, Time: time.Now()},
+	}
+
+	output := m.View()
+	if !strings.Contains(output, "(…)") {
+		t.Error("expected long message to be truncated with (…) in bubble")
+	}
+	if !strings.Contains(output, "word") {
+		t.Error("expected start of message content in output")
 	}
 }
 

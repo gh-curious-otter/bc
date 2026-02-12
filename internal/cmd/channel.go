@@ -113,7 +113,10 @@ func init() {
 }
 
 func loadChannelStore(rootDir string) (*channel.Store, error) {
-	store := channel.NewStore(rootDir)
+	store, err := channel.OpenStore(rootDir)
+	if err != nil {
+		return nil, err
+	}
 	if err := store.Load(); err != nil {
 		return nil, err
 	}
