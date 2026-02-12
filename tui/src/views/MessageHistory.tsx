@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { ChannelMessage } from '../types';
 import { useChannelHistory } from '../hooks';
@@ -149,7 +149,7 @@ interface MessageItemProps {
   isFirst?: boolean;
 }
 
-function MessageItem({ message, isFirst }: MessageItemProps) {
+function MessageItem({ message }: MessageItemProps) {
   const timeStr = formatTimestamp(message.time);
   const senderColor = getSenderColor(message.sender);
 
