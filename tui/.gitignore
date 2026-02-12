@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Bun lockfile (binary, managed by bun)
+# Note: bun.lockb IS committed for reproducible builds
+
 # Build output
 dist/
 

@@ -5,11 +5,13 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "start": "node dist/index.js",
-    "lint": "eslint src --ext .ts,.tsx",
-    "typecheck": "tsc --noEmit"
+    "build": "bun run tsc",
+    "dev": "bun run tsc --watch",
+    "start": "bun run dist/index.js",
+    "lint": "bun run eslint src --ext .ts,.tsx",
+    "typecheck": "bun run tsc --noEmit",
+    "test": "bun test",
+    "test:watch": "bun test --watch"
   },
   "dependencies": {
     "ink": "^4.4.1",
@@ -17,11 +19,13 @@
     "react": "^18.2.0"
   },
   "devDependencies": {
+    "@types/bun": "^1.1.0",
     "@types/node": "^20.10.0",
     "@types/react": "^18.2.0",
     "@typescript-eslint/eslint-plugin": "^6.13.0",
     "@typescript-eslint/parser": "^6.13.0",
     "eslint": "^8.54.0",
+    "ink-testing-library": "^3.0.0",
     "typescript": "^5.3.0"
   },
   "engines": {
