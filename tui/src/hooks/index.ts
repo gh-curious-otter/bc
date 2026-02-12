@@ -40,6 +40,15 @@ export {
 export { useDashboard } from './useDashboard';
 
 export {
+  useDemons,
+  useDemonLogs,
+  type UseDemonsOptions,
+  type UseDemonsResult,
+  type UseDemonLogsOptions,
+  type UseDemonLogsResult,
+} from './useDemons';
+
+export {
   useMessagePolling,
   useAgentPolling,
   useCoordinatedPolling,
