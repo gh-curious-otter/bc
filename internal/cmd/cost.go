@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -113,6 +114,49 @@ Examples:
 	RunE: runCostBudgetDelete,
 }
 
+var costProjectCmd = &cobra.Command{
+	Use:   "project",
+	Short: "Project future costs",
+	Long: `Project future costs based on historical daily spending.
+
+Uses the average daily cost over the lookback period to estimate
+future costs for the specified duration.
+
+Examples:
+  bc cost project --duration 1d          # Estimate next day's cost
+  bc cost project --duration 7d          # Weekly projection
+  bc cost project --duration 30d         # Monthly projection
+  bc cost project --lookback 14          # Use 14 days of history`,
+	RunE: runCostProject,
+}
+
+var costTrendsCmd = &cobra.Command{
+	Use:   "trends",
+	Short: "Show spending trends",
+	Long: `Show daily spending trends over a time period.
+
+Displays daily cost breakdown to help identify patterns and anomalies.
+
+Examples:
+  bc cost trends --since 7d              # Last 7 days
+  bc cost trends --since 30d             # Last 30 days
+  bc cost trends --since 24h             # Last 24 hours`,
+	RunE: runCostTrends,
+}
+
+var costByAgentCmd = &cobra.Command{
+	Use:   "by-agent",
+	Short: "Show costs by agent",
+	Long: `Show cost breakdown by agent over a time period.
+
+Helps identify which agents are consuming the most resources.
+
+Examples:
+  bc cost by-agent --since 7d            # Last 7 days
+  bc cost by-agent --since 30d           # Last 30 days`,
+	RunE: runCostByAgent,
+}
+
 var (
 	costTeamFlag      string
 	costAgentFlag     string
@@ -126,6 +170,14 @@ var (
 	budgetPeriodFlag  string
 	budgetAlertAtFlag float64
 	budgetHardStop    bool
+
+	// Projection flags
+	projectDurationFlag string
+	projectLookbackFlag int
+
+	// Trends/by-agent flags
+	trendsSinceFlag  string
+	byAgentSinceFlag string
 )
 
 func init() {
@@ -153,10 +205,23 @@ func init() {
 	costBudgetCmd.AddCommand(costBudgetShowCmd)
 	costBudgetCmd.AddCommand(costBudgetDeleteCmd)
 
+	// Projection flags
+	costProjectCmd.Flags().StringVar(&projectDurationFlag, "duration", "7d", "Duration to project (e.g., 1d, 7d, 30d)")
+	costProjectCmd.Flags().IntVar(&projectLookbackFlag, "lookback", 7, "Days of history to use for projection")
+
+	// Trends flags
+	costTrendsCmd.Flags().StringVar(&trendsSinceFlag, "since", "7d", "Time period to show (e.g., 24h, 7d, 30d)")
+
+	// By-agent flags
+	costByAgentCmd.Flags().StringVar(&byAgentSinceFlag, "since", "7d", "Time period to show (e.g., 24h, 7d, 30d)")
+
 	costCmd.AddCommand(costShowCmd)
 	costCmd.AddCommand(costSummaryCmd)
 	costCmd.AddCommand(costDashboardCmd)
 	costCmd.AddCommand(costBudgetCmd)
+	costCmd.AddCommand(costProjectCmd)
+	costCmd.AddCommand(costTrendsCmd)
+	costCmd.AddCommand(costByAgentCmd)
 	rootCmd.AddCommand(costCmd)
 }
 
@@ -577,5 +642,171 @@ func runCostBudgetDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Budget deleted for %s\n", scope)
+	return nil
+}
+
+func parseCostDuration(s string) (time.Duration, error) {
+	// Support day notation (e.g., "7d" -> 7 * 24h)
+	if len(s) > 0 && s[len(s)-1] == 'd' {
+		var days int
+		if _, err := fmt.Sscanf(s, "%dd", &days); err == nil {
+			return time.Duration(days) * 24 * time.Hour, nil
+		}
+	}
+	return time.ParseDuration(s)
+}
+
+func runCostProject(cmd *cobra.Command, args []string) error {
+	store, err := getCostStore()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = store.Close() }()
+
+	duration, err := parseCostDuration(projectDurationFlag)
+	if err != nil {
+		return fmt.Errorf("invalid duration %q: %w", projectDurationFlag, err)
+	}
+
+	proj, err := store.ProjectCost(projectLookbackFlag, duration)
+	if err != nil {
+		return fmt.Errorf("failed to project cost: %w", err)
+	}
+
+	if proj.DaysAnalyzed == 0 {
+		fmt.Println("No historical cost data available for projection")
+		fmt.Println("\nCost data will be available after agents make API calls")
+		return nil
+	}
+
+	days := duration.Hours() / 24
+	fmt.Println("Cost Projection")
+	fmt.Println("===============")
+	fmt.Printf("  Lookback period:   %d days\n", projectLookbackFlag)
+	fmt.Printf("  Days with data:    %d\n", proj.DaysAnalyzed)
+	fmt.Printf("  Historical total:  $%.4f\n", proj.TotalHistorical)
+	fmt.Printf("  Daily average:     $%.4f/day\n", proj.DailyAvgCost)
+	fmt.Println()
+	fmt.Printf("  Projection period: %.0f days\n", days)
+	fmt.Printf("  Projected cost:    $%.4f\n", proj.ProjectedCost)
+
+	return nil
+}
+
+func runCostTrends(cmd *cobra.Command, args []string) error {
+	store, err := getCostStore()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = store.Close() }()
+
+	duration, err := parseCostDuration(trendsSinceFlag)
+	if err != nil {
+		return fmt.Errorf("invalid duration %q: %w", trendsSinceFlag, err)
+	}
+
+	since := time.Now().Add(-duration)
+	dailyCosts, err := store.GetDailyCosts(since)
+	if err != nil {
+		return fmt.Errorf("failed to get daily costs: %w", err)
+	}
+
+	if len(dailyCosts) == 0 {
+		fmt.Printf("No cost data for the last %s\n", trendsSinceFlag)
+		return nil
+	}
+
+	fmt.Printf("Daily Cost Trends (last %s)\n", trendsSinceFlag)
+	fmt.Println("===========================")
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintln(w, "DATE\tCOST\tCALLS\tTOKENS\tCHANGE")
+
+	var prevCost float64
+	var totalCost float64
+	for i, dc := range dailyCosts {
+		change := ""
+		if i > 0 && prevCost > 0 {
+			pctChange := ((dc.CostUSD - prevCost) / prevCost) * 100
+			if pctChange > 0 {
+				change = fmt.Sprintf("+%.1f%%", pctChange)
+			} else {
+				change = fmt.Sprintf("%.1f%%", pctChange)
+			}
+		}
+		_, _ = fmt.Fprintf(w, "%s\t$%.4f\t%d\t%d\t%s\n",
+			dc.Date,
+			dc.CostUSD,
+			dc.RecordCount,
+			dc.TotalTokens,
+			change,
+		)
+		prevCost = dc.CostUSD
+		totalCost += dc.CostUSD
+	}
+	_ = w.Flush()
+
+	fmt.Println()
+	fmt.Printf("Total: $%.4f over %d days\n", totalCost, len(dailyCosts))
+	if len(dailyCosts) > 0 {
+		fmt.Printf("Average: $%.4f/day\n", totalCost/float64(len(dailyCosts)))
+	}
+
+	return nil
+}
+
+func runCostByAgent(cmd *cobra.Command, args []string) error {
+	store, err := getCostStore()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = store.Close() }()
+
+	duration, err := parseCostDuration(byAgentSinceFlag)
+	if err != nil {
+		return fmt.Errorf("invalid duration %q: %w", byAgentSinceFlag, err)
+	}
+
+	since := time.Now().Add(-duration)
+	summaries, err := store.GetAgentSummarySince(since)
+	if err != nil {
+		return fmt.Errorf("failed to get agent costs: %w", err)
+	}
+
+	if len(summaries) == 0 {
+		fmt.Printf("No cost data for the last %s\n", byAgentSinceFlag)
+		return nil
+	}
+
+	// Calculate total for percentage
+	var totalCost float64
+	for _, s := range summaries {
+		totalCost += s.TotalCostUSD
+	}
+
+	fmt.Printf("Cost by Agent (last %s)\n", byAgentSinceFlag)
+	fmt.Println("========================")
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintln(w, "AGENT\tCOST\tCALLS\tTOKENS\t% OF TOTAL")
+
+	for _, s := range summaries {
+		pct := 0.0
+		if totalCost > 0 {
+			pct = (s.TotalCostUSD / totalCost) * 100
+		}
+		_, _ = fmt.Fprintf(w, "%s\t$%.4f\t%d\t%d\t%.1f%%\n",
+			s.AgentID,
+			s.TotalCostUSD,
+			s.RecordCount,
+			s.TotalTokens,
+			pct,
+		)
+	}
+	_ = w.Flush()
+
+	fmt.Println()
+	fmt.Printf("Total: $%.4f across %d agents\n", totalCost, len(summaries))
+
 	return nil
 }

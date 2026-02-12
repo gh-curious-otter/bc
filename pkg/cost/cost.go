@@ -608,3 +608,185 @@ func (s *Store) Clear() error {
 	}
 	return nil
 }
+
+// DailyCost represents aggregated cost data for a single day.
+type DailyCost struct {
+	Date         string  `json:"date"`
+	CostUSD      float64 `json:"cost_usd"`
+	TotalTokens  int64   `json:"total_tokens"`
+	RecordCount  int64   `json:"record_count"`
+	InputTokens  int64   `json:"input_tokens"`
+	OutputTokens int64   `json:"output_tokens"`
+}
+
+// AgentDailyCost represents daily cost data for a specific agent.
+type AgentDailyCost struct {
+	AgentID      string  `json:"agent_id"`
+	Date         string  `json:"date"`
+	CostUSD      float64 `json:"cost_usd"`
+	TotalTokens  int64   `json:"total_tokens"`
+	RecordCount  int64   `json:"record_count"`
+	InputTokens  int64   `json:"input_tokens"`
+	OutputTokens int64   `json:"output_tokens"`
+}
+
+// Projection represents a cost projection based on historical data.
+type Projection struct {
+	Duration        time.Duration `json:"duration"`
+	DailyAvgCost    float64       `json:"daily_avg_cost"`
+	ProjectedCost   float64       `json:"projected_cost"`
+	DaysAnalyzed    int           `json:"days_analyzed"`
+	TotalHistorical float64       `json:"total_historical"`
+}
+
+// GetDailyCosts returns daily cost totals since the given time.
+func (s *Store) GetDailyCosts(since time.Time) ([]*DailyCost, error) {
+	ctx := context.Background()
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT
+			date(timestamp) as day,
+			SUM(cost_usd) as cost,
+			SUM(total_tokens) as tokens,
+			COUNT(*) as records,
+			SUM(input_tokens) as input,
+			SUM(output_tokens) as output
+		 FROM cost_records
+		 WHERE timestamp >= ?
+		 GROUP BY date(timestamp)
+		 ORDER BY day ASC`,
+		since.Format(time.RFC3339),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get daily costs: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var costs []*DailyCost
+	for rows.Next() {
+		var dc DailyCost
+		if err := rows.Scan(&dc.Date, &dc.CostUSD, &dc.TotalTokens, &dc.RecordCount, &dc.InputTokens, &dc.OutputTokens); err != nil {
+			return nil, fmt.Errorf("failed to scan daily cost: %w", err)
+		}
+		costs = append(costs, &dc)
+	}
+	return costs, rows.Err()
+}
+
+// GetAgentDailyCosts returns daily cost totals per agent since the given time.
+func (s *Store) GetAgentDailyCosts(since time.Time) ([]*AgentDailyCost, error) {
+	ctx := context.Background()
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT
+			agent_id,
+			date(timestamp) as day,
+			SUM(cost_usd) as cost,
+			SUM(total_tokens) as tokens,
+			COUNT(*) as records,
+			SUM(input_tokens) as input,
+			SUM(output_tokens) as output
+		 FROM cost_records
+		 WHERE timestamp >= ?
+		 GROUP BY agent_id, date(timestamp)
+		 ORDER BY agent_id, day ASC`,
+		since.Format(time.RFC3339),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get agent daily costs: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var costs []*AgentDailyCost
+	for rows.Next() {
+		var adc AgentDailyCost
+		if err := rows.Scan(&adc.AgentID, &adc.Date, &adc.CostUSD, &adc.TotalTokens, &adc.RecordCount, &adc.InputTokens, &adc.OutputTokens); err != nil {
+			return nil, fmt.Errorf("failed to scan agent daily cost: %w", err)
+		}
+		costs = append(costs, &adc)
+	}
+	return costs, rows.Err()
+}
+
+// GetSummarySince returns a summary of costs since the given time.
+func (s *Store) GetSummarySince(since time.Time) (*Summary, error) {
+	ctx := context.Background()
+	row := s.db.QueryRowContext(ctx,
+		`SELECT
+			COALESCE(SUM(input_tokens), 0),
+			COALESCE(SUM(output_tokens), 0),
+			COALESCE(SUM(total_tokens), 0),
+			COALESCE(SUM(cost_usd), 0),
+			COUNT(*)
+		 FROM cost_records
+		 WHERE timestamp >= ?`,
+		since.Format(time.RFC3339),
+	)
+
+	var sum Summary
+	if err := row.Scan(&sum.InputTokens, &sum.OutputTokens, &sum.TotalTokens, &sum.TotalCostUSD, &sum.RecordCount); err != nil {
+		return nil, fmt.Errorf("failed to scan summary: %w", err)
+	}
+	return &sum, nil
+}
+
+// GetAgentSummarySince returns per-agent summaries since the given time.
+func (s *Store) GetAgentSummarySince(since time.Time) ([]*Summary, error) {
+	ctx := context.Background()
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT
+			agent_id,
+			SUM(input_tokens),
+			SUM(output_tokens),
+			SUM(total_tokens),
+			SUM(cost_usd),
+			COUNT(*)
+		 FROM cost_records
+		 WHERE timestamp >= ?
+		 GROUP BY agent_id
+		 ORDER BY SUM(cost_usd) DESC`,
+		since.Format(time.RFC3339),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get agent summary since: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var summaries []*Summary
+	for rows.Next() {
+		var sum Summary
+		if err := rows.Scan(&sum.AgentID, &sum.InputTokens, &sum.OutputTokens, &sum.TotalTokens, &sum.TotalCostUSD, &sum.RecordCount); err != nil {
+			return nil, fmt.Errorf("failed to scan summary: %w", err)
+		}
+		summaries = append(summaries, &sum)
+	}
+	return summaries, rows.Err()
+}
+
+// ProjectCost calculates a projected cost based on historical daily average.
+func (s *Store) ProjectCost(lookbackDays int, projectDuration time.Duration) (*Projection, error) {
+	since := time.Now().AddDate(0, 0, -lookbackDays)
+	dailyCosts, err := s.GetDailyCosts(since)
+	if err != nil {
+		return nil, err
+	}
+
+	proj := &Projection{
+		Duration:     projectDuration,
+		DaysAnalyzed: len(dailyCosts),
+	}
+
+	if len(dailyCosts) == 0 {
+		return proj, nil
+	}
+
+	// Calculate total and daily average
+	for _, dc := range dailyCosts {
+		proj.TotalHistorical += dc.CostUSD
+	}
+	proj.DailyAvgCost = proj.TotalHistorical / float64(len(dailyCosts))
+
+	// Project forward
+	projectDays := projectDuration.Hours() / 24
+	proj.ProjectedCost = proj.DailyAvgCost * projectDays
+
+	return proj, nil
+}
