@@ -83,7 +83,7 @@ Examples:
 // agentPeekCmd shows recent output from an agent
 var agentPeekCmd = &cobra.Command{
 	Use:   "peek <agent>",
-	Short: "View recent output from an agent",
+	Short: "Show recent output from an agent",
 	Long: `Capture and display recent output from an agent's session.
 
 Examples:

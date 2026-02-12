@@ -14,7 +14,7 @@ import (
 
 var logsCmd = &cobra.Command{
 	Use:   "logs",
-	Short: "View the event log",
+	Short: "Show the event log",
 	Long: `View the bc event log showing agent spawns, stops, work assignments, and reports.
 
 Examples:
