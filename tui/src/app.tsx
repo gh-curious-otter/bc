@@ -16,6 +16,8 @@ import { Dashboard } from './views/Dashboard';
 import { AgentsView } from './views/AgentsView';
 import { ChannelsView } from './components/ChannelsView';
 import { CostsView } from './components/CostsView';
+import { Dashboard } from './views/Dashboard';
+import { AgentsView } from './views/AgentsView';
 
 interface AppProps {
   /** Disable input handling (useful for testing) */
