@@ -125,12 +125,17 @@ var agentDeleteCmd = &cobra.Command{
 	Short: "Permanently delete an agent",
 	Long: `Permanently delete an agent from the workspace.
 
-This removes the agent's tmux session, git worktree, memory directory,
-and all state. This action cannot be undone.
+This removes the agent's tmux session, git worktree, channel memberships,
+and agent state. Memory is preserved by default for recovery.
+
+Use --force to delete a running agent without stopping it first.
+Use --purge to also delete the agent's memory directory.
 
 Examples:
-  bc agent delete eng-01       # Delete eng-01
-  bc agent delete eng-01 --force  # Delete without confirmation`,
+  bc agent delete eng-01              # Delete (preserves memory)
+  bc agent delete eng-01 --force      # Force delete running agent
+  bc agent delete eng-01 --purge      # Delete including memory
+  bc agent delete eng-01 --force --purge  # Force delete with full cleanup`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAgentDelete,
 }
@@ -220,6 +225,7 @@ var (
 	agentPeekLines       int
 	agentStopForce       bool
 	agentDeleteForce     bool
+	agentDeletePurge     bool
 	agentHealthJSON      bool
 	agentHealthTimeout   string
 	agentHealthDetect    bool
@@ -246,7 +252,8 @@ func init() {
 	agentStopCmd.Flags().BoolVar(&agentStopForce, "force", false, "Force stop without cleanup")
 
 	// Delete flags
-	agentDeleteCmd.Flags().BoolVar(&agentDeleteForce, "force", false, "Delete without confirmation")
+	agentDeleteCmd.Flags().BoolVar(&agentDeleteForce, "force", false, "Force delete running agent without stopping first")
+	agentDeleteCmd.Flags().BoolVar(&agentDeletePurge, "purge", false, "Also delete agent's memory directory")
 
 	// Health flags
 	agentHealthCmd.Flags().BoolVar(&agentHealthJSON, "json", false, "Output as JSON")
@@ -627,13 +634,23 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("agent '%s' not found", agentName)
 	}
 
-	// Confirm deletion unless --force is used
+	// Check if agent is running - require --force
+	if a.State != agent.StateStopped && !agentDeleteForce {
+		return fmt.Errorf("agent '%s' is %s. Use --force to delete a running agent", agentName, a.State)
+	}
+
+	// Confirm deletion (show what will happen)
 	if !agentDeleteForce {
 		fmt.Printf("Delete agent '%s'? This will remove:\n", agentName)
 		fmt.Println("  - tmux session")
 		fmt.Println("  - git worktree")
-		fmt.Println("  - memory directory")
+		fmt.Println("  - channel memberships")
 		fmt.Println("  - agent state")
+		if agentDeletePurge {
+			fmt.Println("  - memory directory (--purge)")
+		} else {
+			fmt.Printf("  Note: Memory preserved at .bc/memory/%s (use --purge to delete)\n", agentName)
+		}
 		fmt.Print("\nType 'yes' to confirm: ")
 
 		var response string
@@ -645,8 +662,31 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Remove from all channels
+	channelStore, chanErr := channel.OpenStore(ws.RootDir)
+	if chanErr == nil {
+		if loadChanErr := channelStore.Load(); loadChanErr == nil {
+			channels := channelStore.List()
+			for _, ch := range channels {
+				for _, member := range ch.Members {
+					if member == agentName {
+						_ = channelStore.RemoveMember(ch.Name, agentName)
+						fmt.Printf("Removed from channel #%s\n", ch.Name)
+						break
+					}
+				}
+			}
+			_ = channelStore.Save()
+		}
+		_ = channelStore.Close()
+	}
+
+	// Delete agent with options
 	fmt.Printf("Deleting %s... ", agentName)
-	if delErr := mgr.DeleteAgent(agentName); delErr != nil {
+	deleteOpts := agent.DeleteOptions{
+		PurgeMemory: agentDeletePurge,
+	}
+	if delErr := mgr.DeleteAgentWithOptions(agentName, deleteOpts); delErr != nil {
 		fmt.Println("✗")
 		return fmt.Errorf("failed to delete %s: %w", agentName, delErr)
 	}
@@ -654,13 +694,21 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 
 	// Log event
 	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
+	eventData := map[string]any{
+		"purge_memory": agentDeletePurge,
+		"forced":       agentDeleteForce,
+	}
 	_ = eventLog.Append(events.Event{
 		Type:    events.AgentStopped,
 		Agent:   agentName,
 		Message: "deleted via bc agent delete",
+		Data:    eventData,
 	})
 
 	fmt.Printf("Agent '%s' has been permanently deleted.\n", agentName)
+	if !agentDeletePurge {
+		fmt.Printf("Memory preserved at .bc/memory/%s\n", agentName)
+	}
 	return nil
 }
 
