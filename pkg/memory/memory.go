@@ -153,6 +153,15 @@ func (s *Store) GetLearnings() (string, error) {
 	return string(data), nil
 }
 
+// clearLearnings resets the learnings file to just the header.
+func (s *Store) clearLearnings() error {
+	header := fmt.Sprintf("# %s Learnings\n\nThis file contains insights and learnings accumulated by %s.\n\n", s.agentName, s.agentName)
+	if err := os.WriteFile(s.learningsPath(), []byte(header), 0600); err != nil { //nolint:gosec // path constructed from trusted memoryDir
+		return fmt.Errorf("failed to reset learnings file: %w", err)
+	}
+	return nil
+}
+
 // MemoryDir returns the path to the agent's memory directory.
 func (s *Store) MemoryDir() string {
 	return s.memoryDir
@@ -190,9 +199,10 @@ const DefaultSizeThreshold = 1024 * 1024 // 1MB
 
 // PruneOptions configures the prune operation.
 type PruneOptions struct {
-	OlderThan time.Duration // Remove experiences older than this duration
-	DryRun    bool          // If true, don't actually delete, just report
-	Backup    bool          // If true, create backup before pruning
+	OlderThan        time.Duration // Remove experiences older than this duration
+	DryRun           bool          // If true, don't actually delete, just report
+	Backup           bool          // If true, create backup before pruning
+	IncludeLearnings bool          // If true, also clear learnings (reset to header only)
 }
 
 // PruneResult contains statistics from a prune operation.
@@ -203,6 +213,7 @@ type PruneResult struct {
 	TotalExperiences  int
 	PrunedExperiences int
 	PreservedPinned   int
+	LearningsCleared  bool // True if learnings were cleared
 }
 
 // Prune removes old experiences based on the provided options.
@@ -272,6 +283,16 @@ func (s *Store) Prune(opts PruneOptions) (*PruneResult, error) {
 	// Get file size after prune
 	if info, statErr := os.Stat(s.experiencesPath()); statErr == nil {
 		result.BytesAfterPrune = info.Size()
+	}
+
+	// Clear learnings if requested
+	if opts.IncludeLearnings && !opts.DryRun {
+		if err := s.clearLearnings(); err != nil {
+			return nil, fmt.Errorf("failed to clear learnings: %w", err)
+		}
+		result.LearningsCleared = true
+	} else if opts.IncludeLearnings && opts.DryRun {
+		result.LearningsCleared = true // Would be cleared
 	}
 
 	return result, nil
