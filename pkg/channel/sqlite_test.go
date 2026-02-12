@@ -465,3 +465,77 @@ func TestSQLiteStore_Timestamps(t *testing.T) {
 		}
 	}
 }
+
+func TestSQLiteStore_Reactions(t *testing.T) {
+	store := setupTestDB(t)
+
+	if _, err := store.CreateChannel("reaction-test", ChannelTypeGroup, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	msg, err := store.AddMessage("reaction-test", "user1", "Great work!", TypeText, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Add reactions
+	err = store.AddReaction(msg.ID, "👍", "user2")
+	if err != nil {
+		t.Fatalf("failed to add reaction: %v", err)
+	}
+	err = store.AddReaction(msg.ID, "👍", "user3")
+	if err != nil {
+		t.Fatalf("failed to add second reaction: %v", err)
+	}
+	err = store.AddReaction(msg.ID, "🎉", "user2")
+	if err != nil {
+		t.Fatalf("failed to add different emoji: %v", err)
+	}
+
+	// Get reactions
+	reactions, err := store.GetReactions(msg.ID)
+	if err != nil {
+		t.Fatalf("failed to get reactions: %v", err)
+	}
+
+	if len(reactions["👍"]) != 2 {
+		t.Errorf("expected 2 thumbsup reactions, got %d", len(reactions["👍"]))
+	}
+	if len(reactions["🎉"]) != 1 {
+		t.Errorf("expected 1 party reaction, got %d", len(reactions["🎉"]))
+	}
+
+	// Remove reaction
+	err = store.RemoveReaction(msg.ID, "👍", "user2")
+	if err != nil {
+		t.Fatalf("failed to remove reaction: %v", err)
+	}
+
+	reactions, _ = store.GetReactions(msg.ID)
+	if len(reactions["👍"]) != 1 {
+		t.Errorf("expected 1 thumbsup after removal, got %d", len(reactions["👍"]))
+	}
+
+	// Toggle reaction (remove)
+	added, err := store.ToggleReaction(msg.ID, "👍", "user3")
+	if err != nil {
+		t.Fatalf("toggle failed: %v", err)
+	}
+	if added {
+		t.Error("expected toggle to remove, not add")
+	}
+
+	// Toggle reaction (add)
+	added, err = store.ToggleReaction(msg.ID, "🚀", "user4")
+	if err != nil {
+		t.Fatalf("toggle failed: %v", err)
+	}
+	if !added {
+		t.Error("expected toggle to add, not remove")
+	}
+
+	reactions, _ = store.GetReactions(msg.ID)
+	if len(reactions["🚀"]) != 1 {
+		t.Errorf("expected rocket reaction after toggle add, got %d", len(reactions["🚀"]))
+	}
+}
