@@ -2,6 +2,7 @@
 package demon
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -25,6 +26,14 @@ type Demon struct {
 	Description string    `json:"description,omitempty"`
 	RunCount    int       `json:"run_count,omitempty"`
 	Enabled     bool      `json:"enabled"`
+}
+
+// RunLog represents a single execution of a demon.
+type RunLog struct {
+	Timestamp time.Time `json:"timestamp"`
+	Duration  int64     `json:"duration_ms"` // Duration in milliseconds
+	ExitCode  int       `json:"exit_code"`
+	Success   bool      `json:"success"`
 }
 
 // CronSchedule represents a parsed cron expression.
@@ -227,6 +236,74 @@ func (s *Store) RecordRun(name string) error {
 			d.NextRun = cron.Next(now)
 		}
 	})
+}
+
+// RecordRunLog appends a run log entry for a demon.
+func (s *Store) RecordRunLog(name string, log RunLog) error {
+	if err := s.Init(); err != nil {
+		return err
+	}
+
+	path := s.logPath(name)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) //nolint:gosec // path constructed from trusted demonsDir
+	if err != nil {
+		return fmt.Errorf("failed to open log file: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	data, err := json.Marshal(log)
+	if err != nil {
+		return fmt.Errorf("failed to marshal log: %w", err)
+	}
+
+	if _, err := f.Write(append(data, '\n')); err != nil {
+		return fmt.Errorf("failed to write log: %w", err)
+	}
+
+	return nil
+}
+
+// GetRunLogs retrieves the run logs for a demon.
+// If limit > 0, returns only the most recent entries.
+func (s *Store) GetRunLogs(name string, limit int) ([]RunLog, error) {
+	path := s.logPath(name)
+	f, err := os.Open(path) //nolint:gosec // path constructed from trusted demonsDir
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to open log file: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	var logs []RunLog
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		var log RunLog
+		if err := json.Unmarshal(line, &log); err != nil {
+			continue // Skip malformed entries
+		}
+		logs = append(logs, log)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read log file: %w", err)
+	}
+
+	// Return most recent entries if limit is set
+	if limit > 0 && len(logs) > limit {
+		logs = logs[len(logs)-limit:]
+	}
+
+	return logs, nil
+}
+
+func (s *Store) logPath(name string) string {
+	return filepath.Join(s.demonsDir, name+".log.jsonl")
 }
 
 // SetOwner sets the owner of a demon.

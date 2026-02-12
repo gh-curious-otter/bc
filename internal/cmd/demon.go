@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -85,9 +86,22 @@ var demonDisableCmd = &cobra.Command{
 	RunE:  runDemonDisable,
 }
 
+var demonLogsCmd = &cobra.Command{
+	Use:   "logs <name>",
+	Short: "Show execution history for a demon",
+	Long: `Show the execution history for a demon.
+
+Example:
+  bc demon logs backup           # Show all run history
+  bc demon logs backup --tail 5  # Show last 5 runs`,
+	Args: cobra.ExactArgs(1),
+	RunE: runDemonLogs,
+}
+
 var (
 	demonSchedule string
 	demonCommand  string
+	demonTail     int
 )
 
 func init() {
@@ -96,6 +110,8 @@ func init() {
 	_ = demonCreateCmd.MarkFlagRequired("schedule")
 	_ = demonCreateCmd.MarkFlagRequired("cmd")
 
+	demonLogsCmd.Flags().IntVar(&demonTail, "tail", 0, "Show only the last N entries")
+
 	demonCmd.AddCommand(demonCreateCmd)
 	demonCmd.AddCommand(demonListCmd)
 	demonCmd.AddCommand(demonShowCmd)
@@ -103,6 +119,7 @@ func init() {
 	demonCmd.AddCommand(demonRunCmd)
 	demonCmd.AddCommand(demonEnableCmd)
 	demonCmd.AddCommand(demonDisableCmd)
+	demonCmd.AddCommand(demonLogsCmd)
 	rootCmd.AddCommand(demonCmd)
 }
 
@@ -235,14 +252,18 @@ func runDemonRun(cmd *cobra.Command, args []string) error {
 
 	cmd.Printf("Running demon %q: %s\n", name, d.Command)
 
-	// Execute the command
+	// Execute the command with timing
+	startTime := time.Now()
 	ctx := context.Background()
 	execCmd := exec.CommandContext(ctx, "sh", "-c", d.Command) //nolint:gosec // command from trusted demon config
 	execCmd.Dir = ws.RootDir
 	output, execErr := execCmd.CombinedOutput()
+	duration := time.Since(startTime)
 
 	exitCode := 0
+	success := true
 	if execErr != nil {
+		success = false
 		if exitErr, ok := execErr.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()
 		} else {
@@ -250,9 +271,21 @@ func runDemonRun(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Record the run
+	// Record the run (updates LastRun, RunCount, NextRun)
 	if recordErr := store.RecordRun(name); recordErr != nil {
 		return fmt.Errorf("command executed but failed to record: %w", recordErr)
+	}
+
+	// Record the run log (detailed execution history)
+	runLog := demon.RunLog{
+		Timestamp: startTime.UTC(),
+		Duration:  duration.Milliseconds(),
+		ExitCode:  exitCode,
+		Success:   success,
+	}
+	if logErr := store.RecordRunLog(name, runLog); logErr != nil {
+		// Log error but don't fail - the command did execute
+		cmd.PrintErrf("Warning: failed to record log: %v\n", logErr)
 	}
 
 	// Print output
@@ -309,5 +342,60 @@ func runDemonDisable(cmd *cobra.Command, args []string) error {
 	}
 
 	cmd.Printf("Disabled demon %q\n", name)
+	return nil
+}
+
+func runDemonLogs(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	name := args[0]
+	store := demon.NewStore(ws.RootDir)
+
+	// Check if demon exists
+	d, err := store.Get(name)
+	if err != nil {
+		return err
+	}
+	if d == nil {
+		return fmt.Errorf("demon %q not found", name)
+	}
+
+	logs, err := store.GetRunLogs(name, demonTail)
+	if err != nil {
+		return err
+	}
+
+	if len(logs) == 0 {
+		cmd.Printf("No execution history for demon %q\n", name)
+		cmd.Println()
+		cmd.Printf("Run with: bc demon run %s\n", name)
+		return nil
+	}
+
+	cmd.Printf("Execution history for %q (%d runs):\n\n", name, d.RunCount)
+	cmd.Printf("%-24s %-12s %-10s %s\n", "TIMESTAMP", "DURATION", "STATUS", "EXIT CODE")
+	cmd.Println("--------------------------------------------------------------------")
+
+	for _, log := range logs {
+		status := "success"
+		if !log.Success {
+			status = "failed"
+		}
+
+		duration := fmt.Sprintf("%dms", log.Duration)
+		if log.Duration >= 1000 {
+			duration = fmt.Sprintf("%.1fs", float64(log.Duration)/1000)
+		}
+
+		cmd.Printf("%-24s %-12s %-10s %d\n",
+			log.Timestamp.Local().Format("2006-01-02 15:04:05"),
+			duration,
+			status,
+			log.ExitCode)
+	}
+
 	return nil
 }

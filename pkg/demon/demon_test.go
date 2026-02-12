@@ -531,3 +531,114 @@ func TestDemonOwnerField(t *testing.T) {
 		t.Errorf("Owner after reload = %q, want %q", got.Owner, "engineer-01")
 	}
 }
+
+func TestRecordRunLog(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create a demon first
+	_, err := store.Create("test-demon", "0 * * * *", "echo hello")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// Record a successful run
+	log1 := RunLog{
+		Timestamp: time.Now().UTC(),
+		Duration:  150,
+		ExitCode:  0,
+		Success:   true,
+	}
+	if recordErr := store.RecordRunLog("test-demon", log1); recordErr != nil {
+		t.Fatalf("RecordRunLog failed: %v", recordErr)
+	}
+
+	// Record a failed run
+	log2 := RunLog{
+		Timestamp: time.Now().UTC(),
+		Duration:  2500,
+		ExitCode:  1,
+		Success:   false,
+	}
+	if recordErr := store.RecordRunLog("test-demon", log2); recordErr != nil {
+		t.Fatalf("RecordRunLog failed: %v", recordErr)
+	}
+
+	// Get all logs
+	logs, err := store.GetRunLogs("test-demon", 0)
+	if err != nil {
+		t.Fatalf("GetRunLogs failed: %v", err)
+	}
+
+	if len(logs) != 2 {
+		t.Errorf("Expected 2 logs, got %d", len(logs))
+	}
+
+	// Verify first log
+	if logs[0].Duration != 150 {
+		t.Errorf("First log duration = %d, want 150", logs[0].Duration)
+	}
+	if !logs[0].Success {
+		t.Error("First log should be successful")
+	}
+
+	// Verify second log
+	if logs[1].ExitCode != 1 {
+		t.Errorf("Second log exit code = %d, want 1", logs[1].ExitCode)
+	}
+	if logs[1].Success {
+		t.Error("Second log should be failed")
+	}
+}
+
+func TestGetRunLogsWithLimit(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	_, err := store.Create("test-demon", "0 * * * *", "echo hello")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// Record 5 runs
+	for i := 0; i < 5; i++ {
+		log := RunLog{
+			Timestamp: time.Now().UTC(),
+			Duration:  int64(i * 100),
+			ExitCode:  0,
+			Success:   true,
+		}
+		if recordErr := store.RecordRunLog("test-demon", log); recordErr != nil {
+			t.Fatalf("RecordRunLog failed: %v", recordErr)
+		}
+	}
+
+	// Get with limit
+	logs, err := store.GetRunLogs("test-demon", 3)
+	if err != nil {
+		t.Fatalf("GetRunLogs failed: %v", err)
+	}
+
+	if len(logs) != 3 {
+		t.Errorf("Expected 3 logs with limit, got %d", len(logs))
+	}
+
+	// Should be the most recent ones (200ms, 300ms, 400ms)
+	if logs[0].Duration != 200 {
+		t.Errorf("First limited log duration = %d, want 200", logs[0].Duration)
+	}
+}
+
+func TestGetRunLogsNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Get logs for non-existent demon (no log file)
+	logs, err := store.GetRunLogs("nonexistent", 0)
+	if err != nil {
+		t.Errorf("GetRunLogs should not error for nonexistent: %v", err)
+	}
+	if logs != nil {
+		t.Errorf("Expected nil logs, got %v", logs)
+	}
+}
