@@ -15,11 +15,14 @@ import type {
   TeamsResponse,
 } from '../types';
 
+/** Command timeout in milliseconds (30 seconds) */
+const BC_COMMAND_TIMEOUT = 30000;
+
 /**
  * Execute a bc command and return the raw output
  * @param args - Command arguments (e.g., ['status', '--json'])
  * @returns Promise resolving to stdout string
- * @throws Error if command fails
+ * @throws Error if command fails or times out
  */
 export async function execBc(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -35,9 +38,26 @@ export async function execBc(args: string[]): Promise<string> {
 
     // Use BC_BIN if set, otherwise fall back to 'bc' in PATH
     const bcBin = process.env.BC_BIN || 'bc';
+    // Use BC_ROOT for working directory if set
+    const cwd = process.env.BC_ROOT || process.cwd();
+
+    let resolved = false;
+    const cleanup = () => {
+      resolved = true;
+    };
+
+    // Set timeout to prevent hanging
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        cleanup();
+        proc.kill();
+        reject(new Error(`bc command timed out after ${BC_COMMAND_TIMEOUT}ms: ${finalArgs.join(' ')}`));
+      }
+    }, BC_COMMAND_TIMEOUT);
 
     const proc = spawn(bcBin, finalArgs, {
       stdio: ['ignore', 'pipe', 'pipe'],
+      cwd,
     });
 
     let stdout = '';
@@ -52,6 +72,10 @@ export async function execBc(args: string[]): Promise<string> {
     });
 
     proc.on('close', (code: number | null) => {
+      clearTimeout(timeout);
+      if (resolved) return;
+      cleanup();
+
       if (code === 0) {
         resolve(stdout.trim());
       } else {
@@ -60,6 +84,9 @@ export async function execBc(args: string[]): Promise<string> {
     });
 
     proc.on('error', (err: Error) => {
+      clearTimeout(timeout);
+      if (resolved) return;
+      cleanup();
       reject(new Error(`Failed to spawn bc: ${err.message}`));
     });
   });
