@@ -140,7 +140,7 @@ func initV2Workspace(rootDir string) error {
 	fmt.Printf("\n")
 	fmt.Printf("Next steps:\n")
 	fmt.Printf("  bc up       # Start agents\n")
-	fmt.Printf("  bc home     # Open dashboard\n")
+	fmt.Printf("  bc status   # Check agent status\n")
 
 	return nil
 }

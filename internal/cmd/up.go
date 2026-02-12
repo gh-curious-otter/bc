@@ -158,7 +158,7 @@ Tools: ONLY bc commands - no direct file manipulation or other tools
 Workspace: %s
 
 === ROOT RESPONSIBILITIES ===
-1. System Health: Monitor all agents via bc status, bc dashboard
+1. System Health: Monitor all agents via bc status, bc stats
 2. Agent Health: Detect stuck agents via bc agent peek, send nudges when needed
 4. Worktree Health: Monitor via bc worktree list, prune orphaned worktrees
 5. Event Monitoring: Track activity via bc logs
@@ -181,8 +181,7 @@ bc agent create NAME --role ROLE    # Create new agent
 ** System Status **
 bc status                           # All agents overview
 bc status --json                    # JSON format
-bc dashboard                        # Real-time workspace view
-bc dashboard --json                 # JSON format
+bc stats                            # Workspace statistics
 
 ** Event Monitoring **
 bc logs                             # Show all events
