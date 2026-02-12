@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"time"
 
@@ -98,10 +100,29 @@ Examples:
 	RunE: runDemonLogs,
 }
 
+var demonEditCmd = &cobra.Command{
+	Use:   "edit <name>",
+	Short: "Edit a demon's configuration",
+	Long: `Edit a demon's configuration using flags or an editor.
+
+Examples:
+  bc demon edit backup --schedule '0 9 * * *'     # Change schedule
+  bc demon edit backup --cmd 'bc backup --full'   # Change command
+  bc demon edit backup --enabled=false            # Disable demon
+  bc demon edit backup --description 'Daily backup'
+  bc demon edit backup                            # Open in $EDITOR`,
+	Args: cobra.ExactArgs(1),
+	RunE: runDemonEdit,
+}
+
 var (
-	demonSchedule string
-	demonCommand  string
-	demonTail     int
+	demonSchedule        string
+	demonCommand         string
+	demonTail            int
+	demonEditSchedule    string
+	demonEditCommand     string
+	demonEditDescription string
+	demonEditEnabled     string
 )
 
 func init() {
@@ -112,6 +133,11 @@ func init() {
 
 	demonLogsCmd.Flags().IntVar(&demonTail, "tail", 0, "Show only the last N entries")
 
+	demonEditCmd.Flags().StringVar(&demonEditSchedule, "schedule", "", "New cron schedule")
+	demonEditCmd.Flags().StringVar(&demonEditCommand, "cmd", "", "New command to execute")
+	demonEditCmd.Flags().StringVar(&demonEditDescription, "description", "", "New description")
+	demonEditCmd.Flags().StringVar(&demonEditEnabled, "enabled", "", "Enable/disable demon (true/false)")
+
 	demonCmd.AddCommand(demonCreateCmd)
 	demonCmd.AddCommand(demonListCmd)
 	demonCmd.AddCommand(demonShowCmd)
@@ -120,6 +146,7 @@ func init() {
 	demonCmd.AddCommand(demonEnableCmd)
 	demonCmd.AddCommand(demonDisableCmd)
 	demonCmd.AddCommand(demonLogsCmd)
+	demonCmd.AddCommand(demonEditCmd)
 	rootCmd.AddCommand(demonCmd)
 }
 
@@ -397,5 +424,144 @@ func runDemonLogs(cmd *cobra.Command, args []string) error {
 			log.ExitCode)
 	}
 
+	return nil
+}
+
+func runDemonEdit(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	name := args[0]
+	store := demon.NewStore(ws.RootDir)
+
+	// Check if demon exists
+	d, err := store.Get(name)
+	if err != nil {
+		return err
+	}
+	if d == nil {
+		return fmt.Errorf("demon %q not found", name)
+	}
+
+	// Check if any flags were provided
+	hasFlags := demonEditSchedule != "" || demonEditCommand != "" ||
+		demonEditDescription != "" || demonEditEnabled != ""
+
+	if hasFlags {
+		// Update using flags
+		return updateDemonWithFlags(cmd, store, name)
+	}
+
+	// No flags - open in editor
+	return editDemonInEditor(cmd, store, name, d)
+}
+
+func updateDemonWithFlags(cmd *cobra.Command, store *demon.Store, name string) error {
+	var changes []string
+
+	err := store.Update(name, func(d *demon.Demon) {
+		if demonEditSchedule != "" {
+			d.Schedule = demonEditSchedule
+			changes = append(changes, fmt.Sprintf("schedule: %s", demonEditSchedule))
+		}
+		if demonEditCommand != "" {
+			d.Command = demonEditCommand
+			changes = append(changes, fmt.Sprintf("command: %s", demonEditCommand))
+		}
+		if demonEditDescription != "" {
+			d.Description = demonEditDescription
+			changes = append(changes, fmt.Sprintf("description: %s", demonEditDescription))
+		}
+		if demonEditEnabled != "" {
+			enabled := demonEditEnabled == "true" || demonEditEnabled == "1" || demonEditEnabled == "yes"
+			d.Enabled = enabled
+			changes = append(changes, fmt.Sprintf("enabled: %t", enabled))
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update demon: %w", err)
+	}
+
+	cmd.Printf("✓ Updated demon %q\n", name)
+	for _, change := range changes {
+		cmd.Printf("  %s\n", change)
+	}
+
+	return nil
+}
+
+func editDemonInEditor(cmd *cobra.Command, store *demon.Store, name string, d *demon.Demon) error {
+	// Create temp file with demon config as JSON
+	tmpFile, err := os.CreateTemp("", fmt.Sprintf("demon-%s-*.json", name))
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+
+	// Write current config to temp file
+	configData := map[string]interface{}{
+		"name":        d.Name,
+		"schedule":    d.Schedule,
+		"command":     d.Command,
+		"description": d.Description,
+		"enabled":     d.Enabled,
+	}
+	encoder := json.NewEncoder(tmpFile)
+	encoder.SetIndent("", "  ")
+	if encodeErr := encoder.Encode(configData); encodeErr != nil {
+		_ = tmpFile.Close()
+		return fmt.Errorf("failed to write config: %w", encodeErr)
+	}
+	_ = tmpFile.Close()
+
+	// Open editor
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "nano"
+	}
+
+	// #nosec G204 - editor command is from user's EDITOR env var
+	editorCmd := exec.CommandContext(context.Background(), editor, tmpFile.Name())
+	editorCmd.Stdin = os.Stdin
+	editorCmd.Stdout = os.Stdout
+	editorCmd.Stderr = os.Stderr
+
+	if runErr := editorCmd.Run(); runErr != nil {
+		return fmt.Errorf("failed to open editor: %w", runErr)
+	}
+
+	// Read updated config
+	updatedData, err := os.ReadFile(tmpFile.Name()) //nolint:gosec // G304: temp file we created
+	if err != nil {
+		return fmt.Errorf("failed to read updated config: %w", err)
+	}
+
+	var updated map[string]interface{}
+	if unmarshalErr := json.Unmarshal(updatedData, &updated); unmarshalErr != nil {
+		return fmt.Errorf("invalid JSON in edited file: %w", unmarshalErr)
+	}
+
+	// Apply updates
+	err = store.Update(name, func(demon *demon.Demon) {
+		if schedule, ok := updated["schedule"].(string); ok {
+			demon.Schedule = schedule
+		}
+		if command, ok := updated["command"].(string); ok {
+			demon.Command = command
+		}
+		if description, ok := updated["description"].(string); ok {
+			demon.Description = description
+		}
+		if enabled, ok := updated["enabled"].(bool); ok {
+			demon.Enabled = enabled
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("failed to save changes: %w", err)
+	}
+
+	cmd.Printf("✓ Updated demon %q\n", name)
 	return nil
 }
