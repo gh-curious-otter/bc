@@ -813,13 +813,24 @@ func (m *Manager) stopAgentTreeLocked(name string) error {
 	return nil
 }
 
+// DeleteOptions configures agent deletion behavior.
+type DeleteOptions struct {
+	// PurgeMemory removes the memory directory. Default (false) preserves it.
+	PurgeMemory bool
+}
+
 // DeleteAgent permanently removes an agent from the workspace.
 // This stops the agent, removes its worktree, memory directory, and state.
 func (m *Manager) DeleteAgent(name string) error {
+	return m.DeleteAgentWithOptions(name, DeleteOptions{PurgeMemory: true})
+}
+
+// DeleteAgentWithOptions permanently removes an agent with configurable options.
+func (m *Manager) DeleteAgentWithOptions(name string, opts DeleteOptions) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	log.Debug("deleting agent", "name", name)
+	log.Debug("deleting agent", "name", name, "purgeMemory", opts.PurgeMemory)
 
 	agent, exists := m.agents[name]
 	if !exists {
@@ -834,8 +845,8 @@ func (m *Manager) DeleteAgent(name string) error {
 		removeWorktree(agent.Workspace, agent.WorktreeDir)
 	}
 
-	// Clean up per-agent memory directory
-	if agent.MemoryDir != "" {
+	// Clean up per-agent memory directory (only if purge requested)
+	if opts.PurgeMemory && agent.MemoryDir != "" {
 		if err := os.RemoveAll(agent.MemoryDir); err != nil {
 			log.Warn("failed to remove memory dir", "dir", agent.MemoryDir, "error", err)
 		} else {

@@ -758,3 +758,59 @@ func TestAgentHealth_AlertMessageFormat(t *testing.T) {
 		t.Error("message should contain reason 'repeated_failures'")
 	}
 }
+
+// --- Agent Delete Tests ---
+
+func TestAgentDeleteFlags(t *testing.T) {
+	flags := agentDeleteCmd.Flags()
+
+	if flags.Lookup("force") == nil {
+		t.Error("expected --force flag")
+	}
+	if flags.Lookup("purge") == nil {
+		t.Error("expected --purge flag")
+	}
+}
+
+func TestAgentDelete_RequiresName(t *testing.T) {
+	cmd := agentDeleteCmd
+
+	// ExactArgs(1) should reject no args
+	err := cmd.Args(cmd, []string{})
+	if err == nil {
+		t.Error("expected error for missing agent name")
+	}
+
+	// Should accept exactly one arg
+	err = cmd.Args(cmd, []string{"agent-name"})
+	if err != nil {
+		t.Errorf("unexpected error for valid arg: %v", err)
+	}
+}
+
+func TestAgentDelete_NonexistentAgent(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("agent", "delete", "nonexistent-agent", "--force")
+	if err == nil {
+		t.Error("expected error for deleting nonexistent agent")
+	}
+	if err != nil && !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention 'not found': %v", err)
+	}
+}
+
+func TestAgentDeleteOptions(t *testing.T) {
+	// Test DeleteOptions struct
+	opts := agent.DeleteOptions{
+		PurgeMemory: false,
+	}
+	if opts.PurgeMemory {
+		t.Error("expected PurgeMemory to be false by default")
+	}
+
+	opts.PurgeMemory = true
+	if !opts.PurgeMemory {
+		t.Error("expected PurgeMemory to be true after setting")
+	}
+}
