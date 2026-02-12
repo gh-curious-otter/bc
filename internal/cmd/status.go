@@ -30,11 +30,14 @@ func init() {
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
+	log.Debug("status command started")
+
 	// Find workspace
 	ws, err := getWorkspace()
 	if err != nil {
 		return fmt.Errorf("not in a bc workspace: %w", err)
 	}
+	log.Debug("workspace found", "root", ws.RootDir)
 
 	// Create agent manager and load state
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
@@ -48,6 +51,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	agents := mgr.ListAgents()
+	log.Debug("agents loaded", "count", len(agents))
 
 	jsonOutput, err := cmd.Flags().GetBool("json")
 	if err != nil {
