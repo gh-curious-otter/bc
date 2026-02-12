@@ -112,10 +112,11 @@ function ChannelHistoryView({
   disableInput = false,
 }: ChannelHistoryViewProps): React.ReactElement {
   const { data: messages, loading, error, send } = useChannelHistory(channel.name, {
-    limit: 20,
+    limit: 50,
   });
   const [inputMode, setInputMode] = useState(false);
   const [messageBuffer, setMessageBuffer] = useState('');
+  const [scrollOffset, setScrollOffset] = useState(0);
 
   useInput(
     (input, key) => {
@@ -141,34 +142,53 @@ function ChannelHistoryView({
         if (input === 'm') {
           setInputMode(true);
         }
+        // 'j' to scroll down, 'k' to scroll up
+        if (input === 'j' && messages) {
+          setScrollOffset(Math.max(0, scrollOffset - 1));
+        }
+        if (input === 'k' && messages) {
+          setScrollOffset(Math.min(Math.max(0, messages.length - 10), scrollOffset + 1));
+        }
       }
     },
     { isActive: !disableInput }
   );
 
+  const displayMessages = messages ? messages.slice(Math.max(0, messages.length - 10 - scrollOffset), messages.length - scrollOffset) : [];
+  const hasMoreAbove = scrollOffset > 0;
+  const hasMoreBelow = messages && messages.length > 10 && scrollOffset < messages.length - 10;
+
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" height="100%">
       <Box>
         <Text bold color="cyan">#{channel.name}</Text>
         <Text dimColor> - {channel.members.length} members</Text>
       </Box>
-      <Text dimColor>ESC to go back, m to compose message</Text>
+      <Text dimColor>ESC to go back, m to compose, j/k to scroll</Text>
 
-      <Box marginTop={1} flexDirection="column" height={15}>
+      {/* Message area - flex grow to push input to bottom */}
+      <Box marginTop={1} flexDirection="column" flexGrow={1}>
         {loading && <Text dimColor>Loading messages...</Text>}
         {error && <Text color="red">Error: {error}</Text>}
-        {messages?.slice(-10).map((msg, index) => (
-          <Box key={index}>
-            <Text color="yellow">{msg.sender}</Text>
-            <Text dimColor>: </Text>
-            <Text>{msg.message}</Text>
-          </Box>
-        ))}
-        {messages?.length === 0 && <Text dimColor>No messages yet</Text>}
+        {!loading && !error && (
+          <>
+            {hasMoreAbove && <Text dimColor>↑ more messages above</Text>}
+            {displayMessages.map((msg, index) => (
+              <Box key={index}>
+                <Text color="yellow">{msg.sender}</Text>
+                <Text dimColor> ({formatMessageTime(msg.time)}) </Text>
+                <Text>: </Text>
+                <Text>{msg.message}</Text>
+              </Box>
+            ))}
+            {hasMoreBelow && <Text dimColor>↓ more messages below</Text>}
+            {messages?.length === 0 && <Text dimColor>No messages yet</Text>}
+          </>
+        )}
       </Box>
 
-      {/* Input area */}
-      <Box marginTop={1} borderStyle="single" borderColor={inputMode ? 'cyan' : 'gray'} paddingX={1}>
+      {/* Input area - anchored at bottom */}
+      <Box borderStyle="single" borderColor={inputMode ? 'cyan' : 'gray'} paddingX={1}>
         {inputMode ? (
           <Text>
             <Text color="cyan">{'> '}</Text>
@@ -181,6 +201,33 @@ function ChannelHistoryView({
       </Box>
     </Box>
   );
+}
+
+/**
+ * Format message timestamp for display
+ */
+function formatMessageTime(time: string): string {
+  try {
+    const date = new Date(time);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 1) return 'now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+
+    return date.toLocaleTimeString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return time;
+  }
 }
 
 export default ChannelsView;
