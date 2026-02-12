@@ -2,35 +2,13 @@ package config
 
 import (
 	"testing"
-	"time"
 )
-
-// --- Scalar defaults ---
-
-// Note: Name and Version are now in Roster as NameLegacy and VersionLegacy
-
-// --- WorkspaceLegacyConfig ---
-
-func TestWorkspaceLegacyDefaults(t *testing.T) {
-	if WorkspaceLegacy.StateDir != ".bc" {
-		t.Errorf("WorkspaceLegacy.StateDir = %q, want %q", WorkspaceLegacy.StateDir, ".bc")
-	}
-	if WorkspaceLegacy.MaxWorkers != 3 {
-		t.Errorf("WorkspaceLegacy.MaxWorkers = %d, want %d", WorkspaceLegacy.MaxWorkers, 3)
-	}
-}
 
 // --- AgentLegacyConfig ---
 
 func TestAgentLegacyDefaults(t *testing.T) {
 	if AgentLegacy.Command == "" {
 		t.Error("AgentLegacy.Command should not be empty")
-	}
-	if AgentLegacy.CoordinatorName != "root" {
-		t.Errorf("AgentLegacy.CoordinatorName = %q, want %q", AgentLegacy.CoordinatorName, "root")
-	}
-	if AgentLegacy.WorkerPrefix != "worker" {
-		t.Errorf("AgentLegacy.WorkerPrefix = %q, want %q", AgentLegacy.WorkerPrefix, "worker")
 	}
 }
 
@@ -39,17 +17,6 @@ func TestAgentLegacyDefaults(t *testing.T) {
 func TestTmuxDefaults(t *testing.T) {
 	if Tmux.SessionPrefix != "bc-" {
 		t.Errorf("Tmux.SessionPrefix = %q, want %q", Tmux.SessionPrefix, "bc-")
-	}
-}
-
-// --- TuiConfig ---
-
-func TestTuiDefaults(t *testing.T) {
-	if Tui.RefreshInterval != 2*time.Second {
-		t.Errorf("Tui.RefreshInterval = %v, want %v", Tui.RefreshInterval, 2*time.Second)
-	}
-	if Tui.Theme != "ayu-dark" {
-		t.Errorf("Tui.Theme = %q, want %q", Tui.Theme, "ayu-dark")
 	}
 }
 
@@ -104,9 +71,6 @@ func TestAgentLegacyConfigZeroValue(t *testing.T) {
 	var ac AgentLegacyConfig
 	if ac.Command != "" {
 		t.Error("zero-value AgentLegacyConfig.Command should be empty")
-	}
-	if ac.CoordinatorName != "" {
-		t.Error("zero-value AgentLegacyConfig.CoordinatorName should be empty")
 	}
 }
 

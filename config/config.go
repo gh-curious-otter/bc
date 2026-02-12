@@ -2,23 +2,14 @@
 
 package config
 
-import "time"
-
 type AgentLegacyConfig struct {
-	Command         string
-	CoordinatorName string
-	WorkerPrefix    string
+	Command string
 }
 
 type AgentsItem struct {
 	Command     string
 	Description string
 	Name        string
-}
-
-type BeadsConfig struct {
-	Enabled   bool
-	IssuesDir string
 }
 
 type ChannelsConfig struct {
@@ -31,11 +22,9 @@ type MemoryConfig struct {
 }
 
 type RosterConfig struct {
-	Engineers     int64
-	NameLegacy    string
-	Qa            int64
-	TechLeads     int64
-	VersionLegacy string
+	Engineers int64
+	Qa        int64
+	TechLeads int64
 }
 
 type TmuxConfig struct {
@@ -70,19 +59,9 @@ type ToolsGeminiConfig struct {
 	Enabled bool
 }
 
-type TuiConfig struct {
-	RefreshInterval time.Duration
-	Theme           string
-}
-
 type WorkspaceConfig struct {
 	Name    string
 	Version int64
-}
-
-type WorkspaceLegacyConfig struct {
-	MaxWorkers int64
-	StateDir   string
 }
 
 type WorktreesConfig struct {
@@ -92,9 +71,7 @@ type WorktreesConfig struct {
 
 var (
 	AgentLegacy = AgentLegacyConfig{
-		Command:         "cursor-agent --force --print",
-		CoordinatorName: "root",
-		WorkerPrefix:    "worker",
+		Command: "claude --dangerously-skip-permissions",
 	}
 	Agents = []AgentsItem{
 		{
@@ -108,34 +85,15 @@ var (
 			Name:        "gemini",
 		},
 		{
-			Command:     "cursor-agent --force",
-			Description: "Cursor Agent (all permissions)",
-			Name:        "cursor",
-		},
-		{
 			Command:     "cursor-agent --force --print",
-			Description: "Cursor Agent (headless, all permissions, stdin/Enter submits)",
-			Name:        "cursor-agent",
+			Description: "Cursor Agent",
+			Name:        "cursor",
 		},
 		{
 			Command:     "codex --full-auto",
 			Description: "OpenAI Codex",
 			Name:        "codex",
 		},
-		{
-			Command:     "claude",
-			Description: "Claude CLI agent",
-			Name:        "claude-cli",
-		},
-		{
-			Command:     "claude mcp serve",
-			Description: "Claude MCP Server",
-			Name:        "server",
-		},
-	}
-	Beads = BeadsConfig{
-		Enabled:   true,
-		IssuesDir: ".beads/issues",
 	}
 	Channels = ChannelsConfig{
 		Default: []string{"general", "engineering"},
@@ -145,11 +103,9 @@ var (
 		Path:    ".bc/memory",
 	}
 	Roster = RosterConfig{
-		Engineers:     4,
-		NameLegacy:    "bc",
-		Qa:            2,
-		TechLeads:     2,
-		VersionLegacy: "0.1.0",
+		Engineers: 4,
+		Qa:        2,
+		TechLeads: 2,
 	}
 	Tmux = TmuxConfig{
 		SessionPrefix: "bc-",
@@ -173,17 +129,9 @@ var (
 			Enabled: true,
 		},
 	}
-	Tui = TuiConfig{
-		RefreshInterval: 2 * time.Second,
-		Theme:           "ayu-dark",
-	}
 	Workspace = WorkspaceConfig{
 		Name:    "bc",
 		Version: 2,
-	}
-	WorkspaceLegacy = WorkspaceLegacyConfig{
-		MaxWorkers: 3,
-		StateDir:   ".bc",
 	}
 	Worktrees = WorktreesConfig{
 		AutoCleanup: true,

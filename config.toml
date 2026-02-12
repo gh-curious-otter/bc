@@ -1,4 +1,4 @@
-# bc (Beads Coordinator) Configuration
+# bc Configuration
 # This is the default configuration template for bc workspaces.
 # When you run `bc init`, a copy is created at .bc/config.toml
 # Run `go generate ./...` to regenerate config/config.go from this file
@@ -68,16 +68,6 @@ backend = "file"
 path = ".bc/memory"
 
 # =============================================================================
-# Issue Tracker Integration (Beads)
-# =============================================================================
-[beads]
-# Enable beads issue tracker integration
-enabled = true
-
-# Directory containing beads issues
-issues_dir = ".beads/issues"
-
-# =============================================================================
 # Communication Channels
 # =============================================================================
 [channels]
@@ -102,34 +92,19 @@ tech_leads = 2
 qa = 2
 
 # =============================================================================
-# Legacy Settings (for backwards compatibility)
+# Tmux Settings
 # =============================================================================
-# Application metadata
-name_legacy = "bc"
-version_legacy = "0.1.0"
-
-# Workspace settings (v1)
-[workspace_legacy]
-state_dir = ".bc"
-max_workers = 3
-
-# Agent settings (v1)
-[agent_legacy]
-command = "cursor-agent --force --print"
-coordinator_name = "root"
-worker_prefix = "worker"
-
-# Tmux settings
 [tmux]
 session_prefix = "bc-"
 
-# TUI settings
-[tui]
-refresh_interval = "2s"
-theme = "ayu-dark"  # Options: ayu-dark, nord, gruvbox
+# =============================================================================
+# Agent Defaults (internal use)
+# =============================================================================
+[agent_legacy]
+command = "claude --dangerously-skip-permissions"
 
 # =============================================================================
-# Agent Type Definitions (for reference)
+# Agent Type Definitions (for bc agent create --tool)
 # =============================================================================
 [[agents]]
 name = "claude"
@@ -143,26 +118,10 @@ description = "Gemini Agent"
 
 [[agents]]
 name = "cursor"
-command = "cursor-agent --force"
-description = "Cursor Agent (all permissions)"
-
-[[agents]]
-name = "cursor-agent"
 command = "cursor-agent --force --print"
-description = "Cursor Agent (headless, all permissions, stdin/Enter submits)"
+description = "Cursor Agent"
 
 [[agents]]
 name = "codex"
 command = "codex --full-auto"
 description = "OpenAI Codex"
-
-[[agents]]
-name = "claude-cli"
-command = "claude"
-description = "Claude CLI agent"
-
-[[agents]]
-name = "server"
-command = "claude mcp serve"
-description = "Claude MCP Server"
-
