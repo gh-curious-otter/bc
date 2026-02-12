@@ -105,13 +105,7 @@ export async function execBcJson<T>(args: string[]): Promise<T> {
  * Get current agent status
  */
 export async function getStatus(): Promise<StatusResponse> {
-  try {
-    return await execBcJson<StatusResponse>(['status']);
-  } catch (err) {
-    // Log error for debugging
-    console.error('getStatus error:', err);
-    throw err;
-  }
+  return execBcJson<StatusResponse>(['status']);
 }
 
 /**
