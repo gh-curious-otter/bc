@@ -1,6 +1,6 @@
 // Views for bc TUI
-// Merged from eng-04 (#561) and eng-03 (#562)
 
 export { AgentsView } from './AgentsView';
-export { Dashboard } from './Dashboard.js';
+export { Dashboard } from './Dashboard';
 export { AgentDetailView } from './AgentDetailView';
+export { MessageHistory } from './MessageHistory';
