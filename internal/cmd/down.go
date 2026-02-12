@@ -30,6 +30,8 @@ func init() {
 }
 
 func runDown(cmd *cobra.Command, args []string) error {
+	log.Debug("down command started", "force", downForce)
+
 	// Find workspace
 	ws, err := getWorkspace()
 	if err != nil {
@@ -45,6 +47,7 @@ func runDown(cmd *cobra.Command, args []string) error {
 	}
 
 	agents := mgr.ListAgents()
+	log.Debug("agents to stop", "count", len(agents))
 	if len(agents) == 0 {
 		fmt.Println("No agents running")
 		return nil
@@ -52,11 +55,14 @@ func runDown(cmd *cobra.Command, args []string) error {
 
 	// Stop all agents
 	for _, a := range agents {
+		log.Debug("stopping agent", "name", a.Name, "state", a.State)
 		fmt.Printf("Stopping %s... ", a.Name)
 		if err := mgr.StopAgent(a.Name); err != nil {
+			log.Debug("agent stop failed", "name", a.Name, "error", err)
 			fmt.Println("✗")
 			fmt.Printf("  Warning: %v\n", err)
 		} else {
+			log.Debug("agent stopped", "name", a.Name)
 			fmt.Println("✓")
 		}
 	}

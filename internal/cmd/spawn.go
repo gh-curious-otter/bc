@@ -48,11 +48,14 @@ func runSpawn(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("agent name cannot be empty")
 	}
 
+	log.Debug("spawn command started", "agent", agentName, "tool", spawnTool, "role", spawnRole)
+
 	// Find workspace
 	ws, err := getWorkspace()
 	if err != nil {
 		return fmt.Errorf("not in a bc workspace: %w", err)
 	}
+	log.Debug("workspace found", "root", ws.RootDir)
 
 	// Create workspace-scoped agent manager
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)

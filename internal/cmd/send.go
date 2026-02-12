@@ -39,6 +39,8 @@ func runSend(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("message cannot be empty")
 	}
 
+	log.Debug("send command started", "agent", agentName, "messageLen", len(message))
+
 	// Find workspace
 	ws, err := getWorkspace()
 	if err != nil {
@@ -56,6 +58,7 @@ func runSend(cmd *cobra.Command, args []string) error {
 	if a == nil {
 		return fmt.Errorf("agent '%s' not found", agentName)
 	}
+	log.Debug("agent found", "agent", agentName, "state", a.State)
 
 	if a.State == agent.StateStopped {
 		return fmt.Errorf("agent '%s' is stopped", agentName)
@@ -65,10 +68,11 @@ func runSend(cmd *cobra.Command, args []string) error {
 	if err := mgr.SendToAgent(agentName, message); err != nil {
 		return fmt.Errorf("failed to send to %s: %w", agentName, err)
 	}
+	log.Debug("message sent successfully", "agent", agentName)
 
 	// Log event
-	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	_ = log.Append(events.Event{
+	evtLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
+	_ = evtLog.Append(events.Event{
 		Type:    events.MessageSent,
 		Agent:   agentName,
 		Message: message,

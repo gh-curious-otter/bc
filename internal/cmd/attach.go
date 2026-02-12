@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 var attachCmd = &cobra.Command{
@@ -30,6 +31,7 @@ func init() {
 
 func runAttach(cmd *cobra.Command, args []string) error {
 	agentName := args[0]
+	log.Debug("attach command started", "agent", agentName)
 
 	// Find workspace
 	ws, err := getWorkspace()
@@ -42,9 +44,11 @@ func runAttach(cmd *cobra.Command, args []string) error {
 
 	// Check if session exists
 	if !mgr.Tmux().HasSession(agentName) {
+		log.Debug("agent session not found", "agent", agentName)
 		return fmt.Errorf("agent '%s' not running (session bc-%s not found)", agentName, agentName)
 	}
 
+	log.Debug("attaching to agent session", "agent", agentName)
 	fmt.Printf("Attaching to %s (use Ctrl+b d to detach)...\n", agentName)
 
 	return mgr.AttachToAgent(agentName)
