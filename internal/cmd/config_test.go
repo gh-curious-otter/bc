@@ -23,7 +23,6 @@ func TestConfigShow(t *testing.T) {
 		"[worktrees]",
 		"[tools]",
 		"[memory]",
-		"[beads]",
 		"[channels]",
 		"[roster]",
 	}

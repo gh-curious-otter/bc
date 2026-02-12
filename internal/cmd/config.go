@@ -566,11 +566,6 @@ func printConfig(cfg *workspace.V2Config) {
 	fmt.Printf("  path: %s\n", cfg.Memory.Path)
 	fmt.Println()
 
-	fmt.Println("[beads]")
-	fmt.Printf("  enabled: %v\n", cfg.Beads.Enabled)
-	fmt.Printf("  issues_dir: %s\n", cfg.Beads.IssuesDir)
-	fmt.Println()
-
 	fmt.Println("[channels]")
 	fmt.Printf("  default: %v\n", cfg.Channels.Default)
 	fmt.Println()

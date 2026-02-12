@@ -19,7 +19,6 @@ type V2Config struct {
 	Worktrees WorktreesConfig `toml:"worktrees"`
 	Tools     ToolsConfig     `toml:"tools"`
 	Memory    MemoryConfig    `toml:"memory"`
-	Beads     BeadsConfig     `toml:"beads"`
 	Channels  ChannelsConfig  `toml:"channels"`
 	Roster    RosterConfig    `toml:"roster"`
 }
@@ -56,12 +55,6 @@ type ToolConfig struct {
 type MemoryConfig struct {
 	Backend string `toml:"backend"` // "file", "sqlite", etc.
 	Path    string `toml:"path"`
-}
-
-// BeadsConfig configures beads issue tracker integration.
-type BeadsConfig struct {
-	IssuesDir string `toml:"issues_dir"`
-	Enabled   bool   `toml:"enabled"`
 }
 
 // ChannelsConfig configures communication channels.
@@ -124,10 +117,6 @@ func DefaultV2Config(name string) V2Config {
 		Memory: MemoryConfig{
 			Backend: "file",
 			Path:    ".bc/memory",
-		},
-		Beads: BeadsConfig{
-			Enabled:   true,
-			IssuesDir: ".beads/issues",
 		},
 		Channels: ChannelsConfig{
 			Default: []string{"general", "engineering"},

@@ -409,14 +409,6 @@ func (w *Workspace) DefaultToolCommand() string {
 	return "claude --dangerously-skip-permissions"
 }
 
-// BeadsEnabled returns whether beads integration is enabled.
-func (w *Workspace) BeadsEnabled() bool {
-	if w.V2Config != nil {
-		return w.V2Config.Beads.Enabled
-	}
-	return true // Default to enabled for v1
-}
-
 // DefaultChannels returns the default channel names.
 func (w *Workspace) DefaultChannels() []string {
 	if w.V2Config != nil {
