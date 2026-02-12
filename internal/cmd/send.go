@@ -77,14 +77,16 @@ func runSend(cmd *cobra.Command, args []string) error {
 		sender = "root"
 	}
 	evtLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	_ = evtLog.Append(events.Event{
+	if err := evtLog.Append(events.Event{
 		Type:    events.MessageSent,
 		Agent:   sender,
 		Message: message,
 		Data: map[string]any{
 			"recipient": agentName,
 		},
-	})
+	}); err != nil {
+		log.Warn("failed to log send event", "error", err)
+	}
 
 	fmt.Printf("Sent to %s: %s\n", agentName, message)
 	return nil

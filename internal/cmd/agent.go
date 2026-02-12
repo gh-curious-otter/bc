@@ -245,12 +245,14 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		eventData["team"] = agentCreateTeam
 	}
 	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	_ = eventLog.Append(events.Event{
+	if err := eventLog.Append(events.Event{
 		Type:    events.AgentSpawned,
 		Agent:   agentName,
 		Message: fmt.Sprintf("created with role %s", role),
 		Data:    eventData,
-	})
+	}); err != nil {
+		log.Warn("failed to log agent spawn event", "error", err)
+	}
 
 	fmt.Println()
 	fmt.Println("Agent created successfully!")
@@ -428,11 +430,13 @@ func runAgentStop(cmd *cobra.Command, args []string) error {
 
 	// Log event
 	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	_ = eventLog.Append(events.Event{
+	if err := eventLog.Append(events.Event{
 		Type:    events.AgentStopped,
 		Agent:   agentName,
 		Message: "stopped via bc agent stop",
-	})
+	}); err != nil {
+		log.Warn("failed to log agent stop event", "error", err)
+	}
 
 	return nil
 }
@@ -473,14 +477,16 @@ func runAgentSend(cmd *cobra.Command, args []string) error {
 		sender = "root"
 	}
 	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	_ = eventLog.Append(events.Event{
+	if err := eventLog.Append(events.Event{
 		Type:    events.MessageSent,
 		Agent:   sender,
 		Message: message,
 		Data: map[string]any{
 			"recipient": agentName,
 		},
-	})
+	}); err != nil {
+		log.Warn("failed to log message sent event", "error", err)
+	}
 
 	fmt.Printf("Sent to %s: %s\n", agentName, message)
 	return nil

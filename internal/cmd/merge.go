@@ -198,14 +198,16 @@ func runMerge(cmd *cobra.Command, args []string) error {
 
 	// Step 6: Log event
 	evLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	_ = evLog.Append(events.Event{
+	if err := evLog.Append(events.Event{
 		Type:    events.WorkCompleted,
 		Message: fmt.Sprintf("merged %s into main at %s", branch, commitHash),
 		Data: map[string]any{
 			"branch": branch,
 			"commit": commitHash,
 		},
-	})
+	}); err != nil {
+		log.Warn("failed to log merge event", "error", err)
+	}
 
 	fmt.Printf("Successfully merged %s into main\n", branch)
 	return nil
