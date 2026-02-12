@@ -145,9 +145,10 @@ export function useDashboard() {
     fetchData();
   }, [fetchData]);
 
-  // Auto-refresh every 10 seconds
+  // Auto-refresh every 30 seconds (optimized for performance - Issue #559)
+  // Users can manually refresh with 'r' key for immediate updates
   useEffect(() => {
-    const interval = setInterval(fetchData, 10000);
+    const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, [fetchData]);
 

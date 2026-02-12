@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, memo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { ChannelMessage } from '../types';
 import { useChannelHistory } from '../hooks';
+
+// Cache for sender colors to avoid recalculation
+const senderColorCache = new Map<string, string>();
 
 interface MessageHistoryProps {
   channelName: string;
@@ -82,7 +85,11 @@ export function MessageHistory({
     );
   }
 
-  const visibleSlice = messageList.slice(scrollOffset, scrollOffset + visibleMessages);
+  // Memoize visible slice to prevent recalculation on every render
+  const visibleSlice = useMemo(
+    () => messageList.slice(scrollOffset, scrollOffset + visibleMessages),
+    [messageList, scrollOffset, visibleMessages]
+  );
   const canScrollUp = scrollOffset > 0;
   const canScrollDown = scrollOffset < messageCount - visibleMessages;
 
@@ -149,7 +156,11 @@ interface MessageItemProps {
   isFirst?: boolean;
 }
 
-function MessageItem({ message }: MessageItemProps) {
+/**
+ * MessageItem - Memoized message row component
+ * Only re-renders when message content changes
+ */
+const MessageItem = memo(function MessageItem({ message }: MessageItemProps) {
   const timeStr = formatTimestamp(message.time);
   const senderColor = getSenderColor(message.sender);
 
@@ -168,7 +179,7 @@ function MessageItem({ message }: MessageItemProps) {
       </Box>
     </Box>
   );
-}
+});
 
 /**
  * Format timestamp for display
@@ -198,15 +209,20 @@ function formatTimestamp(isoString: string): string {
 }
 
 /**
- * Get consistent color for a sender name
+ * Get consistent color for a sender name (cached for performance)
  */
 function getSenderColor(sender: string): string {
+  const cached = senderColorCache.get(sender);
+  if (cached) return cached;
+
   const colors = ['blue', 'green', 'yellow', 'magenta', 'cyan'];
   let hash = 0;
   for (let i = 0; i < sender.length; i++) {
     hash = sender.charCodeAt(i) + ((hash << 5) - hash);
   }
-  return colors[Math.abs(hash) % colors.length];
+  const color = colors[Math.abs(hash) % colors.length];
+  senderColorCache.set(sender, color);
+  return color;
 }
 
 /**
