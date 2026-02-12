@@ -100,16 +100,44 @@ func (s *Store) RecordExperience(exp Experience) error {
 }
 
 // AddLearning appends a learning to the learnings.md file.
+// If the category already exists, the learning is appended under that category.
+// Otherwise, a new category section is created.
 func (s *Store) AddLearning(category, learning string) error {
-	f, err := os.OpenFile(s.learningsPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) //nolint:gosec // path constructed from trusted memoryDir
+	// Read existing content
+	content, err := s.GetLearnings()
 	if err != nil {
-		return fmt.Errorf("failed to open learnings file: %w", err)
+		return fmt.Errorf("failed to read learnings: %w", err)
 	}
-	defer func() { _ = f.Close() }()
 
-	entry := fmt.Sprintf("\n## %s\n\n- %s\n", category, learning)
-	if _, writeErr := f.WriteString(entry); writeErr != nil {
-		return fmt.Errorf("failed to write learning: %w", writeErr)
+	categoryHeader := "## " + category
+	newLearning := "- " + learning
+
+	var newContent string
+	if strings.Contains(content, categoryHeader) {
+		// Category exists - insert learning after the header
+		// Find the category header position
+		headerIdx := strings.Index(content, categoryHeader)
+		// Find the end of the header line
+		headerEndIdx := headerIdx + len(categoryHeader)
+		if headerEndIdx < len(content) && content[headerEndIdx] == '\n' {
+			headerEndIdx++
+		}
+
+		// Skip any blank lines after the header
+		for headerEndIdx < len(content) && content[headerEndIdx] == '\n' {
+			headerEndIdx++
+		}
+
+		// Insert the new learning
+		newContent = content[:headerEndIdx] + newLearning + "\n" + content[headerEndIdx:]
+	} else {
+		// Category doesn't exist - append new section
+		newContent = content + "\n## " + category + "\n\n" + newLearning + "\n"
+	}
+
+	// Write the updated content
+	if err := os.WriteFile(s.learningsPath(), []byte(newContent), 0600); err != nil { //nolint:gosec // path constructed from trusted memoryDir
+		return fmt.Errorf("failed to write learnings: %w", err)
 	}
 
 	return nil
