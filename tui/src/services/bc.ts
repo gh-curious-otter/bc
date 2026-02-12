@@ -16,6 +16,21 @@ import type {
 } from '../types';
 
 /**
+ * Get the bc command path.
+ * Uses BC_ROOT env var if set (set by bc home command), otherwise assumes bc is in PATH.
+ */
+function getBcPath(): string {
+  const bcRoot = process.env.BC_ROOT;
+  if (bcRoot) {
+    // When launched via `bc home`, BC_ROOT points to workspace root
+    // bc binary is at ./bin/bc relative to workspace
+    return `${bcRoot}/bin/bc`;
+  }
+  // Fallback to PATH
+  return 'bc';
+}
+
+/**
  * Execute a bc command and return the raw output
  * @param args - Command arguments (e.g., ['status', '--json'])
  * @returns Promise resolving to stdout string
@@ -33,7 +48,8 @@ export async function execBc(args: string[]): Promise<string> {
       finalArgs.push('--json');
     }
 
-    const proc = spawn('bc', finalArgs, {
+    const bcPath = getBcPath();
+    const proc = spawn(bcPath, finalArgs, {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
