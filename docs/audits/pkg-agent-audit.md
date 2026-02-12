@@ -2,7 +2,6 @@
 
 **Date:** 2026-02-05
 **Auditor:** worker-01
-**Bead:** bc-34b.1
 **Files Reviewed:** `pkg/agent/agent.go`, `pkg/tmux/session.go`
 
 ---
@@ -221,7 +220,7 @@ if live := m.captureLiveTask(name); live != "" {
 // If live == "", old a.Task persists
 ```
 
-**Impact:** Dashboard shows stale task information, misleading operators.
+**Impact:** Status output shows stale task information, misleading operators.
 
 **Recommendation:** Clear task when nothing is captured:
 ```go
