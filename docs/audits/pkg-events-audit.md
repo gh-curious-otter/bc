@@ -3,7 +3,6 @@
 **Package:** `pkg/events/events.go`
 **Auditor:** worker-03
 **Date:** 2026-02-05
-**Work Item:** work-008, bead bc-34b.3
 
 ## Summary
 
@@ -122,8 +121,7 @@ func (l *Log) Read() ([]Event, error) {
 ```
 
 **Usage Pattern (from codebase):**
-- `internal/cmd/logs.go:43` - reads all events
-- `internal/cmd/dashboard.go:51` - reads events for display
+- `internal/cmd/logs.go` - reads all events for display
 
 **Risk:**
 After extended use, the log file could grow to GB size, causing:

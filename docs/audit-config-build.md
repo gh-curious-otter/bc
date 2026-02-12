@@ -29,7 +29,6 @@ make gen
 - `Costs` - Cost tracking settings (enabled, limits, thresholds)
 - `Roles` - Role definitions with prompts and permissions
 - `Tmux` - Session prefix settings
-- `Tui` - Refresh interval and theme
 - `Workspace` - State directory and max workers
 
 ### Issues
