@@ -160,46 +160,103 @@ function ChannelHistoryView({
 
   return (
     <Box flexDirection="column" height="100%">
-      <Box>
-        <Text bold color="cyan">#{channel.name}</Text>
-        <Text dimColor> - {channel.members.length} members</Text>
+      {/* Header */}
+      <Box marginBottom={1}>
+        <Text bold color="cyan">
+          #{channel.name}
+        </Text>
+        <Text dimColor> ({channel.members.length} members)</Text>
       </Box>
-      <Text dimColor>ESC to go back, m to compose, j/k to scroll</Text>
 
-      {/* Message area - flex grow to push input to bottom */}
-      <Box marginTop={1} flexDirection="column" flexGrow={1}>
+      {/* Help text */}
+      <Text dimColor>
+        ESC: back | m: compose | j/k: scroll
+      </Text>
+
+      {/* Message area - scrollable, takes most space */}
+      <Box
+        marginTop={1}
+        marginBottom={1}
+        flexDirection="column"
+        flexGrow={1}
+        overflowY="hidden"
+      >
         {loading && <Text dimColor>Loading messages...</Text>}
         {error && <Text color="red">Error: {error}</Text>}
         {!loading && !error && (
           <>
-            {hasMoreAbove && <Text dimColor>↑ more messages above</Text>}
+            {hasMoreAbove && (
+              <Text dimColor>
+                ↑ more messages above
+              </Text>
+            )}
             {displayMessages.map((msg, index) => (
-              <Box key={index}>
-                <Text color="yellow">{msg.sender}</Text>
-                <Text dimColor> ({formatMessageTime(msg.time)}) </Text>
-                <Text>: </Text>
-                <Text>{msg.message}</Text>
-              </Box>
+              <MessageItem
+                key={index}
+                sender={msg.sender}
+                time={msg.time}
+                message={msg.message}
+              />
             ))}
-            {hasMoreBelow && <Text dimColor>↓ more messages below</Text>}
-            {messages?.length === 0 && <Text dimColor>No messages yet</Text>}
+            {hasMoreBelow && (
+              <Text dimColor>
+                ↓ more messages below
+              </Text>
+            )}
+            {messages?.length === 0 && (
+              <Text dimColor>No messages yet</Text>
+            )}
           </>
         )}
       </Box>
 
-      {/* Input area - anchored at bottom */}
-      <Box borderStyle="single" borderColor={inputMode ? 'cyan' : 'gray'} paddingX={1}>
+      {/* Input area - fixed at bottom with good padding */}
+      <Box
+        borderStyle="round"
+        borderColor={inputMode ? 'cyan' : 'gray'}
+        paddingX={1}
+        paddingY={1}
+        flexDirection="column"
+      >
         {inputMode ? (
-          <Text>
+          <Box>
             <Text color="cyan">{'> '}</Text>
-            {messageBuffer}
+            <Text>{messageBuffer}</Text>
             <Text color="cyan">▌</Text>
-          </Text>
+          </Box>
         ) : (
-          <Text dimColor>Press m to compose message</Text>
+          <Text dimColor>
+            Press m to compose message
+          </Text>
         )}
       </Box>
     </Box>
+  );
+}
+
+/**
+ * Message item component for consistent message display
+ */
+function MessageItem({
+  sender,
+  time,
+  message,
+}: {
+  sender: string;
+  time: string;
+  message: string;
+}): React.ReactElement {
+  const displaySender = sender.slice(0, 14);
+  const displayTime = formatMessageTime(time);
+  const truncMsg = message.slice(0, 90);
+
+  return (
+    <>
+      <Text color="cyan">
+        {displaySender.padEnd(14)} {displayTime}
+      </Text>
+      <Text> {truncMsg}{message.length > 90 ? '...' : ''}</Text>
+    </>
   );
 }
 
