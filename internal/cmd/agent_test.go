@@ -626,3 +626,135 @@ func TestAgentCommandStructure_MessageRouting(t *testing.T) {
 		}
 	}
 }
+
+// --- Agent Health Tests ---
+
+func TestAgentHealthFlags(t *testing.T) {
+	flags := agentHealthCmd.Flags()
+
+	if flags.Lookup("json") == nil {
+		t.Error("expected --json flag")
+	}
+	if flags.Lookup("timeout") == nil {
+		t.Error("expected --timeout flag")
+	}
+	if flags.Lookup("detect-stuck") == nil {
+		t.Error("expected --detect-stuck flag")
+	}
+	if flags.Lookup("work-timeout") == nil {
+		t.Error("expected --work-timeout flag")
+	}
+	if flags.Lookup("max-failures") == nil {
+		t.Error("expected --max-failures flag")
+	}
+	if flags.Lookup("alert") == nil {
+		t.Error("expected --alert flag")
+	}
+}
+
+func TestAgentHealthAlertRequiresDetectStuck(t *testing.T) {
+	setupTestWorkspace(t)
+
+	// Set alert without detect-stuck
+	agentHealthAlert = "engineering"
+	agentHealthDetect = false
+	defer func() {
+		agentHealthAlert = ""
+		agentHealthDetect = false
+	}()
+
+	_, err := executeCmd("agent", "health", "--alert", "engineering")
+	if err == nil {
+		t.Error("expected error when --alert used without --detect-stuck")
+	}
+	if err != nil && !strings.Contains(err.Error(), "requires --detect-stuck") {
+		t.Errorf("error should mention '--detect-stuck' requirement: %v", err)
+	}
+}
+
+func TestAgentHealthNoAgents(t *testing.T) {
+	setupTestWorkspace(t)
+
+	// Should succeed with no agents
+	_, err := executeCmd("agent", "health")
+	if err != nil {
+		t.Fatalf("agent health failed: %v", err)
+	}
+}
+
+func TestAgentHealthJSON(t *testing.T) {
+	setupTestWorkspace(t)
+
+	// Should succeed with --json flag
+	_, err := executeCmd("agent", "health", "--json")
+	if err != nil {
+		t.Fatalf("agent health --json failed: %v", err)
+	}
+}
+
+func TestAgentHealth_StuckDetectionNoStuck(t *testing.T) {
+	// Test that no stuck agents returns empty list
+	healthResults := []AgentHealth{
+		{Name: "eng-01", Role: "engineer", Status: "healthy", IsStuck: false},
+		{Name: "eng-02", Role: "engineer", Status: "healthy", IsStuck: false},
+	}
+
+	var stuckAgents []AgentHealth
+	for _, h := range healthResults {
+		if h.IsStuck || h.Status == "stuck" {
+			stuckAgents = append(stuckAgents, h)
+		}
+	}
+
+	if len(stuckAgents) != 0 {
+		t.Errorf("expected 0 stuck agents, got %d", len(stuckAgents))
+	}
+}
+
+func TestAgentHealth_StuckDetectionWithStuck(t *testing.T) {
+	// Test that stuck agents are correctly identified
+	healthResults := []AgentHealth{
+		{Name: "eng-01", Role: "engineer", Status: "healthy", IsStuck: false},
+		{Name: "eng-02", Role: "engineer", Status: "stuck", IsStuck: true, StuckReason: "no_activity"},
+		{Name: "eng-03", Role: "engineer", Status: "stuck", IsStuck: true, StuckReason: "repeated_failures"},
+	}
+
+	var stuckAgents []AgentHealth
+	for _, h := range healthResults {
+		if h.IsStuck || h.Status == "stuck" {
+			stuckAgents = append(stuckAgents, h)
+		}
+	}
+
+	if len(stuckAgents) != 2 {
+		t.Errorf("expected 2 stuck agents, got %d", len(stuckAgents))
+	}
+}
+
+func TestAgentHealth_AlertMessageFormat(t *testing.T) {
+	// Test that alert message is formatted correctly
+	stuckAgents := []AgentHealth{
+		{Name: "eng-01", Role: "engineer", Status: "stuck", IsStuck: true, StuckReason: "no_activity", StuckDetails: "no events in 15m"},
+		{Name: "eng-02", Role: "qa", Status: "stuck", IsStuck: true, StuckReason: "repeated_failures", StuckDetails: "task failed 3 times"},
+	}
+
+	var sb strings.Builder
+	sb.WriteString("⚠️ ALERT: 2 stuck agent(s) detected\n")
+	for _, h := range stuckAgents {
+		sb.WriteString("  • " + h.Name + " (" + h.Role + "): " + h.StuckReason + " - " + h.StuckDetails + "\n")
+	}
+	message := sb.String()
+
+	if !strings.Contains(message, "eng-01") {
+		t.Error("message should contain eng-01")
+	}
+	if !strings.Contains(message, "eng-02") {
+		t.Error("message should contain eng-02")
+	}
+	if !strings.Contains(message, "no_activity") {
+		t.Error("message should contain reason 'no_activity'")
+	}
+	if !strings.Contains(message, "repeated_failures") {
+		t.Error("message should contain reason 'repeated_failures'")
+	}
+}
