@@ -122,6 +122,22 @@ Example:
 	RunE: runMemoryPrune,
 }
 
+var memoryListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all agent memories",
+	Long: `List all learning topics, experiences, and memory usage.
+
+By default, lists all learning topics (categories) across all agents.
+Use flags to customize the output.
+
+Example:
+  bc memory list                    # List all learning topics
+  bc memory list --experiences      # List all experiences
+  bc memory list --with-size        # Show memory usage per agent
+  bc memory list --agent NAME       # List specific agent's memory`,
+	RunE: runMemoryList,
+}
+
 var (
 	memoryOutcome          string
 	memoryTaskID           string
@@ -134,6 +150,9 @@ var (
 	memoryDryRun           bool
 	memoryNoBackup         bool
 	memoryIncludeLearnings bool
+	memoryListAgent        string
+	memoryListExp          bool
+	memoryListSize         bool
 )
 
 func init() {
@@ -152,11 +171,16 @@ func init() {
 	memoryPruneCmd.Flags().BoolVar(&memoryNoBackup, "no-backup", false, "Skip creating backup before pruning")
 	memoryPruneCmd.Flags().BoolVar(&memoryIncludeLearnings, "learnings", false, "Also clear learnings (reset to header only)")
 
+	memoryListCmd.Flags().StringVar(&memoryListAgent, "agent", "", "List specific agent's memory")
+	memoryListCmd.Flags().BoolVar(&memoryListExp, "experiences", false, "List experiences instead of learning topics")
+	memoryListCmd.Flags().BoolVar(&memoryListSize, "with-size", false, "Show memory usage per agent")
+
 	memoryCmd.AddCommand(memoryRecordCmd)
 	memoryCmd.AddCommand(memoryLearnCmd)
 	memoryCmd.AddCommand(memoryShowCmd)
 	memoryCmd.AddCommand(memorySearchCmd)
 	memoryCmd.AddCommand(memoryPruneCmd)
+	memoryCmd.AddCommand(memoryListCmd)
 	rootCmd.AddCommand(memoryCmd)
 }
 
@@ -599,6 +623,177 @@ func runMemoryPrune(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+func runMemoryList(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	// Determine which agents to list
+	var agents []string
+	if memoryListAgent != "" {
+		agents = []string{memoryListAgent}
+	} else {
+		// List all agents with memory directories
+		memoryRoot := filepath.Join(ws.RootDir, ".bc", "memory")
+		entries, readErr := os.ReadDir(memoryRoot)
+		if readErr != nil {
+			if os.IsNotExist(readErr) {
+				cmd.Println("No agent memories found")
+				return nil
+			}
+			return fmt.Errorf("failed to read memory directory: %w", readErr)
+		}
+		for _, entry := range entries {
+			if entry.IsDir() {
+				agents = append(agents, entry.Name())
+			}
+		}
+	}
+
+	if len(agents) == 0 {
+		cmd.Println("No agent memories found")
+		return nil
+	}
+
+	// Sort agents alphabetically
+	sort.Strings(agents)
+
+	if memoryListExp {
+		// List experiences
+		return listExperiences(cmd, ws.RootDir, agents)
+	}
+
+	// List learning topics (default)
+	return listLearningTopics(cmd, ws.RootDir, agents, memoryListSize)
+}
+
+// listLearningTopics lists all learning categories across agents.
+func listLearningTopics(cmd *cobra.Command, rootDir string, agents []string, withSize bool) error {
+	// Track topics per agent
+	type agentTopics struct {
+		agent  string
+		topics []string
+		size   int64
+	}
+
+	var allAgentTopics []agentTopics
+
+	for _, agentID := range agents {
+		store := memory.NewStore(rootDir, agentID)
+		if !store.Exists() {
+			continue
+		}
+
+		at := agentTopics{agent: agentID}
+
+		// Get size if requested
+		if withSize {
+			size, _ := store.GetSize()
+			at.size = size
+		}
+
+		// Get learnings and extract topics (## headings)
+		learnings, err := store.GetLearnings()
+		if err != nil {
+			continue
+		}
+
+		lines := strings.Split(learnings, "\n")
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "## ") {
+				topic := strings.TrimPrefix(trimmed, "## ")
+				at.topics = append(at.topics, topic)
+			}
+		}
+
+		allAgentTopics = append(allAgentTopics, at)
+	}
+
+	if len(allAgentTopics) == 0 {
+		cmd.Println("No learning topics found")
+		return nil
+	}
+
+	cmd.Println("=== Learning Topics ===")
+	cmd.Println()
+
+	for _, at := range allAgentTopics {
+		if withSize {
+			cmd.Printf("[%s] (%s)\n", at.agent, formatBytes(at.size))
+		} else {
+			cmd.Printf("[%s]\n", at.agent)
+		}
+
+		if len(at.topics) == 0 {
+			cmd.Println("  (no topics)")
+		} else {
+			for _, topic := range at.topics {
+				cmd.Printf("  - %s\n", topic)
+			}
+		}
+		cmd.Println()
+	}
+
+	return nil
+}
+
+// listExperiences lists all experiences across agents.
+func listExperiences(cmd *cobra.Command, rootDir string, agents []string) error {
+	totalExp := 0
+
+	for _, agentID := range agents {
+		store := memory.NewStore(rootDir, agentID)
+		if !store.Exists() {
+			continue
+		}
+
+		experiences, err := store.GetExperiences()
+		if err != nil {
+			continue
+		}
+
+		if len(experiences) == 0 {
+			continue
+		}
+
+		cmd.Printf("[%s] %d experience(s)\n", agentID, len(experiences))
+
+		// Show most recent 5 experiences per agent
+		start := 0
+		if len(experiences) > 5 {
+			start = len(experiences) - 5
+			cmd.Printf("  (showing last 5 of %d)\n", len(experiences))
+		}
+
+		for i := start; i < len(experiences); i++ {
+			exp := experiences[i]
+			date := exp.Timestamp.Format("2006-01-02")
+			cmd.Printf("  - [%s] %s: %s\n", exp.Outcome, date, truncate(exp.Description, 60))
+		}
+		cmd.Println()
+
+		totalExp += len(experiences)
+	}
+
+	if totalExp == 0 {
+		cmd.Println("No experiences found")
+		return nil
+	}
+
+	cmd.Printf("Total: %d experience(s) across %d agent(s)\n", totalExp, len(agents))
+	return nil
+}
+
+// truncate shortens a string to maxLen characters, adding "..." if truncated.
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
 }
 
 // parseDuration parses a duration string like "30d", "7d", "24h".
