@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
@@ -54,19 +55,23 @@ func runInit(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		dir = args[0]
 	}
+	log.Debug("init command started", "dir", dir)
 
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
 		return fmt.Errorf("failed to resolve directory: %w", err)
 	}
+	log.Debug("resolved directory", "absDir", absDir)
 
 	// Check for existing v2 workspace
 	if isV2Workspace(absDir) {
+		log.Debug("v2 workspace already exists", "dir", absDir)
 		return fmt.Errorf("v2 workspace already initialized in %s", absDir)
 	}
 
 	// Check for existing v1 workspace
 	if isV1Workspace(absDir) {
+		log.Debug("v1 workspace detected", "dir", absDir)
 		fmt.Fprintln(os.Stderr, "Warning: Existing v1 workspace detected.")
 		fmt.Fprintln(os.Stderr, "bc v2 is a clean break - v1 data will not be migrated.")
 		fmt.Fprintln(os.Stderr, "")
