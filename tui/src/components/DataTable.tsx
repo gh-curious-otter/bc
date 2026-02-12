@@ -49,29 +49,32 @@ export function DataTable<T extends Record<string, unknown>>({
       )}
 
       {/* Data rows */}
-      {data.map((row, rowIndex) => (
-        <Box
-          key={rowIndex}
-          backgroundColor={selectedIndex === rowIndex ? 'blue' : undefined}
-        >
-          {columns.map((col) => {
-            const value = row[col.key];
-            const content = col.render
-              ? col.render(value, row)
-              : String(value ?? '-');
+      {data.map((row, rowIndex) => {
+        const isSelected = selectedIndex === rowIndex;
+        return (
+          <Box key={rowIndex}>
+            <Text color={isSelected ? 'cyan' : undefined}>{isSelected ? '▸ ' : '  '}</Text>
+            {columns.map((col) => {
+              const value = row[col.key];
+              const content = col.render
+                ? col.render(value, row)
+                : String(value ?? '-');
 
-            return (
-              <Box key={String(col.key)} width={col.width}>
-                {typeof content === 'string' ? (
-                  <Text>{truncate(content, col.width)}</Text>
-                ) : (
-                  content
-                )}
-              </Box>
-            );
-          })}
-        </Box>
-      ))}
+              return (
+                <Box key={String(col.key)} width={col.width}>
+                  {typeof content === 'string' ? (
+                    <Text color={isSelected ? 'cyan' : undefined} bold={isSelected}>
+                      {truncate(content, col.width)}
+                    </Text>
+                  ) : (
+                    content
+                  )}
+                </Box>
+              );
+            })}
+          </Box>
+        );
+      })}
     </Box>
   );
 }
