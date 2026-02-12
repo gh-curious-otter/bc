@@ -29,7 +29,10 @@ Examples:
   bc agent attach eng-01                 # Attach to agent session
   bc agent peek eng-01                   # View recent output
   bc agent send eng-01 "run tests"       # Send message to agent
-  bc agent stop eng-01                   # Stop agent`,
+  bc agent stop eng-01                   # Stop agent
+  bc agent broadcast "check status"      # Send to all agents
+  bc agent send-to-role engineer "test"  # Send to all engineers
+  bc agent send-pattern "eng-*" "hello"  # Send to matching agents`,
 }
 
 // agentCreateCmd creates a new agent (replaces bc spawn)
@@ -151,6 +154,49 @@ Examples:
 	RunE: runAgentHealth,
 }
 
+// agentBroadcastCmd sends a message to all running agents
+var agentBroadcastCmd = &cobra.Command{
+	Use:   "broadcast <message>",
+	Short: "Send a message to all running agents",
+	Long: `Broadcast a message to all running agents in the workspace.
+
+Examples:
+  bc agent broadcast "run tests"
+  bc agent broadcast "check status"`,
+	Args: cobra.MinimumNArgs(1),
+	RunE: runAgentBroadcast,
+}
+
+// agentSendRoleCmd sends a message to all agents of a specific role
+var agentSendRoleCmd = &cobra.Command{
+	Use:   "send-to-role <role> <message>",
+	Short: "Send a message to all agents of a specific role",
+	Long: `Send a message to all running agents that have the specified role.
+
+Examples:
+  bc agent send-to-role engineer "run the tests"
+  bc agent send-to-role manager "check status"
+  bc agent send-to-role tech-lead "review PRs"`,
+	Args: cobra.MinimumNArgs(2),
+	RunE: runAgentSendRole,
+}
+
+// agentSendPatternCmd sends a message to agents matching a pattern
+var agentSendPatternCmd = &cobra.Command{
+	Use:   "send-pattern <pattern> <message>",
+	Short: "Send a message to agents matching a pattern",
+	Long: `Send a message to all running agents whose names match the given pattern.
+
+Pattern uses glob-style matching (* matches any characters).
+
+Examples:
+  bc agent send-pattern "engineer-*" "run tests"
+  bc agent send-pattern "eng-0*" "check status"
+  bc agent send-pattern "*-lead" "review PRs"`,
+	Args: cobra.MinimumNArgs(2),
+	RunE: runAgentSendPattern,
+}
+
 // Flags
 var (
 	agentCreateTool    string
@@ -199,6 +245,9 @@ func init() {
 	agentCmd.AddCommand(agentSendCmd)
 	agentCmd.AddCommand(agentDeleteCmd)
 	agentCmd.AddCommand(agentHealthCmd)
+	agentCmd.AddCommand(agentBroadcastCmd)
+	agentCmd.AddCommand(agentSendRoleCmd)
+	agentCmd.AddCommand(agentSendPatternCmd)
 
 	// Add parent command to root
 	rootCmd.AddCommand(agentCmd)
@@ -592,6 +641,248 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 	})
 
 	fmt.Printf("Agent '%s' has been permanently deleted.\n", agentName)
+	return nil
+}
+
+func runAgentBroadcast(cmd *cobra.Command, args []string) error {
+	message := strings.TrimSpace(strings.Join(args, " "))
+	if message == "" {
+		return fmt.Errorf("message cannot be empty")
+	}
+
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+
+	agents := mgr.ListAgents()
+	if len(agents) == 0 {
+		fmt.Println("No agents to broadcast to")
+		return nil
+	}
+
+	sender := os.Getenv("BC_AGENT_ID")
+	if sender == "" {
+		sender = "root"
+	}
+
+	sent := 0
+	skipped := 0
+	failed := 0
+
+	for _, a := range agents {
+		// Skip stopped agents
+		if a.State == agent.StateStopped {
+			skipped++
+			continue
+		}
+		// Skip the sender to avoid echo
+		if a.Name == sender {
+			skipped++
+			continue
+		}
+
+		if sendErr := mgr.SendToAgent(a.Name, message); sendErr != nil {
+			fmt.Printf("  %s: failed - %v\n", a.Name, sendErr)
+			failed++
+			continue
+		}
+		fmt.Printf("  %s: sent\n", a.Name)
+		sent++
+	}
+
+	// Log event
+	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
+	if err := eventLog.Append(events.Event{
+		Type:    events.MessageSent,
+		Agent:   sender,
+		Message: message,
+		Data: map[string]any{
+			"broadcast": true,
+			"sent":      sent,
+			"skipped":   skipped,
+			"failed":    failed,
+		},
+	}); err != nil {
+		log.Warn("failed to log broadcast event", "error", err)
+	}
+
+	fmt.Printf("\nBroadcast sent to %d agents (%d skipped, %d failed)\n", sent, skipped, failed)
+	return nil
+}
+
+func runAgentSendRole(cmd *cobra.Command, args []string) error {
+	roleName := args[0]
+	message := strings.TrimSpace(strings.Join(args[1:], " "))
+	if message == "" {
+		return fmt.Errorf("message cannot be empty")
+	}
+
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+
+	// Parse and validate role
+	role, roleErr := parseRole(roleName)
+	if roleErr != nil {
+		return roleErr
+	}
+
+	agents := mgr.ListAgents()
+
+	sender := os.Getenv("BC_AGENT_ID")
+	if sender == "" {
+		sender = "root"
+	}
+
+	sent := 0
+	skipped := 0
+	failed := 0
+
+	for _, a := range agents {
+		// Skip if role doesn't match
+		if a.Role != role {
+			continue
+		}
+		// Skip stopped agents
+		if a.State == agent.StateStopped {
+			skipped++
+			continue
+		}
+		// Skip the sender to avoid echo
+		if a.Name == sender {
+			skipped++
+			continue
+		}
+
+		if sendErr := mgr.SendToAgent(a.Name, message); sendErr != nil {
+			fmt.Printf("  %s: failed - %v\n", a.Name, sendErr)
+			failed++
+			continue
+		}
+		fmt.Printf("  %s: sent\n", a.Name)
+		sent++
+	}
+
+	if sent == 0 && skipped == 0 && failed == 0 {
+		fmt.Printf("No running agents with role %q found\n", roleName)
+		return nil
+	}
+
+	// Log event
+	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
+	if err := eventLog.Append(events.Event{
+		Type:    events.MessageSent,
+		Agent:   sender,
+		Message: message,
+		Data: map[string]any{
+			"role":    roleName,
+			"sent":    sent,
+			"skipped": skipped,
+			"failed":  failed,
+		},
+	}); err != nil {
+		log.Warn("failed to log role send event", "error", err)
+	}
+
+	fmt.Printf("\nSent to %d %s(s) (%d skipped, %d failed)\n", sent, roleName, skipped, failed)
+	return nil
+}
+
+func runAgentSendPattern(cmd *cobra.Command, args []string) error {
+	pattern := args[0]
+	message := strings.TrimSpace(strings.Join(args[1:], " "))
+	if message == "" {
+		return fmt.Errorf("message cannot be empty")
+	}
+
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+
+	agents := mgr.ListAgents()
+
+	sender := os.Getenv("BC_AGENT_ID")
+	if sender == "" {
+		sender = "root"
+	}
+
+	sent := 0
+	skipped := 0
+	failed := 0
+	matched := 0
+
+	for _, a := range agents {
+		// Check if name matches pattern using filepath.Match (glob-style)
+		match, matchErr := filepath.Match(pattern, a.Name)
+		if matchErr != nil {
+			return fmt.Errorf("invalid pattern %q: %w", pattern, matchErr)
+		}
+		if !match {
+			continue
+		}
+		matched++
+
+		// Skip stopped agents
+		if a.State == agent.StateStopped {
+			skipped++
+			continue
+		}
+		// Skip the sender to avoid echo
+		if a.Name == sender {
+			skipped++
+			continue
+		}
+
+		if sendErr := mgr.SendToAgent(a.Name, message); sendErr != nil {
+			fmt.Printf("  %s: failed - %v\n", a.Name, sendErr)
+			failed++
+			continue
+		}
+		fmt.Printf("  %s: sent\n", a.Name)
+		sent++
+	}
+
+	if matched == 0 {
+		fmt.Printf("No agents matching pattern %q found\n", pattern)
+		return nil
+	}
+
+	// Log event
+	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
+	if err := eventLog.Append(events.Event{
+		Type:    events.MessageSent,
+		Agent:   sender,
+		Message: message,
+		Data: map[string]any{
+			"pattern": pattern,
+			"matched": matched,
+			"sent":    sent,
+			"skipped": skipped,
+			"failed":  failed,
+		},
+	}); err != nil {
+		log.Warn("failed to log pattern send event", "error", err)
+	}
+
+	fmt.Printf("\nSent to %d of %d matching agents (%d skipped, %d failed)\n", sent, matched, skipped, failed)
 	return nil
 }
 

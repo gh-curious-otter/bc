@@ -451,3 +451,178 @@ func TestAgentListInvalidRole(t *testing.T) {
 		t.Error("expected error for invalid role filter format")
 	}
 }
+
+// --- Message Routing Command Tests ---
+
+func TestAgentBroadcast_ValidArgs(t *testing.T) {
+	cmd := agentBroadcastCmd
+
+	// Should accept message
+	err := cmd.Args(cmd, []string{"hello world"})
+	if err != nil {
+		t.Errorf("unexpected error for valid args: %v", err)
+	}
+
+	// Should accept multiple words as message
+	err = cmd.Args(cmd, []string{"hello", "world", "test"})
+	if err != nil {
+		t.Errorf("unexpected error for multi-word message: %v", err)
+	}
+}
+
+func TestAgentBroadcast_EmptyArgs(t *testing.T) {
+	cmd := agentBroadcastCmd
+
+	// MinimumNArgs(1) should reject no args
+	err := cmd.Args(cmd, []string{})
+	if err == nil {
+		t.Error("expected error for missing message")
+	}
+}
+
+func TestAgentSendRole_ValidArgs(t *testing.T) {
+	cmd := agentSendRoleCmd
+
+	// Should accept role + message
+	err := cmd.Args(cmd, []string{"engineer", "run tests"})
+	if err != nil {
+		t.Errorf("unexpected error for valid args: %v", err)
+	}
+
+	// Should accept role + multi-word message
+	err = cmd.Args(cmd, []string{"manager", "check", "status", "now"})
+	if err != nil {
+		t.Errorf("unexpected error for multi-word message: %v", err)
+	}
+}
+
+func TestAgentSendRole_InsufficientArgs(t *testing.T) {
+	cmd := agentSendRoleCmd
+
+	// MinimumNArgs(2) should reject single arg
+	err := cmd.Args(cmd, []string{"engineer"})
+	if err == nil {
+		t.Error("expected error for missing message")
+	}
+
+	// Should reject no args
+	err = cmd.Args(cmd, []string{})
+	if err == nil {
+		t.Error("expected error for no args")
+	}
+}
+
+func TestAgentSendPattern_ValidArgs(t *testing.T) {
+	cmd := agentSendPatternCmd
+
+	// Should accept pattern + message
+	err := cmd.Args(cmd, []string{"engineer-*", "run tests"})
+	if err != nil {
+		t.Errorf("unexpected error for valid args: %v", err)
+	}
+
+	// Should accept pattern + multi-word message
+	err = cmd.Args(cmd, []string{"eng-0*", "check", "status"})
+	if err != nil {
+		t.Errorf("unexpected error for multi-word message: %v", err)
+	}
+}
+
+func TestAgentSendPattern_InsufficientArgs(t *testing.T) {
+	cmd := agentSendPatternCmd
+
+	// MinimumNArgs(2) should reject single arg
+	err := cmd.Args(cmd, []string{"pattern-*"})
+	if err == nil {
+		t.Error("expected error for missing message")
+	}
+
+	// Should reject no args
+	err = cmd.Args(cmd, []string{})
+	if err == nil {
+		t.Error("expected error for no args")
+	}
+}
+
+func TestAgentBroadcast_NoAgents(t *testing.T) {
+	setupTestWorkspace(t)
+
+	// Should succeed with no agents
+	_, err := executeCmd("agent", "broadcast", "hello")
+	if err != nil {
+		t.Fatalf("agent broadcast failed: %v", err)
+	}
+}
+
+func TestAgentSendRole_NoAgents(t *testing.T) {
+	setupTestWorkspace(t)
+
+	// Should succeed with no matching agents (no error)
+	_, err := executeCmd("agent", "send-to-role", "engineer", "hello")
+	if err != nil {
+		t.Fatalf("agent send-to-role failed: %v", err)
+	}
+}
+
+func TestAgentSendPattern_NoMatches(t *testing.T) {
+	setupTestWorkspace(t)
+
+	// Should succeed with no matching agents (no error)
+	_, err := executeCmd("agent", "send-pattern", "nonexistent-*", "hello")
+	if err != nil {
+		t.Fatalf("agent send-pattern failed: %v", err)
+	}
+}
+
+func TestAgentSendRole_InvalidRole(t *testing.T) {
+	setupTestWorkspace(t)
+
+	// Only truly invalid role names (format) should error
+	_, err := executeCmd("agent", "send-to-role", "role@invalid", "hello")
+	if err == nil {
+		t.Error("expected error for invalid role format")
+	}
+}
+
+func TestAgentSendPattern_ValidPatterns(t *testing.T) {
+	// Test that various glob patterns are accepted
+	patterns := []string{
+		"engineer-*",
+		"eng-0*",
+		"*-lead",
+		"eng-[0-9]*",
+		"team-??",
+	}
+
+	for _, pattern := range patterns {
+		t.Run(pattern, func(t *testing.T) {
+			_, err := filepath.Match(pattern, "test-agent")
+			if err != nil {
+				t.Errorf("pattern %q should be valid: %v", pattern, err)
+			}
+		})
+	}
+}
+
+func TestAgentCommandStructure_MessageRouting(t *testing.T) {
+	// Verify agentCmd has the new message routing subcommands
+	subcommands := agentCmd.Commands()
+
+	expectedCmds := map[string]bool{
+		"broadcast":    false,
+		"send-to-role": false,
+		"send-pattern": false,
+	}
+
+	for _, cmd := range subcommands {
+		if _, ok := expectedCmds[cmd.Name()]; ok {
+			expectedCmds[cmd.Name()] = true
+		}
+	}
+
+	for name, found := range expectedCmds {
+		if !found {
+			t.Errorf("expected subcommand %q not found", name)
+		}
+	}
+}
