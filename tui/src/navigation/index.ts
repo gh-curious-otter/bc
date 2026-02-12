@@ -20,3 +20,10 @@ export {
 } from './useKeyboardNavigation';
 
 export { TabBar, type TabBarProps } from './TabBar';
+
+export {
+  FocusProvider,
+  useFocus,
+  useIsFocused,
+  type FocusArea,
+} from './FocusContext';

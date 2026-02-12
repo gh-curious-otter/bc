@@ -51,3 +51,9 @@ export {
   type AgentChange,
   type UseCoordinatedPollingOptions,
 } from './usePolling';
+
+export {
+  useListNavigation,
+  type UseListNavigationOptions,
+  type UseListNavigationResult,
+} from './useListNavigation';
