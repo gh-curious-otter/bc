@@ -69,8 +69,7 @@ func init() {
 	mergeCmd.Flags().BoolVar(&mergeNoRebase, "no-rebase", false, "Skip auto-rebase even if branch is stale")
 	mergeCmd.Flags().BoolVar(&mergeStatus, "status", false, "Show merge queue status")
 	mergeCmd.Flags().Bool("json", false, "Output status as JSON (with --status)")
-	// Disabled: work management is done through GitHub
-	// rootCmd.AddCommand(mergeCmd)
+	rootCmd.AddCommand(mergeCmd)
 }
 
 func runMerge(cmd *cobra.Command, args []string) error {
