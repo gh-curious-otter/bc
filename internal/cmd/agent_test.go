@@ -814,3 +814,50 @@ func TestAgentDeleteOptions(t *testing.T) {
 		t.Error("expected PurgeMemory to be true after setting")
 	}
 }
+
+// --- Agent Rename Tests ---
+
+func TestAgentRenameCmd_CommandDefinition(t *testing.T) {
+	// Test command is properly configured
+	if agentRenameCmd.Use != "rename <old-name> <new-name>" {
+		t.Errorf("Use = %q, want %q", agentRenameCmd.Use, "rename <old-name> <new-name>")
+	}
+
+	if agentRenameCmd.Short != "Rename an agent" {
+		t.Errorf("Short = %q, want %q", agentRenameCmd.Short, "Rename an agent")
+	}
+
+	// Check force flag exists
+	forceFlag := agentRenameCmd.Flags().Lookup("force")
+	if forceFlag == nil {
+		t.Error("--force flag should exist")
+	}
+}
+
+func TestAgentRename_RunEValidation(t *testing.T) {
+	// Test the validation logic via direct function call
+	// This tests the same-name check in runAgentRename
+	tmpDir := t.TempDir()
+	wsDir := filepath.Join(tmpDir, "workspace")
+	bcDir := filepath.Join(wsDir, ".bc")
+	if err := os.MkdirAll(bcDir, 0o750); err != nil {
+		t.Fatalf("failed to create .bc dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(bcDir, ".bcroot"), []byte(""), 0o600); err != nil {
+		t.Fatalf("failed to create .bcroot: %v", err)
+	}
+
+	// Change to workspace directory
+	oldDir, _ := os.Getwd()
+	_ = os.Chdir(wsDir)
+	defer func() { _ = os.Chdir(oldDir) }()
+
+	// Test same name error
+	err := runAgentRename(nil, []string{"eng-01", "eng-01"})
+	if err == nil {
+		t.Error("expected error when renaming to same name")
+	}
+	if err != nil && !strings.Contains(err.Error(), "same") {
+		t.Errorf("expected 'same' in error, got: %v", err)
+	}
+}

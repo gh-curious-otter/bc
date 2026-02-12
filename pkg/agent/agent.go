@@ -867,6 +867,54 @@ func (m *Manager) DeleteAgentWithOptions(name string, opts DeleteOptions) error 
 	return nil
 }
 
+// RenameAgent renames an agent from oldName to newName.
+func (m *Manager) RenameAgent(oldName, newName string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	log.Debug("renaming agent", "oldName", oldName, "newName", newName)
+
+	agent, exists := m.agents[oldName]
+	if !exists {
+		return fmt.Errorf("agent %s not found", oldName)
+	}
+
+	// Check if new name already exists
+	if _, newExists := m.agents[newName]; newExists {
+		return fmt.Errorf("agent %s already exists", newName)
+	}
+
+	// Update agent name
+	agent.Name = newName
+	agent.UpdatedAt = time.Now()
+
+	// Update in agents map
+	delete(m.agents, oldName)
+	m.agents[newName] = agent
+
+	// Update parent's children list if applicable
+	if agent.ParentID != "" {
+		parent, parentExists := m.agents[agent.ParentID]
+		if parentExists {
+			for i, child := range parent.Children {
+				if child == oldName {
+					parent.Children[i] = newName
+					break
+				}
+			}
+		}
+	}
+
+	// Update children's parent reference (parent ID is unchanged, just log)
+	log.Debug("agent renamed", "oldName", oldName, "newName", newName)
+
+	if err := m.saveState(); err != nil {
+		return fmt.Errorf("failed to save state: %w", err)
+	}
+
+	return nil
+}
+
 // StopAll stops all agents.
 func (m *Manager) StopAll() error {
 	m.mu.Lock()

@@ -888,6 +888,76 @@ func TestStopAgentTree_NotFound(t *testing.T) {
 	}
 }
 
+// --- RenameAgent tests ---
+
+func TestRenameAgent(t *testing.T) {
+	m := newTestManager(t)
+	m.agents["eng-01"] = &Agent{Name: "eng-01", Role: Role("engineer"), State: StateStopped, Children: []string{}}
+
+	if err := m.RenameAgent("eng-01", "engineer-01"); err != nil {
+		t.Fatalf("RenameAgent failed: %v", err)
+	}
+
+	// Old name should not exist
+	if _, exists := m.agents["eng-01"]; exists {
+		t.Error("old agent name should not exist")
+	}
+
+	// New name should exist
+	agent, exists := m.agents["engineer-01"]
+	if !exists {
+		t.Fatal("new agent name should exist")
+	}
+
+	// Agent name should be updated
+	if agent.Name != "engineer-01" {
+		t.Errorf("agent.Name = %q, want %q", agent.Name, "engineer-01")
+	}
+}
+
+func TestRenameAgent_NotFound(t *testing.T) {
+	m := newTestManager(t)
+	if err := m.RenameAgent("nonexistent", "new-name"); err == nil {
+		t.Error("expected error for nonexistent agent")
+	}
+}
+
+func TestRenameAgent_NameExists(t *testing.T) {
+	m := newTestManager(t)
+	m.agents["eng-01"] = &Agent{Name: "eng-01", State: StateStopped, Children: []string{}}
+	m.agents["eng-02"] = &Agent{Name: "eng-02", State: StateStopped, Children: []string{}}
+
+	if err := m.RenameAgent("eng-01", "eng-02"); err == nil {
+		t.Error("expected error when renaming to existing name")
+	}
+}
+
+func TestRenameAgent_UpdatesParentChildren(t *testing.T) {
+	m := newTestManager(t)
+	m.agents["mgr"] = &Agent{Name: "mgr", State: StateIdle, Children: []string{"eng-01", "eng-02"}}
+	m.agents["eng-01"] = &Agent{Name: "eng-01", ParentID: "mgr", State: StateStopped, Children: []string{}}
+	m.agents["eng-02"] = &Agent{Name: "eng-02", ParentID: "mgr", State: StateStopped, Children: []string{}}
+
+	if err := m.RenameAgent("eng-01", "engineer-01"); err != nil {
+		t.Fatalf("RenameAgent failed: %v", err)
+	}
+
+	// Parent's children list should be updated
+	children := m.agents["mgr"].Children
+	found := false
+	for _, c := range children {
+		if c == "engineer-01" {
+			found = true
+		}
+		if c == "eng-01" {
+			t.Error("old name should not be in parent's children")
+		}
+	}
+	if !found {
+		t.Error("new name should be in parent's children")
+	}
+}
+
 // --- RefreshState tests ---
 
 func TestRefreshState(t *testing.T) {
