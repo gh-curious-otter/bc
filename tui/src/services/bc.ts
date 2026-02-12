@@ -21,6 +21,9 @@ import type {
  * @returns Promise resolving to stdout string
  * @throws Error if command fails
  */
+/** Default timeout for bc commands (30 seconds) */
+const BC_COMMAND_TIMEOUT = 30000;
+
 export async function execBc(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     // Always add --json flag if not present and command supports it
@@ -35,13 +38,26 @@ export async function execBc(args: string[]): Promise<string> {
 
     // Use BC_BIN if set, otherwise fall back to 'bc' in PATH
     const bcBin = process.env.BC_BIN || 'bc';
+    // Use BC_ROOT as working directory if set
+    const cwd = process.env.BC_ROOT || process.cwd();
 
     const proc = spawn(bcBin, finalArgs, {
       stdio: ['ignore', 'pipe', 'pipe'],
+      cwd,
     });
 
     let stdout = '';
     let stderr = '';
+    let settled = false;
+
+    // Timeout to prevent hanging indefinitely
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        proc.kill('SIGTERM');
+        reject(new Error(`bc ${command} command timed out after ${BC_COMMAND_TIMEOUT}ms`));
+      }
+    }, BC_COMMAND_TIMEOUT);
 
     proc.stdout.on('data', (data: Buffer) => {
       stdout += data.toString();
@@ -52,6 +68,10 @@ export async function execBc(args: string[]): Promise<string> {
     });
 
     proc.on('close', (code: number | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+
       if (code === 0) {
         resolve(stdout.trim());
       } else {
@@ -60,6 +80,9 @@ export async function execBc(args: string[]): Promise<string> {
     });
 
     proc.on('error', (err: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
       reject(new Error(`Failed to spawn bc: ${err.message}`));
     });
   });
