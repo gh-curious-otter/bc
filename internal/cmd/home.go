@@ -1,0 +1,122 @@
+package cmd
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"os/signal"
+	"path/filepath"
+	"syscall"
+
+	"github.com/spf13/cobra"
+
+	"github.com/rpuneet/bc/pkg/log"
+)
+
+var homeCmd = &cobra.Command{
+	Use:   "home",
+	Short: "Open the bc TUI dashboard",
+	Long: `Open the bc terminal user interface (TUI) dashboard.
+
+The TUI provides a visual interface for managing agents, channels,
+costs, and other bc features using keyboard navigation.
+
+Requirements:
+  - bun (or node) must be installed
+  - TUI must be built (run 'make build-tui' if needed)
+
+Navigation:
+  [1-4]  Switch tabs (Dashboard, Agents, Channels, Costs)
+  [j/k]  Navigate lists (down/up)
+  [?]    Show help
+  [q]    Quit
+
+Examples:
+  bc home          # Open TUI dashboard`,
+	Args: cobra.NoArgs,
+	RunE: runHome,
+}
+
+func init() {
+	rootCmd.AddCommand(homeCmd)
+}
+
+func runHome(cmd *cobra.Command, args []string) error {
+	log.Debug("home command started")
+
+	// Find workspace
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	// Find TUI directory
+	tuiDir := filepath.Join(ws.RootDir, "tui")
+	tuiEntry := filepath.Join(tuiDir, "dist", "index.js")
+
+	// Check if TUI is built
+	if _, statErr := os.Stat(tuiEntry); os.IsNotExist(statErr) {
+		log.Debug("TUI not built, checking for source")
+
+		// Check if TUI source exists
+		tuiSrc := filepath.Join(tuiDir, "src", "index.tsx")
+		if _, srcErr := os.Stat(tuiSrc); os.IsNotExist(srcErr) {
+			return fmt.Errorf("TUI not found. Run from the bc repository root")
+		}
+
+		// Prompt to build
+		fmt.Println("TUI not built. Building now...")
+		buildCtx := context.Background()
+		buildCmd := exec.CommandContext(buildCtx, "make", "build-tui")
+		buildCmd.Dir = ws.RootDir
+		buildCmd.Stdout = os.Stdout
+		buildCmd.Stderr = os.Stderr
+		if buildErr := buildCmd.Run(); buildErr != nil {
+			return fmt.Errorf("failed to build TUI: %w\nRun 'make build-tui' manually", buildErr)
+		}
+	}
+
+	// Find bun or node
+	runtime, err := findJSRuntime()
+	if err != nil {
+		return err
+	}
+	log.Debug("using JS runtime", "runtime", runtime)
+
+	// Run the TUI with signal handling
+	log.Debug("starting TUI", "entry", tuiEntry)
+
+	// Create context with signal handling for graceful shutdown
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	// #nosec G204 - runtime is from exec.LookPath, safe to use
+	tuiCmd := exec.CommandContext(ctx, runtime, "run", tuiEntry)
+	tuiCmd.Dir = ws.RootDir
+	tuiCmd.Stdin = os.Stdin
+	tuiCmd.Stdout = os.Stdout
+	tuiCmd.Stderr = os.Stderr
+
+	// Set environment for bc CLI path
+	tuiCmd.Env = append(os.Environ(),
+		fmt.Sprintf("BC_ROOT=%s", ws.RootDir),
+	)
+
+	return tuiCmd.Run()
+}
+
+// findJSRuntime finds bun or node executable.
+func findJSRuntime() (string, error) {
+	// Prefer bun
+	if path, err := exec.LookPath("bun"); err == nil {
+		return path, nil
+	}
+
+	// Fall back to node
+	if path, err := exec.LookPath("node"); err == nil {
+		return path, nil
+	}
+
+	return "", fmt.Errorf("bun or node not found. Install bun: https://bun.sh")
+}
