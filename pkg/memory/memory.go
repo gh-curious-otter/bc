@@ -193,6 +193,39 @@ func (s *Store) clearLearnings() error {
 	return nil
 }
 
+// ClearResult holds the result of a Clear operation.
+type ClearResult struct {
+	ExperiencesCleared int  // number of experiences removed
+	LearningsCleared   bool // whether learnings were cleared
+}
+
+// Clear removes all experiences and/or learnings from the agent's memory.
+// If clearExperiences is true, removes all experiences.
+// If clearLearnings is true, resets learnings to the header.
+func (s *Store) Clear(clearExperiences, clearLearningsFlag bool) (*ClearResult, error) {
+	result := &ClearResult{}
+
+	if clearExperiences {
+		// Count existing experiences before clearing
+		existing, _ := s.GetExperiences()
+		result.ExperiencesCleared = len(existing)
+
+		// Clear by writing empty experiences file
+		if err := os.WriteFile(s.experiencesPath(), []byte{}, 0600); err != nil { //nolint:gosec // path constructed from trusted memoryDir
+			return nil, fmt.Errorf("failed to clear experiences: %w", err)
+		}
+	}
+
+	if clearLearningsFlag {
+		if err := s.clearLearnings(); err != nil {
+			return nil, err
+		}
+		result.LearningsCleared = true
+	}
+
+	return result, nil
+}
+
 // MemoryDir returns the path to the agent's memory directory.
 func (s *Store) MemoryDir() string {
 	return s.memoryDir

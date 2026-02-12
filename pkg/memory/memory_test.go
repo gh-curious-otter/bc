@@ -900,3 +900,96 @@ func TestStore_NeedsPruning(t *testing.T) {
 		t.Error("should not need pruning with 1MB threshold")
 	}
 }
+
+func TestStore_Clear(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Add some experiences
+	for i := 0; i < 3; i++ {
+		exp := Experience{Description: "Test experience"}
+		if err := store.RecordExperience(exp); err != nil {
+			t.Fatalf("failed to record experience: %v", err)
+		}
+	}
+
+	// Add a learning
+	if err := store.AddLearning("patterns", "Test learning"); err != nil {
+		t.Fatalf("failed to add learning: %v", err)
+	}
+
+	// Verify data exists
+	experiences, _ := store.GetExperiences()
+	if len(experiences) != 3 {
+		t.Errorf("expected 3 experiences, got %d", len(experiences))
+	}
+
+	// Clear only experiences
+	result, err := store.Clear(true, false)
+	if err != nil {
+		t.Fatalf("Clear failed: %v", err)
+	}
+	if result.ExperiencesCleared != 3 {
+		t.Errorf("expected 3 experiences cleared, got %d", result.ExperiencesCleared)
+	}
+	if result.LearningsCleared {
+		t.Error("learnings should not be cleared")
+	}
+
+	// Verify experiences are cleared
+	experiences, _ = store.GetExperiences()
+	if len(experiences) != 0 {
+		t.Errorf("expected 0 experiences after clear, got %d", len(experiences))
+	}
+
+	// Learnings should still exist
+	learnings, _ := store.GetLearnings()
+	if learnings == "" {
+		t.Error("learnings should still exist after clearing only experiences")
+	}
+}
+
+func TestStore_ClearBoth(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "engineer-01")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	// Add experience and learning
+	if err := store.RecordExperience(Experience{Description: "Test"}); err != nil {
+		t.Fatalf("failed to record: %v", err)
+	}
+	if err := store.AddLearning("tips", "Test tip"); err != nil {
+		t.Fatalf("failed to add learning: %v", err)
+	}
+
+	// Clear both
+	result, err := store.Clear(true, true)
+	if err != nil {
+		t.Fatalf("Clear failed: %v", err)
+	}
+	if result.ExperiencesCleared != 1 {
+		t.Errorf("expected 1 experience cleared, got %d", result.ExperiencesCleared)
+	}
+	if !result.LearningsCleared {
+		t.Error("learnings should be cleared")
+	}
+
+	// Verify both cleared
+	experiences, _ := store.GetExperiences()
+	if len(experiences) != 0 {
+		t.Errorf("expected 0 experiences, got %d", len(experiences))
+	}
+
+	learnings, _ := store.GetLearnings()
+	// Learnings file should still have the header
+	if learnings == "" {
+		t.Error("learnings should have header after clear")
+	}
+}
