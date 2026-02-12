@@ -38,10 +38,21 @@ export async function execBc(args: string[]): Promise<string> {
 
     const proc = spawn(bcBin, finalArgs, {
       stdio: ['ignore', 'pipe', 'pipe'],
+      cwd: process.env.BC_ROOT || process.cwd(),
     });
 
     let stdout = '';
     let stderr = '';
+    let finished = false;
+
+    // Timeout after 30 seconds
+    const timeout = setTimeout(() => {
+      if (!finished) {
+        finished = true;
+        proc.kill();
+        reject(new Error(`bc command timed out: ${args.join(' ')}`));
+      }
+    }, 30000);
 
     proc.stdout.on('data', (data: Buffer) => {
       stdout += data.toString();
@@ -52,6 +63,9 @@ export async function execBc(args: string[]): Promise<string> {
     });
 
     proc.on('close', (code: number | null) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeout);
       if (code === 0) {
         resolve(stdout.trim());
       } else {
@@ -60,6 +74,9 @@ export async function execBc(args: string[]): Promise<string> {
     });
 
     proc.on('error', (err: Error) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeout);
       reject(new Error(`Failed to spawn bc: ${err.message}`));
     });
   });
