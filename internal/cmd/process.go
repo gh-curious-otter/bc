@@ -83,15 +83,15 @@ Examples:
 	RunE: runProcessAttach,
 }
 
-var processInfoCmd = &cobra.Command{
-	Use:   "info <name>",
+var processShowCmd = &cobra.Command{
+	Use:   "show <name>",
 	Short: "Show process details",
 	Long: `Show detailed information about a process.
 
 Examples:
-  bc process info web`,
+  bc process show web`,
 	Args: cobra.ExactArgs(1),
-	RunE: runProcessInfo,
+	RunE: runProcessShow,
 }
 
 var (
@@ -114,7 +114,7 @@ func init() {
 	processCmd.AddCommand(processStopCmd)
 	processCmd.AddCommand(processLogsCmd)
 	processCmd.AddCommand(processAttachCmd)
-	processCmd.AddCommand(processInfoCmd)
+	processCmd.AddCommand(processShowCmd)
 	rootCmd.AddCommand(processCmd)
 }
 
@@ -315,7 +315,7 @@ func runProcessLogs(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runProcessInfo(cmd *cobra.Command, args []string) error {
+func runProcessShow(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
 	reg, err := getProcessRegistry()
