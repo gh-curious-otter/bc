@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/rpuneet/bc/pkg/events"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 const (
@@ -227,7 +228,7 @@ func (h *HealthChecker) emitHealthEvent(result *HealthCheckResult) {
 		eventType = events.HealthCheck
 	}
 
-	_ = h.eventLog.Append(events.Event{
+	if err := h.eventLog.Append(events.Event{
 		Type:    eventType,
 		Agent:   "root",
 		Message: result.ErrorMessage,
@@ -237,5 +238,7 @@ func (h *HealthChecker) emitHealthEvent(result *HealthCheckResult) {
 			"state_fresh":  result.StateFresh,
 			"last_updated": result.LastUpdated.Format(time.RFC3339),
 		},
-	})
+	}); err != nil {
+		log.Warn("failed to log health event", "error", err)
+	}
 }
