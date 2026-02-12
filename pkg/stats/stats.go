@@ -186,8 +186,8 @@ func (s *Stats) Summary() string {
 	b.WriteString(fmt.Sprintf("Total:  %d (%d active)\n", s.Agents.TotalAgents, s.Agents.ActiveAgents))
 	b.WriteString(fmt.Sprintf("Roles:  %d coordinators, %d workers\n",
 		s.Agents.Coordinators, s.Agents.Workers))
-	b.WriteString(fmt.Sprintf("States: %d idle, %d working, %d stuck, %d stopped\n",
-		s.Agents.Idle, s.Agents.Working, s.Agents.Stuck, s.Agents.Stopped))
+	b.WriteString(fmt.Sprintf("States: %d idle, %d working, %d done, %d stuck, %d stopped\n",
+		s.Agents.Idle, s.Agents.Working, s.Agents.Done, s.Agents.Stuck, s.Agents.Stopped))
 	b.WriteString("\n")
 
 	if len(s.Agents.AgentStats) > 0 {
