@@ -2,6 +2,7 @@ package cost
 
 import (
 	"testing"
+	"time"
 )
 
 func TestNewStore(t *testing.T) {
@@ -449,5 +450,201 @@ func TestSummaryStruct(t *testing.T) {
 	}
 	if s.RecordCount != 10 {
 		t.Errorf("RecordCount = %d, want 10", s.RecordCount)
+	}
+}
+
+func TestGetDailyCosts(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Add some records
+	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 0.01)
+	_, _ = store.Record("agent-2", "", "model-a", 200, 100, 0.02)
+
+	// Get daily costs for the last day
+	dailyCosts, err := store.GetDailyCosts(time.Now().AddDate(0, 0, -1))
+	if err != nil {
+		t.Fatalf("GetDailyCosts failed: %v", err)
+	}
+
+	// Should have at least one day of data
+	if len(dailyCosts) < 1 {
+		t.Error("expected at least 1 day of cost data")
+	}
+}
+
+func TestGetDailyCostsEmpty(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Get daily costs with no data
+	dailyCosts, err := store.GetDailyCosts(time.Now().AddDate(0, 0, -1))
+	if err != nil {
+		t.Fatalf("GetDailyCosts failed: %v", err)
+	}
+
+	if len(dailyCosts) != 0 {
+		t.Errorf("expected 0 days, got %d", len(dailyCosts))
+	}
+}
+
+func TestGetAgentDailyCosts(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Add records for multiple agents
+	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 0.01)
+	_, _ = store.Record("agent-2", "", "model-a", 200, 100, 0.02)
+
+	// Get agent daily costs
+	agentCosts, err := store.GetAgentDailyCosts(time.Now().AddDate(0, 0, -1))
+	if err != nil {
+		t.Fatalf("GetAgentDailyCosts failed: %v", err)
+	}
+
+	// Should have data for both agents
+	if len(agentCosts) < 2 {
+		t.Errorf("expected at least 2 agent cost entries, got %d", len(agentCosts))
+	}
+}
+
+func TestGetSummarySince(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 0.01)
+	_, _ = store.Record("agent-2", "", "model-a", 200, 100, 0.02)
+
+	summary, err := store.GetSummarySince(time.Now().AddDate(0, 0, -1))
+	if err != nil {
+		t.Fatalf("GetSummarySince failed: %v", err)
+	}
+
+	if summary.RecordCount != 2 {
+		t.Errorf("RecordCount = %d, want 2", summary.RecordCount)
+	}
+	if summary.TotalCostUSD != 0.03 {
+		t.Errorf("TotalCostUSD = %f, want 0.03", summary.TotalCostUSD)
+	}
+}
+
+func TestGetAgentSummarySince(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 0.01)
+	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 0.01)
+	_, _ = store.Record("agent-2", "", "model-a", 200, 100, 0.02)
+
+	summaries, err := store.GetAgentSummarySince(time.Now().AddDate(0, 0, -1))
+	if err != nil {
+		t.Fatalf("GetAgentSummarySince failed: %v", err)
+	}
+
+	if len(summaries) != 2 {
+		t.Errorf("expected 2 agents, got %d", len(summaries))
+	}
+}
+
+func TestProjectCost(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Add some records
+	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 0.10)
+	_, _ = store.Record("agent-2", "", "model-a", 200, 100, 0.20)
+
+	// Project for 7 days based on 7 days of history
+	proj, err := store.ProjectCost(7, 7*24*time.Hour)
+	if err != nil {
+		t.Fatalf("ProjectCost failed: %v", err)
+	}
+
+	// Should have 1 day of data
+	if proj.DaysAnalyzed < 1 {
+		t.Errorf("DaysAnalyzed = %d, expected >= 1", proj.DaysAnalyzed)
+	}
+
+	// Total historical should be approximately 0.30
+	if proj.TotalHistorical < 0.29 || proj.TotalHistorical > 0.31 {
+		t.Errorf("TotalHistorical = %f, want ~0.30", proj.TotalHistorical)
+	}
+}
+
+func TestProjectCostEmpty(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Project with no data
+	proj, err := store.ProjectCost(7, 7*24*time.Hour)
+	if err != nil {
+		t.Fatalf("ProjectCost failed: %v", err)
+	}
+
+	if proj.DaysAnalyzed != 0 {
+		t.Errorf("DaysAnalyzed = %d, want 0", proj.DaysAnalyzed)
+	}
+	if proj.ProjectedCost != 0 {
+		t.Errorf("ProjectedCost = %f, want 0", proj.ProjectedCost)
+	}
+}
+
+func TestDailyCostStruct(t *testing.T) {
+	dc := DailyCost{
+		Date:    "2026-01-01",
+		CostUSD: 1.50,
+	}
+
+	if dc.Date != "2026-01-01" {
+		t.Errorf("Date = %q, want 2026-01-01", dc.Date)
+	}
+	if dc.CostUSD != 1.50 {
+		t.Errorf("CostUSD = %f, want 1.50", dc.CostUSD)
+	}
+}
+
+func TestProjectionStruct(t *testing.T) {
+	proj := Projection{
+		DailyAvgCost:  1.00,
+		ProjectedCost: 7.00,
+		DaysAnalyzed:  7,
+	}
+
+	if proj.DailyAvgCost != 1.00 {
+		t.Errorf("DailyAvgCost = %f, want 1.00", proj.DailyAvgCost)
+	}
+	if proj.ProjectedCost != 7.00 {
+		t.Errorf("ProjectedCost = %f, want 7.00", proj.ProjectedCost)
+	}
+	if proj.DaysAnalyzed != 7 {
+		t.Errorf("DaysAnalyzed = %d, want 7", proj.DaysAnalyzed)
 	}
 }
