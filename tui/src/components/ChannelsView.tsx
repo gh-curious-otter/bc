@@ -116,6 +116,15 @@ function ChannelHistoryView({
   });
   const [inputMode, setInputMode] = useState(false);
   const [messageBuffer, setMessageBuffer] = useState('');
+  const [scrollOffset, setScrollOffset] = useState(0);
+
+  const messageList = messages ?? [];
+  // Calculate how many messages we can display (approximate height)
+  const visibleCount = Math.max(5, Math.min(messageList.length, 10));
+  const displayedMessages = messageList.slice(
+    Math.max(0, messageList.length - visibleCount - scrollOffset),
+    Math.max(visibleCount, messageList.length - scrollOffset)
+  );
 
   useInput(
     (input, key) => {
@@ -141,33 +150,71 @@ function ChannelHistoryView({
         if (input === 'm') {
           setInputMode(true);
         }
+        // 'j' to scroll down (newer messages)
+        if (input === 'j' && scrollOffset > 0) {
+          setScrollOffset(scrollOffset - 1);
+        }
+        // 'k' to scroll up (older messages)
+        if (input === 'k' && scrollOffset < messageList.length - visibleCount) {
+          setScrollOffset(scrollOffset + 1);
+        }
+        // Arrow keys for scrolling
+        if (key.downArrow && scrollOffset > 0) {
+          setScrollOffset(scrollOffset - 1);
+        }
+        if (key.upArrow && scrollOffset < messageList.length - visibleCount) {
+          setScrollOffset(scrollOffset + 1);
+        }
       }
     },
     { isActive: !disableInput }
   );
 
+  const formatTime = (isoString: string): string => {
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      });
+    } catch {
+      return '-';
+    }
+  };
+
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" height="100%">
       <Box>
         <Text bold color="cyan">#{channel.name}</Text>
         <Text dimColor> - {channel.members.length} members</Text>
       </Box>
-      <Text dimColor>ESC to go back, m to compose message</Text>
+      <Text dimColor>m: compose, j/k or ↑↓: scroll, ESC: go back</Text>
 
-      <Box marginTop={1} flexDirection="column" height={15}>
+      {/* Messages area - flexible height that grows */}
+      <Box marginTop={1} flexDirection="column" flexGrow={1} overflow="hidden">
         {loading && <Text dimColor>Loading messages...</Text>}
         {error && <Text color="red">Error: {error}</Text>}
-        {messages?.slice(-10).map((msg, index) => (
+        {!loading && !error && displayedMessages.length === 0 && messageList.length === 0 && (
+          <Text dimColor>No messages yet</Text>
+        )}
+        {!loading && !error && displayedMessages.map((msg, index) => (
           <Box key={index}>
+            <Text dimColor>[{formatTime(msg.time)}] </Text>
             <Text color="yellow">{msg.sender}</Text>
             <Text dimColor>: </Text>
             <Text>{msg.message}</Text>
           </Box>
         ))}
-        {messages?.length === 0 && <Text dimColor>No messages yet</Text>}
+        {!loading && !error && messageList.length > visibleCount && (
+          <Text dimColor>
+            (showing {displayedMessages.length} of {messageList.length} messages)
+          </Text>
+        )}
       </Box>
 
-      {/* Input area */}
+      {/* Input area - fixed at bottom */}
       <Box marginTop={1} borderStyle="single" borderColor={inputMode ? 'cyan' : 'gray'} paddingX={1}>
         {inputMode ? (
           <Text>
