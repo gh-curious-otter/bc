@@ -1,4 +1,4 @@
-.PHONY: dev build build-release build-all clean gen test coverage bench fmt vet lint check deps help version
+.PHONY: dev build build-release build-all clean gen test coverage bench fmt vet lint check deps help version build-tui test-tui lint-tui
 
 # Version information
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -25,6 +25,11 @@ help:
 	@echo "  check         - Run all checks (gen + fmt + vet + lint + test)"
 	@echo "  deps          - Download and tidy dependencies"
 	@echo "  version       - Show version info that will be embedded"
+	@echo ""
+	@echo "TUI targets (requires bun):"
+	@echo "  build-tui     - Build the TUI package"
+	@echo "  test-tui      - Run TUI tests"
+	@echo "  lint-tui      - Lint TUI code"
 	@echo ""
 	@echo "Version variables (can be overridden):"
 	@echo "  VERSION=$(VERSION)"
@@ -83,3 +88,16 @@ check: gen fmt vet lint test
 deps:
 	go mod download
 	go mod tidy
+
+# TUI targets (requires bun)
+build-tui:
+	@echo "Building TUI..."
+	cd tui && bun install && bun run build
+
+test-tui:
+	@echo "Testing TUI..."
+	cd tui && bun test
+
+lint-tui:
+	@echo "Linting TUI..."
+	cd tui && bun run lint
