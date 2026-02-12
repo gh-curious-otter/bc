@@ -64,8 +64,8 @@ func init() {
 	queueAddCmd.Flags().Bool("epic", false, "Create as an epic instead of a task")
 	queueAddCmd.Flags().StringSlice("label", nil, "Additional labels to apply")
 
-	// Register with root command
-	rootCmd.AddCommand(queueCmd)
+	// Disabled: work management is done through GitHub
+	// rootCmd.AddCommand(queueCmd)
 }
 
 // QueueItem represents a work item in the queue.

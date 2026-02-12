@@ -40,7 +40,8 @@ var prNumber int
 func init() {
 	prNotifyCmd.Flags().IntVar(&prNumber, "pr", 0, "Specific PR number to notify about")
 	prCmd.AddCommand(prNotifyCmd)
-	rootCmd.AddCommand(prCmd)
+	// Disabled: work management is done through GitHub
+	// rootCmd.AddCommand(prCmd)
 }
 
 func runPRNotify(cmd *cobra.Command, args []string) error {
