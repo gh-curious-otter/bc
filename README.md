@@ -1,127 +1,183 @@
 # bc - AI Agent Orchestration for Software Development
 
-`bc` is a CLI-first orchestration system for coordinating teams of AI agents to work on software development projects. It provides a structured, observable, and persistent environment for AI-driven engineering, emphasizing developer control and predictable behavior.
-
-Drawing inspiration from `k9s` for Kubernetes, `bc` provides a powerful CLI with channel-based communication on top of a robust set of command-line tools.
+`bc` is a CLI-first orchestration system for coordinating teams of AI agents to work on software development projects. It provides a structured, observable, and persistent environment for AI-driven engineering.
 
 ## Core Philosophy
 
-*   **Organic Growth**: Start with a single `root` agent and conversationally grow your team. The system is designed to be flexible, without enforcing a rigid, predefined structure.
-*   **CLI-First**: Every feature is accessible and scriptable through the `bc` command line.
-*   **Agent Agnostic**: `bc` is designed to work with any AI agent that can run in a terminal. It has built-in support for Claude Code, Cursor, and OpenAI Codex, with easy configuration for custom tools.
-*   **Persistent Memory**: Agents learn from their experiences. `bc` includes a memory system that allows agents to record task outcomes and accumulate knowledge, improving their effectiveness over time.
-*   **Isolated Workspaces**: To prevent conflicts and enable parallel development, each agent operates within its own dedicated `git worktree`.
-
-## Features
-
--   **Hierarchical Agent System**: A `root` agent manages the project and can create a team of agents with various roles (`engineer`, `qa`, `manager`, etc.). Roles are customizable via simple Markdown files.
--   **Dashboard (`bc dashboard`)**: View workspace statistics, agent status, and activity summaries.
--   **Real-Time Communication (`bc channel`)**: Agents collaborate through Slack-like channels, with support for message history and agent-to-agent communication.
--   **Persistent Memory (`bc memory`)**: Agents can record experiences and learnings, search their memory, and improve over time.
--   **Scheduled Tasks (`bc demon`)**: Automate recurring tasks like daily builds, nightly tests, or health checks using cron-based scheduling.
--   **Process Management (`bc process`)**: Start, stop, and monitor long-running background processes like development servers, simulators, or builds.
--   **Git Worktree Management (`bc worktree`)**: Each agent gets an isolated `git worktree` for conflict-free development. `bc` provides tools to manage and prune these worktrees.
--   **Cost Tracking (`bc cost`)**: Track API costs with commands to view detailed records and summaries per-agent, per-team, or for the entire workspace.
+- **CLI-First**: Every feature is accessible and scriptable through the `bc` command line.
+- **Agent Agnostic**: Works with any AI agent that can run in a terminal (Claude Code, Cursor, Codex, Gemini).
+- **Organic Growth**: Start with a single `root` agent and grow your team conversationally.
+- **Persistent Memory**: Agents learn from experiences and accumulate knowledge over time.
+- **Isolated Workspaces**: Each agent operates in its own `git worktree` for conflict-free development.
 
 ## Installation
 
 ### Prerequisites
 
--   Go 1.25.1+
--   `tmux`
--   A configured AI agent tool (e.g., Claude Code, Cursor).
+- Go 1.22+
+- `tmux`
+- A configured AI agent tool (e.g., Claude Code, Cursor)
 
 ### Build from Source
 
 ```bash
-# Build the bc executable
 make build
-
-# Install to your GOPATH/bin
 make install
 ```
 
-## Getting Started
+## Quick Start
 
-1.  **Initialize a Workspace**:
-    This creates a `.bc` directory in your project to store configuration, roles, and agent state.
-    ```bash
-    bc init
-    ```
+```bash
+# 1. Initialize workspace
+bc init
 
-2.  **Start the Root Agent**:
-    The `root` agent is the primary orchestrator for the workspace.
-    ```bash
-    bc up
-    ```
-    *Note: `bc up` can also be used to start a default team of agents, configurable in `.bc/config.toml`.*
+# 2. Start the root agent
+bc up
 
-3.  **Check System Status**:
-    View your workspace status and agent states.
-    ```bash
-    bc status
-    bc dashboard
-    ```
+# 3. Check status
+bc status
 
-4.  **Create a New Agent**:
-    Spawn a new agent with a specific role. `bc` will assign a random memorable name if one isn't provided.
-    ```bash
-    bc agent create --role engineer
-    ```
+# 4. Create an engineer agent
+bc agent create --role engineer
 
-5.  **Communicate with your Agent**:
-    Send instructions to an agent or a channel.
-    ```bash
-    # Send a direct message to an agent
-    bc agent send swift-falcon "Please implement the login feature."
+# 5. Send work to the agent
+bc agent send swift-falcon "Implement the login feature"
 
-    # Send a message to the 'engineering' channel
-    bc channel send engineering "Starting work on the new auth system."
-    ```
+# 6. Stop all agents
+bc down
+```
 
-6.  **Stop the System**:
-    Gracefully shut down all running agents and their sessions.
-    ```bash
+## Commands
 
-    bc down
-    ```
-
-## CLI Command Reference
-
-`bc` provides a rich set of commands for managing the entire agent ecosystem. Below is a summary of the main commands. For detailed options, run `bc [command] --help`.
+### Workspace Lifecycle
 
 | Command | Description |
-| :--- | :--- |
-| **Workspace & Lifecycle** | |
-| `init` | Initialize a new `bc` workspace in the current directory. |
-| `up` | Start the `root` agent and the configured agent roster. |
-| `down` | Stop all running agents and processes. |
-| `status` | Show the status of all agents. |
-| `dashboard`| Show a summary of workspace stats. |
-| **Agent Management** | |
-| `agent list`| List all agents with their status, role, and current task. |
-| `agent create`| Create and start a new agent with a specified role. |
-| `agent send`| Send a message or command to an agent. |
-| `agent attach`| Attach to an agent's `tmux` session for direct interaction. |
-| `agent peek`| View recent output from an agent's session. |
-| `agent stop`| Stop a specific agent. |
-| **Collaboration & Workflow** | |
-| `channel` | Manage communication channels for agents. |
-| `team` | Organize agents into teams. |
-| `merge` | Merge an agent's work branch into main after validation checks. |
-| `role` | Manage custom agent roles and their prompt templates. |
-| **Automation & Tooling** | |
-| `demon` | Manage scheduled background tasks (demons) using cron syntax. |
-| `process` | Manage long-running background processes (e.g., dev servers). |
-| `memory` | Manage the persistent memory for each agent. |
-| `worktree`| Manage agent-specific `git worktrees`. |
-| `cost` | View and summarize API cost information. |
-| **Configuration & System** | |
-| `config` | Manage the workspace configuration (`.bc/config.toml`). |
-| `logs` | View the `bc` event log with filtering capabilities. |
-| `version` | Print the current version information. |
+|---------|-------------|
+| `bc init` | Initialize a new workspace |
+| `bc up` | Start agents |
+| `bc down` | Stop all agents |
+| `bc status` | Show agent status |
+| `bc stats` | Show workspace statistics |
 
+### Agent Management
+
+| Command | Description |
+|---------|-------------|
+| `bc agent create` | Create a new agent |
+| `bc agent list` | List all agents |
+| `bc agent show <name>` | Show agent details |
+| `bc agent send <name> <msg>` | Send message to agent |
+| `bc agent attach <name>` | Attach to agent session |
+| `bc agent peek <name>` | Show recent output |
+| `bc agent stop <name>` | Stop an agent |
+| `bc agent delete <name>` | Delete an agent |
+| `bc agent rename <old> <new>` | Rename an agent |
+
+### Communication
+
+| Command | Description |
+|---------|-------------|
+| `bc channel create <name>` | Create a channel |
+| `bc channel list` | List channels |
+| `bc channel send <ch> <msg>` | Send to channel |
+| `bc channel show <name>` | Show channel details |
+
+### Teams
+
+| Command | Description |
+|---------|-------------|
+| `bc team create <name>` | Create a team |
+| `bc team list` | List teams |
+| `bc team show <name>` | Show team details |
+| `bc team add <team> <agent>` | Add agent to team |
+| `bc team remove <team> <agent>` | Remove agent from team |
+| `bc team rename <old> <new>` | Rename a team |
+
+### Roles
+
+| Command | Description |
+|---------|-------------|
+| `bc role create --name <n>` | Create a role |
+| `bc role list` | List roles |
+| `bc role show <name>` | Show role details |
+| `bc role edit <name>` | Edit role in $EDITOR |
+| `bc role delete <name>` | Delete a role |
+
+### Scheduled Tasks (Demons)
+
+| Command | Description |
+|---------|-------------|
+| `bc demon create <name>` | Create scheduled task |
+| `bc demon list` | List demons |
+| `bc demon show <name>` | Show demon details |
+| `bc demon run <name>` | Manually trigger demon |
+| `bc demon edit <name>` | Edit demon config |
+| `bc demon enable <name>` | Enable a demon |
+| `bc demon disable <name>` | Disable a demon |
+| `bc demon logs <name>` | Show execution history |
+
+### Background Processes
+
+| Command | Description |
+|---------|-------------|
+| `bc process start <cmd>` | Start a process |
+| `bc process list` | List processes |
+| `bc process show <name>` | Show process details |
+| `bc process stop <name>` | Stop a process |
+| `bc process restart <name>` | Restart a process |
+| `bc process logs <name>` | Show process logs |
+| `bc process attach <name>` | Attach to process |
+
+### Memory
+
+| Command | Description |
+|---------|-------------|
+| `bc memory show` | Show agent memory |
+| `bc memory record <desc>` | Record an experience |
+| `bc memory learn <cat> <text>` | Add a learning |
+| `bc memory search <query>` | Search memories |
+| `bc memory prune` | Remove old entries |
+
+### Configuration
+
+| Command | Description |
+|---------|-------------|
+| `bc config show` | Show configuration |
+| `bc config get <key>` | Get config value |
+| `bc config set <key> <val>` | Set config value |
+| `bc config edit` | Edit config in $EDITOR |
+
+### Other
+
+| Command | Description |
+|---------|-------------|
+| `bc worktree list` | List agent worktrees |
+| `bc worktree cleanup` | Remove orphaned worktrees |
+| `bc cost show` | Show cost records |
+| `bc cost summary` | Show cost summary |
+| `bc logs` | View event log |
+| `bc version` | Show version |
+
+## Configuration
+
+Configuration is stored in `.bc/config.toml`. Key settings:
+
+```toml
+[workspace]
+name = "my-project"
+
+[tools]
+default = "claude"
+
+[tools.claude]
+command = "claude --dangerously-skip-permissions"
+enabled = true
+
+[roster]
+engineers = 4
+tech_leads = 2
+```
 
 ## Contributing
 
-Contributions are welcome! Please see the [Contributing Guide](CONTRIBUTING.md) for more details on how to get involved.
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
