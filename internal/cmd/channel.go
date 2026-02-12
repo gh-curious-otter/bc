@@ -115,6 +115,19 @@ Examples:
 	RunE: runChannelReact,
 }
 
+var channelShowCmd = &cobra.Command{
+	Use:   "show <channel>",
+	Short: "Show detailed information about a channel",
+	Long: `Display detailed information about a channel including members,
+description, and message history statistics.
+
+Examples:
+  bc channel show engineering    # Show engineering channel details
+  bc channel show standup --json # Output as JSON`,
+	Args: cobra.ExactArgs(1),
+	RunE: runChannelShow,
+}
+
 func init() {
 	channelCmd.AddCommand(channelCreateCmd)
 	channelCmd.AddCommand(channelAddCmd)
@@ -126,6 +139,7 @@ func init() {
 	channelCmd.AddCommand(channelLeaveCmd)
 	channelCmd.AddCommand(channelHistoryCmd)
 	channelCmd.AddCommand(channelReactCmd)
+	channelCmd.AddCommand(channelShowCmd)
 	rootCmd.AddCommand(channelCmd)
 }
 
@@ -538,5 +552,102 @@ func runChannelReact(cmd *cobra.Command, args []string) error {
 	} else {
 		fmt.Printf("Removed %s reaction from message %d in #%s\n", emoji, messageIndex, channelName)
 	}
+	return nil
+}
+
+// ChannelInfo represents detailed channel information for JSON output.
+type ChannelInfo struct {
+	Name         string   `json:"name"`
+	Description  string   `json:"description,omitempty"`
+	Members      []string `json:"members"`
+	MemberCount  int      `json:"member_count"`
+	HistoryCount int      `json:"history_count"`
+}
+
+func runChannelShow(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	store, err := loadChannelStore(ws.RootDir)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = store.Close() }()
+
+	channelName := args[0]
+
+	// Get channel
+	ch, exists := store.Get(channelName)
+	if !exists {
+		return fmt.Errorf("channel %q not found", channelName)
+	}
+
+	// Get members
+	members, err := store.GetMembers(channelName)
+	if err != nil {
+		return fmt.Errorf("failed to get members: %w", err)
+	}
+
+	// Get history for count
+	history, err := store.GetHistory(channelName)
+	if err != nil {
+		return fmt.Errorf("failed to get history: %w", err)
+	}
+
+	// Get description
+	description, _ := store.GetDescription(channelName)
+
+	jsonOutput, err := cmd.Flags().GetBool("json")
+	if err != nil {
+		return err
+	}
+
+	if jsonOutput {
+		info := ChannelInfo{
+			Name:         ch.Name,
+			Description:  description,
+			Members:      members,
+			MemberCount:  len(members),
+			HistoryCount: len(history),
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(info)
+	}
+
+	// Text output
+	fmt.Printf("Channel: #%s\n", ch.Name)
+	fmt.Println(strings.Repeat("-", 40))
+
+	if description != "" {
+		fmt.Printf("Description: %s\n", description)
+	}
+
+	fmt.Printf("Members (%d):\n", len(members))
+	if len(members) == 0 {
+		fmt.Println("  (none)")
+	} else {
+		for _, m := range members {
+			fmt.Printf("  • %s\n", m)
+		}
+	}
+
+	fmt.Printf("\nMessage History: %d messages\n", len(history))
+
+	if len(history) > 0 {
+		fmt.Println("\nRecent Messages (last 5):")
+		start := 0
+		if len(history) > 5 {
+			start = len(history) - 5
+		}
+		for i := start; i < len(history); i++ {
+			entry := history[i]
+			msg := strings.ReplaceAll(entry.Message, "\n", " ")
+			fmt.Printf("  [%s] %s: %s\n", entry.Time.Format("15:04"), entry.Sender, truncateMessage(msg, 50))
+		}
+	}
+
 	return nil
 }
