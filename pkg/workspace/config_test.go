@@ -15,24 +15,25 @@ func TestDefaultV2Config(t *testing.T) {
 	if cfg.Workspace.Version != ConfigVersion {
 		t.Errorf("expected version %d, got %d", ConfigVersion, cfg.Workspace.Version)
 	}
-	if cfg.Tools.Default != "claude" {
-		t.Errorf("expected default tool 'claude', got %q", cfg.Tools.Default)
+	// Default tool is gemini (minimal root-only startup)
+	if cfg.Tools.Default != "gemini" {
+		t.Errorf("expected default tool 'gemini', got %q", cfg.Tools.Default)
 	}
-	if cfg.Tools.Claude == nil {
-		t.Error("expected claude tool to be configured")
+	if cfg.Tools.Gemini == nil {
+		t.Error("expected gemini tool to be configured")
 	}
 	if cfg.Memory.Backend != "file" {
 		t.Errorf("expected memory backend 'file', got %q", cfg.Memory.Backend)
 	}
-	// Test default roster values
-	if cfg.Roster.Engineers != 4 {
-		t.Errorf("expected roster.engineers = 4, got %d", cfg.Roster.Engineers)
+	// Minimal startup: roster values default to 0
+	if cfg.Roster.Engineers != 0 {
+		t.Errorf("expected roster.engineers = 0, got %d", cfg.Roster.Engineers)
 	}
-	if cfg.Roster.TechLeads != 2 {
-		t.Errorf("expected roster.tech_leads = 2, got %d", cfg.Roster.TechLeads)
+	if cfg.Roster.TechLeads != 0 {
+		t.Errorf("expected roster.tech_leads = 0, got %d", cfg.Roster.TechLeads)
 	}
-	if cfg.Roster.QA != 2 {
-		t.Errorf("expected roster.qa = 2, got %d", cfg.Roster.QA)
+	if cfg.Roster.QA != 0 {
+		t.Errorf("expected roster.qa = 0, got %d", cfg.Roster.QA)
 	}
 }
 
