@@ -113,10 +113,6 @@ This mismatch could cause build failures or unexpected behavior.
 ### go.mod Analysis
 
 **Direct Dependencies:**
-- `github.com/charmbracelet/bubbles v0.21.1` - TUI components
-- `github.com/charmbracelet/bubbletea v1.3.10` - TUI framework
-- `github.com/charmbracelet/lipgloss v1.1.0` - Styling
-- `github.com/charmbracelet/x/term v0.2.2` - Terminal utilities
 - `github.com/spf13/cobra v1.10.1` - CLI framework
 
 **Tool Dependency:**
