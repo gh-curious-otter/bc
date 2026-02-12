@@ -1059,7 +1059,7 @@ func (m *ChannelModel) View() string {
 		b.WriteString(m.styles.Success.Render("  ✓ " + m.sendMsg))
 		b.WriteString("\n")
 	} else {
-		b.WriteString(m.styles.Muted.Render("  [s]end  [e]moji  [j/k]scroll  [r]efresh  [esc]back"))
+		b.WriteString(m.styles.Muted.Render("  [s]end  [e]moji  [j/k]scroll  [g/G]oldest/newest  [r]efresh  [esc]back"))
 		b.WriteString("\n")
 	}
 

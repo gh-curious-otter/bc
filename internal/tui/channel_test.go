@@ -121,6 +121,75 @@ func TestChannelHandleKey_HomeEnd(t *testing.T) {
 	}
 }
 
+// TestChannelFullHistoryScroll_299 ensures full-history scroll works (j/k, g/G, wheel) — regression for #299.
+func TestChannelFullHistoryScroll_299(t *testing.T) {
+	m := newTestChannelModel()
+	const totalMsg = 25
+	m.channel.History = make([]channel.HistoryEntry, 0, totalMsg)
+	for i := 0; i < totalMsg; i++ {
+		m.channel.History = append(m.channel.History, channel.HistoryEntry{
+			Sender: "u", Message: "m", Time: time.Now(),
+		})
+	}
+	visible := m.visibleMsgCount()
+	if visible >= totalMsg {
+		t.Skip("height too large for this test; need scrollable history")
+	}
+	maxScroll := totalMsg - visible
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+
+	// Start at newest (scroll=0)
+	if m.scroll != 0 {
+		t.Errorf("initial scroll want 0, got %d", m.scroll)
+	}
+	start, end := m.visibleWindow()
+	if start != totalMsg-visible || end != totalMsg {
+		t.Errorf("initial window want [%d,%d), got [%d,%d)", totalMsg-visible, totalMsg, start, end)
+	}
+
+	// k: scroll toward older (scroll increases)
+	m.HandleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	m.HandleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	if m.scroll != 2 {
+		t.Errorf("after 2×k scroll want 2, got %d", m.scroll)
+	}
+	// j: scroll toward newer (scroll decreases)
+	m.HandleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	if m.scroll != 1 {
+		t.Errorf("after j scroll want 1, got %d", m.scroll)
+	}
+
+	// g: jump to oldest (scroll = maxScroll)
+	m.HandleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	if m.scroll != maxScroll {
+		t.Errorf("g (oldest) scroll want %d, got %d", maxScroll, m.scroll)
+	}
+	start, end = m.visibleWindow()
+	if start != 0 || end != visible {
+		t.Errorf("at oldest window want [0,%d), got [%d,%d)", visible, start, end)
+	}
+
+	// G: jump to newest (scroll = 0)
+	m.HandleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	if m.scroll != 0 {
+		t.Errorf("G (newest) scroll want 0, got %d", m.scroll)
+	}
+
+	// Wheel: up = older (scroll++), down = newer (scroll--)
+	m.scroll = 3
+	m.HandleMouse(tea.MouseMsg{Button: tea.MouseButtonWheelUp})
+	if m.scroll != 4 {
+		t.Errorf("wheel up (older) want scroll 4, got %d", m.scroll)
+	}
+	m.HandleMouse(tea.MouseMsg{Button: tea.MouseButtonWheelDown})
+	m.HandleMouse(tea.MouseMsg{Button: tea.MouseButtonWheelDown})
+	if m.scroll != 2 {
+		t.Errorf("wheel down×2 (newer) want scroll 2, got %d", m.scroll)
+	}
+}
+
 // TestClampScroll_KeepsScrollInBounds ensures scroll is clamped after history shrinks or view changes.
 func TestClampScroll_KeepsScrollInBounds(t *testing.T) {
 	m := newTestChannelModel()
