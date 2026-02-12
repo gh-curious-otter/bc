@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { getStatus, getChannels, getCostSummary } from '../services/bc.js';
-import type { StatusResponse, ChannelsResponse, CostSummary, Agent } from '../types';
+import type { CostSummary, Agent } from '../types';
 
 interface UseDataResult<T> {
   data: T | null;
