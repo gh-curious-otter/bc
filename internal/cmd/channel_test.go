@@ -417,6 +417,7 @@ func TestChannelCommandSubcommands(t *testing.T) {
 		"join":    false,
 		"leave":   false,
 		"history": false,
+		"show":    false,
 	}
 
 	for _, cmd := range subcommands {
@@ -439,6 +440,134 @@ func TestChannelHistoryNoFlags(t *testing.T) {
 	// History command currently has no flags
 	if flags.Lookup("limit") != nil {
 		t.Log("--limit flag is available for history")
+	}
+}
+
+// --- Channel Show Tests ---
+
+func TestChannelShow_RequiresName(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	_, _, err := executeIntegrationCmd("channel", "show")
+	if err == nil {
+		t.Fatal("expected error for missing name, got nil")
+	}
+	if !strings.Contains(err.Error(), "accepts 1 arg") {
+		t.Errorf("expected arg count error, got: %v", err)
+	}
+}
+
+func TestChannelShow_NoWorkspace(t *testing.T) {
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get cwd: %v", err)
+	}
+
+	tmpDir := t.TempDir()
+	if err = os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	_, _, err = executeIntegrationCmd("channel", "show", "test-channel")
+	if err == nil {
+		t.Fatal("expected error when not in workspace, got nil")
+	}
+	if !strings.Contains(err.Error(), "not in a bc workspace") {
+		t.Errorf("expected workspace error, got: %v", err)
+	}
+}
+
+func TestChannelShow_NonexistentChannel(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	_, _, err := executeIntegrationCmd("channel", "show", "nonexistent")
+	if err == nil {
+		t.Fatal("expected error for nonexistent channel, got nil")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("expected 'not found' error, got: %v", err)
+	}
+}
+
+func TestChannelShow_ExistingChannel(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Create a channel using the store directly
+	store := channel.NewStore(wsDir)
+	if err := store.Load(); err != nil {
+		t.Fatalf("failed to load store: %v", err)
+	}
+	if _, err := store.Create("test-channel"); err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+	if err := store.AddMember("test-channel", "agent-01"); err != nil {
+		t.Fatalf("failed to add member: %v", err)
+	}
+	if err := store.AddMember("test-channel", "agent-02"); err != nil {
+		t.Fatalf("failed to add member: %v", err)
+	}
+	if err := store.Save(); err != nil {
+		t.Fatalf("failed to save store: %v", err)
+	}
+
+	stdout, _, err := executeIntegrationCmd("channel", "show", "test-channel")
+	if err != nil {
+		t.Fatalf("channel show error: %v", err)
+	}
+
+	// Should show channel name
+	if !strings.Contains(stdout, "#test-channel") {
+		t.Errorf("expected channel name in output, got: %s", stdout)
+	}
+
+	// Should show member count
+	if !strings.Contains(stdout, "Members (2)") {
+		t.Errorf("expected 'Members (2)' in output, got: %s", stdout)
+	}
+
+	// Should show members
+	if !strings.Contains(stdout, "agent-01") {
+		t.Errorf("expected 'agent-01' in output, got: %s", stdout)
+	}
+	if !strings.Contains(stdout, "agent-02") {
+		t.Errorf("expected 'agent-02' in output, got: %s", stdout)
+	}
+}
+
+func TestChannelShow_JSON(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Create a channel using the store directly
+	store := channel.NewStore(wsDir)
+	if err := store.Load(); err != nil {
+		t.Fatalf("failed to load store: %v", err)
+	}
+	if _, err := store.Create("json-test"); err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+	if err := store.AddMember("json-test", "agent-01"); err != nil {
+		t.Fatalf("failed to add member: %v", err)
+	}
+	if err := store.Save(); err != nil {
+		t.Fatalf("failed to save store: %v", err)
+	}
+
+	stdout, _, err := executeIntegrationCmd("channel", "show", "json-test", "--json")
+	if err != nil {
+		t.Fatalf("channel show --json error: %v", err)
+	}
+
+	// Should be valid JSON with expected fields
+	if !strings.Contains(stdout, `"name": "json-test"`) {
+		t.Errorf("expected JSON name field, got: %s", stdout)
+	}
+	if !strings.Contains(stdout, `"member_count": 1`) {
+		t.Errorf("expected JSON member_count field, got: %s", stdout)
 	}
 }
 
