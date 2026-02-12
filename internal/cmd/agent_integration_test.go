@@ -198,15 +198,17 @@ func TestAgentSendToStoppedAgent(t *testing.T) {
 }
 
 func TestAgentCreateInvalidRole(t *testing.T) {
+	// Only truly invalid role names (format) should error
+	// Any alphanumeric name with hyphens is valid (roles are custom)
 	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	_, _, err := executeIntegrationCmd("agent", "create", "test-agent", "--role", "invalid-role")
+	_, _, err := executeIntegrationCmd("agent", "create", "test-agent", "--role", "role@invalid")
 	if err == nil {
-		t.Error("expected error for invalid role")
+		t.Error("expected error for invalid role format")
 	}
-	if err != nil && !strings.Contains(err.Error(), "unknown role") {
-		t.Errorf("error should mention unknown role: %v", err)
+	if err != nil && !strings.Contains(err.Error(), "invalid") {
+		t.Errorf("error should mention invalid: %v", err)
 	}
 }
 

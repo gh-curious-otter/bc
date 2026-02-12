@@ -71,42 +71,49 @@ func TestAgentCreate_ValidRole(t *testing.T) {
 }
 
 func TestAgentCreate_InvalidRole(t *testing.T) {
-	invalidRoles := []string{
-		"invalid",
-		"admin",
-		"superuser",
-		"",
+	// Only truly invalid role names should error (format validation)
+	// Any alphanumeric name is valid (roles are custom)
+	invalidRoles := []struct {
+		role string
+		desc string
+	}{
+		{"role@invalid", "contains @ symbol"},
+		{"role with space", "contains space"},
 	}
 
-	for _, role := range invalidRoles {
-		t.Run(role, func(t *testing.T) {
-			_, err := parseRole(role)
+	for _, tt := range invalidRoles {
+		t.Run(tt.desc, func(t *testing.T) {
+			_, err := parseRole(tt.role)
 			if err == nil {
-				t.Errorf("parseRole(%q) expected error, got nil", role)
+				t.Errorf("parseRole(%q) expected error, got nil", tt.role)
 			}
 		})
 	}
 }
 
-func TestAgentCreate_RoleAliases(t *testing.T) {
+func TestAgentCreate_CustomRoles(t *testing.T) {
+	// All roles are custom now - any valid alphanumeric name is accepted
+	// Legacy aliases ('pm', 'coord', 'tl') are returned as-is
 	tests := []struct {
-		alias    string
+		input    string
 		wantRole agent.Role
 	}{
-		{"pm", agent.Role("product-manager")},
-		{"coord", agent.RoleRoot},
-		{"tl", agent.Role("tech-lead")},
+		{"pm", agent.Role("pm")},       // No expansion
+		{"coord", agent.Role("coord")}, // No expansion
+		{"tl", agent.Role("tl")},       // No expansion
+		{"custom-role", agent.Role("custom-role")},
+		{"admin", agent.Role("admin")},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.alias, func(t *testing.T) {
-			role, err := parseRole(tt.alias)
+		t.Run(tt.input, func(t *testing.T) {
+			role, err := parseRole(tt.input)
 			if err != nil {
-				t.Errorf("parseRole(%q) error = %v", tt.alias, err)
+				t.Errorf("parseRole(%q) error = %v", tt.input, err)
 				return
 			}
 			if role != tt.wantRole {
-				t.Errorf("parseRole(%q) = %v, want %v", tt.alias, role, tt.wantRole)
+				t.Errorf("parseRole(%q) = %v, want %v", tt.input, role, tt.wantRole)
 			}
 		})
 	}
@@ -437,8 +444,10 @@ func TestAgentListWithRoleFilter(t *testing.T) {
 func TestAgentListInvalidRole(t *testing.T) {
 	setupTestWorkspace(t)
 
-	_, err := executeCmd("agent", "list", "--role", "invalid-role")
+	// Only truly invalid role names (format) should error
+	// "invalid-role" is valid now (all roles are custom)
+	_, err := executeCmd("agent", "list", "--role", "role@invalid")
 	if err == nil {
-		t.Error("expected error for invalid role filter")
+		t.Error("expected error for invalid role filter format")
 	}
 }
