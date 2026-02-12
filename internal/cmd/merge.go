@@ -587,10 +587,11 @@ func runMergeStatus(cmd *cobra.Command, ws *workspace.Workspace) error {
 	rootDir := ws.RootDir
 	agentsDir := ws.AgentsDir()
 
-	// Load agents
+	// Load agents (defer warning until after status output)
 	mgr := agent.NewWorkspaceManager(agentsDir, rootDir)
+	var loadStateErr error
 	if err := mgr.LoadState(); err != nil {
-		log.Warn("failed to load agent state", "error", err)
+		loadStateErr = err
 	}
 
 	agents := mgr.ListAgents()
@@ -654,12 +655,23 @@ func runMergeStatus(cmd *cobra.Command, ws *workspace.Workspace) error {
 	if jsonOutput {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(items)
+		if encErr := enc.Encode(items); encErr != nil {
+			return encErr
+		}
+		// Display deferred warning after JSON output
+		if loadStateErr != nil {
+			log.Warn("failed to load agent state", "error", loadStateErr)
+		}
+		return nil
 	}
 
 	// Display table format
 	if len(items) == 0 {
 		fmt.Println("No pending merges")
+		// Display deferred warning after status output
+		if loadStateErr != nil {
+			log.Warn("failed to load agent state", "error", loadStateErr)
+		}
 		return nil
 	}
 
@@ -676,6 +688,11 @@ func runMergeStatus(cmd *cobra.Command, ws *workspace.Workspace) error {
 			stateDisplay = "blocked (conflicts)"
 		}
 		fmt.Printf("%-15s %-40s %-10s %s\n", item.Agent, branch, item.Target, stateDisplay)
+	}
+
+	// Display deferred warning after status output
+	if loadStateErr != nil {
+		log.Warn("failed to load agent state", "error", loadStateErr)
 	}
 
 	return nil
