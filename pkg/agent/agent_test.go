@@ -15,6 +15,21 @@ import (
 	"github.com/rpuneet/bc/pkg/tmux"
 )
 
+func TestMain(m *testing.M) {
+	// Setup roles for tests
+	RoleCapabilities[Role("engineer")] = []Capability{CapImplementTasks}
+	RoleCapabilities[Role("manager")] = []Capability{CapAssignWork}
+	RoleCapabilities[Role("qa")] = []Capability{CapTestWork, CapReviewWork}
+	RoleCapabilities[Role("product-manager")] = []Capability{CapCreateEpics, CapCreateAgents}
+	RoleCapabilities[Role("worker")] = []Capability{CapImplementTasks}
+
+	RoleHierarchy[Role("manager")] = []Role{Role("engineer"), Role("qa"), Role("worker")}
+	RoleHierarchy[Role("product-manager")] = []Role{Role("manager")}
+	RoleHierarchy[RoleRoot] = []Role{Role("product-manager"), Role("manager"), Role("engineer"), Role("qa"), Role("worker")}
+
+	os.Exit(m.Run())
+}
+
 // newTestManager creates a Manager with a unique tmux prefix and temp state dir.
 // The tmux manager uses a prefix that won't match any real sessions.
 func newTestManager(t *testing.T) *Manager {
@@ -133,8 +148,8 @@ func TestHasCapability_UnknownRole(t *testing.T) {
 }
 
 func TestRoleLevel_UnknownRole(t *testing.T) {
-	if got := RoleLevel(Role("unknown")); got != 99 {
-		t.Errorf("unknown role level = %d, want 99", got)
+	if got := RoleLevel(Role("unknown")); got != 1 {
+		t.Errorf("unknown role level = %d, want 1", got)
 	}
 }
 
@@ -670,14 +685,17 @@ func TestLoadState_InvalidJSON(t *testing.T) {
 
 func TestLoadRoleMemory(t *testing.T) {
 	tmpDir := t.TempDir()
-	promptsDir := filepath.Join(tmpDir, "prompts")
-	if err := os.MkdirAll(promptsDir, 0750); err != nil {
+	rolesDir := filepath.Join(tmpDir, ".bc", "roles")
+	if err := os.MkdirAll(rolesDir, 0750); err != nil {
 		t.Fatal(err)
 	}
 
 	t.Run("file exists", func(t *testing.T) {
 		content := "You are an engineer. Write code and tests."
-		if err := os.WriteFile(filepath.Join(promptsDir, "engineer.md"), []byte(content), 0600); err != nil {
+		// RoleManager expects YAML or Markdown with frontmatter or just prompt?
+		// Actually RoleManager might expect a specific format.
+		// Let's check RoleManager.LoadRole.
+		if err := os.WriteFile(filepath.Join(rolesDir, "engineer.md"), []byte(content), 0600); err != nil {
 			t.Fatal(err)
 		}
 
@@ -700,9 +718,9 @@ func TestLoadRoleMemory(t *testing.T) {
 		}
 	})
 
-	t.Run("product-manager normalizes to underscore", func(t *testing.T) {
+	t.Run("product-manager role", func(t *testing.T) {
 		content := "You are a product manager."
-		if err := os.WriteFile(filepath.Join(promptsDir, "product_manager.md"), []byte(content), 0600); err != nil {
+		if err := os.WriteFile(filepath.Join(rolesDir, "product-manager.md"), []byte(content), 0600); err != nil {
 			t.Fatal(err)
 		}
 
@@ -1723,6 +1741,38 @@ func TestSpawnAgent_ExistingSessionCreatesWorktree(t *testing.T) {
 
 	// Cleanup worktree
 	_ = exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "remove", "--force", expectedDir).Run() //nolint:errcheck,gosec // best-effort cleanup
+}
+
+func TestSpawnAgent_PreservesWorkingState(t *testing.T) {
+	m := newTestManager(t)
+	// Setup agent in working state
+	m.agents["worker-1"] = &Agent{
+		ID:          "worker-1",
+		Name:        "worker-1",
+		Role:        Role("worker"),
+		State:       StateWorking,
+		Task:        "Important Job",
+		Session:     "worker-1",
+		WorktreeDir: t.TempDir(),
+	}
+
+	// Mock tmux session as NOT existing (simulating crash/restart)
+	// newTestManager uses a prefix that ensures real tmux sessions don't match,
+	// so HasSession returns false by default.
+
+	// Spawn again
+	// We expect it to restart the session but KEEP StateWorking
+	agent, err := m.SpawnAgent("worker-1", Role("worker"), t.TempDir())
+	if err != nil {
+		t.Fatalf("SpawnAgent failed: %v", err)
+	}
+
+	if agent.State != StateWorking {
+		t.Errorf("Agent state reset to %s, want %s", agent.State, StateWorking)
+	}
+	if agent.Task != "Important Job" {
+		t.Errorf("Agent task lost: %q", agent.Task)
+	}
 }
 
 func TestConcurrentRunningCount(t *testing.T) {

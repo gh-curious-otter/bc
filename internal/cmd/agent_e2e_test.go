@@ -55,7 +55,8 @@ func TestAgentLifecycle_ListInvalidRole(t *testing.T) {
 	resetAgentFlags()
 	defer resetAgentFlags()
 
-	_, err := executeCmd("agent", "list", "--role", "invalid-role")
+	// Use a truly invalid role name (contains @) to trigger validation error
+	_, err := executeCmd("agent", "list", "--role", "invalid@role")
 	if err == nil {
 		t.Error("expected error for invalid role filter")
 	}
