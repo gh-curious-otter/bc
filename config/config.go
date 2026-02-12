@@ -25,22 +25,9 @@ type ChannelsConfig struct {
 	Default []string
 }
 
-type CostsConfig struct {
-	Enabled       bool
-	Limit         float64
-	WarnThreshold float64
-}
-
 type MemoryConfig struct {
 	Backend string
 	Path    string
-}
-
-type RolesItem struct {
-	Description string
-	Name        string
-	Permissions []string
-	PromptFile  string
 }
 
 type RosterConfig struct {
@@ -153,46 +140,9 @@ var (
 	Channels = ChannelsConfig{
 		Default: []string{"general", "engineering"},
 	}
-	Costs = CostsConfig{
-		Enabled:       true,
-		Limit:         100,
-		WarnThreshold: 10,
-	}
 	Memory = MemoryConfig{
 		Backend: "file",
 		Path:    ".bc/memory",
-	}
-	Roles = []RolesItem{
-		{
-			Description: "Defines product vision, creates epics, reviews proposals",
-			Name:        "product_manager",
-			Permissions: []string{"queue.add", "queue.view", "send", "report"},
-			PromptFile:  ".bc/prompts/product_manager.md",
-		},
-		{
-			Description: "Breaks down epics, spawns engineers, assigns work, reviews code",
-			Name:        "manager",
-			Permissions: []string{"queue.add", "queue.assign", "queue.complete", "spawn", "send", "report", "git.merge"},
-			PromptFile:  ".bc/prompts/manager.md",
-		},
-		{
-			Description: "Implements assigned tasks, writes code and tests",
-			Name:        "engineer",
-			Permissions: []string{"queue.view", "report", "git.branch", "git.commit"},
-			PromptFile:  ".bc/prompts/engineer.md",
-		},
-		{
-			Description: "Reviews code, coordinates engineers, ensures quality",
-			Name:        "tech_lead",
-			Permissions: []string{"queue.view", "queue.assign", "report", "git.branch", "git.commit", "spawn"},
-			PromptFile:  ".bc/prompts/tech_lead.md",
-		},
-		{
-			Description: "Tests features, verifies quality, reports bugs",
-			Name:        "qa",
-			Permissions: []string{"queue.view", "queue.add", "report", "git.branch"},
-			PromptFile:  ".bc/prompts/qa.md",
-		},
 	}
 	Roster = RosterConfig{
 		Engineers:     4,
