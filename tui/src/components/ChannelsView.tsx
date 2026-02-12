@@ -112,10 +112,23 @@ function ChannelHistoryView({
   disableInput = false,
 }: ChannelHistoryViewProps): React.ReactElement {
   const { data: messages, loading, error, send } = useChannelHistory(channel.name, {
-    limit: 20,
+    limit: 50,
   });
   const [inputMode, setInputMode] = useState(false);
   const [messageBuffer, setMessageBuffer] = useState('');
+  const [scrollOffset, setScrollOffset] = useState(0);
+  const visibleMessages = 12;
+
+  const messageList = messages ?? [];
+  const messageCount = messageList.length;
+
+  // Scroll to bottom when messages change
+  React.useEffect(() => {
+    if (messages) {
+      const newOffset = Math.max(0, messages.length - visibleMessages);
+      setScrollOffset(newOffset);
+    }
+  }, [messages, visibleMessages]);
 
   useInput(
     (input, key) => {
@@ -137,6 +150,13 @@ function ChannelHistoryView({
           setMessageBuffer(messageBuffer + input);
         }
       } else {
+        // Message navigation
+        if ((key.upArrow || input === 'k') && scrollOffset > 0) {
+          setScrollOffset((o) => Math.max(0, o - 1));
+        }
+        if ((key.downArrow || input === 'j') && scrollOffset < messageCount - visibleMessages) {
+          setScrollOffset((o) => Math.min(messageCount - visibleMessages, o + 1));
+        }
         // 'm' to compose message
         if (input === 'm') {
           setInputMode(true);
@@ -146,29 +166,58 @@ function ChannelHistoryView({
     { isActive: !disableInput }
   );
 
+  // Memoized visible slice
+  const visibleSlice = React.useMemo(
+    () => messageList.slice(scrollOffset, scrollOffset + visibleMessages),
+    [messageList, scrollOffset]
+  );
+  const canScrollUp = scrollOffset > 0;
+  const canScrollDown = scrollOffset < messageCount - visibleMessages;
+
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" height={undefined}>
       <Box>
         <Text bold color="cyan">#{channel.name}</Text>
         <Text dimColor> - {channel.members.length} members</Text>
       </Box>
-      <Text dimColor>ESC to go back, m to compose message</Text>
+      <Text dimColor>ESC to go back, m to compose message, ↑/↓ or j/k to scroll</Text>
 
-      <Box marginTop={1} flexDirection="column" height={15}>
-        {loading && <Text dimColor>Loading messages...</Text>}
+      {/* Messages container with scrolling */}
+      <Box marginTop={1} flexDirection="column" flexGrow={1}>
+        {loading && !messages && <Text dimColor>Loading messages...</Text>}
         {error && <Text color="red">Error: {error}</Text>}
-        {messages?.slice(-10).map((msg, index) => (
-          <Box key={index}>
-            <Text color="yellow">{msg.sender}</Text>
-            <Text dimColor>: </Text>
-            <Text>{msg.message}</Text>
+
+        {canScrollUp && (
+          <Box>
+            <Text dimColor>↑ {scrollOffset} more above</Text>
+          </Box>
+        )}
+
+        {visibleSlice.map((msg, index) => (
+          <Box key={`${msg.time}-${index}`}>
+            <Box width={8}>
+              <Text dimColor>{formatTimestamp(msg.time)}</Text>
+            </Box>
+            <Box width={14}>
+              <Text color="yellow" bold>{msg.sender.slice(0, 13)}</Text>
+            </Box>
+            <Box flexGrow={1}>
+              <Text wrap="truncate">{msg.message}</Text>
+            </Box>
           </Box>
         ))}
-        {messages?.length === 0 && <Text dimColor>No messages yet</Text>}
+
+        {canScrollDown && (
+          <Box>
+            <Text dimColor>↓ {messageCount - scrollOffset - visibleMessages} more below</Text>
+          </Box>
+        )}
+
+        {messageCount === 0 && <Text dimColor>No messages yet</Text>}
       </Box>
 
-      {/* Input area */}
-      <Box marginTop={1} borderStyle="single" borderColor={inputMode ? 'cyan' : 'gray'} paddingX={1}>
+      {/* Input area - anchored at bottom */}
+      <Box marginTop={0} borderStyle="single" borderColor={inputMode ? 'cyan' : 'gray'} paddingX={1}>
         {inputMode ? (
           <Text>
             <Text color="cyan">{'> '}</Text>
@@ -181,6 +230,33 @@ function ChannelHistoryView({
       </Box>
     </Box>
   );
+}
+
+/**
+ * Format timestamp for display
+ * Shows time only if today, otherwise shows date
+ */
+function formatTimestamp(isoString: string): string {
+  try {
+    const date = new Date(isoString);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+
+    if (isToday) {
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+    }
+
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    });
+  } catch {
+    return '??:??';
+  }
 }
 
 export default ChannelsView;
