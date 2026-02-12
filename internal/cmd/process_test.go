@@ -442,3 +442,32 @@ func TestProcessStopNotRunning(t *testing.T) {
 		t.Errorf("expected 'not running' error, got: %v", err)
 	}
 }
+
+func TestProcessRestartNotFound(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	_, _, err := executeIntegrationCmd("process", "restart", "nonexistent")
+	if err == nil {
+		t.Fatal("expected error for missing process, got nil")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("expected 'not found' error, got: %v", err)
+	}
+}
+
+func TestProcessRestartNotRunning(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Seed a stopped process
+	seedStoppedProcess(t, wsDir, "stopped-proc")
+
+	_, _, err := executeIntegrationCmd("process", "restart", "stopped-proc")
+	if err == nil {
+		t.Fatal("expected error for stopped process, got nil")
+	}
+	if !strings.Contains(err.Error(), "not running") {
+		t.Errorf("expected 'not running' error, got: %v", err)
+	}
+}
