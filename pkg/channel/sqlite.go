@@ -196,7 +196,10 @@ func (s *SQLiteStore) CreateChannel(name string, channelType ChannelType, descri
 	if err != nil {
 		return nil, fmt.Errorf("failed to create channel: %w", err)
 	}
-	id, _ := result.LastInsertId()
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get channel insert ID: %w", err)
+	}
 	return s.GetChannelByID(id)
 }
 
@@ -436,7 +439,10 @@ func (s *SQLiteStore) AddMessage(channelName, sender, content string, msgType Me
 		return nil, fmt.Errorf("failed to add message: %w", err)
 	}
 
-	id, _ := result.LastInsertId()
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get message insert ID: %w", err)
+	}
 	return s.GetMessage(id)
 }
 
@@ -679,7 +685,11 @@ func (s *SQLiteStore) MigrateFromJSON(jsonPath string) error {
 		}
 
 		var channelID int64
-		if id, _ := result.LastInsertId(); id > 0 {
+		id, idErr := result.LastInsertId()
+		if idErr != nil {
+			return fmt.Errorf("failed to get channel insert ID during migration: %w", idErr)
+		}
+		if id > 0 {
 			channelID = id
 		} else {
 			row := tx.QueryRowContext(ctx, "SELECT id FROM channels WHERE name = ?", ch.Name)
