@@ -35,13 +35,26 @@ export async function execBc(args: string[]): Promise<string> {
 
     // Use BC_BIN if set, otherwise fall back to 'bc' in PATH
     const bcBin = process.env.BC_BIN || 'bc';
+    // Use BC_ROOT as working directory to ensure bc finds the workspace
+    const bcRoot = process.env.BC_ROOT;
 
     const proc = spawn(bcBin, finalArgs, {
       stdio: ['ignore', 'pipe', 'pipe'],
+      cwd: bcRoot || undefined,
     });
 
     let stdout = '';
     let stderr = '';
+    let settled = false;
+
+    // Timeout to prevent hangs (30 seconds)
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        proc.kill();
+        reject(new Error(`bc command timed out: ${args.join(' ')}`));
+      }
+    }, 30000);
 
     proc.stdout.on('data', (data: Buffer) => {
       stdout += data.toString();
@@ -52,6 +65,10 @@ export async function execBc(args: string[]): Promise<string> {
     });
 
     proc.on('close', (code: number | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+
       if (code === 0) {
         resolve(stdout.trim());
       } else {
@@ -60,6 +77,9 @@ export async function execBc(args: string[]): Promise<string> {
     });
 
     proc.on('error', (err: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
       reject(new Error(`Failed to spawn bc: ${err.message}`));
     });
   });
