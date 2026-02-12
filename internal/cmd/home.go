@@ -14,9 +14,13 @@ import (
 )
 
 var homeCmd = &cobra.Command{
-	Use:   "home",
-	Short: "Open the bc home screen TUI",
+	Use:        "home",
+	Short:      "Open the bc home screen TUI (deprecated)",
+	Deprecated: "TUI is being rebuilt with Ink. Use 'bc agent list' and 'bc status' instead.",
 	Long: `Open the interactive home screen showing all workspaces and agents.
+
+DEPRECATED: This command is deprecated and will be removed in a future version.
+The TUI is being rebuilt with Ink. Use 'bc agent list' and 'bc status' instead.
 
 The TUI updates in real-time as agents start, stop, and report progress.
 You can drill into workspaces, view agents/issues/PRs, and peek at output.
