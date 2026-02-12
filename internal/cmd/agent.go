@@ -140,6 +140,22 @@ Examples:
 	RunE: runAgentDelete,
 }
 
+// agentRenameCmd renames an agent
+var agentRenameCmd = &cobra.Command{
+	Use:   "rename <old-name> <new-name>",
+	Short: "Rename an agent",
+	Long: `Rename an agent to a new name.
+
+This updates the agent's name, channel memberships, and worktree directory.
+By default, running agents cannot be renamed (use --force to override).
+
+Examples:
+  bc agent rename eng-01 engineer-01
+  bc agent rename eng-01 eng-02 --force  # Rename running agent`,
+	Args: cobra.ExactArgs(2),
+	RunE: runAgentRename,
+}
+
 // agentHealthCmd shows agent health status
 var agentHealthCmd = &cobra.Command{
 	Use:   "health [agent]",
@@ -226,6 +242,7 @@ var (
 	agentStopForce       bool
 	agentDeleteForce     bool
 	agentDeletePurge     bool
+	agentRenameForce     bool
 	agentHealthJSON      bool
 	agentHealthTimeout   string
 	agentHealthDetect    bool
@@ -255,6 +272,9 @@ func init() {
 	agentDeleteCmd.Flags().BoolVar(&agentDeleteForce, "force", false, "Force delete running agent without stopping first")
 	agentDeleteCmd.Flags().BoolVar(&agentDeletePurge, "purge", false, "Also delete agent's memory directory")
 
+	// Rename flags
+	agentRenameCmd.Flags().BoolVar(&agentRenameForce, "force", false, "Rename even if agent is running")
+
 	// Health flags
 	agentHealthCmd.Flags().BoolVar(&agentHealthJSON, "json", false, "Output as JSON")
 	agentHealthCmd.Flags().StringVar(&agentHealthTimeout, "timeout", "60s", "Stale state threshold (e.g., 30s, 2m)")
@@ -271,6 +291,7 @@ func init() {
 	agentCmd.AddCommand(agentStopCmd)
 	agentCmd.AddCommand(agentSendCmd)
 	agentCmd.AddCommand(agentDeleteCmd)
+	agentCmd.AddCommand(agentRenameCmd)
 	agentCmd.AddCommand(agentHealthCmd)
 	agentCmd.AddCommand(agentBroadcastCmd)
 	agentCmd.AddCommand(agentSendRoleCmd)
@@ -709,6 +730,101 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 	if !agentDeletePurge {
 		fmt.Printf("Memory preserved at .bc/memory/%s\n", agentName)
 	}
+	return nil
+}
+
+func runAgentRename(cmd *cobra.Command, args []string) error {
+	oldName := args[0]
+	newName := args[1]
+
+	if oldName == newName {
+		return fmt.Errorf("old and new names are the same")
+	}
+
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+
+	// Check if agent exists
+	a := mgr.GetAgent(oldName)
+	if a == nil {
+		return fmt.Errorf("agent '%s' not found", oldName)
+	}
+
+	// Check if new name already exists
+	if existing := mgr.GetAgent(newName); existing != nil {
+		return fmt.Errorf("agent '%s' already exists", newName)
+	}
+
+	// Check if running (block unless --force)
+	if a.State != agent.StateStopped && !agentRenameForce {
+		return fmt.Errorf("agent '%s' is running; use --force to rename anyway", oldName)
+	}
+
+	fmt.Printf("Renaming agent '%s' to '%s'...\n", oldName, newName)
+
+	// Step 1: Rename agent in manager (updates state)
+	fmt.Print("  Updating agent state... ")
+	if renameErr := mgr.RenameAgent(oldName, newName); renameErr != nil {
+		fmt.Println("✗")
+		return fmt.Errorf("failed to rename agent state: %w", renameErr)
+	}
+	fmt.Println("✓")
+
+	// Step 2: Update channel memberships
+	fmt.Print("  Updating channel memberships... ")
+	channelStore := channel.NewStore(filepath.Join(ws.StateDir(), "channels"))
+	channels := channelStore.List()
+	channelsUpdated := 0
+	for _, ch := range channels {
+		members, memberErr := channelStore.GetMembers(ch.Name)
+		if memberErr != nil {
+			continue
+		}
+		for _, member := range members {
+			if member == oldName {
+				// Remove old name, add new name
+				_ = channelStore.RemoveMember(ch.Name, oldName)
+				_ = channelStore.AddMember(ch.Name, newName)
+				channelsUpdated++
+				break
+			}
+		}
+	}
+	_ = channelStore.Close()
+	fmt.Printf("✓ (%d channels)\n", channelsUpdated)
+
+	// Step 3: Rename worktree directory if exists
+	oldWorktree := filepath.Join(ws.WorktreesDir(), oldName)
+	newWorktree := filepath.Join(ws.WorktreesDir(), newName)
+	if _, statErr := os.Stat(oldWorktree); statErr == nil {
+		fmt.Print("  Renaming worktree directory... ")
+		if renameErr := os.Rename(oldWorktree, newWorktree); renameErr != nil {
+			fmt.Println("✗")
+			log.Warn("failed to rename worktree directory", "error", renameErr)
+		} else {
+			fmt.Println("✓")
+		}
+	}
+
+	// Log event
+	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
+	_ = eventLog.Append(events.Event{
+		Type:    events.AgentSpawned, // Using spawned as rename event
+		Agent:   newName,
+		Message: fmt.Sprintf("renamed from %s", oldName),
+		Data: map[string]any{
+			"previous_name": oldName,
+		},
+	})
+
+	fmt.Printf("\nAgent '%s' has been renamed to '%s'.\n", oldName, newName)
 	return nil
 }
 
