@@ -353,7 +353,9 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 				}
 			}
 			existing.UpdatedAt = time.Now()
-			_ = m.saveState() //nolint:errcheck // best-effort state persistence
+			if err := m.saveState(); err != nil {
+				log.Warn("failed to save agent state", "error", err)
+			}
 			return existing, nil
 		}
 		// Session is dead but agent is in an active state — only respawn
@@ -407,7 +409,9 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 				return nil, fmt.Errorf("failed to recreate tmux session: %w", err)
 			}
 			existing.UpdatedAt = time.Now()
-			_ = m.saveState() //nolint:errcheck // best-effort state persistence
+			if err := m.saveState(); err != nil {
+				log.Warn("failed to save agent state", "error", err)
+			}
 			return existing, nil
 		}
 	}
@@ -539,7 +543,9 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	}
 
 	// Save state
-	_ = m.saveState() //nolint:errcheck // best-effort state persistence
+	if err := m.saveState(); err != nil {
+		log.Warn("failed to save agent state", "error", err)
+	}
 
 	return agent, nil
 }
@@ -746,7 +752,9 @@ func (m *Manager) StopAgent(name string) error {
 	// Remove from parent's children list
 	m.removeFromParent(name)
 
-	_ = m.saveState() //nolint:errcheck // best-effort state persistence
+	if err := m.saveState(); err != nil {
+		log.Warn("failed to save agent state", "error", err)
+	}
 
 	return nil
 }
@@ -817,7 +825,9 @@ func (m *Manager) DeleteAgent(name string) error {
 	// Delete from state
 	delete(m.agents, name)
 
-	_ = m.saveState() //nolint:errcheck // best-effort state persistence
+	if err := m.saveState(); err != nil {
+		log.Warn("failed to save agent state", "error", err)
+	}
 
 	return nil
 }
@@ -833,7 +843,9 @@ func (m *Manager) StopAll() error {
 		agent.UpdatedAt = time.Now()
 	}
 
-	_ = m.saveState() //nolint:errcheck // best-effort state persistence
+	if err := m.saveState(); err != nil {
+		log.Warn("failed to save agent state", "error", err)
+	}
 	return nil
 }
 
@@ -1095,7 +1107,9 @@ func (m *Manager) UpdateAgentState(name string, state State, task string) error 
 	agent.Task = task
 	agent.UpdatedAt = time.Now()
 
-	_ = m.saveState() //nolint:errcheck // best-effort state persistence
+	if err := m.saveState(); err != nil {
+		log.Warn("failed to save agent state", "error", err)
+	}
 	return nil
 }
 
@@ -1112,7 +1126,9 @@ func (m *Manager) SetAgentTeam(name, team string) error {
 	agent.Team = team
 	agent.UpdatedAt = time.Now()
 
-	_ = m.saveState() //nolint:errcheck // best-effort state persistence
+	if err := m.saveState(); err != nil {
+		log.Warn("failed to save agent state", "error", err)
+	}
 	return nil
 }
 
