@@ -358,14 +358,22 @@ func (m *Manager) IsRunning() bool {
 // KillServer kills the tmux server (all sessions).
 func (m *Manager) KillServer() error {
 	cmd := m.command("tmux", "kill-server")
-	return cmd.Run()
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to kill server: %w (%s)", err, string(output))
+	}
+	return nil
 }
 
 // SetEnvironment sets an environment variable in a session.
 func (m *Manager) SetEnvironment(name, key, value string) error {
 	fullName := m.SessionName(name)
 	cmd := m.command("tmux", "set-environment", "-t", fullName, key, value)
-	return cmd.Run()
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to set environment %s in %s: %w (%s)", key, fullName, err, string(output))
+	}
+	return nil
 }
 
 // generateBufferName creates a unique buffer name for tmux operations.
