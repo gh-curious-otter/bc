@@ -115,6 +115,22 @@ Examples:
 	RunE: runAgentSend,
 }
 
+// agentDeleteCmd permanently removes an agent
+var agentDeleteCmd = &cobra.Command{
+	Use:   "delete <agent>",
+	Short: "Permanently delete an agent",
+	Long: `Permanently delete an agent from the workspace.
+
+This removes the agent's tmux session, git worktree, memory directory,
+and all state. This action cannot be undone.
+
+Examples:
+  bc agent delete eng-01       # Delete eng-01
+  bc agent delete eng-01 --force  # Delete without confirmation`,
+	Args: cobra.ExactArgs(1),
+	RunE: runAgentDelete,
+}
+
 // Flags
 var (
 	agentCreateTool   string
@@ -125,6 +141,7 @@ var (
 	agentListJSON     bool
 	agentPeekLines    int
 	agentStopForce    bool
+	agentDeleteForce  bool
 )
 
 func init() {
@@ -144,6 +161,9 @@ func init() {
 	// Stop flags
 	agentStopCmd.Flags().BoolVar(&agentStopForce, "force", false, "Force stop without cleanup")
 
+	// Delete flags
+	agentDeleteCmd.Flags().BoolVar(&agentDeleteForce, "force", false, "Delete without confirmation")
+
 	// Add subcommands
 	agentCmd.AddCommand(agentCreateCmd)
 	agentCmd.AddCommand(agentListCmd)
@@ -151,6 +171,7 @@ func init() {
 	agentCmd.AddCommand(agentPeekCmd)
 	agentCmd.AddCommand(agentStopCmd)
 	agentCmd.AddCommand(agentSendCmd)
+	agentCmd.AddCommand(agentDeleteCmd)
 
 	// Add parent command to root
 	rootCmd.AddCommand(agentCmd)
@@ -483,6 +504,61 @@ func runAgentSend(cmd *cobra.Command, args []string) error {
 	})
 
 	fmt.Printf("Sent to %s: %s\n", agentName, message)
+	return nil
+}
+
+func runAgentDelete(cmd *cobra.Command, args []string) error {
+	agentName := args[0]
+
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+
+	a := mgr.GetAgent(agentName)
+	if a == nil {
+		return fmt.Errorf("agent '%s' not found", agentName)
+	}
+
+	// Confirm deletion unless --force is used
+	if !agentDeleteForce {
+		fmt.Printf("Delete agent '%s'? This will remove:\n", agentName)
+		fmt.Println("  - tmux session")
+		fmt.Println("  - git worktree")
+		fmt.Println("  - memory directory")
+		fmt.Println("  - agent state")
+		fmt.Print("\nType 'yes' to confirm: ")
+
+		var response string
+		if _, scanErr := fmt.Scanln(&response); scanErr != nil {
+			return fmt.Errorf("deletion canceled")
+		}
+		if response != "yes" {
+			return fmt.Errorf("deletion canceled")
+		}
+	}
+
+	fmt.Printf("Deleting %s... ", agentName)
+	if delErr := mgr.DeleteAgent(agentName); delErr != nil {
+		fmt.Println("✗")
+		return fmt.Errorf("failed to delete %s: %w", agentName, delErr)
+	}
+	fmt.Println("✓")
+
+	// Log event
+	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
+	_ = eventLog.Append(events.Event{
+		Type:    events.AgentStopped,
+		Agent:   agentName,
+		Message: "deleted via bc agent delete",
+	})
+
+	fmt.Printf("Agent '%s' has been permanently deleted.\n", agentName)
 	return nil
 }
 

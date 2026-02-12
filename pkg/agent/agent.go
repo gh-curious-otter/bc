@@ -781,6 +781,47 @@ func (m *Manager) stopAgentTreeLocked(name string) error {
 	return nil
 }
 
+// DeleteAgent permanently removes an agent from the workspace.
+// This stops the agent, removes its worktree, memory directory, and state.
+func (m *Manager) DeleteAgent(name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	log.Debug("deleting agent", "name", name)
+
+	agent, exists := m.agents[name]
+	if !exists {
+		return fmt.Errorf("agent %s not found", name)
+	}
+
+	// Kill tmux session (ignore error - session might already be dead)
+	_ = m.tmux.KillSession(name)
+
+	// Clean up per-agent git worktree
+	if agent.WorktreeDir != "" && agent.WorktreeDir != agent.Workspace {
+		removeWorktree(agent.Workspace, agent.WorktreeDir)
+	}
+
+	// Clean up per-agent memory directory
+	if agent.MemoryDir != "" {
+		if err := os.RemoveAll(agent.MemoryDir); err != nil {
+			log.Warn("failed to remove memory dir", "dir", agent.MemoryDir, "error", err)
+		} else {
+			log.Debug("removed memory dir", "dir", agent.MemoryDir)
+		}
+	}
+
+	// Remove from parent's children list
+	m.removeFromParent(name)
+
+	// Delete from state
+	delete(m.agents, name)
+
+	_ = m.saveState() //nolint:errcheck // best-effort state persistence
+
+	return nil
+}
+
 // StopAll stops all agents.
 func (m *Manager) StopAll() error {
 	m.mu.Lock()
