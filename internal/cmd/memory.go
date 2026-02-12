@@ -111,25 +111,29 @@ are always preserved regardless of age.
 
 By default, creates a backup before pruning. Use --no-backup to skip.
 
+Use --learnings to also clear learnings (reset to header only).
+
 Example:
   bc memory prune --older-than 30d              # Remove experiences older than 30 days
   bc memory prune --older-than 7d --dry-run     # Preview what would be removed
   bc memory prune --older-than 90d --no-backup  # Prune without backup
-  bc memory prune --agent engineer-01           # Prune specific agent`,
+  bc memory prune --agent engineer-01           # Prune specific agent
+  bc memory prune --learnings                   # Also clear learnings`,
 	RunE: runMemoryPrune,
 }
 
 var (
-	memoryOutcome     string
-	memoryTaskID      string
-	memoryTaskType    string
-	memoryShowExp     bool
-	memoryShowLearn   bool
-	memorySearchAgent string
-	memoryPruneAgent  string
-	memoryOlderThan   string
-	memoryDryRun      bool
-	memoryNoBackup    bool
+	memoryOutcome          string
+	memoryTaskID           string
+	memoryTaskType         string
+	memoryShowExp          bool
+	memoryShowLearn        bool
+	memorySearchAgent      string
+	memoryPruneAgent       string
+	memoryOlderThan        string
+	memoryDryRun           bool
+	memoryNoBackup         bool
+	memoryIncludeLearnings bool
 )
 
 func init() {
@@ -146,6 +150,7 @@ func init() {
 	memoryPruneCmd.Flags().StringVar(&memoryOlderThan, "older-than", "30d", "Remove experiences older than this duration (e.g., 7d, 30d, 90d)")
 	memoryPruneCmd.Flags().BoolVar(&memoryDryRun, "dry-run", false, "Preview what would be removed without actually deleting")
 	memoryPruneCmd.Flags().BoolVar(&memoryNoBackup, "no-backup", false, "Skip creating backup before pruning")
+	memoryPruneCmd.Flags().BoolVar(&memoryIncludeLearnings, "learnings", false, "Also clear learnings (reset to header only)")
 
 	memoryCmd.AddCommand(memoryRecordCmd)
 	memoryCmd.AddCommand(memoryLearnCmd)
@@ -539,9 +544,10 @@ func runMemoryPrune(cmd *cobra.Command, args []string) error {
 		}
 
 		opts := memory.PruneOptions{
-			OlderThan: duration,
-			DryRun:    memoryDryRun,
-			Backup:    !memoryNoBackup,
+			OlderThan:        duration,
+			DryRun:           memoryDryRun,
+			Backup:           !memoryNoBackup,
+			IncludeLearnings: memoryIncludeLearnings,
 		}
 
 		result, pruneErr := store.Prune(opts)
@@ -550,7 +556,7 @@ func runMemoryPrune(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		if result.PrunedExperiences > 0 || result.PreservedPinned > 0 {
+		if result.PrunedExperiences > 0 || result.PreservedPinned > 0 || result.LearningsCleared {
 			cmd.Printf("[%s] ", agentID)
 			if memoryDryRun {
 				cmd.Printf("Would prune %d/%d experiences", result.PrunedExperiences, result.TotalExperiences)
@@ -559,6 +565,13 @@ func runMemoryPrune(cmd *cobra.Command, args []string) error {
 			}
 			if result.PreservedPinned > 0 {
 				cmd.Printf(" (preserved %d pinned)", result.PreservedPinned)
+			}
+			if result.LearningsCleared {
+				if memoryDryRun {
+					cmd.Printf(", would clear learnings")
+				} else {
+					cmd.Printf(", cleared learnings")
+				}
 			}
 			if result.BackupPath != "" {
 				cmd.Printf("\n    Backup: %s", result.BackupPath)
