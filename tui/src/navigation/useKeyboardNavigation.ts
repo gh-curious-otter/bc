@@ -18,11 +18,10 @@ export interface UseKeyboardNavigationOptions {
  * - ? shows help
  * - ESC goes back/home
  * - q quits the application
- * - Backspace goes back in history
  */
 export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}): void {
   const { disabled = false, onQuit } = options;
-  const { navigate, goBack, goHome, getTabByKey, canGoBack } = useNavigation();
+  const { navigate, goHome, getTabByKey } = useNavigation();
 
   useInput(
     (input, key) => {
@@ -33,21 +32,9 @@ export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}
         return;
       }
 
-      // ESC: go back if possible, otherwise go home
+      // ESC: go home
       if (key.escape) {
-        if (canGoBack) {
-          goBack();
-        } else {
-          goHome();
-        }
-        return;
-      }
-
-      // Backspace: go back in history
-      if (key.backspace || key.delete) {
-        if (canGoBack) {
-          goBack();
-        }
+        goHome();
         return;
       }
 
