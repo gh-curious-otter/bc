@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
+import { ChannelsView } from './components/ChannelsView';
 
 // View types for navigation
 type View = 'dashboard' | 'agents' | 'channels' | 'costs' | 'help';
@@ -94,7 +95,7 @@ function ViewContent({ view }: { view: View }): React.ReactElement {
     case 'agents':
       return <AgentsView />;
     case 'channels':
-      return <ChannelsView />;
+      return <ChannelsView disableInput={false} />;
     case 'costs':
       return <CostsView />;
     case 'help':
@@ -119,15 +120,6 @@ function AgentsView(): React.ReactElement {
     <Box flexDirection="column">
       <Text bold>Agents</Text>
       <Text dimColor>Loading agents...</Text>
-    </Box>
-  );
-}
-
-function ChannelsView(): React.ReactElement {
-  return (
-    <Box flexDirection="column">
-      <Text bold>Channels</Text>
-      <Text dimColor>Loading channels...</Text>
     </Box>
   );
 }

@@ -51,7 +51,7 @@
     "resolveJsonModule": true,
 
     // Types
-    "types": ["bun-types", "react"]
+    "types": ["bun", "react"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"]

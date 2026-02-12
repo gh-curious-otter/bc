@@ -79,7 +79,6 @@ export function useStatus(options: UseStatusOptions = {}): UseStatusResult {
         workspace: status.workspace,
         total: status.total,
         active: status.active,
-        working: status.working,
         ...counts,
       });
       setError(null);
