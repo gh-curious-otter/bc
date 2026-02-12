@@ -558,3 +558,57 @@ func TestIsDetachedHead_DetachedWithChanges(t *testing.T) {
 		t.Error("expected false (has uncommitted changes), got true")
 	}
 }
+
+func TestWorktreeListOrphanedFlag(t *testing.T) {
+	// Create a workspace with agents and worktrees, plus an orphaned worktree
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	worktreesDir := filepath.Join(wsDir, ".bc", "worktrees")
+	agentsDir := filepath.Join(wsDir, ".bc", "agents")
+
+	// Register agents via agents.json
+	agents := map[string]*agent.Agent{
+		"eng-01": {Name: "eng-01", Role: agent.Role("engineer"), State: agent.StateIdle},
+		"eng-02": {Name: "eng-02", Role: agent.Role("engineer"), State: agent.StateIdle},
+	}
+	data, err := json.Marshal(agents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if writeErr := os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0o600); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+
+	// Create worktrees for registered agents
+	_ = os.MkdirAll(filepath.Join(worktreesDir, "eng-01"), 0750)
+	_ = os.MkdirAll(filepath.Join(worktreesDir, "eng-02"), 0750)
+
+	// Create orphaned worktree (no agent registration)
+	_ = os.MkdirAll(filepath.Join(worktreesDir, "orphan-01"), 0750)
+	_ = os.MkdirAll(filepath.Join(worktreesDir, "orphan-02"), 0750)
+
+	// Test with --orphaned flag
+	stdout, _, err := executeIntegrationCmd("worktree", "list", "--orphaned")
+	if err != nil {
+		t.Fatalf("worktree list --orphaned failed: %v", err)
+	}
+
+	// Should only show orphaned worktrees
+	if !strings.Contains(stdout, "orphan-01") {
+		t.Error("expected orphan-01 in output")
+	}
+	if !strings.Contains(stdout, "orphan-02") {
+		t.Error("expected orphan-02 in output")
+	}
+	// eng-01 and eng-02 have worktrees and are registered, so they should NOT appear
+	lines := strings.Split(stdout, "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "eng-01") && strings.Contains(line, "OK") {
+			t.Error("eng-01 with OK status should not appear when --orphaned is used")
+		}
+		if strings.Contains(line, "eng-02") && strings.Contains(line, "OK") {
+			t.Error("eng-02 with OK status should not appear when --orphaned is used")
+		}
+	}
+}
