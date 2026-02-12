@@ -63,6 +63,18 @@ var teamRemoveCmd = &cobra.Command{
 	RunE:  runTeamRemove,
 }
 
+var teamRenameCmd = &cobra.Command{
+	Use:   "rename <old-name> <new-name>",
+	Short: "Rename a team",
+	Long: `Rename a team while preserving all members and settings.
+
+Examples:
+  bc team rename frontend web-team
+  bc team rename backend api-team`,
+	Args: cobra.ExactArgs(2),
+	RunE: runTeamRename,
+}
+
 func init() {
 	teamCmd.AddCommand(teamCreateCmd)
 	teamCmd.AddCommand(teamListCmd)
@@ -70,6 +82,7 @@ func init() {
 	teamCmd.AddCommand(teamDeleteCmd)
 	teamCmd.AddCommand(teamAddCmd)
 	teamCmd.AddCommand(teamRemoveCmd)
+	teamCmd.AddCommand(teamRenameCmd)
 	rootCmd.AddCommand(teamCmd)
 }
 
@@ -216,5 +229,63 @@ func runTeamRemove(cmd *cobra.Command, args []string) error {
 	}
 
 	cmd.Printf("Removed %q from team %q\n", agentName, teamName)
+	return nil
+}
+
+func runTeamRename(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	oldName := args[0]
+	newName := args[1]
+	store := team.NewStore(ws.RootDir)
+
+	// Get old team
+	oldTeam, err := store.Get(oldName)
+	if err != nil {
+		return err
+	}
+	if oldTeam == nil {
+		return fmt.Errorf("team %q not found", oldName)
+	}
+
+	// Check new name doesn't exist
+	if store.Exists(newName) {
+		return fmt.Errorf("team %q already exists", newName)
+	}
+
+	// Create new team
+	newTeam, err := store.Create(newName)
+	if err != nil {
+		return fmt.Errorf("failed to create new team: %w", err)
+	}
+
+	// Copy properties from old team
+	if updateErr := store.Update(newName, func(t *team.Team) {
+		t.Description = oldTeam.Description
+		t.Members = oldTeam.Members
+		t.Lead = oldTeam.Lead
+		t.CreatedAt = oldTeam.CreatedAt // Preserve original creation time
+	}); updateErr != nil {
+		// Cleanup: delete the new team we just created
+		_ = store.Delete(newName)
+		return fmt.Errorf("failed to update new team: %w", updateErr)
+	}
+
+	// Delete old team
+	if deleteErr := store.Delete(oldName); deleteErr != nil {
+		cmd.PrintErrf("Warning: renamed to %q but failed to delete old team %q: %v\n", newName, oldName, deleteErr)
+	}
+
+	cmd.Printf("✓ Renamed team %q to %q\n", oldName, newName)
+	if len(newTeam.Members) > 0 || oldTeam.Lead != "" {
+		cmd.Printf("  Members: %d\n", len(oldTeam.Members))
+		if oldTeam.Lead != "" {
+			cmd.Printf("  Lead: %s\n", oldTeam.Lead)
+		}
+	}
+
 	return nil
 }
