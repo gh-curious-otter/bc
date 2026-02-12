@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { ChannelsView } from './components/ChannelsView';
+import { CostsView } from './components/CostsView';
 
 // View types for navigation
 type View = 'dashboard' | 'agents' | 'channels' | 'costs' | 'help';
@@ -97,7 +98,7 @@ function ViewContent({ view }: { view: View }): React.ReactElement {
     case 'channels':
       return <ChannelsView disableInput={false} />;
     case 'costs':
-      return <CostsView />;
+      return <CostsView disableInput={false} />;
     case 'help':
       return <HelpView />;
     default:
@@ -120,15 +121,6 @@ function AgentsView(): React.ReactElement {
     <Box flexDirection="column">
       <Text bold>Agents</Text>
       <Text dimColor>Loading agents...</Text>
-    </Box>
-  );
-}
-
-function CostsView(): React.ReactElement {
-  return (
-    <Box flexDirection="column">
-      <Text bold>Costs</Text>
-      <Text dimColor>Loading cost data...</Text>
     </Box>
   );
 }

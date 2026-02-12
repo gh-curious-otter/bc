@@ -30,3 +30,9 @@ export {
   type UseChannelHistoryOptions,
   type UseChannelHistoryResult,
 } from './useChannels';
+
+export {
+  useCosts,
+  type UseCostsOptions,
+  type UseCostsResult,
+} from './useCosts';
