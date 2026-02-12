@@ -38,3 +38,16 @@ export {
 } from './useCosts';
 
 export { useDashboard } from './useDashboard';
+
+export {
+  useMessagePolling,
+  useAgentPolling,
+  useCoordinatedPolling,
+  type UsePollingOptions,
+  type UseMessagePollingOptions,
+  type UseMessagePollingResult,
+  type UseAgentPollingOptions,
+  type UseAgentPollingResult,
+  type AgentChange,
+  type UseCoordinatedPollingOptions,
+} from './usePolling';
