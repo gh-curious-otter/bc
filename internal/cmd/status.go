@@ -115,7 +115,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
-	fmt.Println("Symbols:")
+	fmt.Println("Symbols (in TASK column):")
 	fmt.Println("  ✻ ✳ ✽ ·  Thinking (agent is processing)")
 	fmt.Println("  ⏺        Tool call (agent is running a tool)")
 	fmt.Println("  ❯        Prompt (agent is waiting for input)")
