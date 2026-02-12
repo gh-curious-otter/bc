@@ -27,8 +27,8 @@ func TestBuildBootstrapPrompt_Structure(t *testing.T) {
 	}
 
 	// Verify BC commands section
-	if !strings.Contains(prompt, "=== BC COMMANDS ===") {
-		t.Error("prompt should contain BC commands section")
+	if !strings.Contains(prompt, "=== BC COMMAND REFERENCE ===") {
+		t.Error("prompt should contain BC command reference section")
 	}
 	// Check for key command categories
 	if !strings.Contains(prompt, "** Agent Operations **") {
