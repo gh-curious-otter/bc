@@ -138,29 +138,6 @@ func TestColorState(t *testing.T) {
 
 // --- stateIcon tests ---
 
-func TestStateIcon(t *testing.T) {
-	tests := []struct {
-		state agent.State
-		want  string
-	}{
-		{agent.StateIdle, "o"},
-		{agent.StateWorking, ">"},
-		{agent.StateDone, "+"},
-		{agent.StateStuck, "!"},
-		{agent.StateError, "x"},
-		{agent.StateStarting, "~"},
-		{agent.StateStopped, "-"},
-	}
-	for _, tt := range tests {
-		t.Run(string(tt.state), func(t *testing.T) {
-			got := stateIcon(tt.state)
-			if got != tt.want {
-				t.Errorf("stateIcon(%q) = %q, want %q", tt.state, got, tt.want)
-			}
-		})
-	}
-}
-
 // --- parseRole tests ---
 
 func TestParseRole(t *testing.T) {

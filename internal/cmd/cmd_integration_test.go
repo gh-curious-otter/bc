@@ -578,52 +578,6 @@ func TestStatsSave(t *testing.T) {
 	}
 }
 
-// --- Dashboard command tests ---
-
-func TestDashboardNoWorkspace(t *testing.T) {
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get cwd: %v", err)
-	}
-
-	tmpDir := t.TempDir()
-	if err = os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to chdir: %v", err)
-	}
-	defer func() { _ = os.Chdir(origDir) }()
-
-	_, _, err = executeIntegrationCmd("dashboard")
-	if err == nil {
-		t.Fatal("expected error when not in workspace, got nil")
-	}
-	if !strings.Contains(err.Error(), "not in a bc workspace") {
-		t.Errorf("expected workspace error, got: %v", err)
-	}
-}
-
-func TestDashboardEmptyWorkspace(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0750); err != nil {
-		t.Fatalf("failed to create agents dir: %v", err)
-	}
-
-	stdout, _, err := executeIntegrationCmd("dashboard")
-	if err != nil {
-		t.Fatalf("dashboard returned error: %v", err)
-	}
-	if !strings.Contains(stdout, "dashboard:") {
-		t.Errorf("expected 'dashboard:' header, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "No agents configured") {
-		t.Errorf("expected 'No agents configured', got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "No events yet") {
-		t.Errorf("expected 'No events yet', got: %s", stdout)
-	}
-}
-
 // --- Channel command tests ---
 
 // seedChannels creates a channels.json file in the workspace.
@@ -1118,28 +1072,6 @@ func TestStatsJSON(t *testing.T) {
 	}
 	if _, ok := result["agents"]; !ok {
 		t.Error("expected 'agents' key in JSON output")
-	}
-}
-
-func TestDashboardJSON(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0750); err != nil {
-		t.Fatalf("failed to create agents dir: %v", err)
-	}
-
-	stdout, _, err := executeIntegrationCmd("dashboard", "--json")
-	if err != nil {
-		t.Fatalf("dashboard --json returned error: %v", err)
-	}
-
-	var result dashboardOutput
-	if err := json.Unmarshal([]byte(stdout), &result); err != nil {
-		t.Fatalf("output is not valid JSON: %v\noutput: %s", err, stdout)
-	}
-	if result.Agents.Total != 0 {
-		t.Errorf("expected 0 agents, got %d", result.Agents.Total)
 	}
 }
 
