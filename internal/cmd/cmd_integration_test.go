@@ -288,7 +288,7 @@ func TestStatusEmptyWorkspace(t *testing.T) {
 	if !strings.Contains(stdout, "No agents configured") {
 		t.Errorf("expected 'No agents configured', got: %s", stdout)
 	}
-	if !strings.Contains(stdout, "bc workspace:") {
+	if !strings.Contains(stdout, "Workspace:") {
 		t.Errorf("expected workspace path in output, got: %s", stdout)
 	}
 }
