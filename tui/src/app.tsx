@@ -12,6 +12,8 @@ import {
   type View,
 } from './navigation';
 import { ThemeProvider, useTheme, type ThemeMode } from './theme';
+import { Dashboard } from './views/Dashboard';
+import { AgentsView } from './views/AgentsView';
 import { ChannelsView } from './components/ChannelsView';
 import { CostsView } from './components/CostsView';
 
@@ -73,7 +75,7 @@ interface ViewContentProps {
 function ViewContent({ view, disableInput }: ViewContentProps): React.ReactElement {
   switch (view) {
     case 'dashboard':
-      return <DashboardView />;
+      return <Dashboard />;
     case 'agents':
       return <AgentsView />;
     case 'channels':
@@ -85,25 +87,6 @@ function ViewContent({ view, disableInput }: ViewContentProps): React.ReactEleme
     default:
       return <Text>Unknown view</Text>;
   }
-}
-
-// Placeholder views - will be implemented in Phase 2
-function DashboardView(): React.ReactElement {
-  return (
-    <Box flexDirection="column">
-      <Text bold>Dashboard</Text>
-      <Text dimColor>Loading workspace status...</Text>
-    </Box>
-  );
-}
-
-function AgentsView(): React.ReactElement {
-  return (
-    <Box flexDirection="column">
-      <Text bold>Agents</Text>
-      <Text dimColor>Loading agents...</Text>
-    </Box>
-  );
 }
 
 function HelpView(): React.ReactElement {
