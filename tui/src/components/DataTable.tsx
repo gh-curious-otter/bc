@@ -1,5 +1,5 @@
 import React, { memo, useMemo } from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useStdout } from 'ink';
 
 export interface Column<T> {
   key: keyof T;
@@ -36,6 +36,9 @@ export function DataTable<T extends Record<string, unknown>>({
   maxVisibleRows,
   scrollOffset = 0,
 }: DataTableProps<T>) {
+  const { stdout } = useStdout();
+  const terminalWidth = stdout?.columns ?? 80;
+
   if (data.length === 0) {
     return <Text dimColor>{emptyMessage}</Text>;
   }
@@ -58,7 +61,7 @@ export function DataTable<T extends Record<string, unknown>>({
   }, [selectedIndex, maxVisibleRows, scrollOffset]);
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1} width={terminalWidth}>
       {/* Header row */}
       {showHeader && (
         <Box>

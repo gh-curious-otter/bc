@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text, useInput, useStdout } from 'ink';
 import { Panel } from '../components/Panel.js';
 import { MetricCard } from '../components/MetricCard.js';
 import { DataTable } from '../components/DataTable.js';
@@ -18,6 +18,9 @@ interface DashboardProps {
  * Issues #543 (layout), #544 (stats components)
  */
 export function Dashboard({ onNavigate }: DashboardProps) {
+  const { stdout } = useStdout();
+  const terminalWidth = stdout?.columns ?? 80;
+
   const {
     summary,
     agents,
@@ -57,7 +60,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   }
 
   return (
-    <Box flexDirection="column" padding={1}>
+    <Box flexDirection="column" padding={1} width={terminalWidth}>
       {/* Header with activity indicator */}
       <Header
         workspaceName={summary.workspaceName}

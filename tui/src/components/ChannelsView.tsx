@@ -69,7 +69,7 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
     <Box flexDirection="column">
       <Text bold>Channels</Text>
       <Text dimColor>↑/↓ navigate, Enter to view messages, ESC to go back</Text>
-      <Box marginTop={1} flexDirection="column">
+      <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1}>
         {channels?.map((channel, index) => (
           <ChannelRow
             key={channel.name}
