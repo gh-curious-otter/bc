@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useStdout } from 'ink';
 import { useCosts } from '../hooks';
 
 interface CostsViewProps {
@@ -12,11 +12,14 @@ interface CostsViewProps {
 }
 
 export function CostsView({ disableInput: _disableInput = false }: CostsViewProps): React.ReactElement {
+  const { stdout } = useStdout();
+  const terminalWidth = stdout?.columns ?? 80;
+
   const { data: costs, loading, error } = useCosts();
 
   if (loading) {
     return (
-      <Box flexDirection="column">
+      <Box flexDirection="column" width={terminalWidth}>
         <Text bold>Costs</Text>
         <Text dimColor>Loading cost data...</Text>
       </Box>
@@ -25,7 +28,7 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
 
   if (error) {
     return (
-      <Box flexDirection="column">
+      <Box flexDirection="column" width={terminalWidth}>
         <Text bold>Costs</Text>
         <Text color="red">Error: {error}</Text>
       </Box>
@@ -34,7 +37,7 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
 
   if (!costs) {
     return (
-      <Box flexDirection="column">
+      <Box flexDirection="column" width={terminalWidth}>
         <Text bold>Costs</Text>
         <Text dimColor>No cost data available</Text>
       </Box>
@@ -42,11 +45,11 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
   }
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" width={terminalWidth} padding={1}>
       <Text bold>Cost Dashboard</Text>
 
       {/* Summary */}
-      <Box marginTop={1} flexDirection="column">
+      <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1} width={terminalWidth - 2}>
         <Text bold color="cyan">Summary</Text>
         <Box>
           <Text>Total Cost: </Text>
@@ -63,7 +66,7 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
       </Box>
 
       {/* By Agent */}
-      <Box marginTop={1} flexDirection="column">
+      <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1} width={terminalWidth - 2}>
         <Text bold color="cyan">By Agent</Text>
         {Object.entries(costs.by_agent).length === 0 ? (
           <Text dimColor>No agent costs recorded</Text>
@@ -81,7 +84,7 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
       </Box>
 
       {/* By Model */}
-      <Box marginTop={1} flexDirection="column">
+      <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1} width={terminalWidth - 2}>
         <Text bold color="cyan">By Model</Text>
         {Object.entries(costs.by_model).length === 0 ? (
           <Text dimColor>No model costs recorded</Text>
@@ -99,7 +102,7 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
 
       {/* By Team */}
       {Object.keys(costs.by_team).length > 0 && (
-        <Box marginTop={1} flexDirection="column">
+        <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1} width={terminalWidth - 2}>
           <Text bold color="cyan">By Team</Text>
           {Object.entries(costs.by_team)
             .sort(([, a], [, b]) => b - a)
