@@ -2,9 +2,10 @@
  * ChannelsView - Channel list and message history component
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useChannels, useChannelHistory } from '../hooks';
+import { useFocus } from '../navigation/FocusContext';
 import type { Channel } from '../types';
 
 interface ChannelsViewProps {
@@ -117,6 +118,16 @@ function ChannelHistoryView({
   const [inputMode, setInputMode] = useState(false);
   const [messageBuffer, setMessageBuffer] = useState('');
   const [scrollOffset, setScrollOffset] = useState(0);
+  const { setFocus, returnFocus } = useFocus();
+
+  // Manage focus when entering/exiting input mode
+  useEffect(() => {
+    if (inputMode) {
+      setFocus('input');
+    } else {
+      returnFocus();
+    }
+  }, [inputMode, setFocus, returnFocus]);
 
   useInput(
     (input, key) => {
