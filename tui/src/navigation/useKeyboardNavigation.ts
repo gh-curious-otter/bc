@@ -4,6 +4,7 @@
 
 import { useInput } from 'ink';
 import { useNavigation } from './NavigationContext';
+import { useFocus } from './FocusContext';
 
 export interface UseKeyboardNavigationOptions {
   /** Disable keyboard handling (useful for testing or when another component captures input) */
@@ -22,9 +23,15 @@ export interface UseKeyboardNavigationOptions {
 export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}): void {
   const { disabled = false, onQuit } = options;
   const { navigate, goHome, getTabByKey } = useNavigation();
+  const { isFocused } = useFocus();
 
   useInput(
     (input, key) => {
+      // Don't handle global keys when input is focused
+      if (isFocused('input')) {
+        return;
+      }
+
       // Tab navigation with number keys (1-9) and ?
       const tab = getTabByKey(input);
       if (tab) {
