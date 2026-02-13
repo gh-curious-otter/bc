@@ -181,7 +181,7 @@ function ChannelHistoryView({
       </Box>
 
       {/* Message area - flex grow to fill available space */}
-      <Box marginBottom={1} flexDirection="column" flex={1}>
+      <Box marginBottom={1} flexDirection="column" flexGrow={1}>
         {loading && <Text dimColor>Loading messages...</Text>}
         {error && <Text color="red">Error: {error}</Text>}
         {!loading && !error && (
