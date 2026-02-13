@@ -3,7 +3,7 @@
  */
 
 import React, { useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text, useInput, useStdout } from 'ink';
 import { useChannels, useChannelHistory } from '../hooks';
 import type { Channel } from '../types';
 
@@ -159,15 +159,18 @@ function ChannelHistoryView({
   const hasMoreBelow = messages && messages.length > 10 && scrollOffset < messages.length - 10;
 
   return (
-    <Box flexDirection="column" height="100%">
-      <Box>
-        <Text bold color="cyan">#{channel.name}</Text>
-        <Text dimColor> - {channel.members.length} members</Text>
+    <Box flexDirection="column" width="100%" height="100%">
+      {/* Header section - fixed height */}
+      <Box flexDirection="column" height={3} marginBottom={1}>
+        <Box>
+          <Text bold color="cyan">#{channel.name}</Text>
+          <Text dimColor> - {channel.members.length} members</Text>
+        </Box>
+        <Text dimColor>ESC to go back, m to compose, j/k to scroll</Text>
       </Box>
-      <Text dimColor>ESC to go back, m to compose, j/k to scroll</Text>
 
-      {/* Message area - flex grow to push input to bottom */}
-      <Box marginTop={1} flexDirection="column" flexGrow={1}>
+      {/* Message area - flex grow to fill available space */}
+      <Box marginBottom={1} flexDirection="column" flex={1}>
         {loading && <Text dimColor>Loading messages...</Text>}
         {error && <Text color="red">Error: {error}</Text>}
         {!loading && !error && (
@@ -187,8 +190,8 @@ function ChannelHistoryView({
         )}
       </Box>
 
-      {/* Input area - anchored at bottom */}
-      <Box borderStyle="single" borderColor={inputMode ? 'cyan' : 'gray'} paddingX={1}>
+      {/* Input area - fixed height with proper separation */}
+      <Box height={3} flexDirection="column" marginBottom={1} borderStyle="single" borderColor={inputMode ? 'cyan' : 'gray'} paddingX={1}>
         {inputMode ? (
           <Text>
             <Text color="cyan">{'> '}</Text>
@@ -198,6 +201,11 @@ function ChannelHistoryView({
         ) : (
           <Text dimColor>Press m to compose message</Text>
         )}
+      </Box>
+
+      {/* Footer - anchored at bottom */}
+      <Box height={1}>
+        <Text dimColor>ESC: back  m: compose  j/k: scroll  [?] help  Theme: dark</Text>
       </Box>
     </Box>
   );
