@@ -3,7 +3,7 @@
  */
 
 import React, { useState } from 'react';
-import { Box, Text, useInput, useStdout } from 'ink';
+import { Box, Text, useInput } from 'ink';
 import { useChannels, useChannelHistory } from '../hooks';
 import type { Channel } from '../types';
 
