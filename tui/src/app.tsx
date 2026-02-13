@@ -9,6 +9,7 @@ import {
   useNavigation,
   useKeyboardNavigation,
   TabBar,
+  FocusProvider,
   type View,
 } from './navigation';
 import { ThemeProvider, useTheme, type ThemeMode } from './theme';
@@ -34,7 +35,9 @@ export function App({
   return (
     <ThemeProvider config={{ mode: themeMode }}>
       <NavigationProvider initialView={initialView}>
-        <AppContent disableInput={disableInput} />
+        <FocusProvider>
+          <AppContent disableInput={disableInput} />
+        </FocusProvider>
       </NavigationProvider>
     </ThemeProvider>
   );
