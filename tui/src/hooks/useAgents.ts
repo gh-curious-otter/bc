@@ -68,7 +68,7 @@ export function useAgents(options: UseAgentsOptions = {}): UseAgentsResult {
     if (!autoPoll) return;
 
     const interval = setInterval(fetchAgents, pollInterval);
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); };
   }, [autoPoll, pollInterval, fetchAgents]);
 
   return {

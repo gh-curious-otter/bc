@@ -47,7 +47,7 @@ export function useChannels(options: UseChannelsOptions = {}): UseChannelsResult
   useEffect(() => {
     if (!autoPoll) return;
     const interval = setInterval(fetchChannels, pollInterval);
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); };
   }, [autoPoll, pollInterval, fetchChannels]);
 
   return { data, error, loading, refresh: fetchChannels };
@@ -112,7 +112,7 @@ export function useChannelHistory(
   useEffect(() => {
     if (!autoPoll) return;
     const interval = setInterval(fetchHistory, pollInterval);
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); };
   }, [autoPoll, pollInterval, fetchHistory]);
 
   return {
@@ -150,13 +150,13 @@ export function useUnreadCount(
  * Hook to get all channels with their unread counts
  */
 export function useChannelsWithUnread(options?: UseChannelsOptions): {
-  channels: Array<Channel & { unread: number }> | null;
+  channels: (Channel & { unread: number })[] | null;
   loading: boolean;
   error: string | null;
 } {
   const { data: channels, loading: channelsLoading, error } = useChannels(options);
   const [channelsWithUnread, setChannelsWithUnread] = useState<
-    Array<Channel & { unread: number }> | null
+    (Channel & { unread: number })[] | null
   >(null);
 
   useEffect(() => {

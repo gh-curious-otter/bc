@@ -147,7 +147,7 @@ export function useListNavigation<T>(
   return {
     selectedIndex,
     selectedItem,
-    setSelectedIndex: (index) => setSelectedIndex(clampIndex(index)),
+    setSelectedIndex: (index) => { setSelectedIndex(clampIndex(index)); },
     moveDown,
     moveUp,
     jumpToFirst,

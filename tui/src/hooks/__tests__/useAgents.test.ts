@@ -355,7 +355,7 @@ describe.skip('useAgents - Error recovery', () => {
     mockBcService.getStatus.mockImplementation(
       () =>
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Request timeout')), 35000)
+          setTimeout(() => { reject(new Error('Request timeout')); }, 35000)
         )
     );
 

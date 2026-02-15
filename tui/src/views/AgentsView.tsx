@@ -48,7 +48,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
     return (
       <AgentDetailView
         agent={selectedAgent}
-        onBack={() => setShowDetail(false)}
+        onBack={() => { setShowDetail(false); }}
       />
     );
   }
@@ -76,7 +76,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       width: 40,
       render: (agent) => (
         <Text wrap="truncate">
-          {agent.task?.slice(0, 38) || '-'}
+          {agent.task.slice(0, 38) || '-'}
         </Text>
       ),
     },

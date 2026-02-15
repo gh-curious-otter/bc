@@ -53,8 +53,8 @@ export function useProcesses(options: UseProcessesOptions = {}): UseProcessesRes
     }
   }, [onUpdate]);
 
-  const pause = useCallback(() => setIsPolling(false), []);
-  const resume = useCallback(() => setIsPolling(true), []);
+  const pause = useCallback(() => { setIsPolling(false); }, []);
+  const resume = useCallback(() => { setIsPolling(true); }, []);
 
   // Initial fetch
   useEffect(() => {
@@ -65,7 +65,7 @@ export function useProcesses(options: UseProcessesOptions = {}): UseProcessesRes
   useEffect(() => {
     if (!isPolling) return;
     const timer = setInterval(fetchProcesses, interval);
-    return () => clearInterval(timer);
+    return () => { clearInterval(timer); };
   }, [isPolling, interval, fetchProcesses]);
 
   return {
@@ -124,8 +124,8 @@ export function useProcessLogs(options: UseProcessLogsOptions): UseProcessLogsRe
     }
   }, [name, lines]);
 
-  const pause = useCallback(() => setIsPolling(false), []);
-  const resume = useCallback(() => setIsPolling(true), []);
+  const pause = useCallback(() => { setIsPolling(false); }, []);
+  const resume = useCallback(() => { setIsPolling(true); }, []);
 
   // Initial fetch and reset on name change
   useEffect(() => {
@@ -138,7 +138,7 @@ export function useProcessLogs(options: UseProcessLogsOptions): UseProcessLogsRe
   useEffect(() => {
     if (!isPolling) return;
     const timer = setInterval(fetchLogs, interval);
-    return () => clearInterval(timer);
+    return () => { clearInterval(timer); };
   }, [isPolling, interval, fetchLogs]);
 
   return {

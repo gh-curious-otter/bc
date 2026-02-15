@@ -37,7 +37,7 @@ export function DataTable<T extends Record<string, unknown>>({
   scrollOffset = 0,
 }: DataTableProps<T>) {
   const { stdout } = useStdout();
-  const terminalWidth = stdout?.columns ?? 80;
+  const terminalWidth = stdout.columns ?? 80;
 
   if (data.length === 0) {
     return <Text dimColor>{emptyMessage}</Text>;

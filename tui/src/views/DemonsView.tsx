@@ -84,8 +84,8 @@ export function DemonsView({
   // Auto-clear action errors after a delay
   useEffect(() => {
     if (!actionError) return;
-    const timer = setTimeout(() => setActionError(null), ERROR_DISPLAY_DURATION);
-    return () => clearTimeout(timer);
+    const timer = setTimeout(() => { setActionError(null); }, ERROR_DISPLAY_DURATION);
+    return () => { clearTimeout(timer); };
   }, [actionError]);
 
   useInput(

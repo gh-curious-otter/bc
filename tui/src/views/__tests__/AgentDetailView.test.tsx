@@ -94,7 +94,7 @@ describe('AgentDetailView Component', () => {
   });
 
   test.skip('renders with different agent states', () => {
-    const states: Array<Agent['state']> = ['running', 'idle', 'working', 'stopped'];
+    const states: Agent['state'][] = ['running', 'idle', 'working', 'stopped'];
     states.forEach(state => {
       const agent = { ...mockAgent, state };
       const { lastFrame } = render(
@@ -132,7 +132,7 @@ describe('AgentDetailView Component', () => {
       />
     );
     // Callback is registered
-    expect(callbackCalled === false).toBe(true);
+    expect(!callbackCalled).toBe(true);
   });
 
   test('displays loading state when fetching output', () => {
