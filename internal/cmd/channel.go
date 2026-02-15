@@ -233,6 +233,10 @@ func runChannelCreate(cmd *cobra.Command, args []string) error {
 	if name == "" {
 		return fmt.Errorf("channel name cannot be empty")
 	}
+	// Validate channel name to prevent log injection and special character issues
+	if !validIdentifier(name) {
+		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", name)
+	}
 	if _, err := store.Create(name); err != nil {
 		return err
 	}
