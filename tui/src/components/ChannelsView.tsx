@@ -221,6 +221,7 @@ function ChannelHistoryView({
                 sender={msg.sender}
                 message={msg.message}
                 timestamp={msg.time}
+                currentUser={process.env.BC_AGENT_ID}
               />
             ))}
             {hasMoreBelow && <Text dimColor>↓ more messages below</Text>}

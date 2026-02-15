@@ -12,6 +12,8 @@ export interface ChatMessageProps {
   reactions?: Array<{ type: ReactionType; count: number; isOwn?: boolean }>;
   isRead?: boolean;
   isSelected?: boolean;
+  /** Maximum width for message bubbles (default: 60) */
+  maxBubbleWidth?: number;
 }
 
 const formatRelativeTime = (timestamp: string): string => {
@@ -40,17 +42,21 @@ const formatRelativeTime = (timestamp: string): string => {
 
 const getRoleColor = (sender: string): string => {
   if (sender === 'root') return 'magenta';
-  if (sender.startsWith('tech-lead') || sender.includes('fox') || sender.includes('eagle')) {
+  if (sender.startsWith('tech-lead') || sender.startsWith('tl-') || sender.includes('fox') || sender.includes('eagle')) {
     return 'cyan';
   }
   if (sender.startsWith('eng-') || sender.includes('falcon')) return 'green';
+  if (sender.startsWith('mgr-') || sender.startsWith('pm-')) return 'yellow';
+  if (sender.startsWith('ux-')) return 'blue';
   return 'white';
 };
 
 /**
- * Dense chat message component with futuristic design
+ * Chat message component with bubble styling
  *
  * Features:
+ * - Message bubbles with visual distinction
+ * - Own messages aligned right, others aligned left
  * - Colored sender by role
  * - Time in compact format
  * - @mention highlighting
@@ -65,42 +71,68 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   reactions = [],
   isRead = true,
   isSelected = false,
+  maxBubbleWidth = 60,
 }) => {
   const time = formatRelativeTime(timestamp);
   const senderColor = getRoleColor(sender);
+  const isOwnMessage = currentUser !== undefined && sender === currentUser;
+
+  // Bubble styling based on ownership
+  const bubbleBorderColor = isOwnMessage ? 'cyan' : 'gray';
+  const bubbleAlignment = isOwnMessage ? 'flex-end' : 'flex-start';
 
   return (
     <Box
       flexDirection="column"
-      paddingX={1}
-      borderStyle={isSelected ? 'single' : undefined}
-      borderColor={isSelected ? 'cyan' : undefined}
+      width="100%"
+      marginY={0}
     >
-      {/* Header: time | sender | read status */}
-      <Box>
-        <Text color="gray" dimColor>
-          {time}
-        </Text>
-        <Text> </Text>
-        <Text color={senderColor} bold>
-          {sender}
-        </Text>
-        {!isRead && (
-          <Text color="blue"> ●</Text>
-        )}
-      </Box>
+      {/* Message container with alignment */}
+      <Box
+        justifyContent={bubbleAlignment}
+        width="100%"
+      >
+        {/* Message bubble */}
+        <Box
+          flexDirection="column"
+          borderStyle={isSelected ? 'double' : 'round'}
+          borderColor={isSelected ? 'yellow' : bubbleBorderColor}
+          paddingX={1}
+          width={maxBubbleWidth}
+        >
+          {/* Header: sender | time | read status */}
+          <Box justifyContent="space-between">
+            <Box>
+              <Text color={senderColor} bold>
+                {sender}
+              </Text>
+              {isOwnMessage && (
+                <Text dimColor> (you)</Text>
+              )}
+            </Box>
+            <Box>
+              <Text color="gray" dimColor>
+                {time}
+              </Text>
+              {!isRead && (
+                <Text color="blue"> ●</Text>
+              )}
+            </Box>
+          </Box>
 
-      {/* Message body with @mentions */}
-      <Box paddingLeft={2}>
-        <MentionText text={message} currentUser={currentUser} />
-      </Box>
+          {/* Message body with @mentions */}
+          <Box>
+            <MentionText text={message} currentUser={currentUser} />
+          </Box>
 
-      {/* Reactions */}
-      {reactions.length > 0 && (
-        <Box paddingLeft={2}>
-          <ReactionBar reactions={reactions} />
+          {/* Reactions */}
+          {reactions.length > 0 && (
+            <Box marginTop={0}>
+              <ReactionBar reactions={reactions} />
+            </Box>
+          )}
         </Box>
-      )}
+      </Box>
     </Box>
   );
 };
