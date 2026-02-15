@@ -169,6 +169,19 @@ func (m *Manager) KillSession(name string) error {
 	return nil
 }
 
+// RenameSession renames a tmux session.
+func (m *Manager) RenameSession(oldName, newName string) error {
+	oldFullName := m.SessionName(oldName)
+	newFullName := m.SessionName(newName)
+	log.Debug("renaming tmux session", "old", oldFullName, "new", newFullName)
+	cmd := m.command("tmux", "rename-session", "-t", oldFullName, newFullName)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to rename session %s to %s: %w (%s)", oldFullName, newFullName, err, string(output))
+	}
+	return nil
+}
+
 // getSessionLock returns a mutex for the given session name, creating one if needed.
 // This serializes concurrent SendKeys calls to the same session.
 func (m *Manager) getSessionLock(sessionName string) *sync.Mutex {
