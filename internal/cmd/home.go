@@ -38,8 +38,33 @@ Examples:
 	RunE: runHome,
 }
 
+// dashboardCmd is an alias for homeCmd to match documentation references
+var dashboardCmd = &cobra.Command{
+	Use:   "dashboard",
+	Short: "Open the bc TUI dashboard (alias for 'bc home')",
+	Long: `Open the bc terminal user interface (TUI) dashboard.
+
+This command is an alias for 'bc home'. Both commands open the same TUI.
+
+The TUI provides a visual interface for managing agents, channels,
+costs, and other bc features using keyboard navigation.
+
+Navigation:
+  [1-4]  Switch tabs (Dashboard, Agents, Channels, Costs)
+  [j/k]  Navigate lists (down/up)
+  [?]    Show help
+  [q]    Quit
+
+Examples:
+  bc dashboard     # Open TUI dashboard
+  bc home          # Same as above`,
+	Args: cobra.NoArgs,
+	RunE: runHome,
+}
+
 func init() {
 	rootCmd.AddCommand(homeCmd)
+	rootCmd.AddCommand(dashboardCmd)
 }
 
 func runHome(cmd *cobra.Command, args []string) error {
