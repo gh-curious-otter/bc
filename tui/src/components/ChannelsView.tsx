@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useChannels, useChannelHistory } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
+import { ChatMessage } from './ChatMessage';
 import type { Channel } from '../types';
 
 interface ChannelsViewProps {
@@ -207,13 +208,12 @@ function ChannelHistoryView({
           <>
             {hasMoreAbove && <Text dimColor>↑ more messages above</Text>}
             {displayMessages.map((msg, index) => (
-              <Box key={index} width="100%" flexDirection="column">
-                <Box>
-                  <Text color="yellow">{msg.sender}</Text>
-                  <Text dimColor> ({formatMessageTime(msg.time)})</Text>
-                </Box>
-                <Text wrap="truncate">{msg.message}</Text>
-              </Box>
+              <ChatMessage
+                key={`${msg.time}-${index}`}
+                sender={msg.sender}
+                message={msg.message}
+                timestamp={msg.time}
+              />
             ))}
             {hasMoreBelow && <Text dimColor>↓ more messages below</Text>}
             {messages?.length === 0 && <Text dimColor>No messages yet</Text>}
@@ -240,33 +240,6 @@ function ChannelHistoryView({
       </Box>
     </Box>
   );
-}
-
-/**
- * Format message timestamp for display
- */
-function formatMessageTime(time: string): string {
-  try {
-    const date = new Date(time);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-
-    if (diffMins < 1) return 'now';
-    if (diffMins < 60) return `${String(diffMins)}m ago`;
-
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${String(diffHours)}h ago`;
-
-    return date.toLocaleTimeString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return time;
-  }
 }
 
 export default ChannelsView;
