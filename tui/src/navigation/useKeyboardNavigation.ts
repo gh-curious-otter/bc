@@ -41,6 +41,7 @@ export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}
        * This fixes issue #653: Keybinds not being re-enabled after typing in channels.
        */
       if (isFocused('input')) {
+        console.error(`[useKeyboardNavigation] Input focused, blocking keybind: "${input || key.escape ? 'ESC' : 'other'}"`);
         return;
       }
 

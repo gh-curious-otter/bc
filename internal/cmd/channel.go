@@ -128,7 +128,18 @@ Examples:
 	RunE: runChannelShow,
 }
 
+var channelDescCmd = &cobra.Command{
+	Use:   "desc <channel> <description>",
+	Short: "Set channel description",
+	Long:  `Set or update the description for a channel.`,
+	Args:  cobra.MinimumNArgs(2),
+	RunE:  runChannelDesc,
+}
+
+var channelCreateDesc string
+
 func init() {
+	channelCreateCmd.Flags().StringVar(&channelCreateDesc, "desc", "", "Channel description")
 	channelCmd.AddCommand(channelCreateCmd)
 	channelCmd.AddCommand(channelAddCmd)
 	channelCmd.AddCommand(channelRemoveCmd)
@@ -140,6 +151,7 @@ func init() {
 	channelCmd.AddCommand(channelHistoryCmd)
 	channelCmd.AddCommand(channelReactCmd)
 	channelCmd.AddCommand(channelShowCmd)
+	channelCmd.AddCommand(channelDescCmd)
 	rootCmd.AddCommand(channelCmd)
 }
 
@@ -225,11 +237,22 @@ func runChannelCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Set description if provided
+	if channelCreateDesc != "" {
+		if err := store.SetDescription(name, channelCreateDesc); err != nil {
+			return fmt.Errorf("failed to set description: %w", err)
+		}
+	}
+
 	if err := store.Save(); err != nil {
 		return fmt.Errorf("failed to save channels: %w", err)
 	}
 
-	fmt.Printf("Created channel %q\n", name)
+	if channelCreateDesc != "" {
+		fmt.Printf("Created channel %q with description: %s\n", name, channelCreateDesc)
+	} else {
+		fmt.Printf("Created channel %q\n", name)
+	}
 	return nil
 }
 
@@ -658,5 +681,40 @@ func runChannelShow(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	return nil
+}
+
+func runChannelDesc(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	store, err := loadChannelStore(ws.RootDir)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = store.Close() }()
+
+	channelName := strings.TrimSpace(args[0])
+	if channelName == "" {
+		return fmt.Errorf("channel name cannot be empty")
+	}
+
+	// Join description from remaining arguments
+	description := strings.TrimSpace(strings.Join(args[1:], " "))
+	if description == "" {
+		return fmt.Errorf("description cannot be empty")
+	}
+
+	if err := store.SetDescription(channelName, description); err != nil {
+		return fmt.Errorf("failed to set description: %w", err)
+	}
+
+	if err := store.Save(); err != nil {
+		return fmt.Errorf("failed to save channels: %w", err)
+	}
+
+	fmt.Printf("Updated description for channel %q: %s\n", channelName, description)
 	return nil
 }

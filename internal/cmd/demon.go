@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,6 +12,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/demon"
+	"github.com/rpuneet/bc/pkg/integrations"
+	testpkg "github.com/rpuneet/bc/pkg/testing"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 var demonCmd = &cobra.Command{
@@ -121,19 +125,43 @@ Examples:
 	RunE: runDemonEdit,
 }
 
+var demonTestCmd = &cobra.Command{
+	Use:   "test <pattern>",
+	Short: "Run tests and create GitHub issues for failures",
+	Long: `Run Go tests and automatically create GitHub issues for test failures.
+
+Parses go test -json output, identifies failures, and creates GitHub issues with failure details.
+
+Examples:
+  bc demon test ./...                          # Test all packages once
+  bc demon test ./pkg/agent                    # Test specific package
+  bc demon test ./... --create-demon           # Create hourly testing demon
+  bc demon test ./... --create-demon --schedule '*/30 * * * *'  # Custom schedule`,
+	Args: cobra.ExactArgs(1),
+	RunE: runDemonTest,
+}
+
 var (
 	demonSchedule        string
 	demonCommand         string
+	demonPrompt          string
+	demonPromptFile      string
 	demonTail            int
 	demonEditSchedule    string
 	demonEditCommand     string
+	demonEditPrompt      string
+	demonEditPromptFile  string
 	demonEditDescription string
 	demonEditEnabled     string
+	demonTestCreateDemon bool
+	demonTestSchedule    string
 )
 
 func init() {
 	demonCreateCmd.Flags().StringVar(&demonSchedule, "schedule", "", "Cron schedule (required)")
 	demonCreateCmd.Flags().StringVar(&demonCommand, "cmd", "", "Command to execute (required)")
+	demonCreateCmd.Flags().StringVar(&demonPrompt, "prompt", "", "Inline prompt for AI-powered tasks (optional)")
+	demonCreateCmd.Flags().StringVar(&demonPromptFile, "prompt-file", "", "Path to prompt file (optional)")
 	_ = demonCreateCmd.MarkFlagRequired("schedule")
 	_ = demonCreateCmd.MarkFlagRequired("cmd")
 
@@ -141,8 +169,13 @@ func init() {
 
 	demonEditCmd.Flags().StringVar(&demonEditSchedule, "schedule", "", "New cron schedule")
 	demonEditCmd.Flags().StringVar(&demonEditCommand, "cmd", "", "New command to execute")
+	demonEditCmd.Flags().StringVar(&demonEditPrompt, "prompt", "", "New prompt for AI-powered tasks")
+	demonEditCmd.Flags().StringVar(&demonEditPromptFile, "prompt-file", "", "Path to new prompt file")
 	demonEditCmd.Flags().StringVar(&demonEditDescription, "description", "", "New description")
 	demonEditCmd.Flags().StringVar(&demonEditEnabled, "enabled", "", "Enable/disable demon (true/false)")
+
+	demonTestCmd.Flags().BoolVar(&demonTestCreateDemon, "create-demon", false, "Create a demon for scheduled testing")
+	demonTestCmd.Flags().StringVar(&demonTestSchedule, "schedule", "0 * * * *", "Cron schedule for testing demon (default: hourly)")
 
 	demonCmd.AddCommand(demonCreateCmd)
 	demonCmd.AddCommand(demonListCmd)
@@ -153,6 +186,7 @@ func init() {
 	demonCmd.AddCommand(demonDisableCmd)
 	demonCmd.AddCommand(demonLogsCmd)
 	demonCmd.AddCommand(demonEditCmd)
+	demonCmd.AddCommand(demonTestCmd)
 	rootCmd.AddCommand(demonCmd)
 }
 
@@ -165,7 +199,7 @@ func runDemonCreate(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	store := demon.NewStore(ws.RootDir)
 
-	d, err := store.Create(name, demonSchedule, demonCommand)
+	d, err := store.CreateWithPrompt(name, demonSchedule, demonCommand, demonPrompt, demonPromptFile)
 	if err != nil {
 		return err
 	}
@@ -173,6 +207,12 @@ func runDemonCreate(cmd *cobra.Command, args []string) error {
 	cmd.Printf("Created demon %q\n", d.Name)
 	cmd.Printf("  Schedule: %s\n", d.Schedule)
 	cmd.Printf("  Command:  %s\n", d.Command)
+	if d.Prompt != "" {
+		cmd.Printf("  Prompt:   %s\n", d.Prompt)
+	}
+	if d.PromptFile != "" {
+		cmd.Printf("  Prompt File: %s\n", d.PromptFile)
+	}
 	if !d.NextRun.IsZero() {
 		cmd.Printf("  Next run: %s\n", d.NextRun.Format("2006-01-02 15:04:05"))
 	}
@@ -465,7 +505,8 @@ func runDemonEdit(cmd *cobra.Command, args []string) error {
 
 	// Check if any flags were provided
 	hasFlags := demonEditSchedule != "" || demonEditCommand != "" ||
-		demonEditDescription != "" || demonEditEnabled != ""
+		demonEditDescription != "" || demonEditEnabled != "" ||
+		demonEditPrompt != "" || demonEditPromptFile != ""
 
 	if hasFlags {
 		// Update using flags
@@ -487,6 +528,18 @@ func updateDemonWithFlags(cmd *cobra.Command, store *demon.Store, name string) e
 		if demonEditCommand != "" {
 			d.Command = demonEditCommand
 			changes = append(changes, fmt.Sprintf("command: %s", demonEditCommand))
+		}
+		if demonEditPrompt != "" {
+			d.Prompt = demonEditPrompt
+			d.PromptFile = "" // Clear prompt file if inline prompt provided
+			changes = append(changes, fmt.Sprintf("prompt: %s", demonEditPrompt))
+		}
+		if demonEditPromptFile != "" {
+			if _, err := os.Stat(demonEditPromptFile); err == nil {
+				d.PromptFile = demonEditPromptFile
+				d.Prompt = "" // Clear inline prompt if prompt file provided
+				changes = append(changes, fmt.Sprintf("prompt-file: %s", demonEditPromptFile))
+			}
 		}
 		if demonEditDescription != "" {
 			d.Description = demonEditDescription
@@ -581,5 +634,110 @@ func editDemonInEditor(cmd *cobra.Command, store *demon.Store, name string, d *d
 	}
 
 	cmd.Printf("✓ Updated demon %q\n", name)
+	return nil
+}
+
+func runDemonTest(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("test pattern required (e.g., ./...)")
+	}
+	pattern := args[0]
+
+	ws, err := getWorkspace()
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace: %w", err)
+	}
+
+	// Check GitHub integration enabled
+	if ws.V2Config == nil || ws.V2Config.Tools.GitHub == nil || !ws.V2Config.Tools.GitHub.Enabled {
+		return fmt.Errorf("GitHub integration not enabled - set [tools.github] enabled = true in .bc/config.toml")
+	}
+
+	if demonTestCreateDemon {
+		// Create demon for scheduled testing
+		testCmd := fmt.Sprintf("bc demon test %s", pattern)
+		store := demon.NewStore(ws.RootDir)
+		_, err := store.Create("test-watcher", demonTestSchedule, testCmd)
+		if err != nil {
+			return fmt.Errorf("failed to create demon: %w", err)
+		}
+		cmd.Printf("Created demon 'test-watcher' with schedule: %s\n", demonTestSchedule)
+		cmd.Printf("Demon will run: %s\n", testCmd)
+		return nil
+	}
+
+	// Run tests with JSON output
+	return runTestsAndReportIssues(cmd, ws, pattern)
+}
+
+func runTestsAndReportIssues(cmd *cobra.Command, ws *workspace.Workspace, pattern string) error {
+	ctx := context.Background()
+
+	// Run go test -json
+	testCmd := exec.CommandContext(ctx, "go", "test", "-json", pattern)
+	testCmd.Dir = ws.RootDir
+	output, testErr := testCmd.CombinedOutput()
+
+	// Parse test output
+	failures, parseErr := testpkg.ParseTestJSON(bytes.NewReader(output))
+	if parseErr != nil {
+		return fmt.Errorf("failed to parse test output: %w", parseErr)
+	}
+
+	if len(failures) == 0 {
+		cmd.Println("All tests passed ✓")
+		return nil
+	}
+
+	// Create GitHub integration
+	gh, err := integrations.NewGitHubIntegration(ws)
+	if err != nil {
+		return err
+	}
+
+	// Check auth
+	if err := gh.CheckAuth(ctx); err != nil {
+		return fmt.Errorf("GitHub authentication failed: %w", err)
+	}
+
+	// Create issues for failures
+	createdCount := 0
+	existingCount := 0
+	for _, failure := range failures {
+		title := failure.IssueTitle()
+		body := failure.FormatIssueBody()
+
+		// Check if issue already exists
+		searchQuery := fmt.Sprintf("%s in:title", failure.Test)
+		exists, checkErr := gh.IssueExists(ctx, searchQuery)
+		if checkErr != nil {
+			cmd.Printf("Warning: failed to check for existing issue for %s: %v\n", failure.Test, checkErr)
+		}
+
+		if exists {
+			existingCount++
+			cmd.Printf("Issue already exists for %s\n", failure.Test)
+			continue
+		}
+
+		// Create new issue
+		issueURL, createErr := gh.CreateIssue(ctx, title, body, []string{"bug", "automated", "test-failure"})
+		if createErr != nil {
+			cmd.Printf("Failed to create issue for %s: %v\n", failure.Test, createErr)
+			continue
+		}
+
+		createdCount++
+		cmd.Printf("Created issue: %s\n", issueURL)
+	}
+
+	cmd.Printf("\nTest Results: %d failed, %d new issues created, %d existing issues\n",
+		len(failures), createdCount, existingCount)
+
+	// Return error if tests failed
+	if testErr != nil {
+		return fmt.Errorf("tests failed: %w", testErr)
+	}
+
 	return nil
 }
