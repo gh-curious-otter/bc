@@ -67,10 +67,10 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
   }
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" width="100%">
       <Text bold>Channels</Text>
       <Text dimColor>↑/↓ navigate, Enter to view messages, ESC to go back</Text>
-      <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1}>
+      <Box marginTop={1} flexDirection="column" width="100%" borderStyle="single" borderColor="gray" paddingX={2}>
         {channels?.map((channel, index) => (
           <ChannelRow
             key={channel.name}
@@ -93,7 +93,7 @@ interface ChannelRowProps {
 
 function ChannelRow({ channel, selected }: ChannelRowProps): React.ReactElement {
   return (
-    <Box>
+    <Box width="100%">
       <Text color={selected ? 'cyan' : undefined} bold={selected}>
         {selected ? '▸ ' : '  '}
         #{channel.name}

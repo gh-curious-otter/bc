@@ -61,11 +61,17 @@ export function FocusProvider({
   );
 
   const returnFocus = useCallback(() => {
-    if (previousArea) {
-      setFocusedArea(previousArea);
-      setPreviousArea(null);
-    }
-  }, [previousArea]);
+    // Restore the previous focus area.
+    // NOTE: We don't include 'previousArea' in dependencies because that creates
+    // stale closure issues. Instead, this callback always reads the current
+    // state when called via React's closure mechanism.
+    setPreviousArea((prev) => {
+      if (prev) {
+        setFocusedArea(prev);
+      }
+      return null; // Clear previous area after restoring
+    });
+  }, []);
 
   const cycleFocus = useCallback(() => {
     const currentIndex = FOCUS_ORDER.indexOf(focusedArea);
