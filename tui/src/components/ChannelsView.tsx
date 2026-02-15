@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
-import { useChannels, useChannelHistory } from '../hooks';
+import { useChannels, useChannelHistory, useUnread } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { ChatMessage } from './ChatMessage';
@@ -33,6 +33,7 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [viewMode, setViewMode] = useState<'list' | 'history'>('list');
   const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
+  const { getLastViewed } = useUnread();
 
   const selectedChannel = channels?.[selectedIndex];
 
@@ -44,6 +45,13 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
       clearBreadcrumbs();
     }
   }, [viewMode, selectedChannel, setBreadcrumbs, clearBreadcrumbs]);
+
+  // Calculate unread status for each channel (new = never viewed)
+  const getChannelUnread = (channelName: string): number => {
+    const lastViewed = getLastViewed(channelName);
+    // If never viewed, show as "new" (1 indicates new)
+    return lastViewed === null ? 1 : 0;
+  };
 
   useInput(
     (input, key) => {
@@ -101,6 +109,7 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
             key={channel.name}
             channel={channel}
             selected={index === selectedIndex}
+            unreadCount={getChannelUnread(channel.name)}
           />
         ))}
         {(!channels || channels.length === 0) && (
@@ -114,9 +123,10 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
 interface ChannelRowProps {
   channel: Channel;
   selected: boolean;
+  unreadCount: number;
 }
 
-function ChannelRow({ channel, selected }: ChannelRowProps): React.ReactElement {
+function ChannelRow({ channel, selected, unreadCount }: ChannelRowProps): React.ReactElement {
   return (
     <Box width="100%" flexDirection="column">
       <Box width="100%">
@@ -125,6 +135,9 @@ function ChannelRow({ channel, selected }: ChannelRowProps): React.ReactElement 
           #{channel.name}
         </Text>
         <Text dimColor> ({channel.members.length} members)</Text>
+        {unreadCount > 0 && (
+          <Text color="yellow" bold> [{unreadCount > 99 ? '99+' : unreadCount} new]</Text>
+        )}
       </Box>
       {channel.description && (
         <Text dimColor wrap="truncate">{channel.description}</Text>
@@ -150,6 +163,14 @@ function ChannelHistoryView({
   const [scrollOffset, setScrollOffset] = useState(0);
   const { setFocus, returnFocus } = useFocus();
   const { stdout } = useStdout();
+  const { markViewed } = useUnread();
+
+  // Mark channel as viewed when messages load
+  useEffect(() => {
+    if (messages && messages.length >= 0) {
+      markViewed(channel.name, messages.length);
+    }
+  }, [channel.name, messages, markViewed]);
 
   // Calculate dynamic input height based on message length
   const terminalWidth = stdout?.columns ?? 80;

@@ -14,6 +14,7 @@ import {
   type View,
 } from './navigation';
 import { ThemeProvider, useTheme, type ThemeMode } from './theme';
+import { UnreadProvider } from './hooks';
 import { Dashboard } from './views/Dashboard';
 import { AgentsView } from './views/AgentsView';
 import { CommandsView } from './views/CommandsView';
@@ -38,7 +39,9 @@ export function App({
     <ThemeProvider config={{ mode: themeMode }}>
       <NavigationProvider initialView={initialView}>
         <FocusProvider>
-          <AppContent disableInput={disableInput} />
+          <UnreadProvider>
+            <AppContent disableInput={disableInput} />
+          </UnreadProvider>
         </FocusProvider>
       </NavigationProvider>
     </ThemeProvider>
