@@ -186,8 +186,8 @@ func TestMemoryRecordRequiresAgentID(t *testing.T) {
 	if err == nil {
 		t.Error("expected error when BC_AGENT_ID not set")
 	}
-	if !strings.Contains(err.Error(), "BC_AGENT_ID") {
-		t.Errorf("error should mention BC_AGENT_ID: %v", err)
+	if !strings.Contains(err.Error(), "this command can only be run by agents in the bc system") {
+		t.Errorf("error should indicate agent-only command: %v", err)
 	}
 }
 
