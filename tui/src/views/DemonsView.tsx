@@ -76,6 +76,7 @@ export function DemonsView({
 }: DemonsViewProps): React.ReactElement {
   const { data: demons, loading, error, total, enabled, refresh, enable, disable, run } = useDemons();
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useInput(
     (input, key) => {
@@ -102,15 +103,27 @@ export function DemonsView({
       if (selectedDemon) {
         if (input === 'e') {
           // Enable demon
-          enable(selectedDemon.name).catch(() => {});
+          enable(selectedDemon.name).catch((err) => {
+            const message = err instanceof Error ? err.message : 'Failed to enable demon';
+            setActionError(message);
+            setTimeout(() => setActionError(null), 3000);
+          });
         }
         if (input === 'd') {
           // Disable demon
-          disable(selectedDemon.name).catch(() => {});
+          disable(selectedDemon.name).catch((err) => {
+            const message = err instanceof Error ? err.message : 'Failed to disable demon';
+            setActionError(message);
+            setTimeout(() => setActionError(null), 3000);
+          });
         }
         if (input === 'x') {
           // Execute demon
-          run(selectedDemon.name).catch(() => {});
+          run(selectedDemon.name).catch((err) => {
+            const message = err instanceof Error ? err.message : 'Failed to run demon';
+            setActionError(message);
+            setTimeout(() => setActionError(null), 3000);
+          });
         }
       }
     },
