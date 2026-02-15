@@ -9,12 +9,13 @@
  * - Async helpers: Wait for elements and conditions
  */
 
-import React, { ReactElement } from 'react';
-import { render as inkRender, RenderOptions } from 'ink-testing-library';
+import React, { type ReactElement } from 'react';
+import { render as inkRender } from 'ink-testing-library';
 import { ThemeProvider } from '../../theme/ThemeContext';
 import { FocusProvider } from '../../navigation/FocusContext';
 import { NavigationProvider } from '../../navigation/NavigationContext';
-import type { Theme } from '../../theme/types';
+import type { ThemeConfig } from '../../theme/types';
+import type { FocusArea } from '../../navigation/FocusContext';
 
 /**
  * renderWithProviders - Render component with all required providers
@@ -31,15 +32,15 @@ import type { Theme } from '../../theme/types';
 export function renderWithProviders(
   component: ReactElement,
   options?: {
-    initialTheme?: Theme;
+    themeConfig?: ThemeConfig;
     initialView?: string;
-    initialFocus?: string;
+    initialFocus?: FocusArea;
     disableInput?: boolean;
   }
 ) {
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
-    <ThemeProvider initialTheme={options?.initialTheme || 'dark'}>
-      <FocusProvider initialFocus={options?.initialFocus}>
+    <ThemeProvider config={options?.themeConfig}>
+      <FocusProvider initialFocus={options?.initialFocus || 'main'}>
         <NavigationProvider>
           {children}
         </NavigationProvider>
@@ -47,10 +48,7 @@ export function renderWithProviders(
     </ThemeProvider>
   );
 
-  return inkRender(component, {
-    wrapper: Wrapper,
-    ...(!options?.disableInput && { disableInput: false }),
-  });
+  return inkRender(<Wrapper>{component}</Wrapper>);
 }
 
 /**
@@ -209,39 +207,6 @@ export function createHookTestComponent<T, P>(
   return { TestComponent, getResult: () => result };
 }
 
-/**
- * Setup/teardown utilities
- */
-export const testSetup = {
-  /**
-   * Reset all mocks and state
-   */
-  reset: () => {
-    jest.clearAllMocks?.();
-  },
-
-  /**
-   * Enable fake timers for testing
-   */
-  enableFakeTimers: () => {
-    jest.useFakeTimers?.();
-  },
-
-  /**
-   * Disable fake timers
-   */
-  disableFakeTimers: () => {
-    jest.useRealTimers?.();
-  },
-
-  /**
-   * Advance fake timers
-   */
-  advanceTimers: (ms: number) => {
-    jest.advanceTimersByTime?.(ms);
-  },
-};
-
 export default {
   renderWithProviders,
   mockBcService,
@@ -249,5 +214,4 @@ export default {
   waitForElement,
   waitForText,
   createHookTestComponent,
-  testSetup,
 };

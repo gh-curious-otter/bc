@@ -9,15 +9,6 @@
  */
 
 // ============================================================================
-// Global Configuration
-// ============================================================================
-
-// Set global test timeout to 10 seconds
-if (typeof jest !== 'undefined') {
-  jest.setTimeout(10000);
-}
-
-// ============================================================================
 // Environment Setup
 // ============================================================================
 
@@ -25,32 +16,6 @@ if (typeof jest !== 'undefined') {
 process.env.NODE_ENV = 'test';
 process.env.BC_WORKSPACE = 'test-workspace';
 process.env.NO_COLOR = '1'; // Disable colors in tests
-
-// ============================================================================
-// Mock Globals
-// ============================================================================
-
-// Mock timers (disabled by default, can be enabled per test)
-// jest.useFakeTimers();
-
-// ============================================================================
-// Before/After Hooks
-// ============================================================================
-
-// Run before each test
-beforeEach(() => {
-  // Clear all mocks
-  jest.clearAllMocks?.();
-});
-
-// Run after each test
-afterEach(() => {
-  // Reset all timers
-  jest.clearAllTimers?.();
-
-  // Clear all mock implementations
-  jest.restoreAllMocks?.();
-});
 
 // ============================================================================
 // Test Utilities
