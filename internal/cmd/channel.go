@@ -362,6 +362,7 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 	sent := 0
 	failed := 0
 	skipped := 0
+	fmt.Printf("Sending to %d member(s):\n", len(members))
 	for _, member := range members {
 		// Skip sending to the sender to avoid infinite loop
 		if member == sender {
@@ -371,32 +372,29 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 
 		a := mgr.GetAgent(member)
 		if a == nil {
-			fmt.Printf("  %s: agent not found\n", member)
+			fmt.Printf("  ❌ %s: agent not found\n", member)
 			failed++
 			continue
 		}
 		if a.State == agent.StateStopped {
-			fmt.Printf("  %s: agent stopped\n", member)
+			fmt.Printf("  ⏸  %s: agent stopped\n", member)
 			failed++
 			continue
 		}
 
 		if err := mgr.SendToAgent(member, fmt.Sprintf("[#%s] %s: %s", channelName, sender, message)); err != nil {
-			fmt.Printf("  %s: failed - %v\n", member, err)
+			fmt.Printf("  ❌ %s: unable to deliver message\n", member)
 			failed++
 			continue
 		}
-		fmt.Printf("  %s: sent\n", member)
+		fmt.Printf("  ✅ %s: sent\n", member)
 		sent++
 	}
 
 	totalTargets := len(members) - skipped
-	fmt.Printf("\nSent to %d/%d members of channel %q\n", sent, totalTargets, channelName)
-	if skipped > 0 {
-		fmt.Printf("  (%d skipped - sender)\n", skipped)
-	}
+	fmt.Printf("\nResult: %d/%d members received message\n", sent, totalTargets)
 	if failed > 0 {
-		fmt.Printf("  (%d failed)\n", failed)
+		fmt.Printf("Warning: %d delivery failed\n", failed)
 	}
 	return nil
 }

@@ -214,14 +214,9 @@ func TestChannelSend_SenderNotIncludedInRecipients(t *testing.T) {
 		t.Fatalf("channel send error: %v", err)
 	}
 
-	// Should skip sending to agent-01 (the sender)
-	if !strings.Contains(stdout, "1 skipped - sender") {
-		t.Errorf("expected '1 skipped - sender' in output, got: %s", stdout)
-	}
-
-	// Should attempt to send to only agent-02 (1 target instead of 2)
-	if !strings.Contains(stdout, "Sent to 0/1 members") {
-		t.Errorf("expected 'Sent to 0/1 members' (excluding sender), got: %s", stdout)
+	// Should show that only 1 agent received the message (agent-01 is sender, so skipped)
+	if !strings.Contains(stdout, "Result: 0/1 members received message") {
+		t.Errorf("expected 'Result: 0/1 members received message' in output, got: %s", stdout)
 	}
 }
 

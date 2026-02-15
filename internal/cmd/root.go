@@ -49,6 +49,11 @@ Documentation: https://github.com/rpuneet/bc`,
 	},
 	// Run with no args shows help
 	Run: func(cmd *cobra.Command, args []string) {
+		showVersion, err := cmd.Flags().GetBool("version")
+		if err == nil && showVersion {
+			versionCmd.Run(cmd, args)
+			return
+		}
 		_ = cmd.Help()
 	},
 }
@@ -71,6 +76,9 @@ func init() {
 	// Global flags
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Enable verbose output")
 	rootCmd.PersistentFlags().Bool("json", false, "Output in JSON format")
+
+	// Version flag
+	rootCmd.Flags().BoolP("version", "V", false, "Print version information")
 
 	// Add subcommands
 	rootCmd.AddCommand(versionCmd)
