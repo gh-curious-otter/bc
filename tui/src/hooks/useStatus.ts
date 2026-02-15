@@ -91,7 +91,7 @@ export function useStatus(options: UseStatusOptions = {}): UseStatusResult {
 
   // Initial fetch
   useEffect(() => {
-    fetchStatus();
+    void fetchStatus();
   }, [fetchStatus]);
 
   // Polling
@@ -99,7 +99,7 @@ export function useStatus(options: UseStatusOptions = {}): UseStatusResult {
     if (!autoPoll) return;
 
     const interval = setInterval(fetchStatus, pollInterval);
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); };
   }, [autoPoll, pollInterval, fetchStatus]);
 
   return {

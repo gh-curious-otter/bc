@@ -36,7 +36,7 @@ export function useTeams(options: UseTeamsOptions = {}): UseTeamsResult {
   const fetchTeams = useCallback(async () => {
     try {
       const response = await getTeams();
-      setData(response.teams || []);
+      setData(response.teams);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch teams');
@@ -54,7 +54,7 @@ export function useTeams(options: UseTeamsOptions = {}): UseTeamsResult {
   useEffect(() => {
     if (!autoPoll) return;
     const interval = setInterval(fetchTeams, pollInterval);
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); };
   }, [autoPoll, pollInterval, fetchTeams]);
 
   const addMember = useCallback(

@@ -170,8 +170,8 @@ function ChannelHistoryView({
   // Auto-clear send errors after a delay
   useEffect(() => {
     if (!sendError) return;
-    const timer = setTimeout(() => setSendError(null), SEND_ERROR_DISPLAY_DURATION);
-    return () => clearTimeout(timer);
+    const timer = setTimeout(() => { setSendError(null); }, SEND_ERROR_DISPLAY_DURATION);
+    return () => { clearTimeout(timer); };
   }, [sendError]);
   const { stdout } = useStdout();
   const { markViewed } = useUnread();
@@ -184,7 +184,7 @@ function ChannelHistoryView({
   }, [channel.name, messages, markViewed]);
 
   // Calculate dynamic input height based on message length
-  const terminalWidth = stdout?.columns ?? 80;
+  const terminalWidth = stdout.columns ?? 80;
   const inputHeight = useMemo(
     () => calculateInputHeight(messageBuffer.length, terminalWidth),
     [messageBuffer.length, terminalWidth]

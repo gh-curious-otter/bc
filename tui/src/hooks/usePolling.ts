@@ -108,8 +108,8 @@ export function useMessagePolling(
     }
   }, [channel, limit, onNewMessages, onUpdate]);
 
-  const pause = useCallback(() => setIsPolling(false), []);
-  const resume = useCallback(() => setIsPolling(true), []);
+  const pause = useCallback(() => { setIsPolling(false); }, []);
+  const resume = useCallback(() => { setIsPolling(true); }, []);
 
   // Initial fetch
   useEffect(() => {
@@ -122,7 +122,7 @@ export function useMessagePolling(
   useEffect(() => {
     if (!isPolling) return;
     const timer = setInterval(fetchMessages, interval);
-    return () => clearInterval(timer);
+    return () => { clearInterval(timer); };
   }, [isPolling, interval, fetchMessages]);
 
   return {
@@ -251,8 +251,8 @@ export function useAgentPolling(
     }
   }, [onStateChange, onUpdate]);
 
-  const pause = useCallback(() => setIsPolling(false), []);
-  const resume = useCallback(() => setIsPolling(true), []);
+  const pause = useCallback(() => { setIsPolling(false); }, []);
+  const resume = useCallback(() => { setIsPolling(true); }, []);
 
   // Initial fetch
   useEffect(() => {
@@ -264,7 +264,7 @@ export function useAgentPolling(
   useEffect(() => {
     if (!isPolling) return;
     const timer = setInterval(fetchAgents, interval);
-    return () => clearInterval(timer);
+    return () => { clearInterval(timer); };
   }, [isPolling, interval, fetchAgents]);
 
   return {
@@ -302,12 +302,12 @@ export function useCoordinatedPolling(options: UseCoordinatedPollingOptions = {}
     const timer = setInterval(() => {
       setTick((t) => t + 1);
     }, interval);
-    return () => clearInterval(timer);
+    return () => { clearInterval(timer); };
   }, [isPaused, interval]);
 
-  const pause = useCallback(() => setIsPaused(true), []);
-  const resume = useCallback(() => setIsPaused(false), []);
-  const trigger = useCallback(() => setTick((t) => t + 1), []);
+  const pause = useCallback(() => { setIsPaused(true); }, []);
+  const resume = useCallback(() => { setIsPaused(false); }, []);
+  const trigger = useCallback(() => { setTick((t) => t + 1); }, []);
 
   return {
     /** Current tick count (changes each interval) */

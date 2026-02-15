@@ -111,7 +111,7 @@ export function TeamsView({ onBack }: TeamsViewProps) {
                 header: 'MEMBERS',
                 width: 10,
                 render: (value) => (
-                  <Text>{(value as string[])?.length ?? 0}</Text>
+                  <Text>{(value as string[]).length ?? 0}</Text>
                 ),
               },
               {
@@ -181,7 +181,7 @@ function TeamDetails({ team }: TeamDetailsProps) {
         )}
 
         <Box marginTop={1}>
-          <Text dimColor>Members ({team.members?.length ?? 0}):</Text>
+          <Text dimColor>Members ({team.members.length ?? 0}):</Text>
         </Box>
 
         {team.members && team.members.length > 0 ? (

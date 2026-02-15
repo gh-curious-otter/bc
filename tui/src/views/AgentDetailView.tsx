@@ -43,14 +43,14 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
 
   useEffect(() => {
     setLoading(true);
-    fetchAgentOutput().finally(() => setLoading(false));
+    fetchAgentOutput().finally(() => { setLoading(false); });
   }, [fetchAgentOutput]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       fetchAgentOutput();
     }, 2000);
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); };
   }, [fetchAgentOutput]);
 
   const sendMessage = useCallback(async (message: string) => {
@@ -60,12 +60,12 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
       await execBc(['agent', 'send', agent.name, message]);
       setSendStatus(`Sent to ${agent.name}`);
       setMessageBuffer('');
-      setTimeout(() => setSendStatus(null), 2000);
+      setTimeout(() => { setSendStatus(null); }, 2000);
       await fetchAgentOutput();
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to send';
       setSendStatus(`Error: ${errorMsg}`);
-      setTimeout(() => setSendStatus(null), 3000);
+      setTimeout(() => { setSendStatus(null); }, 3000);
     }
   }, [agent.name, fetchAgentOutput]);
 

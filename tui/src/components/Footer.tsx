@@ -19,7 +19,7 @@ export function KeyHint({ keyChar, label }: KeyHintProps) {
 }
 
 export interface FooterProps {
-  hints: Array<{ key: string; label: string }>;
+  hints: { key: string; label: string }[];
 }
 
 /**

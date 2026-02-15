@@ -68,7 +68,7 @@ describe('LoadingIndicator', () => {
     it('cleans up interval on unmount', () => {
       const { unmount } = render(<LoadingIndicator message="Loading" />);
       // Component should not crash on unmount
-      expect(() => unmount()).not.toThrow();
+      expect(() => { unmount(); }).not.toThrow();
     });
   });
 });

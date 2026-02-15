@@ -19,7 +19,7 @@ export function LoadingIndicator({ message = 'Loading...' }: LoadingIndicatorPro
     const interval = setInterval(() => {
       setDots((d) => (d.length >= 3 ? '' : d + '.'));
     }, 300);
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); };
   }, []);
 
   return (

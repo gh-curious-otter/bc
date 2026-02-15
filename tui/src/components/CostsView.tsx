@@ -14,7 +14,7 @@ interface CostsViewProps {
 
 export function CostsView({ disableInput: _disableInput = false }: CostsViewProps): React.ReactElement {
   const { stdout } = useStdout();
-  const terminalWidth = stdout?.columns ?? 80;
+  const terminalWidth = stdout.columns ?? 80;
 
   const { data: costs, loading, error } = useCosts();
 

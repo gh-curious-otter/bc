@@ -102,11 +102,11 @@ export function useDashboard() {
         error: null,
       });
     } else {
-      const error = statusResult.reason;
+      const reason = statusResult.reason as unknown;
       setAgents({
         data: [],
         isLoading: false,
-        error: error instanceof Error ? error : new Error('Failed to fetch agents'),
+        error: reason instanceof Error ? reason : new Error('Failed to fetch agents'),
       });
     }
 
@@ -158,7 +158,7 @@ export function useDashboard() {
   // Users can manually refresh with 'r' key for immediate updates
   useEffect(() => {
     const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); };
   }, [fetchData]);
 
   // Compute agent stats breakdown

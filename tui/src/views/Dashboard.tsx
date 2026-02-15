@@ -19,7 +19,7 @@ interface DashboardProps {
  */
 export function Dashboard({ onNavigate }: DashboardProps) {
   const { stdout } = useStdout();
-  const terminalWidth = stdout?.columns ?? 80;
+  const terminalWidth = stdout.columns ?? 80;
 
   const {
     summary,

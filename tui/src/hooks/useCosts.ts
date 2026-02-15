@@ -42,14 +42,14 @@ export function useCosts(options: UseCostsOptions = {}): UseCostsResult {
 
   // Initial fetch
   useEffect(() => {
-    fetchCosts();
+    void fetchCosts();
   }, [fetchCosts]);
 
   // Polling
   useEffect(() => {
     if (!autoPoll) return;
     const interval = setInterval(fetchCosts, pollInterval);
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); };
   }, [autoPoll, pollInterval, fetchCosts]);
 
   return {
