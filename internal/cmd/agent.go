@@ -396,6 +396,14 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		return roleErr
 	}
 
+	// Validate role exists in workspace (unless it's the special "null" role)
+	if string(role) != "null" && string(role) != "root" {
+		roleFile := filepath.Join(ws.RolesDir(), string(role)+".md")
+		if _, err := os.Stat(roleFile); err != nil {
+			return fmt.Errorf("role %q not found - create it first or use an existing role", role)
+		}
+	}
+
 	// Validate team name if specified
 	if agentCreateTeam != "" {
 		if !isValidTeamName(agentCreateTeam) {
