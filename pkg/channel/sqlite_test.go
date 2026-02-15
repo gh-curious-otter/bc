@@ -539,3 +539,60 @@ func TestSQLiteStore_Reactions(t *testing.T) {
 		t.Errorf("expected rocket reaction after toggle add, got %d", len(reactions["🚀"]))
 	}
 }
+
+// TestSQLiteStore_DeleteChannelWithMessages tests deletion of a channel
+// that has messages, members, mentions, and reactions (issue #738).
+func TestSQLiteStore_DeleteChannelWithMessages(t *testing.T) {
+	store := setupTestDB(t)
+
+	// Create channel with members
+	if _, err := store.CreateChannel("to-delete-full", ChannelTypeGroup, "Test channel"); err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+	if err := store.AddMember("to-delete-full", "engineer-01"); err != nil {
+		t.Fatalf("failed to add member: %v", err)
+	}
+	if err := store.AddMember("to-delete-full", "engineer-02"); err != nil {
+		t.Fatalf("failed to add member: %v", err)
+	}
+
+	// Add messages (which creates FTS entries)
+	msg1, err := store.AddMessage("to-delete-full", "engineer-01", "Hello world", TypeText, "")
+	if err != nil {
+		t.Fatalf("failed to add message: %v", err)
+	}
+	msg2, err := store.AddMessage("to-delete-full", "engineer-02", "@engineer-01 check this", TypeTask, "")
+	if err != nil {
+		t.Fatalf("failed to add task message: %v", err)
+	}
+
+	// Add mention
+	if err := store.AddMention(msg2.ID, "engineer-01"); err != nil {
+		t.Fatalf("failed to add mention: %v", err)
+	}
+
+	// Add reactions
+	if err := store.AddReaction(msg1.ID, "👍", "engineer-02"); err != nil {
+		t.Fatalf("failed to add reaction: %v", err)
+	}
+	if err := store.AddReaction(msg2.ID, "✅", "engineer-01"); err != nil {
+		t.Fatalf("failed to add reaction: %v", err)
+	}
+
+	// Verify data exists
+	history, _ := store.GetHistory("to-delete-full", 10)
+	if len(history) != 2 {
+		t.Errorf("expected 2 messages before delete, got %d", len(history))
+	}
+
+	// This is the bug from issue #738 - deletion should work
+	if err := store.DeleteChannel("to-delete-full"); err != nil {
+		t.Fatalf("failed to delete channel with messages: %v", err)
+	}
+
+	// Verify channel is gone
+	ch, _ := store.GetChannel("to-delete-full")
+	if ch != nil {
+		t.Error("channel should be deleted")
+	}
+}
