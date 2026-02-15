@@ -47,6 +47,8 @@ export interface NavigationContextValue {
   goBack: () => void;
   goForward: () => void;
   goHome: () => void;
+  nextTab: () => void;
+  prevTab: () => void;
 
   // Utilities
   isActive: (view: View) => boolean;
@@ -129,6 +131,33 @@ export function NavigationProvider({
     navigate('dashboard');
   }, [navigate]);
 
+  // Get main tabs (exclude help '?')
+  const mainTabs = useMemo(() => tabs.filter(t => t.key !== '?'), [tabs]);
+
+  const nextTab = useCallback(() => {
+    const currentIndex = mainTabs.findIndex(t => t.view === state.currentView);
+    if (currentIndex === -1) {
+      // If not on a main tab, go to first
+      navigate(mainTabs[0]?.view ?? 'dashboard');
+    } else {
+      // Wrap around to first tab after last
+      const nextIndex = (currentIndex + 1) % mainTabs.length;
+      navigate(mainTabs[nextIndex]?.view ?? 'dashboard');
+    }
+  }, [mainTabs, state.currentView, navigate]);
+
+  const prevTab = useCallback(() => {
+    const currentIndex = mainTabs.findIndex(t => t.view === state.currentView);
+    if (currentIndex === -1) {
+      // If not on a main tab, go to last
+      navigate(mainTabs[mainTabs.length - 1]?.view ?? 'dashboard');
+    } else {
+      // Wrap around to last tab before first
+      const prevIndex = (currentIndex - 1 + mainTabs.length) % mainTabs.length;
+      navigate(mainTabs[prevIndex]?.view ?? 'dashboard');
+    }
+  }, [mainTabs, state.currentView, navigate]);
+
   const isActive = useCallback(
     (view: View) => state.currentView === view,
     [state.currentView]
@@ -155,11 +184,13 @@ export function NavigationProvider({
       goBack,
       goForward,
       goHome,
+      nextTab,
+      prevTab,
       isActive,
       getTabByKey,
       getTabByView,
     }),
-    [state, tabs, navigate, goBack, goForward, goHome, isActive, getTabByKey, getTabByView]
+    [state, tabs, navigate, goBack, goForward, goHome, nextTab, prevTab, isActive, getTabByKey, getTabByView]
   );
 
   return (
