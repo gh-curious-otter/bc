@@ -214,4 +214,32 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
   );
 };
 
+// Helper component for detail rows
+interface DetailRowProps {
+  label: string;
+  value: string | React.ReactElement;
+}
+
+function DetailRow({ label, value }: DetailRowProps): React.ReactElement {
+  return (
+    <Box>
+      <Text bold>{label}:</Text>
+      <Box marginLeft={1}>
+        <Text>{value}</Text>
+      </Box>
+    </Box>
+  );
+}
+
+// Format date for display
+function formatDate(dateString: string | undefined): string {
+  if (!dateString) return '-';
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleString();
+  } catch {
+    return dateString;
+  }
+}
+
 export default AgentDetailView;
