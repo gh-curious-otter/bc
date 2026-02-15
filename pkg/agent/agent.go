@@ -1156,16 +1156,22 @@ func (m *Manager) RefreshState() error {
 			// Sync state with task symbols:
 			// - Spinner symbols (✻ ✳ ✽ ·) → working
 			// - Prompt symbol (❯) or pause (⏺) → idle (waiting for input)
+			//
+			// IMPORTANT: Preserve error, stuck, and done states - these are explicitly
+			// reported by agents and should not be overwritten by tmux activity detection.
+			// Only toggle between working and idle for agents in "normal" states.
 			if strings.HasPrefix(live, "✻") ||
 				strings.HasPrefix(live, "✳") ||
 				strings.HasPrefix(live, "✽") ||
 				strings.HasPrefix(live, "·") {
-				if a.State != StateWorking {
+				// Only change to working from idle/starting - preserve error/stuck/done
+				if a.State == StateIdle || a.State == StateStarting {
 					a.State = StateWorking
 					a.UpdatedAt = time.Now()
 				}
 			} else if strings.HasPrefix(live, "❯") ||
 				strings.HasPrefix(live, "⏺") {
+				// Only change to idle from working - preserve error/stuck/done
 				if a.State == StateWorking {
 					a.State = StateIdle
 					a.UpdatedAt = time.Now()

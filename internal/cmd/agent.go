@@ -962,7 +962,18 @@ func runAgentRename(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println("✓")
 
-	// Step 2: Update channel memberships
+	// Step 2: Rename tmux session if exists
+	if mgr.Tmux().HasSession(oldName) {
+		fmt.Print("  Renaming tmux session... ")
+		if renameErr := mgr.Tmux().RenameSession(oldName, newName); renameErr != nil {
+			fmt.Println("✗")
+			log.Warn("failed to rename tmux session", "error", renameErr)
+		} else {
+			fmt.Println("✓")
+		}
+	}
+
+	// Step 3: Update channel memberships (renumber after adding tmux step)
 	fmt.Print("  Updating channel memberships... ")
 	channelStore := channel.NewStore(filepath.Join(ws.StateDir(), "channels"))
 	if err := channelStore.Load(); err != nil {
