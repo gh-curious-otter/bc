@@ -20,6 +20,18 @@ import (
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
+// containsShellMetachars checks if a string contains shell metacharacters that could be exploited
+func containsShellMetachars(s string) bool {
+	// Check for common shell injection characters
+	dangerous := []string{";", "|", "&", "$", "`", "(", ")", "{", "}", "[", "]", "<", ">", "\n", "\r"}
+	for _, char := range dangerous {
+		if strings.Contains(s, char) {
+			return true
+		}
+	}
+	return false
+}
+
 // Role defines the type of agent.
 type Role string
 
@@ -416,12 +428,21 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 				log.Warn("failed to install git wrapper", "error", wrapErr)
 			}
 
+			// Build PATH safely: only use trusted paths, not user-controlled ones
+			bcBinPath := filepath.Join(workspace, ".bc", "bin")
+			systemPath := os.Getenv("PATH")
+			// Validate PATH doesn't contain shell metacharacters
+			if containsShellMetachars(systemPath) {
+				log.Warn("PATH contains suspicious characters, using minimal PATH")
+				systemPath = "/usr/local/bin:/usr/bin:/bin"
+			}
+
 			env := map[string]string{
 				"BC_AGENT_ID":       name,
 				"BC_AGENT_ROLE":     string(existing.Role),
 				"BC_WORKSPACE":      workspace,
 				"BC_AGENT_WORKTREE": sessionDir,
-				"PATH":              filepath.Join(workspace, ".bc", "bin") + ":" + os.Getenv("PATH"),
+				"PATH":              bcBinPath + ":" + systemPath,
 			}
 			if existing.Tool != "" {
 				env["BC_AGENT_TOOL"] = existing.Tool
@@ -494,12 +515,21 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	}
 
 	// Build env vars so the spawned process sees them immediately
+	// Build PATH safely: only use trusted paths, not user-controlled ones
+	bcBinPath := filepath.Join(workspace, ".bc", "bin")
+	systemPath := os.Getenv("PATH")
+	// Validate PATH doesn't contain shell metacharacters
+	if containsShellMetachars(systemPath) {
+		log.Warn("PATH contains suspicious characters, using minimal PATH")
+		systemPath = "/usr/local/bin:/usr/bin:/bin"
+	}
+
 	env := map[string]string{
 		"BC_AGENT_ID":       name,
 		"BC_AGENT_ROLE":     string(role),
 		"BC_WORKSPACE":      workspace,
 		"BC_AGENT_WORKTREE": worktreeDir,
-		"PATH":              filepath.Join(workspace, ".bc", "bin") + ":" + os.Getenv("PATH"),
+		"PATH":              bcBinPath + ":" + systemPath,
 	}
 	if tool != "" {
 		env["BC_AGENT_TOOL"] = tool

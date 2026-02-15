@@ -203,8 +203,13 @@ func (m *Manager) SendKeysWithSubmit(name, keys, submitKey string) error {
 		}
 	} else {
 		// Long message: use temp file + load-buffer + paste-buffer with named buffer
-		// Use a unique buffer name to avoid race conditions with concurrent sends
-		bufferName := generateBufferName()
+		// Use a unique buffer name with session identifier to prevent race conditions
+		// even under concurrent pressure to same session
+		sessionID := fullName
+		if len(fullName) > 15 {
+			sessionID = fullName[:15]
+		}
+		bufferName := "s" + strings.ReplaceAll(sessionID, "-", "") + "-" + generateBufferName()
 
 		tmpDir := filepath.Join(os.TempDir(), "bc-tmux")
 		if err := os.MkdirAll(tmpDir, 0700); err != nil {
