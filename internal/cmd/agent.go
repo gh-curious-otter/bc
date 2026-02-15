@@ -747,11 +747,11 @@ func runAgentSend(cmd *cobra.Command, args []string) error {
 	}
 
 	if a.State == agent.StateStopped {
-		return fmt.Errorf("agent '%s' is stopped", agentName)
+		return fmt.Errorf("agent '%s' is stopped - start it with 'bc agent start %s'", agentName, agentName)
 	}
 
 	if sendErr := mgr.SendToAgent(agentName, message); sendErr != nil {
-		return fmt.Errorf("failed to send to %s: %w", agentName, sendErr)
+		return fmt.Errorf("failed to send message to %s: %w (check 'bc agent status %s' for details)", agentName, sendErr, agentName)
 	}
 
 	// Log event - Agent field is the sender, recipient goes in Data
