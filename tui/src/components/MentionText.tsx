@@ -72,7 +72,7 @@ export const MentionText: React.FC<MentionTextProps> = ({
     );
   }
 
-  return <Text>{parts}</Text>;
+  return <Text wrap="wrap">{parts}</Text>;
 };
 
 export default MentionText;
