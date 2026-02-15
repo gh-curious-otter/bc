@@ -184,7 +184,7 @@ type WorktreeListEntry struct {
 func runWorktreeList(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	worktreesDir := filepath.Join(ws.RootDir, ".bc", "worktrees")
@@ -308,7 +308,7 @@ type PruneResult struct {
 func runWorktreePrune(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	worktreesDir := filepath.Join(ws.RootDir, ".bc", "worktrees")

@@ -76,7 +76,7 @@ func runLogs(cmd *cobra.Command, args []string) error {
 
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	log.Debug("logs command started", "agent", logsAgent, "type", logsType, "since", logsSince, "tail", logsTail)

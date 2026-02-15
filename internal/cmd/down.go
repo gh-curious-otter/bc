@@ -35,7 +35,7 @@ func runDown(cmd *cobra.Command, args []string) error {
 	// Find workspace
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	fmt.Printf("Stopping bc agents in %s\n\n", ws.RootDir)
