@@ -1,4 +1,4 @@
-// Package testing provides test output parsing and analysis.
+// Package testing provides utilities for test result parsing and issue creation.
 package testing
 
 import (
@@ -6,168 +6,160 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"regexp"
-	"strconv"
 	"strings"
 )
 
 // TestEvent represents a single event from go test -json output.
 type TestEvent struct {
+	Time    string `json:"Time"`
+	Action  string `json:"Action"`   // run, pause, cont, pass, fail, skip, output, bench
+	Package string `json:"Package"`
+	Test    string `json:"Test"`
+	Output  string `json:"Output"`
 	Elapsed float64 `json:"Elapsed"`
-	Time    string  `json:"Time"`
-	Action  string  `json:"Action"` // run, pass, fail, skip, output, bench
-	Package string  `json:"Package"`
-	Test    string  `json:"Test"`
-	Output  string  `json:"Output"`
 }
 
-// TestFailure represents a test failure with details extracted from output.
+// TestFailure represents a parsed test failure.
 type TestFailure struct {
-	Duration  float64 // 8 bytes
-	Line      int     // 8 bytes
-	Output    []string
 	Package   string
-	Test      string
-	File      string
+	TestName  string
+	FullName  string
+	Message   string
+	Output    []string
 	Timestamp string
-	FullName  string // Package/Test combined
 }
 
-// ParseTestJSON parses go test -json output and returns all test failures.
-// The input reader should contain newline-delimited JSON events.
-func ParseTestJSON(r io.Reader) ([]*TestFailure, error) {
-	scanner := bufio.NewScanner(r)
-	failures := make([]*TestFailure, 0)
-	runningTests := make(map[string]*TestFailure)
+// ParseTestJSON parses go test -json output from an io.Reader and returns list of failures.
+func ParseTestJSON(reader io.Reader) ([]TestFailure, error) {
+	var failures []TestFailure
+	var outputLines []string
 
+	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
-		var event TestEvent
-		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
-			// Skip malformed lines
+		line := scanner.Text()
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
 
-		switch event.Action {
-		case "fail":
-			key := event.Package + "/" + event.Test
-			if f, exists := runningTests[key]; exists {
-				// Update existing test record
-				f.Duration = event.Elapsed
-				f.Timestamp = event.Time
-				failures = append(failures, f)
-				delete(runningTests, key)
+		var event TestEvent
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			continue
+		}
+
+		if event.Action == "output" && event.Output != "" {
+			outputLines = append(outputLines, strings.TrimSuffix(event.Output, "\n"))
+		}
+
+		if event.Action == "fail" && event.Test != "" {
+			failure := TestFailure{
+				Package:   event.Package,
+				TestName:  event.Test,
+				FullName:  fmt.Sprintf("%s.%s", event.Package, event.Test),
+				Message:   extractFailureMessage(outputLines),
+				Output:    outputLines,
+				Timestamp: event.Time,
+			}
+			failures = append(failures, failure)
+			outputLines = []string{}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return failures, nil
+}
+
+// ParseTestResults parses go test -json output and returns list of failures.
+func ParseTestResults(jsonLines string) ([]TestFailure, error) {
+	var failures []TestFailure
+	var outputLines []string
+
+	lines := strings.Split(jsonLines, "\n")
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		var event TestEvent
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			continue
+		}
+
+		if event.Action == "output" && event.Output != "" {
+			outputLines = append(outputLines, strings.TrimSuffix(event.Output, "\n"))
+		}
+
+		if event.Action == "fail" && event.Test != "" {
+			failure := TestFailure{
+				Package:   event.Package,
+				TestName:  event.Test,
+				FullName:  fmt.Sprintf("%s.%s", event.Package, event.Test),
+				Message:   extractFailureMessage(outputLines),
+				Output:    outputLines,
+				Timestamp: event.Time,
+			}
+			failures = append(failures, failure)
+			outputLines = []string{}
+		}
+	}
+
+	return failures, nil
+}
+
+func extractFailureMessage(lines []string) string {
+	// First pass: look for Error or panic
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, "Error") || strings.Contains(line, "panic") {
+			return line
+		}
+	}
+	// Second pass: look for FAIL
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, "FAIL") {
+			return line
+		}
+	}
+	// Fallback to last line or default
+	if len(lines) > 0 {
+		return lines[len(lines)-1]
+	}
+	return "test failed"
+}
+
+// FormatFailureForIssue formats a test failure into GitHub issue body.
+func FormatFailureForIssue(failure TestFailure) string {
+	var body strings.Builder
+	body.WriteString(fmt.Sprintf("**Test:** `%s`\n\n", failure.FullName))
+	body.WriteString(fmt.Sprintf("**Package:** `%s`\n\n", failure.Package))
+	body.WriteString(fmt.Sprintf("**Time:** %s\n\n", failure.Timestamp))
+	body.WriteString(fmt.Sprintf("**Message:**\n```\n%s\n```\n\n", failure.Message))
+
+	if len(failure.Output) > 0 {
+		body.WriteString("**Full Output:**\n```\n")
+		for _, line := range failure.Output {
+			if len(line) > 200 {
+				body.WriteString(line[:200] + "...\n")
 			} else {
-				// Create new failure record
-				f := &TestFailure{
-					Package:   event.Package,
-					Test:      event.Test,
-					FullName:  key,
-					Duration:  event.Elapsed,
-					Timestamp: event.Time,
-					Output:    make([]string, 0),
-				}
-				failures = append(failures, f)
-			}
-
-		case "output":
-			if event.Test != "" {
-				key := event.Package + "/" + event.Test
-				if _, exists := runningTests[key]; !exists {
-					runningTests[key] = &TestFailure{
-						Package:  event.Package,
-						Test:     event.Test,
-						FullName: key,
-						Output:   make([]string, 0),
-					}
-				}
-				runningTests[key].Output = append(runningTests[key].Output, event.Output)
-
-				// Extract file:line information from output
-				if strings.Contains(event.Output, ".go:") {
-					if file, line, ok := extractFileLocation(event.Output); ok {
-						runningTests[key].File = file
-						runningTests[key].Line = line
-					}
-				}
+				body.WriteString(line + "\n")
 			}
 		}
+		body.WriteString("```\n")
 	}
 
-	return failures, scanner.Err()
+	body.WriteString("\n---\n*Created by automated testing demon*")
+	return body.String()
 }
 
-// extractFileLocation attempts to extract file and line number from test output.
-// Matches patterns like: "path/to/file.go:123:" or "file.go:45:"
-func extractFileLocation(output string) (string, int, bool) {
-	// Match patterns like: file.go:123: or /path/to/file.go:456:
-	re := regexp.MustCompile(`([\w./\-]+\.go):(\d+):`)
-	matches := re.FindStringSubmatch(output)
-	if len(matches) >= 3 {
-		file := matches[1]
-		lineNum, err := strconv.Atoi(matches[2])
-		if err == nil {
-			return file, lineNum, true
-		}
-	}
-	return "", 0, false
+// IssueTitle returns a GitHub issue title for the test failure.
+func (f TestFailure) IssueTitle() string {
+	return fmt.Sprintf("[TEST FAILURE] %s", f.TestName)
 }
 
-// FormatIssueBody creates a markdown-formatted issue body from test failure.
-// Returns a string suitable for use as GitHub issue body.
-func (f *TestFailure) FormatIssueBody() string {
-	var sb strings.Builder
-
-	sb.WriteString("## Test Failure\n\n")
-
-	// Summary section
-	sb.WriteString("**Package:** `" + f.Package + "`\n")
-	sb.WriteString("**Test:** `" + f.Test + "`\n")
-	if f.Duration > 0 {
-		sb.WriteString(fmt.Sprintf("**Duration:** %.3fs\n", f.Duration))
-	}
-	sb.WriteString("**Failed at:** " + f.Timestamp + "\n\n")
-
-	// File location if available
-	if f.File != "" {
-		sb.WriteString("### Location\n")
-		sb.WriteString("`" + f.File)
-		if f.Line > 0 {
-			sb.WriteString(fmt.Sprintf(":%d", f.Line))
-		}
-		sb.WriteString("`\n\n")
-	}
-
-	// Error output
-	if len(f.Output) > 0 {
-		sb.WriteString("### Error Output\n```\n")
-		for _, line := range f.Output {
-			sb.WriteString(line)
-		}
-		sb.WriteString("```\n\n")
-	}
-
-	// Footer
-	sb.WriteString("---\n_Auto-generated by bc testing demon_\n")
-
-	return sb.String()
-}
-
-// IssueTitle generates a concise issue title from the test failure.
-// Returns a title like "[Test Failure] TestFunctionName - package"
-func (f *TestFailure) IssueTitle() string {
-	testName := f.Test
-	if testName == "" {
-		testName = "package test"
-	}
-	return fmt.Sprintf("[Test Failure] %s - %s", testName, packageShortName(f.Package))
-}
-
-// packageShortName extracts the last component of a package path.
-// Example: "github.com/user/repo/pkg/agent" -> "agent"
-func packageShortName(pkg string) string {
-	parts := strings.Split(pkg, "/")
-	if len(parts) > 0 && parts[len(parts)-1] != "" {
-		return parts[len(parts)-1]
-	}
-	return pkg
+// FormatIssueBody returns a GitHub issue body for the test failure.
+func (f TestFailure) FormatIssueBody() string {
+	return FormatFailureForIssue(f)
 }
