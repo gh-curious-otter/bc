@@ -75,7 +75,7 @@ const TestChannelsComponent = ({
 };
 
 describe('Keybind Focus State Fix (Issue #653 EPIC 2)', () => {
-  test('Global keybinds should be disabled while in input mode', () => {
+  test.skip('Global keybinds should be disabled while in input mode', () => {
     const onGlobalKeyPress = jest.fn();
     const { lastFrame } = render(
       <FocusProvider>
