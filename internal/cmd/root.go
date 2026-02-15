@@ -42,7 +42,8 @@ Key features:
 Documentation: https://github.com/rpuneet/bc`,
 	// PersistentPreRun initializes logging based on flags
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		verbose, err := cmd.Flags().GetBool("verbose")
+		// Access persistent flag from root command to ensure consistency
+		verbose, err := cmd.Root().PersistentFlags().GetBool("verbose")
 		if err == nil {
 			log.SetVerbose(verbose)
 		}
