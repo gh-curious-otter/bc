@@ -273,6 +273,10 @@ func runChannelAdd(cmd *cobra.Command, args []string) error {
 	defer func() { _ = store.Close() }()
 
 	channelName := args[0]
+	// Validate channel name to prevent log injection
+	if !validIdentifier(channelName) {
+		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", channelName)
+	}
 	members := args[1:]
 
 	added := 0
@@ -305,6 +309,10 @@ func runChannelRemove(cmd *cobra.Command, args []string) error {
 	defer func() { _ = store.Close() }()
 
 	channelName := args[0]
+	// Validate channel name to prevent log injection
+	if !validIdentifier(channelName) {
+		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", channelName)
+	}
 	member := args[1]
 
 	if err := store.RemoveMember(channelName, member); err != nil {
@@ -332,6 +340,10 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 	defer func() { _ = store.Close() }()
 
 	channelName := args[0]
+	// Validate channel name to prevent log injection
+	if !validIdentifier(channelName) {
+		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", channelName)
+	}
 	message := strings.Join(args[1:], " ")
 
 	members, err := store.GetMembers(channelName)
@@ -416,6 +428,10 @@ func runChannelDelete(cmd *cobra.Command, args []string) error {
 	defer func() { _ = store.Close() }()
 
 	name := args[0]
+	// Validate channel name to prevent log injection
+	if !validIdentifier(name) {
+		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", name)
+	}
 	if err := store.Delete(name); err != nil {
 		return err
 	}
@@ -446,6 +462,10 @@ func runChannelJoin(cmd *cobra.Command, args []string) error {
 	defer func() { _ = store.Close() }()
 
 	channelName := args[0]
+	// Validate channel name to prevent log injection
+	if !validIdentifier(channelName) {
+		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", channelName)
+	}
 	if err := store.AddMember(channelName, agentID); err != nil {
 		return err
 	}
@@ -476,6 +496,10 @@ func runChannelLeave(cmd *cobra.Command, args []string) error {
 	defer func() { _ = store.Close() }()
 
 	channelName := args[0]
+	// Validate channel name to prevent log injection
+	if !validIdentifier(channelName) {
+		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", channelName)
+	}
 	if err := store.RemoveMember(channelName, agentID); err != nil {
 		return err
 	}
@@ -501,6 +525,10 @@ func runChannelHistory(cmd *cobra.Command, args []string) error {
 	defer func() { _ = store.Close() }()
 
 	channelName := args[0]
+	// Validate channel name to prevent log injection
+	if !validIdentifier(channelName) {
+		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", channelName)
+	}
 	history, err := store.GetHistory(channelName)
 	if err != nil {
 		return err
@@ -560,6 +588,10 @@ func runChannelReact(cmd *cobra.Command, args []string) error {
 	defer func() { _ = store.Close() }()
 
 	channelName := args[0]
+	// Validate channel name to prevent log injection
+	if !validIdentifier(channelName) {
+		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", channelName)
+	}
 	messageIndex, err := strconv.Atoi(args[1])
 	if err != nil {
 		return fmt.Errorf("invalid message index %q: %w", args[1], err)
@@ -611,6 +643,10 @@ func runChannelShow(cmd *cobra.Command, args []string) error {
 	defer func() { _ = store.Close() }()
 
 	channelName := args[0]
+	// Validate channel name to prevent log injection
+	if !validIdentifier(channelName) {
+		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", channelName)
+	}
 
 	// Get channel
 	ch, exists := store.Get(channelName)
@@ -701,6 +737,10 @@ func runChannelDesc(cmd *cobra.Command, args []string) error {
 	channelName := strings.TrimSpace(args[0])
 	if channelName == "" {
 		return fmt.Errorf("channel name cannot be empty")
+	}
+	// Validate channel name to prevent log injection
+	if !validIdentifier(channelName) {
+		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", channelName)
 	}
 
 	// Join description from remaining arguments
