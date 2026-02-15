@@ -13,18 +13,22 @@ import (
 )
 
 var logsCmd = &cobra.Command{
-	Use:   "logs",
+	Use:   "logs [agent]",
 	Short: "Show the event log",
 	Long: `View the bc event log showing agent spawns, stops, work assignments, and reports.
 
+You can specify agent either as positional argument or --agent flag.
+
 Examples:
   bc logs                    # all events
-  bc logs --agent worker-01  # filter by agent
+  bc logs worker-01          # filter by agent (positional)
+  bc logs --agent worker-01  # filter by agent (flag)
   bc logs --type agent.report # filter by event type
   bc logs --since 1h         # events from last hour
   bc logs --tail 20          # last N events
   bc logs --full             # show full messages (no truncation)
   bc logs --json             # JSON output`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: runLogs,
 }
 
@@ -71,6 +75,12 @@ func truncateMessage(s string, maxLen int) string {
 func runLogs(cmd *cobra.Command, args []string) error {
 	if cmd.Flags().Changed("tail") && logsTail <= 0 {
 		return fmt.Errorf("tail must be a positive number")
+	}
+
+	// Determine agent from either positional arg or --agent flag
+	// Priority: positional arg > --agent flag
+	if len(args) > 0 && logsAgent == "" {
+		logsAgent = args[0]
 	}
 
 	ws, err := getWorkspace()
