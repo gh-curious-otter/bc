@@ -316,3 +316,85 @@ func TestTeamPath(t *testing.T) {
 		t.Errorf("teamPath = %q, want %q", got, expected)
 	}
 }
+
+func TestStoreRemoveAgentFromAllTeams(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create multiple teams
+	_, _ = store.Create("team-a")
+	_, _ = store.Create("team-b")
+	_, _ = store.Create("team-c")
+
+	// Add agent to multiple teams
+	_ = store.AddMember("team-a", "eng-01")
+	_ = store.AddMember("team-a", "eng-02")
+	_ = store.AddMember("team-b", "eng-01")
+	_ = store.AddMember("team-c", "eng-03")
+
+	// Set eng-01 as lead of team-b
+	_ = store.SetLead("team-b", "eng-01")
+
+	// Remove eng-01 from all teams
+	err := store.RemoveAgentFromAllTeams("eng-01")
+	if err != nil {
+		t.Fatalf("RemoveAgentFromAllTeams failed: %v", err)
+	}
+
+	// Verify team-a no longer has eng-01
+	teamA, _ := store.Get("team-a")
+	for _, m := range teamA.Members {
+		if m == "eng-01" {
+			t.Error("team-a should not contain eng-01")
+		}
+	}
+	if len(teamA.Members) != 1 || teamA.Members[0] != "eng-02" {
+		t.Errorf("team-a members = %v, want [eng-02]", teamA.Members)
+	}
+
+	// Verify team-b no longer has eng-01 and lead is cleared
+	teamB, _ := store.Get("team-b")
+	if len(teamB.Members) != 0 {
+		t.Errorf("team-b members = %v, want []", teamB.Members)
+	}
+	if teamB.Lead != "" {
+		t.Errorf("team-b lead = %q, want empty (cleared)", teamB.Lead)
+	}
+
+	// Verify team-c unchanged
+	teamC, _ := store.Get("team-c")
+	if len(teamC.Members) != 1 || teamC.Members[0] != "eng-03" {
+		t.Errorf("team-c members = %v, want [eng-03]", teamC.Members)
+	}
+}
+
+func TestStoreRemoveAgentFromAllTeams_NoTeams(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Should not error when no teams exist
+	err := store.RemoveAgentFromAllTeams("eng-01")
+	if err != nil {
+		t.Fatalf("RemoveAgentFromAllTeams with no teams failed: %v", err)
+	}
+}
+
+func TestStoreRemoveAgentFromAllTeams_AgentNotInAnyTeam(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	_, _ = store.Create("team-a")
+	_ = store.AddMember("team-a", "eng-02")
+
+	// Remove agent that doesn't exist in any team
+	err := store.RemoveAgentFromAllTeams("eng-01")
+	if err != nil {
+		t.Fatalf("RemoveAgentFromAllTeams failed: %v", err)
+	}
+
+	// Verify team unchanged
+	team, _ := store.Get("team-a")
+	if len(team.Members) != 1 || team.Members[0] != "eng-02" {
+		t.Errorf("team-a members = %v, want [eng-02]", team.Members)
+	}
+}

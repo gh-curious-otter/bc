@@ -860,6 +860,13 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 		_ = channelStore.Close()
 	}
 
+	// Remove from all teams (issue #730)
+	teamStore := team.NewStore(ws.RootDir)
+	if teamErr := teamStore.RemoveAgentFromAllTeams(agentName); teamErr != nil {
+		// Log warning but don't fail deletion
+		fmt.Printf("Warning: failed to clean up team memberships: %v\n", teamErr)
+	}
+
 	// Delete agent with options
 	fmt.Printf("Deleting %s... ", agentName)
 	deleteOpts := agent.DeleteOptions{

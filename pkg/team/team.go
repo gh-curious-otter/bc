@@ -185,6 +185,32 @@ func (s *Store) SetDescription(teamName, description string) error {
 	})
 }
 
+// RemoveAgentFromAllTeams removes an agent from all teams they belong to.
+// This should be called when an agent is deleted to maintain data integrity.
+func (s *Store) RemoveAgentFromAllTeams(agentName string) error {
+	teams, err := s.List()
+	if err != nil {
+		return err
+	}
+
+	for _, team := range teams {
+		// Check if agent is a member
+		if slices.Contains(team.Members, agentName) {
+			if err := s.RemoveMember(team.Name, agentName); err != nil {
+				return fmt.Errorf("failed to remove %s from team %s: %w", agentName, team.Name, err)
+			}
+		}
+		// Also clear lead if this agent was the lead
+		if team.Lead == agentName {
+			if err := s.SetLead(team.Name, ""); err != nil {
+				return fmt.Errorf("failed to clear lead for team %s: %w", team.Name, err)
+			}
+		}
+	}
+
+	return nil
+}
+
 func (s *Store) save(team *Team) error {
 	if err := s.Init(); err != nil {
 		return err
