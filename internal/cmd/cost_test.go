@@ -446,3 +446,39 @@ func TestCostAddTokensWithoutAmount(t *testing.T) {
 		t.Fatalf("expected error when tokens provided without amount, got output: %s", stdout)
 	}
 }
+
+// TestCostPeekMissingFlags tests error when neither --agent nor --workspace provided
+func TestCostPeekMissingFlags(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Reset flags
+	peekAgentFlag = ""
+	peekWorkspaceFlag = false
+	peekIntervalFlag = 5
+
+	_, _, err := executeIntegrationCmd("cost", "peek")
+	if err == nil {
+		t.Fatal("expected error when no flags provided")
+	}
+}
+
+// TestCostPeekBothFlags tests error when both --agent and --workspace provided
+func TestCostPeekBothFlags(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Reset flags
+	peekAgentFlag = ""
+	peekWorkspaceFlag = false
+	peekIntervalFlag = 5
+
+	_, _, err := executeIntegrationCmd(
+		"cost", "peek",
+		"--agent", "engineer-01",
+		"--workspace",
+	)
+	if err == nil {
+		t.Fatal("expected error when both flags provided")
+	}
+}

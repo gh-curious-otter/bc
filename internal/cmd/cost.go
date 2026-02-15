@@ -969,39 +969,40 @@ func runCostPeek(cmd *cobra.Command, args []string) error {
 	}
 
 	// Show initial state
-	fmt.Printf("Cost Monitor (refresh interval: %d seconds)\n", peekIntervalFlag)
-	fmt.Printf("Press Ctrl+C to stop\n\n")
+	fmt.Printf("Cost Monitor (refresh interval: %d seconds, press Ctrl+C to stop)\n", peekIntervalFlag)
+	fmt.Println("=====================================")
 
 	ticker := time.NewTicker(time.Duration(peekIntervalFlag) * time.Second)
 	defer ticker.Stop()
 
-	for {
-		// Clear screen would be nice, but keep it simple for CLI
-		if peekWorkspaceFlag {
-			summary, summaryErr := store.WorkspaceSummary()
-			if summaryErr != nil {
-				return fmt.Errorf("failed to get workspace summary: %w", summaryErr)
-			}
+	// Display initial data immediately
+	displayCostPeek(store, peekAgentFlag, peekWorkspaceFlag)
 
-			fmt.Printf("Workspace Total: $%.4f (API Calls: %d, Tokens: %d)\n",
+	for range ticker.C {
+		displayCostPeek(store, peekAgentFlag, peekWorkspaceFlag)
+	}
+	return nil
+}
+
+func displayCostPeek(store *cost.Store, agentFlag string, workspaceFlag bool) {
+	now := time.Now()
+	fmt.Printf("\n[%s] ", now.Format("15:04:05"))
+
+	if workspaceFlag {
+		summary, summaryErr := store.WorkspaceSummary()
+		if summaryErr == nil && summary != nil {
+			fmt.Printf("Workspace: $%.4f (%d calls, %d tokens)\n",
 				summary.TotalCostUSD, summary.RecordCount, summary.TotalTokens)
 		} else {
-			summary, summaryErr := store.AgentSummary(peekAgentFlag)
-			if summaryErr != nil {
-				return fmt.Errorf("failed to get agent summary: %w", summaryErr)
-			}
-
-			if summary == nil {
-				fmt.Printf("Agent %s: $0.0000 (no cost data yet)\n", peekAgentFlag)
-			} else {
-				fmt.Printf("Agent %s: $%.4f (Calls: %d, Tokens: %d)\n",
-					summary.AgentID, summary.TotalCostUSD, summary.RecordCount, summary.TotalTokens)
-			}
+			fmt.Printf("Workspace: $0.0000 (0 calls)\n")
 		}
-
-		fmt.Printf("[%s] Waiting for next update...\n", time.Now().Format("15:04:05"))
-
-		// Wait for next tick or interrupt
-		<-ticker.C
+	} else {
+		summary, summaryErr := store.AgentSummary(agentFlag)
+		if summaryErr == nil && summary != nil {
+			fmt.Printf("Agent '%s': $%.4f (%d calls, %d tokens)\n",
+				summary.AgentID, summary.TotalCostUSD, summary.RecordCount, summary.TotalTokens)
+		} else {
+			fmt.Printf("Agent '%s': $0.0000 (no data)\n", agentFlag)
+		}
 	}
 }
