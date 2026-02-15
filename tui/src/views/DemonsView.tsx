@@ -3,7 +3,7 @@
  * Issue #554 - Demons list view
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useDemons } from '../hooks/useDemons';
 import { StatusBadge } from '../components/StatusBadge';
@@ -11,6 +11,9 @@ import { Footer } from '../components/Footer';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import type { Demon } from '../types';
+
+/** Duration in ms to show action errors before auto-clearing */
+const ERROR_DISPLAY_DURATION = 3000;
 
 export interface DemonsViewProps {
   /** Callback when exiting the view */
@@ -76,6 +79,14 @@ export function DemonsView({
 }: DemonsViewProps): React.ReactElement {
   const { data: demons, loading, error, total, enabled, refresh, enable, disable, run } = useDemons();
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // Auto-clear action errors after a delay
+  useEffect(() => {
+    if (!actionError) return;
+    const timer = setTimeout(() => setActionError(null), ERROR_DISPLAY_DURATION);
+    return () => clearTimeout(timer);
+  }, [actionError]);
 
   useInput(
     (input, key) => {
@@ -102,15 +113,21 @@ export function DemonsView({
       if (selectedDemon) {
         if (input === 'e') {
           // Enable demon
-          enable(selectedDemon.name).catch(() => {});
+          enable(selectedDemon.name).catch((err: Error) => {
+            setActionError(`Enable failed: ${err.message}`);
+          });
         }
         if (input === 'd') {
           // Disable demon
-          disable(selectedDemon.name).catch(() => {});
+          disable(selectedDemon.name).catch((err: Error) => {
+            setActionError(`Disable failed: ${err.message}`);
+          });
         }
         if (input === 'x') {
           // Execute demon
-          run(selectedDemon.name).catch(() => {});
+          run(selectedDemon.name).catch((err: Error) => {
+            setActionError(`Run failed: ${err.message}`);
+          });
         }
       }
     },
@@ -135,6 +152,13 @@ export function DemonsView({
         <Text dimColor> · </Text>
         <Text color={enabled > 0 ? 'green' : 'gray'}>{enabled} enabled</Text>
       </Box>
+
+      {/* Action error feedback */}
+      {actionError && (
+        <Box marginBottom={1}>
+          <Text color="red">{actionError}</Text>
+        </Box>
+      )}
 
       {/* Demon list */}
       {demons && demons.length > 0 ? (
