@@ -22,7 +22,7 @@ export interface UseKeyboardNavigationOptions {
  */
 export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}): void {
   const { disabled = false, onQuit } = options;
-  const { navigate, goHome, getTabByKey } = useNavigation();
+  const { navigate, goHome, getTabByKey, nextTab, prevTab } = useNavigation();
   const { isFocused } = useFocus();
 
   useInput(
@@ -48,6 +48,16 @@ export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}
       const tab = getTabByKey(input);
       if (tab) {
         navigate(tab.view);
+        return;
+      }
+
+      // Tab key: next tab, Shift+Tab: previous tab
+      if (key.tab) {
+        if (key.shift) {
+          prevTab();
+        } else {
+          nextTab();
+        }
         return;
       }
 
