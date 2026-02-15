@@ -10,6 +10,9 @@ import { useNavigation } from '../navigation/NavigationContext';
 import { ChatMessage } from './ChatMessage';
 import type { Channel } from '../types';
 
+/** Duration in ms to show send errors before auto-clearing */
+const SEND_ERROR_DISPLAY_DURATION = 3000;
+
 /**
  * Calculate input box height based on message length
  * Height expands from 3 (min) to 10 (max) lines based on content
@@ -148,7 +151,15 @@ function ChannelHistoryView({
   const [inputMode, setInputMode] = useState(false);
   const [messageBuffer, setMessageBuffer] = useState('');
   const [scrollOffset, setScrollOffset] = useState(0);
+  const [sendError, setSendError] = useState<string | null>(null);
   const { setFocus, returnFocus } = useFocus();
+
+  // Auto-clear send errors after a delay
+  useEffect(() => {
+    if (!sendError) return;
+    const timer = setTimeout(() => setSendError(null), SEND_ERROR_DISPLAY_DURATION);
+    return () => clearTimeout(timer);
+  }, [sendError]);
   const { stdout } = useStdout();
 
   // Calculate dynamic input height based on message length
@@ -188,8 +199,8 @@ function ChannelHistoryView({
       if (inputMode) {
         if (key.return) {
           if (messageBuffer.trim()) {
-            send(messageBuffer.trim()).catch(() => {
-              // Error handled by hook
+            send(messageBuffer.trim()).catch((err: Error) => {
+              setSendError(`Send failed: ${err.message}`);
             });
             setMessageBuffer('');
           }
@@ -263,6 +274,13 @@ function ChannelHistoryView({
           </>
         )}
       </Box>
+
+      {/* Send error feedback */}
+      {sendError && (
+        <Box marginBottom={1}>
+          <Text color="red">{sendError}</Text>
+        </Box>
+      )}
 
       {/* Input area - auto-expands based on message length (3-10 lines) */}
       <Box height={inputHeight} flexDirection="column" marginBottom={1} borderStyle="single" borderColor={inputMode ? 'cyan' : 'gray'} paddingX={1}>
