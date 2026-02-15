@@ -306,7 +306,7 @@ func runMemoryRecord(cmd *cobra.Command, args []string) error {
 
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	store := memory.NewStore(ws.RootDir, agentID)
@@ -352,7 +352,7 @@ func runMemoryLearn(cmd *cobra.Command, args []string) error {
 
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	store := memory.NewStore(ws.RootDir, agentID)
@@ -375,7 +375,7 @@ func runMemoryShow(cmd *cobra.Command, args []string) error {
 
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	// Determine which agent's memory to show
@@ -449,7 +449,7 @@ func runMemoryShow(cmd *cobra.Command, args []string) error {
 func runMemorySearch(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	query := strings.ToLower(args[0])
@@ -633,7 +633,7 @@ func scoreLearning(line, query string) int {
 func runMemoryPrune(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	// Parse the duration
@@ -744,7 +744,7 @@ func runMemoryPrune(cmd *cobra.Command, args []string) error {
 func runMemoryList(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	// Determine which agents to list
@@ -949,7 +949,7 @@ func formatBytes(b int64) string {
 func runMemoryClear(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	agentID := args[0]
@@ -1020,7 +1020,7 @@ type MemoryExport struct {
 func runMemoryExport(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	agentID := args[0]
@@ -1080,7 +1080,7 @@ func runMemoryExport(cmd *cobra.Command, args []string) error {
 func runMemoryForget(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	agentID := args[0]
@@ -1119,7 +1119,7 @@ type MemoryImport struct {
 func runMemoryImport(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	agentID := args[0]

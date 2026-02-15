@@ -71,7 +71,8 @@ func TestAgentLifecycle_CreateNoWorkspace(t *testing.T) {
 	resetAgentFlags()
 	defer resetAgentFlags()
 
-	_, err := executeCmd("agent", "create", "test-agent")
+	// Include --role flag so validation passes and we reach workspace check
+	_, err := executeCmd("agent", "create", "test-agent", "--role", "engineer")
 	if err == nil {
 		t.Error("expected error for missing workspace")
 	}

@@ -104,7 +104,7 @@ func init() {
 func runTeamCreate(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	name := args[0]
@@ -122,7 +122,7 @@ func runTeamCreate(cmd *cobra.Command, args []string) error {
 func runTeamList(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	store := team.NewStore(ws.RootDir)
@@ -176,7 +176,7 @@ func runTeamList(cmd *cobra.Command, args []string) error {
 func runTeamShow(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	name := args[0]
@@ -212,7 +212,7 @@ func runTeamShow(cmd *cobra.Command, args []string) error {
 func runTeamDelete(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	name := args[0]
@@ -229,7 +229,7 @@ func runTeamDelete(cmd *cobra.Command, args []string) error {
 func runTeamAdd(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	teamName := args[0]
@@ -259,7 +259,7 @@ func runTeamAdd(cmd *cobra.Command, args []string) error {
 func runTeamRemove(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	teamName := args[0]
@@ -282,7 +282,7 @@ func runTeamRemove(cmd *cobra.Command, args []string) error {
 func runTeamRename(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	oldName := args[0]
