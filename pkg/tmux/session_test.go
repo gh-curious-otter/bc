@@ -146,6 +146,34 @@ func sliceContains(strs []string, target string) bool {
 }
 
 // ---------------------------------------------------------------------------
+// userFriendlyTmuxError tests
+// ---------------------------------------------------------------------------
+
+func TestUserFriendlyTmuxError(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"can't find pane: foo", "session not found (may have terminated)"},
+		{"Can't find pane xyz", "session not found (may have terminated)"},
+		{"can't find session: bar", "session not found (may have terminated)"},
+		{"session not found", "session not found (may have terminated)"},
+		{"no server running on /tmp/tmux", "tmux server not running"},
+		{"can't find window: 0", "session window not found"},
+		{"short error", "short error"},
+		{"", ""},
+		{strings.Repeat("x", 100), strings.Repeat("x", 50) + "..."},
+	}
+
+	for _, tc := range tests {
+		result := userFriendlyTmuxError(tc.input)
+		if result != tc.expected {
+			t.Errorf("userFriendlyTmuxError(%q) = %q, want %q", tc.input, result, tc.expected)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Constructor tests
 // ---------------------------------------------------------------------------
 
@@ -707,7 +735,7 @@ func TestSendKeysWithSubmit_ShortMessageError(t *testing.T) {
 	if err == nil {
 		t.Error("expected error")
 	}
-	if !strings.Contains(err.Error(), "failed to send keys") {
+	if !strings.Contains(err.Error(), "failed to send message") {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
@@ -750,7 +778,7 @@ func TestSendKeysWithSubmit_PasteBufferError(t *testing.T) {
 	if err == nil {
 		t.Error("expected error on paste-buffer failure")
 	}
-	if !strings.Contains(err.Error(), "failed to paste buffer") {
+	if !strings.Contains(err.Error(), "failed to send message") {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
