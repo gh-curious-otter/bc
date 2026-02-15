@@ -28,7 +28,14 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
     ? searchCommands(searchQuery)
     : COMMAND_REGISTRY.flatMap(cat => cat.commands);
 
-  const selectedCommand = filteredCommands[selectedIndex];
+  // Clamp selectedIndex to valid range whenever filteredCommands changes
+  const validatedIndex = Math.min(selectedIndex, Math.max(0, filteredCommands.length - 1));
+  const selectedCommand = filteredCommands[validatedIndex];
+
+  // Reset selection when search results change
+  React.useEffect(() => {
+    setSelectedIndex(0);
+  }, [searchQuery]);
 
   // Sync focus state with search mode
   React.useEffect(() => {
@@ -50,17 +57,24 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
         setSearchMode(false);
       } else if (key.backspace || key.delete) {
         setSearchQuery(searchQuery.slice(0, -1));
-      } else if (input && !key.ctrl && !key.meta) {
+      } else if (input && !key.ctrl && !key.meta && !key.tab) {
+        // Add printable characters to search query, ignore tab
         setSearchQuery(searchQuery + input);
       }
     } else {
       // Navigation mode
       if (input === '/') {
         setSearchMode(true);
-      } else if ((key.upArrow || input === 'k') && selectedIndex > 0) {
-        setSelectedIndex(selectedIndex - 1);
-      } else if ((key.downArrow || input === 'j') && selectedIndex < filteredCommands.length - 1) {
-        setSelectedIndex(selectedIndex + 1);
+      } else if (key.upArrow || input === 'k') {
+        // Navigate up, clamped to valid range
+        if (filteredCommands.length > 0) {
+          setSelectedIndex(Math.max(0, validatedIndex - 1));
+        }
+      } else if (key.downArrow || input === 'j') {
+        // Navigate down, clamped to valid range
+        if (filteredCommands.length > 0) {
+          setSelectedIndex(Math.min(filteredCommands.length - 1, validatedIndex + 1));
+        }
       } else if (key.return && selectedCommand) {
         // TODO: Execute command or show confirmation
       } else if (input === 'q' || key.escape) {
@@ -95,13 +109,20 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
       {/* Command list */}
       <Box flexDirection="column" marginBottom={1} paddingX={1}>
         {filteredCommands.length === 0 ? (
-          <Text dimColor>No commands match &quot;{searchQuery}&quot;</Text>
+          <Box flexDirection="column">
+            <Text dimColor>No commands match &quot;{searchQuery}&quot;</Text>
+            {searchQuery.length > 0 && (
+              <Box marginTop={1}>
+                <Text dimColor>Try a different search or press Esc to clear</Text>
+              </Box>
+            )}
+          </Box>
         ) : (
           filteredCommands.map((cmd, idx) => (
             <CommandRow
               key={`${cmd.category}-${cmd.name}`}
               command={cmd}
-              selected={idx === selectedIndex}
+              selected={idx === validatedIndex}
             />
           ))
         )}
@@ -130,7 +151,9 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
       <Box>
         <Text dimColor>
           {searchMode
-            ? 'Type to search, Enter to confirm, Esc to cancel'
+            ? 'Type to search, Enter/Esc to exit'
+            : filteredCommands.length === 0
+            ? 'No commands found | /: search | q: back'
             : 'j/k: navigate | /: search | Enter: view | q: back'}
         </Text>
       </Box>
