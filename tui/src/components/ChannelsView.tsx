@@ -70,7 +70,7 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
     <Box flexDirection="column" width="100%">
       <Text bold>Channels</Text>
       <Text dimColor>↑/↓ navigate, Enter to view messages, ESC to go back</Text>
-      <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1} width="100%">
+      <Box marginTop={1} flexDirection="column" width="100%" borderStyle="single" borderColor="gray" paddingX={2}>
         {channels?.map((channel, index) => (
           <ChannelRow
             key={channel.name}
@@ -134,10 +134,6 @@ function ChannelHistoryView({
    *
    * This fixes issue #653: "After typing a message in a channel, the keybinds to
    * q, 1,2,3... are not re-enabled"
-   *
-   * IMPORTANT: Only depend on inputMode, not setFocus/returnFocus because those
-   * functions are recreated when focusedArea changes, which would create an infinite
-   * cycle.
    */
   useEffect(() => {
     if (inputMode) {
@@ -145,8 +141,7 @@ function ChannelHistoryView({
     } else {
       returnFocus();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inputMode]);
+  }, [inputMode, setFocus, returnFocus]);
 
   useInput(
     (input, key) => {
