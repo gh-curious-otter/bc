@@ -289,3 +289,173 @@ func TestDemonDisableNotFound(t *testing.T) {
 		t.Errorf("error should mention not found: %v", err)
 	}
 }
+
+// --- Demon Name Validation Tests ---
+
+func TestDemonCreateInvalidName(t *testing.T) {
+	setupTestWorkspace(t)
+
+	tests := []struct {
+		name    string
+		wantErr string
+	}{
+		{"123-starts-with-digit", "must start with a letter"},
+		{"has spaces", "must start with a letter"},
+		{"has@special", "must start with a letter"},
+		{"has.dot", "must start with a letter"},
+		{"", "cannot be empty"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := executeCmd("demon", "create", tt.name, "--schedule", "0 * * * *", "--cmd", "echo hello")
+			if err == nil {
+				t.Errorf("expected error for name %q", tt.name)
+				return
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("error %q should contain %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestDemonShowInvalidName(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("demon", "show", "123-invalid")
+	if err == nil {
+		t.Error("expected error for invalid name")
+	}
+	if !strings.Contains(err.Error(), "must start with a letter") {
+		t.Errorf("error should mention invalid format: %v", err)
+	}
+}
+
+func TestDemonDeleteInvalidName(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("demon", "delete", "123invalid")
+	if err == nil {
+		t.Error("expected error for invalid name")
+	}
+	if !strings.Contains(err.Error(), "must start with a letter") {
+		t.Errorf("error should mention invalid format: %v", err)
+	}
+}
+
+func TestDemonRunInvalidName(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("demon", "run", "has spaces")
+	if err == nil {
+		t.Error("expected error for invalid name")
+	}
+	if !strings.Contains(err.Error(), "must start with a letter") {
+		t.Errorf("error should mention invalid format: %v", err)
+	}
+}
+
+func TestDemonEnableInvalidName(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("demon", "enable", "@invalid")
+	if err == nil {
+		t.Error("expected error for invalid name")
+	}
+	if !strings.Contains(err.Error(), "must start with a letter") {
+		t.Errorf("error should mention invalid format: %v", err)
+	}
+}
+
+func TestDemonDisableInvalidName(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("demon", "disable", "123bad")
+	if err == nil {
+		t.Error("expected error for invalid name")
+	}
+	if !strings.Contains(err.Error(), "must start with a letter") {
+		t.Errorf("error should mention invalid format: %v", err)
+	}
+}
+
+func TestDemonLogsInvalidName(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("demon", "logs", "bad name")
+	if err == nil {
+		t.Error("expected error for invalid name")
+	}
+	if !strings.Contains(err.Error(), "must start with a letter") {
+		t.Errorf("error should mention invalid format: %v", err)
+	}
+}
+
+func TestDemonEditInvalidName(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("demon", "edit", "123badname", "--schedule", "0 * * * *")
+	if err == nil {
+		t.Error("expected error for invalid name")
+	}
+	if !strings.Contains(err.Error(), "must start with a letter") {
+		t.Errorf("error should mention invalid format: %v", err)
+	}
+}
+
+// --- Demon Create Empty Command Test ---
+
+func TestDemonCreateEmptyCommand(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("demon", "create", "test-demon", "--schedule", "0 * * * *", "--cmd", "")
+	if err == nil {
+		t.Error("expected error for empty command")
+	}
+	if !strings.Contains(err.Error(), "command cannot be empty") {
+		t.Errorf("error should mention empty command: %v", err)
+	}
+}
+
+// --- Demon Edit Schedule Validation Test ---
+
+func TestDemonEditInvalidSchedule(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	// Create a valid demon first
+	store := demon.NewStore(wsDir)
+	_, _ = store.Create("edit-sched", "0 * * * *", "echo hello")
+
+	// Try to edit with invalid schedule
+	_, err := executeCmd("demon", "edit", "edit-sched", "--schedule", "invalid-cron")
+	if err == nil {
+		t.Error("expected error for invalid schedule")
+	}
+	if !strings.Contains(err.Error(), "invalid cron") {
+		t.Errorf("error should mention invalid cron: %v", err)
+	}
+}
+
+func TestDemonCreateValidNames(t *testing.T) {
+	setupTestWorkspace(t)
+
+	validNames := []string{
+		"my-demon",
+		"my_demon",
+		"MyDemon",
+		"_private",
+		"backup",
+		"test123",
+		"a",
+	}
+
+	for _, name := range validNames {
+		t.Run(name, func(t *testing.T) {
+			_, err := executeCmd("demon", "create", name, "--schedule", "0 * * * *", "--cmd", "echo hello")
+			if err != nil {
+				t.Errorf("valid name %q should succeed: %v", name, err)
+			}
+		})
+	}
+}

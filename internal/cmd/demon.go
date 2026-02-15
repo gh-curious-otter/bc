@@ -202,6 +202,18 @@ func validIdentifier(s string) bool {
 	return pattern.MatchString(s)
 }
 
+// validateDemonName validates a demon name and returns an error if invalid.
+func validateDemonName(name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("demon name cannot be empty")
+	}
+	if !validIdentifier(name) {
+		return fmt.Errorf("demon name %q must start with a letter or underscore and contain only letters, numbers, dashes, and underscores", name)
+	}
+	return nil
+}
+
 func runDemonCreate(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
@@ -209,11 +221,13 @@ func runDemonCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	name := strings.TrimSpace(args[0])
-	if name == "" {
-		return fmt.Errorf("demon name cannot be empty")
+	if nameErr := validateDemonName(name); nameErr != nil {
+		return nameErr
 	}
-	if !validIdentifier(name) {
-		return fmt.Errorf("demon name must contain only letters, numbers, dashes, and underscores")
+
+	// Validate command is not empty
+	if strings.TrimSpace(demonCommand) == "" {
+		return fmt.Errorf("demon command cannot be empty")
 	}
 
 	store := demon.NewStore(ws.RootDir)
@@ -294,6 +308,10 @@ func runDemonShow(cmd *cobra.Command, args []string) error {
 	}
 
 	name := args[0]
+	if nameErr := validateDemonName(name); nameErr != nil {
+		return nameErr
+	}
+
 	store := demon.NewStore(ws.RootDir)
 
 	d, err := store.Get(name)
@@ -327,6 +345,10 @@ func runDemonDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	name := args[0]
+	if nameErr := validateDemonName(name); nameErr != nil {
+		return nameErr
+	}
+
 	store := demon.NewStore(ws.RootDir)
 
 	if err := store.Delete(name); err != nil {
@@ -344,6 +366,10 @@ func runDemonRun(cmd *cobra.Command, args []string) error {
 	}
 
 	name := args[0]
+	if nameErr := validateDemonName(name); nameErr != nil {
+		return nameErr
+	}
+
 	store := demon.NewStore(ws.RootDir)
 
 	d, err := store.Get(name)
@@ -417,6 +443,10 @@ func runDemonEnable(cmd *cobra.Command, args []string) error {
 	}
 
 	name := args[0]
+	if nameErr := validateDemonName(name); nameErr != nil {
+		return nameErr
+	}
+
 	store := demon.NewStore(ws.RootDir)
 
 	if err := store.Enable(name); err != nil {
@@ -439,6 +469,10 @@ func runDemonDisable(cmd *cobra.Command, args []string) error {
 	}
 
 	name := args[0]
+	if nameErr := validateDemonName(name); nameErr != nil {
+		return nameErr
+	}
+
 	store := demon.NewStore(ws.RootDir)
 
 	if err := store.Disable(name); err != nil {
@@ -456,6 +490,10 @@ func runDemonLogs(cmd *cobra.Command, args []string) error {
 	}
 
 	name := args[0]
+	if nameErr := validateDemonName(name); nameErr != nil {
+		return nameErr
+	}
+
 	store := demon.NewStore(ws.RootDir)
 
 	// Check if demon exists
@@ -511,6 +549,10 @@ func runDemonEdit(cmd *cobra.Command, args []string) error {
 	}
 
 	name := args[0]
+	if nameErr := validateDemonName(name); nameErr != nil {
+		return nameErr
+	}
+
 	store := demon.NewStore(ws.RootDir)
 
 	// Check if demon exists
@@ -537,6 +579,18 @@ func runDemonEdit(cmd *cobra.Command, args []string) error {
 }
 
 func updateDemonWithFlags(cmd *cobra.Command, store *demon.Store, name string) error {
+	// Validate schedule if provided
+	if demonEditSchedule != "" {
+		if _, err := demon.ParseCron(demonEditSchedule); err != nil {
+			return fmt.Errorf("invalid cron schedule %q: %w", demonEditSchedule, err)
+		}
+	}
+
+	// Validate command if provided (not empty)
+	if demonEditCommand != "" && strings.TrimSpace(demonEditCommand) == "" {
+		return fmt.Errorf("demon command cannot be empty")
+	}
+
 	var changes []string
 
 	err := store.Update(name, func(d *demon.Demon) {
