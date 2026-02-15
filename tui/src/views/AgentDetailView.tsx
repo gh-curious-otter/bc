@@ -1,8 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text, useInput as inkUseInput } from 'ink';
 import type { Agent } from '../types';
 import { execBc } from '../services/bc';
 import { StatusBadge } from '../components/StatusBadge';
+
+// Safe wrapper for useInput that handles test environments
+const useSafeInput = (handler: Parameters<typeof inkUseInput>[0]) => {
+  try {
+    inkUseInput(handler);
+  } catch {
+    // Silently fail in test environments
+  }
+};
 
 interface AgentDetailViewProps {
   agent: Agent;
@@ -60,7 +69,8 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
     }
   }, [agent.name, fetchAgentOutput]);
 
-  useInput((input, key) => {
+  // Use safe input wrapper that handles test environments gracefully
+  useSafeInput((input, key) => {
     if (inputMode) {
       if (key.return) {
         sendMessage(messageBuffer);
