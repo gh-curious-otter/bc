@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/team"
 )
 
@@ -165,6 +166,21 @@ func TestTeamAdd(t *testing.T) {
 	store := team.NewStore(wsDir)
 	_, _ = store.Create("engineering")
 
+	// Create an agent first (required by validation)
+	// Use seedAgents to properly create the agent in the state
+	agents := map[string]*agent.Agent{
+		"engineer-01": {
+			Name:      "engineer-01",
+			Role:      agent.Role("engineer"),
+			State:     agent.StateIdle,
+			Tool:      "claude",
+			Session:   "test-session",
+			Workspace: wsDir,
+			ID:        "eng-01-id",
+		},
+	}
+	seedAgents(t, wsDir, agents)
+
 	output, err := executeCmd("team", "add", "engineering", "engineer-01")
 	if err != nil {
 		t.Fatalf("team add failed: %v\nOutput: %s", err, output)
@@ -237,5 +253,21 @@ func TestTeamRemoveTeamNotFound(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "not found") {
 		t.Errorf("error should mention not found: %v", err)
+	}
+}
+
+func TestTeamAddAgentNotFound(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	// Create a team but don't create the agent
+	store := team.NewStore(wsDir)
+	_, _ = store.Create("engineering")
+
+	_, err := executeCmd("team", "add", "engineering", "nonexistent-agent")
+	if err == nil {
+		t.Error("expected error for nonexistent agent")
+	}
+	if !strings.Contains(err.Error(), "does not exist") {
+		t.Errorf("error should mention agent does not exist: %v", err)
 	}
 }

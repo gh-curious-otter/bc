@@ -16,6 +16,7 @@ import (
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/names"
+	"github.com/rpuneet/bc/pkg/team"
 )
 
 // agentCmd is the parent command for all agent operations
@@ -390,10 +391,28 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Validate team name if specified (do this before role validation)
+	if agentCreateTeam != "" {
+		if !isValidTeamName(agentCreateTeam) {
+			return fmt.Errorf("team name must be alphanumeric with optional hyphens/underscores")
+		}
+
+		// Validate team exists
+		teamStore := team.NewStore(filepath.Join(ws.StateDir(), "teams"))
+		if !teamStore.Exists(agentCreateTeam) {
+			return fmt.Errorf("team %q does not exist. Create it first with: bc team create %s", agentCreateTeam, agentCreateTeam)
+		}
+	}
+
 	// Parse role
 	role, roleErr := parseRole(agentCreateRole)
 	if roleErr != nil {
 		return roleErr
+	}
+
+	// Prevent root agent creation via this command
+	if role == agent.RoleRoot {
+		return fmt.Errorf("cannot create root agent via 'bc agent create'. Use 'bc up' to initialize the root agent")
 	}
 
 	// Validate role exists in workspace (unless it's the special "null" role)
@@ -401,13 +420,6 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		roleFile := filepath.Join(ws.RolesDir(), string(role)+".md")
 		if _, err := os.Stat(roleFile); err != nil {
 			return fmt.Errorf("role %q not found - create it first or use an existing role", role)
-		}
-	}
-
-	// Validate team name if specified
-	if agentCreateTeam != "" {
-		if !isValidTeamName(agentCreateTeam) {
-			return fmt.Errorf("team name must be alphanumeric with optional hyphens/underscores")
 		}
 	}
 
