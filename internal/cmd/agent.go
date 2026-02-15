@@ -350,6 +350,10 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 	var agentName string
 	if len(args) > 0 && strings.TrimSpace(args[0]) != "" {
 		agentName = strings.TrimSpace(args[0])
+		// Validate agent name doesn't contain shell metacharacters
+		if !isValidAgentName(agentName) {
+			return fmt.Errorf("agent name %q contains invalid characters (use letters, numbers, dash, underscore)", agentName)
+		}
 	} else {
 		// Generate unique name
 		existingAgents := mgr.ListAgents()
@@ -914,6 +918,11 @@ func runAgentRename(cmd *cobra.Command, args []string) error {
 	// Step 2: Update channel memberships
 	fmt.Print("  Updating channel memberships... ")
 	channelStore := channel.NewStore(filepath.Join(ws.StateDir(), "channels"))
+	if err := channelStore.Load(); err != nil {
+		fmt.Println("✗")
+		_ = channelStore.Close()
+		return fmt.Errorf("failed to load channel state: %w", err)
+	}
 	channels := channelStore.List()
 	channelsUpdated := 0
 	for _, ch := range channels {
@@ -930,6 +939,11 @@ func runAgentRename(cmd *cobra.Command, args []string) error {
 				break
 			}
 		}
+	}
+	if err := channelStore.Save(); err != nil {
+		fmt.Println("✗")
+		_ = channelStore.Close()
+		return fmt.Errorf("failed to save channel state: %w", err)
 	}
 	_ = channelStore.Close()
 	fmt.Printf("✓ (%d channels)\n", channelsUpdated)
@@ -1219,6 +1233,11 @@ func isValidTeamName(name string) bool {
 		}
 	}
 	return true
+}
+
+// isValidAgentName checks if an agent name contains only safe characters
+func isValidAgentName(name string) bool {
+	return isValidTeamName(name)
 }
 
 // AgentHealth represents the health status of an agent.

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -190,13 +192,30 @@ func init() {
 	rootCmd.AddCommand(demonCmd)
 }
 
+// validIdentifier checks if a string is a valid identifier (alphanumeric, dash, underscore)
+func validIdentifier(s string) bool {
+	if s == "" {
+		return false
+	}
+	// Must start with letter or underscore, then letters, numbers, dashes, underscores
+	pattern := regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_-]*$`)
+	return pattern.MatchString(s)
+}
+
 func runDemonCreate(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
 		return fmt.Errorf("not in a bc workspace: %w", err)
 	}
 
-	name := args[0]
+	name := strings.TrimSpace(args[0])
+	if name == "" {
+		return fmt.Errorf("demon name cannot be empty")
+	}
+	if !validIdentifier(name) {
+		return fmt.Errorf("demon name must contain only letters, numbers, dashes, and underscores")
+	}
+
 	store := demon.NewStore(ws.RootDir)
 
 	d, err := store.CreateWithPrompt(name, demonSchedule, demonCommand, demonPrompt, demonPromptFile)
@@ -708,22 +727,22 @@ func runTestsAndReportIssues(cmd *cobra.Command, ws *workspace.Workspace, patter
 		body := failure.FormatIssueBody()
 
 		// Check if issue already exists
-		searchQuery := fmt.Sprintf("%s in:title", failure.Test)
+		searchQuery := fmt.Sprintf("%s in:title", failure.FullName)
 		exists, checkErr := gh.IssueExists(ctx, searchQuery)
 		if checkErr != nil {
-			cmd.Printf("Warning: failed to check for existing issue for %s: %v\n", failure.Test, checkErr)
+			cmd.Printf("Warning: failed to check for existing issue for %s: %v\n", failure.FullName, checkErr)
 		}
 
 		if exists {
 			existingCount++
-			cmd.Printf("Issue already exists for %s\n", failure.Test)
+			cmd.Printf("Issue already exists for %s\n", failure.FullName)
 			continue
 		}
 
 		// Create new issue
 		issueURL, createErr := gh.CreateIssue(ctx, title, body, []string{"bug", "automated", "test-failure"})
 		if createErr != nil {
-			cmd.Printf("Failed to create issue for %s: %v\n", failure.Test, createErr)
+			cmd.Printf("Failed to create issue for %s: %v\n", failure.FullName, createErr)
 			continue
 		}
 
