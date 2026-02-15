@@ -6,6 +6,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { useChannels, useChannelHistory } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
+import { useNavigation } from '../navigation/NavigationContext';
 import { ChatMessage } from './ChatMessage';
 import type { Channel } from '../types';
 
@@ -31,8 +32,18 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
   const { data: channels, loading: channelsLoading, error: channelsError } = useChannels();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [viewMode, setViewMode] = useState<'list' | 'history'>('list');
+  const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
 
   const selectedChannel = channels?.[selectedIndex];
+
+  // Update breadcrumbs when view mode or selected channel changes
+  useEffect(() => {
+    if (viewMode === 'history' && selectedChannel) {
+      setBreadcrumbs([{ label: `#${selectedChannel.name}` }]);
+    } else {
+      clearBreadcrumbs();
+    }
+  }, [viewMode, selectedChannel, setBreadcrumbs, clearBreadcrumbs]);
 
   useInput(
     (input, key) => {

@@ -12,7 +12,10 @@ export {
   type NavigationState,
   type NavigationContextValue,
   type NavigationProviderProps,
+  type BreadcrumbItem,
 } from './NavigationContext';
+
+export { Breadcrumb } from './Breadcrumb';
 
 export {
   useKeyboardNavigation,

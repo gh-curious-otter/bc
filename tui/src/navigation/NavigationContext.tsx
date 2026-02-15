@@ -25,12 +25,19 @@ export const DEFAULT_TABS: TabConfig[] = [
   { key: '?', view: 'help', label: 'Help', shortcut: '?' },
 ];
 
+// Breadcrumb item for showing navigation path
+export interface BreadcrumbItem {
+  label: string;
+  view?: View;
+}
+
 // Navigation state
 export interface NavigationState {
   currentView: View;
   previousView: View | null;
   history: View[];
   historyIndex: number;
+  breadcrumbs: BreadcrumbItem[];
 }
 
 // Navigation context value
@@ -41,6 +48,7 @@ export interface NavigationContextValue {
   tabs: TabConfig[];
   canGoBack: boolean;
   canGoForward: boolean;
+  breadcrumbs: BreadcrumbItem[];
 
   // Actions
   navigate: (view: View) => void;
@@ -49,6 +57,8 @@ export interface NavigationContextValue {
   goHome: () => void;
   nextTab: () => void;
   prevTab: () => void;
+  setBreadcrumbs: (items: BreadcrumbItem[]) => void;
+  clearBreadcrumbs: () => void;
 
   // Utilities
   isActive: (view: View) => boolean;
@@ -74,6 +84,7 @@ export function NavigationProvider({
     previousView: null,
     history: [initialView],
     historyIndex: 0,
+    breadcrumbs: [],
   });
 
   const navigate = useCallback((view: View) => {
@@ -89,6 +100,7 @@ export function NavigationProvider({
         previousView: prev.currentView,
         history: newHistory,
         historyIndex: newHistory.length - 1,
+        breadcrumbs: [], // Clear breadcrumbs on navigation
       };
     });
   }, []);
@@ -158,6 +170,14 @@ export function NavigationProvider({
     }
   }, [mainTabs, state.currentView, navigate]);
 
+  const setBreadcrumbs = useCallback((items: BreadcrumbItem[]) => {
+    setState((prev) => ({ ...prev, breadcrumbs: items }));
+  }, []);
+
+  const clearBreadcrumbs = useCallback(() => {
+    setState((prev) => ({ ...prev, breadcrumbs: [] }));
+  }, []);
+
   const isActive = useCallback(
     (view: View) => state.currentView === view,
     [state.currentView]
@@ -180,17 +200,20 @@ export function NavigationProvider({
       tabs,
       canGoBack: state.historyIndex > 0,
       canGoForward: state.historyIndex < state.history.length - 1,
+      breadcrumbs: state.breadcrumbs,
       navigate,
       goBack,
       goForward,
       goHome,
       nextTab,
       prevTab,
+      setBreadcrumbs,
+      clearBreadcrumbs,
       isActive,
       getTabByKey,
       getTabByView,
     }),
-    [state, tabs, navigate, goBack, goForward, goHome, nextTab, prevTab, isActive, getTabByKey, getTabByView]
+    [state, tabs, navigate, goBack, goForward, goHome, nextTab, prevTab, setBreadcrumbs, clearBreadcrumbs, isActive, getTabByKey, getTabByView]
   );
 
   return (
