@@ -424,9 +424,13 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 	}
 
 	totalTargets := len(members) - skipped
-	fmt.Printf("\nResult: %d/%d members received message\n", sent, totalTargets)
-	if failed > 0 {
-		fmt.Printf("Warning: %d delivery failed\n", failed)
+	if totalTargets == 0 {
+		fmt.Printf("\nMessage recorded to channel (no other members to deliver to)\n")
+	} else {
+		fmt.Printf("\nResult: %d/%d members received message\n", sent, totalTargets)
+		if failed > 0 {
+			fmt.Printf("Warning: %d delivery failed\n", failed)
+		}
 	}
 	return nil
 }
