@@ -40,7 +40,7 @@ export function renderWithProviders(
 ) {
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <ThemeProvider config={options?.themeConfig}>
-      <FocusProvider initialFocus={options?.initialFocus || 'main'}>
+      <FocusProvider initialFocus={options?.initialFocus ?? 'main'}>
         <NavigationProvider>
           {children}
         </NavigationProvider>
@@ -63,18 +63,18 @@ export function renderWithProviders(
  * @param responses Configured responses for bc commands
  * @returns Mock service instance
  */
-export function mockBcService(responses?: Record<string, any>) {
-  const callHistory: Array<{ command: string; args: string[] }> = [];
+export function mockBcService(responses?: Record<string, unknown>) {
+  const callHistory: { command: string; args: string[] }[] = [];
 
   const mockService = {
     /**
      * Execute a bc command
      */
-    execute: async (command: string, args: string[] = []) => {
+    execute: (command: string, args: string[] = []) => {
       callHistory.push({ command, args });
 
       // Return configured response if available
-      if (responses && responses[command]) {
+      if (responses?.[command]) {
         return responses[command];
       }
 
@@ -140,7 +140,8 @@ export function simulateKeypress(key: string) {
   }
 
   // Special key
-  return { input: '', key: keyMap[key.toLowerCase()] || {} };
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  return { input: '', key: keyMap[key.toLowerCase()] ?? {} };
 }
 
 /**

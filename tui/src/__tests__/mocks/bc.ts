@@ -36,22 +36,22 @@ export class MockBcService {
   private agents: Agent[];
   private channels: Channel[];
   private messages: Map<string, ChannelMessage[]>;
-  private callHistory: Array<{ command: string; args: string[] }> = [];
+  private callHistory: { command: string; args: string[] }[] = [];
   private shouldFail: boolean;
-  private failureMessage: string;
+  private failureMessage: string
 
   constructor(options: MockBcServiceOptions = {}) {
-    this.agents = options.agents || createMockAgents(3);
-    this.channels = options.channels || createMockChannels(3);
+    this.agents = options.agents ?? createMockAgents(3);
+    this.channels = options.channels ?? createMockChannels(3);
     this.messages = new Map();
 
     // Initialize message histories for each channel
     this.channels.forEach(channel => {
-      this.messages.set(channel.name, options.messages || createMockMessages(5));
+      this.messages.set(channel.name, options.messages ?? createMockMessages(5));
     });
 
-    this.shouldFail = options.shouldFail || false;
-    this.failureMessage = options.failureMessage || 'Service error';
+    this.shouldFail = options.shouldFail ?? false;
+    this.failureMessage = options.failureMessage ?? 'Service error';
   }
 
   /**
@@ -61,7 +61,7 @@ export class MockBcService {
    * @param args Command arguments
    * @returns Command result
    */
-  async execute(command: string, args: string[] = []): Promise<any> {
+  execute(command: string, args: string[] = []): unknown {
     this.callHistory.push({ command, args });
 
     if (this.shouldFail) {
@@ -77,7 +77,7 @@ export class MockBcService {
           return this.listChannels();
         }
         if (args[0] === 'history') {
-          return this.getChannelHistory(args[1]);
+          return this.getChannelHistory(args[1] ?? '');
         }
         break;
 
@@ -121,7 +121,7 @@ export class MockBcService {
    * Get channel history
    */
   private getChannelHistory(channelName: string): ChannelHistory {
-    const messages = this.messages.get(channelName) || [];
+    const messages = this.messages.get(channelName) ?? [];
 
     return {
       channel: channelName,
@@ -242,7 +242,7 @@ export class MockBcService {
    * Add message to channel
    */
   addMessage(channelName: string, message: ChannelMessage) {
-    const messages = this.messages.get(channelName) || [];
+    const messages = this.messages.get(channelName) ?? [];
     messages.push(message);
     this.messages.set(channelName, messages);
   }

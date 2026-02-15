@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
+
 /**
  * Tests for theme system
  */
@@ -68,6 +70,7 @@ describe('useTheme', () => {
   it('throws when used outside provider', () => {
     // Note: In ink-testing-library, the error is caught differently
     // The hook should throw, but the error may be caught by React's error boundary
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const consoleError = jest.spyOn(console, 'error').mockImplementation();
     try {
       render(<ThemeConsumer />);

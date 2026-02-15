@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/restrict-template-expressions */
+
 /**
  * Test Setup - Global test configuration
  *
@@ -30,7 +32,7 @@ export function expectThrow(fn: () => void, message?: string | RegExp) {
     throw new Error('Expected function to throw');
   } catch (err: any) {
     if (message) {
-      const errorMessage = err.message || String(err);
+      const errorMessage = (err.message as string) || String(err);
       if (typeof message === 'string') {
         if (!errorMessage.includes(message)) {
           throw new Error(

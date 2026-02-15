@@ -54,11 +54,11 @@ export function createMockAgents(count = 3): Agent[] {
     now.setHours(now.getHours() - i);
 
     return createMockAgent({
-      id: `agent-${i + 1}`,
-      name: `agent-${i + 1}`,
+      id: `agent-${String(i + 1)}`,
+      name: `agent-${String(i + 1)}`,
       role: roles[i % roles.length],
       state: states[i % states.length],
-      task: `Task ${i + 1}`,
+      task: `Task ${String(i + 1)}`,
       started_at: now.toISOString(),
       updated_at: new Date().toISOString(),
     });
@@ -85,7 +85,7 @@ export function createMockChannels(count = 3): Channel[] {
   return channels.slice(0, count).map((name, i) => {
     return createMockChannel({
       name,
-      members: Array.from({ length: i + 2 }, (_, j) => `agent-${j + 1}`),
+      members: Array.from({ length: i + 2 }, (_, j) => `agent-${String(j + 1)}`),
       description: `${name} channel for team communication`,
     });
   });
@@ -120,7 +120,7 @@ export function createMockMessages(count = 5): ChannelMessage[] {
 
     return createMockMessage({
       sender: senders[i % senders.length],
-      message: messages[i % messages.length],
+      message: messages[i % messages.length] ?? 'Message',
       time: time.toISOString(),
     });
   });
@@ -153,10 +153,10 @@ export function createMockDemons(count = 3): Demon[] {
 
   return Array.from({ length: count }, (_, i) => {
     return createMockDemon({
-      name: `demon-${i + 1}`,
-      schedule: schedules[i % schedules.length],
-      command: commands[i % commands.length],
-      description: `Scheduled task ${i + 1}`,
+      name: `demon-${String(i + 1)}`,
+      schedule: schedules[i % schedules.length] ?? '0 * * * *',
+      command: commands[i % commands.length] ?? 'bc status',
+      description: `Scheduled task ${String(i + 1)}`,
       run_count: (i + 1) * 100,
     });
   });
@@ -221,7 +221,7 @@ export function createMockTeams(count = 3): Team[] {
   return teams.slice(0, count).map((team, i) => {
     return createMockTeam({
       ...team,
-      members: Array.from({ length: i + 2 }, (_, j) => `agent-${j + 1}`),
+      members: Array.from({ length: i + 2 }, (_, j) => `agent-${String(j + 1)}`),
     });
   });
 }
