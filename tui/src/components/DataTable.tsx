@@ -60,8 +60,11 @@ export function DataTable<T extends Record<string, unknown>>({
     return selectedIndex;
   }, [selectedIndex, maxVisibleRows, scrollOffset]);
 
+  // Calculate available width accounting for border (2 chars) and padding (2 chars)
+  const tableWidth = Math.max(40, terminalWidth - 4);
+
   return (
-    <Box flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1} width={terminalWidth}>
+    <Box flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1} width={tableWidth}>
       {/* Header row */}
       {showHeader && (
         <Box>
