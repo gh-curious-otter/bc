@@ -436,7 +436,7 @@ func runChannelJoin(cmd *cobra.Command, args []string) error {
 
 	agentID := os.Getenv("BC_AGENT_ID")
 	if agentID == "" {
-		return fmt.Errorf("BC_AGENT_ID not set - this command is for agents to use")
+		return fmt.Errorf("BC_AGENT_ID environment variable not set - this command should be run by an agent in its tmux session")
 	}
 
 	store, err := loadChannelStore(ws.RootDir)
@@ -466,7 +466,7 @@ func runChannelLeave(cmd *cobra.Command, args []string) error {
 
 	agentID := os.Getenv("BC_AGENT_ID")
 	if agentID == "" {
-		return fmt.Errorf("BC_AGENT_ID not set - this command is for agents to use")
+		return fmt.Errorf("BC_AGENT_ID environment variable not set - this command should be run by an agent in its tmux session")
 	}
 
 	store, err := loadChannelStore(ws.RootDir)
