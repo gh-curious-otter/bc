@@ -16,6 +16,7 @@ import (
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/names"
+	"github.com/rpuneet/bc/pkg/team"
 )
 
 // agentCmd is the parent command for all agent operations
@@ -396,6 +397,16 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		return roleErr
 	}
 
+	// Enforce root agent singleton - only one root agent allowed
+	if string(role) == "root" {
+		existingAgents := mgr.ListAgents()
+		for _, a := range existingAgents {
+			if string(a.Role) == "root" && a.State != agent.StateStopped {
+				return fmt.Errorf("only one active root agent is allowed; %q already has root role", a.Name)
+			}
+		}
+	}
+
 	// Validate role exists in workspace (unless it's the special "null" role)
 	if string(role) != "null" && string(role) != "root" {
 		roleFile := filepath.Join(ws.RolesDir(), string(role)+".md")
@@ -408,6 +419,11 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 	if agentCreateTeam != "" {
 		if !isValidTeamName(agentCreateTeam) {
 			return fmt.Errorf("team name must be alphanumeric with optional hyphens/underscores")
+		}
+		// Validate team exists
+		teamStore := team.NewStore(ws.RootDir)
+		if !teamStore.Exists(agentCreateTeam) {
+			return fmt.Errorf("team %q does not exist - create it first with 'bc team create %s'", agentCreateTeam, agentCreateTeam)
 		}
 	}
 

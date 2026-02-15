@@ -6,6 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/team"
 )
 
@@ -234,6 +236,25 @@ func runTeamAdd(cmd *cobra.Command, args []string) error {
 	teamName := args[0]
 	agentName := args[1]
 	store := team.NewStore(ws.RootDir)
+
+	// Validate team exists
+	t, err := store.Get(teamName)
+	if err != nil {
+		return err
+	}
+	if t == nil {
+		return fmt.Errorf("team %q does not exist - create it first with 'bc team create %s'", teamName, teamName)
+	}
+
+	// Validate agent exists
+	agentMgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	if loadErr := agentMgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+	a := agentMgr.GetAgent(agentName)
+	if a == nil {
+		return fmt.Errorf("agent %q does not exist - create it first with 'bc agent create %s'", agentName, agentName)
+	}
 
 	if err := store.AddMember(teamName, agentName); err != nil {
 		return err

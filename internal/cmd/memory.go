@@ -218,6 +218,8 @@ var (
 	memoryOutcome          string
 	memoryTaskID           string
 	memoryTaskType         string
+	memoryRecordAgent      string
+	memoryLearnAgent       string
 	memoryShowExp          bool
 	memoryShowLearn        bool
 	memorySearchAgent      string
@@ -243,6 +245,9 @@ func init() {
 	memoryRecordCmd.Flags().StringVar(&memoryOutcome, "outcome", "success", "Outcome of the task (success, failure, partial)")
 	memoryRecordCmd.Flags().StringVar(&memoryTaskID, "task-id", "", "Task ID for the experience")
 	memoryRecordCmd.Flags().StringVar(&memoryTaskType, "task-type", "", "Task type (code, review, qa, etc.)")
+	memoryRecordCmd.Flags().StringVar(&memoryRecordAgent, "agent", "", "Agent to record experience for (default: BC_AGENT_ID)")
+
+	memoryLearnCmd.Flags().StringVar(&memoryLearnAgent, "agent", "", "Agent to record learning for (default: BC_AGENT_ID)")
 
 	memoryShowCmd.Flags().BoolVar(&memoryShowExp, "experiences", false, "Show only experiences")
 	memoryShowCmd.Flags().BoolVar(&memoryShowLearn, "learnings", false, "Show only learnings")
@@ -289,9 +294,13 @@ func runMemoryRecord(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("experience cannot be empty")
 	}
 
-	agentID := os.Getenv("BC_AGENT_ID")
+	// Determine agent from flag or environment variable
+	agentID := memoryRecordAgent
 	if agentID == "" {
-		return fmt.Errorf("BC_AGENT_ID not set (this command is meant to be called by agents)")
+		agentID = os.Getenv("BC_AGENT_ID")
+	}
+	if agentID == "" {
+		return fmt.Errorf("agent not specified; use --agent flag or set BC_AGENT_ID")
 	}
 
 	ws, err := getWorkspace()
@@ -331,9 +340,13 @@ func runMemoryLearn(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("learning cannot be empty")
 	}
 
-	agentID := os.Getenv("BC_AGENT_ID")
+	// Determine agent from flag or environment variable
+	agentID := memoryLearnAgent
 	if agentID == "" {
-		return fmt.Errorf("BC_AGENT_ID not set (this command is meant to be called by agents)")
+		agentID = os.Getenv("BC_AGENT_ID")
+	}
+	if agentID == "" {
+		return fmt.Errorf("agent not specified; use --agent flag or set BC_AGENT_ID")
 	}
 
 	ws, err := getWorkspace()
