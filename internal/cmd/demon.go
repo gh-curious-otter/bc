@@ -708,22 +708,22 @@ func runTestsAndReportIssues(cmd *cobra.Command, ws *workspace.Workspace, patter
 		body := failure.FormatIssueBody()
 
 		// Check if issue already exists
-		searchQuery := fmt.Sprintf("%s in:title", failure.Test)
+		searchQuery := fmt.Sprintf("%s in:title", failure.FullName)
 		exists, checkErr := gh.IssueExists(ctx, searchQuery)
 		if checkErr != nil {
-			cmd.Printf("Warning: failed to check for existing issue for %s: %v\n", failure.Test, checkErr)
+			cmd.Printf("Warning: failed to check for existing issue for %s: %v\n", failure.FullName, checkErr)
 		}
 
 		if exists {
 			existingCount++
-			cmd.Printf("Issue already exists for %s\n", failure.Test)
+			cmd.Printf("Issue already exists for %s\n", failure.FullName)
 			continue
 		}
 
 		// Create new issue
 		issueURL, createErr := gh.CreateIssue(ctx, title, body, []string{"bug", "automated", "test-failure"})
 		if createErr != nil {
-			cmd.Printf("Failed to create issue for %s: %v\n", failure.Test, createErr)
+			cmd.Printf("Failed to create issue for %s: %v\n", failure.FullName, createErr)
 			continue
 		}
 

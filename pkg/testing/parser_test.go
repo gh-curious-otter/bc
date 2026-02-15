@@ -33,8 +33,8 @@ func TestParseTestResults(t *testing.T) {
 			wantPass: 0,
 		},
 		{
-			name: "empty output",
-			input: "",
+			name:     "empty output",
+			input:    "",
 			wantFail: 0,
 			wantPass: 0,
 		},
@@ -67,30 +67,31 @@ func TestParseTestResults(t *testing.T) {
 }
 
 func TestExtractFailureMessage(t *testing.T) {
-	tests := []struct {
-		name string
+	type testCase struct {
+		name  string
+		want  string
 		lines []string
-		want string
-	}{
+	}
+	tests := []testCase{
 		{
-			name: "error line",
+			name:  "error line",
 			lines: []string{"--- FAIL: TestParse", "Error: expected 1, got 2"},
-			want: "Error: expected 1, got 2",
+			want:  "Error: expected 1, got 2",
 		},
 		{
-			name: "panic line",
+			name:  "panic line",
 			lines: []string{"output", "panic: nil pointer"},
-			want: "panic: nil pointer",
+			want:  "panic: nil pointer",
 		},
 		{
-			name: "last line",
+			name:  "last line",
 			lines: []string{"test failed"},
-			want: "test failed",
+			want:  "test failed",
 		},
 		{
-			name: "empty",
+			name:  "empty",
 			lines: []string{},
-			want: "test failed",
+			want:  "test failed",
 		},
 	}
 

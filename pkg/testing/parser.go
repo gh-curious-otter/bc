@@ -11,11 +11,11 @@ import (
 
 // TestEvent represents a single event from go test -json output.
 type TestEvent struct {
-	Time    string `json:"Time"`
-	Action  string `json:"Action"`   // run, pause, cont, pass, fail, skip, output, bench
-	Package string `json:"Package"`
-	Test    string `json:"Test"`
-	Output  string `json:"Output"`
+	Time    string  `json:"Time"`
+	Action  string  `json:"Action"` // run, pause, cont, pass, fail, skip, output, bench
+	Package string  `json:"Package"`
+	Test    string  `json:"Test"`
+	Output  string  `json:"Output"`
 	Elapsed float64 `json:"Elapsed"`
 }
 

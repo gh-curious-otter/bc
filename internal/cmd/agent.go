@@ -914,6 +914,11 @@ func runAgentRename(cmd *cobra.Command, args []string) error {
 	// Step 2: Update channel memberships
 	fmt.Print("  Updating channel memberships... ")
 	channelStore := channel.NewStore(filepath.Join(ws.StateDir(), "channels"))
+	if err := channelStore.Load(); err != nil {
+		fmt.Println("✗")
+		_ = channelStore.Close()
+		return fmt.Errorf("failed to load channel state: %w", err)
+	}
 	channels := channelStore.List()
 	channelsUpdated := 0
 	for _, ch := range channels {
@@ -930,6 +935,11 @@ func runAgentRename(cmd *cobra.Command, args []string) error {
 				break
 			}
 		}
+	}
+	if err := channelStore.Save(); err != nil {
+		fmt.Println("✗")
+		_ = channelStore.Close()
+		return fmt.Errorf("failed to save channel state: %w", err)
 	}
 	_ = channelStore.Close()
 	fmt.Printf("✓ (%d channels)\n", channelsUpdated)
