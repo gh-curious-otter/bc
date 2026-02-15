@@ -95,9 +95,15 @@ var channelLeaveCmd = &cobra.Command{
 var channelHistoryCmd = &cobra.Command{
 	Use:   "history <channel>",
 	Short: "Show channel message history",
-	Long:  `Display the history of messages sent to a channel.`,
-	Args:  cobra.ExactArgs(1),
-	RunE:  runChannelHistory,
+	Long: `Display the history of messages sent to a channel.
+
+Examples:
+  bc channel history eng                # Last 50 messages (default)
+  bc channel history eng --limit 10     # Last 10 messages
+  bc channel history eng --since 1h     # Messages from last hour
+  bc channel history eng --limit 20 --offset 20  # Page 2 of 20`,
+	Args: cobra.ExactArgs(1),
+	RunE: runChannelHistory,
 }
 
 var channelReactCmd = &cobra.Command{
@@ -138,8 +144,18 @@ var channelDescCmd = &cobra.Command{
 
 var channelCreateDesc string
 
+// Channel history flags
+var (
+	channelHistoryLimit  int
+	channelHistoryOffset int
+	channelHistorySince  string
+)
+
 func init() {
 	channelCreateCmd.Flags().StringVar(&channelCreateDesc, "desc", "", "Channel description")
+	channelHistoryCmd.Flags().IntVar(&channelHistoryLimit, "limit", 50, "Maximum number of messages to show")
+	channelHistoryCmd.Flags().IntVar(&channelHistoryOffset, "offset", 0, "Number of messages to skip")
+	channelHistoryCmd.Flags().StringVar(&channelHistorySince, "since", "", "Show messages since duration (e.g., 1h, 30m)")
 	channelCmd.AddCommand(channelCreateCmd)
 	channelCmd.AddCommand(channelAddCmd)
 	channelCmd.AddCommand(channelRemoveCmd)
@@ -532,6 +548,33 @@ func runChannelHistory(cmd *cobra.Command, args []string) error {
 	history, err := store.GetHistory(channelName)
 	if err != nil {
 		return err
+	}
+
+	// Filter by --since if provided
+	if channelHistorySince != "" {
+		cutoff, parseErr := parseSinceDuration(channelHistorySince)
+		if parseErr != nil {
+			return parseErr
+		}
+		filtered := history[:0]
+		for _, entry := range history {
+			if !entry.Time.Before(cutoff) {
+				filtered = append(filtered, entry)
+			}
+		}
+		history = filtered
+	}
+
+	// Apply --offset and --limit
+	if channelHistoryOffset > 0 {
+		if channelHistoryOffset >= len(history) {
+			history = nil
+		} else {
+			history = history[channelHistoryOffset:]
+		}
+	}
+	if channelHistoryLimit > 0 && len(history) > channelHistoryLimit {
+		history = history[len(history)-channelHistoryLimit:]
 	}
 
 	jsonOutput, err := cmd.Flags().GetBool("json")
