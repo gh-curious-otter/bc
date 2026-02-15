@@ -9,6 +9,7 @@ import {
   useNavigation,
   useKeyboardNavigation,
   TabBar,
+  Breadcrumb,
   FocusProvider,
   type View,
 } from './navigation';
@@ -63,6 +64,9 @@ function AppContent({ disableInput }: AppContentProps): React.ReactElement {
     <Box flexDirection="column" padding={1} width={terminalWidth} height={terminalHeight}>
       {/* Header with tab bar */}
       <TabBar />
+
+      {/* Breadcrumb navigation (shows path when navigated deep) */}
+      <Breadcrumb />
 
       {/* Main content area - grows to fill available space */}
       <Box flexDirection="column" marginTop={1} flexGrow={1}>
