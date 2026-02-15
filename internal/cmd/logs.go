@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/events"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 var logsCmd = &cobra.Command{
@@ -78,10 +79,12 @@ func runLogs(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not in a bc workspace: %w", err)
 	}
 
-	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
+	log.Debug("logs command started", "agent", logsAgent, "type", logsType, "since", logsSince, "tail", logsTail)
+
+	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
 
 	// Read all events, then filter in sequence
-	evts, err := log.Read()
+	evts, err := eventLog.Read()
 	if err != nil {
 		return fmt.Errorf("failed to read events: %w", err)
 	}
@@ -127,6 +130,8 @@ func runLogs(cmd *cobra.Command, args []string) error {
 	if logsTail > 0 && len(evts) > logsTail {
 		evts = evts[len(evts)-logsTail:]
 	}
+
+	log.Debug("events filtered", "count", len(evts))
 
 	if len(evts) == 0 {
 		fmt.Println("No events found")
