@@ -115,7 +115,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
       </Box>
 
       {/* Footer with keybindings */}
-      <Box marginTop={1}>
+      <Box marginY={1}>
         <Text color="gray">r: refresh | q: back</Text>
       </Box>
     </Box>
