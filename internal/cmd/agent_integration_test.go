@@ -257,7 +257,7 @@ func TestAgentCreateInvalidTeam(t *testing.T) {
 	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	_, _, err := executeIntegrationCmd("agent", "create", "test-agent", "--role", "engineer", "--team", "invalid team name!")
+	_, _, err := executeIntegrationCmd("agent", "create", "test-agent", "--role", "null", "--team", "invalid team name!")
 	if err == nil {
 		t.Error("expected error for invalid team name")
 	}
