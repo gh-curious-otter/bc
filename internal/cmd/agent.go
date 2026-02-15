@@ -284,9 +284,10 @@ var (
 func init() {
 	// Create flags
 	agentCreateCmd.Flags().StringVar(&agentCreateTool, "tool", "", "Agent tool (claude, cursor, codex)")
-	agentCreateCmd.Flags().StringVar(&agentCreateRole, "role", "null", "Agent role (null, engineer, manager, product-manager, tech-lead, qa). Use 'bc role --help' to create custom roles")
+	agentCreateCmd.Flags().StringVar(&agentCreateRole, "role", "", "Agent role (engineer, manager, product-manager, tech-lead, qa). Required. Use 'bc role list' to see available roles")
 	agentCreateCmd.Flags().StringVar(&agentCreateParent, "parent", "", "Parent agent ID (must have permission to create this role)")
 	agentCreateCmd.Flags().StringVar(&agentCreateTeam, "team", "", "Team name (alphanumeric)")
+	_ = agentCreateCmd.MarkFlagRequired("role")
 
 	// List flags
 	agentListCmd.Flags().StringVar(&agentListRole, "role", "", "Filter by role")
@@ -404,6 +405,11 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Validate role is not empty or "null"
+	if agentCreateRole == "" || agentCreateRole == "null" {
+		return fmt.Errorf("role is required. Use --role to specify a valid role (e.g., engineer, manager). Run 'bc role list' to see available roles")
+	}
+
 	// Parse role
 	role, roleErr := parseRole(agentCreateRole)
 	if roleErr != nil {
@@ -415,12 +421,22 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("cannot create root agent via 'bc agent create'. Use 'bc up' to initialize the root agent")
 	}
 
-	// Validate role exists in workspace (unless it's the special "null" role)
-	if string(role) != "null" && string(role) != "root" {
-		roleFile := filepath.Join(ws.RolesDir(), string(role)+".md")
-		if _, err := os.Stat(roleFile); err != nil {
-			return fmt.Errorf("role %q not found - create it first or use an existing role", role)
+	// Validate role exists in workspace
+	roleFile := filepath.Join(ws.RolesDir(), string(role)+".md")
+	if _, err := os.Stat(roleFile); err != nil {
+		// List available roles for helpful error message
+		availableRoles := []string{}
+		if entries, dirErr := os.ReadDir(ws.RolesDir()); dirErr == nil {
+			for _, entry := range entries {
+				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
+					availableRoles = append(availableRoles, strings.TrimSuffix(entry.Name(), ".md"))
+				}
+			}
 		}
+		if len(availableRoles) > 0 {
+			return fmt.Errorf("role %q not found. Available roles: %s", role, strings.Join(availableRoles, ", "))
+		}
+		return fmt.Errorf("role %q not found. Create it first with 'bc role create %s'", role, role)
 	}
 
 	// Spawn the agent (with parent if specified)
