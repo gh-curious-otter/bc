@@ -120,12 +120,6 @@ function ChannelHistoryView({
   const [scrollOffset, setScrollOffset] = useState(0);
   const { setFocus, returnFocus } = useFocus();
 
-<<<<<<< HEAD
-  // Manage focus when entering/exiting input mode
-  // IMPORTANT: Only depend on inputMode, not setFocus/returnFocus
-  // because those functions are recreated when focusedArea changes,
-  // which would create an infinite cycle
-=======
   /**
    * Synchronize focus state with input mode
    *
@@ -140,14 +134,15 @@ function ChannelHistoryView({
    *
    * This fixes issue #653: "After typing a message in a channel, the keybinds to
    * q, 1,2,3... are not re-enabled"
+   *
+   * IMPORTANT: Only depend on inputMode, not setFocus/returnFocus because those
+   * functions are recreated when focusedArea changes, which would create an infinite
+   * cycle.
    */
->>>>>>> c5b9d3c6fe3676e07912665c17993263a451ade2
   useEffect(() => {
     if (inputMode) {
-      console.error('[ChannelsView] Entering input mode - setting focus to input');
       setFocus('input');
     } else {
-      console.error('[ChannelsView] Exiting input mode - restoring previous focus');
       returnFocus();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
