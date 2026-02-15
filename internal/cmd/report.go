@@ -18,7 +18,7 @@ import (
 var reportCmd = &cobra.Command{
 	Use:   "report <state> [message]",
 	Short: "Report agent state (called by agents)",
-	Long: `Report the calling agent's current state. Uses BC_AGENT_ID env var.
+	Long: `Report the calling agent's current state. This command must be run from within an agent session.
 
 Valid states: idle, working, done, stuck, error
 
@@ -168,8 +168,10 @@ func checkWorktreeWarning(agentID string, ws *workspace.Workspace) {
 	}
 
 	// Agent is outside its worktree — warn but don't block
-	fmt.Fprintf(os.Stderr, "WARNING: %s is reporting from outside its worktree (cwd: %s, expected: %s)\n",
-		agentID, cwdAbs, worktreeAbs)
+	fmt.Fprintf(os.Stderr, "WARNING: Agent %s is running outside its assigned directory\n", agentID)
+	fmt.Fprintf(os.Stderr, "  Current:  %s\n", cwdAbs)
+	fmt.Fprintf(os.Stderr, "  Expected: %s\n", worktreeAbs)
+	fmt.Fprintf(os.Stderr, "  (Use 'cd %s' to return to your workspace)\n", worktreeAbs)
 
 	// Log to events
 	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))

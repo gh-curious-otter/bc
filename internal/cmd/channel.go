@@ -78,16 +78,16 @@ var channelDeleteCmd = &cobra.Command{
 
 var channelJoinCmd = &cobra.Command{
 	Use:   "join <channel>",
-	Short: "Join a channel (uses BC_AGENT_ID)",
-	Long:  `Add yourself to a channel. Uses the BC_AGENT_ID environment variable to identify the current agent.`,
+	Short: "Join a channel (for agents)",
+	Long:  `Add yourself to a channel. This command must be run from within an agent session.`,
 	Args:  cobra.ExactArgs(1),
 	RunE:  runChannelJoin,
 }
 
 var channelLeaveCmd = &cobra.Command{
 	Use:   "leave <channel>",
-	Short: "Leave a channel (uses BC_AGENT_ID)",
-	Long:  `Remove yourself from a channel. Uses the BC_AGENT_ID environment variable to identify the current agent.`,
+	Short: "Leave a channel (for agents)",
+	Long:  `Remove yourself from a channel. This command must be run from within an agent session.`,
 	Args:  cobra.ExactArgs(1),
 	RunE:  runChannelLeave,
 }

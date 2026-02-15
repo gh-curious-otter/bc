@@ -171,5 +171,5 @@ func errorAgentNotRunning(commandUsage string) error {
 
 // errorWorktreeNotSet returns an error message for commands that require BC_AGENT_WORKTREE.
 func errorWorktreeNotSet() error {
-	return fmt.Errorf("this command requires running in an agent's isolated worktree. Ensure BC_AGENT_WORKTREE and BC_AGENT_ID are set")
+	return fmt.Errorf("this command must run inside an agent session. Attach to an agent with 'bc agent attach <name>' first")
 }
