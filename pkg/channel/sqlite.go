@@ -301,15 +301,81 @@ func (s *SQLiteStore) ListChannels() ([]*ChannelInfo, error) {
 }
 
 // DeleteChannel removes a channel by name.
+// This explicitly deletes related records and handles FTS cleanup
+// to avoid trigger issues with external content FTS tables (issue #738).
 func (s *SQLiteStore) DeleteChannel(name string) error {
 	ctx := context.Background()
-	result, err := s.db.ExecContext(ctx, "DELETE FROM channels WHERE name = ?", name)
+
+	// Get the channel ID first
+	ch, err := s.GetChannel(name)
 	if err != nil {
+		return err
+	}
+	if ch == nil {
+		return fmt.Errorf("channel %q not found", name)
+	}
+
+	// Use a transaction for atomic deletion
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// Temporarily drop the FTS delete trigger to avoid issues with
+	// external content FTS5 tables (they don't support the delete command)
+	_, _ = tx.ExecContext(ctx, "DROP TRIGGER IF EXISTS messages_ad")
+
+	// Delete in correct order to satisfy foreign key constraints:
+	// 1. Delete reactions (references messages)
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM reactions WHERE message_id IN (SELECT id FROM messages WHERE channel_id = ?)",
+		ch.ID); err != nil {
+		return fmt.Errorf("failed to delete reactions: %w", err)
+	}
+
+	// 2. Delete mentions (references messages)
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM mentions WHERE message_id IN (SELECT id FROM messages WHERE channel_id = ?)",
+		ch.ID); err != nil {
+		return fmt.Errorf("failed to delete mentions: %w", err)
+	}
+
+	// 3. Delete messages
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM messages WHERE channel_id = ?",
+		ch.ID); err != nil {
+		return fmt.Errorf("failed to delete messages: %w", err)
+	}
+
+	// 4. Delete channel members
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM channel_members WHERE channel_id = ?",
+		ch.ID); err != nil {
+		return fmt.Errorf("failed to delete members: %w", err)
+	}
+
+	// 5. Delete the channel
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM channels WHERE id = ?",
+		ch.ID); err != nil {
 		return fmt.Errorf("failed to delete channel: %w", err)
 	}
-	affected, _ := result.RowsAffected()
-	if affected == 0 {
-		return fmt.Errorf("channel %q not found", name)
+
+	// Recreate the FTS delete trigger
+	_, _ = tx.ExecContext(ctx, `
+		CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
+			INSERT INTO messages_fts(messages_fts, rowid, content, sender) VALUES ('delete', old.id, old.content, old.sender);
+		END
+	`)
+
+	// Rebuild FTS index to stay consistent after deletions
+	if s.ftsAvailable {
+		_, _ = tx.ExecContext(ctx, "INSERT INTO messages_fts(messages_fts) VALUES('rebuild')")
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit deletion: %w", err)
 	}
 	return nil
 }
