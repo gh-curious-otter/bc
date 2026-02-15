@@ -48,7 +48,6 @@ func TestAgentCreate_ValidRole(t *testing.T) {
 		role     string
 		wantRole agent.Role
 	}{
-		{"null role (default)", "null", agent.Role("null")},
 		{"worker role", "worker", agent.Role("worker")},
 		{"engineer role", "engineer", agent.Role("engineer")},
 		{"manager role", "manager", agent.Role("manager")},

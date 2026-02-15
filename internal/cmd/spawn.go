@@ -129,10 +129,6 @@ func parseRole(roleStr string) (agent.Role, error) {
 	if roleStr == "" {
 		return agent.RoleRoot, nil // Default to root if not specified
 	}
-	// "null" role is a special case - represents an agent with no system prompt
-	if roleStr == "null" {
-		return agent.Role("null"), nil
-	}
 	// All roles are now custom - loaded from .bc/roles/<role>.md files
 	// Just validate that the role name is sensible
 	if !isValidRoleName(roleStr) {

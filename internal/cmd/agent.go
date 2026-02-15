@@ -106,21 +106,6 @@ Examples:
 	RunE: runAgentShow,
 }
 
-// agentStartCmd starts a stopped agent (resurrects from saved state)
-var agentStartCmd = &cobra.Command{
-	Use:   "start <agent>",
-	Short: "Start a stopped agent",
-	Long: `Start a previously stopped agent from its saved state.
-
-This resurrects the agent's tmux session, git worktree, and memory.
-The agent must have been previously created and stopped.
-
-Examples:
-  bc agent start eng-01       # Start stopped agent eng-01`,
-	Args: cobra.ExactArgs(1),
-	RunE: runAgentStart,
-}
-
 // agentStopCmd stops a single agent (different from bc down which stops all)
 var agentStopCmd = &cobra.Command{
 	Use:   "stop <agent>",
@@ -283,7 +268,7 @@ var (
 func init() {
 	// Create flags
 	agentCreateCmd.Flags().StringVar(&agentCreateTool, "tool", "", "Agent tool (claude, cursor, codex)")
-	agentCreateCmd.Flags().StringVar(&agentCreateRole, "role", "null", "Agent role (null, engineer, manager, product-manager, tech-lead, qa). Use 'bc role --help' to create custom roles")
+	agentCreateCmd.Flags().StringVar(&agentCreateRole, "role", "worker", "Agent role (worker, engineer, manager, product-manager, tech-lead, qa)")
 	agentCreateCmd.Flags().StringVar(&agentCreateParent, "parent", "", "Parent agent ID (must have permission to create this role)")
 	agentCreateCmd.Flags().StringVar(&agentCreateTeam, "team", "", "Team name (alphanumeric)")
 
@@ -321,7 +306,6 @@ func init() {
 	agentCmd.AddCommand(agentAttachCmd)
 	agentCmd.AddCommand(agentPeekCmd)
 	agentCmd.AddCommand(agentShowCmd)
-	agentCmd.AddCommand(agentStartCmd)
 	agentCmd.AddCommand(agentStopCmd)
 	agentCmd.AddCommand(agentSendCmd)
 	agentCmd.AddCommand(agentDeleteCmd)
@@ -632,52 +616,6 @@ func runAgentShow(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("Started: %s\n", a.StartedAt.Format(time.RFC3339))
 	fmt.Printf("Updated: %s\n", a.UpdatedAt.Format(time.RFC3339))
-
-	return nil
-}
-
-func runAgentStart(cmd *cobra.Command, args []string) error {
-	agentName := args[0]
-
-	ws, err := getWorkspace()
-	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
-	}
-
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
-	}
-
-	// Check if agent exists
-	a := mgr.GetAgent(agentName)
-	if a == nil {
-		return fmt.Errorf("agent '%s' not found - create it first with 'bc agent create %s'", agentName, agentName)
-	}
-
-	// Check if agent is in stopped state
-	if a.State != agent.StateStopped {
-		return fmt.Errorf("agent '%s' is not stopped (current state: %s) - cannot start", agentName, a.State)
-	}
-
-	fmt.Printf("Starting %s (%s)... ", agentName, a.Role)
-	// SpawnAgentWithOptions will detect the stopped state and resurrect it
-	spawned, spawnErr := mgr.SpawnAgentWithOptions(agentName, a.Role, ws.RootDir, a.ParentID, a.Tool)
-	if spawnErr != nil {
-		fmt.Println("✗")
-		return fmt.Errorf("failed to start %s: %w", agentName, spawnErr)
-	}
-	fmt.Printf("✓ (session: %s)\n", mgr.Tmux().SessionName(spawned.Session))
-
-	// Log event
-	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	if err := eventLog.Append(events.Event{
-		Type:    events.AgentSpawned,
-		Agent:   agentName,
-		Message: "restarted via bc agent start",
-	}); err != nil {
-		log.Warn("failed to log agent start event", "error", err)
-	}
 
 	return nil
 }
