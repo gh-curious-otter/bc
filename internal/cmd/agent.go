@@ -390,6 +390,13 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Validate team name if specified (BEFORE role validation for better error messages)
+	if agentCreateTeam != "" {
+		if !isValidTeamName(agentCreateTeam) {
+			return fmt.Errorf("team name must be alphanumeric with optional hyphens/underscores")
+		}
+	}
+
 	// Parse role
 	role, roleErr := parseRole(agentCreateRole)
 	if roleErr != nil {
@@ -401,13 +408,6 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		roleFile := filepath.Join(ws.RolesDir(), string(role)+".md")
 		if _, err := os.Stat(roleFile); err != nil {
 			return fmt.Errorf("role %q not found - create it first or use an existing role", role)
-		}
-	}
-
-	// Validate team name if specified
-	if agentCreateTeam != "" {
-		if !isValidTeamName(agentCreateTeam) {
-			return fmt.Errorf("team name must be alphanumeric with optional hyphens/underscores")
 		}
 	}
 
