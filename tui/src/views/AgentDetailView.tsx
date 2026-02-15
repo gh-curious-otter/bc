@@ -156,12 +156,11 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
           <Text dimColor>Press i or m to send message</Text>
         )}
         {sendStatus && (
-          <Text
-            color="green"
-            marginTop={1}
-          >
-            {sendStatus}
-          </Text>
+          <Box marginTop={1}>
+            <Text color="green">
+              {sendStatus}
+            </Text>
+          </Box>
         )}
       </Box>
 
