@@ -217,7 +217,7 @@ func validateDemonName(name string) error {
 func runDemonCreate(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	name := strings.TrimSpace(args[0])
@@ -256,7 +256,7 @@ func runDemonCreate(cmd *cobra.Command, args []string) error {
 func runDemonList(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	store := demon.NewStore(ws.RootDir)
@@ -304,7 +304,7 @@ func runDemonList(cmd *cobra.Command, args []string) error {
 func runDemonShow(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	name := args[0]
@@ -341,7 +341,7 @@ func runDemonShow(cmd *cobra.Command, args []string) error {
 func runDemonDelete(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	name := args[0]
@@ -362,7 +362,7 @@ func runDemonDelete(cmd *cobra.Command, args []string) error {
 func runDemonRun(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	name := args[0]
@@ -439,7 +439,7 @@ func runDemonRun(cmd *cobra.Command, args []string) error {
 func runDemonEnable(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	name := args[0]
@@ -465,7 +465,7 @@ func runDemonEnable(cmd *cobra.Command, args []string) error {
 func runDemonDisable(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	name := args[0]
@@ -486,7 +486,7 @@ func runDemonDisable(cmd *cobra.Command, args []string) error {
 func runDemonLogs(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	name := args[0]
@@ -545,7 +545,7 @@ func runDemonLogs(cmd *cobra.Command, args []string) error {
 func runDemonEdit(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	name := args[0]
@@ -718,7 +718,7 @@ func runDemonTest(cmd *cobra.Command, args []string) error {
 
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	// Check GitHub integration enabled

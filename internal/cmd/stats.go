@@ -37,7 +37,7 @@ func init() {
 func runStats(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	s, err := stats.Load(ws.StateDir())

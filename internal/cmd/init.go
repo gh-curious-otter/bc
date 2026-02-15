@@ -173,3 +173,11 @@ func errorAgentNotRunning(commandUsage string) error {
 func errorWorktreeNotSet() error {
 	return fmt.Errorf("this command requires running in an agent's isolated worktree. Ensure BC_AGENT_WORKTREE and BC_AGENT_ID are set")
 }
+
+// errNotInWorkspace returns an actionable error for commands that require a bc workspace.
+func errNotInWorkspace(err error) error {
+	if err != nil {
+		return fmt.Errorf("not in a bc workspace (run 'bc init' to initialize one): %w", err)
+	}
+	return fmt.Errorf("not in a bc workspace. Run 'bc init' in your project directory to create one")
+}

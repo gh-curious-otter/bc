@@ -340,7 +340,7 @@ func init() {
 func runAgentCreate(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
@@ -489,7 +489,7 @@ func runAgentList(cmd *cobra.Command, args []string) error {
 
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
@@ -580,7 +580,7 @@ func runAgentAttach(cmd *cobra.Command, args []string) error {
 
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
@@ -598,7 +598,7 @@ func runAgentPeek(cmd *cobra.Command, args []string) error {
 
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
@@ -631,7 +631,7 @@ func runAgentShow(cmd *cobra.Command, args []string) error {
 
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
@@ -685,7 +685,7 @@ func runAgentStart(cmd *cobra.Command, args []string) error {
 
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
@@ -731,7 +731,7 @@ func runAgentStop(cmd *cobra.Command, args []string) error {
 
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
@@ -773,7 +773,7 @@ func runAgentSend(cmd *cobra.Command, args []string) error {
 
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
@@ -820,7 +820,7 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
@@ -928,7 +928,7 @@ func runAgentRename(cmd *cobra.Command, args []string) error {
 
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
@@ -1031,7 +1031,7 @@ func runAgentBroadcast(cmd *cobra.Command, args []string) error {
 
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
@@ -1104,7 +1104,7 @@ func runAgentSendRole(cmd *cobra.Command, args []string) error {
 
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
@@ -1188,7 +1188,7 @@ func runAgentSendPattern(cmd *cobra.Command, args []string) error {
 
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
@@ -1305,7 +1305,7 @@ type AgentHealth struct {
 func runAgentHealth(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	// Parse timeout duration

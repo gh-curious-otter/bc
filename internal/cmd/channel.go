@@ -185,7 +185,7 @@ func loadChannelStore(rootDir string) (*channel.Store, error) {
 func runChannelList(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	store, err := loadChannelStore(ws.RootDir)
@@ -236,7 +236,7 @@ func runChannelList(cmd *cobra.Command, args []string) error {
 func runChannelCreate(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	store, err := loadChannelStore(ws.RootDir)
@@ -279,7 +279,7 @@ func runChannelCreate(cmd *cobra.Command, args []string) error {
 func runChannelAdd(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	store, err := loadChannelStore(ws.RootDir)
@@ -315,7 +315,7 @@ func runChannelAdd(cmd *cobra.Command, args []string) error {
 func runChannelRemove(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	store, err := loadChannelStore(ws.RootDir)
@@ -346,7 +346,7 @@ func runChannelRemove(cmd *cobra.Command, args []string) error {
 func runChannelSend(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	store, err := loadChannelStore(ws.RootDir)
@@ -434,7 +434,7 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 func runChannelDelete(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	store, err := loadChannelStore(ws.RootDir)
@@ -463,7 +463,7 @@ func runChannelDelete(cmd *cobra.Command, args []string) error {
 func runChannelJoin(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	agentID := os.Getenv("BC_AGENT_ID")
@@ -497,7 +497,7 @@ func runChannelJoin(cmd *cobra.Command, args []string) error {
 func runChannelLeave(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	agentID := os.Getenv("BC_AGENT_ID")
@@ -531,7 +531,7 @@ func runChannelLeave(cmd *cobra.Command, args []string) error {
 func runChannelHistory(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	store, err := loadChannelStore(ws.RootDir)
@@ -621,7 +621,7 @@ func runChannelHistory(cmd *cobra.Command, args []string) error {
 func runChannelReact(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	store, err := loadChannelStore(ws.RootDir)
@@ -676,7 +676,7 @@ type ChannelInfo struct {
 func runChannelShow(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	store, err := loadChannelStore(ws.RootDir)
@@ -768,7 +768,7 @@ func runChannelShow(cmd *cobra.Command, args []string) error {
 func runChannelDesc(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace: %w", err)
+		return errNotInWorkspace(err)
 	}
 
 	store, err := loadChannelStore(ws.RootDir)
