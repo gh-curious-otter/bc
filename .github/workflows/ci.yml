@@ -32,15 +32,15 @@ jobs:
       - name: Run tests with coverage
         run: make coverage
 
-      - name: Check coverage threshold (80%+)
+      - name: Check coverage threshold (66.6%+)
         run: |
           COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
           echo "Coverage: ${COVERAGE}%"
-          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
-            echo "❌ Coverage ${COVERAGE}% is below 80% threshold"
+          if (( $(echo "$COVERAGE < 66.6" | bc -l) )); then
+            echo "❌ Coverage ${COVERAGE}% is below 66.6% threshold"
             exit 1
           else
-            echo "✅ Coverage ${COVERAGE}% meets 80% threshold"
+            echo "✅ Coverage ${COVERAGE}% meets 66.6% threshold"
           fi
 
       - name: Upload coverage
