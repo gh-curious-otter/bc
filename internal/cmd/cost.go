@@ -947,13 +947,21 @@ func runCostAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	// Validate that we have either amount or token counts
-	if addCostAmountFlag <= 0 && (addCostInputTokens == 0 && addCostOutputTokens == 0) {
-		return fmt.Errorf("either --amount or --tokens-in/--tokens-out must be provided")
+	// Note: amount can be 0 (free calls), but cannot be negative
+	if addCostAmountFlag < 0 {
+		return fmt.Errorf("--amount must be >= 0 (use 0 for free API calls)")
+	}
+
+	hasAmount := cmd.Flags().Changed("amount") || addCostAmountFlag > 0
+	hasTokens := addCostInputTokens > 0 || addCostOutputTokens > 0
+
+	if !hasAmount && !hasTokens {
+		return fmt.Errorf("either --amount or --tokens-in/--tokens-out must be specified")
 	}
 
 	// If tokens provided but no amount, we can't calculate cost without token pricing
-	if addCostAmountFlag <= 0 && (addCostInputTokens > 0 || addCostOutputTokens > 0) {
-		return fmt.Errorf("when providing tokens, --amount (cost in USD) must also be specified")
+	if hasTokens && !cmd.Flags().Changed("amount") {
+		return fmt.Errorf("--amount is required when providing token counts (use 0 for free calls)")
 	}
 
 	// Record the cost
