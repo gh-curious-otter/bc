@@ -927,7 +927,14 @@ func runCostAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	// Validate that we have either amount or token counts
+	amountProvided := cmd.Flags().Changed("amount")
 	if addCostAmountFlag <= 0 && (addCostInputTokens == 0 && addCostOutputTokens == 0) {
+		if amountProvided && addCostAmountFlag == 0 {
+			return fmt.Errorf("--amount must be greater than 0 (got 0)")
+		}
+		if amountProvided && addCostAmountFlag < 0 {
+			return fmt.Errorf("--amount cannot be negative (got %.4f)", addCostAmountFlag)
+		}
 		return fmt.Errorf("either --amount or --tokens-in/--tokens-out must be provided")
 	}
 
