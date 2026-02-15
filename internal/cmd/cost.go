@@ -158,6 +158,33 @@ Examples:
 	RunE: runCostByAgent,
 }
 
+var costAddCmd = &cobra.Command{
+	Use:   "add",
+	Short: "Manually add a cost record",
+	Long: `Manually record a cost entry for an agent.
+
+Use this for external API calls, third-party services, or manual estimates
+that aren't automatically tracked.
+
+Examples:
+  bc cost add --agent engineer-01 --amount 0.50 --tool claude-api
+  bc cost add --agent engineer-01 --tokens-in 5000 --tokens-out 2000 --cost 0.10 --model claude-3-opus`,
+	RunE: runCostAdd,
+}
+
+var costPeekCmd = &cobra.Command{
+	Use:   "peek",
+	Short: "Watch costs in real-time",
+	Long: `Monitor cost accumulation for an agent or workspace in real-time.
+
+Useful during active agent operations to track spending as it happens.
+
+Examples:
+  bc cost peek --agent engineer-01       # Watch single agent
+  bc cost peek --workspace               # Watch all agents`,
+	RunE: runCostPeek,
+}
+
 var (
 	costTeamFlag      string
 	costAgentFlag     string
@@ -179,6 +206,19 @@ var (
 	// Trends/by-agent flags
 	trendsSinceFlag  string
 	byAgentSinceFlag string
+
+	// Add cost flags
+	addCostAgentFlag    string
+	addCostAmountFlag   float64
+	addCostToolFlag     string
+	addCostModelFlag    string
+	addCostInputTokens  int64
+	addCostOutputTokens int64
+
+	// Peek flags
+	peekAgentFlag     string
+	peekWorkspaceFlag bool
+	peekIntervalFlag  int
 )
 
 func init() {
@@ -216,6 +256,22 @@ func init() {
 	// By-agent flags
 	costByAgentCmd.Flags().StringVar(&byAgentSinceFlag, "since", "7d", "Time period to show (e.g., 24h, 7d, 30d)")
 
+	// Add cost flags
+	costAddCmd.Flags().StringVar(&addCostAgentFlag, "agent", "", "Agent ID (required)")
+	costAddCmd.Flags().Float64Var(&addCostAmountFlag, "amount", 0, "Cost amount in USD")
+	costAddCmd.Flags().StringVar(&addCostToolFlag, "tool", "", "Tool or service name")
+	costAddCmd.Flags().StringVar(&addCostModelFlag, "model", "manual", "Model name (default: manual)")
+	costAddCmd.Flags().Int64Var(&addCostInputTokens, "tokens-in", 0, "Input tokens")
+	costAddCmd.Flags().Int64Var(&addCostOutputTokens, "tokens-out", 0, "Output tokens")
+
+	// Peek flags
+	peekAgentFlag = ""
+	peekWorkspaceFlag = false
+	peekIntervalFlag = 5
+	costPeekCmd.Flags().StringVar(&peekAgentFlag, "agent", "", "Agent ID to monitor")
+	costPeekCmd.Flags().BoolVar(&peekWorkspaceFlag, "workspace", false, "Monitor all agents")
+	costPeekCmd.Flags().IntVar(&peekIntervalFlag, "interval", 5, "Refresh interval in seconds")
+
 	costCmd.AddCommand(costShowCmd)
 	costCmd.AddCommand(costSummaryCmd)
 	costCmd.AddCommand(costDashboardCmd)
@@ -223,6 +279,8 @@ func init() {
 	costCmd.AddCommand(costProjectCmd)
 	costCmd.AddCommand(costTrendsCmd)
 	costCmd.AddCommand(costByAgentCmd)
+	costCmd.AddCommand(costAddCmd)
+	costCmd.AddCommand(costPeekCmd)
 	rootCmd.AddCommand(costCmd)
 }
 
@@ -849,4 +907,101 @@ func runCostByAgent(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Total: $%.4f across %d agents\n", totalCost, len(summaries))
 
 	return nil
+}
+
+func runCostAdd(cmd *cobra.Command, args []string) error {
+	store, err := getCostStore()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = store.Close() }()
+
+	// Validate required flags
+	if addCostAgentFlag == "" {
+		return fmt.Errorf("--agent flag is required")
+	}
+
+	// Validate that we have either amount or token counts
+	if addCostAmountFlag <= 0 && (addCostInputTokens == 0 && addCostOutputTokens == 0) {
+		return fmt.Errorf("either --amount or --tokens-in/--tokens-out must be provided")
+	}
+
+	// If tokens provided but no amount, we can't calculate cost without token pricing
+	if addCostAmountFlag <= 0 && (addCostInputTokens > 0 || addCostOutputTokens > 0) {
+		return fmt.Errorf("when providing tokens, --amount (cost in USD) must also be specified")
+	}
+
+	// Record the cost
+	record, err := store.Record(addCostAgentFlag, "", addCostModelFlag, addCostInputTokens, addCostOutputTokens, addCostAmountFlag)
+	if err != nil {
+		return fmt.Errorf("failed to record cost: %w", err)
+	}
+
+	fmt.Printf("Cost recorded:\n")
+	fmt.Printf("  Agent:  %s\n", record.AgentID)
+	fmt.Printf("  Model:  %s\n", record.Model)
+	if addCostToolFlag != "" {
+		fmt.Printf("  Tool:   %s\n", addCostToolFlag)
+	}
+	fmt.Printf("  Amount: $%.4f\n", record.CostUSD)
+	if record.InputTokens > 0 || record.OutputTokens > 0 {
+		fmt.Printf("  Tokens: %d input, %d output (total: %d)\n", record.InputTokens, record.OutputTokens, record.TotalTokens)
+	}
+	fmt.Printf("  Time:   %s\n", record.Timestamp.Format(time.RFC3339))
+
+	return nil
+}
+
+func runCostPeek(cmd *cobra.Command, args []string) error {
+	store, err := getCostStore()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = store.Close() }()
+
+	// Validate flags
+	if peekAgentFlag == "" && !peekWorkspaceFlag {
+		return fmt.Errorf("either --agent or --workspace flag is required")
+	}
+
+	if peekAgentFlag != "" && peekWorkspaceFlag {
+		return fmt.Errorf("cannot specify both --agent and --workspace")
+	}
+
+	// Show initial state
+	fmt.Printf("Cost Monitor (refresh interval: %d seconds)\n", peekIntervalFlag)
+	fmt.Printf("Press Ctrl+C to stop\n\n")
+
+	ticker := time.NewTicker(time.Duration(peekIntervalFlag) * time.Second)
+	defer ticker.Stop()
+
+	for {
+		// Clear screen would be nice, but keep it simple for CLI
+		if peekWorkspaceFlag {
+			summary, summaryErr := store.WorkspaceSummary()
+			if summaryErr != nil {
+				return fmt.Errorf("failed to get workspace summary: %w", summaryErr)
+			}
+
+			fmt.Printf("Workspace Total: $%.4f (API Calls: %d, Tokens: %d)\n",
+				summary.TotalCostUSD, summary.RecordCount, summary.TotalTokens)
+		} else {
+			summary, summaryErr := store.AgentSummary(peekAgentFlag)
+			if summaryErr != nil {
+				return fmt.Errorf("failed to get agent summary: %w", summaryErr)
+			}
+
+			if summary == nil {
+				fmt.Printf("Agent %s: $0.0000 (no cost data yet)\n", peekAgentFlag)
+			} else {
+				fmt.Printf("Agent %s: $%.4f (Calls: %d, Tokens: %d)\n",
+					summary.AgentID, summary.TotalCostUSD, summary.RecordCount, summary.TotalTokens)
+			}
+		}
+
+		fmt.Printf("[%s] Waiting for next update...\n", time.Now().Format("15:04:05"))
+
+		// Wait for next tick or interrupt
+		<-ticker.C
+	}
 }

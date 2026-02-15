@@ -275,3 +275,174 @@ func TestCostNoWorkspace(t *testing.T) {
 		t.Errorf("expected workspace error, got: %v", execErr)
 	}
 }
+
+// TestCostAddBasic tests manual cost entry with amount only
+func TestCostAddBasic(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Reset flags
+	addCostAgentFlag = ""
+	addCostAmountFlag = 0
+	addCostToolFlag = ""
+	addCostModelFlag = "manual"
+	addCostInputTokens = 0
+	addCostOutputTokens = 0
+
+	stdout, _, err := executeIntegrationCmd(
+		"cost", "add",
+		"--agent", "engineer-01",
+		"--amount", "0.50",
+	)
+	if err != nil {
+		t.Fatalf("cost add failed: %v\nOutput: %s", err, stdout)
+	}
+
+	if !strings.Contains(stdout, "Cost recorded") {
+		t.Errorf("expected 'Cost recorded', got: %s", stdout)
+	}
+	if !strings.Contains(stdout, "engineer-01") {
+		t.Errorf("expected agent name in output, got: %s", stdout)
+	}
+	if !strings.Contains(stdout, "0.5000") {
+		t.Errorf("expected cost amount in output, got: %s", stdout)
+	}
+
+	// Verify it was actually recorded
+	store := cost.NewStore(wsDir)
+	storeErr := store.Open()
+	if storeErr != nil {
+		t.Fatalf("failed to open store: %v", storeErr)
+	}
+	defer func() { _ = store.Close() }()
+
+	records, err := store.GetByAgent("engineer-01", 10)
+	if err != nil {
+		t.Fatalf("failed to get records: %v", err)
+	}
+	if len(records) != 1 {
+		t.Errorf("expected 1 record, got %d", len(records))
+	}
+	if records[0].CostUSD != 0.50 {
+		t.Errorf("cost = %f, want 0.50", records[0].CostUSD)
+	}
+}
+
+// TestCostAddWithTokens tests cost entry with token counts
+func TestCostAddWithTokens(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Reset flags
+	addCostAgentFlag = ""
+	addCostAmountFlag = 0
+	addCostToolFlag = ""
+	addCostModelFlag = "manual"
+	addCostInputTokens = 0
+	addCostOutputTokens = 0
+
+	stdout, _, err := executeIntegrationCmd(
+		"cost", "add",
+		"--agent", "engineer-02",
+		"--tokens-in", "5000",
+		"--tokens-out", "2000",
+		"--amount", "0.35",
+		"--model", "claude-3-opus",
+	)
+	if err != nil {
+		t.Fatalf("cost add with tokens failed: %v\nOutput: %s", err, stdout)
+	}
+
+	if !strings.Contains(stdout, "5000") && !strings.Contains(stdout, "input") {
+		t.Errorf("expected token info in output, got: %s", stdout)
+	}
+
+	// Verify tokens were recorded
+	store := cost.NewStore(wsDir)
+	storeErr := store.Open()
+	if storeErr != nil {
+		t.Fatalf("failed to open store: %v", storeErr)
+	}
+	defer func() { _ = store.Close() }()
+
+	records, getErr := store.GetByAgent("engineer-02", 10)
+	if getErr != nil {
+		t.Fatalf("failed to get records: %v", getErr)
+	}
+	if len(records) != 1 {
+		t.Errorf("expected 1 record, got %d", len(records))
+	}
+	if records[0].InputTokens != 5000 {
+		t.Errorf("input tokens = %d, want 5000", records[0].InputTokens)
+	}
+	if records[0].OutputTokens != 2000 {
+		t.Errorf("output tokens = %d, want 2000", records[0].OutputTokens)
+	}
+}
+
+// TestCostAddMissingAgent tests error when --agent is not provided
+func TestCostAddMissingAgent(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Reset flags
+	addCostAgentFlag = ""
+	addCostAmountFlag = 0
+	addCostToolFlag = ""
+	addCostModelFlag = "manual"
+	addCostInputTokens = 0
+	addCostOutputTokens = 0
+
+	stdout, _, err := executeIntegrationCmd(
+		"cost", "add",
+		"--amount", "0.50",
+	)
+	if err == nil {
+		t.Fatalf("expected error when --agent flag missing, got output: %s", stdout)
+	}
+}
+
+// TestCostAddMissingAmount tests error when neither --amount nor tokens provided
+func TestCostAddMissingAmount(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Reset flags
+	addCostAgentFlag = ""
+	addCostAmountFlag = 0
+	addCostToolFlag = ""
+	addCostModelFlag = "manual"
+	addCostInputTokens = 0
+	addCostOutputTokens = 0
+
+	stdout, _, err := executeIntegrationCmd(
+		"cost", "add",
+		"--agent", "engineer-01",
+	)
+	if err == nil {
+		t.Fatalf("expected error when no cost info provided, got output: %s", stdout)
+	}
+}
+
+// TestCostAddTokensWithoutAmount tests error when tokens provided without amount
+func TestCostAddTokensWithoutAmount(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Reset flags
+	addCostAgentFlag = ""
+	addCostAmountFlag = 0
+	addCostToolFlag = ""
+	addCostModelFlag = "manual"
+	addCostInputTokens = 0
+	addCostOutputTokens = 0
+
+	stdout, _, err := executeIntegrationCmd(
+		"cost", "add",
+		"--agent", "engineer-01",
+		"--tokens-in", "5000",
+	)
+	if err == nil {
+		t.Fatalf("expected error when tokens provided without amount, got output: %s", stdout)
+	}
+}
