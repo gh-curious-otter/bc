@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'bun:test';
 import { COMMAND_REGISTRY, searchCommands, getAllCommands, getCommandsByCategory } from '../../types/commands';
-import type { BcCommand } from '../../types/commands';
+// BcCommand type used indirectly via COMMAND_REGISTRY
 
 // NOTE: useInput tests require TTY stdin, so they're skipped in non-TTY test environments
 // These should be tested manually with: bc home -> Commands (5) -> verify navigation and search
@@ -257,7 +257,7 @@ describe('CommandsView Props', () => {
 
   test('disableInput prop has default value', () => {
     // Default: disableInput = false
-    const props = {};
+    const _props = {}; // eslint-disable-line @typescript-eslint/no-unused-vars -- demonstrates structure
     const disableInputDefault = false;
     expect(disableInputDefault).toBe(false);
   });
