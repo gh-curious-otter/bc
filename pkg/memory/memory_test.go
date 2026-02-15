@@ -1092,3 +1092,445 @@ func TestStore_ForgetTopic_NotFound(t *testing.T) {
 		t.Error("expected error for nonexistent topic")
 	}
 }
+
+// Additional tests for edge cases and error paths
+
+func TestStore_RecordExperience_NoInit(t *testing.T) {
+	// Test recording to uninitialized store (directory doesn't exist)
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+	// Note: RecordExperience does NOT create the directory, only Init does
+
+	exp := Experience{
+		Description: "Test experience",
+		Outcome:     "success",
+	}
+
+	// This should fail because the directory doesn't exist
+	err := store.RecordExperience(exp)
+	if err == nil {
+		t.Fatal("expected error when recording to uninitialized store")
+	}
+	if !strings.Contains(err.Error(), "no such file or directory") {
+		t.Errorf("expected 'no such file or directory' error, got: %v", err)
+	}
+}
+
+func TestStore_GetExperiences_MalformedJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	// Write malformed JSON directly
+	expPath := filepath.Join(store.MemoryDir(), "experiences.jsonl")
+	content := `{"description":"valid","outcome":"success"}
+this is not valid json
+{"description":"another valid","outcome":"success"}
+`
+	if err := os.WriteFile(expPath, []byte(content), 0600); err != nil {
+		t.Fatalf("failed to write test data: %v", err)
+	}
+
+	// Should return valid experiences, skip malformed
+	experiences, err := store.GetExperiences()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should have 2 valid experiences (skipping malformed line)
+	if len(experiences) != 2 {
+		t.Errorf("expected 2 valid experiences, got %d", len(experiences))
+	}
+}
+
+func TestStore_GetExperiences_EmptyLines(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	// Write file with empty lines
+	expPath := filepath.Join(store.MemoryDir(), "experiences.jsonl")
+	content := `{"description":"first","outcome":"success"}
+
+{"description":"second","outcome":"success"}
+
+`
+	if err := os.WriteFile(expPath, []byte(content), 0600); err != nil {
+		t.Fatalf("failed to write test data: %v", err)
+	}
+
+	experiences, err := store.GetExperiences()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(experiences) != 2 {
+		t.Errorf("expected 2 experiences, got %d", len(experiences))
+	}
+}
+
+func TestStore_GetLearnings_NotExist(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "nonexistent-agent")
+
+	// Don't init - file doesn't exist
+	content, err := store.GetLearnings()
+	if err != nil {
+		t.Fatalf("unexpected error for nonexistent file: %v", err)
+	}
+	if content != "" {
+		t.Errorf("expected empty string for nonexistent learnings, got %q", content)
+	}
+}
+
+func TestStore_AddLearning_ToExistingCategory(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	// Add first learning
+	if err := store.AddLearning("patterns", "Use context"); err != nil {
+		t.Fatalf("failed to add first learning: %v", err)
+	}
+
+	// Add second learning to same category
+	if err := store.AddLearning("patterns", "Use interfaces"); err != nil {
+		t.Fatalf("failed to add second learning: %v", err)
+	}
+
+	learnings, err := store.GetLearnings()
+	if err != nil {
+		t.Fatalf("failed to get learnings: %v", err)
+	}
+
+	// Both learnings should be under the same ## patterns section
+	if strings.Count(learnings, "## patterns") != 1 {
+		t.Error("expected exactly one patterns section")
+	}
+	if !strings.Contains(learnings, "- Use context") {
+		t.Error("first learning missing")
+	}
+	if !strings.Contains(learnings, "- Use interfaces") {
+		t.Error("second learning missing")
+	}
+}
+
+func TestStore_Clear_ExperiencesOnly(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	// Add experience
+	exp := Experience{Description: "test", Outcome: "success"}
+	if err := store.RecordExperience(exp); err != nil {
+		t.Fatalf("failed to record: %v", err)
+	}
+
+	// Add learning
+	if err := store.AddLearning("tips", "test tip"); err != nil {
+		t.Fatalf("failed to add learning: %v", err)
+	}
+
+	// Clear only experiences
+	result, err := store.Clear(true, false)
+	if err != nil {
+		t.Fatalf("Clear failed: %v", err)
+	}
+
+	if result.ExperiencesCleared != 1 {
+		t.Errorf("expected 1 experience cleared, got %d", result.ExperiencesCleared)
+	}
+
+	// Learnings should still exist
+	learnings, _ := store.GetLearnings()
+	if !strings.Contains(learnings, "test tip") {
+		t.Error("learnings should not be cleared")
+	}
+}
+
+func TestStore_Clear_LearningsOnly(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	// Add experience
+	exp := Experience{Description: "test", Outcome: "success"}
+	if err := store.RecordExperience(exp); err != nil {
+		t.Fatalf("failed to record: %v", err)
+	}
+
+	// Add learning
+	if err := store.AddLearning("tips", "test tip"); err != nil {
+		t.Fatalf("failed to add learning: %v", err)
+	}
+
+	// Clear only learnings
+	result, err := store.Clear(false, true)
+	if err != nil {
+		t.Fatalf("Clear failed: %v", err)
+	}
+
+	if !result.LearningsCleared {
+		t.Error("expected learnings to be cleared")
+	}
+
+	// Experiences should still exist
+	experiences, _ := store.GetExperiences()
+	if len(experiences) != 1 {
+		t.Error("experiences should not be cleared")
+	}
+}
+
+func TestStore_Clear_Neither(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	// Clear neither - should still succeed
+	result, err := store.Clear(false, false)
+	if err != nil {
+		t.Fatalf("Clear failed: %v", err)
+	}
+
+	if result.ExperiencesCleared != 0 || result.LearningsCleared {
+		t.Error("nothing should be cleared")
+	}
+}
+
+func TestStore_Prune_AllOld(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	// Add old experience
+	oldTime := time.Now().Add(-365 * 24 * time.Hour)
+	exp := Experience{
+		Timestamp:   oldTime,
+		Description: "old experience",
+		Outcome:     "success",
+	}
+	if err := store.RecordExperience(exp); err != nil {
+		t.Fatalf("failed to record: %v", err)
+	}
+
+	// Prune with 30 day retention
+	result, err := store.Prune(PruneOptions{
+		OlderThan: 30 * 24 * time.Hour,
+		DryRun:    false,
+	})
+	if err != nil {
+		t.Fatalf("Prune failed: %v", err)
+	}
+
+	if result.PrunedExperiences != 1 {
+		t.Errorf("expected 1 pruned, got %d", result.PrunedExperiences)
+	}
+
+	// Verify experience is gone
+	experiences, _ := store.GetExperiences()
+	if len(experiences) != 0 {
+		t.Error("old experience should be pruned")
+	}
+}
+
+func TestStore_NeedsPruning_BelowThreshold(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	// Check with very high threshold
+	needs, size, err := store.NeedsPruning(1024 * 1024 * 100) // 100MB threshold
+	if err != nil {
+		t.Fatalf("NeedsPruning failed: %v", err)
+	}
+
+	if needs {
+		t.Error("should not need pruning with high threshold")
+	}
+	if size < 0 {
+		t.Error("size should be non-negative")
+	}
+}
+
+func TestStore_NeedsPruning_AboveThreshold(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	// Add some content
+	for i := 0; i < 10; i++ {
+		exp := Experience{
+			Description: strings.Repeat("x", 1000),
+			Outcome:     "success",
+		}
+		if err := store.RecordExperience(exp); err != nil {
+			t.Fatalf("failed to record: %v", err)
+		}
+	}
+
+	// Check with very low threshold
+	needs, _, err := store.NeedsPruning(1) // 1 byte threshold
+	if err != nil {
+		t.Fatalf("NeedsPruning failed: %v", err)
+	}
+
+	if !needs {
+		t.Error("should need pruning with 1 byte threshold")
+	}
+}
+
+func TestStore_ListTopics_Empty(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	// No learnings added - only has the default header
+	topics, err := store.ListTopics()
+	if err != nil {
+		t.Fatalf("ListTopics failed: %v", err)
+	}
+
+	// Should be empty since no ## sections added yet
+	if len(topics) != 0 {
+		t.Errorf("expected 0 topics, got %d", len(topics))
+	}
+}
+
+func TestStore_GetSize_Empty(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	size, err := store.GetSize()
+	if err != nil {
+		t.Fatalf("GetSize failed: %v", err)
+	}
+
+	if size < 0 {
+		t.Error("size should be non-negative")
+	}
+}
+
+func TestStore_RecordExperience_WithMetadata(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	exp := Experience{
+		Description: "test with metadata",
+		Outcome:     "success",
+		Metadata: map[string]any{
+			"key1":   "value1",
+			"key2":   42,
+			"nested": map[string]string{"inner": "data"},
+		},
+	}
+
+	if err := store.RecordExperience(exp); err != nil {
+		t.Fatalf("failed to record: %v", err)
+	}
+
+	experiences, err := store.GetExperiences()
+	if err != nil {
+		t.Fatalf("failed to get experiences: %v", err)
+	}
+
+	if len(experiences) != 1 {
+		t.Fatalf("expected 1 experience, got %d", len(experiences))
+	}
+
+	if experiences[0].Metadata["key1"] != "value1" {
+		t.Error("metadata key1 mismatch")
+	}
+}
+
+func TestStore_Prune_MixedRetention(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	// Add old experience
+	oldExp := Experience{
+		Timestamp:   time.Now().Add(-100 * 24 * time.Hour),
+		Description: "old",
+		Outcome:     "success",
+	}
+	if err := store.RecordExperience(oldExp); err != nil {
+		t.Fatalf("failed to record old: %v", err)
+	}
+
+	// Add recent experience
+	newExp := Experience{
+		Timestamp:   time.Now(),
+		Description: "new",
+		Outcome:     "success",
+	}
+	if err := store.RecordExperience(newExp); err != nil {
+		t.Fatalf("failed to record new: %v", err)
+	}
+
+	// Prune with 30 day retention
+	result, err := store.Prune(PruneOptions{
+		OlderThan: 30 * 24 * time.Hour,
+		DryRun:    false,
+	})
+	if err != nil {
+		t.Fatalf("Prune failed: %v", err)
+	}
+
+	if result.PrunedExperiences != 1 {
+		t.Errorf("expected 1 pruned, got %d", result.PrunedExperiences)
+	}
+	retained := result.TotalExperiences - result.PrunedExperiences
+	if retained != 1 {
+		t.Errorf("expected 1 retained, got %d", retained)
+	}
+
+	// Verify only new experience remains
+	experiences, _ := store.GetExperiences()
+	if len(experiences) != 1 {
+		t.Fatalf("expected 1 experience, got %d", len(experiences))
+	}
+	if experiences[0].Description != "new" {
+		t.Error("wrong experience retained")
+	}
+}
