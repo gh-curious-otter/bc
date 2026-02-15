@@ -1,9 +1,10 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import React from 'react';
 import { render } from 'ink-testing-library';
 import { describe, it, expect } from 'bun:test';
 import { StatusBadge } from '../components/StatusBadge';
 import { Table } from '../components/Table';
-import type { Agent } from '../types';
 
 // Test StatusBadge component (no useInput dependency)
 describe('StatusBadge', () => {
