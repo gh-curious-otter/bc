@@ -121,13 +121,19 @@ function ChannelHistoryView({
   const { setFocus, returnFocus } = useFocus();
 
   // Manage focus when entering/exiting input mode
+  // IMPORTANT: Only depend on inputMode, not setFocus/returnFocus
+  // because those functions are recreated when focusedArea changes,
+  // which would create an infinite cycle
   useEffect(() => {
     if (inputMode) {
+      console.error('[ChannelsView] Entering input mode - setting focus to input');
       setFocus('input');
     } else {
+      console.error('[ChannelsView] Exiting input mode - restoring previous focus');
       returnFocus();
     }
-  }, [inputMode, setFocus, returnFocus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inputMode]);
 
   useInput(
     (input, key) => {
