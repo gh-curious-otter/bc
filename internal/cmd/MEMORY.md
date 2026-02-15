@@ -3,7 +3,7 @@
 ## Profile summary
 
 - **TUI benchmarks** (`go test -bench=. -benchmem ./internal/tui/...`): Dashboard tab view is the heaviest path (~10 KB/op, ~248 allocs/op per render). Other tabs and home view are in the 3–7 KB/op range. See `internal/tui/benchmark_test.go`.
-- **CLI entry points**: `bc home` builds a minimal workspace list (no Manager/agent load at startup; TUI fills counts on first tick). `bc status` / `bc dashboard` load one Manager and agents once. `pkg/agent.ListAgents()` returns copies for thread safety and already pre-allocates the slice.
+- **CLI entry points**: `bc home` builds a minimal workspace list (no Manager/agent load at startup; TUI fills counts on first tick). `bc status` / `bc home` load one Manager and agents once. `pkg/agent.ListAgents()` returns copies for thread safety and already pre-allocates the slice.
 - **Config**: Loaded once at init (global vars in `config` package). No per-command config reload.
 
 ## Reductions applied

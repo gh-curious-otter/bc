@@ -47,7 +47,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   if (showDetail && selectedAgent) {
     return (
       <AgentDetailView
-        agent={selectedAgent}
+        agentName={selectedAgent.name}
         onBack={() => setShowDetail(false)}
       />
     );
