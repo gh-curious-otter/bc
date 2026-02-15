@@ -669,7 +669,7 @@ func runDemonTest(cmd *cobra.Command, args []string) error {
 
 	// Check GitHub integration enabled
 	if ws.V2Config == nil || ws.V2Config.Tools.GitHub == nil || !ws.V2Config.Tools.GitHub.Enabled {
-		return fmt.Errorf("GitHub integration not enabled - set [tools.github] enabled = true in .bc/config.toml")
+		return fmt.Errorf("GitHub integration is not enabled - please enable it in your workspace configuration")
 	}
 
 	if demonTestCreateDemon {
