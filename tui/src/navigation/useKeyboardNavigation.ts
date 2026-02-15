@@ -29,6 +29,7 @@ export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}
     (input, key) => {
       // Don't handle global keys when input is focused
       if (isFocused('input')) {
+        console.error(`[useKeyboardNavigation] Input focused, blocking keybind: "${input || key.escape ? 'ESC' : 'other'}"`);
         return;
       }
 

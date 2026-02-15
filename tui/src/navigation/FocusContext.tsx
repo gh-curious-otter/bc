@@ -49,6 +49,7 @@ export function FocusProvider({
 
   const setFocus = useCallback(
     (area: FocusArea) => {
+      console.error(`[FocusContext] setFocus: ${focusedArea} → ${area}`);
       setPreviousArea(focusedArea);
       setFocusedArea(area);
     },
@@ -61,11 +62,14 @@ export function FocusProvider({
   );
 
   const returnFocus = useCallback(() => {
+    console.error(`[FocusContext] returnFocus: ${focusedArea} → ${previousArea || 'none'}`);
     if (previousArea) {
       setFocusedArea(previousArea);
       setPreviousArea(null);
+    } else {
+      console.error(`[FocusContext] returnFocus called but previousArea is null!`);
     }
-  }, [previousArea]);
+  }, [previousArea, focusedArea]);
 
   const cycleFocus = useCallback(() => {
     const currentIndex = FOCUS_ORDER.indexOf(focusedArea);
