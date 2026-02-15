@@ -16,6 +16,7 @@ import (
 	"github.com/rpuneet/bc/config"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/memory"
+	"github.com/rpuneet/bc/pkg/team"
 	"github.com/rpuneet/bc/pkg/tmux"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -909,6 +910,12 @@ func (m *Manager) DeleteAgentWithOptions(name string, opts DeleteOptions) error 
 
 	// Remove from parent's children list
 	m.removeFromParent(name)
+
+	// Remove from all teams to prevent stale references
+	teamStore := team.NewStore(m.workspacePath)
+	if err := teamStore.RemoveMemberFromAllTeams(name); err != nil {
+		log.Warn("failed to remove agent from teams", "agent", name, "error", err)
+	}
 
 	// Delete from state
 	delete(m.agents, name)

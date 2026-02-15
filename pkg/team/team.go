@@ -185,6 +185,40 @@ func (s *Store) SetDescription(teamName, description string) error {
 	})
 }
 
+// RemoveMemberFromAllTeams removes an agent from all teams.
+// This is used when an agent is deleted to clean up stale team memberships.
+func (s *Store) RemoveMemberFromAllTeams(agentName string) error {
+	teams, err := s.List()
+	if err != nil {
+		return err
+	}
+
+	for _, t := range teams {
+		if slices.Contains(t.Members, agentName) || t.Lead == agentName {
+			err := s.Update(t.Name, func(team *Team) {
+				// Remove from members list
+				filtered := make([]string, 0, len(team.Members))
+				for _, m := range team.Members {
+					if m != agentName {
+						filtered = append(filtered, m)
+					}
+				}
+				team.Members = filtered
+
+				// Clear lead if this agent was lead
+				if team.Lead == agentName {
+					team.Lead = ""
+				}
+			})
+			if err != nil {
+				return fmt.Errorf("failed to remove %s from team %s: %w", agentName, t.Name, err)
+			}
+		}
+	}
+
+	return nil
+}
+
 func (s *Store) save(team *Team) error {
 	if err := s.Init(); err != nil {
 		return err

@@ -316,3 +316,113 @@ func TestTeamPath(t *testing.T) {
 		t.Errorf("teamPath = %q, want %q", got, expected)
 	}
 }
+
+func TestStoreRemoveMemberFromAllTeams(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create multiple teams
+	_, _ = store.Create("team1")
+	_, _ = store.Create("team2")
+	_, _ = store.Create("team3")
+
+	// Add agent to multiple teams
+	_ = store.AddMember("team1", "agent-01")
+	_ = store.AddMember("team1", "agent-02")
+	_ = store.AddMember("team2", "agent-01")
+	_ = store.AddMember("team3", "agent-03")
+
+	// Remove agent-01 from all teams
+	err := store.RemoveMemberFromAllTeams("agent-01")
+	if err != nil {
+		t.Fatalf("RemoveMemberFromAllTeams failed: %v", err)
+	}
+
+	// Verify agent-01 is removed from team1
+	team1, _ := store.Get("team1")
+	for _, m := range team1.Members {
+		if m == "agent-01" {
+			t.Error("agent-01 should be removed from team1")
+		}
+	}
+	if len(team1.Members) != 1 {
+		t.Errorf("team1 should have 1 member, got %d", len(team1.Members))
+	}
+
+	// Verify agent-01 is removed from team2
+	team2, _ := store.Get("team2")
+	if len(team2.Members) != 0 {
+		t.Errorf("team2 should have 0 members, got %d", len(team2.Members))
+	}
+
+	// Verify team3 is unchanged
+	team3, _ := store.Get("team3")
+	if len(team3.Members) != 1 {
+		t.Errorf("team3 should have 1 member, got %d", len(team3.Members))
+	}
+}
+
+func TestStoreRemoveMemberFromAllTeamsWithLead(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create team with lead
+	_, _ = store.Create("engineering")
+	_ = store.AddMember("engineering", "tech-lead")
+	_ = store.AddMember("engineering", "engineer-01")
+	_ = store.SetLead("engineering", "tech-lead")
+
+	// Verify lead is set
+	team, _ := store.Get("engineering")
+	if team.Lead != "tech-lead" {
+		t.Fatalf("Lead should be tech-lead, got %s", team.Lead)
+	}
+
+	// Remove the lead agent from all teams
+	err := store.RemoveMemberFromAllTeams("tech-lead")
+	if err != nil {
+		t.Fatalf("RemoveMemberFromAllTeams failed: %v", err)
+	}
+
+	// Verify lead is cleared
+	team, _ = store.Get("engineering")
+	if team.Lead != "" {
+		t.Errorf("Lead should be empty after removal, got %s", team.Lead)
+	}
+	if len(team.Members) != 1 {
+		t.Errorf("Team should have 1 member, got %d", len(team.Members))
+	}
+}
+
+func TestStoreRemoveMemberFromAllTeamsNonexistent(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create teams but don't add the agent
+	_, _ = store.Create("team1")
+	_, _ = store.Create("team2")
+	_ = store.AddMember("team1", "other-agent")
+
+	// Removing nonexistent agent should not error
+	err := store.RemoveMemberFromAllTeams("nonexistent-agent")
+	if err != nil {
+		t.Fatalf("RemoveMemberFromAllTeams should not error for nonexistent agent: %v", err)
+	}
+
+	// Verify teams are unchanged
+	team1, _ := store.Get("team1")
+	if len(team1.Members) != 1 {
+		t.Errorf("team1 should have 1 member, got %d", len(team1.Members))
+	}
+}
+
+func TestStoreRemoveMemberFromAllTeamsNoTeams(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// No teams exist - should not error
+	err := store.RemoveMemberFromAllTeams("agent-01")
+	if err != nil {
+		t.Fatalf("RemoveMemberFromAllTeams should not error when no teams exist: %v", err)
+	}
+}
