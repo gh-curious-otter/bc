@@ -391,11 +391,17 @@ func runCostSummary(cmd *cobra.Command, args []string) error {
 	}
 	defer func() { _ = store.Close() }()
 
+	// Check for JSON output
+	jsonOutput, _ := cmd.Flags().GetBool("json")
+
 	// Specific agent summary
 	if costAgentFlag != "" {
 		summary, summaryErr := store.AgentSummary(costAgentFlag)
 		if summaryErr != nil {
 			return fmt.Errorf("failed to get agent summary: %w", summaryErr)
+		}
+		if jsonOutput {
+			return outputSummaryJSON(cmd, "agent", costAgentFlag, summary)
 		}
 		printSingleSummary("Agent", costAgentFlag, summary)
 		return nil
@@ -407,6 +413,9 @@ func runCostSummary(cmd *cobra.Command, args []string) error {
 		if summaryErr != nil {
 			return fmt.Errorf("failed to get team summary: %w", summaryErr)
 		}
+		if jsonOutput {
+			return outputSummaryJSON(cmd, "team", costTeamFlag, summary)
+		}
 		printSingleSummary("Team", costTeamFlag, summary)
 		return nil
 	}
@@ -416,6 +425,9 @@ func runCostSummary(cmd *cobra.Command, args []string) error {
 		summaries, summaryErr := store.SummaryByModel()
 		if summaryErr != nil {
 			return fmt.Errorf("failed to get model summary: %w", summaryErr)
+		}
+		if jsonOutput {
+			return outputModelSummaryJSON(cmd, summaries)
 		}
 		printModelSummary(summaries)
 		return nil
@@ -427,11 +439,19 @@ func runCostSummary(cmd *cobra.Command, args []string) error {
 		if summaryErr != nil {
 			return fmt.Errorf("failed to get workspace summary: %w", summaryErr)
 		}
-		printWorkspaceSummary(summary)
 
 		// Also show per-agent breakdown
 		agentSummaries, agentErr := store.SummaryByAgent()
-		if agentErr == nil && len(agentSummaries) > 0 {
+		if agentErr != nil {
+			agentSummaries = nil
+		}
+
+		if jsonOutput {
+			return outputWorkspaceSummaryJSON(cmd, summary, agentSummaries)
+		}
+
+		printWorkspaceSummary(summary)
+		if len(agentSummaries) > 0 {
 			fmt.Println("\nBy Agent:")
 			printCostAgentSummary(agentSummaries)
 		}
@@ -440,6 +460,80 @@ func runCostSummary(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// outputSummaryJSON outputs a single summary in JSON format.
+func outputSummaryJSON(cmd *cobra.Command, summaryType, name string, s *cost.Summary) error {
+	output := struct {
+		Type         string  `json:"type"`
+		Name         string  `json:"name"`
+		RecordCount  int64   `json:"record_count"`
+		InputTokens  int64   `json:"input_tokens"`
+		OutputTokens int64   `json:"output_tokens"`
+		TotalTokens  int64   `json:"total_tokens"`
+		TotalCost    float64 `json:"total_cost"`
+	}{
+		Type:         summaryType,
+		Name:         name,
+		RecordCount:  s.RecordCount,
+		InputTokens:  s.InputTokens,
+		OutputTokens: s.OutputTokens,
+		TotalTokens:  s.TotalTokens,
+		TotalCost:    s.TotalCostUSD,
+	}
+	enc := json.NewEncoder(cmd.OutOrStdout())
+	enc.SetIndent("", "  ")
+	return enc.Encode(output)
+}
+
+// outputWorkspaceSummaryJSON outputs workspace summary with per-agent breakdown in JSON.
+func outputWorkspaceSummaryJSON(cmd *cobra.Command, summary *cost.Summary, agentSummaries []*cost.Summary) error {
+	agents := make([]map[string]interface{}, 0, len(agentSummaries))
+	for _, a := range agentSummaries {
+		agents = append(agents, map[string]interface{}{
+			"agent_id":     a.AgentID,
+			"record_count": a.RecordCount,
+			"total_tokens": a.TotalTokens,
+			"total_cost":   a.TotalCostUSD,
+		})
+	}
+
+	output := struct {
+		ByAgent      []map[string]interface{} `json:"by_agent,omitempty"`
+		RecordCount  int64                    `json:"record_count"`
+		InputTokens  int64                    `json:"input_tokens"`
+		OutputTokens int64                    `json:"output_tokens"`
+		TotalTokens  int64                    `json:"total_tokens"`
+		TotalCost    float64                  `json:"total_cost"`
+	}{
+		ByAgent:      agents,
+		RecordCount:  summary.RecordCount,
+		InputTokens:  summary.InputTokens,
+		OutputTokens: summary.OutputTokens,
+		TotalTokens:  summary.TotalTokens,
+		TotalCost:    summary.TotalCostUSD,
+	}
+	enc := json.NewEncoder(cmd.OutOrStdout())
+	enc.SetIndent("", "  ")
+	return enc.Encode(output)
+}
+
+// outputModelSummaryJSON outputs model summary in JSON.
+func outputModelSummaryJSON(cmd *cobra.Command, summaries []*cost.Summary) error {
+	models := make([]map[string]interface{}, 0, len(summaries))
+	for _, s := range summaries {
+		models = append(models, map[string]interface{}{
+			"model":         s.Model,
+			"record_count":  s.RecordCount,
+			"input_tokens":  s.InputTokens,
+			"output_tokens": s.OutputTokens,
+			"total_tokens":  s.TotalTokens,
+			"total_cost":    s.TotalCostUSD,
+		})
+	}
+	enc := json.NewEncoder(cmd.OutOrStdout())
+	enc.SetIndent("", "  ")
+	return enc.Encode(models)
 }
 
 func printSingleSummary(label, name string, s *cost.Summary) {
