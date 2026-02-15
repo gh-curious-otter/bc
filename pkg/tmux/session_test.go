@@ -1048,6 +1048,128 @@ func TestSetEnvironment_Error(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Environment variable key validation tests (security fix #715)
+// ---------------------------------------------------------------------------
+
+func TestCreateSessionWithEnv_ValidKeys(t *testing.T) {
+	tests := []struct {
+		name string
+		key  string
+	}{
+		{"simple lowercase", "foo"},
+		{"simple uppercase", "FOO"},
+		{"mixed case", "FooBar"},
+		{"with underscore", "FOO_BAR"},
+		{"starts with underscore", "_FOO"},
+		{"with numbers", "FOO123"},
+		{"underscore and numbers", "_FOO_123_BAR"},
+		{"single letter", "X"},
+		{"single underscore", "_"},
+		{"path style", "BC_AGENT_WORKTREE"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newTestManager("bc-", mockCmd("", "", 0))
+			env := map[string]string{tt.key: "value"}
+			err := m.CreateSessionWithEnv("agent1", "/workspace", "echo", env)
+			if err != nil {
+				t.Errorf("expected valid key %q to be accepted, got error: %v", tt.key, err)
+			}
+		})
+	}
+}
+
+func TestCreateSessionWithEnv_InvalidKeys_ShellInjection(t *testing.T) {
+	tests := []struct {
+		name string
+		key  string
+	}{
+		{"shell injection semicolon", "FOO;rm -rf /;X"},
+		{"shell injection backtick", "FOO`whoami`"},
+		{"shell injection dollar", "FOO$(whoami)"},
+		{"shell injection newline", "FOO\nBAR"},
+		{"shell injection pipe", "FOO|cat"},
+		{"shell injection ampersand", "FOO&&echo"},
+		{"shell injection redirect", "FOO>file"},
+		{"starts with number", "123FOO"},
+		{"contains space", "FOO BAR"},
+		{"contains hyphen", "FOO-BAR"},
+		{"contains dot", "FOO.BAR"},
+		{"empty string", ""},
+		{"equals sign", "FOO=BAR"},
+		{"quotes", "FOO\"BAR"},
+		{"single quote", "FOO'BAR"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newTestManager("bc-", mockCmd("", "", 0))
+			env := map[string]string{tt.key: "value"}
+			err := m.CreateSessionWithEnv("agent1", "/workspace", "echo", env)
+			if err == nil {
+				t.Errorf("expected invalid key %q to be rejected", tt.key)
+			}
+			if err != nil && !strings.Contains(err.Error(), "invalid environment variable name") {
+				t.Errorf("expected validation error, got: %v", err)
+			}
+		})
+	}
+}
+
+func TestSetEnvironment_ValidKeys(t *testing.T) {
+	tests := []struct {
+		name string
+		key  string
+	}{
+		{"simple lowercase", "foo"},
+		{"simple uppercase", "FOO"},
+		{"with underscore", "FOO_BAR"},
+		{"starts with underscore", "_FOO"},
+		{"with numbers", "FOO123"},
+		{"bc agent vars", "BC_AGENT_ID"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newTestManager("bc-", mockCmd("", "", 0))
+			err := m.SetEnvironment("agent1", tt.key, "value")
+			if err != nil {
+				t.Errorf("expected valid key %q to be accepted, got error: %v", tt.key, err)
+			}
+		})
+	}
+}
+
+func TestSetEnvironment_InvalidKeys_ShellInjection(t *testing.T) {
+	tests := []struct {
+		name string
+		key  string
+	}{
+		{"shell injection semicolon", "FOO;rm -rf /;X"},
+		{"shell injection backtick", "FOO`id`"},
+		{"shell injection dollar", "$(id)"},
+		{"contains hyphen", "FOO-BAR"},
+		{"starts with number", "1FOO"},
+		{"empty string", ""},
+		{"space", "FOO BAR"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newTestManager("bc-", mockCmd("", "", 0))
+			err := m.SetEnvironment("agent1", tt.key, "value")
+			if err == nil {
+				t.Errorf("expected invalid key %q to be rejected", tt.key)
+			}
+			if err != nil && !strings.Contains(err.Error(), "invalid environment variable name") {
+				t.Errorf("expected validation error, got: %v", err)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Prefix isolation test
 // ---------------------------------------------------------------------------
 

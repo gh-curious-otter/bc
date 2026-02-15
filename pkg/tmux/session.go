@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,6 +19,11 @@ import (
 
 	"github.com/rpuneet/bc/pkg/log"
 )
+
+// validEnvVarName matches valid POSIX environment variable names:
+// Must start with letter or underscore, followed by letters, digits, or underscores.
+// This prevents shell injection through malicious key names.
+var validEnvVarName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // Session represents a tmux session.
 type Session struct {
@@ -120,12 +126,18 @@ func (m *Manager) CreateSessionWithCommand(name, dir, command string) error {
 }
 
 // CreateSessionWithEnv creates a session with env vars baked into the shell command.
+// Environment variable keys are validated to prevent shell injection attacks.
+// Keys must match POSIX standards: start with letter/underscore, contain only alphanumerics/underscores.
 func (m *Manager) CreateSessionWithEnv(name, dir, command string, env map[string]string) error {
 	fullName := m.SessionName(name)
 
 	// Build shell command with env vars prefixed
 	parts := make([]string, 0, len(env)+1)
 	for k, v := range env {
+		// Validate env var key to prevent shell injection
+		if !validEnvVarName.MatchString(k) {
+			return fmt.Errorf("invalid environment variable name %q: must match [A-Za-z_][A-Za-z0-9_]*", k)
+		}
 		parts = append(parts, fmt.Sprintf("export %s=%q;", k, v))
 	}
 	parts = append(parts, command)
@@ -374,7 +386,13 @@ func (m *Manager) KillServer() error {
 }
 
 // SetEnvironment sets an environment variable in a session.
+// Environment variable key is validated to prevent shell injection attacks.
+// Key must match POSIX standards: start with letter/underscore, contain only alphanumerics/underscores.
 func (m *Manager) SetEnvironment(name, key, value string) error {
+	// Validate env var key to prevent shell injection
+	if !validEnvVarName.MatchString(key) {
+		return fmt.Errorf("invalid environment variable name %q: must match [A-Za-z_][A-Za-z0-9_]*", key)
+	}
 	fullName := m.SessionName(name)
 	cmd := m.command("tmux", "set-environment", "-t", fullName, key, value)
 	output, err := cmd.CombinedOutput()
