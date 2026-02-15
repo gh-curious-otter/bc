@@ -58,7 +58,7 @@ export function useProcesses(options: UseProcessesOptions = {}): UseProcessesRes
 
   // Initial fetch
   useEffect(() => {
-    fetchProcesses();
+    void fetchProcesses();
   }, []);
 
   // Polling interval

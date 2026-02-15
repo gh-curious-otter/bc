@@ -74,7 +74,7 @@ export function useDemons(options: UseDemonsOptions = {}): UseDemonsResult {
 
   // Initial fetch
   useEffect(() => {
-    fetchDemons();
+    void fetchDemons();
   }, [fetchDemons]);
 
   // Polling

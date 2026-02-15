@@ -42,7 +42,7 @@ export function useCosts(options: UseCostsOptions = {}): UseCostsResult {
 
   // Initial fetch
   useEffect(() => {
-    fetchCosts();
+    void fetchCosts();
   }, [fetchCosts]);
 
   // Polling

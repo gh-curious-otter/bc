@@ -91,7 +91,7 @@ export function useStatus(options: UseStatusOptions = {}): UseStatusResult {
 
   // Initial fetch
   useEffect(() => {
-    fetchStatus();
+    void fetchStatus();
   }, [fetchStatus]);
 
   // Polling
