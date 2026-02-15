@@ -221,8 +221,8 @@ function ChannelHistoryView({
         )}
       </Box>
 
-      {/* Input area - fixed height with proper separation */}
-      <Box height={3} flexDirection="column" marginBottom={1} borderStyle="single" borderColor={inputMode ? 'cyan' : 'gray'} paddingX={1}>
+      {/* Input area - auto-expand height based on message content */}
+      <Box height={calculateInputHeight(messageBuffer)} flexDirection="column" marginBottom={1} borderStyle="single" borderColor={inputMode ? 'cyan' : 'gray'} paddingX={1}>
         {inputMode ? (
           <Text>
             <Text color="cyan">{'> '}</Text>
@@ -240,6 +240,19 @@ function ChannelHistoryView({
       </Box>
     </Box>
   );
+}
+
+/**
+ * Calculate dynamic height for input box based on message content
+ * @param text - The message buffer text
+ * @param terminalWidth - Approximate terminal width (default 80)
+ * @returns Calculated height in lines (min: 3, max: 10)
+ */
+function calculateInputHeight(text: string, terminalWidth: number = 80): number {
+  if (!text) return 3; // Empty: minimum height
+  const usableWidth = Math.max(30, terminalWidth - 6); // Account for border + padding
+  const estimatedLines = Math.ceil(text.length / usableWidth);
+  return Math.max(3, Math.min(estimatedLines + 1, 10)); // Min 3, Max 10
 }
 
 /**
