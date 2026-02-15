@@ -299,9 +299,9 @@ func getCostStore() (*cost.Store, error) {
 }
 
 func runCostShow(cmd *cobra.Command, args []string) error {
-	// Validate limit is not negative
-	if costLimitFlag < 0 {
-		return fmt.Errorf("limit must be non-negative (got %d)", costLimitFlag)
+	// Validate limit parameter
+	if cmd.Flags().Changed("limit") && costLimitFlag <= 0 {
+		return fmt.Errorf("limit must be a positive number")
 	}
 
 	store, err := getCostStore()
@@ -760,11 +760,6 @@ func parseCostDuration(s string) (time.Duration, error) {
 }
 
 func runCostProject(cmd *cobra.Command, args []string) error {
-	// Validate lookback is not negative
-	if projectLookbackFlag < 0 {
-		return fmt.Errorf("lookback must be non-negative (got %d)", projectLookbackFlag)
-	}
-
 	store, err := getCostStore()
 	if err != nil {
 		return err

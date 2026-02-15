@@ -69,6 +69,12 @@ export default tseslint.config(
   {
     // Test files configuration
     files: ['**/*.test.ts', '**/*.test.tsx', '**/__tests__/**'],
+    languageOptions: {
+      parserOptions: {
+        project: 'tsconfig.test.json',
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { render } from 'ink-testing-library';
-import React, { useState } from 'react';
+import React from 'react';
 import { Text, Box } from 'ink';
 import { useListNavigation } from '../hooks/useListNavigation';
 

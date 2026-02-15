@@ -482,3 +482,35 @@ func TestCostPeekBothFlags(t *testing.T) {
 		t.Fatal("expected error when both flags provided")
 	}
 }
+
+// TestCostShowNegativeLimit tests that negative limits are rejected
+func TestCostShowNegativeLimit(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+	resetCostFlags()
+	defer resetCostFlags()
+
+	_, _, err := executeIntegrationCmd("cost", "show", "--limit", "-5")
+	if err == nil {
+		t.Error("expected error for negative limit")
+	}
+	if !strings.Contains(err.Error(), "must be a positive number") {
+		t.Errorf("error should mention positive number: %v", err)
+	}
+}
+
+// TestCostShowZeroLimit tests that zero limit is rejected
+func TestCostShowZeroLimit(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+	resetCostFlags()
+	defer resetCostFlags()
+
+	_, _, err := executeIntegrationCmd("cost", "show", "--limit", "0")
+	if err == nil {
+		t.Error("expected error for zero limit")
+	}
+	if !strings.Contains(err.Error(), "must be a positive number") {
+		t.Errorf("error should mention positive number: %v", err)
+	}
+}

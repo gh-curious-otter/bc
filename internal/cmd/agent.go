@@ -352,7 +352,7 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 && strings.TrimSpace(args[0]) != "" {
 		agentName = strings.TrimSpace(args[0])
 		// Validate agent name doesn't contain shell metacharacters
-		if !agent.IsValidAgentName(agentName) {
+		if !isValidAgentName(agentName) {
 			return fmt.Errorf("agent name %q contains invalid characters (use letters, numbers, dash, underscore)", agentName)
 		}
 	} else {
@@ -391,20 +391,28 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Validate team name if specified (do this before role validation)
+	if agentCreateTeam != "" {
+		if !isValidTeamName(agentCreateTeam) {
+			return fmt.Errorf("team name must be alphanumeric with optional hyphens/underscores")
+		}
+
+		// Validate team exists
+		teamStore := team.NewStore(filepath.Join(ws.StateDir(), "teams"))
+		if !teamStore.Exists(agentCreateTeam) {
+			return fmt.Errorf("team %q does not exist. Create it first with: bc team create %s", agentCreateTeam, agentCreateTeam)
+		}
+	}
+
 	// Parse role
 	role, roleErr := parseRole(agentCreateRole)
 	if roleErr != nil {
 		return roleErr
 	}
 
-	// Enforce root agent singleton - only one root agent allowed
-	if string(role) == "root" {
-		existingAgents := mgr.ListAgents()
-		for _, a := range existingAgents {
-			if string(a.Role) == "root" && a.State != agent.StateStopped {
-				return fmt.Errorf("only one active root agent is allowed; %q already has root role", a.Name)
-			}
-		}
+	// Prevent root agent creation via this command
+	if role == agent.RoleRoot {
+		return fmt.Errorf("cannot create root agent via 'bc agent create'. Use 'bc up' to initialize the root agent")
 	}
 
 	// Validate role exists in workspace (unless it's the special "null" role)
@@ -412,18 +420,6 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		roleFile := filepath.Join(ws.RolesDir(), string(role)+".md")
 		if _, err := os.Stat(roleFile); err != nil {
 			return fmt.Errorf("role %q not found - create it first or use an existing role", role)
-		}
-	}
-
-	// Validate team name if specified
-	if agentCreateTeam != "" {
-		if !isValidTeamName(agentCreateTeam) {
-			return fmt.Errorf("team name must be alphanumeric with optional hyphens/underscores")
-		}
-		// Validate team exists
-		teamStore := team.NewStore(ws.RootDir)
-		if !teamStore.Exists(agentCreateTeam) {
-			return fmt.Errorf("team %q does not exist - create it first with 'bc team create %s'", agentCreateTeam, agentCreateTeam)
 		}
 	}
 
@@ -1257,6 +1253,11 @@ func isValidTeamName(name string) bool {
 		}
 	}
 	return true
+}
+
+// isValidAgentName checks if an agent name contains only safe characters
+func isValidAgentName(name string) bool {
+	return isValidTeamName(name)
 }
 
 // AgentHealth represents the health status of an agent.

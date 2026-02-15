@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/team"
 )
 
@@ -236,12 +237,15 @@ func runTeamAdd(cmd *cobra.Command, args []string) error {
 	store := team.NewStore(ws.RootDir)
 
 	// Validate team exists
-	t, err := store.Get(teamName)
-	if err != nil {
-		return err
+	if !store.Exists(teamName) {
+		return fmt.Errorf("team %q not found. Create it first with: bc team create %s", teamName, teamName)
 	}
-	if t == nil {
-		return fmt.Errorf("team %q not found - create it first with 'bc team create %s'", teamName, teamName)
+
+	// Validate agent exists
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	_ = mgr.LoadState() // nolint:errcheck - continue even if state doesn't load
+	if mgr.GetAgent(agentName) == nil {
+		return fmt.Errorf("agent %q does not exist. Create it first with: bc agent create %s", agentName, agentName)
 	}
 
 	if err := store.AddMember(teamName, agentName); err != nil {
@@ -261,6 +265,11 @@ func runTeamRemove(cmd *cobra.Command, args []string) error {
 	teamName := args[0]
 	agentName := args[1]
 	store := team.NewStore(ws.RootDir)
+
+	// Validate team exists
+	if !store.Exists(teamName) {
+		return fmt.Errorf("team %q not found", teamName)
+	}
 
 	if err := store.RemoveMember(teamName, agentName); err != nil {
 		return err

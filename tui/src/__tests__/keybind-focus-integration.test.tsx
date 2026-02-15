@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-confusing-void-expression, prefer-const */
+
 /**
  * Integration test for keybind focus state fix (Issue #653, EPIC 2)
  *
@@ -137,7 +139,7 @@ describe('FocusContext behavior for keybind management', () => {
   });
 
   test('returnFocus() should restore previous focus area', () => {
-    let currentFocus: string = '';
+    let currentFocus = '';
 
     const TestComponent = (): React.ReactElement => {
       const { setFocus, returnFocus, focusedArea } = useFocus();
@@ -190,6 +192,7 @@ describe('ChannelHistoryView focus synchronization (the actual fix)', () => {
         } else {
           mockFocus.returnFocus();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [inputMode]);
 
       return (

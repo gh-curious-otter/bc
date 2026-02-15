@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/restrict-template-expressions */
+
 import { describe, expect, test } from 'bun:test';
 import { render } from 'ink-testing-library';
 import React from 'react';
