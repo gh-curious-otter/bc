@@ -110,12 +110,10 @@ export function NavigationProvider({
       if (prev.historyIndex <= 0) return prev;
 
       const newIndex = prev.historyIndex - 1;
-      const newView = prev.history[newIndex];
-      if (!newView) return prev;
 
       return {
         ...prev,
-        currentView: newView,
+        currentView: prev.history[newIndex],
         previousView: prev.currentView,
         historyIndex: newIndex,
       };
@@ -127,12 +125,10 @@ export function NavigationProvider({
       if (prev.historyIndex >= prev.history.length - 1) return prev;
 
       const newIndex = prev.historyIndex + 1;
-      const newView = prev.history[newIndex];
-      if (!newView) return prev;
 
       return {
         ...prev,
-        currentView: newView,
+        currentView: prev.history[newIndex],
         previousView: prev.currentView,
         historyIndex: newIndex,
       };
