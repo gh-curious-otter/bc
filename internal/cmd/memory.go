@@ -48,12 +48,12 @@ var memoryRecordCmd = &cobra.Command{
 	Short: "Record an experience to memory",
 	Long: `Record a task outcome or experience to the agent's memory.
 
-Requires BC_AGENT_ID environment variable to be set.
+This command is typically run from within an agent session, or use --agent to specify which agent's memory to update.
 
 Examples:
   bc memory record "Fixed auth bug - used JWT tokens"
   bc memory record --outcome success "Implemented feature X"
-  bc memory record --task-id TASK-123 "Completed task"`,
+  bc memory record --agent eng-01 "Completed task"`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMemoryRecord,
 }
@@ -63,14 +63,14 @@ var memoryLearnCmd = &cobra.Command{
 	Short: "Add a learning to memory",
 	Long: `Add an insight or learning to the agent's memory.
 
-Requires BC_AGENT_ID environment variable to be set.
+This command is typically run from within an agent session, or use --agent to specify which agent's memory to update.
 
 Categories: patterns, anti-patterns, tips, gotchas
 
 Examples:
   bc memory learn patterns "Always check error returns"
   bc memory learn tips "Use context for cancellation"
-  bc memory learn anti-patterns "Don't ignore errors"`,
+  bc memory learn --agent eng-01 anti-patterns "Don't ignore errors"`,
 	Args: cobra.ExactArgs(2),
 	RunE: runMemoryLearn,
 }
@@ -80,7 +80,7 @@ var memoryShowCmd = &cobra.Command{
 	Short: "Show agent memory",
 	Long: `Display the memory contents for an agent.
 
-If no agent is specified, uses BC_AGENT_ID environment variable.
+If no agent is specified, shows memory for the current agent session.
 
 Examples:
   bc memory show                # Show current agent's memory
@@ -385,7 +385,7 @@ func runMemoryShow(cmd *cobra.Command, args []string) error {
 	} else {
 		agentID = os.Getenv("BC_AGENT_ID")
 		if agentID == "" {
-			return fmt.Errorf("specify an agent name or set BC_AGENT_ID")
+			return fmt.Errorf("specify an agent name with --agent, or run this command from within an agent session")
 		}
 	}
 
