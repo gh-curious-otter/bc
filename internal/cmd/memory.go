@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/memory"
 )
 
@@ -370,6 +371,8 @@ func runMemoryLearn(cmd *cobra.Command, args []string) error {
 }
 
 func runMemoryShow(cmd *cobra.Command, args []string) error {
+	log.Debug("memory show command started")
+
 	ws, err := getWorkspace()
 	if err != nil {
 		return fmt.Errorf("not in a bc workspace: %w", err)
@@ -386,6 +389,7 @@ func runMemoryShow(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	log.Debug("loading memory", "agent", agentID)
 	store := memory.NewStore(ws.RootDir, agentID)
 	if !store.Exists() {
 		cmd.Printf("No memory found for agent %s\n", agentID)

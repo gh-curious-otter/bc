@@ -469,6 +469,8 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 }
 
 func runAgentList(cmd *cobra.Command, args []string) error {
+	log.Debug("agent list command started", "role", agentListRole, "json", agentListJSON)
+
 	ws, err := getWorkspace()
 	if err != nil {
 		return fmt.Errorf("not in a bc workspace: %w", err)
@@ -499,6 +501,8 @@ func runAgentList(cmd *cobra.Command, args []string) error {
 		}
 		agents = filtered
 	}
+
+	log.Debug("agents loaded", "count", len(agents))
 
 	if agentListJSON {
 		enc := json.NewEncoder(os.Stdout)
