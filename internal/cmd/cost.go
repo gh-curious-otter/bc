@@ -29,9 +29,12 @@ var costShowCmd = &cobra.Command{
 	Short: "Show cost records",
 	Long: `Show cost records, optionally filtered by agent.
 
+You can specify the agent either as a positional argument or using --agent flag.
+
 Examples:
   bc cost show
-  bc cost show engineer-01`,
+  bc cost show engineer-01
+  bc cost show --agent engineer-01`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runCostShow,
 }
@@ -188,6 +191,7 @@ Examples:
 var (
 	costTeamFlag      string
 	costAgentFlag     string
+	costShowAgentFlag string
 	costWorkspaceFlag bool
 	costModelFlag     bool
 	costLimitFlag     int
@@ -223,6 +227,7 @@ var (
 
 func init() {
 	costShowCmd.Flags().IntVarP(&costLimitFlag, "limit", "n", 20, "Number of records to show")
+	costShowCmd.Flags().StringVar(&costShowAgentFlag, "agent", "", "Filter by agent (alternative to positional argument)")
 
 	costSummaryCmd.Flags().StringVar(&costTeamFlag, "team", "", "Show summary for a specific team")
 	costSummaryCmd.Flags().StringVar(&costAgentFlag, "agent", "", "Show summary for a specific agent")
@@ -310,9 +315,14 @@ func runCostShow(cmd *cobra.Command, args []string) error {
 	}
 	defer func() { _ = store.Close() }()
 
+	// Determine agent filter: --agent flag takes precedence, then positional arg
+	agentID := costShowAgentFlag
+	if agentID == "" && len(args) > 0 {
+		agentID = args[0]
+	}
+
 	var records []*cost.Record
-	if len(args) > 0 {
-		agentID := args[0]
+	if agentID != "" {
 		records, err = store.GetByAgent(agentID, costLimitFlag)
 	} else {
 		records, err = store.GetAll(costLimitFlag)
