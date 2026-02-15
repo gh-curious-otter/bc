@@ -566,7 +566,7 @@ func runAgentAttach(cmd *cobra.Command, args []string) error {
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
 
 	if !mgr.Tmux().HasSession(agentName) {
-		return fmt.Errorf("agent '%s' not running", agentName)
+		return fmt.Errorf("agent %q not running", agentName)
 	}
 
 	fmt.Printf("Attaching to %s (use Ctrl+b d to detach)...\n", agentName)
@@ -588,11 +588,11 @@ func runAgentPeek(cmd *cobra.Command, args []string) error {
 
 	a := mgr.GetAgent(agentName)
 	if a == nil {
-		return fmt.Errorf("agent '%s' not found", agentName)
+		return fmt.Errorf("agent %q not found", agentName)
 	}
 
 	if a.State == agent.StateStopped {
-		return fmt.Errorf("agent '%s' is stopped", agentName)
+		return fmt.Errorf("agent %q is stopped", agentName)
 	}
 
 	output, captureErr := mgr.CaptureOutput(agentName, agentPeekLines)
@@ -621,7 +621,7 @@ func runAgentShow(cmd *cobra.Command, args []string) error {
 
 	a := mgr.GetAgent(agentName)
 	if a == nil {
-		return fmt.Errorf("agent '%s' not found", agentName)
+		return fmt.Errorf("agent %q not found", agentName)
 	}
 
 	// JSON output
@@ -676,12 +676,12 @@ func runAgentStart(cmd *cobra.Command, args []string) error {
 	// Check if agent exists
 	a := mgr.GetAgent(agentName)
 	if a == nil {
-		return fmt.Errorf("agent '%s' not found - create it first with 'bc agent create %s'", agentName, agentName)
+		return fmt.Errorf("agent %q not found - create it first with 'bc agent create %s'", agentName, agentName)
 	}
 
 	// Check if agent is in stopped state
 	if a.State != agent.StateStopped {
-		return fmt.Errorf("agent '%s' is not stopped (current state: %s) - cannot start", agentName, a.State)
+		return fmt.Errorf("agent %q is not stopped (current state: %s) - cannot start", agentName, a.State)
 	}
 
 	fmt.Printf("Starting %s (%s)... ", agentName, a.Role)
@@ -721,7 +721,7 @@ func runAgentStop(cmd *cobra.Command, args []string) error {
 
 	a := mgr.GetAgent(agentName)
 	if a == nil {
-		return fmt.Errorf("agent '%s' not found", agentName)
+		return fmt.Errorf("agent %q not found", agentName)
 	}
 
 	fmt.Printf("Stopping %s... ", agentName)
@@ -763,11 +763,11 @@ func runAgentSend(cmd *cobra.Command, args []string) error {
 
 	a := mgr.GetAgent(agentName)
 	if a == nil {
-		return fmt.Errorf("agent '%s' not found", agentName)
+		return fmt.Errorf("agent %q not found", agentName)
 	}
 
 	if a.State == agent.StateStopped {
-		return fmt.Errorf("agent '%s' is stopped", agentName)
+		return fmt.Errorf("agent %q is stopped", agentName)
 	}
 
 	if sendErr := mgr.SendToAgent(agentName, message); sendErr != nil {
@@ -810,17 +810,17 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 
 	a := mgr.GetAgent(agentName)
 	if a == nil {
-		return fmt.Errorf("agent '%s' not found", agentName)
+		return fmt.Errorf("agent %q not found", agentName)
 	}
 
 	// Check if agent is running - require --force
 	if a.State != agent.StateStopped && !agentDeleteForce {
-		return fmt.Errorf("agent '%s' is %s. Use --force to delete a running agent", agentName, a.State)
+		return fmt.Errorf("agent %q is %s. Use --force to delete a running agent", agentName, a.State)
 	}
 
 	// Confirm deletion (show what will happen)
 	if !agentDeleteForce {
-		fmt.Printf("Delete agent '%s'? This will remove:\n", agentName)
+		fmt.Printf("Delete agent %q? This will remove:\n", agentName)
 		fmt.Println("  - tmux session")
 		fmt.Println("  - git worktree")
 		fmt.Println("  - channel memberships")
@@ -919,20 +919,20 @@ func runAgentRename(cmd *cobra.Command, args []string) error {
 	// Check if agent exists
 	a := mgr.GetAgent(oldName)
 	if a == nil {
-		return fmt.Errorf("agent '%s' not found", oldName)
+		return fmt.Errorf("agent %q not found", oldName)
 	}
 
 	// Check if new name already exists
 	if existing := mgr.GetAgent(newName); existing != nil {
-		return fmt.Errorf("agent '%s' already exists", newName)
+		return fmt.Errorf("agent %q already exists", newName)
 	}
 
 	// Check if running (block unless --force)
 	if a.State != agent.StateStopped && !agentRenameForce {
-		return fmt.Errorf("agent '%s' is running; use --force to rename anyway", oldName)
+		return fmt.Errorf("agent %q is running; use --force to rename anyway", oldName)
 	}
 
-	fmt.Printf("Renaming agent '%s' to '%s'...\n", oldName, newName)
+	fmt.Printf("Renaming agent %q to '%s'...\n", oldName, newName)
 
 	// Step 1: Rename agent in manager (updates state)
 	fmt.Print("  Updating agent state... ")
@@ -1320,7 +1320,7 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 		// Check specific agent
 		a := mgr.GetAgent(args[0])
 		if a == nil {
-			return fmt.Errorf("agent '%s' not found", args[0])
+			return fmt.Errorf("agent %q not found", args[0])
 		}
 		agents = []*agent.Agent{a}
 	} else {

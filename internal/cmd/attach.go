@@ -45,7 +45,7 @@ func runAttach(cmd *cobra.Command, args []string) error {
 	// Check if session exists
 	if !mgr.Tmux().HasSession(agentName) {
 		log.Debug("agent session not found", "agent", agentName)
-		return fmt.Errorf("agent '%s' not running (session bc-%s not found)", agentName, agentName)
+		return fmt.Errorf("agent %q not running (session bc-%s not found)", agentName, agentName)
 	}
 
 	log.Debug("attaching to agent session", "agent", agentName)

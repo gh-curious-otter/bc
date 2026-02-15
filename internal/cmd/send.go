@@ -57,12 +57,12 @@ func runSend(cmd *cobra.Command, args []string) error {
 	// Check agent exists
 	a := mgr.GetAgent(agentName)
 	if a == nil {
-		return fmt.Errorf("agent '%s' not found", agentName)
+		return fmt.Errorf("agent %q not found", agentName)
 	}
 	log.Debug("agent found", "agent", agentName, "state", a.State)
 
 	if a.State == agent.StateStopped {
-		return fmt.Errorf("agent '%s' is stopped", agentName)
+		return fmt.Errorf("agent %q is stopped", agentName)
 	}
 
 	// Send message with auto-submit (uses \r which works for Claude and Cursor agents)
