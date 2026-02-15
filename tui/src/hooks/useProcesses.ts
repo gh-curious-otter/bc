@@ -53,12 +53,12 @@ export function useProcesses(options: UseProcessesOptions = {}): UseProcessesRes
     }
   }, [onUpdate]);
 
-  const pause = useCallback(() => setIsPolling(false), []);
-  const resume = useCallback(() => setIsPolling(true), []);
+  const pause = useCallback(() => { setIsPolling(false); }, []);
+  const resume = useCallback(() => { setIsPolling(true); }, []);
 
   // Initial fetch
   useEffect(() => {
-    fetchProcesses();
+    void fetchProcesses();
   }, []);
 
   // Polling interval

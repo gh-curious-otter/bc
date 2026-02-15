@@ -60,7 +60,7 @@ export function useAgents(options: UseAgentsOptions = {}): UseAgentsResult {
 
   // Initial fetch
   useEffect(() => {
-    fetchAgents();
+    void fetchAgents();
   }, [fetchAgents]);
 
   // Polling

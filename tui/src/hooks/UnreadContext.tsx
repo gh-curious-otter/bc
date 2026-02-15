@@ -29,7 +29,7 @@ function loadUnreadData(): UnreadData {
   try {
     if (existsSync(STORAGE_FILE)) {
       const content = readFileSync(STORAGE_FILE, 'utf-8');
-      return JSON.parse(content);
+      return JSON.parse(content) as UnreadData;
     }
   } catch {
     // Ignore read errors, start fresh

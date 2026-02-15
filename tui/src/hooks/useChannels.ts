@@ -41,7 +41,7 @@ export function useChannels(options: UseChannelsOptions = {}): UseChannelsResult
   }, []);
 
   useEffect(() => {
-    fetchChannels();
+    void fetchChannels();
   }, [fetchChannels]);
 
   useEffect(() => {

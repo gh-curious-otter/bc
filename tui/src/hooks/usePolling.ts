@@ -108,8 +108,8 @@ export function useMessagePolling(
     }
   }, [channel, limit, onNewMessages, onUpdate]);
 
-  const pause = useCallback(() => setIsPolling(false), []);
-  const resume = useCallback(() => setIsPolling(true), []);
+  const pause = useCallback(() => { setIsPolling(false); }, []);
+  const resume = useCallback(() => { setIsPolling(true); }, []);
 
   // Initial fetch
   useEffect(() => {
@@ -251,8 +251,8 @@ export function useAgentPolling(
     }
   }, [onStateChange, onUpdate]);
 
-  const pause = useCallback(() => setIsPolling(false), []);
-  const resume = useCallback(() => setIsPolling(true), []);
+  const pause = useCallback(() => { setIsPolling(false); }, []);
+  const resume = useCallback(() => { setIsPolling(true); }, []);
 
   // Initial fetch
   useEffect(() => {

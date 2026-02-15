@@ -102,11 +102,11 @@ export function useDashboard() {
         error: null,
       });
     } else {
-      const error = statusResult.reason;
+      const reason = statusResult.reason as unknown;
       setAgents({
         data: [],
         isLoading: false,
-        error: error instanceof Error ? error : new Error('Failed to fetch agents'),
+        error: reason instanceof Error ? reason : new Error('Failed to fetch agents'),
       });
     }
 

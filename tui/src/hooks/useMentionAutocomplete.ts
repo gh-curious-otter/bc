@@ -151,7 +151,6 @@ export function useMentionAutocomplete(
     }
 
     const selected = suggestions[selectedIndex];
-    if (!selected) return input;
 
     const { start } = mentionData;
     const before = input.slice(0, start);
