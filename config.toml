@@ -52,6 +52,21 @@ enabled = false
 command = "codex --full-auto"
 enabled = false
 
+# GitHub integration - for issue tracking and PR management
+[tools.github]
+command = "gh"
+enabled = false
+
+# GitLab integration - for GitLab instance integration
+[tools.gitlab]
+command = "glab"
+enabled = false
+
+# Jira integration - for issue tracking with Jira
+[tools.jira]
+command = "jira"
+enabled = false
+
 # Custom tools can be added here
 # [tools.custom_name]
 # command = "your-agent-command"

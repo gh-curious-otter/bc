@@ -35,13 +35,16 @@ type WorktreesConfig struct {
 	AutoCleanup bool   `toml:"auto_cleanup"`
 }
 
-// ToolsConfig configures available AI tools.
+// ToolsConfig configures available AI tools and integrations.
 type ToolsConfig struct {
 	Custom  map[string]ToolConfig `toml:"-"`
 	Claude  *ToolConfig           `toml:"claude,omitempty"`
 	Cursor  *ToolConfig           `toml:"cursor,omitempty"`
 	Codex   *ToolConfig           `toml:"codex,omitempty"`
 	Gemini  *ToolConfig           `toml:"gemini,omitempty"`
+	GitHub  *ToolConfig           `toml:"github,omitempty"`
+	GitLab  *ToolConfig           `toml:"gitlab,omitempty"`
+	Jira    *ToolConfig           `toml:"jira,omitempty"`
 	Default string                `toml:"default"`
 }
 
@@ -208,6 +211,12 @@ func (c *V2Config) hasToolDefined(name string) bool {
 		return c.Tools.Codex != nil
 	case "gemini":
 		return c.Tools.Gemini != nil
+	case "github":
+		return c.Tools.GitHub != nil
+	case "gitlab":
+		return c.Tools.GitLab != nil
+	case "jira":
+		return c.Tools.Jira != nil
 	default:
 		_, ok := c.Tools.Custom[name]
 		return ok
@@ -225,6 +234,12 @@ func (c *V2Config) GetTool(name string) *ToolConfig {
 		return c.Tools.Codex
 	case "gemini":
 		return c.Tools.Gemini
+	case "github":
+		return c.Tools.GitHub
+	case "gitlab":
+		return c.Tools.GitLab
+	case "jira":
+		return c.Tools.Jira
 	default:
 		if cfg, ok := c.Tools.Custom[name]; ok {
 			return &cfg
