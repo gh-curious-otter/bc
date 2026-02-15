@@ -64,6 +64,12 @@ Examples:
   bc agent list          # List all agents
   bc agent list --json   # Output as JSON
   bc agent list --role engineer  # Filter by role`,
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) > 0 {
+			return fmt.Errorf("unexpected argument %q. To filter by role, use: bc agent list --role %s", args[0], args[0])
+		}
+		return nil
+	},
 	RunE: runAgentList,
 }
 

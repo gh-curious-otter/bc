@@ -62,6 +62,24 @@ func TestAgentLifecycle_ListInvalidRole(t *testing.T) {
 	}
 }
 
+func TestAgentLifecycle_ListPositionalArg(t *testing.T) {
+	setupTestWorkspace(t)
+	resetAgentFlags()
+	defer resetAgentFlags()
+
+	// Positional args should error with helpful message
+	_, err := executeCmd("agent", "list", "engineer")
+	if err == nil {
+		t.Error("expected error for positional argument")
+	}
+	if !strings.Contains(err.Error(), "unexpected argument") {
+		t.Errorf("expected 'unexpected argument' error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "--role") {
+		t.Errorf("error should suggest --role flag, got: %v", err)
+	}
+}
+
 func TestAgentLifecycle_CreateNoWorkspace(t *testing.T) {
 	origDir, _ := os.Getwd()
 	tmpDir := t.TempDir()
