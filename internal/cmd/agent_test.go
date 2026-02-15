@@ -862,3 +862,49 @@ func TestAgentRename_RunEValidation(t *testing.T) {
 		t.Errorf("expected 'same' in error, got: %v", err)
 	}
 }
+
+// --- Agent Create Validation Tests ---
+
+func TestAgentCreate_RejectsRootRole(t *testing.T) {
+	// Test that root role cannot be created via bc agent create
+	setupTestWorkspace(t)
+
+	// Reset flags to prevent leaking state from previous tests
+	agentCreateTeam = ""
+	agentCreateParent = ""
+	agentCreateTool = ""
+	agentCreateRole = "worker"
+
+	_, err := executeCmd("agent", "create", "my-root", "--role", "root")
+	if err == nil {
+		t.Error("expected error when creating root agent via agent create")
+	}
+	if !strings.Contains(err.Error(), "cannot create root agent") {
+		t.Errorf("error should mention cannot create root agent: %v", err)
+	}
+	if !strings.Contains(err.Error(), "bc up") {
+		t.Errorf("error should mention 'bc up': %v", err)
+	}
+}
+
+func TestAgentCreate_NonExistentTeam(t *testing.T) {
+	// Test that agent create fails if team doesn't exist
+	wsDir := setupTestWorkspace(t)
+
+	// Create engineer role file first
+	rolesDir := filepath.Join(wsDir, ".bc", "roles")
+	if err := os.MkdirAll(rolesDir, 0750); err != nil {
+		t.Fatalf("failed to create roles dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(rolesDir, "engineer.md"), []byte("# Engineer Role"), 0600); err != nil {
+		t.Fatalf("failed to create engineer role: %v", err)
+	}
+
+	_, err := executeCmd("agent", "create", "eng-01", "--role", "engineer", "--team", "nonexistent-team")
+	if err == nil {
+		t.Error("expected error when creating agent with non-existent team")
+	}
+	if !strings.Contains(err.Error(), "does not exist") {
+		t.Errorf("error should mention team does not exist: %v", err)
+	}
+}

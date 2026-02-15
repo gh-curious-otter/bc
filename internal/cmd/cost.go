@@ -299,6 +299,11 @@ func getCostStore() (*cost.Store, error) {
 }
 
 func runCostShow(cmd *cobra.Command, args []string) error {
+	// Validate limit parameter
+	if cmd.Flags().Changed("limit") && costLimitFlag <= 0 {
+		return fmt.Errorf("limit must be a positive number")
+	}
+
 	store, err := getCostStore()
 	if err != nil {
 		return err
