@@ -300,7 +300,7 @@ func runMemoryRecord(cmd *cobra.Command, args []string) error {
 		agentID = os.Getenv("BC_AGENT_ID")
 	}
 	if agentID == "" {
-		return fmt.Errorf("agent not specified; use --agent flag or set BC_AGENT_ID")
+		return errorAgentNotRunning(fmt.Sprintf("bc memory record %q", description))
 	}
 
 	ws, err := getWorkspace()
@@ -346,7 +346,7 @@ func runMemoryLearn(cmd *cobra.Command, args []string) error {
 		agentID = os.Getenv("BC_AGENT_ID")
 	}
 	if agentID == "" {
-		return fmt.Errorf("agent not specified; use --agent flag or set BC_AGENT_ID")
+		return errorAgentNotRunning(fmt.Sprintf("bc memory learn %s %q", category, learning))
 	}
 
 	ws, err := getWorkspace()
