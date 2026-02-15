@@ -54,7 +54,7 @@ export function useTeams(options: UseTeamsOptions = {}): UseTeamsResult {
   useEffect(() => {
     if (!autoPoll) return;
     const interval = setInterval(fetchTeams, pollInterval);
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); };
   }, [autoPoll, pollInterval, fetchTeams]);
 
   const addMember = useCallback(

@@ -9,7 +9,7 @@ export interface ChatMessageProps {
   message: string;
   timestamp: string;
   currentUser?: string;
-  reactions?: Array<{ type: ReactionType; count: number; isOwn?: boolean }>;
+  reactions?: { type: ReactionType; count: number; isOwn?: boolean }[];
   isRead?: boolean;
   isSelected?: boolean;
   /** Maximum width for message bubbles (default: 60) */

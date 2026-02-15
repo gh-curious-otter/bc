@@ -112,7 +112,7 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
       header: 'Command',
       width: 30,
       render: (proc) => (
-        <Text wrap="truncate">{proc.command?.slice(0, 28) || '-'}</Text>
+        <Text wrap="truncate">{proc.command.slice(0, 28) || '-'}</Text>
       ),
     },
   ];
@@ -138,7 +138,7 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
     return (
       <ProcessLogViewer
         process={selectedProcess}
-        onBack={() => setShowLogs(false)}
+        onBack={() => { setShowLogs(false); }}
       />
     );
   }

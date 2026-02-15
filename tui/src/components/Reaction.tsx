@@ -46,7 +46,7 @@ export const Reaction: React.FC<ReactionProps> = ({
 };
 
 export interface ReactionBarProps {
-  reactions: Array<{ type: ReactionType; count: number; isOwn?: boolean }>;
+  reactions: { type: ReactionType; count: number; isOwn?: boolean }[];
 }
 
 /**

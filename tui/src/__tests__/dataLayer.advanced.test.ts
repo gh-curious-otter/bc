@@ -25,7 +25,7 @@ describe.skip('Advanced: BC Service - Timeout and Retry Edge Cases', () => {
   it('handles command execution timeout gracefully', async () => {
     // Simulate timeout by never resolving
     const timeoutPromise = new Promise<string>((_, reject) =>
-      setTimeout(() => reject(new Error('bc command timed out after 30s')), 30000)
+      setTimeout(() => { reject(new Error('bc command timed out after 30s')); }, 30000)
     );
 
     mockBcService.execBc = jest.fn(() => timeoutPromise);
@@ -33,7 +33,7 @@ describe.skip('Advanced: BC Service - Timeout and Retry Edge Cases', () => {
     await expect(
       Promise.race([
         bcService.execBc(['status']),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Test timeout')), 35000)),
+        new Promise((_, reject) => setTimeout(() => { reject(new Error('Test timeout')); }, 35000)),
       ])
     ).rejects.toThrow();
   });
@@ -43,7 +43,7 @@ describe.skip('Advanced: BC Service - Timeout and Retry Edge Cases', () => {
     mockBcService.execBc = jest.fn(
       () =>
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Process hung: no close event')), 30000)
+          setTimeout(() => { reject(new Error('Process hung: no close event')); }, 30000)
         )
     );
 
@@ -184,7 +184,7 @@ describe.skip('Advanced: Concurrent Operations and Race Conditions', () => {
 
   it('prevents race condition in rapid state updates', async () => {
     const states = ['idle', 'working', 'done', 'idle'];
-    let callOrder = [];
+    const callOrder = [];
 
     mockBcService.reportState.mockImplementation((state) => {
       callOrder.push(state);
