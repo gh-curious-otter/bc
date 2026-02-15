@@ -60,6 +60,32 @@ func (m *Manager) command(name string, args ...string) *exec.Cmd {
 	return exec.CommandContext(context.Background(), name, args...)
 }
 
+// userFriendlyTmuxError converts raw tmux error output to a user-friendly message.
+// It detects common error patterns and returns clearer, actionable messages.
+func userFriendlyTmuxError(output string) string {
+	output = strings.TrimSpace(output)
+	outputLower := strings.ToLower(output)
+
+	switch {
+	case strings.Contains(outputLower, "can't find pane"):
+		return "session not found (may have terminated)"
+	case strings.Contains(outputLower, "can't find session"):
+		return "session not found (may have terminated)"
+	case strings.Contains(outputLower, "no server running"):
+		return "tmux server not running"
+	case strings.Contains(outputLower, "session not found"):
+		return "session not found (may have terminated)"
+	case strings.Contains(outputLower, "can't find window"):
+		return "session window not found"
+	default:
+		// For other errors, return a shortened version without internal session IDs
+		if len(output) > 50 {
+			return output[:50] + "..."
+		}
+		return output
+	}
+}
+
 // NewManager creates a new tmux manager with the given prefix.
 func NewManager(prefix string) *Manager {
 	return &Manager{
@@ -224,7 +250,7 @@ func (m *Manager) SendKeysWithSubmit(name, keys, submitKey string) error {
 		cmd := m.command("tmux", "send-keys", "-t", fullName, "-l", keys)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("failed to send keys to %s: %w (%s)", fullName, err, string(output))
+			return fmt.Errorf("failed to send message: %s", userFriendlyTmuxError(string(output)))
 		}
 	} else {
 		// Long message: use temp file + load-buffer + paste-buffer with named buffer
@@ -264,7 +290,7 @@ func (m *Manager) SendKeysWithSubmit(name, keys, submitKey string) error {
 		if output, err := pasteCmd.CombinedOutput(); err != nil {
 			// Clean up buffer on error
 			_ = m.command("tmux", "delete-buffer", "-b", bufferName).Run() //nolint:errcheck // best-effort cleanup
-			return fmt.Errorf("failed to paste buffer to %s: %w (%s)", fullName, err, string(output))
+			return fmt.Errorf("failed to send message: %s", userFriendlyTmuxError(string(output)))
 		}
 	}
 
