@@ -2,12 +2,25 @@
  * ChannelsView - Channel list and message history component
  */
 
-import React, { useState, useEffect } from 'react';
-import { Box, Text, useInput } from 'ink';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Box, Text, useInput, useStdout } from 'ink';
 import { useChannels, useChannelHistory } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { ChatMessage } from './ChatMessage';
 import type { Channel } from '../types';
+
+/**
+ * Calculate input box height based on message length
+ * Height expands from 3 (min) to 10 (max) lines based on content
+ */
+function calculateInputHeight(messageLength: number, terminalWidth: number): number {
+  const MIN_HEIGHT = 3;
+  const MAX_HEIGHT = 10;
+  // Account for border (2) + prompt "> " (2) + cursor (1)
+  const availableWidth = Math.max(terminalWidth - 5, 20);
+  const lines = Math.ceil(messageLength / availableWidth) + 1;
+  return Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, lines));
+}
 
 interface ChannelsViewProps {
   /** Disable input handling (useful for testing) */
@@ -125,6 +138,16 @@ function ChannelHistoryView({
   const [messageBuffer, setMessageBuffer] = useState('');
   const [scrollOffset, setScrollOffset] = useState(0);
   const { setFocus, returnFocus } = useFocus();
+  const { stdout } = useStdout();
+
+  // Calculate dynamic input height based on message length
+  const terminalWidth = stdout?.columns ?? 80;
+  const inputHeight = useMemo(
+    () => calculateInputHeight(messageBuffer.length, terminalWidth),
+    [messageBuffer.length, terminalWidth]
+  );
+  // Message area adjusts as input expands (base 14 + extra from input growth)
+  const messageAreaHeight = 14 + (3 - inputHeight);
 
   /**
    * Synchronize focus state with input mode
@@ -200,11 +223,11 @@ function ChannelHistoryView({
         <Text dimColor>ESC to go back, m to compose, j/k to scroll</Text>
       </Box>
 
-      {/* Message area - fixed height to prevent overflow below input */}
+      {/* Message area - dynamic height adjusts as input expands */}
       <Box
         marginBottom={1}
         flexDirection="column"
-        height={14}
+        height={messageAreaHeight}
         borderStyle="single"
         borderColor="gray"
         paddingX={1}
@@ -230,8 +253,8 @@ function ChannelHistoryView({
         )}
       </Box>
 
-      {/* Input area - fixed height with proper separation */}
-      <Box height={3} flexDirection="column" marginBottom={1} borderStyle="single" borderColor={inputMode ? 'cyan' : 'gray'} paddingX={1}>
+      {/* Input area - auto-expands based on message length (3-10 lines) */}
+      <Box height={inputHeight} flexDirection="column" marginBottom={1} borderStyle="single" borderColor={inputMode ? 'cyan' : 'gray'} paddingX={1}>
         {inputMode ? (
           <Text>
             <Text color="cyan">{'> '}</Text>
