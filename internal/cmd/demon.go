@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -190,13 +192,30 @@ func init() {
 	rootCmd.AddCommand(demonCmd)
 }
 
+// validIdentifier checks if a string is a valid identifier (alphanumeric, dash, underscore)
+func validIdentifier(s string) bool {
+	if s == "" {
+		return false
+	}
+	// Must start with letter or underscore, then letters, numbers, dashes, underscores
+	pattern := regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_-]*$`)
+	return pattern.MatchString(s)
+}
+
 func runDemonCreate(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
 		return fmt.Errorf("not in a bc workspace: %w", err)
 	}
 
-	name := args[0]
+	name := strings.TrimSpace(args[0])
+	if name == "" {
+		return fmt.Errorf("demon name cannot be empty")
+	}
+	if !validIdentifier(name) {
+		return fmt.Errorf("demon name must contain only letters, numbers, dashes, and underscores")
+	}
+
 	store := demon.NewStore(ws.RootDir)
 
 	d, err := store.CreateWithPrompt(name, demonSchedule, demonCommand, demonPrompt, demonPromptFile)
