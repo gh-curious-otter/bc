@@ -165,9 +165,6 @@ func TestTeamAdd(t *testing.T) {
 	store := team.NewStore(wsDir)
 	_, _ = store.Create("engineering")
 
-	// Create an agent first (required by validation)
-	_, _ = executeCmd("agent", "create", "engineer-01", "--role", "null")
-
 	output, err := executeCmd("team", "add", "engineering", "engineer-01")
 	if err != nil {
 		t.Fatalf("team add failed: %v\nOutput: %s", err, output)

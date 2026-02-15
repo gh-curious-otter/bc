@@ -32,6 +32,24 @@ func containsShellMetachars(s string) bool {
 	return false
 }
 
+// IsValidAgentName validates that agent names contain only alphanumeric characters, hyphens, and underscores.
+// This ensures agent names are safe for use in file paths, shell environments, and tmux sessions.
+func IsValidAgentName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, c := range name {
+		isLower := c >= 'a' && c <= 'z'
+		isUpper := c >= 'A' && c <= 'Z'
+		isDigit := c >= '0' && c <= '9'
+		isAllowed := isLower || isUpper || isDigit || c == '-' || c == '_'
+		if !isAllowed {
+			return false
+		}
+	}
+	return true
+}
+
 // Role defines the type of agent.
 type Role string
 
@@ -359,6 +377,11 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	defer m.mu.Unlock()
 
 	log.Debug("spawning agent", "name", name, "role", role, "workspace", workspace, "parentID", parentID, "tool", tool)
+
+	// Validate agent name format
+	if !IsValidAgentName(name) {
+		return nil, fmt.Errorf("agent name %q contains invalid characters (use letters, numbers, dash, underscore)", name)
+	}
 
 	// Enforce root singleton constraint
 	if role == RoleRoot {
