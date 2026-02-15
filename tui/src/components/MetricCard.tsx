@@ -20,11 +20,11 @@ export function MetricCard({
   suffix = '',
 }: MetricCardProps) {
   return (
-    <Box flexDirection="column" paddingX={2} borderStyle="single" borderColor="gray">
+    <Box flexDirection="column" paddingX={1} borderStyle="single" borderColor="gray" minHeight={4}>
+      <Text dimColor>{label}</Text>
       <Text bold color={color}>
         {prefix}{value}{suffix}
       </Text>
-      <Text dimColor>{label}</Text>
     </Box>
   );
 }
