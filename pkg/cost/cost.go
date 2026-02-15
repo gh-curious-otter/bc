@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -789,4 +790,52 @@ func (s *Store) ProjectCost(lookbackDays int, projectDuration time.Duration) (*P
 	proj.ProjectedCost = proj.DailyAvgCost * projectDays
 
 	return proj, nil
+}
+
+// ParseCostFromMessage attempts to extract cost information from a message.
+// This is used to parse cost data from tool output and agent messages.
+// Format: "cost: {input_tokens: 1000, output_tokens: 500, cost_usd: 0.05}"
+// Returns nil if no cost data is found.
+func ParseCostFromMessage(message string) *Record {
+	// Simple parser for cost-like patterns in messages
+	// This is a basic implementation that can be extended
+
+	if message == "" {
+		return nil
+	}
+
+	// Look for JSON-like cost data
+	if !strings.Contains(message, "cost") && !strings.Contains(message, "token") {
+		return nil
+	}
+
+	// For now, we return nil - this would need more sophisticated parsing
+	// to extract actual values from the message format
+	return nil
+}
+
+// CostMessage represents cost information embedded in an agent message.
+type CostMessage struct {
+	AgentID      string
+	Message      string
+	InputTokens  int64
+	OutputTokens int64
+	CostUSD      float64
+}
+
+// RecordFromMessage creates a cost Record from a parsed message.
+// Useful for recording costs extracted from agent output.
+func RecordFromMessage(cm *CostMessage) *Record {
+	if cm == nil {
+		return nil
+	}
+	return &Record{
+		AgentID:      cm.AgentID,
+		Model:        "extracted",
+		InputTokens:  cm.InputTokens,
+		OutputTokens: cm.OutputTokens,
+		TotalTokens:  cm.InputTokens + cm.OutputTokens,
+		CostUSD:      cm.CostUSD,
+		Timestamp:    time.Now().UTC(),
+	}
 }
