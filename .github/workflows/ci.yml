@@ -32,6 +32,17 @@ jobs:
       - name: Run tests with coverage
         run: make coverage
 
+      - name: Check coverage threshold (80%+)
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "Coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
+            echo "❌ Coverage ${COVERAGE}% is below 80% threshold"
+            exit 1
+          else
+            echo "✅ Coverage ${COVERAGE}% meets 80% threshold"
+          fi
+
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
