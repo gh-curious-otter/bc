@@ -278,13 +278,14 @@ func TestChannelWorkflow_JoinWithoutAgentID(t *testing.T) {
 	// Use t.Setenv with empty string to unset (t.Setenv handles cleanup)
 	t.Setenv("BC_AGENT_ID", "")
 
-	// Try to join - should fail without BC_AGENT_ID
+	// Try to join - should fail without BC_AGENT_ID (now has user-friendly error message)
 	_, err := executeCmd("channel", "join", "join-test")
 	if err == nil {
-		t.Error("expected error for join without BC_AGENT_ID")
+		t.Error("expected error for join without agent context")
 	}
-	if !strings.Contains(err.Error(), "BC_AGENT_ID") {
-		t.Errorf("expected BC_AGENT_ID error, got: %v", err)
+	// Check for user-friendly error message that explains the issue and how to fix it
+	if !strings.Contains(err.Error(), "can only be run by agents") && !strings.Contains(err.Error(), "BC_AGENT_ID") {
+		t.Errorf("expected agent-only error message, got: %v", err)
 	}
 }
 

@@ -163,3 +163,13 @@ func getWorkspace() (*workspace.Workspace, error) {
 	}
 	return workspace.Find(cwd)
 }
+
+// errorAgentNotRunning returns an error message for commands that require BC_AGENT_ID.
+func errorAgentNotRunning(commandUsage string) error {
+	return fmt.Errorf("this command can only be run by agents in the bc system (use: bc agent send <agent-name> %q)", commandUsage)
+}
+
+// errorWorktreeNotSet returns an error message for commands that require BC_AGENT_WORKTREE.
+func errorWorktreeNotSet() error {
+	return fmt.Errorf("this command requires running in an agent's isolated worktree. Ensure BC_AGENT_WORKTREE and BC_AGENT_ID are set")
+}

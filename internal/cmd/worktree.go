@@ -111,8 +111,7 @@ func runWorktreeCheck(cmd *cobra.Command, args []string) error {
 	worktree := os.Getenv("BC_AGENT_WORKTREE")
 
 	if worktree == "" {
-		fmt.Fprintln(os.Stderr, "BC_AGENT_WORKTREE not set (not running as a bc agent, or Phase A env var not applied)")
-		return fmt.Errorf("BC_AGENT_WORKTREE not set")
+		return errorWorktreeNotSet()
 	}
 
 	cwd, err := getCwd()

@@ -170,8 +170,8 @@ func TestReportNoAgentID(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when BC_AGENT_ID not set, got nil")
 	}
-	if !strings.Contains(err.Error(), "BC_AGENT_ID not set") {
-		t.Errorf("expected BC_AGENT_ID error, got: %v", err)
+	if !strings.Contains(err.Error(), "this command can only be run by agents in the bc system") {
+		t.Errorf("expected agent-only command error, got: %v", err)
 	}
 }
 
@@ -769,8 +769,8 @@ func TestChannelJoinNoAgentID(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when BC_AGENT_ID not set, got nil")
 	}
-	if !strings.Contains(err.Error(), "BC_AGENT_ID not set") {
-		t.Errorf("expected BC_AGENT_ID error, got: %v", err)
+	if !strings.Contains(err.Error(), "this command can only be run by agents in the bc system") {
+		t.Errorf("expected agent-only command error, got: %v", err)
 	}
 }
 
@@ -830,8 +830,8 @@ func TestChannelLeaveNoAgentID(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when BC_AGENT_ID not set, got nil")
 	}
-	if !strings.Contains(err.Error(), "BC_AGENT_ID not set") {
-		t.Errorf("expected BC_AGENT_ID error, got: %v", err)
+	if !strings.Contains(err.Error(), "this command can only be run by agents in the bc system") {
+		t.Errorf("expected agent-only command error, got: %v", err)
 	}
 }
 

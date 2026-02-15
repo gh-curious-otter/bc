@@ -27,8 +27,8 @@ func TestReport_NoAgentID(t *testing.T) {
 	if err == nil {
 		t.Error("expected error when BC_AGENT_ID not set")
 	}
-	if err != nil && !strings.Contains(err.Error(), "BC_AGENT_ID not set") {
-		t.Errorf("expected BC_AGENT_ID error, got: %v", err)
+	if err != nil && !strings.Contains(err.Error(), "this command can only be run by agents in the bc system") {
+		t.Errorf("expected agent-only command error, got: %v", err)
 	}
 }
 
