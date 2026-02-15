@@ -47,6 +47,9 @@ type ToolsConfig struct {
 	Cursor  ToolsCursorConfig
 	Default string
 	Gemini  ToolsGeminiConfig
+	Github  ToolsGithubConfig
+	Gitlab  ToolsGitlabConfig
+	Jira    ToolsJiraConfig
 }
 
 type ToolsCursorConfig struct {
@@ -55,6 +58,21 @@ type ToolsCursorConfig struct {
 }
 
 type ToolsGeminiConfig struct {
+	Command string
+	Enabled bool
+}
+
+type ToolsGithubConfig struct {
+	Command string
+	Enabled bool
+}
+
+type ToolsGitlabConfig struct {
+	Command string
+	Enabled bool
+}
+
+type ToolsJiraConfig struct {
 	Command string
 	Enabled bool
 }
@@ -127,6 +145,18 @@ var (
 		Gemini: ToolsGeminiConfig{
 			Command: "gemini --yolo",
 			Enabled: true,
+		},
+		Github: ToolsGithubConfig{
+			Command: "gh",
+			Enabled: false,
+		},
+		Gitlab: ToolsGitlabConfig{
+			Command: "glab",
+			Enabled: false,
+		},
+		Jira: ToolsJiraConfig{
+			Command: "jira",
+			Enabled: false,
 		},
 	}
 	Workspace = WorkspaceConfig{

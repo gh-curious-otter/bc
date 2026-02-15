@@ -67,10 +67,10 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
   }
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" width="100%">
       <Text bold>Channels</Text>
       <Text dimColor>↑/↓ navigate, Enter to view messages, ESC to go back</Text>
-      <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1}>
+      <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1} width="100%">
         {channels?.map((channel, index) => (
           <ChannelRow
             key={channel.name}
@@ -93,7 +93,7 @@ interface ChannelRowProps {
 
 function ChannelRow({ channel, selected }: ChannelRowProps): React.ReactElement {
   return (
-    <Box>
+    <Box width="100%">
       <Text color={selected ? 'cyan' : undefined} bold={selected}>
         {selected ? '▸ ' : '  '}
         #{channel.name}
@@ -120,14 +120,33 @@ function ChannelHistoryView({
   const [scrollOffset, setScrollOffset] = useState(0);
   const { setFocus, returnFocus } = useFocus();
 
-  // Manage focus when entering/exiting input mode
+  /**
+   * Synchronize focus state with input mode
+   *
+   * When user enters input mode (presses 'm'), we set focus to 'input' area.
+   * This prevents global keybinds (q, 1-9, ESC) from triggering during message typing.
+   *
+   * When user exits input mode (presses Enter or Escape), we restore focus to the
+   * previous area, which re-enables global navigation keybinds.
+   *
+   * The useKeyboardNavigation hook checks isFocused('input') before handling global
+   * keybinds, so focus state acts as the guard that disables/enables them.
+   *
+   * This fixes issue #653: "After typing a message in a channel, the keybinds to
+   * q, 1,2,3... are not re-enabled"
+   *
+   * IMPORTANT: Only depend on inputMode, not setFocus/returnFocus because those
+   * functions are recreated when focusedArea changes, which would create an infinite
+   * cycle.
+   */
   useEffect(() => {
     if (inputMode) {
       setFocus('input');
     } else {
       returnFocus();
     }
-  }, [inputMode, setFocus, returnFocus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inputMode]);
 
   useInput(
     (input, key) => {

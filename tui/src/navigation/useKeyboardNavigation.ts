@@ -27,8 +27,21 @@ export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}
 
   useInput(
     (input, key) => {
-      // Don't handle global keys when input is focused
+      /**
+       * Guard against keybinds during text input
+       *
+       * When a component (like ChannelsView) is in input mode, it calls setFocus('input')
+       * to indicate the user is typing a message. This prevents the global keybinds
+       * (q to quit, 1-9 for tab switching, ESC for home) from triggering.
+       *
+       * Returning early here disables ALL global keybinds while the user is composing.
+       * When the user finishes typing (presses Enter or Escape), the focus is restored
+       * and keybinds are re-enabled.
+       *
+       * This fixes issue #653: Keybinds not being re-enabled after typing in channels.
+       */
       if (isFocused('input')) {
+        console.error(`[useKeyboardNavigation] Input focused, blocking keybind: "${input || key.escape ? 'ESC' : 'other'}"`);
         return;
       }
 

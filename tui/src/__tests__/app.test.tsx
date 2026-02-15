@@ -5,14 +5,15 @@ import { App } from '../app.js';
 
 describe('App', () => {
   // Use disableInput to avoid stdin.ref issues in test environment
-  // However, some components still require TTY for proper rendering
   test('renders without crashing', () => {
     const { lastFrame } = render(<App disableInput />);
     expect(lastFrame()).toBeDefined();
   });
 
-  // Note: The following tests require TTY stdin which is not available in CI
-  // They validate App rendering but useInput hook initialization needs proper stdin
+  // Note: The following tests require TTY stdin which is not available in test environment
+  // They validate that the App component renders correctly, but useInput hook initialization
+  // requires proper stdin configuration. Manual testing with bc home verifies functionality.
+
   test.skip('shows bc header', () => {
     const { lastFrame } = render(<App disableInput />);
     const output = lastFrame() ?? '';

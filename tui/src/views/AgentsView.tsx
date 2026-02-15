@@ -4,7 +4,7 @@ import { useAgents } from '../hooks';
 import { Table } from '../components/Table';
 import type { Column } from '../components/Table';
 import { StatusBadge } from '../components/StatusBadge';
-import { attachToAgentSession } from '../services/bc';
+import { AgentDetailView } from './AgentDetailView';
 import type { Agent } from '../types';
 
 interface AgentsViewProps {
@@ -16,19 +16,25 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
 }) => {
   const { data: agents, loading, error, refresh } = useAgents();
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [showDetail, setShowDetail] = useState(false);
   const agentList = agents || [];
+  const selectedAgent = agentList[selectedIndex];
 
   // Keyboard navigation
   useInput((input, key) => {
+    if (showDetail) {
+      // Detail view handles its own keybinds via AgentDetailView
+      return;
+    }
+
+    // List view navigation
     if (key.upArrow || input === 'k') {
       setSelectedIndex((i) => Math.max(0, i - 1));
     } else if (key.downArrow || input === 'j') {
       setSelectedIndex((i) => Math.min(agentList.length - 1, i + 1));
     } else if (key.return) {
-      const selectedAgent = agentList[selectedIndex];
       if (selectedAgent) {
-        // Attach to agent's tmux session
-        attachToAgentSession(selectedAgent.session);
+        setShowDetail(true);
       }
     } else if (input === 'r') {
       refresh();
@@ -36,6 +42,16 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       onBack?.();
     }
   });
+
+  // If showing detail view, render AgentDetailView instead
+  if (showDetail && selectedAgent) {
+    return (
+      <AgentDetailView
+        agent={selectedAgent}
+        onBack={() => setShowDetail(false)}
+      />
+    );
+  }
 
   const columns: Column<Agent>[] = [
     {
