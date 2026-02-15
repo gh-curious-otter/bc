@@ -120,7 +120,21 @@ function ChannelHistoryView({
   const [scrollOffset, setScrollOffset] = useState(0);
   const { setFocus, returnFocus } = useFocus();
 
-  // Manage focus when entering/exiting input mode
+  /**
+   * Synchronize focus state with input mode
+   *
+   * When user enters input mode (presses 'm'), we set focus to 'input' area.
+   * This prevents global keybinds (q, 1-9, ESC) from triggering during message typing.
+   *
+   * When user exits input mode (presses Enter or Escape), we restore focus to the
+   * previous area, which re-enables global navigation keybinds.
+   *
+   * The useKeyboardNavigation hook checks isFocused('input') before handling global
+   * keybinds, so focus state acts as the guard that disables/enables them.
+   *
+   * This fixes issue #653: "After typing a message in a channel, the keybinds to
+   * q, 1,2,3... are not re-enabled"
+   */
   useEffect(() => {
     if (inputMode) {
       setFocus('input');
