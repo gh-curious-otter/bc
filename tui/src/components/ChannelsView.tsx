@@ -93,12 +93,17 @@ interface ChannelRowProps {
 
 function ChannelRow({ channel, selected }: ChannelRowProps): React.ReactElement {
   return (
-    <Box width="100%">
-      <Text color={selected ? 'cyan' : undefined} bold={selected}>
-        {selected ? '▸ ' : '  '}
-        #{channel.name}
-      </Text>
-      <Text dimColor> ({channel.members.length} members)</Text>
+    <Box width="100%" flexDirection="column">
+      <Box width="100%">
+        <Text color={selected ? 'cyan' : undefined} bold={selected}>
+          {selected ? '▸ ' : '  '}
+          #{channel.name}
+        </Text>
+        <Text dimColor> ({channel.members.length} members)</Text>
+      </Box>
+      {channel.description && (
+        <Text dimColor wrap="truncate">{channel.description}</Text>
+      )}
     </Box>
   );
 }
@@ -207,11 +212,12 @@ function ChannelHistoryView({
           <>
             {hasMoreAbove && <Text dimColor>↑ more messages above</Text>}
             {displayMessages.map((msg, index) => (
-              <Box key={index}>
-                <Text color="yellow">{msg.sender}</Text>
-                <Text dimColor> ({formatMessageTime(msg.time)}) </Text>
-                <Text>: </Text>
-                <Text>{msg.message}</Text>
+              <Box key={index} width="100%" flexDirection="column">
+                <Box>
+                  <Text color="yellow">{msg.sender}</Text>
+                  <Text dimColor> ({formatMessageTime(msg.time)})</Text>
+                </Box>
+                <Text wrap="truncate">{msg.message}</Text>
               </Box>
             ))}
             {hasMoreBelow && <Text dimColor>↓ more messages below</Text>}

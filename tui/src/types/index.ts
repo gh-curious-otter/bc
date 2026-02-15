@@ -58,6 +58,7 @@ export interface Channel {
   name: string;
   members: string[];
   created_at?: string;
+  description?: string;
 }
 
 export interface ChannelMessage {

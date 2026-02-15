@@ -4,6 +4,7 @@
 
 import React from 'react';
 import { Box, Text, useStdout } from 'ink';
+import { Panel } from './Panel';
 import { useCosts } from '../hooks';
 
 interface CostsViewProps {
@@ -49,8 +50,7 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
       <Text bold>Cost Dashboard</Text>
 
       {/* Summary */}
-      <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1} width={terminalWidth - 2}>
-        <Text bold color="cyan">Summary</Text>
+      <Panel title="Summary" width={terminalWidth - 2}>
         <Box>
           <Text>Total Cost: </Text>
           <Text color="yellow" bold>${costs.total_cost.toFixed(4)}</Text>
@@ -63,11 +63,10 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
           <Text>Output Tokens: </Text>
           <Text>{costs.total_output_tokens.toLocaleString()}</Text>
         </Box>
-      </Box>
+      </Panel>
 
       {/* By Agent */}
-      <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1} width={terminalWidth - 2}>
-        <Text bold color="cyan">By Agent</Text>
+      <Panel title="By Agent" width={terminalWidth - 2}>
         {Object.entries(costs.by_agent).length === 0 ? (
           <Text dimColor>No agent costs recorded</Text>
         ) : (
@@ -81,11 +80,10 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
               </Box>
             ))
         )}
-      </Box>
+      </Panel>
 
       {/* By Model */}
-      <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1} width={terminalWidth - 2}>
-        <Text bold color="cyan">By Model</Text>
+      <Panel title="By Model" width={terminalWidth - 2}>
         {Object.entries(costs.by_model).length === 0 ? (
           <Text dimColor>No model costs recorded</Text>
         ) : (
@@ -98,12 +96,11 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
               </Box>
             ))
         )}
-      </Box>
+      </Panel>
 
       {/* By Team */}
       {Object.keys(costs.by_team).length > 0 && (
-        <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1} width={terminalWidth - 2}>
-          <Text bold color="cyan">By Team</Text>
+        <Panel title="By Team" width={terminalWidth - 2}>
           {Object.entries(costs.by_team)
             .sort(([, a], [, b]) => b - a)
             .map(([team, cost]) => (
@@ -112,7 +109,7 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
                 <Text>${cost.toFixed(4)}</Text>
               </Box>
             ))}
-        </Box>
+        </Panel>
       )}
     </Box>
   );
