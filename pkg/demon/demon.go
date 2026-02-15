@@ -24,6 +24,8 @@ type Demon struct {
 	Command     string    `json:"command"`  // Command to execute
 	Owner       string    `json:"owner,omitempty"`
 	Description string    `json:"description,omitempty"`
+	Prompt      string    `json:"prompt,omitempty"`      // Inline prompt for AI-powered tasks
+	PromptFile  string    `json:"prompt_file,omitempty"` // Path to prompt file
 	RunCount    int       `json:"run_count,omitempty"`
 	Enabled     bool      `json:"enabled"`
 }
@@ -64,6 +66,11 @@ func (s *Store) Init() error {
 
 // Create creates a new demon configuration.
 func (s *Store) Create(name, schedule, command string) (*Demon, error) {
+	return s.CreateWithPrompt(name, schedule, command, "", "")
+}
+
+// CreateWithPrompt creates a new demon configuration with optional prompt support.
+func (s *Store) CreateWithPrompt(name, schedule, command, prompt, promptFile string) (*Demon, error) {
 	// Validate cron schedule
 	if _, err := ParseCron(schedule); err != nil {
 		return nil, fmt.Errorf("invalid cron schedule: %w", err)
@@ -74,14 +81,28 @@ func (s *Store) Create(name, schedule, command string) (*Demon, error) {
 		return nil, fmt.Errorf("demon %q already exists", name)
 	}
 
+	// Validate prompt options (can't have both inline and file)
+	if prompt != "" && promptFile != "" {
+		return nil, fmt.Errorf("cannot specify both --prompt and --prompt-file")
+	}
+
+	// If prompt file specified, validate it exists
+	if promptFile != "" {
+		if _, err := os.Stat(promptFile); err != nil {
+			return nil, fmt.Errorf("prompt file not found: %w", err)
+		}
+	}
+
 	now := time.Now().UTC()
 	demon := &Demon{
-		Name:      name,
-		Schedule:  schedule,
-		Command:   command,
-		Enabled:   true,
-		CreatedAt: now,
-		UpdatedAt: now,
+		Name:       name,
+		Schedule:   schedule,
+		Command:    command,
+		Prompt:     prompt,
+		PromptFile: promptFile,
+		Enabled:    true,
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	// Calculate next run

@@ -124,9 +124,13 @@ Examples:
 var (
 	demonSchedule        string
 	demonCommand         string
+	demonPrompt          string
+	demonPromptFile      string
 	demonTail            int
 	demonEditSchedule    string
 	demonEditCommand     string
+	demonEditPrompt      string
+	demonEditPromptFile  string
 	demonEditDescription string
 	demonEditEnabled     string
 )
@@ -134,6 +138,8 @@ var (
 func init() {
 	demonCreateCmd.Flags().StringVar(&demonSchedule, "schedule", "", "Cron schedule (required)")
 	demonCreateCmd.Flags().StringVar(&demonCommand, "cmd", "", "Command to execute (required)")
+	demonCreateCmd.Flags().StringVar(&demonPrompt, "prompt", "", "Inline prompt for AI-powered tasks (optional)")
+	demonCreateCmd.Flags().StringVar(&demonPromptFile, "prompt-file", "", "Path to prompt file (optional)")
 	_ = demonCreateCmd.MarkFlagRequired("schedule")
 	_ = demonCreateCmd.MarkFlagRequired("cmd")
 
@@ -141,6 +147,8 @@ func init() {
 
 	demonEditCmd.Flags().StringVar(&demonEditSchedule, "schedule", "", "New cron schedule")
 	demonEditCmd.Flags().StringVar(&demonEditCommand, "cmd", "", "New command to execute")
+	demonEditCmd.Flags().StringVar(&demonEditPrompt, "prompt", "", "New prompt for AI-powered tasks")
+	demonEditCmd.Flags().StringVar(&demonEditPromptFile, "prompt-file", "", "Path to new prompt file")
 	demonEditCmd.Flags().StringVar(&demonEditDescription, "description", "", "New description")
 	demonEditCmd.Flags().StringVar(&demonEditEnabled, "enabled", "", "Enable/disable demon (true/false)")
 
@@ -165,7 +173,7 @@ func runDemonCreate(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	store := demon.NewStore(ws.RootDir)
 
-	d, err := store.Create(name, demonSchedule, demonCommand)
+	d, err := store.CreateWithPrompt(name, demonSchedule, demonCommand, demonPrompt, demonPromptFile)
 	if err != nil {
 		return err
 	}
@@ -173,6 +181,12 @@ func runDemonCreate(cmd *cobra.Command, args []string) error {
 	cmd.Printf("Created demon %q\n", d.Name)
 	cmd.Printf("  Schedule: %s\n", d.Schedule)
 	cmd.Printf("  Command:  %s\n", d.Command)
+	if d.Prompt != "" {
+		cmd.Printf("  Prompt:   %s\n", d.Prompt)
+	}
+	if d.PromptFile != "" {
+		cmd.Printf("  Prompt File: %s\n", d.PromptFile)
+	}
 	if !d.NextRun.IsZero() {
 		cmd.Printf("  Next run: %s\n", d.NextRun.Format("2006-01-02 15:04:05"))
 	}
@@ -465,7 +479,8 @@ func runDemonEdit(cmd *cobra.Command, args []string) error {
 
 	// Check if any flags were provided
 	hasFlags := demonEditSchedule != "" || demonEditCommand != "" ||
-		demonEditDescription != "" || demonEditEnabled != ""
+		demonEditDescription != "" || demonEditEnabled != "" ||
+		demonEditPrompt != "" || demonEditPromptFile != ""
 
 	if hasFlags {
 		// Update using flags
@@ -487,6 +502,18 @@ func updateDemonWithFlags(cmd *cobra.Command, store *demon.Store, name string) e
 		if demonEditCommand != "" {
 			d.Command = demonEditCommand
 			changes = append(changes, fmt.Sprintf("command: %s", demonEditCommand))
+		}
+		if demonEditPrompt != "" {
+			d.Prompt = demonEditPrompt
+			d.PromptFile = "" // Clear prompt file if inline prompt provided
+			changes = append(changes, fmt.Sprintf("prompt: %s", demonEditPrompt))
+		}
+		if demonEditPromptFile != "" {
+			if _, err := os.Stat(demonEditPromptFile); err == nil {
+				d.PromptFile = demonEditPromptFile
+				d.Prompt = "" // Clear inline prompt if prompt file provided
+				changes = append(changes, fmt.Sprintf("prompt-file: %s", demonEditPromptFile))
+			}
 		}
 		if demonEditDescription != "" {
 			d.Description = demonEditDescription
