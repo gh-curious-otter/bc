@@ -908,3 +908,289 @@ func TestAgentCreate_NonExistentTeam(t *testing.T) {
 		t.Errorf("error should mention team does not exist: %v", err)
 	}
 }
+
+// --- Agent Create Extended Tests ---
+
+func TestAgentCreate_ValidTools(t *testing.T) {
+	// Test agent creation with valid --tool options
+	wsDir := setupTestWorkspace(t)
+
+	rolesDir := filepath.Join(wsDir, ".bc", "roles")
+	os.MkdirAll(rolesDir, 0750)                                                  //nolint:errcheck
+	os.WriteFile(filepath.Join(rolesDir, "worker.md"), []byte("# Worker"), 0600) //nolint:errcheck
+
+	// Test claude tool - just verify command succeeds
+	_, err := executeCmd("agent", "create", "claude-agent", "--role", "worker", "--tool", "claude")
+	if err != nil {
+		t.Errorf("create with claude tool failed: %v", err)
+	}
+}
+
+func TestAgentCreate_DuplicateName(t *testing.T) {
+	// Test that duplicate agent names are rejected
+	wsDir := setupTestWorkspace(t)
+
+	rolesDir := filepath.Join(wsDir, ".bc", "roles")
+	os.MkdirAll(rolesDir, 0750)                                                  //nolint:errcheck
+	os.WriteFile(filepath.Join(rolesDir, "worker.md"), []byte("# Worker"), 0600) //nolint:errcheck
+
+	// Create first agent
+	_, err := executeCmd("agent", "create", "duplicate-test", "--role", "worker")
+	if err != nil {
+		t.Fatalf("first create failed: %v", err)
+	}
+
+	// Try to create duplicate
+	_, err = executeCmd("agent", "create", "duplicate-test", "--role", "worker")
+	if err == nil {
+		t.Error("expected error for duplicate agent name")
+	}
+	if !strings.Contains(err.Error(), "exists") {
+		t.Errorf("error should mention exists: %v", err)
+	}
+}
+
+func TestAgentCreate_InvalidNameWithSpace(t *testing.T) {
+	// Test invalid agent name with space
+	wsDir := setupTestWorkspace(t)
+
+	rolesDir := filepath.Join(wsDir, ".bc", "roles")
+	os.MkdirAll(rolesDir, 0750)                                                  //nolint:errcheck
+	os.WriteFile(filepath.Join(rolesDir, "worker.md"), []byte("# Worker"), 0600) //nolint:errcheck
+
+	_, err := executeCmd("agent", "create", "invalid name", "--role", "worker")
+	if err == nil {
+		t.Error("expected error for agent name with space")
+	}
+}
+
+// --- Agent Show Tests ---
+
+func TestAgentShow_Basic(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	rolesDir := filepath.Join(wsDir, ".bc", "roles")
+	os.MkdirAll(rolesDir, 0750)                                                  //nolint:errcheck
+	os.WriteFile(filepath.Join(rolesDir, "worker.md"), []byte("# Worker"), 0600) //nolint:errcheck
+
+	// Create agent
+	_, err := executeCmd("agent", "create", "show-test", "--role", "worker")
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	// Show agent - just verify it doesn't error
+	_, err = executeCmd("agent", "show", "show-test")
+	if err != nil {
+		t.Fatalf("show failed: %v", err)
+	}
+}
+
+func TestAgentShow_NonExistent(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("agent", "show", "nonexistent-agent")
+	if err == nil {
+		t.Error("expected error for non-existent agent")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention not found: %v", err)
+	}
+}
+
+func TestAgentShow_JSON(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	rolesDir := filepath.Join(wsDir, ".bc", "roles")
+	os.MkdirAll(rolesDir, 0750)                                                  //nolint:errcheck
+	os.WriteFile(filepath.Join(rolesDir, "worker.md"), []byte("# Worker"), 0600) //nolint:errcheck
+
+	// Create agent
+	_, err := executeCmd("agent", "create", "json-test", "--role", "worker")
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+
+	// Show as JSON - just verify it doesn't error
+	_, err = executeCmd("agent", "show", "json-test", "--json")
+	if err != nil {
+		t.Fatalf("show --json failed: %v", err)
+	}
+}
+
+// --- Agent List Extended Tests ---
+
+func TestAgentList_MultipleAgents(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	rolesDir := filepath.Join(wsDir, ".bc", "roles")
+	os.MkdirAll(rolesDir, 0750)                                                  //nolint:errcheck
+	os.WriteFile(filepath.Join(rolesDir, "worker.md"), []byte("# Worker"), 0600) //nolint:errcheck
+
+	// Create multiple agents
+	_, err := executeCmd("agent", "create", "agent1", "--role", "worker")
+	if err != nil {
+		t.Fatalf("create agent1 failed: %v", err)
+	}
+
+	_, err = executeCmd("agent", "create", "agent2", "--role", "worker")
+	if err != nil {
+		t.Fatalf("create agent2 failed: %v", err)
+	}
+
+	// List all
+	_, err = executeCmd("agent", "list")
+	if err != nil {
+		t.Fatalf("list failed: %v", err)
+	}
+}
+
+func TestAgentList_RoleFiltering(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	rolesDir := filepath.Join(wsDir, ".bc", "roles")
+	os.MkdirAll(rolesDir, 0750)                                                      //nolint:errcheck
+	os.WriteFile(filepath.Join(rolesDir, "worker.md"), []byte("# Worker"), 0600)     //nolint:errcheck
+	os.WriteFile(filepath.Join(rolesDir, "engineer.md"), []byte("# Engineer"), 0600) //nolint:errcheck
+
+	// Create agents with different roles
+	_, _ = executeCmd("agent", "create", "worker-01", "--role", "worker")
+	_, _ = executeCmd("agent", "create", "engineer-01", "--role", "engineer")
+
+	// Filter by worker role
+	_, err := executeCmd("agent", "list", "--role", "worker")
+	if err != nil {
+		t.Fatalf("list --role failed: %v", err)
+	}
+
+	// Filter by engineer role
+	_, err = executeCmd("agent", "list", "--role", "engineer")
+	if err != nil {
+		t.Fatalf("list --role engineer failed: %v", err)
+	}
+}
+
+func TestAgentList_JSONOutput(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	rolesDir := filepath.Join(wsDir, ".bc", "roles")
+	os.MkdirAll(rolesDir, 0750)                                                  //nolint:errcheck
+	os.WriteFile(filepath.Join(rolesDir, "worker.md"), []byte("# Worker"), 0600) //nolint:errcheck
+
+	// Create agent
+	_, _ = executeCmd("agent", "create", "json-list-test", "--role", "worker")
+
+	// List as JSON
+	output, err := executeCmd("agent", "list", "--json")
+	if err != nil {
+		t.Fatalf("list --json failed: %v", err)
+	}
+
+	if !strings.Contains(output, "json-list-test") {
+		t.Errorf("JSON output should contain agent: %s", output)
+	}
+	if !strings.Contains(output, "agents") || !strings.Contains(output, "[") {
+		t.Errorf("should be valid JSON array: %s", output)
+	}
+}
+
+// --- Agent Delete Extended Tests ---
+
+func TestAgentDelete_Confirmation(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	rolesDir := filepath.Join(wsDir, ".bc", "roles")
+	os.MkdirAll(rolesDir, 0750)                                                  //nolint:errcheck
+	os.WriteFile(filepath.Join(rolesDir, "worker.md"), []byte("# Worker"), 0600) //nolint:errcheck
+
+	// Create and delete agent with --force
+	_, _ = executeCmd("agent", "create", "delete-test", "--role", "worker")
+
+	_, err := executeCmd("agent", "delete", "delete-test", "--force")
+	if err != nil {
+		t.Fatalf("delete failed: %v", err)
+	}
+}
+
+// --- Agent Rename Extended Tests ---
+
+func TestAgentRename_SpecialCharacters(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	rolesDir := filepath.Join(wsDir, ".bc", "roles")
+	os.MkdirAll(rolesDir, 0750)                                                  //nolint:errcheck
+	os.WriteFile(filepath.Join(rolesDir, "worker.md"), []byte("# Worker"), 0600) //nolint:errcheck
+
+	// Create agent with valid name
+	_, _ = executeCmd("agent", "create", "valid-name", "--role", "worker")
+
+	// Try to rename to invalid name
+	_, err := executeCmd("agent", "rename", "valid-name", "invalid@name")
+	if err == nil {
+		t.Error("expected error for special char in rename")
+	}
+}
+
+func TestAgentRename_ToExistingName(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	rolesDir := filepath.Join(wsDir, ".bc", "roles")
+	os.MkdirAll(rolesDir, 0750)                                                  //nolint:errcheck
+	os.WriteFile(filepath.Join(rolesDir, "worker.md"), []byte("# Worker"), 0600) //nolint:errcheck
+
+	// Create two agents
+	_, _ = executeCmd("agent", "create", "agent-1", "--role", "worker")
+	_, _ = executeCmd("agent", "create", "agent-2", "--role", "worker")
+
+	// Try to rename to existing name
+	_, err := executeCmd("agent", "rename", "agent-1", "agent-2")
+	if err == nil {
+		t.Error("expected error when renaming to existing agent name")
+	}
+}
+
+// --- Agent Send Tests ---
+
+func TestAgentSend_ToNonExistent(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("agent", "send", "nonexistent-agent", "test message")
+	if err == nil {
+		t.Error("expected error when sending to non-existent agent")
+	}
+}
+
+func TestAgentSend_RoleBasedPattern(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	rolesDir := filepath.Join(wsDir, ".bc", "roles")
+	os.MkdirAll(rolesDir, 0750)                                                      //nolint:errcheck
+	os.WriteFile(filepath.Join(rolesDir, "engineer.md"), []byte("# Engineer"), 0600) //nolint:errcheck
+
+	// Create agent
+	_, _ = executeCmd("agent", "create", "eng-01", "--role", "engineer")
+
+	// Send role pattern
+	output, err := executeCmd("agent", "send-role", "engineer", "test message")
+	if err != nil {
+		t.Fatalf("send-role failed: %v", err)
+	}
+
+	if !strings.Contains(output, "eng-01") || !strings.Contains(output, "Sent") {
+		t.Errorf("should confirm send to role: %s", output)
+	}
+}
+
+// --- Agent Attach Tests ---
+
+func TestAgentAttach_ErrorHandling(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("agent", "attach")
+	if err == nil {
+		t.Error("expected error when no agent name provided")
+	}
+	if !strings.Contains(err.Error(), "required") || !strings.Contains(err.Error(), "argument") {
+		t.Errorf("error should mention required argument: %v", err)
+	}
+}

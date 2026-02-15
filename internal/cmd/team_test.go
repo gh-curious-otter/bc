@@ -271,3 +271,249 @@ func TestTeamAddAgentNotFound(t *testing.T) {
 		t.Errorf("error should mention agent does not exist: %v", err)
 	}
 }
+
+// --- Team Rename Tests ---
+
+func TestTeamRename_Basic(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	store := team.NewStore(wsDir)
+	_, _ = store.Create("old-name")
+
+	output, err := executeCmd("team", "rename", "old-name", "new-name")
+	if err != nil {
+		t.Fatalf("rename failed: %v", err)
+	}
+
+	if !strings.Contains(output, "new-name") {
+		t.Errorf("output should contain new name: %s", output)
+	}
+
+	// Verify old team is gone
+	if store.Exists("old-name") {
+		t.Error("old team should not exist after rename")
+	}
+	// Verify new team exists
+	if !store.Exists("new-name") {
+		t.Error("new team should exist after rename")
+	}
+}
+
+func TestTeamRename_NonExistent(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("team", "rename", "nonexistent", "new-name")
+	if err == nil {
+		t.Error("expected error for nonexistent team")
+	}
+}
+
+func TestTeamRename_ToExisting(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	store := team.NewStore(wsDir)
+	_, _ = store.Create("team1")
+	_, _ = store.Create("team2")
+
+	_, err := executeCmd("team", "rename", "team1", "team2")
+	if err == nil {
+		t.Error("expected error when renaming to existing team name")
+	}
+}
+
+func TestTeamRename_PreservesMembers(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	store := team.NewStore(wsDir)
+	_, _ = store.Create("team-to-rename")
+	_ = store.AddMember("team-to-rename", "agent1")
+	_ = store.AddMember("team-to-rename", "agent2")
+
+	_, err := executeCmd("team", "rename", "team-to-rename", "renamed-team")
+	if err != nil {
+		t.Fatalf("rename failed: %v", err)
+	}
+
+	// Verify members are preserved
+	newTeam, _ := store.Get("renamed-team")
+	if len(newTeam.Members) != 2 {
+		t.Errorf("expected 2 members after rename, got %d", len(newTeam.Members))
+	}
+}
+
+// --- Team Remove Tests ---
+
+func TestTeamRemove_NonExistent(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("team", "remove", "nonexistent-team", "agent-01")
+	if err == nil {
+		t.Error("expected error for nonexistent team")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention not found: %v", err)
+	}
+}
+
+func TestTeamRemove_AllMembers(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	store := team.NewStore(wsDir)
+	_, _ = store.Create("team-empty")
+	_ = store.AddMember("team-empty", "agent1")
+	_ = store.AddMember("team-empty", "agent2")
+
+	// Remove both members
+	_, err := executeCmd("team", "remove", "team-empty", "agent1")
+	if err != nil {
+		t.Fatalf("remove first member failed: %v", err)
+	}
+
+	_, err = executeCmd("team", "remove", "team-empty", "agent2")
+	if err != nil {
+		t.Fatalf("remove second member failed: %v", err)
+	}
+
+	// Verify team is empty
+	tm, _ := store.Get("team-empty")
+	if len(tm.Members) != 0 {
+		t.Errorf("team should be empty, got %d members", len(tm.Members))
+	}
+}
+
+// --- Team Show Extended Tests ---
+
+func TestTeamShow_WithMembers(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	store := team.NewStore(wsDir)
+	_, _ = store.Create("engineering")
+	_ = store.AddMember("engineering", "eng-01")
+	_ = store.AddMember("engineering", "eng-02")
+	_ = store.SetLead("engineering", "lead-01")
+	_ = store.SetDescription("engineering", "Backend team")
+
+	_, err := executeCmd("team", "show", "engineering")
+	if err != nil {
+		t.Fatalf("show failed: %v", err)
+	}
+}
+
+func TestTeamShow_NonExistent(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("team", "show", "nonexistent-team")
+	if err == nil {
+		t.Error("expected error for nonexistent team")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention not found: %v", err)
+	}
+}
+
+// --- Team List Extended Tests ---
+
+func TestTeamList_Multiple(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	store := team.NewStore(wsDir)
+	_, _ = store.Create("engineering")
+	_, _ = store.Create("product")
+	_, _ = store.Create("design")
+
+	_, err := executeCmd("team", "list")
+	if err != nil {
+		t.Fatalf("list failed: %v", err)
+	}
+}
+
+func TestTeamList_WithMembers(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	store := team.NewStore(wsDir)
+	_, _ = store.Create("engineering")
+	_ = store.AddMember("engineering", "eng-01")
+	_ = store.AddMember("engineering", "eng-02")
+
+	_, err := executeCmd("team", "list")
+	if err != nil {
+		t.Fatalf("list failed: %v", err)
+	}
+}
+
+func TestTeamList_Empty(t *testing.T) {
+	setupTestWorkspace(t)
+
+	output, err := executeCmd("team", "list")
+	if err != nil {
+		t.Fatalf("list failed: %v", err)
+	}
+
+	// Should mention no teams
+	if !strings.Contains(output, "No teams") {
+		t.Errorf("should mention no teams: %s", output)
+	}
+}
+
+// --- Team Create Extended Tests ---
+
+func TestTeamCreate_MultipleTeams(t *testing.T) {
+	setupTestWorkspace(t)
+
+	teams := []string{"engineering", "product", "design", "marketing"}
+	for _, teamName := range teams {
+		_, err := executeCmd("team", "create", teamName)
+		if err != nil {
+			t.Errorf("create team %s failed: %v", teamName, err)
+		}
+	}
+}
+
+func TestTeamCreate_DuplicateCheck(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("team", "create", "duplicate-team")
+	if err != nil {
+		t.Fatalf("first create failed: %v", err)
+	}
+
+	_, err = executeCmd("team", "create", "duplicate-team")
+	if err == nil {
+		t.Error("expected error for duplicate team")
+	}
+	if !strings.Contains(err.Error(), "exists") {
+		t.Errorf("error should mention exists: %v", err)
+	}
+}
+
+// --- Team Delete Extended Tests ---
+
+func TestTeamDelete_NonExistent(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("team", "delete", "nonexistent-team")
+	if err == nil {
+		t.Error("expected error for nonexistent team")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention not found: %v", err)
+	}
+}
+
+func TestTeamDelete_WithMembers(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	store := team.NewStore(wsDir)
+	_, _ = store.Create("delete-me")
+	_ = store.AddMember("delete-me", "agent1")
+
+	_, err := executeCmd("team", "delete", "delete-me")
+	if err != nil {
+		t.Fatalf("delete failed: %v", err)
+	}
+
+	// Verify team is gone
+	if store.Exists("delete-me") {
+		t.Error("team should not exist after deletion")
+	}
+}

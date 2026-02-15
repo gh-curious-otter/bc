@@ -566,4 +566,188 @@ func TestChannelShow_JSON(t *testing.T) {
 	}
 }
 
+// --- Channel Send Extended Tests ---
+
+func TestChannelSend_NonExistentChannel(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, _, err := executeIntegrationCmd("channel", "send", "nonexistent", "message")
+	if err == nil {
+		t.Error("expected error for nonexistent channel")
+	}
+}
+
+// --- Channel History Extended Tests ---
+
+func TestChannelHistory_WithMessages(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	store := channel.NewStore(wsDir)
+	if err := store.Load(); err != nil {
+		t.Fatalf("failed to load store: %v", err)
+	}
+	if _, err := store.Create("history-test"); err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+	if err := store.Save(); err != nil {
+		t.Fatalf("failed to save store: %v", err)
+	}
+
+	// Send messages via command
+	_, _, _ = executeIntegrationCmd("channel", "send", "history-test", "message 1")
+	_, _, _ = executeIntegrationCmd("channel", "send", "history-test", "message 2")
+
+	// Get history
+	stdout, _, err := executeIntegrationCmd("channel", "history", "history-test")
+	if err != nil {
+		t.Fatalf("channel history failed: %v", err)
+	}
+
+	if strings.TrimSpace(stdout) == "" {
+		t.Errorf("history should not be empty")
+	}
+}
+
+func TestChannelHistory_NonExistent(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, _, err := executeIntegrationCmd("channel", "history", "nonexistent")
+	if err == nil {
+		t.Error("expected error for nonexistent channel")
+	}
+}
+
+// --- Channel List Extended Tests ---
+
+func TestChannelList_MultipleChannels(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	store := channel.NewStore(wsDir)
+	if err := store.Load(); err != nil {
+		t.Fatalf("failed to load store: %v", err)
+	}
+	_, _ = store.Create("channel1")
+	_, _ = store.Create("channel2")
+	_, _ = store.Create("channel3")
+	if err := store.Save(); err != nil {
+		t.Fatalf("failed to save store: %v", err)
+	}
+
+	stdout, _, err := executeIntegrationCmd("channel", "list")
+	if err != nil {
+		t.Fatalf("channel list failed: %v", err)
+	}
+
+	if strings.TrimSpace(stdout) == "" {
+		t.Errorf("list output should not be empty")
+	}
+}
+
+func TestChannelList_Empty(t *testing.T) {
+	setupTestWorkspace(t)
+
+	stdout, _, err := executeIntegrationCmd("channel", "list")
+	if err != nil {
+		t.Fatalf("channel list failed: %v", err)
+	}
+
+	if !strings.Contains(stdout, "No channels") {
+		t.Errorf("should mention no channels: %s", stdout)
+	}
+}
+
+// --- Channel Show Extended Tests ---
+
+func TestChannelShow_WithMembers(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	store := channel.NewStore(wsDir)
+	if err := store.Load(); err != nil {
+		t.Fatalf("failed to load store: %v", err)
+	}
+	if _, err := store.Create("members-test"); err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+	if err := store.AddMember("members-test", "agent-01"); err != nil {
+		t.Fatalf("failed to add member: %v", err)
+	}
+	if err := store.AddMember("members-test", "agent-02"); err != nil {
+		t.Fatalf("failed to add member: %v", err)
+	}
+	if err := store.Save(); err != nil {
+		t.Fatalf("failed to save store: %v", err)
+	}
+
+	stdout, _, err := executeIntegrationCmd("channel", "show", "members-test")
+	if err != nil {
+		t.Fatalf("channel show failed: %v", err)
+	}
+
+	if !strings.Contains(stdout, "members-test") {
+		t.Errorf("should contain channel name: %s", stdout)
+	}
+}
+
+func TestChannelShow_NonExistent(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, _, err := executeIntegrationCmd("channel", "show", "nonexistent-channel")
+	if err == nil {
+		t.Error("expected error for nonexistent channel")
+	}
+}
+
+// --- Channel Member Operations ---
+
+func TestChannelAddMember_Success(t *testing.T) {
+	wsDir := setupTestWorkspace(t)
+
+	store := channel.NewStore(wsDir)
+	if err := store.Load(); err != nil {
+		t.Fatalf("failed to load store: %v", err)
+	}
+	if _, err := store.Create("member-test"); err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+	if err := store.Save(); err != nil {
+		t.Fatalf("failed to save store: %v", err)
+	}
+
+	// Add members via direct store call (command API may vary)
+	err := store.AddMember("member-test", "agent-01")
+	if err != nil {
+		t.Fatalf("failed to add member: %v", err)
+	}
+
+	// Verify member added
+	ch, _ := store.Get("member-test")
+	if len(ch.Members) != 1 {
+		t.Errorf("expected 1 member, got %d", len(ch.Members))
+	}
+}
+
+// --- Channel Creation Extended Tests ---
+
+func TestChannelCreate_Multiple(t *testing.T) {
+	setupTestWorkspace(t)
+
+	channels := []string{"eng", "product", "design", "marketing"}
+	for _, chName := range channels {
+		_, _, err := executeIntegrationCmd("channel", "create", chName)
+		if err != nil {
+			t.Errorf("create channel %s failed: %v", chName, err)
+		}
+	}
+}
+
+func TestChannelCreate_Duplicate(t *testing.T) {
+	setupTestWorkspace(t)
+
+	_, _, _ = executeIntegrationCmd("channel", "create", "duplicate-ch")
+	_, _, err := executeIntegrationCmd("channel", "create", "duplicate-ch")
+	if err == nil {
+		t.Error("expected error for duplicate channel")
+	}
+}
+
 // seedAgents helper is defined in cmd_integration_test.go
