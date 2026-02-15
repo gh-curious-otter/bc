@@ -9,12 +9,15 @@
  * - Async helpers: Wait for elements and conditions
  */
 
-import React, { ReactElement } from 'react';
-import { render as inkRender, RenderOptions } from 'ink-testing-library';
+/// <reference types="jest" />
+
+import type { ReactElement } from 'react';
+import { render as inkRender } from 'ink-testing-library';
 import { ThemeProvider } from '../../theme/ThemeContext';
 import { FocusProvider } from '../../navigation/FocusContext';
+import type { FocusArea } from '../../navigation/FocusContext';
 import { NavigationProvider } from '../../navigation/NavigationContext';
-import type { Theme } from '../../theme/types';
+import type { ThemeConfig } from '../../theme/types';
 
 /**
  * renderWithProviders - Render component with all required providers
@@ -31,26 +34,23 @@ import type { Theme } from '../../theme/types';
 export function renderWithProviders(
   component: ReactElement,
   options?: {
-    initialTheme?: Theme;
+    themeConfig?: ThemeConfig;
     initialView?: string;
-    initialFocus?: string;
+    initialFocus?: FocusArea;
     disableInput?: boolean;
   }
-) {
-  const Wrapper = ({ children }: { children: React.ReactNode }) => (
-    <ThemeProvider initialTheme={options?.initialTheme || 'dark'}>
-      <FocusProvider initialFocus={options?.initialFocus}>
+): ReturnType<typeof inkRender> {
+  const wrappedComponent = (
+    <ThemeProvider config={options?.themeConfig}>
+      <FocusProvider initialFocus={options?.initialFocus || 'main'}>
         <NavigationProvider>
-          {children}
+          {component}
         </NavigationProvider>
       </FocusProvider>
     </ThemeProvider>
   );
 
-  return inkRender(component, {
-    wrapper: Wrapper,
-    ...(!options?.disableInput && { disableInput: false }),
-  });
+  return inkRender(wrappedComponent);
 }
 
 /**
@@ -217,28 +217,36 @@ export const testSetup = {
    * Reset all mocks and state
    */
   reset: () => {
-    jest.clearAllMocks?.();
+    if (typeof jest !== 'undefined') {
+      jest.clearAllMocks?.();
+    }
   },
 
   /**
    * Enable fake timers for testing
    */
   enableFakeTimers: () => {
-    jest.useFakeTimers?.();
+    if (typeof jest !== 'undefined') {
+      jest.useFakeTimers?.();
+    }
   },
 
   /**
    * Disable fake timers
    */
   disableFakeTimers: () => {
-    jest.useRealTimers?.();
+    if (typeof jest !== 'undefined') {
+      jest.useRealTimers?.();
+    }
   },
 
   /**
    * Advance fake timers
    */
   advanceTimers: (ms: number) => {
-    jest.advanceTimersByTime?.(ms);
+    if (typeof jest !== 'undefined') {
+      jest.advanceTimersByTime?.(ms);
+    }
   },
 };
 
