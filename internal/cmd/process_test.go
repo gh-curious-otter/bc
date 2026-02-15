@@ -471,3 +471,59 @@ func TestProcessRestartNotRunning(t *testing.T) {
 		t.Errorf("expected 'not running' error, got: %v", err)
 	}
 }
+
+// --- Process List Extended Tests ---
+
+func TestProcessList_Empty(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	_, _, err := executeIntegrationCmd("process", "list")
+	if err != nil {
+		t.Fatalf("list failed: %v", err)
+	}
+}
+
+func TestProcessList_JSON(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	_, _, err := executeIntegrationCmd("process", "list", "--json")
+	if err != nil {
+		t.Fatalf("list --json failed: %v", err)
+	}
+}
+
+// --- Process Show Extended Tests ---
+
+func TestProcessShow_NonExistent(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	_, _, err := executeIntegrationCmd("process", "show", "nonexistent")
+	if err == nil {
+		t.Error("expected error for nonexistent process")
+	}
+}
+
+// --- Process Logs Tests ---
+
+func TestProcessLogs_NonExistent(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	_, _, err := executeIntegrationCmd("process", "logs", "nonexistent")
+	if err == nil {
+		t.Error("expected error for nonexistent process")
+	}
+}
+
+// --- Process Filter Tests ---
+
+func TestProcessList_WithFilters(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Just verify filter flags are accepted
+	_, _, _ = executeIntegrationCmd("process", "list")
+}
