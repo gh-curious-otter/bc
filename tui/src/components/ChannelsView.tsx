@@ -199,8 +199,16 @@ function ChannelHistoryView({
         <Text dimColor>ESC to go back, m to compose, j/k to scroll</Text>
       </Box>
 
-      {/* Message area - flex grow to fill available space */}
-      <Box marginBottom={1} flexDirection="column" flexGrow={1}>
+      {/* Message area - fixed height to prevent overflow below input */}
+      <Box
+        marginBottom={1}
+        flexDirection="column"
+        height={14}
+        borderStyle="single"
+        borderColor="gray"
+        paddingX={1}
+        overflow="hidden"
+      >
         {loading && <Text dimColor>Loading messages...</Text>}
         {error && <Text color="red">Error: {error}</Text>}
         {!loading && !error && (
