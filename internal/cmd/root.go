@@ -47,8 +47,15 @@ Documentation: https://github.com/rpuneet/bc`,
 			log.SetVerbose(verbose)
 		}
 	},
-	// Run with no args shows help
+	// Run with no args shows help, or version if --version flag is set
 	Run: func(cmd *cobra.Command, args []string) {
+		showVersion, err := cmd.Flags().GetBool("version")
+		if err == nil && showVersion {
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "bc %s\n", version)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  commit: %s\n", commit)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  built:  %s\n", date)
+			return
+		}
 		_ = cmd.Help()
 	},
 }
@@ -67,6 +74,9 @@ var versionCmd = &cobra.Command{
 func init() {
 	// Disable auto-generated completion command
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
+
+	// Root flags
+	rootCmd.Flags().BoolP("version", "V", false, "Print version information")
 
 	// Global flags
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Enable verbose output")
