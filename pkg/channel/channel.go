@@ -331,7 +331,12 @@ func (s *Store) GetHistory(channelName string) ([]HistoryEntry, error) {
 		}
 		out := make([]HistoryEntry, 0, len(msgs))
 		for _, m := range msgs {
-			out = append(out, HistoryEntry{Time: m.CreatedAt, Sender: m.Sender, Message: m.Content})
+			entry := HistoryEntry{Time: m.CreatedAt, Sender: m.Sender, Message: m.Content}
+			// Fetch reactions for this message
+			if reactions, reactErr := s.sqlite.GetReactions(m.ID); reactErr == nil && len(reactions) > 0 {
+				entry.Reactions = reactions
+			}
+			out = append(out, entry)
 		}
 		return out, nil
 	}
