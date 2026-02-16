@@ -25,8 +25,8 @@ type TestFailure struct {
 	TestName  string
 	FullName  string
 	Message   string
-	Output    []string
 	Timestamp string
+	Output    []string
 }
 
 // ParseTestJSON parses go test -json output from an io.Reader and returns list of failures.
