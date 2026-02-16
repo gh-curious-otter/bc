@@ -52,12 +52,10 @@ export function TeamsView({ onBack }: TeamsViewProps) {
     if (key.return || input === ' ') {
       // Toggle expanded view
       const team = teamList[selectedIndex];
-      if (team) {
-        setExpandedTeam(expandedTeam === team.name ? null : team.name);
-      }
+      setExpandedTeam(expandedTeam === team.name ? null : team.name);
     }
     if (input === 'r') {
-      refresh();
+      void refresh();
     }
     if (input === 'q' || key.escape) {
       onBack?.();
@@ -65,7 +63,7 @@ export function TeamsView({ onBack }: TeamsViewProps) {
   });
 
   if (error) {
-    return <ErrorDisplay error={error} onRetry={refresh} />;
+    return <ErrorDisplay error={error} onRetry={() => { void refresh(); }} />;
   }
 
   if (loading && !teams) {
@@ -75,9 +73,9 @@ export function TeamsView({ onBack }: TeamsViewProps) {
   // Convert to TeamRow format for DataTable
   const teamRows: TeamRow[] = teamList.map((t) => ({
     name: t.name,
-    members: t.members || [],
-    lead: t.lead || '',
-    description: t.description || '',
+    members: t.members ?? [],
+    lead: t.lead ?? '',
+    description: t.description ?? '',
   }));
 
   return (
@@ -111,7 +109,7 @@ export function TeamsView({ onBack }: TeamsViewProps) {
                 header: 'MEMBERS',
                 width: 10,
                 render: (value) => (
-                  <Text>{(value as string[]).length ?? 0}</Text>
+                  <Text>{(value as string[]).length}</Text>
                 ),
               },
               {
@@ -181,10 +179,10 @@ function TeamDetails({ team }: TeamDetailsProps) {
         )}
 
         <Box marginTop={1}>
-          <Text dimColor>Members ({team.members.length ?? 0}):</Text>
+          <Text dimColor>Members ({team.members.length}):</Text>
         </Box>
 
-        {team.members && team.members.length > 0 ? (
+        {team.members.length > 0 ? (
           <Box flexDirection="column" marginLeft={2}>
             {team.members.map((member) => (
               <Box key={member}>
