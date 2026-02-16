@@ -123,15 +123,16 @@ export async function getChannels(): Promise<ChannelsResponse> {
 /**
  * Get channel message history
  * @param channelName - Name of channel
- * @param _limit - Unused (CLI doesn't support --limit flag)
+ * @param limit - Maximum number of messages to return (default: 50)
  */
 export async function getChannelHistory(
   channelName: string,
-  _limit?: number
+  limit?: number
 ): Promise<ChannelHistory> {
-  // Note: bc channel history doesn't support --limit flag
-  // It returns all messages, TUI should handle limiting display
   const args = ['channel', 'history', channelName];
+  if (limit !== undefined && limit > 0) {
+    args.push('--limit', String(limit));
+  }
   return execBcJson<ChannelHistory>(args);
 }
 
