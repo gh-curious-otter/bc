@@ -16,6 +16,28 @@ interface AgentsViewProps {
 /** Action feedback display duration in ms */
 const ACTION_FEEDBACK_DURATION = 2500;
 
+/**
+ * Normalize task status by replacing cooking metaphors with clearer terms.
+ * Issue #970 - Replace cooking terminology from Claude Code status line.
+ */
+function normalizeTask(task: string | undefined): string {
+  if (!task) return '-';
+  const replacements: [string, string][] = [
+    ['Sautéed', 'Working'],
+    ['Sauteed', 'Working'], // ASCII fallback
+    ['Cooked', 'Processed'],
+    ['Cogitated', 'Thinking'],
+    ['Marinated', 'Idle'],
+    ['Frolicking', 'Active'],
+  ];
+  for (const [old, replacement] of replacements) {
+    if (task.includes(old)) {
+      return task.replace(old, replacement);
+    }
+  }
+  return task;
+}
+
 /** Available agent actions */
 type AgentAction = 'stop' | 'kill' | 'restart' | 'attach';
 
@@ -174,7 +196,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       width: 32,
       render: (agent) => (
         <Text wrap="truncate">
-          {agent.task ? agent.task.slice(0, 30) : '-'}
+          {normalizeTask(agent.task).slice(0, 30)}
         </Text>
       ),
     },

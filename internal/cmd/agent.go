@@ -559,7 +559,7 @@ func runAgentList(cmd *cobra.Command, args []string) error {
 			uptime = formatDuration(time.Since(a.StartedAt))
 		}
 
-		task := a.Task
+		task := normalizeTask(a.Task)
 		if task == "" {
 			task = "-"
 		}
@@ -669,7 +669,7 @@ func runAgentShow(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Worktree: %s\n", a.WorktreeDir)
 	}
 	if a.Task != "" {
-		fmt.Printf("Task: %s\n", a.Task)
+		fmt.Printf("Task: %s\n", normalizeTask(a.Task))
 	}
 	if a.Tool != "" {
 		fmt.Printf("Tool: %s\n", a.Tool)

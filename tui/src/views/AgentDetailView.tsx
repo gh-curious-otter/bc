@@ -14,6 +14,28 @@ const useSafeInput = (handler: Parameters<typeof inkUseInput>[0]) => {
   }
 };
 
+/**
+ * Normalize task status by replacing cooking metaphors with clearer terms.
+ * Issue #970 - Replace cooking terminology from Claude Code status line.
+ */
+function normalizeTask(task: string | undefined): string {
+  if (!task) return '(no task)';
+  const replacements: [string, string][] = [
+    ['Sautéed', 'Working'],
+    ['Sauteed', 'Working'], // ASCII fallback
+    ['Cooked', 'Processed'],
+    ['Cogitated', 'Thinking'],
+    ['Marinated', 'Idle'],
+    ['Frolicking', 'Active'],
+  ];
+  for (const [old, replacement] of replacements) {
+    if (task.includes(old)) {
+      return task.replace(old, replacement);
+    }
+  }
+  return task;
+}
+
 interface AgentDetailViewProps {
   agent: Agent;
   onBack?: () => void;
@@ -130,7 +152,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
           <Box marginTop={1}>
             <Text>State: </Text>
             <StatusBadge state={agent.state} />
-            <Text dimColor> | Task: {agent.task || 'none'}</Text>
+            <Text dimColor> | Task: {normalizeTask(agent.task)}</Text>
           </Box>
         </Box>
       </Box>
@@ -210,7 +232,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
           <Text bold color="white">Task</Text>
         </Box>
         <Box paddingLeft={2}>
-          <Text wrap="wrap">{agent.task || '(no task)'}</Text>
+          <Text wrap="wrap">{normalizeTask(agent.task)}</Text>
         </Box>
 
         <Box marginY={1}>
