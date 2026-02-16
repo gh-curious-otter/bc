@@ -120,35 +120,85 @@ function HelpView(): React.ReactElement {
   const { theme, isDark } = useTheme();
   return (
     <Box flexDirection="column">
-      <Text bold>Keyboard Shortcuts</Text>
+      <Text bold color="cyan">KEYBOARD SHORTCUTS</Text>
+      <Text dimColor>{'─'.repeat(40)}</Text>
+
+      {/* Global shortcuts */}
       <Box marginTop={1} flexDirection="column">
-        <Text>
-          <Text color="yellow">1-8</Text>       Switch tabs
-        </Text>
-        <Text>
-          <Text color="yellow">?</Text>         Show help
-        </Text>
-        <Text>
-          <Text color="yellow">ESC</Text>       Go back / Home
-        </Text>
-        <Text>
-          <Text color="yellow">Backspace</Text> Go back in history
-        </Text>
-        <Text>
-          <Text color="yellow">q</Text>         Quit
-        </Text>
+        <Text bold>Global</Text>
+        <ShortcutRow keys="1-8" desc="Switch tabs" />
+        <ShortcutRow keys="?" desc="Toggle help" />
+        <ShortcutRow keys="ESC" desc="Go back / Home" />
+        <ShortcutRow keys="Tab" desc="Next tab" />
+        <ShortcutRow keys="Shift+Tab" desc="Previous tab" />
+        <ShortcutRow keys="Ctrl+R" desc="Refresh current view" />
+        <ShortcutRow keys="q" desc="Quit" />
       </Box>
+
+      {/* Navigation */}
       <Box marginTop={1} flexDirection="column">
-        <Text bold>View-specific shortcuts:</Text>
-        <Text dimColor>Check each view for additional shortcuts</Text>
+        <Text bold>Navigation</Text>
+        <ShortcutRow keys="j / ↓" desc="Move down" />
+        <ShortcutRow keys="k / ↑" desc="Move up" />
+        <ShortcutRow keys="g" desc="Jump to top" />
+        <ShortcutRow keys="G" desc="Jump to bottom" />
+        <ShortcutRow keys="Enter" desc="Select / Drill down" />
       </Box>
+
+      {/* Agents view */}
       <Box marginTop={1} flexDirection="column">
-        <Text bold>Theme:</Text>
+        <Text bold>Agents</Text>
+        <ShortcutRow keys="Enter" desc="Attach to agent session" />
+        <ShortcutRow keys="p" desc="Peek agent output" />
+        <ShortcutRow keys="x" desc="Stop agent" />
+        <ShortcutRow keys="X" desc="Kill agent (force)" />
+        <ShortcutRow keys="R" desc="Restart agent" />
+      </Box>
+
+      {/* Channels view */}
+      <Box marginTop={1} flexDirection="column">
+        <Text bold>Channels</Text>
+        <ShortcutRow keys="Enter" desc="View channel history" />
+        <ShortcutRow keys="m" desc="Compose message" />
+        <ShortcutRow keys="j/k" desc="Scroll messages" />
+        <ShortcutRow keys="c" desc="Clear draft" />
+      </Box>
+
+      {/* Costs view */}
+      <Box marginTop={1} flexDirection="column">
+        <Text bold>Costs</Text>
+        <ShortcutRow keys="1/2/3" desc="Switch agent/model/team tabs" />
+        <ShortcutRow keys="b" desc="Set budget" />
+        <ShortcutRow keys="e" desc="Export to CSV" />
+        <ShortcutRow keys="r" desc="Refresh data" />
+      </Box>
+
+      {/* Commands view */}
+      <Box marginTop={1} flexDirection="column">
+        <Text bold>Commands</Text>
+        <ShortcutRow keys="/" desc="Search commands" />
+        <ShortcutRow keys="f" desc="Toggle favorite" />
+        <ShortcutRow keys="Enter" desc="Copy command" />
+      </Box>
+
+      {/* Theme info */}
+      <Box marginTop={1} flexDirection="column">
+        <Text dimColor>{'─'.repeat(40)}</Text>
         <Text dimColor>
-          Current: {theme.name} ({isDark ? 'dark' : 'light'} mode)
+          Theme: {theme.name} ({isDark ? 'dark' : 'light'} mode)
         </Text>
       </Box>
     </Box>
+  );
+}
+
+/** Helper component for shortcut rows */
+function ShortcutRow({ keys, desc }: { keys: string; desc: string }): React.ReactElement {
+  return (
+    <Text>
+      <Text color="yellow">{keys.padEnd(12)}</Text>
+      <Text>{desc}</Text>
+    </Text>
   );
 }
 
