@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { Panel } from '../components/Panel';
 import { useFocus } from '../navigation/FocusContext';
+import { useAgents } from '../hooks';
 import type { Role } from '../types';
 import { getRoles, getRole, deleteRole } from '../services/bc';
 
@@ -32,6 +33,20 @@ export function RolesView({
   const [searchMode, setSearchMode] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { setFocus } = useFocus();
+
+  // #968 fix: Fetch agents to compute accurate role counts
+  // Backend's agent_count is incorrect when running from worktree
+  const agents = useAgents();
+
+  // Compute agent counts by role (consistent with Dashboard approach)
+  const agentCountByRole = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const agentList = agents.data ?? [];
+    for (const agent of agentList) {
+      counts[agent.role] = (counts[agent.role] || 0) + 1;
+    }
+    return counts;
+  }, [agents.data]);
 
   // Manage focus state for nested view navigation
   // When showing details, set focus='view' to prevent global ESC from firing
@@ -218,7 +233,10 @@ export function RolesView({
   if (showDetails && selectedRole) {
     return (
       <Box flexDirection="column" padding={1}>
-        <RoleDetails role={selectedRole} />
+        <RoleDetails
+          role={selectedRole}
+          agentCount={agentCountByRole[selectedRole.name] ?? 0}
+        />
         <Box marginTop={1}>
           <Text dimColor>[Esc/q] back to list</Text>
         </Box>
@@ -289,6 +307,7 @@ export function RolesView({
               key={role.name}
               role={role}
               selected={idx === validIndex}
+              agentCount={agentCountByRole[role.name] ?? 0}
             />
           ))
         )}
@@ -316,9 +335,11 @@ export function RolesView({
 interface RoleRowProps {
   role: Role;
   selected: boolean;
+  /** Agent count computed from agents list (fixes #968) */
+  agentCount: number;
 }
 
-function RoleRow({ role, selected }: RoleRowProps): React.ReactElement {
+function RoleRow({ role, selected, agentCount }: RoleRowProps): React.ReactElement {
   const capabilitiesStr =
     role.capabilities.length > 0
       ? role.capabilities.slice(0, 3).join(', ') +
@@ -337,7 +358,7 @@ function RoleRow({ role, selected }: RoleRowProps): React.ReactElement {
         <Text dimColor>{truncate(capabilitiesStr, 28)}</Text>
       </Box>
       <Box width={8}>
-        <Text>{String(role.agent_count ?? 0)}</Text>
+        <Text>{String(agentCount)}</Text>
       </Box>
       <Box flexGrow={1}>
         <Text dimColor>{truncate(role.description ?? '-', 30)}</Text>
@@ -348,9 +369,11 @@ function RoleRow({ role, selected }: RoleRowProps): React.ReactElement {
 
 interface RoleDetailsProps {
   role: Role;
+  /** Agent count computed from agents list (fixes #968) */
+  agentCount: number;
 }
 
-function RoleDetails({ role }: RoleDetailsProps): React.ReactElement {
+function RoleDetails({ role, agentCount }: RoleDetailsProps): React.ReactElement {
   return (
     <Panel title={`Role: ${role.name}`} borderColor="cyan">
       <Box flexDirection="column">
@@ -375,7 +398,7 @@ function RoleDetails({ role }: RoleDetailsProps): React.ReactElement {
           <Box width={15}>
             <Text dimColor>Agents:</Text>
           </Box>
-          <Text>{String(role.agent_count ?? 0)}</Text>
+          <Text>{String(agentCount)}</Text>
         </Box>
 
         {/* Capabilities */}
