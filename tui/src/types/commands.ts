@@ -253,6 +253,77 @@ export const COMMAND_REGISTRY: CommandCategory[] = [
       },
     ],
   },
+  {
+    name: 'Tool Integrations',
+    commands: [
+      {
+        name: 'tool list',
+        category: 'Tool Integrations',
+        description: 'List all configured external tools',
+        usage: 'bc tool list',
+        readOnly: true,
+        flags: ['--json', '--enabled'],
+      },
+      {
+        name: 'tool show',
+        category: 'Tool Integrations',
+        description: 'Show details for a specific tool',
+        usage: 'bc tool show <name>',
+        readOnly: true,
+        flags: ['--json'],
+      },
+      {
+        name: 'tool enable',
+        category: 'Tool Integrations',
+        description: 'Enable a configured tool',
+        usage: 'bc tool enable <name>',
+        readOnly: false,
+      },
+      {
+        name: 'tool disable',
+        category: 'Tool Integrations',
+        description: 'Disable a configured tool',
+        usage: 'bc tool disable <name>',
+        readOnly: false,
+      },
+      {
+        name: 'tool exec',
+        category: 'Tool Integrations',
+        description: 'Execute command using a tool',
+        usage: 'bc tool exec <name> -- <args...>',
+        readOnly: false,
+      },
+    ],
+  },
+  {
+    name: 'Testing',
+    commands: [
+      {
+        name: 'test run',
+        category: 'Testing',
+        description: 'Run tests for the workspace',
+        usage: 'bc test run',
+        readOnly: true,
+        flags: ['--verbose', '--json'],
+      },
+      {
+        name: 'test tui',
+        category: 'Testing',
+        description: 'Run TUI tests',
+        usage: 'bc test tui',
+        readOnly: true,
+        flags: ['--verbose'],
+      },
+      {
+        name: 'test report',
+        category: 'Testing',
+        description: 'Generate test report',
+        usage: 'bc test report',
+        readOnly: true,
+        flags: ['--json'],
+      },
+    ],
+  },
 ];
 
 /**
