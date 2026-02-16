@@ -213,7 +213,7 @@ function ChannelHistoryView({
    * When user enters input mode (presses 'm'), we set focus to 'input' area.
    * This prevents global keybinds (q, 1-9, ESC) from triggering during message typing.
    *
-   * When user exits input mode (presses Enter or Escape), we set focus to 'channel-history'
+   * When user exits input mode (presses Enter or Escape), we set focus to 'view'
    * to keep global navigation disabled while in channel history view. This ensures that
    * ESC navigates back to channel list (via onBack) rather than to Dashboard.
    *
@@ -226,8 +226,8 @@ function ChannelHistoryView({
     if (inputMode) {
       setFocus('input');
     } else {
-      // Keep focus on channel-history to prevent global ESC from going to Dashboard
-      setFocus('channel-history');
+      // Keep focus on 'view' to prevent global ESC from going to Dashboard
+      setFocus('view');
     }
   }, [inputMode, setFocus]);
 
