@@ -92,10 +92,11 @@ Examples:
 }
 
 var (
-	testPackage  string
-	testVerbose  bool
-	testCoverage bool
-	testWatch    bool
+	testPackage   string
+	testVerbose   bool
+	testCoverage  bool
+	testWatch     bool
+	testAutoIssue bool
 )
 
 func init() {
@@ -103,6 +104,7 @@ func init() {
 	testRunCmd.Flags().StringVar(&testPackage, "package", "./...", "Package pattern to test")
 	testRunCmd.Flags().BoolVarP(&testVerbose, "verbose", "v", false, "Verbose output")
 	testRunCmd.Flags().BoolVar(&testCoverage, "coverage", false, "Generate coverage report")
+	testRunCmd.Flags().BoolVar(&testAutoIssue, "auto-issue", false, "Create GitHub issues for test failures")
 
 	// test tui flags
 	testTuiCmd.Flags().BoolVar(&testWatch, "watch", false, "Run in watch mode")
