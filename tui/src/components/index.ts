@@ -54,3 +54,7 @@ export type { MembersPanelProps, MemberInfo, MemberCountBadgeProps } from './Mem
 // Progress bar (eng-03 #864)
 export { ProgressBar, InlineProgressBar } from './ProgressBar';
 export type { ProgressBarProps } from './ProgressBar';
+
+// Inline editor (eng-01 #858)
+export { InlineEditor, EditorModal } from './InlineEditor';
+export type { InlineEditorProps, EditorModalProps } from './InlineEditor';
