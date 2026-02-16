@@ -81,8 +81,8 @@ export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}
         return;
       }
 
-      // q: quit application
-      if (input === 'q') {
+      // q: quit application (skip when local view handles q, same pattern as ESC)
+      if (input === 'q' && !isFocused('view')) {
         if (onQuit) {
           onQuit();
         } else {
