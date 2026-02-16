@@ -98,7 +98,7 @@ export function useStatus(options: UseStatusOptions = {}): UseStatusResult {
   useEffect(() => {
     if (!autoPoll) return;
 
-    const interval = setInterval(fetchStatus, pollInterval);
+    const interval = setInterval(() => { void fetchStatus(); }, pollInterval);
     return () => { clearInterval(interval); };
   }, [autoPoll, pollInterval, fetchStatus]);
 

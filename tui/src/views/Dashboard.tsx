@@ -19,6 +19,7 @@ interface DashboardProps {
  */
 export function Dashboard({ onNavigate }: DashboardProps) {
   const { stdout } = useStdout();
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- stdout can be null in test environments
   const terminalWidth = stdout ? stdout.columns : 80;
 
   const {

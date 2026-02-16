@@ -151,13 +151,13 @@ export function useDashboard() {
 
   // Initial fetch on mount
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, [fetchData]);
 
   // Auto-refresh every 30 seconds (optimized for performance - Issue #559)
   // Users can manually refresh with 'r' key for immediate updates
   useEffect(() => {
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(() => { void fetchData(); }, 30000);
     return () => { clearInterval(interval); };
   }, [fetchData]);
 

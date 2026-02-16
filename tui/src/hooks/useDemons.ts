@@ -81,7 +81,7 @@ export function useDemons(options: UseDemonsOptions = {}): UseDemonsResult {
   useEffect(() => {
     if (!autoPoll) return;
 
-    const interval = setInterval(fetchDemons, pollInterval);
+    const interval = setInterval(() => { void fetchDemons(); }, pollInterval);
     return () => { clearInterval(interval); };
   }, [autoPoll, pollInterval, fetchDemons]);
 
@@ -138,13 +138,13 @@ export function useDemonLogs(
   }, [name, limit]);
 
   useEffect(() => {
-    fetchLogs();
+    void fetchLogs();
   }, [fetchLogs]);
 
   useEffect(() => {
     if (!autoPoll) return;
 
-    const interval = setInterval(fetchLogs, pollInterval);
+    const interval = setInterval(() => { void fetchLogs(); }, pollInterval);
     return () => { clearInterval(interval); };
   }, [autoPoll, pollInterval, fetchLogs]);
 

@@ -33,7 +33,10 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
     } else if (key.downArrow || input === 'j') {
       setSelectedIndex((i) => Math.min(agentList.length - 1, i + 1));
     } else if (key.return) {
-      setShowDetail(true);
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list
+      if (selectedAgent) {
+        setShowDetail(true);
+      }
     } else if (input === 'r') {
       void refresh();
     } else if (input === 'q' || key.escape) {
@@ -42,7 +45,8 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   });
 
   // If showing detail view, render AgentDetailView instead
-  if (showDetail) {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list
+  if (showDetail && selectedAgent) {
     return (
       <AgentDetailView
         agent={selectedAgent}
