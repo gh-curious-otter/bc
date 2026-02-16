@@ -270,20 +270,24 @@ function ChannelHistoryView({
           setMessageBuffer('');
         }
         // 'j' to scroll down, 'k' to scroll up
+        // Note: maxMessages=3 for display, scroll bounds use same constant
         if (input === 'j' && messages) {
           setScrollOffset(Math.max(0, scrollOffset - 1));
         }
         if (input === 'k' && messages) {
-          setScrollOffset(Math.min(Math.max(0, messages.length - 10), scrollOffset + 1));
+          setScrollOffset(Math.min(Math.max(0, messages.length - 3), scrollOffset + 1));
         }
       }
     },
     { isActive: !disableInput }
   );
 
-  const displayMessages = messages ? messages.slice(Math.max(0, messages.length - 10 - scrollOffset), messages.length - scrollOffset) : [];
+  // #915 fix: Reduce max messages from 10 to 3 to fit in available space
+  // Layout math: 14 lines available / 4 lines per message = ~3 messages max
+  const maxMessages = 3;
+  const displayMessages = messages ? messages.slice(Math.max(0, messages.length - maxMessages - scrollOffset), messages.length - scrollOffset) : [];
   const hasMoreAbove = scrollOffset > 0;
-  const hasMoreBelow = messages && messages.length > 10 && scrollOffset < messages.length - 10;
+  const hasMoreBelow = messages && messages.length > maxMessages && scrollOffset < messages.length - maxMessages;
 
   return (
     <Box flexDirection="column" width="100%" height="100%">

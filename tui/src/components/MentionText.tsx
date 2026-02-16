@@ -29,13 +29,10 @@ export const MentionText: React.FC<MentionTextProps> = ({
   let match: RegExpExecArray | null;
 
   while ((match = mentionPattern.exec(text)) !== null) {
-    // Add text before the mention
+    // Add text before the mention as plain string (not wrapped in <Text>)
+    // Wrapping in <Text> breaks Ink's width calculation for wrap="wrap"
     if (match.index > lastIndex) {
-      parts.push(
-        <Text key={`text-${String(lastIndex)}`}>
-          {text.slice(lastIndex, match.index)}
-        </Text>
-      );
+      parts.push(text.slice(lastIndex, match.index));
     }
 
     const mention = match[0];
@@ -68,13 +65,9 @@ export const MentionText: React.FC<MentionTextProps> = ({
     lastIndex = match.index + mention.length;
   }
 
-  // Add remaining text
+  // Add remaining text as plain string (not wrapped in <Text>)
   if (lastIndex < text.length) {
-    parts.push(
-      <Text key={`text-${String(lastIndex)}`}>
-        {text.slice(lastIndex)}
-      </Text>
-    );
+    parts.push(text.slice(lastIndex));
   }
 
   return <Text wrap="wrap">{parts}</Text>;
