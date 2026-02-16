@@ -50,3 +50,7 @@ export type { ActivityFeedProps } from './ActivityFeed';
 // Members panel (eng-01 #847)
 export { MembersPanel, MemberCountBadge } from './MembersPanel';
 export type { MembersPanelProps, MemberInfo, MemberCountBadgeProps } from './MembersPanel';
+
+// Progress bar (eng-03 #864)
+export { ProgressBar, InlineProgressBar } from './ProgressBar';
+export type { ProgressBarProps } from './ProgressBar';
