@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
@@ -160,7 +161,7 @@ func getWorkspaceRoleManager() (*workspace.Workspace, *workspace.RoleManager, er
 }
 
 func runRoleList(cmd *cobra.Command, args []string) error {
-	_, rm, err := getWorkspaceRoleManager()
+	ws, rm, err := getWorkspaceRoleManager()
 	if err != nil {
 		return err
 	}
@@ -168,6 +169,17 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 	roles, err := rm.LoadAllRoles()
 	if err != nil {
 		return fmt.Errorf("failed to load roles: %w", err)
+	}
+
+	// Load agents to count per role
+	agentCounts := make(map[string]int)
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	if loadErr := mgr.LoadState(); loadErr == nil {
+		agents := mgr.ListAgents()
+		for _, ag := range agents {
+			agentRole := string(ag.Role)
+			agentCounts[agentRole]++
+		}
 	}
 
 	// Check for JSON output flag
@@ -200,7 +212,7 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 				Description:  role.Description(),
 				Capabilities: caps,
 				Parent:       parent,
-				AgentCount:   0, // TODO: Count agents with this role
+				AgentCount:   agentCounts[name],
 			})
 		}
 		return json.NewEncoder(os.Stdout).Encode(resp)
@@ -217,6 +229,7 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 		description  string
 		flags        string
 		capabilities int
+		agents       int
 	}
 	rows := make([]roleRow, 0, len(roles))
 	maxNameLen := 4  // "ROLE"
@@ -245,6 +258,7 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 			capabilities: len(role.Metadata.Capabilities),
 			description:  desc,
 			flags:        flags,
+			agents:       agentCounts[name],
 		})
 	}
 
@@ -264,19 +278,19 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 
 	// Print table header (hide CAPS column if all roles have 0 capabilities)
 	if hasCapabilities {
-		fmt.Printf("%-*s  %-4s  %-*s  %s\n", maxNameLen, "ROLE", "CAPS", maxDescLen, "DESCRIPTION", "FLAGS")
-		fmt.Println(strings.Repeat("-", maxNameLen+maxDescLen+20))
+		fmt.Printf("%-*s  %-6s  %-4s  %-*s  %s\n", maxNameLen, "ROLE", "AGENTS", "CAPS", maxDescLen, "DESCRIPTION", "FLAGS")
+		fmt.Println(strings.Repeat("-", maxNameLen+maxDescLen+28))
 	} else {
-		fmt.Printf("%-*s  %-*s  %s\n", maxNameLen, "ROLE", maxDescLen, "DESCRIPTION", "FLAGS")
-		fmt.Println(strings.Repeat("-", maxNameLen+maxDescLen+14))
+		fmt.Printf("%-*s  %-6s  %-*s  %s\n", maxNameLen, "ROLE", "AGENTS", maxDescLen, "DESCRIPTION", "FLAGS")
+		fmt.Println(strings.Repeat("-", maxNameLen+maxDescLen+22))
 	}
 
 	// Print rows
 	for _, r := range rows {
 		if hasCapabilities {
-			fmt.Printf("%-*s  %-4d  %-*s  %s\n", maxNameLen, r.name, r.capabilities, maxDescLen, r.description, r.flags)
+			fmt.Printf("%-*s  %-6d  %-4d  %-*s  %s\n", maxNameLen, r.name, r.agents, r.capabilities, maxDescLen, r.description, r.flags)
 		} else {
-			fmt.Printf("%-*s  %-*s  %s\n", maxNameLen, r.name, maxDescLen, r.description, r.flags)
+			fmt.Printf("%-*s  %-6d  %-*s  %s\n", maxNameLen, r.name, r.agents, maxDescLen, r.description, r.flags)
 		}
 	}
 
