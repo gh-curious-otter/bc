@@ -116,3 +116,12 @@ export {
   usePerformance,
   usePerformanceOptional,
 } from './PerformanceContext';
+
+export {
+  useAdaptivePolling,
+  useAdaptiveAgentPolling,
+  type PollingMode,
+  type AdaptivePollingState,
+  type UseAdaptivePollingOptions,
+  type UseAdaptivePollingResult,
+} from './useAdaptivePolling';
