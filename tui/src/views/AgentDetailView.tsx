@@ -48,7 +48,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
 
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchAgentOutput();
+      void fetchAgentOutput();
     }, 2000);
     return () => { clearInterval(interval); };
   }, [fetchAgentOutput]);
@@ -73,7 +73,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
   useSafeInput((input, key) => {
     if (inputMode) {
       if (key.return) {
-        sendMessage(messageBuffer);
+        void sendMessage(messageBuffer);
         setInputMode(false);
       } else if (key.escape) {
         setMessageBuffer('');
@@ -89,7 +89,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
       } else if (input === 'q' || key.escape) {
         onBack?.();
       } else if (input === 'r') {
-        fetchAgentOutput();
+        void fetchAgentOutput();
       }
     }
   });
@@ -104,12 +104,12 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
             <Text bold color="cyan">
               {agent.name}
             </Text>
-            <Text dimColor> | Role: {agent.role || 'none'}</Text>
+            <Text dimColor> | Role: {agent.role ?? 'none'}</Text>
           </Box>
           <Box marginTop={1}>
             <Text>State: </Text>
             <StatusBadge state={agent.state} />
-            <Text dimColor> | Task: {agent.task || 'none'}</Text>
+            <Text dimColor> | Task: {agent.task ?? 'none'}</Text>
           </Box>
         </Box>
       </Box>
@@ -189,7 +189,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
           <Text bold color="white">Task</Text>
         </Box>
         <Box paddingLeft={2}>
-          <Text wrap="wrap">{agent.task || '(no task)'}</Text>
+          <Text wrap="wrap">{agent.task ?? '(no task)'}</Text>
         </Box>
 
         <Box marginY={1}>

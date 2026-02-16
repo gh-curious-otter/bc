@@ -17,7 +17,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   const { data: agents, loading, error, refresh } = useAgents();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showDetail, setShowDetail] = useState(false);
-  const agentList = agents || [];
+  const agentList = agents ?? [];
   const selectedAgent = agentList[selectedIndex];
 
   // Keyboard navigation
@@ -33,18 +33,16 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
     } else if (key.downArrow || input === 'j') {
       setSelectedIndex((i) => Math.min(agentList.length - 1, i + 1));
     } else if (key.return) {
-      if (selectedAgent) {
-        setShowDetail(true);
-      }
+      setShowDetail(true);
     } else if (input === 'r') {
-      refresh();
+      void refresh();
     } else if (input === 'q' || key.escape) {
       onBack?.();
     }
   });
 
   // If showing detail view, render AgentDetailView instead
-  if (showDetail && selectedAgent) {
+  if (showDetail) {
     return (
       <AgentDetailView
         agent={selectedAgent}
@@ -76,7 +74,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       width: 40,
       render: (agent) => (
         <Text wrap="truncate">
-          {agent.task.slice(0, 38) || '-'}
+          {agent.task.slice(0, 38) ?? '-'}
         </Text>
       ),
     },

@@ -44,7 +44,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       onNavigate?.('costs');
     }
     if (input === 'r') {
-      refresh();
+      void refresh();
     }
     if (input === 'q' || key.escape) {
       onNavigate?.('quit');
@@ -52,7 +52,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   if (error) {
-    return <ErrorDisplay error={error.message} onRetry={refresh} />;
+    return <ErrorDisplay error={error.message} onRetry={() => { void refresh(); }} />;
   }
 
   if (isLoading && !agents.data) {
@@ -356,10 +356,10 @@ function formatRelativeTime(date: Date): string {
   const diffSecs = Math.floor(diffMs / 1000);
 
   if (diffSecs < 5) return 'just now';
-  if (diffSecs < 60) return `${diffSecs}s ago`;
+  if (diffSecs < 60) return `${String(diffSecs)}s ago`;
 
   const diffMins = Math.floor(diffSecs / 60);
-  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffMins < 60) return `${String(diffMins)}m ago`;
 
   return date.toLocaleTimeString('en-US', {
     hour: '2-digit',
