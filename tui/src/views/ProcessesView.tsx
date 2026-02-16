@@ -29,13 +29,13 @@ function formatUptime(startedAt: string): string {
   const days = Math.floor(hours / 24);
 
   if (days > 0) {
-    return `${days}d ${hours % 24}h`;
+    return `${String(days)}d ${String(hours % 24)}h`;
   } else if (hours > 0) {
-    return `${hours}h ${minutes % 60}m`;
+    return `${String(hours)}h ${String(minutes % 60)}m`;
   } else if (minutes > 0) {
-    return `${minutes}m ${seconds % 60}s`;
+    return `${String(minutes)}m ${String(seconds % 60)}s`;
   } else {
-    return `${seconds}s`;
+    return `${String(seconds)}s`;
   }
 }
 
@@ -43,7 +43,7 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
   const { data: processes, loading, error, refresh } = useProcesses();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showLogs, setShowLogs] = useState(false);
-  const processList = processes || [];
+  const processList = processes ?? [];
 
   const selectedProcess = processList[selectedIndex];
 
@@ -67,7 +67,7 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
         setShowLogs(true);
       }
     } else if (input === 'r') {
-      refresh();
+      void refresh();
     } else if (input === 'q' || key.escape) {
       onBack?.();
     }
@@ -77,12 +77,12 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
     {
       key: 'name',
       header: 'Name',
-      width: 12,
+      width: 20,
     },
     {
       key: 'running',
       header: 'Status',
-      width: 8,
+      width: 10,
       render: (proc) => (
         <StatusBadge state={proc.running ? 'working' : 'stopped'} />
       ),
@@ -90,19 +90,19 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
     {
       key: 'pid',
       header: 'PID',
-      width: 7,
+      width: 8,
       render: (proc) => <Text>{proc.pid > 0 ? proc.pid : '-'}</Text>,
     },
     {
       key: 'port',
       header: 'Port',
-      width: 6,
-      render: (proc) => <Text>{proc.port || '-'}</Text>,
+      width: 8,
+      render: (proc) => <Text>{proc.port ?? '-'}</Text>,
     },
     {
       key: 'started_at',
       header: 'Uptime',
-      width: 8,
+      width: 10,
       render: (proc) => (
         <Text>{proc.running ? formatUptime(proc.started_at) : '-'}</Text>
       ),
@@ -110,10 +110,9 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
     {
       key: 'command',
       header: 'Command',
-      flex: true,
-      minWidth: 15,
+      width: 30,
       render: (proc) => (
-        <Text wrap="truncate">{proc.command || '-'}</Text>
+        <Text wrap="truncate">{proc.command ? proc.command.slice(0, 28) : '-'}</Text>
       ),
     },
   ];
@@ -174,15 +173,15 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
               <Box marginLeft={1} flexDirection="column">
                 <Text>
                   <Text dimColor>Owner: </Text>
-                  {selectedProcess.owner || 'system'}
+                  {selectedProcess.owner ?? 'system'}
                 </Text>
                 <Text>
                   <Text dimColor>Work Dir: </Text>
-                  {selectedProcess.work_dir || '-'}
+                  {selectedProcess.work_dir ?? '-'}
                 </Text>
                 <Text>
                   <Text dimColor>Log File: </Text>
-                  {selectedProcess.log_file || '-'}
+                  {selectedProcess.log_file ?? '-'}
                 </Text>
               </Box>
             </Box>
@@ -213,7 +212,7 @@ function ProcessLogViewer({ process, onBack }: ProcessLogViewerProps) {
   const [scrollOffset, setScrollOffset] = useState(0);
   const maxVisibleLines = 15;
 
-  const logLines = logs || [];
+  const logLines = logs ?? [];
   const visibleLogs = logLines.slice(
     scrollOffset,
     scrollOffset + maxVisibleLines
@@ -232,7 +231,7 @@ function ProcessLogViewer({ process, onBack }: ProcessLogViewerProps) {
     } else if (input === 'G') {
       setScrollOffset(Math.max(0, logLines.length - maxVisibleLines));
     } else if (input === 'r') {
-      refresh();
+      void refresh();
     } else if (input === 'q' || key.escape) {
       onBack();
     }
@@ -246,7 +245,7 @@ function ProcessLogViewer({ process, onBack }: ProcessLogViewerProps) {
           Logs: {process.name}
         </Text>
         {loading && <Text color="gray"> (loading...)</Text>}
-        <Text dimColor> [{scrollOffset + 1}-{Math.min(scrollOffset + maxVisibleLines, logLines.length)}/{logLines.length}]</Text>
+        <Text dimColor> [{String(scrollOffset + 1)}-{String(Math.min(scrollOffset + maxVisibleLines, logLines.length))}/{String(logLines.length)}]</Text>
       </Box>
 
       {error ? (

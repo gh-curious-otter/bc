@@ -57,9 +57,9 @@ function formatRelativeTime(timestamp?: string): string {
     const suffix = diffMs >= 0 ? ' ago' : '';
 
     if (diffMins < 1) return 'now';
-    if (diffMins < 60) return `${prefix}${diffMins}m${suffix}`;
-    if (diffHours < 24) return `${prefix}${diffHours}h${suffix}`;
-    return `${prefix}${diffDays}d${suffix}`;
+    if (diffMins < 60) return `${prefix}${String(diffMins)}m${suffix}`;
+    if (diffHours < 24) return `${prefix}${String(diffHours)}h${suffix}`;
+    return `${prefix}${String(diffDays)}d${suffix}`;
   } catch {
     return timestamp;
   }
@@ -102,7 +102,7 @@ export function DemonsView({
 
       // Actions
       if (input === 'r') {
-        refresh();
+        void refresh();
       }
       if (input === 'q' && onExit) {
         onExit();
@@ -113,20 +113,23 @@ export function DemonsView({
       if (selectedDemon) {
         if (input === 'e') {
           // Enable demon
-          enable(selectedDemon.name).catch((err: Error) => {
-            setActionError(`Enable failed: ${err.message}`);
+          enable(selectedDemon.name).catch((err: unknown) => {
+            const message = err instanceof Error ? err.message : String(err);
+            setActionError(`Enable failed: ${message}`);
           });
         }
         if (input === 'd') {
           // Disable demon
-          disable(selectedDemon.name).catch((err: Error) => {
-            setActionError(`Disable failed: ${err.message}`);
+          disable(selectedDemon.name).catch((err: unknown) => {
+            const message = err instanceof Error ? err.message : String(err);
+            setActionError(`Disable failed: ${message}`);
           });
         }
         if (input === 'x') {
           // Execute demon
-          run(selectedDemon.name).catch((err: Error) => {
-            setActionError(`Run failed: ${err.message}`);
+          run(selectedDemon.name).catch((err: unknown) => {
+            const message = err instanceof Error ? err.message : String(err);
+            setActionError(`Run failed: ${message}`);
           });
         }
       }
@@ -135,7 +138,7 @@ export function DemonsView({
   );
 
   if (error) {
-    return <ErrorDisplay error={error} onRetry={refresh} />;
+    return <ErrorDisplay error={error} onRetry={() => { void refresh(); }} />;
   }
 
   if (loading && !demons) {

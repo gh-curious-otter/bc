@@ -25,7 +25,7 @@ export function ErrorDisplay({ error, onRetry }: ErrorDisplayProps) {
       <Text color="red">{message}</Text>
       {onRetry && (
         <Box marginTop={1}>
-          <Text dimColor>Press 'r' to retry</Text>
+          <Text dimColor>Press &apos;r&apos; to retry</Text>
         </Box>
       )}
     </Box>

@@ -57,7 +57,7 @@ export function TeamsView({ onBack }: TeamsViewProps) {
       }
     }
     if (input === 'r') {
-      refresh();
+      void refresh();
     }
     if (input === 'q' || key.escape) {
       onBack?.();
@@ -65,7 +65,7 @@ export function TeamsView({ onBack }: TeamsViewProps) {
   });
 
   if (error) {
-    return <ErrorDisplay error={error} onRetry={refresh} />;
+    return <ErrorDisplay error={error} onRetry={() => { void refresh(); }} />;
   }
 
   if (loading && !teams) {
@@ -75,9 +75,9 @@ export function TeamsView({ onBack }: TeamsViewProps) {
   // Convert to TeamRow format for DataTable
   const teamRows: TeamRow[] = teamList.map((t) => ({
     name: t.name,
-    members: t.members || [],
-    lead: t.lead || '',
-    description: t.description || '',
+    members: t.members ?? [],
+    lead: t.lead ?? '',
+    description: t.description ?? '',
   }));
 
   return (
@@ -104,29 +104,29 @@ export function TeamsView({ onBack }: TeamsViewProps) {
               {
                 key: 'name',
                 header: 'TEAM',
-                width: 15,
+                width: 20,
               },
               {
                 key: 'members',
-                header: '#',
-                width: 4,
+                header: 'MEMBERS',
+                width: 10,
                 render: (value) => (
-                  <Text>{(value as string[]).length ?? 0}</Text>
+                  <Text>{(value as string[]).length}</Text>
                 ),
               },
               {
                 key: 'lead',
                 header: 'LEAD',
-                width: 12,
+                width: 15,
                 render: (value) => (
-                  <Text color="green">{(value as string) || '-'}</Text>
+                  <Text color="green">{(value as string) ?? '-'}</Text>
                 ),
               },
               {
                 key: 'description',
                 header: 'DESCRIPTION',
                 render: (value) => (
-                  <Text dimColor wrap="truncate">{(value as string) || '-'}</Text>
+                  <Text dimColor>{truncate((value as string) ?? '-', 30)}</Text>
                 ),
               },
             ]}
@@ -181,10 +181,10 @@ function TeamDetails({ team }: TeamDetailsProps) {
         )}
 
         <Box marginTop={1}>
-          <Text dimColor>Members ({team.members.length ?? 0}):</Text>
+          <Text dimColor>Members ({String(team.members.length)}):</Text>
         </Box>
 
-        {team.members && team.members.length > 0 ? (
+        {team.members.length > 0 ? (
           <Box flexDirection="column" marginLeft={2}>
             {team.members.map((member) => (
               <Box key={member}>
@@ -210,6 +210,14 @@ function TeamDetails({ team }: TeamDetailsProps) {
       </Box>
     </Panel>
   );
+}
+
+/**
+ * Truncate string to max length
+ */
+function truncate(str: string, maxLen: number): string {
+  if (str.length <= maxLen) return str;
+  return str.slice(0, maxLen - 1) + '…';
 }
 
 /**

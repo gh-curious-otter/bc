@@ -17,7 +17,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   const { data: agents, loading, error, refresh } = useAgents();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showDetail, setShowDetail] = useState(false);
-  const agentList = agents || [];
+  const agentList = agents ?? [];
   const selectedAgent = agentList[selectedIndex];
 
   // Keyboard navigation
@@ -37,7 +37,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
         setShowDetail(true);
       }
     } else if (input === 'r') {
-      refresh();
+      void refresh();
     } else if (input === 'q' || key.escape) {
       onBack?.();
     }
@@ -57,27 +57,26 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
     {
       key: 'name',
       header: 'Name',
-      width: 15,
+      width: 18,
     },
     {
       key: 'role',
       header: 'Role',
-      width: 10,
+      width: 12,
     },
     {
       key: 'state',
       header: 'State',
-      width: 10,
+      width: 12,
       render: (agent) => <StatusBadge state={agent.state} />,
     },
     {
       key: 'task',
       header: 'Task',
-      flex: true,
-      minWidth: 15,
+      width: 40,
       render: (agent) => (
         <Text wrap="truncate">
-          {agent.task || '-'}
+          {agent.task ? agent.task.slice(0, 38) : '-'}
         </Text>
       ),
     },

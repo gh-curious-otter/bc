@@ -37,14 +37,12 @@ export function DataTable<T extends Record<string, unknown>>({
   scrollOffset = 0,
 }: DataTableProps<T>) {
   const { stdout } = useStdout();
-  const terminalWidth = stdout.columns ?? 80;
-
-  if (data.length === 0) {
-    return <Text dimColor>{emptyMessage}</Text>;
-  }
+  const terminalWidth = stdout ? stdout.columns : 80;
 
   // Apply virtualization if maxVisibleRows is specified
+  // Note: useMemo must be called before any early returns
   const visibleData = useMemo(() => {
+    if (data.length === 0) return data;
     if (maxVisibleRows && data.length > maxVisibleRows) {
       return data.slice(scrollOffset, scrollOffset + maxVisibleRows);
     }
@@ -62,6 +60,10 @@ export function DataTable<T extends Record<string, unknown>>({
 
   // Calculate available width accounting for border (2 chars) and padding (2 chars)
   const tableWidth = Math.max(40, terminalWidth - 4);
+
+  if (data.length === 0) {
+    return <Text dimColor>{emptyMessage}</Text>;
+  }
 
   return (
     <Box flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1} width={tableWidth}>

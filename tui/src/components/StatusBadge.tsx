@@ -10,7 +10,7 @@ export type AgentState = 'idle' | 'starting' | 'working' | 'done' | 'stuck' | 'e
 export type HealthStatus = 'healthy' | 'degraded' | 'unhealthy';
 
 export interface StatusBadgeProps {
-  state: AgentState | HealthStatus | string;
+  state: string;
   showIcon?: boolean;
 }
 
