@@ -1,10 +1,17 @@
 /**
  * useAgents hook - Fetch and poll agent status
+ *
+ * Includes debounce for working→idle transitions to prevent flickering.
+ * When an agent transitions from 'working' to 'idle', the display state
+ * remains 'working' for a debounce period before showing 'idle'.
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import type { Agent, BcResult } from '../types';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import type { Agent, AgentState, BcResult } from '../types';
 import { getStatus } from '../services/bc';
+
+/** Debounce period for working→idle transition (in ms) */
+const WORKING_TO_IDLE_DEBOUNCE_MS = 5000;
 
 export interface UseAgentsOptions {
   /** Polling interval in ms (default: 2000) */
@@ -42,13 +49,57 @@ export function useAgents(options: UseAgentsOptions = {}): UseAgentsResult {
   const [working, setWorking] = useState(0);
   const [workspace, setWorkspace] = useState('');
 
+  // Track last time each agent was in "working" state (for debounce)
+  const lastWorkingTimeRef = useRef<Record<string, number>>({});
+  // Track previous state for each agent to detect transitions
+  const prevStateRef = useRef<Record<string, AgentState>>({});
+
+  /**
+   * Apply debounce to working→idle transitions.
+   * If an agent just transitioned from working to idle within the debounce period,
+   * keep showing "working" to prevent flickering.
+   */
+  const applyStateDebounce = useCallback((agents: Agent[]): Agent[] => {
+    const now = Date.now();
+
+    return agents.map((agent) => {
+      const prevState = prevStateRef.current[agent.name];
+      const lastWorkingTime = lastWorkingTimeRef.current[agent.name] || 0;
+
+      // Update tracking: record when agent was last "working"
+      if (agent.state === 'working') {
+        lastWorkingTimeRef.current[agent.name] = now;
+        prevStateRef.current[agent.name] = agent.state;
+        return agent;
+      }
+
+      // Detect working→idle transition
+      if (prevState === 'working' && agent.state === 'idle') {
+        const timeSinceWorking = now - lastWorkingTime;
+
+        // If within debounce period, keep showing "working"
+        if (timeSinceWorking < WORKING_TO_IDLE_DEBOUNCE_MS) {
+          return { ...agent, state: 'working' as AgentState };
+        }
+      }
+
+      // Update previous state tracking
+      prevStateRef.current[agent.name] = agent.state;
+      return agent;
+    });
+  }, []);
+
   const fetchAgents = useCallback(async () => {
     try {
       const status = await getStatus();
-      setData(status.agents);
+      // Apply debounce to agent states before setting data
+      const debouncedAgents = applyStateDebounce(status.agents);
+      setData(debouncedAgents);
       setTotal(status.total);
       setActive(status.active);
-      setWorking(status.working);
+      // Recalculate working count based on debounced states
+      const workingCount = debouncedAgents.filter((a) => a.state === 'working').length;
+      setWorking(workingCount);
       setWorkspace(status.workspace);
       setError(null);
     } catch (err) {
@@ -56,7 +107,7 @@ export function useAgents(options: UseAgentsOptions = {}): UseAgentsResult {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [applyStateDebounce]);
 
   // Initial fetch
   useEffect(() => {
