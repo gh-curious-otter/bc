@@ -155,13 +155,13 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
   }, [searchQuery, categoryFilter]);
 
   // Sync focus state with search mode
-  // Use setFocus('main') instead of returnFocus() to avoid restoring stale focus
-  // (e.g., 'input' from previous ChannelsView session which would block global keybinds)
+  // Use setFocus('view') to enable local q/ESC handling via !isFocused('view') guard
+  // This prevents global q-key handler from quitting while in CommandsView
   React.useEffect(() => {
     if (searchMode) {
       setFocus('input');
     } else {
-      setFocus('main');
+      setFocus('view');
     }
   }, [searchMode, setFocus]);
 
