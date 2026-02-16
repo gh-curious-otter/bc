@@ -235,7 +235,8 @@ function ChannelHistoryView({
           }
           setInputMode(false);
         } else if (key.escape) {
-          setMessageBuffer('');
+          // Draft save: preserve message on Esc for later editing
+          // Only clear if message was empty (cancel vs save draft)
           setInputMode(false);
         } else if (key.backspace || key.delete) {
           setMessageBuffer(messageBuffer.slice(0, -1));
@@ -246,6 +247,10 @@ function ChannelHistoryView({
         // 'm' to compose message
         if (input === 'm') {
           setInputMode(true);
+        }
+        // 'c' to clear draft
+        if (input === 'c' && messageBuffer) {
+          setMessageBuffer('');
         }
         // 'j' to scroll down, 'k' to scroll up
         if (input === 'j' && messages) {
@@ -312,12 +317,18 @@ function ChannelHistoryView({
       )}
 
       {/* Input area - auto-expands based on message length (3-10 lines) */}
-      <Box height={inputHeight} flexDirection="column" marginBottom={1} borderStyle="single" borderColor={inputMode ? 'cyan' : 'gray'} paddingX={1}>
+      <Box height={inputHeight} flexDirection="column" marginBottom={1} borderStyle="single" borderColor={inputMode ? 'cyan' : (messageBuffer ? 'yellow' : 'gray')} paddingX={1}>
         {inputMode ? (
           <Text>
             <Text color="cyan">{'> '}</Text>
             {messageBuffer}
             <Text color="cyan">▌</Text>
+          </Text>
+        ) : messageBuffer ? (
+          <Text>
+            <Text color="yellow">[Draft] </Text>
+            <Text dimColor>{messageBuffer.length > 40 ? messageBuffer.slice(0, 40) + '...' : messageBuffer}</Text>
+            <Text dimColor> (press m to edit)</Text>
           </Text>
         ) : (
           <Text dimColor>Press m to compose message</Text>
@@ -326,7 +337,7 @@ function ChannelHistoryView({
 
       {/* Footer - anchored at bottom */}
       <Box height={1}>
-        <Text dimColor>ESC: back  m: compose  j/k: scroll  [?] help  Theme: dark</Text>
+        <Text dimColor>ESC: {inputMode ? 'save draft' : 'back'}  m: compose  j/k: scroll  Enter: send</Text>
       </Box>
     </Box>
   );
