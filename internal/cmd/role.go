@@ -30,7 +30,6 @@ Examples:
   bc role edit engineer                             # Edit engineer role in $EDITOR
   bc role delete custom                             # Delete a role
   bc role validate                                  # Validate all role files`,
-	RunE: runRoleList,
 }
 
 var roleListCmd = &cobra.Command{

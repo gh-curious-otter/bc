@@ -605,7 +605,7 @@ func TestChannelListNoWorkspace(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
-	_, _, err = executeIntegrationCmd("channel")
+	_, _, err = executeIntegrationCmd("channel", "list")
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
@@ -618,7 +618,7 @@ func TestChannelListEmpty(t *testing.T) {
 	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	stdout, _, err := executeIntegrationCmd("channel")
+	stdout, _, err := executeIntegrationCmd("channel", "list")
 	if err != nil {
 		t.Fatalf("channel list returned error: %v", err)
 	}
