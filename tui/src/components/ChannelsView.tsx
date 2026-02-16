@@ -202,12 +202,22 @@ function ChannelHistoryView({
 
   // Calculate dynamic input height based on message length
   const terminalWidth = stdout.columns;
+  const terminalHeight = stdout.rows;
   const inputHeight = useMemo(
     () => calculateInputHeight(messageBuffer.length, terminalWidth),
     [messageBuffer.length, terminalWidth]
   );
-  // Message area adjusts as input expands (base 14 + extra from input growth)
-  const messageAreaHeight = 14 + (3 - inputHeight);
+
+  // Dynamic layout based on terminal size (#976)
+  // Layout breakdown: header(4) + input(inputHeight) + footer(1) + borders/margins(5)
+  const layoutOverhead = 10 + inputHeight;
+  const messageAreaHeight = Math.max(10, terminalHeight - layoutOverhead);
+
+  // Dynamic bubble width: 80% of terminal width, min 50, max 140
+  const maxBubbleWidth = Math.min(140, Math.max(50, Math.floor(terminalWidth * 0.8)));
+
+  // Dynamic message count: ~4 lines per message bubble
+  const maxMessages = Math.max(3, Math.floor(messageAreaHeight / 4));
 
   /**
    * Synchronize focus state with input mode
@@ -270,21 +280,20 @@ function ChannelHistoryView({
           setMessageBuffer('');
         }
         // 'j' to scroll down, 'k' to scroll up
-        // Note: maxMessages=3 for display, scroll bounds use same constant
+        // Note: Uses dynamic maxMessages calculated from terminal height (#976)
         if (input === 'j' && messages) {
           setScrollOffset(Math.max(0, scrollOffset - 1));
         }
         if (input === 'k' && messages) {
-          setScrollOffset(Math.min(Math.max(0, messages.length - 3), scrollOffset + 1));
+          setScrollOffset(Math.min(Math.max(0, messages.length - maxMessages), scrollOffset + 1));
         }
       }
     },
     { isActive: !disableInput }
   );
 
-  // #915 fix: Reduce max messages from 10 to 3 to fit in available space
-  // Layout math: 14 lines available / 4 lines per message = ~3 messages max
-  const maxMessages = 3;
+  // #976 fix: Dynamic message display based on terminal height
+  // maxMessages is calculated above based on available messageAreaHeight
   const displayMessages = messages ? messages.slice(Math.max(0, messages.length - maxMessages - scrollOffset), messages.length - scrollOffset) : [];
   const hasMoreAbove = scrollOffset > 0;
   const hasMoreBelow = messages && messages.length > maxMessages && scrollOffset < messages.length - maxMessages;
@@ -322,6 +331,7 @@ function ChannelHistoryView({
                 message={msg.message}
                 timestamp={msg.time}
                 currentUser={process.env.BC_AGENT_ID}
+                maxBubbleWidth={maxBubbleWidth}
               />
             ))}
             {hasMoreBelow && <Text dimColor>↓ more messages below</Text>}
