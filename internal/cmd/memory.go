@@ -215,6 +215,36 @@ Example:
 	RunE: runMemoryImport,
 }
 
+var memoryDeleteCmd = &cobra.Command{
+	Use:   "delete <agent> <index>",
+	Short: "Delete a specific experience",
+	Long: `Delete a specific experience from an agent's memory by its index.
+
+Use 'bc memory show <agent> --experiences' to see experience indices.
+Indices are 1-based (first experience is 1, not 0).
+
+Example:
+  bc memory delete engineer-01 3     # Delete the 3rd experience
+  bc memory delete engineer-01 1     # Delete the first (oldest) experience`,
+	Args: cobra.ExactArgs(2),
+	RunE: runMemoryDelete,
+}
+
+var memoryMergeCmd = &cobra.Command{
+	Use:   "merge <target-agent> <source-agent>",
+	Short: "Merge learnings from another agent",
+	Long: `Merge learnings from one agent's memory into another.
+
+This copies learnings from the source agent to the target agent,
+avoiding duplicates. Only learnings are merged, not experiences.
+
+Example:
+  bc memory merge engineer-02 engineer-01   # Copy eng-01's learnings to eng-02
+  bc memory merge new-agent senior-agent    # Share senior's knowledge with new agent`,
+	Args: cobra.ExactArgs(2),
+	RunE: runMemoryMerge,
+}
+
 var (
 	memoryOutcome          string
 	memoryTaskID           string
@@ -286,6 +316,8 @@ func init() {
 	memoryCmd.AddCommand(memoryExportCmd)
 	memoryCmd.AddCommand(memoryForgetCmd)
 	memoryCmd.AddCommand(memoryImportCmd)
+	memoryCmd.AddCommand(memoryDeleteCmd)
+	memoryCmd.AddCommand(memoryMergeCmd)
 	rootCmd.AddCommand(memoryCmd)
 }
 
@@ -1203,6 +1235,80 @@ func runMemoryImport(cmd *cobra.Command, args []string) error {
 	cmd.Printf("Imported memories for %s:\n", agentID)
 	cmd.Printf("  Experiences: %d\n", expCount)
 	cmd.Printf("  Learnings: %d\n", learnCount)
+
+	return nil
+}
+
+func runMemoryDelete(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return errNotInWorkspace(err)
+	}
+
+	agentID := args[0]
+	indexStr := args[1]
+
+	// Parse index
+	index, parseErr := strconv.Atoi(indexStr)
+	if parseErr != nil {
+		return fmt.Errorf("invalid index %q: must be a number", indexStr)
+	}
+
+	store := memory.NewStore(ws.RootDir, agentID)
+	if !store.Exists() {
+		return fmt.Errorf("no memory found for agent %s", agentID)
+	}
+
+	// Delete the experience
+	deleted, err := store.DeleteExperience(index)
+	if err != nil {
+		return fmt.Errorf("failed to delete experience: %w", err)
+	}
+
+	cmd.Printf("Deleted experience #%d from %s:\n", index, agentID)
+	cmd.Printf("  [%s] %s\n", deleted.Outcome, deleted.Description)
+	if !deleted.Timestamp.IsZero() {
+		cmd.Printf("  Time: %s\n", deleted.Timestamp.Format("2006-01-02 15:04:05"))
+	}
+
+	return nil
+}
+
+func runMemoryMerge(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return errNotInWorkspace(err)
+	}
+
+	targetAgent := args[0]
+	sourceAgent := args[1]
+
+	// Check source exists
+	srcStore := memory.NewStore(ws.RootDir, sourceAgent)
+	if !srcStore.Exists() {
+		return fmt.Errorf("source agent %q has no memory", sourceAgent)
+	}
+
+	// Initialize target if needed
+	dstStore := memory.NewStore(ws.RootDir, targetAgent)
+	if !dstStore.Exists() {
+		if initErr := dstStore.Init(); initErr != nil {
+			return fmt.Errorf("failed to initialize memory for %s: %w", targetAgent, initErr)
+		}
+		cmd.Printf("Initialized memory for %s\n", targetAgent)
+	}
+
+	// Merge learnings
+	added, err := dstStore.MergeLearnings(srcStore)
+	if err != nil {
+		return fmt.Errorf("failed to merge learnings: %w", err)
+	}
+
+	if added == 0 {
+		cmd.Printf("No new learnings to merge from %s to %s\n", sourceAgent, targetAgent)
+	} else {
+		cmd.Printf("Merged %d new learning(s) from %s to %s\n", added, sourceAgent, targetAgent)
+	}
 
 	return nil
 }
