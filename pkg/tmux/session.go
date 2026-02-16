@@ -34,22 +34,24 @@ type Session struct {
 	Attached  bool
 }
 
+// DefaultCacheTTL is the default time-to-live for cached session data.
+const DefaultCacheTTL = 2 * time.Second
+
 // Manager handles tmux session operations.
 type Manager struct {
-	// execCommand creates exec.Cmd objects. Defaults to exec.Command.
-	// Override in tests for mocking.
-	execCommand func(name string, arg ...string) *exec.Cmd
-
-	sessionLocks map[string]*sync.Mutex
-
-	// SessionPrefix is prepended to all session names (e.g., "bc-")
-	SessionPrefix string
-	// workspaceHash is included in session names for workspace isolation.
-	workspaceHash string
-
-	// sessionMu protects per-session SendKeys serialization.
-	// Concurrent sends to the same session are serialized to prevent interleaving.
-	sessionMu sync.Mutex
+	// Session cache for reducing tmux subprocess calls (#980).
+	// Cache is invalidated on CreateSession/KillSession/RenameSession/KillServer.
+	sessionsCacheAt time.Time // When sessions cache was populated
+	hasCacheAt      time.Time // When hasSession cache was populated
+	execCommand     func(name string, arg ...string) *exec.Cmd
+	sessionLocks    map[string]*sync.Mutex
+	hasSessionCache map[string]bool // Cached session existence checks
+	SessionPrefix   string          // Prepended to all session names (e.g., "bc-")
+	workspaceHash   string          // Included in session names for workspace isolation
+	sessionsCache   []Session       // Cached list of sessions
+	cacheTTL        time.Duration   // Cache TTL (default: 2 seconds)
+	cacheMu         sync.RWMutex    // Protects cache fields
+	sessionMu       sync.Mutex      // Protects per-session SendKeys serialization
 }
 
 // command returns an exec.Cmd using the configured executor.
@@ -89,8 +91,10 @@ func userFriendlyTmuxError(output string) string {
 // NewManager creates a new tmux manager with the given prefix.
 func NewManager(prefix string) *Manager {
 	return &Manager{
-		SessionPrefix: prefix,
-		execCommand:   exec.Command,
+		SessionPrefix:   prefix,
+		execCommand:     exec.Command,
+		hasSessionCache: make(map[string]bool),
+		cacheTTL:        DefaultCacheTTL,
 	}
 }
 
@@ -99,17 +103,21 @@ func NewManager(prefix string) *Manager {
 func NewWorkspaceManager(prefix, workspacePath string) *Manager {
 	h := sha256.Sum256([]byte(workspacePath))
 	return &Manager{
-		SessionPrefix: prefix,
-		workspaceHash: fmt.Sprintf("%x", h[:3]),
-		execCommand:   exec.Command,
+		SessionPrefix:   prefix,
+		workspaceHash:   fmt.Sprintf("%x", h[:3]),
+		execCommand:     exec.Command,
+		hasSessionCache: make(map[string]bool),
+		cacheTTL:        DefaultCacheTTL,
 	}
 }
 
 // NewDefaultManager creates a new tmux manager with default prefix "bc-".
 func NewDefaultManager() *Manager {
 	return &Manager{
-		SessionPrefix: "bc-",
-		execCommand:   exec.Command,
+		SessionPrefix:   "bc-",
+		execCommand:     exec.Command,
+		hasSessionCache: make(map[string]bool),
+		cacheTTL:        DefaultCacheTTL,
 	}
 }
 
@@ -122,10 +130,49 @@ func (m *Manager) SessionName(name string) string {
 }
 
 // HasSession checks if a session exists.
+// Results are cached with a short TTL to reduce subprocess calls.
 func (m *Manager) HasSession(name string) bool {
 	fullName := m.SessionName(name)
+
+	// Check cache first
+	m.cacheMu.RLock()
+	ttl := m.cacheTTL
+	if ttl == 0 {
+		ttl = DefaultCacheTTL
+	}
+	if time.Since(m.hasCacheAt) < ttl {
+		if exists, ok := m.hasSessionCache[fullName]; ok {
+			m.cacheMu.RUnlock()
+			return exists
+		}
+	}
+	m.cacheMu.RUnlock()
+
+	// Cache miss - query tmux
 	cmd := m.command("tmux", "has-session", "-t", fullName)
-	return cmd.Run() == nil
+	exists := cmd.Run() == nil
+
+	// Update cache
+	m.cacheMu.Lock()
+	if m.hasSessionCache == nil {
+		m.hasSessionCache = make(map[string]bool)
+	}
+	m.hasSessionCache[fullName] = exists
+	m.hasCacheAt = time.Now()
+	m.cacheMu.Unlock()
+
+	return exists
+}
+
+// invalidateCache clears all cached session data.
+// Call this after creating or killing sessions.
+func (m *Manager) invalidateCache() {
+	m.cacheMu.Lock()
+	defer m.cacheMu.Unlock()
+	m.sessionsCache = nil
+	m.sessionsCacheAt = time.Time{}
+	m.hasSessionCache = make(map[string]bool)
+	m.hasCacheAt = time.Time{}
 }
 
 // CreateSession creates a new tmux session.
@@ -143,6 +190,9 @@ func (m *Manager) CreateSession(name, dir string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create session %s: %w (%s)", fullName, err, string(output))
 	}
+
+	// Invalidate cache after creating session
+	m.invalidateCache()
 	return nil
 }
 
@@ -180,6 +230,9 @@ func (m *Manager) CreateSessionWithEnv(name, dir, command string, env map[string
 	if err != nil {
 		return fmt.Errorf("failed to create session %s: %w (%s)", fullName, err, string(output))
 	}
+
+	// Invalidate cache after creating session
+	m.invalidateCache()
 	return nil
 }
 
@@ -192,6 +245,9 @@ func (m *Manager) KillSession(name string) error {
 	if err != nil {
 		return fmt.Errorf("failed to kill session %s: %w (%s)", fullName, err, string(output))
 	}
+
+	// Invalidate cache after killing session
+	m.invalidateCache()
 	return nil
 }
 
@@ -205,6 +261,9 @@ func (m *Manager) RenameSession(oldName, newName string) error {
 	if err != nil {
 		return fmt.Errorf("failed to rename session %s to %s: %w (%s)", oldFullName, newFullName, err, string(output))
 	}
+
+	// Invalidate cache after renaming session
+	m.invalidateCache()
 	return nil
 }
 
@@ -342,7 +401,24 @@ func (m *Manager) Capture(name string, lines int) (string, error) {
 }
 
 // ListSessions lists all sessions with our prefix.
+// Results are cached with a short TTL to reduce subprocess calls.
 func (m *Manager) ListSessions() ([]Session, error) {
+	// Check cache first
+	m.cacheMu.RLock()
+	ttl := m.cacheTTL
+	if ttl == 0 {
+		ttl = DefaultCacheTTL
+	}
+	if time.Since(m.sessionsCacheAt) < ttl && m.sessionsCache != nil {
+		// Return a copy to prevent mutation
+		result := make([]Session, len(m.sessionsCache))
+		copy(result, m.sessionsCache)
+		m.cacheMu.RUnlock()
+		return result, nil
+	}
+	m.cacheMu.RUnlock()
+
+	// Cache miss - query tmux
 	cmd := m.command("tmux", "list-sessions", "-F",
 		"#{session_name}|#{session_created_string}|#{session_attached}|#{session_windows}|#{session_path}")
 
@@ -389,6 +465,13 @@ func (m *Manager) ListSessions() ([]Session, error) {
 		})
 	}
 
+	// Update cache
+	m.cacheMu.Lock()
+	m.sessionsCache = make([]Session, len(sessions))
+	copy(m.sessionsCache, sessions)
+	m.sessionsCacheAt = time.Now()
+	m.cacheMu.Unlock()
+
 	return sessions, nil
 }
 
@@ -421,6 +504,9 @@ func (m *Manager) KillServer() error {
 	if err != nil {
 		return fmt.Errorf("failed to kill tmux server: %w (%s)", err, string(output))
 	}
+
+	// Invalidate cache after killing server
+	m.invalidateCache()
 	return nil
 }
 
