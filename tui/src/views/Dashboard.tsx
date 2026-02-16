@@ -7,6 +7,7 @@ import { StatusBadge } from '../components/StatusBadge';
 import { Footer } from '../components/Footer.js';
 import { LoadingIndicator } from '../components/LoadingIndicator.js';
 import { ErrorDisplay } from '../components/ErrorDisplay.js';
+import { ActivityFeed } from '../components/ActivityFeed.js';
 import { useDashboard } from '../hooks/useDashboard.js';
 
 interface DashboardProps {
@@ -85,16 +86,24 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         outputTokens={summary.outputTokens}
       />
 
-      {/* Main Content */}
-      <Box flexDirection="column" marginTop={1}>
-        {/* Agent Stats by Role */}
-        <AgentStatsPanel stats={agentStats} />
+      {/* Main Content - Two column layout */}
+      <Box marginTop={1}>
+        {/* Left column - Main panels */}
+        <Box flexDirection="column" flexGrow={1}>
+          {/* Agent Stats by Role */}
+          <AgentStatsPanel stats={agentStats} />
 
-        {/* Agents Panel */}
-        <AgentsPanel agents={agents.data ?? []} />
+          {/* Agents Panel */}
+          <AgentsPanel agents={agents.data ?? []} />
 
-        {/* Channels Panel */}
-        <ChannelsPanel channels={channels.data ?? []} />
+          {/* Channels Panel */}
+          <ChannelsPanel channels={channels.data ?? []} />
+        </Box>
+
+        {/* Right column - Activity feed (compact) */}
+        <Box flexDirection="column" width={45} marginLeft={1}>
+          <ActivityFeed maxEntries={10} compact showFilterHints={false} />
+        </Box>
       </Box>
 
       {/* Footer with keyboard hints */}
