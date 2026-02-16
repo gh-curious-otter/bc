@@ -23,6 +23,7 @@ import { ChannelsView } from './components/ChannelsView';
 import { CostsView } from './components/CostsView';
 import { LogsView } from './views/LogsView';
 import { WorktreesView } from './views/WorktreesView';
+import { WorkspaceSelectorView } from './views/WorkspaceSelectorView';
 
 interface AppProps {
   /** Disable input handling (useful for testing) */
@@ -109,6 +110,8 @@ function ViewContent({ view, disableInput }: ViewContentProps): React.ReactEleme
       return <LogsView />;
     case 'worktrees':
       return <WorktreesView />;
+    case 'workspaces':
+      return <WorkspaceSelectorView />;
     case 'help':
       return <HelpView />;
     default:
