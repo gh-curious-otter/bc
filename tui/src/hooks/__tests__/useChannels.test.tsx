@@ -15,9 +15,9 @@ const mockChannels: Channel[] = [
 ];
 
 const mockMessages: ChannelMessage[] = [
-  { id: '1', sender: 'eng-01', text: 'Hello team', time: '2024-01-15T10:00:00Z', channel: 'eng' },
-  { id: '2', sender: 'eng-02', text: 'Hi there', time: '2024-01-15T10:01:00Z', channel: 'eng' },
-  { id: '3', sender: 'eng-03', text: 'Good morning', time: '2024-01-15T10:02:00Z', channel: 'eng' },
+  { sender: 'eng-01', message: 'Hello team', time: '2024-01-15T10:00:00Z' },
+  { sender: 'eng-02', message: 'Hi there', time: '2024-01-15T10:01:00Z' },
+  { sender: 'eng-03', message: 'Good morning', time: '2024-01-15T10:02:00Z' },
 ];
 
 describe('useChannels Hook Logic', () => {
@@ -155,16 +155,16 @@ describe('useChannelHistory Hook Logic', () => {
 
     test('message has required properties', () => {
       const msg = mockMessages[0];
-      expect(msg).toHaveProperty('id');
       expect(msg).toHaveProperty('sender');
-      expect(msg).toHaveProperty('text');
+      expect(msg).toHaveProperty('message');
       expect(msg).toHaveProperty('time');
-      expect(msg).toHaveProperty('channel');
     });
 
-    test('messages are from correct channel', () => {
+    test('messages have required fields', () => {
       mockMessages.forEach(msg => {
-        expect(msg.channel).toBe('eng');
+        expect(msg.sender).toBeTruthy();
+        expect(msg.message).toBeDefined();
+        expect(msg.time).toBeTruthy();
       });
     });
 
@@ -286,10 +286,10 @@ describe('Channel Data Validation', () => {
 });
 
 describe('Message Data Validation', () => {
-  test('message id is unique', () => {
-    const ids = mockMessages.map(m => m.id);
-    const uniqueIds = new Set(ids);
-    expect(uniqueIds.size).toBe(ids.length);
+  test('messages are distinguishable by time', () => {
+    const times = mockMessages.map(m => m.time);
+    const uniqueTimes = new Set(times);
+    expect(uniqueTimes.size).toBe(times.length);
   });
 
   test('sender is non-empty', () => {
@@ -298,15 +298,13 @@ describe('Message Data Validation', () => {
     });
   });
 
-  test('text can be empty', () => {
+  test('message can be empty', () => {
     const msg: ChannelMessage = {
-      id: '4',
       sender: 'test',
-      text: '',
+      message: '',
       time: new Date().toISOString(),
-      channel: 'test',
     };
-    expect(msg.text).toBe('');
+    expect(msg.message).toBe('');
   });
 
   test('time is valid date string', () => {
