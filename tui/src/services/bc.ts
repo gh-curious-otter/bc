@@ -17,6 +17,7 @@ import type {
   Role,
   RolesResponse,
   Worktree,
+  WorkspacesResponse,
 } from '../types';
 
 /**
@@ -419,4 +420,22 @@ export async function deleteRole(name: string): Promise<void> {
  */
 export async function validateRoles(): Promise<string> {
   return await execBc(['role', 'validate']);
+}
+
+/**
+ * Get list of discovered workspaces
+ * @param scanPaths - Additional paths to scan
+ */
+export async function getWorkspaces(scanPaths?: string[]): Promise<WorkspacesResponse> {
+  try {
+    const args = ['workspace', 'list'];
+    if (scanPaths) {
+      for (const path of scanPaths) {
+        args.push('--scan', path);
+      }
+    }
+    return await execBcJson<WorkspacesResponse>(args);
+  } catch {
+    return { workspaces: [] };
+  }
 }
