@@ -6,7 +6,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { COMMAND_REGISTRY, searchCommands } from '../types/commands';
+import { COMMAND_REGISTRY } from '../types/commands';
 import type { BcCommand } from '../types/commands';
 import { useFocus } from '../navigation/FocusContext';
 import { execBc } from '../services/bc';
@@ -16,6 +16,9 @@ interface CommandsViewProps {
   disableInput?: boolean;
 }
 
+// Get all category names from registry
+const CATEGORY_NAMES = ['All', ...COMMAND_REGISTRY.map(cat => cat.name)];
+
 export const CommandsView: React.FC<CommandsViewProps> = ({
   onBack,
   disableInput = false,
@@ -23,6 +26,7 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchMode, setSearchMode] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState('All');
   const { setFocus, returnFocus } = useFocus();
 
   // Command execution state
@@ -57,19 +61,30 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
     }
   }, []);
 
-  // Get filtered commands
-  const filteredCommands = searchQuery.length > 0
-    ? searchCommands(searchQuery)
-    : COMMAND_REGISTRY.flatMap(cat => cat.commands);
+  // Get filtered commands by category and search
+  const filteredCommands = React.useMemo(() => {
+    let commands = categoryFilter === 'All'
+      ? COMMAND_REGISTRY.flatMap(cat => cat.commands)
+      : COMMAND_REGISTRY.find(cat => cat.name === categoryFilter)?.commands ?? [];
+
+    if (searchQuery.length > 0) {
+      const lowerQuery = searchQuery.toLowerCase();
+      commands = commands.filter(cmd =>
+        cmd.name.toLowerCase().includes(lowerQuery) ||
+        cmd.description.toLowerCase().includes(lowerQuery)
+      );
+    }
+    return commands;
+  }, [categoryFilter, searchQuery]);
 
   // Clamp selectedIndex to valid range whenever filteredCommands changes
   const validatedIndex = Math.min(selectedIndex, Math.max(0, filteredCommands.length - 1));
   const selectedCommand = filteredCommands[validatedIndex] as typeof filteredCommands[number] | undefined;
 
-  // Reset selection when search results change
+  // Reset selection when search results or category change
   React.useEffect(() => {
     setSelectedIndex(0);
-  }, [searchQuery]);
+  }, [searchQuery, categoryFilter]);
 
   // Sync focus state with search mode
   React.useEffect(() => {
@@ -99,6 +114,11 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
       // Navigation mode
       if (input === '/') {
         setSearchMode(true);
+      } else if (key.tab) {
+        // Cycle to next category
+        const currentIdx = CATEGORY_NAMES.indexOf(categoryFilter);
+        const nextIdx = (currentIdx + 1) % CATEGORY_NAMES.length;
+        setCategoryFilter(CATEGORY_NAMES[nextIdx] ?? 'All');
       } else if (key.upArrow || input === 'k') {
         // Navigate up, clamped to valid range
         if (filteredCommands.length > 0) {
@@ -152,6 +172,13 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
           Commands
         </Text>
         <Text dimColor> ({filteredCommands.length} available)</Text>
+      </Box>
+
+      {/* Category filter bar */}
+      <Box marginBottom={1} paddingX={1}>
+        <Text dimColor>Category: </Text>
+        <Text color="cyan" bold>{categoryFilter}</Text>
+        <Text dimColor> (Tab to cycle)</Text>
       </Box>
 
       {/* Search bar */}
