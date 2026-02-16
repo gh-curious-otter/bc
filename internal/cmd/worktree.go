@@ -11,7 +11,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/tmux"
 )
 
 var worktreeCmd = &cobra.Command{
@@ -320,23 +319,20 @@ func runWorktreePrune(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load agent state: %v\n", err)
 	}
 
-	// Get list of running tmux sessions
-	tmuxMgr := tmux.NewWorkspaceManager("bc-", ws.RootDir)
-	sessions, err := tmuxMgr.ListSessions()
-	if err != nil {
-		// Warn but continue - tmux might not be running
-		fmt.Fprintf(os.Stderr, "Warning: failed to list tmux sessions: %v\n", err)
-	}
-	runningAgents := make(map[string]bool)
-	for _, s := range sessions {
-		runningAgents[s.Name] = true
-	}
-
-	// Build map of registered agent names
+	// Build maps of registered and active agents from workspace state
+	// This is more reliable than tmux session matching which can fail due to
+	// workspace hash mismatches in worktree environments
 	agents := mgr.ListAgents()
 	registeredAgents := make(map[string]bool)
+	activeAgents := make(map[string]bool)
 	for _, a := range agents {
 		registeredAgents[a.Name] = true
+		// Consider agent "active" if state is idle, starting, or working
+		// These states indicate the agent session should not be pruned
+		switch a.State {
+		case agent.StateIdle, agent.StateStarting, agent.StateWorking:
+			activeAgents[a.Name] = true
+		}
 	}
 
 	result := PruneResult{
@@ -367,19 +363,20 @@ func runWorktreePrune(cmd *cobra.Command, args []string) error {
 
 		if !registeredAgents[name] {
 			reason = "not registered as an agent"
-		} else if !runningAgents[name] {
-			// Agent is registered but not running - check if agent is stopped
+		} else if !activeAgents[name] {
+			// Agent is registered but not active (running/busy)
 			if a := mgr.GetAgent(name); a != nil && a.State == agent.StateStopped {
 				reason = "agent is stopped"
 			}
-		}
 
-		// Check if worktree is empty or has detached HEAD
-		if reason == "" {
-			if isEmpty, _ := isEmptyDir(wtPath); isEmpty {
-				reason = "worktree directory is empty"
-			} else if isDetached, _ := isDetachedHead(wtPath); isDetached {
-				reason = "worktree has detached HEAD with no changes"
+			// Only check for empty/detached HEAD when agent is NOT active
+			// Active agents may have detached HEAD as normal git operation
+			if reason == "" {
+				if isEmpty, _ := isEmptyDir(wtPath); isEmpty {
+					reason = "worktree directory is empty"
+				} else if isDetached, _ := isDetachedHead(wtPath); isDetached {
+					reason = "worktree has detached HEAD with no changes"
+				}
 			}
 		}
 
