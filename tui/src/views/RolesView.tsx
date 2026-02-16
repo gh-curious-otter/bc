@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { Panel } from '../components/Panel';
+import { useFocus } from '../navigation/FocusContext';
 import type { Role } from '../types';
 import { getRoles, getRole, deleteRole } from '../services/bc';
 
@@ -30,6 +31,17 @@ export function RolesView({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const { setFocus } = useFocus();
+
+  // Manage focus state for nested view navigation
+  // When showing details, set focus='view' to prevent global ESC from firing
+  useEffect(() => {
+    if (showDetails) {
+      setFocus('view');
+    } else {
+      setFocus('main');
+    }
+  }, [showDetails, setFocus]);
 
   // Fetch roles
   const fetchRoles = useCallback(async () => {

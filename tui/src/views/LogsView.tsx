@@ -2,9 +2,10 @@
  * LogsView - Event logs tab with filtering and search (#866)
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { useLogs, getSeverityColor } from '../hooks/useLogs';
+import { useFocus } from '../navigation/FocusContext';
 import type { LogSeverity } from '../hooks/useLogs';
 import type { LogEntry } from '../types';
 
@@ -66,6 +67,16 @@ export const LogsView: React.FC<LogsViewProps> = ({ onBack }) => {
   const [searchMode, setSearchMode] = useState(false);
   const [agentFilter, setAgentFilter] = useState<string | null>(null);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
+  const { setFocus } = useFocus();
+
+  // Manage focus state for nested view navigation
+  useEffect(() => {
+    if (showDetail) {
+      setFocus('view');
+    } else {
+      setFocus('main');
+    }
+  }, [showDetail, setFocus]);
 
   // Get unique agents for filter
   const agents = useMemo(() => {
