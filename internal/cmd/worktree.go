@@ -89,7 +89,7 @@ func init() {
 	worktreeCmd.AddCommand(worktreeCheckCmd)
 	worktreeCmd.AddCommand(worktreeListCmd)
 	worktreeCmd.AddCommand(worktreePruneCmd)
-	worktreeListCmd.Flags().BoolVar(&worktreeListOrphan, "orphaned", false, "Show only orphaned worktrees")
+	worktreeListCmd.Flags().BoolVarP(&worktreeListOrphan, "orphaned", "o", false, "Show only orphaned worktrees")
 	worktreePruneCmd.Flags().BoolVarP(&worktreePruneForce, "force", "f", false, "Actually remove orphaned worktrees (default is dry-run)")
 }
 
