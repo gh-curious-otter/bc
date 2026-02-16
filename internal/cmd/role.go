@@ -171,13 +171,17 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 	}
 
 	// Load agents to count per role
+	// #968 fix: Must call RefreshState() to sync with tmux sessions,
+	// otherwise agent list is empty/stale (same pattern as runStatus)
 	agentCounts := make(map[string]int)
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
 	if loadErr := mgr.LoadState(); loadErr == nil {
-		agents := mgr.ListAgents()
-		for _, ag := range agents {
-			agentRole := string(ag.Role)
-			agentCounts[agentRole]++
+		if refreshErr := mgr.RefreshState(); refreshErr == nil {
+			agents := mgr.ListAgents()
+			for _, ag := range agents {
+				agentRole := string(ag.Role)
+				agentCounts[agentRole]++
+			}
 		}
 	}
 
