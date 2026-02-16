@@ -5,6 +5,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { getWorkspaces } from '../services/bc';
+import { useFocus } from '../navigation/FocusContext';
+import { useNavigation } from '../navigation/NavigationContext';
 import type { DiscoveredWorkspace } from '../types';
 
 interface WorkspaceSelectorViewProps {
@@ -25,10 +27,11 @@ function formatPath(fullPath: string): string {
 
 export const WorkspaceSelectorView: React.FC<WorkspaceSelectorViewProps> = ({
   onSelect,
-  onBack,
 }) => {
   const { stdout } = useStdout();
   const terminalWidth = stdout.columns;
+  const { setFocus } = useFocus();
+  const { goHome } = useNavigation();
 
   const [workspaces, setWorkspaces] = useState<DiscoveredWorkspace[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,6 +39,11 @@ export const WorkspaceSelectorView: React.FC<WorkspaceSelectorViewProps> = ({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showDetail, setShowDetail] = useState(false);
   const [filterV2Only, setFilterV2Only] = useState(false);
+
+  // Set focus to view on mount for ESC hierarchy
+  useEffect(() => {
+    setFocus('view');
+  }, [setFocus]);
 
   const fetchWorkspaces = useCallback(async () => {
     try {
@@ -105,7 +113,8 @@ export const WorkspaceSelectorView: React.FC<WorkspaceSelectorViewProps> = ({
     } else if (input === 'r') {
       void fetchWorkspaces();
     } else if (input === 'q' || key.escape) {
-      onBack?.();
+      setFocus('main');
+      goHome();
     }
   });
 
