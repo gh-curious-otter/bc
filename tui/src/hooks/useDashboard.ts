@@ -122,7 +122,7 @@ export function useDashboard() {
         error: null,
       });
     } else {
-      const error = channelsResult.reason;
+      const error: unknown = channelsResult.reason;
       setChannels({
         data: [],
         isLoading: false,
@@ -220,10 +220,10 @@ function formatTime(isoString: string | undefined): string {
     const diffMins = Math.floor(diffMs / 60000);
 
     if (diffMins < 1) return 'now';
-    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffMins < 60) return `${String(diffMins)}m ago`;
 
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffHours < 24) return `${String(diffHours)}h ago`;
 
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   } catch {

@@ -72,7 +72,7 @@ export async function execBc(args: string[]): Promise<string> {
       if (code === 0) {
         resolve(stdout.trim());
       } else {
-        reject(new Error(stderr || `bc command failed with code ${code}`));
+        reject(new Error(stderr || `bc command failed with code ${String(code ?? 'unknown')}`));
       }
     });
 
