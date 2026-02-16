@@ -120,8 +120,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             </Box>
           </Box>
 
-          {/* Message body with @mentions */}
-          <Box width="100%">
+          {/* Message body with @mentions - #915 fix: use flexGrow+minHeight instead of width */}
+          <Box flexGrow={1} minHeight={1}>
             <MentionText text={message} currentUser={currentUser} />
           </Box>
 
