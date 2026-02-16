@@ -8,6 +8,8 @@ export interface PanelProps {
   focused?: boolean;
   width?: number | string;
   height?: number | string;
+  /** Minimum height to prevent collapse at narrow widths */
+  minHeight?: number;
 }
 
 /**
@@ -21,7 +23,12 @@ export function Panel({
   focused = false,
   width,
   height,
+  minHeight,
 }: PanelProps) {
+  // #984 fix: Calculate minimum height to prevent panel collapse at narrow widths
+  // Default minHeight ensures title + at least 1 line of content is visible
+  const effectiveMinHeight = minHeight ?? (title ? 4 : 3);
+
   return (
     <Box
       flexDirection="column"
@@ -29,13 +36,13 @@ export function Panel({
       borderColor={focused ? 'blue' : borderColor}
       width={width}
       height={height}
+      minHeight={effectiveMinHeight}
       paddingX={1}
       marginBottom={1}
+      overflow="hidden"
     >
       {title && (
-        <Box marginBottom={1}>
-          <Text bold>{title}</Text>
-        </Box>
+        <Text bold wrap="truncate">{title}</Text>
       )}
       {children}
     </Box>
