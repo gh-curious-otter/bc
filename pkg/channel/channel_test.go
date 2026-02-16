@@ -411,6 +411,40 @@ func TestGetHistoryEmpty(t *testing.T) {
 	}
 }
 
+func TestGetHistoryIncludesReactions(t *testing.T) {
+	s := newTestStore(t)
+	if _, err := s.Create("ch"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddHistory("ch", "alice", "hello"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Add a reaction to the message
+	if err := s.AddReaction("ch", 0, "👍", "bob"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Get history and verify reaction is included
+	history, err := s.GetHistory("ch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(history) != 1 {
+		t.Fatalf("history len = %d, want 1", len(history))
+	}
+
+	// Check reactions are populated
+	if history[0].Reactions == nil {
+		t.Fatal("expected Reactions to be populated, got nil")
+	}
+	if users, ok := history[0].Reactions["👍"]; !ok {
+		t.Error("expected 👍 reaction to be present")
+	} else if len(users) != 1 || users[0] != "bob" {
+		t.Errorf("expected [bob] for 👍, got %v", users)
+	}
+}
+
 // --- Load / Save round-trip ---
 
 func TestSaveAndLoad(t *testing.T) {
