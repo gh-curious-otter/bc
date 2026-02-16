@@ -26,7 +26,7 @@ export interface UseKeyboardNavigationOptions {
  */
 export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}): void {
   const { disabled = false, onQuit, onRefresh } = options;
-  const { navigate, goHome, getTabByKey, nextTab, prevTab } = useNavigation();
+  const { navigate, goHome, getTabByKey, nextTab, prevTab, breadcrumbs } = useNavigation();
   const { isFocused } = useFocus();
 
   useInput(
@@ -65,9 +65,15 @@ export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}
         return;
       }
 
-      // ESC: go home
+      // ESC: go back if in sub-view (breadcrumbs exist), otherwise go home
+      // When viewing channel history, agent details, etc., breadcrumbs are set.
+      // ESC should return to the parent view (handled by the component), not dashboard.
+      // Only go home if no breadcrumbs exist (already at top level of a tab).
       if (key.escape) {
-        goHome();
+        if (breadcrumbs.length === 0) {
+          goHome();
+        }
+        // If breadcrumbs exist, let the component handle ESC to go back
         return;
       }
 

@@ -564,3 +564,68 @@ describe('Confirmation Dialog State', () => {
     expect(pendingAction.get()).toBeNull();
   });
 });
+
+/**
+ * Issue #884: ESC Navigation Behavior
+ *
+ * When in a sub-view (with breadcrumbs), ESC should go back to parent view,
+ * not to the dashboard. Only when at top level (no breadcrumbs) should ESC
+ * navigate to dashboard.
+ */
+describe('ESC Navigation with Breadcrumbs (#884)', () => {
+  it('goes to dashboard when no breadcrumbs exist', () => {
+    const breadcrumbs = mockState<string[]>([]);
+    const currentView = mockState<'dashboard' | 'channels' | 'agents'>('channels');
+
+    // ESC pressed with no breadcrumbs - should go home
+    if (breadcrumbs.get().length === 0) {
+      currentView.set('dashboard');
+    }
+
+    expect(currentView.get()).toBe('dashboard');
+  });
+
+  it('does not go to dashboard when breadcrumbs exist', () => {
+    const breadcrumbs = mockState<string[]>(['#eng']);
+    const currentView = mockState<'dashboard' | 'channels' | 'agents'>('channels');
+    const viewMode = mockState<'list' | 'history'>('history');
+
+    // ESC pressed with breadcrumbs - should NOT go to dashboard
+    // Component handles returning to list view
+    if (breadcrumbs.get().length === 0) {
+      currentView.set('dashboard');
+    } else {
+      // Component handles ESC - go back to list
+      viewMode.set('list');
+      breadcrumbs.set([]);
+    }
+
+    expect(currentView.get()).toBe('channels'); // Still on channels
+    expect(viewMode.get()).toBe('list'); // But now in list mode
+    expect(breadcrumbs.get()).toEqual([]); // Breadcrumbs cleared
+  });
+
+  it('channel history view sets breadcrumbs on entry', () => {
+    const breadcrumbs = mockState<string[]>([]);
+    const viewMode = mockState<'list' | 'history'>('list');
+
+    // Enter channel history
+    viewMode.set('history');
+    breadcrumbs.set(['#eng']);
+
+    expect(viewMode.get()).toBe('history');
+    expect(breadcrumbs.get()).toEqual(['#eng']);
+  });
+
+  it('channel history view clears breadcrumbs on exit', () => {
+    const breadcrumbs = mockState<string[]>(['#eng']);
+    const viewMode = mockState<'list' | 'history'>('history');
+
+    // Exit to list
+    viewMode.set('list');
+    breadcrumbs.set([]);
+
+    expect(viewMode.get()).toBe('list');
+    expect(breadcrumbs.get()).toEqual([]);
+  });
+});
