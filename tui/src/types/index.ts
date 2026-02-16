@@ -194,3 +194,16 @@ export interface Team {
 export interface TeamsResponse {
   teams: Team[];
 }
+
+// Worktree types
+export type WorktreeStatus = 'OK' | 'MISSING' | 'ORPHANED';
+
+export interface Worktree {
+  agent: string;
+  path: string;
+  status: WorktreeStatus;
+  branch?: string;
+}
+
+// Response from bc worktree list --json
+export type WorktreeListResponse = Worktree[];

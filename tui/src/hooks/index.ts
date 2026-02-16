@@ -102,3 +102,9 @@ export {
   type UseLogsResult,
   type LogSeverity,
 } from './useLogs';
+
+export {
+  useWorktrees,
+  type UseWorktreesOptions,
+  type UseWorktreesResult,
+} from './useWorktrees';

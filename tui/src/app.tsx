@@ -18,6 +18,7 @@ import { UnreadProvider } from './hooks';
 import { Dashboard } from './views/Dashboard';
 import { AgentsView } from './views/AgentsView';
 import { CommandsView } from './views/CommandsView';
+import { WorktreesView } from './views/WorktreesView';
 import { ChannelsView } from './components/ChannelsView';
 import { CostsView } from './components/CostsView';
 
@@ -100,6 +101,8 @@ function ViewContent({ view, disableInput }: ViewContentProps): React.ReactEleme
       return <CostsView disableInput={disableInput} />;
     case 'commands':
       return <CommandsView disableInput={disableInput} />;
+    case 'worktrees':
+      return <WorktreesView />;
     case 'help':
       return <HelpView />;
     default:
