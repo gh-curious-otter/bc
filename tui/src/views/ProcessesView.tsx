@@ -29,13 +29,13 @@ function formatUptime(startedAt: string): string {
   const days = Math.floor(hours / 24);
 
   if (days > 0) {
-    return `${days}d ${hours % 24}h`;
+    return `${String(days)}d ${String(hours % 24)}h`;
   } else if (hours > 0) {
-    return `${hours}h ${minutes % 60}m`;
+    return `${String(hours)}h ${String(minutes % 60)}m`;
   } else if (minutes > 0) {
-    return `${minutes}m ${seconds % 60}s`;
+    return `${String(minutes)}m ${String(seconds % 60)}s`;
   } else {
-    return `${seconds}s`;
+    return `${String(seconds)}s`;
   }
 }
 
@@ -43,7 +43,7 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
   const { data: processes, loading, error, refresh } = useProcesses();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showLogs, setShowLogs] = useState(false);
-  const processList = processes || [];
+  const processList = processes ?? [];
 
   const selectedProcess = processList[selectedIndex];
 
@@ -63,11 +63,9 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
     } else if (key.downArrow || input === 'j') {
       setSelectedIndex((i) => Math.min(processList.length - 1, i + 1));
     } else if (key.return || input === 'l') {
-      if (selectedProcess) {
-        setShowLogs(true);
-      }
+      setShowLogs(true);
     } else if (input === 'r') {
-      refresh();
+      void refresh();
     } else if (input === 'q' || key.escape) {
       onBack?.();
     }
@@ -97,7 +95,7 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
       key: 'port',
       header: 'Port',
       width: 8,
-      render: (proc) => <Text>{proc.port || '-'}</Text>,
+      render: (proc) => <Text>{proc.port ?? '-'}</Text>,
     },
     {
       key: 'started_at',
@@ -134,7 +132,7 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
   }
 
   // Show log viewer
-  if (showLogs && selectedProcess) {
+  if (showLogs) {
     return (
       <ProcessLogViewer
         process={selectedProcess}
@@ -167,25 +165,23 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
           />
 
           {/* Process Details */}
-          {selectedProcess && (
-            <Box marginTop={1} flexDirection="column">
-              <Text bold color="cyan">Details</Text>
-              <Box marginLeft={1} flexDirection="column">
-                <Text>
-                  <Text dimColor>Owner: </Text>
-                  {selectedProcess.owner || 'system'}
-                </Text>
-                <Text>
-                  <Text dimColor>Work Dir: </Text>
-                  {selectedProcess.work_dir || '-'}
-                </Text>
-                <Text>
-                  <Text dimColor>Log File: </Text>
-                  {selectedProcess.log_file || '-'}
-                </Text>
-              </Box>
+          <Box marginTop={1} flexDirection="column">
+            <Text bold color="cyan">Details</Text>
+            <Box marginLeft={1} flexDirection="column">
+              <Text>
+                <Text dimColor>Owner: </Text>
+                {selectedProcess.owner ?? 'system'}
+              </Text>
+              <Text>
+                <Text dimColor>Work Dir: </Text>
+                {selectedProcess.work_dir ?? '-'}
+              </Text>
+              <Text>
+                <Text dimColor>Log File: </Text>
+                {selectedProcess.log_file ?? '-'}
+              </Text>
             </Box>
-          )}
+          </Box>
         </>
       )}
 
@@ -212,7 +208,7 @@ function ProcessLogViewer({ process, onBack }: ProcessLogViewerProps) {
   const [scrollOffset, setScrollOffset] = useState(0);
   const maxVisibleLines = 15;
 
-  const logLines = logs || [];
+  const logLines = logs ?? [];
   const visibleLogs = logLines.slice(
     scrollOffset,
     scrollOffset + maxVisibleLines
@@ -231,7 +227,7 @@ function ProcessLogViewer({ process, onBack }: ProcessLogViewerProps) {
     } else if (input === 'G') {
       setScrollOffset(Math.max(0, logLines.length - maxVisibleLines));
     } else if (input === 'r') {
-      refresh();
+      void refresh();
     } else if (input === 'q' || key.escape) {
       onBack();
     }
