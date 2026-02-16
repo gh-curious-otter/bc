@@ -46,3 +46,7 @@ export type { MentionAutocompleteProps } from './MentionAutocomplete';
 // Activity feed (eng-01 #796)
 export { ActivityFeed } from './ActivityFeed';
 export type { ActivityFeedProps } from './ActivityFeed';
+
+// Members panel (eng-01 #847)
+export { MembersPanel, MemberCountBadge } from './MembersPanel';
+export type { MembersPanelProps, MemberInfo, MemberCountBadgeProps } from './MembersPanel';
