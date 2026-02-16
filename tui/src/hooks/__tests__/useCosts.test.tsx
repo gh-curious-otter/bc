@@ -122,17 +122,17 @@ describe('Cost Data Validation', () => {
   });
 
   test('agent costs sum matches total', () => {
-    const sum = mockAgentCosts.reduce((acc, a) => acc + a.total_cost, 0);
+    const sum = mockAgentCosts.reduce((acc: number, a) => acc + (a.total_cost ?? 0), 0);
     expect(sum).toBeCloseTo(mockCostSummary.total_cost, 2);
   });
 
   test('input tokens sum matches total', () => {
-    const sum = mockAgentCosts.reduce((acc, a) => acc + a.input_tokens, 0);
+    const sum = mockAgentCosts.reduce((acc: number, a) => acc + (a.input_tokens ?? 0), 0);
     expect(sum).toBe(mockCostSummary.total_input_tokens);
   });
 
   test('output tokens sum matches total', () => {
-    const sum = mockAgentCosts.reduce((acc, a) => acc + a.output_tokens, 0);
+    const sum = mockAgentCosts.reduce((acc: number, a) => acc + (a.output_tokens ?? 0), 0);
     expect(sum).toBe(mockCostSummary.total_output_tokens);
   });
 });
