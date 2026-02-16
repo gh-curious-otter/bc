@@ -232,3 +232,70 @@ func (s *Store) save(team *Team) error {
 func (s *Store) teamPath(name string) string {
 	return filepath.Join(s.teamsDir, name+".json")
 }
+
+// OrphanedMember represents a member that references a non-existent agent.
+type OrphanedMember struct {
+	TeamName   string
+	MemberName string
+	IsLead     bool
+}
+
+// FindOrphanedMembers finds all team members that reference non-existent agents.
+// The agentExists function is called to check if each agent exists.
+func (s *Store) FindOrphanedMembers(agentExists func(name string) bool) ([]OrphanedMember, error) {
+	teams, err := s.List()
+	if err != nil {
+		return nil, err
+	}
+
+	var orphans []OrphanedMember
+	for _, t := range teams {
+		// Check members
+		for _, member := range t.Members {
+			if !agentExists(member) {
+				orphans = append(orphans, OrphanedMember{
+					TeamName:   t.Name,
+					MemberName: member,
+					IsLead:     false,
+				})
+			}
+		}
+		// Check lead
+		if t.Lead != "" && !agentExists(t.Lead) {
+			orphans = append(orphans, OrphanedMember{
+				TeamName:   t.Name,
+				MemberName: t.Lead,
+				IsLead:     true,
+			})
+		}
+	}
+
+	return orphans, nil
+}
+
+// CleanupOrphanedMembers removes all team members that reference non-existent agents.
+// Returns the number of orphaned members removed.
+func (s *Store) CleanupOrphanedMembers(agentExists func(name string) bool) (int, error) {
+	orphans, err := s.FindOrphanedMembers(agentExists)
+	if err != nil {
+		return 0, err
+	}
+
+	removed := 0
+	for _, orphan := range orphans {
+		if orphan.IsLead {
+			if err := s.SetLead(orphan.TeamName, ""); err != nil {
+				return removed, fmt.Errorf("failed to clear orphaned lead %s from team %s: %w",
+					orphan.MemberName, orphan.TeamName, err)
+			}
+		} else {
+			if err := s.RemoveMember(orphan.TeamName, orphan.MemberName); err != nil {
+				return removed, fmt.Errorf("failed to remove orphaned member %s from team %s: %w",
+					orphan.MemberName, orphan.TeamName, err)
+			}
+		}
+		removed++
+	}
+
+	return removed, nil
+}
