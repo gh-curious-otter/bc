@@ -50,7 +50,7 @@ export function Table<T>({
       {/* Header Row */}
       <Box borderStyle="single" borderBottom={false}>
         {columns.map((col, i) => (
-          <Box key={i} width={col.width || 15} paddingRight={1}>
+          <Box key={i} width={col.width ?? 15} paddingRight={1}>
             <Text bold color="cyan">
               {col.header}
             </Text>
@@ -98,7 +98,7 @@ const TableRow = memo(function TableRow<T>({
   return (
     <Box borderStyle={isSelected ? 'double' : undefined}>
       {columns.map((col, colIndex) => (
-        <Box key={colIndex} width={col.width || 15} paddingRight={1}>
+        <Box key={colIndex} width={col.width ?? 15} paddingRight={1}>
           {col.render ? (
             col.render(item, rowIndex)
           ) : (

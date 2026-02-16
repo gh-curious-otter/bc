@@ -117,14 +117,14 @@ export function TeamsView({ onBack }: TeamsViewProps) {
                 header: 'LEAD',
                 width: 15,
                 render: (value) => (
-                  <Text color="green">{(value as string) || '-'}</Text>
+                  <Text color="green">{(value as string) ?? '-'}</Text>
                 ),
               },
               {
                 key: 'description',
                 header: 'DESCRIPTION',
                 render: (value) => (
-                  <Text dimColor>{truncate((value as string) || '-', 30)}</Text>
+                  <Text dimColor>{truncate((value as string) ?? '-', 30)}</Text>
                 ),
               },
             ]}
@@ -179,7 +179,7 @@ function TeamDetails({ team }: TeamDetailsProps) {
         )}
 
         <Box marginTop={1}>
-          <Text dimColor>Members ({team.members.length}):</Text>
+          <Text dimColor>Members ({String(team.members.length)}):</Text>
         </Box>
 
         {team.members.length > 0 ? (

@@ -68,6 +68,15 @@ export function MessageHistory({
     }
   });
 
+  // Memoize visible slice to prevent recalculation on every render
+  // Note: useMemo must be called before any early returns
+  const visibleSlice = useMemo(
+    () => messageList.slice(scrollOffset, scrollOffset + visibleMessages),
+    [messageList, scrollOffset, visibleMessages]
+  );
+  const canScrollUp = scrollOffset > 0;
+  const canScrollDown = scrollOffset < messageCount - visibleMessages;
+
   if (isLoading && messageCount === 0) {
     return (
       <Box flexDirection="column" padding={1}>
@@ -80,18 +89,10 @@ export function MessageHistory({
     return (
       <Box flexDirection="column" padding={1}>
         <Text color="red">Error: {error}</Text>
-        <Text dimColor>Press 'q' to go back</Text>
+        <Text dimColor>Press &apos;q&apos; to go back</Text>
       </Box>
     );
   }
-
-  // Memoize visible slice to prevent recalculation on every render
-  const visibleSlice = useMemo(
-    () => messageList.slice(scrollOffset, scrollOffset + visibleMessages),
-    [messageList, scrollOffset, visibleMessages]
-  );
-  const canScrollUp = scrollOffset > 0;
-  const canScrollDown = scrollOffset < messageCount - visibleMessages;
 
   return (
     <Box flexDirection="column" padding={1}>
@@ -124,7 +125,7 @@ export function MessageHistory({
         ) : (
           visibleSlice.map((msg, idx) => (
             <MessageItem
-              key={`${msg.time}-${idx}`}
+              key={`${msg.time}-${String(idx)}`}
               message={msg}
               isFirst={scrollOffset + idx === 0}
             />

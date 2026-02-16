@@ -113,20 +113,23 @@ export function DemonsView({
       if (selectedDemon) {
         if (input === 'e') {
           // Enable demon
-          enable(selectedDemon.name).catch((err: Error) => {
-            setActionError(`Enable failed: ${err.message}`);
+          enable(selectedDemon.name).catch((err: unknown) => {
+            const message = err instanceof Error ? err.message : String(err);
+            setActionError(`Enable failed: ${message}`);
           });
         }
         if (input === 'd') {
           // Disable demon
-          disable(selectedDemon.name).catch((err: Error) => {
-            setActionError(`Disable failed: ${err.message}`);
+          disable(selectedDemon.name).catch((err: unknown) => {
+            const message = err instanceof Error ? err.message : String(err);
+            setActionError(`Disable failed: ${message}`);
           });
         }
         if (input === 'x') {
           // Execute demon
-          run(selectedDemon.name).catch((err: Error) => {
-            setActionError(`Run failed: ${err.message}`);
+          run(selectedDemon.name).catch((err: unknown) => {
+            const message = err instanceof Error ? err.message : String(err);
+            setActionError(`Run failed: ${message}`);
           });
         }
       }

@@ -110,7 +110,7 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
       header: 'Command',
       width: 30,
       render: (proc) => (
-        <Text wrap="truncate">{proc.command.slice(0, 28) || '-'}</Text>
+        <Text wrap="truncate">{proc.command ? proc.command.slice(0, 28) : '-'}</Text>
       ),
     },
   ];
@@ -165,23 +165,25 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
           />
 
           {/* Process Details */}
-          <Box marginTop={1} flexDirection="column">
-            <Text bold color="cyan">Details</Text>
-            <Box marginLeft={1} flexDirection="column">
-              <Text>
-                <Text dimColor>Owner: </Text>
-                {selectedProcess.owner ?? 'system'}
-              </Text>
-              <Text>
-                <Text dimColor>Work Dir: </Text>
-                {selectedProcess.work_dir ?? '-'}
-              </Text>
-              <Text>
-                <Text dimColor>Log File: </Text>
-                {selectedProcess.log_file ?? '-'}
-              </Text>
+          {selectedProcess && (
+            <Box marginTop={1} flexDirection="column">
+              <Text bold color="cyan">Details</Text>
+              <Box marginLeft={1} flexDirection="column">
+                <Text>
+                  <Text dimColor>Owner: </Text>
+                  {selectedProcess.owner ?? 'system'}
+                </Text>
+                <Text>
+                  <Text dimColor>Work Dir: </Text>
+                  {selectedProcess.work_dir ?? '-'}
+                </Text>
+                <Text>
+                  <Text dimColor>Log File: </Text>
+                  {selectedProcess.log_file ?? '-'}
+                </Text>
+              </Box>
             </Box>
-          </Box>
+          )}
         </>
       )}
 
@@ -241,7 +243,7 @@ function ProcessLogViewer({ process, onBack }: ProcessLogViewerProps) {
           Logs: {process.name}
         </Text>
         {loading && <Text color="gray"> (loading...)</Text>}
-        <Text dimColor> [{scrollOffset + 1}-{Math.min(scrollOffset + maxVisibleLines, logLines.length)}/{logLines.length}]</Text>
+        <Text dimColor> [{String(scrollOffset + 1)}-{String(Math.min(scrollOffset + maxVisibleLines, logLines.length))}/{String(logLines.length)}]</Text>
       </Box>
 
       {error ? (

@@ -383,6 +383,11 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 		return nil, fmt.Errorf("agent name %q contains invalid characters (use letters, numbers, dash, underscore)", name)
 	}
 
+	// Validate role is not empty or null-like
+	if role == "" || role == "null" || role == "<nil>" {
+		return nil, fmt.Errorf("role is required and cannot be empty or null")
+	}
+
 	// Enforce root singleton constraint
 	if role == RoleRoot {
 		if err := m.enforceRootSingleton(workspace); err != nil {

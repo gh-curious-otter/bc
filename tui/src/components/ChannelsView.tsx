@@ -184,7 +184,7 @@ function ChannelHistoryView({
   }, [channel.name, messages, markViewed]);
 
   // Calculate dynamic input height based on message length
-  const terminalWidth = stdout.columns ?? 80;
+  const terminalWidth = stdout ? stdout.columns : 80;
   const inputHeight = useMemo(
     () => calculateInputHeight(messageBuffer.length, terminalWidth),
     [messageBuffer.length, terminalWidth]
@@ -220,8 +220,9 @@ function ChannelHistoryView({
       if (inputMode) {
         if (key.return) {
           if (messageBuffer.trim()) {
-            send(messageBuffer.trim()).catch((err: Error) => {
-              setSendError(`Send failed: ${err.message}`);
+            send(messageBuffer.trim()).catch((err: unknown) => {
+              const message = err instanceof Error ? err.message : String(err);
+              setSendError(`Send failed: ${message}`);
             });
             setMessageBuffer('');
           }
@@ -283,7 +284,7 @@ function ChannelHistoryView({
             {hasMoreAbove && <Text dimColor>↑ more messages above</Text>}
             {displayMessages.map((msg, index) => (
               <ChatMessage
-                key={`${msg.time}-${index}`}
+                key={`${msg.time}-${String(index)}`}
                 sender={msg.sender}
                 message={msg.message}
                 timestamp={msg.time}

@@ -27,7 +27,7 @@ export const MentionText: React.FC<MentionTextProps> = ({
     // Add text before the mention
     if (match.index > lastIndex) {
       parts.push(
-        <Text key={`text-${lastIndex}`}>
+        <Text key={`text-${String(lastIndex)}`}>
           {text.slice(lastIndex, match.index)}
         </Text>
       );
@@ -42,19 +42,19 @@ export const MentionText: React.FC<MentionTextProps> = ({
 
     if (isBroadcast) {
       parts.push(
-        <Text key={`mention-${match.index}`} color="yellow" bold>
+        <Text key={`mention-${String(match.index)}`} color="yellow" bold>
           {mention}
         </Text>
       );
     } else if (isSelfMention) {
       parts.push(
-        <Text key={`mention-${match.index}`} color="cyan" bold inverse>
+        <Text key={`mention-${String(match.index)}`} color="cyan" bold inverse>
           {mention}
         </Text>
       );
     } else {
       parts.push(
-        <Text key={`mention-${match.index}`} color="cyan">
+        <Text key={`mention-${String(match.index)}`} color="cyan">
           {mention}
         </Text>
       );
@@ -66,7 +66,7 @@ export const MentionText: React.FC<MentionTextProps> = ({
   // Add remaining text
   if (lastIndex < text.length) {
     parts.push(
-      <Text key={`text-${lastIndex}`}>
+      <Text key={`text-${String(lastIndex)}`}>
         {text.slice(lastIndex)}
       </Text>
     );

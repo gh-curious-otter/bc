@@ -43,7 +43,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
 
   useEffect(() => {
     setLoading(true);
-    fetchAgentOutput().finally(() => { setLoading(false); });
+    void fetchAgentOutput().finally(() => { setLoading(false); });
   }, [fetchAgentOutput]);
 
   useEffect(() => {
