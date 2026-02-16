@@ -40,12 +40,20 @@ Key features:
   • Hierarchical agent roles (product-manager, manager, engineer)
 
 Documentation: https://github.com/rpuneet/bc`,
-	// PersistentPreRun initializes logging based on flags
+	// PersistentPreRun initializes logging and profiling based on flags
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		verbose, err := cmd.Flags().GetBool("verbose")
 		if err == nil {
 			log.SetVerbose(verbose)
 		}
+		// Start profiling if requested
+		if err := setupProfiling(); err != nil {
+			log.Error("failed to start profiling", "error", err)
+		}
+	},
+	// PersistentPostRun cleans up profiling
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		stopProfiling()
 	},
 	// Run with no args shows help
 	Run: func(cmd *cobra.Command, args []string) {
@@ -79,6 +87,9 @@ func init() {
 
 	// Version flag
 	rootCmd.Flags().BoolP("version", "V", false, "Print version information")
+
+	// Profiling flags
+	registerProfileFlags()
 
 	// Add subcommands
 	rootCmd.AddCommand(versionCmd)
