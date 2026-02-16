@@ -142,6 +142,12 @@ func (rm *RoleManager) loadRoleFromPath(filePath string) (*Role, error) {
 
 	role.FilePath = filePath
 
+	// If role name is empty (no frontmatter or missing name field),
+	// derive it from the filename as a fallback
+	if role.Metadata.Name == "" {
+		role.Metadata.Name = strings.TrimSuffix(filepath.Base(filePath), ".md")
+	}
+
 	// Cache the role
 	rm.roles[role.Metadata.Name] = role
 
