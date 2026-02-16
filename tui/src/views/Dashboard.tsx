@@ -86,7 +86,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         outputTokens={summary.outputTokens}
       />
 
-      {/* Main Content - Two column layout */}
+      {/* Main Content - Two column layout (responsive) */}
       <Box marginTop={1}>
         {/* Left column - Main panels */}
         <Box flexDirection="column" flexGrow={1}>
@@ -100,8 +100,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           <ChannelsPanel channels={channels.data ?? []} />
         </Box>
 
-        {/* Right column - Activity feed (compact) */}
-        <Box flexDirection="column" width={45} marginLeft={1}>
+        {/* Right column - Activity feed (responsive width: min 30, max 45) */}
+        <Box flexDirection="column" width={Math.min(45, Math.max(30, Math.floor((terminalWidth - 4) * 0.35)))} marginLeft={1}>
           <ActivityFeed maxEntries={10} compact showFilterHints={false} />
         </Box>
       </Box>
