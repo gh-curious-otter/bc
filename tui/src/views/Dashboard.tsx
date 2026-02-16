@@ -284,7 +284,7 @@ const AgentsPanel = memo(function AgentsPanel({ agents }: AgentsPanelProps) {
           />
           {hasMore && (
             <Text dimColor>
-              ... and {agents.length - 5} more (press 'a' to view all)
+              ... and {agents.length - 5} more (press [a] to view all)
             </Text>
           )}
         </>
@@ -325,7 +325,7 @@ const ChannelsPanel = memo(function ChannelsPanel({ channels }: ChannelsPanelPro
           ))}
           {channels.length > 5 && (
             <Text dimColor>
-              ... and {channels.length - 5} more (press 'c' to view all)
+              ... and {channels.length - 5} more (press [c] to view all)
             </Text>
           )}
         </Box>

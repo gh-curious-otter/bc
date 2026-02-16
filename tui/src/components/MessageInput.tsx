@@ -138,7 +138,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           </Box>
         ) : (
           <Text color="gray">
-            Press 'i' to type a message
+            Press [i] to type a message
             {channelName && <Text> to #{channelName}</Text>}
           </Text>
         )}

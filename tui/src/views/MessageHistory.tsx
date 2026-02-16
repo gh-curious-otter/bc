@@ -80,7 +80,7 @@ export function MessageHistory({
     return (
       <Box flexDirection="column" padding={1}>
         <Text color="red">Error: {error}</Text>
-        <Text dimColor>Press 'q' to go back</Text>
+        <Text dimColor>Press [q] to go back</Text>
       </Box>
     );
   }

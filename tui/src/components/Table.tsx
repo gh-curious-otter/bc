@@ -34,7 +34,7 @@ export function Table<T>({
   scrollOffset = 0,
 }: TableProps<T>) {
   const { stdout } = useStdout();
-  const terminalWidth = stdout?.columns ?? 80;
+  const terminalWidth = stdout.columns ?? 80;
 
   // Calculate responsive column widths
   const responsiveColumns = useMemo(() => {
