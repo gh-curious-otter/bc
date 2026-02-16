@@ -104,7 +104,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
             <Text bold color="cyan">
               {agent.name}
             </Text>
-            <Text dimColor> | Role: {agent.role ?? 'none'}</Text>
+            <Text dimColor> | Role: {agent.role}</Text>
           </Box>
           <Box marginTop={1}>
             <Text>State: </Text>

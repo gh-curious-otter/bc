@@ -109,8 +109,7 @@ export function DemonsView({
       }
 
       // Demon-specific actions
-      const selectedDemon = demons[selectedIndex];
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list
+      const selectedDemon = demons[selectedIndex] as typeof demons[number] | undefined;
       if (selectedDemon) {
         if (input === 'e') {
           // Enable demon

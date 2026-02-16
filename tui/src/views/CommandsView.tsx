@@ -30,7 +30,7 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
 
   // Clamp selectedIndex to valid range whenever filteredCommands changes
   const validatedIndex = Math.min(selectedIndex, Math.max(0, filteredCommands.length - 1));
-  const selectedCommand = filteredCommands[validatedIndex];
+  const selectedCommand = filteredCommands[validatedIndex] as typeof filteredCommands[number] | undefined;
 
   // Reset selection when search results change
   React.useEffect(() => {
@@ -130,7 +130,6 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
       </Box>
 
       {/* Command preview */}
-      {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list */}
       {selectedCommand !== undefined && filteredCommands.length > 0 && (
         <Box flexDirection="column" marginBottom={1} paddingX={1} borderStyle="single" borderColor="gray">
           <Text bold color="cyan">{selectedCommand.name}</Text>

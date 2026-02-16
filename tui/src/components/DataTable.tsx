@@ -37,7 +37,7 @@ export function DataTable<T extends Record<string, unknown>>({
   scrollOffset = 0,
 }: DataTableProps<T>) {
   const { stdout } = useStdout();
-  const terminalWidth = stdout ? stdout.columns : 80;
+  const terminalWidth = stdout.columns;
 
   // Apply virtualization if maxVisibleRows is specified
   // Note: useMemo must be called before any early returns
