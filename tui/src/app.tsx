@@ -18,6 +18,7 @@ import { UnreadProvider } from './hooks';
 import { Dashboard } from './views/Dashboard';
 import { AgentsView } from './views/AgentsView';
 import { CommandsView } from './views/CommandsView';
+import { LogsView } from './views/LogsView';
 import { RolesView } from './views/RolesView';
 import { ChannelsView } from './components/ChannelsView';
 import { CostsView } from './components/CostsView';
@@ -101,6 +102,8 @@ function ViewContent({ view, disableInput }: ViewContentProps): React.ReactEleme
       return <CostsView disableInput={disableInput} />;
     case 'commands':
       return <CommandsView disableInput={disableInput} />;
+    case 'logs':
+      return <LogsView disableInput={disableInput} />;
     case 'roles':
       return <RolesView disableInput={disableInput} />;
     case 'help':
@@ -117,7 +120,7 @@ function HelpView(): React.ReactElement {
       <Text bold>Keyboard Shortcuts</Text>
       <Box marginTop={1} flexDirection="column">
         <Text>
-          <Text color="yellow">1-6</Text>       Switch tabs
+          <Text color="yellow">1-7</Text>       Switch tabs
         </Text>
         <Text>
           <Text color="yellow">?</Text>         Show help
