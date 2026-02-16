@@ -204,4 +204,25 @@ describe('RolesView', () => {
       expect(output).toContain('\u25b8');
     });
   });
+
+  // #971 fix: Dynamic name column width tests
+  describe('dynamic name column width', () => {
+    it('shows full role name without truncation for short names', async () => {
+      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      await new Promise((r) => setTimeout(r, 150));
+      const output = lastFrame() ?? '';
+      // 'tech-lead' is 9 chars, should not be truncated
+      expect(output).toContain('tech-lead');
+      expect(output).not.toContain('tech-lea…');
+    });
+
+    it('shows role name without ellipsis when within bounds', async () => {
+      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      await new Promise((r) => setTimeout(r, 150));
+      const output = lastFrame() ?? '';
+      // 'engineer' and 'manager' are short, should not have ellipsis
+      expect(output).toContain('engineer');
+      expect(output).toContain('manager');
+    });
+  });
 });
