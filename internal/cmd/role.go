@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -126,6 +127,42 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 	roles, err := rm.LoadAllRoles()
 	if err != nil {
 		return fmt.Errorf("failed to load roles: %w", err)
+	}
+
+	// Check for JSON output flag
+	jsonOutput, _ := cmd.Flags().GetBool("json")
+	if jsonOutput {
+		// Build JSON response matching TUI RolesResponse type
+		type jsonRole struct {
+			Name         string   `json:"name"`
+			Description  string   `json:"description,omitempty"`
+			Parent       string   `json:"parent,omitempty"`
+			Capabilities []string `json:"capabilities"`
+			AgentCount   int      `json:"agent_count"`
+		}
+		type jsonResponse struct {
+			Roles []jsonRole `json:"roles"`
+		}
+
+		resp := jsonResponse{Roles: make([]jsonRole, 0, len(roles))}
+		for name, role := range roles {
+			caps := role.Metadata.Capabilities
+			if caps == nil {
+				caps = []string{}
+			}
+			parent := ""
+			if len(role.Metadata.ParentRoles) > 0 {
+				parent = role.Metadata.ParentRoles[0]
+			}
+			resp.Roles = append(resp.Roles, jsonRole{
+				Name:         name,
+				Description:  role.Description(),
+				Capabilities: caps,
+				Parent:       parent,
+				AgentCount:   0, // TODO: Count agents with this role
+			})
+		}
+		return json.NewEncoder(os.Stdout).Encode(resp)
 	}
 
 	if len(roles) == 0 {

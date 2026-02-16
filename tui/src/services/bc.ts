@@ -29,7 +29,7 @@ import type {
 export async function execBc(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     // Always add --json flag if not present and command supports it
-    const jsonCommands = ['status', 'stats', 'channel', 'cost', 'logs', 'agent', 'process', 'demon', 'team'];
+    const jsonCommands = ['status', 'stats', 'channel', 'cost', 'logs', 'agent', 'process', 'demon', 'team', 'role', 'worktree'];
     const hasJsonFlag = args.includes('--json');
     const command = args[0];
 
