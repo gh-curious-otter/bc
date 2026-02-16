@@ -130,7 +130,6 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
       </Box>
 
       {/* Command preview */}
-      {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list */}
       {selectedCommand !== undefined && filteredCommands.length > 0 && (
         <Box flexDirection="column" marginBottom={1} paddingX={1} borderStyle="single" borderColor="gray">
           <Text bold color="cyan">{selectedCommand.name}</Text>
