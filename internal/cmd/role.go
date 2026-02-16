@@ -143,6 +143,9 @@ func init() {
 
 	roleDeleteCmd.Flags().BoolVar(&roleForce, "force", false, "Skip confirmation")
 
+	// Register --json flag for role list command (PR #942 follow-up)
+	roleListCmd.Flags().Bool("json", false, "Output in JSON format")
+
 	rootCmd.AddCommand(roleCmd)
 }
 
