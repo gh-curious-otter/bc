@@ -13,19 +13,21 @@ export interface TabConfig {
   key: string;
   view: View;
   label: string;
+  /** Short label for narrow terminals (80-119 cols) */
+  shortLabel?: string;
   shortcut?: string;
 }
 
 export const DEFAULT_TABS: TabConfig[] = [
-  { key: '1', view: 'dashboard', label: 'Dashboard', shortcut: '1' },
-  { key: '2', view: 'agents', label: 'Agents', shortcut: '2' },
-  { key: '3', view: 'channels', label: 'Channels', shortcut: '3' },
-  { key: '4', view: 'costs', label: 'Costs', shortcut: '4' },
-  { key: '5', view: 'commands', label: 'Commands', shortcut: '5' },
-  { key: '6', view: 'roles', label: 'Roles', shortcut: '6' },
-  { key: '7', view: 'logs', label: 'Logs', shortcut: '7' },
-  { key: '8', view: 'worktrees', label: 'Worktrees', shortcut: '8' },
-  { key: '?', view: 'help', label: 'Help', shortcut: '?' },
+  { key: '1', view: 'dashboard', label: 'Dashboard', shortLabel: 'Dash', shortcut: '1' },
+  { key: '2', view: 'agents', label: 'Agents', shortLabel: 'Agt', shortcut: '2' },
+  { key: '3', view: 'channels', label: 'Channels', shortLabel: 'Chan', shortcut: '3' },
+  { key: '4', view: 'costs', label: 'Costs', shortLabel: 'Cost', shortcut: '4' },
+  { key: '5', view: 'commands', label: 'Commands', shortLabel: 'Cmd', shortcut: '5' },
+  { key: '6', view: 'roles', label: 'Roles', shortLabel: 'Role', shortcut: '6' },
+  { key: '7', view: 'logs', label: 'Logs', shortLabel: 'Log', shortcut: '7' },
+  { key: '8', view: 'worktrees', label: 'Worktrees', shortLabel: 'Tree', shortcut: '8' },
+  { key: '?', view: 'help', label: 'Help', shortLabel: '?', shortcut: '?' },
 ];
 
 // Breadcrumb item for showing navigation path
