@@ -561,8 +561,8 @@ func TestAgentStartNotStopped(t *testing.T) {
 		t.Fatalf("agent start should fail for running agent, got: %s", stdout)
 	}
 	output := stderr + stdout
-	if !strings.Contains(output, "not stopped") && !strings.Contains(output, "current state") {
-		t.Errorf("error message should indicate agent is not stopped: %s", output)
+	if !strings.Contains(output, "already running") && !strings.Contains(output, "state:") {
+		t.Errorf("error message should indicate agent is already running: %s", output)
 	}
 }
 
