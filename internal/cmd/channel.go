@@ -201,10 +201,26 @@ func runChannelList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if jsonOutput {
-		// Wrap in object for TUI compatibility
+		// Build enhanced channel list with member counts and descriptions for TUI
+		type ChannelSummary struct {
+			Name        string   `json:"name"`
+			Description string   `json:"description,omitempty"`
+			Members     []string `json:"members"`
+			MemberCount int      `json:"member_count"`
+		}
+		summaries := make([]ChannelSummary, 0, len(channels))
+		for _, ch := range channels {
+			desc, _ := store.GetDescription(ch.Name)
+			summaries = append(summaries, ChannelSummary{
+				Name:        ch.Name,
+				Members:     ch.Members,
+				MemberCount: len(ch.Members),
+				Description: desc,
+			})
+		}
 		response := struct {
-			Channels []*channel.Channel `json:"channels"`
-		}{Channels: channels}
+			Channels []ChannelSummary `json:"channels"`
+		}{Channels: summaries}
 		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")
 		return enc.Encode(response)
@@ -219,15 +235,16 @@ func runChannelList(cmd *cobra.Command, args []string) error {
 	}
 
 	// Table header
-	fmt.Printf("%-20s %s\n", "CHANNEL", "MEMBERS")
-	fmt.Println(strings.Repeat("-", 60))
+	fmt.Printf("%-20s %-8s %s\n", "CHANNEL", "MEMBERS", "DESCRIPTION")
+	fmt.Println(strings.Repeat("-", 70))
 
 	for _, ch := range channels {
-		members := "-"
-		if len(ch.Members) > 0 {
-			members = strings.Join(ch.Members, ", ")
+		memberCount := fmt.Sprintf("(%d)", len(ch.Members))
+		desc := ""
+		if d, _ := store.GetDescription(ch.Name); d != "" {
+			desc = truncateMessage(d, 30)
 		}
-		fmt.Printf("%-20s %s\n", ch.Name, members)
+		fmt.Printf("%-20s %-8s %s\n", ch.Name, memberCount, desc)
 	}
 
 	return nil
