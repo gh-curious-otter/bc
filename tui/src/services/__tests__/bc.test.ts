@@ -133,6 +133,7 @@ describe('execBc - Error handling', () => {
       });
     }, 5);
 
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- Jest/Bun requires await
     await expect(execBc(['invalid'])).rejects.toThrow(/agent not found/);
   });
 
@@ -147,6 +148,7 @@ describe('execBc - Error handling', () => {
       });
     }, 5);
 
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- Jest/Bun requires await
     await expect(execBc(['invalid'])).rejects.toThrow(/Failed to spawn bc/);
   });
 });
@@ -192,6 +194,7 @@ describe('execBcJson - JSON parsing', () => {
       });
     }, 5);
 
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- Jest/Bun requires await
     await expect(execBcJson(['status'])).rejects.toThrow('Failed to parse bc output as JSON');
   });
 
@@ -206,6 +209,7 @@ describe('execBcJson - JSON parsing', () => {
       });
     }, 5);
 
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- Jest/Bun requires await
     await expect(execBcJson(['status'])).rejects.toThrow('Failed to parse bc output as JSON');
   });
 });
