@@ -14,6 +14,8 @@ import type {
   ProcessListResponse,
   TeamsResponse,
   LogEntry,
+  Role,
+  RolesResponse,
 } from '../types';
 
 /**
@@ -350,4 +352,42 @@ export function attachToAgentSession(sessionName: string): void {
   });
   // Exit after attachment ends
   process.exit(0);
+}
+
+/**
+ * Get list of roles
+ */
+export async function getRoles(): Promise<RolesResponse> {
+  try {
+    return await execBcJson<RolesResponse>(['role', 'list']);
+  } catch {
+    return { roles: [] };
+  }
+}
+
+/**
+ * Get role details
+ * @param name - Role name
+ */
+export async function getRole(name: string): Promise<Role | null> {
+  try {
+    return await execBcJson<Role>(['role', 'show', name]);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Delete a role
+ * @param name - Role name
+ */
+export async function deleteRole(name: string): Promise<void> {
+  await execBc(['role', 'delete', name]);
+}
+
+/**
+ * Validate all role files
+ */
+export async function validateRoles(): Promise<string> {
+  return await execBc(['role', 'validate']);
 }
