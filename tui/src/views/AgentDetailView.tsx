@@ -3,6 +3,7 @@ import { Box, Text, useInput as inkUseInput } from 'ink';
 import type { Agent } from '../types';
 import { execBc } from '../services/bc';
 import { StatusBadge } from '../components/StatusBadge';
+import { useFocus } from '../navigation/FocusContext';
 
 // Safe wrapper for useInput that handles test environments
 const useSafeInput = (handler: Parameters<typeof inkUseInput>[0]) => {
@@ -28,6 +29,26 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
   const [inputMode, setInputMode] = useState(false);
   const [messageBuffer, setMessageBuffer] = useState('');
   const [sendStatus, setSendStatus] = useState<string | null>(null);
+  const { setFocus } = useFocus();
+
+  /**
+   * Synchronize focus state with input mode
+   *
+   * When user enters input mode (presses 'i' or 'm'), we set focus to 'input' area.
+   * This prevents global keybinds (q, 1-9, ESC) from triggering during message typing.
+   *
+   * When user exits input mode (presses Enter or Escape), we set focus to 'view'
+   * to keep global navigation disabled while in agent detail view. This ensures that
+   * ESC navigates back to agent list (via onBack) rather than to Dashboard.
+   */
+  useEffect(() => {
+    if (inputMode) {
+      setFocus('input');
+    } else {
+      // Keep focus on 'view' to prevent global ESC from going to Dashboard
+      setFocus('view');
+    }
+  }, [inputMode, setFocus]);
 
   const fetchAgentOutput = useCallback(async () => {
     try {
