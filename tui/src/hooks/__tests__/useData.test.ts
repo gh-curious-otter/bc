@@ -432,27 +432,30 @@ describe.skip('Data hooks - Error handling', () => {
   const errorScenarios = [
     {
       name: 'useStatus handles network errors',
-      hook: () => useStatus(),
+      // eslint-disable-next-line react-hooks/rules-of-hooks -- Test wrapper
+      useHook: () => useStatus(),
       mock: () => mockBcService.getStatus.mockRejectedValue(new Error('Network timeout')),
     },
     {
       name: 'useCosts handles missing data',
-      hook: () => useCosts(),
+      // eslint-disable-next-line react-hooks/rules-of-hooks -- Test wrapper
+      useHook: () => useCosts(),
       mock: () =>
         mockBcService.getCostSummary.mockRejectedValue(new Error('No cost records')),
     },
     {
       name: 'useTeams handles missing teams',
-      hook: () => useTeams(),
+      // eslint-disable-next-line react-hooks/rules-of-hooks -- Test wrapper
+      useHook: () => useTeams(),
       mock: () => mockBcService.getTeams.mockRejectedValue(new Error('Teams unavailable')),
     },
   ];
 
-  errorScenarios.forEach(({ name, hook, mock }) => {
+  errorScenarios.forEach(({ name, useHook, mock }) => {
     it(name, async () => {
       mock();
 
-      const { result } = renderHook(hook);
+      const { result } = renderHook(useHook);
 
       await act(async () => {
         jest.runAllTimers();
