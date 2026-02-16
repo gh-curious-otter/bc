@@ -77,12 +77,12 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
     {
       key: 'name',
       header: 'Name',
-      width: 20,
+      width: 12,
     },
     {
       key: 'running',
       header: 'Status',
-      width: 10,
+      width: 8,
       render: (proc) => (
         <StatusBadge state={proc.running ? 'working' : 'stopped'} />
       ),
@@ -90,19 +90,19 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
     {
       key: 'pid',
       header: 'PID',
-      width: 8,
+      width: 7,
       render: (proc) => <Text>{proc.pid > 0 ? proc.pid : '-'}</Text>,
     },
     {
       key: 'port',
       header: 'Port',
-      width: 8,
+      width: 6,
       render: (proc) => <Text>{proc.port || '-'}</Text>,
     },
     {
       key: 'started_at',
       header: 'Uptime',
-      width: 10,
+      width: 8,
       render: (proc) => (
         <Text>{proc.running ? formatUptime(proc.started_at) : '-'}</Text>
       ),
@@ -110,9 +110,10 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
     {
       key: 'command',
       header: 'Command',
-      width: 30,
+      flex: true,
+      minWidth: 15,
       render: (proc) => (
-        <Text wrap="truncate">{proc.command.slice(0, 28) || '-'}</Text>
+        <Text wrap="truncate">{proc.command || '-'}</Text>
       ),
     },
   ];
