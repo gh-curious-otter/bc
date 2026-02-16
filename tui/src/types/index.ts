@@ -185,3 +185,18 @@ export interface Team {
 export interface TeamsResponse {
   teams: Team[];
 }
+
+// Role types
+export interface Role {
+  name: string;
+  description?: string;
+  capabilities: string[];
+  parent?: string;
+  prompt?: string;
+  agent_count?: number;
+}
+
+// Response from bc role list --json
+export interface RolesResponse {
+  roles: Role[];
+}
