@@ -32,6 +32,10 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       setSelectedIndex((i) => Math.max(0, i - 1));
     } else if (key.downArrow || input === 'j') {
       setSelectedIndex((i) => Math.min(agentList.length - 1, i + 1));
+    } else if (input === 'g') {
+      setSelectedIndex(0);
+    } else if (input === 'G') {
+      setSelectedIndex(Math.max(0, agentList.length - 1));
     } else if (key.return) {
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list
       if (selectedAgent) {
