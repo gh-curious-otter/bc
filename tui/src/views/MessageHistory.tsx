@@ -36,7 +36,7 @@ export function MessageHistory({
     }
   }, [messages]);
 
-  const messageList = messages ?? [];
+  const messageList = useMemo(() => messages ?? [], [messages]);
   const messageCount = messageList.length;
 
   // Keyboard navigation

@@ -116,7 +116,7 @@ export function useMessagePolling(
     isFirstFetchRef.current = true;
     lastSeenTimeRef.current = null;
     void fetchMessages();
-  }, [channel]); // Reset on channel change
+  }, [channel, fetchMessages]); // Reset on channel change
 
   // Polling interval
   useEffect(() => {
@@ -258,7 +258,7 @@ export function useAgentPolling(
   useEffect(() => {
     prevAgentsRef.current = new Map();
     void fetchAgents();
-  }, []);
+  }, [fetchAgents]);
 
   // Polling interval
   useEffect(() => {
