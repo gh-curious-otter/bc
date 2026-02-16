@@ -145,18 +145,25 @@ interface ChannelRowProps {
 }
 
 function ChannelRow({ channel, selected, unreadCount }: ChannelRowProps): React.ReactElement {
+  // #981 fix: Build name row as single truncated text to ensure visibility at 80 cols
+  // Priority: name > unread indicator > member count > description
+  const namePrefix = selected ? '▸ ' : '  ';
+  const channelName = `#${channel.name}`;
+  const memberInfo = ` (${String(channel.members.length)})`;
+  const unreadInfo = unreadCount > 0 ? ` [${unreadCount > 99 ? '99+' : String(unreadCount)} new]` : '';
+
   return (
     <Box width="100%" flexDirection="column">
-      <Box width="100%">
+      {/* Name row: combined into single Text for proper truncation */}
+      <Text wrap="truncate">
         <Text color={selected ? 'cyan' : undefined} bold={selected}>
-          {selected ? '▸ ' : '  '}
-          #{channel.name}
+          {namePrefix}{channelName}
         </Text>
-        <Text dimColor> ({channel.members.length} members)</Text>
         {unreadCount > 0 && (
-          <Text color="yellow" bold> [{unreadCount > 99 ? '99+' : unreadCount} new]</Text>
+          <Text color="yellow" bold>{unreadInfo}</Text>
         )}
-      </Box>
+        <Text dimColor>{memberInfo}</Text>
+      </Text>
       {channel.description && (
         <Text dimColor wrap="truncate">{channel.description}</Text>
       )}
