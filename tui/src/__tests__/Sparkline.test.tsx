@@ -6,7 +6,7 @@
 import React from 'react';
 import { render } from 'ink-testing-library';
 import { describe, it, expect, test } from 'bun:test';
-import { Sparkline } from '../components/Sparkline';
+import { Sparkline, TrendSparkline, MiniSparkline } from '../components/Sparkline';
 
 describe('Sparkline', () => {
   describe('basic rendering', () => {
@@ -127,5 +127,90 @@ describe('Number formatting', () => {
     const n = 0.25;
     const formatted = n.toFixed(2);
     expect(formatted).toBe('0.25');
+  });
+});
+
+describe('TrendSparkline', () => {
+  describe('basic rendering', () => {
+    it('renders without crashing', () => {
+      const { lastFrame } = render(<TrendSparkline data={[1, 2, 3, 4, 5]} />);
+      expect(lastFrame()).toBeDefined();
+    });
+
+    it('renders with empty data', () => {
+      const { lastFrame } = render(<TrendSparkline data={[]} />);
+      expect(lastFrame()).toContain('─');
+    });
+
+    it('renders with custom width', () => {
+      const { lastFrame } = render(<TrendSparkline data={[1, 2, 3, 4, 5]} width={10} />);
+      expect(lastFrame()).toBeDefined();
+    });
+  });
+
+  describe('trend detection', () => {
+    it('shows upward trend for increasing data', () => {
+      // Data increasing significantly (>5%)
+      const { lastFrame } = render(<TrendSparkline data={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]} />);
+      expect(lastFrame()).toContain('↑');
+    });
+
+    it('shows downward trend for decreasing data', () => {
+      // Data decreasing significantly (>5%)
+      const { lastFrame } = render(<TrendSparkline data={[10, 9, 8, 7, 6, 5, 4, 3, 2, 1]} />);
+      expect(lastFrame()).toContain('↓');
+    });
+
+    it('shows stable trend for flat data', () => {
+      // Data with minimal change (<5%)
+      const { lastFrame } = render(<TrendSparkline data={[5, 5, 5, 5, 5, 5]} />);
+      expect(lastFrame()).toContain('→');
+    });
+
+    it('can hide trend indicator', () => {
+      const { lastFrame } = render(<TrendSparkline data={[1, 2, 3, 4, 5]} showTrend={false} />);
+      expect(lastFrame()).not.toContain('↑');
+      expect(lastFrame()).not.toContain('↓');
+      expect(lastFrame()).not.toContain('→');
+    });
+  });
+});
+
+describe('MiniSparkline', () => {
+  describe('basic rendering', () => {
+    it('renders without crashing', () => {
+      const { lastFrame } = render(<MiniSparkline data={[1, 2, 3, 4, 5]} />);
+      expect(lastFrame()).toBeDefined();
+    });
+
+    it('renders with empty data', () => {
+      const { lastFrame } = render(<MiniSparkline data={[]} />);
+      expect(lastFrame()).toContain('─');
+    });
+
+    it('renders with default width of 8', () => {
+      const { lastFrame } = render(<MiniSparkline data={[]} />);
+      // Empty sparkline shows dashes
+      expect(lastFrame()?.includes('─')).toBe(true);
+    });
+
+    it('renders with custom width', () => {
+      const { lastFrame } = render(<MiniSparkline data={[1, 2, 3]} width={5} />);
+      expect(lastFrame()).toBeDefined();
+    });
+  });
+
+  describe('data handling', () => {
+    it('resamples data longer than width', () => {
+      // 10 data points, width 5 -> should resample
+      const { lastFrame } = render(<MiniSparkline data={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]} width={5} />);
+      expect(lastFrame()).toBeDefined();
+    });
+
+    it('renders data shorter than width', () => {
+      // 3 data points, width 8 -> should not resample
+      const { lastFrame } = render(<MiniSparkline data={[1, 5, 10]} width={8} />);
+      expect(lastFrame()).toBeDefined();
+    });
   });
 });

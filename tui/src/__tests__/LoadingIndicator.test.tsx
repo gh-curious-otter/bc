@@ -25,10 +25,12 @@ describe('LoadingIndicator', () => {
   });
 
   describe('animation', () => {
-    it('starts with no dots', () => {
+    it('renders spinner frame', () => {
       const { lastFrame } = render(<LoadingIndicator message="Wait" />);
-      // Initially no animation dots
-      expect(lastFrame()).toContain('Wait');
+      const frame = lastFrame() ?? '';
+      // Should contain a Braille spinner character
+      expect(frame).toMatch(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/);
+      expect(frame).toContain('Wait');
     });
 
     it('renders message with animation', () => {
@@ -37,6 +39,22 @@ describe('LoadingIndicator', () => {
       );
       const frame = lastFrame();
       expect(frame).toContain('Loading');
+    });
+  });
+
+  describe('customization', () => {
+    it('accepts custom color prop', () => {
+      const { lastFrame } = render(
+        <LoadingIndicator message="Loading" color="green" />
+      );
+      expect(lastFrame()).toContain('Loading');
+    });
+
+    it('accepts custom interval prop', () => {
+      const { lastFrame } = render(
+        <LoadingIndicator message="Loading" interval={100} />
+      );
+      expect(lastFrame()).toContain('Loading');
     });
   });
 

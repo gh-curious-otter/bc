@@ -55,6 +55,10 @@ export type { MembersPanelProps, MemberInfo, MemberCountBadgeProps } from './Mem
 export { ProgressBar, InlineProgressBar } from './ProgressBar';
 export type { ProgressBarProps } from './ProgressBar';
 
+// Sparkline (eng-03 #864, enhanced #974)
+export { Sparkline, TrendSparkline, MiniSparkline } from './Sparkline';
+export type { SparklineProps, TrendSparklineProps, MiniSparklineProps } from './Sparkline';
+
 // Inline editor (eng-01 #858)
 export { InlineEditor, EditorModal } from './InlineEditor';
 export type { InlineEditorProps, EditorModalProps } from './InlineEditor';

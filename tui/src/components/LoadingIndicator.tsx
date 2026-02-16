@@ -1,31 +1,40 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-// Note: ink-spinner will be available after Phase 1 PRs merge
-// import Spinner from 'ink-spinner';
+
+// Braille spinner frames for smooth animation
+// Issue #974 - Visual design improvements
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
 export interface LoadingIndicatorProps {
   message?: string;
+  /** Spinner color (default: 'cyan') */
+  color?: string;
+  /** Animation interval in ms (default: 80) */
+  interval?: number;
 }
 
 /**
- * LoadingIndicator - Loading state with spinner
- * Shared component
+ * LoadingIndicator - Loading state with animated spinner
+ * Shared component with Braille spinner animation
  */
-export function LoadingIndicator({ message = 'Loading...' }: LoadingIndicatorProps) {
-  // Simple dots animation until ink-spinner is available
-  const [dots, setDots] = React.useState('');
+export function LoadingIndicator({
+  message = 'Loading...',
+  color = 'cyan',
+  interval = 80,
+}: LoadingIndicatorProps) {
+  const [frameIndex, setFrameIndex] = React.useState(0);
 
   React.useEffect(() => {
-    const interval = setInterval(() => {
-      setDots((d) => (d.length >= 3 ? '' : d + '.'));
-    }, 300);
-    return () => { clearInterval(interval); };
-  }, []);
+    const timer = setInterval(() => {
+      setFrameIndex((i) => (i + 1) % SPINNER_FRAMES.length);
+    }, interval);
+    return () => { clearInterval(timer); };
+  }, [interval]);
 
   return (
     <Box>
-      <Text color="cyan">⠋</Text>
-      <Text> {message}{dots}</Text>
+      <Text color={color}>{SPINNER_FRAMES[frameIndex]}</Text>
+      <Text> {message}</Text>
     </Box>
   );
 }

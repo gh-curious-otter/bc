@@ -3,6 +3,7 @@
  * Issue #864 - Cost visualizations
  */
 
+import React from 'react';
 import { Box, Text } from 'ink';
 
 export interface SparklineProps {
@@ -112,6 +113,118 @@ function formatValue(n: number): string {
     return n.toFixed(2);
   }
   return n.toFixed(0);
+}
+
+/**
+ * TrendSparkline - Sparkline with trend direction indicator
+ * Shows arrow (↑ ↓ →) based on data trend
+ */
+export interface TrendSparklineProps {
+  /** Array of numeric values to chart */
+  data: number[];
+  /** Width in characters (defaults to data length) */
+  width?: number;
+  /** Color of the sparkline */
+  color?: string;
+  /** Show trend arrow (default: true) */
+  showTrend?: boolean;
+}
+
+/**
+ * Render a sparkline with trend indicator
+ */
+export function TrendSparkline({
+  data,
+  width,
+  color = 'cyan',
+  showTrend = true,
+}: TrendSparklineProps): React.ReactElement {
+  if (data.length === 0) {
+    return (
+      <Box>
+        <Text dimColor>{'─'.repeat(width ?? 8)} ─</Text>
+      </Box>
+    );
+  }
+
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+
+  // Resample data if width is specified
+  let chartData = data;
+  if (width && width !== data.length && data.length > 1) {
+    chartData = resampleData(data, width);
+  }
+
+  const sparkChars = chartData.map(v => valueToChar(v, min, max)).join('');
+
+  // Calculate trend by comparing first half to second half
+  let trendChar = '→';
+  let trendColor = 'gray';
+
+  if (showTrend && data.length >= 2) {
+    const midpoint = Math.floor(data.length / 2);
+    const firstHalf = data.slice(0, midpoint);
+    const secondHalf = data.slice(midpoint);
+
+    const firstAvg = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length;
+    const secondAvg = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length;
+
+    // 5% threshold to avoid showing trend for noise
+    const percentChange = firstAvg > 0 ? ((secondAvg - firstAvg) / firstAvg) * 100 : 0;
+
+    if (percentChange > 5) {
+      trendChar = '↑';
+      trendColor = 'green';
+    } else if (percentChange < -5) {
+      trendChar = '↓';
+      trendColor = 'red';
+    }
+  }
+
+  return (
+    <Box>
+      <Text color={color}>{sparkChars}</Text>
+      {showTrend && (
+        <Text color={trendColor}> {trendChar}</Text>
+      )}
+    </Box>
+  );
+}
+
+/**
+ * MiniSparkline - Compact sparkline for inline use in tables
+ * No label, fixed width, suitable for table cells
+ */
+export interface MiniSparklineProps {
+  /** Array of numeric values to chart */
+  data: number[];
+  /** Width in characters (default: 8) */
+  width?: number;
+  /** Color of the sparkline */
+  color?: string;
+}
+
+export function MiniSparkline({
+  data,
+  width = 8,
+  color = 'cyan',
+}: MiniSparklineProps): React.ReactElement {
+  if (data.length === 0) {
+    return <Text dimColor>{'─'.repeat(width)}</Text>;
+  }
+
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+
+  let chartData = data;
+  if (data.length > width) {
+    chartData = resampleData(data, width);
+  }
+
+  const sparkChars = chartData.map(v => valueToChar(v, min, max)).join('');
+
+  return <Text color={color}>{sparkChars}</Text>;
 }
 
 export default Sparkline;
