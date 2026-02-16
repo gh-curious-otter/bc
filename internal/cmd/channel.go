@@ -22,7 +22,6 @@ Channels are named groups of agent members. Messages sent to a channel are
 delivered to all member tmux sessions.
 
 Examples:
-  bc channel                         # list all channels
   bc channel list                    # list all channels
   bc channel create workers          # create a channel named "workers"
   bc channel add workers worker-01   # add member to channel
@@ -32,7 +31,6 @@ Examples:
   bc channel join workers            # join a channel (current agent)
   bc channel leave workers           # leave a channel (current agent)
   bc channel history workers         # show channel message history`,
-	RunE: runChannelList,
 }
 
 var channelCreateCmd = &cobra.Command{
