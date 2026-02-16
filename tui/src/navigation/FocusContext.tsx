@@ -13,7 +13,7 @@ import React, {
   useMemo,
 } from 'react';
 
-export type FocusArea = 'sidebar' | 'main' | 'detail' | 'input' | 'modal' | 'view';
+export type FocusArea = 'sidebar' | 'main' | 'detail' | 'input' | 'modal' | 'view' | 'channel-history';
 
 interface FocusContextValue {
   /** Currently focused area */
