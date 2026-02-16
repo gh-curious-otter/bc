@@ -48,6 +48,14 @@ export function RolesView({
     return counts;
   }, [agents.data]);
 
+  // #971 fix: Calculate dynamic name column width based on longest role name
+  // Add 3 for selection indicator "▸ " and padding, cap at 25 for readability
+  const nameColumnWidth = useMemo(() => {
+    if (roles.length === 0) return 15; // Default
+    const maxNameLen = Math.max(...roles.map((r) => r.name.length));
+    return Math.min(25, Math.max(15, maxNameLen + 3));
+  }, [roles]);
+
   // Manage focus state for nested view navigation
   // When showing details, set focus='view' to prevent global ESC from firing
   useEffect(() => {
@@ -276,9 +284,9 @@ export function RolesView({
 
       {/* Roles table */}
       <Box flexDirection="column" marginBottom={1}>
-        {/* Header row */}
+        {/* Header row - #971 fix: dynamic name column width */}
         <Box paddingX={1}>
-          <Box width={15}>
+          <Box width={nameColumnWidth}>
             <Text bold dimColor>NAME</Text>
           </Box>
           <Box width={30}>
@@ -308,6 +316,7 @@ export function RolesView({
               role={role}
               selected={idx === validIndex}
               agentCount={agentCountByRole[role.name] ?? 0}
+              nameWidth={nameColumnWidth}
             />
           ))
         )}
@@ -337,21 +346,26 @@ interface RoleRowProps {
   selected: boolean;
   /** Agent count computed from agents list (fixes #968) */
   agentCount: number;
+  /** Dynamic name column width (fixes #971) */
+  nameWidth: number;
 }
 
-function RoleRow({ role, selected, agentCount }: RoleRowProps): React.ReactElement {
+function RoleRow({ role, selected, agentCount, nameWidth }: RoleRowProps): React.ReactElement {
   const capabilitiesStr =
     role.capabilities.length > 0
       ? role.capabilities.slice(0, 3).join(', ') +
         (role.capabilities.length > 3 ? '...' : '')
       : '-';
 
+  // #971 fix: Use dynamic width, truncate with 3 chars reserved for "▸ " indicator
+  const truncateLen = nameWidth - 3;
+
   return (
     <Box paddingX={1}>
-      <Box width={15}>
+      <Box width={nameWidth}>
         <Text color={selected ? 'cyan' : undefined} bold={selected}>
           {selected ? '▸ ' : '  '}
-          {truncate(role.name, 12)}
+          {truncate(role.name, truncateLen)}
         </Text>
       </Box>
       <Box width={30}>
