@@ -106,7 +106,13 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
   }
 
   if (viewMode === 'history' && selectedChannel) {
-    return <ChannelHistoryView channel={selectedChannel} disableInput={disableInput} />;
+    return (
+      <ChannelHistoryView
+        channel={selectedChannel}
+        disableInput={disableInput}
+        onBack={() => { setViewMode('list'); }}
+      />
+    );
   }
 
   return (
@@ -159,11 +165,13 @@ function ChannelRow({ channel, selected, unreadCount }: ChannelRowProps): React.
 interface ChannelHistoryViewProps {
   channel: Channel;
   disableInput?: boolean;
+  onBack?: () => void;
 }
 
 function ChannelHistoryView({
   channel,
   disableInput = false,
+  onBack,
 }: ChannelHistoryViewProps): React.ReactElement {
   const { data: messages, loading, error, send } = useChannelHistory(channel.name, {
     limit: 50,
@@ -205,22 +213,23 @@ function ChannelHistoryView({
    * When user enters input mode (presses 'm'), we set focus to 'input' area.
    * This prevents global keybinds (q, 1-9, ESC) from triggering during message typing.
    *
-   * When user exits input mode (presses Enter or Escape), we restore focus to the
-   * previous area, which re-enables global navigation keybinds.
-   *
-   * The useKeyboardNavigation hook checks isFocused('input') before handling global
-   * keybinds, so focus state acts as the guard that disables/enables them.
+   * When user exits input mode (presses Enter or Escape), we set focus to 'channel-history'
+   * to keep global navigation disabled while in channel history view. This ensures that
+   * ESC navigates back to channel list (via onBack) rather than to Dashboard.
    *
    * This fixes issue #653: "After typing a message in a channel, the keybinds to
    * q, 1,2,3... are not re-enabled"
+   * This also fixes issue #884: "ESC from channel history goes to Dashboard instead
+   * of Channels list"
    */
   useEffect(() => {
     if (inputMode) {
       setFocus('input');
     } else {
-      returnFocus();
+      // Keep focus on channel-history to prevent global ESC from going to Dashboard
+      setFocus('channel-history');
     }
-  }, [inputMode, setFocus, returnFocus]);
+  }, [inputMode, setFocus]);
 
   useInput(
     (input, key) => {
@@ -244,6 +253,11 @@ function ChannelHistoryView({
           setMessageBuffer(messageBuffer + input);
         }
       } else {
+        // ESC to go back to channel list
+        if (key.escape) {
+          returnFocus(); // Restore focus before navigating back
+          onBack?.();
+        }
         // 'm' to compose message
         if (input === 'm') {
           setInputMode(true);
