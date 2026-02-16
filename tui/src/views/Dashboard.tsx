@@ -269,15 +269,15 @@ const AgentsPanel = memo(function AgentsPanel({ agents }: AgentsPanelProps) {
         <>
           <DataTable
             columns={[
-              { key: 'name', header: 'AGENT', width: 15 },
-              { key: 'role', header: 'ROLE', width: 12 },
+              { key: 'name', header: 'AGENT', width: 12 },
+              { key: 'role', header: 'ROLE', width: 10 },
               {
                 key: 'state',
                 header: 'STATE',
-                width: 10,
+                width: 8,
                 render: (value) => <StatusBadge state={value as string} />,
               },
-              { key: 'updatedAt', header: 'UPDATED', width: 10 },
+              { key: 'updatedAt', header: 'UPDATED', width: 8 },
               { key: 'task', header: 'TASK' },
             ]}
             data={displayAgents}

@@ -104,12 +104,12 @@ export function TeamsView({ onBack }: TeamsViewProps) {
               {
                 key: 'name',
                 header: 'TEAM',
-                width: 20,
+                width: 15,
               },
               {
                 key: 'members',
-                header: 'MEMBERS',
-                width: 10,
+                header: '#',
+                width: 4,
                 render: (value) => (
                   <Text>{(value as string[]).length ?? 0}</Text>
                 ),
@@ -117,7 +117,7 @@ export function TeamsView({ onBack }: TeamsViewProps) {
               {
                 key: 'lead',
                 header: 'LEAD',
-                width: 15,
+                width: 12,
                 render: (value) => (
                   <Text color="green">{(value as string) || '-'}</Text>
                 ),
@@ -126,7 +126,7 @@ export function TeamsView({ onBack }: TeamsViewProps) {
                 key: 'description',
                 header: 'DESCRIPTION',
                 render: (value) => (
-                  <Text dimColor>{truncate((value as string) || '-', 30)}</Text>
+                  <Text dimColor wrap="truncate">{(value as string) || '-'}</Text>
                 ),
               },
             ]}
@@ -210,14 +210,6 @@ function TeamDetails({ team }: TeamDetailsProps) {
       </Box>
     </Panel>
   );
-}
-
-/**
- * Truncate string to max length
- */
-function truncate(str: string, maxLen: number): string {
-  if (str.length <= maxLen) return str;
-  return str.slice(0, maxLen - 1) + '…';
 }
 
 /**

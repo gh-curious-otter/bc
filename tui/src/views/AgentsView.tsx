@@ -57,26 +57,27 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
     {
       key: 'name',
       header: 'Name',
-      width: 18,
+      width: 15,
     },
     {
       key: 'role',
       header: 'Role',
-      width: 12,
+      width: 10,
     },
     {
       key: 'state',
       header: 'State',
-      width: 12,
+      width: 10,
       render: (agent) => <StatusBadge state={agent.state} />,
     },
     {
       key: 'task',
       header: 'Task',
-      width: 40,
+      flex: true,
+      minWidth: 15,
       render: (agent) => (
         <Text wrap="truncate">
-          {agent.task.slice(0, 38) || '-'}
+          {agent.task || '-'}
         </Text>
       ),
     },
