@@ -77,15 +77,15 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         errorCount={summary.error}
       />
 
-      {/* Main Content - Two column layout (redesigned per #855, responsive per #794) */}
-      <Box marginTop={1}>
-        {/* Left column - Expanded Activity Feed (primary focus) */}
-        <Box flexDirection="column" flexGrow={1} marginRight={1}>
-          <ActivityFeed maxEntries={15} compact={false} showFilterHints />
+      {/* Main Content - Responsive layout (single column at 80-col, two column at wider) */}
+      <Box marginTop={1} flexDirection={terminalWidth < 100 ? 'column' : 'row'}>
+        {/* Activity Feed - primary focus */}
+        <Box flexDirection="column" flexGrow={1} marginRight={terminalWidth >= 100 ? 1 : 0}>
+          <ActivityFeed maxEntries={terminalWidth < 100 ? 8 : 15} compact={terminalWidth < 100} showFilterHints={terminalWidth >= 100} />
         </Box>
 
-        {/* Right column - Stats & Health panels (responsive width per #794) */}
-        <Box flexDirection="column" width={Math.min(35, Math.max(28, Math.floor((terminalWidth - 4) * 0.3)))}>
+        {/* Stats & Health panels - side column on wide, below on narrow */}
+        <Box flexDirection={terminalWidth < 100 ? 'row' : 'column'} flexWrap="wrap" width={terminalWidth < 100 ? '100%' : Math.min(32, Math.max(26, Math.floor((terminalWidth - 4) * 0.28)))}>
           {/* System Health - Agent states */}
           <SystemHealthPanel
             working={summary.working}
@@ -102,8 +102,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             outputTokens={summary.outputTokens}
           />
 
-          {/* Agent Distribution by Role */}
-          <AgentStatsPanel stats={agentStats} />
+          {/* Agent Distribution by Role - hide on narrow */}
+          {terminalWidth >= 100 && <AgentStatsPanel stats={agentStats} />}
         </Box>
       </Box>
 
@@ -163,6 +163,7 @@ interface SummaryCardsProps {
 
 /**
  * Memoized summary cards - only re-renders when counts change
+ * Wraps to multiple lines on narrow terminals
  */
 const SummaryCards = memo(function SummaryCards({
   total,
@@ -173,7 +174,7 @@ const SummaryCards = memo(function SummaryCards({
   errorCount,
 }: SummaryCardsProps) {
   return (
-    <Box>
+    <Box flexWrap="wrap">
       <MetricCard value={total} label="Total" />
       <MetricCard value={active} label="Active" color="green" />
       <MetricCard value={working} label="Working" color="cyan" />
@@ -259,7 +260,7 @@ interface CostPanelProps {
 }
 
 /**
- * Cost panel with budget progress bar
+ * Cost panel with budget progress bar (responsive width)
  */
 const CostPanel = memo(function CostPanel({
   totalCostUSD,
@@ -269,7 +270,8 @@ const CostPanel = memo(function CostPanel({
 }: CostPanelProps) {
   const totalTokens = inputTokens + outputTokens;
   const budgetPercent = Math.min(100, Math.round((totalCostUSD / budgetUSD) * 100));
-  const barWidth = 20;
+  // Responsive bar width: smaller on narrow terminals
+  const barWidth = 15;
   const filledWidth = Math.round((budgetPercent / 100) * barWidth);
   const emptyWidth = barWidth - filledWidth;
 
