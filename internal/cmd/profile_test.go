@@ -138,3 +138,80 @@ func TestRegisterProfileFlags(t *testing.T) {
 		t.Fatal("--profile-output flag should be registered")
 	}
 }
+
+func TestSetupProfiling_MemProfile(t *testing.T) {
+	// Reset state
+	profileType = "mem"
+	profileDuration = 0
+	profileOutput = ""
+	cpuProfileFile = nil
+	memProfileActive = false
+
+	err := setupProfiling()
+	if err != nil {
+		t.Fatalf("setupProfiling() for mem failed: %v", err)
+	}
+
+	if !memProfileActive {
+		t.Error("memProfileActive should be true after starting mem profile")
+	}
+
+	// Reset
+	profileType = ""
+	memProfileActive = false
+}
+
+func TestWriteMemProfile(t *testing.T) {
+	// Create temp directory for profile output
+	tmpDir := t.TempDir()
+	outputPath := filepath.Join(tmpDir, "test-heap.prof")
+
+	profileOutput = outputPath
+	memProfileActive = true
+	defer func() {
+		profileOutput = ""
+		memProfileActive = false
+	}()
+
+	err := writeMemProfile()
+	if err != nil {
+		t.Fatalf("writeMemProfile() failed: %v", err)
+	}
+
+	// Verify file exists and has content
+	info, err := os.Stat(outputPath)
+	if err != nil {
+		t.Fatalf("profile file not created: %v", err)
+	}
+	if info.Size() == 0 {
+		t.Error("profile file should not be empty")
+	}
+}
+
+func TestStopProfiling_MemProfile(t *testing.T) {
+	// Create temp directory for profile output
+	tmpDir := t.TempDir()
+	outputPath := filepath.Join(tmpDir, "test-heap.prof")
+
+	profileType = "mem"
+	profileOutput = outputPath
+	cpuProfileFile = nil
+	memProfileActive = true
+
+	// stopProfiling should write the mem profile
+	stopProfiling()
+
+	// Verify memProfileActive is false after stop
+	if memProfileActive {
+		t.Error("memProfileActive should be false after stopProfiling()")
+	}
+
+	// Verify file exists
+	if _, err := os.Stat(outputPath); os.IsNotExist(err) {
+		t.Error("heap profile file should exist after stopProfiling()")
+	}
+
+	// Reset
+	profileType = ""
+	profileOutput = ""
+}

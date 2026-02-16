@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"runtime/pprof"
 	"time"
 
@@ -17,7 +18,8 @@ var (
 	profileOutput   string
 
 	// Active profile state
-	cpuProfileFile *os.File
+	cpuProfileFile   *os.File
+	memProfileActive bool
 )
 
 // setupProfiling initializes profiling based on flags.
@@ -30,8 +32,10 @@ func setupProfiling() error {
 	switch profileType {
 	case "cpu":
 		return startCPUProfile()
+	case "mem":
+		return startMemProfile()
 	default:
-		return fmt.Errorf("unknown profile type: %s (supported: cpu)", profileType)
+		return fmt.Errorf("unknown profile type: %s (supported: cpu, mem)", profileType)
 	}
 }
 
@@ -45,6 +49,13 @@ func stopProfiling() {
 		}
 		log.Info("CPU profile saved", "path", cpuProfileFile.Name())
 		cpuProfileFile = nil
+	}
+
+	if memProfileActive {
+		if err := writeMemProfile(); err != nil {
+			log.Error("failed to write memory profile", "error", err)
+		}
+		memProfileActive = false
 	}
 }
 
@@ -84,6 +95,64 @@ func startCPUProfile() error {
 	return nil
 }
 
+// startMemProfile sets up memory profiling (heap profile written on stop).
+func startMemProfile() error {
+	memProfileActive = true
+	log.Info("Memory profiling enabled", "output", "will be written on command completion")
+	return nil
+}
+
+// writeMemProfile captures and writes a heap profile.
+func writeMemProfile() error {
+	profilePath, err := getProfilePath("heap")
+	if err != nil {
+		return fmt.Errorf("failed to get profile path: %w", err)
+	}
+
+	profilePath = filepath.Clean(profilePath)
+
+	f, err := os.Create(profilePath) //nolint:gosec // Path is validated via getProfilePath
+	if err != nil {
+		return fmt.Errorf("failed to create heap profile: %w", err)
+	}
+
+	// Force GC for accurate statistics
+	runtime.GC()
+
+	if err := pprof.WriteHeapProfile(f); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("failed to write heap profile: %w", err)
+	}
+
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("failed to close heap profile: %w", err)
+	}
+
+	// Print memory statistics
+	printMemStats()
+
+	fmt.Printf("\nHeap profile written to: %s\n", profilePath)
+	fmt.Println("Analyze with: go tool pprof", profilePath)
+	return nil
+}
+
+// printMemStats outputs current memory statistics.
+func printMemStats() {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	fmt.Println("\n=== Memory Statistics ===")
+	fmt.Printf("Alloc:        %v MB (currently allocated)\n", m.Alloc/1024/1024)
+	fmt.Printf("TotalAlloc:   %v MB (cumulative)\n", m.TotalAlloc/1024/1024)
+	fmt.Printf("Sys:          %v MB (from OS)\n", m.Sys/1024/1024)
+	fmt.Printf("HeapAlloc:    %v MB\n", m.HeapAlloc/1024/1024)
+	fmt.Printf("HeapSys:      %v MB\n", m.HeapSys/1024/1024)
+	fmt.Printf("HeapInuse:    %v MB\n", m.HeapInuse/1024/1024)
+	fmt.Printf("HeapObjects:  %v\n", m.HeapObjects)
+	fmt.Printf("NumGC:        %v\n", m.NumGC)
+	fmt.Printf("Goroutines:   %v\n", runtime.NumGoroutine())
+}
+
 // getProfilePath returns the path for a profile file.
 func getProfilePath(profileType string) (string, error) {
 	// Use custom output path if specified
@@ -108,7 +177,7 @@ func getProfilePath(profileType string) (string, error) {
 
 // registerProfileFlags adds profiling flags to the root command.
 func registerProfileFlags() {
-	rootCmd.PersistentFlags().StringVar(&profileType, "profile", "", "Enable profiling (cpu)")
+	rootCmd.PersistentFlags().StringVar(&profileType, "profile", "", "Enable profiling (cpu, mem)")
 	rootCmd.PersistentFlags().IntVar(&profileDuration, "profile-duration", 30, "Profile duration in seconds (0 for manual stop)")
 	rootCmd.PersistentFlags().StringVar(&profileOutput, "profile-output", "", "Custom output path for profile")
 }
