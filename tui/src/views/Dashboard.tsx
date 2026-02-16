@@ -7,18 +7,21 @@ import { LoadingIndicator } from '../components/LoadingIndicator.js';
 import { ErrorDisplay } from '../components/ErrorDisplay.js';
 import { ActivityFeed } from '../components/ActivityFeed.js';
 import { useDashboard } from '../hooks/useDashboard.js';
+import { useNavigation } from '../navigation/NavigationContext.js';
 
 interface DashboardProps {
+  /** @deprecated Use navigation context instead */
   onNavigate?: (view: string) => void;
 }
 
 /**
  * Dashboard view - main overview of bc workspace
- * Issues #543 (layout), #544 (stats components)
+ * Issues #543 (layout), #544 (stats components), #931 (shortcuts fix)
  */
-export function Dashboard({ onNavigate }: DashboardProps) {
+export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
   const { stdout } = useStdout();
   const terminalWidth = stdout.columns;
+  const { navigate } = useNavigation();
 
   const {
     summary,
@@ -31,23 +34,24 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     lastRefresh,
   } = useDashboard();
 
-  // Keyboard navigation
-  useInput((input, key) => {
+  // Keyboard navigation - Dashboard-specific shortcuts
+  // Global shortcuts (1-8, Tab, ESC, q) are handled by useKeyboardNavigation
+  useInput((input) => {
+    // Quick navigation shortcuts
     if (input === 'a') {
-      onNavigate?.('agents');
+      navigate('agents');
     }
     if (input === 'c') {
-      onNavigate?.('channels');
+      navigate('channels');
     }
     if (input === '$') {
-      onNavigate?.('costs');
+      navigate('costs');
     }
+    // Refresh is Dashboard-specific (global Ctrl+R handled elsewhere)
     if (input === 'r') {
       void refresh();
     }
-    if (input === 'q' || key.escape) {
-      onNavigate?.('quit');
-    }
+    // Note: q and ESC are handled by global useKeyboardNavigation
   });
 
   if (error) {
