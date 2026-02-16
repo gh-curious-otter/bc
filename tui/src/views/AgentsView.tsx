@@ -1,14 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useAgents } from '../hooks';
 import { Table } from '../components/Table';
 import type { Column } from '../components/Table';
 import { StatusBadge } from '../components/StatusBadge';
 import { AgentDetailView } from './AgentDetailView';
+import { execBc } from '../services/bc';
 import type { Agent } from '../types';
 
 interface AgentsViewProps {
   onBack?: () => void;
+}
+
+/** Action feedback display duration in ms */
+const ACTION_FEEDBACK_DURATION = 2500;
+
+/** Available agent actions */
+type AgentAction = 'stop' | 'kill' | 'restart' | 'attach';
+
+interface ActionState {
+  action: AgentAction | null;
+  target: string | null;
+  status: 'pending' | 'success' | 'error';
+  message: string;
 }
 
 export const AgentsView: React.FC<AgentsViewProps> = ({
@@ -17,13 +31,60 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   const { data: agents, loading, error, refresh } = useAgents();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showDetail, setShowDetail] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<AgentAction | null>(null);
+  const [actionState, setActionState] = useState<ActionState | null>(null);
   const agentList = agents ?? [];
   const selectedAgent = agentList[selectedIndex] as typeof agentList[number] | undefined;
+
+  // Clear action feedback after delay
+  const showActionFeedback = useCallback((action: AgentAction, target: string, status: 'success' | 'error', message: string) => {
+    setActionState({ action, target, status, message });
+    setTimeout(() => { setActionState(null); }, ACTION_FEEDBACK_DURATION);
+  }, []);
+
+  // Execute agent action
+  const executeAction = useCallback(async (action: AgentAction, agentName: string) => {
+    try {
+      switch (action) {
+        case 'stop':
+          await execBc(['agent', 'stop', agentName]);
+          showActionFeedback(action, agentName, 'success', `Stopped ${agentName}`);
+          break;
+        case 'kill':
+          await execBc(['agent', 'kill', agentName]);
+          showActionFeedback(action, agentName, 'success', `Killed ${agentName}`);
+          break;
+        case 'restart':
+          await execBc(['agent', 'restart', agentName]);
+          showActionFeedback(action, agentName, 'success', `Restarted ${agentName}`);
+          break;
+        case 'attach':
+          await execBc(['agent', 'attach', agentName]);
+          showActionFeedback(action, agentName, 'success', `Attached to ${agentName}`);
+          break;
+      }
+      void refresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : `Failed to ${action} ${agentName}`;
+      showActionFeedback(action, agentName, 'error', message);
+    }
+  }, [refresh, showActionFeedback]);
 
   // Keyboard navigation
   useInput((input, key) => {
     if (showDetail) {
       // Detail view handles its own keybinds via AgentDetailView
+      return;
+    }
+
+    // Confirmation mode
+    if (confirmAction && selectedAgent) {
+      if (input === 'y' || input === 'Y') {
+        void executeAction(confirmAction, selectedAgent.name);
+        setConfirmAction(null);
+      } else if (input === 'n' || input === 'N' || key.escape) {
+        setConfirmAction(null);
+      }
       return;
     }
 
@@ -36,11 +97,21 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       setSelectedIndex(0);
     } else if (input === 'G') {
       setSelectedIndex(Math.max(0, agentList.length - 1));
-    } else if (key.return) {
+    } else if (key.return || input === 'a') {
+      // View agent details / attach
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list
       if (selectedAgent) {
         setShowDetail(true);
       }
+    } else if (input === 'x' && selectedAgent) {
+      // Stop agent (with confirmation)
+      setConfirmAction('stop');
+    } else if (input === 'X' && selectedAgent) {
+      // Kill agent (with confirmation)
+      setConfirmAction('kill');
+    } else if (input === 'R' && selectedAgent) {
+      // Restart agent (with confirmation)
+      setConfirmAction('restart');
     } else if (input === 'r') {
       void refresh();
     } else if (input === 'q' || key.escape) {
@@ -114,6 +185,30 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
         {loading && <Text color="gray"> (refreshing...)</Text>}
       </Box>
 
+      {/* Action feedback */}
+      {actionState && (
+        <Box marginBottom={1}>
+          <Text color={actionState.status === 'success' ? 'green' : 'red'}>
+            {actionState.status === 'success' ? '✓' : '✗'} {actionState.message}
+          </Text>
+        </Box>
+      )}
+
+      {/* Confirmation dialog */}
+      {confirmAction && selectedAgent && (
+        <Box marginBottom={1} paddingX={1} borderStyle="round" borderColor="yellow">
+          <Text color="yellow">
+            {confirmAction === 'stop' && `Stop agent "${selectedAgent.name}"?`}
+            {confirmAction === 'kill' && `Kill agent "${selectedAgent.name}"? (force terminate)`}
+            {confirmAction === 'restart' && `Restart agent "${selectedAgent.name}"?`}
+            {' '}
+          </Text>
+          <Text color="green">[y]es</Text>
+          <Text color="gray"> / </Text>
+          <Text color="red">[n]o</Text>
+        </Box>
+      )}
+
       {/* Agents Table */}
       <Table
         data={agentList}
@@ -121,10 +216,37 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
         selectedIndex={selectedIndex}
       />
 
+      {/* Inline action bar for selected agent */}
+      {selectedAgent && !confirmAction && (
+        <Box marginTop={1} paddingX={1}>
+          <Text dimColor>Actions: </Text>
+          {selectedAgent.state === 'working' && (
+            <>
+              <Text color="yellow">[x]</Text>
+              <Text dimColor> stop </Text>
+            </>
+          )}
+          {selectedAgent.state !== 'stopped' && (
+            <>
+              <Text color="red">[X]</Text>
+              <Text dimColor> kill </Text>
+            </>
+          )}
+          {selectedAgent.state === 'stopped' || selectedAgent.state === 'error' ? (
+            <>
+              <Text color="green">[R]</Text>
+              <Text dimColor> restart </Text>
+            </>
+          ) : null}
+          <Text color="cyan">[a/Enter]</Text>
+          <Text dimColor> details</Text>
+        </Box>
+      )}
+
       {/* Footer with keybindings */}
       <Box marginTop={1}>
         <Text color="gray">
-          j/k: navigate | Enter: attach | r: refresh | q: back
+          j/k: navigate | a/Enter: details | x: stop | X: kill | R: restart | r: refresh | q: back
         </Text>
       </Box>
     </Box>

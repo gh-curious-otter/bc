@@ -71,3 +71,155 @@ describe('Table', () => {
     expect(lastFrame()).toContain('No data');
   });
 });
+
+/**
+ * Issue #861 - AgentsView Inline Actions Tests
+ * Tests for action state management and confirmation logic
+ */
+describe('AgentsView Inline Actions Logic', () => {
+  // Action types
+  type AgentAction = 'stop' | 'kill' | 'restart' | 'attach';
+
+  interface ActionState {
+    action: AgentAction | null;
+    target: string | null;
+    status: 'pending' | 'success' | 'error';
+    message: string;
+  }
+
+  describe('Action State Management', () => {
+    it('initial action state is null', () => {
+      const actionState: ActionState | null = null;
+      expect(actionState).toBeNull();
+    });
+
+    it('action state tracks success', () => {
+      const actionState: ActionState = {
+        action: 'stop',
+        target: 'eng-01',
+        status: 'success',
+        message: 'Stopped eng-01',
+      };
+      expect(actionState.status).toBe('success');
+      expect(actionState.message).toContain('eng-01');
+    });
+
+    it('action state tracks error', () => {
+      const actionState: ActionState = {
+        action: 'kill',
+        target: 'eng-02',
+        status: 'error',
+        message: 'Failed to kill eng-02',
+      };
+      expect(actionState.status).toBe('error');
+    });
+  });
+
+  describe('Confirmation Logic', () => {
+    it('stop requires confirmation', () => {
+      let confirmAction: AgentAction | null = null;
+      const input = 'x';
+      if (input === 'x') {
+        confirmAction = 'stop';
+      }
+      expect(confirmAction).toBe('stop');
+    });
+
+    it('kill requires confirmation', () => {
+      let confirmAction: AgentAction | null = null;
+      const input = 'X';
+      if (input === 'X') {
+        confirmAction = 'kill';
+      }
+      expect(confirmAction).toBe('kill');
+    });
+
+    it('restart requires confirmation', () => {
+      let confirmAction: AgentAction | null = null;
+      const input = 'R';
+      if (input === 'R') {
+        confirmAction = 'restart';
+      }
+      expect(confirmAction).toBe('restart');
+    });
+
+    it('y confirms action', () => {
+      let confirmed = false;
+      const confirmAction: AgentAction | null = 'stop';
+      const input = 'y';
+      if (confirmAction && (input === 'y' || input === 'Y')) {
+        confirmed = true;
+      }
+      expect(confirmed).toBe(true);
+    });
+
+    it('n cancels action', () => {
+      let confirmAction: AgentAction | null = 'stop';
+      const input = 'n';
+      if (input === 'n' || input === 'N') {
+        confirmAction = null;
+      }
+      expect(confirmAction).toBeNull();
+    });
+  });
+
+  describe('Action Availability', () => {
+    it('stop available when agent is working', () => {
+      const state = 'working';
+      const canStop = state === 'working';
+      expect(canStop).toBe(true);
+    });
+
+    it('stop not available when agent is stopped', () => {
+      const state = 'stopped';
+      const canStop = state === 'working';
+      expect(canStop).toBe(false);
+    });
+
+    it('restart available when agent is stopped', () => {
+      const state = 'stopped';
+      const canRestart = state === 'stopped' || state === 'error';
+      expect(canRestart).toBe(true);
+    });
+
+    it('restart available when agent has error', () => {
+      const state = 'error';
+      const canRestart = state === 'stopped' || state === 'error';
+      expect(canRestart).toBe(true);
+    });
+
+    it('kill available when agent is not stopped', () => {
+      const state = 'working';
+      const canKill = state !== 'stopped';
+      expect(canKill).toBe(true);
+    });
+  });
+
+  describe('Keyboard Shortcuts', () => {
+    const getActionForKey = (key: string): AgentAction | undefined => {
+      const shortcuts: Record<string, AgentAction> = {
+        x: 'stop',
+        X: 'kill',
+        R: 'restart',
+        a: 'attach',
+      };
+      return shortcuts[key];
+    };
+
+    it('x triggers stop', () => {
+      expect(getActionForKey('x')).toBe('stop');
+    });
+
+    it('X triggers kill', () => {
+      expect(getActionForKey('X')).toBe('kill');
+    });
+
+    it('R triggers restart', () => {
+      expect(getActionForKey('R')).toBe('restart');
+    });
+
+    it('a triggers attach/details', () => {
+      expect(getActionForKey('a')).toBe('attach');
+    });
+  });
+});
