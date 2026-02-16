@@ -1,9 +1,7 @@
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { Panel } from '../components/Panel.js';
 import { MetricCard } from '../components/MetricCard.js';
-import { DataTable } from '../components/DataTable.js';
-import { StatusBadge } from '../components/StatusBadge';
 import { Footer } from '../components/Footer.js';
 import { LoadingIndicator } from '../components/LoadingIndicator.js';
 import { ErrorDisplay } from '../components/ErrorDisplay.js';
@@ -25,7 +23,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const {
     summary,
     agents,
-    channels,
+    // channels removed from dashboard - use Channels tab [3]
     agentStats,
     isLoading,
     error,
@@ -79,30 +77,33 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         errorCount={summary.error}
       />
 
-      {/* Cost Summary */}
-      <CostSummary
-        totalCostUSD={summary.totalCostUSD}
-        inputTokens={summary.inputTokens}
-        outputTokens={summary.outputTokens}
-      />
-
-      {/* Main Content - Two column layout (responsive) */}
+      {/* Main Content - Two column layout (redesigned per #855, responsive per #794) */}
       <Box marginTop={1}>
-        {/* Left column - Main panels */}
-        <Box flexDirection="column" flexGrow={1}>
-          {/* Agent Stats by Role */}
-          <AgentStatsPanel stats={agentStats} />
-
-          {/* Agents Panel */}
-          <AgentsPanel agents={agents.data ?? []} />
-
-          {/* Channels Panel */}
-          <ChannelsPanel channels={channels.data ?? []} />
+        {/* Left column - Expanded Activity Feed (primary focus) */}
+        <Box flexDirection="column" flexGrow={1} marginRight={1}>
+          <ActivityFeed maxEntries={15} compact={false} showFilterHints />
         </Box>
 
-        {/* Right column - Activity feed (responsive width: min 30, max 45) */}
-        <Box flexDirection="column" width={Math.min(45, Math.max(30, Math.floor((terminalWidth - 4) * 0.35)))} marginLeft={1}>
-          <ActivityFeed maxEntries={10} compact showFilterHints={false} />
+        {/* Right column - Stats & Health panels (responsive width per #794) */}
+        <Box flexDirection="column" width={Math.min(35, Math.max(28, Math.floor((terminalWidth - 4) * 0.3)))}>
+          {/* System Health - Agent states */}
+          <SystemHealthPanel
+            working={summary.working}
+            idle={summary.idle}
+            stuck={summary.stuck}
+            errorCount={summary.error}
+            total={summary.total}
+          />
+
+          {/* Cost Panel with budget progress */}
+          <CostPanel
+            totalCostUSD={summary.totalCostUSD}
+            inputTokens={summary.inputTokens}
+            outputTokens={summary.outputTokens}
+          />
+
+          {/* Agent Distribution by Role */}
+          <AgentStatsPanel stats={agentStats} />
         </Box>
       </Box>
 
@@ -185,32 +186,114 @@ const SummaryCards = memo(function SummaryCards({
   );
 });
 
-interface CostSummaryProps {
-  totalCostUSD: number;
-  inputTokens: number;
-  outputTokens: number;
+interface SystemHealthPanelProps {
+  working: number;
+  idle: number;
+  stuck: number;
+  errorCount: number;
+  total: number;
 }
 
 /**
- * Memoized cost summary - only re-renders when cost data changes
+ * System Health panel - shows agent state distribution
  */
-const CostSummary = memo(function CostSummary({
+const SystemHealthPanel = memo(function SystemHealthPanel({
+  working,
+  idle,
+  stuck,
+  errorCount,
+  total,
+}: SystemHealthPanelProps) {
+  const healthyCount = working + idle;
+  const unhealthyCount = stuck + errorCount;
+  const healthPercent = total > 0 ? Math.round((healthyCount / total) * 100) : 100;
+
+  return (
+    <Panel title="System Health">
+      <Box flexDirection="column">
+        <Box>
+          <Text color={healthPercent >= 80 ? 'green' : healthPercent >= 50 ? 'yellow' : 'red'} bold>
+            {healthPercent}%
+          </Text>
+          <Text dimColor> healthy</Text>
+        </Box>
+        <Box marginTop={1} flexDirection="column">
+          <Box>
+            <Text color="cyan">●</Text>
+            <Text> Working: {working}</Text>
+          </Box>
+          <Box>
+            <Text color="gray">●</Text>
+            <Text> Idle: {idle}</Text>
+          </Box>
+          {stuck > 0 && (
+            <Box>
+              <Text color="yellow">●</Text>
+              <Text> Stuck: {stuck}</Text>
+            </Box>
+          )}
+          {errorCount > 0 && (
+            <Box>
+              <Text color="red">●</Text>
+              <Text> Error: {errorCount}</Text>
+            </Box>
+          )}
+        </Box>
+        {unhealthyCount > 0 && (
+          <Box marginTop={1}>
+            <Text color="yellow" dimColor>
+              ⚠ {unhealthyCount} agent{unhealthyCount > 1 ? 's' : ''} need attention
+            </Text>
+          </Box>
+        )}
+      </Box>
+    </Panel>
+  );
+});
+
+interface CostPanelProps {
+  totalCostUSD: number;
+  inputTokens: number;
+  outputTokens: number;
+  budgetUSD?: number;
+}
+
+/**
+ * Cost panel with budget progress bar
+ */
+const CostPanel = memo(function CostPanel({
   totalCostUSD,
   inputTokens,
   outputTokens,
-}: CostSummaryProps) {
+  budgetUSD = 10.0,
+}: CostPanelProps) {
   const totalTokens = inputTokens + outputTokens;
+  const budgetPercent = Math.min(100, Math.round((totalCostUSD / budgetUSD) * 100));
+  const barWidth = 20;
+  const filledWidth = Math.round((budgetPercent / 100) * barWidth);
+  const emptyWidth = barWidth - filledWidth;
+
+  const barColor = budgetPercent >= 90 ? 'red' : budgetPercent >= 75 ? 'yellow' : 'green';
 
   return (
-    <Box marginTop={1}>
-      <Text bold>Cost: </Text>
-      <Text color="yellow">${totalCostUSD.toFixed(4)}</Text>
-      <Text> · </Text>
-      <Text dimColor>
-        {formatNumber(totalTokens)} tokens ({formatNumber(inputTokens)} in /{' '}
-        {formatNumber(outputTokens)} out)
-      </Text>
-    </Box>
+    <Panel title="Cost">
+      <Box flexDirection="column">
+        <Box>
+          <Text bold color="yellow">${totalCostUSD.toFixed(2)}</Text>
+          <Text dimColor> / ${budgetUSD.toFixed(2)}</Text>
+        </Box>
+        <Box marginTop={1}>
+          <Text color={barColor}>{'█'.repeat(filledWidth)}</Text>
+          <Text dimColor>{'░'.repeat(emptyWidth)}</Text>
+          <Text> {budgetPercent}%</Text>
+        </Box>
+        <Box marginTop={1}>
+          <Text dimColor>
+            {formatNumber(totalTokens)} tokens
+          </Text>
+        </Box>
+      </Box>
+    </Panel>
   );
 });
 
@@ -248,100 +331,6 @@ const AgentStatsPanel = memo(function AgentStatsPanel({ stats }: AgentStatsPanel
   );
 });
 
-interface Agent {
-  name: string;
-  role: string;
-  state: string;
-  startedAt: string;
-  updatedAt: string;
-  task: string;
-  [key: string]: unknown;
-}
-
-interface AgentsPanelProps {
-  agents: Agent[];
-}
-
-/**
- * Memoized agents panel - only re-renders when agents array changes
- */
-const AgentsPanel = memo(function AgentsPanel({ agents }: AgentsPanelProps) {
-  // Memoize displayed agents slice
-  const displayAgents = useMemo(() => agents.slice(0, 5), [agents]);
-  const hasMore = agents.length > 5;
-
-  return (
-    <Panel title="Agents">
-      {agents.length === 0 ? (
-        <Text dimColor>No agents running</Text>
-      ) : (
-        <>
-          <DataTable
-            columns={[
-              { key: 'name', header: 'AGENT', width: 15 },
-              { key: 'role', header: 'ROLE', width: 12 },
-              {
-                key: 'state',
-                header: 'STATE',
-                width: 10,
-                render: (value) => <StatusBadge state={value as string} />,
-              },
-              { key: 'updatedAt', header: 'UPDATED', width: 10 },
-              { key: 'task', header: 'TASK' },
-            ]}
-            data={displayAgents}
-          />
-          {hasMore && (
-            <Text dimColor>
-              ... and {agents.length - 5} more (press &apos;a&apos; to view all)
-            </Text>
-          )}
-        </>
-      )}
-    </Panel>
-  );
-});
-
-interface Channel {
-  name: string;
-  members: string[];
-  messageCount?: number;
-}
-
-interface ChannelsPanelProps {
-  channels: Channel[];
-}
-
-/**
- * Memoized channels panel - only re-renders when channels array changes
- */
-const ChannelsPanel = memo(function ChannelsPanel({ channels }: ChannelsPanelProps) {
-  // Memoize displayed channels slice
-  const displayChannels = useMemo(() => channels.slice(0, 5), [channels]);
-
-  return (
-    <Panel title="Channels">
-      {channels.length === 0 ? (
-        <Text dimColor>No channels</Text>
-      ) : (
-        <Box flexDirection="column">
-          {displayChannels.map((ch) => (
-            <Box key={ch.name}>
-              <Text color="cyan">#{ch.name}</Text>
-              <Text> </Text>
-              <Text dimColor>{ch.members.length} members</Text>
-            </Box>
-          ))}
-          {channels.length > 5 && (
-            <Text dimColor>
-              ... and {channels.length - 5} more (press &apos;c&apos; to view all)
-            </Text>
-          )}
-        </Box>
-      )}
-    </Panel>
-  );
-});
 
 /**
  * Format large numbers with K/M suffixes
