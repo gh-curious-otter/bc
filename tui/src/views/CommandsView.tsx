@@ -2,14 +2,52 @@
  * CommandsView - Browse and search all bc commands
  * Displays commands organized by category with search/filter capability
  * Supports execution of read-only commands directly from TUI
+ * Supports favorites with persistence
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { COMMAND_REGISTRY } from '../types/commands';
 import type { BcCommand } from '../types/commands';
 import { useFocus } from '../navigation/FocusContext';
 import { execBc } from '../services/bc';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+
+// Favorites storage path
+const FAVORITES_FILE = path.join(os.homedir(), '.bc', 'command-favorites.json');
+
+/**
+ * Load favorites from disk
+ */
+function loadFavorites(): Set<string> {
+  try {
+    if (fs.existsSync(FAVORITES_FILE)) {
+      const data = fs.readFileSync(FAVORITES_FILE, 'utf-8');
+      const parsed = JSON.parse(data) as string[];
+      return new Set(parsed);
+    }
+  } catch {
+    // Ignore errors, return empty set
+  }
+  return new Set();
+}
+
+/**
+ * Save favorites to disk
+ */
+function saveFavorites(favorites: Set<string>): void {
+  try {
+    const dir = path.dirname(FAVORITES_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(FAVORITES_FILE, JSON.stringify([...favorites], null, 2));
+  } catch {
+    // Ignore save errors
+  }
+}
 
 interface CommandsViewProps {
   onBack?: () => void;
@@ -28,6 +66,27 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
   const [searchMode, setSearchMode] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState('All');
   const { setFocus, returnFocus } = useFocus();
+
+  // Favorites state - persisted to disk
+  const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites());
+
+  // Save favorites when they change
+  useEffect(() => {
+    saveFavorites(favorites);
+  }, [favorites]);
+
+  // Toggle favorite for a command
+  const toggleFavorite = useCallback((commandName: string) => {
+    setFavorites(prev => {
+      const next = new Set(prev);
+      if (next.has(commandName)) {
+        next.delete(commandName);
+      } else {
+        next.add(commandName);
+      }
+      return next;
+    });
+  }, []);
 
   // Command execution state
   const [isExecuting, setIsExecuting] = useState(false);
@@ -61,7 +120,7 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
     }
   }, []);
 
-  // Get filtered commands by category and search
+  // Get filtered commands by category and search, with favorites first
   const filteredCommands = React.useMemo(() => {
     let commands = categoryFilter === 'All'
       ? COMMAND_REGISTRY.flatMap(cat => cat.commands)
@@ -74,8 +133,17 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
         cmd.description.toLowerCase().includes(lowerQuery)
       );
     }
-    return commands;
-  }, [categoryFilter, searchQuery]);
+
+    // Sort favorites to the top
+    return [...commands].sort((a, b) => {
+      const aFav = favorites.has(a.name) ? 0 : 1;
+      const bFav = favorites.has(b.name) ? 0 : 1;
+      return aFav - bFav;
+    });
+  }, [categoryFilter, searchQuery, favorites]);
+
+  // Count favorites for display
+  const favoriteCount = favorites.size;
 
   // Clamp selectedIndex to valid range whenever filteredCommands changes
   const validatedIndex = Math.min(selectedIndex, Math.max(0, filteredCommands.length - 1));
@@ -146,6 +214,9 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
           setCommandError(`"${selectedCommand.name}" modifies state - use CLI directly`);
           setCommandOutput(null);
         }
+      } else if (input === 'f' && selectedCommand) {
+        // Toggle favorite
+        toggleFavorite(selectedCommand.name);
       } else if (input === 'c' && (commandOutput !== null || commandError !== null)) {
         // Clear output panel
         setCommandOutput(null);
@@ -172,6 +243,9 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
           Commands
         </Text>
         <Text dimColor> ({filteredCommands.length} available)</Text>
+        {favoriteCount > 0 && (
+          <Text color="yellow"> ★ {favoriteCount} favorites</Text>
+        )}
       </Box>
 
       {/* Category filter bar */}
@@ -211,6 +285,7 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
               key={`${cmd.category}-${cmd.name}`}
               command={cmd}
               selected={idx === validatedIndex}
+              isFavorite={favorites.has(cmd.name)}
             />
           ))
         )}
@@ -281,7 +356,7 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
             ? 'c: clear output | Esc: close | q: back'
             : filteredCommands.length === 0
             ? 'No commands found | /: search | q: back'
-            : 'j/k: navigate | /: search | Enter: run | q: back'}
+            : 'j/k: navigate | /: search | Enter: run | f: favorite | q: back'}
         </Text>
       </Box>
     </Box>
@@ -291,11 +366,13 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
 interface CommandRowProps {
   command: BcCommand;
   selected: boolean;
+  isFavorite: boolean;
 }
 
-function CommandRow({ command, selected }: CommandRowProps): React.ReactElement {
+function CommandRow({ command, selected, isFavorite }: CommandRowProps): React.ReactElement {
   return (
     <Box marginBottom={1}>
+      <Text color="yellow">{isFavorite ? '★ ' : '  '}</Text>
       <Text color={selected ? 'cyan' : undefined} bold={selected}>
         {selected ? '▸ ' : '  '}
         {command.name}
