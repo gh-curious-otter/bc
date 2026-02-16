@@ -188,7 +188,7 @@ describe('Panel - Extended Tests', () => {
     });
 
     it('renders with no children', () => {
-      const { lastFrame } = render(<Panel title="Empty" children={null} />);
+      const { lastFrame } = render(<Panel title="Empty">{null}</Panel>);
       expect(lastFrame()).toContain('Empty');
     });
 

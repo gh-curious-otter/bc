@@ -88,13 +88,22 @@ export interface CostRecord {
   timestamp: string;
 }
 
+export interface AgentCost {
+  agent: string;
+  input_tokens: number;
+  output_tokens: number;
+  total_cost: number;
+}
+
 export interface CostSummary {
   total_cost: number;
   total_input_tokens: number;
   total_output_tokens: number;
-  by_agent: Record<string, number>;
-  by_team: Record<string, number>;
-  by_model: Record<string, number>;
+  agent_costs?: AgentCost[];
+  period?: string;
+  by_agent?: Record<string, number>;
+  by_team?: Record<string, number>;
+  by_model?: Record<string, number>;
 }
 
 // Generic bc command result
