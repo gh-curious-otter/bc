@@ -37,18 +37,21 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
   const [viewMode, setViewMode] = useState<'list' | 'history'>('list');
   const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
   const { getLastViewed } = useUnread();
-  const { setFocus, returnFocus } = useFocus();
+  const { setFocus } = useFocus();
 
   const selectedChannel = channels?.[selectedIndex];
 
-  // Update breadcrumbs when view mode or selected channel changes
+  // Update breadcrumbs and focus when view mode changes
   useEffect(() => {
     if (viewMode === 'history' && selectedChannel) {
       setBreadcrumbs([{ label: `#${selectedChannel.name}` }]);
     } else {
       clearBreadcrumbs();
+      // Restore focus to 'main' when returning to list view
+      // This must happen AFTER global ESC handler has checked focus
+      setFocus('main');
     }
-  }, [viewMode, selectedChannel, setBreadcrumbs, clearBreadcrumbs]);
+  }, [viewMode, selectedChannel, setBreadcrumbs, clearBreadcrumbs, setFocus]);
 
   // Calculate unread status for each channel (new = never viewed)
   const getChannelUnread = (channelName: string): number => {
@@ -79,13 +82,8 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
           setFocus('view');
           setViewMode('history');
         }
-      } else {
-        // Back to list - restore focus before leaving history
-        if (key.escape) {
-          returnFocus();
-          setViewMode('list');
-        }
       }
+      // Note: ESC in history mode is handled by ChannelHistoryView's onBack callback
     },
     { isActive: !disableInput }
   );
@@ -184,7 +182,7 @@ function ChannelHistoryView({
   const [messageBuffer, setMessageBuffer] = useState('');
   const [scrollOffset, setScrollOffset] = useState(0);
   const [sendError, setSendError] = useState<string | null>(null);
-  const { setFocus, returnFocus } = useFocus();
+  const { setFocus } = useFocus();
 
   // Auto-clear send errors after a delay
   useEffect(() => {
@@ -258,8 +256,9 @@ function ChannelHistoryView({
         }
       } else {
         // ESC to go back to channel list
+        // Note: Don't call returnFocus() here - focus must stay 'view' until
+        // after global ESC handler runs, otherwise goHome() will fire
         if (key.escape) {
-          returnFocus(); // Restore focus before navigating back
           onBack?.();
         }
         // 'm' to compose message
