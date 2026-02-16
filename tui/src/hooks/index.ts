@@ -102,3 +102,17 @@ export {
   type UseLogsResult,
   type LogSeverity,
 } from './useLogs';
+
+export {
+  usePerformanceMetrics,
+  createPerformanceTracker,
+  globalPerformanceTracker,
+  type PerformanceMetric,
+  type PerformanceMetrics,
+} from './usePerformanceMetrics';
+
+export {
+  PerformanceProvider,
+  usePerformance,
+  usePerformanceOptional,
+} from './PerformanceContext';
