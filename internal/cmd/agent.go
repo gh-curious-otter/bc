@@ -707,7 +707,7 @@ func runAgentStart(cmd *cobra.Command, args []string) error {
 
 	// Check if agent is in stopped state
 	if a.State != agent.StateStopped {
-		return fmt.Errorf("agent %q is not stopped (current state: %s) - cannot start", agentName, a.State)
+		return fmt.Errorf("agent %q is already running (state: %s). Stop it first with: bc agent stop %s", agentName, a.State, agentName)
 	}
 
 	fmt.Printf("Starting %s (%s)... ", agentName, a.Role)
