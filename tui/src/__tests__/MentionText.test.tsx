@@ -135,4 +135,85 @@ describe('MentionText', () => {
     expect(output).toContain('Line 1');
     expect(output).toContain('Line 2');
   });
+
+  // #972: Markdown rendering tests
+  describe('markdown rendering', () => {
+    test('renders **bold** text', () => {
+      const { lastFrame } = render(<MentionText text="This is **bold** text" />);
+      const output = lastFrame() ?? '';
+      expect(output).toContain('This is');
+      expect(output).toContain('bold');
+      expect(output).toContain('text');
+      // Should NOT contain the asterisks
+      expect(output).not.toContain('**');
+    });
+
+    test('renders __bold__ text (underscore style)', () => {
+      const { lastFrame } = render(<MentionText text="This is __bold__ text" />);
+      const output = lastFrame() ?? '';
+      expect(output).toContain('bold');
+      expect(output).not.toContain('__');
+    });
+
+    test('renders *italic* text', () => {
+      const { lastFrame } = render(<MentionText text="This is *italic* text" />);
+      const output = lastFrame() ?? '';
+      expect(output).toContain('italic');
+      // Single asterisks should be removed
+      expect(output).not.toMatch(/\*italic\*/);
+    });
+
+    test('renders _italic_ text (underscore style)', () => {
+      const { lastFrame } = render(<MentionText text="This is _italic_ text" />);
+      const output = lastFrame() ?? '';
+      expect(output).toContain('italic');
+      expect(output).not.toContain('_italic_');
+    });
+
+    test('renders `code` text', () => {
+      const { lastFrame } = render(<MentionText text="Run `npm install` first" />);
+      const output = lastFrame() ?? '';
+      expect(output).toContain('npm install');
+      expect(output).not.toContain('`');
+    });
+
+    test('renders mixed markdown and mentions', () => {
+      const { lastFrame } = render(
+        <MentionText text="@eng-01 please **review** the `code`" />
+      );
+      const output = lastFrame() ?? '';
+      expect(output).toContain('@eng-01');
+      expect(output).toContain('review');
+      expect(output).toContain('code');
+      expect(output).not.toContain('**');
+      expect(output).not.toContain('`');
+    });
+
+    test('renders multiple markdown elements', () => {
+      const { lastFrame } = render(
+        <MentionText text="**Bold** and *italic* and `code`" />
+      );
+      const output = lastFrame() ?? '';
+      expect(output).toContain('Bold');
+      expect(output).toContain('italic');
+      expect(output).toContain('code');
+    });
+
+    test('handles markdown with self-mention', () => {
+      const { lastFrame } = render(
+        <MentionText text="**Important:** @eng-03 needs to fix this" currentUser="eng-03" />
+      );
+      const output = lastFrame() ?? '';
+      expect(output).toContain('Important');
+      expect(output).toContain('@eng-03');
+    });
+
+    test('handles unmatched markdown gracefully', () => {
+      // Single asterisk without closing should be treated as plain text
+      const { lastFrame } = render(<MentionText text="5 * 3 = 15" />);
+      const output = lastFrame() ?? '';
+      expect(output).toContain('5');
+      expect(output).toContain('15');
+    });
+  });
 });
