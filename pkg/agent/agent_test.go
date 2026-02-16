@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1005,6 +1006,31 @@ func TestSpawnAgentWithOptions_ParentCantCreate(t *testing.T) {
 	_, err := m.SpawnAgentWithOptions("eng-2", Role("engineer"), "/tmp", "eng-1", "")
 	if err == nil {
 		t.Error("expected error when parent can't create child role")
+	}
+}
+
+func TestSpawnAgentWithOptions_NullRole(t *testing.T) {
+	m := newTestManager(t)
+
+	tests := []struct {
+		name string
+		role Role
+	}{
+		{"empty role", Role("")},
+		{"null string", Role("null")},
+		{"nil-like string", Role("<nil>")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := m.SpawnAgentWithOptions("test-agent", tt.role, "/tmp", "", "")
+			if err == nil {
+				t.Errorf("expected error for %s, got nil", tt.name)
+			}
+			if !strings.Contains(err.Error(), "role is required") {
+				t.Errorf("expected 'role is required' error, got: %v", err)
+			}
+		})
 	}
 }
 
