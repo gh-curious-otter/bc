@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { getWorktrees, pruneWorktrees } from '../services/bc';
+import { useFocus } from '../navigation/FocusContext';
 import type { Worktree } from '../types';
 
 interface WorktreesViewProps {
@@ -32,6 +33,16 @@ export const WorktreesView: React.FC<WorktreesViewProps> = ({ onBack }) => {
   const [showPruneConfirm, setShowPruneConfirm] = useState(false);
   const [pruneResult, setPruneResult] = useState<string | null>(null);
   const [showOrphanedOnly, setShowOrphanedOnly] = useState(false);
+  const { setFocus } = useFocus();
+
+  // Manage focus state for nested view navigation
+  useEffect(() => {
+    if (showDetail) {
+      setFocus('view');
+    } else {
+      setFocus('main');
+    }
+  }, [showDetail, setFocus]);
 
   const fetchWorktrees = useCallback(async () => {
     try {
