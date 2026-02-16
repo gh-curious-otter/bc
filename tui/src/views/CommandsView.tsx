@@ -10,6 +10,7 @@ import { Box, Text, useInput } from 'ink';
 import { COMMAND_REGISTRY } from '../types/commands';
 import type { BcCommand } from '../types/commands';
 import { useFocus } from '../navigation/FocusContext';
+import { useNavigation } from '../navigation/NavigationContext';
 import { execBc } from '../services/bc';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -50,7 +51,6 @@ function saveFavorites(favorites: Set<string>): void {
 }
 
 interface CommandsViewProps {
-  onBack?: () => void;
   disableInput?: boolean;
 }
 
@@ -58,14 +58,14 @@ interface CommandsViewProps {
 const CATEGORY_NAMES = ['All', ...COMMAND_REGISTRY.map(cat => cat.name)];
 
 export const CommandsView: React.FC<CommandsViewProps> = ({
-  onBack,
   disableInput = false,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchMode, setSearchMode] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState('All');
-  const { setFocus, returnFocus } = useFocus();
+  const { setFocus } = useFocus();
+  const { goHome } = useNavigation();
 
   // Favorites state - persisted to disk
   const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites());
@@ -155,13 +155,15 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
   }, [searchQuery, categoryFilter]);
 
   // Sync focus state with search mode
+  // Use setFocus('main') instead of returnFocus() to avoid restoring stale focus
+  // (e.g., 'input' from previous ChannelsView session which would block global keybinds)
   React.useEffect(() => {
     if (searchMode) {
       setFocus('input');
     } else {
-      returnFocus();
+      setFocus('main');
     }
-  }, [searchMode, setFocus, returnFocus]);
+  }, [searchMode, setFocus]);
 
   // Keyboard navigation
   useInput((input, key) => {
@@ -229,7 +231,8 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
           setCommandError(null);
           setLastExecutedCommand(null);
         } else {
-          onBack?.();
+          // Navigate to home/dashboard
+          goHome();
         }
       }
     }
