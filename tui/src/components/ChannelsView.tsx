@@ -37,6 +37,7 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
   const [viewMode, setViewMode] = useState<'list' | 'history'>('list');
   const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
   const { getLastViewed } = useUnread();
+  const { setFocus, returnFocus } = useFocus();
 
   const selectedChannel = channels?.[selectedIndex];
 
@@ -73,13 +74,15 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
         if (input === 'G' && channels) {
           setSelectedIndex(channels.length - 1);
         }
-        // Enter channel
+        // Enter channel - set focus to 'view' BEFORE changing mode to prevent race
         if (key.return && selectedChannel) {
+          setFocus('view');
           setViewMode('history');
         }
       } else {
-        // Back to list
+        // Back to list - restore focus before leaving history
         if (key.escape) {
+          returnFocus();
           setViewMode('list');
         }
       }
