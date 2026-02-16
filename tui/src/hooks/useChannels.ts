@@ -46,7 +46,7 @@ export function useChannels(options: UseChannelsOptions = {}): UseChannelsResult
 
   useEffect(() => {
     if (!autoPoll) return;
-    const interval = setInterval(fetchChannels, pollInterval);
+    const interval = setInterval(() => { void fetchChannels(); }, pollInterval);
     return () => { clearInterval(interval); };
   }, [autoPoll, pollInterval, fetchChannels]);
 
@@ -106,12 +106,12 @@ export function useChannelHistory(
   );
 
   useEffect(() => {
-    fetchHistory();
+    void fetchHistory();
   }, [fetchHistory]);
 
   useEffect(() => {
     if (!autoPoll) return;
-    const interval = setInterval(fetchHistory, pollInterval);
+    const interval = setInterval(() => { void fetchHistory(); }, pollInterval);
     return () => { clearInterval(interval); };
   }, [autoPoll, pollInterval, fetchHistory]);
 

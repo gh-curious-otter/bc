@@ -122,7 +122,7 @@ export function useDashboard() {
         error: null,
       });
     } else {
-      const error = channelsResult.reason;
+      const error: unknown = channelsResult.reason;
       setChannels({
         data: [],
         isLoading: false,
@@ -151,13 +151,13 @@ export function useDashboard() {
 
   // Initial fetch on mount
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, [fetchData]);
 
   // Auto-refresh every 30 seconds (optimized for performance - Issue #559)
   // Users can manually refresh with 'r' key for immediate updates
   useEffect(() => {
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(() => { void fetchData(); }, 30000);
     return () => { clearInterval(interval); };
   }, [fetchData]);
 
@@ -193,7 +193,7 @@ export function useDashboard() {
   }, [workspaceName, agents.data, cost.data]);
 
   const isLoading = agents.isLoading || channels.isLoading || cost.isLoading;
-  const error = agents.error || channels.error || cost.error;
+  const error = agents.error ?? channels.error ?? cost.error;
 
   return {
     summary,
@@ -220,10 +220,10 @@ function formatTime(isoString: string | undefined): string {
     const diffMins = Math.floor(diffMs / 60000);
 
     if (diffMins < 1) return 'now';
-    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffMins < 60) return `${String(diffMins)}m ago`;
 
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffHours < 24) return `${String(diffHours)}h ago`;
 
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   } catch {

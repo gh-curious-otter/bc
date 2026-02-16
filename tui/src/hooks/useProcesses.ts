@@ -59,12 +59,13 @@ export function useProcesses(options: UseProcessesOptions = {}): UseProcessesRes
   // Initial fetch
   useEffect(() => {
     void fetchProcesses();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Polling interval
   useEffect(() => {
     if (!isPolling) return;
-    const timer = setInterval(fetchProcesses, interval);
+    const timer = setInterval(() => { void fetchProcesses(); }, interval);
     return () => { clearInterval(timer); };
   }, [isPolling, interval, fetchProcesses]);
 
@@ -131,13 +132,14 @@ export function useProcessLogs(options: UseProcessLogsOptions): UseProcessLogsRe
   useEffect(() => {
     setLoading(true);
     setData(null);
-    fetchLogs();
+    void fetchLogs();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name]);
 
   // Polling interval
   useEffect(() => {
     if (!isPolling) return;
-    const timer = setInterval(fetchLogs, interval);
+    const timer = setInterval(() => { void fetchLogs(); }, interval);
     return () => { clearInterval(timer); };
   }, [isPolling, interval, fetchLogs]);
 
