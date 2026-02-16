@@ -134,6 +134,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               onChange={setValue}
               onSubmit={handleSubmit}
               placeholder={placeholder}
+              showCursor={true}
+              focus={true}
             />
           </Box>
         ) : (
@@ -150,7 +152,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           {isInputMode
             ? autocomplete.isActive
               ? '↑/↓: select mention | Tab: complete | Esc: close'
-              : 'Type message, Enter to send, @ for mentions, Escape to exit'
+              : '←/→: move cursor | Enter: send | @: mentions | Esc: exit'
             : 'i: input mode | j/k: scroll'}
         </Text>
       </Box>
