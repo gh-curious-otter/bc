@@ -160,7 +160,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			uptime = formatDuration(time.Since(a.StartedAt))
 		}
 
-		task := a.Task
+		task := normalizeTask(a.Task)
 		if task == "" {
 			task = "-"
 		}
@@ -277,6 +277,28 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%dm %ds", m, s)
 	}
 	return fmt.Sprintf("%ds", s)
+}
+
+// normalizeTask transforms cooking metaphors in Claude Code's status line
+// to clearer terminology. Issue #970.
+func normalizeTask(task string) string {
+	// Map cooking metaphors to clear terms
+	replacements := []struct {
+		old, new string
+	}{
+		{"Sautéed", "Working"},
+		{"Sauteed", "Working"}, // ASCII fallback
+		{"Cooked", "Processed"},
+		{"Cogitated", "Thinking"},
+		{"Marinated", "Idle"},
+		{"Frolicking", "Active"},
+	}
+	for _, r := range replacements {
+		if strings.Contains(task, r.old) {
+			return strings.Replace(task, r.old, r.new, 1)
+		}
+	}
+	return task
 }
 
 func colorState(s agent.State) string {
