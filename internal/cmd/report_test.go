@@ -176,3 +176,28 @@ func TestRecordExperience_InitializesMemory(t *testing.T) {
 		t.Error("memory should be initialized after recording")
 	}
 }
+
+// --- Enhanced Stuck Report Tests (#675) ---
+
+func TestReportCommand_StuckFlags(t *testing.T) {
+	// Test that stuck report flags are defined
+	reasonFlag := reportCmd.Flags().Lookup("reason")
+	if reasonFlag == nil {
+		t.Error("--reason flag should be defined")
+	}
+
+	reproductionFlag := reportCmd.Flags().Lookup("reproduction")
+	if reproductionFlag == nil {
+		t.Error("--reproduction flag should be defined")
+	}
+
+	severityFlag := reportCmd.Flags().Lookup("severity")
+	if severityFlag == nil {
+		t.Error("--severity flag should be defined")
+	}
+
+	// Verify default severity
+	if severityFlag != nil && severityFlag.DefValue != "medium" {
+		t.Errorf("--severity default should be 'medium', got %q", severityFlag.DefValue)
+	}
+}
