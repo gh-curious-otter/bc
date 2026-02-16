@@ -31,7 +31,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
 
   const fetchAgentOutput = useCallback(async () => {
     try {
-      const output = await execBc(['agent', 'peek', agent.name, '--tail', '50']);
+      const output = await execBc(['agent', 'peek', agent.name, '--lines', '50']);
       const lines = output.split('\n').filter(line => line.trim());
       setOutputLines(lines);
       setError(null);
