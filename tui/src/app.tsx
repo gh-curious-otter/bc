@@ -2,8 +2,8 @@
  * App - Main TUI application component
  */
 
-import React from 'react';
-import { Box, Text, useStdout } from 'ink';
+import React, { useState, useMemo } from 'react';
+import { Box, Text, useStdout, useInput } from 'ink';
 import {
   NavigationProvider,
   useNavigation,
@@ -118,76 +118,157 @@ function ViewContent({ view, disableInput }: ViewContentProps): React.ReactEleme
 
 function HelpView(): React.ReactElement {
   const { theme, isDark } = useTheme();
+  const { stdout } = useStdout();
+  const [scrollOffset, setScrollOffset] = useState(0);
+
+  // All help sections as an array of renderable items
+  const helpSections = useMemo(() => [
+    { type: 'header' as const },
+    { type: 'section' as const, title: 'Global', shortcuts: [
+      { keys: '1-8', desc: 'Switch tabs' },
+      { keys: '?', desc: 'Toggle help' },
+      { keys: 'ESC', desc: 'Go back / Home' },
+      { keys: 'Tab', desc: 'Next tab' },
+      { keys: 'Shift+Tab', desc: 'Previous tab' },
+      { keys: 'Ctrl+R', desc: 'Refresh current view' },
+      { keys: 'q', desc: 'Quit' },
+    ]},
+    { type: 'section' as const, title: 'Navigation', shortcuts: [
+      { keys: 'j / ↓', desc: 'Move down' },
+      { keys: 'k / ↑', desc: 'Move up' },
+      { keys: 'g', desc: 'Jump to top' },
+      { keys: 'G', desc: 'Jump to bottom' },
+      { keys: 'Enter', desc: 'Select / Drill down' },
+    ]},
+    { type: 'section' as const, title: 'Agents', shortcuts: [
+      { keys: 'Enter', desc: 'Attach to agent session' },
+      { keys: 'p', desc: 'Peek agent output' },
+      { keys: 'x', desc: 'Stop agent' },
+      { keys: 'X', desc: 'Kill agent (force)' },
+      { keys: 'R', desc: 'Restart agent' },
+    ]},
+    { type: 'section' as const, title: 'Channels', shortcuts: [
+      { keys: 'Enter', desc: 'View channel history' },
+      { keys: 'm', desc: 'Compose message' },
+      { keys: 'j/k', desc: 'Scroll messages' },
+      { keys: 'c', desc: 'Clear draft' },
+    ]},
+    { type: 'section' as const, title: 'Costs', shortcuts: [
+      { keys: '1/2/3', desc: 'Switch agent/model/team tabs' },
+      { keys: 'b', desc: 'Set budget' },
+      { keys: 'e', desc: 'Export to CSV' },
+      { keys: 'r', desc: 'Refresh data' },
+    ]},
+    { type: 'section' as const, title: 'Commands', shortcuts: [
+      { keys: '/', desc: 'Search commands' },
+      { keys: 'f', desc: 'Toggle favorite' },
+      { keys: 'Enter', desc: 'Copy command' },
+    ]},
+    { type: 'footer' as const },
+  ], []);
+
+  // Calculate total lines needed
+  const totalLines = helpSections.reduce((acc, section) => {
+    if (section.type === 'header') return acc + 2;
+    if (section.type === 'footer') return acc + 3;
+    return acc + 1 + section.shortcuts.length + 1; // title + shortcuts + margin
+  }, 0);
+
+  // Available height for content (reserve 4 lines for header/footer/hints)
+  const availableHeight = Math.max(10, (stdout.rows || 24) - 6);
+  const needsScroll = totalLines > availableHeight;
+  const maxScroll = Math.max(0, totalLines - availableHeight);
+
+  // Handle scroll with j/k
+  useInput((input, key) => {
+    if (needsScroll) {
+      if (input === 'j' || key.downArrow) {
+        setScrollOffset(prev => Math.min(prev + 1, maxScroll));
+      }
+      if (input === 'k' || key.upArrow) {
+        setScrollOffset(prev => Math.max(prev - 1, 0));
+      }
+      if (input === 'g') {
+        setScrollOffset(0);
+      }
+      if (input === 'G') {
+        setScrollOffset(maxScroll);
+      }
+    }
+  });
+
+  // Build visible content
+  let currentLine = 0;
+  const visibleContent: React.ReactNode[] = [];
+
+  for (const section of helpSections) {
+    if (section.type === 'header') {
+      if (currentLine >= scrollOffset && currentLine < scrollOffset + availableHeight) {
+        visibleContent.push(
+          <Text key="title" bold color="cyan">KEYBOARD SHORTCUTS</Text>,
+          <Text key="divider" dimColor>{'─'.repeat(40)}</Text>
+        );
+      }
+      currentLine += 2;
+    } else if (section.type === 'footer') {
+      if (currentLine >= scrollOffset && currentLine < scrollOffset + availableHeight) {
+        visibleContent.push(
+          <Box key="footer" marginTop={1} flexDirection="column">
+            <Text dimColor>{'─'.repeat(40)}</Text>
+            <Text dimColor>
+              Theme: {theme.name} ({isDark ? 'dark' : 'light'} mode)
+            </Text>
+          </Box>
+        );
+      }
+      currentLine += 3;
+    } else {
+      // Section with shortcuts
+      const sectionLines = 1 + section.shortcuts.length + 1;
+      if (currentLine + sectionLines > scrollOffset && currentLine < scrollOffset + availableHeight) {
+        const startIdx = Math.max(0, scrollOffset - currentLine);
+        const endIdx = Math.min(sectionLines, scrollOffset + availableHeight - currentLine);
+
+        const sectionContent: React.ReactNode[] = [];
+        if (startIdx === 0) {
+          sectionContent.push(<Text key={`${section.title}-title`} bold>{section.title}</Text>);
+        }
+
+        section.shortcuts.forEach((shortcut, idx) => {
+          const lineIdx = idx + 1;
+          if (lineIdx >= startIdx && lineIdx < endIdx) {
+            sectionContent.push(
+              <ShortcutRow key={`${section.title}-${shortcut.keys}`} keys={shortcut.keys} desc={shortcut.desc} />
+            );
+          }
+        });
+
+        if (sectionContent.length > 0) {
+          visibleContent.push(
+            <Box key={section.title} marginTop={currentLine > scrollOffset ? 1 : 0} flexDirection="column">
+              {sectionContent}
+            </Box>
+          );
+        }
+      }
+      currentLine += sectionLines;
+    }
+  }
+
   return (
-    <Box flexDirection="column">
-      <Text bold color="cyan">KEYBOARD SHORTCUTS</Text>
-      <Text dimColor>{'─'.repeat(40)}</Text>
-
-      {/* Global shortcuts */}
-      <Box marginTop={1} flexDirection="column">
-        <Text bold>Global</Text>
-        <ShortcutRow keys="1-8" desc="Switch tabs" />
-        <ShortcutRow keys="?" desc="Toggle help" />
-        <ShortcutRow keys="ESC" desc="Go back / Home" />
-        <ShortcutRow keys="Tab" desc="Next tab" />
-        <ShortcutRow keys="Shift+Tab" desc="Previous tab" />
-        <ShortcutRow keys="Ctrl+R" desc="Refresh current view" />
-        <ShortcutRow keys="q" desc="Quit" />
+    <Box flexDirection="column" height={availableHeight + 2}>
+      {needsScroll && scrollOffset > 0 && (
+        <Text dimColor>↑ Scroll up (k)</Text>
+      )}
+      <Box flexDirection="column" flexGrow={1} overflow="hidden">
+        {visibleContent}
       </Box>
-
-      {/* Navigation */}
-      <Box marginTop={1} flexDirection="column">
-        <Text bold>Navigation</Text>
-        <ShortcutRow keys="j / ↓" desc="Move down" />
-        <ShortcutRow keys="k / ↑" desc="Move up" />
-        <ShortcutRow keys="g" desc="Jump to top" />
-        <ShortcutRow keys="G" desc="Jump to bottom" />
-        <ShortcutRow keys="Enter" desc="Select / Drill down" />
-      </Box>
-
-      {/* Agents view */}
-      <Box marginTop={1} flexDirection="column">
-        <Text bold>Agents</Text>
-        <ShortcutRow keys="Enter" desc="Attach to agent session" />
-        <ShortcutRow keys="p" desc="Peek agent output" />
-        <ShortcutRow keys="x" desc="Stop agent" />
-        <ShortcutRow keys="X" desc="Kill agent (force)" />
-        <ShortcutRow keys="R" desc="Restart agent" />
-      </Box>
-
-      {/* Channels view */}
-      <Box marginTop={1} flexDirection="column">
-        <Text bold>Channels</Text>
-        <ShortcutRow keys="Enter" desc="View channel history" />
-        <ShortcutRow keys="m" desc="Compose message" />
-        <ShortcutRow keys="j/k" desc="Scroll messages" />
-        <ShortcutRow keys="c" desc="Clear draft" />
-      </Box>
-
-      {/* Costs view */}
-      <Box marginTop={1} flexDirection="column">
-        <Text bold>Costs</Text>
-        <ShortcutRow keys="1/2/3" desc="Switch agent/model/team tabs" />
-        <ShortcutRow keys="b" desc="Set budget" />
-        <ShortcutRow keys="e" desc="Export to CSV" />
-        <ShortcutRow keys="r" desc="Refresh data" />
-      </Box>
-
-      {/* Commands view */}
-      <Box marginTop={1} flexDirection="column">
-        <Text bold>Commands</Text>
-        <ShortcutRow keys="/" desc="Search commands" />
-        <ShortcutRow keys="f" desc="Toggle favorite" />
-        <ShortcutRow keys="Enter" desc="Copy command" />
-      </Box>
-
-      {/* Theme info */}
-      <Box marginTop={1} flexDirection="column">
-        <Text dimColor>{'─'.repeat(40)}</Text>
-        <Text dimColor>
-          Theme: {theme.name} ({isDark ? 'dark' : 'light'} mode)
-        </Text>
-      </Box>
+      {needsScroll && scrollOffset < maxScroll && (
+        <Text dimColor>↓ Scroll down (j) — {Math.round((scrollOffset / maxScroll) * 100)}%</Text>
+      )}
+      {needsScroll && (
+        <Text dimColor>Use j/k to scroll, g/G for top/bottom</Text>
+      )}
     </Box>
   );
 }
