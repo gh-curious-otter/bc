@@ -67,10 +67,10 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
 
       {/* By Agent */}
       <Panel title="By Agent" width={terminalWidth - 2}>
-        {Object.entries(costs.by_agent).length === 0 ? (
+        {Object.entries(costs.by_agent ?? {}).length === 0 ? (
           <Text dimColor>No agent costs recorded</Text>
         ) : (
-          Object.entries(costs.by_agent)
+          Object.entries(costs.by_agent ?? {})
             .sort(([, a], [, b]) => b - a)
             .slice(0, 10)
             .map(([agent, cost]) => (
@@ -84,10 +84,10 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
 
       {/* By Model */}
       <Panel title="By Model" width={terminalWidth - 2}>
-        {Object.entries(costs.by_model).length === 0 ? (
+        {Object.entries(costs.by_model ?? {}).length === 0 ? (
           <Text dimColor>No model costs recorded</Text>
         ) : (
-          Object.entries(costs.by_model)
+          Object.entries(costs.by_model ?? {})
             .sort(([, a], [, b]) => b - a)
             .map(([model, cost]) => (
               <Box key={model}>
@@ -99,9 +99,9 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
       </Panel>
 
       {/* By Team */}
-      {Object.keys(costs.by_team).length > 0 && (
+      {Object.keys(costs.by_team ?? {}).length > 0 && (
         <Panel title="By Team" width={terminalWidth - 2}>
-          {Object.entries(costs.by_team)
+          {Object.entries(costs.by_team ?? {})
             .sort(([, a], [, b]) => b - a)
             .map(([team, cost]) => (
               <Box key={team}>
