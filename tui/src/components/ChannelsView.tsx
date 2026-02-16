@@ -111,6 +111,7 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
   if (viewMode === 'history' && selectedChannel) {
     return (
       <ChannelHistoryView
+        key={selectedChannel.name}
         channel={selectedChannel}
         disableInput={disableInput}
         onBack={() => { setViewMode('list'); }}
