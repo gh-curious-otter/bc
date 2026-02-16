@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -132,20 +133,58 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	fmt.Println("Workspace Roles")
-	fmt.Println(strings.Repeat("=", 60))
-	for name, role := range roles {
-		fmt.Printf("\n%s\n", name)
-		if role.Metadata.IsSingleton {
-			fmt.Println("  [singleton]")
-		}
-		if len(role.Metadata.Capabilities) > 0 {
-			fmt.Printf("  capabilities: %s\n", strings.Join(role.Metadata.Capabilities, ", "))
-		}
-		if len(role.Metadata.ParentRoles) > 0 {
-			fmt.Printf("  parent roles: %s\n", strings.Join(role.Metadata.ParentRoles, ", "))
-		}
+	// Collect role data and calculate column widths
+	type roleRow struct {
+		name         string
+		description  string
+		flags        string
+		capabilities int
 	}
+	rows := make([]roleRow, 0, len(roles))
+	maxNameLen := 4  // "ROLE"
+	maxDescLen := 11 // "DESCRIPTION"
+
+	for name, role := range roles {
+		if len(name) > maxNameLen {
+			maxNameLen = len(name)
+		}
+
+		desc := role.Description()
+		if len(desc) > 40 {
+			desc = desc[:37] + "..."
+		}
+		if len(desc) > maxDescLen {
+			maxDescLen = len(desc)
+		}
+
+		flags := ""
+		if role.Metadata.IsSingleton {
+			flags = "[singleton]"
+		}
+
+		rows = append(rows, roleRow{
+			name:         name,
+			capabilities: len(role.Metadata.Capabilities),
+			description:  desc,
+			flags:        flags,
+		})
+	}
+
+	// Sort roles alphabetically
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].name < rows[j].name
+	})
+
+	// Print table header
+	fmt.Printf("%-*s  %-4s  %-*s  %s\n", maxNameLen, "ROLE", "CAPS", maxDescLen, "DESCRIPTION", "FLAGS")
+	fmt.Println(strings.Repeat("-", maxNameLen+maxDescLen+20))
+
+	// Print rows
+	for _, r := range rows {
+		fmt.Printf("%-*s  %-4d  %-*s  %s\n", maxNameLen, r.name, r.capabilities, maxDescLen, r.description, r.flags)
+	}
+
+	fmt.Printf("\n%d role(s) defined\n", len(rows))
 
 	return nil
 }

@@ -336,6 +336,46 @@ func TestRoleManager_WriteRole_NoName(t *testing.T) {
 	}
 }
 
+func TestRole_Description(t *testing.T) {
+	// Test metadata description takes precedence
+	t.Run("uses metadata description", func(t *testing.T) {
+		role := Role{
+			Metadata: RoleMetadata{Description: "Custom description"},
+			Prompt:   "# Heading\n\nContent",
+		}
+		if got := role.Description(); got != "Custom description" {
+			t.Errorf("Description() = %q, want %q", got, "Custom description")
+		}
+	})
+
+	// Test extracts from first heading
+	t.Run("extracts from heading", func(t *testing.T) {
+		role := Role{Prompt: "# Engineer Agent\n\nYou are an engineer."}
+		if got := role.Description(); got != "Engineer Agent" {
+			t.Errorf("Description() = %q, want %q", got, "Engineer Agent")
+		}
+	})
+
+	// Test handles no heading gracefully
+	t.Run("handles no heading", func(t *testing.T) {
+		role := Role{Prompt: "Just some content"}
+		if got := role.Description(); got != "" {
+			t.Errorf("Description() = %q, want empty string", got)
+		}
+	})
+
+	// Test metadata takes precedence over prompt heading
+	t.Run("metadata takes precedence", func(t *testing.T) {
+		role := Role{
+			Metadata: RoleMetadata{Description: "Metadata wins"},
+			Prompt:   "# Prompt heading",
+		}
+		if got := role.Description(); got != "Metadata wins" {
+			t.Errorf("Description() = %q, want %q", got, "Metadata wins")
+		}
+	})
+}
+
 func TestFormatRoleFile(t *testing.T) {
 	role := &Role{
 		Metadata: RoleMetadata{
