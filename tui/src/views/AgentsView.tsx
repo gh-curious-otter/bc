@@ -1,6 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useAgents } from '../hooks';
+import { useFocus } from '../navigation/FocusContext';
 import { Table } from '../components/Table';
 import type { Column } from '../components/Table';
 import { StatusBadge } from '../components/StatusBadge';
@@ -35,6 +36,19 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   const [actionState, setActionState] = useState<ActionState | null>(null);
   const agentList = agents ?? [];
   const selectedAgent = agentList[selectedIndex] as typeof agentList[number] | undefined;
+  const { setFocus } = useFocus();
+
+  // Manage focus state for nested view navigation
+  // When showing detail view, set focus='view' to prevent global ESC from firing
+  // This fixes ESC hierarchy: agent detail → ESC → agent list (not Dashboard)
+  useEffect(() => {
+    if (showDetail) {
+      setFocus('view');
+    } else {
+      // Restore focus to 'main' when returning to list view
+      setFocus('main');
+    }
+  }, [showDetail, setFocus]);
 
   // Clear action feedback after delay
   const showActionFeedback = useCallback((action: AgentAction, target: string, status: 'success' | 'error', message: string) => {
