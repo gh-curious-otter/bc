@@ -88,8 +88,8 @@ describe.skip('Data Layer - Channel communication workflow', () => {
     // Step 2: Get history of first channel
     const historyData = {
       messages: [
-        { sender: 'eng-01', text: 'Hi everyone', timestamp: 1000 },
-        { sender: 'tl-01', text: 'Welcome!', timestamp: 1100 },
+        { sender: 'eng-01', message: 'Hi everyone', time: '2024-01-15T10:00:00Z' },
+        { sender: 'tl-01', message: 'Welcome!', time: '2024-01-15T10:01:00Z' },
       ],
     };
     mockBcService.getChannelHistory.mockResolvedValue(historyData);
@@ -104,7 +104,7 @@ describe.skip('Data Layer - Channel communication workflow', () => {
 
     // Step 4: Refresh history
     mockBcService.getChannelHistory.mockResolvedValue({
-      messages: [...historyData.messages, { sender: 'eng-01', text: 'Just finished implementation', timestamp: 1200 }],
+      messages: [...historyData.messages, { sender: 'eng-01', message: 'Just finished implementation', time: '2024-01-15T10:02:00Z' }],
     });
 
     const updatedHistory = await bcService.getChannelHistory('eng');

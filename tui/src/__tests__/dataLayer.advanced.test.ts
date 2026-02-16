@@ -202,7 +202,7 @@ describe.skip('Advanced: Concurrent Operations and Race Conditions', () => {
       channels: [{ name: 'eng', members: [] }],
     });
     mockBcService.getChannelHistory.mockResolvedValue({
-      messages: [{ sender: 'test', text: 'msg', timestamp: 1000 }],
+      messages: [{ sender: 'test', message: 'msg', time: '2024-01-15T10:00:00Z' }],
     });
     mockBcService.sendChannelMessage.mockResolvedValue(undefined);
 

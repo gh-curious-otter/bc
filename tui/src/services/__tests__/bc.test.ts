@@ -266,7 +266,7 @@ describe('Command wrapper functions - Status and channels', () => {
     const mockProc = mockProcessorFactory();
     mockSpawnImpl = mock(() => mockProc);
 
-    const historyData = { messages: [{ sender: 'eng-01', text: 'Hello', timestamp: 123456 }] };
+    const historyData = { messages: [{ sender: 'eng-01', message: 'Hello', time: '2024-01-15T10:00:00Z' }] };
 
     setTimeout(() => {
       const stdoutCalls = (mockProc.stdout.on as ReturnType<typeof mock>).mock.calls;
