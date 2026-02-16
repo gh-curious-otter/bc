@@ -1367,3 +1367,344 @@ func TestPasteBufferPreservesSpaces(t *testing.T) {
 			len(message), len(capturedJoined))
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Session caching tests (#980)
+// ---------------------------------------------------------------------------
+
+// newCachingTestManager creates a Manager with cache initialized for testing.
+func newCachingTestManager(prefix string, mock func(string, ...string) *exec.Cmd) *Manager {
+	return &Manager{
+		SessionPrefix:   prefix,
+		execCommand:     mock,
+		hasSessionCache: make(map[string]bool),
+		cacheTTL:        DefaultCacheTTL,
+	}
+}
+
+func TestHasSession_CacheHit(t *testing.T) {
+	callCount := 0
+	mock := func(name string, args ...string) *exec.Cmd {
+		callCount++
+		return mockCmd("", "", 0)(name, args...)
+	}
+
+	m := newCachingTestManager("bc-", mock)
+
+	// First call should query tmux
+	if !m.HasSession("agent1") {
+		t.Error("first call should return true")
+	}
+	if callCount != 1 {
+		t.Errorf("expected 1 tmux call, got %d", callCount)
+	}
+
+	// Second call should hit cache (no additional tmux call)
+	if !m.HasSession("agent1") {
+		t.Error("second call should return true")
+	}
+	if callCount != 1 {
+		t.Errorf("expected still 1 tmux call (cache hit), got %d", callCount)
+	}
+}
+
+func TestHasSession_CacheMissAfterTTL(t *testing.T) {
+	callCount := 0
+	mock := func(name string, args ...string) *exec.Cmd {
+		callCount++
+		return mockCmd("", "", 0)(name, args...)
+	}
+
+	m := newCachingTestManager("bc-", mock)
+	m.cacheTTL = 10 * time.Millisecond // Short TTL for testing
+
+	// First call
+	m.HasSession("agent1")
+	if callCount != 1 {
+		t.Fatalf("expected 1 call, got %d", callCount)
+	}
+
+	// Wait for TTL to expire
+	time.Sleep(20 * time.Millisecond)
+
+	// Should query tmux again
+	m.HasSession("agent1")
+	if callCount != 2 {
+		t.Errorf("expected 2 calls after TTL expiry, got %d", callCount)
+	}
+}
+
+func TestHasSession_CacheInvalidatedOnCreateSession(t *testing.T) {
+	callCount := 0
+	mock := func(name string, args ...string) *exec.Cmd {
+		callCount++
+		return mockCmd("", "", 0)(name, args...)
+	}
+
+	m := newCachingTestManager("bc-", mock)
+
+	// Populate cache
+	m.HasSession("agent1")
+	if callCount != 1 {
+		t.Fatalf("expected 1 call, got %d", callCount)
+	}
+
+	// Create a new session (should invalidate cache)
+	if err := m.CreateSession("agent2", "/workspace"); err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+
+	// HasSession should query tmux again (cache invalidated)
+	m.HasSession("agent1")
+	if callCount != 3 { // 1 (first HasSession) + 1 (CreateSession) + 1 (second HasSession)
+		t.Errorf("expected 3 calls after cache invalidation, got %d", callCount)
+	}
+}
+
+func TestHasSession_CacheInvalidatedOnKillSession(t *testing.T) {
+	callCount := 0
+	mock := func(name string, args ...string) *exec.Cmd {
+		callCount++
+		return mockCmd("", "", 0)(name, args...)
+	}
+
+	m := newCachingTestManager("bc-", mock)
+
+	// Populate cache
+	m.HasSession("agent1")
+	initialCount := callCount
+
+	// Kill a session (should invalidate cache)
+	if err := m.KillSession("agent2"); err != nil {
+		t.Fatalf("KillSession failed: %v", err)
+	}
+
+	// HasSession should query tmux again
+	m.HasSession("agent1")
+	expectedCalls := initialCount + 2 // +1 for KillSession, +1 for HasSession after invalidation
+	if callCount != expectedCalls {
+		t.Errorf("expected %d calls after cache invalidation, got %d", expectedCalls, callCount)
+	}
+}
+
+func TestListSessions_CacheHit(t *testing.T) {
+	callCount := 0
+	sessionOutput := "bc-agent1|Thu Jan  1|0|1|/workspace\n"
+	mock := func(name string, args ...string) *exec.Cmd {
+		callCount++
+		return mockCmd(sessionOutput, "", 0)(name, args...)
+	}
+
+	m := newCachingTestManager("bc-", mock)
+
+	// First call should query tmux
+	sessions1, err := m.ListSessions()
+	if err != nil {
+		t.Fatalf("ListSessions failed: %v", err)
+	}
+	if len(sessions1) != 1 {
+		t.Fatalf("expected 1 session, got %d", len(sessions1))
+	}
+	if callCount != 1 {
+		t.Errorf("expected 1 tmux call, got %d", callCount)
+	}
+
+	// Second call should hit cache
+	sessions2, err := m.ListSessions()
+	if err != nil {
+		t.Fatalf("ListSessions failed: %v", err)
+	}
+	if len(sessions2) != 1 {
+		t.Fatalf("expected 1 session from cache, got %d", len(sessions2))
+	}
+	if callCount != 1 {
+		t.Errorf("expected still 1 tmux call (cache hit), got %d", callCount)
+	}
+}
+
+func TestListSessions_CacheMissAfterTTL(t *testing.T) {
+	callCount := 0
+	sessionOutput := "bc-agent1|Thu Jan  1|0|1|/workspace\n"
+	mock := func(name string, args ...string) *exec.Cmd {
+		callCount++
+		return mockCmd(sessionOutput, "", 0)(name, args...)
+	}
+
+	m := newCachingTestManager("bc-", mock)
+	m.cacheTTL = 10 * time.Millisecond
+
+	// First call
+	_, _ = m.ListSessions() //nolint:errcheck // test: verifying call count
+	if callCount != 1 {
+		t.Fatalf("expected 1 call, got %d", callCount)
+	}
+
+	// Wait for TTL to expire
+	time.Sleep(20 * time.Millisecond)
+
+	// Should query tmux again
+	_, _ = m.ListSessions() //nolint:errcheck // test: verifying call count
+	if callCount != 2 {
+		t.Errorf("expected 2 calls after TTL expiry, got %d", callCount)
+	}
+}
+
+func TestListSessions_CacheInvalidatedOnCreateSession(t *testing.T) {
+	callCount := 0
+	sessionOutput := "bc-agent1|Thu Jan  1|0|1|/workspace\n"
+	mock := func(name string, args ...string) *exec.Cmd {
+		callCount++
+		return mockCmd(sessionOutput, "", 0)(name, args...)
+	}
+
+	m := newCachingTestManager("bc-", mock)
+
+	// Populate cache
+	_, _ = m.ListSessions() //nolint:errcheck // test: verifying call count
+	if callCount != 1 {
+		t.Fatalf("expected 1 call, got %d", callCount)
+	}
+
+	// Create session (should invalidate cache)
+	_ = m.CreateSession("agent2", "/workspace") //nolint:errcheck // test: verifying cache invalidation
+
+	// ListSessions should query tmux again
+	_, _ = m.ListSessions() //nolint:errcheck // test: verifying call count
+	if callCount != 3 {     // 1 (ListSessions) + 1 (CreateSession) + 1 (ListSessions after invalidation)
+		t.Errorf("expected 3 calls after cache invalidation, got %d", callCount)
+	}
+}
+
+func TestListSessions_ReturnsCopy(t *testing.T) {
+	sessionOutput := "bc-agent1|Thu Jan  1|0|1|/workspace\n"
+	m := newCachingTestManager("bc-", mockCmd(sessionOutput, "", 0))
+
+	sessions1, _ := m.ListSessions()
+	sessions2, _ := m.ListSessions()
+
+	// Modify the first result
+	if len(sessions1) > 0 {
+		sessions1[0].Name = "modified"
+	}
+
+	// Second result should be unaffected (independent copy)
+	if len(sessions2) > 0 && sessions2[0].Name == "modified" {
+		t.Error("ListSessions should return a copy, not the cached slice")
+	}
+}
+
+func TestCache_ConcurrentAccess(t *testing.T) {
+	sessionOutput := "bc-agent1|Thu Jan  1|0|1|/workspace\n"
+	m := newCachingTestManager("bc-", mockCmd(sessionOutput, "", 0))
+
+	var wg sync.WaitGroup
+	errors := make(chan error, 100)
+
+	// Concurrent HasSession calls
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			m.HasSession("agent1")
+		}()
+	}
+
+	// Concurrent ListSessions calls
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := m.ListSessions()
+			if err != nil {
+				errors <- err
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errors)
+
+	for err := range errors {
+		t.Errorf("concurrent access error: %v", err)
+	}
+}
+
+func TestInvalidateCache(t *testing.T) {
+	m := NewManager("bc-")
+
+	// Populate cache
+	m.cacheMu.Lock()
+	m.hasSessionCache["bc-agent1"] = true
+	m.hasCacheAt = time.Now()
+	m.sessionsCache = []Session{{Name: "agent1"}}
+	m.sessionsCacheAt = time.Now()
+	m.cacheMu.Unlock()
+
+	// Invalidate
+	m.invalidateCache()
+
+	// Verify cache is cleared
+	m.cacheMu.RLock()
+	defer m.cacheMu.RUnlock()
+
+	if len(m.hasSessionCache) != 0 {
+		t.Error("hasSessionCache should be empty after invalidation")
+	}
+	if m.sessionsCache != nil {
+		t.Error("sessionsCache should be nil after invalidation")
+	}
+	if !m.hasCacheAt.IsZero() {
+		t.Error("hasCacheAt should be zero after invalidation")
+	}
+	if !m.sessionsCacheAt.IsZero() {
+		t.Error("sessionsCacheAt should be zero after invalidation")
+	}
+}
+
+func TestCache_RenameSessionInvalidatesCache(t *testing.T) {
+	callCount := 0
+	mock := func(name string, args ...string) *exec.Cmd {
+		callCount++
+		return mockCmd("", "", 0)(name, args...)
+	}
+
+	m := newCachingTestManager("bc-", mock)
+
+	// Populate cache
+	m.HasSession("agent1")
+	initialCount := callCount
+
+	// Rename session (should invalidate cache)
+	_ = m.RenameSession("agent1", "agent1-renamed") //nolint:errcheck // test: verifying cache invalidation
+
+	// HasSession should query tmux again
+	m.HasSession("agent1")
+	expectedCalls := initialCount + 2 // +1 for Rename, +1 for HasSession after invalidation
+	if callCount != expectedCalls {
+		t.Errorf("expected %d calls after RenameSession, got %d", expectedCalls, callCount)
+	}
+}
+
+func TestCache_KillServerInvalidatesCache(t *testing.T) {
+	callCount := 0
+	mock := func(name string, args ...string) *exec.Cmd {
+		callCount++
+		return mockCmd("", "", 0)(name, args...)
+	}
+
+	m := newCachingTestManager("bc-", mock)
+
+	// Populate cache
+	m.HasSession("agent1")
+	initialCount := callCount
+
+	// Kill server (should invalidate cache)
+	_ = m.KillServer() //nolint:errcheck // test: verifying cache invalidation
+
+	// HasSession should query tmux again
+	m.HasSession("agent1")
+	expectedCalls := initialCount + 2 // +1 for KillServer, +1 for HasSession after invalidation
+	if callCount != expectedCalls {
+		t.Errorf("expected %d calls after KillServer, got %d", expectedCalls, callCount)
+	}
+}
