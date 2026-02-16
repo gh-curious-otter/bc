@@ -129,7 +129,7 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
       </Box>
 
       {/* Command preview */}
-      {selectedCommand != null && (
+      {selectedCommand !== undefined && filteredCommands.length > 0 && (
         <Box flexDirection="column" marginBottom={1} paddingX={1} borderStyle="single" borderColor="gray">
           <Text bold color="cyan">{selectedCommand.name}</Text>
           <Text dimColor>{selectedCommand.description}</Text>

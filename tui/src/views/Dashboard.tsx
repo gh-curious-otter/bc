@@ -19,7 +19,7 @@ interface DashboardProps {
  */
 export function Dashboard({ onNavigate }: DashboardProps) {
   const { stdout } = useStdout();
-  const terminalWidth = stdout.columns ?? 80;
+  const terminalWidth = stdout ? stdout.columns : 80;
 
   const {
     summary,
@@ -44,7 +44,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       onNavigate?.('costs');
     }
     if (input === 'r') {
-      refresh();
+      void refresh();
     }
     if (input === 'q' || key.escape) {
       onNavigate?.('quit');
@@ -52,7 +52,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   if (error) {
-    return <ErrorDisplay error={error.message} onRetry={refresh} />;
+    return <ErrorDisplay error={error.message} onRetry={() => { void refresh(); }} />;
   }
 
   if (isLoading && !agents.data) {
@@ -269,22 +269,22 @@ const AgentsPanel = memo(function AgentsPanel({ agents }: AgentsPanelProps) {
         <>
           <DataTable
             columns={[
-              { key: 'name', header: 'AGENT', width: 12 },
-              { key: 'role', header: 'ROLE', width: 10 },
+              { key: 'name', header: 'AGENT', width: 15 },
+              { key: 'role', header: 'ROLE', width: 12 },
               {
                 key: 'state',
                 header: 'STATE',
-                width: 8,
+                width: 10,
                 render: (value) => <StatusBadge state={value as string} />,
               },
-              { key: 'updatedAt', header: 'UPDATED', width: 8 },
+              { key: 'updatedAt', header: 'UPDATED', width: 10 },
               { key: 'task', header: 'TASK' },
             ]}
             data={displayAgents}
           />
           {hasMore && (
             <Text dimColor>
-              ... and {agents.length - 5} more (press 'a' to view all)
+              ... and {agents.length - 5} more (press &apos;a&apos; to view all)
             </Text>
           )}
         </>
@@ -325,7 +325,7 @@ const ChannelsPanel = memo(function ChannelsPanel({ channels }: ChannelsPanelPro
           ))}
           {channels.length > 5 && (
             <Text dimColor>
-              ... and {channels.length - 5} more (press 'c' to view all)
+              ... and {channels.length - 5} more (press &apos;c&apos; to view all)
             </Text>
           )}
         </Box>
@@ -356,10 +356,10 @@ function formatRelativeTime(date: Date): string {
   const diffSecs = Math.floor(diffMs / 1000);
 
   if (diffSecs < 5) return 'just now';
-  if (diffSecs < 60) return `${diffSecs}s ago`;
+  if (diffSecs < 60) return `${String(diffSecs)}s ago`;
 
   const diffMins = Math.floor(diffSecs / 60);
-  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffMins < 60) return `${String(diffMins)}m ago`;
 
   return date.toLocaleTimeString('en-US', {
     hour: '2-digit',

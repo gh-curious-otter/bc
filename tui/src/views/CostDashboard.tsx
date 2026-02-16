@@ -24,12 +24,12 @@ export function CostDashboard({ onBack }: CostDashboardProps) {
       onBack?.();
     }
     if (input === 'r') {
-      refresh();
+      void refresh();
     }
   });
 
   if (error) {
-    return <ErrorDisplay error={error} onRetry={refresh} />;
+    return <ErrorDisplay error={error} onRetry={() => { void refresh(); }} />;
   }
 
   if (loading && !costs) {

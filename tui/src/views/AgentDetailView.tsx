@@ -43,12 +43,12 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
 
   useEffect(() => {
     setLoading(true);
-    fetchAgentOutput().finally(() => { setLoading(false); });
+    void fetchAgentOutput().finally(() => { setLoading(false); });
   }, [fetchAgentOutput]);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchAgentOutput();
+      void fetchAgentOutput();
     }, 2000);
     return () => { clearInterval(interval); };
   }, [fetchAgentOutput]);
@@ -73,7 +73,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
   useSafeInput((input, key) => {
     if (inputMode) {
       if (key.return) {
-        sendMessage(messageBuffer);
+        void sendMessage(messageBuffer);
         setInputMode(false);
       } else if (key.escape) {
         setMessageBuffer('');
@@ -89,7 +89,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
       } else if (input === 'q' || key.escape) {
         onBack?.();
       } else if (input === 'r') {
-        fetchAgentOutput();
+        void fetchAgentOutput();
       }
     }
   });
