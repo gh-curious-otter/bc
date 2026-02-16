@@ -34,7 +34,10 @@ Examples:
   bc agent stop eng-01                   # Stop agent
   bc agent broadcast "check status"      # Send to all agents
   bc agent send-to-role engineer "test"  # Send to all engineers
+  bc agent                               # List all agents (same as bc agent list)
   bc agent send-pattern "eng-*" "hello"  # Send to matching agents`,
+	// #925: Default to list for consistency with bc channel
+	RunE: runAgentList,
 }
 
 // agentCreateCmd creates a new agent (replaces bc spawn)
