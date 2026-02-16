@@ -21,6 +21,8 @@ import { CommandsView } from './views/CommandsView';
 import { RolesView } from './views/RolesView';
 import { ChannelsView } from './components/ChannelsView';
 import { CostsView } from './components/CostsView';
+import { LogsView } from './views/LogsView';
+import { WorktreesView } from './views/WorktreesView';
 
 interface AppProps {
   /** Disable input handling (useful for testing) */
@@ -103,6 +105,10 @@ function ViewContent({ view, disableInput }: ViewContentProps): React.ReactEleme
       return <CommandsView disableInput={disableInput} />;
     case 'roles':
       return <RolesView disableInput={disableInput} />;
+    case 'logs':
+      return <LogsView />;
+    case 'worktrees':
+      return <WorktreesView />;
     case 'help':
       return <HelpView />;
     default:
@@ -117,7 +123,7 @@ function HelpView(): React.ReactElement {
       <Text bold>Keyboard Shortcuts</Text>
       <Box marginTop={1} flexDirection="column">
         <Text>
-          <Text color="yellow">1-6</Text>       Switch tabs
+          <Text color="yellow">1-8</Text>       Switch tabs
         </Text>
         <Text>
           <Text color="yellow">?</Text>         Show help

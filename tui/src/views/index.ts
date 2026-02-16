@@ -9,3 +9,5 @@ export { DemonsView } from './DemonsView';
 export { ProcessesView } from './ProcessesView';
 export { TeamsView } from './TeamsView';
 export { RolesView } from './RolesView';
+export { LogsView } from './LogsView';
+export { WorktreesView } from './WorktreesView';
