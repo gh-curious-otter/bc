@@ -281,9 +281,11 @@ function ChannelHistoryView({
     { isActive: !disableInput }
   );
 
-  const displayMessages = messages ? messages.slice(Math.max(0, messages.length - 10 - scrollOffset), messages.length - scrollOffset) : [];
+  // Show 5 messages max to fit in message area (14 lines / 2-3 lines per message)
+  const maxMessages = 5;
+  const displayMessages = messages ? messages.slice(Math.max(0, messages.length - maxMessages - scrollOffset), messages.length - scrollOffset) : [];
   const hasMoreAbove = scrollOffset > 0;
-  const hasMoreBelow = messages && messages.length > 10 && scrollOffset < messages.length - 10;
+  const hasMoreBelow = messages && messages.length > maxMessages && scrollOffset < messages.length - maxMessages;
 
   return (
     <Box flexDirection="column" width="100%" height="100%">

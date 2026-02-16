@@ -29,19 +29,15 @@ export const MentionText: React.FC<MentionTextProps> = ({
   let match: RegExpExecArray | null;
 
   while ((match = mentionPattern.exec(text)) !== null) {
-    // Add text before the mention
+    // Add text before the mention as plain string (not nested Text)
     if (match.index > lastIndex) {
-      parts.push(
-        <Text key={`text-${String(lastIndex)}`}>
-          {text.slice(lastIndex, match.index)}
-        </Text>
-      );
+      parts.push(text.slice(lastIndex, match.index));
     }
 
     const mention = match[0];
     const username = match[1];
 
-    // Determine mention type and styling
+    // Determine mention type and styling - these need Text for color
     const isSelfMention = currentUser && username === currentUser;
     const isBroadcast = username === 'all' || username === 'everyone';
 
@@ -68,13 +64,9 @@ export const MentionText: React.FC<MentionTextProps> = ({
     lastIndex = match.index + mention.length;
   }
 
-  // Add remaining text
+  // Add remaining text as plain string (not nested Text)
   if (lastIndex < text.length) {
-    parts.push(
-      <Text key={`text-${String(lastIndex)}`}>
-        {text.slice(lastIndex)}
-      </Text>
-    );
+    parts.push(text.slice(lastIndex));
   }
 
   return <Text wrap="wrap">{parts}</Text>;
