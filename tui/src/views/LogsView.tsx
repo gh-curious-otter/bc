@@ -17,16 +17,30 @@ type TimeFilter = '1h' | '6h' | '24h' | 'all';
 
 /**
  * Format timestamp for display
+ * #973 fix: Show date for logs from previous days
  */
 function formatTime(timestamp: string): string {
   try {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    });
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+
+    if (isToday) {
+      // Today: show time only (HH:MM:SS)
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      });
+    } else {
+      // Previous days: show MM/DD HH:MM
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const mins = String(date.getMinutes()).padStart(2, '0');
+      return `${month}/${day} ${hours}:${mins}`;
+    }
   } catch {
     return timestamp.slice(0, 8);
   }
@@ -271,7 +285,8 @@ export const LogsView: React.FC<LogsViewProps> = ({ onBack }) => {
   }
 
   // Calculate column widths based on terminal width
-  const timeWidth = 10;
+  // #973 fix: Increased from 10 to 12 to fit date format (MM/DD HH:MM)
+  const timeWidth = 12;
   const agentWidth = Math.min(12, Math.floor((terminalWidth - 40) * 0.2));
   const typeWidth = 10;
   const messageWidth = terminalWidth - timeWidth - agentWidth - typeWidth - 10;
