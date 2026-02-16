@@ -1,13 +1,15 @@
 /**
  * CommandsView - Browse and search all bc commands
  * Displays commands organized by category with search/filter capability
+ * Supports execution of read-only commands directly from TUI
  */
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { COMMAND_REGISTRY, searchCommands } from '../types/commands';
 import type { BcCommand } from '../types/commands';
 import { useFocus } from '../navigation/FocusContext';
+import { execBc } from '../services/bc';
 
 interface CommandsViewProps {
   onBack?: () => void;
@@ -22,6 +24,38 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchMode, setSearchMode] = useState(false);
   const { setFocus, returnFocus } = useFocus();
+
+  // Command execution state
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [commandOutput, setCommandOutput] = useState<string | null>(null);
+  const [commandError, setCommandError] = useState<string | null>(null);
+  const [lastExecutedCommand, setLastExecutedCommand] = useState<string | null>(null);
+
+  /**
+   * Execute a read-only bc command and capture output
+   */
+  const executeCommand = useCallback(async (command: BcCommand) => {
+    if (!command.readOnly) {
+      setCommandError('Only read-only commands can be executed from TUI');
+      return;
+    }
+
+    setIsExecuting(true);
+    setCommandOutput(null);
+    setCommandError(null);
+    setLastExecutedCommand(command.name);
+
+    try {
+      // Parse command name into args (e.g., "agent list" -> ["agent", "list"])
+      const args = command.name.split(' ');
+      const output = await execBc(args);
+      setCommandOutput(output);
+    } catch (err) {
+      setCommandError(err instanceof Error ? err.message : 'Command failed');
+    } finally {
+      setIsExecuting(false);
+    }
+  }, []);
 
   // Get filtered commands
   const filteredCommands = searchQuery.length > 0
@@ -77,9 +111,27 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
         }
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list
       } else if (key.return && selectedCommand) {
-        // TODO: Execute command or show confirmation
+        // Execute read-only commands, show warning for others
+        if (selectedCommand.readOnly) {
+          void executeCommand(selectedCommand);
+        } else {
+          setCommandError(`"${selectedCommand.name}" modifies state - use CLI directly`);
+          setCommandOutput(null);
+        }
+      } else if (input === 'c' && (commandOutput !== null || commandError !== null)) {
+        // Clear output panel
+        setCommandOutput(null);
+        setCommandError(null);
+        setLastExecutedCommand(null);
       } else if (input === 'q' || key.escape) {
-        onBack?.();
+        if (commandOutput !== null || commandError !== null) {
+          // First press clears output, second press goes back
+          setCommandOutput(null);
+          setCommandError(null);
+          setLastExecutedCommand(null);
+        } else {
+          onBack?.();
+        }
       }
     }
   }, { isActive: !disableInput });
@@ -129,8 +181,45 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
         )}
       </Box>
 
+      {/* Command output panel */}
+      {(isExecuting || commandOutput !== null || commandError !== null) && (
+        <Box
+          flexDirection="column"
+          marginBottom={1}
+          paddingX={1}
+          borderStyle="single"
+          borderColor={commandError ? 'red' : 'green'}
+        >
+          <Box marginBottom={1}>
+            <Text bold color={commandError ? 'red' : 'green'}>
+              {isExecuting ? '⟳ Running' : commandError ? '✗ Error' : '✓ Output'}
+            </Text>
+            {lastExecutedCommand && (
+              <Text dimColor> — {lastExecutedCommand}</Text>
+            )}
+          </Box>
+          {isExecuting ? (
+            <Text dimColor>Executing command...</Text>
+          ) : commandError ? (
+            <Text color="red">{commandError}</Text>
+          ) : commandOutput ? (
+            <Box flexDirection="column">
+              {commandOutput.split('\n').slice(0, 15).map((line, idx) => (
+                <Text key={idx} dimColor>{line}</Text>
+              ))}
+              {commandOutput.split('\n').length > 15 && (
+                <Text dimColor>... ({commandOutput.split('\n').length - 15} more lines)</Text>
+              )}
+            </Box>
+          ) : null}
+          <Box marginTop={1}>
+            <Text dimColor>Press c to clear, Esc to close</Text>
+          </Box>
+        </Box>
+      )}
+
       {/* Command preview */}
-      {selectedCommand !== undefined && filteredCommands.length > 0 && (
+      {selectedCommand !== undefined && filteredCommands.length > 0 && !commandOutput && !commandError && !isExecuting && (
         <Box flexDirection="column" marginBottom={1} paddingX={1} borderStyle="single" borderColor="gray">
           <Text bold color="cyan">{selectedCommand.name}</Text>
           <Text dimColor>{selectedCommand.description}</Text>
@@ -142,7 +231,7 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
           )}
           <Box marginTop={1}>
             <Text dimColor>
-              {selectedCommand.readOnly ? '✓ Safe (read-only)' : '⚠ Modifying command'}
+              {selectedCommand.readOnly ? '✓ Safe (read-only) - Press Enter to run' : '⚠ Modifying command - use CLI'}
             </Text>
           </Box>
         </Box>
@@ -153,9 +242,11 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
         <Text dimColor>
           {searchMode
             ? 'Type to search, Enter/Esc to exit'
+            : commandOutput !== null || commandError !== null
+            ? 'c: clear output | Esc: close | q: back'
             : filteredCommands.length === 0
             ? 'No commands found | /: search | q: back'
-            : 'j/k: navigate | /: search | Enter: view | q: back'}
+            : 'j/k: navigate | /: search | Enter: run | q: back'}
         </Text>
       </Box>
     </Box>
