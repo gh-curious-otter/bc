@@ -33,9 +33,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
     } else if (key.downArrow || input === 'j') {
       setSelectedIndex((i) => Math.min(agentList.length - 1, i + 1));
     } else if (key.return) {
-      if (selectedAgent) {
-        setShowDetail(true);
-      }
+      setShowDetail(true);
     } else if (input === 'r') {
       void refresh();
     } else if (input === 'q' || key.escape) {
@@ -44,7 +42,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   });
 
   // If showing detail view, render AgentDetailView instead
-  if (showDetail && selectedAgent) {
+  if (showDetail) {
     return (
       <AgentDetailView
         agent={selectedAgent}

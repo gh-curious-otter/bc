@@ -52,9 +52,7 @@ export function TeamsView({ onBack }: TeamsViewProps) {
     if (key.return || input === ' ') {
       // Toggle expanded view
       const team = teamList[selectedIndex];
-      if (team) {
-        setExpandedTeam(expandedTeam === team.name ? null : team.name);
-      }
+      setExpandedTeam(expandedTeam === team.name ? null : team.name);
     }
     if (input === 'r') {
       void refresh();

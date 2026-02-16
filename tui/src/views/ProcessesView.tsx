@@ -63,9 +63,7 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
     } else if (key.downArrow || input === 'j') {
       setSelectedIndex((i) => Math.min(processList.length - 1, i + 1));
     } else if (key.return || input === 'l') {
-      if (selectedProcess) {
-        setShowLogs(true);
-      }
+      setShowLogs(true);
     } else if (input === 'r') {
       void refresh();
     } else if (input === 'q' || key.escape) {
@@ -134,7 +132,7 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
   }
 
   // Show log viewer
-  if (showLogs && selectedProcess) {
+  if (showLogs) {
     return (
       <ProcessLogViewer
         process={selectedProcess}
