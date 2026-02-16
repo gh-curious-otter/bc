@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -117,6 +118,16 @@ func getWorkspaceRoleManager() (*workspace.Workspace, *workspace.RoleManager, er
 	return ws, rm, nil
 }
 
+// roleJSON is the JSON representation of a role for TUI.
+type roleJSON struct {
+	Name         string   `json:"name"`
+	Description  string   `json:"description,omitempty"`
+	Parent       string   `json:"parent,omitempty"`
+	Prompt       string   `json:"prompt,omitempty"`
+	Capabilities []string `json:"capabilities"`
+	AgentCount   int      `json:"agent_count"`
+}
+
 func runRoleList(cmd *cobra.Command, args []string) error {
 	_, rm, err := getWorkspaceRoleManager()
 	if err != nil {
@@ -126,6 +137,41 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 	roles, err := rm.LoadAllRoles()
 	if err != nil {
 		return fmt.Errorf("failed to load roles: %w", err)
+	}
+
+	// Check for JSON output
+	jsonOutput, err := cmd.Flags().GetBool("json")
+	if err != nil {
+		return err
+	}
+
+	if jsonOutput {
+		// Build JSON response
+		roleList := make([]roleJSON, 0, len(roles))
+		for name, role := range roles {
+			parent := ""
+			if len(role.Metadata.ParentRoles) > 0 {
+				parent = role.Metadata.ParentRoles[0]
+			}
+			roleList = append(roleList, roleJSON{
+				Name:         name,
+				Description:  role.Description(),
+				Capabilities: role.Metadata.Capabilities,
+				Parent:       parent,
+				Prompt:       role.Prompt,
+				AgentCount:   0, // TODO: count agents using this role
+			})
+		}
+		// Sort by name
+		sort.Slice(roleList, func(i, j int) bool {
+			return roleList[i].Name < roleList[j].Name
+		})
+		output := struct {
+			Roles []roleJSON `json:"roles"`
+		}{Roles: roleList}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(output)
 	}
 
 	if len(roles) == 0 {
