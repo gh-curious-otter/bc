@@ -134,6 +134,17 @@ export interface LogEntry {
 // Response from bc logs --json
 export type LogsResponse = LogEntry[];
 
+// Worktree from bc worktree list --json
+export interface Worktree {
+  agent: string;
+  path: string;
+  status: 'OK' | 'ORPHANED' | 'MISSING';
+  branch?: string;
+}
+
+// Response from bc worktree list --json
+export type WorktreeListResponse = Worktree[];
+
 // Demon (scheduled task) types
 export interface Demon {
   name: string;
