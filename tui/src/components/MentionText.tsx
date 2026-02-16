@@ -17,6 +17,11 @@ export const MentionText: React.FC<MentionTextProps> = ({
   text,
   currentUser,
 }) => {
+  // Handle empty, missing, or whitespace-only text
+  if (!text || text.trim().length === 0) {
+    return <Text dimColor>(empty)</Text>;
+  }
+
   // Pattern to match @mentions
   const mentionPattern = /@(\w+[-\w]*)/g;
   const parts: React.ReactNode[] = [];
