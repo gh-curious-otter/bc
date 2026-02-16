@@ -408,13 +408,14 @@ describe('DemonsView Keyboard Shortcuts', () => {
 describe('DemonRow Component Logic', () => {
   test('name truncation for long names', () => {
     const longName = 'very-long-demon-name-that-exceeds-width';
-    const truncated = longName.length > 16 ? longName.slice(0, 14) + '..' : longName;
-    expect(truncated).toBe('very-long-demo..');
+    // Updated: now truncates at 12 chars with ellipsis for 80-col responsive layout
+    const truncated = longName.length > 12 ? longName.slice(0, 11) + '…' : longName;
+    expect(truncated).toBe('very-long-d…');
   });
 
   test('name not truncated for short names', () => {
     const shortName = 'backup';
-    const result = shortName.length > 16 ? shortName.slice(0, 14) + '..' : shortName;
+    const result = shortName.length > 12 ? shortName.slice(0, 11) + '…' : shortName;
     expect(result).toBe('backup');
   });
 

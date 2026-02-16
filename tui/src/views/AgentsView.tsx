@@ -59,30 +59,37 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
     );
   }
 
+  // Column widths: 14+10+10+32 = 66 (fits 80-col terminal)
   const columns: Column<Agent>[] = [
     {
       key: 'name',
       header: 'Name',
-      width: 18,
+      width: 14,
+      render: (agent) => (
+        <Text>{agent.name.length > 12 ? agent.name.slice(0, 11) + '…' : agent.name}</Text>
+      ),
     },
     {
       key: 'role',
       header: 'Role',
-      width: 12,
+      width: 10,
+      render: (agent) => (
+        <Text>{agent.role.length > 8 ? agent.role.slice(0, 7) + '…' : agent.role}</Text>
+      ),
     },
     {
       key: 'state',
       header: 'State',
-      width: 12,
+      width: 10,
       render: (agent) => <StatusBadge state={agent.state} />,
     },
     {
       key: 'task',
       header: 'Task',
-      width: 40,
+      width: 32,
       render: (agent) => (
         <Text wrap="truncate">
-          {agent.task ? agent.task.slice(0, 38) : '-'}
+          {agent.task ? agent.task.slice(0, 30) : '-'}
         </Text>
       ),
     },

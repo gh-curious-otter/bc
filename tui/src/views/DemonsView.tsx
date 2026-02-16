@@ -172,15 +172,15 @@ export function DemonsView({
       {/* Demon list */}
       {demons && demons.length > 0 ? (
         <Box flexDirection="column">
-          {/* Header row */}
+          {/* Header row - total width: 3+14+13+9+7+10+10 = 66 (fits 80-col) */}
           <Box marginBottom={1}>
             <Box width={3}><Text> </Text></Box>
-            <Box width={18}><Text bold dimColor>NAME</Text></Box>
-            <Box width={16}><Text bold dimColor>SCHEDULE</Text></Box>
-            <Box width={10}><Text bold dimColor>STATUS</Text></Box>
-            <Box width={10}><Text bold dimColor>RUNS</Text></Box>
-            <Box width={12}><Text bold dimColor>LAST RUN</Text></Box>
-            <Box width={12}><Text bold dimColor>NEXT RUN</Text></Box>
+            <Box width={14}><Text bold dimColor>NAME</Text></Box>
+            <Box width={13}><Text bold dimColor>SCHEDULE</Text></Box>
+            <Box width={9}><Text bold dimColor>STATUS</Text></Box>
+            <Box width={7}><Text bold dimColor>RUNS</Text></Box>
+            <Box width={10}><Text bold dimColor>LAST</Text></Box>
+            <Box width={10}><Text bold dimColor>NEXT</Text></Box>
           </Box>
 
           {/* Demon rows */}
@@ -252,24 +252,24 @@ function DemonRow({ demon, selected }: DemonRowProps): React.ReactElement {
           {selected ? '▸ ' : '  '}
         </Text>
       </Box>
-      <Box width={18}>
+      <Box width={14}>
         <Text color={selected ? 'cyan' : undefined} bold={selected}>
-          {demon.name.length > 16 ? demon.name.slice(0, 14) + '..' : demon.name}
+          {demon.name.length > 12 ? demon.name.slice(0, 11) + '…' : demon.name}
         </Text>
       </Box>
-      <Box width={16}>
-        <Text dimColor>{formatSchedule(demon.schedule)}</Text>
+      <Box width={13}>
+        <Text dimColor>{formatSchedule(demon.schedule).slice(0, 11)}</Text>
       </Box>
-      <Box width={10}>
+      <Box width={9}>
         <StatusBadge state={statusText} showIcon={false} />
       </Box>
-      <Box width={10}>
+      <Box width={7}>
         <Text>{demon.run_count}</Text>
       </Box>
-      <Box width={12}>
+      <Box width={10}>
         <Text dimColor>{formatRelativeTime(demon.last_run)}</Text>
       </Box>
-      <Box width={12}>
+      <Box width={10}>
         <Text color={demon.enabled ? 'yellow' : 'gray'}>
           {formatRelativeTime(demon.next_run)}
         </Text>
