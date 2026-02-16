@@ -13,6 +13,7 @@ import type {
   DemonRunLog,
   ProcessListResponse,
   TeamsResponse,
+  LogEntry,
 } from '../types';
 
 /**
@@ -306,6 +307,34 @@ export async function removeTeamMember(
   agentName: string
 ): Promise<void> {
   await execBc(['team', 'remove', teamName, agentName]);
+}
+
+/**
+ * Get event logs
+ * @param tail - Number of recent entries (optional, default 50)
+ * @param agent - Filter by agent name (optional)
+ * @param eventType - Filter by event type (optional)
+ */
+export async function getLogs(
+  tail?: number,
+  agent?: string,
+  eventType?: string
+): Promise<LogEntry[]> {
+  try {
+    const args = ['logs'];
+    if (tail) {
+      args.push('--tail', String(tail));
+    }
+    if (agent) {
+      args.push('--agent', agent);
+    }
+    if (eventType) {
+      args.push('--type', eventType);
+    }
+    return await execBcJson<LogEntry[]>(args);
+  } catch {
+    return [];
+  }
 }
 
 /**

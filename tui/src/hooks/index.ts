@@ -94,3 +94,11 @@ export {
   useUnread,
   type UnreadProviderProps,
 } from './UnreadContext';
+
+export {
+  useLogs,
+  getSeverityColor,
+  type UseLogsOptions,
+  type UseLogsResult,
+  type LogSeverity,
+} from './useLogs';

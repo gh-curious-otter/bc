@@ -42,3 +42,7 @@ export type { ChatMessageProps } from './ChatMessage';
 
 export { MentionAutocomplete } from './MentionAutocomplete';
 export type { MentionAutocompleteProps } from './MentionAutocomplete';
+
+// Activity feed (eng-01 #796)
+export { ActivityFeed } from './ActivityFeed';
+export type { ActivityFeedProps } from './ActivityFeed';

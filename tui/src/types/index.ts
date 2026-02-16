@@ -113,6 +113,18 @@ export interface BcEvent {
   data?: Record<string, unknown>;
 }
 
+// Log entry from bc logs --json
+export interface LogEntry {
+  ts: string;
+  type: string;
+  agent: string;
+  message: string;
+  data?: Record<string, unknown>;
+}
+
+// Response from bc logs --json
+export type LogsResponse = LogEntry[];
+
 // Demon (scheduled task) types
 export interface Demon {
   name: string;
