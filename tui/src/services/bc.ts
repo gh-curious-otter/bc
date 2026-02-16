@@ -16,6 +16,7 @@ import type {
   LogEntry,
   Role,
   RolesResponse,
+  Worktree,
 } from '../types';
 
 /**
@@ -337,6 +338,34 @@ export async function getLogs(
   } catch {
     return [];
   }
+}
+
+/**
+ * Get list of worktrees
+ * @param orphanedOnly - Only show orphaned worktrees
+ */
+export async function getWorktrees(orphanedOnly = false): Promise<Worktree[]> {
+  try {
+    const args = ['worktree', 'list'];
+    if (orphanedOnly) {
+      args.push('--orphaned');
+    }
+    return await execBcJson<Worktree[]>(args);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Prune orphaned worktrees
+ * @param force - Actually remove (vs dry run)
+ */
+export async function pruneWorktrees(force = false): Promise<string> {
+  const args = ['worktree', 'prune'];
+  if (force) {
+    args.push('--force');
+  }
+  return execBc(args);
 }
 
 /**
