@@ -202,7 +202,7 @@ export const LogsView: React.FC<LogsViewProps> = ({ onBack }) => {
         <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor="gray" padding={1}>
           <Box>
             <Text bold>Timestamp: </Text>
-            <Text>{selectedLog.timestamp}</Text>
+            <Text>{selectedLog.ts}</Text>
           </Box>
           <Box>
             <Text bold>Agent: </Text>
