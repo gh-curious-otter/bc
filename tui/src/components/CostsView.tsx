@@ -57,11 +57,19 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
         </Box>
         <Box>
           <Text>Input Tokens: </Text>
-          <Text>{costs.total_input_tokens.toLocaleString()}</Text>
+          {costs.total_input_tokens === 0 && costs.total_cost > 0 ? (
+            <Text dimColor>N/A (manual entry)</Text>
+          ) : (
+            <Text>{costs.total_input_tokens.toLocaleString()}</Text>
+          )}
         </Box>
         <Box>
           <Text>Output Tokens: </Text>
-          <Text>{costs.total_output_tokens.toLocaleString()}</Text>
+          {costs.total_output_tokens === 0 && costs.total_cost > 0 ? (
+            <Text dimColor>N/A (manual entry)</Text>
+          ) : (
+            <Text>{costs.total_output_tokens.toLocaleString()}</Text>
+          )}
         </Box>
       </Panel>
 
