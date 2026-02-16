@@ -44,7 +44,7 @@ export const COMMAND_REGISTRY: CommandCategory[] = [
         description: 'Show recent output from agent session',
         usage: 'bc agent peek <agent-name>',
         readOnly: true,
-        flags: ['--tail', '--json'],
+        flags: ['--lines', '--json'],
       },
       {
         name: 'agent send',
