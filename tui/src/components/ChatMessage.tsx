@@ -122,9 +122,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
           {/* Message body with @mentions */}
           <Box width="100%">
-            <Text wrap="wrap">
-              <MentionText text={message} currentUser={currentUser} />
-            </Text>
+            <MentionText text={message} currentUser={currentUser} />
           </Box>
 
           {/* Reactions */}
