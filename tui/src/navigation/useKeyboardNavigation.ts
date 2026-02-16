@@ -44,11 +44,13 @@ export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}
        *
        * This fixes issue #653: Keybinds not being re-enabled after typing in channels.
        */
+      // Skip ALL global keybinds when user is in input mode (typing)
       if (isFocused('input')) {
         return;
       }
 
       // Tab navigation with number keys (1-9) and ?
+      // These should work even when a local view has focus
       const tab = getTabByKey(input);
       if (tab) {
         navigate(tab.view);
@@ -65,8 +67,8 @@ export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}
         return;
       }
 
-      // ESC: go home
-      if (key.escape) {
+      // ESC: go home (skip when local view handles ESC)
+      if (key.escape && !isFocused('view')) {
         goHome();
         return;
       }
