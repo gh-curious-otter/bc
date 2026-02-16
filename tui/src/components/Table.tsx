@@ -47,8 +47,10 @@ export function Table<T>({
 
   return (
     <Box flexDirection="column">
-      {/* Header Row */}
-      <Box borderStyle="single" borderBottom={false}>
+      {/* Header Row - #985 fix: removed borderStyle to avoid width issues at 80 cols */}
+      <Box>
+        {/* Match data row selection indicator space */}
+        <Text>{'  '}</Text>
         {columns.map((col, i) => (
           <Box key={i} width={col.width ?? 15} paddingRight={1}>
             <Text bold color="cyan">
@@ -95,14 +97,19 @@ const TableRow = memo(function TableRow<T>({
   rowIndex,
   isSelected,
 }: TableRowProps<T>) {
+  // #985 fix: Use color highlighting instead of borderStyle="double" which causes
+  // garbled text on some terminals at 80 columns. Selection indicator uses arrow
+  // prefix and cyan color for visibility without adding border width.
   return (
-    <Box borderStyle={isSelected ? 'double' : undefined}>
+    <Box>
+      {/* Selection indicator - fixed width arrow */}
+      <Text color={isSelected ? 'cyan' : undefined}>{isSelected ? '▸ ' : '  '}</Text>
       {columns.map((col, colIndex) => (
         <Box key={colIndex} width={col.width ?? 15} paddingRight={1}>
           {col.render ? (
             col.render(item, rowIndex)
           ) : (
-            <Text>
+            <Text color={isSelected ? 'cyan' : undefined}>
               {String((item as Record<string, unknown>)[col.key as string] ?? '')}
             </Text>
           )}
