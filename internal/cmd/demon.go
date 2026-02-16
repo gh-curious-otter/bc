@@ -143,6 +143,55 @@ Examples:
 	RunE: runDemonTest,
 }
 
+var demonStartCmd = &cobra.Command{
+	Use:   "start",
+	Short: "Start the demon scheduler",
+	Long: `Start the background scheduler that automatically runs demons.
+
+The scheduler checks enabled demons every 30 seconds and runs any
+that are due based on their cron schedule.
+
+Examples:
+  bc demon start       # Start the scheduler
+  bc demon status      # Check if scheduler is running
+  bc demon stop        # Stop the scheduler`,
+	RunE: runDemonStart,
+}
+
+var demonStopCmd = &cobra.Command{
+	Use:   "stop",
+	Short: "Stop the demon scheduler",
+	Long: `Stop the background scheduler.
+
+This will stop automatic execution of demons. You can still
+run demons manually with 'bc demon run <name>'.
+
+Examples:
+  bc demon stop        # Stop the scheduler
+  bc demon status      # Verify scheduler stopped`,
+	RunE: runDemonStop,
+}
+
+var demonStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show scheduler status and upcoming runs",
+	Long: `Show the status of the demon scheduler and next scheduled runs.
+
+Examples:
+  bc demon status      # Show scheduler status
+  bc demon status --json  # JSON output for TUI`,
+	RunE: runDemonStatus,
+}
+
+// Hidden command for internal use - runs the scheduler loop
+var demonSchedulerLoopCmd = &cobra.Command{
+	Use:    "scheduler-loop",
+	Hidden: true,
+	RunE:   runDemonSchedulerLoop,
+}
+
+var schedulerLoopRoot string
+
 var (
 	demonSchedule        string
 	demonCommand         string
@@ -179,6 +228,9 @@ func init() {
 	demonTestCmd.Flags().BoolVar(&demonTestCreateDemon, "create-demon", false, "Create a demon for scheduled testing")
 	demonTestCmd.Flags().StringVar(&demonTestSchedule, "schedule", "0 * * * *", "Cron schedule for testing demon (default: hourly)")
 
+	demonSchedulerLoopCmd.Flags().StringVar(&schedulerLoopRoot, "root", "", "Workspace root directory")
+	_ = demonSchedulerLoopCmd.MarkFlagRequired("root")
+
 	demonCmd.AddCommand(demonCreateCmd)
 	demonCmd.AddCommand(demonListCmd)
 	demonCmd.AddCommand(demonShowCmd)
@@ -189,6 +241,10 @@ func init() {
 	demonCmd.AddCommand(demonLogsCmd)
 	demonCmd.AddCommand(demonEditCmd)
 	demonCmd.AddCommand(demonTestCmd)
+	demonCmd.AddCommand(demonStartCmd)
+	demonCmd.AddCommand(demonStopCmd)
+	demonCmd.AddCommand(demonStatusCmd)
+	demonCmd.AddCommand(demonSchedulerLoopCmd)
 	rootCmd.AddCommand(demonCmd)
 }
 
@@ -741,6 +797,132 @@ func runDemonTest(cmd *cobra.Command, args []string) error {
 
 	// Run tests with JSON output
 	return runTestsAndReportIssues(cmd, ws, pattern)
+}
+
+func runDemonStart(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return errNotInWorkspace(err)
+	}
+
+	scheduler := demon.NewScheduler(ws.RootDir)
+
+	if err := scheduler.Start(); err != nil {
+		return err
+	}
+
+	status, _ := scheduler.Status()
+	cmd.Printf("Scheduler started (PID %d)\n", status.PID)
+	cmd.Println("Demons will run automatically based on their schedules.")
+	cmd.Println()
+	cmd.Println("Use 'bc demon status' to see upcoming runs.")
+	cmd.Println("Use 'bc demon stop' to stop the scheduler.")
+
+	return nil
+}
+
+func runDemonStop(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return errNotInWorkspace(err)
+	}
+
+	scheduler := demon.NewScheduler(ws.RootDir)
+
+	if err := scheduler.Stop(); err != nil {
+		return err
+	}
+
+	cmd.Println("Scheduler stopped")
+	cmd.Println("Demons will no longer run automatically.")
+	cmd.Println()
+	cmd.Println("Use 'bc demon run <name>' to run demons manually.")
+
+	return nil
+}
+
+func runDemonStatus(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return errNotInWorkspace(err)
+	}
+
+	scheduler := demon.NewScheduler(ws.RootDir)
+	status, err := scheduler.Status()
+	if err != nil {
+		return err
+	}
+
+	// Check for JSON output
+	jsonOutput, _ := cmd.Flags().GetBool("json")
+	if jsonOutput {
+		// Include next runs in JSON output
+		nextRuns, _ := scheduler.GetNextRuns()
+		output := struct {
+			Status   *demon.SchedulerStatus `json:"status"`
+			NextRuns []demon.DemonNextRun   `json:"next_runs"`
+		}{
+			Status:   status,
+			NextRuns: nextRuns,
+		}
+		enc := json.NewEncoder(cmd.OutOrStdout())
+		enc.SetIndent("", "  ")
+		return enc.Encode(output)
+	}
+
+	// Text output
+	if status.Running {
+		cmd.Printf("Scheduler: running (PID %d)\n", status.PID)
+		if status.Uptime != "" {
+			cmd.Printf("Uptime:    %s\n", status.Uptime)
+		}
+	} else {
+		cmd.Println("Scheduler: stopped")
+		cmd.Println()
+		cmd.Println("Start with: bc demon start")
+		return nil
+	}
+
+	// Show next scheduled runs
+	nextRuns, err := scheduler.GetNextRuns()
+	if err != nil {
+		return err
+	}
+
+	if len(nextRuns) == 0 {
+		cmd.Println()
+		cmd.Println("No enabled demons configured.")
+		cmd.Println("Create one with: bc demon create <name> --schedule '<cron>' --cmd '<command>'")
+		return nil
+	}
+
+	cmd.Println()
+	cmd.Println("Upcoming runs:")
+	cmd.Printf("%-20s %-24s %s\n", "DEMON", "NEXT RUN", "COMMAND")
+	cmd.Println("--------------------------------------------------------------------")
+
+	for _, run := range nextRuns {
+		nextRunStr := "never"
+		if !run.NextRun.IsZero() {
+			nextRunStr = run.NextRun.Local().Format("2006-01-02 15:04:05")
+		}
+		command := run.Command
+		if len(command) > 25 {
+			command = command[:22] + "..."
+		}
+		cmd.Printf("%-20s %-24s %s\n", run.Name, nextRunStr, command)
+	}
+
+	return nil
+}
+
+func runDemonSchedulerLoop(cmd *cobra.Command, args []string) error {
+	if schedulerLoopRoot == "" {
+		return fmt.Errorf("--root flag is required")
+	}
+
+	scheduler := demon.NewScheduler(schedulerLoopRoot)
+	return scheduler.RunLoop(cmd.Context())
 }
 
 func runTestsAndReportIssues(cmd *cobra.Command, ws *workspace.Workspace, pattern string) error {
