@@ -50,7 +50,9 @@ export function ProgressBar({
   colorThresholds = { warning: 50, critical: 80 },
   label,
 }: ProgressBarProps): React.ReactElement {
-  const percent = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+  // Clamp value to valid range and calculate percentage
+  const clampedValue = Math.max(0, Math.min(value, max));
+  const percent = max > 0 ? Math.min(100, (clampedValue / max) * 100) : 0;
   const filledWidth = Math.round((percent / 100) * width);
   const emptyWidth = width - filledWidth;
 
