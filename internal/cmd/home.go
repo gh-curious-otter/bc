@@ -76,8 +76,14 @@ func runHome(cmd *cobra.Command, args []string) error {
 		return errNotInWorkspace(err)
 	}
 
-	// Find TUI directory
-	tuiDir := filepath.Join(ws.RootDir, "tui")
+	// Find TUI directory - prefer cwd for worktree support
+	// In worktrees, ws.RootDir resolves through symlinked .bc to parent repo,
+	// but we want to use the worktree's local tui/ directory if it exists.
+	tuiRoot, err := findTUIRoot(ws.RootDir)
+	if err != nil {
+		return err
+	}
+	tuiDir := filepath.Join(tuiRoot, "tui")
 	tuiEntry := filepath.Join(tuiDir, "dist", "index.js")
 
 	// Check if TUI is built
@@ -94,7 +100,7 @@ func runHome(cmd *cobra.Command, args []string) error {
 		fmt.Println("TUI not built. Building now...")
 		buildCtx := context.Background()
 		buildCmd := exec.CommandContext(buildCtx, "make", "build-tui")
-		buildCmd.Dir = ws.RootDir
+		buildCmd.Dir = tuiRoot
 		buildCmd.Stdout = os.Stdout
 		buildCmd.Stderr = os.Stderr
 		if buildErr := buildCmd.Run(); buildErr != nil {
@@ -118,7 +124,7 @@ func runHome(cmd *cobra.Command, args []string) error {
 
 	// #nosec G204 - runtime is from exec.LookPath, safe to use
 	tuiCmd := exec.CommandContext(ctx, runtime, "run", tuiEntry)
-	tuiCmd.Dir = ws.RootDir
+	tuiCmd.Dir = tuiRoot
 	tuiCmd.Stdin = os.Stdin
 	tuiCmd.Stdout = os.Stdout
 	tuiCmd.Stderr = os.Stderr
@@ -147,4 +153,29 @@ func findJSRuntime() (string, error) {
 	}
 
 	return "", fmt.Errorf("bun or node not found. Install bun: https://bun.sh")
+}
+
+// findTUIRoot finds the directory containing the tui/ folder.
+// In worktrees, ws.RootDir resolves through symlinked .bc to the parent repo,
+// but we want to use the worktree's local tui/ if it exists.
+// Priority: cwd > ws.RootDir
+func findTUIRoot(wsRoot string) (string, error) {
+	// First, check current working directory
+	cwd, err := os.Getwd()
+	if err == nil {
+		tuiDir := filepath.Join(cwd, "tui")
+		if _, statErr := os.Stat(tuiDir); statErr == nil {
+			log.Debug("using TUI from cwd", "path", tuiDir)
+			return cwd, nil
+		}
+	}
+
+	// Fall back to workspace root
+	tuiDir := filepath.Join(wsRoot, "tui")
+	if _, statErr := os.Stat(tuiDir); statErr == nil {
+		log.Debug("using TUI from workspace root", "path", tuiDir)
+		return wsRoot, nil
+	}
+
+	return "", fmt.Errorf("TUI directory not found in cwd (%s) or workspace root (%s)", cwd, wsRoot)
 }
