@@ -109,7 +109,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
           <Box marginTop={1}>
             <Text>State: </Text>
             <StatusBadge state={agent.state} />
-            <Text dimColor> | Task: {agent.task ?? 'none'}</Text>
+            <Text dimColor> | Task: {agent.task || 'none'}</Text>
           </Box>
         </Box>
       </Box>
@@ -189,7 +189,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
           <Text bold color="white">Task</Text>
         </Box>
         <Box paddingLeft={2}>
-          <Text wrap="wrap">{agent.task ?? '(no task)'}</Text>
+          <Text wrap="wrap">{agent.task || '(no task)'}</Text>
         </Box>
 
         <Box marginY={1}>
