@@ -15,6 +15,13 @@ import (
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
+// Flags for report command (enhanced for stuck reports - #675)
+var (
+	reportReason       string
+	reportReproduction string
+	reportSeverity     string
+)
+
 var reportCmd = &cobra.Command{
 	Use:   "report <state> [message]",
 	Short: "Report agent state (called by agents)",
@@ -22,16 +29,26 @@ var reportCmd = &cobra.Command{
 
 Valid states: idle, working, done, stuck, error
 
+For stuck state, use --reason to provide detailed context:
+  bc report stuck --reason "database connection timeout"
+  bc report stuck --reason "auth fails" --reproduction "login with test user" --severity critical
+
 Examples:
   bc report working "fixing auth bug"
   bc report done "auth bug fixed"
-  bc report stuck "need database credentials"`,
+  bc report stuck "need database credentials"
+  bc report stuck --reason "TUI freezes on channel select" --severity high`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: runReport,
 }
 
 func init() {
 	rootCmd.AddCommand(reportCmd)
+
+	// Enhanced flags for stuck reports (#675)
+	reportCmd.Flags().StringVar(&reportReason, "reason", "", "Detailed reason for stuck state")
+	reportCmd.Flags().StringVar(&reportReproduction, "reproduction", "", "Steps to reproduce the issue")
+	reportCmd.Flags().StringVar(&reportSeverity, "severity", "medium", "Issue severity (critical, high, medium, low)")
 }
 
 func runReport(cmd *cobra.Command, args []string) error {
@@ -75,12 +92,35 @@ func runReport(cmd *cobra.Command, args []string) error {
 
 	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
 
+	// Build event data
+	eventData := make(map[string]any)
+	eventMsg := fmt.Sprintf("%s: %s", state, message)
+
+	// Enhanced stuck reporting (#675)
+	if state == agent.StateStuck {
+		if reportReason != "" {
+			eventData["reason"] = reportReason
+			eventMsg = fmt.Sprintf("%s: %s", state, reportReason)
+		}
+		if reportReproduction != "" {
+			eventData["reproduction"] = reportReproduction
+		}
+		if reportSeverity != "" {
+			eventData["severity"] = reportSeverity
+		}
+		eventData["stuck"] = true
+	}
+
 	// Log the report event
-	if err := log.Append(events.Event{
+	event := events.Event{
 		Type:    events.AgentReport,
 		Agent:   agentID,
-		Message: fmt.Sprintf("%s: %s", state, message),
-	}); err != nil {
+		Message: eventMsg,
+	}
+	if len(eventData) > 0 {
+		event.Data = eventData
+	}
+	if err := log.Append(event); err != nil {
 		bclog.Warn("failed to append agent report event", "error", err)
 	}
 
@@ -91,7 +131,16 @@ func runReport(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	fmt.Printf("Reported: %s %s\n", state, message)
+	// Output message
+	if state == agent.StateStuck && reportReason != "" {
+		fmt.Printf("Reported: %s [%s]\n", state, reportSeverity)
+		fmt.Printf("  Reason: %s\n", reportReason)
+		if reportReproduction != "" {
+			fmt.Printf("  Reproduction: %s\n", reportReproduction)
+		}
+	} else {
+		fmt.Printf("Reported: %s %s\n", state, message)
+	}
 	return nil
 }
 
