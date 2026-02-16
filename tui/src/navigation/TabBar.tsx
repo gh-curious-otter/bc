@@ -20,7 +20,7 @@ export function TabBar({
   const { currentView, tabs, canGoBack } = useNavigation();
 
   return (
-    <Box>
+    <Box flexShrink={0}>
       {showTitle && (
         <>
           <Text bold color="cyan">
