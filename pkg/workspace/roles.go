@@ -14,6 +14,7 @@ import (
 // RoleMetadata contains the parsed frontmatter from a role file.
 type RoleMetadata struct {
 	Name         string   `yaml:"name"`
+	Description  string   `yaml:"description,omitempty"`
 	Capabilities []string `yaml:"capabilities,omitempty"`
 	ParentRoles  []string `yaml:"parent_roles,omitempty"`
 	IsSingleton  bool     `yaml:"is_singleton,omitempty"`
@@ -24,6 +25,24 @@ type Role struct {
 	FilePath string       // Path to the role file
 	Prompt   string       // Markdown body after frontmatter
 	Metadata RoleMetadata // Parsed YAML frontmatter
+}
+
+// Description returns a brief description for the role.
+// Uses Metadata.Description if set, otherwise extracts from the first heading in Prompt.
+func (r *Role) Description() string {
+	if r.Metadata.Description != "" {
+		return r.Metadata.Description
+	}
+
+	// Extract from first heading in prompt
+	lines := strings.Split(r.Prompt, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "# ") {
+			return strings.TrimPrefix(line, "# ")
+		}
+	}
+	return ""
 }
 
 // RoleManager handles role file operations for a workspace.
