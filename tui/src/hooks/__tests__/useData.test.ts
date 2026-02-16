@@ -254,7 +254,7 @@ describe.skip('useTeams - Team management', () => {
       jest.runAllTimers();
     });
 
-    const teamsWithEng01 = result.current.data?.filter(t => t.members.includes('eng-01')) || [];
+    const teamsWithEng01 = result.current.data?.filter(t => t.members.includes('eng-01')) ?? [];
     expect(teamsWithEng01).toHaveLength(2);
   });
 
@@ -342,7 +342,7 @@ describe.skip('useProcesses - Process management', () => {
       jest.runAllTimers();
     });
 
-    const running = result.current.data?.filter(p => p.status === 'running') || [];
+    const running = result.current.data?.filter(p => p.status === 'running') ?? [];
     expect(running).toHaveLength(2);
   });
 

@@ -72,7 +72,7 @@ describe.skip('useProcesses - Process management', () => {
       jest.runAllTimers();
     });
 
-    const running = result.current.data?.filter(p => p.status === 'running') || [];
+    const running = result.current.data?.filter(p => p.status === 'running') ?? [];
     expect(running).toHaveLength(2);
   });
 

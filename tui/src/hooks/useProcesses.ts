@@ -59,7 +59,7 @@ export function useProcesses(options: UseProcessesOptions = {}): UseProcessesRes
   // Initial fetch
   useEffect(() => {
     void fetchProcesses();
-  }, []);
+  }, [fetchProcesses]);
 
   // Polling interval
   useEffect(() => {
@@ -132,7 +132,7 @@ export function useProcessLogs(options: UseProcessLogsOptions): UseProcessLogsRe
     setLoading(true);
     setData(null);
     void fetchLogs();
-  }, [name]);
+  }, [name, fetchLogs]);
 
   // Polling interval
   useEffect(() => {

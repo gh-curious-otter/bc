@@ -144,7 +144,7 @@ describe.skip('useAgents - State filtering and queries', () => {
       jest.runAllTimers();
     });
 
-    const working = result.current.data?.filter(a => a.state === 'working') || [];
+    const working = result.current.data?.filter(a => a.state === 'working') ?? [];
     expect(working).toHaveLength(3);
     expect(working[0].name).toBe('eng-01');
   });
@@ -164,7 +164,7 @@ describe.skip('useAgents - State filtering and queries', () => {
       jest.runAllTimers();
     });
 
-    const engineers = result.current.data?.filter(a => a.role === 'engineer') || [];
+    const engineers = result.current.data?.filter(a => a.role === 'engineer') ?? [];
     expect(engineers).toHaveLength(2);
   });
 

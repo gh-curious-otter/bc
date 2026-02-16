@@ -70,7 +70,7 @@ describe.skip('useDemons - Daemon/scheduled task management', () => {
       jest.runAllTimers();
     });
 
-    const enabled = result.current.data?.filter(d => d.enabled) || [];
+    const enabled = result.current.data?.filter(d => d.enabled) ?? [];
     expect(enabled).toHaveLength(2);
   });
 
@@ -88,7 +88,7 @@ describe.skip('useDemons - Daemon/scheduled task management', () => {
       jest.runAllTimers();
     });
 
-    const sorted = (result.current.data || []).sort((a, b) => a.next_run - b.next_run);
+    const sorted = (result.current.data ?? []).sort((a, b) => a.next_run - b.next_run);
     expect(sorted[0].name).toBe('task-a');
     expect(sorted[2].name).toBe('task-c');
   });
@@ -204,7 +204,7 @@ describe.skip('useDemonLogs - Demon execution logs', () => {
       jest.runAllTimers();
     });
 
-    const successful = result.current.data?.filter(l => l.status === 'success') || [];
+    const successful = result.current.data?.filter(l => l.status === 'success') ?? [];
     expect(successful).toHaveLength(2);
   });
 
