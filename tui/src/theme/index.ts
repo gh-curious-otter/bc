@@ -5,7 +5,7 @@
  * - Auto-detection of terminal dark/light mode
  * - ThemeProvider for React context
  * - useTheme hook for accessing colors
- * - Pre-defined dark and light themes
+ * - Pre-defined themes: dark, light, matrix, synthwave, high-contrast
  */
 
 // Types
@@ -26,7 +26,17 @@ export {
 } from './ThemeContext';
 
 // Themes
-export { darkTheme, lightTheme, getTheme, applyOverrides } from './themes';
+export {
+  darkTheme,
+  lightTheme,
+  matrixTheme,
+  synthwaveTheme,
+  highContrastTheme,
+  themes,
+  getTheme,
+  applyOverrides,
+} from './themes';
+export type { ThemeName } from './themes';
 
 // Detection utilities
 export {
