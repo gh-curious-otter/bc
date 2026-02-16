@@ -133,7 +133,7 @@ describe('execBc - Error handling', () => {
       });
     }, 5);
 
-    await expect(execBc(['invalid'])).rejects.toThrow(/agent not found/);
+    expect(execBc(['invalid'])).rejects.toThrow(/agent not found/);
   });
 
   it('handles spawn process errors', async () => {
@@ -147,7 +147,7 @@ describe('execBc - Error handling', () => {
       });
     }, 5);
 
-    await expect(execBc(['invalid'])).rejects.toThrow(/Failed to spawn bc/);
+    expect(execBc(['invalid'])).rejects.toThrow(/Failed to spawn bc/);
   });
 });
 
@@ -192,7 +192,7 @@ describe('execBcJson - JSON parsing', () => {
       });
     }, 5);
 
-    await expect(execBcJson(['status'])).rejects.toThrow('Failed to parse bc output as JSON');
+    expect(execBcJson(['status'])).rejects.toThrow('Failed to parse bc output as JSON');
   });
 
   it('throws on empty response', async () => {
@@ -206,7 +206,7 @@ describe('execBcJson - JSON parsing', () => {
       });
     }, 5);
 
-    await expect(execBcJson(['status'])).rejects.toThrow('Failed to parse bc output as JSON');
+    expect(execBcJson(['status'])).rejects.toThrow('Failed to parse bc output as JSON');
   });
 });
 
