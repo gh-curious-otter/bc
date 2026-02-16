@@ -398,3 +398,138 @@ func TestStoreRemoveAgentFromAllTeams_AgentNotInAnyTeam(t *testing.T) {
 		t.Errorf("team-a members = %v, want [eng-02]", team.Members)
 	}
 }
+
+func TestFindOrphanedMembers(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create teams with mix of valid and orphaned members
+	_, _ = store.Create("team-a")
+	_ = store.AddMember("team-a", "eng-01")   // valid
+	_ = store.AddMember("team-a", "orphan-1") // orphaned
+
+	_, _ = store.Create("team-b")
+	_ = store.AddMember("team-b", "orphan-2")  // orphaned
+	_ = store.SetLead("team-b", "orphan-lead") // orphaned lead
+
+	// agentExists returns true only for eng-01
+	agentExists := func(name string) bool {
+		return name == "eng-01"
+	}
+
+	orphans, err := store.FindOrphanedMembers(agentExists)
+	if err != nil {
+		t.Fatalf("FindOrphanedMembers failed: %v", err)
+	}
+
+	// Should find 3 orphans: orphan-1, orphan-2, and orphan-lead
+	if len(orphans) != 3 {
+		t.Errorf("FindOrphanedMembers returned %d orphans, want 3", len(orphans))
+	}
+
+	// Verify orphan-lead is marked as lead
+	foundLead := false
+	for _, o := range orphans {
+		if o.MemberName == "orphan-lead" && o.IsLead {
+			foundLead = true
+		}
+	}
+	if !foundLead {
+		t.Error("orphan-lead should be marked as IsLead=true")
+	}
+}
+
+func TestFindOrphanedMembers_NoOrphans(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	_, _ = store.Create("team-a")
+	_ = store.AddMember("team-a", "eng-01")
+	_ = store.AddMember("team-a", "eng-02")
+
+	// All agents exist
+	agentExists := func(name string) bool {
+		return name == "eng-01" || name == "eng-02"
+	}
+
+	orphans, err := store.FindOrphanedMembers(agentExists)
+	if err != nil {
+		t.Fatalf("FindOrphanedMembers failed: %v", err)
+	}
+
+	if len(orphans) != 0 {
+		t.Errorf("FindOrphanedMembers returned %d orphans, want 0", len(orphans))
+	}
+}
+
+func TestCleanupOrphanedMembers(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create teams with orphaned members
+	_, _ = store.Create("team-a")
+	_ = store.AddMember("team-a", "eng-01")   // valid
+	_ = store.AddMember("team-a", "orphan-1") // orphaned
+
+	_, _ = store.Create("team-b")
+	_ = store.AddMember("team-b", "orphan-2")  // orphaned
+	_ = store.SetLead("team-b", "orphan-lead") // orphaned lead
+
+	// agentExists returns true only for eng-01
+	agentExists := func(name string) bool {
+		return name == "eng-01"
+	}
+
+	removed, err := store.CleanupOrphanedMembers(agentExists)
+	if err != nil {
+		t.Fatalf("CleanupOrphanedMembers failed: %v", err)
+	}
+
+	if removed != 3 {
+		t.Errorf("CleanupOrphanedMembers removed %d, want 3", removed)
+	}
+
+	// Verify team-a still has eng-01 but not orphan-1
+	teamA, _ := store.Get("team-a")
+	if len(teamA.Members) != 1 || teamA.Members[0] != "eng-01" {
+		t.Errorf("team-a members = %v, want [eng-01]", teamA.Members)
+	}
+
+	// Verify team-b has no members and no lead
+	teamB, _ := store.Get("team-b")
+	if len(teamB.Members) != 0 {
+		t.Errorf("team-b members = %v, want []", teamB.Members)
+	}
+	if teamB.Lead != "" {
+		t.Errorf("team-b lead = %q, want empty", teamB.Lead)
+	}
+}
+
+func TestCleanupOrphanedMembers_NoOrphans(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	_, _ = store.Create("team-a")
+	_ = store.AddMember("team-a", "eng-01")
+	_ = store.AddMember("team-a", "eng-02")
+
+	// All agents exist
+	agentExists := func(name string) bool {
+		return name == "eng-01" || name == "eng-02"
+	}
+
+	removed, err := store.CleanupOrphanedMembers(agentExists)
+	if err != nil {
+		t.Fatalf("CleanupOrphanedMembers failed: %v", err)
+	}
+
+	if removed != 0 {
+		t.Errorf("CleanupOrphanedMembers removed %d, want 0", removed)
+	}
+
+	// Verify team unchanged
+	team, _ := store.Get("team-a")
+	if len(team.Members) != 2 {
+		t.Errorf("team-a members = %v, want [eng-01, eng-02]", team.Members)
+	}
+}

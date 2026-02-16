@@ -90,6 +90,20 @@ Examples:
 	RunE: runTeamRename,
 }
 
+var teamCleanupCmd = &cobra.Command{
+	Use:   "cleanup",
+	Short: "Find and remove orphaned team members",
+	Long: `Find and remove team members that reference non-existent agents.
+
+By default, performs a dry-run showing what would be removed.
+Use --fix to actually remove the orphaned members.
+
+Examples:
+  bc team cleanup           # Dry-run: show orphaned members
+  bc team cleanup --fix     # Remove orphaned members`,
+	RunE: runTeamCleanup,
+}
+
 func init() {
 	teamCmd.AddCommand(teamCreateCmd)
 	teamCmd.AddCommand(teamListCmd)
@@ -98,6 +112,8 @@ func init() {
 	teamCmd.AddCommand(teamAddCmd)
 	teamCmd.AddCommand(teamRemoveCmd)
 	teamCmd.AddCommand(teamRenameCmd)
+	teamCmd.AddCommand(teamCleanupCmd)
+	teamCleanupCmd.Flags().Bool("fix", false, "Actually remove orphaned members (default: dry-run)")
 	rootCmd.AddCommand(teamCmd)
 }
 
@@ -331,6 +347,61 @@ func runTeamRename(cmd *cobra.Command, args []string) error {
 		cmd.Printf("  Members: %d\n", len(oldTeam.Members))
 		if oldTeam.Lead != "" {
 			cmd.Printf("  Lead: %s\n", oldTeam.Lead)
+		}
+	}
+
+	return nil
+}
+
+func runTeamCleanup(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return errNotInWorkspace(err)
+	}
+
+	fix, _ := cmd.Flags().GetBool("fix")
+
+	// Set up agent existence check
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	_ = mgr.LoadState() //nolint:errcheck // continue even if state doesn't load
+
+	agentExists := func(name string) bool {
+		return mgr.GetAgent(name) != nil
+	}
+
+	store := team.NewStore(ws.RootDir)
+
+	if fix {
+		// Actually remove orphaned members
+		removed, cleanupErr := store.CleanupOrphanedMembers(agentExists)
+		if cleanupErr != nil {
+			return cleanupErr
+		}
+		if removed == 0 {
+			cmd.Println("No orphaned members found")
+		} else {
+			cmd.Printf("Removed %d orphaned member(s)\n", removed)
+		}
+	} else {
+		// Dry-run: just show orphaned members
+		orphans, findErr := store.FindOrphanedMembers(agentExists)
+		if findErr != nil {
+			return findErr
+		}
+		if len(orphans) == 0 {
+			cmd.Println("No orphaned members found")
+		} else {
+			cmd.Printf("Found %d orphaned member(s):\n", len(orphans))
+			cmd.Println()
+			for _, o := range orphans {
+				role := "member"
+				if o.IsLead {
+					role = "lead"
+				}
+				cmd.Printf("  %-20s %s (%s)\n", o.TeamName, o.MemberName, role)
+			}
+			cmd.Println()
+			cmd.Println("Run with --fix to remove these orphaned members")
 		}
 	}
 
