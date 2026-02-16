@@ -175,13 +175,31 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 		return rows[i].name < rows[j].name
 	})
 
-	// Print table header
-	fmt.Printf("%-*s  %-4s  %-*s  %s\n", maxNameLen, "ROLE", "CAPS", maxDescLen, "DESCRIPTION", "FLAGS")
-	fmt.Println(strings.Repeat("-", maxNameLen+maxDescLen+20))
+	// Check if any roles have capabilities defined
+	hasCapabilities := false
+	for _, r := range rows {
+		if r.capabilities > 0 {
+			hasCapabilities = true
+			break
+		}
+	}
+
+	// Print table header (hide CAPS column if all roles have 0 capabilities)
+	if hasCapabilities {
+		fmt.Printf("%-*s  %-4s  %-*s  %s\n", maxNameLen, "ROLE", "CAPS", maxDescLen, "DESCRIPTION", "FLAGS")
+		fmt.Println(strings.Repeat("-", maxNameLen+maxDescLen+20))
+	} else {
+		fmt.Printf("%-*s  %-*s  %s\n", maxNameLen, "ROLE", maxDescLen, "DESCRIPTION", "FLAGS")
+		fmt.Println(strings.Repeat("-", maxNameLen+maxDescLen+14))
+	}
 
 	// Print rows
 	for _, r := range rows {
-		fmt.Printf("%-*s  %-4d  %-*s  %s\n", maxNameLen, r.name, r.capabilities, maxDescLen, r.description, r.flags)
+		if hasCapabilities {
+			fmt.Printf("%-*s  %-4d  %-*s  %s\n", maxNameLen, r.name, r.capabilities, maxDescLen, r.description, r.flags)
+		} else {
+			fmt.Printf("%-*s  %-*s  %s\n", maxNameLen, r.name, maxDescLen, r.description, r.flags)
+		}
 	}
 
 	fmt.Printf("\n%d role(s) defined\n", len(rows))
