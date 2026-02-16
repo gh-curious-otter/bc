@@ -75,6 +75,7 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
         if (filteredCommands.length > 0) {
           setSelectedIndex(Math.min(filteredCommands.length - 1, validatedIndex + 1));
         }
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list
       } else if (key.return && selectedCommand) {
         // TODO: Execute command or show confirmation
       } else if (input === 'q' || key.escape) {
@@ -129,6 +130,7 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
       </Box>
 
       {/* Command preview */}
+      {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list */}
       {selectedCommand !== undefined && filteredCommands.length > 0 && (
         <Box flexDirection="column" marginBottom={1} paddingX={1} borderStyle="single" borderColor="gray">
           <Text bold color="cyan">{selectedCommand.name}</Text>

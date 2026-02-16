@@ -115,13 +115,13 @@ export function useMessagePolling(
   useEffect(() => {
     isFirstFetchRef.current = true;
     lastSeenTimeRef.current = null;
-    fetchMessages();
+    void fetchMessages();
   }, [channel]); // Reset on channel change
 
   // Polling interval
   useEffect(() => {
     if (!isPolling) return;
-    const timer = setInterval(fetchMessages, interval);
+    const timer = setInterval(() => { void fetchMessages(); }, interval);
     return () => { clearInterval(timer); };
   }, [isPolling, interval, fetchMessages]);
 
@@ -257,13 +257,13 @@ export function useAgentPolling(
   // Initial fetch
   useEffect(() => {
     prevAgentsRef.current = new Map();
-    fetchAgents();
+    void fetchAgents();
   }, []);
 
   // Polling interval
   useEffect(() => {
     if (!isPolling) return;
-    const timer = setInterval(fetchAgents, interval);
+    const timer = setInterval(() => { void fetchAgents(); }, interval);
     return () => { clearInterval(timer); };
   }, [isPolling, interval, fetchAgents]);
 

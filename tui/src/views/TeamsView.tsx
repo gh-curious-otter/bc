@@ -52,7 +52,10 @@ export function TeamsView({ onBack }: TeamsViewProps) {
     if (key.return || input === ' ') {
       // Toggle expanded view
       const team = teamList[selectedIndex];
-      setExpandedTeam(expandedTeam === team.name ? null : team.name);
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list
+      if (team) {
+        setExpandedTeam(expandedTeam === team.name ? null : team.name);
+      }
     }
     if (input === 'r') {
       void refresh();

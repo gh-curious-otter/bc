@@ -47,13 +47,13 @@ export function useTeams(options: UseTeamsOptions = {}): UseTeamsResult {
 
   // Initial fetch
   useEffect(() => {
-    fetchTeams();
+    void fetchTeams();
   }, [fetchTeams]);
 
   // Polling
   useEffect(() => {
     if (!autoPoll) return;
-    const interval = setInterval(fetchTeams, pollInterval);
+    const interval = setInterval(() => { void fetchTeams(); }, pollInterval);
     return () => { clearInterval(interval); };
   }, [autoPoll, pollInterval, fetchTeams]);
 

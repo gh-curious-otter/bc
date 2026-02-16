@@ -63,7 +63,10 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
     } else if (key.downArrow || input === 'j') {
       setSelectedIndex((i) => Math.min(processList.length - 1, i + 1));
     } else if (key.return || input === 'l') {
-      setShowLogs(true);
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list
+      if (selectedProcess) {
+        setShowLogs(true);
+      }
     } else if (input === 'r') {
       void refresh();
     } else if (input === 'q' || key.escape) {
@@ -132,7 +135,8 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
   }
 
   // Show log viewer
-  if (showLogs) {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list
+  if (showLogs && selectedProcess) {
     return (
       <ProcessLogViewer
         process={selectedProcess}
@@ -165,6 +169,7 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
           />
 
           {/* Process Details */}
+          {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list */}
           {selectedProcess && (
             <Box marginTop={1} flexDirection="column">
               <Text bold color="cyan">Details</Text>
