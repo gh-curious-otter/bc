@@ -78,6 +78,41 @@ var roleValidateCmd = &cobra.Command{
 	RunE:  runRoleValidate,
 }
 
+var roleRenameCmd = &cobra.Command{
+	Use:   "rename <old-name> <new-name>",
+	Short: "Rename a role",
+	Long: `Rename an existing role, updating both the file name and metadata.
+
+Example:
+  bc role rename engineer senior-engineer`,
+	Args: cobra.ExactArgs(2),
+	RunE: runRoleRename,
+}
+
+var roleCloneCmd = &cobra.Command{
+	Use:   "clone <source> <destination>",
+	Short: "Clone an existing role",
+	Long: `Create a copy of an existing role with a new name.
+This is useful when creating a new role based on an existing one.
+
+Example:
+  bc role clone engineer frontend-engineer`,
+	Args: cobra.ExactArgs(2),
+	RunE: runRoleClone,
+}
+
+var roleDiffCmd = &cobra.Command{
+	Use:   "diff <role-a> <role-b>",
+	Short: "Compare two roles",
+	Long: `Show differences between two roles.
+Compares metadata (capabilities, parent roles) and prompts.
+
+Example:
+  bc role diff engineer manager`,
+	Args: cobra.ExactArgs(2),
+	RunE: runRoleDiff,
+}
+
 // Flags
 var (
 	roleName        string
@@ -95,6 +130,9 @@ func init() {
 	roleCmd.AddCommand(roleEditCmd)
 	roleCmd.AddCommand(roleDeleteCmd)
 	roleCmd.AddCommand(roleValidateCmd)
+	roleCmd.AddCommand(roleRenameCmd)
+	roleCmd.AddCommand(roleCloneCmd)
+	roleCmd.AddCommand(roleDiffCmd)
 
 	roleCreateCmd.Flags().StringVar(&roleName, "name", "", "Name for the new role (required)")
 	roleCreateCmd.Flags().StringVar(&rolePrompt, "prompt", "", "Inline prompt text for the role")
@@ -473,6 +511,263 @@ func runRoleValidate(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("\nAll roles validated")
+	return nil
+}
+
+func runRoleRename(cmd *cobra.Command, args []string) error {
+	ws, rm, err := getWorkspaceRoleManager()
+	if err != nil {
+		return err
+	}
+
+	oldName := args[0]
+	newName := args[1]
+
+	// Protect root role
+	if oldName == "root" {
+		return fmt.Errorf("cannot rename root role (it is hardcoded in the system)")
+	}
+
+	// Validate new name
+	if !isValidRoleName(newName) {
+		return fmt.Errorf("invalid role name %q (must be alphanumeric with hyphens, max 50 chars)", newName)
+	}
+
+	// Check source exists
+	if !rm.HasRole(oldName) {
+		return fmt.Errorf("role %q not found", oldName)
+	}
+
+	// Check destination doesn't exist
+	if rm.HasRole(newName) {
+		return fmt.Errorf("role %q already exists", newName)
+	}
+
+	// Load the source role
+	role, err := rm.LoadRole(oldName)
+	if err != nil {
+		return fmt.Errorf("failed to load role %q: %w", oldName, err)
+	}
+
+	// Update metadata with new name
+	role.Metadata.Name = newName
+
+	// Write the new role file
+	if err := rm.WriteRole(role); err != nil {
+		return fmt.Errorf("failed to write renamed role: %w", err)
+	}
+
+	// Delete the old role file
+	oldFile := fmt.Sprintf("%s/roles/%s.md", ws.StateDir(), oldName)
+	if err := os.Remove(oldFile); err != nil {
+		return fmt.Errorf("failed to delete old role file: %w", err)
+	}
+
+	fmt.Printf("✓ Renamed role %q to %q\n", oldName, newName)
+	return nil
+}
+
+func runRoleClone(cmd *cobra.Command, args []string) error {
+	_, rm, err := getWorkspaceRoleManager()
+	if err != nil {
+		return err
+	}
+
+	srcName := args[0]
+	dstName := args[1]
+
+	// Validate destination name
+	if !isValidRoleName(dstName) {
+		return fmt.Errorf("invalid role name %q (must be alphanumeric with hyphens, max 50 chars)", dstName)
+	}
+
+	// Check source exists
+	if !rm.HasRole(srcName) {
+		return fmt.Errorf("source role %q not found", srcName)
+	}
+
+	// Check destination doesn't exist
+	if rm.HasRole(dstName) {
+		return fmt.Errorf("destination role %q already exists", dstName)
+	}
+
+	// Load the source role
+	srcRole, err := rm.LoadRole(srcName)
+	if err != nil {
+		return fmt.Errorf("failed to load source role %q: %w", srcName, err)
+	}
+
+	// Create a copy with new name
+	dstRole := &workspace.Role{
+		Metadata: workspace.RoleMetadata{
+			Name:         dstName,
+			Description:  srcRole.Metadata.Description,
+			Capabilities: append([]string{}, srcRole.Metadata.Capabilities...),
+			ParentRoles:  append([]string{}, srcRole.Metadata.ParentRoles...),
+			IsSingleton:  false, // Clones should not be singletons by default
+		},
+		Prompt: srcRole.Prompt,
+	}
+
+	// Write the new role
+	if err := rm.WriteRole(dstRole); err != nil {
+		return fmt.Errorf("failed to write cloned role: %w", err)
+	}
+
+	fmt.Printf("✓ Cloned role %q to %q\n", srcName, dstName)
+	fmt.Printf("  File: .bc/roles/%s.md\n\n", dstName)
+	fmt.Println("To edit the cloned role:")
+	fmt.Printf("  bc role edit %s\n", dstName)
+	return nil
+}
+
+func runRoleDiff(cmd *cobra.Command, args []string) error {
+	_, rm, err := getWorkspaceRoleManager()
+	if err != nil {
+		return err
+	}
+
+	nameA := args[0]
+	nameB := args[1]
+
+	// Load both roles
+	roleA, err := rm.LoadRole(nameA)
+	if err != nil {
+		return fmt.Errorf("failed to load role %q: %w", nameA, err)
+	}
+
+	roleB, err := rm.LoadRole(nameB)
+	if err != nil {
+		return fmt.Errorf("failed to load role %q: %w", nameB, err)
+	}
+
+	fmt.Printf("Comparing roles: %s vs %s\n", nameA, nameB)
+	fmt.Println(strings.Repeat("=", 60))
+
+	hasDiffs := false
+
+	// Compare descriptions
+	if roleA.Metadata.Description != roleB.Metadata.Description {
+		hasDiffs = true
+		fmt.Println("\nDescription:")
+		fmt.Printf("  %s: %s\n", nameA, roleA.Metadata.Description)
+		fmt.Printf("  %s: %s\n", nameB, roleB.Metadata.Description)
+	}
+
+	// Compare capabilities
+	capsA := make(map[string]bool)
+	capsB := make(map[string]bool)
+	for _, c := range roleA.Metadata.Capabilities {
+		capsA[c] = true
+	}
+	for _, c := range roleB.Metadata.Capabilities {
+		capsB[c] = true
+	}
+
+	var onlyInA, onlyInB []string
+	for c := range capsA {
+		if !capsB[c] {
+			onlyInA = append(onlyInA, c)
+		}
+	}
+	for c := range capsB {
+		if !capsA[c] {
+			onlyInB = append(onlyInB, c)
+		}
+	}
+
+	if len(onlyInA) > 0 || len(onlyInB) > 0 {
+		hasDiffs = true
+		fmt.Println("\nCapabilities:")
+		sort.Strings(onlyInA)
+		sort.Strings(onlyInB)
+		for _, c := range onlyInA {
+			fmt.Printf("  - %s (only in %s)\n", c, nameA)
+		}
+		for _, c := range onlyInB {
+			fmt.Printf("  + %s (only in %s)\n", c, nameB)
+		}
+	}
+
+	// Compare parent roles
+	parentsA := make(map[string]bool)
+	parentsB := make(map[string]bool)
+	for _, p := range roleA.Metadata.ParentRoles {
+		parentsA[p] = true
+	}
+	for _, p := range roleB.Metadata.ParentRoles {
+		parentsB[p] = true
+	}
+
+	var parentsOnlyA, parentsOnlyB []string
+	for p := range parentsA {
+		if !parentsB[p] {
+			parentsOnlyA = append(parentsOnlyA, p)
+		}
+	}
+	for p := range parentsB {
+		if !parentsA[p] {
+			parentsOnlyB = append(parentsOnlyB, p)
+		}
+	}
+
+	if len(parentsOnlyA) > 0 || len(parentsOnlyB) > 0 {
+		hasDiffs = true
+		fmt.Println("\nParent Roles:")
+		sort.Strings(parentsOnlyA)
+		sort.Strings(parentsOnlyB)
+		for _, p := range parentsOnlyA {
+			fmt.Printf("  - %s (only in %s)\n", p, nameA)
+		}
+		for _, p := range parentsOnlyB {
+			fmt.Printf("  + %s (only in %s)\n", p, nameB)
+		}
+	}
+
+	// Compare singleton status
+	if roleA.Metadata.IsSingleton != roleB.Metadata.IsSingleton {
+		hasDiffs = true
+		fmt.Println("\nSingleton:")
+		fmt.Printf("  %s: %v\n", nameA, roleA.Metadata.IsSingleton)
+		fmt.Printf("  %s: %v\n", nameB, roleB.Metadata.IsSingleton)
+	}
+
+	// Compare prompts (line count and first difference)
+	linesA := strings.Split(roleA.Prompt, "\n")
+	linesB := strings.Split(roleB.Prompt, "\n")
+	if roleA.Prompt != roleB.Prompt {
+		hasDiffs = true
+		fmt.Println("\nPrompt:")
+		fmt.Printf("  %s: %d lines\n", nameA, len(linesA))
+		fmt.Printf("  %s: %d lines\n", nameB, len(linesB))
+
+		// Find first differing line
+		maxLines := len(linesA)
+		if len(linesB) < maxLines {
+			maxLines = len(linesB)
+		}
+		for i := 0; i < maxLines; i++ {
+			if linesA[i] != linesB[i] {
+				fmt.Printf("  First difference at line %d:\n", i+1)
+				if len(linesA[i]) > 60 {
+					fmt.Printf("    %s: %s...\n", nameA, linesA[i][:60])
+				} else {
+					fmt.Printf("    %s: %s\n", nameA, linesA[i])
+				}
+				if len(linesB[i]) > 60 {
+					fmt.Printf("    %s: %s...\n", nameB, linesB[i][:60])
+				} else {
+					fmt.Printf("    %s: %s\n", nameB, linesB[i])
+				}
+				break
+			}
+		}
+	}
+
+	if !hasDiffs {
+		fmt.Println("\nNo differences found (roles are identical)")
+	}
+
 	return nil
 }
 

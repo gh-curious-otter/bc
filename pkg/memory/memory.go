@@ -501,6 +501,97 @@ func (s *Store) writeExperiences(experiences []Experience) error {
 	return nil
 }
 
+// DeleteExperience removes an experience by its index (1-based).
+// Returns an error if the index is out of range.
+func (s *Store) DeleteExperience(index int) (*Experience, error) {
+	experiences, err := s.GetExperiences()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get experiences: %w", err)
+	}
+
+	// Convert to 0-based index
+	idx := index - 1
+	if idx < 0 || idx >= len(experiences) {
+		return nil, fmt.Errorf("index %d out of range (1-%d)", index, len(experiences))
+	}
+
+	// Get the deleted experience to return
+	deleted := experiences[idx]
+
+	// Remove the experience from the slice
+	experiences = append(experiences[:idx], experiences[idx+1:]...)
+
+	// Write the updated experiences
+	if err := s.writeExperiences(experiences); err != nil {
+		return nil, fmt.Errorf("failed to write experiences: %w", err)
+	}
+
+	return &deleted, nil
+}
+
+// MergeLearnings merges learnings from another store into this one.
+// Returns the number of new learnings added.
+func (s *Store) MergeLearnings(source *Store) (int, error) {
+	// Get source learnings
+	srcContent, err := source.GetLearnings()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get source learnings: %w", err)
+	}
+
+	// Get existing learnings
+	dstContent, err := s.GetLearnings()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get destination learnings: %w", err)
+	}
+
+	// Parse source learnings into topics and entries
+	srcTopics := parseLearningsByTopic(srcContent)
+	dstTopics := parseLearningsByTopic(dstContent)
+
+	// Track existing entries to avoid duplicates
+	existingEntries := make(map[string]bool)
+	for _, entries := range dstTopics {
+		for _, entry := range entries {
+			existingEntries[entry] = true
+		}
+	}
+
+	// Merge new entries
+	added := 0
+	for topic, entries := range srcTopics {
+		for _, entry := range entries {
+			if !existingEntries[entry] {
+				if err := s.AddLearning(topic, entry); err != nil {
+					return added, fmt.Errorf("failed to add learning: %w", err)
+				}
+				existingEntries[entry] = true
+				added++
+			}
+		}
+	}
+
+	return added, nil
+}
+
+// parseLearningsByTopic parses learnings markdown into a map of topic -> entries.
+func parseLearningsByTopic(content string) map[string][]string {
+	result := make(map[string][]string)
+	lines := strings.Split(content, "\n")
+	currentTopic := ""
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "## ") {
+			currentTopic = strings.TrimPrefix(trimmed, "## ")
+		} else if strings.HasPrefix(trimmed, "- ") && currentTopic != "" {
+			entry := strings.TrimPrefix(trimmed, "- ")
+			result[currentTopic] = append(result[currentTopic], entry)
+		}
+	}
+
+	return result
+}
+
 // GetMemoryContext returns formatted memories suitable for prompt injection.
 // It loads the most recent experiences (up to limit) and all learnings,
 // formatting them for inclusion in an agent's context.

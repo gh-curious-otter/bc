@@ -1534,3 +1534,299 @@ func TestStore_Prune_MixedRetention(t *testing.T) {
 		t.Error("wrong experience retained")
 	}
 }
+
+func TestStore_DeleteExperience(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	// Add 3 experiences
+	for i := 0; i < 3; i++ {
+		exp := Experience{
+			Description: "Experience " + string(rune('A'+i)),
+			Outcome:     "success",
+		}
+		if err := store.RecordExperience(exp); err != nil {
+			t.Fatalf("failed to record: %v", err)
+		}
+	}
+
+	// Delete middle experience (index 2, which is B)
+	deleted, err := store.DeleteExperience(2)
+	if err != nil {
+		t.Fatalf("DeleteExperience failed: %v", err)
+	}
+
+	if deleted.Description != "Experience B" {
+		t.Errorf("expected deleted 'Experience B', got %q", deleted.Description)
+	}
+
+	// Verify 2 experiences remain
+	experiences, _ := store.GetExperiences()
+	if len(experiences) != 2 {
+		t.Errorf("expected 2 experiences, got %d", len(experiences))
+	}
+
+	// Verify correct ones remain (A and C)
+	if experiences[0].Description != "Experience A" {
+		t.Errorf("expected 'Experience A', got %q", experiences[0].Description)
+	}
+	if experiences[1].Description != "Experience C" {
+		t.Errorf("expected 'Experience C', got %q", experiences[1].Description)
+	}
+}
+
+func TestStore_DeleteExperience_First(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	// Add 2 experiences
+	for i := 0; i < 2; i++ {
+		exp := Experience{
+			Description: "Experience " + string(rune('A'+i)),
+			Outcome:     "success",
+		}
+		if err := store.RecordExperience(exp); err != nil {
+			t.Fatalf("failed to record: %v", err)
+		}
+	}
+
+	// Delete first experience (index 1)
+	deleted, err := store.DeleteExperience(1)
+	if err != nil {
+		t.Fatalf("DeleteExperience failed: %v", err)
+	}
+
+	if deleted.Description != "Experience A" {
+		t.Errorf("expected deleted 'Experience A', got %q", deleted.Description)
+	}
+
+	// Verify B remains
+	experiences, _ := store.GetExperiences()
+	if len(experiences) != 1 {
+		t.Errorf("expected 1 experience, got %d", len(experiences))
+	}
+	if experiences[0].Description != "Experience B" {
+		t.Errorf("expected 'Experience B', got %q", experiences[0].Description)
+	}
+}
+
+func TestStore_DeleteExperience_Last(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	// Add 2 experiences
+	for i := 0; i < 2; i++ {
+		exp := Experience{
+			Description: "Experience " + string(rune('A'+i)),
+			Outcome:     "success",
+		}
+		if err := store.RecordExperience(exp); err != nil {
+			t.Fatalf("failed to record: %v", err)
+		}
+	}
+
+	// Delete last experience (index 2)
+	deleted, err := store.DeleteExperience(2)
+	if err != nil {
+		t.Fatalf("DeleteExperience failed: %v", err)
+	}
+
+	if deleted.Description != "Experience B" {
+		t.Errorf("expected deleted 'Experience B', got %q", deleted.Description)
+	}
+
+	// Verify A remains
+	experiences, _ := store.GetExperiences()
+	if len(experiences) != 1 {
+		t.Errorf("expected 1 experience, got %d", len(experiences))
+	}
+	if experiences[0].Description != "Experience A" {
+		t.Errorf("expected 'Experience A', got %q", experiences[0].Description)
+	}
+}
+
+func TestStore_DeleteExperience_OutOfRange(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	// Add 1 experience
+	exp := Experience{Description: "Experience A", Outcome: "success"}
+	if err := store.RecordExperience(exp); err != nil {
+		t.Fatalf("failed to record: %v", err)
+	}
+
+	// Try to delete out of range
+	_, err := store.DeleteExperience(2)
+	if err == nil {
+		t.Error("expected error for out of range index")
+	}
+
+	_, err = store.DeleteExperience(0)
+	if err == nil {
+		t.Error("expected error for index 0")
+	}
+
+	_, err = store.DeleteExperience(-1)
+	if err == nil {
+		t.Error("expected error for negative index")
+	}
+}
+
+func TestStore_MergeLearnings(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create source store with learnings
+	srcStore := NewStore(tmpDir, "source-agent")
+	if err := srcStore.Init(); err != nil {
+		t.Fatalf("failed to init source: %v", err)
+	}
+	if err := srcStore.AddLearning("patterns", "Use context for cancellation"); err != nil {
+		t.Fatalf("failed to add learning: %v", err)
+	}
+	if err := srcStore.AddLearning("tips", "Check all errors"); err != nil {
+		t.Fatalf("failed to add learning: %v", err)
+	}
+
+	// Create destination store
+	dstStore := NewStore(tmpDir, "dest-agent")
+	if err := dstStore.Init(); err != nil {
+		t.Fatalf("failed to init dest: %v", err)
+	}
+
+	// Merge learnings
+	added, err := dstStore.MergeLearnings(srcStore)
+	if err != nil {
+		t.Fatalf("MergeLearnings failed: %v", err)
+	}
+
+	if added != 2 {
+		t.Errorf("expected 2 learnings added, got %d", added)
+	}
+
+	// Verify learnings exist in destination
+	learnings, _ := dstStore.GetLearnings()
+	if !strings.Contains(learnings, "Use context for cancellation") {
+		t.Error("missing pattern learning in dest")
+	}
+	if !strings.Contains(learnings, "Check all errors") {
+		t.Error("missing tips learning in dest")
+	}
+}
+
+func TestStore_MergeLearnings_NoDuplicates(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create source store with learnings
+	srcStore := NewStore(tmpDir, "source-agent")
+	if err := srcStore.Init(); err != nil {
+		t.Fatalf("failed to init source: %v", err)
+	}
+	if err := srcStore.AddLearning("patterns", "Shared learning"); err != nil {
+		t.Fatalf("failed to add learning: %v", err)
+	}
+	if err := srcStore.AddLearning("patterns", "Source only"); err != nil {
+		t.Fatalf("failed to add learning: %v", err)
+	}
+
+	// Create destination store with existing learning
+	dstStore := NewStore(tmpDir, "dest-agent")
+	if err := dstStore.Init(); err != nil {
+		t.Fatalf("failed to init dest: %v", err)
+	}
+	if err := dstStore.AddLearning("patterns", "Shared learning"); err != nil {
+		t.Fatalf("failed to add learning: %v", err)
+	}
+
+	// Merge learnings
+	added, err := dstStore.MergeLearnings(srcStore)
+	if err != nil {
+		t.Fatalf("MergeLearnings failed: %v", err)
+	}
+
+	// Should only add 1 new learning (Source only), not the duplicate
+	if added != 1 {
+		t.Errorf("expected 1 learning added (not duplicate), got %d", added)
+	}
+
+	// Verify both learnings exist
+	learnings, _ := dstStore.GetLearnings()
+	if !strings.Contains(learnings, "Shared learning") {
+		t.Error("missing shared learning")
+	}
+	if !strings.Contains(learnings, "Source only") {
+		t.Error("missing source only learning")
+	}
+}
+
+func TestStore_MergeLearnings_EmptySource(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create empty source store
+	srcStore := NewStore(tmpDir, "source-agent")
+	if err := srcStore.Init(); err != nil {
+		t.Fatalf("failed to init source: %v", err)
+	}
+
+	// Create destination store
+	dstStore := NewStore(tmpDir, "dest-agent")
+	if err := dstStore.Init(); err != nil {
+		t.Fatalf("failed to init dest: %v", err)
+	}
+
+	// Merge learnings
+	added, err := dstStore.MergeLearnings(srcStore)
+	if err != nil {
+		t.Fatalf("MergeLearnings failed: %v", err)
+	}
+
+	if added != 0 {
+		t.Errorf("expected 0 learnings added from empty source, got %d", added)
+	}
+}
+
+func TestParseLearningsByTopic(t *testing.T) {
+	content := `# Agent Learnings
+
+## patterns
+- Use context for cancellation
+- Prefer composition
+
+## tips
+- Check all errors
+`
+
+	topics := parseLearningsByTopic(content)
+
+	if len(topics) != 2 {
+		t.Errorf("expected 2 topics, got %d", len(topics))
+	}
+
+	patterns := topics["patterns"]
+	if len(patterns) != 2 {
+		t.Errorf("expected 2 patterns, got %d", len(patterns))
+	}
+	if patterns[0] != "Use context for cancellation" {
+		t.Errorf("wrong first pattern: %s", patterns[0])
+	}
+
+	tips := topics["tips"]
+	if len(tips) != 1 {
+		t.Errorf("expected 1 tip, got %d", len(tips))
+	}
+}
