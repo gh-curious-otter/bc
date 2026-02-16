@@ -37,7 +37,7 @@ export function detectColorScheme(): 'dark' | 'light' {
   }
 
   // Check macOS appearance via terminal profile hints
-  const itermProfile = env.ITERM_PROFILE?.toLowerCase() || '';
+  const itermProfile = env.ITERM_PROFILE?.toLowerCase() ?? '';
   if (itermProfile.includes('light')) {
     return 'light';
   }
@@ -46,7 +46,7 @@ export function detectColorScheme(): 'dark' | 'light' {
   }
 
   // Check for Terminal.app on macOS
-  const termProgram = env.TERM_PROGRAM?.toLowerCase() || '';
+  const termProgram = env.TERM_PROGRAM?.toLowerCase() ?? '';
   if (termProgram === 'apple_terminal') {
     // Apple Terminal defaults to light in recent macOS
     // But many users customize it, so we can't be certain
@@ -54,7 +54,7 @@ export function detectColorScheme(): 'dark' | 'light' {
   }
 
   // Check for explicit dark mode preference (some systems)
-  const darkMode = env.DARK_MODE || env.THEME || '';
+  const darkMode = env.DARK_MODE ?? env.THEME ?? '';
   if (darkMode.toLowerCase() === 'light') {
     return 'light';
   }
@@ -76,8 +76,8 @@ export function detectColorScheme(): 'dark' | 'light' {
  * Check if terminal supports 256 colors or true color
  */
 export function supportsExtendedColors(): boolean {
-  const colorTerm = process.env.COLORTERM?.toLowerCase() || '';
-  const term = process.env.TERM?.toLowerCase() || '';
+  const colorTerm = process.env.COLORTERM?.toLowerCase() ?? '';
+  const term = process.env.TERM?.toLowerCase() ?? '';
 
   // True color support
   if (colorTerm === 'truecolor' || colorTerm === '24bit') {
@@ -102,7 +102,7 @@ export function supportsColors(): boolean {
   }
 
   // Check TERM environment variable
-  const term = process.env.TERM?.toLowerCase() || '';
+  const term = process.env.TERM?.toLowerCase() ?? '';
   if (term === 'dumb') {
     return false;
   }

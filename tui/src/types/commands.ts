@@ -278,5 +278,5 @@ export function searchCommands(query: string): BcCommand[] {
  * Get commands by category
  */
 export function getCommandsByCategory(category: string): BcCommand[] {
-  return COMMAND_REGISTRY.find(cat => cat.name === category)?.commands || [];
+  return COMMAND_REGISTRY.find(cat => cat.name === category)?.commands ?? [];
 }
