@@ -220,3 +220,16 @@ export interface Role {
 export interface RolesResponse {
   roles: Role[];
 }
+
+// Workspace types for workspace selector (#922)
+export interface DiscoveredWorkspace {
+  path: string;
+  name: string;
+  is_v2: boolean;
+  from_cache: boolean;
+}
+
+// Response from bc workspace list --json
+export interface WorkspacesResponse {
+  workspaces: DiscoveredWorkspace[];
+}
