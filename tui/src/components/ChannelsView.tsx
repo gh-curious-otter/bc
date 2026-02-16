@@ -66,6 +66,13 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
         if ((key.downArrow || input === 'j') && channels && selectedIndex < channels.length - 1) {
           setSelectedIndex(selectedIndex + 1);
         }
+        // Vim-style top/bottom navigation
+        if (input === 'g') {
+          setSelectedIndex(0);
+        }
+        if (input === 'G' && channels) {
+          setSelectedIndex(channels.length - 1);
+        }
         // Enter channel
         if (key.return && selectedChannel) {
           setViewMode('history');

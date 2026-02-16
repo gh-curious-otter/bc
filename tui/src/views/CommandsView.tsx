@@ -75,6 +75,14 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
         if (filteredCommands.length > 0) {
           setSelectedIndex(Math.min(filteredCommands.length - 1, validatedIndex + 1));
         }
+      } else if (input === 'g') {
+        // Go to top
+        setSelectedIndex(0);
+      } else if (input === 'G') {
+        // Go to bottom
+        if (filteredCommands.length > 0) {
+          setSelectedIndex(filteredCommands.length - 1);
+        }
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list
       } else if (key.return && selectedCommand) {
         // TODO: Execute command or show confirmation

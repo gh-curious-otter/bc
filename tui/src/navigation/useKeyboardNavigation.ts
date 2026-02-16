@@ -11,17 +11,21 @@ export interface UseKeyboardNavigationOptions {
   disabled?: boolean;
   /** Custom quit handler (defaults to process.exit(0)) */
   onQuit?: () => void;
+  /** Global refresh handler (triggered by Ctrl+R) */
+  onRefresh?: () => void;
 }
 
 /**
  * Hook that handles global keyboard navigation
  * - Number keys (1-9) switch tabs
+ * - Tab/Shift+Tab cycles tabs
  * - ? shows help
  * - ESC goes back/home
+ * - Ctrl+R refreshes all data
  * - q quits the application
  */
 export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}): void {
-  const { disabled = false, onQuit } = options;
+  const { disabled = false, onQuit, onRefresh } = options;
   const { navigate, goHome, getTabByKey, nextTab, prevTab } = useNavigation();
   const { isFocused } = useFocus();
 
@@ -64,6 +68,14 @@ export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}
       // ESC: go home
       if (key.escape) {
         goHome();
+        return;
+      }
+
+      // Ctrl+R: refresh all data
+      if (key.ctrl && input === 'r') {
+        if (onRefresh) {
+          onRefresh();
+        }
         return;
       }
 

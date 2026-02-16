@@ -99,6 +99,12 @@ export function DemonsView({
       if (input === 'k' || key.upArrow) {
         setSelectedIndex((prev) => Math.max(prev - 1, 0));
       }
+      if (input === 'g') {
+        setSelectedIndex(0);
+      }
+      if (input === 'G') {
+        setSelectedIndex(demons.length - 1);
+      }
 
       // Actions
       if (input === 'r') {
