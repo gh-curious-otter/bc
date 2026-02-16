@@ -34,8 +34,8 @@ export async function execBc(args: string[]): Promise<string> {
     }
 
     // Use BC_BIN if set, otherwise fall back to 'bc' in PATH
-    const bcBin = process.env.BC_BIN || 'bc';
-    const bcRoot = process.env.BC_ROOT || process.cwd();
+    const bcBin = process.env.BC_BIN ?? 'bc';
+    const bcRoot = process.env.BC_ROOT ?? process.cwd();
 
     const proc = spawn(bcBin, finalArgs, {
       stdio: ['ignore', 'pipe', 'pipe'],

@@ -193,7 +193,7 @@ export function useDashboard() {
   }, [workspaceName, agents.data, cost.data]);
 
   const isLoading = agents.isLoading || channels.isLoading || cost.isLoading;
-  const error = agents.error || channels.error || cost.error;
+  const error = agents.error ?? channels.error ?? cost.error;
 
   return {
     summary,
