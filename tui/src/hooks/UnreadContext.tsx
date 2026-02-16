@@ -84,11 +84,11 @@ export function UnreadProvider({ children }: UnreadProviderProps): React.ReactEl
   }, [data]);
 
   const getUnread = useCallback((channel: string, currentMessageCount: number): number => {
-    const lastCount = dataRef.current.lastMessageCount[channel];
-    if (lastCount === undefined) {
+    if (!(channel in dataRef.current.lastMessageCount)) {
       // Never viewed - all messages are "unread" but cap at a reasonable number
       return Math.min(currentMessageCount, 99);
     }
+    const lastCount = dataRef.current.lastMessageCount[channel];
     // Unread = current - last viewed count
     return Math.max(0, currentMessageCount - lastCount);
   }, []);

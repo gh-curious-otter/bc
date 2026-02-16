@@ -45,7 +45,7 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
   const [showLogs, setShowLogs] = useState(false);
   const processList = processes ?? [];
 
-  const selectedProcess = processList[selectedIndex];
+  const selectedProcess = processList[selectedIndex] as typeof processList[number] | undefined;
 
   // Keyboard navigation
   useInput((input, key) => {

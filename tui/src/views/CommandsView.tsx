@@ -30,7 +30,7 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
 
   // Clamp selectedIndex to valid range whenever filteredCommands changes
   const validatedIndex = Math.min(selectedIndex, Math.max(0, filteredCommands.length - 1));
-  const selectedCommand = filteredCommands[validatedIndex];
+  const selectedCommand = filteredCommands[validatedIndex] as typeof filteredCommands[number] | undefined;
 
   // Reset selection when search results change
   React.useEffect(() => {

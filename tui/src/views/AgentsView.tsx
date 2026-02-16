@@ -18,7 +18,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showDetail, setShowDetail] = useState(false);
   const agentList = agents ?? [];
-  const selectedAgent = agentList[selectedIndex];
+  const selectedAgent = agentList[selectedIndex] as typeof agentList[number] | undefined;
 
   // Keyboard navigation
   useInput((input, key) => {

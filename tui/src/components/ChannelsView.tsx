@@ -184,7 +184,7 @@ function ChannelHistoryView({
   }, [channel.name, messages, markViewed]);
 
   // Calculate dynamic input height based on message length
-  const terminalWidth = stdout ? stdout.columns : 80;
+  const terminalWidth = stdout.columns;
   const inputHeight = useMemo(
     () => calculateInputHeight(messageBuffer.length, terminalWidth),
     [messageBuffer.length, terminalWidth]

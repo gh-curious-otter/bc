@@ -60,8 +60,8 @@ function AppContent({ disableInput }: AppContentProps): React.ReactElement {
   useKeyboardNavigation({ disabled: disableInput });
 
   // Get terminal dimensions - constrain to actual terminal height
-  const terminalHeight = stdout.rows ?? 24;
-  const terminalWidth = stdout.columns ?? 80;
+  const terminalHeight = stdout.rows;
+  const terminalWidth = stdout.columns;
 
   return (
     <Box flexDirection="column" padding={1} width={terminalWidth} height={terminalHeight}>

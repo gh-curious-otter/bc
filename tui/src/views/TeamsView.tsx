@@ -51,8 +51,7 @@ export function TeamsView({ onBack }: TeamsViewProps) {
     // Actions
     if (key.return || input === ' ') {
       // Toggle expanded view
-      const team = teamList[selectedIndex];
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list
+      const team = teamList[selectedIndex] as typeof teamList[number] | undefined;
       if (team) {
         setExpandedTeam(expandedTeam === team.name ? null : team.name);
       }
@@ -76,7 +75,7 @@ export function TeamsView({ onBack }: TeamsViewProps) {
   // Convert to TeamRow format for DataTable
   const teamRows: TeamRow[] = teamList.map((t) => ({
     name: t.name,
-    members: t.members ?? [],
+    members: t.members,
     lead: t.lead ?? '',
     description: t.description ?? '',
   }));
@@ -120,14 +119,14 @@ export function TeamsView({ onBack }: TeamsViewProps) {
                 header: 'LEAD',
                 width: 15,
                 render: (value) => (
-                  <Text color="green">{(value as string) ?? '-'}</Text>
+                  <Text color="green">{value as string}</Text>
                 ),
               },
               {
                 key: 'description',
                 header: 'DESCRIPTION',
                 render: (value) => (
-                  <Text dimColor>{truncate((value as string) ?? '-', 30)}</Text>
+                  <Text dimColor>{truncate(value as string, 30)}</Text>
                 ),
               },
             ]}
