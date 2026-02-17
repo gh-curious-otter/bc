@@ -152,17 +152,19 @@ function ChannelRow({ channel, selected, unreadCount }: ChannelRowProps): React.
   const memberInfo = ` (${String(channel.members.length)})`;
   const unreadInfo = unreadCount > 0 ? ` [${unreadCount > 99 ? '99+' : String(unreadCount)} new]` : '';
 
+  // Build single text line to avoid nested Text truncation issues on narrow terminals
+  // Issue #981: Nested Text elements break rendering at 80x24 width
+  const nameLineText = `${namePrefix}${channelName}${unreadInfo}${memberInfo}`;
+
   return (
     <Box width="100%" flexDirection="column">
-      {/* Name row: combined into single Text for proper truncation */}
-      <Text wrap="truncate">
-        <Text color={selected ? 'cyan' : undefined} bold={selected}>
-          {namePrefix}{channelName}
-        </Text>
-        {unreadCount > 0 && (
-          <Text color="yellow" bold>{unreadInfo}</Text>
-        )}
-        <Text dimColor>{memberInfo}</Text>
+      {/* Name row: single Text for proper truncation at narrow widths */}
+      <Text
+        wrap="truncate"
+        color={selected ? 'cyan' : undefined}
+        bold={selected}
+      >
+        {nameLineText}
       </Text>
       {channel.description && (
         <Text dimColor wrap="truncate">{channel.description}</Text>
