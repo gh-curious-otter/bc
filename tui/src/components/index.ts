@@ -70,3 +70,21 @@ export type {
   ResponsiveSidebarLayoutProps,
   ResponsiveColumnsProps,
 } from './ResponsiveGrid';
+
+// Animation components (eng-01 #1024)
+export {
+  FadeText,
+  PulseText,
+  TypewriterText,
+  BlinkText,
+  StatusTransition,
+  NotificationText,
+} from './AnimatedText';
+export type {
+  FadeTextProps,
+  PulseTextProps,
+  TypewriterTextProps,
+  BlinkTextProps,
+  StatusTransitionProps,
+  NotificationTextProps,
+} from './AnimatedText';

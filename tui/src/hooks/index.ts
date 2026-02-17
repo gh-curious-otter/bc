@@ -137,3 +137,25 @@ export {
   type UseResponsiveLayoutOptions,
   type UseResponsiveLayoutResult,
 } from './useResponsiveLayout';
+
+export {
+  useAnimation,
+  usePulse,
+  useBlink,
+  useTypewriter,
+  useFade,
+  easings,
+  type EasingFunction,
+  type AnimationState,
+  type UseAnimationOptions,
+  type UseAnimationResult,
+  type UsePulseOptions,
+  type UsePulseResult,
+  type UseBlinkOptions,
+  type UseBlinkResult,
+  type UseTypewriterOptions,
+  type UseTypewriterResult,
+  type FadeDirection,
+  type UseFadeOptions,
+  type UseFadeResult,
+} from './useAnimation';
