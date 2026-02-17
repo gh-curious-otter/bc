@@ -12,8 +12,8 @@ import { Box, Text, useStdout } from 'ink';
 import { useNavigation } from './NavigationContext';
 
 /** Terminal width thresholds for display modes */
-const FULL_WIDTH_THRESHOLD = 120;
-const SHORT_WIDTH_THRESHOLD = 80;
+const FULL_WIDTH_THRESHOLD = 80;
+const SHORT_WIDTH_THRESHOLD = 50;
 
 /** Display mode for tab labels */
 type DisplayMode = 'full' | 'short' | 'minimal';
