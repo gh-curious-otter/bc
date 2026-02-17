@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Box, Text } from 'ink';
 
 export interface KeyHintProps {
@@ -7,8 +8,10 @@ export interface KeyHintProps {
 
 /**
  * KeyHint - Single keyboard shortcut hint
+ *
+ * Memoized for performance - Issue #1003 Phase 3 optimization.
  */
-export function KeyHint({ keyChar, label }: KeyHintProps) {
+export const KeyHint = memo(function KeyHint({ keyChar, label }: KeyHintProps) {
   return (
     <Box marginRight={2}>
       <Text>[</Text>
@@ -16,7 +19,7 @@ export function KeyHint({ keyChar, label }: KeyHintProps) {
       <Text>] {label}</Text>
     </Box>
   );
-}
+});
 
 export interface FooterProps {
   hints: { key: string; label: string }[];
@@ -25,8 +28,10 @@ export interface FooterProps {
 /**
  * Footer - Keyboard shortcut hints bar
  * Shared component
+ *
+ * Memoized for performance - Issue #1003 Phase 3 optimization.
  */
-export function Footer({ hints }: FooterProps) {
+export const Footer = memo(function Footer({ hints }: FooterProps) {
   return (
     <Box
       borderStyle="single"
@@ -42,6 +47,6 @@ export function Footer({ hints }: FooterProps) {
       ))}
     </Box>
   );
-}
+});
 
 export default Footer;

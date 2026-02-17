@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Box, Text } from 'ink';
 
 export interface PanelProps {
@@ -15,8 +15,10 @@ export interface PanelProps {
 /**
  * Panel - Bordered container with optional title
  * Shared component for all views
+ *
+ * Memoized for performance - Issue #1003 Phase 3 optimization.
  */
-export function Panel({
+export const Panel = memo(function Panel({
   title,
   children,
   borderColor = 'gray',
@@ -47,6 +49,6 @@ export function Panel({
       {children}
     </Box>
   );
-}
+});
 
 export default Panel;

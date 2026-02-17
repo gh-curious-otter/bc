@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Text } from 'ink';
 
 export type ReactionType = 'ack' | 'plus' | 'check' | 'thumbsup' | 'heart';
@@ -28,12 +28,14 @@ const reactionColors: Record<ReactionType, string> = {
 /**
  * Reaction component for channel messages
  * Displays emoji with optional count
+ *
+ * Memoized for performance - Issue #1003 Phase 3 optimization.
  */
-export const Reaction: React.FC<ReactionProps> = ({
+export const Reaction = memo(function Reaction({
   type,
   count = 1,
   isOwn = false,
-}) => {
+}: ReactionProps) {
   const emoji = reactionEmoji[type] || '❓';
   const color = isOwn ? 'cyan' : reactionColors[type] || 'white';
 
@@ -43,7 +45,7 @@ export const Reaction: React.FC<ReactionProps> = ({
       {count > 1 && <Text dimColor> {count}</Text>}
     </Text>
   );
-};
+});
 
 export interface ReactionBarProps {
   reactions: { type: ReactionType; count: number; isOwn?: boolean }[];
@@ -51,8 +53,10 @@ export interface ReactionBarProps {
 
 /**
  * Bar of reactions for a message
+ *
+ * Memoized for performance - Issue #1003 Phase 3 optimization.
  */
-export const ReactionBar: React.FC<ReactionBarProps> = ({ reactions }) => {
+export const ReactionBar = memo(function ReactionBar({ reactions }: ReactionBarProps) {
   if (reactions.length === 0) return null;
 
   return (
@@ -65,6 +69,6 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({ reactions }) => {
       ))}
     </Text>
   );
-};
+});
 
 export default Reaction;
