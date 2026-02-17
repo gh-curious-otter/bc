@@ -3,7 +3,7 @@
  * Issue #864 - Cost visualizations
  */
 
-import React from 'react';
+import React, { memo } from 'react';
 import { Box, Text } from 'ink';
 
 export interface ProgressBarProps {
@@ -39,8 +39,10 @@ function getBarColor(
 
 /**
  * ProgressBar component with budget-style visualization
+ *
+ * Memoized for performance - Issue #1003 Phase 3 optimization.
  */
-export function ProgressBar({
+export const ProgressBar = memo(function ProgressBar({
   value,
   max = 100,
   width = 20,
@@ -77,12 +79,14 @@ export function ProgressBar({
       )}
     </Box>
   );
-}
+});
 
 /**
  * Inline progress bar for table cells (smaller, no brackets)
+ *
+ * Memoized for performance - Issue #1003 Phase 3 optimization.
  */
-export function InlineProgressBar({
+export const InlineProgressBar = memo(function InlineProgressBar({
   value,
   max = 100,
   width = 10,
@@ -105,6 +109,6 @@ export function InlineProgressBar({
       <Text dimColor>{empty}</Text>
     </Text>
   );
-}
+});
 
 export default ProgressBar;

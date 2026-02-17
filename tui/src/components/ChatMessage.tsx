@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Box, Text } from 'ink';
 import { MentionText } from './MentionText';
 import { ReactionBar } from './Reaction';
@@ -62,8 +62,10 @@ const getRoleColor = (sender: string): string => {
  * - @mention highlighting
  * - Reaction display
  * - Read receipts
+ *
+ * Memoized for performance - Issue #1003 Phase 3 optimization.
  */
-export const ChatMessage: React.FC<ChatMessageProps> = ({
+export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
   sender,
   message,
   timestamp,
@@ -72,7 +74,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   isRead = true,
   isSelected = false,
   maxBubbleWidth = 60,
-}) => {
+}) {
   const time = formatRelativeTime(timestamp);
   const senderColor = getRoleColor(sender);
   const isOwnMessage = currentUser !== undefined && sender === currentUser;
@@ -135,6 +137,6 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       </Box>
     </Box>
   );
-};
+});
 
 export default ChatMessage;

@@ -1,4 +1,4 @@
-import { useContext } from 'react';
+import { useContext, memo } from 'react';
 import { Text } from 'ink';
 import ThemeContext from '../theme/ThemeContext';
 import type { ThemeColors } from '../theme/types';
@@ -76,8 +76,10 @@ const stateSymbols: Record<string, string> = {
  *
  * Supports theming when wrapped in ThemeProvider, otherwise uses fallback colors.
  * Merged from eng-04 (#561) and eng-03 (#562), updated for theming (#558)
+ *
+ * Memoized for performance - Issue #1003 Phase 3 optimization.
  */
-export function StatusBadge({ state, showIcon = true }: StatusBadgeProps) {
+export const StatusBadge = memo(function StatusBadge({ state, showIcon = true }: StatusBadgeProps) {
   const themeContext = useContext(ThemeContext);
   const symbol = stateSymbols[state] || '?';
 
@@ -95,6 +97,6 @@ export function StatusBadge({ state, showIcon = true }: StatusBadgeProps) {
       {showIcon ? `${symbol} ` : ''}{state}
     </Text>
   );
-}
+});
 
 export default StatusBadge;

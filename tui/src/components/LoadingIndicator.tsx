@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Box, Text } from 'ink';
 
 // Braille spinner frames for smooth animation
@@ -16,8 +16,10 @@ export interface LoadingIndicatorProps {
 /**
  * LoadingIndicator - Loading state with animated spinner
  * Shared component with Braille spinner animation
+ *
+ * Memoized for performance - Issue #1003 Phase 3 optimization.
  */
-export function LoadingIndicator({
+export const LoadingIndicator = memo(function LoadingIndicator({
   message = 'Loading...',
   color = 'cyan',
   interval = 80,
@@ -37,6 +39,6 @@ export function LoadingIndicator({
       <Text> {message}</Text>
     </Box>
   );
-}
+});
 
 export default LoadingIndicator;
