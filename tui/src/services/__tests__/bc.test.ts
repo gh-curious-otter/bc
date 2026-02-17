@@ -447,3 +447,112 @@ describe('Demon operations', () => {
     expect(result).toEqual([]);
   });
 });
+
+/**
+ * Command cache stress tests (#1016)
+ * Validates caching behavior under load
+ */
+describe('Command cache stress testing (#1016)', () => {
+  beforeEach(() => {
+    clearCache();
+    mockSpawnImpl = mock(() => mockProcessorFactory());
+  });
+
+  it('cache reduces subprocess calls on repeated status checks', async () => {
+    let spawnCallCount = 0;
+    const statusData = { agents: [{ name: 'test-agent', state: 'idle' }] };
+
+    mockSpawnImpl = mock(() => {
+      spawnCallCount++;
+      const newProc = mockProcessorFactory();
+      setTimeout(() => {
+        const stdoutCalls = (newProc.stdout.on as ReturnType<typeof mock>).mock.calls;
+        stdoutCalls.forEach(([event, handler]: [string, (data: Buffer) => void]) => {
+          if (event === 'data') handler(Buffer.from(JSON.stringify(statusData)));
+        });
+        const onCalls = (newProc.on as ReturnType<typeof mock>).mock.calls;
+        onCalls.forEach(([event, handler]: [string, (code: number) => void]) => {
+          if (event === 'close') handler(0);
+        });
+      }, 5);
+      return newProc;
+    });
+
+    // First call should spawn
+    const result1 = await getStatus();
+    expect(result1.agents).toEqual(statusData.agents);
+    expect(spawnCallCount).toBe(1);
+
+    // Second call within TTL should use cache (no additional spawn)
+    const result2 = await getStatus();
+    expect(result2.agents).toEqual(statusData.agents);
+
+    // Verify still only 1 spawn (second was cached)
+    expect(spawnCallCount).toBe(1);
+  });
+
+  it('cache hit ratio stays high under rapid polling', async () => {
+    let spawnCallCount = 0;
+    const statusData = { agents: [] };
+
+    mockSpawnImpl = mock(() => {
+      spawnCallCount++;
+      const newProc = mockProcessorFactory();
+      setTimeout(() => {
+        const stdoutCalls = (newProc.stdout.on as ReturnType<typeof mock>).mock.calls;
+        stdoutCalls.forEach(([event, handler]: [string, (data: Buffer) => void]) => {
+          if (event === 'data') handler(Buffer.from(JSON.stringify(statusData)));
+        });
+        const onCalls = (newProc.on as ReturnType<typeof mock>).mock.calls;
+        onCalls.forEach(([event, handler]: [string, (code: number) => void]) => {
+          if (event === 'close') handler(0);
+        });
+      }, 5);
+      return newProc;
+    });
+
+    // First call establishes the cache
+    await getStatus();
+    const firstSpawnCount = spawnCallCount;
+
+    // Subsequent calls within TTL should hit cache
+    for (let i = 0; i < 9; i++) {
+      await getStatus();
+    }
+
+    // Should still only have first spawn count (cache hits)
+    expect(spawnCallCount).toBe(firstSpawnCount);
+  });
+
+  it('clearCache invalidates all cached results', async () => {
+    let spawnCallCount = 0;
+    mockSpawnImpl = mock(() => {
+      spawnCallCount++;
+      const newProc = mockProcessorFactory();
+      setTimeout(() => {
+        const stdoutCalls = (newProc.stdout.on as ReturnType<typeof mock>).mock.calls;
+        stdoutCalls.forEach(([event, handler]: [string, (data: Buffer) => void]) => {
+          if (event === 'data') handler(Buffer.from(JSON.stringify({ agents: [] })));
+        });
+        const onCalls = (newProc.on as ReturnType<typeof mock>).mock.calls;
+        onCalls.forEach(([event, handler]: [string, (code: number) => void]) => {
+          if (event === 'close') handler(0);
+        });
+      }, 5);
+      return newProc;
+    });
+
+    // First call
+    await getStatus();
+    const afterFirstCall = spawnCallCount;
+
+    // Clear cache
+    clearCache();
+
+    // Second call should spawn again (cache cleared)
+    await getStatus();
+
+    // Should have spawned again after cache clear
+    expect(spawnCallCount).toBe(afterFirstCall + 1);
+  });
+});
