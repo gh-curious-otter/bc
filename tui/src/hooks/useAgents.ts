@@ -1,14 +1,18 @@
 /**
  * useAgents hook - Fetch and poll agent status
+ * Issue #1004: Performance configuration tunables (Phase 5)
  *
  * Includes debounce for working→idle transitions to prevent flickering.
  * When an agent transitions from 'working' to 'idle', the display state
  * remains 'working' for a debounce period before showing 'idle'.
+ *
+ * Poll interval is configurable via workspace config [performance] section.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Agent, AgentState, BcResult } from '../types';
 import { getStatus } from '../services/bc';
+import { usePerformanceConfig } from '../config';
 
 /** Debounce period for working→idle transition (in ms) */
 const WORKING_TO_IDLE_DEBOUNCE_MS = 5000;
@@ -39,7 +43,11 @@ export interface UseAgentsResult extends BcResult<Agent[]> {
  * @returns Agent list with metadata and loading state
  */
 export function useAgents(options: UseAgentsOptions = {}): UseAgentsResult {
-  const { pollInterval = 2000, autoPoll = true } = options;
+  // Get configurable poll interval from workspace config
+  const perfConfig = usePerformanceConfig();
+  const defaultPollInterval = perfConfig.poll_interval_agents;
+
+  const { pollInterval = defaultPollInterval, autoPoll = true } = options;
 
   const [data, setData] = useState<Agent[] | null>(null);
   const [error, setError] = useState<string | null>(null);

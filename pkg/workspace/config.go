@@ -15,12 +15,13 @@ const ConfigVersion = 2
 
 // V2Config represents the TOML-based workspace configuration for bc v2.
 type V2Config struct {
-	Workspace WorkspaceConfig `toml:"workspace"`
-	Worktrees WorktreesConfig `toml:"worktrees"`
-	Tools     ToolsConfig     `toml:"tools"`
-	Memory    MemoryConfig    `toml:"memory"`
-	Channels  ChannelsConfig  `toml:"channels"`
-	Roster    RosterConfig    `toml:"roster"`
+	Workspace   WorkspaceConfig   `toml:"workspace"`
+	Worktrees   WorktreesConfig   `toml:"worktrees"`
+	Tools       ToolsConfig       `toml:"tools"`
+	Memory      MemoryConfig      `toml:"memory"`
+	Channels    ChannelsConfig    `toml:"channels"`
+	Roster      RosterConfig      `toml:"roster"`
+	Performance PerformanceConfig `toml:"performance"`
 }
 
 // WorkspaceConfig holds core workspace settings.
@@ -74,10 +75,40 @@ type RosterConfig struct {
 	QA             int `toml:"qa"`              // Number of QA agents (default: 2)
 }
 
+// PerformanceConfig configures TUI polling intervals and cache TTLs.
+// All values are in milliseconds. Minimum poll interval is 500ms.
+type PerformanceConfig struct {
+	// TUI polling intervals (min: 500ms)
+	PollIntervalAgents   int64 `toml:"poll_interval_agents"`   // Agent status updates (default: 2000)
+	PollIntervalChannels int64 `toml:"poll_interval_channels"` // Channel message polling (default: 3000)
+	PollIntervalCosts    int64 `toml:"poll_interval_costs"`    // Cost data refresh (default: 5000)
+	PollIntervalStatus   int64 `toml:"poll_interval_status"`   // Dashboard status (default: 2000)
+	PollIntervalLogs     int64 `toml:"poll_interval_logs"`     // Log viewer refresh (default: 3000)
+	PollIntervalTeams    int64 `toml:"poll_interval_teams"`    // Team data refresh (default: 10000)
+	PollIntervalDemons   int64 `toml:"poll_interval_demons"`   // Scheduled tasks refresh (default: 5000)
+
+	// Cache TTLs
+	CacheTTLTmux     int64 `toml:"cache_ttl_tmux"`     // Tmux session state cache (default: 2000)
+	CacheTTLCommands int64 `toml:"cache_ttl_commands"` // CLI command result cache (default: 5000)
+
+	// Adaptive polling thresholds (for useAdaptivePolling hook)
+	AdaptiveFastInterval   int64 `toml:"adaptive_fast_interval"`   // When agents are actively working (default: 1000)
+	AdaptiveNormalInterval int64 `toml:"adaptive_normal_interval"` // Normal operation (default: 2000)
+	AdaptiveSlowInterval   int64 `toml:"adaptive_slow_interval"`   // Low activity period (default: 4000)
+	AdaptiveMaxInterval    int64 `toml:"adaptive_max_interval"`    // Maximum backoff interval (default: 8000)
+}
+
 // Roster limits.
 const (
 	RosterMinPerRole = 0  // Minimum agents per role
 	RosterMaxPerRole = 10 // Maximum agents per role
+)
+
+// Performance limits.
+const (
+	PollIntervalMin = 500   // Minimum poll interval in ms
+	CacheTTLMin     = 100   // Minimum cache TTL in ms
+	CacheTTLMax     = 60000 // Maximum cache TTL in ms (1 minute)
 )
 
 // Validation errors.
@@ -93,6 +124,8 @@ var (
 	ErrRosterEngineersRange      = errors.New("roster.engineers must be between 0 and 10")
 	ErrRosterTechLeadsRange      = errors.New("roster.tech_leads must be between 0 and 10")
 	ErrRosterQARange             = errors.New("roster.qa must be between 0 and 10")
+	ErrPollIntervalTooLow        = errors.New("poll intervals must be at least 500ms")
+	ErrCacheTTLRange             = errors.New("cache TTL must be between 100ms and 60000ms")
 )
 
 // DefaultV2Config returns sensible defaults for a new v2 workspace.
@@ -130,6 +163,21 @@ func DefaultV2Config(name string) V2Config {
 			Engineers:      0,
 			TechLeads:      0,
 			QA:             0,
+		},
+		Performance: PerformanceConfig{
+			PollIntervalAgents:     2000,
+			PollIntervalChannels:   3000,
+			PollIntervalCosts:      5000,
+			PollIntervalStatus:     2000,
+			PollIntervalLogs:       3000,
+			PollIntervalTeams:      10000,
+			PollIntervalDemons:     5000,
+			CacheTTLTmux:           2000,
+			CacheTTLCommands:       5000,
+			AdaptiveFastInterval:   1000,
+			AdaptiveNormalInterval: 2000,
+			AdaptiveSlowInterval:   4000,
+			AdaptiveMaxInterval:    8000,
 		},
 	}
 }
@@ -195,6 +243,50 @@ func (c *V2Config) Validate() error {
 	}
 	if c.Roster.QA < RosterMinPerRole || c.Roster.QA > RosterMaxPerRole {
 		return ErrRosterQARange
+	}
+
+	// Performance validation (only validate if non-zero values are set)
+	if err := c.validatePerformance(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validatePerformance validates performance config values.
+// Zero values are acceptable (will use defaults).
+func (c *V2Config) validatePerformance() error {
+	p := c.Performance
+
+	// Validate poll intervals (must be >= 500ms if set)
+	pollIntervals := []int64{
+		p.PollIntervalAgents, p.PollIntervalChannels, p.PollIntervalCosts,
+		p.PollIntervalStatus, p.PollIntervalLogs, p.PollIntervalTeams,
+		p.PollIntervalDemons,
+	}
+	for _, interval := range pollIntervals {
+		if interval > 0 && interval < PollIntervalMin {
+			return ErrPollIntervalTooLow
+		}
+	}
+
+	// Validate adaptive intervals (must be >= 500ms if set)
+	adaptiveIntervals := []int64{
+		p.AdaptiveFastInterval, p.AdaptiveNormalInterval,
+		p.AdaptiveSlowInterval, p.AdaptiveMaxInterval,
+	}
+	for _, interval := range adaptiveIntervals {
+		if interval > 0 && interval < PollIntervalMin {
+			return ErrPollIntervalTooLow
+		}
+	}
+
+	// Validate cache TTLs
+	cacheTTLs := []int64{p.CacheTTLTmux, p.CacheTTLCommands}
+	for _, ttl := range cacheTTLs {
+		if ttl > 0 && (ttl < CacheTTLMin || ttl > CacheTTLMax) {
+			return ErrCacheTTLRange
+		}
 	}
 
 	return nil

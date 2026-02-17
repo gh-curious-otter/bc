@@ -3,18 +3,21 @@ import React from 'react';
 import { render } from 'ink-testing-library';
 import { AgentDetailView } from '../AgentDetailView';
 import { FocusProvider } from '../../navigation/FocusContext';
+import { ConfigProvider } from '../../config';
 import type { Agent } from '../../types';
 
 // NOTE: useInput tests require TTY stdin, so they're skipped in non-TTY test environments
 // These should be tested manually with: bc home -> select an agent -> verify detail view
 // The component rendering tests below verify the UI structure without useInput hook
 
-// Helper to wrap AgentDetailView with required providers
+// Helper to wrap AgentDetailView with required providers (Issue #1004 - added ConfigProvider)
 function renderAgentDetailView(agent: Agent, onBack?: () => void) {
   return render(
-    <FocusProvider>
-      <AgentDetailView agent={agent} onBack={onBack} />
-    </FocusProvider>
+    <ConfigProvider>
+      <FocusProvider>
+        <AgentDetailView agent={agent} onBack={onBack} />
+      </FocusProvider>
+    </ConfigProvider>
   );
 }
 

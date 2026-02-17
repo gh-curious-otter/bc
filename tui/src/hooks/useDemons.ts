@@ -1,14 +1,18 @@
 /**
  * useDemons hook - Fetch and poll demon status
+ * Issue #1004: Performance configuration tunables (Phase 5)
+ *
+ * Poll interval is configurable via workspace config [performance] section.
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import type { Demon, BcResult } from '../types';
 import { getDemons, getDemonLogs, enableDemon, disableDemon, runDemon } from '../services/bc';
 import type { DemonRunLog } from '../types';
+import { usePerformanceConfig } from '../config';
 
 export interface UseDemonsOptions {
-  /** Polling interval in ms (default: 5000) */
+  /** Polling interval in ms (default: from config) */
   pollInterval?: number;
   /** Whether to poll automatically (default: true) */
   autoPoll?: boolean;
@@ -35,7 +39,11 @@ export interface UseDemonsResult extends BcResult<Demon[]> {
  * @returns Demon list with metadata and loading state
  */
 export function useDemons(options: UseDemonsOptions = {}): UseDemonsResult {
-  const { pollInterval = 5000, autoPoll = true } = options;
+  // Get configurable poll interval from workspace config
+  const perfConfig = usePerformanceConfig();
+  const defaultPollInterval = perfConfig.poll_interval_demons;
+
+  const { pollInterval = defaultPollInterval, autoPoll = true } = options;
 
   const [data, setData] = useState<Demon[] | null>(null);
   const [error, setError] = useState<string | null>(null);

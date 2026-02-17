@@ -15,6 +15,7 @@ import {
 } from './navigation';
 import { ThemeProvider, useTheme, type ThemeMode } from './theme';
 import { UnreadProvider } from './hooks';
+import { ConfigProvider } from './config';
 import { Dashboard } from './views/Dashboard';
 import { AgentsView } from './views/AgentsView';
 import { CommandsView } from './views/CommandsView';
@@ -41,13 +42,15 @@ export function App({
 }: AppProps): React.ReactElement {
   return (
     <ThemeProvider config={{ mode: themeMode }}>
-      <NavigationProvider initialView={initialView}>
-        <FocusProvider>
-          <UnreadProvider>
-            <AppContent disableInput={disableInput} />
-          </UnreadProvider>
-        </FocusProvider>
-      </NavigationProvider>
+      <ConfigProvider>
+        <NavigationProvider initialView={initialView}>
+          <FocusProvider>
+            <UnreadProvider>
+              <AppContent disableInput={disableInput} />
+            </UnreadProvider>
+          </FocusProvider>
+        </NavigationProvider>
+      </ConfigProvider>
     </ThemeProvider>
   );
 }

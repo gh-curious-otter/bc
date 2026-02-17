@@ -233,3 +233,21 @@ export interface DiscoveredWorkspace {
 export interface WorkspacesResponse {
   workspaces: DiscoveredWorkspace[];
 }
+
+// Performance configuration for polling intervals and cache TTLs
+// Matches workspace.PerformanceConfig in Go
+export interface PerformanceConfig {
+  poll_interval_agents: number;
+  poll_interval_channels: number;
+  poll_interval_costs: number;
+  poll_interval_status: number;
+  poll_interval_logs: number;
+  poll_interval_teams: number;
+  poll_interval_demons: number;
+  cache_ttl_tmux: number;
+  cache_ttl_commands: number;
+  adaptive_fast_interval: number;
+  adaptive_normal_interval: number;
+  adaptive_slow_interval: number;
+  adaptive_max_interval: number;
+}

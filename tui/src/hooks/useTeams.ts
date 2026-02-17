@@ -1,14 +1,18 @@
 /**
  * useTeams hook - Fetch and manage teams data
  * Issue #556 - Teams view
+ * Issue #1004: Performance configuration tunables (Phase 5)
+ *
+ * Poll interval is configurable via workspace config [performance] section.
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import type { Team, BcResult } from '../types';
 import { getTeams, addTeamMember, removeTeamMember } from '../services/bc.js';
+import { usePerformanceConfig } from '../config';
 
 export interface UseTeamsOptions {
-  /** Polling interval in ms (default: 10000) */
+  /** Polling interval in ms (default: from config) */
   pollInterval?: number;
   /** Whether to poll automatically (default: true) */
   autoPoll?: boolean;
@@ -27,7 +31,11 @@ export interface UseTeamsResult extends BcResult<Team[]> {
  * Hook to fetch and manage teams data
  */
 export function useTeams(options: UseTeamsOptions = {}): UseTeamsResult {
-  const { pollInterval = 10000, autoPoll = true } = options;
+  // Get configurable poll interval from workspace config
+  const perfConfig = usePerformanceConfig();
+  const defaultPollInterval = perfConfig.poll_interval_teams;
+
+  const { pollInterval = defaultPollInterval, autoPoll = true } = options;
 
   const [data, setData] = useState<Team[] | null>(null);
   const [error, setError] = useState<string | null>(null);

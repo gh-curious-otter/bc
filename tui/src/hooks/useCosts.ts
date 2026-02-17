@@ -1,13 +1,17 @@
 /**
  * useCosts hook - Fetch and poll cost data
+ * Issue #1004: Performance configuration tunables (Phase 5)
+ *
+ * Poll interval is configurable via workspace config [performance] section.
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import type { CostSummary, BcResult } from '../types';
 import { getCostSummary } from '../services/bc';
+import { usePerformanceConfig } from '../config';
 
 export interface UseCostsOptions {
-  /** Polling interval in ms (default: 5000) */
+  /** Polling interval in ms (default: from config) */
   pollInterval?: number;
   /** Whether to poll automatically (default: true) */
   autoPoll?: boolean;
@@ -22,7 +26,11 @@ export interface UseCostsResult extends BcResult<CostSummary> {
  * Hook to fetch and optionally poll cost data
  */
 export function useCosts(options: UseCostsOptions = {}): UseCostsResult {
-  const { pollInterval = 5000, autoPoll = true } = options;
+  // Get configurable poll interval from workspace config
+  const perfConfig = usePerformanceConfig();
+  const defaultPollInterval = perfConfig.poll_interval_costs;
+
+  const { pollInterval = defaultPollInterval, autoPoll = true } = options;
 
   const [data, setData] = useState<CostSummary | null>(null);
   const [error, setError] = useState<string | null>(null);

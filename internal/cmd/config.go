@@ -574,6 +574,22 @@ func printConfig(cfg *workspace.V2Config) {
 	fmt.Printf("  engineers: %d\n", cfg.Roster.Engineers)
 	fmt.Printf("  tech_leads: %d\n", cfg.Roster.TechLeads)
 	fmt.Printf("  qa: %d\n", cfg.Roster.QA)
+	fmt.Println()
+
+	fmt.Println("[performance]")
+	fmt.Printf("  poll_interval_agents: %d\n", cfg.Performance.PollIntervalAgents)
+	fmt.Printf("  poll_interval_channels: %d\n", cfg.Performance.PollIntervalChannels)
+	fmt.Printf("  poll_interval_costs: %d\n", cfg.Performance.PollIntervalCosts)
+	fmt.Printf("  poll_interval_status: %d\n", cfg.Performance.PollIntervalStatus)
+	fmt.Printf("  poll_interval_logs: %d\n", cfg.Performance.PollIntervalLogs)
+	fmt.Printf("  poll_interval_teams: %d\n", cfg.Performance.PollIntervalTeams)
+	fmt.Printf("  poll_interval_demons: %d\n", cfg.Performance.PollIntervalDemons)
+	fmt.Printf("  cache_ttl_tmux: %d\n", cfg.Performance.CacheTTLTmux)
+	fmt.Printf("  cache_ttl_commands: %d\n", cfg.Performance.CacheTTLCommands)
+	fmt.Printf("  adaptive_fast_interval: %d\n", cfg.Performance.AdaptiveFastInterval)
+	fmt.Printf("  adaptive_normal_interval: %d\n", cfg.Performance.AdaptiveNormalInterval)
+	fmt.Printf("  adaptive_slow_interval: %d\n", cfg.Performance.AdaptiveSlowInterval)
+	fmt.Printf("  adaptive_max_interval: %d\n", cfg.Performance.AdaptiveMaxInterval)
 }
 
 func printValue(key string, value any, indent int) error {

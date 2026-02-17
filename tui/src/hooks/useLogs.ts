@@ -1,16 +1,20 @@
 /**
  * useLogs hook - Fetch and poll event logs for live activity feed
+ * Issue #1004: Performance configuration tunables (Phase 5)
+ *
+ * Poll interval is configurable via workspace config [performance] section.
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { LogEntry, BcResult } from '../types';
 import { getLogs } from '../services/bc';
+import { usePerformanceConfig } from '../config';
 
 /** Log severity level derived from event type */
 export type LogSeverity = 'info' | 'warn' | 'error';
 
 export interface UseLogsOptions {
-  /** Polling interval in ms (default: 3000) */
+  /** Polling interval in ms (default: from config) */
   pollInterval?: number;
   /** Whether to poll automatically (default: true) */
   autoPoll?: boolean;
@@ -53,8 +57,12 @@ function getSeverity(eventType: string): LogSeverity {
  * @returns Log entries with loading state and filtering
  */
 export function useLogs(options: UseLogsOptions = {}): UseLogsResult {
+  // Get configurable poll interval from workspace config
+  const perfConfig = usePerformanceConfig();
+  const defaultPollInterval = perfConfig.poll_interval_logs;
+
   const {
-    pollInterval = 3000,
+    pollInterval = defaultPollInterval,
     autoPoll = true,
     tail = 50,
     agent,

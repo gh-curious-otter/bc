@@ -1,14 +1,18 @@
 /**
  * usePolling - Enhanced polling hooks for real-time updates
  * Issue #551: Real-time polling with incremental fetch
+ * Issue #1004: Performance configuration tunables (Phase 5)
+ *
+ * Poll intervals are configurable via workspace config [performance] section.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ChannelMessage, Agent, BcResult } from '../types';
 import { getChannelHistory, getStatus } from '../services/bc';
+import { usePerformanceConfig } from '../config';
 
 export interface UsePollingOptions {
-  /** Polling interval in ms (default: 2000) */
+  /** Polling interval in ms (default: from config) */
   interval?: number;
   /** Whether to poll automatically (default: true) */
   enabled?: boolean;
@@ -47,9 +51,13 @@ export interface UseMessagePollingResult extends BcResult<ChannelMessage[]> {
 export function useMessagePolling(
   options: UseMessagePollingOptions
 ): UseMessagePollingResult {
+  // Get configurable poll interval from workspace config
+  const perfConfig = usePerformanceConfig();
+  const defaultInterval = perfConfig.poll_interval_channels;
+
   const {
     channel,
-    interval = 2000,
+    interval = defaultInterval,
     enabled = true,
     limit = 50,
     onNewMessages,
@@ -174,7 +182,11 @@ export interface UseAgentPollingResult extends BcResult<Agent[]> {
 export function useAgentPolling(
   options: UseAgentPollingOptions = {}
 ): UseAgentPollingResult {
-  const { interval = 2000, enabled = true, onStateChange, onUpdate } = options;
+  // Get configurable poll interval from workspace config
+  const perfConfig = usePerformanceConfig();
+  const defaultInterval = perfConfig.poll_interval_agents;
+
+  const { interval = defaultInterval, enabled = true, onStateChange, onUpdate } = options;
 
   const [data, setData] = useState<Agent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -293,7 +305,11 @@ export interface UseCoordinatedPollingOptions {
 }
 
 export function useCoordinatedPolling(options: UseCoordinatedPollingOptions = {}) {
-  const { interval = 2000, enabled = true } = options;
+  // Get configurable poll interval from workspace config
+  const perfConfig = usePerformanceConfig();
+  const defaultInterval = perfConfig.poll_interval_status;
+
+  const { interval = defaultInterval, enabled = true } = options;
   const [tick, setTick] = useState(0);
   const [isPaused, setIsPaused] = useState(!enabled);
 
