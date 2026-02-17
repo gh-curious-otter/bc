@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { Box, Text } from 'ink';
 import { MentionText } from './MentionText';
 import { ReactionBar } from './Reaction';
