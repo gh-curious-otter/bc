@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { Panel } from '../components/Panel.js';
 import { MetricCard } from '../components/MetricCard.js';
@@ -6,6 +6,8 @@ import { Footer } from '../components/Footer.js';
 import { LoadingIndicator } from '../components/LoadingIndicator.js';
 import { ErrorDisplay } from '../components/ErrorDisplay.js';
 import { ActivityFeed } from '../components/ActivityFeed.js';
+import { PerformanceDebugPanel } from '../components/PerformanceDebugPanel.js';
+import { PulseText } from '../components/AnimatedText.js';
 import { useDashboard } from '../hooks/useDashboard.js';
 import { useNavigation } from '../navigation/NavigationContext.js';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout.js';
@@ -24,6 +26,7 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
   const terminalWidth = stdout.columns;
   const { navigate } = useNavigation();
   const { canMultiColumn, isMedium, isWide } = useResponsiveLayout();
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
 
   const {
     summary,
@@ -38,7 +41,7 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
 
   // Keyboard navigation - Dashboard-specific shortcuts
   // Global shortcuts (1-8, Tab, ESC, q) are handled by useKeyboardNavigation
-  useInput((input) => {
+  useInput((input, key) => {
     // Quick navigation shortcuts
     if (input === 'a') {
       navigate('agents');
@@ -52,6 +55,10 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
     // Refresh is Dashboard-specific (global Ctrl+R handled elsewhere)
     if (input === 'r') {
       void refresh();
+    }
+    // Performance overlay toggle - Ctrl+P (Phase 3 integration #1032)
+    if (key.ctrl && input === 'p') {
+      setShowDebugPanel(!showDebugPanel);
     }
     // Note: q and ESC are handled by global useKeyboardNavigation
   });
@@ -115,6 +122,9 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
         )}
       </Box>
 
+      {/* Performance Debug Panel - toggled with Ctrl+P or F12 (Phase 3) */}
+      {showDebugPanel && <PerformanceDebugPanel compact={!isWide} />}
+
       {/* Footer with keyboard hints */}
       <Footer
         hints={[
@@ -122,6 +132,7 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
           { key: 'c', label: 'channels' },
           { key: '$', label: 'costs' },
           { key: 'r', label: 'refresh' },
+          ...(showDebugPanel ? [{ key: 'Ctrl+P', label: 'hide perf' }] : [{ key: 'Ctrl+P', label: 'perf' }]),
           { key: 'q', label: 'quit' },
         ]}
       />
@@ -227,8 +238,11 @@ const SystemHealthPanel = memo(function SystemHealthPanel({
           <Text dimColor> healthy</Text>
         </Box>
         <Box marginTop={1} flexDirection="column">
+          {/* Working agents with pulse animation (Phase 3) */}
           <Box>
-            <Text color="cyan">●</Text>
+            <PulseText color="cyan" enabled={working > 0} interval={1500}>
+              ●
+            </PulseText>
             <Text> Working: {working}</Text>
           </Box>
           <Box>
