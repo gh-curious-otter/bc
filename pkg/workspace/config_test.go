@@ -141,6 +141,91 @@ qa = 1
 	}
 }
 
+// TestParseV2ConfigWithPerformance tests parsing [performance] section from TOML (#1013)
+func TestParseV2ConfigWithPerformance(t *testing.T) {
+	tomlData := []byte(`
+[workspace]
+name = "perf-project"
+version = 2
+
+[tools]
+default = "claude"
+
+[tools.claude]
+command = "claude"
+enabled = true
+
+[memory]
+backend = "file"
+path = ".bc/memory"
+
+[performance]
+poll_interval_agents = 1500
+poll_interval_channels = 2500
+poll_interval_costs = 4000
+poll_interval_status = 1800
+poll_interval_logs = 2200
+poll_interval_teams = 8000
+poll_interval_demons = 4500
+cache_ttl_tmux = 1500
+cache_ttl_commands = 3500
+adaptive_fast_interval = 800
+adaptive_normal_interval = 1500
+adaptive_slow_interval = 3500
+adaptive_max_interval = 7000
+`)
+
+	cfg, err := ParseV2Config(tomlData)
+	if err != nil {
+		t.Fatalf("failed to parse config: %v", err)
+	}
+
+	// Verify poll intervals
+	if cfg.Performance.PollIntervalAgents != 1500 {
+		t.Errorf("expected poll_interval_agents = 1500, got %d", cfg.Performance.PollIntervalAgents)
+	}
+	if cfg.Performance.PollIntervalChannels != 2500 {
+		t.Errorf("expected poll_interval_channels = 2500, got %d", cfg.Performance.PollIntervalChannels)
+	}
+	if cfg.Performance.PollIntervalCosts != 4000 {
+		t.Errorf("expected poll_interval_costs = 4000, got %d", cfg.Performance.PollIntervalCosts)
+	}
+	if cfg.Performance.PollIntervalStatus != 1800 {
+		t.Errorf("expected poll_interval_status = 1800, got %d", cfg.Performance.PollIntervalStatus)
+	}
+	if cfg.Performance.PollIntervalLogs != 2200 {
+		t.Errorf("expected poll_interval_logs = 2200, got %d", cfg.Performance.PollIntervalLogs)
+	}
+	if cfg.Performance.PollIntervalTeams != 8000 {
+		t.Errorf("expected poll_interval_teams = 8000, got %d", cfg.Performance.PollIntervalTeams)
+	}
+	if cfg.Performance.PollIntervalDemons != 4500 {
+		t.Errorf("expected poll_interval_demons = 4500, got %d", cfg.Performance.PollIntervalDemons)
+	}
+
+	// Verify cache TTLs
+	if cfg.Performance.CacheTTLTmux != 1500 {
+		t.Errorf("expected cache_ttl_tmux = 1500, got %d", cfg.Performance.CacheTTLTmux)
+	}
+	if cfg.Performance.CacheTTLCommands != 3500 {
+		t.Errorf("expected cache_ttl_commands = 3500, got %d", cfg.Performance.CacheTTLCommands)
+	}
+
+	// Verify adaptive intervals
+	if cfg.Performance.AdaptiveFastInterval != 800 {
+		t.Errorf("expected adaptive_fast_interval = 800, got %d", cfg.Performance.AdaptiveFastInterval)
+	}
+	if cfg.Performance.AdaptiveNormalInterval != 1500 {
+		t.Errorf("expected adaptive_normal_interval = 1500, got %d", cfg.Performance.AdaptiveNormalInterval)
+	}
+	if cfg.Performance.AdaptiveSlowInterval != 3500 {
+		t.Errorf("expected adaptive_slow_interval = 3500, got %d", cfg.Performance.AdaptiveSlowInterval)
+	}
+	if cfg.Performance.AdaptiveMaxInterval != 7000 {
+		t.Errorf("expected adaptive_max_interval = 7000, got %d", cfg.Performance.AdaptiveMaxInterval)
+	}
+}
+
 func TestV2ConfigValidation(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -281,6 +366,193 @@ func TestV2ConfigValidation(t *testing.T) {
 				return cfg
 			}(),
 		},
+		// Performance config validation tests (#1013)
+		{
+			name:    "poll interval too low",
+			wantErr: ErrPollIntervalTooLow,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Performance.PollIntervalAgents = 100 // Below 500ms minimum
+				return cfg
+			}(),
+		},
+		{
+			name:    "poll interval at minimum valid",
+			wantErr: nil,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Performance.PollIntervalAgents = 500 // Exactly at minimum
+				return cfg
+			}(),
+		},
+		{
+			name:    "poll interval channels too low",
+			wantErr: ErrPollIntervalTooLow,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Performance.PollIntervalChannels = 250 // Below 500ms minimum
+				return cfg
+			}(),
+		},
+		{
+			name:    "poll interval costs too low",
+			wantErr: ErrPollIntervalTooLow,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Performance.PollIntervalCosts = 499 // Just below 500ms minimum
+				return cfg
+			}(),
+		},
+		{
+			name:    "poll interval status too low",
+			wantErr: ErrPollIntervalTooLow,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Performance.PollIntervalStatus = 1 // Way below minimum
+				return cfg
+			}(),
+		},
+		{
+			name:    "poll interval logs too low",
+			wantErr: ErrPollIntervalTooLow,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Performance.PollIntervalLogs = 300
+				return cfg
+			}(),
+		},
+		{
+			name:    "poll interval teams too low",
+			wantErr: ErrPollIntervalTooLow,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Performance.PollIntervalTeams = 400
+				return cfg
+			}(),
+		},
+		{
+			name:    "poll interval demons too low",
+			wantErr: ErrPollIntervalTooLow,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Performance.PollIntervalDemons = 200
+				return cfg
+			}(),
+		},
+		{
+			name:    "adaptive interval too low",
+			wantErr: ErrPollIntervalTooLow,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Performance.AdaptiveFastInterval = 200 // Below 500ms minimum
+				return cfg
+			}(),
+		},
+		{
+			name:    "adaptive normal interval too low",
+			wantErr: ErrPollIntervalTooLow,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Performance.AdaptiveNormalInterval = 300
+				return cfg
+			}(),
+		},
+		{
+			name:    "adaptive slow interval too low",
+			wantErr: ErrPollIntervalTooLow,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Performance.AdaptiveSlowInterval = 450
+				return cfg
+			}(),
+		},
+		{
+			name:    "adaptive max interval too low",
+			wantErr: ErrPollIntervalTooLow,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Performance.AdaptiveMaxInterval = 100
+				return cfg
+			}(),
+		},
+		{
+			name:    "cache TTL too low",
+			wantErr: ErrCacheTTLRange,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Performance.CacheTTLTmux = 50 // Below 100ms minimum
+				return cfg
+			}(),
+		},
+		{
+			name:    "cache TTL commands too low",
+			wantErr: ErrCacheTTLRange,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Performance.CacheTTLCommands = 99 // Just below 100ms minimum
+				return cfg
+			}(),
+		},
+		{
+			name:    "cache TTL too high",
+			wantErr: ErrCacheTTLRange,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Performance.CacheTTLCommands = 120000 // Above 60000ms maximum
+				return cfg
+			}(),
+		},
+		{
+			name:    "cache TTL tmux too high",
+			wantErr: ErrCacheTTLRange,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Performance.CacheTTLTmux = 60001 // Just above 60000ms max
+				return cfg
+			}(),
+		},
+		{
+			name:    "cache TTL at bounds valid",
+			wantErr: nil,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Performance.CacheTTLTmux = 100       // At minimum
+				cfg.Performance.CacheTTLCommands = 60000 // At maximum
+				return cfg
+			}(),
+		},
+		{
+			name:    "performance zero values valid (use defaults)",
+			wantErr: nil,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Performance = PerformanceConfig{} // All zeros - valid, uses defaults
+				return cfg
+			}(),
+		},
+		{
+			name:    "all performance values at valid minimum",
+			wantErr: nil,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.Performance = PerformanceConfig{
+					PollIntervalAgents:     500,
+					PollIntervalChannels:   500,
+					PollIntervalCosts:      500,
+					PollIntervalStatus:     500,
+					PollIntervalLogs:       500,
+					PollIntervalTeams:      500,
+					PollIntervalDemons:     500,
+					CacheTTLTmux:           100,
+					CacheTTLCommands:       100,
+					AdaptiveFastInterval:   500,
+					AdaptiveNormalInterval: 500,
+					AdaptiveSlowInterval:   500,
+					AdaptiveMaxInterval:    500,
+				}
+				return cfg
+			}(),
+		},
 	}
 
 	for _, tt := range tests {
@@ -346,6 +618,67 @@ func TestV2ConfigSaveAndLoad(t *testing.T) {
 	}
 	if len(loaded.Channels.Default) != 1 || loaded.Channels.Default[0] != "custom-channel" {
 		t.Errorf("unexpected channels: %v", loaded.Channels.Default)
+	}
+}
+
+// TestV2ConfigSaveAndLoadPerformance tests save/load round-trip for performance config (#1013)
+func TestV2ConfigSaveAndLoadPerformance(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, ".bc", "config.toml")
+
+	// Create config with custom performance values
+	cfg := DefaultV2Config("perf-save-test")
+	cfg.Performance = PerformanceConfig{
+		PollIntervalAgents:     1500,
+		PollIntervalChannels:   2500,
+		PollIntervalCosts:      4000,
+		PollIntervalStatus:     1800,
+		PollIntervalLogs:       2200,
+		PollIntervalTeams:      8000,
+		PollIntervalDemons:     4500,
+		CacheTTLTmux:           1500,
+		CacheTTLCommands:       3500,
+		AdaptiveFastInterval:   800,
+		AdaptiveNormalInterval: 1500,
+		AdaptiveSlowInterval:   3500,
+		AdaptiveMaxInterval:    7000,
+	}
+
+	if err := cfg.Save(configPath); err != nil {
+		t.Fatalf("failed to save config: %v", err)
+	}
+
+	// Load and verify performance values are preserved
+	loaded, err := LoadV2Config(configPath)
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	// Verify poll intervals
+	if loaded.Performance.PollIntervalAgents != 1500 {
+		t.Errorf("expected poll_interval_agents = 1500, got %d", loaded.Performance.PollIntervalAgents)
+	}
+	if loaded.Performance.PollIntervalChannels != 2500 {
+		t.Errorf("expected poll_interval_channels = 2500, got %d", loaded.Performance.PollIntervalChannels)
+	}
+	if loaded.Performance.PollIntervalCosts != 4000 {
+		t.Errorf("expected poll_interval_costs = 4000, got %d", loaded.Performance.PollIntervalCosts)
+	}
+
+	// Verify cache TTLs
+	if loaded.Performance.CacheTTLTmux != 1500 {
+		t.Errorf("expected cache_ttl_tmux = 1500, got %d", loaded.Performance.CacheTTLTmux)
+	}
+	if loaded.Performance.CacheTTLCommands != 3500 {
+		t.Errorf("expected cache_ttl_commands = 3500, got %d", loaded.Performance.CacheTTLCommands)
+	}
+
+	// Verify adaptive intervals
+	if loaded.Performance.AdaptiveFastInterval != 800 {
+		t.Errorf("expected adaptive_fast_interval = 800, got %d", loaded.Performance.AdaptiveFastInterval)
+	}
+	if loaded.Performance.AdaptiveMaxInterval != 7000 {
+		t.Errorf("expected adaptive_max_interval = 7000, got %d", loaded.Performance.AdaptiveMaxInterval)
 	}
 }
 
