@@ -15,13 +15,14 @@ const ConfigVersion = 2
 
 // V2Config represents the TOML-based workspace configuration for bc v2.
 type V2Config struct {
-	Workspace   WorkspaceConfig   `toml:"workspace"`
-	Worktrees   WorktreesConfig   `toml:"worktrees"`
 	Tools       ToolsConfig       `toml:"tools"`
 	Memory      MemoryConfig      `toml:"memory"`
+	TUI         TUIConfig         `toml:"tui"`
+	Workspace   WorkspaceConfig   `toml:"workspace"`
+	Worktrees   WorktreesConfig   `toml:"worktrees"`
 	Channels    ChannelsConfig    `toml:"channels"`
-	Roster      RosterConfig      `toml:"roster"`
 	Performance PerformanceConfig `toml:"performance"`
+	Roster      RosterConfig      `toml:"roster"`
 }
 
 // WorkspaceConfig holds core workspace settings.
@@ -98,6 +99,18 @@ type PerformanceConfig struct {
 	AdaptiveMaxInterval    int64 `toml:"adaptive_max_interval"`    // Maximum backoff interval (default: 8000)
 }
 
+// TUIConfig configures TUI appearance and theming.
+type TUIConfig struct {
+	Theme string `toml:"theme"` // Theme name: "dark", "light", "matrix", "synthwave", "high-contrast"
+	Mode  string `toml:"mode"`  // Color mode: "auto", "dark", "light"
+}
+
+// Valid theme names.
+var ValidThemes = []string{"dark", "light", "matrix", "synthwave", "high-contrast"}
+
+// Valid theme modes.
+var ValidModes = []string{"auto", "dark", "light"}
+
 // Roster limits.
 const (
 	RosterMinPerRole = 0  // Minimum agents per role
@@ -126,6 +139,8 @@ var (
 	ErrRosterQARange             = errors.New("roster.qa must be between 0 and 10")
 	ErrPollIntervalTooLow        = errors.New("poll intervals must be at least 500ms")
 	ErrCacheTTLRange             = errors.New("cache TTL must be between 100ms and 60000ms")
+	ErrInvalidTheme              = errors.New("tui.theme must be one of: dark, light, matrix, synthwave, high-contrast")
+	ErrInvalidThemeMode          = errors.New("tui.mode must be one of: auto, dark, light")
 )
 
 // DefaultV2Config returns sensible defaults for a new v2 workspace.
@@ -178,6 +193,10 @@ func DefaultV2Config(name string) V2Config {
 			AdaptiveNormalInterval: 2000,
 			AdaptiveSlowInterval:   4000,
 			AdaptiveMaxInterval:    8000,
+		},
+		TUI: TUIConfig{
+			Theme: "dark",
+			Mode:  "auto",
 		},
 	}
 }
@@ -250,6 +269,11 @@ func (c *V2Config) Validate() error {
 		return err
 	}
 
+	// TUI validation (only validate if non-empty values are set)
+	if err := c.validateTUI(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -290,6 +314,44 @@ func (c *V2Config) validatePerformance() error {
 	}
 
 	return nil
+}
+
+// validateTUI validates TUI config values.
+// Empty values are acceptable (will use defaults).
+func (c *V2Config) validateTUI() error {
+	t := c.TUI
+
+	// Validate theme (must be one of valid themes if set)
+	if t.Theme != "" && !isValidTheme(t.Theme) {
+		return ErrInvalidTheme
+	}
+
+	// Validate mode (must be one of valid modes if set)
+	if t.Mode != "" && !isValidMode(t.Mode) {
+		return ErrInvalidThemeMode
+	}
+
+	return nil
+}
+
+// isValidTheme checks if a theme name is valid.
+func isValidTheme(theme string) bool {
+	for _, valid := range ValidThemes {
+		if theme == valid {
+			return true
+		}
+	}
+	return false
+}
+
+// isValidMode checks if a theme mode is valid.
+func isValidMode(mode string) bool {
+	for _, valid := range ValidModes {
+		if mode == valid {
+			return true
+		}
+	}
+	return false
 }
 
 // hasToolDefined checks if a tool is configured.

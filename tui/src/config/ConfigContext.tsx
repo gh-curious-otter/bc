@@ -1,13 +1,14 @@
 /**
- * ConfigContext - Provides workspace performance configuration to TUI components
+ * ConfigContext - Provides workspace configuration to TUI components
  * Issue #1004: Phase 5 - Performance configuration tunables
+ * Issue #1022: Phase 3 - Advanced theming system
  *
- * Fetches performance config from `bc config show performance --json` and makes
+ * Fetches configuration from `bc config show` commands and makes
  * it available to all hooks via React context.
  */
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { PerformanceConfig } from '../types';
+import type { PerformanceConfig, TUIConfig } from '../types';
 import { execBcJson } from '../services/bc';
 
 // Default performance config values (matches Go defaults)
@@ -27,9 +28,17 @@ const DEFAULT_PERFORMANCE_CONFIG: PerformanceConfig = {
   adaptive_max_interval: 8000,
 };
 
+// Default TUI config values (matches Go defaults)
+const DEFAULT_TUI_CONFIG: TUIConfig = {
+  theme: 'dark',
+  mode: 'auto',
+};
+
 interface ConfigContextValue {
   /** Performance configuration from workspace config */
   performance: PerformanceConfig;
+  /** TUI theme configuration from workspace config */
+  tui: TUIConfig;
   /** Whether config is still loading */
   loading: boolean;
   /** Error if config fetch failed */
@@ -49,23 +58,35 @@ interface ConfigProviderProps {
  */
 export function ConfigProvider({ children }: ConfigProviderProps): React.ReactElement {
   const [performance, setPerformance] = useState<PerformanceConfig>(DEFAULT_PERFORMANCE_CONFIG);
+  const [tui, setTUI] = useState<TUIConfig>(DEFAULT_TUI_CONFIG);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchConfig = async () => {
     try {
       // Fetch performance section from workspace config
-      const response = await execBcJson<PerformanceConfig>(['config', 'show', 'performance']);
+      const performanceResponse = await execBcJson<PerformanceConfig>(['config', 'show', 'performance']);
 
       // Merge with defaults to handle missing values
       setPerformance({
         ...DEFAULT_PERFORMANCE_CONFIG,
-        ...response,
+        ...performanceResponse,
       });
+
+      // Fetch TUI theme configuration
+      const tuiResponse = await execBcJson<TUIConfig>(['config', 'show', 'tui']);
+
+      // Merge with defaults to handle missing values
+      setTUI({
+        ...DEFAULT_TUI_CONFIG,
+        ...tuiResponse,
+      });
+
       setError(null);
     } catch (err) {
       // On error, use defaults - config may not exist yet
       setPerformance(DEFAULT_PERFORMANCE_CONFIG);
+      setTUI(DEFAULT_TUI_CONFIG);
       setError(err instanceof Error ? err.message : 'Failed to load config');
     } finally {
       setLoading(false);
@@ -79,6 +100,7 @@ export function ConfigProvider({ children }: ConfigProviderProps): React.ReactEl
 
   const value: ConfigContextValue = {
     performance,
+    tui,
     loading,
     error,
     refresh: fetchConfig,
@@ -112,5 +134,14 @@ export function usePerformanceConfig(): PerformanceConfig {
   return performance;
 }
 
-export { DEFAULT_PERFORMANCE_CONFIG };
+/**
+ * useThemeConfig - Hook to access TUI theme configuration only
+ * Returns the theme config object directly (theme name and mode)
+ */
+export function useThemeConfig(): TUIConfig {
+  const { tui } = useConfig();
+  return tui;
+}
+
+export { DEFAULT_PERFORMANCE_CONFIG, DEFAULT_TUI_CONFIG };
 export default ConfigProvider;
