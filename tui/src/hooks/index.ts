@@ -125,3 +125,15 @@ export {
   type UseAdaptivePollingOptions,
   type UseAdaptivePollingResult,
 } from './useAdaptivePolling';
+
+export {
+  useResponsiveLayout,
+  useTerminalSize,
+  BREAKPOINTS,
+  type LayoutMode,
+  type ColumnLayout,
+  type ResponsiveLayoutState,
+  type ResponsiveValues,
+  type UseResponsiveLayoutOptions,
+  type UseResponsiveLayoutResult,
+} from './useResponsiveLayout';

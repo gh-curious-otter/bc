@@ -62,3 +62,11 @@ export type { SparklineProps, TrendSparklineProps, MiniSparklineProps } from './
 // Inline editor (eng-01 #858)
 export { InlineEditor, EditorModal } from './InlineEditor';
 export type { InlineEditorProps, EditorModalProps } from './InlineEditor';
+
+// Responsive layout (eng-03 #1023)
+export { ResponsiveGrid, ResponsiveSidebarLayout, ResponsiveColumns } from './ResponsiveGrid';
+export type {
+  ResponsiveGridProps,
+  ResponsiveSidebarLayoutProps,
+  ResponsiveColumnsProps,
+} from './ResponsiveGrid';
