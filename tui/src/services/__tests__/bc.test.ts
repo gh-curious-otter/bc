@@ -25,10 +25,11 @@ mock.module('child_process', () => ({
 }));
 
 // Now import the service (after mocking)
-const { execBc, execBcJson, getStatus, getChannels, getChannelHistory, sendChannelMessage, getCostSummary, reportState, getDemons, getTeams } = await import('../bc');
+const { execBc, execBcJson, getStatus, getChannels, getChannelHistory, sendChannelMessage, getCostSummary, reportState, getDemons, getTeams, clearCache } = await import('../bc');
 
 describe('execBc - Basic command execution', () => {
   beforeEach(() => {
+    clearCache(); // #1005: Clear command cache between tests
     mockSpawnImpl = mock(() => mockProcessorFactory());
   });
 
@@ -115,6 +116,7 @@ describe('execBc - Basic command execution', () => {
 
 describe('execBc - Error handling', () => {
   beforeEach(() => {
+    clearCache(); // #1005: Clear command cache between tests
     mockSpawnImpl = mock(() => mockProcessorFactory());
   });
 
@@ -155,6 +157,7 @@ describe('execBc - Error handling', () => {
 
 describe('execBcJson - JSON parsing', () => {
   beforeEach(() => {
+    clearCache(); // #1005: Clear command cache between tests
     mockSpawnImpl = mock(() => mockProcessorFactory());
   });
 
@@ -216,6 +219,7 @@ describe('execBcJson - JSON parsing', () => {
 
 describe('Command wrapper functions - Status and channels', () => {
   beforeEach(() => {
+    clearCache(); // #1005: Clear command cache between tests
     mockSpawnImpl = mock(() => mockProcessorFactory());
   });
 
@@ -286,6 +290,7 @@ describe('Command wrapper functions - Status and channels', () => {
 
 describe('Command wrapper functions - Actions', () => {
   beforeEach(() => {
+    clearCache(); // #1005: Clear command cache between tests
     mockSpawnImpl = mock(() => mockProcessorFactory());
   });
 
@@ -322,6 +327,7 @@ describe('Command wrapper functions - Actions', () => {
 
 describe('Command wrapper functions - Cost and teams', () => {
   beforeEach(() => {
+    clearCache(); // #1005: Clear command cache between tests
     mockSpawnImpl = mock(() => mockProcessorFactory());
   });
 
@@ -401,6 +407,7 @@ describe('Command wrapper functions - Cost and teams', () => {
 
 describe('Demon operations', () => {
   beforeEach(() => {
+    clearCache(); // #1005: Clear command cache between tests
     mockSpawnImpl = mock(() => mockProcessorFactory());
   });
 

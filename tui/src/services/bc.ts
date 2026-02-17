@@ -1,6 +1,9 @@
 /**
  * BC CLI service wrapper
  * Executes bc commands and parses JSON responses
+ *
+ * #1005: Added command result caching with stale-while-revalidate pattern
+ * to reduce subprocess overhead from polling operations.
  */
 
 import { spawn, spawnSync } from 'child_process';
@@ -19,6 +22,119 @@ import type {
   Worktree,
   WorkspacesResponse,
 } from '../types';
+
+// ============================================================================
+// Command Result Caching (#1005 - Performance Epic Phase 3)
+// ============================================================================
+
+/**
+ * Cache entry with timestamp and TTL
+ */
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  ttl: number;
+}
+
+/**
+ * In-memory cache for command results
+ */
+const commandCache = new Map<string, CacheEntry<unknown>>();
+
+/**
+ * Default TTLs by command type (in milliseconds)
+ * Shorter TTLs for frequently-changing data, longer for stable data
+ */
+const DEFAULT_TTLS: Record<string, number> = {
+  status: 1000,      // 1s - agent status changes frequently
+  'channel:list': 5000,   // 5s - channel list rarely changes
+  'channel:history': 2000, // 2s - messages may arrive
+  'cost:show': 10000,     // 10s - aggregated data
+  'role:list': 30000,     // 30s - roles rarely change
+  'team:list': 10000,     // 10s - team membership stable
+  'process:list': 5000,   // 5s - processes may change
+  'demon:list': 10000,    // 10s - demons stable
+  'logs': 2000,           // 2s - logs update frequently
+  'worktree:list': 30000, // 30s - worktrees stable
+  'workspace:list': 60000, // 60s - workspaces very stable
+};
+
+/**
+ * Generate cache key from command arguments
+ */
+function getCacheKey(args: string[]): string {
+  return args.join(':');
+}
+
+/**
+ * Get cached result if valid, otherwise return null
+ */
+function getCachedResult<T>(key: string): T | null {
+  const entry = commandCache.get(key);
+  if (!entry) return null;
+
+  const now = Date.now();
+  if (now - entry.timestamp < entry.ttl) {
+    return entry.data as T;
+  }
+
+  // Expired - remove from cache
+  commandCache.delete(key);
+  return null;
+}
+
+/**
+ * Store result in cache with TTL
+ */
+function setCachedResult<T>(key: string, data: T, ttl: number): void {
+  commandCache.set(key, {
+    data,
+    timestamp: Date.now(),
+    ttl,
+  });
+}
+
+/**
+ * Invalidate cache entries matching a prefix
+ * Called after write operations to ensure fresh data
+ */
+export function invalidateCache(prefix?: string): void {
+  if (!prefix) {
+    commandCache.clear();
+    return;
+  }
+
+  for (const key of commandCache.keys()) {
+    if (key.startsWith(prefix)) {
+      commandCache.delete(key);
+    }
+  }
+}
+
+/**
+ * Clear all cached command results
+ * Exported for testing purposes
+ */
+export function clearCache(): void {
+  commandCache.clear();
+}
+
+/**
+ * Get TTL for a command based on its type
+ */
+function getTtlForCommand(args: string[]): number {
+  // Try specific command key first (e.g., "channel:list")
+  const specificKey = args.slice(0, 2).join(':');
+  if (DEFAULT_TTLS[specificKey]) {
+    return DEFAULT_TTLS[specificKey];
+  }
+
+  // Fall back to command type (e.g., "status")
+  const command = args[0];
+  return DEFAULT_TTLS[command] ?? 5000; // Default 5s
+}
+
+// ============================================================================
 
 /**
  * Execute a bc command and return the raw output
@@ -104,13 +220,39 @@ export async function execBcJson<T>(args: string[]): Promise<T> {
   }
 }
 
+/**
+ * Execute bc command with caching (stale-while-revalidate pattern)
+ * #1005: Reduces subprocess overhead for polling operations
+ *
+ * @param args - Command arguments
+ * @param ttl - Optional TTL override (uses default based on command type)
+ * @returns Cached or fresh JSON response
+ */
+export async function execBcJsonCached<T>(args: string[], ttl?: number): Promise<T> {
+  const key = getCacheKey(args);
+
+  // Check cache first
+  const cached = getCachedResult<T>(key);
+  if (cached !== null) {
+    return cached;
+  }
+
+  // Cache miss - fetch fresh data
+  const data = await execBcJson<T>(args);
+  const effectiveTtl = ttl ?? getTtlForCommand(args);
+  setCachedResult(key, data, effectiveTtl);
+
+  return data;
+}
+
 // Convenience methods for common commands
 
 /**
  * Get current agent status
  */
 export async function getStatus(): Promise<StatusResponse> {
-  return execBcJson<StatusResponse>(['status']);
+  // #1005: Use cached version to reduce polling overhead
+  return execBcJsonCached<StatusResponse>(['status']);
 }
 
 /**
@@ -118,7 +260,8 @@ export async function getStatus(): Promise<StatusResponse> {
  * Note: bc channel list --json now returns {channels: [...]} format (PR #589)
  */
 export async function getChannels(): Promise<ChannelsResponse> {
-  return execBcJson<ChannelsResponse>(['channel', 'list']);
+  // #1005: Use cached version to reduce polling overhead
+  return execBcJsonCached<ChannelsResponse>(['channel', 'list']);
 }
 
 /**
@@ -147,6 +290,8 @@ export async function sendChannelMessage(
   message: string
 ): Promise<void> {
   await execBc(['channel', 'send', channelName, message]);
+  // #1005: Invalidate channel cache after sending message
+  invalidateCache('channel');
 }
 
 /**
@@ -155,7 +300,8 @@ export async function sendChannelMessage(
  */
 export async function getCostSummary(): Promise<CostSummary> {
   try {
-    return await execBcJson<CostSummary>(['cost', 'show']);
+    // #1005: Use cached version to reduce polling overhead
+    return await execBcJsonCached<CostSummary>(['cost', 'show']);
   } catch {
     // Return empty cost summary when no records exist
     return {
@@ -179,6 +325,8 @@ export async function reportState(
   message: string
 ): Promise<void> {
   await execBc(['report', state, message]);
+  // #1005: Invalidate status cache after state change
+  invalidateCache('status');
 }
 
 /**
@@ -255,7 +403,8 @@ export async function runDemon(name: string): Promise<void> {
  */
 export async function getProcesses(): Promise<ProcessListResponse> {
   try {
-    return await execBcJson<ProcessListResponse>(['process', 'list']);
+    // #1005: Use cached version to reduce polling overhead
+    return await execBcJsonCached<ProcessListResponse>(['process', 'list']);
   } catch {
     return { processes: [] };
   }
@@ -284,7 +433,8 @@ export async function getProcessLogs(
  */
 export async function getTeams(): Promise<TeamsResponse> {
   try {
-    return await execBcJson<TeamsResponse>(['team', 'list']);
+    // #1005: Use cached version to reduce polling overhead
+    return await execBcJsonCached<TeamsResponse>(['team', 'list']);
   } catch {
     return { teams: [] };
   }
@@ -300,6 +450,8 @@ export async function addTeamMember(
   agentName: string
 ): Promise<void> {
   await execBc(['team', 'add', teamName, agentName]);
+  // #1005: Invalidate team cache after modification
+  invalidateCache('team');
 }
 
 /**
@@ -312,6 +464,8 @@ export async function removeTeamMember(
   agentName: string
 ): Promise<void> {
   await execBc(['team', 'remove', teamName, agentName]);
+  // #1005: Invalidate team cache after modification
+  invalidateCache('team');
 }
 
 /**
@@ -390,7 +544,8 @@ export function attachToAgentSession(sessionName: string): void {
  */
 export async function getRoles(): Promise<RolesResponse> {
   try {
-    return await execBcJson<RolesResponse>(['role', 'list']);
+    // #1005: Use cached version to reduce polling overhead
+    return await execBcJsonCached<RolesResponse>(['role', 'list']);
   } catch {
     return { roles: [] };
   }
