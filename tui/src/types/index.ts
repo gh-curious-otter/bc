@@ -251,3 +251,10 @@ export interface PerformanceConfig {
   adaptive_slow_interval: number;
   adaptive_max_interval: number;
 }
+
+// TUI theme configuration for appearance and theming
+// Matches workspace.TUIConfig in Go
+export interface TUIConfig {
+  theme: string; // Theme name: "dark", "light", "matrix", "synthwave", "high-contrast"
+  mode: string; // Color mode: "auto", "dark", "light"
+}

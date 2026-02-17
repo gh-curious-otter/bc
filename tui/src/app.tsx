@@ -15,7 +15,7 @@ import {
 } from './navigation';
 import { ThemeProvider, useTheme, type ThemeMode } from './theme';
 import { UnreadProvider } from './hooks';
-import { ConfigProvider } from './config';
+import { ConfigProvider, useThemeConfig } from './config';
 import { Dashboard } from './views/Dashboard';
 import { AgentsView } from './views/AgentsView';
 import { CommandsView } from './views/CommandsView';
@@ -31,37 +31,71 @@ interface AppProps {
   disableInput?: boolean;
   /** Initial view to display */
   initialView?: View;
-  /** Theme mode (dark/light/auto) */
-  themeMode?: ThemeMode;
 }
 
 export function App({
   disableInput = false,
   initialView = 'dashboard',
-  themeMode = 'auto',
 }: AppProps): React.ReactElement {
   return (
-    <ThemeProvider config={{ mode: themeMode }}>
-      <ConfigProvider>
-        <NavigationProvider initialView={initialView}>
-          <FocusProvider>
-            <UnreadProvider>
-              <AppContent disableInput={disableInput} />
-            </UnreadProvider>
-          </FocusProvider>
-        </NavigationProvider>
-      </ConfigProvider>
+    <ConfigProvider>
+      <AppWithTheme disableInput={disableInput} initialView={initialView} />
+    </ConfigProvider>
+  );
+}
+
+interface AppWithThemeProps {
+  disableInput: boolean;
+  initialView: View;
+}
+
+/**
+ * AppWithTheme - Wraps the app with theme provider initialized from config
+ * Must be inside ConfigProvider to use useThemeConfig
+ */
+function AppWithTheme({
+  disableInput,
+  initialView,
+}: AppWithThemeProps): React.ReactElement {
+  // Get theme config from workspace configuration
+  const themeConfig = useThemeConfig();
+
+  // Convert config theme/mode to ThemeMode for ThemeProvider
+  // If a named theme is set (matrix, synthwave, etc), use 'auto' mode to let theme system handle it
+  const effectiveMode: ThemeMode = themeConfig.theme !== 'dark' && themeConfig.theme !== 'light'
+    ? 'auto'
+    : (themeConfig.mode as ThemeMode);
+
+  return (
+    <ThemeProvider config={{ mode: effectiveMode }}>
+      <NavigationProvider initialView={initialView}>
+        <FocusProvider>
+          <UnreadProvider>
+            <AppContent disableInput={disableInput} themeConfig={themeConfig} />
+          </UnreadProvider>
+        </FocusProvider>
+      </NavigationProvider>
     </ThemeProvider>
   );
 }
 
 interface AppContentProps {
   disableInput: boolean;
+  themeConfig: ReturnType<typeof useThemeConfig>;
 }
 
-function AppContent({ disableInput }: AppContentProps): React.ReactElement {
+function AppContent({ disableInput, themeConfig }: AppContentProps): React.ReactElement {
   const { currentView } = useNavigation();
   const { stdout } = useStdout();
+  const { setThemeName } = useTheme();
+
+  // Apply configured theme on mount or when config changes
+  React.useEffect(() => {
+    // Only set theme if it's a named theme (not dark/light which are handled by mode)
+    if (themeConfig.theme !== 'dark' && themeConfig.theme !== 'light') {
+      setThemeName(themeConfig.theme as Parameters<typeof setThemeName>[0]);
+    }
+  }, [themeConfig.theme, setThemeName]);
 
   // Handle global keyboard navigation
   useKeyboardNavigation({ disabled: disableInput });
