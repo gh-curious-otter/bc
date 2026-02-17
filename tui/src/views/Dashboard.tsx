@@ -8,6 +8,7 @@ import { ErrorDisplay } from '../components/ErrorDisplay.js';
 import { ActivityFeed } from '../components/ActivityFeed.js';
 import { useDashboard } from '../hooks/useDashboard.js';
 import { useNavigation } from '../navigation/NavigationContext.js';
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout.js';
 
 interface DashboardProps {
   /** @deprecated Use navigation context instead */
@@ -22,6 +23,7 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
   const { stdout } = useStdout();
   const terminalWidth = stdout.columns;
   const { navigate } = useNavigation();
+  const { canMultiColumn, isMedium, isWide } = useResponsiveLayout();
 
   const {
     summary,
@@ -81,34 +83,36 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
         errorCount={summary.error}
       />
 
-      {/* Main Content - Responsive layout (single column at 80-col, two column at wider) */}
-      <Box marginTop={1} flexDirection={terminalWidth < 100 ? 'column' : 'row'}>
+      {/* Main Content - Uses responsive layout for flexible column arrangement */}
+      <Box marginTop={1} flexDirection={canMultiColumn ? 'row' : 'column'}>
         {/* Activity Feed - primary focus */}
-        <Box flexDirection="column" flexGrow={1} marginRight={terminalWidth >= 100 ? 1 : 0}>
-          <ActivityFeed maxEntries={terminalWidth < 100 ? 8 : 15} compact={terminalWidth < 100} showFilterHints={terminalWidth >= 100} />
+        <Box flexDirection="column" flexGrow={1} marginRight={canMultiColumn ? 1 : 0}>
+          <ActivityFeed maxEntries={isMedium || isWide ? 15 : 8} compact={!isWide} showFilterHints={canMultiColumn} />
         </Box>
 
-        {/* Stats & Health panels - side column on wide, below on narrow */}
-        <Box flexDirection={terminalWidth < 100 ? 'row' : 'column'} flexWrap="wrap" width={terminalWidth < 100 ? '100%' : Math.min(32, Math.max(26, Math.floor((terminalWidth - 4) * 0.28)))}>
-          {/* System Health - Agent states */}
-          <SystemHealthPanel
-            working={summary.working}
-            idle={summary.idle}
-            stuck={summary.stuck}
-            errorCount={summary.error}
-            total={summary.total}
-          />
+        {/* Stats & Health panels - side column when space allows (medium+) */}
+        {canMultiColumn && (
+          <Box flexDirection="column" width={Math.min(32, Math.max(26, Math.floor((terminalWidth - 4) * 0.28)))}>
+            {/* System Health - Agent states */}
+            <SystemHealthPanel
+              working={summary.working}
+              idle={summary.idle}
+              stuck={summary.stuck}
+              errorCount={summary.error}
+              total={summary.total}
+            />
 
-          {/* Cost Panel with budget progress */}
-          <CostPanel
-            totalCostUSD={summary.totalCostUSD}
-            inputTokens={summary.inputTokens}
-            outputTokens={summary.outputTokens}
-          />
+            {/* Cost Panel with budget progress */}
+            <CostPanel
+              totalCostUSD={summary.totalCostUSD}
+              inputTokens={summary.inputTokens}
+              outputTokens={summary.outputTokens}
+            />
 
-          {/* Agent Distribution by Role - hide on narrow */}
-          {terminalWidth >= 100 && <AgentStatsPanel stats={agentStats} />}
-        </Box>
+            {/* Agent Distribution by Role */}
+            <AgentStatsPanel stats={agentStats} />
+          </Box>
+        )}
       </Box>
 
       {/* Footer with keyboard hints */}
