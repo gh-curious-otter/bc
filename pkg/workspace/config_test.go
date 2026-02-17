@@ -226,6 +226,43 @@ adaptive_max_interval = 7000
 	}
 }
 
+// TestParseV2ConfigWithTUI tests parsing [tui] section from TOML (#1022)
+func TestParseV2ConfigWithTUI(t *testing.T) {
+	tomlData := []byte(`
+[workspace]
+name = "tui-project"
+version = 2
+
+[tools]
+default = "claude"
+
+[tools.claude]
+command = "claude"
+enabled = true
+
+[memory]
+backend = "file"
+path = ".bc/memory"
+
+[tui]
+theme = "synthwave"
+mode = "dark"
+`)
+
+	cfg, err := ParseV2Config(tomlData)
+	if err != nil {
+		t.Fatalf("failed to parse config: %v", err)
+	}
+
+	// Verify TUI config
+	if cfg.TUI.Theme != "synthwave" {
+		t.Errorf("expected tui.theme = 'synthwave', got %q", cfg.TUI.Theme)
+	}
+	if cfg.TUI.Mode != "dark" {
+		t.Errorf("expected tui.mode = 'dark', got %q", cfg.TUI.Mode)
+	}
+}
+
 func TestV2ConfigValidation(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -550,6 +587,82 @@ func TestV2ConfigValidation(t *testing.T) {
 					AdaptiveSlowInterval:   500,
 					AdaptiveMaxInterval:    500,
 				}
+				return cfg
+			}(),
+		},
+		// TUI config validation tests (#1022)
+		{
+			name:    "tui invalid theme",
+			wantErr: ErrInvalidTheme,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.TUI.Theme = "invalid-theme"
+				return cfg
+			}(),
+		},
+		{
+			name:    "tui invalid mode",
+			wantErr: ErrInvalidThemeMode,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.TUI.Mode = "invalid-mode"
+				return cfg
+			}(),
+		},
+		{
+			name:    "tui valid dark theme",
+			wantErr: nil,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.TUI.Theme = "dark"
+				cfg.TUI.Mode = "auto"
+				return cfg
+			}(),
+		},
+		{
+			name:    "tui valid light theme",
+			wantErr: nil,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.TUI.Theme = "light"
+				cfg.TUI.Mode = "light"
+				return cfg
+			}(),
+		},
+		{
+			name:    "tui valid matrix theme",
+			wantErr: nil,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.TUI.Theme = "matrix"
+				cfg.TUI.Mode = "dark"
+				return cfg
+			}(),
+		},
+		{
+			name:    "tui valid synthwave theme",
+			wantErr: nil,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.TUI.Theme = "synthwave"
+				return cfg
+			}(),
+		},
+		{
+			name:    "tui valid high-contrast theme",
+			wantErr: nil,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.TUI.Theme = "high-contrast"
+				return cfg
+			}(),
+		},
+		{
+			name:    "tui empty values valid (use defaults)",
+			wantErr: nil,
+			cfg: func() V2Config {
+				cfg := DefaultV2Config("test")
+				cfg.TUI = TUIConfig{} // Empty - valid, uses defaults
 				return cfg
 			}(),
 		},
