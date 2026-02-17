@@ -17,9 +17,6 @@ const TARGET_FRAME_TIME_MS = 1000 / TARGET_FPS; // ~41.67ms
 /** Warning threshold - warn if average frame time exceeds this */
 const WARNING_THRESHOLD_MS = TARGET_FRAME_TIME_MS * 1.5; // ~62.5ms (16fps)
 
-/** Critical threshold - critical warning below this FPS */
-const CRITICAL_THRESHOLD_MS = TARGET_FRAME_TIME_MS * 2; // ~83.3ms (12fps)
-
 export interface PerformanceOverlayProps {
   /** Force show overlay regardless of debug mode */
   forceShow?: boolean;
@@ -98,7 +95,9 @@ function FPSCounter({
 
     // Update at target frame rate
     const interval = setInterval(updateFPS, TARGET_FRAME_TIME_MS);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+    };
   }, [onStats]);
 
   return null;
