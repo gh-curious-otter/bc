@@ -87,14 +87,34 @@ func (s *Store) Open() error {
 		return fmt.Errorf("failed to create database directory: %w", err)
 	}
 
-	db, err := sql.Open("sqlite3", s.path+"?_foreign_keys=on")
+	// #1011: Add WAL mode and busy timeout for better concurrency
+	db, err := sql.Open("sqlite3", s.path+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000")
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 
+	// #1011: Configure connection pool for SQLite's single-writer model
+	// SQLite only allows one writer at a time, so limit connections
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(time.Hour)
+	db.SetConnMaxIdleTime(10 * time.Minute)
+
 	if err := s.initSchema(db); err != nil {
 		_ = db.Close()
 		return fmt.Errorf("failed to initialize schema: %w", err)
+	}
+
+	// #1011: Set optimal SQLite pragmas for performance
+	ctx := context.Background()
+	pragmas := `
+		PRAGMA synchronous = NORMAL;
+		PRAGMA cache_size = -2000;
+		PRAGMA temp_store = MEMORY;
+	`
+	if _, err := db.ExecContext(ctx, pragmas); err != nil {
+		// Log warning but don't fail - pragmas are optional optimization
+		_ = err // Ignore pragma errors
 	}
 
 	s.db = db
