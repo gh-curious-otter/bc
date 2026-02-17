@@ -90,6 +90,33 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
         errorCount={summary.error}
       />
 
+      {/* Metrics panels - Optimized for all terminal sizes (Issue #1041) */}
+      {/* On narrow terminals: 2x2 grid at top, on wide: side-by-side with activity feed */}
+      {!canMultiColumn && (
+        <Box marginTop={1} flexDirection="row" width="100%">
+          {/* Left column: System Health + Cost */}
+          <Box flexDirection="column" flexGrow={1} marginRight={1}>
+            <SystemHealthPanel
+              working={summary.working}
+              idle={summary.idle}
+              stuck={summary.stuck}
+              errorCount={summary.error}
+              total={summary.total}
+            />
+            <CostPanel
+              totalCostUSD={summary.totalCostUSD}
+              inputTokens={summary.inputTokens}
+              outputTokens={summary.outputTokens}
+            />
+          </Box>
+
+          {/* Right column: Agent Distribution */}
+          <Box flexDirection="column" width={Math.max(20, Math.floor(terminalWidth * 0.35))}>
+            <AgentStatsPanel stats={agentStats} />
+          </Box>
+        </Box>
+      )}
+
       {/* Main Content - Uses responsive layout for flexible column arrangement */}
       <Box marginTop={1} flexDirection={canMultiColumn ? 'row' : 'column'}>
         {/* Activity Feed - primary focus */}
