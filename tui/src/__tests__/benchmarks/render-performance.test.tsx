@@ -55,7 +55,7 @@ function measureRenderTime(element: React.ReactElement): { time: number; output:
 // Utility to measure multiple renders and get statistics
 function benchmarkRender(
   element: React.ReactElement,
-  iterations: number = 10
+  iterations = 10
 ): { avg: number; min: number; max: number; p95: number } {
   const times: number[] = [];
 
