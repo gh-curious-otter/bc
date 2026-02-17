@@ -88,3 +88,7 @@ export type {
   StatusTransitionProps,
   NotificationTextProps,
 } from './AnimatedText';
+
+// Performance overlay (eng-04 #1025)
+export { PerformanceOverlay } from './PerformanceOverlay';
+export type { PerformanceOverlayProps } from './PerformanceOverlay';
