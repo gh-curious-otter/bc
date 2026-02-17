@@ -7,6 +7,7 @@ import { Box, Text, useInput, useStdout } from 'ink';
 import { useChannels, useChannelHistory, useUnread } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
+import { PulseText } from './AnimatedText';
 import { ChatMessage } from './ChatMessage';
 import type { Channel } from '../types';
 
@@ -92,7 +93,7 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
     return (
       <Box flexDirection="column">
         <Text bold>Channels</Text>
-        <Text dimColor>Loading channels...</Text>
+        <PulseText enabled={true}>⊙ Loading channels...</PulseText>
       </Box>
     );
   }

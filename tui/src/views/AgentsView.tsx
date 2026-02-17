@@ -5,6 +5,7 @@ import { useFocus } from '../navigation/FocusContext';
 import { Table } from '../components/Table';
 import type { Column } from '../components/Table';
 import { StatusBadge } from '../components/StatusBadge';
+import { PulseText } from '../components/AnimatedText';
 import { AgentDetailView } from './AgentDetailView';
 import { execBc } from '../services/bc';
 import type { Agent } from '../types';
@@ -205,7 +206,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   if (loading && agentList.length === 0) {
     return (
       <Box padding={1}>
-        <Text color="yellow">Loading agents...</Text>
+        <PulseText enabled={true}>⊙ Loading agents...</PulseText>
       </Box>
     );
   }
@@ -225,7 +226,12 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
         <Text bold color="green">
           Agents ({agentList.length})
         </Text>
-        {loading && <Text color="gray"> (refreshing...)</Text>}
+        {loading && (
+          <Text>
+            {' '}
+            <PulseText enabled={true}>(refreshing...)</PulseText>
+          </Text>
+        )}
       </Box>
 
       {/* Action feedback */}
