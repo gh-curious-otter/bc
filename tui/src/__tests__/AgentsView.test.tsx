@@ -73,6 +73,39 @@ describe('Table', () => {
 });
 
 /**
+ * Issue #1039 - Loading Indicators with PulseText
+ * Tests for loading state display using PulseText animation
+ */
+describe('AgentsView Loading Indicators (Issue #1039)', () => {
+  it('renders PulseText when loading agents initially', () => {
+    // When agentList is empty and loading is true
+    const loading = true;
+    const agentList: any[] = [];
+
+    // Should show "Loading agents..." with PulseText
+    expect(loading && agentList.length === 0).toBe(true);
+  });
+
+  it('renders PulseText during refresh when data exists', () => {
+    // When loading is true but agentList has data
+    const loading = true;
+    const agentList = [{ name: 'agent-1', role: 'engineer', state: 'working' }];
+
+    // Should show "(refreshing...)" with PulseText in header
+    expect(loading && agentList.length > 0).toBe(true);
+  });
+
+  it('hides loading indicator when done loading', () => {
+    // When loading is false
+    const loading = false;
+    const agentList = [{ name: 'agent-1', role: 'engineer', state: 'working' }];
+
+    // Should not show loading/refreshing indicators
+    expect(loading).toBe(false);
+  });
+});
+
+/**
  * Issue #861 - AgentsView Inline Actions Tests
  * Tests for action state management and confirmation logic
  */

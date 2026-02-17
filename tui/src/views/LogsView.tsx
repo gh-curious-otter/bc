@@ -6,6 +6,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { useLogs, getSeverityColor } from '../hooks/useLogs';
 import { useFocus } from '../navigation/FocusContext';
+import { PulseText } from '../components/AnimatedText';
 import type { LogSeverity } from '../hooks/useLogs';
 import type { LogEntry } from '../types';
 
@@ -271,7 +272,7 @@ export const LogsView: React.FC<LogsViewProps> = ({ onBack }) => {
   if (loading && !logs) {
     return (
       <Box padding={1}>
-        <Text color="yellow">Loading logs...</Text>
+        <PulseText color="cyan">Loading logs...</PulseText>
       </Box>
     );
   }
@@ -302,7 +303,7 @@ export const LogsView: React.FC<LogsViewProps> = ({ onBack }) => {
       <Box marginBottom={1}>
         <Text bold color="magenta">Logs</Text>
         <Text dimColor> ({filteredLogs.length} entries)</Text>
-        {loading && <Text color="gray"> (refreshing...)</Text>}
+        {loading && <PulseText color="gray"> (refreshing...)</PulseText>}
       </Box>
 
       {/* Filters */}
