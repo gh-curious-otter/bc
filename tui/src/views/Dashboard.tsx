@@ -11,6 +11,7 @@ import { PulseText } from '../components/AnimatedText.js';
 import { useDashboard } from '../hooks/useDashboard.js';
 import { useNavigation } from '../navigation/NavigationContext.js';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout.js';
+import { STATUS_COLORS, HEALTH_COLORS } from '../theme/StatusColors.js';
 
 interface DashboardProps {
   /** @deprecated Use navigation context instead */
@@ -259,32 +260,32 @@ const SystemHealthPanel = memo(function SystemHealthPanel({
     <Panel title="System Health">
       <Box flexDirection="column">
         <Box>
-          <Text color={healthPercent >= 80 ? 'green' : healthPercent >= 50 ? 'yellow' : 'red'} bold>
+          <Text color={healthPercent >= 80 ? HEALTH_COLORS.healthy : healthPercent >= 50 ? HEALTH_COLORS.warning : HEALTH_COLORS.critical} bold>
             {healthPercent}%
           </Text>
           <Text dimColor> healthy</Text>
         </Box>
         <Box marginTop={1} flexDirection="column">
-          {/* Working agents with pulse animation (Phase 3) */}
+          {/* Working agents with pulse animation (Phase 3) - consistent colors */}
           <Box>
-            <PulseText color="cyan" enabled={working > 0} interval={1500}>
+            <PulseText color={STATUS_COLORS.working} enabled={working > 0} interval={1500}>
               ●
             </PulseText>
             <Text> Working: {working}</Text>
           </Box>
           <Box>
-            <Text color="gray">●</Text>
+            <Text color={STATUS_COLORS.idle}>●</Text>
             <Text> Idle: {idle}</Text>
           </Box>
           {stuck > 0 && (
             <Box>
-              <Text color="yellow">●</Text>
+              <Text color={STATUS_COLORS.warning}>●</Text>
               <Text> Stuck: {stuck}</Text>
             </Box>
           )}
           {errorCount > 0 && (
             <Box>
-              <Text color="red">●</Text>
+              <Text color={STATUS_COLORS.error}>●</Text>
               <Text> Error: {errorCount}</Text>
             </Box>
           )}
