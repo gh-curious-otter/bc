@@ -1,13 +1,17 @@
 /**
  * useStatus hook - Workspace status and summary
+ * Issue #1004: Performance configuration tunables (Phase 5)
+ *
+ * Poll interval is configurable via workspace config [performance] section.
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import type { StatusResponse, BcResult } from '../types';
 import { getStatus } from '../services/bc';
+import { usePerformanceConfig } from '../config';
 
 export interface UseStatusOptions {
-  /** Polling interval in ms (default: 2000) */
+  /** Polling interval in ms (default: from config) */
   pollInterval?: number;
   /** Whether to poll automatically (default: true) */
   autoPoll?: boolean;
@@ -47,7 +51,11 @@ export interface UseStatusResult extends BcResult<WorkspaceStatus> {
  * @returns Workspace status with agent counts by state
  */
 export function useStatus(options: UseStatusOptions = {}): UseStatusResult {
-  const { pollInterval = 2000, autoPoll = true } = options;
+  // Get configurable poll interval from workspace config
+  const perfConfig = usePerformanceConfig();
+  const defaultPollInterval = perfConfig.poll_interval_status;
+
+  const { pollInterval = defaultPollInterval, autoPoll = true } = options;
 
   const [rawResponse, setRawResponse] = useState<StatusResponse | null>(null);
   const [data, setData] = useState<WorkspaceStatus | null>(null);

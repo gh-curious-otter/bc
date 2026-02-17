@@ -1,18 +1,17 @@
 /**
  * useAdaptivePolling - Adaptive polling with state-aware intervals
  * Issue #979: Optimize agent polling with adaptive intervals
+ * Issue #1004: Performance configuration tunables (Phase 5)
  *
  * Reduces CPU usage by slowing down polling when agents are idle
  * and speeding up when activity is detected.
+ *
+ * Interval values are configurable via workspace config [performance] section.
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { usePerformanceConfig } from '../config';
 
-/** Polling interval constants */
-const FAST_INTERVAL = 1000;    // 1s when agents are actively working
-const NORMAL_INTERVAL = 2000;  // 2s default
-const SLOW_INTERVAL = 4000;    // 4s when agents are idle
-const MAX_INTERVAL = 8000;     // 8s max backoff during extended quiet periods
 const BACKOFF_FACTOR = 1.5;    // Exponential backoff multiplier
 const IDLE_THRESHOLD_MS = 10000; // 10s without changes = idle state
 
@@ -63,14 +62,23 @@ export interface UseAdaptivePollingResult {
  * Adaptive polling hook that adjusts intervals based on activity
  *
  * Modes:
- * - fast: 1s interval - when agents are actively working
- * - normal: 2s interval - default state
- * - slow: 4s interval - when agents have been idle for a while
- * - backoff: 4-8s interval - exponential backoff during extended quiet
+ * - fast: configurable interval - when agents are actively working
+ * - normal: configurable interval - default state
+ * - slow: configurable interval - when agents have been idle for a while
+ * - backoff: up to max interval - exponential backoff during extended quiet
+ *
+ * Intervals are configured via workspace [performance] section.
  */
 export function useAdaptivePolling(
   options: UseAdaptivePollingOptions = {}
 ): UseAdaptivePollingResult {
+  // Get configurable intervals from workspace config
+  const perfConfig = usePerformanceConfig();
+  const FAST_INTERVAL = perfConfig.adaptive_fast_interval;
+  const NORMAL_INTERVAL = perfConfig.adaptive_normal_interval;
+  const SLOW_INTERVAL = perfConfig.adaptive_slow_interval;
+  const MAX_INTERVAL = perfConfig.adaptive_max_interval;
+
   const {
     initialInterval = NORMAL_INTERVAL,
     adaptiveEnabled = true,

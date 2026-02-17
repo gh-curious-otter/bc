@@ -1,6 +1,7 @@
 /**
  * RolesView component tests
  * Issue #859 - Add Roles tab
+ * Issue #1004 - Updated to include ConfigProvider
  */
 
 import React from 'react';
@@ -8,11 +9,19 @@ import { render } from 'ink-testing-library';
 import { describe, it, expect, vi, beforeEach, mock } from 'bun:test';
 import { RolesView } from '../../views/RolesView';
 import { FocusProvider } from '../../navigation/FocusContext';
+import { ConfigProvider } from '../../config';
 
-// Helper to wrap component with FocusProvider
-const renderWithFocus = (ui: React.ReactElement) => {
-  return render(<FocusProvider>{ui}</FocusProvider>);
+// Helper to wrap component with required providers
+const renderWithProviders = (ui: React.ReactElement) => {
+  return render(
+    <ConfigProvider>
+      <FocusProvider>{ui}</FocusProvider>
+    </ConfigProvider>
+  );
 };
+
+// Legacy alias for backward compatibility
+const renderWithFocus = renderWithProviders;
 
 // Mock the bc service
 mock.module('../../services/bc', () => ({

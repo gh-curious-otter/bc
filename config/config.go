@@ -21,6 +21,22 @@ type MemoryConfig struct {
 	Path    string
 }
 
+type PerformanceConfig struct {
+	AdaptiveFastInterval   int64
+	AdaptiveMaxInterval    int64
+	AdaptiveNormalInterval int64
+	AdaptiveSlowInterval   int64
+	CacheTtlCommands       int64
+	CacheTtlTmux           int64
+	PollIntervalAgents     int64
+	PollIntervalChannels   int64
+	PollIntervalCosts      int64
+	PollIntervalDemons     int64
+	PollIntervalLogs       int64
+	PollIntervalStatus     int64
+	PollIntervalTeams      int64
+}
+
 type RosterConfig struct {
 	Engineers int64
 	Qa        int64
@@ -119,6 +135,21 @@ var (
 	Memory = MemoryConfig{
 		Backend: "file",
 		Path:    ".bc/memory",
+	}
+	Performance = PerformanceConfig{
+		AdaptiveFastInterval:   1000,
+		AdaptiveMaxInterval:    8000,
+		AdaptiveNormalInterval: 2000,
+		AdaptiveSlowInterval:   4000,
+		CacheTtlCommands:       5000,
+		CacheTtlTmux:           2000,
+		PollIntervalAgents:     2000,
+		PollIntervalChannels:   3000,
+		PollIntervalCosts:      5000,
+		PollIntervalDemons:     5000,
+		PollIntervalLogs:       3000,
+		PollIntervalStatus:     2000,
+		PollIntervalTeams:      10000,
 	}
 	Roster = RosterConfig{
 		Engineers: 4,

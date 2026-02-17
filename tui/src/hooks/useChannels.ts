@@ -1,13 +1,17 @@
 /**
  * useChannels hook - Fetch and manage channel data
+ * Issue #1004: Performance configuration tunables (Phase 5)
+ *
+ * Poll interval is configurable via workspace config [performance] section.
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import type { Channel, ChannelMessage, BcResult } from '../types';
 import { getChannels, getChannelHistory, sendChannelMessage } from '../services/bc';
+import { usePerformanceConfig } from '../config';
 
 export interface UseChannelsOptions {
-  /** Polling interval in ms (default: 3000) */
+  /** Polling interval in ms (default: from config) */
   pollInterval?: number;
   /** Whether to poll automatically (default: true) */
   autoPoll?: boolean;
@@ -22,7 +26,11 @@ export interface UseChannelsResult extends BcResult<Channel[]> {
  * Hook to fetch and poll channel list
  */
 export function useChannels(options: UseChannelsOptions = {}): UseChannelsResult {
-  const { pollInterval = 3000, autoPoll = true } = options;
+  // Get configurable poll interval from workspace config
+  const perfConfig = usePerformanceConfig();
+  const defaultPollInterval = perfConfig.poll_interval_channels;
+
+  const { pollInterval = defaultPollInterval, autoPoll = true } = options;
 
   const [data, setData] = useState<Channel[] | null>(null);
   const [error, setError] = useState<string | null>(null);
