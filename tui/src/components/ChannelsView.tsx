@@ -165,8 +165,10 @@ function ChannelRow({ channel, selected, unreadCount }: ChannelRowProps): React.
   // Determine text color: cyan if selected, yellow if has unread, default otherwise
   const textColor = selected ? 'cyan' : unreadCount > 0 ? 'yellow' : undefined;
 
+  // #1171 fix: Remove explicit width="100%" to avoid nested width calculation issues at 80x24
+  // The parent Box already has width="100%", inner Box inherits flexbox width naturally
   return (
-    <Box width="100%" flexDirection="column">
+    <Box flexDirection="column">
       {/* Name row: single Text for proper truncation at narrow widths */}
       <Text
         wrap="truncate"
