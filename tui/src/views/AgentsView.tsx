@@ -40,7 +40,8 @@ function normalizeTask(task: string | undefined): string {
 }
 
 /** Available agent actions */
-type AgentAction = 'stop' | 'kill' | 'restart' | 'attach';
+// #1166: Added 'start' for stopped agents
+type AgentAction = 'start' | 'stop' | 'kill' | 'restart' | 'attach';
 
 interface ActionState {
   action: AgentAction | null;
@@ -95,9 +96,14 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   }, []);
 
   // Execute agent action
+  // #1166: Added 'start' action for stopped agents
   const executeAction = useCallback(async (action: AgentAction, agentName: string) => {
     try {
       switch (action) {
+        case 'start':
+          await execBc(['agent', 'start', agentName]);
+          showActionFeedback(action, agentName, 'success', `Started ${agentName}`);
+          break;
         case 'stop':
           await execBc(['agent', 'stop', agentName]);
           showActionFeedback(action, agentName, 'success', `Stopped ${agentName}`);
@@ -167,9 +173,16 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       if (selectedAgent) {
         setShowDetail(true);
       }
+    } else if (input === 's' && selectedAgent) {
+      // #1166: Start agent (only when stopped)
+      if (selectedAgent.state === 'stopped' || selectedAgent.state === 'error') {
+        setConfirmAction('start');
+      }
     } else if (input === 'x' && selectedAgent) {
-      // Stop agent (with confirmation)
-      setConfirmAction('stop');
+      // #1166: Stop agent (only when running)
+      if (selectedAgent.state === 'working' || selectedAgent.state === 'idle') {
+        setConfirmAction('stop');
+      }
     } else if (input === 'X' && selectedAgent) {
       // Kill agent (with confirmation)
       setConfirmAction('kill');
@@ -293,9 +306,11 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       )}
 
       {/* Confirmation dialog */}
+      {/* #1166: Added 'start' confirmation */}
       {confirmAction && selectedAgent && (
         <Box marginBottom={1} paddingX={1} borderStyle="round" borderColor="yellow">
           <Text color="yellow">
+            {confirmAction === 'start' && `Start agent "${selectedAgent.name}"?`}
             {confirmAction === 'stop' && `Stop agent "${selectedAgent.name}"?`}
             {confirmAction === 'kill' && `Kill agent "${selectedAgent.name}"? (force terminate)`}
             {confirmAction === 'restart' && `Restart agent "${selectedAgent.name}"?`}
@@ -315,36 +330,44 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       />
 
       {/* Inline action bar for selected agent */}
+      {/* #1166: Context-aware start/stop actions based on agent state */}
       {selectedAgent && !confirmAction && (
         <Box marginTop={1} paddingX={1}>
           <Text dimColor>Actions: </Text>
-          {selectedAgent.state === 'working' && (
+          {/* Show 'start' for stopped/error agents */}
+          {(selectedAgent.state === 'stopped' || selectedAgent.state === 'error') && (
+            <>
+              <Text color="green">[s]</Text>
+              <Text dimColor> start </Text>
+            </>
+          )}
+          {/* Show 'stop' for running agents */}
+          {(selectedAgent.state === 'working' || selectedAgent.state === 'idle') && (
             <>
               <Text color="yellow">[x]</Text>
               <Text dimColor> stop </Text>
             </>
           )}
+          {/* Show 'kill' for any non-stopped agent */}
           {selectedAgent.state !== 'stopped' && (
             <>
               <Text color="red">[X]</Text>
               <Text dimColor> kill </Text>
             </>
           )}
-          {selectedAgent.state === 'stopped' || selectedAgent.state === 'error' ? (
-            <>
-              <Text color="green">[R]</Text>
-              <Text dimColor> restart </Text>
-            </>
-          ) : null}
+          {/* Always show restart option */}
+          <Text color="blue">[R]</Text>
+          <Text dimColor> restart </Text>
           <Text color="cyan">[a/Enter]</Text>
           <Text dimColor> details</Text>
         </Box>
       )}
 
       {/* Footer with keybindings */}
+      {/* #1166: Updated to include s: start */}
       <Box marginTop={1}>
         <Text color="gray">
-          j/k: nav | g/G: top/bottom | /: search{searchQuery ? ' | c: clear' : ''} | a/Enter: details | x: stop | X: kill | R: restart | r: refresh | q/ESC: back
+          j/k: nav | /: search{searchQuery ? ' | c: clear' : ''} | a: details | s: start | x: stop | X: kill | R: restart | r: refresh | q: back
         </Text>
       </Box>
     </Box>
