@@ -10,9 +10,49 @@
  * - Typewriter (character-by-character reveal)
  * - Spring (physics-based smooth animations)
  * - Progress (smooth progress bar animations)
+ *
+ * Accessibility:
+ * - Respects BC_NO_ANIMATIONS=1 environment variable
+ * - Respects BC_ANIMATION_FPS for custom frame rate (default: 60)
+ * - When animations disabled, shows final state immediately
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+
+// ============================================================================
+// Animation Configuration (Accessibility)
+// ============================================================================
+
+/**
+ * Check if animations should be disabled.
+ * Respects BC_NO_ANIMATIONS=1 environment variable.
+ */
+export function shouldDisableAnimations(): boolean {
+  return process.env.BC_NO_ANIMATIONS === '1' || process.env.BC_NO_ANIMATIONS === 'true';
+}
+
+/**
+ * Get configured animation FPS.
+ * Respects BC_ANIMATION_FPS environment variable (default: 60).
+ */
+export function getAnimationFps(): number {
+  const envFps = process.env.BC_ANIMATION_FPS;
+  if (envFps) {
+    const parsed = parseInt(envFps, 10);
+    if (!isNaN(parsed) && parsed > 0 && parsed <= 120) {
+      return parsed;
+    }
+  }
+  return 60; // Default 60fps
+}
+
+/**
+ * Hook to check if animations should be reduced/disabled.
+ * Returns true if animations should be skipped.
+ */
+export function useReducedMotion(): boolean {
+  return useMemo(() => shouldDisableAnimations(), []);
+}
 
 /** Animation easing functions */
 export type EasingFunction = (t: number) => number;
@@ -79,6 +119,9 @@ export interface UseAnimationResult {
 
 /**
  * Core animation hook
+ *
+ * Accessibility: When BC_NO_ANIMATIONS=1 is set, animations complete
+ * immediately showing the final state.
  */
 export function useAnimation(options: UseAnimationOptions = {}): UseAnimationResult {
   const {
@@ -88,8 +131,10 @@ export function useAnimation(options: UseAnimationOptions = {}): UseAnimationRes
     iterations = 1,
     autoStart = true,
     onComplete,
-    fps = 60, // #1198: 60fps for smooth animations
+    fps = getAnimationFps(), // #1198: Configurable fps (default 60)
   } = options;
+
+  const reducedMotion = useReducedMotion();
 
   const [state, setState] = useState<AnimationState>({
     progress: 0,
@@ -206,17 +251,28 @@ export function useAnimation(options: UseAnimationOptions = {}): UseAnimationRes
     }
   }, [state.isRunning, state.isComplete, duration, easingFn, frameInterval, onComplete]);
 
-  // Auto-start
+  // Auto-start (skip animation if reduced motion enabled)
   useEffect(() => {
     if (autoStart) {
-      start();
+      if (reducedMotion) {
+        // Skip animation, go directly to complete state
+        setState({
+          progress: 1,
+          isRunning: false,
+          isComplete: true,
+          iteration: iterations === Infinity ? 0 : iterations,
+        });
+        onComplete?.();
+      } else {
+        start();
+      }
     }
     return () => {
       if (animationRef.current) {
         clearInterval(animationRef.current);
       }
     };
-  }, [autoStart, start]);
+  }, [autoStart, start, reducedMotion, iterations, onComplete]);
 
   return { state, start, stop, reset, pause, resume };
 }
@@ -244,16 +300,24 @@ export interface UsePulseResult {
 
 /**
  * Pulse animation hook - oscillates between dim and bright
+ *
+ * Accessibility: When reduced motion is enabled, returns full opacity (no pulsing).
  */
 export function usePulse(options: UsePulseOptions = {}): UsePulseResult {
   const { interval = 1000, minOpacity = 0.3, maxOpacity = 1, enabled = true } = options;
+  const reducedMotion = useReducedMotion();
 
   const { state } = useAnimation({
     duration: interval,
     iterations: Infinity,
-    autoStart: enabled,
+    autoStart: enabled && !reducedMotion,
     easing: 'easeInOut',
   });
+
+  // When reduced motion enabled, stay at full opacity
+  if (reducedMotion) {
+    return { isDim: false, opacity: maxOpacity, progress: 0 };
+  }
 
   // Oscillate between min and max using sine wave
   const sineProgress = Math.sin(state.progress * Math.PI);
@@ -278,13 +342,17 @@ export interface UseBlinkResult {
 
 /**
  * Blink animation hook - simple on/off toggle
+ *
+ * Accessibility: When reduced motion is enabled, stays visible (no blinking).
  */
 export function useBlink(options: UseBlinkOptions = {}): UseBlinkResult {
   const { interval = 500, enabled = true } = options;
+  const reducedMotion = useReducedMotion();
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
-    if (!enabled) {
+    // No blinking when disabled or reduced motion
+    if (!enabled || reducedMotion) {
       setIsVisible(true);
       return;
     }
@@ -296,7 +364,7 @@ export function useBlink(options: UseBlinkOptions = {}): UseBlinkResult {
     return () => {
       clearInterval(timer);
     };
-  }, [interval, enabled]);
+  }, [interval, enabled, reducedMotion]);
 
   return { isVisible };
 }
@@ -474,6 +542,8 @@ export interface UseSpringResult {
  *
  * Creates smooth, natural-feeling animations that overshoot and settle.
  * Perfect for panel resizing, counters, and value transitions.
+ *
+ * Accessibility: When reduced motion is enabled, snaps to target immediately.
  */
 export function useSpring(options: UseSpringOptions): UseSpringResult {
   const {
@@ -482,14 +552,23 @@ export function useSpring(options: UseSpringOptions): UseSpringResult {
     friction = 26,
     mass = 1,
     threshold = 0.01,
-    fps = 60,
+    fps = getAnimationFps(),
   } = options;
+
+  const reducedMotion = useReducedMotion();
 
   const [state, setState] = useState({
     value: target,
     velocity: 0,
     isSettled: true,
   });
+
+  // When reduced motion enabled, snap to target immediately
+  useEffect(() => {
+    if (reducedMotion) {
+      setState({ value: target, velocity: 0, isSettled: true });
+    }
+  }, [reducedMotion, target]);
 
   const frameInterval = useMemo(() => 1000 / fps, [fps]);
   const dt = frameInterval / 1000; // Convert to seconds
@@ -498,15 +577,21 @@ export function useSpring(options: UseSpringOptions): UseSpringResult {
   const targetRef = useRef(target);
 
   useEffect(() => {
-    // If target changed, start animating
+    // If target changed, start animating (unless reduced motion)
     if (targetRef.current !== target) {
       targetRef.current = target;
-      setState((s) => ({ ...s, isSettled: false }));
+      if (reducedMotion) {
+        // Snap immediately when reduced motion enabled
+        setState({ value: target, velocity: 0, isSettled: true });
+      } else {
+        setState((s) => ({ ...s, isSettled: false }));
+      }
     }
-  }, [target]);
+  }, [target, reducedMotion]);
 
   useEffect(() => {
-    if (state.isSettled) {
+    // Skip animation loop when reduced motion enabled
+    if (reducedMotion || state.isSettled) {
       if (animationRef.current) {
         clearInterval(animationRef.current);
         animationRef.current = null;
@@ -552,7 +637,7 @@ export function useSpring(options: UseSpringOptions): UseSpringResult {
         clearInterval(animationRef.current);
       }
     };
-  }, [state.isSettled, tension, friction, mass, dt, frameInterval, threshold]);
+  }, [state.isSettled, tension, friction, mass, dt, frameInterval, threshold, reducedMotion]);
 
   return state;
 }
@@ -580,12 +665,15 @@ export interface UseProgressAnimationResult {
  * useProgressAnimation - Smooth progress bar animation
  *
  * Smoothly animates between progress values for loading bars.
+ *
+ * Accessibility: When reduced motion is enabled, snaps to progress immediately.
  */
 export function useProgressAnimation(
   options: UseProgressAnimationOptions
 ): UseProgressAnimationResult {
-  const { progress, duration = 300, easing = 'easeOut', fps = 60 } = options;
+  const { progress, duration = 300, easing = 'easeOut', fps = getAnimationFps() } = options;
 
+  const reducedMotion = useReducedMotion();
   const [animatedProgress, setAnimatedProgress] = useState(progress);
   const [isAnimating, setIsAnimating] = useState(false);
 
@@ -603,6 +691,14 @@ export function useProgressAnimation(
 
   useEffect(() => {
     if (targetRef.current === progress) {
+      return;
+    }
+
+    // When reduced motion, snap immediately
+    if (reducedMotion) {
+      targetRef.current = progress;
+      setAnimatedProgress(progress);
+      setIsAnimating(false);
       return;
     }
 
@@ -642,7 +738,7 @@ export function useProgressAnimation(
         clearInterval(animationRef.current);
       }
     };
-  }, [progress, duration, easingFn, frameInterval, animatedProgress]);
+  }, [progress, duration, easingFn, frameInterval, animatedProgress, reducedMotion]);
 
   return { animatedProgress, isAnimating };
 }
@@ -679,6 +775,8 @@ export const SPINNER_FRAMES = {
  * useSpinner - Smooth spinner animation
  *
  * Cycles through spinner frames for loading indicators.
+ *
+ * Accessibility: When reduced motion is enabled, shows static '...' indicator.
  */
 export function useSpinner(options: UseSpinnerOptions = {}): UseSpinnerResult {
   const {
@@ -687,10 +785,12 @@ export function useSpinner(options: UseSpinnerOptions = {}): UseSpinnerResult {
     enabled = true,
   } = options;
 
+  const reducedMotion = useReducedMotion();
   const [frameIndex, setFrameIndex] = useState(0);
 
   useEffect(() => {
-    if (!enabled) {
+    // No spinning when disabled or reduced motion
+    if (!enabled || reducedMotion) {
       return;
     }
 
@@ -701,7 +801,15 @@ export function useSpinner(options: UseSpinnerOptions = {}): UseSpinnerResult {
     return () => {
       clearInterval(timer);
     };
-  }, [frames.length, interval, enabled]);
+  }, [frames.length, interval, enabled, reducedMotion]);
+
+  // When reduced motion, show static indicator
+  if (reducedMotion) {
+    return {
+      frame: '...',
+      frameIndex: 0,
+    };
+  }
 
   return {
     frame: frames[frameIndex],
