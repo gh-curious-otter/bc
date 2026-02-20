@@ -837,7 +837,7 @@ const engineerTemplate = `---
 name: engineer
 capabilities:
   - implement_tasks
-  - write_code
+  - test_work
 parent_roles: []
 is_singleton: false
 ---
