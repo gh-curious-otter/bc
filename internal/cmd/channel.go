@@ -22,15 +22,30 @@ Channels are named groups of agent members. Messages sent to a channel are
 delivered to all member tmux sessions.
 
 Examples:
-  bc channel list                    # list all channels
-  bc channel create workers          # create a channel named "workers"
-  bc channel add workers worker-01   # add member to channel
-  bc channel send workers "run tests"  # send to all members
-  bc channel remove workers worker-01  # remove a member
-  bc channel delete workers          # delete the channel
-  bc channel join workers            # join a channel (current agent)
-  bc channel leave workers           # leave a channel (current agent)
-  bc channel history workers         # show channel message history`,
+  bc channel list                      # List all channels
+  bc channel create workers            # Create a channel named "workers"
+  bc channel add workers worker-01     # Add member to channel
+  bc channel send workers "run tests"  # Send to all members
+  bc channel remove workers worker-01  # Remove a member
+  bc channel delete workers            # Delete the channel
+  bc channel join workers              # Join a channel (current agent)
+  bc channel leave workers             # Leave a channel (current agent)
+  bc channel history workers           # Show channel message history
+
+Default Channels:
+  #eng       Engineering team (all engineer agents)
+  #pr        Pull request reviews and notifications
+  #standup   Daily standup updates
+  #leads     Tech leads and managers
+
+Message Format:
+  Messages are delivered as system reminders to agent sessions.
+  Use @agent-name to mention specific agents in messages.
+
+See Also:
+  bc agent send       Send message to single agent
+  bc agent broadcast  Send to all agents
+  bc status           View agents and their channels`,
 }
 
 var channelCreateCmd = &cobra.Command{
