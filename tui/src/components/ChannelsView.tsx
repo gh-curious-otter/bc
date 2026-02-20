@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
-import { useChannels, useChannelHistory, useUnread, useMentionAutocomplete } from '../hooks';
+import { useChannelsWithUnread, useChannelHistory, useUnread, useMentionAutocomplete } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { PulseText } from './AnimatedText';
@@ -34,11 +34,11 @@ interface ChannelsViewProps {
 }
 
 export function ChannelsView({ disableInput = false }: ChannelsViewProps): React.ReactElement {
-  const { data: channels, loading: channelsLoading, error: channelsError } = useChannels();
+  // #1129: Use useChannelsWithUnread for proper unread message tracking
+  const { channels, loading: channelsLoading, error: channelsError } = useChannelsWithUnread();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [viewMode, setViewMode] = useState<'list' | 'history'>('list');
   const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
-  const { getLastViewed } = useUnread();
   const { setFocus } = useFocus();
 
   // Update breadcrumbs and focus when view mode changes
@@ -53,13 +53,6 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
       setFocus('main');
     }
   }, [viewMode, channels, selectedIndex, setBreadcrumbs, clearBreadcrumbs, setFocus]);
-
-  // Calculate unread status for each channel (new = never viewed)
-  const getChannelUnread = (channelName: string): number => {
-    const lastViewed = getLastViewed(channelName);
-    // If never viewed, show as "new" (1 indicates new)
-    return lastViewed === null ? 1 : 0;
-  };
 
   useInput(
     (input, key) => {
@@ -133,7 +126,7 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
             key={channel.name}
             channel={channel}
             selected={index === selectedIndex}
-            unreadCount={getChannelUnread(channel.name)}
+            unreadCount={channel.unread}
           />
         ))}
         {(!channels || channels.length === 0) && (
@@ -152,23 +145,33 @@ interface ChannelRowProps {
 
 function ChannelRow({ channel, selected, unreadCount }: ChannelRowProps): React.ReactElement {
   // #981 fix: Build name row as single truncated text to ensure visibility at 80 cols
+  // #1129: Highlight channels with unread messages
   // Priority: name > unread indicator > member count > description
   const namePrefix = selected ? '▸ ' : '  ';
   const channelName = `#${channel.name}`;
   const memberInfo = ` (${String(channel.members.length)})`;
-  const unreadInfo = unreadCount > 0 ? ` [${unreadCount > 99 ? '99+' : String(unreadCount)} new]` : '';
+
+  // Format unread badge: "●" for 1 unread, count for multiple
+  const unreadBadge = unreadCount > 0
+    ? unreadCount === 1
+      ? ' ●'
+      : ` (${unreadCount > 99 ? '99+' : String(unreadCount)})`
+    : '';
 
   // Build single text line to avoid nested Text truncation issues on narrow terminals
   // Issue #981: Nested Text elements break rendering at 80x24 width
-  const nameLineText = `${namePrefix}${channelName}${unreadInfo}${memberInfo}`;
+  const nameLineText = `${namePrefix}${channelName}${unreadBadge}${memberInfo}`;
+
+  // Determine text color: cyan if selected, yellow if has unread, default otherwise
+  const textColor = selected ? 'cyan' : unreadCount > 0 ? 'yellow' : undefined;
 
   return (
     <Box width="100%" flexDirection="column">
       {/* Name row: single Text for proper truncation at narrow widths */}
       <Text
         wrap="truncate"
-        color={selected ? 'cyan' : undefined}
-        bold={selected}
+        color={textColor}
+        bold={selected || unreadCount > 0}
       >
         {nameLineText}
       </Text>
