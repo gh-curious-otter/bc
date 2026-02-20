@@ -1,0 +1,89 @@
+# Multi-Agent Team Workspace Configuration
+# A full-featured setup for teams working with multiple AI agents.
+#
+# Usage:
+#   1. Copy this file to your project: cp team-workspace.toml .bc/config.toml
+#   2. Initialize workspace: bc init
+#   3. Start the root agent: bc up
+#   4. Create team agents: bc agent create eng-01 --role engineer
+#
+# This configuration is optimized for:
+#   - Team collaboration
+#   - Multiple concurrent agents
+#   - Structured communication channels
+
+[workspace]
+name = "team-project"
+schema = "v2"
+# Budget limit in USD
+budget_usd = 50.0
+
+[user]
+# Team lead display name
+nickname = "@lead"
+
+[tools]
+# Primary AI tool
+primary = "claude-code"
+
+[tools.claude-code]
+enabled = true
+model = "claude-sonnet-4-20250514"
+
+# Optional: Enable additional tools for specific tasks
+[tools.github]
+enabled = true
+org = "your-org"
+
+[memory]
+backend = "local"
+path = ".bc/memory"
+# Longer retention for team knowledge
+retention_days = 90
+
+[channels]
+# Team communication channels
+defaults = ["eng", "qa", "alerts", "standup"]
+
+[[channels.channel]]
+name = "eng"
+description = "Engineering team discussions"
+
+[[channels.channel]]
+name = "qa"
+description = "QA and testing discussions"
+
+[[channels.channel]]
+name = "alerts"
+description = "System alerts and notifications"
+
+[[channels.channel]]
+name = "standup"
+description = "Daily standup updates"
+
+[roster]
+# Team composition
+engineers = 3
+tech_leads = 1
+qa = 1
+managers = 1
+
+[worktrees]
+dir = ".bc/worktrees"
+auto_cleanup = true
+cleanup_days = 14
+
+[performance]
+# Faster polling for team coordination
+adaptive_fast_interval = 500
+adaptive_normal_interval = 2000
+adaptive_slow_interval = 5000
+adaptive_max_interval = 15000
+
+agent_cache_ttl = 3000
+channel_cache_ttl = 5000
+
+[tui]
+# Theme for TUI dashboard
+theme = "default"
+color_mode = "auto"
