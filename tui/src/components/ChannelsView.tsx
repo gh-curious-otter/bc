@@ -4,11 +4,12 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
-import { useChannels, useChannelHistory, useUnread } from '../hooks';
+import { useChannels, useChannelHistory, useUnread, useMentionAutocomplete } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { PulseText } from './AnimatedText';
 import { ChatMessage } from './ChatMessage';
+import { MentionAutocomplete } from './MentionAutocomplete';
 import type { Channel } from '../types';
 
 /** Duration in ms to show send errors before auto-clearing */
@@ -207,6 +208,12 @@ function ChannelHistoryView({
   const { stdout } = useStdout();
   const { markViewed } = useUnread();
 
+  // Mention autocomplete for @mentions
+  const autocomplete = useMentionAutocomplete({
+    input: messageBuffer,
+    cursorPosition: messageBuffer.length,
+  });
+
   // Mark channel as viewed when messages load
   useEffect(() => {
     if (messages && messages.length >= 0) {
@@ -260,6 +267,29 @@ function ChannelHistoryView({
   useInput(
     (input, key) => {
       if (inputMode) {
+        // Handle autocomplete navigation when active
+        if (autocomplete.isActive) {
+          if (key.upArrow) {
+            autocomplete.moveUp();
+            return;
+          }
+          if (key.downArrow) {
+            autocomplete.moveDown();
+            return;
+          }
+          if (key.tab) {
+            // Complete the mention
+            const completed = autocomplete.complete();
+            setMessageBuffer(completed);
+            return;
+          }
+          if (key.escape) {
+            // Close autocomplete, stay in input mode
+            autocomplete.reset();
+            return;
+          }
+        }
+
         if (key.return) {
           if (messageBuffer.trim()) {
             send(messageBuffer.trim()).catch((err: unknown) => {
@@ -267,6 +297,7 @@ function ChannelHistoryView({
               setSendError(`Send failed: ${message}`);
             });
             setMessageBuffer('');
+            autocomplete.reset();
           }
           setInputMode(false);
         } else if (key.escape) {
@@ -361,6 +392,16 @@ function ChannelHistoryView({
         </Box>
       )}
 
+      {/* Mention autocomplete dropdown */}
+      {inputMode && (
+        <MentionAutocomplete
+          suggestions={autocomplete.suggestions}
+          selectedIndex={autocomplete.selectedIndex}
+          visible={autocomplete.isActive}
+          query={autocomplete.query}
+        />
+      )}
+
       {/* Input area - auto-expands based on message length (3-10 lines) */}
       <Box height={inputHeight} flexDirection="column" marginBottom={1} borderStyle="single" borderColor={inputMode ? 'cyan' : (messageBuffer ? 'yellow' : 'gray')} paddingX={1}>
         {inputMode ? (
@@ -382,7 +423,11 @@ function ChannelHistoryView({
 
       {/* Footer - anchored at bottom */}
       <Box height={1}>
-        <Text dimColor>ESC: {inputMode ? 'save draft' : 'back'}  m: compose  j/k: scroll  Enter: send</Text>
+        <Text dimColor>
+          {inputMode && autocomplete.isActive
+            ? '↑/↓: select  Tab: complete  Esc: close'
+            : `ESC: ${inputMode ? 'save draft' : 'back'}  m: compose  @: mention  j/k: scroll  Enter: send`}
+        </Text>
       </Box>
     </Box>
   );
