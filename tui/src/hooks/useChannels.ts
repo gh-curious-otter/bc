@@ -1,14 +1,16 @@
 /**
  * useChannels hook - Fetch and manage channel data
  * Issue #1004: Performance configuration tunables (Phase 5)
+ * Issue #1129: Unread message indicators
  *
  * Poll interval is configurable via workspace config [performance] section.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Channel, ChannelMessage, BcResult } from '../types';
 import { getChannels, getChannelHistory, sendChannelMessage } from '../services/bc';
 import { usePerformanceConfig } from '../config';
+import { useUnread } from './UnreadContext';
 
 export interface UseChannelsOptions {
   /** Polling interval in ms (default: from config) */
@@ -156,32 +158,105 @@ export function useUnreadCount(
 
 /**
  * Hook to get all channels with their unread counts
+ * #1129: Implements proper unread message tracking using UnreadContext
+ *
+ * Fetches message counts for each channel and uses UnreadContext to calculate
+ * unread messages based on when the user last viewed each channel.
  */
 export function useChannelsWithUnread(options?: UseChannelsOptions): {
-  channels: (Channel & { unread: number })[] | null;
+  channels: (Channel & { unread: number; messageCount: number })[] | null;
   loading: boolean;
   error: string | null;
+  refresh: () => Promise<void>;
 } {
-  const { data: channels, loading: channelsLoading, error } = useChannels(options);
+  const { data: channels, loading: channelsLoading, error, refresh: refreshChannels } = useChannels(options);
+  const { getUnread } = useUnread();
   const [channelsWithUnread, setChannelsWithUnread] = useState<
-    (Channel & { unread: number })[] | null
+    (Channel & { unread: number; messageCount: number })[] | null
   >(null);
+  const [messageCounts, setMessageCounts] = useState<Record<string, number>>({});
+  const [countsLoading, setCountsLoading] = useState(true);
 
+  // Track channel list to detect changes (avoid refetching on every render)
+  const channelNamesRef = useRef<string>('');
+
+  // Fetch message counts for each channel
+  // Uses limit=100 as a reasonable cap - UnreadContext caps display at 99+ anyway
+  useEffect(() => {
+    if (!channels || channels.length === 0) {
+      setCountsLoading(false);
+      return;
+    }
+
+    // Check if channel list changed
+    const newChannelNames = channels.map(c => c.name).sort().join(',');
+    if (newChannelNames === channelNamesRef.current) {
+      // Channel list unchanged, skip refetch
+      return;
+    }
+    channelNamesRef.current = newChannelNames;
+
+    let cancelled = false;
+
+    const fetchCounts = async () => {
+      setCountsLoading(true);
+      const counts: Record<string, number> = {};
+
+      // Fetch counts in parallel for efficiency
+      await Promise.all(
+        channels.map(async (ch) => {
+          try {
+            const history = await getChannelHistory(ch.name, 100);
+            if (!cancelled) {
+              counts[ch.name] = history.messages.length;
+            }
+          } catch {
+            if (!cancelled) {
+              counts[ch.name] = 0;
+            }
+          }
+        })
+      );
+
+      if (!cancelled) {
+        setMessageCounts(counts);
+        setCountsLoading(false);
+      }
+    };
+
+    void fetchCounts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [channels]);
+
+  // Calculate unread for each channel using UnreadContext
   useEffect(() => {
     if (!channels) return;
 
-    // For now, set unread to 0 - actual implementation would track per-channel
-    // This is a placeholder until we have proper unread tracking
-    const withUnread = channels.map((ch) => ({
-      ...ch,
-      unread: 0,
-    }));
+    const withUnread = channels.map((ch) => {
+      const currentCount = messageCounts[ch.name] ?? 0;
+      // Use UnreadContext to calculate unread based on stored lastMessageCount
+      const unread = getUnread(ch.name, currentCount);
+
+      return {
+        ...ch,
+        messageCount: currentCount,
+        unread,
+      };
+    });
     setChannelsWithUnread(withUnread);
-  }, [channels]);
+  }, [channels, messageCounts, getUnread]);
+
+  const refresh = useCallback(async () => {
+    await refreshChannels();
+  }, [refreshChannels]);
 
   return {
     channels: channelsWithUnread,
-    loading: channelsLoading,
+    loading: channelsLoading || countsLoading,
     error,
+    refresh,
   };
 }
