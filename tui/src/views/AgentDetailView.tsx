@@ -206,8 +206,8 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
               ) : outputLines.length === 0 ? (
                 <Text dimColor>No output yet. Agent may be idle.</Text>
               ) : (
-                outputLines.map((line, idx) => (
-                  <Text key={idx} dimColor>
+                outputLines.slice(-outputHeight + 2).map((line, idx) => (
+                  <Text key={idx} dimColor wrap="truncate">
                     {line}
                   </Text>
                 ))
@@ -310,9 +310,9 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
               ) : (
                 activity.slice(0, 8).map((event, idx) => (
                   <Box key={idx}>
-                    <Text dimColor>{formatTime(event.timestamp)}</Text>
-                    <Text color="cyan"> [{event.type}] </Text>
-                    <Text>{truncateMessage(event.message, 50)}</Text>
+                    <Text dimColor wrap="truncate">{formatTime(event.timestamp)}</Text>
+                    <Text color="cyan" wrap="truncate"> [{event.type.split('.').pop()}] </Text>
+                    <Text wrap="truncate">{truncateMessage(event.message, 40)}</Text>
                   </Box>
                 ))
               )}
@@ -352,8 +352,8 @@ function DetailRow({ label, value }: DetailRowProps): React.ReactElement {
   return (
     <Box>
       <Text bold>{label}:</Text>
-      <Box marginLeft={1}>
-        <Text>{value}</Text>
+      <Box marginLeft={1} flexShrink={1}>
+        <Text wrap="truncate">{value}</Text>
       </Box>
     </Box>
   );
