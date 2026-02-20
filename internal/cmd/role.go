@@ -146,6 +146,14 @@ func init() {
 	// Register --json flag for role list command (PR #942 follow-up)
 	roleListCmd.Flags().Bool("json", false, "Output in JSON format")
 
+	// Add shell completion for role name arguments
+	roleShowCmd.ValidArgsFunction = CompleteRoleNames
+	roleEditCmd.ValidArgsFunction = CompleteRoleNames
+	roleDeleteCmd.ValidArgsFunction = CompleteRoleNames
+	roleRenameCmd.ValidArgsFunction = CompleteRoleNames
+	roleCloneCmd.ValidArgsFunction = CompleteRoleNames
+	roleDiffCmd.ValidArgsFunction = CompleteRoleNames
+
 	rootCmd.AddCommand(roleCmd)
 }
 
