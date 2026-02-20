@@ -5,7 +5,10 @@
  * Calculates cost trends, burn rates, and projections for dashboard and cost view.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import type { CostSummary } from '../types';
+import { getCostSummary } from '../services/bc';
+import { usePerformanceConfig } from '../config';
 
 export interface CostData {
   timestamp: Date;
@@ -42,7 +45,6 @@ interface UseCostTrendsOptions {
 
 /**
  * Calculate trend direction and percentage change
- * (Used in future: trend visualization and cost analysis)
  */
 export function calculateTrend(current: number, previous: number): { trend: 'up' | 'down' | 'flat'; symbol: '↗' | '↘' | '→'; change: number } {
   if (previous === 0) return { trend: 'flat', symbol: '→', change: 0 };
@@ -60,6 +62,71 @@ export function calculateTrend(current: number, previous: number): { trend: 'up'
 }
 
 /**
+ * Get days remaining in the period
+ */
+function getDaysRemaining(period: 'day' | 'week' | 'month'): number {
+  const now = new Date();
+  if (period === 'day') {
+    return 1;
+  } else if (period === 'week') {
+    const dayOfWeek = now.getDay();
+    return 7 - dayOfWeek;
+  } else {
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    return lastDay - now.getDate() + 1;
+  }
+}
+
+/**
+ * Get days elapsed in the period
+ */
+function getDaysElapsed(period: 'day' | 'week' | 'month'): number {
+  const now = new Date();
+  if (period === 'day') {
+    return 1;
+  } else if (period === 'week') {
+    return now.getDay() || 7; // Sunday = 0 -> 7
+  } else {
+    return now.getDate();
+  }
+}
+
+/**
+ * Calculate budget status from cost summary
+ */
+function calculateBudgetStatus(
+  costData: CostSummary,
+  budget: number,
+  period: 'day' | 'week' | 'month'
+): CostBudgetStatus {
+  const spent = costData.total_cost;
+  const percentUsed = budget > 0 ? Math.round((spent / budget) * 100) : 0;
+  const daysRemaining = getDaysRemaining(period);
+  const daysElapsed = getDaysElapsed(period);
+  const burnRate = daysElapsed > 0 ? spent / daysElapsed : 0;
+  const totalDays = daysElapsed + daysRemaining;
+  const projectedTotal = burnRate * totalDays;
+
+  // Determine status based on projected spend
+  let status: 'normal' | 'warning' | 'critical' = 'normal';
+  if (percentUsed >= 90 || projectedTotal > budget * 1.2) {
+    status = 'critical';
+  } else if (percentUsed >= 70 || projectedTotal > budget) {
+    status = 'warning';
+  }
+
+  return {
+    spent,
+    budget,
+    percentUsed,
+    daysRemaining,
+    burnRate,
+    projectedTotal,
+    status,
+  };
+}
+
+/**
  * Hook to analyze cost trends and budget status
  */
 export function useCostTrends(options: UseCostTrendsOptions = {}) {
@@ -74,39 +141,58 @@ export function useCostTrends(options: UseCostTrendsOptions = {}) {
     projectedTotal: 0,
     status: 'normal',
   });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchCostTrends = async () => {
-    setLoading(true);
-    setError(null);
+  const perfConfig = usePerformanceConfig();
+  const pollInterval = perfConfig.poll_interval_costs;
+
+  const fetchCostTrends = useCallback(async () => {
     try {
-      // In real implementation, query bc cost API
-      // For now, return empty structure
-      setTrends([]);
-      setBudgetStatus({
-        spent: 0,
-        budget,
-        percentUsed: 0,
-        daysRemaining: 30,
-        burnRate: 0,
-        projectedTotal: 0,
-        status: 'normal',
-      });
+      // Fetch cost data from bc CLI
+      const costData = await getCostSummary();
+
+      // Calculate budget status
+      const status = calculateBudgetStatus(costData, budget, period);
+      setBudgetStatus(status);
+
+      // Build cost trends by agent (if available)
+      const agentTrends: CostTrend[] = [];
+      if (costData.by_agent) {
+        for (const [agent, cost] of Object.entries(costData.by_agent)) {
+          agentTrends.push({
+            period: agent,
+            startDate: new Date(),
+            endDate: new Date(),
+            totalCost: cost,
+            previousPeriodCost: 0,
+            percentChange: 0,
+            trend: 'flat',
+            trendSymbol: '→',
+          });
+        }
+      }
+      setTrends(agentTrends);
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load cost trends');
     } finally {
       setLoading(false);
     }
-  };
+  }, [budget, period]);
 
+  // Initial fetch
   useEffect(() => {
     void fetchCostTrends();
+  }, [fetchCostTrends]);
+
+  // Polling
+  useEffect(() => {
     const interval = setInterval(() => {
       void fetchCostTrends();
-    }, 60000); // Refresh every 60 seconds
-    return () => clearInterval(interval);
-  }, [budget, period]);
+    }, pollInterval);
+    return () => { clearInterval(interval); };
+  }, [fetchCostTrends, pollInterval]);
 
   return { trends, budgetStatus, loading, error, refresh: fetchCostTrends };
 }

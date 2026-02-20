@@ -5,7 +5,10 @@
  * Aggregates agent activity logs into time periods for display in timeline view.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import type { LogEntry } from '../types';
+import { getLogs } from '../services/bc';
+import { usePerformanceConfig } from '../config';
 
 export interface ActivityEvent {
   timestamp: Date;
@@ -22,6 +25,7 @@ export interface ActivityPeriod {
   action: string;
   duration: number; // in minutes
   totalCost: number;
+  eventCount: number;
 }
 
 interface UseActivityDataOptions {
@@ -30,12 +34,33 @@ interface UseActivityDataOptions {
 }
 
 /**
+ * Convert log entries to activity events
+ */
+function logsToEvents(logs: LogEntry[]): ActivityEvent[] {
+  return logs.map((log) => ({
+    timestamp: new Date(log.ts),
+    agent: log.agent || 'system',
+    action: log.type,
+    duration: undefined,
+    cost: undefined,
+  }));
+}
+
+/**
+ * Filter events by time range (hours back from now)
+ */
+function filterByHours(events: ActivityEvent[], hours: number): ActivityEvent[] {
+  const cutoff = Date.now() - hours * 60 * 60 * 1000;
+  return events.filter((e) => e.timestamp.getTime() >= cutoff);
+}
+
+/**
  * Aggregate activity events into time periods
  */
-function aggregateActivity(events: ActivityEvent[], periodMinutes: number = 15): ActivityPeriod[] {
+function aggregateActivity(events: ActivityEvent[], periodMinutes = 15): ActivityPeriod[] {
   if (events.length === 0) return [];
 
-  const periods: Map<number, ActivityPeriod> = new Map();
+  const periods = new Map<number, ActivityPeriod>();
 
   events.forEach((event) => {
     const periodStart = Math.floor(event.timestamp.getTime() / (periodMinutes * 60 * 1000)) * (periodMinutes * 60 * 1000);
@@ -49,17 +74,22 @@ function aggregateActivity(events: ActivityEvent[], periodMinutes: number = 15):
         action: event.action,
         duration: periodMinutes,
         totalCost: 0,
+        eventCount: 0,
       });
     }
 
-    const period = periods.get(key)!;
-    if (!period.agents.includes(event.agent)) {
-      period.agents.push(event.agent);
+    const period = periods.get(key);
+    if (period) {
+      if (!period.agents.includes(event.agent)) {
+        period.agents.push(event.agent);
+      }
+      period.totalCost += event.cost ?? 0;
+      period.eventCount += 1;
     }
-    period.totalCost += event.cost || 0;
   });
 
-  return Array.from(periods.values()).sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+  // Sort by time, most recent first
+  return Array.from(periods.values()).sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
 }
 
 /**
@@ -68,32 +98,40 @@ function aggregateActivity(events: ActivityEvent[], periodMinutes: number = 15):
 export function useActivityData(options: UseActivityDataOptions = {}) {
   const { hours = 24, limit = 100 } = options;
   const [activities, setActivities] = useState<ActivityPeriod[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchActivityData = async () => {
-    setLoading(true);
-    setError(null);
+  const perfConfig = usePerformanceConfig();
+  const pollInterval = perfConfig.poll_interval_logs;
+
+  const fetchActivityData = useCallback(async () => {
     try {
-      // In a real implementation, this would query bc logs API
-      // For now, return empty data structure
-      const events: ActivityEvent[] = [];
-      const aggregated = aggregateActivity(events, 15);
+      // Fetch logs from bc CLI
+      const logs = await getLogs(limit);
+      const events = logsToEvents(logs);
+      const filtered = filterByHours(events, hours);
+      const aggregated = aggregateActivity(filtered, 15);
       setActivities(aggregated);
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load activity data');
     } finally {
       setLoading(false);
     }
-  };
+  }, [hours, limit]);
 
+  // Initial fetch
   useEffect(() => {
     void fetchActivityData();
+  }, [fetchActivityData]);
+
+  // Polling
+  useEffect(() => {
     const interval = setInterval(() => {
       void fetchActivityData();
-    }, 30000); // Refresh every 30 seconds
-    return () => clearInterval(interval);
-  }, [hours, limit]);
+    }, pollInterval);
+    return () => { clearInterval(interval); };
+  }, [fetchActivityData, pollInterval]);
 
   return { activities, loading, error, refresh: fetchActivityData };
 }
