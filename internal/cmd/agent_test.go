@@ -10,6 +10,39 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 )
 
+// --- isValidAgentName Tests ---
+
+func TestIsValidAgentName(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{"alphanumeric", "agent01", true},
+		{"with hyphen", "eng-01", true},
+		{"with underscore", "eng_01", true},
+		{"uppercase", "AGENT", true},
+		{"lowercase", "agent", true},
+		{"mixed case", "Eng-01", true},
+		{"numbers only suffix", "eng123", true},
+		{"empty", "", false},
+		{"with space", "agent name", false},
+		{"with @", "agent@01", false},
+		{"with dot", "agent.01", false},
+		{"with slash", "agent/01", false},
+		{"starts with hyphen", "-agent", true},
+		{"starts with underscore", "_agent", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isValidAgentName(tt.input); got != tt.want {
+				t.Errorf("isValidAgentName(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 // --- isValidTeamName Tests ---
 
 func TestIsValidTeamName(t *testing.T) {
