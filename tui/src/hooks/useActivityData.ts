@@ -34,7 +34,7 @@ interface UseActivityDataOptions {
 /**
  * Parse log entries to extract activity events
  */
-function parseLogToActivity(log: LogEntry): ActivityEvent | null {
+export function parseLogToActivity(log: LogEntry): ActivityEvent | null {
   try {
     const timestamp = new Date(log.ts);
     // Filter to only state-change events (working, idle, done, etc.)
@@ -59,7 +59,7 @@ function parseLogToActivity(log: LogEntry): ActivityEvent | null {
 /**
  * Aggregate activity events into time periods
  */
-function aggregateActivity(events: ActivityEvent[], periodMinutes = 15): ActivityPeriod[] {
+export function aggregateActivity(events: ActivityEvent[], periodMinutes = 15): ActivityPeriod[] {
   if (events.length === 0) return [];
 
   const periods = new Map<number, ActivityPeriod>();
