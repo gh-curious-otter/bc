@@ -1,0 +1,84 @@
+# CI/CD Integration Workspace Configuration
+# Optimized for automated pipelines and continuous integration.
+#
+# Usage:
+#   1. Copy this file to your project: cp ci-cd-integration.toml .bc/config.toml
+#   2. Set environment variables (see below)
+#   3. Run in CI: bc up --headless && bc agent send eng-01 "run tests"
+#
+# Environment Variables:
+#   BC_AGENT_ID     - Set to identify the CI runner
+#   BC_WORKSPACE    - Path to workspace root
+#   ANTHROPIC_API_KEY - API key for Claude
+#   NO_COLOR        - Set to disable colored output in logs
+#
+# This configuration is optimized for:
+#   - Non-interactive (headless) operation
+#   - Automated task execution
+#   - Integration with CI/CD pipelines (GitHub Actions, GitLab CI, etc.)
+
+[workspace]
+name = "ci-workspace"
+schema = "v2"
+# Lower budget for CI runs
+budget_usd = 5.0
+
+[user]
+nickname = "@ci"
+
+[tools]
+primary = "claude-code"
+
+[tools.claude-code]
+enabled = true
+# Use faster model for CI tasks
+model = "claude-sonnet-4-20250514"
+# Headless mode - no interactive prompts
+headless = true
+
+[tools.github]
+enabled = true
+# Set via GITHUB_TOKEN environment variable
+token_env = "GITHUB_TOKEN"
+
+[memory]
+backend = "local"
+path = ".bc/memory"
+# Short retention for ephemeral CI environments
+retention_days = 7
+
+[channels]
+# Minimal channels for CI
+defaults = ["ci-logs"]
+
+[[channels.channel]]
+name = "ci-logs"
+description = "CI/CD pipeline logs"
+
+[roster]
+# Single agent for CI tasks
+engineers = 1
+tech_leads = 0
+qa = 0
+managers = 0
+
+[worktrees]
+dir = ".bc/worktrees"
+# Aggressive cleanup for CI
+auto_cleanup = true
+cleanup_days = 1
+
+[performance]
+# Slower polling - CI doesn't need real-time updates
+adaptive_fast_interval = 2000
+adaptive_normal_interval = 5000
+adaptive_slow_interval = 15000
+adaptive_max_interval = 60000
+
+agent_cache_ttl = 10000
+channel_cache_ttl = 30000
+
+[tui]
+# TUI typically not used in CI, but configure for debugging
+theme = "default"
+color_mode = "never"  # No colors in CI logs

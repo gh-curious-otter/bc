@@ -1,0 +1,61 @@
+# Solo Developer Workspace Configuration
+# A minimal setup for individual developers working with one AI assistant.
+#
+# Usage:
+#   1. Copy this file to your project: cp solo-developer.toml .bc/config.toml
+#   2. Initialize workspace: bc init
+#   3. Start working: bc up
+#
+# This configuration is optimized for:
+#   - Single developer workflow
+#   - Low resource usage
+#   - Minimal complexity
+
+[workspace]
+name = "my-project"
+schema = "v2"
+
+[user]
+# Your display name in channel messages
+nickname = "@dev"
+
+[tools]
+# Primary AI tool - Claude Code recommended for best bc integration
+primary = "claude-code"
+
+[tools.claude-code]
+enabled = true
+model = "claude-sonnet-4-20250514"
+
+[memory]
+# Agent memory backend
+backend = "local"
+path = ".bc/memory"
+
+[channels]
+# Default channels for solo work
+defaults = ["notes"]
+
+[roster]
+# Single engineer agent - you!
+engineers = 1
+tech_leads = 0
+qa = 0
+managers = 0
+
+[worktrees]
+# Git worktree directory for agent isolation
+dir = ".bc/worktrees"
+auto_cleanup = true
+cleanup_days = 7
+
+[performance]
+# Polling intervals (ms)
+adaptive_fast_interval = 1000
+adaptive_normal_interval = 3000
+adaptive_slow_interval = 10000
+adaptive_max_interval = 30000
+
+# Cache settings
+agent_cache_ttl = 5000
+channel_cache_ttl = 10000
