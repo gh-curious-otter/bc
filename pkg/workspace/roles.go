@@ -16,8 +16,10 @@ type RoleMetadata struct {
 	Name         string   `yaml:"name"`
 	Description  string   `yaml:"description,omitempty"`
 	Capabilities []string `yaml:"capabilities,omitempty"`
+	Permissions  []string `yaml:"permissions,omitempty"` // RBAC permissions (#1191)
 	ParentRoles  []string `yaml:"parent_roles,omitempty"`
 	IsSingleton  bool     `yaml:"is_singleton,omitempty"`
+	Level        int      `yaml:"level,omitempty"` // Role hierarchy level (-1=root, 0=manager, 1=engineer)
 }
 
 // Role represents a parsed role file with metadata and prompt content.
@@ -55,11 +57,24 @@ type RoleManager struct {
 const DefaultRootRole = `---
 name: root
 is_singleton: true
+level: -1
 capabilities:
   - create_agents
   - assign_work
   - create_epics
   - review_work
+permissions:
+  - can_create_agents
+  - can_stop_agents
+  - can_delete_agents
+  - can_restart_agents
+  - can_send_commands
+  - can_view_logs
+  - can_modify_config
+  - can_modify_roles
+  - can_create_channels
+  - can_delete_channels
+  - can_send_messages
 ---
 
 # Root Agent
@@ -317,4 +332,113 @@ func FormatRoleFile(role *Role) (string, error) {
 	}
 
 	return buf.String(), nil
+}
+
+// HasPermission checks if a role has a specific permission.
+// Returns true if the permission is explicitly listed or if the role
+// inherits the permission from its default level.
+func (r *Role) HasPermission(permission string) bool {
+	// Check explicit permissions first
+	for _, p := range r.Metadata.Permissions {
+		if p == permission {
+			return true
+		}
+	}
+	return false
+}
+
+// GetEffectivePermissions returns all permissions for a role,
+// including inherited defaults based on role level.
+func (r *Role) GetEffectivePermissions() []string {
+	// If explicit permissions are set, use those
+	if len(r.Metadata.Permissions) > 0 {
+		return r.Metadata.Permissions
+	}
+
+	// Otherwise, return defaults based on role level
+	level := r.Metadata.Level
+	switch {
+	case level <= -1:
+		// Root level - all permissions
+		return []string{
+			"can_create_agents", "can_stop_agents", "can_delete_agents", "can_restart_agents",
+			"can_send_commands", "can_view_logs",
+			"can_modify_config", "can_modify_roles",
+			"can_create_channels", "can_delete_channels", "can_send_messages",
+		}
+	case level == 0:
+		// Manager level
+		return []string{
+			"can_create_agents", "can_stop_agents", "can_restart_agents",
+			"can_send_commands", "can_view_logs",
+			"can_create_channels", "can_send_messages",
+		}
+	default:
+		// Engineer/worker level
+		return []string{
+			"can_view_logs", "can_send_commands", "can_send_messages",
+		}
+	}
+}
+
+// SetPermissions updates the permissions for a role.
+func (rm *RoleManager) SetPermissions(roleName string, permissions []string) error {
+	role, err := rm.LoadRole(roleName)
+	if err != nil {
+		return fmt.Errorf("failed to load role: %w", err)
+	}
+
+	role.Metadata.Permissions = permissions
+
+	if err := rm.WriteRole(role); err != nil {
+		return fmt.Errorf("failed to save role: %w", err)
+	}
+
+	return nil
+}
+
+// AddPermission adds a permission to a role if not already present.
+func (rm *RoleManager) AddPermission(roleName, permission string) error {
+	role, err := rm.LoadRole(roleName)
+	if err != nil {
+		return fmt.Errorf("failed to load role: %w", err)
+	}
+
+	// Check if already has permission
+	for _, p := range role.Metadata.Permissions {
+		if p == permission {
+			return nil // Already has permission
+		}
+	}
+
+	role.Metadata.Permissions = append(role.Metadata.Permissions, permission)
+
+	if err := rm.WriteRole(role); err != nil {
+		return fmt.Errorf("failed to save role: %w", err)
+	}
+
+	return nil
+}
+
+// RemovePermission removes a permission from a role.
+func (rm *RoleManager) RemovePermission(roleName, permission string) error {
+	role, err := rm.LoadRole(roleName)
+	if err != nil {
+		return fmt.Errorf("failed to load role: %w", err)
+	}
+
+	// Filter out the permission
+	filtered := make([]string, 0, len(role.Metadata.Permissions))
+	for _, p := range role.Metadata.Permissions {
+		if p != permission {
+			filtered = append(filtered, p)
+		}
+	}
+	role.Metadata.Permissions = filtered
+
+	if err := rm.WriteRole(role); err != nil {
+		return fmt.Errorf("failed to save role: %w", err)
+	}
+
+	return nil
 }

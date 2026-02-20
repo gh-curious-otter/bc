@@ -71,6 +71,96 @@ const (
 	CapTestWork       Capability = "test_work"       // Can test and validate implementations
 )
 
+// Permission defines RBAC permissions for agent operations.
+// Issue #1191: RBAC permissions for agent capabilities
+type Permission string
+
+const (
+	// Agent lifecycle permissions
+	PermCreateAgents  Permission = "can_create_agents"  // Can spawn new agents
+	PermStopAgents    Permission = "can_stop_agents"    // Can stop running agents
+	PermDeleteAgents  Permission = "can_delete_agents"  // Can permanently delete agents
+	PermRestartAgents Permission = "can_restart_agents" // Can restart stopped agents
+
+	// Communication permissions
+	PermSendCommands Permission = "can_send_commands" // Can send commands to agents
+	PermViewLogs     Permission = "can_view_logs"     // Can view agent logs/output
+
+	// Configuration permissions
+	PermModifyConfig Permission = "can_modify_config" // Can modify workspace config
+	PermModifyRoles  Permission = "can_modify_roles"  // Can edit role definitions
+
+	// Channel permissions
+	PermCreateChannels Permission = "can_create_channels" // Can create new channels
+	PermDeleteChannels Permission = "can_delete_channels" // Can delete channels
+	PermSendMessages   Permission = "can_send_messages"   // Can send messages to channels
+)
+
+// AllPermissions lists all available permissions.
+var AllPermissions = []Permission{
+	PermCreateAgents,
+	PermStopAgents,
+	PermDeleteAgents,
+	PermRestartAgents,
+	PermSendCommands,
+	PermViewLogs,
+	PermModifyConfig,
+	PermModifyRoles,
+	PermCreateChannels,
+	PermDeleteChannels,
+	PermSendMessages,
+}
+
+// DefaultPermissions returns default permissions for a role level.
+// Higher level roles (root, manager) have more permissions by default.
+func DefaultPermissions(roleLevel int) []Permission {
+	switch {
+	case roleLevel <= -1:
+		// Root level - all permissions
+		return AllPermissions
+	case roleLevel == 0:
+		// Manager level
+		return []Permission{
+			PermCreateAgents,
+			PermStopAgents,
+			PermRestartAgents,
+			PermSendCommands,
+			PermViewLogs,
+			PermCreateChannels,
+			PermSendMessages,
+		}
+	default:
+		// Engineer/worker level
+		return []Permission{
+			PermViewLogs,
+			PermSendCommands,
+			PermSendMessages,
+		}
+	}
+}
+
+// CheckPermission verifies an agent has the required permission.
+// Returns nil if permitted, error otherwise.
+func CheckPermission(permissions []string, required Permission) error {
+	requiredStr := string(required)
+	for _, p := range permissions {
+		if p == requiredStr {
+			return nil
+		}
+	}
+	return fmt.Errorf("permission denied: %s required", required)
+}
+
+// HasPermissionStr checks if a permission string is in the list.
+func HasPermissionStr(permissions []string, required string) bool {
+	for _, p := range permissions {
+		if p == required {
+			return true
+		}
+	}
+	return false
+}
+
 // RoleCapabilities and RoleHierarchy are empty here.
 // All role definitions (capabilities, hierarchy, metadata) are loaded from
 // workspace .bc/roles/*.md files via RoleManager.

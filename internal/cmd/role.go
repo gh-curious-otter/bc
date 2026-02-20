@@ -113,6 +113,70 @@ Example:
 	RunE: runRoleDiff,
 }
 
+// Issue #1191: RBAC permissions commands
+var rolePermissionsCmd = &cobra.Command{
+	Use:   "permissions",
+	Short: "Manage RBAC permissions for roles",
+	Long: `Manage role-based access control (RBAC) permissions.
+
+Permissions control what actions agents with a role can perform:
+  - can_create_agents    Create new agents
+  - can_stop_agents      Stop running agents
+  - can_delete_agents    Permanently delete agents
+  - can_restart_agents   Restart stopped agents
+  - can_send_commands    Send commands to agents
+  - can_view_logs        View agent logs and output
+  - can_modify_config    Modify workspace configuration
+  - can_modify_roles     Edit role definitions
+  - can_create_channels  Create communication channels
+  - can_delete_channels  Delete channels
+  - can_send_messages    Send messages to channels
+
+Examples:
+  bc role permissions show engineer
+  bc role permissions set engineer can_view_logs can_send_messages
+  bc role permissions add engineer can_create_channels
+  bc role permissions remove engineer can_delete_agents`,
+}
+
+var rolePermissionsShowCmd = &cobra.Command{
+	Use:   "show <role>",
+	Short: "Show permissions for a role",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runRolePermissionsShow,
+}
+
+var rolePermissionsSetCmd = &cobra.Command{
+	Use:   "set <role> <permission>...",
+	Short: "Set permissions for a role (replaces existing)",
+	Long: `Set the permissions for a role, replacing any existing permissions.
+
+Example:
+  bc role permissions set engineer can_view_logs can_send_messages`,
+	Args: cobra.MinimumNArgs(1),
+	RunE: runRolePermissionsSet,
+}
+
+var rolePermissionsAddCmd = &cobra.Command{
+	Use:   "add <role> <permission>",
+	Short: "Add a permission to a role",
+	Args:  cobra.ExactArgs(2),
+	RunE:  runRolePermissionsAdd,
+}
+
+var rolePermissionsRemoveCmd = &cobra.Command{
+	Use:   "remove <role> <permission>",
+	Short: "Remove a permission from a role",
+	Args:  cobra.ExactArgs(2),
+	RunE:  runRolePermissionsRemove,
+}
+
+var rolePermissionsListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all available permissions",
+	RunE:  runRolePermissionsList,
+}
+
 // Flags
 var (
 	roleName        string
@@ -133,6 +197,14 @@ func init() {
 	roleCmd.AddCommand(roleRenameCmd)
 	roleCmd.AddCommand(roleCloneCmd)
 	roleCmd.AddCommand(roleDiffCmd)
+	roleCmd.AddCommand(rolePermissionsCmd)
+
+	// Register permissions subcommands (#1191)
+	rolePermissionsCmd.AddCommand(rolePermissionsShowCmd)
+	rolePermissionsCmd.AddCommand(rolePermissionsSetCmd)
+	rolePermissionsCmd.AddCommand(rolePermissionsAddCmd)
+	rolePermissionsCmd.AddCommand(rolePermissionsRemoveCmd)
+	rolePermissionsCmd.AddCommand(rolePermissionsListCmd)
 
 	roleCreateCmd.Flags().StringVar(&roleName, "name", "", "Name for the new role (required)")
 	roleCreateCmd.Flags().StringVar(&rolePrompt, "prompt", "", "Inline prompt text for the role")
@@ -153,6 +225,10 @@ func init() {
 	roleRenameCmd.ValidArgsFunction = CompleteRoleNames
 	roleCloneCmd.ValidArgsFunction = CompleteRoleNames
 	roleDiffCmd.ValidArgsFunction = CompleteRoleNames
+	rolePermissionsShowCmd.ValidArgsFunction = CompleteRoleNames
+	rolePermissionsSetCmd.ValidArgsFunction = CompleteRoleNames
+	rolePermissionsAddCmd.ValidArgsFunction = CompleteRoleNames
+	rolePermissionsRemoveCmd.ValidArgsFunction = CompleteRoleNames
 
 	rootCmd.AddCommand(roleCmd)
 }
@@ -923,3 +999,197 @@ You are a QA/testing agent in the bc workspace.
 4. Document test results
 5. Suggest improvements
 `
+
+// Issue #1191: RBAC permissions command implementations
+
+func runRolePermissionsShow(cmd *cobra.Command, args []string) error {
+	_, rm, err := getWorkspaceRoleManager()
+	if err != nil {
+		return err
+	}
+
+	roleName := args[0]
+	role, err := rm.LoadRole(roleName)
+	if err != nil {
+		return fmt.Errorf("failed to load role %q: %w", roleName, err)
+	}
+
+	fmt.Printf("Permissions for role: %s\n", roleName)
+	fmt.Println(strings.Repeat("-", 40))
+
+	// Show explicit vs effective permissions
+	explicitPerms := role.Metadata.Permissions
+	effectivePerms := role.GetEffectivePermissions()
+
+	if len(explicitPerms) > 0 {
+		fmt.Println("\nExplicit permissions:")
+		for _, p := range explicitPerms {
+			fmt.Printf("  ✓ %s\n", p)
+		}
+	} else {
+		fmt.Printf("\nNo explicit permissions (using defaults for level %d)\n", role.Metadata.Level)
+	}
+
+	fmt.Println("\nEffective permissions:")
+	for _, p := range effectivePerms {
+		fmt.Printf("  • %s\n", p)
+	}
+
+	// Show all permissions with granted/denied status
+	fmt.Println("\nAll permissions:")
+	allPerms := []string{
+		"can_create_agents", "can_stop_agents", "can_delete_agents", "can_restart_agents",
+		"can_send_commands", "can_view_logs",
+		"can_modify_config", "can_modify_roles",
+		"can_create_channels", "can_delete_channels", "can_send_messages",
+	}
+
+	effectiveSet := make(map[string]bool)
+	for _, p := range effectivePerms {
+		effectiveSet[p] = true
+	}
+
+	for _, p := range allPerms {
+		if effectiveSet[p] {
+			fmt.Printf("  ✓ %s\n", p)
+		} else {
+			fmt.Printf("  ✗ %s\n", p)
+		}
+	}
+
+	return nil
+}
+
+func runRolePermissionsSet(cmd *cobra.Command, args []string) error {
+	_, rm, err := getWorkspaceRoleManager()
+	if err != nil {
+		return err
+	}
+
+	roleName := args[0]
+
+	// Protect root role
+	if roleName == "root" {
+		return fmt.Errorf("cannot modify root role permissions (root has all permissions)")
+	}
+
+	// Validate permissions
+	permissions := args[1:]
+	validPerms := map[string]bool{
+		"can_create_agents": true, "can_stop_agents": true, "can_delete_agents": true, "can_restart_agents": true,
+		"can_send_commands": true, "can_view_logs": true,
+		"can_modify_config": true, "can_modify_roles": true,
+		"can_create_channels": true, "can_delete_channels": true, "can_send_messages": true,
+	}
+
+	for _, p := range permissions {
+		if !validPerms[p] {
+			return fmt.Errorf("invalid permission %q (use 'bc role permissions list' to see valid permissions)", p)
+		}
+	}
+
+	if err := rm.SetPermissions(roleName, permissions); err != nil {
+		return fmt.Errorf("failed to set permissions: %w", err)
+	}
+
+	fmt.Printf("✓ Updated permissions for role %q\n", roleName)
+	if len(permissions) > 0 {
+		fmt.Println("  Permissions:")
+		for _, p := range permissions {
+			fmt.Printf("    • %s\n", p)
+		}
+	} else {
+		fmt.Println("  Permissions cleared (will use defaults)")
+	}
+
+	return nil
+}
+
+func runRolePermissionsAdd(cmd *cobra.Command, args []string) error {
+	_, rm, err := getWorkspaceRoleManager()
+	if err != nil {
+		return err
+	}
+
+	roleName := args[0]
+	permission := args[1]
+
+	// Protect root role
+	if roleName == "root" {
+		return fmt.Errorf("cannot modify root role permissions (root has all permissions)")
+	}
+
+	// Validate permission
+	validPerms := map[string]bool{
+		"can_create_agents": true, "can_stop_agents": true, "can_delete_agents": true, "can_restart_agents": true,
+		"can_send_commands": true, "can_view_logs": true,
+		"can_modify_config": true, "can_modify_roles": true,
+		"can_create_channels": true, "can_delete_channels": true, "can_send_messages": true,
+	}
+
+	if !validPerms[permission] {
+		return fmt.Errorf("invalid permission %q (use 'bc role permissions list' to see valid permissions)", permission)
+	}
+
+	if err := rm.AddPermission(roleName, permission); err != nil {
+		return fmt.Errorf("failed to add permission: %w", err)
+	}
+
+	fmt.Printf("✓ Added permission %q to role %q\n", permission, roleName)
+	return nil
+}
+
+func runRolePermissionsRemove(cmd *cobra.Command, args []string) error {
+	_, rm, err := getWorkspaceRoleManager()
+	if err != nil {
+		return err
+	}
+
+	roleName := args[0]
+	permission := args[1]
+
+	// Protect root role
+	if roleName == "root" {
+		return fmt.Errorf("cannot modify root role permissions (root has all permissions)")
+	}
+
+	if err := rm.RemovePermission(roleName, permission); err != nil {
+		return fmt.Errorf("failed to remove permission: %w", err)
+	}
+
+	fmt.Printf("✓ Removed permission %q from role %q\n", permission, roleName)
+	return nil
+}
+
+func runRolePermissionsList(cmd *cobra.Command, args []string) error {
+	fmt.Println("Available RBAC Permissions")
+	fmt.Println(strings.Repeat("=", 50))
+
+	fmt.Println("\nAgent Lifecycle:")
+	fmt.Println("  can_create_agents   - Create new agents")
+	fmt.Println("  can_stop_agents     - Stop running agents")
+	fmt.Println("  can_delete_agents   - Permanently delete agents")
+	fmt.Println("  can_restart_agents  - Restart stopped agents")
+
+	fmt.Println("\nCommunication:")
+	fmt.Println("  can_send_commands   - Send commands to agents")
+	fmt.Println("  can_view_logs       - View agent logs and output")
+
+	fmt.Println("\nConfiguration:")
+	fmt.Println("  can_modify_config   - Modify workspace configuration")
+	fmt.Println("  can_modify_roles    - Edit role definitions")
+
+	fmt.Println("\nChannels:")
+	fmt.Println("  can_create_channels - Create communication channels")
+	fmt.Println("  can_delete_channels - Delete channels")
+	fmt.Println("  can_send_messages   - Send messages to channels")
+
+	fmt.Println("\nDefault Permissions by Level:")
+	fmt.Println("  Root (level -1):    All permissions")
+	fmt.Println("  Manager (level 0):  can_create_agents, can_stop_agents, can_restart_agents,")
+	fmt.Println("                      can_send_commands, can_view_logs, can_create_channels,")
+	fmt.Println("                      can_send_messages")
+	fmt.Println("  Engineer (level 1): can_view_logs, can_send_commands, can_send_messages")
+
+	return nil
+}
