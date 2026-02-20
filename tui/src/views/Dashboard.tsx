@@ -91,12 +91,13 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
         errorCount={summary.error}
       />
 
-      {/* Metrics panels - Optimized for all terminal sizes (Issue #1041) */}
-      {/* On narrow terminals: 2x2 grid at top, on wide: side-by-side with activity feed */}
+      {/* Metrics panels - Optimized for all terminal sizes (Issue #1041, #1184) */}
+      {/* At 80 cols: single column stack to prevent text garbling */}
+      {/* At 81-99 cols: 2-column layout with adjusted widths */}
       {!canMultiColumn && (
-        <Box marginTop={1} flexDirection="row" width="100%">
-          {/* Left column: System Health + Cost */}
-          <Box flexDirection="column" flexGrow={1} marginRight={1}>
+        <Box marginTop={1} flexDirection={terminalWidth <= 80 ? 'column' : 'row'} width="100%">
+          {/* Left/Top: System Health + Cost */}
+          <Box flexDirection="column" flexGrow={1} marginRight={terminalWidth > 80 ? 1 : 0}>
             <SystemHealthPanel
               working={summary.working}
               idle={summary.idle}
@@ -111,8 +112,8 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
             />
           </Box>
 
-          {/* Right column: Agent Distribution */}
-          <Box flexDirection="column" width={Math.max(20, Math.floor(terminalWidth * 0.35))}>
+          {/* Right/Bottom: Agent Distribution */}
+          <Box flexDirection="column" width={terminalWidth <= 80 ? '100%' : Math.max(20, Math.floor(terminalWidth * 0.35))}>
             <AgentStatsPanel stats={agentStats} />
           </Box>
         </Box>
