@@ -4,6 +4,8 @@ import type { Agent } from '../types';
 import { execBc } from '../services/bc';
 import { StatusBadge } from '../components/StatusBadge';
 import { useFocus } from '../navigation/FocusContext';
+import { useAgentDetails } from '../hooks/useAgentDetails';
+import { MetricCard } from '../components/MetricCard';
 
 // Safe wrapper for useInput that handles test environments
 const useSafeInput = (handler: Parameters<typeof inkUseInput>[0]) => {
@@ -51,7 +53,11 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
   const [inputMode, setInputMode] = useState(false);
   const [messageBuffer, setMessageBuffer] = useState('');
   const [sendStatus, setSendStatus] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'output' | 'details' | 'metrics'>('output');
   const { setFocus } = useFocus();
+
+  // Fetch agent-specific details (costs, activity)
+  const { cost, activity } = useAgentDetails(agent.name);
 
   /**
    * Synchronize focus state with input mode
@@ -133,6 +139,19 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
         onBack?.();
       } else if (input === 'r') {
         void fetchAgentOutput();
+      } else if (input === '1') {
+        setActiveTab('output');
+      } else if (input === '2') {
+        setActiveTab('details');
+      } else if (input === '3') {
+        setActiveTab('metrics');
+      } else if (key.tab) {
+        // Cycle through tabs
+        setActiveTab(prev => {
+          if (prev === 'output') return 'details';
+          if (prev === 'details') return 'metrics';
+          return 'output';
+        });
       }
     }
   });
@@ -141,7 +160,8 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
 
   return (
     <Box flexDirection="column" width="100%" height="100%">
-      <Box flexDirection="row" marginBottom={1} paddingX={1} height={3}>
+      {/* Header */}
+      <Box flexDirection="row" marginBottom={1} paddingX={1}>
         <Box flexDirection="column" flexGrow={1}>
           <Box>
             <Text bold color="cyan">
@@ -149,7 +169,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
             </Text>
             <Text dimColor> | Role: {agent.role}</Text>
           </Box>
-          <Box marginTop={1}>
+          <Box>
             <Text>State: </Text>
             <StatusBadge state={agent.state} />
             <Text dimColor> | Task: {normalizeTask(agent.task)}</Text>
@@ -157,101 +177,166 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
         </Box>
       </Box>
 
-      <Box
-        flexDirection="column"
-        flexGrow={1}
-        marginBottom={1}
-        paddingX={1}
-        borderStyle="single"
-        borderColor="gray"
-        height={outputHeight}
-      >
-        {loading && outputLines.length === 0 ? (
-          <Text color="yellow">Loading agent output...</Text>
-        ) : error ? (
-          <Text color="red">Error: {error}</Text>
-        ) : outputLines.length === 0 ? (
-          <Text dimColor>No output yet. Agent may be idle.</Text>
-        ) : (
-          outputLines.map((line, idx) => (
-            <Text key={idx} dimColor>
-              {line}
-            </Text>
-          ))
-        )}
+      {/* Tab Bar */}
+      <Box paddingX={1} marginBottom={1}>
+        <TabButton label="Output" tabKey="1" active={activeTab === 'output'} />
+        <Text> </Text>
+        <TabButton label="Details" tabKey="2" active={activeTab === 'details'} />
+        <Text> </Text>
+        <TabButton label="Metrics" tabKey="3" active={activeTab === 'metrics'} />
       </Box>
 
-      <Box
-        flexDirection="column"
-        height={4}
-        marginBottom={1}
-        paddingX={1}
-        borderStyle="single"
-        borderColor={inputMode ? 'cyan' : 'gray'}
-      >
-        {inputMode ? (
-          <Box>
-            <Text color="cyan">{"> "}</Text>
-            <Text>{messageBuffer}</Text>
-            <Text color="cyan">L</Text>
+      {/* Tab Content */}
+      <Box flexDirection="column" flexGrow={1}>
+        {activeTab === 'output' && (
+          <>
+            <Box
+              flexDirection="column"
+              flexGrow={1}
+              marginBottom={1}
+              paddingX={1}
+              borderStyle="single"
+              borderColor="gray"
+              height={outputHeight}
+            >
+              {loading && outputLines.length === 0 ? (
+                <Text color="yellow">Loading agent output...</Text>
+              ) : error ? (
+                <Text color="red">Error: {error}</Text>
+              ) : outputLines.length === 0 ? (
+                <Text dimColor>No output yet. Agent may be idle.</Text>
+              ) : (
+                outputLines.map((line, idx) => (
+                  <Text key={idx} dimColor>
+                    {line}
+                  </Text>
+                ))
+              )}
+            </Box>
+
+            <Box
+              flexDirection="column"
+              height={4}
+              marginBottom={1}
+              paddingX={1}
+              borderStyle="single"
+              borderColor={inputMode ? 'cyan' : 'gray'}
+            >
+              {inputMode ? (
+                <Box>
+                  <Text color="cyan">{"> "}</Text>
+                  <Text>{messageBuffer}</Text>
+                  <Text color="cyan">|</Text>
+                </Box>
+              ) : (
+                <Text dimColor>Press i or m to send message</Text>
+              )}
+              {sendStatus && (
+                <Box marginTop={1}>
+                  <Text color="green">
+                    {sendStatus}
+                  </Text>
+                </Box>
+              )}
+            </Box>
+          </>
+        )}
+
+        {activeTab === 'details' && (
+          <Box flexDirection="column" paddingX={1}>
+            <DetailRow label="ID" value={agent.id} />
+            <DetailRow label="Name" value={agent.name} />
+            <DetailRow label="Role" value={<Text color="cyan">{agent.role}</Text>} />
+            <DetailRow
+              label="State"
+              value={<StatusBadge state={agent.state} />}
+            />
+            <DetailRow label="Session" value={agent.session} />
+            {agent.tool && <DetailRow label="Tool" value={agent.tool} />}
+
+            <Box marginY={1}>
+              <Text bold color="white">Task</Text>
+            </Box>
+            <Box paddingLeft={2}>
+              <Text wrap="wrap">{normalizeTask(agent.task)}</Text>
+            </Box>
+
+            <Box marginY={1}>
+              <Text bold color="white">Paths</Text>
+            </Box>
+            <DetailRow label="Workspace" value={agent.workspace} />
+            <DetailRow label="Worktree" value={agent.worktree_dir} />
+            <DetailRow label="Memory" value={agent.memory_dir} />
+
+            <Box marginY={1}>
+              <Text bold color="white">Timestamps</Text>
+            </Box>
+            <DetailRow label="Started" value={formatDate(agent.started_at)} />
+            <DetailRow label="Updated" value={formatDate(agent.updated_at)} />
           </Box>
-        ) : (
-          <Text dimColor>Press i or m to send message</Text>
         )}
-        {sendStatus && (
-          <Box marginTop={1}>
-            <Text color="green">
-              {sendStatus}
-            </Text>
+
+        {activeTab === 'metrics' && (
+          <Box flexDirection="column" paddingX={1}>
+            {/* Cost Metrics */}
+            <Box marginBottom={1}>
+              <Text bold color="white">Cost Breakdown</Text>
+            </Box>
+            <Box flexDirection="row" marginBottom={1}>
+              <MetricCard
+                label="Total Cost"
+                value={cost ? `$${cost.totalCost.toFixed(4)}` : '$0.00'}
+                color="green"
+              />
+              <MetricCard
+                label="Input Tokens"
+                value={cost ? formatNumber(cost.inputTokens) : '0'}
+                color="cyan"
+              />
+              <MetricCard
+                label="Output Tokens"
+                value={cost ? formatNumber(cost.outputTokens) : '0'}
+                color="cyan"
+              />
+            </Box>
+
+            {/* Activity Timeline */}
+            <Box marginY={1}>
+              <Text bold color="white">Recent Activity</Text>
+            </Box>
+            <Box flexDirection="column" paddingX={1} borderStyle="single" borderColor="gray" minHeight={6}>
+              {activity.length === 0 ? (
+                <Text dimColor>No recent activity</Text>
+              ) : (
+                activity.slice(0, 8).map((event, idx) => (
+                  <Box key={idx}>
+                    <Text dimColor>{formatTime(event.timestamp)}</Text>
+                    <Text color="cyan"> [{event.type}] </Text>
+                    <Text>{truncateMessage(event.message, 50)}</Text>
+                  </Box>
+                ))
+              )}
+            </Box>
+
+            {/* Performance Summary */}
+            <Box marginY={1}>
+              <Text bold color="white">Session Info</Text>
+            </Box>
+            <DetailRow label="Uptime" value={formatUptime(agent.started_at)} />
+            <DetailRow label="Last Update" value={formatDate(agent.updated_at)} />
+            <DetailRow label="Events" value={String(activity.length)} />
           </Box>
         )}
-      </Box>
-
-      <Box height={1}>
-        <Text dimColor>
-          {inputMode
-            ? 'Enter: send | Esc: cancel'
-            : 'i/m: message | r: refresh | q: back'}
-        </Text>
-        {loading && <Text color="gray"> (refreshing...)</Text>}
-      </Box>
-
-      {/* Details */}
-      <Box flexDirection="column" paddingX={1}>
-        <DetailRow label="ID" value={agent.id} />
-        <DetailRow label="Name" value={agent.name} />
-        <DetailRow label="Role" value={<Text color="cyan">{agent.role}</Text>} />
-        <DetailRow
-          label="State"
-          value={<StatusBadge state={agent.state} />}
-        />
-        <DetailRow label="Session" value={agent.session} />
-        {agent.tool && <DetailRow label="Tool" value={agent.tool} />}
-
-        <Box marginY={1}>
-          <Text bold color="white">Task</Text>
-        </Box>
-        <Box paddingLeft={2}>
-          <Text wrap="wrap">{normalizeTask(agent.task)}</Text>
-        </Box>
-
-        <Box marginY={1}>
-          <Text bold color="white">Paths</Text>
-        </Box>
-        <DetailRow label="Workspace" value={agent.workspace} />
-        <DetailRow label="Worktree" value={agent.worktree_dir} />
-        <DetailRow label="Memory" value={agent.memory_dir} />
-
-        <Box marginY={1}>
-          <Text bold color="white">Timestamps</Text>
-        </Box>
-        <DetailRow label="Started" value={formatDate(agent.started_at)} />
-        <DetailRow label="Updated" value={formatDate(agent.updated_at)} />
       </Box>
 
       {/* Footer with keybindings */}
-      <Box marginY={1}>
-        <Text color="gray">r: refresh | q: back</Text>
+      <Box marginTop={1} paddingX={1}>
+        <Text dimColor>
+          {inputMode
+            ? 'Enter: send | Esc: cancel'
+            : '1-3: tabs | Tab: cycle | i: message | r: refresh | q: back'}
+        </Text>
+        {loading && <Text color="gray"> (refreshing...)</Text>}
       </Box>
     </Box>
   );
@@ -274,6 +359,23 @@ function DetailRow({ label, value }: DetailRowProps): React.ReactElement {
   );
 }
 
+// Tab button component
+interface TabButtonProps {
+  label: string;
+  tabKey: string;
+  active: boolean;
+}
+
+function TabButton({ label, tabKey, active }: TabButtonProps): React.ReactElement {
+  return (
+    <Box>
+      <Text color={active ? 'cyan' : 'gray'} bold={active}>
+        [{tabKey}]{label}
+      </Text>
+    </Box>
+  );
+}
+
 // Format date for display
 function formatDate(dateString: string | undefined): string {
   if (!dateString) return '-';
@@ -282,6 +384,53 @@ function formatDate(dateString: string | undefined): string {
     return date.toLocaleString();
   } catch {
     return dateString;
+  }
+}
+
+// Format time for activity display (HH:MM:SS)
+function formatTime(timestamp: string): string {
+  try {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString();
+  } catch {
+    return timestamp;
+  }
+}
+
+// Format large numbers with K/M suffixes
+function formatNumber(num: number): string {
+  if (num >= 1000000) {
+    return `${(num / 1000000).toFixed(1)}M`;
+  }
+  if (num >= 1000) {
+    return `${(num / 1000).toFixed(1)}K`;
+  }
+  return String(num);
+}
+
+// Truncate message to max length
+function truncateMessage(message: string, maxLen: number): string {
+  if (message.length <= maxLen) return message;
+  return message.slice(0, maxLen - 3) + '...';
+}
+
+// Format uptime from started_at timestamp
+function formatUptime(startedAt: string | undefined): string {
+  if (!startedAt) return '-';
+  try {
+    const started = new Date(startedAt);
+    const now = new Date();
+    const diffMs = now.getTime() - started.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const mins = diffMins % 60;
+
+    if (diffHours > 0) {
+      return `${diffHours}h ${mins}m`;
+    }
+    return `${mins}m`;
+  } catch {
+    return '-';
   }
 }
 
