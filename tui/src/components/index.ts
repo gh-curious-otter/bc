@@ -104,3 +104,7 @@ export type {
   MiniBarChartProps,
   DistributionChartProps,
 } from './BarChart';
+
+// Command palette (#1098)
+export { CommandPalette } from './CommandPalette';
+export type { CommandPaletteProps } from './CommandPalette';
