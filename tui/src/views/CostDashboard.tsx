@@ -108,6 +108,13 @@ export function CostDashboard({ onBack }: CostDashboardProps) {
     if (key.upArrow || input === 'k') {
       setSelectedIndex((i) => Math.max(i - 1, 0));
     }
+    // Jump to first/last (vim-style)
+    if (input === 'g') {
+      setSelectedIndex(0);
+    }
+    if (input === 'G') {
+      setSelectedIndex(Math.max(0, getActiveData().length - 1));
+    }
   });
 
   // Export current data to CSV format (displayed in terminal)
