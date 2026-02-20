@@ -110,7 +110,7 @@ export function DemonsView({
       if (input === 'r') {
         void refresh();
       }
-      if (input === 'q' && onExit) {
+      if ((input === 'q' || key.escape) && onExit) {
         onExit();
       }
 
@@ -226,11 +226,12 @@ export function DemonsView({
       <Footer
         hints={[
           { key: 'j/k', label: 'navigate' },
+          { key: 'g/G', label: 'top/bottom' },
           { key: 'e', label: 'enable' },
           { key: 'd', label: 'disable' },
           { key: 'x', label: 'run' },
           { key: 'r', label: 'refresh' },
-          { key: 'q', label: 'back' },
+          { key: 'q/ESC', label: 'back' },
         ]}
       />
     </Box>
