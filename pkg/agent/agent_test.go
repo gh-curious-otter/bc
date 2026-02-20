@@ -793,15 +793,16 @@ func TestStopAgent_WithWorktree(t *testing.T) {
 		Children:    []string{},
 	}
 
-	// Stop should succeed even with worktree (removeWorktree will fail gracefully)
+	// Stop should succeed and preserve worktree for later restart
 	if err := m.StopAgent("eng-1"); err != nil {
 		t.Fatalf("StopAgent with worktree failed: %v", err)
 	}
 	if m.agents["eng-1"].State != StateStopped {
 		t.Errorf("agent state = %s, want %s", m.agents["eng-1"].State, StateStopped)
 	}
-	if m.agents["eng-1"].WorktreeDir != "" {
-		t.Error("worktree dir should be cleared after stop")
+	// Worktree should be preserved (not cleared) so agent can resume work on restart
+	if m.agents["eng-1"].WorktreeDir != "/tmp/workspace/.bc/worktrees/eng-1" {
+		t.Error("worktree dir should be preserved after stop, not cleared")
 	}
 }
 

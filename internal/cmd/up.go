@@ -47,6 +47,11 @@ func runUp(cmd *cobra.Command, args []string) error {
 	// Create workspace-scoped agent manager
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
 
+	// Load existing agent state to preserve other agents when starting root
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+
 	// Use custom agent command: workspace config > --agent flag > default
 	if ws.Config.AgentCommand != "" {
 		mgr.SetAgentCommand(ws.Config.AgentCommand)
