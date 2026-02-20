@@ -40,7 +40,7 @@ function normalizeTask(task: string | undefined): string {
 }
 
 /** Available agent actions */
-type AgentAction = 'stop' | 'kill' | 'restart' | 'attach';
+type AgentAction = 'start' | 'stop' | 'kill' | 'restart' | 'attach';
 
 interface ActionState {
   action: AgentAction | null;
@@ -95,9 +95,14 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   }, []);
 
   // Execute agent action
-  const executeAction = useCallback(async (action: AgentAction, agentName: string) => {
+  const executeAction = useCallback(async (action: AgentAction, agentName: string, role?: string) => {
     try {
       switch (action) {
+        case 'start':
+          // Start requires role - use the agent's existing role
+          await execBc(['agent', 'start', agentName, '--role', role ?? 'engineer']);
+          showActionFeedback(action, agentName, 'success', `Started ${agentName}`);
+          break;
         case 'stop':
           await execBc(['agent', 'stop', agentName]);
           showActionFeedback(action, agentName, 'success', `Stopped ${agentName}`);
@@ -144,7 +149,8 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
     // Confirmation mode
     if (confirmAction && selectedAgent) {
       if (input === 'y' || input === 'Y') {
-        void executeAction(confirmAction, selectedAgent.name);
+        // Pass role for start action
+        void executeAction(confirmAction, selectedAgent.name, selectedAgent.role);
         setConfirmAction(null);
       } else if (input === 'n' || input === 'N' || key.escape) {
         setConfirmAction(null);
@@ -167,8 +173,11 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       if (selectedAgent) {
         setShowDetail(true);
       }
-    } else if (input === 'x' && selectedAgent) {
-      // Stop agent (with confirmation)
+    } else if (input === 's' && selectedAgent && (selectedAgent.state === 'stopped' || selectedAgent.state === 'error')) {
+      // Start stopped agent (with confirmation)
+      setConfirmAction('start');
+    } else if (input === 'x' && selectedAgent && selectedAgent.state !== 'stopped') {
+      // Stop running agent (with confirmation)
       setConfirmAction('stop');
     } else if (input === 'X' && selectedAgent) {
       // Kill agent (with confirmation)
@@ -296,6 +305,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       {confirmAction && selectedAgent && (
         <Box marginBottom={1} paddingX={1} borderStyle="round" borderColor="yellow">
           <Text color="yellow">
+            {confirmAction === 'start' && `Start agent "${selectedAgent.name}" as ${selectedAgent.role}?`}
             {confirmAction === 'stop' && `Stop agent "${selectedAgent.name}"?`}
             {confirmAction === 'kill' && `Kill agent "${selectedAgent.name}"? (force terminate)`}
             {confirmAction === 'restart' && `Restart agent "${selectedAgent.name}"?`}
@@ -318,7 +328,13 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       {selectedAgent && !confirmAction && (
         <Box marginTop={1} paddingX={1}>
           <Text dimColor>Actions: </Text>
-          {selectedAgent.state === 'working' && (
+          {(selectedAgent.state === 'stopped' || selectedAgent.state === 'error') && (
+            <>
+              <Text color="green">[s]</Text>
+              <Text dimColor> start </Text>
+            </>
+          )}
+          {selectedAgent.state !== 'stopped' && selectedAgent.state !== 'error' && (
             <>
               <Text color="yellow">[x]</Text>
               <Text dimColor> stop </Text>
@@ -344,7 +360,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       {/* Footer with keybindings */}
       <Box marginTop={1}>
         <Text color="gray">
-          j/k: nav | g/G: top/bottom | /: search{searchQuery ? ' | c: clear' : ''} | a/Enter: details | x: stop | X: kill | R: restart | r: refresh | q/ESC: back
+          j/k: nav | g/G: top/bottom | /: search{searchQuery ? ' | c: clear' : ''} | a/Enter: details | s: start | x: stop | X: kill | R: restart | r: refresh | q/ESC: back
         </Text>
       </Box>
     </Box>
