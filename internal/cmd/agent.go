@@ -617,11 +617,11 @@ func runAgentPeek(cmd *cobra.Command, args []string) error {
 
 	a := mgr.GetAgent(agentName)
 	if a == nil {
-		return fmt.Errorf("agent %q not found", agentName)
+		return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentName)
 	}
 
 	if a.State == agent.StateStopped {
-		return fmt.Errorf("agent %q is stopped", agentName)
+		return fmt.Errorf("agent %q is stopped (use 'bc agent start %s' to start it)", agentName, agentName)
 	}
 
 	output, captureErr := mgr.CaptureOutput(agentName, agentPeekLines)
@@ -650,7 +650,7 @@ func runAgentShow(cmd *cobra.Command, args []string) error {
 
 	a := mgr.GetAgent(agentName)
 	if a == nil {
-		return fmt.Errorf("agent %q not found", agentName)
+		return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentName)
 	}
 
 	// JSON output
@@ -750,7 +750,7 @@ func runAgentStop(cmd *cobra.Command, args []string) error {
 
 	a := mgr.GetAgent(agentName)
 	if a == nil {
-		return fmt.Errorf("agent %q not found", agentName)
+		return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentName)
 	}
 
 	fmt.Printf("Stopping %s... ", agentName)
@@ -792,11 +792,11 @@ func runAgentSend(cmd *cobra.Command, args []string) error {
 
 	a := mgr.GetAgent(agentName)
 	if a == nil {
-		return fmt.Errorf("agent %q not found", agentName)
+		return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentName)
 	}
 
 	if a.State == agent.StateStopped {
-		return fmt.Errorf("agent %q is stopped", agentName)
+		return fmt.Errorf("agent %q is stopped (use 'bc agent start %s' to start it)", agentName, agentName)
 	}
 
 	if sendErr := mgr.SendToAgent(agentName, message); sendErr != nil {
@@ -839,7 +839,7 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 
 	a := mgr.GetAgent(agentName)
 	if a == nil {
-		return fmt.Errorf("agent %q not found", agentName)
+		return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentName)
 	}
 
 	// Check if agent is running - require --force
@@ -948,7 +948,7 @@ func runAgentRename(cmd *cobra.Command, args []string) error {
 	// Check if agent exists
 	a := mgr.GetAgent(oldName)
 	if a == nil {
-		return fmt.Errorf("agent %q not found", oldName)
+		return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", oldName)
 	}
 
 	// Check if new name already exists
@@ -1360,7 +1360,7 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 		// Check specific agent
 		a := mgr.GetAgent(args[0])
 		if a == nil {
-			return fmt.Errorf("agent %q not found", args[0])
+			return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", args[0])
 		}
 		agents = []*agent.Agent{a}
 	} else {

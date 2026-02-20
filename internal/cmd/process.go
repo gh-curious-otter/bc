@@ -291,7 +291,7 @@ func runProcessStop(cmd *cobra.Command, args []string) error {
 
 	proc := reg.Get(name)
 	if proc == nil {
-		return fmt.Errorf("process %q not found", name)
+		return fmt.Errorf("process %q not found (use 'bc process list' to see available processes)", name)
 	}
 
 	if !proc.Running {
@@ -329,7 +329,7 @@ func runProcessLogs(cmd *cobra.Command, args []string) error {
 
 	proc := reg.Get(name)
 	if proc == nil {
-		return fmt.Errorf("process %q not found", name)
+		return fmt.Errorf("process %q not found (use 'bc process list' to see available processes)", name)
 	}
 
 	// Read logs
@@ -357,7 +357,7 @@ func runProcessShow(cmd *cobra.Command, args []string) error {
 
 	proc := reg.Get(name)
 	if proc == nil {
-		return fmt.Errorf("process %q not found", name)
+		return fmt.Errorf("process %q not found (use 'bc process list' to see available processes)", name)
 	}
 
 	fmt.Printf("Process: %s\n", proc.Name)
@@ -390,7 +390,7 @@ func runProcessAttach(cmd *cobra.Command, args []string) error {
 
 	proc := reg.Get(name)
 	if proc == nil {
-		return fmt.Errorf("process %q not found", name)
+		return fmt.Errorf("process %q not found (use 'bc process list' to see available processes)", name)
 	}
 
 	if !proc.Running {
@@ -434,7 +434,7 @@ func runProcessRestart(cmd *cobra.Command, args []string) error {
 
 	proc := reg.Get(name)
 	if proc == nil {
-		return fmt.Errorf("process %q not found", name)
+		return fmt.Errorf("process %q not found (use 'bc process list' to see available processes)", name)
 	}
 
 	if !proc.Running {

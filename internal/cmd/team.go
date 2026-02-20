@@ -203,7 +203,7 @@ func runTeamShow(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if t == nil {
-		return fmt.Errorf("team %q not found", name)
+		return fmt.Errorf("team %q not found (use 'bc team list' to see available teams)", name)
 	}
 
 	cmd.Printf("Name:        %s\n", t.Name)
@@ -284,7 +284,7 @@ func runTeamRemove(cmd *cobra.Command, args []string) error {
 
 	// Validate team exists
 	if !store.Exists(teamName) {
-		return fmt.Errorf("team %q not found", teamName)
+		return fmt.Errorf("team %q not found (use 'bc team list' to see available teams)", teamName)
 	}
 
 	if err := store.RemoveMember(teamName, agentName); err != nil {
@@ -311,7 +311,7 @@ func runTeamRename(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if oldTeam == nil {
-		return fmt.Errorf("team %q not found", oldName)
+		return fmt.Errorf("team %q not found (use 'bc team list' to see available teams)", oldName)
 	}
 
 	// Check new name doesn't exist
