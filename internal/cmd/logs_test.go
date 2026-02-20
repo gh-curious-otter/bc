@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/rpuneet/bc/pkg/events"
+	"github.com/rpuneet/bc/pkg/ui"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
@@ -69,6 +70,10 @@ func runLogsCmd(t *testing.T, args ...string) (string, error) {
 		t.Fatalf("failed to create pipe: %v", pipeErr)
 	}
 	os.Stdout = w
+
+	// Also redirect pkg/ui output which uses its own writer
+	ui.SetOutput(w)
+	defer ui.SetOutput(os.Stdout)
 
 	rootCmd.SetOut(w)
 	rootCmd.SetErr(w)

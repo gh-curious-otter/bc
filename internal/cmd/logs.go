@@ -11,6 +11,7 @@ import (
 
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/ui"
 )
 
 var logsCmd = &cobra.Command{
@@ -151,7 +152,7 @@ func runLogs(cmd *cobra.Command, args []string) error {
 	log.Debug("events filtered", "count", len(evts))
 
 	if len(evts) == 0 {
-		fmt.Println("No events found")
+		ui.Warning("No events found")
 		return nil
 	}
 
