@@ -269,8 +269,8 @@ describe('RolesView', () => {
         counts[agent.role] = (counts[agent.role] || 0) + 1;
       }
 
-      expect(counts['engineer']).toBe(2);
-      expect(counts['manager']).toBe(1);
+      expect(counts.engineer).toBe(2);
+      expect(counts.manager).toBe(1);
       expect(counts['tech-lead']).toBeUndefined();
     });
 
