@@ -12,6 +12,8 @@ interface PerformanceDebugPanelProps {
   maxMetrics?: number;
   /** Show compact view (single line) */
   compact?: boolean;
+  /** Force show panel regardless of debugEnabled state (for Ctrl+P toggle) */
+  forceShow?: boolean;
 }
 
 /**
@@ -21,11 +23,17 @@ interface PerformanceDebugPanelProps {
 export function PerformanceDebugPanel({
   maxMetrics = 5,
   compact = false,
+  forceShow = false,
 }: PerformanceDebugPanelProps): React.ReactElement | null {
   const perf = usePerformanceOptional();
 
-  // Don't render if not in debug mode or no performance context
-  if (!perf?.debugEnabled) {
+  // Don't render if no performance context available
+  if (!perf) {
+    return null;
+  }
+
+  // Don't render if not in debug mode (unless forceShow from Ctrl+P toggle)
+  if (!forceShow && !perf.debugEnabled) {
     return null;
   }
 
