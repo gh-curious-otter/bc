@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
 
+	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/workspace"
@@ -134,6 +137,49 @@ Examples:
 	RunE: runConfigReset,
 }
 
+// #1197: Config export/import commands
+
+var configExportCmd = &cobra.Command{
+	Use:   "export [file]",
+	Short: "Export workspace configuration",
+	Long: `Export workspace configuration to a file for sharing with team members.
+
+The export includes:
+- Workspace settings (name, version)
+- Tool configurations
+- Channel definitions
+- Roster settings
+- Performance tuning
+
+The export excludes:
+- User-specific settings (nickname)
+- Local paths (worktrees.path, memory.path)
+- Secrets and API keys
+
+Examples:
+  bc config export                        # Export to stdout
+  bc config export team-config.toml       # Export to file
+  bc config export --include-roles        # Include role definitions
+  bc config export --format json          # Export as JSON`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: runConfigExport,
+}
+
+var configImportCmd = &cobra.Command{
+	Use:   "import <file>",
+	Short: "Import workspace configuration",
+	Long: `Import workspace configuration from a file.
+
+Imports team configuration settings while preserving local paths and user settings.
+
+Examples:
+  bc config import team-config.toml       # Import from file
+  bc config import --merge config.toml    # Merge with existing config
+  bc config import --force config.toml    # Overwrite without confirmation`,
+	Args: cobra.ExactArgs(1),
+	RunE: runConfigImport,
+}
+
 // #1160: User-level config (.bcrc) commands
 
 var configUserCmd = &cobra.Command{
@@ -188,7 +234,11 @@ Examples:
 
 // Flags
 var (
-	configForce bool
+	configForce        bool
+	configExportFormat string
+	configIncludeRoles bool
+	configImportMerge  bool
+	configImportForce  bool
 )
 
 func init() {
@@ -206,8 +256,20 @@ func init() {
 	configUserCmd.AddCommand(configUserShowCmd)
 	configUserCmd.AddCommand(configUserPathCmd)
 
+	// #1197: Export/import subcommands
+	configCmd.AddCommand(configExportCmd)
+	configCmd.AddCommand(configImportCmd)
+
 	configResetCmd.Flags().BoolVar(&configForce, "force", false, "Skip confirmation prompt")
 	configUserInitCmd.Flags().Bool("quick", false, "Use defaults without prompts")
+
+	// Export flags
+	configExportCmd.Flags().StringVar(&configExportFormat, "format", "toml", "Output format: toml, json")
+	configExportCmd.Flags().BoolVar(&configIncludeRoles, "include-roles", false, "Include role definitions")
+
+	// Import flags
+	configImportCmd.Flags().BoolVar(&configImportMerge, "merge", false, "Merge with existing config instead of replacing")
+	configImportCmd.Flags().BoolVar(&configImportForce, "force", false, "Skip confirmation prompt")
 
 	rootCmd.AddCommand(configCmd)
 }
@@ -402,6 +464,304 @@ func runConfigReset(cmd *cobra.Command, args []string) error {
 	fmt.Printf("✓ Config reset to defaults\n")
 	fmt.Printf("  File: %s\n", configPath)
 	return nil
+}
+
+// #1197: Export config implementation
+
+// ExportableConfig is a subset of V2Config safe for sharing
+// Excludes user-specific settings and local paths
+type ExportableConfig struct {
+	Tools       workspace.ToolsConfig       `toml:"tools" json:"tools"`
+	TUI         workspace.TUIConfig         `toml:"tui" json:"tui"`
+	Workspace   ExportableWorkspace         `toml:"workspace" json:"workspace"`
+	Channels    workspace.ChannelsConfig    `toml:"channels" json:"channels"`
+	Performance workspace.PerformanceConfig `toml:"performance" json:"performance"`
+	Roster      workspace.RosterConfig      `toml:"roster" json:"roster"`
+}
+
+// ExportableWorkspace excludes version (schema-specific)
+type ExportableWorkspace struct {
+	Name string `toml:"name" json:"name"`
+}
+
+func runConfigExport(cmd *cobra.Command, args []string) error {
+	cfg, _, err := loadWorkspaceConfig()
+	if err != nil {
+		return err
+	}
+
+	// Create exportable config (excludes user settings and local paths)
+	exportCfg := ExportableConfig{
+		Tools: cfg.Tools,
+		TUI:   cfg.TUI,
+		Workspace: ExportableWorkspace{
+			Name: cfg.Workspace.Name,
+		},
+		Channels:    cfg.Channels,
+		Performance: cfg.Performance,
+		Roster:      cfg.Roster,
+	}
+
+	// Determine output destination
+	var output io.Writer = os.Stdout
+	if len(args) > 0 {
+		outputPath := filepath.Clean(args[0])
+		f, err := os.Create(outputPath) //nolint:gosec // user-provided output path is intentional
+		if err != nil {
+			return fmt.Errorf("failed to create output file: %w", err)
+		}
+		defer func() { _ = f.Close() }()
+		output = f
+	}
+
+	// Export in requested format
+	switch configExportFormat {
+	case "toml":
+		enc := toml.NewEncoder(output)
+		if err := enc.Encode(exportCfg); err != nil {
+			return fmt.Errorf("failed to encode TOML: %w", err)
+		}
+	case "json":
+		enc := json.NewEncoder(output)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(exportCfg); err != nil {
+			return fmt.Errorf("failed to encode JSON: %w", err)
+		}
+	default:
+		return fmt.Errorf("unsupported format: %s (use toml or json)", configExportFormat)
+	}
+
+	// Include roles if requested
+	if configIncludeRoles && len(args) > 0 {
+		ws, err := getWorkspace()
+		if err != nil {
+			return err
+		}
+
+		rolesDir := filepath.Join(ws.RootDir, ".bc", "roles")
+		outputDir := filepath.Dir(args[0])
+		rolesOutputDir := filepath.Join(outputDir, "roles")
+
+		if err := copyRoles(rolesDir, rolesOutputDir); err != nil {
+			fmt.Printf("Warning: could not export roles: %v\n", err)
+		} else {
+			fmt.Printf("✓ Exported roles to %s\n", rolesOutputDir)
+		}
+	}
+
+	if len(args) > 0 {
+		fmt.Printf("✓ Config exported to %s\n", args[0])
+	}
+
+	return nil
+}
+
+func copyRoles(srcDir, dstDir string) error {
+	entries, err := os.ReadDir(srcDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // No roles to copy
+		}
+		return err
+	}
+
+	if err := os.MkdirAll(dstDir, 0750); err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+
+		srcPath := filepath.Join(srcDir, entry.Name())
+		dstPath := filepath.Join(dstDir, entry.Name())
+
+		data, err := os.ReadFile(srcPath) //nolint:gosec // copying from known roles directory
+		if err != nil {
+			return err
+		}
+
+		if err := os.WriteFile(dstPath, data, 0600); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func runConfigImport(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return errNotInWorkspace(err)
+	}
+
+	importPath := filepath.Clean(args[0])
+
+	// Read import file
+	data, err := os.ReadFile(importPath) //nolint:gosec // user-provided import path is intentional
+	if err != nil {
+		return fmt.Errorf("failed to read import file: %w", err)
+	}
+
+	// Determine format from extension
+	var importCfg ExportableConfig
+	ext := strings.ToLower(filepath.Ext(importPath))
+
+	switch ext {
+	case ".toml":
+		if _, err := toml.Decode(string(data), &importCfg); err != nil {
+			return fmt.Errorf("failed to parse TOML: %w", err)
+		}
+	case ".json":
+		if err := json.Unmarshal(data, &importCfg); err != nil {
+			return fmt.Errorf("failed to parse JSON: %w", err)
+		}
+	default:
+		// Try TOML first, then JSON
+		if _, err := toml.Decode(string(data), &importCfg); err != nil {
+			if jsonErr := json.Unmarshal(data, &importCfg); jsonErr != nil {
+				return fmt.Errorf("failed to parse config (tried TOML and JSON)")
+			}
+		}
+	}
+
+	configPath := workspace.ConfigPath(ws.RootDir)
+
+	// Confirm unless force flag
+	if !configImportForce {
+		fmt.Printf("⚠️  This will modify your config at: %s\n", configPath)
+		if configImportMerge {
+			fmt.Println("   Mode: merge (preserves existing values not in import)")
+		} else {
+			fmt.Println("   Mode: replace (overwrites with imported values)")
+		}
+		fmt.Print("Continue? [y/N]: ")
+
+		var response string
+		if _, err := fmt.Scanln(&response); err != nil {
+			fmt.Println("Canceled")
+			return nil
+		}
+		response = strings.ToLower(strings.TrimSpace(response))
+		if response != "y" && response != "yes" {
+			fmt.Println("Canceled")
+			return nil
+		}
+	}
+
+	// Load existing config
+	existingCfg := ws.V2Config
+	if existingCfg == nil {
+		return fmt.Errorf("workspace is using v1 config format. Run 'bc init' to upgrade to v2")
+	}
+
+	// Apply imported values
+	if configImportMerge {
+		// Merge: only overwrite non-zero values
+		mergeConfig(existingCfg, &importCfg)
+	} else {
+		// Replace: overwrite all importable fields
+		existingCfg.Tools = importCfg.Tools
+		existingCfg.TUI = importCfg.TUI
+		existingCfg.Channels = importCfg.Channels
+		existingCfg.Performance = importCfg.Performance
+		existingCfg.Roster = importCfg.Roster
+		if importCfg.Workspace.Name != "" {
+			existingCfg.Workspace.Name = importCfg.Workspace.Name
+		}
+	}
+
+	// Save the config
+	if err := existingCfg.Save(configPath); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	fmt.Printf("✓ Config imported from %s\n", importPath)
+	fmt.Printf("  File: %s\n", configPath)
+
+	// Check for roles directory alongside import file
+	rolesDir := filepath.Join(filepath.Dir(importPath), "roles")
+	if info, err := os.Stat(rolesDir); err == nil && info.IsDir() {
+		destRolesDir := filepath.Join(ws.RootDir, ".bc", "roles")
+		if err := copyRoles(rolesDir, destRolesDir); err != nil {
+			fmt.Printf("Warning: could not import roles: %v\n", err)
+		} else {
+			fmt.Printf("✓ Imported roles to %s\n", destRolesDir)
+		}
+	}
+
+	return nil
+}
+
+// mergeConfig merges importCfg into existingCfg, only setting non-zero values
+func mergeConfig(existing *workspace.V2Config, imported *ExportableConfig) {
+	// Tools
+	if imported.Tools.Default != "" {
+		existing.Tools.Default = imported.Tools.Default
+	}
+	if imported.Tools.Claude != nil {
+		if existing.Tools.Claude == nil {
+			existing.Tools.Claude = imported.Tools.Claude
+		} else {
+			if imported.Tools.Claude.Command != "" {
+				existing.Tools.Claude.Command = imported.Tools.Claude.Command
+			}
+			if imported.Tools.Claude.Enabled {
+				existing.Tools.Claude.Enabled = true
+			}
+		}
+	}
+	if imported.Tools.Cursor != nil {
+		if existing.Tools.Cursor == nil {
+			existing.Tools.Cursor = imported.Tools.Cursor
+		} else {
+			if imported.Tools.Cursor.Command != "" {
+				existing.Tools.Cursor.Command = imported.Tools.Cursor.Command
+			}
+			if imported.Tools.Cursor.Enabled {
+				existing.Tools.Cursor.Enabled = true
+			}
+		}
+	}
+
+	// Roster (only non-zero values)
+	if imported.Roster.Engineers > 0 {
+		existing.Roster.Engineers = imported.Roster.Engineers
+	}
+	if imported.Roster.TechLeads > 0 {
+		existing.Roster.TechLeads = imported.Roster.TechLeads
+	}
+	if imported.Roster.QA > 0 {
+		existing.Roster.QA = imported.Roster.QA
+	}
+
+	// Channels
+	if len(imported.Channels.Default) > 0 {
+		existing.Channels.Default = imported.Channels.Default
+	}
+
+	// Performance (only non-zero values)
+	if imported.Performance.PollIntervalAgents > 0 {
+		existing.Performance.PollIntervalAgents = imported.Performance.PollIntervalAgents
+	}
+	if imported.Performance.PollIntervalChannels > 0 {
+		existing.Performance.PollIntervalChannels = imported.Performance.PollIntervalChannels
+	}
+	if imported.Performance.AdaptiveFastInterval > 0 {
+		existing.Performance.AdaptiveFastInterval = imported.Performance.AdaptiveFastInterval
+	}
+	if imported.Performance.AdaptiveNormalInterval > 0 {
+		existing.Performance.AdaptiveNormalInterval = imported.Performance.AdaptiveNormalInterval
+	}
+	if imported.Performance.AdaptiveSlowInterval > 0 {
+		existing.Performance.AdaptiveSlowInterval = imported.Performance.AdaptiveSlowInterval
+	}
+
+	// Workspace name
+	if imported.Workspace.Name != "" {
+		existing.Workspace.Name = imported.Workspace.Name
+	}
 }
 
 // Helper functions
