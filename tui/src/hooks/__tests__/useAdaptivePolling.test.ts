@@ -1,68 +1,135 @@
 /**
- * Tests for useAdaptivePolling hook
- * Issue #979: Adaptive polling with state-aware intervals
+ * Tests for useAdaptivePolling hook - Adaptive polling with state-aware intervals
+ * Validates type exports, mode transitions, and polling logic
+ *
+ * #1081 Q1 Cleanup: TUI hook test coverage
+ *
+ * Note: React hook testing requires DOM environment which is not available in Bun/Ink.
+ * These tests focus on type validation and mode transition logic.
  */
 
-import { describe, test, expect, beforeEach, mock, spyOn } from 'bun:test';
+import { describe, it, expect } from 'bun:test';
+import type {
+  PollingMode,
+  AdaptivePollingState,
+  UseAdaptivePollingOptions,
+  UseAdaptivePollingResult,
+} from '../useAdaptivePolling';
 
-// Test the constants and logic without React hooks
-describe('Adaptive Polling Constants', () => {
-  const FAST_INTERVAL = 1000;
-  const NORMAL_INTERVAL = 2000;
-  const SLOW_INTERVAL = 4000;
-  const MAX_INTERVAL = 8000;
-  const BACKOFF_FACTOR = 1.5;
-  const IDLE_THRESHOLD_MS = 10000;
+describe('useAdaptivePolling - Type Exports', () => {
+  describe('PollingMode type', () => {
+    it('supports fast mode', () => {
+      const mode: PollingMode = 'fast';
+      expect(mode).toBe('fast');
+    });
 
-  test('fast interval is 1 second', () => {
-    expect(FAST_INTERVAL).toBe(1000);
+    it('supports normal mode', () => {
+      const mode: PollingMode = 'normal';
+      expect(mode).toBe('normal');
+    });
+
+    it('supports slow mode', () => {
+      const mode: PollingMode = 'slow';
+      expect(mode).toBe('slow');
+    });
+
+    it('supports backoff mode', () => {
+      const mode: PollingMode = 'backoff';
+      expect(mode).toBe('backoff');
+    });
   });
 
-  test('normal interval is 2 seconds', () => {
-    expect(NORMAL_INTERVAL).toBe(2000);
+  describe('AdaptivePollingState interface', () => {
+    it('contains all required fields', () => {
+      const state: AdaptivePollingState = {
+        mode: 'normal',
+        interval: 5000,
+        idleTime: 0,
+        isIdle: false,
+      };
+
+      expect(state.mode).toBe('normal');
+      expect(state.interval).toBe(5000);
+      expect(state.idleTime).toBe(0);
+      expect(state.isIdle).toBe(false);
+    });
+
+    it('supports fast mode state', () => {
+      const state: AdaptivePollingState = {
+        mode: 'fast',
+        interval: 2000,
+        idleTime: 0,
+        isIdle: false,
+      };
+
+      expect(state.mode).toBe('fast');
+    });
+
+    it('supports slow mode state', () => {
+      const state: AdaptivePollingState = {
+        mode: 'slow',
+        interval: 10000,
+        idleTime: 15000,
+        isIdle: true,
+      };
+
+      expect(state.mode).toBe('slow');
+      expect(state.isIdle).toBe(true);
+    });
+
+    it('supports backoff mode state', () => {
+      const state: AdaptivePollingState = {
+        mode: 'backoff',
+        interval: 30000,
+        idleTime: 60000,
+        isIdle: true,
+      };
+
+      expect(state.mode).toBe('backoff');
+      expect(state.interval).toBe(30000);
+    });
   });
 
-  test('slow interval is 4 seconds', () => {
-    expect(SLOW_INTERVAL).toBe(4000);
-  });
+  describe('UseAdaptivePollingOptions interface', () => {
+    it('allows all optional fields', () => {
+      const options: UseAdaptivePollingOptions = {
+        initialInterval: 5000,
+        adaptiveEnabled: true,
+        enabled: true,
+        onTick: () => { /* noop */ },
+      };
 
-  test('max interval is 8 seconds', () => {
-    expect(MAX_INTERVAL).toBe(8000);
-  });
+      expect(options.initialInterval).toBe(5000);
+      expect(options.adaptiveEnabled).toBe(true);
+      expect(options.enabled).toBe(true);
+    });
 
-  test('backoff factor is 1.5x', () => {
-    expect(BACKOFF_FACTOR).toBe(1.5);
-  });
+    it('allows empty options', () => {
+      const options: UseAdaptivePollingOptions = {};
+      expect(options.initialInterval).toBeUndefined();
+      expect(options.adaptiveEnabled).toBeUndefined();
+    });
 
-  test('idle threshold is 10 seconds', () => {
-    expect(IDLE_THRESHOLD_MS).toBe(10000);
-  });
+    it('allows partial options', () => {
+      const options: UseAdaptivePollingOptions = {
+        initialInterval: 3000,
+      };
 
-  test('exponential backoff calculation', () => {
-    // Test backoff progression
-    const backoff0 = SLOW_INTERVAL * Math.pow(BACKOFF_FACTOR, 0);
-    const backoff1 = SLOW_INTERVAL * Math.pow(BACKOFF_FACTOR, 1);
-    const backoff2 = SLOW_INTERVAL * Math.pow(BACKOFF_FACTOR, 2);
-
-    expect(backoff0).toBe(4000);  // 4s
-    expect(backoff1).toBe(6000);  // 6s
-    expect(backoff2).toBe(9000);  // 9s (but capped at MAX_INTERVAL)
-
-    // Verify capping
-    expect(Math.min(MAX_INTERVAL, backoff2)).toBe(MAX_INTERVAL);
+      expect(options.initialInterval).toBe(3000);
+      expect(options.enabled).toBeUndefined();
+    });
   });
 });
 
-describe('Polling Mode Logic', () => {
-  type PollingMode = 'fast' | 'normal' | 'slow' | 'backoff';
+describe('useAdaptivePolling - Mode Transition Logic', () => {
+  const BACKOFF_FACTOR = 1.5;
+  const IDLE_THRESHOLD_MS = 10000;
+  const FAST_INTERVAL = 2000;
+  const NORMAL_INTERVAL = 5000;
+  const SLOW_INTERVAL = 10000;
+  const MAX_INTERVAL = 30000;
 
-  // Simulate the interval selection logic
-  const getIntervalForMode = (mode: PollingMode): number => {
-    const FAST_INTERVAL = 1000;
-    const NORMAL_INTERVAL = 2000;
-    const SLOW_INTERVAL = 4000;
-    const MAX_INTERVAL = 8000;
-
+  function calculateInterval(mode: PollingMode, backoffCount: number): number {
     switch (mode) {
       case 'fast':
         return FAST_INTERVAL;
@@ -71,205 +138,222 @@ describe('Polling Mode Logic', () => {
       case 'slow':
         return SLOW_INTERVAL;
       case 'backoff':
-        return MAX_INTERVAL;
+        return Math.min(
+          MAX_INTERVAL,
+          SLOW_INTERVAL * Math.pow(BACKOFF_FACTOR, backoffCount)
+        );
     }
-  };
-
-  test('fast mode returns 1s interval', () => {
-    expect(getIntervalForMode('fast')).toBe(1000);
-  });
-
-  test('normal mode returns 2s interval', () => {
-    expect(getIntervalForMode('normal')).toBe(2000);
-  });
-
-  test('slow mode returns 4s interval', () => {
-    expect(getIntervalForMode('slow')).toBe(4000);
-  });
-
-  test('backoff mode returns 8s interval', () => {
-    expect(getIntervalForMode('backoff')).toBe(8000);
-  });
-
-  test('all modes return valid intervals', () => {
-    const modes: PollingMode[] = ['fast', 'normal', 'slow', 'backoff'];
-    for (const mode of modes) {
-      const interval = getIntervalForMode(mode);
-      expect(interval).toBeGreaterThan(0);
-      expect(interval).toBeLessThanOrEqual(8000);
-    }
-  });
-});
-
-describe('Idle State Detection', () => {
-  const IDLE_THRESHOLD_MS = 10000;
-
-  // Simulate idle detection logic
-  const isIdleState = (timeSinceActivity: number): boolean => {
-    return timeSinceActivity > IDLE_THRESHOLD_MS;
-  };
-
-  const getModeFromIdleTime = (
-    timeSinceActivity: number
-  ): 'fast' | 'normal' | 'slow' | 'backoff' => {
-    if (timeSinceActivity < IDLE_THRESHOLD_MS / 2) {
-      return 'fast';
-    }
-    if (timeSinceActivity < IDLE_THRESHOLD_MS) {
-      return 'normal';
-    }
-    if (timeSinceActivity < IDLE_THRESHOLD_MS * 3) {
-      return 'slow';
-    }
-    return 'backoff';
-  };
-
-  test('not idle when activity is recent', () => {
-    expect(isIdleState(0)).toBe(false);
-    expect(isIdleState(5000)).toBe(false);
-    expect(isIdleState(9999)).toBe(false);
-  });
-
-  test('idle when activity exceeds threshold', () => {
-    expect(isIdleState(10001)).toBe(true);
-    expect(isIdleState(20000)).toBe(true);
-    expect(isIdleState(60000)).toBe(true);
-  });
-
-  test('fast mode when very recent activity', () => {
-    expect(getModeFromIdleTime(0)).toBe('fast');
-    expect(getModeFromIdleTime(4999)).toBe('fast');
-  });
-
-  test('normal mode during transition period', () => {
-    expect(getModeFromIdleTime(5000)).toBe('normal');
-    expect(getModeFromIdleTime(9999)).toBe('normal');
-  });
-
-  test('slow mode when idle', () => {
-    expect(getModeFromIdleTime(10001)).toBe('slow');
-    expect(getModeFromIdleTime(25000)).toBe('slow');
-  });
-
-  test('backoff mode during extended idle', () => {
-    expect(getModeFromIdleTime(30001)).toBe('backoff');
-    expect(getModeFromIdleTime(60000)).toBe('backoff');
-  });
-});
-
-describe('Activity Reporting', () => {
-  // Simulate activity reporting state machine
-  interface PollingState {
-    mode: 'fast' | 'normal' | 'slow' | 'backoff';
-    lastActivity: number;
-    backoffCount: number;
   }
 
-  const reportActivity = (state: PollingState): PollingState => ({
-    mode: 'fast',
-    lastActivity: Date.now(),
-    backoffCount: 0,
+  describe('interval calculations', () => {
+    it('fast mode uses fast interval', () => {
+      expect(calculateInterval('fast', 0)).toBe(FAST_INTERVAL);
+    });
+
+    it('normal mode uses normal interval', () => {
+      expect(calculateInterval('normal', 0)).toBe(NORMAL_INTERVAL);
+    });
+
+    it('slow mode uses slow interval', () => {
+      expect(calculateInterval('slow', 0)).toBe(SLOW_INTERVAL);
+    });
+
+    it('backoff mode applies exponential backoff', () => {
+      expect(calculateInterval('backoff', 0)).toBe(SLOW_INTERVAL);
+      expect(calculateInterval('backoff', 1)).toBe(15000);
+      expect(calculateInterval('backoff', 2)).toBe(22500);
+    });
+
+    it('backoff caps at MAX_INTERVAL', () => {
+      expect(calculateInterval('backoff', 10)).toBe(MAX_INTERVAL);
+    });
   });
 
-  test('activity resets to fast mode', () => {
-    const initialState: PollingState = {
-      mode: 'slow',
-      lastActivity: Date.now() - 30000,
-      backoffCount: 5,
-    };
+  describe('idle threshold logic', () => {
+    function determineMode(timeSinceActivity: number, currentMode: PollingMode): PollingMode {
+      if (timeSinceActivity > IDLE_THRESHOLD_MS * 3) {
+        return 'backoff';
+      }
+      if (timeSinceActivity > IDLE_THRESHOLD_MS) {
+        return currentMode !== 'backoff' ? 'slow' : 'backoff';
+      }
+      if (timeSinceActivity > IDLE_THRESHOLD_MS / 2) {
+        return 'normal';
+      }
+      return 'fast';
+    }
 
-    const newState = reportActivity(initialState);
-    expect(newState.mode).toBe('fast');
-    expect(newState.backoffCount).toBe(0);
-  });
+    it('returns fast mode when recently active', () => {
+      expect(determineMode(0, 'normal')).toBe('fast');
+      expect(determineMode(4000, 'normal')).toBe('fast');
+    });
 
-  test('activity resets from backoff mode', () => {
-    const initialState: PollingState = {
-      mode: 'backoff',
-      lastActivity: Date.now() - 60000,
-      backoffCount: 10,
-    };
+    it('returns normal mode during transition to idle', () => {
+      expect(determineMode(5001, 'normal')).toBe('normal');
+      expect(determineMode(9000, 'normal')).toBe('normal');
+    });
 
-    const newState = reportActivity(initialState);
-    expect(newState.mode).toBe('fast');
-    expect(newState.backoffCount).toBe(0);
+    it('returns slow mode after idle threshold', () => {
+      expect(determineMode(15000, 'normal')).toBe('slow');
+      expect(determineMode(25000, 'normal')).toBe('slow');
+    });
+
+    it('returns backoff mode after extended idle', () => {
+      expect(determineMode(35000, 'normal')).toBe('backoff');
+      expect(determineMode(60000, 'normal')).toBe('backoff');
+    });
+
+    it('maintains backoff mode once entered', () => {
+      expect(determineMode(15000, 'backoff')).toBe('backoff');
+    });
   });
 });
 
-describe('Agent Working Count Integration', () => {
-  // Simulate the useAdaptiveAgentPolling logic
-  const shouldReportActivity = (
-    currentWorking: number,
-    prevWorking: number
-  ): boolean => {
-    return currentWorking > prevWorking;
-  };
+describe('useAdaptivePolling - Backoff Calculations', () => {
+  const BACKOFF_FACTOR = 1.5;
+  const SLOW_INTERVAL = 10000;
+  const MAX_INTERVAL = 30000;
 
-  const shouldReportIdle = (
-    currentWorking: number,
-    prevWorking: number
-  ): boolean => {
-    return currentWorking === 0 && prevWorking === 0;
-  };
+  function calculateBackoffInterval(count: number): number {
+    return Math.min(
+      MAX_INTERVAL,
+      SLOW_INTERVAL * Math.pow(BACKOFF_FACTOR, count)
+    );
+  }
 
-  test('reports activity when agents start working', () => {
-    expect(shouldReportActivity(1, 0)).toBe(true);
-    expect(shouldReportActivity(3, 2)).toBe(true);
-    expect(shouldReportActivity(5, 1)).toBe(true);
+  it('backoff count 0 = slow interval', () => {
+    expect(calculateBackoffInterval(0)).toBe(10000);
   });
 
-  test('does not report activity when working decreases', () => {
-    expect(shouldReportActivity(0, 1)).toBe(false);
-    expect(shouldReportActivity(2, 3)).toBe(false);
+  it('backoff count 1 = slow * 1.5', () => {
+    expect(calculateBackoffInterval(1)).toBe(15000);
   });
 
-  test('does not report activity when stable', () => {
-    expect(shouldReportActivity(2, 2)).toBe(false);
-    expect(shouldReportActivity(0, 0)).toBe(false);
+  it('backoff count 2 = slow * 2.25', () => {
+    expect(calculateBackoffInterval(2)).toBe(22500);
   });
 
-  test('reports idle when no agents working', () => {
-    expect(shouldReportIdle(0, 0)).toBe(true);
+  it('backoff count 3 exceeds max, caps at MAX', () => {
+    expect(calculateBackoffInterval(3)).toBe(30000);
   });
 
-  test('does not report idle when agents are working', () => {
-    expect(shouldReportIdle(1, 0)).toBe(false);
-    expect(shouldReportIdle(0, 1)).toBe(false);
-    expect(shouldReportIdle(2, 2)).toBe(false);
+  it('large backoff counts stay at MAX', () => {
+    expect(calculateBackoffInterval(5)).toBe(30000);
+    expect(calculateBackoffInterval(10)).toBe(30000);
   });
 });
 
-describe('Interval Bounds', () => {
-  const MIN_INTERVAL = 1000;  // FAST_INTERVAL
-  const MAX_INTERVAL = 8000;
+describe('useAdaptivePolling - Idle Time Detection', () => {
+  const IDLE_THRESHOLD_MS = 10000;
 
-  test('interval never goes below minimum', () => {
-    // Test that fast mode doesn't go below 1s
-    expect(MIN_INTERVAL).toBe(1000);
+  function isIdle(idleTime: number): boolean {
+    return idleTime > IDLE_THRESHOLD_MS;
+  }
+
+  it('not idle when time < threshold', () => {
+    expect(isIdle(0)).toBe(false);
+    expect(isIdle(5000)).toBe(false);
+    expect(isIdle(9999)).toBe(false);
   });
 
-  test('interval never exceeds maximum', () => {
-    const SLOW_INTERVAL = 4000;
-    const BACKOFF_FACTOR = 1.5;
-
-    // Test backoff capping
-    for (let i = 0; i < 10; i++) {
-      const backoffInterval = SLOW_INTERVAL * Math.pow(BACKOFF_FACTOR, i);
-      const cappedInterval = Math.min(MAX_INTERVAL, backoffInterval);
-      expect(cappedInterval).toBeLessThanOrEqual(MAX_INTERVAL);
-    }
+  it('idle when time > threshold', () => {
+    expect(isIdle(10001)).toBe(true);
+    expect(isIdle(15000)).toBe(true);
+    expect(isIdle(60000)).toBe(true);
   });
 
-  test('interval progression is monotonic until cap', () => {
-    const SLOW_INTERVAL = 4000;
-    const BACKOFF_FACTOR = 1.5;
+  it('not idle at exactly threshold', () => {
+    expect(isIdle(10000)).toBe(false);
+  });
+});
 
-    let prevInterval = 0;
-    for (let i = 0; i < 3; i++) {
-      const backoffInterval = SLOW_INTERVAL * Math.pow(BACKOFF_FACTOR, i);
-      const cappedInterval = Math.min(MAX_INTERVAL, backoffInterval);
-      expect(cappedInterval).toBeGreaterThanOrEqual(prevInterval);
-      prevInterval = cappedInterval;
+describe('useAdaptivePolling - Result Interface', () => {
+  const mockResult: UseAdaptivePollingResult = {
+    tick: 0,
+    state: {
+      mode: 'normal',
+      interval: 5000,
+      idleTime: 0,
+      isIdle: false,
+    },
+    reportActivity: () => { /* noop */ },
+    reportIdle: () => { /* noop */ },
+    pause: () => { /* noop */ },
+    resume: () => { /* noop */ },
+    isPaused: false,
+    setMode: () => { /* noop */ },
+  };
+
+  it('contains tick counter', () => {
+    expect(typeof mockResult.tick).toBe('number');
+  });
+
+  it('contains adaptive state', () => {
+    expect(mockResult.state.mode).toBe('normal');
+    expect(mockResult.state.interval).toBe(5000);
+  });
+
+  it('contains activity methods', () => {
+    expect(typeof mockResult.reportActivity).toBe('function');
+    expect(typeof mockResult.reportIdle).toBe('function');
+  });
+
+  it('contains pause/resume methods', () => {
+    expect(typeof mockResult.pause).toBe('function');
+    expect(typeof mockResult.resume).toBe('function');
+    expect(typeof mockResult.isPaused).toBe('boolean');
+  });
+
+  it('contains setMode method', () => {
+    expect(typeof mockResult.setMode).toBe('function');
+  });
+});
+
+describe('useAdaptivePolling - Function Import', () => {
+  it('useAdaptivePolling is importable', async () => {
+    const module = await import('../useAdaptivePolling');
+    expect(typeof module.useAdaptivePolling).toBe('function');
+    expect(typeof module.default).toBe('function');
+  });
+
+  it('useAdaptiveAgentPolling is importable', async () => {
+    const module = await import('../useAdaptivePolling');
+    expect(typeof module.useAdaptiveAgentPolling).toBe('function');
+  });
+});
+
+describe('useAdaptivePolling - Agent Polling Extension', () => {
+  describe('working agent detection', () => {
+    function shouldReportActivity(prevWorking: number, currentWorking: number): boolean {
+      return currentWorking > prevWorking;
     }
+
+    function shouldReportIdle(prevWorking: number, currentWorking: number): boolean {
+      return currentWorking === 0 && prevWorking === 0;
+    }
+
+    it('reports activity when working agents increase', () => {
+      expect(shouldReportActivity(0, 1)).toBe(true);
+      expect(shouldReportActivity(1, 2)).toBe(true);
+    });
+
+    it('does not report activity when working agents decrease', () => {
+      expect(shouldReportActivity(2, 1)).toBe(false);
+      expect(shouldReportActivity(1, 0)).toBe(false);
+    });
+
+    it('does not report activity when working agents stay same', () => {
+      expect(shouldReportActivity(2, 2)).toBe(false);
+    });
+
+    it('reports idle when no working agents continuously', () => {
+      expect(shouldReportIdle(0, 0)).toBe(true);
+    });
+
+    it('does not report idle when agents are working', () => {
+      expect(shouldReportIdle(1, 0)).toBe(false);
+      expect(shouldReportIdle(0, 1)).toBe(false);
+      expect(shouldReportIdle(2, 2)).toBe(false);
+    });
   });
 });
