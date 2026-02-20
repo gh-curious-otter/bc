@@ -13,6 +13,8 @@ export interface UseKeyboardNavigationOptions {
   onQuit?: () => void;
   /** Global refresh handler (triggered by Ctrl+R) */
   onRefresh?: () => void;
+  /** Command palette handler (triggered by Ctrl+K) */
+  onCommandPalette?: () => void;
 }
 
 /**
@@ -25,7 +27,7 @@ export interface UseKeyboardNavigationOptions {
  * - q quits the application
  */
 export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}): void {
-  const { disabled = false, onQuit, onRefresh } = options;
+  const { disabled = false, onQuit, onRefresh, onCommandPalette } = options;
   const { navigate, goHome, getTabByKey, nextTab, prevTab } = useNavigation();
   const { isFocused } = useFocus();
 
@@ -77,6 +79,14 @@ export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}
       if (key.ctrl && input === 'r') {
         if (onRefresh) {
           onRefresh();
+        }
+        return;
+      }
+
+      // Ctrl+K: open command palette
+      if (key.ctrl && input === 'k') {
+        if (onCommandPalette) {
+          onCommandPalette();
         }
         return;
       }

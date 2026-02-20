@@ -27,6 +27,8 @@ import { WorktreesView } from './views/WorktreesView';
 import { WorkspaceSelectorView } from './views/WorkspaceSelectorView';
 import { DemonsView } from './views/DemonsView';
 import { ProcessesView } from './views/ProcessesView';
+import { CommandPalette } from './components/CommandPalette';
+import { type BcCommand } from './types/commands';
 
 interface AppProps {
   /** Disable input handling (useful for testing) */
@@ -87,9 +89,10 @@ interface AppContentProps {
 }
 
 function AppContent({ disableInput, themeConfig }: AppContentProps): React.ReactElement {
-  const { currentView } = useNavigation();
+  const { currentView, navigate } = useNavigation();
   const { stdout } = useStdout();
   const { setThemeName } = useTheme();
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
 
   // Apply configured theme on mount or when config changes
   React.useEffect(() => {
@@ -99,8 +102,37 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
     }
   }, [themeConfig.theme, setThemeName]);
 
+  // Handle command palette selection - navigate to view if applicable
+  const handleCommandSelect = (command: BcCommand): void => {
+    // Map command names to views
+    const viewMap: Record<string, View> = {
+      'agent status': 'agents',
+      'agent list': 'agents',
+      'agent peek': 'agents',
+      'channel list': 'channels',
+      'channel history': 'channels',
+      'cost show': 'costs',
+      'logs': 'logs',
+      'status': 'dashboard',
+      'stats': 'dashboard',
+      'process list': 'processes',
+      'demon list': 'demons',
+      'role list': 'roles',
+      'help': 'help',
+    };
+
+    const targetView = viewMap[command.name] as View | undefined;
+    if (targetView !== undefined) {
+      navigate(targetView);
+    }
+    setShowCommandPalette(false);
+  };
+
   // Handle global keyboard navigation
-  useKeyboardNavigation({ disabled: disableInput });
+  useKeyboardNavigation({
+    disabled: disableInput || showCommandPalette,
+    onCommandPalette: () => { setShowCommandPalette(true); },
+  });
 
   // Get terminal dimensions - constrain to actual terminal height
   const terminalHeight = stdout.rows;
@@ -121,6 +153,17 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
 
       {/* Footer with navigation hints - anchored to bottom */}
       <Footer />
+
+      {/* Command palette overlay */}
+      {showCommandPalette && (
+        <Box position="absolute" marginTop={2} marginLeft={10}>
+          <CommandPalette
+            isOpen={showCommandPalette}
+            onClose={() => { setShowCommandPalette(false); }}
+            onSelect={handleCommandSelect}
+          />
+        </Box>
+      )}
     </Box>
   );
 }
