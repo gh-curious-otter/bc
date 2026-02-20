@@ -58,8 +58,9 @@ type SpawnFn = (
 /**
  * Injectable spawn function - defaults to node's spawn
  * Tests can override this via _setSpawnForTesting()
+ * Cast required because nodeSpawn has complex overloads with optional args
  */
-let spawn: SpawnFn = nodeSpawn;
+let spawn: SpawnFn = nodeSpawn as unknown as SpawnFn;
 
 /**
  * Set a custom spawn function for testing
@@ -212,11 +213,11 @@ export async function execBc(args: string[]): Promise<string> {
       }
     }, 30000);
 
-    proc.stdout.on('data', (data: Buffer) => {
+    proc.stdout?.on('data', (data: Buffer) => {
       stdout += data.toString();
     });
 
-    proc.stderr.on('data', (data: Buffer) => {
+    proc.stderr?.on('data', (data: Buffer) => {
       stderr += data.toString();
     });
 
