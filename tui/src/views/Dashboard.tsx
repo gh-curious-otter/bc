@@ -151,7 +151,7 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
       </Box>
 
       {/* Performance Debug Panel - toggled with Ctrl+P or F12 (Phase 3) */}
-      {showDebugPanel && <PerformanceDebugPanel compact={!isWide} />}
+      {showDebugPanel && <PerformanceDebugPanel compact={!isWide} forceShow />}
 
       {/* Footer with keyboard hints */}
       <Footer
