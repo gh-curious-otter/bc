@@ -19,13 +19,30 @@ var logsCmd = &cobra.Command{
 	Long: `View the bc event log showing agent spawns, stops, work assignments, and reports.
 
 Examples:
-  bc logs                    # all events
-  bc logs --agent worker-01  # filter by agent
-  bc logs --type agent.report # filter by event type
-  bc logs --since 1h         # events from last hour
-  bc logs --tail 20          # last N events
-  bc logs --full             # show full messages (no truncation)
-  bc logs --json             # JSON output`,
+  bc logs                     # Show all events
+  bc logs --agent eng-01      # Filter by agent
+  bc logs --type agent.report # Filter by event type
+  bc logs --since 1h          # Events from last hour
+  bc logs --tail 20           # Last N events
+  bc logs --full              # Show full messages (no truncation)
+  bc logs --json              # JSON output
+
+Event Types:
+  agent.started    Agent was created and started
+  agent.stopped    Agent was stopped
+  agent.report     Agent submitted a progress report
+  state.working    Agent started working on task
+  state.idle       Agent became idle
+  state.stuck      Agent is stuck (may need intervention)
+
+Output:
+  TIME      AGENT     TYPE           MESSAGE
+  10:15:32  eng-01    state.working  Starting implementation
+  10:16:45  eng-01    agent.report   Completed feature X
+
+See Also:
+  bc status    Quick agent status overview
+  bc home      TUI with activity timeline`,
 	RunE: runLogs,
 }
 

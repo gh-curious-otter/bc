@@ -32,14 +32,38 @@ var rootCmd = &cobra.Command{
 Coordinate multiple AI agents with predictable behavior and cost awareness.
 Supports Claude Code, Cursor, Codex, and other AI coding tools.
 
-Key features:
+Getting Started:
+  bc init                              # Initialize workspace
+  bc up                                # Start root agent
+  bc agent create eng-01 --role engineer  # Create engineer agent
+  bc status                            # View agent status
+  bc home                              # Open TUI dashboard
+
+Common Workflows:
+  Start working:    bc up && bc status
+  Monitor agents:   bc status --activity
+  Send message:     bc channel send eng "message"
+  Debug agent:      bc logs --agent eng-01 --tail 50
+  Cost check:       bc cost show
+
+Key Features:
   • Coordinate multiple AI coding agents in parallel
   • Isolated git worktrees per agent
   • Channel-based agent communication
   • Cost tracking and limits
   • Hierarchical agent roles (product-manager, manager, engineer)
 
-Documentation: https://github.com/rpuneet/bc`,
+Environment Variables:
+  BC_AGENT_ID       Current agent name (set automatically in agent sessions)
+  BC_AGENT_ROLE     Current agent role
+  BC_WORKSPACE      Path to workspace root
+  BC_AGENT_WORKTREE Path to agent's worktree
+  BC_BIN            Path to bc binary (default: bc in PATH)
+  BC_ROOT           Workspace root directory
+  NO_COLOR          Disable colored output
+
+Documentation: https://github.com/rpuneet/bc
+Full CLI reference: https://github.com/rpuneet/bc/docs/cli.md`,
 	// PersistentPreRun initializes logging and profiling based on flags
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		verbose, err := cmd.Flags().GetBool("verbose")
@@ -70,6 +94,12 @@ Documentation: https://github.com/rpuneet/bc`,
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
+	Long: `Print version, commit hash, and build date.
+
+Examples:
+  bc version       # Show version info
+  bc --version     # Same as above (short flag)
+  bc -V            # Same as above`,
 	Run: func(cmd *cobra.Command, args []string) {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "bc %s\n", version)
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  commit: %s\n", commit)
