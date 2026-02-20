@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -18,11 +20,17 @@ type V2Config struct {
 	Tools       ToolsConfig       `toml:"tools"`
 	Memory      MemoryConfig      `toml:"memory"`
 	TUI         TUIConfig         `toml:"tui"`
+	User        UserConfig        `toml:"user"`
 	Workspace   WorkspaceConfig   `toml:"workspace"`
 	Worktrees   WorktreesConfig   `toml:"worktrees"`
 	Channels    ChannelsConfig    `toml:"channels"`
 	Performance PerformanceConfig `toml:"performance"`
 	Roster      RosterConfig      `toml:"roster"`
+}
+
+// UserConfig holds user identity settings.
+type UserConfig struct {
+	Nickname string `toml:"nickname"` // User's display name for channel messages (e.g., "@puneet")
 }
 
 // WorkspaceConfig holds core workspace settings.
@@ -111,6 +119,14 @@ var ValidThemes = []string{"dark", "light", "matrix", "synthwave", "high-contras
 // Valid theme modes.
 var ValidModes = []string{"auto", "dark", "light"}
 
+// User nickname limits.
+const (
+	NicknameMaxLength = 15 // Maximum nickname length including @ prefix
+)
+
+// DefaultNickname is the default user nickname.
+const DefaultNickname = "@bc"
+
 // Roster limits.
 const (
 	RosterMinPerRole = 0  // Minimum agents per role
@@ -141,6 +157,9 @@ var (
 	ErrCacheTTLRange             = errors.New("cache TTL must be between 100ms and 60000ms")
 	ErrInvalidTheme              = errors.New("tui.theme must be one of: dark, light, matrix, synthwave, high-contrast")
 	ErrInvalidThemeMode          = errors.New("tui.mode must be one of: auto, dark, light")
+	ErrNicknameTooLong           = errors.New("user.nickname must be 15 characters or less")
+	ErrNicknameMissingPrefix     = errors.New("user.nickname must start with @")
+	ErrNicknameInvalidChars      = errors.New("user.nickname must contain only letters, numbers, and underscores")
 )
 
 // DefaultV2Config returns sensible defaults for a new v2 workspace.
@@ -171,6 +190,9 @@ func DefaultV2Config(name string) V2Config {
 		},
 		Channels: ChannelsConfig{
 			Default: []string{"general", "engineering"},
+		},
+		User: UserConfig{
+			Nickname: DefaultNickname,
 		},
 		Roster: RosterConfig{
 			ProductManager: 0,
@@ -274,6 +296,11 @@ func (c *V2Config) Validate() error {
 		return err
 	}
 
+	// User validation (only validate if nickname is set)
+	if err := c.validateUser(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -352,6 +379,68 @@ func isValidMode(mode string) bool {
 		}
 	}
 	return false
+}
+
+// validateUser validates user config values.
+// Empty values are acceptable (will use default @bc).
+func (c *V2Config) validateUser() error {
+	u := c.User
+
+	// Empty nickname is ok (uses default)
+	if u.Nickname == "" {
+		return nil
+	}
+
+	// Validate nickname format
+	return ValidateNickname(u.Nickname)
+}
+
+// nicknameRegex matches valid nickname characters (after @ prefix).
+var nicknameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
+
+// ValidateNickname validates a nickname and returns an error if invalid.
+func ValidateNickname(nickname string) error {
+	// Must start with @
+	if !strings.HasPrefix(nickname, "@") {
+		return ErrNicknameMissingPrefix
+	}
+
+	// Check length
+	if len(nickname) > NicknameMaxLength {
+		return ErrNicknameTooLong
+	}
+
+	// Check characters after @
+	body := nickname[1:]
+	if body == "" || !nicknameRegex.MatchString(body) {
+		return ErrNicknameInvalidChars
+	}
+
+	return nil
+}
+
+// NormalizeNickname ensures a nickname has the @ prefix and is valid.
+// Returns the normalized nickname or an error.
+func NormalizeNickname(nickname string) (string, error) {
+	// Trim whitespace
+	nickname = strings.TrimSpace(nickname)
+
+	// Empty means use default
+	if nickname == "" {
+		return DefaultNickname, nil
+	}
+
+	// Add @ prefix if missing
+	if !strings.HasPrefix(nickname, "@") {
+		nickname = "@" + nickname
+	}
+
+	// Validate
+	if err := ValidateNickname(nickname); err != nil {
+		return "", err
+	}
+
+	return nickname, nil
 }
 
 // hasToolDefined checks if a tool is configured.
