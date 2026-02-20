@@ -2,8 +2,12 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"strings"
 
+	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/log"
@@ -55,15 +59,8 @@ Documentation: https://github.com/rpuneet/bc`,
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
 		stopProfiling()
 	},
-	// Run with no args shows help
-	Run: func(cmd *cobra.Command, args []string) {
-		showVersion, err := cmd.Flags().GetBool("version")
-		if err == nil && showVersion {
-			versionCmd.Run(cmd, args)
-			return
-		}
-		_ = cmd.Help()
-	},
+	// Run with no args: open home if initialized, else prompt for init
+	RunE: runRoot,
 }
 
 // versionCmd shows version information.
@@ -103,4 +100,77 @@ func Execute() error {
 // Root returns the root command for testing and extension.
 func Root() *cobra.Command {
 	return rootCmd
+}
+
+// runRoot handles the default bc command (no subcommand).
+// If workspace is initialized → open TUI home
+// If not initialized → prompt to init
+// In non-interactive mode → show help
+func runRoot(cmd *cobra.Command, args []string) error {
+	// Check for version flag
+	showVersion, err := cmd.Flags().GetBool("version")
+	if err == nil && showVersion {
+		versionCmd.Run(cmd, args)
+		return nil
+	}
+
+	// Check if running in an interactive terminal
+	// If not (e.g., piped input, test environment), show help
+	if !term.IsTerminal(os.Stdin.Fd()) {
+		return cmd.Help()
+	}
+
+	// Try to find workspace
+	ws, err := getWorkspace()
+	if err == nil && ws != nil {
+		// Workspace exists - open TUI home
+		log.Debug("workspace found, opening home", "root", ws.RootDir)
+		return runHome(cmd, args)
+	}
+
+	// No workspace - prompt to initialize
+	return promptInit(cmd)
+}
+
+// promptInit displays an interactive prompt to initialize a new workspace.
+func promptInit(cmd *cobra.Command) error {
+	fmt.Println()
+	fmt.Println("  \033[1mbc - AI Agent Orchestration\033[0m")
+	fmt.Println()
+	fmt.Println("  No workspace found in current directory.")
+	fmt.Println()
+	fmt.Print("  Would you like to initialize a new workspace? [Y/n]: ")
+
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return fmt.Errorf("failed to read input: %w", err)
+	}
+
+	input = strings.TrimSpace(strings.ToLower(input))
+
+	// Default to yes if empty or 'y'
+	if input == "" || input == "y" || input == "yes" {
+		return runInteractiveInit(cmd)
+	}
+
+	// User said no - show help
+	fmt.Println()
+	return cmd.Help()
+}
+
+// runInteractiveInit runs an interactive workspace initialization.
+func runInteractiveInit(cmd *cobra.Command) error {
+	fmt.Println()
+	fmt.Println("  Initializing bc workspace...")
+	fmt.Println()
+
+	// Get current directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	// Run init with interactive nickname prompt
+	return runInitInteractive(cmd, cwd)
 }

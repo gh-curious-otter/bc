@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -180,4 +182,130 @@ func errNotInWorkspace(err error) error {
 		return fmt.Errorf("not in a bc workspace (run 'bc init' to initialize one): %w", err)
 	}
 	return fmt.Errorf("not in a bc workspace. Run 'bc init' in your project directory to create one")
+}
+
+// runInitInteractive runs an interactive workspace initialization with nickname prompt.
+func runInitInteractive(_ *cobra.Command, dir string) error {
+	log.Debug("interactive init started", "dir", dir)
+
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return fmt.Errorf("failed to resolve directory: %w", err)
+	}
+
+	// Check for existing workspaces
+	if isV2Workspace(absDir) {
+		return fmt.Errorf("workspace already initialized in %s", absDir)
+	}
+	if isV1Workspace(absDir) {
+		fmt.Fprintln(os.Stderr, "Warning: Existing v1 workspace detected.")
+		fmt.Fprintln(os.Stderr, "Run 'bc init' after removing .bc/ directory to migrate.")
+		return fmt.Errorf("cannot initialize: v1 workspace exists")
+	}
+
+	// Prompt for nickname
+	nickname, err := promptNickname()
+	if err != nil {
+		return err
+	}
+
+	// Initialize workspace with nickname
+	return initV2WorkspaceWithNickname(absDir, nickname)
+}
+
+// promptNickname prompts the user for their display name.
+func promptNickname() (string, error) {
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Printf("  Your nickname [%s]: ", workspace.DefaultNickname)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return "", fmt.Errorf("failed to read input: %w", err)
+	}
+
+	input = strings.TrimSpace(input)
+
+	// Normalize and validate
+	nickname, err := workspace.NormalizeNickname(input)
+	if err != nil {
+		// Show helpful error
+		fmt.Printf("  \033[31mError: %s\033[0m\n", err)
+		fmt.Printf("  Using default: %s\n", workspace.DefaultNickname)
+		return workspace.DefaultNickname, nil
+	}
+
+	// Show auto-correction if @ was added
+	if input != "" && !strings.HasPrefix(input, "@") {
+		fmt.Printf("  → Auto-corrected to %s\n", nickname)
+	}
+
+	return nickname, nil
+}
+
+// initV2WorkspaceWithNickname creates a new v2 workspace with a custom nickname.
+func initV2WorkspaceWithNickname(rootDir string, nickname string) error {
+	stateDir := filepath.Join(rootDir, ".bc")
+
+	// Create state directory
+	if err := os.MkdirAll(stateDir, 0750); err != nil {
+		return fmt.Errorf("failed to create .bc directory: %w", err)
+	}
+
+	// Create agents directory
+	agentsDir := filepath.Join(stateDir, "agents")
+	if err := os.MkdirAll(agentsDir, 0750); err != nil {
+		return fmt.Errorf("failed to create agents directory: %w", err)
+	}
+
+	// Create and save v2 config with nickname
+	name := filepath.Base(rootDir)
+	cfg := workspace.DefaultV2Config(name)
+	cfg.User.Nickname = nickname
+	configPath := workspace.ConfigPath(rootDir)
+
+	if err := cfg.Save(configPath); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	// Create roles directory and default root.md
+	roleMgr := workspace.NewRoleManager(stateDir)
+	created, err := roleMgr.EnsureDefaultRoot()
+	if err != nil {
+		return fmt.Errorf("failed to create role files: %w", err)
+	}
+
+	// Initialize channel database
+	channelStore := channel.NewSQLiteStore(rootDir)
+	if openErr := channelStore.Open(); openErr != nil {
+		return fmt.Errorf("failed to initialize channel database: %w", openErr)
+	}
+	_ = channelStore.Close()
+
+	// Register in global registry
+	reg, regErr := workspace.LoadRegistry()
+	if regErr == nil {
+		reg.Register(rootDir, name)
+		_ = reg.Save()
+	}
+
+	// Print success message
+	fmt.Println()
+	fmt.Printf("  \033[32m✓\033[0m Workspace initialized at %s\n", rootDir)
+	fmt.Printf("  \033[32m✓\033[0m Nickname set to %s\n", nickname)
+	fmt.Println()
+	fmt.Println("  Created:")
+	fmt.Println("    .bc/config.toml     # Workspace configuration")
+	fmt.Println("    .bc/agents/         # Agent state directory")
+	fmt.Println("    .bc/roles/          # Role definitions")
+	if created {
+		fmt.Println("    .bc/roles/root.md   # Root agent role")
+	}
+	fmt.Println("    .bc/channels.db     # Channel database")
+	fmt.Println()
+	fmt.Println("  Next steps:")
+	fmt.Println("    bc          # Open the dashboard")
+	fmt.Println("    bc up       # Start agents")
+	fmt.Println("    bc status   # Check agent status")
+
+	return nil
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 var channelCmd = &cobra.Command{
@@ -394,10 +395,7 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 	}
 
 	// Add to channel history
-	sender := os.Getenv("BC_AGENT_ID")
-	if sender == "" {
-		sender = "cli"
-	}
+	sender := getUserSender()
 	if err := store.AddHistory(channelName, sender, message); err != nil {
 		fmt.Printf("Warning: failed to record history: %v\n", err)
 	}
@@ -661,10 +659,7 @@ func runChannelReact(cmd *cobra.Command, args []string) error {
 	emoji := args[2]
 
 	// Get user identity
-	user := os.Getenv("BC_AGENT_ID")
-	if user == "" {
-		user = "cli"
-	}
+	user := getUserSender()
 
 	added, err := store.ToggleReaction(channelName, messageIndex, emoji, user)
 	if err != nil {
@@ -821,4 +816,25 @@ func runChannelDesc(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Updated description for channel %q: %s\n", channelName, description)
 	return nil
+}
+
+// getUserSender returns the sender identity for channel messages.
+// If running as an agent, returns BC_AGENT_ID.
+// Otherwise, returns the user's configured nickname from workspace config.
+func getUserSender() string {
+	// Check if running as an agent
+	if agentID := os.Getenv("BC_AGENT_ID"); agentID != "" {
+		return agentID
+	}
+
+	// Try to get nickname from workspace config (v2)
+	ws, err := getWorkspace()
+	if err == nil && ws != nil && ws.V2Config != nil {
+		if ws.V2Config.User.Nickname != "" {
+			return ws.V2Config.User.Nickname
+		}
+	}
+
+	// Fallback to default nickname
+	return workspace.DefaultNickname
 }
