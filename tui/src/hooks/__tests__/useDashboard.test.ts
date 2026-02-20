@@ -184,9 +184,9 @@ describe('useDashboard - Summary Calculations (Unit Logic)', () => {
         byRole[agent.role] = (byRole[agent.role] || 0) + 1;
       }
 
-      expect(byRole['engineer']).toBe(2);
-      expect(byRole['manager']).toBe(1);
-      expect(byRole['root']).toBe(1);
+      expect(byRole.engineer).toBe(2);
+      expect(byRole.manager).toBe(1);
+      expect(byRole.root).toBe(1);
     });
   });
 });
