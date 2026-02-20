@@ -134,6 +134,58 @@ Examples:
 	RunE: runConfigReset,
 }
 
+// #1160: User-level config (.bcrc) commands
+
+var configUserCmd = &cobra.Command{
+	Use:   "user",
+	Short: "Manage user-level configuration (~/.bcrc)",
+	Long: `Manage user-level configuration stored in ~/.bcrc.
+
+User configuration provides defaults that apply across all bc workspaces:
+  - Your nickname for channel messages
+  - Default role for new agents
+  - Preferred AI tools
+
+Workspace config (.bc/config.toml) takes precedence over user config.
+
+Examples:
+  bc config user init   # Create ~/.bcrc with guided prompts
+  bc config user show   # Show user config
+  bc config user path   # Show user config path`,
+	RunE: runConfigUserShow,
+}
+
+var configUserInitCmd = &cobra.Command{
+	Use:   "init",
+	Short: "Create user configuration file (~/.bcrc)",
+	Long: `Create a new ~/.bcrc file with guided prompts.
+
+Examples:
+  bc config user init          # Interactive setup
+  bc config user init --quick  # Use defaults without prompts`,
+	RunE: runConfigUserInit,
+}
+
+var configUserShowCmd = &cobra.Command{
+	Use:   "show",
+	Short: "Show user configuration",
+	Long: `Display the current user configuration from ~/.bcrc.
+
+Examples:
+  bc config user show`,
+	RunE: runConfigUserShow,
+}
+
+var configUserPathCmd = &cobra.Command{
+	Use:   "path",
+	Short: "Show user configuration file path",
+	Long: `Display the path to the user configuration file.
+
+Examples:
+  bc config user path`,
+	RunE: runConfigUserPath,
+}
+
 // Flags
 var (
 	configForce bool
@@ -148,7 +200,14 @@ func init() {
 	configCmd.AddCommand(configValidateCmd)
 	configCmd.AddCommand(configResetCmd)
 
+	// #1160: User config subcommands
+	configCmd.AddCommand(configUserCmd)
+	configUserCmd.AddCommand(configUserInitCmd)
+	configUserCmd.AddCommand(configUserShowCmd)
+	configUserCmd.AddCommand(configUserPathCmd)
+
 	configResetCmd.Flags().BoolVar(&configForce, "force", false, "Skip confirmation prompt")
+	configUserInitCmd.Flags().Bool("quick", false, "Use defaults without prompts")
 
 	rootCmd.AddCommand(configCmd)
 }
@@ -645,4 +704,151 @@ func formatValue(value any) string {
 	default:
 		return fmt.Sprintf("%v", value)
 	}
+}
+
+// #1160: User config command implementations
+
+func runConfigUserInit(cmd *cobra.Command, _ []string) error {
+	quick, _ := cmd.Flags().GetBool("quick")
+
+	path := workspace.UserRCConfigPath()
+	if path == "" {
+		return fmt.Errorf("could not determine home directory")
+	}
+
+	// Check if already exists
+	if workspace.UserRCExists() {
+		fmt.Printf("⚠️  User config already exists at %s\n", path)
+		fmt.Print("Overwrite? [y/N]: ")
+
+		var response string
+		if _, err := fmt.Scanln(&response); err != nil {
+			// Handle scan error or empty input
+			fmt.Println("Canceled")
+			return nil
+		}
+		response = strings.ToLower(strings.TrimSpace(response))
+		if response != "y" && response != "yes" {
+			fmt.Println("Canceled")
+			return nil
+		}
+	}
+
+	var cfg workspace.UserRCConfig
+
+	if quick {
+		// Quick mode: use defaults
+		cfg = workspace.DefaultUserRCConfig()
+	} else {
+		// Interactive mode
+		var err error
+		cfg, err = runConfigUserInitWizard()
+		if err != nil {
+			return err
+		}
+	}
+
+	// Save the config
+	if err := cfg.Save(); err != nil {
+		return err
+	}
+
+	fmt.Printf("✓ Created %s\n", path)
+	fmt.Println()
+	fmt.Println("Your user config:")
+	printUserRCConfig(&cfg)
+
+	return nil
+}
+
+func runConfigUserInitWizard() (workspace.UserRCConfig, error) {
+	cfg := workspace.DefaultUserRCConfig()
+
+	fmt.Println()
+	fmt.Println("bc - User Configuration Setup")
+	fmt.Println(strings.Repeat("-", 40))
+	fmt.Println()
+
+	// Nickname
+	fmt.Printf("Your nickname [%s]: ", workspace.DefaultNickname)
+	var input string
+	if _, err := fmt.Scanln(&input); err == nil && input != "" {
+		nickname, err := workspace.NormalizeNickname(input)
+		if err != nil {
+			fmt.Printf("⚠️  %s, using default\n", err)
+		} else {
+			cfg.User.Nickname = nickname
+		}
+	}
+
+	// Default role
+	fmt.Printf("Default role for new agents [engineer]: ")
+	if _, err := fmt.Scanln(&input); err == nil && input != "" {
+		cfg.Defaults.DefaultRole = input
+	}
+
+	// Auto-start root
+	fmt.Printf("Auto-start root agent on 'bc up'? [Y/n]: ")
+	if _, err := fmt.Scanln(&input); err == nil {
+		input = strings.ToLower(strings.TrimSpace(input))
+		cfg.Defaults.AutoStartRoot = input != "n" && input != "no"
+	}
+
+	// Preferred tools
+	fmt.Printf("Preferred tools (comma-separated) [claude-code, gemini]: ")
+	if _, err := fmt.Scanln(&input); err == nil && input != "" {
+		tools := strings.Split(input, ",")
+		for i := range tools {
+			tools[i] = strings.TrimSpace(tools[i])
+		}
+		cfg.Tools.Preferred = tools
+	}
+
+	return cfg, nil
+}
+
+func runConfigUserShow(_ *cobra.Command, _ []string) error {
+	cfg, err := workspace.LoadUserRCConfig()
+	if err != nil {
+		return err
+	}
+
+	if cfg == nil {
+		path := workspace.UserRCConfigPath()
+		fmt.Printf("No user config found at %s\n", path)
+		fmt.Println("Run 'bc config user init' to create one.")
+		return nil
+	}
+
+	fmt.Println("# User Config (~/.bcrc)")
+	fmt.Println()
+	printUserRCConfig(cfg)
+
+	return nil
+}
+
+func runConfigUserPath(_ *cobra.Command, _ []string) error {
+	path := workspace.UserRCConfigPath()
+	exists := workspace.UserRCExists()
+
+	fmt.Printf("User config: %s", path)
+	if exists {
+		fmt.Println(" (exists)")
+	} else {
+		fmt.Println(" (not found)")
+	}
+
+	return nil
+}
+
+func printUserRCConfig(cfg *workspace.UserRCConfig) {
+	fmt.Println("[user]")
+	fmt.Printf("  nickname = %q\n", cfg.User.Nickname)
+	fmt.Println()
+	fmt.Println("[defaults]")
+	fmt.Printf("  default_role = %q\n", cfg.Defaults.DefaultRole)
+	fmt.Printf("  auto_start_root = %v\n", cfg.Defaults.AutoStartRoot)
+	fmt.Println()
+	fmt.Println("[tools]")
+	fmt.Printf("  preferred = %v\n", cfg.Tools.Preferred)
 }
