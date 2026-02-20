@@ -12,3 +12,4 @@ export { RolesView } from './RolesView';
 export { LogsView } from './LogsView';
 export { WorktreesView } from './WorktreesView';
 export { WorkspaceSelectorView } from './WorkspaceSelectorView';
+export { SetupWizard } from './SetupWizard';
