@@ -257,13 +257,13 @@ const SystemHealthPanel = memo(function SystemHealthPanel({
   const healthPercent = total > 0 ? Math.round((healthyCount / total) * 100) : 100;
 
   return (
-    <Panel title="System Health">
+    <Panel title="Health">
       <Box flexDirection="column">
         <Box>
           <Text color={healthPercent >= 80 ? HEALTH_COLORS.healthy : healthPercent >= 50 ? HEALTH_COLORS.warning : HEALTH_COLORS.critical} bold>
             {healthPercent}%
           </Text>
-          <Text dimColor> healthy</Text>
+          <Text dimColor> ok</Text>
         </Box>
         <Box marginTop={1} flexDirection="column">
           {/* Working agents with pulse animation (Phase 3) - consistent colors */}
@@ -271,29 +271,29 @@ const SystemHealthPanel = memo(function SystemHealthPanel({
             <PulseText color={STATUS_COLORS.working} enabled={working > 0} interval={1500}>
               ●
             </PulseText>
-            <Text> Working: {working}</Text>
+            <Text wrap="truncate"> Work: {working}</Text>
           </Box>
           <Box>
             <Text color={STATUS_COLORS.idle}>●</Text>
-            <Text> Idle: {idle}</Text>
+            <Text wrap="truncate"> Idle: {idle}</Text>
           </Box>
           {stuck > 0 && (
             <Box>
               <Text color={STATUS_COLORS.warning}>●</Text>
-              <Text> Stuck: {stuck}</Text>
+              <Text wrap="truncate"> Stuck: {stuck}</Text>
             </Box>
           )}
           {errorCount > 0 && (
             <Box>
               <Text color={STATUS_COLORS.error}>●</Text>
-              <Text> Error: {errorCount}</Text>
+              <Text wrap="truncate"> Err: {errorCount}</Text>
             </Box>
           )}
         </Box>
         {unhealthyCount > 0 && (
           <Box marginTop={1}>
-            <Text color="yellow" dimColor>
-              ⚠ {unhealthyCount} agent{unhealthyCount > 1 ? 's' : ''} need attention
+            <Text color="yellow" dimColor wrap="truncate">
+              ⚠ {unhealthyCount} need attn
             </Text>
           </Box>
         )}
@@ -320,8 +320,8 @@ const CostPanel = memo(function CostPanel({
 }: CostPanelProps) {
   const totalTokens = inputTokens + outputTokens;
   const budgetPercent = Math.min(100, Math.round((totalCostUSD / budgetUSD) * 100));
-  // Responsive bar width: smaller on narrow terminals
-  const barWidth = 15;
+  // Responsive bar width: smaller at 80x24 (Issue #1163)
+  const barWidth = 12;
   const filledWidth = Math.round((budgetPercent / 100) * barWidth);
   const emptyWidth = barWidth - filledWidth;
 
@@ -331,17 +331,17 @@ const CostPanel = memo(function CostPanel({
     <Panel title="Cost">
       <Box flexDirection="column">
         <Box>
-          <Text bold color="yellow">${totalCostUSD.toFixed(2)}</Text>
-          <Text dimColor> / ${budgetUSD.toFixed(2)}</Text>
+          <Text bold color="yellow" wrap="truncate">${totalCostUSD.toFixed(2)}</Text>
+          <Text dimColor wrap="truncate">/${budgetUSD.toFixed(0)}</Text>
         </Box>
         <Box marginTop={1}>
           <Text color={barColor}>{'█'.repeat(filledWidth)}</Text>
           <Text dimColor>{'░'.repeat(emptyWidth)}</Text>
-          <Text> {budgetPercent}%</Text>
+          <Text wrap="truncate"> {budgetPercent}%</Text>
         </Box>
         <Box marginTop={1}>
-          <Text dimColor>
-            {formatNumber(totalTokens)} tokens
+          <Text dimColor wrap="truncate">
+            {formatNumber(totalTokens)} tok
           </Text>
         </Box>
       </Box>
@@ -367,18 +367,21 @@ const AgentStatsPanel = memo(function AgentStatsPanel({ stats }: AgentStatsPanel
 
   const roleEntries = Object.entries(stats.byRole);
 
+  // Truncate role names at 80x24 to prevent overflow (Issue #1163)
+  const truncateRole = (role: string, maxLen = 10): string => {
+    if (role.length <= maxLen) return role;
+    return role.slice(0, maxLen - 1) + '…';
+  };
+
   return (
-    <Panel title="Agent Distribution">
+    <Panel title="Roles">
       <Box flexDirection="column">
-        <Text dimColor>By Role:</Text>
-        <Box flexDirection="column" marginTop={1}>
-          {roleEntries.map(([role, count]) => (
-            <Box key={role}>
-              <Text color="cyan">{role}</Text>
-              <Text>: {count}</Text>
-            </Box>
-          ))}
-        </Box>
+        {roleEntries.map(([role, count]) => (
+          <Box key={role}>
+            <Text color="cyan" wrap="truncate">{truncateRole(role)}</Text>
+            <Text>: {count}</Text>
+          </Box>
+        ))}
       </Box>
     </Panel>
   );
