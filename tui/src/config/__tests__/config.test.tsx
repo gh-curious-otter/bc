@@ -14,11 +14,12 @@ import {
   useThemeConfig,
   DEFAULT_PERFORMANCE_CONFIG,
   DEFAULT_TUI_CONFIG,
-} from '../config';
-import type { PerformanceConfig, TUIConfig } from '../types';
+} from '..';
+import type { PerformanceConfig, TUIConfig } from '../../types';
 
 // Mock bc service
-jest.mock('../services/bc', () => ({
+// NOTE: This file is isolated to prevent mock pollution (#1066)
+jest.mock('../../services/bc', () => ({
   execBcJson: jest.fn().mockResolvedValue({}),
 }));
 
