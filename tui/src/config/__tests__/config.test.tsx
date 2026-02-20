@@ -7,6 +7,7 @@
 import React from 'react';
 import { render } from 'ink-testing-library';
 import { Text } from 'ink';
+import { describe, it, expect, mock, spyOn, beforeEach, afterEach } from 'bun:test';
 import {
   ConfigProvider,
   useConfig,
@@ -17,11 +18,13 @@ import {
 } from '..';
 import type { PerformanceConfig, TUIConfig } from '../../types';
 
-// Mock bc service
-// NOTE: This file is isolated to prevent mock pollution (#1066)
-jest.mock('../../services/bc', () => ({
-  execBcJson: jest.fn().mockResolvedValue({}),
-}));
+// NOTE: Issue #1151 - Do NOT use vi.mock on services/bc as it pollutes
+// the module cache and breaks bc.test.ts which needs the real module.
+// Instead, ConfigProvider handles errors gracefully when execBcJson fails,
+// so we don't need to mock it for these tests.
+//
+// The ConfigProvider already catches errors and returns default config,
+// which is what we're testing anyway.
 
 // Test component that uses config
 function ConfigConsumer() {
@@ -74,7 +77,7 @@ describe('ConfigProvider', () => {
 describe('useConfig', () => {
   it('throws when used outside provider', () => {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const consoleError = jest.spyOn(console, 'error').mockImplementation();
+    const consoleError = spyOn(console, 'error').mockImplementation();
     try {
       render(<ConfigConsumer />);
     } catch (error) {
@@ -107,7 +110,7 @@ describe('usePerformanceConfig', () => {
 
   it('throws when used outside provider', () => {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const consoleError = jest.spyOn(console, 'error').mockImplementation();
+    const consoleError = spyOn(console, 'error').mockImplementation();
     try {
       render(<PerformanceConsumer />);
     } catch (error) {
@@ -144,7 +147,7 @@ describe('useThemeConfig', () => {
 
   it('throws when used outside provider', () => {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const consoleError = jest.spyOn(console, 'error').mockImplementation();
+    const consoleError = spyOn(console, 'error').mockImplementation();
     try {
       render(<ThemeConsumer />);
     } catch (error) {
