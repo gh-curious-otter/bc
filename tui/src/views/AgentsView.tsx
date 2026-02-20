@@ -57,7 +57,22 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   const [showDetail, setShowDetail] = useState(false);
   const [confirmAction, setConfirmAction] = useState<AgentAction | null>(null);
   const [actionState, setActionState] = useState<ActionState | null>(null);
-  const agentList = agents ?? [];
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchMode, setSearchMode] = useState(false);
+
+  // Filter agents by search query
+  const agentList = React.useMemo(() => {
+    const list = agents ?? [];
+    if (!searchQuery) return list;
+    const query = searchQuery.toLowerCase();
+    return list.filter(
+      (agent) =>
+        agent.name.toLowerCase().includes(query) ||
+        agent.role.toLowerCase().includes(query) ||
+        agent.state.toLowerCase().includes(query)
+    );
+  }, [agents, searchQuery]);
+
   const selectedAgent = agentList[selectedIndex] as typeof agentList[number] | undefined;
   const { setFocus } = useFocus();
 
@@ -109,6 +124,18 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
 
   // Keyboard navigation
   useInput((input, key) => {
+    // Search mode input handling
+    if (searchMode) {
+      if (key.return || key.escape) {
+        setSearchMode(false);
+      } else if (key.backspace || key.delete) {
+        setSearchQuery(searchQuery.slice(0, -1));
+      } else if (input && !key.ctrl && !key.meta) {
+        setSearchQuery(searchQuery + input);
+      }
+      return;
+    }
+
     if (showDetail) {
       // Detail view handles its own keybinds via AgentDetailView
       return;
@@ -149,6 +176,13 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
     } else if (input === 'R' && selectedAgent) {
       // Restart agent (with confirmation)
       setConfirmAction('restart');
+    } else if (input === '/') {
+      // Enter search mode
+      setSearchMode(true);
+    } else if (input === 'c' && searchQuery) {
+      // Clear search
+      setSearchQuery('');
+      setSelectedIndex(0);
     } else if (input === 'r') {
       void refresh();
     } else if (input === 'q' || key.escape) {
@@ -203,6 +237,23 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
     },
   ];
 
+  // Search mode overlay
+  if (searchMode) {
+    return (
+      <Box flexDirection="column" padding={1}>
+        <Text bold>Search Agents</Text>
+        <Box marginTop={1} borderStyle="single" borderColor="cyan" paddingX={1}>
+          <Text color="cyan">{'> '}</Text>
+          <Text>{searchQuery}</Text>
+          <Text color="cyan">|</Text>
+        </Box>
+        <Box marginTop={1}>
+          <Text dimColor>Enter to confirm, Esc to cancel</Text>
+        </Box>
+      </Box>
+    );
+  }
+
   if (loading && agentList.length === 0) {
     return (
       <Box padding={1}>
@@ -226,6 +277,9 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
         <Text bold color="green">
           Agents ({agentList.length})
         </Text>
+        {searchQuery && (
+          <Text color="cyan"> [/] &quot;{searchQuery}&quot;</Text>
+        )}
         {loading && <PulseText color="gray"> (refreshing...)</PulseText>}
       </Box>
 
@@ -290,7 +344,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       {/* Footer with keybindings */}
       <Box marginTop={1}>
         <Text color="gray">
-          j/k: navigate | g/G: top/bottom | a/Enter: details | x: stop | X: kill | R: restart | r: refresh | q/ESC: back
+          j/k: nav | g/G: top/bottom | /: search{searchQuery ? ' | c: clear' : ''} | a/Enter: details | x: stop | X: kill | R: restart | r: refresh | q/ESC: back
         </Text>
       </Box>
     </Box>

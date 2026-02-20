@@ -80,6 +80,21 @@ export function DemonsView({
   const { data: demons, loading, error, total, enabled, refresh, enable, disable, run } = useDemons();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchMode, setSearchMode] = useState(false);
+
+  // Filter demons by search query
+  const filteredDemons = React.useMemo(() => {
+    const list = demons ?? [];
+    if (!searchQuery) return list;
+    const query = searchQuery.toLowerCase();
+    return list.filter(
+      (demon) =>
+        demon.name.toLowerCase().includes(query) ||
+        demon.command.toLowerCase().includes(query) ||
+        (demon.description?.toLowerCase().includes(query) ?? false)
+    );
+  }, [demons, searchQuery]);
 
   // Auto-clear action errors after a delay
   useEffect(() => {
@@ -90,11 +105,39 @@ export function DemonsView({
 
   useInput(
     (input, key) => {
-      if (!demons || demons.length === 0) return;
+      // Search mode input handling
+      if (searchMode) {
+        if (key.return || key.escape) {
+          setSearchMode(false);
+        } else if (key.backspace || key.delete) {
+          setSearchQuery(searchQuery.slice(0, -1));
+        } else if (input && !key.ctrl && !key.meta) {
+          setSearchQuery(searchQuery + input);
+        }
+        return;
+      }
+
+      if (filteredDemons.length === 0) {
+        // Only allow search and quit when no demons
+        if (input === '/') {
+          setSearchMode(true);
+        }
+        if (input === 'c' && searchQuery) {
+          setSearchQuery('');
+          setSelectedIndex(0);
+        }
+        if (input === 'r') {
+          void refresh();
+        }
+        if (input === 'q' && onExit) {
+          onExit();
+        }
+        return;
+      }
 
       // Navigation
       if (input === 'j' || key.downArrow) {
-        setSelectedIndex((prev) => Math.min(prev + 1, demons.length - 1));
+        setSelectedIndex((prev) => Math.min(prev + 1, filteredDemons.length - 1));
       }
       if (input === 'k' || key.upArrow) {
         setSelectedIndex((prev) => Math.max(prev - 1, 0));
@@ -103,7 +146,16 @@ export function DemonsView({
         setSelectedIndex(0);
       }
       if (input === 'G') {
-        setSelectedIndex(demons.length - 1);
+        setSelectedIndex(filteredDemons.length - 1);
+      }
+
+      // Search actions
+      if (input === '/') {
+        setSearchMode(true);
+      }
+      if (input === 'c' && searchQuery) {
+        setSearchQuery('');
+        setSelectedIndex(0);
       }
 
       // Actions
@@ -115,7 +167,7 @@ export function DemonsView({
       }
 
       // Demon-specific actions
-      const selectedDemon = demons[selectedIndex] as typeof demons[number] | undefined;
+      const selectedDemon = filteredDemons[selectedIndex] as typeof filteredDemons[number] | undefined;
       if (selectedDemon) {
         if (input === 'e') {
           // Enable demon
@@ -124,8 +176,8 @@ export function DemonsView({
             setActionError(`Enable failed: ${message}`);
           });
         }
-        if (input === 'd') {
-          // Disable demon
+        if (input === 'D') {
+          // Disable demon (changed to D to avoid conflict with 'd' for delete pattern)
           disable(selectedDemon.name).catch((err: unknown) => {
             const message = err instanceof Error ? err.message : String(err);
             setActionError(`Disable failed: ${message}`);
@@ -143,6 +195,23 @@ export function DemonsView({
     { isActive: !disableInput }
   );
 
+  // Search mode overlay
+  if (searchMode) {
+    return (
+      <Box flexDirection="column" padding={1}>
+        <Text bold>Search Demons</Text>
+        <Box marginTop={1} borderStyle="single" borderColor="cyan" paddingX={1}>
+          <Text color="cyan">{'> '}</Text>
+          <Text>{searchQuery}</Text>
+          <Text color="cyan">|</Text>
+        </Box>
+        <Box marginTop={1}>
+          <Text dimColor>Enter to confirm, Esc to cancel</Text>
+        </Box>
+      </Box>
+    );
+  }
+
   if (error) {
     return <ErrorDisplay error={error} onRetry={() => { void refresh(); }} />;
   }
@@ -157,9 +226,12 @@ export function DemonsView({
       <Box marginBottom={1}>
         <Text bold color="magenta">Demons</Text>
         <Text> · </Text>
-        <Text dimColor>{total} total</Text>
+        <Text dimColor>{filteredDemons.length}{searchQuery ? `/${String(total)}` : ''} total</Text>
         <Text dimColor> · </Text>
         <Text color={enabled > 0 ? 'green' : 'gray'}>{enabled} enabled</Text>
+        {searchQuery && (
+          <Text color="cyan"> [/] &quot;{searchQuery}&quot;</Text>
+        )}
       </Box>
 
       {/* Action error feedback */}
@@ -170,7 +242,7 @@ export function DemonsView({
       )}
 
       {/* Demon list */}
-      {demons && demons.length > 0 ? (
+      {filteredDemons.length > 0 ? (
         <Box flexDirection="column">
           {/* Header row - total width: 3+14+13+9+7+10+10 = 66 (fits 80-col) */}
           <Box marginBottom={1}>
@@ -184,7 +256,7 @@ export function DemonsView({
           </Box>
 
           {/* Demon rows */}
-          {demons.map((demon, index) => (
+          {filteredDemons.map((demon, index) => (
             <DemonRow
               key={demon.name}
               demon={demon}
@@ -194,29 +266,29 @@ export function DemonsView({
         </Box>
       ) : (
         <Box flexDirection="column" paddingY={2}>
-          <Text dimColor>No demons configured</Text>
-          <Text dimColor>Create one with: bc demon create {'<name>'} --schedule {'\'<cron>\''} --cmd {'\'<command>\''}</Text>
+          <Text dimColor>{searchQuery ? 'No demons match search' : 'No demons configured'}</Text>
+          {!searchQuery && <Text dimColor>Create one with: bc demon create {'<name>'} --schedule {'\'<cron>\''} --cmd {'\'<command>\''}</Text>}
         </Box>
       )}
 
       {/* Selected demon details */}
-      {demons && demons.length > 0 && demons[selectedIndex] && (
+      {filteredDemons.length > 0 && filteredDemons[selectedIndex] && (
         <Box marginTop={1} borderStyle="single" borderColor="gray" padding={1} flexDirection="column">
-          <Text bold>{demons[selectedIndex].name}</Text>
+          <Text bold>{filteredDemons[selectedIndex].name}</Text>
           <Box marginTop={1}>
             <Text dimColor>Command: </Text>
-            <Text>{demons[selectedIndex].command}</Text>
+            <Text>{filteredDemons[selectedIndex].command}</Text>
           </Box>
-          {demons[selectedIndex].description && (
+          {filteredDemons[selectedIndex].description && (
             <Box>
               <Text dimColor>Description: </Text>
-              <Text>{demons[selectedIndex].description}</Text>
+              <Text>{filteredDemons[selectedIndex].description}</Text>
             </Box>
           )}
-          {demons[selectedIndex].owner && (
+          {filteredDemons[selectedIndex].owner && (
             <Box>
               <Text dimColor>Owner: </Text>
-              <Text>{demons[selectedIndex].owner}</Text>
+              <Text>{filteredDemons[selectedIndex].owner}</Text>
             </Box>
           )}
         </Box>
@@ -225,10 +297,12 @@ export function DemonsView({
       {/* Footer */}
       <Footer
         hints={[
-          { key: 'j/k', label: 'navigate' },
+          { key: 'j/k', label: 'nav' },
           { key: 'g/G', label: 'top/bottom' },
+          { key: '/', label: 'search' },
+          ...(searchQuery ? [{ key: 'c', label: 'clear' }] : []),
           { key: 'e', label: 'enable' },
-          { key: 'd', label: 'disable' },
+          { key: 'D', label: 'disable' },
           { key: 'x', label: 'run' },
           { key: 'r', label: 'refresh' },
           { key: 'q/ESC', label: 'back' },
