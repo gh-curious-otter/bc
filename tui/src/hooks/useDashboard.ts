@@ -211,7 +211,7 @@ export function useDashboard() {
 /**
  * Format ISO timestamp to relative time string
  */
-function formatTime(isoString: string | undefined): string {
+export function formatTime(isoString: string | undefined): string {
   if (!isoString) return '-';
   try {
     const date = new Date(isoString);
