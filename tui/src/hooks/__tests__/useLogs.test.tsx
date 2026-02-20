@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { getSeverityColor } from '../useLogs';
+import { getSeverityColor, getSeverityIcon } from '../useLogs';
 import type { UseLogsOptions, UseLogsResult, LogSeverity } from '../useLogs';
 
 describe('useLogs - Severity Color Mapping', () => {
@@ -147,5 +147,33 @@ describe('useLogs - Edge Cases', () => {
     expect(getSeverityColor(longError)).toBe('red');
     expect(getSeverityColor(longWarn)).toBe('yellow');
     expect(getSeverityColor(longInfo)).toBe('gray');
+  });
+});
+
+describe('useLogs - Severity Icon Mapping (#1220)', () => {
+  describe('getSeverityIcon', () => {
+    it('returns ✗ for error types', () => {
+      expect(getSeverityIcon('error')).toBe('✗');
+      expect(getSeverityIcon('AGENT_ERROR')).toBe('✗');
+      expect(getSeverityIcon('FAIL')).toBe('✗');
+    });
+
+    it('returns ⚠ for warning types', () => {
+      expect(getSeverityIcon('warning')).toBe('⚠');
+      expect(getSeverityIcon('AGENT_STUCK')).toBe('⚠');
+      expect(getSeverityIcon('warn')).toBe('⚠');
+    });
+
+    it('returns · for info types', () => {
+      expect(getSeverityIcon('agent_started')).toBe('·');
+      expect(getSeverityIcon('message_sent')).toBe('·');
+      expect(getSeverityIcon('info')).toBe('·');
+    });
+
+    it('handles case insensitivity', () => {
+      expect(getSeverityIcon('Error')).toBe('✗');
+      expect(getSeverityIcon('WARNING')).toBe('⚠');
+      expect(getSeverityIcon('Info')).toBe('·');
+    });
   });
 });

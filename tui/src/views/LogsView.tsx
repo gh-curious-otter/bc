@@ -4,7 +4,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
-import { useLogs, getSeverityColor } from '../hooks/useLogs';
+import { useLogs, getSeverityColor, getSeverityIcon } from '../hooks/useLogs';
 import { useFocus } from '../navigation/FocusContext';
 import { PulseText } from '../components/AnimatedText';
 import type { LogSeverity } from '../hooks/useLogs';
@@ -236,7 +236,7 @@ export const LogsView: React.FC<LogsViewProps> = ({ onBack }) => {
           </Box>
           <Box>
             <Text bold>Type: </Text>
-            <Text color={getSeverityColor(selectedLog.type)}>{selectedLog.type}</Text>
+            <Text color={getSeverityColor(selectedLog.type)}>{getSeverityIcon(selectedLog.type)} {selectedLog.type}</Text>
           </Box>
           <Box marginTop={1} flexDirection="column">
             <Text bold>Message:</Text>
@@ -348,6 +348,7 @@ export const LogsView: React.FC<LogsViewProps> = ({ onBack }) => {
           const actualIdx = startIdx + idx;
           const isSelected = actualIdx === selectedIndex;
           const severityColor = getSeverityColor(log.type);
+          const severityIcon = getSeverityIcon(log.type);
 
           return (
             <Box key={`${log.ts}-${String(idx)}`}>
@@ -367,7 +368,7 @@ export const LogsView: React.FC<LogsViewProps> = ({ onBack }) => {
                 backgroundColor={isSelected ? 'blue' : undefined}
                 color={isSelected ? 'white' : severityColor}
               >
-                {log.type.slice(0, typeWidth - 1).padEnd(typeWidth)}
+                {severityIcon} {log.type.slice(0, typeWidth - 3).padEnd(typeWidth - 2)}
               </Text>
               <Text
                 backgroundColor={isSelected ? 'blue' : undefined}

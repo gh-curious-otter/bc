@@ -138,3 +138,19 @@ export function getSeverityColor(type: string): string {
       return 'gray';
   }
 }
+
+/**
+ * Get severity icon for log entry
+ * Issue #1220: Colorblind-friendly visual cues
+ */
+export function getSeverityIcon(type: string): string {
+  const severity = getSeverity(type);
+  switch (severity) {
+    case 'error':
+      return '✗';
+    case 'warn':
+      return '⚠';
+    default:
+      return '·';
+  }
+}
