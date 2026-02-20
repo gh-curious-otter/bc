@@ -341,7 +341,7 @@ describe('useMentionAutocomplete - Edge Cases', () => {
       input: '@eng-01 and @eng-02',
       cursorPosition: 19,
     };
-    const atCount = (options.input.match(/@/g) || []).length;
+    const atCount = (options.input.match(/@/g) ?? []).length;
     expect(atCount).toBe(2);
   });
 
