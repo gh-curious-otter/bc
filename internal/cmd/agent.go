@@ -151,9 +151,13 @@ var agentSendCmd = &cobra.Command{
 	Short: "Send a message to an agent",
 	Long: `Send a message or command to an agent's session.
 
+Use --preview to see what action will be taken before sending (Intent Preview).
+This shows agent details and asks for confirmation.
+
 Examples:
   bc agent send eng-01 "run the tests"
-  bc agent send coordinator "check status"`,
+  bc agent send coordinator "check status"
+  bc agent send eng-01 "implement login" --preview  # Preview before sending`,
 	Args: cobra.MinimumNArgs(2),
 	RunE: runAgentSend,
 }
@@ -289,6 +293,7 @@ var (
 	agentHealthWorkTmout string
 	agentHealthMaxFail   int
 	agentHealthAlert     string
+	agentSendPreview     bool
 )
 
 func init() {
@@ -326,6 +331,9 @@ func init() {
 	agentHealthCmd.Flags().StringVar(&agentHealthWorkTmout, "work-timeout", "30m", "Work timeout for stuck detection (e.g., 30m, 1h)")
 	agentHealthCmd.Flags().IntVar(&agentHealthMaxFail, "max-failures", 3, "Max consecutive failures before considered stuck")
 	agentHealthCmd.Flags().StringVar(&agentHealthAlert, "alert", "", "Send alert to channel when stuck agents detected (requires --detect-stuck)")
+
+	// Send flags
+	agentSendCmd.Flags().BoolVar(&agentSendPreview, "preview", false, "Show preview of action before sending (Intent Preview)")
 
 	// Add shell completion for agent name arguments
 	agentAttachCmd.ValidArgsFunction = CompleteAgentNames
@@ -808,6 +816,52 @@ func runAgentSend(cmd *cobra.Command, args []string) error {
 
 	if a.State == agent.StateStopped {
 		return fmt.Errorf("agent %q is stopped (use 'bc agent start %s' to start it)", agentName, agentName)
+	}
+
+	// Intent Preview: show what will happen and ask for confirmation
+	if agentSendPreview {
+		fmt.Println()
+		fmt.Println("╭─────────────────────────────────────────────────────────────╮")
+		fmt.Println("│                     Intent Preview                          │")
+		fmt.Println("╰─────────────────────────────────────────────────────────────╯")
+		fmt.Println()
+
+		// Agent details
+		fmt.Printf("  Agent:    %s\n", a.Name)
+		fmt.Printf("  Role:     %s\n", a.Role)
+		fmt.Printf("  State:    %s\n", a.State)
+		if a.Team != "" {
+			fmt.Printf("  Team:     %s\n", a.Team)
+		}
+		if a.Tool != "" {
+			fmt.Printf("  Tool:     %s\n", a.Tool)
+		}
+		if a.Task != "" {
+			fmt.Printf("  Current:  %s\n", normalizeTask(a.Task))
+		}
+		fmt.Println()
+
+		// Message to send
+		fmt.Printf("  Message:  %s\n", message)
+		fmt.Println()
+
+		// Action summary
+		fmt.Println("  Action:   Will send message to agent's tmux session")
+		fmt.Printf("            The agent will process: %q\n", truncateMessage(message, 50))
+		fmt.Println()
+
+		// Confirmation
+		fmt.Print("  Proceed? [y/N]: ")
+		var response string
+		if _, scanErr := fmt.Scanln(&response); scanErr != nil {
+			return fmt.Errorf("send canceled")
+		}
+		response = strings.ToLower(strings.TrimSpace(response))
+		if response != "y" && response != "yes" {
+			fmt.Println("Send canceled.")
+			return nil
+		}
+		fmt.Println()
 	}
 
 	if sendErr := mgr.SendToAgent(agentName, message); sendErr != nil {
