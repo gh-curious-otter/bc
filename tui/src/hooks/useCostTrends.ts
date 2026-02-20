@@ -5,7 +5,8 @@
  * Calculates cost trends, burn rates, and projections for dashboard and cost view.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { getCostSummary } from '../services/bc';
 
 export interface CostData {
   timestamp: Date;
@@ -42,7 +43,6 @@ interface UseCostTrendsOptions {
 
 /**
  * Calculate trend direction and percentage change
- * (Used in future: trend visualization and cost analysis)
  */
 export function calculateTrend(current: number, previous: number): { trend: 'up' | 'down' | 'flat'; symbol: '↗' | '↘' | '→'; change: number } {
   if (previous === 0) return { trend: 'flat', symbol: '→', change: 0 };
@@ -56,6 +56,40 @@ export function calculateTrend(current: number, previous: number): { trend: 'up'
     return { trend: 'up', symbol: '↗', change };
   } else {
     return { trend: 'down', symbol: '↘', change };
+  }
+}
+
+/**
+ * Get days remaining in the current period
+ */
+function getDaysRemaining(period: 'day' | 'week' | 'month'): number {
+  const now = new Date();
+  switch (period) {
+    case 'day':
+      return 1;
+    case 'week': {
+      const dayOfWeek = now.getDay();
+      return 7 - dayOfWeek;
+    }
+    case 'month': {
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      return lastDay - now.getDate();
+    }
+  }
+}
+
+/**
+ * Get days elapsed in current period
+ */
+function getDaysElapsed(period: 'day' | 'week' | 'month'): number {
+  const now = new Date();
+  switch (period) {
+    case 'day':
+      return 1;
+    case 'week':
+      return now.getDay() || 7; // Sunday = 7
+    case 'month':
+      return now.getDate();
   }
 }
 
@@ -74,31 +108,56 @@ export function useCostTrends(options: UseCostTrendsOptions = {}) {
     projectedTotal: 0,
     status: 'normal',
   });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchCostTrends = async () => {
+  const fetchCostTrends = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // In real implementation, query bc cost API
-      // For now, return empty structure
-      setTrends([]);
+      // Fetch cost data from bc CLI
+      const costData = await getCostSummary();
+
+      const spent = costData.total_cost ?? 0;
+      const daysElapsed = getDaysElapsed(period);
+      const daysRemaining = getDaysRemaining(period);
+      const totalDays = daysElapsed + daysRemaining;
+
+      // Calculate burn rate ($ per day)
+      const burnRate = daysElapsed > 0 ? spent / daysElapsed : 0;
+
+      // Project total spend for the period
+      const projectedTotal = burnRate * totalDays;
+
+      // Calculate budget usage percentage
+      const percentUsed = budget > 0 ? Math.round((spent / budget) * 100) : 0;
+
+      // Determine status based on projected spend vs budget
+      let status: 'normal' | 'warning' | 'critical' = 'normal';
+      if (projectedTotal > budget * 1.2 || percentUsed > 90) {
+        status = 'critical';
+      } else if (projectedTotal > budget * 0.9 || percentUsed > 70) {
+        status = 'warning';
+      }
+
       setBudgetStatus({
-        spent: 0,
+        spent,
         budget,
-        percentUsed: 0,
-        daysRemaining: 30,
-        burnRate: 0,
-        projectedTotal: 0,
-        status: 'normal',
+        percentUsed,
+        daysRemaining,
+        burnRate,
+        projectedTotal,
+        status,
       });
+
+      // TODO: Store historical data to calculate trends over time
+      setTrends([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load cost trends');
     } finally {
       setLoading(false);
     }
-  };
+  }, [budget, period]);
 
   useEffect(() => {
     void fetchCostTrends();
@@ -106,7 +165,7 @@ export function useCostTrends(options: UseCostTrendsOptions = {}) {
       void fetchCostTrends();
     }, 60000); // Refresh every 60 seconds
     return () => clearInterval(interval);
-  }, [budget, period]);
+  }, [fetchCostTrends]);
 
   return { trends, budgetStatus, loading, error, refresh: fetchCostTrends };
 }
