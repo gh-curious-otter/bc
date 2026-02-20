@@ -28,24 +28,32 @@ make install
 ## Quick Start
 
 ```bash
-# 1. Initialize workspace
+# 1. Run bc - prompts to initialize if no workspace exists
+bc
+
+# 2. Or explicitly initialize
 bc init
 
-# 2. Start the root agent
+# 3. Start the root agent
 bc up
 
-# 3. Check status
+# 4. Open the TUI dashboard
+bc home
+
+# 5. Check status
 bc status
 
-# 4. Create an engineer agent
+# 6. Create an engineer agent
 bc agent create --role engineer
 
-# 5. Send work to the agent
+# 7. Send work to the agent
 bc agent send swift-falcon "Implement the login feature"
 
-# 6. Stop all agents
+# 8. Stop all agents
 bc down
 ```
+
+**Smart Default**: Running `bc` with no arguments opens the TUI dashboard if a workspace exists, or prompts you to initialize one if not.
 
 ## Commands
 
@@ -53,9 +61,11 @@ bc down
 
 | Command | Description |
 |---------|-------------|
+| `bc` | Open TUI dashboard (or prompt to init) |
 | `bc init` | Initialize a new workspace |
 | `bc up` | Start agents |
 | `bc down` | Stop all agents |
+| `bc home` | Open TUI dashboard |
 | `bc status` | Show agent status |
 | `bc stats` | Show workspace statistics |
 
@@ -218,6 +228,9 @@ Configuration is stored in `.bc/config.toml`. Key settings:
 [workspace]
 name = "my-project"
 
+[user]
+nickname = "@yourname"  # Shown in channel messages instead of 'cli'
+
 [tools]
 default = "claude"
 
@@ -229,6 +242,42 @@ enabled = true
 engineers = 4
 tech_leads = 2
 ```
+
+### User Nickname
+
+Your nickname is displayed in channel messages when sending from the CLI:
+
+```bash
+# Set your nickname (must start with @, max 15 chars)
+bc config set user.nickname @alice
+
+# Messages now show your nickname
+bc channel send eng "Hello team!"
+# Output: [@alice] Hello team!
+```
+
+## TUI Features
+
+The `bc home` dashboard provides a full terminal UI with:
+
+- **Responsive Layout**: Works at minimum 80x24 terminal size
+- **Keyboard Navigation**: `j/k` or arrow keys to scroll, `Tab` to switch views
+- **Channel Features**:
+  - `@mention` autocomplete with Tab completion
+  - Role-based name colors and emoji prefixes
+  - Arrow key scrolling in message history
+
+### Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `Tab` | Switch between views |
+| `j/k` or `↑/↓` | Scroll up/down |
+| `m` | Compose message (in channels) |
+| `@` | Start mention autocomplete |
+| `Enter` | Send message / Select item |
+| `Esc` | Go back / Cancel |
+| `q` | Quit |
 
 ## Contributing
 
