@@ -477,7 +477,7 @@ func runRoleDelete(cmd *cobra.Command, args []string) error {
 
 	// Check if role exists
 	if !rm.HasRole(roleName) {
-		return fmt.Errorf("role %q not found", roleName)
+		return fmt.Errorf("role %q not found (use 'bc role list' to see available roles)", roleName)
 	}
 
 	if !roleForce {
@@ -551,7 +551,7 @@ func runRoleRename(cmd *cobra.Command, args []string) error {
 
 	// Check source exists
 	if !rm.HasRole(oldName) {
-		return fmt.Errorf("role %q not found", oldName)
+		return fmt.Errorf("role %q not found (use 'bc role list' to see available roles)", oldName)
 	}
 
 	// Check destination doesn't exist
@@ -599,7 +599,7 @@ func runRoleClone(cmd *cobra.Command, args []string) error {
 
 	// Check source exists
 	if !rm.HasRole(srcName) {
-		return fmt.Errorf("source role %q not found", srcName)
+		return fmt.Errorf("source role %q not found (use 'bc role list' to see available roles)", srcName)
 	}
 
 	// Check destination doesn't exist

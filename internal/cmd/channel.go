@@ -723,7 +723,7 @@ func runChannelShow(cmd *cobra.Command, args []string) error {
 	// Get channel
 	ch, exists := store.Get(channelName)
 	if !exists {
-		return fmt.Errorf("channel %q not found", channelName)
+		return fmt.Errorf("channel %q not found (use 'bc channel list' to see available channels)", channelName)
 	}
 
 	// Get members

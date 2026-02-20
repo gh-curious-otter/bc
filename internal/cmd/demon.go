@@ -375,7 +375,7 @@ func runDemonShow(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if d == nil {
-		return fmt.Errorf("demon %q not found", name)
+		return fmt.Errorf("demon %q not found (use 'bc demon list' to see available demons)", name)
 	}
 
 	cmd.Printf("Name:      %s\n", d.Name)
@@ -433,7 +433,7 @@ func runDemonRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if d == nil {
-		return fmt.Errorf("demon %q not found", name)
+		return fmt.Errorf("demon %q not found (use 'bc demon list' to see available demons)", name)
 	}
 
 	cmd.Printf("Running demon %q: %s\n", name, d.Command)
@@ -558,7 +558,7 @@ func runDemonLogs(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if d == nil {
-		return fmt.Errorf("demon %q not found", name)
+		return fmt.Errorf("demon %q not found (use 'bc demon list' to see available demons)", name)
 	}
 
 	logs, err := store.GetRunLogs(name, demonTail)
@@ -617,7 +617,7 @@ func runDemonEdit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if d == nil {
-		return fmt.Errorf("demon %q not found", name)
+		return fmt.Errorf("demon %q not found (use 'bc demon list' to see available demons)", name)
 	}
 
 	// Check if any flags were provided
