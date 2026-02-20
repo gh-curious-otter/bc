@@ -49,7 +49,9 @@ describe('80x24 Terminal - Breakpoints', () => {
 });
 
 /**
- * Test TabBar at 80x24 - should show full labels
+ * Test TabBar at 80x24 - should show minimal mode (just keys, no labels)
+ * Issue #1109: 12 tabs with full labels need ~140 cols, short labels need ~105 cols
+ * At 80 cols, TabBar uses minimal mode (~55 cols) to prevent overflow
  */
 describe('80x24 Terminal - TabBar', () => {
   function renderTabBar(terminalWidth: number) {
@@ -60,17 +62,16 @@ describe('80x24 Terminal - TabBar', () => {
     );
   }
 
-  it('shows full labels at exactly 80 columns', () => {
+  it('shows minimal mode (keys only) at exactly 80 columns', () => {
     const { lastFrame } = renderTabBar(80);
     const output = lastFrame() ?? '';
 
-    // At 80 cols, should show full tab names
-    expect(output).toContain('Dashboard');
-    expect(output).toContain('Agents');
-    expect(output).toContain('Channels');
+    // At 80 cols, should show just tab keys (minimal mode)
     expect(output).toContain('[1]');
     expect(output).toContain('[2]');
     expect(output).toContain('[3]');
+    // Labels are NOT shown in minimal mode
+    expect(output).not.toContain('Dashboard');
   });
 
   it('all tab keys are visible at 80 columns', () => {
