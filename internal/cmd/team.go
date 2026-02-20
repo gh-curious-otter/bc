@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -104,6 +105,37 @@ Examples:
 	RunE: runTeamCleanup,
 }
 
+var teamExportCmd = &cobra.Command{
+	Use:   "export",
+	Short: "Export team configuration",
+	Long: `Export team configuration to JSON for sharing or backup.
+
+The output includes all teams, their members, leads, and descriptions.
+Pipe to a file to save: bc team export > teams.json
+
+Examples:
+  bc team export                    # Export all teams to stdout
+  bc team export > teams.json       # Save to file
+  bc team export --teams            # Export teams only (no roles/channels)`,
+	RunE: runTeamExport,
+}
+
+var teamImportCmd = &cobra.Command{
+	Use:   "import <file>",
+	Short: "Import team configuration",
+	Long: `Import team configuration from a JSON file.
+
+By default, performs a preview showing what will be imported.
+Use --apply to actually import the configuration.
+
+Examples:
+  bc team import teams.json           # Preview what will be imported
+  bc team import teams.json --apply   # Actually import
+  bc team import teams.json --merge   # Merge with existing (don't overwrite)`,
+	Args: cobra.ExactArgs(1),
+	RunE: runTeamImport,
+}
+
 func init() {
 	teamCmd.AddCommand(teamCreateCmd)
 	teamCmd.AddCommand(teamListCmd)
@@ -113,7 +145,11 @@ func init() {
 	teamCmd.AddCommand(teamRemoveCmd)
 	teamCmd.AddCommand(teamRenameCmd)
 	teamCmd.AddCommand(teamCleanupCmd)
+	teamCmd.AddCommand(teamExportCmd)
+	teamCmd.AddCommand(teamImportCmd)
 	teamCleanupCmd.Flags().Bool("fix", false, "Actually remove orphaned members (default: dry-run)")
+	teamImportCmd.Flags().Bool("apply", false, "Actually import the configuration (default: preview)")
+	teamImportCmd.Flags().Bool("merge", false, "Merge with existing teams (don't overwrite)")
 	rootCmd.AddCommand(teamCmd)
 }
 
@@ -405,5 +441,121 @@ func runTeamCleanup(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	return nil
+}
+
+// TeamExport is the export format for team configurations.
+type TeamExport struct {
+	Version string       `json:"version"`
+	Teams   []*team.Team `json:"teams"`
+}
+
+func runTeamExport(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return errNotInWorkspace(err)
+	}
+
+	store := team.NewStore(ws.RootDir)
+	teams, err := store.List()
+	if err != nil {
+		return fmt.Errorf("failed to list teams: %w", err)
+	}
+
+	if teams == nil {
+		teams = []*team.Team{}
+	}
+
+	export := TeamExport{
+		Version: "1",
+		Teams:   teams,
+	}
+
+	enc := json.NewEncoder(cmd.OutOrStdout())
+	enc.SetIndent("", "  ")
+	return enc.Encode(export)
+}
+
+func runTeamImport(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return errNotInWorkspace(err)
+	}
+
+	apply, _ := cmd.Flags().GetBool("apply")
+	merge, _ := cmd.Flags().GetBool("merge")
+
+	// Read import file
+	filename := args[0]
+	data, err := os.ReadFile(filename) //nolint:gosec // user-provided path
+	if err != nil {
+		return fmt.Errorf("failed to read file: %w", err)
+	}
+
+	var importData TeamExport
+	if err := json.Unmarshal(data, &importData); err != nil {
+		return fmt.Errorf("invalid JSON format: %w", err)
+	}
+
+	if importData.Version == "" {
+		return fmt.Errorf("invalid export format: missing version field")
+	}
+
+	store := team.NewStore(ws.RootDir)
+
+	// Preview mode
+	if !apply {
+		cmd.Printf("Preview import from %s:\n", filename)
+		cmd.Printf("  Version: %s\n", importData.Version)
+		cmd.Printf("  Teams:   %d\n", len(importData.Teams))
+		cmd.Println()
+
+		for _, t := range importData.Teams {
+			existing, _ := store.Get(t.Name)
+			status := "NEW"
+			if existing != nil {
+				if merge {
+					status = "MERGE"
+				} else {
+					status = "OVERWRITE"
+				}
+			}
+			cmd.Printf("  [%s] %s (%d members)\n", status, t.Name, len(t.Members))
+		}
+		cmd.Println()
+		cmd.Println("Run with --apply to import these teams")
+		return nil
+	}
+
+	// Apply import
+	var created, updated int
+	for _, t := range importData.Teams {
+		existing, _ := store.Get(t.Name)
+
+		if existing == nil {
+			// Create new team
+			if _, createErr := store.Create(t.Name); createErr != nil {
+				cmd.PrintErrf("Warning: failed to create team %q: %v\n", t.Name, createErr)
+				continue
+			}
+			created++
+		} else if merge {
+			// Skip existing in merge mode
+			continue
+		} else {
+			updated++
+		}
+
+		// Update team properties
+		if updateErr := store.Update(t.Name, func(existing *team.Team) {
+			existing.Description = t.Description
+			existing.Lead = t.Lead
+			existing.Members = t.Members
+		}); updateErr != nil {
+			cmd.PrintErrf("Warning: failed to update team %q: %v\n", t.Name, updateErr)
+		}
+	}
+
+	cmd.Printf("Import complete: %d created, %d updated\n", created, updated)
 	return nil
 }
