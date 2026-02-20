@@ -55,7 +55,7 @@ export interface UseAnimationOptions {
   autoStart?: boolean;
   /** Callback on completion */
   onComplete?: () => void;
-  /** Frame rate in fps (default: 30) */
+  /** Frame rate in fps (default: 60) */
   fps?: number;
 }
 
@@ -85,7 +85,7 @@ export function useAnimation(options: UseAnimationOptions = {}): UseAnimationRes
     iterations = 1,
     autoStart = true,
     onComplete,
-    fps = 30,
+    fps = 60,
   } = options;
 
   const [state, setState] = useState<AnimationState>({
