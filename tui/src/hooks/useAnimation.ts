@@ -1,15 +1,22 @@
 /**
  * useAnimation - Terminal-based animation hook
  * Issue #1024: Animations and visual effects
+ * Issue #1210: Reduced motion accessibility support
  *
  * Provides animation primitives for terminal UI:
  * - Fade (dim/bright transitions)
  * - Pulse (periodic brightness changes)
  * - Blink (on/off visibility)
  * - Typewriter (character-by-character reveal)
+ *
+ * All animations respect reduced motion preferences via:
+ * - BC_NO_ANIMATIONS=1 (disables all animations)
+ * - BC_REDUCED_MOTION=1 (reduces animation intensity)
+ * - BC_ANIMATION_FPS (custom frame rate limit)
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useReducedMotion, getAccessibleAnimationOptions } from './useReducedMotion';
 
 /** Animation easing functions */
 export type EasingFunction = (t: number) => number;
@@ -76,16 +83,23 @@ export interface UseAnimationResult {
 
 /**
  * Core animation hook
+ * Respects reduced motion preferences (#1210)
  */
 export function useAnimation(options: UseAnimationOptions = {}): UseAnimationResult {
+  const reducedMotion = useReducedMotion();
+  const accessibleOptions = getAccessibleAnimationOptions(reducedMotion, {
+    duration: options.duration ?? 300,
+    fps: options.fps ?? 30,
+  });
+
   const {
-    duration = 300,
+    duration = accessibleOptions.duration,
     delay = 0,
     easing = 'easeOut',
     iterations = 1,
     autoStart = true,
     onComplete,
-    fps = 30,
+    fps = accessibleOptions.fps,
   } = options;
 
   const [state, setState] = useState<AnimationState>({
@@ -203,8 +217,20 @@ export function useAnimation(options: UseAnimationOptions = {}): UseAnimationRes
     }
   }, [state.isRunning, state.isComplete, duration, easingFn, frameInterval, onComplete]);
 
-  // Auto-start
+  // Auto-start (skip if animations disabled)
   useEffect(() => {
+    // If animations disabled, immediately complete
+    if (!accessibleOptions.enabled) {
+      setState({
+        progress: 1,
+        isRunning: false,
+        isComplete: true,
+        iteration: 1,
+      });
+      onComplete?.();
+      return;
+    }
+
     if (autoStart) {
       start();
     }
@@ -213,7 +239,7 @@ export function useAnimation(options: UseAnimationOptions = {}): UseAnimationRes
         clearInterval(animationRef.current);
       }
     };
-  }, [autoStart, start]);
+  }, [autoStart, start, accessibleOptions.enabled, onComplete]);
 
   return { state, start, stop, reset, pause, resume };
 }
@@ -241,16 +267,33 @@ export interface UsePulseResult {
 
 /**
  * Pulse animation hook - oscillates between dim and bright
+ * Respects reduced motion preferences (#1210)
  */
 export function usePulse(options: UsePulseOptions = {}): UsePulseResult {
   const { interval = 1000, minOpacity = 0.3, maxOpacity = 1, enabled = true } = options;
 
+  const reducedMotion = useReducedMotion();
+  const animationsDisabled =
+    reducedMotion.prefersReducedMotion && reducedMotion.recommendedFps === 0;
+
+  // Adjust interval for reduced motion (slower pulse, or disabled)
+  const adjustedInterval = animationsDisabled
+    ? interval // Won't animate anyway
+    : reducedMotion.prefersReducedMotion
+      ? Math.max(interval, 2000) // Slower pulse for reduced motion
+      : interval;
+
   const { state } = useAnimation({
-    duration: interval,
+    duration: adjustedInterval,
     iterations: Infinity,
-    autoStart: enabled,
+    autoStart: enabled && !animationsDisabled,
     easing: 'easeInOut',
   });
+
+  // If animations disabled, return static max opacity
+  if (animationsDisabled) {
+    return { isDim: false, opacity: maxOpacity, progress: 1 };
+  }
 
   // Oscillate between min and max using sine wave
   const sineProgress = Math.sin(state.progress * Math.PI);
@@ -275,25 +318,36 @@ export interface UseBlinkResult {
 
 /**
  * Blink animation hook - simple on/off toggle
+ * Respects reduced motion preferences (#1210)
  */
 export function useBlink(options: UseBlinkOptions = {}): UseBlinkResult {
   const { interval = 500, enabled = true } = options;
   const [isVisible, setIsVisible] = useState(true);
+  const reducedMotion = useReducedMotion();
+
+  // If animations disabled, always visible (no blinking)
+  const shouldBlink =
+    enabled && !(reducedMotion.prefersReducedMotion && reducedMotion.recommendedFps === 0);
+
+  // Slower blink for reduced motion
+  const adjustedInterval = reducedMotion.prefersReducedMotion
+    ? Math.max(interval, 1500)
+    : interval;
 
   useEffect(() => {
-    if (!enabled) {
+    if (!shouldBlink) {
       setIsVisible(true);
       return;
     }
 
     const timer = setInterval(() => {
       setIsVisible((v) => !v);
-    }, interval);
+    }, adjustedInterval);
 
     return () => {
       clearInterval(timer);
     };
-  }, [interval, enabled]);
+  }, [adjustedInterval, shouldBlink]);
 
   return { isVisible };
 }
@@ -325,19 +379,35 @@ export interface UseTypewriterResult {
 
 /**
  * Typewriter animation hook - reveals text character by character
+ * Respects reduced motion preferences (#1210)
  */
 export function useTypewriter(options: UseTypewriterOptions): UseTypewriterResult {
   const { text, speed = 30, delay = 0, autoStart = true, onComplete } = options;
 
-  const [charIndex, setCharIndex] = useState(0);
+  const reducedMotion = useReducedMotion();
+
+  // If animations disabled, show full text immediately
+  const animationsDisabled =
+    reducedMotion.prefersReducedMotion && reducedMotion.recommendedFps === 0;
+
+  const [charIndex, setCharIndex] = useState(animationsDisabled ? text.length : 0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const charInterval = useMemo(() => Math.floor(1000 / speed), [speed]);
+  // Slower typing for reduced motion (capped at 15 cps)
+  const adjustedSpeed = reducedMotion.prefersReducedMotion ? Math.min(speed, 15) : speed;
+  const charInterval = useMemo(() => Math.floor(1000 / adjustedSpeed), [adjustedSpeed]);
 
   const displayText = text.slice(0, charIndex);
   const isComplete = charIndex >= text.length;
 
   const start = useCallback(() => {
+    // If animations disabled, complete immediately
+    if (animationsDisabled) {
+      setCharIndex(text.length);
+      onComplete?.();
+      return;
+    }
+
     const startTyping = () => {
       timerRef.current = setInterval(() => {
         setCharIndex((i) => {
@@ -360,15 +430,15 @@ export function useTypewriter(options: UseTypewriterOptions): UseTypewriterResul
     } else {
       startTyping();
     }
-  }, [text.length, charInterval, delay, onComplete]);
+  }, [text.length, charInterval, delay, onComplete, animationsDisabled]);
 
   const reset = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    setCharIndex(0);
-  }, []);
+    setCharIndex(animationsDisabled ? text.length : 0);
+  }, [animationsDisabled, text.length]);
 
   useEffect(() => {
     if (autoStart) {
@@ -420,21 +490,34 @@ export interface UseFadeResult {
 
 /**
  * Fade animation hook - fade in or out
+ * Respects reduced motion preferences (#1210)
  */
 export function useFade(options: UseFadeOptions = {}): UseFadeResult {
   const { direction = 'in', duration = 200, autoStart = true, onComplete } = options;
 
+  const reducedMotion = useReducedMotion();
+  const animationsDisabled =
+    reducedMotion.prefersReducedMotion && reducedMotion.recommendedFps === 0;
+
+  // useAnimation will handle instant completion when animations are disabled
   const { state, start } = useAnimation({
-    duration,
+    duration: animationsDisabled ? 0 : duration,
     autoStart,
     onComplete,
     easing: 'easeOut',
   });
 
-  const opacity = direction === 'in' ? state.progress : 1 - state.progress;
+  // For disabled animations, return final state; otherwise compute from progress
+  const opacity = animationsDisabled
+    ? direction === 'in'
+      ? 1
+      : 0
+    : direction === 'in'
+      ? state.progress
+      : 1 - state.progress;
   const isDim = opacity < 0.5;
 
-  return { isDim, opacity, start, isComplete: state.isComplete };
+  return { isDim, opacity, start, isComplete: animationsDisabled || state.isComplete };
 }
 
 export default useAnimation;

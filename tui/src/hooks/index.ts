@@ -159,3 +159,9 @@ export {
   type UseFadeOptions,
   type UseFadeResult,
 } from './useAnimation';
+
+export {
+  useReducedMotion,
+  getAccessibleAnimationOptions,
+  type ReducedMotionState,
+} from './useReducedMotion';
