@@ -6,7 +6,7 @@
 import React, { memo, useMemo } from 'react';
 import { Box, Text, useStdout } from 'ink';
 import { Panel } from './Panel';
-import { useLogs, getSeverityColor } from '../hooks';
+import { useLogs, getSeverityColor, getSeverityIcon } from '../hooks';
 import type { LogSeverity } from '../hooks';
 import type { LogEntry } from '../types';
 
@@ -154,6 +154,7 @@ interface ActivityEntryProps {
 // Layout constants for message width calculation
 const TIMESTAMP_WIDTH = 9; // HH:MM:SS + space
 const AGENT_WIDTH = 11;    // 10 chars + space
+const ICON_WIDTH = 2;      // icon + space (colorblind accessibility)
 const EVENT_WIDTH = 13;    // 12 chars + space
 const MIN_MSG_WIDTH = 20;  // Minimum message width
 
@@ -163,11 +164,12 @@ const ActivityEntry = memo(function ActivityEntry({
   terminalWidth = 80,
 }: ActivityEntryProps): React.ReactElement {
   const severityColor = getSeverityColor(entry.type);
+  const severityIcon = getSeverityIcon(entry.type);
   const eventLabel = formatEventType(entry.type);
 
   // Calculate dynamic message width based on terminal size
-  // Layout: [timestamp] agent event message
-  const fixedWidth = (compact ? 0 : TIMESTAMP_WIDTH) + AGENT_WIDTH + EVENT_WIDTH;
+  // Layout: [timestamp] agent icon event message
+  const fixedWidth = (compact ? 0 : TIMESTAMP_WIDTH) + AGENT_WIDTH + ICON_WIDTH + EVENT_WIDTH;
   const availableWidth = terminalWidth - fixedWidth - 4; // 4 for panel borders/padding
   const maxMsgLen = Math.max(MIN_MSG_WIDTH, availableWidth);
 
@@ -177,6 +179,7 @@ const ActivityEntry = memo(function ActivityEntry({
         <Text dimColor>{formatTime(entry.ts)} </Text>
       )}
       <Text color="cyan">{entry.agent.padEnd(10)} </Text>
+      <Text color={severityColor}>{severityIcon} </Text>
       <Text color={severityColor}>{eventLabel.padEnd(12)} </Text>
       <Text>{truncateMessage(entry.message, maxMsgLen)}</Text>
     </Box>

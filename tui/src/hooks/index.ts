@@ -98,6 +98,7 @@ export {
 export {
   useLogs,
   getSeverityColor,
+  getSeverityIcon,
   type UseLogsOptions,
   type UseLogsResult,
   type LogSeverity,
