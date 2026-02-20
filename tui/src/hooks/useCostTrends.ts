@@ -118,7 +118,7 @@ export function useCostTrends(options: UseCostTrendsOptions = {}) {
       // Fetch cost data from bc CLI
       const costData = await getCostSummary();
 
-      const spent = costData.total_cost ?? 0;
+      const spent = costData.total_cost;
       const daysElapsed = getDaysElapsed(period);
       const daysRemaining = getDaysRemaining(period);
       const totalDays = daysElapsed + daysRemaining;
@@ -164,7 +164,7 @@ export function useCostTrends(options: UseCostTrendsOptions = {}) {
     const interval = setInterval(() => {
       void fetchCostTrends();
     }, 60000); // Refresh every 60 seconds
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); };
   }, [fetchCostTrends]);
 
   return { trends, budgetStatus, loading, error, refresh: fetchCostTrends };

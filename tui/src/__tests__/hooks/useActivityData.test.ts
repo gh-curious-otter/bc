@@ -109,10 +109,10 @@ describe('aggregateActivity logic', () => {
     totalCost: number;
   }
 
-  function aggregateActivity(events: ActivityEvent[], periodMinutes: number = 15): ActivityPeriod[] {
+  function aggregateActivity(events: ActivityEvent[], periodMinutes = 15): ActivityPeriod[] {
     if (events.length === 0) return [];
 
-    const periods: Map<number, ActivityPeriod> = new Map();
+    const periods = new Map<number, ActivityPeriod>();
 
     events.forEach((event) => {
       const periodStart = Math.floor(event.timestamp.getTime() / (periodMinutes * 60 * 1000)) * (periodMinutes * 60 * 1000);
@@ -129,11 +129,13 @@ describe('aggregateActivity logic', () => {
         });
       }
 
-      const period = periods.get(key)!;
-      if (!period.agents.includes(event.agent)) {
+      const period = periods.get(key);
+      if (period && !period.agents.includes(event.agent)) {
         period.agents.push(event.agent);
       }
-      period.totalCost += event.cost || 0;
+      if (period) {
+        period.totalCost += event.cost ?? 0;
+      }
     });
 
     return Array.from(periods.values()).sort((a, b) => b.startTime.getTime() - a.startTime.getTime());

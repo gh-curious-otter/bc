@@ -59,10 +59,10 @@ function parseLogToActivity(log: LogEntry): ActivityEvent | null {
 /**
  * Aggregate activity events into time periods
  */
-function aggregateActivity(events: ActivityEvent[], periodMinutes: number = 15): ActivityPeriod[] {
+function aggregateActivity(events: ActivityEvent[], periodMinutes = 15): ActivityPeriod[] {
   if (events.length === 0) return [];
 
-  const periods: Map<number, ActivityPeriod> = new Map();
+  const periods = new Map<number, ActivityPeriod>();
 
   events.forEach((event) => {
     const periodStart = Math.floor(event.timestamp.getTime() / (periodMinutes * 60 * 1000)) * (periodMinutes * 60 * 1000);
@@ -79,11 +79,13 @@ function aggregateActivity(events: ActivityEvent[], periodMinutes: number = 15):
       });
     }
 
-    const period = periods.get(key)!;
-    if (!period.agents.includes(event.agent)) {
+    const period = periods.get(key);
+    if (period && !period.agents.includes(event.agent)) {
       period.agents.push(event.agent);
     }
-    period.totalCost += event.cost || 0;
+    if (period) {
+      period.totalCost += event.cost ?? 0;
+    }
   });
 
   // Sort by time descending (most recent first)
@@ -133,7 +135,7 @@ export function useActivityData(options: UseActivityDataOptions = {}) {
     const interval = setInterval(() => {
       void fetchActivityData();
     }, 30000); // Refresh every 30 seconds
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); };
   }, [fetchActivityData]);
 
   return { activities, loading, error, refresh: fetchActivityData };

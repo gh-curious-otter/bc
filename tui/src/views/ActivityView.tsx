@@ -28,7 +28,7 @@ export function ActivityView({ disableInput = false }: ActivityViewProps): React
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('24h');
   const { isWide } = useResponsiveLayout();
 
-  const { activities, loading: activitiesLoading, error: activitiesError } = useActivityData({
+  const { activities, loading: activitiesLoading, error: activitiesError, refresh: refreshActivities } = useActivityData({
     hours: timePeriod === '24h' ? 24 : timePeriod === 'week' ? 168 : 720,
   });
 
@@ -59,7 +59,7 @@ export function ActivityView({ disableInput = false }: ActivityViewProps): React
   }
 
   if (activitiesError) {
-    return <ErrorDisplay error={activitiesError} onRetry={() => {}} />;
+    return <ErrorDisplay error={activitiesError} onRetry={() => { void refreshActivities(); }} />;
   }
 
   return (
@@ -103,7 +103,7 @@ export function ActivityView({ disableInput = false }: ActivityViewProps): React
         {activities.length === 0 ? (
           <Text dimColor>No activity recorded in this period</Text>
         ) : (
-          activities.slice(0, isWide ? 15 : 8).map((activity: any, idx: number) => (
+          activities.slice(0, isWide ? 15 : 8).map((activity, idx) => (
             <Box key={idx}>
               <Text dimColor>{activity.startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</Text>
               <Text dimColor>-</Text>
