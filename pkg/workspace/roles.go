@@ -55,6 +55,11 @@ type RoleManager struct {
 const DefaultRootRole = `---
 name: root
 is_singleton: true
+capabilities:
+  - create_agents
+  - assign_work
+  - create_epics
+  - review_work
 ---
 
 # Root Agent
