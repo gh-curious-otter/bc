@@ -194,6 +194,33 @@ func getWorkspace() (*workspace.Workspace, error) {
 	return workspace.Find(cwd)
 }
 
+// getWorkspaceByIdentifier resolves a workspace by alias, name, or path.
+// Issue #1218: Multi-workspace orchestration support.
+// If identifier is empty, falls back to getWorkspace() for current directory.
+func getWorkspaceByIdentifier(identifier string) (*workspace.Workspace, error) {
+	if identifier == "" {
+		return getWorkspace()
+	}
+
+	// Try registry lookup first
+	reg, err := workspace.LoadRegistry()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load workspace registry: %w", err)
+	}
+
+	entry := reg.FindByNameOrAlias(identifier)
+	if entry != nil {
+		return workspace.Load(entry.Path)
+	}
+
+	// Try as direct path
+	if workspace.IsWorkspace(identifier) {
+		return workspace.Load(identifier)
+	}
+
+	return nil, fmt.Errorf("workspace not found: %s (use 'bc workspace list' to see registered workspaces)", identifier)
+}
+
 // errorAgentNotRunning returns an error message for commands that require BC_AGENT_ID.
 func errorAgentNotRunning(commandUsage string) error {
 	return fmt.Errorf("this command can only be run by agents in the bc system (use: bc agent send <agent-name> %q)", commandUsage)

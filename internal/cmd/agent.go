@@ -18,6 +18,7 @@ import (
 	"github.com/rpuneet/bc/pkg/names"
 	"github.com/rpuneet/bc/pkg/team"
 	"github.com/rpuneet/bc/pkg/ui"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // agentCmd is the parent command for all agent operations
@@ -279,8 +280,11 @@ var (
 	agentCreateRole      string
 	agentCreateParent    string
 	agentCreateTeam      string
+	agentCreateWorkspace string // #1218: Cross-workspace agent creation
 	agentListRole        string
 	agentListJSON        bool
+	agentListWorkspace   string // #1218: Cross-workspace agent listing
+	agentListAll         bool   // #1218: List agents from all workspaces
 	agentShowJSON        bool
 	agentPeekLines       int
 	agentStopForce       bool
@@ -294,6 +298,7 @@ var (
 	agentHealthMaxFail   int
 	agentHealthAlert     string
 	agentSendPreview     bool
+	agentSendWorkspace   string // #1218: Cross-workspace messaging
 )
 
 func init() {
@@ -302,11 +307,14 @@ func init() {
 	agentCreateCmd.Flags().StringVar(&agentCreateRole, "role", "", "Agent role (engineer, manager, product-manager, tech-lead, qa). Required. Use 'bc role list' to see available roles")
 	agentCreateCmd.Flags().StringVar(&agentCreateParent, "parent", "", "Parent agent ID (must have permission to create this role)")
 	agentCreateCmd.Flags().StringVar(&agentCreateTeam, "team", "", "Team name (alphanumeric)")
+	agentCreateCmd.Flags().StringVar(&agentCreateWorkspace, "workspace", "", "Create agent in specified workspace (alias, name, or path)")
 	_ = agentCreateCmd.MarkFlagRequired("role")
 
 	// List flags
 	agentListCmd.Flags().StringVar(&agentListRole, "role", "", "Filter by role")
 	agentListCmd.Flags().BoolVar(&agentListJSON, "json", false, "Output as JSON")
+	agentListCmd.Flags().StringVar(&agentListWorkspace, "workspace", "", "List agents from specified workspace")
+	agentListCmd.Flags().BoolVar(&agentListAll, "all", false, "List agents from all registered workspaces")
 
 	// Show flags
 	agentShowCmd.Flags().BoolVar(&agentShowJSON, "json", false, "Output as JSON")
@@ -334,6 +342,7 @@ func init() {
 
 	// Send flags
 	agentSendCmd.Flags().BoolVar(&agentSendPreview, "preview", false, "Show preview of action before sending (Intent Preview)")
+	agentSendCmd.Flags().StringVar(&agentSendWorkspace, "workspace", "", "Send to agent in specified workspace (alias, name, or path)")
 
 	// Add shell completion for agent name arguments
 	agentAttachCmd.ValidArgsFunction = CompleteAgentNames
@@ -366,7 +375,8 @@ func init() {
 }
 
 func runAgentCreate(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
+	// #1218: Support cross-workspace agent creation
+	ws, err := getWorkspaceByIdentifier(agentCreateWorkspace)
 	if err != nil {
 		return errNotInWorkspace(err)
 	}
@@ -513,23 +523,57 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 }
 
 func runAgentList(cmd *cobra.Command, args []string) error {
-	log.Debug("agent list command started", "role", agentListRole, "json", agentListJSON)
+	log.Debug("agent list command started", "role", agentListRole, "json", agentListJSON, "workspace", agentListWorkspace, "all", agentListAll)
 
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
+	// #1218: Support cross-workspace agent listing
+	var agents []*agent.Agent
+	var workspaceName string
+
+	if agentListAll {
+		// List from all registered workspaces
+		reg, regErr := workspace.LoadRegistry()
+		if regErr != nil {
+			return fmt.Errorf("failed to load workspace registry: %w", regErr)
+		}
+		for _, entry := range reg.List() {
+			ws, wsErr := workspace.Load(entry.Path)
+			if wsErr != nil {
+				log.Warn("failed to load workspace", "path", entry.Path, "error", wsErr)
+				continue
+			}
+			mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+			if loadErr := mgr.LoadState(); loadErr != nil {
+				log.Warn("failed to load agent state", "workspace", entry.Name, "error", loadErr)
+			}
+			_ = mgr.RefreshState()
+			wsAgents := mgr.ListAgents()
+			// Tag agents with workspace info
+			for _, a := range wsAgents {
+				a.Workspace = entry.Name
+			}
+			agents = append(agents, wsAgents...)
+		}
+		workspaceName = "all"
+	} else {
+		ws, err := getWorkspaceByIdentifier(agentListWorkspace)
+		if err != nil {
+			return errNotInWorkspace(err)
+		}
+		workspaceName = ws.Config.Name
+
+		mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+		if loadErr := mgr.LoadState(); loadErr != nil {
+			log.Warn("failed to load agent state", "error", loadErr)
+		}
+
+		if refreshErr := mgr.RefreshState(); refreshErr != nil {
+			log.Warn("failed to refresh agent state", "error", refreshErr)
+		}
+
+		agents = mgr.ListAgents()
 	}
 
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
-	}
-
-	if refreshErr := mgr.RefreshState(); refreshErr != nil {
-		log.Warn("failed to refresh agent state", "error", refreshErr)
-	}
-
-	agents := mgr.ListAgents()
+	_ = workspaceName // used for potential future logging
 
 	// Filter by role if specified
 	if agentListRole != "" {
@@ -799,7 +843,8 @@ func runAgentSend(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("message cannot be empty")
 	}
 
-	ws, err := getWorkspace()
+	// #1218: Support cross-workspace messaging
+	ws, err := getWorkspaceByIdentifier(agentSendWorkspace)
 	if err != nil {
 		return errNotInWorkspace(err)
 	}
