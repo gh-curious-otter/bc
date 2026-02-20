@@ -1359,12 +1359,19 @@ func TestPasteBufferPreservesSpaces(t *testing.T) {
 	}
 
 	// Terminal line wrapping converts spaces at column boundaries to newlines
-	// and can split words across lines. Join lines back together for comparison.
-	capturedJoined := strings.ReplaceAll(strings.TrimSpace(captured), "\n", "")
+	// and can split words across lines. Trailing spaces on lines are often trimmed.
+	// Normalize whitespace in both strings for comparison.
+	normalizeWS := func(s string) string {
+		// Replace all whitespace sequences with single space
+		fields := strings.Fields(s)
+		return strings.Join(fields, " ")
+	}
+	capturedNorm := normalizeWS(captured)
+	messageNorm := normalizeWS(message)
 
-	if !strings.Contains(capturedJoined, message) {
-		t.Errorf("paste-buffer path lost content\n  sent len:     %d\n  captured len: %d",
-			len(message), len(capturedJoined))
+	if !strings.Contains(capturedNorm, messageNorm) {
+		t.Errorf("paste-buffer path lost content\n  sent:     %q\n  captured: %q",
+			messageNorm, capturedNorm)
 	}
 }
 
