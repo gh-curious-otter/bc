@@ -6,7 +6,8 @@
  * to reduce subprocess overhead from polling operations.
  */
 
-import { spawn, spawnSync } from 'child_process';
+import { spawn as nodeSpawn, spawnSync } from 'child_process';
+import type { ChildProcess, SpawnOptions } from 'child_process';
 import type {
   StatusResponse,
   ChannelsResponse,
@@ -40,6 +41,39 @@ interface CacheEntry<T> {
  * In-memory cache for command results
  */
 const commandCache = new Map<string, CacheEntry<unknown>>();
+
+// ============================================================================
+// Test Injection Support (#1066 - Fix mock isolation in tests)
+// ============================================================================
+
+/**
+ * Type for spawn function signature
+ */
+type SpawnFn = (
+  command: string,
+  args: string[],
+  options?: SpawnOptions
+) => ChildProcess;
+
+/**
+ * Injectable spawn function - defaults to node's spawn
+ * Tests can override this via _setSpawnForTesting()
+ */
+let spawn: SpawnFn = nodeSpawn;
+
+/**
+ * Set a custom spawn function for testing
+ * @param mockSpawn - Mock spawn function to use
+ * @returns Function to restore original spawn
+ * @internal
+ */
+export function _setSpawnForTesting(mockSpawn: SpawnFn): () => void {
+  const originalSpawn = spawn;
+  spawn = mockSpawn;
+  return () => {
+    spawn = originalSpawn;
+  };
+}
 
 /**
  * Default TTLs by command type (in milliseconds)
