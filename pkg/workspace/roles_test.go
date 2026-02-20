@@ -427,4 +427,270 @@ func TestDefaultRootRole_Parseable(t *testing.T) {
 	if role.Prompt == "" {
 		t.Error("Prompt should not be empty")
 	}
+
+	// #1191: Verify root has permissions defined
+	if len(role.Metadata.Permissions) == 0 {
+		t.Error("Root role should have permissions defined")
+	}
+
+	// Verify root has level -1
+	if role.Metadata.Level != -1 {
+		t.Errorf("Root level = %d, want -1", role.Metadata.Level)
+	}
+}
+
+// Issue #1191: RBAC permissions tests
+
+func TestRole_HasPermission(t *testing.T) {
+	role := &Role{
+		Metadata: RoleMetadata{
+			Name:        "test",
+			Permissions: []string{"can_view_logs", "can_send_messages"},
+		},
+	}
+
+	if !role.HasPermission("can_view_logs") {
+		t.Error("Should have can_view_logs permission")
+	}
+
+	if !role.HasPermission("can_send_messages") {
+		t.Error("Should have can_send_messages permission")
+	}
+
+	if role.HasPermission("can_create_agents") {
+		t.Error("Should NOT have can_create_agents permission")
+	}
+}
+
+func TestRole_GetEffectivePermissions(t *testing.T) {
+	t.Run("explicit permissions take precedence", func(t *testing.T) {
+		role := &Role{
+			Metadata: RoleMetadata{
+				Name:        "custom",
+				Level:       1,
+				Permissions: []string{"can_create_agents"}, // Override defaults
+			},
+		}
+
+		perms := role.GetEffectivePermissions()
+		if len(perms) != 1 {
+			t.Errorf("Should have 1 permission, got %d", len(perms))
+		}
+		if perms[0] != "can_create_agents" {
+			t.Errorf("Permission = %q, want can_create_agents", perms[0])
+		}
+	})
+
+	t.Run("root level gets all permissions", func(t *testing.T) {
+		role := &Role{
+			Metadata: RoleMetadata{
+				Name:  "root",
+				Level: -1,
+			},
+		}
+
+		perms := role.GetEffectivePermissions()
+		if len(perms) != 11 { // All 11 permissions
+			t.Errorf("Root should have 11 permissions, got %d", len(perms))
+		}
+	})
+
+	t.Run("manager level gets limited permissions", func(t *testing.T) {
+		role := &Role{
+			Metadata: RoleMetadata{
+				Name:  "manager",
+				Level: 0,
+			},
+		}
+
+		perms := role.GetEffectivePermissions()
+		// Manager should have: create_agents, stop_agents, restart_agents,
+		// send_commands, view_logs, create_channels, send_messages
+		if len(perms) != 7 {
+			t.Errorf("Manager should have 7 permissions, got %d", len(perms))
+		}
+	})
+
+	t.Run("engineer level gets basic permissions", func(t *testing.T) {
+		role := &Role{
+			Metadata: RoleMetadata{
+				Name:  "engineer",
+				Level: 1,
+			},
+		}
+
+		perms := role.GetEffectivePermissions()
+		// Engineer should have: view_logs, send_commands, send_messages
+		if len(perms) != 3 {
+			t.Errorf("Engineer should have 3 permissions, got %d", len(perms))
+		}
+	})
+}
+
+func TestRoleManager_SetPermissions(t *testing.T) {
+	tmpDir := t.TempDir()
+	stateDir := filepath.Join(tmpDir, ".bc")
+	rolesDir := filepath.Join(stateDir, "roles")
+
+	if err := os.MkdirAll(rolesDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a test role
+	roleContent := `---
+name: engineer
+level: 1
+---
+
+# Engineer Role
+`
+	if err := os.WriteFile(filepath.Join(rolesDir, "engineer.md"), []byte(roleContent), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	rm := NewRoleManager(stateDir)
+
+	// Set new permissions
+	newPerms := []string{"can_create_agents", "can_view_logs"}
+	if err := rm.SetPermissions("engineer", newPerms); err != nil {
+		t.Fatalf("SetPermissions failed: %v", err)
+	}
+
+	// Reload and verify
+	rm2 := NewRoleManager(stateDir)
+	role, err := rm2.LoadRole("engineer")
+	if err != nil {
+		t.Fatalf("Failed to reload role: %v", err)
+	}
+
+	if len(role.Metadata.Permissions) != 2 {
+		t.Errorf("Should have 2 permissions, got %d", len(role.Metadata.Permissions))
+	}
+}
+
+func TestRoleManager_AddPermission(t *testing.T) {
+	tmpDir := t.TempDir()
+	stateDir := filepath.Join(tmpDir, ".bc")
+	rolesDir := filepath.Join(stateDir, "roles")
+
+	if err := os.MkdirAll(rolesDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	roleContent := `---
+name: test
+permissions:
+  - can_view_logs
+---
+
+# Test Role
+`
+	if err := os.WriteFile(filepath.Join(rolesDir, "test.md"), []byte(roleContent), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	rm := NewRoleManager(stateDir)
+
+	// Add a new permission
+	if err := rm.AddPermission("test", "can_send_messages"); err != nil {
+		t.Fatalf("AddPermission failed: %v", err)
+	}
+
+	// Reload and verify
+	rm2 := NewRoleManager(stateDir)
+	role, err := rm2.LoadRole("test")
+	if err != nil {
+		t.Fatalf("Failed to reload role: %v", err)
+	}
+
+	if len(role.Metadata.Permissions) != 2 {
+		t.Errorf("Should have 2 permissions, got %d", len(role.Metadata.Permissions))
+	}
+
+	// Adding duplicate should be no-op
+	rm3 := NewRoleManager(stateDir)
+	if err := rm3.AddPermission("test", "can_view_logs"); err != nil {
+		t.Fatalf("AddPermission (duplicate) failed: %v", err)
+	}
+
+	// Should still have 2
+	rm4 := NewRoleManager(stateDir)
+	role, _ = rm4.LoadRole("test")
+	if len(role.Metadata.Permissions) != 2 {
+		t.Errorf("Adding duplicate should not increase count, got %d", len(role.Metadata.Permissions))
+	}
+}
+
+func TestRoleManager_RemovePermission(t *testing.T) {
+	tmpDir := t.TempDir()
+	stateDir := filepath.Join(tmpDir, ".bc")
+	rolesDir := filepath.Join(stateDir, "roles")
+
+	if err := os.MkdirAll(rolesDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	roleContent := `---
+name: test
+permissions:
+  - can_view_logs
+  - can_send_messages
+  - can_create_agents
+---
+
+# Test Role
+`
+	if err := os.WriteFile(filepath.Join(rolesDir, "test.md"), []byte(roleContent), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	rm := NewRoleManager(stateDir)
+
+	// Remove a permission
+	if err := rm.RemovePermission("test", "can_send_messages"); err != nil {
+		t.Fatalf("RemovePermission failed: %v", err)
+	}
+
+	// Reload and verify
+	rm2 := NewRoleManager(stateDir)
+	role, err := rm2.LoadRole("test")
+	if err != nil {
+		t.Fatalf("Failed to reload role: %v", err)
+	}
+
+	if len(role.Metadata.Permissions) != 2 {
+		t.Errorf("Should have 2 permissions after removal, got %d", len(role.Metadata.Permissions))
+	}
+
+	// Verify the right permission was removed
+	for _, p := range role.Metadata.Permissions {
+		if p == "can_send_messages" {
+			t.Error("can_send_messages should have been removed")
+		}
+	}
+}
+
+func TestParseRoleFile_WithPermissions(t *testing.T) {
+	content := `---
+name: custom
+level: 0
+permissions:
+  - can_create_agents
+  - can_view_logs
+---
+
+# Custom Role
+`
+	role, err := ParseRoleFile([]byte(content))
+	if err != nil {
+		t.Fatalf("ParseRoleFile failed: %v", err)
+	}
+
+	if len(role.Metadata.Permissions) != 2 {
+		t.Errorf("Permissions len = %d, want 2", len(role.Metadata.Permissions))
+	}
+
+	if role.Metadata.Level != 0 {
+		t.Errorf("Level = %d, want 0", role.Metadata.Level)
+	}
 }
