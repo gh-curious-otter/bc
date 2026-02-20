@@ -2,10 +2,37 @@ package integrations
 
 import (
 	"context"
+	"os"
+	"os/exec"
 	"testing"
 
 	"github.com/rpuneet/bc/pkg/workspace"
 )
+
+// mockCmd creates a mock command that returns the given output and exit code.
+func mockCmd(stdout string, exitCode int) CommandFunc {
+	return func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
+		cs := []string{"-test.run=TestHelperProcess", "--", stdout}
+		cmd := exec.CommandContext(ctx, os.Args[0], cs...) //nolint:gosec // test helper
+		cmd.Env = append(os.Environ(),
+			"GO_WANT_HELPER_PROCESS=1",
+			"MOCK_EXIT_CODE="+string(rune('0'+exitCode)),
+			"MOCK_STDOUT="+stdout,
+		)
+		return cmd
+	}
+}
+
+// TestHelperProcess is used by mockCmd to simulate command execution.
+func TestHelperProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
+	}
+	stdout := os.Getenv("MOCK_STDOUT")
+	exitCode := int(os.Getenv("MOCK_EXIT_CODE")[0] - '0')
+	os.Stdout.WriteString(stdout) //nolint:errcheck
+	os.Exit(exitCode)
+}
 
 func TestNewGitHubIntegrationDisabled(t *testing.T) {
 	// Test when GitHub tool is disabled
@@ -62,133 +89,138 @@ func TestNewGitHubIntegrationEnabled(t *testing.T) {
 	}
 }
 
-func TestCheckAuth(t *testing.T) {
-	// Note: This test requires 'gh' to be installed and authenticated
-	// It will be skipped in CI if gh is not available
-	t.Skip("Integration test - requires gh to be installed and authenticated")
-
-	ws := &workspace.Workspace{
-		V2Config: &workspace.V2Config{
-			Tools: workspace.ToolsConfig{
-				GitHub: &workspace.ToolConfig{
-					Command: "gh",
-					Enabled: true,
-				},
-			},
-		},
-	}
-
-	gh, err := NewGitHubIntegration(ws)
-	if err != nil {
-		t.Fatalf("NewGitHubIntegration failed: %v", err)
+func TestCheckAuthSuccess(t *testing.T) {
+	gh := &GitHubIntegration{
+		command:     "gh",
+		execCommand: mockCmd("", 0),
 	}
 
 	ctx := context.Background()
-	// If gh is available and authenticated, this should work
-	err = gh.CheckAuth(ctx)
+	err := gh.CheckAuth(ctx)
 	if err != nil {
-		t.Logf("gh auth check failed (expected in some environments): %v", err)
+		t.Errorf("CheckAuth should succeed: %v", err)
 	}
 }
 
-func TestCreateIssue(t *testing.T) {
-	// This is an integration test that requires gh and GitHub access
-	// Skipped by default as it modifies state
-	t.Skip("Integration test - requires gh and GitHub access")
+func TestCheckAuthFailure(t *testing.T) {
+	gh := &GitHubIntegration{
+		command:     "gh",
+		execCommand: mockCmd("not logged in", 1),
+	}
 
 	ctx := context.Background()
-	ws := &workspace.Workspace{
-		V2Config: &workspace.V2Config{
-			Tools: workspace.ToolsConfig{
-				GitHub: &workspace.ToolConfig{
-					Command: "gh",
-					Enabled: true,
-				},
-			},
-		},
+	err := gh.CheckAuth(ctx)
+	if err == nil {
+		t.Error("CheckAuth should fail when not authenticated")
+	}
+}
+
+func TestCreateIssueSuccess(t *testing.T) {
+	expectedURL := "https://github.com/test/repo/issues/123"
+	gh := &GitHubIntegration{
+		command:     "gh",
+		execCommand: mockCmd(expectedURL, 0),
 	}
 
-	gh, err := NewGitHubIntegration(ws)
-	if err != nil {
-		t.Fatalf("NewGitHubIntegration failed: %v", err)
-	}
-
-	title := "[test] automated issue creation"
-	body := "This is a test issue created by bc integration test"
-	labels := []string{"test", "automated"}
-
-	url, err := gh.CreateIssue(ctx, title, body, labels)
+	ctx := context.Background()
+	url, err := gh.CreateIssue(ctx, "Test Issue", "Test body", []string{"bug"})
 	if err != nil {
 		t.Fatalf("CreateIssue failed: %v", err)
 	}
-
-	if url == "" {
-		t.Error("expected non-empty issue URL")
+	if url != expectedURL {
+		t.Errorf("url: got %q, want %q", url, expectedURL)
 	}
-
-	t.Logf("Created issue: %s", url)
 }
 
-func TestFindIssue(t *testing.T) {
-	// This is an integration test that requires gh and GitHub access
-	t.Skip("Integration test - requires gh and GitHub access")
+func TestCreateIssueFailure(t *testing.T) {
+	gh := &GitHubIntegration{
+		command:     "gh",
+		execCommand: mockCmd("error: not found", 1),
+	}
 
 	ctx := context.Background()
-	ws := &workspace.Workspace{
-		V2Config: &workspace.V2Config{
-			Tools: workspace.ToolsConfig{
-				GitHub: &workspace.ToolConfig{
-					Command: "gh",
-					Enabled: true,
-				},
-			},
-		},
+	_, err := gh.CreateIssue(ctx, "Test Issue", "Test body", nil)
+	if err == nil {
+		t.Error("CreateIssue should fail")
+	}
+}
+
+func TestFindIssueFound(t *testing.T) {
+	gh := &GitHubIntegration{
+		command:     "gh",
+		execCommand: mockCmd("42", 0),
 	}
 
-	gh, err := NewGitHubIntegration(ws)
-	if err != nil {
-		t.Fatalf("NewGitHubIntegration failed: %v", err)
-	}
-
-	// Search for a test issue (won't find anything, but tests the query mechanism)
-	issueNum, err := gh.FindIssue(ctx, "nonexistent-test-issue-12345")
+	ctx := context.Background()
+	issueNum, err := gh.FindIssue(ctx, "test query")
 	if err != nil {
 		t.Fatalf("FindIssue failed: %v", err)
 	}
-
-	// Should return empty string if not found
-	if issueNum != "" {
-		t.Logf("Found issue: %s", issueNum)
+	if issueNum != "42" {
+		t.Errorf("issueNum: got %q, want %q", issueNum, "42")
 	}
 }
 
-func TestIssueExists(t *testing.T) {
-	// This is an integration test that requires gh and GitHub access
-	t.Skip("Integration test - requires gh and GitHub access")
+func TestFindIssueNotFound(t *testing.T) {
+	gh := &GitHubIntegration{
+		command:     "gh",
+		execCommand: mockCmd("null", 0),
+	}
 
 	ctx := context.Background()
-	ws := &workspace.Workspace{
-		V2Config: &workspace.V2Config{
-			Tools: workspace.ToolsConfig{
-				GitHub: &workspace.ToolConfig{
-					Command: "gh",
-					Enabled: true,
-				},
-			},
-		},
-	}
-
-	gh, err := NewGitHubIntegration(ws)
+	issueNum, err := gh.FindIssue(ctx, "nonexistent")
 	if err != nil {
-		t.Fatalf("NewGitHubIntegration failed: %v", err)
+		t.Fatalf("FindIssue failed: %v", err)
+	}
+	if issueNum != "" {
+		t.Errorf("issueNum should be empty for not found, got %q", issueNum)
+	}
+}
+
+func TestFindIssueEmpty(t *testing.T) {
+	gh := &GitHubIntegration{
+		command:     "gh",
+		execCommand: mockCmd("", 0),
 	}
 
-	exists, err := gh.IssueExists(ctx, "nonexistent-test-issue-12345")
+	ctx := context.Background()
+	issueNum, err := gh.FindIssue(ctx, "nonexistent")
+	if err != nil {
+		t.Fatalf("FindIssue failed: %v", err)
+	}
+	if issueNum != "" {
+		t.Errorf("issueNum should be empty, got %q", issueNum)
+	}
+}
+
+func TestIssueExistsTrue(t *testing.T) {
+	gh := &GitHubIntegration{
+		command:     "gh",
+		execCommand: mockCmd("42", 0),
+	}
+
+	ctx := context.Background()
+	exists, err := gh.IssueExists(ctx, "test query")
 	if err != nil {
 		t.Fatalf("IssueExists failed: %v", err)
 	}
+	if !exists {
+		t.Error("IssueExists should return true when issue is found")
+	}
+}
 
+func TestIssueExistsFalse(t *testing.T) {
+	gh := &GitHubIntegration{
+		command:     "gh",
+		execCommand: mockCmd("null", 0),
+	}
+
+	ctx := context.Background()
+	exists, err := gh.IssueExists(ctx, "nonexistent")
+	if err != nil {
+		t.Fatalf("IssueExists failed: %v", err)
+	}
 	if exists {
-		t.Error("expected nonexistent issue to return false")
+		t.Error("IssueExists should return false when issue is not found")
 	}
 }
