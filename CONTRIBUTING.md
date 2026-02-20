@@ -71,6 +71,38 @@ bun test           # Run tests
 bun run lint       # Lint code
 ```
 
+### TUI Testing
+
+The TUI uses `bun:test` for testing. Key patterns:
+
+**Testing Hooks Without DOM**
+
+React hooks in Ink/terminal environment don't have DOM access. Test exported helper functions and type interfaces instead of hook behavior:
+
+```typescript
+// Test helper functions directly
+import { getSeverityColor } from '../useLogs';
+expect(getSeverityColor('error')).toBe('red');
+
+// Validate type exports
+import type { UseStatusOptions } from '../useStatus';
+const options: UseStatusOptions = { pollInterval: 5000 };
+expect(options.pollInterval).toBe(5000);
+```
+
+**Test File Location**
+
+- Hooks: `tui/src/hooks/__tests__/*.test.tsx`
+- Views: `tui/src/views/__tests__/*.test.tsx`
+- Components: `tui/src/__tests__/components/*.test.tsx`
+
+**Running Specific Tests**
+
+```bash
+bun test src/hooks/__tests__/useStatus.test.tsx
+bun test --watch  # Watch mode
+```
+
 ## Code Style
 
 ### Linting
@@ -133,10 +165,14 @@ bc/
 ├── prompts/             # Default role prompt templates
 └── tui/                 # TypeScript/React TUI (Ink)
     ├── src/
+    │   ├── __tests__/   # Component and integration tests
     │   ├── components/  # Reusable UI components
-    │   ├── hooks/       # React hooks
-    │   ├── services/    # BC CLI wrapper
-    │   ├── views/       # Full-screen views
+    │   ├── hooks/       # React hooks (useAgents, useChannels, etc.)
+    │   │   └── __tests__/ # Hook tests
+    │   ├── navigation/  # Tab bar, keyboard navigation
+    │   ├── services/    # BC CLI wrapper (bc.ts)
+    │   ├── views/       # Full-screen views (12 views)
+    │   │   └── __tests__/ # View tests
     │   └── app.tsx      # Main TUI application
     └── dist/            # Compiled output (CommonJS)
 ```
