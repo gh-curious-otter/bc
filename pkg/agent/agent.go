@@ -822,11 +822,8 @@ func (m *Manager) StopAgent(name string) error {
 	// Kill tmux session (ignore error - session might already be dead)
 	_ = m.tmux.KillSession(name)
 
-	// Clean up per-agent git worktree
-	if agent.WorktreeDir != "" && agent.WorktreeDir != agent.Workspace {
-		removeWorktree(agent.Workspace, agent.WorktreeDir)
-		agent.WorktreeDir = ""
-	}
+	// Note: Worktree is intentionally preserved on stop so agents can resume work.
+	// Only DeleteAgent removes the worktree permanently.
 
 	agent.State = StateStopped
 	agent.UpdatedAt = time.Now()
