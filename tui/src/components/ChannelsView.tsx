@@ -40,19 +40,18 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
   const { getLastViewed } = useUnread();
   const { setFocus } = useFocus();
 
-  const selectedChannel = channels?.[selectedIndex];
-
   // Update breadcrumbs and focus when view mode changes
   useEffect(() => {
-    if (viewMode === 'history' && selectedChannel) {
-      setBreadcrumbs([{ label: `#${selectedChannel.name}` }]);
+    const channel = channels?.[selectedIndex];
+    if (viewMode === 'history' && channel) {
+      setBreadcrumbs([{ label: `#${channel.name}` }]);
     } else {
       clearBreadcrumbs();
       // Restore focus to 'main' when returning to list view
       // This must happen AFTER global ESC handler has checked focus
       setFocus('main');
     }
-  }, [viewMode, selectedChannel, setBreadcrumbs, clearBreadcrumbs, setFocus]);
+  }, [viewMode, channels, selectedIndex, setBreadcrumbs, clearBreadcrumbs, setFocus]);
 
   // Calculate unread status for each channel (new = never viewed)
   const getChannelUnread = (channelName: string): number => {
@@ -78,8 +77,10 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
         if (input === 'G' && channels) {
           setSelectedIndex(channels.length - 1);
         }
-        // Enter channel - set focus to 'view' BEFORE changing mode to prevent race
-        if (key.return && selectedChannel) {
+        // Enter channel - get current channel inside callback to avoid stale closure
+        // This fixes #1064: Enter key not working when channels load after initial render
+        const currentChannel = channels?.[selectedIndex];
+        if (key.return && currentChannel) {
           setFocus('view');
           setViewMode('history');
         }
@@ -88,6 +89,9 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
     },
     { isActive: !disableInput }
   );
+
+  // Get currently selected channel for rendering
+  const selectedChannel = channels?.[selectedIndex];
 
   if (channelsLoading) {
     return (
