@@ -10,7 +10,7 @@
     "start": "bun run dist/index.js",
     "lint": "bun run eslint src",
     "typecheck": "bun run tsc --noEmit",
-    "test": "bun test src/__tests__ src/hooks/__tests__ src/components/__tests__ src/views/__tests__ && bun test src/services/__tests__/bc.test.ts",
+    "test": "bun test src/__tests__ src/hooks/__tests__ src/components/__tests__ src/views/__tests__ && bun test src/services/__tests__/bc.test.ts && bun test src/config/__tests__/config.test.tsx",
     "test:watch": "bun test --watch",
     "test:bc": "bun test src/services/__tests__/bc.test.ts",
     "test:ui": "bun test src/__tests__ src/hooks/__tests__ src/components/__tests__ src/views/__tests__"
