@@ -358,24 +358,25 @@ interface AgentStatsPanelProps {
 
 /**
  * Memoized agent stats panel - only re-renders when stats change
+ * Fixed: Use proper Box layout to prevent text overlap (#1065)
  */
 const AgentStatsPanel = memo(function AgentStatsPanel({ stats }: AgentStatsPanelProps) {
   const hasRoles = Object.keys(stats.byRole).length > 0;
 
   if (!hasRoles) return null;
 
+  const roleEntries = Object.entries(stats.byRole);
+
   return (
     <Panel title="Agent Distribution">
-      <Box>
-        {/* By Role */}
-        <Box marginRight={4}>
-          <Text dimColor>By Role: </Text>
-          {Object.entries(stats.byRole).map(([role, count], idx, arr) => (
-            <Text key={role}>
+      <Box flexDirection="column">
+        <Text dimColor>By Role:</Text>
+        <Box flexDirection="column" marginTop={1}>
+          {roleEntries.map(([role, count]) => (
+            <Box key={role}>
               <Text color="cyan">{role}</Text>
-              <Text>:{count}</Text>
-              {idx < arr.length - 1 && <Text> · </Text>}
-            </Text>
+              <Text>: {count}</Text>
+            </Box>
           ))}
         </Box>
       </Box>
