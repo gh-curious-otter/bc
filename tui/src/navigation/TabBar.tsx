@@ -2,18 +2,24 @@
  * TabBar - Responsive navigation tab bar component
  *
  * Display modes based on terminal width:
- * - Full (>=120 cols): [1] Dashboard [2] Agents ...
- * - Short (80-119 cols): [1] Dash [2] Agt ...
- * - Minimal (<80 cols): [1] [2] [3] ...
+ * - Full (>=120 cols): [1] Dashboard [2] Agents ... (~140 cols needed)
+ * - Short (100-119 cols): [1] Dash [2] Agt ... (~105 cols needed)
+ * - Minimal (<100 cols): [1] [2] [3] ... (~55 cols needed, fits 80x24)
+ *
+ * Issue #1109: Fixed 80x24 display by using minimal mode at <100 cols
  */
 
 import React, { useMemo } from 'react';
 import { Box, Text, useStdout } from 'ink';
 import { useNavigation } from './NavigationContext';
 
-/** Terminal width thresholds for display modes */
-const FULL_WIDTH_THRESHOLD = 80;
-const SHORT_WIDTH_THRESHOLD = 50;
+/** Terminal width thresholds for display modes - aligned with BREAKPOINTS in useResponsiveLayout
+ * 12 tabs with full labels need ~140 cols
+ * 12 tabs with short labels need ~105 cols
+ * 12 tabs minimal (just numbers) need ~55 cols
+ */
+const FULL_WIDTH_THRESHOLD = 120;  // BREAKPOINTS.MEDIUM - full labels
+const SHORT_WIDTH_THRESHOLD = 100; // BREAKPOINTS.COMPACT - short labels (at 80 cols, use minimal)
 
 /** Display mode for tab labels */
 type DisplayMode = 'full' | 'short' | 'minimal';

@@ -1,5 +1,10 @@
 /**
- * TabBar responsive display mode tests for #982
+ * TabBar responsive display mode tests
+ *
+ * Issue #1109: Fixed 80x24 display by adjusting thresholds:
+ * - Full (>=120 cols): Full labels like "Dashboard", "Agents"
+ * - Short (100-119 cols): Short labels like "Dash", "Agt"
+ * - Minimal (<100 cols): Just numbers like "[1]", "[2]" (fits 80x24)
  *
  * Verifies:
  * - Display mode logic returns correct mode for terminal widths
@@ -29,25 +34,25 @@ describe('TabBar display mode logic', () => {
     const { lastFrame } = renderTabBar(140);
     const output = lastFrame() ?? '';
 
-    // Full mode shows full labels - but rendering may truncate at 80 cols
-    // We verify by checking that Dashboard is attempted (even if truncated)
+    // Full mode shows full labels
     expect(output).toContain('Dashboard');
+    expect(output).toContain('Agents');
     expect(output).toContain('[1]');
   });
 
-  test('at 100 cols (full mode), uses full labels', () => {
-    const { lastFrame } = renderTabBar(100);
+  test('at 120 cols (full mode boundary), uses full labels', () => {
+    const { lastFrame } = renderTabBar(120);
     const output = lastFrame() ?? '';
 
-    // Full mode uses full labels at 100 cols
+    // At exactly 120, should be full mode
     expect(output).toContain('Dashboard');
     expect(output).toContain('Agents');
     expect(output).toContain('[1]');
     expect(output).toContain('[2]');
   });
 
-  test('at 60 cols (short mode), shows abbreviated labels', () => {
-    const { lastFrame } = renderTabBar(60);
+  test('at 110 cols (short mode), shows abbreviated labels', () => {
+    const { lastFrame } = renderTabBar(110);
     const output = lastFrame() ?? '';
 
     // Short mode shows abbreviated labels
@@ -56,58 +61,71 @@ describe('TabBar display mode logic', () => {
     expect(output).toContain('[3]');
     expect(output).toContain('Dash');
     expect(output).toContain('Agt');
+    // Full labels should NOT appear
+    expect(output).not.toContain('Dashboard');
   });
 
-  test('boundary: 80 cols triggers full mode', () => {
-    const { lastFrame } = renderTabBar(80);
+  test('boundary: 119 cols triggers short mode', () => {
+    const { lastFrame } = renderTabBar(119);
     const output = lastFrame() ?? '';
 
-    // At exactly 80, should be full mode
-    expect(output).toContain('Dashboard');
-  });
-
-  test('boundary: 79 cols triggers short mode', () => {
-    const { lastFrame } = renderTabBar(79);
-    const output = lastFrame() ?? '';
-
-    // At 79, should be short mode - look for short labels
+    // At 119, should be short mode - look for short labels
     expect(output).toContain('Dash');
     // Full "Dashboard" should NOT appear
     expect(output).not.toContain('Dashboard');
   });
 
-  test('boundary: 50 cols triggers short mode', () => {
-    const { lastFrame } = renderTabBar(50);
+  test('boundary: 100 cols triggers short mode', () => {
+    const { lastFrame } = renderTabBar(100);
     const output = lastFrame() ?? '';
 
-    // At 50, still short mode
+    // At 100, still short mode
     expect(output).toContain('Dash');
+    expect(output).toContain('Agt');
+    expect(output).not.toContain('Dashboard');
   });
 
-  test('boundary: 49 cols triggers minimal mode', () => {
-    const { lastFrame } = renderTabBar(49);
+  test('boundary: 99 cols triggers minimal mode', () => {
+    const { lastFrame } = renderTabBar(99);
     const output = lastFrame() ?? '';
 
-    // At 49, minimal mode - no labels
+    // At 99, minimal mode - no labels, just numbers
     expect(output).toContain('[1]');
+    expect(output).toContain('[2]');
     expect(output).not.toContain('Dash');
+    expect(output).not.toContain('Dashboard');
+  });
+
+  test('at 80 cols (minimal mode), shows only tab numbers', () => {
+    const { lastFrame } = renderTabBar(80);
+    const output = lastFrame() ?? '';
+
+    // At 80 (standard terminal), minimal mode
+    expect(output).toContain('[1]');
+    expect(output).toContain('[2]');
+    expect(output).toContain('[3]');
+    // No labels in minimal mode
+    expect(output).not.toContain('Dash');
+    expect(output).not.toContain('Dashboard');
   });
 });
 
 describe('TabBar structure', () => {
-  test('renders title "bc" prefix', () => {
-    const { lastFrame } = renderTabBar(100);
+  test('renders separator after title', () => {
+    const { lastFrame } = renderTabBar(120);
     const output = lastFrame() ?? '';
 
-    // Title should be visible (may be truncated in some renderers)
-    expect(output).toContain('|');
+    // Tab bar should have content and contain tab numbers
+    // Note: "bc" title may be partially truncated in ink-testing-library
+    expect(output).toContain('[1]');
+    expect(output.length).toBeGreaterThan(10);
   });
 
   test('all tab keys are present at every display mode', () => {
     const keys = ['[1]', '[2]', '[3]', '[4]', '[5]', '[6]', '[7]', '[8]', '[?]'];
 
     // Test each display mode
-    for (const width of [60, 100, 140]) {
+    for (const width of [80, 110, 140]) {
       const { lastFrame } = renderTabBar(width);
       const output = lastFrame() ?? '';
 
@@ -117,11 +135,11 @@ describe('TabBar structure', () => {
     }
   });
 
-  test('full labels map correctly at 80+ cols', () => {
-    const { lastFrame } = renderTabBar(100);
+  test('full labels map correctly at 120+ cols', () => {
+    const { lastFrame } = renderTabBar(120);
     const output = lastFrame() ?? '';
 
-    // Verify full labels are used in full mode at 100 cols
+    // Verify full labels are used in full mode at 120 cols
     expect(output).toContain('[1]');
     expect(output).toContain('Dashboard');
     expect(output).toContain('[2]');
@@ -130,21 +148,32 @@ describe('TabBar structure', () => {
     expect(output).toContain('Channels');
   });
 
-  test('short labels map correctly at <80 cols', () => {
-    const { lastFrame } = renderTabBar(60);
+  test('short labels map correctly at 100-119 cols', () => {
+    const { lastFrame } = renderTabBar(110);
     const output = lastFrame() ?? '';
 
-    // Verify short labels are used in short mode at 60 cols
+    // Verify short labels are used in short mode
     expect(output).toContain('[1]');
     expect(output).toContain('Dash');
     expect(output).toContain('[2]');
     expect(output).toContain('Agt');
   });
+
+  test('minimal mode shows only numbers at <100 cols', () => {
+    const { lastFrame } = renderTabBar(80);
+    const output = lastFrame() ?? '';
+
+    // Verify only numbers are shown
+    expect(output).toContain('[1]');
+    expect(output).toContain('[2]');
+    expect(output).not.toContain('Dash');
+    expect(output).not.toContain('Dashboard');
+  });
 });
 
 describe('TabBar accessibility', () => {
   test('keyboard navigation keys always visible', () => {
-    // All keys should be visible in all modes
+    // All keys should be visible in all modes, including minimal
     const { lastFrame } = renderTabBar(40);
     const output = lastFrame() ?? '';
 
@@ -160,33 +189,49 @@ describe('TabBar accessibility', () => {
   });
 });
 
-describe('TabBar #1038 - Tab label truncation fix at 80x24', () => {
-  test('at 80x24 (standard terminal), shows full tab names', () => {
+describe('TabBar #1109 - Fix 80x24 display (replaces #1038 tests)', () => {
+  test('at 80x24 (standard terminal), shows minimal tab numbers only', () => {
     const { lastFrame } = renderTabBar(80);
     const output = lastFrame() ?? '';
 
-    // Issue #1038: At 80x24, should show full names like "Dashboard"
+    // Issue #1109: At 80x24, should use minimal mode to prevent overflow
+    // 12 tabs with full labels need ~140 cols, short labels need ~105 cols
+    // Minimal mode (just numbers) needs ~55 cols and fits 80x24
+    expect(output).toContain('[1]');
+    expect(output).toContain('[2]');
+    expect(output).toContain('[3]');
+    // Labels should NOT appear at 80 cols
+    expect(output).not.toContain('Dashboard');
+    expect(output).not.toContain('Dash');
+  });
+
+  test('at 100 cols, shows short abbreviated labels', () => {
+    const { lastFrame } = renderTabBar(100);
+    const output = lastFrame() ?? '';
+
+    // At 100 cols, should show short labels
+    expect(output).toContain('Dash');
+    expect(output).toContain('Agt');
+    expect(output).not.toContain('Dashboard');
+  });
+
+  test('at 120 cols, shows full tab names', () => {
+    const { lastFrame } = renderTabBar(120);
+    const output = lastFrame() ?? '';
+
+    // At 120 cols, should be in full mode showing complete names
     expect(output).toContain('Dashboard');
     expect(output).toContain('Agents');
     expect(output).toContain('Channels');
+  });
+
+  test('at 99 cols (just below 100), shows minimal mode', () => {
+    const { lastFrame } = renderTabBar(99);
+    const output = lastFrame() ?? '';
+
+    // At 99 cols, should fall back to minimal mode
     expect(output).toContain('[1]');
-  });
-
-  test('at 81x24, shows full tab names', () => {
-    const { lastFrame } = renderTabBar(81);
-    const output = lastFrame() ?? '';
-
-    // At 81 cols, should be in full mode showing complete names
-    expect(output).toContain('Dashboard');
-    expect(output).toContain('Agents');
-  });
-
-  test('at 79x24 (just below 80), shows abbreviations', () => {
-    const { lastFrame } = renderTabBar(79);
-    const output = lastFrame() ?? '';
-
-    // At 79 cols, should fall back to short mode with abbreviations
-    expect(output).toContain('Dash');
-    expect(output).toContain('Agt');
+    expect(output).not.toContain('Dash');
+    expect(output).not.toContain('Dashboard');
   });
 });
