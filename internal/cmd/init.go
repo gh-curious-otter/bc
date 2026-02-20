@@ -11,6 +11,7 @@ import (
 
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/ui"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
@@ -229,7 +230,7 @@ func promptNickname() (string, error) {
 	nickname, err := workspace.NormalizeNickname(input)
 	if err != nil {
 		// Show helpful error
-		fmt.Printf("  \033[31mError: %s\033[0m\n", err)
+		fmt.Printf("  %s\n", ui.RedText(fmt.Sprintf("Error: %s", err)))
 		fmt.Printf("  Using default: %s\n", workspace.DefaultNickname)
 		return workspace.DefaultNickname, nil
 	}
@@ -290,8 +291,8 @@ func initV2WorkspaceWithNickname(rootDir string, nickname string) error {
 
 	// Print success message
 	fmt.Println()
-	fmt.Printf("  \033[32m✓\033[0m Workspace initialized at %s\n", rootDir)
-	fmt.Printf("  \033[32m✓\033[0m Nickname set to %s\n", nickname)
+	fmt.Printf("  %s Workspace initialized at %s\n", ui.GreenText("✓"), rootDir)
+	fmt.Printf("  %s Nickname set to %s\n", ui.GreenText("✓"), nickname)
 	fmt.Println()
 	fmt.Println("  Created:")
 	fmt.Println("    .bc/config.toml     # Workspace configuration")

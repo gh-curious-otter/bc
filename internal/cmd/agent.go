@@ -1445,13 +1445,13 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 		statusColor := h.Status
 		switch h.Status {
 		case "healthy":
-			statusColor = "\033[32m" + h.Status + "\033[0m" // green
+			statusColor = ui.GreenText(h.Status)
 		case "degraded":
-			statusColor = "\033[33m" + h.Status + "\033[0m" // yellow
+			statusColor = ui.YellowText(h.Status)
 		case "unhealthy":
-			statusColor = "\033[31m" + h.Status + "\033[0m" // red
+			statusColor = ui.RedText(h.Status)
 		case "stuck":
-			statusColor = "\033[35m" + h.Status + "\033[0m" // magenta
+			statusColor = ui.MagentaText(h.Status)
 		}
 
 		fmt.Printf("%-15s %-12s %-10s %-8s %-8s %s\n",
