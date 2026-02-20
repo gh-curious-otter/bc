@@ -350,3 +350,213 @@ describe('Category Distribution', () => {
     });
   });
 });
+
+describe('Favorites Sorting Logic', () => {
+  test('favorites Set operations work correctly', () => {
+    const favorites = new Set<string>();
+    expect(favorites.size).toBe(0);
+
+    favorites.add('agent list');
+    expect(favorites.has('agent list')).toBe(true);
+    expect(favorites.size).toBe(1);
+
+    favorites.add('channel send');
+    expect(favorites.size).toBe(2);
+
+    favorites.delete('agent list');
+    expect(favorites.has('agent list')).toBe(false);
+    expect(favorites.size).toBe(1);
+  });
+
+  test('favorites toggle logic works correctly', () => {
+    const favorites = new Set<string>();
+    const commandName = 'agent status';
+
+    // Toggle on
+    if (favorites.has(commandName)) {
+      favorites.delete(commandName);
+    } else {
+      favorites.add(commandName);
+    }
+    expect(favorites.has(commandName)).toBe(true);
+
+    // Toggle off
+    if (favorites.has(commandName)) {
+      favorites.delete(commandName);
+    } else {
+      favorites.add(commandName);
+    }
+    expect(favorites.has(commandName)).toBe(false);
+  });
+
+  test('favorites sorting places favorites first', () => {
+    const commands = [
+      { name: 'b-command' },
+      { name: 'a-command' },
+      { name: 'c-command' },
+    ];
+    const favorites = new Set(['c-command']);
+
+    const sorted = [...commands].sort((a, b) => {
+      const aFav = favorites.has(a.name) ? 0 : 1;
+      const bFav = favorites.has(b.name) ? 0 : 1;
+      return aFav - bFav;
+    });
+
+    expect(sorted[0].name).toBe('c-command');
+  });
+
+  test('multiple favorites maintain relative order', () => {
+    const commands = [
+      { name: 'd-command' },
+      { name: 'c-command' },
+      { name: 'b-command' },
+      { name: 'a-command' },
+    ];
+    const favorites = new Set(['a-command', 'c-command']);
+
+    const sorted = [...commands].sort((a, b) => {
+      const aFav = favorites.has(a.name) ? 0 : 1;
+      const bFav = favorites.has(b.name) ? 0 : 1;
+      return aFav - bFav;
+    });
+
+    // First two should be favorites
+    expect(favorites.has(sorted[0].name)).toBe(true);
+    expect(favorites.has(sorted[1].name)).toBe(true);
+    // Last two should not be favorites
+    expect(favorites.has(sorted[2].name)).toBe(false);
+    expect(favorites.has(sorted[3].name)).toBe(false);
+  });
+});
+
+describe('Category Filter Logic', () => {
+  // Category names include 'All' plus all registry categories
+  const CATEGORY_NAMES = ['All', ...COMMAND_REGISTRY.map(cat => cat.name)];
+
+  test('category names includes All option', () => {
+    expect(CATEGORY_NAMES[0]).toBe('All');
+  });
+
+  test('category names includes all registry categories', () => {
+    COMMAND_REGISTRY.forEach(cat => {
+      expect(CATEGORY_NAMES).toContain(cat.name);
+    });
+  });
+
+  test('category cycling wraps around', () => {
+    const currentIdx = CATEGORY_NAMES.length - 1;
+    const nextIdx = (currentIdx + 1) % CATEGORY_NAMES.length;
+    expect(nextIdx).toBe(0);
+  });
+
+  test('category filter returns correct commands', () => {
+    const categoryFilter = 'Agent Management';
+    const filteredCommands = categoryFilter === 'All'
+      ? COMMAND_REGISTRY.flatMap(cat => cat.commands)
+      : COMMAND_REGISTRY.find(cat => cat.name === categoryFilter)?.commands ?? [];
+
+    filteredCommands.forEach(cmd => {
+      expect(cmd.category).toBe(categoryFilter);
+    });
+  });
+
+  test('All filter returns all commands', () => {
+    const categoryFilter = 'All';
+    const filteredCommands = categoryFilter === 'All'
+      ? COMMAND_REGISTRY.flatMap(cat => cat.commands)
+      : COMMAND_REGISTRY.find(cat => cat.name === categoryFilter)?.commands ?? [];
+
+    expect(filteredCommands.length).toBe(getAllCommands().length);
+  });
+});
+
+describe('Search Mode State', () => {
+  test('search query filtering logic', () => {
+    const searchQuery = 'agent';
+    const commands = getAllCommands();
+
+    const lowerQuery = searchQuery.toLowerCase();
+    const filtered = commands.filter(cmd =>
+      cmd.name.toLowerCase().includes(lowerQuery) ||
+      cmd.description.toLowerCase().includes(lowerQuery)
+    );
+
+    expect(filtered.length).toBeGreaterThan(0);
+    filtered.forEach(cmd => {
+      const matchesName = cmd.name.toLowerCase().includes(lowerQuery);
+      const matchesDesc = cmd.description.toLowerCase().includes(lowerQuery);
+      expect(matchesName || matchesDesc).toBe(true);
+    });
+  });
+
+  test('empty search returns all commands', () => {
+    const searchQuery = '';
+    const commands = getAllCommands();
+
+    const filtered = searchQuery.length > 0
+      ? commands.filter(cmd =>
+          cmd.name.toLowerCase().includes(searchQuery) ||
+          cmd.description.toLowerCase().includes(searchQuery)
+        )
+      : commands;
+
+    expect(filtered.length).toBe(commands.length);
+  });
+
+  test('search combined with category filter', () => {
+    const searchQuery = 'list';
+    const categoryFilter = 'Agent Management';
+
+    let commands = categoryFilter === 'All'
+      ? COMMAND_REGISTRY.flatMap(cat => cat.commands)
+      : COMMAND_REGISTRY.find(cat => cat.name === categoryFilter)?.commands ?? [];
+
+    const lowerQuery = searchQuery.toLowerCase();
+    commands = commands.filter(cmd =>
+      cmd.name.toLowerCase().includes(lowerQuery) ||
+      cmd.description.toLowerCase().includes(lowerQuery)
+    );
+
+    commands.forEach(cmd => {
+      expect(cmd.category).toBe(categoryFilter);
+      const matchesName = cmd.name.toLowerCase().includes(lowerQuery);
+      const matchesDesc = cmd.description.toLowerCase().includes(lowerQuery);
+      expect(matchesName || matchesDesc).toBe(true);
+    });
+  });
+});
+
+describe('Command Execution Safety', () => {
+  test('read-only commands can be identified', () => {
+    const readOnlyCommands = getAllCommands().filter(cmd => cmd.readOnly);
+    expect(readOnlyCommands.length).toBeGreaterThan(0);
+
+    // These common commands should be read-only
+    const statusCmd = readOnlyCommands.find(cmd => cmd.name === 'agent status');
+    const listCmd = readOnlyCommands.find(cmd => cmd.name === 'agent list');
+    expect(statusCmd).toBeTruthy();
+    expect(listCmd).toBeTruthy();
+  });
+
+  test('modifying commands can be identified', () => {
+    const modifyingCommands = getAllCommands().filter(cmd => !cmd.readOnly);
+    expect(modifyingCommands.length).toBeGreaterThan(0);
+
+    // These commands modify state
+    const sendCmd = modifyingCommands.find(cmd => cmd.name === 'channel send');
+    expect(sendCmd).toBeTruthy();
+  });
+
+  test('command flags are arrays when present', () => {
+    const commandsWithFlags = getAllCommands().filter(cmd => cmd.flags);
+    commandsWithFlags.forEach(cmd => {
+      expect(Array.isArray(cmd.flags)).toBe(true);
+      cmd.flags!.forEach(flag => {
+        expect(typeof flag).toBe('string');
+        // Flags typically start with - or --
+        expect(flag.startsWith('-')).toBe(true);
+      });
+    });
+  });
+});
