@@ -170,6 +170,7 @@ export const MentionText: React.FC<MentionTextProps> = ({
     }
   }
 
+  // CLI directive: Ensure text wraps properly within message bubbles
   return <Text wrap="wrap">{parts}</Text>;
 };
 
