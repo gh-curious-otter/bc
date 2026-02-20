@@ -40,15 +40,42 @@ const formatRelativeTime = (timestamp: string): string => {
   }
 };
 
+/**
+ * Get role color for sender name styling
+ * CLI directive: Improve name theming with consistent color scheme
+ */
 const getRoleColor = (sender: string): string => {
+  // Root agent - special magenta
   if (sender === 'root') return 'magenta';
-  if (sender.startsWith('tech-lead') || sender.startsWith('tl-') || sender.includes('fox') || sender.includes('eagle')) {
-    return 'cyan';
-  }
-  if (sender.startsWith('eng-') || sender.includes('falcon')) return 'green';
+  // Tech leads - cyan
+  if (sender.startsWith('tech-lead') || sender.startsWith('tl-')) return 'cyan';
+  // Engineers - green
+  if (sender.startsWith('eng-')) return 'green';
+  // Managers and PMs - yellow
   if (sender.startsWith('mgr-') || sender.startsWith('pm-')) return 'yellow';
+  // UX team - blue
   if (sender.startsWith('ux-')) return 'blue';
+  // QA - red
+  if (sender.startsWith('qa-')) return 'red';
+  // CLI/system messages - gray
+  if (sender === 'cli' || sender === 'system') return 'gray';
+  // Default - white
   return 'white';
+};
+
+/**
+ * Get role prefix emoji for visual distinction
+ */
+const getRolePrefix = (sender: string): string => {
+  if (sender === 'root') return '⚙ ';
+  if (sender.startsWith('tl-') || sender.startsWith('tech-lead')) return '🔧 ';
+  if (sender.startsWith('eng-')) return '💻 ';
+  if (sender.startsWith('mgr-')) return '📋 ';
+  if (sender.startsWith('pm-')) return '📊 ';
+  if (sender.startsWith('ux-')) return '🎨 ';
+  if (sender.startsWith('qa-')) return '🧪 ';
+  if (sender === 'cli') return '⌨ ';
+  return '';
 };
 
 /**
@@ -77,6 +104,7 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
 }) {
   const time = formatRelativeTime(timestamp);
   const senderColor = getRoleColor(sender);
+  const rolePrefix = getRolePrefix(sender);
   const isOwnMessage = currentUser !== undefined && sender === currentUser;
 
   // Bubble styling based on ownership
@@ -106,10 +134,10 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
           <Box justifyContent="space-between">
             <Box>
               <Text color={senderColor} bold>
-                {sender}
+                {rolePrefix}{sender}
               </Text>
               {isOwnMessage && (
-                <Text dimColor> (you)</Text>
+                <Text color="cyan" dimColor> (you)</Text>
               )}
             </Box>
             <Box>
@@ -122,8 +150,10 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
             </Box>
           </Box>
 
-          {/* Message body with @mentions - #915 fix: use flexGrow+minHeight instead of width */}
-          <Box flexGrow={1} minHeight={1}>
+          {/* Message body with @mentions
+              CLI directive: Fix long message rendering - ensure text wraps properly
+              Use width constraint to force text wrapping within bubble */}
+          <Box flexGrow={1} minHeight={1} width={maxBubbleWidth - 4}>
             <MentionText text={message} currentUser={currentUser} />
           </Box>
 
