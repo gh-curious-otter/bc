@@ -10,9 +10,14 @@ import (
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
+// CommandFunc is the function signature for creating exec.Cmd.
+// Used for testing to inject mock commands.
+type CommandFunc func(ctx context.Context, name string, args ...string) *exec.Cmd
+
 // GitHubIntegration wraps GitHub CLI (gh) operations.
 type GitHubIntegration struct {
-	command string
+	execCommand CommandFunc
+	command     string
 }
 
 // NewGitHubIntegration creates a new GitHub integration from workspace config.
@@ -27,14 +32,16 @@ func NewGitHubIntegration(ws *workspace.Workspace) (*GitHubIntegration, error) {
 	if !ghConfig.Enabled {
 		return nil, fmt.Errorf("github tool is disabled in config.toml")
 	}
-	return &GitHubIntegration{command: ghConfig.Command}, nil
+	return &GitHubIntegration{
+		command:     ghConfig.Command,
+		execCommand: exec.CommandContext,
+	}, nil
 }
 
 // CheckAuth verifies gh authentication status.
 // Returns error if gh is not authenticated.
 func (g *GitHubIntegration) CheckAuth(ctx context.Context) error {
-	//nolint:gosec // g.command comes from trusted config
-	cmd := exec.CommandContext(ctx, g.command, "auth", "status")
+	cmd := g.execCommand(ctx, g.command, "auth", "status")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("gh not authenticated - run 'gh auth login': %w", err)
 	}
@@ -50,8 +57,7 @@ func (g *GitHubIntegration) CreateIssue(ctx context.Context, title, body string,
 		args = append(args, "-l", label)
 	}
 
-	//nolint:gosec // g.command comes from trusted config
-	cmd := exec.CommandContext(ctx, g.command, args...)
+	cmd := g.execCommand(ctx, g.command, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to create issue: %w - %s", err, strings.TrimSpace(string(output)))
@@ -63,8 +69,7 @@ func (g *GitHubIntegration) CreateIssue(ctx context.Context, title, body string,
 // FindIssue searches for an existing issue by query.
 // Returns the issue number if found, empty string if not found.
 func (g *GitHubIntegration) FindIssue(ctx context.Context, searchQuery string) (string, error) {
-	//nolint:gosec // g.command comes from trusted config
-	cmd := exec.CommandContext(ctx, g.command, "issue", "list",
+	cmd := g.execCommand(ctx, g.command, "issue", "list",
 		"--search", searchQuery,
 		"--json", "number",
 		"--jq", ".[0].number")
