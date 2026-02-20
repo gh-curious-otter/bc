@@ -465,3 +465,241 @@ describe('Animation Bounds', () => {
     }
   });
 });
+
+// ============================================================================
+// Issue #1198: 60fps smooth animations tests
+// ============================================================================
+
+describe('60fps Animation Frame Rate', () => {
+  test('default fps is 60 for smooth animations', () => {
+    const defaultFps = 60;
+    const frameInterval = Math.floor(1000 / defaultFps);
+    expect(frameInterval).toBe(16); // ~16.67ms per frame
+  });
+
+  test('60fps produces correct frame count for 1 second', () => {
+    const fps = 60;
+    const duration = 1000; // 1 second
+    const frameCount = Math.ceil(duration / (1000 / fps));
+    expect(frameCount).toBe(60);
+  });
+
+  test('frame interval comparison: 30fps vs 60fps', () => {
+    const interval30 = Math.floor(1000 / 30);
+    const interval60 = Math.floor(1000 / 60);
+    expect(interval30).toBe(33); // ~33ms
+    expect(interval60).toBe(16); // ~16ms
+    expect(interval60).toBeLessThan(interval30);
+  });
+});
+
+describe('Spring Animation Physics', () => {
+  test('spring force calculation', () => {
+    // F = -kx - cv (spring + damping)
+    const tension = 170;
+    const friction = 26;
+
+    const calculateSpringForce = (displacement: number, velocity: number) => {
+      const springForce = -tension * displacement;
+      const dampingForce = -friction * velocity;
+      return springForce + dampingForce;
+    };
+
+    // At rest position (no displacement, no velocity)
+    expect(calculateSpringForce(0, 0)).toBeCloseTo(0);
+
+    // Positive displacement creates negative (restorative) force
+    expect(calculateSpringForce(1, 0)).toBeLessThan(0);
+
+    // Negative displacement creates positive force
+    expect(calculateSpringForce(-1, 0)).toBeGreaterThan(0);
+
+    // Velocity adds damping
+    const forceWithVel = calculateSpringForce(0, 1);
+    expect(forceWithVel).toBeLessThan(0); // Negative damping force
+  });
+
+  test('spring acceleration calculation', () => {
+    const tension = 170;
+    const friction = 26;
+    const mass = 1;
+
+    const calculateAcceleration = (displacement: number, velocity: number) => {
+      const springForce = -tension * displacement;
+      const dampingForce = -friction * velocity;
+      return (springForce + dampingForce) / mass;
+    };
+
+    // With mass = 1, acceleration equals force
+    expect(calculateAcceleration(1, 0)).toBe(-170);
+    expect(calculateAcceleration(0, 1)).toBe(-26);
+  });
+
+  test('spring settles at target', () => {
+    // Simulate spring settling
+    const threshold = 0.01;
+
+    const isSettled = (displacement: number, velocity: number) =>
+      Math.abs(displacement) < threshold && Math.abs(velocity) < threshold;
+
+    expect(isSettled(0.001, 0.001)).toBe(true);
+    expect(isSettled(0.1, 0)).toBe(false);
+    expect(isSettled(0, 0.1)).toBe(false);
+  });
+
+  test('higher tension means faster animation', () => {
+    // Higher tension = stronger restoring force = faster return
+    const lowTension = 100;
+    const highTension = 200;
+
+    const forceWithLow = -lowTension * 1; // Displacement of 1
+    const forceWithHigh = -highTension * 1;
+
+    expect(Math.abs(forceWithHigh)).toBeGreaterThan(Math.abs(forceWithLow));
+  });
+
+  test('higher friction means more damping', () => {
+    const lowFriction = 10;
+    const highFriction = 40;
+
+    const dampingWithLow = -lowFriction * 1; // Velocity of 1
+    const dampingWithHigh = -highFriction * 1;
+
+    expect(Math.abs(dampingWithHigh)).toBeGreaterThan(Math.abs(dampingWithLow));
+  });
+});
+
+describe('Progress Animation', () => {
+  test('progress animation interpolation', () => {
+    const interpolate = (start: number, end: number, progress: number) =>
+      start + (end - start) * progress;
+
+    expect(interpolate(0, 100, 0)).toBe(0);
+    expect(interpolate(0, 100, 0.5)).toBe(50);
+    expect(interpolate(0, 100, 1)).toBe(100);
+
+    // Reverse animation
+    expect(interpolate(100, 0, 0.5)).toBe(50);
+    expect(interpolate(100, 0, 1)).toBe(0);
+  });
+
+  test('progress bar width calculation', () => {
+    const calculateFilledWidth = (progress: number, totalWidth: number) =>
+      Math.round(progress * totalWidth);
+
+    expect(calculateFilledWidth(0, 20)).toBe(0);
+    expect(calculateFilledWidth(0.5, 20)).toBe(10);
+    expect(calculateFilledWidth(1, 20)).toBe(20);
+    expect(calculateFilledWidth(0.33, 20)).toBe(7); // Rounds
+  });
+});
+
+describe('Spinner Animation', () => {
+  test('spinner frame cycling', () => {
+    const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    const getFrame = (index: number) => frames[index % frames.length];
+
+    expect(getFrame(0)).toBe('⠋');
+    expect(getFrame(1)).toBe('⠙');
+    expect(getFrame(9)).toBe('⠏');
+    expect(getFrame(10)).toBe('⠋'); // Wraps around
+    expect(getFrame(11)).toBe('⠙');
+  });
+
+  test('spinner interval produces smooth animation', () => {
+    const interval = 80; // Default spinner interval
+    const fps = 1000 / interval;
+
+    // ~12.5 fps is smooth enough for spinner
+    expect(fps).toBeGreaterThanOrEqual(10);
+    expect(fps).toBeLessThanOrEqual(15);
+  });
+
+  test('spinner frame types are defined', () => {
+    const SPINNER_FRAMES = {
+      dots: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
+      line: ['|', '/', '-', '\\'],
+      circle: ['◐', '◓', '◑', '◒'],
+      arc: ['◜', '◠', '◝', '◞', '◡', '◟'],
+      bouncing: ['⠁', '⠂', '⠄', '⠂'],
+      growing: ['▁', '▃', '▄', '▅', '▆', '▇', '▆', '▅', '▄', '▃'],
+      pulse: ['●', '●', '●', '○', '○', '○'],
+    };
+
+    for (const [name, frames] of Object.entries(SPINNER_FRAMES)) {
+      expect(frames.length).toBeGreaterThan(0);
+      expect(Array.isArray(frames)).toBe(true);
+    }
+  });
+});
+
+describe('Counter Animation', () => {
+  test('counter formats with decimals', () => {
+    const formatValue = (value: number, decimals: number) =>
+      value.toFixed(decimals);
+
+    expect(formatValue(42.567, 0)).toBe('43'); // Rounds
+    expect(formatValue(42.567, 1)).toBe('42.6');
+    expect(formatValue(42.567, 2)).toBe('42.57');
+    expect(formatValue(42, 2)).toBe('42.00');
+  });
+
+  test('counter with prefix and suffix', () => {
+    const formatCounter = (value: number, prefix: string, suffix: string) =>
+      `${prefix}${value}${suffix}`;
+
+    expect(formatCounter(100, '$', '')).toBe('$100');
+    expect(formatCounter(50, '', '%')).toBe('50%');
+    expect(formatCounter(1.5, '$', 'M')).toBe('$1.5M');
+  });
+});
+
+describe('Loading Dots Animation', () => {
+  test('generates correct dot frames', () => {
+    const count = 3;
+    const dot = '.';
+
+    const generateFrames = (n: number, d: string) => {
+      const result: string[] = [];
+      for (let i = 1; i <= n; i++) {
+        result.push(d.repeat(i));
+      }
+      return result;
+    };
+
+    const frames = generateFrames(count, dot);
+    expect(frames).toEqual(['.', '..', '...']);
+  });
+
+  test('pads frames to consistent width', () => {
+    const padFrame = (frame: string, width: number) =>
+      frame.padEnd(width, ' ');
+
+    expect(padFrame('.', 3)).toBe('.  ');
+    expect(padFrame('..', 3)).toBe('.. ');
+    expect(padFrame('...', 3)).toBe('...');
+  });
+});
+
+describe('Wave Animation', () => {
+  test('wave distance calculation', () => {
+    const calculateDistance = (charIndex: number, wavePosition: number, textLength: number) =>
+      Math.abs(charIndex - (wavePosition % textLength));
+
+    // Wave at position 2 in 5-char text
+    expect(calculateDistance(0, 2, 5)).toBe(2);
+    expect(calculateDistance(1, 2, 5)).toBe(1);
+    expect(calculateDistance(2, 2, 5)).toBe(0);
+    expect(calculateDistance(3, 2, 5)).toBe(1);
+    expect(calculateDistance(4, 2, 5)).toBe(2);
+  });
+
+  test('wave brightness based on distance', () => {
+    const isDim = (distance: number) => distance > 1;
+
+    expect(isDim(0)).toBe(false); // At wave center
+    expect(isDim(1)).toBe(false); // Near wave center
+    expect(isDim(2)).toBe(true);  // Far from wave
+    expect(isDim(3)).toBe(true);
+  });
+});

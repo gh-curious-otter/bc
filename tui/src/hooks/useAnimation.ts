@@ -1,12 +1,15 @@
 /**
  * useAnimation - Terminal-based animation hook
  * Issue #1024: Animations and visual effects
+ * Issue #1198: TUI animations at 60fps
  *
  * Provides animation primitives for terminal UI:
  * - Fade (dim/bright transitions)
  * - Pulse (periodic brightness changes)
  * - Blink (on/off visibility)
  * - Typewriter (character-by-character reveal)
+ * - Spring (physics-based smooth animations)
+ * - Progress (smooth progress bar animations)
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -55,7 +58,7 @@ export interface UseAnimationOptions {
   autoStart?: boolean;
   /** Callback on completion */
   onComplete?: () => void;
-  /** Frame rate in fps (default: 30) */
+  /** Frame rate in fps (default: 60 for smooth animations, #1198) */
   fps?: number;
 }
 
@@ -85,7 +88,7 @@ export function useAnimation(options: UseAnimationOptions = {}): UseAnimationRes
     iterations = 1,
     autoStart = true,
     onComplete,
-    fps = 30,
+    fps = 60, // #1198: 60fps for smooth animations
   } = options;
 
   const [state, setState] = useState<AnimationState>({
@@ -435,6 +438,320 @@ export function useFade(options: UseFadeOptions = {}): UseFadeResult {
   const isDim = opacity < 0.5;
 
   return { isDim, opacity, start, isComplete: state.isComplete };
+}
+
+// ============================================================================
+// Issue #1198: 60fps smooth animations
+// ============================================================================
+
+/** Spring animation options for physics-based motion */
+export interface UseSpringOptions {
+  /** Target value to animate towards */
+  target: number;
+  /** Tension/stiffness (default: 170) - higher = faster */
+  tension?: number;
+  /** Friction/damping (default: 26) - higher = more damping */
+  friction?: number;
+  /** Mass (default: 1) - higher = more inertia */
+  mass?: number;
+  /** Velocity threshold to stop (default: 0.01) */
+  threshold?: number;
+  /** Frame rate in fps (default: 60) */
+  fps?: number;
+}
+
+export interface UseSpringResult {
+  /** Current animated value */
+  value: number;
+  /** Current velocity */
+  velocity: number;
+  /** Whether animation is complete (settled) */
+  isSettled: boolean;
+}
+
+/**
+ * useSpring - Physics-based spring animation
+ *
+ * Creates smooth, natural-feeling animations that overshoot and settle.
+ * Perfect for panel resizing, counters, and value transitions.
+ */
+export function useSpring(options: UseSpringOptions): UseSpringResult {
+  const {
+    target,
+    tension = 170,
+    friction = 26,
+    mass = 1,
+    threshold = 0.01,
+    fps = 60,
+  } = options;
+
+  const [state, setState] = useState({
+    value: target,
+    velocity: 0,
+    isSettled: true,
+  });
+
+  const frameInterval = useMemo(() => 1000 / fps, [fps]);
+  const dt = frameInterval / 1000; // Convert to seconds
+
+  const animationRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const targetRef = useRef(target);
+
+  useEffect(() => {
+    // If target changed, start animating
+    if (targetRef.current !== target) {
+      targetRef.current = target;
+      setState((s) => ({ ...s, isSettled: false }));
+    }
+  }, [target]);
+
+  useEffect(() => {
+    if (state.isSettled) {
+      if (animationRef.current) {
+        clearInterval(animationRef.current);
+        animationRef.current = null;
+      }
+      return;
+    }
+
+    animationRef.current = setInterval(() => {
+      setState((s) => {
+        // Spring physics: F = -kx - cv
+        // where k = tension, c = friction, x = displacement
+        const displacement = s.value - targetRef.current;
+        const springForce = -tension * displacement;
+        const dampingForce = -friction * s.velocity;
+        const acceleration = (springForce + dampingForce) / mass;
+
+        const newVelocity = s.velocity + acceleration * dt;
+        const newValue = s.value + newVelocity * dt;
+
+        // Check if settled (both position and velocity near target)
+        const isSettled =
+          Math.abs(newValue - targetRef.current) < threshold &&
+          Math.abs(newVelocity) < threshold;
+
+        if (isSettled) {
+          return {
+            value: targetRef.current,
+            velocity: 0,
+            isSettled: true,
+          };
+        }
+
+        return {
+          value: newValue,
+          velocity: newVelocity,
+          isSettled: false,
+        };
+      });
+    }, frameInterval);
+
+    return () => {
+      if (animationRef.current) {
+        clearInterval(animationRef.current);
+      }
+    };
+  }, [state.isSettled, tension, friction, mass, dt, frameInterval, threshold]);
+
+  return state;
+}
+
+/** Progress animation options */
+export interface UseProgressAnimationOptions {
+  /** Current progress value 0-1 */
+  progress: number;
+  /** Animation duration in ms (default: 300) */
+  duration?: number;
+  /** Easing function (default: 'easeOut') */
+  easing?: keyof typeof easings | EasingFunction;
+  /** Frame rate in fps (default: 60) */
+  fps?: number;
+}
+
+export interface UseProgressAnimationResult {
+  /** Smoothly animated progress value 0-1 */
+  animatedProgress: number;
+  /** Whether animation is in progress */
+  isAnimating: boolean;
+}
+
+/**
+ * useProgressAnimation - Smooth progress bar animation
+ *
+ * Smoothly animates between progress values for loading bars.
+ */
+export function useProgressAnimation(
+  options: UseProgressAnimationOptions
+): UseProgressAnimationResult {
+  const { progress, duration = 300, easing = 'easeOut', fps = 60 } = options;
+
+  const [animatedProgress, setAnimatedProgress] = useState(progress);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  const animationRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startValueRef = useRef(progress);
+  const startTimeRef = useRef(0);
+  const targetRef = useRef(progress);
+
+  const easingFn = useMemo(
+    () => (typeof easing === 'function' ? easing : easings[easing]),
+    [easing]
+  );
+
+  const frameInterval = useMemo(() => Math.floor(1000 / fps), [fps]);
+
+  useEffect(() => {
+    if (targetRef.current === progress) {
+      return;
+    }
+
+    // Clear any existing animation
+    if (animationRef.current) {
+      clearInterval(animationRef.current);
+    }
+
+    // Start new animation
+    startValueRef.current = animatedProgress;
+    targetRef.current = progress;
+    startTimeRef.current = Date.now();
+    setIsAnimating(true);
+
+    animationRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTimeRef.current;
+      const rawProgress = Math.min(elapsed / duration, 1);
+      const easedProgress = easingFn(rawProgress);
+
+      const start = startValueRef.current;
+      const end = targetRef.current;
+      const current = start + (end - start) * easedProgress;
+
+      setAnimatedProgress(current);
+
+      if (rawProgress >= 1) {
+        if (animationRef.current) {
+          clearInterval(animationRef.current);
+          animationRef.current = null;
+        }
+        setIsAnimating(false);
+      }
+    }, frameInterval);
+
+    return () => {
+      if (animationRef.current) {
+        clearInterval(animationRef.current);
+      }
+    };
+  }, [progress, duration, easingFn, frameInterval, animatedProgress]);
+
+  return { animatedProgress, isAnimating };
+}
+
+/** Spinner animation options */
+export interface UseSpinnerOptions {
+  /** Frames to cycle through */
+  frames?: string[];
+  /** Frame interval in ms (default: 80 for ~12fps spinner) */
+  interval?: number;
+  /** Enable spinner (default: true) */
+  enabled?: boolean;
+}
+
+export interface UseSpinnerResult {
+  /** Current frame character */
+  frame: string;
+  /** Current frame index */
+  frameIndex: number;
+}
+
+/** Default spinner frames for smooth rotation */
+export const SPINNER_FRAMES = {
+  dots: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
+  line: ['|', '/', '-', '\\'],
+  circle: ['◐', '◓', '◑', '◒'],
+  arc: ['◜', '◠', '◝', '◞', '◡', '◟'],
+  bouncing: ['⠁', '⠂', '⠄', '⠂'],
+  growing: ['▁', '▃', '▄', '▅', '▆', '▇', '▆', '▅', '▄', '▃'],
+  pulse: ['●', '●', '●', '○', '○', '○'],
+};
+
+/**
+ * useSpinner - Smooth spinner animation
+ *
+ * Cycles through spinner frames for loading indicators.
+ */
+export function useSpinner(options: UseSpinnerOptions = {}): UseSpinnerResult {
+  const {
+    frames = SPINNER_FRAMES.dots,
+    interval = 80,
+    enabled = true,
+  } = options;
+
+  const [frameIndex, setFrameIndex] = useState(0);
+
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setFrameIndex((i) => (i + 1) % frames.length);
+    }, interval);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, [frames.length, interval, enabled]);
+
+  return {
+    frame: frames[frameIndex],
+    frameIndex,
+  };
+}
+
+/** Counter animation options */
+export interface UseCounterOptions {
+  /** Target value */
+  value: number;
+  /** Animation duration in ms (default: 500) */
+  duration?: number;
+  /** Number of decimal places (default: 0) */
+  decimals?: number;
+  /** Format function */
+  format?: (value: number) => string;
+}
+
+export interface UseCounterResult {
+  /** Formatted display value */
+  displayValue: string;
+  /** Raw animated value */
+  rawValue: number;
+  /** Whether animating */
+  isAnimating: boolean;
+}
+
+/**
+ * useCounter - Animated number counter
+ *
+ * Smoothly counts up/down to target value.
+ */
+export function useCounter(options: UseCounterOptions): UseCounterResult {
+  const { value, duration = 500, decimals = 0, format } = options;
+
+  const { animatedProgress, isAnimating } = useProgressAnimation({
+    progress: value,
+    duration,
+  });
+
+  const displayValue = format
+    ? format(animatedProgress)
+    : animatedProgress.toFixed(decimals);
+
+  return {
+    displayValue,
+    rawValue: animatedProgress,
+    isAnimating,
+  };
 }
 
 export default useAnimation;
