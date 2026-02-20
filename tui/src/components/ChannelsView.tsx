@@ -278,8 +278,8 @@ function ChannelHistoryView({
             autocomplete.moveDown();
             return;
           }
-          if (key.tab) {
-            // Complete the mention
+          // Complete mention with Tab or Enter
+          if (key.tab || key.return) {
             const completed = autocomplete.complete();
             setMessageBuffer(completed);
             return;
