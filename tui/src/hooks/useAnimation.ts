@@ -1,15 +1,63 @@
 /**
  * useAnimation - Terminal-based animation hook
  * Issue #1024: Animations and visual effects
+ * Issue #1210: Animation accessibility support
  *
  * Provides animation primitives for terminal UI:
  * - Fade (dim/bright transitions)
  * - Pulse (periodic brightness changes)
  * - Blink (on/off visibility)
  * - Typewriter (character-by-character reveal)
+ *
+ * Accessibility:
+ * - Respects BC_NO_ANIMATIONS environment variable
+ * - Provides useReducedMotion hook for checking preference
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+
+/**
+ * Check if animations should be disabled
+ * Issue #1210: Animation accessibility
+ */
+export function useReducedMotion(): boolean {
+  const [reducedMotion, setReducedMotion] = useState(() => {
+    // Check environment variable
+    if (process.env.BC_NO_ANIMATIONS === '1' || process.env.BC_NO_ANIMATIONS === 'true') {
+      return true;
+    }
+    // Check config (tui.animations = false would set this)
+    if (process.env.BC_TUI_ANIMATIONS === 'false' || process.env.BC_TUI_ANIMATIONS === '0') {
+      return true;
+    }
+    return false;
+  });
+
+  // Re-check on mount in case env changed
+  useEffect(() => {
+    const noAnimations = process.env.BC_NO_ANIMATIONS === '1' || process.env.BC_NO_ANIMATIONS === 'true';
+    const tuiAnimationsOff = process.env.BC_TUI_ANIMATIONS === 'false' || process.env.BC_TUI_ANIMATIONS === '0';
+    setReducedMotion(noAnimations || tuiAnimationsOff);
+  }, []);
+
+  return reducedMotion;
+}
+
+/**
+ * Get animation settings based on accessibility preferences
+ * Returns adjusted fps and whether animations are enabled
+ */
+export function useAnimationSettings(): { fps: number; enabled: boolean } {
+  const reducedMotion = useReducedMotion();
+
+  return useMemo(() => {
+    if (reducedMotion) {
+      return { fps: 0, enabled: false };
+    }
+    // Default 60fps
+    return { fps: 60, enabled: true };
+  }, [reducedMotion]);
+}
 
 /** Animation easing functions */
 export type EasingFunction = (t: number) => number;
@@ -76,6 +124,7 @@ export interface UseAnimationResult {
 
 /**
  * Core animation hook
+ * Issue #1210: Respects reduced motion preferences
  */
 export function useAnimation(options: UseAnimationOptions = {}): UseAnimationResult {
   const {
@@ -88,10 +137,13 @@ export function useAnimation(options: UseAnimationOptions = {}): UseAnimationRes
     fps = 60,
   } = options;
 
+  // Check accessibility preferences
+  const reducedMotion = useReducedMotion();
+
   const [state, setState] = useState<AnimationState>({
-    progress: 0,
+    progress: reducedMotion ? 1 : 0, // Skip to end if reduced motion
     isRunning: false,
-    isComplete: false,
+    isComplete: reducedMotion, // Already complete if reduced motion
     iteration: 0,
   });
 
@@ -125,6 +177,18 @@ export function useAnimation(options: UseAnimationOptions = {}): UseAnimationRes
   }, [stop]);
 
   const start = useCallback(() => {
+    // Issue #1210: Skip animation if reduced motion is preferred
+    if (reducedMotion) {
+      setState({
+        progress: 1,
+        isRunning: false,
+        isComplete: true,
+        iteration: 1,
+      });
+      onComplete?.();
+      return;
+    }
+
     stop();
 
     const startAfterDelay = () => {
@@ -167,7 +231,7 @@ export function useAnimation(options: UseAnimationOptions = {}): UseAnimationRes
     } else {
       startAfterDelay();
     }
-  }, [stop, duration, delay, iterations, easingFn, frameInterval, onComplete]);
+  }, [stop, duration, delay, iterations, easingFn, frameInterval, onComplete, reducedMotion]);
 
   const pause = useCallback(() => {
     if (state.isRunning && animationRef.current) {
