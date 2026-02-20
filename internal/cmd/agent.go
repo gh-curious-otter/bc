@@ -17,6 +17,7 @@ import (
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/names"
 	"github.com/rpuneet/bc/pkg/team"
+	"github.com/rpuneet/bc/pkg/ui"
 )
 
 // agentCmd is the parent command for all agent operations
@@ -536,14 +537,14 @@ func runAgentList(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(agents) == 0 {
-		fmt.Println("No agents found")
+		ui.Warning("No agents found")
 		if agentListRole != "" {
 			fmt.Printf("(filtered by role: %s)\n", agentListRole)
 		}
 		return nil
 	}
 
-	// Determine terminal width
+	// Determine terminal width for task truncation
 	termWidth := 80
 	if w, _, termErr := term.GetSize(os.Stdout.Fd()); termErr == nil && w > 0 {
 		termWidth = w
@@ -553,8 +554,8 @@ func runAgentList(cmd *cobra.Command, args []string) error {
 		taskWidth = 20
 	}
 
-	fmt.Printf("%-15s %-12s %-10s %-20s %s\n", "AGENT", "ROLE", "STATE", "UPTIME", "TASK")
-	fmt.Println(strings.Repeat("-", termWidth))
+	// Use pkg/ui table for consistent formatting
+	table := ui.NewTable("AGENT", "ROLE", "STATE", "UPTIME", "TASK")
 
 	for _, a := range agents {
 		uptime := "-"
@@ -572,15 +573,10 @@ func runAgentList(cmd *cobra.Command, args []string) error {
 
 		stateStr := colorState(a.State)
 
-		fmt.Printf("%-15s %-12s %s %-20s %s\n",
-			a.Name,
-			a.Role,
-			stateStr,
-			uptime,
-			task,
-		)
+		table.AddRow(a.Name, string(a.Role), stateStr, uptime, task)
 	}
 
+	table.Print()
 	return nil
 }
 
@@ -660,31 +656,36 @@ func runAgentShow(cmd *cobra.Command, args []string) error {
 		return enc.Encode(a)
 	}
 
-	// Human-readable output
-	fmt.Printf("Agent: %s\n", a.Name)
-	fmt.Printf("Role: %s\n", a.Role)
-	fmt.Printf("State: %s\n", a.State)
-	if a.Team != "" {
-		fmt.Printf("Team: %s\n", a.Team)
+	// Human-readable output using pkg/ui
+	pairs := []string{
+		"Agent", a.Name,
+		"Role", string(a.Role),
+		"State", string(a.State),
 	}
-	fmt.Printf("Session: %s\n", a.Session)
+	if a.Team != "" {
+		pairs = append(pairs, "Team", a.Team)
+	}
+	pairs = append(pairs, "Session", a.Session)
 	if a.WorktreeDir != "" {
-		fmt.Printf("Worktree: %s\n", a.WorktreeDir)
+		pairs = append(pairs, "Worktree", a.WorktreeDir)
 	}
 	if a.Task != "" {
-		fmt.Printf("Task: %s\n", normalizeTask(a.Task))
+		pairs = append(pairs, "Task", normalizeTask(a.Task))
 	}
 	if a.Tool != "" {
-		fmt.Printf("Tool: %s\n", a.Tool)
+		pairs = append(pairs, "Tool", a.Tool)
 	}
 	if a.ParentID != "" {
-		fmt.Printf("Parent: %s\n", a.ParentID)
+		pairs = append(pairs, "Parent", a.ParentID)
 	}
 	if len(a.Children) > 0 {
-		fmt.Printf("Children: %s\n", strings.Join(a.Children, ", "))
+		pairs = append(pairs, "Children", strings.Join(a.Children, ", "))
 	}
-	fmt.Printf("Started: %s\n", a.StartedAt.Format(time.RFC3339))
-	fmt.Printf("Updated: %s\n", a.UpdatedAt.Format(time.RFC3339))
+	pairs = append(pairs,
+		"Started", a.StartedAt.Format(time.RFC3339),
+		"Updated", a.UpdatedAt.Format(time.RFC3339),
+	)
+	ui.SimpleTable(pairs...)
 
 	return nil
 }
