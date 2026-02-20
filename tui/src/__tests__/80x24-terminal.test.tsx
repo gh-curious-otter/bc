@@ -49,7 +49,9 @@ describe('80x24 Terminal - Breakpoints', () => {
 });
 
 /**
- * Test TabBar at 80x24 - should show full labels
+ * Test TabBar at 80x24 - should show minimal mode (just numbers)
+ * Issue #1109: 12 tabs with full labels need ~140 cols, short labels need ~105 cols
+ * At 80 cols, use minimal mode (~55 cols) to prevent overflow
  */
 describe('80x24 Terminal - TabBar', () => {
   function renderTabBar(terminalWidth: number) {
@@ -60,17 +62,18 @@ describe('80x24 Terminal - TabBar', () => {
     );
   }
 
-  it('shows full labels at exactly 80 columns', () => {
+  it('shows minimal mode (numbers only) at 80 columns', () => {
     const { lastFrame } = renderTabBar(80);
     const output = lastFrame() ?? '';
 
-    // At 80 cols, should show full tab names
-    expect(output).toContain('Dashboard');
-    expect(output).toContain('Agents');
-    expect(output).toContain('Channels');
+    // At 80 cols, should show minimal mode (numbers only) to fit 80x24
+    // Full labels (~140 chars) and short labels (~105 chars) don't fit
     expect(output).toContain('[1]');
     expect(output).toContain('[2]');
     expect(output).toContain('[3]');
+    // Labels should NOT appear in minimal mode
+    expect(output).not.toContain('Dashboard');
+    expect(output).not.toContain('Dash');
   });
 
   it('all tab keys are visible at 80 columns', () => {
@@ -82,6 +85,26 @@ describe('80x24 Terminal - TabBar', () => {
     for (const key of keys) {
       expect(output).toContain(key);
     }
+  });
+
+  it('shows short labels at 100 columns', () => {
+    const { lastFrame } = renderTabBar(100);
+    const output = lastFrame() ?? '';
+
+    // At 100 cols, should show short labels
+    expect(output).toContain('Dash');
+    expect(output).toContain('Agt');
+    expect(output).not.toContain('Dashboard');
+  });
+
+  it('shows full labels at 120 columns', () => {
+    const { lastFrame } = renderTabBar(120);
+    const output = lastFrame() ?? '';
+
+    // At 120 cols, should show full labels
+    expect(output).toContain('Dashboard');
+    expect(output).toContain('Agents');
+    expect(output).toContain('Channels');
   });
 });
 
