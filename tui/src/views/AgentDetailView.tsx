@@ -38,6 +38,67 @@ function normalizeTask(task: string | undefined): string {
   return task;
 }
 
+/**
+ * Colorize output line based on content patterns.
+ * #1161: Apply semantic colors to agent output for better readability.
+ *
+ * This provides basic highlighting since Ink doesn't render ANSI codes directly.
+ * Patterns: errors (red), warnings (yellow), success (green), info (cyan)
+ */
+function colorizeOutputLine(line: string): React.ReactElement {
+  const trimmed = line.trim().toLowerCase();
+
+  // Error patterns
+  if (
+    trimmed.includes('error') ||
+    trimmed.includes('failed') ||
+    trimmed.includes('exception') ||
+    trimmed.startsWith('✗') ||
+    trimmed.startsWith('x ')
+  ) {
+    return <Text color="red">{line}</Text>;
+  }
+
+  // Warning patterns
+  if (
+    trimmed.includes('warning') ||
+    trimmed.includes('warn') ||
+    trimmed.includes('deprecated') ||
+    trimmed.startsWith('⚠')
+  ) {
+    return <Text color="yellow">{line}</Text>;
+  }
+
+  // Success patterns
+  if (
+    trimmed.includes('success') ||
+    trimmed.includes('passed') ||
+    trimmed.includes('complete') ||
+    trimmed.startsWith('✓') ||
+    trimmed.startsWith('✔')
+  ) {
+    return <Text color="green">{line}</Text>;
+  }
+
+  // Tool/command patterns (cyan for actions)
+  if (
+    trimmed.startsWith('>') ||
+    trimmed.startsWith('$') ||
+    trimmed.includes('running') ||
+    trimmed.includes('executing')
+  ) {
+    return <Text color="cyan">{line}</Text>;
+  }
+
+  // File paths (dim white)
+  if (trimmed.match(/^[./~].*\.(tsx?|jsx?|go|py|md|json)$/)) {
+    return <Text color="white">{line}</Text>;
+  }
+
+  // Default: standard white text (not dimmed)
+  return <Text>{line}</Text>;
+}
+
 interface AgentDetailViewProps {
   agent: Agent;
   onBack?: () => void;
@@ -156,7 +217,8 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
     }
   });
 
-  const outputHeight = Math.max(10, 24 - 8);
+  // #1161: Use full available height, don't cap artificially
+  const outputHeight = 20;
 
   return (
     <Box flexDirection="column" width="100%" height="100%">
@@ -190,6 +252,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
       <Box flexDirection="column" flexGrow={1}>
         {activeTab === 'output' && (
           <>
+            {/* #1161: Output box with bottom-aligned content and preserved colors */}
             <Box
               flexDirection="column"
               flexGrow={1}
@@ -198,6 +261,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
               borderStyle="single"
               borderColor="gray"
               height={outputHeight}
+              justifyContent="flex-end"
             >
               {loading && outputLines.length === 0 ? (
                 <Text color="yellow">Loading agent output...</Text>
@@ -207,8 +271,8 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
                 <Text dimColor>No output yet. Agent may be idle.</Text>
               ) : (
                 outputLines.slice(-outputHeight + 2).map((line, idx) => (
-                  <Text key={idx} dimColor wrap="truncate">
-                    {line}
+                  <Text key={idx} wrap="truncate">
+                    {colorizeOutputLine(line)}
                   </Text>
                 ))
               )}
@@ -342,18 +406,28 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
   );
 };
 
-// Helper component for detail rows
+// Helper component for detail rows with consistent alignment
+// #1161: Fixed-width labels for proper column alignment
 interface DetailRowProps {
   label: string;
   value: string | React.ReactElement;
+  labelWidth?: number;
 }
 
-function DetailRow({ label, value }: DetailRowProps): React.ReactElement {
+const LABEL_WIDTH = 12; // Consistent label column width
+
+function DetailRow({ label, value, labelWidth = LABEL_WIDTH }: DetailRowProps): React.ReactElement {
+  // Pad label to fixed width for alignment
+  const paddedLabel = label.padEnd(labelWidth);
   return (
     <Box>
-      <Text bold>{label}:</Text>
+      <Text bold color="gray">{paddedLabel}</Text>
       <Box marginLeft={1} flexShrink={1}>
-        <Text wrap="truncate">{value}</Text>
+        {typeof value === 'string' ? (
+          <Text wrap="truncate">{value}</Text>
+        ) : (
+          value
+        )}
       </Box>
     </Box>
   );
