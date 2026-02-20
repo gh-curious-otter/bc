@@ -527,3 +527,104 @@ func (c *V2Config) Save(path string) error {
 func ConfigPath(rootDir string) string {
 	return filepath.Join(rootDir, ".bc", "config.toml")
 }
+
+// UserDefaultsConfig represents user-level defaults from ~/.bcrc.
+// These settings are merged with workspace config, with workspace taking precedence.
+type UserDefaultsConfig struct {
+	User     UserDefaultsUser     `toml:"user"`
+	Defaults UserDefaultsDefaults `toml:"defaults"`
+	Tools    UserDefaultsTools    `toml:"tools"`
+}
+
+// UserDefaultsUser holds user identity in .bcrc.
+type UserDefaultsUser struct {
+	Nickname string `toml:"nickname"` // Default nickname (e.g., "@alice")
+}
+
+// UserDefaultsDefaults holds behavior defaults in .bcrc.
+type UserDefaultsDefaults struct {
+	DefaultRole   string `toml:"default_role"`    // Default role for new agents
+	AutoStartRoot bool   `toml:"auto_start_root"` // Auto-start root agent with bc up
+}
+
+// UserDefaultsTools holds tool preferences in .bcrc.
+type UserDefaultsTools struct {
+	Preferred []string `toml:"preferred"` // Preferred tools in order
+}
+
+// UserDefaultsPath returns the path to the user's .bcrc file.
+func UserDefaultsPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".bcrc")
+}
+
+// LoadUserDefaults loads the user's ~/.bcrc file if it exists.
+// Returns nil if the file doesn't exist (not an error).
+func LoadUserDefaults() (*UserDefaultsConfig, error) {
+	path := UserDefaultsPath()
+	if path == "" {
+		return nil, nil
+	}
+
+	data, err := os.ReadFile(path) //nolint:gosec // user home directory
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to read %s: %w", path, err)
+	}
+
+	var cfg UserDefaultsConfig
+	if err := toml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse %s: %w", path, err)
+	}
+
+	return &cfg, nil
+}
+
+// MergeUserDefaults merges user defaults into a V2Config.
+// Workspace config values take precedence over user defaults.
+func MergeUserDefaults(cfg *V2Config, defaults *UserDefaultsConfig) {
+	if defaults == nil {
+		return
+	}
+
+	// Merge user nickname (only if workspace hasn't set one)
+	if cfg.User.Nickname == "" && defaults.User.Nickname != "" {
+		cfg.User.Nickname = defaults.User.Nickname
+	}
+
+	// Merge tool preference (only if workspace hasn't set a default)
+	if cfg.Tools.Default == "" && len(defaults.Tools.Preferred) > 0 {
+		cfg.Tools.Default = defaults.Tools.Preferred[0]
+	}
+}
+
+// SaveUserDefaults saves user defaults to ~/.bcrc.
+func SaveUserDefaults(defaults *UserDefaultsConfig) error {
+	path := UserDefaultsPath()
+	if path == "" {
+		return errors.New("unable to determine home directory")
+	}
+
+	f, err := os.Create(path) //nolint:gosec // user home directory
+	if err != nil {
+		return fmt.Errorf("failed to create %s: %w", path, err)
+	}
+
+	encoder := toml.NewEncoder(f)
+	encodeErr := encoder.Encode(defaults)
+	closeErr := f.Close()
+
+	if encodeErr != nil {
+		return fmt.Errorf("failed to encode %s: %w", path, encodeErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("failed to close %s: %w", path, closeErr)
+	}
+
+	return nil
+}
