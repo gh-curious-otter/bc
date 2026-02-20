@@ -241,6 +241,12 @@ enabled = true
 [roster]
 engineers = 4
 tech_leads = 2
+
+[performance]
+# TUI polling intervals in milliseconds (min: 500ms)
+poll_interval_agents = 2000    # Agent status updates
+poll_interval_channels = 3000  # Channel message polling
+poll_interval_costs = 5000     # Cost data refresh
 ```
 
 ### User Nickname
@@ -261,17 +267,23 @@ bc channel send eng "Hello team!"
 The `bc home` dashboard provides a full terminal UI with:
 
 - **Responsive Layout**: Works at minimum 80x24 terminal size
-- **Keyboard Navigation**: `j/k` or arrow keys to scroll, `Tab` to switch views
+- **12 Views**: Dashboard, Agents, Channels, Costs, Commands, Roles, Logs, Worktrees, Workspaces, Demons, Processes, Help
+- **Command Palette**: Quick access to all actions via `Ctrl+K`
+- **Keyboard Navigation**: Number keys for direct tab access, `j/k` to scroll
 - **Channel Features**:
   - `@mention` autocomplete with Tab completion
   - Role-based name colors and emoji prefixes
   - Arrow key scrolling in message history
+- **Activity Timeline**: Real-time agent activity on dashboard
 
 ### Keyboard Shortcuts
 
 | Key | Action |
 |-----|--------|
-| `Tab` | Switch between views |
+| `1-9`, `0`, `-` | Jump to view (Dashboard=1, Agents=2, ..., Processes=-) |
+| `?` | Open Help view |
+| `Ctrl+K` | Open command palette |
+| `Tab` / `Shift+Tab` | Next/previous view |
 | `j/k` or `↑/↓` | Scroll up/down |
 | `m` | Compose message (in channels) |
 | `@` | Start mention autocomplete |
