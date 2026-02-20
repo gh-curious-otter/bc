@@ -15,6 +15,11 @@ import (
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
+var (
+	initQuick  bool
+	initPreset string
+)
+
 var initCmd = &cobra.Command{
 	Use:   "init [directory]",
 	Short: "Initialize a new bc v2 workspace",
@@ -30,14 +35,20 @@ v2 workspace structure:
     agents/        # Per-agent state files
 
 Examples:
-  bc init                    # Initialize current directory
-  bc init ~/Projects/myapp   # Initialize specific directory`,
+  bc init                        # Interactive wizard
+  bc init --quick                # Quick init with defaults
+  bc init --preset solo          # Use solo developer preset
+  bc init --preset small-team    # Use small team preset
+  bc init --preset full-team     # Use full team preset
+  bc init ~/Projects/myapp       # Initialize specific directory`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runInit,
 }
 
 func init() {
 	rootCmd.AddCommand(initCmd)
+	initCmd.Flags().BoolVar(&initQuick, "quick", false, "Quick init with defaults (skip wizard)")
+	initCmd.Flags().StringVar(&initPreset, "preset", "", "Use preset configuration (solo, small-team, full-team)")
 }
 
 // isV1Workspace checks if a directory has a v1 workspace (config.json).
@@ -59,7 +70,23 @@ func runInit(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		dir = args[0]
 	}
-	log.Debug("init command started", "dir", dir)
+	log.Debug("init command started", "dir", dir, "quick", initQuick, "preset", initPreset)
+
+	// Handle preset flag
+	if initPreset != "" {
+		preset := WizardPreset(initPreset)
+		switch preset {
+		case PresetSolo, PresetSmallTeam, PresetFullTeam:
+			return InitWithPreset(dir, preset)
+		default:
+			return fmt.Errorf("unknown preset: %s (valid: solo, small-team, full-team)", initPreset)
+		}
+	}
+
+	// Handle quick flag - use solo preset with defaults
+	if initQuick {
+		return InitWithPreset(dir, PresetSolo)
+	}
 
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
@@ -86,8 +113,8 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("cannot initialize: v1 workspace exists")
 	}
 
-	// Initialize v2 workspace
-	return initV2Workspace(absDir)
+	// Run interactive wizard
+	return RunWizard(dir)
 }
 
 // initV2Workspace creates a new v2 workspace structure.
