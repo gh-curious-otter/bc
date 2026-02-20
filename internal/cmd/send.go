@@ -57,7 +57,7 @@ func runSend(cmd *cobra.Command, args []string) error {
 	// Check agent exists
 	a := mgr.GetAgent(agentName)
 	if a == nil {
-		return fmt.Errorf("agent %q not found", agentName)
+		return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentName)
 	}
 	log.Debug("agent found", "agent", agentName, "state", a.State)
 

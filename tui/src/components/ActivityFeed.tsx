@@ -4,7 +4,7 @@
  */
 
 import React, { memo, useMemo } from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useStdout } from 'ink';
 import { Panel } from './Panel';
 import { useLogs, getSeverityColor } from '../hooks';
 import type { LogSeverity } from '../hooks';
@@ -64,6 +64,7 @@ function truncateMessage(msg: string, maxLen: number): string {
 
 /**
  * ActivityFeed component - Real-time log stream
+ * #1196: Responsive message truncation based on terminal width
  */
 export function ActivityFeed({
   maxEntries = 8,
@@ -73,10 +74,26 @@ export function ActivityFeed({
   compact = false,
   showFilterHints = true,
 }: ActivityFeedProps): React.ReactElement {
+  const { stdout } = useStdout();
+  const terminalWidth = stdout.columns;
+
   const { data: logs, loading, severityFilter: currentFilter } = useLogs({
     tail: 50,
     pollInterval: 3000,
   });
+
+  // #1196: Calculate responsive message length based on terminal width
+  // Layout: [timestamp 9] [agent 11] [event 13] [message]
+  // Compact: [agent 11] [event 13] [message]
+  const maxMsgLen = useMemo(() => {
+    const timestampWidth = compact ? 0 : 9;
+    const agentWidth = 11; // padEnd(10) + space
+    const eventWidth = 13; // padEnd(12) + space
+    const panelOverhead = 6; // borders, padding, margin
+    const available = terminalWidth - timestampWidth - agentWidth - eventWidth - panelOverhead;
+    // Clamp between 20 and 100
+    return Math.max(20, Math.min(100, available));
+  }, [terminalWidth, compact]);
 
   // Apply local severity filter or use hook filter
   const activeFilter = severityFilter ?? currentFilter;
@@ -102,17 +119,15 @@ export function ActivityFeed({
     return filtered.slice(-maxEntries).reverse();
   }, [logs, activeFilter, maxEntries]);
 
-  // Build title with optional filter hints
+  // Build title with optional filter indicator
+  // #1196: Moved detailed hints to footer for better discoverability
   const title = useMemo(() => {
     let t = 'Activity';
     if (activeFilter) {
       t += ` [${activeFilter}]`;
     }
-    if (showFilterHints) {
-      t += ' (i/w/e/*)';
-    }
     return t;
-  }, [activeFilter, showFilterHints]);
+  }, [activeFilter]);
 
   if (loading && !logs) {
     return (
@@ -129,8 +144,16 @@ export function ActivityFeed({
       ) : (
         <Box flexDirection="column">
           {displayLogs.map((entry, idx) => (
-            <ActivityEntry key={`${entry.ts}-${String(idx)}`} entry={entry} compact={compact} />
+            <ActivityEntry key={`${entry.ts}-${String(idx)}`} entry={entry} compact={compact} maxMsgLen={maxMsgLen} />
           ))}
+        </Box>
+      )}
+      {/* #1196: Filter hints at bottom for better discoverability */}
+      {showFilterHints && (
+        <Box marginTop={1}>
+          <Text dimColor>
+            Filter: <Text color="cyan">i</Text>=info <Text color="yellow">w</Text>=warn <Text color="red">e</Text>=error <Text color="gray">*</Text>=all
+          </Text>
         </Box>
       )}
     </Panel>
@@ -139,19 +162,21 @@ export function ActivityFeed({
 
 /**
  * Individual activity entry - memoized for performance
+ * #1196: Now accepts maxMsgLen prop for responsive truncation
  */
 interface ActivityEntryProps {
   entry: LogEntry;
   compact?: boolean;
+  maxMsgLen: number;
 }
 
 const ActivityEntry = memo(function ActivityEntry({
   entry,
   compact = false,
+  maxMsgLen,
 }: ActivityEntryProps): React.ReactElement {
   const severityColor = getSeverityColor(entry.type);
   const eventLabel = formatEventType(entry.type);
-  const maxMsgLen = compact ? 40 : 60;
 
   return (
     <Box>
