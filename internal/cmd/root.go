@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/ui"
 )
 
 var (
@@ -165,7 +166,7 @@ func runRoot(cmd *cobra.Command, args []string) error {
 // promptInit displays an interactive prompt to initialize a new workspace.
 func promptInit(cmd *cobra.Command) error {
 	fmt.Println()
-	fmt.Println("  \033[1mbc - AI Agent Orchestration\033[0m")
+	fmt.Printf("  %s\n", ui.BoldText("bc - AI Agent Orchestration"))
 	fmt.Println()
 	fmt.Println("  No workspace found in current directory.")
 	fmt.Println()
