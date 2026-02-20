@@ -79,6 +79,7 @@ export const BarChart = memo(function BarChart({
       {data.map((item, idx) => {
         const filledWidth = Math.round((item.value / maxValue) * barWidth);
         const emptyWidth = barWidth - filledWidth;
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- item.color can be undefined per BarChartItem type
         const color = item.color ?? DEFAULT_COLORS[idx % DEFAULT_COLORS.length] ?? defaultColor;
         const percent = total > 0 ? ((item.value / total) * 100).toFixed(0) : '0';
 
@@ -155,7 +156,7 @@ export const MiniBarChart = memo(function MiniBarChart({
  */
 export interface DistributionChartProps {
   /** Array of items with label and count */
-  data: Array<{ label: string; count: number; color?: string }>;
+  data: { label: string; count: number; color?: string }[];
   /** Symbol to use (default: '⊙') */
   symbol?: string;
   /** Maximum symbols per row (default: 8) */

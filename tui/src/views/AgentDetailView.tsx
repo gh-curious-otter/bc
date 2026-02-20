@@ -426,9 +426,9 @@ function formatUptime(startedAt: string | undefined): string {
     const mins = diffMins % 60;
 
     if (diffHours > 0) {
-      return `${diffHours}h ${mins}m`;
+      return `${String(diffHours)}h ${String(mins)}m`;
     }
-    return `${mins}m`;
+    return `${String(mins)}m`;
   } catch {
     return '-';
   }

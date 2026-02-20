@@ -101,8 +101,8 @@ export const Timeline = memo(function Timeline({
 
   // Build the timeline string
   const { timelineChars, timelineColors } = useMemo(() => {
-    const chars: string[] = Array(width).fill('░');
-    const colors: string[] = Array(width).fill('gray');
+    const chars: string[] = Array.from({ length: width }, () => '░');
+    const colors: string[] = Array.from({ length: width }, () => 'gray');
     const duration = range.end - range.start;
 
     if (duration <= 0) {
@@ -184,8 +184,8 @@ export const AgentTimeline = memo(function AgentTimeline({
   const { timelineChars, timelineColors } = useMemo(() => {
     if (segments.length === 0) {
       return {
-        timelineChars: Array(width).fill('░'),
-        timelineColors: Array(width).fill('gray'),
+        timelineChars: Array.from({ length: width }, () => '░'),
+        timelineColors: Array.from({ length: width }, () => 'gray'),
       };
     }
 
@@ -201,8 +201,8 @@ export const AgentTimeline = memo(function AgentTimeline({
 
     const timeRange = { start: minTime, end: maxTime };
     const duration = timeRange.end - timeRange.start;
-    const chars: string[] = Array(width).fill('░');
-    const colors: string[] = Array(width).fill('gray');
+    const chars: string[] = Array.from({ length: width }, () => '░');
+    const colors: string[] = Array.from({ length: width }, () => 'gray');
 
     if (duration > 0) {
       for (const seg of segments) {
@@ -226,7 +226,7 @@ export const AgentTimeline = memo(function AgentTimeline({
       <Text color="cyan">{agentLabel}</Text>
       <Text dimColor>|</Text>
       {timelineChars.map((char, idx) => (
-        <Text key={idx} color={timelineColors[idx]}>{char}</Text>
+        <Text key={idx} color={timelineColors[idx] ?? 'gray'}>{char}</Text>
       ))}
       <Text dimColor>|</Text>
     </Box>

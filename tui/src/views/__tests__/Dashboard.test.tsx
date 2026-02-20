@@ -289,7 +289,7 @@ describe('Dashboard Phase 3 Integration', () => {
   describe('Phase 3 Feature Integration', () => {
     test('Performance overlay can be toggled independent of other dashboard state', () => {
       let showDebugPanel = false;
-      let isLoading = false;
+      const isLoading = false;
 
       // Toggle performance panel
       showDebugPanel = !showDebugPanel;
