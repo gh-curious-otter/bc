@@ -290,7 +290,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       {/* Footer with keybindings */}
       <Box marginTop={1}>
         <Text color="gray">
-          j/k: navigate | a/Enter: details | x: stop | X: kill | R: restart | r: refresh | q: back
+          j/k: navigate | g/G: top/bottom | a/Enter: details | x: stop | X: kill | R: restart | r: refresh | q/ESC: back
         </Text>
       </Box>
     </Box>

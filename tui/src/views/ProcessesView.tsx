@@ -62,6 +62,10 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
       setSelectedIndex((i) => Math.max(0, i - 1));
     } else if (key.downArrow || input === 'j') {
       setSelectedIndex((i) => Math.min(processList.length - 1, i + 1));
+    } else if (input === 'g') {
+      setSelectedIndex(0);
+    } else if (input === 'G') {
+      setSelectedIndex(processList.length - 1);
     } else if (key.return || input === 'l') {
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list
       if (selectedProcess) {
@@ -199,7 +203,7 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
       {/* Footer with keybindings */}
       <Box marginTop={1}>
         <Text color="gray">
-          j/k: navigate | Enter/l: logs | r: refresh | q: back
+          j/k: navigate | g/G: top/bottom | Enter/l: logs | r: refresh | q/ESC: back
         </Text>
       </Box>
     </Box>
@@ -282,7 +286,7 @@ function ProcessLogViewer({ process, onBack }: ProcessLogViewerProps) {
       {/* Footer with keybindings */}
       <Box marginTop={1}>
         <Text color="gray">
-          j/k: scroll | g/G: top/bottom | r: refresh | q: back
+          j/k: scroll | g/G: top/bottom | r: refresh | q/ESC: back
         </Text>
       </Box>
     </Box>

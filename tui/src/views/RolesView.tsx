@@ -334,7 +334,7 @@ export function RolesView({
         <Text dimColor>
           {searchMode
             ? 'Type to search, Enter/Esc to exit'
-            : 'j/k: navigate | Enter: details | d: delete | r: refresh | q: back'}
+            : 'j/k: navigate | g/G: top/bottom | Enter: details | d: delete | r: refresh | q/ESC: back'}
         </Text>
       </Box>
     </Box>

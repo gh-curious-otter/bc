@@ -274,7 +274,7 @@ export const WorkspaceSelectorView: React.FC<WorkspaceSelectorViewProps> = ({
       {/* Footer */}
       <Box marginTop={1}>
         <Text dimColor>
-          j/k: nav | Enter: {onSelect ? 'select' : 'details'} | v: {filterV2Only ? 'show all' : 'v2 only'} | r: refresh | q: back
+          j/k: nav | g/G: top/bottom | Enter: {onSelect ? 'select' : 'details'} | v: {filterV2Only ? 'show all' : 'v2 only'} | r: refresh | q/ESC: back
         </Text>
       </Box>
     </Box>
