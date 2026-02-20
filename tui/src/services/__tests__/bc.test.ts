@@ -188,7 +188,7 @@ describe('execBcJson - JSON parsing', () => {
       });
     }, 5);
 
-    await expect(execBcJson(['test'])).rejects.toThrow(/Failed to parse bc output as JSON/);
+    expect(execBcJson(['test'])).rejects.toThrow(/Failed to parse bc output as JSON/);
   });
 
   it('throws on empty response', async () => {
@@ -203,7 +203,7 @@ describe('execBcJson - JSON parsing', () => {
       });
     }, 5);
 
-    await expect(execBcJson(['test'])).rejects.toThrow(/Failed to parse bc output as JSON/);
+    expect(execBcJson(['test'])).rejects.toThrow(/Failed to parse bc output as JSON/);
   });
 });
 
