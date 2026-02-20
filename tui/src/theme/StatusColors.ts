@@ -70,6 +70,33 @@ export const HEALTH_COLORS = {
 } as const;
 
 /**
+ * Health status symbols (for accessibility - colorblind support #1220)
+ */
+export const HEALTH_SYMBOLS = {
+  healthy: '●',    // Filled circle - all good
+  warning: '◐',    // Half circle - needs attention
+  critical: '○',   // Empty circle - critical
+} as const;
+
+export type HealthStatus = keyof typeof HEALTH_COLORS;
+
+/**
+ * Get health indicator with color and symbol
+ */
+export function getHealthIndicator(status: HealthStatus): { color: string; symbol: string; label: string } {
+  const labels: Record<HealthStatus, string> = {
+    healthy: 'Healthy',
+    warning: 'Warning',
+    critical: 'Critical',
+  };
+  return {
+    color: HEALTH_COLORS[status],
+    symbol: HEALTH_SYMBOLS[status],
+    label: labels[status],
+  };
+}
+
+/**
  * Cost/budget colors
  */
 export const COST_COLORS = {
@@ -77,6 +104,44 @@ export const COST_COLORS = {
   warning: 'yellow',     // 75-90% of budget used
   critical: 'red',       // >90% of budget used
 } as const;
+
+/**
+ * Cost/budget symbols (for accessibility - colorblind support #1220)
+ */
+export const COST_SYMBOLS = {
+  normal: '✓',     // Checkmark - within budget
+  warning: '⚠',    // Warning - approaching limit
+  critical: '!',   // Exclamation - over/at budget
+} as const;
+
+export type CostStatus = keyof typeof COST_COLORS;
+
+/**
+ * Get cost indicator with color and symbol
+ */
+export function getCostIndicator(status: CostStatus): { color: string; symbol: string; label: string } {
+  const labels: Record<CostStatus, string> = {
+    normal: 'OK',
+    warning: 'Near Limit',
+    critical: 'Over Budget',
+  };
+  return {
+    color: COST_COLORS[status],
+    symbol: COST_SYMBOLS[status],
+    label: labels[status],
+  };
+}
+
+/**
+ * Check if high contrast mode is enabled
+ * Supports: BC_HIGH_CONTRAST env var, config tui.high_contrast
+ * #1220: Colorblind-friendly visual cues
+ */
+export function isHighContrastEnabled(): boolean {
+  // Check environment variable
+  const envValue = process.env.BC_HIGH_CONTRAST;
+  return envValue === '1' || envValue === 'true';
+}
 
 /**
  * Agent role colors (for visual distinction in lists)
@@ -100,10 +165,15 @@ export default {
   STATUS_COLORS,
   STATUS_SYMBOLS,
   HEALTH_COLORS,
+  HEALTH_SYMBOLS,
   COST_COLORS,
+  COST_SYMBOLS,
   ROLE_COLORS,
   getStatusColor,
   getStatusSymbol,
   getStatusIndicator,
+  getHealthIndicator,
+  getCostIndicator,
   getRoleColor,
+  isHighContrastEnabled,
 };

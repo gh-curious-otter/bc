@@ -11,7 +11,7 @@ import { PulseText } from '../components/AnimatedText.js';
 import { useDashboard } from '../hooks/useDashboard.js';
 import { useNavigation } from '../navigation/NavigationContext.js';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout.js';
-import { STATUS_COLORS, HEALTH_COLORS } from '../theme/StatusColors.js';
+import { STATUS_COLORS, HEALTH_COLORS, getCostIndicator, type CostStatus } from '../theme/StatusColors.js';
 
 interface DashboardProps {
   /** @deprecated Use navigation context instead */
@@ -310,6 +310,7 @@ interface CostPanelProps {
 
 /**
  * Cost panel with budget progress bar (responsive width)
+ * #1220: Added symbols and text labels for colorblind accessibility
  */
 const CostPanel = memo(function CostPanel({
   totalCostUSD,
@@ -324,7 +325,9 @@ const CostPanel = memo(function CostPanel({
   const filledWidth = Math.round((budgetPercent / 100) * barWidth);
   const emptyWidth = barWidth - filledWidth;
 
-  const barColor = budgetPercent >= 90 ? 'red' : budgetPercent >= 75 ? 'yellow' : 'green';
+  // Determine cost status for symbol and label (#1220 colorblind support)
+  const costStatus: CostStatus = budgetPercent >= 90 ? 'critical' : budgetPercent >= 75 ? 'warning' : 'normal';
+  const { color: barColor, symbol: costSymbol } = getCostIndicator(costStatus);
 
   return (
     <Panel title="Cost">
@@ -337,6 +340,8 @@ const CostPanel = memo(function CostPanel({
           <Text color={barColor}>{'█'.repeat(filledWidth)}</Text>
           <Text dimColor>{'░'.repeat(emptyWidth)}</Text>
           <Text> {budgetPercent}%</Text>
+          {/* #1220: Symbol indicator for colorblind users */}
+          <Text color={barColor}> {costSymbol}</Text>
         </Box>
         <Box marginTop={1}>
           <Text dimColor>
