@@ -14,6 +14,7 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/ui"
 )
 
 var (
@@ -319,51 +320,36 @@ func normalizeTask(task string) string {
 }
 
 func colorState(s agent.State) string {
-	const (
-		reset  = "\033[0m"
-		green  = "\033[32m"
-		yellow = "\033[33m"
-		red    = "\033[31m"
-		cyan   = "\033[36m"
-	)
-
 	padded := fmt.Sprintf("%-10s", s)
 
 	switch s {
 	case agent.StateIdle:
-		return cyan + padded + reset
+		return ui.CyanText(padded)
 	case agent.StateWorking:
-		return green + padded + reset
+		return ui.GreenText(padded)
 	case agent.StateDone:
-		return green + padded + reset
+		return ui.GreenText(padded)
 	case agent.StateStuck:
-		return red + padded + reset
+		return ui.RedText(padded)
 	case agent.StateError:
-		return red + padded + reset
+		return ui.RedText(padded)
 	case agent.StateStopped:
-		return yellow + padded + reset
+		return ui.YellowText(padded)
 	default:
 		return padded
 	}
 }
 
 func colorWorktreeStatus(s string) string {
-	const (
-		reset  = "\033[0m"
-		green  = "\033[32m"
-		yellow = "\033[33m"
-		red    = "\033[31m"
-	)
-
 	padded := fmt.Sprintf("%-10s", s)
 
 	switch s {
 	case "OK":
-		return green + padded + reset
+		return ui.GreenText(padded)
 	case "MISSING":
-		return red + padded + reset
+		return ui.RedText(padded)
 	case "ORPHANED":
-		return yellow + padded + reset
+		return ui.YellowText(padded)
 	default:
 		return padded
 	}
