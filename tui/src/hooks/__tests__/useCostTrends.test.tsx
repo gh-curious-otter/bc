@@ -322,17 +322,17 @@ describe('useCostTrends - Burn Rate Calculations', () => {
 
 describe('useCostTrends - Trend Period Scenarios', () => {
   it('models daily period', () => {
-    const period = 'day' as const;
+    const period = 'day';
     expect(period).toBe('day');
   });
 
   it('models weekly period', () => {
-    const period = 'week' as const;
+    const period = 'week';
     expect(period).toBe('week');
   });
 
   it('models monthly period', () => {
-    const period = 'month' as const;
+    const period = 'month';
     expect(period).toBe('month');
   });
 
