@@ -3,7 +3,7 @@
  * Issue #555: Processes view with list, details, and log viewer
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useProcesses, useProcessLogs } from '../hooks';
 import { Table } from '../components/Table';
@@ -43,12 +43,38 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
   const { data: processes, loading, error, refresh } = useProcesses();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showLogs, setShowLogs] = useState(false);
-  const processList = processes ?? [];
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchMode, setSearchMode] = useState(false);
+
+  // Filter processes by search query
+  const processList = useMemo(() => {
+    const list = processes ?? [];
+    if (!searchQuery) return list;
+    const query = searchQuery.toLowerCase();
+    return list.filter(
+      (proc) =>
+        proc.name.toLowerCase().includes(query) ||
+        proc.command.toLowerCase().includes(query) ||
+        (proc.owner?.toLowerCase().includes(query) ?? false)
+    );
+  }, [processes, searchQuery]);
 
   const selectedProcess = processList[selectedIndex] as typeof processList[number] | undefined;
 
   // Keyboard navigation
   useInput((input, key) => {
+    // Search mode input handling
+    if (searchMode) {
+      if (key.return || key.escape) {
+        setSearchMode(false);
+      } else if (key.backspace || key.delete) {
+        setSearchQuery(searchQuery.slice(0, -1));
+      } else if (input && !key.ctrl && !key.meta) {
+        setSearchQuery(searchQuery + input);
+      }
+      return;
+    }
+
     if (showLogs) {
       // Log viewer mode
       if (input === 'q' || key.escape) {
@@ -71,6 +97,11 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
       if (selectedProcess) {
         setShowLogs(true);
       }
+    } else if (input === '/') {
+      setSearchMode(true);
+    } else if (input === 'c' && searchQuery) {
+      setSearchQuery('');
+      setSelectedIndex(0);
     } else if (input === 'r') {
       void refresh();
     } else if (input === 'q' || key.escape) {
@@ -126,6 +157,23 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
     },
   ];
 
+  // Search mode overlay
+  if (searchMode) {
+    return (
+      <Box flexDirection="column" padding={1}>
+        <Text bold>Search Processes</Text>
+        <Box marginTop={1} borderStyle="single" borderColor="cyan" paddingX={1}>
+          <Text color="cyan">{'> '}</Text>
+          <Text>{searchQuery}</Text>
+          <Text color="cyan">|</Text>
+        </Box>
+        <Box marginTop={1}>
+          <Text dimColor>Enter to confirm, Esc to cancel</Text>
+        </Box>
+      </Box>
+    );
+  }
+
   if (loading && processList.length === 0) {
     return (
       <Box padding={1}>
@@ -160,12 +208,15 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
         <Text bold color="magenta">
           Processes ({processList.length})
         </Text>
+        {searchQuery && (
+          <Text color="cyan"> [/] &quot;{searchQuery}&quot;</Text>
+        )}
         {loading && <Text color="gray"> (refreshing...)</Text>}
       </Box>
 
       {processList.length === 0 ? (
         <Box padding={1}>
-          <Text dimColor>No processes running</Text>
+          <Text dimColor>{searchQuery ? 'No processes match search' : 'No processes running'}</Text>
         </Box>
       ) : (
         <>
@@ -203,7 +254,7 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
       {/* Footer with keybindings */}
       <Box marginTop={1}>
         <Text color="gray">
-          j/k: navigate | g/G: top/bottom | Enter/l: logs | r: refresh | q/ESC: back
+          j/k: nav | g/G: top/bottom | /: search{searchQuery ? ' | c: clear' : ''} | Enter/l: logs | r: refresh | q/ESC: back
         </Text>
       </Box>
     </Box>
