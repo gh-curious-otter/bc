@@ -1641,7 +1641,7 @@ func sendStuckAlert(rootDir, channelName string, healthResults []AgentHealth, mg
 	// Get channel members
 	members, membersErr := store.GetMembers(channelName)
 	if membersErr != nil {
-		return fmt.Errorf("channel %q not found: %w", channelName, membersErr)
+		return fmt.Errorf("channel %q not found (use 'bc channel list' to see available channels): %w", channelName, membersErr)
 	}
 
 	if len(members) == 0 {
