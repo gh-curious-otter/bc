@@ -15,6 +15,7 @@ import (
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/cost"
 	"github.com/rpuneet/bc/pkg/events"
+	"github.com/rpuneet/bc/pkg/ui"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
@@ -64,6 +65,10 @@ func executeIntegrationCmd(args ...string) (string, string, error) {
 		return "", "", pipeErr
 	}
 	os.Stdout = w
+
+	// Also redirect pkg/ui output which uses its own writer
+	ui.SetOutput(w)
+	defer ui.SetOutput(os.Stdout)
 
 	stderr := new(bytes.Buffer)
 	rootCmd.SetOut(w)
