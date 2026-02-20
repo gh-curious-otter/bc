@@ -22,7 +22,8 @@ describe('StatusBadge', () => {
 
   it('renders stuck state', () => {
     const { lastFrame } = render(<StatusBadge state="stuck" />);
-    expect(lastFrame()).toContain('stuck');
+    // Issue #1220: Critical states are uppercase for accessibility
+    expect(lastFrame()?.toLowerCase()).toContain('stuck');
     expect(lastFrame()).toContain('!');
   });
 

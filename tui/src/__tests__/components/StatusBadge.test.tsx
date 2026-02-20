@@ -31,13 +31,15 @@ describe('StatusBadge', () => {
     it('renders stuck state', () => {
       const { lastFrame } = render(<StatusBadge state="stuck" />);
       const output = lastFrame();
-      expect(output).toContain('stuck');
+      // Issue #1220: Critical states are uppercase for accessibility
+      expect(output?.toLowerCase()).toContain('stuck');
     });
 
     it('renders error state', () => {
       const { lastFrame } = render(<StatusBadge state="error" />);
       const output = lastFrame();
-      expect(output).toContain('error');
+      // Issue #1220: Critical states are uppercase for accessibility
+      expect(output?.toLowerCase()).toContain('error');
     });
 
     it('renders stopped state', () => {

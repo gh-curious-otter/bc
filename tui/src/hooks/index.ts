@@ -160,3 +160,22 @@ export {
   type UseFadeOptions,
   type UseFadeResult,
 } from './useAnimation';
+
+export {
+  useAccessibility,
+  useHighContrast,
+  isHighContrastEnabled,
+  getStatusIcon,
+  getStatusLabel,
+  getSeverityIcon as getAccessibilitySeverityIcon,
+  getPatternForLevel,
+  getHighContrastColor,
+  STATUS_ICONS,
+  SEVERITY_ICONS,
+  STATUS_LABELS,
+  PATTERNS,
+  HIGH_CONTRAST_COLORS,
+  type StatusIconKey,
+  type SeverityLevel,
+  type AccessibilitySettings,
+} from './useAccessibility';
