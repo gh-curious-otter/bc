@@ -292,8 +292,11 @@ export const LogsView: React.FC<LogsViewProps> = ({ onBack }) => {
   const typeWidth = 10;
   const messageWidth = terminalWidth - timeWidth - agentWidth - typeWidth - 10;
 
-  // Visible rows (account for header, filters, footer)
-  const visibleRows = 12;
+  // Visible rows - dynamic based on terminal height (#80x24 support)
+  // Account for: app overhead (6) + header (1) + filters (1) + table border (2) + footer (1)
+  const terminalHeight = stdout.rows;
+  const viewOverhead = 11;
+  const visibleRows = Math.max(5, Math.min(15, terminalHeight - viewOverhead));
   const startIdx = Math.max(0, selectedIndex - Math.floor(visibleRows / 2));
   const visibleLogs = filteredLogs.slice(startIdx, startIdx + visibleRows);
 
