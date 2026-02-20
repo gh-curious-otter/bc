@@ -64,19 +64,34 @@ type Capability string
 
 const (
 	CapCreateAgents   Capability = "create_agents"   // Can spawn child agents
+	CapStopAgents     Capability = "stop_agents"     // Can stop other agents
 	CapAssignWork     Capability = "assign_work"     // Can assign work to others
 	CapCreateEpics    Capability = "create_epics"    // Can create high-level epics
 	CapImplementTasks Capability = "implement_tasks" // Can write code/implement
 	CapReviewWork     Capability = "review_work"     // Can review others' work
 	CapTestWork       Capability = "test_work"       // Can test and validate implementations
+	CapSendToAll      Capability = "send_to_all"     // Can broadcast to all agents
+	CapAccessCosts    Capability = "access_costs"    // Can view cost data
+	CapModifyConfig   Capability = "modify_config"   // Can modify workspace config
 )
+
+// Permissions defines fine-grained RBAC permissions for a role.
+// These extend capabilities with numeric limits and constraints.
+type Permissions struct {
+	BudgetLimit float64 `yaml:"budget_limit,omitempty"` // Max spending limit in USD (0 = unlimited)
+}
 
 // RoleCapabilities and RoleHierarchy are empty here.
 // All role definitions (capabilities, hierarchy, metadata) are loaded from
 // workspace .bc/roles/*.md files via RoleManager.
 // Only the root role has hardcoded capabilities.
 var RoleCapabilities = map[Role][]Capability{
-	RoleRoot: {CapCreateAgents, CapAssignWork, CapCreateEpics, CapReviewWork}, // Root can do everything
+	RoleRoot: {CapCreateAgents, CapStopAgents, CapAssignWork, CapCreateEpics, CapReviewWork, CapSendToAll, CapAccessCosts, CapModifyConfig}, // Root can do everything
+}
+
+// RolePermissions stores numeric permission limits per role.
+var RolePermissions = map[Role]Permissions{
+	RoleRoot: {BudgetLimit: 0}, // 0 = unlimited
 }
 
 var RoleHierarchy = map[Role][]Role{
@@ -110,6 +125,21 @@ func HasCapability(role Role, cap Capability) bool {
 		}
 	}
 	return false
+}
+
+// GetBudgetLimit returns the budget limit for a role.
+// Returns 0 if unlimited or role not found.
+func GetBudgetLimit(role Role) float64 {
+	perms, ok := RolePermissions[role]
+	if !ok {
+		return 0
+	}
+	return perms.BudgetLimit
+}
+
+// SetRolePermissions sets the permissions for a role.
+func SetRolePermissions(role Role, perms Permissions) {
+	RolePermissions[role] = perms
 }
 
 // RoleLevel returns the hierarchy level for built-in roles.

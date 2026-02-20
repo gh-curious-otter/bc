@@ -18,6 +18,7 @@ type RoleMetadata struct {
 	Capabilities []string `yaml:"capabilities,omitempty"`
 	ParentRoles  []string `yaml:"parent_roles,omitempty"`
 	IsSingleton  bool     `yaml:"is_singleton,omitempty"`
+	BudgetLimit  float64  `yaml:"budget_limit,omitempty"` // Max spending in USD (0 = unlimited)
 }
 
 // Role represents a parsed role file with metadata and prompt content.
@@ -57,9 +58,14 @@ name: root
 is_singleton: true
 capabilities:
   - create_agents
+  - stop_agents
   - assign_work
   - create_epics
   - review_work
+  - send_to_all
+  - access_costs
+  - modify_config
+budget_limit: 0
 ---
 
 # Root Agent

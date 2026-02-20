@@ -113,6 +113,42 @@ Example:
 	RunE: runRoleDiff,
 }
 
+var rolePermissionsCmd = &cobra.Command{
+	Use:   "permissions",
+	Short: "Manage role permissions (RBAC)",
+	Long: `Manage fine-grained permissions for roles.
+
+Examples:
+  bc role permissions show engineer          # Show permissions for engineer role
+  bc role permissions set engineer --budget-limit=50.00`,
+}
+
+var rolePermissionsShowCmd = &cobra.Command{
+	Use:   "show <role>",
+	Short: "Show permissions for a role",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runRolePermissionsShow,
+}
+
+var rolePermissionsSetCmd = &cobra.Command{
+	Use:   "set <role>",
+	Short: "Set permissions for a role",
+	Long: `Set fine-grained permissions for a role.
+
+Examples:
+  bc role permissions set engineer --budget-limit=50.00
+  bc role permissions set engineer --add-cap=stop_agents
+  bc role permissions set engineer --remove-cap=create_agents`,
+	Args: cobra.ExactArgs(1),
+	RunE: runRolePermissionsSet,
+}
+
+var (
+	permBudgetLimit float64
+	permAddCap      []string
+	permRemoveCap   []string
+)
+
 // Flags
 var (
 	roleName        string
@@ -133,6 +169,18 @@ func init() {
 	roleCmd.AddCommand(roleRenameCmd)
 	roleCmd.AddCommand(roleCloneCmd)
 	roleCmd.AddCommand(roleDiffCmd)
+	roleCmd.AddCommand(rolePermissionsCmd)
+
+	// Permissions subcommands
+	rolePermissionsCmd.AddCommand(rolePermissionsShowCmd)
+	rolePermissionsCmd.AddCommand(rolePermissionsSetCmd)
+
+	rolePermissionsSetCmd.Flags().Float64Var(&permBudgetLimit, "budget-limit", -1, "Set budget limit in USD (0 = unlimited)")
+	rolePermissionsSetCmd.Flags().StringSliceVar(&permAddCap, "add-cap", nil, "Add capability to role")
+	rolePermissionsSetCmd.Flags().StringSliceVar(&permRemoveCap, "remove-cap", nil, "Remove capability from role")
+
+	rolePermissionsShowCmd.ValidArgsFunction = CompleteRoleNames
+	rolePermissionsSetCmd.ValidArgsFunction = CompleteRoleNames
 
 	roleCreateCmd.Flags().StringVar(&roleName, "name", "", "Name for the new role (required)")
 	roleCreateCmd.Flags().StringVar(&rolePrompt, "prompt", "", "Inline prompt text for the role")
@@ -792,6 +840,146 @@ func runRoleDiff(cmd *cobra.Command, args []string) error {
 		fmt.Println("\nNo differences found (roles are identical)")
 	}
 
+	return nil
+}
+
+// runRolePermissionsShow displays permissions for a role.
+func runRolePermissionsShow(_ *cobra.Command, args []string) error {
+	_, rm, err := getWorkspaceRoleManager()
+	if err != nil {
+		return err
+	}
+
+	roleName := args[0]
+	role, err := rm.LoadRole(roleName)
+	if err != nil {
+		return fmt.Errorf("failed to load role %s: %w", roleName, err)
+	}
+
+	fmt.Printf("Permissions for role: %s\n", roleName)
+	fmt.Println(strings.Repeat("-", 40))
+
+	// Capabilities
+	fmt.Println("\nCapabilities:")
+	if len(role.Metadata.Capabilities) == 0 {
+		fmt.Println("  (none)")
+	} else {
+		for _, cap := range role.Metadata.Capabilities {
+			fmt.Printf("  - %s\n", cap)
+		}
+	}
+
+	// Budget limit
+	fmt.Println("\nBudget Limit:")
+	if role.Metadata.BudgetLimit == 0 {
+		fmt.Println("  Unlimited")
+	} else {
+		fmt.Printf("  $%.2f\n", role.Metadata.BudgetLimit)
+	}
+
+	// Available capabilities
+	fmt.Println("\nAvailable Capabilities:")
+	allCaps := []string{
+		string(agent.CapCreateAgents),
+		string(agent.CapStopAgents),
+		string(agent.CapAssignWork),
+		string(agent.CapCreateEpics),
+		string(agent.CapImplementTasks),
+		string(agent.CapReviewWork),
+		string(agent.CapTestWork),
+		string(agent.CapSendToAll),
+		string(agent.CapAccessCosts),
+		string(agent.CapModifyConfig),
+	}
+	for _, cap := range allCaps {
+		has := false
+		for _, c := range role.Metadata.Capabilities {
+			if c == cap {
+				has = true
+				break
+			}
+		}
+		status := "✗"
+		if has {
+			status = "✓"
+		}
+		fmt.Printf("  %s %s\n", status, cap)
+	}
+
+	return nil
+}
+
+// runRolePermissionsSet modifies permissions for a role.
+func runRolePermissionsSet(_ *cobra.Command, args []string) error {
+	_, rm, err := getWorkspaceRoleManager()
+	if err != nil {
+		return err
+	}
+
+	roleName := args[0]
+	role, err := rm.LoadRole(roleName)
+	if err != nil {
+		return fmt.Errorf("failed to load role %s: %w", roleName, err)
+	}
+
+	modified := false
+
+	// Update budget limit
+	if permBudgetLimit >= 0 {
+		role.Metadata.BudgetLimit = permBudgetLimit
+		modified = true
+		if permBudgetLimit == 0 {
+			fmt.Printf("Set budget limit to: Unlimited\n")
+		} else {
+			fmt.Printf("Set budget limit to: $%.2f\n", permBudgetLimit)
+		}
+	}
+
+	// Add capabilities
+	for _, cap := range permAddCap {
+		found := false
+		for _, existing := range role.Metadata.Capabilities {
+			if existing == cap {
+				found = true
+				break
+			}
+		}
+		if !found {
+			role.Metadata.Capabilities = append(role.Metadata.Capabilities, cap)
+			modified = true
+			fmt.Printf("Added capability: %s\n", cap)
+		}
+	}
+
+	// Remove capabilities
+	for _, cap := range permRemoveCap {
+		newCaps := make([]string, 0, len(role.Metadata.Capabilities))
+		removed := false
+		for _, existing := range role.Metadata.Capabilities {
+			if existing != cap {
+				newCaps = append(newCaps, existing)
+			} else {
+				removed = true
+			}
+		}
+		if removed {
+			role.Metadata.Capabilities = newCaps
+			modified = true
+			fmt.Printf("Removed capability: %s\n", cap)
+		}
+	}
+
+	if !modified {
+		fmt.Println("No changes made")
+		return nil
+	}
+
+	// Save the role
+	if err := rm.WriteRole(role); err != nil {
+		return fmt.Errorf("failed to save role: %w", err)
+	}
+
+	fmt.Printf("\nRole %s updated successfully\n", roleName)
 	return nil
 }
 
