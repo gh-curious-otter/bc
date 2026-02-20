@@ -286,7 +286,7 @@ function ProcessLogViewer({ process, onBack }: ProcessLogViewerProps) {
       {/* Footer with keybindings */}
       <Box marginTop={1}>
         <Text color="gray">
-          j/k: scroll | g/G: top/bottom | r: refresh | q: back
+          j/k: scroll | g/G: top/bottom | r: refresh | q/ESC: back
         </Text>
       </Box>
     </Box>

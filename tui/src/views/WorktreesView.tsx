@@ -333,8 +333,8 @@ export const WorktreesView: React.FC<WorktreesViewProps> = ({ onBack }) => {
       {/* Footer */}
       <Box marginTop={1}>
         <Text dimColor>
-          j/k: nav | Enter: details | o: {showOrphanedOnly ? 'show all' : 'orphans only'}
-          {hasOrphans ? ' | p: prune' : ''} | r: refresh | q: back
+          j/k: nav | g/G: top/bottom | Enter: details | o: {showOrphanedOnly ? 'show all' : 'orphans only'}
+          {hasOrphans ? ' | p: prune' : ''} | r: refresh | q/ESC: back
         </Text>
       </Box>
     </Box>

@@ -145,9 +145,10 @@ export function TeamsView({ onBack }: TeamsViewProps) {
       <Footer
         hints={[
           { key: 'j/k', label: 'navigate' },
+          { key: 'g/G', label: 'top/bottom' },
           { key: 'Enter', label: 'expand' },
           { key: 'r', label: 'refresh' },
-          { key: 'q', label: 'back' },
+          { key: 'q/ESC', label: 'back' },
         ]}
       />
     </Box>

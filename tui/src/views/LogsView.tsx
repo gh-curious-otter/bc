@@ -390,7 +390,7 @@ export const LogsView: React.FC<LogsViewProps> = ({ onBack }) => {
       {/* Footer */}
       <Box marginTop={1}>
         <Text dimColor>
-          j/k: nav | Enter: details | /: search | s: severity | a: agent | t: time | c: clear | r: refresh | q: back
+          j/k: nav | g/G: top/bottom | Enter: details | /: search | s: severity | a: agent | t: time | c: clear | r: refresh | q/ESC: back
         </Text>
       </Box>
     </Box>

@@ -334,7 +334,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
         <Text dimColor>
           {inputMode
             ? 'Enter: send | Esc: cancel'
-            : '1-3: tabs | Tab: cycle | i: message | r: refresh | q: back'}
+            : '1-3: tabs | Tab: cycle | i: message | r: refresh | q/ESC: back'}
         </Text>
         {loading && <Text color="gray"> (refreshing...)</Text>}
       </Box>
