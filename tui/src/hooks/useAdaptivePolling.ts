@@ -111,7 +111,7 @@ export function useAdaptivePolling(
     // Immediately switch to fast mode
     setMode('fast');
     setIntervalMs(FAST_INTERVAL);
-  }, [adaptiveEnabled]);
+  }, [adaptiveEnabled, FAST_INTERVAL]);
 
   // Report idle - allows backoff
   const reportIdle = useCallback(() => {
@@ -142,7 +142,7 @@ export function useAdaptivePolling(
       setMode('normal');
       setIntervalMs(NORMAL_INTERVAL);
     }
-  }, [adaptiveEnabled, mode]);
+  }, [adaptiveEnabled, mode, MAX_INTERVAL, NORMAL_INTERVAL, SLOW_INTERVAL]);
 
   // Update idle time periodically
   useEffect(() => {
@@ -190,7 +190,7 @@ export function useAdaptivePolling(
     setIntervalMs(NORMAL_INTERVAL);
     lastActivityRef.current = Date.now();
     backoffCountRef.current = 0;
-  }, []);
+  }, [NORMAL_INTERVAL]);
 
   const setModeManual = useCallback((newMode: PollingMode) => {
     setMode(newMode);
@@ -208,7 +208,7 @@ export function useAdaptivePolling(
         setIntervalMs(MAX_INTERVAL);
         break;
     }
-  }, []);
+  }, [FAST_INTERVAL, MAX_INTERVAL, NORMAL_INTERVAL, SLOW_INTERVAL]);
 
   const state = useMemo<AdaptivePollingState>(() => ({
     mode,
