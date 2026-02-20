@@ -11,6 +11,7 @@ import (
 
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/ui"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
@@ -241,16 +242,15 @@ func runChannelList(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(channels) == 0 {
-		fmt.Println("No channels defined")
-		fmt.Println()
-		fmt.Println("Run 'bc channel create <name>' to create a channel")
-		fmt.Println("Or run 'bc up' to create default channels")
+		ui.Warning("No channels defined")
+		ui.BlankLine()
+		ui.Info("Run 'bc channel create <name>' to create a channel")
+		ui.Info("Or run 'bc up' to create default channels")
 		return nil
 	}
 
-	// Table header
-	fmt.Printf("%-20s %-8s %s\n", "CHANNEL", "MEMBERS", "DESCRIPTION")
-	fmt.Println(strings.Repeat("-", 70))
+	// Use pkg/ui table for consistent formatting
+	table := ui.NewTable("CHANNEL", "MEMBERS", "DESCRIPTION")
 
 	for _, ch := range channels {
 		memberCount := fmt.Sprintf("(%d)", len(ch.Members))
@@ -258,9 +258,10 @@ func runChannelList(cmd *cobra.Command, args []string) error {
 		if d, _ := store.GetDescription(ch.Name); d != "" {
 			desc = truncateMessage(d, 30)
 		}
-		fmt.Printf("%-20s %-8s %s\n", ch.Name, memberCount, desc)
+		table.AddRow(ch.Name, memberCount, desc)
 	}
 
+	table.Print()
 	return nil
 }
 
