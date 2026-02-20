@@ -120,3 +120,8 @@ func CyanText(text string) string {
 func MagentaText(text string) string {
 	return Color(text, Magenta)
 }
+
+// GrayText colors text gray (bright black).
+func GrayText(text string) string {
+	return Color(text, BrightBlack)
+}

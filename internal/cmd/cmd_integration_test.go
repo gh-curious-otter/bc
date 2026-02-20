@@ -1098,11 +1098,12 @@ func TestInitNewDirectory(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
-	stdout, _, err := executeIntegrationCmd("init")
+	// Use --quick flag to skip interactive wizard in tests
+	stdout, _, err := executeIntegrationCmd("init", "--quick")
 	if err != nil {
 		t.Fatalf("init returned error: %v", err)
 	}
-	if !strings.Contains(stdout, "Initialized bc v2 workspace") {
+	if !strings.Contains(stdout, "Workspace initialized") {
 		t.Errorf("expected initialization message, got: %s", stdout)
 	}
 
