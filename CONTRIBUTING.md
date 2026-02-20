@@ -7,6 +7,7 @@ Thank you for your interest in contributing to bc! This document provides guidel
 ### Prerequisites
 
 - Go 1.25.1+
+- Bun (for TUI development)
 - tmux
 - golangci-lint
 - make
@@ -19,7 +20,7 @@ git clone https://github.com/rpuneet/bc.git
 cd bc
 
 # Install dependencies
-go mod download
+make deps
 
 # Build the project
 make build
@@ -27,21 +28,48 @@ make build
 # Run tests
 make test
 
-# Install locally
-make install
+# Install locally (copies bin/bc to $GOPATH/bin)
+cp bin/bc $(go env GOPATH)/bin/
 ```
 
 ## Build Commands
 
+### Go (CLI)
+
 | Command | Description |
 |---------|-------------|
-| `make build` | Build binary to `bin/bc` |
+| `make build` | Build binary to `bin/bc` with version info |
+| `make build-release` | Build optimized release binary (stripped symbols) |
+| `make build-all` | Cross-compile for all platforms to `dist/` |
+| `make dev` | Run CLI in development mode (`go run`) |
 | `make test` | Run tests with race detector |
 | `make coverage` | Run tests with coverage report |
+| `make bench` | Run benchmarks |
+| `make gen` | Generate config code from config.toml |
+| `make fmt` | Format code with gofmt |
+| `make vet` | Run go vet |
 | `make lint` | Run golangci-lint |
-| `make fmt` | Format code |
-| `make check` | Run all checks (fmt, vet, test) |
+| `make check` | Run all checks (gen + fmt + vet + lint + test) |
+| `make deps` | Download and tidy dependencies |
 | `make clean` | Remove build artifacts |
+
+### TUI (TypeScript/React)
+
+| Command | Description |
+|---------|-------------|
+| `make build-tui` | Build TUI package |
+| `make test-tui` | Run TUI tests |
+| `make lint-tui` | Lint TUI code |
+
+Or directly with Bun:
+
+```bash
+cd tui
+bun install        # Install dependencies
+bun run build      # Build to dist/
+bun test           # Run tests
+bun run lint       # Lint code
+```
 
 ## Code Style
 
@@ -74,21 +102,43 @@ make lint
 
 4. **Documentation**: Document exported functions and types.
 
+5. **Naming Conventions**:
+   - Short receiver names: `w` for workspace, `a` for agent, `c` for channel
+   - Avoid package-level variables except for cobra commands
+   - Use descriptive but concise variable names
+
+6. **Struct Alignment**: Run `make lint` to catch fieldalignment issues.
+
 ## Project Structure
 
 ```
 bc/
-├── cmd/bc/              # CLI entry point
-├── config/              # Generated config (cfgx)
+├── cmd/bc/              # CLI entry point (main.go)
+├── config/              # Generated config code (cfgx)
 ├── internal/
 │   └── cmd/             # Cobra command implementations
 ├── pkg/                 # Reusable packages
-│   ├── agent/           # Agent lifecycle management
-│   ├── workspace/       # Workspace configuration
-│   ├── channel/         # Communication channels
-│   └── ...
-├── prompts/             # Default role prompts
-└── .ctx/                # Architecture documentation
+│   ├── agent/           # Agent lifecycle, roles, tmux sessions
+│   ├── channel/         # SQLite-backed communication
+│   ├── cost/            # Cost tracking and budgets
+│   ├── demon/           # Scheduled task management
+│   ├── events/          # Event logging
+│   ├── git/             # Git worktree operations
+│   ├── memory/          # Agent memory system
+│   ├── process/         # Background process management
+│   ├── routing/         # Agent routing patterns
+│   ├── team/            # Team management
+│   ├── tmux/            # tmux session control
+│   └── workspace/       # Workspace config (v1 JSON, v2 TOML)
+├── prompts/             # Default role prompt templates
+└── tui/                 # TypeScript/React TUI (Ink)
+    ├── src/
+    │   ├── components/  # Reusable UI components
+    │   ├── hooks/       # React hooks
+    │   ├── services/    # BC CLI wrapper
+    │   ├── views/       # Full-screen views
+    │   └── app.tsx      # Main TUI application
+    └── dist/            # Compiled output (CommonJS)
 ```
 
 ## Pull Request Process
@@ -114,13 +164,17 @@ bc/
 
 5. **Review**: Address all review feedback
 
-## Architecture Documentation
+## Architecture Overview
 
-Before making architectural changes, review the documentation in `.ctx/`:
+Key concepts to understand before contributing:
 
-- [Architecture Overview](.ctx/01-architecture-overview.md)
-- [Agent Roles](.ctx/02-agent-types.md)
-- [Data Models](.ctx/04-data-models.md)
+- **Agents**: AI assistants running in isolated tmux sessions, each with its own git worktree
+- **Workspace**: Project directory with `.bc/` containing config, state, and per-agent data
+- **Channels**: SQLite-backed inter-agent communication with persistent history
+- **Roles**: Agent capabilities defined in `.bc/roles/*.md` (engineer, manager, etc.)
+- **Memory**: Per-agent persistent knowledge (experiences, learnings)
+
+See `CLAUDE.md` for detailed architecture patterns and package documentation.
 
 ## Reporting Issues
 
