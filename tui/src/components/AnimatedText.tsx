@@ -1,18 +1,35 @@
 /**
  * AnimatedText - Terminal-based text animation components
  * Issue #1024: Animations and visual effects
+ * Issue #1210: Reduced-motion and animation accessibility support
  *
  * Provides animated text effects for terminal UI:
  * - FadeText: Fade in/out effect
  * - PulseText: Pulsing brightness
  * - TypewriterText: Character-by-character reveal
  * - BlinkText: Simple blink effect
+ * - Spinner: Smooth loading spinner
+ * - AnimatedProgressBar: Smooth progress bar
+ * - AnimatedCounter: Animated number display
+ * - LoadingDots: Animated loading dots
+ * - WaveText: Text with wave animation
+ *
+ * All components respect reduced-motion accessibility preferences.
  */
 
-import { memo } from 'react';
-import { Text } from 'ink';
+import { memo, useMemo } from 'react';
+import { Text, Box } from 'ink';
 import type { TextProps } from 'ink';
-import { useFade, usePulse, useTypewriter, useBlink } from '../hooks/useAnimation';
+import {
+  useFade,
+  usePulse,
+  useTypewriter,
+  useBlink,
+  useSpinner,
+  useProgressAnimation,
+  useCounter,
+  SPINNER_FRAMES,
+} from '../hooks/useAnimation';
 import type { FadeDirection } from '../hooks/useAnimation';
 
 /** Common props for all animated text components */
@@ -249,6 +266,235 @@ export const NotificationText = memo(function NotificationText({
   return (
     <Text {...textProps} color={color} dimColor={isDim}>
       {children}
+    </Text>
+  );
+});
+
+// ============================================================================
+// Extended Animated Components (Issue #1210)
+// ============================================================================
+
+/** Spinner props */
+export interface SpinnerProps {
+  /** Spinner type (default: 'dots') */
+  type?: keyof typeof SPINNER_FRAMES;
+  /** Custom frames */
+  frames?: string[];
+  /** Frame interval in ms (default: 80) */
+  interval?: number;
+  /** Spinner color */
+  color?: string;
+  /** Text to show after spinner */
+  text?: string;
+  /** Enable spinner (default: true) */
+  enabled?: boolean;
+}
+
+/**
+ * Spinner - Smooth loading spinner animation
+ *
+ * Respects reduced-motion - shows static indicator when disabled.
+ */
+export const Spinner = memo(function Spinner({
+  type = 'dots',
+  frames,
+  interval = 80,
+  color = 'cyan',
+  text,
+  enabled = true,
+}: SpinnerProps) {
+  const spinnerFrames = frames ?? SPINNER_FRAMES[type];
+  const { frame } = useSpinner({ frames: spinnerFrames, interval, enabled });
+
+  return (
+    <Box>
+      <Text color={color}>{frame}</Text>
+      {text && <Text> {text}</Text>}
+    </Box>
+  );
+});
+
+/** AnimatedProgressBar props */
+export interface AnimatedProgressBarProps {
+  /** Progress value 0-100 */
+  value: number;
+  /** Bar width in characters (default: 20) */
+  width?: number;
+  /** Filled character (default: '█') */
+  filledChar?: string;
+  /** Empty character (default: '░') */
+  emptyChar?: string;
+  /** Progress bar color */
+  color?: string;
+  /** Show percentage (default: true) */
+  showPercent?: boolean;
+  /** Animation duration in ms (default: 300) */
+  duration?: number;
+}
+
+/**
+ * AnimatedProgressBar - Smooth progress bar animation
+ *
+ * Smoothly animates between progress values.
+ * Respects reduced-motion - snaps to value when disabled.
+ */
+export const AnimatedProgressBar = memo(function AnimatedProgressBar({
+  value,
+  width = 20,
+  filledChar = '█',
+  emptyChar = '░',
+  color = 'green',
+  showPercent = true,
+  duration = 300,
+}: AnimatedProgressBarProps) {
+  // Normalize to 0-1 range
+  const normalizedProgress = Math.max(0, Math.min(1, value / 100));
+
+  const { animatedProgress } = useProgressAnimation({
+    progress: normalizedProgress,
+    duration,
+  });
+
+  const filledWidth = Math.round(animatedProgress * width);
+  const emptyWidth = width - filledWidth;
+
+  const filled = filledChar.repeat(filledWidth);
+  const empty = emptyChar.repeat(emptyWidth);
+  const percent = Math.round(animatedProgress * 100);
+
+  return (
+    <Box>
+      <Text color={color}>{filled}</Text>
+      <Text dimColor>{empty}</Text>
+      {showPercent && <Text> {percent}%</Text>}
+    </Box>
+  );
+});
+
+/** AnimatedCounter props */
+export interface AnimatedCounterProps {
+  /** Target value */
+  value: number;
+  /** Animation duration in ms (default: 500) */
+  duration?: number;
+  /** Number of decimal places (default: 0) */
+  decimals?: number;
+  /** Prefix text (e.g., '$') */
+  prefix?: string;
+  /** Suffix text (e.g., '%') */
+  suffix?: string;
+  /** Text color */
+  color?: string;
+  /** Text props */
+  bold?: boolean;
+}
+
+/**
+ * AnimatedCounter - Smooth number animation
+ *
+ * Smoothly counts up/down to target value.
+ * Respects reduced-motion - shows final value when disabled.
+ */
+export const AnimatedCounter = memo(function AnimatedCounter({
+  value,
+  duration = 500,
+  decimals = 0,
+  prefix = '',
+  suffix = '',
+  color,
+  bold,
+}: AnimatedCounterProps) {
+  const { displayValue } = useCounter({ value, duration, decimals });
+
+  return (
+    <Text color={color} bold={bold}>
+      {prefix}
+      {displayValue}
+      {suffix}
+    </Text>
+  );
+});
+
+/** LoadingDots props */
+export interface LoadingDotsProps {
+  /** Number of dots (default: 3) */
+  count?: number;
+  /** Interval between dots in ms (default: 300) */
+  interval?: number;
+  /** Dot character (default: '.') */
+  dot?: string;
+  /** Color */
+  color?: string;
+}
+
+/**
+ * LoadingDots - Animated loading dots
+ *
+ * Shows progressive dots animation: . .. ... . ..
+ * Respects reduced-motion - shows static dots when disabled.
+ */
+export const LoadingDots = memo(function LoadingDots({
+  count = 3,
+  interval = 300,
+  dot = '.',
+  color,
+}: LoadingDotsProps) {
+  const frames = useMemo(() => {
+    const result: string[] = [];
+    for (let i = 1; i <= count; i++) {
+      result.push(dot.repeat(i));
+    }
+    return result;
+  }, [count, dot]);
+
+  const { frame } = useSpinner({ frames, interval });
+
+  // Pad to maintain consistent width
+  const paddedFrame = frame.padEnd(count, ' ');
+
+  return <Text color={color}>{paddedFrame}</Text>;
+});
+
+/** WaveText props */
+export interface WaveTextProps {
+  /** Text to animate */
+  children: string;
+  /** Wave interval in ms (default: 150) */
+  interval?: number;
+  /** Color */
+  color?: string;
+}
+
+/**
+ * WaveText - Text with wave animation effect
+ *
+ * Each character cycles through dim/bright creating a wave effect.
+ * Respects reduced-motion - shows static text when disabled.
+ */
+export const WaveText = memo(function WaveText({
+  children,
+  interval = 150,
+  color,
+}: WaveTextProps) {
+  const { frameIndex } = useSpinner({
+    frames: Array.from({ length: children.length }, (_, i) => String(i)),
+    interval,
+  });
+
+  const chars = children.split('');
+
+  return (
+    <Text color={color}>
+      {chars.map((char, i) => {
+        // Create wave pattern - character is bright when wave passes through
+        const distance = Math.abs(i - (frameIndex % children.length));
+        const isDim = distance > 1;
+        return (
+          <Text key={i} dimColor={isDim}>
+            {char}
+          </Text>
+        );
+      })}
     </Text>
   );
 });
