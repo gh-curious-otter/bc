@@ -257,41 +257,41 @@ const SystemHealthPanel = memo(function SystemHealthPanel({
   const healthPercent = total > 0 ? Math.round((healthyCount / total) * 100) : 100;
   const healthColor = healthPercent >= 80 ? HEALTH_COLORS.healthy : healthPercent >= 50 ? HEALTH_COLORS.warning : HEALTH_COLORS.critical;
 
-  // #1162 fix: Use single Text elements with wrap="truncate" to prevent
-  // text overlap/garbling at 80x24 terminal size (e.g., "58% healthyth")
+  // #1181 fix: Use Box for inline layout instead of nested Text with wrap="truncate"
+  // Nested Text inside Text with wrap="truncate" causes garbling (e.g., "50% healthyth")
   return (
     <Panel title="System Health">
       <Box flexDirection="column">
-        {/* Health percentage - single Text to prevent wrap issues */}
-        <Text wrap="truncate">
+        {/* Health percentage - Box layout to prevent truncation garbling */}
+        <Box>
           <Text color={healthColor} bold>{healthPercent}%</Text>
           <Text dimColor> healthy</Text>
-        </Text>
+        </Box>
         <Box marginTop={1} flexDirection="column">
           {/* Working agents with pulse animation (Phase 3) - consistent colors */}
-          <Text wrap="truncate">
+          <Box>
             <PulseText color={STATUS_COLORS.working} enabled={working > 0} interval={1500}>●</PulseText>
             <Text> Working: {working}</Text>
-          </Text>
-          <Text wrap="truncate">
+          </Box>
+          <Box>
             <Text color={STATUS_COLORS.idle}>●</Text>
             <Text> Idle: {idle}</Text>
-          </Text>
+          </Box>
           {stuck > 0 && (
-            <Text wrap="truncate">
+            <Box>
               <Text color={STATUS_COLORS.warning}>●</Text>
               <Text> Stuck: {stuck}</Text>
-            </Text>
+            </Box>
           )}
           {errorCount > 0 && (
-            <Text wrap="truncate">
+            <Box>
               <Text color={STATUS_COLORS.error}>●</Text>
               <Text> Error: {errorCount}</Text>
-            </Text>
+            </Box>
           )}
         </Box>
         {unhealthyCount > 0 && (
-          <Text wrap="truncate" color="yellow" dimColor>
+          <Text color="yellow" dimColor>
             ⚠ {unhealthyCount} agent{unhealthyCount > 1 ? 's' : ''} need attention
           </Text>
         )}
@@ -357,7 +357,7 @@ interface AgentStatsPanelProps {
 /**
  * Memoized agent stats panel - only re-renders when stats change
  * Fixed: Use proper Box layout to prevent text overlap (#1065)
- * #1162 fix: Add wrap="truncate" for role names at narrow widths
+ * #1181 fix: Use Box for inline layout instead of nested Text with wrap="truncate"
  */
 const AgentStatsPanel = memo(function AgentStatsPanel({ stats }: AgentStatsPanelProps) {
   const hasRoles = Object.keys(stats.byRole).length > 0;
@@ -369,13 +369,13 @@ const AgentStatsPanel = memo(function AgentStatsPanel({ stats }: AgentStatsPanel
   return (
     <Panel title="Agent Distribution">
       <Box flexDirection="column">
-        <Text dimColor wrap="truncate">By Role:</Text>
+        <Text dimColor>By Role:</Text>
         <Box flexDirection="column" marginTop={1}>
           {roleEntries.map(([role, count]) => (
-            <Text key={role} wrap="truncate">
+            <Box key={role}>
               <Text color="cyan">{role}</Text>
               <Text>: {count}</Text>
-            </Text>
+            </Box>
           ))}
         </Box>
       </Box>
