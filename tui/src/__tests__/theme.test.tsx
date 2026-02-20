@@ -7,6 +7,7 @@
 import React from 'react';
 import { render } from 'ink-testing-library';
 import { Text } from 'ink';
+import { spyOn, describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import {
   ThemeProvider,
   useTheme,
@@ -70,8 +71,7 @@ describe('useTheme', () => {
   it('throws when used outside provider', () => {
     // Note: In ink-testing-library, the error is caught differently
     // The hook should throw, but the error may be caught by React's error boundary
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const consoleError = jest.spyOn(console, 'error').mockImplementation();
+    const consoleError = spyOn(console, 'error').mockImplementation(() => {});
     try {
       render(<ThemeConsumer />);
     } catch (error) {

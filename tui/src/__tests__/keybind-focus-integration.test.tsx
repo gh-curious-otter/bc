@@ -11,6 +11,7 @@
 
 import React from 'react';
 import { render } from 'ink-testing-library';
+import { describe, test, expect, mock } from 'bun:test';
 import { FocusProvider, useFocus } from '../navigation/FocusContext';
 import { useKeyboardNavigation } from '../navigation/useKeyboardNavigation';
 import { useInput } from 'ink';
@@ -78,7 +79,7 @@ const TestChannelsComponent = ({
 
 describe('Keybind Focus State Fix (Issue #653 EPIC 2)', () => {
   test.skip('Global keybinds should be disabled while in input mode', () => {
-    const onGlobalKeyPress = jest.fn();
+    const onGlobalKeyPress = mock();
     const { lastFrame } = render(
       <FocusProvider>
         <TestChannelsComponent onGlobalKeyPress={onGlobalKeyPress} />
@@ -97,8 +98,10 @@ describe('Keybind Focus State Fix (Issue #653 EPIC 2)', () => {
     // expect(onGlobalKeyPress).not.toHaveBeenCalled();
   });
 
-  test('Global keybinds should be re-enabled after exiting input mode', () => {
-    // Similar test for exiting input mode
+  test.skip('Global keybinds should be re-enabled after exiting input mode', () => {
+    // TODO: Implement test for exiting input mode
+    // Similar pattern to above test, but verify keybinds work after ESC/Enter
+    expect(true).toBe(true);
   });
 });
 
@@ -180,11 +183,11 @@ describe('FocusContext behavior for keybind management', () => {
  */
 describe('ChannelHistoryView focus synchronization (the actual fix)', () => {
   test('useEffect should call setFocus when inputMode changes to true', () => {
-    const mockSetFocus = jest.fn();
+    const mockSetFocus = mock();
 
     const TestComponent = (): React.ReactElement => {
       const [inputMode, setInputMode] = React.useState(false);
-      const mockFocus = { setFocus: mockSetFocus, returnFocus: jest.fn() };
+      const mockFocus = { setFocus: mockSetFocus, returnFocus: mock() };
 
       React.useEffect(() => {
         if (inputMode) {

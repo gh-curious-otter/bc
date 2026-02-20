@@ -8,7 +8,8 @@ import { render } from 'ink-testing-library';
 import { describe, it, expect, vi, beforeEach } from 'bun:test';
 import { ActivityFeed } from '../../components/ActivityFeed';
 
-// Mock only useLogs, not getSeverityColor (which is a pure function)
+// Mock useLogs hook with correct getSeverityColor implementation
+// IMPORTANT: Must match the real implementation's case-insensitivity
 vi.mock('../../hooks/useLogs', () => ({
   useLogs: vi.fn(() => ({
     data: [
@@ -37,9 +38,11 @@ vi.mock('../../hooks/useLogs', () => ({
     filterBySeverity: vi.fn(),
     refresh: vi.fn(),
   })),
+  // Fix: use toLowerCase() to match real implementation (issue #1151)
   getSeverityColor: (type: string) => {
-    if (type.includes('error')) return 'red';
-    if (type.includes('stuck')) return 'yellow';
+    const lower = type.toLowerCase();
+    if (lower.includes('error') || lower.includes('fail')) return 'red';
+    if (lower.includes('warn') || lower.includes('stuck')) return 'yellow';
     return 'gray';
   },
 }));
