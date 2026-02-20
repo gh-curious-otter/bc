@@ -171,6 +171,19 @@ func init() {
 	channelHistoryCmd.Flags().IntVar(&channelHistoryLimit, "limit", 50, "Maximum number of messages to show")
 	channelHistoryCmd.Flags().IntVar(&channelHistoryOffset, "offset", 0, "Number of messages to skip")
 	channelHistoryCmd.Flags().StringVar(&channelHistorySince, "since", "", "Show messages since duration (e.g., 1h, 30m)")
+
+	// Add shell completion for channel name arguments
+	channelAddCmd.ValidArgsFunction = CompleteChannelNames
+	channelRemoveCmd.ValidArgsFunction = CompleteChannelNames
+	channelSendCmd.ValidArgsFunction = CompleteChannelNames
+	channelDeleteCmd.ValidArgsFunction = CompleteChannelNames
+	channelJoinCmd.ValidArgsFunction = CompleteChannelNames
+	channelLeaveCmd.ValidArgsFunction = CompleteChannelNames
+	channelHistoryCmd.ValidArgsFunction = CompleteChannelNames
+	channelReactCmd.ValidArgsFunction = CompleteChannelNames
+	channelShowCmd.ValidArgsFunction = CompleteChannelNames
+	channelDescCmd.ValidArgsFunction = CompleteChannelNames
+
 	channelCmd.AddCommand(channelCreateCmd)
 	channelCmd.AddCommand(channelAddCmd)
 	channelCmd.AddCommand(channelRemoveCmd)

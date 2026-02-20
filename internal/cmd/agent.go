@@ -327,6 +327,16 @@ func init() {
 	agentHealthCmd.Flags().IntVar(&agentHealthMaxFail, "max-failures", 3, "Max consecutive failures before considered stuck")
 	agentHealthCmd.Flags().StringVar(&agentHealthAlert, "alert", "", "Send alert to channel when stuck agents detected (requires --detect-stuck)")
 
+	// Add shell completion for agent name arguments
+	agentAttachCmd.ValidArgsFunction = CompleteAgentNames
+	agentPeekCmd.ValidArgsFunction = CompleteAgentNames
+	agentShowCmd.ValidArgsFunction = CompleteAgentNames
+	agentStartCmd.ValidArgsFunction = CompleteAgentNames
+	agentStopCmd.ValidArgsFunction = CompleteAgentNames
+	agentSendCmd.ValidArgsFunction = CompleteAgentNames
+	agentDeleteCmd.ValidArgsFunction = CompleteAgentNames
+	agentRenameCmd.ValidArgsFunction = CompleteAgentNames
+
 	// Add subcommands
 	agentCmd.AddCommand(agentCreateCmd)
 	agentCmd.AddCommand(agentListCmd)
