@@ -5,7 +5,9 @@
  * Aggregates agent activity logs into time periods for display in timeline view.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { getLogs } from '../services/bc';
+import type { LogEntry } from '../types';
 
 export interface ActivityEvent {
   timestamp: Date;
@@ -27,6 +29,31 @@ export interface ActivityPeriod {
 interface UseActivityDataOptions {
   hours?: number; // How many hours back to load (default: 24)
   limit?: number; // Max events to load (default: 100)
+}
+
+/**
+ * Parse log entries to extract activity events
+ */
+function parseLogToActivity(log: LogEntry): ActivityEvent | null {
+  try {
+    const timestamp = new Date(log.ts);
+    // Filter to only state-change events (working, idle, done, etc.)
+    const stateTypes = ['state.working', 'state.idle', 'state.done', 'state.stuck', 'state.error', 'agent.started', 'agent.stopped'];
+    const isStateEvent = stateTypes.some((t) => log.type.toLowerCase().includes(t.toLowerCase()));
+
+    if (!isStateEvent && !log.type.toLowerCase().includes('state')) {
+      return null;
+    }
+
+    return {
+      timestamp,
+      agent: log.agent,
+      action: log.type.split('.').pop() ?? log.type,
+      cost: 0,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -59,7 +86,8 @@ function aggregateActivity(events: ActivityEvent[], periodMinutes: number = 15):
     period.totalCost += event.cost || 0;
   });
 
-  return Array.from(periods.values()).sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+  // Sort by time descending (most recent first)
+  return Array.from(periods.values()).sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
 }
 
 /**
@@ -68,16 +96,29 @@ function aggregateActivity(events: ActivityEvent[], periodMinutes: number = 15):
 export function useActivityData(options: UseActivityDataOptions = {}) {
   const { hours = 24, limit = 100 } = options;
   const [activities, setActivities] = useState<ActivityPeriod[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchActivityData = async () => {
+  const fetchActivityData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // In a real implementation, this would query bc logs API
-      // For now, return empty data structure
-      const events: ActivityEvent[] = [];
+      // Fetch logs from bc CLI
+      const logs = await getLogs(limit);
+
+      // Filter logs by time range
+      const cutoffTime = Date.now() - hours * 60 * 60 * 1000;
+      const recentLogs = logs.filter((log) => {
+        const logTime = new Date(log.ts).getTime();
+        return logTime >= cutoffTime;
+      });
+
+      // Parse logs into activity events
+      const events: ActivityEvent[] = recentLogs
+        .map(parseLogToActivity)
+        .filter((e): e is ActivityEvent => e !== null);
+
+      // Aggregate into time periods
       const aggregated = aggregateActivity(events, 15);
       setActivities(aggregated);
     } catch (err) {
@@ -85,7 +126,7 @@ export function useActivityData(options: UseActivityDataOptions = {}) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [hours, limit]);
 
   useEffect(() => {
     void fetchActivityData();
@@ -93,7 +134,7 @@ export function useActivityData(options: UseActivityDataOptions = {}) {
       void fetchActivityData();
     }, 30000); // Refresh every 30 seconds
     return () => clearInterval(interval);
-  }, [hours, limit]);
+  }, [fetchActivityData]);
 
   return { activities, loading, error, refresh: fetchActivityData };
 }
