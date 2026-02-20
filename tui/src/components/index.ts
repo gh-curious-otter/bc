@@ -92,3 +92,15 @@ export type {
 // Performance overlay (eng-04 #1025)
 export { PerformanceOverlay } from './PerformanceOverlay';
 export type { PerformanceOverlayProps } from './PerformanceOverlay';
+
+// Data visualization components (eng-04 #1046)
+export { Timeline, AgentTimeline, TimelineLegend } from './Timeline';
+export type { TimelineProps, TimelineSegment, AgentTimelineProps } from './Timeline';
+
+export { BarChart, MiniBarChart, DistributionChart } from './BarChart';
+export type {
+  BarChartProps,
+  BarChartItem,
+  MiniBarChartProps,
+  DistributionChartProps,
+} from './BarChart';
