@@ -4,7 +4,7 @@
  */
 
 import React, { memo, useMemo } from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useStdout } from 'ink';
 import { Panel } from './Panel';
 import { useLogs, getSeverityColor } from '../hooks';
 import type { LogSeverity } from '../hooks';
@@ -73,6 +73,9 @@ export function ActivityFeed({
   compact = false,
   showFilterHints = true,
 }: ActivityFeedProps): React.ReactElement {
+  const { stdout } = useStdout();
+  const terminalWidth = stdout.columns || 80;
+
   const { data: logs, loading, severityFilter: currentFilter } = useLogs({
     tail: 50,
     pollInterval: 3000,
@@ -129,7 +132,7 @@ export function ActivityFeed({
       ) : (
         <Box flexDirection="column">
           {displayLogs.map((entry, idx) => (
-            <ActivityEntry key={`${entry.ts}-${String(idx)}`} entry={entry} compact={compact} />
+            <ActivityEntry key={`${entry.ts}-${String(idx)}`} entry={entry} compact={compact} terminalWidth={terminalWidth} />
           ))}
         </Box>
       )}
@@ -139,19 +142,34 @@ export function ActivityFeed({
 
 /**
  * Individual activity entry - memoized for performance
+ * Issue #1196: Responsive message truncation based on terminal width
  */
 interface ActivityEntryProps {
   entry: LogEntry;
   compact?: boolean;
+  /** Terminal width for responsive truncation */
+  terminalWidth?: number;
 }
+
+// Layout constants for message width calculation
+const TIMESTAMP_WIDTH = 9; // HH:MM:SS + space
+const AGENT_WIDTH = 11;    // 10 chars + space
+const EVENT_WIDTH = 13;    // 12 chars + space
+const MIN_MSG_WIDTH = 20;  // Minimum message width
 
 const ActivityEntry = memo(function ActivityEntry({
   entry,
   compact = false,
+  terminalWidth = 80,
 }: ActivityEntryProps): React.ReactElement {
   const severityColor = getSeverityColor(entry.type);
   const eventLabel = formatEventType(entry.type);
-  const maxMsgLen = compact ? 40 : 60;
+
+  // Calculate dynamic message width based on terminal size
+  // Layout: [timestamp] agent event message
+  const fixedWidth = (compact ? 0 : TIMESTAMP_WIDTH) + AGENT_WIDTH + EVENT_WIDTH;
+  const availableWidth = terminalWidth - fixedWidth - 4; // 4 for panel borders/padding
+  const maxMsgLen = Math.max(MIN_MSG_WIDTH, availableWidth);
 
   return (
     <Box>
