@@ -1,25 +1,59 @@
 /**
  * CostsView - Cost dashboard component
  * Issue #1346: Borderless compact layout for 80x24 terminals
+ * Issue #1419: DetailPane integration
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Box, Text } from 'ink';
 import { Panel } from './Panel';
 import { useCosts } from '../hooks';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 
+/** Detail item for DetailPane integration (#1419) */
+interface DetailItem {
+  title: string;
+  type: string;
+  fields: { label: string; value: string; color?: string }[];
+  description?: string;
+}
+
 interface CostsViewProps {
   /** Disable input handling (useful for testing) */
   disableInput?: boolean;
+  /** Callback when selection changes (for DetailPane) */
+  onSelectItem?: (item: DetailItem | null) => void;
 }
 
-export function CostsView({ disableInput: _disableInput = false }: CostsViewProps): React.ReactElement {
+export function CostsView({ disableInput: _disableInput = false, onSelectItem }: CostsViewProps): React.ReactElement {
   const { isCompact, isMinimal, isMD } = useResponsiveLayout();
   // #1365: Extend borderless to 100-120 cols (isMD) to prevent box fragmentation
   const isNarrow = isCompact || isMinimal || isMD;
 
   const { data: costs, loading, error } = useCosts();
+
+  // #1419: Update detail pane with cost summary
+  useEffect(() => {
+    if (costs && onSelectItem) {
+      const agentEntries = Object.entries(costs.by_agent ?? {}).sort(([, a], [, b]) => b - a);
+      const modelEntries = Object.entries(costs.by_model ?? {}).sort(([, a], [, b]) => b - a);
+      const topAgent = agentEntries.length > 0 ? agentEntries[0] : null;
+      const topModel = modelEntries.length > 0 ? modelEntries[0] : null;
+      onSelectItem({
+        title: 'Cost Summary',
+        type: 'costs',
+        fields: [
+          { label: 'Total', value: `$${costs.total_cost.toFixed(4)}`, color: 'yellow' },
+          { label: 'Input', value: costs.total_input_tokens.toLocaleString() },
+          { label: 'Output', value: costs.total_output_tokens.toLocaleString() },
+          ...(topAgent !== null ? [{ label: 'Top Agent', value: `${topAgent[0]}: $${topAgent[1].toFixed(2)}` }] : []),
+        ],
+        description: topModel !== null ? `Top model: ${topModel[0]}` : undefined,
+      });
+    } else if (onSelectItem && !costs) {
+      onSelectItem(null);
+    }
+  }, [costs, onSelectItem]);
 
   if (loading) {
     return (
