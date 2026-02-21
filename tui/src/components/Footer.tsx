@@ -30,6 +30,7 @@ export interface FooterProps {
  * Shared component
  *
  * Memoized for performance - Issue #1003 Phase 3 optimization.
+ * Issue #1362: Use flexWrap to prevent truncation of keybindings
  */
 export const Footer = memo(function Footer({ hints }: FooterProps) {
   return (
@@ -41,6 +42,7 @@ export const Footer = memo(function Footer({ hints }: FooterProps) {
       borderRight={false}
       paddingX={1}
       marginTop={1}
+      flexWrap="wrap"
     >
       {hints.map((h) => (
         <KeyHint key={h.key} keyChar={h.key} label={h.label} />
