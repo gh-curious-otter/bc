@@ -142,3 +142,101 @@ func TestDefaultStuckConfig(t *testing.T) {
 		t.Errorf("expected MaxFailures 3, got %d", config.MaxFailures)
 	}
 }
+
+func TestDetectAllStuck(t *testing.T) {
+	tmpDir := t.TempDir()
+	logPath := tmpDir + "/events.jsonl"
+	log := NewLog(logPath)
+
+	now := time.Now()
+
+	// Add events for agent-1 (healthy)
+	if err := log.Append(Event{Timestamp: now.Add(-5 * time.Minute), Type: WorkStarted, Agent: "agent-1"}); err != nil {
+		t.Fatalf("failed to append event: %v", err)
+	}
+	if err := log.Append(Event{Timestamp: now.Add(-2 * time.Minute), Type: WorkCompleted, Agent: "agent-1"}); err != nil {
+		t.Fatalf("failed to append event: %v", err)
+	}
+	if err := log.Append(Event{Timestamp: now.Add(-1 * time.Minute), Type: AgentReport, Agent: "agent-1"}); err != nil {
+		t.Fatalf("failed to append event: %v", err)
+	}
+
+	// Add events for agent-2 (stuck - no activity)
+	if err := log.Append(Event{Timestamp: now.Add(-25 * time.Minute), Type: AgentReport, Agent: "agent-2"}); err != nil {
+		t.Fatalf("failed to append event: %v", err)
+	}
+
+	config := StuckConfig{
+		ActivityTimeout: 10 * time.Minute,
+		WorkTimeout:     30 * time.Minute,
+		MaxFailures:     3,
+	}
+
+	results, err := DetectAllStuck(log, []string{"agent-1", "agent-2"}, config)
+	if err != nil {
+		t.Fatalf("DetectAllStuck failed: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+
+	// agent-1 should be healthy
+	if results[0].AgentName != "agent-1" {
+		t.Errorf("expected agent-1 first, got %s", results[0].AgentName)
+	}
+	if results[0].IsStuck {
+		t.Errorf("expected agent-1 to be healthy, got stuck: %s", results[0].Reason)
+	}
+
+	// agent-2 should be stuck
+	if results[1].AgentName != "agent-2" {
+		t.Errorf("expected agent-2 second, got %s", results[1].AgentName)
+	}
+	if !results[1].IsStuck {
+		t.Error("expected agent-2 to be stuck")
+	}
+	if results[1].Reason != StuckNoActivity {
+		t.Errorf("expected reason %s, got %s", StuckNoActivity, results[1].Reason)
+	}
+}
+
+func TestDetectAllStuck_NoAgents(t *testing.T) {
+	tmpDir := t.TempDir()
+	logPath := tmpDir + "/events.jsonl"
+	log := NewLog(logPath)
+
+	config := DefaultStuckConfig()
+
+	results, err := DetectAllStuck(log, []string{}, config)
+	if err != nil {
+		t.Fatalf("DetectAllStuck failed: %v", err)
+	}
+
+	if len(results) != 0 {
+		t.Errorf("expected 0 results for empty agent list, got %d", len(results))
+	}
+}
+
+func TestDetectAllStuck_AgentWithNoEvents(t *testing.T) {
+	tmpDir := t.TempDir()
+	logPath := tmpDir + "/events.jsonl"
+	log := NewLog(logPath)
+
+	config := DefaultStuckConfig()
+
+	// Test with agent that has no events
+	results, err := DetectAllStuck(log, []string{"nonexistent-agent"}, config)
+	if err != nil {
+		t.Fatalf("DetectAllStuck failed: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+
+	// Agent with no events should not be marked stuck (no events = no data to analyze)
+	if results[0].IsStuck {
+		t.Error("expected agent with no events to not be stuck")
+	}
+}
