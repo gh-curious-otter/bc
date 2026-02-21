@@ -262,6 +262,7 @@ var (
 	memoryListAgent        string
 	memoryListExp          bool
 	memoryListSize         bool
+	memoryListJSON         bool
 	memoryClearExp         bool
 	memoryClearLearn       bool
 	memoryClearForce       bool
@@ -294,6 +295,7 @@ func init() {
 	memoryListCmd.Flags().StringVar(&memoryListAgent, "agent", "", "List specific agent's memory")
 	memoryListCmd.Flags().BoolVar(&memoryListExp, "experiences", false, "List experiences instead of learning topics")
 	memoryListCmd.Flags().BoolVar(&memoryListSize, "with-size", false, "Show memory usage per agent")
+	memoryListCmd.Flags().BoolVar(&memoryListJSON, "json", false, "Output as JSON")
 
 	memoryClearCmd.Flags().BoolVar(&memoryClearExp, "experiences", false, "Clear only experiences")
 	memoryClearCmd.Flags().BoolVar(&memoryClearLearn, "learnings", false, "Clear only learnings")
@@ -809,6 +811,11 @@ func runMemoryList(cmd *cobra.Command, args []string) error {
 	// Sort agents alphabetically
 	sort.Strings(agents)
 
+	// JSON output for TUI integration
+	if memoryListJSON {
+		return listMemoryJSON(cmd, ws.RootDir, agents)
+	}
+
 	if memoryListExp {
 		// List experiences
 		return listExperiences(cmd, ws.RootDir, agents)
@@ -886,6 +893,67 @@ func listLearningTopics(cmd *cobra.Command, rootDir string, agents []string, wit
 		cmd.Println()
 	}
 
+	return nil
+}
+
+// AgentMemorySummary represents a summary of an agent's memory for JSON output.
+type AgentMemorySummary struct {
+	Agent           string `json:"agent"`
+	LastUpdated     string `json:"last_updated,omitempty"`
+	ExperienceCount int    `json:"experience_count"`
+	LearningCount   int    `json:"learning_count"`
+}
+
+// MemoryListResponse is the JSON response for memory list command.
+type MemoryListResponse struct {
+	Agents []AgentMemorySummary `json:"agents"`
+}
+
+// listMemoryJSON outputs agent memory summaries as JSON for TUI integration.
+func listMemoryJSON(cmd *cobra.Command, rootDir string, agents []string) error {
+	var summaries []AgentMemorySummary
+
+	for _, agentID := range agents {
+		store := memory.NewStore(rootDir, agentID)
+		if !store.Exists() {
+			continue
+		}
+
+		summary := AgentMemorySummary{Agent: agentID}
+
+		// Count experiences
+		experiences, err := store.GetExperiences()
+		if err == nil {
+			summary.ExperienceCount = len(experiences)
+		}
+
+		// Count learning topics (## headings in learnings)
+		learnings, err := store.GetLearnings()
+		if err == nil {
+			lines := strings.Split(learnings, "\n")
+			for _, line := range lines {
+				if strings.HasPrefix(strings.TrimSpace(line), "## ") {
+					summary.LearningCount++
+				}
+			}
+		}
+
+		// Get last updated time from experiences file
+		expPath := filepath.Join(store.MemoryDir(), "experiences.jsonl")
+		if info, err := os.Stat(expPath); err == nil {
+			summary.LastUpdated = info.ModTime().Format(time.RFC3339)
+		}
+
+		summaries = append(summaries, summary)
+	}
+
+	response := MemoryListResponse{Agents: summaries}
+	data, err := json.Marshal(response)
+	if err != nil {
+		return fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	cmd.Println(string(data))
 	return nil
 }
 
