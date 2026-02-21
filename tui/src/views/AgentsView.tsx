@@ -17,6 +17,35 @@ interface AgentsViewProps {
 /** Action feedback display duration in ms */
 const ACTION_FEEDBACK_DURATION = 2500;
 
+/** State counts for header summary */
+interface StateCounts {
+  working: number;
+  idle: number;
+  stuck: number;
+  error: number;
+  stopped: number;
+}
+
+/** Count agents by state for header summary */
+function countAgentStates(agents: Agent[]): StateCounts {
+  const counts: StateCounts = { working: 0, idle: 0, stuck: 0, error: 0, stopped: 0 };
+  for (const agent of agents) {
+    if (agent.state === 'working' || agent.state === 'starting') {
+      counts.working++;
+    } else if (agent.state === 'idle' || agent.state === 'done') {
+      counts.idle++;
+    } else if (agent.state === 'stuck') {
+      counts.stuck++;
+    } else if (agent.state === 'error') {
+      counts.error++;
+    } else {
+      // stopped or other states
+      counts.stopped++;
+    }
+  }
+  return counts;
+}
+
 /**
  * Normalize task status by replacing cooking metaphors with clearer terms.
  * Issue #970 - Replace cooking terminology from Claude Code status line.
@@ -59,6 +88,8 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   const [actionState, setActionState] = useState<ActionState | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState(false);
+  const [peekOutput, setPeekOutput] = useState<string[] | null>(null);
+  const [peekLoading, setPeekLoading] = useState(false);
 
   // Filter agents by search query
   const agentList = React.useMemo(() => {
@@ -72,6 +103,9 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
         agent.state.toLowerCase().includes(query)
     );
   }, [agents, searchQuery]);
+
+  // Calculate state counts for header summary (#1331)
+  const stateCounts = React.useMemo(() => countAgentStates(agentList), [agentList]);
 
   const selectedAgent = agentList[selectedIndex] as typeof agentList[number] | undefined;
   const { setFocus } = useFocus();
@@ -127,6 +161,20 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
     }
   }, [refresh, showActionFeedback]);
 
+  // Peek agent output (#1331)
+  const peekAgent = useCallback(async (agentName: string) => {
+    setPeekLoading(true);
+    try {
+      const output = await execBc(['agent', 'peek', agentName, '--lines', '8']);
+      const lines = output.split('\n').filter((line: string) => line.trim());
+      setPeekOutput(lines.slice(-6)); // Show last 6 lines
+    } catch {
+      setPeekOutput(['(No output available)']);
+    } finally {
+      setPeekLoading(false);
+    }
+  }, []);
+
   // Keyboard navigation
   useInput((input, key) => {
     // Search mode input handling
@@ -173,9 +221,6 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       if (selectedAgent) {
         setShowDetail(true);
       }
-    } else if (input === 's' && selectedAgent && (selectedAgent.state === 'stopped' || selectedAgent.state === 'error')) {
-      // Start stopped agent (with confirmation)
-      setConfirmAction('start');
     } else if (input === 'x' && selectedAgent && selectedAgent.state !== 'stopped') {
       // Stop running agent (with confirmation)
       setConfirmAction('stop');
@@ -183,8 +228,15 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       // Kill agent (with confirmation)
       setConfirmAction('kill');
     } else if (input === 'R' && selectedAgent) {
-      // Restart agent (with confirmation)
+      // Restart agent (with confirmation) - also works as "start" for stopped agents
       setConfirmAction('restart');
+    } else if (input === 'p' && selectedAgent) {
+      // Peek agent output (#1331)
+      if (peekOutput) {
+        setPeekOutput(null); // Toggle off if already showing
+      } else {
+        void peekAgent(selectedAgent.name);
+      }
     } else if (input === '/') {
       // Enter search mode
       setSearchMode(true);
@@ -281,11 +333,21 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
 
   return (
     <Box flexDirection="column">
-      {/* Header */}
+      {/* Header with state summary (#1331) */}
       <Box marginBottom={1}>
         <Text bold color="green">
           Agents ({agentList.length})
         </Text>
+        {/* State counts summary */}
+        {stateCounts.working > 0 && (
+          <Text color="blue"> ● {stateCounts.working} working</Text>
+        )}
+        {stateCounts.stuck > 0 && (
+          <Text color="yellow"> ⚠ {stateCounts.stuck} stuck</Text>
+        )}
+        {stateCounts.error > 0 && (
+          <Text color="red"> ✗ {stateCounts.error} error</Text>
+        )}
         {searchQuery && (
           <Text color="cyan"> [/] &quot;{searchQuery}&quot;</Text>
         )}
@@ -298,6 +360,29 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
           <Text color={actionState.status === 'success' ? 'green' : 'red'}>
             {actionState.status === 'success' ? '✓' : '✗'} {actionState.message}
           </Text>
+        </Box>
+      )}
+
+      {/* Peek output panel (#1331) */}
+      {peekOutput && selectedAgent && (
+        <Box
+          marginBottom={1}
+          paddingX={1}
+          borderStyle="single"
+          borderColor="cyan"
+          flexDirection="column"
+        >
+          <Box marginBottom={1}>
+            <Text bold color="cyan">Peek: {selectedAgent.name}</Text>
+            <Text dimColor> (press p to close)</Text>
+          </Box>
+          {peekLoading ? (
+            <Text dimColor>Loading...</Text>
+          ) : (
+            peekOutput.map((line, idx) => (
+              <Text key={idx} wrap="truncate" dimColor>{line}</Text>
+            ))
+          )}
         </Box>
       )}
 
@@ -324,16 +409,12 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
         selectedIndex={selectedIndex}
       />
 
-      {/* Inline action bar for selected agent */}
+      {/* Inline action bar for selected agent (#1331 - updated keybindings) */}
       {selectedAgent && !confirmAction && (
         <Box marginTop={1} paddingX={1}>
           <Text dimColor>Actions: </Text>
-          {(selectedAgent.state === 'stopped' || selectedAgent.state === 'error') && (
-            <>
-              <Text color="green">[s]</Text>
-              <Text dimColor> start </Text>
-            </>
-          )}
+          <Text color="cyan">[p]</Text>
+          <Text dimColor> peek </Text>
           {selectedAgent.state !== 'stopped' && selectedAgent.state !== 'error' && (
             <>
               <Text color="yellow">[x]</Text>
@@ -346,21 +427,17 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
               <Text dimColor> kill </Text>
             </>
           )}
-          {selectedAgent.state === 'stopped' || selectedAgent.state === 'error' ? (
-            <>
-              <Text color="green">[R]</Text>
-              <Text dimColor> restart </Text>
-            </>
-          ) : null}
-          <Text color="cyan">[a/Enter]</Text>
-          <Text dimColor> details</Text>
+          <Text color="green">[R]</Text>
+          <Text dimColor> restart </Text>
+          <Text color="cyan">[Enter]</Text>
+          <Text dimColor> attach</Text>
         </Box>
       )}
 
-      {/* Footer with keybindings */}
+      {/* Footer with keybindings (#1331 - updated) */}
       <Box marginTop={1}>
         <Text color="gray">
-          j/k: nav | g/G: top/bottom | /: search{searchQuery ? ' | c: clear' : ''} | a/Enter: details | s: start | x: stop | X: kill | R: restart | r: refresh | q/ESC: back
+          j/k: nav | /: search{searchQuery ? ' | c: clear' : ''} | p: peek | Enter: attach | x: stop | X: kill | R: restart | r: refresh | q: back
         </Text>
       </Box>
     </Box>

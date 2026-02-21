@@ -23,7 +23,7 @@ describe('StatusBadge', () => {
   it('renders stuck state', () => {
     const { lastFrame } = render(<StatusBadge state="stuck" />);
     expect(lastFrame()).toContain('stuck');
-    expect(lastFrame()).toContain('!');
+    expect(lastFrame()).toContain('⚠'); // Updated per UX spec #1331
   });
 
   it('renders done state', () => {
