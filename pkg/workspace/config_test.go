@@ -1375,3 +1375,69 @@ func TestUserDefaultsPath(t *testing.T) {
 		t.Error("expected absolute path or empty string")
 	}
 }
+
+// TestValidateNickname tests nickname validation (#1236)
+func TestValidateNickname(t *testing.T) {
+	tests := []struct { //nolint:govet // test struct alignment not critical
+		name     string
+		nickname string
+		wantErr  error
+	}{
+		{"valid simple", "@user", nil},
+		{"valid with numbers", "@user123", nil},
+		{"valid with underscore", "@user_name", nil},
+		{"valid all caps", "@USER", nil},
+		{"valid mixed case", "@UserName", nil},
+		{"missing prefix", "user", ErrNicknameMissingPrefix},
+		{"empty string", "", ErrNicknameMissingPrefix},
+		{"only at sign", "@", ErrNicknameInvalidChars},
+		{"too long", "@verylongnickname", ErrNicknameTooLong},
+		{"max length ok", "@123456789012345"[:NicknameMaxLength], nil},
+		{"invalid chars dash", "@user-name", ErrNicknameInvalidChars},
+		{"invalid chars space", "@user name", ErrNicknameInvalidChars},
+		{"invalid chars special", "@user!", ErrNicknameInvalidChars},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateNickname(tc.nickname)
+			if err != tc.wantErr {
+				t.Errorf("ValidateNickname(%q) = %v, want %v", tc.nickname, err, tc.wantErr)
+			}
+		})
+	}
+}
+
+// TestNormalizeNickname tests nickname normalization (#1236)
+func TestNormalizeNickname(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{"empty returns default", "", DefaultNickname, false},
+		{"whitespace returns default", "   ", DefaultNickname, false},
+		{"adds prefix", "user", "@user", false},
+		{"keeps prefix", "@user", "@user", false},
+		{"trims whitespace", "  user  ", "@user", false},
+		{"trims with prefix", "  @user  ", "@user", false},
+		{"invalid chars", "user!", "", true},
+		{"too long", "verylongnickname", "", true},
+		{"valid with numbers", "user123", "@user123", false},
+		{"valid with underscore", "user_name", "@user_name", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := NormalizeNickname(tc.input)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("NormalizeNickname(%q) error = %v, wantErr %v", tc.input, err, tc.wantErr)
+				return
+			}
+			if got != tc.want {
+				t.Errorf("NormalizeNickname(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}

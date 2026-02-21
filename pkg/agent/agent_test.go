@@ -2277,3 +2277,86 @@ func TestCreateMemoryDir_Idempotent(t *testing.T) {
 		t.Errorf("memory dirs should match: %q != %q", memoryDir1, memoryDir2)
 	}
 }
+
+// TestDefaultPermissions tests permission assignment by role level (#1236)
+func TestDefaultPermissions(t *testing.T) {
+	tests := []struct { //nolint:govet // test struct alignment not critical
+		name        string
+		roleLevel   int
+		wantLen     int
+		wantContain Permission
+	}{
+		{"root level", -1, len(AllPermissions), PermCreateAgents},
+		{"manager level", 0, 7, PermCreateAgents},
+		{"engineer level", 1, 3, PermViewLogs},
+		{"worker level", 2, 3, PermSendMessages},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			perms := DefaultPermissions(tc.roleLevel)
+			if len(perms) != tc.wantLen {
+				t.Errorf("DefaultPermissions(%d) returned %d perms, want %d", tc.roleLevel, len(perms), tc.wantLen)
+			}
+			// Check that expected permission is included
+			found := false
+			for _, p := range perms {
+				if p == tc.wantContain {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("DefaultPermissions(%d) should contain %s", tc.roleLevel, tc.wantContain)
+			}
+		})
+	}
+}
+
+// TestCheckPermission tests permission checking (#1236)
+func TestCheckPermission(t *testing.T) {
+	tests := []struct { //nolint:govet // test struct alignment not critical
+		name        string
+		permissions []string
+		required    Permission
+		wantErr     bool
+	}{
+		{"has permission", []string{"can_create_agents", "can_view_logs"}, PermCreateAgents, false},
+		{"missing permission", []string{"can_view_logs"}, PermCreateAgents, true},
+		{"empty permissions", []string{}, PermViewLogs, true},
+		{"exact match", []string{string(PermSendMessages)}, PermSendMessages, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := CheckPermission(tc.permissions, tc.required)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("CheckPermission() error = %v, wantErr %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+// TestHasPermissionStr tests string permission checking (#1236)
+func TestHasPermissionStr(t *testing.T) {
+	tests := []struct { //nolint:govet // test struct alignment not critical
+		name        string
+		permissions []string
+		required    string
+		want        bool
+	}{
+		{"has permission", []string{"can_create_agents", "can_view_logs"}, "can_create_agents", true},
+		{"missing permission", []string{"can_view_logs"}, "can_create_agents", false},
+		{"empty list", []string{}, "can_view_logs", false},
+		{"empty required", []string{"can_view_logs"}, "", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := HasPermissionStr(tc.permissions, tc.required)
+			if got != tc.want {
+				t.Errorf("HasPermissionStr() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

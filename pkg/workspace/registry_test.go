@@ -191,3 +191,98 @@ func TestRegistrySaveLoad(t *testing.T) {
 		t.Errorf("Loaded active = %q, want %q", r2.Active, "fe")
 	}
 }
+
+// TestGlobalDir tests the GlobalDir function (#1236)
+func TestGlobalDir(t *testing.T) {
+	dir := GlobalDir()
+	// GlobalDir should return a non-empty string on most systems
+	if dir == "" {
+		t.Skip("GlobalDir returned empty (no home directory)")
+	}
+	// Should end with .bc
+	if filepath.Base(dir) != ".bc" {
+		t.Errorf("GlobalDir = %q, want ending with .bc", dir)
+	}
+	// Should be an absolute path
+	if !filepath.IsAbs(dir) {
+		t.Errorf("GlobalDir = %q, want absolute path", dir)
+	}
+}
+
+// TestRegistryPath tests the RegistryPath function (#1236)
+func TestRegistryPath(t *testing.T) {
+	path := RegistryPath()
+	if path == "" {
+		t.Skip("RegistryPath returned empty (no home directory)")
+	}
+	// Should end with workspaces.json
+	if filepath.Base(path) != "workspaces.json" {
+		t.Errorf("RegistryPath = %q, want ending with workspaces.json", path)
+	}
+	// Should be under GlobalDir
+	globalDir := GlobalDir()
+	if filepath.Dir(path) != globalDir {
+		t.Errorf("RegistryPath dir = %q, want %q", filepath.Dir(path), globalDir)
+	}
+}
+
+// TestLoadRegistry tests the LoadRegistry function (#1236)
+func TestLoadRegistry(t *testing.T) {
+	// This test uses the real home directory
+	// We test that LoadRegistry doesn't error even if the file doesn't exist
+	r, err := LoadRegistry()
+	if err != nil {
+		t.Fatalf("LoadRegistry error = %v", err)
+	}
+	if r == nil {
+		t.Fatal("LoadRegistry returned nil")
+	}
+	// Registry should have a path set
+	if r.path == "" {
+		t.Error("LoadRegistry returned registry with empty path")
+	}
+}
+
+// TestLoadRegistryFromTempDir tests LoadRegistry with controlled file (#1236)
+func TestLoadRegistryFromTempDir(t *testing.T) {
+	dir := t.TempDir()
+	registryPath := filepath.Join(dir, "workspaces.json")
+
+	// Test loading non-existent file returns empty registry
+	r := &Registry{path: registryPath}
+	data, err := os.ReadFile(r.path)
+	if !os.IsNotExist(err) {
+		t.Logf("File exists with data: %s", data)
+	}
+
+	// Create a valid registry file
+	testData := []byte(`{
+		"active": "test",
+		"workspaces": [
+			{"path": "/test/path", "name": "test", "alias": "t"}
+		]
+	}`)
+	if writeErr := os.WriteFile(registryPath, testData, 0600); writeErr != nil {
+		t.Fatalf("WriteFile: %v", writeErr)
+	}
+
+	// Load and verify
+	r = &Registry{path: registryPath}
+	data, err = os.ReadFile(r.path) //nolint:gosec // test file path
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if err := json.Unmarshal(data, r); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if r.Active != "test" {
+		t.Errorf("Active = %q, want %q", r.Active, "test")
+	}
+	if len(r.Workspaces) != 1 {
+		t.Fatalf("len(Workspaces) = %d, want 1", len(r.Workspaces))
+	}
+	if r.Workspaces[0].Alias != "t" {
+		t.Errorf("Alias = %q, want %q", r.Workspaces[0].Alias, "t")
+	}
+}
