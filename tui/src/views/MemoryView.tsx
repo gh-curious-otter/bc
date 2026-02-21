@@ -9,6 +9,7 @@ import { Panel } from '../components/Panel';
 import { Footer } from '../components/Footer';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { ErrorDisplay } from '../components/ErrorDisplay';
+import { HeaderBar } from '../components/HeaderBar';
 import { useFocus } from '../navigation/FocusContext';
 import { getMemoryList, getMemory, searchMemory, clearMemory } from '../services/bc';
 import type { AgentMemorySummary, AgentMemory, MemorySearchResult } from '../types';
@@ -247,12 +248,13 @@ export function MemoryView({
   // Main list view
   return (
     <Box flexDirection="column" width="100%">
-      {/* Header */}
-      <Box marginBottom={1}>
-        <Text bold color="magenta">Agent Memories</Text>
-        <Text dimColor> ({String(agents.length)} agents)</Text>
-        {loading && <Text color="yellow"> (refreshing...)</Text>}
-      </Box>
+      {/* Header - using shared HeaderBar component (#1419) */}
+      <HeaderBar
+        title="Agent Memories"
+        count={agents.length}
+        loading={loading}
+        color="magenta"
+      />
 
       {/* Search bar */}
       <Box

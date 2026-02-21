@@ -7,6 +7,7 @@ import React, { useState, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { Panel } from '../components/Panel';
 import { Footer } from '../components/Footer';
+import { HeaderBar } from '../components/HeaderBar';
 import { useAgents } from '../hooks';
 
 interface RoutingViewProps {
@@ -167,11 +168,12 @@ export function RoutingView({
   // Main list view
   return (
     <Box flexDirection="column" width="100%">
-      {/* Header */}
-      <Box marginBottom={1}>
-        <Text bold color="blue">Task Routing</Text>
-        <Text dimColor> ({String(ROUTING_RULES.length)} rules)</Text>
-      </Box>
+      {/* Header - using shared HeaderBar component (#1419) */}
+      <HeaderBar
+        title="Task Routing"
+        count={ROUTING_RULES.length}
+        color="blue"
+      />
 
       {/* Description */}
       <Box marginBottom={1} paddingX={1} borderStyle="single" borderColor="gray">
