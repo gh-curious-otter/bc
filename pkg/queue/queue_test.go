@@ -393,3 +393,278 @@ func TestConstants(t *testing.T) {
 		t.Errorf("PriorityUrgent = %d, want %d", PriorityUrgent, 3)
 	}
 }
+
+func TestCloseNilDB(t *testing.T) {
+	store := NewStore("/tmp/test")
+	// Close without opening should not error
+	if err := store.Close(); err != nil {
+		t.Errorf("Close() on nil db should not error, got %v", err)
+	}
+}
+
+func TestAcceptWorkNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck // cleanup in test
+
+	// AcceptWork on non-existent item
+	if err := store.AcceptWork(ctx, 9999); err == nil {
+		t.Error("AcceptWork() should fail for non-existent item")
+	}
+}
+
+func TestStartWorkNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck // cleanup in test
+
+	// StartWork on non-existent item
+	if err := store.StartWork(ctx, 9999); err == nil {
+		t.Error("StartWork() should fail for non-existent item")
+	}
+}
+
+func TestCompleteWorkNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck // cleanup in test
+
+	// CompleteWork on non-existent item
+	if err := store.CompleteWork(ctx, 9999, "branch"); err == nil {
+		t.Error("CompleteWork() should fail for non-existent item")
+	}
+}
+
+func TestApproveMergeNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck // cleanup in test
+
+	// ApproveMerge on non-existent item
+	if err := store.ApproveMerge(ctx, 9999, "reviewer"); err == nil {
+		t.Error("ApproveMerge() should fail for non-existent item")
+	}
+}
+
+func TestRejectMergeNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck // cleanup in test
+
+	// RejectMerge on non-existent item
+	if err := store.RejectMerge(ctx, 9999, "reviewer", "reason"); err == nil {
+		t.Error("RejectMerge() should fail for non-existent item")
+	}
+}
+
+func TestCompleteMergeNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck // cleanup in test
+
+	// CompleteMerge on non-existent item
+	if err := store.CompleteMerge(ctx, 9999); err == nil {
+		t.Error("CompleteMerge() should fail for non-existent item")
+	}
+}
+
+func TestSubmitNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck // cleanup in test
+
+	// Submit on non-existent item
+	if _, err := store.Submit(ctx, 9999, "mgr"); err == nil {
+		t.Error("Submit() should fail for non-existent item")
+	}
+}
+
+func TestListWorkEmpty(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck // cleanup in test
+
+	// List work for non-existent agent
+	items, err := store.ListWork(ctx, "nonexistent", "")
+	if err != nil {
+		t.Fatalf("ListWork() error = %v", err)
+	}
+	if len(items) != 0 {
+		t.Errorf("len(items) = %d, want 0", len(items))
+	}
+}
+
+func TestListMergeEmpty(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck // cleanup in test
+
+	// List merge for non-existent agent
+	items, err := store.ListMerge(ctx, "nonexistent", "")
+	if err != nil {
+		t.Fatalf("ListMerge() error = %v", err)
+	}
+	if len(items) != 0 {
+		t.Errorf("len(items) = %d, want 0", len(items))
+	}
+}
+
+func TestGetMergeByBranchNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck // cleanup in test
+
+	// Get merge by branch for non-existent branch
+	_, err := store.GetMergeByBranch(ctx, "agent", "nonexistent/branch")
+	if err == nil {
+		t.Error("GetMergeByBranch() should fail for non-existent branch")
+	}
+}
+
+func TestListMergeWithStatusFilter(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck // cleanup in test
+
+	// Add merge items with different statuses
+	item1 := &MergeItem{
+		AgentID:   "mgr-01",
+		Branch:    "branch1",
+		Title:     "Merge 1",
+		Status:    MergeStatusPending,
+		FromAgent: "eng-01",
+	}
+	item2 := &MergeItem{
+		AgentID:   "mgr-01",
+		Branch:    "branch2",
+		Title:     "Merge 2",
+		Status:    MergeStatusPending,
+		FromAgent: "eng-02",
+	}
+
+	_ = store.AddMerge(ctx, item1)
+	_ = store.AddMerge(ctx, item2)
+
+	// Approve one
+	_ = store.ApproveMerge(ctx, item1.ID, "mgr-01")
+
+	// List pending only
+	pending, err := store.ListMerge(ctx, "mgr-01", MergeStatusPending)
+	if err != nil {
+		t.Fatalf("ListMerge() error = %v", err)
+	}
+	if len(pending) != 1 {
+		t.Errorf("len(pending) = %d, want 1", len(pending))
+	}
+
+	// List approved only
+	approved, err := store.ListMerge(ctx, "mgr-01", MergeStatusApproved)
+	if err != nil {
+		t.Fatalf("ListMerge() error = %v", err)
+	}
+	if len(approved) != 1 {
+		t.Errorf("len(approved) = %d, want 1", len(approved))
+	}
+}
+
+func TestWorkItemFields(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck // cleanup in test
+
+	// Test all fields are saved and retrieved correctly
+	item := &WorkItem{
+		AgentID:     "eng-01",
+		Title:       "Full Feature Test",
+		Description: "Detailed description",
+		Status:      StatusPending,
+		Priority:    PriorityUrgent,
+		FromAgent:   "mgr-01",
+		IssueRef:    "#999",
+	}
+
+	if err := store.AddWork(ctx, item); err != nil {
+		t.Fatalf("AddWork() error = %v", err)
+	}
+
+	got, err := store.GetWork(ctx, item.ID)
+	if err != nil {
+		t.Fatalf("GetWork() error = %v", err)
+	}
+
+	if got.Description != "Detailed description" {
+		t.Errorf("Description = %q, want %q", got.Description, "Detailed description")
+	}
+	if got.Priority != PriorityUrgent {
+		t.Errorf("Priority = %d, want %d", got.Priority, PriorityUrgent)
+	}
+	if got.FromAgent != "mgr-01" {
+		t.Errorf("FromAgent = %q, want %q", got.FromAgent, "mgr-01")
+	}
+	if got.IssueRef != "#999" {
+		t.Errorf("IssueRef = %q, want %q", got.IssueRef, "#999")
+	}
+	if got.CreatedAt.IsZero() {
+		t.Error("CreatedAt should be set")
+	}
+}
