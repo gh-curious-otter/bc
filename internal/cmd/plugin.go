@@ -149,7 +149,7 @@ func getPluginManager() (*plugin.Manager, error) {
 		return nil, errNotInWorkspace(err)
 	}
 
-	mgr := plugin.NewManager(ws.StateDir())
+	mgr := plugin.NewManager(ws.RootDir)
 	if err := mgr.Load(context.Background()); err != nil {
 		return nil, fmt.Errorf("failed to load plugins: %w", err)
 	}
