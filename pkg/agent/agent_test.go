@@ -2277,3 +2277,220 @@ func TestCreateMemoryDir_Idempotent(t *testing.T) {
 		t.Errorf("memory dirs should match: %q != %q", memoryDir1, memoryDir2)
 	}
 }
+
+// --- Permission function tests ---
+
+func TestDefaultPermissions(t *testing.T) {
+	tests := []struct {
+		expectedContains   Permission
+		expectedNotContain Permission
+		name               string
+		roleLevel          int
+	}{
+		{
+			name:               "root level has all permissions",
+			roleLevel:          -1,
+			expectedContains:   PermCreateAgents,
+			expectedNotContain: "",
+		},
+		{
+			name:               "manager level has create agents",
+			roleLevel:          0,
+			expectedContains:   PermCreateAgents,
+			expectedNotContain: PermDeleteAgents,
+		},
+		{
+			name:               "engineer level has view logs",
+			roleLevel:          1,
+			expectedContains:   PermViewLogs,
+			expectedNotContain: PermCreateAgents,
+		},
+		{
+			name:               "worker level has send commands",
+			roleLevel:          2,
+			expectedContains:   PermSendCommands,
+			expectedNotContain: PermCreateChannels,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			perms := DefaultPermissions(tc.roleLevel)
+			if len(perms) == 0 && tc.roleLevel <= -1 {
+				t.Error("root level should have permissions")
+			}
+
+			if tc.expectedContains != "" {
+				found := false
+				for _, p := range perms {
+					if p == tc.expectedContains {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected permission %q not found", tc.expectedContains)
+				}
+			}
+
+			if tc.expectedNotContain != "" {
+				for _, p := range perms {
+					if p == tc.expectedNotContain {
+						t.Errorf("unexpected permission %q found", tc.expectedNotContain)
+						break
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestDefaultPermissions_AllLevels(t *testing.T) {
+	// Test root level has all permissions
+	rootPerms := DefaultPermissions(-1)
+	if len(rootPerms) != len(AllPermissions) {
+		t.Errorf("root level should have %d permissions, got %d", len(AllPermissions), len(rootPerms))
+	}
+
+	// Test manager level
+	mgrPerms := DefaultPermissions(0)
+	if len(mgrPerms) < 3 {
+		t.Errorf("manager level should have at least 3 permissions, got %d", len(mgrPerms))
+	}
+
+	// Test engineer level
+	engPerms := DefaultPermissions(1)
+	if len(engPerms) < 2 {
+		t.Errorf("engineer level should have at least 2 permissions, got %d", len(engPerms))
+	}
+}
+
+func TestCheckPermission(t *testing.T) {
+	tests := []struct { //nolint:govet // test struct alignment not critical
+		permissions []string
+		required    Permission
+		name        string
+		wantErr     bool
+	}{
+		{
+			name:        "has required permission",
+			permissions: []string{"can_create_agents", "can_view_logs", "can_send_commands"},
+			required:    PermCreateAgents,
+			wantErr:     false,
+		},
+		{
+			name:        "missing required permission",
+			permissions: []string{"can_view_logs", "can_send_commands"},
+			required:    PermCreateAgents,
+			wantErr:     true,
+		},
+		{
+			name:        "empty permissions",
+			permissions: []string{},
+			required:    PermViewLogs,
+			wantErr:     true,
+		},
+		{
+			name:        "single matching permission",
+			permissions: []string{"can_view_logs"},
+			required:    PermViewLogs,
+			wantErr:     false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := CheckPermission(tc.permissions, tc.required)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("CheckPermission() error = %v, wantErr %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestHasPermissionStr(t *testing.T) {
+	tests := []struct { //nolint:govet // test struct alignment not critical
+		permissions []string
+		name        string
+		required    string
+		expected    bool
+	}{
+		{
+			name:        "has permission",
+			permissions: []string{"can_create_agents", "can_view_logs", "can_send_commands"},
+			required:    "can_view_logs",
+			expected:    true,
+		},
+		{
+			name:        "missing permission",
+			permissions: []string{"can_view_logs", "can_send_commands"},
+			required:    "can_create_agents",
+			expected:    false,
+		},
+		{
+			name:        "empty permissions",
+			permissions: []string{},
+			required:    "can_view_logs",
+			expected:    false,
+		},
+		{
+			name:        "single matching",
+			permissions: []string{"can_send_messages"},
+			required:    "can_send_messages",
+			expected:    true,
+		},
+		{
+			name:        "partial match not accepted",
+			permissions: []string{"can_create_agents"},
+			required:    "can_create",
+			expected:    false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := HasPermissionStr(tc.permissions, tc.required)
+			if result != tc.expected {
+				t.Errorf("HasPermissionStr() = %v, want %v", result, tc.expected)
+			}
+		})
+	}
+}
+
+func TestPermissionConstants(t *testing.T) {
+	// Verify permission constants are defined correctly
+	if PermCreateAgents != "can_create_agents" {
+		t.Errorf("PermCreateAgents = %q, want %q", PermCreateAgents, "can_create_agents")
+	}
+	if PermViewLogs != "can_view_logs" {
+		t.Errorf("PermViewLogs = %q, want %q", PermViewLogs, "can_view_logs")
+	}
+	if PermSendCommands != "can_send_commands" {
+		t.Errorf("PermSendCommands = %q, want %q", PermSendCommands, "can_send_commands")
+	}
+	if PermSendMessages != "can_send_messages" {
+		t.Errorf("PermSendMessages = %q, want %q", PermSendMessages, "can_send_messages")
+	}
+}
+
+func TestAllPermissions(t *testing.T) {
+	// AllPermissions should contain all defined permissions
+	if len(AllPermissions) < 5 {
+		t.Errorf("AllPermissions should have at least 5 permissions, got %d", len(AllPermissions))
+	}
+
+	// Check that key permissions are in AllPermissions
+	expectedPerms := []Permission{PermCreateAgents, PermViewLogs, PermSendCommands, PermSendMessages}
+	for _, expected := range expectedPerms {
+		found := false
+		for _, p := range AllPermissions {
+			if p == expected {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("AllPermissions missing %q", expected)
+		}
+	}
+}
