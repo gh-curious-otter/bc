@@ -332,3 +332,277 @@ func TestSchedulerProcessRunningInvalidPID(t *testing.T) {
 	// This test is platform-dependent, so we just verify no panic
 	_ = scheduler.processRunning(0)
 }
+
+// --- Additional tests for runtime functions and edge cases ---
+
+func TestGetRunLogsWithMalformedLines(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create demons directory
+	demonsDir := filepath.Join(tmpDir, ".bc", "demons")
+	if err := os.MkdirAll(demonsDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write log file with mix of valid and invalid lines
+	logPath := filepath.Join(demonsDir, "test-demon.log.jsonl")
+	logContent := `{"timestamp":"2024-01-15T10:00:00Z","duration_ms":100,"exit_code":0,"success":true}
+invalid json line
+{"timestamp":"2024-01-15T11:00:00Z","duration_ms":200,"exit_code":0,"success":true}
+`
+	if err := os.WriteFile(logPath, []byte(logContent), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Should skip invalid lines and return valid ones
+	logs, err := store.GetRunLogs("test-demon", 0)
+	if err != nil {
+		t.Fatalf("GetRunLogs() error = %v", err)
+	}
+
+	if len(logs) != 2 {
+		t.Errorf("GetRunLogs() returned %d logs, want 2", len(logs))
+	}
+}
+
+func TestSchedulerSaveStatusDirCreation(t *testing.T) {
+	tmpDir := t.TempDir()
+	scheduler := NewScheduler(tmpDir)
+
+	// Demons directory doesn't exist yet
+	status := SchedulerStatus{
+		Running:   true,
+		PID:       12345,
+		StartedAt: time.Now().UTC(),
+	}
+
+	// saveStatus should fail if directory doesn't exist
+	err := scheduler.saveStatus(status)
+	if err == nil {
+		t.Error("saveStatus should fail when directory doesn't exist")
+	}
+}
+
+func TestStoreListReadsDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create a valid demon
+	_, err := store.Create("demon1", "0 * * * *", "echo one")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// Create non-json file (should be skipped)
+	nonJsonPath := filepath.Join(store.demonsDir, "readme.txt")
+	if writeErr := os.WriteFile(nonJsonPath, []byte("readme"), 0600); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+
+	// Create directory (should be skipped)
+	subDir := filepath.Join(store.demonsDir, "subdir.json")
+	if mkdirErr := os.Mkdir(subDir, 0750); mkdirErr != nil {
+		t.Fatal(mkdirErr)
+	}
+
+	demons, err := store.List()
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+
+	if len(demons) != 1 {
+		t.Errorf("List returned %d demons, want 1", len(demons))
+	}
+}
+
+func TestCronScheduleNextNoMatch(t *testing.T) {
+	// Create a cron schedule that matches specific conditions
+	cron := &CronSchedule{
+		Minute:     []int{0},
+		Hour:       []int{0},
+		DayOfMonth: []int{31},
+		Month:      []int{2},
+		DayOfWeek:  []int{0, 1, 2, 3, 4, 5, 6},
+	}
+
+	// Feb 31 never exists, so after exhausting iterations it returns zero
+	after := time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
+	next := cron.Next(after)
+
+	if !next.IsZero() {
+		t.Errorf("Next() for impossible schedule should return zero time, got %v", next)
+	}
+}
+
+func TestStoreDeleteError(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Try to delete from non-existent directory
+	err := store.Delete("nonexistent")
+	if err == nil {
+		t.Error("Delete should fail for non-existent demon")
+	}
+}
+
+func TestStoreGetReadError(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create demons directory
+	if err := os.MkdirAll(store.demonsDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a directory with the same name as a demon file
+	dirPath := filepath.Join(store.demonsDir, "dir-demon.json")
+	if err := os.Mkdir(dirPath, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := store.Get("dir-demon")
+	if err == nil {
+		t.Error("Get should fail when path is a directory")
+	}
+}
+
+// --- Runtime function tests for checkAndRunDemons, runDemon, and log ---
+
+func TestSchedulerCheckAndRunDemonsNoDue(t *testing.T) {
+	tmpDir := t.TempDir()
+	scheduler := NewScheduler(tmpDir)
+	store := NewStore(tmpDir)
+
+	// Create a demon with next run far in the future
+	_, err := store.Create("future-demon", "0 0 1 1 *", "echo hello")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// This should not run any demons (none are due)
+	scheduler.checkAndRunDemons(store)
+
+	// Verify demon was not run
+	demon, _ := store.Get("future-demon")
+	if demon.RunCount != 0 {
+		t.Errorf("RunCount = %d, want 0", demon.RunCount)
+	}
+}
+
+func TestSchedulerCheckAndRunDemonsWithDue(t *testing.T) {
+	tmpDir := t.TempDir()
+	scheduler := NewScheduler(tmpDir)
+	store := NewStore(tmpDir)
+
+	// Create a demon
+	_, err := store.Create("due-demon", "* * * * *", "echo hello")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// Manually set NextRun to the past to make it due
+	err = store.Update("due-demon", func(d *Demon) {
+		d.NextRun = time.Now().Add(-time.Hour)
+	})
+	if err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
+
+	// Run check - this should execute the demon
+	scheduler.checkAndRunDemons(store)
+
+	// Give it a moment to complete
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify demon was run
+	demon, _ := store.Get("due-demon")
+	if demon.RunCount != 1 {
+		t.Errorf("RunCount = %d, want 1", demon.RunCount)
+	}
+	if demon.LastRun.IsZero() {
+		t.Error("LastRun should be set")
+	}
+}
+
+func TestSchedulerRunDemonSuccess(t *testing.T) {
+	tmpDir := t.TempDir()
+	scheduler := NewScheduler(tmpDir)
+	store := NewStore(tmpDir)
+
+	// Create a demon with a simple command
+	demon, err := store.Create("run-test", "0 * * * *", "echo success")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// Run the demon directly
+	scheduler.runDemon(store, demon)
+
+	// Verify run was recorded
+	got, _ := store.Get("run-test")
+	if got.RunCount != 1 {
+		t.Errorf("RunCount = %d, want 1", got.RunCount)
+	}
+
+	// Verify log was recorded
+	logs, _ := store.GetRunLogs("run-test", 0)
+	if len(logs) != 1 {
+		t.Errorf("Expected 1 log, got %d", len(logs))
+	}
+	if len(logs) > 0 && !logs[0].Success {
+		t.Error("Log should show success")
+	}
+}
+
+func TestSchedulerRunDemonFailure(t *testing.T) {
+	tmpDir := t.TempDir()
+	scheduler := NewScheduler(tmpDir)
+	store := NewStore(tmpDir)
+
+	// Create a demon with a failing command
+	demon, err := store.Create("fail-test", "0 * * * *", "exit 1")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// Run the demon
+	scheduler.runDemon(store, demon)
+
+	// Verify log was recorded with failure
+	logs, _ := store.GetRunLogs("fail-test", 0)
+	if len(logs) != 1 {
+		t.Errorf("Expected 1 log, got %d", len(logs))
+	}
+	if len(logs) > 0 {
+		if logs[0].Success {
+			t.Error("Log should show failure")
+		}
+		if logs[0].ExitCode != 1 {
+			t.Errorf("ExitCode = %d, want 1", logs[0].ExitCode)
+		}
+	}
+}
+
+func TestSchedulerCheckAndRunDemonsEmpty(t *testing.T) {
+	tmpDir := t.TempDir()
+	scheduler := NewScheduler(tmpDir)
+	store := NewStore(tmpDir)
+
+	// Initialize store but don't create any demons
+	if err := store.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Should not panic on empty store
+	scheduler.checkAndRunDemons(store)
+}
+
+func TestSchedulerLog(t *testing.T) {
+	tmpDir := t.TempDir()
+	scheduler := NewScheduler(tmpDir)
+
+	// Just verify log doesn't panic
+	scheduler.log("Test message: %s", "hello")
+	scheduler.log("Test number: %d", 42)
+}
