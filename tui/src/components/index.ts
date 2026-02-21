@@ -108,3 +108,14 @@ export type {
 // Command palette (#1098)
 export { CommandPalette } from './CommandPalette';
 export type { CommandPaletteProps } from './CommandPalette';
+
+// Detail pane (eng-03 #1310)
+export {
+  DetailPane,
+  shouldShowDetailPane,
+  DETAIL_PANE_WIDTH,
+  MIN_WIDTH_FOR_DETAIL,
+  COMPACT_WIDTH,
+  COMPACT_HEIGHT,
+} from './DetailPane';
+export type { DetailPaneProps, DetailItem, DetailField } from './DetailPane';

@@ -17,23 +17,31 @@ import { useFocus } from './FocusContext';
 
 /** Fixed width for drawer panel */
 const DRAWER_WIDTH = 14;
+/** Shrunk width for narrow terminals */
+const DRAWER_SHRUNK_WIDTH = 10;
 
 export interface DrawerProps {
   /** Title displayed at top of drawer */
   title?: string;
   /** Disable keyboard handling */
   disabled?: boolean;
+  /** Shrink drawer for narrow terminals */
+  shrunk?: boolean;
 }
 
 export function Drawer({
   title = 'bc v2',
   disabled = false,
+  shrunk = false,
 }: DrawerProps): React.ReactElement {
   const { currentView, tabs, navigate } = useNavigation();
   const { isFocused } = useFocus();
   const [highlightedIndex, setHighlightedIndex] = useState(() =>
     tabs.findIndex(t => t.view === currentView)
   );
+
+  // Determine width based on shrunk state
+  const width = shrunk ? DRAWER_SHRUNK_WIDTH : DRAWER_WIDTH;
 
   // Handle keyboard navigation within drawer
   useInput(
@@ -87,7 +95,7 @@ export function Drawer({
   return (
     <Box
       flexDirection="column"
-      width={DRAWER_WIDTH}
+      width={width}
       borderStyle="single"
       borderRight
       borderTop={false}
@@ -97,10 +105,10 @@ export function Drawer({
     >
       {/* Drawer title */}
       <Box marginBottom={1}>
-        <Text bold color="cyan">{title}</Text>
+        <Text bold color="cyan">{shrunk ? 'bc' : title}</Text>
       </Box>
       <Box>
-        <Text dimColor>{'─'.repeat(DRAWER_WIDTH - 2)}</Text>
+        <Text dimColor>{'─'.repeat(width - 2)}</Text>
       </Box>
 
       {/* Navigation items */}
@@ -111,6 +119,7 @@ export function Drawer({
             tab={tab}
             isActive={currentView === tab.view}
             isHighlighted={index === highlightedIndex}
+            shrunk={shrunk}
           />
         ))}
       </Box>
@@ -122,14 +131,19 @@ interface DrawerItemProps {
   tab: TabConfig;
   isActive: boolean;
   isHighlighted: boolean;
+  shrunk?: boolean;
 }
 
-function DrawerItem({ tab, isActive, isHighlighted }: DrawerItemProps): React.ReactElement {
+function DrawerItem({ tab, isActive, isHighlighted, shrunk = false }: DrawerItemProps): React.ReactElement {
   // Use triangular marker for active view
   const marker = isActive ? '▸' : ' ';
 
-  // Short label for compact display
-  const label = tab.shortLabel ?? tab.label;
+  // Short label for compact display, truncate more when shrunk
+  const fullLabel = tab.shortLabel ?? tab.label;
+  const maxLen = shrunk ? 6 : 12;
+  const label = fullLabel.length > maxLen
+    ? fullLabel.substring(0, maxLen - 1) + '…'
+    : fullLabel;
 
   // Determine text styling
   const textColor = isActive ? 'green' : isHighlighted ? 'yellow' : undefined;
