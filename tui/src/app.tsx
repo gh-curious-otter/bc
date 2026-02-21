@@ -14,7 +14,7 @@ import {
   type View,
 } from './navigation';
 import { ThemeProvider, useTheme, type ThemeMode } from './theme';
-import { UnreadProvider } from './hooks';
+import { UnreadProvider, useKeybindingHints } from './hooks';
 import { ConfigProvider, useThemeConfig } from './config';
 import { Dashboard } from './views/Dashboard';
 import { AgentsView } from './views/AgentsView';
@@ -448,12 +448,14 @@ function ShortcutRow({ keys, desc }: { keys: string; desc: string }): React.Reac
   );
 }
 
-// Footer with hints and theme indicator - anchored to bottom
+// Footer with dynamic hints and theme indicator - anchored to bottom
 function Footer(): React.ReactElement {
   const { theme } = useTheme();
+  const { currentView } = useNavigation();
+  const { formatted } = useKeybindingHints(currentView, 'normal');
   return (
     <Box marginTop={1} justifyContent="space-between">
-      <Text dimColor>[j/k] navigate  [Enter] select  [i] details  [?] help  [q] quit</Text>
+      <Text dimColor>{formatted}</Text>
       <Text dimColor>Theme: {theme.name}</Text>
     </Box>
   );
