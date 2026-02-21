@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -25,9 +26,12 @@ import (
 
 // Plugin types
 const (
-	TypeAgent = "agent"
-	TypeTool  = "tool"
-	TypeRole  = "role"
+	TypeAgent   = "agent"
+	TypeTool    = "tool"
+	TypeRole    = "role"
+	TypeHook    = "hook"    // RFC 001: Intercept bc events
+	TypeCommand = "command" // RFC 001: Add CLI commands
+	TypeView    = "view"    // RFC 001: Custom TUI views
 )
 
 // Plugin states
@@ -46,6 +50,8 @@ const DefaultRegistry = "https://plugins.bc.dev"
 const DefaultDirectory = "plugins"
 
 // Manifest describes a plugin's metadata and capabilities
+//
+//nolint:govet // fieldalignment: logical field grouping preferred over memory optimization
 type Manifest struct {
 	Name         string       `toml:"name" json:"name"`
 	Version      string       `toml:"version" json:"version"`
@@ -59,6 +65,12 @@ type Manifest struct {
 	BCVersion    string       `toml:"bc_version,omitempty" json:"bc_version,omitempty"`
 	Capabilities []string     `toml:"capabilities,omitempty" json:"capabilities,omitempty"`
 	Dependencies []Dependency `toml:"dependencies,omitempty" json:"dependencies,omitempty"`
+
+	// RFC 001: Plugin extensibility features
+	Hooks       map[string]HookDef    `toml:"hooks,omitempty" json:"hooks,omitempty"`
+	Commands    map[string]CommandDef `toml:"commands,omitempty" json:"commands,omitempty"`
+	Tools       map[string]ToolDef    `toml:"tools,omitempty" json:"tools,omitempty"`
+	Permissions *Permissions          `toml:"permissions,omitempty" json:"permissions,omitempty"`
 }
 
 // Dependency describes a plugin dependency
@@ -67,7 +79,38 @@ type Dependency struct {
 	Version string `toml:"version" json:"version"`
 }
 
+// RFC 001: Hook, Command, and Tool definitions for plugin extensibility
+
+// HookDef defines a hook that intercepts bc events
+type HookDef struct {
+	Script      string `toml:"script" json:"script"`
+	Description string `toml:"description,omitempty" json:"description,omitempty"`
+}
+
+// CommandDef defines a plugin command accessible via `bc <plugin> <command>`
+type CommandDef struct {
+	Script      string `toml:"script" json:"script"`
+	Description string `toml:"description,omitempty" json:"description,omitempty"`
+}
+
+// ToolDef defines a tool that agents can invoke
+type ToolDef struct {
+	Script      string `toml:"script" json:"script"`
+	Description string `toml:"description,omitempty" json:"description,omitempty"`
+}
+
+// Permissions defines what the plugin can access (RFC 001)
+//
+//nolint:govet // fieldalignment: logical field grouping preferred
+type Permissions struct {
+	EnvVars    []string `toml:"env_vars,omitempty" json:"env_vars,omitempty"`
+	Filesystem string   `toml:"filesystem" json:"filesystem"` // none, workspace, home, all
+	Network    bool     `toml:"network" json:"network"`
+}
+
 // Plugin represents an installed plugin
+//
+//nolint:govet // fieldalignment: logical field grouping preferred
 type Plugin struct {
 	InstalledAt time.Time  `json:"installedAt"`
 	UpdatedAt   *time.Time `json:"updatedAt,omitempty"`
@@ -294,10 +337,20 @@ func validateManifest(m *Manifest) error {
 	}
 
 	switch m.Type {
-	case TypeAgent, TypeTool, TypeRole:
+	case TypeAgent, TypeTool, TypeRole, TypeHook, TypeCommand, TypeView:
 		// Valid type
 	default:
-		return fmt.Errorf("invalid type %q (must be agent, tool, or role)", m.Type)
+		return fmt.Errorf("invalid type %q (must be agent, tool, role, hook, command, or view)", m.Type)
+	}
+
+	// RFC 001: Validate permissions if present
+	if m.Permissions != nil {
+		switch m.Permissions.Filesystem {
+		case "", "none", "workspace", "home", "all":
+			// Valid filesystem permission
+		default:
+			return fmt.Errorf("invalid permissions.filesystem %q (must be none, workspace, home, or all)", m.Permissions.Filesystem)
+		}
 	}
 
 	return nil
@@ -321,4 +374,111 @@ func (m *Manager) Enabled(pluginType string) []*Plugin {
 		}
 	}
 	return plugins
+}
+
+// RFC 001: Hook execution support
+
+// HookEvent represents an event that can trigger hooks
+type HookEvent struct {
+	Payload   map[string]interface{} `json:"payload"`
+	Timestamp time.Time              `json:"timestamp"`
+	Name      string                 `json:"name"` // e.g., "agent.start", "channel.send"
+}
+
+// HookResult represents the result of a hook execution
+type HookResult struct {
+	Plugin   string `json:"plugin"`
+	Hook     string `json:"hook"`
+	Output   string `json:"output"`
+	Error    string `json:"error,omitempty"`
+	ExitCode int    `json:"exit_code"`
+}
+
+// ExecuteHooks runs all registered hooks for an event
+// Returns results for each hook. Exit code 0=success, 1=error (log warning), 2=abort
+func (m *Manager) ExecuteHooks(ctx context.Context, event HookEvent) ([]HookResult, error) {
+	var results []HookResult
+
+	for _, plugin := range m.plugins {
+		if plugin.State != StateEnabled {
+			continue
+		}
+
+		// Check if plugin has hooks for this event
+		hookDef, ok := plugin.Manifest.Hooks[event.Name]
+		if !ok {
+			continue
+		}
+
+		result := m.executeHook(ctx, plugin, event.Name, hookDef, event)
+		results = append(results, result)
+
+		// Exit code 2 means abort the operation
+		if result.ExitCode == 2 {
+			return results, fmt.Errorf("hook %s/%s aborted operation: %s", plugin.Manifest.Name, event.Name, result.Output)
+		}
+	}
+
+	return results, nil
+}
+
+// executeHook runs a single hook script
+func (m *Manager) executeHook(ctx context.Context, plugin *Plugin, hookName string, hookDef HookDef, event HookEvent) HookResult {
+	result := HookResult{
+		Plugin: plugin.Manifest.Name,
+		Hook:   hookName,
+	}
+
+	// Build script path
+	scriptPath := filepath.Join(plugin.Path, hookDef.Script)
+	if _, err := os.Stat(scriptPath); err != nil {
+		result.ExitCode = 1
+		result.Error = fmt.Sprintf("hook script not found: %s", scriptPath)
+		return result
+	}
+
+	// Prepare environment variables
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("BC_PLUGIN_NAME=%s", plugin.Manifest.Name))
+	env = append(env, fmt.Sprintf("BC_EVENT=%s", event.Name))
+
+	// Add payload as individual env vars
+	for k, v := range event.Payload {
+		env = append(env, fmt.Sprintf("BC_%s=%v", strings.ToUpper(k), v))
+	}
+
+	// Prepare payload as JSON for stdin
+	payloadJSON, err := json.Marshal(event.Payload)
+	if err != nil {
+		result.ExitCode = 1
+		result.Error = fmt.Sprintf("failed to marshal payload: %v", err)
+		return result
+	}
+
+	// Execute the script
+	output, exitCode, err := runScript(ctx, scriptPath, plugin.Path, env, string(payloadJSON))
+	result.Output = output
+	result.ExitCode = exitCode
+	if err != nil {
+		result.Error = err.Error()
+	}
+
+	return result
+}
+
+// runScript executes a script and returns output and exit code
+func runScript(ctx context.Context, scriptPath, workDir string, env []string, stdin string) (string, int, error) {
+	cmd := exec.CommandContext(ctx, scriptPath) //nolint:gosec // Script path validated before call
+	cmd.Dir = workDir
+	cmd.Env = env
+	cmd.Stdin = strings.NewReader(stdin)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return string(output), exitErr.ExitCode(), nil
+		}
+		return string(output), 1, err
+	}
+	return string(output), 0, nil
 }
