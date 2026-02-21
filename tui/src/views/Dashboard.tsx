@@ -94,30 +94,25 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
       />
 
       {/* Metrics panels - Optimized for all terminal sizes (Issue #1041, #1184) */}
-      {/* At 80 cols: single column stack to prevent text garbling */}
-      {/* At 81-99 cols: 2-column layout with adjusted widths */}
+      {/* #1318: Force single column at narrow widths (<100 cols) to prevent text garbling */}
+      {/* Available content width = terminalWidth - drawer - padding is too narrow for side-by-side */}
       {!canMultiColumn && (
-        <Box marginTop={1} flexDirection={terminalWidth <= 80 ? 'column' : 'row'} width="100%">
-          {/* Left/Top: System Health + Cost */}
-          <Box flexDirection="column" flexGrow={1} marginRight={terminalWidth > 80 ? 1 : 0}>
-            <SystemHealthPanel
-              working={summary.working}
-              idle={summary.idle}
-              stuck={summary.stuck}
-              errorCount={summary.error}
-              total={summary.total}
-            />
-            <CostPanel
-              totalCostUSD={summary.totalCostUSD}
-              inputTokens={summary.inputTokens}
-              outputTokens={summary.outputTokens}
-            />
-          </Box>
-
-          {/* Right/Bottom: Agent Distribution */}
-          <Box flexDirection="column" width={terminalWidth <= 80 ? '100%' : Math.max(20, Math.floor(terminalWidth * 0.35))}>
-            <AgentStatsPanel stats={agentStats} />
-          </Box>
+        <Box marginTop={1} flexDirection="column" width="100%">
+          {/* System Health + Cost - always stacked at narrow widths */}
+          <SystemHealthPanel
+            working={summary.working}
+            idle={summary.idle}
+            stuck={summary.stuck}
+            errorCount={summary.error}
+            total={summary.total}
+          />
+          <CostPanel
+            totalCostUSD={summary.totalCostUSD}
+            inputTokens={summary.inputTokens}
+            outputTokens={summary.outputTokens}
+          />
+          {/* Agent Distribution */}
+          <AgentStatsPanel stats={agentStats} />
         </Box>
       )}
 
