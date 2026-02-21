@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { getWorktrees, pruneWorktrees } from '../services/bc';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { HeaderBar } from '../components/HeaderBar';
 import { useFocus } from '../navigation/FocusContext';
 import type { Worktree } from '../types';
 
@@ -213,18 +214,21 @@ export const WorktreesView: React.FC<WorktreesViewProps> = ({ onBack }) => {
   const statusWidth = 10;
   const pathWidth = Math.min(50, terminalWidth - agentWidth - statusWidth - 10);
 
+  // Build subtitle with stats
+  const worktreeSubtitle = orphanedWorktrees.length > 0
+    ? `${String(orphanedWorktrees.length)} orphaned`
+    : undefined;
+
   return (
     <Box flexDirection="column">
-      {/* Header */}
-      <Box marginBottom={1}>
-        <Text bold color="blue">Worktrees</Text>
-        <Text dimColor> ({activeWorktrees.length} active</Text>
-        {orphanedWorktrees.length > 0 && (
-          <Text color="yellow">, {orphanedWorktrees.length} orphaned</Text>
-        )}
-        <Text dimColor>)</Text>
-        {loading && <Text color="gray"> (refreshing...)</Text>}
-      </Box>
+      {/* Header - using shared HeaderBar component (#1419) */}
+      <HeaderBar
+        title="Worktrees"
+        count={activeWorktrees.length}
+        loading={loading}
+        color="blue"
+        subtitle={worktreeSubtitle}
+      />
 
       {/* Filter indicator */}
       {showOrphanedOnly && (

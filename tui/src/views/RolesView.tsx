@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { Panel } from '../components/Panel';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { HeaderBar } from '../components/HeaderBar';
 import { useFocus } from '../navigation/FocusContext';
 import { useAgents } from '../hooks';
 import type { Role } from '../types';
@@ -252,14 +253,13 @@ export function RolesView({
   // Main list view
   return (
     <Box flexDirection="column" width="100%">
-      {/* Header */}
-      <Box marginBottom={1}>
-        <Text bold color="cyan">
-          Roles
-        </Text>
-        <Text dimColor> ({String(filteredRoles.length)})</Text>
-        {loading && <Text color="yellow"> ↻</Text>}
-      </Box>
+      {/* Header - using shared HeaderBar component (#1419) */}
+      <HeaderBar
+        title="Roles"
+        count={filteredRoles.length}
+        loading={loading}
+        color="cyan"
+      />
 
       {/* Search bar */}
       <Box
