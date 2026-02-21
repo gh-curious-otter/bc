@@ -331,19 +331,19 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
         </Box>
       )}
 
-      {/* Command preview */}
+      {/* Command preview - slice text to prevent corruption at narrow widths (#1366) */}
       {selectedCommand !== undefined && filteredCommands.length > 0 && !commandOutput && !commandError && !isExecuting && (
         <Box flexDirection="column" marginBottom={1} paddingX={1} borderStyle="single" borderColor="gray">
-          <Text bold color="cyan" wrap="truncate">{selectedCommand.name}</Text>
-          <Text dimColor wrap="truncate">{selectedCommand.description}</Text>
+          <Text bold color="cyan">{selectedCommand.name}</Text>
+          <Text dimColor>{selectedCommand.description.slice(0, 70)}{selectedCommand.description.length > 70 ? '…' : ''}</Text>
           <Box marginTop={1}>
-            <Text dimColor wrap="truncate">Usage: {selectedCommand.usage}</Text>
+            <Text dimColor>Usage: {selectedCommand.usage.slice(0, 60)}{selectedCommand.usage.length > 60 ? '…' : ''}</Text>
           </Box>
           {selectedCommand.flags && (
-            <Text dimColor wrap="truncate">Flags: {selectedCommand.flags.join(', ')}</Text>
+            <Text dimColor>Flags: {selectedCommand.flags.join(', ').slice(0, 55)}</Text>
           )}
           <Box marginTop={1}>
-            <Text dimColor wrap="truncate">
+            <Text dimColor>
               {selectedCommand.readOnly ? '✓ Safe (read-only) - Press Enter to run' : '⚠ Modifying command - use CLI'}
             </Text>
           </Box>
@@ -373,14 +373,17 @@ interface CommandRowProps {
 }
 
 function CommandRow({ command, selected, isFavorite }: CommandRowProps): React.ReactElement {
+  // Slice text to prevent corruption at narrow terminal widths (#1366)
+  const displayName = command.name.length > 20 ? command.name.slice(0, 19) + '…' : command.name.padEnd(20);
+  const displayDesc = command.description.length > 45 ? command.description.slice(0, 44) + '…' : command.description;
   return (
     <Box marginBottom={1}>
       <Text color="yellow">{isFavorite ? '★ ' : '  '}</Text>
-      <Text color={selected ? 'cyan' : undefined} bold={selected} wrap="truncate">
+      <Text color={selected ? 'cyan' : undefined} bold={selected}>
         {selected ? '▸ ' : '  '}
-        {command.name}
+        {displayName}
       </Text>
-      <Text dimColor wrap="truncate"> — {command.description}</Text>
+      <Text dimColor> — {displayDesc}</Text>
     </Box>
   );
 }
