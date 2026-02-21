@@ -66,19 +66,23 @@ export function useAgents(options: UseAgentsOptions = {}): UseAgentsResult {
    * Apply debounce to working→idle transitions.
    * If an agent just transitioned from working to idle within the debounce period,
    * keep showing "working" to prevent flickering.
+   *
+   * #1427: Always return new objects to ensure React detects state changes
+   * (e.g., task field updates while state remains 'working')
    */
   const applyStateDebounce = useCallback((agents: Agent[]): Agent[] => {
     const now = Date.now();
 
     return agents.map((agent) => {
       const prevState = prevStateRef.current[agent.name];
-      const lastWorkingTime = lastWorkingTimeRef.current[agent.name] || 0;
+      const lastWorkingTime = lastWorkingTimeRef.current[agent.name] ?? 0;
 
       // Update tracking: record when agent was last "working"
       if (agent.state === 'working') {
         lastWorkingTimeRef.current[agent.name] = now;
         prevStateRef.current[agent.name] = agent.state;
-        return agent;
+        // #1427: Always return a new object to trigger React re-render
+        return { ...agent };
       }
 
       // Detect working→idle transition
@@ -93,7 +97,8 @@ export function useAgents(options: UseAgentsOptions = {}): UseAgentsResult {
 
       // Update previous state tracking
       prevStateRef.current[agent.name] = agent.state;
-      return agent;
+      // #1427: Always return a new object to trigger React re-render
+      return { ...agent };
     });
   }, []);
 
