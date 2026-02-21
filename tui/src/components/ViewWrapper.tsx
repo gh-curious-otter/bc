@@ -144,7 +144,7 @@ export const ViewWrapper = memo(function ViewWrapper({
       </Box>
 
       {/* Footer with hints */}
-      {!hideFooter && (footer || hints) && (
+      {!hideFooter && (footer !== undefined || hints !== undefined) && (
         footer ?? <Footer hints={hints ?? []} />
       )}
     </Box>
