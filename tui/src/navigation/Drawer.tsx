@@ -19,8 +19,8 @@ import { useFocus } from './FocusContext';
 const DRAWER_WIDTH = 16;
 /** Shrunk width for narrow terminals (80-99 cols) */
 const DRAWER_SHRUNK_WIDTH = 8;
-/** Width threshold to use short labels (140+cols only gets full labels) */
-const DRAWER_SHORT_LABEL_THRESHOLD = 15;
+/** Width threshold to use short labels (LG+ mode gets full labels at 14-char width) */
+const DRAWER_SHORT_LABEL_THRESHOLD = 14;
 
 /** Section definitions for grouped navigation */
 interface DrawerSection {
