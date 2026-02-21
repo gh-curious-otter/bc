@@ -1,6 +1,7 @@
 /**
  * CostsView - Cost dashboard component
  * Issue #1346: Borderless compact layout for 80x24 terminals
+ * Issue #1362: Extend borderless to 120 cols (14" MacBook Pro)
  */
 
 import React from 'react';
@@ -17,8 +18,10 @@ interface CostsViewProps {
 export function CostsView({ disableInput: _disableInput = false }: CostsViewProps): React.ReactElement {
   const { stdout } = useStdout();
   const terminalWidth = stdout.columns;
-  const { canMultiColumn, isCompact, isMinimal } = useResponsiveLayout();
-  const isNarrow = isCompact || isMinimal;
+  const { canTripleColumn, contentWidth } = useResponsiveLayout();
+  // #1362: Use borderless layout for <140 cols to prevent border fragmentation
+  // At 120 cols with drawer, available content width is ~104 cols - too narrow for bordered panels
+  const useBorderless = !canTripleColumn;
 
   const { data: costs, loading, error } = useCosts();
 
@@ -49,8 +52,8 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
     );
   }
 
-  // #1346: Compact borderless layout for narrow terminals (<100 cols)
-  if (isNarrow) {
+  // #1346/#1362: Compact borderless layout for terminals <140 cols
+  if (useBorderless) {
     const agentEntries = Object.entries(costs.by_agent ?? {})
       .sort(([, a], [, b]) => b - a)
       .slice(0, 5);
@@ -110,13 +113,16 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
     );
   }
 
-  // Standard bordered Panel layout for wider terminals
+  // Standard bordered Panel layout for wide terminals (>=140 cols)
+  // #1362: Use contentWidth which accounts for drawer
+  const panelWidth = Math.min(contentWidth, terminalWidth - 2);
+
   return (
     <Box flexDirection="column" padding={1}>
       <Text bold>Cost Dashboard</Text>
 
       {/* Summary */}
-      <Panel title="Summary" width={canMultiColumn ? terminalWidth - 2 : undefined}>
+      <Panel title="Summary" width={panelWidth}>
         <Box>
           <Text>Total Cost: </Text>
           <Text color="yellow" bold>${costs.total_cost.toFixed(4)}</Text>
@@ -140,7 +146,7 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
       </Panel>
 
       {/* By Agent */}
-      <Panel title="By Agent" width={canMultiColumn ? terminalWidth - 2 : undefined}>
+      <Panel title="By Agent" width={panelWidth}>
         {Object.entries(costs.by_agent ?? {}).length === 0 ? (
           <Text dimColor>No agent costs recorded</Text>
         ) : (
@@ -157,7 +163,7 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
       </Panel>
 
       {/* By Model */}
-      <Panel title="By Model" width={canMultiColumn ? terminalWidth - 2 : undefined}>
+      <Panel title="By Model" width={panelWidth}>
         {Object.entries(costs.by_model ?? {}).length === 0 ? (
           <Text dimColor>No model costs recorded</Text>
         ) : (
@@ -174,7 +180,7 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
 
       {/* By Team */}
       {Object.keys(costs.by_team ?? {}).length > 0 && (
-        <Panel title="By Team" width={canMultiColumn ? terminalWidth - 2 : undefined}>
+        <Panel title="By Team" width={panelWidth}>
           {Object.entries(costs.by_team ?? {})
             .sort(([, a], [, b]) => b - a)
             .map(([team, cost]) => (
