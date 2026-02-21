@@ -6,9 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { Panel } from '../components/Panel';
-import { Footer } from '../components/Footer';
-import { LoadingIndicator } from '../components/LoadingIndicator';
-import { ErrorDisplay } from '../components/ErrorDisplay';
+import { ViewWrapper } from '../components/ViewWrapper';
 import { useFocus } from '../navigation/FocusContext';
 import { getMemoryList, getMemory, searchMemory, clearMemory } from '../services/bc';
 import type { AgentMemorySummary, AgentMemory, MemorySearchResult } from '../types';
@@ -195,14 +193,24 @@ export function MemoryView({
     { isActive: !disableInput }
   );
 
-  // Loading state
-  if (loading && agents.length === 0) {
-    return <LoadingIndicator message="Loading agent memories..." />;
-  }
-
-  // Error state
-  if (error && agents.length === 0) {
-    return <ErrorDisplay error={error} onRetry={() => { void fetchMemoryList(); }} />;
+  // Loading/error states handled by ViewWrapper for initial load
+  if ((loading || error) && agents.length === 0) {
+    return (
+      <ViewWrapper
+        title="Agent Memories"
+        loading={loading}
+        loadingMessage="Loading agent memories..."
+        error={error}
+        onRetry={() => { void fetchMemoryList(); }}
+        hints={[
+          { key: 'j/k', label: 'navigate' },
+          { key: 'Enter', label: 'details' },
+          { key: 'q', label: 'back' },
+        ]}
+      >
+        {null}
+      </ViewWrapper>
+    );
   }
 
   // Clear confirmation modal
@@ -246,85 +254,79 @@ export function MemoryView({
 
   // Main list view
   return (
-    <Box flexDirection="column" width="100%">
-      {/* Header */}
-      <Box marginBottom={1}>
-        <Text bold color="magenta">Agent Memories</Text>
-        <Text dimColor> ({String(agents.length)} agents)</Text>
-        {loading && <Text color="yellow"> (refreshing...)</Text>}
-      </Box>
-
-      {/* Search bar */}
-      <Box
-        marginBottom={1}
-        paddingX={1}
-        borderStyle="single"
-        borderColor={searchMode ? 'cyan' : 'gray'}
-      >
-        {searchMode ? (
-          <Box>
-            <Text color="cyan">{'/ '}</Text>
-            <Text>{searchQuery}</Text>
-            <Text color="cyan">|</Text>
-          </Box>
-        ) : (
-          <Text dimColor>Press / to search memories, Enter for details</Text>
-        )}
-      </Box>
-
-      {/* Agent memory table */}
-      <Panel title="Agents">
-        {agents.length === 0 ? (
-          <Text dimColor>No agent memories found</Text>
-        ) : (
-          <Box flexDirection="column">
-            {/* Header row */}
-            <Box paddingX={1}>
-              <Box width={20}>
-                <Text bold dimColor>AGENT</Text>
-              </Box>
-              <Box width={15}>
-                <Text bold dimColor>EXPERIENCES</Text>
-              </Box>
-              <Box width={12}>
-                <Text bold dimColor>LEARNINGS</Text>
-              </Box>
-              <Box flexGrow={1}>
-                <Text bold dimColor>LAST UPDATED</Text>
-              </Box>
-            </Box>
-
-            {/* Agent rows */}
-            {agents.map((agent, idx) => (
-              <AgentMemoryRow
-                key={agent.agent}
-                agent={agent}
-                selected={idx === validIndex}
-              />
-            ))}
-          </Box>
-        )}
-      </Panel>
-
-      {/* Error display */}
-      {error && (
-        <Box marginTop={1}>
-          <Text color="red">Error: {error}</Text>
+    <ViewWrapper
+      title="Agent Memories"
+      loading={loading}
+      error={error}
+      onRetry={() => { void fetchMemoryList(); }}
+      hints={[
+        { key: 'j/k', label: 'navigate' },
+        { key: 'Enter', label: 'details' },
+        { key: '/', label: 'search' },
+        { key: 'c', label: 'clear' },
+        { key: 'R', label: 'refresh' },
+        { key: 'q', label: 'back' },
+      ]}
+    >
+      <Box flexDirection="column" width="100%">
+        {/* Subtitle with count */}
+        <Box marginBottom={1}>
+          <Text dimColor>({String(agents.length)} agents)</Text>
         </Box>
-      )}
 
-      {/* Footer */}
-      <Footer
-        hints={[
-          { key: 'j/k', label: 'navigate' },
-          { key: 'Enter', label: 'details' },
-          { key: '/', label: 'search' },
-          { key: 'c', label: 'clear' },
-          { key: 'R', label: 'refresh' },
-          { key: 'q', label: 'back' },
-        ]}
-      />
-    </Box>
+        {/* Search bar */}
+        <Box
+          marginBottom={1}
+          paddingX={1}
+          borderStyle="single"
+          borderColor={searchMode ? 'cyan' : 'gray'}
+        >
+          {searchMode ? (
+            <Box>
+              <Text color="cyan">{'/ '}</Text>
+              <Text>{searchQuery}</Text>
+              <Text color="cyan">|</Text>
+            </Box>
+          ) : (
+            <Text dimColor>Press / to search memories, Enter for details</Text>
+          )}
+        </Box>
+
+        {/* Agent memory table */}
+        <Panel title="Agents">
+          {agents.length === 0 ? (
+            <Text dimColor>No agent memories found</Text>
+          ) : (
+            <Box flexDirection="column">
+              {/* Header row */}
+              <Box paddingX={1}>
+                <Box width={20}>
+                  <Text bold dimColor>AGENT</Text>
+                </Box>
+                <Box width={15}>
+                  <Text bold dimColor>EXPERIENCES</Text>
+                </Box>
+                <Box width={12}>
+                  <Text bold dimColor>LEARNINGS</Text>
+                </Box>
+                <Box flexGrow={1}>
+                  <Text bold dimColor>LAST UPDATED</Text>
+                </Box>
+              </Box>
+
+              {/* Agent rows */}
+              {agents.map((agent, idx) => (
+                <AgentMemoryRow
+                  key={agent.agent}
+                  agent={agent}
+                  selected={idx === validIndex}
+                />
+              ))}
+            </Box>
+          )}
+        </Panel>
+      </Box>
+    </ViewWrapper>
   );
 }
 
