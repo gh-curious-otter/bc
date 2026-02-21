@@ -30,6 +30,12 @@ import { ProcessesView } from './views/ProcessesView';
 import { MemoryView } from './views/MemoryView';
 import { RoutingView } from './views/RoutingView';
 import { CommandPalette } from './components/CommandPalette';
+import {
+  DetailPane,
+  shouldShowDetailPane,
+  MIN_WIDTH_FOR_DETAIL,
+  type DetailItem,
+} from './components/DetailPane';
 import { type BcCommand } from './types/commands';
 
 interface AppProps {
@@ -95,6 +101,8 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
   const { stdout } = useStdout();
   const { setThemeName } = useTheme();
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [detailPaneVisible, setDetailPaneVisible] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<DetailItem | null>(null);
 
   // Apply configured theme on mount or when config changes
   React.useEffect(() => {
@@ -139,27 +147,64 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
     onCommandPalette: () => { setShowCommandPalette(true); },
   });
 
+  // Handle 'i' key to toggle detail pane
+  useInput(
+    (input) => {
+      if (input === 'i') {
+        setDetailPaneVisible(prev => !prev);
+      }
+    },
+    { isActive: !disableInput && !showCommandPalette }
+  );
+
   // Get terminal dimensions - constrain to actual terminal height
   const terminalHeight = stdout.rows;
   const terminalWidth = stdout.columns;
 
+  // Determine if detail pane should show based on terminal size and toggle state
+  const showDetailPane = shouldShowDetailPane(
+    terminalWidth,
+    terminalHeight,
+    detailPaneVisible
+  );
+
+  // Shrink drawer when terminal is narrow but not at compact size
+  const drawerShrunk = terminalWidth < MIN_WIDTH_FOR_DETAIL && terminalWidth > 80;
+
   return (
     <Box flexDirection="column" padding={1} width={terminalWidth} height={terminalHeight}>
-      {/* Main layout: drawer + content */}
+      {/* Main layout: drawer + content + detail pane */}
       <Box flexDirection="row" flexGrow={1}>
-        {/* Left drawer navigation */}
-        <Drawer disabled={disableInput || showCommandPalette} />
+        {/* Left drawer navigation (shrinks when narrow terminal) */}
+        <Drawer
+          disabled={disableInput || showCommandPalette}
+          shrunk={drawerShrunk}
+        />
 
-        {/* Right content area */}
+        {/* Center content area */}
         <Box flexDirection="column" flexGrow={1} paddingLeft={1}>
           {/* Breadcrumb navigation (shows path when navigated deep) */}
           <Breadcrumb />
 
           {/* Main content area */}
           <Box flexDirection="column" flexGrow={1}>
-            <ViewContent view={currentView} disableInput={disableInput} />
+            <ViewContent
+              view={currentView}
+              disableInput={disableInput}
+              onSelectItem={setSelectedItem}
+            />
           </Box>
         </Box>
+
+        {/* Right detail pane (toggleable with 'i') */}
+        {showDetailPane && (
+          <DetailPane
+            view={currentView}
+            selectedItem={selectedItem}
+            terminalWidth={terminalWidth}
+            terminalHeight={terminalHeight}
+          />
+        )}
       </Box>
 
       {/* Footer with navigation hints - anchored to bottom */}
@@ -182,10 +227,12 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
 interface ViewContentProps {
   view: View;
   disableInput: boolean;
+  onSelectItem?: (item: DetailItem | null) => void;
 }
 
 // Main content router
-function ViewContent({ view, disableInput }: ViewContentProps): React.ReactElement {
+// Note: _onSelectItem callback will be wired up per-view in future iterations
+function ViewContent({ view, disableInput, onSelectItem: _onSelectItem }: ViewContentProps): React.ReactElement {
   switch (view) {
     case 'dashboard':
       return <Dashboard />;
@@ -405,7 +452,7 @@ function Footer(): React.ReactElement {
   const { theme } = useTheme();
   return (
     <Box marginTop={1} justifyContent="space-between">
-      <Text dimColor>[j/k] navigate  [Enter] select  [?] help  [q] quit</Text>
+      <Text dimColor>[j/k] navigate  [Enter] select  [i] details  [?] help  [q] quit</Text>
       <Text dimColor>Theme: {theme.name}</Text>
     </Box>
   );
