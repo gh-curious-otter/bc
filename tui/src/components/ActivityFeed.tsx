@@ -222,7 +222,7 @@ const ActivityEntry = memo(function ActivityEntry({
   const maxMsgLen = Math.max(MIN_MSG_WIDTH, availableWidth);
 
   // Shorten paths in message (#1368)
-  const displayMessage = shortenPath(entry.message ?? '');
+  const displayMessage = shortenPath(entry.message);
 
   return (
     <Box>
