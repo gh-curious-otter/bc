@@ -382,3 +382,97 @@ func TestStatusConstants(t *testing.T) {
 		t.Errorf("StatusError = %q, want %q", StatusError, "error")
 	}
 }
+
+func TestManagerTestConnection(t *testing.T) {
+	tmpDir := t.TempDir()
+	mgr := NewManager(tmpDir)
+
+	// Add host
+	_, err := mgr.AddHost("test-host", "example.com", 22, "deploy", "", "")
+	if err != nil {
+		t.Fatalf("AddHost() error = %v", err)
+	}
+
+	// Test connection
+	ctx := context.Background()
+	if err := mgr.TestConnection(ctx, "test-host"); err != nil {
+		t.Fatalf("TestConnection() error = %v", err)
+	}
+
+	// Verify status updated
+	host, ok := mgr.GetHost("test-host")
+	if !ok {
+		t.Fatal("host not found after TestConnection")
+	}
+	if host.Status != StatusConnected {
+		t.Errorf("host.Status = %q, want %q", host.Status, StatusConnected)
+	}
+}
+
+func TestManagerTestConnectionHostNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	mgr := NewManager(tmpDir)
+
+	ctx := context.Background()
+	err := mgr.TestConnection(ctx, "nonexistent")
+	if err == nil {
+		t.Error("TestConnection() should fail for nonexistent host")
+	}
+}
+
+func TestManagerListHostsWithHosts(t *testing.T) {
+	tmpDir := t.TempDir()
+	mgr := NewManager(tmpDir)
+
+	// Add multiple hosts
+	_, _ = mgr.AddHost("host1", "h1.example.com", 22, "user1", "", "Host 1")
+	_, _ = mgr.AddHost("host2", "h2.example.com", 2222, "user2", "/key", "Host 2")
+	_, _ = mgr.AddHost("host3", "h3.example.com", 22, "user3", "", "Host 3")
+
+	hosts := mgr.ListHosts()
+	if len(hosts) != 3 {
+		t.Errorf("len(hosts) = %d, want 3", len(hosts))
+	}
+
+	// Verify hosts are in the list
+	hostNames := make(map[string]bool)
+	for _, h := range hosts {
+		hostNames[h.Name] = true
+	}
+	for _, name := range []string{"host1", "host2", "host3"} {
+		if !hostNames[name] {
+			t.Errorf("host %q not found in ListHosts()", name)
+		}
+	}
+}
+
+func TestManagerLoadNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	mgr := NewManager(tmpDir)
+
+	// Load without any saved config should succeed (empty state)
+	err := mgr.Load()
+	if err != nil {
+		t.Errorf("Load() on empty workspace should not error: %v", err)
+	}
+}
+
+func TestManagerLoadInvalidJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create invalid JSON config
+	configDir := filepath.Join(tmpDir, ".bc")
+	if err := os.MkdirAll(configDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "remote.json")
+	if err := os.WriteFile(configPath, []byte("invalid json"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	mgr := NewManager(tmpDir)
+	err := mgr.Load()
+	if err == nil {
+		t.Error("Load() should fail for invalid JSON")
+	}
+}
