@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { Panel } from '../components/Panel';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 import { useFocus } from '../navigation/FocusContext';
 import { useAgents } from '../hooks';
 import type { Role } from '../types';
@@ -201,11 +202,7 @@ export function RolesView({
 
   // Loading state
   if (loading && roles.length === 0) {
-    return (
-      <Box flexDirection="column" padding={1}>
-        <Text color="cyan">Loading roles...</Text>
-      </Box>
-    );
+    return <LoadingIndicator message="Loading roles..." />;
   }
 
   // Error state

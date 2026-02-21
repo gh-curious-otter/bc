@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { getWorkspaces } from '../services/bc';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import type { DiscoveredWorkspace } from '../types';
@@ -153,11 +154,7 @@ export const WorkspaceSelectorView: React.FC<WorkspaceSelectorViewProps> = ({
   }
 
   if (loading && workspaces.length === 0) {
-    return (
-      <Box padding={1}>
-        <Text color="yellow">Discovering workspaces...</Text>
-      </Box>
-    );
+    return <LoadingIndicator message="Discovering workspaces..." />;
   }
 
   if (error) {

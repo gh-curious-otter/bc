@@ -3,6 +3,7 @@ import { Box, Text, useInput as inkUseInput } from 'ink';
 import type { Agent } from '../types';
 import { execBc } from '../services/bc';
 import { StatusBadge } from '../components/StatusBadge';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 import { useFocus } from '../navigation/FocusContext';
 import { useAgentDetails } from '../hooks/useAgentDetails';
 import { MetricCard } from '../components/MetricCard';
@@ -264,7 +265,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
               justifyContent="flex-end"
             >
               {loading && outputLines.length === 0 ? (
-                <Text color="yellow">Loading agent output...</Text>
+                <LoadingIndicator message="Loading agent output..." />
               ) : error ? (
                 <Text color="red">Error: {error}</Text>
               ) : outputLines.length === 0 ? (

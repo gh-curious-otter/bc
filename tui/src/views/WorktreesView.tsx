@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { getWorktrees, pruneWorktrees } from '../services/bc';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 import { useFocus } from '../navigation/FocusContext';
 import type { Worktree } from '../types';
 
@@ -196,11 +197,7 @@ export const WorktreesView: React.FC<WorktreesViewProps> = ({ onBack }) => {
   }
 
   if (loading && worktrees.length === 0) {
-    return (
-      <Box padding={1}>
-        <Text color="yellow">Loading worktrees...</Text>
-      </Box>
-    );
+    return <LoadingIndicator message="Loading worktrees..." />;
   }
 
   if (error) {
