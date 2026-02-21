@@ -3,6 +3,7 @@ package workspace
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -400,5 +401,186 @@ func TestDiscoverNonExistentPath(t *testing.T) {
 
 	if len(workspaces) != 0 {
 		t.Errorf("expected 0 workspaces for non-existent path, got %d", len(workspaces))
+	}
+}
+
+func TestDiscoverAndRegister(t *testing.T) {
+	// Create temp directory with workspaces
+	tmpDir := t.TempDir()
+
+	// Create a new workspace
+	wsDir := filepath.Join(tmpDir, "new-workspace")
+	bcDir := filepath.Join(wsDir, ".bc")
+	if err := os.MkdirAll(bcDir, 0750); err != nil {
+		t.Fatalf("failed to create workspace dir: %v", err)
+	}
+
+	configPath := filepath.Join(bcDir, "config.toml")
+	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"new-workspace\"\n"), 0600); err != nil {
+		t.Fatalf("failed to create config: %v", err)
+	}
+
+	opts := DiscoverOptions{
+		IncludeCached: false,
+		ScanHome:      false,
+		MaxDepth:      2,
+		ScanPaths:     []string{tmpDir},
+	}
+
+	count, err := DiscoverAndRegister(opts)
+	if err != nil {
+		t.Fatalf("DiscoverAndRegister failed: %v", err)
+	}
+
+	// Should have registered 1 new workspace
+	if count != 1 {
+		t.Errorf("expected 1 new registration, got %d", count)
+	}
+}
+
+func TestDiscoverAndRegisterNoNew(t *testing.T) {
+	opts := DiscoverOptions{
+		IncludeCached: false,
+		ScanHome:      false,
+		MaxDepth:      2,
+		ScanPaths:     []string{},
+	}
+
+	count, err := DiscoverAndRegister(opts)
+	if err != nil {
+		t.Fatalf("DiscoverAndRegister failed: %v", err)
+	}
+
+	// Should register 0 new workspaces
+	if count != 0 {
+		t.Errorf("expected 0 new registrations, got %d", count)
+	}
+}
+
+func TestDiscoverSkipsVendorDir(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a vendor directory with a workspace
+	vendorDir := filepath.Join(tmpDir, "vendor")
+	vendorWsDir := filepath.Join(vendorDir, "some-dep")
+	vendorBcDir := filepath.Join(vendorWsDir, ".bc")
+
+	if err := os.MkdirAll(vendorBcDir, 0750); err != nil {
+		t.Fatalf("failed to create vendor workspace dir: %v", err)
+	}
+
+	configPath := filepath.Join(vendorBcDir, "config.toml")
+	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"vendor-pkg\"\n"), 0600); err != nil {
+		t.Fatalf("failed to create config: %v", err)
+	}
+
+	opts := DiscoverOptions{
+		IncludeCached: false,
+		ScanHome:      false,
+		MaxDepth:      3,
+		ScanPaths:     []string{tmpDir},
+	}
+
+	workspaces, err := Discover(opts)
+	if err != nil {
+		t.Fatalf("Discover failed: %v", err)
+	}
+
+	// Should not find the vendor workspace
+	for _, ws := range workspaces {
+		if ws.Name == "vendor-pkg" {
+			t.Error("expected vendor workspace to be skipped")
+		}
+	}
+}
+
+func TestDiscoverSkipsPycacheDir(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a __pycache__ directory with a workspace
+	pycacheDir := filepath.Join(tmpDir, "__pycache__")
+	pycacheWsDir := filepath.Join(pycacheDir, "module")
+	pycacheBcDir := filepath.Join(pycacheWsDir, ".bc")
+
+	if err := os.MkdirAll(pycacheBcDir, 0750); err != nil {
+		t.Fatalf("failed to create __pycache__ workspace dir: %v", err)
+	}
+
+	configPath := filepath.Join(pycacheBcDir, "config.toml")
+	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"pycache-pkg\"\n"), 0600); err != nil {
+		t.Fatalf("failed to create config: %v", err)
+	}
+
+	opts := DiscoverOptions{
+		IncludeCached: false,
+		ScanHome:      false,
+		MaxDepth:      3,
+		ScanPaths:     []string{tmpDir},
+	}
+
+	workspaces, err := Discover(opts)
+	if err != nil {
+		t.Fatalf("Discover failed: %v", err)
+	}
+
+	// Should not find the __pycache__ workspace
+	for _, ws := range workspaces {
+		if ws.Name == "pycache-pkg" {
+			t.Error("expected __pycache__ workspace to be skipped")
+		}
+	}
+}
+
+func TestDiscoverScanDirNegativeDepth(t *testing.T) {
+	tmpDir := t.TempDir()
+	seen := make(map[string]bool)
+	var workspaces []DiscoveredWorkspace
+	var mu = &sync.Mutex{}
+
+	// With negative maxDepth, scanDir should return immediately
+	scanDir(tmpDir, -1, seen, &workspaces, mu)
+
+	if len(workspaces) != 0 {
+		t.Errorf("expected 0 workspaces with negative depth, got %d", len(workspaces))
+	}
+}
+
+func TestDiscoverDuplicatePath(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a workspace
+	wsDir := filepath.Join(tmpDir, "dup-workspace")
+	bcDir := filepath.Join(wsDir, ".bc")
+	if err := os.MkdirAll(bcDir, 0750); err != nil {
+		t.Fatalf("failed to create workspace dir: %v", err)
+	}
+
+	configPath := filepath.Join(bcDir, "config.toml")
+	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"dup-workspace\"\n"), 0600); err != nil {
+		t.Fatalf("failed to create config: %v", err)
+	}
+
+	opts := DiscoverOptions{
+		IncludeCached: false,
+		ScanHome:      false,
+		MaxDepth:      2,
+		// Pass same path twice to test deduplication
+		ScanPaths: []string{tmpDir, tmpDir},
+	}
+
+	workspaces, err := Discover(opts)
+	if err != nil {
+		t.Fatalf("Discover failed: %v", err)
+	}
+
+	// Should find workspace only once
+	count := 0
+	for _, ws := range workspaces {
+		if ws.Name == "dup-workspace" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected 1 workspace (deduped), got %d", count)
 	}
 }
