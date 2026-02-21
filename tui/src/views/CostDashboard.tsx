@@ -9,6 +9,7 @@ import { ErrorDisplay } from '../components/ErrorDisplay.js';
 import { ProgressBar, InlineProgressBar } from '../components/ProgressBar.js';
 import { Sparkline } from '../components/Sparkline.js';
 import { useCosts } from '../hooks';
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout.js';
 
 interface CostDashboardProps {
   onBack?: () => void;
@@ -44,6 +45,8 @@ export function CostDashboard({ onBack }: CostDashboardProps) {
   const { stdout } = useStdout();
   const terminalWidth = stdout.columns;
   const { data: costs, loading, error, refresh } = useCosts();
+  const { isCompact, isMinimal, canMultiColumn } = useResponsiveLayout();
+  const isNarrow = isCompact || isMinimal;
 
   // UI state
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -204,44 +207,64 @@ export function CostDashboard({ onBack }: CostDashboardProps) {
         {loading && <Text color="cyan"> (refreshing...)</Text>}
       </Box>
 
-      {/* Budget Progress */}
-      <Panel title="Budget">
-        <Box flexDirection="column">
+      {/* Budget Progress - #1346: Compact layout for narrow terminals */}
+      {isNarrow ? (
+        <Box flexDirection="column" marginBottom={1}>
           <Box>
-            <Text>Total: </Text>
+            <Text bold dimColor>Budget: </Text>
             <Text bold color={budgetPercent >= 80 ? 'red' : budgetPercent >= 50 ? 'yellow' : 'green'}>
               ${totalCost.toFixed(2)}
             </Text>
-            <Text dimColor> / ${budget.toFixed(2)}</Text>
-          </Box>
-          <Box marginTop={1}>
-            <ProgressBar
-              value={totalCost}
-              max={budget}
-              width={Math.min(30, terminalWidth - 20)}
-              showPercent
-              colorThresholds={{ warning: 50, critical: 80 }}
-            />
-          </Box>
-          {budgetPercent >= 80 && (
-            <Box marginTop={1}>
-              <Text color="red" bold>
-                {budgetPercent >= 100 ? '! BUDGET EXCEEDED' : '! Approaching budget limit'}
-              </Text>
-            </Box>
-          )}
-          {/* Cost trend sparkline */}
-          <Box marginTop={1}>
-            <Sparkline
-              data={trendData}
-              width={Math.min(30, terminalWidth - 20)}
-              color={budgetPercent >= 80 ? 'red' : 'cyan'}
-              label="Trend"
-              showRange
-            />
+            <Text dimColor>/${budget.toFixed(2)} </Text>
+            <Text color={budgetPercent >= 80 ? 'red' : budgetPercent >= 50 ? 'yellow' : 'green'}>
+              {'█'.repeat(Math.round((budgetPercent / 100) * 10))}
+            </Text>
+            <Text dimColor>{'░'.repeat(10 - Math.round((budgetPercent / 100) * 10))}</Text>
+            <Text> {budgetPercent.toFixed(0)}%</Text>
+            {budgetPercent >= 80 && <Text color="red"> !</Text>}
           </Box>
         </Box>
-      </Panel>
+      ) : (
+        <Panel title="Budget">
+          <Box flexDirection="column">
+            <Box>
+              <Text>Total: </Text>
+              <Text bold color={budgetPercent >= 80 ? 'red' : budgetPercent >= 50 ? 'yellow' : 'green'}>
+                ${totalCost.toFixed(2)}
+              </Text>
+              <Text dimColor> / ${budget.toFixed(2)}</Text>
+            </Box>
+            <Box marginTop={1}>
+              <ProgressBar
+                value={totalCost}
+                max={budget}
+                width={Math.min(30, terminalWidth - 20)}
+                showPercent
+                colorThresholds={{ warning: 50, critical: 80 }}
+              />
+            </Box>
+            {budgetPercent >= 80 && (
+              <Box marginTop={1}>
+                <Text color="red" bold>
+                  {budgetPercent >= 100 ? '! BUDGET EXCEEDED' : '! Approaching budget limit'}
+                </Text>
+              </Box>
+            )}
+            {/* Cost trend sparkline - hide on narrow */}
+            {canMultiColumn && (
+              <Box marginTop={1}>
+                <Sparkline
+                  data={trendData}
+                  width={Math.min(30, terminalWidth - 20)}
+                  color={budgetPercent >= 80 ? 'red' : 'cyan'}
+                  label="Trend"
+                  showRange
+                />
+              </Box>
+            )}
+          </Box>
+        </Panel>
+      )}
 
       {/* Budget Input Modal */}
       {showBudgetInput && (
@@ -259,26 +282,37 @@ export function CostDashboard({ onBack }: CostDashboardProps) {
       )}
 
 
-      {/* Summary Metrics */}
-      <Box marginBottom={1}>
-        <MetricCard
-          value={totalCost.toFixed(2)}
-          label="Total Cost"
-          prefix="$"
-          color={budgetPercent >= 80 ? 'red' : budgetPercent >= 50 ? 'yellow' : 'green'}
-        />
-        <MetricCard
-          value={formatNumber(inputTokens)}
-          label="Input"
-          color="cyan"
-        />
-        <MetricCard
-          value={formatNumber(outputTokens)}
-          label="Output"
-          color="cyan"
-        />
-        <MetricCard value={formatNumber(totalTokens)} label="Total" />
-      </Box>
+      {/* Summary Metrics - #1346: Inline text for narrow terminals */}
+      {isNarrow ? (
+        <Box marginBottom={1}>
+          <Text bold dimColor>Tokens: </Text>
+          <Text color="cyan">{formatNumber(inputTokens)} in</Text>
+          <Text> · </Text>
+          <Text color="cyan">{formatNumber(outputTokens)} out</Text>
+          <Text> · </Text>
+          <Text>{formatNumber(totalTokens)} total</Text>
+        </Box>
+      ) : (
+        <Box marginBottom={1}>
+          <MetricCard
+            value={totalCost.toFixed(2)}
+            label="Total Cost"
+            prefix="$"
+            color={budgetPercent >= 80 ? 'red' : budgetPercent >= 50 ? 'yellow' : 'green'}
+          />
+          <MetricCard
+            value={formatNumber(inputTokens)}
+            label="Input"
+            color="cyan"
+          />
+          <MetricCard
+            value={formatNumber(outputTokens)}
+            label="Output"
+            color="cyan"
+          />
+          <MetricCard value={formatNumber(totalTokens)} label="Total" />
+        </Box>
+      )}
 
       {/* Tab Navigation */}
       <Box marginBottom={1}>
@@ -287,48 +321,75 @@ export function CostDashboard({ onBack }: CostDashboardProps) {
         <TabButton label="3: Teams" active={activeTab === 'team'} />
       </Box>
 
-      {/* Breakdown Table */}
-      <Panel title={`By ${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}`}>
-        {activeData.length === 0 ? (
-          <Text dimColor>No {activeTab} costs recorded</Text>
-        ) : (
-          <DataTable
-            columns={[
-              {
-                key: 'name',
-                header: activeTab.toUpperCase(),
-                width: nameWidth,
-                render: (value: string | number) => (
-                  <Text>
-                    {String(value).slice(0, nameWidth - 2)}
+      {/* Breakdown Table - #1346: Compact borderless for narrow terminals */}
+      {isNarrow ? (
+        <Box flexDirection="column" marginBottom={1}>
+          <Box marginBottom={1}>
+            <Text bold dimColor>By {activeTab}: </Text>
+          </Box>
+          {activeData.length === 0 ? (
+            <Text dimColor>No {activeTab} costs recorded</Text>
+          ) : (
+            <Box flexDirection="column">
+              {activeData.slice(0, 5).map((item, idx) => (
+                <Box key={item.name}>
+                  <Text color={idx === selectedIndex ? 'cyan' : undefined}>
+                    {idx === selectedIndex ? '>' : ' '}
                   </Text>
-                ),
-              },
-              {
-                key: 'cost',
-                header: 'COST',
-                width: 10,
-                render: (value: string | number) => (
-                  <Text color="yellow">${(value as number).toFixed(2)}</Text>
-                ),
-              },
-              {
-                key: 'pct',
-                header: 'SHARE',
-                width: barWidth,
-                render: (value: string | number) => (
-                  <InlineProgressBar value={value as number} width={barWidth - 2} />
-                ),
-              },
-            ]}
-            data={activeData.slice(0, 10)}
-            selectedIndex={selectedIndex}
-          />
-        )}
-        {activeData.length > 10 && (
-          <Text dimColor>... and {activeData.length - 10} more</Text>
-        )}
-      </Panel>
+                  <Text>{item.name.slice(0, 10)}</Text>
+                  <Text color="yellow"> ${item.cost.toFixed(2)}</Text>
+                  <Text dimColor> ({item.pct.toFixed(0)}%)</Text>
+                </Box>
+              ))}
+              {activeData.length > 5 && (
+                <Text dimColor>+{activeData.length - 5} more</Text>
+              )}
+            </Box>
+          )}
+        </Box>
+      ) : (
+        <Panel title={`By ${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}`}>
+          {activeData.length === 0 ? (
+            <Text dimColor>No {activeTab} costs recorded</Text>
+          ) : (
+            <DataTable
+              columns={[
+                {
+                  key: 'name',
+                  header: activeTab.toUpperCase(),
+                  width: nameWidth,
+                  render: (value: string | number) => (
+                    <Text>
+                      {String(value).slice(0, nameWidth - 2)}
+                    </Text>
+                  ),
+                },
+                {
+                  key: 'cost',
+                  header: 'COST',
+                  width: 10,
+                  render: (value: string | number) => (
+                    <Text color="yellow">${(value as number).toFixed(2)}</Text>
+                  ),
+                },
+                {
+                  key: 'pct',
+                  header: 'SHARE',
+                  width: barWidth,
+                  render: (value: string | number) => (
+                    <InlineProgressBar value={value as number} width={barWidth - 2} />
+                  ),
+                },
+              ]}
+              data={activeData.slice(0, 10)}
+              selectedIndex={selectedIndex}
+            />
+          )}
+          {activeData.length > 10 && (
+            <Text dimColor>... and {activeData.length - 10} more</Text>
+          )}
+        </Panel>
+      )}
 
       {/* Export Status */}
       {exportStatus && (
