@@ -982,3 +982,131 @@ func TestStoreDeleteNonExistent(t *testing.T) {
 		t.Error("Delete nonexistent: expected error")
 	}
 }
+
+// --- SQLite-backed Store tests (#1309) ---
+
+// newSQLiteTestStore creates a Store backed by SQLite for testing
+func newSQLiteTestStore(t *testing.T) *Store {
+	t.Helper()
+	tmpDir := t.TempDir()
+	bcDir := filepath.Join(tmpDir, ".bc")
+	if err := os.MkdirAll(bcDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create SQLite store and open it
+	sqlite := NewSQLiteStore(tmpDir)
+	if err := sqlite.Open(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Return a Store with SQLite backend
+	store := &Store{
+		path:     filepath.Join(bcDir, "channels.json"),
+		channels: make(map[string]*Channel),
+		sqlite:   sqlite,
+	}
+	t.Cleanup(func() { _ = sqlite.Close() })
+	return store
+}
+
+// TestGetSQLiteBackend tests Get with SQLite backend
+func TestGetSQLiteBackend(t *testing.T) {
+	store := newSQLiteTestStore(t)
+
+	// Default channels exist (general, engineering, all)
+	ch, exists := store.Get("general")
+	if !exists {
+		t.Fatal("Get general: expected to exist")
+	}
+	if ch == nil {
+		t.Fatal("Get general: returned nil channel")
+	}
+	if ch.Name != "general" {
+		t.Errorf("Name = %q, want general", ch.Name)
+	}
+}
+
+// TestGetSQLiteBackendNotFound tests Get for non-existent channel with SQLite
+func TestGetSQLiteBackendNotFound(t *testing.T) {
+	store := newSQLiteTestStore(t)
+
+	_, exists := store.Get("nonexistent-channel")
+	if exists {
+		t.Error("Get nonexistent: should not exist")
+	}
+}
+
+// TestListSQLiteBackend tests List with SQLite backend
+func TestListSQLiteBackend(t *testing.T) {
+	store := newSQLiteTestStore(t)
+
+	channels := store.List()
+	if len(channels) < 3 {
+		t.Errorf("List: expected at least 3 default channels, got %d", len(channels))
+	}
+
+	// Check for default channels
+	names := make(map[string]bool)
+	for _, ch := range channels {
+		names[ch.Name] = true
+	}
+	for _, name := range []string{"general", "engineering", "all"} {
+		if !names[name] {
+			t.Errorf("List: missing default channel %q", name)
+		}
+	}
+}
+
+// TestCreateSQLiteBackend tests Create with SQLite backend
+func TestCreateSQLiteBackend(t *testing.T) {
+	store := newSQLiteTestStore(t)
+
+	ch, err := store.Create("test-channel-sqlite")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if ch.Name != "test-channel-sqlite" {
+		t.Errorf("Name = %q, want test-channel-sqlite", ch.Name)
+	}
+
+	// Verify it can be retrieved
+	got, exists := store.Get("test-channel-sqlite")
+	if !exists {
+		t.Fatal("Get after Create: should exist")
+	}
+	if got.Name != "test-channel-sqlite" {
+		t.Errorf("Name after Get = %q, want test-channel-sqlite", got.Name)
+	}
+}
+
+// TestCreateDuplicateSQLiteBackend tests Create duplicate with SQLite backend
+func TestCreateDuplicateSQLiteBackend(t *testing.T) {
+	store := newSQLiteTestStore(t)
+
+	_, err := store.Create("general") // Already exists
+	if err == nil {
+		t.Error("Create duplicate: expected error")
+	}
+}
+
+// TestDeleteSQLiteBackend tests Delete with SQLite backend
+func TestDeleteSQLiteBackend(t *testing.T) {
+	store := newSQLiteTestStore(t)
+
+	// Create a channel first
+	if _, err := store.Create("to-delete"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Delete it
+	if err := store.Delete("to-delete"); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+
+	// Verify it's gone
+	_, exists := store.Get("to-delete")
+	if exists {
+		t.Error("Get after Delete: should not exist")
+	}
+}
