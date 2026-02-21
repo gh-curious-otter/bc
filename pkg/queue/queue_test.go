@@ -683,3 +683,165 @@ func TestConstants(t *testing.T) {
 		t.Errorf("PriorityUrgent = %d, want %d", PriorityUrgent, 3)
 	}
 }
+
+func TestStoreCloseNil(t *testing.T) {
+	store := NewStore(t.TempDir())
+	// Close without Open should not error
+	err := store.Close()
+	if err != nil {
+		t.Errorf("Close() on unopened store error = %v", err)
+	}
+}
+
+func TestStoreOpenInvalidPath(t *testing.T) {
+	// Use path that will fail to create database
+	store := NewStore("/nonexistent/path/that/does/not/exist")
+	ctx := context.Background()
+
+	err := store.Open(ctx)
+	if err == nil {
+		t.Error("Open() should fail for invalid path")
+	}
+}
+
+func TestAddWorkWithMetadata(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck
+
+	item := &WorkItem{
+		AgentID:     "eng-01",
+		Title:       "Test work",
+		Description: "Test description",
+		Priority:    PriorityNormal,
+		Metadata:    `{"key": "value"}`,
+	}
+
+	if err := store.AddWork(ctx, item); err != nil {
+		t.Fatalf("AddWork() error = %v", err)
+	}
+
+	if item.ID == 0 {
+		t.Error("item.ID should be set after AddWork")
+	}
+}
+
+func TestListWorkByStatus(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck
+
+	// Add items with different statuses
+	item1 := &WorkItem{AgentID: "eng-01", Title: "Pending", Status: StatusPending}
+	item2 := &WorkItem{AgentID: "eng-01", Title: "In Progress", Status: StatusInProgress}
+
+	if err := store.AddWork(ctx, item1); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AddWork(ctx, item2); err != nil {
+		t.Fatal(err)
+	}
+
+	// List by status
+	items, err := store.ListWork(ctx, "eng-01", StatusPending)
+	if err != nil {
+		t.Fatalf("ListWork() error = %v", err)
+	}
+
+	if len(items) != 1 {
+		t.Errorf("len(items) = %d, want 1", len(items))
+	}
+}
+
+func TestSubmitWorkAndMerge(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck
+
+	// Add work item
+	work := &WorkItem{
+		AgentID: "eng-01",
+		Title:   "Feature work",
+		Status:  StatusCompleted, // Must be completed to submit
+		Branch:  "feature/test",
+	}
+	if err := store.AddWork(ctx, work); err != nil {
+		t.Fatal(err)
+	}
+
+	// Submit work for merge
+	merge, err := store.Submit(ctx, work.ID, "tl-01")
+	if err != nil {
+		t.Fatalf("Submit() error = %v", err)
+	}
+
+	if merge.FromAgent != "eng-01" {
+		t.Errorf("merge.FromAgent = %q, want %q", merge.FromAgent, "eng-01")
+	}
+	if merge.AgentID != "tl-01" {
+		t.Errorf("merge.AgentID = %q, want %q", merge.AgentID, "tl-01")
+	}
+}
+
+func TestSubmitWorkNotFoundExtra(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck
+
+	_, err := store.Submit(ctx, 99999, "tl-01")
+	if err == nil {
+		t.Error("Submit() should fail for non-existent work item")
+	}
+}
+
+func TestListMergeByAgent(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck
+
+	// Add merge items for different agents
+	item1 := &MergeItem{AgentID: "tl-01", Title: "PR 1", Branch: "b1", Status: MergeStatusPending}
+	item2 := &MergeItem{AgentID: "tl-02", Title: "PR 2", Branch: "b2", Status: MergeStatusPending}
+
+	if err := store.AddMerge(ctx, item1); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AddMerge(ctx, item2); err != nil {
+		t.Fatal(err)
+	}
+
+	// List for specific agent
+	items, err := store.ListMerge(ctx, "tl-01", "")
+	if err != nil {
+		t.Fatalf("ListMerge() error = %v", err)
+	}
+
+	if len(items) != 1 {
+		t.Errorf("len(items) = %d, want 1", len(items))
+	}
+}
