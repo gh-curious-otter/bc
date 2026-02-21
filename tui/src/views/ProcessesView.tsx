@@ -10,6 +10,7 @@ import { Table } from '../components/Table';
 import type { Column } from '../components/Table';
 import { StatusBadge } from '../components/StatusBadge';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { HeaderBar } from '../components/HeaderBar';
 import type { Process } from '../types';
 
 /** Detail item for DetailPane integration (#1419) */
@@ -229,16 +230,14 @@ export function ProcessesView({ onBack, onSelectItem }: ProcessesViewProps) {
 
   return (
     <Box flexDirection="column">
-      {/* Header */}
-      <Box marginBottom={1}>
-        <Text bold color="magenta">
-          Processes ({processList.length})
-        </Text>
-        {searchQuery && (
-          <Text color="cyan"> [/] &quot;{searchQuery}&quot;</Text>
-        )}
-        {loading && <Text color="gray"> (refreshing...)</Text>}
-      </Box>
+      {/* Header - using shared HeaderBar component (#1419) */}
+      <HeaderBar
+        title="Processes"
+        count={processList.length}
+        loading={loading}
+        color="magenta"
+        subtitle={searchQuery ? `Search: "${searchQuery}"` : undefined}
+      />
 
       {processList.length === 0 ? (
         <Box padding={1}>
