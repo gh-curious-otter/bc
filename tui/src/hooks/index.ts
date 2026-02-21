@@ -160,3 +160,19 @@ export {
   type UseFadeOptions,
   type UseFadeResult,
 } from './useAnimation';
+
+export {
+  useKeybindingHints,
+  getStatusBarHints,
+  formatHintsForStatusBar,
+  getViewForKey,
+  matchesKey,
+  DEFAULT_VIEW_SHORTCUTS,
+  DEFAULT_VIEW_NUMBERS,
+  type KeyHint,
+  type Keybinding,
+  type GlobalBindings,
+  type ViewBindings,
+  type ContextBindings,
+  type KeybindingConfig,
+} from './useKeybindings';
