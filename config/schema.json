@@ -1,0 +1,318 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rpuneet/bc/config/schema.json",
+  "title": "bc Configuration Schema",
+  "description": "JSON Schema for bc workspace configuration (config.toml)",
+  "type": "object",
+  "properties": {
+    "workspace": {
+      "type": "object",
+      "description": "Workspace settings",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Workspace name - typically your project name",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "version": {
+          "type": "integer",
+          "description": "Config schema version (DO NOT CHANGE unless migrating)",
+          "enum": [1, 2],
+          "default": 2
+        }
+      },
+      "required": ["name", "version"]
+    },
+    "worktrees": {
+      "type": "object",
+      "description": "Git worktree settings for agent isolation",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Directory for agent-specific git worktrees (relative to workspace root)",
+          "default": ".bc/worktrees"
+        },
+        "auto_cleanup": {
+          "type": "boolean",
+          "description": "Automatically cleanup worktrees when agents are stopped",
+          "default": true
+        }
+      }
+    },
+    "tools": {
+      "type": "object",
+      "description": "AI tools configuration",
+      "properties": {
+        "default": {
+          "type": "string",
+          "description": "Default tool to use when spawning agents",
+          "enum": ["claude", "gemini", "cursor", "codex"],
+          "default": "claude"
+        },
+        "claude": {
+          "$ref": "#/$defs/tool"
+        },
+        "gemini": {
+          "$ref": "#/$defs/tool"
+        },
+        "cursor": {
+          "$ref": "#/$defs/tool"
+        },
+        "codex": {
+          "$ref": "#/$defs/tool"
+        },
+        "github": {
+          "$ref": "#/$defs/tool"
+        },
+        "gitlab": {
+          "$ref": "#/$defs/tool"
+        },
+        "jira": {
+          "$ref": "#/$defs/tool"
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/tool"
+      },
+      "required": ["default"]
+    },
+    "memory": {
+      "type": "object",
+      "description": "Agent memory system settings",
+      "properties": {
+        "backend": {
+          "type": "string",
+          "description": "Memory backend type",
+          "enum": ["file", "sqlite"],
+          "default": "file"
+        },
+        "path": {
+          "type": "string",
+          "description": "Directory for agent memory, experiences, and learnings",
+          "default": ".bc/memory"
+        }
+      }
+    },
+    "channels": {
+      "type": "object",
+      "description": "Communication channels settings",
+      "properties": {
+        "default": {
+          "type": "array",
+          "description": "Default channels created on workspace initialization",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "pattern": "^[a-z0-9_-]+$"
+          },
+          "default": ["general", "engineering"]
+        }
+      }
+    },
+    "roster": {
+      "type": "object",
+      "description": "Default agent roster for 'bc up'",
+      "properties": {
+        "engineers": {
+          "type": "integer",
+          "description": "Number of engineer agents to spawn",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 4
+        },
+        "tech_leads": {
+          "type": "integer",
+          "description": "Number of tech-lead agents to spawn",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 2
+        },
+        "qa": {
+          "type": "integer",
+          "description": "Number of QA agents to spawn",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 2
+        }
+      }
+    },
+    "tmux": {
+      "type": "object",
+      "description": "Tmux session settings",
+      "properties": {
+        "session_prefix": {
+          "type": "string",
+          "description": "Prefix for tmux session names",
+          "default": "bc-",
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        }
+      }
+    },
+    "performance": {
+      "type": "object",
+      "description": "Performance and polling settings",
+      "properties": {
+        "poll_interval_agents": {
+          "type": "integer",
+          "description": "Agent status update interval (ms)",
+          "minimum": 500,
+          "maximum": 30000,
+          "default": 2000
+        },
+        "poll_interval_channels": {
+          "type": "integer",
+          "description": "Channel message polling interval (ms)",
+          "minimum": 500,
+          "maximum": 30000,
+          "default": 3000
+        },
+        "poll_interval_costs": {
+          "type": "integer",
+          "description": "Cost data refresh interval (ms)",
+          "minimum": 500,
+          "maximum": 30000,
+          "default": 5000
+        },
+        "poll_interval_status": {
+          "type": "integer",
+          "description": "Dashboard status refresh interval (ms)",
+          "minimum": 500,
+          "maximum": 30000,
+          "default": 2000
+        },
+        "poll_interval_logs": {
+          "type": "integer",
+          "description": "Log viewer refresh interval (ms)",
+          "minimum": 500,
+          "maximum": 30000,
+          "default": 3000
+        },
+        "poll_interval_teams": {
+          "type": "integer",
+          "description": "Team data refresh interval (ms)",
+          "minimum": 500,
+          "maximum": 60000,
+          "default": 10000
+        },
+        "poll_interval_demons": {
+          "type": "integer",
+          "description": "Scheduled tasks refresh interval (ms)",
+          "minimum": 500,
+          "maximum": 30000,
+          "default": 5000
+        },
+        "cache_ttl_tmux": {
+          "type": "integer",
+          "description": "Tmux session state cache TTL (ms)",
+          "minimum": 500,
+          "maximum": 30000,
+          "default": 2000
+        },
+        "cache_ttl_commands": {
+          "type": "integer",
+          "description": "CLI command result cache TTL (ms)",
+          "minimum": 500,
+          "maximum": 30000,
+          "default": 5000
+        },
+        "adaptive_fast_interval": {
+          "type": "integer",
+          "description": "Fast polling interval when agents are active (ms)",
+          "minimum": 500,
+          "maximum": 10000,
+          "default": 1000
+        },
+        "adaptive_normal_interval": {
+          "type": "integer",
+          "description": "Normal polling interval (ms)",
+          "minimum": 500,
+          "maximum": 10000,
+          "default": 2000
+        },
+        "adaptive_slow_interval": {
+          "type": "integer",
+          "description": "Slow polling interval for low activity (ms)",
+          "minimum": 1000,
+          "maximum": 20000,
+          "default": 4000
+        },
+        "adaptive_max_interval": {
+          "type": "integer",
+          "description": "Maximum backoff interval (ms)",
+          "minimum": 2000,
+          "maximum": 60000,
+          "default": 8000
+        }
+      }
+    },
+    "agent_legacy": {
+      "type": "object",
+      "description": "Legacy agent defaults (internal use)",
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Default agent command"
+        }
+      }
+    },
+    "agents": {
+      "type": "array",
+      "description": "Agent type definitions",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Agent type name",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "command": {
+            "type": "string",
+            "description": "Command to run this agent type",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description"
+          }
+        },
+        "required": ["name", "command"]
+      }
+    },
+    "user": {
+      "type": "object",
+      "description": "User settings",
+      "properties": {
+        "nickname": {
+          "type": "string",
+          "description": "Nickname shown in channel messages (must start with @)",
+          "pattern": "^@[a-zA-Z0-9_-]{1,15}$",
+          "maxLength": 16
+        }
+      }
+    }
+  },
+  "required": ["workspace"],
+  "$defs": {
+    "tool": {
+      "type": "object",
+      "description": "AI tool configuration",
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Command to execute this tool",
+          "minLength": 1
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether this tool is enabled",
+          "default": false
+        }
+      },
+      "required": ["command"]
+    }
+  }
+}
