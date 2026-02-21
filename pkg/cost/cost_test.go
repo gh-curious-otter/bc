@@ -1374,3 +1374,132 @@ func TestGetByTeamEmpty(t *testing.T) {
 		t.Errorf("GetByTeam nonexistent returned %d records, want 0", len(records))
 	}
 }
+
+// TestCheckBudgetWeeklyPeriod tests CheckBudget with weekly period
+func TestCheckBudgetWeeklyPeriod(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Create weekly budget
+	_, err := store.SetBudget("workspace", BudgetPeriodWeekly, 500.0, 0.75, false)
+	if err != nil {
+		t.Fatalf("SetBudget failed: %v", err)
+	}
+
+	// Add records
+	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 100.0)
+	_, _ = store.Record("agent-2", "", "model-a", 200, 100, 150.0)
+
+	status, err := store.CheckBudget("workspace")
+	if err != nil {
+		t.Fatalf("CheckBudget failed: %v", err)
+	}
+	if status == nil {
+		t.Fatal("status should not be nil")
+	}
+	if status.CurrentSpend != 250.0 {
+		t.Errorf("CurrentSpend = %f, want 250.0", status.CurrentSpend)
+	}
+	if status.Remaining != 250.0 {
+		t.Errorf("Remaining = %f, want 250.0", status.Remaining)
+	}
+}
+
+// TestCheckBudgetMonthlyPeriod tests CheckBudget with monthly period
+func TestCheckBudgetMonthlyPeriod(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Create monthly budget
+	_, err := store.SetBudget("workspace", BudgetPeriodMonthly, 1000.0, 0.9, true)
+	if err != nil {
+		t.Fatalf("SetBudget failed: %v", err)
+	}
+
+	// Add records
+	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 200.0)
+
+	status, err := store.CheckBudget("workspace")
+	if err != nil {
+		t.Fatalf("CheckBudget failed: %v", err)
+	}
+	if status == nil {
+		t.Fatal("status should not be nil")
+	}
+	if status.CurrentSpend != 200.0 {
+		t.Errorf("CurrentSpend = %f, want 200.0", status.CurrentSpend)
+	}
+}
+
+// TestCheckBudgetAgentScope tests CheckBudget with agent scope
+func TestCheckBudgetAgentScope(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Create agent-scoped budget
+	_, err := store.SetBudget("agent:eng-01", BudgetPeriodDaily, 50.0, 0.8, true)
+	if err != nil {
+		t.Fatalf("SetBudget failed: %v", err)
+	}
+
+	// Add records for different agents
+	_, _ = store.Record("eng-01", "", "model-a", 100, 50, 20.0)
+	_, _ = store.Record("eng-02", "", "model-a", 200, 100, 30.0) // different agent
+
+	status, err := store.CheckBudget("agent:eng-01")
+	if err != nil {
+		t.Fatalf("CheckBudget failed: %v", err)
+	}
+	if status == nil {
+		t.Fatal("status should not be nil")
+	}
+	// Should only count eng-01's spend
+	if status.CurrentSpend != 20.0 {
+		t.Errorf("CurrentSpend = %f, want 20.0", status.CurrentSpend)
+	}
+}
+
+// TestCheckBudgetTeamScope tests CheckBudget with team scope
+func TestCheckBudgetTeamScope(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Create team-scoped budget
+	_, err := store.SetBudget("team:backend", BudgetPeriodDaily, 200.0, 0.7, false)
+	if err != nil {
+		t.Fatalf("SetBudget failed: %v", err)
+	}
+
+	// Add records for different teams
+	_, _ = store.Record("eng-01", "backend", "model-a", 100, 50, 40.0)
+	_, _ = store.Record("eng-02", "backend", "model-a", 200, 100, 60.0)
+	_, _ = store.Record("eng-03", "frontend", "model-a", 300, 150, 80.0) // different team
+
+	status, err := store.CheckBudget("team:backend")
+	if err != nil {
+		t.Fatalf("CheckBudget failed: %v", err)
+	}
+	if status == nil {
+		t.Fatal("status should not be nil")
+	}
+	// Should only count backend team's spend
+	if status.CurrentSpend != 100.0 {
+		t.Errorf("CurrentSpend = %f, want 100.0", status.CurrentSpend)
+	}
+}
