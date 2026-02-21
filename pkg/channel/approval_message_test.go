@@ -337,3 +337,30 @@ func TestMergeRoundTrip(t *testing.T) {
 		t.Errorf("Branch = %q, want %q", parsed.Branch, "main")
 	}
 }
+
+func TestIsApprovalMessage(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    bool
+	}{
+		{"approved message", "PR #123 approved ✓", true},
+		{"lgtm message", "LGTM PR #456", true},
+		{"needs changes", "PR #100 needs changes", true},
+		{"regular message", "Hello everyone", false},
+		{"empty message", "", false},
+		{"pr mention context", "I submitted PR #999", true}, // Contains "pr" keyword
+		{"emoji approval", "PR #300 ✅", true},
+		{"no pr number", "This looks good", false},
+		{"unrelated text", "The weather is nice", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := IsApprovalMessage(tc.content)
+			if got != tc.want {
+				t.Errorf("IsApprovalMessage(%q) = %v, want %v", tc.content, got, tc.want)
+			}
+		})
+	}
+}
