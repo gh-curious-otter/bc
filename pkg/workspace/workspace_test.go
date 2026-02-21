@@ -994,3 +994,221 @@ func TestWorkspaceDefaultChannels(t *testing.T) {
 		t.Errorf("DefaultChannels len = %d, want 2", len(channels))
 	}
 }
+
+func TestWorkspaceDefaultToolV1(t *testing.T) {
+	dir := t.TempDir()
+
+	ws, err := Init(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// V1 default tool is claude
+	if ws.DefaultTool() != "claude" {
+		t.Errorf("DefaultTool v1 = %q, want claude", ws.DefaultTool())
+	}
+
+	// V1 default command
+	if ws.DefaultToolCommand() != "claude --dangerously-skip-permissions" {
+		t.Errorf("DefaultToolCommand v1 = %q, want default claude command", ws.DefaultToolCommand())
+	}
+}
+
+func TestWorkspaceDefaultToolV1WithConfig(t *testing.T) {
+	dir := t.TempDir()
+
+	ws, err := Init(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Set custom tool in v1 config
+	ws.Config.Tool = "cursor"
+	ws.Config.AgentCommand = "cursor --wait"
+
+	if ws.DefaultTool() != "cursor" {
+		t.Errorf("DefaultTool v1 custom = %q, want cursor", ws.DefaultTool())
+	}
+
+	if ws.DefaultToolCommand() != "cursor --wait" {
+		t.Errorf("DefaultToolCommand v1 custom = %q, want cursor --wait", ws.DefaultToolCommand())
+	}
+}
+
+func TestWorkspaceDefaultChannelsV1(t *testing.T) {
+	dir := t.TempDir()
+
+	ws, err := Init(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	channels := ws.DefaultChannels()
+	if len(channels) != 2 {
+		t.Errorf("DefaultChannels v1 len = %d, want 2", len(channels))
+	}
+	if channels[0] != "general" {
+		t.Errorf("First channel = %q, want general", channels[0])
+	}
+	if channels[1] != "engineering" {
+		t.Errorf("Second channel = %q, want engineering", channels[1])
+	}
+}
+
+func TestWorkspaceMemoryDir(t *testing.T) {
+	dir := t.TempDir()
+
+	ws, err := InitV2(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	memDir := ws.MemoryDir()
+	if memDir == "" {
+		t.Error("MemoryDir should not be empty")
+	}
+
+	// Should contain .bc/memory
+	expected := filepath.Join(dir, ".bc", "memory")
+	if memDir != expected {
+		t.Errorf("MemoryDir = %q, want %q", memDir, expected)
+	}
+}
+
+func TestWorkspaceWorktreesDir(t *testing.T) {
+	dir := t.TempDir()
+
+	ws, err := InitV2(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wtDir := ws.WorktreesDir()
+	if wtDir == "" {
+		t.Error("WorktreesDir should not be empty")
+	}
+
+	// Should contain .bc/worktrees
+	expected := filepath.Join(dir, ".bc", "worktrees")
+	if wtDir != expected {
+		t.Errorf("WorktreesDir = %q, want %q", wtDir, expected)
+	}
+}
+
+func TestWorkspaceMemoryDirV1(t *testing.T) {
+	dir := t.TempDir()
+
+	ws, err := Init(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	memDir := ws.MemoryDir()
+	// V1 should still return a memory dir path
+	if memDir == "" {
+		t.Error("MemoryDir should not be empty for v1")
+	}
+}
+
+func TestWorkspaceWorktreesDirV1(t *testing.T) {
+	dir := t.TempDir()
+
+	ws, err := Init(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wtDir := ws.WorktreesDir()
+	// V1 should still return a worktrees dir path
+	if wtDir == "" {
+		t.Error("WorktreesDir should not be empty for v1")
+	}
+}
+
+func TestCopyDefaultPrompts(t *testing.T) {
+	// Create source directory with prompts
+	rootDir := t.TempDir()
+	sourceDir := filepath.Join(rootDir, "prompts")
+	if err := os.MkdirAll(sourceDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a test prompt file
+	testPrompt := "This is a test prompt."
+	if err := os.WriteFile(filepath.Join(sourceDir, "test.md"), []byte(testPrompt), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create state directory and prompts subdirectory
+	stateDir := filepath.Join(rootDir, ".bc")
+	destDir := filepath.Join(stateDir, "prompts")
+	if err := os.MkdirAll(destDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Copy prompts
+	if err := copyDefaultPrompts(rootDir, stateDir); err != nil {
+		t.Fatalf("copyDefaultPrompts: %v", err)
+	}
+
+	// Verify prompt was copied
+	destPath := filepath.Join(stateDir, "prompts", "test.md")
+	data, err := os.ReadFile(destPath) //nolint:gosec // test file path
+	if err != nil {
+		t.Fatalf("copied file not found: %v", err)
+	}
+	if string(data) != testPrompt {
+		t.Errorf("copied content = %q, want %q", string(data), testPrompt)
+	}
+}
+
+func TestCopyDefaultPromptsNoSource(t *testing.T) {
+	// When no prompts directory exists, should silently succeed
+	rootDir := t.TempDir()
+	stateDir := filepath.Join(rootDir, ".bc")
+	if err := os.MkdirAll(stateDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Should not error
+	if err := copyDefaultPrompts(rootDir, stateDir); err != nil {
+		t.Errorf("copyDefaultPrompts without source should not error: %v", err)
+	}
+}
+
+func TestCopyDefaultPromptsExistingDest(t *testing.T) {
+	// Create source directory with prompts
+	rootDir := t.TempDir()
+	sourceDir := filepath.Join(rootDir, "prompts")
+	if err := os.MkdirAll(sourceDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceDir, "test.md"), []byte("source content"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create state directory with existing prompts
+	stateDir := filepath.Join(rootDir, ".bc")
+	destDir := filepath.Join(stateDir, "prompts")
+	if err := os.MkdirAll(destDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	// Create existing file with different content
+	if err := os.WriteFile(filepath.Join(destDir, "test.md"), []byte("existing content"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Copy should skip existing files (not overwrite)
+	if err := copyDefaultPrompts(rootDir, stateDir); err != nil {
+		t.Fatalf("copyDefaultPrompts: %v", err)
+	}
+
+	// Verify existing content was preserved
+	data, err := os.ReadFile(filepath.Join(destDir, "test.md")) //nolint:gosec // test file path
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "existing content" {
+		t.Errorf("existing file was overwritten, got %q", string(data))
+	}
+}
