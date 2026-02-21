@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -537,6 +538,81 @@ func TestSQLiteStore_Reactions(t *testing.T) {
 	reactions, _ = store.GetReactions(msg.ID)
 	if len(reactions["🚀"]) != 1 {
 		t.Errorf("expected rocket reaction after toggle add, got %d", len(reactions["🚀"]))
+	}
+}
+
+func TestSQLiteStore_Close(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewSQLiteStore(tmpDir)
+
+	if err := store.Open(); err != nil {
+		t.Fatalf("failed to open store: %v", err)
+	}
+
+	// Close the store
+	if err := store.Close(); err != nil {
+		t.Fatalf("failed to close store: %v", err)
+	}
+
+	// Close again should be safe (db is nil)
+	if err := store.Close(); err != nil {
+		t.Errorf("second close should not error: %v", err)
+	}
+}
+
+func TestSQLiteStore_DB(t *testing.T) {
+	store := setupTestDB(t)
+
+	db := store.DB()
+	if db == nil {
+		t.Error("DB() should return non-nil connection")
+	}
+
+	// Verify the connection works
+	ctx := context.Background()
+	var result int
+	if err := db.QueryRowContext(ctx, "SELECT 1").Scan(&result); err != nil {
+		t.Fatalf("DB connection not working: %v", err)
+	}
+	if result != 1 {
+		t.Errorf("expected 1, got %d", result)
+	}
+}
+
+func TestSQLiteStore_SetChannelDescription(t *testing.T) {
+	store := setupTestDB(t)
+
+	// Create a channel
+	if _, err := store.CreateChannel("desc-test", ChannelTypeGroup, "Original description"); err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+
+	// Update description
+	if err := store.SetChannelDescription("desc-test", "Updated description"); err != nil {
+		t.Fatalf("failed to set description: %v", err)
+	}
+
+	// Verify update
+	ch, err := store.GetChannel("desc-test")
+	if err != nil {
+		t.Fatalf("failed to get channel: %v", err)
+	}
+	if ch.Description != "Updated description" {
+		t.Errorf("expected 'Updated description', got %q", ch.Description)
+	}
+
+	// Test nonexistent channel
+	err = store.SetChannelDescription("nonexistent", "desc")
+	if err == nil {
+		t.Error("expected error for nonexistent channel")
+	}
+}
+
+func TestSQLiteStore_CloseNilDB(t *testing.T) {
+	store := &SQLiteStore{}
+	// Close on nil db should not error
+	if err := store.Close(); err != nil {
+		t.Errorf("Close on nil db should not error: %v", err)
 	}
 }
 
