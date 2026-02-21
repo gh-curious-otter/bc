@@ -231,3 +231,104 @@ func TestDemonNextRun(t *testing.T) {
 		t.Error("NextRun should not be zero")
 	}
 }
+
+func TestSchedulerLoadStatusNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	scheduler := NewScheduler(tmpDir)
+
+	// loadStatus without creating status file
+	_, err := scheduler.loadStatus()
+	if err == nil {
+		t.Error("loadStatus() should error when status file doesn't exist")
+	}
+}
+
+func TestSchedulerLoadStatusInvalidJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	scheduler := NewScheduler(tmpDir)
+
+	// Create demons directory with invalid JSON
+	demonsDir := filepath.Join(tmpDir, ".bc", "demons")
+	if err := os.MkdirAll(demonsDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	statusFile := filepath.Join(demonsDir, "scheduler.json")
+	if err := os.WriteFile(statusFile, []byte("invalid json"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := scheduler.loadStatus()
+	if err == nil {
+		t.Error("loadStatus() should error on invalid JSON")
+	}
+}
+
+func TestSchedulerStatusStruct(t *testing.T) {
+	now := time.Now().UTC()
+	status := SchedulerStatus{
+		Running:   true,
+		PID:       12345,
+		StartedAt: now,
+		Uptime:    "1h30m",
+	}
+
+	if !status.Running {
+		t.Error("Running should be true")
+	}
+	if status.PID != 12345 {
+		t.Errorf("PID = %d, want 12345", status.PID)
+	}
+	if status.Uptime != "1h30m" {
+		t.Errorf("Uptime = %q, want '1h30m'", status.Uptime)
+	}
+	if status.StartedAt != now {
+		t.Errorf("StartedAt = %v, want %v", status.StartedAt, now)
+	}
+}
+
+func TestSchedulerReadPIDNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	scheduler := NewScheduler(tmpDir)
+
+	// readPID without PID file
+	_, err := scheduler.readPID()
+	if err == nil {
+		t.Error("readPID() should error when PID file doesn't exist")
+	}
+}
+
+func TestSchedulerReadPIDInvalidContent(t *testing.T) {
+	tmpDir := t.TempDir()
+	scheduler := NewScheduler(tmpDir)
+
+	// Create demons directory with invalid PID file
+	demonsDir := filepath.Join(tmpDir, ".bc", "demons")
+	if err := os.MkdirAll(demonsDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	pidFile := filepath.Join(demonsDir, "scheduler.pid")
+	if err := os.WriteFile(pidFile, []byte("not-a-number"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := scheduler.readPID()
+	if err == nil {
+		t.Error("readPID() should error on invalid PID content")
+	}
+}
+
+func TestSchedulerProcessRunningInvalidPID(t *testing.T) {
+	tmpDir := t.TempDir()
+	scheduler := NewScheduler(tmpDir)
+
+	// Process with PID -1 should not be running
+	if scheduler.processRunning(-1) {
+		t.Error("processRunning(-1) should return false")
+	}
+
+	// Process with PID 0 should not be running (or may be kernel)
+	// This test is platform-dependent, so we just verify no panic
+	_ = scheduler.processRunning(0)
+}
