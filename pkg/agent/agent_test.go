@@ -2277,3 +2277,435 @@ func TestCreateMemoryDir_Idempotent(t *testing.T) {
 		t.Errorf("memory dirs should match: %q != %q", memoryDir1, memoryDir2)
 	}
 }
+
+// --- Permission function tests ---
+
+func TestDefaultPermissions(t *testing.T) {
+	tests := []struct {
+		expectedContains   Permission
+		expectedNotContain Permission
+		name               string
+		roleLevel          int
+	}{
+		{
+			name:               "root level has all permissions",
+			roleLevel:          -1,
+			expectedContains:   PermCreateAgents,
+			expectedNotContain: "",
+		},
+		{
+			name:               "manager level has create agents",
+			roleLevel:          0,
+			expectedContains:   PermCreateAgents,
+			expectedNotContain: PermDeleteAgents,
+		},
+		{
+			name:               "engineer level has view logs",
+			roleLevel:          1,
+			expectedContains:   PermViewLogs,
+			expectedNotContain: PermCreateAgents,
+		},
+		{
+			name:               "worker level has send commands",
+			roleLevel:          2,
+			expectedContains:   PermSendCommands,
+			expectedNotContain: PermCreateChannels,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			perms := DefaultPermissions(tc.roleLevel)
+			if len(perms) == 0 && tc.roleLevel <= -1 {
+				t.Error("root level should have permissions")
+			}
+
+			if tc.expectedContains != "" {
+				found := false
+				for _, p := range perms {
+					if p == tc.expectedContains {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected permission %q not found", tc.expectedContains)
+				}
+			}
+
+			if tc.expectedNotContain != "" {
+				for _, p := range perms {
+					if p == tc.expectedNotContain {
+						t.Errorf("unexpected permission %q found", tc.expectedNotContain)
+						break
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestDefaultPermissions_AllLevels(t *testing.T) {
+	// Test root level has all permissions
+	rootPerms := DefaultPermissions(-1)
+	if len(rootPerms) != len(AllPermissions) {
+		t.Errorf("root level should have %d permissions, got %d", len(AllPermissions), len(rootPerms))
+	}
+
+	// Test manager level
+	mgrPerms := DefaultPermissions(0)
+	if len(mgrPerms) < 3 {
+		t.Errorf("manager level should have at least 3 permissions, got %d", len(mgrPerms))
+	}
+
+	// Test engineer level
+	engPerms := DefaultPermissions(1)
+	if len(engPerms) < 2 {
+		t.Errorf("engineer level should have at least 2 permissions, got %d", len(engPerms))
+	}
+}
+
+func TestCheckPermission(t *testing.T) {
+	tests := []struct { //nolint:govet // test struct alignment not critical
+		permissions []string
+		required    Permission
+		name        string
+		wantErr     bool
+	}{
+		{
+			name:        "has required permission",
+			permissions: []string{"can_create_agents", "can_view_logs", "can_send_commands"},
+			required:    PermCreateAgents,
+			wantErr:     false,
+		},
+		{
+			name:        "missing required permission",
+			permissions: []string{"can_view_logs", "can_send_commands"},
+			required:    PermCreateAgents,
+			wantErr:     true,
+		},
+		{
+			name:        "empty permissions",
+			permissions: []string{},
+			required:    PermViewLogs,
+			wantErr:     true,
+		},
+		{
+			name:        "single matching permission",
+			permissions: []string{"can_view_logs"},
+			required:    PermViewLogs,
+			wantErr:     false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := CheckPermission(tc.permissions, tc.required)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("CheckPermission() error = %v, wantErr %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestHasPermissionStr(t *testing.T) {
+	tests := []struct { //nolint:govet // test struct alignment not critical
+		permissions []string
+		name        string
+		required    string
+		expected    bool
+	}{
+		{
+			name:        "has permission",
+			permissions: []string{"can_create_agents", "can_view_logs", "can_send_commands"},
+			required:    "can_view_logs",
+			expected:    true,
+		},
+		{
+			name:        "missing permission",
+			permissions: []string{"can_view_logs", "can_send_commands"},
+			required:    "can_create_agents",
+			expected:    false,
+		},
+		{
+			name:        "empty permissions",
+			permissions: []string{},
+			required:    "can_view_logs",
+			expected:    false,
+		},
+		{
+			name:        "single matching",
+			permissions: []string{"can_send_messages"},
+			required:    "can_send_messages",
+			expected:    true,
+		},
+		{
+			name:        "partial match not accepted",
+			permissions: []string{"can_create_agents"},
+			required:    "can_create",
+			expected:    false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := HasPermissionStr(tc.permissions, tc.required)
+			if result != tc.expected {
+				t.Errorf("HasPermissionStr() = %v, want %v", result, tc.expected)
+			}
+		})
+	}
+}
+
+func TestPermissionConstants(t *testing.T) {
+	// Verify permission constants are defined correctly
+	if PermCreateAgents != "can_create_agents" {
+		t.Errorf("PermCreateAgents = %q, want %q", PermCreateAgents, "can_create_agents")
+	}
+	if PermViewLogs != "can_view_logs" {
+		t.Errorf("PermViewLogs = %q, want %q", PermViewLogs, "can_view_logs")
+	}
+	if PermSendCommands != "can_send_commands" {
+		t.Errorf("PermSendCommands = %q, want %q", PermSendCommands, "can_send_commands")
+	}
+	if PermSendMessages != "can_send_messages" {
+		t.Errorf("PermSendMessages = %q, want %q", PermSendMessages, "can_send_messages")
+	}
+}
+
+func TestAllPermissions(t *testing.T) {
+	// AllPermissions should contain all defined permissions
+	if len(AllPermissions) < 5 {
+		t.Errorf("AllPermissions should have at least 5 permissions, got %d", len(AllPermissions))
+	}
+
+	// Check that key permissions are in AllPermissions
+	expectedPerms := []Permission{PermCreateAgents, PermViewLogs, PermSendCommands, PermSendMessages}
+	for _, expected := range expectedPerms {
+		found := false
+		for _, p := range AllPermissions {
+			if p == expected {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("AllPermissions missing %q", expected)
+		}
+	}
+}
+
+func TestIsValidAgentName(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{"valid lowercase", "agent", true},
+		{"valid with hyphen", "my-agent", true},
+		{"valid with underscore", "my_agent", true},
+		{"valid with numbers", "agent123", true},
+		{"valid mixed case", "MyAgent", true},
+		{"valid complex", "eng-02_test", true},
+		{"empty string", "", false},
+		{"contains space", "my agent", false},
+		{"contains semicolon", "agent;rm", false},
+		{"contains pipe", "agent|ls", false},
+		{"contains ampersand", "agent&echo", false},
+		{"contains dollar", "agent$var", false},
+		{"contains backtick", "agent`id`", false},
+		{"contains slash", "agent/path", false},
+		{"contains dot", "agent.test", false},
+		{"contains newline", "agent\ntest", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := IsValidAgentName(tc.input)
+			if result != tc.expected {
+				t.Errorf("IsValidAgentName(%q) = %v, want %v", tc.input, result, tc.expected)
+			}
+		})
+	}
+}
+
+func TestContainsShellMetachars(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{"clean string", "hello", false},
+		{"alphanumeric", "agent123", false},
+		{"with hyphen", "my-agent", false},
+		{"with underscore", "my_agent", false},
+		{"semicolon injection", "cmd; rm -rf", true},
+		{"pipe injection", "cmd | cat /etc/passwd", true},
+		{"background", "cmd &", true},
+		{"variable expansion", "$HOME", true},
+		{"backtick execution", "`id`", true},
+		{"parentheses", "$(whoami)", true},
+		{"curly braces", "${var}", true},
+		{"square brackets", "[test]", true},
+		{"redirect output", "cmd > /tmp/out", true},
+		{"redirect input", "cmd < /etc/passwd", true},
+		{"newline injection", "cmd\nrm", true},
+		{"carriage return", "cmd\rrm", true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := containsShellMetachars(tc.input)
+			if result != tc.expected {
+				t.Errorf("containsShellMetachars(%q) = %v, want %v", tc.input, result, tc.expected)
+			}
+		})
+	}
+}
+
+func TestManagerSetAgentTeam(t *testing.T) {
+	m := newTestManager(t)
+
+	// Add a test agent
+	m.agents["test-agent"] = &Agent{
+		Name: "test-agent",
+		Role: "engineer",
+	}
+
+	// Test setting team on existing agent
+	err := m.SetAgentTeam("test-agent", "backend")
+	if err != nil {
+		t.Fatalf("SetAgentTeam() error = %v", err)
+	}
+
+	if m.agents["test-agent"].Team != "backend" {
+		t.Errorf("Team = %q, want %q", m.agents["test-agent"].Team, "backend")
+	}
+
+	// Test UpdatedAt was set
+	if m.agents["test-agent"].UpdatedAt.IsZero() {
+		t.Error("UpdatedAt should be set after SetAgentTeam")
+	}
+
+	// Test setting team on non-existent agent
+	err = m.SetAgentTeam("nonexistent", "team")
+	if err == nil {
+		t.Error("SetAgentTeam() should error for non-existent agent")
+	}
+}
+
+func TestManagerSetAgentCommand(t *testing.T) {
+	m := newTestManager(t)
+
+	// Initially the command is /bin/true
+	if m.agentCmd != "/bin/true" {
+		t.Errorf("initial agentCmd = %q, want /bin/true", m.agentCmd)
+	}
+
+	// Set a new command
+	m.SetAgentCommand("claude")
+	if m.agentCmd != "claude" {
+		t.Errorf("agentCmd = %q, want claude", m.agentCmd)
+	}
+
+	// Set another command
+	m.SetAgentCommand("claude --dangerously-skip-permissions")
+	if m.agentCmd != "claude --dangerously-skip-permissions" {
+		t.Errorf("agentCmd = %q, want 'claude --dangerously-skip-permissions'", m.agentCmd)
+	}
+}
+
+func TestManagerSetBootstrapDelay(t *testing.T) {
+	m := newTestManager(t)
+
+	// Initially zero
+	if m.BootstrapDelay != 0 {
+		t.Errorf("initial BootstrapDelay = %v, want 0", m.BootstrapDelay)
+	}
+
+	// Set delay
+	m.SetBootstrapDelay(5 * time.Second)
+	if m.BootstrapDelay != 5*time.Second {
+		t.Errorf("BootstrapDelay = %v, want 5s", m.BootstrapDelay)
+	}
+
+	// Set another delay
+	m.SetBootstrapDelay(10 * time.Second)
+	if m.BootstrapDelay != 10*time.Second {
+		t.Errorf("BootstrapDelay = %v, want 10s", m.BootstrapDelay)
+	}
+}
+
+func TestManagerListAgents(t *testing.T) {
+	m := newTestManager(t)
+
+	// Initially no agents
+	agents := m.ListAgents()
+	if len(agents) != 0 {
+		t.Errorf("expected 0 agents, got %d", len(agents))
+	}
+
+	// Add agents
+	m.agents["agent1"] = &Agent{Name: "agent1", Role: "engineer"}
+	m.agents["agent2"] = &Agent{Name: "agent2", Role: "manager"}
+
+	agents = m.ListAgents()
+	if len(agents) != 2 {
+		t.Errorf("expected 2 agents, got %d", len(agents))
+	}
+}
+
+func TestManagerGetAgent(t *testing.T) {
+	m := newTestManager(t)
+
+	// Add test agent
+	testAgent := &Agent{Name: "test-agent", Role: "engineer", Team: "backend"}
+	m.agents["test-agent"] = testAgent
+
+	// Test getting existing agent
+	agent := m.GetAgent("test-agent")
+	if agent == nil {
+		t.Fatal("GetAgent() should find existing agent")
+	}
+	if agent.Name != "test-agent" {
+		t.Errorf("Name = %q, want test-agent", agent.Name)
+	}
+	if agent.Team != "backend" {
+		t.Errorf("Team = %q, want backend", agent.Team)
+	}
+
+	// Test getting non-existent agent
+	agent = m.GetAgent("nonexistent")
+	if agent != nil {
+		t.Error("GetAgent() should return nil for non-existent agent")
+	}
+}
+
+func TestCapabilityConstants(t *testing.T) {
+	// Verify capability constant values
+	if CapCreateAgents != "create_agents" {
+		t.Errorf("CapCreateAgents = %q, want create_agents", CapCreateAgents)
+	}
+	if CapAssignWork != "assign_work" {
+		t.Errorf("CapAssignWork = %q, want assign_work", CapAssignWork)
+	}
+	if CapCreateEpics != "create_epics" {
+		t.Errorf("CapCreateEpics = %q, want create_epics", CapCreateEpics)
+	}
+	if CapImplementTasks != "implement_tasks" {
+		t.Errorf("CapImplementTasks = %q, want implement_tasks", CapImplementTasks)
+	}
+	if CapReviewWork != "review_work" {
+		t.Errorf("CapReviewWork = %q, want review_work", CapReviewWork)
+	}
+	if CapTestWork != "test_work" {
+		t.Errorf("CapTestWork = %q, want test_work", CapTestWork)
+	}
+}
+
+func TestRoleConstant(t *testing.T) {
+	// Verify RoleRoot constant
+	if RoleRoot != "root" {
+		t.Errorf("RoleRoot = %q, want root", RoleRoot)
+	}
+}
