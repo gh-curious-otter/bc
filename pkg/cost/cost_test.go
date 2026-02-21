@@ -1129,3 +1129,248 @@ func TestStoreRecordCostFromMessageWithCost(t *testing.T) {
 		t.Errorf("AgentID mismatch in extracted record")
 	}
 }
+
+// --- Additional coverage tests (#1236) ---
+
+// TestStoreCloseActive tests Close on an active store
+func TestStoreCloseActive(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+
+	// Record something first to ensure DB is active
+	_, recErr := store.Record("agent-1", "", "gpt-4", 100, 50, 0.01)
+	if recErr != nil {
+		t.Fatalf("Record: %v", recErr)
+	}
+
+	// Close should succeed
+	if closeErr := store.Close(); closeErr != nil {
+		t.Errorf("Close: %v", closeErr)
+	}
+}
+
+// TestStoreCloseNilDB tests Close with nil db
+func TestStoreCloseNilDB(t *testing.T) {
+	store := &Store{db: nil}
+	if err := store.Close(); err != nil {
+		t.Errorf("Close nil db: %v", err)
+	}
+}
+
+// TestGetByAgentDefaultLimit tests GetByAgent with zero limit (uses default)
+func TestGetByAgentDefaultLimit(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Add records
+	for i := 0; i < 5; i++ {
+		_, recErr := store.Record("agent-default", "", "gpt-4", int64(100*i), 50, 0.01)
+		if recErr != nil {
+			t.Fatalf("Record %d: %v", i, recErr)
+		}
+	}
+
+	// Get with 0 limit (should use default 100)
+	records, getErr := store.GetByAgent("agent-default", 0)
+	if getErr != nil {
+		t.Fatalf("GetByAgent: %v", getErr)
+	}
+
+	if len(records) != 5 {
+		t.Errorf("GetByAgent returned %d records, want 5", len(records))
+	}
+}
+
+// TestGetByAgentWithLimit tests GetByAgent with specific limit
+func TestGetByAgentWithLimit(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Add 10 records
+	for i := 0; i < 10; i++ {
+		_, recErr := store.Record("agent-limit", "", "gpt-4", int64(100), 50, 0.01)
+		if recErr != nil {
+			t.Fatalf("Record %d: %v", i, recErr)
+		}
+	}
+
+	// Get with limit 3
+	records, getErr := store.GetByAgent("agent-limit", 3)
+	if getErr != nil {
+		t.Fatalf("GetByAgent: %v", getErr)
+	}
+
+	if len(records) != 3 {
+		t.Errorf("GetByAgent with limit 3 returned %d records", len(records))
+	}
+}
+
+// TestGetByTeamDefaultLimit tests GetByTeam with zero limit
+func TestGetByTeamDefaultLimit(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Add records with team
+	for i := 0; i < 5; i++ {
+		_, recErr := store.Record("agent-team", "backend", "gpt-4", int64(100), 50, 0.01)
+		if recErr != nil {
+			t.Fatalf("Record %d: %v", i, recErr)
+		}
+	}
+
+	// Get with 0 limit
+	records, getErr := store.GetByTeam("backend", 0)
+	if getErr != nil {
+		t.Fatalf("GetByTeam: %v", getErr)
+	}
+
+	if len(records) != 5 {
+		t.Errorf("GetByTeam returned %d records, want 5", len(records))
+	}
+}
+
+// TestGetByTeamWithLimit tests GetByTeam with specific limit
+func TestGetByTeamWithLimit(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Add 10 records
+	for i := 0; i < 10; i++ {
+		_, recErr := store.Record("agent-team2", "frontend", "gpt-4", int64(100), 50, 0.01)
+		if recErr != nil {
+			t.Fatalf("Record %d: %v", i, recErr)
+		}
+	}
+
+	// Get with limit 2
+	records, getErr := store.GetByTeam("frontend", 2)
+	if getErr != nil {
+		t.Fatalf("GetByTeam: %v", getErr)
+	}
+
+	if len(records) != 2 {
+		t.Errorf("GetByTeam with limit 2 returned %d records", len(records))
+	}
+}
+
+// TestGetAllDefaultLimit tests GetAll with zero limit
+func TestGetAllDefaultLimit(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Add records
+	for i := 0; i < 5; i++ {
+		_, recErr := store.Record("agent-all", "", "gpt-4", int64(100), 50, 0.01)
+		if recErr != nil {
+			t.Fatalf("Record %d: %v", i, recErr)
+		}
+	}
+
+	// Get with 0 limit
+	records, getErr := store.GetAll(0)
+	if getErr != nil {
+		t.Fatalf("GetAll: %v", getErr)
+	}
+
+	if len(records) != 5 {
+		t.Errorf("GetAll returned %d records, want 5", len(records))
+	}
+}
+
+// TestGetAllWithLimit tests GetAll with specific limit
+func TestGetAllWithLimit(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Add 10 records
+	for i := 0; i < 10; i++ {
+		_, recErr := store.Record("agent-all2", "", "gpt-4", int64(100), 50, 0.01)
+		if recErr != nil {
+			t.Fatalf("Record %d: %v", i, recErr)
+		}
+	}
+
+	// Get with limit 4
+	records, getErr := store.GetAll(4)
+	if getErr != nil {
+		t.Fatalf("GetAll: %v", getErr)
+	}
+
+	if len(records) != 4 {
+		t.Errorf("GetAll with limit 4 returned %d records", len(records))
+	}
+}
+
+// TestGetByAgentEmpty tests GetByAgent for non-existent agent
+func TestGetByAgentEmpty(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	records, getErr := store.GetByAgent("nonexistent", 10)
+	if getErr != nil {
+		t.Fatalf("GetByAgent: %v", getErr)
+	}
+
+	if len(records) != 0 {
+		t.Errorf("GetByAgent nonexistent returned %d records, want 0", len(records))
+	}
+}
+
+// TestGetByTeamEmpty tests GetByTeam for non-existent team
+func TestGetByTeamEmpty(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	records, getErr := store.GetByTeam("nonexistent-team", 10)
+	if getErr != nil {
+		t.Fatalf("GetByTeam: %v", getErr)
+	}
+
+	if len(records) != 0 {
+		t.Errorf("GetByTeam nonexistent returned %d records, want 0", len(records))
+	}
+}
