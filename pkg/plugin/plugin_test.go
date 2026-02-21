@@ -335,3 +335,103 @@ func TestDefaultConstants(t *testing.T) {
 		t.Errorf("DefaultDirectory = %q, want %q", DefaultDirectory, "plugins")
 	}
 }
+
+func TestManagerInfo(t *testing.T) {
+	manifest := `name = "test-plugin"
+version = "1.0.0"
+description = "A test plugin for info"
+type = "tool"
+entrypoint = "main.go"
+`
+	tmpDir, pluginDir, cleanup := setupTestPlugin(t, manifest)
+	defer cleanup()
+
+	mgr := NewManager(tmpDir)
+	if err := mgr.Load(context.Background()); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Info for nonexistent plugin
+	_, infoErr := mgr.Info("nonexistent")
+	if infoErr == nil {
+		t.Error("Info() should fail for nonexistent plugin")
+	}
+
+	// Install and get info
+	if _, installErr := mgr.Install(context.Background(), pluginDir); installErr != nil {
+		t.Fatalf("Install() error = %v", installErr)
+	}
+
+	p, err := mgr.Info("test-plugin")
+	if err != nil {
+		t.Fatalf("Info() error = %v", err)
+	}
+
+	if p.Manifest.Name != "test-plugin" {
+		t.Errorf("name = %q, want %q", p.Manifest.Name, "test-plugin")
+	}
+	if p.Manifest.Description != "A test plugin for info" {
+		t.Errorf("description = %q, want %q", p.Manifest.Description, "A test plugin for info")
+	}
+}
+
+func TestManagerSearch(t *testing.T) {
+	mgr := NewManager("/tmp/test-workspace")
+
+	// Search is not yet implemented, should return error
+	results, err := mgr.Search(context.Background(), "test")
+	if err == nil {
+		t.Error("Search() should return error (not yet implemented)")
+	}
+	if results != nil {
+		t.Errorf("Search() results = %v, want nil", results)
+	}
+}
+
+func TestManagerEnabledWithPlugins(t *testing.T) {
+	manifest := `name = "test-tool"
+version = "1.0.0"
+type = "tool"
+entrypoint = "main.go"
+`
+	tmpDir, pluginDir, cleanup := setupTestPlugin(t, manifest)
+	defer cleanup()
+
+	mgr := NewManager(tmpDir)
+	if err := mgr.Load(context.Background()); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Install a tool plugin
+	if _, installErr := mgr.Install(context.Background(), pluginDir); installErr != nil {
+		t.Fatalf("Install() error = %v", installErr)
+	}
+
+	// Should find enabled tool
+	enabled := mgr.Enabled(TypeTool)
+	if len(enabled) != 1 {
+		t.Errorf("len(enabled tools) = %d, want 1", len(enabled))
+	}
+
+	// Should not find enabled agent
+	enabledAgents := mgr.Enabled(TypeAgent)
+	if len(enabledAgents) != 0 {
+		t.Errorf("len(enabled agents) = %d, want 0", len(enabledAgents))
+	}
+
+	// Empty type should return all enabled
+	allEnabled := mgr.Enabled("")
+	if len(allEnabled) != 1 {
+		t.Errorf("len(all enabled) = %d, want 1", len(allEnabled))
+	}
+
+	// Disable and check again
+	if err := mgr.Disable("test-tool"); err != nil {
+		t.Fatalf("Disable() error = %v", err)
+	}
+
+	enabled = mgr.Enabled(TypeTool)
+	if len(enabled) != 0 {
+		t.Errorf("len(enabled after disable) = %d, want 0", len(enabled))
+	}
+}

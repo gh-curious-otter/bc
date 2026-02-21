@@ -270,3 +270,165 @@ func TestColorEnabled(t *testing.T) {
 		t.Error("ColorEnabled should return false")
 	}
 }
+
+func TestGrayText(t *testing.T) {
+	SetColorEnabled(true)
+	result := GrayText("gray")
+	if !strings.Contains(result, "gray") {
+		t.Errorf("GrayText should contain text, got %q", result)
+	}
+	// Gray uses bright black (90) code
+	if !strings.Contains(result, "\x1b[90m") {
+		t.Errorf("GrayText should contain gray code, got %q", result)
+	}
+}
+
+func TestIndentedList(t *testing.T) {
+	var buf bytes.Buffer
+	SetOutput(&buf)
+	defer SetOutput(nil)
+	SetColorEnabled(false)
+
+	IndentedList(2, "item1", "item2")
+	result := buf.String()
+
+	if !strings.Contains(result, "item1") {
+		t.Error("IndentedList should contain item1")
+	}
+	if !strings.Contains(result, "item2") {
+		t.Error("IndentedList should contain item2")
+	}
+	// Should be indented with spaces
+	if !strings.Contains(result, "  ") {
+		t.Error("IndentedList should be indented")
+	}
+}
+
+func TestKeyValueList(t *testing.T) {
+	var buf bytes.Buffer
+	SetOutput(&buf)
+	defer SetOutput(nil)
+	SetColorEnabled(false)
+
+	KeyValueList(map[string]string{
+		"Name": "Alice",
+		"Age":  "30",
+	})
+	result := buf.String()
+
+	if !strings.Contains(result, "Name") {
+		t.Error("KeyValueList should contain Name")
+	}
+	if !strings.Contains(result, "Alice") {
+		t.Error("KeyValueList should contain Alice")
+	}
+	if !strings.Contains(result, "Age") {
+		t.Error("KeyValueList should contain Age")
+	}
+	if !strings.Contains(result, "30") {
+		t.Error("KeyValueList should contain 30")
+	}
+}
+
+func TestFormatFunctions(t *testing.T) {
+	var buf bytes.Buffer
+	SetOutput(&buf)
+	defer SetOutput(nil)
+	SetColorEnabled(false)
+
+	tests := []struct { //nolint:govet // test struct alignment not critical
+		fn       func(string, ...any)
+		args     []any
+		name     string
+		format   string
+		contains string
+	}{
+		{Successf, []any{"task"}, "Successf", "done %s", "done task"},
+		{Errorf, []any{"op"}, "Errorf", "failed %s", "failed op"},
+		{Warningf, []any{42}, "Warningf", "warn %d", "warn 42"},
+		{Infof, []any{true}, "Infof", "info %v", "info true"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			buf.Reset()
+			tc.fn(tc.format, tc.args...)
+			result := buf.String()
+			if !strings.Contains(result, tc.contains) {
+				t.Errorf("%s output should contain %q, got %q", tc.name, tc.contains, result)
+			}
+		})
+	}
+}
+
+func TestDebugFunctions(t *testing.T) {
+	var buf bytes.Buffer
+	SetOutput(&buf)
+	defer SetOutput(nil)
+	SetColorEnabled(false)
+
+	buf.Reset()
+	Debug("debug message")
+	result := buf.String()
+	if !strings.Contains(result, "debug message") {
+		t.Errorf("Debug should contain message, got %q", result)
+	}
+
+	buf.Reset()
+	Debugf("debug %d", 123)
+	result = buf.String()
+	if !strings.Contains(result, "debug 123") {
+		t.Errorf("Debugf should contain formatted message, got %q", result)
+	}
+}
+
+func TestPrintFunctions(t *testing.T) {
+	var buf bytes.Buffer
+	SetOutput(&buf)
+	defer SetOutput(nil)
+
+	buf.Reset()
+	Print("hello")
+	result := buf.String()
+	if result != "hello" {
+		t.Errorf("Print should output exact text, got %q", result)
+	}
+
+	buf.Reset()
+	Println("world")
+	result = buf.String()
+	if result != "world\n" {
+		t.Errorf("Println should output text with newline, got %q", result)
+	}
+}
+
+func TestBlankLine(t *testing.T) {
+	var buf bytes.Buffer
+	SetOutput(&buf)
+	defer SetOutput(nil)
+
+	BlankLine()
+	result := buf.String()
+	if result != "\n" {
+		t.Errorf("BlankLine should output single newline, got %q", result)
+	}
+}
+
+func TestTablePrint(t *testing.T) {
+	var buf bytes.Buffer
+	SetOutput(&buf)
+	defer SetOutput(nil)
+	SetColorEnabled(false)
+
+	table := NewTable("Col1", "Col2")
+	table.AddRow("a", "b")
+	table.Print()
+
+	result := buf.String()
+	if !strings.Contains(result, "Col1") {
+		t.Error("Table.Print should output headers")
+	}
+	if !strings.Contains(result, "a") {
+		t.Error("Table.Print should output row data")
+	}
+}
