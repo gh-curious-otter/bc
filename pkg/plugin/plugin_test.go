@@ -13,7 +13,8 @@ func TestNewManager(t *testing.T) {
 		t.Fatal("NewManager returned nil")
 	}
 
-	expectedDir := "/tmp/test-workspace/.bc/plugins"
+	// NewManager joins workspaceDir (state dir, typically .bc/) with DefaultDirectory (plugins)
+	expectedDir := "/tmp/test-workspace/plugins"
 	if mgr.pluginsDir != expectedDir {
 		t.Errorf("pluginsDir = %q, want %q", mgr.pluginsDir, expectedDir)
 	}
@@ -329,7 +330,8 @@ func TestDefaultConstants(t *testing.T) {
 	if DefaultRegistry != "https://plugins.bc.dev" {
 		t.Errorf("DefaultRegistry = %q, want %q", DefaultRegistry, "https://plugins.bc.dev")
 	}
-	if DefaultDirectory != ".bc/plugins" {
-		t.Errorf("DefaultDirectory = %q, want %q", DefaultDirectory, ".bc/plugins")
+	// DefaultDirectory is relative to workspace state dir (.bc/), not workspace root
+	if DefaultDirectory != "plugins" {
+		t.Errorf("DefaultDirectory = %q, want %q", DefaultDirectory, "plugins")
 	}
 }

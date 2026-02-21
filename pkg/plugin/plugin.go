@@ -42,7 +42,8 @@ const (
 const DefaultRegistry = "https://plugins.bc.dev"
 
 // DefaultDirectory is the default plugin installation directory
-const DefaultDirectory = ".bc/plugins"
+// Note: This is relative to the workspace state directory (.bc/)
+const DefaultDirectory = "plugins"
 
 // Manifest describes a plugin's metadata and capabilities
 type Manifest struct {
