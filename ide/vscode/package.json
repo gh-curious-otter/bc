@@ -1,0 +1,128 @@
+{
+  "name": "bc-vscode",
+  "displayName": "bc - AI Agent Orchestration",
+  "description": "VS Code extension for bc (AI Agent Orchestration CLI)",
+  "version": "0.1.0",
+  "publisher": "bc",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rpuneet/bc"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "ai",
+    "agents",
+    "orchestration",
+    "cli",
+    "bc"
+  ],
+  "activationEvents": [
+    "workspaceContains:.bc"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "bc.status",
+        "title": "bc: Show Status"
+      },
+      {
+        "command": "bc.agentList",
+        "title": "bc: List Agents"
+      },
+      {
+        "command": "bc.agentHealth",
+        "title": "bc: Agent Health"
+      },
+      {
+        "command": "bc.channelList",
+        "title": "bc: List Channels"
+      },
+      {
+        "command": "bc.channelSend",
+        "title": "bc: Send to Channel"
+      },
+      {
+        "command": "bc.logs",
+        "title": "bc: View Logs"
+      },
+      {
+        "command": "bc.refresh",
+        "title": "bc: Refresh"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "bc-explorer",
+          "title": "bc Agents",
+          "icon": "resources/bc-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "bc-explorer": [
+        {
+          "id": "bc-agents",
+          "name": "Agents"
+        },
+        {
+          "id": "bc-channels",
+          "name": "Channels"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "bc.refresh",
+          "when": "view == bc-agents || view == bc-channels",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "bc",
+      "properties": {
+        "bc.binaryPath": {
+          "type": "string",
+          "default": "bc",
+          "description": "Path to bc binary"
+        },
+        "bc.refreshInterval": {
+          "type": "number",
+          "default": 30,
+          "description": "Auto-refresh interval in seconds (0 to disable)"
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "bc.status",
+        "key": "ctrl+alt+b",
+        "mac": "cmd+alt+b"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}
