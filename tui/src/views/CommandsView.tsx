@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text, useInput, useStdout } from 'ink';
 import { COMMAND_REGISTRY } from '../types/commands';
 import type { BcCommand } from '../types/commands';
 import { useFocus } from '../navigation/FocusContext';
@@ -66,6 +66,8 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
   const [categoryFilter, setCategoryFilter] = useState('All');
   const { setFocus } = useFocus();
   const { goHome } = useNavigation();
+  const { stdout } = useStdout();
+  const terminalWidth = stdout.columns || 80;
 
   // Favorites state - persisted to disk
   const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites());
@@ -331,20 +333,20 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
         </Box>
       )}
 
-      {/* Command preview - #1366: Slice strings to prevent text corruption at 120x40 */}
+      {/* Command preview - #1366: Width constraint + wrap='truncate' prevents text corruption */}
       {selectedCommand !== undefined && filteredCommands.length > 0 && !commandOutput && !commandError && !isExecuting && (
-        <Box flexDirection="column" marginBottom={1} paddingX={1} borderStyle="single" borderColor="gray">
-          <Text bold color="cyan">{selectedCommand.name}</Text>
-          <Text dimColor>{selectedCommand.description.slice(0, 70)}{selectedCommand.description.length > 70 ? '…' : ''}</Text>
+        <Box flexDirection="column" marginBottom={1} paddingX={1} borderStyle="single" borderColor="gray" width={Math.min(terminalWidth - 4, 80)}>
+          <Text bold color="cyan" wrap="truncate">{selectedCommand.name}</Text>
+          <Text dimColor wrap="truncate">{selectedCommand.description.slice(0, 65)}{selectedCommand.description.length > 65 ? '…' : ''}</Text>
           <Box marginTop={1}>
-            <Text dimColor>Usage: {selectedCommand.usage.slice(0, 60)}{selectedCommand.usage.length > 60 ? '…' : ''}</Text>
+            <Text dimColor wrap="truncate">Usage: {selectedCommand.usage.slice(0, 55)}{selectedCommand.usage.length > 55 ? '…' : ''}</Text>
           </Box>
           {selectedCommand.flags && (
-            <Text dimColor>Flags: {selectedCommand.flags.join(', ').slice(0, 60)}</Text>
+            <Text dimColor wrap="truncate">Flags: {selectedCommand.flags.join(', ').slice(0, 50)}</Text>
           )}
           <Box marginTop={1}>
-            <Text dimColor>
-              {selectedCommand.readOnly ? '✓ Safe (read-only) - Press Enter to run' : '⚠ Modifying command - use CLI'}
+            <Text dimColor wrap="truncate">
+              {selectedCommand.readOnly ? '✓ Read-only - Enter to run' : '⚠ Modifying - use CLI'}
             </Text>
           </Box>
         </Box>
@@ -373,19 +375,18 @@ interface CommandRowProps {
 }
 
 function CommandRow({ command, selected, isFavorite }: CommandRowProps): React.ReactElement {
-  // #1366: Explicit text slicing prevents corruption at 120x40
-  // wrap='truncate' needs width constraints to work properly
-  const displayName = command.name.length > 25 ? command.name.slice(0, 24) + '…' : command.name;
-  const displayDesc = command.description.length > 45 ? command.description.slice(0, 44) + '…' : command.description;
+  // #1366: Slice text AND use wrap='truncate' for double protection
+  const displayName = command.name.length > 22 ? command.name.slice(0, 21) + '…' : command.name;
+  const displayDesc = command.description.length > 40 ? command.description.slice(0, 39) + '…' : command.description;
 
   return (
     <Box marginBottom={1} flexWrap="nowrap">
       <Text color="yellow">{isFavorite ? '★ ' : '  '}</Text>
-      <Text color={selected ? 'cyan' : undefined} bold={selected}>
+      <Text color={selected ? 'cyan' : undefined} bold={selected} wrap="truncate">
         {selected ? '▸ ' : '  '}
         {displayName}
       </Text>
-      <Text dimColor> — {displayDesc}</Text>
+      <Text dimColor wrap="truncate"> — {displayDesc}</Text>
     </Box>
   );
 }
