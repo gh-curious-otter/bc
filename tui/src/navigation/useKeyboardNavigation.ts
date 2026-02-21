@@ -69,6 +69,17 @@ export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}
         return;
       }
 
+      // j/k: vim-style navigation (down/up through tabs)
+      // j = next (down), k = previous (up)
+      if (input === 'j') {
+        nextTab();
+        return;
+      }
+      if (input === 'k') {
+        prevTab();
+        return;
+      }
+
       // ESC: go home (skip when local view handles ESC)
       if (key.escape && !isFocused('view')) {
         goHome();
