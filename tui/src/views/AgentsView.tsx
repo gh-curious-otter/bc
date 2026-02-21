@@ -94,13 +94,16 @@ function groupAgentsByRole(agents: Agent[]): RoleGroup[] {
  */
 function normalizeTask(task: string | undefined): string {
   if (!task) return '-';
+  // #1364 Issue 3: Normalize cooking/quirky terms to clear status verbs
   const replacements: [string, string][] = [
     ['Sautéed', 'Working'],
     ['Sauteed', 'Working'], // ASCII fallback
+    ['Brewed', 'Done'],
     ['Cooked', 'Processed'],
     ['Cogitated', 'Thinking'],
     ['Marinated', 'Idle'],
     ['Frolicking', 'Active'],
+    ['Grooving', 'Active'],
   ];
   for (const [old, replacement] of replacements) {
     if (task.includes(old)) {
