@@ -19,6 +19,8 @@ import { useFocus } from './FocusContext';
 const DRAWER_WIDTH = 16;
 /** Shrunk width for narrow terminals (80-99 cols) */
 const DRAWER_SHRUNK_WIDTH = 8;
+/** Width threshold to use short labels (140+cols only gets full labels) */
+const DRAWER_SHORT_LABEL_THRESHOLD = 15;
 
 /** Section definitions for grouped navigation */
 interface DrawerSection {
@@ -50,6 +52,8 @@ export interface DrawerProps {
   shrunk?: boolean;
   /** Version string for footer */
   version?: string;
+  /** Actual drawer width from responsive layout (#1364) */
+  width?: number;
 }
 
 export function Drawer({
@@ -57,6 +61,7 @@ export function Drawer({
   disabled = false,
   shrunk = false,
   version = 'v2',
+  width: propWidth,
 }: DrawerProps): React.ReactElement {
   const { currentView, tabs, navigate } = useNavigation();
   const { isFocused } = useFocus();
@@ -69,8 +74,10 @@ export function Drawer({
     mainTabs.findIndex(t => t.view === currentView)
   );
 
-  // Determine width based on shrunk state
-  const width = shrunk ? DRAWER_SHRUNK_WIDTH : DRAWER_WIDTH;
+  // Determine width based on shrunk state or prop (#1364)
+  const width = propWidth ?? (shrunk ? DRAWER_SHRUNK_WIDTH : DRAWER_WIDTH);
+  // Use short labels when width is constrained (#1364)
+  const useShortLabel = width < DRAWER_SHORT_LABEL_THRESHOLD;
 
   // Handle keyboard navigation within drawer
   useInput(
@@ -187,6 +194,7 @@ export function Drawer({
                     tab={tab}
                     isActive={currentView === tab.view}
                     isHighlighted={globalIndex === highlightedIndex}
+                    useShortLabel={useShortLabel}
                   />
                 );
               })}
@@ -221,9 +229,11 @@ interface DrawerItemProps {
   tab: TabConfig;
   isActive: boolean;
   isHighlighted: boolean;
+  /** Use short label for constrained widths (#1364) */
+  useShortLabel?: boolean;
 }
 
-function DrawerItem({ tab, isActive, isHighlighted }: DrawerItemProps): React.ReactElement {
+function DrawerItem({ tab, isActive, isHighlighted, useShortLabel = false }: DrawerItemProps): React.ReactElement {
   // Visual indicators: ● selected, ○ unselected
   const indicator = isActive ? '●' : '○';
 
@@ -231,6 +241,9 @@ function DrawerItem({ tab, isActive, isHighlighted }: DrawerItemProps): React.Re
   const textColor = isActive ? 'green' : isHighlighted ? 'yellow' : undefined;
   const isBold = isActive || isHighlighted;
   const isDim = !isActive && !isHighlighted;
+
+  // Use shortLabel when width is constrained (#1364)
+  const label = useShortLabel && tab.shortLabel ? tab.shortLabel : tab.label;
 
   return (
     <Box>
@@ -240,7 +253,7 @@ function DrawerItem({ tab, isActive, isHighlighted }: DrawerItemProps): React.Re
         color={textColor}
         dimColor={isDim}
       >
-        {' '}{tab.label}
+        {' '}{label}
       </Text>
       {/* Show shortcut key */}
       {tab.shortcut && !isActive && (

@@ -174,6 +174,7 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
           <Drawer
             disabled={disableInput || showCommandPalette}
             shrunk={layout.drawer.shrunk}
+            width={layout.drawer.width}
           />
         )}
 
