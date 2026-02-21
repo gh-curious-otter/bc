@@ -435,3 +435,81 @@ entrypoint = "main.go"
 		t.Errorf("len(enabled after disable) = %d, want 0", len(enabled))
 	}
 }
+
+// TestLoadWithExistingPlugins tests Load with pre-existing plugins.json (#1236)
+func TestLoadWithExistingPlugins(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "plugin-load-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // cleanup in test
+
+	// Create plugins directory with state file
+	pluginsDir := filepath.Join(tmpDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0750); err != nil {
+		t.Fatalf("failed to create plugins dir: %v", err)
+	}
+
+	// Create a valid plugins.json with test data
+	pluginsState := `[
+		{
+			"manifest": {
+				"name": "saved-plugin",
+				"version": "2.0.0",
+				"type": "tool"
+			},
+			"state": "enabled",
+			"path": "/test/path",
+			"installedAt": "2024-01-01T00:00:00Z"
+		}
+	]`
+	statePath := filepath.Join(pluginsDir, "plugins.json")
+	if err := os.WriteFile(statePath, []byte(pluginsState), 0600); err != nil {
+		t.Fatalf("failed to write plugins.json: %v", err)
+	}
+
+	// Create manager and load
+	mgr := NewManager(tmpDir)
+	if err := mgr.Load(context.Background()); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Verify plugin was loaded
+	plugins := mgr.List()
+	if len(plugins) != 1 {
+		t.Fatalf("len(plugins) = %d, want 1", len(plugins))
+	}
+	if plugins[0].Manifest.Name != "saved-plugin" {
+		t.Errorf("plugin name = %q, want %q", plugins[0].Manifest.Name, "saved-plugin")
+	}
+	if plugins[0].Manifest.Version != "2.0.0" {
+		t.Errorf("plugin version = %q, want %q", plugins[0].Manifest.Version, "2.0.0")
+	}
+}
+
+// TestLoadWithInvalidJSON tests Load with invalid JSON file (#1236)
+func TestLoadWithInvalidJSON(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "plugin-load-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir) //nolint:errcheck // cleanup in test
+
+	// Create plugins directory with invalid JSON
+	pluginsDir := filepath.Join(tmpDir, "plugins")
+	if mkdirErr := os.MkdirAll(pluginsDir, 0750); mkdirErr != nil {
+		t.Fatalf("failed to create plugins dir: %v", mkdirErr)
+	}
+
+	statePath := filepath.Join(pluginsDir, "plugins.json")
+	if writeErr := os.WriteFile(statePath, []byte("invalid json {"), 0600); writeErr != nil {
+		t.Fatalf("failed to write plugins.json: %v", writeErr)
+	}
+
+	// Create manager and load - should fail
+	mgr := NewManager(tmpDir)
+	loadErr := mgr.Load(context.Background())
+	if loadErr == nil {
+		t.Error("Load() with invalid JSON should return error")
+	}
+}
