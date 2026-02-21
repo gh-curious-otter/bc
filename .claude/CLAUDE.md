@@ -59,6 +59,7 @@ cd tui && bun run lint                   # Lint TUI code
   - **stats/**: Workspace statistics
   - **log/**: Logging utilities
   - **names/**: Random agent name generation
+  - **ui/**: CLI output formatting (colors, lists, tables, messages)
 - **tui/src/**: React/TypeScript TUI built with Ink
   - Components, hooks, views for terminal UI
   - Compiled to CommonJS in tui/dist/
@@ -185,8 +186,10 @@ err := ch.Send(agentName, message)  // Send message
 - Built with Bun (package manager) and TypeScript/React with Ink
 - Compiled to CommonJS in tui/dist/
 - Main app in src/app.tsx
+- 14 views: Dashboard, Agents, Channels, Costs, Commands, Roles, Logs, Worktrees, Workspaces, Demons, Processes, Memory, Routing, Help
 - Views, components, hooks organized by feature
 - Uses theme system for consistent styling
+- 3-tier keybinding system (global, view-local, context) in hooks/useKeybindings
 - Tests in src/__tests__/ using Jest/Bun test runner
 
 Run `make build-tui` to build, `make test-tui` to test, `make lint-tui` to lint.
