@@ -19,14 +19,14 @@ export interface UseKeyboardNavigationOptions {
 
 /**
  * Hook that handles global keyboard navigation
- * - Number keys (1-9) switch views
  * - Tab/Shift+Tab cycles views
  * - ? shows help
  * - ESC goes back/home
  * - Ctrl+R refreshes all data
  * - q quits the application
  *
- * Note: j/k are handled by Drawer for list navigation, not here.
+ * Issue #1467: Removed 1-9 number shortcuts.
+ * Navigation now uses j/k + Enter in Drawer component.
  */
 export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}): void {
   const { disabled = false, onQuit, onRefresh, onCommandPalette } = options;
@@ -53,12 +53,15 @@ export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}
         return;
       }
 
-      // Tab navigation with number keys (1-9) and ?
-      // These should work even when a local view has focus
-      const tab = getTabByKey(input);
-      if (tab) {
-        navigate(tab.view);
-        return;
+      // Issue #1467: Removed 1-9 number shortcuts
+      // Navigation now uses j/k + Enter in Drawer component
+      // Only ? for help remains as a global shortcut
+      if (input === '?') {
+        const helpTab = getTabByKey('?');
+        if (helpTab) {
+          navigate(helpTab.view);
+          return;
+        }
       }
 
       // Tab key: next view, Shift+Tab: previous view
