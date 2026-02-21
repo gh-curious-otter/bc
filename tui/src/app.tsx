@@ -25,6 +25,7 @@ import { CostsView } from './components/CostsView';
 import { LogsView } from './views/LogsView';
 import { WorktreesView } from './views/WorktreesView';
 import { WorkspaceSelectorView } from './views/WorkspaceSelectorView';
+import { FilesView } from './views/FilesView';
 import { DemonsView } from './views/DemonsView';
 import { ProcessesView } from './views/ProcessesView';
 import { MemoryView } from './views/MemoryView';
@@ -236,6 +237,8 @@ function ViewContent({ view, disableInput, onSelectItem }: ViewContentProps): Re
       return <AgentsView onSelectItem={onSelectItem} />;
     case 'channels':
       return <ChannelsView disableInput={disableInput} onSelectItem={onSelectItem} />;
+    case 'files':
+      return <FilesView />;
     case 'costs':
       return <CostsView disableInput={disableInput} />;
     case 'commands':

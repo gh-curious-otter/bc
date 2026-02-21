@@ -31,7 +31,7 @@ interface DrawerSection {
 const DRAWER_SECTIONS: DrawerSection[] = [
   {
     title: 'WORKSPACE',
-    views: ['dashboard', 'agents', 'channels', 'commands'],
+    views: ['dashboard', 'agents', 'channels', 'files', 'commands'],
   },
   {
     title: 'MONITOR',

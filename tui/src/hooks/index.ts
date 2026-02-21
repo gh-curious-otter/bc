@@ -180,3 +180,10 @@ export {
   type ContextBindings,
   type KeybindingConfig,
 } from './useKeybindings';
+
+export {
+  useFileTree,
+  type FileTreeEntry,
+  type UseFileTreeOptions,
+  type UseFileTreeResult,
+} from './useFileTree';
