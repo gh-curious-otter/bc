@@ -161,10 +161,10 @@ export function ChannelsView({ disableInput = false, onSelectItem }: ChannelsVie
   // #1483 fix: Remove width="100%" to avoid layout overflow at 80 columns
   // Ink's layout calculates width incorrectly when width="100%" + padding + border
   // Let flexbox handle width naturally through flexGrow
+  // #1461 fix: Removed inline hints - global footer shows view-specific hints
   return (
     <Box flexDirection="column" flexGrow={1}>
       <Text bold>Channels</Text>
-      <Text dimColor>↑/↓ navigate, Enter to view messages, ESC to go back</Text>
       <Box marginTop={1} flexDirection="column" flexGrow={1} borderStyle="single" borderColor="gray" paddingX={1}>
         {channels?.map((channel, index) => (
           <ChannelRow
@@ -414,13 +414,12 @@ function ChannelHistoryView({
   return (
     // #1425 fix: Use flexGrow instead of height="100%" to prevent layout overflow
     <Box flexDirection="column" width="100%" flexGrow={1} overflow="hidden">
-      {/* Header section - fixed height */}
-      <Box flexDirection="column" height={3} marginBottom={1}>
+      {/* Header section - #1461 fix: Removed duplicate hints (shown in footer) */}
+      <Box flexDirection="column" height={2} marginBottom={1}>
         <Box>
           <Text bold color="cyan">#{channel.name}</Text>
           <Text dimColor> - {channel.members.length} members</Text>
         </Box>
-        <Text dimColor>ESC: back  m: compose  ↑/↓ or j/k: scroll</Text>
       </Box>
 
       {/* Message area - dynamic height adjusts as input expands */}
@@ -461,14 +460,19 @@ function ChannelHistoryView({
         </Box>
       )}
 
-      {/* Mention autocomplete dropdown */}
+      {/* Mention autocomplete dropdown with inline hints */}
       {inputMode && (
-        <MentionAutocomplete
-          suggestions={autocomplete.suggestions}
-          selectedIndex={autocomplete.selectedIndex}
-          visible={autocomplete.isActive}
-          query={autocomplete.query}
-        />
+        <>
+          <MentionAutocomplete
+            suggestions={autocomplete.suggestions}
+            selectedIndex={autocomplete.selectedIndex}
+            visible={autocomplete.isActive}
+            query={autocomplete.query}
+          />
+          {autocomplete.isActive && (
+            <Text dimColor>↑/↓: select  Tab: complete  Esc: close</Text>
+          )}
+        </>
       )}
 
       {/* Input area - auto-expands based on message length (3-10 lines) */}
@@ -490,14 +494,7 @@ function ChannelHistoryView({
         )}
       </Box>
 
-      {/* Footer - anchored at bottom */}
-      <Box height={1}>
-        <Text dimColor>
-          {inputMode && autocomplete.isActive
-            ? '↑/↓: select  Tab: complete  Esc: close'
-            : `ESC: ${inputMode ? 'save draft' : 'back'}  m: compose  @: mention  ↑/↓: scroll  Enter: send`}
-        </Text>
-      </Box>
+      {/* #1461 fix: Removed duplicate footer - global footer shows navigation hints */}
     </Box>
   );
 }
