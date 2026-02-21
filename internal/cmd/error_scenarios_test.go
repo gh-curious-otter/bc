@@ -575,6 +575,10 @@ func TestNoWorkspace(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
+	// Clear BC_WORKSPACE to test directory-based workspace detection
+	restoreEnv := clearWorkspaceEnv(t)
+	defer restoreEnv()
+
 	tests := []struct {
 		name string
 		args []string
