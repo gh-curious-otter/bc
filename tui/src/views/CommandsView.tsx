@@ -68,6 +68,11 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
   const { goHome } = useNavigation();
   const { stdout } = useStdout();
   const terminalWidth = stdout.columns;
+  const terminalHeight = stdout.rows;
+
+  // #1460: Calculate visible command count to prevent overflow
+  // Reserve space for: header(2) + category(2) + search(3) + preview(8) + footer(2) = 17 lines
+  const visibleCommandCount = Math.max(3, terminalHeight - 17);
 
   // Favorites state - persisted to disk
   const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites());
@@ -273,7 +278,7 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
         )}
       </Box>
 
-      {/* Command list */}
+      {/* Command list - #1460: Windowed to prevent overflow */}
       <Box flexDirection="column" marginBottom={1} paddingX={1}>
         {filteredCommands.length === 0 ? (
           <Box flexDirection="column">
@@ -285,14 +290,31 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
             )}
           </Box>
         ) : (
-          filteredCommands.map((cmd, idx) => (
-            <CommandRow
-              key={`${cmd.category}-${cmd.name}`}
-              command={cmd}
-              selected={idx === validatedIndex}
-              isFavorite={favorites.has(cmd.name)}
-            />
-          ))
+          (() => {
+            // #1460: Window the visible commands around selection
+            const start = Math.max(0, Math.min(
+              validatedIndex - Math.floor(visibleCommandCount / 2),
+              filteredCommands.length - visibleCommandCount
+            ));
+            const visibleCommands = filteredCommands.slice(start, start + visibleCommandCount);
+
+            return (
+              <>
+                {start > 0 && <Text dimColor>↑ {start} more above</Text>}
+                {visibleCommands.map((cmd, idx) => (
+                  <CommandRow
+                    key={`${cmd.category}-${cmd.name}`}
+                    command={cmd}
+                    selected={start + idx === validatedIndex}
+                    isFavorite={favorites.has(cmd.name)}
+                  />
+                ))}
+                {start + visibleCommandCount < filteredCommands.length && (
+                  <Text dimColor>↓ {filteredCommands.length - start - visibleCommandCount} more below</Text>
+                )}
+              </>
+            );
+          })()
         )}
       </Box>
 
