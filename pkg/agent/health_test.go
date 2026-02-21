@@ -307,3 +307,106 @@ func TestHealthChecker_LastResult(t *testing.T) {
 		t.Error("expected result after check")
 	}
 }
+
+// --- Edge case tests for Start/Stop ---
+
+func TestHealthChecker_DoubleStart(t *testing.T) {
+	dir := t.TempDir()
+	bcDir := filepath.Join(dir, ".bc")
+	store := NewRootStateStore(bcDir)
+
+	// Create root
+	state, err := store.Create("root", RoleRoot, "claude")
+	if err != nil {
+		t.Fatalf("failed to create root: %v", err)
+	}
+	state.Session = "root-session"
+	if err := store.Save(state); err != nil {
+		t.Fatalf("failed to save root: %v", err)
+	}
+
+	tmux := newTestTmuxChecker()
+	tmux.SetSession("root-session", true)
+
+	checker := NewHealthChecker(store, tmux, nil,
+		WithHealthCheckInterval(50*time.Millisecond))
+
+	ctx := context.Background()
+
+	// Start first time
+	checker.Start(ctx)
+	if !checker.IsRunning() {
+		t.Error("expected checker to be running after first start")
+	}
+
+	// Start second time - should be no-op
+	checker.Start(ctx)
+	if !checker.IsRunning() {
+		t.Error("expected checker to still be running after double start")
+	}
+
+	checker.Stop()
+}
+
+func TestHealthChecker_DoubleStop(t *testing.T) {
+	dir := t.TempDir()
+	bcDir := filepath.Join(dir, ".bc")
+	store := NewRootStateStore(bcDir)
+
+	tmux := newTestTmuxChecker()
+	checker := NewHealthChecker(store, tmux, nil)
+
+	// Stop without starting - should be no-op
+	checker.Stop()
+	if checker.IsRunning() {
+		t.Error("expected checker not running after stop without start")
+	}
+
+	// Double stop - should be no-op
+	checker.Stop()
+	if checker.IsRunning() {
+		t.Error("expected checker not running after double stop")
+	}
+}
+
+func TestHealthChecker_ContextCancellation(t *testing.T) {
+	dir := t.TempDir()
+	bcDir := filepath.Join(dir, ".bc")
+	store := NewRootStateStore(bcDir)
+
+	// Create root
+	state, err := store.Create("root", RoleRoot, "claude")
+	if err != nil {
+		t.Fatalf("failed to create root: %v", err)
+	}
+	state.Session = "root-session"
+	if err := store.Save(state); err != nil {
+		t.Fatalf("failed to save root: %v", err)
+	}
+
+	tmux := newTestTmuxChecker()
+	tmux.SetSession("root-session", true)
+
+	checker := NewHealthChecker(store, tmux, nil,
+		WithHealthCheckInterval(50*time.Millisecond))
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	checker.Start(ctx)
+	if !checker.IsRunning() {
+		t.Error("expected checker to be running")
+	}
+
+	// Wait for at least one check
+	time.Sleep(75 * time.Millisecond)
+
+	// Cancel context - should stop the checker
+	cancel()
+
+	// Give time for the loop to notice cancellation
+	time.Sleep(100 * time.Millisecond)
+
+	if checker.IsRunning() {
+		t.Error("expected checker to stop after context cancellation")
+	}
+}
