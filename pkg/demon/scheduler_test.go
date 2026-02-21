@@ -1,6 +1,7 @@
 package demon
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -605,4 +606,112 @@ func TestSchedulerLog(t *testing.T) {
 	// Just verify log doesn't panic
 	scheduler.log("Test message: %s", "hello")
 	scheduler.log("Test number: %d", 42)
+}
+
+func TestSchedulerRunLoopCancellation(t *testing.T) {
+	tmpDir := t.TempDir()
+	scheduler := NewScheduler(tmpDir)
+	store := NewStore(tmpDir)
+
+	// Initialize store
+	if err := store.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a demon to be processed
+	_, err := store.Create("loop-test", "* * * * *", "echo test")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// Set NextRun to past so it runs immediately
+	err = store.Update("loop-test", func(d *Demon) {
+		d.NextRun = time.Now().Add(-time.Hour)
+	})
+	if err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
+
+	// Run loop with a short timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	// RunLoop should return context.DeadlineExceeded
+	err = scheduler.RunLoop(ctx)
+	if err != context.DeadlineExceeded {
+		t.Errorf("RunLoop() error = %v, want context.DeadlineExceeded", err)
+	}
+
+	// Verify the demon was executed during the loop
+	demon, _ := store.Get("loop-test")
+	if demon.RunCount < 1 {
+		t.Errorf("RunCount = %d, want >= 1", demon.RunCount)
+	}
+}
+
+func TestSchedulerRunLoopEmpty(t *testing.T) {
+	tmpDir := t.TempDir()
+	scheduler := NewScheduler(tmpDir)
+	store := NewStore(tmpDir)
+
+	// Initialize store but no demons
+	if err := store.Init(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run loop with a short timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	err := scheduler.RunLoop(ctx)
+	if err != context.DeadlineExceeded {
+		t.Errorf("RunLoop() error = %v, want context.DeadlineExceeded", err)
+	}
+}
+
+func TestSchedulerStatusRunning(t *testing.T) {
+	tmpDir := t.TempDir()
+	scheduler := NewScheduler(tmpDir)
+
+	// Create demons directory
+	demonsDir := filepath.Join(tmpDir, ".bc", "demons")
+	if err := os.MkdirAll(demonsDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Use current process PID
+	pid := os.Getpid()
+	pidFile := filepath.Join(demonsDir, "scheduler.pid")
+	if err := os.WriteFile(pidFile, []byte(fmt.Sprintf("%d", pid)), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write status file
+	status := SchedulerStatus{
+		Running:   true,
+		PID:       pid,
+		StartedAt: time.Now().Add(-30 * time.Minute).UTC(),
+	}
+	if err := scheduler.saveStatus(status); err != nil {
+		t.Fatal(err)
+	}
+
+	// Get status
+	got, err := scheduler.Status()
+	if err != nil {
+		t.Fatalf("Status() error = %v", err)
+	}
+
+	if !got.Running {
+		t.Error("Status.Running should be true")
+	}
+	if got.PID != pid {
+		t.Errorf("Status.PID = %d, want %d", got.PID, pid)
+	}
+	if got.Uptime == "" {
+		t.Error("Status.Uptime should be set")
+	}
+	if got.StartedAt.IsZero() {
+		t.Error("Status.StartedAt should be set")
+	}
 }
