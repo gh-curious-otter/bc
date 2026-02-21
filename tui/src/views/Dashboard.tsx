@@ -374,17 +374,28 @@ const AgentStatsPanel = memo(function AgentStatsPanel({ stats }: AgentStatsPanel
 
   const roleEntries = Object.entries(stats.byRole);
 
+  // #1338: Truncate role names at narrow widths to prevent text corruption
+  // Max role display: 12 chars + ": " + count (2-3 chars) = ~17 chars per line
+  const MAX_ROLE_LEN = 12;
+
   return (
     <Panel title="Agent Distribution">
       <Box flexDirection="column">
         <Text dimColor>By Role:</Text>
         <Box flexDirection="column" marginTop={1}>
-          {roleEntries.map(([role, count]) => (
-            <Box key={role}>
-              <Text color="cyan">{role}</Text>
-              <Text>: {count}</Text>
-            </Box>
-          ))}
+          {roleEntries.map(([role, count]) => {
+            // Truncate long role names to prevent overflow at narrow widths
+            const displayRole = role.length > MAX_ROLE_LEN
+              ? role.slice(0, MAX_ROLE_LEN - 1) + '…'
+              : role;
+            // #1338: Use single Text with wrap="truncate" to prevent text corruption
+            // Avoid nested Box which causes layout issues at 80x24
+            return (
+              <Text key={role} wrap="truncate">
+                {displayRole}: {count}
+              </Text>
+            );
+          })}
         </Box>
       </Box>
     </Panel>
