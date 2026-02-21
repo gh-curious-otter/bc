@@ -120,13 +120,39 @@ var (
 	issueUnassign     bool
 )
 
+// validIssueTypes defines the allowed issue types
+var validIssueTypes = []string{"bug", "enhancement", "test-failure", "feature", "documentation", "epic", "task", "chore"}
+
+// validSeverities defines the allowed severity levels
+var validSeverities = []string{"critical", "high", "medium", "low"}
+
+// isValidIssueType checks if the given type is valid
+func isValidIssueType(t string) bool {
+	for _, valid := range validIssueTypes {
+		if t == valid {
+			return true
+		}
+	}
+	return false
+}
+
+// isValidSeverity checks if the given severity is valid
+func isValidSeverity(s string) bool {
+	for _, valid := range validSeverities {
+		if s == valid {
+			return true
+		}
+	}
+	return false
+}
+
 func init() {
 	// issue create flags
-	issueCreateCmd.Flags().StringVar(&issueType, "type", "bug", "Issue type (epic, bug, task, chore, feature, enhancement)")
-	issueCreateCmd.Flags().StringVar(&issueTitle, "title", "", "Issue title")
+	issueCreateCmd.Flags().StringVar(&issueType, "type", "bug", "Issue type: bug, enhancement, test-failure, feature, documentation, epic, task, chore")
+	issueCreateCmd.Flags().StringVar(&issueTitle, "title", "", "Issue title (required)")
 	issueCreateCmd.Flags().StringVar(&issueDescription, "description", "", "Issue description")
 	issueCreateCmd.Flags().StringVar(&issueLabels, "labels", "", "Comma-separated labels")
-	issueCreateCmd.Flags().StringVar(&issueSeverity, "severity", "medium", "Severity (critical, high, medium, low)")
+	issueCreateCmd.Flags().StringVar(&issueSeverity, "severity", "medium", "Severity: critical, high, medium, low")
 	issueCreateCmd.Flags().StringVar(&issueReproSteps, "reproduction", "", "Reproduction steps")
 	issueCreateCmd.Flags().StringVar(&issueAssignee, "assignee", "", "Assign to user")
 
@@ -214,6 +240,16 @@ func runIssueCreate(cmd *cobra.Command, args []string) error {
 
 	if issueTitle == "" {
 		return fmt.Errorf("--title is required")
+	}
+
+	// Validate issue type
+	if !isValidIssueType(issueType) {
+		return fmt.Errorf("invalid --type %q: must be one of %v", issueType, validIssueTypes)
+	}
+
+	// Validate severity
+	if !isValidSeverity(issueSeverity) {
+		return fmt.Errorf("invalid --severity %q: must be one of %v", issueSeverity, validSeverities)
 	}
 
 	// Build issue body
