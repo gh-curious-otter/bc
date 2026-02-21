@@ -22,7 +22,7 @@ export const KeyHint = memo(function KeyHint({ keyChar, label }: KeyHintProps) {
 });
 
 /** Type for keybinding hint items */
-export type HintItem = { key: string; label: string };
+export interface HintItem { key: string; label: string }
 
 export interface FooterProps {
   hints: HintItem[];

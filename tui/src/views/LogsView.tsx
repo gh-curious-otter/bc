@@ -120,15 +120,6 @@ export const LogsView: React.FC<LogsViewProps> = ({ onBack, onSelectItem }) => {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
   const { setFocus } = useFocus();
 
-  // Manage focus state for nested view navigation
-  useEffect(() => {
-    if (showDetail) {
-      setFocus('view');
-    } else {
-      setFocus('main');
-    }
-  }, [showDetail, setFocus]);
-
   // Get unique agents for filter
   const agents = useMemo(() => {
     if (!logs) return [];
@@ -165,6 +156,15 @@ export const LogsView: React.FC<LogsViewProps> = ({ onBack, onSelectItem }) => {
   }, [logs, timeFilter, agentFilter, searchQuery]);
 
   const selectedLog = filteredLogs[selectedIndex] as LogEntry | undefined;
+
+  // Manage focus state for nested view navigation
+  useEffect(() => {
+    if (showDetail) {
+      setFocus('view');
+    } else {
+      setFocus('main');
+    }
+  }, [showDetail, setFocus]);
 
   // #1419: Update detail pane when selection changes
   useEffect(() => {
