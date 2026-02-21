@@ -161,6 +161,7 @@ bc/
 │   ├── routing/         # Agent routing patterns
 │   ├── team/            # Team management
 │   ├── tmux/            # tmux session control
+│   ├── ui/              # CLI output formatting (colors, tables)
 │   └── workspace/       # Workspace config (v1 JSON, v2 TOML)
 ├── prompts/             # Default role prompt templates
 └── tui/                 # TypeScript/React TUI (Ink)
@@ -171,7 +172,7 @@ bc/
     │   │   └── __tests__/ # Hook tests
     │   ├── navigation/  # Tab bar, keyboard navigation
     │   ├── services/    # BC CLI wrapper (bc.ts)
-    │   ├── views/       # Full-screen views (12 views)
+    │   ├── views/       # Full-screen views (14 views)
     │   │   └── __tests__/ # View tests
     │   └── app.tsx      # Main TUI application
     └── dist/            # Compiled output (CommonJS)
