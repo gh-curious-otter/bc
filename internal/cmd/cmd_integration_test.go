@@ -224,6 +224,8 @@ func TestReportNoWorkspace(t *testing.T) {
 }
 
 func TestReportValidStates(t *testing.T) {
+	t.Setenv("BC_WORKSPACE", "") // Clear to avoid agent session pollution
+
 	validStates := []string{"idle", "working", "done", "stuck", "error"}
 
 	for _, state := range validStates {
@@ -265,6 +267,8 @@ func TestReportRequiresArgs(t *testing.T) {
 // --- Status command tests ---
 
 func TestStatusNoWorkspace(t *testing.T) {
+	t.Setenv("BC_WORKSPACE", "") // Clear to avoid agent session pollution
+
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
