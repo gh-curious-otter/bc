@@ -158,11 +158,13 @@ export function ChannelsView({ disableInput = false, onSelectItem }: ChannelsVie
     );
   }
 
+  // #1483 fix: Remove nested width="100%" to fix layout at 80x24
+  // Let flexbox naturally fill available space instead of explicit width calculations
   return (
-    <Box flexDirection="column" width="100%">
+    <Box flexDirection="column" flexGrow={1} overflow="hidden">
       <Text bold>Channels</Text>
-      <Text dimColor>↑/↓ navigate, Enter to view messages, ESC to go back</Text>
-      <Box marginTop={1} flexDirection="column" width="100%" borderStyle="single" borderColor="gray" paddingX={2}>
+      <Text dimColor wrap="truncate">j/k navigate · Enter view · m compose · ESC back</Text>
+      <Box marginTop={1} flexDirection="column" flexGrow={1} borderStyle="single" borderColor="gray" paddingX={1} overflow="hidden">
         {channels?.map((channel, index) => (
           <ChannelRow
             key={channel.name}
