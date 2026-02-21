@@ -16,7 +16,7 @@ import { Box, Text, useInput, useStdout } from 'ink';
 import { getWorktrees } from '../services/bc';
 import type { Worktree } from '../types';
 import { useTheme } from '../theme';
-import { useFileTree, type FileTreeEntry } from '../hooks';
+import { useFileTree, useGitStatus, type FileTreeEntry, type GitFileStatus } from '../hooks';
 import * as fs from 'fs';
 
 export interface FilesViewProps {
@@ -48,6 +48,15 @@ export function FilesView({ onBack }: FilesViewProps): React.ReactElement {
     collapseDirectory,
   } = useFileTree({
     rootPath: selectedWorktree?.path ?? '',
+  });
+
+  // Git status for the selected worktree
+  const {
+    getStatus: getGitStatus,
+    summary: gitSummary,
+    loading: gitLoading,
+  } = useGitStatus({
+    workingDir: selectedWorktree?.path ?? '',
   });
 
   // Navigation state
@@ -231,6 +240,17 @@ export function FilesView({ onBack }: FilesViewProps): React.ReactElement {
           isOpen={worktreeSelectorOpen}
           onToggle={() => { setWorktreeSelectorOpen(prev => !prev); }}
         />
+        {/* Git status summary */}
+        {!gitLoading && gitSummary.total > 0 && (
+          <Box marginLeft={2}>
+            <Text dimColor>[</Text>
+            {gitSummary.modified > 0 && <Text color="yellow">~{gitSummary.modified}</Text>}
+            {gitSummary.added > 0 && <Text color="green"> +{gitSummary.added}</Text>}
+            {gitSummary.deleted > 0 && <Text color="red"> -{gitSummary.deleted}</Text>}
+            {gitSummary.untracked > 0 && <Text dimColor> ?{gitSummary.untracked}</Text>}
+            <Text dimColor>]</Text>
+          </Box>
+        )}
       </Box>
 
       {/* Main content: tree + preview */}
@@ -261,6 +281,7 @@ export function FilesView({ onBack }: FilesViewProps): React.ReactElement {
               flatTree={flatTree}
               selectedIndex={treeIndex}
               maxHeight={terminalHeight - 10}
+              getGitStatus={getGitStatus}
             />
           )}
         </Box>
@@ -339,17 +360,39 @@ function WorktreeSelector({
   );
 }
 
+// Git status indicator helper
+function getGitStatusIndicator(status: GitFileStatus | undefined): { icon: string; color: string } {
+  switch (status) {
+    case 'modified':
+      return { icon: '✱', color: 'yellow' };
+    case 'added':
+      return { icon: '+', color: 'green' };
+    case 'deleted':
+      return { icon: '−', color: 'red' };
+    case 'renamed':
+      return { icon: '→', color: 'blue' };
+    case 'untracked':
+      return { icon: '?', color: 'gray' };
+    case 'ignored':
+      return { icon: '!', color: 'gray' };
+    default:
+      return { icon: ' ', color: '' };
+  }
+}
+
 // FileTreeDisplay component
 interface FileTreeDisplayProps {
   flatTree: { entry: FileTreeEntry; depth: number }[];
   selectedIndex: number;
   maxHeight: number;
+  getGitStatus?: (filePath: string) => { status: GitFileStatus; staged: boolean } | null;
 }
 
 function FileTreeDisplay({
   flatTree,
   selectedIndex,
   maxHeight,
+  getGitStatus,
 }: FileTreeDisplayProps): React.ReactElement {
   const { theme } = useTheme();
 
@@ -368,11 +411,19 @@ function FileTreeDisplay({
           ? (item.entry.expanded ? '[-]' : '[+]')
           : '   ';
 
+        // Get git status for the file
+        const gitStatus = getGitStatus?.(item.entry.path);
+        const statusIndicator = getGitStatusIndicator(gitStatus?.status);
+
         return (
           <Text key={item.entry.path}>
             <Text color={isSelected ? theme.colors.accent : undefined} bold={isSelected}>
               {indent}{icon} {item.entry.name}
             </Text>
+            {statusIndicator.icon !== ' ' && (
+              <Text color={statusIndicator.color}> {statusIndicator.icon}</Text>
+            )}
+            {gitStatus?.staged && <Text color="green">*</Text>}
           </Text>
         );
       })}
