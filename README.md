@@ -267,9 +267,9 @@ bc channel send eng "Hello team!"
 The `bc home` dashboard provides a full terminal UI with:
 
 - **Responsive Layout**: Works at minimum 80x24 terminal size
-- **12 Views**: Dashboard, Agents, Channels, Costs, Commands, Roles, Logs, Worktrees, Workspaces, Demons, Processes, Help
+- **14 Views**: Dashboard, Agents, Channels, Costs, Commands, Roles, Logs, Worktrees, Workspaces, Demons, Processes, Memory, Routing, Help
 - **Command Palette**: Quick access to all actions via `Ctrl+K`
-- **Keyboard Navigation**: Number keys for direct tab access, `j/k` to scroll
+- **Keyboard Navigation**: Number keys for views, Tab to cycle, j/k in drawer/lists
 - **Channel Features**:
   - `@mention` autocomplete with Tab completion
   - Role-based name colors and emoji prefixes
@@ -281,14 +281,19 @@ The `bc home` dashboard provides a full terminal UI with:
 | Key | Action |
 |-----|--------|
 | `1-9`, `0`, `-` | Jump to view (Dashboard=1, Agents=2, ..., Processes=-) |
+| `M` | Memory view |
+| `R` | Routing view |
 | `?` | Open Help view |
 | `Ctrl+K` | Open command palette |
 | `Tab` / `Shift+Tab` | Next/previous view |
-| `j/k` or `↑/↓` | Scroll up/down |
-| `m` | Compose message (in channels) |
+| `j/k` or `↑/↓` | Navigate drawer/lists |
+| `g` / `G` | Jump to first/last item in drawer |
+| `m` | Compose message (in Channels view) |
+| `i` | Toggle detail pane |
 | `@` | Start mention autocomplete |
 | `Enter` | Send message / Select item |
 | `Esc` | Go back / Cancel |
+| `Ctrl+R` | Refresh all data |
 | `q` | Quit |
 
 ## Contributing
