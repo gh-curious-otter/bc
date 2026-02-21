@@ -3062,3 +3062,125 @@ func TestEnforceRootSingleton_OneRootAllowed(t *testing.T) {
 		t.Errorf("enforceRootSingleton should not error with one root: %v", err)
 	}
 }
+
+// --- SpawnChildAgent tests ---
+
+func TestSpawnChildAgent_ParentNotFound(t *testing.T) {
+	m := newTestManager(t)
+
+	// Try to spawn child with non-existent parent
+	_, err := m.SpawnChildAgent("nonexistent-parent", "child", Role("engineer"), "/workspace")
+	if err == nil {
+		t.Error("expected error when parent does not exist")
+	}
+}
+
+func TestSpawnChildAgentWithTool_ParentNotFound(t *testing.T) {
+	m := newTestManager(t)
+
+	// Try to spawn child with non-existent parent
+	_, err := m.SpawnChildAgentWithTool("nonexistent-parent", "child", Role("engineer"), "/workspace", "claude")
+	if err == nil {
+		t.Error("expected error when parent does not exist")
+	}
+}
+
+// --- RefreshState tests ---
+
+func TestRefreshState_UpdatesStopped(t *testing.T) {
+	m := newTestManager(t)
+
+	// Add agents that aren't actually running in tmux
+	m.agents["fake-agent"] = &Agent{
+		Name:  "fake-agent",
+		Role:  Role("engineer"),
+		State: StateIdle,
+	}
+
+	// RefreshState should mark them as stopped
+	err := m.RefreshState()
+	if err != nil {
+		t.Fatalf("RefreshState failed: %v", err)
+	}
+
+	if m.agents["fake-agent"].State != StateStopped {
+		t.Errorf("State = %s, want %s", m.agents["fake-agent"].State, StateStopped)
+	}
+}
+
+func TestRefreshState_PreservesStopped(t *testing.T) {
+	m := newTestManager(t)
+
+	// Add agent already marked as stopped
+	m.agents["stopped-agent"] = &Agent{
+		Name:  "stopped-agent",
+		Role:  Role("engineer"),
+		State: StateStopped,
+	}
+
+	err := m.RefreshState()
+	if err != nil {
+		t.Fatalf("RefreshState failed: %v", err)
+	}
+
+	// Should still be stopped
+	if m.agents["stopped-agent"].State != StateStopped {
+		t.Errorf("State = %s, want %s", m.agents["stopped-agent"].State, StateStopped)
+	}
+}
+
+// --- removeFromParent tests ---
+
+func TestRemoveFromParent_NoParent(t *testing.T) {
+	m := newTestManager(t)
+
+	m.agents["child"] = &Agent{
+		Name:     "child",
+		ParentID: "", // No parent
+	}
+
+	// Should not panic
+	m.removeFromParent("child")
+}
+
+func TestRemoveFromParent_ParentNotFound(t *testing.T) {
+	m := newTestManager(t)
+
+	m.agents["child"] = &Agent{
+		Name:     "child",
+		ParentID: "missing-parent",
+	}
+
+	// Should not panic even if parent doesn't exist
+	m.removeFromParent("child")
+}
+
+func TestRemoveFromParent_Success(t *testing.T) {
+	m := newTestManager(t)
+
+	m.agents["parent"] = &Agent{
+		Name:     "parent",
+		Children: []string{"child1", "child2"},
+	}
+	m.agents["child1"] = &Agent{
+		Name:     "child1",
+		ParentID: "parent",
+	}
+
+	m.removeFromParent("child1")
+
+	// Parent should only have child2
+	if len(m.agents["parent"].Children) != 1 {
+		t.Errorf("Children count = %d, want 1", len(m.agents["parent"].Children))
+	}
+	if m.agents["parent"].Children[0] != "child2" {
+		t.Errorf("Children = %v, want [child2]", m.agents["parent"].Children)
+	}
+}
+
+func TestRemoveFromParent_AgentNotFound(t *testing.T) {
+	m := newTestManager(t)
+
+	// Should not panic
+	m.removeFromParent("nonexistent")
+}
