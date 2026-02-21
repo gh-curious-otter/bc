@@ -981,3 +981,111 @@ func TestContainsHelper(t *testing.T) {
 		t.Error("contains should return false for empty slice")
 	}
 }
+
+func TestUpdateNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	err := store.Update("nonexistent", func(d *Demon) {
+		d.Description = "updated"
+	})
+	if err == nil {
+		t.Error("Update should error for non-existent demon")
+	}
+}
+
+func TestListByOwnerEmpty(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create demon with different owner
+	_, err := store.Create("test", "0 * * * *", "echo test")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// List by non-matching owner
+	demons, err := store.ListByOwner("other-owner")
+	if err != nil {
+		t.Fatalf("ListByOwner failed: %v", err)
+	}
+	if len(demons) != 0 {
+		t.Errorf("ListByOwner should return empty, got %d", len(demons))
+	}
+}
+
+func TestListByOwnerMatch(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create demon and set owner
+	demon, err := store.Create("test", "0 * * * *", "echo test")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if setErr := store.SetOwner(demon.Name, "eng-01"); setErr != nil {
+		t.Fatalf("SetOwner failed: %v", setErr)
+	}
+
+	// List by matching owner
+	demons, err := store.ListByOwner("eng-01")
+	if err != nil {
+		t.Fatalf("ListByOwner failed: %v", err)
+	}
+	if len(demons) != 1 {
+		t.Errorf("ListByOwner should return 1, got %d", len(demons))
+	}
+}
+
+func TestListEnabledEmpty(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create disabled demon
+	demon, err := store.Create("test", "0 * * * *", "echo test")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if disableErr := store.Disable(demon.Name); disableErr != nil {
+		t.Fatalf("Disable failed: %v", disableErr)
+	}
+
+	// List enabled should be empty
+	demons, err := store.ListEnabled()
+	if err != nil {
+		t.Fatalf("ListEnabled failed: %v", err)
+	}
+	if len(demons) != 0 {
+		t.Errorf("ListEnabled should return empty, got %d", len(demons))
+	}
+}
+
+func TestListEnabledMatch(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create enabled demon (default)
+	_, err := store.Create("test", "0 * * * *", "echo test")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// List enabled should have 1
+	demons, err := store.ListEnabled()
+	if err != nil {
+		t.Fatalf("ListEnabled failed: %v", err)
+	}
+	if len(demons) != 1 {
+		t.Errorf("ListEnabled should return 1, got %d", len(demons))
+	}
+}
+
+func TestDeleteNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	err := store.Delete("nonexistent")
+	if err == nil {
+		t.Error("Delete should error for non-existent demon")
+	}
+}
