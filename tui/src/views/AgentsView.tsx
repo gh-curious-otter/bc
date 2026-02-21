@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useAgents } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { Table } from '../components/Table';
 import type { Column } from '../components/Table';
 import { StatusBadge } from '../components/StatusBadge';
@@ -82,6 +83,8 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   onBack,
 }) => {
   const { data: agents, loading, error, refresh } = useAgents();
+  const { isCompact, isMinimal } = useResponsiveLayout();
+  const isNarrow = isCompact || isMinimal; // #1346: Borderless at <100 cols
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showDetail, setShowDetail] = useState(false);
   const [confirmAction, setConfirmAction] = useState<AgentAction | null>(null);
@@ -299,11 +302,12 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   ];
 
   // Search mode overlay
+  // #1346: Borderless at narrow widths
   if (searchMode) {
     return (
       <Box flexDirection="column" padding={1}>
         <Text bold>Search Agents</Text>
-        <Box marginTop={1} borderStyle="single" borderColor="cyan" paddingX={1}>
+        <Box marginTop={1} borderStyle={isNarrow ? undefined : 'single'} borderColor="cyan" paddingX={1}>
           <Text color="cyan">{'> '}</Text>
           <Text>{searchQuery}</Text>
           <Text color="cyan">|</Text>
@@ -363,12 +367,12 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
         </Box>
       )}
 
-      {/* Peek output panel (#1331) */}
+      {/* Peek output panel (#1331, #1346: Borderless at <100 cols) */}
       {peekOutput && selectedAgent && (
         <Box
           marginBottom={1}
-          paddingX={1}
-          borderStyle="single"
+          paddingX={isNarrow ? 0 : 1}
+          borderStyle={isNarrow ? undefined : 'single'}
           borderColor="cyan"
           flexDirection="column"
         >
@@ -386,9 +390,9 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
         </Box>
       )}
 
-      {/* Confirmation dialog */}
+      {/* Confirmation dialog (#1346: Borderless at <100 cols) */}
       {confirmAction && selectedAgent && (
-        <Box marginBottom={1} paddingX={1} borderStyle="round" borderColor="yellow">
+        <Box marginBottom={1} paddingX={isNarrow ? 0 : 1} borderStyle={isNarrow ? undefined : 'round'} borderColor="yellow">
           <Text color="yellow">
             {confirmAction === 'start' && `Start agent "${selectedAgent.name}" as ${selectedAgent.role}?`}
             {confirmAction === 'stop' && `Stop agent "${selectedAgent.name}"?`}
