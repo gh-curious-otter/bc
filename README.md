@@ -72,6 +72,25 @@ make build
 make install
 ```
 
+### Shell Completions
+
+Enable tab completion for bc commands, agent names, and channel names:
+
+```bash
+# Bash
+bc completion bash > /etc/bash_completion.d/bc
+# or on macOS with Homebrew:
+bc completion bash > $(brew --prefix)/etc/bash_completion.d/bc
+
+# Zsh (add to fpath)
+bc completion zsh > "${fpath[1]}/_bc"
+# or for Oh My Zsh:
+bc completion zsh > ~/.oh-my-zsh/completions/_bc
+
+# Fish
+bc completion fish > ~/.config/fish/completions/bc.fish
+```
+
 ## Quick Start
 
 ```bash

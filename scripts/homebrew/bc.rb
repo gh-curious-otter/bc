@@ -37,6 +37,27 @@ class Bc < Formula
   def install
     binary_name = "bc-#{OS.kernel_name.downcase}-#{Hardware::CPU.arch == :arm64 ? "arm64" : "amd64"}"
     bin.install binary_name => "bc"
+
+    # Generate and install shell completions
+    generate_completions_from_executable(bin/"bc", "completion")
+  end
+
+  def caveats
+    <<~EOS
+      Shell completions have been installed.
+
+      To enable completions, you may need to:
+
+      Bash:
+        Add to ~/.bash_profile:
+          [[ -r "$(brew --prefix)/etc/profile.d/bash_completion.sh" ]] && . "$(brew --prefix)/etc/profile.d/bash_completion.sh"
+
+      Zsh:
+        Completions are installed to #{HOMEBREW_PREFIX}/share/zsh/site-functions
+
+      Fish:
+        Completions are installed to #{HOMEBREW_PREFIX}/share/fish/vendor_completions.d
+    EOS
   end
 
   test do
