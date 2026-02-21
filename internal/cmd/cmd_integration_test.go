@@ -228,6 +228,7 @@ func TestReportValidStates(t *testing.T) {
 
 	for _, state := range validStates {
 		t.Run(state, func(t *testing.T) {
+			t.Setenv("BC_WORKSPACE", "") // Clear to ensure workspace lookup fails
 			t.Setenv("BC_AGENT_ID", "test-agent")
 
 			// State validation happens before workspace lookup, but
@@ -265,6 +266,8 @@ func TestReportRequiresArgs(t *testing.T) {
 // --- Status command tests ---
 
 func TestStatusNoWorkspace(t *testing.T) {
+	t.Setenv("BC_WORKSPACE", "") // Clear to ensure workspace lookup fails
+
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
