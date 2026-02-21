@@ -158,11 +158,14 @@ export function ChannelsView({ disableInput = false, onSelectItem }: ChannelsVie
     );
   }
 
+  // #1483 fix: Remove width="100%" to avoid layout overflow at 80 columns
+  // Ink's layout calculates width incorrectly when width="100%" + padding + border
+  // Let flexbox handle width naturally through flexGrow
   return (
-    <Box flexDirection="column" width="100%">
+    <Box flexDirection="column" flexGrow={1}>
       <Text bold>Channels</Text>
       <Text dimColor>↑/↓ navigate, Enter to view messages, ESC to go back</Text>
-      <Box marginTop={1} flexDirection="column" width="100%" borderStyle="single" borderColor="gray" paddingX={2}>
+      <Box marginTop={1} flexDirection="column" flexGrow={1} borderStyle="single" borderColor="gray" paddingX={1}>
         {channels?.map((channel, index) => (
           <ChannelRow
             key={channel.name}
