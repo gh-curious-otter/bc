@@ -10,6 +10,7 @@ import { useNavigation } from '../navigation/NavigationContext';
 import { PulseText } from './AnimatedText';
 import { ChatMessage } from './ChatMessage';
 import { MentionAutocomplete } from './MentionAutocomplete';
+import type { DetailItem } from './DetailPane';
 import type { Channel } from '../types';
 
 /** Duration in ms to show send errors before auto-clearing */
@@ -31,9 +32,11 @@ function calculateInputHeight(messageLength: number, terminalWidth: number): num
 interface ChannelsViewProps {
   /** Disable input handling (useful for testing) */
   disableInput?: boolean;
+  /** Callback when channel selection changes (#1418) */
+  onSelectItem?: (item: DetailItem | null) => void;
 }
 
-export function ChannelsView({ disableInput = false }: ChannelsViewProps): React.ReactElement {
+export function ChannelsView({ disableInput = false, onSelectItem }: ChannelsViewProps): React.ReactElement {
   // #1129: Use useChannelsWithUnread for proper unread message tracking
   const { channels, loading: channelsLoading, error: channelsError } = useChannelsWithUnread();
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -53,6 +56,29 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
       setFocus('main');
     }
   }, [viewMode, channels, selectedIndex, setBreadcrumbs, clearBreadcrumbs, setFocus]);
+
+  // #1418: Update DetailPane when channel selection changes
+  useEffect(() => {
+    if (viewMode !== 'list') {
+      // Don't update detail when in history view
+      onSelectItem?.(null);
+      return;
+    }
+    const channel = channels?.[selectedIndex];
+    if (channel) {
+      onSelectItem?.({
+        title: `#${channel.name}`,
+        type: 'channel',
+        description: channel.description,
+        fields: [
+          { label: 'Members', value: String(channel.members.length) },
+          { label: 'Unread', value: String(channel.unread || 0), color: channel.unread ? 'yellow' : undefined },
+        ],
+      });
+    } else {
+      onSelectItem?.(null);
+    }
+  }, [selectedIndex, channels, viewMode, onSelectItem]);
 
   // Track if we should start in compose mode when entering history view
   const [startCompose, setStartCompose] = useState(false);

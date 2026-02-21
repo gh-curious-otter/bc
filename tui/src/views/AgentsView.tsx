@@ -10,9 +10,12 @@ import { PulseText } from '../components/AnimatedText';
 import { AgentDetailView } from './AgentDetailView';
 import { execBc } from '../services/bc';
 import type { Agent } from '../types';
+import type { DetailItem } from '../components/DetailPane';
 
 interface AgentsViewProps {
   onBack?: () => void;
+  /** Callback when agent selection changes (#1418) */
+  onSelectItem?: (item: DetailItem | null) => void;
 }
 
 /** Action feedback display duration in ms */
@@ -140,6 +143,7 @@ interface ActionState {
 
 export const AgentsView: React.FC<AgentsViewProps> = ({
   onBack,
+  onSelectItem,
 }) => {
   const { data: agents, loading, error, refresh } = useAgents();
   const { isCompact, isMinimal } = useResponsiveLayout();
@@ -207,6 +211,28 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
     return undefined;
   }, [visibleItems, selectedIndex]);
   const { setFocus } = useFocus();
+
+  // #1418: Update DetailPane when agent selection changes
+  useEffect(() => {
+    if (showDetail) {
+      // Don't update detail when in detail view
+      onSelectItem?.(null);
+      return;
+    }
+    if (selectedAgent) {
+      onSelectItem?.({
+        title: selectedAgent.name,
+        type: 'agent',
+        fields: [
+          { label: 'Role', value: selectedAgent.role },
+          { label: 'Status', value: selectedAgent.state, color: selectedAgent.state === 'working' ? 'green' : selectedAgent.state === 'error' ? 'red' : undefined },
+          { label: 'Task', value: selectedAgent.task || '-' },
+        ],
+      });
+    } else {
+      onSelectItem?.(null);
+    }
+  }, [selectedAgent, showDetail, onSelectItem]);
 
   // Manage focus state for nested view navigation
   // When showing detail view, set focus='view' to prevent global ESC from firing
