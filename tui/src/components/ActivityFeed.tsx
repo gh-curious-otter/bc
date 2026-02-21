@@ -57,7 +57,8 @@ function formatEventType(type: string): string {
 /**
  * Truncate message to fit in compact display
  */
-function truncateMessage(msg: string, maxLen: number): string {
+function truncateMessage(msg: string | undefined | null, maxLen: number): string {
+  if (!msg) return '';
   if (msg.length <= maxLen) return msg;
   return msg.slice(0, maxLen - 3) + '...';
 }
