@@ -16,19 +16,12 @@ import { Box, Text, useInput, useStdout } from 'ink';
 import { getWorktrees } from '../services/bc';
 import type { Worktree } from '../types';
 import { useTheme } from '../theme';
+import { useFileTree, type FileTreeEntry } from '../hooks';
+import * as fs from 'fs';
 
 export interface FilesViewProps {
   /** Callback when user presses Esc to go back */
   onBack?: () => void;
-}
-
-// Directory entry type for file tree
-interface DirectoryEntry {
-  name: string;
-  path: string;
-  isDirectory: boolean;
-  children?: DirectoryEntry[];
-  expanded?: boolean;
 }
 
 // Focus areas within the view
@@ -46,22 +39,32 @@ export function FilesView({ onBack }: FilesViewProps): React.ReactElement {
   const [worktreeIndex, setWorktreeIndex] = useState(0);
   const [worktreeSelectorOpen, setWorktreeSelectorOpen] = useState(false);
 
-  // File tree state
-  const [fileTree, setFileTree] = useState<DirectoryEntry[]>([]);
+  // File tree state - use the hook
+  const {
+    tree: fileTree,
+    loading: treeLoading,
+    error: treeError,
+    expandDirectory,
+    collapseDirectory,
+  } = useFileTree({
+    rootPath: selectedWorktree?.path ?? '',
+  });
+
+  // Navigation state
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [treeIndex, setTreeIndex] = useState(0);
 
   // View state
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [worktreesLoading, setWorktreesLoading] = useState(true);
+  const [worktreesError, setWorktreesError] = useState<string | null>(null);
   const [focusArea, setFocusArea] = useState<FocusArea>('tree');
 
   // Load worktrees on mount
   useEffect(() => {
     const loadWorktrees = async (): Promise<void> => {
       try {
-        setLoading(true);
-        setError(null);
+        setWorktreesLoading(true);
+        setWorktreesError(null);
         const wts = await getWorktrees();
         // Filter to only OK worktrees
         const activeWorktrees = wts.filter(w => w.status === 'OK');
@@ -70,21 +73,27 @@ export function FilesView({ onBack }: FilesViewProps): React.ReactElement {
           setSelectedWorktree(activeWorktrees[0]);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load worktrees');
+        setWorktreesError(err instanceof Error ? err.message : 'Failed to load worktrees');
       } finally {
-        setLoading(false);
+        setWorktreesLoading(false);
       }
     };
 
     void loadWorktrees();
   }, []);
 
+  // Reset tree index when worktree changes
+  useEffect(() => {
+    setTreeIndex(0);
+    setSelectedPath(null);
+  }, [selectedWorktree]);
+
   // Flatten visible tree entries for navigation
-  const flattenTree = useCallback((entries: DirectoryEntry[], depth = 0): { entry: DirectoryEntry; depth: number }[] => {
-    const result: { entry: DirectoryEntry; depth: number }[] = [];
+  const flattenTree = useCallback((entries: FileTreeEntry[], depth = 0): { entry: FileTreeEntry; depth: number }[] => {
+    const result: { entry: FileTreeEntry; depth: number }[] = [];
     for (const entry of entries) {
       result.push({ entry, depth });
-      if (entry.isDirectory && entry.expanded && entry.children) {
+      if (entry.isDirectory && entry.expanded && entry.children.length > 0) {
         result.push(...flattenTree(entry.children, depth + 1));
       }
     }
@@ -158,8 +167,11 @@ export function FilesView({ onBack }: FilesViewProps): React.ReactElement {
         const item = flatTree[treeIndex];
         if (item.entry.isDirectory) {
           // Toggle directory expansion
-          item.entry.expanded = !item.entry.expanded;
-          setFileTree([...fileTree]); // Trigger re-render
+          if (item.entry.expanded) {
+            collapseDirectory(item.entry.path);
+          } else {
+            expandDirectory(item.entry.path);
+          }
         } else {
           // Select file for preview
           setSelectedPath(item.entry.path);
@@ -173,7 +185,8 @@ export function FilesView({ onBack }: FilesViewProps): React.ReactElement {
   const treeWidth = Math.min(40, Math.floor(terminalWidth * 0.4));
   const previewWidth = terminalWidth - treeWidth - 4;
 
-  if (loading) {
+  // Loading states
+  if (worktreesLoading) {
     return (
       <Box flexDirection="column" padding={1}>
         <Text color="cyan">Files</Text>
@@ -182,11 +195,11 @@ export function FilesView({ onBack }: FilesViewProps): React.ReactElement {
     );
   }
 
-  if (error) {
+  if (worktreesError) {
     return (
       <Box flexDirection="column" padding={1}>
         <Text color="cyan">Files</Text>
-        <Text color="red">Error: {error}</Text>
+        <Text color="red">Error: {worktreesError}</Text>
       </Box>
     );
   }
@@ -231,10 +244,17 @@ export function FilesView({ onBack }: FilesViewProps): React.ReactElement {
           paddingX={1}
         >
           <Text bold dimColor>Tree</Text>
-          {fileTree.length === 0 ? (
+          {treeLoading ? (
+            <Box marginTop={1}>
+              <Text dimColor>Loading files...</Text>
+            </Box>
+          ) : treeError ? (
+            <Box marginTop={1}>
+              <Text color="red">{treeError}</Text>
+            </Box>
+          ) : fileTree.length === 0 ? (
             <Box marginTop={1} flexDirection="column">
-              <Text dimColor>Select a worktree to browse files.</Text>
-              <Text dimColor>Press w to open worktree selector.</Text>
+              <Text dimColor>No files in worktree.</Text>
             </Box>
           ) : (
             <FileTreeDisplay
@@ -256,9 +276,7 @@ export function FilesView({ onBack }: FilesViewProps): React.ReactElement {
         >
           <Text bold dimColor>Preview</Text>
           {selectedPath ? (
-            <Box marginTop={1}>
-              <Text dimColor>{selectedPath}</Text>
-            </Box>
+            <FilePreview path={selectedPath} maxHeight={terminalHeight - 10} />
           ) : (
             <Box marginTop={1}>
               <Text dimColor>Select a file to preview.</Text>
@@ -323,7 +341,7 @@ function WorktreeSelector({
 
 // FileTreeDisplay component
 interface FileTreeDisplayProps {
-  flatTree: { entry: DirectoryEntry; depth: number }[];
+  flatTree: { entry: FileTreeEntry; depth: number }[];
   selectedIndex: number;
   maxHeight: number;
 }
@@ -358,6 +376,86 @@ function FileTreeDisplay({
           </Text>
         );
       })}
+    </Box>
+  );
+}
+
+// FilePreview component
+interface FilePreviewProps {
+  path: string;
+  maxHeight: number;
+}
+
+function FilePreview({ path, maxHeight }: FilePreviewProps): React.ReactElement {
+  const [content, setContent] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    setContent(null);
+
+    try {
+      const stats = fs.statSync(path);
+
+      // Don't preview files larger than 100KB
+      if (stats.size > 100 * 1024) {
+        setError('File too large to preview (>100KB)');
+        setLoading(false);
+        return;
+      }
+
+      // Read file content
+      const fileContent = fs.readFileSync(path, 'utf-8');
+      setContent(fileContent);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to read file');
+    } finally {
+      setLoading(false);
+    }
+  }, [path]);
+
+  if (loading) {
+    return (
+      <Box marginTop={1}>
+        <Text dimColor>Loading...</Text>
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box marginTop={1}>
+        <Text color="red">{error}</Text>
+      </Box>
+    );
+  }
+
+  if (!content) {
+    return (
+      <Box marginTop={1}>
+        <Text dimColor>Empty file</Text>
+      </Box>
+    );
+  }
+
+  // Split into lines and limit display
+  const lines = content.split('\n');
+  const visibleLines = lines.slice(0, maxHeight - 2);
+
+  return (
+    <Box flexDirection="column" marginTop={1}>
+      <Text dimColor>{path}</Text>
+      <Text dimColor>{'─'.repeat(30)}</Text>
+      {visibleLines.map((line, idx) => (
+        <Text key={idx} wrap="truncate">
+          {line}
+        </Text>
+      ))}
+      {lines.length > visibleLines.length && (
+        <Text dimColor>... ({lines.length - visibleLines.length} more lines)</Text>
+      )}
     </Box>
   );
 }
