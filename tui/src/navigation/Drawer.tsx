@@ -1,11 +1,11 @@
 /**
  * Drawer - Vertical navigation drawer component
  *
- * A 14-character fixed-width left panel with:
- * - j/k for vim-style navigation
- * - Enter to select
- * - Number keys for quick jump
- * - Active view indicator (triangular marker)
+ * Issue #1345: Visual overhaul with grouped sections
+ * - Sections: WORKSPACE, MONITORING, SYSTEM
+ * - Visual indicators: ● selected, ○ unselected
+ * - Header with branding
+ * - Footer with help shortcut
  *
  * Issue #1289: TUI revamp with drawer layout
  */
@@ -16,10 +16,30 @@ import { useNavigation, type TabConfig } from './NavigationContext';
 import { useFocus } from './FocusContext';
 
 /** Fixed width for drawer panel */
-const DRAWER_WIDTH = 14;
+const DRAWER_WIDTH = 16;
 /** Shrunk width for narrow terminals (80-99 cols) */
-/** #1318: Reduced from 10 to 8 to give more space to content at 80x24 */
 const DRAWER_SHRUNK_WIDTH = 8;
+
+/** Section definitions for grouped navigation */
+interface DrawerSection {
+  title: string;
+  views: string[];
+}
+
+const DRAWER_SECTIONS: DrawerSection[] = [
+  {
+    title: 'WORKSPACE',
+    views: ['dashboard', 'agents', 'channels', 'commands'],
+  },
+  {
+    title: 'MONITOR',
+    views: ['logs', 'costs', 'processes', 'demons'],
+  },
+  {
+    title: 'SYSTEM',
+    views: ['roles', 'worktrees', 'workspaces', 'memory', 'routing'],
+  },
+];
 
 export interface DrawerProps {
   /** Title displayed at top of drawer */
@@ -28,17 +48,25 @@ export interface DrawerProps {
   disabled?: boolean;
   /** Shrink drawer for narrow terminals */
   shrunk?: boolean;
+  /** Version string for footer */
+  version?: string;
 }
 
 export function Drawer({
-  title = 'bc v2',
+  title = 'bc',
   disabled = false,
   shrunk = false,
+  version = 'v2',
 }: DrawerProps): React.ReactElement {
   const { currentView, tabs, navigate } = useNavigation();
   const { isFocused } = useFocus();
+
+  // Filter out help tab - it goes in footer
+  const mainTabs = tabs.filter(t => t.view !== 'help');
+  const helpTab = tabs.find(t => t.view === 'help');
+
   const [highlightedIndex, setHighlightedIndex] = useState(() =>
-    tabs.findIndex(t => t.view === currentView)
+    mainTabs.findIndex(t => t.view === currentView)
   );
 
   // Determine width based on shrunk state
@@ -54,7 +82,7 @@ export function Drawer({
 
       // j or down arrow: move highlight down
       if (input === 'j' || key.downArrow) {
-        setHighlightedIndex(prev => Math.min(prev + 1, tabs.length - 1));
+        setHighlightedIndex(prev => Math.min(prev + 1, mainTabs.length - 1));
         return;
       }
 
@@ -72,27 +100,56 @@ export function Drawer({
 
       // G: jump to last
       if (input === 'G') {
-        setHighlightedIndex(tabs.length - 1);
+        setHighlightedIndex(mainTabs.length - 1);
         return;
       }
 
       // Enter: select highlighted item
       if (key.return) {
-        navigate(tabs[highlightedIndex].view);
+        navigate(mainTabs[highlightedIndex].view);
         return;
       }
     },
-    { isActive: !disabled && tabs.length > 0 }
+    { isActive: !disabled && mainTabs.length > 0 }
   );
 
   // Sync highlight with current view when navigation happens externally
   React.useEffect(() => {
-    const idx = tabs.findIndex(t => t.view === currentView);
+    const idx = mainTabs.findIndex(t => t.view === currentView);
     if (idx >= 0 && idx !== highlightedIndex) {
       setHighlightedIndex(idx);
     }
-  }, [currentView, tabs, highlightedIndex]);
+  }, [currentView, mainTabs, highlightedIndex]);
 
+  // Shrunk mode: minimal display
+  if (shrunk) {
+    return (
+      <Box
+        flexDirection="column"
+        width={width}
+        borderStyle="single"
+        borderRight
+        borderTop={false}
+        borderBottom={false}
+        borderLeft={false}
+        paddingRight={1}
+      >
+        <Text bold color="cyan">{title}</Text>
+        <Box marginTop={1} flexDirection="column">
+          {mainTabs.map((tab, index) => (
+            <DrawerItemShrunk
+              key={tab.view}
+              tab={tab}
+              isActive={currentView === tab.view}
+              isHighlighted={index === highlightedIndex}
+            />
+          ))}
+        </Box>
+      </Box>
+    );
+  }
+
+  // Full drawer with sections
   return (
     <Box
       flexDirection="column"
@@ -104,26 +161,58 @@ export function Drawer({
       borderLeft={false}
       paddingRight={1}
     >
-      {/* Drawer title */}
-      <Box marginBottom={1}>
-        <Text bold color="cyan">{shrunk ? 'bc' : title}</Text>
-      </Box>
+      {/* Header */}
       <Box>
-        <Text dimColor>{'─'.repeat(width - 2)}</Text>
+        <Text bold color="cyan">{title}</Text>
+        <Text dimColor> {version}</Text>
+      </Box>
+      <Text dimColor>{'━'.repeat(width - 2)}</Text>
+
+      {/* Grouped sections */}
+      <Box flexDirection="column" marginTop={1} flexGrow={1}>
+        {DRAWER_SECTIONS.map((section) => {
+          const sectionTabs = mainTabs.filter(t => section.views.includes(t.view));
+          if (sectionTabs.length === 0) return null;
+
+          return (
+            <Box key={section.title} flexDirection="column" marginBottom={1}>
+              {/* Section header */}
+              <Text dimColor bold>{section.title}</Text>
+              {/* Section items */}
+              {sectionTabs.map(tab => {
+                const globalIndex = mainTabs.findIndex(t => t.view === tab.view);
+                return (
+                  <DrawerItem
+                    key={tab.view}
+                    tab={tab}
+                    isActive={currentView === tab.view}
+                    isHighlighted={globalIndex === highlightedIndex}
+                  />
+                );
+              })}
+            </Box>
+          );
+        })}
       </Box>
 
-      {/* Navigation items */}
-      <Box flexDirection="column" marginTop={1}>
-        {tabs.map((tab, index) => (
-          <DrawerItem
-            key={tab.view}
-            tab={tab}
-            isActive={currentView === tab.view}
-            isHighlighted={index === highlightedIndex}
-            shrunk={shrunk}
-          />
-        ))}
-      </Box>
+      {/* Footer separator */}
+      <Text dimColor>{'─'.repeat(width - 2)}</Text>
+
+      {/* Help in footer */}
+      {helpTab && (
+        <Box marginTop={1}>
+          <Text color={currentView === 'help' ? 'green' : undefined}>
+            {currentView === 'help' ? '●' : '○'}
+          </Text>
+          <Text
+            color={currentView === 'help' ? 'green' : undefined}
+            dimColor={currentView !== 'help'}
+          >
+            {' '}Help
+          </Text>
+          <Text dimColor> ?</Text>
+        </Box>
+      )}
     </Box>
   );
 }
@@ -132,19 +221,11 @@ interface DrawerItemProps {
   tab: TabConfig;
   isActive: boolean;
   isHighlighted: boolean;
-  shrunk?: boolean;
 }
 
-function DrawerItem({ tab, isActive, isHighlighted, shrunk = false }: DrawerItemProps): React.ReactElement {
-  // Use triangular marker for active view
-  const marker = isActive ? '▸' : ' ';
-
-  // Short label for compact display, truncate more when shrunk
-  const fullLabel = tab.shortLabel ?? tab.label;
-  const maxLen = shrunk ? 6 : 12;
-  const label = fullLabel.length > maxLen
-    ? fullLabel.substring(0, maxLen - 1) + '…'
-    : fullLabel;
+function DrawerItem({ tab, isActive, isHighlighted }: DrawerItemProps): React.ReactElement {
+  // Visual indicators: ● selected, ○ unselected
+  const indicator = isActive ? '●' : '○';
 
   // Determine text styling
   const textColor = isActive ? 'green' : isHighlighted ? 'yellow' : undefined;
@@ -153,14 +234,39 @@ function DrawerItem({ tab, isActive, isHighlighted, shrunk = false }: DrawerItem
 
   return (
     <Box>
-      <Text color={isActive ? 'green' : undefined}>{marker}</Text>
+      <Text color={isActive ? 'green' : isHighlighted ? 'yellow' : undefined}>{indicator}</Text>
       <Text
         bold={isBold}
         color={textColor}
         dimColor={isDim}
       >
-        {label}
+        {' '}{tab.label}
       </Text>
+      {/* Show shortcut key */}
+      {tab.shortcut && !isActive && (
+        <Text dimColor> {tab.shortcut}</Text>
+      )}
+    </Box>
+  );
+}
+
+interface DrawerItemShrunkProps {
+  tab: TabConfig;
+  isActive: boolean;
+  isHighlighted: boolean;
+}
+
+function DrawerItemShrunk({ tab, isActive, isHighlighted }: DrawerItemShrunkProps): React.ReactElement {
+  const indicator = isActive ? '●' : '○';
+  const textColor = isActive ? 'green' : isHighlighted ? 'yellow' : undefined;
+
+  // Use shortcut key as minimal label
+  const label = tab.shortcut ?? tab.label.charAt(0);
+
+  return (
+    <Box>
+      <Text color={textColor}>{indicator}</Text>
+      <Text color={textColor} dimColor={!isActive && !isHighlighted}>{label}</Text>
     </Box>
   );
 }
