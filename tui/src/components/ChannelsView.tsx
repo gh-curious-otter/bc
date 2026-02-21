@@ -2,7 +2,7 @@
  * ChannelsView - Channel list and message history component
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { useChannelsWithUnread, useChannelHistory, useUnread, useMentionAutocomplete } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
@@ -215,6 +215,8 @@ function ChannelHistoryView({
     limit: 50,
   });
   const [inputMode, setInputMode] = useState(startInComposeMode);
+  // Skip first keystroke when entering via 'm' from list view (#1337/#1339)
+  const skipFirstInput = useRef(startInComposeMode);
   const [messageBuffer, setMessageBuffer] = useState('');
   const [scrollOffset, setScrollOffset] = useState(0);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -289,6 +291,13 @@ function ChannelHistoryView({
   useInput(
     (input, key) => {
       if (inputMode) {
+        // Skip the first keystroke when entering via 'm' from list view (#1337/#1339)
+        // The 'm' that triggered compose mode shouldn't appear in input
+        if (skipFirstInput.current) {
+          skipFirstInput.current = false;
+          return;
+        }
+
         // Handle autocomplete navigation when active
         if (autocomplete.isActive) {
           if (key.upArrow) {
