@@ -129,24 +129,6 @@ export const LogsView: React.FC<LogsViewProps> = ({ onBack, onSelectItem }) => {
     }
   }, [showDetail, setFocus]);
 
-  // #1419: Update detail pane when selection changes
-  useEffect(() => {
-    if (selectedLog && !showDetail && onSelectItem) {
-      onSelectItem({
-        title: selectedLog.agent,
-        type: 'log',
-        fields: [
-          { label: 'Time', value: formatTime(selectedLog.ts) },
-          { label: 'Type', value: selectedLog.type, color: getSeverityColor(selectedLog.type) },
-          { label: 'Agent', value: selectedLog.agent, color: 'cyan' },
-        ],
-        description: selectedLog.message.slice(0, 100),
-      });
-    } else if (onSelectItem && (showDetail || !selectedLog)) {
-      onSelectItem(null);
-    }
-  }, [selectedLog, showDetail, onSelectItem]);
-
   // Get unique agents for filter
   const agents = useMemo(() => {
     if (!logs) return [];
@@ -183,6 +165,24 @@ export const LogsView: React.FC<LogsViewProps> = ({ onBack, onSelectItem }) => {
   }, [logs, timeFilter, agentFilter, searchQuery]);
 
   const selectedLog = filteredLogs[selectedIndex] as LogEntry | undefined;
+
+  // #1419: Update detail pane when selection changes
+  useEffect(() => {
+    if (selectedLog && !showDetail && onSelectItem) {
+      onSelectItem({
+        title: selectedLog.agent,
+        type: 'log',
+        fields: [
+          { label: 'Time', value: formatTime(selectedLog.ts) },
+          { label: 'Type', value: selectedLog.type, color: getSeverityColor(selectedLog.type) },
+          { label: 'Agent', value: selectedLog.agent, color: 'cyan' },
+        ],
+        description: selectedLog.message.slice(0, 100),
+      });
+    } else if (onSelectItem && (showDetail || !selectedLog)) {
+      onSelectItem(null);
+    }
+  }, [selectedLog, showDetail, onSelectItem]);
 
   // Cycle through severity filters
   const cycleSeverity = useCallback(() => {
