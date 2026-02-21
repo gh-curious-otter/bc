@@ -294,7 +294,7 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
         )}
       </Box>
 
-      {/* Command output panel */}
+      {/* Command output panel - width constrained to prevent text corruption */}
       {(isExecuting || commandOutput !== null || commandError !== null) && (
         <Box
           flexDirection="column"
@@ -302,26 +302,27 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
           paddingX={1}
           borderStyle="single"
           borderColor={commandError ? 'red' : 'green'}
+          width={80}
         >
           <Box marginBottom={1}>
-            <Text bold color={commandError ? 'red' : 'green'} wrap="truncate">
+            <Text bold color={commandError ? 'red' : 'green'}>
               {isExecuting ? '⟳ Running' : commandError ? '✗ Error' : '✓ Output'}
             </Text>
             {lastExecutedCommand && (
-              <Text dimColor wrap="truncate"> — {lastExecutedCommand}</Text>
+              <Text dimColor> — {lastExecutedCommand.slice(0, 30)}</Text>
             )}
           </Box>
           {isExecuting ? (
-            <Text dimColor wrap="truncate">Executing command...</Text>
+            <Text dimColor>Executing command...</Text>
           ) : commandError ? (
-            <Text color="red" wrap="truncate">{commandError}</Text>
+            <Text color="red">{commandError.slice(0, 70)}</Text>
           ) : commandOutput ? (
             <Box flexDirection="column">
               {commandOutput.split('\n').slice(0, 15).map((line, idx) => (
-                <Text key={idx} dimColor wrap="truncate">{line}</Text>
+                <Text key={idx} dimColor>{line.slice(0, 75)}</Text>
               ))}
               {commandOutput.split('\n').length > 15 && (
-                <Text dimColor wrap="truncate">... ({commandOutput.split('\n').length - 15} more lines)</Text>
+                <Text dimColor>... ({commandOutput.split('\n').length - 15} more lines)</Text>
               )}
             </Box>
           ) : null}
@@ -331,20 +332,20 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
         </Box>
       )}
 
-      {/* Command preview */}
+      {/* Command preview - width constrained to prevent text corruption */}
       {selectedCommand !== undefined && filteredCommands.length > 0 && !commandOutput && !commandError && !isExecuting && (
-        <Box flexDirection="column" marginBottom={1} paddingX={1} borderStyle="single" borderColor="gray">
-          <Text bold color="cyan" wrap="truncate">{selectedCommand.name}</Text>
-          <Text dimColor wrap="truncate">{selectedCommand.description}</Text>
+        <Box flexDirection="column" marginBottom={1} paddingX={1} borderStyle="single" borderColor="gray" width={80}>
+          <Text bold color="cyan">{selectedCommand.name}</Text>
+          <Text dimColor>{selectedCommand.description.slice(0, 70)}</Text>
           <Box marginTop={1}>
-            <Text dimColor wrap="truncate">Usage: {selectedCommand.usage}</Text>
+            <Text dimColor>Usage: {selectedCommand.usage.slice(0, 60)}</Text>
           </Box>
           {selectedCommand.flags && (
-            <Text dimColor wrap="truncate">Flags: {selectedCommand.flags.join(', ')}</Text>
+            <Text dimColor>Flags: {selectedCommand.flags.join(', ').slice(0, 60)}</Text>
           )}
           <Box marginTop={1}>
-            <Text dimColor wrap="truncate">
-              {selectedCommand.readOnly ? '✓ Safe (read-only) - Press Enter to run' : '⚠ Modifying command - use CLI'}
+            <Text dimColor>
+              {selectedCommand.readOnly ? '✓ Safe (read-only) - Enter to run' : '⚠ Modifying - use CLI'}
             </Text>
           </Box>
         </Box>
@@ -373,14 +374,18 @@ interface CommandRowProps {
 }
 
 function CommandRow({ command, selected, isFavorite }: CommandRowProps): React.ReactElement {
+  // Slice strings to prevent text corruption at certain terminal widths
+  const displayName = command.name.slice(0, 20).padEnd(20);
+  const displayDesc = command.description.slice(0, 50);
+
   return (
     <Box marginBottom={1}>
       <Text color="yellow">{isFavorite ? '★ ' : '  '}</Text>
-      <Text color={selected ? 'cyan' : undefined} bold={selected} wrap="truncate">
+      <Text color={selected ? 'cyan' : undefined} bold={selected}>
         {selected ? '▸ ' : '  '}
-        {command.name}
+        {displayName}
       </Text>
-      <Text dimColor wrap="truncate"> — {command.description}</Text>
+      <Text dimColor> — {displayDesc}</Text>
     </Box>
   );
 }
