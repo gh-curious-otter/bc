@@ -187,3 +187,12 @@ export {
   type UseFileTreeOptions,
   type UseFileTreeResult,
 } from './useFileTree';
+
+export {
+  useGitStatus,
+  type GitFileStatus,
+  type GitStatusEntry,
+  type GitStatusSummary,
+  type UseGitStatusOptions,
+  type UseGitStatusResult,
+} from './useGitStatus';
