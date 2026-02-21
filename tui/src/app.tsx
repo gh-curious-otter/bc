@@ -8,7 +8,7 @@ import {
   NavigationProvider,
   useNavigation,
   useKeyboardNavigation,
-  TabBar,
+  Drawer,
   Breadcrumb,
   FocusProvider,
   type View,
@@ -145,15 +145,21 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
 
   return (
     <Box flexDirection="column" padding={1} width={terminalWidth} height={terminalHeight}>
-      {/* Header with tab bar */}
-      <TabBar />
+      {/* Main layout: drawer + content */}
+      <Box flexDirection="row" flexGrow={1}>
+        {/* Left drawer navigation */}
+        <Drawer disabled={disableInput || showCommandPalette} />
 
-      {/* Breadcrumb navigation (shows path when navigated deep) */}
-      <Breadcrumb />
+        {/* Right content area */}
+        <Box flexDirection="column" flexGrow={1} paddingLeft={1}>
+          {/* Breadcrumb navigation (shows path when navigated deep) */}
+          <Breadcrumb />
 
-      {/* Main content area - grows to fill available space */}
-      <Box flexDirection="column" marginTop={1} flexGrow={1}>
-        <ViewContent view={currentView} disableInput={disableInput} />
+          {/* Main content area */}
+          <Box flexDirection="column" flexGrow={1}>
+            <ViewContent view={currentView} disableInput={disableInput} />
+          </Box>
+        </Box>
       </Box>
 
       {/* Footer with navigation hints - anchored to bottom */}
@@ -161,7 +167,7 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
 
       {/* Command palette overlay */}
       {showCommandPalette && (
-        <Box position="absolute" marginTop={2} marginLeft={10}>
+        <Box position="absolute" marginTop={2} marginLeft={16}>
           <CommandPalette
             isOpen={showCommandPalette}
             onClose={() => { setShowCommandPalette(false); }}
@@ -223,17 +229,19 @@ function HelpView(): React.ReactElement {
   const helpSections = useMemo(() => [
     { type: 'header' as const },
     { type: 'section' as const, title: 'Global', shortcuts: [
-      { keys: '1-8', desc: 'Switch tabs' },
+      { keys: '1-9, 0, -', desc: 'Switch views' },
+      { keys: 'M', desc: 'Memory view' },
+      { keys: 'r', desc: 'Routing view' },
       { keys: '?', desc: 'Toggle help' },
       { keys: 'ESC', desc: 'Go back / Home' },
-      { keys: 'Tab / j', desc: 'Next tab' },
-      { keys: 'Shift+Tab / k', desc: 'Previous tab' },
+      { keys: 'Tab / j', desc: 'Next view' },
+      { keys: 'Shift+Tab / k', desc: 'Previous view' },
       { keys: 'Ctrl+R', desc: 'Refresh current view' },
       { keys: 'q', desc: 'Quit' },
     ]},
-    { type: 'section' as const, title: 'Navigation', shortcuts: [
-      { keys: 'j / ↓', desc: 'Move down' },
-      { keys: 'k / ↑', desc: 'Move up' },
+    { type: 'section' as const, title: 'Navigation (Drawer & Lists)', shortcuts: [
+      { keys: 'j / ↓', desc: 'Move down in drawer/list' },
+      { keys: 'k / ↑', desc: 'Move up in drawer/list' },
       { keys: 'g', desc: 'Jump to top' },
       { keys: 'G', desc: 'Jump to bottom' },
       { keys: 'Enter', desc: 'Select / Drill down' },
@@ -397,7 +405,7 @@ function Footer(): React.ReactElement {
   const { theme } = useTheme();
   return (
     <Box marginTop={1} justifyContent="space-between">
-      <Text dimColor>Press [?] for help, [q] to quit</Text>
+      <Text dimColor>[j/k] navigate  [Enter] select  [?] help  [q] quit</Text>
       <Text dimColor>Theme: {theme.name}</Text>
     </Box>
   );

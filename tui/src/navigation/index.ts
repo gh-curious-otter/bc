@@ -24,6 +24,8 @@ export {
 
 export { TabBar, type TabBarProps } from './TabBar';
 
+export { Drawer, type DrawerProps } from './Drawer';
+
 export {
   FocusProvider,
   useFocus,
