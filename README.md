@@ -1,6 +1,17 @@
 # bc - AI Agent Orchestration for Software Development
 
+[![Build Status](https://github.com/rpuneet/bc/actions/workflows/ci.yml/badge.svg)](https://github.com/rpuneet/bc/actions)
+[![Go Version](https://img.shields.io/badge/go-1.22+-blue.svg)](https://go.dev/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+> **Mission control for AI agents.** Coordinate teams of AI agents working together on your codebase.
+
 `bc` is a CLI-first orchestration system for coordinating teams of AI agents to work on software development projects. It provides a structured, observable, and persistent environment for AI-driven engineering.
+
+<!-- TODO: Add demo GIF
+![bc demo](docs/demo.gif)
+*Multi-agent orchestration: manager assigns tasks to engineers, each working in isolated worktrees*
+-->
 
 ## Core Philosophy
 
@@ -10,7 +21,41 @@
 - **Persistent Memory**: Agents learn from experiences and accumulate knowledge over time.
 - **Isolated Workspaces**: Each agent operates in its own `git worktree` for conflict-free development.
 
+## Why bc?
+
+| Feature | bc | Single-Agent Tools |
+|---------|:--:|:------------------:|
+| Multiple parallel agents | ✅ | ❌ |
+| Role-based hierarchy | ✅ | ❌ |
+| Inter-agent communication | ✅ | ❌ |
+| Git worktree isolation | ✅ | ❌ |
+| Cost tracking per agent | ✅ | Limited |
+| Persistent agent memory | ✅ | Session-only |
+| TUI dashboard | ✅ | Varies |
+
+## Supported AI Agents
+
+bc works with any AI agent that runs in a terminal:
+
+| Agent | Status | Notes |
+|-------|--------|-------|
+| [Claude Code](https://claude.ai/code) | ✅ Recommended | Full support, tested extensively |
+| [Cursor](https://cursor.sh) | ✅ Supported | Via terminal mode |
+| [Aider](https://aider.chat) | ✅ Supported | Any model backend |
+| [Codex CLI](https://github.com/openai/codex) | ✅ Supported | OpenAI models |
+| Custom agents | ✅ Supported | Any CLI tool |
+
 ## Installation
+
+### Quick Install (coming soon)
+
+```bash
+# Homebrew (macOS/Linux) - coming soon
+brew install rpuneet/tap/bc
+
+# Or build from source
+git clone https://github.com/rpuneet/bc && cd bc && make install
+```
 
 ### Prerequisites
 
@@ -21,6 +66,8 @@
 ### Build from Source
 
 ```bash
+git clone https://github.com/rpuneet/bc
+cd bc
 make build
 make install
 ```
