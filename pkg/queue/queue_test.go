@@ -393,3 +393,163 @@ func TestConstants(t *testing.T) {
 		t.Errorf("PriorityUrgent = %d, want %d", PriorityUrgent, 3)
 	}
 }
+
+func TestApproveMergeNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck // cleanup in test
+
+	// Approve non-existent merge
+	err := store.ApproveMerge(ctx, 9999, "reviewer")
+	if err == nil {
+		t.Error("ApproveMerge() should error for non-existent item")
+	}
+}
+
+func TestRejectMergeNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck // cleanup in test
+
+	// Reject non-existent merge
+	err := store.RejectMerge(ctx, 9999, "reviewer", "reason")
+	if err == nil {
+		t.Error("RejectMerge() should error for non-existent item")
+	}
+}
+
+func TestCompleteMergeNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck // cleanup in test
+
+	// Complete non-existent merge
+	err := store.CompleteMerge(ctx, 9999)
+	if err == nil {
+		t.Error("CompleteMerge() should error for non-existent item")
+	}
+}
+
+func TestCompleteMergeNotApproved(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck // cleanup in test
+
+	// Add pending merge
+	item := &MergeItem{
+		AgentID:   "mgr-01",
+		Branch:    "eng-01/feature",
+		Title:     "Test merge",
+		Status:    MergeStatusPending,
+		FromAgent: "eng-01",
+	}
+
+	if err := store.AddMerge(ctx, item); err != nil {
+		t.Fatalf("AddMerge() error = %v", err)
+	}
+
+	// Try to complete without approval
+	err := store.CompleteMerge(ctx, item.ID)
+	if err == nil {
+		t.Error("CompleteMerge() should error for non-approved item")
+	}
+}
+
+func TestListMergeEmpty(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck // cleanup in test
+
+	// List with no items
+	items, err := store.ListMerge(ctx, "agent-01", "")
+	if err != nil {
+		t.Fatalf("ListMerge() error = %v", err)
+	}
+	if len(items) != 0 {
+		t.Errorf("ListMerge() returned %d items, want 0", len(items))
+	}
+}
+
+func TestListMergeFiltered(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck // cleanup in test
+
+	// Add merges for different agents
+	item1 := &MergeItem{
+		AgentID:   "mgr-01",
+		Branch:    "eng-01/feature1",
+		Title:     "Feature 1",
+		Status:    MergeStatusPending,
+		FromAgent: "eng-01",
+	}
+	item2 := &MergeItem{
+		AgentID:   "mgr-02",
+		Branch:    "eng-02/feature2",
+		Title:     "Feature 2",
+		Status:    MergeStatusPending,
+		FromAgent: "eng-02",
+	}
+
+	_ = store.AddMerge(ctx, item1)
+	_ = store.AddMerge(ctx, item2)
+
+	// List for mgr-01 only
+	items, err := store.ListMerge(ctx, "mgr-01", "")
+	if err != nil {
+		t.Fatalf("ListMerge() error = %v", err)
+	}
+	if len(items) != 1 {
+		t.Errorf("ListMerge() returned %d items, want 1", len(items))
+	}
+	if len(items) > 0 && items[0].AgentID != "mgr-01" {
+		t.Errorf("ListMerge() returned wrong agent: %s", items[0].AgentID)
+	}
+}
+
+func TestSubmitNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck // cleanup in test
+
+	// Submit non-existent work item
+	_, err := store.Submit(ctx, 9999, "mgr-01")
+	if err == nil {
+		t.Error("Submit() should error for non-existent work item")
+	}
+}
