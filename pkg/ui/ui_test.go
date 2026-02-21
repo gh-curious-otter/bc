@@ -388,3 +388,45 @@ func TestPrintFunctions(t *testing.T) {
 		t.Error("Println should end with newline")
 	}
 }
+
+func TestBlankLine(t *testing.T) {
+	var buf bytes.Buffer
+	SetOutput(&buf)
+	defer SetOutput(nil)
+
+	BlankLine()
+	result := buf.String()
+
+	if result != "\n" {
+		t.Errorf("BlankLine should output single newline, got %q", result)
+	}
+}
+
+func TestTablePrint(t *testing.T) {
+	var buf bytes.Buffer
+	SetOutput(&buf)
+	defer SetOutput(nil)
+
+	table := NewTable("Name", "Age")
+	table.AddRow("Alice", "30")
+	table.AddRow("Bob", "25")
+	table.Print()
+
+	result := buf.String()
+
+	// Should contain headers
+	if !strings.Contains(result, "Name") {
+		t.Error("Table.Print should output header 'Name'")
+	}
+	if !strings.Contains(result, "Age") {
+		t.Error("Table.Print should output header 'Age'")
+	}
+
+	// Should contain data
+	if !strings.Contains(result, "Alice") {
+		t.Error("Table.Print should output row data 'Alice'")
+	}
+	if !strings.Contains(result, "30") {
+		t.Error("Table.Print should output row data '30'")
+	}
+}
