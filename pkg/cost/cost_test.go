@@ -770,3 +770,633 @@ func TestStoreRecordCostFromMessageWithCost(t *testing.T) {
 		t.Errorf("AgentID mismatch in extracted record")
 	}
 }
+
+func TestBudgetStruct(t *testing.T) {
+	now := time.Now()
+	b := Budget{
+		ID:        1,
+		Scope:     "workspace",
+		Period:    BudgetPeriodMonthly,
+		LimitUSD:  100.0,
+		AlertAt:   0.8,
+		HardStop:  true,
+		UpdatedAt: now,
+	}
+
+	if b.ID != 1 {
+		t.Errorf("ID = %d, want 1", b.ID)
+	}
+	if b.Scope != "workspace" {
+		t.Errorf("Scope = %q, want workspace", b.Scope)
+	}
+	if b.Period != BudgetPeriodMonthly {
+		t.Errorf("Period = %q, want monthly", b.Period)
+	}
+	if b.LimitUSD != 100.0 {
+		t.Errorf("LimitUSD = %f, want 100.0", b.LimitUSD)
+	}
+	if b.AlertAt != 0.8 {
+		t.Errorf("AlertAt = %f, want 0.8", b.AlertAt)
+	}
+	if !b.HardStop {
+		t.Error("HardStop should be true")
+	}
+	if b.UpdatedAt != now {
+		t.Error("UpdatedAt should match")
+	}
+}
+
+func TestBudgetStatusStruct(t *testing.T) {
+	budget := &Budget{
+		LimitUSD: 100.0,
+		AlertAt:  0.8,
+	}
+	status := BudgetStatus{
+		Budget:       budget,
+		CurrentSpend: 85.0,
+		Remaining:    15.0,
+		PercentUsed:  0.85,
+		IsOverBudget: false,
+		IsNearLimit:  true,
+	}
+
+	if status.Budget != budget {
+		t.Error("Budget pointer mismatch")
+	}
+	if status.CurrentSpend != 85.0 {
+		t.Errorf("CurrentSpend = %f, want 85.0", status.CurrentSpend)
+	}
+	if status.Remaining != 15.0 {
+		t.Errorf("Remaining = %f, want 15.0", status.Remaining)
+	}
+	if status.PercentUsed != 0.85 {
+		t.Errorf("PercentUsed = %f, want 0.85", status.PercentUsed)
+	}
+	if status.IsOverBudget {
+		t.Error("IsOverBudget should be false")
+	}
+	if !status.IsNearLimit {
+		t.Error("IsNearLimit should be true")
+	}
+}
+
+func TestBudgetPeriodConstants(t *testing.T) {
+	if BudgetPeriodDaily != "daily" {
+		t.Errorf("BudgetPeriodDaily = %q, want daily", BudgetPeriodDaily)
+	}
+	if BudgetPeriodWeekly != "weekly" {
+		t.Errorf("BudgetPeriodWeekly = %q, want weekly", BudgetPeriodWeekly)
+	}
+	if BudgetPeriodMonthly != "monthly" {
+		t.Errorf("BudgetPeriodMonthly = %q, want monthly", BudgetPeriodMonthly)
+	}
+}
+
+func TestAgentDailyCostStruct(t *testing.T) {
+	adc := AgentDailyCost{
+		AgentID:      "engineer-01",
+		Date:         "2026-02-21",
+		CostUSD:      2.50,
+		TotalTokens:  5000,
+		RecordCount:  10,
+		InputTokens:  3000,
+		OutputTokens: 2000,
+	}
+
+	if adc.AgentID != "engineer-01" {
+		t.Errorf("AgentID = %q, want engineer-01", adc.AgentID)
+	}
+	if adc.Date != "2026-02-21" {
+		t.Errorf("Date = %q, want 2026-02-21", adc.Date)
+	}
+	if adc.CostUSD != 2.50 {
+		t.Errorf("CostUSD = %f, want 2.50", adc.CostUSD)
+	}
+	if adc.TotalTokens != 5000 {
+		t.Errorf("TotalTokens = %d, want 5000", adc.TotalTokens)
+	}
+	if adc.RecordCount != 10 {
+		t.Errorf("RecordCount = %d, want 10", adc.RecordCount)
+	}
+	if adc.InputTokens != 3000 {
+		t.Errorf("InputTokens = %d, want 3000", adc.InputTokens)
+	}
+	if adc.OutputTokens != 2000 {
+		t.Errorf("OutputTokens = %d, want 2000", adc.OutputTokens)
+	}
+}
+
+func TestSetBudget(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	budget, err := store.SetBudget("workspace", BudgetPeriodMonthly, 100.0, 0.8, true)
+	if err != nil {
+		t.Fatalf("SetBudget failed: %v", err)
+	}
+
+	if budget == nil {
+		t.Fatal("SetBudget returned nil budget")
+	}
+	if budget.Scope != "workspace" {
+		t.Errorf("Scope = %q, want workspace", budget.Scope)
+	}
+	if budget.Period != BudgetPeriodMonthly {
+		t.Errorf("Period = %q, want monthly", budget.Period)
+	}
+	if budget.LimitUSD != 100.0 {
+		t.Errorf("LimitUSD = %f, want 100.0", budget.LimitUSD)
+	}
+	if budget.AlertAt != 0.8 {
+		t.Errorf("AlertAt = %f, want 0.8", budget.AlertAt)
+	}
+	if !budget.HardStop {
+		t.Error("HardStop should be true")
+	}
+	if budget.ID == 0 {
+		t.Error("ID should not be 0")
+	}
+}
+
+func TestSetBudgetUpdate(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Create initial budget
+	_, err := store.SetBudget("workspace", BudgetPeriodMonthly, 100.0, 0.8, false)
+	if err != nil {
+		t.Fatalf("SetBudget (create) failed: %v", err)
+	}
+
+	// Update the budget
+	budget, err := store.SetBudget("workspace", BudgetPeriodWeekly, 50.0, 0.9, true)
+	if err != nil {
+		t.Fatalf("SetBudget (update) failed: %v", err)
+	}
+
+	if budget.Period != BudgetPeriodWeekly {
+		t.Errorf("Period = %q, want weekly", budget.Period)
+	}
+	if budget.LimitUSD != 50.0 {
+		t.Errorf("LimitUSD = %f, want 50.0", budget.LimitUSD)
+	}
+	if budget.AlertAt != 0.9 {
+		t.Errorf("AlertAt = %f, want 0.9", budget.AlertAt)
+	}
+	if !budget.HardStop {
+		t.Error("HardStop should be true after update")
+	}
+}
+
+func TestSetBudgetAgentScope(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	budget, err := store.SetBudget("agent:engineer-01", BudgetPeriodDaily, 10.0, 0.5, false)
+	if err != nil {
+		t.Fatalf("SetBudget failed: %v", err)
+	}
+
+	if budget.Scope != "agent:engineer-01" {
+		t.Errorf("Scope = %q, want agent:engineer-01", budget.Scope)
+	}
+	if budget.Period != BudgetPeriodDaily {
+		t.Errorf("Period = %q, want daily", budget.Period)
+	}
+}
+
+func TestSetBudgetTeamScope(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	budget, err := store.SetBudget("team:frontend", BudgetPeriodWeekly, 200.0, 0.75, true)
+	if err != nil {
+		t.Fatalf("SetBudget failed: %v", err)
+	}
+
+	if budget.Scope != "team:frontend" {
+		t.Errorf("Scope = %q, want team:frontend", budget.Scope)
+	}
+}
+
+func TestGetBudget(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Create a budget
+	_, err := store.SetBudget("workspace", BudgetPeriodMonthly, 100.0, 0.8, true)
+	if err != nil {
+		t.Fatalf("SetBudget failed: %v", err)
+	}
+
+	// Retrieve it
+	budget, err := store.GetBudget("workspace")
+	if err != nil {
+		t.Fatalf("GetBudget failed: %v", err)
+	}
+	if budget == nil {
+		t.Fatal("GetBudget returned nil")
+	}
+	if budget.Scope != "workspace" {
+		t.Errorf("Scope = %q, want workspace", budget.Scope)
+	}
+	if budget.LimitUSD != 100.0 {
+		t.Errorf("LimitUSD = %f, want 100.0", budget.LimitUSD)
+	}
+}
+
+func TestGetBudgetNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	budget, err := store.GetBudget("nonexistent")
+	if err != nil {
+		t.Fatalf("GetBudget should not error for non-existent: %v", err)
+	}
+	if budget != nil {
+		t.Error("GetBudget should return nil for non-existent budget")
+	}
+}
+
+func TestGetAllBudgets(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Create multiple budgets
+	_, _ = store.SetBudget("workspace", BudgetPeriodMonthly, 100.0, 0.8, false)
+	_, _ = store.SetBudget("agent:eng-01", BudgetPeriodDaily, 10.0, 0.5, false)
+	_, _ = store.SetBudget("team:backend", BudgetPeriodWeekly, 50.0, 0.75, true)
+
+	budgets, err := store.GetAllBudgets()
+	if err != nil {
+		t.Fatalf("GetAllBudgets failed: %v", err)
+	}
+	if len(budgets) != 3 {
+		t.Errorf("len(budgets) = %d, want 3", len(budgets))
+	}
+
+	// Verify sorted by scope
+	scopes := make([]string, len(budgets))
+	for i, b := range budgets {
+		scopes[i] = b.Scope
+	}
+	// agent:eng-01 < team:backend < workspace (alphabetically)
+	if scopes[0] != "agent:eng-01" {
+		t.Errorf("First scope = %q, want agent:eng-01", scopes[0])
+	}
+}
+
+func TestGetAllBudgetsEmpty(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	budgets, err := store.GetAllBudgets()
+	if err != nil {
+		t.Fatalf("GetAllBudgets failed: %v", err)
+	}
+	if len(budgets) != 0 {
+		t.Errorf("len(budgets) = %d, want 0", len(budgets))
+	}
+}
+
+func TestDeleteBudget(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Create and then delete
+	_, _ = store.SetBudget("workspace", BudgetPeriodMonthly, 100.0, 0.8, false)
+
+	if err := store.DeleteBudget("workspace"); err != nil {
+		t.Fatalf("DeleteBudget failed: %v", err)
+	}
+
+	// Verify deletion
+	budget, err := store.GetBudget("workspace")
+	if err != nil {
+		t.Fatalf("GetBudget failed: %v", err)
+	}
+	if budget != nil {
+		t.Error("Budget should be nil after deletion")
+	}
+}
+
+func TestDeleteBudgetNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	err := store.DeleteBudget("nonexistent")
+	if err == nil {
+		t.Error("DeleteBudget should error for non-existent budget")
+	}
+}
+
+func TestCheckBudgetWorkspace(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Create budget
+	_, _ = store.SetBudget("workspace", BudgetPeriodDaily, 1.0, 0.8, false)
+
+	// Add some costs
+	_, _ = store.Record("eng-01", "", "model-a", 1000, 500, 0.50)
+	_, _ = store.Record("eng-02", "", "model-a", 1000, 500, 0.30)
+
+	// Check budget status
+	status, err := store.CheckBudget("workspace")
+	if err != nil {
+		t.Fatalf("CheckBudget failed: %v", err)
+	}
+	if status == nil {
+		t.Fatal("CheckBudget returned nil status")
+	}
+
+	// Use tolerance for floating point comparison
+	const tolerance = 0.001
+	if status.CurrentSpend < 0.80-tolerance || status.CurrentSpend > 0.80+tolerance {
+		t.Errorf("CurrentSpend = %f, want ~0.80", status.CurrentSpend)
+	}
+	if status.Remaining < 0.20-tolerance || status.Remaining > 0.20+tolerance {
+		t.Errorf("Remaining = %f, want ~0.20", status.Remaining)
+	}
+	if status.PercentUsed < 0.80-tolerance || status.PercentUsed > 0.80+tolerance {
+		t.Errorf("PercentUsed = %f, want ~0.80", status.PercentUsed)
+	}
+	if status.IsOverBudget {
+		t.Error("IsOverBudget should be false at 80%")
+	}
+	if !status.IsNearLimit {
+		t.Error("IsNearLimit should be true at 80% (equals AlertAt)")
+	}
+}
+
+func TestCheckBudgetOverBudget(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Create budget
+	_, _ = store.SetBudget("workspace", BudgetPeriodDaily, 1.0, 0.8, true)
+
+	// Add costs exceeding budget
+	_, _ = store.Record("eng-01", "", "model-a", 2000, 1000, 1.50)
+
+	status, err := store.CheckBudget("workspace")
+	if err != nil {
+		t.Fatalf("CheckBudget failed: %v", err)
+	}
+
+	if !status.IsOverBudget {
+		t.Error("IsOverBudget should be true")
+	}
+	if status.Remaining != 0 {
+		t.Errorf("Remaining = %f, want 0 (capped)", status.Remaining)
+	}
+	if status.PercentUsed != 1.50 {
+		t.Errorf("PercentUsed = %f, want 1.50", status.PercentUsed)
+	}
+}
+
+func TestCheckBudgetAgentScope(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Create agent-scoped budget
+	_, _ = store.SetBudget("agent:eng-01", BudgetPeriodDaily, 1.0, 0.5, false)
+
+	// Add costs for multiple agents
+	_, _ = store.Record("eng-01", "", "model-a", 1000, 500, 0.40)
+	_, _ = store.Record("eng-02", "", "model-a", 1000, 500, 0.60) // Different agent
+
+	status, err := store.CheckBudget("agent:eng-01")
+	if err != nil {
+		t.Fatalf("CheckBudget failed: %v", err)
+	}
+
+	// Should only count eng-01's costs
+	if status.CurrentSpend != 0.40 {
+		t.Errorf("CurrentSpend = %f, want 0.40 (only eng-01)", status.CurrentSpend)
+	}
+}
+
+func TestCheckBudgetTeamScope(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Create team-scoped budget
+	_, _ = store.SetBudget("team:frontend", BudgetPeriodDaily, 2.0, 0.5, false)
+
+	// Add costs for different teams
+	_, _ = store.Record("eng-01", "frontend", "model-a", 1000, 500, 0.50)
+	_, _ = store.Record("eng-02", "frontend", "model-a", 1000, 500, 0.30)
+	_, _ = store.Record("eng-03", "backend", "model-a", 1000, 500, 1.00) // Different team
+
+	status, err := store.CheckBudget("team:frontend")
+	if err != nil {
+		t.Fatalf("CheckBudget failed: %v", err)
+	}
+
+	// Should only count frontend team's costs
+	if status.CurrentSpend != 0.80 {
+		t.Errorf("CurrentSpend = %f, want 0.80 (only frontend)", status.CurrentSpend)
+	}
+}
+
+func TestCheckBudgetNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	status, err := store.CheckBudget("nonexistent")
+	if err != nil {
+		t.Fatalf("CheckBudget should not error for non-existent: %v", err)
+	}
+	if status != nil {
+		t.Error("CheckBudget should return nil for non-existent budget")
+	}
+}
+
+func TestCheckBudgetZeroLimit(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Create budget with zero limit
+	_, _ = store.SetBudget("workspace", BudgetPeriodDaily, 0.0, 0.8, false)
+
+	// Add some costs
+	_, _ = store.Record("eng-01", "", "model-a", 1000, 500, 0.50)
+
+	status, err := store.CheckBudget("workspace")
+	if err != nil {
+		t.Fatalf("CheckBudget failed: %v", err)
+	}
+
+	// With zero limit, PercentUsed should be 0 (no division by zero)
+	if status.PercentUsed != 0 {
+		t.Errorf("PercentUsed = %f, want 0 for zero limit", status.PercentUsed)
+	}
+}
+
+func TestCostMessageStruct(t *testing.T) {
+	cm := CostMessage{
+		AgentID:      "engineer-01",
+		Message:      "test message with cost info",
+		InputTokens:  1500,
+		OutputTokens: 750,
+		CostUSD:      0.075,
+	}
+
+	if cm.AgentID != "engineer-01" {
+		t.Errorf("AgentID = %q, want engineer-01", cm.AgentID)
+	}
+	if cm.Message != "test message with cost info" {
+		t.Errorf("Message mismatch")
+	}
+	if cm.InputTokens != 1500 {
+		t.Errorf("InputTokens = %d, want 1500", cm.InputTokens)
+	}
+	if cm.OutputTokens != 750 {
+		t.Errorf("OutputTokens = %d, want 750", cm.OutputTokens)
+	}
+	if cm.CostUSD != 0.075 {
+		t.Errorf("CostUSD = %f, want 0.075", cm.CostUSD)
+	}
+}
+
+func TestGetByAgentDefaultLimit(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Add more than 100 records
+	for range 150 {
+		_, _ = store.Record("engineer-01", "", "model-a", 100, 50, 0.01)
+	}
+
+	// Get with zero/negative limit (should default to 100)
+	records, err := store.GetByAgent("engineer-01", 0)
+	if err != nil {
+		t.Fatalf("GetByAgent failed: %v", err)
+	}
+	if len(records) != 100 {
+		t.Errorf("len(records) = %d, want 100 (default limit)", len(records))
+	}
+}
+
+func TestGetByTeamDefaultLimit(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Add more than 100 records
+	for range 150 {
+		_, _ = store.Record("engineer-01", "team-a", "model-a", 100, 50, 0.01)
+	}
+
+	// Get with negative limit (should default to 100)
+	records, err := store.GetByTeam("team-a", -1)
+	if err != nil {
+		t.Fatalf("GetByTeam failed: %v", err)
+	}
+	if len(records) != 100 {
+		t.Errorf("len(records) = %d, want 100 (default limit)", len(records))
+	}
+}
+
+func TestGetAllDefaultLimit(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Add more than 100 records
+	for range 150 {
+		_, _ = store.Record("engineer-01", "", "model-a", 100, 50, 0.01)
+	}
+
+	// Get with negative limit (should default to 100)
+	records, err := store.GetAll(-5)
+	if err != nil {
+		t.Fatalf("GetAll failed: %v", err)
+	}
+	if len(records) != 100 {
+		t.Errorf("len(records) = %d, want 100 (default limit)", len(records))
+	}
+}
+
+func TestCloseNilDB(t *testing.T) {
+	store := NewStore("/tmp/test")
+	// Close without opening - should not error
+	if err := store.Close(); err != nil {
+		t.Errorf("Close on nil DB should not error: %v", err)
+	}
+}
