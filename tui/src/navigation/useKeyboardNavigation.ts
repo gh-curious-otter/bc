@@ -19,12 +19,14 @@ export interface UseKeyboardNavigationOptions {
 
 /**
  * Hook that handles global keyboard navigation
- * - Number keys (1-9) switch tabs
- * - Tab/Shift+Tab cycles tabs
+ * - Number keys (1-9) switch views
+ * - Tab/Shift+Tab cycles views
  * - ? shows help
  * - ESC goes back/home
  * - Ctrl+R refreshes all data
  * - q quits the application
+ *
+ * Note: j/k are handled by Drawer for list navigation, not here.
  */
 export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}): void {
   const { disabled = false, onQuit, onRefresh, onCommandPalette } = options;
@@ -59,24 +61,14 @@ export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}
         return;
       }
 
-      // Tab key: next tab, Shift+Tab: previous tab
+      // Tab key: next view, Shift+Tab: previous view
+      // Note: j/k are handled by Drawer component for list navigation
       if (key.tab) {
         if (key.shift) {
           prevTab();
         } else {
           nextTab();
         }
-        return;
-      }
-
-      // j/k: vim-style navigation (down/up through tabs)
-      // j = next (down), k = previous (up)
-      if (input === 'j') {
-        nextTab();
-        return;
-      }
-      if (input === 'k') {
-        prevTab();
         return;
       }
 
