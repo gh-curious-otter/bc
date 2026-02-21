@@ -14,6 +14,8 @@ export interface ChatMessageProps {
   isSelected?: boolean;
   /** Maximum width for message bubbles (default: 60) */
   maxBubbleWidth?: number;
+  /** Maximum lines to display before truncating (default: 8) */
+  maxLines?: number;
 }
 
 const formatRelativeTime = (timestamp: string): string => {
@@ -101,11 +103,19 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
   isRead = true,
   isSelected = false,
   maxBubbleWidth = 60,
+  maxLines = 8,
 }) {
   const time = formatRelativeTime(timestamp);
   const senderColor = getRoleColor(sender);
   const rolePrefix = getRolePrefix(sender);
   const isOwnMessage = currentUser !== undefined && sender === currentUser;
+
+  // #1463: Truncate long messages and show indicator
+  const lines = message.split('\n');
+  const isTruncated = lines.length > maxLines;
+  const displayMessage = isTruncated
+    ? lines.slice(0, maxLines).join('\n')
+    : message;
 
   // Bubble styling based on ownership
   const bubbleBorderColor = isOwnMessage ? 'cyan' : 'gray';
@@ -153,8 +163,12 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
           {/* Message body with @mentions
               CLI directive: Fix long message rendering - ensure text wraps properly
               Use width constraint to force text wrapping within bubble */}
-          <Box flexGrow={1} minHeight={1} width={maxBubbleWidth - 4}>
-            <MentionText text={message} currentUser={currentUser} />
+          <Box flexDirection="column" flexGrow={1} minHeight={1} width={maxBubbleWidth - 4}>
+            <MentionText text={displayMessage} currentUser={currentUser} />
+            {/* #1463: Show truncation indicator for long messages */}
+            {isTruncated && (
+              <Text dimColor>... ({lines.length - maxLines} more lines)</Text>
+            )}
           </Box>
 
           {/* Reactions */}
