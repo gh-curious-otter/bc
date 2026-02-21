@@ -666,6 +666,97 @@ func TestSaveState_EmptyStateDir(t *testing.T) {
 	}
 }
 
+func TestSaveState_WithAgents(t *testing.T) {
+	tmpDir := t.TempDir()
+	m := &Manager{
+		agents: map[string]*Agent{
+			"test-agent": {
+				Name:  "test-agent",
+				Role:  Role("engineer"),
+				State: StateWorking,
+				Task:  "testing",
+			},
+		},
+		stateDir: tmpDir,
+	}
+	if err := m.saveState(); err != nil {
+		t.Fatalf("saveState failed: %v", err)
+	}
+
+	// Verify file was created
+	stateFile := filepath.Join(tmpDir, "agents.json")
+	data, err := os.ReadFile(stateFile) //nolint:gosec // test file path from t.TempDir
+	if err != nil {
+		t.Fatalf("failed to read state file: %v", err)
+	}
+	if !strings.Contains(string(data), "test-agent") {
+		t.Errorf("state file should contain agent name, got: %s", string(data))
+	}
+}
+
+func TestSaveState_CreatesDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	stateDir := filepath.Join(tmpDir, "nested", "state", "dir")
+	m := &Manager{
+		agents:   map[string]*Agent{},
+		stateDir: stateDir,
+	}
+	if err := m.saveState(); err != nil {
+		t.Fatalf("saveState should create nested directory: %v", err)
+	}
+
+	// Verify directory was created
+	if _, err := os.Stat(stateDir); os.IsNotExist(err) {
+		t.Error("saveState should have created the state directory")
+	}
+}
+
+func TestSaveState_RoundTrip(t *testing.T) {
+	tmpDir := t.TempDir()
+	original := &Manager{
+		agents: map[string]*Agent{
+			"agent-1": {
+				Name:     "agent-1",
+				Role:     Role("engineer"),
+				State:    StateIdle,
+				ParentID: "root",
+			},
+			"agent-2": {
+				Name:  "agent-2",
+				Role:  Role("qa"),
+				State: StateWorking,
+				Task:  "running tests",
+			},
+		},
+		stateDir: tmpDir,
+	}
+	if err := original.saveState(); err != nil {
+		t.Fatalf("saveState failed: %v", err)
+	}
+
+	// Load into new manager
+	loaded := &Manager{
+		agents:   make(map[string]*Agent),
+		stateDir: tmpDir,
+	}
+	if err := loaded.LoadState(); err != nil {
+		t.Fatalf("LoadState failed: %v", err)
+	}
+
+	if len(loaded.agents) != 2 {
+		t.Errorf("expected 2 agents after load, got %d", len(loaded.agents))
+	}
+	if loaded.agents["agent-1"] == nil {
+		t.Error("agent-1 should exist after load")
+	}
+	if loaded.agents["agent-2"] == nil {
+		t.Error("agent-2 should exist after load")
+	}
+	if loaded.agents["agent-2"].Task != "running tests" {
+		t.Errorf("agent-2 task = %q, want 'running tests'", loaded.agents["agent-2"].Task)
+	}
+}
+
 func TestLoadState_InvalidJSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	stateFile := filepath.Join(tmpDir, "agents.json")
