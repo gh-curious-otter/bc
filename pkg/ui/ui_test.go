@@ -270,3 +270,121 @@ func TestColorEnabled(t *testing.T) {
 		t.Error("ColorEnabled should return false")
 	}
 }
+
+func TestGrayText(t *testing.T) {
+	SetColorEnabled(true)
+	result := GrayText("test")
+	if !strings.Contains(result, "test") {
+		t.Error("GrayText should contain text")
+	}
+}
+
+func TestIndentedList(t *testing.T) {
+	var buf bytes.Buffer
+	SetOutput(&buf)
+	defer SetOutput(nil)
+	SetColorEnabled(false)
+
+	IndentedList(2, "item1", "item2")
+	result := buf.String()
+
+	if !strings.Contains(result, "item1") {
+		t.Error("IndentedList should contain item1")
+	}
+	if !strings.Contains(result, "item2") {
+		t.Error("IndentedList should contain item2")
+	}
+}
+
+func TestKeyValueList(t *testing.T) {
+	var buf bytes.Buffer
+	SetOutput(&buf)
+	defer SetOutput(nil)
+	SetColorEnabled(false)
+
+	KeyValueList(map[string]string{
+		"key1": "value1",
+		"key2": "value2",
+	})
+	result := buf.String()
+
+	if !strings.Contains(result, "key1") {
+		t.Error("KeyValueList should contain key1")
+	}
+	if !strings.Contains(result, "value1") {
+		t.Error("KeyValueList should contain value1")
+	}
+}
+
+func TestFormatFunctions(t *testing.T) {
+	var buf bytes.Buffer
+	SetOutput(&buf)
+	defer SetOutput(nil)
+	SetColorEnabled(false)
+
+	tests := []struct { //nolint:govet // test struct alignment not critical
+		name     string
+		fn       func(string, ...any)
+		format   string
+		args     []any
+		contains string
+	}{
+		{"Successf", Successf, "done %s", []any{"task"}, "done task"},
+		{"Errorf", Errorf, "failed %s", []any{"op"}, "failed op"},
+		{"Warningf", Warningf, "warn %d", []any{42}, "warn 42"},
+		{"Infof", Infof, "info %v", []any{true}, "info true"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			buf.Reset()
+			tc.fn(tc.format, tc.args...)
+			result := buf.String()
+			if !strings.Contains(result, tc.contains) {
+				t.Errorf("%s output should contain %q, got %q", tc.name, tc.contains, result)
+			}
+		})
+	}
+}
+
+func TestDebugFunctions(t *testing.T) {
+	var buf bytes.Buffer
+	SetOutput(&buf)
+	defer SetOutput(nil)
+	SetColorEnabled(false)
+
+	Debug("debug %s", "message")
+	result := buf.String()
+	if !strings.Contains(result, "debug message") {
+		t.Errorf("Debug should output message, got %q", result)
+	}
+
+	buf.Reset()
+	Debugf("formatted %s", "debug")
+	result = buf.String()
+	if !strings.Contains(result, "formatted debug") {
+		t.Errorf("Debugf should output formatted message, got %q", result)
+	}
+}
+
+func TestPrintFunctions(t *testing.T) {
+	var buf bytes.Buffer
+	SetOutput(&buf)
+	defer SetOutput(nil)
+
+	Print("test print")
+	result := buf.String()
+	if !strings.Contains(result, "test print") {
+		t.Errorf("Print should output text, got %q", result)
+	}
+
+	buf.Reset()
+	Println("test println")
+	result = buf.String()
+	if !strings.Contains(result, "test println") {
+		t.Errorf("Println should output text, got %q", result)
+	}
+	if !strings.HasSuffix(result, "\n") {
+		t.Error("Println should end with newline")
+	}
+}
