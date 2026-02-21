@@ -371,6 +371,296 @@ func TestMergeItemNotFound(t *testing.T) {
 	}
 }
 
+// --- Work Queue Status Transition Error Tests ---
+
+func TestAcceptWorkWrongStatus(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck
+
+	// Add work item
+	item := &WorkItem{
+		AgentID:     "eng-01",
+		Title:       "Test task",
+		Description: "Test",
+		Priority:    PriorityNormal,
+		Status:      StatusPending,
+	}
+	if err := store.AddWork(ctx, item); err != nil {
+		t.Fatalf("AddWork() error = %v", err)
+	}
+
+	// Accept it first
+	if err := store.AcceptWork(ctx, item.ID); err != nil {
+		t.Fatalf("AcceptWork() error = %v", err)
+	}
+
+	// Try to accept again - should fail
+	err := store.AcceptWork(ctx, item.ID)
+	if err == nil {
+		t.Error("AcceptWork() should fail for already accepted item")
+	}
+}
+
+func TestAcceptWorkNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck
+
+	// Try to accept non-existent item
+	err := store.AcceptWork(ctx, 99999)
+	if err == nil {
+		t.Error("AcceptWork() should fail for non-existent item")
+	}
+}
+
+func TestStartWorkWrongStatus(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck
+
+	// Add work item (pending status)
+	item := &WorkItem{
+		AgentID:     "eng-01",
+		Title:       "Test task",
+		Description: "Test",
+		Priority:    PriorityNormal,
+		Status:      StatusPending,
+	}
+	if err := store.AddWork(ctx, item); err != nil {
+		t.Fatalf("AddWork() error = %v", err)
+	}
+
+	// Try to start without accepting - should fail
+	err := store.StartWork(ctx, item.ID)
+	if err == nil {
+		t.Error("StartWork() should fail for pending item (not accepted)")
+	}
+}
+
+func TestStartWorkNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck
+
+	err := store.StartWork(ctx, 99999)
+	if err == nil {
+		t.Error("StartWork() should fail for non-existent item")
+	}
+}
+
+func TestCompleteWorkWrongStatus(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck
+
+	// Add work item
+	item := &WorkItem{
+		AgentID:     "eng-01",
+		Title:       "Test task",
+		Description: "Test",
+		Priority:    PriorityNormal,
+		Status:      StatusPending,
+	}
+	if err := store.AddWork(ctx, item); err != nil {
+		t.Fatalf("AddWork() error = %v", err)
+	}
+
+	// Try to complete without starting - should fail
+	err := store.CompleteWork(ctx, item.ID, "feature/test")
+	if err == nil {
+		t.Error("CompleteWork() should fail for pending item (not in progress)")
+	}
+}
+
+func TestCompleteWorkNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck
+
+	err := store.CompleteWork(ctx, 99999, "feature/test")
+	if err == nil {
+		t.Error("CompleteWork() should fail for non-existent item")
+	}
+}
+
+// --- Merge Queue Status Transition Error Tests ---
+
+func TestApproveMergeWrongStatus(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck
+
+	// Add merge item
+	item := &MergeItem{
+		AgentID:   "eng-01",
+		Branch:    "feature/test",
+		Title:     "Test PR",
+		Status:    MergeStatusPending,
+		FromAgent: "eng-02",
+	}
+	if err := store.AddMerge(ctx, item); err != nil {
+		t.Fatalf("AddMerge() error = %v", err)
+	}
+
+	// Approve it first
+	if err := store.ApproveMerge(ctx, item.ID, "tl-01"); err != nil {
+		t.Fatalf("ApproveMerge() error = %v", err)
+	}
+
+	// Try to approve again - should fail
+	err := store.ApproveMerge(ctx, item.ID, "tl-02")
+	if err == nil {
+		t.Error("ApproveMerge() should fail for already approved item")
+	}
+}
+
+func TestApproveMergeNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck
+
+	err := store.ApproveMerge(ctx, 99999, "tl-01")
+	if err == nil {
+		t.Error("ApproveMerge() should fail for non-existent item")
+	}
+}
+
+func TestRejectMergeWrongStatus(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck
+
+	// Add merge item
+	item := &MergeItem{
+		AgentID:   "eng-01",
+		Branch:    "feature/test",
+		Title:     "Test PR",
+		Status:    MergeStatusPending,
+		FromAgent: "eng-02",
+	}
+	if err := store.AddMerge(ctx, item); err != nil {
+		t.Fatalf("AddMerge() error = %v", err)
+	}
+
+	// Approve it first
+	if err := store.ApproveMerge(ctx, item.ID, "tl-01"); err != nil {
+		t.Fatalf("ApproveMerge() error = %v", err)
+	}
+
+	// Try to reject approved item - should fail
+	err := store.RejectMerge(ctx, item.ID, "tl-02", "Changed mind")
+	if err == nil {
+		t.Error("RejectMerge() should fail for approved item")
+	}
+}
+
+func TestRejectMergeNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck
+
+	err := store.RejectMerge(ctx, 99999, "tl-01", "Not needed")
+	if err == nil {
+		t.Error("RejectMerge() should fail for non-existent item")
+	}
+}
+
+func TestCompleteMergeWrongStatus(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck
+
+	// Add merge item (pending status)
+	item := &MergeItem{
+		AgentID:   "eng-01",
+		Branch:    "feature/test",
+		Title:     "Test PR",
+		Status:    MergeStatusPending,
+		FromAgent: "eng-02",
+	}
+	if err := store.AddMerge(ctx, item); err != nil {
+		t.Fatalf("AddMerge() error = %v", err)
+	}
+
+	// Try to complete without approving - should fail
+	err := store.CompleteMerge(ctx, item.ID)
+	if err == nil {
+		t.Error("CompleteMerge() should fail for pending item (not approved)")
+	}
+}
+
+func TestCompleteMergeNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+	ctx := context.Background()
+
+	if err := store.Open(ctx); err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer store.Close() //nolint:errcheck
+
+	err := store.CompleteMerge(ctx, 99999)
+	if err == nil {
+		t.Error("CompleteMerge() should fail for non-existent item")
+	}
+}
+
 func TestConstants(t *testing.T) {
 	// Work status
 	if StatusPending != "pending" {
