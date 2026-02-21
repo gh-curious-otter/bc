@@ -123,3 +123,7 @@ export {
   COMPACT_HEIGHT,
 } from './DetailPane';
 export type { DetailPaneProps, DetailItem, DetailField } from './DetailPane';
+
+// ViewWrapper for consistent view layout (#1419)
+export { ViewWrapper } from './ViewWrapper';
+export type { ViewWrapperProps } from './ViewWrapper';
