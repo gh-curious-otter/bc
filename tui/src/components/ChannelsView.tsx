@@ -158,11 +158,13 @@ export function ChannelsView({ disableInput = false, onSelectItem }: ChannelsVie
     );
   }
 
+  // #1483: Use flexGrow instead of width="100%" for proper 80x24 support
   return (
-    <Box flexDirection="column" width="100%">
+    <Box flexDirection="column" flexGrow={1}>
       <Text bold>Channels</Text>
       <Text dimColor>↑/↓ navigate, Enter to view messages, ESC to go back</Text>
-      <Box marginTop={1} flexDirection="column" width="100%" borderStyle="single" borderColor="gray" paddingX={2}>
+      {/* #1483: Remove nested width="100%" to avoid width calculation issues at 80 cols */}
+      <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1}>
         {channels?.map((channel, index) => (
           <ChannelRow
             key={channel.name}
