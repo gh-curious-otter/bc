@@ -208,7 +208,7 @@ interface SummaryCardsProps {
 
 /**
  * Memoized summary cards - only re-renders when counts change
- * Wraps to multiple lines on narrow terminals
+ * #1352: Uses inline text at <100 cols to prevent border overlap
  */
 const SummaryCards = memo(function SummaryCards({
   total,
@@ -218,6 +218,35 @@ const SummaryCards = memo(function SummaryCards({
   stuck,
   errorCount,
 }: SummaryCardsProps) {
+  const { isCompact, isMinimal } = useResponsiveLayout();
+  const isNarrow = isCompact || isMinimal;
+
+  // #1352: Inline text summary for narrow terminals to avoid border overlap
+  if (isNarrow) {
+    return (
+      <Box marginBottom={1}>
+        <Text>{total} agents</Text>
+        <Text> · </Text>
+        <Text color="cyan">{working} working</Text>
+        <Text> · </Text>
+        <Text color="gray">{idle} idle</Text>
+        {stuck > 0 && (
+          <>
+            <Text> · </Text>
+            <Text color="yellow">{stuck} stuck</Text>
+          </>
+        )}
+        {errorCount > 0 && (
+          <>
+            <Text> · </Text>
+            <Text color="red">{errorCount} error</Text>
+          </>
+        )}
+      </Box>
+    );
+  }
+
+  // Standard bordered MetricCards for wider terminals
   return (
     <Box flexWrap="wrap">
       <MetricCard value={total} label="Total" />
@@ -242,6 +271,7 @@ interface SystemHealthPanelProps {
 
 /**
  * System Health panel - shows agent state distribution
+ * #1352: Uses simple text header at <100 cols to prevent border overlap
  */
 const SystemHealthPanel = memo(function SystemHealthPanel({
   working,
@@ -250,13 +280,39 @@ const SystemHealthPanel = memo(function SystemHealthPanel({
   errorCount,
   total,
 }: SystemHealthPanelProps) {
+  const { isCompact, isMinimal } = useResponsiveLayout();
+  const isNarrow = isCompact || isMinimal;
   const healthyCount = working + idle;
   const unhealthyCount = stuck + errorCount;
   const healthPercent = total > 0 ? Math.round((healthyCount / total) * 100) : 100;
   const healthColor = healthPercent >= 80 ? HEALTH_COLORS.healthy : healthPercent >= 50 ? HEALTH_COLORS.warning : HEALTH_COLORS.critical;
 
-  // #1181 fix: Use Box for inline layout instead of nested Text with wrap="truncate"
-  // Nested Text inside Text with wrap="truncate" causes garbling (e.g., "50% healthyth")
+  // #1352: Compact borderless layout for narrow terminals
+  if (isNarrow) {
+    return (
+      <Box flexDirection="column" marginBottom={1}>
+        <Box>
+          <Text bold dimColor>Health: </Text>
+          <Text color={healthColor} bold>{healthPercent}%</Text>
+          <Text> · </Text>
+          <PulseText color={STATUS_COLORS.working} enabled={working > 0} interval={1500}>●</PulseText>
+          <Text>{working}</Text>
+          <Text> · </Text>
+          <Text color={STATUS_COLORS.idle}>●</Text>
+          <Text>{idle}</Text>
+          {stuck > 0 && (
+            <>
+              <Text> · </Text>
+              <Text color={STATUS_COLORS.warning}>●</Text>
+              <Text>{stuck}</Text>
+            </>
+          )}
+        </Box>
+      </Box>
+    );
+  }
+
+  // Standard bordered Panel for wider terminals
   return (
     <Panel title="System Health">
       <Box flexDirection="column">
@@ -308,6 +364,7 @@ interface CostPanelProps {
 /**
  * Cost panel with budget progress bar (responsive width)
  * #1220: Added symbols and text labels for colorblind accessibility
+ * #1352: Uses compact inline layout at <100 cols
  */
 const CostPanel = memo(function CostPanel({
   totalCostUSD,
@@ -315,10 +372,12 @@ const CostPanel = memo(function CostPanel({
   outputTokens,
   budgetUSD = 10.0,
 }: CostPanelProps) {
+  const { isCompact, isMinimal } = useResponsiveLayout();
+  const isNarrow = isCompact || isMinimal;
   const totalTokens = inputTokens + outputTokens;
   const budgetPercent = Math.min(100, Math.round((totalCostUSD / budgetUSD) * 100));
   // Responsive bar width: smaller on narrow terminals
-  const barWidth = 15;
+  const barWidth = isNarrow ? 10 : 15;
   const filledWidth = Math.round((budgetPercent / 100) * barWidth);
   const emptyWidth = barWidth - filledWidth;
 
@@ -326,6 +385,22 @@ const CostPanel = memo(function CostPanel({
   const costStatus: CostStatus = budgetPercent >= 90 ? 'critical' : budgetPercent >= 75 ? 'warning' : 'normal';
   const { color: barColor, symbol: costSymbol } = getCostIndicator(costStatus);
 
+  // #1352: Compact inline layout for narrow terminals
+  if (isNarrow) {
+    return (
+      <Box marginBottom={1}>
+        <Text bold dimColor>Cost: </Text>
+        <Text bold color="yellow">${totalCostUSD.toFixed(2)}</Text>
+        <Text dimColor>/${budgetUSD.toFixed(2)} </Text>
+        <Text color={barColor}>{'█'.repeat(filledWidth)}</Text>
+        <Text dimColor>{'░'.repeat(emptyWidth)}</Text>
+        <Text> {budgetPercent}%</Text>
+        <Text color={barColor}> {costSymbol}</Text>
+      </Box>
+    );
+  }
+
+  // Standard bordered Panel for wider terminals
   return (
     <Panel title="Cost">
       <Box flexDirection="column">
@@ -361,8 +436,11 @@ interface AgentStatsPanelProps {
  * Memoized agent stats panel - only re-renders when stats change
  * Fixed: Use proper Box layout to prevent text overlap (#1065)
  * #1181 fix: Use Box for inline layout instead of nested Text with wrap="truncate"
+ * #1352: Uses compact inline layout at <100 cols
  */
 const AgentStatsPanel = memo(function AgentStatsPanel({ stats }: AgentStatsPanelProps) {
+  const { isCompact, isMinimal } = useResponsiveLayout();
+  const isNarrow = isCompact || isMinimal;
   const hasRoles = Object.keys(stats.byRole).length > 0;
 
   if (!hasRoles) return null;
@@ -370,9 +448,34 @@ const AgentStatsPanel = memo(function AgentStatsPanel({ stats }: AgentStatsPanel
   const roleEntries = Object.entries(stats.byRole);
 
   // #1338: Truncate role names at narrow widths to prevent text corruption
-  // Max role display: 12 chars + ": " + count (2-3 chars) = ~17 chars per line
-  const MAX_ROLE_LEN = 12;
+  const MAX_ROLE_LEN = isNarrow ? 8 : 12;
 
+  // #1352: Compact inline layout for narrow terminals
+  if (isNarrow) {
+    // Show top 3 roles inline: "eng: 5 · mgr: 2 · ux: 1"
+    const topRoles = roleEntries.slice(0, 3);
+    return (
+      <Box marginBottom={1}>
+        <Text bold dimColor>Roles: </Text>
+        {topRoles.map(([role, count], idx) => {
+          const displayRole = role.length > MAX_ROLE_LEN
+            ? role.slice(0, MAX_ROLE_LEN - 1) + '…'
+            : role;
+          return (
+            <Text key={role}>
+              {idx > 0 && ' · '}
+              {displayRole}: {count}
+            </Text>
+          );
+        })}
+        {roleEntries.length > 3 && (
+          <Text dimColor> +{roleEntries.length - 3}</Text>
+        )}
+      </Box>
+    );
+  }
+
+  // Standard bordered Panel for wider terminals
   return (
     <Panel title="Agent Distribution">
       <Box flexDirection="column">
