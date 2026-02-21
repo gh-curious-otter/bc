@@ -186,7 +186,13 @@ func initV2Workspace(rootDir string) error {
 
 // getWorkspace finds the current workspace.
 // Supports both v1 (config.json) and v2 (config.toml) workspaces.
+// Checks BC_WORKSPACE env var first (for agents in worktrees), then walks up directory tree.
 func getWorkspace() (*workspace.Workspace, error) {
+	// Check BC_WORKSPACE first (agents set this to point to main workspace)
+	if wsPath := os.Getenv("BC_WORKSPACE"); wsPath != "" {
+		return workspace.Load(wsPath)
+	}
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, err
