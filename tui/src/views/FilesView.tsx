@@ -194,6 +194,20 @@ export function FilesView({ onBack }: FilesViewProps): React.ReactElement {
   const treeWidth = Math.min(40, Math.floor(terminalWidth * 0.4));
   const previewWidth = terminalWidth - treeWidth - 4;
 
+  // Get current path for breadcrumb (selected tree item path relative to worktree)
+  const currentTreePath = useMemo(() => {
+    if (!selectedWorktree || flatTree.length === 0 || treeIndex >= flatTree.length) {
+      return null;
+    }
+    const entry = flatTree[treeIndex].entry;
+    // Get path relative to worktree root
+    const rootPath = selectedWorktree.path;
+    if (entry.path.startsWith(rootPath)) {
+      return entry.path.slice(rootPath.length + 1); // +1 for trailing slash
+    }
+    return entry.name;
+  }, [flatTree, treeIndex, selectedWorktree]);
+
   // Loading states
   if (worktreesLoading) {
     return (
@@ -252,6 +266,11 @@ export function FilesView({ onBack }: FilesViewProps): React.ReactElement {
           </Box>
         )}
       </Box>
+
+      {/* Path breadcrumb */}
+      {currentTreePath && (
+        <PathBreadcrumb path={currentTreePath} maxWidth={terminalWidth - 4} />
+      )}
 
       {/* Main content: tree + preview */}
       <Box flexDirection="row" flexGrow={1}>
@@ -356,6 +375,46 @@ function WorktreeSelector({
           {wt.branch && <Text dimColor> ({wt.branch})</Text>}
         </Box>
       ))}
+    </Box>
+  );
+}
+
+// PathBreadcrumb component - shows current path as clickable segments
+interface PathBreadcrumbProps {
+  path: string;
+  maxWidth: number;
+}
+
+function PathBreadcrumb({ path, maxWidth }: PathBreadcrumbProps): React.ReactElement {
+  const { theme } = useTheme();
+  const segments = path.split('/').filter(Boolean);
+
+  // Truncate if path is too long
+  let displaySegments = segments;
+  let truncated = false;
+  const separator = ' › ';
+  const fullDisplay = segments.join(separator);
+
+  if (fullDisplay.length > maxWidth - 4) {
+    // Show first and last segments with ellipsis
+    truncated = true;
+    if (segments.length > 2) {
+      displaySegments = [segments[0], '...', segments[segments.length - 1]];
+    }
+  }
+
+  return (
+    <Box marginBottom={1}>
+      <Text dimColor>📁 </Text>
+      {displaySegments.map((segment, idx) => (
+        <React.Fragment key={idx}>
+          {idx > 0 && <Text dimColor>{separator}</Text>}
+          <Text color={idx === displaySegments.length - 1 ? theme.colors.accent : undefined}>
+            {segment}
+          </Text>
+        </React.Fragment>
+      ))}
+      {truncated && segments.length <= 2 && <Text dimColor>...</Text>}
     </Box>
   );
 }
