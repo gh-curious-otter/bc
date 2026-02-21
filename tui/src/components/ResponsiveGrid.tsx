@@ -42,8 +42,8 @@ function calculateColumns(
   maxColumns: number,
   mode: LayoutMode
 ): number {
-  // Force single column on narrow terminals
-  if (mode === 'minimal' || mode === 'compact') {
+  // Force single column on narrow terminals (xs/sm breakpoints)
+  if (mode === 'xs' || mode === 'sm') {
     return 1;
   }
 
