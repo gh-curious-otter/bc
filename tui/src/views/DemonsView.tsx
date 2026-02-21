@@ -42,11 +42,17 @@ function formatSchedule(schedule: string): string {
 
 /**
  * Format relative time for last/next run
+ * Issue #1362: Fix invalid date calculation (739667d ago bug)
  */
 function formatRelativeTime(timestamp?: string): string {
-  if (!timestamp) return '-';
+  if (!timestamp || timestamp === '0' || timestamp === '') return '-';
   try {
     const date = new Date(timestamp);
+    // Validate the parsed date - NaN check and sanity check for epoch/invalid dates
+    if (isNaN(date.getTime())) return '-';
+    // If date is before year 2000, it's likely invalid (epoch or parse error)
+    if (date.getFullYear() < 2000) return '-';
+
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(Math.abs(diffMs) / 60000);
@@ -59,9 +65,11 @@ function formatRelativeTime(timestamp?: string): string {
     if (diffMins < 1) return 'now';
     if (diffMins < 60) return `${prefix}${String(diffMins)}m${suffix}`;
     if (diffHours < 24) return `${prefix}${String(diffHours)}h${suffix}`;
+    // Cap days at 365 to avoid absurd values
+    if (diffDays > 365) return diffMs < 0 ? '>1y' : '>1y ago';
     return `${prefix}${String(diffDays)}d${suffix}`;
   } catch {
-    return timestamp;
+    return '-';
   }
 }
 

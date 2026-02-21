@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Box, Text, useStdout } from 'ink';
+import { Box, Text } from 'ink';
 import { Panel } from './Panel';
 import { useCosts } from '../hooks';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
@@ -15,10 +15,9 @@ interface CostsViewProps {
 }
 
 export function CostsView({ disableInput: _disableInput = false }: CostsViewProps): React.ReactElement {
-  const { stdout } = useStdout();
-  const terminalWidth = stdout.columns;
-  const { canMultiColumn, isCompact, isMinimal } = useResponsiveLayout();
-  const isNarrow = isCompact || isMinimal;
+  const { isCompact, isMinimal, isMD } = useResponsiveLayout();
+  // #1365: Extend borderless to 100-120 cols (isMD) to prevent box fragmentation
+  const isNarrow = isCompact || isMinimal || isMD;
 
   const { data: costs, loading, error } = useCosts();
 
@@ -116,7 +115,7 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
       <Text bold>Cost Dashboard</Text>
 
       {/* Summary */}
-      <Panel title="Summary" width={canMultiColumn ? terminalWidth - 2 : undefined}>
+      <Panel title="Summary">
         <Box>
           <Text>Total Cost: </Text>
           <Text color="yellow" bold>${costs.total_cost.toFixed(4)}</Text>
@@ -140,7 +139,7 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
       </Panel>
 
       {/* By Agent */}
-      <Panel title="By Agent" width={canMultiColumn ? terminalWidth - 2 : undefined}>
+      <Panel title="By Agent">
         {Object.entries(costs.by_agent ?? {}).length === 0 ? (
           <Text dimColor>No agent costs recorded</Text>
         ) : (
@@ -157,7 +156,7 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
       </Panel>
 
       {/* By Model */}
-      <Panel title="By Model" width={canMultiColumn ? terminalWidth - 2 : undefined}>
+      <Panel title="By Model">
         {Object.entries(costs.by_model ?? {}).length === 0 ? (
           <Text dimColor>No model costs recorded</Text>
         ) : (
@@ -174,7 +173,7 @@ export function CostsView({ disableInput: _disableInput = false }: CostsViewProp
 
       {/* By Team */}
       {Object.keys(costs.by_team ?? {}).length > 0 && (
-        <Panel title="By Team" width={canMultiColumn ? terminalWidth - 2 : undefined}>
+        <Panel title="By Team">
           {Object.entries(costs.by_team ?? {})
             .sort(([, a], [, b]) => b - a)
             .map(([team, cost]) => (
