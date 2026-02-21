@@ -47,6 +47,47 @@ function countAgentStates(agents: Agent[]): StateCounts {
   return counts;
 }
 
+/** Role group with agents and stats (#1346) */
+interface RoleGroup {
+  role: string;
+  agents: Agent[];
+  working: number;
+  idle: number;
+  stuck: number;
+}
+
+/** Group agents by role for grouped view (#1346) */
+function groupAgentsByRole(agents: Agent[]): RoleGroup[] {
+  const groups = new Map<string, Agent[]>();
+
+  for (const agent of agents) {
+    const role = agent.role;
+    const existing = groups.get(role) ?? [];
+    existing.push(agent);
+    groups.set(role, existing);
+  }
+
+  // Convert to array and calculate stats
+  const result: RoleGroup[] = [];
+  for (const [role, roleAgents] of groups) {
+    const counts = countAgentStates(roleAgents);
+    result.push({
+      role,
+      agents: roleAgents,
+      working: counts.working,
+      idle: counts.idle,
+      stuck: counts.stuck,
+    });
+  }
+
+  // Sort by role name (engineers first, then alphabetically)
+  return result.sort((a, b) => {
+    if (a.role === 'engineer') return -1;
+    if (b.role === 'engineer') return 1;
+    return a.role.localeCompare(b.role);
+  });
+}
+
 /**
  * Normalize task status by replacing cooking metaphors with clearer terms.
  * Issue #970 - Replace cooking terminology from Claude Code status line.
@@ -93,6 +134,9 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   const [searchMode, setSearchMode] = useState(false);
   const [peekOutput, setPeekOutput] = useState<string[] | null>(null);
   const [peekLoading, setPeekLoading] = useState(false);
+  // #1346: Grouped view mode and collapsed roles
+  const [groupedView, setGroupedView] = useState(true);
+  const [collapsedRoles, setCollapsedRoles] = useState<Set<string>>(new Set());
 
   // Filter agents by search query
   const agentList = React.useMemo(() => {
@@ -110,7 +154,40 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
   // Calculate state counts for header summary (#1331)
   const stateCounts = React.useMemo(() => countAgentStates(agentList), [agentList]);
 
-  const selectedAgent = agentList[selectedIndex] as typeof agentList[number] | undefined;
+  // #1346: Group agents by role for grouped view
+  const roleGroups = React.useMemo(() => groupAgentsByRole(agentList), [agentList]);
+
+  /** Item types for grouped view navigation (#1346) */
+  type GroupedItem = { type: 'header'; role: string; group: RoleGroup } | { type: 'agent'; agent: Agent; role: string };
+
+  // #1346: Build flat list of visible items for navigation in grouped view
+  const visibleItems = React.useMemo((): GroupedItem[] => {
+    if (!groupedView) {
+      // Return agents wrapped as GroupedItem for consistent typing
+      return agentList.map((agent) => ({ type: 'agent' as const, agent, role: agent.role }));
+    }
+
+    const items: GroupedItem[] = [];
+    for (const group of roleGroups) {
+      items.push({ type: 'header', role: group.role, group });
+      if (!collapsedRoles.has(group.role)) {
+        for (const agent of group.agents) {
+          items.push({ type: 'agent', agent, role: group.role });
+        }
+      }
+    }
+    return items;
+  }, [groupedView, roleGroups, collapsedRoles, agentList]);
+
+  // Get selected agent from visible items
+  const selectedAgent = React.useMemo((): Agent | undefined => {
+    if (selectedIndex < 0 || selectedIndex >= visibleItems.length) return undefined;
+    const item = visibleItems[selectedIndex];
+    if (item.type === 'agent') {
+      return item.agent;
+    }
+    return undefined;
+  }, [visibleItems, selectedIndex]);
   const { setFocus } = useFocus();
 
   // Manage focus state for nested view navigation
@@ -210,17 +287,36 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
     }
 
     // List view navigation
+    const maxIndex = groupedView ? visibleItems.length - 1 : agentList.length - 1;
     if (key.upArrow || input === 'k') {
       setSelectedIndex((i) => Math.max(0, i - 1));
     } else if (key.downArrow || input === 'j') {
-      setSelectedIndex((i) => Math.min(agentList.length - 1, i + 1));
-    } else if (input === 'g') {
-      setSelectedIndex(0);
+      setSelectedIndex((i) => Math.min(maxIndex, i + 1));
     } else if (input === 'G') {
-      setSelectedIndex(Math.max(0, agentList.length - 1));
+      setSelectedIndex(Math.max(0, maxIndex));
+    } else if (input === 'v') {
+      // #1346: Toggle grouped view mode
+      setGroupedView((v) => !v);
+      setSelectedIndex(0);
     } else if (key.return || input === 'a') {
+      // #1346: Handle Enter on role header (toggle collapse)
+      if (selectedIndex >= 0 && selectedIndex < visibleItems.length) {
+        const item = visibleItems[selectedIndex];
+        if (item.type === 'header') {
+          // Toggle collapse for this role
+          setCollapsedRoles((prev) => {
+            const next = new Set(prev);
+            if (next.has(item.role)) {
+              next.delete(item.role);
+            } else {
+              next.add(item.role);
+            }
+            return next;
+          });
+          return;
+        }
+      }
       // View agent details / attach
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list
       if (selectedAgent) {
         setShowDetail(true);
       }
@@ -406,12 +502,60 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
         </Box>
       )}
 
-      {/* Agents Table */}
-      <Table
-        data={agentList}
-        columns={columns}
-        selectedIndex={selectedIndex}
-      />
+      {/* Agents View - Grouped or Table (#1346) */}
+      {groupedView ? (
+        <Box flexDirection="column">
+          {visibleItems.map((item, idx) => {
+            const isSelected = idx === selectedIndex;
+
+            if (item.type === 'header') {
+              // Role header row
+              const isCollapsed = collapsedRoles.has(item.role);
+              return (
+                <Box key={`header-${item.role}`}>
+                  <Text color={isSelected ? 'cyan' : 'white'} bold>
+                    {isSelected ? '▸ ' : '  '}
+                    {isCollapsed ? '▶' : '▼'}{' '}
+                  </Text>
+                  <Text bold color={isSelected ? 'cyan' : 'white'}>
+                    {item.role.toUpperCase()} ({item.group.agents.length})
+                  </Text>
+                  {item.group.working > 0 && (
+                    <Text color="blue"> ● {item.group.working}</Text>
+                  )}
+                  {item.group.stuck > 0 && (
+                    <Text color="yellow"> ⚠ {item.group.stuck}</Text>
+                  )}
+                </Box>
+              );
+            }
+
+            // Agent row (type === 'agent')
+            return (
+              <Box key={`agent-${item.agent.name}`} marginLeft={2}>
+                <Text color={isSelected ? 'cyan' : undefined}>
+                  {isSelected ? '▸ ' : '  '}
+                </Text>
+                <Text color={isSelected ? 'cyan' : undefined}>
+                  {item.agent.name.length > 12 ? item.agent.name.slice(0, 11) + '…' : item.agent.name.padEnd(12)}
+                </Text>
+                <Text> </Text>
+                <StatusBadge state={item.agent.state} />
+                <Text> </Text>
+                <Text wrap="truncate" dimColor>
+                  {normalizeTask(item.agent.task).slice(0, 30)}
+                </Text>
+              </Box>
+            );
+          })}
+        </Box>
+      ) : (
+        <Table
+          data={agentList}
+          columns={columns}
+          selectedIndex={selectedIndex}
+        />
+      )}
 
       {/* Inline action bar for selected agent (#1331 - updated keybindings) */}
       {selectedAgent && !confirmAction && (
@@ -438,10 +582,10 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
         </Box>
       )}
 
-      {/* Footer with keybindings (#1331 - updated) */}
+      {/* Footer with keybindings (#1331, #1346) */}
       <Box marginTop={1}>
         <Text color="gray">
-          j/k: nav | /: search{searchQuery ? ' | c: clear' : ''} | p: peek | Enter: attach | x: stop | X: kill | R: restart | r: refresh | q: back
+          j/k: nav | v: {groupedView ? 'flat' : 'grouped'} | /: search{searchQuery ? ' | c: clear' : ''} | p: peek | Enter: {groupedView ? 'expand/attach' : 'attach'} | r: refresh | q: back
         </Text>
       </Box>
     </Box>
