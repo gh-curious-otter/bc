@@ -93,6 +93,23 @@ type ToolsJiraConfig struct {
 	Enabled bool
 }
 
+type TuiConfig struct {
+	LeaderBindings     TuiLeaderBindingsConfig
+	LeaderKey          string
+	ScrollAcceleration bool
+	ScrollSpeed        int64
+	Theme              string
+}
+
+type TuiLeaderBindingsConfig struct {
+	H string
+	N string
+	Q string
+	S string
+	T string
+	X string
+}
+
 type WorkspaceConfig struct {
 	Name    string
 	Version int64
@@ -189,6 +206,20 @@ var (
 			Command: "jira",
 			Enabled: false,
 		},
+	}
+	Tui = TuiConfig{
+		LeaderBindings: TuiLeaderBindingsConfig{
+			H: "help",
+			N: "new_session",
+			Q: "quit",
+			S: "sessions",
+			T: "themes",
+			X: "export",
+		},
+		LeaderKey:          "ctrl+x",
+		ScrollAcceleration: false,
+		ScrollSpeed:        3,
+		Theme:              "auto",
 	}
 	Workspace = WorkspaceConfig{
 		Name:    "bc",

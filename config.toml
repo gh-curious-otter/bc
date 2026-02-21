@@ -138,6 +138,34 @@ adaptive_slow_interval = 4000    # Low activity period
 adaptive_max_interval = 8000     # Maximum backoff interval
 
 # =============================================================================
+# TUI Settings
+# =============================================================================
+[tui]
+# Theme selection: "dark", "light", "auto" (follows terminal)
+theme = "auto"
+
+# Scroll speed (1-10, higher = faster scrolling)
+scroll_speed = 3
+
+# Enable macOS-style scroll acceleration
+scroll_acceleration = false
+
+# Leader key for advanced commands (Ctrl+X by default)
+# Sequence: Press leader key, then command key
+# Example: Ctrl+X followed by 'h' opens help
+leader_key = "ctrl+x"
+
+# Leader key bindings (key -> action mapping)
+# Actions: help, themes, sessions, export, new_session, quit
+[tui.leader_bindings]
+h = "help"          # Ctrl+X h -> Show help
+t = "themes"        # Ctrl+X t -> Theme selector
+s = "sessions"      # Ctrl+X s -> Session list
+x = "export"        # Ctrl+X x -> Export session
+n = "new_session"   # Ctrl+X n -> New session
+q = "quit"          # Ctrl+X q -> Quit
+
+# =============================================================================
 # Agent Defaults (internal use)
 # =============================================================================
 [agent_legacy]
