@@ -33,7 +33,7 @@ export const darkTheme: Theme = {
     agentIdle: 'gray',
     agentWorking: 'blue',
     agentDone: 'green',
-    agentStuck: 'red',
+    agentStuck: 'yellow', // Warning color for stuck (#1331, #1349)
     agentError: 'red',
 
     // UI element colors
@@ -76,7 +76,7 @@ export const lightTheme: Theme = {
     agentIdle: 'gray',
     agentWorking: 'blue',
     agentDone: 'green',
-    agentStuck: 'red',
+    agentStuck: 'yellow', // Warning color for stuck (#1331, #1349)
     agentError: 'red',
 
     // UI element colors
@@ -208,7 +208,7 @@ export const highContrastTheme: Theme = {
     agentIdle: 'white',
     agentWorking: 'cyanBright',
     agentDone: 'greenBright',
-    agentStuck: 'yellowBright',
+    agentStuck: 'yellowBright', // Warning color for stuck
     agentError: 'redBright',
 
     // UI element colors
@@ -224,8 +224,53 @@ export const highContrastTheme: Theme = {
   },
 };
 
+/**
+ * Futuristic theme - Modern, clean, professional (#1349)
+ * Inspired by GitHub dark theme with blue accents
+ * Optimized for readability and clear visual hierarchy
+ */
+export const futuristicTheme: Theme = {
+  name: 'futuristic',
+  mode: 'dark',
+  colors: {
+    // Primary colors - blue accent palette
+    primary: 'blueBright',
+    secondary: 'cyan',
+    accent: 'blueBright',
+
+    // Text colors - high contrast
+    text: 'whiteBright',
+    textMuted: 'gray',
+    textInverse: 'black',
+
+    // Status colors - clear hierarchy
+    success: 'greenBright',
+    warning: 'yellow',
+    error: 'redBright',
+    info: 'blueBright',
+
+    // Agent state colors - distinct and accessible
+    agentIdle: 'gray',
+    agentWorking: 'greenBright',
+    agentDone: 'cyanBright',
+    agentStuck: 'yellow', // Warning color for stuck (#1331)
+    agentError: 'redBright',
+
+    // UI element colors - subtle borders, clear focus
+    border: 'gray',
+    borderFocused: 'blueBright',
+    selection: 'blueBright',
+    highlight: 'cyanBright',
+
+    // Component-specific
+    headerTitle: 'blueBright',
+    footerText: 'gray',
+    badge: 'cyanBright',
+  },
+};
+
 /** Available theme names */
-export type ThemeName = 'dark' | 'light' | 'matrix' | 'synthwave' | 'high-contrast';
+export type ThemeName = 'dark' | 'light' | 'matrix' | 'synthwave' | 'high-contrast' | 'futuristic';
 
 /** All available themes */
 export const themes: Record<ThemeName, Theme> = {
@@ -234,6 +279,7 @@ export const themes: Record<ThemeName, Theme> = {
   matrix: matrixTheme,
   synthwave: synthwaveTheme,
   'high-contrast': highContrastTheme,
+  futuristic: futuristicTheme,
 };
 
 /**
