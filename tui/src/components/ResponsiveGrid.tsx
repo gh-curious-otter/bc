@@ -35,6 +35,7 @@ export interface ResponsiveGridProps {
 
 /**
  * Calculate optimal column count based on width and constraints
+ * Updated for 5-tier breakpoint system (#1326)
  */
 function calculateColumns(
   width: number,
@@ -42,8 +43,8 @@ function calculateColumns(
   maxColumns: number,
   mode: LayoutMode
 ): number {
-  // Force single column on narrow terminals
-  if (mode === 'minimal' || mode === 'compact') {
+  // Force single column on narrow terminals (XS, SM, MD)
+  if (mode === 'xs' || mode === 'sm' || mode === 'md') {
     return 1;
   }
 
