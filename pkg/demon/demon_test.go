@@ -642,3 +642,342 @@ func TestGetRunLogsNotFound(t *testing.T) {
 		t.Errorf("Expected nil logs, got %v", logs)
 	}
 }
+
+// --- CreateWithPrompt Tests ---
+
+func TestCreateWithPrompt(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Test with inline prompt
+	demon, err := store.CreateWithPrompt("prompt-demon", "0 * * * *", "bc agent send eng-01", "Run daily health check", "")
+	if err != nil {
+		t.Fatalf("CreateWithPrompt failed: %v", err)
+	}
+	if demon.Prompt != "Run daily health check" {
+		t.Errorf("Prompt = %q, want %q", demon.Prompt, "Run daily health check")
+	}
+	if demon.PromptFile != "" {
+		t.Errorf("PromptFile should be empty, got %q", demon.PromptFile)
+	}
+}
+
+func TestCreateWithPromptFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create a prompt file
+	promptFile := filepath.Join(tmpDir, "prompt.txt")
+	if err := os.WriteFile(promptFile, []byte("Test prompt content"), 0600); err != nil {
+		t.Fatalf("Failed to create prompt file: %v", err)
+	}
+
+	demon, err := store.CreateWithPrompt("file-demon", "*/5 * * * *", "bc agent send eng-02", "", promptFile)
+	if err != nil {
+		t.Fatalf("CreateWithPrompt with file failed: %v", err)
+	}
+	if demon.PromptFile != promptFile {
+		t.Errorf("PromptFile = %q, want %q", demon.PromptFile, promptFile)
+	}
+	if demon.Prompt != "" {
+		t.Errorf("Prompt should be empty, got %q", demon.Prompt)
+	}
+}
+
+func TestCreateWithPromptBothError(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create a prompt file
+	promptFile := filepath.Join(tmpDir, "prompt.txt")
+	if err := os.WriteFile(promptFile, []byte("content"), 0600); err != nil {
+		t.Fatalf("Failed to create prompt file: %v", err)
+	}
+
+	// Test error when both prompt and promptFile are specified
+	_, err := store.CreateWithPrompt("both-demon", "0 * * * *", "echo test", "inline prompt", promptFile)
+	if err == nil {
+		t.Error("Expected error when both prompt and prompt file specified")
+	}
+}
+
+func TestCreateWithPromptFileMissing(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Test error when prompt file doesn't exist
+	_, err := store.CreateWithPrompt("missing-file-demon", "0 * * * *", "echo test", "", "/nonexistent/prompt.txt")
+	if err == nil {
+		t.Error("Expected error when prompt file doesn't exist")
+	}
+}
+
+// --- parseField Edge Case Tests ---
+
+func TestParseFieldInvalidRange(t *testing.T) {
+	// Test invalid range (end before start)
+	_, err := parseField("5-3", 0, 10)
+	if err == nil {
+		t.Error("Expected error for invalid range 5-3")
+	}
+
+	// Test range with three parts
+	_, err = parseField("1-3-5", 0, 10)
+	if err == nil {
+		t.Error("Expected error for range with three parts")
+	}
+}
+
+func TestParseFieldOutOfRange(t *testing.T) {
+	// Test value below minimum
+	_, err := parseField("-1", 0, 59)
+	if err == nil {
+		t.Error("Expected error for value below minimum")
+	}
+
+	// Test value above maximum
+	_, err = parseField("100", 0, 59)
+	if err == nil {
+		t.Error("Expected error for value above maximum")
+	}
+}
+
+func TestParseFieldInvalidComma(t *testing.T) {
+	// Test comma-separated with invalid value
+	_, err := parseField("0,abc,30", 0, 59)
+	if err == nil {
+		t.Error("Expected error for invalid comma value")
+	}
+
+	// Test comma-separated with out-of-range value
+	_, err = parseField("0,100,30", 0, 59)
+	if err == nil {
+		t.Error("Expected error for out-of-range comma value")
+	}
+}
+
+func TestParseFieldInvalidStep(t *testing.T) {
+	// Test invalid step (non-numeric)
+	_, err := parseField("*/abc", 0, 59)
+	if err == nil {
+		t.Error("Expected error for non-numeric step")
+	}
+
+	// Test negative step
+	_, err = parseField("*/-1", 0, 59)
+	if err == nil {
+		t.Error("Expected error for negative step")
+	}
+}
+
+// --- Additional Scheduler Tests ---
+
+func TestSchedulerReadPIDInvalid(t *testing.T) {
+	tmpDir := t.TempDir()
+	sched := NewScheduler(tmpDir)
+
+	// Create demons directory
+	if err := os.MkdirAll(sched.demonsDir, 0750); err != nil {
+		t.Fatalf("Failed to create demons dir: %v", err)
+	}
+
+	// Write invalid PID
+	if err := os.WriteFile(sched.pidFile, []byte("not-a-number"), 0600); err != nil {
+		t.Fatalf("Failed to write PID file: %v", err)
+	}
+
+	_, err := sched.readPID()
+	if err == nil {
+		t.Error("readPID should fail for invalid PID content")
+	}
+}
+
+func TestSchedulerGetNextRunsWithDisabled(t *testing.T) {
+	tmpDir := t.TempDir()
+	sched := NewScheduler(tmpDir)
+	store := NewStore(tmpDir)
+
+	// Create some demons
+	_, _ = store.Create("demon1", "0 * * * *", "echo one")
+	_, _ = store.Create("demon2", "*/5 * * * *", "echo two")
+	d3, _ := store.Create("demon3", "0 0 * * *", "echo three")
+	_ = store.Disable(d3.Name) // Disabled, should not appear
+
+	runs, err := sched.GetNextRuns()
+	if err != nil {
+		t.Fatalf("GetNextRuns failed: %v", err)
+	}
+
+	if len(runs) != 2 {
+		t.Errorf("GetNextRuns returned %d runs, want 2", len(runs))
+	}
+
+	// Verify the runs contain correct names
+	names := make(map[string]bool)
+	for _, r := range runs {
+		names[r.Name] = true
+	}
+	if !names["demon1"] || !names["demon2"] {
+		t.Error("GetNextRuns should return demon1 and demon2")
+	}
+}
+
+func TestSchedulerGetNextRunsEmpty(t *testing.T) {
+	tmpDir := t.TempDir()
+	sched := NewScheduler(tmpDir)
+
+	runs, err := sched.GetNextRuns()
+	if err != nil {
+		t.Fatalf("GetNextRuns failed: %v", err)
+	}
+
+	if len(runs) != 0 {
+		t.Errorf("GetNextRuns returned %d runs for empty store, want 0", len(runs))
+	}
+}
+
+// --- Cron Edge Cases ---
+
+func TestCronScheduleNextCrossMonth(t *testing.T) {
+	// Test crossing month boundary
+	cron, err := ParseCron("0 0 1 * *") // First day of each month at midnight
+	if err != nil {
+		t.Fatalf("ParseCron failed: %v", err)
+	}
+
+	// From Jan 31, next should be Feb 1
+	after := time.Date(2024, 1, 31, 10, 0, 0, 0, time.UTC)
+	next := cron.Next(after)
+
+	if next.Month() != 2 || next.Day() != 1 {
+		t.Errorf("Next() = %v, want Feb 1", next)
+	}
+}
+
+func TestCronScheduleNextCrossYear(t *testing.T) {
+	// Test crossing year boundary
+	cron, err := ParseCron("0 0 1 1 *") // Jan 1 at midnight
+	if err != nil {
+		t.Fatalf("ParseCron failed: %v", err)
+	}
+
+	// From Dec 15, 2024, next should be Jan 1, 2025
+	after := time.Date(2024, 12, 15, 10, 0, 0, 0, time.UTC)
+	next := cron.Next(after)
+
+	if next.Year() != 2025 || next.Month() != 1 || next.Day() != 1 {
+		t.Errorf("Next() = %v, want Jan 1 2025", next)
+	}
+}
+
+// --- Error Path Tests ---
+
+func TestStoreGetMalformedJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create demons directory
+	if err := os.MkdirAll(store.demonsDir, 0750); err != nil {
+		t.Fatalf("Failed to create demons dir: %v", err)
+	}
+
+	// Write malformed JSON
+	malformedPath := filepath.Join(store.demonsDir, "malformed.json")
+	if err := os.WriteFile(malformedPath, []byte("not valid json"), 0600); err != nil {
+		t.Fatalf("Failed to write malformed file: %v", err)
+	}
+
+	_, err := store.Get("malformed")
+	if err == nil {
+		t.Error("Get should fail for malformed JSON")
+	}
+}
+
+func TestStoreListSkipsMalformedEntries(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create a valid demon
+	_, err := store.Create("valid-demon", "0 * * * *", "echo hello")
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// Write malformed JSON file
+	malformedPath := filepath.Join(store.demonsDir, "malformed.json")
+	if writeErr := os.WriteFile(malformedPath, []byte("not valid json"), 0600); writeErr != nil {
+		t.Fatalf("Failed to write malformed file: %v", writeErr)
+	}
+
+	// List should still return the valid demon
+	demons, listErr := store.List()
+	if listErr != nil {
+		t.Fatalf("List failed: %v", listErr)
+	}
+
+	if len(demons) != 1 {
+		t.Errorf("List returned %d demons, want 1 (should skip malformed)", len(demons))
+	}
+}
+
+func TestRecordRunLogErrors(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Try to record log (demons dir will be created)
+	log := RunLog{
+		Timestamp: time.Now().UTC(),
+		Duration:  100,
+		ExitCode:  0,
+		Success:   true,
+	}
+
+	// Should succeed even without existing demon
+	err := store.RecordRunLog("new-demon", log)
+	if err != nil {
+		t.Errorf("RecordRunLog should not fail: %v", err)
+	}
+}
+
+// --- rangeSlice Test ---
+
+func TestRangeSlice(t *testing.T) {
+	result := rangeSlice(1, 5)
+	expected := []int{1, 2, 3, 4, 5}
+
+	if len(result) != len(expected) {
+		t.Fatalf("rangeSlice(1, 5) len = %d, want %d", len(result), len(expected))
+	}
+
+	for i, v := range result {
+		if v != expected[i] {
+			t.Errorf("rangeSlice[%d] = %d, want %d", i, v, expected[i])
+		}
+	}
+}
+
+func TestRangeSliceSingleValue(t *testing.T) {
+	result := rangeSlice(5, 5)
+	if len(result) != 1 || result[0] != 5 {
+		t.Errorf("rangeSlice(5, 5) = %v, want [5]", result)
+	}
+}
+
+// --- contains helper test ---
+
+func TestContainsHelper(t *testing.T) {
+	slice := []int{1, 2, 3, 4, 5}
+
+	if !contains(slice, 3) {
+		t.Error("contains should return true for existing value")
+	}
+
+	if contains(slice, 10) {
+		t.Error("contains should return false for non-existing value")
+	}
+
+	// Empty slice
+	if contains([]int{}, 1) {
+		t.Error("contains should return false for empty slice")
+	}
+}
