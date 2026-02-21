@@ -229,6 +229,7 @@ func TestReportValidStates(t *testing.T) {
 	for _, state := range validStates {
 		t.Run(state, func(t *testing.T) {
 			t.Setenv("BC_AGENT_ID", "test-agent")
+			t.Setenv("BC_WORKSPACE", "") // Clear workspace env to test cwd-based discovery
 
 			// State validation happens before workspace lookup, but
 			// invalid states are rejected. Valid states proceed to
@@ -265,6 +266,8 @@ func TestReportRequiresArgs(t *testing.T) {
 // --- Status command tests ---
 
 func TestStatusNoWorkspace(t *testing.T) {
+	t.Setenv("BC_WORKSPACE", "") // Clear workspace env to test cwd-based discovery
+
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
