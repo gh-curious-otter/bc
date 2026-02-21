@@ -22,7 +22,8 @@ function parseAgentList(output: string): Agent[] {
 
     for (const line of lines) {
         const match = line.match(/^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/);
-        if (match && !line.startsWith('AGENT') && !line.startsWith('-')) {
+        // Skip header lines: "AGENT...", "---...", "───...", "Workspace:..."
+        if (match && !line.startsWith('AGENT') && !line.startsWith('-') && !line.startsWith('─') && !line.startsWith('Workspace')) {
             const [, name, role, state, uptime, task] = match;
             if (name && role && state) {
                 agents.push({
