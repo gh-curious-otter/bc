@@ -7,10 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useDemons } from '../hooks/useDemons';
 import { StatusBadge } from '../components/StatusBadge';
-import { Footer } from '../components/Footer';
-import { LoadingIndicator } from '../components/LoadingIndicator';
-import { ErrorDisplay } from '../components/ErrorDisplay';
-import { HeaderBar } from '../components/HeaderBar';
+import { ViewWrapper } from '../components/ViewWrapper';
 import type { Demon } from '../types';
 
 /** Duration in ms to show action errors before auto-clearing */
@@ -252,30 +249,35 @@ export function DemonsView({
     );
   }
 
-  if (error) {
-    return <ErrorDisplay error={error} onRetry={() => { void refresh(); }} />;
-  }
+  // Build hints array dynamically
+  const hints = [
+    { key: 'j/k', label: 'nav' },
+    { key: 'g/G', label: 'top/bottom' },
+    { key: '/', label: 'search' },
+    ...(searchQuery ? [{ key: 'c', label: 'clear' }] : []),
+    { key: 'e', label: 'enable' },
+    { key: 'D', label: 'disable' },
+    { key: 'x', label: 'run' },
+    { key: 'r', label: 'refresh' },
+    { key: 'q/ESC', label: 'back' },
+  ];
 
-  if (loading && !demons) {
-    return <LoadingIndicator message="Loading demons..." />;
+  // Build title with count info
+  const total = demons?.length ?? 0;
+  const titleParts = [`Demons · ${String(filteredDemons.length)}${searchQuery ? `/${String(total)}` : ''} total · ${String(enabled)} enabled`];
+  if (searchQuery) {
+    titleParts.push(`[/] "${searchQuery}"`);
   }
-
-  // Build subtitle with stats
-  const subtitle = [
-    `${String(enabled)} enabled`,
-    searchQuery ? `Search: "${searchQuery}"` : null,
-  ].filter(Boolean).join(' · ');
 
   return (
-    <Box flexDirection="column" padding={1}>
-      {/* Header - using shared HeaderBar component (#1419) */}
-      <HeaderBar
-        title="Demons"
-        count={filteredDemons.length}
-        color="magenta"
-        subtitle={subtitle.length > 0 ? subtitle : undefined}
-      />
-
+    <ViewWrapper
+      title={titleParts.join(' ')}
+      loading={loading && !demons}
+      loadingMessage="Loading demons..."
+      error={error}
+      onRetry={() => { void refresh(); }}
+      hints={hints}
+    >
       {/* Action error feedback */}
       {actionError && (
         <Box marginBottom={1}>
@@ -335,22 +337,7 @@ export function DemonsView({
           )}
         </Box>
       )}
-
-      {/* Footer */}
-      <Footer
-        hints={[
-          { key: 'j/k', label: 'nav' },
-          { key: 'g/G', label: 'top/bottom' },
-          { key: '/', label: 'search' },
-          ...(searchQuery ? [{ key: 'c', label: 'clear' }] : []),
-          { key: 'e', label: 'enable' },
-          { key: 'D', label: 'disable' },
-          { key: 'x', label: 'run' },
-          { key: 'r', label: 'refresh' },
-          { key: 'q/ESC', label: 'back' },
-        ]}
-      />
-    </Box>
+    </ViewWrapper>
   );
 }
 

@@ -9,8 +9,7 @@ import { useProcesses, useProcessLogs } from '../hooks';
 import { Table } from '../components/Table';
 import type { Column } from '../components/Table';
 import { StatusBadge } from '../components/StatusBadge';
-import { LoadingIndicator } from '../components/LoadingIndicator';
-import { HeaderBar } from '../components/HeaderBar';
+import { ViewWrapper } from '../components/ViewWrapper';
 import type { Process } from '../types';
 
 /** Detail item for DetailPane integration (#1419) */
@@ -205,18 +204,6 @@ export function ProcessesView({ onBack, onSelectItem }: ProcessesViewProps) {
     );
   }
 
-  if (loading && processList.length === 0) {
-    return <LoadingIndicator message="Loading processes..." />;
-  }
-
-  if (error) {
-    return (
-      <Box padding={1}>
-        <Text color="red">Error: {error}</Text>
-      </Box>
-    );
-  }
-
   // Show log viewer
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list
   if (showLogs && selectedProcess) {
@@ -228,17 +215,26 @@ export function ProcessesView({ onBack, onSelectItem }: ProcessesViewProps) {
     );
   }
 
-  return (
-    <Box flexDirection="column">
-      {/* Header - using shared HeaderBar component (#1419) */}
-      <HeaderBar
-        title="Processes"
-        count={processList.length}
-        loading={loading}
-        color="magenta"
-        subtitle={searchQuery ? `Search: "${searchQuery}"` : undefined}
-      />
+  // Build hints array dynamically
+  const hints = [
+    { key: 'j/k', label: 'nav' },
+    { key: 'g/G', label: 'top/bottom' },
+    { key: '/', label: 'search' },
+    ...(searchQuery ? [{ key: 'c', label: 'clear' }] : []),
+    { key: 'Enter/l', label: 'logs' },
+    { key: 'r', label: 'refresh' },
+    { key: 'q/ESC', label: 'back' },
+  ];
 
+  return (
+    <ViewWrapper
+      title={`Processes (${String(processList.length)})${searchQuery ? ` [/] "${searchQuery}"` : ''}`}
+      loading={loading && processList.length === 0}
+      loadingMessage="Loading processes..."
+      error={error}
+      onRetry={() => { void refresh(); }}
+      hints={hints}
+    >
       {processList.length === 0 ? (
         <Box padding={1}>
           <Text dimColor>{searchQuery ? 'No processes match search' : 'No processes running'}</Text>
@@ -275,14 +271,7 @@ export function ProcessesView({ onBack, onSelectItem }: ProcessesViewProps) {
           )}
         </>
       )}
-
-      {/* Footer with keybindings */}
-      <Box marginTop={1}>
-        <Text color="gray">
-          j/k: nav | g/G: top/bottom | /: search{searchQuery ? ' | c: clear' : ''} | Enter/l: logs | r: refresh | q/ESC: back
-        </Text>
-      </Box>
-    </Box>
+    </ViewWrapper>
   );
 }
 
