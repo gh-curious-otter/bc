@@ -50,6 +50,7 @@ func TestManagerGet(t *testing.T) {
 }
 
 func TestValidateManifest(t *testing.T) {
+	//nolint:govet // fieldalignment: test struct ordering for readability
 	tests := []struct {
 		name    string
 		m       Manifest
