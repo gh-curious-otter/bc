@@ -1,7 +1,6 @@
 import { memo, useState } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { Panel } from '../components/Panel.js';
-import { MetricCard } from '../components/MetricCard.js';
 import { Footer } from '../components/Footer.js';
 import { LoadingIndicator } from '../components/LoadingIndicator.js';
 import { ErrorDisplay } from '../components/ErrorDisplay.js';
@@ -207,26 +206,39 @@ interface SummaryCardsProps {
 }
 
 /**
- * Memoized summary cards - only re-renders when counts change
- * Wraps to multiple lines on narrow terminals
+ * Memoized summary line - inline format for scannability (#1346)
+ * Shows: ● 5 working · ○ 7 idle · ⚠ 1 stuck
  */
 const SummaryCards = memo(function SummaryCards({
   total,
-  active,
+  active: _active,
   working,
   idle,
   stuck,
   errorCount,
 }: SummaryCardsProps) {
   return (
-    <Box flexWrap="wrap">
-      <MetricCard value={total} label="Total" />
-      <MetricCard value={active} label="Active" color="green" />
-      <MetricCard value={working} label="Working" color="cyan" />
-      <MetricCard value={idle} label="Idle" color="gray" />
-      {stuck > 0 && <MetricCard value={stuck} label="Stuck" color="yellow" />}
+    <Box>
+      <Text>{total} agents</Text>
+      <Text dimColor> · </Text>
+      <Text color="cyan">●</Text>
+      <Text color="cyan"> {working} working</Text>
+      <Text dimColor> · </Text>
+      <Text dimColor>○</Text>
+      <Text dimColor> {idle} idle</Text>
+      {stuck > 0 && (
+        <>
+          <Text dimColor> · </Text>
+          <Text color="yellow">⚠</Text>
+          <Text color="yellow"> {stuck} stuck</Text>
+        </>
+      )}
       {errorCount > 0 && (
-        <MetricCard value={errorCount} label="Error" color="red" />
+        <>
+          <Text dimColor> · </Text>
+          <Text color="red">✕</Text>
+          <Text color="red"> {errorCount} error</Text>
+        </>
       )}
     </Box>
   );
