@@ -64,6 +64,46 @@ function truncateMessage(msg: string | undefined | null, maxLen: number): string
 }
 
 /**
+ * Shorten file paths for display (#1368)
+ * /Users/username/Projects/bc-v2 → ~/Projects/bc-v2
+ */
+function shortenPath(msg: string): string {
+  // Replace home directory with ~
+  const homeDir = process.env.HOME ?? '/Users';
+  return msg.replace(new RegExp(homeDir, 'g'), '~');
+}
+
+/**
+ * Collapse consecutive repeated log entries (#1368)
+ * Returns entries with repeat counts
+ */
+interface CollapsedEntry {
+  entry: LogEntry;
+  count: number;
+}
+
+function collapseRepeatedEntries(entries: LogEntry[]): CollapsedEntry[] {
+  if (entries.length === 0) return [];
+
+  const collapsed: CollapsedEntry[] = [];
+  let current: CollapsedEntry = { entry: entries[0], count: 1 };
+
+  for (let i = 1; i < entries.length; i++) {
+    const entry = entries[i];
+    // Check if same message and type as previous
+    if (entry.message === current.entry.message && entry.type === current.entry.type) {
+      current.count++;
+    } else {
+      collapsed.push(current);
+      current = { entry, count: 1 };
+    }
+  }
+  collapsed.push(current);
+
+  return collapsed;
+}
+
+/**
  * ActivityFeed component - Real-time log stream
  */
 export function ActivityFeed({
@@ -85,8 +125,8 @@ export function ActivityFeed({
   // Apply local severity filter or use hook filter
   const activeFilter = severityFilter ?? currentFilter;
 
-  // Filter and limit entries
-  const displayLogs = useMemo(() => {
+  // Filter, collapse repeated entries, and limit (#1368)
+  const displayLogs = useMemo((): CollapsedEntry[] => {
     if (!logs) return [];
     let filtered = logs;
     if (activeFilter) {
@@ -102,8 +142,9 @@ export function ActivityFeed({
         }
       });
     }
-    // Show most recent first, then limit
-    return filtered.slice(-maxEntries).reverse();
+    // Collapse repeated entries, then show most recent first
+    const collapsed = collapseRepeatedEntries(filtered);
+    return collapsed.slice(-maxEntries).reverse();
   }, [logs, activeFilter, maxEntries]);
 
   // Build title with optional filter hints
@@ -132,8 +173,8 @@ export function ActivityFeed({
         <Text dimColor>No activity</Text>
       ) : (
         <Box flexDirection="column">
-          {displayLogs.map((entry, idx) => (
-            <ActivityEntry key={`${entry.ts}-${String(idx)}`} entry={entry} compact={compact} terminalWidth={terminalWidth} />
+          {displayLogs.map(({ entry, count }, idx) => (
+            <ActivityEntry key={`${entry.ts}-${String(idx)}`} entry={entry} count={count} compact={compact} terminalWidth={terminalWidth} />
           ))}
         </Box>
       )}
@@ -144,9 +185,12 @@ export function ActivityFeed({
 /**
  * Individual activity entry - memoized for performance
  * Issue #1196: Responsive message truncation based on terminal width
+ * Issue #1368: Show repeat count and shorten paths
  */
 interface ActivityEntryProps {
   entry: LogEntry;
+  /** Number of consecutive repeats (#1368) */
+  count?: number;
   compact?: boolean;
   /** Terminal width for responsive truncation */
   terminalWidth?: number;
@@ -157,10 +201,12 @@ const TIMESTAMP_WIDTH = 9; // HH:MM:SS + space
 const AGENT_WIDTH = 11;    // 10 chars + space
 const ICON_WIDTH = 2;      // icon + space (colorblind accessibility)
 const EVENT_WIDTH = 13;    // 12 chars + space
+const COUNT_WIDTH = 6;     // (x99) + space
 const MIN_MSG_WIDTH = 20;  // Minimum message width
 
 const ActivityEntry = memo(function ActivityEntry({
   entry,
+  count = 1,
   compact = false,
   terminalWidth = 80,
 }: ActivityEntryProps): React.ReactElement {
@@ -169,10 +215,14 @@ const ActivityEntry = memo(function ActivityEntry({
   const eventLabel = formatEventType(entry.type);
 
   // Calculate dynamic message width based on terminal size
-  // Layout: [timestamp] agent icon event message
-  const fixedWidth = (compact ? 0 : TIMESTAMP_WIDTH) + AGENT_WIDTH + ICON_WIDTH + EVENT_WIDTH;
+  // Layout: [timestamp] agent icon event message [count]
+  const countSpace = count > 1 ? COUNT_WIDTH : 0;
+  const fixedWidth = (compact ? 0 : TIMESTAMP_WIDTH) + AGENT_WIDTH + ICON_WIDTH + EVENT_WIDTH + countSpace;
   const availableWidth = terminalWidth - fixedWidth - 4; // 4 for panel borders/padding
   const maxMsgLen = Math.max(MIN_MSG_WIDTH, availableWidth);
+
+  // Shorten paths in message (#1368)
+  const displayMessage = shortenPath(entry.message ?? '');
 
   return (
     <Box>
@@ -182,7 +232,10 @@ const ActivityEntry = memo(function ActivityEntry({
       <Text color="cyan">{entry.agent.padEnd(10)} </Text>
       <Text color={severityColor}>{severityIcon} </Text>
       <Text color={severityColor}>{eventLabel.padEnd(12)} </Text>
-      <Text>{truncateMessage(entry.message, maxMsgLen)}</Text>
+      <Text>{truncateMessage(displayMessage, maxMsgLen)}</Text>
+      {count > 1 && (
+        <Text dimColor> (x{count})</Text>
+      )}
     </Box>
   );
 });
