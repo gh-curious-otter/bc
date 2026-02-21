@@ -1,6 +1,7 @@
 /**
  * Comprehensive 80x24 Terminal Support Tests
  * Issue: UX reported channel names missing at 80x24 terminal
+ * Issue #1326: Updated for 5-tier breakpoint system (XS/SM/MD/LG/XL)
  *
  * Tests verify that TUI renders correctly at the standard 80x24 terminal size.
  * These tests cover:
@@ -12,39 +13,45 @@
  * - View-specific constraints (Dashboard, Agents, Logs, etc.)
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect } from 'bun:test';
 import { render } from 'ink-testing-library';
 import React from 'react';
 import { TabBar } from '../navigation/TabBar';
 import { NavigationProvider } from '../navigation/NavigationContext';
-import { useResponsiveLayout, BREAKPOINTS } from '../hooks/useResponsiveLayout';
+import { BREAKPOINTS, BREAKPOINTS_LEGACY } from '../hooks/useResponsiveLayout';
+import type { LayoutMode } from '../hooks/useResponsiveLayout';
 
 /**
- * Test the responsive layout breakpoints at standard terminal sizes
+ * Test the responsive layout breakpoints at standard terminal sizes (#1326)
  */
 describe('80x24 Terminal - Breakpoints', () => {
-  // Helper to test layout mode
-  function getLayoutMode(width: number): string {
-    if (width >= BREAKPOINTS.MEDIUM) return 'wide';
-    if (width >= BREAKPOINTS.COMPACT) return 'medium';
-    if (width >= BREAKPOINTS.MINIMAL) return 'compact';
-    return 'minimal';
+  // Helper to test layout mode using new 5-tier system
+  function getLayoutMode(width: number): LayoutMode {
+    if (width >= BREAKPOINTS.LG) return 'xl';
+    if (width >= BREAKPOINTS.MD) return 'lg';
+    if (width >= BREAKPOINTS.SM) return 'md';
+    if (width >= BREAKPOINTS.XS) return 'sm';
+    return 'xs';
   }
 
-  it('80 cols is compact mode (single column)', () => {
-    expect(getLayoutMode(80)).toBe('compact');
+  it('80 cols is sm mode (minimal drawer, single column)', () => {
+    expect(getLayoutMode(80)).toBe('sm');
   });
 
-  it('79 cols is minimal mode', () => {
-    expect(getLayoutMode(79)).toBe('minimal');
+  it('79 cols is xs mode (no drawer)', () => {
+    expect(getLayoutMode(79)).toBe('xs');
   });
 
-  it('100 cols is medium mode (dual column)', () => {
-    expect(getLayoutMode(100)).toBe('medium');
+  it('100 cols is md mode (10-char drawer, single column)', () => {
+    expect(getLayoutMode(100)).toBe('md');
   });
 
-  it('120 cols is wide mode', () => {
-    expect(getLayoutMode(120)).toBe('wide');
+  it('120 cols is lg mode (14-char drawer, two columns)', () => {
+    expect(getLayoutMode(120)).toBe('lg');
+  });
+
+  it('140 cols is xl mode (three columns with detail)', () => {
+    expect(getLayoutMode(140)).toBe('xl');
   });
 });
 
@@ -248,41 +255,62 @@ describe('80x24 Terminal - Panel Minimum Heights', () => {
 });
 
 /**
- * Test responsive layout flags at 80x24
+ * Test responsive layout flags at 80x24 (#1326)
  */
 describe('80x24 Terminal - Layout Flags', () => {
   function getLayoutFlags(width: number) {
-    const mode =
-      width >= BREAKPOINTS.MEDIUM
-        ? 'wide'
-        : width >= BREAKPOINTS.COMPACT
-          ? 'medium'
-          : width >= BREAKPOINTS.MINIMAL
-            ? 'compact'
-            : 'minimal';
+    const mode: LayoutMode =
+      width >= BREAKPOINTS.LG
+        ? 'xl'
+        : width >= BREAKPOINTS.MD
+          ? 'lg'
+          : width >= BREAKPOINTS.SM
+            ? 'md'
+            : width >= BREAKPOINTS.XS
+              ? 'sm'
+              : 'xs';
 
     return {
-      isMinimal: mode === 'minimal',
-      isCompact: mode === 'compact',
-      isMedium: mode === 'medium',
-      isWide: mode === 'wide',
-      canMultiColumn: width >= BREAKPOINTS.COMPACT,
-      canTripleColumn: width >= BREAKPOINTS.WIDE,
+      isXS: mode === 'xs',
+      isSM: mode === 'sm',
+      isMD: mode === 'md',
+      isLG: mode === 'lg',
+      isXL: mode === 'xl',
+      // Legacy compatibility
+      isMinimal: mode === 'xs',
+      isCompact: mode === 'sm',
+      isMedium: mode === 'md',
+      isWide: mode === 'lg' || mode === 'xl',
+      canMultiColumn: width >= BREAKPOINTS.MD,
+      canTripleColumn: width >= BREAKPOINTS.LG,
+      canShowDetail: width >= BREAKPOINTS.LG,
     };
   }
 
-  it('at 80 cols: single column layout, not minimal', () => {
+  it('at 80 cols: sm mode with minimal drawer', () => {
     const flags = getLayoutFlags(80);
 
+    expect(flags.isSM).toBe(true);
     expect(flags.isCompact).toBe(true);
-    expect(flags.isMinimal).toBe(false);
-    expect(flags.canMultiColumn).toBe(false); // 80 < COMPACT(100)
+    expect(flags.isXS).toBe(false);
+    expect(flags.canMultiColumn).toBe(false); // 80 < MD(120)
     expect(flags.canTripleColumn).toBe(false);
+    expect(flags.canShowDetail).toBe(false);
   });
 
-  it('canMultiColumn requires 100+ columns', () => {
-    expect(getLayoutFlags(99).canMultiColumn).toBe(false);
-    expect(getLayoutFlags(100).canMultiColumn).toBe(true);
+  it('canMultiColumn requires 120+ columns (LG+)', () => {
+    expect(getLayoutFlags(119).canMultiColumn).toBe(false);
+    expect(getLayoutFlags(120).canMultiColumn).toBe(true);
+  });
+
+  it('canTripleColumn requires 140+ columns (XL)', () => {
+    expect(getLayoutFlags(139).canTripleColumn).toBe(false);
+    expect(getLayoutFlags(140).canTripleColumn).toBe(true);
+  });
+
+  it('canShowDetail requires 140+ columns (XL)', () => {
+    expect(getLayoutFlags(139).canShowDetail).toBe(false);
+    expect(getLayoutFlags(140).canShowDetail).toBe(true);
   });
 });
 
@@ -290,20 +318,16 @@ describe('80x24 Terminal - Layout Flags', () => {
  * Test Dashboard layout at 80x24
  */
 describe('80x24 Terminal - Dashboard Layout', () => {
-  it('narrow dashboard shows 2x2 metrics grid', () => {
-    // Dashboard at !canMultiColumn shows:
-    // - Left column: System Health + Cost
-    // - Right column: Agent Distribution
-    // This is optimized for narrow terminals (#1041)
-
-    // The layout uses flexDirection="row" with marginRight=1 for left column
-    // Right column width = Math.max(20, Math.floor(terminalWidth * 0.35))
+  it('narrow dashboard uses single column layout', () => {
+    // At 80 cols (SM mode), dashboard should use single-column layout
+    // No side-by-side panels to prevent text garbling (#1318)
     const terminalWidth = 80;
-    const rightColumnWidth = Math.max(20, Math.floor(terminalWidth * 0.35));
+    const drawerWidth = 6; // SM mode drawer
+    const appPadding = 2;
+    const contentWidth = terminalWidth - drawerWidth - appPadding;
 
-    expect(rightColumnWidth).toBe(28);
-    // Left column gets remaining space (80 - 28 - 1 margin = 51)
-    expect(terminalWidth - rightColumnWidth - 1).toBe(51);
+    // Should have 72 chars for content
+    expect(contentWidth).toBe(72);
   });
 });
 
@@ -410,5 +434,37 @@ describe('80x24 Terminal - ActivityFeed Truncation', () => {
     const maxMsgLen = compact ? 40 : 60;
 
     expect(maxMsgLen).toBe(60);
+  });
+});
+
+/**
+ * Test drawer configuration per breakpoint (#1326)
+ */
+describe('80x24 Terminal - Drawer Config', () => {
+  function getDrawerWidth(mode: LayoutMode): number {
+    switch (mode) {
+      case 'xs': return 0;
+      case 'sm': return 6;
+      case 'md': return 10;
+      case 'lg':
+      case 'xl': return 14;
+    }
+  }
+
+  it('no drawer at xs mode (<80 cols)', () => {
+    expect(getDrawerWidth('xs')).toBe(0);
+  });
+
+  it('6-char drawer at sm mode (80-99 cols)', () => {
+    expect(getDrawerWidth('sm')).toBe(6);
+  });
+
+  it('10-char drawer at md mode (100-119 cols)', () => {
+    expect(getDrawerWidth('md')).toBe(10);
+  });
+
+  it('14-char drawer at lg+ mode (120+ cols)', () => {
+    expect(getDrawerWidth('lg')).toBe(14);
+    expect(getDrawerWidth('xl')).toBe(14);
   });
 });
