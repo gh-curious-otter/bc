@@ -409,7 +409,7 @@ function ChannelHistoryView({
   const hasMoreBelow = messages && messages.length > maxMessages && scrollOffset < messages.length - maxMessages;
 
   return (
-    <Box flexDirection="column" width="100%" height="100%">
+    <Box flexDirection="column" width="100%">
       {/* Header section - fixed height */}
       <Box flexDirection="column" height={3} marginBottom={1}>
         <Box>
@@ -419,11 +419,13 @@ function ChannelHistoryView({
         <Text dimColor>ESC: back  m: compose  ↑/↓ or j/k: scroll</Text>
       </Box>
 
-      {/* Message area - dynamic height adjusts as input expands */}
+      {/* Message area - fills available space, messages anchor to bottom */}
+      {/* #1425: flexGrow={1} fills space, justifyContent="flex-end" anchors messages above input */}
       <Box
         marginBottom={1}
         flexDirection="column"
-        height={messageAreaHeight}
+        justifyContent="flex-end"
+        flexGrow={1}
         borderStyle="single"
         borderColor="gray"
         paddingX={1}
