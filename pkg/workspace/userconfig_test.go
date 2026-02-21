@@ -148,3 +148,273 @@ func TestHasTool(t *testing.T) {
 		t.Error("expected unknown-tool to not be available")
 	}
 }
+
+func TestHasToolAllTypes(t *testing.T) {
+	tests := []struct {
+		name     string
+		toolName string
+		cfg      V2Config
+		want     bool
+	}{
+		{
+			name:     "claude enabled",
+			toolName: "claude",
+			cfg: V2Config{
+				Tools: ToolsConfig{Claude: &ToolConfig{Enabled: true}},
+			},
+			want: true,
+		},
+		{
+			name:     "claude-code enabled",
+			toolName: "claude-code",
+			cfg: V2Config{
+				Tools: ToolsConfig{Claude: &ToolConfig{Enabled: true}},
+			},
+			want: true,
+		},
+		{
+			name:     "claude disabled",
+			toolName: "claude",
+			cfg: V2Config{
+				Tools: ToolsConfig{Claude: &ToolConfig{Enabled: false}},
+			},
+			want: false,
+		},
+		{
+			name:     "cursor enabled",
+			toolName: "cursor",
+			cfg: V2Config{
+				Tools: ToolsConfig{Cursor: &ToolConfig{Enabled: true}},
+			},
+			want: true,
+		},
+		{
+			name:     "cursor disabled",
+			toolName: "cursor",
+			cfg: V2Config{
+				Tools: ToolsConfig{Cursor: &ToolConfig{Enabled: false}},
+			},
+			want: false,
+		},
+		{
+			name:     "codex enabled",
+			toolName: "codex",
+			cfg: V2Config{
+				Tools: ToolsConfig{Codex: &ToolConfig{Enabled: true}},
+			},
+			want: true,
+		},
+		{
+			name:     "gemini enabled",
+			toolName: "gemini",
+			cfg: V2Config{
+				Tools: ToolsConfig{Gemini: &ToolConfig{Enabled: true}},
+			},
+			want: true,
+		},
+		{
+			name:     "custom tool enabled",
+			toolName: "my-tool",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					Custom: map[string]ToolConfig{
+						"my-tool": {Enabled: true},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name:     "custom tool disabled still exists",
+			toolName: "my-tool",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					Custom: map[string]ToolConfig{
+						"my-tool": {Enabled: false},
+					},
+				},
+			},
+			want: true, // custom tools check existence only, not Enabled
+		},
+		{
+			name:     "custom tool not in map",
+			toolName: "my-tool",
+			cfg: V2Config{
+				Tools: ToolsConfig{Custom: map[string]ToolConfig{}},
+			},
+			want: false,
+		},
+		{
+			name:     "nil tools",
+			toolName: "claude",
+			cfg:      V2Config{},
+			want:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.cfg.HasTool(tt.toolName)
+			if got != tt.want {
+				t.Errorf("HasTool(%q) = %v, want %v", tt.toolName, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestUserRCExists(t *testing.T) {
+	// Test with temp directory
+	tmpDir := t.TempDir()
+	oldHome := os.Getenv("HOME")
+	t.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", oldHome) }()
+
+	// Initially should not exist
+	if UserRCExists() {
+		t.Error("UserRCExists should return false when .bcrc doesn't exist")
+	}
+
+	// Create .bcrc file
+	rcPath := filepath.Join(tmpDir, ".bcrc")
+	if err := os.WriteFile(rcPath, []byte("[user]\nnickname = \"@test\""), 0600); err != nil {
+		t.Fatalf("failed to create .bcrc: %v", err)
+	}
+
+	// Now should exist
+	if !UserRCExists() {
+		t.Error("UserRCExists should return true when .bcrc exists")
+	}
+}
+
+func TestGetPreferredTool(t *testing.T) {
+	tests := []struct { //nolint:govet // test struct alignment not critical
+		name     string
+		cfg      V2Config
+		rc       *UserRCConfig
+		expected string
+	}{
+		{
+			name: "nil rc returns default",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					Default: "claude",
+					Claude:  &ToolConfig{Enabled: true},
+				},
+			},
+			rc:       nil,
+			expected: "claude",
+		},
+		{
+			name: "empty preferred list returns default",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					Default: "claude",
+					Claude:  &ToolConfig{Enabled: true},
+				},
+			},
+			rc:       &UserRCConfig{},
+			expected: "claude",
+		},
+		{
+			name: "first preferred tool available",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					Default: "claude",
+					Claude:  &ToolConfig{Enabled: true},
+					Cursor:  &ToolConfig{Enabled: true},
+				},
+			},
+			rc: &UserRCConfig{
+				Tools: UserRCToolsConfig{
+					Preferred: []string{"cursor", "claude"},
+				},
+			},
+			expected: "cursor",
+		},
+		{
+			name: "skip unavailable tool",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					Default: "claude",
+					Claude:  &ToolConfig{Enabled: true},
+				},
+			},
+			rc: &UserRCConfig{
+				Tools: UserRCToolsConfig{
+					Preferred: []string{"cursor", "claude"},
+				},
+			},
+			expected: "claude",
+		},
+		{
+			name: "no preferred tools available",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					Default: "gemini",
+					Gemini:  &ToolConfig{Enabled: true},
+				},
+			},
+			rc: &UserRCConfig{
+				Tools: UserRCToolsConfig{
+					Preferred: []string{"cursor", "claude"},
+				},
+			},
+			expected: "gemini",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.cfg.GetPreferredTool(tt.rc)
+			if got != tt.expected {
+				t.Errorf("GetPreferredTool() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestLoadUserRCConfigNotFound(t *testing.T) {
+	// Test with temp directory that has no .bcrc
+	tmpDir := t.TempDir()
+	oldHome := os.Getenv("HOME")
+	t.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", oldHome) }()
+
+	cfg, err := LoadUserRCConfig()
+	if err != nil {
+		t.Errorf("LoadUserRCConfig should not error for missing file: %v", err)
+	}
+	if cfg != nil {
+		t.Error("LoadUserRCConfig should return nil for missing file")
+	}
+}
+
+func TestMergeWithUserRCNil(t *testing.T) {
+	cfg := DefaultV2Config("test")
+	originalNickname := cfg.User.Nickname
+
+	// Merge with nil should not change anything
+	cfg.MergeWithUserRC(nil)
+
+	if cfg.User.Nickname != originalNickname {
+		t.Errorf("MergeWithUserRC(nil) changed nickname from %q to %q", originalNickname, cfg.User.Nickname)
+	}
+}
+
+func TestMergeWithUserRCPreserveWorkspace(t *testing.T) {
+	cfg := DefaultV2Config("test")
+	cfg.User.Nickname = "@workspace-user"
+
+	rc := &UserRCConfig{
+		User: UserRCUserConfig{
+			Nickname: "@rc-user",
+		},
+	}
+
+	cfg.MergeWithUserRC(rc)
+
+	// Workspace nickname should be preserved
+	if cfg.User.Nickname != "@workspace-user" {
+		t.Errorf("MergeWithUserRC changed workspace nickname to %q", cfg.User.Nickname)
+	}
+}

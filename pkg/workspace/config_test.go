@@ -3,6 +3,7 @@ package workspace
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/BurntSushi/toml"
@@ -1373,5 +1374,62 @@ func TestUserDefaultsPath(t *testing.T) {
 	// Should contain .bcrc
 	if path != "" && !filepath.IsAbs(path) {
 		t.Error("expected absolute path or empty string")
+	}
+}
+
+func TestValidateNickname(t *testing.T) {
+	tests := []struct { //nolint:govet // test struct alignment not critical
+		name     string
+		nickname string
+		wantErr  error
+	}{
+		{"valid nickname", "@user123", nil},
+		{"valid with underscore", "@test_user", nil},
+		{"valid uppercase", "@TestUser", nil},
+		{"missing prefix", "user123", ErrNicknameMissingPrefix},
+		{"empty after @", "@", ErrNicknameInvalidChars},
+		{"too long", "@" + strings.Repeat("a", NicknameMaxLength), ErrNicknameTooLong},
+		{"invalid chars with dash", "@user-name", ErrNicknameInvalidChars},
+		{"invalid chars with dot", "@user.name", ErrNicknameInvalidChars},
+		{"invalid chars with space", "@user name", ErrNicknameInvalidChars},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateNickname(tt.nickname)
+			if err != tt.wantErr {
+				t.Errorf("ValidateNickname(%q) = %v, want %v", tt.nickname, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestNormalizeNickname(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{"empty returns default", "", DefaultNickname, false},
+		{"whitespace only returns default", "   ", DefaultNickname, false},
+		{"valid with prefix", "@alice", "@alice", false},
+		{"adds prefix", "bob", "@bob", false},
+		{"trims whitespace", "  @charlie  ", "@charlie", false},
+		{"invalid chars returns error", "@bad-name", "", true},
+		{"too long returns error", strings.Repeat("a", NicknameMaxLength+1), "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := NormalizeNickname(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NormalizeNickname(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+				return
+			}
+			if err == nil && got != tt.want {
+				t.Errorf("NormalizeNickname(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
 	}
 }

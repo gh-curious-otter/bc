@@ -299,3 +299,106 @@ func TestDiscoverMaxDepthRespected(t *testing.T) {
 		}
 	}
 }
+
+func TestDiscoverV1Workspace(t *testing.T) {
+	tmpDir := t.TempDir()
+	wsDir := filepath.Join(tmpDir, "v1-workspace")
+	bcDir := filepath.Join(wsDir, ".bc")
+
+	if err := os.MkdirAll(bcDir, 0750); err != nil {
+		t.Fatalf("failed to create workspace dir: %v", err)
+	}
+
+	// Create config.json (v1)
+	configPath := filepath.Join(bcDir, "config.json")
+	configContent := `{"version": 1, "name": "v1-workspace"}`
+	if err := os.WriteFile(configPath, []byte(configContent), 0600); err != nil {
+		t.Fatalf("failed to create config: %v", err)
+	}
+
+	opts := DiscoverOptions{
+		IncludeCached: false,
+		ScanHome:      false,
+		MaxDepth:      2,
+		ScanPaths:     []string{tmpDir},
+	}
+
+	workspaces, err := Discover(opts)
+	if err != nil {
+		t.Fatalf("Discover failed: %v", err)
+	}
+
+	if len(workspaces) != 1 {
+		t.Fatalf("expected 1 workspace, got %d", len(workspaces))
+	}
+
+	ws := workspaces[0]
+	if ws.Name != "v1-workspace" {
+		t.Errorf("expected name 'v1-workspace', got %q", ws.Name)
+	}
+	if ws.IsV2 {
+		t.Error("expected IsV2 to be false for v1 workspace")
+	}
+}
+
+func TestDiscoverMultipleWorkspaces(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create multiple workspaces
+	for i, name := range []string{"ws-alpha", "ws-beta", "ws-gamma"} {
+		wsDir := filepath.Join(tmpDir, name)
+		bcDir := filepath.Join(wsDir, ".bc")
+		if err := os.MkdirAll(bcDir, 0750); err != nil {
+			t.Fatalf("failed to create workspace %d: %v", i, err)
+		}
+		configPath := filepath.Join(bcDir, "config.toml")
+		if err := os.WriteFile(configPath, []byte("[workspace]\nname = \""+name+"\"\n"), 0600); err != nil {
+			t.Fatalf("failed to create config %d: %v", i, err)
+		}
+	}
+
+	opts := DiscoverOptions{
+		IncludeCached: false,
+		ScanHome:      false,
+		MaxDepth:      2,
+		ScanPaths:     []string{tmpDir},
+	}
+
+	workspaces, err := Discover(opts)
+	if err != nil {
+		t.Fatalf("Discover failed: %v", err)
+	}
+
+	if len(workspaces) != 3 {
+		t.Errorf("expected 3 workspaces, got %d", len(workspaces))
+	}
+
+	names := make(map[string]bool)
+	for _, ws := range workspaces {
+		names[ws.Name] = true
+	}
+	for _, expected := range []string{"ws-alpha", "ws-beta", "ws-gamma"} {
+		if !names[expected] {
+			t.Errorf("expected to find workspace %q", expected)
+		}
+	}
+}
+
+func TestDiscoverNonExistentPath(t *testing.T) {
+	opts := DiscoverOptions{
+		IncludeCached: false,
+		ScanHome:      false,
+		MaxDepth:      2,
+		ScanPaths:     []string{"/nonexistent/path/that/does/not/exist"},
+	}
+
+	// Should not error, just return empty
+	workspaces, err := Discover(opts)
+	if err != nil {
+		t.Fatalf("Discover failed: %v", err)
+	}
+
+	if len(workspaces) != 0 {
+		t.Errorf("expected 0 workspaces for non-existent path, got %d", len(workspaces))
+	}
+}

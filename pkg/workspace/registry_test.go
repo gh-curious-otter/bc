@@ -191,3 +191,189 @@ func TestRegistrySaveLoad(t *testing.T) {
 		t.Errorf("Loaded active = %q, want %q", r2.Active, "fe")
 	}
 }
+
+func TestGlobalDir(t *testing.T) {
+	dir := GlobalDir()
+	if dir == "" {
+		t.Skip("no home directory available")
+	}
+
+	// Should end with .bc
+	if filepath.Base(dir) != ".bc" {
+		t.Errorf("GlobalDir should end with .bc, got %s", dir)
+	}
+}
+
+func TestRegistryPath(t *testing.T) {
+	path := RegistryPath()
+	if path == "" {
+		t.Skip("no home directory available")
+	}
+
+	// Should end with workspaces.json
+	if filepath.Base(path) != "workspaces.json" {
+		t.Errorf("RegistryPath should end with workspaces.json, got %s", path)
+	}
+}
+
+func TestLoadRegistryNotFound(t *testing.T) {
+	// Use temp HOME with no registry file
+	tmpDir := t.TempDir()
+	oldHome := os.Getenv("HOME")
+	t.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", oldHome) }()
+
+	r, err := LoadRegistry()
+	if err != nil {
+		t.Fatalf("LoadRegistry should not error for missing file: %v", err)
+	}
+	if r == nil {
+		t.Fatal("LoadRegistry should return empty registry")
+	}
+	if len(r.Workspaces) != 0 {
+		t.Errorf("LoadRegistry should return empty workspaces, got %d", len(r.Workspaces))
+	}
+}
+
+func TestLoadRegistryWithFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldHome := os.Getenv("HOME")
+	t.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", oldHome) }()
+
+	// Create .bc directory and registry file
+	bcDir := filepath.Join(tmpDir, ".bc")
+	if err := os.MkdirAll(bcDir, 0750); err != nil {
+		t.Fatalf("failed to create .bc dir: %v", err)
+	}
+
+	registryData := `{
+		"active": "test",
+		"workspaces": [
+			{"path": "/test/path", "name": "test", "alias": ""}
+		]
+	}`
+	registryPath := filepath.Join(bcDir, "workspaces.json")
+	if err := os.WriteFile(registryPath, []byte(registryData), 0600); err != nil {
+		t.Fatalf("failed to write registry: %v", err)
+	}
+
+	r, err := LoadRegistry()
+	if err != nil {
+		t.Fatalf("LoadRegistry failed: %v", err)
+	}
+	if r == nil {
+		t.Fatal("LoadRegistry returned nil")
+	}
+	if len(r.Workspaces) != 1 {
+		t.Errorf("expected 1 workspace, got %d", len(r.Workspaces))
+	}
+	if r.Active != "test" {
+		t.Errorf("expected active 'test', got %q", r.Active)
+	}
+}
+
+func TestLoadRegistryInvalidJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldHome := os.Getenv("HOME")
+	t.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", oldHome) }()
+
+	// Create .bc directory with invalid JSON
+	bcDir := filepath.Join(tmpDir, ".bc")
+	if err := os.MkdirAll(bcDir, 0750); err != nil {
+		t.Fatalf("failed to create .bc dir: %v", err)
+	}
+
+	registryPath := filepath.Join(bcDir, "workspaces.json")
+	if err := os.WriteFile(registryPath, []byte("not valid json"), 0600); err != nil {
+		t.Fatalf("failed to write registry: %v", err)
+	}
+
+	_, err := LoadRegistry()
+	if err == nil {
+		t.Error("LoadRegistry should error on invalid JSON")
+	}
+}
+
+func TestSetAliasWorkspaceNotFound(t *testing.T) {
+	dir := t.TempDir()
+	registryPath := filepath.Join(dir, "workspaces.json")
+
+	r := &Registry{path: registryPath}
+
+	err := r.SetAlias("/nonexistent", "alias")
+	if err == nil {
+		t.Error("SetAlias should error for nonexistent workspace")
+	}
+	if _, ok := err.(*WorkspaceNotFoundError); !ok {
+		t.Errorf("expected WorkspaceNotFoundError, got %T", err)
+	}
+}
+
+func TestRegisterWithAliasConflict(t *testing.T) {
+	dir := t.TempDir()
+	registryPath := filepath.Join(dir, "workspaces.json")
+
+	r := &Registry{path: registryPath}
+
+	// Register first with alias
+	err := r.RegisterWithAlias("/path1", "ws1", "myalias")
+	if err != nil {
+		t.Fatalf("first RegisterWithAlias failed: %v", err)
+	}
+
+	// Try to register second with same alias
+	err = r.RegisterWithAlias("/path2", "ws2", "myalias")
+	if err == nil {
+		t.Error("RegisterWithAlias should error on alias conflict")
+	}
+	if _, ok := err.(*AliasConflictError); !ok {
+		t.Errorf("expected AliasConflictError, got %T", err)
+	}
+}
+
+func TestRegisterWithAliasUpdate(t *testing.T) {
+	dir := t.TempDir()
+	registryPath := filepath.Join(dir, "workspaces.json")
+
+	r := &Registry{path: registryPath}
+
+	// Register workspace
+	err := r.RegisterWithAlias("/path1", "ws1", "")
+	if err != nil {
+		t.Fatalf("RegisterWithAlias failed: %v", err)
+	}
+
+	// Update same path with alias
+	err = r.RegisterWithAlias("/path1", "ws1-updated", "newalias")
+	if err != nil {
+		t.Fatalf("RegisterWithAlias update failed: %v", err)
+	}
+
+	if len(r.Workspaces) != 1 {
+		t.Errorf("expected 1 workspace after update, got %d", len(r.Workspaces))
+	}
+	if r.Workspaces[0].Name != "ws1-updated" {
+		t.Errorf("expected updated name, got %q", r.Workspaces[0].Name)
+	}
+	if r.Workspaces[0].Alias != "newalias" {
+		t.Errorf("expected alias 'newalias', got %q", r.Workspaces[0].Alias)
+	}
+}
+
+func TestAliasConflictErrorMessage(t *testing.T) {
+	err := &AliasConflictError{Alias: "test", ExistingPath: "/existing"}
+	msg := err.Error()
+	if msg == "" {
+		t.Error("AliasConflictError.Error() should return message")
+	}
+}
+
+func TestWorkspaceNotFoundErrorMessage(t *testing.T) {
+	err := &WorkspaceNotFoundError{Identifier: "test"}
+	msg := err.Error()
+	if msg == "" {
+		t.Error("WorkspaceNotFoundError.Error() should return message")
+	}
+}
