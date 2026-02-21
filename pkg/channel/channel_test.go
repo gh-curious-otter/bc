@@ -791,3 +791,194 @@ func TestOpenStoreUsesSQLiteWhenDbExists(t *testing.T) {
 		t.Errorf("OpenStore: channel list %v missing standup", list)
 	}
 }
+
+// --- Additional coverage tests (#1236) ---
+
+// TestStoreClose tests the Close function
+func TestStoreClose(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "channels.json")
+
+	store := NewStore(path)
+	if err := store.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	// Create a channel first
+	_, err := store.Create("test-close")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// Close should be no-op for JSON backend (no error)
+	if err := store.Close(); err != nil {
+		t.Errorf("Close: %v", err)
+	}
+
+	// Store should still be usable after close (JSON backend)
+	list := store.List()
+	if len(list) != 1 {
+		t.Errorf("List after close: expected 1, got %d", len(list))
+	}
+}
+
+// TestStoreGetNotFound tests Get for non-existent channel
+func TestStoreGetNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "channels.json")
+
+	store := NewStore(path)
+	if err := store.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	ch, found := store.Get("nonexistent")
+	if found {
+		t.Error("Get nonexistent: expected not found")
+	}
+	if ch != nil {
+		t.Error("Get nonexistent: expected nil channel")
+	}
+}
+
+// TestStoreGetExisting tests Get for existing channel
+func TestStoreGetExisting(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "channels.json")
+
+	store := NewStore(path)
+	if err := store.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	// Create channel
+	created, err := store.Create("test-get")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// Get should find it
+	ch, found := store.Get("test-get")
+	if !found {
+		t.Fatal("Get: expected to find channel")
+	}
+	if ch.Name != created.Name {
+		t.Errorf("Get Name = %q, want %q", ch.Name, created.Name)
+	}
+}
+
+// TestStoreCreateDuplicate tests Create with duplicate name
+func TestStoreCreateDuplicate(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "channels.json")
+
+	store := NewStore(path)
+	if err := store.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	// Create first channel
+	_, err := store.Create("dup-test")
+	if err != nil {
+		t.Fatalf("Create first: %v", err)
+	}
+
+	// Create duplicate should fail
+	_, err = store.Create("dup-test")
+	if err == nil {
+		t.Error("Create duplicate: expected error")
+	}
+}
+
+// TestStoreSaveAndLoad tests Save persists to disk
+func TestStoreSaveAndLoad(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "channels.json")
+
+	// Create and save
+	store1 := NewStore(path)
+	if err := store1.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	_, err := store1.Create("persist-test")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if err := store1.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	// Load in new store
+	store2 := NewStore(path)
+	if err := store2.Load(); err != nil {
+		t.Fatalf("Load store2: %v", err)
+	}
+
+	ch, found := store2.Get("persist-test")
+	if !found {
+		t.Error("Persisted channel not found after reload")
+	}
+	if ch == nil || ch.Name != "persist-test" {
+		t.Error("Persisted channel has wrong name")
+	}
+}
+
+// TestStoreSaveCreatesDirectory tests Save creates parent directory
+func TestStoreSaveCreatesDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "subdir", "nested", "channels.json")
+
+	store := NewStore(path)
+	if err := store.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	_, err := store.Create("nested-test")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// Save should create nested directories
+	if err := store.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	// Verify file exists
+	if _, statErr := os.Stat(path); os.IsNotExist(statErr) {
+		t.Error("Save did not create file in nested directory")
+	}
+}
+
+// TestStoreListEmpty tests List on empty store
+func TestStoreListEmpty(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "channels.json")
+
+	store := NewStore(path)
+	if err := store.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	list := store.List()
+	if len(list) != 0 {
+		t.Errorf("List empty store: expected 0, got %d", len(list))
+	}
+}
+
+// TestStoreDeleteNonExistent tests Delete for non-existent channel
+func TestStoreDeleteNonExistent(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "channels.json")
+
+	store := NewStore(path)
+	if err := store.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	err := store.Delete("nonexistent")
+	if err == nil {
+		t.Error("Delete nonexistent: expected error")
+	}
+}
