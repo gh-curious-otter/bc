@@ -8,10 +8,11 @@
 
 `bc` is a CLI-first orchestration system for coordinating teams of AI agents to work on software development projects. It provides a structured, observable, and persistent environment for AI-driven engineering.
 
-<!-- TODO: Add demo GIF
-![bc demo](docs/demo.gif)
-*Multi-agent orchestration: manager assigns tasks to engineers, each working in isolated worktrees*
--->
+<p align="center">
+  <img src="docs/demo.gif" alt="bc demo showing workspace initialization, agent creation, TUI dashboard, channel communication, and cost tracking" width="720" />
+</p>
+
+*Multi-agent orchestration: initialize workspace, spawn engineers, coordinate via channels, track costs*
 
 ## Core Philosophy
 
