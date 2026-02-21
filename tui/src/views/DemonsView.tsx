@@ -15,11 +15,21 @@ import type { Demon } from '../types';
 /** Duration in ms to show action errors before auto-clearing */
 const ERROR_DISPLAY_DURATION = 3000;
 
+/** Detail item for DetailPane integration (#1419) */
+interface DetailItem {
+  title: string;
+  type: string;
+  fields: { label: string; value: string; color?: string }[];
+  description?: string;
+}
+
 export interface DemonsViewProps {
   /** Callback when exiting the view */
   onExit?: () => void;
   /** Disable input handling (useful for testing) */
   disableInput?: boolean;
+  /** Callback when selection changes (for DetailPane) */
+  onSelectItem?: (item: DetailItem | null) => void;
 }
 
 /**
@@ -84,6 +94,7 @@ function formatRelativeTime(timestamp?: string): string {
 export function DemonsView({
   onExit,
   disableInput = false,
+  onSelectItem,
 }: DemonsViewProps): React.ReactElement {
   const { data: demons, loading, error, total, enabled, refresh, enable, disable, run } = useDemons();
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -110,6 +121,26 @@ export function DemonsView({
     const timer = setTimeout(() => { setActionError(null); }, ERROR_DISPLAY_DURATION);
     return () => { clearTimeout(timer); };
   }, [actionError]);
+
+  // #1419: Update detail pane when selection changes
+  const selectedDemon = filteredDemons[selectedIndex] as Demon | undefined;
+  useEffect(() => {
+    if (selectedDemon && onSelectItem) {
+      onSelectItem({
+        title: selectedDemon.name,
+        type: 'demon',
+        fields: [
+          { label: 'Status', value: selectedDemon.enabled ? 'enabled' : 'disabled', color: selectedDemon.enabled ? 'green' : 'gray' },
+          { label: 'Schedule', value: formatSchedule(selectedDemon.schedule) },
+          { label: 'Runs', value: String(selectedDemon.run_count) },
+          { label: 'Last Run', value: formatRelativeTime(selectedDemon.last_run) },
+        ],
+        description: selectedDemon.description ?? selectedDemon.command,
+      });
+    } else if (onSelectItem) {
+      onSelectItem(null);
+    }
+  }, [selectedDemon, onSelectItem]);
 
   useInput(
     (input, key) => {

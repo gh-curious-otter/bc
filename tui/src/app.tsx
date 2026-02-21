@@ -240,21 +240,21 @@ function ViewContent({ view, disableInput, onSelectItem }: ViewContentProps): Re
     case 'files':
       return <FilesView />;
     case 'costs':
-      return <CostsView disableInput={disableInput} />;
+      return <CostsView disableInput={disableInput} onSelectItem={onSelectItem} />;
     case 'commands':
       return <CommandsView disableInput={disableInput} />;
     case 'roles':
       return <RolesView disableInput={disableInput} />;
     case 'logs':
-      return <LogsView />;
+      return <LogsView onSelectItem={onSelectItem} />;
     case 'worktrees':
       return <WorktreesView />;
     case 'workspaces':
       return <WorkspaceSelectorView />;
     case 'demons':
-      return <DemonsView disableInput={disableInput} />;
+      return <DemonsView disableInput={disableInput} onSelectItem={onSelectItem} />;
     case 'processes':
-      return <ProcessesView />;
+      return <ProcessesView onSelectItem={onSelectItem} />;
     case 'memory':
       return <MemoryView disableInput={disableInput} />;
     case 'routing':
