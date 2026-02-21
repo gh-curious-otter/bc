@@ -25,7 +25,7 @@ interface DashboardProps {
 export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
   const { stdout } = useStdout();
   const terminalWidth = stdout.columns;
-  const { navigate } = useNavigation();
+  const { navigate: _navigate } = useNavigation();
   const { canMultiColumn, isMedium, isWide } = useResponsiveLayout();
   const [showDebugPanel, setShowDebugPanel] = useState(false);
 
@@ -41,18 +41,10 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
   } = useDashboard();
 
   // Keyboard navigation - Dashboard-specific shortcuts
-  // Global shortcuts (1-8, Tab, ESC, q) are handled by useKeyboardNavigation
+  // Global shortcuts (1-9, Tab, ESC, q) are handled by useKeyboardNavigation
+  // Note: Letter shortcuts (a, c, $) removed to avoid confusion - use numbers [2] [3] [4]
+  // See #1327 for comprehensive keybinding system design
   useInput((input, key) => {
-    // Quick navigation shortcuts
-    if (input === 'a') {
-      navigate('agents');
-    }
-    if (input === 'c') {
-      navigate('channels');
-    }
-    if (input === '$') {
-      navigate('costs');
-    }
     // Refresh is Dashboard-specific (global Ctrl+R handled elsewhere)
     if (input === 'r') {
       void refresh();
@@ -156,12 +148,12 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
       {/* Performance Debug Panel - toggled with Ctrl+P or F12 (Phase 3) */}
       {showDebugPanel && <PerformanceDebugPanel compact={!isWide} forceShow />}
 
-      {/* Footer with keyboard hints */}
+      {/* Footer with keyboard hints - use numbers for views (#1319) */}
       <Footer
         hints={[
-          { key: 'a', label: 'agents' },
-          { key: 'c', label: 'channels' },
-          { key: '$', label: 'costs' },
+          { key: '2', label: 'agents' },
+          { key: '3', label: 'channels' },
+          { key: '4', label: 'costs' },
           { key: 'r', label: 'refresh' },
           ...(showDebugPanel ? [{ key: 'Ctrl+P', label: 'hide perf' }] : [{ key: 'Ctrl+P', label: 'perf' }]),
           { key: 'q', label: 'quit' },
