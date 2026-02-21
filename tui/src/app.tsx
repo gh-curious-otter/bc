@@ -27,6 +27,8 @@ import { WorktreesView } from './views/WorktreesView';
 import { WorkspaceSelectorView } from './views/WorkspaceSelectorView';
 import { DemonsView } from './views/DemonsView';
 import { ProcessesView } from './views/ProcessesView';
+import { MemoryView } from './views/MemoryView';
+import { RoutingView } from './views/RoutingView';
 import { CommandPalette } from './components/CommandPalette';
 import { type BcCommand } from './types/commands';
 
@@ -118,6 +120,9 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
       'process list': 'processes',
       'demon list': 'demons',
       'role list': 'roles',
+      'memory list': 'memory',
+      'memory show': 'memory',
+      'memory search': 'memory',
       'help': 'help',
     };
 
@@ -198,6 +203,10 @@ function ViewContent({ view, disableInput }: ViewContentProps): React.ReactEleme
       return <DemonsView disableInput={disableInput} />;
     case 'processes':
       return <ProcessesView />;
+    case 'memory':
+      return <MemoryView disableInput={disableInput} />;
+    case 'routing':
+      return <RoutingView disableInput={disableInput} />;
     case 'help':
       return <HelpView />;
     default:
@@ -252,6 +261,17 @@ function HelpView(): React.ReactElement {
       { keys: '/', desc: 'Search commands' },
       { keys: 'f', desc: 'Toggle favorite' },
       { keys: 'Enter', desc: 'Copy command' },
+    ]},
+    { type: 'section' as const, title: 'Memory', shortcuts: [
+      { keys: 'j/k', desc: 'Navigate agents' },
+      { keys: 'Enter', desc: 'View details' },
+      { keys: '/', desc: 'Search memories' },
+      { keys: '1/2', desc: 'Switch exp/learnings' },
+      { keys: 'c', desc: 'Clear memory' },
+    ]},
+    { type: 'section' as const, title: 'Routing', shortcuts: [
+      { keys: 'j/k', desc: 'Navigate rules' },
+      { keys: 'Enter', desc: 'View details' },
     ]},
     { type: 'footer' as const },
   ], []);

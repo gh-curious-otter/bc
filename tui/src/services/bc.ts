@@ -22,6 +22,9 @@ import type {
   RolesResponse,
   Worktree,
   WorkspacesResponse,
+  AgentMemory,
+  MemoryListResponse,
+  MemorySearchResult,
 } from '../types';
 
 // ============================================================================
@@ -629,4 +632,69 @@ export async function getWorkspaces(scanPaths?: string[]): Promise<WorkspacesRes
   } catch {
     return { workspaces: [] };
   }
+}
+
+// ============================================================================
+// Memory Commands (#1231 - TUI Views)
+// ============================================================================
+
+/**
+ * List all agent memories (summary)
+ */
+export async function getMemoryList(): Promise<MemoryListResponse> {
+  try {
+    return await execBcJson<MemoryListResponse>(['memory', 'list']);
+  } catch {
+    return { agents: [] };
+  }
+}
+
+/**
+ * Get detailed memory for a specific agent
+ * @param agentName - Name of agent (optional, uses current agent if not specified)
+ */
+export async function getMemory(agentName?: string): Promise<AgentMemory | null> {
+  try {
+    const args = ['memory', 'show'];
+    if (agentName) {
+      args.push(agentName);
+    }
+    return await execBcJson<AgentMemory>(args);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Search agent memories
+ * @param query - Search query
+ * @param agentName - Optional agent to search (searches all if not specified)
+ */
+export async function searchMemory(query: string, agentName?: string): Promise<MemorySearchResult[]> {
+  try {
+    const args = ['memory', 'search', query];
+    if (agentName) {
+      args.push('--agent', agentName);
+    }
+    return await execBcJson<MemorySearchResult[]>(args);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Clear an agent's memory
+ * @param agentName - Name of agent
+ */
+export async function clearMemory(agentName: string): Promise<void> {
+  await execBc(['memory', 'clear', agentName]);
+  invalidateCache('memory');
+}
+
+/**
+ * Export agent memory to JSON
+ * @param agentName - Name of agent
+ */
+export async function exportMemory(agentName: string): Promise<string> {
+  return await execBc(['memory', 'export', agentName]);
 }

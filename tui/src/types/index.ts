@@ -258,3 +258,56 @@ export interface TUIConfig {
   theme: string; // Theme name: "dark", "light", "matrix", "synthwave", "high-contrast"
   mode: string; // Color mode: "auto", "dark", "light"
 }
+
+// Memory types for agent memory system
+export interface MemoryExperience {
+  id: string;
+  timestamp: string;
+  category: string;
+  outcome: string;
+  message: string;
+}
+
+export interface MemoryLearning {
+  topic: string;
+  content: string;
+}
+
+export interface AgentMemory {
+  agent: string;
+  experiences: MemoryExperience[];
+  learnings: MemoryLearning[];
+  experience_count: number;
+  learning_count: number;
+}
+
+export interface MemoryListResponse {
+  agents: AgentMemorySummary[];
+}
+
+export interface AgentMemorySummary {
+  agent: string;
+  experience_count: number;
+  learning_count: number;
+  last_updated?: string;
+}
+
+export interface MemorySearchResult {
+  agent: string;
+  type: 'experience' | 'learning';
+  content: string;
+  timestamp?: string;
+  category?: string;
+  topic?: string;
+}
+
+// Routing types for task routing
+export interface RoutingRule {
+  task_type: string;
+  target_role: string;
+  description: string;
+}
+
+export interface RoutingConfig {
+  rules: RoutingRule[];
+}
