@@ -10,6 +10,7 @@ import { StatusBadge } from '../components/StatusBadge';
 import { Footer } from '../components/Footer';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { ErrorDisplay } from '../components/ErrorDisplay';
+import { HeaderBar } from '../components/HeaderBar';
 import type { Demon } from '../types';
 
 /** Duration in ms to show action errors before auto-clearing */
@@ -96,7 +97,7 @@ export function DemonsView({
   disableInput = false,
   onSelectItem,
 }: DemonsViewProps): React.ReactElement {
-  const { data: demons, loading, error, total, enabled, refresh, enable, disable, run } = useDemons();
+  const { data: demons, loading, error, enabled, refresh, enable, disable, run } = useDemons();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [actionError, setActionError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -259,19 +260,21 @@ export function DemonsView({
     return <LoadingIndicator message="Loading demons..." />;
   }
 
+  // Build subtitle with stats
+  const subtitle = [
+    `${String(enabled)} enabled`,
+    searchQuery ? `Search: "${searchQuery}"` : null,
+  ].filter(Boolean).join(' · ');
+
   return (
     <Box flexDirection="column" padding={1}>
-      {/* Header */}
-      <Box marginBottom={1}>
-        <Text bold color="magenta">Demons</Text>
-        <Text> · </Text>
-        <Text dimColor>{filteredDemons.length}{searchQuery ? `/${String(total)}` : ''} total</Text>
-        <Text dimColor> · </Text>
-        <Text color={enabled > 0 ? 'green' : 'gray'}>{enabled} enabled</Text>
-        {searchQuery && (
-          <Text color="cyan"> [/] &quot;{searchQuery}&quot;</Text>
-        )}
-      </Box>
+      {/* Header - using shared HeaderBar component (#1419) */}
+      <HeaderBar
+        title="Demons"
+        count={filteredDemons.length}
+        color="magenta"
+        subtitle={subtitle.length > 0 ? subtitle : undefined}
+      />
 
       {/* Action error feedback */}
       {actionError && (
