@@ -6,7 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { Panel } from '../components/Panel';
-import { Footer } from '../components/Footer';
+import { ViewWrapper } from '../components/ViewWrapper';
 import { useAgents } from '../hooks';
 
 interface RoutingViewProps {
@@ -166,80 +166,79 @@ export function RoutingView({
 
   // Main list view
   return (
-    <Box flexDirection="column" width="100%">
-      {/* Header */}
-      <Box marginBottom={1}>
-        <Text bold color="blue">Task Routing</Text>
-        <Text dimColor> ({String(ROUTING_RULES.length)} rules)</Text>
-      </Box>
-
-      {/* Description */}
-      <Box marginBottom={1} paddingX={1} borderStyle="single" borderColor="gray">
-        <Text dimColor wrap="wrap">
-          Task routing determines which agent role handles different types of work.
-          The router uses round-robin selection among available agents of the target role.
-        </Text>
-      </Box>
-
-      {/* Routing rules table */}
-      <Panel title="Routing Rules">
-        <Box flexDirection="column">
-          {/* Header row */}
-          <Box paddingX={1}>
-            <Box width={12}>
-              <Text bold dimColor>TASK TYPE</Text>
-            </Box>
-            <Box width={15}>
-              <Text bold dimColor>TARGET ROLE</Text>
-            </Box>
-            <Box width={10}>
-              <Text bold dimColor>AGENTS</Text>
-            </Box>
-            <Box width={12}>
-              <Text bold dimColor>AVAILABLE</Text>
-            </Box>
-            <Box flexGrow={1}>
-              <Text bold dimColor>DESCRIPTION</Text>
-            </Box>
-          </Box>
-
-          {/* Rule rows */}
-          {ROUTING_RULES.map((rule, idx) => (
-            <RoutingRuleRow
-              key={rule.taskType}
-              rule={rule}
-              selected={idx === validIndex}
-              agentCount={agentCountByRole[rule.targetRole] ?? 0}
-              availableCount={availableByRole[rule.targetRole] ?? 0}
-            />
-          ))}
+    <ViewWrapper
+      title="Task Routing"
+      hints={[
+        { key: 'j/k', label: 'navigate' },
+        { key: 'Enter', label: 'details' },
+        { key: 'q', label: 'back' },
+      ]}
+    >
+      <Box flexDirection="column" width="100%">
+        {/* Subtitle with count */}
+        <Box marginBottom={1}>
+          <Text dimColor>({String(ROUTING_RULES.length)} rules)</Text>
         </Box>
-      </Panel>
 
-      {/* Agent Summary */}
-      <Panel title="Role Summary">
-        <Box flexDirection="row" flexWrap="wrap">
-          {Object.entries(agentCountByRole)
-            .sort((a, b) => b[1] - a[1])
-            .map(([role, count]) => (
-              <Box key={role} marginRight={3}>
-                <Text color="cyan">{role}: </Text>
-                <Text>{String(count)}</Text>
-                <Text dimColor> ({String(availableByRole[role] ?? 0)} avail)</Text>
+        {/* Description */}
+        <Box marginBottom={1} paddingX={1} borderStyle="single" borderColor="gray">
+          <Text dimColor wrap="wrap">
+            Task routing determines which agent role handles different types of work.
+            The router uses round-robin selection among available agents of the target role.
+          </Text>
+        </Box>
+
+        {/* Routing rules table */}
+        <Panel title="Routing Rules">
+          <Box flexDirection="column">
+            {/* Header row */}
+            <Box paddingX={1}>
+              <Box width={12}>
+                <Text bold dimColor>TASK TYPE</Text>
               </Box>
-            ))}
-        </Box>
-      </Panel>
+              <Box width={15}>
+                <Text bold dimColor>TARGET ROLE</Text>
+              </Box>
+              <Box width={10}>
+                <Text bold dimColor>AGENTS</Text>
+              </Box>
+              <Box width={12}>
+                <Text bold dimColor>AVAILABLE</Text>
+              </Box>
+              <Box flexGrow={1}>
+                <Text bold dimColor>DESCRIPTION</Text>
+              </Box>
+            </Box>
 
-      {/* Footer */}
-      <Footer
-        hints={[
-          { key: 'j/k', label: 'navigate' },
-          { key: 'Enter', label: 'details' },
-          { key: 'q', label: 'back' },
-        ]}
-      />
-    </Box>
+            {/* Rule rows */}
+            {ROUTING_RULES.map((rule, idx) => (
+              <RoutingRuleRow
+                key={rule.taskType}
+                rule={rule}
+                selected={idx === validIndex}
+                agentCount={agentCountByRole[rule.targetRole] ?? 0}
+                availableCount={availableByRole[rule.targetRole] ?? 0}
+              />
+            ))}
+          </Box>
+        </Panel>
+
+        {/* Agent Summary */}
+        <Panel title="Role Summary">
+          <Box flexDirection="row" flexWrap="wrap">
+            {Object.entries(agentCountByRole)
+              .sort((a, b) => b[1] - a[1])
+              .map(([role, count]) => (
+                <Box key={role} marginRight={3}>
+                  <Text color="cyan">{role}: </Text>
+                  <Text>{String(count)}</Text>
+                  <Text dimColor> ({String(availableByRole[role] ?? 0)} avail)</Text>
+                </Box>
+              ))}
+          </Box>
+        </Panel>
+      </Box>
+    </ViewWrapper>
   );
 }
 
