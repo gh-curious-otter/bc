@@ -6,7 +6,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo } from
 import type { ReactNode } from 'react';
 
 // View types for navigation
-export type View = 'dashboard' | 'agents' | 'channels' | 'costs' | 'help' | 'commands' | 'roles' | 'logs' | 'worktrees' | 'workspaces' | 'demons' | 'processes' | 'memory' | 'routing';
+export type View = 'dashboard' | 'agents' | 'channels' | 'files' | 'costs' | 'help' | 'commands' | 'roles' | 'logs' | 'worktrees' | 'workspaces' | 'demons' | 'processes' | 'memory' | 'routing';
 
 // Tab configuration
 export interface TabConfig {
@@ -22,14 +22,15 @@ export const DEFAULT_TABS: TabConfig[] = [
   { key: '1', view: 'dashboard', label: 'Dashboard', shortLabel: 'Dash', shortcut: '1' },
   { key: '2', view: 'agents', label: 'Agents', shortLabel: 'Agt', shortcut: '2' },
   { key: '3', view: 'channels', label: 'Channels', shortLabel: 'Chan', shortcut: '3' },
-  { key: '4', view: 'costs', label: 'Costs', shortLabel: 'Cost', shortcut: '4' },
-  { key: '5', view: 'commands', label: 'Commands', shortLabel: 'Cmd', shortcut: '5' },
-  { key: '6', view: 'roles', label: 'Roles', shortLabel: 'Role', shortcut: '6' },
-  { key: '7', view: 'logs', label: 'Logs', shortLabel: 'Log', shortcut: '7' },
-  { key: '8', view: 'worktrees', label: 'Worktrees', shortLabel: 'Tree', shortcut: '8' },
-  { key: '9', view: 'workspaces', label: 'Workspaces', shortLabel: 'Wksp', shortcut: '9' },
-  { key: '0', view: 'demons', label: 'Demons', shortLabel: 'Dmn', shortcut: '0' },
-  { key: '-', view: 'processes', label: 'Processes', shortLabel: 'Proc', shortcut: '-' },
+  { key: '4', view: 'files', label: 'Files', shortLabel: 'File', shortcut: '4' },
+  { key: '5', view: 'costs', label: 'Costs', shortLabel: 'Cost', shortcut: '5' },
+  { key: '6', view: 'commands', label: 'Commands', shortLabel: 'Cmd', shortcut: '6' },
+  { key: '7', view: 'roles', label: 'Roles', shortLabel: 'Role', shortcut: '7' },
+  { key: '8', view: 'logs', label: 'Logs', shortLabel: 'Log', shortcut: '8' },
+  { key: '9', view: 'worktrees', label: 'Worktrees', shortLabel: 'Tree', shortcut: '9' },
+  { key: '0', view: 'workspaces', label: 'Workspaces', shortLabel: 'Wksp', shortcut: '0' },
+  { key: '-', view: 'demons', label: 'Demons', shortLabel: 'Dmn', shortcut: '-' },
+  { key: '=', view: 'processes', label: 'Processes', shortLabel: 'Proc', shortcut: '=' },
   { key: 'M', view: 'memory', label: 'Memory', shortLabel: 'Mem', shortcut: 'M' },
   { key: 'R', view: 'routing', label: 'Routing', shortLabel: 'Rte', shortcut: 'R' },
   { key: '?', view: 'help', label: 'Help', shortLabel: '?', shortcut: '?' },
