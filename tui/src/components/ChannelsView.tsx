@@ -409,7 +409,8 @@ function ChannelHistoryView({
   const hasMoreBelow = messages && messages.length > maxMessages && scrollOffset < messages.length - maxMessages;
 
   return (
-    <Box flexDirection="column" width="100%" height="100%">
+    // #1425 fix: Use flexGrow instead of height="100%" to prevent layout overflow
+    <Box flexDirection="column" width="100%" flexGrow={1} overflow="hidden">
       {/* Header section - fixed height */}
       <Box flexDirection="column" height={3} marginBottom={1}>
         <Box>
