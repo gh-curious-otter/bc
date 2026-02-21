@@ -9,6 +9,7 @@ import { useProcesses, useProcessLogs } from '../hooks';
 import { Table } from '../components/Table';
 import type { Column } from '../components/Table';
 import { StatusBadge } from '../components/StatusBadge';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 import type { Process } from '../types';
 
 interface ProcessesViewProps {
@@ -175,11 +176,7 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
   }
 
   if (loading && processList.length === 0) {
-    return (
-      <Box padding={1}>
-        <Text color="yellow">Loading processes...</Text>
-      </Box>
-    );
+    return <LoadingIndicator message="Loading processes..." />;
   }
 
   if (error) {

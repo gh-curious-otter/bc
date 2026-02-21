@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, memo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { ChannelMessage } from '../types';
 import { useChannelHistory } from '../hooks';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 // Cache for sender colors to avoid recalculation
 const senderColorCache = new Map<string, string>();
@@ -78,11 +79,7 @@ export function MessageHistory({
   const canScrollDown = scrollOffset < messageCount - visibleMessages;
 
   if (isLoading && messageCount === 0) {
-    return (
-      <Box flexDirection="column" padding={1}>
-        <Text color="cyan">Loading #{channelName} history...</Text>
-      </Box>
-    );
+    return <LoadingIndicator message={`Loading #${channelName} history...`} />;
   }
 
   if (error) {
