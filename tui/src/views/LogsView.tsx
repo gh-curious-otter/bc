@@ -66,6 +66,32 @@ function filterByTime(logs: LogEntry[], timeFilter: TimeFilter): LogEntry[] {
   });
 }
 
+/**
+ * Abbreviate log type for compact display (#1364)
+ * agent.report → report, channel.message → msg, etc.
+ */
+function abbreviateType(type: string): string {
+  // Extract action from type (after last dot)
+  const parts = type.split('.');
+  const action = parts[parts.length - 1];
+
+  // Common abbreviations
+  const abbreviations: Record<string, string> = {
+    'message': 'msg',
+    'report': 'report',
+    'working': 'work',
+    'error': 'error',
+    'warning': 'warn',
+    'stuck': 'stuck',
+    'done': 'done',
+    'idle': 'idle',
+    'starting': 'start',
+    'stopping': 'stop',
+  };
+
+  return abbreviations[action] ?? action;
+}
+
 export const LogsView: React.FC<LogsViewProps> = ({ onBack }) => {
   const { stdout } = useStdout();
   const terminalWidth = stdout.columns;
@@ -368,7 +394,7 @@ export const LogsView: React.FC<LogsViewProps> = ({ onBack }) => {
                 backgroundColor={isSelected ? 'blue' : undefined}
                 color={isSelected ? 'white' : severityColor}
               >
-                {severityIcon} {log.type.slice(0, typeWidth - 3).padEnd(typeWidth - 2)}
+                {severityIcon} {abbreviateType(log.type).slice(0, typeWidth - 3).padEnd(typeWidth - 2)}
               </Text>
               <Text
                 backgroundColor={isSelected ? 'blue' : undefined}
