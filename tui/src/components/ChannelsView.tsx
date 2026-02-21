@@ -54,6 +54,9 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
     }
   }, [viewMode, channels, selectedIndex, setBreadcrumbs, clearBreadcrumbs, setFocus]);
 
+  // Track if we should start in compose mode when entering history view
+  const [startCompose, setStartCompose] = useState(false);
+
   useInput(
     (input, key) => {
       if (viewMode === 'list') {
@@ -75,6 +78,12 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
         // This fixes #1064: Enter key not working when channels load after initial render
         const currentChannel = channels?.[selectedIndex];
         if (key.return && currentChannel) {
+          setFocus('view');
+          setViewMode('history');
+        }
+        // 'm' to compose - enter channel and start compose mode (#1316)
+        if (input === 'm' && currentChannel) {
+          setStartCompose(true);
           setFocus('view');
           setViewMode('history');
         }
@@ -111,7 +120,11 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
         key={selectedChannel.name}
         channel={selectedChannel}
         disableInput={disableInput}
-        onBack={() => { setViewMode('list'); }}
+        startInComposeMode={startCompose}
+        onBack={() => {
+          setViewMode('list');
+          setStartCompose(false);
+        }}
       />
     );
   }
@@ -188,17 +201,20 @@ interface ChannelHistoryViewProps {
   channel: Channel;
   disableInput?: boolean;
   onBack?: () => void;
+  /** Start in compose mode immediately (#1316) */
+  startInComposeMode?: boolean;
 }
 
 function ChannelHistoryView({
   channel,
   disableInput = false,
   onBack,
+  startInComposeMode = false,
 }: ChannelHistoryViewProps): React.ReactElement {
   const { data: messages, loading, error, send } = useChannelHistory(channel.name, {
     limit: 50,
   });
-  const [inputMode, setInputMode] = useState(false);
+  const [inputMode, setInputMode] = useState(startInComposeMode);
   const [messageBuffer, setMessageBuffer] = useState('');
   const [scrollOffset, setScrollOffset] = useState(0);
   const [sendError, setSendError] = useState<string | null>(null);
