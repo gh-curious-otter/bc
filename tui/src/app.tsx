@@ -14,7 +14,7 @@ import {
   type View,
 } from './navigation';
 import { ThemeProvider, useTheme, type ThemeMode } from './theme';
-import { UnreadProvider, useKeybindingHints } from './hooks';
+import { UnreadProvider, useKeybindingHints, useResponsiveLayout } from './hooks';
 import { ConfigProvider, useThemeConfig } from './config';
 import { Dashboard } from './views/Dashboard';
 import { AgentsView } from './views/AgentsView';
@@ -32,8 +32,6 @@ import { RoutingView } from './views/RoutingView';
 import { CommandPalette } from './components/CommandPalette';
 import {
   DetailPane,
-  shouldShowDetailPane,
-  MIN_WIDTH_FOR_DETAIL,
   type DetailItem,
 } from './components/DetailPane';
 import { type BcCommand } from './types/commands';
@@ -104,6 +102,9 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
   const [detailPaneVisible, setDetailPaneVisible] = useState(false);
   const [selectedItem, setSelectedItem] = useState<DetailItem | null>(null);
 
+  // #1326: Use centralized responsive layout system
+  const layout = useResponsiveLayout();
+
   // Apply configured theme on mount or when config changes
   React.useEffect(() => {
     // Only set theme if it's a named theme (not dark/light which are handled by mode)
@@ -147,43 +148,37 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
     onCommandPalette: () => { setShowCommandPalette(true); },
   });
 
-  // Handle 'i' key to toggle detail pane
+  // Handle 'i' key to toggle detail pane (only when layout supports it)
   useInput(
     (input) => {
-      if (input === 'i') {
+      if (input === 'i' && layout.canShowDetail) {
         setDetailPaneVisible(prev => !prev);
       }
     },
     { isActive: !disableInput && !showCommandPalette }
   );
 
-  // Get terminal dimensions - constrain to actual terminal height
+  // Get terminal dimensions
   const terminalHeight = stdout.rows;
   const terminalWidth = stdout.columns;
 
-  // Determine if detail pane should show based on terminal size and toggle state
-  const showDetailPane = shouldShowDetailPane(
-    terminalWidth,
-    terminalHeight,
-    detailPaneVisible
-  );
-
-  // Shrink drawer when terminal is narrow but not at minimal size
-  // #1318: Fix off-by-one: include 80 cols in shrunk mode
-  const drawerShrunk = terminalWidth < MIN_WIDTH_FOR_DETAIL && terminalWidth >= 80;
+  // #1326: Determine if detail pane should show based on responsive layout and user toggle
+  const showDetailPane = layout.detailPane.visible && detailPaneVisible;
 
   return (
     <Box flexDirection="column" padding={1} width={terminalWidth} height={terminalHeight}>
       {/* Main layout: drawer + content + detail pane */}
       <Box flexDirection="row" flexGrow={1}>
-        {/* Left drawer navigation (shrinks when narrow terminal) */}
-        <Drawer
-          disabled={disableInput || showCommandPalette}
-          shrunk={drawerShrunk}
-        />
+        {/* Left drawer navigation - controlled by responsive layout (#1326) */}
+        {layout.drawer.visible && (
+          <Drawer
+            disabled={disableInput || showCommandPalette}
+            shrunk={layout.drawer.shrunk}
+          />
+        )}
 
         {/* Center content area */}
-        <Box flexDirection="column" flexGrow={1} paddingLeft={1}>
+        <Box flexDirection="column" flexGrow={1} paddingLeft={layout.drawer.visible ? 1 : 0}>
           {/* Breadcrumb navigation (shows path when navigated deep) */}
           <Breadcrumb />
 
@@ -197,7 +192,7 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
           </Box>
         </Box>
 
-        {/* Right detail pane (toggleable with 'i') */}
+        {/* Right detail pane (toggleable with 'i', visibility per breakpoint) */}
         {showDetailPane && (
           <DetailPane
             view={currentView}
