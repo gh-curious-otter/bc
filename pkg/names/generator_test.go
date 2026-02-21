@@ -107,6 +107,23 @@ func TestDefaultGenerator(t *testing.T) {
 	}
 }
 
+func TestPackageLevelGenerateUniqueFromList(t *testing.T) {
+	existingList := []string{"swift-falcon", "clever-otter"}
+
+	name, err := GenerateUniqueFromList(existingList, 100)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Check not in list (case-insensitive)
+	nameLower := strings.ToLower(name)
+	for _, existing := range existingList {
+		if strings.ToLower(existing) == nameLower {
+			t.Errorf("generated name %q already exists in list", name)
+		}
+	}
+}
+
 func TestWordListSizes(t *testing.T) {
 	// Ensure we have enough variety
 	if len(adjectives) < 50 {
