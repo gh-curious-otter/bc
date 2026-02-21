@@ -21,8 +21,11 @@ export const KeyHint = memo(function KeyHint({ keyChar, label }: KeyHintProps) {
   );
 });
 
+/** Hint item type for keyboard shortcuts */
+export type HintItem = { key: string; label: string };
+
 export interface FooterProps {
-  hints: { key: string; label: string }[];
+  hints: HintItem[];
 }
 
 /**
