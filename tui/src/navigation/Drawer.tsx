@@ -234,8 +234,9 @@ interface DrawerItemProps {
 }
 
 function DrawerItem({ tab, isActive, isHighlighted, useShortLabel = false }: DrawerItemProps): React.ReactElement {
-  // Visual indicators: ● selected, ○ unselected
-  const indicator = isActive ? '●' : '○';
+  // Issue #1467: Visual indicators with highlight arrow
+  // ▶ highlighted (yellow), ● selected (green), ○ inactive (dim)
+  const indicator = isHighlighted ? '▶' : isActive ? '●' : '○';
 
   // Determine text styling
   const textColor = isActive ? 'green' : isHighlighted ? 'yellow' : undefined;
@@ -247,7 +248,7 @@ function DrawerItem({ tab, isActive, isHighlighted, useShortLabel = false }: Dra
 
   return (
     <Box>
-      <Text color={isActive ? 'green' : isHighlighted ? 'yellow' : undefined}>{indicator}</Text>
+      <Text color={isHighlighted ? 'yellow' : isActive ? 'green' : undefined}>{indicator}</Text>
       <Text
         bold={isBold}
         color={textColor}
@@ -255,10 +256,6 @@ function DrawerItem({ tab, isActive, isHighlighted, useShortLabel = false }: Dra
       >
         {' '}{label}
       </Text>
-      {/* Show shortcut key */}
-      {tab.shortcut && !isActive && (
-        <Text dimColor> {tab.shortcut}</Text>
-      )}
     </Box>
   );
 }
@@ -270,15 +267,16 @@ interface DrawerItemShrunkProps {
 }
 
 function DrawerItemShrunk({ tab, isActive, isHighlighted }: DrawerItemShrunkProps): React.ReactElement {
-  const indicator = isActive ? '●' : '○';
+  // Issue #1467: Use arrow indicator for highlighted items
+  const indicator = isHighlighted ? '▶' : isActive ? '●' : '○';
   const textColor = isActive ? 'green' : isHighlighted ? 'yellow' : undefined;
 
-  // Use shortcut key as minimal label
-  const label = tab.shortcut ?? tab.label.charAt(0);
+  // Use first letter as minimal label (number shortcuts removed)
+  const label = tab.label.charAt(0);
 
   return (
     <Box>
-      <Text color={textColor}>{indicator}</Text>
+      <Text color={isHighlighted ? 'yellow' : isActive ? 'green' : undefined}>{indicator}</Text>
       <Text color={textColor} dimColor={!isActive && !isHighlighted}>{label}</Text>
     </Box>
   );
