@@ -11,6 +11,7 @@ import { PulseText } from './AnimatedText';
 import { ChatMessage } from './ChatMessage';
 import { MentionAutocomplete } from './MentionAutocomplete';
 import type { Channel } from '../types';
+import type { DetailItem } from './DetailPane';
 
 /** Duration in ms to show send errors before auto-clearing */
 const SEND_ERROR_DISPLAY_DURATION = 3000;
@@ -31,9 +32,37 @@ function calculateInputHeight(messageLength: number, terminalWidth: number): num
 interface ChannelsViewProps {
   /** Disable input handling (useful for testing) */
   disableInput?: boolean;
+  /** Callback when a channel is selected (for detail pane) */
+  onSelectItem?: (item: DetailItem | null) => void;
 }
 
-export function ChannelsView({ disableInput = false }: ChannelsViewProps): React.ReactElement {
+/** Channel with unread count from useChannelsWithUnread hook */
+interface ChannelWithUnread extends Channel {
+  unread: number;
+}
+
+/**
+ * Convert a channel to DetailItem for the detail pane (#1418)
+ */
+function channelToDetailItem(channel: ChannelWithUnread): DetailItem {
+  const extraCount = channel.members.length - 3;
+  return {
+    title: `#${channel.name}`,
+    type: 'channel',
+    description: channel.description ?? 'No description',
+    fields: [
+      { label: 'Members', value: String(channel.members.length), color: 'cyan' },
+      { label: 'Unread', value: String(channel.unread), color: channel.unread > 0 ? 'yellow' : undefined },
+      ...channel.members.slice(0, 3).map((member, idx) => ({
+        label: idx === 0 ? 'Active' : '',
+        value: member,
+      })),
+      ...(extraCount > 0 ? [{ label: '', value: `+${String(extraCount)} more` }] : []),
+    ],
+  };
+}
+
+export function ChannelsView({ disableInput = false, onSelectItem }: ChannelsViewProps): React.ReactElement {
   // #1129: Use useChannelsWithUnread for proper unread message tracking
   const { channels, loading: channelsLoading, error: channelsError } = useChannelsWithUnread();
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -95,6 +124,15 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
 
   // Get currently selected channel for rendering
   const selectedChannel = channels?.[selectedIndex];
+
+  // #1418: Update detail pane when selected channel changes
+  useEffect(() => {
+    if (selectedChannel && viewMode === 'list') {
+      onSelectItem?.(channelToDetailItem(selectedChannel));
+    } else if (!selectedChannel) {
+      onSelectItem?.(null);
+    }
+  }, [selectedChannel, viewMode, onSelectItem]);
 
   if (channelsLoading) {
     return (
