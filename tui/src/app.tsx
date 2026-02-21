@@ -168,8 +168,9 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
     detailPaneVisible
   );
 
-  // Shrink drawer when terminal is narrow but not at compact size
-  const drawerShrunk = terminalWidth < MIN_WIDTH_FOR_DETAIL && terminalWidth > 80;
+  // Shrink drawer when terminal is narrow but not at minimal size
+  // #1318: Fix off-by-one: include 80 cols in shrunk mode
+  const drawerShrunk = terminalWidth < MIN_WIDTH_FOR_DETAIL && terminalWidth >= 80;
 
   return (
     <Box flexDirection="column" padding={1} width={terminalWidth} height={terminalHeight}>

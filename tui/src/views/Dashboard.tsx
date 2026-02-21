@@ -72,8 +72,10 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
     return <LoadingIndicator message="Loading workspace data..." />;
   }
 
+  // #1318: Don't set explicit width - parent flexGrow handles it
+  // Setting width={terminalWidth} caused overflow when nested inside drawer layout
   return (
-    <Box flexDirection="column" padding={1} width={terminalWidth}>
+    <Box flexDirection="column" padding={1}>
       {/* Header with activity indicator */}
       <Header
         workspaceName={summary.workspaceName}
