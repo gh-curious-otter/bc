@@ -31,7 +31,7 @@ export const DEFAULT_TABS: TabConfig[] = [
   { key: '0', view: 'demons', label: 'Demons', shortLabel: 'Dmn', shortcut: '0' },
   { key: '-', view: 'processes', label: 'Processes', shortLabel: 'Proc', shortcut: '-' },
   { key: 'M', view: 'memory', label: 'Memory', shortLabel: 'Mem', shortcut: 'M' },
-  { key: 'r', view: 'routing', label: 'Routing', shortLabel: 'Rte', shortcut: 'r' },
+  { key: 'R', view: 'routing', label: 'Routing', shortLabel: 'Rte', shortcut: 'R' },
   { key: '?', view: 'help', label: 'Help', shortLabel: '?', shortcut: '?' },
 ];
 
