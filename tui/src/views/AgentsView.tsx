@@ -94,6 +94,7 @@ function groupAgentsByRole(agents: Agent[]): RoleGroup[] {
  */
 function normalizeTask(task: string | undefined): string {
   if (!task) return '-';
+  // #1364 Issue 3: Normalize cooking metaphors from Claude Code status line
   const replacements: [string, string][] = [
     ['Sautéed', 'Working'],
     ['Sauteed', 'Working'], // ASCII fallback
@@ -101,6 +102,11 @@ function normalizeTask(task: string | undefined): string {
     ['Cogitated', 'Thinking'],
     ['Marinated', 'Idle'],
     ['Frolicking', 'Active'],
+    ['Brewed', 'Done'],
+    ['Brewing', 'Processing'],
+    ['Grooving', 'Active'],
+    ['Simmering', 'Waiting'],
+    ['Resting', 'Idle'],
   ];
   for (const [old, replacement] of replacements) {
     if (task.includes(old)) {
