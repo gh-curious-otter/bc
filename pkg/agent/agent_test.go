@@ -733,6 +733,38 @@ func TestLoadRoleMemory(t *testing.T) {
 			t.Errorf("RolePrompt = %q, want %q", mem.RolePrompt, content)
 		}
 	})
+
+	t.Run("root role from prompts dir", func(t *testing.T) {
+		// Root role uses backward compatible prompts/root.md path
+		promptsDir := filepath.Join(tmpDir, "prompts")
+		if mkErr := os.MkdirAll(promptsDir, 0750); mkErr != nil {
+			t.Fatal(mkErr)
+		}
+		content := "You are the root coordinator."
+		if writeErr := os.WriteFile(filepath.Join(promptsDir, "root.md"), []byte(content), 0600); writeErr != nil {
+			t.Fatal(writeErr)
+		}
+
+		mem := LoadRoleMemory(tmpDir, RoleRoot)
+		if mem == nil {
+			t.Fatal("expected non-nil AgentMemory for root role")
+		}
+		if mem.RolePrompt != content {
+			t.Errorf("RolePrompt = %q, want %q", mem.RolePrompt, content)
+		}
+	})
+
+	t.Run("empty prompt returns nil", func(t *testing.T) {
+		// Create role file with empty content
+		if writeErr := os.WriteFile(filepath.Join(rolesDir, "empty.md"), []byte(""), 0600); writeErr != nil {
+			t.Fatal(writeErr)
+		}
+
+		mem := LoadRoleMemory(tmpDir, Role("empty"))
+		if mem != nil {
+			t.Error("expected nil AgentMemory for empty prompt file")
+		}
+	})
 }
 
 // --- Stop operations tests ---
@@ -2454,6 +2486,191 @@ func TestHasPermissionStr(t *testing.T) {
 				t.Errorf("HasPermissionStr() = %v, want %v", result, tc.expected)
 			}
 		})
+	}
+}
+
+// --- SpawnAgentWithTool tests (#1236) ---
+
+func TestSpawnAgentWithTool(t *testing.T) {
+	m := newTestManager(t)
+
+	// Invalid name should fail
+	_, err := m.SpawnAgentWithTool("invalid name!", Role("engineer"), "/tmp", "claude")
+	if err == nil {
+		t.Error("expected error for invalid agent name")
+	}
+
+	// Empty role should fail
+	_, err = m.SpawnAgentWithTool("test-agent", Role(""), "/tmp", "claude")
+	if err == nil {
+		t.Error("expected error for empty role")
+	}
+}
+
+// --- SpawnAgentWithParent tests (#1236) ---
+
+func TestSpawnAgentWithParent(t *testing.T) {
+	m := newTestManager(t)
+
+	// Invalid name should fail
+	_, err := m.SpawnAgentWithParent("bad name!", Role("engineer"), "/tmp", "parent")
+	if err == nil {
+		t.Error("expected error for invalid agent name")
+	}
+
+	// Null role should fail
+	_, err = m.SpawnAgentWithParent("test-agent", Role("null"), "/tmp", "parent")
+	if err == nil {
+		t.Error("expected error for null role")
+	}
+}
+
+// --- DeleteAgent tests (#1236) ---
+
+func TestDeleteAgent(t *testing.T) {
+	m := newTestManager(t)
+
+	// Set up an agent to delete
+	m.agents["doomed"] = &Agent{
+		Name:      "doomed",
+		Role:      Role("engineer"),
+		State:     StateIdle,
+		Workspace: m.stateDir,
+		MemoryDir: filepath.Join(m.stateDir, "memory-doomed"),
+		Children:  []string{},
+	}
+
+	// Create memory dir
+	if mkErr := os.MkdirAll(m.agents["doomed"].MemoryDir, 0750); mkErr != nil {
+		t.Fatalf("failed to create memory dir: %v", mkErr)
+	}
+
+	// Delete should succeed
+	if err := m.DeleteAgent("doomed"); err != nil {
+		t.Errorf("DeleteAgent failed: %v", err)
+	}
+
+	// Agent should be gone
+	if _, exists := m.agents["doomed"]; exists {
+		t.Error("agent should be deleted from map")
+	}
+
+	// Memory dir should be removed (PurgeMemory is true by default)
+	if _, statErr := os.Stat(filepath.Join(m.stateDir, "memory-doomed")); !os.IsNotExist(statErr) {
+		t.Error("memory dir should be removed")
+	}
+}
+
+func TestDeleteAgent_NotFound(t *testing.T) {
+	m := newTestManager(t)
+
+	err := m.DeleteAgent("nonexistent")
+	if err == nil {
+		t.Error("expected error for nonexistent agent")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention 'not found': %v", err)
+	}
+}
+
+// --- DeleteAgentWithOptions tests (#1236) ---
+
+func TestDeleteAgentWithOptions_PreserveMemory(t *testing.T) {
+	m := newTestManager(t)
+
+	memDir := filepath.Join(m.stateDir, "memory-preserve")
+	m.agents["preserve"] = &Agent{
+		Name:      "preserve",
+		Role:      Role("engineer"),
+		State:     StateIdle,
+		Workspace: m.stateDir,
+		MemoryDir: memDir,
+		Children:  []string{},
+	}
+
+	// Create memory dir
+	if mkErr := os.MkdirAll(memDir, 0750); mkErr != nil {
+		t.Fatalf("failed to create memory dir: %v", mkErr)
+	}
+	// Create a test file
+	testFile := filepath.Join(memDir, "test.json")
+	if writeErr := os.WriteFile(testFile, []byte("{}"), 0600); writeErr != nil {
+		t.Fatalf("failed to create test file: %v", writeErr)
+	}
+
+	// Delete with PurgeMemory=false
+	err := m.DeleteAgentWithOptions("preserve", DeleteOptions{PurgeMemory: false})
+	if err != nil {
+		t.Errorf("DeleteAgentWithOptions failed: %v", err)
+	}
+
+	// Agent should be gone
+	if _, exists := m.agents["preserve"]; exists {
+		t.Error("agent should be deleted")
+	}
+
+	// Memory dir should still exist
+	if _, statErr := os.Stat(memDir); os.IsNotExist(statErr) {
+		t.Error("memory dir should be preserved with PurgeMemory=false")
+	}
+}
+
+func TestDeleteAgentWithOptions_WithWorktree(t *testing.T) {
+	m := newTestManager(t)
+
+	m.agents["with-worktree"] = &Agent{
+		Name:        "with-worktree",
+		Role:        Role("engineer"),
+		State:       StateIdle,
+		Workspace:   m.stateDir,
+		WorktreeDir: filepath.Join(m.stateDir, "worktrees", "wt"),
+		Children:    []string{},
+	}
+
+	// Delete should succeed (worktree removal is best-effort)
+	err := m.DeleteAgentWithOptions("with-worktree", DeleteOptions{PurgeMemory: true})
+	if err != nil {
+		t.Errorf("DeleteAgentWithOptions failed: %v", err)
+	}
+
+	// Agent should be gone
+	if _, exists := m.agents["with-worktree"]; exists {
+		t.Error("agent should be deleted")
+	}
+}
+
+func TestDeleteAgentWithOptions_RemovesFromParent(t *testing.T) {
+	m := newTestManager(t)
+
+	m.agents["parent-mgr"] = &Agent{
+		Name:     "parent-mgr",
+		Role:     Role("manager"),
+		State:    StateIdle,
+		Children: []string{"child-eng", "other-child"},
+	}
+	m.agents["child-eng"] = &Agent{
+		Name:     "child-eng",
+		Role:     Role("engineer"),
+		State:    StateIdle,
+		ParentID: "parent-mgr",
+		Children: []string{},
+	}
+
+	// Delete child
+	err := m.DeleteAgentWithOptions("child-eng", DeleteOptions{PurgeMemory: false})
+	if err != nil {
+		t.Errorf("DeleteAgentWithOptions failed: %v", err)
+	}
+
+	// Child should be removed from parent's children
+	parent := m.agents["parent-mgr"]
+	for _, child := range parent.Children {
+		if child == "child-eng" {
+			t.Error("deleted child should be removed from parent's children list")
+		}
+	}
+	if len(parent.Children) != 1 || parent.Children[0] != "other-child" {
+		t.Errorf("parent.Children = %v, want [other-child]", parent.Children)
 	}
 }
 
