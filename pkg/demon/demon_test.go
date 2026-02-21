@@ -642,3 +642,161 @@ func TestGetRunLogsNotFound(t *testing.T) {
 		t.Errorf("Expected nil logs, got %v", logs)
 	}
 }
+
+func TestCreateWithPromptBothOptions(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create prompt file for testing
+	promptFile := filepath.Join(tmpDir, "prompt.txt")
+	if err := os.WriteFile(promptFile, []byte("test prompt"), 0600); err != nil {
+		t.Fatalf("failed to create prompt file: %v", err)
+	}
+
+	// Both prompt and prompt-file specified should error
+	_, err := store.CreateWithPrompt("test-demon", "0 * * * *", "echo hello", "inline prompt", promptFile)
+	if err == nil {
+		t.Error("Expected error when both prompt and prompt-file specified")
+	}
+}
+
+func TestCreateWithPromptFileNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Prompt file doesn't exist should error
+	_, err := store.CreateWithPrompt("test-demon", "0 * * * *", "echo hello", "", "/nonexistent/prompt.txt")
+	if err == nil {
+		t.Error("Expected error when prompt file doesn't exist")
+	}
+}
+
+func TestCreateWithPromptSuccess(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir)
+
+	// Create prompt file
+	promptFile := filepath.Join(tmpDir, "prompt.txt")
+	if err := os.WriteFile(promptFile, []byte("test prompt content"), 0600); err != nil {
+		t.Fatalf("failed to create prompt file: %v", err)
+	}
+
+	// Create with prompt file
+	demon, err := store.CreateWithPrompt("test-demon", "0 * * * *", "echo hello", "", promptFile)
+	if err != nil {
+		t.Fatalf("CreateWithPrompt failed: %v", err)
+	}
+
+	if demon.PromptFile != promptFile {
+		t.Errorf("PromptFile = %q, want %q", demon.PromptFile, promptFile)
+	}
+
+	// Create with inline prompt
+	demon2, err := store.CreateWithPrompt("test-demon2", "0 * * * *", "echo world", "inline prompt", "")
+	if err != nil {
+		t.Fatalf("CreateWithPrompt failed: %v", err)
+	}
+
+	if demon2.Prompt != "inline prompt" {
+		t.Errorf("Prompt = %q, want %q", demon2.Prompt, "inline prompt")
+	}
+}
+
+func TestSchedulerProcessRunning(t *testing.T) {
+	tmpDir := t.TempDir()
+	sched := NewScheduler(tmpDir)
+
+	// Current process should be running
+	if !sched.processRunning(os.Getpid()) {
+		t.Error("Current process should be detected as running")
+	}
+
+	// Non-existent PID should not be running
+	if sched.processRunning(99999999) {
+		t.Error("Non-existent process should not be running")
+	}
+}
+
+func TestParseFieldInvalidValues(t *testing.T) {
+	// Invalid step
+	_, err := parseField("*/-1", 0, 59)
+	if err == nil {
+		t.Error("Expected error for invalid step")
+	}
+
+	// Invalid comma value
+	_, err = parseField("1,abc", 0, 59)
+	if err == nil {
+		t.Error("Expected error for invalid comma value")
+	}
+
+	// Invalid range format
+	_, err = parseField("1-2-3", 0, 59)
+	if err == nil {
+		t.Error("Expected error for invalid range format")
+	}
+
+	// Range out of bounds
+	_, err = parseField("50-70", 0, 59)
+	if err == nil {
+		t.Error("Expected error for range out of bounds")
+	}
+
+	// Start > end in range
+	_, err = parseField("10-5", 0, 59)
+	if err == nil {
+		t.Error("Expected error for start > end")
+	}
+
+	// Single value out of range
+	_, err = parseField("100", 0, 59)
+	if err == nil {
+		t.Error("Expected error for value out of range")
+	}
+}
+
+func TestCronMatchesEdgeCases(t *testing.T) {
+	// Test matching for specific month/day
+	cron, err := ParseCron("0 0 15 6 *")
+	if err != nil {
+		t.Fatalf("ParseCron failed: %v", err)
+	}
+
+	// June 15th at midnight
+	matches := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
+	next := cron.Next(matches.Add(-time.Minute))
+	if !next.Equal(matches) {
+		t.Errorf("Next() = %v, want %v", next, matches)
+	}
+}
+
+func TestLogPath(t *testing.T) {
+	store := NewStore("/tmp/test")
+	expected := filepath.Join("/tmp/test", ".bc", "demons", "my-demon.log.jsonl")
+	got := store.logPath("my-demon")
+	if got != expected {
+		t.Errorf("logPath = %q, want %q", got, expected)
+	}
+}
+
+func TestSchedulerReadPIDInvalid(t *testing.T) {
+	tmpDir := t.TempDir()
+	sched := NewScheduler(tmpDir)
+
+	// Create demons directory
+	demonsDir := filepath.Join(tmpDir, ".bc", "demons")
+	if err := os.MkdirAll(demonsDir, 0750); err != nil {
+		t.Fatalf("failed to create demons dir: %v", err)
+	}
+
+	// Write invalid PID
+	pidFile := filepath.Join(demonsDir, "scheduler.pid")
+	if err := os.WriteFile(pidFile, []byte("not-a-number"), 0600); err != nil {
+		t.Fatalf("failed to write PID file: %v", err)
+	}
+
+	_, err := sched.readPID()
+	if err == nil {
+		t.Error("Expected error when PID file contains invalid data")
+	}
+}
