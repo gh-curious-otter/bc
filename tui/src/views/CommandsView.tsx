@@ -304,24 +304,24 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
           borderColor={commandError ? 'red' : 'green'}
         >
           <Box marginBottom={1}>
-            <Text bold color={commandError ? 'red' : 'green'}>
+            <Text bold color={commandError ? 'red' : 'green'} wrap="truncate">
               {isExecuting ? '⟳ Running' : commandError ? '✗ Error' : '✓ Output'}
             </Text>
             {lastExecutedCommand && (
-              <Text dimColor> — {lastExecutedCommand}</Text>
+              <Text dimColor wrap="truncate"> — {lastExecutedCommand}</Text>
             )}
           </Box>
           {isExecuting ? (
-            <Text dimColor>Executing command...</Text>
+            <Text dimColor wrap="truncate">Executing command...</Text>
           ) : commandError ? (
-            <Text color="red">{commandError}</Text>
+            <Text color="red" wrap="truncate">{commandError}</Text>
           ) : commandOutput ? (
             <Box flexDirection="column">
               {commandOutput.split('\n').slice(0, 15).map((line, idx) => (
-                <Text key={idx} dimColor>{line}</Text>
+                <Text key={idx} dimColor wrap="truncate">{line}</Text>
               ))}
               {commandOutput.split('\n').length > 15 && (
-                <Text dimColor>... ({commandOutput.split('\n').length - 15} more lines)</Text>
+                <Text dimColor wrap="truncate">... ({commandOutput.split('\n').length - 15} more lines)</Text>
               )}
             </Box>
           ) : null}
@@ -334,16 +334,16 @@ export const CommandsView: React.FC<CommandsViewProps> = ({
       {/* Command preview */}
       {selectedCommand !== undefined && filteredCommands.length > 0 && !commandOutput && !commandError && !isExecuting && (
         <Box flexDirection="column" marginBottom={1} paddingX={1} borderStyle="single" borderColor="gray">
-          <Text bold color="cyan">{selectedCommand.name}</Text>
-          <Text dimColor>{selectedCommand.description}</Text>
+          <Text bold color="cyan" wrap="truncate">{selectedCommand.name}</Text>
+          <Text dimColor wrap="truncate">{selectedCommand.description}</Text>
           <Box marginTop={1}>
-            <Text dimColor>Usage: {selectedCommand.usage}</Text>
+            <Text dimColor wrap="truncate">Usage: {selectedCommand.usage}</Text>
           </Box>
           {selectedCommand.flags && (
-            <Text dimColor>Flags: {selectedCommand.flags.join(', ')}</Text>
+            <Text dimColor wrap="truncate">Flags: {selectedCommand.flags.join(', ')}</Text>
           )}
           <Box marginTop={1}>
-            <Text dimColor>
+            <Text dimColor wrap="truncate">
               {selectedCommand.readOnly ? '✓ Safe (read-only) - Press Enter to run' : '⚠ Modifying command - use CLI'}
             </Text>
           </Box>
@@ -376,11 +376,11 @@ function CommandRow({ command, selected, isFavorite }: CommandRowProps): React.R
   return (
     <Box marginBottom={1}>
       <Text color="yellow">{isFavorite ? '★ ' : '  '}</Text>
-      <Text color={selected ? 'cyan' : undefined} bold={selected}>
+      <Text color={selected ? 'cyan' : undefined} bold={selected} wrap="truncate">
         {selected ? '▸ ' : '  '}
         {command.name}
       </Text>
-      <Text dimColor> — {command.description}</Text>
+      <Text dimColor wrap="truncate"> — {command.description}</Text>
     </Box>
   );
 }
