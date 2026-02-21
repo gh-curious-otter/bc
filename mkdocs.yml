@@ -1,0 +1,88 @@
+site_name: bc Documentation
+site_description: Multi-agent AI orchestration CLI
+site_author: bc contributors
+site_url: https://rpuneet.github.io/bc
+
+repo_name: rpuneet/bc
+repo_url: https://github.com/rpuneet/bc
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Quick Start: QUICKSTART.md
+    - Commands: COMMANDS.md
+    - Troubleshooting: TROUBLESHOOTING.md
+  - Concepts:
+    - Architecture: ARCHITECTURE.md
+    - Diagrams: architecture/README.md
+    - Roles & Responsibilities: roles-responsibilities.md
+    - Memory System: memory-system.md
+    - Channel Conventions: channel-conventions.md
+    - Hierarchical Agents: hierarchical-agents.md
+  - Integrations:
+    - MCP Integration: MCP.md
+    - Plugins: PLUGINS.md
+  - RFCs:
+    - RFC 001 - Plugin Ecosystem: rfcs/001-plugin-ecosystem.md
+    - RFC 002a - File Explorer: rfcs/002-file-explorer.md
+    - RFC 002b - LSP Integration: rfcs/002-lsp-integration.md
+    - RFC 003 - Message Passing: rfcs/003-message-passing-orchestration.md
+  - Development:
+    - Competitive Analysis: COMPETITIVE.md
+    - Enhancements: ENHANCEMENTS.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/rpuneet/bc
