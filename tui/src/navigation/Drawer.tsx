@@ -17,8 +17,9 @@ import { useFocus } from './FocusContext';
 
 /** Fixed width for drawer panel */
 const DRAWER_WIDTH = 14;
-/** Shrunk width for narrow terminals */
-const DRAWER_SHRUNK_WIDTH = 10;
+/** Shrunk width for narrow terminals (80-99 cols) */
+/** #1318: Reduced from 10 to 8 to give more space to content at 80x24 */
+const DRAWER_SHRUNK_WIDTH = 8;
 
 export interface DrawerProps {
   /** Title displayed at top of drawer */
