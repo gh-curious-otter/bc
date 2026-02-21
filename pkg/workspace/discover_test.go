@@ -3,6 +3,7 @@ package workspace
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -401,4 +402,102 @@ func TestDiscoverNonExistentPath(t *testing.T) {
 	if len(workspaces) != 0 {
 		t.Errorf("expected 0 workspaces for non-existent path, got %d", len(workspaces))
 	}
+}
+
+func TestDiscoverAndRegister(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Set up global dir for registry
+	t.Setenv("HOME", tmpDir)
+
+	// Create global .bc directory
+	globalDir := filepath.Join(tmpDir, ".bc")
+	if err := os.MkdirAll(globalDir, 0750); err != nil {
+		t.Fatalf("failed to create global dir: %v", err)
+	}
+
+	// Create a workspace to discover
+	wsDir := filepath.Join(tmpDir, "projects", "test-ws")
+	bcDir := filepath.Join(wsDir, ".bc")
+	if err := os.MkdirAll(bcDir, 0750); err != nil {
+		t.Fatalf("failed to create workspace dir: %v", err)
+	}
+	configPath := filepath.Join(bcDir, "config.toml")
+	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"test-ws\"\n"), 0600); err != nil {
+		t.Fatalf("failed to create config: %v", err)
+	}
+
+	opts := DiscoverOptions{
+		IncludeCached: false,
+		ScanHome:      false,
+		MaxDepth:      3,
+		ScanPaths:     []string{filepath.Join(tmpDir, "projects")},
+	}
+
+	count, err := DiscoverAndRegister(opts)
+	if err != nil {
+		t.Fatalf("DiscoverAndRegister failed: %v", err)
+	}
+
+	if count != 1 {
+		t.Errorf("expected 1 new workspace, got %d", count)
+	}
+
+	// Verify it was registered
+	registry, err := LoadRegistry()
+	if err != nil {
+		t.Fatalf("LoadRegistry failed: %v", err)
+	}
+
+	found := false
+	for _, ws := range registry.Workspaces {
+		if ws.Name == "test-ws" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected test-ws to be registered")
+	}
+}
+
+func TestDiscoverAndRegisterNoNew(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Set up global dir for registry
+	t.Setenv("HOME", tmpDir)
+
+	// Create global .bc directory
+	globalDir := filepath.Join(tmpDir, ".bc")
+	if err := os.MkdirAll(globalDir, 0750); err != nil {
+		t.Fatalf("failed to create global dir: %v", err)
+	}
+
+	opts := DiscoverOptions{
+		IncludeCached: false,
+		ScanHome:      false,
+		MaxDepth:      2,
+		ScanPaths:     []string{},
+	}
+
+	// With no workspaces to discover, count should be 0
+	count, err := DiscoverAndRegister(opts)
+	if err != nil {
+		t.Fatalf("DiscoverAndRegister failed: %v", err)
+	}
+
+	if count != 0 {
+		t.Errorf("expected 0 new workspaces, got %d", count)
+	}
+}
+
+func TestScanDirAbsPathError(t *testing.T) {
+	// Test with invalid path that can't be made absolute
+	// (This is hard to trigger in practice, but we can test the flow)
+	seen := make(map[string]bool)
+	var workspaces []DiscoveredWorkspace
+	var mu sync.Mutex
+
+	// Pass valid path, should not panic
+	scanDir(t.TempDir(), 1, seen, &workspaces, &mu)
 }

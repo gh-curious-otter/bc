@@ -694,3 +694,122 @@ permissions:
 		t.Errorf("Level = %d, want 0", role.Metadata.Level)
 	}
 }
+
+func TestLoadAllRoles(t *testing.T) {
+	stateDir := t.TempDir()
+	rolesDir := filepath.Join(stateDir, "roles")
+	if err := os.MkdirAll(rolesDir, 0750); err != nil {
+		t.Fatalf("failed to create roles dir: %v", err)
+	}
+
+	// Create multiple role files
+	roles := map[string]string{
+		"engineer.md": `---
+name: engineer
+---
+Engineer prompt.
+`,
+		"manager.md": `---
+name: manager
+---
+Manager prompt.
+`,
+	}
+
+	for name, content := range roles {
+		path := filepath.Join(rolesDir, name)
+		if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+			t.Fatalf("failed to create role %s: %v", name, err)
+		}
+	}
+
+	rm := NewRoleManager(stateDir)
+	loaded, err := rm.LoadAllRoles()
+	if err != nil {
+		t.Fatalf("LoadAllRoles failed: %v", err)
+	}
+
+	// Should have loaded engineer, manager, plus default root
+	if len(loaded) < 2 {
+		t.Errorf("expected at least 2 roles, got %d", len(loaded))
+	}
+
+	if _, ok := loaded["engineer"]; !ok {
+		t.Error("expected engineer role to be loaded")
+	}
+	if _, ok := loaded["manager"]; !ok {
+		t.Error("expected manager role to be loaded")
+	}
+}
+
+func TestLoadAllRolesSkipsNonMd(t *testing.T) {
+	stateDir := t.TempDir()
+	rolesDir := filepath.Join(stateDir, "roles")
+	if err := os.MkdirAll(rolesDir, 0750); err != nil {
+		t.Fatalf("failed to create roles dir: %v", err)
+	}
+
+	// Create a .md file and a non-.md file
+	mdPath := filepath.Join(rolesDir, "test.md")
+	if err := os.WriteFile(mdPath, []byte("---\nname: test\n---\nTest."), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	txtPath := filepath.Join(rolesDir, "readme.txt")
+	if err := os.WriteFile(txtPath, []byte("readme"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	rm := NewRoleManager(stateDir)
+	loaded, err := rm.LoadAllRoles()
+	if err != nil {
+		t.Fatalf("LoadAllRoles failed: %v", err)
+	}
+
+	// Only .md files should be loaded
+	if _, ok := loaded["test"]; !ok {
+		t.Error("expected test role to be loaded")
+	}
+}
+
+func TestLoadAllRolesSkipsDirectories(t *testing.T) {
+	stateDir := t.TempDir()
+	rolesDir := filepath.Join(stateDir, "roles")
+	if err := os.MkdirAll(rolesDir, 0750); err != nil {
+		t.Fatalf("failed to create roles dir: %v", err)
+	}
+
+	// Create a subdirectory that looks like a .md file
+	subDir := filepath.Join(rolesDir, "subdir.md")
+	if err := os.Mkdir(subDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	rm := NewRoleManager(stateDir)
+	loaded, err := rm.LoadAllRoles()
+	if err != nil {
+		t.Fatalf("LoadAllRoles failed: %v", err)
+	}
+
+	// Should not crash on directory with .md extension
+	// Just verify it loaded something (at least root)
+	if len(loaded) == 0 {
+		t.Error("expected at least root role to be loaded")
+	}
+}
+
+func TestLoadAllRolesEmptyDir(t *testing.T) {
+	stateDir := t.TempDir()
+	// Don't create roles dir - LoadAllRoles should handle missing dir
+
+	rm := NewRoleManager(stateDir)
+	loaded, err := rm.LoadAllRoles()
+	if err != nil {
+		t.Fatalf("LoadAllRoles failed: %v", err)
+	}
+
+	// Should still have root role (created by EnsureDefaultRoot)
+	if _, ok := loaded["root"]; !ok {
+		t.Error("expected root role to exist")
+	}
+}

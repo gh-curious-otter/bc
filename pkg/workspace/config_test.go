@@ -1433,3 +1433,89 @@ func TestNormalizeNickname(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadUserDefaultsMalformedTOML(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	// Create malformed .bcrc file
+	bcrcPath := filepath.Join(tmpDir, ".bcrc")
+	malformedContent := `[user
+invalid toml content
+`
+	if err := os.WriteFile(bcrcPath, []byte(malformedContent), 0600); err != nil {
+		t.Fatalf("failed to write malformed .bcrc: %v", err)
+	}
+
+	_, err := LoadUserDefaults()
+	if err == nil {
+		t.Error("expected error for malformed TOML")
+	}
+}
+
+func TestLoadUserDefaultsReadError(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	// Create .bcrc as a directory (will cause read error)
+	bcrcPath := filepath.Join(tmpDir, ".bcrc")
+	if err := os.Mkdir(bcrcPath, 0750); err != nil {
+		t.Fatalf("failed to create .bcrc dir: %v", err)
+	}
+
+	_, err := LoadUserDefaults()
+	if err == nil {
+		t.Error("expected error when .bcrc is a directory")
+	}
+}
+
+func TestSaveUserDefaultsSuccess(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	defaults := &UserDefaultsConfig{
+		User: UserDefaultsUser{
+			Nickname: "@testuser",
+		},
+		Defaults: UserDefaultsDefaults{
+			DefaultRole:   "engineer",
+			AutoStartRoot: true,
+		},
+		Tools: UserDefaultsTools{
+			Preferred: []string{"claude", "gemini"},
+		},
+	}
+
+	err := SaveUserDefaults(defaults)
+	if err != nil {
+		t.Fatalf("SaveUserDefaults failed: %v", err)
+	}
+
+	// Verify file was created
+	bcrcPath := filepath.Join(tmpDir, ".bcrc")
+	if _, statErr := os.Stat(bcrcPath); os.IsNotExist(statErr) {
+		t.Error("expected .bcrc file to be created")
+	}
+
+	// Verify content can be read back
+	loaded, err := LoadUserDefaults()
+	if err != nil {
+		t.Fatalf("LoadUserDefaults failed: %v", err)
+	}
+	if loaded == nil {
+		t.Fatal("expected loaded defaults to not be nil")
+	}
+	if loaded.User.Nickname != "@testuser" {
+		t.Errorf("Nickname = %q, want @testuser", loaded.User.Nickname)
+	}
+}
+
+func TestUserDefaultsPathEmpty(t *testing.T) {
+	// Test when HOME is empty - path should be empty
+	t.Setenv("HOME", "")
+
+	path := UserDefaultsPath()
+	if path != "" {
+		t.Errorf("expected empty path when HOME is empty, got %q", path)
+	}
+}
