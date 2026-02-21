@@ -256,3 +256,102 @@ func TestReportSetDuration(t *testing.T) {
 		t.Errorf("expected duration=%v, got %v", d, r.Duration)
 	}
 }
+
+func TestReportFormatMarkdownWithPackages(t *testing.T) {
+	r := NewReport()
+	r.Packages = []PackageResult{
+		{
+			Name:     "github.com/test/pkg1",
+			Passed:   5,
+			Failed:   0,
+			Skipped:  1,
+			Duration: 100 * time.Millisecond,
+		},
+		{
+			Name:     "github.com/test/pkg2",
+			Passed:   3,
+			Failed:   2,
+			Skipped:  0,
+			Duration: 200 * time.Millisecond,
+		},
+	}
+	r.PassedTests = 8
+	r.FailedTests = 2
+	r.SkippedTests = 1
+	r.TotalTests = 11
+	r.SetDuration(300 * time.Millisecond)
+
+	md := r.FormatMarkdown()
+
+	if !strings.Contains(md, "## Packages") {
+		t.Error("missing packages section")
+	}
+	if !strings.Contains(md, "github.com/test/pkg1") {
+		t.Error("missing pkg1")
+	}
+	if !strings.Contains(md, "github.com/test/pkg2") {
+		t.Error("missing pkg2")
+	}
+}
+
+func TestReportFormatMarkdownAllPassed(t *testing.T) {
+	r := NewReport()
+	r.AddPass()
+	r.AddPass()
+	r.AddPass()
+	r.SetDuration(50 * time.Millisecond)
+
+	md := r.FormatMarkdown()
+
+	if !strings.Contains(md, "✅ **All tests passed**") {
+		t.Error("missing success message for all-passed report")
+	}
+	if strings.Contains(md, "## Failures") {
+		t.Error("should not have failures section when all passed")
+	}
+}
+
+func TestReportFormatMarkdownWithOutput(t *testing.T) {
+	r := NewReport()
+	r.AddFailure(TestFailure{
+		Package:  "github.com/test/pkg",
+		TestName: "TestWithOutput",
+		FullName: "github.com/test/pkg.TestWithOutput",
+		Message:  "assertion failed",
+		Output:   []string{"line 1", "line 2", "line 3"},
+	})
+	r.SetDuration(100 * time.Millisecond)
+
+	md := r.FormatMarkdown()
+
+	if !strings.Contains(md, "**Output:**") {
+		t.Error("missing output section for failure with output")
+	}
+	if !strings.Contains(md, "line 1") {
+		t.Error("missing output line 1")
+	}
+}
+
+func TestReportFormatTextWithFailures(t *testing.T) {
+	r := NewReport()
+	r.AddPass()
+	r.AddFailure(TestFailure{
+		Package:  "github.com/test/pkg",
+		TestName: "TestFail",
+		FullName: "github.com/test/pkg.TestFail",
+		Message:  "expected true, got false",
+	})
+	r.SetDuration(100 * time.Millisecond)
+
+	text := r.FormatText()
+
+	if !strings.Contains(text, "FAILURES") {
+		t.Error("missing failures section")
+	}
+	if !strings.Contains(text, "TestFail") {
+		t.Error("missing failure test name")
+	}
+	if !strings.Contains(text, "expected true, got false") {
+		t.Error("missing failure message")
+	}
+}
