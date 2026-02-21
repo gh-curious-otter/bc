@@ -110,6 +110,21 @@ function normalizeTask(task: string | undefined): string {
   return task;
 }
 
+/**
+ * Abbreviate role names for compact display (#1364)
+ * product-manager → PM, tech-lead → TL, engineer → Eng
+ */
+function abbreviateRole(role: string): string {
+  const abbreviations: Record<string, string> = {
+    'product-manager': 'PM',
+    'tech-lead': 'TL',
+    'engineer': 'Eng',
+    'manager': 'Mgr',
+    'root': 'Root',
+  };
+  return abbreviations[role] ?? role;
+}
+
 /** Available agent actions */
 type AgentAction = 'start' | 'stop' | 'kill' | 'restart' | 'attach';
 
@@ -376,7 +391,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       header: 'Role',
       width: 10,
       render: (agent) => (
-        <Text>{agent.role.length > 8 ? agent.role.slice(0, 7) + '…' : agent.role}</Text>
+        <Text>{abbreviateRole(agent.role)}</Text>
       ),
     },
     {
