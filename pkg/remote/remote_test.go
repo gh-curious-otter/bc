@@ -382,3 +382,133 @@ func TestStatusConstants(t *testing.T) {
 		t.Errorf("StatusError = %q, want %q", StatusError, "error")
 	}
 }
+
+func TestManagerTestConnection(t *testing.T) {
+	tmpDir := t.TempDir()
+	mgr := NewManager(tmpDir)
+
+	// Add a host
+	_, err := mgr.AddHost("test-host", "example.com", 22, "deploy", "", "")
+	if err != nil {
+		t.Fatalf("AddHost() error = %v", err)
+	}
+
+	// Test connection (currently just marks as connected)
+	if err := mgr.TestConnection(context.Background(), "test-host"); err != nil {
+		t.Fatalf("TestConnection() error = %v", err)
+	}
+
+	// Verify status updated
+	host, _ := mgr.GetHost("test-host")
+	if host.Status != StatusConnected {
+		t.Errorf("host.Status = %q, want %q", host.Status, StatusConnected)
+	}
+	if host.LastUsed.IsZero() {
+		t.Error("host.LastUsed should be set")
+	}
+}
+
+func TestManagerTestConnectionNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	mgr := NewManager(tmpDir)
+
+	err := mgr.TestConnection(context.Background(), "nonexistent")
+	if err == nil {
+		t.Error("TestConnection() should fail for nonexistent host")
+	}
+}
+
+func TestManagerListHostsMultiple(t *testing.T) {
+	tmpDir := t.TempDir()
+	mgr := NewManager(tmpDir)
+
+	// Add multiple hosts
+	_, _ = mgr.AddHost("host-a", "a.com", 22, "user", "", "")
+	_, _ = mgr.AddHost("host-b", "b.com", 22, "user", "", "")
+	_, _ = mgr.AddHost("host-c", "c.com", 22, "user", "", "")
+
+	hosts := mgr.ListHosts()
+	if len(hosts) != 3 {
+		t.Errorf("len(hosts) = %d, want 3", len(hosts))
+	}
+}
+
+func TestManagerLoadNoFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	mgr := NewManager(tmpDir)
+
+	// Load without any existing file should succeed
+	err := mgr.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Should have empty state
+	if len(mgr.ListHosts()) != 0 {
+		t.Error("expected empty hosts after loading non-existent file")
+	}
+}
+
+func TestManagerLoadInvalidJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	bcDir := filepath.Join(tmpDir, ".bc")
+	if err := os.MkdirAll(bcDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write invalid JSON
+	configPath := filepath.Join(bcDir, "remote.json")
+	if err := os.WriteFile(configPath, []byte("invalid json{"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	mgr := NewManager(tmpDir)
+	err := mgr.Load()
+	if err == nil {
+		t.Error("Load() should fail for invalid JSON")
+	}
+}
+
+func TestManagerSSHCommandDefaultPort(t *testing.T) {
+	tmpDir := t.TempDir()
+	mgr := NewManager(tmpDir)
+
+	_, err := mgr.AddHost("test-host", "example.com", 22, "deploy", "", "")
+	if err != nil {
+		t.Fatalf("AddHost() error = %v", err)
+	}
+
+	cmd, err := mgr.SSHCommand("test-host")
+	if err != nil {
+		t.Fatalf("SSHCommand() error = %v", err)
+	}
+
+	// Default port should be included
+	expected := "ssh -p 22 deploy@example.com"
+	if cmd != expected {
+		t.Errorf("SSHCommand() = %q, want %q", cmd, expected)
+	}
+}
+
+func TestManagerGetAgent(t *testing.T) {
+	tmpDir := t.TempDir()
+	mgr := NewManager(tmpDir)
+
+	// Not found
+	_, ok := mgr.GetAgent("nonexistent")
+	if ok {
+		t.Error("GetAgent() should return false for nonexistent agent")
+	}
+
+	// Add host and agent
+	_, _ = mgr.AddHost("test-host", "example.com", 22, "deploy", "", "")
+	_, _ = mgr.SpawnAgent(context.Background(), "test-agent", "test-host", "engineer")
+
+	agent, ok := mgr.GetAgent("test-agent")
+	if !ok {
+		t.Error("GetAgent() should return true for existing agent")
+	}
+	if agent.Role != "engineer" {
+		t.Errorf("agent.Role = %q, want %q", agent.Role, "engineer")
+	}
+}
