@@ -25,7 +25,7 @@ func durationFromSeconds(s int) time.Duration {
 
 // setupIntegrationWorkspace creates a temporary bc workspace and changes into it.
 // Returns the workspace root path and a cleanup function that restores
-// the original working directory and removes the temp directory.
+// the original working directory and BC_WORKSPACE env var.
 func setupIntegrationWorkspace(t *testing.T) (string, func()) {
 	t.Helper()
 
@@ -33,6 +33,11 @@ func setupIntegrationWorkspace(t *testing.T) (string, func()) {
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
+
+	// Clear BC_WORKSPACE to ensure tests use the temp workspace, not outer workspace.
+	// This is critical when running tests in an active bc workspace.
+	origBCWorkspace := os.Getenv("BC_WORKSPACE")
+	_ = os.Unsetenv("BC_WORKSPACE")
 
 	tmpDir := t.TempDir()
 
@@ -51,6 +56,9 @@ func setupIntegrationWorkspace(t *testing.T) (string, func()) {
 
 	return tmpDir, func() {
 		_ = os.Chdir(origDir)
+		if origBCWorkspace != "" {
+			_ = os.Setenv("BC_WORKSPACE", origBCWorkspace)
+		}
 	}
 }
 
