@@ -15,6 +15,19 @@ import (
 
 // --- Test helpers ---
 
+// clearWorkspaceEnv clears BC_WORKSPACE env var and returns a cleanup function.
+// Use this in tests that expect no workspace to be found.
+func clearWorkspaceEnv(t *testing.T) func() {
+	t.Helper()
+	origBCWorkspace := os.Getenv("BC_WORKSPACE")
+	_ = os.Unsetenv("BC_WORKSPACE")
+	return func() {
+		if origBCWorkspace != "" {
+			_ = os.Setenv("BC_WORKSPACE", origBCWorkspace)
+		}
+	}
+}
+
 // executeCmd runs a cobra command with the given args.
 func executeCmd(args ...string) (string, error) {
 	buf := new(bytes.Buffer)
@@ -49,6 +62,15 @@ func setupTestWorkspace(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
+
+	// Clear BC_WORKSPACE to ensure tests use the temp workspace, not outer workspace
+	origBCWorkspace := os.Getenv("BC_WORKSPACE")
+	_ = os.Unsetenv("BC_WORKSPACE")
+	t.Cleanup(func() {
+		if origBCWorkspace != "" {
+			_ = os.Setenv("BC_WORKSPACE", origBCWorkspace)
+		}
+	})
 
 	tmpDir := t.TempDir()
 	bcDir := filepath.Join(tmpDir, ".bc")

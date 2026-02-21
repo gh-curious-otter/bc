@@ -291,6 +291,10 @@ func TestAgentNoWorkspace(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
+	// Clear BC_WORKSPACE to test directory-based workspace detection
+	restoreEnv := clearWorkspaceEnv(t)
+	defer restoreEnv()
+
 	_, _, execErr := executeIntegrationCmd("agent", "list")
 	if execErr == nil {
 		t.Error("expected error when not in workspace")

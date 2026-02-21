@@ -86,6 +86,15 @@ func TestAgentLifecycle_CreateNoWorkspace(t *testing.T) {
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
 
+	// Clear BC_WORKSPACE env var so workspace detection falls back to directory walking
+	origBCWorkspace := os.Getenv("BC_WORKSPACE")
+	_ = os.Unsetenv("BC_WORKSPACE")
+	defer func() {
+		if origBCWorkspace != "" {
+			_ = os.Setenv("BC_WORKSPACE", origBCWorkspace)
+		}
+	}()
+
 	resetAgentFlags()
 	defer resetAgentFlags()
 
@@ -623,6 +632,10 @@ func TestNoWorkspace_AgentList(t *testing.T) {
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
 
+	// Clear BC_WORKSPACE env var to test directory-based workspace detection
+	restoreEnv := clearWorkspaceEnv(t)
+	defer restoreEnv()
+
 	_, err := executeCmd("agent", "list")
 	if err == nil {
 		t.Error("expected error for missing workspace")
@@ -637,6 +650,9 @@ func TestNoWorkspace_AgentStop(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
+
+	restoreEnv := clearWorkspaceEnv(t)
+	defer restoreEnv()
 
 	_, err := executeCmd("agent", "stop", "any-agent")
 	if err == nil {
@@ -653,6 +669,9 @@ func TestNoWorkspace_AgentPeek(t *testing.T) {
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
 
+	restoreEnv := clearWorkspaceEnv(t)
+	defer restoreEnv()
+
 	_, err := executeCmd("agent", "peek", "any-agent")
 	if err == nil {
 		t.Error("expected error for missing workspace")
@@ -668,6 +687,9 @@ func TestNoWorkspace_AgentSend(t *testing.T) {
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
 
+	restoreEnv := clearWorkspaceEnv(t)
+	defer restoreEnv()
+
 	_, err := executeCmd("agent", "send", "any-agent", "message")
 	if err == nil {
 		t.Error("expected error for missing workspace")
@@ -682,6 +704,9 @@ func TestNoWorkspace_ChannelCreate(t *testing.T) {
 	tmpDir := t.TempDir()
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
+
+	restoreEnv := clearWorkspaceEnv(t)
+	defer restoreEnv()
 
 	_, err := executeCmd("channel", "create", "test")
 	if err == nil {
