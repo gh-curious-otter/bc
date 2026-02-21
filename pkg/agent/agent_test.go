@@ -2926,3 +2926,139 @@ func TestRoleConstant(t *testing.T) {
 		t.Errorf("RoleRoot = %q, want root", RoleRoot)
 	}
 }
+
+// --- Additional LoadRoleMemory tests ---
+
+func TestLoadRoleMemory_RootRoleBackwardCompat(t *testing.T) {
+	tmpDir := t.TempDir()
+	promptsDir := filepath.Join(tmpDir, "prompts")
+	if err := os.MkdirAll(promptsDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create root.md in the backward-compatible location
+	content := "You are the root orchestrator agent."
+	if err := os.WriteFile(filepath.Join(promptsDir, "root.md"), []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	mem := LoadRoleMemory(tmpDir, RoleRoot)
+	if mem == nil {
+		t.Fatal("expected non-nil AgentMemory for root role")
+	}
+	if mem.RolePrompt != content {
+		t.Errorf("RolePrompt = %q, want %q", mem.RolePrompt, content)
+	}
+}
+
+func TestLoadRoleMemory_RootRoleFallsBackToRoleManager(t *testing.T) {
+	tmpDir := t.TempDir()
+	rolesDir := filepath.Join(tmpDir, ".bc", "roles")
+	if err := os.MkdirAll(rolesDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create root.md in roles dir (not prompts dir)
+	content := "Root from roles directory."
+	if err := os.WriteFile(filepath.Join(rolesDir, "root.md"), []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Should fall back to role manager since prompts/root.md doesn't exist
+	mem := LoadRoleMemory(tmpDir, RoleRoot)
+	if mem == nil {
+		t.Fatal("expected non-nil AgentMemory for root role from role manager")
+	}
+	if mem.RolePrompt != content {
+		t.Errorf("RolePrompt = %q, want %q", mem.RolePrompt, content)
+	}
+}
+
+func TestLoadRoleMemory_EmptyPrompt(t *testing.T) {
+	tmpDir := t.TempDir()
+	rolesDir := filepath.Join(tmpDir, ".bc", "roles")
+	if err := os.MkdirAll(rolesDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create empty role file
+	if err := os.WriteFile(filepath.Join(rolesDir, "empty-role.md"), []byte(""), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	mem := LoadRoleMemory(tmpDir, Role("empty-role"))
+	if mem != nil {
+		t.Error("expected nil AgentMemory for empty prompt")
+	}
+}
+
+// --- UpdateAgentState error tests ---
+
+func TestUpdateAgentState_NotFound(t *testing.T) {
+	m := newTestManager(t)
+
+	err := m.UpdateAgentState("nonexistent", StateWorking, "working on task")
+	if err == nil {
+		t.Error("expected error when updating non-existent agent")
+	}
+}
+
+// --- SetAgentTeam error tests ---
+
+func TestSetAgentTeam_NotFound(t *testing.T) {
+	m := newTestManager(t)
+
+	err := m.SetAgentTeam("nonexistent", "backend")
+	if err == nil {
+		t.Error("expected error when setting team for non-existent agent")
+	}
+}
+
+func TestSetAgentTeam_Success(t *testing.T) {
+	m := newTestManager(t)
+	m.agents["eng-01"] = &Agent{
+		Name:     "eng-01",
+		Role:     Role("engineer"),
+		State:    StateIdle,
+		Children: []string{},
+	}
+
+	err := m.SetAgentTeam("eng-01", "frontend")
+	if err != nil {
+		t.Fatalf("SetAgentTeam failed: %v", err)
+	}
+
+	if m.agents["eng-01"].Team != "frontend" {
+		t.Errorf("Team = %q, want frontend", m.agents["eng-01"].Team)
+	}
+}
+
+// --- enforceRootSingleton tests ---
+
+func TestEnforceRootSingleton_NoExistingRoot(t *testing.T) {
+	m := newTestManager(t)
+	m.agents["eng-01"] = &Agent{
+		Name: "eng-01",
+		Role: Role("engineer"),
+	}
+
+	// Should not error - no root exists
+	err := m.enforceRootSingleton("/workspace")
+	if err != nil {
+		t.Errorf("enforceRootSingleton should not error without root: %v", err)
+	}
+}
+
+func TestEnforceRootSingleton_OneRootAllowed(t *testing.T) {
+	m := newTestManager(t)
+	m.agents["root"] = &Agent{
+		Name: "root",
+		Role: RoleRoot,
+	}
+
+	// Should not error - only one root
+	err := m.enforceRootSingleton("/workspace")
+	if err != nil {
+		t.Errorf("enforceRootSingleton should not error with one root: %v", err)
+	}
+}
