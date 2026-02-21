@@ -175,9 +175,10 @@ export function getStatusBarHints(
     }
 
     // Add global hints at end
+    // #1462: Show 'back' for non-dashboard views, 'quit' only on dashboard
     hints.push(
       { key: '?', label: 'help', priority: 10 },
-      { key: 'q', label: 'quit', priority: 11 },
+      { key: 'q', label: view === 'dashboard' ? 'quit' : 'back', priority: 11 },
     );
   }
 
