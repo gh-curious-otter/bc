@@ -30,6 +30,7 @@ function getThemeColorKey(state: string): keyof ThemeColors | null {
     case 'healthy':
       return 'agentDone';
     case 'stuck':
+      return 'warning'; // Yellow per UX spec #1331
     case 'error':
     case 'unhealthy':
       return 'agentError';
@@ -49,7 +50,7 @@ const fallbackColors: Record<string, string> = {
   starting: 'yellow',
   working: 'blue',
   done: 'green',
-  stuck: 'red',
+  stuck: 'yellow', // Per UX spec #1331
   error: 'red',
   stopped: 'gray',
   // Health states
@@ -63,7 +64,7 @@ const stateSymbols: Record<string, string> = {
   starting: '◐',
   working: '●',
   done: '✓',
-  stuck: '!',
+  stuck: '⚠', // Per UX spec #1331
   error: '✗',
   stopped: '◌',
   healthy: '✓',
