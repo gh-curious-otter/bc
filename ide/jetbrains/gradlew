@@ -1,0 +1,30 @@
+#!/bin/sh
+
+#
+# Gradle wrapper script for bc-jetbrains plugin
+#
+
+# Resolve links and find GRADLE_HOME
+PRG="$0"
+while [ -h "$PRG" ] ; do
+    ls=`ls -ld "$PRG"`
+    link=`expr "$ls" : '.*-> \(.*\)$'`
+    if expr "$link" : '/.*' > /dev/null; then
+        PRG="$link"
+    else
+        PRG=`dirname "$PRG"`"/$link"
+    fi
+done
+SAVED="`pwd`"
+cd "`dirname \"$PRG\"`/" >/dev/null
+APP_HOME="`pwd -P`"
+cd "$SAVED" >/dev/null
+
+# Use system gradle or download
+if command -v gradle >/dev/null 2>&1; then
+    exec gradle "$@"
+else
+    echo "Gradle not found. Please install Gradle or use the Gradle Wrapper."
+    echo "Download from: https://gradle.org/install/"
+    exit 1
+fi
