@@ -228,15 +228,14 @@ interface ViewContentProps {
 }
 
 // Main content router
-// Note: _onSelectItem callback will be wired up per-view in future iterations
-function ViewContent({ view, disableInput, onSelectItem: _onSelectItem }: ViewContentProps): React.ReactElement {
+function ViewContent({ view, disableInput, onSelectItem }: ViewContentProps): React.ReactElement {
   switch (view) {
     case 'dashboard':
       return <Dashboard />;
     case 'agents':
-      return <AgentsView />;
+      return <AgentsView onSelectItem={onSelectItem} />;
     case 'channels':
-      return <ChannelsView disableInput={disableInput} />;
+      return <ChannelsView disableInput={disableInput} onSelectItem={onSelectItem} />;
     case 'costs':
       return <CostsView disableInput={disableInput} />;
     case 'commands':

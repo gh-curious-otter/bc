@@ -11,8 +11,18 @@ import { AgentDetailView } from './AgentDetailView';
 import { execBc } from '../services/bc';
 import type { Agent } from '../types';
 
+/** Detail item for DetailPane integration */
+interface DetailItem {
+  title: string;
+  type: string;
+  fields: { label: string; value: string; color?: string }[];
+  description?: string;
+}
+
 interface AgentsViewProps {
   onBack?: () => void;
+  /** Callback when selection changes (for DetailPane) */
+  onSelectItem?: (item: DetailItem | null) => void;
 }
 
 /** Action feedback display duration in ms */
@@ -140,6 +150,7 @@ interface ActionState {
 
 export const AgentsView: React.FC<AgentsViewProps> = ({
   onBack,
+  onSelectItem,
 }) => {
   const { data: agents, loading, error, refresh } = useAgents();
   const { isCompact, isMinimal } = useResponsiveLayout();
@@ -219,6 +230,25 @@ export const AgentsView: React.FC<AgentsViewProps> = ({
       setFocus('main');
     }
   }, [showDetail, setFocus]);
+
+  // #1418: Update detail pane when selection changes
+  useEffect(() => {
+    if (selectedAgent && !showDetail && onSelectItem) {
+      onSelectItem({
+        title: selectedAgent.name,
+        type: 'agent',
+        fields: [
+          { label: 'Status', value: selectedAgent.state, color: selectedAgent.state === 'working' ? 'green' : selectedAgent.state === 'stuck' ? 'red' : selectedAgent.state === 'idle' ? 'yellow' : undefined },
+          { label: 'Role', value: selectedAgent.role, color: 'cyan' },
+          { label: 'Task', value: normalizeTask(selectedAgent.task) },
+        ],
+        description: selectedAgent.worktree_dir ? `Worktree: ${selectedAgent.worktree_dir}` : undefined,
+      });
+    } else if (onSelectItem && (showDetail || !selectedAgent)) {
+      // Clear detail when viewing agent detail (info shown in detail view)
+      onSelectItem(null);
+    }
+  }, [selectedAgent, showDetail, onSelectItem]);
 
   // Clear action feedback after delay
   const showActionFeedback = useCallback((action: AgentAction, target: string, status: 'success' | 'error', message: string) => {

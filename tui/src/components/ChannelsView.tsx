@@ -28,18 +28,47 @@ function calculateInputHeight(messageLength: number, terminalWidth: number): num
   return Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, lines));
 }
 
+/** Detail item for DetailPane integration */
+interface DetailItem {
+  title: string;
+  type: string;
+  fields: { label: string; value: string; color?: string }[];
+  description?: string;
+}
+
 interface ChannelsViewProps {
   /** Disable input handling (useful for testing) */
   disableInput?: boolean;
+  /** Callback when selection changes (for DetailPane) */
+  onSelectItem?: (item: DetailItem | null) => void;
 }
 
-export function ChannelsView({ disableInput = false }: ChannelsViewProps): React.ReactElement {
+export function ChannelsView({ disableInput = false, onSelectItem }: ChannelsViewProps): React.ReactElement {
   // #1129: Use useChannelsWithUnread for proper unread message tracking
   const { channels, loading: channelsLoading, error: channelsError } = useChannelsWithUnread();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [viewMode, setViewMode] = useState<'list' | 'history'>('list');
   const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
   const { setFocus } = useFocus();
+
+  // #1418: Update detail pane when selection changes
+  useEffect(() => {
+    const channel = channels?.[selectedIndex];
+    if (channel && viewMode === 'list' && onSelectItem) {
+      onSelectItem({
+        title: `#${channel.name}`,
+        type: 'channel',
+        fields: [
+          { label: 'Members', value: String(channel.members.length), color: 'cyan' },
+          { label: 'Unread', value: channel.unread > 0 ? String(channel.unread) : 'None', color: channel.unread > 0 ? 'yellow' : undefined },
+        ],
+        description: channel.description ?? 'No description',
+      });
+    } else if (onSelectItem && viewMode === 'history') {
+      // Clear detail when viewing history (channel shown in header)
+      onSelectItem(null);
+    }
+  }, [channels, selectedIndex, viewMode, onSelectItem]);
 
   // Update breadcrumbs and focus when view mode changes
   useEffect(() => {
