@@ -27,6 +27,10 @@ export type { LoadingIndicatorProps } from './LoadingIndicator.js';
 export { ErrorDisplay } from './ErrorDisplay.js';
 export type { ErrorDisplayProps } from './ErrorDisplay.js';
 
+// HeaderBar for consistent view headers (#1419)
+export { HeaderBar } from './HeaderBar';
+export type { HeaderBarProps } from './HeaderBar';
+
 // eng-04's MessageInput component
 export { MessageInput } from './MessageInput';
 
