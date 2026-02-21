@@ -159,16 +159,20 @@ interface ChannelRowProps {
 function ChannelRow({ channel, selected, unreadCount }: ChannelRowProps): React.ReactElement {
   // #981 fix: Build name row as single truncated text to ensure visibility at 80 cols
   // #1129: Highlight channels with unread messages
+  // #1364 Issue 2: Clarify channel numbers (unread vs members)
   // Priority: name > unread indicator > member count > description
   const namePrefix = selected ? '▸ ' : '  ';
   const channelName = `#${channel.name}`;
-  const memberInfo = ` (${String(channel.members.length)})`;
 
-  // Format unread badge: "●" for 1 unread, count for multiple
+  // Format member count with 'm' suffix to distinguish from unread (#1364)
+  const memberInfo = ` ${String(channel.members.length)}m`;
+
+  // Format unread badge with 'new' label to clarify meaning (#1364)
+  // "●" for 1 unread, "N new" for multiple
   const unreadBadge = unreadCount > 0
     ? unreadCount === 1
       ? ' ●'
-      : ` (${unreadCount > 99 ? '99+' : String(unreadCount)})`
+      : ` ${unreadCount > 99 ? '99+' : String(unreadCount)} new`
     : '';
 
   // Build single text line to avoid nested Text truncation issues on narrow terminals
