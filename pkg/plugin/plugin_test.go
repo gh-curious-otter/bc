@@ -8,11 +8,13 @@ import (
 )
 
 func TestNewManager(t *testing.T) {
-	mgr := NewManager("/tmp/test-workspace")
+	// NewManager is called with the state directory (.bc), not workspace root
+	mgr := NewManager("/tmp/test-workspace/.bc")
 	if mgr == nil {
 		t.Fatal("NewManager returned nil")
 	}
 
+	// Should create plugins dir inside state dir
 	expectedDir := "/tmp/test-workspace/.bc/plugins"
 	if mgr.pluginsDir != expectedDir {
 		t.Errorf("pluginsDir = %q, want %q", mgr.pluginsDir, expectedDir)
@@ -28,7 +30,7 @@ func TestNewManager(t *testing.T) {
 }
 
 func TestManagerList(t *testing.T) {
-	mgr := NewManager("/tmp/test-workspace")
+	mgr := NewManager("/tmp/test-workspace/.bc")
 
 	// Empty list initially
 	plugins := mgr.List()
@@ -38,7 +40,7 @@ func TestManagerList(t *testing.T) {
 }
 
 func TestManagerGet(t *testing.T) {
-	mgr := NewManager("/tmp/test-workspace")
+	mgr := NewManager("/tmp/test-workspace/.bc")
 
 	// Plugin not found
 	_, ok := mgr.Get("nonexistent")
@@ -284,7 +286,7 @@ entrypoint = "main.go"
 }
 
 func TestManagerEnabled(t *testing.T) {
-	mgr := NewManager("/tmp/test-workspace")
+	mgr := NewManager("/tmp/test-workspace/.bc")
 
 	// Empty list initially
 	enabled := mgr.Enabled("")
@@ -329,7 +331,7 @@ func TestDefaultConstants(t *testing.T) {
 	if DefaultRegistry != "https://plugins.bc.dev" {
 		t.Errorf("DefaultRegistry = %q, want %q", DefaultRegistry, "https://plugins.bc.dev")
 	}
-	if DefaultDirectory != ".bc/plugins" {
-		t.Errorf("DefaultDirectory = %q, want %q", DefaultDirectory, ".bc/plugins")
+	if DefaultDirectory != "plugins" {
+		t.Errorf("DefaultDirectory = %q, want %q", DefaultDirectory, "plugins")
 	}
 }
