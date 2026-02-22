@@ -127,3 +127,7 @@ export type { DetailPaneProps, DetailItem, DetailField } from './DetailPane';
 // ViewWrapper for consistent view layout (#1419)
 export { ViewWrapper } from './ViewWrapper';
 export type { ViewWrapperProps } from './ViewWrapper';
+
+// Error boundary for view-level error catching (#1585)
+export { ErrorBoundary, ViewErrorBoundary } from './ErrorBoundary';
+export type { ErrorBoundaryProps } from './ErrorBoundary';
