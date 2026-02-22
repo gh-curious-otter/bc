@@ -6,6 +6,10 @@
  * - Short (100-119 cols): [1] Dash [2] Agt ... (~105 cols needed)
  * - Minimal (<100 cols): [1] [2] [3] ... (~55 cols needed, fits 80x24)
  *
+ * Note: Numbers in brackets are position indicators only, not keyboard shortcuts.
+ * Navigation uses Tab key to open drawer, then j/k + Enter to select views.
+ * See Issue #1467 for navigation change details.
+ *
  * Issue #1109: Fixed 80x24 display by using minimal mode at <100 cols
  */
 
