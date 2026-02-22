@@ -476,3 +476,370 @@ func TestManagerEnabledWithPlugins(t *testing.T) {
 		t.Errorf("len(Enabled(TypeRole)) = %d, want 0", len(enabledRoles))
 	}
 }
+
+// setupPluginWithHooks creates a plugin with hook scripts for testing.
+func setupPluginWithHooks(t *testing.T, hookScript, hookContent string) (*Manager, func()) {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	pluginDir := filepath.Join(tmpDir, "plugins", "hook-plugin")
+	if err := os.MkdirAll(pluginDir, 0750); err != nil {
+		t.Fatalf("failed to create plugin dir: %v", err)
+	}
+
+	// Create manifest with hooks
+	manifest := `name = "hook-plugin"
+version = "1.0.0"
+type = "tool"
+entrypoint = "main.go"
+
+[hooks.agent_start]
+script = "` + hookScript + `"
+description = "Hook for agent start"
+`
+	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.toml"), []byte(manifest), 0600); err != nil {
+		t.Fatalf("failed to write manifest: %v", err)
+	}
+
+	// Create hook script
+	scriptPath := filepath.Join(pluginDir, hookScript)
+	if err := os.WriteFile(scriptPath, []byte(hookContent), 0700); err != nil { //nolint:gosec // executable script needs 0700
+		t.Fatalf("failed to write hook script: %v", err)
+	}
+
+	mgr := NewManager(tmpDir)
+	if err := mgr.Load(context.Background()); err != nil {
+		t.Fatalf("failed to load manager: %v", err)
+	}
+
+	if _, err := mgr.Install(context.Background(), pluginDir); err != nil {
+		t.Fatalf("failed to install plugin: %v", err)
+	}
+
+	cleanup := func() {
+		// TempDir handles cleanup automatically
+	}
+
+	return mgr, cleanup
+}
+
+func TestExecuteHooks_Success(t *testing.T) {
+	hookScript := `#!/bin/sh
+echo "Hook executed successfully"
+exit 0
+`
+	mgr, cleanup := setupPluginWithHooks(t, "hook.sh", hookScript)
+	defer cleanup()
+
+	event := HookEvent{
+		Name:    "agent_start",
+		Payload: map[string]interface{}{"agent": "test-agent"},
+	}
+
+	results, err := mgr.ExecuteHooks(context.Background(), event)
+	if err != nil {
+		t.Errorf("ExecuteHooks() error = %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Errorf("len(results) = %d, want 1", len(results))
+	}
+
+	if len(results) > 0 {
+		if results[0].ExitCode != 0 {
+			t.Errorf("ExitCode = %d, want 0", results[0].ExitCode)
+		}
+		if !strings.Contains(results[0].Output, "Hook executed successfully") {
+			t.Errorf("Output = %q, want 'Hook executed successfully'", results[0].Output)
+		}
+	}
+}
+
+func TestExecuteHooks_NoMatchingEvent(t *testing.T) {
+	hookScript := `#!/bin/sh
+echo "Should not run"
+exit 0
+`
+	mgr, cleanup := setupPluginWithHooks(t, "hook.sh", hookScript)
+	defer cleanup()
+
+	// Use an event name that doesn't match any hooks
+	event := HookEvent{
+		Name:    "nonexistent_event",
+		Payload: map[string]interface{}{},
+	}
+
+	results, err := mgr.ExecuteHooks(context.Background(), event)
+	if err != nil {
+		t.Errorf("ExecuteHooks() error = %v", err)
+	}
+
+	if len(results) != 0 {
+		t.Errorf("len(results) = %d, want 0 (no matching hooks)", len(results))
+	}
+}
+
+func TestExecuteHooks_DisabledPlugin(t *testing.T) {
+	hookScript := `#!/bin/sh
+echo "Should not run"
+exit 0
+`
+	mgr, cleanup := setupPluginWithHooks(t, "hook.sh", hookScript)
+	defer cleanup()
+
+	// Disable the plugin
+	if err := mgr.Disable("hook-plugin"); err != nil {
+		t.Fatalf("failed to disable plugin: %v", err)
+	}
+
+	event := HookEvent{
+		Name:    "agent_start",
+		Payload: map[string]interface{}{},
+	}
+
+	results, err := mgr.ExecuteHooks(context.Background(), event)
+	if err != nil {
+		t.Errorf("ExecuteHooks() error = %v", err)
+	}
+
+	if len(results) != 0 {
+		t.Errorf("len(results) = %d, want 0 (disabled plugin)", len(results))
+	}
+}
+
+func TestExecuteHooks_ErrorExit(t *testing.T) {
+	hookScript := `#!/bin/sh
+echo "Hook failed"
+exit 1
+`
+	mgr, cleanup := setupPluginWithHooks(t, "hook.sh", hookScript)
+	defer cleanup()
+
+	event := HookEvent{
+		Name:    "agent_start",
+		Payload: map[string]interface{}{},
+	}
+
+	results, err := mgr.ExecuteHooks(context.Background(), event)
+	if err != nil {
+		t.Errorf("ExecuteHooks() error = %v (exit 1 should not abort)", err)
+	}
+
+	if len(results) != 1 {
+		t.Errorf("len(results) = %d, want 1", len(results))
+	}
+
+	if len(results) > 0 && results[0].ExitCode != 1 {
+		t.Errorf("ExitCode = %d, want 1", results[0].ExitCode)
+	}
+}
+
+func TestExecuteHooks_AbortExit(t *testing.T) {
+	hookScript := `#!/bin/sh
+echo "Aborting operation"
+exit 2
+`
+	mgr, cleanup := setupPluginWithHooks(t, "hook.sh", hookScript)
+	defer cleanup()
+
+	event := HookEvent{
+		Name:    "agent_start",
+		Payload: map[string]interface{}{},
+	}
+
+	results, err := mgr.ExecuteHooks(context.Background(), event)
+	if err == nil {
+		t.Error("ExecuteHooks() should return error for exit code 2")
+	}
+
+	if len(results) != 1 {
+		t.Errorf("len(results) = %d, want 1", len(results))
+	}
+
+	if len(results) > 0 && results[0].ExitCode != 2 {
+		t.Errorf("ExitCode = %d, want 2", results[0].ExitCode)
+	}
+}
+
+func TestExecuteHooks_ScriptNotFound(t *testing.T) {
+	// Create a plugin with a hook that references a non-existent script
+	tmpDir := t.TempDir()
+	pluginDir := filepath.Join(tmpDir, "plugins", "broken-plugin")
+	if err := os.MkdirAll(pluginDir, 0750); err != nil {
+		t.Fatalf("failed to create plugin dir: %v", err)
+	}
+
+	manifest := `name = "broken-plugin"
+version = "1.0.0"
+type = "tool"
+entrypoint = "main.go"
+
+[hooks.agent_start]
+script = "nonexistent.sh"
+description = "Hook with missing script"
+`
+	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.toml"), []byte(manifest), 0600); err != nil {
+		t.Fatalf("failed to write manifest: %v", err)
+	}
+
+	mgr := NewManager(tmpDir)
+	if err := mgr.Load(context.Background()); err != nil {
+		t.Fatalf("failed to load manager: %v", err)
+	}
+
+	if _, err := mgr.Install(context.Background(), pluginDir); err != nil {
+		t.Fatalf("failed to install plugin: %v", err)
+	}
+
+	event := HookEvent{
+		Name:    "agent_start",
+		Payload: map[string]interface{}{},
+	}
+
+	results, err := mgr.ExecuteHooks(context.Background(), event)
+	// Should not return error, but result should have error info
+	if err != nil {
+		t.Errorf("ExecuteHooks() error = %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Errorf("len(results) = %d, want 1", len(results))
+	}
+
+	if len(results) > 0 {
+		if results[0].ExitCode != 1 {
+			t.Errorf("ExitCode = %d, want 1", results[0].ExitCode)
+		}
+		if !strings.Contains(results[0].Error, "hook script not found") {
+			t.Errorf("Error = %q, want 'hook script not found'", results[0].Error)
+		}
+	}
+}
+
+func TestExecuteHooks_WithPayload(t *testing.T) {
+	// Script that echoes env vars from payload
+	hookScript := `#!/bin/sh
+echo "AGENT=$BC_AGENT"
+echo "ACTION=$BC_ACTION"
+exit 0
+`
+	mgr, cleanup := setupPluginWithHooks(t, "hook.sh", hookScript)
+	defer cleanup()
+
+	event := HookEvent{
+		Name: "agent_start",
+		Payload: map[string]interface{}{
+			"agent":  "eng-01",
+			"action": "start",
+		},
+	}
+
+	results, err := mgr.ExecuteHooks(context.Background(), event)
+	if err != nil {
+		t.Errorf("ExecuteHooks() error = %v", err)
+	}
+
+	if len(results) > 0 {
+		if !strings.Contains(results[0].Output, "AGENT=eng-01") {
+			t.Errorf("Output should contain 'AGENT=eng-01', got %q", results[0].Output)
+		}
+		if !strings.Contains(results[0].Output, "ACTION=start") {
+			t.Errorf("Output should contain 'ACTION=start', got %q", results[0].Output)
+		}
+	}
+}
+
+func TestRunScript_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "test.sh")
+
+	script := `#!/bin/sh
+echo "Hello World"
+exit 0
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0700); err != nil { //nolint:gosec // executable script needs 0700
+		t.Fatalf("failed to write script: %v", err)
+	}
+
+	output, exitCode, err := runScript(context.Background(), scriptPath, tmpDir, os.Environ(), "")
+	if err != nil {
+		t.Errorf("runScript() error = %v", err)
+	}
+	if exitCode != 0 {
+		t.Errorf("exitCode = %d, want 0", exitCode)
+	}
+	if !strings.Contains(output, "Hello World") {
+		t.Errorf("output = %q, want 'Hello World'", output)
+	}
+}
+
+func TestRunScript_NonZeroExit(t *testing.T) {
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "test.sh")
+
+	script := `#!/bin/sh
+echo "Error occurred"
+exit 42
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0700); err != nil { //nolint:gosec // executable script needs 0700
+		t.Fatalf("failed to write script: %v", err)
+	}
+
+	output, exitCode, err := runScript(context.Background(), scriptPath, tmpDir, os.Environ(), "")
+	if err != nil {
+		t.Errorf("runScript() error = %v (non-zero exit should not error)", err)
+	}
+	if exitCode != 42 {
+		t.Errorf("exitCode = %d, want 42", exitCode)
+	}
+	if !strings.Contains(output, "Error occurred") {
+		t.Errorf("output = %q, want 'Error occurred'", output)
+	}
+}
+
+func TestRunScript_WithStdin(t *testing.T) {
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "test.sh")
+
+	script := `#!/bin/sh
+cat
+exit 0
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0700); err != nil { //nolint:gosec // executable script needs 0700
+		t.Fatalf("failed to write script: %v", err)
+	}
+
+	output, exitCode, err := runScript(context.Background(), scriptPath, tmpDir, os.Environ(), "input data")
+	if err != nil {
+		t.Errorf("runScript() error = %v", err)
+	}
+	if exitCode != 0 {
+		t.Errorf("exitCode = %d, want 0", exitCode)
+	}
+	if !strings.Contains(output, "input data") {
+		t.Errorf("output = %q, want 'input data'", output)
+	}
+}
+
+func TestRunScript_ContextCanceled(t *testing.T) {
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "test.sh")
+
+	script := `#!/bin/sh
+sleep 10
+echo "Should not reach here"
+exit 0
+`
+	if err := os.WriteFile(scriptPath, []byte(script), 0700); err != nil { //nolint:gosec // executable script needs 0700
+		t.Fatalf("failed to write script: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	_, exitCode, err := runScript(ctx, scriptPath, tmpDir, os.Environ(), "")
+	// Script should be killed, error expected
+	if err == nil && exitCode == 0 {
+		t.Error("runScript() should fail or return non-zero exit code when context is canceled")
+	}
+}
