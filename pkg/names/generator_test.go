@@ -151,3 +151,83 @@ func TestWordListSizes(t *testing.T) {
 		animalSet[animal] = true
 	}
 }
+
+// Benchmarks
+
+func BenchmarkNew(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = New()
+	}
+}
+
+func BenchmarkGenerate(b *testing.B) {
+	g := New()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = g.Generate()
+	}
+}
+
+func BenchmarkGenerateParallel(b *testing.B) {
+	b.RunParallel(func(pb *testing.PB) {
+		g := New() // Each goroutine gets its own generator
+		for pb.Next() {
+			_ = g.Generate()
+		}
+	})
+}
+
+func BenchmarkGenerateUnique_SmallSet(b *testing.B) {
+	g := New()
+	existing := map[string]bool{
+		"swift-falcon": true,
+		"clever-otter": true,
+		"bold-eagle":   true,
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = g.GenerateUnique(existing, 100)
+	}
+}
+
+func BenchmarkGenerateUnique_LargeSet(b *testing.B) {
+	g := New()
+	// Create a large existing set (90% of possible combinations)
+	existing := make(map[string]bool)
+	count := 0
+	target := len(adjectives) * len(animals) * 9 / 10
+	for _, adj := range adjectives {
+		for _, animal := range animals {
+			if count >= target {
+				break
+			}
+			existing[adj+"-"+animal] = true
+			count++
+		}
+		if count >= target {
+			break
+		}
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = g.GenerateUnique(existing, 100)
+	}
+}
+
+func BenchmarkGenerateUniqueFromList(b *testing.B) {
+	g := New()
+	existingList := []string{
+		"swift-falcon", "clever-otter", "bold-eagle",
+		"keen-tiger", "calm-panda", "eager-dolphin",
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = g.GenerateUniqueFromList(existingList, 100)
+	}
+}
+
+func BenchmarkDefaultGenerate(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = Generate()
+	}
+}
