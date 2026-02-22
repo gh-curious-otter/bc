@@ -244,8 +244,9 @@ export const WorktreesView: React.FC = () => {
       <Box flexDirection="column" borderStyle="single" borderColor="gray">
         {/* Header */}
         <Box>
+          <Text>{'  '}</Text>
           <Text bold color="gray">
-            {'AGENT'.padEnd(agentWidth)}
+            {'AGENT'.padEnd(agentWidth - 2)}
             {'STATUS'.padEnd(statusWidth)}
             {'PATH'}
           </Text>
@@ -258,11 +259,14 @@ export const WorktreesView: React.FC = () => {
 
           return (
             <Box key={wt.path}>
+              <Text color={isSelected ? 'cyan' : undefined}>
+                {isSelected ? '▸ ' : '  '}
+              </Text>
               <Text
                 backgroundColor={isSelected ? 'blue' : undefined}
                 color={isSelected ? 'white' : 'cyan'}
               >
-                {wt.agent.slice(0, agentWidth - 1).padEnd(agentWidth)}
+                {wt.agent.slice(0, agentWidth - 3).padEnd(agentWidth - 2)}
               </Text>
               <Text
                 backgroundColor={isSelected ? 'blue' : undefined}
@@ -295,11 +299,14 @@ export const WorktreesView: React.FC = () => {
 
           return (
             <Box key={wt.path}>
+              <Text color={isSelected ? 'cyan' : undefined}>
+                {isSelected ? '▸ ' : '  '}
+              </Text>
               <Text
                 backgroundColor={isSelected ? 'blue' : undefined}
                 color={isSelected ? 'white' : 'yellow'}
               >
-                {(wt.agent || '(orphan)').slice(0, agentWidth - 1).padEnd(agentWidth)}
+                {(wt.agent || '(orphan)').slice(0, agentWidth - 3).padEnd(agentWidth - 2)}
               </Text>
               <Text
                 backgroundColor={isSelected ? 'blue' : undefined}

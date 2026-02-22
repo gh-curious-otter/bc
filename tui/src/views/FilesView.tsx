@@ -373,7 +373,7 @@ function WorktreeSelector({
       {worktrees.map((wt, index) => (
         <Box key={wt.agent}>
           <Text color={index === selectedIndex ? theme.colors.accent : undefined}>
-            {index === selectedIndex ? '>' : ' '} {wt.agent}
+            {index === selectedIndex ? '▸' : ' '} {wt.agent}
           </Text>
           {wt.branch && <Text dimColor> ({wt.branch})</Text>}
         </Box>
