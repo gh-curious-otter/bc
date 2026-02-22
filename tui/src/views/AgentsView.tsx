@@ -11,7 +11,7 @@
  * - useAgentGroups
  */
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useReducer } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useAgents, useDebounce } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
@@ -45,20 +45,112 @@ interface ActionState {
   message: string;
 }
 
+// #1601: Consolidated UI state with useReducer
+interface UIState {
+  selectedIndex: number;
+  showDetail: boolean;
+  confirmAction: AgentAction | null;
+  searchQuery: string;
+  searchMode: boolean;
+  peekOutput: string[] | null;
+  peekLoading: boolean;
+  groupedView: boolean;
+  collapsedRoles: Set<string>;
+}
+
+type UIAction =
+  | { type: 'SET_SELECTED_INDEX'; index: number }
+  | { type: 'NAVIGATE_UP'; maxIndex: number }
+  | { type: 'NAVIGATE_DOWN'; maxIndex: number }
+  | { type: 'NAVIGATE_TO_END'; maxIndex: number }
+  | { type: 'SHOW_DETAIL' }
+  | { type: 'HIDE_DETAIL' }
+  | { type: 'SET_CONFIRM_ACTION'; action: AgentAction | null }
+  | { type: 'ENTER_SEARCH_MODE' }
+  | { type: 'EXIT_SEARCH_MODE' }
+  | { type: 'SET_SEARCH_QUERY'; query: string }
+  | { type: 'APPEND_SEARCH_CHAR'; char: string }
+  | { type: 'BACKSPACE_SEARCH' }
+  | { type: 'CLEAR_SEARCH' }
+  | { type: 'SET_PEEK_OUTPUT'; output: string[] | null }
+  | { type: 'SET_PEEK_LOADING'; loading: boolean }
+  | { type: 'TOGGLE_GROUPED_VIEW' }
+  | { type: 'TOGGLE_ROLE_COLLAPSE'; role: string };
+
+const initialUIState: UIState = {
+  selectedIndex: 0,
+  showDetail: false,
+  confirmAction: null,
+  searchQuery: '',
+  searchMode: false,
+  peekOutput: null,
+  peekLoading: false,
+  groupedView: true,
+  collapsedRoles: new Set(),
+};
+
+function uiReducer(state: UIState, action: UIAction): UIState {
+  switch (action.type) {
+    case 'SET_SELECTED_INDEX':
+      return { ...state, selectedIndex: action.index };
+    case 'NAVIGATE_UP':
+      return { ...state, selectedIndex: Math.max(0, state.selectedIndex - 1) };
+    case 'NAVIGATE_DOWN':
+      return { ...state, selectedIndex: Math.min(action.maxIndex, state.selectedIndex + 1) };
+    case 'NAVIGATE_TO_END':
+      return { ...state, selectedIndex: Math.max(0, action.maxIndex) };
+    case 'SHOW_DETAIL':
+      return { ...state, showDetail: true };
+    case 'HIDE_DETAIL':
+      return { ...state, showDetail: false };
+    case 'SET_CONFIRM_ACTION':
+      return { ...state, confirmAction: action.action };
+    case 'ENTER_SEARCH_MODE':
+      return { ...state, searchMode: true };
+    case 'EXIT_SEARCH_MODE':
+      return { ...state, searchMode: false };
+    case 'SET_SEARCH_QUERY':
+      return { ...state, searchQuery: action.query };
+    case 'APPEND_SEARCH_CHAR':
+      return { ...state, searchQuery: state.searchQuery + action.char };
+    case 'BACKSPACE_SEARCH':
+      return { ...state, searchQuery: state.searchQuery.slice(0, -1) };
+    case 'CLEAR_SEARCH':
+      return { ...state, searchQuery: '', selectedIndex: 0 };
+    case 'SET_PEEK_OUTPUT':
+      return { ...state, peekOutput: action.output };
+    case 'SET_PEEK_LOADING':
+      return { ...state, peekLoading: action.loading };
+    case 'TOGGLE_GROUPED_VIEW':
+      return { ...state, groupedView: !state.groupedView, selectedIndex: 0 };
+    case 'TOGGLE_ROLE_COLLAPSE': {
+      const next = new Set(state.collapsedRoles);
+      if (next.has(action.role)) {
+        next.delete(action.role);
+      } else {
+        next.add(action.role);
+      }
+      return { ...state, collapsedRoles: next };
+    }
+    default:
+      return state;
+  }
+}
+
 export const AgentsView: React.FC<AgentsViewProps> = () => {
   const { data: agents, loading, error, refresh } = useAgents();
   const { isCompact, isMinimal } = useResponsiveLayout();
   const isNarrow = isCompact || isMinimal;
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [showDetail, setShowDetail] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<AgentAction | null>(null);
+
+  // #1601: UI state consolidated with useReducer
+  const [ui, dispatch] = useReducer(uiReducer, initialUIState);
+  const {
+    selectedIndex, showDetail, confirmAction, searchQuery, searchMode,
+    peekOutput, peekLoading, groupedView, collapsedRoles,
+  } = ui;
+
+  // Action feedback state - kept separate as it's timer-managed
   const [actionState, setActionState] = useState<ActionState | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchMode, setSearchMode] = useState(false);
-  const [peekOutput, setPeekOutput] = useState<string[] | null>(null);
-  const [peekLoading, setPeekLoading] = useState(false);
-  const [groupedView, setGroupedView] = useState(true);
-  const [collapsedRoles, setCollapsedRoles] = useState<Set<string>>(new Set());
 
   // Debounce search query for filtering (issue #1602)
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
@@ -132,15 +224,15 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
 
   // Peek agent output
   const peekAgent = useCallback(async (agentName: string) => {
-    setPeekLoading(true);
+    dispatch({ type: 'SET_PEEK_LOADING', loading: true });
     try {
       const output = await execBc(['agent', 'peek', agentName, '--lines', '8']);
       const lines = output.split('\n').filter((line: string) => line.trim());
-      setPeekOutput(lines.slice(-6));
+      dispatch({ type: 'SET_PEEK_OUTPUT', output: lines.slice(-6) });
     } catch {
-      setPeekOutput(['(No output available)']);
+      dispatch({ type: 'SET_PEEK_OUTPUT', output: ['(No output available)'] });
     } finally {
-      setPeekLoading(false);
+      dispatch({ type: 'SET_PEEK_LOADING', loading: false });
     }
   }, []);
 
@@ -149,11 +241,11 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
     // Search mode input handling
     if (searchMode) {
       if (key.return || key.escape) {
-        setSearchMode(false);
+        dispatch({ type: 'EXIT_SEARCH_MODE' });
       } else if (key.backspace || key.delete) {
-        setSearchQuery(searchQuery.slice(0, -1));
+        dispatch({ type: 'BACKSPACE_SEARCH' });
       } else if (input && !key.ctrl && !key.meta) {
-        setSearchQuery(searchQuery + input);
+        dispatch({ type: 'APPEND_SEARCH_CHAR', char: input });
       }
       return;
     }
@@ -164,9 +256,9 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
     if (confirmAction && selectedAgent) {
       if (input === 'y' || input === 'Y') {
         void executeAction(confirmAction, selectedAgent.name, selectedAgent.role);
-        setConfirmAction(null);
+        dispatch({ type: 'SET_CONFIRM_ACTION', action: null });
       } else if (input === 'n' || input === 'N' || key.escape) {
-        setConfirmAction(null);
+        dispatch({ type: 'SET_CONFIRM_ACTION', action: null });
       }
       return;
     }
@@ -174,50 +266,40 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
     // List view navigation
     const maxIndex = visibleItems.length - 1;
     if (key.upArrow || input === 'k') {
-      setSelectedIndex((i) => Math.max(0, i - 1));
+      dispatch({ type: 'NAVIGATE_UP', maxIndex });
     } else if (key.downArrow || input === 'j') {
-      setSelectedIndex((i) => Math.min(maxIndex, i + 1));
+      dispatch({ type: 'NAVIGATE_DOWN', maxIndex });
     } else if (input === 'G') {
-      setSelectedIndex(Math.max(0, maxIndex));
+      dispatch({ type: 'NAVIGATE_TO_END', maxIndex });
     } else if (input === 'v') {
-      setGroupedView((v) => !v);
-      setSelectedIndex(0);
+      dispatch({ type: 'TOGGLE_GROUPED_VIEW' });
     } else if (key.return || input === 'a') {
       if (selectedIndex >= 0 && selectedIndex < visibleItems.length) {
         const item = visibleItems[selectedIndex];
         if (item.type === 'header') {
-          setCollapsedRoles((prev) => {
-            const next = new Set(prev);
-            if (next.has(item.role)) {
-              next.delete(item.role);
-            } else {
-              next.add(item.role);
-            }
-            return next;
-          });
+          dispatch({ type: 'TOGGLE_ROLE_COLLAPSE', role: item.role });
           return;
         }
       }
       if (selectedAgent) {
-        setShowDetail(true);
+        dispatch({ type: 'SHOW_DETAIL' });
       }
     } else if (input === 'x' && selectedAgent && selectedAgent.state !== 'stopped') {
-      setConfirmAction('stop');
+      dispatch({ type: 'SET_CONFIRM_ACTION', action: 'stop' });
     } else if (input === 'X' && selectedAgent) {
-      setConfirmAction('kill');
+      dispatch({ type: 'SET_CONFIRM_ACTION', action: 'kill' });
     } else if (input === 'R' && selectedAgent) {
-      setConfirmAction('restart');
+      dispatch({ type: 'SET_CONFIRM_ACTION', action: 'restart' });
     } else if (input === 'p' && selectedAgent) {
       if (peekOutput) {
-        setPeekOutput(null);
+        dispatch({ type: 'SET_PEEK_OUTPUT', output: null });
       } else {
         void peekAgent(selectedAgent.name);
       }
     } else if (input === '/') {
-      setSearchMode(true);
+      dispatch({ type: 'ENTER_SEARCH_MODE' });
     } else if (input === 'c' && searchQuery) {
-      setSearchQuery('');
-      setSelectedIndex(0);
+      dispatch({ type: 'CLEAR_SEARCH' });
     } else if (input === 'r') {
       void refresh();
     }
@@ -229,7 +311,7 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
     return (
       <AgentDetailView
         agent={selectedAgent}
-        onBack={() => { setShowDetail(false); }}
+        onBack={() => { dispatch({ type: 'HIDE_DETAIL' }); }}
       />
     );
   }

@@ -11,7 +11,7 @@
  * - Keyboard navigation: j/k/Enter/Esc
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useReducer } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { getWorktrees } from '../services/bc';
 import type { Worktree } from '../types';
@@ -22,15 +22,82 @@ import * as fs from 'fs';
 // Focus areas within the view
 type FocusArea = 'worktree' | 'tree' | 'preview';
 
+// #1601: Consolidated UI state with useReducer
+interface UIState {
+  worktreeIndex: number;
+  worktreeSelectorOpen: boolean;
+  selectedPath: string | null;
+  treeIndex: number;
+  focusArea: FocusArea;
+}
+
+type UIAction =
+  | { type: 'SET_WORKTREE_INDEX'; index: number }
+  | { type: 'TOGGLE_WORKTREE_SELECTOR' }
+  | { type: 'CLOSE_WORKTREE_SELECTOR' }
+  | { type: 'SELECT_WORKTREE'; index: number }
+  | { type: 'SET_TREE_INDEX'; index: number }
+  | { type: 'SELECT_FILE'; path: string }
+  | { type: 'RESET_NAVIGATION' }
+  | { type: 'CYCLE_FOCUS_FORWARD' }
+  | { type: 'CYCLE_FOCUS_BACKWARD' };
+
+const initialUIState: UIState = {
+  worktreeIndex: 0,
+  worktreeSelectorOpen: false,
+  selectedPath: null,
+  treeIndex: 0,
+  focusArea: 'tree',
+};
+
+function uiReducer(state: UIState, action: UIAction): UIState {
+  switch (action.type) {
+    case 'SET_WORKTREE_INDEX':
+      return { ...state, worktreeIndex: action.index };
+    case 'TOGGLE_WORKTREE_SELECTOR':
+      return { ...state, worktreeSelectorOpen: !state.worktreeSelectorOpen };
+    case 'CLOSE_WORKTREE_SELECTOR':
+      return { ...state, worktreeSelectorOpen: false };
+    case 'SELECT_WORKTREE':
+      return { ...state, worktreeIndex: action.index, worktreeSelectorOpen: false };
+    case 'SET_TREE_INDEX':
+      return { ...state, treeIndex: action.index };
+    case 'SELECT_FILE':
+      return { ...state, selectedPath: action.path, focusArea: 'preview' };
+    case 'RESET_NAVIGATION':
+      return { ...state, treeIndex: 0, selectedPath: null };
+    case 'CYCLE_FOCUS_FORWARD':
+      return {
+        ...state,
+        focusArea: state.focusArea === 'worktree' ? 'tree'
+          : state.focusArea === 'tree' ? 'preview'
+          : 'worktree',
+      };
+    case 'CYCLE_FOCUS_BACKWARD':
+      return {
+        ...state,
+        focusArea: state.focusArea === 'worktree' ? 'preview'
+          : state.focusArea === 'tree' ? 'worktree'
+          : 'tree',
+      };
+    default:
+      return state;
+  }
+}
+
 export function FilesView(): React.ReactNode {
   const { theme } = useTheme();
   const { width: terminalWidth, height: terminalHeight, responsive } = useResponsiveLayout();
 
-  // Worktree state
+  // #1601: UI state consolidated with useReducer
+  const [ui, dispatch] = useReducer(uiReducer, initialUIState);
+  const { worktreeIndex, worktreeSelectorOpen, selectedPath, treeIndex, focusArea } = ui;
+
+  // Data state - kept separate as managed by async operations
   const [worktrees, setWorktrees] = useState<Worktree[]>([]);
   const [selectedWorktree, setSelectedWorktree] = useState<Worktree | null>(null);
-  const [worktreeIndex, setWorktreeIndex] = useState(0);
-  const [worktreeSelectorOpen, setWorktreeSelectorOpen] = useState(false);
+  const [worktreesLoading, setWorktreesLoading] = useState(true);
+  const [worktreesError, setWorktreesError] = useState<string | null>(null);
 
   // File tree state - use the hook
   const {
@@ -51,15 +118,6 @@ export function FilesView(): React.ReactNode {
   } = useGitStatus({
     workingDir: selectedWorktree?.path ?? '',
   });
-
-  // Navigation state
-  const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [treeIndex, setTreeIndex] = useState(0);
-
-  // View state
-  const [worktreesLoading, setWorktreesLoading] = useState(true);
-  const [worktreesError, setWorktreesError] = useState<string | null>(null);
-  const [focusArea, setFocusArea] = useState<FocusArea>('tree');
 
   // Load worktrees on mount
   useEffect(() => {
@@ -86,8 +144,7 @@ export function FilesView(): React.ReactNode {
 
   // Reset tree index when worktree changes
   useEffect(() => {
-    setTreeIndex(0);
-    setSelectedPath(null);
+    dispatch({ type: 'RESET_NAVIGATION' });
   }, [selectedWorktree]);
 
   // Flatten visible tree entries for navigation
@@ -109,45 +166,37 @@ export function FilesView(): React.ReactNode {
     // Escape: close selector
     if (key.escape) {
       if (worktreeSelectorOpen) {
-        setWorktreeSelectorOpen(false);
+        dispatch({ type: 'CLOSE_WORKTREE_SELECTOR' });
       }
       return;
     }
 
     // f/F: cycle focus areas (Tab reserved for global view navigation #1520)
     if (input === 'f') {
-      setFocusArea(prev => {
-        if (prev === 'worktree') return 'tree';
-        if (prev === 'tree') return 'preview';
-        return 'worktree';
-      });
+      dispatch({ type: 'CYCLE_FOCUS_FORWARD' });
       return;
     }
     if (input === 'F') {
-      setFocusArea(prev => {
-        if (prev === 'worktree') return 'preview';
-        if (prev === 'tree') return 'worktree';
-        return 'tree';
-      });
+      dispatch({ type: 'CYCLE_FOCUS_BACKWARD' });
       return;
     }
 
     // w: toggle worktree selector
     if (input === 'w') {
-      setWorktreeSelectorOpen(prev => !prev);
+      dispatch({ type: 'TOGGLE_WORKTREE_SELECTOR' });
       return;
     }
 
     // Handle worktree selector navigation
     if (worktreeSelectorOpen) {
       if (input === 'j' || key.downArrow) {
-        setWorktreeIndex(prev => Math.min(prev + 1, worktrees.length - 1));
+        dispatch({ type: 'SET_WORKTREE_INDEX', index: Math.min(worktreeIndex + 1, worktrees.length - 1) });
       } else if (input === 'k' || key.upArrow) {
-        setWorktreeIndex(prev => Math.max(prev - 1, 0));
+        dispatch({ type: 'SET_WORKTREE_INDEX', index: Math.max(worktreeIndex - 1, 0) });
       } else if (key.return) {
         if (worktrees[worktreeIndex]) {
           setSelectedWorktree(worktrees[worktreeIndex]);
-          setWorktreeSelectorOpen(false);
+          dispatch({ type: 'CLOSE_WORKTREE_SELECTOR' });
         }
       }
       return;
@@ -156,13 +205,13 @@ export function FilesView(): React.ReactNode {
     // Handle tree navigation when focused on tree
     if (focusArea === 'tree' && flatTree.length > 0) {
       if (input === 'j' || key.downArrow) {
-        setTreeIndex(prev => Math.min(prev + 1, flatTree.length - 1));
+        dispatch({ type: 'SET_TREE_INDEX', index: Math.min(treeIndex + 1, flatTree.length - 1) });
       } else if (input === 'k' || key.upArrow) {
-        setTreeIndex(prev => Math.max(prev - 1, 0));
+        dispatch({ type: 'SET_TREE_INDEX', index: Math.max(treeIndex - 1, 0) });
       } else if (input === 'g') {
-        setTreeIndex(0);
+        dispatch({ type: 'SET_TREE_INDEX', index: 0 });
       } else if (input === 'G') {
-        setTreeIndex(flatTree.length - 1);
+        dispatch({ type: 'SET_TREE_INDEX', index: flatTree.length - 1 });
       } else if (key.return && flatTree[treeIndex]) {
         const item = flatTree[treeIndex];
         if (item.entry.isDirectory) {
@@ -174,8 +223,7 @@ export function FilesView(): React.ReactNode {
           }
         } else {
           // Select file for preview
-          setSelectedPath(item.entry.path);
-          setFocusArea('preview');
+          dispatch({ type: 'SELECT_FILE', path: item.entry.path });
         }
       }
     }
@@ -251,7 +299,7 @@ export function FilesView(): React.ReactNode {
           selected={selectedWorktree}
           selectedIndex={worktreeIndex}
           isOpen={worktreeSelectorOpen}
-          onToggle={() => { setWorktreeSelectorOpen(prev => !prev); }}
+          onToggle={() => { dispatch({ type: 'TOGGLE_WORKTREE_SELECTOR' }); }}
         />
         {/* Git status summary */}
         {!gitLoading && gitSummary.total > 0 && (
