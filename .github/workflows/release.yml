@@ -1,0 +1,95 @@
+# Release workflow using GoReleaser
+# Issue #1472: Release Infrastructure
+#
+# Triggered on version tags (v*)
+# Creates GitHub release with binaries and Homebrew formula
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  GO_VERSION: '1.22'
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+  # Build for macOS natively (required for CGO/SQLite)
+  release-macos:
+    name: Release macOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build macOS binaries
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          COMMIT=$(git rev-parse --short HEAD)
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Build for macOS amd64
+          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build \
+            -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}" \
+            -o dist/bc-darwin-amd64 ./cmd/bc
+
+          # Build for macOS arm64
+          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build \
+            -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}" \
+            -o dist/bc-darwin-arm64 ./cmd/bc
+
+      - name: Create archives
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          cd dist
+          tar -czvf bc_${VERSION}_darwin_amd64.tar.gz bc-darwin-amd64
+          tar -czvf bc_${VERSION}_darwin_arm64.tar.gz bc-darwin-arm64
+          shasum -a 256 *.tar.gz > checksums-macos.txt
+
+      - name: Upload macOS binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/bc_*.tar.gz
+            dist/checksums-macos.txt
+          fail_on_unmatched_files: false
