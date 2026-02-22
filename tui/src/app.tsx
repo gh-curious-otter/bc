@@ -2,7 +2,7 @@
  * App - Main TUI application component
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, memo } from 'react';
 import { Box, Text, useStdout, useInput } from 'ink';
 import {
   NavigationProvider,
@@ -112,7 +112,8 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
   }, [themeConfig.theme, setThemeName]);
 
   // Handle command palette selection - navigate to view if applicable
-  const handleCommandSelect = (command: BcCommand): void => {
+  // #1596: Memoized to prevent unnecessary re-renders
+  const handleCommandSelect = useCallback((command: BcCommand): void => {
     // Map command names to views
     const viewMap: Record<string, View> = {
       'agent status': 'agents',
@@ -138,12 +139,21 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
       navigate(targetView);
     }
     setShowCommandPalette(false);
-  };
+  }, [navigate]);
+
+  // #1596: Memoized callbacks for command palette state
+  const openCommandPalette = useCallback(() => {
+    setShowCommandPalette(true);
+  }, []);
+
+  const closeCommandPalette = useCallback(() => {
+    setShowCommandPalette(false);
+  }, []);
 
   // Handle global keyboard navigation
   useKeyboardNavigation({
     disabled: disableInput || showCommandPalette,
-    onCommandPalette: () => { setShowCommandPalette(true); },
+    onCommandPalette: openCommandPalette,
   });
 
   // Get terminal dimensions
@@ -192,7 +202,7 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
         <Box position="absolute" marginTop={2} marginLeft={commandPaletteMarginLeft}>
           <CommandPalette
             isOpen={showCommandPalette}
-            onClose={() => { setShowCommandPalette(false); }}
+            onClose={closeCommandPalette}
             onSelect={handleCommandSelect}
           />
         </Box>
@@ -206,8 +216,8 @@ interface ViewContentProps {
   disableInput: boolean;
 }
 
-// Main content router
-function ViewContent({ view, disableInput }: ViewContentProps): React.ReactElement {
+// Main content router - #1596: Memoized to prevent unnecessary re-renders
+const ViewContent = memo(function ViewContent({ view, disableInput }: ViewContentProps): React.ReactElement {
   switch (view) {
     case 'dashboard':
       return <Dashboard />;
@@ -242,7 +252,7 @@ function ViewContent({ view, disableInput }: ViewContentProps): React.ReactEleme
     default:
       return <Text>Unknown view</Text>;
   }
-}
+});
 
 function HelpView(): React.ReactElement {
   const { theme, isDark } = useTheme();
@@ -413,36 +423,36 @@ function HelpView(): React.ReactElement {
   );
 }
 
-/** Helper component for shortcut rows */
-function ShortcutRow({ keys, desc }: { keys: string; desc: string }): React.ReactElement {
+/** Helper component for shortcut rows - #1596: Memoized */
+const ShortcutRow = memo(function ShortcutRow({ keys, desc }: { keys: string; desc: string }): React.ReactElement {
   return (
     <Text>
       <Text color="yellow">{keys.padEnd(12)}</Text>
       <Text>{desc}</Text>
     </Text>
   );
-}
+});
 
 /**
  * Footer with dynamic hints and theme indicator - anchored to bottom
  *
  * Issue #1461: Combines view-specific hints (from ViewWrapper via context)
  * with universal hints (Tab, ?, q). This eliminates duplicate hint bars.
+ * #1596: Memoized to prevent unnecessary re-renders
  */
-function Footer(): React.ReactElement {
+const Footer = memo(function Footer(): React.ReactElement {
   const { theme } = useTheme();
   const { currentView } = useNavigation();
   const { viewHints } = useHintsContext();
   const { hints: universalHints } = useKeybindingHints(currentView, 'normal');
 
-  // Combine view-specific hints with universal hints
-  // View hints come first, then universal hints (Tab, ?, q)
-  const allHints = [...viewHints, ...universalHints];
-
-  // Format hints for display
-  const formatted = allHints
-    .map((h) => `[${h.key}] ${h.label}`)
-    .join('  ');
+  // #1596: Memoize formatted hints string
+  const formatted = useMemo(() => {
+    const allHints = [...viewHints, ...universalHints];
+    return allHints
+      .map((h) => `[${h.key}] ${h.label}`)
+      .join('  ');
+  }, [viewHints, universalHints]);
 
   return (
     <Box marginTop={1} justifyContent="space-between">
@@ -450,4 +460,4 @@ function Footer(): React.ReactElement {
       <Text dimColor>Theme: {theme.name}</Text>
     </Box>
   );
-}
+});
