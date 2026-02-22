@@ -1,0 +1,142 @@
+# GoReleaser configuration for bc
+# https://goreleaser.com
+#
+# Issue #1472: Release Infrastructure
+
+version: 2
+
+project_name: bc
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - id: bc
+    main: ./cmd/bc
+    binary: bc
+    env:
+      - CGO_ENABLED=1
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.date={{.Date}}
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    # CGO is required for SQLite, so we need to handle cross-compilation
+    # For now, we'll build natively on each platform via matrix
+    ignore:
+      # Skip cross-compilation due to CGO requirements
+      - goos: linux
+        goarch: arm64
+
+  # Windows build without CGO (limited functionality)
+  - id: bc-windows
+    main: ./cmd/bc
+    binary: bc
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.date={{.Date}}
+    goos:
+      - windows
+    goarch:
+      - amd64
+    tags:
+      - nosqlite
+
+archives:
+  - id: default
+    format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE*
+      - CHANGELOG*
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - '^ci:'
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: Features
+      regexp: '^feat.*'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^fix.*'
+      order: 1
+    - title: Refactoring
+      regexp: '^refactor.*'
+      order: 2
+    - title: Performance
+      regexp: '^perf.*'
+      order: 3
+    - title: Others
+      order: 999
+
+release:
+  github:
+    owner: rpuneet
+    name: bc
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## bc {{ .Tag }}
+
+    Mission control for AI agents.
+  footer: |
+    ---
+
+    **Full Changelog**: https://github.com/rpuneet/bc/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+brews:
+  - name: bc
+    repository:
+      owner: rpuneet
+      name: homebrew-bc
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/rpuneet/bc
+    description: Mission control for AI agents
+    license: MIT
+    skip_upload: auto
+    install: |
+      bin.install "bc"
+    test: |
+      system "#{bin}/bc", "version"
+
+# Announce releases (optional, can be configured later)
+# announce:
+#   discord:
+#     enabled: false
