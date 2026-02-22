@@ -4,7 +4,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
-import { useLogs, getSeverityColor, getSeverityIcon } from '../hooks/useLogs';
+import { useLogs, getSeverityColor, getSeverityIcon, useDebounce } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { PulseText } from '../components/AnimatedText';
 import type { LogSeverity } from '../hooks/useLogs';
@@ -109,6 +109,9 @@ export const LogsView: React.FC<LogsViewProps> = () => {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
   const { setFocus } = useFocus();
 
+  // Debounce search query for filtering (issue #1602)
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
   // Get unique agents for filter
   const agents = useMemo(() => {
     if (!logs) return [];
@@ -130,9 +133,9 @@ export const LogsView: React.FC<LogsViewProps> = () => {
       result = result.filter((log) => log.agent === agentFilter);
     }
 
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+    // Search filter (using debounced query for performance - issue #1602)
+    if (debouncedSearchQuery) {
+      const query = debouncedSearchQuery.toLowerCase();
       result = result.filter(
         (log) =>
           log.message.toLowerCase().includes(query) ||
@@ -142,7 +145,7 @@ export const LogsView: React.FC<LogsViewProps> = () => {
     }
 
     return result;
-  }, [logs, timeFilter, agentFilter, searchQuery]);
+  }, [logs, timeFilter, agentFilter, debouncedSearchQuery]);
 
   const selectedLog = filteredLogs[selectedIndex] as LogEntry | undefined;
 

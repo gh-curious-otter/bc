@@ -220,3 +220,14 @@ export {
   useDisableInput,
   type DisableInputProviderProps,
 } from './useDisableInput';
+
+export {
+  useDebounce,
+  useDebouncedCallback,
+  useDebouncedSearch,
+  DEFAULT_DEBOUNCE_MS,
+  type UseDebouncedCallbackOptions,
+  type UseDebouncedCallbackResult,
+  type UseDebouncedSearchOptions,
+  type UseDebouncedSearchResult,
+} from './useDebounce';
