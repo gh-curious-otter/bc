@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { LogEntry, BcResult } from '../types';
 import { getLogs } from '../services/bc';
 import { usePerformanceConfig } from '../config';
+import { handleApiError, logError } from '../utils';
 
 /** Log severity level derived from event type */
 export type LogSeverity = 'info' | 'warn' | 'error';
@@ -80,7 +81,9 @@ export function useLogs(options: UseLogsOptions = {}): UseLogsResult {
       setRawData(logs);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch logs');
+      const errorResult = handleApiError(err);
+      logError('useLogs', errorResult);
+      setError(errorResult.message);
     } finally {
       setLoading(false);
     }

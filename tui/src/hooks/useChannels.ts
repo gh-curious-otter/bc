@@ -11,6 +11,7 @@ import type { Channel, ChannelMessage, BcResult } from '../types';
 import { getChannels, getChannelHistory, sendChannelMessage } from '../services/bc';
 import { usePerformanceConfig } from '../config';
 import { useUnread } from './UnreadContext';
+import { handleApiError, logError } from '../utils';
 
 export interface UseChannelsOptions {
   /** Polling interval in ms (default: from config) */
@@ -44,7 +45,9 @@ export function useChannels(options: UseChannelsOptions = {}): UseChannelsResult
       setData(response.channels);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch channels');
+      const errorResult = handleApiError(err);
+      logError('useChannels', errorResult);
+      setError(errorResult.message);
     } finally {
       setLoading(false);
     }
@@ -100,7 +103,9 @@ export function useChannelHistory(
       setData(response.messages);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch history');
+      const errorResult = handleApiError(err);
+      logError('useChannelHistory', errorResult);
+      setError(errorResult.message);
     } finally {
       setLoading(false);
     }

@@ -10,6 +10,7 @@ import type { Demon, BcResult } from '../types';
 import { getDemons, getDemonLogs, enableDemon, disableDemon, runDemon } from '../services/bc';
 import type { DemonRunLog } from '../types';
 import { usePerformanceConfig } from '../config';
+import { handleApiError, logError } from '../utils';
 
 export interface UseDemonsOptions {
   /** Polling interval in ms (default: from config) */
@@ -59,7 +60,9 @@ export function useDemons(options: UseDemonsOptions = {}): UseDemonsResult {
       setEnabled(demons.filter((d) => d.enabled).length);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch demons');
+      const errorResult = handleApiError(err);
+      logError('useDemons', errorResult);
+      setError(errorResult.message);
     } finally {
       setLoading(false);
     }
@@ -139,7 +142,9 @@ export function useDemonLogs(
       setData(logs);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch demon logs');
+      const errorResult = handleApiError(err);
+      logError('useDemonLogs', errorResult);
+      setError(errorResult.message);
     } finally {
       setLoading(false);
     }

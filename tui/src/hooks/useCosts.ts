@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { CostSummary, BcResult } from '../types';
 import { getCostSummary } from '../services/bc';
 import { usePerformanceConfig } from '../config';
+import { handleApiError, logError } from '../utils';
 
 export interface UseCostsOptions {
   /** Polling interval in ms (default: from config) */
@@ -42,7 +43,9 @@ export function useCosts(options: UseCostsOptions = {}): UseCostsResult {
       setData(summary);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch costs');
+      const errorResult = handleApiError(err);
+      logError('useCosts', errorResult);
+      setError(errorResult.message);
     } finally {
       setLoading(false);
     }

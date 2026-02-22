@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Process, BcResult } from '../types';
 import { getProcesses, getProcessLogs } from '../services/bc';
+import { handleApiError, logError } from '../utils';
 
 export interface UseProcessesOptions {
   /** Polling interval in ms (default: 3000) */
@@ -47,7 +48,9 @@ export function useProcesses(options: UseProcessesOptions = {}): UseProcessesRes
         onUpdate();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch processes');
+      const errorResult = handleApiError(err);
+      logError('useProcesses', errorResult);
+      setError(errorResult.message);
     } finally {
       setLoading(false);
     }
@@ -118,7 +121,9 @@ export function useProcessLogs(options: UseProcessLogsOptions): UseProcessLogsRe
       setData(logLines);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch logs');
+      const errorResult = handleApiError(err);
+      logError('useProcessLogs', errorResult);
+      setError(errorResult.message);
     } finally {
       setLoading(false);
     }
