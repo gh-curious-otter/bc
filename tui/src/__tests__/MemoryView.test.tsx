@@ -1,13 +1,28 @@
 /**
  * MemoryView tests
  * Issue #1231 - Additional TUI views
+ * Issue #1497 - Updated for HintsContext pattern
  */
 
 import React from 'react';
 import { render } from 'ink-testing-library';
+import { Text, Box } from 'ink';
 import { MemoryView } from '../views/MemoryView';
 import { FocusProvider } from '../navigation/FocusContext';
+import { HintsProvider, useHintsContext } from '../hooks/useHintsContext';
 import * as bc from '../services/bc';
+
+// Helper to display hints from context
+function HintsDisplay(): React.ReactElement {
+  const { viewHints } = useHintsContext();
+  return (
+    <Box>
+      {viewHints.map((h) => (
+        <Text key={h.key}>[{h.key}] {h.label}</Text>
+      ))}
+    </Box>
+  );
+}
 
 // Mock the bc service
 jest.mock('../services/bc', () => ({
@@ -20,11 +35,14 @@ jest.mock('../services/bc', () => ({
 const mockGetMemoryList = bc.getMemoryList as jest.Mock;
 const mockGetMemory = bc.getMemory as jest.Mock;
 
-function renderMemoryView(props = {}) {
+function renderMemoryView(props = {}, withHintsDisplay = false) {
   return render(
-    <FocusProvider>
-      <MemoryView disableInput {...props} />
-    </FocusProvider>
+    <HintsProvider>
+      <FocusProvider>
+        <MemoryView disableInput {...props} />
+        {withHintsDisplay && <HintsDisplay />}
+      </FocusProvider>
+    </HintsProvider>
   );
 }
 
@@ -70,11 +88,12 @@ describe('MemoryView', () => {
   });
 
   test('displays keyboard hints', async () => {
+    // Issue #1497: Hints now go to global footer via HintsContext
     mockGetMemoryList.mockResolvedValue({
       agents: [{ agent: 'eng-01', experience_count: 1, learning_count: 1 }],
     });
 
-    const { lastFrame } = renderMemoryView();
+    const { lastFrame } = renderMemoryView({}, true);
     await new Promise(resolve => setTimeout(resolve, 100));
 
     const output = lastFrame() ?? '';
