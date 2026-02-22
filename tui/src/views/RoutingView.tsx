@@ -9,6 +9,7 @@ import { Panel } from '../components/Panel';
 import { HeaderBar } from '../components/HeaderBar';
 import { ViewWrapper } from '../components/ViewWrapper';
 import { useAgents } from '../hooks';
+import { truncate } from '../utils';
 
 interface RoutingViewProps {
   disableInput?: boolean;
@@ -276,14 +277,6 @@ function RoutingRuleRow({
       </Box>
     </Box>
   );
-}
-
-/**
- * Truncate string to max length
- */
-function truncate(str: string, maxLen: number): string {
-  if (str.length <= maxLen) return str;
-  return str.slice(0, maxLen - 1) + '...';
 }
 
 export default RoutingView;

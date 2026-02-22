@@ -61,11 +61,12 @@ export function formatDuration(ms: number): string {
 /**
  * Truncate a string to a maximum length with ellipsis
  *
- * @param str - String to truncate
+ * @param str - String to truncate (handles null/undefined)
  * @param maxLength - Maximum length including ellipsis
  * @returns Truncated string
  */
-export function truncate(str: string, maxLength: number): string {
+export function truncate(str: string | null | undefined, maxLength: number): string {
+  if (!str) return '';
   if (str.length <= maxLength) return str;
   return str.slice(0, maxLength - 3) + '...';
 }
