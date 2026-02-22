@@ -204,3 +204,13 @@ description = "OpenAI Codex"
 name = "opencode"
 command = "crush"
 description = "OpenCode/Crush AI coding assistant"
+
+[[agents]]
+name = "openclaw"
+command = "openclaw --auto"
+description = "OpenClaw AI Coding Assistant"
+
+[[agents]]
+name = "aider"
+command = "aider --yes"
+description = "Aider AI Pair Programming"
