@@ -183,8 +183,8 @@ export function Drawer({
 
           return (
             <Box key={section.title} flexDirection="column" marginBottom={1}>
-              {/* Section header */}
-              <Text dimColor bold>{section.title}</Text>
+              {/* Section header - #1501 fix: truncate to prevent overflow */}
+              <Text dimColor bold wrap="truncate">{section.title}</Text>
               {/* Section items */}
               {sectionTabs.map(tab => {
                 const globalIndex = mainTabs.findIndex(t => t.view === tab.view);
@@ -246,6 +246,7 @@ function DrawerItem({ tab, isActive, isHighlighted, useShortLabel = false }: Dra
   // Use shortLabel when width is constrained (#1364)
   const label = useShortLabel && tab.shortLabel ? tab.shortLabel : tab.label;
 
+  // #1501 fix: Use wrap="truncate" to prevent text overflow and rendering artifacts
   return (
     <Box>
       <Text color={isHighlighted ? 'yellow' : isActive ? 'green' : undefined}>{indicator}</Text>
@@ -253,6 +254,7 @@ function DrawerItem({ tab, isActive, isHighlighted, useShortLabel = false }: Dra
         bold={isBold}
         color={textColor}
         dimColor={isDim}
+        wrap="truncate"
       >
         {' '}{label}
       </Text>
