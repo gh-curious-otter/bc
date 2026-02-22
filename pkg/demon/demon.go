@@ -154,7 +154,8 @@ func (s *Store) List() ([]*Demon, error) {
 			if err != nil {
 				continue // Skip invalid entries
 			}
-			if demon != nil {
+			// #1534 fix: Skip demons with empty names (corrupted data)
+			if demon != nil && demon.Name != "" {
 				demons = append(demons, demon)
 			}
 		}
