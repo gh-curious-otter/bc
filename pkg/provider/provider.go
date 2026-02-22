@@ -96,6 +96,7 @@ func init() {
 	DefaultRegistry.Register(NewClaudeProvider())
 	DefaultRegistry.Register(NewCodexProvider())
 	DefaultRegistry.Register(NewOpenClawProvider())
+	DefaultRegistry.Register(NewGeminiProvider())
 }
 
 // checkBinaryExists checks if a binary exists in PATH.

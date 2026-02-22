@@ -67,6 +67,9 @@ func TestDefaultRegistryHasProviders(t *testing.T) {
 	if _, ok := DefaultRegistry.Get("openclaw"); !ok {
 		t.Error("expected openclaw provider in default registry")
 	}
+	if _, ok := DefaultRegistry.Get("gemini"); !ok {
+		t.Error("expected gemini provider in default registry")
+	}
 }
 
 func TestGetProvider(t *testing.T) {
@@ -317,8 +320,8 @@ func TestCodexDetectState(t *testing.T) {
 
 func TestListProviders(t *testing.T) {
 	providers := ListProviders()
-	if len(providers) < 4 {
-		t.Errorf("expected at least 4 providers, got %d", len(providers))
+	if len(providers) < 5 {
+		t.Errorf("expected at least 5 providers, got %d", len(providers))
 	}
 }
 
@@ -422,6 +425,130 @@ func TestOpenClawDetectState(t *testing.T) {
 		{
 			name:   "idle ready",
 			output: "Ready for input\n",
+			want:   StateIdle,
+		},
+		{
+			name:   "unknown",
+			output: "some random output\n",
+			want:   StateUnknown,
+		},
+		{
+			name:   "empty",
+			output: "",
+			want:   StateUnknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := p.DetectState(tt.output)
+			if got != tt.want {
+				t.Errorf("DetectState() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGeminiProvider(t *testing.T) {
+	p := NewGeminiProvider()
+
+	if p.Name() != "gemini" {
+		t.Errorf("expected name 'gemini', got %q", p.Name())
+	}
+	if p.Description() == "" {
+		t.Error("expected non-empty description")
+	}
+	if p.Command() == "" {
+		t.Error("expected non-empty command")
+	}
+}
+
+func TestGeminiDetectState(t *testing.T) {
+	p := NewGeminiProvider()
+
+	tests := []struct {
+		name   string
+		output string
+		want   State
+	}{
+		{
+			name:   "working thinking",
+			output: "Thinking about your request...\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "working processing",
+			output: "Processing files...\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "working generating",
+			output: "Generating code...\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "working analyzing",
+			output: "Analyzing codebase\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "working spinner",
+			output: "⠋ Working on task\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "working spinner 2",
+			output: "◐ Loading...\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "done checkmark",
+			output: "✓ Task completed\n",
+			want:   StateDone,
+		},
+		{
+			name:   "done success",
+			output: "Operation success\n",
+			want:   StateDone,
+		},
+		{
+			name:   "done finished",
+			output: "Task finished\n",
+			want:   StateDone,
+		},
+		{
+			name:   "error",
+			output: "Error: file not found\n",
+			want:   StateError,
+		},
+		{
+			name:   "error failed",
+			output: "Operation failed\n",
+			want:   StateError,
+		},
+		{
+			name:   "error x mark",
+			output: "✗ Build failed\n",
+			want:   StateError,
+		},
+		{
+			name:   "stuck timeout",
+			output: "Request timed out\n",
+			want:   StateStuck,
+		},
+		{
+			name:   "stuck rate limit",
+			output: "Rate limit exceeded\n",
+			want:   StateStuck,
+		},
+		{
+			name:   "idle prompt",
+			output: "> ",
+			want:   StateIdle,
+		},
+		{
+			name:   "idle gemini prompt",
+			output: "gemini> ",
 			want:   StateIdle,
 		},
 		{
