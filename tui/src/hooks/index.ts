@@ -203,3 +203,14 @@ export {
   useViewHints,
   type HintsProviderProps,
 } from './useHintsContext';
+
+export {
+  useAgentGroups,
+  countAgentStates,
+  groupAgentsByRole,
+  normalizeTask,
+  abbreviateRole,
+  type StateCounts,
+  type RoleGroup,
+  type GroupedItem,
+} from './useAgentGroups';

@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-// BenchmarkNewManager measures manager creation performance.
-func BenchmarkNewManager(b *testing.B) {
+// BenchmarkNewManager_Basic measures manager creation performance.
+func BenchmarkNewManager_Basic(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = NewManager("/tmp/test-workspace")
