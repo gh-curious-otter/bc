@@ -9,6 +9,7 @@ import { render } from 'ink-testing-library';
 import { Text, Box } from 'ink';
 import { MemoryView } from '../views/MemoryView';
 import { FocusProvider } from '../navigation/FocusContext';
+import { NavigationProvider } from '../navigation/NavigationContext';
 import { HintsProvider, useHintsContext, DisableInputProvider } from '../hooks';
 import * as bc from '../services/bc';
 
@@ -36,15 +37,18 @@ const mockGetMemoryList = bc.getMemoryList as jest.Mock;
 const mockGetMemory = bc.getMemory as jest.Mock;
 
 // #1594: Use DisableInputProvider instead of prop
+// #1604: Add NavigationProvider for breadcrumb context
 function renderMemoryView(props = {}, withHintsDisplay = false) {
   return render(
     <HintsProvider>
-      <FocusProvider>
-        <DisableInputProvider disabled>
-          <MemoryView {...props} />
-          {withHintsDisplay && <HintsDisplay />}
-        </DisableInputProvider>
-      </FocusProvider>
+      <NavigationProvider>
+        <FocusProvider>
+          <DisableInputProvider disabled>
+            <MemoryView {...props} />
+            {withHintsDisplay && <HintsDisplay />}
+          </DisableInputProvider>
+        </FocusProvider>
+      </NavigationProvider>
     </HintsProvider>
   );
 }

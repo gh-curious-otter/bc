@@ -31,7 +31,7 @@ export const WorkspaceSelectorView: React.FC<WorkspaceSelectorViewProps> = ({
   const { stdout } = useStdout();
   const terminalWidth = stdout.columns;
   const { setFocus } = useFocus();
-  const { goHome } = useNavigation();
+  const { goHome, setBreadcrumbs, clearBreadcrumbs } = useNavigation();
 
   const [workspaces, setWorkspaces] = useState<DiscoveredWorkspace[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +80,15 @@ export const WorkspaceSelectorView: React.FC<WorkspaceSelectorViewProps> = ({
 
   const selectedWorkspace = filteredWorkspaces[selectedIndex] as DiscoveredWorkspace | undefined;
   const v2Count = workspaces.filter((ws) => ws.is_v2).length;
+
+  // Manage breadcrumbs for nested view navigation (#1604)
+  useEffect(() => {
+    if (showDetail && selectedWorkspace) {
+      setBreadcrumbs([{ label: selectedWorkspace.name }]);
+    } else {
+      clearBreadcrumbs();
+    }
+  }, [showDetail, selectedWorkspace, setBreadcrumbs, clearBreadcrumbs]);
 
   // Keyboard navigation
   useInput((input, key) => {

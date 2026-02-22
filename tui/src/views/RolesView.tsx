@@ -9,6 +9,7 @@ import { Panel } from '../components/Panel';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { HeaderBar } from '../components/HeaderBar';
 import { useFocus } from '../navigation/FocusContext';
+import { useNavigation } from '../navigation/NavigationContext';
 import { useAgents, useDebounce, useDisableInput } from '../hooks';
 import { truncate } from '../utils';
 import type { Role } from '../types';
@@ -34,6 +35,7 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
   const [searchMode, setSearchMode] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { setFocus } = useFocus();
+  const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
 
   // Debounce search query for filtering (issue #1602)
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
@@ -60,15 +62,17 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
     return Math.min(25, Math.max(15, maxNameLen + 3));
   }, [roles]);
 
-  // Manage focus state for nested view navigation
+  // Manage focus state and breadcrumbs for nested view navigation (#1604)
   // When showing details, set focus='view' to prevent global ESC from firing
   useEffect(() => {
-    if (showDetails) {
+    if (showDetails && selectedRole) {
       setFocus('view');
+      setBreadcrumbs([{ label: selectedRole.name }]);
     } else {
       setFocus('main');
+      clearBreadcrumbs();
     }
-  }, [showDetails, setFocus]);
+  }, [showDetails, selectedRole, setFocus, setBreadcrumbs, clearBreadcrumbs]);
 
   // Fetch roles
   const fetchRoles = useCallback(async () => {

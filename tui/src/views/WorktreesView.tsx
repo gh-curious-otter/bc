@@ -8,6 +8,7 @@ import { getWorktrees, pruneWorktrees } from '../services/bc';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { HeaderBar } from '../components/HeaderBar';
 import { useFocus } from '../navigation/FocusContext';
+import { useNavigation } from '../navigation/NavigationContext';
 import type { Worktree } from '../types';
 
 /**
@@ -32,15 +33,7 @@ export const WorktreesView: React.FC = () => {
   const [pruneResult, setPruneResult] = useState<string | null>(null);
   const [showOrphanedOnly, setShowOrphanedOnly] = useState(false);
   const { setFocus } = useFocus();
-
-  // Manage focus state for nested view navigation
-  useEffect(() => {
-    if (showDetail) {
-      setFocus('view');
-    } else {
-      setFocus('main');
-    }
-  }, [showDetail, setFocus]);
+  const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
 
   const fetchWorktrees = useCallback(async () => {
     try {
@@ -77,6 +70,17 @@ export const WorktreesView: React.FC = () => {
 
   const selectedWorktree = filteredWorktrees[selectedIndex] as Worktree | undefined;
   const hasOrphans = orphanedWorktrees.length > 0;
+
+  // Manage focus state and breadcrumbs for nested view navigation (#1604)
+  useEffect(() => {
+    if (showDetail && selectedWorktree) {
+      setFocus('view');
+      setBreadcrumbs([{ label: selectedWorktree.agent }]);
+    } else {
+      setFocus('main');
+      clearBreadcrumbs();
+    }
+  }, [showDetail, selectedWorktree, setFocus, setBreadcrumbs, clearBreadcrumbs]);
 
   // Handle prune action
   const handlePrune = useCallback(async () => {

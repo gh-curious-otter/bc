@@ -9,6 +9,7 @@ import { Panel } from '../components/Panel';
 import { HeaderBar } from '../components/HeaderBar';
 import { ViewWrapper } from '../components/ViewWrapper';
 import { useFocus } from '../navigation/FocusContext';
+import { useNavigation } from '../navigation/NavigationContext';
 import { useDisableInput } from '../hooks';
 import { getMemoryList, getMemory, searchMemory, clearMemory } from '../services/bc';
 import { truncate } from '../utils';
@@ -115,15 +116,23 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
   const [ui, dispatch] = useReducer(uiReducer, initialUIState);
   const { selectedIndex, viewMode, searchQuery, searchMode, confirmClear, detailTab } = ui;
   const { setFocus } = useFocus();
+  const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
 
-  // Manage focus for nested views
+  // Manage focus and breadcrumbs for nested views (#1604)
   useEffect(() => {
-    if (viewMode === 'detail' || searchMode) {
+    if (viewMode === 'detail' && selectedMemory) {
+      setFocus('view');
+      setBreadcrumbs([{ label: selectedMemory.agent }]);
+    } else if (viewMode === 'search') {
+      setFocus('view');
+      setBreadcrumbs([{ label: 'Search' }]);
+    } else if (searchMode) {
       setFocus('view');
     } else {
       setFocus('main');
+      clearBreadcrumbs();
     }
-  }, [viewMode, searchMode, setFocus]);
+  }, [viewMode, searchMode, selectedMemory, setFocus, setBreadcrumbs, clearBreadcrumbs]);
 
   // Fetch agent memory list
   const fetchMemoryList = useCallback(async () => {

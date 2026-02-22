@@ -9,16 +9,20 @@ import { render } from 'ink-testing-library';
 import { describe, it, expect, vi, beforeEach, mock } from 'bun:test';
 import { RolesView } from '../../views/RolesView';
 import { FocusProvider } from '../../navigation/FocusContext';
+import { NavigationProvider } from '../../navigation/NavigationContext';
 import { ConfigProvider } from '../../config';
 import { DisableInputProvider } from '../../hooks';
 
 // #1594: Helper to wrap component with required providers including DisableInputProvider
+// #1604: Add NavigationProvider for breadcrumb context
 const renderWithProviders = (ui: React.ReactElement) => {
   return render(
     <ConfigProvider>
-      <FocusProvider>
-        <DisableInputProvider disabled>{ui}</DisableInputProvider>
-      </FocusProvider>
+      <NavigationProvider>
+        <FocusProvider>
+          <DisableInputProvider disabled>{ui}</DisableInputProvider>
+        </FocusProvider>
+      </NavigationProvider>
     </ConfigProvider>
   );
 };
