@@ -31,6 +31,7 @@ import { ProcessesView } from './views/ProcessesView';
 import { MemoryView } from './views/MemoryView';
 import { RoutingView } from './views/RoutingView';
 import { CommandPalette } from './components/CommandPalette';
+import { ViewErrorBoundary } from './components/ErrorBoundary';
 import { type BcCommand } from './types/commands';
 
 interface AppProps {
@@ -167,12 +168,14 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
           {/* Breadcrumb navigation (shows path when navigated deep) */}
           <Breadcrumb />
 
-          {/* Main content area */}
+          {/* Main content area - wrapped with error boundary (#1585) */}
           <Box flexDirection="column" flexGrow={1}>
-            <ViewContent
-              view={currentView}
-              disableInput={disableInput}
-            />
+            <ViewErrorBoundary viewName={currentView}>
+              <ViewContent
+                view={currentView}
+                disableInput={disableInput}
+              />
+            </ViewErrorBoundary>
           </Box>
         </Box>
       </Box>

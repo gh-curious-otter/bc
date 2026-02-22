@@ -116,3 +116,7 @@ export type { CommandPaletteProps } from './CommandPalette';
 // ViewWrapper for consistent view layout (#1419)
 export { ViewWrapper } from './ViewWrapper';
 export type { ViewWrapperProps } from './ViewWrapper';
+
+// Error boundary for graceful error handling (#1585)
+export { ErrorBoundary, ViewErrorBoundary } from './ErrorBoundary';
+export type { ErrorBoundaryProps, ViewErrorBoundaryProps } from './ErrorBoundary';
