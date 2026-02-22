@@ -51,7 +51,7 @@ describe('CommandPalette', () => {
   });
 
   describe('recent commands', () => {
-    it('should mark recent commands with asterisk', () => {
+    it('should mark recent commands with star', () => {
       const { lastFrame } = render(
         <CommandPalette
           isOpen={true}
@@ -61,7 +61,8 @@ describe('CommandPalette', () => {
         />
       );
 
-      expect(lastFrame()).toContain('*');
+      // #1603: Changed asterisk to star symbol
+      expect(lastFrame()).toContain('★');
     });
 
     it('should show recent commands first', () => {
@@ -92,8 +93,8 @@ describe('CommandPalette', () => {
 
       // Should show limited results
       const frame = lastFrame() ?? '';
-      // Count the number of command rows (lines with command names)
-      const lines = frame.split('\n').filter(l => l.includes(' - '));
+      // #1603: Count the number of command rows (lines with em dash separator)
+      const lines = frame.split('\n').filter(l => l.includes(' — '));
       expect(lines.length).toBeLessThanOrEqual(3);
     });
   });
@@ -122,8 +123,9 @@ describe('CommandPalette', () => {
         <CommandPalette isOpen={true} onClose={() => {}} disableInput />
       );
 
+      // #1603: Changed separator to em dash
       // Should contain the separator between name and description
-      expect(lastFrame()).toContain(' - ');
+      expect(lastFrame()).toContain(' — ');
     });
   });
 
