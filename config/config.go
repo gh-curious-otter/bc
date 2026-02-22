@@ -156,6 +156,16 @@ var (
 			Description: "OpenCode/Crush AI coding assistant",
 			Name:        "opencode",
 		},
+		{
+			Command:     "openclaw --auto",
+			Description: "OpenClaw AI Coding Assistant",
+			Name:        "openclaw",
+		},
+		{
+			Command:     "aider --yes",
+			Description: "Aider AI Pair Programming",
+			Name:        "aider",
+		},
 	}
 	Channels = ChannelsConfig{
 		Default: []string{"general", "engineering"},
