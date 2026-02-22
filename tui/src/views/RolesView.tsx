@@ -9,7 +9,7 @@ import { Panel } from '../components/Panel';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { HeaderBar } from '../components/HeaderBar';
 import { useFocus } from '../navigation/FocusContext';
-import { useAgents, useDisableInput } from '../hooks';
+import { useAgents, useDebounce, useDisableInput } from '../hooks';
 import { truncate } from '../utils';
 import type { Role } from '../types';
 import { getRoles, getRole, deleteRole } from '../services/bc';
@@ -34,6 +34,9 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
   const [searchMode, setSearchMode] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { setFocus } = useFocus();
+
+  // Debounce search query for filtering (issue #1602)
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   // #968 fix: Fetch agents to compute accurate role counts
   // Backend's agent_count is incorrect when running from worktree
@@ -85,22 +88,22 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
     void fetchRoles();
   }, [fetchRoles]);
 
-  // Filter roles by search
+  // Filter roles by search (using debounced query for performance - issue #1602)
   const filteredRoles = useMemo(() => {
-    if (searchQuery.length === 0) return roles;
-    const lower = searchQuery.toLowerCase();
+    if (debouncedSearchQuery.length === 0) return roles;
+    const lower = debouncedSearchQuery.toLowerCase();
     return roles.filter(
       (r) =>
         r.name.toLowerCase().includes(lower) ||
         (r.description?.toLowerCase().includes(lower) ?? false) ||
         r.capabilities.some((c) => c.toLowerCase().includes(lower))
     );
-  }, [roles, searchQuery]);
+  }, [roles, debouncedSearchQuery]);
 
   // Reset index when filtered results change
   useEffect(() => {
     setSelectedIndex(0);
-  }, [searchQuery]);
+  }, [debouncedSearchQuery]);
 
   // Get valid index
   const validIndex = Math.min(selectedIndex, Math.max(0, filteredRoles.length - 1));

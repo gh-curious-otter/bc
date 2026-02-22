@@ -13,7 +13,7 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { useAgents } from '../hooks';
+import { useAgents, useDebounce } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useAgentGroups } from '../hooks/useAgentGroups';
@@ -60,10 +60,13 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
   const [groupedView, setGroupedView] = useState(true);
   const [collapsedRoles, setCollapsedRoles] = useState<Set<string>>(new Set());
 
-  // Use extracted hook for grouping logic
+  // Debounce search query for filtering (issue #1602)
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+  // Use extracted hook for grouping logic (using debounced query for performance)
   const { agentList, stateCounts, visibleItems } = useAgentGroups(
     agents ?? [],
-    searchQuery,
+    debouncedSearchQuery,
     groupedView,
     collapsedRoles
   );

@@ -5,7 +5,7 @@
 
 import { useState, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { useProcesses, useProcessLogs } from '../hooks';
+import { useProcesses, useProcessLogs, useDebounce } from '../hooks';
 import { Table } from '../components/Table';
 import type { Column } from '../components/Table';
 import { StatusBadge } from '../components/StatusBadge';
@@ -44,18 +44,21 @@ export function ProcessesView(): React.ReactElement {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState(false);
 
-  // Filter processes by search query
+  // Debounce search query for filtering (issue #1602)
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+  // Filter processes by search query (using debounced query for performance)
   const processList = useMemo(() => {
     const list = processes ?? [];
-    if (!searchQuery) return list;
-    const query = searchQuery.toLowerCase();
+    if (!debouncedSearchQuery) return list;
+    const query = debouncedSearchQuery.toLowerCase();
     return list.filter(
       (proc) =>
         proc.name.toLowerCase().includes(query) ||
         proc.command.toLowerCase().includes(query) ||
         (proc.owner?.toLowerCase().includes(query) ?? false)
     );
-  }, [processes, searchQuery]);
+  }, [processes, debouncedSearchQuery]);
 
   const selectedProcess = processList[selectedIndex] as typeof processList[number] | undefined;
 

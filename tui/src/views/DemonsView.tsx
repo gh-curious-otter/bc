@@ -5,8 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { useDemons } from '../hooks/useDemons';
-import { useDisableInput } from '../hooks';
+import { useDemons, useDebounce, useDisableInput } from '../hooks';
 import { StatusBadge } from '../components/StatusBadge';
 import { HeaderBar } from '../components/HeaderBar';
 import { ViewWrapper } from '../components/ViewWrapper';
@@ -87,18 +86,21 @@ export function DemonsView(_props: DemonsViewProps = {}): React.ReactElement {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState(false);
 
-  // Filter demons by search query
+  // Debounce search query for filtering (issue #1602)
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+  // Filter demons by search query (using debounced query for performance)
   const filteredDemons = React.useMemo(() => {
     const list = demons ?? [];
-    if (!searchQuery) return list;
-    const query = searchQuery.toLowerCase();
+    if (!debouncedSearchQuery) return list;
+    const query = debouncedSearchQuery.toLowerCase();
     return list.filter(
       (demon) =>
         demon.name.toLowerCase().includes(query) ||
         demon.command.toLowerCase().includes(query) ||
         (demon.description?.toLowerCase().includes(query) ?? false)
     );
-  }, [demons, searchQuery]);
+  }, [demons, debouncedSearchQuery]);
 
   // Auto-clear action errors after a delay
   useEffect(() => {
