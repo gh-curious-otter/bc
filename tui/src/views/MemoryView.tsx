@@ -3,7 +3,7 @@
  * Issue #1231 - Add additional TUI views
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useReducer } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { Panel } from '../components/Panel';
 import { HeaderBar } from '../components/HeaderBar';
@@ -19,6 +19,83 @@ import type { AgentMemorySummary, AgentMemory, MemorySearchResult } from '../typ
 interface MemoryViewProps {}
 
 type ViewMode = 'list' | 'detail' | 'search';
+type DetailTab = 'experiences' | 'learnings';
+
+/**
+ * UI state for MemoryView - consolidated with useReducer (#1601)
+ * Reduces re-renders by batching related state updates
+ */
+interface UIState {
+  selectedIndex: number;
+  viewMode: ViewMode;
+  searchQuery: string;
+  searchMode: boolean;
+  confirmClear: boolean;
+  detailTab: DetailTab;
+}
+
+type UIAction =
+  | { type: 'SET_INDEX'; index: number }
+  | { type: 'NAVIGATE'; direction: 'up' | 'down' | 'first' | 'last'; maxIndex: number }
+  | { type: 'SET_VIEW_MODE'; mode: ViewMode }
+  | { type: 'SET_SEARCH_QUERY'; query: string }
+  | { type: 'APPEND_SEARCH_CHAR'; char: string }
+  | { type: 'BACKSPACE_SEARCH' }
+  | { type: 'TOGGLE_SEARCH_MODE'; enabled?: boolean }
+  | { type: 'TOGGLE_CONFIRM_CLEAR'; enabled?: boolean }
+  | { type: 'SET_DETAIL_TAB'; tab: DetailTab }
+  | { type: 'EXIT_DETAIL' }
+  | { type: 'EXIT_SEARCH' }
+  | { type: 'RESET' };
+
+const initialUIState: UIState = {
+  selectedIndex: 0,
+  viewMode: 'list',
+  searchQuery: '',
+  searchMode: false,
+  confirmClear: false,
+  detailTab: 'experiences',
+};
+
+function uiReducer(state: UIState, action: UIAction): UIState {
+  switch (action.type) {
+    case 'SET_INDEX':
+      return { ...state, selectedIndex: action.index };
+    case 'NAVIGATE': {
+      const { direction, maxIndex } = action;
+      let newIndex = state.selectedIndex;
+      switch (direction) {
+        case 'up': newIndex = Math.max(0, state.selectedIndex - 1); break;
+        case 'down': newIndex = Math.min(maxIndex, state.selectedIndex + 1); break;
+        case 'first': newIndex = 0; break;
+        case 'last': newIndex = maxIndex; break;
+      }
+      return { ...state, selectedIndex: newIndex };
+    }
+    case 'SET_VIEW_MODE':
+      return { ...state, viewMode: action.mode };
+    case 'SET_SEARCH_QUERY':
+      return { ...state, searchQuery: action.query };
+    case 'APPEND_SEARCH_CHAR':
+      return { ...state, searchQuery: state.searchQuery + action.char };
+    case 'BACKSPACE_SEARCH':
+      return { ...state, searchQuery: state.searchQuery.slice(0, -1) };
+    case 'TOGGLE_SEARCH_MODE':
+      return { ...state, searchMode: action.enabled ?? !state.searchMode };
+    case 'TOGGLE_CONFIRM_CLEAR':
+      return { ...state, confirmClear: action.enabled ?? !state.confirmClear };
+    case 'SET_DETAIL_TAB':
+      return { ...state, detailTab: action.tab };
+    case 'EXIT_DETAIL':
+      return { ...state, viewMode: 'list' };
+    case 'EXIT_SEARCH':
+      return { ...state, viewMode: 'list', searchQuery: '' };
+    case 'RESET':
+      return initialUIState;
+    default:
+      return state;
+  }
+}
 
 /**
  * MemoryView - Display and manage agent memories
@@ -26,20 +103,17 @@ type ViewMode = 'list' | 'detail' | 'search';
 export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
   // #1594: Use context instead of prop drilling
   const { isDisabled: disableInput } = useDisableInput();
-  // Data state
+
+  // Data state (separate useState for async operations)
   const [agents, setAgents] = useState<AgentMemorySummary[]>([]);
   const [selectedMemory, setSelectedMemory] = useState<AgentMemory | null>(null);
   const [searchResults, setSearchResults] = useState<MemorySearchResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // UI state
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchMode, setSearchMode] = useState(false);
-  const [confirmClear, setConfirmClear] = useState(false);
-  const [detailTab, setDetailTab] = useState<'experiences' | 'learnings'>('experiences');
+  // UI state - consolidated with useReducer (#1601)
+  const [ui, dispatch] = useReducer(uiReducer, initialUIState);
+  const { selectedIndex, viewMode, searchQuery, searchMode, confirmClear, detailTab } = ui;
   const { setFocus } = useFocus();
 
   // Manage focus for nested views
@@ -75,7 +149,7 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
       const memory = await getMemory(agentName);
       if (memory) {
         setSelectedMemory(memory);
-        setViewMode('detail');
+        dispatch({ type: 'SET_VIEW_MODE', mode: 'detail' });
       }
     } catch {
       setError('Failed to fetch memory details');
@@ -88,7 +162,7 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
     try {
       const results = await searchMemory(query);
       setSearchResults(results);
-      setViewMode('search');
+      dispatch({ type: 'SET_VIEW_MODE', mode: 'search' });
     } catch {
       setError('Search failed');
     }
@@ -100,11 +174,11 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
     if (agentToDelete === undefined) return;
     try {
       await clearMemory(agentToDelete.agent);
-      setConfirmClear(false);
+      dispatch({ type: 'TOGGLE_CONFIRM_CLEAR', enabled: false });
       await fetchMemoryList();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to clear memory');
-      setConfirmClear(false);
+      dispatch({ type: 'TOGGLE_CONFIRM_CLEAR', enabled: false });
     }
   }, [agents, selectedIndex, fetchMemoryList]);
 
@@ -112,7 +186,7 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
   const validIndex = Math.min(selectedIndex, Math.max(0, agents.length - 1));
   const currentAgent = agents[validIndex] as AgentMemorySummary | undefined;
 
-  // Keyboard handling
+  // Keyboard handling - uses dispatch for UI state (#1601)
   useInput(
     (input, key) => {
       // Confirm clear mode
@@ -120,7 +194,7 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
         if (input === 'y' || input === 'Y') {
           void handleClear();
         } else {
-          setConfirmClear(false);
+          dispatch({ type: 'TOGGLE_CONFIRM_CLEAR', enabled: false });
         }
         return;
       }
@@ -128,12 +202,12 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
       // Detail view mode
       if (viewMode === 'detail') {
         if (key.escape || input === 'q') {
-          setViewMode('list');
+          dispatch({ type: 'EXIT_DETAIL' });
           setSelectedMemory(null);
         } else if (input === '1') {
-          setDetailTab('experiences');
+          dispatch({ type: 'SET_DETAIL_TAB', tab: 'experiences' });
         } else if (input === '2') {
-          setDetailTab('learnings');
+          dispatch({ type: 'SET_DETAIL_TAB', tab: 'learnings' });
         }
         return;
       }
@@ -141,9 +215,8 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
       // Search results view
       if (viewMode === 'search') {
         if (key.escape || input === 'q') {
-          setViewMode('list');
+          dispatch({ type: 'EXIT_SEARCH' });
           setSearchResults([]);
-          setSearchQuery('');
         }
         return;
       }
@@ -152,39 +225,40 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
       if (searchMode) {
         if (key.return) {
           void performSearch(searchQuery);
-          setSearchMode(false);
+          dispatch({ type: 'TOGGLE_SEARCH_MODE', enabled: false });
         } else if (key.escape) {
-          setSearchQuery('');
-          setSearchMode(false);
+          dispatch({ type: 'SET_SEARCH_QUERY', query: '' });
+          dispatch({ type: 'TOGGLE_SEARCH_MODE', enabled: false });
         } else if (key.backspace || key.delete) {
-          setSearchQuery((q) => q.slice(0, -1));
+          dispatch({ type: 'BACKSPACE_SEARCH' });
         } else if (input && !key.ctrl && !key.meta && !key.tab) {
-          setSearchQuery((q) => q + input);
+          dispatch({ type: 'APPEND_SEARCH_CHAR', char: input });
         }
         return;
       }
 
       // List navigation mode
+      const maxIndex = Math.max(0, agents.length - 1);
       if (input === '/') {
-        setSearchMode(true);
+        dispatch({ type: 'TOGGLE_SEARCH_MODE', enabled: true });
       } else if (key.upArrow || input === 'k') {
         if (agents.length > 0) {
-          setSelectedIndex(Math.max(0, validIndex - 1));
+          dispatch({ type: 'NAVIGATE', direction: 'up', maxIndex });
         }
       } else if (key.downArrow || input === 'j') {
         if (agents.length > 0) {
-          setSelectedIndex(Math.min(agents.length - 1, validIndex + 1));
+          dispatch({ type: 'NAVIGATE', direction: 'down', maxIndex });
         }
       } else if (input === 'g') {
-        setSelectedIndex(0);
+        dispatch({ type: 'NAVIGATE', direction: 'first', maxIndex });
       } else if (input === 'G') {
         if (agents.length > 0) {
-          setSelectedIndex(agents.length - 1);
+          dispatch({ type: 'NAVIGATE', direction: 'last', maxIndex });
         }
       } else if (key.return && currentAgent !== undefined) {
         void fetchMemoryDetail(currentAgent.agent);
       } else if (input === 'c' && currentAgent !== undefined) {
-        setConfirmClear(true);
+        dispatch({ type: 'TOGGLE_CONFIRM_CLEAR', enabled: true });
       } else if (input === 'R' || (key.ctrl && input === 'r')) {
         void fetchMemoryList();
       }
