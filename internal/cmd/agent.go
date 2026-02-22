@@ -415,6 +415,10 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 	if ws.Config.AgentCommand != "" && toolName == "" {
 		mgr.SetAgentCommand(ws.Config.AgentCommand)
 	} else if toolName != "" {
+		// #1531: Validate tool binary is installed before creating agent
+		if err := agent.ValidateToolBinary(toolName); err != nil {
+			return err
+		}
 		if !mgr.SetAgentByName(toolName) {
 			return fmt.Errorf("unknown tool %q (available: %v)", toolName, agent.ListAvailableTools())
 		}

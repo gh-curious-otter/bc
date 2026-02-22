@@ -406,6 +406,30 @@ func (m *Manager) SetAgentByName(name string) bool {
 	return false
 }
 
+// ValidateToolBinary checks if the binary for a named tool is available.
+// Returns nil if the tool exists and its binary is installed.
+// Returns error if the tool is unknown or its binary is not found.
+// Issue #1531: Validate before agent creation to avoid broken agents.
+func ValidateToolBinary(name string) error {
+	for _, a := range config.Agents {
+		if a.Name == name {
+			// Extract binary name (first word of command)
+			parts := strings.Fields(a.Command)
+			if len(parts) == 0 {
+				return fmt.Errorf("tool %q has empty command in config", name)
+			}
+			binary := parts[0]
+
+			// Check if binary exists in PATH
+			if _, err := exec.LookPath(binary); err != nil {
+				return fmt.Errorf("tool %q requires %q which is not installed. Install it or configure a different tool", name, binary)
+			}
+			return nil
+		}
+	}
+	return fmt.Errorf("unknown tool %q (available: %v)", name, ListAvailableTools())
+}
+
 // SetBootstrapDelay sets the delay before sending bootstrap prompts.
 func (m *Manager) SetBootstrapDelay(d time.Duration) {
 	m.mu.Lock()

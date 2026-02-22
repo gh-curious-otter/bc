@@ -225,6 +225,55 @@ func TestSetAgentByName(t *testing.T) {
 	})
 }
 
+func TestValidateToolBinary(t *testing.T) {
+	// Save original config and restore after test
+	origAgents := config.Agents
+	defer func() { config.Agents = origAgents }()
+
+	config.Agents = []config.AgentsItem{
+		{Name: "git-tool", Command: "git status", Description: "Git (should be installed)"},
+		{Name: "missing-tool", Command: "nonexistent-binary-xyz --flag", Description: "Missing binary"},
+		{Name: "empty-cmd", Command: "", Description: "Empty command"},
+	}
+
+	t.Run("binary exists", func(t *testing.T) {
+		// git should be installed on test systems
+		if err := ValidateToolBinary("git-tool"); err != nil {
+			t.Errorf("ValidateToolBinary(git-tool) = %v, want nil", err)
+		}
+	})
+
+	t.Run("binary missing", func(t *testing.T) {
+		err := ValidateToolBinary("missing-tool")
+		if err == nil {
+			t.Error("expected error for missing binary")
+		}
+		if !strings.Contains(err.Error(), "not installed") {
+			t.Errorf("error should mention 'not installed': %v", err)
+		}
+	})
+
+	t.Run("unknown tool", func(t *testing.T) {
+		err := ValidateToolBinary("unknown-tool")
+		if err == nil {
+			t.Error("expected error for unknown tool")
+		}
+		if !strings.Contains(err.Error(), "unknown tool") {
+			t.Errorf("error should mention 'unknown tool': %v", err)
+		}
+	})
+
+	t.Run("empty command", func(t *testing.T) {
+		err := ValidateToolBinary("empty-cmd")
+		if err == nil {
+			t.Error("expected error for empty command")
+		}
+		if !strings.Contains(err.Error(), "empty command") {
+			t.Errorf("error should mention 'empty command': %v", err)
+		}
+	})
+}
+
 func TestGetAgentCommand(t *testing.T) {
 	origAgents := config.Agents
 	defer func() { config.Agents = origAgents }()
