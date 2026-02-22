@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -348,8 +349,8 @@ func TestManagerSearch(t *testing.T) {
 	if results != nil {
 		t.Errorf("Search() results should be nil, got %v", results)
 	}
-	if err != nil && err.Error() != "registry search not yet implemented" {
-		t.Errorf("Search() error = %q, want 'registry search not yet implemented'", err.Error())
+	if err != nil && !strings.Contains(err.Error(), "plugin registry coming soon") {
+		t.Errorf("Search() error = %q, want 'plugin registry coming soon...'", err.Error())
 	}
 }
 

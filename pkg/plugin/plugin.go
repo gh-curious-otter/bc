@@ -320,8 +320,8 @@ func (m *Manager) Disable(name string) error {
 
 // Search searches for plugins in registries
 func (m *Manager) Search(_ context.Context, _ string) ([]SearchResult, error) {
-	// TODO: Implement registry search
-	return nil, fmt.Errorf("registry search not yet implemented")
+	// TODO: Implement registry search when plugin registry is available
+	return nil, fmt.Errorf("plugin registry coming soon. For now, install plugins from local paths or GitHub URLs:\n  bc plugin install ./my-plugin\n  bc plugin install github.com/user/plugin")
 }
 
 // validateManifest validates a plugin manifest

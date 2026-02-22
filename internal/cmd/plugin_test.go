@@ -131,8 +131,8 @@ func TestPluginSearchNotImplemented(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unimplemented search, got nil")
 	}
-	if !strings.Contains(err.Error(), "not yet implemented") {
-		t.Errorf("expected 'not yet implemented' error, got: %v", err)
+	if !strings.Contains(err.Error(), "plugin registry coming soon") {
+		t.Errorf("expected 'plugin registry coming soon' error, got: %v", err)
 	}
 }
 
