@@ -94,6 +94,7 @@ func init() {
 	// Register built-in providers
 	DefaultRegistry.Register(NewOpenCodeProvider())
 	DefaultRegistry.Register(NewClaudeProvider())
+	DefaultRegistry.Register(NewCodexProvider())
 }
 
 // checkBinaryExists checks if a binary exists in PATH.
