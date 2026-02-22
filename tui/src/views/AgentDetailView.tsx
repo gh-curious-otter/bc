@@ -207,14 +207,9 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
         setActiveTab('details');
       } else if (input === '3') {
         setActiveTab('metrics');
-      } else if (key.tab) {
-        // Cycle through tabs
-        setActiveTab(prev => {
-          if (prev === 'output') return 'details';
-          if (prev === 'details') return 'metrics';
-          return 'output';
-        });
       }
+      // Note: Tab removed to allow global view navigation (#1520)
+      // Use 1/2/3 to switch tabs within this view
     }
   });
 
