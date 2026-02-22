@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { getStatus, getChannels, getCostSummary } from '../services/bc.js';
+import { usePerformanceConfig } from '../config';
 import type { StatusResponse, ChannelsResponse, CostSummary, Agent } from '../types';
 
 interface UseDataResult<T> {
@@ -50,6 +51,10 @@ interface DashboardChannel {
  * Integrates with bc CLI via service layer for real-time workspace data.
  */
 export function useDashboard() {
+  // Get poll interval from centralized config (#1606)
+  const perfConfig = usePerformanceConfig();
+  const pollInterval = perfConfig.poll_interval_dashboard;
+
   const [agents, setAgents] = useState<UseDataResult<DashboardAgent[]>>({
     data: null,
     isLoading: true,
@@ -154,12 +159,12 @@ export function useDashboard() {
     void fetchData();
   }, [fetchData]);
 
-  // Auto-refresh every 30 seconds (optimized for performance - Issue #559)
+  // Auto-refresh using centralized config interval (#1606)
   // Users can manually refresh with 'r' key for immediate updates
   useEffect(() => {
-    const interval = setInterval(() => { void fetchData(); }, 30000);
+    const interval = setInterval(() => { void fetchData(); }, pollInterval);
     return () => { clearInterval(interval); };
-  }, [fetchData]);
+  }, [fetchData, pollInterval]);
 
   // Compute agent stats breakdown
   const agentStats = useMemo<AgentStats>(() => {

@@ -244,6 +244,7 @@ export interface PerformanceConfig {
   poll_interval_logs: number;
   poll_interval_teams: number;
   poll_interval_demons: number;
+  poll_interval_dashboard: number;
   cache_ttl_tmux: number;
   cache_ttl_commands: number;
   adaptive_fast_interval: number;
