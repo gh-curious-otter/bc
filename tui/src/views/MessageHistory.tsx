@@ -109,13 +109,14 @@ export function MessageHistory({
         </Box>
       )}
 
-      {/* Messages */}
+      {/* Messages - #1519 fix: overflow="hidden" prevents text bleeding */}
       <Box
         flexDirection="column"
         borderStyle="single"
         borderColor="gray"
         paddingX={1}
         height={visibleMessages + 2}
+        overflow="hidden"
       >
         {visibleSlice.length === 0 ? (
           <Text dimColor>No messages in this channel</Text>
@@ -172,7 +173,8 @@ const MessageItem = memo(function MessageItem({ message }: MessageItemProps) {
           {truncate(message.sender, 14)}
         </Text>
       </Box>
-      <Box flexGrow={1}>
+      {/* #1519 fix: minWidth={0} allows flexbox child to shrink below content width */}
+      <Box flexGrow={1} minWidth={0}>
         <Text wrap="truncate">{message.message}</Text>
       </Box>
     </Box>
