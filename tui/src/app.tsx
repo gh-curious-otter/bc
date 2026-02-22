@@ -150,8 +150,12 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
   const terminalHeight = stdout.rows;
   const terminalWidth = stdout.columns;
 
+  // #1611 fix: Calculate responsive margins for command palette overlay
+  // Center the palette horizontally with minimum margin of 4
+  const commandPaletteMarginLeft = Math.max(4, Math.floor((terminalWidth - 60) / 2));
+
   return (
-    <Box flexDirection="column" padding={1} width={terminalWidth} height={terminalHeight}>
+    <Box flexDirection="column" padding={1} width={terminalWidth} height={terminalHeight} overflow="hidden">
       {/* Main layout: drawer + content + detail pane */}
       <Box flexDirection="row" flexGrow={1}>
         {/* Left drawer navigation - controlled by responsive layout (#1326) */}
@@ -163,8 +167,8 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
           />
         )}
 
-        {/* Center content area */}
-        <Box flexDirection="column" flexGrow={1} paddingLeft={layout.drawer.visible ? 1 : 0}>
+        {/* Center content area - #1611 fix: Add overflow="hidden" to prevent content overflow */}
+        <Box flexDirection="column" flexGrow={1} paddingLeft={layout.drawer.visible ? 1 : 0} overflow="hidden">
           {/* Breadcrumb navigation (shows path when navigated deep) */}
           <Breadcrumb />
 
@@ -183,9 +187,9 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
       {/* Footer with navigation hints - anchored to bottom */}
       <Footer />
 
-      {/* Command palette overlay */}
+      {/* Command palette overlay - #1611 fix: Use responsive margins */}
       {showCommandPalette && (
-        <Box position="absolute" marginTop={2} marginLeft={16}>
+        <Box position="absolute" marginTop={2} marginLeft={commandPaletteMarginLeft}>
           <CommandPalette
             isOpen={showCommandPalette}
             onClose={() => { setShowCommandPalette(false); }}

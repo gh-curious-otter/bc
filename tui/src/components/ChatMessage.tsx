@@ -132,16 +132,17 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
         justifyContent={bubbleAlignment}
         width="100%"
       >
-        {/* Message bubble */}
+        {/* Message bubble - #1589 fix: Add overflow="hidden" to prevent text bleeding */}
         <Box
           flexDirection="column"
           borderStyle={isSelected ? 'double' : 'round'}
           borderColor={isSelected ? 'yellow' : bubbleBorderColor}
           paddingX={1}
           width={maxBubbleWidth}
+          overflow="hidden"
         >
-          {/* Header: sender | time | read status */}
-          <Box justifyContent="space-between">
+          {/* Header: sender | time | read status - #1589 fix: Add overflow="hidden" */}
+          <Box justifyContent="space-between" overflow="hidden">
             <Box>
               <Text color={senderColor} bold>
                 {rolePrefix}{sender}
@@ -162,8 +163,9 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
 
           {/* Message body with @mentions
               CLI directive: Fix long message rendering - ensure text wraps properly
-              Use width constraint to force text wrapping within bubble */}
-          <Box flexDirection="column" flexGrow={1} minHeight={1} width={maxBubbleWidth - 4}>
+              Use width constraint to force text wrapping within bubble
+              #1589 fix: Add overflow="hidden" to prevent text bleeding artifacts */}
+          <Box flexDirection="column" flexGrow={1} minHeight={1} width={maxBubbleWidth - 4} overflow="hidden">
             <MentionText text={displayMessage} currentUser={currentUser} />
             {/* #1463: Show truncation indicator for long messages */}
             {isTruncated && (
