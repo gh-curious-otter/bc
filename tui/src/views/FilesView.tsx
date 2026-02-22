@@ -121,21 +121,21 @@ export function FilesView({ onBack }: FilesViewProps): React.ReactElement {
       return;
     }
 
-    // Tab: cycle focus areas
-    if (key.tab) {
-      if (!key.shift) {
-        setFocusArea(prev => {
-          if (prev === 'worktree') return 'tree';
-          if (prev === 'tree') return 'preview';
-          return 'worktree';
-        });
-      } else {
-        setFocusArea(prev => {
-          if (prev === 'worktree') return 'preview';
-          if (prev === 'tree') return 'worktree';
-          return 'tree';
-        });
-      }
+    // f/F: cycle focus areas (Tab reserved for global view navigation #1520)
+    if (input === 'f') {
+      setFocusArea(prev => {
+        if (prev === 'worktree') return 'tree';
+        if (prev === 'tree') return 'preview';
+        return 'worktree';
+      });
+      return;
+    }
+    if (input === 'F') {
+      setFocusArea(prev => {
+        if (prev === 'worktree') return 'preview';
+        if (prev === 'tree') return 'worktree';
+        return 'tree';
+      });
       return;
     }
 
