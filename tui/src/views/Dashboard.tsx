@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useState, useCallback } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { Panel } from '../components/Panel.js';
 import { MetricCard } from '../components/MetricCard.js';
@@ -40,21 +40,24 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
     lastRefresh,
   } = useDashboard();
 
-  // Keyboard navigation - Dashboard-specific shortcuts
-  // Global shortcuts (1-9, Tab, ESC, q) are handled by useKeyboardNavigation
-  // Note: Letter shortcuts (a, c, $) removed to avoid confusion - use numbers [2] [3] [4]
-  // See #1327 for comprehensive keybinding system design
-  useInput((input, key) => {
+  // #1596: Memoize keyboard input handler
+  const handleDashboardInput = useCallback((input: string, key: { ctrl: boolean }) => {
     // Refresh is Dashboard-specific (global Ctrl+R handled elsewhere)
     if (input === 'r') {
       void refresh();
     }
     // Performance overlay toggle - Ctrl+P (Phase 3 integration #1032)
     if (key.ctrl && input === 'p') {
-      setShowDebugPanel(!showDebugPanel);
+      setShowDebugPanel(prev => !prev);
     }
     // Note: q and ESC are handled by global useKeyboardNavigation
-  });
+  }, [refresh]);
+
+  // Keyboard navigation - Dashboard-specific shortcuts
+  // Global shortcuts (1-9, Tab, ESC, q) are handled by useKeyboardNavigation
+  // Note: Letter shortcuts (a, c, $) removed to avoid confusion - use numbers [2] [3] [4]
+  // See #1327 for comprehensive keybinding system design
+  useInput(handleDashboardInput);
 
   if (error) {
     return <ErrorDisplay error={error.message} onRetry={() => { void refresh(); }} />;

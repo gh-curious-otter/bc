@@ -59,9 +59,9 @@ export function CommandPalette({
     setSelectedIndex(0);
   }, []);
 
-  // Handle keyboard input
-  useInput(
-    (input, key) => {
+  // #1596: Memoize keyboard input handler
+  const handleKeyboardInput = useCallback(
+    (input: string, key: { escape: boolean; upArrow: boolean; downArrow: boolean; return: boolean; backspace: boolean; delete: boolean; ctrl: boolean; meta: boolean }) => {
       if (!isOpen) return;
 
       // Close on Escape
@@ -103,8 +103,11 @@ export function CommandPalette({
         handleQueryChange(query + input);
       }
     },
-    { isActive: isOpen && !disableInput }
+    [isOpen, onClose, results, selectedIndex, onSelect, handleQueryChange, query]
   );
+
+  // Handle keyboard input
+  useInput(handleKeyboardInput, { isActive: isOpen && !disableInput });
 
   if (!isOpen) {
     return null;
@@ -162,7 +165,8 @@ interface CommandRowProps {
   isRecent: boolean;
 }
 
-function CommandRow({ command, isSelected, isRecent }: CommandRowProps): React.ReactElement {
+/** #1596: Memoized command row to prevent re-renders when unrelated state changes */
+const CommandRow = React.memo(function CommandRow({ command, isSelected, isRecent }: CommandRowProps): React.ReactElement {
   return (
     <Box>
       <Text
@@ -177,6 +181,6 @@ function CommandRow({ command, isSelected, isRecent }: CommandRowProps): React.R
       </Text>
     </Box>
   );
-}
+});
 
 export default CommandPalette;
