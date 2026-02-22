@@ -171,12 +171,12 @@ var agentDeleteCmd = &cobra.Command{
 This removes the agent's tmux session, git worktree, channel memberships,
 and agent state. Memory is preserved by default for recovery.
 
-Use --force to delete a running agent without stopping it first.
+Use --force to delete an agent without stopping it first.
 Use --purge to also delete the agent's memory directory.
 
 Examples:
-  bc agent delete eng-01              # Delete (preserves memory)
-  bc agent delete eng-01 --force      # Force delete running agent
+  bc agent delete eng-01              # Delete stopped agent (preserves memory)
+  bc agent delete eng-01 --force      # Force delete (any state)
   bc agent delete eng-01 --purge      # Delete including memory
   bc agent delete eng-01 --force --purge  # Force delete with full cleanup`,
 	Args: cobra.ExactArgs(1),
@@ -907,9 +907,9 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentName)
 	}
 
-	// Check if agent is running - require --force
+	// Check if agent is not stopped - require --force or stop first
 	if a.State != agent.StateStopped && !agentDeleteForce {
-		return fmt.Errorf("agent %q is %s. Use --force to delete a running agent", agentName, a.State)
+		return fmt.Errorf("agent %q is %s (not stopped). Stop it first with 'bc agent stop %s' or use --force to delete anyway", agentName, a.State, agentName)
 	}
 
 	// Confirm deletion (show what will happen)
