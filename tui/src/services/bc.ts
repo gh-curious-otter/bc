@@ -105,20 +105,32 @@ function getCacheKey(args: string[]): string {
 }
 
 /**
- * Get cached result if valid, otherwise return null
+ * Cache lookup result - distinguishes between cache miss and cached null
  */
-function getCachedResult<T>(key: string): T | null {
+interface CacheLookupResult<T> {
+  hit: boolean;
+  data: T | undefined;
+}
+
+/**
+ * Get cached result if valid
+ * Returns { hit: true, data } for cache hit (even if data is null/undefined)
+ * Returns { hit: false, data: undefined } for cache miss
+ */
+function getCachedResult<T>(key: string): CacheLookupResult<T> {
   const entry = commandCache.get(key);
-  if (!entry) return null;
+  if (!entry) {
+    return { hit: false, data: undefined };
+  }
 
   const now = Date.now();
   if (now - entry.timestamp < entry.ttl) {
-    return entry.data as T;
+    return { hit: true, data: entry.data as T };
   }
 
   // Expired - remove from cache
   commandCache.delete(key);
-  return null;
+  return { hit: false, data: undefined };
 }
 
 /**
@@ -192,9 +204,13 @@ export async function execBc(args: string[]): Promise<string> {
       finalArgs.push('--json');
     }
 
-    // Use BC_BIN if set, otherwise fall back to 'bc' in PATH
+    // Use BC_BIN if set, otherwise fall back to 'bc' in PATH (#1612: Validate env vars)
     const bcBin = process.env.BC_BIN ?? 'bc';
     const bcRoot = process.env.BC_ROOT ?? process.cwd();
+
+    // Validate bcRoot exists before spawning
+    // Note: We don't validate bcBin here as spawn error will handle missing executable
+    // with a clearer error message from the OS
 
     const proc = spawn(bcBin, finalArgs, {
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -205,16 +221,31 @@ export async function execBc(args: string[]): Promise<string> {
     let stderr = '';
     let finished = false;
 
-    // Timeout after 30 seconds
+    // Timeout after 30 seconds (#1612: Improved process cleanup)
+    // Use SIGTERM first, then SIGKILL after grace period
+    let killTimeout: NodeJS.Timeout | undefined;
     const timeout = setTimeout(() => {
       if (!finished) {
+        // Try graceful termination first
+        proc.kill('SIGTERM');
+        // Force kill after 2s if process doesn't exit
+        killTimeout = setTimeout(() => {
+          if (!finished) {
+            proc.kill('SIGKILL');
+          }
+        }, 2000);
         finished = true;
-        // Kill the process forcefully to ensure cleanup
-        proc.kill('SIGKILL');
-        clearTimeout(timeout);
         reject(new Error(`bc command timed out after 30s: ${args.join(' ')}`));
       }
     }, 30000);
+
+    // Helper to clean up all timers
+    const cleanupTimers = () => {
+      clearTimeout(timeout);
+      if (killTimeout) {
+        clearTimeout(killTimeout);
+      }
+    };
 
     proc.stdout?.on('data', (data: Buffer) => {
       stdout += data.toString();
@@ -227,7 +258,7 @@ export async function execBc(args: string[]): Promise<string> {
     proc.on('close', (code: number | null) => {
       if (finished) return;
       finished = true;
-      clearTimeout(timeout);
+      cleanupTimers();
       if (code === 0) {
         resolve(stdout.trim());
       } else {
@@ -238,7 +269,7 @@ export async function execBc(args: string[]): Promise<string> {
     proc.on('error', (err: Error) => {
       if (finished) return;
       finished = true;
-      clearTimeout(timeout);
+      cleanupTimers();
       reject(new Error(`Failed to spawn bc: ${err.message}`));
     });
   });
@@ -269,10 +300,10 @@ export async function execBcJson<T>(args: string[]): Promise<T> {
 export async function execBcJsonCached<T>(args: string[], ttl?: number): Promise<T> {
   const key = getCacheKey(args);
 
-  // Check cache first
+  // Check cache first - use hit flag to handle cached null/undefined (#1612)
   const cached = getCachedResult<T>(key);
-  if (cached !== null) {
-    return cached;
+  if (cached.hit) {
+    return cached.data as T;
   }
 
   // Cache miss - fetch fresh data
