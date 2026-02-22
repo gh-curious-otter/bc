@@ -3,11 +3,13 @@
  * Issue #1231 - Add additional TUI views
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { Panel } from '../components/Panel';
 import { HeaderBar } from '../components/HeaderBar';
 import { ViewWrapper } from '../components/ViewWrapper';
+import { useFocus } from '../navigation/FocusContext';
+import { useNavigation } from '../navigation/NavigationContext';
 import { useAgents, useDisableInput } from '../hooks';
 import { truncate } from '../utils';
 
@@ -52,6 +54,8 @@ export function RoutingView(_props: RoutingViewProps = {}): React.ReactElement {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showDetails, setShowDetails] = useState(false);
   const agents = useAgents();
+  const { setFocus } = useFocus();
+  const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
 
   // Count agents by role
   const agentCountByRole = useMemo(() => {
@@ -77,6 +81,17 @@ export function RoutingView(_props: RoutingViewProps = {}): React.ReactElement {
 
   const validIndex = Math.min(selectedIndex, ROUTING_RULES.length - 1);
   const currentRule = ROUTING_RULES[validIndex] as typeof ROUTING_RULES[0] | undefined;
+
+  // Manage focus state and breadcrumbs for nested view navigation (#1604)
+  useEffect(() => {
+    if (showDetails && currentRule) {
+      setFocus('view');
+      setBreadcrumbs([{ label: currentRule.taskType }]);
+    } else {
+      setFocus('main');
+      clearBreadcrumbs();
+    }
+  }, [showDetails, currentRule, setFocus, setBreadcrumbs, clearBreadcrumbs]);
 
   // Keyboard handling
   useInput(

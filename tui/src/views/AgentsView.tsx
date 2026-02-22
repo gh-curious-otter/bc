@@ -15,6 +15,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useAgents, useDebounce } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
+import { useNavigation } from '../navigation/NavigationContext';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useAgentGroups } from '../hooks/useAgentGroups';
 import { PulseText } from '../components/AnimatedText';
@@ -82,15 +83,18 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
   }, [visibleItems, selectedIndex]);
 
   const { setFocus } = useFocus();
+  const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
 
-  // Manage focus state for nested view navigation
+  // Manage focus state and breadcrumbs for nested view navigation (#1604)
   useEffect(() => {
-    if (showDetail) {
+    if (showDetail && selectedAgent) {
       setFocus('view');
+      setBreadcrumbs([{ label: selectedAgent.name }]);
     } else {
       setFocus('main');
+      clearBreadcrumbs();
     }
-  }, [showDetail, setFocus]);
+  }, [showDetail, selectedAgent, setFocus, setBreadcrumbs, clearBreadcrumbs]);
 
   // Clear action feedback after delay
   const showActionFeedback = useCallback((action: AgentAction, target: string, status: 'success' | 'error', message: string) => {

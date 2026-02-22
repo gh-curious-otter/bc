@@ -6,6 +6,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { useLogs, getSeverityColor, getSeverityIcon, useDebounce } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
+import { useNavigation } from '../navigation/NavigationContext';
 import { PulseText } from '../components/AnimatedText';
 import type { LogSeverity } from '../hooks/useLogs';
 import type { LogEntry } from '../types';
@@ -108,6 +109,7 @@ export const LogsView: React.FC<LogsViewProps> = () => {
   const [agentFilter, setAgentFilter] = useState<string | null>(null);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
   const { setFocus } = useFocus();
+  const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
 
   // Debounce search query for filtering (issue #1602)
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
@@ -149,14 +151,16 @@ export const LogsView: React.FC<LogsViewProps> = () => {
 
   const selectedLog = filteredLogs[selectedIndex] as LogEntry | undefined;
 
-  // Manage focus state for nested view navigation
+  // Manage focus state and breadcrumbs for nested view navigation (#1604)
   useEffect(() => {
-    if (showDetail) {
+    if (showDetail && selectedLog) {
       setFocus('view');
+      setBreadcrumbs([{ label: `${selectedLog.agent}: ${abbreviateType(selectedLog.type)}` }]);
     } else {
       setFocus('main');
+      clearBreadcrumbs();
     }
-  }, [showDetail, setFocus]);
+  }, [showDetail, selectedLog, setFocus, setBreadcrumbs, clearBreadcrumbs]);
 
   // Cycle through severity filters
   const cycleSeverity = useCallback(() => {

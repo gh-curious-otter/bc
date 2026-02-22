@@ -9,6 +9,7 @@ import { render } from 'ink-testing-library';
 import { Text, Box } from 'ink';
 import { RoutingView } from '../views/RoutingView';
 import { FocusProvider } from '../navigation/FocusContext';
+import { NavigationProvider } from '../navigation/NavigationContext';
 import { HintsProvider, useHintsContext, DisableInputProvider } from '../hooks';
 import * as useAgentsHook from '../hooks/useAgents';
 
@@ -32,15 +33,18 @@ jest.mock('../hooks/useAgents', () => ({
 const mockUseAgents = useAgentsHook.useAgents as jest.Mock;
 
 // #1594: Use DisableInputProvider instead of prop
+// #1604: Add NavigationProvider for breadcrumb context
 function renderRoutingView(props = {}, withHintsDisplay = false) {
   return render(
     <HintsProvider>
-      <FocusProvider>
-        <DisableInputProvider disabled>
-          <RoutingView {...props} />
-          {withHintsDisplay && <HintsDisplay />}
-        </DisableInputProvider>
-      </FocusProvider>
+      <NavigationProvider>
+        <FocusProvider>
+          <DisableInputProvider disabled>
+            <RoutingView {...props} />
+            {withHintsDisplay && <HintsDisplay />}
+          </DisableInputProvider>
+        </FocusProvider>
+      </NavigationProvider>
     </HintsProvider>
   );
 }
