@@ -9,7 +9,7 @@ import { render } from 'ink-testing-library';
 import { Text, Box } from 'ink';
 import { MemoryView } from '../views/MemoryView';
 import { FocusProvider } from '../navigation/FocusContext';
-import { HintsProvider, useHintsContext } from '../hooks/useHintsContext';
+import { HintsProvider, useHintsContext, DisableInputProvider } from '../hooks';
 import * as bc from '../services/bc';
 
 // Helper to display hints from context
@@ -35,12 +35,15 @@ jest.mock('../services/bc', () => ({
 const mockGetMemoryList = bc.getMemoryList as jest.Mock;
 const mockGetMemory = bc.getMemory as jest.Mock;
 
+// #1594: Use DisableInputProvider instead of prop
 function renderMemoryView(props = {}, withHintsDisplay = false) {
   return render(
     <HintsProvider>
       <FocusProvider>
-        <MemoryView disableInput {...props} />
-        {withHintsDisplay && <HintsDisplay />}
+        <DisableInputProvider disabled>
+          <MemoryView {...props} />
+          {withHintsDisplay && <HintsDisplay />}
+        </DisableInputProvider>
       </FocusProvider>
     </HintsProvider>
   );

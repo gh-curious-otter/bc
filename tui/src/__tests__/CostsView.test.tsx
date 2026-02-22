@@ -15,13 +15,8 @@ describe('CostsView', () => {
       expect(lastFrame()).toBeDefined();
     });
 
-    it('renders with disableInput prop false', () => {
-      const { lastFrame } = render(<CostsView disableInput={false} />);
-      expect(lastFrame()).toBeDefined();
-    });
-
-    it('renders with disableInput prop true', () => {
-      const { lastFrame } = render(<CostsView disableInput={true} />);
+    it('renders consistently', () => {
+      const { lastFrame } = render(<CostsView />);
       expect(lastFrame()).toBeDefined();
     });
   });
@@ -80,12 +75,12 @@ describe('CostsView', () => {
 
   describe('input handling', () => {
     it('respects disableInput prop', () => {
-      const { lastFrame } = render(<CostsView disableInput={true} />);
+      const { lastFrame } = render(<CostsView />);
       expect(lastFrame()).toBeDefined();
     });
 
     it('allows input when enabled', () => {
-      const { lastFrame } = render(<CostsView disableInput={false} />);
+      const { lastFrame } = render(<CostsView />);
       expect(lastFrame()).toBeDefined();
     });
   });

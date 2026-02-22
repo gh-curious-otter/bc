@@ -11,6 +11,7 @@ import { COMMAND_REGISTRY } from '../types/commands';
 import type { BcCommand } from '../types/commands';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
+import { useDisableInput } from '../hooks';
 import { execBc } from '../services/bc';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -50,16 +51,16 @@ function saveFavorites(favorites: Set<string>): void {
   }
 }
 
-interface CommandsViewProps {
-  disableInput?: boolean;
-}
+// #1594: Using empty interface for future extensibility, props removed
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+interface CommandsViewProps {}
 
 // Get all category names from registry
 const CATEGORY_NAMES = ['All', ...COMMAND_REGISTRY.map(cat => cat.name)];
 
-export const CommandsView: React.FC<CommandsViewProps> = ({
-  disableInput = false,
-}) => {
+export const CommandsView: React.FC<CommandsViewProps> = (_props = {}) => {
+  // #1594: Use context instead of prop drilling
+  const { isDisabled: disableInput } = useDisableInput();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchMode, setSearchMode] = useState(false);

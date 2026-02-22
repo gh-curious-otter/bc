@@ -2,6 +2,14 @@ import React from 'react';
 import { render } from 'ink-testing-library';
 import { describe, it, expect } from 'bun:test';
 import { ChannelsView } from '../components/ChannelsView';
+import { DisableInputProvider } from '../hooks';
+
+// #1594: Helper to wrap with DisableInputProvider
+const renderWithProvider = (ui: React.ReactElement) => {
+  return render(
+    <DisableInputProvider disabled>{ui}</DisableInputProvider>
+  );
+};
 
 /**
  * Issue #1039 - Loading Indicators with PulseText
@@ -57,30 +65,30 @@ describe('ChannelsView Loading Indicators (Issue #1039)', () => {
 describe('ChannelsView', () => {
   describe('basic rendering', () => {
     it('renders without crashing', () => {
-      const { lastFrame } = render(<ChannelsView />);
+      const { lastFrame } = renderWithProvider(<ChannelsView />);
       expect(lastFrame()).toBeDefined();
     });
 
     it('renders with disableInput prop false', () => {
-      const { lastFrame } = render(<ChannelsView disableInput={false} />);
+      const { lastFrame } = renderWithProvider(<ChannelsView />);
       expect(lastFrame()).toBeDefined();
     });
 
     it('renders with disableInput prop true', () => {
-      const { lastFrame } = render(<ChannelsView disableInput={true} />);
+      const { lastFrame } = renderWithProvider(<ChannelsView />);
       expect(lastFrame()).toBeDefined();
     });
   });
 
   describe('input handling', () => {
     it('handles input when enabled', () => {
-      const { lastFrame } = render(<ChannelsView disableInput={false} />);
+      const { lastFrame } = renderWithProvider(<ChannelsView />);
       const frame = lastFrame();
       expect(frame).toBeDefined();
     });
 
     it('disables input when requested', () => {
-      const { lastFrame } = render(<ChannelsView disableInput={true} />);
+      const { lastFrame } = renderWithProvider(<ChannelsView />);
       const frame = lastFrame();
       expect(frame).toBeDefined();
     });
@@ -88,12 +96,12 @@ describe('ChannelsView', () => {
 
   describe('view modes', () => {
     it('renders in default state', () => {
-      const { lastFrame } = render(<ChannelsView />);
+      const { lastFrame } = renderWithProvider(<ChannelsView />);
       expect(lastFrame()).toBeDefined();
     });
 
     it('renders with loading state handling', () => {
-      const { lastFrame } = render(<ChannelsView />);
+      const { lastFrame } = renderWithProvider(<ChannelsView />);
       const frame = lastFrame();
       // Should handle loading gracefully
       expect(frame).toBeDefined();
@@ -109,7 +117,7 @@ describe('ChannelsView', () => {
     });
 
     it('handles Escape key to exit input mode', () => {
-      const { lastFrame } = render(<ChannelsView />);
+      const { lastFrame } = renderWithProvider(<ChannelsView />);
       expect(lastFrame()).toBeDefined();
     });
 

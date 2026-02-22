@@ -9,16 +9,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { useChannelsWithUnread } from '../hooks';
+import { useChannelsWithUnread, useDisableInput } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { PulseText } from './AnimatedText';
 import { ChannelRow, ChannelHistoryView } from './channels';
 
-interface ChannelsViewProps {
-  /** Disable input handling (useful for testing) */
-  disableInput?: boolean;
-}
+// #1594: Using empty interface for future extensibility, props removed
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+interface ChannelsViewProps {}
 
 /**
  * ChannelsView - Main channel list component
@@ -29,7 +28,9 @@ interface ChannelsViewProps {
  * - Enter channel to view history
  * - Press 'm' to jump to compose
  */
-export function ChannelsView({ disableInput = false }: ChannelsViewProps): React.ReactElement {
+export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement {
+  // #1594: Use context instead of prop drilling
+  const { isDisabled: disableInput } = useDisableInput();
   // #1129: Use useChannelsWithUnread for proper unread message tracking
   const { channels, loading: channelsLoading, error: channelsError } = useChannelsWithUnread();
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -115,7 +116,6 @@ export function ChannelsView({ disableInput = false }: ChannelsViewProps): React
       <ChannelHistoryView
         key={selectedChannel.name}
         channel={selectedChannel}
-        disableInput={disableInput}
         startInComposeMode={startCompose}
         onBack={() => {
           setViewMode('list');

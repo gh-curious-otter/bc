@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useDemons } from '../hooks/useDemons';
+import { useDisableInput } from '../hooks';
 import { StatusBadge } from '../components/StatusBadge';
 import { HeaderBar } from '../components/HeaderBar';
 import { ViewWrapper } from '../components/ViewWrapper';
@@ -14,10 +15,9 @@ import type { Demon } from '../types';
 /** Duration in ms to show action errors before auto-clearing */
 const ERROR_DISPLAY_DURATION = 3000;
 
-export interface DemonsViewProps {
-  /** Disable input handling (useful for testing) */
-  disableInput?: boolean;
-}
+// #1594: Using empty interface for future extensibility, props removed
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface DemonsViewProps {}
 
 /**
  * Format cron schedule to human-readable string
@@ -78,9 +78,9 @@ function formatRelativeTime(timestamp?: string): string {
  * - Show schedule, status, run history
  * - Keyboard navigation (j/k, e/d to enable/disable, r to run)
  */
-export function DemonsView({
-  disableInput = false,
-}: DemonsViewProps): React.ReactElement {
+export function DemonsView(_props: DemonsViewProps = {}): React.ReactElement {
+  // #1594: Use context instead of prop drilling
+  const { isDisabled: disableInput } = useDisableInput();
   const { data: demons, loading, error, enabled, refresh, enable, disable, run } = useDemons();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [actionError, setActionError] = useState<string | null>(null);

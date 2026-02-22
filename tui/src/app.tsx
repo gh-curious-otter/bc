@@ -14,7 +14,7 @@ import {
   type View,
 } from './navigation';
 import { ThemeProvider, useTheme, type ThemeMode } from './theme';
-import { UnreadProvider, useKeybindingHints, useResponsiveLayout, HintsProvider, useHintsContext } from './hooks';
+import { UnreadProvider, useKeybindingHints, useResponsiveLayout, HintsProvider, useHintsContext, DisableInputProvider, useDisableInput } from './hooks';
 import { ConfigProvider, useThemeConfig } from './config';
 import { Dashboard } from './views/Dashboard';
 import { AgentsView } from './views/AgentsView';
@@ -80,7 +80,10 @@ function AppWithTheme({
         <FocusProvider>
           <UnreadProvider>
             <HintsProvider>
-              <AppContent disableInput={disableInput} themeConfig={themeConfig} />
+              {/* #1594: DisableInputProvider eliminates prop drilling */}
+              <DisableInputProvider disabled={disableInput}>
+                <AppContent themeConfig={themeConfig} />
+              </DisableInputProvider>
             </HintsProvider>
           </UnreadProvider>
         </FocusProvider>
@@ -90,14 +93,15 @@ function AppWithTheme({
 }
 
 interface AppContentProps {
-  disableInput: boolean;
   themeConfig: ReturnType<typeof useThemeConfig>;
 }
 
-function AppContent({ disableInput, themeConfig }: AppContentProps): React.ReactElement {
+function AppContent({ themeConfig }: AppContentProps): React.ReactElement {
   const { currentView, navigate } = useNavigation();
   const { stdout } = useStdout();
   const { setThemeName } = useTheme();
+  // #1594: Use context instead of prop drilling
+  const { isDisabled: disableInput } = useDisableInput();
   const [showCommandPalette, setShowCommandPalette] = useState(false);
 
   // #1326: Use centralized responsive layout system
@@ -185,10 +189,8 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
           {/* Main content area - wrapped with error boundary (#1585) */}
           <Box flexDirection="column" flexGrow={1}>
             <ViewErrorBoundary viewName={currentView}>
-              <ViewContent
-                view={currentView}
-                disableInput={disableInput}
-              />
+              {/* #1594: Views use useDisableInput hook instead of props */}
+              <ViewContent view={currentView} />
             </ViewErrorBoundary>
           </Box>
         </Box>
@@ -213,26 +215,25 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
 
 interface ViewContentProps {
   view: View;
-  disableInput: boolean;
 }
 
-// Main content router - #1596: Memoized to prevent unnecessary re-renders
-const ViewContent = memo(function ViewContent({ view, disableInput }: ViewContentProps): React.ReactElement {
+// Main content router - #1596: Memoized, #1594: views use context
+const ViewContent = memo(function ViewContent({ view }: ViewContentProps): React.ReactElement {
   switch (view) {
     case 'dashboard':
       return <Dashboard />;
     case 'agents':
       return <AgentsView />;
     case 'channels':
-      return <ChannelsView disableInput={disableInput} />;
+      return <ChannelsView />;
     case 'files':
       return <FilesView />;
     case 'costs':
-      return <CostsView disableInput={disableInput} />;
+      return <CostsView />;
     case 'commands':
-      return <CommandsView disableInput={disableInput} />;
+      return <CommandsView />;
     case 'roles':
-      return <RolesView disableInput={disableInput} />;
+      return <RolesView />;
     case 'logs':
       return <LogsView />;
     case 'worktrees':
@@ -240,13 +241,13 @@ const ViewContent = memo(function ViewContent({ view, disableInput }: ViewConten
     case 'workspaces':
       return <WorkspaceSelectorView />;
     case 'demons':
-      return <DemonsView disableInput={disableInput} />;
+      return <DemonsView />;
     case 'processes':
       return <ProcessesView />;
     case 'memory':
-      return <MemoryView disableInput={disableInput} />;
+      return <MemoryView />;
     case 'routing':
-      return <RoutingView disableInput={disableInput} />;
+      return <RoutingView />;
     case 'help':
       return <HelpView />;
     default:

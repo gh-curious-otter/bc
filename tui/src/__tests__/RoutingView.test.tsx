@@ -9,7 +9,7 @@ import { render } from 'ink-testing-library';
 import { Text, Box } from 'ink';
 import { RoutingView } from '../views/RoutingView';
 import { FocusProvider } from '../navigation/FocusContext';
-import { HintsProvider, useHintsContext } from '../hooks/useHintsContext';
+import { HintsProvider, useHintsContext, DisableInputProvider } from '../hooks';
 import * as useAgentsHook from '../hooks/useAgents';
 
 // Helper to display hints from context
@@ -31,12 +31,15 @@ jest.mock('../hooks/useAgents', () => ({
 
 const mockUseAgents = useAgentsHook.useAgents as jest.Mock;
 
+// #1594: Use DisableInputProvider instead of prop
 function renderRoutingView(props = {}, withHintsDisplay = false) {
   return render(
     <HintsProvider>
       <FocusProvider>
-        <RoutingView disableInput {...props} />
-        {withHintsDisplay && <HintsDisplay />}
+        <DisableInputProvider disabled>
+          <RoutingView {...props} />
+          {withHintsDisplay && <HintsDisplay />}
+        </DisableInputProvider>
       </FocusProvider>
     </HintsProvider>
   );

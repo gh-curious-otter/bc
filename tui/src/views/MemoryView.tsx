@@ -9,22 +9,23 @@ import { Panel } from '../components/Panel';
 import { HeaderBar } from '../components/HeaderBar';
 import { ViewWrapper } from '../components/ViewWrapper';
 import { useFocus } from '../navigation/FocusContext';
+import { useDisableInput } from '../hooks';
 import { getMemoryList, getMemory, searchMemory, clearMemory } from '../services/bc';
 import { truncate } from '../utils';
 import type { AgentMemorySummary, AgentMemory, MemorySearchResult } from '../types';
 
-interface MemoryViewProps {
-  disableInput?: boolean;
-}
+// #1594: Using empty interface for future extensibility, props removed
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+interface MemoryViewProps {}
 
 type ViewMode = 'list' | 'detail' | 'search';
 
 /**
  * MemoryView - Display and manage agent memories
  */
-export function MemoryView({
-  disableInput = false,
-}: MemoryViewProps): React.ReactElement {
+export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
+  // #1594: Use context instead of prop drilling
+  const { isDisabled: disableInput } = useDisableInput();
   // Data state
   const [agents, setAgents] = useState<AgentMemorySummary[]>([]);
   const [selectedMemory, setSelectedMemory] = useState<AgentMemory | null>(null);
