@@ -52,6 +52,12 @@ enabled = false
 command = "codex --full-auto"
 enabled = false
 
+# OpenCode/Crush - Charmbracelet's AI coding assistant
+# Note: OpenCode was archived, Crush is the successor
+[tools.opencode]
+command = "crush"
+enabled = false
+
 # GitHub integration - for issue tracking and PR management
 [tools.github]
 command = "gh"
@@ -193,3 +199,8 @@ description = "Cursor Agent"
 name = "codex"
 command = "codex --full-auto"
 description = "OpenAI Codex"
+
+[[agents]]
+name = "opencode"
+command = "crush"
+description = "OpenCode/Crush AI coding assistant"
