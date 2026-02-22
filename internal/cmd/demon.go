@@ -343,6 +343,10 @@ func runDemonList(cmd *cobra.Command, args []string) error {
 	cmd.Printf("%-20s %-20s %-10s %s\n", "NAME", "SCHEDULE", "ENABLED", "COMMAND")
 	cmd.Println("--------------------------------------------------------------------")
 	for _, d := range demons {
+		// #1534 fix: Skip invalid demons with empty names (corrupted data)
+		if d.Name == "" {
+			continue
+		}
 		enabled := "yes"
 		if !d.Enabled {
 			enabled = "no"
