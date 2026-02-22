@@ -295,7 +295,7 @@ func runTeamAdd(cmd *cobra.Command, args []string) error {
 
 	// Validate agent exists
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
-	_ = mgr.LoadState() // nolint:errcheck - continue even if state doesn't load
+	_ = mgr.LoadState() //nolint:errcheck // continue even if state doesn't load
 	if mgr.GetAgent(agentName) == nil {
 		return fmt.Errorf("agent %q does not exist. Create it first with: bc agent create %s", agentName, agentName)
 	}
