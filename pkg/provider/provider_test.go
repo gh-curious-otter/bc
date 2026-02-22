@@ -64,6 +64,9 @@ func TestDefaultRegistryHasProviders(t *testing.T) {
 	if _, ok := DefaultRegistry.Get("codex"); !ok {
 		t.Error("expected codex provider in default registry")
 	}
+	if _, ok := DefaultRegistry.Get("openclaw"); !ok {
+		t.Error("expected openclaw provider in default registry")
+	}
 }
 
 func TestGetProvider(t *testing.T) {
@@ -314,7 +317,131 @@ func TestCodexDetectState(t *testing.T) {
 
 func TestListProviders(t *testing.T) {
 	providers := ListProviders()
-	if len(providers) < 3 {
-		t.Errorf("expected at least 3 providers, got %d", len(providers))
+	if len(providers) < 4 {
+		t.Errorf("expected at least 4 providers, got %d", len(providers))
+	}
+}
+
+func TestOpenClawProvider(t *testing.T) {
+	p := NewOpenClawProvider()
+
+	if p.Name() != "openclaw" {
+		t.Errorf("expected name 'openclaw', got %q", p.Name())
+	}
+	if p.Description() == "" {
+		t.Error("expected non-empty description")
+	}
+	if p.Command() == "" {
+		t.Error("expected non-empty command")
+	}
+}
+
+func TestOpenClawDetectState(t *testing.T) {
+	p := NewOpenClawProvider()
+
+	tests := []struct {
+		name   string
+		output string
+		want   State
+	}{
+		{
+			name:   "working spinner",
+			output: "⠋ Analyzing codebase...\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "working search emoji",
+			output: "🔍 Searching for files\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "working tool emoji",
+			output: "🔧 Applying changes\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "working thinking",
+			output: "thinking about your request\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "working searching",
+			output: "Searching for relevant code...\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "done checkmark",
+			output: "✓ Changes applied\n",
+			want:   StateDone,
+		},
+		{
+			name:   "done celebration",
+			output: "🎉 Task completed successfully\n",
+			want:   StateDone,
+		},
+		{
+			name:   "done finished",
+			output: "Task finished successfully\n",
+			want:   StateDone,
+		},
+		{
+			name:   "error",
+			output: "error: cannot read file\n",
+			want:   StateError,
+		},
+		{
+			name:   "error cross",
+			output: "❌ Failed to compile\n",
+			want:   StateError,
+		},
+		{
+			name:   "stuck timeout",
+			output: "Connection timeout\n",
+			want:   StateStuck,
+		},
+		{
+			name:   "stuck rate limit",
+			output: "Rate limit exceeded\n",
+			want:   StateStuck,
+		},
+		{
+			name:   "stuck network",
+			output: "Network error: connection refused\n",
+			want:   StateStuck,
+		},
+		{
+			name:   "idle prompt",
+			output: "openclaw> ",
+			want:   StateIdle,
+		},
+		{
+			name:   "idle claw prompt",
+			output: "claw> ",
+			want:   StateIdle,
+		},
+		{
+			name:   "idle ready",
+			output: "Ready for input\n",
+			want:   StateIdle,
+		},
+		{
+			name:   "unknown",
+			output: "some random output\n",
+			want:   StateUnknown,
+		},
+		{
+			name:   "empty",
+			output: "",
+			want:   StateUnknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := p.DetectState(tt.output)
+			if got != tt.want {
+				t.Errorf("DetectState() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
