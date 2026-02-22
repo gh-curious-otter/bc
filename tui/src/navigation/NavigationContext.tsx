@@ -18,19 +18,26 @@ export interface TabConfig {
   shortcut?: string;
 }
 
+// Tab order matches DRAWER_SECTIONS visual grouping (#1526)
+// WORKSPACE: dashboard, agents, channels, files, commands
+// MONITOR: logs, costs, processes, demons
+// SYSTEM: roles, worktrees, workspaces, memory, routing
 export const DEFAULT_TABS: TabConfig[] = [
+  // WORKSPACE section
   { key: '1', view: 'dashboard', label: 'Dashboard', shortLabel: 'Dash', shortcut: '1' },
   { key: '2', view: 'agents', label: 'Agents', shortLabel: 'Agt', shortcut: '2' },
   { key: '3', view: 'channels', label: 'Channels', shortLabel: 'Chan', shortcut: '3' },
   { key: '4', view: 'files', label: 'Files', shortLabel: 'File', shortcut: '4' },
-  { key: '5', view: 'costs', label: 'Costs', shortLabel: 'Cost', shortcut: '5' },
-  { key: '6', view: 'commands', label: 'Commands', shortLabel: 'Cmd', shortcut: '6' },
-  { key: '7', view: 'roles', label: 'Roles', shortLabel: 'Role', shortcut: '7' },
-  { key: '8', view: 'logs', label: 'Logs', shortLabel: 'Log', shortcut: '8' },
-  { key: '9', view: 'worktrees', label: 'Worktrees', shortLabel: 'Tree', shortcut: '9' },
-  { key: '0', view: 'workspaces', label: 'Workspaces', shortLabel: 'Wksp', shortcut: '0' },
-  { key: '-', view: 'demons', label: 'Demons', shortLabel: 'Dmn', shortcut: '-' },
-  { key: '=', view: 'processes', label: 'Processes', shortLabel: 'Proc', shortcut: '=' },
+  { key: '5', view: 'commands', label: 'Commands', shortLabel: 'Cmd', shortcut: '5' },
+  // MONITOR section
+  { key: '6', view: 'logs', label: 'Logs', shortLabel: 'Log', shortcut: '6' },
+  { key: '7', view: 'costs', label: 'Costs', shortLabel: 'Cost', shortcut: '7' },
+  { key: '8', view: 'processes', label: 'Processes', shortLabel: 'Proc', shortcut: '8' },
+  { key: '9', view: 'demons', label: 'Demons', shortLabel: 'Dmn', shortcut: '9' },
+  // SYSTEM section
+  { key: '0', view: 'roles', label: 'Roles', shortLabel: 'Role', shortcut: '0' },
+  { key: '-', view: 'worktrees', label: 'Worktrees', shortLabel: 'Tree', shortcut: '-' },
+  { key: '=', view: 'workspaces', label: 'Workspaces', shortLabel: 'Wksp', shortcut: '=' },
   { key: 'M', view: 'memory', label: 'Memory', shortLabel: 'Mem', shortcut: 'M' },
   { key: 'R', view: 'routing', label: 'Routing', shortLabel: 'Rte', shortcut: 'R' },
   { key: '?', view: 'help', label: 'Help', shortLabel: '?', shortcut: '?' },
