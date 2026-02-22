@@ -1,21 +1,21 @@
 /**
  * App - Main TUI application component
+ * Issue #1608: Simplified context tree architecture using AppProviders
  */
 
 import React, { useState, useMemo, useCallback, memo } from 'react';
 import { Box, Text, useStdout, useInput } from 'ink';
 import {
-  NavigationProvider,
   useNavigation,
   useKeyboardNavigation,
   Drawer,
   Breadcrumb,
-  FocusProvider,
   type View,
 } from './navigation';
-import { ThemeProvider, useTheme, type ThemeMode } from './theme';
-import { UnreadProvider, useKeybindingHints, useResponsiveLayout, HintsProvider, useHintsContext, DisableInputProvider, useDisableInput } from './hooks';
-import { ConfigProvider, useThemeConfig } from './config';
+import { useTheme } from './theme';
+import { useKeybindingHints, useResponsiveLayout, useHintsContext, useDisableInput } from './hooks';
+import { useThemeConfig } from './config';
+import { AppProviders } from './providers';
 import { Dashboard } from './views/Dashboard';
 import { AgentsView } from './views/AgentsView';
 import { CommandsView } from './views/CommandsView';
@@ -41,55 +41,30 @@ interface AppProps {
   initialView?: View;
 }
 
+/**
+ * App - Main entry point with simplified provider tree (#1608)
+ *
+ * Uses AppProviders to compose all context providers in one place,
+ * reducing nesting complexity and making dependencies explicit.
+ */
 export function App({
   disableInput = false,
   initialView = 'dashboard',
 }: AppProps): React.ReactElement {
   return (
-    <ConfigProvider>
-      <AppWithTheme disableInput={disableInput} initialView={initialView} />
-    </ConfigProvider>
+    <AppProviders initialView={initialView} disableInput={disableInput}>
+      <AppContentWrapper />
+    </AppProviders>
   );
-}
-
-interface AppWithThemeProps {
-  disableInput: boolean;
-  initialView: View;
 }
 
 /**
- * AppWithTheme - Wraps the app with theme provider initialized from config
- * Must be inside ConfigProvider to use useThemeConfig
+ * AppContentWrapper - Bridge component that accesses theme config
+ * and passes it to AppContent for theme name application
  */
-function AppWithTheme({
-  disableInput,
-  initialView,
-}: AppWithThemeProps): React.ReactElement {
-  // Get theme config from workspace configuration
+function AppContentWrapper(): React.ReactElement {
   const themeConfig = useThemeConfig();
-
-  // Convert config theme/mode to ThemeMode for ThemeProvider
-  // If a named theme is set (matrix, synthwave, etc), use 'auto' mode to let theme system handle it
-  const effectiveMode: ThemeMode = themeConfig.theme !== 'dark' && themeConfig.theme !== 'light'
-    ? 'auto'
-    : themeConfig.mode;
-
-  return (
-    <ThemeProvider config={{ mode: effectiveMode }}>
-      <NavigationProvider initialView={initialView}>
-        <FocusProvider>
-          <UnreadProvider>
-            <HintsProvider>
-              {/* #1594: DisableInputProvider eliminates prop drilling */}
-              <DisableInputProvider disabled={disableInput}>
-                <AppContent themeConfig={themeConfig} />
-              </DisableInputProvider>
-            </HintsProvider>
-          </UnreadProvider>
-        </FocusProvider>
-      </NavigationProvider>
-    </ThemeProvider>
-  );
+  return <AppContent themeConfig={themeConfig} />;
 }
 
 interface AppContentProps {
