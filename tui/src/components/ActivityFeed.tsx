@@ -7,6 +7,7 @@ import React, { memo, useMemo } from 'react';
 import { Box, Text, useStdout } from 'ink';
 import { Panel } from './Panel';
 import { useLogs, getSeverityColor, getSeverityIcon } from '../hooks';
+import { truncate } from '../utils';
 import type { LogSeverity } from '../hooks';
 import type { LogEntry } from '../types';
 
@@ -52,15 +53,6 @@ function formatEventType(type: string): string {
     return parts[parts.length - 1];
   }
   return type;
-}
-
-/**
- * Truncate message to fit in compact display
- */
-function truncateMessage(msg: string | undefined | null, maxLen: number): string {
-  if (!msg) return '';
-  if (msg.length <= maxLen) return msg;
-  return msg.slice(0, maxLen - 3) + '...';
 }
 
 /**
@@ -232,7 +224,7 @@ const ActivityEntry = memo(function ActivityEntry({
       <Text color="cyan">{entry.agent.padEnd(10)} </Text>
       <Text color={severityColor}>{severityIcon} </Text>
       <Text color={severityColor}>{eventLabel.padEnd(12)} </Text>
-      <Text>{truncateMessage(displayMessage, maxMsgLen)}</Text>
+      <Text>{truncate(displayMessage, maxMsgLen)}</Text>
       {count > 1 && (
         <Text dimColor> (x{count})</Text>
       )}

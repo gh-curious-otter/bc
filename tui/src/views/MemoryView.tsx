@@ -10,6 +10,7 @@ import { HeaderBar } from '../components/HeaderBar';
 import { ViewWrapper } from '../components/ViewWrapper';
 import { useFocus } from '../navigation/FocusContext';
 import { getMemoryList, getMemory, searchMemory, clearMemory } from '../services/bc';
+import { truncate } from '../utils';
 import type { AgentMemorySummary, AgentMemory, MemorySearchResult } from '../types';
 
 interface MemoryViewProps {
@@ -505,14 +506,6 @@ function formatTime(timestamp: string): string {
   } catch {
     return timestamp;
   }
-}
-
-/**
- * Truncate string to max length
- */
-function truncate(str: string, maxLen: number): string {
-  if (str.length <= maxLen) return str;
-  return str.slice(0, maxLen - 1) + '...';
 }
 
 export default MemoryView;

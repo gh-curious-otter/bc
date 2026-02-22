@@ -10,6 +10,7 @@ import { LoadingIndicator } from '../components/LoadingIndicator';
 import { HeaderBar } from '../components/HeaderBar';
 import { useFocus } from '../navigation/FocusContext';
 import { useAgents } from '../hooks';
+import { truncate } from '../utils';
 import type { Role } from '../types';
 import { getRoles, getRole, deleteRole } from '../services/bc';
 
@@ -451,14 +452,6 @@ function RoleDetails({ role, agentCount }: RoleDetailsProps): React.ReactElement
 function isBuiltinRole(name: string): boolean {
   const builtinRoles = ['root', 'manager', 'engineer', 'tech-lead', 'product-manager'];
   return builtinRoles.includes(name);
-}
-
-/**
- * Truncate string to max length
- */
-function truncate(str: string, maxLen: number): string {
-  if (str.length <= maxLen) return str;
-  return str.slice(0, maxLen - 1) + '…';
 }
 
 export default RolesView;

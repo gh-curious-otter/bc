@@ -6,6 +6,7 @@ import { Footer } from '../components/Footer.js';
 import { LoadingIndicator } from '../components/LoadingIndicator.js';
 import { ErrorDisplay } from '../components/ErrorDisplay.js';
 import { useTeams } from '../hooks';
+import { truncate } from '../utils';
 import type { Team } from '../types';
 
 // Extended team type for DataTable compatibility
@@ -204,14 +205,6 @@ function TeamDetails({ team }: TeamDetailsProps) {
       </Box>
     </Panel>
   );
-}
-
-/**
- * Truncate string to max length
- */
-function truncate(str: string, maxLen: number): string {
-  if (str.length <= maxLen) return str;
-  return str.slice(0, maxLen - 1) + '…';
 }
 
 /**
