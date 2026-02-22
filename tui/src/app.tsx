@@ -2,7 +2,7 @@
  * App - Main TUI application component
  */
 
-import React, { useState, useMemo, useCallback, memo } from 'react';
+import React, { useState, useMemo, useCallback, memo, type ReactNode } from 'react';
 import { Box, Text, useStdout, useInput } from 'ink';
 import {
   NavigationProvider,
@@ -16,6 +16,43 @@ import {
 import { ThemeProvider, useTheme, type ThemeMode } from './theme';
 import { UnreadProvider, useKeybindingHints, useResponsiveLayout, HintsProvider, useHintsContext, DisableInputProvider, useDisableInput } from './hooks';
 import { ConfigProvider, useThemeConfig } from './config';
+
+/**
+ * FeatureProviders - Consolidated provider for navigation/UI features (#1608)
+ *
+ * Groups related feature providers to simplify the provider tree in app.tsx.
+ * Providers included:
+ * - NavigationProvider: View navigation state
+ * - FocusProvider: Keyboard focus management
+ * - UnreadProvider: Unread message tracking
+ * - HintsProvider: Keybinding hints for footer
+ * - DisableInputProvider: Input disable state
+ */
+interface FeatureProvidersProps {
+  children: ReactNode;
+  initialView?: View;
+  disableInput?: boolean;
+}
+
+function FeatureProviders({
+  children,
+  initialView = 'dashboard',
+  disableInput = false,
+}: FeatureProvidersProps): React.ReactElement {
+  return (
+    <NavigationProvider initialView={initialView}>
+      <FocusProvider>
+        <UnreadProvider>
+          <HintsProvider>
+            <DisableInputProvider disabled={disableInput}>
+              {children}
+            </DisableInputProvider>
+          </HintsProvider>
+        </UnreadProvider>
+      </FocusProvider>
+    </NavigationProvider>
+  );
+}
 import { Dashboard } from './views/Dashboard';
 import { AgentsView } from './views/AgentsView';
 import { CommandsView } from './views/CommandsView';
@@ -76,18 +113,10 @@ function AppWithTheme({
 
   return (
     <ThemeProvider config={{ mode: effectiveMode }}>
-      <NavigationProvider initialView={initialView}>
-        <FocusProvider>
-          <UnreadProvider>
-            <HintsProvider>
-              {/* #1594: DisableInputProvider eliminates prop drilling */}
-              <DisableInputProvider disabled={disableInput}>
-                <AppContent themeConfig={themeConfig} />
-              </DisableInputProvider>
-            </HintsProvider>
-          </UnreadProvider>
-        </FocusProvider>
-      </NavigationProvider>
+      {/* #1608: FeatureProviders consolidates navigation/UI providers */}
+      <FeatureProviders initialView={initialView} disableInput={disableInput}>
+        <AppContent themeConfig={themeConfig} />
+      </FeatureProviders>
     </ThemeProvider>
   );
 }
