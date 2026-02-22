@@ -14,7 +14,7 @@ import {
   type View,
 } from './navigation';
 import { ThemeProvider, useTheme, type ThemeMode } from './theme';
-import { UnreadProvider, useKeybindingHints, useResponsiveLayout } from './hooks';
+import { UnreadProvider, useKeybindingHints, useResponsiveLayout, HintsProvider, useHintsContext } from './hooks';
 import { ConfigProvider, useThemeConfig } from './config';
 import { Dashboard } from './views/Dashboard';
 import { AgentsView } from './views/AgentsView';
@@ -82,7 +82,9 @@ function AppWithTheme({
       <NavigationProvider initialView={initialView}>
         <FocusProvider>
           <UnreadProvider>
-            <AppContent disableInput={disableInput} themeConfig={themeConfig} />
+            <HintsProvider>
+              <AppContent disableInput={disableInput} themeConfig={themeConfig} />
+            </HintsProvider>
           </UnreadProvider>
         </FocusProvider>
       </NavigationProvider>
@@ -446,11 +448,27 @@ function ShortcutRow({ keys, desc }: { keys: string; desc: string }): React.Reac
   );
 }
 
-// Footer with dynamic hints and theme indicator - anchored to bottom
+/**
+ * Footer with dynamic hints and theme indicator - anchored to bottom
+ *
+ * Issue #1461: Combines view-specific hints (from ViewWrapper via context)
+ * with universal hints (Tab, ?, q). This eliminates duplicate hint bars.
+ */
 function Footer(): React.ReactElement {
   const { theme } = useTheme();
   const { currentView } = useNavigation();
-  const { formatted } = useKeybindingHints(currentView, 'normal');
+  const { viewHints } = useHintsContext();
+  const { hints: universalHints } = useKeybindingHints(currentView, 'normal');
+
+  // Combine view-specific hints with universal hints
+  // View hints come first, then universal hints (Tab, ?, q)
+  const allHints = [...viewHints, ...universalHints];
+
+  // Format hints for display
+  const formatted = allHints
+    .map((h) => `[${h.key}] ${h.label}`)
+    .join('  ');
+
   return (
     <Box marginTop={1} justifyContent="space-between">
       <Text dimColor>{formatted}</Text>

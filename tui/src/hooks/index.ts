@@ -196,3 +196,10 @@ export {
   type UseGitStatusOptions,
   type UseGitStatusResult,
 } from './useGitStatus';
+
+export {
+  HintsProvider,
+  useHintsContext,
+  useViewHints,
+  type HintsProviderProps,
+} from './useHintsContext';

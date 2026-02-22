@@ -205,7 +205,6 @@ export function MemoryView({
         hints={[
           { key: 'j/k', label: 'navigate' },
           { key: 'Enter', label: 'details' },
-          { key: 'q', label: 'back' },
         ]}
       >
         {null}
@@ -265,7 +264,6 @@ export function MemoryView({
         { key: '/', label: 'search' },
         { key: 'c', label: 'clear' },
         { key: 'R', label: 'refresh' },
-        { key: 'q', label: 'back' },
       ]}
     >
       <Box flexDirection="column" width="100%">
