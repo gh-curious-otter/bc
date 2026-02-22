@@ -36,15 +36,24 @@
 
 ## Supported AI Agents
 
-bc works with any AI agent that runs in a terminal:
+bc works with any AI agent that runs in a terminal. Use `--tool` to specify:
 
-| Agent | Status | Notes |
-|-------|--------|-------|
-| [Claude Code](https://claude.ai/code) | ✅ Recommended | Full support, tested extensively |
-| [Cursor](https://cursor.sh) | ✅ Supported | Via terminal mode |
-| [Aider](https://aider.chat) | ✅ Supported | Any model backend |
-| [Codex CLI](https://github.com/openai/codex) | ✅ Supported | OpenAI models |
-| Custom agents | ✅ Supported | Any CLI tool |
+```bash
+bc agent create worker-01 --tool claude    # default
+bc agent create worker-01 --tool gemini
+bc agent create worker-01 --tool cursor
+```
+
+| Agent | Tool Flag | Status | Notes |
+|-------|-----------|--------|-------|
+| [Claude Code](https://claude.ai/code) | `--tool claude` | ✅ Default | Full support, tested extensively |
+| [Gemini](https://ai.google.dev/) | `--tool gemini` | ✅ Supported | Google AI models |
+| [Cursor](https://cursor.sh) | `--tool cursor` | ✅ Supported | Via terminal mode |
+| [Aider](https://aider.chat) | `--tool aider` | ✅ Supported | Any model backend |
+| [Codex CLI](https://github.com/openai/codex) | `--tool codex` | ✅ Supported | OpenAI models |
+| [OpenCode](https://github.com/opencode-ai/opencode) | `--tool opencode` | ✅ Supported | Terminal agent |
+| [OpenClaw](https://github.com/openclaw/openclaw) | `--tool openclaw` | ✅ Supported | Autonomous agent |
+| Custom agents | Configure in config.toml | ✅ Supported | Any CLI tool |
 
 ## Installation
 
@@ -304,6 +313,18 @@ default = "claude"
 [tools.claude]
 command = "claude --dangerously-skip-permissions"
 enabled = true
+
+[tools.gemini]
+command = "gemini --yolo"
+enabled = true
+
+[tools.cursor]
+command = "cursor-agent --force --print"
+enabled = false
+
+[tools.aider]
+command = "aider --yes"
+enabled = false
 
 [roster]
 engineers = 4
