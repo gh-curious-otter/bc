@@ -112,8 +112,10 @@ describe('MemoryView', () => {
     const { lastFrame } = renderMemoryView();
     await new Promise(resolve => setTimeout(resolve, 100));
 
+    // HeaderBar shows count and subtitle separately (#1446)
     const output = lastFrame() ?? '';
-    expect(output).toContain('2 agents');
+    expect(output).toContain('(2)');
+    expect(output).toContain('agents');
   });
 });
 

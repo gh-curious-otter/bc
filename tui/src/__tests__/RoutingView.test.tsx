@@ -112,8 +112,9 @@ describe('RoutingView', () => {
     const { lastFrame } = renderRoutingView();
     const output = lastFrame() ?? '';
 
-    // 4 rules: code, review, merge, qa
-    expect(output).toContain('4 rules');
+    // 4 rules: code, review, merge, qa - HeaderBar shows count and subtitle separately (#1446)
+    expect(output).toContain('(4)');
+    expect(output).toContain('rules');
   });
 });
 

@@ -9,6 +9,7 @@ import { useProcesses, useProcessLogs } from '../hooks';
 import { Table } from '../components/Table';
 import type { Column } from '../components/Table';
 import { StatusBadge } from '../components/StatusBadge';
+import { HeaderBar } from '../components/HeaderBar';
 import { ViewWrapper } from '../components/ViewWrapper';
 import type { Process } from '../types';
 
@@ -228,13 +229,20 @@ export function ProcessesView({ onBack, onSelectItem }: ProcessesViewProps) {
 
   return (
     <ViewWrapper
-      title={`Processes (${String(processList.length)})${searchQuery ? ` [/] "${searchQuery}"` : ''}`}
       loading={loading && processList.length === 0}
       loadingMessage="Loading processes..."
       error={error}
       onRetry={() => { void refresh(); }}
       hints={hints}
     >
+      {/* Header with count (#1446) */}
+      <HeaderBar
+        title="Processes"
+        count={processList.length}
+        loading={loading && processList.length > 0}
+        subtitle={searchQuery ? `[/] "${searchQuery}"` : undefined}
+        color="blue"
+      />
       {processList.length === 0 ? (
         <Box padding={1}>
           <Text dimColor>{searchQuery ? 'No processes match search' : 'No processes running'}</Text>

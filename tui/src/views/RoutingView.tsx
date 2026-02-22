@@ -6,6 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { Panel } from '../components/Panel';
+import { HeaderBar } from '../components/HeaderBar';
 import { ViewWrapper } from '../components/ViewWrapper';
 import { useAgents } from '../hooks';
 
@@ -167,17 +168,18 @@ export function RoutingView({
   // Main list view
   return (
     <ViewWrapper
-      title="Task Routing"
       hints={[
         { key: 'j/k', label: 'navigate' },
         { key: 'Enter', label: 'details' },
       ]}
     >
       <Box flexDirection="column" width="100%">
-        {/* Subtitle with count */}
-        <Box marginBottom={1}>
-          <Text dimColor>({String(ROUTING_RULES.length)} rules)</Text>
-        </Box>
+        {/* Header with count (#1446) */}
+        <HeaderBar
+          title="Task Routing"
+          count={ROUTING_RULES.length}
+          subtitle="rules"
+        />
 
         {/* Description */}
         <Box marginBottom={1} paddingX={1} borderStyle="single" borderColor="gray">
