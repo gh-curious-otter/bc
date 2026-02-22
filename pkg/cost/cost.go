@@ -11,6 +11,8 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // BudgetPeriod represents the time period for a budget.
@@ -221,7 +223,11 @@ func (s *Store) scanRecord(row *sql.Row) (*Record, error) {
 	}
 
 	r.TeamID = teamID.String
-	r.Timestamp, _ = time.Parse(time.RFC3339, timestamp)
+	var parseErr error
+	r.Timestamp, parseErr = time.Parse(time.RFC3339, timestamp)
+	if parseErr != nil {
+		log.Warn("invalid timestamp in cost record", "id", r.ID, "raw", timestamp, "error", parseErr)
+	}
 	return &r, nil
 }
 
@@ -297,7 +303,11 @@ func (s *Store) scanRecords(rows *sql.Rows) ([]*Record, error) {
 		}
 
 		r.TeamID = teamID.String
-		r.Timestamp, _ = time.Parse(time.RFC3339, timestamp)
+		var parseErr error
+		r.Timestamp, parseErr = time.Parse(time.RFC3339, timestamp)
+		if parseErr != nil {
+			log.Warn("invalid timestamp in cost record", "id", r.ID, "raw", timestamp, "error", parseErr)
+		}
 		records = append(records, &r)
 	}
 	return records, rows.Err()
@@ -505,7 +515,11 @@ func (s *Store) GetBudget(scope string) (*Budget, error) {
 	}
 
 	b.HardStop = hardStop == 1
-	b.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	var parseErr error
+	b.UpdatedAt, parseErr = time.Parse(time.RFC3339, updatedAt)
+	if parseErr != nil {
+		log.Warn("invalid timestamp in budget", "scope", b.Scope, "raw", updatedAt, "error", parseErr)
+	}
 	return &b, nil
 }
 
@@ -532,7 +546,11 @@ func (s *Store) GetAllBudgets() ([]*Budget, error) {
 		}
 
 		b.HardStop = hardStop == 1
-		b.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		var parseErr error
+		b.UpdatedAt, parseErr = time.Parse(time.RFC3339, updatedAt)
+		if parseErr != nil {
+			log.Warn("invalid timestamp in budget", "scope", b.Scope, "raw", updatedAt, "error", parseErr)
+		}
 		budgets = append(budgets, &b)
 	}
 	return budgets, rows.Err()
