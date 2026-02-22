@@ -67,6 +67,9 @@ func TestDefaultRegistryHasProviders(t *testing.T) {
 	if _, ok := DefaultRegistry.Get("openclaw"); !ok {
 		t.Error("expected openclaw provider in default registry")
 	}
+	if _, ok := DefaultRegistry.Get("cursor"); !ok {
+		t.Error("expected cursor provider in default registry")
+	}
 }
 
 func TestGetProvider(t *testing.T) {
@@ -315,13 +318,6 @@ func TestCodexDetectState(t *testing.T) {
 	}
 }
 
-func TestListProviders(t *testing.T) {
-	providers := ListProviders()
-	if len(providers) < 4 {
-		t.Errorf("expected at least 4 providers, got %d", len(providers))
-	}
-}
-
 func TestOpenClawProvider(t *testing.T) {
 	p := NewOpenClawProvider()
 
@@ -443,5 +439,141 @@ func TestOpenClawDetectState(t *testing.T) {
 				t.Errorf("DetectState() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestCursorProvider(t *testing.T) {
+	p := NewCursorProvider()
+
+	if p.Name() != "cursor" {
+		t.Errorf("expected name 'cursor', got %q", p.Name())
+	}
+	if p.Description() == "" {
+		t.Error("expected non-empty description")
+	}
+	if p.Command() == "" {
+		t.Error("expected non-empty command")
+	}
+}
+
+func TestCursorDetectState(t *testing.T) {
+	p := NewCursorProvider()
+
+	tests := []struct {
+		name   string
+		output string
+		want   State
+	}{
+		{
+			name:   "working spinner",
+			output: "⠋ Processing files...\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "working spinner 2",
+			output: "◐ Analyzing code\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "working thinking",
+			output: "Thinking about your request\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "working generating",
+			output: "Generating code...\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "working editing",
+			output: "Editing file main.go\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "working applying",
+			output: "Applying changes...\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "done checkmark",
+			output: "✓ Changes applied\n",
+			want:   StateDone,
+		},
+		{
+			name:   "done checkmark 2",
+			output: "✔ Task complete\n",
+			want:   StateDone,
+		},
+		{
+			name:   "done finished",
+			output: "Task finished successfully\n",
+			want:   StateDone,
+		},
+		{
+			name:   "done applied",
+			output: "Changes applied to 3 files\n",
+			want:   StateDone,
+		},
+		{
+			name:   "error",
+			output: "Error: file not found\n",
+			want:   StateError,
+		},
+		{
+			name:   "error failed",
+			output: "Operation failed\n",
+			want:   StateError,
+		},
+		{
+			name:   "error cross",
+			output: "✗ Build failed\n",
+			want:   StateError,
+		},
+		{
+			name:   "stuck timeout",
+			output: "Request timed out\n",
+			want:   StateStuck,
+		},
+		{
+			name:   "idle prompt",
+			output: "> ",
+			want:   StateIdle,
+		},
+		{
+			name:   "idle cursor prompt",
+			output: "cursor> ",
+			want:   StateIdle,
+		},
+		{
+			name:   "idle ready",
+			output: "Ready for input\n",
+			want:   StateIdle,
+		},
+		{
+			name:   "unknown",
+			output: "some random output\n",
+			want:   StateUnknown,
+		},
+		{
+			name:   "empty",
+			output: "",
+			want:   StateUnknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := p.DetectState(tt.output)
+			if got != tt.want {
+				t.Errorf("DetectState() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestListProviders(t *testing.T) {
+	providers := ListProviders()
+	if len(providers) < 5 {
+		t.Errorf("expected at least 5 providers, got %d", len(providers))
 	}
 }
