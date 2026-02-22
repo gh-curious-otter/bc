@@ -442,7 +442,12 @@ export const LogsView: React.FC<LogsViewProps> = ({ onBack, onSelectItem }) => {
         )}
       </Box>
 
-      {/* #1461 fix: Removed duplicate footer hints - global footer shows view-specific hints */}
+      {/* Footer - view-specific hints only, global hints (Tab/q/?) in app footer */}
+      <Box marginTop={1}>
+        <Text dimColor>
+          j/k: nav | g/G: top/bottom | Enter: details | /: search | s: severity | a: agent | t: time | c: clear | r: refresh
+        </Text>
+      </Box>
     </Box>
   );
 };

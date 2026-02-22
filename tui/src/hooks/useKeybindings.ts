@@ -103,7 +103,12 @@ export interface KeyHint {
   priority: number; // Lower = show first
 }
 
-/** Get status bar hints for current context */
+/**
+ * Get status bar hints for current context
+ *
+ * Issue #1461: Global footer now shows only universal keybindings.
+ * View-specific hints are handled by ViewWrapper in each view.
+ */
 export function getStatusBarHints(
   view: View,
   context: 'normal' | 'input' | 'modal' = 'normal',
@@ -124,61 +129,12 @@ export function getStatusBarHints(
       { key: 'Esc', label: 'close', priority: 2 },
     );
   } else {
-    // Normal mode - view-specific hints
-    switch (view) {
-      case 'dashboard':
-        hints.push(
-          { key: 'r', label: 'refresh', priority: 1 },
-          { key: 'j/k', label: 'navigate', priority: 2 },
-        );
-        break;
-      case 'agents':
-        hints.push(
-          { key: 'Enter', label: 'attach', priority: 1 },
-          { key: 'p', label: 'peek', priority: 2 },
-          { key: 'x', label: 'stop', priority: 3 },
-          { key: 'j/k', label: 'navigate', priority: 4 },
-        );
-        break;
-      case 'channels':
-        hints.push(
-          { key: 'm', label: 'compose', priority: 1 },
-          { key: 'Enter', label: 'view', priority: 2 },
-          { key: 'j/k', label: 'navigate', priority: 3 },
-        );
-        break;
-      case 'costs':
-        hints.push(
-          { key: '1/2/3', label: 'tabs', priority: 1 },
-          { key: 'b', label: 'budget', priority: 2 },
-          { key: 'e', label: 'export', priority: 3 },
-        );
-        break;
-      case 'memory':
-        hints.push(
-          { key: '/', label: 'search', priority: 1 },
-          { key: 'Enter', label: 'view', priority: 2 },
-          { key: 'j/k', label: 'navigate', priority: 3 },
-        );
-        break;
-      case 'routing':
-        hints.push(
-          { key: 'Enter', label: 'details', priority: 1 },
-          { key: 'j/k', label: 'navigate', priority: 2 },
-        );
-        break;
-      default:
-        hints.push(
-          { key: 'j/k', label: 'navigate', priority: 1 },
-          { key: 'Enter', label: 'select', priority: 2 },
-        );
-    }
-
-    // Add global hints at end
-    // #1462: Show 'back' for non-dashboard views, 'quit' only on dashboard
+    // Issue #1461: Only show universal hints in global footer
+    // View-specific hints are now shown in ViewWrapper footer
     hints.push(
-      { key: '?', label: 'help', priority: 10 },
-      { key: 'q', label: view === 'dashboard' ? 'quit' : 'back', priority: 11 },
+      { key: 'Tab', label: 'views', priority: 1 },
+      { key: '?', label: 'help', priority: 2 },
+      { key: 'q', label: view === 'dashboard' ? 'quit' : 'back', priority: 3 },
     );
   }
 

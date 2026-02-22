@@ -1,22 +1,24 @@
 /**
  * ViewWrapper - Consistent wrapper for all TUI views
  * Issue #1419: TUI Production Polish - Standardize view layout
+ * Issue #1461: Fix duplicate hints - hints now go to global footer via context
  *
  * Provides:
  * - Consistent padding and layout structure
  * - Optional Panel border with title
  * - Responsive layout context
  * - Standard loading and error states
- * - Footer with keybinding hints
+ * - Keybinding hints (passed to global footer via HintsContext)
  */
 
-import React, { memo } from 'react';
+import React, { memo, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import { Panel } from './Panel';
-import { Footer, type HintItem } from './Footer';
+import { type HintItem } from './Footer';
 import { LoadingIndicator } from './LoadingIndicator';
 import { ErrorDisplay } from './ErrorDisplay';
 import { useResponsiveLayout, type ResponsiveLayoutState } from '../hooks/useResponsiveLayout';
+import { useHintsContext } from '../hooks/useHintsContext';
 
 export interface ViewWrapperProps {
   /** View children to render */
@@ -93,6 +95,17 @@ export const ViewWrapper = memo(function ViewWrapper({
   renderWithLayout,
 }: ViewWrapperProps): React.ReactElement {
   const layout = useResponsiveLayout();
+  const { setViewHints, clearViewHints } = useHintsContext();
+
+  // Issue #1461: Pass hints to global footer via context instead of rendering locally
+  useEffect(() => {
+    if (hints && hints.length > 0 && !hideFooter) {
+      setViewHints(hints);
+    }
+    return () => {
+      clearViewHints();
+    };
+  }, [hints, hideFooter, setViewHints, clearViewHints]);
 
   // Error state takes precedence
   if (error) {
@@ -143,10 +156,8 @@ export const ViewWrapper = memo(function ViewWrapper({
         {wrappedContent}
       </Box>
 
-      {/* Footer with hints */}
-      {!hideFooter && (footer !== undefined || hints !== undefined) && (
-        footer ?? <Footer hints={hints ?? []} />
-      )}
+      {/* Issue #1461: Custom footer still renders locally, hints go to global footer */}
+      {!hideFooter && footer !== undefined && footer}
     </Box>
   );
 });

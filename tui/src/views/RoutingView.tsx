@@ -171,7 +171,6 @@ export function RoutingView({
       hints={[
         { key: 'j/k', label: 'navigate' },
         { key: 'Enter', label: 'details' },
-        { key: 'q', label: 'back' },
       ]}
     >
       <Box flexDirection="column" width="100%">
