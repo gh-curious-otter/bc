@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useDemons } from '../hooks/useDemons';
 import { StatusBadge } from '../components/StatusBadge';
+import { HeaderBar } from '../components/HeaderBar';
 import { ViewWrapper } from '../components/ViewWrapper';
 import type { Demon } from '../types';
 
@@ -262,22 +263,28 @@ export function DemonsView({
     { key: 'q/ESC', label: 'back' },
   ];
 
-  // Build title with count info
-  const total = demons?.length ?? 0;
-  const titleParts = [`Demons · ${String(filteredDemons.length)}${searchQuery ? `/${String(total)}` : ''} total · ${String(enabled)} enabled`];
+  // Build subtitle with enabled count and search
+  const subtitleParts: string[] = [`${String(enabled)} enabled`];
   if (searchQuery) {
-    titleParts.push(`[/] "${searchQuery}"`);
+    subtitleParts.push(`[/] "${searchQuery}"`);
   }
 
   return (
     <ViewWrapper
-      title={titleParts.join(' ')}
       loading={loading && !demons}
       loadingMessage="Loading demons..."
       error={error}
       onRetry={() => { void refresh(); }}
       hints={hints}
     >
+      {/* Header with count (#1446) */}
+      <HeaderBar
+        title="Demons"
+        count={filteredDemons.length}
+        loading={loading && (demons?.length ?? 0) > 0}
+        subtitle={subtitleParts.join(' · ')}
+        color="yellow"
+      />
       {/* Action error feedback */}
       {actionError && (
         <Box marginBottom={1}>

@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { Panel } from '../components/Panel';
+import { HeaderBar } from '../components/HeaderBar';
 import { ViewWrapper } from '../components/ViewWrapper';
 import { useFocus } from '../navigation/FocusContext';
 import { getMemoryList, getMemory, searchMemory, clearMemory } from '../services/bc';
@@ -254,7 +255,6 @@ export function MemoryView({
   // Main list view
   return (
     <ViewWrapper
-      title="Agent Memories"
       loading={loading}
       error={error}
       onRetry={() => { void fetchMemoryList(); }}
@@ -267,10 +267,14 @@ export function MemoryView({
       ]}
     >
       <Box flexDirection="column" width="100%">
-        {/* Subtitle with count */}
-        <Box marginBottom={1}>
-          <Text dimColor>({String(agents.length)} agents)</Text>
-        </Box>
+        {/* Header with count (#1446) */}
+        <HeaderBar
+          title="Agent Memories"
+          count={agents.length}
+          loading={loading && agents.length > 0}
+          subtitle="agents"
+          color="magenta"
+        />
 
         {/* Search bar */}
         <Box
