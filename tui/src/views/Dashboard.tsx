@@ -9,7 +9,6 @@ import { ActivityFeed } from '../components/ActivityFeed.js';
 import { PerformanceDebugPanel } from '../components/PerformanceDebugPanel.js';
 import { PulseText } from '../components/AnimatedText.js';
 import { useDashboard } from '../hooks/useDashboard.js';
-import { useNavigation } from '../navigation/NavigationContext.js';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout.js';
 import { STATUS_COLORS, HEALTH_COLORS, getCostIndicator, type CostStatus } from '../theme/StatusColors.js';
 
@@ -25,7 +24,6 @@ interface DashboardProps {
 export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
   const { stdout } = useStdout();
   const terminalWidth = stdout.columns;
-  const { navigate: _navigate } = useNavigation();
   const { canMultiColumn, isMedium, isWide } = useResponsiveLayout();
   const [showDebugPanel, setShowDebugPanel] = useState(false);
 
@@ -63,9 +61,9 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
     return <ErrorDisplay error={error.message} onRetry={() => { void refresh(); }} />;
   }
 
-  if (isLoading && !agents.data) {
-    return <LoadingIndicator message="Loading workspace data..." />;
-  }
+  // Progressive loading: show content structure while data loads (#1614)
+  // Only block on initial load when no data exists yet
+  const showInitialLoading = isLoading && !agents.data;
 
   // #1318: Don't set explicit width - parent flexGrow handles it
   // Setting width={terminalWidth} caused overflow when nested inside drawer layout
@@ -88,57 +86,35 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
         errorCount={summary.error}
       />
 
-      {/* Metrics panels - Optimized for all terminal sizes (Issue #1041, #1184) */}
-      {/* #1318: Force single column at narrow widths (<100 cols) to prevent text garbling */}
-      {/* Available content width = terminalWidth - drawer - padding is too narrow for side-by-side */}
-      {!canMultiColumn && (
-        <Box marginTop={1} flexDirection="column" width="100%">
-          {/* System Health + Cost - always stacked at narrow widths */}
-          <SystemHealthPanel
-            working={summary.working}
-            idle={summary.idle}
-            stuck={summary.stuck}
-            errorCount={summary.error}
-            total={summary.total}
-          />
-          <CostPanel
-            totalCostUSD={summary.totalCostUSD}
-            inputTokens={summary.inputTokens}
-            outputTokens={summary.outputTokens}
-          />
-          {/* Agent Distribution */}
-          <AgentStatsPanel stats={agentStats} />
-        </Box>
-      )}
-
+      {/* #1614: Simplified layout - StatsPanels renders once with layout prop */}
       {/* Main Content - Uses responsive layout for flexible column arrangement */}
       <Box marginTop={1} flexDirection={canMultiColumn ? 'row' : 'column'}>
+        {/* Stats panels at top when narrow */}
+        {!canMultiColumn && (
+          <StatsPanels
+            summary={summary}
+            agentStats={agentStats}
+            showInitialLoading={showInitialLoading}
+          />
+        )}
+
         {/* Activity Feed - primary focus */}
         <Box flexDirection="column" flexGrow={1} marginRight={canMultiColumn ? 1 : 0}>
-          <ActivityFeed maxEntries={isMedium || isWide ? 15 : 8} compact={!isWide} showFilterHints={canMultiColumn} />
+          {showInitialLoading ? (
+            <LoadingIndicator message="Loading activity..." />
+          ) : (
+            <ActivityFeed maxEntries={isMedium || isWide ? 15 : 8} compact={!isWide} showFilterHints={canMultiColumn} />
+          )}
         </Box>
 
         {/* Stats & Health panels - side column when space allows (medium+) */}
         {canMultiColumn && (
           <Box flexDirection="column" width={Math.min(32, Math.max(26, Math.floor((terminalWidth - 4) * 0.28)))}>
-            {/* System Health - Agent states */}
-            <SystemHealthPanel
-              working={summary.working}
-              idle={summary.idle}
-              stuck={summary.stuck}
-              errorCount={summary.error}
-              total={summary.total}
+            <StatsPanels
+              summary={summary}
+              agentStats={agentStats}
+              showInitialLoading={showInitialLoading}
             />
-
-            {/* Cost Panel with budget progress */}
-            <CostPanel
-              totalCostUSD={summary.totalCostUSD}
-              inputTokens={summary.inputTokens}
-              outputTokens={summary.outputTokens}
-            />
-
-            {/* Agent Distribution by Role */}
-            <AgentStatsPanel stats={agentStats} />
           </Box>
         )}
       </Box>
@@ -495,6 +471,55 @@ const AgentStatsPanel = memo(function AgentStatsPanel({ stats }: AgentStatsPanel
   );
 });
 
+interface StatsPanelsProps {
+  summary: {
+    working: number;
+    idle: number;
+    stuck: number;
+    error: number;
+    total: number;
+    totalCostUSD: number;
+    inputTokens: number;
+    outputTokens: number;
+  };
+  agentStats: {
+    byState: Record<string, number>;
+    byRole: Record<string, number>;
+  };
+  showInitialLoading: boolean;
+}
+
+/**
+ * StatsPanels - Consolidated stats display (#1614)
+ * Reduces layout complexity by rendering panels once
+ */
+const StatsPanels = memo(function StatsPanels({
+  summary,
+  agentStats,
+  showInitialLoading,
+}: StatsPanelsProps) {
+  if (showInitialLoading) {
+    return <LoadingIndicator message="Loading stats..." />;
+  }
+
+  return (
+    <>
+      <SystemHealthPanel
+        working={summary.working}
+        idle={summary.idle}
+        stuck={summary.stuck}
+        errorCount={summary.error}
+        total={summary.total}
+      />
+      <CostPanel
+        totalCostUSD={summary.totalCostUSD}
+        inputTokens={summary.inputTokens}
+        outputTokens={summary.outputTokens}
+      />
+      <AgentStatsPanel stats={agentStats} />
+    </>
+  );
+});
 
 /**
  * Format large numbers with K/M suffixes
