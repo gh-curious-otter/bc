@@ -40,9 +40,14 @@ Required dependencies:
   tmux    Terminal multiplexer for agent sessions
   git     Version control for worktrees
 
-Optional dependencies:
-  claude  Anthropic Claude CLI
-  cursor  Cursor editor
+Optional AI tools (use with 'bc agent create --tool <name>'):
+  claude    Anthropic Claude Code
+  gemini    Google Gemini CLI
+  cursor    Cursor editor agent
+  codex     OpenAI Codex CLI
+  opencode  OpenCode/Crush AI assistant
+  openclaw  OpenClaw AI assistant
+  aider     Aider AI pair programming
 
 Examples:
   bc doctor           # Run all checks
@@ -64,7 +69,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	ctx := cmd.Context()
-	checks := make([]check, 0, 5)
+	checks := make([]check, 0, 12)
 	allRequired := true
 
 	// Required: tmux
@@ -73,14 +78,19 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	// Required: git
 	checks = append(checks, checkCommand(ctx, "git", true, "brew install git"))
 
-	// Optional: claude CLI
-	checks = append(checks, checkCommand(ctx, "claude", false, "npx -y @anthropic-ai/claude-code"))
-
-	// Optional: cursor
+	// Optional AI tools - all supported providers
+	checks = append(checks, checkCommand(ctx, "claude", false, "npm install -g @anthropic-ai/claude-code"))
+	checks = append(checks, checkCommand(ctx, "gemini", false, "npm install -g @anthropic-ai/gemini-cli"))
 	checks = append(checks, checkCommand(ctx, "cursor", false, "https://cursor.sh"))
+	checks = append(checks, checkCommand(ctx, "codex", false, "npm install -g @openai/codex"))
+	checks = append(checks, checkCommand(ctx, "crush", false, "go install github.com/charmbracelet/crush@latest"))
+	checks = append(checks, checkCommand(ctx, "openclaw", false, "pip install openclaw"))
+	checks = append(checks, checkCommand(ctx, "aider", false, "pip install aider-chat"))
 
-	// Check ANTHROPIC_API_KEY
+	// Check environment variables
 	checks = append(checks, checkEnvVar("ANTHROPIC_API_KEY", false))
+	checks = append(checks, checkEnvVar("OPENAI_API_KEY", false))
+	checks = append(checks, checkEnvVar("GOOGLE_API_KEY", false))
 
 	// Print results
 	fmt.Println("Required:")
@@ -172,8 +182,18 @@ func getVersion(ctx context.Context, name string) string {
 		cmd = exec.CommandContext(ctx, "git", "--version")
 	case "claude":
 		cmd = exec.CommandContext(ctx, "claude", "--version")
+	case "gemini":
+		cmd = exec.CommandContext(ctx, "gemini", "--version")
 	case "cursor":
 		cmd = exec.CommandContext(ctx, "cursor", "--version")
+	case "codex":
+		cmd = exec.CommandContext(ctx, "codex", "--version")
+	case "crush":
+		cmd = exec.CommandContext(ctx, "crush", "--version")
+	case "openclaw":
+		cmd = exec.CommandContext(ctx, "openclaw", "--version")
+	case "aider":
+		cmd = exec.CommandContext(ctx, "aider", "--version")
 	default:
 		return ""
 	}
