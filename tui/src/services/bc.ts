@@ -147,6 +147,12 @@ function setCachedResult<T>(key: string, data: T, ttl: number): void {
 /**
  * Invalidate cache entries matching a prefix
  * Called after write operations to ensure fresh data
+ *
+ * #1595: Supports granular invalidation with specific keys
+ * Examples:
+ *   invalidateCache() - clear all
+ *   invalidateCache('channel') - clear all channel caches
+ *   invalidateCache('channel:history:eng') - clear specific channel history
  */
 export function invalidateCache(prefix?: string): void {
   if (!prefix) {
@@ -159,6 +165,34 @@ export function invalidateCache(prefix?: string): void {
       commandCache.delete(key);
     }
   }
+}
+
+/**
+ * Invalidate a specific cache key (exact match)
+ * #1595: For fine-grained cache control
+ */
+export function invalidateCacheKey(key: string): void {
+  commandCache.delete(key);
+}
+
+/**
+ * Check if a cache entry exists and is still valid
+ * #1595: Useful for stale-while-revalidate patterns
+ */
+export function isCacheValid(key: string): boolean {
+  const entry = commandCache.get(key);
+  if (!entry) return false;
+  return Date.now() - entry.timestamp < entry.ttl;
+}
+
+/**
+ * Get cache entry age in milliseconds (or null if not cached)
+ * #1595: Useful for debugging and cache inspection
+ */
+export function getCacheAge(key: string): number | null {
+  const entry = commandCache.get(key);
+  if (!entry) return null;
+  return Date.now() - entry.timestamp;
 }
 
 /**
@@ -337,6 +371,8 @@ export async function getChannels(): Promise<ChannelsResponse> {
  * Get channel message history
  * @param channelName - Name of channel
  * @param limit - Maximum number of messages to return (default: 50)
+ *
+ * #1595: Uses caching with short TTL for real-time feel while reducing overhead
  */
 export async function getChannelHistory(
   channelName: string,
@@ -346,7 +382,8 @@ export async function getChannelHistory(
   if (limit !== undefined && limit > 0) {
     args.push('--limit', String(limit));
   }
-  return execBcJson<ChannelHistory>(args);
+  // #1595: Use cached version with 2s TTL for real-time feel
+  return execBcJsonCached<ChannelHistory>(args, 2000);
 }
 
 /**
@@ -359,8 +396,8 @@ export async function sendChannelMessage(
   message: string
 ): Promise<void> {
   await execBc(['channel', 'send', channelName, message]);
-  // #1005: Invalidate channel cache after sending message
-  invalidateCache('channel');
+  // #1595: Granular cache invalidation - only invalidate this channel's history
+  invalidateCacheKey(`channel:history:${channelName}`);
 }
 
 /**
@@ -519,8 +556,9 @@ export async function addTeamMember(
   agentName: string
 ): Promise<void> {
   await execBc(['team', 'add', teamName, agentName]);
-  // #1005: Invalidate team cache after modification
-  invalidateCache('team');
+  // #1595: Invalidate team list cache after modification
+  // Team list includes all teams, so we need to clear it
+  invalidateCacheKey('team:list');
 }
 
 /**
@@ -533,8 +571,8 @@ export async function removeTeamMember(
   agentName: string
 ): Promise<void> {
   await execBc(['team', 'remove', teamName, agentName]);
-  // #1005: Invalidate team cache after modification
-  invalidateCache('team');
+  // #1595: Invalidate team list cache after modification
+  invalidateCacheKey('team:list');
 }
 
 /**
@@ -671,10 +709,11 @@ export async function getWorkspaces(scanPaths?: string[]): Promise<WorkspacesRes
 
 /**
  * List all agent memories (summary)
+ * #1595: Uses caching with 5s TTL
  */
 export async function getMemoryList(): Promise<MemoryListResponse> {
   try {
-    return await execBcJson<MemoryListResponse>(['memory', 'list']);
+    return await execBcJsonCached<MemoryListResponse>(['memory', 'list'], 5000);
   } catch {
     return { agents: [] };
   }
@@ -683,6 +722,7 @@ export async function getMemoryList(): Promise<MemoryListResponse> {
 /**
  * Get detailed memory for a specific agent
  * @param agentName - Name of agent (optional, uses current agent if not specified)
+ * #1595: Uses caching with 5s TTL
  */
 export async function getMemory(agentName?: string): Promise<AgentMemory | null> {
   try {
@@ -690,7 +730,7 @@ export async function getMemory(agentName?: string): Promise<AgentMemory | null>
     if (agentName) {
       args.push(agentName);
     }
-    return await execBcJson<AgentMemory>(args);
+    return await execBcJsonCached<AgentMemory>(args, 5000);
   } catch {
     return null;
   }
@@ -719,7 +759,9 @@ export async function searchMemory(query: string, agentName?: string): Promise<M
  */
 export async function clearMemory(agentName: string): Promise<void> {
   await execBc(['memory', 'clear', agentName]);
-  invalidateCache('memory');
+  // #1595: Invalidate both the agent's specific memory and the list
+  invalidateCacheKey(`memory:show:${agentName}`);
+  invalidateCacheKey('memory:list');
 }
 
 /**
