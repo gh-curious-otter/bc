@@ -67,6 +67,9 @@ func TestDefaultRegistryHasProviders(t *testing.T) {
 	if _, ok := DefaultRegistry.Get("openclaw"); !ok {
 		t.Error("expected openclaw provider in default registry")
 	}
+	if _, ok := DefaultRegistry.Get("aider"); !ok {
+		t.Error("expected aider provider in default registry")
+	}
 }
 
 func TestGetProvider(t *testing.T) {
@@ -317,8 +320,8 @@ func TestCodexDetectState(t *testing.T) {
 
 func TestListProviders(t *testing.T) {
 	providers := ListProviders()
-	if len(providers) < 4 {
-		t.Errorf("expected at least 4 providers, got %d", len(providers))
+	if len(providers) < 5 {
+		t.Errorf("expected at least 5 providers, got %d", len(providers))
 	}
 }
 
@@ -422,6 +425,140 @@ func TestOpenClawDetectState(t *testing.T) {
 		{
 			name:   "idle ready",
 			output: "Ready for input\n",
+			want:   StateIdle,
+		},
+		{
+			name:   "unknown",
+			output: "some random output\n",
+			want:   StateUnknown,
+		},
+		{
+			name:   "empty",
+			output: "",
+			want:   StateUnknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := p.DetectState(tt.output)
+			if got != tt.want {
+				t.Errorf("DetectState() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAiderProvider(t *testing.T) {
+	p := NewAiderProvider()
+
+	if p.Name() != "aider" {
+		t.Errorf("expected name 'aider', got %q", p.Name())
+	}
+	if p.Description() == "" {
+		t.Error("expected non-empty description")
+	}
+	if p.Command() == "" {
+		t.Error("expected non-empty command")
+	}
+}
+
+func TestAiderDetectState(t *testing.T) {
+	p := NewAiderProvider()
+
+	tests := []struct {
+		name   string
+		output string
+		want   State
+	}{
+		{
+			name:   "working thinking",
+			output: "thinking about your request...\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "working sending",
+			output: "Sending request to API...\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "working editing",
+			output: "Editing file.py\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "working streaming",
+			output: "Streaming response...\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "working spinner",
+			output: "⠋ Processing...\n",
+			want:   StateWorking,
+		},
+		{
+			name:   "done applied edit",
+			output: "Applied edit to main.py\n",
+			want:   StateDone,
+		},
+		{
+			name:   "done wrote",
+			output: "Wrote 150 lines to file.py\n",
+			want:   StateDone,
+		},
+		{
+			name:   "done committed",
+			output: "Committed changes: feat: add feature\n",
+			want:   StateDone,
+		},
+		{
+			name:   "done checkmark",
+			output: "✓ Changes saved\n",
+			want:   StateDone,
+		},
+		{
+			name:   "stuck rate limit",
+			output: "Rate limit exceeded, please wait\n",
+			want:   StateStuck,
+		},
+		{
+			name:   "stuck api key",
+			output: "Invalid API key provided\n",
+			want:   StateStuck,
+		},
+		{
+			name:   "stuck timeout",
+			output: "Connection timeout\n",
+			want:   StateStuck,
+		},
+		{
+			name:   "error",
+			output: "Error: file not found\n",
+			want:   StateError,
+		},
+		{
+			name:   "error traceback",
+			output: "Traceback (most recent call last):\n",
+			want:   StateError,
+		},
+		{
+			name:   "error failed",
+			output: "Failed to apply changes\n",
+			want:   StateError,
+		},
+		{
+			name:   "idle prompt",
+			output: "> ",
+			want:   StateIdle,
+		},
+		{
+			name:   "idle aider prompt",
+			output: "aider> ",
+			want:   StateIdle,
+		},
+		{
+			name:   "idle enter to send",
+			output: "Press Enter to send message\n",
 			want:   StateIdle,
 		},
 		{
