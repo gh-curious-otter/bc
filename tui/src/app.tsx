@@ -31,10 +31,8 @@ import { ProcessesView } from './views/ProcessesView';
 import { MemoryView } from './views/MemoryView';
 import { RoutingView } from './views/RoutingView';
 import { CommandPalette } from './components/CommandPalette';
-import {
-  DetailPane,
-  type DetailItem,
-} from './components/DetailPane';
+// DetailPane removed per #1579 - @skitzo requested removal of 'i' key panel
+import { type DetailItem } from './components/DetailPane';
 import { type BcCommand } from './types/commands';
 
 interface AppProps {
@@ -102,8 +100,7 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
   const { stdout } = useStdout();
   const { setThemeName } = useTheme();
   const [showCommandPalette, setShowCommandPalette] = useState(false);
-  const [detailPaneVisible, setDetailPaneVisible] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<DetailItem | null>(null);
+  // #1579: detailPaneVisible and selectedItem states removed - detail panel disabled per @skitzo
 
   // #1326: Use centralized responsive layout system
   const layout = useResponsiveLayout();
@@ -151,22 +148,11 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
     onCommandPalette: () => { setShowCommandPalette(true); },
   });
 
-  // Handle 'i' key to toggle detail pane (only when layout supports it)
-  useInput(
-    (input) => {
-      if (input === 'i' && layout.canShowDetail) {
-        setDetailPaneVisible(prev => !prev);
-      }
-    },
-    { isActive: !disableInput && !showCommandPalette }
-  );
+  // #1579: 'i' key handler removed - detail panel disabled per @skitzo
 
   // Get terminal dimensions
   const terminalHeight = stdout.rows;
   const terminalWidth = stdout.columns;
-
-  // #1326: Determine if detail pane should show based on responsive layout and user toggle
-  const showDetailPane = layout.detailPane.visible && detailPaneVisible;
 
   return (
     <Box flexDirection="column" padding={1} width={terminalWidth} height={terminalHeight}>
@@ -191,20 +177,11 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
             <ViewContent
               view={currentView}
               disableInput={disableInput}
-              onSelectItem={setSelectedItem}
             />
           </Box>
         </Box>
 
-        {/* Right detail pane (toggleable with 'i', visibility per breakpoint) */}
-        {showDetailPane && (
-          <DetailPane
-            view={currentView}
-            selectedItem={selectedItem}
-            terminalWidth={terminalWidth}
-            terminalHeight={terminalHeight}
-          />
-        )}
+        {/* #1579: DetailPane removed per @skitzo request */}
       </Box>
 
       {/* Footer with navigation hints - anchored to bottom */}
