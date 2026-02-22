@@ -215,9 +215,10 @@ function ChannelRow({ channel, selected, unreadCount }: ChannelRowProps): React.
   const textColor = selected ? 'cyan' : unreadCount > 0 ? 'yellow' : undefined;
 
   // #1171 fix: Remove explicit width="100%" to avoid nested width calculation issues at 80x24
-  // The parent Box already has width="100%", inner Box inherits flexbox width naturally
+  // #1528 fix: Add flexGrow={1} to ensure Box takes available width for wrap="truncate" to work
+  // The parent Box already has width="100%", inner Box needs flexGrow to claim its share
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" flexGrow={1}>
       {/* Name row: single Text for proper truncation at narrow widths */}
       <Text
         wrap="truncate"
