@@ -3,7 +3,7 @@
  * Issue #555: Processes view with list, details, and log viewer
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useProcesses, useProcessLogs } from '../hooks';
 import { Table } from '../components/Table';
@@ -13,18 +13,8 @@ import { HeaderBar } from '../components/HeaderBar';
 import { ViewWrapper } from '../components/ViewWrapper';
 import type { Process } from '../types';
 
-/** Detail item for DetailPane integration (#1419) */
-interface DetailItem {
-  title: string;
-  type: string;
-  fields: { label: string; value: string; color?: string }[];
-  description?: string;
-}
-
 interface ProcessesViewProps {
   onBack?: () => void;
-  /** Callback when selection changes (for DetailPane) */
-  onSelectItem?: (item: DetailItem | null) => void;
 }
 
 /**
@@ -51,7 +41,7 @@ function formatUptime(startedAt: string): string {
   }
 }
 
-export function ProcessesView({ onBack, onSelectItem }: ProcessesViewProps) {
+export function ProcessesView({ onBack }: ProcessesViewProps) {
   const { data: processes, loading, error, refresh } = useProcesses();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showLogs, setShowLogs] = useState(false);
@@ -72,25 +62,6 @@ export function ProcessesView({ onBack, onSelectItem }: ProcessesViewProps) {
   }, [processes, searchQuery]);
 
   const selectedProcess = processList[selectedIndex] as typeof processList[number] | undefined;
-
-  // #1419: Update detail pane when selection changes
-  useEffect(() => {
-    if (selectedProcess && !showLogs && onSelectItem) {
-      onSelectItem({
-        title: selectedProcess.name,
-        type: 'process',
-        fields: [
-          { label: 'Status', value: selectedProcess.running ? 'running' : 'stopped', color: selectedProcess.running ? 'green' : 'gray' },
-          { label: 'PID', value: selectedProcess.pid > 0 ? String(selectedProcess.pid) : '-' },
-          { label: 'Port', value: selectedProcess.port ? String(selectedProcess.port) : '-' },
-          { label: 'Uptime', value: selectedProcess.running ? formatUptime(selectedProcess.started_at) : '-' },
-        ],
-        description: selectedProcess.command || undefined,
-      });
-    } else if (onSelectItem && (showLogs || !selectedProcess)) {
-      onSelectItem(null);
-    }
-  }, [selectedProcess, showLogs, onSelectItem]);
 
   // Keyboard navigation
   useInput((input, key) => {
