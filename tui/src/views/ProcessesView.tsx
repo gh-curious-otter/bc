@@ -3,7 +3,7 @@
  * Issue #555: Processes view with list, details, and log viewer
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useReducer } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useProcesses, useProcessLogs, useDebounce } from '../hooks';
 import { Table } from '../components/Table';
@@ -12,6 +12,63 @@ import { StatusBadge } from '../components/StatusBadge';
 import { HeaderBar } from '../components/HeaderBar';
 import { ViewWrapper } from '../components/ViewWrapper';
 import type { Process } from '../types';
+
+// #1601: Consolidated UI state with useReducer
+interface UIState {
+  selectedIndex: number;
+  showLogs: boolean;
+  searchQuery: string;
+  searchMode: boolean;
+}
+
+type UIAction =
+  | { type: 'NAVIGATE_UP' }
+  | { type: 'NAVIGATE_DOWN'; maxIndex: number }
+  | { type: 'NAVIGATE_TO_START' }
+  | { type: 'NAVIGATE_TO_END'; maxIndex: number }
+  | { type: 'SHOW_LOGS' }
+  | { type: 'HIDE_LOGS' }
+  | { type: 'ENTER_SEARCH_MODE' }
+  | { type: 'EXIT_SEARCH_MODE' }
+  | { type: 'APPEND_SEARCH_CHAR'; char: string }
+  | { type: 'BACKSPACE_SEARCH' }
+  | { type: 'CLEAR_SEARCH' };
+
+const initialUIState: UIState = {
+  selectedIndex: 0,
+  showLogs: false,
+  searchQuery: '',
+  searchMode: false,
+};
+
+function uiReducer(state: UIState, action: UIAction): UIState {
+  switch (action.type) {
+    case 'NAVIGATE_UP':
+      return { ...state, selectedIndex: Math.max(0, state.selectedIndex - 1) };
+    case 'NAVIGATE_DOWN':
+      return { ...state, selectedIndex: Math.min(action.maxIndex, state.selectedIndex + 1) };
+    case 'NAVIGATE_TO_START':
+      return { ...state, selectedIndex: 0 };
+    case 'NAVIGATE_TO_END':
+      return { ...state, selectedIndex: Math.max(0, action.maxIndex) };
+    case 'SHOW_LOGS':
+      return { ...state, showLogs: true };
+    case 'HIDE_LOGS':
+      return { ...state, showLogs: false };
+    case 'ENTER_SEARCH_MODE':
+      return { ...state, searchMode: true };
+    case 'EXIT_SEARCH_MODE':
+      return { ...state, searchMode: false };
+    case 'APPEND_SEARCH_CHAR':
+      return { ...state, searchQuery: state.searchQuery + action.char };
+    case 'BACKSPACE_SEARCH':
+      return { ...state, searchQuery: state.searchQuery.slice(0, -1) };
+    case 'CLEAR_SEARCH':
+      return { ...state, searchQuery: '', selectedIndex: 0 };
+    default:
+      return state;
+  }
+}
 
 /**
  * Calculate uptime string from started_at timestamp
@@ -39,10 +96,10 @@ function formatUptime(startedAt: string): string {
 
 export function ProcessesView(): React.ReactElement {
   const { data: processes, loading, error, refresh } = useProcesses();
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [showLogs, setShowLogs] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchMode, setSearchMode] = useState(false);
+
+  // #1601: UI state consolidated with useReducer
+  const [ui, dispatch] = useReducer(uiReducer, initialUIState);
+  const { selectedIndex, showLogs, searchQuery, searchMode } = ui;
 
   // Debounce search query for filtering (issue #1602)
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
@@ -67,11 +124,11 @@ export function ProcessesView(): React.ReactElement {
     // Search mode input handling
     if (searchMode) {
       if (key.return || key.escape) {
-        setSearchMode(false);
+        dispatch({ type: 'EXIT_SEARCH_MODE' });
       } else if (key.backspace || key.delete) {
-        setSearchQuery(searchQuery.slice(0, -1));
+        dispatch({ type: 'BACKSPACE_SEARCH' });
       } else if (input && !key.ctrl && !key.meta) {
-        setSearchQuery(searchQuery + input);
+        dispatch({ type: 'APPEND_SEARCH_CHAR', char: input });
       }
       return;
     }
@@ -79,30 +136,29 @@ export function ProcessesView(): React.ReactElement {
     if (showLogs) {
       // Log viewer mode
       if (input === 'q' || key.escape) {
-        setShowLogs(false);
+        dispatch({ type: 'HIDE_LOGS' });
       }
       return;
     }
 
     // List navigation mode
     if (key.upArrow || input === 'k') {
-      setSelectedIndex((i) => Math.max(0, i - 1));
+      dispatch({ type: 'NAVIGATE_UP' });
     } else if (key.downArrow || input === 'j') {
-      setSelectedIndex((i) => Math.min(processList.length - 1, i + 1));
+      dispatch({ type: 'NAVIGATE_DOWN', maxIndex: processList.length - 1 });
     } else if (input === 'g') {
-      setSelectedIndex(0);
+      dispatch({ type: 'NAVIGATE_TO_START' });
     } else if (input === 'G') {
-      setSelectedIndex(processList.length - 1);
+      dispatch({ type: 'NAVIGATE_TO_END', maxIndex: processList.length - 1 });
     } else if (key.return || input === 'l') {
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list
       if (selectedProcess) {
-        setShowLogs(true);
+        dispatch({ type: 'SHOW_LOGS' });
       }
     } else if (input === '/') {
-      setSearchMode(true);
+      dispatch({ type: 'ENTER_SEARCH_MODE' });
     } else if (input === 'c' && searchQuery) {
-      setSearchQuery('');
-      setSelectedIndex(0);
+      dispatch({ type: 'CLEAR_SEARCH' });
     } else if (input === 'r') {
       void refresh();
     }
@@ -179,7 +235,7 @@ export function ProcessesView(): React.ReactElement {
     return (
       <ProcessLogViewer
         process={selectedProcess}
-        onBack={() => { setShowLogs(false); }}
+        onBack={() => { dispatch({ type: 'HIDE_LOGS' }); }}
       />
     );
   }
