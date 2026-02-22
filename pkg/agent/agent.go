@@ -596,6 +596,16 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 		}
 	}
 
+	// #1531 fix: Verify the command binary exists in PATH before spawning
+	if agentCmd != "" {
+		parts := strings.Fields(agentCmd)
+		if len(parts) > 0 {
+			if _, err := exec.LookPath(parts[0]); err != nil {
+				return nil, fmt.Errorf("tool %q command %q not found in PATH. Install it or configure a different tool in config.toml", tool, parts[0])
+			}
+		}
+	}
+
 	// Create agent
 	agent := &Agent{
 		ID:        name,
