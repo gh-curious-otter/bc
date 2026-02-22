@@ -9,21 +9,21 @@ import { Panel } from '../components/Panel';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { HeaderBar } from '../components/HeaderBar';
 import { useFocus } from '../navigation/FocusContext';
-import { useAgents } from '../hooks';
+import { useAgents, useDisableInput } from '../hooks';
 import { truncate } from '../utils';
 import type { Role } from '../types';
 import { getRoles, getRole, deleteRole } from '../services/bc';
 
-interface RolesViewProps {
-  disableInput?: boolean;
-}
+// #1594: Using empty interface for future extensibility, props removed
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+interface RolesViewProps {}
 
 /**
  * RolesView - Display and manage workspace roles
  */
-export function RolesView({
-  disableInput = false,
-}: RolesViewProps): React.ReactElement {
+export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
+  // #1594: Use context instead of prop drilling
+  const { isDisabled: disableInput } = useDisableInput();
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

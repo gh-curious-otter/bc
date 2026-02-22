@@ -214,3 +214,9 @@ export {
   type RoleGroup,
   type GroupedItem,
 } from './useAgentGroups';
+
+export {
+  DisableInputProvider,
+  useDisableInput,
+  type DisableInputProviderProps,
+} from './useDisableInput';

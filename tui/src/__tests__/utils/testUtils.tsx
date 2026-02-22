@@ -14,6 +14,7 @@ import { render as inkRender } from 'ink-testing-library';
 import { ThemeProvider } from '../../theme/ThemeContext';
 import { FocusProvider } from '../../navigation/FocusContext';
 import { NavigationProvider } from '../../navigation/NavigationContext';
+import { DisableInputProvider } from '../../hooks';
 import type { ThemeConfig } from '../../theme/types';
 import type { FocusArea } from '../../navigation/FocusContext';
 
@@ -38,11 +39,14 @@ export function renderWithProviders(
     disableInput?: boolean;
   }
 ) {
+  // #1594: Include DisableInputProvider in test wrapper
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <ThemeProvider config={options?.themeConfig}>
       <FocusProvider initialFocus={options?.initialFocus ?? 'main'}>
         <NavigationProvider>
-          {children}
+          <DisableInputProvider disabled={options?.disableInput ?? true}>
+            {children}
+          </DisableInputProvider>
         </NavigationProvider>
       </FocusProvider>
     </ThemeProvider>

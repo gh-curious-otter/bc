@@ -8,12 +8,12 @@ import { Box, Text, useInput } from 'ink';
 import { Panel } from '../components/Panel';
 import { HeaderBar } from '../components/HeaderBar';
 import { ViewWrapper } from '../components/ViewWrapper';
-import { useAgents } from '../hooks';
+import { useAgents, useDisableInput } from '../hooks';
 import { truncate } from '../utils';
 
-interface RoutingViewProps {
-  disableInput?: boolean;
-}
+// #1594: Using empty interface for future extensibility, props removed
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+interface RoutingViewProps {}
 
 // Static routing rules from pkg/routing/routing.go
 const ROUTING_RULES = [
@@ -46,9 +46,9 @@ const ROUTING_RULES = [
 /**
  * RoutingView - Display and explain task routing rules
  */
-export function RoutingView({
-  disableInput = false,
-}: RoutingViewProps): React.ReactElement {
+export function RoutingView(_props: RoutingViewProps = {}): React.ReactElement {
+  // #1594: Use context instead of prop drilling
+  const { isDisabled: disableInput } = useDisableInput();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showDetails, setShowDetails] = useState(false);
   const agents = useAgents();

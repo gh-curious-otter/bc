@@ -10,12 +10,15 @@ import { describe, it, expect, vi, beforeEach, mock } from 'bun:test';
 import { RolesView } from '../../views/RolesView';
 import { FocusProvider } from '../../navigation/FocusContext';
 import { ConfigProvider } from '../../config';
+import { DisableInputProvider } from '../../hooks';
 
-// Helper to wrap component with required providers
+// #1594: Helper to wrap component with required providers including DisableInputProvider
 const renderWithProviders = (ui: React.ReactElement) => {
   return render(
     <ConfigProvider>
-      <FocusProvider>{ui}</FocusProvider>
+      <FocusProvider>
+        <DisableInputProvider disabled>{ui}</DisableInputProvider>
+      </FocusProvider>
     </ConfigProvider>
   );
 };
@@ -64,18 +67,18 @@ describe('RolesView', () => {
 
   describe('basic rendering', () => {
     it('renders without crashing', () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       expect(lastFrame()).toBeDefined();
     });
 
     it('renders loading state initially', () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       // Initial state shows loading
       expect(lastFrame()).toBeDefined();
     });
 
     it('renders with disableInput prop', () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       expect(lastFrame()).toBeDefined();
     });
 
@@ -83,21 +86,21 @@ describe('RolesView', () => {
 
   describe('role list display', () => {
     it('shows role names after loading', async () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       await new Promise((r) => setTimeout(r, 150));
       const output = lastFrame();
       expect(output).toContain('engineer');
     });
 
     it('shows manager role', async () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       await new Promise((r) => setTimeout(r, 150));
       const output = lastFrame();
       expect(output).toContain('manager');
     });
 
     it('shows tech-lead role', async () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       await new Promise((r) => setTimeout(r, 150));
       const output = lastFrame();
       expect(output).toContain('tech-lead');
@@ -106,28 +109,28 @@ describe('RolesView', () => {
 
   describe('table headers', () => {
     it('shows NAME column', async () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       await new Promise((r) => setTimeout(r, 150));
       const output = lastFrame();
       expect(output).toContain('NAME');
     });
 
     it('shows CAPABILITIES column', async () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       await new Promise((r) => setTimeout(r, 150));
       const output = lastFrame();
       expect(output).toContain('CAPABILITIES');
     });
 
     it('shows AGENTS column', async () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       await new Promise((r) => setTimeout(r, 150));
       const output = lastFrame();
       expect(output).toContain('AGENTS');
     });
 
     it('shows DESCRIPTION column', async () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       await new Promise((r) => setTimeout(r, 150));
       const output = lastFrame();
       expect(output).toContain('DESCRIPTION');
@@ -136,14 +139,14 @@ describe('RolesView', () => {
 
   describe('search bar', () => {
     it('shows search hint', async () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       await new Promise((r) => setTimeout(r, 150));
       const output = lastFrame();
       expect(output).toContain('search');
     });
 
     it('shows navigation hint', async () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       await new Promise((r) => setTimeout(r, 150));
       const output = lastFrame();
       expect(output).toContain('j/k');
@@ -152,28 +155,28 @@ describe('RolesView', () => {
 
   describe('footer', () => {
     it('shows navigate hint', async () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       await new Promise((r) => setTimeout(r, 150));
       const output = lastFrame();
       expect(output).toContain('navigate');
     });
 
     it('shows Enter hint for details', async () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       await new Promise((r) => setTimeout(r, 150));
       const output = lastFrame();
       expect(output).toContain('details');
     });
 
     it('shows refresh hint', async () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       await new Promise((r) => setTimeout(r, 150));
       const output = lastFrame();
       expect(output).toContain('refresh');
     });
 
     it('shows back hint', async () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       await new Promise((r) => setTimeout(r, 150));
       const output = lastFrame();
       expect(output).toContain('back');
@@ -182,7 +185,7 @@ describe('RolesView', () => {
 
   describe('role count', () => {
     it('shows total role count', async () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       await new Promise((r) => setTimeout(r, 150));
       const output = lastFrame();
       // Should show (3) for 3 roles
@@ -192,7 +195,7 @@ describe('RolesView', () => {
 
   describe('capabilities display', () => {
     it('shows capabilities in row', async () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       await new Promise((r) => setTimeout(r, 150));
       const output = lastFrame();
       expect(output).toContain('implement');
@@ -201,7 +204,7 @@ describe('RolesView', () => {
 
   describe('selection indicator', () => {
     it('shows selection marker', async () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       await new Promise((r) => setTimeout(r, 150));
       const output = lastFrame();
       // First item should be selected with marker
@@ -212,7 +215,7 @@ describe('RolesView', () => {
   // #971 fix: Dynamic name column width tests
   describe('dynamic name column width', () => {
     it('shows full role name without truncation for short names', async () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       await new Promise((r) => setTimeout(r, 150));
       const output = lastFrame() ?? '';
       // 'tech-lead' is 9 chars, should not be truncated
@@ -221,7 +224,7 @@ describe('RolesView', () => {
     });
 
     it('shows role name without ellipsis when within bounds', async () => {
-      const { lastFrame } = renderWithFocus(<RolesView disableInput />);
+      const { lastFrame } = renderWithFocus(<RolesView />);
       await new Promise((r) => setTimeout(r, 150));
       const output = lastFrame() ?? '';
       // 'engineer' and 'manager' are short, should not have ellipsis

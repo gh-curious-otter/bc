@@ -9,12 +9,12 @@ import { Panel } from './Panel';
 import { useCosts } from '../hooks';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 
-interface CostsViewProps {
-  /** Disable input handling (useful for testing) */
-  disableInput?: boolean;
-}
+// #1594: Using empty interface for future extensibility, props removed
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+interface CostsViewProps {}
 
-export function CostsView({ disableInput: _disableInput = false }: CostsViewProps): React.ReactElement {
+export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
+  // Note: disableInput available via useDisableInput() if needed in future
   const { isCompact, isMinimal, isMD } = useResponsiveLayout();
   // #1365: Extend borderless to 100-120 cols (isMD) to prevent box fragmentation
   const isNarrow = isCompact || isMinimal || isMD;
