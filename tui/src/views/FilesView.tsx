@@ -12,11 +12,11 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Box, Text, useInput, useStdout } from 'ink';
+import { Box, Text, useInput } from 'ink';
 import { getWorktrees } from '../services/bc';
 import type { Worktree } from '../types';
 import { useTheme } from '../theme';
-import { useFileTree, useGitStatus, type FileTreeEntry, type GitFileStatus } from '../hooks';
+import { useFileTree, useGitStatus, useResponsiveLayout, type FileTreeEntry, type GitFileStatus } from '../hooks';
 import * as fs from 'fs';
 
 export interface FilesViewProps {
@@ -28,10 +28,8 @@ export interface FilesViewProps {
 type FocusArea = 'worktree' | 'tree' | 'preview';
 
 export function FilesView({ onBack }: FilesViewProps): React.ReactElement {
-  const { stdout } = useStdout();
   const { theme } = useTheme();
-  const terminalWidth = stdout.columns;
-  const terminalHeight = stdout.rows;
+  const { width: terminalWidth, height: terminalHeight, responsive } = useResponsiveLayout();
 
   // Worktree state
   const [worktrees, setWorktrees] = useState<Worktree[]>([]);
@@ -190,8 +188,16 @@ export function FilesView({ onBack }: FilesViewProps): React.ReactElement {
     }
   });
 
-  // Calculate layout
-  const treeWidth = Math.min(40, Math.floor(terminalWidth * 0.4));
+  // Calculate layout (#1448: Responsive tree width per UX spec)
+  // XS: 16 cols, SM: 20 cols (per spec), MD: 25, LG: 30, XL: 35
+  const treeWidth = responsive({
+    xs: 16,
+    sm: 20,
+    md: 25,
+    lg: 30,
+    xl: 35,
+    default: 20,
+  });
   const previewWidth = terminalWidth - treeWidth - 4;
 
   // Get current path for breadcrumb (selected tree item path relative to worktree)
@@ -325,10 +331,14 @@ export function FilesView({ onBack }: FilesViewProps): React.ReactElement {
         </Box>
       </Box>
 
-      {/* Footer with hints */}
+      {/* Footer with hints (#1448: Responsive hints per breakpoint) */}
       <Box marginTop={1}>
         <Text dimColor>
-          j/k: nav | Enter: expand/select | w: worktree | Tab: focus | Esc: back
+          {responsive({
+            xs: 'j/k nav · Enter sel · w tree · Esc',
+            sm: 'j/k nav | Enter expand | w worktree | Esc back',
+            default: 'j/k: nav | Enter: expand/select | w: worktree | Tab: focus | Esc: back',
+          })}
         </Text>
       </Box>
     </Box>
