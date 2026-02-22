@@ -58,14 +58,15 @@ type ToolsCodexConfig struct {
 }
 
 type ToolsConfig struct {
-	Claude  ToolsClaudeConfig
-	Codex   ToolsCodexConfig
-	Cursor  ToolsCursorConfig
-	Default string
-	Gemini  ToolsGeminiConfig
-	Github  ToolsGithubConfig
-	Gitlab  ToolsGitlabConfig
-	Jira    ToolsJiraConfig
+	Claude   ToolsClaudeConfig
+	Codex    ToolsCodexConfig
+	Cursor   ToolsCursorConfig
+	Default  string
+	Gemini   ToolsGeminiConfig
+	Github   ToolsGithubConfig
+	Gitlab   ToolsGitlabConfig
+	Jira     ToolsJiraConfig
+	Opencode ToolsOpencodeConfig
 }
 
 type ToolsCursorConfig struct {
@@ -89,6 +90,11 @@ type ToolsGitlabConfig struct {
 }
 
 type ToolsJiraConfig struct {
+	Command string
+	Enabled bool
+}
+
+type ToolsOpencodeConfig struct {
 	Command string
 	Enabled bool
 }
@@ -144,6 +150,11 @@ var (
 			Command:     "codex --full-auto",
 			Description: "OpenAI Codex",
 			Name:        "codex",
+		},
+		{
+			Command:     "crush",
+			Description: "OpenCode/Crush AI coding assistant",
+			Name:        "opencode",
 		},
 	}
 	Channels = ChannelsConfig{
@@ -204,6 +215,10 @@ var (
 		},
 		Jira: ToolsJiraConfig{
 			Command: "jira",
+			Enabled: false,
+		},
+		Opencode: ToolsOpencodeConfig{
+			Command: "crush",
 			Enabled: false,
 		},
 	}
