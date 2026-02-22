@@ -1,13 +1,28 @@
 /**
  * RoutingView tests
  * Issue #1231 - Additional TUI views
+ * Issue #1497 - Updated for HintsContext pattern
  */
 
 import React from 'react';
 import { render } from 'ink-testing-library';
+import { Text, Box } from 'ink';
 import { RoutingView } from '../views/RoutingView';
 import { FocusProvider } from '../navigation/FocusContext';
+import { HintsProvider, useHintsContext } from '../hooks/useHintsContext';
 import * as useAgentsHook from '../hooks/useAgents';
+
+// Helper to display hints from context
+function HintsDisplay(): React.ReactElement {
+  const { viewHints } = useHintsContext();
+  return (
+    <Box>
+      {viewHints.map((h) => (
+        <Text key={h.key}>[{h.key}] {h.label}</Text>
+      ))}
+    </Box>
+  );
+}
 
 // Mock the useAgents hook
 jest.mock('../hooks/useAgents', () => ({
@@ -16,11 +31,14 @@ jest.mock('../hooks/useAgents', () => ({
 
 const mockUseAgents = useAgentsHook.useAgents as jest.Mock;
 
-function renderRoutingView(props = {}) {
+function renderRoutingView(props = {}, withHintsDisplay = false) {
   return render(
-    <FocusProvider>
-      <RoutingView disableInput {...props} />
-    </FocusProvider>
+    <HintsProvider>
+      <FocusProvider>
+        <RoutingView disableInput {...props} />
+        {withHintsDisplay && <HintsDisplay />}
+      </FocusProvider>
+    </HintsProvider>
   );
 }
 
@@ -73,8 +91,10 @@ describe('RoutingView', () => {
     expect(output).toContain('Role Summary');
   });
 
-  test('shows keyboard hints', () => {
-    const { lastFrame } = renderRoutingView();
+  test('shows keyboard hints', async () => {
+    // Issue #1497: Hints now go to global footer via HintsContext
+    const { lastFrame } = renderRoutingView({}, true);
+    await new Promise((r) => setTimeout(r, 50));
     const output = lastFrame() ?? '';
 
     expect(output).toContain('j/k');

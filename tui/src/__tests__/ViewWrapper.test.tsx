@@ -1,13 +1,27 @@
 /**
  * ViewWrapper component tests
  * Issue #1419: TUI Production Polish
+ * Issue #1497: Updated for HintsContext pattern
  */
 
 import { describe, expect, test } from 'bun:test';
 import { render } from 'ink-testing-library';
 import React from 'react';
-import { Text } from 'ink';
+import { Text, Box } from 'ink';
 import { ViewWrapper } from '../components/ViewWrapper';
+import { HintsProvider, useHintsContext } from '../hooks/useHintsContext';
+
+// Helper to render with HintsProvider and display hints
+function HintsDisplay(): React.ReactElement {
+  const { viewHints } = useHintsContext();
+  return (
+    <Box>
+      {viewHints.map((h) => (
+        <Text key={h.key}>[{h.key}] {h.label}</Text>
+      ))}
+    </Box>
+  );
+}
 
 describe('ViewWrapper', () => {
   test('renders children', () => {
@@ -46,17 +60,22 @@ describe('ViewWrapper', () => {
     expect(lastFrame()).toContain('Something went wrong');
   });
 
-  test('renders footer with hints', () => {
+  test('renders footer with hints', async () => {
+    // Issue #1497: Hints now go to global footer via HintsContext
     const { lastFrame } = render(
-      <ViewWrapper
-        hints={[
-          { key: 'j/k', label: 'nav' },
-          { key: 'q', label: 'quit' },
-        ]}
-      >
-        <Text>Content</Text>
-      </ViewWrapper>
+      <HintsProvider>
+        <ViewWrapper
+          hints={[
+            { key: 'j/k', label: 'nav' },
+            { key: 'q', label: 'quit' },
+          ]}
+        >
+          <Text>Content</Text>
+        </ViewWrapper>
+        <HintsDisplay />
+      </HintsProvider>
     );
+    await new Promise((r) => setTimeout(r, 50));
     const output = lastFrame() ?? '';
     expect(output).toContain('j/k');
     expect(output).toContain('nav');
