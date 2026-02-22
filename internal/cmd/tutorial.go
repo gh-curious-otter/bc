@@ -189,8 +189,8 @@ func init() {
 }
 
 func runTutorial(cmd *cobra.Command, args []string) error {
-	// List tutorials if --list flag is set
-	if tutorialList {
+	// List tutorials if --list flag is set or "list" argument
+	if tutorialList || (len(args) > 0 && args[0] == "list") {
 		return listTutorials()
 	}
 
