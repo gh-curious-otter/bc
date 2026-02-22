@@ -298,7 +298,7 @@ var (
 
 func init() {
 	// Create flags
-	agentCreateCmd.Flags().StringVar(&agentCreateTool, "tool", "", "Agent tool (claude, cursor, codex)")
+	agentCreateCmd.Flags().StringVar(&agentCreateTool, "tool", "", "Agent tool (claude, gemini, cursor, codex, opencode, openclaw, aider)")
 	agentCreateCmd.Flags().StringVar(&agentCreateRole, "role", "", "Agent role (engineer, manager, product-manager, tech-lead, qa). Required. Use 'bc role list' to see available roles")
 	agentCreateCmd.Flags().StringVar(&agentCreateParent, "parent", "", "Parent agent ID (must have permission to create this role)")
 	agentCreateCmd.Flags().StringVar(&agentCreateTeam, "team", "", "Team name (alphanumeric)")
