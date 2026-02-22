@@ -32,7 +32,7 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
   const {
     summary,
     agents,
-    // channels removed from dashboard - use Channels tab [3]
+    // channels removed from dashboard - use Tab to navigate to Channels view
     agentStats,
     isLoading,
     error,
@@ -41,8 +41,8 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
   } = useDashboard();
 
   // Keyboard navigation - Dashboard-specific shortcuts
-  // Global shortcuts (1-9, Tab, ESC, q) are handled by useKeyboardNavigation
-  // Note: Letter shortcuts (a, c, $) removed to avoid confusion - use numbers [2] [3] [4]
+  // Global shortcuts (Tab, ESC, q) are handled by useKeyboardNavigation
+  // Note: Number shortcuts (1-9) removed in #1467 - use Tab to cycle views
   // See #1327 for comprehensive keybinding system design
   useInput((input, key) => {
     // Refresh is Dashboard-specific (global Ctrl+R handled elsewhere)
@@ -143,12 +143,11 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
       {/* Performance Debug Panel - toggled with Ctrl+P or F12 (Phase 3) */}
       {showDebugPanel && <PerformanceDebugPanel compact={!isWide} forceShow />}
 
-      {/* Footer with keyboard hints - use numbers for views (#1319) */}
+      {/* Footer with keyboard hints - Tab to cycle views (#1467 removed number shortcuts) */}
       <Footer
         hints={[
-          { key: '2', label: 'agents' },
-          { key: '3', label: 'channels' },
-          { key: '4', label: 'costs' },
+          { key: 'Tab', label: 'views' },
+          { key: '?', label: 'help' },
           { key: 'r', label: 'refresh' },
           ...(showDebugPanel ? [{ key: 'Ctrl+P', label: 'hide perf' }] : [{ key: 'Ctrl+P', label: 'perf' }]),
           { key: 'q', label: 'quit' },
