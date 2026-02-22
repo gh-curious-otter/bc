@@ -72,7 +72,7 @@ function AppWithTheme({
   // If a named theme is set (matrix, synthwave, etc), use 'auto' mode to let theme system handle it
   const effectiveMode: ThemeMode = themeConfig.theme !== 'dark' && themeConfig.theme !== 'light'
     ? 'auto'
-    : (themeConfig.mode as ThemeMode);
+    : themeConfig.mode;
 
   return (
     <ThemeProvider config={{ mode: effectiveMode }}>

@@ -3,6 +3,8 @@
  * Auto-generated from bc CLI output structures
  */
 
+import type { ThemeName, ThemeMode } from '../theme';
+
 // Agent states matching pkg/agent/agent.go
 export type AgentState =
   | 'idle'
@@ -255,8 +257,8 @@ export interface PerformanceConfig {
 // TUI theme configuration for appearance and theming
 // Matches workspace.TUIConfig in Go
 export interface TUIConfig {
-  theme: string; // Theme name: "dark", "light", "matrix", "synthwave", "high-contrast"
-  mode: string; // Color mode: "auto", "dark", "light"
+  theme: ThemeName;
+  mode: ThemeMode;
 }
 
 // Memory types for agent memory system
