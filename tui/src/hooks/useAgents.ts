@@ -13,6 +13,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Agent, AgentState, BcResult } from '../types';
 import { getStatus } from '../services/bc';
 import { usePerformanceConfig } from '../config';
+import { handleApiError, logError } from '../utils';
 
 /** Debounce period for working→idle transition (in ms) */
 const WORKING_TO_IDLE_DEBOUNCE_MS = 5000;
@@ -116,7 +117,9 @@ export function useAgents(options: UseAgentsOptions = {}): UseAgentsResult {
       setWorkspace(status.workspace);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch agents');
+      const errorResult = handleApiError(err);
+      logError('useAgents', errorResult);
+      setError(errorResult.message);
     } finally {
       setLoading(false);
     }

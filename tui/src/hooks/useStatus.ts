@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { StatusResponse, BcResult } from '../types';
 import { getStatus } from '../services/bc';
 import { usePerformanceConfig } from '../config';
+import { handleApiError, logError } from '../utils';
 
 export interface UseStatusOptions {
   /** Polling interval in ms (default: from config) */
@@ -91,7 +92,9 @@ export function useStatus(options: UseStatusOptions = {}): UseStatusResult {
       });
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch status');
+      const errorResult = handleApiError(err);
+      logError('useStatus', errorResult);
+      setError(errorResult.message);
     } finally {
       setLoading(false);
     }
