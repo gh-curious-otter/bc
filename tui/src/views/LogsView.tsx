@@ -10,9 +10,8 @@ import { PulseText } from '../components/AnimatedText';
 import type { LogSeverity } from '../hooks/useLogs';
 import type { LogEntry } from '../types';
 
-interface LogsViewProps {
-  onBack?: () => void;
-}
+// eslint-disable-next-line @typescript-eslint/no-empty-interface -- LogsView has no props currently
+interface LogsViewProps {}
 
 type TimeFilter = '1h' | '6h' | '24h' | 'all';
 
@@ -92,7 +91,7 @@ function abbreviateType(type: string): string {
   return abbreviations[action] ?? action;
 }
 
-export const LogsView: React.FC<LogsViewProps> = ({ onBack }) => {
+export const LogsView: React.FC<LogsViewProps> = () => {
   const { stdout } = useStdout();
   const terminalWidth = stdout.columns;
 
@@ -241,8 +240,6 @@ export const LogsView: React.FC<LogsViewProps> = ({ onBack }) => {
       setSelectedIndex(0);
     } else if (input === 'r') {
       void refresh();
-    } else if (input === 'q' || key.escape) {
-      onBack?.();
     }
   });
 

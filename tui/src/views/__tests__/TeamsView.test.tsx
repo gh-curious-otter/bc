@@ -277,18 +277,6 @@ describe('TeamsView TeamRow Data Transformation', () => {
   });
 });
 
-describe('TeamsView Props', () => {
-  test('onBack callback is optional', () => {
-    const props = {};
-    expect((props as { onBack?: () => void }).onBack).toBeUndefined();
-  });
-
-  test('onBack callback type', () => {
-    const onBack = (): void => {};
-    expect(typeof onBack).toBe('function');
-  });
-});
-
 describe('TeamsView Keyboard Shortcuts', () => {
   const keyMappings = {
     j: 'navigate down',

@@ -79,11 +79,6 @@ describe('RolesView', () => {
       expect(lastFrame()).toBeDefined();
     });
 
-    it('accepts onBack callback', () => {
-      const onBack = vi.fn();
-      const { lastFrame } = renderWithFocus(<RolesView onBack={onBack} disableInput />);
-      expect(lastFrame()).toBeDefined();
-    });
   });
 
   describe('role list display', () => {

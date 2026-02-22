@@ -191,18 +191,6 @@ describe('ProcessesView Column Configuration', () => {
   });
 });
 
-describe('ProcessesView Props', () => {
-  test('onBack callback is optional', () => {
-    const props = {};
-    expect((props as { onBack?: () => void }).onBack).toBeUndefined();
-  });
-
-  test('onBack callback type', () => {
-    const onBack = (): void => {};
-    expect(typeof onBack).toBe('function');
-  });
-});
-
 describe('ProcessesView Log Viewer Logic', () => {
   const mockLogs = [
     '2024-01-15 10:00:00 - Server started',

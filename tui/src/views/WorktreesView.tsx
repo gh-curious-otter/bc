@@ -10,10 +10,6 @@ import { HeaderBar } from '../components/HeaderBar';
 import { useFocus } from '../navigation/FocusContext';
 import type { Worktree } from '../types';
 
-interface WorktreesViewProps {
-  onBack?: () => void;
-}
-
 /**
  * Format path for display - show relative path
  */
@@ -23,7 +19,7 @@ function formatPath(fullPath: string): string {
   return match ? match[0] : fullPath;
 }
 
-export const WorktreesView: React.FC<WorktreesViewProps> = ({ onBack }) => {
+export const WorktreesView: React.FC = () => {
   const { stdout } = useStdout();
   const terminalWidth = stdout.columns;
 
@@ -135,8 +131,6 @@ export const WorktreesView: React.FC<WorktreesViewProps> = ({ onBack }) => {
       setSelectedIndex(0);
     } else if (input === 'r') {
       void fetchWorktrees();
-    } else if (input === 'q' || key.escape) {
-      onBack?.();
     }
   });
 

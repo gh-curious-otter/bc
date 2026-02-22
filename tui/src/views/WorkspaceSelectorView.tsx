@@ -12,7 +12,6 @@ import type { DiscoveredWorkspace } from '../types';
 
 interface WorkspaceSelectorViewProps {
   onSelect?: (workspace: DiscoveredWorkspace) => void;
-  onBack?: () => void;
 }
 
 /**

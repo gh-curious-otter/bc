@@ -13,7 +13,6 @@ import { getMemoryList, getMemory, searchMemory, clearMemory } from '../services
 import type { AgentMemorySummary, AgentMemory, MemorySearchResult } from '../types';
 
 interface MemoryViewProps {
-  onBack?: () => void;
   disableInput?: boolean;
 }
 
@@ -23,7 +22,6 @@ type ViewMode = 'list' | 'detail' | 'search';
  * MemoryView - Display and manage agent memories
  */
 export function MemoryView({
-  onBack,
   disableInput = false,
 }: MemoryViewProps): React.ReactElement {
   // Data state
@@ -187,8 +185,6 @@ export function MemoryView({
         setConfirmClear(true);
       } else if (input === 'R' || (key.ctrl && input === 'r')) {
         void fetchMemoryList();
-      } else if (input === 'q' || key.escape) {
-        onBack?.();
       }
     },
     { isActive: !disableInput }
