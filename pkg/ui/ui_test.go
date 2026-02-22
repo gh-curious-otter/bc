@@ -430,3 +430,95 @@ func TestTablePrint(t *testing.T) {
 		t.Error("Table.Print should output row data '30'")
 	}
 }
+
+// Benchmarks
+
+func BenchmarkColor(b *testing.B) {
+	SetColorEnabled(true)
+	for i := 0; i < b.N; i++ {
+		_ = Color("test message", Red)
+	}
+}
+
+func BenchmarkColorDisabled(b *testing.B) {
+	SetColorEnabled(false)
+	defer SetColorEnabled(true)
+	for i := 0; i < b.N; i++ {
+		_ = Color("test message", Red)
+	}
+}
+
+func BenchmarkColorize(b *testing.B) {
+	SetColorEnabled(true)
+	for i := 0; i < b.N; i++ {
+		_ = Colorize("test message", Bold, Red, Under)
+	}
+}
+
+func BenchmarkStyleHelpers(b *testing.B) {
+	SetColorEnabled(true)
+	b.Run("BoldText", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = BoldText("test")
+		}
+	})
+	b.Run("RedText", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = RedText("test")
+		}
+	})
+	b.Run("GreenText", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = GreenText("test")
+		}
+	})
+}
+
+func BenchmarkNewTable(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = NewTable("Name", "Value", "Status", "Date")
+	}
+}
+
+func BenchmarkTableAddRow(b *testing.B) {
+	table := NewTable("Name", "Value", "Status")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		table.AddRow("test-name", "test-value", "active")
+	}
+}
+
+func BenchmarkTableString_SmallTable(b *testing.B) {
+	SetColorEnabled(false)
+	table := NewTable("Name", "Value")
+	table.AddRow("foo", "bar")
+	table.AddRow("baz", "qux")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = table.String()
+	}
+}
+
+func BenchmarkTableString_LargeTable(b *testing.B) {
+	SetColorEnabled(false)
+	table := NewTable("ID", "Name", "Status", "Created", "Updated")
+	for i := 0; i < 100; i++ {
+		table.AddRow("id-123", "test-name", "active", "2024-01-01", "2024-01-02")
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = table.String()
+	}
+}
+
+func BenchmarkPadRight(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = padRight("short", 20)
+	}
+}
+
+func BenchmarkPadRight_NoOp(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = padRight("already long enough text", 10)
+	}
+}
