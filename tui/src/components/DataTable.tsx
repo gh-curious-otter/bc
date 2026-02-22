@@ -12,6 +12,8 @@ export interface Column<T> {
 export interface DataTableProps<T> {
   columns: Column<T>[];
   data: T[];
+  /** Field to use as stable row key (default: 'id') */
+  rowKey?: keyof T;
   selectedIndex?: number;
   onSelect?: (row: T, index: number) => void;
   emptyMessage?: string;
@@ -30,6 +32,7 @@ export interface DataTableProps<T> {
 export function DataTable<T extends Record<string, unknown>>({
   columns,
   data,
+  rowKey,
   selectedIndex,
   emptyMessage = 'No data',
   showHeader = true,
@@ -59,7 +62,21 @@ export function DataTable<T extends Record<string, unknown>>({
   }, [selectedIndex, maxVisibleRows, scrollOffset]);
 
   // Calculate available width accounting for border (2 chars) and padding (2 chars)
-  const tableWidth = Math.max(40, terminalWidth - 4);
+  // #1618: Ensure table doesn't overflow at narrow terminals
+  const minWidth = 40;
+  const tableWidth = Math.max(minWidth, Math.min(terminalWidth - 4, terminalWidth * 0.95));
+
+  // #1618: Generate stable row key from rowKey prop or fall back to stringified row
+  const getRowKey = (row: T, index: number): string => {
+    if (rowKey && row[rowKey] !== undefined && row[rowKey] !== null) {
+      return String(row[rowKey]);
+    }
+    // Try common id fields
+    if ('id' in row && row.id !== undefined) return String(row.id);
+    if ('name' in row && row.name !== undefined) return String(row.name);
+    // Fall back to index as last resort
+    return `row-${String(index)}`;
+  };
 
   if (data.length === 0) {
     return <Text dimColor>{emptyMessage}</Text>;
@@ -80,10 +97,10 @@ export function DataTable<T extends Record<string, unknown>>({
         </Box>
       )}
 
-      {/* Data rows - using memoized row component */}
+      {/* Data rows - using memoized row component with stable keys (#1618) */}
       {visibleData.map((row, rowIndex) => (
         <DataTableRow
-          key={rowIndex}
+          key={getRowKey(row, rowIndex + scrollOffset)}
           row={row}
           columns={columns}
           isSelected={adjustedSelectedIndex === rowIndex}
