@@ -113,17 +113,6 @@ export type {
 export { CommandPalette } from './CommandPalette';
 export type { CommandPaletteProps } from './CommandPalette';
 
-// Detail pane (eng-03 #1310)
-export {
-  DetailPane,
-  shouldShowDetailPane,
-  DETAIL_PANE_WIDTH,
-  MIN_WIDTH_FOR_DETAIL,
-  COMPACT_WIDTH,
-  COMPACT_HEIGHT,
-} from './DetailPane';
-export type { DetailPaneProps, DetailItem, DetailField } from './DetailPane';
-
 // ViewWrapper for consistent view layout (#1419)
 export { ViewWrapper } from './ViewWrapper';
 export type { ViewWrapperProps } from './ViewWrapper';

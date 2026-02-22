@@ -31,10 +31,6 @@ import { ProcessesView } from './views/ProcessesView';
 import { MemoryView } from './views/MemoryView';
 import { RoutingView } from './views/RoutingView';
 import { CommandPalette } from './components/CommandPalette';
-import {
-  DetailPane,
-  type DetailItem,
-} from './components/DetailPane';
 import { type BcCommand } from './types/commands';
 
 interface AppProps {
@@ -102,8 +98,6 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
   const { stdout } = useStdout();
   const { setThemeName } = useTheme();
   const [showCommandPalette, setShowCommandPalette] = useState(false);
-  const [detailPaneVisible, setDetailPaneVisible] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<DetailItem | null>(null);
 
   // #1326: Use centralized responsive layout system
   const layout = useResponsiveLayout();
@@ -151,22 +145,9 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
     onCommandPalette: () => { setShowCommandPalette(true); },
   });
 
-  // Handle 'i' key to toggle detail pane (only when layout supports it)
-  useInput(
-    (input) => {
-      if (input === 'i' && layout.canShowDetail) {
-        setDetailPaneVisible(prev => !prev);
-      }
-    },
-    { isActive: !disableInput && !showCommandPalette }
-  );
-
   // Get terminal dimensions
   const terminalHeight = stdout.rows;
   const terminalWidth = stdout.columns;
-
-  // #1326: Determine if detail pane should show based on responsive layout and user toggle
-  const showDetailPane = layout.detailPane.visible && detailPaneVisible;
 
   return (
     <Box flexDirection="column" padding={1} width={terminalWidth} height={terminalHeight}>
@@ -191,20 +172,9 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
             <ViewContent
               view={currentView}
               disableInput={disableInput}
-              onSelectItem={setSelectedItem}
             />
           </Box>
         </Box>
-
-        {/* Right detail pane (toggleable with 'i', visibility per breakpoint) */}
-        {showDetailPane && (
-          <DetailPane
-            view={currentView}
-            selectedItem={selectedItem}
-            terminalWidth={terminalWidth}
-            terminalHeight={terminalHeight}
-          />
-        )}
       </Box>
 
       {/* Footer with navigation hints - anchored to bottom */}
@@ -227,36 +197,35 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
 interface ViewContentProps {
   view: View;
   disableInput: boolean;
-  onSelectItem?: (item: DetailItem | null) => void;
 }
 
 // Main content router
-function ViewContent({ view, disableInput, onSelectItem }: ViewContentProps): React.ReactElement {
+function ViewContent({ view, disableInput }: ViewContentProps): React.ReactElement {
   switch (view) {
     case 'dashboard':
       return <Dashboard />;
     case 'agents':
-      return <AgentsView onSelectItem={onSelectItem} />;
+      return <AgentsView />;
     case 'channels':
-      return <ChannelsView disableInput={disableInput} onSelectItem={onSelectItem} />;
+      return <ChannelsView disableInput={disableInput} />;
     case 'files':
       return <FilesView />;
     case 'costs':
-      return <CostsView disableInput={disableInput} onSelectItem={onSelectItem} />;
+      return <CostsView disableInput={disableInput} />;
     case 'commands':
       return <CommandsView disableInput={disableInput} />;
     case 'roles':
       return <RolesView disableInput={disableInput} />;
     case 'logs':
-      return <LogsView onSelectItem={onSelectItem} />;
+      return <LogsView />;
     case 'worktrees':
       return <WorktreesView />;
     case 'workspaces':
       return <WorkspaceSelectorView />;
     case 'demons':
-      return <DemonsView disableInput={disableInput} onSelectItem={onSelectItem} />;
+      return <DemonsView disableInput={disableInput} />;
     case 'processes':
-      return <ProcessesView onSelectItem={onSelectItem} />;
+      return <ProcessesView />;
     case 'memory':
       return <MemoryView disableInput={disableInput} />;
     case 'routing':
