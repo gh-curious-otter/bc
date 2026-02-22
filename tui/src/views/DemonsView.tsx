@@ -15,8 +15,6 @@ import type { Demon } from '../types';
 const ERROR_DISPLAY_DURATION = 3000;
 
 export interface DemonsViewProps {
-  /** Callback when exiting the view */
-  onExit?: () => void;
   /** Disable input handling (useful for testing) */
   disableInput?: boolean;
 }
@@ -81,7 +79,6 @@ function formatRelativeTime(timestamp?: string): string {
  * - Keyboard navigation (j/k, e/d to enable/disable, r to run)
  */
 export function DemonsView({
-  onExit,
   disableInput = false,
 }: DemonsViewProps): React.ReactElement {
   const { data: demons, loading, error, enabled, refresh, enable, disable, run } = useDemons();
@@ -136,9 +133,6 @@ export function DemonsView({
         if (input === 'r') {
           void refresh();
         }
-        if (input === 'q' && onExit) {
-          onExit();
-        }
         return;
       }
 
@@ -168,9 +162,6 @@ export function DemonsView({
       // Actions
       if (input === 'r') {
         void refresh();
-      }
-      if ((input === 'q' || key.escape) && onExit) {
-        onExit();
       }
 
       // Demon-specific actions

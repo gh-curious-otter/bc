@@ -19,15 +19,10 @@ import { useTheme } from '../theme';
 import { useFileTree, useGitStatus, useResponsiveLayout, type FileTreeEntry, type GitFileStatus } from '../hooks';
 import * as fs from 'fs';
 
-export interface FilesViewProps {
-  /** Callback when user presses Esc to go back */
-  onBack?: () => void;
-}
-
 // Focus areas within the view
 type FocusArea = 'worktree' | 'tree' | 'preview';
 
-export function FilesView({ onBack }: FilesViewProps): React.ReactElement {
+export function FilesView(): React.ReactNode {
   const { theme } = useTheme();
   const { width: terminalWidth, height: terminalHeight, responsive } = useResponsiveLayout();
 
@@ -111,12 +106,10 @@ export function FilesView({ onBack }: FilesViewProps): React.ReactElement {
 
   // Handle keyboard input
   useInput((input, key) => {
-    // Escape: close selector or go back
+    // Escape: close selector
     if (key.escape) {
       if (worktreeSelectorOpen) {
         setWorktreeSelectorOpen(false);
-      } else if (onBack) {
-        onBack();
       }
       return;
     }

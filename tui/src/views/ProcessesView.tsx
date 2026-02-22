@@ -13,10 +13,6 @@ import { HeaderBar } from '../components/HeaderBar';
 import { ViewWrapper } from '../components/ViewWrapper';
 import type { Process } from '../types';
 
-interface ProcessesViewProps {
-  onBack?: () => void;
-}
-
 /**
  * Calculate uptime string from started_at timestamp
  */
@@ -41,7 +37,7 @@ function formatUptime(startedAt: string): string {
   }
 }
 
-export function ProcessesView({ onBack }: ProcessesViewProps) {
+export function ProcessesView(): React.ReactElement {
   const { data: processes, loading, error, refresh } = useProcesses();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showLogs, setShowLogs] = useState(false);
@@ -106,8 +102,6 @@ export function ProcessesView({ onBack }: ProcessesViewProps) {
       setSelectedIndex(0);
     } else if (input === 'r') {
       void refresh();
-    } else if (input === 'q' || key.escape) {
-      onBack?.();
     }
   });
 

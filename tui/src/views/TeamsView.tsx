@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { Panel } from '../components/Panel.js';
 import { DataTable } from '../components/DataTable.js';
@@ -7,10 +7,6 @@ import { LoadingIndicator } from '../components/LoadingIndicator.js';
 import { ErrorDisplay } from '../components/ErrorDisplay.js';
 import { useTeams } from '../hooks';
 import type { Team } from '../types';
-
-interface TeamsViewProps {
-  onBack?: () => void;
-}
 
 // Extended team type for DataTable compatibility
 interface TeamRow extends Record<string, unknown> {
@@ -24,7 +20,7 @@ interface TeamRow extends Record<string, unknown> {
  * TeamsView - Display and manage teams
  * Issue #556 - Teams view
  */
-export function TeamsView({ onBack }: TeamsViewProps) {
+export function TeamsView(): React.ReactElement {
   const { data: teams, loading, error, refresh } = useTeams();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
@@ -58,9 +54,6 @@ export function TeamsView({ onBack }: TeamsViewProps) {
     }
     if (input === 'r') {
       void refresh();
-    }
-    if (input === 'q' || key.escape) {
-      onBack?.();
     }
   });
 

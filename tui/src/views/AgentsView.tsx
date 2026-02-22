@@ -32,9 +32,8 @@ import {
   type AgentAction,
 } from './agents';
 
-interface AgentsViewProps {
-  onBack?: () => void;
-}
+// eslint-disable-next-line @typescript-eslint/no-empty-interface -- AgentsView has no props currently
+interface AgentsViewProps {}
 
 /** Action feedback display duration in ms */
 const ACTION_FEEDBACK_DURATION = 2500;
@@ -46,7 +45,7 @@ interface ActionState {
   message: string;
 }
 
-export const AgentsView: React.FC<AgentsViewProps> = ({ onBack }) => {
+export const AgentsView: React.FC<AgentsViewProps> = () => {
   const { data: agents, loading, error, refresh } = useAgents();
   const { isCompact, isMinimal } = useResponsiveLayout();
   const isNarrow = isCompact || isMinimal;
@@ -218,8 +217,6 @@ export const AgentsView: React.FC<AgentsViewProps> = ({ onBack }) => {
       setSelectedIndex(0);
     } else if (input === 'r') {
       void refresh();
-    } else if (input === 'q' || key.escape) {
-      onBack?.();
     }
   });
 

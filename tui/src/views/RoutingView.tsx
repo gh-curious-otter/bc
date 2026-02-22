@@ -11,7 +11,6 @@ import { ViewWrapper } from '../components/ViewWrapper';
 import { useAgents } from '../hooks';
 
 interface RoutingViewProps {
-  onBack?: () => void;
   disableInput?: boolean;
 }
 
@@ -47,7 +46,6 @@ const ROUTING_RULES = [
  * RoutingView - Display and explain task routing rules
  */
 export function RoutingView({
-  onBack,
   disableInput = false,
 }: RoutingViewProps): React.ReactElement {
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -99,8 +97,6 @@ export function RoutingView({
         setSelectedIndex(ROUTING_RULES.length - 1);
       } else if (key.return && currentRule !== undefined) {
         setShowDetails(true);
-      } else if (input === 'q' || key.escape) {
-        onBack?.();
       }
     },
     { isActive: !disableInput }

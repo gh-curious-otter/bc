@@ -397,12 +397,6 @@ describe('DemonsView Keyboard Shortcuts', () => {
     expect(refreshed).toBe(true);
   });
 
-  test('q key exits view', () => {
-    let exited = false;
-    const qKeyAction = (onExit: () => void) => { onExit(); };
-    qKeyAction(() => { exited = true; });
-    expect(exited).toBe(true);
-  });
 });
 
 describe('DemonRow Component Logic', () => {

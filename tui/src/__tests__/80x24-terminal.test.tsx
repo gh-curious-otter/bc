@@ -387,38 +387,6 @@ describe('80x24 Terminal - HelpView Scroll', () => {
 });
 
 /**
- * Test CostDashboard responsive widths at 80 columns
- */
-describe('80x24 Terminal - CostDashboard Widths', () => {
-  function calculateCostDashboardWidths(terminalWidth: number) {
-    // From CostDashboard.tsx
-    const nameWidth = Math.min(18, Math.floor((terminalWidth - 30) * 0.4));
-    const barWidth = Math.min(12, Math.floor((terminalWidth - 30) * 0.25));
-    return { nameWidth, barWidth };
-  }
-
-  it('calculates correct column widths at 80 columns', () => {
-    const { nameWidth, barWidth } = calculateCostDashboardWidths(80);
-
-    // At 80: (80-30)*0.4 = 20, capped at 18
-    expect(nameWidth).toBe(18);
-
-    // At 80: (80-30)*0.25 = 12.5, capped at 12
-    expect(barWidth).toBe(12);
-  });
-
-  it('scales down widths at narrower terminals', () => {
-    const { nameWidth, barWidth } = calculateCostDashboardWidths(60);
-
-    // At 60: (60-30)*0.4 = 12
-    expect(nameWidth).toBe(12);
-
-    // At 60: (60-30)*0.25 = 7.5 = 7
-    expect(barWidth).toBe(7);
-  });
-});
-
-/**
  * Test ActivityFeed truncation at 80 columns
  */
 describe('80x24 Terminal - ActivityFeed Truncation', () => {

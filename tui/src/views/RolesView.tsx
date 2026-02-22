@@ -14,7 +14,6 @@ import type { Role } from '../types';
 import { getRoles, getRole, deleteRole } from '../services/bc';
 
 interface RolesViewProps {
-  onBack?: () => void;
   disableInput?: boolean;
 }
 
@@ -22,7 +21,6 @@ interface RolesViewProps {
  * RolesView - Display and manage workspace roles
  */
 export function RolesView({
-  onBack,
   disableInput = false,
 }: RolesViewProps): React.ReactElement {
   const [roles, setRoles] = useState<Role[]>([]);
@@ -194,8 +192,6 @@ export function RolesView({
         }
       } else if (input === 'r') {
         void fetchRoles();
-      } else if (input === 'q' || key.escape) {
-        onBack?.();
       }
     },
     { isActive: !disableInput }
