@@ -143,12 +143,12 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
       {/* Performance Debug Panel - toggled with Ctrl+P or F12 (Phase 3) */}
       {showDebugPanel && <PerformanceDebugPanel compact={!isWide} forceShow />}
 
-      {/* Footer with keyboard hints - use numbers for views (#1319) */}
+      {/* Footer with keyboard hints - Issue #1514: use drawer navigation (#1467) */}
       <Footer
         hints={[
-          { key: '2', label: 'agents' },
-          { key: '3', label: 'channels' },
-          { key: '4', label: 'costs' },
+          { key: 'Tab', label: 'views' },
+          { key: 'j/k', label: 'drawer' },
+          { key: 'Enter', label: 'select' },
           { key: 'r', label: 'refresh' },
           ...(showDebugPanel ? [{ key: 'Ctrl+P', label: 'hide perf' }] : [{ key: 'Ctrl+P', label: 'perf' }]),
           { key: 'q', label: 'quit' },

@@ -277,13 +277,12 @@ function HelpView(): React.ReactElement {
   const helpSections = useMemo(() => [
     { type: 'header' as const },
     { type: 'section' as const, title: 'Global', shortcuts: [
-      { keys: '1-9, 0, -', desc: 'Switch views' },
+      { keys: 'Tab', desc: 'Next view' },
+      { keys: 'Shift+Tab', desc: 'Previous view' },
       { keys: 'M', desc: 'Memory view' },
       { keys: 'R', desc: 'Routing view' },
       { keys: '?', desc: 'Toggle help' },
       { keys: 'ESC', desc: 'Go back / Home' },
-      { keys: 'Tab', desc: 'Next view' },
-      { keys: 'Shift+Tab', desc: 'Previous view' },
       { keys: 'Ctrl+R', desc: 'Refresh current view' },
       { keys: 'q', desc: 'Quit' },
     ]},

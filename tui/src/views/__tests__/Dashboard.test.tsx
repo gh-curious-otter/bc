@@ -172,12 +172,13 @@ describe('Dashboard Phase 3 Integration', () => {
   });
 
   describe('Footer Hints', () => {
+    // Issue #1514: Updated hints to reflect drawer navigation (#1467)
     test('Footer hints include performance overlay toggle', () => {
       const showDebugPanel = true;
       const hints = [
-        { key: 'a', label: 'agents' },
-        { key: 'c', label: 'channels' },
-        { key: '$', label: 'costs' },
+        { key: 'Tab', label: 'views' },
+        { key: 'j/k', label: 'drawer' },
+        { key: 'Enter', label: 'select' },
         { key: 'r', label: 'refresh' },
         ...(showDebugPanel ? [{ key: 'Ctrl+P', label: 'hide perf' }] : [{ key: 'Ctrl+P', label: 'perf' }]),
         { key: 'q', label: 'quit' },
@@ -191,9 +192,9 @@ describe('Dashboard Phase 3 Integration', () => {
     test('Footer hints show "perf" when overlay is hidden', () => {
       const showDebugPanel = false;
       const hints = [
-        { key: 'a', label: 'agents' },
-        { key: 'c', label: 'channels' },
-        { key: '$', label: 'costs' },
+        { key: 'Tab', label: 'views' },
+        { key: 'j/k', label: 'drawer' },
+        { key: 'Enter', label: 'select' },
         { key: 'r', label: 'refresh' },
         ...(showDebugPanel ? [{ key: 'Ctrl+P', label: 'hide perf' }] : [{ key: 'Ctrl+P', label: 'perf' }]),
         { key: 'q', label: 'quit' },
@@ -207,9 +208,9 @@ describe('Dashboard Phase 3 Integration', () => {
     test('Footer contains all required hints', () => {
       const showDebugPanel = false;
       const hints = [
-        { key: 'a', label: 'agents' },
-        { key: 'c', label: 'channels' },
-        { key: '$', label: 'costs' },
+        { key: 'Tab', label: 'views' },
+        { key: 'j/k', label: 'drawer' },
+        { key: 'Enter', label: 'select' },
         { key: 'r', label: 'refresh' },
         ...(showDebugPanel ? [{ key: 'Ctrl+P', label: 'hide perf' }] : [{ key: 'Ctrl+P', label: 'perf' }]),
         { key: 'q', label: 'quit' },
@@ -218,9 +219,9 @@ describe('Dashboard Phase 3 Integration', () => {
       expect(hints.length).toBeGreaterThan(5);
 
       const keys = hints.map(h => h.key);
-      expect(keys).toContain('a');
-      expect(keys).toContain('c');
-      expect(keys).toContain('$');
+      expect(keys).toContain('Tab');
+      expect(keys).toContain('j/k');
+      expect(keys).toContain('Enter');
       expect(keys).toContain('r');
       expect(keys).toContain('Ctrl+P');
       expect(keys).toContain('q');
