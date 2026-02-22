@@ -2,7 +2,7 @@
  * App - Main TUI application component
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Box, Text, useStdout, useInput } from 'ink';
 import {
   NavigationProvider,
@@ -111,8 +111,8 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
     }
   }, [themeConfig.theme, setThemeName]);
 
-  // Handle command palette selection - navigate to view if applicable
-  const handleCommandSelect = (command: BcCommand): void => {
+  // #1596: Memoize command palette selection handler
+  const handleCommandSelect = useCallback((command: BcCommand): void => {
     // Map command names to views
     const viewMap: Record<string, View> = {
       'agent status': 'agents',
@@ -138,12 +138,22 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
       navigate(targetView);
     }
     setShowCommandPalette(false);
-  };
+  }, [navigate]);
+
+  // #1596: Memoize command palette open handler
+  const handleOpenCommandPalette = useCallback(() => {
+    setShowCommandPalette(true);
+  }, []);
+
+  // #1596: Memoize command palette close handler
+  const handleCloseCommandPalette = useCallback(() => {
+    setShowCommandPalette(false);
+  }, []);
 
   // Handle global keyboard navigation
   useKeyboardNavigation({
     disabled: disableInput || showCommandPalette,
-    onCommandPalette: () => { setShowCommandPalette(true); },
+    onCommandPalette: handleOpenCommandPalette,
   });
 
   // Get terminal dimensions
@@ -192,7 +202,7 @@ function AppContent({ disableInput, themeConfig }: AppContentProps): React.React
         <Box position="absolute" marginTop={2} marginLeft={commandPaletteMarginLeft}>
           <CommandPalette
             isOpen={showCommandPalette}
-            onClose={() => { setShowCommandPalette(false); }}
+            onClose={handleCloseCommandPalette}
             onSelect={handleCommandSelect}
           />
         </Box>
@@ -206,8 +216,8 @@ interface ViewContentProps {
   disableInput: boolean;
 }
 
-// Main content router
-function ViewContent({ view, disableInput }: ViewContentProps): React.ReactElement {
+// #1596: Memoize content router to prevent re-renders when parent state changes
+const ViewContent = React.memo(function ViewContent({ view, disableInput }: ViewContentProps): React.ReactElement {
   switch (view) {
     case 'dashboard':
       return <Dashboard />;
@@ -242,7 +252,7 @@ function ViewContent({ view, disableInput }: ViewContentProps): React.ReactEleme
     default:
       return <Text>Unknown view</Text>;
   }
-}
+});
 
 function HelpView(): React.ReactElement {
   const { theme, isDark } = useTheme();
@@ -319,8 +329,8 @@ function HelpView(): React.ReactElement {
   const needsScroll = totalLines > availableHeight;
   const maxScroll = Math.max(0, totalLines - availableHeight);
 
-  // Handle scroll with j/k
-  useInput((input, key) => {
+  // #1596: Memoize scroll input handler
+  const handleScrollInput = useCallback((input: string, key: { downArrow: boolean; upArrow: boolean }) => {
     if (needsScroll) {
       if (input === 'j' || key.downArrow) {
         setScrollOffset(prev => Math.min(prev + 1, maxScroll));
@@ -335,7 +345,10 @@ function HelpView(): React.ReactElement {
         setScrollOffset(maxScroll);
       }
     }
-  });
+  }, [needsScroll, maxScroll]);
+
+  // Handle scroll with j/k
+  useInput(handleScrollInput);
 
   // Build visible content
   let currentLine = 0;
@@ -413,23 +426,24 @@ function HelpView(): React.ReactElement {
   );
 }
 
-/** Helper component for shortcut rows */
-function ShortcutRow({ keys, desc }: { keys: string; desc: string }): React.ReactElement {
+/** Helper component for shortcut rows - #1596: Memoized to prevent re-renders */
+const ShortcutRow = React.memo(function ShortcutRow({ keys, desc }: { keys: string; desc: string }): React.ReactElement {
   return (
     <Text>
       <Text color="yellow">{keys.padEnd(12)}</Text>
       <Text>{desc}</Text>
     </Text>
   );
-}
+});
 
 /**
  * Footer with dynamic hints and theme indicator - anchored to bottom
  *
  * Issue #1461: Combines view-specific hints (from ViewWrapper via context)
  * with universal hints (Tab, ?, q). This eliminates duplicate hint bars.
+ * Issue #1596: Memoized to prevent unnecessary re-renders.
  */
-function Footer(): React.ReactElement {
+const Footer = React.memo(function Footer(): React.ReactElement {
   const { theme } = useTheme();
   const { currentView } = useNavigation();
   const { viewHints } = useHintsContext();
@@ -450,4 +464,4 @@ function Footer(): React.ReactElement {
       <Text dimColor>Theme: {theme.name}</Text>
     </Box>
   );
-}
+});
