@@ -316,7 +316,8 @@ export const LogsView: React.FC<LogsViewProps> = ({ onBack }) => {
   const timeWidth = 12;
   const agentWidth = Math.min(12, Math.floor((terminalWidth - 40) * 0.2));
   const typeWidth = 10;
-  const messageWidth = terminalWidth - timeWidth - agentWidth - typeWidth - 10;
+  // -12 accounts for: selection indicator (2) + spacing (10)
+  const messageWidth = terminalWidth - timeWidth - agentWidth - typeWidth - 12;
 
   // Visible rows - dynamic based on terminal height (#80x24 support)
   // Account for: app overhead (6) + header (1) + filters (1) + table border (2) + footer (1)
@@ -361,6 +362,7 @@ export const LogsView: React.FC<LogsViewProps> = ({ onBack }) => {
       <Box flexDirection="column" borderStyle="single" borderColor="gray">
         {/* Table header */}
         <Box>
+          <Text>{'  '}</Text>
           <Text bold color="gray">
             {'TIME'.padEnd(timeWidth)}
             {'AGENT'.padEnd(agentWidth)}
@@ -378,6 +380,9 @@ export const LogsView: React.FC<LogsViewProps> = ({ onBack }) => {
 
           return (
             <Box key={`${log.ts}-${String(idx)}`}>
+              <Text color={isSelected ? 'cyan' : undefined}>
+                {isSelected ? '▸ ' : '  '}
+              </Text>
               <Text
                 backgroundColor={isSelected ? 'blue' : undefined}
                 color={isSelected ? 'white' : undefined}

@@ -342,7 +342,7 @@ function AgentMemoryRow({ agent, selected }: AgentMemoryRowProps): React.ReactEl
     <Box paddingX={1}>
       <Box width={20}>
         <Text color={selected ? 'cyan' : undefined} bold={selected}>
-          {selected ? '> ' : '  '}
+          {selected ? '▸ ' : '  '}
           {truncate(agent.agent, 16)}
         </Text>
       </Box>
