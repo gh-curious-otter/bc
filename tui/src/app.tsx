@@ -13,9 +13,10 @@ import {
   FocusProvider,
   type View,
 } from './navigation';
-import { ThemeProvider, useTheme, type ThemeMode } from './theme';
+import { useTheme } from './theme';
 import { UnreadProvider, useKeybindingHints, useResponsiveLayout, HintsProvider, useHintsContext, DisableInputProvider, useDisableInput } from './hooks';
-import { ConfigProvider, useThemeConfig } from './config';
+import { useThemeConfig } from './config';
+import { RootProvider } from './providers';
 import { Dashboard } from './views/Dashboard';
 import { AgentsView } from './views/AgentsView';
 import { CommandsView } from './views/CommandsView';
@@ -41,54 +42,57 @@ interface AppProps {
   initialView?: View;
 }
 
+/**
+ * App - Main entry point with simplified provider tree (#1608)
+ *
+ * Provider hierarchy:
+ * - RootProvider: Config + Theme (combined)
+ * - NavigationProvider: View routing
+ * - FocusProvider: Keyboard focus management
+ * - UnreadProvider: Unread message tracking
+ * - HintsProvider: Footer keyboard hints
+ * - DisableInputProvider: Input control for modals/tests
+ */
 export function App({
   disableInput = false,
   initialView = 'dashboard',
 }: AppProps): React.ReactElement {
   return (
-    <ConfigProvider>
-      <AppWithTheme disableInput={disableInput} initialView={initialView} />
-    </ConfigProvider>
+    <RootProvider>
+      <AppWithFeatureProviders disableInput={disableInput} initialView={initialView} />
+    </RootProvider>
   );
 }
 
-interface AppWithThemeProps {
+interface AppWithFeatureProvidersProps {
   disableInput: boolean;
   initialView: View;
 }
 
 /**
- * AppWithTheme - Wraps the app with theme provider initialized from config
- * Must be inside ConfigProvider to use useThemeConfig
+ * AppWithFeatureProviders - Feature-level providers
+ * Inside RootProvider, wraps with navigation and UI state providers
  */
-function AppWithTheme({
+function AppWithFeatureProviders({
   disableInput,
   initialView,
-}: AppWithThemeProps): React.ReactElement {
-  // Get theme config from workspace configuration
+}: AppWithFeatureProvidersProps): React.ReactElement {
+  // Get theme config from workspace configuration (provided by RootProvider)
   const themeConfig = useThemeConfig();
 
-  // Convert config theme/mode to ThemeMode for ThemeProvider
-  // If a named theme is set (matrix, synthwave, etc), use 'auto' mode to let theme system handle it
-  const effectiveMode: ThemeMode = themeConfig.theme !== 'dark' && themeConfig.theme !== 'light'
-    ? 'auto'
-    : themeConfig.mode;
-
   return (
-    <ThemeProvider config={{ mode: effectiveMode }}>
-      <NavigationProvider initialView={initialView}>
-        <FocusProvider>
-          <UnreadProvider>
-            <HintsProvider>
-              {/* #1594: DisableInputProvider eliminates prop drilling */}
-              <DisableInputProvider disabled={disableInput}>
-                <AppContent themeConfig={themeConfig} />
-              </DisableInputProvider>
-            </HintsProvider>
-          </UnreadProvider>
-        </FocusProvider>
-      </NavigationProvider>
-    </ThemeProvider>
+    <NavigationProvider initialView={initialView}>
+      <FocusProvider>
+        <UnreadProvider>
+          <HintsProvider>
+            {/* #1594: DisableInputProvider eliminates prop drilling */}
+            <DisableInputProvider disabled={disableInput}>
+              <AppContent themeConfig={themeConfig} />
+            </DisableInputProvider>
+          </HintsProvider>
+        </UnreadProvider>
+      </FocusProvider>
+    </NavigationProvider>
   );
 }
 
