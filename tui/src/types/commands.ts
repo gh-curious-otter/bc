@@ -10,6 +10,7 @@ export interface BcCommand {
   usage: string;          // Command usage (e.g., 'bc agent list')
   readOnly: boolean;      // Safe to execute in TUI
   flags?: string[];       // Common flags
+  shortcut?: string;      // #1603: Keyboard shortcut (e.g., 'a' for agents view)
 }
 
 export interface CommandCategory {
@@ -334,15 +335,64 @@ export function getAllCommands(): BcCommand[] {
 }
 
 /**
- * Filter commands by search query
+ * #1603: Calculate fuzzy match score (higher = better match)
+ * Returns -1 if no match, 0-100 for match quality
+ */
+export function fuzzyMatchScore(text: string, query: string): number {
+  const lowerText = text.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+
+  // Exact match gets highest score
+  if (lowerText === lowerQuery) return 100;
+
+  // Starts with query gets high score
+  if (lowerText.startsWith(lowerQuery)) return 90;
+
+  // Contains query gets medium score
+  if (lowerText.includes(lowerQuery)) return 70;
+
+  // Fuzzy match: all query chars must appear in order
+  let queryIdx = 0;
+  let consecutive = 0;
+  let maxConsecutive = 0;
+
+  for (let i = 0; i < lowerText.length && queryIdx < lowerQuery.length; i++) {
+    if (lowerText[i] === lowerQuery[queryIdx]) {
+      queryIdx++;
+      consecutive++;
+      maxConsecutive = Math.max(maxConsecutive, consecutive);
+    } else {
+      consecutive = 0;
+    }
+  }
+
+  // All chars matched?
+  if (queryIdx < lowerQuery.length) return -1;
+
+  // Score based on consecutive matches
+  return 30 + Math.min(40, maxConsecutive * 10);
+}
+
+/**
+ * Filter commands by search query with fuzzy matching (#1603)
  */
 export function searchCommands(query: string): BcCommand[] {
-  const lowerQuery = query.toLowerCase();
-  return getAllCommands().filter(cmd =>
-    cmd.name.toLowerCase().includes(lowerQuery) ||
-    cmd.description.toLowerCase().includes(lowerQuery) ||
-    cmd.category.toLowerCase().includes(lowerQuery)
-  );
+  const lowerQuery = query.toLowerCase().trim();
+  if (!lowerQuery) return getAllCommands();
+
+  const scored = getAllCommands()
+    .map(cmd => {
+      // Score multiple fields, take best match
+      const nameScore = fuzzyMatchScore(cmd.name, lowerQuery);
+      const descScore = fuzzyMatchScore(cmd.description, lowerQuery);
+      const catScore = fuzzyMatchScore(cmd.category, lowerQuery);
+      const score = Math.max(nameScore, descScore * 0.8, catScore * 0.6);
+      return { cmd, score };
+    })
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return scored.map(({ cmd }) => cmd);
 }
 
 /**
@@ -350,4 +400,24 @@ export function searchCommands(query: string): BcCommand[] {
  */
 export function getCommandsByCategory(category: string): BcCommand[] {
   return COMMAND_REGISTRY.find(cat => cat.name === category)?.commands ?? [];
+}
+
+/**
+ * #1603: Get all category names
+ */
+export function getCategoryNames(): string[] {
+  return COMMAND_REGISTRY.map(cat => cat.name);
+}
+
+/**
+ * #1603: Group commands by category
+ */
+export function groupCommandsByCategory(commands: BcCommand[]): Map<string, BcCommand[]> {
+  const groups = new Map<string, BcCommand[]>();
+  for (const cmd of commands) {
+    const existing = groups.get(cmd.category) ?? [];
+    existing.push(cmd);
+    groups.set(cmd.category, existing);
+  }
+  return groups;
 }
