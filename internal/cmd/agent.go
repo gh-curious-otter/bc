@@ -17,6 +17,7 @@ import (
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/names"
 	"github.com/rpuneet/bc/pkg/team"
+	"github.com/rpuneet/bc/pkg/telemetry"
 	"github.com/rpuneet/bc/pkg/ui"
 )
 
@@ -737,9 +738,17 @@ func runAgentStart(cmd *cobra.Command, args []string) error {
 	spawned, spawnErr := mgr.SpawnAgentWithOptions(agentName, a.Role, ws.RootDir, a.ParentID, a.Tool)
 	if spawnErr != nil {
 		fmt.Println("✗")
+		// #1661: Emit telemetry for agent error
+		telemetry.AgentError(cmd.Context(), agentName, spawnErr, "start")
 		return fmt.Errorf("failed to start %s: %w", agentName, spawnErr)
 	}
 	fmt.Printf("✓ (session: %s)\n", mgr.Tmux().SessionName(spawned.Session))
+
+	// #1661: Emit telemetry for agent spawn
+	telemetry.AgentSpawn(cmd.Context(), agentName, string(a.Role), map[string]any{
+		"session": spawned.Session,
+		"action":  "restart",
+	})
 
 	// Log event
 	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
@@ -775,9 +784,14 @@ func runAgentStop(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Stopping %s... ", agentName)
 	if stopErr := mgr.StopAgent(agentName); stopErr != nil {
 		fmt.Println("✗")
+		// #1661: Emit telemetry for agent error
+		telemetry.AgentError(cmd.Context(), agentName, stopErr, "stop")
 		return fmt.Errorf("failed to stop %s: %w", agentName, stopErr)
 	}
 	fmt.Println("✓")
+
+	// #1661: Emit telemetry for agent stop
+	telemetry.AgentStop(cmd.Context(), agentName, "user_requested")
 
 	// Log event
 	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
