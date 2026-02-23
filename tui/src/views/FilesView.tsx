@@ -16,7 +16,7 @@ import { Box, Text, useInput } from 'ink';
 import { getWorktrees } from '../services/bc';
 import type { Worktree } from '../types';
 import { useTheme } from '../theme';
-import { useFileTree, useGitStatus, useResponsiveLayout, type FileTreeEntry, type GitFileStatus } from '../hooks';
+import { useFileTree, useGitStatus, useResponsiveLayout, useListNavigation, type FileTreeEntry, type GitFileStatus } from '../hooks';
 import * as fs from 'fs';
 
 // Focus areas within the view
@@ -161,29 +161,51 @@ export function FilesView(): React.ReactNode {
 
   const flatTree = useMemo(() => flattenTree(fileTree), [flattenTree, fileTree]);
 
-  // Handle keyboard input
+  // Handle tree item selection (Enter key)
+  const handleTreeSelect = useCallback((item: { entry: FileTreeEntry; depth: number }) => {
+    if (item.entry.isDirectory) {
+      // Toggle directory expansion
+      if (item.entry.expanded) {
+        collapseDirectory(item.entry.path);
+      } else {
+        expandDirectory(item.entry.path);
+      }
+    } else {
+      // Select file for preview
+      dispatch({ type: 'SELECT_FILE', path: item.entry.path });
+    }
+  }, [collapseDirectory, expandDirectory]);
+
+  // Custom key handlers for tree navigation (#1748)
+  const treeCustomKeys = useMemo(
+    () => ({
+      f: () => { dispatch({ type: 'CYCLE_FOCUS_FORWARD' }); },
+      F: () => { dispatch({ type: 'CYCLE_FOCUS_BACKWARD' }); },
+      w: () => { dispatch({ type: 'TOGGLE_WORKTREE_SELECTOR' }); },
+    }),
+    []
+  );
+
+  // #1748: useListNavigation for tree navigation
+  const { selectedIndex: treeNavIndex } = useListNavigation({
+    items: flatTree,
+    onSelect: handleTreeSelect,
+    customKeys: treeCustomKeys,
+    disabled: focusArea !== 'tree' || worktreeSelectorOpen,
+  });
+
+  // Sync hook's index with reducer state
+  useEffect(() => {
+    dispatch({ type: 'SET_TREE_INDEX', index: treeNavIndex });
+  }, [treeNavIndex]);
+
+  // Handle worktree selector and other keys
   useInput((input, key) => {
     // Escape: close selector
     if (key.escape) {
       if (worktreeSelectorOpen) {
         dispatch({ type: 'CLOSE_WORKTREE_SELECTOR' });
       }
-      return;
-    }
-
-    // f/F: cycle focus areas (Tab reserved for global view navigation #1520)
-    if (input === 'f') {
-      dispatch({ type: 'CYCLE_FOCUS_FORWARD' });
-      return;
-    }
-    if (input === 'F') {
-      dispatch({ type: 'CYCLE_FOCUS_BACKWARD' });
-      return;
-    }
-
-    // w: toggle worktree selector
-    if (input === 'w') {
-      dispatch({ type: 'TOGGLE_WORKTREE_SELECTOR' });
       return;
     }
 
@@ -197,33 +219,6 @@ export function FilesView(): React.ReactNode {
         if (worktrees[worktreeIndex]) {
           setSelectedWorktree(worktrees[worktreeIndex]);
           dispatch({ type: 'CLOSE_WORKTREE_SELECTOR' });
-        }
-      }
-      return;
-    }
-
-    // Handle tree navigation when focused on tree
-    if (focusArea === 'tree' && flatTree.length > 0) {
-      if (input === 'j' || key.downArrow) {
-        dispatch({ type: 'SET_TREE_INDEX', index: Math.min(treeIndex + 1, flatTree.length - 1) });
-      } else if (input === 'k' || key.upArrow) {
-        dispatch({ type: 'SET_TREE_INDEX', index: Math.max(treeIndex - 1, 0) });
-      } else if (input === 'g') {
-        dispatch({ type: 'SET_TREE_INDEX', index: 0 });
-      } else if (input === 'G') {
-        dispatch({ type: 'SET_TREE_INDEX', index: flatTree.length - 1 });
-      } else if (key.return && flatTree[treeIndex]) {
-        const item = flatTree[treeIndex];
-        if (item.entry.isDirectory) {
-          // Toggle directory expansion
-          if (item.entry.expanded) {
-            collapseDirectory(item.entry.path);
-          } else {
-            expandDirectory(item.entry.path);
-          }
-        } else {
-          // Select file for preview
-          dispatch({ type: 'SELECT_FILE', path: item.entry.path });
         }
       }
     }
