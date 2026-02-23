@@ -8,6 +8,7 @@ import { getWorkspaces } from '../services/bc';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
+import { useDisableInput, useListNavigation } from '../hooks';
 import type { DiscoveredWorkspace } from '../types';
 
 interface WorkspaceSelectorViewProps {
@@ -32,11 +33,12 @@ export const WorkspaceSelectorView: React.FC<WorkspaceSelectorViewProps> = ({
   const terminalWidth = stdout.columns;
   const { setFocus } = useFocus();
   const { goHome, setBreadcrumbs, clearBreadcrumbs } = useNavigation();
+  // #1594: Use context for input disable state
+  const { isDisabled: disableInput } = useDisableInput();
 
   const [workspaces, setWorkspaces] = useState<DiscoveredWorkspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [showDetail, setShowDetail] = useState(false);
   const [filterV2Only, setFilterV2Only] = useState(false);
 
@@ -78,8 +80,36 @@ export const WorkspaceSelectorView: React.FC<WorkspaceSelectorViewProps> = ({
     [filteredWorkspaces]
   );
 
-  const selectedWorkspace = filteredWorkspaces[selectedIndex] as DiscoveredWorkspace | undefined;
   const v2Count = workspaces.filter((ws) => ws.is_v2).length;
+
+  // #1750: Handle workspace selection via hook callback
+  const handleSelect = useCallback((ws: DiscoveredWorkspace) => {
+    if (onSelect) {
+      onSelect(ws);
+    } else {
+      setShowDetail(true);
+    }
+  }, [onSelect]);
+
+  // #1750: Custom key handlers for view-specific actions
+  const customKeys = useMemo(() => ({
+    v: () => {
+      setFilterV2Only((prev) => !prev);
+    },
+    r: () => { void fetchWorkspaces(); },
+  }), [fetchWorkspaces]);
+
+  // #1750: Use useListNavigation for consolidated keyboard patterns
+  const {
+    selectedIndex,
+    selectedItem: selectedWorkspace,
+  } = useListNavigation({
+    items: filteredWorkspaces,
+    onSelect: handleSelect,
+    onBack: () => { setFocus('main'); goHome(); },
+    disabled: disableInput || showDetail,
+    customKeys,
+  });
 
   // Manage breadcrumbs for nested view navigation (#1604)
   useEffect(() => {
@@ -90,42 +120,14 @@ export const WorkspaceSelectorView: React.FC<WorkspaceSelectorViewProps> = ({
     }
   }, [showDetail, selectedWorkspace, setBreadcrumbs, clearBreadcrumbs]);
 
-  // Keyboard navigation
+  // #1750: Modal-only keyboard handling (list navigation handled by useListNavigation)
   useInput((input, key) => {
     if (showDetail) {
       if (key.escape || input === 'q' || key.return) {
         setShowDetail(false);
       }
-      return;
     }
-
-    // List navigation
-    if (key.upArrow || input === 'k') {
-      setSelectedIndex((i) => Math.max(0, i - 1));
-    } else if (key.downArrow || input === 'j') {
-      setSelectedIndex((i) => Math.min(filteredWorkspaces.length - 1, i + 1));
-    } else if (input === 'g') {
-      setSelectedIndex(0);
-    } else if (input === 'G') {
-      setSelectedIndex(Math.max(0, filteredWorkspaces.length - 1));
-    } else if (key.return) {
-      if (selectedWorkspace) {
-        if (onSelect) {
-          onSelect(selectedWorkspace);
-        } else {
-          setShowDetail(true);
-        }
-      }
-    } else if (input === 'v') {
-      setFilterV2Only(!filterV2Only);
-      setSelectedIndex(0);
-    } else if (input === 'r') {
-      void fetchWorkspaces();
-    } else if (input === 'q' || key.escape) {
-      setFocus('main');
-      goHome();
-    }
-  });
+  }, { isActive: showDetail });
 
   // Detail view
   if (showDetail && selectedWorkspace) {
