@@ -212,6 +212,9 @@ func TestReportNoWorkspace(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
+	// Clear workspace env vars to ensure workspace lookup fails (#1668)
+	t.Setenv("BC_WORKSPACE", "")
+	t.Setenv("BC_AGENT_WORKTREE", "")
 	t.Setenv("BC_AGENT_ID", "test-agent")
 
 	_, _, err = executeIntegrationCmd("report", "working", "testing")
@@ -229,7 +232,8 @@ func TestReportValidStates(t *testing.T) {
 	for _, state := range validStates {
 		t.Run(state, func(t *testing.T) {
 			t.Setenv("BC_AGENT_ID", "test-agent")
-			t.Setenv("BC_WORKSPACE", "") // Clear workspace env to test cwd-based discovery
+			t.Setenv("BC_WORKSPACE", "")      // Clear workspace env to test cwd-based discovery
+			t.Setenv("BC_AGENT_WORKTREE", "") // Clear worktree env to avoid spurious warnings (#1668)
 
 			// State validation happens before workspace lookup, but
 			// invalid states are rejected. Valid states proceed to
