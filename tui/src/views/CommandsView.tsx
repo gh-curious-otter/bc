@@ -3,15 +3,16 @@
  * Displays commands organized by category with search/filter capability
  * Supports execution of read-only commands directly from TUI
  * Supports favorites with persistence
+ * Issue #1727: Migrated to useListNavigation hook
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { COMMAND_REGISTRY } from '../types/commands';
 import type { BcCommand } from '../types/commands';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { useDisableInput } from '../hooks';
+import { useDisableInput, useListNavigation } from '../hooks';
 import { execBc } from '../services/bc';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -62,8 +63,6 @@ export const CommandsView: React.FC<CommandsViewProps> = (_props = {}) => {
   // #1594: Use context instead of prop drilling
   const { isDisabled: disableInput } = useDisableInput();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [searchMode, setSearchMode] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState('All');
   const { setFocus } = useFocus();
   const { goHome } = useNavigation();
@@ -129,7 +128,7 @@ export const CommandsView: React.FC<CommandsViewProps> = (_props = {}) => {
   }, []);
 
   // Get filtered commands by category and search, with favorites first
-  const filteredCommands = React.useMemo(() => {
+  const filteredCommands = useMemo(() => {
     let commands = categoryFilter === 'All'
       ? COMMAND_REGISTRY.flatMap(cat => cat.commands)
       : COMMAND_REGISTRY.find(cat => cat.name === categoryFilter)?.commands ?? [];
@@ -153,98 +152,80 @@ export const CommandsView: React.FC<CommandsViewProps> = (_props = {}) => {
   // Count favorites for display
   const favoriteCount = favorites.size;
 
-  // Clamp selectedIndex to valid range whenever filteredCommands changes
-  const validatedIndex = Math.min(selectedIndex, Math.max(0, filteredCommands.length - 1));
-  const selectedCommand = filteredCommands[validatedIndex] as typeof filteredCommands[number] | undefined;
+  // Callbacks for list navigation
+  const handleSelect = useCallback((command: BcCommand) => {
+    // Execute read-only commands, show warning for others
+    if (command.readOnly) {
+      void executeCommand(command);
+    } else {
+      setCommandError(`"${command.name}" modifies state - use CLI directly`);
+      setCommandOutput(null);
+    }
+  }, [executeCommand]);
 
-  // Reset selection when search results or category change
-  React.useEffect(() => {
+  const handleCycleCategory = useCallback(() => {
+    const currentIdx = CATEGORY_NAMES.indexOf(categoryFilter);
+    const nextIdx = (currentIdx + 1) % CATEGORY_NAMES.length;
+    setCategoryFilter(CATEGORY_NAMES[nextIdx] ?? 'All');
+  }, [categoryFilter]);
+
+  const handleClearOutput = useCallback(() => {
+    if (commandOutput !== null || commandError !== null) {
+      setCommandOutput(null);
+      setCommandError(null);
+      setLastExecutedCommand(null);
+    }
+  }, [commandOutput, commandError]);
+
+  // #1727: Use useListNavigation hook for vim-style navigation
+  const {
+    selectedIndex,
+    selectedItem: selectedCommand,
+    search,
+    setSelectedIndex,
+  } = useListNavigation({
+    items: filteredCommands,
+    enableSearch: true,
+    onSearchChange: setSearchQuery,
+    onSelect: handleSelect,
+    onBack: () => {
+      if (commandOutput !== null || commandError !== null) {
+        // First press clears output
+        handleClearOutput();
+      } else {
+        // Navigate to home/dashboard
+        goHome();
+      }
+    },
+    customKeys: {
+      'f': () => { if (selectedCommand) toggleFavorite(selectedCommand.name); },
+      'c': handleClearOutput,
+    },
+    isActive: !disableInput,
+  });
+
+  // Reset selection when category changes
+  useEffect(() => {
     setSelectedIndex(0);
-  }, [searchQuery, categoryFilter]);
+  }, [categoryFilter, setSelectedIndex]);
+
+  // Handle Tab key for category cycling (not handled by useListNavigation)
+  useInput((_input, key) => {
+    if (!search.isActive && key.tab) {
+      handleCycleCategory();
+    }
+  }, { isActive: !disableInput });
 
   // Sync focus state with search mode
   // Use setFocus('view') to enable local q/ESC handling via !isFocused('view') guard
   // This prevents global q-key handler from quitting while in CommandsView
-  React.useEffect(() => {
-    if (searchMode) {
+  useEffect(() => {
+    if (search.isActive) {
       setFocus('input');
     } else {
       setFocus('view');
     }
-  }, [searchMode, setFocus]);
-
-  // Keyboard navigation
-  useInput((input, key) => {
-    if (searchMode) {
-      // Search mode: handle text input
-      if (key.return) {
-        setSearchMode(false);
-      } else if (key.escape) {
-        setSearchQuery('');
-        setSearchMode(false);
-      } else if (key.backspace || key.delete) {
-        setSearchQuery(searchQuery.slice(0, -1));
-      } else if (input && !key.ctrl && !key.meta && !key.tab) {
-        // Add printable characters to search query, ignore tab
-        setSearchQuery(searchQuery + input);
-      }
-    } else {
-      // Navigation mode
-      if (input === '/') {
-        setSearchMode(true);
-      } else if (key.tab) {
-        // Cycle to next category
-        const currentIdx = CATEGORY_NAMES.indexOf(categoryFilter);
-        const nextIdx = (currentIdx + 1) % CATEGORY_NAMES.length;
-        setCategoryFilter(CATEGORY_NAMES[nextIdx] ?? 'All');
-      } else if (key.upArrow || input === 'k') {
-        // Navigate up, clamped to valid range
-        if (filteredCommands.length > 0) {
-          setSelectedIndex(Math.max(0, validatedIndex - 1));
-        }
-      } else if (key.downArrow || input === 'j') {
-        // Navigate down, clamped to valid range
-        if (filteredCommands.length > 0) {
-          setSelectedIndex(Math.min(filteredCommands.length - 1, validatedIndex + 1));
-        }
-      } else if (input === 'g') {
-        // Go to top
-        setSelectedIndex(0);
-      } else if (input === 'G') {
-        // Go to bottom
-        if (filteredCommands.length > 0) {
-          setSelectedIndex(filteredCommands.length - 1);
-        }
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list
-      } else if (key.return && selectedCommand) {
-        // Execute read-only commands, show warning for others
-        if (selectedCommand.readOnly) {
-          void executeCommand(selectedCommand);
-        } else {
-          setCommandError(`"${selectedCommand.name}" modifies state - use CLI directly`);
-          setCommandOutput(null);
-        }
-      } else if (input === 'f' && selectedCommand) {
-        // Toggle favorite
-        toggleFavorite(selectedCommand.name);
-      } else if (input === 'c' && (commandOutput !== null || commandError !== null)) {
-        // Clear output panel
-        setCommandOutput(null);
-        setCommandError(null);
-        setLastExecutedCommand(null);
-      } else if (input === 'q' || key.escape) {
-        if (commandOutput !== null || commandError !== null) {
-          // First press clears output, second press goes back
-          setCommandOutput(null);
-          setCommandError(null);
-          setLastExecutedCommand(null);
-        } else {
-          // Navigate to home/dashboard
-          goHome();
-        }
-      }
-    }
-  }, { isActive: !disableInput });
+  }, [search.isActive, setFocus]);
 
   return (
     <Box flexDirection="column" width="100%">
@@ -267,11 +248,11 @@ export const CommandsView: React.FC<CommandsViewProps> = (_props = {}) => {
       </Box>
 
       {/* Search bar */}
-      <Box marginBottom={1} paddingX={1} borderStyle="single" borderColor={searchMode ? 'cyan' : 'gray'}>
-        {searchMode ? (
+      <Box marginBottom={1} paddingX={1} borderStyle="single" borderColor={search.isActive ? 'cyan' : 'gray'}>
+        {search.isActive ? (
           <Box>
             <Text color="cyan">{'/ '}</Text>
-            <Text>{searchQuery}</Text>
+            <Text>{search.query}</Text>
             <Text color="cyan">▌</Text>
           </Box>
         ) : (
@@ -283,8 +264,8 @@ export const CommandsView: React.FC<CommandsViewProps> = (_props = {}) => {
       <Box flexDirection="column" marginBottom={1} paddingX={1}>
         {filteredCommands.length === 0 ? (
           <Box flexDirection="column">
-            <Text dimColor>No commands match &quot;{searchQuery}&quot;</Text>
-            {searchQuery.length > 0 && (
+            <Text dimColor>No commands match &quot;{search.query}&quot;</Text>
+            {search.query.length > 0 && (
               <Box marginTop={1}>
                 <Text dimColor>Try a different search or press Esc to clear</Text>
               </Box>
@@ -294,7 +275,7 @@ export const CommandsView: React.FC<CommandsViewProps> = (_props = {}) => {
           (() => {
             // #1460: Window the visible commands around selection
             const start = Math.max(0, Math.min(
-              validatedIndex - Math.floor(visibleCommandCount / 2),
+              selectedIndex - Math.floor(visibleCommandCount / 2),
               filteredCommands.length - visibleCommandCount
             ));
             const visibleCommands = filteredCommands.slice(start, start + visibleCommandCount);
@@ -306,7 +287,7 @@ export const CommandsView: React.FC<CommandsViewProps> = (_props = {}) => {
                   <CommandRow
                     key={`${cmd.category}-${cmd.name}`}
                     command={cmd}
-                    selected={start + idx === validatedIndex}
+                    selected={start + idx === selectedIndex}
                     isFavorite={favorites.has(cmd.name)}
                   />
                 ))}
@@ -378,7 +359,7 @@ export const CommandsView: React.FC<CommandsViewProps> = (_props = {}) => {
       {/* Footer */}
       <Box>
         <Text dimColor>
-          {searchMode
+          {search.isActive
             ? 'Type to search, Enter/Esc to exit'
             : commandOutput !== null || commandError !== null
             ? 'c: clear output | Esc: close | q: back'
