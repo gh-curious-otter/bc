@@ -1,4 +1,49 @@
-// Package cost provides cost tracking and reporting for bc.
+// Package cost provides cost tracking and reporting for bc agents.
+//
+// The package uses SQLite for persistent storage of cost records and budgets.
+// Each workspace maintains its own cost database in .bc/costs.db.
+//
+// # Basic Usage
+//
+// Create and open a cost store:
+//
+//	store := cost.NewStore("/path/to/workspace")
+//	if err := store.Open(); err != nil {
+//	    log.Fatal(err)
+//	}
+//	defer store.Close()
+//
+// Record a cost entry:
+//
+//	record, err := store.Record("agent-1", "team-alpha", "claude-3-opus",
+//	    1000,  // input tokens
+//	    500,   // output tokens
+//	    0.05,  // cost in USD
+//	)
+//
+// Get cost summaries:
+//
+//	// By agent
+//	summaries, _ := store.SummaryByAgent()
+//
+//	// By model
+//	summaries, _ := store.SummaryByModel()
+//
+//	// Total workspace cost
+//	total, _ := store.WorkspaceSummary()
+//
+// # Budgets
+//
+// Set and check budgets:
+//
+//	// Set monthly budget for workspace
+//	store.SetBudget("workspace", cost.BudgetPeriodMonthly, 100.0, 0.8, false)
+//
+//	// Check budget status
+//	status, _ := store.CheckBudget("workspace")
+//	if status.IsNearLimit {
+//	    log.Warn("approaching budget limit")
+//	}
 package cost
 
 import (

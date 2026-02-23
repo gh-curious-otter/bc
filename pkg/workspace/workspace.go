@@ -1,4 +1,44 @@
-// Package workspace provides workspace/project management.
+// Package workspace provides workspace and project management for bc.
+//
+// A workspace represents a project directory containing bc configuration
+// and agent state. Workspaces support two configuration formats:
+//
+//   - v1: JSON config in .bc/config.json (deprecated)
+//   - v2: TOML config in .bc/config.toml (preferred)
+//
+// # Basic Usage
+//
+// Find the current workspace:
+//
+//	ws, err := workspace.Find(".")
+//	if err != nil {
+//	    log.Fatal("not in a bc workspace")
+//	}
+//	fmt.Println("Workspace:", ws.Name())
+//
+// Initialize a new workspace:
+//
+//	ws, err := workspace.InitV2("/path/to/project")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//
+// Load an existing workspace:
+//
+//	ws, err := workspace.Load("/path/to/project")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//
+// # Working with Roles
+//
+// Get role information:
+//
+//	role, err := ws.GetRole("engineer")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	fmt.Println("Role prompt:", role.Prompt)
 package workspace
 
 import (
