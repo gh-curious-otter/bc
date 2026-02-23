@@ -68,7 +68,8 @@ export function IssuesView(_props: IssuesViewProps = {}): React.ReactElement {
   const [labelFilter, setLabelFilter] = useState<string | null>(null);
   const [stateFilter, setStateFilter] = useState<'open' | 'closed' | 'all'>('open');
 
-  const issueList = issues ?? [];
+  // Memoize issueList to prevent dependency changes on each render
+  const issueList = useMemo(() => issues ?? [], [issues]);
 
   // Filter issues by label if filter is set
   const filteredIssues = useMemo(() => {

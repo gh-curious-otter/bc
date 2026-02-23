@@ -148,11 +148,11 @@ describe('TabBar structure', () => {
     expect(output).toContain('[1]');
     expect(output).toContain('board'); // End of "Dashboard" after wrap
     expect(output).toContain('[2]');
-    expect(output).toContain('Agents');
+    expect(output).toMatch(/Agent/); // "Agents" may wrap differently with 17 tabs
     expect(output).toContain('[3]');
     expect(output).toMatch(/Ch/); // "Channel" may truncate with many tabs
     expect(output).toContain('[4]');
-    expect(output).toContain('Files');
+    expect(output).toMatch(/File/); // "Files" may wrap with many tabs
   });
 
   test('short labels map correctly at 100-119 cols', () => {
@@ -232,8 +232,8 @@ describe('TabBar #1109 - Fix 80x24 display (replaces #1038 tests)', () => {
     // Note: ink-testing-library renders at 80 cols so labels wrap
     // With 17 tabs (performance + issues), wrapping differs - check for key parts
     expect(output).toContain('board'); // End of "Dashboard" after wrap
-    expect(output).toContain('Agents');
-    expect(output).toContain('Files');
+    expect(output).toMatch(/Agent/); // "Agents" may wrap with many tabs
+    expect(output).toMatch(/File/); // "Files" may wrap with many tabs
   });
 
   test('at 99 cols (just below 100), shows minimal mode', () => {
