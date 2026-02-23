@@ -31,6 +31,7 @@ import { DemonsView } from './views/DemonsView';
 import { ProcessesView } from './views/ProcessesView';
 import { MemoryView } from './views/MemoryView';
 import { RoutingView } from './views/RoutingView';
+import { PerformanceView } from './views/PerformanceView';
 import { HelpView } from './views/HelpView';
 import { CommandPalette } from './components/CommandPalette';
 import { ViewErrorBoundary } from './components/ErrorBoundary';
@@ -253,6 +254,8 @@ const ViewContent = memo(function ViewContent({ view }: ViewContentProps): React
       return <MemoryView />;
     case 'routing':
       return <RoutingView />;
+    case 'performance':
+      return <PerformanceView />;
     case 'help':
       return <HelpView />;
     default:

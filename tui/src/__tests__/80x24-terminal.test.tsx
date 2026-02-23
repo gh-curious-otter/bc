@@ -109,11 +109,12 @@ describe('80x24 Terminal - TabBar', () => {
     const { lastFrame } = renderTabBar(120);
     const output = lastFrame() ?? '';
 
-    // With 15 tabs, 120 cols shows short labels (not enough space for full)
+    // With 15 tabs (now 16 with Performance), 120 cols shows short labels
     // Full labels would require ~150+ cols with all tabs
-    expect(output).toContain('Dash');
+    // Labels may be truncated and split across lines in 80-col test renderer
+    expect(output).toMatch(/Das/); // Dashboard may truncate
     expect(output).toMatch(/Ag/); // Agents shortened
-    expect(output).toContain('Chan');
+    expect(output).toMatch(/Ch/); // Channels shortened
   });
 });
 
