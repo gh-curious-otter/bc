@@ -7,13 +7,14 @@
  * - ChannelHistoryView: Message history and compose view
  */
 
-import React, { useState, useEffect } from 'react';
-import { Box, Text, useInput } from 'ink';
-import { useChannelsWithUnread, useDisableInput } from '../hooks';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Box, Text } from 'ink';
+import { useChannelsWithUnread, useDisableInput, useListNavigation } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { PulseText } from '../components/AnimatedText';
 import { ChannelRow, ChannelHistoryView } from '../components/channels';
+import type { ChannelWithUnread } from '../types';
 
 // #1594: Using empty interface for future extensibility, props removed
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
@@ -33,10 +34,51 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
   const { isDisabled: disableInput } = useDisableInput();
   // #1129: Use useChannelsWithUnread for proper unread message tracking
   const { channels, loading: channelsLoading, error: channelsError } = useChannelsWithUnread();
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [viewMode, setViewMode] = useState<'list' | 'history'>('list');
   const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
   const { setFocus } = useFocus();
+
+  // Track if we should start in compose mode when entering history view
+  const [startCompose, setStartCompose] = useState(false);
+
+  // Ref for accessing current channels in handlers
+  const channelsRef = useRef(channels);
+  const selectedIndexRef = useRef(0);
+  useEffect(() => { channelsRef.current = channels; }, [channels]);
+
+  // Enter channel handler
+  const handleEnterChannel = useCallback(() => {
+    const channel = channelsRef.current?.[selectedIndexRef.current];
+    if (channel) {
+      setFocus('view');
+      setViewMode('history');
+    }
+  }, [setFocus]);
+
+  // Compose handler - enter channel in compose mode (#1316)
+  const handleCompose = useCallback(() => {
+    const channel = channelsRef.current?.[selectedIndexRef.current];
+    if (channel) {
+      setStartCompose(true);
+      setFocus('view');
+      setViewMode('history');
+    }
+  }, [setFocus]);
+
+  // #1737: Use useListNavigation hook for keyboard navigation
+  const customKeys = useMemo(() => ({
+    m: handleCompose,
+  }), [handleCompose]);
+
+  const { selectedIndex } = useListNavigation<ChannelWithUnread>({
+    items: channels ?? [],
+    disabled: disableInput || viewMode !== 'list',
+    onSelect: handleEnterChannel,
+    customKeys,
+  });
+
+  // Keep ref in sync
+  useEffect(() => { selectedIndexRef.current = selectedIndex; }, [selectedIndex]);
 
   // Update breadcrumbs and focus when view mode changes
   useEffect(() => {
@@ -50,45 +92,6 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
       setFocus('main');
     }
   }, [viewMode, channels, selectedIndex, setBreadcrumbs, clearBreadcrumbs, setFocus]);
-
-  // Track if we should start in compose mode when entering history view
-  const [startCompose, setStartCompose] = useState(false);
-
-  useInput(
-    (input, key) => {
-      if (viewMode === 'list') {
-        // Navigate channel list
-        if ((key.upArrow || input === 'k') && selectedIndex > 0) {
-          setSelectedIndex(selectedIndex - 1);
-        }
-        if ((key.downArrow || input === 'j') && channels && selectedIndex < channels.length - 1) {
-          setSelectedIndex(selectedIndex + 1);
-        }
-        // Vim-style top/bottom navigation
-        if (input === 'g') {
-          setSelectedIndex(0);
-        }
-        if (input === 'G' && channels) {
-          setSelectedIndex(channels.length - 1);
-        }
-        // Enter channel - get current channel inside callback to avoid stale closure
-        // This fixes #1064: Enter key not working when channels load after initial render
-        const currentChannel = channels?.[selectedIndex];
-        if (key.return && currentChannel) {
-          setFocus('view');
-          setViewMode('history');
-        }
-        // 'm' to compose - enter channel and start compose mode (#1316)
-        if (input === 'm' && currentChannel) {
-          setStartCompose(true);
-          setFocus('view');
-          setViewMode('history');
-        }
-      }
-      // Note: ESC in history mode is handled by ChannelHistoryView's onBack callback
-    },
-    { isActive: !disableInput }
-  );
 
   // Get currently selected channel for rendering
   const selectedChannel = channels?.[selectedIndex];
