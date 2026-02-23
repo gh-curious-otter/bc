@@ -82,8 +82,9 @@ export function Drawer({
   // Handle keyboard navigation within drawer
   useInput(
     (input, key) => {
-      // Don't handle keys when in input mode
-      if (isFocused('input')) {
+      // Don't handle keys when in input mode or view mode (#1680)
+      // When focus is 'view', a nested view (like ChannelHistoryView) handles j/k
+      if (isFocused('input') || isFocused('view')) {
         return;
       }
 
