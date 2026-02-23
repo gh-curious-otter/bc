@@ -3,14 +3,17 @@
  * Issue #1231 - Add additional TUI views
  */
 
-import React, { useState, useEffect, useCallback, useReducer } from 'react';
+/**
+ * #1729: Migrated to useListNavigation for consolidated keyboard patterns
+ */
+import React, { useState, useEffect, useCallback, useReducer, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { Panel } from '../components/Panel';
 import { HeaderBar } from '../components/HeaderBar';
 import { ViewWrapper } from '../components/ViewWrapper';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { useDisableInput } from '../hooks';
+import { useDisableInput, useListNavigation } from '../hooks';
 import { getMemoryList, getMemory, searchMemory, clearMemory } from '../services/bc';
 import { truncate } from '../utils';
 import type { AgentMemorySummary, AgentMemory, MemorySearchResult } from '../types';
@@ -24,10 +27,9 @@ type DetailTab = 'experiences' | 'learnings';
 
 /**
  * UI state for MemoryView - consolidated with useReducer (#1601)
- * Reduces re-renders by batching related state updates
+ * #1729: Navigation moved to useListNavigation, reducer handles view-specific state
  */
 interface UIState {
-  selectedIndex: number;
   viewMode: ViewMode;
   searchQuery: string;
   searchMode: boolean;
@@ -36,8 +38,6 @@ interface UIState {
 }
 
 type UIAction =
-  | { type: 'SET_INDEX'; index: number }
-  | { type: 'NAVIGATE'; direction: 'up' | 'down' | 'first' | 'last'; maxIndex: number }
   | { type: 'SET_VIEW_MODE'; mode: ViewMode }
   | { type: 'SET_SEARCH_QUERY'; query: string }
   | { type: 'APPEND_SEARCH_CHAR'; char: string }
@@ -46,11 +46,9 @@ type UIAction =
   | { type: 'TOGGLE_CONFIRM_CLEAR'; enabled?: boolean }
   | { type: 'SET_DETAIL_TAB'; tab: DetailTab }
   | { type: 'EXIT_DETAIL' }
-  | { type: 'EXIT_SEARCH' }
-  | { type: 'RESET' };
+  | { type: 'EXIT_SEARCH' };
 
 const initialUIState: UIState = {
-  selectedIndex: 0,
   viewMode: 'list',
   searchQuery: '',
   searchMode: false,
@@ -60,19 +58,6 @@ const initialUIState: UIState = {
 
 function uiReducer(state: UIState, action: UIAction): UIState {
   switch (action.type) {
-    case 'SET_INDEX':
-      return { ...state, selectedIndex: action.index };
-    case 'NAVIGATE': {
-      const { direction, maxIndex } = action;
-      let newIndex = state.selectedIndex;
-      switch (direction) {
-        case 'up': newIndex = Math.max(0, state.selectedIndex - 1); break;
-        case 'down': newIndex = Math.min(maxIndex, state.selectedIndex + 1); break;
-        case 'first': newIndex = 0; break;
-        case 'last': newIndex = maxIndex; break;
-      }
-      return { ...state, selectedIndex: newIndex };
-    }
     case 'SET_VIEW_MODE':
       return { ...state, viewMode: action.mode };
     case 'SET_SEARCH_QUERY':
@@ -91,8 +76,6 @@ function uiReducer(state: UIState, action: UIAction): UIState {
       return { ...state, viewMode: 'list' };
     case 'EXIT_SEARCH':
       return { ...state, viewMode: 'list', searchQuery: '' };
-    case 'RESET':
-      return initialUIState;
     default:
       return state;
   }
@@ -113,8 +96,9 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
 
   // UI state - consolidated with useReducer (#1601)
+  // #1729: Navigation moved to useListNavigation
   const [ui, dispatch] = useReducer(uiReducer, initialUIState);
-  const { selectedIndex, viewMode, searchQuery, searchMode, confirmClear, detailTab } = ui;
+  const { viewMode, searchQuery, searchMode, confirmClear, detailTab } = ui;
   const { setFocus } = useFocus();
   const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
 
@@ -179,6 +163,24 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
     }
   }, []);
 
+  // Custom key handlers for view-specific actions (#1729)
+  const customKeys = useMemo(
+    () => ({
+      '/': () => { dispatch({ type: 'TOGGLE_SEARCH_MODE', enabled: true }); },
+      'c': () => { dispatch({ type: 'TOGGLE_CONFIRM_CLEAR', enabled: true }); },
+      'R': () => { void fetchMemoryList(); },
+    }),
+    [fetchMemoryList]
+  );
+
+  // #1729: useListNavigation for consolidated keyboard patterns
+  const { selectedIndex, selectedItem: currentAgent } = useListNavigation({
+    items: agents,
+    onSelect: (agent) => { void fetchMemoryDetail(agent.agent); },
+    disabled: disableInput || viewMode !== 'list' || searchMode || confirmClear,
+    customKeys,
+  });
+
   // Handle clear confirmation
   const handleClear = useCallback(async () => {
     const agentToDelete = agents[selectedIndex] as AgentMemorySummary | undefined;
@@ -193,11 +195,7 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
     }
   }, [agents, selectedIndex, fetchMemoryList]);
 
-  // Valid index for current list
-  const validIndex = Math.min(selectedIndex, Math.max(0, agents.length - 1));
-  const currentAgent = agents[validIndex] as AgentMemorySummary | undefined;
-
-  // Keyboard handling - uses dispatch for UI state (#1601)
+  // Keyboard handling for modal states (confirm, detail, search)
   useInput(
     (input, key) => {
       // Confirm clear mode
@@ -245,36 +243,9 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
         } else if (input && !key.ctrl && !key.meta && !key.tab) {
           dispatch({ type: 'APPEND_SEARCH_CHAR', char: input });
         }
-        return;
-      }
-
-      // List navigation mode
-      const maxIndex = Math.max(0, agents.length - 1);
-      if (input === '/') {
-        dispatch({ type: 'TOGGLE_SEARCH_MODE', enabled: true });
-      } else if (key.upArrow || input === 'k') {
-        if (agents.length > 0) {
-          dispatch({ type: 'NAVIGATE', direction: 'up', maxIndex });
-        }
-      } else if (key.downArrow || input === 'j') {
-        if (agents.length > 0) {
-          dispatch({ type: 'NAVIGATE', direction: 'down', maxIndex });
-        }
-      } else if (input === 'g') {
-        dispatch({ type: 'NAVIGATE', direction: 'first', maxIndex });
-      } else if (input === 'G') {
-        if (agents.length > 0) {
-          dispatch({ type: 'NAVIGATE', direction: 'last', maxIndex });
-        }
-      } else if (key.return && currentAgent !== undefined) {
-        void fetchMemoryDetail(currentAgent.agent);
-      } else if (input === 'c' && currentAgent !== undefined) {
-        dispatch({ type: 'TOGGLE_CONFIRM_CLEAR', enabled: true });
-      } else if (input === 'R' || (key.ctrl && input === 'r')) {
-        void fetchMemoryList();
       }
     },
-    { isActive: !disableInput }
+    { isActive: confirmClear || viewMode !== 'list' || searchMode }
   );
 
   // Loading/error states handled by ViewWrapper for initial load
@@ -404,7 +375,7 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
                 <AgentMemoryRow
                   key={agent.agent}
                   agent={agent}
-                  selected={idx === validIndex}
+                  selected={idx === selectedIndex}
                 />
               ))}
             </Box>
