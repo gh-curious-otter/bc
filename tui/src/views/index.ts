@@ -14,8 +14,10 @@
 export { Dashboard } from './Dashboard';
 export { AgentsView } from './AgentsView';
 export { AgentDetailView } from './AgentDetailView';
+export { ChannelsView } from './ChannelsView';
 export { FilesView } from './FilesView';
 export { CommandsView } from './CommandsView';
+export { CostsView } from './CostsView';
 
 // Monitoring views
 export { LogsView } from './LogsView';

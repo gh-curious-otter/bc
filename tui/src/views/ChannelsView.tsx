@@ -12,8 +12,8 @@ import { Box, Text, useInput } from 'ink';
 import { useChannelsWithUnread, useDisableInput } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { PulseText } from './AnimatedText';
-import { ChannelRow, ChannelHistoryView } from './channels';
+import { PulseText } from '../components/AnimatedText';
+import { ChannelRow, ChannelHistoryView } from '../components/channels';
 
 // #1594: Using empty interface for future extensibility, props removed
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
