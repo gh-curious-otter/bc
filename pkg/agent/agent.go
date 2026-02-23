@@ -1,4 +1,53 @@
-// Package agent provides agent lifecycle management.
+// Package agent provides agent lifecycle management for bc.
+//
+// An agent is an AI assistant running in an isolated tmux session with its own
+// git worktree. Agents have roles (engineer, manager, etc.) that determine
+// their capabilities and permissions.
+//
+// # Basic Usage
+//
+// Create an agent manager:
+//
+//	mgr := agent.NewWorkspaceManager(".bc/agents", "/path/to/workspace")
+//	if err := mgr.LoadState(); err != nil {
+//	    log.Warn("failed to load state", "error", err)
+//	}
+//
+// List agents:
+//
+//	for _, a := range mgr.ListAgents() {
+//	    fmt.Printf("%s: %s (%s)\n", a.Name, a.Role, a.State)
+//	}
+//
+// Start an agent:
+//
+//	ag, err := mgr.Start(ctx, "eng-01", agent.Role("engineer"))
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//
+// # Roles and Capabilities
+//
+// Agents have roles that define their capabilities:
+//
+//	if agent.HasCapability(agent.Role("engineer"), agent.CapImplementTasks) {
+//	    // Engineer can implement tasks
+//	}
+//
+// Check if a role can create another:
+//
+//	if agent.CanCreateRole(agent.Role("manager"), agent.Role("engineer")) {
+//	    // Manager can spawn engineers
+//	}
+//
+// # States
+//
+// Agents transition through states: Idle -> Working -> Done/Error.
+// State transitions are validated:
+//
+//	if err := agent.ValidateTransition(agent.StateIdle, agent.StateWorking); err != nil {
+//	    log.Error("invalid transition", "error", err)
+//	}
 package agent
 
 import (

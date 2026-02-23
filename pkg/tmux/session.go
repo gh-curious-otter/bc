@@ -1,4 +1,42 @@
 // Package tmux provides tmux session management for agent orchestration.
+//
+// Each bc agent runs in an isolated tmux session, allowing for:
+//   - Concurrent agent execution
+//   - Session persistence across restarts
+//   - Direct terminal access for debugging
+//
+// # Basic Usage
+//
+// Create a session manager:
+//
+//	mgr := tmux.NewWorkspaceManager("bc-", "/path/to/workspace")
+//
+// Create a session:
+//
+//	err := mgr.CreateSession("eng-01", "/path/to/worktree")
+//
+// Send commands to a session:
+//
+//	err := mgr.SendKeys("eng-01", "echo hello")
+//
+// Capture output:
+//
+//	output, err := mgr.CapturePane("eng-01", 100) // last 100 lines
+//
+// # Session Naming
+//
+// Sessions are prefixed and optionally include a workspace hash for isolation:
+//
+//	// With workspace hash: bc-a1b2c3-eng-01
+//	mgr := tmux.NewWorkspaceManager("bc-", "/path/to/workspace")
+//
+//	// Without hash: bc-eng-01
+//	mgr := tmux.NewManager("bc-")
+//
+// # Caching
+//
+// The manager caches session existence checks to reduce subprocess calls.
+// Cache is automatically invalidated when sessions are created or destroyed.
 package tmux
 
 import (
