@@ -7,6 +7,7 @@
 import React, { useState, useMemo, memo } from 'react';
 import { Box, Text, useStdout, useInput } from 'ink';
 import { useTheme } from '../theme';
+import { useDisableInput } from '../hooks';
 
 interface ShortcutSection {
   type: 'section';
@@ -36,6 +37,7 @@ type HelpSection = ShortcutSection | HeaderSection | FooterSection;
 export function HelpView(): React.ReactElement {
   const { theme, isDark } = useTheme();
   const { stdout } = useStdout();
+  const { isDisabled: disableInput } = useDisableInput();
   const [scrollOffset, setScrollOffset] = useState(0);
 
   // All help sections as an array of renderable items
@@ -124,7 +126,7 @@ export function HelpView(): React.ReactElement {
         setScrollOffset(maxScroll);
       }
     }
-  });
+  }, { isActive: !disableInput });
 
   // Build visible content
   let currentLine = 0;
