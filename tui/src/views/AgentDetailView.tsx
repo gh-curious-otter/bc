@@ -115,7 +115,9 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
   const [inputMode, setInputMode] = useState(false);
   const [messageBuffer, setMessageBuffer] = useState('');
   const [sendStatus, setSendStatus] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'output' | 'details' | 'metrics'>('output');
+  const [activeTab, setActiveTab] = useState<'output' | 'live' | 'details' | 'metrics'>('output');
+  const [liveLines, setLiveLines] = useState<string[]>([]);
+  const [scrollOffset, setScrollOffset] = useState(0);
   const { setFocus } = useFocus();
 
   // Fetch agent-specific details (costs, activity)
@@ -152,6 +154,18 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
     }
   }, [agent.name]);
 
+  // Live mode fetches more lines and refreshes faster
+  const fetchLiveOutput = useCallback(async () => {
+    try {
+      const output = await execBc(['agent', 'peek', agent.name, '--lines', '200']);
+      const lines = output.split('\n').filter(line => line.trim());
+      setLiveLines(lines);
+      setError(null);
+    } catch (err) {
+      // Silently fail for live mode - don't disrupt the experience
+    }
+  }, [agent.name]);
+
   useEffect(() => {
     setLoading(true);
     void fetchAgentOutput().finally(() => { setLoading(false); });
@@ -163,6 +177,18 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
     }, 2000);
     return () => { clearInterval(interval); };
   }, [fetchAgentOutput]);
+
+  // Live mode: faster polling (500ms) when tab is active
+  useEffect(() => {
+    if (activeTab === 'live') {
+      void fetchLiveOutput();
+      const interval = setInterval(() => {
+        void fetchLiveOutput();
+      }, 500);
+      return () => { clearInterval(interval); };
+    }
+    return undefined;
+  }, [activeTab, fetchLiveOutput]);
 
   const sendMessage = useCallback(async (message: string) => {
     if (!message.trim()) return;
@@ -204,12 +230,27 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
       } else if (input === '1') {
         setActiveTab('output');
       } else if (input === '2') {
-        setActiveTab('details');
+        setActiveTab('live');
+        setScrollOffset(0); // Reset scroll when switching to live
       } else if (input === '3') {
+        setActiveTab('details');
+      } else if (input === '4') {
         setActiveTab('metrics');
+      } else if (activeTab === 'live' && (input === 'j' || key.downArrow)) {
+        // Scroll down in live view
+        setScrollOffset(prev => Math.min(prev + 1, Math.max(0, liveLines.length - 20)));
+      } else if (activeTab === 'live' && (input === 'k' || key.upArrow)) {
+        // Scroll up in live view
+        setScrollOffset(prev => Math.max(0, prev - 1));
+      } else if (activeTab === 'live' && input === 'g') {
+        // Jump to top
+        setScrollOffset(0);
+      } else if (activeTab === 'live' && input === 'G') {
+        // Jump to bottom
+        setScrollOffset(Math.max(0, liveLines.length - 20));
       }
       // Note: Tab removed to allow global view navigation (#1520)
-      // Use 1/2/3 to switch tabs within this view
+      // Use 1/2/3/4 to switch tabs within this view
     }
   });
 
@@ -239,9 +280,11 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
       <Box paddingX={1} marginBottom={1}>
         <TabButton label="Output" tabKey="1" active={activeTab === 'output'} />
         <Text> </Text>
-        <TabButton label="Details" tabKey="2" active={activeTab === 'details'} />
+        <TabButton label="Live" tabKey="2" active={activeTab === 'live'} />
         <Text> </Text>
-        <TabButton label="Metrics" tabKey="3" active={activeTab === 'metrics'} />
+        <TabButton label="Details" tabKey="3" active={activeTab === 'details'} />
+        <Text> </Text>
+        <TabButton label="Metrics" tabKey="4" active={activeTab === 'metrics'} />
       </Box>
 
       {/* Tab Content */}
@@ -300,6 +343,41 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
               )}
             </Box>
           </>
+        )}
+
+        {activeTab === 'live' && (
+          <Box
+            flexDirection="column"
+            flexGrow={1}
+            marginBottom={1}
+            paddingX={1}
+            borderStyle="single"
+            borderColor="cyan"
+          >
+            <Box marginBottom={1}>
+              <Text color="cyan" bold>LIVE OUTPUT</Text>
+              <Text dimColor> - 500ms refresh | j/k: scroll | g/G: top/bottom</Text>
+            </Box>
+            <Box flexDirection="column" height={outputHeight + 2} overflow="hidden">
+              {liveLines.length === 0 ? (
+                <Text dimColor>Waiting for output...</Text>
+              ) : (
+                liveLines.slice(scrollOffset, scrollOffset + outputHeight).map((line, idx) => (
+                  <Text key={idx} wrap="truncate">
+                    {colorizeOutputLine(line)}
+                  </Text>
+                ))
+              )}
+            </Box>
+            {liveLines.length > outputHeight && (
+              <Box marginTop={1}>
+                <Text dimColor>
+                  Lines {scrollOffset + 1}-{Math.min(scrollOffset + outputHeight, liveLines.length)} of {liveLines.length}
+                  {scrollOffset === 0 && ' (following)'}
+                </Text>
+              </Box>
+            )}
+          </Box>
         )}
 
         {activeTab === 'details' && (
@@ -394,7 +472,9 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
         <Text dimColor>
           {inputMode
             ? 'Enter: send | Esc: cancel'
-            : '1-3: tabs | Tab: cycle | i: message | r: refresh | q/ESC: back'}
+            : activeTab === 'live'
+              ? '1-4: tabs | j/k: scroll | g/G: top/bottom | q/ESC: back'
+              : '1-4: tabs | i: message | r: refresh | q/ESC: back'}
         </Text>
         {loading && <Text color="gray"> (refreshing...)</Text>}
       </Box>
