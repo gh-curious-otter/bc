@@ -254,7 +254,9 @@ var (
 	agentCreateTeam   string
 	agentListRole     string
 	agentListJSON     bool
+	agentListFull     bool
 	agentShowJSON     bool
+	agentShowFull     bool
 	agentPeekLines    int
 	agentStopForce    bool
 	agentDeleteForce  bool
@@ -274,10 +276,12 @@ func init() {
 
 	// List flags
 	agentListCmd.Flags().StringVar(&agentListRole, "role", "", "Filter by role")
-	agentListCmd.Flags().BoolVar(&agentListJSON, "json", false, "Output as JSON")
+	agentListCmd.Flags().BoolVar(&agentListJSON, "json", false, "Output as JSON (compact by default)")
+	agentListCmd.Flags().BoolVar(&agentListFull, "full", false, "Include full agent data including prompts (with --json)")
 
 	// Show flags
-	agentShowCmd.Flags().BoolVar(&agentShowJSON, "json", false, "Output as JSON")
+	agentShowCmd.Flags().BoolVar(&agentShowJSON, "json", false, "Output as JSON (compact by default)")
+	agentShowCmd.Flags().BoolVar(&agentShowFull, "full", false, "Include full agent data including prompts (with --json)")
 
 	// Peek flags
 	agentPeekCmd.Flags().IntVar(&agentPeekLines, "lines", 50, "Number of lines to show")
@@ -505,7 +509,11 @@ func runAgentList(cmd *cobra.Command, args []string) error {
 		if agentListJSON {
 			enc := json.NewEncoder(os.Stdout)
 			enc.SetIndent("", "  ")
-			return enc.Encode(agents)
+			if agentListFull {
+				return enc.Encode(agents)
+			}
+			// Compact output: omit memory/prompts for cleaner output
+			return enc.Encode(toCompactAgents(agents))
 		}
 
 		if len(agents) == 0 {
@@ -626,7 +634,11 @@ func runAgentShow(cmd *cobra.Command, args []string) error {
 	if agentShowJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(a)
+		if agentShowFull {
+			return enc.Encode(a)
+		}
+		// Compact output: omit memory/prompts for cleaner output
+		return enc.Encode(toCompactAgent(a))
 	}
 
 	// Human-readable output using pkg/ui
@@ -1338,4 +1350,52 @@ func isValidTeamName(name string) bool {
 // isValidAgentName checks if an agent name contains only safe characters
 func isValidAgentName(name string) bool {
 	return isValidTeamName(name)
+}
+
+// compactAgent is a JSON-friendly agent representation without verbose fields.
+// Used for --json output without --full flag to reduce output size.
+//
+//nolint:govet // fieldalignment: JSON field order preferred for readability
+type compactAgent struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Role        string    `json:"role"`
+	State       string    `json:"state"`
+	Task        string    `json:"task,omitempty"`
+	Team        string    `json:"team,omitempty"`
+	Tool        string    `json:"tool,omitempty"`
+	ParentID    string    `json:"parent_id,omitempty"`
+	Children    []string  `json:"children,omitempty"`
+	Session     string    `json:"session"`
+	WorktreeDir string    `json:"worktree_dir,omitempty"`
+	StartedAt   time.Time `json:"started_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// toCompactAgent converts a full agent to compact representation.
+func toCompactAgent(a *agent.Agent) compactAgent {
+	return compactAgent{
+		ID:          a.ID,
+		Name:        a.Name,
+		Role:        string(a.Role),
+		State:       string(a.State),
+		Task:        a.Task,
+		Team:        a.Team,
+		Tool:        a.Tool,
+		ParentID:    a.ParentID,
+		Children:    a.Children,
+		Session:     a.Session,
+		WorktreeDir: a.WorktreeDir,
+		StartedAt:   a.StartedAt,
+		UpdatedAt:   a.UpdatedAt,
+	}
+}
+
+// toCompactAgents converts a slice of agents to compact representations.
+func toCompactAgents(agents []*agent.Agent) []compactAgent {
+	result := make([]compactAgent, len(agents))
+	for i, a := range agents {
+		result[i] = toCompactAgent(a)
+	}
+	return result
 }
