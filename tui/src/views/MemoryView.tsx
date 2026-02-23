@@ -119,6 +119,7 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
   const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
 
   // Manage focus and breadcrumbs for nested views (#1604)
+  // When in search mode, set focus='input' to allow typing special chars (#1692)
   useEffect(() => {
     if (viewMode === 'detail' && selectedMemory) {
       setFocus('view');
@@ -127,7 +128,8 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
       setFocus('view');
       setBreadcrumbs([{ label: 'Search' }]);
     } else if (searchMode) {
-      setFocus('view');
+      setFocus('input');
+      clearBreadcrumbs();
     } else {
       setFocus('main');
       clearBreadcrumbs();

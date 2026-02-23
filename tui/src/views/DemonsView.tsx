@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useDemons, useDebounce, useDisableInput } from '../hooks';
+import { useFocus } from '../navigation/FocusContext';
 import { StatusBadge } from '../components/StatusBadge';
 import { HeaderBar } from '../components/HeaderBar';
 import { ViewWrapper } from '../components/ViewWrapper';
@@ -81,6 +82,7 @@ export function DemonsView(_props: DemonsViewProps = {}): React.ReactElement {
   // #1594: Use context instead of prop drilling
   const { isDisabled: disableInput } = useDisableInput();
   const { data: demons, loading, error, enabled, refresh, enable, disable, run } = useDemons();
+  const { setFocus } = useFocus();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [actionError, setActionError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -88,6 +90,16 @@ export function DemonsView(_props: DemonsViewProps = {}): React.ReactElement {
 
   // Debounce search query for filtering (issue #1602)
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+  // Manage focus state for search mode (#1692)
+  // When in search mode, set focus='input' to allow typing special chars
+  useEffect(() => {
+    if (searchMode) {
+      setFocus('input');
+    } else {
+      setFocus('main');
+    }
+  }, [searchMode, setFocus]);
 
   // Filter demons by search query (using debounced query for performance)
   const filteredDemons = React.useMemo(() => {

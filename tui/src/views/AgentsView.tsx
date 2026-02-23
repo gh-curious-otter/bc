@@ -178,15 +178,19 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
   const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
 
   // Manage focus state and breadcrumbs for nested view navigation (#1604)
+  // When in search mode, set focus='input' to allow typing special chars (#1692)
   useEffect(() => {
     if (showDetail && selectedAgent) {
       setFocus('view');
       setBreadcrumbs([{ label: selectedAgent.name }]);
+    } else if (searchMode) {
+      setFocus('input');
+      clearBreadcrumbs();
     } else {
       setFocus('main');
       clearBreadcrumbs();
     }
-  }, [showDetail, selectedAgent, setFocus, setBreadcrumbs, clearBreadcrumbs]);
+  }, [showDetail, selectedAgent, searchMode, setFocus, setBreadcrumbs, clearBreadcrumbs]);
 
   // Clear action feedback after delay
   const showActionFeedback = useCallback((action: AgentAction, target: string, status: 'success' | 'error', message: string) => {

@@ -3,9 +3,10 @@
  * Issue #555: Processes view with list, details, and log viewer
  */
 
-import { useState, useMemo, useReducer } from 'react';
+import { useState, useMemo, useReducer, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useProcesses, useProcessLogs, useDebounce } from '../hooks';
+import { useFocus } from '../navigation/FocusContext';
 import { Table } from '../components/Table';
 import type { Column } from '../components/Table';
 import { StatusBadge } from '../components/StatusBadge';
@@ -96,6 +97,7 @@ function formatUptime(startedAt: string): string {
 
 export function ProcessesView(): React.ReactElement {
   const { data: processes, loading, error, refresh } = useProcesses();
+  const { setFocus } = useFocus();
 
   // #1601: UI state consolidated with useReducer
   const [ui, dispatch] = useReducer(uiReducer, initialUIState);
@@ -103,6 +105,18 @@ export function ProcessesView(): React.ReactElement {
 
   // Debounce search query for filtering (issue #1602)
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+  // Manage focus state for nested view navigation (#1692)
+  // When in search mode, set focus='input' to allow typing special chars
+  useEffect(() => {
+    if (showLogs) {
+      setFocus('view');
+    } else if (searchMode) {
+      setFocus('input');
+    } else {
+      setFocus('main');
+    }
+  }, [showLogs, searchMode, setFocus]);
 
   // Filter processes by search query (using debounced query for performance)
   const processList = useMemo(() => {

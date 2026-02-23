@@ -220,13 +220,16 @@ export const LogsView: React.FC<LogsViewProps> = () => {
   const selectedLog = filteredLogs[selectedIndex] as LogEntry | undefined;
 
   // Manage focus state for nested view navigation
+  // When in search mode, set focus='input' to allow typing special chars (#1692)
   useEffect(() => {
     if (showDetail) {
       setFocus('view');
+    } else if (searchMode) {
+      setFocus('input');
     } else {
       setFocus('main');
     }
-  }, [showDetail, setFocus]);
+  }, [showDetail, searchMode, setFocus]);
 
   // Cycle through severity filters
   const cycleSeverity = useCallback(() => {
