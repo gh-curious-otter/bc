@@ -99,7 +99,7 @@ export interface UseDebouncedCallbackResult<T extends (...args: unknown[]) => un
  * // Actual search only runs 300ms after last call
  * ```
  */
-export function useDebouncedCallback<T extends (...args: never[]) => unknown>(
+export function useDebouncedCallback<T extends (...args: unknown[]) => unknown>(
   callback: T,
   options: UseDebouncedCallbackOptions = {}
 ): UseDebouncedCallbackResult<T> {
