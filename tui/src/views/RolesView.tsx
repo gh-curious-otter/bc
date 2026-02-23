@@ -1,6 +1,7 @@
 /**
  * RolesView - View and manage agent roles
  * Issue #859 - Add Roles tab with CRUD operations
+ * #1734: Migrated to useListNavigation for consolidated keyboard patterns
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -10,7 +11,7 @@ import { LoadingIndicator } from '../components/LoadingIndicator';
 import { HeaderBar } from '../components/HeaderBar';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { useAgents, useDebounce, useDisableInput } from '../hooks';
+import { useAgents, useDebounce, useDisableInput, useListNavigation } from '../hooks';
 import { truncate } from '../utils';
 import type { Role } from '../types';
 import { getRoles, getRole, deleteRole } from '../services/bc';
@@ -28,7 +29,6 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -108,15 +108,6 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
     );
   }, [roles, debouncedSearchQuery]);
 
-  // Reset index when filtered results change
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [debouncedSearchQuery]);
-
-  // Get valid index
-  const validIndex = Math.min(selectedIndex, Math.max(0, filteredRoles.length - 1));
-  const currentRole = filteredRoles[validIndex] as Role | undefined;
-
   // Fetch role details
   const fetchRoleDetails = useCallback(async (name: string) => {
     try {
@@ -127,6 +118,32 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
       setError('Failed to fetch role details');
     }
   }, []);
+
+  // Custom key handlers for view-specific actions (#1734)
+  const customKeys = useMemo(
+    () => ({
+      '/': () => { setSearchMode(true); },
+      'd': () => {
+        // Only allow delete for non-builtin roles (checked in modal)
+        setConfirmDelete(true);
+      },
+      'r': () => { void fetchRoles(); },
+    }),
+    [fetchRoles]
+  );
+
+  // #1734: useListNavigation for consolidated keyboard patterns
+  const { selectedIndex, selectedItem: currentRole, setSelectedIndex } = useListNavigation({
+    items: filteredRoles,
+    onSelect: (role) => { void fetchRoleDetails(role.name); },
+    disabled: disableInput || showDetails || searchMode || confirmDelete,
+    customKeys,
+  });
+
+  // Reset index when filtered results change
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [debouncedSearchQuery, setSelectedIndex]);
 
   // Handle delete confirmation
   const handleDelete = useCallback(async () => {
@@ -141,12 +158,12 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
     }
   }, [currentRole, fetchRoles]);
 
-  // Keyboard handling
+  // Keyboard handling for modal states
   useInput(
     (input, key) => {
       // Confirm delete mode
       if (confirmDelete) {
-        if (input === 'y' || input === 'Y') {
+        if (currentRole && !isBuiltinRole(currentRole.name) && (input === 'y' || input === 'Y')) {
           void handleDelete();
         } else {
           setConfirmDelete(false);
@@ -175,38 +192,9 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
         } else if (input && !key.ctrl && !key.meta && !key.tab) {
           setSearchQuery((q) => q + input);
         }
-        return;
-      }
-
-      // Navigation mode
-      if (input === '/') {
-        setSearchMode(true);
-      } else if (key.upArrow || input === 'k') {
-        if (filteredRoles.length > 0) {
-          setSelectedIndex(Math.max(0, validIndex - 1));
-        }
-      } else if (key.downArrow || input === 'j') {
-        if (filteredRoles.length > 0) {
-          setSelectedIndex(Math.min(filteredRoles.length - 1, validIndex + 1));
-        }
-      } else if (input === 'g') {
-        setSelectedIndex(0);
-      } else if (input === 'G') {
-        if (filteredRoles.length > 0) {
-          setSelectedIndex(filteredRoles.length - 1);
-        }
-      } else if (key.return && currentRole) {
-        void fetchRoleDetails(currentRole.name);
-      } else if (input === 'd' && currentRole) {
-        // Only allow delete for non-builtin roles
-        if (!isBuiltinRole(currentRole.name)) {
-          setConfirmDelete(true);
-        }
-      } else if (input === 'r') {
-        void fetchRoles();
       }
     },
-    { isActive: !disableInput }
+    { isActive: confirmDelete || showDetails || searchMode }
   );
 
   // Loading state
@@ -322,7 +310,7 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
             <RoleRow
               key={role.name}
               role={role}
-              selected={idx === validIndex}
+              selected={idx === selectedIndex}
               agentCount={agentCountByRole[role.name] ?? 0}
               nameWidth={nameColumnWidth}
             />
