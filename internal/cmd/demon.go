@@ -15,6 +15,7 @@ import (
 
 	"github.com/rpuneet/bc/pkg/demon"
 	"github.com/rpuneet/bc/pkg/integrations"
+	"github.com/rpuneet/bc/pkg/shutdown"
 	testpkg "github.com/rpuneet/bc/pkg/testing"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -880,6 +881,14 @@ func runDemonStatus(cmd *cobra.Command, args []string) error {
 		if status.Uptime != "" {
 			cmd.Printf("Uptime:    %s\n", status.Uptime)
 		}
+		if status.Healthy {
+			cmd.Println("Health:    healthy")
+		} else {
+			cmd.Println("Health:    unhealthy (no recent heartbeat)")
+		}
+		if !status.LastHeartbeat.IsZero() {
+			cmd.Printf("Heartbeat: %s ago\n", time.Since(status.LastHeartbeat).Truncate(time.Second))
+		}
 	} else {
 		cmd.Println("Scheduler: stopped")
 		cmd.Println()
@@ -925,8 +934,11 @@ func runDemonSchedulerLoop(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--root flag is required")
 	}
 
+	// Use shutdown package for proper signal handling (#1688)
+	shutdown.Start()
+
 	scheduler := demon.NewScheduler(schedulerLoopRoot)
-	return scheduler.RunLoop(cmd.Context())
+	return scheduler.RunLoop(shutdown.Context())
 }
 
 func runTestsAndReportIssues(cmd *cobra.Command, ws *workspace.Workspace, pattern string) error {
