@@ -1,7 +1,7 @@
 import React from 'react';
 import { render } from 'ink-testing-library';
 import { describe, it, expect } from 'bun:test';
-import { ChannelsView } from '../components/ChannelsView';
+import { ChannelsView } from '../views/ChannelsView';
 import { DisableInputProvider } from '../hooks';
 
 // #1594: Helper to wrap with DisableInputProvider

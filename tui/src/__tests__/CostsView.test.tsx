@@ -1,7 +1,7 @@
 import React from 'react';
 import { render } from 'ink-testing-library';
 import { describe, it, expect } from 'bun:test';
-import { CostsView } from '../components/CostsView';
+import { CostsView } from '../views/CostsView';
 
 /**
  * CostsView tests
