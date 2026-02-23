@@ -10,7 +10,7 @@ import { PerformanceDebugPanel } from '../components/PerformanceDebugPanel.js';
 import { PulseText } from '../components/AnimatedText.js';
 import { useDashboard } from '../hooks/useDashboard.js';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout.js';
-import { STATUS_COLORS, HEALTH_COLORS, getCostIndicator, type CostStatus } from '../theme/StatusColors.js';
+import { STATUS_COLORS, STATUS_SYMBOLS, HEALTH_COLORS, getCostIndicator, type CostStatus } from '../theme/StatusColors.js';
 
 interface DashboardProps {
   /** @deprecated Use navigation context instead */
@@ -193,24 +193,25 @@ const SummaryCards = memo(function SummaryCards({
   const isNarrow = isCompact || isMinimal;
 
   // #1352: Inline text summary for narrow terminals to avoid border overlap
+  // #1591: Added symbols alongside colors for accessibility
   if (isNarrow) {
     return (
       <Box marginBottom={1}>
         <Text>{total} agents</Text>
         <Text> · </Text>
-        <Text color="cyan">{working} working</Text>
+        <Text color="cyan">{STATUS_SYMBOLS.working} {working} working</Text>
         <Text> · </Text>
-        <Text color="gray">{idle} idle</Text>
+        <Text color="gray">{STATUS_SYMBOLS.idle} {idle} idle</Text>
         {stuck > 0 && (
           <>
             <Text> · </Text>
-            <Text color="yellow">{stuck} stuck</Text>
+            <Text color="yellow">{STATUS_SYMBOLS.warning} {stuck} stuck</Text>
           </>
         )}
         {errorCount > 0 && (
           <>
             <Text> · </Text>
-            <Text color="red">{errorCount} error</Text>
+            <Text color="red">{STATUS_SYMBOLS.error} {errorCount} error</Text>
           </>
         )}
       </Box>
