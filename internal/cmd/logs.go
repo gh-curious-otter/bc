@@ -152,7 +152,11 @@ func runLogs(cmd *cobra.Command, args []string) error {
 	log.Debug("events filtered", "count", len(evts))
 
 	if len(evts) == 0 {
-		ui.Warning("No events found")
+		if logsAgent != "" {
+			ui.Warning("No events found for agent '%s'", logsAgent)
+		} else {
+			ui.Warning("No events found")
+		}
 		return nil
 	}
 
