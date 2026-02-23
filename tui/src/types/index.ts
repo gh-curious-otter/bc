@@ -314,3 +314,39 @@ export interface RoutingRule {
 export interface RoutingConfig {
   rules: RoutingRule[];
 }
+
+// GitHub Issue types for Issues view (#1754)
+export type IssueState = 'OPEN' | 'CLOSED';
+
+export interface IssueLabel {
+  name: string;
+  color?: string;
+  description?: string;
+}
+
+export interface IssueAssignee {
+  login: string;
+}
+
+export interface IssueComment {
+  author: { login: string };
+  body: string;
+  createdAt: string;
+}
+
+export interface Issue {
+  number: number;
+  title: string;
+  body?: string;
+  state: IssueState;
+  labels: IssueLabel[];
+  assignees: IssueAssignee[];
+  author?: { login: string };
+  createdAt: string;
+  updatedAt?: string;
+  comments?: IssueComment[];
+}
+
+export interface IssuesResponse {
+  issues: Issue[];
+}

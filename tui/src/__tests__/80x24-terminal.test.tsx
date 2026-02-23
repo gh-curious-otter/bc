@@ -105,16 +105,15 @@ describe('80x24 Terminal - TabBar', () => {
     expect(output).not.toContain('Dashboard');
   });
 
-  it('shows short labels at 120 columns with 15 tabs', () => {
+  it('shows full labels at 120 columns with 17 tabs', () => {
     const { lastFrame } = renderTabBar(120);
     const output = lastFrame() ?? '';
 
-    // With 15 tabs (now 16 with Performance), 120 cols shows short labels
-    // Full labels would require ~150+ cols with all tabs
-    // Labels may be truncated and split across lines in 80-col test renderer
-    expect(output).toMatch(/Das/); // Dashboard may truncate
-    expect(output).toMatch(/Ag/); // Agents shortened
-    expect(output).toMatch(/Ch/); // Channels shortened
+    // #1754: With 17 tabs, 120 cols uses full mode
+    // Full labels wrap due to ink-testing-library's 80-col render
+    expect(output).toContain('board'); // "Dashboard" wraps to Das + board
+    expect(output).toContain('Agents');
+    expect(output).toContain('[1]');
   });
 });
 
