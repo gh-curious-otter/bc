@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Panel } from './Panel';
+import { Panel } from '../components/Panel';
 import { useCosts } from '../hooks';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 
