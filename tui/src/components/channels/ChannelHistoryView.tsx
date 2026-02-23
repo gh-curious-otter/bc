@@ -98,8 +98,10 @@ export function ChannelHistoryView({
   const layoutOverhead = 4 + inputHeight + 1 + 1 + 4 + 2; // = 12 + inputHeight
   const messageAreaHeight = Math.max(8, terminalHeight - layoutOverhead);
 
-  // Dynamic bubble width: 80% of terminal width, min 50, max 140
-  const maxBubbleWidth = Math.min(140, Math.max(50, Math.floor(terminalWidth * 0.8)));
+  // Dynamic bubble width: 80% of available width, min 40, max 140
+  // #1681 fix: Account for container overhead (8 cols: view border/padding + bubble border/padding)
+  const containerOverhead = 8;
+  const maxBubbleWidth = Math.min(140, Math.max(40, Math.floor((terminalWidth - containerOverhead) * 0.8)));
 
   // Dynamic message count: ~4 lines per message bubble
   const maxMessages = Math.max(3, Math.floor(messageAreaHeight / 4));

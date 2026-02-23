@@ -82,22 +82,27 @@ describe('ChannelHistoryView Message Display', () => {
   });
 
   describe('Bubble width calculation', () => {
+    // #1681 fix: Account for container overhead (8 cols)
+    const containerOverhead = 8;
+
     it('calculates bubble width at 80 columns', () => {
       const terminalWidth = 80;
-      const maxBubbleWidth = Math.min(140, Math.max(50, Math.floor(terminalWidth * 0.8)));
-      expect(maxBubbleWidth).toBe(64);
+      const maxBubbleWidth = Math.min(140, Math.max(40, Math.floor((terminalWidth - containerOverhead) * 0.8)));
+      // (80 - 8) * 0.8 = 57.6 = 57
+      expect(maxBubbleWidth).toBe(57);
     });
 
     it('caps bubble width at 140', () => {
       const terminalWidth = 200;
-      const maxBubbleWidth = Math.min(140, Math.max(50, Math.floor(terminalWidth * 0.8)));
+      const maxBubbleWidth = Math.min(140, Math.max(40, Math.floor((terminalWidth - containerOverhead) * 0.8)));
       expect(maxBubbleWidth).toBe(140);
     });
 
-    it('ensures minimum bubble width of 50', () => {
+    it('ensures minimum bubble width of 40', () => {
       const terminalWidth = 40;
-      const maxBubbleWidth = Math.min(140, Math.max(50, Math.floor(terminalWidth * 0.8)));
-      expect(maxBubbleWidth).toBe(50);
+      const maxBubbleWidth = Math.min(140, Math.max(40, Math.floor((terminalWidth - containerOverhead) * 0.8)));
+      // (40 - 8) * 0.8 = 25.6 = 25, but min is 40
+      expect(maxBubbleWidth).toBe(40);
     });
   });
 });
