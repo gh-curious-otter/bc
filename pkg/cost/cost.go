@@ -278,15 +278,23 @@ func (s *Store) scanRecord(row *sql.Row) (*Record, error) {
 
 // GetByAgent returns all cost records for an agent.
 func (s *Store) GetByAgent(agentID string, limit int) ([]*Record, error) {
+	return s.GetByAgentWithOffset(agentID, limit, 0)
+}
+
+// GetByAgentWithOffset returns cost records for an agent with pagination support.
+func (s *Store) GetByAgentWithOffset(agentID string, limit, offset int) ([]*Record, error) {
 	if limit <= 0 {
 		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
 	}
 
 	ctx := context.Background()
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, agent_id, team_id, model, input_tokens, output_tokens, total_tokens, cost_usd, timestamp
-		 FROM cost_records WHERE agent_id = ? ORDER BY timestamp DESC LIMIT ?`,
-		agentID, limit,
+		 FROM cost_records WHERE agent_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?`,
+		agentID, limit, offset,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get records by agent: %w", err)
@@ -318,15 +326,23 @@ func (s *Store) GetByTeam(teamID string, limit int) ([]*Record, error) {
 
 // GetAll returns all cost records.
 func (s *Store) GetAll(limit int) ([]*Record, error) {
+	return s.GetAllWithOffset(limit, 0)
+}
+
+// GetAllWithOffset returns cost records with pagination support.
+func (s *Store) GetAllWithOffset(limit, offset int) ([]*Record, error) {
 	if limit <= 0 {
 		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
 	}
 
 	ctx := context.Background()
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, agent_id, team_id, model, input_tokens, output_tokens, total_tokens, cost_usd, timestamp
-		 FROM cost_records ORDER BY timestamp DESC LIMIT ?`,
-		limit,
+		 FROM cost_records ORDER BY timestamp DESC LIMIT ? OFFSET ?`,
+		limit, offset,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all records: %w", err)
