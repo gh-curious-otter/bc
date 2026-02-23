@@ -1,11 +1,12 @@
 /**
  * ProcessesView - View for displaying managed processes
  * Issue #555: Processes view with list, details, and log viewer
+ * Issue #1723: Migrated to useListNavigation hook
  */
 
-import { useState, useMemo, useReducer, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { useProcesses, useProcessLogs, useDebounce } from '../hooks';
+import { useProcesses, useProcessLogs, useDebounce, useListNavigation } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { Table } from '../components/Table';
 import type { Column } from '../components/Table';
@@ -13,63 +14,6 @@ import { StatusBadge } from '../components/StatusBadge';
 import { HeaderBar } from '../components/HeaderBar';
 import { ViewWrapper } from '../components/ViewWrapper';
 import type { Process } from '../types';
-
-// #1601: Consolidated UI state with useReducer
-interface UIState {
-  selectedIndex: number;
-  showLogs: boolean;
-  searchQuery: string;
-  searchMode: boolean;
-}
-
-type UIAction =
-  | { type: 'NAVIGATE_UP' }
-  | { type: 'NAVIGATE_DOWN'; maxIndex: number }
-  | { type: 'NAVIGATE_TO_START' }
-  | { type: 'NAVIGATE_TO_END'; maxIndex: number }
-  | { type: 'SHOW_LOGS' }
-  | { type: 'HIDE_LOGS' }
-  | { type: 'ENTER_SEARCH_MODE' }
-  | { type: 'EXIT_SEARCH_MODE' }
-  | { type: 'APPEND_SEARCH_CHAR'; char: string }
-  | { type: 'BACKSPACE_SEARCH' }
-  | { type: 'CLEAR_SEARCH' };
-
-const initialUIState: UIState = {
-  selectedIndex: 0,
-  showLogs: false,
-  searchQuery: '',
-  searchMode: false,
-};
-
-function uiReducer(state: UIState, action: UIAction): UIState {
-  switch (action.type) {
-    case 'NAVIGATE_UP':
-      return { ...state, selectedIndex: Math.max(0, state.selectedIndex - 1) };
-    case 'NAVIGATE_DOWN':
-      return { ...state, selectedIndex: Math.min(action.maxIndex, state.selectedIndex + 1) };
-    case 'NAVIGATE_TO_START':
-      return { ...state, selectedIndex: 0 };
-    case 'NAVIGATE_TO_END':
-      return { ...state, selectedIndex: Math.max(0, action.maxIndex) };
-    case 'SHOW_LOGS':
-      return { ...state, showLogs: true };
-    case 'HIDE_LOGS':
-      return { ...state, showLogs: false };
-    case 'ENTER_SEARCH_MODE':
-      return { ...state, searchMode: true };
-    case 'EXIT_SEARCH_MODE':
-      return { ...state, searchMode: false };
-    case 'APPEND_SEARCH_CHAR':
-      return { ...state, searchQuery: state.searchQuery + action.char };
-    case 'BACKSPACE_SEARCH':
-      return { ...state, searchQuery: state.searchQuery.slice(0, -1) };
-    case 'CLEAR_SEARCH':
-      return { ...state, searchQuery: '', selectedIndex: 0 };
-    default:
-      return state;
-  }
-}
 
 /**
  * Calculate uptime string from started_at timestamp
@@ -99,24 +43,14 @@ export function ProcessesView(): React.ReactElement {
   const { data: processes, loading, error, refresh } = useProcesses();
   const { setFocus } = useFocus();
 
-  // #1601: UI state consolidated with useReducer
-  const [ui, dispatch] = useReducer(uiReducer, initialUIState);
-  const { selectedIndex, showLogs, searchQuery, searchMode } = ui;
+  // #1723: View-specific modal state (not part of list navigation)
+  const [showLogs, setShowLogs] = useState(false);
+
+  // #1723: Search query state managed separately for debounce
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Debounce search query for filtering (issue #1602)
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
-
-  // Manage focus state for nested view navigation (#1692)
-  // When in search mode, set focus='input' to allow typing special chars
-  useEffect(() => {
-    if (showLogs) {
-      setFocus('view');
-    } else if (searchMode) {
-      setFocus('input');
-    } else {
-      setFocus('main');
-    }
-  }, [showLogs, searchMode, setFocus]);
 
   // Filter processes by search query (using debounced query for performance)
   const processList = useMemo(() => {
@@ -131,52 +65,44 @@ export function ProcessesView(): React.ReactElement {
     );
   }, [processes, debouncedSearchQuery]);
 
-  const selectedProcess = processList[selectedIndex] as typeof processList[number] | undefined;
+  // Callbacks for list navigation
+  const handleSelect = useCallback((_process: Process) => {
+    setShowLogs(true);
+  }, []);
 
-  // Keyboard navigation
-  useInput((input, key) => {
-    // Search mode input handling
-    if (searchMode) {
-      if (key.return || key.escape) {
-        dispatch({ type: 'EXIT_SEARCH_MODE' });
-      } else if (key.backspace || key.delete) {
-        dispatch({ type: 'BACKSPACE_SEARCH' });
-      } else if (input && !key.ctrl && !key.meta) {
-        dispatch({ type: 'APPEND_SEARCH_CHAR', char: input });
-      }
-      return;
-    }
+  const handleRefresh = useCallback(() => {
+    void refresh();
+  }, [refresh]);
 
-    if (showLogs) {
-      // Log viewer mode
-      if (input === 'q' || key.escape) {
-        dispatch({ type: 'HIDE_LOGS' });
-      }
-      return;
-    }
-
-    // List navigation mode
-    if (key.upArrow || input === 'k') {
-      dispatch({ type: 'NAVIGATE_UP' });
-    } else if (key.downArrow || input === 'j') {
-      dispatch({ type: 'NAVIGATE_DOWN', maxIndex: processList.length - 1 });
-    } else if (input === 'g') {
-      dispatch({ type: 'NAVIGATE_TO_START' });
-    } else if (input === 'G') {
-      dispatch({ type: 'NAVIGATE_TO_END', maxIndex: processList.length - 1 });
-    } else if (key.return || input === 'l') {
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- defensive check for empty list
-      if (selectedProcess) {
-        dispatch({ type: 'SHOW_LOGS' });
-      }
-    } else if (input === '/') {
-      dispatch({ type: 'ENTER_SEARCH_MODE' });
-    } else if (input === 'c' && searchQuery) {
-      dispatch({ type: 'CLEAR_SEARCH' });
-    } else if (input === 'r') {
-      void refresh();
-    }
+  // #1723: Use useListNavigation hook for vim-style navigation
+  const {
+    selectedIndex,
+    selectedItem: selectedProcess,
+    search,
+  } = useListNavigation({
+    items: processList,
+    enableSearch: true,
+    onSearchChange: setSearchQuery,
+    onSelect: handleSelect,
+    customKeys: {
+      'l': () => { if (processList.length > 0) setShowLogs(true); },
+      'r': handleRefresh,
+    },
+    // Disable navigation when showing logs (handled by ProcessLogViewer)
+    isActive: !showLogs,
   });
+
+  // Manage focus state for nested view navigation (#1692)
+  // When in search mode, set focus='input' to allow typing special chars
+  useEffect(() => {
+    if (showLogs) {
+      setFocus('view');
+    } else if (search.isActive) {
+      setFocus('input');
+    } else {
+      setFocus('main');
+    }
+  }, [showLogs, search.isActive, setFocus]);
 
   // Column widths: 14+9+7+6+8+22 = 66 (fits 80-col terminal)
   const columns: Column<Process>[] = [
@@ -227,13 +153,13 @@ export function ProcessesView(): React.ReactElement {
   ];
 
   // Search mode overlay
-  if (searchMode) {
+  if (search.isActive) {
     return (
       <Box flexDirection="column" padding={1}>
         <Text bold>Search Processes</Text>
         <Box marginTop={1} borderStyle="single" borderColor="cyan" paddingX={1}>
           <Text color="cyan">{'> '}</Text>
-          <Text>{searchQuery}</Text>
+          <Text>{search.query}</Text>
           <Text color="cyan">|</Text>
         </Box>
         <Box marginTop={1}>
@@ -249,7 +175,7 @@ export function ProcessesView(): React.ReactElement {
     return (
       <ProcessLogViewer
         process={selectedProcess}
-        onBack={() => { dispatch({ type: 'HIDE_LOGS' }); }}
+        onBack={() => { setShowLogs(false); }}
       />
     );
   }
@@ -259,7 +185,7 @@ export function ProcessesView(): React.ReactElement {
     { key: 'j/k', label: 'nav' },
     { key: 'g/G', label: 'top/bottom' },
     { key: '/', label: 'search' },
-    ...(searchQuery ? [{ key: 'c', label: 'clear' }] : []),
+    ...(search.query ? [{ key: 'c', label: 'clear' }] : []),
     { key: 'Enter/l', label: 'logs' },
     { key: 'r', label: 'refresh' },
     { key: 'q/ESC', label: 'back' },
@@ -278,13 +204,13 @@ export function ProcessesView(): React.ReactElement {
         title="Processes"
         count={processList.length}
         loading={loading && processList.length > 0}
-        subtitle={searchQuery ? `[/] "${searchQuery}"` : undefined}
+        subtitle={search.query ? `[/] "${search.query}"` : undefined}
         color="blue"
       />
       {processList.length === 0 ? (
         <Box padding={1} flexDirection="column">
-          <Text dimColor>{searchQuery ? 'No processes match search' : 'No processes running.'}</Text>
-          {!searchQuery && <Text dimColor>Start one with: bc process start &lt;name&gt; &lt;command&gt;</Text>}
+          <Text dimColor>{search.query ? 'No processes match search' : 'No processes running.'}</Text>
+          {!search.query && <Text dimColor>Start one with: bc process start &lt;name&gt; &lt;command&gt;</Text>}
         </Box>
       ) : (
         <>
