@@ -118,6 +118,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
   const [activeTab, setActiveTab] = useState<'output' | 'live' | 'details' | 'metrics'>('output');
   const [liveLines, setLiveLines] = useState<string[]>([]);
   const [scrollOffset, setScrollOffset] = useState(0);
+  const [isFollowing, setIsFollowing] = useState(true); // Auto-scroll to bottom
   const { setFocus } = useFocus();
 
   // Fetch agent-specific details (costs, activity)
@@ -159,12 +160,19 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
     try {
       const output = await execBc(['agent', 'peek', agent.name, '--lines', '200']);
       const lines = output.split('\n').filter(line => line.trim());
-      setLiveLines(lines);
+      setLiveLines(prevLines => {
+        // Auto-scroll to bottom if following and new content arrived
+        if (isFollowing && lines.length > prevLines.length) {
+          const newOffset = Math.max(0, lines.length - 20);
+          setScrollOffset(newOffset);
+        }
+        return lines;
+      });
       setError(null);
     } catch (err) {
       // Silently fail for live mode - don't disrupt the experience
     }
-  }, [agent.name]);
+  }, [agent.name, isFollowing]);
 
   useEffect(() => {
     setLoading(true);
@@ -238,16 +246,33 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
         setActiveTab('metrics');
       } else if (activeTab === 'live' && (input === 'j' || key.downArrow)) {
         // Scroll down in live view
-        setScrollOffset(prev => Math.min(prev + 1, Math.max(0, liveLines.length - 20)));
+        const maxOffset = Math.max(0, liveLines.length - 20);
+        setScrollOffset(prev => {
+          const newOffset = Math.min(prev + 1, maxOffset);
+          // Re-enable following if at bottom
+          if (newOffset >= maxOffset) {
+            setIsFollowing(true);
+          }
+          return newOffset;
+        });
       } else if (activeTab === 'live' && (input === 'k' || key.upArrow)) {
-        // Scroll up in live view
+        // Scroll up in live view - disable following
+        setIsFollowing(false);
         setScrollOffset(prev => Math.max(0, prev - 1));
       } else if (activeTab === 'live' && input === 'g') {
-        // Jump to top
+        // Jump to top - disable following
+        setIsFollowing(false);
         setScrollOffset(0);
       } else if (activeTab === 'live' && input === 'G') {
-        // Jump to bottom
+        // Jump to bottom - re-enable following
+        setIsFollowing(true);
         setScrollOffset(Math.max(0, liveLines.length - 20));
+      } else if (activeTab === 'live' && input === 'f') {
+        // Toggle follow mode
+        setIsFollowing(prev => !prev);
+        if (!isFollowing) {
+          setScrollOffset(Math.max(0, liveLines.length - 20));
+        }
       }
       // Note: Tab removed to allow global view navigation (#1520)
       // Use 1/2/3/4 to switch tabs within this view
@@ -356,7 +381,13 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
           >
             <Box marginBottom={1}>
               <Text color="cyan" bold>LIVE OUTPUT</Text>
-              <Text dimColor> - 500ms refresh | j/k: scroll | g/G: top/bottom</Text>
+              <Text dimColor> - 500ms refresh | </Text>
+              {isFollowing ? (
+                <Text color="green">FOLLOWING</Text>
+              ) : (
+                <Text color="yellow">PAUSED</Text>
+              )}
+              <Text dimColor> | f: toggle follow</Text>
             </Box>
             <Box flexDirection="column" height={outputHeight + 2} overflow="hidden">
               {liveLines.length === 0 ? (
@@ -473,7 +504,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
           {inputMode
             ? 'Enter: send | Esc: cancel'
             : activeTab === 'live'
-              ? '1-4: tabs | j/k: scroll | g/G: top/bottom | q/ESC: back'
+              ? '1-4: tabs | j/k: scroll | g/G: top/bottom | f: follow | q/ESC: back'
               : '1-4: tabs | i: message | r: refresh | q/ESC: back'}
         </Text>
         {loading && <Text color="gray"> (refreshing...)</Text>}
