@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -344,7 +345,7 @@ type mockTmuxChecker struct {
 	sessions map[string]bool
 }
 
-func (m *mockTmuxChecker) HasSession(name string) bool {
+func (m *mockTmuxChecker) HasSession(_ context.Context, name string) bool {
 	return m.sessions[name]
 }
 
@@ -353,7 +354,7 @@ func TestRootStateStore_CheckRecovery_NoRoot(t *testing.T) {
 	store := NewRootStateStore(tmpDir)
 	mock := &mockTmuxChecker{sessions: map[string]bool{}}
 
-	result, err := store.CheckRecovery(mock)
+	result, err := store.CheckRecovery(context.Background(), mock)
 	if err != nil {
 		t.Fatalf("CheckRecovery failed: %v", err)
 	}
@@ -388,7 +389,7 @@ func TestRootStateStore_CheckRecovery_Running(t *testing.T) {
 	// Mock tmux says session is alive
 	mock := &mockTmuxChecker{sessions: map[string]bool{"bc-root-session": true}}
 
-	result, err := store.CheckRecovery(mock)
+	result, err := store.CheckRecovery(context.Background(), mock)
 	if err != nil {
 		t.Fatalf("CheckRecovery failed: %v", err)
 	}
@@ -431,7 +432,7 @@ func TestRootStateStore_CheckRecovery_NeedsRecovery(t *testing.T) {
 	// Mock tmux says session is dead
 	mock := &mockTmuxChecker{sessions: map[string]bool{}}
 
-	result, err := store.CheckRecovery(mock)
+	result, err := store.CheckRecovery(context.Background(), mock)
 	if err != nil {
 		t.Fatalf("CheckRecovery failed: %v", err)
 	}
@@ -541,7 +542,7 @@ func TestRootStateStore_CheckRecovery_EmptySession(t *testing.T) {
 	// Mock tmux - doesn't matter, session is empty
 	mock := &mockTmuxChecker{sessions: map[string]bool{"anything": true}}
 
-	result, err := store.CheckRecovery(mock)
+	result, err := store.CheckRecovery(context.Background(), mock)
 	if err != nil {
 		t.Fatalf("CheckRecovery failed: %v", err)
 	}

@@ -93,11 +93,11 @@ type Manager struct {
 }
 
 // command returns an exec.Cmd using the configured executor.
-func (m *Manager) command(name string, args ...string) *exec.Cmd {
+func (m *Manager) command(ctx context.Context, name string, args ...string) *exec.Cmd {
 	if m.execCommand != nil {
 		return m.execCommand(name, args...)
 	}
-	return exec.CommandContext(context.Background(), name, args...)
+	return exec.CommandContext(ctx, name, args...)
 }
 
 // userFriendlyTmuxError converts raw tmux error output to a user-friendly message.
@@ -169,7 +169,7 @@ func (m *Manager) SessionName(name string) string {
 
 // HasSession checks if a session exists.
 // Results are cached with a short TTL to reduce subprocess calls.
-func (m *Manager) HasSession(name string) bool {
+func (m *Manager) HasSession(ctx context.Context, name string) bool {
 	fullName := m.SessionName(name)
 
 	// Check cache first
@@ -187,7 +187,7 @@ func (m *Manager) HasSession(name string) bool {
 	m.cacheMu.RUnlock()
 
 	// Cache miss - query tmux
-	cmd := m.command("tmux", "has-session", "-t", fullName)
+	cmd := m.command(ctx, "tmux", "has-session", "-t", fullName)
 	exists := cmd.Run() == nil
 
 	// Update cache
@@ -214,7 +214,7 @@ func (m *Manager) invalidateCache() {
 }
 
 // CreateSession creates a new tmux session.
-func (m *Manager) CreateSession(name, dir string) error {
+func (m *Manager) CreateSession(ctx context.Context, name, dir string) error {
 	fullName := m.SessionName(name)
 	log.Debug("creating tmux session", "name", fullName, "dir", dir)
 
@@ -223,7 +223,7 @@ func (m *Manager) CreateSession(name, dir string) error {
 		args = append(args, "-c", dir)
 	}
 
-	cmd := m.command("tmux", args...)
+	cmd := m.command(ctx, "tmux", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to create session %s: %w (%s)", fullName, err, string(output))
@@ -235,14 +235,14 @@ func (m *Manager) CreateSession(name, dir string) error {
 }
 
 // CreateSessionWithCommand creates a session and runs a command.
-func (m *Manager) CreateSessionWithCommand(name, dir, command string) error {
-	return m.CreateSessionWithEnv(name, dir, command, nil)
+func (m *Manager) CreateSessionWithCommand(ctx context.Context, name, dir, command string) error {
+	return m.CreateSessionWithEnv(ctx, name, dir, command, nil)
 }
 
 // CreateSessionWithEnv creates a session with env vars baked into the shell command.
 // Environment variable keys are validated to prevent shell injection attacks.
 // Keys must match POSIX standards: start with letter/underscore, contain only alphanumerics/underscores.
-func (m *Manager) CreateSessionWithEnv(name, dir, command string, env map[string]string) error {
+func (m *Manager) CreateSessionWithEnv(ctx context.Context, name, dir, command string, env map[string]string) error {
 	fullName := m.SessionName(name)
 
 	// Build shell command with env vars prefixed
@@ -263,7 +263,7 @@ func (m *Manager) CreateSessionWithEnv(name, dir, command string, env map[string
 	}
 	args = append(args, "bash", "-c", shellCmd)
 
-	cmd := m.command("tmux", args...)
+	cmd := m.command(ctx, "tmux", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to create session %s: %w (%s)", fullName, err, string(output))
@@ -275,10 +275,10 @@ func (m *Manager) CreateSessionWithEnv(name, dir, command string, env map[string
 }
 
 // KillSession kills a tmux session.
-func (m *Manager) KillSession(name string) error {
+func (m *Manager) KillSession(ctx context.Context, name string) error {
 	fullName := m.SessionName(name)
 	log.Debug("killing tmux session", "name", fullName)
-	cmd := m.command("tmux", "kill-session", "-t", fullName)
+	cmd := m.command(ctx, "tmux", "kill-session", "-t", fullName)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to kill session %s: %w (%s)", fullName, err, string(output))
@@ -290,11 +290,11 @@ func (m *Manager) KillSession(name string) error {
 }
 
 // RenameSession renames a tmux session.
-func (m *Manager) RenameSession(oldName, newName string) error {
+func (m *Manager) RenameSession(ctx context.Context, oldName, newName string) error {
 	oldFullName := m.SessionName(oldName)
 	newFullName := m.SessionName(newName)
 	log.Debug("renaming tmux session", "old", oldFullName, "new", newFullName)
-	cmd := m.command("tmux", "rename-session", "-t", oldFullName, newFullName)
+	cmd := m.command(ctx, "tmux", "rename-session", "-t", oldFullName, newFullName)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to rename session %s to %s: %w (%s)", oldFullName, newFullName, err, string(output))
@@ -323,8 +323,8 @@ func (m *Manager) getSessionLock(sessionName string) *sync.Mutex {
 
 // SendKeys sends keys to a session with Enter as submit key.
 // This is a convenience wrapper around SendKeysWithSubmit.
-func (m *Manager) SendKeys(name, keys string) error {
-	return m.SendKeysWithSubmit(name, keys, "Enter")
+func (m *Manager) SendKeys(ctx context.Context, name, keys string) error {
+	return m.SendKeysWithSubmit(ctx, name, keys, "Enter")
 }
 
 // SendKeysWithSubmit sends keys to a session with a specified submit key.
@@ -333,7 +333,7 @@ func (m *Manager) SendKeys(name, keys string) error {
 // - "Enter" sends the Enter key as a tmux key-name event
 // - "" sends nothing (message is left in input buffer)
 // - Other values are sent as tmux key names (e.g., "C-m" for Ctrl+M)
-func (m *Manager) SendKeysWithSubmit(name, keys, submitKey string) error {
+func (m *Manager) SendKeysWithSubmit(ctx context.Context, name, keys, submitKey string) error {
 	keys = strings.TrimRight(keys, "\n")
 	fullName := m.SessionName(name)
 
@@ -344,7 +344,7 @@ func (m *Manager) SendKeysWithSubmit(name, keys, submitKey string) error {
 
 	if len(keys) <= 500 {
 		// Send text literally (no key-name lookup)
-		cmd := m.command("tmux", "send-keys", "-t", fullName, "-l", keys)
+		cmd := m.command(ctx, "tmux", "send-keys", "-t", fullName, "-l", keys)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("failed to send message: %s", userFriendlyTmuxError(string(output)))
@@ -377,16 +377,16 @@ func (m *Manager) SendKeysWithSubmit(name, keys, submitKey string) error {
 		_ = tmpFile.Close() //nolint:errcheck // closing before load
 
 		// Load into named buffer
-		loadCmd := m.command("tmux", "load-buffer", "-b", bufferName, tmpPath)
+		loadCmd := m.command(ctx, "tmux", "load-buffer", "-b", bufferName, tmpPath)
 		if output, err := loadCmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("failed to load buffer: %w (%s)", err, string(output))
 		}
 
 		// Paste from named buffer and delete it afterward
-		pasteCmd := m.command("tmux", "paste-buffer", "-b", bufferName, "-d", "-t", fullName)
+		pasteCmd := m.command(ctx, "tmux", "paste-buffer", "-b", bufferName, "-d", "-t", fullName)
 		if output, err := pasteCmd.CombinedOutput(); err != nil {
 			// Clean up buffer on error
-			_ = m.command("tmux", "delete-buffer", "-b", bufferName).Run() //nolint:errcheck // best-effort cleanup
+			_ = m.command(ctx, "tmux", "delete-buffer", "-b", bufferName).Run() //nolint:errcheck // best-effort cleanup
 			return fmt.Errorf("failed to send message: %s", userFriendlyTmuxError(string(output)))
 		}
 	}
@@ -410,9 +410,9 @@ func (m *Manager) SendKeysWithSubmit(name, keys, submitKey string) error {
 	var submitCmd *exec.Cmd
 	if submitKey == "Enter" {
 		// Send raw CR byte (0x0D) via -H flag — reliable after paste-buffer.
-		submitCmd = m.command("tmux", "send-keys", "-t", fullName, "-H", "0D")
+		submitCmd = m.command(ctx, "tmux", "send-keys", "-t", fullName, "-H", "0D")
 	} else {
-		submitCmd = m.command("tmux", "send-keys", "-t", fullName, submitKey)
+		submitCmd = m.command(ctx, "tmux", "send-keys", "-t", fullName, submitKey)
 	}
 	if output, err := submitCmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to send submit key to %s: %w (%s)", fullName, err, string(output))
@@ -422,7 +422,7 @@ func (m *Manager) SendKeysWithSubmit(name, keys, submitKey string) error {
 }
 
 // Capture captures the current pane content.
-func (m *Manager) Capture(name string, lines int) (string, error) {
+func (m *Manager) Capture(ctx context.Context, name string, lines int) (string, error) {
 	fullName := m.SessionName(name)
 
 	args := []string{"capture-pane", "-t", fullName, "-p"}
@@ -430,7 +430,7 @@ func (m *Manager) Capture(name string, lines int) (string, error) {
 		args = append(args, "-S", fmt.Sprintf("-%d", lines))
 	}
 
-	cmd := m.command("tmux", args...)
+	cmd := m.command(ctx, "tmux", args...)
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to capture pane %s: %w", fullName, err)
@@ -440,7 +440,7 @@ func (m *Manager) Capture(name string, lines int) (string, error) {
 
 // ListSessions lists all sessions with our prefix.
 // Results are cached with a short TTL to reduce subprocess calls.
-func (m *Manager) ListSessions() ([]Session, error) {
+func (m *Manager) ListSessions(ctx context.Context) ([]Session, error) {
 	// Check cache first
 	m.cacheMu.RLock()
 	ttl := m.cacheTTL
@@ -457,7 +457,7 @@ func (m *Manager) ListSessions() ([]Session, error) {
 	m.cacheMu.RUnlock()
 
 	// Cache miss - query tmux
-	cmd := m.command("tmux", "list-sessions", "-F",
+	cmd := m.command(ctx, "tmux", "list-sessions", "-F",
 		"#{session_name}|#{session_created_string}|#{session_attached}|#{session_windows}|#{session_path}")
 
 	output, err := cmd.Output()
@@ -515,14 +515,14 @@ func (m *Manager) ListSessions() ([]Session, error) {
 
 // AttachCmd returns an exec.Cmd to attach to a session.
 // The caller should set Stdin/Stdout/Stderr and run it.
-func (m *Manager) AttachCmd(name string) *exec.Cmd {
+func (m *Manager) AttachCmd(ctx context.Context, name string) *exec.Cmd {
 	fullName := m.SessionName(name)
-	return m.command("tmux", "attach-session", "-t", fullName)
+	return m.command(ctx, "tmux", "attach-session", "-t", fullName)
 }
 
 // IsRunning checks if tmux server is running.
-func (m *Manager) IsRunning() bool {
-	cmd := m.command("tmux", "list-sessions")
+func (m *Manager) IsRunning(ctx context.Context) bool {
+	cmd := m.command(ctx, "tmux", "list-sessions")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	err := cmd.Run()
@@ -536,8 +536,8 @@ func (m *Manager) IsRunning() bool {
 }
 
 // KillServer kills the tmux server (all sessions).
-func (m *Manager) KillServer() error {
-	cmd := m.command("tmux", "kill-server")
+func (m *Manager) KillServer(ctx context.Context) error {
+	cmd := m.command(ctx, "tmux", "kill-server")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to kill tmux server: %w (%s)", err, string(output))
@@ -551,13 +551,13 @@ func (m *Manager) KillServer() error {
 // SetEnvironment sets an environment variable in a session.
 // Environment variable key is validated to prevent shell injection attacks.
 // Key must match POSIX standards: start with letter/underscore, contain only alphanumerics/underscores.
-func (m *Manager) SetEnvironment(name, key, value string) error {
+func (m *Manager) SetEnvironment(ctx context.Context, name, key, value string) error {
 	// Validate env var key to prevent shell injection
 	if !validEnvVarName.MatchString(key) {
 		return fmt.Errorf("invalid environment variable name %q: must match [A-Za-z_][A-Za-z0-9_]*", key)
 	}
 	fullName := m.SessionName(name)
-	cmd := m.command("tmux", "set-environment", "-t", fullName, key, value)
+	cmd := m.command(ctx, "tmux", "set-environment", "-t", fullName, key, value)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to set environment %s=%s in session %s: %w (%s)", key, value, fullName, err, string(output))

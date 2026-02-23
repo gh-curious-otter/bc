@@ -20,7 +20,7 @@ func newTestTmuxChecker() *testTmuxChecker {
 	return &testTmuxChecker{sessions: make(map[string]bool)}
 }
 
-func (m *testTmuxChecker) HasSession(name string) bool {
+func (m *testTmuxChecker) HasSession(_ context.Context, name string) bool {
 	return m.sessions[name]
 }
 
@@ -48,7 +48,7 @@ func TestHealthChecker_Check_Healthy(t *testing.T) {
 	tmux.SetSession("root-session", true)
 
 	checker := NewHealthChecker(store, tmux, nil)
-	result := checker.Check()
+	result := checker.Check(context.Background())
 
 	if result.Status != HealthStatusHealthy {
 		t.Errorf("expected healthy, got %s", result.Status)
@@ -81,7 +81,7 @@ func TestHealthChecker_Check_UnhealthyTmuxDead(t *testing.T) {
 	tmux.SetSession("root-session", false)
 
 	checker := NewHealthChecker(store, tmux, nil)
-	result := checker.Check()
+	result := checker.Check(context.Background())
 
 	if result.Status != HealthStatusUnhealthy {
 		t.Errorf("expected unhealthy, got %s", result.Status)
@@ -128,7 +128,7 @@ func TestHealthChecker_Check_DegradedStaleState(t *testing.T) {
 
 	checker := NewHealthChecker(store, tmux, nil,
 		WithStaleThreshold(30*time.Second)) // 30s threshold
-	result := checker.Check()
+	result := checker.Check(context.Background())
 
 	if result.Status != HealthStatusDegraded {
 		t.Errorf("expected degraded, got %s", result.Status)
@@ -151,7 +151,7 @@ func TestHealthChecker_Check_NoRootState(t *testing.T) {
 
 	tmux := newTestTmuxChecker()
 	checker := NewHealthChecker(store, tmux, nil)
-	result := checker.Check()
+	result := checker.Check(context.Background())
 
 	if result.Status != HealthStatusUnhealthy {
 		t.Errorf("expected unhealthy, got %s", result.Status)
@@ -187,7 +187,7 @@ func TestHealthChecker_UnhealthyCallback(t *testing.T) {
 		WithUnhealthyCallback(callback))
 
 	// Trigger a check via runCheck (which calls callback)
-	checker.runCheck()
+	checker.runCheck(context.Background())
 
 	if !callbackCalled.Load() {
 		t.Error("expected unhealthy callback to be called")
@@ -258,7 +258,7 @@ func TestHealthChecker_EmitsEvents(t *testing.T) {
 	eventLog := events.NewLog(filepath.Join(dir, "events.jsonl"))
 	checker := NewHealthChecker(store, tmux, eventLog)
 
-	checker.runCheck()
+	checker.runCheck(context.Background())
 
 	evts, readErr := eventLog.Read()
 	if readErr != nil {
@@ -300,7 +300,7 @@ func TestHealthChecker_LastResult(t *testing.T) {
 		t.Error("expected nil before first check")
 	}
 
-	checker.Check()
+	checker.Check(context.Background())
 
 	result := checker.LastResult()
 	if result == nil {

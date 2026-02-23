@@ -92,7 +92,7 @@ func NewHealthChecker(rootStore *RootStateStore, tmux TmuxChecker, eventLog *eve
 }
 
 // Check performs a single health check and returns the result.
-func (h *HealthChecker) Check() *HealthCheckResult {
+func (h *HealthChecker) Check(ctx context.Context) *HealthCheckResult {
 	result := &HealthCheckResult{
 		CheckedAt: time.Now(),
 	}
@@ -113,7 +113,7 @@ func (h *HealthChecker) Check() *HealthCheckResult {
 
 	// Check tmux session
 	if state.Session != "" {
-		result.TmuxAlive = h.tmux.HasSession(state.Session)
+		result.TmuxAlive = h.tmux.HasSession(ctx, state.Session)
 	}
 
 	// Determine overall status
@@ -184,7 +184,7 @@ func (h *HealthChecker) loop(ctx context.Context) {
 	defer ticker.Stop()
 
 	// Do an initial check immediately
-	h.runCheck()
+	h.runCheck(ctx)
 
 	for {
 		select {
@@ -194,14 +194,14 @@ func (h *HealthChecker) loop(ctx context.Context) {
 		case <-h.stopCh:
 			return
 		case <-ticker.C:
-			h.runCheck()
+			h.runCheck(ctx)
 		}
 	}
 }
 
 // runCheck performs a check and handles the result.
-func (h *HealthChecker) runCheck() {
-	result := h.Check()
+func (h *HealthChecker) runCheck(ctx context.Context) {
+	result := h.Check(ctx)
 
 	// Emit event
 	h.emitHealthEvent(result)

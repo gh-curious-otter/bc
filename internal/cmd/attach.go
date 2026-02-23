@@ -40,10 +40,11 @@ func runAttach(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create agent manager
+	ctx := cmd.Context()
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
 
 	// Check if session exists
-	if !mgr.Tmux().HasSession(agentName) {
+	if !mgr.Tmux().HasSession(ctx, agentName) {
 		log.Debug("agent session not found", "agent", agentName)
 		return fmt.Errorf("agent %q not running (session bc-%s not found)", agentName, agentName)
 	}

@@ -2,6 +2,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -263,7 +264,7 @@ func (s *RootStateStore) UpdateSession(session string) error {
 // TmuxChecker interface for checking tmux session status.
 // This allows for easier testing without real tmux.
 type TmuxChecker interface {
-	HasSession(name string) bool
+	HasSession(ctx context.Context, name string) bool
 }
 
 // RootRecoveryResult describes the outcome of a root recovery check.
@@ -276,7 +277,7 @@ type RootRecoveryResult struct {
 
 // CheckRecovery checks if root needs to be created or recovered.
 // This is the first step in `bc up` to determine what action to take.
-func (s *RootStateStore) CheckRecovery(tmux TmuxChecker) (*RootRecoveryResult, error) {
+func (s *RootStateStore) CheckRecovery(ctx context.Context, tmux TmuxChecker) (*RootRecoveryResult, error) {
 	state, err := s.Load()
 	if errors.Is(err, ErrRootNotFound) {
 		return &RootRecoveryResult{NeedsCreate: true}, nil
@@ -286,7 +287,7 @@ func (s *RootStateStore) CheckRecovery(tmux TmuxChecker) (*RootRecoveryResult, e
 	}
 
 	// Check if tmux session is alive
-	if state.Session != "" && tmux.HasSession(state.Session) {
+	if state.Session != "" && tmux.HasSession(ctx, state.Session) {
 		return &RootRecoveryResult{
 			State:     state,
 			IsRunning: true,
