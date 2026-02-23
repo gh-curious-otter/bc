@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
-import { Box, Text, useInput } from 'ink';
+import React, { useState, useMemo, useCallback } from 'react';
+import { Box, Text } from 'ink';
 import { Panel } from '../components/Panel.js';
 import { DataTable } from '../components/DataTable.js';
 import { Footer } from '../components/Footer.js';
 import { LoadingIndicator } from '../components/LoadingIndicator.js';
 import { ErrorDisplay } from '../components/ErrorDisplay.js';
-import { useTeams } from '../hooks';
+import { useTeams, useListNavigation } from '../hooks';
 import { truncate } from '../utils';
 import type { Team } from '../types';
 
@@ -23,39 +23,30 @@ interface TeamRow extends Record<string, unknown> {
  */
 export function TeamsView(): React.ReactElement {
   const { data: teams, loading, error, refresh } = useTeams();
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
 
   const teamList = teams ?? [];
   const teamCount = teamList.length;
 
-  // Keyboard navigation
-  useInput((input, key) => {
-    // Navigation
-    if (key.upArrow || input === 'k') {
-      setSelectedIndex((i) => Math.max(0, i - 1));
-    }
-    if (key.downArrow || input === 'j') {
-      setSelectedIndex((i) => Math.min(teamCount - 1, i + 1));
-    }
-    if (input === 'g') {
-      setSelectedIndex(0);
-    }
-    if (input === 'G') {
-      setSelectedIndex(Math.max(0, teamCount - 1));
-    }
+  // Toggle expanded view for selected team
+  const handleSelect = useCallback((team: Team) => {
+    setExpandedTeam((current) => (current === team.name ? null : team.name));
+  }, []);
 
-    // Actions
-    if (key.return || input === ' ') {
-      // Toggle expanded view
-      const team = teamList[selectedIndex] as typeof teamList[number] | undefined;
-      if (team) {
-        setExpandedTeam(expandedTeam === team.name ? null : team.name);
-      }
-    }
-    if (input === 'r') {
-      void refresh();
-    }
+  // Custom key handlers (#1741)
+  const customKeys = useMemo(
+    () => ({
+      r: () => { void refresh(); },
+    }),
+    [refresh]
+  );
+
+  // #1741: useListNavigation for consolidated keyboard patterns
+  // Space key triggers onSelect same as Enter (built into hook)
+  const { selectedIndex } = useListNavigation({
+    items: teamList,
+    onSelect: handleSelect,
+    customKeys,
   });
 
   if (error) {
