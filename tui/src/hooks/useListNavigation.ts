@@ -7,22 +7,43 @@
  * - g/Home: Jump to first item
  * - G/End: Jump to last item
  * - Enter/Space: Select current item
+ * - /: Enter search mode (optional)
+ * - Escape: Exit search mode or trigger onBack
+ *
+ * Enhanced for #1586: Consolidated keyboard navigation patterns
  */
 
 import { useState, useCallback, useMemo } from 'react';
 import { useInput } from 'ink';
+
+export interface SearchState {
+  /** Whether search mode is active */
+  isActive: boolean;
+  /** Current search query */
+  query: string;
+}
 
 export interface UseListNavigationOptions<T> {
   /** The list of items to navigate */
   items: T[];
   /** Callback when an item is selected (Enter/Space) */
   onSelect?: (item: T, index: number) => void;
+  /** Callback when Escape is pressed (and not in search mode) */
+  onBack?: () => void;
   /** Initial selected index (defaults to 0) */
   initialIndex?: number;
   /** Disable keyboard handling */
   disabled?: boolean;
   /** Wrap around when reaching start/end of list */
   wrap?: boolean;
+  /** Enable search mode with / key */
+  enableSearch?: boolean;
+  /** Callback when search query changes */
+  onSearchChange?: (query: string) => void;
+  /** Custom key handlers (processed after built-in handlers) */
+  customKeys?: Record<string, () => void>;
+  /** Additional condition for disabling input (e.g., when modal is open) */
+  isActive?: boolean;
 }
 
 export interface UseListNavigationResult<T> {
@@ -42,6 +63,16 @@ export interface UseListNavigationResult<T> {
   jumpToLast: () => void;
   /** Check if an index is the selected one */
   isSelected: (index: number) => boolean;
+  /** Search state (if enableSearch is true) */
+  search: SearchState;
+  /** Enter search mode */
+  enterSearchMode: () => void;
+  /** Exit search mode */
+  exitSearchMode: () => void;
+  /** Clear search query */
+  clearSearch: () => void;
+  /** Set search query directly */
+  setSearchQuery: (query: string) => void;
 }
 
 export function useListNavigation<T>(
@@ -50,14 +81,22 @@ export function useListNavigation<T>(
   const {
     items,
     onSelect,
+    onBack,
     initialIndex = 0,
     disabled = false,
     wrap = false,
+    enableSearch = false,
+    onSearchChange,
+    customKeys = {},
+    isActive = true,
   } = options;
 
   const [selectedIndex, setSelectedIndex] = useState(() =>
     Math.min(Math.max(0, initialIndex), Math.max(0, items.length - 1))
   );
+
+  const [searchMode, setSearchMode] = useState(false);
+  const [searchQuery, setSearchQueryState] = useState('');
 
   const clampIndex = useCallback(
     (index: number): number => {
@@ -96,7 +135,7 @@ export function useListNavigation<T>(
     setSelectedIndex(Math.max(0, items.length - 1));
   }, [items.length]);
 
-  const isSelected = useCallback(
+  const isSelectedFn = useCallback(
     (index: number): boolean => index === selectedIndex,
     [selectedIndex]
   );
@@ -106,9 +145,51 @@ export function useListNavigation<T>(
     [items, selectedIndex]
   );
 
+  // Search mode functions
+  const enterSearchMode = useCallback(() => {
+    if (enableSearch) {
+      setSearchMode(true);
+    }
+  }, [enableSearch]);
+
+  const exitSearchMode = useCallback(() => {
+    setSearchMode(false);
+  }, []);
+
+  const clearSearch = useCallback(() => {
+    setSearchQueryState('');
+    onSearchChange?.('');
+  }, [onSearchChange]);
+
+  const setSearchQuery = useCallback(
+    (query: string) => {
+      setSearchQueryState(query);
+      onSearchChange?.(query);
+    },
+    [onSearchChange]
+  );
+
   // Handle keyboard input
   useInput(
     (input, key) => {
+      // Search mode input handling
+      if (searchMode) {
+        if (key.return || key.escape) {
+          exitSearchMode();
+          return;
+        }
+        if (key.backspace || key.delete) {
+          const newQuery = searchQuery.slice(0, -1);
+          setSearchQuery(newQuery);
+          return;
+        }
+        // Append printable character to search
+        if (input && !key.ctrl && !key.meta && !key.tab) {
+          setSearchQuery(searchQuery + input);
+        }
+        return;
+      }
+
       // j or down arrow: move down
       if (input === 'j' || key.downArrow) {
         moveDown();
@@ -121,7 +202,7 @@ export function useListNavigation<T>(
         return;
       }
 
-      // g or Home: jump to first
+      // g: jump to first
       if (input === 'g') {
         jumpToFirst();
         return;
@@ -140,19 +221,53 @@ export function useListNavigation<T>(
         }
         return;
       }
+
+      // /: enter search mode
+      if (input === '/' && enableSearch) {
+        enterSearchMode();
+        return;
+      }
+
+      // c: clear search (when search is active but not in search mode)
+      if (input === 'c' && enableSearch && searchQuery) {
+        clearSearch();
+        return;
+      }
+
+      // Escape: back navigation (when not in search mode)
+      if (key.escape) {
+        onBack?.();
+        return;
+      }
+
+      // Process custom key handlers
+      if (input && input in customKeys) {
+        customKeys[input]();
+        return;
+      }
     },
-    { isActive: !disabled && items.length > 0 }
+    { isActive: !disabled && isActive && items.length > 0 }
   );
 
   return {
     selectedIndex,
     selectedItem,
-    setSelectedIndex: (index) => { setSelectedIndex(clampIndex(index)); },
+    setSelectedIndex: (index) => {
+      setSelectedIndex(clampIndex(index));
+    },
     moveDown,
     moveUp,
     jumpToFirst,
     jumpToLast,
-    isSelected,
+    isSelected: isSelectedFn,
+    search: {
+      isActive: searchMode,
+      query: searchQuery,
+    },
+    enterSearchMode,
+    exitSearchMode,
+    clearSearch,
+    setSearchQuery,
   };
 }
 

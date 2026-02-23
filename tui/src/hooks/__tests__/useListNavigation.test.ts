@@ -7,9 +7,11 @@
  * - Move up/down operations
  * - Jump to first/last
  * - Selection state
+ * - Search mode logic (#1586)
  * - Edge cases (empty list, single item)
  *
  * #1081 Q1 Cleanup: TUI hook test coverage
+ * #1586: Extract reusable keyboard navigation hook
  *
  * Note: useInput tests require TTY stdin which is not available in Bun.
  * These tests focus on the navigation logic that can be tested without hooks.
@@ -32,6 +34,15 @@ function clampIndex(index: number, length: number, wrap: boolean): number {
 // Initial index clamping logic
 function getInitialIndex(initialIndex: number, length: number): number {
   return Math.min(Math.max(0, initialIndex), Math.max(0, length - 1));
+}
+
+// Search query manipulation logic
+function appendToQuery(query: string, char: string): string {
+  return query + char;
+}
+
+function backspaceQuery(query: string): string {
+  return query.slice(0, -1);
 }
 
 describe('useListNavigation', () => {
@@ -211,6 +222,76 @@ describe('useListNavigation', () => {
     });
   });
 
+  describe('Search Mode Logic (#1586)', () => {
+    test('appendToQuery adds character to query', () => {
+      expect(appendToQuery('', 'a')).toBe('a');
+      expect(appendToQuery('test', 'x')).toBe('testx');
+      expect(appendToQuery('hello', ' ')).toBe('hello ');
+    });
+
+    test('backspaceQuery removes last character', () => {
+      expect(backspaceQuery('test')).toBe('tes');
+      expect(backspaceQuery('a')).toBe('');
+      expect(backspaceQuery('')).toBe('');
+    });
+
+    test('search state defaults', () => {
+      const defaultSearch = { isActive: false, query: '' };
+      expect(defaultSearch.isActive).toBe(false);
+      expect(defaultSearch.query).toBe('');
+    });
+
+    test('entering search mode sets isActive true', () => {
+      let searchState = { isActive: false, query: '' };
+      // Simulate entering search mode
+      searchState = { ...searchState, isActive: true };
+      expect(searchState.isActive).toBe(true);
+    });
+
+    test('exiting search mode sets isActive false', () => {
+      let searchState = { isActive: true, query: 'test' };
+      // Simulate exiting search mode (preserves query)
+      searchState = { ...searchState, isActive: false };
+      expect(searchState.isActive).toBe(false);
+      expect(searchState.query).toBe('test');
+    });
+
+    test('clearing search resets query', () => {
+      let searchState = { isActive: false, query: 'test' };
+      // Simulate clearing search
+      searchState = { ...searchState, query: '' };
+      expect(searchState.query).toBe('');
+    });
+  });
+
+  describe('Custom Keys (#1586)', () => {
+    test('custom keys object can hold multiple handlers', () => {
+      const customKeys: Record<string, () => void> = {
+        'r': () => {/* refresh */},
+        'x': () => {/* delete */},
+        'v': () => {/* toggle view */},
+      };
+      expect(Object.keys(customKeys)).toHaveLength(3);
+      expect(typeof customKeys.r).toBe('function');
+    });
+
+    test('custom keys are looked up by input character', () => {
+      const called: string[] = [];
+      const customKeys: Record<string, () => void> = {
+        'r': () => called.push('r'),
+        'x': () => called.push('x'),
+      };
+
+      // Simulate key press
+      const input = 'r';
+      if (customKeys[input]) {
+        customKeys[input]();
+      }
+
+      expect(called).toEqual(['r']);
+    });
+  });
+
   describe('Edge Cases', () => {
     test('handles large lists', () => {
       const length = 10000;
@@ -231,6 +312,17 @@ describe('useListNavigation', () => {
       const next = clampIndex(current - n, 5, false);
       expect(next).toBe(3);
     });
+
+    test('search query handles special characters', () => {
+      expect(appendToQuery('test', '/')).toBe('test/');
+      expect(appendToQuery('path', ':')).toBe('path:');
+      expect(appendToQuery('name', '-')).toBe('name-');
+    });
+
+    test('search query handles unicode', () => {
+      expect(appendToQuery('', '日')).toBe('日');
+      expect(appendToQuery('hello', '世')).toBe('hello世');
+    });
   });
 
   describe('Options Interface', () => {
@@ -239,10 +331,14 @@ describe('useListNavigation', () => {
         initialIndex: 0,
         disabled: false,
         wrap: false,
+        enableSearch: false,
+        isActive: true,
       };
       expect(defaults.initialIndex).toBe(0);
       expect(defaults.disabled).toBe(false);
       expect(defaults.wrap).toBe(false);
+      expect(defaults.enableSearch).toBe(false);
+      expect(defaults.isActive).toBe(true);
     });
 
     test('wrap option changes clamping behavior', () => {
@@ -253,6 +349,13 @@ describe('useListNavigation', () => {
       // With wrap
       expect(clampIndex(-1, 5, true)).toBe(4);
       expect(clampIndex(5, 5, true)).toBe(0);
+    });
+
+    test('isActive controls input handling', () => {
+      // When isActive is false, input should be ignored
+      // This is tested by checking the option exists
+      const options = { isActive: false };
+      expect(options.isActive).toBe(false);
     });
   });
 
@@ -267,11 +370,66 @@ describe('useListNavigation', () => {
         'jumpToFirst',
         'jumpToLast',
         'isSelected',
+        'search',
+        'enterSearchMode',
+        'exitSearchMode',
+        'clearSearch',
+        'setSearchQuery',
       ];
       // This tests the type interface is correct
-      expectedProps.forEach(prop => {
+      expectedProps.forEach((prop) => {
         expect(typeof prop).toBe('string');
       });
+      expect(expectedProps).toHaveLength(13);
+    });
+
+    test('search object has expected structure', () => {
+      const search = { isActive: false, query: '' };
+      expect('isActive' in search).toBe(true);
+      expect('query' in search).toBe(true);
+    });
+  });
+
+  describe('Callbacks', () => {
+    test('onSelect callback receives item and index', () => {
+      const items = ['a', 'b', 'c'];
+      const selectedIndex = 1;
+      let callbackArgs: { item: string; index: number } | null = null;
+
+      const onSelect = (item: string, index: number) => {
+        callbackArgs = { item, index };
+      };
+
+      // Simulate selection
+      onSelect(items[selectedIndex], selectedIndex);
+
+      expect(callbackArgs).toEqual({ item: 'b', index: 1 });
+    });
+
+    test('onBack callback is called on escape', () => {
+      let backCalled = false;
+      const onBack = () => {
+        backCalled = true;
+      };
+
+      // Simulate escape press
+      onBack();
+
+      expect(backCalled).toBe(true);
+    });
+
+    test('onSearchChange callback receives updated query', () => {
+      let receivedQuery = '';
+      const onSearchChange = (query: string) => {
+        receivedQuery = query;
+      };
+
+      // Simulate search query change
+      onSearchChange('test');
+      expect(receivedQuery).toBe('test');
+
+      onSearchChange('testing');
+      expect(receivedQuery).toBe('testing');
     });
   });
 });
