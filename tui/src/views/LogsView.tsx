@@ -1,10 +1,12 @@
 /**
  * LogsView - Event logs tab with filtering and search (#866)
+ *
+ * #1720: Migrated to useListNavigation for consolidated keyboard patterns
  */
 
-import React, { useMemo, useCallback, useEffect, useReducer } from 'react';
+import React, { useMemo, useCallback, useEffect, useReducer, useState } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
-import { useLogs, getSeverityColor, getSeverityIcon, useDebounce } from '../hooks';
+import { useLogs, getSeverityColor, getSeverityIcon, useDebounce, useListNavigation } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { PulseText } from '../components/AnimatedText';
 import type { LogSeverity } from '../hooks/useLogs';
@@ -16,73 +18,38 @@ interface LogsViewProps {}
 type TimeFilter = '1h' | '6h' | '24h' | 'all';
 
 // #1601: Consolidated UI state with useReducer
+// #1720: Navigation moved to useListNavigation, reducer handles view-specific state
 interface UIState {
-  selectedIndex: number;
   showDetail: boolean;
-  searchQuery: string;
-  searchMode: boolean;
   agentFilter: string | null;
   timeFilter: TimeFilter;
 }
 
 type UIAction =
-  | { type: 'SET_SELECTED_INDEX'; index: number }
-  | { type: 'NAVIGATE_UP' }
-  | { type: 'NAVIGATE_DOWN'; maxIndex: number }
-  | { type: 'NAVIGATE_TO_START' }
-  | { type: 'NAVIGATE_TO_END'; maxIndex: number }
   | { type: 'SHOW_DETAIL' }
   | { type: 'HIDE_DETAIL' }
-  | { type: 'ENTER_SEARCH_MODE' }
-  | { type: 'EXIT_SEARCH_MODE' }
-  | { type: 'SET_SEARCH_QUERY'; query: string }
-  | { type: 'APPEND_SEARCH_CHAR'; char: string }
-  | { type: 'BACKSPACE_SEARCH' }
   | { type: 'SET_AGENT_FILTER'; agent: string | null }
   | { type: 'SET_TIME_FILTER'; time: TimeFilter }
-  | { type: 'CLEAR_ALL_FILTERS' };
+  | { type: 'CLEAR_FILTERS' };
 
 const initialUIState: UIState = {
-  selectedIndex: 0,
   showDetail: false,
-  searchQuery: '',
-  searchMode: false,
   agentFilter: null,
   timeFilter: 'all',
 };
 
 function uiReducer(state: UIState, action: UIAction): UIState {
   switch (action.type) {
-    case 'SET_SELECTED_INDEX':
-      return { ...state, selectedIndex: action.index };
-    case 'NAVIGATE_UP':
-      return { ...state, selectedIndex: Math.max(0, state.selectedIndex - 1) };
-    case 'NAVIGATE_DOWN':
-      return { ...state, selectedIndex: Math.min(action.maxIndex, state.selectedIndex + 1) };
-    case 'NAVIGATE_TO_START':
-      return { ...state, selectedIndex: 0 };
-    case 'NAVIGATE_TO_END':
-      return { ...state, selectedIndex: Math.max(0, action.maxIndex) };
     case 'SHOW_DETAIL':
       return { ...state, showDetail: true };
     case 'HIDE_DETAIL':
       return { ...state, showDetail: false };
-    case 'ENTER_SEARCH_MODE':
-      return { ...state, searchMode: true };
-    case 'EXIT_SEARCH_MODE':
-      return { ...state, searchMode: false };
-    case 'SET_SEARCH_QUERY':
-      return { ...state, searchQuery: action.query };
-    case 'APPEND_SEARCH_CHAR':
-      return { ...state, searchQuery: state.searchQuery + action.char };
-    case 'BACKSPACE_SEARCH':
-      return { ...state, searchQuery: state.searchQuery.slice(0, -1) };
     case 'SET_AGENT_FILTER':
-      return { ...state, agentFilter: action.agent, selectedIndex: 0 };
+      return { ...state, agentFilter: action.agent };
     case 'SET_TIME_FILTER':
-      return { ...state, timeFilter: action.time, selectedIndex: 0 };
-    case 'CLEAR_ALL_FILTERS':
-      return { ...state, searchQuery: '', agentFilter: null, timeFilter: 'all', selectedIndex: 0 };
+      return { ...state, timeFilter: action.time };
+    case 'CLEAR_FILTERS':
+      return { ...state, agentFilter: null, timeFilter: 'all' };
     default:
       return state;
   }
@@ -175,9 +142,14 @@ export const LogsView: React.FC<LogsViewProps> = () => {
   });
 
   // #1601: UI state consolidated with useReducer
+  // #1720: Navigation state moved to useListNavigation, search kept separate
   const [ui, dispatch] = useReducer(uiReducer, initialUIState);
-  const { selectedIndex, showDetail, searchQuery, searchMode, agentFilter, timeFilter } = ui;
+  const { showDetail, agentFilter, timeFilter } = ui;
   const { setFocus } = useFocus();
+
+  // Search state - kept separate for debounce integration
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchMode, setSearchMode] = useState(false);
 
   // Debounce search query for filtering (issue #1602)
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
@@ -217,20 +189,6 @@ export const LogsView: React.FC<LogsViewProps> = () => {
     return result;
   }, [logs, timeFilter, agentFilter, debouncedSearchQuery]);
 
-  const selectedLog = filteredLogs[selectedIndex] as LogEntry | undefined;
-
-  // Manage focus state for nested view navigation
-  // When in search mode, set focus='input' to allow typing special chars (#1692)
-  useEffect(() => {
-    if (showDetail) {
-      setFocus('view');
-    } else if (searchMode) {
-      setFocus('input');
-    } else {
-      setFocus('main');
-    }
-  }, [showDetail, searchMode, setFocus]);
-
   // Cycle through severity filters
   const cycleSeverity = useCallback(() => {
     const severities: (LogSeverity | null)[] = [null, 'info', 'warn', 'error'];
@@ -262,16 +220,61 @@ export const LogsView: React.FC<LogsViewProps> = () => {
     }
   }, [agentFilter, agents]);
 
-  // Keyboard navigation
+  // Clear all filters
+  const clearAllFilters = useCallback(() => {
+    dispatch({ type: 'CLEAR_FILTERS' });
+    filterBySeverity(null);
+    setSearchQuery('');
+  }, [filterBySeverity]);
+
+  // Custom key handlers for view-specific actions (#1720)
+  const customKeys = useMemo(
+    () => ({
+      s: cycleSeverity,
+      a: cycleAgentFilter,
+      t: cycleTimeFilter,
+      c: clearAllFilters,
+      r: () => { void refresh(); },
+      '/': () => { setSearchMode(true); },
+    }),
+    [cycleSeverity, cycleAgentFilter, cycleTimeFilter, clearAllFilters, refresh]
+  );
+
+  // #1720: useListNavigation for consolidated keyboard patterns
+  const { selectedIndex, selectedItem: selectedLog, setSelectedIndex } = useListNavigation({
+    items: filteredLogs,
+    onSelect: () => { dispatch({ type: 'SHOW_DETAIL' }); },
+    disabled: showDetail || searchMode,
+    customKeys,
+  });
+
+  // Manage focus state for nested view navigation
+  // When in search mode, set focus='input' to allow typing special chars (#1692)
+  useEffect(() => {
+    if (showDetail) {
+      setFocus('view');
+    } else if (searchMode) {
+      setFocus('input');
+    } else {
+      setFocus('main');
+    }
+  }, [showDetail, searchMode, setFocus]);
+
+  // Reset selection when filters change
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [timeFilter, agentFilter, debouncedSearchQuery, setSelectedIndex]);
+
+  // Keyboard handling for search mode and detail view
   useInput((input, key) => {
     if (searchMode) {
       // Search mode input
       if (key.return || key.escape) {
-        dispatch({ type: 'EXIT_SEARCH_MODE' });
+        setSearchMode(false);
       } else if (key.backspace || key.delete) {
-        dispatch({ type: 'BACKSPACE_SEARCH' });
+        setSearchQuery((prev) => prev.slice(0, -1));
       } else if (input && !key.ctrl && !key.meta) {
-        dispatch({ type: 'APPEND_SEARCH_CHAR', char: input });
+        setSearchQuery((prev) => prev + input);
       }
       return;
     }
@@ -281,38 +284,8 @@ export const LogsView: React.FC<LogsViewProps> = () => {
       if (key.escape || input === 'q' || key.return) {
         dispatch({ type: 'HIDE_DETAIL' });
       }
-      return;
     }
-
-    // List view navigation
-    if (key.upArrow || input === 'k') {
-      dispatch({ type: 'NAVIGATE_UP' });
-    } else if (key.downArrow || input === 'j') {
-      dispatch({ type: 'NAVIGATE_DOWN', maxIndex: filteredLogs.length - 1 });
-    } else if (input === 'g') {
-      dispatch({ type: 'NAVIGATE_TO_START' });
-    } else if (input === 'G') {
-      dispatch({ type: 'NAVIGATE_TO_END', maxIndex: filteredLogs.length - 1 });
-    } else if (key.return) {
-      if (selectedLog) {
-        dispatch({ type: 'SHOW_DETAIL' });
-      }
-    } else if (input === '/') {
-      dispatch({ type: 'ENTER_SEARCH_MODE' });
-    } else if (input === 's') {
-      cycleSeverity();
-    } else if (input === 'a') {
-      cycleAgentFilter();
-    } else if (input === 't') {
-      cycleTimeFilter();
-    } else if (input === 'c') {
-      // Clear all filters
-      dispatch({ type: 'CLEAR_ALL_FILTERS' });
-      filterBySeverity(null);
-    } else if (input === 'r') {
-      void refresh();
-    }
-  });
+  }, { isActive: searchMode || showDetail });
 
   // Show detail view
   if (showDetail && selectedLog) {
