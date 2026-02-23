@@ -477,87 +477,79 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 func runAgentList(cmd *cobra.Command, args []string) error {
 	log.Debug("agent list command started", "role", agentListRole, "json", agentListJSON)
 
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
-	}
-
-	if refreshErr := mgr.RefreshState(); refreshErr != nil {
-		log.Warn("failed to refresh agent state", "error", refreshErr)
-	}
-
-	agents := mgr.ListAgents()
-
-	// Filter by role if specified
-	if agentListRole != "" {
-		filterRole, roleErr := parseRole(agentListRole)
-		if roleErr != nil {
-			return roleErr
+	return withAgentManager(func(ctx *WorkspaceContext) error {
+		if refreshErr := ctx.Manager.RefreshState(); refreshErr != nil {
+			log.Warn("failed to refresh agent state", "error", refreshErr)
 		}
-		filtered := make([]*agent.Agent, 0, len(agents))
-		for _, a := range agents {
-			if a.Role == filterRole {
-				filtered = append(filtered, a)
-			}
-		}
-		agents = filtered
-	}
 
-	log.Debug("agents loaded", "count", len(agents))
+		agents := ctx.Manager.ListAgents()
 
-	if agentListJSON {
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		return enc.Encode(agents)
-	}
-
-	if len(agents) == 0 {
-		ui.Warning("No agents found")
+		// Filter by role if specified
 		if agentListRole != "" {
-			fmt.Printf("(filtered by role: %s)\n", agentListRole)
+			filterRole, roleErr := parseRole(agentListRole)
+			if roleErr != nil {
+				return roleErr
+			}
+			filtered := make([]*agent.Agent, 0, len(agents))
+			for _, a := range agents {
+				if a.Role == filterRole {
+					filtered = append(filtered, a)
+				}
+			}
+			agents = filtered
 		}
+
+		log.Debug("agents loaded", "count", len(agents))
+
+		if agentListJSON {
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(agents)
+		}
+
+		if len(agents) == 0 {
+			ui.Warning("No agents found")
+			if agentListRole != "" {
+				fmt.Printf("(filtered by role: %s)\n", agentListRole)
+			}
+			return nil
+		}
+
+		// Determine terminal width for task truncation
+		termWidth := 80
+		if w, _, termErr := term.GetSize(os.Stdout.Fd()); termErr == nil && w > 0 {
+			termWidth = w
+		}
+		taskWidth := termWidth - 57
+		if taskWidth < 20 {
+			taskWidth = 20
+		}
+
+		// Use pkg/ui table for consistent formatting
+		table := ui.NewTable("AGENT", "ROLE", "STATE", "UPTIME", "TASK")
+
+		for _, a := range agents {
+			uptime := "-"
+			if a.State != agent.StateStopped {
+				uptime = formatDuration(time.Since(a.StartedAt))
+			}
+
+			task := normalizeTask(a.Task)
+			if task == "" {
+				task = "-"
+			}
+			if len(task) > taskWidth {
+				task = task[:taskWidth-3] + "..."
+			}
+
+			stateStr := colorState(a.State)
+
+			table.AddRow(a.Name, string(a.Role), stateStr, uptime, task)
+		}
+
+		table.Print()
 		return nil
-	}
-
-	// Determine terminal width for task truncation
-	termWidth := 80
-	if w, _, termErr := term.GetSize(os.Stdout.Fd()); termErr == nil && w > 0 {
-		termWidth = w
-	}
-	taskWidth := termWidth - 57
-	if taskWidth < 20 {
-		taskWidth = 20
-	}
-
-	// Use pkg/ui table for consistent formatting
-	table := ui.NewTable("AGENT", "ROLE", "STATE", "UPTIME", "TASK")
-
-	for _, a := range agents {
-		uptime := "-"
-		if a.State != agent.StateStopped {
-			uptime = formatDuration(time.Since(a.StartedAt))
-		}
-
-		task := normalizeTask(a.Task)
-		if task == "" {
-			task = "-"
-		}
-		if len(task) > taskWidth {
-			task = task[:taskWidth-3] + "..."
-		}
-
-		stateStr := colorState(a.State)
-
-		table.AddRow(a.Name, string(a.Role), stateStr, uptime, task)
-	}
-
-	table.Print()
-	return nil
+	})
 }
 
 func runAgentAttach(cmd *cobra.Command, args []string) error {
