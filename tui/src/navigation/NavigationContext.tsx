@@ -6,7 +6,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo } from
 import type { ReactNode } from 'react';
 
 // View types for navigation
-export type View = 'dashboard' | 'agents' | 'channels' | 'files' | 'costs' | 'help' | 'commands' | 'roles' | 'logs' | 'worktrees' | 'workspaces' | 'demons' | 'processes' | 'memory' | 'routing';
+export type View = 'dashboard' | 'agents' | 'channels' | 'files' | 'costs' | 'help' | 'commands' | 'roles' | 'logs' | 'worktrees' | 'workspaces' | 'demons' | 'processes' | 'memory' | 'routing' | 'performance';
 
 // Tab configuration
 export interface TabConfig {
@@ -34,6 +34,7 @@ export const DEFAULT_TABS: TabConfig[] = [
   { key: '7', view: 'costs', label: 'Costs', shortLabel: 'Cost', shortcut: '7' },
   { key: '8', view: 'processes', label: 'Processes', shortLabel: 'Proc', shortcut: '8' },
   { key: '9', view: 'demons', label: 'Demons', shortLabel: 'Dmn', shortcut: '9' },
+  { key: 'P', view: 'performance', label: 'Performance', shortLabel: 'Perf', shortcut: 'P' },
   // SYSTEM section
   { key: '0', view: 'roles', label: 'Roles', shortLabel: 'Role', shortcut: '0' },
   { key: '-', view: 'worktrees', label: 'Worktrees', shortLabel: 'Tree', shortcut: '-' },

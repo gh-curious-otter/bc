@@ -24,6 +24,7 @@ export { LogsView } from './LogsView';
 export { ActivityView } from './ActivityView';
 export { ProcessesView } from './ProcessesView';
 export { DemonsView } from './DemonsView';
+export { PerformanceView } from './PerformanceView';
 
 // System views
 export { RolesView } from './RolesView';
