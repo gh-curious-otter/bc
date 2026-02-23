@@ -463,6 +463,125 @@ func TestAiderProvider(t *testing.T) {
 	}
 }
 
+// TestCheckBinaryExists tests the checkBinaryExists helper function.
+func TestCheckBinaryExists(t *testing.T) {
+	ctx := context.Background()
+
+	// Test with a binary that definitely exists (sh is on all Unix systems)
+	if !checkBinaryExists(ctx, "sh") {
+		t.Error("expected sh to exist")
+	}
+
+	// Test with a binary that definitely doesn't exist
+	if checkBinaryExists(ctx, "definitely-not-a-real-binary-12345") {
+		t.Error("expected nonexistent binary to return false")
+	}
+}
+
+// TestGetBinaryVersion tests the getBinaryVersion helper function.
+func TestGetBinaryVersion(t *testing.T) {
+	ctx := context.Background()
+
+	// Test with echo command
+	version := getBinaryVersion(ctx, "echo", "test-version")
+	if version != "test-version" {
+		t.Errorf("expected 'test-version', got %q", version)
+	}
+
+	// Test with nonexistent binary
+	version = getBinaryVersion(ctx, "definitely-not-a-real-binary-12345", "--version")
+	if version != "" {
+		t.Errorf("expected empty string for nonexistent binary, got %q", version)
+	}
+}
+
+// TestProviderIsInstalled tests IsInstalled methods across providers.
+func TestProviderIsInstalled(t *testing.T) {
+	ctx := context.Background()
+
+	// Test each provider's IsInstalled method
+	// These will return false unless the actual binaries are installed
+	providers := []Provider{
+		NewOpenCodeProvider(),
+		NewClaudeProvider(),
+		NewCodexProvider(),
+		NewOpenClawProvider(),
+		NewAiderProvider(),
+	}
+
+	for _, p := range providers {
+		t.Run(p.Name(), func(t *testing.T) {
+			// Just verify the method doesn't panic and returns a bool
+			_ = p.IsInstalled(ctx)
+		})
+	}
+}
+
+// TestProviderVersion tests Version methods across providers.
+func TestProviderVersion(t *testing.T) {
+	ctx := context.Background()
+
+	// Test each provider's Version method
+	providers := []Provider{
+		NewOpenCodeProvider(),
+		NewClaudeProvider(),
+		NewCodexProvider(),
+		NewOpenClawProvider(),
+		NewAiderProvider(),
+	}
+
+	for _, p := range providers {
+		t.Run(p.Name(), func(t *testing.T) {
+			// Just verify the method doesn't panic
+			// It will return empty string if not installed
+			_ = p.Version(ctx)
+		})
+	}
+}
+
+// TestRegistryListInstalled tests the ListInstalled method.
+func TestRegistryListInstalled(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a fresh registry
+	r := NewRegistry()
+
+	// Register some providers
+	r.Register(NewOpenCodeProvider())
+	r.Register(NewClaudeProvider())
+
+	// Test ListInstalled - result depends on what's actually installed
+	installed := r.ListInstalled(ctx)
+
+	// Verify the result is a valid slice (may be empty if nothing is installed)
+	if installed == nil {
+		// nil is valid if nothing is installed - convert to empty slice for consistency
+		installed = []Provider{}
+	}
+
+	// Each returned provider should be installed
+	for _, p := range installed {
+		if !p.IsInstalled(ctx) {
+			t.Errorf("ListInstalled returned %s but IsInstalled returns false", p.Name())
+		}
+	}
+}
+
+// TestListInstalledProviders tests the package-level ListInstalledProviders function.
+func TestListInstalledProviders(t *testing.T) {
+	ctx := context.Background()
+
+	// Get installed providers from default registry
+	installed := ListInstalledProviders(ctx)
+
+	// Verify the result is valid
+	for _, p := range installed {
+		if !p.IsInstalled(ctx) {
+			t.Errorf("ListInstalledProviders returned %s but IsInstalled returns false", p.Name())
+		}
+	}
+}
+
 func TestAiderDetectState(t *testing.T) {
 	p := NewAiderProvider()
 
