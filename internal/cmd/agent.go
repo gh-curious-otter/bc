@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -562,7 +563,7 @@ func runAgentAttach(cmd *cobra.Command, args []string) error {
 
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
 
-	if !mgr.Tmux().HasSession(agentName) {
+	if !mgr.Tmux().HasSession(context.TODO(), agentName) {
 		return fmt.Errorf("agent %q not running", agentName)
 	}
 
@@ -1004,9 +1005,9 @@ func runAgentRename(cmd *cobra.Command, args []string) error {
 	fmt.Println("✓")
 
 	// Step 2: Rename tmux session if exists
-	if mgr.Tmux().HasSession(oldName) {
+	if mgr.Tmux().HasSession(context.TODO(), oldName) {
 		fmt.Print("  Renaming tmux session... ")
-		if renameErr := mgr.Tmux().RenameSession(oldName, newName); renameErr != nil {
+		if renameErr := mgr.Tmux().RenameSession(context.TODO(), oldName, newName); renameErr != nil {
 			fmt.Println("✗")
 			log.Warn("failed to rename tmux session", "error", renameErr)
 		} else {

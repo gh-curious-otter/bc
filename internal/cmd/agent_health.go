@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -92,6 +93,7 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--alert requires --detect-stuck to be enabled")
 	}
 
+	ctx := cmd.Context()
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
 	if loadErr := mgr.LoadState(); loadErr != nil {
 		log.Warn("failed to load agent state", "error", loadErr)
@@ -135,7 +137,7 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 	// Compute health for each agent
 	healthResults := make([]AgentHealth, 0, len(agents))
 	for _, a := range agents {
-		health := computeAgentHealth(a, mgr, timeout)
+		health := computeAgentHealth(ctx, a, mgr, timeout)
 
 		// Add stuck detection if enabled
 		if agentHealthDetect && eventLog != nil {
@@ -239,7 +241,7 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func computeAgentHealth(a *agent.Agent, mgr *agent.Manager, timeout time.Duration) AgentHealth {
+func computeAgentHealth(ctx context.Context, a *agent.Agent, mgr *agent.Manager, timeout time.Duration) AgentHealth {
 	health := AgentHealth{
 		Name:        a.Name,
 		Role:        string(a.Role),
@@ -247,7 +249,7 @@ func computeAgentHealth(a *agent.Agent, mgr *agent.Manager, timeout time.Duratio
 	}
 
 	// Check tmux session
-	health.TmuxAlive = mgr.Tmux().HasSession(a.Name)
+	health.TmuxAlive = mgr.Tmux().HasSession(ctx, a.Name)
 
 	// Check state freshness
 	staleDuration := time.Since(a.UpdatedAt)

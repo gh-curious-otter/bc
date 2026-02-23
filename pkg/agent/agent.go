@@ -548,7 +548,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	// Check if already exists in our state
 	if existing, exists := m.agents[name]; exists {
 		// If its tmux session is still alive, reuse it
-		if m.tmux.HasSession(name) {
+		if m.tmux.HasSession(context.TODO(), name) {
 			// Create worktree if missing (agents created before worktree feature)
 			if existing.WorktreeDir == "" {
 				if wtDir, err := createWorktree(workspace, name); err == nil {
@@ -617,7 +617,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 			if existing.ParentID != "" {
 				env["BC_PARENT_ID"] = existing.ParentID
 			}
-			if err := m.tmux.CreateSessionWithEnv(name, sessionDir, agentCmd, env); err != nil {
+			if err := m.tmux.CreateSessionWithEnv(context.TODO(), name, sessionDir, agentCmd, env); err != nil {
 				return nil, fmt.Errorf("failed to recreate tmux session: %w", err)
 			}
 			existing.UpdatedAt = time.Now()
@@ -629,8 +629,8 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	}
 
 	// If a tmux session exists from a previous crash, kill it first
-	if m.tmux.HasSession(name) {
-		if err := m.tmux.KillSession(name); err != nil {
+	if m.tmux.HasSession(context.TODO(), name) {
+		if err := m.tmux.KillSession(context.TODO(), name); err != nil {
 			log.Warn("failed to kill existing session", "session", name, "error", err)
 		}
 	}
@@ -719,7 +719,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	}
 
 	// Create tmux session in the agent's worktree directory
-	if err := m.tmux.CreateSessionWithEnv(name, worktreeDir, agentCmd, env); err != nil {
+	if err := m.tmux.CreateSessionWithEnv(context.TODO(), name, worktreeDir, agentCmd, env); err != nil {
 		return nil, fmt.Errorf("failed to create tmux session: %w", err)
 	}
 
@@ -760,7 +760,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 
 		prompt := strings.Join(promptParts, "\n\n---\n\n")
 		prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nAgent ID: %s\n", workspace, name)
-		if err := m.tmux.SendKeys(name, prompt); err != nil {
+		if err := m.tmux.SendKeys(context.TODO(), name, prompt); err != nil {
 			log.Warn("failed to send bootstrap prompt", "agent", name, "error", err)
 		}
 	}
@@ -969,7 +969,7 @@ func (m *Manager) StopAgent(name string) error {
 	}
 
 	// Kill tmux session (ignore error - session might already be dead)
-	_ = m.tmux.KillSession(name)
+	_ = m.tmux.KillSession(context.TODO(), name)
 
 	// Note: Worktree is intentionally preserved on stop so agents can resume work.
 	// Only DeleteAgent removes the worktree permanently.
@@ -1008,7 +1008,7 @@ func (m *Manager) stopAgentTreeLocked(name string) error {
 	}
 
 	// Kill this agent's tmux session (ignore error - session might already be dead)
-	_ = m.tmux.KillSession(name)
+	_ = m.tmux.KillSession(context.TODO(), name)
 
 	agent.State = StateStopped
 	agent.UpdatedAt = time.Now()
@@ -1042,7 +1042,7 @@ func (m *Manager) DeleteAgentWithOptions(name string, opts DeleteOptions) error 
 	}
 
 	// Kill tmux session (ignore error - session might already be dead)
-	_ = m.tmux.KillSession(name)
+	_ = m.tmux.KillSession(context.TODO(), name)
 
 	// Clean up per-agent git worktree
 	if agent.WorktreeDir != "" && agent.WorktreeDir != agent.Workspace {
@@ -1125,7 +1125,7 @@ func (m *Manager) StopAll() error {
 	defer m.mu.Unlock()
 
 	for name, agent := range m.agents {
-		_ = m.tmux.KillSession(name) //nolint:errcheck // best-effort cleanup
+		_ = m.tmux.KillSession(context.TODO(), name) //nolint:errcheck // best-effort cleanup
 		agent.State = StateStopped
 		agent.UpdatedAt = time.Now()
 	}
@@ -1278,7 +1278,7 @@ func (m *Manager) RefreshState() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	sessions, err := m.tmux.ListSessions()
+	sessions, err := m.tmux.ListSessions(context.TODO())
 	if err != nil {
 		return err
 	}
@@ -1336,7 +1336,7 @@ func (m *Manager) RefreshState() error {
 
 // captureLiveTask extracts a one-line activity summary from an agent's tmux pane.
 func (m *Manager) captureLiveTask(name string) string {
-	output, err := m.tmux.Capture(name, 15)
+	output, err := m.tmux.Capture(context.TODO(), name, 15)
 	if err != nil {
 		return ""
 	}
@@ -1447,17 +1447,17 @@ func (m *Manager) SetAgentTeam(name, team string) error {
 // SendToAgent sends a message/command to an agent's session.
 // Sends Enter after the message to submit it.
 func (m *Manager) SendToAgent(name, message string) error {
-	return m.tmux.SendKeys(name, message)
+	return m.tmux.SendKeys(context.TODO(), name, message)
 }
 
 // CaptureOutput captures recent output from an agent's session.
 func (m *Manager) CaptureOutput(name string, lines int) (string, error) {
-	return m.tmux.Capture(name, lines)
+	return m.tmux.Capture(context.TODO(), name, lines)
 }
 
 // AttachToAgent returns the command to attach to an agent's session.
 func (m *Manager) AttachToAgent(name string) error {
-	cmd := m.tmux.AttachCmd(name)
+	cmd := m.tmux.AttachCmd(context.TODO(), name)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

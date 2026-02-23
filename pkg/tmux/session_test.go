@@ -411,7 +411,7 @@ func TestSessionName_WorkspacePrefix(t *testing.T) {
 
 func TestCommand_NilExecCommand(t *testing.T) {
 	m := &Manager{SessionPrefix: "bc-"}
-	cmd := m.command("echo", "hello")
+	cmd := m.command(testCtx(), "echo", "hello")
 	if cmd == nil {
 		t.Fatal("command returned nil with nil execCommand")
 	}
@@ -426,7 +426,7 @@ func TestCommand_UsesExecCommand(t *testing.T) {
 			return exec.CommandContext(context.Background(), name, arg...)
 		},
 	}
-	m.command("echo", "test")
+	m.command(testCtx(), "echo", "test")
 	if !called {
 		t.Error("command should use execCommand when set")
 	}
@@ -436,16 +436,21 @@ func TestCommand_UsesExecCommand(t *testing.T) {
 // HasSession tests
 // ---------------------------------------------------------------------------
 
+// testCtx returns a context for testing.
+func testCtx() context.Context {
+	return context.Background()
+}
+
 func TestHasSession_Exists(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "", 0))
-	if !m.HasSession("agent1") {
+	if !m.HasSession(testCtx(), "agent1") {
 		t.Error("expected HasSession to return true when tmux returns 0")
 	}
 }
 
 func TestHasSession_NotExists(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "no session", 1))
-	if m.HasSession("agent1") {
+	if m.HasSession(testCtx(), "agent1") {
 		t.Error("expected HasSession to return false when tmux returns 1")
 	}
 }
@@ -458,7 +463,7 @@ func TestCreateSession_Success(t *testing.T) {
 	mock, records := recordingMock("")
 	m := newTestManager("bc-", mock)
 
-	err := m.CreateSession("agent1", "/workspace")
+	err := m.CreateSession(testCtx(), "agent1", "/workspace")
 	if err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
@@ -485,7 +490,7 @@ func TestCreateSession_NoDir(t *testing.T) {
 	mock, records := recordingMock("")
 	m := newTestManager("bc-", mock)
 
-	if err := m.CreateSession("agent1", ""); err != nil {
+	if err := m.CreateSession(testCtx(), "agent1", ""); err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
 
@@ -496,7 +501,7 @@ func TestCreateSession_NoDir(t *testing.T) {
 
 func TestCreateSession_Error(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "duplicate session", 1))
-	err := m.CreateSession("agent1", "/workspace")
+	err := m.CreateSession(testCtx(), "agent1", "/workspace")
 	if err == nil {
 		t.Error("expected error when tmux fails")
 	}
@@ -511,14 +516,14 @@ func TestCreateSession_Error(t *testing.T) {
 
 func TestCreateSessionWithCommand_Success(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "", 0))
-	if err := m.CreateSessionWithCommand("agent1", "/workspace", "echo hello"); err != nil {
+	if err := m.CreateSessionWithCommand(testCtx(), "agent1", "/workspace", "echo hello"); err != nil {
 		t.Fatalf("CreateSessionWithCommand failed: %v", err)
 	}
 }
 
 func TestCreateSessionWithCommand_Error(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "error", 1))
-	err := m.CreateSessionWithCommand("agent1", "/workspace", "echo hello")
+	err := m.CreateSessionWithCommand(testCtx(), "agent1", "/workspace", "echo hello")
 	if err == nil {
 		t.Error("expected error")
 	}
@@ -533,7 +538,7 @@ func TestCreateSessionWithEnv_Success(t *testing.T) {
 	m := newTestManager("bc-", mock)
 
 	env := map[string]string{"FOO": "bar"}
-	err := m.CreateSessionWithEnv("agent1", "/workspace", "echo hello", env)
+	err := m.CreateSessionWithEnv(testCtx(), "agent1", "/workspace", "echo hello", env)
 	if err != nil {
 		t.Fatalf("CreateSessionWithEnv failed: %v", err)
 	}
@@ -548,7 +553,7 @@ func TestCreateSessionWithEnv_Success(t *testing.T) {
 
 func TestCreateSessionWithEnv_NilEnv(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "", 0))
-	if err := m.CreateSessionWithEnv("agent1", "/workspace", "echo hello", nil); err != nil {
+	if err := m.CreateSessionWithEnv(testCtx(), "agent1", "/workspace", "echo hello", nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -557,7 +562,7 @@ func TestCreateSessionWithEnv_NoDir(t *testing.T) {
 	mock, records := recordingMock("")
 	m := newTestManager("bc-", mock)
 
-	if err := m.CreateSessionWithEnv("agent1", "", "echo hello", nil); err != nil {
+	if err := m.CreateSessionWithEnv(testCtx(), "agent1", "", "echo hello", nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -576,7 +581,7 @@ func TestCreateSessionWithEnv_NoDir(t *testing.T) {
 
 func TestCreateSessionWithEnv_Error(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "error", 1))
-	err := m.CreateSessionWithEnv("agent1", "/workspace", "echo", nil)
+	err := m.CreateSessionWithEnv(testCtx(), "agent1", "/workspace", "echo", nil)
 	if err == nil {
 		t.Error("expected error")
 	}
@@ -590,7 +595,7 @@ func TestKillSession_Success(t *testing.T) {
 	mock, records := recordingMock("")
 	m := newTestManager("bc-", mock)
 
-	if err := m.KillSession("agent1"); err != nil {
+	if err := m.KillSession(testCtx(), "agent1"); err != nil {
 		t.Fatalf("KillSession failed: %v", err)
 	}
 
@@ -604,7 +609,7 @@ func TestKillSession_Success(t *testing.T) {
 
 func TestKillSession_Error(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "no session", 1))
-	err := m.KillSession("agent1")
+	err := m.KillSession(testCtx(), "agent1")
 	if err == nil {
 		t.Error("expected error")
 	}
@@ -621,7 +626,7 @@ func TestSendKeys_DelegatesToSendKeysWithSubmit(t *testing.T) {
 	mock, records := recordingMock("")
 	m := newTestManager("bc-", mock)
 
-	if err := m.SendKeys("agent1", "hello"); err != nil {
+	if err := m.SendKeys(testCtx(), "agent1", "hello"); err != nil {
 		t.Fatalf("SendKeys failed: %v", err)
 	}
 
@@ -639,7 +644,7 @@ func TestSendKeysWithSubmit_ShortMessage(t *testing.T) {
 	mock, records := recordingMock("")
 	m := newTestManager("bc-", mock)
 
-	if err := m.SendKeysWithSubmit("agent1", "short message", "Enter"); err != nil {
+	if err := m.SendKeysWithSubmit(testCtx(), "agent1", "short message", "Enter"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -661,7 +666,7 @@ func TestSendKeysWithSubmit_NoSubmitKey(t *testing.T) {
 	mock, records := recordingMock("")
 	m := newTestManager("bc-", mock)
 
-	if err := m.SendKeysWithSubmit("agent1", "message", ""); err != nil {
+	if err := m.SendKeysWithSubmit(testCtx(), "agent1", "message", ""); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -675,7 +680,7 @@ func TestSendKeysWithSubmit_TrimsNewlines(t *testing.T) {
 	mock, records := recordingMock("")
 	m := newTestManager("bc-", mock)
 
-	if err := m.SendKeysWithSubmit("agent1", "message\n\n\n", ""); err != nil {
+	if err := m.SendKeysWithSubmit(testCtx(), "agent1", "message\n\n\n", ""); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -694,7 +699,7 @@ func TestSendKeysWithSubmit_LongMessage(t *testing.T) {
 	m := newTestManager("bc-", mock)
 
 	longMsg := strings.Repeat("x", 501)
-	if err := m.SendKeysWithSubmit("agent1", longMsg, "Enter"); err != nil {
+	if err := m.SendKeysWithSubmit(testCtx(), "agent1", longMsg, "Enter"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -719,7 +724,7 @@ func TestSendKeysWithSubmit_LongMessageNoSubmit(t *testing.T) {
 	m := newTestManager("bc-", mock)
 
 	longMsg := strings.Repeat("x", 501)
-	if err := m.SendKeysWithSubmit("agent1", longMsg, ""); err != nil {
+	if err := m.SendKeysWithSubmit(testCtx(), "agent1", longMsg, ""); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -731,7 +736,7 @@ func TestSendKeysWithSubmit_LongMessageNoSubmit(t *testing.T) {
 
 func TestSendKeysWithSubmit_ShortMessageError(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "send error", 1))
-	err := m.SendKeysWithSubmit("agent1", "hello", "Enter")
+	err := m.SendKeysWithSubmit(testCtx(), "agent1", "hello", "Enter")
 	if err == nil {
 		t.Error("expected error")
 	}
@@ -746,7 +751,7 @@ func TestSendKeysWithSubmit_SubmitKeyError(t *testing.T) {
 		mockResponse{},
 		mockResponse{stderr: "submit error", exitCode: 1},
 	))
-	err := m.SendKeysWithSubmit("agent1", "hello", "Enter")
+	err := m.SendKeysWithSubmit(testCtx(), "agent1", "hello", "Enter")
 	if err == nil {
 		t.Error("expected error on submit key failure")
 	}
@@ -758,7 +763,7 @@ func TestSendKeysWithSubmit_SubmitKeyError(t *testing.T) {
 func TestSendKeysWithSubmit_LoadBufferError(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "buffer error", 1))
 	longMsg := strings.Repeat("x", 501)
-	err := m.SendKeysWithSubmit("agent1", longMsg, "Enter")
+	err := m.SendKeysWithSubmit(testCtx(), "agent1", longMsg, "Enter")
 	if err == nil {
 		t.Error("expected error on load-buffer failure")
 	}
@@ -774,7 +779,7 @@ func TestSendKeysWithSubmit_PasteBufferError(t *testing.T) {
 		mockResponse{stderr: "paste error", exitCode: 1},
 	))
 	longMsg := strings.Repeat("x", 501)
-	err := m.SendKeysWithSubmit("agent1", longMsg, "Enter")
+	err := m.SendKeysWithSubmit(testCtx(), "agent1", longMsg, "Enter")
 	if err == nil {
 		t.Error("expected error on paste-buffer failure")
 	}
@@ -787,7 +792,7 @@ func TestSendKeysWithSubmit_CustomSubmitKey(t *testing.T) {
 	mock, records := recordingMock("")
 	m := newTestManager("bc-", mock)
 
-	if err := m.SendKeysWithSubmit("agent1", "msg", "C-m"); err != nil {
+	if err := m.SendKeysWithSubmit(testCtx(), "agent1", "msg", "C-m"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -805,7 +810,7 @@ func TestSendKeysWithSubmit_CustomSubmitKey(t *testing.T) {
 
 func TestCapture_Success(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("pane content here\n", "", 0))
-	output, err := m.Capture("agent1", 0)
+	output, err := m.Capture(testCtx(), "agent1", 0)
 	if err != nil {
 		t.Fatalf("Capture failed: %v", err)
 	}
@@ -818,7 +823,7 @@ func TestCapture_WithLines(t *testing.T) {
 	mock, records := recordingMock("output")
 	m := newTestManager("bc-", mock)
 
-	if _, err := m.Capture("agent1", 100); err != nil {
+	if _, err := m.Capture(testCtx(), "agent1", 100); err != nil {
 		t.Fatalf("Capture failed: %v", err)
 	}
 
@@ -834,7 +839,7 @@ func TestCapture_NoLines(t *testing.T) {
 	mock, records := recordingMock("output")
 	m := newTestManager("bc-", mock)
 
-	if _, err := m.Capture("agent1", 0); err != nil {
+	if _, err := m.Capture(testCtx(), "agent1", 0); err != nil {
 		t.Fatalf("Capture failed: %v", err)
 	}
 
@@ -845,7 +850,7 @@ func TestCapture_NoLines(t *testing.T) {
 
 func TestCapture_Error(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "no session", 1))
-	_, err := m.Capture("agent1", 0)
+	_, err := m.Capture(testCtx(), "agent1", 0)
 	if err == nil {
 		t.Error("expected error")
 	}
@@ -862,7 +867,7 @@ func TestListSessions_Success(t *testing.T) {
 	sessionOutput := "bc-agent1|Thu Jan  1 00:00:00 2025|0|1|/workspace\nbc-agent2|Thu Jan  1 00:00:01 2025|1|2|/workspace\nother-session|Thu Jan  1 00:00:02 2025|0|1|/other\n"
 	m := newTestManager("bc-", mockCmd(sessionOutput, "", 0))
 
-	sessions, err := m.ListSessions()
+	sessions, err := m.ListSessions(testCtx())
 	if err != nil {
 		t.Fatalf("ListSessions failed: %v", err)
 	}
@@ -900,7 +905,7 @@ func TestListSessions_WorkspaceIsolation(t *testing.T) {
 	sessionOutput := fmt.Sprintf("bc-%s-agent1|Thu Jan  1|0|1|/workspace\nbc-otheragent2|Thu Jan  1|0|1|/workspace\n", hash)
 	m.execCommand = mockCmd(sessionOutput, "", 0)
 
-	sessions, err := m.ListSessions()
+	sessions, err := m.ListSessions(testCtx())
 	if err != nil {
 		t.Fatalf("ListSessions failed: %v", err)
 	}
@@ -915,7 +920,7 @@ func TestListSessions_WorkspaceIsolation(t *testing.T) {
 
 func TestListSessions_Empty(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "", 0))
-	sessions, err := m.ListSessions()
+	sessions, err := m.ListSessions(testCtx())
 	if err != nil {
 		t.Fatalf("ListSessions failed: %v", err)
 	}
@@ -929,7 +934,7 @@ func TestListSessions_ExitError_ReturnsEmpty(t *testing.T) {
 	// running, socket not found), ListSessions treats it as "no sessions"
 	// rather than propagating the error.
 	m := newTestManager("bc-", mockCmd("", "", 1))
-	sessions, err := m.ListSessions()
+	sessions, err := m.ListSessions(testCtx())
 	if err != nil {
 		t.Errorf("expected nil error for exit error, got: %v", err)
 	}
@@ -943,7 +948,7 @@ func TestListSessions_MalformedLine(t *testing.T) {
 	sessionOutput := "bc-agent1|too|few\nbc-agent2|Thu Jan  1|0|1|/workspace\n"
 	m := newTestManager("bc-", mockCmd(sessionOutput, "", 0))
 
-	sessions, err := m.ListSessions()
+	sessions, err := m.ListSessions(testCtx())
 	if err != nil {
 		t.Fatalf("ListSessions failed: %v", err)
 	}
@@ -959,7 +964,7 @@ func TestListSessions_NoMatchingPrefix(t *testing.T) {
 	sessionOutput := "other-session1|Thu Jan  1|0|1|/dir\nfoo-session2|Thu Jan  1|0|1|/dir\n"
 	m := newTestManager("bc-", mockCmd(sessionOutput, "", 0))
 
-	sessions, err := m.ListSessions()
+	sessions, err := m.ListSessions(testCtx())
 	if err != nil {
 		t.Fatalf("ListSessions failed: %v", err)
 	}
@@ -974,7 +979,7 @@ func TestListSessions_NoMatchingPrefix(t *testing.T) {
 
 func TestAttachCmd(t *testing.T) {
 	m := &Manager{SessionPrefix: "bc-", execCommand: exec.Command}
-	cmd := m.AttachCmd("agent1")
+	cmd := m.AttachCmd(testCtx(), "agent1")
 	if cmd == nil {
 		t.Fatal("AttachCmd returned nil")
 	}
@@ -992,7 +997,7 @@ func TestAttachCmd(t *testing.T) {
 func TestAttachCmd_WorkspaceManager(t *testing.T) {
 	m := NewWorkspaceManager("bc-", "/workspace")
 	m.execCommand = exec.Command
-	cmd := m.AttachCmd("agent1")
+	cmd := m.AttachCmd(testCtx(), "agent1")
 	expectedName := m.SessionName("agent1")
 	if !sliceContains(cmd.Args, expectedName) {
 		t.Errorf("args should contain full session name %q: %v", expectedName, cmd.Args)
@@ -1005,21 +1010,21 @@ func TestAttachCmd_WorkspaceManager(t *testing.T) {
 
 func TestIsRunning_True(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("session1\n", "", 0))
-	if !m.IsRunning() {
+	if !m.IsRunning(testCtx()) {
 		t.Error("expected IsRunning to return true when tmux exits 0")
 	}
 }
 
 func TestIsRunning_NoServer(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "no server running on /tmp/tmux-501/default", 1))
-	if m.IsRunning() {
+	if m.IsRunning(testCtx()) {
 		t.Error("expected IsRunning to return false when no server running")
 	}
 }
 
 func TestIsRunning_OtherError(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "permission denied", 1))
-	if m.IsRunning() {
+	if m.IsRunning(testCtx()) {
 		t.Error("expected IsRunning to return false on error")
 	}
 }
@@ -1030,14 +1035,14 @@ func TestIsRunning_OtherError(t *testing.T) {
 
 func TestKillServer_Success(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "", 0))
-	if err := m.KillServer(); err != nil {
+	if err := m.KillServer(testCtx()); err != nil {
 		t.Fatalf("KillServer failed: %v", err)
 	}
 }
 
 func TestKillServer_Error(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "", 1))
-	if err := m.KillServer(); err == nil {
+	if err := m.KillServer(testCtx()); err == nil {
 		t.Error("expected error")
 	}
 }
@@ -1050,7 +1055,7 @@ func TestSetEnvironment_Success(t *testing.T) {
 	mock, records := recordingMock("")
 	m := newTestManager("bc-", mock)
 
-	if err := m.SetEnvironment("agent1", "MY_VAR", "my_value"); err != nil {
+	if err := m.SetEnvironment(testCtx(), "agent1", "MY_VAR", "my_value"); err != nil {
 		t.Fatalf("SetEnvironment failed: %v", err)
 	}
 
@@ -1070,7 +1075,7 @@ func TestSetEnvironment_Success(t *testing.T) {
 
 func TestSetEnvironment_Error(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "", 1))
-	if err := m.SetEnvironment("agent1", "KEY", "VALUE"); err == nil {
+	if err := m.SetEnvironment(testCtx(), "agent1", "KEY", "VALUE"); err == nil {
 		t.Error("expected error")
 	}
 }
@@ -1100,7 +1105,7 @@ func TestCreateSessionWithEnv_ValidKeys(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := newTestManager("bc-", mockCmd("", "", 0))
 			env := map[string]string{tt.key: "value"}
-			err := m.CreateSessionWithEnv("agent1", "/workspace", "echo", env)
+			err := m.CreateSessionWithEnv(testCtx(), "agent1", "/workspace", "echo", env)
 			if err != nil {
 				t.Errorf("expected valid key %q to be accepted, got error: %v", tt.key, err)
 			}
@@ -1134,7 +1139,7 @@ func TestCreateSessionWithEnv_InvalidKeys_ShellInjection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := newTestManager("bc-", mockCmd("", "", 0))
 			env := map[string]string{tt.key: "value"}
-			err := m.CreateSessionWithEnv("agent1", "/workspace", "echo", env)
+			err := m.CreateSessionWithEnv(testCtx(), "agent1", "/workspace", "echo", env)
 			if err == nil {
 				t.Errorf("expected invalid key %q to be rejected", tt.key)
 			}
@@ -1161,7 +1166,7 @@ func TestSetEnvironment_ValidKeys(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := newTestManager("bc-", mockCmd("", "", 0))
-			err := m.SetEnvironment("agent1", tt.key, "value")
+			err := m.SetEnvironment(testCtx(), "agent1", tt.key, "value")
 			if err != nil {
 				t.Errorf("expected valid key %q to be accepted, got error: %v", tt.key, err)
 			}
@@ -1186,7 +1191,7 @@ func TestSetEnvironment_InvalidKeys_ShellInjection(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := newTestManager("bc-", mockCmd("", "", 0))
-			err := m.SetEnvironment("agent1", tt.key, "value")
+			err := m.SetEnvironment(testCtx(), "agent1", tt.key, "value")
 			if err == nil {
 				t.Errorf("expected invalid key %q to be rejected", tt.key)
 			}
@@ -1207,11 +1212,11 @@ func TestPrefixIsolation(t *testing.T) {
 	mA := newTestManager("prefix-a-", mockCmd(sessionOutput, "", 0))
 	mB := newTestManager("prefix-b-", mockCmd(sessionOutput, "", 0))
 
-	sessionsA, err := mA.ListSessions()
+	sessionsA, err := mA.ListSessions(testCtx())
 	if err != nil {
 		t.Fatalf("ListSessions A: %v", err)
 	}
-	sessionsB, err := mB.ListSessions()
+	sessionsB, err := mB.ListSessions(testCtx())
 	if err != nil {
 		t.Fatalf("ListSessions B: %v", err)
 	}
@@ -1289,13 +1294,13 @@ func TestSendKeysPreservesSpaces(t *testing.T) {
 			time.Sleep(200 * time.Millisecond)
 
 			// Send message WITHOUT submit key (text stays in input line)
-			if err := m.SendKeysWithSubmit(sessionName, tt.message, ""); err != nil {
+			if err := m.SendKeysWithSubmit(testCtx(), sessionName, tt.message, ""); err != nil {
 				t.Fatalf("SendKeysWithSubmit failed: %v", err)
 			}
 
 			time.Sleep(200 * time.Millisecond)
 
-			captured, err := m.Capture(sessionName, 10)
+			captured, err := m.Capture(testCtx(), sessionName, 10)
 			if err != nil {
 				t.Fatalf("Capture failed: %v", err)
 			}
@@ -1347,13 +1352,13 @@ func TestPasteBufferPreservesSpaces(t *testing.T) {
 
 	time.Sleep(200 * time.Millisecond)
 
-	if err := m.SendKeysWithSubmit(sessionName, message, ""); err != nil {
+	if err := m.SendKeysWithSubmit(testCtx(), sessionName, message, ""); err != nil {
 		t.Fatalf("SendKeysWithSubmit failed: %v", err)
 	}
 
 	time.Sleep(500 * time.Millisecond)
 
-	captured, err := m.Capture(sessionName, 50)
+	captured, err := m.Capture(testCtx(), sessionName, 50)
 	if err != nil {
 		t.Fatalf("Capture failed: %v", err)
 	}
@@ -1403,7 +1408,7 @@ func TestHasSession_CacheHit(t *testing.T) {
 	m := newCachingTestManager("bc-", mock)
 
 	// First call should query tmux
-	if !m.HasSession("agent1") {
+	if !m.HasSession(testCtx(), "agent1") {
 		t.Error("first call should return true")
 	}
 	if callCount != 1 {
@@ -1411,7 +1416,7 @@ func TestHasSession_CacheHit(t *testing.T) {
 	}
 
 	// Second call should hit cache (no additional tmux call)
-	if !m.HasSession("agent1") {
+	if !m.HasSession(testCtx(), "agent1") {
 		t.Error("second call should return true")
 	}
 	if callCount != 1 {
@@ -1430,7 +1435,7 @@ func TestHasSession_CacheMissAfterTTL(t *testing.T) {
 	m.cacheTTL = 10 * time.Millisecond // Short TTL for testing
 
 	// First call
-	m.HasSession("agent1")
+	m.HasSession(testCtx(), "agent1")
 	if callCount != 1 {
 		t.Fatalf("expected 1 call, got %d", callCount)
 	}
@@ -1439,7 +1444,7 @@ func TestHasSession_CacheMissAfterTTL(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 
 	// Should query tmux again
-	m.HasSession("agent1")
+	m.HasSession(testCtx(), "agent1")
 	if callCount != 2 {
 		t.Errorf("expected 2 calls after TTL expiry, got %d", callCount)
 	}
@@ -1455,18 +1460,18 @@ func TestHasSession_CacheInvalidatedOnCreateSession(t *testing.T) {
 	m := newCachingTestManager("bc-", mock)
 
 	// Populate cache
-	m.HasSession("agent1")
+	m.HasSession(testCtx(), "agent1")
 	if callCount != 1 {
 		t.Fatalf("expected 1 call, got %d", callCount)
 	}
 
 	// Create a new session (should invalidate cache)
-	if err := m.CreateSession("agent2", "/workspace"); err != nil {
+	if err := m.CreateSession(testCtx(), "agent2", "/workspace"); err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
 
 	// HasSession should query tmux again (cache invalidated)
-	m.HasSession("agent1")
+	m.HasSession(testCtx(), "agent1")
 	if callCount != 3 { // 1 (first HasSession) + 1 (CreateSession) + 1 (second HasSession)
 		t.Errorf("expected 3 calls after cache invalidation, got %d", callCount)
 	}
@@ -1482,16 +1487,16 @@ func TestHasSession_CacheInvalidatedOnKillSession(t *testing.T) {
 	m := newCachingTestManager("bc-", mock)
 
 	// Populate cache
-	m.HasSession("agent1")
+	m.HasSession(testCtx(), "agent1")
 	initialCount := callCount
 
 	// Kill a session (should invalidate cache)
-	if err := m.KillSession("agent2"); err != nil {
+	if err := m.KillSession(testCtx(), "agent2"); err != nil {
 		t.Fatalf("KillSession failed: %v", err)
 	}
 
 	// HasSession should query tmux again
-	m.HasSession("agent1")
+	m.HasSession(testCtx(), "agent1")
 	expectedCalls := initialCount + 2 // +1 for KillSession, +1 for HasSession after invalidation
 	if callCount != expectedCalls {
 		t.Errorf("expected %d calls after cache invalidation, got %d", expectedCalls, callCount)
@@ -1509,7 +1514,7 @@ func TestListSessions_CacheHit(t *testing.T) {
 	m := newCachingTestManager("bc-", mock)
 
 	// First call should query tmux
-	sessions1, err := m.ListSessions()
+	sessions1, err := m.ListSessions(testCtx())
 	if err != nil {
 		t.Fatalf("ListSessions failed: %v", err)
 	}
@@ -1521,7 +1526,7 @@ func TestListSessions_CacheHit(t *testing.T) {
 	}
 
 	// Second call should hit cache
-	sessions2, err := m.ListSessions()
+	sessions2, err := m.ListSessions(testCtx())
 	if err != nil {
 		t.Fatalf("ListSessions failed: %v", err)
 	}
@@ -1545,7 +1550,7 @@ func TestListSessions_CacheMissAfterTTL(t *testing.T) {
 	m.cacheTTL = 10 * time.Millisecond
 
 	// First call
-	_, _ = m.ListSessions() //nolint:errcheck // test: verifying call count
+	_, _ = m.ListSessions(testCtx()) //nolint:errcheck // test: verifying call count
 	if callCount != 1 {
 		t.Fatalf("expected 1 call, got %d", callCount)
 	}
@@ -1554,7 +1559,7 @@ func TestListSessions_CacheMissAfterTTL(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 
 	// Should query tmux again
-	_, _ = m.ListSessions() //nolint:errcheck // test: verifying call count
+	_, _ = m.ListSessions(testCtx()) //nolint:errcheck // test: verifying call count
 	if callCount != 2 {
 		t.Errorf("expected 2 calls after TTL expiry, got %d", callCount)
 	}
@@ -1571,17 +1576,17 @@ func TestListSessions_CacheInvalidatedOnCreateSession(t *testing.T) {
 	m := newCachingTestManager("bc-", mock)
 
 	// Populate cache
-	_, _ = m.ListSessions() //nolint:errcheck // test: verifying call count
+	_, _ = m.ListSessions(testCtx()) //nolint:errcheck // test: verifying call count
 	if callCount != 1 {
 		t.Fatalf("expected 1 call, got %d", callCount)
 	}
 
 	// Create session (should invalidate cache)
-	_ = m.CreateSession("agent2", "/workspace") //nolint:errcheck // test: verifying cache invalidation
+	_ = m.CreateSession(testCtx(), "agent2", "/workspace") //nolint:errcheck // test: verifying cache invalidation
 
 	// ListSessions should query tmux again
-	_, _ = m.ListSessions() //nolint:errcheck // test: verifying call count
-	if callCount != 3 {     // 1 (ListSessions) + 1 (CreateSession) + 1 (ListSessions after invalidation)
+	_, _ = m.ListSessions(testCtx()) //nolint:errcheck // test: verifying call count
+	if callCount != 3 {              // 1 (ListSessions) + 1 (CreateSession) + 1 (ListSessions after invalidation)
 		t.Errorf("expected 3 calls after cache invalidation, got %d", callCount)
 	}
 }
@@ -1590,8 +1595,8 @@ func TestListSessions_ReturnsCopy(t *testing.T) {
 	sessionOutput := "bc-agent1|Thu Jan  1|0|1|/workspace\n"
 	m := newCachingTestManager("bc-", mockCmd(sessionOutput, "", 0))
 
-	sessions1, _ := m.ListSessions()
-	sessions2, _ := m.ListSessions()
+	sessions1, _ := m.ListSessions(testCtx())
+	sessions2, _ := m.ListSessions(testCtx())
 
 	// Modify the first result
 	if len(sessions1) > 0 {
@@ -1616,7 +1621,7 @@ func TestCache_ConcurrentAccess(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			m.HasSession("agent1")
+			m.HasSession(testCtx(), "agent1")
 		}()
 	}
 
@@ -1625,7 +1630,7 @@ func TestCache_ConcurrentAccess(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := m.ListSessions()
+			_, err := m.ListSessions(testCtx())
 			if err != nil {
 				errors <- err
 			}
@@ -1682,14 +1687,14 @@ func TestCache_RenameSessionInvalidatesCache(t *testing.T) {
 	m := newCachingTestManager("bc-", mock)
 
 	// Populate cache
-	m.HasSession("agent1")
+	m.HasSession(testCtx(), "agent1")
 	initialCount := callCount
 
 	// Rename session (should invalidate cache)
-	_ = m.RenameSession("agent1", "agent1-renamed") //nolint:errcheck // test: verifying cache invalidation
+	_ = m.RenameSession(testCtx(), "agent1", "agent1-renamed") //nolint:errcheck // test: verifying cache invalidation
 
 	// HasSession should query tmux again
-	m.HasSession("agent1")
+	m.HasSession(testCtx(), "agent1")
 	expectedCalls := initialCount + 2 // +1 for Rename, +1 for HasSession after invalidation
 	if callCount != expectedCalls {
 		t.Errorf("expected %d calls after RenameSession, got %d", expectedCalls, callCount)
@@ -1706,14 +1711,14 @@ func TestCache_KillServerInvalidatesCache(t *testing.T) {
 	m := newCachingTestManager("bc-", mock)
 
 	// Populate cache
-	m.HasSession("agent1")
+	m.HasSession(testCtx(), "agent1")
 	initialCount := callCount
 
 	// Kill server (should invalidate cache)
-	_ = m.KillServer() //nolint:errcheck // test: verifying cache invalidation
+	_ = m.KillServer(testCtx()) //nolint:errcheck // test: verifying cache invalidation
 
 	// HasSession should query tmux again
-	m.HasSession("agent1")
+	m.HasSession(testCtx(), "agent1")
 	expectedCalls := initialCount + 2 // +1 for KillServer, +1 for HasSession after invalidation
 	if callCount != expectedCalls {
 		t.Errorf("expected %d calls after KillServer, got %d", expectedCalls, callCount)

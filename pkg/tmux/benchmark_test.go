@@ -126,7 +126,7 @@ func BenchmarkHasSession_CacheHit(b *testing.B) {
 	m.cacheMu.Unlock()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = m.HasSession("test-session")
+		_ = m.HasSession(context.Background(), "test-session")
 	}
 }
 
@@ -144,7 +144,7 @@ func BenchmarkListSessions_CacheHit(b *testing.B) {
 	m.cacheMu.Unlock()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = m.ListSessions()
+		_, _ = m.ListSessions(context.Background())
 	}
 }
 
