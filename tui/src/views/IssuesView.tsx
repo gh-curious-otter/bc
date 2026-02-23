@@ -48,9 +48,9 @@ function formatRelativeDate(dateStr: string): string {
 
     if (diffDays === 0) return 'today';
     if (diffDays === 1) return 'yesterday';
-    if (diffDays < 7) return `${diffDays}d ago`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
-    return `${Math.floor(diffDays / 30)}mo ago`;
+    if (diffDays < 7) return `${String(diffDays)}d ago`;
+    if (diffDays < 30) return `${String(Math.floor(diffDays / 7))}w ago`;
+    return `${String(Math.floor(diffDays / 30))}mo ago`;
   } catch {
     return dateStr;
   }
@@ -132,7 +132,7 @@ export function IssuesView(_props: IssuesViewProps = {}): React.ReactElement {
   useEffect(() => {
     if (showDetail && selectedIssue) {
       setFocus('view');
-      setBreadcrumbs([{ label: `#${selectedIssue.number}` }]);
+      setBreadcrumbs([{ label: `#${String(selectedIssue.number)}` }]);
     } else {
       setFocus('main');
       clearBreadcrumbs();
@@ -153,7 +153,7 @@ export function IssuesView(_props: IssuesViewProps = {}): React.ReactElement {
   if (showDetail && selectedIssue) {
     return (
       <Box flexDirection="column" padding={1}>
-        <Panel title={`Issue #${selectedIssue.number}`} borderColor="cyan">
+        <Panel title={`Issue #${String(selectedIssue.number)}`} borderColor="cyan">
           <Box flexDirection="column">
             {/* Title */}
             <Box marginBottom={1}>
@@ -269,7 +269,7 @@ export function IssuesView(_props: IssuesViewProps = {}): React.ReactElement {
         />
 
         {/* Filter indicators */}
-        {(labelFilter || stateFilter !== 'open') && (
+        {(labelFilter !== null || stateFilter !== 'open') && (
           <Box marginBottom={1} paddingX={1}>
             {labelFilter && (
               <Text color={getLabelColor(labelFilter)}>
@@ -298,7 +298,7 @@ export function IssuesView(_props: IssuesViewProps = {}): React.ReactElement {
             {filteredIssues.length === 0 ? (
               <Box padding={1} flexDirection="column">
                 <Text dimColor>No issues found</Text>
-                <Text dimColor>Create an issue with: bc issue create --title "..."</Text>
+                <Text dimColor>Create an issue with: bc issue create --title {'"'}...{'"'}</Text>
               </Box>
             ) : (
               <>
