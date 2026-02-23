@@ -1,5 +1,6 @@
 /**
  * WorkspaceSelectorView - Workspace discovery and selection (#922)
+ * Issue #1750: Migrated to useListNavigation hook
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -8,6 +9,7 @@ import { getWorkspaces } from '../services/bc';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
+import { useListNavigation } from '../hooks';
 import type { DiscoveredWorkspace } from '../types';
 
 interface WorkspaceSelectorViewProps {
@@ -36,7 +38,6 @@ export const WorkspaceSelectorView: React.FC<WorkspaceSelectorViewProps> = ({
   const [workspaces, setWorkspaces] = useState<DiscoveredWorkspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [showDetail, setShowDetail] = useState(false);
   const [filterV2Only, setFilterV2Only] = useState(false);
 
@@ -78,8 +79,42 @@ export const WorkspaceSelectorView: React.FC<WorkspaceSelectorViewProps> = ({
     [filteredWorkspaces]
   );
 
-  const selectedWorkspace = filteredWorkspaces[selectedIndex] as DiscoveredWorkspace | undefined;
   const v2Count = workspaces.filter((ws) => ws.is_v2).length;
+
+  // #1750: Handle selection - either call onSelect prop or show detail view
+  const handleSelect = useCallback((workspace: DiscoveredWorkspace) => {
+    if (onSelect) {
+      onSelect(workspace);
+    } else {
+      setShowDetail(true);
+    }
+  }, [onSelect]);
+
+  // #1750: Handle back navigation
+  const handleBack = useCallback(() => {
+    setFocus('main');
+    goHome();
+  }, [setFocus, goHome]);
+
+  // #1750: Use useListNavigation hook for vim-style navigation
+  const {
+    selectedIndex,
+    selectedItem: selectedWorkspace,
+    setSelectedIndex,
+  } = useListNavigation({
+    items: filteredWorkspaces,
+    onSelect: handleSelect,
+    onBack: handleBack,
+    customKeys: {
+      'v': () => {
+        setFilterV2Only(!filterV2Only);
+        setSelectedIndex(0);
+      },
+      'r': () => { void fetchWorkspaces(); },
+    },
+    // Disable navigation when showing details
+    isActive: !showDetail,
+  });
 
   // Manage breadcrumbs for nested view navigation (#1604)
   useEffect(() => {
@@ -90,42 +125,15 @@ export const WorkspaceSelectorView: React.FC<WorkspaceSelectorViewProps> = ({
     }
   }, [showDetail, selectedWorkspace, setBreadcrumbs, clearBreadcrumbs]);
 
-  // Keyboard navigation
-  useInput((input, key) => {
-    if (showDetail) {
+  // Handle detail view keyboard input
+  useInput(
+    (input, key) => {
       if (key.escape || input === 'q' || key.return) {
         setShowDetail(false);
       }
-      return;
-    }
-
-    // List navigation
-    if (key.upArrow || input === 'k') {
-      setSelectedIndex((i) => Math.max(0, i - 1));
-    } else if (key.downArrow || input === 'j') {
-      setSelectedIndex((i) => Math.min(filteredWorkspaces.length - 1, i + 1));
-    } else if (input === 'g') {
-      setSelectedIndex(0);
-    } else if (input === 'G') {
-      setSelectedIndex(Math.max(0, filteredWorkspaces.length - 1));
-    } else if (key.return) {
-      if (selectedWorkspace) {
-        if (onSelect) {
-          onSelect(selectedWorkspace);
-        } else {
-          setShowDetail(true);
-        }
-      }
-    } else if (input === 'v') {
-      setFilterV2Only(!filterV2Only);
-      setSelectedIndex(0);
-    } else if (input === 'r') {
-      void fetchWorkspaces();
-    } else if (input === 'q' || key.escape) {
-      setFocus('main');
-      goHome();
-    }
-  });
+    },
+    { isActive: showDetail }
+  );
 
   // Detail view
   if (showDetail && selectedWorkspace) {
