@@ -94,117 +94,117 @@ func TestMockCommandExecutor(t *testing.T) {
 
 // MockSessionManager is a test double for SessionManager.
 type MockSessionManager struct {
-	HasSessionFunc           func(name string) bool
-	CreateSessionFunc        func(name, dir string) error
-	CreateSessionWithCmdFunc func(name, dir, command string) error
-	CreateSessionWithEnvFunc func(name, dir, command string, env map[string]string) error
-	KillSessionFunc          func(name string) error
-	RenameSessionFunc        func(oldName, newName string) error
-	SendKeysFunc             func(name, keys string) error
-	SendKeysWithSubmitFunc   func(name, keys, submitKey string) error
-	CaptureFunc              func(name string, lines int) (string, error)
-	ListSessionsFunc         func() ([]Session, error)
-	AttachCmdFunc            func(name string) *exec.Cmd
-	IsRunningFunc            func() bool
-	KillServerFunc           func() error
-	SetEnvironmentFunc       func(name, key, value string) error
+	HasSessionFunc           func(ctx context.Context, name string) bool
+	CreateSessionFunc        func(ctx context.Context, name, dir string) error
+	CreateSessionWithCmdFunc func(ctx context.Context, name, dir, command string) error
+	CreateSessionWithEnvFunc func(ctx context.Context, name, dir, command string, env map[string]string) error
+	KillSessionFunc          func(ctx context.Context, name string) error
+	RenameSessionFunc        func(ctx context.Context, oldName, newName string) error
+	SendKeysFunc             func(ctx context.Context, name, keys string) error
+	SendKeysWithSubmitFunc   func(ctx context.Context, name, keys, submitKey string) error
+	CaptureFunc              func(ctx context.Context, name string, lines int) (string, error)
+	ListSessionsFunc         func(ctx context.Context) ([]Session, error)
+	AttachCmdFunc            func(ctx context.Context, name string) *exec.Cmd
+	IsRunningFunc            func(ctx context.Context) bool
+	KillServerFunc           func(ctx context.Context) error
+	SetEnvironmentFunc       func(ctx context.Context, name, key, value string) error
 	SessionNameFunc          func(name string) string
 }
 
-func (m *MockSessionManager) HasSession(name string) bool {
+func (m *MockSessionManager) HasSession(ctx context.Context, name string) bool {
 	if m.HasSessionFunc != nil {
-		return m.HasSessionFunc(name)
+		return m.HasSessionFunc(ctx, name)
 	}
 	return false
 }
 
-func (m *MockSessionManager) CreateSession(name, dir string) error {
+func (m *MockSessionManager) CreateSession(ctx context.Context, name, dir string) error {
 	if m.CreateSessionFunc != nil {
-		return m.CreateSessionFunc(name, dir)
+		return m.CreateSessionFunc(ctx, name, dir)
 	}
 	return nil
 }
 
-func (m *MockSessionManager) CreateSessionWithCommand(name, dir, command string) error {
+func (m *MockSessionManager) CreateSessionWithCommand(ctx context.Context, name, dir, command string) error {
 	if m.CreateSessionWithCmdFunc != nil {
-		return m.CreateSessionWithCmdFunc(name, dir, command)
+		return m.CreateSessionWithCmdFunc(ctx, name, dir, command)
 	}
 	return nil
 }
 
-func (m *MockSessionManager) CreateSessionWithEnv(name, dir, command string, env map[string]string) error {
+func (m *MockSessionManager) CreateSessionWithEnv(ctx context.Context, name, dir, command string, env map[string]string) error {
 	if m.CreateSessionWithEnvFunc != nil {
-		return m.CreateSessionWithEnvFunc(name, dir, command, env)
+		return m.CreateSessionWithEnvFunc(ctx, name, dir, command, env)
 	}
 	return nil
 }
 
-func (m *MockSessionManager) KillSession(name string) error {
+func (m *MockSessionManager) KillSession(ctx context.Context, name string) error {
 	if m.KillSessionFunc != nil {
-		return m.KillSessionFunc(name)
+		return m.KillSessionFunc(ctx, name)
 	}
 	return nil
 }
 
-func (m *MockSessionManager) RenameSession(oldName, newName string) error {
+func (m *MockSessionManager) RenameSession(ctx context.Context, oldName, newName string) error {
 	if m.RenameSessionFunc != nil {
-		return m.RenameSessionFunc(oldName, newName)
+		return m.RenameSessionFunc(ctx, oldName, newName)
 	}
 	return nil
 }
 
-func (m *MockSessionManager) SendKeys(name, keys string) error {
+func (m *MockSessionManager) SendKeys(ctx context.Context, name, keys string) error {
 	if m.SendKeysFunc != nil {
-		return m.SendKeysFunc(name, keys)
+		return m.SendKeysFunc(ctx, name, keys)
 	}
 	return nil
 }
 
-func (m *MockSessionManager) SendKeysWithSubmit(name, keys, submitKey string) error {
+func (m *MockSessionManager) SendKeysWithSubmit(ctx context.Context, name, keys, submitKey string) error {
 	if m.SendKeysWithSubmitFunc != nil {
-		return m.SendKeysWithSubmitFunc(name, keys, submitKey)
+		return m.SendKeysWithSubmitFunc(ctx, name, keys, submitKey)
 	}
 	return nil
 }
 
-func (m *MockSessionManager) Capture(name string, lines int) (string, error) {
+func (m *MockSessionManager) Capture(ctx context.Context, name string, lines int) (string, error) {
 	if m.CaptureFunc != nil {
-		return m.CaptureFunc(name, lines)
+		return m.CaptureFunc(ctx, name, lines)
 	}
 	return "", nil
 }
 
-func (m *MockSessionManager) ListSessions() ([]Session, error) {
+func (m *MockSessionManager) ListSessions(ctx context.Context) ([]Session, error) {
 	if m.ListSessionsFunc != nil {
-		return m.ListSessionsFunc()
+		return m.ListSessionsFunc(ctx)
 	}
 	return nil, nil
 }
 
-func (m *MockSessionManager) AttachCmd(name string) *exec.Cmd {
+func (m *MockSessionManager) AttachCmd(ctx context.Context, name string) *exec.Cmd {
 	if m.AttachCmdFunc != nil {
-		return m.AttachCmdFunc(name)
+		return m.AttachCmdFunc(ctx, name)
 	}
 	return nil
 }
 
-func (m *MockSessionManager) IsRunning() bool {
+func (m *MockSessionManager) IsRunning(ctx context.Context) bool {
 	if m.IsRunningFunc != nil {
-		return m.IsRunningFunc()
+		return m.IsRunningFunc(ctx)
 	}
 	return false
 }
 
-func (m *MockSessionManager) KillServer() error {
+func (m *MockSessionManager) KillServer(ctx context.Context) error {
 	if m.KillServerFunc != nil {
-		return m.KillServerFunc()
+		return m.KillServerFunc(ctx)
 	}
 	return nil
 }
 
-func (m *MockSessionManager) SetEnvironment(name, key, value string) error {
+func (m *MockSessionManager) SetEnvironment(ctx context.Context, name, key, value string) error {
 	if m.SetEnvironmentFunc != nil {
-		return m.SetEnvironmentFunc(name, key, value)
+		return m.SetEnvironmentFunc(ctx, name, key, value)
 	}
 	return nil
 }
@@ -220,24 +220,26 @@ func TestMockSessionManager(t *testing.T) {
 	// Verify MockSessionManager implements SessionManager
 	var _ SessionManager = &MockSessionManager{}
 
+	ctx := context.Background()
+
 	// Test with custom implementations
 	mock := &MockSessionManager{
-		HasSessionFunc: func(name string) bool {
+		HasSessionFunc: func(_ context.Context, name string) bool {
 			return name == "exists"
 		},
-		CaptureFunc: func(name string, lines int) (string, error) {
+		CaptureFunc: func(_ context.Context, name string, lines int) (string, error) {
 			return "captured output", nil
 		},
 	}
 
-	if !mock.HasSession("exists") {
+	if !mock.HasSession(ctx, "exists") {
 		t.Error("MockSessionManager.HasSession(exists) = false, want true")
 	}
-	if mock.HasSession("notexists") {
+	if mock.HasSession(ctx, "notexists") {
 		t.Error("MockSessionManager.HasSession(notexists) = true, want false")
 	}
 
-	output, err := mock.Capture("test", 10)
+	output, err := mock.Capture(ctx, "test", 10)
 	if err != nil {
 		t.Errorf("MockSessionManager.Capture() error = %v, want nil", err)
 	}

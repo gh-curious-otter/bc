@@ -2,6 +2,7 @@
 package tmux
 
 import (
+	"context"
 	"os/exec"
 )
 
@@ -29,33 +30,33 @@ func DefaultExecutor() CommandExecutor {
 // This allows agent code to work with mock implementations in tests.
 type SessionManager interface {
 	// HasSession checks if a session exists.
-	HasSession(name string) bool
+	HasSession(ctx context.Context, name string) bool
 	// CreateSession creates a new tmux session.
-	CreateSession(name, dir string) error
+	CreateSession(ctx context.Context, name, dir string) error
 	// CreateSessionWithCommand creates a session and runs a command.
-	CreateSessionWithCommand(name, dir, command string) error
+	CreateSessionWithCommand(ctx context.Context, name, dir, command string) error
 	// CreateSessionWithEnv creates a session with env vars baked into the shell command.
-	CreateSessionWithEnv(name, dir, command string, env map[string]string) error
+	CreateSessionWithEnv(ctx context.Context, name, dir, command string, env map[string]string) error
 	// KillSession kills a tmux session.
-	KillSession(name string) error
+	KillSession(ctx context.Context, name string) error
 	// RenameSession renames a tmux session.
-	RenameSession(oldName, newName string) error
+	RenameSession(ctx context.Context, oldName, newName string) error
 	// SendKeys sends keys to a session with Enter as submit key.
-	SendKeys(name, keys string) error
+	SendKeys(ctx context.Context, name, keys string) error
 	// SendKeysWithSubmit sends keys to a session with a specified submit key.
-	SendKeysWithSubmit(name, keys, submitKey string) error
+	SendKeysWithSubmit(ctx context.Context, name, keys, submitKey string) error
 	// Capture captures the current pane content.
-	Capture(name string, lines int) (string, error)
+	Capture(ctx context.Context, name string, lines int) (string, error)
 	// ListSessions lists all sessions with our prefix.
-	ListSessions() ([]Session, error)
+	ListSessions(ctx context.Context) ([]Session, error)
 	// AttachCmd returns an exec.Cmd to attach to a session.
-	AttachCmd(name string) *exec.Cmd
+	AttachCmd(ctx context.Context, name string) *exec.Cmd
 	// IsRunning checks if tmux server is running.
-	IsRunning() bool
+	IsRunning(ctx context.Context) bool
 	// KillServer kills the tmux server (all sessions).
-	KillServer() error
+	KillServer(ctx context.Context) error
 	// SetEnvironment sets an environment variable in a session.
-	SetEnvironment(name, key, value string) error
+	SetEnvironment(ctx context.Context, name, key, value string) error
 	// SessionName returns the full session name with prefix.
 	SessionName(name string) string
 }
