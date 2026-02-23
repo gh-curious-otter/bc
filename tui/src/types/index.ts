@@ -314,3 +314,35 @@ export interface RoutingRule {
 export interface RoutingConfig {
   rules: RoutingRule[];
 }
+
+// Agent health status from bc agent health --json
+export interface AgentHealth {
+  name: string;
+  role: string;
+  status: 'healthy' | 'degraded' | 'stuck' | 'error';
+  last_updated: string;
+  tmux_alive: boolean;
+  state_fresh: boolean;
+  stale_duration?: string;
+  error_message?: string;
+  is_stuck?: boolean;
+  stuck_reason?: string;
+  stuck_details?: string;
+}
+
+// Agent stats from bc stats --json
+export interface AgentStats {
+  name: string;
+  role: string;
+  state: AgentState;
+  uptime: number;
+}
+
+// Stats response from bc stats --json
+export interface StatsResponse {
+  collected_at: string;
+  workspace_path: string;
+  agents: {
+    agent_stats: AgentStats[];
+  };
+}

@@ -772,3 +772,33 @@ export async function clearMemory(agentName: string): Promise<void> {
 export async function exportMemory(agentName: string): Promise<string> {
   return await execBc(['memory', 'export', agentName]);
 }
+
+// ============================================================================
+// Performance / Observability (#1759)
+// ============================================================================
+
+import type { AgentHealth, StatsResponse } from '../types';
+
+/**
+ * Get agent health status
+ * @returns Array of agent health status objects
+ */
+export async function getAgentHealth(): Promise<AgentHealth[]> {
+  try {
+    return await execBcJsonCached<AgentHealth[]>(['agent', 'health'], 10000);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Get workspace stats
+ * @returns Stats response with agent stats
+ */
+export async function getStats(): Promise<StatsResponse | null> {
+  try {
+    return await execBcJsonCached<StatsResponse>(['stats'], 10000);
+  } catch {
+    return null;
+  }
+}

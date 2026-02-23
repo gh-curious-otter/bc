@@ -35,7 +35,7 @@ const DRAWER_SECTIONS: DrawerSection[] = [
   },
   {
     title: 'MONITOR',
-    views: ['logs', 'costs', 'processes', 'demons'],
+    views: ['logs', 'costs', 'processes', 'demons', 'performance'],
   },
   {
     title: 'SYSTEM',

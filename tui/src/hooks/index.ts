@@ -231,3 +231,11 @@ export {
   type UseDebouncedSearchOptions,
   type UseDebouncedSearchResult,
 } from './useDebounce';
+
+export {
+  useSystemHealth,
+  type SystemHealthData,
+  type SystemHealthSummary,
+  type UseSystemHealthOptions,
+  type UseSystemHealthResult,
+} from './useSystemHealth';

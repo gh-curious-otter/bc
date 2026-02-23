@@ -32,6 +32,7 @@ export { WorktreesView } from './WorktreesView';
 export { WorkspaceSelectorView } from './WorkspaceSelectorView';
 export { MemoryView } from './MemoryView';
 export { RoutingView } from './RoutingView';
+export { PerformanceView } from './PerformanceView';
 
 // Setup & utilities
 export { SetupWizard } from './SetupWizard';
