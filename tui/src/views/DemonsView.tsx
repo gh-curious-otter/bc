@@ -3,9 +3,9 @@
  * Issue #554 - Demons list view
  */
 
-import React, { useState, useEffect } from 'react';
-import { Box, Text, useInput } from 'ink';
-import { useDemons, useDebounce, useDisableInput } from '../hooks';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Box, Text } from 'ink';
+import { useDemons, useDebounce, useDisableInput, useListNavigation } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { StatusBadge } from '../components/StatusBadge';
 import { HeaderBar } from '../components/HeaderBar';
@@ -83,26 +83,14 @@ export function DemonsView(_props: DemonsViewProps = {}): React.ReactElement {
   const { isDisabled: disableInput } = useDisableInput();
   const { data: demons, loading, error, enabled, refresh, enable, disable, run } = useDemons();
   const { setFocus } = useFocus();
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [actionError, setActionError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchMode, setSearchMode] = useState(false);
 
   // Debounce search query for filtering (issue #1602)
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  // Manage focus state for search mode (#1692)
-  // When in search mode, set focus='input' to allow typing special chars
-  useEffect(() => {
-    if (searchMode) {
-      setFocus('input');
-    } else {
-      setFocus('main');
-    }
-  }, [searchMode, setFocus]);
-
   // Filter demons by search query (using debounced query for performance)
-  const filteredDemons = React.useMemo(() => {
+  const filteredDemons = useMemo(() => {
     const list = demons ?? [];
     if (!debouncedSearchQuery) return list;
     const query = debouncedSearchQuery.toLowerCase();
@@ -114,6 +102,64 @@ export function DemonsView(_props: DemonsViewProps = {}): React.ReactElement {
     );
   }, [demons, debouncedSearchQuery]);
 
+  // Refs to avoid stale closures in customKeys callbacks
+  const filteredDemonsRef = useRef(filteredDemons);
+  const selectedIndexRef = useRef(0);
+  useEffect(() => { filteredDemonsRef.current = filteredDemons; }, [filteredDemons]);
+
+  // #1731: Use useListNavigation hook for keyboard navigation
+  // Stable customKeys that use refs to access current state
+  const customKeys = useMemo(() => ({
+    e: () => {
+      const demon = filteredDemonsRef.current[selectedIndexRef.current] as Demon | undefined;
+      if (demon !== undefined) {
+        enable(demon.name).catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          setActionError(`Enable failed: ${message}`);
+        });
+      }
+    },
+    D: () => {
+      const demon = filteredDemonsRef.current[selectedIndexRef.current] as Demon | undefined;
+      if (demon !== undefined) {
+        disable(demon.name).catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          setActionError(`Disable failed: ${message}`);
+        });
+      }
+    },
+    x: () => {
+      const demon = filteredDemonsRef.current[selectedIndexRef.current] as Demon | undefined;
+      if (demon !== undefined) {
+        run(demon.name).catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          setActionError(`Run failed: ${message}`);
+        });
+      }
+    },
+    r: () => { void refresh(); },
+  }), [enable, disable, run, refresh]);
+
+  const { selectedIndex, search } = useListNavigation<Demon>({
+    items: filteredDemons,
+    disabled: disableInput,
+    enableSearch: true,
+    onSearchChange: setSearchQuery,
+    customKeys,
+  });
+
+  // Keep selectedIndexRef in sync
+  useEffect(() => { selectedIndexRef.current = selectedIndex; }, [selectedIndex]);
+
+  // Manage focus state for search mode (#1692)
+  useEffect(() => {
+    if (search.isActive) {
+      setFocus('input');
+    } else {
+      setFocus('main');
+    }
+  }, [search.isActive, setFocus]);
+
   // Auto-clear action errors after a delay
   useEffect(() => {
     if (!actionError) return;
@@ -121,100 +167,14 @@ export function DemonsView(_props: DemonsViewProps = {}): React.ReactElement {
     return () => { clearTimeout(timer); };
   }, [actionError]);
 
-  useInput(
-    (input, key) => {
-      // Search mode input handling
-      if (searchMode) {
-        if (key.return || key.escape) {
-          setSearchMode(false);
-        } else if (key.backspace || key.delete) {
-          setSearchQuery(searchQuery.slice(0, -1));
-        } else if (input && !key.ctrl && !key.meta) {
-          setSearchQuery(searchQuery + input);
-        }
-        return;
-      }
-
-      if (filteredDemons.length === 0) {
-        // Only allow search and quit when no demons
-        if (input === '/') {
-          setSearchMode(true);
-        }
-        if (input === 'c' && searchQuery) {
-          setSearchQuery('');
-          setSelectedIndex(0);
-        }
-        if (input === 'r') {
-          void refresh();
-        }
-        return;
-      }
-
-      // Navigation
-      if (input === 'j' || key.downArrow) {
-        setSelectedIndex((prev) => Math.min(prev + 1, filteredDemons.length - 1));
-      }
-      if (input === 'k' || key.upArrow) {
-        setSelectedIndex((prev) => Math.max(prev - 1, 0));
-      }
-      if (input === 'g') {
-        setSelectedIndex(0);
-      }
-      if (input === 'G') {
-        setSelectedIndex(filteredDemons.length - 1);
-      }
-
-      // Search actions
-      if (input === '/') {
-        setSearchMode(true);
-      }
-      if (input === 'c' && searchQuery) {
-        setSearchQuery('');
-        setSelectedIndex(0);
-      }
-
-      // Actions
-      if (input === 'r') {
-        void refresh();
-      }
-
-      // Demon-specific actions
-      const selectedDemon = filteredDemons[selectedIndex] as typeof filteredDemons[number] | undefined;
-      if (selectedDemon) {
-        if (input === 'e') {
-          // Enable demon
-          enable(selectedDemon.name).catch((err: unknown) => {
-            const message = err instanceof Error ? err.message : String(err);
-            setActionError(`Enable failed: ${message}`);
-          });
-        }
-        if (input === 'D') {
-          // Disable demon (changed to D to avoid conflict with 'd' for delete pattern)
-          disable(selectedDemon.name).catch((err: unknown) => {
-            const message = err instanceof Error ? err.message : String(err);
-            setActionError(`Disable failed: ${message}`);
-          });
-        }
-        if (input === 'x') {
-          // Execute demon
-          run(selectedDemon.name).catch((err: unknown) => {
-            const message = err instanceof Error ? err.message : String(err);
-            setActionError(`Run failed: ${message}`);
-          });
-        }
-      }
-    },
-    { isActive: !disableInput }
-  );
-
   // Search mode overlay
-  if (searchMode) {
+  if (search.isActive) {
     return (
       <Box flexDirection="column" padding={1}>
         <Text bold>Search Demons</Text>
         <Box marginTop={1} borderStyle="single" borderColor="cyan" paddingX={1}>
           <Text color="cyan">{'> '}</Text>
-          <Text>{searchQuery}</Text>
+          <Text>{search.query}</Text>
           <Text color="cyan">|</Text>
         </Box>
         <Box marginTop={1}>
@@ -229,7 +189,7 @@ export function DemonsView(_props: DemonsViewProps = {}): React.ReactElement {
     { key: 'j/k', label: 'nav' },
     { key: 'g/G', label: 'top/bottom' },
     { key: '/', label: 'search' },
-    ...(searchQuery ? [{ key: 'c', label: 'clear' }] : []),
+    ...(search.query ? [{ key: 'c', label: 'clear' }] : []),
     { key: 'e', label: 'enable' },
     { key: 'D', label: 'disable' },
     { key: 'x', label: 'run' },
@@ -239,8 +199,8 @@ export function DemonsView(_props: DemonsViewProps = {}): React.ReactElement {
 
   // Build subtitle with enabled count and search
   const subtitleParts: string[] = [`${String(enabled)} enabled`];
-  if (searchQuery) {
-    subtitleParts.push(`[/] "${searchQuery}"`);
+  if (search.query) {
+    subtitleParts.push(`[/] "${search.query}"`);
   }
 
   return (
@@ -291,8 +251,8 @@ export function DemonsView(_props: DemonsViewProps = {}): React.ReactElement {
         </Box>
       ) : (
         <Box flexDirection="column" paddingY={2}>
-          <Text dimColor>{searchQuery ? 'No demons match search' : 'No demons configured'}</Text>
-          {!searchQuery && <Text dimColor>Create one with: bc demon create {'<name>'} --schedule {'\'<cron>\''} --cmd {'\'<command>\''}</Text>}
+          <Text dimColor>{search.query ? 'No demons match search' : 'No demons configured'}</Text>
+          {!search.query && <Text dimColor>Create one with: bc demon create {'<name>'} --schedule {'\'<cron>\''} --cmd {'\'<command>\''}</Text>}
         </Box>
       )}
 
