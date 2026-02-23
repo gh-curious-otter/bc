@@ -30,7 +30,6 @@ import { FilesView } from './views/FilesView';
 import { DemonsView } from './views/DemonsView';
 import { ProcessesView } from './views/ProcessesView';
 import { MemoryView } from './views/MemoryView';
-import { RoutingView } from './views/RoutingView';
 import { PerformanceView } from './views/PerformanceView';
 import { HelpView } from './views/HelpView';
 import { IssuesView } from './views/IssuesView';
@@ -253,8 +252,6 @@ const ViewContent = memo(function ViewContent({ view }: ViewContentProps): React
       return <ProcessesView />;
     case 'memory':
       return <MemoryView />;
-    case 'routing':
-      return <RoutingView />;
     case 'performance':
       return <PerformanceView />;
     case 'help':

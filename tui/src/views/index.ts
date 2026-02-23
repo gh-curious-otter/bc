@@ -32,7 +32,6 @@ export { TeamsView } from './TeamsView';
 export { WorktreesView } from './WorktreesView';
 export { WorkspaceSelectorView } from './WorkspaceSelectorView';
 export { MemoryView } from './MemoryView';
-export { RoutingView } from './RoutingView';
 
 // Setup & utilities
 export { SetupWizard } from './SetupWizard';

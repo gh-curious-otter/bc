@@ -22,14 +22,14 @@ export interface UseKeyboardNavigationOptions {
  * - Tab/Shift+Tab cycles views
  * - ? shows help
  * - M goes to Memory view
- * - R goes to Routing view (when not in view mode)
  * - ESC goes back/home
  * - Ctrl+R refreshes all data
  * - q quits the application
  *
  * Issue #1467: Removed 1-9 number shortcuts.
  * Navigation now uses j/k + Enter in Drawer component.
- * Issue #1686: Added M and R shortcuts for Memory/Routing views.
+ * Issue #1686: Added M shortcut for Memory view.
+ * Issue #1765: Removed Routing tab (unused static data).
  */
 export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}): void {
   const { disabled = false, onQuit, onRefresh, onCommandPalette } = options;
@@ -58,7 +58,7 @@ export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}
 
       // Issue #1467: Removed 1-9 number shortcuts
       // Navigation now uses j/k + Enter in Drawer component
-      // Global shortcuts: ? (help), M (memory), R (routing)
+      // Global shortcuts: ? (help), M (memory)
       if (input === '?') {
         const helpTab = getTabByKey('?');
         if (helpTab) {
@@ -72,16 +72,6 @@ export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}
         const memoryTab = getTabByKey('M');
         if (memoryTab) {
           navigate(memoryTab.view);
-          return;
-        }
-      }
-
-      // R: go to Routing view (skip when local view handles it) (#1686)
-      // Note: Some views use 'r' for refresh, so we use uppercase 'R'
-      if (input === 'R' && !isFocused('view')) {
-        const routingTab = getTabByKey('R');
-        if (routingTab) {
-          navigate(routingTab.view);
           return;
         }
       }

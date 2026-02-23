@@ -78,7 +78,6 @@ export interface KeybindingConfig {
 /** Default global view shortcuts (uppercase = view navigation) */
 export const DEFAULT_VIEW_SHORTCUTS: Record<string, View> = {
   'M': 'memory',
-  'R': 'routing',
 };
 
 /** Default number key mappings */
