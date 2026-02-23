@@ -2,6 +2,7 @@
 package agent
 
 import (
+	"context"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -62,17 +63,17 @@ func DefaultFileSystem() FileSystem {
 // This interface matches the subset of tmux.Manager methods used by the agent package.
 type TmuxManager interface {
 	// HasSession checks if a session exists.
-	HasSession(name string) bool
+	HasSession(ctx context.Context, name string) bool
 	// CreateSessionWithEnv creates a session with env vars baked into the shell command.
-	CreateSessionWithEnv(name, dir, command string, env map[string]string) error
+	CreateSessionWithEnv(ctx context.Context, name, dir, command string, env map[string]string) error
 	// KillSession kills a tmux session.
-	KillSession(name string) error
+	KillSession(ctx context.Context, name string) error
 	// SendKeys sends keys to a session.
-	SendKeys(name, keys string) error
+	SendKeys(ctx context.Context, name, keys string) error
 	// Capture captures the current pane content.
-	Capture(name string, lines int) (string, error)
+	Capture(ctx context.Context, name string, lines int) (string, error)
 	// ListSessions lists all sessions with our prefix.
-	ListSessions() ([]tmux.Session, error)
+	ListSessions(ctx context.Context) ([]tmux.Session, error)
 	// AttachCmd returns an exec.Cmd to attach to a session.
-	AttachCmd(name string) *exec.Cmd
+	AttachCmd(ctx context.Context, name string) *exec.Cmd
 }
