@@ -160,6 +160,7 @@ var (
 	costWorkspaceFlag bool
 	costModelFlag     bool
 	costLimitFlag     int
+	costOffsetFlag    int
 
 	// Projection flags
 	projectDurationFlag string
@@ -185,6 +186,7 @@ var (
 
 func init() {
 	costShowCmd.Flags().IntVarP(&costLimitFlag, "limit", "n", 20, "Number of records to show")
+	costShowCmd.Flags().IntVar(&costOffsetFlag, "offset", 0, "Number of records to skip (for pagination)")
 	costShowCmd.Flags().StringVar(&costShowAgentFlag, "agent", "", "Filter by agent (alternative to positional argument)")
 
 	costSummaryCmd.Flags().StringVar(&costTeamFlag, "team", "", "Show summary for a specific team")
@@ -252,6 +254,9 @@ func runCostShow(cmd *cobra.Command, args []string) error {
 	if cmd.Flags().Changed("limit") && costLimitFlag <= 0 {
 		return fmt.Errorf("limit must be a positive number")
 	}
+	if cmd.Flags().Changed("offset") && costOffsetFlag < 0 {
+		return fmt.Errorf("offset must be non-negative")
+	}
 
 	store, err := getCostStore()
 	if err != nil {
@@ -265,11 +270,25 @@ func runCostShow(cmd *cobra.Command, args []string) error {
 		agentID = args[0]
 	}
 
+	// Get total count for pagination hint
+	var totalCount int64
+	if agentID != "" {
+		summary, summaryErr := store.AgentSummary(agentID)
+		if summaryErr == nil && summary != nil {
+			totalCount = summary.RecordCount
+		}
+	} else {
+		summary, summaryErr := store.WorkspaceSummary()
+		if summaryErr == nil && summary != nil {
+			totalCount = summary.RecordCount
+		}
+	}
+
 	var records []*cost.Record
 	if agentID != "" {
-		records, err = store.GetByAgent(agentID, costLimitFlag)
+		records, err = store.GetByAgentWithOffset(agentID, costLimitFlag, costOffsetFlag)
 	} else {
-		records, err = store.GetAll(costLimitFlag)
+		records, err = store.GetAllWithOffset(costLimitFlag, costOffsetFlag)
 	}
 
 	if err != nil {
@@ -335,7 +354,23 @@ func runCostShow(cmd *cobra.Command, args []string) error {
 		)
 	}
 
-	return w.Flush()
+	if flushErr := w.Flush(); flushErr != nil {
+		return flushErr
+	}
+
+	// Show pagination hint if there are more records than displayed
+	if totalCount > 0 {
+		startIdx := costOffsetFlag + 1
+		endIdx := costOffsetFlag + len(records)
+		if int64(endIdx) < totalCount {
+			fmt.Printf("\nShowing %d-%d of %d entries. Use --limit and --offset for more.\n", startIdx, endIdx, totalCount)
+		} else if costOffsetFlag > 0 {
+			// Show count when using offset even if we've reached the end
+			fmt.Printf("\nShowing %d-%d of %d entries.\n", startIdx, endIdx, totalCount)
+		}
+	}
+
+	return nil
 }
 
 func runCostSummary(cmd *cobra.Command, args []string) error {
