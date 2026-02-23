@@ -34,5 +34,8 @@ export { RoutingView } from './RoutingView';
 // Setup & utilities
 export { SetupWizard } from './SetupWizard';
 
+// Help
+export { HelpView } from './HelpView';
+
 // Re-export sub-components from complex views
 export * from './agents';
