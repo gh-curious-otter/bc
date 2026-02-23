@@ -9,6 +9,7 @@ import {
   useNavigation,
   useKeyboardNavigation,
   Drawer,
+  TopTabBar,
   Breadcrumb,
   FocusProvider,
   type View,
@@ -178,12 +179,22 @@ function AppContent({ themeConfig }: AppContentProps): React.ReactElement {
     Math.floor((terminalWidth - UI_ELEMENTS.COMMAND_PALETTE_WIDTH) / 2)
   );
 
+  // #1755: Use top tab bar for XL terminals (>=140 cols), drawer for narrower
+  const useTopTabBar = layout.isXL;
+
   return (
     <Box flexDirection="column" padding={1} width={terminalWidth} height={terminalHeight} overflow="hidden">
-      {/* Main layout: drawer + content + detail pane */}
+      {/* #1755: Top tab bar navigation for wide terminals */}
+      {useTopTabBar && (
+        <Box marginBottom={1}>
+          <TopTabBar showSections />
+        </Box>
+      )}
+
+      {/* Main layout: drawer + content (or just content with top tabs) */}
       <Box flexDirection="row" flexGrow={1}>
-        {/* Left drawer navigation - controlled by responsive layout (#1326) */}
-        {layout.drawer.visible && (
+        {/* Left drawer navigation - only for non-XL terminals (#1755) */}
+        {!useTopTabBar && layout.drawer.visible && (
           <Drawer
             disabled={disableInput || showCommandPalette}
             shrunk={layout.drawer.shrunk}
@@ -192,7 +203,7 @@ function AppContent({ themeConfig }: AppContentProps): React.ReactElement {
         )}
 
         {/* Center content area - #1611 fix: Add overflow="hidden" to prevent content overflow */}
-        <Box flexDirection="column" flexGrow={1} paddingLeft={layout.drawer.visible ? 1 : 0} overflow="hidden">
+        <Box flexDirection="column" flexGrow={1} paddingLeft={!useTopTabBar && layout.drawer.visible ? 1 : 0} overflow="hidden">
           {/* Breadcrumb navigation (shows path when navigated deep) */}
           <Breadcrumb />
 
