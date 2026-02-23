@@ -307,12 +307,15 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
 
         {/* Role rows */}
         {filteredRoles.length === 0 ? (
-          <Box paddingX={1} marginTop={1}>
+          <Box paddingX={1} marginTop={1} flexDirection="column">
             <Text dimColor>
               {searchQuery.length > 0
                 ? `No roles match "${searchQuery}"`
-                : 'No roles defined'}
+                : 'No roles defined.'}
             </Text>
+            {searchQuery.length === 0 && (
+              <Text dimColor>Create one at: .bc/roles/&lt;name&gt;.md</Text>
+            )}
           </Box>
         ) : (
           filteredRoles.map((role, idx) => (

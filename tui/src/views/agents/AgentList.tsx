@@ -67,12 +67,31 @@ export function AgentList({
   ];
 
   if (!groupedView) {
+    // Show helpful empty state message (#1607)
+    if (agents.length === 0) {
+      return (
+        <Box flexDirection="column" padding={1}>
+          <Text dimColor>No agents yet.</Text>
+          <Text dimColor>Create one with: bc agent create --role &lt;role&gt;</Text>
+        </Box>
+      );
+    }
     return (
       <Table
         data={agents}
         columns={columns}
         selectedIndex={selectedIndex}
       />
+    );
+  }
+
+  // Show helpful empty state for grouped view (#1607)
+  if (items.length === 0) {
+    return (
+      <Box flexDirection="column" padding={1}>
+        <Text dimColor>No agents yet.</Text>
+        <Text dimColor>Create one with: bc agent create --role &lt;role&gt;</Text>
+      </Box>
     );
   }
 

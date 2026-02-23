@@ -142,7 +142,10 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
           />
         ))}
         {(!channels || channels.length === 0) && (
-          <Text dimColor>No channels found</Text>
+          <Box flexDirection="column">
+            <Text dimColor>No channels yet.</Text>
+            <Text dimColor>Create one with: bc channel create &lt;name&gt;</Text>
+          </Box>
         )}
       </Box>
     </Box>

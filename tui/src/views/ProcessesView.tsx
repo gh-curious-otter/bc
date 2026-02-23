@@ -282,8 +282,9 @@ export function ProcessesView(): React.ReactElement {
         color="blue"
       />
       {processList.length === 0 ? (
-        <Box padding={1}>
-          <Text dimColor>{searchQuery ? 'No processes match search' : 'No processes running'}</Text>
+        <Box padding={1} flexDirection="column">
+          <Text dimColor>{searchQuery ? 'No processes match search' : 'No processes running.'}</Text>
+          {!searchQuery && <Text dimColor>Start one with: bc process start &lt;name&gt; &lt;command&gt;</Text>}
         </Box>
       ) : (
         <>

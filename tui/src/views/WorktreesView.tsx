@@ -330,8 +330,9 @@ export const WorktreesView: React.FC = () => {
         })}
 
         {filteredWorktrees.length === 0 && (
-          <Box padding={1}>
-            <Text dimColor>No worktrees found</Text>
+          <Box padding={1} flexDirection="column">
+            <Text dimColor>No worktrees found.</Text>
+            <Text dimColor>Worktrees are created automatically when agents start.</Text>
           </Box>
         )}
       </Box>
