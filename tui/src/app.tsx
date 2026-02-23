@@ -265,6 +265,7 @@ const ViewContent = memo(function ViewContent({ view }: ViewContentProps): React
  *
  * Issue #1461: Combines view-specific hints (from ViewWrapper via context)
  * with universal hints (Tab, ?, q). This eliminates duplicate hint bars.
+ * Issue #1683: Responsive hints that wrap/condense at narrow widths
  * #1596: Memoized to prevent unnecessary re-renders
  */
 const Footer = memo(function Footer(): React.ReactElement {
@@ -272,19 +273,32 @@ const Footer = memo(function Footer(): React.ReactElement {
   const { currentView } = useNavigation();
   const { viewHints } = useHintsContext();
   const { hints: universalHints } = useKeybindingHints(currentView, 'normal');
+  const { isXS, isSM, responsive } = useResponsiveLayout();
 
-  // #1596: Memoize formatted hints string
-  const formatted = useMemo(() => {
-    const allHints = [...viewHints, ...universalHints];
-    return allHints
-      .map((h) => `[${h.key}] ${h.label}`)
-      .join('  ');
-  }, [viewHints, universalHints]);
+  // #1683: At narrow widths, show fewer hints to prevent overflow
+  const allHints = useMemo(() => {
+    const combined = [...viewHints, ...universalHints];
+    // XS/SM: Show only essential hints (first 3-4)
+    const maxHints = responsive({ xs: 3, sm: 4, md: 6, default: combined.length });
+    return combined.slice(0, maxHints);
+  }, [viewHints, universalHints, responsive]);
+
+  // #1683: Use flexWrap for proper hint wrapping at narrow widths
+  const isNarrow = isXS || isSM;
 
   return (
-    <Box marginTop={1} justifyContent="space-between">
-      <Text dimColor>{formatted}</Text>
-      <Text dimColor>Theme: {theme.name}</Text>
+    <Box marginTop={1} flexDirection="row" flexWrap="wrap" justifyContent="space-between">
+      <Box flexWrap="wrap" flexGrow={1}>
+        {allHints.map((h, idx) => (
+          <Box key={h.key} marginRight={isNarrow ? 1 : 2}>
+            <Text dimColor>[</Text>
+            <Text dimColor bold>{h.key}</Text>
+            <Text dimColor>] {isNarrow && h.label.length > 6 ? h.label.slice(0, 5) + '…' : h.label}</Text>
+            {idx < allHints.length - 1 && !isNarrow && <Text dimColor> </Text>}
+          </Box>
+        ))}
+      </Box>
+      {!isXS && <Text dimColor>Theme: {theme.name}</Text>}
     </Box>
   );
 });
