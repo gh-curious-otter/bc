@@ -15,30 +15,34 @@ import (
 
 // SchedulerStatus represents the current state of the scheduler.
 type SchedulerStatus struct {
-	StartedAt time.Time `json:"started_at,omitempty"`
-	Uptime    string    `json:"uptime,omitempty"`
-	PID       int       `json:"pid,omitempty"`
-	Running   bool      `json:"running"`
+	StartedAt     time.Time `json:"started_at,omitempty"`
+	LastHeartbeat time.Time `json:"last_heartbeat,omitempty"`
+	Uptime        string    `json:"uptime,omitempty"`
+	PID           int       `json:"pid,omitempty"`
+	Running       bool      `json:"running"`
+	Healthy       bool      `json:"healthy"`
 }
 
 // Scheduler manages the demon scheduler process.
 type Scheduler struct {
-	rootDir    string
-	demonsDir  string
-	pidFile    string
-	logFile    string
-	statusFile string
+	rootDir       string
+	demonsDir     string
+	pidFile       string
+	logFile       string
+	statusFile    string
+	heartbeatFile string
 }
 
 // NewScheduler creates a new scheduler instance.
 func NewScheduler(rootDir string) *Scheduler {
 	demonsDir := filepath.Join(rootDir, ".bc", "demons")
 	return &Scheduler{
-		rootDir:    rootDir,
-		demonsDir:  demonsDir,
-		pidFile:    filepath.Join(demonsDir, "scheduler.pid"),
-		logFile:    filepath.Join(demonsDir, "scheduler.log"),
-		statusFile: filepath.Join(demonsDir, "scheduler.json"),
+		rootDir:       rootDir,
+		demonsDir:     demonsDir,
+		pidFile:       filepath.Join(demonsDir, "scheduler.pid"),
+		logFile:       filepath.Join(demonsDir, "scheduler.log"),
+		statusFile:    filepath.Join(demonsDir, "scheduler.json"),
+		heartbeatFile: filepath.Join(demonsDir, "scheduler.heartbeat"),
 	}
 }
 
@@ -138,6 +142,7 @@ func (s *Scheduler) Stop() error {
 	// Clean up files
 	_ = os.Remove(s.pidFile)
 	_ = os.Remove(s.statusFile)
+	_ = os.Remove(s.heartbeatFile)
 
 	return nil
 }
@@ -146,7 +151,7 @@ func (s *Scheduler) Stop() error {
 func (s *Scheduler) Status() (*SchedulerStatus, error) {
 	pid, err := s.readPID()
 	if err != nil {
-		return &SchedulerStatus{Running: false}, nil
+		return &SchedulerStatus{Running: false, Healthy: false}, nil
 	}
 
 	// Check if process is actually running
@@ -154,17 +159,15 @@ func (s *Scheduler) Status() (*SchedulerStatus, error) {
 		// Clean up stale PID file
 		_ = os.Remove(s.pidFile)
 		_ = os.Remove(s.statusFile)
-		return &SchedulerStatus{Running: false}, nil
+		_ = os.Remove(s.heartbeatFile)
+		return &SchedulerStatus{Running: false, Healthy: false}, nil
 	}
 
 	// Read status file for start time
 	status, err := s.loadStatus()
 	if err != nil {
 		// Fallback: process is running but no status file
-		return &SchedulerStatus{
-			Running: true,
-			PID:     pid,
-		}, nil
+		status = &SchedulerStatus{}
 	}
 
 	status.Running = true
@@ -173,7 +176,28 @@ func (s *Scheduler) Status() (*SchedulerStatus, error) {
 		status.Uptime = time.Since(status.StartedAt).Truncate(time.Second).String()
 	}
 
+	// Check heartbeat for health status
+	status.LastHeartbeat, status.Healthy = s.readHeartbeat()
+
 	return status, nil
+}
+
+// readHeartbeat reads the heartbeat file and returns the timestamp and health status.
+// The scheduler is considered healthy if the heartbeat is less than 60 seconds old.
+func (s *Scheduler) readHeartbeat() (time.Time, bool) {
+	data, err := os.ReadFile(s.heartbeatFile) //nolint:gosec // path from trusted dir
+	if err != nil {
+		return time.Time{}, false
+	}
+
+	timestamp, err := time.Parse(time.RFC3339, string(data))
+	if err != nil {
+		return time.Time{}, false
+	}
+
+	// Healthy if heartbeat is less than 60 seconds old (2x the 30-second tick)
+	healthy := time.Since(timestamp) < 60*time.Second
+	return timestamp, healthy
 }
 
 // IsRunning checks if the scheduler is currently running.
@@ -196,17 +220,28 @@ func (s *Scheduler) RunLoop(ctx context.Context) error {
 	s.log("Scheduler started")
 
 	// Run immediately on start, then on ticker
+	s.writeHeartbeat()
 	s.checkAndRunDemons(store)
 
 	for {
 		select {
 		case <-ctx.Done():
 			s.log("Scheduler stopping")
+			// Clean up heartbeat file on graceful shutdown
+			_ = os.Remove(s.heartbeatFile)
 			return ctx.Err()
 		case <-ticker.C:
+			s.writeHeartbeat()
 			s.checkAndRunDemons(store)
 		}
 	}
+}
+
+// writeHeartbeat writes the current timestamp to the heartbeat file.
+// This allows external tools to verify the scheduler is actively running.
+func (s *Scheduler) writeHeartbeat() {
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+	_ = os.WriteFile(s.heartbeatFile, []byte(timestamp), 0600) //nolint:errcheck,gosec // best-effort heartbeat
 }
 
 // checkAndRunDemons checks all enabled demons and runs any that are due.
