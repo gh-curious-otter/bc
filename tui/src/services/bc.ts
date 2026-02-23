@@ -229,7 +229,8 @@ function getTtlForCommand(args: string[]): number {
 export async function execBc(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     // Always add --json flag if not present and command supports it
-    const jsonCommands = ['status', 'stats', 'channel', 'cost', 'logs', 'agent', 'process', 'demon', 'team', 'role', 'worktree'];
+    // #1756: Added 'memory' to fix Memory tab showing nothing
+    const jsonCommands = ['status', 'stats', 'channel', 'cost', 'logs', 'agent', 'process', 'demon', 'team', 'role', 'worktree', 'memory'];
     const hasJsonFlag = args.includes('--json');
     const command = args[0];
 
