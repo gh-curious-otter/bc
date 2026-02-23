@@ -59,6 +59,12 @@ func (s *StateStore) Save(state *AgentState) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	return s.saveLocked(state)
+}
+
+// saveLocked persists an agent's state to disk without acquiring the lock.
+// Caller must hold s.mu.Lock().
+func (s *StateStore) saveLocked(state *AgentState) error {
 	if err := s.EnsureDir(); err != nil {
 		return fmt.Errorf("failed to create agents directory: %w", err)
 	}
@@ -151,24 +157,62 @@ func (s *StateStore) List() ([]string, error) {
 	return names, nil
 }
 
-// LoadAll reads all agent states from disk.
+// LoadAll reads all agent states from disk atomically.
+// Holds the read lock for the entire operation to prevent race conditions
+// where agents could be added, deleted, or modified between list and load.
 func (s *StateStore) LoadAll() ([]*AgentState, error) {
-	names, err := s.List()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	entries, err := os.ReadDir(s.agentsDir)
 	if err != nil {
-		return nil, err
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to read agents directory: %w", err)
 	}
 
 	var states []*AgentState
-	for _, name := range names {
-		state, err := s.Load(name)
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		// Only include .json files, skip temp files
+		if filepath.Ext(name) != ".json" || name[0] == '.' {
+			continue
+		}
+
+		agentName := name[:len(name)-5] // strip .json
+		state, err := s.loadLocked(agentName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load agent %s: %w", name, err)
+			return nil, fmt.Errorf("failed to load agent %s: %w", agentName, err)
 		}
 		if state != nil {
 			states = append(states, state)
 		}
 	}
 	return states, nil
+}
+
+// loadLocked reads an agent's state from disk without acquiring the lock.
+// Caller must hold s.mu.RLock() or s.mu.Lock().
+func (s *StateStore) loadLocked(name string) (*AgentState, error) {
+	path := s.agentFilePath(name)
+	data, err := os.ReadFile(path) //nolint:gosec // path constructed from known agents dir
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to read agent state: %w", err)
+	}
+
+	var state AgentState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal agent state: %w", err)
+	}
+
+	return &state, nil
 }
 
 // Exists checks if an agent state file exists.
@@ -180,9 +224,14 @@ func (s *StateStore) Exists(name string) bool {
 	return err == nil
 }
 
-// UpdateState updates an agent's state field.
+// UpdateState updates an agent's state field atomically.
+// Holds the write lock for the entire load-modify-save operation to prevent
+// race conditions where changes could be lost.
 func (s *StateStore) UpdateState(name string, newState State) error {
-	state, err := s.Load(name)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	state, err := s.loadLocked(name)
 	if err != nil {
 		return err
 	}
@@ -191,7 +240,7 @@ func (s *StateStore) UpdateState(name string, newState State) error {
 	}
 
 	state.State = newState
-	return s.Save(state)
+	return s.saveLocked(state)
 }
 
 // ToAgentState converts an Agent to an AgentState for persistence.
