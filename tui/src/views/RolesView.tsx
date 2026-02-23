@@ -64,15 +64,19 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
 
   // Manage focus state and breadcrumbs for nested view navigation (#1604)
   // When showing details, set focus='view' to prevent global ESC from firing
+  // When in search mode, set focus='input' to allow typing special chars (#1692)
   useEffect(() => {
     if (showDetails && selectedRole) {
       setFocus('view');
       setBreadcrumbs([{ label: selectedRole.name }]);
+    } else if (searchMode) {
+      setFocus('input');
+      clearBreadcrumbs();
     } else {
       setFocus('main');
       clearBreadcrumbs();
     }
-  }, [showDetails, selectedRole, setFocus, setBreadcrumbs, clearBreadcrumbs]);
+  }, [showDetails, selectedRole, searchMode, setFocus, setBreadcrumbs, clearBreadcrumbs]);
 
   // Fetch roles
   const fetchRoles = useCallback(async () => {
