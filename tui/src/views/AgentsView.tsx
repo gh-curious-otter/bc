@@ -13,7 +13,7 @@
 
 import React, { useState, useCallback, useEffect, useMemo, useReducer } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { useAgents, useDebounce } from '../hooks';
+import { useAgents, useDebounce, useListNavigation } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
@@ -47,12 +47,10 @@ interface ActionState {
 }
 
 // #1601: Consolidated UI state with useReducer
+// #1743: Navigation state moved to useListNavigation
 interface UIState {
-  selectedIndex: number;
   showDetail: boolean;
   confirmAction: AgentAction | null;
-  searchQuery: string;
-  searchMode: boolean;
   peekOutput: string[] | null;
   peekLoading: boolean;
   groupedView: boolean;
@@ -60,30 +58,17 @@ interface UIState {
 }
 
 type UIAction =
-  | { type: 'SET_SELECTED_INDEX'; index: number }
-  | { type: 'NAVIGATE_UP'; maxIndex: number }
-  | { type: 'NAVIGATE_DOWN'; maxIndex: number }
-  | { type: 'NAVIGATE_TO_END'; maxIndex: number }
   | { type: 'SHOW_DETAIL' }
   | { type: 'HIDE_DETAIL' }
   | { type: 'SET_CONFIRM_ACTION'; action: AgentAction | null }
-  | { type: 'ENTER_SEARCH_MODE' }
-  | { type: 'EXIT_SEARCH_MODE' }
-  | { type: 'SET_SEARCH_QUERY'; query: string }
-  | { type: 'APPEND_SEARCH_CHAR'; char: string }
-  | { type: 'BACKSPACE_SEARCH' }
-  | { type: 'CLEAR_SEARCH' }
   | { type: 'SET_PEEK_OUTPUT'; output: string[] | null }
   | { type: 'SET_PEEK_LOADING'; loading: boolean }
   | { type: 'TOGGLE_GROUPED_VIEW' }
   | { type: 'TOGGLE_ROLE_COLLAPSE'; role: string };
 
 const initialUIState: UIState = {
-  selectedIndex: 0,
   showDetail: false,
   confirmAction: null,
-  searchQuery: '',
-  searchMode: false,
   peekOutput: null,
   peekLoading: false,
   groupedView: true,
@@ -92,38 +77,18 @@ const initialUIState: UIState = {
 
 function uiReducer(state: UIState, action: UIAction): UIState {
   switch (action.type) {
-    case 'SET_SELECTED_INDEX':
-      return { ...state, selectedIndex: action.index };
-    case 'NAVIGATE_UP':
-      return { ...state, selectedIndex: Math.max(0, state.selectedIndex - 1) };
-    case 'NAVIGATE_DOWN':
-      return { ...state, selectedIndex: Math.min(action.maxIndex, state.selectedIndex + 1) };
-    case 'NAVIGATE_TO_END':
-      return { ...state, selectedIndex: Math.max(0, action.maxIndex) };
     case 'SHOW_DETAIL':
       return { ...state, showDetail: true };
     case 'HIDE_DETAIL':
       return { ...state, showDetail: false };
     case 'SET_CONFIRM_ACTION':
       return { ...state, confirmAction: action.action };
-    case 'ENTER_SEARCH_MODE':
-      return { ...state, searchMode: true };
-    case 'EXIT_SEARCH_MODE':
-      return { ...state, searchMode: false };
-    case 'SET_SEARCH_QUERY':
-      return { ...state, searchQuery: action.query };
-    case 'APPEND_SEARCH_CHAR':
-      return { ...state, searchQuery: state.searchQuery + action.char };
-    case 'BACKSPACE_SEARCH':
-      return { ...state, searchQuery: state.searchQuery.slice(0, -1) };
-    case 'CLEAR_SEARCH':
-      return { ...state, searchQuery: '', selectedIndex: 0 };
     case 'SET_PEEK_OUTPUT':
       return { ...state, peekOutput: action.output };
     case 'SET_PEEK_LOADING':
       return { ...state, peekLoading: action.loading };
     case 'TOGGLE_GROUPED_VIEW':
-      return { ...state, groupedView: !state.groupedView, selectedIndex: 0 };
+      return { ...state, groupedView: !state.groupedView };
     case 'TOGGLE_ROLE_COLLAPSE': {
       const next = new Set(state.collapsedRoles);
       if (next.has(action.role)) {
@@ -144,17 +109,39 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
   const isNarrow = isCompact || isMinimal;
 
   // #1601: UI state consolidated with useReducer
+  // #1743: Navigation and search state moved to useListNavigation
   const [ui, dispatch] = useReducer(uiReducer, initialUIState);
   const {
-    selectedIndex, showDetail, confirmAction, searchQuery, searchMode,
+    showDetail, confirmAction,
     peekOutput, peekLoading, groupedView, collapsedRoles,
   } = ui;
 
   // Action feedback state - kept separate as it's timer-managed
   const [actionState, setActionState] = useState<ActionState | null>(null);
 
+  // #1743: Custom key handlers for agent actions
+  const customKeys = useMemo(() => ({
+    v: () => { dispatch({ type: 'TOGGLE_GROUPED_VIEW' }); },
+    r: () => { void refresh(); },
+  }), [refresh]);
+
+  // #1743: Use useListNavigation for navigation and search
+  // Note: We pass an empty array initially because we need debouncedSearchQuery
+  // which depends on search.query from the hook - creating a circular dependency.
+  // Instead, we'll handle this by using the raw agents list and filtering in useAgentGroups.
+  const {
+    selectedIndex,
+    search,
+    setSelectedIndex: _setSelectedIndex, // Not used directly yet
+  } = useListNavigation({
+    items: agents ?? [],
+    disabled: showDetail || confirmAction !== null,
+    enableSearch: true,
+    customKeys,
+  });
+
   // Debounce search query for filtering (issue #1602)
-  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  const debouncedSearchQuery = useDebounce(search.query, 300);
 
   // Use extracted hook for grouping logic (using debounced query for performance)
   const { agentList, stateCounts, visibleItems } = useAgentGroups(
@@ -164,15 +151,18 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
     collapsedRoles
   );
 
+  // Clamp selectedIndex to visible items
+  const validIndex = Math.min(selectedIndex, Math.max(0, visibleItems.length - 1));
+
   // Get selected agent from visible items
   const selectedAgent = useMemo((): Agent | undefined => {
-    if (selectedIndex < 0 || selectedIndex >= visibleItems.length) return undefined;
-    const item = visibleItems[selectedIndex];
+    if (validIndex < 0 || validIndex >= visibleItems.length) return undefined;
+    const item = visibleItems[validIndex];
     if (item.type === 'agent') {
       return item.agent;
     }
     return undefined;
-  }, [visibleItems, selectedIndex]);
+  }, [visibleItems, validIndex]);
 
   const { setFocus } = useFocus();
   const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
@@ -183,14 +173,14 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
     if (showDetail && selectedAgent) {
       setFocus('view');
       setBreadcrumbs([{ label: selectedAgent.name }]);
-    } else if (searchMode) {
+    } else if (search.isActive) {
       setFocus('input');
       clearBreadcrumbs();
     } else {
       setFocus('main');
       clearBreadcrumbs();
     }
-  }, [showDetail, selectedAgent, searchMode, setFocus, setBreadcrumbs, clearBreadcrumbs]);
+  }, [showDetail, selectedAgent, search.isActive, setFocus, setBreadcrumbs, clearBreadcrumbs]);
 
   // Clear action feedback after delay
   const showActionFeedback = useCallback((action: AgentAction, target: string, status: 'success' | 'error', message: string) => {
@@ -244,20 +234,11 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
     }
   }, []);
 
-  // Keyboard navigation
+  // #1743: Keyboard handling for special keys not covered by useListNavigation
+  // The hook handles j/k/g/G navigation, / for search, c to clear search
   useInput((input, key) => {
-    // Search mode input handling
-    if (searchMode) {
-      if (key.return || key.escape) {
-        dispatch({ type: 'EXIT_SEARCH_MODE' });
-      } else if (key.backspace || key.delete) {
-        dispatch({ type: 'BACKSPACE_SEARCH' });
-      } else if (input && !key.ctrl && !key.meta) {
-        dispatch({ type: 'APPEND_SEARCH_CHAR', char: input });
-      }
-      return;
-    }
-
+    // Let hook handle search mode
+    if (search.isActive) return;
     if (showDetail) return;
 
     // Confirmation mode
@@ -271,19 +252,10 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
       return;
     }
 
-    // List view navigation
-    const maxIndex = visibleItems.length - 1;
-    if (key.upArrow || input === 'k') {
-      dispatch({ type: 'NAVIGATE_UP', maxIndex });
-    } else if (key.downArrow || input === 'j') {
-      dispatch({ type: 'NAVIGATE_DOWN', maxIndex });
-    } else if (input === 'G') {
-      dispatch({ type: 'NAVIGATE_TO_END', maxIndex });
-    } else if (input === 'v') {
-      dispatch({ type: 'TOGGLE_GROUPED_VIEW' });
-    } else if (key.return || input === 'a') {
-      if (selectedIndex >= 0 && selectedIndex < visibleItems.length) {
-        const item = visibleItems[selectedIndex];
+    // Enter: toggle role collapse or show detail
+    if (key.return || input === 'a') {
+      if (validIndex >= 0 && validIndex < visibleItems.length) {
+        const item = visibleItems[validIndex];
         if (item.type === 'header') {
           dispatch({ type: 'TOGGLE_ROLE_COLLAPSE', role: item.role });
           return;
@@ -304,12 +276,6 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
       } else {
         void peekAgent(selectedAgent.name);
       }
-    } else if (input === '/') {
-      dispatch({ type: 'ENTER_SEARCH_MODE' });
-    } else if (input === 'c' && searchQuery) {
-      dispatch({ type: 'CLEAR_SEARCH' });
-    } else if (input === 'r') {
-      void refresh();
     }
   });
 
@@ -325,8 +291,8 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
   }
 
   // Search mode overlay
-  if (searchMode) {
-    return <AgentSearchOverlay searchQuery={searchQuery} isNarrow={isNarrow} />;
+  if (search.isActive) {
+    return <AgentSearchOverlay searchQuery={search.query} isNarrow={isNarrow} />;
   }
 
   if (loading && agentList.length === 0) {
@@ -359,8 +325,8 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
         {stateCounts.error > 0 && (
           <Text color="red"> ✗ {stateCounts.error} error</Text>
         )}
-        {searchQuery && (
-          <Text color="cyan"> [/] &quot;{searchQuery}&quot;</Text>
+        {search.query && (
+          <Text color="cyan"> [/] &quot;{search.query}&quot;</Text>
         )}
         {loading && <PulseText color="gray"> (refreshing...)</PulseText>}
       </Box>
@@ -397,7 +363,7 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
       <AgentList
         items={visibleItems}
         agents={agentList}
-        selectedIndex={selectedIndex}
+        selectedIndex={validIndex}
         groupedView={groupedView}
         collapsedRoles={collapsedRoles}
       />
@@ -410,7 +376,7 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
       {/* Footer */}
       <Box marginTop={1}>
         <Text color="gray">
-          j/k: nav | v: {groupedView ? 'flat' : 'grouped'} | /: search{searchQuery ? ' | c: clear' : ''} | p: peek | Enter: {groupedView ? 'expand/attach' : 'attach'} | r: refresh | q: back
+          j/k: nav | v: {groupedView ? 'flat' : 'grouped'} | /: search{search.query ? ' | c: clear' : ''} | p: peek | Enter: {groupedView ? 'expand/attach' : 'attach'} | r: refresh | q: back
         </Text>
       </Box>
     </Box>
