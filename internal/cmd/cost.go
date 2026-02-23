@@ -81,55 +81,7 @@ Examples:
 	RunE: runCostDashboard,
 }
 
-var costBudgetCmd = &cobra.Command{
-	Use:   "budget",
-	Short: "Manage cost budgets",
-	Long: `Commands for managing cost budgets and limits.
-
-Examples:
-  bc cost budget show
-  bc cost budget set 100.00
-  bc cost budget set 50.00 --agent engineer-01
-  bc cost budget set 500.00 --period monthly --alert-at 0.9`,
-}
-
-var costBudgetSetCmd = &cobra.Command{
-	Use:   "set <amount>",
-	Short: "Set a cost budget",
-	Long: `Set a cost budget for the workspace, agent, or team.
-
-Examples:
-  bc cost budget set 100.00                          # Set workspace budget to $100
-  bc cost budget set 50.00 --agent engineer-01       # Set agent budget
-  bc cost budget set 500.00 --team engineering       # Set team budget
-  bc cost budget set 100.00 --period weekly          # Weekly budget
-  bc cost budget set 100.00 --alert-at 0.9           # Alert at 90%
-  bc cost budget set 100.00 --hard-stop              # Stop when limit reached`,
-	Args: cobra.ExactArgs(1),
-	RunE: runCostBudgetSet,
-}
-
-var costBudgetShowCmd = &cobra.Command{
-	Use:   "show",
-	Short: "Show budget status",
-	Long: `Show current budget configuration and status.
-
-Examples:
-  bc cost budget show                   # Show all budgets
-  bc cost budget show --agent eng-01    # Show agent budget`,
-	RunE: runCostBudgetShow,
-}
-
-var costBudgetDeleteCmd = &cobra.Command{
-	Use:   "delete",
-	Short: "Delete a budget",
-	Long: `Delete a budget configuration.
-
-Examples:
-  bc cost budget delete                  # Delete workspace budget
-  bc cost budget delete --agent eng-01   # Delete agent budget`,
-	RunE: runCostBudgetDelete,
-}
+// Budget commands moved to cost_budget.go
 
 var costProjectCmd = &cobra.Command{
 	Use:   "project",
@@ -209,13 +161,6 @@ var (
 	costModelFlag     bool
 	costLimitFlag     int
 
-	// Budget flags
-	budgetAgentFlag   string
-	budgetTeamFlag    string
-	budgetPeriodFlag  string
-	budgetAlertAtFlag float64
-	budgetHardStop    bool
-
 	// Projection flags
 	projectDurationFlag string
 	projectLookbackFlag int
@@ -247,22 +192,8 @@ func init() {
 	costSummaryCmd.Flags().BoolVar(&costWorkspaceFlag, "workspace", false, "Show workspace-wide summary")
 	costSummaryCmd.Flags().BoolVar(&costModelFlag, "model", false, "Show summary grouped by model")
 
-	// Budget flags
-	costBudgetSetCmd.Flags().StringVar(&budgetAgentFlag, "agent", "", "Set budget for specific agent")
-	costBudgetSetCmd.Flags().StringVar(&budgetTeamFlag, "team", "", "Set budget for specific team")
-	costBudgetSetCmd.Flags().StringVar(&budgetPeriodFlag, "period", "monthly", "Budget period (daily, weekly, monthly)")
-	costBudgetSetCmd.Flags().Float64Var(&budgetAlertAtFlag, "alert-at", 0.8, "Alert when usage reaches this percentage (0.0-1.0)")
-	costBudgetSetCmd.Flags().BoolVar(&budgetHardStop, "hard-stop", false, "Stop operations when budget is exceeded")
-
-	costBudgetShowCmd.Flags().StringVar(&budgetAgentFlag, "agent", "", "Show budget for specific agent")
-	costBudgetShowCmd.Flags().StringVar(&budgetTeamFlag, "team", "", "Show budget for specific team")
-
-	costBudgetDeleteCmd.Flags().StringVar(&budgetAgentFlag, "agent", "", "Delete budget for specific agent")
-	costBudgetDeleteCmd.Flags().StringVar(&budgetTeamFlag, "team", "", "Delete budget for specific team")
-
-	costBudgetCmd.AddCommand(costBudgetSetCmd)
-	costBudgetCmd.AddCommand(costBudgetShowCmd)
-	costBudgetCmd.AddCommand(costBudgetDeleteCmd)
+	// Budget flags (in cost_budget.go)
+	initCostBudgetFlags()
 
 	// Projection flags
 	costProjectCmd.Flags().StringVar(&projectDurationFlag, "duration", "7d", "Duration to project (e.g., 1d, 7d, 30d)")
@@ -723,147 +654,7 @@ func runCostDashboard(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func getBudgetScope() string {
-	if budgetAgentFlag != "" {
-		return "agent:" + budgetAgentFlag
-	}
-	if budgetTeamFlag != "" {
-		return "team:" + budgetTeamFlag
-	}
-	return "workspace"
-}
-
-func runCostBudgetSet(cmd *cobra.Command, args []string) error {
-	store, err := getCostStore()
-	if err != nil {
-		return err
-	}
-	defer func() { _ = store.Close() }()
-
-	// Parse amount
-	var limitUSD float64
-	if _, parseErr := fmt.Sscanf(args[0], "%f", &limitUSD); parseErr != nil {
-		return fmt.Errorf("invalid amount: %s", args[0])
-	}
-	if limitUSD <= 0 {
-		return fmt.Errorf("budget amount must be positive")
-	}
-
-	// Validate period
-	period := cost.BudgetPeriod(budgetPeriodFlag)
-	switch period {
-	case cost.BudgetPeriodDaily, cost.BudgetPeriodWeekly, cost.BudgetPeriodMonthly:
-		// Valid
-	default:
-		return fmt.Errorf("invalid period: %s (must be daily, weekly, or monthly)", budgetPeriodFlag)
-	}
-
-	// Validate alert threshold
-	if budgetAlertAtFlag < 0 || budgetAlertAtFlag > 1 {
-		return fmt.Errorf("alert-at must be between 0.0 and 1.0")
-	}
-
-	scope := getBudgetScope()
-	budget, err := store.SetBudget(scope, period, limitUSD, budgetAlertAtFlag, budgetHardStop)
-	if err != nil {
-		return fmt.Errorf("failed to set budget: %w", err)
-	}
-
-	fmt.Printf("Budget set for %s:\n", scope)
-	fmt.Printf("  Limit:     $%.2f/%s\n", budget.LimitUSD, budget.Period)
-	fmt.Printf("  Alert at:  %.0f%%\n", budget.AlertAt*100)
-	fmt.Printf("  Hard stop: %v\n", budget.HardStop)
-
-	return nil
-}
-
-func runCostBudgetShow(cmd *cobra.Command, args []string) error {
-	store, err := getCostStore()
-	if err != nil {
-		return err
-	}
-	defer func() { _ = store.Close() }()
-
-	scope := getBudgetScope()
-
-	// If showing specific scope
-	if budgetAgentFlag != "" || budgetTeamFlag != "" || scope == "workspace" {
-		status, checkErr := store.CheckBudget(scope)
-		if checkErr != nil {
-			return fmt.Errorf("failed to check budget: %w", checkErr)
-		}
-
-		if status == nil {
-			fmt.Printf("No budget configured for %s\n", scope)
-			return nil
-		}
-
-		printBudgetStatus(scope, status)
-		return nil
-	}
-
-	// Show all budgets
-	budgets, err := store.GetAllBudgets()
-	if err != nil {
-		return fmt.Errorf("failed to get budgets: %w", err)
-	}
-
-	if len(budgets) == 0 {
-		fmt.Println("No budgets configured")
-		fmt.Println("\nUse 'bc cost budget set <amount>' to set a budget")
-		return nil
-	}
-
-	fmt.Println("Configured Budgets")
-	fmt.Println("==================")
-
-	for _, b := range budgets {
-		status, _ := store.CheckBudget(b.Scope)
-		if status != nil {
-			printBudgetStatus(b.Scope, status)
-			fmt.Println()
-		}
-	}
-
-	return nil
-}
-
-func printBudgetStatus(scope string, status *cost.BudgetStatus) {
-	fmt.Printf("Budget: %s\n", scope)
-	fmt.Printf("  Period:    %s\n", status.Budget.Period)
-	fmt.Printf("  Limit:     $%.2f\n", status.Budget.LimitUSD)
-	fmt.Printf("  Spent:     $%.2f (%.1f%%)\n", status.CurrentSpend, status.PercentUsed*100)
-	fmt.Printf("  Remaining: $%.2f\n", status.Remaining)
-
-	if status.IsOverBudget {
-		fmt.Println("  Status:    ⚠️  OVER BUDGET")
-	} else if status.IsNearLimit {
-		fmt.Printf("  Status:    ⚠️  Near limit (alert at %.0f%%)\n", status.Budget.AlertAt*100)
-	} else {
-		fmt.Println("  Status:    ✓ Within budget")
-	}
-
-	if status.Budget.HardStop {
-		fmt.Println("  Hard stop: Enabled")
-	}
-}
-
-func runCostBudgetDelete(cmd *cobra.Command, args []string) error {
-	store, err := getCostStore()
-	if err != nil {
-		return err
-	}
-	defer func() { _ = store.Close() }()
-
-	scope := getBudgetScope()
-
-	if deleteErr := store.DeleteBudget(scope); deleteErr != nil {
-		return fmt.Errorf("failed to delete budget: %w", deleteErr)
-	}
-
-	fmt.Printf("Budget deleted for %s\n", scope)
-	return nil
-}
+// Budget functions moved to cost_budget.go
 
 func parseCostDuration(s string) (time.Duration, error) {
 	// Support day notation (e.g., "7d" -> 7 * 24h)
