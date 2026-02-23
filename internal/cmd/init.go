@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/ui"
@@ -216,6 +217,54 @@ func errNotInWorkspace(err error) error {
 		return fmt.Errorf("not in a bc workspace (run 'bc init' to initialize one): %w", err)
 	}
 	return fmt.Errorf("not in a bc workspace. Run 'bc init' in your project directory to create one")
+}
+
+// requireWorkspace returns the current workspace or an actionable error.
+// This is a convenience wrapper around getWorkspace() with standard error handling.
+func requireWorkspace() (*workspace.Workspace, error) {
+	ws, err := getWorkspace()
+	if err != nil {
+		return nil, errNotInWorkspace(err)
+	}
+	return ws, nil
+}
+
+// WorkspaceContext holds workspace and agent manager for command handlers.
+// Use withWorkspace() or withAgentManager() to create instances.
+type WorkspaceContext struct {
+	Workspace *workspace.Workspace
+	Manager   *agent.Manager
+}
+
+// withWorkspace executes fn with the current workspace.
+// Returns errNotInWorkspace if not in a bc workspace.
+// Used by commands that only need workspace access (config, stats, etc.).
+func withWorkspace(fn func(ws *workspace.Workspace) error) error { //nolint:unused // Will be used as commands migrate to this pattern
+	ws, err := requireWorkspace()
+	if err != nil {
+		return err
+	}
+	return fn(ws)
+}
+
+// withAgentManager executes fn with workspace and initialized agent manager.
+// The agent manager state is loaded before fn is called.
+// Any state loading errors are logged as warnings (non-fatal).
+func withAgentManager(fn func(ctx *WorkspaceContext) error) error {
+	ws, err := requireWorkspace()
+	if err != nil {
+		return err
+	}
+
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+
+	return fn(&WorkspaceContext{
+		Workspace: ws,
+		Manager:   mgr,
+	})
 }
 
 // runInitInteractive runs an interactive workspace initialization with nickname prompt.
