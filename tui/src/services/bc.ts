@@ -772,3 +772,99 @@ export async function clearMemory(agentName: string): Promise<void> {
 export async function exportMemory(agentName: string): Promise<string> {
   return await execBc(['memory', 'export', agentName]);
 }
+
+// ============================================================================
+// GitHub Issue Commands (#1754 - Issues View)
+// ============================================================================
+
+/**
+ * GitHub issue type from gh CLI JSON output
+ */
+export interface GHIssue {
+  number: number;
+  title: string;
+  body?: string;
+  state: string;
+  labels: { name: string }[];
+  assignees: { login: string }[];
+  author?: { login: string };
+  createdAt: string;
+  updatedAt?: string;
+  comments?: { author: { login: string }; body: string; createdAt: string }[];
+}
+
+/**
+ * List GitHub issues
+ * @param labels - Optional label filter (comma-separated)
+ * @param assignee - Optional assignee filter
+ * @param state - Issue state filter (open, closed, all)
+ */
+export async function getIssues(
+  labels?: string,
+  assignee?: string,
+  state: 'open' | 'closed' | 'all' = 'open'
+): Promise<GHIssue[]> {
+  try {
+    const args = ['issue', 'list', '--state', state];
+    if (labels) {
+      args.push('--labels', labels);
+    }
+    if (assignee) {
+      args.push('--assignee', assignee);
+    }
+    // bc issue list already adds --json flag internally
+    return await execBcJson<GHIssue[]>(args);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Get details for a specific issue
+ * @param issueNumber - Issue number
+ * @param includeComments - Whether to include comments
+ */
+export async function getIssue(
+  issueNumber: number,
+  includeComments = true
+): Promise<GHIssue | null> {
+  try {
+    const args = ['issue', 'view', String(issueNumber)];
+    if (includeComments) {
+      args.push('--comments');
+    }
+    return await execBcJson<GHIssue>(args);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Close a GitHub issue
+ * @param issueNumber - Issue number
+ * @param reason - Close reason (completed, not_planned)
+ * @param comment - Optional closing comment
+ */
+export async function closeIssue(
+  issueNumber: number,
+  reason: 'completed' | 'not_planned' = 'completed',
+  comment?: string
+): Promise<void> {
+  const args = ['issue', 'close', String(issueNumber), '--reason', reason];
+  if (comment) {
+    args.push('--comment', comment);
+  }
+  await execBc(args);
+}
+
+/**
+ * Assign a GitHub issue
+ * @param issueNumber - Issue number
+ * @param assignee - User to assign (or --unassign to remove)
+ */
+export async function assignIssue(
+  issueNumber: number,
+  assignee: string
+): Promise<void> {
+  await execBc(['issue', 'assign', String(issueNumber), assignee]);
+}

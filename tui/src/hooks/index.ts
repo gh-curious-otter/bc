@@ -231,3 +231,12 @@ export {
   type UseDebouncedSearchOptions,
   type UseDebouncedSearchResult,
 } from './useDebounce';
+
+export {
+  useIssues,
+  useIssueDetail,
+  type UseIssuesOptions,
+  type UseIssuesResult,
+  type UseIssueDetailOptions,
+  type UseIssueDetailResult,
+} from './useIssues';
