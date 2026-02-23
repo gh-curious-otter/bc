@@ -1,5 +1,6 @@
 /**
  * WorktreesView - Git worktree management tab (#868)
+ * Issue #1736: Migrated to useListNavigation hook
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -9,6 +10,7 @@ import { LoadingIndicator } from '../components/LoadingIndicator';
 import { HeaderBar } from '../components/HeaderBar';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
+import { useListNavigation } from '../hooks';
 import type { Worktree } from '../types';
 
 /**
@@ -27,7 +29,6 @@ export const WorktreesView: React.FC = () => {
   const [worktrees, setWorktrees] = useState<Worktree[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [showDetail, setShowDetail] = useState(false);
   const [showPruneConfirm, setShowPruneConfirm] = useState(false);
   const [pruneResult, setPruneResult] = useState<string | null>(null);
@@ -68,19 +69,7 @@ export const WorktreesView: React.FC = () => {
     [filteredWorktrees]
   );
 
-  const selectedWorktree = filteredWorktrees[selectedIndex] as Worktree | undefined;
   const hasOrphans = orphanedWorktrees.length > 0;
-
-  // Manage focus state and breadcrumbs for nested view navigation (#1604)
-  useEffect(() => {
-    if (showDetail && selectedWorktree) {
-      setFocus('view');
-      setBreadcrumbs([{ label: selectedWorktree.agent }]);
-    } else {
-      setFocus('main');
-      clearBreadcrumbs();
-    }
-  }, [showDetail, selectedWorktree, setFocus, setBreadcrumbs, clearBreadcrumbs]);
 
   // Handle prune action
   const handlePrune = useCallback(async () => {
@@ -97,7 +86,38 @@ export const WorktreesView: React.FC = () => {
     }
   }, [fetchWorktrees]);
 
-  // Keyboard navigation
+  // #1736: Use useListNavigation hook for vim-style navigation
+  const {
+    selectedIndex,
+    selectedItem: selectedWorktree,
+    setSelectedIndex,
+  } = useListNavigation({
+    items: filteredWorktrees,
+    onSelect: () => { setShowDetail(true); },
+    customKeys: {
+      'o': () => {
+        setShowOrphanedOnly(!showOrphanedOnly);
+        setSelectedIndex(0);
+      },
+      'p': () => { if (hasOrphans) setShowPruneConfirm(true); },
+      'r': () => { void fetchWorktrees(); },
+    },
+    // Disable navigation when in modal states
+    isActive: !showDetail && !showPruneConfirm,
+  });
+
+  // Manage focus state and breadcrumbs for nested view navigation (#1604)
+  useEffect(() => {
+    if (showDetail && selectedWorktree) {
+      setFocus('view');
+      setBreadcrumbs([{ label: selectedWorktree.agent }]);
+    } else {
+      setFocus('main');
+      clearBreadcrumbs();
+    }
+  }, [showDetail, selectedWorktree, setFocus, setBreadcrumbs, clearBreadcrumbs]);
+
+  // Handle prune confirmation dialog input
   useInput((input, key) => {
     if (showPruneConfirm) {
       if (input === 'y' || input === 'Y') {
@@ -105,38 +125,12 @@ export const WorktreesView: React.FC = () => {
       } else if (input === 'n' || input === 'N' || key.escape) {
         setShowPruneConfirm(false);
       }
-      return;
-    }
-
-    if (showDetail) {
+    } else if (showDetail) {
       if (key.escape || input === 'q' || key.return) {
         setShowDetail(false);
       }
-      return;
     }
-
-    // List navigation
-    if (key.upArrow || input === 'k') {
-      setSelectedIndex((i) => Math.max(0, i - 1));
-    } else if (key.downArrow || input === 'j') {
-      setSelectedIndex((i) => Math.min(filteredWorktrees.length - 1, i + 1));
-    } else if (input === 'g') {
-      setSelectedIndex(0);
-    } else if (input === 'G') {
-      setSelectedIndex(Math.max(0, filteredWorktrees.length - 1));
-    } else if (key.return) {
-      if (selectedWorktree) {
-        setShowDetail(true);
-      }
-    } else if (input === 'p' && hasOrphans) {
-      setShowPruneConfirm(true);
-    } else if (input === 'o') {
-      setShowOrphanedOnly(!showOrphanedOnly);
-      setSelectedIndex(0);
-    } else if (input === 'r') {
-      void fetchWorktrees();
-    }
-  });
+  }, { isActive: showPruneConfirm || showDetail });
 
   // Prune confirmation dialog
   if (showPruneConfirm) {
