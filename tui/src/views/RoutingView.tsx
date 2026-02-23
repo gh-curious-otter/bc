@@ -1,6 +1,7 @@
 /**
  * RoutingView - Display task routing configuration
  * Issue #1231 - Add additional TUI views
+ * Issue #1744: Migrated to useListNavigation hook
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -10,7 +11,7 @@ import { HeaderBar } from '../components/HeaderBar';
 import { ViewWrapper } from '../components/ViewWrapper';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { useAgents, useDisableInput } from '../hooks';
+import { useAgents, useDisableInput, useListNavigation } from '../hooks';
 import { truncate } from '../utils';
 
 // #1594: Using empty interface for future extensibility, props removed
@@ -51,7 +52,6 @@ const ROUTING_RULES = [
 export function RoutingView(_props: RoutingViewProps = {}): React.ReactElement {
   // #1594: Use context instead of prop drilling
   const { isDisabled: disableInput } = useDisableInput();
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [showDetails, setShowDetails] = useState(false);
   const agents = useAgents();
   const { setFocus } = useFocus();
@@ -79,8 +79,16 @@ export function RoutingView(_props: RoutingViewProps = {}): React.ReactElement {
     return counts;
   }, [agents.data]);
 
-  const validIndex = Math.min(selectedIndex, ROUTING_RULES.length - 1);
-  const currentRule = ROUTING_RULES[validIndex] as typeof ROUTING_RULES[0] | undefined;
+  // #1744: Use useListNavigation hook for vim-style navigation
+  const {
+    selectedIndex,
+    selectedItem: currentRule,
+  } = useListNavigation({
+    items: ROUTING_RULES,
+    onSelect: () => { setShowDetails(true); },
+    // Disable navigation when showing details
+    isActive: !disableInput && !showDetails,
+  });
 
   // Manage focus state and breadcrumbs for nested view navigation (#1604)
   useEffect(() => {
@@ -93,29 +101,14 @@ export function RoutingView(_props: RoutingViewProps = {}): React.ReactElement {
     }
   }, [showDetails, currentRule, setFocus, setBreadcrumbs, clearBreadcrumbs]);
 
-  // Keyboard handling
+  // Handle detail view keyboard input
   useInput(
     (input, key) => {
-      if (showDetails) {
-        if (key.escape || input === 'q' || key.return) {
-          setShowDetails(false);
-        }
-        return;
-      }
-
-      if (key.upArrow || input === 'k') {
-        setSelectedIndex(Math.max(0, validIndex - 1));
-      } else if (key.downArrow || input === 'j') {
-        setSelectedIndex(Math.min(ROUTING_RULES.length - 1, validIndex + 1));
-      } else if (input === 'g') {
-        setSelectedIndex(0);
-      } else if (input === 'G') {
-        setSelectedIndex(ROUTING_RULES.length - 1);
-      } else if (key.return && currentRule !== undefined) {
-        setShowDetails(true);
+      if (key.escape || input === 'q' || key.return) {
+        setShowDetails(false);
       }
     },
-    { isActive: !disableInput }
+    { isActive: showDetails }
   );
 
   // Details view
@@ -228,7 +221,7 @@ export function RoutingView(_props: RoutingViewProps = {}): React.ReactElement {
               <RoutingRuleRow
                 key={rule.taskType}
                 rule={rule}
-                selected={idx === validIndex}
+                selected={idx === selectedIndex}
                 agentCount={agentCountByRole[rule.targetRole] ?? 0}
                 availableCount={availableByRole[rule.targetRole] ?? 0}
               />
