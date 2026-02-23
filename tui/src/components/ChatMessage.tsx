@@ -14,7 +14,7 @@ export interface ChatMessageProps {
   isSelected?: boolean;
   /** Maximum width for message bubbles (default: 60) */
   maxBubbleWidth?: number;
-  /** Maximum lines to display before truncating (default: 8) */
+  /** Maximum lines to display before truncating (default: unlimited, set 0 for no limit) */
   maxLines?: number;
 }
 
@@ -103,16 +103,17 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
   isRead = true,
   isSelected = false,
   maxBubbleWidth = 60,
-  maxLines = 8,
+  maxLines = 0, // #1718: Default to no truncation for full message visibility
 }) {
   const time = formatRelativeTime(timestamp);
   const senderColor = getRoleColor(sender);
   const rolePrefix = getRolePrefix(sender);
   const isOwnMessage = currentUser !== undefined && sender === currentUser;
 
-  // #1463: Truncate long messages and show indicator
+  // #1463: Truncate long messages only if maxLines > 0
+  // #1718: Changed default to 0 (no limit) to show full message content
   const lines = message.split('\n');
-  const isTruncated = lines.length > maxLines;
+  const isTruncated = maxLines > 0 && lines.length > maxLines;
   const displayMessage = isTruncated
     ? lines.slice(0, maxLines).join('\n')
     : message;
