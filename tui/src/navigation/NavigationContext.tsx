@@ -6,7 +6,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo } from
 import type { ReactNode } from 'react';
 
 // View types for navigation
-export type View = 'dashboard' | 'agents' | 'channels' | 'files' | 'costs' | 'help' | 'commands' | 'roles' | 'logs' | 'worktrees' | 'workspaces' | 'demons' | 'processes' | 'memory' | 'routing' | 'performance' | 'issues';
+export type View = 'dashboard' | 'agents' | 'channels' | 'files' | 'costs' | 'help' | 'commands' | 'roles' | 'logs' | 'worktrees' | 'workspaces' | 'demons' | 'processes' | 'memory' | 'performance' | 'issues';
 
 // Tab configuration
 export interface TabConfig {
@@ -20,8 +20,8 @@ export interface TabConfig {
 
 // Tab order matches DRAWER_SECTIONS visual grouping (#1526)
 // WORKSPACE: dashboard, agents, channels, files, commands
-// MONITOR: logs, costs, processes, demons
-// SYSTEM: roles, worktrees, workspaces, memory, routing
+// MONITOR: logs, costs, processes, demons, performance
+// SYSTEM: roles, worktrees, workspaces, memory
 export const DEFAULT_TABS: TabConfig[] = [
   // WORKSPACE section
   { key: '1', view: 'dashboard', label: 'Dashboard', shortLabel: 'Dash', shortcut: '1' },
@@ -40,7 +40,6 @@ export const DEFAULT_TABS: TabConfig[] = [
   { key: '-', view: 'worktrees', label: 'Worktrees', shortLabel: 'Tree', shortcut: '-' },
   { key: '=', view: 'workspaces', label: 'Workspaces', shortLabel: 'Wksp', shortcut: '=' },
   { key: 'M', view: 'memory', label: 'Memory', shortLabel: 'Mem', shortcut: 'M' },
-  { key: 'R', view: 'routing', label: 'Routing', shortLabel: 'Rte', shortcut: 'R' },
   { key: '?', view: 'help', label: 'Help', shortLabel: '?', shortcut: '?' },
   // #1754: Issues view for GitHub issue management
   { key: 'I', view: 'issues', label: 'Issues', shortLabel: 'Iss', shortcut: 'I' },
