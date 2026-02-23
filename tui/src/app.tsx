@@ -33,6 +33,7 @@ import { MemoryView } from './views/MemoryView';
 import { RoutingView } from './views/RoutingView';
 import { PerformanceView } from './views/PerformanceView';
 import { HelpView } from './views/HelpView';
+import { IssuesView } from './views/IssuesView';
 import { CommandPalette } from './components/CommandPalette';
 import { ViewErrorBoundary } from './components/ErrorBoundary';
 import { type BcCommand } from './types/commands';
@@ -258,6 +259,8 @@ const ViewContent = memo(function ViewContent({ view }: ViewContentProps): React
       return <PerformanceView />;
     case 'help':
       return <HelpView />;
+    case 'issues':
+      return <IssuesView />;
     default:
       return <Text>Unknown view</Text>;
   }

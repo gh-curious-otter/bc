@@ -6,7 +6,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo } from
 import type { ReactNode } from 'react';
 
 // View types for navigation
-export type View = 'dashboard' | 'agents' | 'channels' | 'files' | 'costs' | 'help' | 'commands' | 'roles' | 'logs' | 'worktrees' | 'workspaces' | 'demons' | 'processes' | 'memory' | 'routing' | 'performance';
+export type View = 'dashboard' | 'agents' | 'channels' | 'files' | 'costs' | 'help' | 'commands' | 'roles' | 'logs' | 'worktrees' | 'workspaces' | 'demons' | 'processes' | 'memory' | 'routing' | 'performance' | 'issues';
 
 // Tab configuration
 export interface TabConfig {
@@ -42,6 +42,8 @@ export const DEFAULT_TABS: TabConfig[] = [
   { key: 'M', view: 'memory', label: 'Memory', shortLabel: 'Mem', shortcut: 'M' },
   { key: 'R', view: 'routing', label: 'Routing', shortLabel: 'Rte', shortcut: 'R' },
   { key: '?', view: 'help', label: 'Help', shortLabel: '?', shortcut: '?' },
+  // #1754: Issues view for GitHub issue management
+  { key: 'I', view: 'issues', label: 'Issues', shortLabel: 'Iss', shortcut: 'I' },
 ];
 
 // Breadcrumb item for showing navigation path
