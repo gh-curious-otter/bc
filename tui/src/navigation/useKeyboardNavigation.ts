@@ -22,6 +22,7 @@ export interface UseKeyboardNavigationOptions {
  * - Tab/Shift+Tab cycles views
  * - ? shows help
  * - M goes to Memory view
+ * - I goes to Issues view
  * - ESC goes back/home
  * - Ctrl+R refreshes all data
  * - q quits the application
@@ -30,6 +31,7 @@ export interface UseKeyboardNavigationOptions {
  * Navigation now uses j/k + Enter in Drawer component.
  * Issue #1686: Added M shortcut for Memory view.
  * Issue #1765: Removed Routing tab (unused static data).
+ * Issue #1779: Added I shortcut for Issues view.
  */
 export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}): void {
   const { disabled = false, onQuit, onRefresh, onCommandPalette } = options;
@@ -58,7 +60,7 @@ export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}
 
       // Issue #1467: Removed 1-9 number shortcuts
       // Navigation now uses j/k + Enter in Drawer component
-      // Global shortcuts: ? (help), M (memory)
+      // Global shortcuts: ? (help), M (memory), I (issues)
       if (input === '?') {
         const helpTab = getTabByKey('?');
         if (helpTab) {
@@ -72,6 +74,15 @@ export function useKeyboardNavigation(options: UseKeyboardNavigationOptions = {}
         const memoryTab = getTabByKey('M');
         if (memoryTab) {
           navigate(memoryTab.view);
+          return;
+        }
+      }
+
+      // I: go to Issues view (#1779)
+      if (input === 'I') {
+        const issuesTab = getTabByKey('I');
+        if (issuesTab) {
+          navigate(issuesTab.view);
           return;
         }
       }
