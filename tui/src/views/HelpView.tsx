@@ -47,7 +47,7 @@ export function HelpView(): React.ReactElement {
       { keys: 'Tab', desc: 'Next view' },
       { keys: 'Shift+Tab', desc: 'Previous view' },
       { keys: 'M', desc: 'Memory view' },
-      { keys: 'R', desc: 'Routing view' },
+      { keys: 'I', desc: 'Issues view' },
       { keys: '?', desc: 'Toggle help' },
       { keys: 'ESC', desc: 'Go back / Home' },
       { keys: 'Ctrl+R', desc: 'Refresh current view' },
@@ -91,9 +91,15 @@ export function HelpView(): React.ReactElement {
       { keys: '1/2', desc: 'Switch exp/learnings' },
       { keys: 'c', desc: 'Clear memory' },
     ]},
-    { type: 'section' as const, title: 'Routing', shortcuts: [
-      { keys: 'j/k', desc: 'Navigate rules' },
+    { type: 'section' as const, title: 'Issues', shortcuts: [
+      { keys: 'j/k', desc: 'Navigate issues' },
       { keys: 'Enter', desc: 'View details' },
+      { keys: 's', desc: 'Toggle state filter' },
+      { keys: 'f', desc: 'Filter by label' },
+    ]},
+    { type: 'section' as const, title: 'Performance', shortcuts: [
+      { keys: 'j/k', desc: 'Navigate agents' },
+      { keys: 'r', desc: 'Refresh data' },
     ]},
     { type: 'footer' as const },
   ], []);
