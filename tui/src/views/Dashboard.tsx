@@ -268,15 +268,15 @@ const SystemHealthPanel = memo(function SystemHealthPanel({
           <Text color={healthColor} bold>{healthPercent}%</Text>
           <Text> · </Text>
           <PulseText color={STATUS_COLORS.working} enabled={working > 0} interval={1500}>●</PulseText>
-          <Text>{working}</Text>
+          <Text>W:{working}</Text>
           <Text> · </Text>
           <Text color={STATUS_COLORS.idle}>●</Text>
-          <Text>{idle}</Text>
+          <Text>I:{idle}</Text>
           {stuck > 0 && (
             <>
               <Text> · </Text>
               <Text color={STATUS_COLORS.warning}>●</Text>
-              <Text>{stuck}</Text>
+              <Text>S:{stuck}</Text>
             </>
           )}
         </Box>
