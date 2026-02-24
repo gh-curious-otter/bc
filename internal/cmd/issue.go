@@ -45,10 +45,36 @@ var issueListCmd = &cobra.Command{
 
 Examples:
   bc issue list                        # List all open issues
+  bc issue list --state closed         # List closed issues
+  bc issue list --state all            # List all issues
   bc issue list --labels test-failure  # List by label
   bc issue list --assignee @me         # List assigned to me
   bc issue list --type bug             # List by type`,
 	RunE: runIssueList,
+}
+
+var issueReopenCmd = &cobra.Command{
+	Use:   "reopen <id>",
+	Short: "Reopen a closed issue",
+	Long: `Reopen a previously closed GitHub issue.
+
+Examples:
+  bc issue reopen 123
+  bc issue reopen 123 --comment "Reopening for further work"`,
+	Args: cobra.ExactArgs(1),
+	RunE: runIssueReopen,
+}
+
+var issueCommentCmd = &cobra.Command{
+	Use:   "comment <id> <message>",
+	Short: "Add a comment to an issue",
+	Long: `Add a comment to a GitHub issue.
+
+Examples:
+  bc issue comment 123 "Working on this"
+  bc issue comment 123 "Fixed in PR #456"`,
+	Args: cobra.MinimumNArgs(2),
+	RunE: runIssueComment,
 }
 
 var issueViewCmd = &cobra.Command{
@@ -118,6 +144,7 @@ var (
 	issueComment      string
 	issueShowComments bool
 	issueUnassign     bool
+	issueState        string
 )
 
 // validIssueTypes defines the allowed issue types
@@ -160,6 +187,12 @@ func init() {
 	issueListCmd.Flags().StringVar(&issueLabels, "labels", "", "Filter by labels")
 	issueListCmd.Flags().StringVar(&issueAssignee, "assignee", "", "Filter by assignee (@me for self)")
 	issueListCmd.Flags().StringVar(&issueType, "type", "", "Filter by type (epic, bug, task, etc.)")
+	issueListCmd.Flags().StringVar(&issueState, "state", "open", "Issue state: open, closed, all")
+
+	// issue reopen flags
+	issueReopenCmd.Flags().StringVar(&issueComment, "comment", "", "Add reopening comment")
+
+	// issue comment flags (no flags needed, message is positional)
 
 	// issue view flags
 	issueViewCmd.Flags().BoolVar(&issueShowComments, "comments", false, "Include comments")
@@ -185,6 +218,8 @@ func init() {
 	issueCmd.AddCommand(issueEditCmd)
 	issueCmd.AddCommand(issueCloseCmd)
 	issueCmd.AddCommand(issueAssignCmd)
+	issueCmd.AddCommand(issueReopenCmd)
+	issueCmd.AddCommand(issueCommentCmd)
 
 	rootCmd.AddCommand(issueCmd)
 }
@@ -304,8 +339,13 @@ func runIssueList(cmd *cobra.Command, args []string) error {
 	jsonOutput, _ := cmd.Flags().GetBool("json")
 
 	// Build gh command
-	ghArgs := make([]string, 0, 10)
+	ghArgs := make([]string, 0, 12)
 	ghArgs = append(ghArgs, "issue", "list")
+
+	// Add state filter (open, closed, all)
+	if issueState != "" && issueState != "open" {
+		ghArgs = append(ghArgs, "--state", issueState)
+	}
 
 	if issueLabels != "" {
 		ghArgs = append(ghArgs, "--label", issueLabels)
@@ -321,7 +361,7 @@ func runIssueList(cmd *cobra.Command, args []string) error {
 	}
 
 	if jsonOutput {
-		ghArgs = append(ghArgs, "--json", "number,title,labels,state,assignees,createdAt")
+		ghArgs = append(ghArgs, "--json", "number,title,body,labels,state,assignees,author,createdAt,updatedAt")
 	}
 
 	// Execute gh command with context
@@ -541,5 +581,57 @@ func runIssueAssign(cmd *cobra.Command, args []string) error {
 	} else {
 		fmt.Printf("Issue #%s assigned to %s\n", issueID, args[1])
 	}
+	return nil
+}
+
+func runIssueReopen(cmd *cobra.Command, args []string) error {
+	log.Debug("issue reopen command started")
+
+	issueID := args[0]
+
+	// Build gh command
+	ghArgs := []string{"issue", "reopen", issueID}
+
+	if issueComment != "" {
+		ghArgs = append(ghArgs, "--comment", issueComment)
+	}
+
+	ctx := context.Background()
+	ghCmd := exec.CommandContext(ctx, "gh", ghArgs...) //nolint:gosec // gh is a trusted command
+	ghCmd.Stdout = os.Stdout
+	ghCmd.Stderr = os.Stderr
+
+	if err := ghCmd.Run(); err != nil {
+		return fmt.Errorf("failed to reopen issue: %w", err)
+	}
+
+	fmt.Printf("Issue #%s reopened\n", issueID)
+	return nil
+}
+
+func runIssueComment(cmd *cobra.Command, args []string) error {
+	log.Debug("issue comment command started")
+
+	issueID := args[0]
+	// Join remaining args as the comment body
+	commentBody := strings.Join(args[1:], " ")
+
+	if commentBody == "" {
+		return fmt.Errorf("comment message is required")
+	}
+
+	// Build gh command
+	ghArgs := []string{"issue", "comment", issueID, "--body", commentBody}
+
+	ctx := context.Background()
+	ghCmd := exec.CommandContext(ctx, "gh", ghArgs...) //nolint:gosec // gh is a trusted command
+	ghCmd.Stdout = os.Stdout
+	ghCmd.Stderr = os.Stderr
+
+	if err := ghCmd.Run(); err != nil {
+		return fmt.Errorf("failed to add comment: %w", err)
+	}
+
+	fmt.Printf("Comment added to issue #%s\n", issueID)
 	return nil
 }
