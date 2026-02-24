@@ -351,7 +351,7 @@ function IssueRow({ issue, selected }: IssueRowProps): React.ReactElement {
     <Box paddingX={1}>
       <Box width={8}>
         <Text color={selected ? 'cyan' : undefined} bold={selected}>
-          {selected ? '> ' : '  '}#{issue.number}
+          {selected ? '▸ ' : '  '}#{issue.number}
         </Text>
       </Box>
       <Box width={50}>
