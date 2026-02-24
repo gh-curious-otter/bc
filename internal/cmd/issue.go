@@ -17,14 +17,19 @@ import (
 var issueCmd = &cobra.Command{
 	Use:   "issue",
 	Short: "Manage GitHub issues",
-	Long: `Manage GitHub issues from test results.
+	Long: `Manage GitHub issues with full lifecycle support.
 
-The issue command provides automated issue creation from test failures.
+The issue command provides comprehensive issue management integrated with
+the bc workspace. Create, view, edit, assign, comment, close, and reopen issues.
 
 Examples:
   bc issue create --type bug --title "Test failure"    # Create bug issue
-  bc issue create --type enhancement --title "Improve" # Create enhancement
-  bc issue list --labels bug,test-failure              # List issues`,
+  bc issue list --labels bug,test-failure              # List issues
+  bc issue view 123 --comments                         # View issue with comments
+  bc issue comment 123 -m "Working on this"            # Add comment
+  bc issue assign 123 @username                        # Assign to user
+  bc issue close 123 --reason completed                # Close issue
+  bc issue reopen 123                                  # Reopen issue`,
 }
 
 var issueCreateCmd = &cobra.Command{
@@ -104,6 +109,30 @@ Examples:
 	RunE: runIssueAssign,
 }
 
+var issueCommentCmd = &cobra.Command{
+	Use:   "comment <id>",
+	Short: "Add a comment to an issue",
+	Long: `Add a comment to a GitHub issue.
+
+Examples:
+  bc issue comment 123 --body "Working on this"
+  bc issue comment 123 -m "Fixed in commit abc123"`,
+	Args: cobra.ExactArgs(1),
+	RunE: runIssueComment,
+}
+
+var issueReopenCmd = &cobra.Command{
+	Use:   "reopen <id>",
+	Short: "Reopen a closed issue",
+	Long: `Reopen a previously closed GitHub issue.
+
+Examples:
+  bc issue reopen 123
+  bc issue reopen 123 --comment "Reopening for further work"`,
+	Args: cobra.ExactArgs(1),
+	RunE: runIssueReopen,
+}
+
 var (
 	issueType         string
 	issueTitle        string
@@ -116,6 +145,7 @@ var (
 	issueRemoveLabel  string
 	issueCloseReason  string
 	issueComment      string
+	issueCommentBody  string
 	issueShowComments bool
 	issueUnassign     bool
 )
@@ -178,6 +208,12 @@ func init() {
 	// issue assign flags
 	issueAssignCmd.Flags().BoolVar(&issueUnassign, "unassign", false, "Remove all assignees")
 
+	// issue comment flags
+	issueCommentCmd.Flags().StringVarP(&issueCommentBody, "body", "m", "", "Comment body (required)")
+
+	// issue reopen flags
+	issueReopenCmd.Flags().StringVar(&issueComment, "comment", "", "Add reopening comment")
+
 	// Add subcommands
 	issueCmd.AddCommand(issueCreateCmd)
 	issueCmd.AddCommand(issueListCmd)
@@ -185,6 +221,8 @@ func init() {
 	issueCmd.AddCommand(issueEditCmd)
 	issueCmd.AddCommand(issueCloseCmd)
 	issueCmd.AddCommand(issueAssignCmd)
+	issueCmd.AddCommand(issueCommentCmd)
+	issueCmd.AddCommand(issueReopenCmd)
 
 	rootCmd.AddCommand(issueCmd)
 }
@@ -541,5 +579,55 @@ func runIssueAssign(cmd *cobra.Command, args []string) error {
 	} else {
 		fmt.Printf("Issue #%s assigned to %s\n", issueID, args[1])
 	}
+	return nil
+}
+
+func runIssueComment(cmd *cobra.Command, args []string) error {
+	log.Debug("issue comment command started")
+
+	issueID := args[0]
+
+	if issueCommentBody == "" {
+		return fmt.Errorf("--body/-m is required")
+	}
+
+	// Build gh command
+	ghArgs := []string{"issue", "comment", issueID, "--body", issueCommentBody}
+
+	ctx := context.Background()
+	ghCmd := exec.CommandContext(ctx, "gh", ghArgs...) //nolint:gosec // gh is a trusted command
+	ghCmd.Stdout = os.Stdout
+	ghCmd.Stderr = os.Stderr
+
+	if err := ghCmd.Run(); err != nil {
+		return fmt.Errorf("failed to add comment: %w", err)
+	}
+
+	fmt.Printf("Comment added to issue #%s\n", issueID)
+	return nil
+}
+
+func runIssueReopen(cmd *cobra.Command, args []string) error {
+	log.Debug("issue reopen command started")
+
+	issueID := args[0]
+
+	// Build gh command
+	ghArgs := []string{"issue", "reopen", issueID}
+
+	if issueComment != "" {
+		ghArgs = append(ghArgs, "--comment", issueComment)
+	}
+
+	ctx := context.Background()
+	ghCmd := exec.CommandContext(ctx, "gh", ghArgs...) //nolint:gosec // gh is a trusted command
+	ghCmd.Stdout = os.Stdout
+	ghCmd.Stderr = os.Stderr
+
+	if err := ghCmd.Run(); err != nil {
+		return fmt.Errorf("failed to reopen issue: %w", err)
+	}
+
+	fmt.Printf("Issue #%s reopened\n", issueID)
 	return nil
 }
