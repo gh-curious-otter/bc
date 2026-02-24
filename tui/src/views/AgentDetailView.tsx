@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Text, useInput as inkUseInput } from 'ink';
+import { spawnSync } from 'child_process';
 import type { Agent } from '../types';
 import { execBc } from '../services/bc';
 import { StatusBadge } from '../components/StatusBadge';
@@ -231,6 +232,15 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
     } else {
       if (input === 'i' || input === 'm') {
         setInputMode(true);
+      } else if (input === 'a') {
+        // #1691: Attach to agent's tmux session directly
+        // Suspend TUI and give control to tmux attach
+        const bcBin = process.env.BC_BIN ?? 'bc';
+        spawnSync(bcBin, ['agent', 'attach', agent.name], {
+          stdio: 'inherit',
+        });
+        // After detach, refresh output
+        void fetchAgentOutput();
       } else if (input === 'q' || key.escape) {
         onBack?.();
       } else if (input === 'r') {
@@ -504,8 +514,8 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
           {inputMode
             ? 'Enter: send | Esc: cancel'
             : activeTab === 'live'
-              ? '1-4: tabs | j/k: scroll | g/G: top/bottom | f: follow | q/ESC: back'
-              : '1-4: tabs | i: message | r: refresh | q/ESC: back'}
+              ? '1-4: tabs | j/k: scroll | g/G: top/bottom | f: follow | a: attach | q/ESC: back'
+              : '1-4: tabs | i: message | a: attach | r: refresh | q/ESC: back'}
         </Text>
         {loading && <Text color="gray"> (refreshing...)</Text>}
       </Box>
