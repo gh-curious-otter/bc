@@ -59,7 +59,7 @@ function getUtilizationColor(utilization: number): string {
   return utilization >= 80 ? 'green' : utilization >= 50 ? 'yellow' : 'gray';
 }
 
-function truncateMetricName(name: string, maxLen: number = 16): string {
+function truncateMetricName(name: string, maxLen = 16): string {
   return name.length > maxLen ? name.slice(0, maxLen - 1) + '…' : name;
 }
 
