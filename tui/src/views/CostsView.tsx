@@ -1,13 +1,15 @@
 /**
  * CostsView - Cost dashboard component
  * Issue #1346: Borderless compact layout for 80x24 terminals
+ * Issue #1816: Add keybinding hints
  */
 
-import React from 'react';
-import { Box, Text } from 'ink';
+import React, { useCallback } from 'react';
+import { Box, Text, useInput } from 'ink';
 import { Panel } from '../components/Panel';
 import { ErrorDisplay } from '../components/ErrorDisplay';
-import { useCosts } from '../hooks';
+import { Footer } from '../components/Footer';
+import { useCosts, useDisableInput } from '../hooks';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 
 // #1594: Using empty interface for future extensibility, props removed
@@ -15,24 +17,42 @@ import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 interface CostsViewProps {}
 
 export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
-  // Note: disableInput available via useDisableInput() if needed in future
+  const { isDisabled: disableInput } = useDisableInput();
   const { isCompact, isMinimal, isMD } = useResponsiveLayout();
   // #1365: Extend borderless to 100-120 cols (isMD) to prevent box fragmentation
   const isNarrow = isCompact || isMinimal || isMD;
 
   const { data: costs, loading, error, refresh } = useCosts();
 
+  // #1816: Handle keyboard shortcuts
+  const handleRefresh = useCallback(() => {
+    void refresh();
+  }, [refresh]);
+
+  useInput((input) => {
+    if (input === 'r') {
+      handleRefresh();
+    }
+  }, { isActive: !disableInput });
+
+  // Keybinding hints for footer
+  const hints = [
+    { key: 'r', label: 'refresh' },
+    { key: 'ESC', label: 'back' },
+  ];
+
   if (loading) {
     return (
       <Box flexDirection="column">
         <Text bold>Costs</Text>
         <Text dimColor>Loading cost data...</Text>
+        <Footer hints={hints} />
       </Box>
     );
   }
 
   if (error) {
-    return <ErrorDisplay error={error} onRetry={() => { void refresh(); }} />;
+    return <ErrorDisplay error={error} onRetry={handleRefresh} />;
   }
 
   if (!costs) {
@@ -40,6 +60,7 @@ export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
       <Box flexDirection="column">
         <Text bold>Costs</Text>
         <Text dimColor>No cost data available</Text>
+        <Footer hints={hints} />
       </Box>
     );
   }
@@ -101,6 +122,9 @@ export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
             ))}
           </Box>
         )}
+
+        {/* #1816: Keybinding hints */}
+        <Footer hints={hints} />
       </Box>
     );
   }
@@ -180,6 +204,9 @@ export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
             ))}
         </Panel>
       )}
+
+      {/* #1816: Keybinding hints */}
+      <Footer hints={hints} />
     </Box>
   );
 }
