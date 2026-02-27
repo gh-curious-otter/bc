@@ -12,6 +12,7 @@ import { HeaderBar } from '../components/HeaderBar';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useListNavigation } from '../hooks';
+import { DISPLAY_LIMITS } from '../constants';
 import type { Worktree } from '../types';
 
 /**
@@ -141,11 +142,11 @@ export const WorktreesView: React.FC = () => {
         <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor="yellow" padding={1}>
           <Text>This will remove {orphanedWorktrees.length} orphaned worktree(s):</Text>
           <Box marginTop={1} flexDirection="column">
-            {orphanedWorktrees.slice(0, 5).map((wt) => (
+            {orphanedWorktrees.slice(0, DISPLAY_LIMITS.ORPHANED_WORKTREES).map((wt) => (
               <Text key={wt.path} color="red">- {wt.agent}: {formatPath(wt.path)}</Text>
             ))}
-            {orphanedWorktrees.length > 5 && (
-              <Text dimColor>... and {orphanedWorktrees.length - 5} more</Text>
+            {orphanedWorktrees.length > DISPLAY_LIMITS.ORPHANED_WORKTREES && (
+              <Text dimColor>... and {orphanedWorktrees.length - DISPLAY_LIMITS.ORPHANED_WORKTREES} more</Text>
             )}
           </Box>
           <Box marginTop={1}>
