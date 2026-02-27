@@ -9,6 +9,7 @@ import { Box, Text, useInput, useStdout } from 'ink';
 import { useLogs, getSeverityColor, getSeverityIcon, useDebounce, useListNavigation } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { PulseText } from '../components/AnimatedText';
+import { ErrorDisplay } from '../components/ErrorDisplay';
 import type { LogSeverity } from '../hooks/useLogs';
 import type { LogEntry } from '../types';
 
@@ -345,11 +346,7 @@ export const LogsView: React.FC<LogsViewProps> = () => {
   }
 
   if (error) {
-    return (
-      <Box padding={1}>
-        <Text color="red">Error: {error}</Text>
-      </Box>
-    );
+    return <ErrorDisplay error={error} onRetry={() => { void refresh(); }} />;
   }
 
   // Calculate column widths based on terminal width

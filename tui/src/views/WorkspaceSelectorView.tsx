@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { getWorkspaces } from '../services/bc';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { ErrorDisplay } from '../components/ErrorDisplay';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useDisableInput, useListNavigation } from '../hooks';
@@ -168,11 +169,7 @@ export const WorkspaceSelectorView: React.FC<WorkspaceSelectorViewProps> = ({
   }
 
   if (error) {
-    return (
-      <Box padding={1}>
-        <Text color="red">Error: {error}</Text>
-      </Box>
-    );
+    return <ErrorDisplay error={error} onRetry={() => { void fetchWorkspaces(); }} />;
   }
 
   // Calculate column widths

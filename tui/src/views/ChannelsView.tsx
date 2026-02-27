@@ -13,6 +13,7 @@ import { useChannelsWithUnread, useDisableInput, useListNavigation } from '../ho
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { PulseText } from '../components/AnimatedText';
+import { ErrorDisplay } from '../components/ErrorDisplay';
 import { ChannelRow, ChannelHistoryView } from '../components/channels';
 import type { Channel } from '../types';
 
@@ -36,7 +37,7 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
   // #1594: Use context instead of prop drilling
   const { isDisabled: disableInput } = useDisableInput();
   // #1129: Use useChannelsWithUnread for proper unread message tracking
-  const { channels, loading: channelsLoading, error: channelsError } = useChannelsWithUnread();
+  const { channels, loading: channelsLoading, error: channelsError, refresh } = useChannelsWithUnread();
   const [viewMode, setViewMode] = useState<'list' | 'history'>('list');
   const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
   const { setFocus } = useFocus();
@@ -98,12 +99,7 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
   }
 
   if (channelsError) {
-    return (
-      <Box flexDirection="column">
-        <Text bold>Channels</Text>
-        <Text color="red">Error: {channelsError}</Text>
-      </Box>
-    );
+    return <ErrorDisplay error={channelsError} onRetry={() => { void refresh(); }} />;
   }
 
   if (viewMode === 'history' && selectedChannel) {

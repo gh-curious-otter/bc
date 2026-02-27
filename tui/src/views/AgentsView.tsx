@@ -19,6 +19,7 @@ import { useNavigation } from '../navigation/NavigationContext';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useAgentGroups } from '../hooks/useAgentGroups';
 import { PulseText } from '../components/AnimatedText';
+import { ErrorDisplay } from '../components/ErrorDisplay';
 import { AgentDetailView } from './AgentDetailView';
 import { execBc } from '../services/bc';
 import type { Agent } from '../types';
@@ -304,11 +305,7 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
   }
 
   if (error) {
-    return (
-      <Box padding={1}>
-        <Text color="red">Error: {error}</Text>
-      </Box>
-    );
+    return <ErrorDisplay error={error} onRetry={() => { void refresh(); }} />;
   }
 
   return (
