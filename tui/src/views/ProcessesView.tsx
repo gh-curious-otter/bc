@@ -13,6 +13,7 @@ import type { Column } from '../components/Table';
 import { StatusBadge } from '../components/StatusBadge';
 import { HeaderBar } from '../components/HeaderBar';
 import { ViewWrapper } from '../components/ViewWrapper';
+import { DATA_LIMITS } from '../constants';
 import type { Process } from '../types';
 
 /**
@@ -256,7 +257,7 @@ interface ProcessLogViewerProps {
 function ProcessLogViewer({ process, onBack }: ProcessLogViewerProps) {
   const { data: logs, loading, error, refresh } = useProcessLogs({
     name: process.name,
-    lines: 50,
+    lines: DATA_LIMITS.PROCESS_LINES,
   });
   const [scrollOffset, setScrollOffset] = useState(0);
   const maxVisibleLines = 15;

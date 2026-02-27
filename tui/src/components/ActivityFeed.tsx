@@ -8,6 +8,7 @@ import { Box, Text, useStdout } from 'ink';
 import { Panel } from './Panel';
 import { useLogs, getSeverityColor, getSeverityIcon } from '../hooks';
 import { truncate } from '../utils';
+import { DATA_LIMITS, POLL_INTERVALS } from '../constants';
 import type { LogSeverity } from '../hooks';
 import type { LogEntry } from '../types';
 
@@ -110,8 +111,8 @@ export function ActivityFeed({
   const terminalWidth = stdout.columns || 80;
 
   const { data: logs, loading, severityFilter: currentFilter } = useLogs({
-    tail: 50,
-    pollInterval: 3000,
+    tail: DATA_LIMITS.ACTIVITY_TAIL,
+    pollInterval: POLL_INTERVALS.DEFAULT,
   });
 
   // Apply local severity filter or use hook filter

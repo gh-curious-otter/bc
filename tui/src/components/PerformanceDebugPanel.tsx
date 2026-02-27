@@ -6,6 +6,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { usePerformanceOptional } from '../hooks';
+import { UI_ELEMENTS } from '../constants';
 
 interface PerformanceDebugPanelProps {
   /** Maximum number of metrics to display */
@@ -69,7 +70,7 @@ export function PerformanceDebugPanel({
       </Box>
 
       <Box marginTop={0}>
-        <Text dimColor>{'─'.repeat(50)}</Text>
+        <Text dimColor>{'─'.repeat(UI_ELEMENTS.DIVIDER_WIDTH_WIDE)}</Text>
       </Box>
 
       {/* Header */}

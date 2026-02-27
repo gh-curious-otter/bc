@@ -107,3 +107,50 @@ export const SPACING = {
   /** Large spacing */
   LG: 8,
 } as const;
+
+/**
+ * Terminal fallback dimensions
+ * Used when stdout dimensions are unavailable
+ */
+export const TERMINAL_DEFAULTS = {
+  /** Default terminal rows (standard 80x24) */
+  ROWS: 24,
+  /** Default terminal columns (standard 80x24) */
+  COLS: 80,
+  /** Minimum usable height for views */
+  MIN_VIEW_HEIGHT: 10,
+  /** Reserved lines for header/footer/hints */
+  RESERVED_LINES: 6,
+} as const;
+
+/**
+ * UI element dimensions
+ * For dividers, separators, and decorative elements
+ */
+export const UI_ELEMENTS = {
+  /** Standard divider width */
+  DIVIDER_WIDTH: 40,
+  /** Narrow divider width (for compact views) */
+  DIVIDER_WIDTH_NARROW: 30,
+  /** Wide divider width (for full-width views) */
+  DIVIDER_WIDTH_WIDE: 50,
+  /** Command palette width */
+  COMMAND_PALETTE_WIDTH: 60,
+  /** Command palette minimum margin */
+  COMMAND_PALETTE_MIN_MARGIN: 4,
+} as const;
+
+/**
+ * Data fetch limits
+ * For tail, pagination, and batch sizes
+ */
+export const DATA_LIMITS = {
+  /** Default log tail limit */
+  LOG_TAIL: 100,
+  /** Activity feed tail limit */
+  ACTIVITY_TAIL: 50,
+  /** Process output lines */
+  PROCESS_LINES: 50,
+  /** Maximum file size to preview (100KB) */
+  MAX_PREVIEW_SIZE: 100 * 1024,
+} as const;

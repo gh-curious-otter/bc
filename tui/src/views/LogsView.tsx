@@ -10,6 +10,8 @@ import { useLogs, getSeverityColor, getSeverityIcon, useDebounce, useListNavigat
 import { useFocus } from '../navigation/FocusContext';
 import { PulseText } from '../components/AnimatedText';
 import { ErrorDisplay } from '../components/ErrorDisplay';
+import { DATA_LIMITS } from '../constants';
+import { POLL_INTERVALS } from '../constants/timings';
 import type { LogSeverity } from '../hooks/useLogs';
 import type { LogEntry } from '../types';
 
@@ -137,9 +139,9 @@ export const LogsView: React.FC<LogsViewProps> = () => {
   const terminalWidth = stdout.columns;
 
   const { data: logs, loading, error, refresh, filterBySeverity, severityFilter } = useLogs({
-    tail: 100,
+    tail: DATA_LIMITS.LOG_TAIL,
     autoPoll: true,
-    pollInterval: 5000,
+    pollInterval: POLL_INTERVALS.LOGS,
   });
 
   // #1601: UI state consolidated with useReducer
