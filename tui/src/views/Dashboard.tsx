@@ -260,6 +260,7 @@ const SystemHealthPanel = memo(function SystemHealthPanel({
   const healthColor = healthPercent >= 80 ? HEALTH_COLORS.healthy : healthPercent >= 50 ? HEALTH_COLORS.warning : HEALTH_COLORS.critical;
 
   // #1352: Compact borderless layout for narrow terminals
+  // #1779: Use full text labels for accessibility (screen reader support)
   if (isNarrow) {
     return (
       <Box flexDirection="column" marginBottom={1}>
@@ -268,15 +269,15 @@ const SystemHealthPanel = memo(function SystemHealthPanel({
           <Text color={healthColor} bold>{healthPercent}%</Text>
           <Text> · </Text>
           <PulseText color={STATUS_COLORS.working} enabled={working > 0} interval={1500}>●</PulseText>
-          <Text>W:{working}</Text>
+          <Text> {working} working</Text>
           <Text> · </Text>
-          <Text color={STATUS_COLORS.idle}>●</Text>
-          <Text>I:{idle}</Text>
+          <Text color={STATUS_COLORS.idle}>○</Text>
+          <Text> {idle} idle</Text>
           {stuck > 0 && (
             <>
               <Text> · </Text>
-              <Text color={STATUS_COLORS.warning}>●</Text>
-              <Text>S:{stuck}</Text>
+              <Text color={STATUS_COLORS.warning}>⚠</Text>
+              <Text> {stuck} stuck</Text>
             </>
           )}
         </Box>
