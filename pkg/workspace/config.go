@@ -17,7 +17,14 @@ const ConfigVersion = 2
 
 // V2Config represents the TOML-based workspace configuration for bc v2.
 type V2Config struct {
-	Tools       ToolsConfig       `toml:"tools"`
+	// New config sections (Issue #1771)
+	Providers ProvidersConfig `toml:"providers"`
+	Services  ServicesConfig  `toml:"services"`
+
+	// Legacy config section (deprecated, use Providers/Services instead)
+	Tools ToolsConfig `toml:"tools"`
+
+	// Other config sections
 	Memory      MemoryConfig      `toml:"memory"`
 	TUI         TUIConfig         `toml:"tui"`
 	User        UserConfig        `toml:"user"`
@@ -46,6 +53,8 @@ type WorktreesConfig struct {
 }
 
 // ToolsConfig configures available AI tools and integrations.
+// DEPRECATED: Use ProvidersConfig and ServicesConfig instead.
+// This is kept for backward compatibility with existing configs.
 type ToolsConfig struct {
 	Custom  map[string]ToolConfig `toml:"-"`
 	Claude  *ToolConfig           `toml:"claude,omitempty"`
@@ -62,6 +71,43 @@ type ToolsConfig struct {
 type ToolConfig struct {
 	Command string `toml:"command"`
 	Enabled bool   `toml:"enabled"`
+}
+
+// ProvidersConfig configures AI agent providers (Claude, Gemini, etc.).
+// Issue #1771: Separate AI providers from external service integrations.
+type ProvidersConfig struct {
+	Custom   map[string]ProviderConfig `toml:"-"`                  // Custom providers
+	Claude   *ProviderConfig           `toml:"claude,omitempty"`   // Anthropic Claude Code
+	Gemini   *ProviderConfig           `toml:"gemini,omitempty"`   // Google Gemini
+	Cursor   *ProviderConfig           `toml:"cursor,omitempty"`   // Cursor Agent
+	Codex    *ProviderConfig           `toml:"codex,omitempty"`    // OpenAI Codex
+	OpenCode *ProviderConfig           `toml:"opencode,omitempty"` // OpenCode/Crush
+	OpenClaw *ProviderConfig           `toml:"openclaw,omitempty"` // OpenClaw
+	Aider    *ProviderConfig           `toml:"aider,omitempty"`    // Aider
+	Default  string                    `toml:"default"`            // Default provider for new agents
+}
+
+// ProviderConfig defines an AI provider's configuration.
+type ProviderConfig struct {
+	Command string `toml:"command"`         // Command to launch the provider
+	Model   string `toml:"model,omitempty"` // Default model (for API providers)
+	Enabled bool   `toml:"enabled"`         // Whether the provider is enabled
+}
+
+// ServicesConfig configures external service integrations (GitHub, GitLab, etc.).
+// Issue #1771: Separate external services from AI providers.
+type ServicesConfig struct {
+	GitHub *ServiceConfig `toml:"github,omitempty"` // GitHub CLI integration
+	GitLab *ServiceConfig `toml:"gitlab,omitempty"` // GitLab CLI integration
+	Jira   *ServiceConfig `toml:"jira,omitempty"`   // Jira CLI integration
+}
+
+// ServiceConfig defines an external service integration.
+type ServiceConfig struct {
+	Command   string `toml:"command"`              // Command to execute (e.g., "gh")
+	TokenEnv  string `toml:"token_env,omitempty"`  // Environment variable for auth token
+	RateLimit int    `toml:"rate_limit,omitempty"` // Requests per hour (0 = unlimited)
+	Enabled   bool   `toml:"enabled"`              // Whether the service is enabled
 }
 
 // MemoryConfig configures agent memory/context persistence.
@@ -443,8 +489,18 @@ func NormalizeNickname(nickname string) (string, error) {
 	return nickname, nil
 }
 
-// hasToolDefined checks if a tool is configured.
+// hasToolDefined checks if a tool is configured (either in new or legacy config).
+// Issue #1771: Updated to check both Providers/Services and legacy Tools.
 func (c *V2Config) hasToolDefined(name string) bool {
+	// Check if it's an AI provider
+	if c.HasProviderDefined(name) {
+		return true
+	}
+	// Check if it's an external service
+	if c.HasServiceDefined(name) {
+		return true
+	}
+	// Fall back to legacy Tools check
 	switch name {
 	case "claude":
 		return c.Tools.Claude != nil
@@ -467,6 +523,7 @@ func (c *V2Config) hasToolDefined(name string) bool {
 }
 
 // GetTool returns the configuration for a named tool.
+// DEPRECATED: Use GetProvider or GetService instead.
 func (c *V2Config) GetTool(name string) *ToolConfig {
 	switch name {
 	case "claude":
@@ -489,6 +546,112 @@ func (c *V2Config) GetTool(name string) *ToolConfig {
 		}
 		return nil
 	}
+}
+
+// GetProvider returns an AI provider's configuration by name.
+// Falls back to legacy Tools config if new Providers section is not defined.
+// Issue #1771: New method for cleaner provider access.
+func (c *V2Config) GetProvider(name string) *ProviderConfig {
+	// Try new Providers config first
+	switch name {
+	case "claude":
+		if c.Providers.Claude != nil {
+			return c.Providers.Claude
+		}
+		// Fall back to legacy Tools config
+		if c.Tools.Claude != nil {
+			return &ProviderConfig{Command: c.Tools.Claude.Command, Enabled: c.Tools.Claude.Enabled}
+		}
+	case "gemini":
+		if c.Providers.Gemini != nil {
+			return c.Providers.Gemini
+		}
+		if c.Tools.Gemini != nil {
+			return &ProviderConfig{Command: c.Tools.Gemini.Command, Enabled: c.Tools.Gemini.Enabled}
+		}
+	case "cursor":
+		if c.Providers.Cursor != nil {
+			return c.Providers.Cursor
+		}
+		if c.Tools.Cursor != nil {
+			return &ProviderConfig{Command: c.Tools.Cursor.Command, Enabled: c.Tools.Cursor.Enabled}
+		}
+	case "codex":
+		if c.Providers.Codex != nil {
+			return c.Providers.Codex
+		}
+		if c.Tools.Codex != nil {
+			return &ProviderConfig{Command: c.Tools.Codex.Command, Enabled: c.Tools.Codex.Enabled}
+		}
+	case "opencode":
+		if c.Providers.OpenCode != nil {
+			return c.Providers.OpenCode
+		}
+	case "openclaw":
+		if c.Providers.OpenClaw != nil {
+			return c.Providers.OpenClaw
+		}
+	case "aider":
+		if c.Providers.Aider != nil {
+			return c.Providers.Aider
+		}
+	default:
+		if cfg, ok := c.Providers.Custom[name]; ok {
+			return &cfg
+		}
+	}
+	return nil
+}
+
+// GetService returns an external service's configuration by name.
+// Falls back to legacy Tools config if new Services section is not defined.
+// Issue #1771: New method for cleaner service access.
+func (c *V2Config) GetService(name string) *ServiceConfig {
+	// Try new Services config first
+	switch name {
+	case "github":
+		if c.Services.GitHub != nil {
+			return c.Services.GitHub
+		}
+		// Fall back to legacy Tools config
+		if c.Tools.GitHub != nil {
+			return &ServiceConfig{Command: c.Tools.GitHub.Command, Enabled: c.Tools.GitHub.Enabled}
+		}
+	case "gitlab":
+		if c.Services.GitLab != nil {
+			return c.Services.GitLab
+		}
+		if c.Tools.GitLab != nil {
+			return &ServiceConfig{Command: c.Tools.GitLab.Command, Enabled: c.Tools.GitLab.Enabled}
+		}
+	case "jira":
+		if c.Services.Jira != nil {
+			return c.Services.Jira
+		}
+		if c.Tools.Jira != nil {
+			return &ServiceConfig{Command: c.Tools.Jira.Command, Enabled: c.Tools.Jira.Enabled}
+		}
+	}
+	return nil
+}
+
+// GetDefaultProvider returns the default AI provider name.
+// Falls back to legacy Tools.Default if new Providers.Default is not set.
+func (c *V2Config) GetDefaultProvider() string {
+	if c.Providers.Default != "" {
+		return c.Providers.Default
+	}
+	return c.Tools.Default
+}
+
+// HasProviderDefined checks if an AI provider is configured.
+func (c *V2Config) HasProviderDefined(name string) bool {
+	return c.GetProvider(name) != nil
+}
+
+// HasServiceDefined checks if an external service is configured.
+func (c *V2Config) HasServiceDefined(name string) bool {
+	return c.GetService(name) != nil
 }
 
 // GetDefaultTool returns the default tool configuration.
