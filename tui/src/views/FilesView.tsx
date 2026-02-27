@@ -14,6 +14,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useReducer } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { getWorktrees } from '../services/bc';
+import { ErrorDisplay } from '../components/ErrorDisplay';
 import type { Worktree } from '../types';
 import { useTheme } from '../theme';
 import { useFileTree, useGitStatus, useResponsiveLayout, useListNavigation, type FileTreeEntry, type GitFileStatus } from '../hooks';
@@ -119,28 +120,29 @@ export function FilesView(): React.ReactNode {
     workingDir: selectedWorktree?.path ?? '',
   });
 
+  // Load worktrees - extracted for retry support (#1779)
+  const loadWorktrees = useCallback(async (): Promise<void> => {
+    try {
+      setWorktreesLoading(true);
+      setWorktreesError(null);
+      const wts = await getWorktrees();
+      // Filter to only OK worktrees
+      const activeWorktrees = wts.filter(w => w.status === 'OK');
+      setWorktrees(activeWorktrees);
+      if (activeWorktrees.length > 0) {
+        setSelectedWorktree(activeWorktrees[0]);
+      }
+    } catch (err) {
+      setWorktreesError(err instanceof Error ? err.message : 'Failed to load worktrees');
+    } finally {
+      setWorktreesLoading(false);
+    }
+  }, []);
+
   // Load worktrees on mount
   useEffect(() => {
-    const loadWorktrees = async (): Promise<void> => {
-      try {
-        setWorktreesLoading(true);
-        setWorktreesError(null);
-        const wts = await getWorktrees();
-        // Filter to only OK worktrees
-        const activeWorktrees = wts.filter(w => w.status === 'OK');
-        setWorktrees(activeWorktrees);
-        if (activeWorktrees.length > 0) {
-          setSelectedWorktree(activeWorktrees[0]);
-        }
-      } catch (err) {
-        setWorktreesError(err instanceof Error ? err.message : 'Failed to load worktrees');
-      } finally {
-        setWorktreesLoading(false);
-      }
-    };
-
     void loadWorktrees();
-  }, []);
+  }, [loadWorktrees]);
 
   // Reset tree index when worktree changes
   useEffect(() => {
@@ -261,12 +263,7 @@ export function FilesView(): React.ReactNode {
   }
 
   if (worktreesError) {
-    return (
-      <Box flexDirection="column" padding={1}>
-        <Text color="cyan">Files</Text>
-        <Text color="red">Error: {worktreesError}</Text>
-      </Box>
-    );
+    return <ErrorDisplay error={worktreesError} onRetry={() => { void loadWorktrees(); }} />;
   }
 
   if (worktrees.length === 0) {

@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { getWorktrees, pruneWorktrees } from '../services/bc';
 import { LoadingIndicator } from '../components/LoadingIndicator';
+import { ErrorDisplay } from '../components/ErrorDisplay';
 import { HeaderBar } from '../components/HeaderBar';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
@@ -194,11 +195,7 @@ export const WorktreesView: React.FC = () => {
   }
 
   if (error) {
-    return (
-      <Box padding={1}>
-        <Text color="red">Error: {error}</Text>
-      </Box>
-    );
+    return <ErrorDisplay error={error} onRetry={() => { void fetchWorktrees(); }} />;
   }
 
   // Calculate column widths

@@ -6,6 +6,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { Panel } from '../components/Panel';
+import { ErrorDisplay } from '../components/ErrorDisplay';
 import { useCosts } from '../hooks';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 
@@ -19,7 +20,7 @@ export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
   // #1365: Extend borderless to 100-120 cols (isMD) to prevent box fragmentation
   const isNarrow = isCompact || isMinimal || isMD;
 
-  const { data: costs, loading, error } = useCosts();
+  const { data: costs, loading, error, refresh } = useCosts();
 
   if (loading) {
     return (
@@ -31,12 +32,7 @@ export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
   }
 
   if (error) {
-    return (
-      <Box flexDirection="column">
-        <Text bold>Costs</Text>
-        <Text color="red">Error: {error}</Text>
-      </Box>
-    );
+    return <ErrorDisplay error={error} onRetry={() => { void refresh(); }} />;
   }
 
   if (!costs) {
