@@ -376,7 +376,7 @@ export const CommandsView: React.FC<CommandsViewProps> = (_props = {}) => {
             ? 'c: clear output | Esc: close | q: back'
             : filteredCommands.length === 0
             ? 'No commands found | /: search | q: back'
-            : 'j/k: navigate | g/G: top/bottom | /: search | Enter: run | f: favorite | q/ESC: back'}
+            : `j/k: navigate | g/G: top/bottom | /: search${search.query ? ' | c: clear' : ''} | Enter: run | f: favorite | q/ESC: back`}
         </Text>
       </Box>
     </Box>

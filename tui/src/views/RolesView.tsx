@@ -13,6 +13,7 @@ import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useAgents, useDebounce, useDisableInput, useListNavigation } from '../hooks';
 import { truncate } from '../utils';
+import { DISPLAY_LIMITS, TRUNCATION } from '../constants';
 import type { Role } from '../types';
 import { getRoles, getRole, deleteRole } from '../services/bc';
 
@@ -123,6 +124,7 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
   const customKeys = useMemo(
     () => ({
       '/': () => { setSearchMode(true); },
+      'c': () => { setSearchQuery(''); },
       'd': () => {
         // Only allow delete for non-builtin roles (checked in modal)
         setConfirmDelete(true);
@@ -330,7 +332,7 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
         <Text dimColor>
           {searchMode
             ? 'Type to search, Enter/Esc to exit'
-            : 'j/k: navigate | g/G: top/bottom | Enter: details | d: delete | r: refresh | q/ESC: back'}
+            : `j/k: navigate | g/G: top/bottom | /: search${searchQuery ? ' | c: clear' : ''} | Enter: details | d: delete | r: refresh | q/ESC: back`}
         </Text>
       </Box>
     </Box>
@@ -349,8 +351,8 @@ interface RoleRowProps {
 function RoleRow({ role, selected, agentCount, nameWidth }: RoleRowProps): React.ReactElement {
   const capabilitiesStr =
     role.capabilities.length > 0
-      ? role.capabilities.slice(0, 3).join(', ') +
-        (role.capabilities.length > 3 ? '...' : '')
+      ? role.capabilities.slice(0, DISPLAY_LIMITS.CAPABILITIES_PREVIEW).join(', ') +
+        (role.capabilities.length > DISPLAY_LIMITS.CAPABILITIES_PREVIEW ? '...' : '')
       : '-';
 
   // #971 fix: Use dynamic width, truncate with 3 chars reserved for "▸ " indicator
@@ -438,7 +440,7 @@ function RoleDetails({ role, agentCount }: RoleDetailsProps): React.ReactElement
               paddingX={1}
             >
               <Text dimColor wrap="wrap">
-                {truncate(role.prompt, 200)}
+                {truncate(role.prompt, TRUNCATION.PROMPT_PREVIEW)}
               </Text>
             </Box>
           </Box>

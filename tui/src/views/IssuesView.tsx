@@ -12,6 +12,7 @@ import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useIssues, useListNavigation } from '../hooks';
 import { truncate } from '../utils';
+import { DISPLAY_LIMITS, TRUNCATION } from '../constants';
 import type { GHIssue } from '../services/bc';
 
 // Issue type labels with color mapping
@@ -205,8 +206,8 @@ export function IssuesView(_props: IssuesViewProps = {}): React.ReactElement {
                   marginTop={0}
                 >
                   <Text wrap="wrap">
-                    {selectedIssue.body.slice(0, 500)}
-                    {selectedIssue.body.length > 500 ? '...' : ''}
+                    {selectedIssue.body.slice(0, TRUNCATION.ISSUE_BODY)}
+                    {selectedIssue.body.length > TRUNCATION.ISSUE_BODY ? '...' : ''}
                   </Text>
                 </Box>
               </Box>
@@ -216,17 +217,17 @@ export function IssuesView(_props: IssuesViewProps = {}): React.ReactElement {
             {selectedIssue.comments && selectedIssue.comments.length > 0 && (
               <Box marginTop={1} flexDirection="column">
                 <Text dimColor>Comments ({selectedIssue.comments.length}):</Text>
-                {selectedIssue.comments.slice(0, 3).map((comment, idx) => (
+                {selectedIssue.comments.slice(0, DISPLAY_LIMITS.ISSUE_COMMENTS).map((comment, idx) => (
                   <Box key={idx} marginTop={1} flexDirection="column">
                     <Box>
                       <Text color="cyan">{comment.author.login}</Text>
                       <Text dimColor> ({formatRelativeDate(comment.createdAt)})</Text>
                     </Box>
-                    <Text wrap="wrap">{truncate(comment.body, 200)}</Text>
+                    <Text wrap="wrap">{truncate(comment.body, TRUNCATION.PROMPT_PREVIEW)}</Text>
                   </Box>
                 ))}
-                {selectedIssue.comments.length > 3 && (
-                  <Text dimColor>... +{selectedIssue.comments.length - 3} more comments</Text>
+                {selectedIssue.comments.length > DISPLAY_LIMITS.ISSUE_COMMENTS && (
+                  <Text dimColor>... +{selectedIssue.comments.length - DISPLAY_LIMITS.ISSUE_COMMENTS} more comments</Text>
                 )}
               </Box>
             )}

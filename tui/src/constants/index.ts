@@ -9,3 +9,4 @@ export * from './timings';
 export * from './dimensions';
 export * from './cache';
 export * from './colors';
+export * from './limits';

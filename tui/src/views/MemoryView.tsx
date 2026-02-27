@@ -16,6 +16,7 @@ import { useNavigation } from '../navigation/NavigationContext';
 import { useDisableInput, useListNavigation } from '../hooks';
 import { getMemoryList, getMemory, searchMemory, clearMemory } from '../services/bc';
 import { truncate } from '../utils';
+import { DISPLAY_LIMITS, TRUNCATION } from '../constants';
 import type { AgentMemorySummary, AgentMemory, MemorySearchResult } from '../types';
 
 // #1594: Using empty interface for future extensibility, props removed
@@ -459,7 +460,7 @@ function MemoryDetailView({ memory, activeTab }: MemoryDetailViewProps): React.R
             <Text dimColor>No experiences recorded</Text>
           ) : (
             <Box flexDirection="column">
-              {memory.experiences.slice(0, 10).map((exp, idx) => (
+              {memory.experiences.slice(0, DISPLAY_LIMITS.EXPERIENCES).map((exp, idx) => (
                 <Box key={exp.id || idx} marginBottom={1} flexDirection="column">
                   <Box>
                     <Text color="cyan">[{formatTime(exp.timestamp)}]</Text>
@@ -471,11 +472,11 @@ function MemoryDetailView({ memory, activeTab }: MemoryDetailViewProps): React.R
                       <Text dimColor> ({exp.category})</Text>
                     )}
                   </Box>
-                  <Text wrap="wrap">{truncate(exp.message, 70)}</Text>
+                  <Text wrap="wrap">{truncate(exp.message, TRUNCATION.MESSAGE)}</Text>
                 </Box>
               ))}
-              {memory.experiences.length > 10 && (
-                <Text dimColor>... and {memory.experiences.length - 10} more</Text>
+              {memory.experiences.length > DISPLAY_LIMITS.EXPERIENCES && (
+                <Text dimColor>... and {memory.experiences.length - DISPLAY_LIMITS.EXPERIENCES} more</Text>
               )}
             </Box>
           )
@@ -487,7 +488,7 @@ function MemoryDetailView({ memory, activeTab }: MemoryDetailViewProps): React.R
               {memory.learnings.map((learning, idx) => (
                 <Box key={learning.topic || idx} marginBottom={1} flexDirection="column">
                   <Text bold color="yellow">{learning.topic}</Text>
-                  <Text wrap="wrap">{truncate(learning.content, 100)}</Text>
+                  <Text wrap="wrap">{truncate(learning.content, TRUNCATION.PREVIEW)}</Text>
                 </Box>
               ))}
             </Box>
@@ -523,7 +524,7 @@ function SearchResultsView({ query, results }: SearchResultsViewProps): React.Re
           <Text dimColor>No results found</Text>
         ) : (
           <Box flexDirection="column">
-            {results.slice(0, 15).map((result, idx) => (
+            {results.slice(0, DISPLAY_LIMITS.SEARCH_RESULTS).map((result, idx) => (
               <Box key={idx} marginBottom={1} flexDirection="column">
                 <Box>
                   <Text color="cyan">{result.agent}</Text>
@@ -533,8 +534,8 @@ function SearchResultsView({ query, results }: SearchResultsViewProps): React.Re
                 <Text wrap="wrap">{truncate(result.content, 80)}</Text>
               </Box>
             ))}
-            {results.length > 15 && (
-              <Text dimColor>... and {results.length - 15} more</Text>
+            {results.length > DISPLAY_LIMITS.SEARCH_RESULTS && (
+              <Text dimColor>... and {results.length - DISPLAY_LIMITS.SEARCH_RESULTS} more</Text>
             )}
           </Box>
         )}
