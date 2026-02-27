@@ -240,3 +240,12 @@ export {
   type UseIssueDetailOptions,
   type UseIssueDetailResult,
 } from './useIssues';
+
+export {
+  useFocusStateMachine,
+  categorizeKey,
+  type FocusState,
+  type FocusTransition,
+  type KeyCategory,
+  type FocusStateMachineResult,
+} from './useFocusStateMachine';
