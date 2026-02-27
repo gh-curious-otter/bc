@@ -4,7 +4,7 @@
 [![Go Version](https://img.shields.io/badge/go-1.22+-blue.svg)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-> **Mission control for AI agents.** Coordinate teams of AI agents working together on your codebase.
+> **Orchestration for AI agents.** Coordinate teams of AI agents working together on your codebase.
 
 `bc` is a CLI-first orchestration system for coordinating teams of AI agents to work on software development projects. It provides a structured, observable, and persistent environment for AI-driven engineering.
 
