@@ -77,6 +77,24 @@ Examples:
 	RunE: runIssueComment,
 }
 
+var issueSearchCmd = &cobra.Command{
+	Use:   "search <keywords>",
+	Short: "Search issues before creating new ones",
+	Long: `Search existing issues to avoid creating duplicates.
+
+IMPORTANT: Always search before creating a new issue to reduce duplicate rate.
+
+The search looks through issue titles, bodies, and comments.
+
+Examples:
+  bc issue search "80x24 layout"           # Find layout-related issues
+  bc issue search "memory view empty"      # Find memory view issues
+  bc issue search "focus navigation"       # Find focus/nav issues
+  bc issue search "ESC key" --state all    # Include closed issues`,
+	Args: cobra.MinimumNArgs(1),
+	RunE: runIssueSearch,
+}
+
 var issueViewCmd = &cobra.Command{
 	Use:   "view <id>",
 	Short: "View issue details",
@@ -145,6 +163,7 @@ var (
 	issueShowComments bool
 	issueUnassign     bool
 	issueState        string
+	issueSearchLimit  int
 )
 
 // validIssueTypes defines the allowed issue types
@@ -211,9 +230,14 @@ func init() {
 	// issue assign flags
 	issueAssignCmd.Flags().BoolVar(&issueUnassign, "unassign", false, "Remove all assignees")
 
+	// issue search flags
+	issueSearchCmd.Flags().StringVar(&issueState, "state", "open", "Issue state: open, closed, all")
+	issueSearchCmd.Flags().IntVar(&issueSearchLimit, "limit", 10, "Maximum results to show")
+
 	// Add subcommands
 	issueCmd.AddCommand(issueCreateCmd)
 	issueCmd.AddCommand(issueListCmd)
+	issueCmd.AddCommand(issueSearchCmd) // Search before create!
 	issueCmd.AddCommand(issueViewCmd)
 	issueCmd.AddCommand(issueEditCmd)
 	issueCmd.AddCommand(issueCloseCmd)
@@ -634,4 +658,77 @@ func runIssueComment(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Comment added to issue #%s\n", issueID)
 	return nil
+}
+
+func runIssueSearch(cmd *cobra.Command, args []string) error {
+	log.Debug("issue search command started")
+
+	// Join all args as search query
+	query := strings.Join(args, " ")
+
+	jsonOutput, _ := cmd.Flags().GetBool("json")
+
+	// Build gh search command
+	// gh search issues searches across title, body, and comments
+	ghArgs := []string{"search", "issues", query, "--repo", getRepoName()}
+
+	// Add state filter
+	if issueState != "" && issueState != "all" {
+		ghArgs = append(ghArgs, "--state", issueState)
+	}
+
+	// Add limit
+	ghArgs = append(ghArgs, "--limit", fmt.Sprintf("%d", issueSearchLimit))
+
+	if jsonOutput {
+		ghArgs = append(ghArgs, "--json", "number,title,state,labels,author,createdAt")
+	}
+
+	ctx := context.Background()
+	ghCmd := exec.CommandContext(ctx, "gh", ghArgs...) //nolint:gosec // gh is a trusted command
+
+	var out bytes.Buffer
+	ghCmd.Stdout = &out
+	ghCmd.Stderr = os.Stderr
+
+	if err := ghCmd.Run(); err != nil {
+		return fmt.Errorf("failed to search issues: %w", err)
+	}
+
+	output := out.String()
+
+	if output == "" || strings.TrimSpace(output) == "" {
+		fmt.Printf("No issues found matching: %s\n", query)
+		fmt.Println("\nYou may proceed with: bc issue create --title \"...\"")
+		return nil
+	}
+
+	if jsonOutput {
+		var data any
+		if err := json.Unmarshal(out.Bytes(), &data); err != nil {
+			fmt.Print(output)
+			return nil
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(data)
+	}
+
+	fmt.Printf("Found issues matching: %s\n\n", query)
+	fmt.Print(output)
+	fmt.Println("\nIf none match your issue, proceed with: bc issue create --title \"...\"")
+	fmt.Println("If one matches, consider commenting or reopening instead of creating a duplicate.")
+
+	return nil
+}
+
+// getRepoName returns the current repository name from gh
+func getRepoName() string {
+	ctx := context.Background()
+	cmd := exec.CommandContext(ctx, "gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner") //nolint:gosec
+	out, err := cmd.Output()
+	if err != nil {
+		return "" // Let gh figure it out from current directory
+	}
+	return strings.TrimSpace(string(out))
 }
