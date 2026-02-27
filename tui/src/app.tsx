@@ -16,6 +16,7 @@ import {
 import { useTheme } from './theme';
 import { UnreadProvider, useKeybindingHints, useResponsiveLayout, HintsProvider, useHintsContext, DisableInputProvider, useDisableInput } from './hooks';
 import { useThemeConfig } from './config';
+import { UI_ELEMENTS } from './constants';
 import { RootProvider } from './providers';
 import { Dashboard } from './views/Dashboard';
 import { AgentsView } from './views/AgentsView';
@@ -171,8 +172,11 @@ function AppContent({ themeConfig }: AppContentProps): React.ReactElement {
   const terminalWidth = stdout.columns;
 
   // #1611 fix: Calculate responsive margins for command palette overlay
-  // Center the palette horizontally with minimum margin of 4
-  const commandPaletteMarginLeft = Math.max(4, Math.floor((terminalWidth - 60) / 2));
+  // Center the palette horizontally with minimum margin
+  const commandPaletteMarginLeft = Math.max(
+    UI_ELEMENTS.COMMAND_PALETTE_MIN_MARGIN,
+    Math.floor((terminalWidth - UI_ELEMENTS.COMMAND_PALETTE_WIDTH) / 2)
+  );
 
   return (
     <Box flexDirection="column" padding={1} width={terminalWidth} height={terminalHeight} overflow="hidden">

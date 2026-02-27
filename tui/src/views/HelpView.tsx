@@ -8,6 +8,7 @@ import React, { useState, useMemo, memo } from 'react';
 import { Box, Text, useStdout, useInput } from 'ink';
 import { useTheme } from '../theme';
 import { useDisableInput } from '../hooks';
+import { TERMINAL_DEFAULTS, UI_ELEMENTS } from '../constants';
 
 interface ShortcutSection {
   type: 'section';
@@ -111,8 +112,11 @@ export function HelpView(): React.ReactElement {
     return acc + 1 + section.shortcuts.length + 1; // title + shortcuts + margin
   }, 0);
 
-  // Available height for content (reserve 4 lines for header/footer/hints)
-  const availableHeight = Math.max(10, (stdout.rows || 24) - 6);
+  // Available height for content (reserve lines for header/footer/hints)
+  const availableHeight = Math.max(
+    TERMINAL_DEFAULTS.MIN_VIEW_HEIGHT,
+    (stdout.rows || TERMINAL_DEFAULTS.ROWS) - TERMINAL_DEFAULTS.RESERVED_LINES
+  );
   const needsScroll = totalLines > availableHeight;
   const maxScroll = Math.max(0, totalLines - availableHeight);
 
@@ -143,7 +147,7 @@ export function HelpView(): React.ReactElement {
       if (currentLine >= scrollOffset && currentLine < scrollOffset + availableHeight) {
         visibleContent.push(
           <Text key="title" bold color="cyan">KEYBOARD SHORTCUTS</Text>,
-          <Text key="divider" dimColor>{'─'.repeat(40)}</Text>
+          <Text key="divider" dimColor>{'─'.repeat(UI_ELEMENTS.DIVIDER_WIDTH)}</Text>
         );
       }
       currentLine += 2;
@@ -151,7 +155,7 @@ export function HelpView(): React.ReactElement {
       if (currentLine >= scrollOffset && currentLine < scrollOffset + availableHeight) {
         visibleContent.push(
           <Box key="footer" marginTop={1} flexDirection="column">
-            <Text dimColor>{'─'.repeat(40)}</Text>
+            <Text dimColor>{'─'.repeat(UI_ELEMENTS.DIVIDER_WIDTH)}</Text>
             <Text dimColor>
               Theme: {theme.name} ({isDark ? 'dark' : 'light'} mode)
             </Text>

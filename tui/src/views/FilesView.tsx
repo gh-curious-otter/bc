@@ -18,6 +18,7 @@ import { ErrorDisplay } from '../components/ErrorDisplay';
 import type { Worktree } from '../types';
 import { useTheme } from '../theme';
 import { useFileTree, useGitStatus, useResponsiveLayout, useListNavigation, type FileTreeEntry, type GitFileStatus } from '../hooks';
+import { DATA_LIMITS, UI_ELEMENTS } from '../constants';
 import * as fs from 'fs';
 
 // Focus areas within the view
@@ -552,9 +553,9 @@ function FilePreview({ path, maxHeight }: FilePreviewProps): React.ReactElement 
     try {
       const stats = fs.statSync(path);
 
-      // Don't preview files larger than 100KB
-      if (stats.size > 100 * 1024) {
-        setError('File too large to preview (>100KB)');
+      // Don't preview files larger than max preview size
+      if (stats.size > DATA_LIMITS.MAX_PREVIEW_SIZE) {
+        setError(`File too large to preview (>${String(DATA_LIMITS.MAX_PREVIEW_SIZE / 1024)}KB)`);
         setLoading(false);
         return;
       }
@@ -600,7 +601,7 @@ function FilePreview({ path, maxHeight }: FilePreviewProps): React.ReactElement 
   return (
     <Box flexDirection="column" marginTop={1}>
       <Text dimColor>{path}</Text>
-      <Text dimColor>{'─'.repeat(30)}</Text>
+      <Text dimColor>{'─'.repeat(UI_ELEMENTS.DIVIDER_WIDTH_NARROW)}</Text>
       {visibleLines.map((line, idx) => (
         <Text key={idx} wrap="truncate">
           {line}

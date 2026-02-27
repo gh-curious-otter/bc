@@ -6,6 +6,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { searchCommands, getAllCommands, groupCommandsByCategory, type BcCommand } from '../types/commands';
+import { UI_ELEMENTS } from '../constants';
 
 export interface CommandPaletteProps {
   /** Whether the palette is visible */
@@ -173,7 +174,7 @@ export function CommandPalette({
 
       {/* Divider */}
       <Box>
-        <Text dimColor>{'─'.repeat(40)}</Text>
+        <Text dimColor>{'─'.repeat(UI_ELEMENTS.DIVIDER_WIDTH)}</Text>
       </Box>
 
       {/* Results */}
