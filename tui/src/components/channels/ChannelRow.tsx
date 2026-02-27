@@ -34,11 +34,11 @@ export function ChannelRow({ channel, selected, unreadCount }: ChannelRowProps):
   const memberInfo = ` ${String(channel.members.length)}m`;
 
   // Format unread badge with 'new' label to clarify meaning (#1364)
-  // "●" for 1 unread, "N new" for multiple
+  // #1779: Always include text label alongside symbol for accessibility
   const unreadBadge = unreadCount > 0
     ? unreadCount === 1
-      ? ' ●'
-      : ` ${unreadCount > 99 ? '99+' : String(unreadCount)} new`
+      ? ' ● 1 new'
+      : ` ● ${unreadCount > 99 ? '99+' : String(unreadCount)} new`
     : '';
 
   // Build single text line to avoid nested Text truncation issues on narrow terminals
