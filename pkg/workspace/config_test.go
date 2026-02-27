@@ -1519,3 +1519,172 @@ func TestUserDefaultsPathEmpty(t *testing.T) {
 		t.Errorf("expected empty path when HOME is empty, got %q", path)
 	}
 }
+
+// TestGetProvider tests the new GetProvider method (Issue #1771)
+func TestGetProvider(t *testing.T) {
+	tests := []struct { //nolint:govet // test struct alignment not critical
+		cfg          V2Config
+		name         string
+		providerName string
+		wantCommand  string
+		wantNil      bool
+	}{
+		{
+			name: "provider from new config",
+			cfg: V2Config{
+				Providers: ProvidersConfig{
+					Claude: &ProviderConfig{Command: "claude --new", Enabled: true},
+				},
+			},
+			providerName: "claude",
+			wantNil:      false,
+			wantCommand:  "claude --new",
+		},
+		{
+			name: "provider from legacy config fallback",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					Claude: &ToolConfig{Command: "claude --legacy", Enabled: true},
+				},
+			},
+			providerName: "claude",
+			wantNil:      false,
+			wantCommand:  "claude --legacy",
+		},
+		{
+			name: "new config takes precedence over legacy",
+			cfg: V2Config{
+				Providers: ProvidersConfig{
+					Claude: &ProviderConfig{Command: "claude --new", Enabled: true},
+				},
+				Tools: ToolsConfig{
+					Claude: &ToolConfig{Command: "claude --legacy", Enabled: true},
+				},
+			},
+			providerName: "claude",
+			wantNil:      false,
+			wantCommand:  "claude --new",
+		},
+		{
+			name:         "unknown provider returns nil",
+			cfg:          V2Config{},
+			providerName: "unknown",
+			wantNil:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.cfg.GetProvider(tt.providerName)
+			if tt.wantNil {
+				if got != nil {
+					t.Errorf("GetProvider() = %v, want nil", got)
+				}
+				return
+			}
+			if got == nil {
+				t.Fatal("GetProvider() returned nil, want non-nil")
+			}
+			if got.Command != tt.wantCommand {
+				t.Errorf("GetProvider().Command = %q, want %q", got.Command, tt.wantCommand)
+			}
+		})
+	}
+}
+
+// TestGetService tests the new GetService method (Issue #1771)
+func TestGetService(t *testing.T) {
+	tests := []struct { //nolint:govet // test struct alignment not critical
+		cfg         V2Config
+		name        string
+		serviceName string
+		wantCommand string
+		wantNil     bool
+	}{
+		{
+			name: "service from new config",
+			cfg: V2Config{
+				Services: ServicesConfig{
+					GitHub: &ServiceConfig{Command: "gh", Enabled: true},
+				},
+			},
+			serviceName: "github",
+			wantNil:     false,
+			wantCommand: "gh",
+		},
+		{
+			name: "service from legacy config fallback",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					GitHub: &ToolConfig{Command: "gh-legacy", Enabled: true},
+				},
+			},
+			serviceName: "github",
+			wantNil:     false,
+			wantCommand: "gh-legacy",
+		},
+		{
+			name:        "unknown service returns nil",
+			cfg:         V2Config{},
+			serviceName: "unknown",
+			wantNil:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.cfg.GetService(tt.serviceName)
+			if tt.wantNil {
+				if got != nil {
+					t.Errorf("GetService() = %v, want nil", got)
+				}
+				return
+			}
+			if got == nil {
+				t.Fatal("GetService() returned nil, want non-nil")
+			}
+			if got.Command != tt.wantCommand {
+				t.Errorf("GetService().Command = %q, want %q", got.Command, tt.wantCommand)
+			}
+		})
+	}
+}
+
+// TestGetDefaultProvider tests the GetDefaultProvider method (Issue #1771)
+func TestGetDefaultProvider(t *testing.T) {
+	tests := []struct { //nolint:govet // test struct alignment not critical
+		cfg  V2Config
+		name string
+		want string
+	}{
+		{
+			name: "default from new config",
+			cfg: V2Config{
+				Providers: ProvidersConfig{Default: "gemini"},
+				Tools:     ToolsConfig{Default: "claude"},
+			},
+			want: "gemini",
+		},
+		{
+			name: "fallback to legacy config",
+			cfg: V2Config{
+				Tools: ToolsConfig{Default: "claude"},
+			},
+			want: "claude",
+		},
+		{
+			name: "empty when nothing set",
+			cfg:  V2Config{},
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.cfg.GetDefaultProvider()
+			if got != tt.want {
+				t.Errorf("GetDefaultProvider() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
