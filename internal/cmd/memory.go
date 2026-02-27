@@ -843,7 +843,7 @@ type MemoryListResponse struct {
 }
 
 // listMemoryJSON outputs agent memory summaries as JSON for TUI integration.
-func listMemoryJSON(cmd *cobra.Command, rootDir string, agents []string) error {
+func listMemoryJSON(_ *cobra.Command, rootDir string, agents []string) error {
 	var summaries []AgentMemorySummary
 
 	for _, agentID := range agents {
@@ -881,13 +881,10 @@ func listMemoryJSON(cmd *cobra.Command, rootDir string, agents []string) error {
 	}
 
 	response := MemoryListResponse{Agents: summaries}
-	data, err := json.Marshal(response)
-	if err != nil {
-		return fmt.Errorf("failed to marshal response: %w", err)
-	}
-
-	cmd.Println(string(data))
-	return nil
+	// #1817: Use json.NewEncoder with os.Stdout directly (like status.go)
+	// to ensure JSON goes to stdout, not stderr via cmd.Println
+	enc := json.NewEncoder(os.Stdout)
+	return enc.Encode(response)
 }
 
 // listExperiences lists all experiences across agents.
