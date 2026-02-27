@@ -10,6 +10,23 @@ import type { Agent } from '../../types';
 // These should be tested manually with: bc home -> select an agent -> verify detail view
 // The component rendering tests below verify the UI structure without useInput hook
 
+// Issue #1818: Suppress React error boundary warnings during tests
+// The useInput hook from Ink requires TTY stdin which isn't available in test environments.
+// This causes React error boundary warnings that are expected and don't indicate test failures.
+// We suppress at module level since beforeAll runs too late.
+const originalConsoleError = console.error;
+console.error = (...args: unknown[]) => {
+  const message = String(args[0]);
+  // Suppress React error boundary and component tree recreation warnings
+  if (
+    message.includes('The above error occurred in the') ||
+    message.includes('React will try to recreate this component tree')
+  ) {
+    return;
+  }
+  originalConsoleError.apply(console, args);
+};
+
 // Helper to wrap AgentDetailView with required providers (Issue #1004 - added ConfigProvider)
 function renderAgentDetailView(agent: Agent, onBack?: () => void) {
   return render(
