@@ -61,6 +61,7 @@ function formatEventType(type: string): string {
  * /Users/username/Projects/bc-v2 → ~/Projects/bc-v2
  */
 function shortenPath(msg: string): string {
+  if (!msg) return '';
   // Replace home directory with ~
   const homeDir = process.env.HOME ?? '/Users';
   return msg.replace(new RegExp(homeDir, 'g'), '~');
@@ -222,7 +223,7 @@ const ActivityEntry = memo(function ActivityEntry({
       {!compact && (
         <Text dimColor>{formatTime(entry.ts)} </Text>
       )}
-      <Text color="cyan">{entry.agent.padEnd(10)} </Text>
+      <Text color="cyan">{(entry.agent ?? '').padEnd(10)} </Text>
       <Text color={severityColor}>{severityIcon} </Text>
       <Text color={severityColor}>{eventLabel.padEnd(12)} </Text>
       <Text>{truncate(displayMessage, maxMsgLen)}</Text>
