@@ -5,11 +5,9 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
-import { useChannelHistory, useUnread, useMentionAutocomplete } from '../../hooks';
+import { useChannelHistory, useUnread } from '../../hooks';
 import { useFocus } from '../../navigation/FocusContext';
-import { PulseText } from '../AnimatedText';
 import { ChatMessage } from '../ChatMessage';
-import { MentionAutocomplete } from '../MentionAutocomplete';
 import type { Channel } from '../../types';
 
 /** Duration in ms to show send errors before auto-clearing */
@@ -70,12 +68,6 @@ export function ChannelHistoryView({
   }, [sendError]);
   const { stdout } = useStdout();
   const { markViewed } = useUnread();
-
-  // Mention autocomplete for @mentions
-  const autocomplete = useMentionAutocomplete({
-    input: messageBuffer,
-    cursorPosition: messageBuffer.length,
-  });
 
   // Mark channel as viewed when messages load
   useEffect(() => {
@@ -140,29 +132,6 @@ export function ChannelHistoryView({
           return;
         }
 
-        // Handle autocomplete navigation when active
-        if (autocomplete.isActive) {
-          if (key.upArrow) {
-            autocomplete.moveUp();
-            return;
-          }
-          if (key.downArrow) {
-            autocomplete.moveDown();
-            return;
-          }
-          // Complete mention with Tab or Enter
-          if (key.tab || key.return) {
-            const completed = autocomplete.complete();
-            setMessageBuffer(completed);
-            return;
-          }
-          if (key.escape) {
-            // Close autocomplete, stay in input mode
-            autocomplete.reset();
-            return;
-          }
-        }
-
         if (key.return) {
           if (messageBuffer.trim()) {
             send(messageBuffer.trim()).catch((err: unknown) => {
@@ -170,7 +139,6 @@ export function ChannelHistoryView({
               setSendError(`Send failed: ${message}`);
             });
             setMessageBuffer('');
-            autocomplete.reset();
           }
           setInputMode(false);
         } else if (key.escape) {
@@ -238,7 +206,7 @@ export function ChannelHistoryView({
         paddingX={1}
         overflow="hidden"
       >
-        {loading && <PulseText dimColor>Loading messages...</PulseText>}
+        {loading && <Text dimColor>Loading messages...</Text>}
         {error && <Text color="red">Error: {error}</Text>}
         {!loading && !error && (
           <>
@@ -264,21 +232,6 @@ export function ChannelHistoryView({
         <Box marginBottom={1}>
           <Text color="red">{sendError}</Text>
         </Box>
-      )}
-
-      {/* Mention autocomplete dropdown with inline hints */}
-      {inputMode && (
-        <>
-          <MentionAutocomplete
-            suggestions={autocomplete.suggestions}
-            selectedIndex={autocomplete.selectedIndex}
-            visible={autocomplete.isActive}
-            query={autocomplete.query}
-          />
-          {autocomplete.isActive && (
-            <Text dimColor>↑/↓: select  Tab: complete  Esc: close</Text>
-          )}
-        </>
       )}
 
       {/* Input area - auto-expands based on message length (3-10 lines) */}

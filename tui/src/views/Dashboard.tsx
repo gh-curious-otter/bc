@@ -1,4 +1,4 @@
-import { memo, useState, useCallback } from 'react';
+import { memo, useCallback } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { Panel } from '../components/Panel.js';
 import { MetricCard } from '../components/MetricCard.js';
@@ -6,10 +6,7 @@ import { Footer } from '../components/Footer.js';
 import { LoadingIndicator } from '../components/LoadingIndicator.js';
 import { ErrorDisplay } from '../components/ErrorDisplay.js';
 import { ActivityFeed } from '../components/ActivityFeed.js';
-import { PerformanceDebugPanel } from '../components/PerformanceDebugPanel.js';
-import { PulseText } from '../components/AnimatedText.js';
 import { useDashboard } from '../hooks/useDashboard.js';
-import { useResponsiveLayout } from '../hooks/useResponsiveLayout.js';
 import { STATUS_COLORS, STATUS_SYMBOLS, HEALTH_COLORS, getCostIndicator, type CostStatus } from '../theme/StatusColors.js';
 
 interface DashboardProps {
@@ -24,8 +21,9 @@ interface DashboardProps {
 export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
   const { stdout } = useStdout();
   const terminalWidth = stdout.columns;
-  const { canMultiColumn, isMedium, isWide } = useResponsiveLayout();
-  const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const canMultiColumn = terminalWidth >= 120;
+  const isMedium = terminalWidth >= 100;
+  const isWide = terminalWidth >= 140;
 
   const {
     summary,
@@ -39,14 +37,10 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
   } = useDashboard();
 
   // #1596: Memoize keyboard input handler
-  const handleDashboardInput = useCallback((input: string, key: { ctrl: boolean }) => {
+  const handleDashboardInput = useCallback((input: string, _key: { ctrl: boolean }) => {
     // Refresh is Dashboard-specific (global Ctrl+R handled elsewhere)
     if (input === 'r') {
       void refresh();
-    }
-    // Performance overlay toggle - Ctrl+P (Phase 3 integration #1032)
-    if (key.ctrl && input === 'p') {
-      setShowDebugPanel(prev => !prev);
     }
     // Note: q and ESC are handled by global useKeyboardNavigation
   }, [refresh]);
@@ -68,7 +62,7 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
   // #1318: Don't set explicit width - parent flexGrow handles it
   // Setting width={terminalWidth} caused overflow when nested inside drawer layout
   return (
-    <Box flexDirection="column" padding={1}>
+    <Box flexDirection="column" padding={1} overflow="hidden">
       {/* Header with activity indicator */}
       <Header
         workspaceName={summary.workspaceName}
@@ -119,9 +113,6 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
         )}
       </Box>
 
-      {/* Performance Debug Panel - toggled with Ctrl+P or F12 (Phase 3) */}
-      {showDebugPanel && <PerformanceDebugPanel compact={!isWide} forceShow />}
-
       {/* Footer with keyboard hints - Issue #1514: use drawer navigation (#1467) */}
       <Footer
         hints={[
@@ -129,7 +120,6 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
           { key: 'j/k', label: 'drawer' },
           { key: 'Enter', label: 'select' },
           { key: 'r', label: 'refresh' },
-          ...(showDebugPanel ? [{ key: 'Ctrl+P', label: 'hide perf' }] : [{ key: 'Ctrl+P', label: 'perf' }]),
           { key: 'q', label: 'quit' },
         ]}
       />
@@ -189,8 +179,7 @@ const SummaryCards = memo(function SummaryCards({
   stuck,
   errorCount,
 }: SummaryCardsProps) {
-  const { isCompact, isMinimal } = useResponsiveLayout();
-  const isNarrow = isCompact || isMinimal;
+  const isNarrow = false;
 
   // #1352: Inline text summary for narrow terminals to avoid border overlap
   // #1591: Added symbols alongside colors for accessibility
@@ -252,8 +241,7 @@ const SystemHealthPanel = memo(function SystemHealthPanel({
   errorCount,
   total,
 }: SystemHealthPanelProps) {
-  const { isCompact, isMinimal } = useResponsiveLayout();
-  const isNarrow = isCompact || isMinimal;
+  const isNarrow = false;
   const healthyCount = working + idle;
   const unhealthyCount = stuck + errorCount;
   const healthPercent = total > 0 ? Math.round((healthyCount / total) * 100) : 100;
@@ -268,7 +256,7 @@ const SystemHealthPanel = memo(function SystemHealthPanel({
           <Text bold dimColor>Health: </Text>
           <Text color={healthColor} bold>{healthPercent}%</Text>
           <Text> · </Text>
-          <PulseText color={STATUS_COLORS.working} enabled={working > 0} interval={1500}>●</PulseText>
+          <Text color={STATUS_COLORS.working}>●</Text>
           <Text> {working} working</Text>
           <Text> · </Text>
           <Text color={STATUS_COLORS.idle}>○</Text>
@@ -295,9 +283,9 @@ const SystemHealthPanel = memo(function SystemHealthPanel({
           <Text dimColor> healthy</Text>
         </Box>
         <Box marginTop={1} flexDirection="column">
-          {/* Working agents with pulse animation (Phase 3) - consistent colors */}
+          {/* Working agents - consistent colors */}
           <Box>
-            <PulseText color={STATUS_COLORS.working} enabled={working > 0} interval={1500}>●</PulseText>
+            <Text color={STATUS_COLORS.working}>●</Text>
             <Text> Working: {working}</Text>
           </Box>
           <Box>
@@ -345,8 +333,7 @@ const CostPanel = memo(function CostPanel({
   outputTokens,
   budgetUSD = 10.0,
 }: CostPanelProps) {
-  const { isCompact, isMinimal } = useResponsiveLayout();
-  const isNarrow = isCompact || isMinimal;
+  const isNarrow = false;
   const totalTokens = inputTokens + outputTokens;
   const budgetPercent = Math.min(100, Math.round((totalCostUSD / budgetUSD) * 100));
   // Responsive bar width: smaller on narrow terminals
@@ -412,8 +399,7 @@ interface AgentStatsPanelProps {
  * #1352: Uses compact inline layout at <100 cols
  */
 const AgentStatsPanel = memo(function AgentStatsPanel({ stats }: AgentStatsPanelProps) {
-  const { isCompact, isMinimal } = useResponsiveLayout();
-  const isNarrow = isCompact || isMinimal;
+  const isNarrow = false;
   const hasRoles = Object.keys(stats.byRole).length > 0;
 
   if (!hasRoles) return null;

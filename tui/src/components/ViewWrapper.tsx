@@ -17,8 +17,17 @@ import { Panel } from './Panel';
 import { type HintItem } from './Footer';
 import { LoadingIndicator } from './LoadingIndicator';
 import { ErrorDisplay } from './ErrorDisplay';
-import { useResponsiveLayout, type ResponsiveLayoutState } from '../hooks/useResponsiveLayout';
 import { useHintsContext } from '../hooks/useHintsContext';
+
+/** Simple responsive layout state (replaces removed useResponsiveLayout) */
+export interface ResponsiveLayoutState {
+  isCompact: boolean;
+  isMinimal: boolean;
+  isMD: boolean;
+  isMedium: boolean;
+  isWide: boolean;
+  canMultiColumn: boolean;
+}
 
 export interface ViewWrapperProps {
   /** View children to render */
@@ -94,7 +103,14 @@ export const ViewWrapper = memo(function ViewWrapper({
   padding = 1,
   renderWithLayout,
 }: ViewWrapperProps): React.ReactElement {
-  const layout = useResponsiveLayout();
+  const layout: ResponsiveLayoutState = {
+    isCompact: false,
+    isMinimal: false,
+    isMD: false,
+    isMedium: true,
+    isWide: false,
+    canMultiColumn: false,
+  };
   const { setViewHints, clearViewHints } = useHintsContext();
 
   // Issue #1461: Pass hints to global footer via context instead of rendering locally
@@ -161,11 +177,5 @@ export const ViewWrapper = memo(function ViewWrapper({
     </Box>
   );
 });
-
-/**
- * Hook to access responsive layout within ViewWrapper
- * Re-exported for convenience
- */
-export { useResponsiveLayout };
 
 export default ViewWrapper;

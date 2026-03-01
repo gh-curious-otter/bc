@@ -29,10 +29,6 @@ export {
 export {
   darkTheme,
   lightTheme,
-  matrixTheme,
-  synthwaveTheme,
-  highContrastTheme,
-  futuristicTheme,
   themes,
   getTheme,
   applyOverrides,

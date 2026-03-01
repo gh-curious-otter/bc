@@ -12,7 +12,6 @@ import { Box, Text } from 'ink';
 import { useChannelsWithUnread, useDisableInput, useListNavigation } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { PulseText } from '../components/AnimatedText';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { ChannelRow, ChannelHistoryView } from '../components/channels';
 import type { Channel } from '../types';
@@ -93,7 +92,7 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
     return (
       <Box flexDirection="column">
         <Text bold>Channels</Text>
-        <PulseText dimColor>Loading channels...</PulseText>
+        <Text dimColor>Loading channels...</Text>
       </Box>
     );
   }
@@ -121,7 +120,7 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
   // Let flexbox handle width naturally through flexGrow
   // #1461 fix: Removed inline hints - global footer shows view-specific hints
   return (
-    <Box flexDirection="column" flexGrow={1}>
+    <Box flexDirection="column" flexGrow={1} overflow="hidden">
       <Text bold>Channels</Text>
       <Box marginTop={1} flexDirection="column" flexGrow={1} borderStyle="single" borderColor="gray" paddingX={1}>
         {channels?.map((channel, index) => (

@@ -16,9 +16,7 @@ import { Box, Text, useInput } from 'ink';
 import { useAgents, useDebounce, useListNavigation } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useAgentGroups } from '../hooks/useAgentGroups';
-import { PulseText } from '../components/AnimatedText';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { AgentDetailView } from './AgentDetailView';
 import { execBc } from '../services/bc';
@@ -106,8 +104,7 @@ function uiReducer(state: UIState, action: UIAction): UIState {
 
 export const AgentsView: React.FC<AgentsViewProps> = () => {
   const { data: agents, loading, error, refresh } = useAgents();
-  const { isCompact, isMinimal } = useResponsiveLayout();
-  const isNarrow = isCompact || isMinimal;
+  const isNarrow = false;
 
   // #1601: UI state consolidated with useReducer
   // #1743: Navigation and search state moved to useListNavigation
@@ -299,7 +296,7 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
   if (loading && agentList.length === 0) {
     return (
       <Box padding={1}>
-        <PulseText color="cyan">Loading agents...</PulseText>
+        <Text color="cyan">Loading agents...</Text>
       </Box>
     );
   }
@@ -309,7 +306,7 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
   }
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" overflow="hidden">
       {/* Header with state summary */}
       <Box marginBottom={1}>
         <Text bold color="green">Agents ({agentList.length})</Text>
@@ -325,7 +322,7 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
         {search.query && (
           <Text color="cyan"> [/] &quot;{search.query}&quot;</Text>
         )}
-        {loading && <PulseText color="gray"> (refreshing...)</PulseText>}
+        {loading && <Text color="gray"> (refreshing...)</Text>}
       </Box>
 
       {/* Action feedback */}
@@ -372,7 +369,7 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
 
       {/* Footer */}
       <Box marginTop={1}>
-        <Text color="gray">
+        <Text color="gray" wrap="truncate">
           j/k: nav | v: {groupedView ? 'flat' : 'grouped'} | /: search{search.query ? ' | c: clear' : ''} | p: peek | Enter: {groupedView ? 'expand/attach' : 'attach'} | r: refresh | q: back
         </Text>
       </Box>

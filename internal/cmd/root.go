@@ -69,20 +69,12 @@ Environment Variables:
 
 Documentation: https://github.com/rpuneet/bc
 Full CLI reference: https://github.com/rpuneet/bc/docs/cli.md`,
-	// PersistentPreRun initializes logging and profiling based on flags
+	// PersistentPreRun initializes logging based on flags
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		verbose, err := cmd.Flags().GetBool("verbose")
 		if err == nil {
 			log.SetVerbose(verbose)
 		}
-		// Start profiling if requested
-		if err := setupProfiling(); err != nil {
-			log.Error("failed to start profiling", "error", err)
-		}
-	},
-	// PersistentPostRun cleans up profiling
-	PersistentPostRun: func(cmd *cobra.Command, args []string) {
-		stopProfiling()
 	},
 	// Run with no args: open home if initialized, else prompt for init
 	RunE: runRoot,
@@ -115,9 +107,6 @@ func init() {
 
 	// Version flag
 	rootCmd.Flags().BoolP("version", "V", false, "Print version information")
-
-	// Profiling flags
-	registerProfileFlags()
 
 	// Add subcommands
 	rootCmd.AddCommand(versionCmd)

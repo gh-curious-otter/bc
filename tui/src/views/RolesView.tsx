@@ -250,7 +250,7 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
 
   // Main list view
   return (
-    <Box flexDirection="column" width="100%">
+    <Box flexDirection="column" width="100%" overflow="hidden">
       {/* Header - using shared HeaderBar component (#1419) */}
       <HeaderBar
         title="Roles"
@@ -329,7 +329,7 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
 
       {/* Footer */}
       <Box>
-        <Text dimColor>
+        <Text dimColor wrap="truncate">
           {searchMode
             ? 'Type to search, Enter/Esc to exit'
             : `j/k: navigate | g/G: top/bottom | /: search${searchQuery ? ' | c: clear' : ''} | Enter: details | d: delete | r: refresh | q/ESC: back`}

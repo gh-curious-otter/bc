@@ -1,5 +1,5 @@
 /**
- * Navigation module - Tab-based navigation framework
+ * Navigation module - k9s-style command navigation
  */
 
 export {
@@ -21,12 +21,6 @@ export {
   useKeyboardNavigation,
   type UseKeyboardNavigationOptions,
 } from './useKeyboardNavigation';
-
-export { TabBar, type TabBarProps } from './TabBar';
-
-export { Drawer, type DrawerProps } from './Drawer';
-
-export { TopTabBar, type TopTabBarProps } from './TopTabBar';
 
 export {
   FocusProvider,

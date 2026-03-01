@@ -210,7 +210,7 @@ export const WorktreesView: React.FC = () => {
     : undefined;
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" overflow="hidden">
       {/* Header - using shared HeaderBar component (#1419) */}
       <HeaderBar
         title="Worktrees"
@@ -331,7 +331,7 @@ export const WorktreesView: React.FC = () => {
 
       {/* Footer */}
       <Box marginTop={1}>
-        <Text dimColor>
+        <Text dimColor wrap="truncate">
           j/k: nav | g/G: top/bottom | Enter: details | o: {showOrphanedOnly ? 'show all' : 'orphans only'}
           {hasOrphans ? ' | p: prune' : ''} | r: refresh | q/ESC: back
         </Text>

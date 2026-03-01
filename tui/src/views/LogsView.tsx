@@ -8,7 +8,6 @@ import React, { useMemo, useCallback, useEffect, useReducer, useState } from 're
 import { Box, Text, useInput, useStdout } from 'ink';
 import { useLogs, getSeverityColor, getSeverityIcon, useDebounce, useListNavigation } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
-import { PulseText } from '../components/AnimatedText';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { DATA_LIMITS } from '../constants';
 import { POLL_INTERVALS } from '../constants/timings';
@@ -342,7 +341,7 @@ export const LogsView: React.FC<LogsViewProps> = () => {
   if (loading && !logs) {
     return (
       <Box padding={1}>
-        <PulseText color="cyan">Loading logs...</PulseText>
+        <Text color="cyan">Loading logs...</Text>
       </Box>
     );
   }
@@ -368,12 +367,12 @@ export const LogsView: React.FC<LogsViewProps> = () => {
   const visibleLogs = filteredLogs.slice(startIdx, startIdx + visibleRows);
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" overflow="hidden">
       {/* Header */}
       <Box marginBottom={1}>
         <Text bold color="magenta">Logs</Text>
         <Text dimColor> ({filteredLogs.length} entries)</Text>
-        {loading && <PulseText color="gray"> (refreshing...)</PulseText>}
+        {loading && <Text color="gray"> (refreshing...)</Text>}
       </Box>
 
       {/* Filters */}
@@ -461,7 +460,7 @@ export const LogsView: React.FC<LogsViewProps> = () => {
 
       {/* Footer - view-specific hints only, global hints (Tab/q/?) in app footer */}
       <Box marginTop={1}>
-        <Text dimColor>
+        <Text dimColor wrap="truncate">
           j/k: nav | g/G: top/bottom | Enter: details | /: search | s: severity | a: agent | t: time | c: clear | r: refresh
         </Text>
       </Box>

@@ -77,7 +77,6 @@ export interface KeybindingConfig {
 
 /** Default global view shortcuts (uppercase = view navigation) */
 export const DEFAULT_VIEW_SHORTCUTS: Record<string, View> = {
-  'M': 'memory',
 };
 
 /** Default number key mappings */
@@ -86,13 +85,9 @@ export const DEFAULT_VIEW_NUMBERS: Record<string, View> = {
   '2': 'agents',
   '3': 'channels',
   '4': 'costs',
-  '5': 'commands',
-  '6': 'roles',
-  '7': 'logs',
-  '8': 'worktrees',
-  '9': 'workspaces',
-  '0': 'demons',
-  '-': 'processes',
+  '5': 'roles',
+  '6': 'logs',
+  '7': 'worktrees',
 };
 
 /** Status bar hint for a keybinding */

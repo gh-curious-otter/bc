@@ -10,7 +10,6 @@ import { Panel } from '../components/Panel';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { Footer } from '../components/Footer';
 import { useCosts, useDisableInput } from '../hooks';
-import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 
 // #1594: Using empty interface for future extensibility, props removed
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
@@ -18,9 +17,7 @@ interface CostsViewProps {}
 
 export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
   const { isDisabled: disableInput } = useDisableInput();
-  const { isCompact, isMinimal, isMD } = useResponsiveLayout();
-  // #1365: Extend borderless to 100-120 cols (isMD) to prevent box fragmentation
-  const isNarrow = isCompact || isMinimal || isMD;
+  const isNarrow = false;
 
   const { data: costs, loading, error, refresh } = useCosts();
 
@@ -131,7 +128,7 @@ export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
 
   // Standard bordered Panel layout for wider terminals
   return (
-    <Box flexDirection="column" padding={1}>
+    <Box flexDirection="column" padding={1} overflow="hidden">
       <Text bold>Cost Dashboard</Text>
 
       {/* Summary */}
@@ -168,7 +165,7 @@ export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
             .slice(0, 10)
             .map(([agent, cost]) => (
               <Box key={agent}>
-                <Text color="green">{agent.padEnd(20)}</Text>
+                <Text color="green" wrap="truncate">{agent.padEnd(20)}</Text>
                 <Text>${cost.toFixed(4)}</Text>
               </Box>
             ))
@@ -184,7 +181,7 @@ export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
             .sort(([, a], [, b]) => b - a)
             .map(([model, cost]) => (
               <Box key={model}>
-                <Text color="magenta">{model.padEnd(20)}</Text>
+                <Text color="magenta" wrap="truncate">{model.padEnd(20)}</Text>
                 <Text>${cost.toFixed(4)}</Text>
               </Box>
             ))
@@ -198,7 +195,7 @@ export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
             .sort(([, a], [, b]) => b - a)
             .map(([team, cost]) => (
               <Box key={team}>
-                <Text color="blue">{team.padEnd(20)}</Text>
+                <Text color="blue" wrap="truncate">{team.padEnd(20)}</Text>
                 <Text>${cost.toFixed(4)}</Text>
               </Box>
             ))}
