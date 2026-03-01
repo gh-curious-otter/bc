@@ -1,8 +1,5 @@
 /**
  * FocusContext - Manages focus state across the TUI
- *
- * Provides a way for components to register as focusable and
- * manage keyboard focus between different areas of the UI.
  */
 
 import React, {
@@ -13,30 +10,23 @@ import React, {
   useMemo,
 } from 'react';
 
-export type FocusArea = 'sidebar' | 'main' | 'detail' | 'input' | 'modal' | 'view';
+export type FocusArea = 'main' | 'detail' | 'input' | 'modal' | 'view' | 'command' | 'filter';
 
 interface FocusContextValue {
-  /** Currently focused area */
   focusedArea: FocusArea;
-  /** Set focus to a specific area */
   setFocus: (area: FocusArea) => void;
-  /** Check if an area is focused */
   isFocused: (area: FocusArea) => boolean;
-  /** Previous focused area (for returning focus) */
   previousArea: FocusArea | null;
-  /** Return focus to previous area */
   returnFocus: () => void;
-  /** Cycle focus to next area */
   cycleFocus: () => void;
 }
 
 const FocusContext = createContext<FocusContextValue | null>(null);
 
-const FOCUS_ORDER: FocusArea[] = ['sidebar', 'main', 'detail'];
+const FOCUS_ORDER: FocusArea[] = ['main', 'detail'];
 
 interface FocusProviderProps {
   children: React.ReactNode;
-  /** Initial focused area (defaults to 'main') */
   initialFocus?: FocusArea;
 }
 
@@ -61,15 +51,11 @@ export function FocusProvider({
   );
 
   const returnFocus = useCallback(() => {
-    // Restore the previous focus area.
-    // NOTE: We don't include 'previousArea' in dependencies because that creates
-    // stale closure issues. Instead, this callback always reads the current
-    // state when called via React's closure mechanism.
     setPreviousArea((prev) => {
       if (prev) {
         setFocusedArea(prev);
       }
-      return null; // Clear previous area after restoring
+      return null;
     });
   }, []);
 
@@ -105,9 +91,6 @@ export function useFocus(): FocusContextValue {
   return context;
 }
 
-/**
- * Hook that checks if the specified area is focused
- */
 export function useIsFocused(area: FocusArea): boolean {
   const { isFocused } = useFocus();
   return isFocused(area);

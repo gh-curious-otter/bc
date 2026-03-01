@@ -18,8 +18,19 @@ import { render } from 'ink-testing-library';
 import React from 'react';
 import { TabBar } from '../navigation/TabBar';
 import { NavigationProvider } from '../navigation/NavigationContext';
-import { BREAKPOINTS, BREAKPOINTS_LEGACY } from '../hooks/useResponsiveLayout';
-import type { LayoutMode } from '../hooks/useResponsiveLayout';
+/** Layout mode type (previously from useResponsiveLayout) */
+type LayoutMode = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+
+/** Breakpoints (previously from useResponsiveLayout) */
+const BREAKPOINTS = {
+  XS: 80,
+  SM: 80,
+  MD: 120,
+  LG: 140,
+} as const;
+
+/** Legacy breakpoints (previously from useResponsiveLayout) */
+const BREAKPOINTS_LEGACY = BREAKPOINTS;
 
 /**
  * Test the responsive layout breakpoints at standard terminal sizes (#1326)

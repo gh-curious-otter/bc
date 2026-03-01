@@ -1,8 +1,7 @@
 import React from 'react';
 import { render } from 'ink-testing-library';
 import { describe, it, expect } from 'bun:test';
-import { MentionAutocomplete } from '../components/MentionAutocomplete';
-import type { MentionSuggestion } from '../hooks/useMentionAutocomplete';
+import { MentionAutocomplete, type MentionSuggestion } from '../components/MentionAutocomplete';
 
 describe('MentionAutocomplete', () => {
   const baseSuggestions: MentionSuggestion[] = [

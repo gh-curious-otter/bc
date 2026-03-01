@@ -197,7 +197,7 @@ export function HelpView(): React.ReactElement {
   }
 
   return (
-    <Box flexDirection="column" height={availableHeight + 2}>
+    <Box flexDirection="column" height={availableHeight + 2} overflow="hidden">
       {needsScroll && scrollOffset > 0 && (
         <Text dimColor>↑ Scroll up (k)</Text>
       )}

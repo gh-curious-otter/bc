@@ -40,15 +40,6 @@ export {
 export { useDashboard } from './useDashboard';
 
 export {
-  useDemons,
-  useDemonLogs,
-  type UseDemonsOptions,
-  type UseDemonsResult,
-  type UseDemonLogsOptions,
-  type UseDemonLogsResult,
-} from './useDemons';
-
-export {
   useMessagePolling,
   useAgentPolling,
   useCoordinatedPolling,
@@ -68,28 +59,6 @@ export {
 } from './useListNavigation';
 
 export {
-  useProcesses,
-  useProcessLogs,
-  type UseProcessesOptions,
-  type UseProcessesResult,
-  type UseProcessLogsOptions,
-  type UseProcessLogsResult,
-} from './useProcesses';
-
-export {
-  useMentionAutocomplete,
-  type MentionSuggestion,
-  type UseMentionAutocompleteOptions,
-  type UseMentionAutocompleteResult,
-} from './useMentionAutocomplete';
-
-export {
-  useTeams,
-  type UseTeamsOptions,
-  type UseTeamsResult,
-} from './useTeams';
-
-export {
   UnreadProvider,
   useUnread,
   type UnreadProviderProps,
@@ -105,20 +74,6 @@ export {
 } from './useLogs';
 
 export {
-  usePerformanceMetrics,
-  createPerformanceTracker,
-  globalPerformanceTracker,
-  type PerformanceMetric,
-  type PerformanceMetrics,
-} from './usePerformanceMetrics';
-
-export {
-  PerformanceProvider,
-  usePerformance,
-  usePerformanceOptional,
-} from './PerformanceContext';
-
-export {
   useAdaptivePolling,
   useAdaptiveAgentPolling,
   type PollingMode,
@@ -126,44 +81,6 @@ export {
   type UseAdaptivePollingOptions,
   type UseAdaptivePollingResult,
 } from './useAdaptivePolling';
-
-export {
-  useResponsiveLayout,
-  useTerminalSize,
-  BREAKPOINTS,
-  BREAKPOINTS_LEGACY,
-  type LayoutMode,
-  type LegacyLayoutMode,
-  type ColumnLayout,
-  type DrawerConfig,
-  type DetailPaneConfig,
-  type ResponsiveLayoutState,
-  type ResponsiveValues,
-  type UseResponsiveLayoutOptions,
-  type UseResponsiveLayoutResult,
-} from './useResponsiveLayout';
-
-export {
-  useAnimation,
-  usePulse,
-  useBlink,
-  useTypewriter,
-  useFade,
-  easings,
-  type EasingFunction,
-  type AnimationState,
-  type UseAnimationOptions,
-  type UseAnimationResult,
-  type UsePulseOptions,
-  type UsePulseResult,
-  type UseBlinkOptions,
-  type UseBlinkResult,
-  type UseTypewriterOptions,
-  type UseTypewriterResult,
-  type FadeDirection,
-  type UseFadeOptions,
-  type UseFadeResult,
-} from './useAnimation';
 
 export {
   useKeybindingHints,
@@ -180,22 +97,6 @@ export {
   type ContextBindings,
   type KeybindingConfig,
 } from './useKeybindings';
-
-export {
-  useFileTree,
-  type FileTreeEntry,
-  type UseFileTreeOptions,
-  type UseFileTreeResult,
-} from './useFileTree';
-
-export {
-  useGitStatus,
-  type GitFileStatus,
-  type GitStatusEntry,
-  type GitStatusSummary,
-  type UseGitStatusOptions,
-  type UseGitStatusResult,
-} from './useGitStatus';
 
 export {
   HintsProvider,
@@ -231,15 +132,6 @@ export {
   type UseDebouncedSearchOptions,
   type UseDebouncedSearchResult,
 } from './useDebounce';
-
-export {
-  useIssues,
-  useIssueDetail,
-  type UseIssuesOptions,
-  type UseIssuesResult,
-  type UseIssueDetailOptions,
-  type UseIssueDetailResult,
-} from './useIssues';
 
 export {
   useFocusStateMachine,

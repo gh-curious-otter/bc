@@ -293,7 +293,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
   const outputHeight = 20;
 
   return (
-    <Box flexDirection="column" width="100%" height="100%">
+    <Box flexDirection="column" width="100%" height="100%" overflow="hidden">
       {/* Header */}
       <Box flexDirection="row" marginBottom={1} paddingX={1}>
         <Box flexDirection="column" flexGrow={1}>
@@ -306,7 +306,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
           <Box>
             <Text>State: </Text>
             <StatusBadge state={agent.state} />
-            <Text dimColor> | Task: {normalizeTask(agent.task)}</Text>
+            <Text dimColor wrap="truncate"> | Task: {normalizeTask(agent.task)}</Text>
           </Box>
         </Box>
       </Box>
@@ -510,7 +510,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
 
       {/* Footer with keybindings */}
       <Box marginTop={1} paddingX={1}>
-        <Text dimColor>
+        <Text dimColor wrap="truncate">
           {inputMode
             ? 'Enter: send | Esc: cancel'
             : activeTab === 'live'

@@ -6,7 +6,13 @@
 
 import React from 'react';
 import { Box, Text } from 'ink';
-import type { MentionSuggestion } from '../hooks/useMentionAutocomplete';
+
+/** Suggestion item for @mention autocomplete */
+export interface MentionSuggestion {
+  name: string;
+  role?: string;
+  state?: string;
+}
 
 export interface MentionAutocompleteProps {
   /** List of filtered suggestions */

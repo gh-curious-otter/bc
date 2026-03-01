@@ -1,11 +1,5 @@
 /**
  * ThemeContext - Provides theming support for bc TUI
- *
- * Features:
- * - Auto-detect terminal dark/light mode
- * - Theme provider with context
- * - useTheme hook for accessing colors
- * - Support for custom theme overrides
  */
 
 import React, {
@@ -21,27 +15,16 @@ import type { ThemeName } from './themes';
 import { detectColorScheme } from './detectColorScheme';
 
 interface ThemeContextValue {
-  /** Current active theme */
   theme: Theme;
-  /** Current theme mode */
   mode: ThemeMode;
-  /** Current theme name */
   themeName: ThemeName;
-  /** Available theme names */
   availableThemes: ThemeName[];
-  /** Detected terminal color scheme */
   detectedScheme: 'dark' | 'light';
-  /** Switch theme mode */
   setMode: (mode: ThemeMode) => void;
-  /** Set specific theme by name */
   setThemeName: (name: ThemeName) => void;
-  /** Cycle to next theme */
   cycleTheme: () => void;
-  /** Toggle between dark and light */
   toggleTheme: () => void;
-  /** Get a specific color from the theme */
   color: <K extends keyof ThemeColors>(key: K) => ThemeColors[K];
-  /** Check if current theme is dark */
   isDark: boolean;
 }
 
@@ -49,16 +32,11 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 interface ThemeProviderProps {
   children: React.ReactNode;
-  /** Initial theme configuration */
   config?: ThemeConfig;
 }
 
-/** List of available theme names for cycling */
-const availableThemes: ThemeName[] = ['dark', 'light', 'matrix', 'synthwave', 'high-contrast'];
+const availableThemes: ThemeName[] = ['dark', 'light'];
 
-/**
- * ThemeProvider - Wrap your app to enable theming
- */
 export function ThemeProvider({
   children,
   config,
@@ -67,7 +45,6 @@ export function ThemeProvider({
   const [themeName, setThemeNameState] = useState<ThemeName>('dark');
   const [detectedScheme] = useState<'dark' | 'light'>(() => detectColorScheme());
 
-  // Determine effective theme based on mode or explicit theme name
   const effectiveMode = useMemo((): 'dark' | 'light' => {
     if (mode === 'auto') {
       return detectedScheme;
@@ -75,34 +52,22 @@ export function ThemeProvider({
     return mode;
   }, [mode, detectedScheme]);
 
-  // Build the theme with any overrides
   const theme = useMemo((): Theme => {
-    // If using a named theme (matrix, synthwave, high-contrast), use it directly
-    if (themeName !== 'dark' && themeName !== 'light') {
-      const baseTheme = getTheme(themeName);
-      if (config?.overrides) {
-        return applyOverrides(baseTheme, config.overrides);
-      }
-      return baseTheme;
-    }
-    // Otherwise use dark/light based on mode
     const baseTheme = effectiveMode === 'light' ? lightTheme : darkTheme;
     if (config?.overrides) {
       return applyOverrides(baseTheme, config.overrides);
     }
     return baseTheme;
-  }, [themeName, effectiveMode, config?.overrides]);
+  }, [effectiveMode, config?.overrides]);
 
   const setMode = useCallback((newMode: ThemeMode) => {
     setModeState(newMode);
-    // Reset to dark/light when changing mode
     if (newMode === 'dark') setThemeNameState('dark');
     if (newMode === 'light') setThemeNameState('light');
   }, []);
 
   const setThemeName = useCallback((name: ThemeName) => {
     setThemeNameState(name);
-    // Update mode to match theme
     const selectedTheme = getTheme(name);
     setModeState(selectedTheme.mode);
   }, []);
@@ -112,7 +77,6 @@ export function ThemeProvider({
       const currentIndex = availableThemes.indexOf(current);
       const nextIndex = (currentIndex + 1) % availableThemes.length;
       const nextTheme = availableThemes[nextIndex];
-      // Update mode to match
       const selectedTheme = getTheme(nextTheme);
       setModeState(selectedTheme.mode);
       return nextTheme;
@@ -122,16 +86,13 @@ export function ThemeProvider({
   const toggleTheme = useCallback(() => {
     setModeState((current) => {
       if (current === 'auto') {
-        // Auto -> opposite of detected
         return detectedScheme === 'dark' ? 'light' : 'dark';
       }
       return current === 'dark' ? 'light' : 'dark';
     });
-    // Also update theme name for dark/light toggle
     setThemeNameState((current) => {
       if (current === 'dark') return 'light';
-      if (current === 'light') return 'dark';
-      return current; // Keep special themes
+      return 'dark';
     });
   }, [detectedScheme]);
 
@@ -164,9 +125,6 @@ export function ThemeProvider({
   );
 }
 
-/**
- * useTheme - Access theme context
- */
 export function useTheme(): ThemeContextValue {
   const context = useContext(ThemeContext);
   if (!context) {
@@ -175,11 +133,6 @@ export function useTheme(): ThemeContextValue {
   return context;
 }
 
-/**
- * useThemeColor - Get a specific color from the theme
- *
- * Convenience hook for getting a single color value.
- */
 export function useThemeColor<K extends keyof ThemeColors>(
   key: K
 ): ThemeColors[K] {
@@ -187,11 +140,6 @@ export function useThemeColor<K extends keyof ThemeColors>(
   return color(key);
 }
 
-/**
- * useThemeColors - Get multiple colors from the theme
- *
- * Returns an object with the requested color keys.
- */
 export function useThemeColors<K extends keyof ThemeColors>(
   keys: K[]
 ): Pick<ThemeColors, K> {

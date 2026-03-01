@@ -5,44 +5,28 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
 
-// View types for navigation
-export type View = 'dashboard' | 'agents' | 'channels' | 'files' | 'costs' | 'help' | 'commands' | 'roles' | 'logs' | 'worktrees' | 'workspaces' | 'demons' | 'processes' | 'memory' | 'performance' | 'issues';
+// View types for navigation - trimmed to 8 core views
+export type View = 'dashboard' | 'agents' | 'channels' | 'costs' | 'logs' | 'roles' | 'worktrees' | 'help';
 
 // Tab configuration
 export interface TabConfig {
   key: string;
   view: View;
   label: string;
-  /** Short label for narrow terminals (80-119 cols) */
   shortLabel?: string;
   shortcut?: string;
 }
 
-// Tab order matches DRAWER_SECTIONS visual grouping (#1526)
-// WORKSPACE: dashboard, agents, channels, files, commands
-// MONITOR: logs, costs, processes, demons, performance
-// SYSTEM: roles, worktrees, workspaces, memory
+// k9s-style command aliases
 export const DEFAULT_TABS: TabConfig[] = [
-  // WORKSPACE section
-  { key: '1', view: 'dashboard', label: 'Dashboard', shortLabel: 'Dash', shortcut: '1' },
-  { key: '2', view: 'agents', label: 'Agents', shortLabel: 'Agt', shortcut: '2' },
-  { key: '3', view: 'channels', label: 'Channels', shortLabel: 'Chan', shortcut: '3' },
-  { key: '4', view: 'files', label: 'Files', shortLabel: 'File', shortcut: '4' },
-  { key: '5', view: 'commands', label: 'Commands', shortLabel: 'Cmd', shortcut: '5' },
-  // MONITOR section
-  { key: '6', view: 'logs', label: 'Logs', shortLabel: 'Log', shortcut: '6' },
-  { key: '7', view: 'costs', label: 'Costs', shortLabel: 'Cost', shortcut: '7' },
-  { key: '8', view: 'processes', label: 'Processes', shortLabel: 'Proc', shortcut: '8' },
-  { key: '9', view: 'demons', label: 'Demons', shortLabel: 'Dmn', shortcut: '9' },
-  { key: 'P', view: 'performance', label: 'Performance', shortLabel: 'Perf', shortcut: 'P' },
-  // SYSTEM section
-  { key: '0', view: 'roles', label: 'Roles', shortLabel: 'Role', shortcut: '0' },
-  { key: '-', view: 'worktrees', label: 'Worktrees', shortLabel: 'Tree', shortcut: '-' },
-  { key: '=', view: 'workspaces', label: 'Workspaces', shortLabel: 'Wksp', shortcut: '=' },
-  { key: 'M', view: 'memory', label: 'Memory', shortLabel: 'Mem', shortcut: 'M' },
-  { key: '?', view: 'help', label: 'Help', shortLabel: '?', shortcut: '?' },
-  // #1754: Issues view for GitHub issue management
-  { key: 'I', view: 'issues', label: 'Issues', shortLabel: 'Iss', shortcut: 'I' },
+  { key: 'dash', view: 'dashboard', label: 'Dashboard', shortLabel: 'Dash' },
+  { key: 'ag', view: 'agents', label: 'Agents', shortLabel: 'Agt' },
+  { key: 'ch', view: 'channels', label: 'Channels', shortLabel: 'Chan' },
+  { key: 'co', view: 'costs', label: 'Costs', shortLabel: 'Cost' },
+  { key: 'log', view: 'logs', label: 'Logs', shortLabel: 'Log' },
+  { key: 'ro', view: 'roles', label: 'Roles', shortLabel: 'Role' },
+  { key: 'wt', view: 'worktrees', label: 'Worktrees', shortLabel: 'Tree' },
+  { key: '?', view: 'help', label: 'Help', shortLabel: '?' },
 ];
 
 // Breadcrumb item for showing navigation path
@@ -109,18 +93,14 @@ export function NavigationProvider({
 
   const navigate = useCallback((view: View) => {
     setState((prev) => {
-      // Don't navigate to the same view
       if (prev.currentView === view) return prev;
-
-      // Truncate forward history when navigating
       const newHistory = [...prev.history.slice(0, prev.historyIndex + 1), view];
-
       return {
         currentView: view,
         previousView: prev.currentView,
         history: newHistory,
         historyIndex: newHistory.length - 1,
-        breadcrumbs: [], // Clear breadcrumbs on navigation
+        breadcrumbs: [],
       };
     });
   }, []);
@@ -128,9 +108,7 @@ export function NavigationProvider({
   const goBack = useCallback(() => {
     setState((prev) => {
       if (prev.historyIndex <= 0) return prev;
-
       const newIndex = prev.historyIndex - 1;
-
       return {
         ...prev,
         currentView: prev.history[newIndex],
@@ -143,9 +121,7 @@ export function NavigationProvider({
   const goForward = useCallback(() => {
     setState((prev) => {
       if (prev.historyIndex >= prev.history.length - 1) return prev;
-
       const newIndex = prev.historyIndex + 1;
-
       return {
         ...prev,
         currentView: prev.history[newIndex],
@@ -159,16 +135,13 @@ export function NavigationProvider({
     navigate('dashboard');
   }, [navigate]);
 
-  // Get main tabs (exclude help '?')
   const mainTabs = useMemo(() => tabs.filter(t => t.key !== '?'), [tabs]);
 
   const nextTab = useCallback(() => {
     const currentIndex = mainTabs.findIndex(t => t.view === state.currentView);
     if (currentIndex === -1) {
-      // If not on a main tab, go to first
       navigate(mainTabs[0]?.view ?? 'dashboard');
     } else {
-      // Wrap around to first tab after last
       const nextIndex = (currentIndex + 1) % mainTabs.length;
       navigate(mainTabs[nextIndex]?.view ?? 'dashboard');
     }
@@ -177,10 +150,8 @@ export function NavigationProvider({
   const prevTab = useCallback(() => {
     const currentIndex = mainTabs.findIndex(t => t.view === state.currentView);
     if (currentIndex === -1) {
-      // If not on a main tab, go to last
       navigate(mainTabs[mainTabs.length - 1]?.view ?? 'dashboard');
     } else {
-      // Wrap around to last tab before first
       const prevIndex = (currentIndex - 1 + mainTabs.length) % mainTabs.length;
       navigate(mainTabs[prevIndex]?.view ?? 'dashboard');
     }
@@ -237,10 +208,6 @@ export function NavigationProvider({
   );
 }
 
-/**
- * Hook to access navigation context
- * @throws Error if used outside NavigationProvider
- */
 export function useNavigation(): NavigationContextValue {
   const context = useContext(NavigationContext);
   if (!context) {
@@ -249,9 +216,6 @@ export function useNavigation(): NavigationContextValue {
   return context;
 }
 
-/**
- * Hook to check if a specific view is active
- */
 export function useIsActiveView(view: View): boolean {
   const { isActive } = useNavigation();
   return isActive(view);
