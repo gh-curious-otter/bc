@@ -66,6 +66,7 @@ import (
 	"github.com/rpuneet/bc/config"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/memory"
+	"github.com/rpuneet/bc/pkg/provider"
 	"github.com/rpuneet/bc/pkg/tmux"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -397,8 +398,9 @@ const DefaultBootstrapDelay = 3 * time.Second
 
 // Manager handles agent lifecycle.
 type Manager struct {
-	agents map[string]*Agent
-	tmux   *tmux.Manager
+	agents           map[string]*Agent
+	tmux             *tmux.Manager
+	providerRegistry *provider.Registry
 
 	stateDir string
 
@@ -418,10 +420,11 @@ type Manager struct {
 // NewManager creates a new agent manager with workspace-scoped tmux sessions.
 func NewManager(stateDir string) *Manager {
 	return &Manager{
-		agents:   make(map[string]*Agent),
-		tmux:     tmux.NewManager(config.Tmux.SessionPrefix),
-		stateDir: stateDir,
-		agentCmd: config.AgentLegacy.Command,
+		agents:           make(map[string]*Agent),
+		tmux:             tmux.NewManager(config.Tmux.SessionPrefix),
+		providerRegistry: provider.DefaultRegistry,
+		stateDir:         stateDir,
+		agentCmd:         config.AgentLegacy.Command,
 	}
 }
 
@@ -429,11 +432,12 @@ func NewManager(stateDir string) *Manager {
 // Tmux session names will be unique per workspace to avoid collisions.
 func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 	return &Manager{
-		agents:        make(map[string]*Agent),
-		tmux:          tmux.NewWorkspaceManager(config.Tmux.SessionPrefix, workspacePath),
-		stateDir:      stateDir,
-		agentCmd:      config.AgentLegacy.Command,
-		workspacePath: workspacePath,
+		agents:           make(map[string]*Agent),
+		tmux:             tmux.NewWorkspaceManager(config.Tmux.SessionPrefix, workspacePath),
+		providerRegistry: provider.DefaultRegistry,
+		stateDir:         stateDir,
+		agentCmd:         config.AgentLegacy.Command,
+		workspacePath:    workspacePath,
 	}
 }
 
@@ -662,8 +666,24 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 		}
 	}
 
-	// #1531 fix: Verify the command binary exists in PATH before spawning
-	if agentCmd != "" {
+	// Validate tool binary exists before spawning.
+	// Use provider registry for known tools (richer validation + version logging),
+	// fall back to PATH check for custom/unknown tools.
+	providerValidated := false
+	if tool != "" && m.providerRegistry != nil {
+		if p, ok := m.providerRegistry.Get(tool); ok {
+			ctx := context.TODO()
+			if !p.IsInstalled(ctx) {
+				return nil, fmt.Errorf("tool %q is not installed. Install %s or configure a different tool in config.toml", tool, p.Name())
+			}
+			if v := p.Version(ctx); v != "" {
+				log.Debug("provider validated", "tool", tool, "version", v)
+			}
+			providerValidated = true
+		}
+	}
+
+	if !providerValidated && agentCmd != "" {
 		parts := strings.Fields(agentCmd)
 		if len(parts) > 0 {
 			if _, err := exec.LookPath(parts[0]); err != nil {
@@ -1433,25 +1453,19 @@ func (m *Manager) RefreshState() error {
 		if live := m.captureLiveTask(name); live != "" {
 			a.Task = live
 
-			// Sync state with task symbols:
-			// - Spinner symbols (✻ ✳ ✽ ·) → working
-			// - Prompt symbol (❯) or pause (⏺) → idle (waiting for input)
-			//
+			// Use provider-based state detection if available for richer state inference
+			newState := m.detectAgentState(a.Tool, live)
+
 			// IMPORTANT: Preserve error, stuck, and done states - these are explicitly
-			// reported by agents and should not be overwritten by tmux activity detection.
+			// reported by agents and should not be overwritten by activity detection.
 			// Only toggle between working and idle for agents in "normal" states.
-			if strings.HasPrefix(live, "✻") ||
-				strings.HasPrefix(live, "✳") ||
-				strings.HasPrefix(live, "✽") ||
-				strings.HasPrefix(live, "·") {
-				// Only change to working from idle/starting - preserve error/stuck/done
+			switch newState {
+			case StateWorking:
 				if a.State == StateIdle || a.State == StateStarting {
 					a.State = StateWorking
 					a.UpdatedAt = time.Now()
 				}
-			} else if strings.HasPrefix(live, "❯") ||
-				strings.HasPrefix(live, "⏺") {
-				// Only change to idle from working - preserve error/stuck/done
+			case StateIdle:
 				if a.State == StateWorking {
 					a.State = StateIdle
 					a.UpdatedAt = time.Now()
@@ -1464,6 +1478,44 @@ func (m *Manager) RefreshState() error {
 }
 
 // captureLiveTask extracts a one-line activity summary from an agent's tmux pane.
+// detectAgentState determines agent state from output, using provider-based
+// detection when available or falling back to symbol-based heuristics.
+func (m *Manager) detectAgentState(tool, output string) State {
+	// Try provider-based detection if tool is known
+	if tool != "" && m.providerRegistry != nil {
+		if p, ok := m.providerRegistry.Get(tool); ok {
+			ps := p.DetectState(output)
+			switch ps {
+			case provider.StateWorking:
+				return StateWorking
+			case provider.StateIdle:
+				return StateIdle
+			case provider.StateDone:
+				return StateDone
+			case provider.StateError:
+				return StateError
+			case provider.StateStuck:
+				return StateStuck
+			}
+			// provider.StateUnknown — fall through to symbol detection
+		}
+	}
+
+	// Fall back to symbol-based detection (works for all tools)
+	if strings.HasPrefix(output, "✻") ||
+		strings.HasPrefix(output, "✳") ||
+		strings.HasPrefix(output, "✽") ||
+		strings.HasPrefix(output, "·") {
+		return StateWorking
+	}
+	if strings.HasPrefix(output, "❯") ||
+		strings.HasPrefix(output, "⏺") {
+		return StateIdle
+	}
+
+	return ""
+}
+
 func (m *Manager) captureLiveTask(name string) string {
 	output, err := m.tmux.Capture(context.TODO(), name, 15)
 	if err != nil {
