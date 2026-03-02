@@ -93,7 +93,7 @@ export function useLogs(options: UseLogsOptions = {}): UseLogsResult {
   const data = useMemo(() => {
     if (!rawData) return null;
     if (!severityFilter) return rawData;
-    return rawData.filter((entry) => getSeverity(entry.type) === severityFilter);
+    return rawData.filter((entry) => getSeverity(entry.type ?? '') === severityFilter);
   }, [rawData, severityFilter]);
 
   // Initial fetch

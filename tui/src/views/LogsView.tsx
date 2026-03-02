@@ -112,7 +112,8 @@ function filterByTime(logs: LogEntry[], timeFilter: TimeFilter): LogEntry[] {
  * Abbreviate log type for compact display (#1364)
  * agent.report → report, channel.message → msg, etc.
  */
-function abbreviateType(type: string): string {
+function abbreviateType(type: string | undefined): string {
+  if (!type) return '';
   // Extract action from type (after last dot)
   const parts = type.split('.');
   const action = parts[parts.length - 1];
@@ -160,7 +161,7 @@ export const LogsView: React.FC<LogsViewProps> = () => {
   // Get unique agents for filter
   const agents = useMemo(() => {
     if (!logs) return [];
-    const agentSet = new Set(logs.map((log) => log.agent));
+    const agentSet = new Set(logs.map((log) => log.agent ?? '').filter(Boolean));
     return Array.from(agentSet).sort();
   }, [logs]);
 
@@ -183,9 +184,9 @@ export const LogsView: React.FC<LogsViewProps> = () => {
       const query = debouncedSearchQuery.toLowerCase();
       result = result.filter(
         (log) =>
-          log.message.toLowerCase().includes(query) ||
-          log.agent.toLowerCase().includes(query) ||
-          log.type.toLowerCase().includes(query)
+          (log.message ?? '').toLowerCase().includes(query) ||
+          (log.agent ?? '').toLowerCase().includes(query) ||
+          (log.type ?? '').toLowerCase().includes(query)
       );
     }
 
@@ -302,16 +303,16 @@ export const LogsView: React.FC<LogsViewProps> = () => {
           </Box>
           <Box>
             <Text bold>Agent: </Text>
-            <Text color="cyan">{selectedLog.agent}</Text>
+            <Text color="cyan">{selectedLog.agent ?? 'unknown'}</Text>
           </Box>
           <Box>
             <Text bold>Type: </Text>
-            <Text color={getSeverityColor(selectedLog.type)}>{getSeverityIcon(selectedLog.type)} {selectedLog.type}</Text>
+            <Text color={getSeverityColor(selectedLog.type ?? '')}>{getSeverityIcon(selectedLog.type ?? '')} {selectedLog.type ?? 'unknown'}</Text>
           </Box>
           <Box marginTop={1} flexDirection="column">
             <Text bold>Message:</Text>
             <Box paddingLeft={2} marginTop={1}>
-              <Text wrap="wrap">{selectedLog.message}</Text>
+              <Text wrap="wrap">{selectedLog.message ?? '(no message)'}</Text>
             </Box>
           </Box>
         </Box>
@@ -415,8 +416,9 @@ export const LogsView: React.FC<LogsViewProps> = () => {
         {visibleLogs.map((log, idx) => {
           const actualIdx = startIdx + idx;
           const isSelected = actualIdx === selectedIndex;
-          const severityColor = getSeverityColor(log.type);
-          const severityIcon = getSeverityIcon(log.type);
+          const logType = log.type ?? '';
+          const severityColor = getSeverityColor(logType);
+          const severityIcon = getSeverityIcon(logType);
 
           return (
             <Box key={`${log.ts}-${String(idx)}`}>
@@ -427,16 +429,16 @@ export const LogsView: React.FC<LogsViewProps> = () => {
                 {formatTime(log.ts).padEnd(timeWidth)}
               </Text>
               <Text color={isSelected ? 'cyan' : 'cyan'}>
-                {log.agent.slice(0, agentWidth - 1).padEnd(agentWidth)}
+                {(log.agent ?? '').slice(0, agentWidth - 1).padEnd(agentWidth)}
               </Text>
               <Text color={isSelected ? 'cyan' : severityColor}>
-                {severityIcon} {abbreviateType(log.type).slice(0, typeWidth - 3).padEnd(typeWidth - 2)}
+                {severityIcon} {abbreviateType(logType).slice(0, typeWidth - 3).padEnd(typeWidth - 2)}
               </Text>
               <Text
                 color={isSelected ? 'cyan' : undefined}
                 wrap="truncate"
               >
-                {log.message.slice(0, messageWidth)}
+                {(log.message ?? '').slice(0, messageWidth)}
               </Text>
             </Box>
           );

@@ -1,8 +1,8 @@
 /**
  * MemoryView - View and manage agent memories
  * Issue #1839: Memory editor view with 3 tabs
+ * - Experiences: Recorded agent actions with outcomes (delete via #1854)
  * - Learnings: Agent knowledge base
- * - Experiences: Recorded agent actions with outcomes
  * - Role Prompt: Agent's role prompt text
  *
  * Uses useListNavigation for consolidated keyboard patterns (#1729)
@@ -19,7 +19,7 @@ import { useDisableInput, useListNavigation } from '../hooks';
 import { truncate, formatRelativeTime } from '../utils';
 import { DISPLAY_LIMITS, TRUNCATION } from '../constants';
 import type { AgentMemorySummary, AgentMemory as AgentMemoryDetail } from '../types';
-import { getMemoryList, getMemory, searchMemory, clearMemory } from '../services/bc';
+import { getMemoryList, getMemory, searchMemory, clearMemory, deleteExperience } from '../services/bc';
 
 // View mode types
 type ViewMode = 'list' | 'detail' | 'search';
@@ -31,6 +31,7 @@ interface UIState {
   searchQuery: string;
   searchMode: boolean;
   confirmClear: boolean;
+  confirmDeleteExp: number | null; // 1-based experience index to confirm delete
   detailTab: DetailTab;
 }
 
@@ -41,6 +42,7 @@ type UIAction =
   | { type: 'BACKSPACE_SEARCH' }
   | { type: 'TOGGLE_SEARCH_MODE'; enabled?: boolean }
   | { type: 'TOGGLE_CONFIRM_CLEAR'; enabled?: boolean }
+  | { type: 'SET_CONFIRM_DELETE_EXP'; index: number | null }
   | { type: 'SET_DETAIL_TAB'; tab: DetailTab }
   | { type: 'EXIT_DETAIL' }
   | { type: 'EXIT_SEARCH' };
@@ -50,6 +52,7 @@ const initialUIState: UIState = {
   searchQuery: '',
   searchMode: false,
   confirmClear: false,
+  confirmDeleteExp: null,
   detailTab: 'experiences',
 };
 
@@ -67,10 +70,12 @@ function uiReducer(state: UIState, action: UIAction): UIState {
       return { ...state, searchMode: action.enabled ?? !state.searchMode };
     case 'TOGGLE_CONFIRM_CLEAR':
       return { ...state, confirmClear: action.enabled ?? !state.confirmClear };
+    case 'SET_CONFIRM_DELETE_EXP':
+      return { ...state, confirmDeleteExp: action.index };
     case 'SET_DETAIL_TAB':
       return { ...state, detailTab: action.tab };
     case 'EXIT_DETAIL':
-      return { ...state, viewMode: 'list' };
+      return { ...state, viewMode: 'list', confirmDeleteExp: null };
     case 'EXIT_SEARCH':
       return { ...state, viewMode: 'list', searchQuery: '' };
     default:
@@ -165,6 +170,17 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
     }
   }, []);
 
+  // Refresh current detail view
+  const refreshDetail = useCallback(async () => {
+    if (!selectedMemory) return;
+    try {
+      const memory = await getMemory(selectedMemory.agent);
+      setSelectedMemory(memory);
+    } catch {
+      setError('Failed to refresh memory details');
+    }
+  }, [selectedMemory]);
+
   // Execute search
   const executeSearch = useCallback(async (query: string) => {
     if (query.length === 0) return;
@@ -211,6 +227,19 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
     }
   }, [currentAgent, fetchMemoryList]);
 
+  // Handle delete experience (#1854)
+  const handleDeleteExperience = useCallback(async () => {
+    if (!selectedMemory || ui.confirmDeleteExp === null) return;
+    try {
+      await deleteExperience(selectedMemory.agent, ui.confirmDeleteExp);
+      dispatch({ type: 'SET_CONFIRM_DELETE_EXP', index: null });
+      await refreshDetail();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete experience');
+      dispatch({ type: 'SET_CONFIRM_DELETE_EXP', index: null });
+    }
+  }, [selectedMemory, ui.confirmDeleteExp, refreshDetail]);
+
   // Keyboard handling for modal/detail/search states
   useInput(
     (input, key) => {
@@ -220,6 +249,16 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
           void handleClear();
         } else {
           dispatch({ type: 'TOGGLE_CONFIRM_CLEAR', enabled: false });
+        }
+        return;
+      }
+
+      // Confirm delete experience mode
+      if (ui.confirmDeleteExp !== null) {
+        if (input === 'y' || input === 'Y') {
+          void handleDeleteExperience();
+        } else {
+          dispatch({ type: 'SET_CONFIRM_DELETE_EXP', index: null });
         }
         return;
       }
@@ -241,6 +280,10 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
         }
         if (input === '3') {
           dispatch({ type: 'SET_DETAIL_TAB', tab: 'prompt' });
+          return;
+        }
+        if (input === 'R') {
+          void refreshDetail();
           return;
         }
         return;
@@ -270,7 +313,7 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
         }
       }
     },
-    { isActive: ui.confirmClear || ui.viewMode !== 'list' || ui.searchMode }
+    { isActive: ui.confirmClear || ui.confirmDeleteExp !== null || ui.viewMode !== 'list' || ui.searchMode }
   );
 
   // Loading state
@@ -284,6 +327,27 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
       <Box flexDirection="column" padding={1}>
         <Text color="red">Error: {error}</Text>
         <Text dimColor>Press R to retry</Text>
+      </Box>
+    );
+  }
+
+  // Confirm delete experience modal
+  if (ui.confirmDeleteExp !== null && selectedMemory) {
+    return (
+      <Box flexDirection="column" padding={1}>
+        <Panel title="Confirm Delete" borderColor="red">
+          <Box flexDirection="column">
+            <Text color="red">
+              Delete experience #{String(ui.confirmDeleteExp)} from &quot;{selectedMemory.agent}&quot;?
+            </Text>
+            <Text dimColor>This action cannot be undone.</Text>
+            <Box marginTop={1}>
+              <Text>Press </Text>
+              <Text color="red" bold>y</Text>
+              <Text> to confirm, any other key to cancel</Text>
+            </Box>
+          </Box>
+        </Panel>
       </Box>
     );
   }
@@ -385,7 +449,10 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
         {/* Tab content */}
         <Box flexDirection="column" flexGrow={1} overflow="hidden">
           {ui.detailTab === 'experiences' && (
-            <ExperiencesTab experiences={selectedMemory.experiences} />
+            <ExperiencesTab
+              experiences={selectedMemory.experiences}
+              onDelete={(index) => { dispatch({ type: 'SET_CONFIRM_DELETE_EXP', index }); }}
+            />
           )}
           {ui.detailTab === 'learnings' && (
             <LearningsTab learnings={selectedMemory.learnings} />
@@ -397,7 +464,9 @@ export function MemoryView(_props: MemoryViewProps = {}): React.ReactElement {
 
         <Box>
           <Text dimColor wrap="truncate">
-            1/2/3: switch tabs | Esc/q: back to list
+            {ui.detailTab === 'experiences'
+              ? '1/2/3: tabs | d: delete selected | R: refresh | Esc/q: back'
+              : '1/2/3: tabs | R: refresh | Esc/q: back'}
           </Text>
         </Box>
       </Box>
@@ -514,7 +583,7 @@ function AgentMemoryRow({ agent, selected }: AgentMemoryRowProps): React.ReactEl
   return (
     <Box paddingX={1}>
       <Box width={18}>
-        <Text color={selected ? 'magenta' : undefined} bold={selected}>
+        <Text color={selected ? 'cyan' : undefined} bold={selected}>
           {selected ? '▸ ' : '  '}
           {truncate(agent.agent, 14)}
         </Text>
@@ -540,9 +609,31 @@ function AgentMemoryRow({ agent, selected }: AgentMemoryRowProps): React.ReactEl
 
 interface ExperiencesTabProps {
   experiences: AgentMemoryDetail['experiences'];
+  onDelete: (index: number) => void;
 }
 
-function ExperiencesTab({ experiences }: ExperiencesTabProps): React.ReactElement {
+function ExperiencesTab({ experiences, onDelete }: ExperiencesTabProps): React.ReactElement {
+  const [expIndex, setExpIndex] = useState(0);
+
+  // Navigate experience list and delete with 'd'
+  useInput(
+    (input, key) => {
+      if (input === 'j' || key.downArrow) {
+        setExpIndex((prev) => Math.min(prev + 1, Math.min(experiences.length, DISPLAY_LIMITS.EXPERIENCES) - 1));
+        return;
+      }
+      if (input === 'k' || key.upArrow) {
+        setExpIndex((prev) => Math.max(prev - 1, 0));
+        return;
+      }
+      if (input === 'd' && experiences.length > 0) {
+        // 1-based index for the API
+        onDelete(expIndex + 1);
+      }
+    },
+    { isActive: experiences.length > 0 }
+  );
+
   if (experiences.length === 0) {
     return (
       <Box paddingX={1}>
@@ -557,7 +648,12 @@ function ExperiencesTab({ experiences }: ExperiencesTabProps): React.ReactElemen
   return (
     <Box flexDirection="column">
       {displayed.map((exp, idx) => (
-        <Box key={exp.id || String(idx)} paddingX={1} marginBottom={idx < displayed.length - 1 ? 0 : undefined}>
+        <Box key={exp.id || String(idx)} paddingX={1}>
+          <Box width={3}>
+            <Text color={idx === expIndex ? 'cyan' : undefined} bold={idx === expIndex}>
+              {idx === expIndex ? '▸' : ' '}
+            </Text>
+          </Box>
           <Box width={14}>
             <Text dimColor>{formatTime(exp.timestamp)}</Text>
           </Box>
@@ -629,7 +725,6 @@ function RolePromptTab({ agent }: RolePromptTabProps): React.ReactElement {
         if (!cancelled) {
           // AgentMemory from `memory show` doesn't include role_prompt directly.
           // When go-eng adds role_prompt to the response, update here.
-          // For now, we show a placeholder.
           setPrompt(memory ? null : null);
         }
       } catch {
