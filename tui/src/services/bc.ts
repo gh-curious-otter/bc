@@ -25,6 +25,7 @@ import type {
   AgentMemory,
   MemoryListResponse,
   MemorySearchResult,
+  ToolInfo,
 } from '../types';
 
 // ============================================================================
@@ -230,7 +231,7 @@ export async function execBc(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     // Always add --json flag if not present and command supports it
     // #1756: Added 'memory' to fix Memory tab showing nothing
-    const jsonCommands = ['status', 'stats', 'channel', 'cost', 'logs', 'agent', 'process', 'demon', 'team', 'role', 'worktree', 'memory'];
+    const jsonCommands = ['status', 'stats', 'channel', 'cost', 'logs', 'agent', 'process', 'demon', 'team', 'role', 'worktree', 'memory', 'tool'];
     const hasJsonFlag = args.includes('--json');
     const command = args[0];
 
@@ -771,6 +772,22 @@ export async function clearMemory(agentName: string): Promise<void> {
  */
 export async function exportMemory(agentName: string): Promise<string> {
   return await execBc(['memory', 'export', agentName]);
+}
+
+// ============================================================================
+// Tool Commands (#1866 - Tools View)
+// ============================================================================
+
+/**
+ * Get list of installed tools/providers
+ * #1866: Returns array of tool info objects
+ */
+export async function getToolList(): Promise<ToolInfo[]> {
+  try {
+    return await execBcJsonCached<ToolInfo[]>(['tool', 'list'], 30000);
+  } catch {
+    return [];
+  }
 }
 
 // ============================================================================
