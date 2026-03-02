@@ -216,17 +216,22 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
     return () => { clearInterval(interval); };
   }, [fetchAgentOutput]);
 
-  // Live mode: faster polling (500ms) when tab is active
+  // #1855: Live mode polls at 2.5s only when following; stops when paused.
+  // Proper cleanup on tab switch or follow toggle to avoid stale timers.
   useEffect(() => {
-    if (activeTab === 'live') {
+    if (activeTab !== 'live') return undefined;
+
+    // Always fetch once when entering live tab
+    void fetchLiveOutput();
+
+    // Only poll continuously when following
+    if (!isFollowing) return undefined;
+
+    const interval = setInterval(() => {
       void fetchLiveOutput();
-      const interval = setInterval(() => {
-        void fetchLiveOutput();
-      }, 500);
-      return () => { clearInterval(interval); };
-    }
-    return undefined;
-  }, [activeTab, fetchLiveOutput]);
+    }, 2500);
+    return () => { clearInterval(interval); };
+  }, [activeTab, isFollowing, fetchLiveOutput]);
 
   const sendMessage = useCallback(async (message: string) => {
     if (!message.trim()) return;
@@ -273,7 +278,12 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
       } else if (input === 'q' || key.escape) {
         onBack?.();
       } else if (input === 'r') {
-        void fetchAgentOutput();
+        // Refresh: fetch output for current tab
+        if (activeTab === 'live') {
+          void fetchLiveOutput();
+        } else {
+          void fetchAgentOutput();
+        }
       } else if (input === '1') {
         setActiveTab('output');
       } else if (input === '2') {
@@ -420,13 +430,13 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
           >
             <Box marginBottom={1}>
               <Text color="cyan" bold>LIVE OUTPUT</Text>
-              <Text dimColor> - 500ms refresh | </Text>
+              <Text dimColor> | </Text>
               {isFollowing ? (
-                <Text color="green">FOLLOWING</Text>
+                <><Text color="green">FOLLOWING</Text><Text dimColor> (2.5s)</Text></>
               ) : (
-                <Text color="yellow">PAUSED</Text>
+                <><Text color="yellow">PAUSED</Text><Text dimColor> (r: refresh)</Text></>
               )}
-              <Text dimColor> | f: toggle follow</Text>
+              <Text dimColor> | f: toggle</Text>
             </Box>
             <Box flexDirection="column" height={outputHeight + 2} overflow="hidden">
               {liveLines.length === 0 ? (
