@@ -9,6 +9,7 @@ import { useFocus } from '../navigation/FocusContext';
 import { useAgentDetails } from '../hooks/useAgentDetails';
 import { MetricCard } from '../components/MetricCard';
 import { Footer } from '../components/Footer';
+import { colorizeOutputLine, isPeekHeader } from '../utils';
 
 // Safe wrapper for useInput that handles test environments
 const useSafeInput = (handler: Parameters<typeof inkUseInput>[0]) => {
@@ -39,93 +40,6 @@ function normalizeTask(task: string | undefined): string {
     }
   }
   return task;
-}
-
-// ANSI escape code regex - detects SGR (Select Graphic Rendition) sequences
-// eslint-disable-next-line no-control-regex
-const ANSI_REGEX = /\x1b\[[0-9;]*m/;
-
-/**
- * Check if a line contains ANSI escape codes.
- * #1844: Log streaming backend preserves ANSI codes in output.
- */
-function hasAnsiCodes(line: string): boolean {
-  return ANSI_REGEX.test(line);
-}
-
-/**
- * Check if a line is a peek header (e.g., "=== agent-name (last 50 lines) ===").
- * #1844: Strip these headers from displayed output.
- */
-function isPeekHeader(line: string): boolean {
-  return /^=== .+ \(last \d+ lines\) ===$/.test(line.trim());
-}
-
-/**
- * Colorize output line based on content patterns.
- * #1161: Apply semantic colors to agent output for better readability.
- * #1844: Pass through lines that already contain ANSI escape codes from log streaming.
- *
- * Patterns: errors (red), warnings (yellow), success (green), info (cyan)
- */
-function colorizeOutputLine(line: string): React.ReactElement {
-  // #1844: If line already has ANSI codes from log streaming, render as-is.
-  // Ink 4.x renders embedded ANSI escape sequences in Text content.
-  if (hasAnsiCodes(line)) {
-    return <Text>{line}</Text>;
-  }
-
-  const trimmed = line.trim().toLowerCase();
-
-  // Error patterns
-  if (
-    trimmed.includes('error') ||
-    trimmed.includes('failed') ||
-    trimmed.includes('exception') ||
-    trimmed.startsWith('✗') ||
-    trimmed.startsWith('x ')
-  ) {
-    return <Text color="red">{line}</Text>;
-  }
-
-  // Warning patterns
-  if (
-    trimmed.includes('warning') ||
-    trimmed.includes('warn') ||
-    trimmed.includes('deprecated') ||
-    trimmed.startsWith('⚠')
-  ) {
-    return <Text color="yellow">{line}</Text>;
-  }
-
-  // Success patterns
-  if (
-    trimmed.includes('success') ||
-    trimmed.includes('passed') ||
-    trimmed.includes('complete') ||
-    trimmed.startsWith('✓') ||
-    trimmed.startsWith('✔')
-  ) {
-    return <Text color="green">{line}</Text>;
-  }
-
-  // Tool/command patterns (cyan for actions)
-  if (
-    trimmed.startsWith('>') ||
-    trimmed.startsWith('$') ||
-    trimmed.includes('running') ||
-    trimmed.includes('executing')
-  ) {
-    return <Text color="cyan">{line}</Text>;
-  }
-
-  // File paths (dim white)
-  if (trimmed.match(/^[./~].*\.(tsx?|jsx?|go|py|md|json)$/)) {
-    return <Text color="white">{line}</Text>;
-  }
-
-  // Default: standard white text (not dimmed)
-  return <Text>{line}</Text>;
 }
 
 interface AgentDetailViewProps {
@@ -453,7 +367,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
               <Box marginTop={1}>
                 <Text dimColor>
                   Lines {scrollOffset + 1}-{Math.min(scrollOffset + outputHeight, liveLines.length)} of {liveLines.length}
-                  {scrollOffset === 0 && ' (following)'}
+                  {isFollowing && ' (following)'}
                 </Text>
               </Box>
             )}

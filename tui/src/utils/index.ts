@@ -25,3 +25,9 @@ export {
   capitalize,
   toTitleCase,
 } from './formatting';
+
+export {
+  hasAnsiCodes,
+  isPeekHeader,
+  colorizeOutputLine,
+} from './outputColors';
