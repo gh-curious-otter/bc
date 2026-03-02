@@ -16,23 +16,27 @@ import (
 const ConfigVersion = 2
 
 // V2Config represents the TOML-based workspace configuration for bc v2.
+// Field order is optimized by fieldalignment for minimal struct padding.
 type V2Config struct {
-	// New config sections (Issue #1771)
-	Providers ProvidersConfig `toml:"providers"`
-	Services  ServicesConfig  `toml:"services"`
-
-	// Legacy config section (deprecated, use Providers/Services instead)
-	Tools ToolsConfig `toml:"tools"`
-
-	// Other config sections
+	Services    ServicesConfig    `toml:"services"`
+	Providers   ProvidersConfig   `toml:"providers"`
+	Tools       ToolsConfig       `toml:"tools"`
 	Memory      MemoryConfig      `toml:"memory"`
 	TUI         TUIConfig         `toml:"tui"`
 	User        UserConfig        `toml:"user"`
 	Workspace   WorkspaceConfig   `toml:"workspace"`
 	Worktrees   WorktreesConfig   `toml:"worktrees"`
 	Channels    ChannelsConfig    `toml:"channels"`
+	Logs        LogsConfig        `toml:"logs"`
 	Performance PerformanceConfig `toml:"performance"`
 	Roster      RosterConfig      `toml:"roster"`
+}
+
+// LogsConfig configures persistent session log streaming.
+type LogsConfig struct {
+	Path         string `toml:"path"`
+	MaxBytes     int64  `toml:"max_bytes"`
+	PreserveAnsi bool   `toml:"preserve_ansi"`
 }
 
 // UserConfig holds user identity settings.
@@ -229,6 +233,11 @@ func DefaultV2Config(name string) V2Config {
 				Command: "gemini --yolo",
 				Enabled: true,
 			},
+		},
+		Logs: LogsConfig{
+			Path:         ".bc/logs",
+			MaxBytes:     1048576, // 1MB
+			PreserveAnsi: true,
 		},
 		Memory: MemoryConfig{
 			Backend: "file",

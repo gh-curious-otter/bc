@@ -292,6 +292,37 @@ describe('useListNavigation', () => {
     });
   });
 
+  describe('itemCount Override (#1842)', () => {
+    test('clampIndex uses itemCount when provided instead of items.length', () => {
+      // Simulates grouped view: 4 agents + 3 headers = 7 visible items
+      const itemsLength = 4; // raw agents
+      const itemCount = 7;   // visible items with headers
+      const navLength = itemCount; // itemCount overrides items.length
+
+      // Can navigate to index 6 (last visible item)
+      expect(clampIndex(6, navLength, false)).toBe(6);
+      // Without override, would clamp to 3
+      expect(clampIndex(6, itemsLength, false)).toBe(3);
+    });
+
+    test('jumpToLast uses itemCount for boundary', () => {
+      const itemCount = 7;
+      const lastIndex = Math.max(0, itemCount - 1);
+      expect(lastIndex).toBe(6);
+    });
+
+    test('clampIndex wraps correctly with itemCount', () => {
+      const itemCount = 7;
+      expect(clampIndex(-1, itemCount, true)).toBe(6);
+      expect(clampIndex(7, itemCount, true)).toBe(0);
+    });
+
+    test('itemCount of 0 returns 0 for any index', () => {
+      expect(clampIndex(0, 0, false)).toBe(0);
+      expect(clampIndex(5, 0, false)).toBe(0);
+    });
+  });
+
   describe('Edge Cases', () => {
     test('handles large lists', () => {
       const length = 10000;

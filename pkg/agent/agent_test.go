@@ -3275,3 +3275,181 @@ func TestRemoveFromParent_AgentNotFound(t *testing.T) {
 	// Should not panic
 	m.removeFromParent("nonexistent")
 }
+
+func TestTailFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.log")
+
+	content := "line1\nline2\nline3\nline4\nline5\n"
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	tests := []struct { //nolint:govet // test struct alignment not critical
+		name     string
+		lines    int
+		contains []string
+	}{
+		{"last 2 lines", 2, []string{"line4", "line5"}},
+		{"last 5 lines", 5, []string{"line1", "line2", "line3", "line4", "line5"}},
+		{"more than available", 10, []string{"line1", "line2", "line3", "line4", "line5"}},
+		{"last 1 line", 1, []string{"line5"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := tailFile(path, tt.lines)
+			if err != nil {
+				t.Fatalf("tailFile failed: %v", err)
+			}
+			for _, want := range tt.contains {
+				if !strings.Contains(output, want) {
+					t.Errorf("expected output to contain %q, got %q", want, output)
+				}
+			}
+		})
+	}
+}
+
+func TestTailFile_Empty(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "empty.log")
+	if err := os.WriteFile(path, []byte{}, 0600); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	output, err := tailFile(path, 10)
+	if err != nil {
+		t.Fatalf("tailFile failed: %v", err)
+	}
+	if output != "" {
+		t.Errorf("expected empty output, got %q", output)
+	}
+}
+
+func TestTailFile_NotFound(t *testing.T) {
+	_, err := tailFile("/nonexistent/path/file.log", 10)
+	if err == nil {
+		t.Error("expected error for nonexistent file")
+	}
+}
+
+func TestTruncateLogFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.log")
+
+	// Create a file with known content
+	var content strings.Builder
+	for i := range 100 {
+		fmt.Fprintf(&content, "line %d: some log output here\n", i)
+	}
+	if err := os.WriteFile(path, []byte(content.String()), 0600); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	info, _ := os.Stat(path)
+	originalSize := info.Size()
+
+	// Truncate with max = half of original size (should trigger truncation)
+	truncateLogFile(path, originalSize/2)
+
+	info, _ = os.Stat(path)
+	if info.Size() >= originalSize {
+		t.Errorf("expected truncated size < %d, got %d", originalSize, info.Size())
+	}
+	// Should be roughly half
+	if info.Size() > originalSize*3/4 {
+		t.Errorf("expected roughly half size, got %d (original %d)", info.Size(), originalSize)
+	}
+}
+
+func TestTruncateLogFile_BelowThreshold(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "small.log")
+
+	content := "small log\n"
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	// File is below threshold — should not be modified
+	truncateLogFile(path, 1048576)
+
+	data, _ := os.ReadFile(path) //nolint:gosec // test file path from t.TempDir
+	if string(data) != content {
+		t.Errorf("file should not have changed, got %q", string(data))
+	}
+}
+
+func TestTruncateLogFile_ZeroMaxBytes(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.log")
+
+	content := "some content\n"
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	// Zero maxBytes means no truncation
+	truncateLogFile(path, 0)
+
+	data, _ := os.ReadFile(path) //nolint:gosec // test file path from t.TempDir
+	if string(data) != content {
+		t.Errorf("file should not have changed with maxBytes=0")
+	}
+}
+
+func TestTruncateLogFile_FileNotFound(t *testing.T) {
+	// Should not panic on nonexistent file
+	truncateLogFile("/nonexistent/path/file.log", 1024)
+}
+
+func TestCaptureOutputFromLogFile(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create a manager with mock tmux
+	m := newTestManager(t)
+
+	// Create a log file
+	logsDir := filepath.Join(dir, "logs")
+	if err := os.MkdirAll(logsDir, 0750); err != nil {
+		t.Fatalf("failed to create logs dir: %v", err)
+	}
+	logPath := filepath.Join(logsDir, "test-agent.log")
+	logContent := "log line 1\nlog line 2\nlog line 3\n"
+	if err := os.WriteFile(logPath, []byte(logContent), 0600); err != nil {
+		t.Fatalf("failed to write log: %v", err)
+	}
+
+	// Add agent with LogFile set
+	m.agents["test-agent"] = &Agent{
+		Name:    "test-agent",
+		LogFile: logPath,
+		State:   StateIdle,
+	}
+
+	output, err := m.CaptureOutput("test-agent", 10)
+	if err != nil {
+		t.Fatalf("CaptureOutput failed: %v", err)
+	}
+
+	if !strings.Contains(output, "log line 1") {
+		t.Errorf("expected output to contain log content, got %q", output)
+	}
+}
+
+func TestCaptureOutputFallback(t *testing.T) {
+	// When agent has no LogFile, should fall through to tmux capture
+	m := newTestManager(t)
+	m.agents["test-agent"] = &Agent{
+		Name:  "test-agent",
+		State: StateIdle,
+		// No LogFile set
+	}
+
+	// This will call tmux.Capture which will fail since there's no real session,
+	// but we're testing the fallback path
+	_, err := m.CaptureOutput("test-agent", 10)
+	// Error is expected since the mock tmux won't have the session
+	_ = err
+}

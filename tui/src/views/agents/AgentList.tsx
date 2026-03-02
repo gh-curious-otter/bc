@@ -1,5 +1,5 @@
-import React from 'react';
-import { Box } from 'ink';
+import React, { useMemo } from 'react';
+import { Box, useStdout } from 'ink';
 import { Table } from '../../components/Table';
 import type { Column } from '../../components/Table';
 import { AgentCard } from './AgentCard';
@@ -9,6 +9,9 @@ import { abbreviateRole, normalizeTask } from '../../hooks/useAgentGroups';
 import { Text } from 'ink';
 import { StatusBadge } from '../../components/StatusBadge';
 import type { Agent } from '../../types';
+
+// Reserve rows for header, footer, actions, peek panel, etc.
+const RESERVED_ROWS = 8;
 
 export interface AgentListProps {
   items: GroupedItem[];
@@ -95,10 +98,29 @@ export function AgentList({
     );
   }
 
+  // #1842: Scroll viewport for grouped mode — compute visible window around selectedIndex
+  const { stdout } = useStdout();
+  const terminalRows = stdout.rows || 24;
+  const maxVisibleRows = Math.max(4, terminalRows - RESERVED_ROWS);
+
+  const { visibleSlice, scrollOffset } = useMemo(() => {
+    if (items.length <= maxVisibleRows) {
+      return { visibleSlice: items, scrollOffset: 0 };
+    }
+    // Keep selection centered, clamped to list bounds
+    let offset = Math.max(0, selectedIndex - Math.floor(maxVisibleRows / 2));
+    offset = Math.min(offset, items.length - maxVisibleRows);
+    return { visibleSlice: items.slice(offset, offset + maxVisibleRows), scrollOffset: offset };
+  }, [items, selectedIndex, maxVisibleRows]);
+
   return (
     <Box flexDirection="column">
-      {items.map((item, idx) => {
-        const isSelected = idx === selectedIndex;
+      {scrollOffset > 0 && (
+        <Text dimColor>  ↑ {scrollOffset} more above</Text>
+      )}
+      {visibleSlice.map((item, sliceIdx) => {
+        const realIdx = sliceIdx + scrollOffset;
+        const isSelected = realIdx === selectedIndex;
 
         if (item.type === 'header') {
           return (
@@ -120,6 +142,9 @@ export function AgentList({
           />
         );
       })}
+      {scrollOffset + maxVisibleRows < items.length && (
+        <Text dimColor>  ↓ {items.length - scrollOffset - maxVisibleRows} more below</Text>
+      )}
     </Box>
   );
 }

@@ -1800,6 +1800,100 @@ func TestStore_MergeLearnings_EmptySource(t *testing.T) {
 	}
 }
 
+func TestStore_SaveRolePrompt(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	prompt := "You are an engineer. Implement features and write tests."
+	if err := store.SaveRolePrompt(prompt); err != nil {
+		t.Fatalf("save role prompt failed: %v", err)
+	}
+
+	// Verify file exists
+	data, err := os.ReadFile(filepath.Join(dir, ".bc", "memory", "test-agent", "role_prompt.md")) //nolint:gosec // test file path from t.TempDir
+	if err != nil {
+		t.Fatalf("failed to read role prompt file: %v", err)
+	}
+	if string(data) != prompt {
+		t.Errorf("expected prompt %q, got %q", prompt, string(data))
+	}
+}
+
+func TestStore_GetRolePrompt(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	prompt := "You are a QA engineer."
+	if err := store.SaveRolePrompt(prompt); err != nil {
+		t.Fatalf("save failed: %v", err)
+	}
+
+	got, err := store.GetRolePrompt()
+	if err != nil {
+		t.Fatalf("get role prompt failed: %v", err)
+	}
+	if got != prompt {
+		t.Errorf("expected %q, got %q", prompt, got)
+	}
+}
+
+func TestStore_GetRolePromptMissing(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	got, err := store.GetRolePrompt()
+	if err != nil {
+		t.Fatalf("get role prompt failed: %v", err)
+	}
+	if got != "" {
+		t.Errorf("expected empty string for missing prompt, got %q", got)
+	}
+}
+
+func TestStore_GetMemoryContextIncludesRolePrompt(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	// Save a role prompt
+	prompt := "You are an engineer specializing in Go backend development."
+	if err := store.SaveRolePrompt(prompt); err != nil {
+		t.Fatalf("save role prompt failed: %v", err)
+	}
+
+	// Add some experiences to ensure we get output
+	if err := store.RecordExperience(Experience{
+		TaskType:    "implementation",
+		Description: "built log streaming",
+		Outcome:     "success",
+	}); err != nil {
+		t.Fatalf("record experience failed: %v", err)
+	}
+
+	ctx, err := store.GetMemoryContext(10)
+	if err != nil {
+		t.Fatalf("get memory context failed: %v", err)
+	}
+
+	if !strings.Contains(ctx, "## Role") {
+		t.Error("expected memory context to contain '## Role' section")
+	}
+	if !strings.Contains(ctx, prompt) {
+		t.Error("expected memory context to include role prompt content")
+	}
+}
+
 func TestParseLearningsByTopic(t *testing.T) {
 	content := `# Agent Learnings
 
