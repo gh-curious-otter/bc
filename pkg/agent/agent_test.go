@@ -3453,3 +3453,98 @@ func TestCaptureOutputFallback(t *testing.T) {
 	// Error is expected since the mock tmux won't have the session
 	_ = err
 }
+
+func TestFollowOutput(t *testing.T) {
+	dir := t.TempDir()
+
+	m := newTestManager(t)
+
+	// Create log file with initial content
+	logsDir := filepath.Join(dir, "logs")
+	if err := os.MkdirAll(logsDir, 0750); err != nil {
+		t.Fatalf("failed to create logs dir: %v", err)
+	}
+	logPath := filepath.Join(logsDir, "follow-agent.log")
+	initial := "line 1\nline 2\nline 3\n"
+	if err := os.WriteFile(logPath, []byte(initial), 0600); err != nil {
+		t.Fatalf("failed to write log: %v", err)
+	}
+
+	m.agents["follow-agent"] = &Agent{
+		Name:    "follow-agent",
+		LogFile: logPath,
+		State:   StateIdle,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	var buf strings.Builder
+
+	// Start follow in goroutine
+	done := make(chan error, 1)
+	go func() {
+		done <- m.FollowOutput(ctx, "follow-agent", 10, &buf)
+	}()
+
+	// Give follow time to start and print initial lines
+	time.Sleep(100 * time.Millisecond)
+
+	// Append new content to log file
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY, 0600) //nolint:gosec // test file
+	if err != nil {
+		t.Fatalf("failed to open log for append: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+	if _, err := f.WriteString("new line 4\nnew line 5\n"); err != nil {
+		t.Fatalf("failed to append: %v", err)
+	}
+
+	// Wait for poll cycle to pick it up
+	time.Sleep(400 * time.Millisecond)
+
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("FollowOutput returned error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "line 1") {
+		t.Errorf("expected initial content, got %q", output)
+	}
+	if !strings.Contains(output, "new line 4") {
+		t.Errorf("expected new line 4 in followed output, got %q", output)
+	}
+	if !strings.Contains(output, "new line 5") {
+		t.Errorf("expected new line 5 in followed output, got %q", output)
+	}
+}
+
+func TestFollowOutput_NoLogFile(t *testing.T) {
+	m := newTestManager(t)
+	m.agents["no-log-agent"] = &Agent{
+		Name:  "no-log-agent",
+		State: StateIdle,
+		// No LogFile — should fall back to one-shot CaptureOutput
+	}
+
+	ctx := context.Background()
+	var buf strings.Builder
+
+	// This will attempt CaptureOutput which tries tmux — error is expected
+	// since there's no real session, but we're testing the fallback path
+	_ = m.FollowOutput(ctx, "no-log-agent", 10, &buf)
+}
+
+func TestFollowOutput_AgentNotFound(t *testing.T) {
+	m := newTestManager(t)
+
+	ctx := context.Background()
+	var buf strings.Builder
+
+	err := m.FollowOutput(ctx, "nonexistent", 10, &buf)
+	if err == nil {
+		t.Fatal("expected error for nonexistent agent")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("expected 'not found' error, got %q", err.Error())
+	}
+}

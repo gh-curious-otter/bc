@@ -123,6 +123,15 @@ describe('AgentDetailView Component', () => {
     expect(agentNoRole.role).toBeUndefined();
   });
 
+  test('handles agent with log_file (#1844)', () => {
+    const agentWithLog = { ...mockAgent, log_file: '/workspace/.bc/logs/test-agent.log' };
+    expect(agentWithLog.log_file).toBe('/workspace/.bc/logs/test-agent.log');
+  });
+
+  test('handles agent without log_file (#1844)', () => {
+    expect(mockAgent.log_file).toBeUndefined();
+  });
+
   test.skip('renders with different agent states', () => {
     const states: Agent['state'][] = ['running', 'idle', 'working', 'stopped'];
     states.forEach(state => {

@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/x/term"
@@ -99,8 +101,9 @@ var agentPeekCmd = &cobra.Command{
 	Long: `Capture and display recent output from an agent's session.
 
 Examples:
-  bc agent peek eng-01          # Show last 50 lines
-  bc agent peek eng-01 --lines 100  # Show last 100 lines`,
+  bc agent peek eng-01              # Show last 50 lines
+  bc agent peek eng-01 --lines 100  # Show last 100 lines
+  bc agent peek eng-01 --follow     # Stream live output (Ctrl+C to stop)`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAgentPeek,
 }
@@ -257,6 +260,7 @@ var (
 	agentShowJSON     bool
 	agentShowFull     bool
 	agentPeekLines    int
+	agentPeekFollow   bool
 	agentStopForce    bool
 	agentDeleteForce  bool
 	agentDeletePurge  bool
@@ -284,6 +288,7 @@ func init() {
 
 	// Peek flags
 	agentPeekCmd.Flags().IntVar(&agentPeekLines, "lines", 50, "Number of lines to show")
+	agentPeekCmd.Flags().BoolVarP(&agentPeekFollow, "follow", "f", false, "Stream live output (like tail -f)")
 
 	// Stop flags
 	agentStopCmd.Flags().BoolVar(&agentStopForce, "force", false, "Force stop without cleanup")
@@ -598,6 +603,22 @@ func runAgentPeek(cmd *cobra.Command, args []string) error {
 
 	if a.State == agent.StateStopped {
 		return fmt.Errorf("agent %q is stopped (use 'bc agent start %s' to start it)", agentName, agentName)
+	}
+
+	if agentPeekFollow {
+		fmt.Printf("=== %s (following, Ctrl+C to stop) ===\n", agentName)
+
+		ctx, cancel := context.WithCancel(cmd.Context())
+		defer cancel()
+
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+		go func() {
+			<-sigCh
+			cancel()
+		}()
+
+		return mgr.FollowOutput(ctx, agentName, agentPeekLines, os.Stdout)
 	}
 
 	output, captureErr := mgr.CaptureOutput(agentName, agentPeekLines)

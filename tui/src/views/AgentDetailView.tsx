@@ -8,6 +8,7 @@ import { LoadingIndicator } from '../components/LoadingIndicator';
 import { useFocus } from '../navigation/FocusContext';
 import { useAgentDetails } from '../hooks/useAgentDetails';
 import { MetricCard } from '../components/MetricCard';
+import { Footer } from '../components/Footer';
 
 // Safe wrapper for useInput that handles test environments
 const useSafeInput = (handler: Parameters<typeof inkUseInput>[0]) => {
@@ -40,14 +41,40 @@ function normalizeTask(task: string | undefined): string {
   return task;
 }
 
+// ANSI escape code regex - detects SGR (Select Graphic Rendition) sequences
+// eslint-disable-next-line no-control-regex
+const ANSI_REGEX = /\x1b\[[0-9;]*m/;
+
+/**
+ * Check if a line contains ANSI escape codes.
+ * #1844: Log streaming backend preserves ANSI codes in output.
+ */
+function hasAnsiCodes(line: string): boolean {
+  return ANSI_REGEX.test(line);
+}
+
+/**
+ * Check if a line is a peek header (e.g., "=== agent-name (last 50 lines) ===").
+ * #1844: Strip these headers from displayed output.
+ */
+function isPeekHeader(line: string): boolean {
+  return /^=== .+ \(last \d+ lines\) ===$/.test(line.trim());
+}
+
 /**
  * Colorize output line based on content patterns.
  * #1161: Apply semantic colors to agent output for better readability.
+ * #1844: Pass through lines that already contain ANSI escape codes from log streaming.
  *
- * This provides basic highlighting since Ink doesn't render ANSI codes directly.
  * Patterns: errors (red), warnings (yellow), success (green), info (cyan)
  */
 function colorizeOutputLine(line: string): React.ReactElement {
+  // #1844: If line already has ANSI codes from log streaming, render as-is.
+  // Ink 4.x renders embedded ANSI escape sequences in Text content.
+  if (hasAnsiCodes(line)) {
+    return <Text>{line}</Text>;
+  }
+
   const trimmed = line.trim().toLowerCase();
 
   // Error patterns
@@ -147,7 +174,8 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
   const fetchAgentOutput = useCallback(async () => {
     try {
       const output = await execBc(['agent', 'peek', agent.name, '--lines', '50']);
-      const lines = output.split('\n').filter(line => line.trim());
+      // #1844: Strip peek headers and empty lines from output
+      const lines = output.split('\n').filter(line => line.trim() && !isPeekHeader(line));
       setOutputLines(lines);
       setError(null);
     } catch (err) {
@@ -160,7 +188,8 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
   const fetchLiveOutput = useCallback(async () => {
     try {
       const output = await execBc(['agent', 'peek', agent.name, '--lines', '200']);
-      const lines = output.split('\n').filter(line => line.trim());
+      // #1844: Strip peek headers and empty lines from output
+      const lines = output.split('\n').filter(line => line.trim() && !isPeekHeader(line));
       setLiveLines(prevLines => {
         // Auto-scroll to bottom if following and new content arrived
         if (isFollowing && lines.length > prevLines.length) {
@@ -446,6 +475,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
             <DetailRow label="Workspace" value={agent.workspace} />
             <DetailRow label="Worktree" value={agent.worktree_dir} />
             <DetailRow label="Memory" value={agent.memory_dir} />
+            {agent.log_file && <DetailRow label="Log File" value={agent.log_file} />}
 
             <Box marginY={1}>
               <Text bold color="white">Timestamps</Text>
@@ -509,16 +539,29 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
       </Box>
 
       {/* Footer with keybindings */}
-      <Box marginTop={1} paddingX={1}>
-        <Text dimColor wrap="truncate">
-          {inputMode
-            ? 'Enter: send | Esc: cancel'
-            : activeTab === 'live'
-              ? '1-4: tabs | j/k: scroll | g/G: top/bottom | f: follow | a: attach | q/ESC: back'
-              : '1-4: tabs | i: message | a: attach | r: refresh | q/ESC: back'}
-        </Text>
-        {loading && <Text color="gray"> (refreshing...)</Text>}
-      </Box>
+      {inputMode ? (
+        <Footer hints={[
+          { key: 'Enter', label: 'send' },
+          { key: 'Esc', label: 'cancel' },
+        ]} />
+      ) : activeTab === 'live' ? (
+        <Footer hints={[
+          { key: '1-4', label: 'tabs' },
+          { key: 'j/k', label: 'scroll' },
+          { key: 'g/G', label: 'top/bottom' },
+          { key: 'f', label: 'follow' },
+          { key: 'a', label: 'attach' },
+          { key: 'q/Esc', label: 'back' },
+        ]} />
+      ) : (
+        <Footer hints={[
+          { key: '1-4', label: 'tabs' },
+          { key: 'i', label: 'message' },
+          { key: 'a', label: 'attach' },
+          { key: 'r', label: 'refresh' },
+          { key: 'q/Esc', label: 'back' },
+        ]} />
+      )}
     </Box>
   );
 };

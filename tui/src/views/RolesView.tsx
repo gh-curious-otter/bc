@@ -9,6 +9,7 @@ import { Box, Text, useInput } from 'ink';
 import { Panel } from '../components/Panel';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { HeaderBar } from '../components/HeaderBar';
+import { Footer } from '../components/Footer';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useAgents, useDebounce, useDisableInput, useListNavigation } from '../hooks';
@@ -328,13 +329,21 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
       )}
 
       {/* Footer */}
-      <Box>
-        <Text dimColor wrap="truncate">
-          {searchMode
-            ? 'Type to search, Enter/Esc to exit'
-            : `j/k: navigate | g/G: top/bottom | /: search${searchQuery ? ' | c: clear' : ''} | Enter: details | d: delete | r: refresh | q/ESC: back`}
-        </Text>
-      </Box>
+      {searchMode ? (
+        <Footer hints={[
+          { key: 'Enter/Esc', label: 'exit search' },
+        ]} />
+      ) : (
+        <Footer hints={[
+          { key: 'j/k', label: 'nav' },
+          { key: 'g/G', label: 'top/bottom' },
+          { key: '/', label: 'search' },
+          ...(searchQuery ? [{ key: 'c', label: 'clear' }] : []),
+          { key: 'Enter', label: 'details' },
+          { key: 'd', label: 'delete' },
+          { key: 'r', label: 'refresh' },
+        ]} />
+      )}
     </Box>
   );
 }

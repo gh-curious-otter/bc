@@ -9,6 +9,7 @@ import { getWorktrees, pruneWorktrees } from '../services/bc';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { HeaderBar } from '../components/HeaderBar';
+import { Footer } from '../components/Footer';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useListNavigation } from '../hooks';
@@ -258,23 +259,13 @@ export const WorktreesView: React.FC = () => {
               <Text color={isSelected ? 'cyan' : undefined}>
                 {isSelected ? '▸ ' : '  '}
               </Text>
-              <Text
-                backgroundColor={isSelected ? 'blue' : undefined}
-                color={isSelected ? 'white' : 'cyan'}
-              >
+              <Text color={isSelected ? 'cyan' : 'cyan'}>
                 {wt.agent.slice(0, agentWidth - 3).padEnd(agentWidth - 2)}
               </Text>
-              <Text
-                backgroundColor={isSelected ? 'blue' : undefined}
-                color={isSelected ? 'white' : 'green'}
-              >
+              <Text color={isSelected ? 'cyan' : 'green'}>
                 {wt.status.padEnd(statusWidth)}
               </Text>
-              <Text
-                backgroundColor={isSelected ? 'blue' : undefined}
-                color={isSelected ? 'white' : undefined}
-                wrap="truncate"
-              >
+              <Text color={isSelected ? 'cyan' : undefined} wrap="truncate">
                 {formatPath(wt.path).slice(0, pathWidth)}
               </Text>
             </Box>
@@ -298,23 +289,13 @@ export const WorktreesView: React.FC = () => {
               <Text color={isSelected ? 'cyan' : undefined}>
                 {isSelected ? '▸ ' : '  '}
               </Text>
-              <Text
-                backgroundColor={isSelected ? 'blue' : undefined}
-                color={isSelected ? 'white' : 'yellow'}
-              >
+              <Text color={isSelected ? 'cyan' : 'yellow'}>
                 {(wt.agent || '(orphan)').slice(0, agentWidth - 3).padEnd(agentWidth - 2)}
               </Text>
-              <Text
-                backgroundColor={isSelected ? 'blue' : undefined}
-                color={isSelected ? 'white' : 'red'}
-              >
+              <Text color={isSelected ? 'cyan' : 'red'}>
                 {wt.status.padEnd(statusWidth)}
               </Text>
-              <Text
-                backgroundColor={isSelected ? 'blue' : undefined}
-                color={isSelected ? 'white' : undefined}
-                wrap="truncate"
-              >
+              <Text color={isSelected ? 'cyan' : undefined} wrap="truncate">
                 {formatPath(wt.path).slice(0, pathWidth)}
               </Text>
             </Box>
@@ -330,12 +311,14 @@ export const WorktreesView: React.FC = () => {
       </Box>
 
       {/* Footer */}
-      <Box marginTop={1}>
-        <Text dimColor wrap="truncate">
-          j/k: nav | g/G: top/bottom | Enter: details | o: {showOrphanedOnly ? 'show all' : 'orphans only'}
-          {hasOrphans ? ' | p: prune' : ''} | r: refresh | q/ESC: back
-        </Text>
-      </Box>
+      <Footer hints={[
+        { key: 'j/k', label: 'nav' },
+        { key: 'g/G', label: 'top/bottom' },
+        { key: 'Enter', label: 'details' },
+        { key: 'o', label: showOrphanedOnly ? 'show all' : 'orphans only' },
+        ...(hasOrphans ? [{ key: 'p', label: 'prune' }] : []),
+        { key: 'r', label: 'refresh' },
+      ]} />
     </Box>
   );
 };

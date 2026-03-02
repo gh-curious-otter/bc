@@ -3,6 +3,7 @@ import { Box, Text } from 'ink';
 import { MentionText } from './MentionText';
 import { ReactionBar } from './Reaction';
 import type { ReactionType } from './Reaction';
+import { getColorForName, getEmojiForName } from '../constants/colors.js';
 
 export interface ChatMessageProps {
   sender: string;
@@ -42,43 +43,6 @@ const formatRelativeTime = (timestamp: string): string => {
   }
 };
 
-/**
- * Get role color for sender name styling
- * CLI directive: Improve name theming with consistent color scheme
- */
-const getRoleColor = (sender: string): string => {
-  // Root agent - special magenta
-  if (sender === 'root') return 'magenta';
-  // Tech leads - cyan
-  if (sender.startsWith('tech-lead') || sender.startsWith('tl-')) return 'cyan';
-  // Engineers - green
-  if (sender.startsWith('eng-')) return 'green';
-  // Managers and PMs - yellow
-  if (sender.startsWith('mgr-') || sender.startsWith('pm-')) return 'yellow';
-  // UX team - blue
-  if (sender.startsWith('ux-')) return 'blue';
-  // QA - red
-  if (sender.startsWith('qa-')) return 'red';
-  // CLI/system messages - gray
-  if (sender === 'cli' || sender === 'system') return 'gray';
-  // Default - white
-  return 'white';
-};
-
-/**
- * Get role prefix emoji for visual distinction
- */
-const getRolePrefix = (sender: string): string => {
-  if (sender === 'root') return '⚙ ';
-  if (sender.startsWith('tl-') || sender.startsWith('tech-lead')) return '🔧 ';
-  if (sender.startsWith('eng-')) return '💻 ';
-  if (sender.startsWith('mgr-')) return '📋 ';
-  if (sender.startsWith('pm-')) return '📊 ';
-  if (sender.startsWith('ux-')) return '🎨 ';
-  if (sender.startsWith('qa-')) return '🧪 ';
-  if (sender === 'cli') return '⌨ ';
-  return '';
-};
 
 /**
  * Chat message component with bubble styling
@@ -106,8 +70,8 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
   maxLines = 0, // #1718: Default to no truncation for full message visibility
 }) {
   const time = formatRelativeTime(timestamp);
-  const senderColor = getRoleColor(sender);
-  const rolePrefix = getRolePrefix(sender);
+  const senderColor = getColorForName(sender);
+  const rolePrefix = getEmojiForName(sender);
   const isOwnMessage = currentUser !== undefined && sender === currentUser;
 
   // #1463: Truncate long messages only if maxLines > 0
