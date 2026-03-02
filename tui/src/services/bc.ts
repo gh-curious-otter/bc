@@ -422,6 +422,10 @@ export async function getCostSummary(): Promise<CostSummary> {
       by_agent: {},
       by_team: {},
       by_model: {},
+      cache_hit_rate: 0,
+      burn_rate: 0,
+      projected_total: 0,
+      billing_window_spent: 0,
     };
   }
 }
