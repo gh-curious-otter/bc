@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/pflag"
+
 	"github.com/rpuneet/bc/pkg/memory"
 )
 
@@ -726,5 +728,354 @@ func TestMemoryImportFileNotFound(t *testing.T) {
 	_, err := executeCmd("memory", "import", "test-agent", "/nonexistent/file.json")
 	if err == nil {
 		t.Error("expected error for non-existent file")
+	}
+}
+
+// resetMemoryEditDeleteFlags resets package-level flag vars and Cobra flag state
+// that leak between tests. executeCmd only resets flags on rootCmd's direct
+// children, not grandchildren like memoryEditCmd and memoryDeleteCmd.
+func resetMemoryEditDeleteFlags(t *testing.T) {
+	t.Helper()
+	memoryEditLearnings = false
+	memoryEditExperiences = false
+	memoryEditRolePrompt = false
+	memoryDeleteExperience = 0
+	memoryDeleteLearning = ""
+	memoryDeleteForce = false
+
+	// Reset Cobra flag Changed state on grandchild commands
+	for _, sub := range memoryCmd.Commands() {
+		sub.Flags().VisitAll(func(f *pflag.Flag) {
+			f.Changed = false
+			if f.Value.Type() == "bool" {
+				_ = f.Value.Set("false")
+			} else if f.Value.Type() == "int" {
+				_ = f.Value.Set("0")
+			} else if f.Value.Type() == "string" {
+				_ = f.Value.Set(f.DefValue)
+			}
+		})
+	}
+}
+
+// --- Memory Edit Tests ---
+
+func TestMemoryEditResolvesLearningsPath(t *testing.T) {
+	resetMemoryEditDeleteFlags(t)
+	wsDir := setupTestWorkspace(t)
+
+	store := memory.NewStore(wsDir, "edit-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	_ = os.Setenv("EDITOR", "true")
+	defer func() { _ = os.Unsetenv("EDITOR") }()
+
+	output, err := executeCmd("memory", "edit", "edit-agent", "--learnings")
+	if err != nil {
+		t.Fatalf("memory edit --learnings failed: %v\nOutput: %s", err, output)
+	}
+	if !strings.Contains(output, "learnings.md") {
+		t.Errorf("expected output to mention learnings.md, got: %s", output)
+	}
+}
+
+func TestMemoryEditResolvesExperiencesPath(t *testing.T) {
+	resetMemoryEditDeleteFlags(t)
+	wsDir := setupTestWorkspace(t)
+
+	store := memory.NewStore(wsDir, "edit-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	_ = os.Setenv("EDITOR", "true")
+	defer func() { _ = os.Unsetenv("EDITOR") }()
+
+	output, err := executeCmd("memory", "edit", "edit-agent", "--experiences")
+	if err != nil {
+		t.Fatalf("memory edit --experiences failed: %v\nOutput: %s", err, output)
+	}
+	if !strings.Contains(output, "experiences.jsonl") {
+		t.Errorf("expected output to mention experiences.jsonl, got: %s", output)
+	}
+}
+
+func TestMemoryEditResolvesRolePromptPath(t *testing.T) {
+	resetMemoryEditDeleteFlags(t)
+	wsDir := setupTestWorkspace(t)
+
+	store := memory.NewStore(wsDir, "edit-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	rpPath := filepath.Join(store.MemoryDir(), "role_prompt.md")
+	if err := os.WriteFile(rpPath, []byte("# Role\n"), 0600); err != nil {
+		t.Fatalf("failed to create role_prompt.md: %v", err)
+	}
+
+	_ = os.Setenv("EDITOR", "true")
+	defer func() { _ = os.Unsetenv("EDITOR") }()
+
+	output, err := executeCmd("memory", "edit", "edit-agent", "--role-prompt")
+	if err != nil {
+		t.Fatalf("memory edit --role-prompt failed: %v\nOutput: %s", err, output)
+	}
+	if !strings.Contains(output, "role_prompt.md") {
+		t.Errorf("expected output to mention role_prompt.md, got: %s", output)
+	}
+}
+
+func TestMemoryEditRequiresFlag(t *testing.T) {
+	resetMemoryEditDeleteFlags(t)
+	wsDir := setupTestWorkspace(t)
+
+	store := memory.NewStore(wsDir, "edit-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	_, err := executeCmd("memory", "edit", "edit-agent")
+	if err == nil {
+		t.Error("expected error when no file flag specified")
+	}
+	if !strings.Contains(err.Error(), "specify which file") {
+		t.Errorf("error should mention specifying a file flag: %v", err)
+	}
+}
+
+func TestMemoryEditMissingAgent(t *testing.T) {
+	resetMemoryEditDeleteFlags(t)
+	setupTestWorkspace(t)
+
+	_ = os.Setenv("EDITOR", "true")
+	defer func() { _ = os.Unsetenv("EDITOR") }()
+
+	_, err := executeCmd("memory", "edit", "nonexistent-agent", "--learnings")
+	if err == nil {
+		t.Error("expected error for missing agent")
+	}
+	if !strings.Contains(err.Error(), "no memory found") {
+		t.Errorf("error should mention no memory found: %v", err)
+	}
+}
+
+func TestMemoryEditEditorFallback(t *testing.T) {
+	resetMemoryEditDeleteFlags(t)
+	wsDir := setupTestWorkspace(t)
+
+	store := memory.NewStore(wsDir, "edit-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	_ = os.Setenv("EDITOR", "true")
+	defer func() { _ = os.Unsetenv("EDITOR") }()
+
+	output, err := executeCmd("memory", "edit", "edit-agent", "--learnings")
+	if err != nil {
+		t.Fatalf("memory edit failed: %v\nOutput: %s", err, output)
+	}
+	if !strings.Contains(output, "Edited") {
+		t.Errorf("expected confirmation message, got: %s", output)
+	}
+}
+
+// --- Memory Delete Tests ---
+
+func TestMemoryDeleteExperience(t *testing.T) {
+	resetMemoryEditDeleteFlags(t)
+	wsDir := setupTestWorkspace(t)
+
+	store := memory.NewStore(wsDir, "del-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	for _, desc := range []string{"first task", "second task", "third task"} {
+		if err := store.RecordExperience(memory.Experience{
+			Description: desc,
+			Outcome:     "success",
+		}); err != nil {
+			t.Fatalf("failed to record: %v", err)
+		}
+	}
+
+	output, err := executeCmd("memory", "delete", "del-agent", "--experience", "2", "--force")
+	if err != nil {
+		t.Fatalf("delete experience failed: %v\nOutput: %s", err, output)
+	}
+	if !strings.Contains(output, "Deleted experience #2") {
+		t.Errorf("expected deletion confirmation, got: %s", output)
+	}
+	if !strings.Contains(output, "second task") {
+		t.Errorf("expected deleted item description, got: %s", output)
+	}
+
+	exps, err := store.GetExperiences()
+	if err != nil {
+		t.Fatalf("failed to get experiences: %v", err)
+	}
+	if len(exps) != 2 {
+		t.Fatalf("expected 2 experiences, got %d", len(exps))
+	}
+	if exps[0].Description != "first task" {
+		t.Errorf("expected 'first task', got %q", exps[0].Description)
+	}
+	if exps[1].Description != "third task" {
+		t.Errorf("expected 'third task', got %q", exps[1].Description)
+	}
+}
+
+func TestMemoryDeleteExperienceInvalidIndex(t *testing.T) {
+	resetMemoryEditDeleteFlags(t)
+	wsDir := setupTestWorkspace(t)
+
+	store := memory.NewStore(wsDir, "del-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+	if err := store.RecordExperience(memory.Experience{
+		Description: "only task",
+		Outcome:     "success",
+	}); err != nil {
+		t.Fatalf("failed to record: %v", err)
+	}
+
+	_, err := executeCmd("memory", "delete", "del-agent", "--experience", "5", "--force")
+	if err == nil {
+		t.Error("expected error for out of range index")
+	}
+	if !strings.Contains(err.Error(), "out of range") {
+		t.Errorf("error should mention out of range: %v", err)
+	}
+}
+
+func TestMemoryDeleteLearning(t *testing.T) {
+	resetMemoryEditDeleteFlags(t)
+	wsDir := setupTestWorkspace(t)
+
+	store := memory.NewStore(wsDir, "del-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	for _, l := range []string{"first insight", "second insight", "third insight"} {
+		if err := store.AddLearning("patterns", l); err != nil {
+			t.Fatalf("failed to add learning: %v", err)
+		}
+	}
+
+	output, err := executeCmd("memory", "delete", "del-agent", "--learning", "patterns", "2", "--force")
+	if err != nil {
+		t.Fatalf("delete learning failed: %v\nOutput: %s", err, output)
+	}
+	if !strings.Contains(output, "Deleted learning #2") {
+		t.Errorf("expected deletion confirmation, got: %s", output)
+	}
+	if !strings.Contains(output, "patterns") {
+		t.Errorf("expected category name in output, got: %s", output)
+	}
+
+	learnings, err := store.GetLearnings()
+	if err != nil {
+		t.Fatalf("failed to get learnings: %v", err)
+	}
+	count := strings.Count(learnings, "- ")
+	if count != 2 {
+		t.Errorf("expected 2 learning entries, got %d", count)
+	}
+}
+
+func TestMemoryDeleteLearningInvalidIndex(t *testing.T) {
+	resetMemoryEditDeleteFlags(t)
+	wsDir := setupTestWorkspace(t)
+
+	store := memory.NewStore(wsDir, "del-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+	if err := store.AddLearning("patterns", "only one"); err != nil {
+		t.Fatalf("failed to add learning: %v", err)
+	}
+
+	_, err := executeCmd("memory", "delete", "del-agent", "--learning", "patterns", "5", "--force")
+	if err == nil {
+		t.Error("expected error for out of range index")
+	}
+	if !strings.Contains(err.Error(), "out of range") {
+		t.Errorf("error should mention out of range: %v", err)
+	}
+}
+
+func TestMemoryDeleteLearningMissingCategory(t *testing.T) {
+	resetMemoryEditDeleteFlags(t)
+	wsDir := setupTestWorkspace(t)
+
+	store := memory.NewStore(wsDir, "del-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+	if err := store.AddLearning("tips", "something"); err != nil {
+		t.Fatalf("failed to add learning: %v", err)
+	}
+
+	_, err := executeCmd("memory", "delete", "del-agent", "--learning", "nonexistent", "1", "--force")
+	if err == nil {
+		t.Error("expected error for missing category")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention not found: %v", err)
+	}
+}
+
+func TestMemoryDeleteLearningMissingIndex(t *testing.T) {
+	resetMemoryEditDeleteFlags(t)
+	wsDir := setupTestWorkspace(t)
+
+	store := memory.NewStore(wsDir, "del-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	_, err := executeCmd("memory", "delete", "del-agent", "--learning", "patterns")
+	if err == nil {
+		t.Error("expected error for missing index")
+	}
+	if !strings.Contains(err.Error(), "missing index") {
+		t.Errorf("error should mention missing index: %v", err)
+	}
+}
+
+func TestMemoryDeleteRequiresMode(t *testing.T) {
+	resetMemoryEditDeleteFlags(t)
+	wsDir := setupTestWorkspace(t)
+
+	store := memory.NewStore(wsDir, "del-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
+	}
+
+	_, err := executeCmd("memory", "delete", "del-agent")
+	if err == nil {
+		t.Error("expected error when no mode flag specified")
+	}
+	if !strings.Contains(err.Error(), "specify what to delete") {
+		t.Errorf("error should mention specifying mode: %v", err)
+	}
+}
+
+func TestMemoryDeleteMissingAgent(t *testing.T) {
+	resetMemoryEditDeleteFlags(t)
+	setupTestWorkspace(t)
+
+	_, err := executeCmd("memory", "delete", "nonexistent", "--experience", "1", "--force")
+	if err == nil {
+		t.Error("expected error for missing agent")
+	}
+	if !strings.Contains(err.Error(), "no memory found") {
+		t.Errorf("error should mention no memory found: %v", err)
 	}
 }

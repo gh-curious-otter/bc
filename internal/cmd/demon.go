@@ -881,4 +881,3 @@ func runDemonSchedulerLoop(cmd *cobra.Command, args []string) error {
 	scheduler := demon.NewScheduler(schedulerLoopRoot)
 	return scheduler.RunLoop(shutdown.Context())
 }
-

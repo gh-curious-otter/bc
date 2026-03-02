@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -160,18 +161,42 @@ Example:
 
 // Export/Import commands moved to memory_io.go
 
-var memoryDeleteCmd = &cobra.Command{
-	Use:   "delete <agent> <index>",
-	Short: "Delete a specific experience",
-	Long: `Delete a specific experience from an agent's memory by its index.
+var memoryEditCmd = &cobra.Command{
+	Use:   "edit <agent>",
+	Short: "Edit agent memory files in $EDITOR",
+	Long: `Open an agent's memory file in your default editor.
 
-Use 'bc memory show <agent> --experiences' to see experience indices.
-Indices are 1-based (first experience is 1, not 0).
+Specify which file to edit with one of the flags:
+  --learnings      Open learnings.md
+  --experiences    Open experiences.jsonl
+  --role-prompt    Open role_prompt.md
+
+Uses $EDITOR environment variable, falls back to vi.
 
 Example:
-  bc memory delete engineer-01 3     # Delete the 3rd experience
-  bc memory delete engineer-01 1     # Delete the first (oldest) experience`,
-	Args: cobra.ExactArgs(2),
+  bc memory edit engineer-01 --learnings      # Edit learnings
+  bc memory edit engineer-01 --experiences    # Edit experiences
+  bc memory edit engineer-01 --role-prompt    # Edit role prompt`,
+	Args: cobra.ExactArgs(1),
+	RunE: runMemoryEdit,
+}
+
+var memoryDeleteCmd = &cobra.Command{
+	Use:   "delete <agent>",
+	Short: "Delete a specific experience or learning",
+	Long: `Delete a specific item from an agent's memory.
+
+Use --experience to delete an experience by index.
+Use --learning to delete a learning by category and index.
+
+Use 'bc memory show <agent>' to see indices.
+Indices are 1-based (first item is 1, not 0).
+
+Example:
+  bc memory delete engineer-01 --experience 3              # Delete 3rd experience
+  bc memory delete engineer-01 --learning patterns 2       # Delete 2nd learning in "patterns"
+  bc memory delete engineer-01 --experience 1 --force      # Delete without confirmation`,
+	Args: cobra.MinimumNArgs(1),
 	RunE: runMemoryDelete,
 }
 
@@ -211,6 +236,12 @@ var (
 	memoryClearExp         bool
 	memoryClearLearn       bool
 	memoryClearForce       bool
+	memoryEditLearnings    bool
+	memoryEditExperiences  bool
+	memoryEditRolePrompt   bool
+	memoryDeleteExperience int
+	memoryDeleteLearning   string
+	memoryDeleteForce      bool
 )
 
 func init() {
@@ -241,6 +272,15 @@ func init() {
 	memoryClearCmd.Flags().BoolVar(&memoryClearLearn, "learnings", false, "Clear only learnings")
 	memoryClearCmd.Flags().BoolVar(&memoryClearForce, "force", false, "Skip confirmation prompt")
 
+	memoryEditCmd.Flags().BoolVar(&memoryEditLearnings, "learnings", false, "Edit learnings.md")
+	memoryEditCmd.Flags().BoolVar(&memoryEditExperiences, "experiences", false, "Edit experiences.jsonl")
+	memoryEditCmd.Flags().BoolVar(&memoryEditRolePrompt, "role-prompt", false, "Edit role_prompt.md")
+	memoryEditCmd.MarkFlagsMutuallyExclusive("learnings", "experiences", "role-prompt")
+
+	memoryDeleteCmd.Flags().IntVar(&memoryDeleteExperience, "experience", 0, "Delete experience at this index (1-based)")
+	memoryDeleteCmd.Flags().StringVar(&memoryDeleteLearning, "learning", "", "Delete learning from this category (index as next arg)")
+	memoryDeleteCmd.Flags().BoolVar(&memoryDeleteForce, "force", false, "Skip confirmation prompt")
+
 	// I/O flags (in memory_io.go)
 	initMemoryIOFlags()
 
@@ -251,6 +291,7 @@ func init() {
 	memoryCmd.AddCommand(memoryPruneCmd)
 	memoryCmd.AddCommand(memoryListCmd)
 	memoryCmd.AddCommand(memoryClearCmd)
+	memoryCmd.AddCommand(memoryEditCmd)
 	memoryCmd.AddCommand(memoryDeleteCmd)
 	memoryCmd.AddCommand(memoryMergeCmd)
 	rootCmd.AddCommand(memoryCmd)
@@ -1039,6 +1080,57 @@ func runMemoryClear(cmd *cobra.Command, args []string) error {
 
 // Export/Import/Forget functions moved to memory_io.go
 
+func runMemoryEdit(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return errNotInWorkspace(err)
+	}
+
+	agentID := args[0]
+	store := memory.NewStore(ws.RootDir, agentID)
+	if !store.Exists() {
+		return fmt.Errorf("no memory found for agent %s", agentID)
+	}
+
+	// Determine which file to edit
+	var filePath string
+	switch {
+	case memoryEditLearnings:
+		filePath = filepath.Join(store.MemoryDir(), "learnings.md")
+	case memoryEditExperiences:
+		filePath = filepath.Join(store.MemoryDir(), "experiences.jsonl")
+	case memoryEditRolePrompt:
+		filePath = filepath.Join(store.MemoryDir(), "role_prompt.md")
+	default:
+		return fmt.Errorf("specify which file to edit: --learnings, --experiences, or --role-prompt")
+	}
+
+	// Check file exists
+	if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
+		return fmt.Errorf("file does not exist: %s", filePath)
+	}
+
+	// Get editor from $EDITOR, fall back to vi
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "vi"
+	}
+
+	// Open editor with inherited terminal
+	ctx := cmd.Context()
+	editorCmd := exec.CommandContext(ctx, editor, filePath) //nolint:gosec // editor is user-controlled via $EDITOR
+	editorCmd.Stdin = os.Stdin
+	editorCmd.Stdout = os.Stdout
+	editorCmd.Stderr = os.Stderr
+
+	if runErr := editorCmd.Run(); runErr != nil {
+		return fmt.Errorf("editor exited with error: %w", runErr)
+	}
+
+	cmd.Printf("Edited %s for agent %s\n", filepath.Base(filePath), agentID)
+	return nil
+}
+
 func runMemoryDelete(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
@@ -1046,20 +1138,53 @@ func runMemoryDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	agentID := args[0]
-	indexStr := args[1]
-
-	// Parse index
-	index, parseErr := strconv.Atoi(indexStr)
-	if parseErr != nil {
-		return fmt.Errorf("invalid index %q: must be a number", indexStr)
-	}
-
 	store := memory.NewStore(ws.RootDir, agentID)
 	if !store.Exists() {
 		return fmt.Errorf("no memory found for agent %s", agentID)
 	}
 
-	// Delete the experience
+	switch {
+	case memoryDeleteExperience > 0:
+		return deleteExperience(cmd, store, agentID, memoryDeleteExperience)
+	case memoryDeleteLearning != "":
+		// Index is the next positional arg after agent
+		if len(args) < 2 {
+			return fmt.Errorf("missing index: usage: bc memory delete <agent> --learning <category> <index>")
+		}
+		index, parseErr := strconv.Atoi(args[1])
+		if parseErr != nil {
+			return fmt.Errorf("invalid index %q: must be a number", args[1])
+		}
+		return deleteLearning(cmd, store, agentID, memoryDeleteLearning, index)
+	default:
+		return fmt.Errorf("specify what to delete: --experience <index> or --learning <category> <index>")
+	}
+}
+
+func deleteExperience(cmd *cobra.Command, store *memory.Store, agentID string, index int) error {
+	// Show the item for confirmation
+	experiences, err := store.GetExperiences()
+	if err != nil {
+		return fmt.Errorf("failed to get experiences: %w", err)
+	}
+	idx := index - 1
+	if idx < 0 || idx >= len(experiences) {
+		return fmt.Errorf("index %d out of range (1-%d)", index, len(experiences))
+	}
+
+	exp := experiences[idx]
+	if !memoryDeleteForce {
+		cmd.Printf("Delete experience #%d from %s?\n", index, agentID)
+		cmd.Printf("  [%s] %s\n", exp.Outcome, exp.Description)
+		cmd.Print("Are you sure? [y/N]: ")
+
+		var response string
+		if _, scanErr := fmt.Scanln(&response); scanErr != nil || (response != "y" && response != "Y") {
+			cmd.Println("Aborted.")
+			return nil
+		}
+	}
+
 	deleted, err := store.DeleteExperience(index)
 	if err != nil {
 		return fmt.Errorf("failed to delete experience: %w", err)
@@ -1070,7 +1195,28 @@ func runMemoryDelete(cmd *cobra.Command, args []string) error {
 	if !deleted.Timestamp.IsZero() {
 		cmd.Printf("  Time: %s\n", deleted.Timestamp.Format("2006-01-02 15:04:05"))
 	}
+	return nil
+}
 
+func deleteLearning(cmd *cobra.Command, store *memory.Store, agentID, category string, index int) error {
+	if !memoryDeleteForce {
+		cmd.Printf("Delete learning #%d from category %q for %s?\n", index, category, agentID)
+		cmd.Print("Are you sure? [y/N]: ")
+
+		var response string
+		if _, scanErr := fmt.Scanln(&response); scanErr != nil || (response != "y" && response != "Y") {
+			cmd.Println("Aborted.")
+			return nil
+		}
+	}
+
+	deleted, err := store.DeleteLearning(category, index)
+	if err != nil {
+		return fmt.Errorf("failed to delete learning: %w", err)
+	}
+
+	cmd.Printf("Deleted learning #%d from %s [%s]:\n", index, agentID, category)
+	cmd.Printf("  %s\n", deleted)
 	return nil
 }
 
