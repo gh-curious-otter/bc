@@ -565,6 +565,32 @@ func (m *Manager) SetEnvironment(ctx context.Context, name, key, value string) e
 	return nil
 }
 
+// PipePane starts or stops streaming a session's output to a log file.
+// If logPath is non-empty, starts piping output via "cat >> logPath".
+// If logPath is empty, stops any existing pipe.
+func (m *Manager) PipePane(ctx context.Context, name, logPath string) error {
+	fullName := m.SessionName(name)
+
+	if logPath == "" {
+		// Stop pipe
+		cmd := m.command(ctx, "tmux", "pipe-pane", "-t", fullName)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to stop pipe-pane for %s: %w (%s)", fullName, err, string(output))
+		}
+		return nil
+	}
+
+	// Start pipe: stream output to log file with append
+	pipeCmd := fmt.Sprintf("cat >> %s", logPath)
+	cmd := m.command(ctx, "tmux", "pipe-pane", "-t", fullName, pipeCmd)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to start pipe-pane for %s: %w (%s)", fullName, err, string(output))
+	}
+	return nil
+}
+
 // generateBufferName creates a unique buffer name for tmux operations.
 // This prevents race conditions when multiple goroutines send keys concurrently.
 func generateBufferName() string {

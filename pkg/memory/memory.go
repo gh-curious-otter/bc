@@ -226,6 +226,29 @@ func (s *Store) Clear(clearExperiences, clearLearningsFlag bool) (*ClearResult, 
 	return result, nil
 }
 
+// SaveRolePrompt persists the role prompt for later retrieval (e.g., on respawn).
+func (s *Store) SaveRolePrompt(prompt string) error {
+	if err := os.MkdirAll(s.memoryDir, 0750); err != nil {
+		return fmt.Errorf("failed to create memory directory: %w", err)
+	}
+	if err := os.WriteFile(s.rolePromptPath(), []byte(prompt), 0600); err != nil { //nolint:gosec // trusted path
+		return fmt.Errorf("failed to save role prompt: %w", err)
+	}
+	return nil
+}
+
+// GetRolePrompt reads the stored role prompt. Returns empty string if not found.
+func (s *Store) GetRolePrompt() (string, error) {
+	data, err := os.ReadFile(s.rolePromptPath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("failed to read role prompt: %w", err)
+	}
+	return string(data), nil
+}
+
 // MemoryDir returns the path to the agent's memory directory.
 func (s *Store) MemoryDir() string {
 	return s.memoryDir
@@ -237,6 +260,10 @@ func (s *Store) experiencesPath() string {
 
 func (s *Store) learningsPath() string {
 	return filepath.Join(s.memoryDir, "learnings.md")
+}
+
+func (s *Store) rolePromptPath() string {
+	return filepath.Join(s.memoryDir, "role_prompt.md")
 }
 
 // splitLines splits byte data into lines.
@@ -593,8 +620,8 @@ func parseLearningsByTopic(content string) map[string][]string {
 }
 
 // GetMemoryContext returns formatted memories suitable for prompt injection.
-// It loads the most recent experiences (up to limit) and all learnings,
-// formatting them for inclusion in an agent's context.
+// It loads the stored role prompt, most recent experiences (up to limit),
+// and all learnings, formatting them for inclusion in an agent's context.
 // Returns empty string if no memories exist (new agent).
 func (s *Store) GetMemoryContext(limit int) (string, error) {
 	if limit <= 0 {
@@ -602,6 +629,14 @@ func (s *Store) GetMemoryContext(limit int) (string, error) {
 	}
 
 	var parts []string
+
+	// Load stored role prompt
+	rolePrompt, err := s.GetRolePrompt()
+	if err != nil {
+		log.Warn("failed to load role prompt for context", "error", err)
+	} else if rolePrompt != "" {
+		parts = append(parts, "## Role\n\n"+rolePrompt)
+	}
 
 	// Load experiences (most recent first)
 	experiences, err := s.GetExperiences()

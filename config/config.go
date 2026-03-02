@@ -16,6 +16,12 @@ type ChannelsConfig struct {
 	Default []string
 }
 
+type LogsConfig struct {
+	MaxBytes     int64
+	Path         string
+	PreserveAnsi bool
+}
+
 type MemoryConfig struct {
 	Backend string
 	Path    string
@@ -169,6 +175,11 @@ var (
 	}
 	Channels = ChannelsConfig{
 		Default: []string{"general", "engineering"},
+	}
+	Logs = LogsConfig{
+		MaxBytes:     1048576,
+		Path:         ".bc/logs",
+		PreserveAnsi: true,
 	}
 	Memory = MemoryConfig{
 		Backend: "file",
