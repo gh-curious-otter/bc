@@ -20,6 +20,7 @@ import { useAgentGroups } from '../hooks/useAgentGroups';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { AgentDetailView } from './AgentDetailView';
 import { execBc } from '../services/bc';
+import { isPeekHeader } from '../utils';
 import type { Agent } from '../types';
 
 // Import extracted components
@@ -225,7 +226,7 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
       const output = await execBc(['agent', 'peek', agentName, '--lines', '8']);
       // #1844: Strip peek headers and empty lines
       const lines = output.split('\n').filter((line: string) =>
-        line.trim() && !/^=== .+ \(last \d+ lines\) ===$/.test(line.trim())
+        line.trim() && !isPeekHeader(line)
       );
       dispatch({ type: 'SET_PEEK_OUTPUT', output: lines.slice(-6) });
     } catch {

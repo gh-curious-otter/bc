@@ -131,3 +131,24 @@ export function toTitleCase(str: string): string {
     .map(capitalize)
     .join(' ');
 }
+
+// #1844: ANSI / peek output helpers
+
+// eslint-disable-next-line no-control-regex
+const ANSI_REGEX = /\x1b\[[0-9;]*m/;
+
+/**
+ * Check if a string contains ANSI SGR escape codes.
+ * #1844: Log streaming backend preserves ANSI codes in output.
+ */
+export function hasAnsiCodes(line: string): boolean {
+  return ANSI_REGEX.test(line);
+}
+
+/**
+ * Check if a line is a peek header (e.g., "=== agent-name (last 50 lines) ===").
+ * #1844: Strip these headers from displayed output.
+ */
+export function isPeekHeader(line: string): boolean {
+  return /^=== .+ \(last \d+ lines\) ===$/.test(line.trim());
+}

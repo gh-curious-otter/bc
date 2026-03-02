@@ -24,4 +24,6 @@ export {
   formatCost,
   capitalize,
   toTitleCase,
+  hasAnsiCodes,
+  isPeekHeader,
 } from './formatting';

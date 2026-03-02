@@ -8,6 +8,7 @@ import { LoadingIndicator } from '../components/LoadingIndicator';
 import { useFocus } from '../navigation/FocusContext';
 import { useAgentDetails } from '../hooks/useAgentDetails';
 import { MetricCard } from '../components/MetricCard';
+import { hasAnsiCodes, isPeekHeader } from '../utils';
 
 // Safe wrapper for useInput that handles test environments
 const useSafeInput = (handler: Parameters<typeof inkUseInput>[0]) => {
@@ -38,26 +39,6 @@ function normalizeTask(task: string | undefined): string {
     }
   }
   return task;
-}
-
-// ANSI escape code regex - detects SGR (Select Graphic Rendition) sequences
-// eslint-disable-next-line no-control-regex
-const ANSI_REGEX = /\x1b\[[0-9;]*m/;
-
-/**
- * Check if a line contains ANSI escape codes.
- * #1844: Log streaming backend preserves ANSI codes in output.
- */
-function hasAnsiCodes(line: string): boolean {
-  return ANSI_REGEX.test(line);
-}
-
-/**
- * Check if a line is a peek header (e.g., "=== agent-name (last 50 lines) ===").
- * #1844: Strip these headers from displayed output.
- */
-function isPeekHeader(line: string): boolean {
-  return /^=== .+ \(last \d+ lines\) ===$/.test(line.trim());
 }
 
 /**

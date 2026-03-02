@@ -1,9 +1,7 @@
 import React from 'react';
 import { Box, Text, useStdout } from 'ink';
 import type { Agent } from '../../types';
-
-// eslint-disable-next-line no-control-regex
-const ANSI_REGEX = /\x1b\[[0-9;]*m/;
+import { hasAnsiCodes } from '../../utils';
 
 export interface AgentPeekPanelProps {
   agent: Agent;
@@ -51,7 +49,7 @@ export function AgentPeekPanel({
       ) : (
         <Box flexDirection="column" width={contentWidth}>
           {output.map((line, idx) =>
-            ANSI_REGEX.test(line) ? (
+            hasAnsiCodes(line) ? (
               <Text key={idx} wrap="wrap">{line}</Text>
             ) : (
               <Text key={idx} wrap="wrap" dimColor>{line}</Text>
