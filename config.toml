@@ -79,6 +79,20 @@ enabled = false
 # enabled = true
 
 # =============================================================================
+# Session Logging
+# =============================================================================
+[logs]
+# Directory for persistent session logs (relative to workspace root)
+# Each agent gets a log file streamed via tmux pipe-pane
+path = ".bc/logs"
+
+# Maximum log file size in bytes before lazy truncation (keeps last half)
+max_bytes = 1048576  # 1MB
+
+# Preserve ANSI escape codes in log files (for colored output in peek/TUI)
+preserve_ansi = true
+
+# =============================================================================
 # Agent Memory System
 # =============================================================================
 [memory]

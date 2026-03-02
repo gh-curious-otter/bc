@@ -38,6 +38,82 @@ func TestDefaultV2Config(t *testing.T) {
 	if cfg.Roster.QA != 0 {
 		t.Errorf("expected roster.qa = 0, got %d", cfg.Roster.QA)
 	}
+	// Logs config defaults
+	if cfg.Logs.Path != ".bc/logs" {
+		t.Errorf("expected logs.path '.bc/logs', got %q", cfg.Logs.Path)
+	}
+	if cfg.Logs.MaxBytes != 1048576 {
+		t.Errorf("expected logs.max_bytes 1048576, got %d", cfg.Logs.MaxBytes)
+	}
+	if !cfg.Logs.PreserveAnsi {
+		t.Error("expected logs.preserve_ansi true")
+	}
+}
+
+func TestParseV2ConfigWithLogs(t *testing.T) {
+	tomlData := []byte(`
+[workspace]
+name = "test"
+version = 2
+
+[tools]
+default = "claude"
+
+[tools.claude]
+command = "claude"
+enabled = true
+
+[memory]
+backend = "file"
+path = ".bc/memory"
+
+[logs]
+path = ".bc/custom-logs"
+max_bytes = 2097152
+preserve_ansi = false
+`)
+	cfg, err := ParseV2Config(tomlData)
+	if err != nil {
+		t.Fatalf("failed to parse: %v", err)
+	}
+	if cfg.Logs.Path != ".bc/custom-logs" {
+		t.Errorf("expected logs.path '.bc/custom-logs', got %q", cfg.Logs.Path)
+	}
+	if cfg.Logs.MaxBytes != 2097152 {
+		t.Errorf("expected logs.max_bytes 2097152, got %d", cfg.Logs.MaxBytes)
+	}
+	if cfg.Logs.PreserveAnsi {
+		t.Error("expected logs.preserve_ansi false")
+	}
+}
+
+func TestLogsConfigSaveAndLoad(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+
+	cfg := DefaultV2Config("test")
+	cfg.Logs.Path = ".bc/my-logs"
+	cfg.Logs.MaxBytes = 512000
+	cfg.Logs.PreserveAnsi = false
+
+	if err := cfg.Save(path); err != nil {
+		t.Fatalf("failed to save: %v", err)
+	}
+
+	loaded, err := LoadV2Config(path)
+	if err != nil {
+		t.Fatalf("failed to load: %v", err)
+	}
+
+	if loaded.Logs.Path != ".bc/my-logs" {
+		t.Errorf("expected path '.bc/my-logs', got %q", loaded.Logs.Path)
+	}
+	if loaded.Logs.MaxBytes != 512000 {
+		t.Errorf("expected max_bytes 512000, got %d", loaded.Logs.MaxBytes)
+	}
+	if loaded.Logs.PreserveAnsi {
+		t.Error("expected preserve_ansi false")
+	}
 }
 
 func TestParseV2Config(t *testing.T) {
