@@ -26,6 +26,7 @@ import { LogsView } from './views/LogsView';
 import { WorktreesView } from './views/WorktreesView';
 import { MemoryView } from './views/MemoryView';
 import { HelpView } from './views/HelpView';
+import { ToolsView } from './views/ToolsView';
 import { CommandBar } from './components/CommandBar';
 import { FilterBar } from './components/FilterBar';
 import { FilterProvider } from './hooks/useFilter';
@@ -180,6 +181,8 @@ const ViewContent = memo(function ViewContent({ view }: ViewContentProps): React
       return <WorktreesView />;
     case 'memory':
       return <MemoryView />;
+    case 'tools':
+      return <ToolsView />;
     case 'help':
       return <HelpView />;
     default:

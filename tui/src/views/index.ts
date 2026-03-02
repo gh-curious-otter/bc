@@ -12,5 +12,6 @@ export { LogsView } from './LogsView';
 export { RolesView } from './RolesView';
 export { WorktreesView } from './WorktreesView';
 export { MemoryView } from './MemoryView';
+export { ToolsView } from './ToolsView';
 export { HelpView } from './HelpView';
 

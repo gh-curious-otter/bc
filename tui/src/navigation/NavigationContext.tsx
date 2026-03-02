@@ -6,7 +6,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo } from
 import type { ReactNode } from 'react';
 
 // View types for navigation - trimmed to 8 core views
-export type View = 'dashboard' | 'agents' | 'channels' | 'costs' | 'logs' | 'roles' | 'worktrees' | 'memory' | 'help';
+export type View = 'dashboard' | 'agents' | 'channels' | 'costs' | 'logs' | 'roles' | 'worktrees' | 'memory' | 'tools' | 'help';
 
 // Tab configuration
 export interface TabConfig {
@@ -27,6 +27,7 @@ export const DEFAULT_TABS: TabConfig[] = [
   { key: 'ro', view: 'roles', label: 'Roles', shortLabel: 'Role' },
   { key: 'wt', view: 'worktrees', label: 'Worktrees', shortLabel: 'Tree' },
   { key: 'mem', view: 'memory', label: 'Memory', shortLabel: 'Mem' },
+  { key: 'tl', view: 'tools', label: 'Tools', shortLabel: 'Tool' },
   { key: '?', view: 'help', label: 'Help', shortLabel: '?' },
 ];
 
