@@ -214,7 +214,7 @@ const SummaryCards = memo(function SummaryCards({
 
   // Standard bordered MetricCards for wider terminals
   return (
-    <Box flexWrap="wrap">
+    <Box flexWrap="wrap" marginBottom={1}>
       <MetricCard value={total} label="Total" />
       <MetricCard value={active} label="Active" color="green" />
       <MetricCard value={working} label="Working" color="cyan" />
@@ -281,7 +281,7 @@ const SystemHealthPanel = memo(function SystemHealthPanel({
 
   // Standard bordered Panel for wider terminals
   return (
-    <Panel title="System Health">
+    <Panel title="Health">
       <Box flexDirection="column">
         {/* Health percentage - Box layout to prevent truncation garbling */}
         <Box>
@@ -375,9 +375,9 @@ const CostPanel = memo(function CostPanel({
   return (
     <Panel title="Cost">
       <Box flexDirection="column">
-        {/* Line 1: Total + burn rate */}
+        {/* Line 1: Total + burn rate (show placeholder when no data yet) */}
         <Box>
-          <Text bold color="yellow">${totalCostUSD.toFixed(2)}</Text>
+          <Text bold color="yellow">{totalCostUSD > 0 ? `$${totalCostUSD.toFixed(2)}` : '$—'}</Text>
           {burnRate > 0 && (
             <Text dimColor>  {costSymbol} ${burnRate.toFixed(2)}/hr</Text>
           )}
@@ -469,24 +469,19 @@ const AgentStatsPanel = memo(function AgentStatsPanel({ stats, isNarrow }: Agent
 
   // Standard bordered Panel for wider terminals
   return (
-    <Panel title="Agent Distribution">
+    <Panel title="Roles">
       <Box flexDirection="column">
-        <Text dimColor>By Role:</Text>
-        <Box flexDirection="column" marginTop={1}>
-          {roleEntries.map(([role, count]) => {
-            // Truncate long role names to prevent overflow at narrow widths
-            const displayRole = role.length > MAX_ROLE_LEN
-              ? role.slice(0, MAX_ROLE_LEN - 1) + '…'
-              : role;
-            // #1338: Use single Text with wrap="truncate" to prevent text corruption
-            // Avoid nested Box which causes layout issues at 80x24
-            return (
-              <Text key={role} wrap="truncate">
-                {displayRole}: {count}
-              </Text>
-            );
-          })}
-        </Box>
+        {roleEntries.map(([role, count]) => {
+          // Truncate long role names to prevent overflow at narrow widths
+          const displayRole = role.length > MAX_ROLE_LEN
+            ? role.slice(0, MAX_ROLE_LEN - 1) + '…'
+            : role;
+          return (
+            <Text key={role} wrap="truncate">
+              {displayRole}: {count}
+            </Text>
+          );
+        })}
       </Box>
     </Panel>
   );
