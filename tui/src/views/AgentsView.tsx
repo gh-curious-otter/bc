@@ -171,7 +171,7 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
     return undefined;
   }, [visibleItems, validIndex]);
 
-  const { setFocus } = useFocus();
+  const { setFocus, focusedArea } = useFocus();
   const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
 
   // Manage focus state and breadcrumbs for nested view navigation (#1604)
@@ -256,6 +256,8 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
   // #1743: Keyboard handling for special keys not covered by useListNavigation
   // The hook handles j/k/g/G navigation, / for search, c to clear search
   useInput((input, key) => {
+    // #1870: Don't handle input when CommandBar/FilterBar is open
+    if (focusedArea === 'command' || focusedArea === 'filter') return;
     // Let hook handle search mode
     if (search.isActive) return;
     if (showDetail) return;

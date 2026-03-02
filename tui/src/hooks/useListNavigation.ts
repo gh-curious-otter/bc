@@ -15,6 +15,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { useInput } from 'ink';
+import { useFocus } from '../navigation/FocusContext';
 
 export interface SearchState {
   /** Whether search mode is active */
@@ -93,6 +94,10 @@ export function useListNavigation<T>(
     customKeys = {},
     isActive = true,
   } = options;
+
+  // #1870: Check focus state to disable input when CommandBar/FilterBar is open
+  const { focusedArea } = useFocus();
+  const isOverlayActive = focusedArea === 'command' || focusedArea === 'filter' || focusedArea === 'modal';
 
   // Use itemCount override when provided (e.g., visibleItems.length in grouped view)
   const navLength = itemCount !== undefined ? itemCount : items.length;
@@ -252,7 +257,7 @@ export function useListNavigation<T>(
         return;
       }
     },
-    { isActive: !disabled && isActive && navLength > 0 }
+    { isActive: !disabled && isActive && !isOverlayActive && navLength > 0 }
   );
 
   return {

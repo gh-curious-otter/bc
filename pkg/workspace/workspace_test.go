@@ -334,6 +334,78 @@ func TestPathHelpers(t *testing.T) {
 	}
 }
 
+// --- LogsDir ---
+
+func TestLogsDirV2CustomPath(t *testing.T) {
+	dir := t.TempDir()
+	ws, err := Init(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Set a custom logs path in V2Config
+	ws.V2Config = &V2Config{
+		Logs: LogsConfig{Path: "custom/logs"},
+	}
+
+	got := ws.LogsDir()
+	want := filepath.Join(absDir, "custom/logs")
+	if got != want {
+		t.Errorf("LogsDir() = %q, want %q", got, want)
+	}
+}
+
+func TestLogsDirV2EmptyPath(t *testing.T) {
+	dir := t.TempDir()
+	ws, err := Init(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// V2Config exists but Logs.Path is empty — should fall back to StateDir/logs
+	ws.V2Config = &V2Config{
+		Logs: LogsConfig{Path: ""},
+	}
+
+	got := ws.LogsDir()
+	want := filepath.Join(absDir, ".bc", "logs")
+	if got != want {
+		t.Errorf("LogsDir() = %q, want %q", got, want)
+	}
+}
+
+func TestLogsDirV1Fallback(t *testing.T) {
+	dir := t.TempDir()
+	ws, err := Init(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// No V2Config — should use StateDir/logs
+	ws.V2Config = nil
+
+	got := ws.LogsDir()
+	want := filepath.Join(absDir, ".bc", "logs")
+	if got != want {
+		t.Errorf("LogsDir() = %q, want %q", got, want)
+	}
+}
+
 // --- EnsureDirs ---
 
 func TestEnsureDirs(t *testing.T) {
@@ -351,6 +423,38 @@ func TestEnsureDirs(t *testing.T) {
 		info, err := os.Stat(d)
 		if err != nil {
 			t.Errorf("directory %q not created: %v", d, err)
+			continue
+		}
+		if !info.IsDir() {
+			t.Errorf("%q is not a directory", d)
+		}
+	}
+}
+
+func TestEnsureDirsV2(t *testing.T) {
+	dir := t.TempDir()
+
+	// InitV2 creates a v2 workspace
+	ws, err := InitV2(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ws.EnsureDirs(); err != nil {
+		t.Fatalf("EnsureDirs V2: %v", err)
+	}
+
+	// V2 creates additional dirs: roles, memory, worktrees, channels
+	v2Dirs := []string{
+		ws.RolesDir(),
+		ws.MemoryDir(),
+		ws.WorktreesDir(),
+		ws.ChannelsDir(),
+	}
+	for _, d := range v2Dirs {
+		info, err := os.Stat(d)
+		if err != nil {
+			t.Errorf("V2 directory %q not created: %v", d, err)
 			continue
 		}
 		if !info.IsDir() {

@@ -141,3 +141,5 @@ export {
   type KeyCategory,
   type FocusStateMachineResult,
 } from './useFocusStateMachine';
+
+export { useLoadingTimeout } from './useLoadingTimeout';

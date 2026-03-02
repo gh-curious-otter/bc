@@ -3,7 +3,7 @@
  * k9s-style navigation with :command bar and /filter bar
  */
 
-import React, { useState, useCallback, memo } from 'react';
+import React, { useState, useCallback, useRef, memo } from 'react';
 import { Box, Text, useStdout } from 'ink';
 import {
   NavigationProvider,
@@ -14,6 +14,7 @@ import {
   type View,
 } from './navigation';
 import { useTheme } from './theme';
+import { useFocus } from './navigation/FocusContext';
 import { UnreadProvider, HintsProvider, DisableInputProvider, useDisableInput } from './hooks';
 import { useThemeConfig } from './config';
 import { RootProvider } from './providers';
@@ -85,37 +86,52 @@ function AppContent({ themeConfig }: AppContentProps): React.ReactElement {
   const { stdout } = useStdout();
   const { setThemeName } = useTheme();
   const { isDisabled: disableInput } = useDisableInput();
+  const { setFocus, returnFocus } = useFocus();
   const [showCommandBar, setShowCommandBar] = useState(false);
   const [showFilterBar, setShowFilterBar] = useState(false);
 
+  // #1871: LRU tracking for recently used commands (persists across open/close)
+  const MAX_LRU = 10;
+  const recentCommandsRef = useRef<string[]>([]);
+  const handleCommandUsed = useCallback((command: string) => {
+    const lru = recentCommandsRef.current.filter(c => c !== command);
+    lru.unshift(command);
+    if (lru.length > MAX_LRU) lru.pop();
+    recentCommandsRef.current = lru;
+  }, []);
+
   React.useEffect(() => {
-    if (themeConfig.theme !== 'dark' && themeConfig.theme !== 'light') {
-      setThemeName(themeConfig.theme as Parameters<typeof setThemeName>[0]);
-    }
+    setThemeName(themeConfig.theme);
   }, [themeConfig.theme, setThemeName]);
 
+  // #1870: Set focus to 'command'/'filter' when overlays open to prevent key leaks
   const openCommandBar = useCallback(() => {
     setShowCommandBar(true);
     setShowFilterBar(false);
-  }, []);
+    setFocus('command');
+  }, [setFocus]);
 
   const closeCommandBar = useCallback(() => {
     setShowCommandBar(false);
-  }, []);
+    returnFocus();
+  }, [returnFocus]);
 
   const handleCommandSelect = useCallback((view: View) => {
     navigate(view);
     setShowCommandBar(false);
-  }, [navigate]);
+    returnFocus();
+  }, [navigate, returnFocus]);
 
   const openFilterBar = useCallback(() => {
     setShowFilterBar(true);
     setShowCommandBar(false);
-  }, []);
+    setFocus('filter');
+  }, [setFocus]);
 
   const closeFilterBar = useCallback(() => {
     setShowFilterBar(false);
-  }, []);
+    returnFocus();
+  }, [returnFocus]);
 
   useKeyboardNavigation({
     disabled: disableInput || showCommandBar || showFilterBar,
@@ -143,6 +159,8 @@ function AppContent({ themeConfig }: AppContentProps): React.ReactElement {
         <CommandBar
           onSelect={handleCommandSelect}
           onClose={closeCommandBar}
+          recentCommands={recentCommandsRef.current}
+          onCommandUsed={handleCommandUsed}
         />
       )}
 

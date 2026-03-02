@@ -3,6 +3,7 @@ package workspace
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -811,5 +812,187 @@ func TestLoadAllRolesEmptyDir(t *testing.T) {
 	// Should still have root role (created by EnsureDefaultRoot)
 	if _, ok := loaded["root"]; !ok {
 		t.Error("expected root role to exist")
+	}
+}
+
+func TestRoleManager_LoadRoleNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	stateDir := filepath.Join(tmpDir, ".bc")
+	if err := os.MkdirAll(filepath.Join(stateDir, "roles"), 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	rm := NewRoleManager(stateDir)
+
+	_, err := rm.LoadRole("nonexistent")
+	if err == nil {
+		t.Error("LoadRole should fail for nonexistent role")
+	}
+}
+
+func TestRoleManager_LoadRoleCached(t *testing.T) {
+	tmpDir := t.TempDir()
+	stateDir := filepath.Join(tmpDir, ".bc")
+	rolesDir := filepath.Join(stateDir, "roles")
+	if err := os.MkdirAll(rolesDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(rolesDir, "cached.md"), []byte("---\nname: cached\n---\nPrompt."), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	rm := NewRoleManager(stateDir)
+
+	// First load from disk
+	role1, err := rm.LoadRole("cached")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Second load should return cached (same pointer)
+	role2, err := rm.LoadRole("cached")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if role1 != role2 {
+		t.Error("second LoadRole should return cached pointer")
+	}
+}
+
+func TestRoleManager_LoadRoleFromPathNameFallback(t *testing.T) {
+	tmpDir := t.TempDir()
+	stateDir := filepath.Join(tmpDir, ".bc")
+	rolesDir := filepath.Join(stateDir, "roles")
+	if err := os.MkdirAll(rolesDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create role with no name in frontmatter
+	content := "---\ncapabilities:\n  - test\n---\n\n# No Name Role\n"
+	if err := os.WriteFile(filepath.Join(rolesDir, "fallback.md"), []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	rm := NewRoleManager(stateDir)
+	role, err := rm.LoadRole("fallback")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Name should be derived from filename
+	if role.Metadata.Name != "fallback" {
+		t.Errorf("expected name 'fallback' (from filename), got %q", role.Metadata.Name)
+	}
+}
+
+func TestRoleManager_SetPermissionsNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	stateDir := filepath.Join(tmpDir, ".bc")
+	if err := os.MkdirAll(filepath.Join(stateDir, "roles"), 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	rm := NewRoleManager(stateDir)
+
+	err := rm.SetPermissions("nonexistent", []string{"can_view_logs"})
+	if err == nil {
+		t.Error("SetPermissions should fail for nonexistent role")
+	}
+}
+
+func TestRoleManager_AddPermissionNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	stateDir := filepath.Join(tmpDir, ".bc")
+	if err := os.MkdirAll(filepath.Join(stateDir, "roles"), 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	rm := NewRoleManager(stateDir)
+
+	err := rm.AddPermission("nonexistent", "can_view_logs")
+	if err == nil {
+		t.Error("AddPermission should fail for nonexistent role")
+	}
+}
+
+func TestRoleManager_RemovePermissionNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	stateDir := filepath.Join(tmpDir, ".bc")
+	if err := os.MkdirAll(filepath.Join(stateDir, "roles"), 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	rm := NewRoleManager(stateDir)
+
+	err := rm.RemovePermission("nonexistent", "can_view_logs")
+	if err == nil {
+		t.Error("RemovePermission should fail for nonexistent role")
+	}
+}
+
+func TestParseRoleFile_CRLFLineEndings(t *testing.T) {
+	content := "---\r\nname: crlf\r\n---\r\n\r\n# CRLF Role\r\n"
+
+	role, err := ParseRoleFile([]byte(content))
+	if err != nil {
+		t.Fatalf("ParseRoleFile with CRLF failed: %v", err)
+	}
+
+	if role.Metadata.Name != "crlf" {
+		t.Errorf("Name = %q, want %q", role.Metadata.Name, "crlf")
+	}
+}
+
+func TestFormatRoleFile_PromptEndsWithNewline(t *testing.T) {
+	role := &Role{
+		Metadata: RoleMetadata{Name: "test"},
+		Prompt:   "Content ending with newline.\n",
+	}
+
+	content, err := FormatRoleFile(role)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should not double up the trailing newline
+	if strings.HasSuffix(content, "\n\n\n") {
+		t.Error("FormatRoleFile should not add extra trailing newlines")
+	}
+
+	// Should be round-trippable
+	parsed, err := ParseRoleFile([]byte(content))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Metadata.Name != "test" {
+		t.Errorf("round-trip name = %q, want test", parsed.Metadata.Name)
+	}
+}
+
+func TestRoleManager_HasRoleDisk(t *testing.T) {
+	tmpDir := t.TempDir()
+	stateDir := filepath.Join(tmpDir, ".bc")
+	rolesDir := filepath.Join(stateDir, "roles")
+	if err := os.MkdirAll(rolesDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create role on disk but don't load it into cache
+	if err := os.WriteFile(filepath.Join(rolesDir, "diskonly.md"), []byte("---\nname: diskonly\n---\nPrompt."), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	rm := NewRoleManager(stateDir)
+
+	// Should find on disk even though not cached
+	if !rm.HasRole("diskonly") {
+		t.Error("HasRole should return true for role on disk")
+	}
+
+	// Should return false for truly nonexistent
+	if rm.HasRole("nope") {
+		t.Error("HasRole should return false for nonexistent role")
 	}
 }

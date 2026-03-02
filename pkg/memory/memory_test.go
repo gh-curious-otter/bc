@@ -2108,3 +2108,1127 @@ func TestParseLearningsByTopic(t *testing.T) {
 		t.Errorf("expected 1 tip, got %d", len(tips))
 	}
 }
+
+// --- SaveRolePrompt coverage tests ---
+
+func TestStore_SaveRolePrompt_WithoutInit(t *testing.T) {
+	// SaveRolePrompt calls MkdirAll itself, so it should work without Init
+	dir := t.TempDir()
+	store := NewStore(dir, "no-init-agent")
+
+	prompt := "You are an engineer."
+	if err := store.SaveRolePrompt(prompt); err != nil {
+		t.Fatalf("SaveRolePrompt without Init should succeed: %v", err)
+	}
+
+	got, err := store.GetRolePrompt()
+	if err != nil {
+		t.Fatalf("GetRolePrompt failed: %v", err)
+	}
+	if got != prompt {
+		t.Errorf("expected %q, got %q", prompt, got)
+	}
+}
+
+func TestStore_SaveRolePrompt_Overwrite(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	// Save first prompt
+	if err := store.SaveRolePrompt("first prompt"); err != nil {
+		t.Fatalf("first save failed: %v", err)
+	}
+
+	// Overwrite with second prompt
+	if err := store.SaveRolePrompt("second prompt"); err != nil {
+		t.Fatalf("second save failed: %v", err)
+	}
+
+	got, err := store.GetRolePrompt()
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if got != "second prompt" {
+		t.Errorf("expected 'second prompt', got %q", got)
+	}
+}
+
+func TestStore_SaveRolePrompt_EmptyPrompt(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	if err := store.SaveRolePrompt(""); err != nil {
+		t.Fatalf("SaveRolePrompt with empty string should succeed: %v", err)
+	}
+
+	got, err := store.GetRolePrompt()
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if got != "" {
+		t.Errorf("expected empty string, got %q", got)
+	}
+}
+
+func TestStore_SaveRolePrompt_MkdirAllError(t *testing.T) {
+	dir := t.TempDir()
+	// Place a regular file where the memory dir would be, so MkdirAll fails
+	memDir := filepath.Join(dir, ".bc", "memory")
+	if err := os.MkdirAll(memDir, 0750); err != nil {
+		t.Fatalf("setup mkdir failed: %v", err)
+	}
+	// Create a file where the agent subdir should go
+	agentPath := filepath.Join(memDir, "blocked-agent")
+	if err := os.WriteFile(agentPath, []byte("blocker"), 0600); err != nil {
+		t.Fatalf("setup file write failed: %v", err)
+	}
+
+	store := NewStore(dir, "blocked-agent")
+	err := store.SaveRolePrompt("test prompt")
+	if err == nil {
+		t.Error("expected error when MkdirAll fails due to file conflict")
+	}
+}
+
+func TestStore_SaveRolePrompt_WriteError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	// Make the memory directory read-only so WriteFile fails
+	if err := os.Chmod(store.MemoryDir(), 0500); err != nil { //nolint:gosec // intentional permission for test
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(store.MemoryDir(), 0750) }) //nolint:gosec // restore permissions
+
+	err := store.SaveRolePrompt("test prompt")
+	if err == nil {
+		t.Error("expected error when directory is read-only")
+	}
+	if !strings.Contains(err.Error(), "failed to save role prompt") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// --- Prune IncludeLearnings coverage ---
+
+func TestStore_Prune_IncludeLearnings(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	// Add old experience and a learning
+	if err := store.RecordExperience(Experience{
+		Timestamp:   time.Now().Add(-60 * 24 * time.Hour),
+		Description: "old task",
+		Outcome:     "success",
+	}); err != nil {
+		t.Fatalf("record failed: %v", err)
+	}
+	if err := store.AddLearning("patterns", "will be cleared"); err != nil {
+		t.Fatalf("add learning failed: %v", err)
+	}
+
+	result, err := store.Prune(PruneOptions{
+		OlderThan:        30 * 24 * time.Hour,
+		DryRun:           false,
+		IncludeLearnings: true,
+	})
+	if err != nil {
+		t.Fatalf("Prune failed: %v", err)
+	}
+
+	if result.PrunedExperiences != 1 {
+		t.Errorf("expected 1 pruned, got %d", result.PrunedExperiences)
+	}
+	if !result.LearningsCleared {
+		t.Error("expected LearningsCleared to be true")
+	}
+
+	// Verify learnings were reset to header only
+	learnings, _ := store.GetLearnings()
+	if strings.Contains(learnings, "will be cleared") {
+		t.Error("learning should have been cleared")
+	}
+}
+
+func TestStore_Prune_IncludeLearnings_DryRun(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	// Add old experience and a learning
+	if err := store.RecordExperience(Experience{
+		Timestamp:   time.Now().Add(-60 * 24 * time.Hour),
+		Description: "old task",
+		Outcome:     "success",
+	}); err != nil {
+		t.Fatalf("record failed: %v", err)
+	}
+	if err := store.AddLearning("tips", "keep this"); err != nil {
+		t.Fatalf("add learning failed: %v", err)
+	}
+
+	result, err := store.Prune(PruneOptions{
+		OlderThan:        30 * 24 * time.Hour,
+		DryRun:           true,
+		IncludeLearnings: true,
+	})
+	if err != nil {
+		t.Fatalf("Prune failed: %v", err)
+	}
+
+	// DryRun returns early before the IncludeLearnings check, so LearningsCleared stays false
+	if result.PrunedExperiences != 1 {
+		t.Errorf("expected 1 pruned, got %d", result.PrunedExperiences)
+	}
+
+	// Verify learnings were NOT actually cleared (dry run)
+	learnings, _ := store.GetLearnings()
+	if !strings.Contains(learnings, "keep this") {
+		t.Error("learning should still exist after dry run")
+	}
+
+	// Experiences should also still exist
+	experiences, _ := store.GetExperiences()
+	if len(experiences) != 1 {
+		t.Errorf("expected 1 experience still (dry run), got %d", len(experiences))
+	}
+}
+
+// --- Init error path tests ---
+
+func TestStore_Init_MkdirAllError(t *testing.T) {
+	dir := t.TempDir()
+	// Place a regular file where .bc should be a directory
+	bcPath := filepath.Join(dir, ".bc")
+	if err := os.WriteFile(bcPath, []byte("blocker"), 0600); err != nil {
+		t.Fatalf("setup failed: %v", err)
+	}
+
+	store := NewStore(dir, "test-agent")
+	err := store.Init()
+	if err == nil {
+		t.Error("expected error when MkdirAll fails")
+	}
+	if !strings.Contains(err.Error(), "failed to create memory directory") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestStore_Init_ExperiencesCreateError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+
+	// Create the memory dir but make it read-only before Init creates files
+	if err := os.MkdirAll(store.MemoryDir(), 0750); err != nil { //nolint:gosec // test setup
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	if err := os.Chmod(store.MemoryDir(), 0500); err != nil { //nolint:gosec // intentional permission for test
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(store.MemoryDir(), 0750) }) //nolint:gosec // restore permissions
+
+	err := store.Init()
+	if err == nil {
+		t.Error("expected error when experiences file can't be created")
+	}
+}
+
+// --- GetExperiences / GetLearnings / GetRolePrompt error paths ---
+
+func TestStore_GetExperiences_ReadError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	// Make the experiences file unreadable
+	if err := os.Chmod(filepath.Join(store.MemoryDir(), "experiences.jsonl"), 0000); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(store.MemoryDir(), "experiences.jsonl"), 0600)
+	})
+
+	_, err := store.GetExperiences()
+	if err == nil {
+		t.Error("expected error for unreadable experiences file")
+	}
+	if !strings.Contains(err.Error(), "failed to read experiences") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestStore_GetLearnings_ReadError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	if err := os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0000); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0600)
+	})
+
+	_, err := store.GetLearnings()
+	if err == nil {
+		t.Error("expected error for unreadable learnings file")
+	}
+	if !strings.Contains(err.Error(), "failed to read learnings") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestStore_GetRolePrompt_ReadError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	// Create and then make role_prompt.md unreadable
+	if err := store.SaveRolePrompt("test"); err != nil {
+		t.Fatalf("save failed: %v", err)
+	}
+	if err := os.Chmod(filepath.Join(store.MemoryDir(), "role_prompt.md"), 0000); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(store.MemoryDir(), "role_prompt.md"), 0600)
+	})
+
+	_, err := store.GetRolePrompt()
+	if err == nil {
+		t.Error("expected error for unreadable role prompt file")
+	}
+	if !strings.Contains(err.Error(), "failed to read role prompt") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// --- Clear error paths ---
+
+func TestStore_Clear_ExperiencesWriteError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	if err := store.RecordExperience(Experience{Description: "test", Outcome: "ok"}); err != nil {
+		t.Fatalf("record failed: %v", err)
+	}
+
+	// Make the experiences file itself unwritable
+	expPath := filepath.Join(store.MemoryDir(), "experiences.jsonl")
+	if err := os.Chmod(expPath, 0000); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(expPath, 0600) })
+
+	_, err := store.Clear(true, false)
+	if err == nil {
+		t.Error("expected error when can't write experiences file")
+	}
+}
+
+func TestStore_Clear_LearningsWriteError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	if err := store.AddLearning("tips", "test"); err != nil {
+		t.Fatalf("add failed: %v", err)
+	}
+
+	// Make learnings file read-only
+	if err := os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0400); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0600)
+	})
+
+	_, err := store.Clear(false, true)
+	if err == nil {
+		t.Error("expected error when can't write learnings file")
+	}
+}
+
+// --- DeleteExperience error paths ---
+
+func TestStore_DeleteExperience_ReadError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	if err := store.RecordExperience(Experience{Description: "test", Outcome: "ok"}); err != nil {
+		t.Fatalf("record failed: %v", err)
+	}
+
+	// Make experiences file unreadable
+	if err := os.Chmod(filepath.Join(store.MemoryDir(), "experiences.jsonl"), 0000); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(store.MemoryDir(), "experiences.jsonl"), 0600)
+	})
+
+	_, err := store.DeleteExperience(1)
+	if err == nil {
+		t.Error("expected error when experiences file is unreadable")
+	}
+}
+
+func TestStore_DeleteExperience_WriteError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	if err := store.RecordExperience(Experience{Description: "A", Outcome: "ok"}); err != nil {
+		t.Fatalf("record failed: %v", err)
+	}
+	if err := store.RecordExperience(Experience{Description: "B", Outcome: "ok"}); err != nil {
+		t.Fatalf("record failed: %v", err)
+	}
+
+	// Make the file read-only: GetExperiences (ReadFile) can read,
+	// but writeExperiences (os.Create with O_RDWR) cannot write
+	expPath := filepath.Join(store.MemoryDir(), "experiences.jsonl")
+	if err := os.Chmod(expPath, 0400); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(expPath, 0600) })
+
+	_, err := store.DeleteExperience(1)
+	if err == nil {
+		t.Error("expected error when can't write experiences")
+	}
+}
+
+func TestStore_DeleteExperience_OnlyOne(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	if err := store.RecordExperience(Experience{Description: "lone", Outcome: "ok"}); err != nil {
+		t.Fatalf("record failed: %v", err)
+	}
+
+	deleted, err := store.DeleteExperience(1)
+	if err != nil {
+		t.Fatalf("DeleteExperience failed: %v", err)
+	}
+	if deleted.Description != "lone" {
+		t.Errorf("expected 'lone', got %q", deleted.Description)
+	}
+
+	experiences, _ := store.GetExperiences()
+	if len(experiences) != 0 {
+		t.Errorf("expected 0 experiences, got %d", len(experiences))
+	}
+}
+
+// --- DeleteLearning error paths ---
+
+func TestStore_DeleteLearning_ReadError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	if err := store.AddLearning("patterns", "test"); err != nil {
+		t.Fatalf("add failed: %v", err)
+	}
+
+	if err := os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0000); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0600)
+	})
+
+	_, err := store.DeleteLearning("patterns", 1)
+	if err == nil {
+		t.Error("expected error when learnings file is unreadable")
+	}
+}
+
+func TestStore_DeleteLearning_WriteError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	// Add multiple learnings so it takes the non-ForgetTopic path
+	if err := store.AddLearning("patterns", "first"); err != nil {
+		t.Fatalf("add failed: %v", err)
+	}
+	if err := store.AddLearning("patterns", "second"); err != nil {
+		t.Fatalf("add failed: %v", err)
+	}
+
+	// Make learnings file read-only
+	if err := os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0400); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0600)
+	})
+
+	_, err := store.DeleteLearning("patterns", 1)
+	if err == nil {
+		t.Error("expected error when can't write learnings file")
+	}
+}
+
+// --- MergeLearnings error paths ---
+
+func TestStore_MergeLearnings_SourceReadError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	srcStore := NewStore(dir, "source")
+	if err := srcStore.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	// Make source learnings unreadable
+	if err := os.Chmod(filepath.Join(srcStore.MemoryDir(), "learnings.md"), 0000); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(srcStore.MemoryDir(), "learnings.md"), 0600)
+	})
+
+	dstStore := NewStore(dir, "dest")
+	if err := dstStore.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	_, err := dstStore.MergeLearnings(srcStore)
+	if err == nil {
+		t.Error("expected error when source learnings unreadable")
+	}
+	if !strings.Contains(err.Error(), "source learnings") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestStore_MergeLearnings_DestReadError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	srcStore := NewStore(dir, "source")
+	if err := srcStore.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	dstStore := NewStore(dir, "dest")
+	if err := dstStore.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	// Make dest learnings unreadable
+	if err := os.Chmod(filepath.Join(dstStore.MemoryDir(), "learnings.md"), 0000); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(dstStore.MemoryDir(), "learnings.md"), 0600)
+	})
+
+	_, err := dstStore.MergeLearnings(srcStore)
+	if err == nil {
+		t.Error("expected error when dest learnings unreadable")
+	}
+	if !strings.Contains(err.Error(), "destination learnings") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// --- ForgetTopic error paths ---
+
+func TestStore_ForgetTopic_WriteError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	if err := store.AddLearning("patterns", "test"); err != nil {
+		t.Fatalf("add failed: %v", err)
+	}
+
+	// Make learnings file read-only
+	if err := os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0400); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0600)
+	})
+
+	_, err := store.ForgetTopic("patterns")
+	if err == nil {
+		t.Error("expected error when can't write learnings file")
+	}
+}
+
+// --- AddLearning error paths ---
+
+func TestStore_AddLearning_ReadError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	if err := os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0000); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0600)
+	})
+
+	err := store.AddLearning("patterns", "test")
+	if err == nil {
+		t.Error("expected error when learnings file unreadable")
+	}
+	if !strings.Contains(err.Error(), "failed to read learnings") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestStore_AddLearning_WriteError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	// Make learnings file read-only (can read but not write)
+	if err := os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0400); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0600)
+	})
+
+	err := store.AddLearning("patterns", "test")
+	if err == nil {
+		t.Error("expected error when learnings file is read-only")
+	}
+	if !strings.Contains(err.Error(), "failed to write learnings") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// --- RecordExperience error paths ---
+
+func TestStore_RecordExperience_WriteError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	// Make experiences file read-only
+	if err := os.Chmod(filepath.Join(store.MemoryDir(), "experiences.jsonl"), 0400); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(store.MemoryDir(), "experiences.jsonl"), 0600)
+	})
+
+	err := store.RecordExperience(Experience{Description: "test", Outcome: "ok"})
+	if err == nil {
+		t.Error("expected error when experiences file is read-only")
+	}
+	if !strings.Contains(err.Error(), "failed to open experiences file") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// --- createBackup error paths ---
+
+func TestStore_Prune_BackupReadError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	if err := store.RecordExperience(Experience{
+		Timestamp:   time.Now().Add(-60 * 24 * time.Hour),
+		Description: "old",
+		Outcome:     "ok",
+	}); err != nil {
+		t.Fatalf("record failed: %v", err)
+	}
+
+	// Make experiences file unreadable so backup read fails
+	if err := os.Chmod(filepath.Join(store.MemoryDir(), "experiences.jsonl"), 0000); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(store.MemoryDir(), "experiences.jsonl"), 0600)
+	})
+
+	_, err := store.Prune(PruneOptions{
+		OlderThan: 30 * 24 * time.Hour,
+		DryRun:    false,
+		Backup:    true,
+	})
+	if err == nil {
+		t.Error("expected error when experiences file is unreadable for backup")
+	}
+}
+
+// --- writeExperiences error path ---
+
+func TestStore_Prune_WriteError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	if err := store.RecordExperience(Experience{
+		Timestamp:   time.Now().Add(-60 * 24 * time.Hour),
+		Description: "old",
+		Outcome:     "ok",
+	}); err != nil {
+		t.Fatalf("record failed: %v", err)
+	}
+
+	// Make the file read-only: GetExperiences (ReadFile) can read,
+	// but writeExperiences (os.Create with O_RDWR) cannot write
+	expPath := filepath.Join(store.MemoryDir(), "experiences.jsonl")
+	if err := os.Chmod(expPath, 0400); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(expPath, 0600) })
+
+	_, err := store.Prune(PruneOptions{
+		OlderThan: 30 * 24 * time.Hour,
+		DryRun:    false,
+	})
+	if err == nil {
+		t.Error("expected error when can't write pruned experiences")
+	}
+}
+
+// --- NeedsPruning with GetSize error ---
+
+func TestStore_NeedsPruning_NonExistentStore(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir, "ghost-agent")
+
+	// Store doesn't exist — GetSize returns 0, no error
+	needs, size, err := store.NeedsPruning(DefaultSizeThreshold)
+	if err != nil {
+		t.Fatalf("NeedsPruning failed: %v", err)
+	}
+	if needs {
+		t.Error("non-existent store should not need pruning")
+	}
+	if size != 0 {
+		t.Errorf("expected 0 size, got %d", size)
+	}
+}
+
+// --- GetMemoryContext error paths ---
+
+func TestStore_GetMemoryContext_WithLearningsAndRolePrompt(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	// Save a role prompt
+	if err := store.SaveRolePrompt("You are a test engineer."); err != nil {
+		t.Fatalf("save role prompt failed: %v", err)
+	}
+
+	// Add experiences
+	if err := store.RecordExperience(Experience{
+		TaskType:    "test",
+		Description: "wrote unit tests",
+		Outcome:     "success",
+		Learnings:   []string{"Test edge cases"},
+	}); err != nil {
+		t.Fatalf("record failed: %v", err)
+	}
+
+	// Add substantial learnings (> 100 chars to trigger inclusion)
+	for i := 0; i < 5; i++ {
+		if err := store.AddLearning("category-"+string(rune('A'+i)),
+			"Important learning about topic "+string(rune('A'+i))+" with enough detail to be meaningful"); err != nil {
+			t.Fatalf("add learning failed: %v", err)
+		}
+	}
+
+	ctx, err := store.GetMemoryContext(10)
+	if err != nil {
+		t.Fatalf("GetMemoryContext failed: %v", err)
+	}
+
+	// Should contain all three sections
+	if !strings.Contains(ctx, "## Role") {
+		t.Error("missing Role section")
+	}
+	if !strings.Contains(ctx, "## Recent Experiences") {
+		t.Error("missing Recent Experiences section")
+	}
+	if !strings.Contains(ctx, "## Key Learnings") {
+		t.Error("missing Key Learnings section")
+	}
+	if !strings.Contains(ctx, "Test edge cases") {
+		t.Error("missing experience learning")
+	}
+}
+
+func TestStore_GetMemoryContext_ExperiencesReadError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	if err := os.Chmod(filepath.Join(store.MemoryDir(), "experiences.jsonl"), 0000); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(store.MemoryDir(), "experiences.jsonl"), 0600)
+	})
+
+	_, err := store.GetMemoryContext(10)
+	if err == nil {
+		t.Error("expected error when experiences file is unreadable")
+	}
+}
+
+func TestStore_GetMemoryContext_LearningsReadError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	// Add an experience so we get past the experiences check
+	if err := store.RecordExperience(Experience{
+		TaskType: "test", Description: "test", Outcome: "ok",
+	}); err != nil {
+		t.Fatalf("record failed: %v", err)
+	}
+
+	if err := os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0000); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0600)
+	})
+
+	_, err := store.GetMemoryContext(10)
+	if err == nil {
+		t.Error("expected error when learnings file is unreadable")
+	}
+}
+
+// --- ListTopics error path ---
+
+func TestStore_ListTopics_ReadError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	if err := os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0000); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0600)
+	})
+
+	_, err := store.ListTopics()
+	if err == nil {
+		t.Error("expected error when learnings file is unreadable")
+	}
+}
+
+// --- clearLearnings error path ---
+
+func TestStore_clearLearnings_WriteError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	// Make learnings file read-only
+	if err := os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0400); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0600)
+	})
+
+	err := store.clearLearnings()
+	if err == nil {
+		t.Error("expected error when learnings file is read-only")
+	}
+	if !strings.Contains(err.Error(), "failed to reset learnings file") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// --- Prune clearLearnings error path ---
+
+func TestStore_Prune_IncludeLearnings_ClearError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	if err := store.RecordExperience(Experience{
+		Timestamp:   time.Now().Add(-60 * 24 * time.Hour),
+		Description: "old",
+		Outcome:     "ok",
+	}); err != nil {
+		t.Fatalf("record failed: %v", err)
+	}
+
+	// Make learnings read-only so clearLearnings fails
+	if err := os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0400); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0600)
+	})
+
+	_, err := store.Prune(PruneOptions{
+		OlderThan:        30 * 24 * time.Hour,
+		DryRun:           false,
+		IncludeLearnings: true,
+	})
+	if err == nil {
+		t.Error("expected error when clearLearnings fails during prune")
+	}
+}
+
+// --- ForgetTopic read error ---
+
+func TestStore_ForgetTopic_ReadError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	if err := os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0000); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(store.MemoryDir(), "learnings.md"), 0600)
+	})
+
+	_, err := store.ForgetTopic("patterns")
+	if err == nil {
+		t.Error("expected error when learnings file is unreadable")
+	}
+}
+
+// --- Prune GetExperiences error path ---
+
+func TestStore_Prune_GetExperiencesError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	if err := os.Chmod(filepath.Join(store.MemoryDir(), "experiences.jsonl"), 0000); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(filepath.Join(store.MemoryDir(), "experiences.jsonl"), 0600)
+	})
+
+	_, err := store.Prune(PruneOptions{OlderThan: 30 * 24 * time.Hour})
+	if err == nil {
+		t.Error("expected error when experiences file is unreadable")
+	}
+}
+
+// --- Backup write error ---
+
+func TestStore_Prune_BackupWriteError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping permission test when running as root")
+	}
+
+	dir := t.TempDir()
+	store := NewStore(dir, "test-agent")
+	if err := store.Init(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	if err := store.RecordExperience(Experience{
+		Timestamp:   time.Now().Add(-60 * 24 * time.Hour),
+		Description: "old",
+		Outcome:     "ok",
+	}); err != nil {
+		t.Fatalf("record failed: %v", err)
+	}
+
+	// Make dir read-only so backup write fails (but experiences.jsonl must be readable)
+	expPath := filepath.Join(store.MemoryDir(), "experiences.jsonl")
+	if err := os.Chmod(expPath, 0444); err != nil { //nolint:gosec // intentional permission for test
+		t.Fatalf("chmod exp failed: %v", err)
+	}
+	if err := os.Chmod(store.MemoryDir(), 0500); err != nil { //nolint:gosec // intentional permission for test
+		t.Fatalf("chmod dir failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(store.MemoryDir(), 0750) //nolint:gosec // restore permissions
+		_ = os.Chmod(expPath, 0600)
+	})
+
+	_, err := store.Prune(PruneOptions{
+		OlderThan: 30 * 24 * time.Hour,
+		DryRun:    false,
+		Backup:    true,
+	})
+	if err == nil {
+		t.Error("expected error when backup write fails")
+	}
+}
