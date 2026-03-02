@@ -941,3 +941,17 @@ func TestAgentCreate_NonExistentTeam(t *testing.T) {
 		t.Errorf("error should mention team does not exist: %v", err)
 	}
 }
+
+func TestPeekFollowFlag(t *testing.T) {
+	// Verify the --follow / -f flag is registered on the peek command
+	f := agentPeekCmd.Flags().Lookup("follow")
+	if f == nil {
+		t.Fatal("expected --follow flag to be registered on peek command")
+	}
+	if f.Shorthand != "f" {
+		t.Errorf("expected shorthand 'f', got %q", f.Shorthand)
+	}
+	if f.DefValue != "false" {
+		t.Errorf("expected default value 'false', got %q", f.DefValue)
+	}
+}
