@@ -766,6 +766,18 @@ export async function clearMemory(agentName: string): Promise<void> {
 }
 
 /**
+ * Delete an experience by index
+ * @param agentName - Name of agent
+ * @param index - 1-based experience index
+ * #1854: Uses bc memory delete <agent> <index>
+ */
+export async function deleteExperience(agentName: string, index: number): Promise<void> {
+  await execBc(['memory', 'delete', agentName, String(index)]);
+  invalidateCacheKey(`memory:show:${agentName}`);
+  invalidateCacheKey('memory:list');
+}
+
+/**
  * Export agent memory to JSON
  * @param agentName - Name of agent
  */
