@@ -12,6 +12,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
+import { spawnSync } from 'child_process';
 import { Box, Text, useInput } from 'ink';
 import { useAgents, useDebounce, useListNavigation } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
@@ -256,7 +257,7 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
       return;
     }
 
-    // Enter: toggle role collapse or show detail
+    // #1837: Enter/a = attach to tmux session (primary action)
     if (key.return || input === 'a') {
       if (validIndex >= 0 && validIndex < visibleItems.length) {
         const item = visibleItems[validIndex];
@@ -266,8 +267,19 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
         }
       }
       if (selectedAgent) {
-        dispatch({ type: 'SHOW_DETAIL' });
+        if (selectedAgent.state === 'stopped') {
+          showActionFeedback('attach' as AgentAction, selectedAgent.name, 'error', `Agent ${selectedAgent.name} is not running`);
+        } else {
+          const bcBin = process.env.BC_BIN ?? 'bc';
+          spawnSync(bcBin, ['agent', 'attach', selectedAgent.name], {
+            stdio: 'inherit',
+          });
+          void refresh();
+        }
       }
+    // d = open detail view (previously Enter behavior)
+    } else if (input === 'd' && selectedAgent) {
+      dispatch({ type: 'SHOW_DETAIL' });
     } else if (input === 'x' && selectedAgent && selectedAgent.state !== 'stopped') {
       dispatch({ type: 'SET_CONFIRM_ACTION', action: 'stop' });
     } else if (input === 'X' && selectedAgent) {
@@ -376,7 +388,7 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
       {/* Footer */}
       <Box marginTop={1}>
         <Text color="gray" wrap="truncate">
-          j/k: nav | v: {groupedView ? 'flat' : 'grouped'} | /: search{search.query ? ' | c: clear' : ''} | p: peek | Enter: {groupedView ? 'expand/attach' : 'attach'} | r: refresh | q: back
+          j/k: nav | Enter: attach | d: detail | v: {groupedView ? 'flat' : 'grouped'} | /: search{search.query ? ' | c: clear' : ''} | p: peek | r: refresh | q: back
         </Text>
       </Box>
     </Box>
