@@ -11,7 +11,7 @@
  * - useAgentGroups
  */
 
-import React, { useState, useCallback, useEffect, useMemo, useReducer } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useAgents, useDebounce, useListNavigation } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
@@ -123,16 +123,19 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
     r: () => { void refresh(); },
   }), [refresh]);
 
+  // #1842: Track visibleItems count via ref to break circular dependency
+  // (useListNavigation → search.query → useAgentGroups → visibleItems.length → useListNavigation)
+  const visibleItemCountRef = useRef<number | undefined>(undefined);
+
   // #1743: Use useListNavigation for navigation and search
-  // Note: We pass an empty array initially because we need debouncedSearchQuery
-  // which depends on search.query from the hook - creating a circular dependency.
-  // Instead, we'll handle this by using the raw agents list and filtering in useAgentGroups.
+  // #1842: Pass itemCount so navigation clamps to visibleItems.length (includes group headers)
   const {
     selectedIndex,
     search,
     setSelectedIndex: _setSelectedIndex, // Not used directly yet
   } = useListNavigation({
     items: agents ?? [],
+    itemCount: visibleItemCountRef.current,
     disabled: showDetail || confirmAction !== null,
     enableSearch: true,
     customKeys,
@@ -149,7 +152,10 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
     collapsedRoles
   );
 
-  // Clamp selectedIndex to visible items
+  // #1842: Update ref so useListNavigation clamps to correct boundary on next render
+  visibleItemCountRef.current = visibleItems.length;
+
+  // Clamp selectedIndex to visible items (defensive — hook should already clamp via itemCount)
   const validIndex = Math.min(selectedIndex, Math.max(0, visibleItems.length - 1));
 
   // Get selected agent from visible items
