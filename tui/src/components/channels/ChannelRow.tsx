@@ -14,56 +14,40 @@ export interface ChannelRowProps {
 }
 
 /**
- * ChannelRow - Renders a single channel in the list
+ * ChannelRow - Renders a single channel as a table row
+ * #1890: Redesigned with column layout matching ChannelsView headers
  *
  * Features:
- * - Selection indicator (▸)
- * - Unread message badge (● or "N new")
- * - Member count suffix
- * - Color highlighting for selected/unread
+ * - Selection indicator (▸) with cyan highlight
+ * - Unread badge with yellow highlight
+ * - Column layout: CHANNEL (24) | UNREAD (12) | MEMBERS (10) | DESCRIPTION (flex)
  */
 export function ChannelRow({ channel, selected, unreadCount }: ChannelRowProps): React.ReactElement {
-  // #981 fix: Build name row as single truncated text to ensure visibility at 80 cols
-  // #1129: Highlight channels with unread messages
-  // #1364 Issue 2: Clarify channel numbers (unread vs members)
-  // Priority: name > unread indicator > member count > description
-  const namePrefix = selected ? '▸ ' : '  ';
-  const channelName = `#${channel.name}`;
-
-  // Format member count with 'm' suffix to distinguish from unread (#1364)
-  const memberInfo = ` ${String(channel.members.length)}m`;
-
-  // Format unread badge with 'new' label to clarify meaning (#1364)
-  // #1779: Always include text label alongside symbol for accessibility
-  const unreadBadge = unreadCount > 0
-    ? unreadCount === 1
-      ? ' ● 1 new'
-      : ` ● ${unreadCount > 99 ? '99+' : String(unreadCount)} new`
-    : '';
-
-  // Build single text line to avoid nested Text truncation issues on narrow terminals
-  // Issue #981: Nested Text elements break rendering at 80x24 width
-  const nameLineText = `${namePrefix}${channelName}${unreadBadge}${memberInfo}`;
-
-  // Determine text color: cyan if selected, yellow if has unread, default otherwise
   const textColor = selected ? 'cyan' : unreadCount > 0 ? 'yellow' : undefined;
 
-  // #1171 fix: Remove explicit width="100%" to avoid nested width calculation issues at 80x24
-  // #1528 fix: Add flexGrow={1} to ensure Box takes available width for wrap="truncate" to work
-  // The parent Box already has width="100%", inner Box needs flexGrow to claim its share
+  // Unread display: "● N new" or "-"
+  const unreadDisplay = unreadCount > 0
+    ? `● ${unreadCount > 99 ? '99+' : String(unreadCount)} new`
+    : '-';
+
   return (
-    <Box flexDirection="column" flexGrow={1}>
-      {/* Name row: single Text for proper truncation at narrow widths */}
-      <Text
-        wrap="truncate"
-        color={textColor}
-        bold={selected || unreadCount > 0}
-      >
-        {nameLineText}
-      </Text>
-      {channel.description && (
-        <Text dimColor wrap="truncate">{channel.description}</Text>
-      )}
+    <Box paddingX={1}>
+      <Box width={24}>
+        <Text color={textColor} bold={selected || unreadCount > 0} wrap="truncate">
+          {selected ? '▸ ' : '  '}#{channel.name}
+        </Text>
+      </Box>
+      <Box width={12}>
+        <Text color={unreadCount > 0 ? 'yellow' : undefined} bold={unreadCount > 0}>
+          {unreadDisplay}
+        </Text>
+      </Box>
+      <Box width={10}>
+        <Text dimColor>{String(channel.members.length)}</Text>
+      </Box>
+      <Box flexGrow={1}>
+        <Text dimColor wrap="truncate">{channel.description ?? '-'}</Text>
+      </Box>
     </Box>
   );
 }
