@@ -46,7 +46,7 @@ export function CommandBar({ onSelect, onClose, recentCommands = [], onCommandUs
       if (resolved) {
         onCommandUsed?.(input.toLowerCase().trim());
         onSelect(resolved);
-      } else if (matches.length > 0 && matches[selectedIndex].command.view) {
+      } else if (matches.length > 0) {
         onCommandUsed?.(matches[selectedIndex].command.command);
         onSelect(matches[selectedIndex].command.view);
       }

@@ -101,9 +101,7 @@ function AppContent({ themeConfig }: AppContentProps): React.ReactElement {
   }, []);
 
   React.useEffect(() => {
-    if (themeConfig.theme !== 'dark' && themeConfig.theme !== 'light') {
-      setThemeName(themeConfig.theme as Parameters<typeof setThemeName>[0]);
-    }
+    setThemeName(themeConfig.theme);
   }, [themeConfig.theme, setThemeName]);
 
   // #1870: Set focus to 'command'/'filter' when overlays open to prevent key leaks
