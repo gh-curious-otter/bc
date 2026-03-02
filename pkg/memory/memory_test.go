@@ -1688,6 +1688,190 @@ func TestStore_DeleteExperience_OutOfRange(t *testing.T) {
 	}
 }
 
+func TestStore_DeleteLearning(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	// Add 3 learnings to a category
+	for _, l := range []string{"first insight", "second insight", "third insight"} {
+		if err := store.AddLearning("patterns", l); err != nil {
+			t.Fatalf("failed to add learning: %v", err)
+		}
+	}
+
+	// File order after AddLearning is newest-first: third, second, first
+	// Delete middle item (index 2 = "second insight")
+	deleted, err := store.DeleteLearning("patterns", 2)
+	if err != nil {
+		t.Fatalf("DeleteLearning failed: %v", err)
+	}
+
+	if deleted != "second insight" {
+		t.Errorf("expected deleted 'second insight', got %q", deleted)
+	}
+
+	// Verify remaining learnings (third, first)
+	topics := parseLearningsByTopic(mustGetLearnings(t, store))
+	entries := topics["patterns"]
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(entries))
+	}
+	if entries[0] != "third insight" {
+		t.Errorf("expected 'third insight', got %q", entries[0])
+	}
+	if entries[1] != "first insight" {
+		t.Errorf("expected 'first insight', got %q", entries[1])
+	}
+}
+
+func TestStore_DeleteLearning_FirstAndLast(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	// File order after AddLearning is newest-first: gamma, beta, alpha
+	for _, l := range []string{"alpha", "beta", "gamma"} {
+		if err := store.AddLearning("tips", l); err != nil {
+			t.Fatalf("failed to add learning: %v", err)
+		}
+	}
+
+	// Delete first in file (index 1 = "gamma")
+	deleted, err := store.DeleteLearning("tips", 1)
+	if err != nil {
+		t.Fatalf("DeleteLearning first failed: %v", err)
+	}
+	if deleted != "gamma" {
+		t.Errorf("expected 'gamma', got %q", deleted)
+	}
+
+	// Delete last in file (now index 2 = "alpha" after previous deletion)
+	deleted, err = store.DeleteLearning("tips", 2)
+	if err != nil {
+		t.Fatalf("DeleteLearning last failed: %v", err)
+	}
+	if deleted != "alpha" {
+		t.Errorf("expected 'alpha', got %q", deleted)
+	}
+
+	// Verify only beta remains
+	topics := parseLearningsByTopic(mustGetLearnings(t, store))
+	entries := topics["tips"]
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+	if entries[0] != "beta" {
+		t.Errorf("expected 'beta', got %q", entries[0])
+	}
+}
+
+func TestStore_DeleteLearning_LastItem(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	// Add one learning and another category
+	if err := store.AddLearning("patterns", "only insight"); err != nil {
+		t.Fatalf("failed to add learning: %v", err)
+	}
+	if err := store.AddLearning("tips", "survives"); err != nil {
+		t.Fatalf("failed to add learning: %v", err)
+	}
+
+	// Delete the only item in patterns — category header should be removed
+	deleted, err := store.DeleteLearning("patterns", 1)
+	if err != nil {
+		t.Fatalf("DeleteLearning failed: %v", err)
+	}
+	if deleted != "only insight" {
+		t.Errorf("expected 'only insight', got %q", deleted)
+	}
+
+	// Verify patterns category is gone but tips remains
+	content := mustGetLearnings(t, store)
+	if strings.Contains(content, "## patterns") {
+		t.Error("expected patterns category header to be removed")
+	}
+	topics := parseLearningsByTopic(content)
+	if _, ok := topics["tips"]; !ok {
+		t.Error("expected tips category to remain")
+	}
+	if topics["tips"][0] != "survives" {
+		t.Errorf("expected 'survives', got %q", topics["tips"][0])
+	}
+}
+
+func TestStore_DeleteLearning_InvalidIndex(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	if err := store.AddLearning("patterns", "one insight"); err != nil {
+		t.Fatalf("failed to add learning: %v", err)
+	}
+
+	// Out of range
+	_, err := store.DeleteLearning("patterns", 2)
+	if err == nil {
+		t.Error("expected error for out of range index")
+	}
+
+	// Zero index
+	_, err = store.DeleteLearning("patterns", 0)
+	if err == nil {
+		t.Error("expected error for index 0")
+	}
+
+	// Negative index
+	_, err = store.DeleteLearning("patterns", -1)
+	if err == nil {
+		t.Error("expected error for negative index")
+	}
+
+	// Missing category
+	_, err = store.DeleteLearning("nonexistent", 1)
+	if err == nil {
+		t.Error("expected error for missing category")
+	}
+}
+
+func TestStore_DeleteLearning_EmptyFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	store := NewStore(tmpDir, "test-agent")
+
+	if err := store.Init(); err != nil {
+		t.Fatalf("failed to init: %v", err)
+	}
+
+	_, err := store.DeleteLearning("patterns", 1)
+	if err == nil {
+		t.Error("expected error for empty learnings file")
+	}
+}
+
+// mustGetLearnings is a test helper that reads learnings or fails.
+func mustGetLearnings(t *testing.T, store *Store) string {
+	t.Helper()
+	content, err := store.GetLearnings()
+	if err != nil {
+		t.Fatalf("failed to get learnings: %v", err)
+	}
+	return content
+}
+
 func TestStore_MergeLearnings(t *testing.T) {
 	tmpDir := t.TempDir()
 
