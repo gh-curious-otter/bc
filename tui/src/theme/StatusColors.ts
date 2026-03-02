@@ -144,22 +144,10 @@ export function isHighContrastEnabled(): boolean {
 }
 
 /**
- * Agent role colors (for visual distinction in lists)
+ * Agent role colors — use constants/colors.ts as the single source of truth.
+ * See Issue #1847 for the design audit that identified this duplication.
+ * Import { ROLE_COLORS, getColorForName } from '../constants/colors' instead.
  */
-export const ROLE_COLORS: Record<string, string> = {
-  engineer: 'cyan',
-  manager: 'blue',
-  ux: 'magenta',
-  root: 'red',
-  default: 'white',
-};
-
-/**
- * Get color for an agent role
- */
-export function getRoleColor(role: string): string {
-  return ROLE_COLORS[role] || ROLE_COLORS.default;
-}
 
 export default {
   STATUS_COLORS,
@@ -168,12 +156,10 @@ export default {
   HEALTH_SYMBOLS,
   COST_COLORS,
   COST_SYMBOLS,
-  ROLE_COLORS,
   getStatusColor,
   getStatusSymbol,
   getStatusIndicator,
   getHealthIndicator,
   getCostIndicator,
-  getRoleColor,
   isHighContrastEnabled,
 };
