@@ -224,6 +224,7 @@ const ActivityEntry = memo(function ActivityEntry({
       {!compact && (
         <Text dimColor>{formatTime(entry.ts)} </Text>
       )}
+      {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- #1835: Go omitempty */}
       <Text color="cyan">{(entry.agent ?? '').padEnd(10)} </Text>
       <Text color={severityColor}>{severityIcon} </Text>
       <Text color={severityColor}>{eventLabel.padEnd(12)} </Text>
