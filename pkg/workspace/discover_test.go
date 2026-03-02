@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"sync"
@@ -622,6 +623,196 @@ func TestDiscoverDuplicatePath(t *testing.T) {
 	count := 0
 	for _, ws := range workspaces {
 		if ws.Name == "dup-workspace" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected 1 workspace (deduped), got %d", count)
+	}
+}
+
+func TestDiscoverIncludeCached(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Point HOME at tmpDir so LoadRegistry reads our custom registry
+	t.Setenv("HOME", tmpDir)
+
+	// Create a workspace that the registry will reference
+	wsDir := filepath.Join(tmpDir, "cached-ws")
+	bcDir := filepath.Join(wsDir, ".bc")
+	if err := os.MkdirAll(bcDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bcDir, "config.toml"), []byte("[workspace]\nname = \"cached-ws\"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write a registry file pointing to that workspace
+	globalDir := filepath.Join(tmpDir, ".bc")
+	if err := os.MkdirAll(globalDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	reg := &Registry{
+		Workspaces: []RegistryEntry{
+			{Path: wsDir, Name: "cached-ws"},
+		},
+	}
+	data, err := json.MarshalIndent(reg, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if writeErr := os.WriteFile(filepath.Join(globalDir, "workspaces.json"), data, 0600); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+
+	workspaces, err := Discover(DiscoverOptions{
+		IncludeCached: true,
+		ScanHome:      false,
+		MaxDepth:      1,
+	})
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+
+	found := false
+	for _, ws := range workspaces {
+		if ws.Path == wsDir && ws.FromCache {
+			found = true
+			if ws.Name != "cached-ws" {
+				t.Errorf("cached workspace name = %q, want %q", ws.Name, "cached-ws")
+			}
+			if !ws.IsV2 {
+				t.Error("cached workspace should be V2 (has config.toml)")
+			}
+		}
+	}
+	if !found {
+		t.Error("expected to find cached workspace from registry")
+	}
+}
+
+func TestDiscoverIncludeCachedSkipsNonExistent(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	// Write a registry with a path that doesn't exist
+	globalDir := filepath.Join(tmpDir, ".bc")
+	if err := os.MkdirAll(globalDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	reg := &Registry{
+		Workspaces: []RegistryEntry{
+			{Path: filepath.Join(tmpDir, "nonexistent"), Name: "ghost"},
+		},
+	}
+	data, err := json.MarshalIndent(reg, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if writeErr := os.WriteFile(filepath.Join(globalDir, "workspaces.json"), data, 0600); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+
+	workspaces, err := Discover(DiscoverOptions{
+		IncludeCached: true,
+		ScanHome:      false,
+		MaxDepth:      1,
+	})
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+
+	for _, ws := range workspaces {
+		if ws.Name == "ghost" {
+			t.Error("should not include non-existent workspace from registry")
+		}
+	}
+}
+
+func TestDiscoverScanHome(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	// Create a workspace under ~/Projects/
+	projectsDir := filepath.Join(tmpDir, "Projects")
+	wsDir := filepath.Join(projectsDir, "home-ws")
+	bcDir := filepath.Join(wsDir, ".bc")
+	if err := os.MkdirAll(bcDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bcDir, "config.toml"), []byte("[workspace]\nname = \"home-ws\"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	workspaces, err := Discover(DiscoverOptions{
+		IncludeCached: false,
+		ScanHome:      true,
+		MaxDepth:      3,
+	})
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+
+	found := false
+	for _, ws := range workspaces {
+		if ws.Name == "home-ws" {
+			found = true
+			if ws.FromCache {
+				t.Error("scanned workspace should not be FromCache")
+			}
+		}
+	}
+	if !found {
+		t.Error("expected to find workspace under ~/Projects/ via ScanHome")
+	}
+}
+
+func TestDiscoverCachedDeduplication(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	// Create workspace under ~/Projects/
+	projectsDir := filepath.Join(tmpDir, "Projects")
+	wsDir := filepath.Join(projectsDir, "dedup-ws")
+	bcDir := filepath.Join(wsDir, ".bc")
+	if err := os.MkdirAll(bcDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bcDir, "config.toml"), []byte("[workspace]\nname = \"dedup-ws\"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Also register same workspace in registry
+	globalDir := filepath.Join(tmpDir, ".bc")
+	if err := os.MkdirAll(globalDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	reg := &Registry{
+		Workspaces: []RegistryEntry{
+			{Path: wsDir, Name: "dedup-ws"},
+		},
+	}
+	data, err := json.MarshalIndent(reg, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if writeErr := os.WriteFile(filepath.Join(globalDir, "workspaces.json"), data, 0600); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+
+	// Both IncludeCached and ScanHome — should dedup
+	workspaces, err := Discover(DiscoverOptions{
+		IncludeCached: true,
+		ScanHome:      true,
+		MaxDepth:      3,
+	})
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+
+	count := 0
+	for _, ws := range workspaces {
+		if ws.Name == "dedup-ws" {
 			count++
 		}
 	}

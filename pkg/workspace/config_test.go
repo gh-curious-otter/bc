@@ -1647,6 +1647,118 @@ func TestGetProvider(t *testing.T) {
 			providerName: "unknown",
 			wantNil:      true,
 		},
+		{
+			name: "gemini from new config",
+			cfg: V2Config{
+				Providers: ProvidersConfig{
+					Gemini: &ProviderConfig{Command: "gemini-cli", Enabled: true},
+				},
+			},
+			providerName: "gemini",
+			wantNil:      false,
+			wantCommand:  "gemini-cli",
+		},
+		{
+			name: "gemini from legacy fallback",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					Gemini: &ToolConfig{Command: "gemini-legacy", Enabled: true},
+				},
+			},
+			providerName: "gemini",
+			wantNil:      false,
+			wantCommand:  "gemini-legacy",
+		},
+		{
+			name: "cursor from new config",
+			cfg: V2Config{
+				Providers: ProvidersConfig{
+					Cursor: &ProviderConfig{Command: "cursor-cli", Enabled: true},
+				},
+			},
+			providerName: "cursor",
+			wantNil:      false,
+			wantCommand:  "cursor-cli",
+		},
+		{
+			name: "cursor from legacy fallback",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					Cursor: &ToolConfig{Command: "cursor-legacy", Enabled: true},
+				},
+			},
+			providerName: "cursor",
+			wantNil:      false,
+			wantCommand:  "cursor-legacy",
+		},
+		{
+			name: "codex from new config",
+			cfg: V2Config{
+				Providers: ProvidersConfig{
+					Codex: &ProviderConfig{Command: "codex-cli", Enabled: true},
+				},
+			},
+			providerName: "codex",
+			wantNil:      false,
+			wantCommand:  "codex-cli",
+		},
+		{
+			name: "codex from legacy fallback",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					Codex: &ToolConfig{Command: "codex-legacy", Enabled: true},
+				},
+			},
+			providerName: "codex",
+			wantNil:      false,
+			wantCommand:  "codex-legacy",
+		},
+		{
+			name: "opencode from new config",
+			cfg: V2Config{
+				Providers: ProvidersConfig{
+					OpenCode: &ProviderConfig{Command: "opencode-cli", Enabled: true},
+				},
+			},
+			providerName: "opencode",
+			wantNil:      false,
+			wantCommand:  "opencode-cli",
+		},
+		{
+			name: "openclaw from new config",
+			cfg: V2Config{
+				Providers: ProvidersConfig{
+					OpenClaw: &ProviderConfig{Command: "openclaw-cli", Enabled: true},
+				},
+			},
+			providerName: "openclaw",
+			wantNil:      false,
+			wantCommand:  "openclaw-cli",
+		},
+		{
+			name: "aider from new config",
+			cfg: V2Config{
+				Providers: ProvidersConfig{
+					Aider: &ProviderConfig{Command: "aider-cli", Enabled: true},
+				},
+			},
+			providerName: "aider",
+			wantNil:      false,
+			wantCommand:  "aider-cli",
+		},
+		{
+			name: "custom provider",
+			cfg: V2Config{
+				Providers: ProvidersConfig{
+					Custom: map[string]ProviderConfig{
+						"my-provider": {Command: "my-cmd", Enabled: true},
+					},
+				},
+			},
+			providerName: "my-provider",
+			wantNil:      false,
+			wantCommand:  "my-cmd",
+		},
 	}
 
 	for _, tt := range tests {
@@ -1668,6 +1780,83 @@ func TestGetProvider(t *testing.T) {
 	}
 }
 
+// TestGetTool tests all branches of the GetTool method
+func TestGetTool(t *testing.T) {
+	tests := []struct { //nolint:govet // test struct alignment not critical
+		cfg         V2Config
+		name        string
+		toolName    string
+		wantCommand string
+		wantNil     bool
+	}{
+		{
+			name:     "claude",
+			cfg:      V2Config{Tools: ToolsConfig{Claude: &ToolConfig{Command: "claude"}}},
+			toolName: "claude", wantCommand: "claude",
+		},
+		{
+			name:     "cursor",
+			cfg:      V2Config{Tools: ToolsConfig{Cursor: &ToolConfig{Command: "cursor"}}},
+			toolName: "cursor", wantCommand: "cursor",
+		},
+		{
+			name:     "codex",
+			cfg:      V2Config{Tools: ToolsConfig{Codex: &ToolConfig{Command: "codex"}}},
+			toolName: "codex", wantCommand: "codex",
+		},
+		{
+			name:     "gemini",
+			cfg:      V2Config{Tools: ToolsConfig{Gemini: &ToolConfig{Command: "gemini"}}},
+			toolName: "gemini", wantCommand: "gemini",
+		},
+		{
+			name:     "github",
+			cfg:      V2Config{Tools: ToolsConfig{GitHub: &ToolConfig{Command: "gh"}}},
+			toolName: "github", wantCommand: "gh",
+		},
+		{
+			name:     "gitlab",
+			cfg:      V2Config{Tools: ToolsConfig{GitLab: &ToolConfig{Command: "glab"}}},
+			toolName: "gitlab", wantCommand: "glab",
+		},
+		{
+			name:     "jira",
+			cfg:      V2Config{Tools: ToolsConfig{Jira: &ToolConfig{Command: "jira"}}},
+			toolName: "jira", wantCommand: "jira",
+		},
+		{
+			name: "custom tool",
+			cfg: V2Config{Tools: ToolsConfig{Custom: map[string]ToolConfig{
+				"my-tool": {Command: "my-cmd"},
+			}}},
+			toolName: "my-tool", wantCommand: "my-cmd",
+		},
+		{
+			name:     "unknown returns nil",
+			cfg:      V2Config{},
+			toolName: "nonexistent", wantNil: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.cfg.GetTool(tt.toolName)
+			if tt.wantNil {
+				if got != nil {
+					t.Errorf("GetTool(%q) = %v, want nil", tt.toolName, got)
+				}
+				return
+			}
+			if got == nil {
+				t.Fatalf("GetTool(%q) returned nil, want non-nil", tt.toolName)
+			}
+			if got.Command != tt.wantCommand {
+				t.Errorf("GetTool(%q).Command = %q, want %q", tt.toolName, got.Command, tt.wantCommand)
+			}
+		})
+	}
+}
+
 // TestGetService tests the new GetService method (Issue #1771)
 func TestGetService(t *testing.T) {
 	tests := []struct { //nolint:govet // test struct alignment not critical
@@ -1678,7 +1867,7 @@ func TestGetService(t *testing.T) {
 		wantNil     bool
 	}{
 		{
-			name: "service from new config",
+			name: "github from new config",
 			cfg: V2Config{
 				Services: ServicesConfig{
 					GitHub: &ServiceConfig{Command: "gh", Enabled: true},
@@ -1689,7 +1878,7 @@ func TestGetService(t *testing.T) {
 			wantCommand: "gh",
 		},
 		{
-			name: "service from legacy config fallback",
+			name: "github from legacy config fallback",
 			cfg: V2Config{
 				Tools: ToolsConfig{
 					GitHub: &ToolConfig{Command: "gh-legacy", Enabled: true},
@@ -1698,6 +1887,92 @@ func TestGetService(t *testing.T) {
 			serviceName: "github",
 			wantNil:     false,
 			wantCommand: "gh-legacy",
+		},
+		{
+			name: "github new config takes precedence over legacy",
+			cfg: V2Config{
+				Services: ServicesConfig{
+					GitHub: &ServiceConfig{Command: "gh-new", Enabled: true},
+				},
+				Tools: ToolsConfig{
+					GitHub: &ToolConfig{Command: "gh-legacy", Enabled: true},
+				},
+			},
+			serviceName: "github",
+			wantNil:     false,
+			wantCommand: "gh-new",
+		},
+		{
+			name: "gitlab from new config",
+			cfg: V2Config{
+				Services: ServicesConfig{
+					GitLab: &ServiceConfig{Command: "glab", Enabled: true},
+				},
+			},
+			serviceName: "gitlab",
+			wantNil:     false,
+			wantCommand: "glab",
+		},
+		{
+			name: "gitlab from legacy config fallback",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					GitLab: &ToolConfig{Command: "glab-legacy", Enabled: true},
+				},
+			},
+			serviceName: "gitlab",
+			wantNil:     false,
+			wantCommand: "glab-legacy",
+		},
+		{
+			name: "gitlab new config takes precedence over legacy",
+			cfg: V2Config{
+				Services: ServicesConfig{
+					GitLab: &ServiceConfig{Command: "glab-new", Enabled: true},
+				},
+				Tools: ToolsConfig{
+					GitLab: &ToolConfig{Command: "glab-legacy", Enabled: true},
+				},
+			},
+			serviceName: "gitlab",
+			wantNil:     false,
+			wantCommand: "glab-new",
+		},
+		{
+			name: "jira from new config",
+			cfg: V2Config{
+				Services: ServicesConfig{
+					Jira: &ServiceConfig{Command: "jira-cli", Enabled: true},
+				},
+			},
+			serviceName: "jira",
+			wantNil:     false,
+			wantCommand: "jira-cli",
+		},
+		{
+			name: "jira from legacy config fallback",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					Jira: &ToolConfig{Command: "jira-legacy", Enabled: true},
+				},
+			},
+			serviceName: "jira",
+			wantNil:     false,
+			wantCommand: "jira-legacy",
+		},
+		{
+			name: "jira new config takes precedence over legacy",
+			cfg: V2Config{
+				Services: ServicesConfig{
+					Jira: &ServiceConfig{Command: "jira-new", Enabled: true},
+				},
+				Tools: ToolsConfig{
+					Jira: &ToolConfig{Command: "jira-legacy", Enabled: true},
+				},
+			},
+			serviceName: "jira",
+			wantNil:     false,
+			wantCommand: "jira-new",
 		},
 		{
 			name:        "unknown service returns nil",
@@ -1923,6 +2198,118 @@ func TestHasTool_ChecksProviders(t *testing.T) {
 	}
 }
 
+// TestHasTool_ChecksServices tests that hasToolDefined checks services
+func TestHasTool_ChecksServices(t *testing.T) {
+	tests := []struct {
+		name     string
+		toolName string
+		cfg      V2Config
+		want     bool
+	}{
+		{
+			name:     "github from services config",
+			toolName: "github",
+			cfg: V2Config{
+				Services: ServicesConfig{
+					GitHub: &ServiceConfig{Command: "gh", Enabled: true},
+				},
+			},
+			want: true,
+		},
+		{
+			name:     "gitlab from services config",
+			toolName: "gitlab",
+			cfg: V2Config{
+				Services: ServicesConfig{
+					GitLab: &ServiceConfig{Command: "glab", Enabled: true},
+				},
+			},
+			want: true,
+		},
+		{
+			name:     "jira from services config",
+			toolName: "jira",
+			cfg: V2Config{
+				Services: ServicesConfig{
+					Jira: &ServiceConfig{Command: "jira", Enabled: true},
+				},
+			},
+			want: true,
+		},
+		{
+			name:     "provider found before service checked",
+			toolName: "claude",
+			cfg: V2Config{
+				Providers: ProvidersConfig{
+					Claude: &ProviderConfig{Command: "claude", Enabled: true},
+				},
+			},
+			want: true,
+		},
+		{
+			name:     "custom provider defined",
+			toolName: "my-provider",
+			cfg: V2Config{
+				Providers: ProvidersConfig{
+					Custom: map[string]ProviderConfig{
+						"my-provider": {Command: "my-cmd", Enabled: true},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name:     "gemini from legacy tools",
+			toolName: "gemini",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					Gemini: &ToolConfig{Command: "gemini", Enabled: true},
+				},
+			},
+			want: true,
+		},
+		{
+			name:     "github from legacy tools",
+			toolName: "github",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					GitHub: &ToolConfig{Command: "gh", Enabled: true},
+				},
+			},
+			want: true,
+		},
+		{
+			name:     "gitlab from legacy tools",
+			toolName: "gitlab",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					GitLab: &ToolConfig{Command: "glab", Enabled: true},
+				},
+			},
+			want: true,
+		},
+		{
+			name:     "jira from legacy tools",
+			toolName: "jira",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					Jira: &ToolConfig{Command: "jira", Enabled: true},
+				},
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.cfg.hasToolDefined(tt.toolName)
+			if got != tt.want {
+				t.Errorf("hasToolDefined(%q) = %v, want %v", tt.toolName, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestDefaultV2Config_PopulatesProviders tests that defaults include ProvidersConfig (Issue #1869)
 func TestDefaultV2Config_PopulatesProviders(t *testing.T) {
 	cfg := DefaultV2Config("test")
@@ -1941,5 +2328,324 @@ func TestDefaultV2Config_PopulatesProviders(t *testing.T) {
 	// Should match Tools defaults
 	if cfg.Providers.Default != cfg.Tools.Default {
 		t.Errorf("Providers.Default (%q) should match Tools.Default (%q)", cfg.Providers.Default, cfg.Tools.Default)
+	}
+}
+
+func TestHasToolDefinedCustomTool(t *testing.T) {
+	cfg := V2Config{
+		Tools: ToolsConfig{
+			Custom: map[string]ToolConfig{
+				"my-custom": {Command: "my-custom --yolo", Enabled: true},
+			},
+		},
+	}
+
+	if !cfg.hasToolDefined("my-custom") {
+		t.Error("hasToolDefined should return true for custom tool in Tools.Custom")
+	}
+	if cfg.hasToolDefined("not-exists") {
+		t.Error("hasToolDefined should return false for undefined custom tool")
+	}
+}
+
+func TestHasToolDefinedLegacyFallbacks(t *testing.T) {
+	tests := []struct {
+		name     string
+		toolName string
+		cfg      V2Config
+		want     bool
+	}{
+		{
+			name:     "legacy claude",
+			toolName: "claude",
+			cfg:      V2Config{Tools: ToolsConfig{Claude: &ToolConfig{Enabled: true}}},
+			want:     true,
+		},
+		{
+			name:     "legacy cursor",
+			toolName: "cursor",
+			cfg:      V2Config{Tools: ToolsConfig{Cursor: &ToolConfig{Enabled: true}}},
+			want:     true,
+		},
+		{
+			name:     "legacy codex",
+			toolName: "codex",
+			cfg:      V2Config{Tools: ToolsConfig{Codex: &ToolConfig{Enabled: true}}},
+			want:     true,
+		},
+		{
+			name:     "legacy github",
+			toolName: "github",
+			cfg:      V2Config{Tools: ToolsConfig{GitHub: &ToolConfig{Enabled: true}}},
+			want:     true,
+		},
+		{
+			name:     "legacy gitlab",
+			toolName: "gitlab",
+			cfg:      V2Config{Tools: ToolsConfig{GitLab: &ToolConfig{Enabled: true}}},
+			want:     true,
+		},
+		{
+			name:     "legacy jira",
+			toolName: "jira",
+			cfg:      V2Config{Tools: ToolsConfig{Jira: &ToolConfig{Enabled: true}}},
+			want:     true,
+		},
+		{
+			name:     "nil custom map",
+			toolName: "custom-x",
+			cfg:      V2Config{},
+			want:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.cfg.hasToolDefined(tt.toolName)
+			if got != tt.want {
+				t.Errorf("hasToolDefined(%q) = %v, want %v", tt.toolName, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestListProvidersCustomProviders(t *testing.T) {
+	cfg := V2Config{
+		Providers: ProvidersConfig{
+			Claude: &ProviderConfig{Enabled: true, Command: "claude"},
+			Custom: map[string]ProviderConfig{
+				"my-llm": {Enabled: true, Command: "my-llm"},
+			},
+		},
+	}
+
+	providers := cfg.ListProviders()
+
+	found := make(map[string]bool)
+	for _, p := range providers {
+		found[p] = true
+	}
+
+	if !found["claude"] {
+		t.Error("expected claude in providers list")
+	}
+	if !found["my-llm"] {
+		t.Error("expected my-llm custom provider in providers list")
+	}
+}
+
+func TestListProvidersDisabledCustom(t *testing.T) {
+	cfg := V2Config{
+		Providers: ProvidersConfig{
+			Custom: map[string]ProviderConfig{
+				"disabled-llm": {Enabled: false, Command: "disabled"},
+			},
+		},
+	}
+
+	providers := cfg.ListProviders()
+	for _, p := range providers {
+		if p == "disabled-llm" {
+			t.Error("disabled custom provider should not be listed")
+		}
+	}
+}
+
+func TestV2ConfigSaveErrorPath(t *testing.T) {
+	cfg := DefaultV2Config("test")
+
+	// Try to save to a path where the parent can't be created
+	err := cfg.Save("/dev/null/impossible/config.toml")
+	if err == nil {
+		t.Error("Save should fail for impossible path")
+	}
+}
+
+func TestValidatePerformancePollTooLow(t *testing.T) {
+	cfg := DefaultV2Config("test")
+	cfg.Performance.PollIntervalAgents = 100 // Below 500ms minimum
+
+	err := cfg.Validate()
+	if err != ErrPollIntervalTooLow {
+		t.Errorf("expected ErrPollIntervalTooLow, got %v", err)
+	}
+}
+
+func TestValidatePerformanceAdaptiveTooLow(t *testing.T) {
+	cfg := DefaultV2Config("test")
+	cfg.Performance.AdaptiveFastInterval = 200 // Below 500ms minimum
+
+	err := cfg.Validate()
+	if err != ErrPollIntervalTooLow {
+		t.Errorf("expected ErrPollIntervalTooLow, got %v", err)
+	}
+}
+
+func TestValidatePerformanceCacheTTLOutOfRange(t *testing.T) {
+	cfg := DefaultV2Config("test")
+	cfg.Performance.CacheTTLTmux = 50 // Below 100ms minimum
+
+	err := cfg.Validate()
+	if err != ErrCacheTTLRange {
+		t.Errorf("expected ErrCacheTTLRange, got %v", err)
+	}
+
+	// Also test above max
+	cfg2 := DefaultV2Config("test")
+	cfg2.Performance.CacheTTLCommands = 70000 // Above 60000ms max
+
+	err = cfg2.Validate()
+	if err != ErrCacheTTLRange {
+		t.Errorf("expected ErrCacheTTLRange for high TTL, got %v", err)
+	}
+}
+
+func TestValidateUserNickname(t *testing.T) {
+	cfg := DefaultV2Config("test")
+	cfg.User.Nickname = "no-at-prefix"
+
+	err := cfg.Validate()
+	if err != ErrNicknameMissingPrefix {
+		t.Errorf("expected ErrNicknameMissingPrefix, got %v", err)
+	}
+}
+
+func TestGetProviderCustomProvider(t *testing.T) {
+	cfg := V2Config{
+		Providers: ProvidersConfig{
+			Custom: map[string]ProviderConfig{
+				"custom-llm": {Enabled: true, Command: "custom-llm --run"},
+			},
+		},
+	}
+
+	p := cfg.GetProvider("custom-llm")
+	if p == nil {
+		t.Fatal("expected custom provider to be returned")
+	}
+	if p.Command != "custom-llm --run" {
+		t.Errorf("Command = %q, want %q", p.Command, "custom-llm --run")
+	}
+
+	// Non-existent custom should return nil
+	if cfg.GetProvider("nope") != nil {
+		t.Error("expected nil for undefined custom provider")
+	}
+}
+
+func TestGetProviderLegacyFallbacks(t *testing.T) {
+	// Only legacy Tools config set (no Providers)
+	cfg := V2Config{
+		Tools: ToolsConfig{
+			Claude: &ToolConfig{Command: "claude --legacy", Enabled: true},
+			Gemini: &ToolConfig{Command: "gemini --legacy", Enabled: true},
+			Cursor: &ToolConfig{Command: "cursor --legacy", Enabled: true},
+			Codex:  &ToolConfig{Command: "codex --legacy", Enabled: true},
+		},
+	}
+
+	for _, name := range []string{"claude", "gemini", "cursor", "codex"} {
+		p := cfg.GetProvider(name)
+		if p == nil {
+			t.Errorf("GetProvider(%q) should fall back to legacy Tools", name)
+			continue
+		}
+		if !strings.Contains(p.Command, "--legacy") {
+			t.Errorf("GetProvider(%q).Command = %q, expected legacy fallback", name, p.Command)
+		}
+	}
+}
+
+func TestGetProviderNewProviders(t *testing.T) {
+	cfg := V2Config{
+		Providers: ProvidersConfig{
+			OpenCode: &ProviderConfig{Command: "opencode", Enabled: true},
+			OpenClaw: &ProviderConfig{Command: "openclaw", Enabled: true},
+			Aider:    &ProviderConfig{Command: "aider", Enabled: true},
+		},
+	}
+
+	for _, name := range []string{"opencode", "openclaw", "aider"} {
+		p := cfg.GetProvider(name)
+		if p == nil {
+			t.Errorf("GetProvider(%q) should return provider", name)
+		}
+	}
+}
+
+func TestGetServiceLegacyFallback(t *testing.T) {
+	cfg := V2Config{
+		Tools: ToolsConfig{
+			GitHub: &ToolConfig{Command: "gh", Enabled: true},
+			GitLab: &ToolConfig{Command: "glab", Enabled: true},
+			Jira:   &ToolConfig{Command: "jira", Enabled: true},
+		},
+	}
+
+	for _, name := range []string{"github", "gitlab", "jira"} {
+		s := cfg.GetService(name)
+		if s == nil {
+			t.Errorf("GetService(%q) should fall back to legacy Tools", name)
+		}
+	}
+
+	// Undefined service
+	if cfg.GetService("slack") != nil {
+		t.Error("GetService(slack) should return nil")
+	}
+}
+
+func TestListServicesLegacyFallback(t *testing.T) {
+	cfg := V2Config{
+		Tools: ToolsConfig{
+			GitHub: &ToolConfig{Command: "gh", Enabled: true},
+		},
+	}
+
+	services := cfg.ListServices()
+	found := false
+	for _, s := range services {
+		if s == "github" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected github in legacy services list")
+	}
+}
+
+func TestListServicesNewConfig(t *testing.T) {
+	cfg := V2Config{
+		Services: ServicesConfig{
+			GitHub: &ServiceConfig{Command: "gh", Enabled: true},
+			GitLab: &ServiceConfig{Command: "glab", Enabled: true},
+		},
+	}
+
+	services := cfg.ListServices()
+	if len(services) != 2 {
+		t.Errorf("expected 2 services, got %d", len(services))
+	}
+}
+
+func TestListServicesDedup(t *testing.T) {
+	cfg := V2Config{
+		Services: ServicesConfig{
+			GitHub: &ServiceConfig{Command: "gh", Enabled: true},
+		},
+		Tools: ToolsConfig{
+			GitHub: &ToolConfig{Command: "gh", Enabled: true},
+		},
+	}
+
+	services := cfg.ListServices()
+	count := 0
+	for _, s := range services {
+		if s == "github" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected github once (deduped), got %d", count)
 	}
 }
