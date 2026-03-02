@@ -8,6 +8,7 @@ import { Box, Text, useInput, useStdout } from 'ink';
 import { useChannelHistory, useUnread } from '../../hooks';
 import { useFocus } from '../../navigation/FocusContext';
 import { ChatMessage } from '../ChatMessage';
+import { HeaderBar } from '../HeaderBar';
 import { Footer } from '../Footer';
 import type { Channel } from '../../types';
 
@@ -189,13 +190,18 @@ export function ChannelHistoryView({
   return (
     // #1425 fix: Use flexGrow instead of height="100%" to prevent layout overflow
     <Box flexDirection="column" width="100%" flexGrow={1} overflow="hidden">
-      {/* Header section - #1461 fix: Removed duplicate hints (shown in footer) */}
-      <Box flexDirection="column" height={2} marginBottom={1}>
-        <Box>
-          <Text bold color="cyan">#{channel.name}</Text>
-          <Text dimColor> - {channel.members.length} members</Text>
+      {/* #1890: HeaderBar with member count */}
+      <HeaderBar
+        title={`#${channel.name}`}
+        subtitle={`${String(channel.members.length)} members`}
+        loading={loading}
+        color="cyan"
+      />
+      {channel.description && (
+        <Box paddingX={1} marginBottom={1}>
+          <Text dimColor wrap="truncate">{channel.description}</Text>
         </Box>
-      </Box>
+      )}
 
       {/* Message area - dynamic height adjusts as input expands */}
       <Box

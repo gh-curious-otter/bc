@@ -13,7 +13,9 @@ import { useChannelsWithUnread, useDisableInput, useListNavigation } from '../ho
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { ErrorDisplay } from '../components/ErrorDisplay';
+import { HeaderBar } from '../components/HeaderBar';
 import { Footer } from '../components/Footer';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 import { ChannelRow, ChannelHistoryView } from '../components/channels';
 import type { Channel } from '../types';
 
@@ -64,7 +66,8 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
         setViewMode('history');
       }
     },
-  }), [channelList.length, setFocus]);
+    r: () => { void refresh(); },
+  }), [channelList.length, setFocus, refresh]);
 
   // #1737: Use useListNavigation for keyboard handling
   const {
@@ -89,13 +92,8 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
     }
   }, [viewMode, selectedChannel, setBreadcrumbs, clearBreadcrumbs, setFocus]);
 
-  if (channelsLoading) {
-    return (
-      <Box flexDirection="column">
-        <Text bold>Channels</Text>
-        <Text dimColor>Loading channels...</Text>
-      </Box>
-    );
+  if (channelsLoading && channelList.length === 0) {
+    return <LoadingIndicator message="Loading channels..." />;
   }
 
   if (channelsError) {
@@ -116,27 +114,49 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
     );
   }
 
-  // #1483 fix: Remove width="100%" to avoid layout overflow at 80 columns
-  // Ink's layout calculates width incorrectly when width="100%" + padding + border
-  // Let flexbox handle width naturally through flexGrow
-  // #1461 fix: Removed inline hints - global footer shows view-specific hints
+  // #1890: Redesigned with HeaderBar, table layout, Footer
   return (
-    <Box flexDirection="column" flexGrow={1} overflow="hidden">
-      <Text bold>Channels</Text>
-      <Box marginTop={1} flexDirection="column" flexGrow={1} borderStyle="single" borderColor="gray" paddingX={1}>
-        {channels?.map((channel, index) => (
-          <ChannelRow
-            key={channel.name}
-            channel={channel}
-            selected={index === selectedIndex}
-            unreadCount={channel.unread}
-          />
-        ))}
-        {(!channels || channels.length === 0) && (
-          <Box flexDirection="column">
+    <Box flexDirection="column" width="100%" overflow="hidden">
+      <HeaderBar
+        title="Channels"
+        count={channelList.length}
+        loading={channelsLoading}
+        color="cyan"
+      />
+
+      {/* Channel table */}
+      <Box flexDirection="column" marginBottom={1}>
+        {/* Column headers */}
+        <Box paddingX={1}>
+          <Box width={24}>
+            <Text bold dimColor>CHANNEL</Text>
+          </Box>
+          <Box width={12}>
+            <Text bold dimColor>UNREAD</Text>
+          </Box>
+          <Box width={10}>
+            <Text bold dimColor>MEMBERS</Text>
+          </Box>
+          <Box flexGrow={1}>
+            <Text bold dimColor>DESCRIPTION</Text>
+          </Box>
+        </Box>
+
+        {/* Channel rows */}
+        {channelList.length === 0 ? (
+          <Box paddingX={1} marginTop={1} flexDirection="column">
             <Text dimColor>No channels yet.</Text>
             <Text dimColor>Create one with: bc channel create &lt;name&gt;</Text>
           </Box>
+        ) : (
+          channelList.map((channel, index) => (
+            <ChannelRow
+              key={channel.name}
+              channel={channel}
+              selected={index === selectedIndex}
+              unreadCount={channel.unread}
+            />
+          ))
         )}
       </Box>
 
@@ -146,6 +166,7 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
         { key: 'g/G', label: 'top/bottom' },
         { key: 'Enter', label: 'open' },
         { key: 'm', label: 'compose' },
+        { key: 'r', label: 'refresh' },
       ]} />
     </Box>
   );
