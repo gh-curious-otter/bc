@@ -14,6 +14,7 @@ import (
 
 	"github.com/rpuneet/bc/config"
 	"github.com/rpuneet/bc/pkg/tmux"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 func TestMain(m *testing.M) {
@@ -3546,5 +3547,60 @@ func TestFollowOutput_AgentNotFound(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "not found") {
 		t.Errorf("expected 'not found' error, got %q", err.Error())
+	}
+}
+
+func TestGetAgentCommandFromConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		tool    string
+		cfg     *workspace.V2Config
+		wantCmd string
+		wantOk  bool
+	}{
+		{
+			name: "workspace config takes precedence",
+			tool: "claude",
+			cfg: &workspace.V2Config{
+				Providers: workspace.ProvidersConfig{
+					Claude: &workspace.ProviderConfig{Command: "claude --workspace", Enabled: true},
+				},
+			},
+			wantCmd: "claude --workspace",
+			wantOk:  true,
+		},
+		{
+			name:    "falls back to global config",
+			tool:    "claude",
+			cfg:     &workspace.V2Config{},
+			wantCmd: "claude --dangerously-skip-permissions",
+			wantOk:  true,
+		},
+		{
+			name:    "nil workspace config uses global",
+			tool:    "claude",
+			cfg:     nil,
+			wantCmd: "claude --dangerously-skip-permissions",
+			wantOk:  true,
+		},
+		{
+			name:    "unknown tool returns false",
+			tool:    "nonexistent",
+			cfg:     nil,
+			wantCmd: "",
+			wantOk:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd, ok := GetAgentCommandFromConfig(tt.tool, tt.cfg)
+			if ok != tt.wantOk {
+				t.Errorf("GetAgentCommandFromConfig() ok = %v, want %v", ok, tt.wantOk)
+			}
+			if cmd != tt.wantCmd {
+				t.Errorf("GetAgentCommandFromConfig() cmd = %q, want %q", cmd, tt.wantCmd)
+			}
+		})
 	}
 }

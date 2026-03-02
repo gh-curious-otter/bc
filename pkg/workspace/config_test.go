@@ -1764,3 +1764,182 @@ func TestGetDefaultProvider(t *testing.T) {
 		})
 	}
 }
+
+// TestListProviders tests the ListProviders method (Issue #1869)
+func TestListProviders(t *testing.T) {
+	tests := []struct { //nolint:govet // test struct alignment not critical
+		name string
+		cfg  V2Config
+		want []string
+	}{
+		{
+			name: "providers from new config",
+			cfg: V2Config{
+				Providers: ProvidersConfig{
+					Claude: &ProviderConfig{Command: "claude", Enabled: true},
+					Gemini: &ProviderConfig{Command: "gemini", Enabled: true},
+					Codex:  &ProviderConfig{Command: "codex", Enabled: false},
+				},
+			},
+			want: []string{"claude", "gemini"},
+		},
+		{
+			name: "fallback to legacy tools",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					Claude: &ToolConfig{Command: "claude", Enabled: true},
+					Cursor: &ToolConfig{Command: "cursor", Enabled: true},
+				},
+			},
+			want: []string{"claude", "cursor"},
+		},
+		{
+			name: "new config takes precedence, no duplicates",
+			cfg: V2Config{
+				Providers: ProvidersConfig{
+					Claude: &ProviderConfig{Command: "claude --new", Enabled: true},
+				},
+				Tools: ToolsConfig{
+					Claude: &ToolConfig{Command: "claude --old", Enabled: true},
+					Gemini: &ToolConfig{Command: "gemini", Enabled: true},
+				},
+			},
+			want: []string{"claude", "gemini"},
+		},
+		{
+			name: "empty config returns nil",
+			cfg:  V2Config{},
+			want: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.cfg.ListProviders()
+			if len(got) != len(tt.want) {
+				t.Fatalf("ListProviders() returned %d items %v, want %d items %v", len(got), got, len(tt.want), tt.want)
+			}
+			for _, w := range tt.want {
+				found := false
+				for _, g := range got {
+					if g == w {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("ListProviders() missing %q, got %v", w, got)
+				}
+			}
+		})
+	}
+}
+
+// TestListServices tests the ListServices method (Issue #1869)
+func TestListServices(t *testing.T) {
+	tests := []struct { //nolint:govet // test struct alignment not critical
+		name string
+		cfg  V2Config
+		want []string
+	}{
+		{
+			name: "services from new config",
+			cfg: V2Config{
+				Services: ServicesConfig{
+					GitHub: &ServiceConfig{Command: "gh", Enabled: true},
+					Jira:   &ServiceConfig{Command: "jira", Enabled: false},
+				},
+			},
+			want: []string{"github"},
+		},
+		{
+			name: "fallback to legacy tools",
+			cfg: V2Config{
+				Tools: ToolsConfig{
+					GitHub: &ToolConfig{Command: "gh", Enabled: true},
+					GitLab: &ToolConfig{Command: "glab", Enabled: true},
+				},
+			},
+			want: []string{"github", "gitlab"},
+		},
+		{
+			name: "no duplicates when both defined",
+			cfg: V2Config{
+				Services: ServicesConfig{
+					GitHub: &ServiceConfig{Command: "gh", Enabled: true},
+				},
+				Tools: ToolsConfig{
+					GitHub: &ToolConfig{Command: "gh-old", Enabled: true},
+					GitLab: &ToolConfig{Command: "glab", Enabled: true},
+				},
+			},
+			want: []string{"github", "gitlab"},
+		},
+		{
+			name: "empty config returns nil",
+			cfg:  V2Config{},
+			want: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.cfg.ListServices()
+			if len(got) != len(tt.want) {
+				t.Fatalf("ListServices() returned %d items %v, want %d items %v", len(got), got, len(tt.want), tt.want)
+			}
+			for _, w := range tt.want {
+				found := false
+				for _, g := range got {
+					if g == w {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("ListServices() missing %q, got %v", w, got)
+				}
+			}
+		})
+	}
+}
+
+// TestHasTool_ChecksProviders tests that hasToolDefined checks providers first (Issue #1869)
+func TestHasTool_ChecksProviders(t *testing.T) {
+	cfg := V2Config{
+		Providers: ProvidersConfig{
+			OpenCode: &ProviderConfig{Command: "crush", Enabled: true},
+		},
+	}
+
+	// opencode is only in Providers, not in legacy Tools
+	if !cfg.hasToolDefined("opencode") {
+		t.Error("hasToolDefined('opencode') should return true when defined in ProvidersConfig")
+	}
+
+	// unknown should return false
+	if cfg.hasToolDefined("nonexistent") {
+		t.Error("hasToolDefined('nonexistent') should return false")
+	}
+}
+
+// TestDefaultV2Config_PopulatesProviders tests that defaults include ProvidersConfig (Issue #1869)
+func TestDefaultV2Config_PopulatesProviders(t *testing.T) {
+	cfg := DefaultV2Config("test")
+
+	// ProvidersConfig should have defaults
+	if cfg.Providers.Default == "" {
+		t.Error("DefaultV2Config should set Providers.Default")
+	}
+	if cfg.Providers.Claude == nil {
+		t.Error("DefaultV2Config should set Providers.Claude")
+	}
+	if cfg.Providers.Gemini == nil {
+		t.Error("DefaultV2Config should set Providers.Gemini")
+	}
+
+	// Should match Tools defaults
+	if cfg.Providers.Default != cfg.Tools.Default {
+		t.Errorf("Providers.Default (%q) should match Tools.Default (%q)", cfg.Providers.Default, cfg.Tools.Default)
+	}
+}

@@ -25,7 +25,60 @@ path = ".bc/worktrees"
 auto_cleanup = true
 
 # =============================================================================
-# AI Tools Configuration
+# AI Providers (preferred — use this for new configs)
+# =============================================================================
+[providers]
+# Default provider for new agents
+default = "claude"
+
+[providers.claude]
+command = "claude --dangerously-skip-permissions"
+enabled = true
+
+[providers.gemini]
+command = "gemini --yolo"
+enabled = true
+
+[providers.cursor]
+command = "cursor-agent --force --print"
+enabled = false
+
+[providers.codex]
+command = "codex --full-auto"
+enabled = false
+
+[providers.opencode]
+command = "crush"
+enabled = false
+
+[providers.openclaw]
+command = "openclaw --auto"
+enabled = false
+
+[providers.aider]
+command = "aider --yes"
+enabled = false
+
+# =============================================================================
+# External Services
+# =============================================================================
+[services]
+
+[services.github]
+command = "gh"
+enabled = false
+
+[services.gitlab]
+command = "glab"
+enabled = false
+
+[services.jira]
+command = "jira"
+enabled = false
+
+# =============================================================================
+# AI Tools Configuration (DEPRECATED — use [providers] and [services] above)
+# Kept for backward compatibility with existing configs
 # =============================================================================
 [tools]
 # Default tool to use when spawning agents (must be defined below)

@@ -223,6 +223,17 @@ func DefaultV2Config(name string) V2Config {
 			Path:        ".bc/worktrees",
 			AutoCleanup: true,
 		},
+		Providers: ProvidersConfig{
+			Default: "gemini",
+			Claude: &ProviderConfig{
+				Command: "claude --dangerously-skip-permissions",
+				Enabled: true,
+			},
+			Gemini: &ProviderConfig{
+				Command: "gemini --yolo",
+				Enabled: true,
+			},
+		},
 		Tools: ToolsConfig{
 			Default: "gemini",
 			Claude: &ToolConfig{
@@ -661,6 +672,98 @@ func (c *V2Config) HasProviderDefined(name string) bool {
 // HasServiceDefined checks if an external service is configured.
 func (c *V2Config) HasServiceDefined(name string) bool {
 	return c.GetService(name) != nil
+}
+
+// ListProviders returns the names of all enabled AI providers.
+// Checks ProvidersConfig first, then falls back to legacy ToolsConfig.
+func (c *V2Config) ListProviders() []string {
+	seen := make(map[string]bool)
+	var names []string
+
+	// Check new ProvidersConfig
+	providerFields := []struct {
+		cfg  *ProviderConfig
+		name string
+	}{
+		{c.Providers.Claude, "claude"},
+		{c.Providers.Gemini, "gemini"},
+		{c.Providers.Cursor, "cursor"},
+		{c.Providers.Codex, "codex"},
+		{c.Providers.OpenCode, "opencode"},
+		{c.Providers.OpenClaw, "openclaw"},
+		{c.Providers.Aider, "aider"},
+	}
+	for _, pf := range providerFields {
+		if pf.cfg != nil && pf.cfg.Enabled {
+			names = append(names, pf.name)
+			seen[pf.name] = true
+		}
+	}
+	for name, cfg := range c.Providers.Custom {
+		if cfg.Enabled && !seen[name] {
+			names = append(names, name)
+			seen[name] = true
+		}
+	}
+
+	// Fall back to legacy ToolsConfig for providers not already found
+	legacyProviders := []struct {
+		cfg  *ToolConfig
+		name string
+	}{
+		{c.Tools.Claude, "claude"},
+		{c.Tools.Gemini, "gemini"},
+		{c.Tools.Cursor, "cursor"},
+		{c.Tools.Codex, "codex"},
+	}
+	for _, lp := range legacyProviders {
+		if lp.cfg != nil && lp.cfg.Enabled && !seen[lp.name] {
+			names = append(names, lp.name)
+			seen[lp.name] = true
+		}
+	}
+
+	return names
+}
+
+// ListServices returns the names of all enabled external services.
+// Checks ServicesConfig first, then falls back to legacy ToolsConfig.
+func (c *V2Config) ListServices() []string {
+	seen := make(map[string]bool)
+	var names []string
+
+	// Check new ServicesConfig
+	serviceFields := []struct {
+		cfg  *ServiceConfig
+		name string
+	}{
+		{c.Services.GitHub, "github"},
+		{c.Services.GitLab, "gitlab"},
+		{c.Services.Jira, "jira"},
+	}
+	for _, sf := range serviceFields {
+		if sf.cfg != nil && sf.cfg.Enabled {
+			names = append(names, sf.name)
+			seen[sf.name] = true
+		}
+	}
+
+	// Fall back to legacy ToolsConfig for services not already found
+	legacyServices := []struct {
+		cfg  *ToolConfig
+		name string
+	}{
+		{c.Tools.GitHub, "github"},
+		{c.Tools.GitLab, "gitlab"},
+		{c.Tools.Jira, "jira"},
+	}
+	for _, ls := range legacyServices {
+		if ls.cfg != nil && ls.cfg.Enabled && !seen[ls.name] {
+			names = append(names, ls.name)
+		}
+	}
+
+	return names
 }
 
 // GetDefaultTool returns the default tool configuration.
