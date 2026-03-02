@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"text/tabwriter"
 	"time"
 
@@ -253,6 +255,101 @@ func getCostStore() (*cost.Store, error) {
 	return store, nil
 }
 
+// ccusageRunner runs ccusage and returns raw JSON output. Overridable for testing.
+var ccusageRunner = defaultCCUsageRunner
+
+func defaultCCUsageRunner(ctx context.Context) ([]byte, error) {
+	npxPath, err := exec.LookPath("npx")
+	if err != nil {
+		return nil, err
+	}
+	ccCmd := exec.CommandContext(ctx, npxPath, "ccusage@latest", "--json") //nolint:gosec // args are static
+	ccCmd.Stderr = os.Stderr
+	return ccCmd.Output()
+}
+
+// fetchCCUsageDailyReport calls ccusage and returns the daily report, or nil if unavailable.
+func fetchCCUsageDailyReport(ctx context.Context) *ccusageDailyReport {
+	output, err := ccusageRunner(ctx)
+	if err != nil {
+		return nil
+	}
+	var report ccusageDailyReport
+	if unmarshalErr := json.Unmarshal(output, &report); unmarshalErr != nil {
+		return nil
+	}
+	return &report
+}
+
+// costShowResponse is the enriched JSON response for 'bc cost show --json'.
+type costShowResponse struct {
+	ByAgent            map[string]float64 `json:"by_agent"`
+	ByTeam             map[string]float64 `json:"by_team"`
+	ByModel            map[string]float64 `json:"by_model"`
+	CacheHitRate       *float64           `json:"cache_hit_rate,omitempty"`
+	BurnRate           *float64           `json:"burn_rate,omitempty"`
+	ProjectedTotal     *float64           `json:"projected_total,omitempty"`
+	BillingWindowSpent *float64           `json:"billing_window_spent,omitempty"`
+	TotalInputTokens   int64              `json:"total_input_tokens"`
+	TotalOutputTokens  int64              `json:"total_output_tokens"`
+	TotalCost          float64            `json:"total_cost"`
+}
+
+// enrichWithCCUsage merges ccusage daily report data into the cost show response.
+func enrichWithCCUsage(resp *costShowResponse, report *ccusageDailyReport) {
+	if report == nil {
+		return
+	}
+
+	totals := report.Totals
+
+	// Override totals from ccusage if internal DB had no data
+	if resp.TotalCost == 0 && totals.TotalCost > 0 {
+		resp.TotalCost = totals.TotalCost
+		resp.TotalInputTokens = totals.InputTokens
+		resp.TotalOutputTokens = totals.OutputTokens
+	}
+
+	// cache_hit_rate: cacheRead / (cacheRead + cacheCreation)
+	cacheTotal := totals.CacheReadTokens + totals.CacheCreationTokens
+	if cacheTotal > 0 {
+		rate := float64(totals.CacheReadTokens) / float64(cacheTotal)
+		resp.CacheHitRate = &rate
+	}
+
+	// burn_rate: average daily cost from ccusage daily entries
+	if len(report.Daily) > 0 {
+		burnRate := totals.TotalCost / float64(len(report.Daily))
+		resp.BurnRate = &burnRate
+
+		// projected_total: burn_rate * days_in_current_month
+		now := time.Now()
+		daysInMonth := float64(time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day())
+		projected := burnRate * daysInMonth
+		resp.ProjectedTotal = &projected
+	}
+
+	// billing_window_spent: total cost from ccusage
+	if totals.TotalCost > 0 {
+		spent := totals.TotalCost
+		resp.BillingWindowSpent = &spent
+	}
+
+	// Enrich by_model from ccusage daily modelsUsed (frequency count, no cost attribution)
+	if len(resp.ByModel) == 0 {
+		modelSeen := make(map[string]bool)
+		for _, d := range report.Daily {
+			for _, m := range d.ModelsUsed {
+				modelSeen[m] = true
+			}
+		}
+		// Add models with zero cost — signals to TUI which models are in use
+		for m := range modelSeen {
+			resp.ByModel[m] = 0
+		}
+	}
+}
+
 func runCostShow(cmd *cobra.Command, args []string) error {
 	// Validate limit parameter
 	if cmd.Flags().Changed("limit") && costLimitFlag <= 0 {
@@ -317,14 +414,7 @@ func runCostShow(cmd *cobra.Command, args []string) error {
 			byModel[r.Model] += r.CostUSD
 		}
 
-		response := struct {
-			ByAgent           map[string]float64 `json:"by_agent"`
-			ByTeam            map[string]float64 `json:"by_team"`
-			ByModel           map[string]float64 `json:"by_model"`
-			TotalInputTokens  int64              `json:"total_input_tokens"`
-			TotalOutputTokens int64              `json:"total_output_tokens"`
-			TotalCost         float64            `json:"total_cost"`
-		}{
+		response := &costShowResponse{
 			ByAgent:           byAgent,
 			ByTeam:            byTeam,
 			ByModel:           byModel,
@@ -332,6 +422,10 @@ func runCostShow(cmd *cobra.Command, args []string) error {
 			TotalOutputTokens: int64(totalOutput),
 			TotalCost:         totalCost,
 		}
+
+		// Enrich with ccusage data (graceful — nil if unavailable)
+		ccReport := fetchCCUsageDailyReport(cmd.Context())
+		enrichWithCCUsage(response, ccReport)
 
 		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")

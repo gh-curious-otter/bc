@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -1767,5 +1770,479 @@ func TestCostSummaryModelEmpty(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "No cost records found") {
 		t.Errorf("expected no records message, got: %s", stdout)
+	}
+}
+
+// --- ccusage enrichment tests ---
+
+func TestEnrichWithCCUsage(t *testing.T) {
+	resp := &costShowResponse{
+		ByAgent:           make(map[string]float64),
+		ByTeam:            make(map[string]float64),
+		ByModel:           make(map[string]float64),
+		TotalInputTokens:  0,
+		TotalOutputTokens: 0,
+		TotalCost:         0,
+	}
+
+	report := &ccusageDailyReport{
+		Daily: []ccusageDailyEntry{
+			{
+				Date:                "2026-03-01",
+				ModelsUsed:          []string{"claude-opus-4-20250514", "claude-sonnet-4-20250514"},
+				InputTokens:         1000,
+				OutputTokens:        5000,
+				CacheCreationTokens: 200,
+				CacheReadTokens:     800,
+				TotalTokens:         7000,
+				TotalCost:           3.50,
+			},
+			{
+				Date:                "2026-03-02",
+				ModelsUsed:          []string{"claude-opus-4-20250514"},
+				InputTokens:         500,
+				OutputTokens:        2500,
+				CacheCreationTokens: 100,
+				CacheReadTokens:     400,
+				TotalTokens:         3500,
+				TotalCost:           1.75,
+			},
+		},
+		Totals: ccusageTotals{
+			InputTokens:         1500,
+			OutputTokens:        7500,
+			CacheCreationTokens: 300,
+			CacheReadTokens:     1200,
+			TotalTokens:         10500,
+			TotalCost:           5.25,
+		},
+	}
+
+	enrichWithCCUsage(resp, report)
+
+	// Totals should be overridden from ccusage (internal DB was empty)
+	if resp.TotalCost != 5.25 {
+		t.Errorf("TotalCost = %f, want 5.25", resp.TotalCost)
+	}
+	if resp.TotalInputTokens != 1500 {
+		t.Errorf("TotalInputTokens = %d, want 1500", resp.TotalInputTokens)
+	}
+	if resp.TotalOutputTokens != 7500 {
+		t.Errorf("TotalOutputTokens = %d, want 7500", resp.TotalOutputTokens)
+	}
+
+	// cache_hit_rate = 1200 / (1200 + 300) = 0.8
+	if resp.CacheHitRate == nil {
+		t.Fatal("CacheHitRate is nil")
+	}
+	if *resp.CacheHitRate != 0.8 {
+		t.Errorf("CacheHitRate = %f, want 0.8", *resp.CacheHitRate)
+	}
+
+	// burn_rate = 5.25 / 2 = 2.625
+	if resp.BurnRate == nil {
+		t.Fatal("BurnRate is nil")
+	}
+	if *resp.BurnRate != 2.625 {
+		t.Errorf("BurnRate = %f, want 2.625", *resp.BurnRate)
+	}
+
+	// projected_total = burn_rate * days_in_current_month
+	if resp.ProjectedTotal == nil {
+		t.Fatal("ProjectedTotal is nil")
+	}
+	now := time.Now()
+	daysInMonth := float64(time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day())
+	expectedProjected := 2.625 * daysInMonth
+	if *resp.ProjectedTotal != expectedProjected {
+		t.Errorf("ProjectedTotal = %f, want %f", *resp.ProjectedTotal, expectedProjected)
+	}
+
+	// billing_window_spent
+	if resp.BillingWindowSpent == nil {
+		t.Fatal("BillingWindowSpent is nil")
+	}
+	if *resp.BillingWindowSpent != 5.25 {
+		t.Errorf("BillingWindowSpent = %f, want 5.25", *resp.BillingWindowSpent)
+	}
+
+	// by_model should have models from ccusage (since internal DB was empty)
+	if len(resp.ByModel) != 2 {
+		t.Errorf("ByModel has %d entries, want 2", len(resp.ByModel))
+	}
+	if _, ok := resp.ByModel["claude-opus-4-20250514"]; !ok {
+		t.Error("ByModel missing claude-opus-4-20250514")
+	}
+	if _, ok := resp.ByModel["claude-sonnet-4-20250514"]; !ok {
+		t.Error("ByModel missing claude-sonnet-4-20250514")
+	}
+}
+
+func TestEnrichWithCCUsage_NilReport(t *testing.T) {
+	resp := &costShowResponse{
+		ByAgent:           make(map[string]float64),
+		ByTeam:            make(map[string]float64),
+		ByModel:           make(map[string]float64),
+		TotalInputTokens:  100,
+		TotalOutputTokens: 200,
+		TotalCost:         0.05,
+	}
+
+	enrichWithCCUsage(resp, nil)
+
+	// Nothing should change
+	if resp.TotalCost != 0.05 {
+		t.Errorf("TotalCost = %f, want 0.05", resp.TotalCost)
+	}
+	if resp.CacheHitRate != nil {
+		t.Error("CacheHitRate should be nil when report is nil")
+	}
+	if resp.BurnRate != nil {
+		t.Error("BurnRate should be nil when report is nil")
+	}
+	if resp.ProjectedTotal != nil {
+		t.Error("ProjectedTotal should be nil when report is nil")
+	}
+	if resp.BillingWindowSpent != nil {
+		t.Error("BillingWindowSpent should be nil when report is nil")
+	}
+}
+
+func TestEnrichWithCCUsage_NoCache(t *testing.T) {
+	resp := &costShowResponse{
+		ByAgent:           make(map[string]float64),
+		ByTeam:            make(map[string]float64),
+		ByModel:           make(map[string]float64),
+		TotalInputTokens:  0,
+		TotalOutputTokens: 0,
+		TotalCost:         0,
+	}
+
+	report := &ccusageDailyReport{
+		Daily: []ccusageDailyEntry{
+			{Date: "2026-03-01", TotalTokens: 1000, TotalCost: 2.00},
+		},
+		Totals: ccusageTotals{
+			InputTokens:         500,
+			OutputTokens:        500,
+			CacheCreationTokens: 0,
+			CacheReadTokens:     0,
+			TotalTokens:         1000,
+			TotalCost:           2.00,
+		},
+	}
+
+	enrichWithCCUsage(resp, report)
+
+	// cache_hit_rate should be nil when no cache tokens
+	if resp.CacheHitRate != nil {
+		t.Errorf("CacheHitRate should be nil with no cache, got %f", *resp.CacheHitRate)
+	}
+
+	// burn_rate and projected_total should still be set
+	if resp.BurnRate == nil {
+		t.Fatal("BurnRate should not be nil")
+	}
+	if *resp.BurnRate != 2.00 {
+		t.Errorf("BurnRate = %f, want 2.00", *resp.BurnRate)
+	}
+}
+
+func TestEnrichWithCCUsage_InternalDBHasData(t *testing.T) {
+	// When internal DB has data, totals should NOT be overridden
+	resp := &costShowResponse{
+		ByAgent:           map[string]float64{"eng-01": 0.05},
+		ByTeam:            make(map[string]float64),
+		ByModel:           map[string]float64{"claude-opus": 0.05},
+		TotalInputTokens:  1000,
+		TotalOutputTokens: 500,
+		TotalCost:         0.05,
+	}
+
+	report := &ccusageDailyReport{
+		Daily: []ccusageDailyEntry{
+			{Date: "2026-03-01", ModelsUsed: []string{"opus"}, TotalCost: 10.00},
+		},
+		Totals: ccusageTotals{
+			InputTokens:  5000,
+			OutputTokens: 25000,
+			TotalCost:    10.00,
+		},
+	}
+
+	enrichWithCCUsage(resp, report)
+
+	// TotalCost should NOT be overridden since internal DB had data
+	if resp.TotalCost != 0.05 {
+		t.Errorf("TotalCost = %f, want 0.05 (should not be overridden)", resp.TotalCost)
+	}
+
+	// ByModel should NOT be overridden since internal DB had data
+	if len(resp.ByModel) != 1 {
+		t.Errorf("ByModel should keep internal DB data, got %d entries", len(resp.ByModel))
+	}
+
+	// ccusage-derived fields should still be set
+	if resp.BurnRate == nil {
+		t.Fatal("BurnRate should be set even with internal DB data")
+	}
+	if resp.BillingWindowSpent == nil {
+		t.Fatal("BillingWindowSpent should be set")
+	}
+	if *resp.BillingWindowSpent != 10.00 {
+		t.Errorf("BillingWindowSpent = %f, want 10.00", *resp.BillingWindowSpent)
+	}
+}
+
+func TestEnrichWithCCUsage_EmptyDaily(t *testing.T) {
+	resp := &costShowResponse{
+		ByAgent:           make(map[string]float64),
+		ByTeam:            make(map[string]float64),
+		ByModel:           make(map[string]float64),
+		TotalInputTokens:  0,
+		TotalOutputTokens: 0,
+		TotalCost:         0,
+	}
+
+	report := &ccusageDailyReport{
+		Daily:  []ccusageDailyEntry{},
+		Totals: ccusageTotals{TotalCost: 0},
+	}
+
+	enrichWithCCUsage(resp, report)
+
+	// No burn_rate or projected_total with empty daily entries
+	if resp.BurnRate != nil {
+		t.Error("BurnRate should be nil with empty daily entries")
+	}
+	if resp.ProjectedTotal != nil {
+		t.Error("ProjectedTotal should be nil with empty daily entries")
+	}
+	if resp.BillingWindowSpent != nil {
+		t.Error("BillingWindowSpent should be nil with zero cost")
+	}
+}
+
+func TestFetchCCUsageDailyReport_MockRunner(t *testing.T) {
+	// Save and restore original runner
+	origRunner := ccusageRunner
+	defer func() { ccusageRunner = origRunner }()
+
+	t.Run("valid_response", func(t *testing.T) {
+		ccusageRunner = func(_ context.Context) ([]byte, error) {
+			return []byte(`{
+				"daily": [{"date":"2026-03-01","inputTokens":100,"outputTokens":200,"cacheCreationTokens":10,"cacheReadTokens":50,"totalTokens":360,"totalCost":1.50,"modelsUsed":["opus"]}],
+				"totals": {"inputTokens":100,"outputTokens":200,"cacheCreationTokens":10,"cacheReadTokens":50,"totalTokens":360,"totalCost":1.50}
+			}`), nil
+		}
+
+		report := fetchCCUsageDailyReport(context.Background())
+		if report == nil {
+			t.Fatal("expected non-nil report")
+		}
+		if len(report.Daily) != 1 {
+			t.Errorf("Daily entries = %d, want 1", len(report.Daily))
+		}
+		if report.Totals.TotalCost != 1.50 {
+			t.Errorf("TotalCost = %f, want 1.50", report.Totals.TotalCost)
+		}
+	})
+
+	t.Run("runner_error", func(t *testing.T) {
+		ccusageRunner = func(_ context.Context) ([]byte, error) {
+			return nil, fmt.Errorf("npx not found")
+		}
+
+		report := fetchCCUsageDailyReport(context.Background())
+		if report != nil {
+			t.Error("expected nil report when runner fails")
+		}
+	})
+
+	t.Run("invalid_json", func(t *testing.T) {
+		ccusageRunner = func(_ context.Context) ([]byte, error) {
+			return []byte("not json"), nil
+		}
+
+		report := fetchCCUsageDailyReport(context.Background())
+		if report != nil {
+			t.Error("expected nil report for invalid JSON")
+		}
+	})
+}
+
+func TestCostShowJSON_WithCCUsageEnrichment(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Mock ccusage runner
+	origRunner := ccusageRunner
+	defer func() { ccusageRunner = origRunner }()
+
+	ccusageRunner = func(_ context.Context) ([]byte, error) {
+		return []byte(`{
+			"daily": [
+				{"date":"2026-03-01","inputTokens":1000,"outputTokens":5000,"cacheCreationTokens":200,"cacheReadTokens":800,"totalTokens":7000,"totalCost":3.50,"modelsUsed":["claude-opus-4-20250514"]},
+				{"date":"2026-03-02","inputTokens":500,"outputTokens":2500,"cacheCreationTokens":100,"cacheReadTokens":400,"totalTokens":3500,"totalCost":1.75,"modelsUsed":["claude-opus-4-20250514","claude-sonnet-4-20250514"]}
+			],
+			"totals": {"inputTokens":1500,"outputTokens":7500,"cacheCreationTokens":300,"cacheReadTokens":1200,"totalTokens":10500,"totalCost":5.25}
+		}`), nil
+	}
+
+	stdout, _, err := executeIntegrationCmd("cost", "show", "--json")
+	if err != nil {
+		t.Fatalf("cost show --json failed: %v\nOutput: %s", err, stdout)
+	}
+
+	var resp costShowResponse
+	if unmarshalErr := json.Unmarshal([]byte(stdout), &resp); unmarshalErr != nil {
+		t.Fatalf("failed to unmarshal JSON: %v\nOutput: %s", unmarshalErr, stdout)
+	}
+
+	// Verify ccusage enrichment fields are present
+	if resp.CacheHitRate == nil {
+		t.Error("CacheHitRate missing from JSON output")
+	} else if *resp.CacheHitRate != 0.8 {
+		t.Errorf("CacheHitRate = %f, want 0.8", *resp.CacheHitRate)
+	}
+
+	if resp.BurnRate == nil {
+		t.Error("BurnRate missing from JSON output")
+	} else if *resp.BurnRate != 2.625 {
+		t.Errorf("BurnRate = %f, want 2.625", *resp.BurnRate)
+	}
+
+	if resp.ProjectedTotal == nil {
+		t.Error("ProjectedTotal missing from JSON output")
+	}
+
+	if resp.BillingWindowSpent == nil {
+		t.Error("BillingWindowSpent missing from JSON output")
+	} else if *resp.BillingWindowSpent != 5.25 {
+		t.Errorf("BillingWindowSpent = %f, want 5.25", *resp.BillingWindowSpent)
+	}
+
+	// Verify totals from ccusage (internal DB empty)
+	if resp.TotalCost != 5.25 {
+		t.Errorf("TotalCost = %f, want 5.25", resp.TotalCost)
+	}
+	if resp.TotalInputTokens != 1500 {
+		t.Errorf("TotalInputTokens = %d, want 1500", resp.TotalInputTokens)
+	}
+
+	// Verify by_model populated from ccusage
+	if len(resp.ByModel) != 2 {
+		t.Errorf("ByModel has %d entries, want 2", len(resp.ByModel))
+	}
+}
+
+func TestCostShowJSON_CCUsageUnavailable(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Mock ccusage runner to fail (simulates npx not installed)
+	origRunner := ccusageRunner
+	defer func() { ccusageRunner = origRunner }()
+
+	ccusageRunner = func(_ context.Context) ([]byte, error) {
+		return nil, fmt.Errorf("npx not found")
+	}
+
+	// Seed some internal DB records
+	store := cost.NewStore(wsDir)
+	if openErr := store.Open(); openErr != nil {
+		t.Fatalf("failed to open cost store: %v", openErr)
+	}
+	_, _ = store.Record("eng-01", "", "claude-opus", 1000, 500, 0.05)
+	_ = store.Close()
+
+	stdout, _, err := executeIntegrationCmd("cost", "show", "--json")
+	if err != nil {
+		t.Fatalf("cost show --json failed: %v\nOutput: %s", err, stdout)
+	}
+
+	var resp costShowResponse
+	if unmarshalErr := json.Unmarshal([]byte(stdout), &resp); unmarshalErr != nil {
+		t.Fatalf("failed to unmarshal JSON: %v\nOutput: %s", unmarshalErr, stdout)
+	}
+
+	// Should gracefully degrade — no ccusage fields
+	if resp.CacheHitRate != nil {
+		t.Error("CacheHitRate should be nil when ccusage unavailable")
+	}
+	if resp.BurnRate != nil {
+		t.Error("BurnRate should be nil when ccusage unavailable")
+	}
+	if resp.ProjectedTotal != nil {
+		t.Error("ProjectedTotal should be nil when ccusage unavailable")
+	}
+	if resp.BillingWindowSpent != nil {
+		t.Error("BillingWindowSpent should be nil when ccusage unavailable")
+	}
+
+	// Internal DB data should still be present
+	if resp.TotalCost != 0.05 {
+		t.Errorf("TotalCost = %f, want 0.05", resp.TotalCost)
+	}
+	if resp.ByAgent["eng-01"] != 0.05 {
+		t.Errorf("ByAgent[eng-01] = %f, want 0.05", resp.ByAgent["eng-01"])
+	}
+}
+
+func TestCostShowJSON_MixedDBAndCCUsage(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Mock ccusage runner
+	origRunner := ccusageRunner
+	defer func() { ccusageRunner = origRunner }()
+
+	ccusageRunner = func(_ context.Context) ([]byte, error) {
+		return []byte(`{
+			"daily": [{"date":"2026-03-01","inputTokens":5000,"outputTokens":25000,"cacheCreationTokens":500,"cacheReadTokens":4500,"totalTokens":35000,"totalCost":15.00,"modelsUsed":["opus"]}],
+			"totals": {"inputTokens":5000,"outputTokens":25000,"cacheCreationTokens":500,"cacheReadTokens":4500,"totalTokens":35000,"totalCost":15.00}
+		}`), nil
+	}
+
+	// Seed internal DB with records
+	store := cost.NewStore(wsDir)
+	if openErr := store.Open(); openErr != nil {
+		t.Fatalf("failed to open cost store: %v", openErr)
+	}
+	_, _ = store.Record("eng-01", "", "claude-opus", 1000, 500, 0.05)
+	_, _ = store.Record("eng-02", "", "claude-sonnet", 2000, 1000, 0.03)
+	_ = store.Close()
+
+	stdout, _, err := executeIntegrationCmd("cost", "show", "--json")
+	if err != nil {
+		t.Fatalf("cost show --json failed: %v\nOutput: %s", err, stdout)
+	}
+
+	var resp costShowResponse
+	if unmarshalErr := json.Unmarshal([]byte(stdout), &resp); unmarshalErr != nil {
+		t.Fatalf("failed to unmarshal JSON: %v\nOutput: %s", unmarshalErr, stdout)
+	}
+
+	// Internal DB has data — totals should NOT be overridden
+	if resp.TotalCost != 0.08 {
+		t.Errorf("TotalCost = %f, want 0.08 (from internal DB)", resp.TotalCost)
+	}
+
+	// But ccusage enrichment fields should still be present
+	if resp.CacheHitRate == nil {
+		t.Error("CacheHitRate should be present")
+	} else if *resp.CacheHitRate != 0.9 {
+		t.Errorf("CacheHitRate = %f, want 0.9", *resp.CacheHitRate)
+	}
+
+	if resp.BillingWindowSpent == nil {
+		t.Error("BillingWindowSpent should be present")
+	} else if *resp.BillingWindowSpent != 15.00 {
+		t.Errorf("BillingWindowSpent = %f, want 15.00", *resp.BillingWindowSpent)
+	}
+
+	// by_model from internal DB should be preserved (not overridden)
+	if len(resp.ByModel) != 2 {
+		t.Errorf("ByModel has %d entries, want 2 (from internal DB)", len(resp.ByModel))
 	}
 }
