@@ -43,10 +43,77 @@ type PerformanceConfig struct {
 	PollIntervalTeams      int64
 }
 
+type ProvidersAiderConfig struct {
+	Command string
+	Enabled bool
+}
+
+type ProvidersClaudeConfig struct {
+	Command string
+	Enabled bool
+}
+
+type ProvidersCodexConfig struct {
+	Command string
+	Enabled bool
+}
+
+type ProvidersConfig struct {
+	Aider    ProvidersAiderConfig
+	Claude   ProvidersClaudeConfig
+	Codex    ProvidersCodexConfig
+	Cursor   ProvidersCursorConfig
+	Default  string
+	Gemini   ProvidersGeminiConfig
+	Openclaw ProvidersOpenclawConfig
+	Opencode ProvidersOpencodeConfig
+}
+
+type ProvidersCursorConfig struct {
+	Command string
+	Enabled bool
+}
+
+type ProvidersGeminiConfig struct {
+	Command string
+	Enabled bool
+}
+
+type ProvidersOpenclawConfig struct {
+	Command string
+	Enabled bool
+}
+
+type ProvidersOpencodeConfig struct {
+	Command string
+	Enabled bool
+}
+
 type RosterConfig struct {
 	Engineers int64
 	Qa        int64
 	TechLeads int64
+}
+
+type ServicesConfig struct {
+	Github ServicesGithubConfig
+	Gitlab ServicesGitlabConfig
+	Jira   ServicesJiraConfig
+}
+
+type ServicesGithubConfig struct {
+	Command string
+	Enabled bool
+}
+
+type ServicesGitlabConfig struct {
+	Command string
+	Enabled bool
+}
+
+type ServicesJiraConfig struct {
+	Command string
+	Enabled bool
 }
 
 type TmuxConfig struct {
@@ -200,10 +267,55 @@ var (
 		PollIntervalStatus:     2000,
 		PollIntervalTeams:      10000,
 	}
+	Providers = ProvidersConfig{
+		Aider: ProvidersAiderConfig{
+			Command: "aider --yes",
+			Enabled: false,
+		},
+		Claude: ProvidersClaudeConfig{
+			Command: "claude --dangerously-skip-permissions",
+			Enabled: true,
+		},
+		Codex: ProvidersCodexConfig{
+			Command: "codex --full-auto",
+			Enabled: false,
+		},
+		Cursor: ProvidersCursorConfig{
+			Command: "cursor-agent --force --print",
+			Enabled: false,
+		},
+		Default: "claude",
+		Gemini: ProvidersGeminiConfig{
+			Command: "gemini --yolo",
+			Enabled: true,
+		},
+		Openclaw: ProvidersOpenclawConfig{
+			Command: "openclaw --auto",
+			Enabled: false,
+		},
+		Opencode: ProvidersOpencodeConfig{
+			Command: "crush",
+			Enabled: false,
+		},
+	}
 	Roster = RosterConfig{
 		Engineers: 4,
 		Qa:        2,
 		TechLeads: 2,
+	}
+	Services = ServicesConfig{
+		Github: ServicesGithubConfig{
+			Command: "gh",
+			Enabled: false,
+		},
+		Gitlab: ServicesGitlabConfig{
+			Command: "glab",
+			Enabled: false,
+		},
+		Jira: ServicesJiraConfig{
+			Command: "jira",
+			Enabled: false,
+		},
 	}
 	Tmux = TmuxConfig{
 		SessionPrefix: "bc-",
