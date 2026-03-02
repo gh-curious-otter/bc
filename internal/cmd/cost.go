@@ -197,6 +197,9 @@ func init() {
 	// Budget flags (in cost_budget.go)
 	initCostBudgetFlags()
 
+	// Usage flags (in cost_usage.go)
+	initCostUsageFlags()
+
 	// Projection flags
 	costProjectCmd.Flags().StringVar(&projectDurationFlag, "duration", "7d", "Duration to project (e.g., 1d, 7d, 30d)")
 	costProjectCmd.Flags().IntVar(&projectLookbackFlag, "lookback", 7, "Days of history to use for projection")
@@ -232,6 +235,7 @@ func init() {
 	costCmd.AddCommand(costByAgentCmd)
 	costCmd.AddCommand(costAddCmd)
 	costCmd.AddCommand(costPeekCmd)
+	costCmd.AddCommand(costUsageCmd)
 	rootCmd.AddCommand(costCmd)
 }
 

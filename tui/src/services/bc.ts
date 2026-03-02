@@ -26,6 +26,9 @@ import type {
   MemoryListResponse,
   MemorySearchResult,
   ToolInfo,
+  CostUsageDailyResponse,
+  CostUsageMonthlyResponse,
+  CostUsageSessionResponse,
 } from '../types';
 
 // ============================================================================
@@ -421,6 +424,14 @@ export async function getCostSummary(): Promise<CostSummary> {
       by_model: {},
     };
   }
+}
+
+/**
+ * Get cost usage data from ccusage integration (#1882)
+ * @param period - 'daily' | 'monthly' | 'session'
+ */
+export async function getCostUsage(period: 'daily' | 'monthly' | 'session' = 'daily'): Promise<CostUsageDailyResponse | CostUsageMonthlyResponse | CostUsageSessionResponse> {
+  return await execBcJsonCached(['cost', 'usage', '--period', period], 60000);
 }
 
 /**

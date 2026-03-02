@@ -487,6 +487,20 @@ func GetAgentCommand(toolName string) (string, bool) {
 	return "", false
 }
 
+// GetAgentCommandFromConfig returns the command for a tool name,
+// checking workspace ProvidersConfig first, then falling back to global config.
+// This enables per-workspace tool customization.
+func GetAgentCommandFromConfig(toolName string, wsCfg *workspace.V2Config) (string, bool) {
+	// Check workspace ProvidersConfig first
+	if wsCfg != nil {
+		if p := wsCfg.GetProvider(toolName); p != nil && p.Command != "" {
+			return p.Command, true
+		}
+	}
+	// Fall back to global config
+	return GetAgentCommand(toolName)
+}
+
 // ListAvailableTools returns a list of configured tool names.
 func ListAvailableTools() []string {
 	tools := make([]string, 0, len(config.Agents))

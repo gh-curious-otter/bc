@@ -109,6 +109,79 @@ export interface CostSummary {
   by_model?: Record<string, number>;
 }
 
+// Cost usage types from ccusage integration (#1882)
+export interface CostUsageDaily {
+  date: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+  totalTokens: number;
+  totalCost: number;
+  modelsUsed: string[];
+}
+
+export interface CostUsageDailyResponse {
+  daily: CostUsageDaily[];
+  totals: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheCreationTokens: number;
+    cacheReadTokens: number;
+    totalTokens: number;
+    totalCost: number;
+  };
+}
+
+export interface CostUsageMonthly {
+  month: string;
+  models: string[];
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+  totalTokens: number;
+  costUSD: number;
+}
+
+export interface CostUsageMonthlyResponse {
+  type: string;
+  data: CostUsageMonthly[];
+  summary: {
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    totalCacheCreationTokens: number;
+    totalCacheReadTokens: number;
+    totalTokens: number;
+    totalCostUSD: number;
+  };
+}
+
+export interface CostUsageSession {
+  session: string;
+  lastActivity: string;
+  models: string[];
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+  totalTokens: number;
+  costUSD: number;
+}
+
+export interface CostUsageSessionResponse {
+  type: string;
+  data: CostUsageSession[];
+  summary: {
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    totalCacheCreationTokens: number;
+    totalCacheReadTokens: number;
+    totalTokens: number;
+    totalCostUSD: number;
+  };
+}
+
 // Generic bc command result
 export interface BcResult<T> {
   data: T | null;

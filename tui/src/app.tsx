@@ -133,7 +133,7 @@ function AppContent({ themeConfig }: AppContentProps): React.ReactElement {
 
       {/* Main content area - full width, no sidebar */}
       <Box flexDirection="column" flexGrow={1} overflow="hidden">
-        <ViewErrorBoundary viewName={currentView}>
+        <ViewErrorBoundary key={currentView} viewName={currentView}>
           <ViewContent view={currentView} />
         </ViewErrorBoundary>
       </Box>
