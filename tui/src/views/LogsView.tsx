@@ -423,27 +423,17 @@ export const LogsView: React.FC<LogsViewProps> = () => {
               <Text color={isSelected ? 'cyan' : undefined}>
                 {isSelected ? '▸ ' : '  '}
               </Text>
-              <Text
-                backgroundColor={isSelected ? 'blue' : undefined}
-                color={isSelected ? 'white' : undefined}
-              >
+              <Text color={isSelected ? 'cyan' : undefined}>
                 {formatTime(log.ts).padEnd(timeWidth)}
               </Text>
-              <Text
-                backgroundColor={isSelected ? 'blue' : undefined}
-                color={isSelected ? 'white' : 'cyan'}
-              >
+              <Text color={isSelected ? 'cyan' : 'cyan'}>
                 {log.agent.slice(0, agentWidth - 1).padEnd(agentWidth)}
               </Text>
-              <Text
-                backgroundColor={isSelected ? 'blue' : undefined}
-                color={isSelected ? 'white' : severityColor}
-              >
+              <Text color={isSelected ? 'cyan' : severityColor}>
                 {severityIcon} {abbreviateType(log.type).slice(0, typeWidth - 3).padEnd(typeWidth - 2)}
               </Text>
               <Text
-                backgroundColor={isSelected ? 'blue' : undefined}
-                color={isSelected ? 'white' : undefined}
+                color={isSelected ? 'cyan' : undefined}
                 wrap="truncate"
               >
                 {log.message.slice(0, messageWidth)}

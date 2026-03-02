@@ -259,23 +259,13 @@ export const WorktreesView: React.FC = () => {
               <Text color={isSelected ? 'cyan' : undefined}>
                 {isSelected ? '▸ ' : '  '}
               </Text>
-              <Text
-                backgroundColor={isSelected ? 'blue' : undefined}
-                color={isSelected ? 'white' : 'cyan'}
-              >
+              <Text color={isSelected ? 'cyan' : 'cyan'}>
                 {wt.agent.slice(0, agentWidth - 3).padEnd(agentWidth - 2)}
               </Text>
-              <Text
-                backgroundColor={isSelected ? 'blue' : undefined}
-                color={isSelected ? 'white' : 'green'}
-              >
+              <Text color={isSelected ? 'cyan' : 'green'}>
                 {wt.status.padEnd(statusWidth)}
               </Text>
-              <Text
-                backgroundColor={isSelected ? 'blue' : undefined}
-                color={isSelected ? 'white' : undefined}
-                wrap="truncate"
-              >
+              <Text color={isSelected ? 'cyan' : undefined} wrap="truncate">
                 {formatPath(wt.path).slice(0, pathWidth)}
               </Text>
             </Box>
@@ -299,23 +289,13 @@ export const WorktreesView: React.FC = () => {
               <Text color={isSelected ? 'cyan' : undefined}>
                 {isSelected ? '▸ ' : '  '}
               </Text>
-              <Text
-                backgroundColor={isSelected ? 'blue' : undefined}
-                color={isSelected ? 'white' : 'yellow'}
-              >
+              <Text color={isSelected ? 'cyan' : 'yellow'}>
                 {(wt.agent || '(orphan)').slice(0, agentWidth - 3).padEnd(agentWidth - 2)}
               </Text>
-              <Text
-                backgroundColor={isSelected ? 'blue' : undefined}
-                color={isSelected ? 'white' : 'red'}
-              >
+              <Text color={isSelected ? 'cyan' : 'red'}>
                 {wt.status.padEnd(statusWidth)}
               </Text>
-              <Text
-                backgroundColor={isSelected ? 'blue' : undefined}
-                color={isSelected ? 'white' : undefined}
-                wrap="truncate"
-              >
+              <Text color={isSelected ? 'cyan' : undefined} wrap="truncate">
                 {formatPath(wt.path).slice(0, pathWidth)}
               </Text>
             </Box>
