@@ -11,7 +11,8 @@ import { InlineProgressBar } from '../components/ProgressBar';
 import { Panel } from '../components/Panel';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { Footer } from '../components/Footer';
-import { useCosts, useDisableInput, useListNavigation } from '../hooks';
+import { Spinner } from '../components/LoadingIndicator';
+import { useCosts, useDisableInput, useListNavigation, useLoadingTimeout } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { getCostIndicator, type CostStatus } from '../theme/StatusColors';
@@ -124,23 +125,61 @@ export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
     { key: 'r', label: 'refresh' },
   ];
 
-  if (loading) {
+  // #1898: Track loading duration for timeout messages
+  const loadingElapsed = useLoadingTimeout(loading && !costs);
+
+  // #1898: Skeleton state during initial load (no data yet)
+  if (loading && !costs) {
+    // After 10s: timeout message with retry
+    if (loadingElapsed >= 10) {
+      return (
+        <Box flexDirection="column" paddingX={1}>
+          <Box>
+            <Text bold>Costs</Text>
+            <Text>  </Text>
+            <Text color="yellow">⚠ Data unavailable</Text>
+          </Box>
+          <Box flexDirection="column" marginTop={1}>
+            <Text dimColor>Cost data could not be loaded.</Text>
+            <Text dimColor>This usually means ccusage is slow or not installed.</Text>
+            <Text dimColor>Press [r] to retry.</Text>
+          </Box>
+          <Footer hints={[{ key: 'r', label: 'refresh' }]} />
+        </Box>
+      );
+    }
+
+    // Skeleton with spinner and placeholder rows
+    const loadingMsg = loadingElapsed >= 5
+      ? 'Taking longer than expected...'
+      : 'Fetching cost analytics...';
+
     return (
-      <Box flexDirection="column">
-        <Text bold>Costs</Text>
-        <Text dimColor>Loading cost data...</Text>
+      <Box flexDirection="column" paddingX={1}>
+        <Box>
+          <Text bold>Costs</Text>
+          <Text dimColor> (—)</Text>
+          <Box flexGrow={1} />
+          <Spinner />
+          <Text> {loadingMsg}</Text>
+        </Box>
+        <Box flexDirection="column" marginTop={1}>
+          <Text dimColor>  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─</Text>
+          <Text dimColor>  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─</Text>
+          <Text dimColor>  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─</Text>
+        </Box>
         <Footer hints={mainHints} />
       </Box>
     );
   }
 
-  if (error) {
+  if (error && !costs) {
     return <ErrorDisplay error={error} onRetry={handleRefresh} />;
   }
 
   if (!costs) {
     return (
-      <Box flexDirection="column">
+      <Box flexDirection="column" paddingX={1}>
         <Text bold>Costs</Text>
         <Text dimColor>No cost data available</Text>
         <Footer hints={mainHints} />
