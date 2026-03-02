@@ -54,6 +54,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1632,6 +1633,78 @@ func tailFile(path string, lines int) (string, error) {
 	}
 
 	return string(data[pos:]), nil
+}
+
+// FollowOutput streams new log lines in real-time, like tail -f.
+// It prints the last N lines first, then polls for new content every 200ms.
+// Blocks until the context is canceled.
+// Falls back to a one-shot CaptureOutput if no log file exists.
+func (m *Manager) FollowOutput(ctx context.Context, name string, lines int, w io.Writer) error {
+	m.mu.RLock()
+	a := m.agents[name]
+	m.mu.RUnlock()
+
+	if a == nil {
+		return fmt.Errorf("agent %q not found", name)
+	}
+
+	// No log file — fall back to one-shot capture
+	if a.LogFile == "" {
+		output, err := m.CaptureOutput(name, lines)
+		if err != nil {
+			return err
+		}
+		_, err = io.WriteString(w, output)
+		return err
+	}
+
+	f, err := os.Open(a.LogFile) //nolint:gosec // path from trusted agent state
+	if err != nil {
+		// Log file doesn't exist yet — fall back to one-shot
+		output, captureErr := m.CaptureOutput(name, lines)
+		if captureErr != nil {
+			return captureErr
+		}
+		_, captureErr = io.WriteString(w, output)
+		return captureErr
+	}
+	defer func() { _ = f.Close() }()
+
+	// Print last N lines to start
+	initial, tailErr := tailFile(a.LogFile, lines)
+	if tailErr == nil && initial != "" {
+		if _, writeErr := io.WriteString(w, initial); writeErr != nil {
+			return writeErr
+		}
+	}
+
+	// Seek to end for follow mode
+	offset, err := f.Seek(0, io.SeekEnd)
+	if err != nil {
+		return fmt.Errorf("seek failed: %w", err)
+	}
+
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+
+	buf := make([]byte, 4096)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			n, readErr := f.ReadAt(buf, offset)
+			if n > 0 {
+				if _, writeErr := w.Write(buf[:n]); writeErr != nil {
+					return writeErr
+				}
+				offset += int64(n)
+			}
+			if readErr != nil && readErr != io.EOF {
+				return fmt.Errorf("read failed: %w", readErr)
+			}
+		}
+	}
 }
 
 // AttachToAgent returns the command to attach to an agent's session.

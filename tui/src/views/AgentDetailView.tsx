@@ -41,14 +41,40 @@ function normalizeTask(task: string | undefined): string {
   return task;
 }
 
+// ANSI escape code regex - detects SGR (Select Graphic Rendition) sequences
+// eslint-disable-next-line no-control-regex
+const ANSI_REGEX = /\x1b\[[0-9;]*m/;
+
+/**
+ * Check if a line contains ANSI escape codes.
+ * #1844: Log streaming backend preserves ANSI codes in output.
+ */
+function hasAnsiCodes(line: string): boolean {
+  return ANSI_REGEX.test(line);
+}
+
+/**
+ * Check if a line is a peek header (e.g., "=== agent-name (last 50 lines) ===").
+ * #1844: Strip these headers from displayed output.
+ */
+function isPeekHeader(line: string): boolean {
+  return /^=== .+ \(last \d+ lines\) ===$/.test(line.trim());
+}
+
 /**
  * Colorize output line based on content patterns.
  * #1161: Apply semantic colors to agent output for better readability.
+ * #1844: Pass through lines that already contain ANSI escape codes from log streaming.
  *
- * This provides basic highlighting since Ink doesn't render ANSI codes directly.
  * Patterns: errors (red), warnings (yellow), success (green), info (cyan)
  */
 function colorizeOutputLine(line: string): React.ReactElement {
+  // #1844: If line already has ANSI codes from log streaming, render as-is.
+  // Ink 4.x renders embedded ANSI escape sequences in Text content.
+  if (hasAnsiCodes(line)) {
+    return <Text>{line}</Text>;
+  }
+
   const trimmed = line.trim().toLowerCase();
 
   // Error patterns
@@ -148,7 +174,8 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
   const fetchAgentOutput = useCallback(async () => {
     try {
       const output = await execBc(['agent', 'peek', agent.name, '--lines', '50']);
-      const lines = output.split('\n').filter(line => line.trim());
+      // #1844: Strip peek headers and empty lines from output
+      const lines = output.split('\n').filter(line => line.trim() && !isPeekHeader(line));
       setOutputLines(lines);
       setError(null);
     } catch (err) {
@@ -161,7 +188,8 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
   const fetchLiveOutput = useCallback(async () => {
     try {
       const output = await execBc(['agent', 'peek', agent.name, '--lines', '200']);
-      const lines = output.split('\n').filter(line => line.trim());
+      // #1844: Strip peek headers and empty lines from output
+      const lines = output.split('\n').filter(line => line.trim() && !isPeekHeader(line));
       setLiveLines(prevLines => {
         // Auto-scroll to bottom if following and new content arrived
         if (isFollowing && lines.length > prevLines.length) {
@@ -188,17 +216,22 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
     return () => { clearInterval(interval); };
   }, [fetchAgentOutput]);
 
-  // Live mode: faster polling (500ms) when tab is active
+  // #1855: Live mode polls at 2.5s only when following; stops when paused.
+  // Proper cleanup on tab switch or follow toggle to avoid stale timers.
   useEffect(() => {
-    if (activeTab === 'live') {
+    if (activeTab !== 'live') return undefined;
+
+    // Always fetch once when entering live tab
+    void fetchLiveOutput();
+
+    // Only poll continuously when following
+    if (!isFollowing) return undefined;
+
+    const interval = setInterval(() => {
       void fetchLiveOutput();
-      const interval = setInterval(() => {
-        void fetchLiveOutput();
-      }, 500);
-      return () => { clearInterval(interval); };
-    }
-    return undefined;
-  }, [activeTab, fetchLiveOutput]);
+    }, 2500);
+    return () => { clearInterval(interval); };
+  }, [activeTab, isFollowing, fetchLiveOutput]);
 
   const sendMessage = useCallback(async (message: string) => {
     if (!message.trim()) return;
@@ -245,7 +278,12 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
       } else if (input === 'q' || key.escape) {
         onBack?.();
       } else if (input === 'r') {
-        void fetchAgentOutput();
+        // Refresh: fetch output for current tab
+        if (activeTab === 'live') {
+          void fetchLiveOutput();
+        } else {
+          void fetchAgentOutput();
+        }
       } else if (input === '1') {
         setActiveTab('output');
       } else if (input === '2') {
@@ -392,13 +430,13 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
           >
             <Box marginBottom={1}>
               <Text color="cyan" bold>LIVE OUTPUT</Text>
-              <Text dimColor> - 500ms refresh | </Text>
+              <Text dimColor> | </Text>
               {isFollowing ? (
-                <Text color="green">FOLLOWING</Text>
+                <><Text color="green">FOLLOWING</Text><Text dimColor> (2.5s)</Text></>
               ) : (
-                <Text color="yellow">PAUSED</Text>
+                <><Text color="yellow">PAUSED</Text><Text dimColor> (r: refresh)</Text></>
               )}
-              <Text dimColor> | f: toggle follow</Text>
+              <Text dimColor> | f: toggle</Text>
             </Box>
             <Box flexDirection="column" height={outputHeight + 2} overflow="hidden">
               {liveLines.length === 0 ? (
@@ -447,6 +485,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
             <DetailRow label="Workspace" value={agent.workspace} />
             <DetailRow label="Worktree" value={agent.worktree_dir} />
             <DetailRow label="Memory" value={agent.memory_dir} />
+            {agent.log_file && <DetailRow label="Log File" value={agent.log_file} />}
 
             <Box marginY={1}>
               <Text bold color="white">Timestamps</Text>
