@@ -8,7 +8,7 @@ import { Box, Text } from 'ink';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { HeaderBar } from '../components/HeaderBar';
 import { Footer } from '../components/Footer';
-import { useDisableInput, useListNavigation } from '../hooks';
+import { useDisableInput, useListNavigation, useLoadingTimeout } from '../hooks';
 import { truncate } from '../utils';
 import type { ToolInfo } from '../types';
 import { getToolList } from '../services/bc';
@@ -59,15 +59,48 @@ export function ToolsView(_props: ToolsViewProps = {}): React.ReactElement {
     return Math.min(25, Math.max(15, maxLen + 3));
   }, [tools]);
 
+  // #1898: Track loading duration for timeout messages
+  const loadingElapsed = useLoadingTimeout(loading && tools.length === 0);
+
   if (loading && tools.length === 0) {
-    return <LoadingIndicator message="Loading tools..." />;
+    // After 10s: timeout with retry
+    if (loadingElapsed >= 10) {
+      return (
+        <Box flexDirection="column" width="100%" overflow="hidden">
+          <HeaderBar title="Tools" count={0} loading={false} color="cyan" />
+          <Box paddingX={1} marginTop={1} flexDirection="column">
+            <Text color="yellow">Some tools could not be checked — press [r] to retry</Text>
+          </Box>
+          <Footer hints={[{ key: 'r', label: 'refresh' }]} />
+        </Box>
+      );
+    }
+
+    // Loading with progressive message
+    const loadingMsg = loadingElapsed >= 5
+      ? 'Tools check taking longer than expected...'
+      : 'Loading tools...';
+
+    return (
+      <Box flexDirection="column" width="100%" overflow="hidden">
+        <HeaderBar title="Tools" count={0} loading={true} color="cyan" />
+        <Box paddingX={1} marginTop={1}>
+          <LoadingIndicator message={loadingMsg} />
+        </Box>
+        <Footer hints={[{ key: 'r', label: 'refresh' }]} />
+      </Box>
+    );
   }
 
   if (error && tools.length === 0) {
     return (
-      <Box flexDirection="column" padding={1}>
-        <Text color="red">Error: {error}</Text>
-        <Text dimColor>Press r to retry, q to go back</Text>
+      <Box flexDirection="column" width="100%" overflow="hidden">
+        <HeaderBar title="Tools" count={0} loading={false} color="cyan" />
+        <Box paddingX={1} marginTop={1}>
+          <Text color="red">Error: {error}</Text>
+          <Text dimColor> — Press r to retry</Text>
+        </Box>
+        <Footer hints={[{ key: 'r', label: 'refresh' }]} />
       </Box>
     );
   }
