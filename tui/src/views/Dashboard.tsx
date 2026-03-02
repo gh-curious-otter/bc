@@ -21,6 +21,7 @@ interface DashboardProps {
 export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
   const { stdout } = useStdout();
   const terminalWidth = stdout.columns;
+  const isNarrow = terminalWidth < 100;
   const canMultiColumn = terminalWidth >= 120;
   const isMedium = terminalWidth >= 100;
   const isWide = terminalWidth >= 140;
@@ -78,6 +79,7 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
         idle={summary.idle}
         stuck={summary.stuck}
         errorCount={summary.error}
+        isNarrow={isNarrow}
       />
 
       {/* #1614: Simplified layout - StatsPanels renders once with layout prop */}
@@ -89,6 +91,7 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
             summary={summary}
             agentStats={agentStats}
             showInitialLoading={showInitialLoading}
+            isNarrow={isNarrow}
           />
         )}
 
@@ -108,6 +111,7 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
               summary={summary}
               agentStats={agentStats}
               showInitialLoading={showInitialLoading}
+              isNarrow={isNarrow}
             />
           </Box>
         )}
@@ -165,6 +169,7 @@ interface SummaryCardsProps {
   idle: number;
   stuck: number;
   errorCount: number;
+  isNarrow: boolean;
 }
 
 /**
@@ -178,8 +183,8 @@ const SummaryCards = memo(function SummaryCards({
   idle,
   stuck,
   errorCount,
+  isNarrow,
 }: SummaryCardsProps) {
-  const isNarrow = false;
 
   // #1352: Inline text summary for narrow terminals to avoid border overlap
   // #1591: Added symbols alongside colors for accessibility
@@ -228,6 +233,7 @@ interface SystemHealthPanelProps {
   stuck: number;
   errorCount: number;
   total: number;
+  isNarrow: boolean;
 }
 
 /**
@@ -240,8 +246,8 @@ const SystemHealthPanel = memo(function SystemHealthPanel({
   stuck,
   errorCount,
   total,
+  isNarrow,
 }: SystemHealthPanelProps) {
-  const isNarrow = false;
   const healthyCount = working + idle;
   const unhealthyCount = stuck + errorCount;
   const healthPercent = total > 0 ? Math.round((healthyCount / total) * 100) : 100;
@@ -322,6 +328,7 @@ interface CostPanelProps {
   budgetUSD?: number;
   burnRate?: number;
   topAgents?: { name: string; cost: number }[];
+  isNarrow: boolean;
 }
 
 /**
@@ -337,8 +344,8 @@ const CostPanel = memo(function CostPanel({
   budgetUSD = 10.0,
   burnRate = 0,
   topAgents = [],
+  isNarrow,
 }: CostPanelProps) {
-  const isNarrow = false;
   const budgetPercent = Math.min(100, Math.round((totalCostUSD / budgetUSD) * 100));
   // Responsive bar width: smaller on narrow terminals
   const barWidth = isNarrow ? 10 : 15;
@@ -416,6 +423,7 @@ interface AgentStatsPanelProps {
     byState: Record<string, number>;
     byRole: Record<string, number>;
   };
+  isNarrow: boolean;
 }
 
 /**
@@ -424,8 +432,7 @@ interface AgentStatsPanelProps {
  * #1181 fix: Use Box for inline layout instead of nested Text with wrap="truncate"
  * #1352: Uses compact inline layout at <100 cols
  */
-const AgentStatsPanel = memo(function AgentStatsPanel({ stats }: AgentStatsPanelProps) {
-  const isNarrow = false;
+const AgentStatsPanel = memo(function AgentStatsPanel({ stats, isNarrow }: AgentStatsPanelProps) {
   const hasRoles = Object.keys(stats.byRole).length > 0;
 
   if (!hasRoles) return null;
@@ -503,6 +510,7 @@ interface StatsPanelsProps {
     byRole: Record<string, number>;
   };
   showInitialLoading: boolean;
+  isNarrow: boolean;
 }
 
 /**
@@ -513,6 +521,7 @@ const StatsPanels = memo(function StatsPanels({
   summary,
   agentStats,
   showInitialLoading,
+  isNarrow,
 }: StatsPanelsProps) {
   if (showInitialLoading) {
     return <LoadingIndicator message="Loading stats..." />;
@@ -526,6 +535,7 @@ const StatsPanels = memo(function StatsPanels({
         stuck={summary.stuck}
         errorCount={summary.error}
         total={summary.total}
+        isNarrow={isNarrow}
       />
       <CostPanel
         totalCostUSD={summary.totalCostUSD}
@@ -533,8 +543,9 @@ const StatsPanels = memo(function StatsPanels({
         outputTokens={summary.outputTokens}
         burnRate={summary.burnRate}
         topAgents={summary.topAgents}
+        isNarrow={isNarrow}
       />
-      <AgentStatsPanel stats={agentStats} />
+      <AgentStatsPanel stats={agentStats} isNarrow={isNarrow} />
     </>
   );
 });
