@@ -556,6 +556,72 @@ func (s *Store) DeleteExperience(index int) (*Experience, error) {
 	return &deleted, nil
 }
 
+// DeleteLearning removes a specific learning by category and 1-based index within that category.
+// Returns the deleted learning text. If the category becomes empty, the category header is removed.
+func (s *Store) DeleteLearning(category string, index int) (string, error) {
+	content, err := s.GetLearnings()
+	if err != nil {
+		return "", fmt.Errorf("failed to read learnings: %w", err)
+	}
+
+	// Validate category exists and index is in range
+	topics := parseLearningsByTopic(content)
+	entries, ok := topics[category]
+	if !ok {
+		return "", fmt.Errorf("category %q not found", category)
+	}
+
+	idx := index - 1
+	if idx < 0 || idx >= len(entries) {
+		return "", fmt.Errorf("index %d out of range (1-%d)", index, len(entries))
+	}
+
+	deleted := entries[idx]
+
+	// If this is the only entry, remove the whole category section
+	if len(entries) == 1 {
+		if _, err := s.ForgetTopic(category); err != nil {
+			return "", fmt.Errorf("failed to remove empty category: %w", err)
+		}
+		return deleted, nil
+	}
+
+	// Otherwise, remove just the specific entry
+	lines := strings.Split(content, "\n")
+	var newLines []string
+	categoryHeader := "## " + category
+	inCategory := false
+	entryIdx := 0
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		if trimmed == categoryHeader {
+			inCategory = true
+			entryIdx = 0
+		} else if inCategory && strings.HasPrefix(trimmed, "## ") {
+			inCategory = false
+		}
+
+		if inCategory && strings.HasPrefix(trimmed, "- ") {
+			entryIdx++
+			if entryIdx == index {
+				continue // Skip this entry
+			}
+		}
+
+		newLines = append(newLines, line)
+	}
+
+	newContent := strings.Join(newLines, "\n")
+
+	if err := os.WriteFile(s.learningsPath(), []byte(newContent), 0600); err != nil { //nolint:gosec // path constructed from trusted memoryDir
+		return "", fmt.Errorf("failed to write learnings: %w", err)
+	}
+
+	return deleted, nil
+}
+
 // MergeLearnings merges learnings from another store into this one.
 // Returns the number of new learnings added.
 func (s *Store) MergeLearnings(source *Store) (int, error) {
