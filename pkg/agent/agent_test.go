@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/rpuneet/bc/config"
+	"github.com/rpuneet/bc/pkg/provider"
 	"github.com/rpuneet/bc/pkg/tmux"
 )
 
@@ -3546,5 +3547,175 @@ func TestFollowOutput_AgentNotFound(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "not found") {
 		t.Errorf("expected 'not found' error, got %q", err.Error())
+	}
+}
+
+// --- Provider integration tests ---
+
+// mockProvider implements provider.Provider for testing.
+type mockProvider struct {
+	detectState provider.State
+	name        string
+	version     string
+	installed   bool
+}
+
+func (m mockProvider) Name() string                        { return m.name }
+func (m mockProvider) Description() string                 { return "mock " + m.name }
+func (m mockProvider) Command() string                     { return m.name }
+func (m mockProvider) IsInstalled(_ context.Context) bool  { return m.installed }
+func (m mockProvider) Version(_ context.Context) string    { return m.version }
+func (m mockProvider) DetectState(_ string) provider.State { return m.detectState }
+
+func newTestManagerWithProvider(t *testing.T, p provider.Provider) *Manager {
+	t.Helper()
+	reg := provider.NewRegistry()
+	reg.Register(p)
+	return &Manager{
+		agents:           make(map[string]*Agent),
+		tmux:             tmux.NewManager(fmt.Sprintf("bctest-%d-", time.Now().UnixNano())),
+		providerRegistry: reg,
+		stateDir:         t.TempDir(),
+		agentCmd:         "/bin/true",
+	}
+}
+
+func TestSpawnWithProvider_Installed(t *testing.T) {
+	// Register a mock provider that reports as installed
+	mp := mockProvider{name: "testcli", installed: true, version: "1.2.3"}
+	m := newTestManagerWithProvider(t, mp)
+
+	// Configure tool in config so GetAgentCommand finds it
+	config.Agents = append(config.Agents, config.AgentsItem{Name: "testcli", Command: "/bin/true"})
+	defer func() { config.Agents = config.Agents[:len(config.Agents)-1] }()
+
+	ag, err := m.SpawnAgentWithTool("test-agent", Role("engineer"), t.TempDir(), "testcli")
+	if err != nil {
+		t.Fatalf("expected spawn to succeed with installed provider, got: %v", err)
+	}
+	if ag == nil {
+		t.Fatal("expected non-nil agent")
+	}
+	if ag.Tool != "testcli" {
+		t.Errorf("expected tool 'testcli', got %q", ag.Tool)
+	}
+
+	// Clean up tmux session
+	_ = m.tmux.KillSession(context.Background(), "test-agent")
+}
+
+func TestSpawnWithProvider_NotInstalled(t *testing.T) {
+	// Register a mock provider that reports as NOT installed
+	mp := mockProvider{name: "missingtool", installed: false}
+	m := newTestManagerWithProvider(t, mp)
+
+	// Configure tool in config
+	config.Agents = append(config.Agents, config.AgentsItem{Name: "missingtool", Command: "missingtool"})
+	defer func() { config.Agents = config.Agents[:len(config.Agents)-1] }()
+
+	_, err := m.SpawnAgentWithTool("test-agent", Role("engineer"), t.TempDir(), "missingtool")
+	if err == nil {
+		t.Fatal("expected error for uninstalled provider")
+	}
+	if !strings.Contains(err.Error(), "is not installed") {
+		t.Errorf("expected 'is not installed' error, got %q", err.Error())
+	}
+}
+
+func TestSpawnWithProvider_CustomToolFallback(t *testing.T) {
+	// Manager has a registry but the tool is NOT registered in it
+	reg := provider.NewRegistry()
+	// Only register "sometool" — "customtool" is unknown
+	reg.Register(mockProvider{name: "sometool", installed: true})
+
+	m := &Manager{
+		agents:           make(map[string]*Agent),
+		tmux:             tmux.NewManager(fmt.Sprintf("bctest-%d-", time.Now().UnixNano())),
+		providerRegistry: reg,
+		stateDir:         t.TempDir(),
+		agentCmd:         "/bin/true",
+	}
+
+	// Configure custom tool that exists as a binary
+	config.Agents = append(config.Agents, config.AgentsItem{Name: "customtool", Command: "true"})
+	defer func() { config.Agents = config.Agents[:len(config.Agents)-1] }()
+
+	// Should succeed because "true" exists in PATH (falls back to exec.LookPath)
+	ag, err := m.SpawnAgentWithTool("test-agent", Role("engineer"), t.TempDir(), "customtool")
+	if err != nil {
+		t.Fatalf("expected spawn to succeed for unknown tool with valid binary, got: %v", err)
+	}
+	if ag == nil {
+		t.Fatal("expected non-nil agent")
+	}
+
+	// Clean up
+	_ = m.tmux.KillSession(context.Background(), "test-agent")
+}
+
+func TestDetectAgentState_WithProvider(t *testing.T) {
+	tests := []struct {
+		name          string
+		providerState provider.State
+		output        string
+		expected      State
+	}{
+		{"provider detects working", provider.StateWorking, "thinking...", StateWorking},
+		{"provider detects idle", provider.StateIdle, "> ready", StateIdle},
+		{"provider detects done", provider.StateDone, "✓ complete", StateDone},
+		{"provider detects error", provider.StateError, "error: failed", StateError},
+		{"provider detects stuck", provider.StateStuck, "rate limit exceeded", StateStuck},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mp := mockProvider{name: "testtool", detectState: tc.providerState}
+			m := newTestManagerWithProvider(t, mp)
+
+			got := m.detectAgentState("testtool", tc.output)
+			if got != tc.expected {
+				t.Errorf("detectAgentState(%q, %q) = %q, want %q", "testtool", tc.output, got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestDetectAgentState_FallbackSymbols(t *testing.T) {
+	// Manager with empty registry — no providers match
+	m := &Manager{
+		providerRegistry: provider.NewRegistry(),
+	}
+
+	tests := []struct {
+		name     string
+		output   string
+		expected State
+	}{
+		{"spinner working", "✻ Reading file...", StateWorking},
+		{"dot working", "· Processing...", StateWorking},
+		{"prompt idle", "❯ ", StateIdle},
+		{"pause idle", "⏺ Bash", StateIdle},
+		{"unknown output", "some random text", ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := m.detectAgentState("unknowntool", tc.output)
+			if got != tc.expected {
+				t.Errorf("detectAgentState(%q, %q) = %q, want %q", "unknowntool", tc.output, got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestDetectAgentState_ProviderUnknownFallsThrough(t *testing.T) {
+	// Provider returns StateUnknown — should fall through to symbol detection
+	mp := mockProvider{name: "testtool", detectState: provider.StateUnknown}
+	m := newTestManagerWithProvider(t, mp)
+
+	// Symbol-based: spinner should detect as working even when provider returns unknown
+	got := m.detectAgentState("testtool", "✻ Working on task")
+	if got != StateWorking {
+		t.Errorf("expected StateWorking from symbol fallback, got %q", got)
 	}
 }
