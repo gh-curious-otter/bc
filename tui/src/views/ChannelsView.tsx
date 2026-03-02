@@ -13,6 +13,7 @@ import { useChannelsWithUnread, useDisableInput, useListNavigation } from '../ho
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { ErrorDisplay } from '../components/ErrorDisplay';
+import { Footer } from '../components/Footer';
 import { ChannelRow, ChannelHistoryView } from '../components/channels';
 import type { Channel } from '../types';
 
@@ -138,6 +139,14 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
           </Box>
         )}
       </Box>
+
+      {/* Footer */}
+      <Footer hints={[
+        { key: 'j/k', label: 'nav' },
+        { key: 'g/G', label: 'top/bottom' },
+        { key: 'Enter', label: 'open' },
+        { key: 'm', label: 'compose' },
+      ]} />
     </Box>
   );
 }
