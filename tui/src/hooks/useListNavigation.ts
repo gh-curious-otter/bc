@@ -26,6 +26,8 @@ export interface SearchState {
 export interface UseListNavigationOptions<T> {
   /** The list of items to navigate */
   items: T[];
+  /** Override item count for navigation boundaries (e.g., when visible list includes extra items like group headers) */
+  itemCount?: number;
   /** Callback when an item is selected (Enter/Space) */
   onSelect?: (item: T, index: number) => void;
   /** Callback when Escape is pressed (and not in search mode) */
@@ -80,6 +82,7 @@ export function useListNavigation<T>(
 ): UseListNavigationResult<T> {
   const {
     items,
+    itemCount,
     onSelect,
     onBack,
     initialIndex = 0,
@@ -91,8 +94,11 @@ export function useListNavigation<T>(
     isActive = true,
   } = options;
 
+  // Use itemCount override when provided (e.g., visibleItems.length in grouped view)
+  const navLength = itemCount !== undefined ? itemCount : items.length;
+
   const [selectedIndex, setSelectedIndex] = useState(() =>
-    Math.min(Math.max(0, initialIndex), Math.max(0, items.length - 1))
+    Math.min(Math.max(0, initialIndex), Math.max(0, navLength - 1))
   );
 
   const [searchMode, setSearchMode] = useState(false);
@@ -100,17 +106,17 @@ export function useListNavigation<T>(
 
   const clampIndex = useCallback(
     (index: number): number => {
-      if (items.length === 0) return 0;
+      if (navLength === 0) return 0;
       if (wrap) {
         // Wrap around
-        if (index < 0) return items.length - 1;
-        if (index >= items.length) return 0;
+        if (index < 0) return navLength - 1;
+        if (index >= navLength) return 0;
         return index;
       }
       // Clamp to valid range
-      return Math.min(Math.max(0, index), items.length - 1);
+      return Math.min(Math.max(0, index), navLength - 1);
     },
-    [items.length, wrap]
+    [navLength, wrap]
   );
 
   const moveDown = useCallback(
@@ -132,8 +138,8 @@ export function useListNavigation<T>(
   }, []);
 
   const jumpToLast = useCallback(() => {
-    setSelectedIndex(Math.max(0, items.length - 1));
-  }, [items.length]);
+    setSelectedIndex(Math.max(0, navLength - 1));
+  }, [navLength]);
 
   const isSelectedFn = useCallback(
     (index: number): boolean => index === selectedIndex,
@@ -246,7 +252,7 @@ export function useListNavigation<T>(
         return;
       }
     },
-    { isActive: !disabled && isActive && items.length > 0 }
+    { isActive: !disabled && isActive && navLength > 0 }
   );
 
   return {
