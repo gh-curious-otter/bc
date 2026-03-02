@@ -418,3 +418,82 @@ func TestMergeWithUserRCPreserveWorkspace(t *testing.T) {
 		t.Errorf("MergeWithUserRC changed workspace nickname to %q", cfg.User.Nickname)
 	}
 }
+
+func TestParseUserRCConfigInvalidTOML(t *testing.T) {
+	_, err := ParseUserRCConfig([]byte("{invalid toml!!!"))
+	if err == nil {
+		t.Error("ParseUserRCConfig should fail on invalid TOML")
+	}
+}
+
+func TestHasToolGitHubGitLabJira(t *testing.T) {
+	tests := []struct {
+		name     string
+		toolName string
+		cfg      V2Config
+		want     bool
+	}{
+		{
+			name:     "github enabled",
+			toolName: "github",
+			cfg:      V2Config{Tools: ToolsConfig{GitHub: &ToolConfig{Enabled: true}}},
+			want:     true,
+		},
+		{
+			name:     "github nil",
+			toolName: "github",
+			cfg:      V2Config{},
+			want:     false,
+		},
+		{
+			name:     "gitlab enabled",
+			toolName: "gitlab",
+			cfg:      V2Config{Tools: ToolsConfig{GitLab: &ToolConfig{Enabled: true}}},
+			want:     true,
+		},
+		{
+			name:     "gitlab nil",
+			toolName: "gitlab",
+			cfg:      V2Config{},
+			want:     false,
+		},
+		{
+			name:     "jira enabled",
+			toolName: "jira",
+			cfg:      V2Config{Tools: ToolsConfig{Jira: &ToolConfig{Enabled: true}}},
+			want:     true,
+		},
+		{
+			name:     "jira nil",
+			toolName: "jira",
+			cfg:      V2Config{},
+			want:     false,
+		},
+		{
+			name:     "custom tool nil map",
+			toolName: "unknown",
+			cfg:      V2Config{},
+			want:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.cfg.HasTool(tt.toolName)
+			if got != tt.want {
+				t.Errorf("HasTool(%q) = %v, want %v", tt.toolName, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestUserRCConfigSavePathEmpty(t *testing.T) {
+	// Unset HOME to simulate path failure
+	t.Setenv("HOME", "")
+
+	cfg := DefaultUserRCConfig()
+	err := cfg.Save()
+	if err == nil {
+		t.Error("Save should fail when home directory is empty")
+	}
+}
