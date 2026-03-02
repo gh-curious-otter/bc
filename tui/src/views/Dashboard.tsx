@@ -320,21 +320,25 @@ interface CostPanelProps {
   inputTokens: number;
   outputTokens: number;
   budgetUSD?: number;
+  burnRate?: number;
+  topAgents?: { name: string; cost: number }[];
 }
 
 /**
- * Cost panel with budget progress bar (responsive width)
+ * Cost panel with budget progress bar, burn rate, and top agents
+ * #1882: Enhanced with ccusage integration fields
  * #1220: Added symbols and text labels for colorblind accessibility
  * #1352: Uses compact inline layout at <100 cols
  */
 const CostPanel = memo(function CostPanel({
   totalCostUSD,
-  inputTokens,
-  outputTokens,
+  inputTokens: _inputTokens,
+  outputTokens: _outputTokens,
   budgetUSD = 10.0,
+  burnRate = 0,
+  topAgents = [],
 }: CostPanelProps) {
   const isNarrow = false;
-  const totalTokens = inputTokens + outputTokens;
   const budgetPercent = Math.min(100, Math.round((totalCostUSD / budgetUSD) * 100));
   // Responsive bar width: smaller on narrow terminals
   const barWidth = isNarrow ? 10 : 15;
@@ -364,22 +368,44 @@ const CostPanel = memo(function CostPanel({
   return (
     <Panel title="Cost">
       <Box flexDirection="column">
+        {/* Line 1: Total + burn rate */}
         <Box>
           <Text bold color="yellow">${totalCostUSD.toFixed(2)}</Text>
-          <Text dimColor> / ${budgetUSD.toFixed(2)}</Text>
+          {burnRate > 0 && (
+            <Text dimColor>  {costSymbol} ${burnRate.toFixed(2)}/hr</Text>
+          )}
         </Box>
+        {/* Line 2: Budget bar */}
         <Box marginTop={1}>
           <Text color={barColor}>{'█'.repeat(filledWidth)}</Text>
           <Text dimColor>{'░'.repeat(emptyWidth)}</Text>
           <Text> {budgetPercent}%</Text>
-          {/* #1220: Symbol indicator for colorblind users */}
-          <Text color={barColor}> {costSymbol}</Text>
         </Box>
-        <Box marginTop={1}>
-          <Text dimColor>
-            {formatNumber(totalTokens)} tokens
-          </Text>
-        </Box>
+        {/* Lines 3-4: Top agents */}
+        {topAgents.length > 0 && (
+          <Box marginTop={1} flexDirection="column">
+            {/* Show top agents 2 per line */}
+            <Box>
+              {topAgents.slice(0, 2).map((a, i) => (
+                <Text key={a.name} dimColor>
+                  {i > 0 ? '  ' : ''}{a.name} ${Math.round(a.cost)}
+                </Text>
+              ))}
+            </Box>
+            {topAgents.length > 2 && (
+              <Box>
+                {topAgents.slice(2, 4).map((a, i) => (
+                  <Text key={a.name} dimColor>
+                    {i > 0 ? '  ' : ''}{a.name} ${Math.round(a.cost)}
+                  </Text>
+                ))}
+                {topAgents.length > 4 && (
+                  <Text dimColor>  +{topAgents.length - 4} more</Text>
+                )}
+              </Box>
+            )}
+          </Box>
+        )}
       </Box>
     </Panel>
   );
@@ -469,6 +495,8 @@ interface StatsPanelsProps {
     totalCostUSD: number;
     inputTokens: number;
     outputTokens: number;
+    burnRate?: number;
+    topAgents?: { name: string; cost: number }[];
   };
   agentStats: {
     byState: Record<string, number>;
@@ -503,24 +531,13 @@ const StatsPanels = memo(function StatsPanels({
         totalCostUSD={summary.totalCostUSD}
         inputTokens={summary.inputTokens}
         outputTokens={summary.outputTokens}
+        burnRate={summary.burnRate}
+        topAgents={summary.topAgents}
       />
       <AgentStatsPanel stats={agentStats} />
     </>
   );
 });
-
-/**
- * Format large numbers with K/M suffixes
- */
-function formatNumber(n: number): string {
-  if (n >= 1_000_000) {
-    return `${(n / 1_000_000).toFixed(1)}M`;
-  }
-  if (n >= 1_000) {
-    return `${(n / 1_000).toFixed(1)}K`;
-  }
-  return n.toString();
-}
 
 /**
  * Format date to relative time string

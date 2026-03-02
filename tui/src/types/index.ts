@@ -107,6 +107,11 @@ export interface CostSummary {
   by_agent?: Record<string, number>;
   by_team?: Record<string, number>;
   by_model?: Record<string, number>;
+  // ccusage integration fields (#1882)
+  cache_hit_rate?: number;
+  burn_rate?: number;
+  projected_total?: number;
+  billing_window_spent?: number;
 }
 
 // Generic bc command result
