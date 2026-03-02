@@ -327,6 +327,7 @@ type Agent struct {
 	HookedWork  string       `json:"hooked_work,omitempty"`
 	WorktreeDir string       `json:"worktree_dir,omitempty"`
 	MemoryDir   string       `json:"memory_dir,omitempty"`
+	LogFile     string       `json:"log_file,omitempty"`
 	Team        string       `json:"team,omitempty"`
 	Role        Role         `json:"role"`
 	State       State        `json:"state"`
@@ -620,6 +621,21 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 			if err := m.tmux.CreateSessionWithEnv(context.TODO(), name, sessionDir, agentCmd, env); err != nil {
 				return nil, fmt.Errorf("failed to recreate tmux session: %w", err)
 			}
+
+			// Resume log streaming if log file was set
+			if existing.LogFile != "" {
+				truncateLogFile(existing.LogFile, config.Logs.MaxBytes)
+				if pipeErr := m.tmux.PipePane(context.TODO(), name, existing.LogFile); pipeErr != nil {
+					log.Warn("failed to resume pipe-pane", "agent", name, "error", pipeErr)
+				}
+			} else {
+				// Set up new log pipe for agents that didn't have one
+				existing.LogFile = m.setupLogPipe(name, workspace)
+			}
+
+			// Inject bootstrap prompt on respawn (role + memories)
+			go m.sendRespawnBootstrap(name, existing, workspace)
+
 			existing.UpdatedAt = time.Now()
 			if err := m.saveState(); err != nil {
 				log.Warn("failed to save agent state", "error", err)
@@ -723,8 +739,19 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 		return nil, fmt.Errorf("failed to create tmux session: %w", err)
 	}
 
+	// Start log streaming via pipe-pane
+	agent.LogFile = m.setupLogPipe(name, workspace)
+
 	// Load role memory from prompts/<role>.md
 	agent.Memory = LoadRoleMemory(workspace, role)
+
+	// Persist role prompt in agent memory for respawn
+	if agent.Memory != nil && agent.Memory.RolePrompt != "" && agent.MemoryDir != "" {
+		memStore := memory.NewStore(workspace, name)
+		if err := memStore.SaveRolePrompt(agent.Memory.RolePrompt); err != nil {
+			log.Warn("failed to persist role prompt", "agent", name, "error", err)
+		}
+	}
 
 	// Update state
 	agent.State = StateIdle
@@ -779,6 +806,107 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	}
 
 	return agent, nil
+}
+
+// sendRespawnBootstrap sends the role prompt and memories to a respawned agent.
+// Runs in a goroutine since it needs to wait for the agent to initialize.
+func (m *Manager) sendRespawnBootstrap(name string, agent *Agent, workspace string) {
+	time.Sleep(m.getBootstrapDelay())
+
+	var promptParts []string
+
+	// Add role prompt from memory store if available
+	if agent.MemoryDir != "" {
+		memStore := memory.NewStore(workspace, name)
+		rolePrompt, err := memStore.GetRolePrompt()
+		if err != nil {
+			log.Warn("failed to load stored role prompt", "agent", name, "error", err)
+		} else if rolePrompt != "" {
+			promptParts = append(promptParts, rolePrompt)
+		}
+	}
+
+	// Fall back to loading from role files if no stored prompt
+	if len(promptParts) == 0 && agent.Memory != nil && agent.Memory.RolePrompt != "" {
+		promptParts = append(promptParts, agent.Memory.RolePrompt)
+	}
+
+	// Load agent memories
+	if agent.MemoryDir != "" {
+		memStore := memory.NewStore(workspace, name)
+		if memStore.Exists() {
+			memCtx, memErr := memStore.GetMemoryContext(memory.DefaultMemoryLimit)
+			if memErr != nil {
+				log.Warn("failed to load agent memories for respawn", "agent", name, "error", memErr)
+			} else if memCtx != "" {
+				promptParts = append(promptParts, memCtx)
+			}
+		}
+	}
+
+	if len(promptParts) > 0 {
+		prompt := strings.Join(promptParts, "\n\n---\n\n")
+		prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nAgent ID: %s\n(Respawned session — continuing previous work)\n", workspace, name)
+		if err := m.tmux.SendKeys(context.TODO(), name, prompt); err != nil {
+			log.Warn("failed to send respawn bootstrap", "agent", name, "error", err)
+		}
+	}
+}
+
+// setupLogPipe creates the logs directory and starts pipe-pane for the agent.
+// Returns the log file path.
+func (m *Manager) setupLogPipe(name, workspace string) string {
+	logsDir := filepath.Join(workspace, ".bc", "logs")
+	if err := os.MkdirAll(logsDir, 0750); err != nil {
+		log.Warn("failed to create logs dir", "error", err)
+		return ""
+	}
+
+	logPath := filepath.Join(logsDir, name+".log")
+
+	// Truncate if over max size
+	truncateLogFile(logPath, config.Logs.MaxBytes)
+
+	if err := m.tmux.PipePane(context.TODO(), name, logPath); err != nil {
+		log.Warn("failed to start pipe-pane", "agent", name, "error", err)
+		return ""
+	}
+
+	log.Debug("started log streaming", "agent", name, "path", logPath)
+	return logPath
+}
+
+// truncateLogFile truncates a log file if it exceeds maxBytes.
+// Keeps the last half of the file to preserve recent output.
+func truncateLogFile(path string, maxBytes int64) {
+	if maxBytes <= 0 {
+		return
+	}
+
+	info, err := os.Stat(path)
+	if err != nil || info.Size() <= maxBytes {
+		return
+	}
+
+	data, err := os.ReadFile(path) //nolint:gosec // path constructed from trusted workspace root
+	if err != nil {
+		log.Warn("failed to read log for truncation", "path", path, "error", err)
+		return
+	}
+
+	// Keep last half
+	half := len(data) / 2
+	// Find next newline to avoid cutting mid-line
+	for half < len(data) && data[half] != '\n' {
+		half++
+	}
+	if half < len(data) {
+		half++ // skip the newline
+	}
+
+	if err := os.WriteFile(path, data[half:], 0600); err != nil { //nolint:gosec // path constructed from trusted workspace root
+		log.Warn("failed to truncate log", "path", path, "error", err)
+	}
 }
 
 // createWorktree creates a per-agent git worktree so agents don't clobber each other.
@@ -1451,8 +1579,59 @@ func (m *Manager) SendToAgent(name, message string) error {
 }
 
 // CaptureOutput captures recent output from an agent's session.
+// Reads from the agent's log file first (includes full history with ANSI).
+// Falls back to tmux capture-pane if log file is not available.
 func (m *Manager) CaptureOutput(name string, lines int) (string, error) {
+	m.mu.RLock()
+	agent := m.agents[name]
+	m.mu.RUnlock()
+
+	// Try log file first
+	if agent != nil && agent.LogFile != "" {
+		output, err := tailFile(agent.LogFile, lines)
+		if err == nil && output != "" {
+			return output, nil
+		}
+		log.Debug("log file read failed, falling back to capture-pane", "agent", name, "error", err)
+	}
+
+	// Fall back to tmux capture-pane
 	return m.tmux.Capture(context.TODO(), name, lines)
+}
+
+// tailFile reads the last N lines from a file.
+func tailFile(path string, lines int) (string, error) {
+	data, err := os.ReadFile(path) //nolint:gosec // path from trusted agent state
+	if err != nil {
+		return "", err
+	}
+
+	if len(data) == 0 {
+		return "", nil
+	}
+
+	// Find last N lines by scanning backward
+	count := 0
+	pos := len(data) - 1
+	// Skip trailing newline
+	if pos >= 0 && data[pos] == '\n' {
+		pos--
+	}
+	for pos >= 0 {
+		if data[pos] == '\n' {
+			count++
+			if count >= lines {
+				pos++
+				break
+			}
+		}
+		pos--
+	}
+	if pos < 0 {
+		pos = 0
+	}
+
+	return string(data[pos:]), nil
 }
 
 // AttachToAgent returns the command to attach to an agent's session.

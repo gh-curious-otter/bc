@@ -9,6 +9,7 @@ import { getWorktrees, pruneWorktrees } from '../services/bc';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { HeaderBar } from '../components/HeaderBar';
+import { Footer } from '../components/Footer';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useListNavigation } from '../hooks';
@@ -330,12 +331,14 @@ export const WorktreesView: React.FC = () => {
       </Box>
 
       {/* Footer */}
-      <Box marginTop={1}>
-        <Text dimColor wrap="truncate">
-          j/k: nav | g/G: top/bottom | Enter: details | o: {showOrphanedOnly ? 'show all' : 'orphans only'}
-          {hasOrphans ? ' | p: prune' : ''} | r: refresh | q/ESC: back
-        </Text>
-      </Box>
+      <Footer hints={[
+        { key: 'j/k', label: 'nav' },
+        { key: 'g/G', label: 'top/bottom' },
+        { key: 'Enter', label: 'details' },
+        { key: 'o', label: showOrphanedOnly ? 'show all' : 'orphans only' },
+        ...(hasOrphans ? [{ key: 'p', label: 'prune' }] : []),
+        { key: 'r', label: 'refresh' },
+      ]} />
     </Box>
   );
 };

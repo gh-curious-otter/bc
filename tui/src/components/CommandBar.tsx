@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { View } from '../navigation/NavigationContext';
-import { searchCommands, resolveCommand, type MatchedCommand } from '../navigation/viewCommands';
+import { searchCommands, resolveCommand, resolveAction, type MatchedCommand } from '../navigation/viewCommands';
 
 interface CommandBarProps {
   onSelect: (view: View) => void;
@@ -30,11 +30,18 @@ export function CommandBar({ onSelect, onClose }: CommandBarProps): React.ReactE
     }
 
     if (key.return) {
-      // Try exact resolve first, then use selected suggestion
+      // #1836: Check action commands first (:q, :q!, :quit)
+      const action = resolveAction(input);
+      if (action === 'quit' || action === 'force-quit') {
+        process.exit(0);
+        return;
+      }
+
+      // Try exact view resolve first, then use selected suggestion
       const resolved = resolveCommand(input);
       if (resolved) {
         onSelect(resolved);
-      } else if (matches.length > 0) {
+      } else if (matches.length > 0 && matches[selectedIndex].command.view) {
         onSelect(matches[selectedIndex].command.view);
       }
       return;
