@@ -2,6 +2,9 @@ import React from 'react';
 import { Box, Text, useStdout } from 'ink';
 import type { Agent } from '../../types';
 
+// eslint-disable-next-line no-control-regex
+const ANSI_REGEX = /\x1b\[[0-9;]*m/;
+
 export interface AgentPeekPanelProps {
   agent: Agent;
   output: string[];
@@ -16,6 +19,7 @@ export interface AgentPeekPanelProps {
  *
  * Issue #1689: Fixed text cutoff by using full terminal width
  * and proper text wrapping instead of truncation.
+ * #1844: Preserve ANSI codes from log streaming; only dim plain text lines.
  */
 export function AgentPeekPanel({
   agent,
@@ -46,9 +50,13 @@ export function AgentPeekPanel({
         <Text dimColor>Loading...</Text>
       ) : (
         <Box flexDirection="column" width={contentWidth}>
-          {output.map((line, idx) => (
-            <Text key={idx} wrap="wrap" dimColor>{line}</Text>
-          ))}
+          {output.map((line, idx) =>
+            ANSI_REGEX.test(line) ? (
+              <Text key={idx} wrap="wrap">{line}</Text>
+            ) : (
+              <Text key={idx} wrap="wrap" dimColor>{line}</Text>
+            )
+          )}
         </Box>
       )}
     </Box>

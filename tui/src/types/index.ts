@@ -41,6 +41,7 @@ export interface Agent {
   workspace: string;
   worktree_dir: string;
   memory_dir: string;
+  log_file?: string;
   started_at: string;
   updated_at: string;
   memory?: AgentMemory;
