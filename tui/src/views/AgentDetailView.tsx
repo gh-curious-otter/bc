@@ -8,6 +8,7 @@ import { LoadingIndicator } from '../components/LoadingIndicator';
 import { useFocus } from '../navigation/FocusContext';
 import { useAgentDetails } from '../hooks/useAgentDetails';
 import { MetricCard } from '../components/MetricCard';
+import { Footer } from '../components/Footer';
 
 // Safe wrapper for useInput that handles test environments
 const useSafeInput = (handler: Parameters<typeof inkUseInput>[0]) => {
@@ -509,16 +510,29 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
       </Box>
 
       {/* Footer with keybindings */}
-      <Box marginTop={1} paddingX={1}>
-        <Text dimColor wrap="truncate">
-          {inputMode
-            ? 'Enter: send | Esc: cancel'
-            : activeTab === 'live'
-              ? '1-4: tabs | j/k: scroll | g/G: top/bottom | f: follow | a: attach | q/ESC: back'
-              : '1-4: tabs | i: message | a: attach | r: refresh | q/ESC: back'}
-        </Text>
-        {loading && <Text color="gray"> (refreshing...)</Text>}
-      </Box>
+      {inputMode ? (
+        <Footer hints={[
+          { key: 'Enter', label: 'send' },
+          { key: 'Esc', label: 'cancel' },
+        ]} />
+      ) : activeTab === 'live' ? (
+        <Footer hints={[
+          { key: '1-4', label: 'tabs' },
+          { key: 'j/k', label: 'scroll' },
+          { key: 'g/G', label: 'top/bottom' },
+          { key: 'f', label: 'follow' },
+          { key: 'a', label: 'attach' },
+          { key: 'q/Esc', label: 'back' },
+        ]} />
+      ) : (
+        <Footer hints={[
+          { key: '1-4', label: 'tabs' },
+          { key: 'i', label: 'message' },
+          { key: 'a', label: 'attach' },
+          { key: 'r', label: 'refresh' },
+          { key: 'q/Esc', label: 'back' },
+        ]} />
+      )}
     </Box>
   );
 };

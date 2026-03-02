@@ -26,7 +26,7 @@ export type StatusColor = keyof typeof STATUS_COLORS;
  * Status symbols (for accessibility - symbol + color combination)
  */
 export const STATUS_SYMBOLS = {
-  working: '⊙',  // Filled circle - actively working
+  working: '●',  // Filled circle - actively working
   idle: '○',     // Empty circle - not working
   done: '✓',     // Checkmark - completed
   error: '✗',    // X mark - failed
