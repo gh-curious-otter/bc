@@ -14,6 +14,7 @@
 import React, { useState, useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { spawnSync } from 'child_process';
 import { Box, Text, useInput } from 'ink';
+import { isPeekHeader } from '../utils';
 import { useAgents, useDebounce, useListNavigation } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
@@ -231,9 +232,9 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
     dispatch({ type: 'SET_PEEK_LOADING', loading: true });
     try {
       const output = await execBc(['agent', 'peek', agentName, '--lines', '8']);
-      // #1844: Strip peek headers and empty lines
+      // #1844: Strip peek headers and empty lines using shared util
       const lines = output.split('\n').filter((line: string) =>
-        line.trim() && !/^=== .+ \(last \d+ lines\) ===$/.test(line.trim())
+        line.trim() && !isPeekHeader(line)
       );
       dispatch({ type: 'SET_PEEK_OUTPUT', output: lines.slice(-6) });
     } catch {
@@ -242,6 +243,15 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
       dispatch({ type: 'SET_PEEK_LOADING', loading: false });
     }
   }, []);
+
+  // #1840: Auto-refresh peek panel every 2s while open
+  useEffect(() => {
+    if (!peekOutput || !selectedAgent) return undefined;
+    const interval = setInterval(() => {
+      void peekAgent(selectedAgent.name);
+    }, 2000);
+    return () => { clearInterval(interval); };
+  }, [peekOutput, selectedAgent, peekAgent]);
 
   // #1743: Keyboard handling for special keys not covered by useListNavigation
   // The hook handles j/k/g/G navigation, / for search, c to clear search

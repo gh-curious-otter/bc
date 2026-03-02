@@ -316,6 +316,17 @@ export interface RoutingConfig {
   rules: RoutingRule[];
 }
 
+// Tool types for Tools view (#1866)
+export type ToolStatus = 'installed' | 'not found';
+
+export interface ToolInfo {
+  name: string;
+  status: ToolStatus;
+  version: string;
+  command: string;
+  path?: string;
+}
+
 // GitHub Issue types for Issues view (#1754)
 export type IssueState = 'OPEN' | 'CLOSED';
 

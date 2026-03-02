@@ -70,6 +70,12 @@ func TestDefaultRegistryHasProviders(t *testing.T) {
 	if _, ok := DefaultRegistry.Get("aider"); !ok {
 		t.Error("expected aider provider in default registry")
 	}
+	if _, ok := DefaultRegistry.Get("gemini"); !ok {
+		t.Error("expected gemini provider in default registry")
+	}
+	if _, ok := DefaultRegistry.Get("cursor"); !ok {
+		t.Error("expected cursor provider in default registry")
+	}
 }
 
 func TestGetProvider(t *testing.T) {
@@ -690,6 +696,107 @@ func TestAiderDetectState(t *testing.T) {
 			output: "",
 			want:   StateUnknown,
 		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := p.DetectState(tt.output)
+			if got != tt.want {
+				t.Errorf("DetectState() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGeminiProvider(t *testing.T) {
+	p := NewGeminiProvider()
+
+	if p.Name() != "gemini" {
+		t.Errorf("expected name 'gemini', got %q", p.Name())
+	}
+	if p.Description() == "" {
+		t.Error("expected non-empty description")
+	}
+	if p.Command() != "gemini --yolo" {
+		t.Errorf("expected command 'gemini --yolo', got %q", p.Command())
+	}
+}
+
+func TestGeminiDetectState(t *testing.T) {
+	p := NewGeminiProvider()
+
+	tests := []struct {
+		name   string
+		output string
+		want   State
+	}{
+		{"working spinner", "⠋ Loading model...\n", StateWorking},
+		{"working thinking", "thinking about your question\n", StateWorking},
+		{"working generating", "generating response\n", StateWorking},
+		{"working searching", "searching for information\n", StateWorking},
+		{"done check", "✓ Response complete\n", StateDone},
+		{"done finished", "finished processing\n", StateDone},
+		{"stuck rate limit", "rate limit exceeded\n", StateStuck},
+		{"stuck quota", "quota exceeded for today\n", StateStuck},
+		{"stuck timeout", "request timeout\n", StateStuck},
+		{"error", "error: model not found\n", StateError},
+		{"error failed", "failed to generate\n", StateError},
+		{"idle prompt", "> ", StateIdle},
+		{"idle gemini prompt", "gemini> ", StateIdle},
+		{"idle ready", "ready for input\n", StateIdle},
+		{"unknown", "some random output\n", StateUnknown},
+		{"empty", "", StateUnknown},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := p.DetectState(tt.output)
+			if got != tt.want {
+				t.Errorf("DetectState() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCursorProvider(t *testing.T) {
+	p := NewCursorProvider()
+
+	if p.Name() != "cursor" {
+		t.Errorf("expected name 'cursor', got %q", p.Name())
+	}
+	if p.Description() == "" {
+		t.Error("expected non-empty description")
+	}
+	if p.Command() != "cursor-agent --force --print" {
+		t.Errorf("expected command 'cursor-agent --force --print', got %q", p.Command())
+	}
+}
+
+func TestCursorDetectState(t *testing.T) {
+	p := NewCursorProvider()
+
+	tests := []struct {
+		name   string
+		output string
+		want   State
+	}{
+		{"working spinner", "⠙ Processing request...\n", StateWorking},
+		{"working thinking", "thinking about changes\n", StateWorking},
+		{"working applying", "applying edits to file\n", StateWorking},
+		{"done check", "✔ Changes applied\n", StateDone},
+		{"done applied", "applied changes to 3 files\n", StateDone},
+		{"done complete", "edit complete\n", StateDone},
+		{"stuck rate limit", "rate limit hit, retrying\n", StateStuck},
+		{"stuck connection", "connection refused\n", StateStuck},
+		{"stuck timeout", "request timeout\n", StateStuck},
+		{"error", "error: file not found\n", StateError},
+		{"error failed", "failed to apply edit\n", StateError},
+		{"error emoji", "❌ Operation failed\n", StateError},
+		{"idle prompt", "> ", StateIdle},
+		{"idle cursor prompt", "cursor> ", StateIdle},
+		{"idle ready", "ready\n", StateIdle},
+		{"unknown", "some output text\n", StateUnknown},
+		{"empty", "", StateUnknown},
 	}
 
 	for _, tt := range tests {
