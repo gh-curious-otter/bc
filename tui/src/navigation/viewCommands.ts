@@ -1,5 +1,6 @@
 /**
  * View command registry for k9s-style :command navigation
+ * #1836: Extended with action commands (:q, :q!)
  */
 
 import type { View } from './NavigationContext';
@@ -10,6 +11,19 @@ export interface ViewCommand {
   view: View;
   section: string;
 }
+
+/** Action commands that perform an operation instead of navigating */
+export interface ActionCommand {
+  command: string;
+  aliases: string[];
+  action: string;
+  section: string;
+}
+
+export const ACTION_COMMANDS: ActionCommand[] = [
+  { command: 'quit', aliases: ['q'], action: 'quit', section: 'ACTION' },
+  { command: 'quit!', aliases: ['q!'], action: 'force-quit', section: 'ACTION' },
+];
 
 export const VIEW_COMMANDS: ViewCommand[] = [
   { command: 'dashboard', aliases: ['dash', 'd'], view: 'dashboard', section: 'CORE' },
@@ -56,7 +70,8 @@ export interface MatchedCommand {
 }
 
 /**
- * Search view commands with fuzzy matching
+ * Search view and action commands with fuzzy matching
+ * #1836: Includes action commands in results
  */
 export function searchCommands(query: string): MatchedCommand[] {
   if (!query) {
@@ -82,6 +97,24 @@ export function searchCommands(query: string): MatchedCommand[] {
     }
   }
 
+  // #1836: Also search action commands
+  for (const cmd of ACTION_COMMANDS) {
+    let bestScore = fuzzyScore(query, cmd.command);
+    for (const alias of cmd.aliases) {
+      const aliasScore = fuzzyScore(query, alias);
+      if (aliasScore > bestScore) {
+        bestScore = aliasScore;
+      }
+    }
+    if (bestScore > 0) {
+      // Wrap action as MatchedCommand with a placeholder view for display
+      results.push({
+        command: { command: cmd.command, aliases: cmd.aliases, view: '' as View, section: cmd.section },
+        score: bestScore,
+      });
+    }
+  }
+
   return results.sort((a, b) => b.score - a.score);
 }
 
@@ -93,6 +126,20 @@ export function resolveCommand(input: string): View | null {
   for (const cmd of VIEW_COMMANDS) {
     if (cmd.command === q || cmd.aliases.includes(q)) {
       return cmd.view;
+    }
+  }
+  return null;
+}
+
+/**
+ * Resolve a command string to an action (exact match or alias)
+ * #1836: Supports :q, :q!, :quit, :quit!
+ */
+export function resolveAction(input: string): string | null {
+  const q = input.trim();
+  for (const cmd of ACTION_COMMANDS) {
+    if (cmd.command === q || cmd.aliases.includes(q)) {
+      return cmd.action;
     }
   }
   return null;

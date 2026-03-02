@@ -1724,3 +1724,75 @@ func TestCache_KillServerInvalidatesCache(t *testing.T) {
 		t.Errorf("expected %d calls after KillServer, got %d", expectedCalls, callCount)
 	}
 }
+
+func TestPipePane(t *testing.T) {
+	mock, records := recordingMock("")
+	m := &Manager{
+		SessionPrefix:   "bc-",
+		execCommand:     mock,
+		hasSessionCache: make(map[string]bool),
+	}
+
+	err := m.PipePane(testCtx(), "agent1", "/tmp/test.log")
+	if err != nil {
+		t.Fatalf("PipePane failed: %v", err)
+	}
+
+	// Verify the tmux command was called with correct args
+	found := false
+	for _, r := range *records {
+		if r.name == "tmux" && len(r.args) >= 4 && r.args[0] == "pipe-pane" {
+			found = true
+			if r.args[3] != "cat >> /tmp/test.log" {
+				t.Errorf("expected pipe command 'cat >> /tmp/test.log', got %q", r.args[3])
+			}
+		}
+	}
+	if !found {
+		t.Error("expected tmux pipe-pane call")
+	}
+}
+
+func TestPipePaneStop(t *testing.T) {
+	mock, records := recordingMock("")
+	m := &Manager{
+		SessionPrefix:   "bc-",
+		execCommand:     mock,
+		hasSessionCache: make(map[string]bool),
+	}
+
+	// Empty logPath stops the pipe
+	err := m.PipePane(testCtx(), "agent1", "")
+	if err != nil {
+		t.Fatalf("PipePane stop failed: %v", err)
+	}
+
+	// Verify pipe-pane was called without a command (stops pipe)
+	found := false
+	for _, r := range *records {
+		if r.name == "tmux" && len(r.args) >= 1 && r.args[0] == "pipe-pane" {
+			found = true
+			// Should not have a pipe command arg (just -t and session name)
+			if len(r.args) > 3 {
+				t.Errorf("expected no pipe command for stop, got %d args", len(r.args))
+			}
+		}
+	}
+	if !found {
+		t.Error("expected tmux pipe-pane call")
+	}
+}
+
+func TestPipePaneError(t *testing.T) {
+	mock := mockCmd("", "no session", 1)
+	m := &Manager{
+		SessionPrefix:   "bc-",
+		execCommand:     mock,
+		hasSessionCache: make(map[string]bool),
+	}
+
+	err := m.PipePane(testCtx(), "agent1", "/tmp/test.log")
+	if err == nil {
+		t.Error("expected error from PipePane with failed session")
+	}
+}

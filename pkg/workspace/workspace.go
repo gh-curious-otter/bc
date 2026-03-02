@@ -326,6 +326,9 @@ func (w *Workspace) AgentsDir() string {
 
 // LogsDir returns the logs directory.
 func (w *Workspace) LogsDir() string {
+	if w.V2Config != nil && w.V2Config.Logs.Path != "" {
+		return filepath.Join(w.RootDir, w.V2Config.Logs.Path)
+	}
 	return filepath.Join(w.Config.StateDir, "logs")
 }
 
