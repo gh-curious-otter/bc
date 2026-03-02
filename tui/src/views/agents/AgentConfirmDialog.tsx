@@ -36,14 +36,18 @@ export function AgentConfirmDialog({
     }
   };
 
+  // #1847 P2b: destructive actions (kill) use red, caution actions (stop/restart) use yellow
+  const isDestructive = action === 'kill';
+  const borderColor = isDestructive ? 'red' : 'yellow';
+
   return (
     <Box
       marginBottom={1}
       paddingX={isNarrow ? 0 : 1}
       borderStyle={isNarrow ? undefined : 'round'}
-      borderColor="yellow"
+      borderColor={borderColor}
     >
-      <Text color="yellow">{getMessage()} </Text>
+      <Text color={borderColor}>{getMessage()} </Text>
       <Text color="green">[y]es</Text>
       <Text color="gray"> / </Text>
       <Text color="red">[n]o</Text>
