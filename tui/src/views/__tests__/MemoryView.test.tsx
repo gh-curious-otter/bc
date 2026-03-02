@@ -2,6 +2,8 @@
  * MemoryView Tests
  * Issue #1231: Add additional TUI views
  * Issue #1729: Migrated to useListNavigation
+ * Issue #1839: 3-tab memory editor
+ * Issue #1854: Delete experience by index
  *
  * Tests cover:
  * - UI state reducer
@@ -10,14 +12,15 @@
  * - Time formatting
  * - Memory data structures
  * - Keyboard shortcuts
- * - Detail tab switching
+ * - Detail tab switching (3 tabs: experiences, learnings, prompt)
+ * - Delete experience confirmation flow
  */
 
 import { describe, test, expect } from 'bun:test';
 
 // View mode types
 type ViewMode = 'list' | 'detail' | 'search';
-type DetailTab = 'experiences' | 'learnings';
+type DetailTab = 'experiences' | 'learnings' | 'prompt';
 
 // UI state interface matching MemoryView
 interface UIState {
@@ -25,6 +28,7 @@ interface UIState {
   searchQuery: string;
   searchMode: boolean;
   confirmClear: boolean;
+  confirmDeleteExp: number | null;
   detailTab: DetailTab;
 }
 
@@ -36,6 +40,7 @@ type UIAction =
   | { type: 'BACKSPACE_SEARCH' }
   | { type: 'TOGGLE_SEARCH_MODE'; enabled?: boolean }
   | { type: 'TOGGLE_CONFIRM_CLEAR'; enabled?: boolean }
+  | { type: 'SET_CONFIRM_DELETE_EXP'; index: number | null }
   | { type: 'SET_DETAIL_TAB'; tab: DetailTab }
   | { type: 'EXIT_DETAIL' }
   | { type: 'EXIT_SEARCH' };
@@ -46,6 +51,7 @@ const initialUIState: UIState = {
   searchQuery: '',
   searchMode: false,
   confirmClear: false,
+  confirmDeleteExp: null,
   detailTab: 'experiences',
 };
 
@@ -64,10 +70,12 @@ function uiReducer(state: UIState, action: UIAction): UIState {
       return { ...state, searchMode: action.enabled ?? !state.searchMode };
     case 'TOGGLE_CONFIRM_CLEAR':
       return { ...state, confirmClear: action.enabled ?? !state.confirmClear };
+    case 'SET_CONFIRM_DELETE_EXP':
+      return { ...state, confirmDeleteExp: action.index };
     case 'SET_DETAIL_TAB':
       return { ...state, detailTab: action.tab };
     case 'EXIT_DETAIL':
-      return { ...state, viewMode: 'list' };
+      return { ...state, viewMode: 'list', confirmDeleteExp: null };
     case 'EXIT_SEARCH':
       return { ...state, viewMode: 'list', searchQuery: '' };
     default:
@@ -204,6 +212,19 @@ describe('MemoryView', () => {
       });
     });
 
+    describe('SET_CONFIRM_DELETE_EXP', () => {
+      test('sets experience index for deletion', () => {
+        const state = uiReducer(initialUIState, { type: 'SET_CONFIRM_DELETE_EXP', index: 3 });
+        expect(state.confirmDeleteExp).toBe(3);
+      });
+
+      test('clears deletion confirmation', () => {
+        const withDelete = { ...initialUIState, confirmDeleteExp: 3 };
+        const state = uiReducer(withDelete, { type: 'SET_CONFIRM_DELETE_EXP', index: null });
+        expect(state.confirmDeleteExp).toBeNull();
+      });
+    });
+
     describe('SET_DETAIL_TAB', () => {
       test('sets experiences tab', () => {
         const state = uiReducer(initialUIState, { type: 'SET_DETAIL_TAB', tab: 'experiences' });
@@ -214,6 +235,11 @@ describe('MemoryView', () => {
         const state = uiReducer(initialUIState, { type: 'SET_DETAIL_TAB', tab: 'learnings' });
         expect(state.detailTab).toBe('learnings');
       });
+
+      test('sets prompt tab', () => {
+        const state = uiReducer(initialUIState, { type: 'SET_DETAIL_TAB', tab: 'prompt' });
+        expect(state.detailTab).toBe('prompt');
+      });
     });
 
     describe('EXIT_DETAIL', () => {
@@ -221,6 +247,12 @@ describe('MemoryView', () => {
         const detailMode = { ...initialUIState, viewMode: 'detail' as ViewMode };
         const state = uiReducer(detailMode, { type: 'EXIT_DETAIL' });
         expect(state.viewMode).toBe('list');
+      });
+
+      test('clears pending delete confirmation', () => {
+        const detailWithDelete = { ...initialUIState, viewMode: 'detail' as ViewMode, confirmDeleteExp: 5 };
+        const state = uiReducer(detailWithDelete, { type: 'EXIT_DETAIL' });
+        expect(state.confirmDeleteExp).toBeNull();
       });
     });
 
@@ -351,6 +383,8 @@ describe('MemoryView', () => {
       R: 'refresh',
       '1': 'experiences tab',
       '2': 'learnings tab',
+      '3': 'prompt tab',
+      d: 'delete experience',
       'Esc/q': 'back',
       y: 'confirm clear',
     };
@@ -367,11 +401,13 @@ describe('MemoryView', () => {
     test('action shortcuts', () => {
       expect(shortcuts.c).toBe('clear');
       expect(shortcuts.R).toBe('refresh');
+      expect(shortcuts.d).toBe('delete experience');
     });
 
     test('detail tab shortcuts', () => {
       expect(shortcuts['1']).toBe('experiences tab');
       expect(shortcuts['2']).toBe('learnings tab');
+      expect(shortcuts['3']).toBe('prompt tab');
     });
 
     test('back shortcuts', () => {
@@ -412,7 +448,7 @@ describe('MemoryView', () => {
       const experiences = Array(20).fill(null).map((_, i) => ({
         id: String(i),
         timestamp: '2024-02-15T14:30:00Z',
-        message: `Experience ${i}`,
+        message: `Experience ${String(i)}`,
         outcome: 'success' as const,
       }));
 
@@ -427,7 +463,7 @@ describe('MemoryView', () => {
       const results: MemorySearchResult[] = Array(25).fill(null).map((_, i) => ({
         agent: 'eng-01',
         type: 'experience' as const,
-        content: `Result ${i}`,
+        content: `Result ${String(i)}`,
       }));
 
       const displayed = results.slice(0, 15);
@@ -498,9 +534,30 @@ describe('MemoryView', () => {
         learning_count: 5,
       };
 
-      const detail = `This will delete ${agent.experience_count} experiences and ${agent.learning_count} learnings.`;
+      const detail = `This will delete ${String(agent.experience_count)} experiences and ${String(agent.learning_count)} learnings.`;
       expect(detail).toContain('10 experiences');
       expect(detail).toContain('5 learnings');
+    });
+  });
+
+  describe('Delete Experience Confirmation', () => {
+    test('shows experience index in confirmation', () => {
+      const index = 3;
+      const agent = 'eng-01';
+      const message = `Delete experience #${String(index)} from "${agent}"?`;
+      expect(message).toContain('#3');
+      expect(message).toContain('eng-01');
+    });
+
+    test('SET_CONFIRM_DELETE_EXP sets 1-based index', () => {
+      const state = uiReducer(initialUIState, { type: 'SET_CONFIRM_DELETE_EXP', index: 1 });
+      expect(state.confirmDeleteExp).toBe(1);
+    });
+
+    test('cancelling delete clears index', () => {
+      const withDelete = { ...initialUIState, confirmDeleteExp: 3 };
+      const state = uiReducer(withDelete, { type: 'SET_CONFIRM_DELETE_EXP', index: null });
+      expect(state.confirmDeleteExp).toBeNull();
     });
   });
 

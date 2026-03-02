@@ -412,6 +412,27 @@ describe('AgentDetailView - follow mode', () => {
   });
 });
 
+describe('AgentDetailView - follow-aware polling (#1855)', () => {
+  // #1855: Polling should only run when both live tab is active AND following
+  function shouldPoll(activeTab: string, isFollowing: boolean): boolean {
+    return activeTab === 'live' && isFollowing;
+  }
+
+  test('polls when live tab active and following', () => {
+    expect(shouldPoll('live', true)).toBe(true);
+  });
+
+  test('does not poll when live tab active but paused', () => {
+    expect(shouldPoll('live', false)).toBe(false);
+  });
+
+  test('does not poll on other tabs', () => {
+    expect(shouldPoll('output', true)).toBe(false);
+    expect(shouldPoll('details', true)).toBe(false);
+    expect(shouldPoll('metrics', true)).toBe(false);
+  });
+});
+
 describe('AgentDetailView - output slicing', () => {
   function getVisibleLines(lines: string[], offset: number, visible = 20): string[] {
     return lines.slice(offset, offset + visible);

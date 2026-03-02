@@ -17,7 +17,15 @@ describe('viewCommands', () => {
     test('resolves aliases', () => {
       expect(resolveCommand('dash')).toBe('dashboard');
       expect(resolveCommand('ag')).toBe('agents');
+      expect(resolveCommand('mem')).toBe('memory');
+      expect(resolveCommand('m')).toBe('memory');
       expect(resolveCommand('?')).toBe('help');
+    });
+
+    test('resolves :memory and :mem to memory view', () => {
+      expect(resolveCommand('memory')).toBe('memory');
+      expect(resolveCommand('mem')).toBe('memory');
+      expect(resolveCommand('m')).toBe('memory');
     });
 
     test('returns null for unknown commands', () => {

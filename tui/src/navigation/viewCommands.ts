@@ -31,6 +31,8 @@ export const VIEW_COMMANDS: ViewCommand[] = [
   { command: 'channels', aliases: ['ch', 'c'], view: 'channels', section: 'CORE' },
   { command: 'costs', aliases: ['co', 'cost'], view: 'costs', section: 'CORE' },
   { command: 'logs', aliases: ['log', 'l'], view: 'logs', section: 'CORE' },
+  { command: 'memory', aliases: ['mem', 'm'], view: 'memory', section: 'CORE' },
+  { command: 'tools', aliases: ['tool', 't'], view: 'tools', section: 'SYSTEM' },
   { command: 'roles', aliases: ['ro', 'r'], view: 'roles', section: 'SYSTEM' },
   { command: 'worktrees', aliases: ['wt', 'w'], view: 'worktrees', section: 'SYSTEM' },
   { command: 'help', aliases: ['?', 'h'], view: 'help', section: 'CORE' },

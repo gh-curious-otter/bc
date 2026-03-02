@@ -107,6 +107,84 @@ export interface CostSummary {
   by_agent?: Record<string, number>;
   by_team?: Record<string, number>;
   by_model?: Record<string, number>;
+  // ccusage integration fields (#1882)
+  cache_hit_rate?: number;
+  burn_rate?: number;
+  projected_total?: number;
+  billing_window_spent?: number;
+}
+
+// Cost usage types from ccusage integration (#1882)
+export interface CostUsageDaily {
+  date: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+  totalTokens: number;
+  totalCost: number;
+  modelsUsed: string[];
+}
+
+export interface CostUsageDailyResponse {
+  daily: CostUsageDaily[];
+  totals: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheCreationTokens: number;
+    cacheReadTokens: number;
+    totalTokens: number;
+    totalCost: number;
+  };
+}
+
+export interface CostUsageMonthly {
+  month: string;
+  models: string[];
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+  totalTokens: number;
+  costUSD: number;
+}
+
+export interface CostUsageMonthlyResponse {
+  type: string;
+  data: CostUsageMonthly[];
+  summary: {
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    totalCacheCreationTokens: number;
+    totalCacheReadTokens: number;
+    totalTokens: number;
+    totalCostUSD: number;
+  };
+}
+
+export interface CostUsageSession {
+  session: string;
+  lastActivity: string;
+  models: string[];
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+  totalTokens: number;
+  costUSD: number;
+}
+
+export interface CostUsageSessionResponse {
+  type: string;
+  data: CostUsageSession[];
+  summary: {
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    totalCacheCreationTokens: number;
+    totalCacheReadTokens: number;
+    totalTokens: number;
+    totalCostUSD: number;
+  };
 }
 
 // Generic bc command result
@@ -126,11 +204,12 @@ export interface BcEvent {
 }
 
 // Log entry from bc logs --json
+// Note: type/agent/message can be undefined at runtime due to Go's omitempty (#1874)
 export interface LogEntry {
   ts: string;
-  type: string;
-  agent: string;
-  message: string;
+  type?: string;
+  agent?: string;
+  message?: string;
   data?: Record<string, unknown>;
 }
 
@@ -314,6 +393,17 @@ export interface RoutingRule {
 
 export interface RoutingConfig {
   rules: RoutingRule[];
+}
+
+// Tool types for Tools view (#1866)
+export type ToolStatus = 'installed' | 'not found';
+
+export interface ToolInfo {
+  name: string;
+  status: ToolStatus;
+  version: string;
+  command: string;
+  path?: string;
 }
 
 // GitHub Issue types for Issues view (#1754)

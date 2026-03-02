@@ -24,7 +24,9 @@ import { ChannelsView } from './views/ChannelsView';
 import { CostsView } from './views/CostsView';
 import { LogsView } from './views/LogsView';
 import { WorktreesView } from './views/WorktreesView';
+import { MemoryView } from './views/MemoryView';
 import { HelpView } from './views/HelpView';
+import { ToolsView } from './views/ToolsView';
 import { CommandBar } from './components/CommandBar';
 import { FilterBar } from './components/FilterBar';
 import { FilterProvider } from './hooks/useFilter';
@@ -131,7 +133,7 @@ function AppContent({ themeConfig }: AppContentProps): React.ReactElement {
 
       {/* Main content area - full width, no sidebar */}
       <Box flexDirection="column" flexGrow={1} overflow="hidden">
-        <ViewErrorBoundary viewName={currentView}>
+        <ViewErrorBoundary key={currentView} viewName={currentView}>
           <ViewContent view={currentView} />
         </ViewErrorBoundary>
       </Box>
@@ -177,6 +179,10 @@ const ViewContent = memo(function ViewContent({ view }: ViewContentProps): React
       return <RolesView />;
     case 'worktrees':
       return <WorktreesView />;
+    case 'memory':
+      return <MemoryView />;
+    case 'tools':
+      return <ToolsView />;
     case 'help':
       return <HelpView />;
     default:

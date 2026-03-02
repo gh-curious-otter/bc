@@ -13,7 +13,6 @@ import (
 
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
-	"github.com/rpuneet/bc/pkg/cost"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/ui"
 	"github.com/rpuneet/bc/pkg/workspace"
@@ -1262,109 +1261,7 @@ func TestStatusWithAgents(t *testing.T) {
 	}
 }
 
-// --- Cost dashboard command tests ---
-// (Basic cost show/summary tests are in cost_test.go)
-
-// seedCostRecords creates cost records in the workspace database.
-func seedCostRecords(t *testing.T, wsDir string, records []costRecordInput) {
-	t.Helper()
-	store := cost.NewStore(wsDir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("failed to open cost store: %v", err)
-	}
-	defer func() { _ = store.Close() }()
-
-	for _, r := range records {
-		if _, err := store.Record(r.AgentID, r.TeamID, r.Model, r.InputTokens, r.OutputTokens, r.CostUSD); err != nil {
-			t.Fatalf("failed to record cost: %v", err)
-		}
-	}
-}
-
-type costRecordInput struct {
-	AgentID      string
-	TeamID       string
-	Model        string
-	InputTokens  int64
-	OutputTokens int64
-	CostUSD      float64
-}
-
-func TestCostDashboardNoWorkspace(t *testing.T) {
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get cwd: %v", err)
-	}
-
-	tmpDir := t.TempDir()
-	if err = os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to chdir: %v", err)
-	}
-	defer func() { _ = os.Chdir(origDir) }()
-
-	_, _, err = executeIntegrationCmd("cost", "dashboard")
-	if err == nil {
-		t.Fatal("expected error when not in workspace, got nil")
-	}
-}
-
-func TestCostDashboardEmpty(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	stdout, _, err := executeIntegrationCmd("cost", "dashboard")
-	if err != nil {
-		t.Fatalf("cost dashboard returned error: %v", err)
-	}
-	if !strings.Contains(stdout, "COST DASHBOARD") {
-		t.Errorf("expected 'COST DASHBOARD' header, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "WORKSPACE TOTALS") {
-		t.Errorf("expected 'WORKSPACE TOTALS' section, got: %s", stdout)
-	}
-}
-
-func TestCostDashboardWithRecords(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	seedCostRecords(t, wsDir, []costRecordInput{
-		{AgentID: "engineer-01", TeamID: "engineering", Model: "claude-sonnet", InputTokens: 1000, OutputTokens: 500, CostUSD: 0.015},
-		{AgentID: "engineer-02", TeamID: "engineering", Model: "claude-opus", InputTokens: 2000, OutputTokens: 1000, CostUSD: 0.045},
-		{AgentID: "qa-01", TeamID: "qa", Model: "claude-sonnet", InputTokens: 500, OutputTokens: 250, CostUSD: 0.0075},
-	})
-
-	stdout, _, err := executeIntegrationCmd("cost", "dashboard")
-	if err != nil {
-		t.Fatalf("cost dashboard returned error: %v", err)
-	}
-	// Check all sections are present
-	if !strings.Contains(stdout, "COST DASHBOARD") {
-		t.Errorf("expected 'COST DASHBOARD' header, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "WORKSPACE TOTALS") {
-		t.Errorf("expected 'WORKSPACE TOTALS' section, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "BY AGENT") {
-		t.Errorf("expected 'BY AGENT' section, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "BY TEAM") {
-		t.Errorf("expected 'BY TEAM' section, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "BY MODEL") {
-		t.Errorf("expected 'BY MODEL' section, got: %s", stdout)
-	}
-	// Check agent data
-	if !strings.Contains(stdout, "engineer-01") {
-		t.Errorf("expected 'engineer-01' in output, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "engineer-02") {
-		t.Errorf("expected 'engineer-02' in output, got: %s", stdout)
-	}
-	// Check percentages are shown
-	if !strings.Contains(stdout, "%") {
-		t.Errorf("expected percentage values, got: %s", stdout)
-	}
-}
+// --- Cost command tests ---
+// (Cost show/budget/usage tests are in cost_test.go and cost_usage_test.go)
 
 // Note: Process command tests are in process_test.go

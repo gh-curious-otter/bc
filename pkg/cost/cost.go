@@ -52,7 +52,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -889,82 +888,4 @@ func (s *Store) ProjectCost(lookbackDays int, projectDuration time.Duration) (*P
 	proj.ProjectedCost = proj.DailyAvgCost * projectDays
 
 	return proj, nil
-}
-
-// ParseCostFromMessage attempts to extract cost information from a message.
-// This is used to parse cost data from tool output and agent messages.
-// Looks for patterns like:
-//   - "tokens: 1000" or "input_tokens: 1000"
-//   - "cost: $0.05" or "cost_usd: 0.05"
-//
-// Returns nil if no cost data is found.
-func ParseCostFromMessage(message string) *CostMessage {
-	if message == "" {
-		return nil
-	}
-
-	// Look for cost-like patterns
-	hasCost := strings.Contains(strings.ToLower(message), "cost") ||
-		strings.Contains(strings.ToLower(message), "token") ||
-		strings.Contains(message, "$")
-
-	if !hasCost {
-		return nil
-	}
-
-	// For now, return nil - full parsing would require more sophisticated
-	// regex or JSON parsing of embedded cost structures.
-	// This is a placeholder for future integration with actual agent output.
-	return nil
-}
-
-// CostMessage represents cost information embedded in an agent message.
-type CostMessage struct {
-	AgentID      string
-	Message      string
-	InputTokens  int64
-	OutputTokens int64
-	CostUSD      float64
-}
-
-// RecordFromMessage creates a cost Record from a parsed message.
-// Useful for recording costs extracted from agent output.
-func RecordFromMessage(cm *CostMessage) *Record {
-	if cm == nil {
-		return nil
-	}
-	return &Record{
-		AgentID:      cm.AgentID,
-		Model:        "extracted",
-		InputTokens:  cm.InputTokens,
-		OutputTokens: cm.OutputTokens,
-		TotalTokens:  cm.InputTokens + cm.OutputTokens,
-		CostUSD:      cm.CostUSD,
-		Timestamp:    time.Now().UTC(),
-	}
-}
-
-// RecordCostFromMessage extracts cost information from a message and stores it.
-// This is a convenience method for one-step parsing and recording.
-// Returns the recorded Record if cost data was found and successfully stored,
-// or (nil, error) if parsing failed or data wasn't found.
-func (s *Store) RecordCostFromMessage(agentID, message string) (*Record, error) {
-	cm := ParseCostFromMessage(message)
-	if cm == nil {
-		return nil, nil // No cost data found, not an error
-	}
-
-	cm.AgentID = agentID
-	record := RecordFromMessage(cm)
-	if record == nil {
-		return nil, fmt.Errorf("failed to create record from parsed message")
-	}
-
-	// Record it in the store
-	stored, err := s.Record(record.AgentID, "", record.Model, record.InputTokens, record.OutputTokens, record.CostUSD)
-	if err != nil {
-		return nil, fmt.Errorf("failed to store parsed cost: %w", err)
-	}
-
-	return stored, nil
 }

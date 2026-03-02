@@ -125,7 +125,7 @@ export function ActivityFeed({
     let filtered = logs;
     if (activeFilter) {
       filtered = logs.filter((entry) => {
-        const type = entry.type.toLowerCase();
+        const type = (entry.type ?? '').toLowerCase();
         switch (activeFilter) {
           case 'error':
             return type.includes('error') || type.includes('fail');
@@ -204,9 +204,10 @@ const ActivityEntry = memo(function ActivityEntry({
   compact = false,
   terminalWidth = 80,
 }: ActivityEntryProps): React.ReactElement {
-  const severityColor = getSeverityColor(entry.type);
-  const severityIcon = getSeverityIcon(entry.type);
-  const eventLabel = formatEventType(entry.type);
+  const entryType = entry.type ?? '';
+  const severityColor = getSeverityColor(entryType);
+  const severityIcon = getSeverityIcon(entryType);
+  const eventLabel = formatEventType(entryType);
 
   // Calculate dynamic message width based on terminal size
   // Layout: [timestamp] agent icon event message [count]
@@ -216,7 +217,7 @@ const ActivityEntry = memo(function ActivityEntry({
   const maxMsgLen = Math.max(MIN_MSG_WIDTH, availableWidth);
 
   // Shorten paths in message (#1368)
-  const displayMessage = shortenPath(entry.message);
+  const displayMessage = shortenPath(entry.message ?? '');
 
   return (
     <Box>

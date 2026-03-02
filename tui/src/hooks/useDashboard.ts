@@ -20,6 +20,8 @@ interface DashboardSummary {
   totalCostUSD: number;
   inputTokens: number;
   outputTokens: number;
+  burnRate?: number;
+  topAgents?: { name: string; cost: number }[];
 }
 
 interface AgentStats {
@@ -183,6 +185,12 @@ export function useDashboard() {
   // Compute summary from data
   const summary = useMemo<DashboardSummary>(() => {
     const agentList = agents.data ?? [];
+    // #1882: Compute top agents from by_agent cost data
+    const byAgent = cost.data?.by_agent ?? {};
+    const topAgents = Object.entries(byAgent)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 4)
+      .map(([name, agentCost]) => ({ name, cost: agentCost }));
     return {
       workspaceName,
       total: agentList.length,
@@ -194,6 +202,8 @@ export function useDashboard() {
       totalCostUSD: cost.data?.total_cost ?? 0,
       inputTokens: cost.data?.total_input_tokens ?? 0,
       outputTokens: cost.data?.total_output_tokens ?? 0,
+      burnRate: cost.data?.burn_rate,
+      topAgents,
     };
   }, [workspaceName, agents.data, cost.data]);
 

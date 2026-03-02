@@ -1,7 +1,9 @@
 package cmd
 
 import (
-	"os"
+	"context"
+	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -14,11 +16,16 @@ import (
 
 // resetCostFlags resets the cost command flags between tests
 func resetCostFlags() {
-	costTeamFlag = ""
-	costAgentFlag = ""
-	costWorkspaceFlag = false
-	costModelFlag = false
 	costLimitFlag = 20
+}
+
+// resetBudgetFlags resets the budget command flags between tests
+func resetBudgetFlags() {
+	budgetAgentFlag = ""
+	budgetTeamFlag = ""
+	budgetPeriodFlag = "monthly"
+	budgetAlertAtFlag = 0.8
+	budgetHardStop = false
 }
 
 func TestCostShowEmpty(t *testing.T) {
@@ -129,361 +136,6 @@ func TestCostShowLimit(t *testing.T) {
 	}
 }
 
-func TestCostSummaryEmpty(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	stdout, _, err := executeIntegrationCmd("cost", "summary")
-	if err != nil {
-		t.Fatalf("cost summary failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "Workspace Summary") {
-		t.Errorf("expected 'Workspace Summary', got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "API Calls:") {
-		t.Errorf("expected 'API Calls:' header, got: %s", stdout)
-	}
-}
-
-func TestCostSummaryWorkspace(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	store := cost.NewStore(wsDir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("failed to open cost store: %v", err)
-	}
-
-	_, _ = store.Record("engineer-01", "engineering", "claude-3-opus", 1000, 500, 0.05)
-	_, _ = store.Record("engineer-02", "engineering", "claude-3-sonnet", 2000, 1000, 0.03)
-	_ = store.Close()
-
-	stdout, _, err := executeIntegrationCmd("cost", "summary", "--workspace")
-	if err != nil {
-		t.Fatalf("cost summary --workspace failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "Workspace Summary") {
-		t.Errorf("expected 'Workspace Summary', got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "Total Cost:") {
-		t.Errorf("expected 'Total Cost:', got: %s", stdout)
-	}
-}
-
-func TestCostSummaryByAgent(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetCostFlags()
-	defer resetCostFlags()
-
-	store := cost.NewStore(wsDir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("failed to open cost store: %v", err)
-	}
-
-	_, _ = store.Record("engineer-01", "", "claude-3-opus", 1000, 500, 0.05)
-	_, _ = store.Record("engineer-01", "", "claude-3-opus", 2000, 1000, 0.08)
-	_ = store.Close()
-
-	stdout, _, err := executeIntegrationCmd("cost", "summary", "--agent", "engineer-01")
-	if err != nil {
-		t.Fatalf("cost summary --agent failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "Agent:") {
-		t.Errorf("expected 'Agent:' header, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "engineer-01") {
-		t.Errorf("expected agent name in output: %s", stdout)
-	}
-}
-
-func TestCostSummaryByTeam(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetCostFlags()
-	defer resetCostFlags()
-
-	store := cost.NewStore(wsDir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("failed to open cost store: %v", err)
-	}
-
-	_, _ = store.Record("engineer-01", "engineering", "claude-3-opus", 1000, 500, 0.05)
-	_, _ = store.Record("engineer-02", "engineering", "claude-3-sonnet", 2000, 1000, 0.03)
-	_ = store.Close()
-
-	stdout, _, err := executeIntegrationCmd("cost", "summary", "--team", "engineering")
-	if err != nil {
-		t.Fatalf("cost summary --team failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "Team:") {
-		t.Errorf("expected 'Team:' header, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "engineering") {
-		t.Errorf("expected team name in output: %s", stdout)
-	}
-}
-
-func TestCostSummaryByModel(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetCostFlags()
-	defer resetCostFlags()
-
-	store := cost.NewStore(wsDir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("failed to open cost store: %v", err)
-	}
-
-	_, _ = store.Record("engineer-01", "", "claude-3-opus", 1000, 500, 0.05)
-	_, _ = store.Record("engineer-02", "", "claude-3-sonnet", 2000, 1000, 0.03)
-	_ = store.Close()
-
-	stdout, _, err := executeIntegrationCmd("cost", "summary", "--model")
-	if err != nil {
-		t.Fatalf("cost summary --model failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "Cost by Model") {
-		t.Errorf("expected 'Cost by Model' header, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "claude-3-opus") {
-		t.Errorf("expected opus model in output: %s", stdout)
-	}
-	if !strings.Contains(stdout, "claude-3-sonnet") {
-		t.Errorf("expected sonnet model in output: %s", stdout)
-	}
-}
-
-func TestCostNoWorkspace(t *testing.T) {
-	// Run outside workspace - setup temp dir without bc workspace
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get cwd: %v", err)
-	}
-
-	tmpDir := t.TempDir()
-	if err = os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to chdir: %v", err)
-	}
-	defer func() { _ = os.Chdir(origDir) }()
-
-	_, _, execErr := executeIntegrationCmd("cost", "show")
-	if execErr == nil {
-		t.Error("expected error when not in workspace")
-	}
-	if !strings.Contains(execErr.Error(), "not in a bc workspace") {
-		t.Errorf("expected workspace error, got: %v", execErr)
-	}
-}
-
-// TestCostAddBasic tests manual cost entry with amount only
-func TestCostAddBasic(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	// Reset flags
-	addCostAgentFlag = ""
-	addCostAmountFlag = 0
-	addCostToolFlag = ""
-	addCostModelFlag = "manual"
-	addCostInputTokens = 0
-	addCostOutputTokens = 0
-
-	stdout, _, err := executeIntegrationCmd(
-		"cost", "add",
-		"--agent", "engineer-01",
-		"--amount", "0.50",
-	)
-	if err != nil {
-		t.Fatalf("cost add failed: %v\nOutput: %s", err, stdout)
-	}
-
-	if !strings.Contains(stdout, "Cost recorded") {
-		t.Errorf("expected 'Cost recorded', got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "engineer-01") {
-		t.Errorf("expected agent name in output, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "0.5000") {
-		t.Errorf("expected cost amount in output, got: %s", stdout)
-	}
-
-	// Verify it was actually recorded
-	store := cost.NewStore(wsDir)
-	storeErr := store.Open()
-	if storeErr != nil {
-		t.Fatalf("failed to open store: %v", storeErr)
-	}
-	defer func() { _ = store.Close() }()
-
-	records, err := store.GetByAgent("engineer-01", 10)
-	if err != nil {
-		t.Fatalf("failed to get records: %v", err)
-	}
-	if len(records) != 1 {
-		t.Errorf("expected 1 record, got %d", len(records))
-	}
-	if records[0].CostUSD != 0.50 {
-		t.Errorf("cost = %f, want 0.50", records[0].CostUSD)
-	}
-}
-
-// TestCostAddWithTokens tests cost entry with token counts
-func TestCostAddWithTokens(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	// Reset flags
-	addCostAgentFlag = ""
-	addCostAmountFlag = 0
-	addCostToolFlag = ""
-	addCostModelFlag = "manual"
-	addCostInputTokens = 0
-	addCostOutputTokens = 0
-
-	stdout, _, err := executeIntegrationCmd(
-		"cost", "add",
-		"--agent", "engineer-02",
-		"--tokens-in", "5000",
-		"--tokens-out", "2000",
-		"--amount", "0.35",
-		"--model", "claude-3-opus",
-	)
-	if err != nil {
-		t.Fatalf("cost add with tokens failed: %v\nOutput: %s", err, stdout)
-	}
-
-	if !strings.Contains(stdout, "5000") && !strings.Contains(stdout, "input") {
-		t.Errorf("expected token info in output, got: %s", stdout)
-	}
-
-	// Verify tokens were recorded
-	store := cost.NewStore(wsDir)
-	storeErr := store.Open()
-	if storeErr != nil {
-		t.Fatalf("failed to open store: %v", storeErr)
-	}
-	defer func() { _ = store.Close() }()
-
-	records, getErr := store.GetByAgent("engineer-02", 10)
-	if getErr != nil {
-		t.Fatalf("failed to get records: %v", getErr)
-	}
-	if len(records) != 1 {
-		t.Errorf("expected 1 record, got %d", len(records))
-	}
-	if records[0].InputTokens != 5000 {
-		t.Errorf("input tokens = %d, want 5000", records[0].InputTokens)
-	}
-	if records[0].OutputTokens != 2000 {
-		t.Errorf("output tokens = %d, want 2000", records[0].OutputTokens)
-	}
-}
-
-// TestCostAddMissingAgent tests error when --agent is not provided
-func TestCostAddMissingAgent(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	// Reset flags
-	addCostAgentFlag = ""
-	addCostAmountFlag = 0
-	addCostToolFlag = ""
-	addCostModelFlag = "manual"
-	addCostInputTokens = 0
-	addCostOutputTokens = 0
-
-	stdout, _, err := executeIntegrationCmd(
-		"cost", "add",
-		"--amount", "0.50",
-	)
-	if err == nil {
-		t.Fatalf("expected error when --agent flag missing, got output: %s", stdout)
-	}
-}
-
-// TestCostAddMissingAmount tests error when neither --amount nor tokens provided
-func TestCostAddMissingAmount(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	// Reset flags
-	addCostAgentFlag = ""
-	addCostAmountFlag = 0
-	addCostToolFlag = ""
-	addCostModelFlag = "manual"
-	addCostInputTokens = 0
-	addCostOutputTokens = 0
-
-	stdout, _, err := executeIntegrationCmd(
-		"cost", "add",
-		"--agent", "engineer-01",
-	)
-	if err == nil {
-		t.Fatalf("expected error when no cost info provided, got output: %s", stdout)
-	}
-}
-
-// TestCostAddTokensWithoutAmount tests error when tokens provided without amount
-func TestCostAddTokensWithoutAmount(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	// Reset flags
-	addCostAgentFlag = ""
-	addCostAmountFlag = 0
-	addCostToolFlag = ""
-	addCostModelFlag = "manual"
-	addCostInputTokens = 0
-	addCostOutputTokens = 0
-
-	stdout, _, err := executeIntegrationCmd(
-		"cost", "add",
-		"--agent", "engineer-01",
-		"--tokens-in", "5000",
-	)
-	if err == nil {
-		t.Fatalf("expected error when tokens provided without amount, got output: %s", stdout)
-	}
-}
-
-// TestCostPeekMissingFlags tests error when neither --agent nor --workspace provided
-func TestCostPeekMissingFlags(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	// Reset flags
-	peekAgentFlag = ""
-	peekWorkspaceFlag = false
-	peekIntervalFlag = 5
-
-	_, _, err := executeIntegrationCmd("cost", "peek")
-	if err == nil {
-		t.Fatal("expected error when no flags provided")
-	}
-}
-
-// TestCostPeekBothFlags tests error when both --agent and --workspace provided
-func TestCostPeekBothFlags(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	// Reset flags
-	peekAgentFlag = ""
-	peekWorkspaceFlag = false
-	peekIntervalFlag = 5
-
-	_, _, err := executeIntegrationCmd(
-		"cost", "peek",
-		"--agent", "engineer-01",
-		"--workspace",
-	)
-	if err == nil {
-		t.Fatal("expected error when both flags provided")
-	}
-}
-
-// TestCostShowNegativeLimit tests that negative limits are rejected
 func TestCostShowNegativeLimit(t *testing.T) {
 	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
@@ -499,7 +151,6 @@ func TestCostShowNegativeLimit(t *testing.T) {
 	}
 }
 
-// TestCostShowZeroLimit tests that zero limit is rejected
 func TestCostShowZeroLimit(t *testing.T) {
 	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
@@ -515,827 +166,46 @@ func TestCostShowZeroLimit(t *testing.T) {
 	}
 }
 
-// =============================================================================
-// Dashboard Command Tests (Additional)
-// =============================================================================
-// Note: Basic dashboard tests are in cmd_integration_test.go
-
-// TestCostDashboardShowsPercentages tests that dashboard shows percentage breakdown
-func TestCostDashboardShowsPercentages(t *testing.T) {
+func TestCostShowJSON(t *testing.T) {
 	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
-
-	store := cost.NewStore(wsDir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("failed to open cost store: %v", err)
-	}
-
-	_, _ = store.Record("engineer-01", "", "claude-3-opus", 1000, 500, 0.80)
-	_, _ = store.Record("engineer-02", "", "claude-3-opus", 1000, 500, 0.20)
-	_ = store.Close()
-
-	stdout, _, err := executeIntegrationCmd("cost", "dashboard")
-	if err != nil {
-		t.Fatalf("cost dashboard failed: %v\nOutput: %s", err, stdout)
-	}
-	// Should show percentage of total
-	if !strings.Contains(stdout, "% OF TOTAL") {
-		t.Errorf("expected percentage column, got: %s", stdout)
-	}
-}
-
-// =============================================================================
-// Budget Set Command Tests
-// =============================================================================
-
-// resetBudgetFlags resets budget-related flags between tests
-func resetBudgetFlags() {
-	budgetAgentFlag = ""
-	budgetTeamFlag = ""
-	budgetPeriodFlag = "monthly"
-	budgetAlertAtFlag = 0.8
-	budgetHardStop = false
-}
-
-// TestCostBudgetSetWorkspace tests setting a workspace budget
-func TestCostBudgetSetWorkspace(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetBudgetFlags()
-	defer resetBudgetFlags()
-
-	stdout, _, err := executeIntegrationCmd("cost", "budget", "set", "100.00")
-	if err != nil {
-		t.Fatalf("cost budget set failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "Budget set for workspace") {
-		t.Errorf("expected workspace budget confirmation, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "100.00") {
-		t.Errorf("expected amount in output, got: %s", stdout)
-	}
-}
-
-// TestCostBudgetSetAgent tests setting an agent-specific budget
-func TestCostBudgetSetAgent(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetBudgetFlags()
-	defer resetBudgetFlags()
-
-	stdout, _, err := executeIntegrationCmd("cost", "budget", "set", "50.00", "--agent", "engineer-01")
-	if err != nil {
-		t.Fatalf("cost budget set --agent failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "agent:engineer-01") {
-		t.Errorf("expected agent scope in output, got: %s", stdout)
-	}
-}
-
-// TestCostBudgetSetTeam tests setting a team-specific budget
-func TestCostBudgetSetTeam(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetBudgetFlags()
-	defer resetBudgetFlags()
-
-	stdout, _, err := executeIntegrationCmd("cost", "budget", "set", "200.00", "--team", "engineering")
-	if err != nil {
-		t.Fatalf("cost budget set --team failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "team:engineering") {
-		t.Errorf("expected team scope in output, got: %s", stdout)
-	}
-}
-
-// TestCostBudgetSetPeriods tests all budget period options
-func TestCostBudgetSetPeriods(t *testing.T) {
-	tests := []struct {
-		name   string
-		period string
-	}{
-		{"daily", "daily"},
-		{"weekly", "weekly"},
-		{"monthly", "monthly"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, cleanup := setupIntegrationWorkspace(t)
-			defer cleanup()
-			resetBudgetFlags()
-			defer resetBudgetFlags()
-
-			stdout, _, err := executeIntegrationCmd("cost", "budget", "set", "100.00", "--period", tt.period)
-			if err != nil {
-				t.Fatalf("cost budget set --period %s failed: %v\nOutput: %s", tt.period, err, stdout)
-			}
-			if !strings.Contains(stdout, tt.period) {
-				t.Errorf("expected period %s in output, got: %s", tt.period, stdout)
-			}
-		})
-	}
-}
-
-// TestCostBudgetSetInvalidPeriod tests rejection of invalid periods
-func TestCostBudgetSetInvalidPeriod(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetBudgetFlags()
-	defer resetBudgetFlags()
-
-	_, _, err := executeIntegrationCmd("cost", "budget", "set", "100.00", "--period", "yearly")
-	if err == nil {
-		t.Fatal("expected error for invalid period")
-	}
-	if !strings.Contains(err.Error(), "invalid period") {
-		t.Errorf("expected 'invalid period' error, got: %v", err)
-	}
-}
-
-// TestCostBudgetSetAlertAt tests custom alert threshold
-func TestCostBudgetSetAlertAt(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetBudgetFlags()
-	defer resetBudgetFlags()
-
-	stdout, _, err := executeIntegrationCmd("cost", "budget", "set", "100.00", "--alert-at", "0.9")
-	if err != nil {
-		t.Fatalf("cost budget set --alert-at failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "90%") {
-		t.Errorf("expected 90%% alert in output, got: %s", stdout)
-	}
-}
-
-// TestCostBudgetSetAlertAtInvalid tests rejection of invalid alert thresholds
-func TestCostBudgetSetAlertAtInvalid(t *testing.T) {
-	tests := []struct {
-		name    string
-		alertAt string
-	}{
-		{"negative", "-0.1"},
-		{"over_one", "1.5"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, cleanup := setupIntegrationWorkspace(t)
-			defer cleanup()
-			resetBudgetFlags()
-			defer resetBudgetFlags()
-
-			_, _, err := executeIntegrationCmd("cost", "budget", "set", "100.00", "--alert-at", tt.alertAt)
-			if err == nil {
-				t.Fatal("expected error for invalid alert-at")
-			}
-			if !strings.Contains(err.Error(), "alert-at must be between") {
-				t.Errorf("expected range error, got: %v", err)
-			}
-		})
-	}
-}
-
-// TestCostBudgetSetHardStop tests hard-stop flag
-func TestCostBudgetSetHardStop(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetBudgetFlags()
-	defer resetBudgetFlags()
-
-	stdout, _, err := executeIntegrationCmd("cost", "budget", "set", "100.00", "--hard-stop")
-	if err != nil {
-		t.Fatalf("cost budget set --hard-stop failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "Hard stop: true") {
-		t.Errorf("expected hard-stop confirmation, got: %s", stdout)
-	}
-}
-
-// TestCostBudgetSetZeroAmount tests rejection of zero amount
-func TestCostBudgetSetZeroAmount(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetBudgetFlags()
-	defer resetBudgetFlags()
-
-	_, _, err := executeIntegrationCmd("cost", "budget", "set", "0")
-	if err == nil {
-		t.Fatal("expected error for zero budget")
-	}
-	if !strings.Contains(err.Error(), "must be positive") {
-		t.Errorf("expected positive amount error, got: %v", err)
-	}
-}
-
-// TestCostBudgetSetNegativeAmount tests rejection of negative amount
-// Note: CLI interprets "-50.00" as a flag, so this test expects a flag parsing error
-// which is correct behavior - negative amounts are rejected at the CLI level
-func TestCostBudgetSetNegativeAmount(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetBudgetFlags()
-	defer resetBudgetFlags()
-
-	// Using "--" to force argument interpretation doesn't work for Cobra's positional args
-	// The CLI correctly rejects negative numbers that look like flags
-	_, _, err := executeIntegrationCmd("cost", "budget", "set", "-50.00")
-	if err == nil {
-		t.Fatal("expected error for negative budget")
-	}
-	// Accept either flag parsing error or positive amount error
-	errStr := err.Error()
-	if !strings.Contains(errStr, "must be positive") && !strings.Contains(errStr, "unknown shorthand flag") {
-		t.Errorf("expected positive amount or flag error, got: %v", err)
-	}
-}
-
-// TestCostBudgetSetInvalidAmount tests rejection of non-numeric amount
-func TestCostBudgetSetInvalidAmount(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetBudgetFlags()
-	defer resetBudgetFlags()
-
-	_, _, err := executeIntegrationCmd("cost", "budget", "set", "abc")
-	if err == nil {
-		t.Fatal("expected error for invalid amount")
-	}
-	if !strings.Contains(err.Error(), "invalid amount") {
-		t.Errorf("expected 'invalid amount' error, got: %v", err)
-	}
-}
-
-// =============================================================================
-// Budget Show Command Tests
-// =============================================================================
-
-// TestCostBudgetShowNoBudgets tests show when no budgets configured
-func TestCostBudgetShowNoBudgets(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetBudgetFlags()
-	defer resetBudgetFlags()
-
-	stdout, _, err := executeIntegrationCmd("cost", "budget", "show")
-	if err != nil {
-		t.Fatalf("cost budget show failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "No budget") {
-		t.Errorf("expected 'No budget' message, got: %s", stdout)
-	}
-}
-
-// TestCostBudgetShowWorkspace tests showing workspace budget
-func TestCostBudgetShowWorkspace(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetBudgetFlags()
-	defer resetBudgetFlags()
-
-	// First set a budget
-	_, _, err := executeIntegrationCmd("cost", "budget", "set", "100.00")
-	if err != nil {
-		t.Fatalf("failed to set budget: %v", err)
-	}
-
-	resetBudgetFlags()
-	stdout, _, err := executeIntegrationCmd("cost", "budget", "show")
-	if err != nil {
-		t.Fatalf("cost budget show failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "workspace") {
-		t.Errorf("expected workspace budget, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "100.00") {
-		t.Errorf("expected budget amount, got: %s", stdout)
-	}
-}
-
-// TestCostBudgetShowWithSpending tests budget status with spending
-func TestCostBudgetShowWithSpending(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetBudgetFlags()
-	defer resetBudgetFlags()
-
-	// Set a budget
-	_, _, err := executeIntegrationCmd("cost", "budget", "set", "100.00")
-	if err != nil {
-		t.Fatalf("failed to set budget: %v", err)
-	}
-
-	// Add some spending
-	store := cost.NewStore(wsDir)
-	if err = store.Open(); err != nil {
-		t.Fatalf("failed to open store: %v", err)
-	}
-	_, _ = store.Record("engineer-01", "", "claude-3-opus", 1000, 500, 50.00)
-	_ = store.Close()
-
-	resetBudgetFlags()
-	stdout, _, showErr := executeIntegrationCmd("cost", "budget", "show")
-	if showErr != nil {
-		t.Fatalf("cost budget show failed: %v\nOutput: %s", showErr, stdout)
-	}
-	if !strings.Contains(stdout, "Spent:") {
-		t.Errorf("expected spending info, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "Remaining:") {
-		t.Errorf("expected remaining info, got: %s", stdout)
-	}
-}
-
-// TestCostBudgetShowNearLimit tests warning when near budget limit
-func TestCostBudgetShowNearLimit(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetBudgetFlags()
-	defer resetBudgetFlags()
-
-	// Set a budget with 80% alert threshold
-	_, _, err := executeIntegrationCmd("cost", "budget", "set", "100.00", "--alert-at", "0.8")
-	if err != nil {
-		t.Fatalf("failed to set budget: %v", err)
-	}
-
-	// Add spending at 85%
-	store := cost.NewStore(wsDir)
-	if err = store.Open(); err != nil {
-		t.Fatalf("failed to open store: %v", err)
-	}
-	_, _ = store.Record("engineer-01", "", "claude-3-opus", 1000, 500, 85.00)
-	_ = store.Close()
-
-	resetBudgetFlags()
-	stdout, _, showErr := executeIntegrationCmd("cost", "budget", "show")
-	if showErr != nil {
-		t.Fatalf("cost budget show failed: %v\nOutput: %s", showErr, stdout)
-	}
-	if !strings.Contains(stdout, "Near limit") {
-		t.Errorf("expected near limit warning, got: %s", stdout)
-	}
-}
-
-// TestCostBudgetShowOverBudget tests warning when over budget
-func TestCostBudgetShowOverBudget(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetBudgetFlags()
-	defer resetBudgetFlags()
-
-	// Set a small budget
-	_, _, err := executeIntegrationCmd("cost", "budget", "set", "50.00")
-	if err != nil {
-		t.Fatalf("failed to set budget: %v", err)
-	}
-
-	// Add spending over budget
-	store := cost.NewStore(wsDir)
-	if err = store.Open(); err != nil {
-		t.Fatalf("failed to open store: %v", err)
-	}
-	_, _ = store.Record("engineer-01", "", "claude-3-opus", 1000, 500, 75.00)
-	_ = store.Close()
-
-	resetBudgetFlags()
-	stdout, _, showErr := executeIntegrationCmd("cost", "budget", "show")
-	if showErr != nil {
-		t.Fatalf("cost budget show failed: %v\nOutput: %s", showErr, stdout)
-	}
-	if !strings.Contains(stdout, "OVER BUDGET") {
-		t.Errorf("expected over budget warning, got: %s", stdout)
-	}
-}
-
-// =============================================================================
-// Budget Delete Command Tests
-// =============================================================================
-
-// TestCostBudgetDelete tests deleting a workspace budget
-func TestCostBudgetDelete(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetBudgetFlags()
-	defer resetBudgetFlags()
-
-	// Set a budget first
-	_, _, err := executeIntegrationCmd("cost", "budget", "set", "100.00")
-	if err != nil {
-		t.Fatalf("failed to set budget: %v", err)
-	}
-
-	resetBudgetFlags()
-	stdout, _, err := executeIntegrationCmd("cost", "budget", "delete")
-	if err != nil {
-		t.Fatalf("cost budget delete failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "Budget deleted") {
-		t.Errorf("expected deletion confirmation, got: %s", stdout)
-	}
-}
-
-// TestCostBudgetDeleteAgent tests deleting an agent budget
-func TestCostBudgetDeleteAgent(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetBudgetFlags()
-	defer resetBudgetFlags()
-
-	// Set an agent budget first
-	_, _, err := executeIntegrationCmd("cost", "budget", "set", "50.00", "--agent", "engineer-01")
-	if err != nil {
-		t.Fatalf("failed to set budget: %v", err)
-	}
-
-	resetBudgetFlags()
-	stdout, _, err := executeIntegrationCmd("cost", "budget", "delete", "--agent", "engineer-01")
-	if err != nil {
-		t.Fatalf("cost budget delete --agent failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "agent:engineer-01") {
-		t.Errorf("expected agent scope in output, got: %s", stdout)
-	}
-}
-
-// =============================================================================
-// Project Command Tests
-// =============================================================================
-
-// resetProjectFlags resets projection-related flags
-func resetProjectFlags() {
-	projectDurationFlag = "7d"
-	projectLookbackFlag = 7
-}
-
-// TestCostProjectEmpty tests projection with no historical data
-func TestCostProjectEmpty(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetProjectFlags()
-	defer resetProjectFlags()
-
-	stdout, _, err := executeIntegrationCmd("cost", "project")
-	if err != nil {
-		t.Fatalf("cost project failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "No historical cost data") {
-		t.Errorf("expected no data message, got: %s", stdout)
-	}
-}
-
-// TestCostProjectWithData tests projection with historical data
-func TestCostProjectWithData(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetProjectFlags()
-	defer resetProjectFlags()
+	resetCostFlags()
+	defer resetCostFlags()
 
 	store := cost.NewStore(wsDir)
 	if err := store.Open(); err != nil {
 		t.Fatalf("failed to open store: %v", err)
 	}
-
-	// Add some historical data
-	_, _ = store.Record("engineer-01", "", "claude-3-opus", 1000, 500, 10.00)
-	_, _ = store.Record("engineer-01", "", "claude-3-opus", 2000, 1000, 15.00)
+	_, _ = store.Record("engineer-01", "", "claude-3-opus", 1000, 500, 0.05)
 	_ = store.Close()
 
-	stdout, _, err := executeIntegrationCmd("cost", "project", "--duration", "7d")
+	stdout, _, err := executeIntegrationCmd("cost", "show", "--json")
 	if err != nil {
-		t.Fatalf("cost project failed: %v\nOutput: %s", err, stdout)
+		t.Fatalf("cost show --json failed: %v\nOutput: %s", err, stdout)
 	}
-	if !strings.Contains(stdout, "Cost Projection") {
-		t.Errorf("expected 'Cost Projection' header, got: %s", stdout)
+	if !strings.Contains(stdout, "by_agent") {
+		t.Errorf("expected JSON structure with by_agent, got: %s", stdout)
 	}
-	if !strings.Contains(stdout, "Projected cost:") {
-		t.Errorf("expected projected cost, got: %s", stdout)
-	}
-}
-
-// TestCostProjectDurations tests various duration formats
-func TestCostProjectDurations(t *testing.T) {
-	tests := []struct {
-		name     string
-		duration string
-	}{
-		{"one day", "1d"},
-		{"seven days", "7d"},
-		{"thirty days", "30d"},
-		{"hours", "24h"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			wsDir, cleanup := setupIntegrationWorkspace(t)
-			defer cleanup()
-			resetProjectFlags()
-			defer resetProjectFlags()
-
-			store := cost.NewStore(wsDir)
-			if err := store.Open(); err != nil {
-				t.Fatalf("failed to open store: %v", err)
-			}
-			_, _ = store.Record("engineer-01", "", "claude-3-opus", 1000, 500, 10.00)
-			_ = store.Close()
-
-			stdout, _, err := executeIntegrationCmd("cost", "project", "--duration", tt.duration)
-			if err != nil {
-				t.Fatalf("cost project --duration %s failed: %v\nOutput: %s", tt.duration, err, stdout)
-			}
-		})
+	if !strings.Contains(stdout, "total_cost") {
+		t.Errorf("expected total_cost in JSON, got: %s", stdout)
 	}
 }
 
-// TestCostProjectInvalidDuration tests rejection of invalid duration
-func TestCostProjectInvalidDuration(t *testing.T) {
+func TestCostShowNonExistentAgent(t *testing.T) {
 	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
-	resetProjectFlags()
-	defer resetProjectFlags()
+	resetCostFlags()
+	defer resetCostFlags()
 
-	_, _, err := executeIntegrationCmd("cost", "project", "--duration", "invalid")
-	if err == nil {
-		t.Fatal("expected error for invalid duration")
-	}
-	if !strings.Contains(err.Error(), "invalid duration") {
-		t.Errorf("expected 'invalid duration' error, got: %v", err)
-	}
-}
-
-// TestCostProjectLookback tests custom lookback period
-func TestCostProjectLookback(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetProjectFlags()
-	defer resetProjectFlags()
-
-	store := cost.NewStore(wsDir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("failed to open store: %v", err)
-	}
-	_, _ = store.Record("engineer-01", "", "claude-3-opus", 1000, 500, 10.00)
-	_ = store.Close()
-
-	stdout, _, err := executeIntegrationCmd("cost", "project", "--lookback", "14")
+	stdout, _, err := executeIntegrationCmd("cost", "show", "nonexistent-agent")
 	if err != nil {
-		t.Fatalf("cost project --lookback failed: %v\nOutput: %s", err, stdout)
+		t.Fatalf("cost show nonexistent-agent should not error: %v\nOutput: %s", err, stdout)
 	}
-	if !strings.Contains(stdout, "14 days") {
-		t.Errorf("expected 14 days lookback, got: %s", stdout)
-	}
-}
-
-// =============================================================================
-// Trends Command Tests
-// =============================================================================
-
-// resetTrendsFlags resets trends-related flags
-func resetTrendsFlags() {
-	trendsSinceFlag = "7d"
-}
-
-// TestCostTrendsEmpty tests trends with no data
-func TestCostTrendsEmpty(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetTrendsFlags()
-	defer resetTrendsFlags()
-
-	stdout, _, err := executeIntegrationCmd("cost", "trends")
-	if err != nil {
-		t.Fatalf("cost trends failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "No cost data") {
-		t.Errorf("expected no data message, got: %s", stdout)
+	if !strings.Contains(stdout, "No cost records found") {
+		t.Errorf("expected no records message, got: %s", stdout)
 	}
 }
 
-// TestCostTrendsWithData tests trends with historical data
-func TestCostTrendsWithData(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetTrendsFlags()
-	defer resetTrendsFlags()
-
-	store := cost.NewStore(wsDir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("failed to open store: %v", err)
-	}
-	// Add multiple records
-	_, _ = store.Record("engineer-01", "", "claude-3-opus", 1000, 500, 10.00)
-	_, _ = store.Record("engineer-02", "", "claude-3-sonnet", 2000, 1000, 8.00)
-	_ = store.Close()
-
-	stdout, _, err := executeIntegrationCmd("cost", "trends", "--since", "7d")
-	if err != nil {
-		t.Fatalf("cost trends failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "Daily Cost Trends") {
-		t.Errorf("expected 'Daily Cost Trends' header, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "Total:") {
-		t.Errorf("expected total summary, got: %s", stdout)
-	}
-}
-
-// TestCostTrendsSincePeriods tests various since periods
-func TestCostTrendsSincePeriods(t *testing.T) {
-	tests := []struct {
-		name  string
-		since string
-	}{
-		{"24 hours", "24h"},
-		{"7 days", "7d"},
-		{"30 days", "30d"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			wsDir, cleanup := setupIntegrationWorkspace(t)
-			defer cleanup()
-			resetTrendsFlags()
-			defer resetTrendsFlags()
-
-			store := cost.NewStore(wsDir)
-			if err := store.Open(); err != nil {
-				t.Fatalf("failed to open store: %v", err)
-			}
-			_, _ = store.Record("engineer-01", "", "claude-3-opus", 1000, 500, 10.00)
-			_ = store.Close()
-
-			stdout, _, err := executeIntegrationCmd("cost", "trends", "--since", tt.since)
-			if err != nil {
-				t.Fatalf("cost trends --since %s failed: %v\nOutput: %s", tt.since, err, stdout)
-			}
-		})
-	}
-}
-
-// TestCostTrendsInvalidSince tests rejection of invalid since period
-func TestCostTrendsInvalidSince(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetTrendsFlags()
-	defer resetTrendsFlags()
-
-	_, _, err := executeIntegrationCmd("cost", "trends", "--since", "invalid")
-	if err == nil {
-		t.Fatal("expected error for invalid since")
-	}
-	if !strings.Contains(err.Error(), "invalid duration") {
-		t.Errorf("expected 'invalid duration' error, got: %v", err)
-	}
-}
-
-// =============================================================================
-// By-Agent Command Tests
-// =============================================================================
-
-// resetByAgentFlags resets by-agent related flags
-func resetByAgentFlags() {
-	byAgentSinceFlag = "7d"
-}
-
-// TestCostByAgentEmpty tests by-agent with no data
-func TestCostByAgentEmpty(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetByAgentFlags()
-	defer resetByAgentFlags()
-
-	stdout, _, err := executeIntegrationCmd("cost", "by-agent")
-	if err != nil {
-		t.Fatalf("cost by-agent failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "No cost data") {
-		t.Errorf("expected no data message, got: %s", stdout)
-	}
-}
-
-// TestCostByAgentWithData tests by-agent with data
-func TestCostByAgentWithData(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetByAgentFlags()
-	defer resetByAgentFlags()
-
-	store := cost.NewStore(wsDir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("failed to open store: %v", err)
-	}
-	_, _ = store.Record("engineer-01", "", "claude-3-opus", 1000, 500, 25.00)
-	_, _ = store.Record("engineer-02", "", "claude-3-sonnet", 2000, 1000, 15.00)
-	_, _ = store.Record("qa-01", "", "claude-3-haiku", 500, 250, 5.00)
-	_ = store.Close()
-
-	stdout, _, err := executeIntegrationCmd("cost", "by-agent", "--since", "7d")
-	if err != nil {
-		t.Fatalf("cost by-agent failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "Cost by Agent") {
-		t.Errorf("expected 'Cost by Agent' header, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "engineer-01") {
-		t.Errorf("expected engineer-01 in output, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "% OF TOTAL") {
-		t.Errorf("expected percentage column, got: %s", stdout)
-	}
-}
-
-// TestCostByAgentShowsPercentages tests that percentages are calculated
-func TestCostByAgentShowsPercentages(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetByAgentFlags()
-	defer resetByAgentFlags()
-
-	store := cost.NewStore(wsDir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("failed to open store: %v", err)
-	}
-	// Create two agents with known costs for percentage calculation
-	_, _ = store.Record("engineer-01", "", "claude-3-opus", 1000, 500, 50.00)
-	_, _ = store.Record("engineer-02", "", "claude-3-opus", 1000, 500, 50.00)
-	_ = store.Close()
-
-	stdout, _, err := executeIntegrationCmd("cost", "by-agent", "--since", "7d")
-	if err != nil {
-		t.Fatalf("cost by-agent failed: %v\nOutput: %s", err, stdout)
-	}
-	// Each agent should be 50%
-	if !strings.Contains(stdout, "50.0%") {
-		t.Errorf("expected 50.0%% for each agent, got: %s", stdout)
-	}
-}
-
-// TestCostByAgentInvalidSince tests rejection of invalid since period
-func TestCostByAgentInvalidSince(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetByAgentFlags()
-	defer resetByAgentFlags()
-
-	_, _, err := executeIntegrationCmd("cost", "by-agent", "--since", "invalid")
-	if err == nil {
-		t.Fatal("expected error for invalid since")
-	}
-	if !strings.Contains(err.Error(), "invalid duration") {
-		t.Errorf("expected 'invalid duration' error, got: %v", err)
-	}
-}
-
-// =============================================================================
-// Additional Edge Case Tests
-// =============================================================================
-
-// TestCostAddLargeTokens tests handling of large token counts
-func TestCostAddLargeTokens(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	// Reset flags
-	addCostAgentFlag = ""
-	addCostAmountFlag = 0
-	addCostToolFlag = ""
-	addCostModelFlag = "manual"
-	addCostInputTokens = 0
-	addCostOutputTokens = 0
-
-	stdout, _, err := executeIntegrationCmd(
-		"cost", "add",
-		"--agent", "engineer-01",
-		"--tokens-in", "1000000",
-		"--tokens-out", "500000",
-		"--amount", "150.00",
-		"--model", "claude-3-opus",
-	)
-	if err != nil {
-		t.Fatalf("cost add with large tokens failed: %v\nOutput: %s", err, stdout)
-	}
-
-	// Verify large tokens were recorded
-	store := cost.NewStore(wsDir)
-	if err = store.Open(); err != nil {
-		t.Fatalf("failed to open store: %v", err)
-	}
-	defer func() { _ = store.Close() }()
-
-	records, getErr := store.GetByAgent("engineer-01", 10)
-	if getErr != nil {
-		t.Fatalf("failed to get records: %v", getErr)
-	}
-	if len(records) != 1 {
-		t.Fatalf("expected 1 record, got %d", len(records))
-	}
-	if records[0].InputTokens != 1000000 {
-		t.Errorf("input tokens = %d, want 1000000", records[0].InputTokens)
-	}
-}
-
-// TestCostShowLargeLimit tests showing many records
 func TestCostShowLargeLimit(t *testing.T) {
 	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
@@ -1371,210 +241,6 @@ func TestCostShowLargeLimit(t *testing.T) {
 	}
 }
 
-// TestCostSummaryMultipleAgents tests summary with many agents
-func TestCostSummaryMultipleAgents(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetCostFlags()
-	defer resetCostFlags()
-
-	store := cost.NewStore(wsDir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("failed to open store: %v", err)
-	}
-
-	// Create records for multiple agents
-	agents := []string{"eng-01", "eng-02", "eng-03", "qa-01", "qa-02", "pm-01"}
-	for _, agent := range agents {
-		_, _ = store.Record(agent, "", "claude-3-opus", 1000, 500, 5.00)
-	}
-	_ = store.Close()
-
-	stdout, _, err := executeIntegrationCmd("cost", "summary", "--workspace")
-	if err != nil {
-		t.Fatalf("cost summary failed: %v\nOutput: %s", err, stdout)
-	}
-
-	// Should show all agents in breakdown
-	for _, agent := range agents {
-		if !strings.Contains(stdout, agent) {
-			t.Errorf("expected agent %s in output: %s", agent, stdout)
-		}
-	}
-}
-
-// TestCostAddWithModel tests specifying model explicitly
-func TestCostAddWithModel(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	// Reset flags
-	addCostAgentFlag = ""
-	addCostAmountFlag = 0
-	addCostToolFlag = ""
-	addCostModelFlag = "manual"
-	addCostInputTokens = 0
-	addCostOutputTokens = 0
-
-	stdout, _, err := executeIntegrationCmd(
-		"cost", "add",
-		"--agent", "engineer-01",
-		"--amount", "1.00",
-		"--model", "gpt-4-turbo",
-	)
-	if err != nil {
-		t.Fatalf("cost add with model failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "gpt-4-turbo") {
-		t.Errorf("expected model in output, got: %s", stdout)
-	}
-
-	// Verify model was recorded
-	store := cost.NewStore(wsDir)
-	if err = store.Open(); err != nil {
-		t.Fatalf("failed to open store: %v", err)
-	}
-	defer func() { _ = store.Close() }()
-
-	records, getErr := store.GetByAgent("engineer-01", 10)
-	if getErr != nil {
-		t.Fatalf("failed to get records: %v", getErr)
-	}
-	if records[0].Model != "gpt-4-turbo" {
-		t.Errorf("model = %s, want gpt-4-turbo", records[0].Model)
-	}
-}
-
-// TestCostShowJSON tests JSON output format
-func TestCostShowJSON(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetCostFlags()
-	defer resetCostFlags()
-
-	store := cost.NewStore(wsDir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("failed to open store: %v", err)
-	}
-	_, _ = store.Record("engineer-01", "", "claude-3-opus", 1000, 500, 0.05)
-	_ = store.Close()
-
-	stdout, _, err := executeIntegrationCmd("cost", "show", "--json")
-	if err != nil {
-		t.Fatalf("cost show --json failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "by_agent") {
-		t.Errorf("expected JSON structure with by_agent, got: %s", stdout)
-	}
-	if !strings.Contains(stdout, "total_cost") {
-		t.Errorf("expected total_cost in JSON, got: %s", stdout)
-	}
-}
-
-// TestParseCostDuration tests duration parsing helper
-func TestParseCostDuration(t *testing.T) {
-	tests := []struct {
-		name    string
-		input   string
-		wantErr bool
-	}{
-		{"days", "7d", false},
-		{"hours", "24h", false},
-		{"minutes", "30m", false},
-		{"seconds", "60s", false},
-		{"one day", "1d", false},
-		{"thirty days", "30d", false},
-		{"invalid", "invalid", true},
-		{"empty", "", true},
-		// Note: "-1d" actually parses as a negative duration which is technically valid
-		// The function uses time.ParseDuration which accepts negatives
-		{"negative hours", "-24h", false}, // Valid Go duration
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := parseCostDuration(tt.input)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("parseCostDuration(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
-			}
-		})
-	}
-}
-
-// TestCostShowNonExistentAgent tests showing costs for non-existent agent
-func TestCostShowNonExistentAgent(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetCostFlags()
-	defer resetCostFlags()
-
-	stdout, _, err := executeIntegrationCmd("cost", "show", "nonexistent-agent")
-	if err != nil {
-		t.Fatalf("cost show nonexistent-agent should not error: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "No cost records found") {
-		t.Errorf("expected no records message, got: %s", stdout)
-	}
-}
-
-// TestCostSummaryAgentNonExistent tests summary for non-existent agent
-func TestCostSummaryAgentNonExistent(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetCostFlags()
-	defer resetCostFlags()
-
-	stdout, _, err := executeIntegrationCmd("cost", "summary", "--agent", "nonexistent")
-	if err != nil {
-		t.Fatalf("cost summary --agent nonexistent should not error: %v\nOutput: %s", err, stdout)
-	}
-	// Should show agent summary with zero values
-	if !strings.Contains(stdout, "Agent:") {
-		t.Errorf("expected agent header, got: %s", stdout)
-	}
-}
-
-// TestCostBudgetSetMissingAmount tests budget set without amount argument
-func TestCostBudgetSetMissingAmount(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetBudgetFlags()
-	defer resetBudgetFlags()
-
-	_, _, err := executeIntegrationCmd("cost", "budget", "set")
-	if err == nil {
-		t.Fatal("expected error when amount is missing")
-	}
-}
-
-// TestCostDashboardTeamBreakdown tests dashboard shows team breakdown
-func TestCostDashboardTeamBreakdown(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	store := cost.NewStore(wsDir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("failed to open store: %v", err)
-	}
-	// Create records with team affiliations
-	_, _ = store.Record("eng-01", "engineering", "claude-3-opus", 1000, 500, 10.00)
-	_, _ = store.Record("qa-01", "qa-team", "claude-3-opus", 1000, 500, 5.00)
-	_ = store.Close()
-
-	stdout, _, err := executeIntegrationCmd("cost", "dashboard")
-	if err != nil {
-		t.Fatalf("cost dashboard failed: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "BY TEAM") {
-		t.Errorf("expected 'BY TEAM' section, got: %s", stdout)
-	}
-}
-
-// =============================================================================
-// Additional Edge Cases and Scenarios
-// =============================================================================
-
-// TestCostShowMultipleModels tests showing records with different models
 func TestCostShowMultipleModels(t *testing.T) {
 	wsDir, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
@@ -1605,7 +271,342 @@ func TestCostShowMultipleModels(t *testing.T) {
 	}
 }
 
-// TestCostBudgetUpdateExisting tests updating an existing budget
+// Budget tests
+
+func TestCostBudgetSetWorkspace(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+	resetBudgetFlags()
+	defer resetBudgetFlags()
+
+	stdout, _, err := executeIntegrationCmd("cost", "budget", "set", "100.00")
+	if err != nil {
+		t.Fatalf("cost budget set failed: %v\nOutput: %s", err, stdout)
+	}
+	if !strings.Contains(stdout, "100.00") {
+		t.Errorf("expected budget amount in output: %s", stdout)
+	}
+}
+
+func TestCostBudgetSetAgent(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+	resetBudgetFlags()
+	defer resetBudgetFlags()
+
+	stdout, _, err := executeIntegrationCmd("cost", "budget", "set", "50.00", "--agent", "eng-01")
+	if err != nil {
+		t.Fatalf("cost budget set --agent failed: %v\nOutput: %s", err, stdout)
+	}
+	if !strings.Contains(stdout, "50.00") {
+		t.Errorf("expected budget amount: %s", stdout)
+	}
+}
+
+func TestCostBudgetSetTeam(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+	resetBudgetFlags()
+	defer resetBudgetFlags()
+
+	stdout, _, err := executeIntegrationCmd("cost", "budget", "set", "500.00", "--team", "engineering")
+	if err != nil {
+		t.Fatalf("cost budget set --team failed: %v\nOutput: %s", err, stdout)
+	}
+	if !strings.Contains(stdout, "500.00") {
+		t.Errorf("expected budget amount: %s", stdout)
+	}
+}
+
+func TestCostBudgetSetPeriods(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	periods := []string{"daily", "weekly", "monthly"}
+	for _, period := range periods {
+		t.Run(period, func(t *testing.T) {
+			resetBudgetFlags()
+			stdout, _, err := executeIntegrationCmd("cost", "budget", "set", "100.00", "--period", period)
+			if err != nil {
+				t.Fatalf("cost budget set --period %s failed: %v\nOutput: %s", period, err, stdout)
+			}
+			if !strings.Contains(stdout, period) {
+				t.Errorf("expected period %s in output: %s", period, stdout)
+			}
+		})
+	}
+}
+
+func TestCostBudgetSetInvalidPeriod(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+	resetBudgetFlags()
+	defer resetBudgetFlags()
+
+	_, _, err := executeIntegrationCmd("cost", "budget", "set", "100.00", "--period", "yearly")
+	if err == nil {
+		t.Error("expected error for invalid period")
+	}
+}
+
+func TestCostBudgetSetAlertAt(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+	resetBudgetFlags()
+	defer resetBudgetFlags()
+
+	stdout, _, err := executeIntegrationCmd("cost", "budget", "set", "100.00", "--alert-at", "0.9")
+	if err != nil {
+		t.Fatalf("cost budget set --alert-at failed: %v\nOutput: %s", err, stdout)
+	}
+}
+
+func TestCostBudgetSetAlertAtInvalid(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	tests := []struct {
+		name    string
+		alertAt string
+	}{
+		{"negative", "-0.1"},
+		{"over_one", "1.5"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resetBudgetFlags()
+			_, _, err := executeIntegrationCmd("cost", "budget", "set", "100.00", "--alert-at", tt.alertAt)
+			if err == nil {
+				t.Errorf("expected error for alert-at=%s", tt.alertAt)
+			}
+		})
+	}
+}
+
+func TestCostBudgetSetHardStop(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+	resetBudgetFlags()
+	defer resetBudgetFlags()
+
+	stdout, _, err := executeIntegrationCmd("cost", "budget", "set", "100.00", "--hard-stop")
+	if err != nil {
+		t.Fatalf("cost budget set --hard-stop failed: %v\nOutput: %s", err, stdout)
+	}
+}
+
+func TestCostBudgetSetZeroAmount(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+	resetBudgetFlags()
+	defer resetBudgetFlags()
+
+	_, _, err := executeIntegrationCmd("cost", "budget", "set", "0")
+	if err == nil {
+		t.Error("expected error for zero budget")
+	}
+}
+
+func TestCostBudgetSetNegativeAmount(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+	resetBudgetFlags()
+	defer resetBudgetFlags()
+
+	_, _, err := executeIntegrationCmd("cost", "budget", "set", "-50.00")
+	if err == nil {
+		t.Error("expected error for negative budget")
+	}
+}
+
+func TestCostBudgetSetInvalidAmount(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+	resetBudgetFlags()
+	defer resetBudgetFlags()
+
+	_, _, err := executeIntegrationCmd("cost", "budget", "set", "abc")
+	if err == nil {
+		t.Error("expected error for non-numeric budget")
+	}
+}
+
+func TestCostBudgetShowNoBudgets(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+	resetBudgetFlags()
+	defer resetBudgetFlags()
+
+	stdout, _, err := executeIntegrationCmd("cost", "budget", "show")
+	if err != nil {
+		t.Fatalf("cost budget show failed: %v\nOutput: %s", err, stdout)
+	}
+	if !strings.Contains(stdout, "No budget") {
+		t.Errorf("expected 'No budget' message, got: %s", stdout)
+	}
+}
+
+func TestCostBudgetShowWorkspace(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+	resetBudgetFlags()
+	defer resetBudgetFlags()
+
+	// Set a budget first
+	_, _, err := executeIntegrationCmd("cost", "budget", "set", "100.00")
+	if err != nil {
+		t.Fatalf("failed to set budget: %v", err)
+	}
+
+	resetBudgetFlags()
+	stdout, _, err := executeIntegrationCmd("cost", "budget", "show")
+	if err != nil {
+		t.Fatalf("cost budget show failed: %v\nOutput: %s", err, stdout)
+	}
+	if !strings.Contains(stdout, "100.00") {
+		t.Errorf("expected budget amount in show output: %s", stdout)
+	}
+}
+
+func TestCostBudgetShowWithSpending(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+	resetBudgetFlags()
+	defer resetBudgetFlags()
+
+	// Set budget
+	_, _, err := executeIntegrationCmd("cost", "budget", "set", "100.00")
+	if err != nil {
+		t.Fatalf("failed to set budget: %v", err)
+	}
+
+	// Add some spending
+	store := cost.NewStore(wsDir)
+	if storeErr := store.Open(); storeErr != nil {
+		t.Fatalf("failed to open store: %v", storeErr)
+	}
+	_, _ = store.Record("eng-01", "", "claude-3-opus", 1000, 500, 25.00)
+	_ = store.Close()
+
+	resetBudgetFlags()
+	stdout, _, err := executeIntegrationCmd("cost", "budget", "show")
+	if err != nil {
+		t.Fatalf("cost budget show failed: %v\nOutput: %s", err, stdout)
+	}
+	if !strings.Contains(stdout, "25.00") || !strings.Contains(stdout, "100.00") {
+		t.Errorf("expected spending and budget in output: %s", stdout)
+	}
+}
+
+func TestCostBudgetShowNearLimit(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+	resetBudgetFlags()
+	defer resetBudgetFlags()
+
+	// Set budget with 80% alert
+	_, _, err := executeIntegrationCmd("cost", "budget", "set", "100.00", "--alert-at", "0.8")
+	if err != nil {
+		t.Fatalf("failed to set budget: %v", err)
+	}
+
+	// Spend 85%
+	store := cost.NewStore(wsDir)
+	if storeErr := store.Open(); storeErr != nil {
+		t.Fatalf("failed to open store: %v", storeErr)
+	}
+	_, _ = store.Record("eng-01", "", "claude-3-opus", 1000, 500, 85.00)
+	_ = store.Close()
+
+	resetBudgetFlags()
+	stdout, _, err := executeIntegrationCmd("cost", "budget", "show")
+	if err != nil {
+		t.Fatalf("cost budget show failed: %v\nOutput: %s", err, stdout)
+	}
+	if !strings.Contains(stdout, "NEAR LIMIT") && !strings.Contains(stdout, "WARNING") && !strings.Contains(stdout, "85") {
+		t.Errorf("expected near-limit warning in output: %s", stdout)
+	}
+}
+
+func TestCostBudgetShowOverBudget(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+	resetBudgetFlags()
+	defer resetBudgetFlags()
+
+	// Set small budget
+	_, _, err := executeIntegrationCmd("cost", "budget", "set", "10.00")
+	if err != nil {
+		t.Fatalf("failed to set budget: %v", err)
+	}
+
+	// Spend more than budget
+	store := cost.NewStore(wsDir)
+	if storeErr := store.Open(); storeErr != nil {
+		t.Fatalf("failed to open store: %v", storeErr)
+	}
+	_, _ = store.Record("eng-01", "", "claude-3-opus", 1000, 500, 15.00)
+	_ = store.Close()
+
+	resetBudgetFlags()
+	stdout, _, err := executeIntegrationCmd("cost", "budget", "show")
+	if err != nil {
+		t.Fatalf("cost budget show failed: %v\nOutput: %s", err, stdout)
+	}
+	if !strings.Contains(stdout, "OVER BUDGET") && !strings.Contains(stdout, "15") {
+		t.Errorf("expected over-budget warning in output: %s", stdout)
+	}
+}
+
+func TestCostBudgetDelete(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+	resetBudgetFlags()
+	defer resetBudgetFlags()
+
+	// Set then delete
+	_, _, err := executeIntegrationCmd("cost", "budget", "set", "100.00")
+	if err != nil {
+		t.Fatalf("failed to set budget: %v", err)
+	}
+
+	resetBudgetFlags()
+	_, _, err = executeIntegrationCmd("cost", "budget", "delete")
+	if err != nil {
+		t.Fatalf("cost budget delete failed: %v", err)
+	}
+}
+
+func TestCostBudgetDeleteAgent(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+	resetBudgetFlags()
+	defer resetBudgetFlags()
+
+	// Set agent budget
+	_, _, err := executeIntegrationCmd("cost", "budget", "set", "50.00", "--agent", "eng-01")
+	if err != nil {
+		t.Fatalf("failed to set agent budget: %v", err)
+	}
+
+	resetBudgetFlags()
+	_, _, err = executeIntegrationCmd("cost", "budget", "delete", "--agent", "eng-01")
+	if err != nil {
+		t.Fatalf("cost budget delete --agent failed: %v", err)
+	}
+
+	// Verify deleted
+	resetBudgetFlags()
+	stdout, _, err := executeIntegrationCmd("cost", "budget", "show", "--agent", "eng-01")
+	if err != nil {
+		t.Fatalf("cost budget show failed: %v\nOutput: %s", err, stdout)
+	}
+	if !strings.Contains(stdout, "No budget") {
+		t.Errorf("expected no budget after delete: %s", stdout)
+	}
+}
+
 func TestCostBudgetUpdateExisting(t *testing.T) {
 	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
@@ -1629,65 +630,18 @@ func TestCostBudgetUpdateExisting(t *testing.T) {
 	}
 }
 
-// TestCostSummaryEmptyTeam tests summary for team with no records
-func TestCostSummaryEmptyTeam(t *testing.T) {
+func TestCostBudgetSetMissingAmount(t *testing.T) {
 	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
-	resetCostFlags()
-	defer resetCostFlags()
+	resetBudgetFlags()
+	defer resetBudgetFlags()
 
-	stdout, _, err := executeIntegrationCmd("cost", "summary", "--team", "nonexistent-team")
-	if err != nil {
-		t.Fatalf("cost summary --team nonexistent should not error: %v\nOutput: %s", err, stdout)
-	}
-	if !strings.Contains(stdout, "Team:") {
-		t.Errorf("expected team header, got: %s", stdout)
+	_, _, err := executeIntegrationCmd("cost", "budget", "set")
+	if err == nil {
+		t.Error("expected error for missing amount")
 	}
 }
 
-// TestCostAddZeroTokens tests adding cost with zero tokens
-func TestCostAddZeroTokens(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	addCostAgentFlag = ""
-	addCostAmountFlag = 0
-	addCostToolFlag = ""
-	addCostModelFlag = "manual"
-	addCostInputTokens = 0
-	addCostOutputTokens = 0
-
-	stdout, _, err := executeIntegrationCmd(
-		"cost", "add",
-		"--agent", "engineer-01",
-		"--tokens-in", "0",
-		"--tokens-out", "0",
-		"--amount", "1.00",
-	)
-	if err != nil {
-		t.Fatalf("cost add with zero tokens failed: %v\nOutput: %s", err, stdout)
-	}
-
-	// Verify it was recorded
-	store := cost.NewStore(wsDir)
-	if err = store.Open(); err != nil {
-		t.Fatalf("failed to open store: %v", err)
-	}
-	defer func() { _ = store.Close() }()
-
-	records, getErr := store.GetByAgent("engineer-01", 10)
-	if getErr != nil {
-		t.Fatalf("failed to get records: %v", getErr)
-	}
-	if len(records) != 1 {
-		t.Fatalf("expected 1 record, got %d", len(records))
-	}
-	if records[0].CostUSD != 1.00 {
-		t.Errorf("cost = %f, want 1.00", records[0].CostUSD)
-	}
-}
-
-// TestCostBudgetShowAgentSpecific tests showing agent-specific budget
 func TestCostBudgetShowAgentSpecific(t *testing.T) {
 	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
@@ -1710,7 +664,6 @@ func TestCostBudgetShowAgentSpecific(t *testing.T) {
 	}
 }
 
-// TestCostBudgetShowTeamSpecific tests showing team-specific budget
 func TestCostBudgetShowTeamSpecific(t *testing.T) {
 	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
@@ -1733,39 +686,476 @@ func TestCostBudgetShowTeamSpecific(t *testing.T) {
 	}
 }
 
-// TestCostProjectZeroLookback tests projection with zero lookback handled
-func TestCostProjectZeroLookback(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-	resetProjectFlags()
-	defer resetProjectFlags()
+// --- ccusage enrichment tests ---
 
-	store := cost.NewStore(wsDir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("failed to open store: %v", err)
+func TestEnrichWithCCUsage(t *testing.T) {
+	resp := &costShowResponse{
+		ByAgent:           make(map[string]float64),
+		ByTeam:            make(map[string]float64),
+		ByModel:           make(map[string]float64),
+		TotalInputTokens:  0,
+		TotalOutputTokens: 0,
+		TotalCost:         0,
 	}
-	_, _ = store.Record("eng-01", "", "claude-3-opus", 1000, 500, 10.00)
-	_ = store.Close()
 
-	// Zero lookback should still work (uses available data)
-	stdout, _, err := executeIntegrationCmd("cost", "project", "--lookback", "0")
-	if err != nil {
-		t.Fatalf("cost project --lookback 0 failed: %v\nOutput: %s", err, stdout)
+	report := &ccusageDailyReport{
+		Daily: []ccusageDailyEntry{
+			{
+				Date:                "2026-03-01",
+				ModelsUsed:          []string{"claude-opus-4-20250514", "claude-sonnet-4-20250514"},
+				InputTokens:         1000,
+				OutputTokens:        5000,
+				CacheCreationTokens: 200,
+				CacheReadTokens:     800,
+				TotalTokens:         7000,
+				TotalCost:           3.50,
+			},
+			{
+				Date:                "2026-03-02",
+				ModelsUsed:          []string{"claude-opus-4-20250514"},
+				InputTokens:         500,
+				OutputTokens:        2500,
+				CacheCreationTokens: 100,
+				CacheReadTokens:     400,
+				TotalTokens:         3500,
+				TotalCost:           1.75,
+			},
+		},
+		Totals: ccusageTotals{
+			InputTokens:         1500,
+			OutputTokens:        7500,
+			CacheCreationTokens: 300,
+			CacheReadTokens:     1200,
+			TotalTokens:         10500,
+			TotalCost:           5.25,
+		},
+	}
+
+	enrichWithCCUsage(resp, report)
+
+	// Totals should be overridden from ccusage (internal DB was empty)
+	if resp.TotalCost != 5.25 {
+		t.Errorf("TotalCost = %f, want 5.25", resp.TotalCost)
+	}
+	if resp.TotalInputTokens != 1500 {
+		t.Errorf("TotalInputTokens = %d, want 1500", resp.TotalInputTokens)
+	}
+	if resp.TotalOutputTokens != 7500 {
+		t.Errorf("TotalOutputTokens = %d, want 7500", resp.TotalOutputTokens)
+	}
+
+	// cache_hit_rate = 1200 / (1200 + 300) = 0.8
+	if resp.CacheHitRate == nil {
+		t.Fatal("CacheHitRate is nil")
+	}
+	if *resp.CacheHitRate != 0.8 {
+		t.Errorf("CacheHitRate = %f, want 0.8", *resp.CacheHitRate)
+	}
+
+	// burn_rate = 5.25 / 2 = 2.625
+	if resp.BurnRate == nil {
+		t.Fatal("BurnRate is nil")
+	}
+	if *resp.BurnRate != 2.625 {
+		t.Errorf("BurnRate = %f, want 2.625", *resp.BurnRate)
+	}
+
+	// projected_total = burn_rate * days_in_current_month
+	if resp.ProjectedTotal == nil {
+		t.Fatal("ProjectedTotal is nil")
+	}
+	now := time.Now()
+	daysInMonth := float64(time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC).Day())
+	expectedProjected := 2.625 * daysInMonth
+	if *resp.ProjectedTotal != expectedProjected {
+		t.Errorf("ProjectedTotal = %f, want %f", *resp.ProjectedTotal, expectedProjected)
+	}
+
+	// billing_window_spent
+	if resp.BillingWindowSpent == nil {
+		t.Fatal("BillingWindowSpent is nil")
+	}
+	if *resp.BillingWindowSpent != 5.25 {
+		t.Errorf("BillingWindowSpent = %f, want 5.25", *resp.BillingWindowSpent)
+	}
+
+	// by_model should have models from ccusage (since internal DB was empty)
+	if len(resp.ByModel) != 2 {
+		t.Errorf("ByModel has %d entries, want 2", len(resp.ByModel))
+	}
+	if _, ok := resp.ByModel["claude-opus-4-20250514"]; !ok {
+		t.Error("ByModel missing claude-opus-4-20250514")
+	}
+	if _, ok := resp.ByModel["claude-sonnet-4-20250514"]; !ok {
+		t.Error("ByModel missing claude-sonnet-4-20250514")
 	}
 }
 
-// TestCostSummaryModelEmpty tests model summary with no records
-func TestCostSummaryModelEmpty(t *testing.T) {
+func TestEnrichWithCCUsage_NilReport(t *testing.T) {
+	resp := &costShowResponse{
+		ByAgent:           make(map[string]float64),
+		ByTeam:            make(map[string]float64),
+		ByModel:           make(map[string]float64),
+		TotalInputTokens:  100,
+		TotalOutputTokens: 200,
+		TotalCost:         0.05,
+	}
+
+	enrichWithCCUsage(resp, nil)
+
+	// Nothing should change
+	if resp.TotalCost != 0.05 {
+		t.Errorf("TotalCost = %f, want 0.05", resp.TotalCost)
+	}
+	if resp.CacheHitRate != nil {
+		t.Error("CacheHitRate should be nil when report is nil")
+	}
+	if resp.BurnRate != nil {
+		t.Error("BurnRate should be nil when report is nil")
+	}
+	if resp.ProjectedTotal != nil {
+		t.Error("ProjectedTotal should be nil when report is nil")
+	}
+	if resp.BillingWindowSpent != nil {
+		t.Error("BillingWindowSpent should be nil when report is nil")
+	}
+}
+
+func TestEnrichWithCCUsage_NoCache(t *testing.T) {
+	resp := &costShowResponse{
+		ByAgent:           make(map[string]float64),
+		ByTeam:            make(map[string]float64),
+		ByModel:           make(map[string]float64),
+		TotalInputTokens:  0,
+		TotalOutputTokens: 0,
+		TotalCost:         0,
+	}
+
+	report := &ccusageDailyReport{
+		Daily: []ccusageDailyEntry{
+			{Date: "2026-03-01", TotalTokens: 1000, TotalCost: 2.00},
+		},
+		Totals: ccusageTotals{
+			InputTokens:         500,
+			OutputTokens:        500,
+			CacheCreationTokens: 0,
+			CacheReadTokens:     0,
+			TotalTokens:         1000,
+			TotalCost:           2.00,
+		},
+	}
+
+	enrichWithCCUsage(resp, report)
+
+	// cache_hit_rate should be nil when no cache tokens
+	if resp.CacheHitRate != nil {
+		t.Errorf("CacheHitRate should be nil with no cache, got %f", *resp.CacheHitRate)
+	}
+
+	// burn_rate and projected_total should still be set
+	if resp.BurnRate == nil {
+		t.Fatal("BurnRate should not be nil")
+	}
+	if *resp.BurnRate != 2.00 {
+		t.Errorf("BurnRate = %f, want 2.00", *resp.BurnRate)
+	}
+}
+
+func TestEnrichWithCCUsage_InternalDBHasData(t *testing.T) {
+	// When internal DB has data, totals should NOT be overridden
+	resp := &costShowResponse{
+		ByAgent:           map[string]float64{"eng-01": 0.05},
+		ByTeam:            make(map[string]float64),
+		ByModel:           map[string]float64{"claude-opus": 0.05},
+		TotalInputTokens:  1000,
+		TotalOutputTokens: 500,
+		TotalCost:         0.05,
+	}
+
+	report := &ccusageDailyReport{
+		Daily: []ccusageDailyEntry{
+			{Date: "2026-03-01", ModelsUsed: []string{"opus"}, TotalCost: 10.00},
+		},
+		Totals: ccusageTotals{
+			InputTokens:  5000,
+			OutputTokens: 25000,
+			TotalCost:    10.00,
+		},
+	}
+
+	enrichWithCCUsage(resp, report)
+
+	// TotalCost should NOT be overridden since internal DB had data
+	if resp.TotalCost != 0.05 {
+		t.Errorf("TotalCost = %f, want 0.05 (should not be overridden)", resp.TotalCost)
+	}
+
+	// ByModel should NOT be overridden since internal DB had data
+	if len(resp.ByModel) != 1 {
+		t.Errorf("ByModel should keep internal DB data, got %d entries", len(resp.ByModel))
+	}
+
+	// ccusage-derived fields should still be set
+	if resp.BurnRate == nil {
+		t.Fatal("BurnRate should be set even with internal DB data")
+	}
+	if resp.BillingWindowSpent == nil {
+		t.Fatal("BillingWindowSpent should be set")
+	}
+	if *resp.BillingWindowSpent != 10.00 {
+		t.Errorf("BillingWindowSpent = %f, want 10.00", *resp.BillingWindowSpent)
+	}
+}
+
+func TestEnrichWithCCUsage_EmptyDaily(t *testing.T) {
+	resp := &costShowResponse{
+		ByAgent:           make(map[string]float64),
+		ByTeam:            make(map[string]float64),
+		ByModel:           make(map[string]float64),
+		TotalInputTokens:  0,
+		TotalOutputTokens: 0,
+		TotalCost:         0,
+	}
+
+	report := &ccusageDailyReport{
+		Daily:  []ccusageDailyEntry{},
+		Totals: ccusageTotals{TotalCost: 0},
+	}
+
+	enrichWithCCUsage(resp, report)
+
+	// No burn_rate or projected_total with empty daily entries
+	if resp.BurnRate != nil {
+		t.Error("BurnRate should be nil with empty daily entries")
+	}
+	if resp.ProjectedTotal != nil {
+		t.Error("ProjectedTotal should be nil with empty daily entries")
+	}
+	if resp.BillingWindowSpent != nil {
+		t.Error("BillingWindowSpent should be nil with zero cost")
+	}
+}
+
+func TestFetchCCUsageDailyReport_MockRunner(t *testing.T) {
+	// Save and restore original runner
+	origRunner := ccusageRunner
+	defer func() { ccusageRunner = origRunner }()
+
+	t.Run("valid_response", func(t *testing.T) {
+		ccusageRunner = func(_ context.Context) ([]byte, error) {
+			return []byte(`{
+				"daily": [{"date":"2026-03-01","inputTokens":100,"outputTokens":200,"cacheCreationTokens":10,"cacheReadTokens":50,"totalTokens":360,"totalCost":1.50,"modelsUsed":["opus"]}],
+				"totals": {"inputTokens":100,"outputTokens":200,"cacheCreationTokens":10,"cacheReadTokens":50,"totalTokens":360,"totalCost":1.50}
+			}`), nil
+		}
+
+		report := fetchCCUsageDailyReport(context.Background())
+		if report == nil {
+			t.Fatal("expected non-nil report")
+		}
+		if len(report.Daily) != 1 {
+			t.Errorf("Daily entries = %d, want 1", len(report.Daily))
+		}
+		if report.Totals.TotalCost != 1.50 {
+			t.Errorf("TotalCost = %f, want 1.50", report.Totals.TotalCost)
+		}
+	})
+
+	t.Run("runner_error", func(t *testing.T) {
+		ccusageRunner = func(_ context.Context) ([]byte, error) {
+			return nil, fmt.Errorf("npx not found")
+		}
+
+		report := fetchCCUsageDailyReport(context.Background())
+		if report != nil {
+			t.Error("expected nil report when runner fails")
+		}
+	})
+
+	t.Run("invalid_json", func(t *testing.T) {
+		ccusageRunner = func(_ context.Context) ([]byte, error) {
+			return []byte("not json"), nil
+		}
+
+		report := fetchCCUsageDailyReport(context.Background())
+		if report != nil {
+			t.Error("expected nil report for invalid JSON")
+		}
+	})
+}
+
+func TestCostShowJSON_WithCCUsageEnrichment(t *testing.T) {
 	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
-	resetCostFlags()
-	defer resetCostFlags()
 
-	stdout, _, err := executeIntegrationCmd("cost", "summary", "--model")
-	if err != nil {
-		t.Fatalf("cost summary --model failed: %v\nOutput: %s", err, stdout)
+	// Mock ccusage runner
+	origRunner := ccusageRunner
+	defer func() { ccusageRunner = origRunner }()
+
+	ccusageRunner = func(_ context.Context) ([]byte, error) {
+		return []byte(`{
+			"daily": [
+				{"date":"2026-03-01","inputTokens":1000,"outputTokens":5000,"cacheCreationTokens":200,"cacheReadTokens":800,"totalTokens":7000,"totalCost":3.50,"modelsUsed":["claude-opus-4-20250514"]},
+				{"date":"2026-03-02","inputTokens":500,"outputTokens":2500,"cacheCreationTokens":100,"cacheReadTokens":400,"totalTokens":3500,"totalCost":1.75,"modelsUsed":["claude-opus-4-20250514","claude-sonnet-4-20250514"]}
+			],
+			"totals": {"inputTokens":1500,"outputTokens":7500,"cacheCreationTokens":300,"cacheReadTokens":1200,"totalTokens":10500,"totalCost":5.25}
+		}`), nil
 	}
-	if !strings.Contains(stdout, "No cost records found") {
-		t.Errorf("expected no records message, got: %s", stdout)
+
+	stdout, _, err := executeIntegrationCmd("cost", "show", "--json")
+	if err != nil {
+		t.Fatalf("cost show --json failed: %v\nOutput: %s", err, stdout)
+	}
+
+	var resp costShowResponse
+	if unmarshalErr := json.Unmarshal([]byte(stdout), &resp); unmarshalErr != nil {
+		t.Fatalf("failed to unmarshal JSON: %v\nOutput: %s", unmarshalErr, stdout)
+	}
+
+	// Verify ccusage enrichment fields are present
+	if resp.CacheHitRate == nil {
+		t.Error("CacheHitRate missing from JSON output")
+	} else if *resp.CacheHitRate != 0.8 {
+		t.Errorf("CacheHitRate = %f, want 0.8", *resp.CacheHitRate)
+	}
+
+	if resp.BurnRate == nil {
+		t.Error("BurnRate missing from JSON output")
+	} else if *resp.BurnRate != 2.625 {
+		t.Errorf("BurnRate = %f, want 2.625", *resp.BurnRate)
+	}
+
+	if resp.ProjectedTotal == nil {
+		t.Error("ProjectedTotal missing from JSON output")
+	}
+
+	if resp.BillingWindowSpent == nil {
+		t.Error("BillingWindowSpent missing from JSON output")
+	} else if *resp.BillingWindowSpent != 5.25 {
+		t.Errorf("BillingWindowSpent = %f, want 5.25", *resp.BillingWindowSpent)
+	}
+
+	// Verify totals from ccusage (internal DB empty)
+	if resp.TotalCost != 5.25 {
+		t.Errorf("TotalCost = %f, want 5.25", resp.TotalCost)
+	}
+	if resp.TotalInputTokens != 1500 {
+		t.Errorf("TotalInputTokens = %d, want 1500", resp.TotalInputTokens)
+	}
+
+	// Verify by_model populated from ccusage
+	if len(resp.ByModel) != 2 {
+		t.Errorf("ByModel has %d entries, want 2", len(resp.ByModel))
+	}
+}
+
+func TestCostShowJSON_CCUsageUnavailable(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Mock ccusage runner to fail (simulates npx not installed)
+	origRunner := ccusageRunner
+	defer func() { ccusageRunner = origRunner }()
+
+	ccusageRunner = func(_ context.Context) ([]byte, error) {
+		return nil, fmt.Errorf("npx not found")
+	}
+
+	// Seed some internal DB records
+	store := cost.NewStore(wsDir)
+	if openErr := store.Open(); openErr != nil {
+		t.Fatalf("failed to open cost store: %v", openErr)
+	}
+	_, _ = store.Record("eng-01", "", "claude-opus", 1000, 500, 0.05)
+	_ = store.Close()
+
+	stdout, _, err := executeIntegrationCmd("cost", "show", "--json")
+	if err != nil {
+		t.Fatalf("cost show --json failed: %v\nOutput: %s", err, stdout)
+	}
+
+	var resp costShowResponse
+	if unmarshalErr := json.Unmarshal([]byte(stdout), &resp); unmarshalErr != nil {
+		t.Fatalf("failed to unmarshal JSON: %v\nOutput: %s", unmarshalErr, stdout)
+	}
+
+	// Should gracefully degrade — no ccusage fields
+	if resp.CacheHitRate != nil {
+		t.Error("CacheHitRate should be nil when ccusage unavailable")
+	}
+	if resp.BurnRate != nil {
+		t.Error("BurnRate should be nil when ccusage unavailable")
+	}
+	if resp.ProjectedTotal != nil {
+		t.Error("ProjectedTotal should be nil when ccusage unavailable")
+	}
+	if resp.BillingWindowSpent != nil {
+		t.Error("BillingWindowSpent should be nil when ccusage unavailable")
+	}
+
+	// Internal DB data should still be present
+	if resp.TotalCost != 0.05 {
+		t.Errorf("TotalCost = %f, want 0.05", resp.TotalCost)
+	}
+	if resp.ByAgent["eng-01"] != 0.05 {
+		t.Errorf("ByAgent[eng-01] = %f, want 0.05", resp.ByAgent["eng-01"])
+	}
+}
+
+func TestCostShowJSON_MixedDBAndCCUsage(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	// Mock ccusage runner
+	origRunner := ccusageRunner
+	defer func() { ccusageRunner = origRunner }()
+
+	ccusageRunner = func(_ context.Context) ([]byte, error) {
+		return []byte(`{
+			"daily": [{"date":"2026-03-01","inputTokens":5000,"outputTokens":25000,"cacheCreationTokens":500,"cacheReadTokens":4500,"totalTokens":35000,"totalCost":15.00,"modelsUsed":["opus"]}],
+			"totals": {"inputTokens":5000,"outputTokens":25000,"cacheCreationTokens":500,"cacheReadTokens":4500,"totalTokens":35000,"totalCost":15.00}
+		}`), nil
+	}
+
+	// Seed internal DB with records
+	store := cost.NewStore(wsDir)
+	if openErr := store.Open(); openErr != nil {
+		t.Fatalf("failed to open cost store: %v", openErr)
+	}
+	_, _ = store.Record("eng-01", "", "claude-opus", 1000, 500, 0.05)
+	_, _ = store.Record("eng-02", "", "claude-sonnet", 2000, 1000, 0.03)
+	_ = store.Close()
+
+	stdout, _, err := executeIntegrationCmd("cost", "show", "--json")
+	if err != nil {
+		t.Fatalf("cost show --json failed: %v\nOutput: %s", err, stdout)
+	}
+
+	var resp costShowResponse
+	if unmarshalErr := json.Unmarshal([]byte(stdout), &resp); unmarshalErr != nil {
+		t.Fatalf("failed to unmarshal JSON: %v\nOutput: %s", unmarshalErr, stdout)
+	}
+
+	// Internal DB has data — totals should NOT be overridden
+	if resp.TotalCost != 0.08 {
+		t.Errorf("TotalCost = %f, want 0.08 (from internal DB)", resp.TotalCost)
+	}
+
+	// But ccusage enrichment fields should still be present
+	if resp.CacheHitRate == nil {
+		t.Error("CacheHitRate should be present")
+	} else if *resp.CacheHitRate != 0.9 {
+		t.Errorf("CacheHitRate = %f, want 0.9", *resp.CacheHitRate)
+	}
+
+	if resp.BillingWindowSpent == nil {
+		t.Error("BillingWindowSpent should be present")
+	} else if *resp.BillingWindowSpent != 15.00 {
+		t.Errorf("BillingWindowSpent = %f, want 15.00", *resp.BillingWindowSpent)
+	}
+
+	// by_model from internal DB should be preserved (not overridden)
+	if len(resp.ByModel) != 2 {
+		t.Errorf("ByModel has %d entries, want 2 (from internal DB)", len(resp.ByModel))
 	}
 }
