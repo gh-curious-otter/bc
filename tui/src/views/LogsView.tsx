@@ -9,6 +9,7 @@ import { Box, Text, useInput, useStdout } from 'ink';
 import { useLogs, getSeverityColor, getSeverityIcon, useDebounce, useListNavigation } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { ErrorDisplay } from '../components/ErrorDisplay';
+import { Footer } from '../components/Footer';
 import { DATA_LIMITS } from '../constants';
 import { POLL_INTERVALS } from '../constants/timings';
 import type { LogSeverity } from '../hooks/useLogs';
@@ -422,27 +423,17 @@ export const LogsView: React.FC<LogsViewProps> = () => {
               <Text color={isSelected ? 'cyan' : undefined}>
                 {isSelected ? '▸ ' : '  '}
               </Text>
-              <Text
-                backgroundColor={isSelected ? 'blue' : undefined}
-                color={isSelected ? 'white' : undefined}
-              >
+              <Text color={isSelected ? 'cyan' : undefined}>
                 {formatTime(log.ts).padEnd(timeWidth)}
               </Text>
-              <Text
-                backgroundColor={isSelected ? 'blue' : undefined}
-                color={isSelected ? 'white' : 'cyan'}
-              >
+              <Text color={isSelected ? 'cyan' : 'cyan'}>
                 {log.agent.slice(0, agentWidth - 1).padEnd(agentWidth)}
               </Text>
-              <Text
-                backgroundColor={isSelected ? 'blue' : undefined}
-                color={isSelected ? 'white' : severityColor}
-              >
+              <Text color={isSelected ? 'cyan' : severityColor}>
                 {severityIcon} {abbreviateType(log.type).slice(0, typeWidth - 3).padEnd(typeWidth - 2)}
               </Text>
               <Text
-                backgroundColor={isSelected ? 'blue' : undefined}
-                color={isSelected ? 'white' : undefined}
+                color={isSelected ? 'cyan' : undefined}
                 wrap="truncate"
               >
                 {log.message.slice(0, messageWidth)}
@@ -459,11 +450,17 @@ export const LogsView: React.FC<LogsViewProps> = () => {
       </Box>
 
       {/* Footer - view-specific hints only, global hints (Tab/q/?) in app footer */}
-      <Box marginTop={1}>
-        <Text dimColor wrap="truncate">
-          j/k: nav | g/G: top/bottom | Enter: details | /: search | s: severity | a: agent | t: time | c: clear | r: refresh
-        </Text>
-      </Box>
+      <Footer hints={[
+        { key: 'j/k', label: 'nav' },
+        { key: 'g/G', label: 'top/bottom' },
+        { key: 'Enter', label: 'details' },
+        { key: '/', label: 'search' },
+        { key: 's', label: 'severity' },
+        { key: 'a', label: 'agent' },
+        { key: 't', label: 'time' },
+        { key: 'c', label: 'clear' },
+        { key: 'r', label: 'refresh' },
+      ]} />
     </Box>
   );
 };

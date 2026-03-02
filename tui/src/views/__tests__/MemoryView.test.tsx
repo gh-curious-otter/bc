@@ -17,7 +17,7 @@ import { describe, test, expect } from 'bun:test';
 
 // View mode types
 type ViewMode = 'list' | 'detail' | 'search';
-type DetailTab = 'experiences' | 'learnings';
+type DetailTab = 'experiences' | 'learnings' | 'prompt';
 
 // UI state interface matching MemoryView
 interface UIState {
@@ -214,6 +214,11 @@ describe('MemoryView', () => {
         const state = uiReducer(initialUIState, { type: 'SET_DETAIL_TAB', tab: 'learnings' });
         expect(state.detailTab).toBe('learnings');
       });
+
+      test('sets prompt tab', () => {
+        const state = uiReducer(initialUIState, { type: 'SET_DETAIL_TAB', tab: 'prompt' });
+        expect(state.detailTab).toBe('prompt');
+      });
     });
 
     describe('EXIT_DETAIL', () => {
@@ -351,6 +356,7 @@ describe('MemoryView', () => {
       R: 'refresh',
       '1': 'experiences tab',
       '2': 'learnings tab',
+      '3': 'prompt tab',
       'Esc/q': 'back',
       y: 'confirm clear',
     };
@@ -372,6 +378,7 @@ describe('MemoryView', () => {
     test('detail tab shortcuts', () => {
       expect(shortcuts['1']).toBe('experiences tab');
       expect(shortcuts['2']).toBe('learnings tab');
+      expect(shortcuts['3']).toBe('prompt tab');
     });
 
     test('back shortcuts', () => {

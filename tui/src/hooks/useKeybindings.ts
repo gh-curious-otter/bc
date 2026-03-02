@@ -88,6 +88,7 @@ export const DEFAULT_VIEW_NUMBERS: Record<string, View> = {
   '5': 'roles',
   '6': 'logs',
   '7': 'worktrees',
+  '8': 'memory',
 };
 
 /** Status bar hint for a keybinding */
