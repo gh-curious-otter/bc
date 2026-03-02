@@ -74,10 +74,20 @@ export interface MatchedCommand {
 /**
  * Search view and action commands with fuzzy matching
  * #1836: Includes action commands in results
+ * #1871: LRU boost — recently used commands rank higher
  */
-export function searchCommands(query: string): MatchedCommand[] {
+export function searchCommands(query: string, recentCommands: string[] = []): MatchedCommand[] {
   if (!query) {
-    return VIEW_COMMANDS.map(cmd => ({ command: cmd, score: 50 }));
+    // #1871: Show recent commands first, then remaining in default order
+    const recentSet = new Set(recentCommands);
+    const recent = recentCommands
+      .map(name => VIEW_COMMANDS.find(cmd => cmd.command === name))
+      .filter((cmd): cmd is ViewCommand => cmd !== undefined)
+      .map(cmd => ({ command: { ...cmd, section: 'RECENT' }, score: 90 }));
+    const rest = VIEW_COMMANDS
+      .filter(cmd => !recentSet.has(cmd.command))
+      .map(cmd => ({ command: cmd, score: 50 }));
+    return [...recent, ...rest];
   }
 
   const results: MatchedCommand[] = [];
@@ -114,6 +124,14 @@ export function searchCommands(query: string): MatchedCommand[] {
         command: { command: cmd.command, aliases: cmd.aliases, view: '' as View, section: cmd.section },
         score: bestScore,
       });
+    }
+  }
+
+  // #1871: Boost recently used commands by a small amount for tiebreaking
+  const recentSet = new Set(recentCommands);
+  for (const result of results) {
+    if (recentSet.has(result.command.command)) {
+      result.score += 5;
     }
   }
 

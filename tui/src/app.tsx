@@ -3,7 +3,7 @@
  * k9s-style navigation with :command bar and /filter bar
  */
 
-import React, { useState, useCallback, memo } from 'react';
+import React, { useState, useCallback, useRef, memo } from 'react';
 import { Box, Text, useStdout } from 'ink';
 import {
   NavigationProvider,
@@ -90,6 +90,16 @@ function AppContent({ themeConfig }: AppContentProps): React.ReactElement {
   const [showCommandBar, setShowCommandBar] = useState(false);
   const [showFilterBar, setShowFilterBar] = useState(false);
 
+  // #1871: LRU tracking for recently used commands (persists across open/close)
+  const MAX_LRU = 10;
+  const recentCommandsRef = useRef<string[]>([]);
+  const handleCommandUsed = useCallback((command: string) => {
+    const lru = recentCommandsRef.current.filter(c => c !== command);
+    lru.unshift(command);
+    if (lru.length > MAX_LRU) lru.pop();
+    recentCommandsRef.current = lru;
+  }, []);
+
   React.useEffect(() => {
     if (themeConfig.theme !== 'dark' && themeConfig.theme !== 'light') {
       setThemeName(themeConfig.theme as Parameters<typeof setThemeName>[0]);
@@ -151,6 +161,8 @@ function AppContent({ themeConfig }: AppContentProps): React.ReactElement {
         <CommandBar
           onSelect={handleCommandSelect}
           onClose={closeCommandBar}
+          recentCommands={recentCommandsRef.current}
+          onCommandUsed={handleCommandUsed}
         />
       )}
 

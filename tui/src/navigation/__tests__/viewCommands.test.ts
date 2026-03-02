@@ -95,4 +95,52 @@ describe('viewCommands', () => {
       expect(results[0].command.command).toBe('help');
     });
   });
+
+  describe('searchCommands LRU (#1871)', () => {
+    test('shows recent commands first when query is empty', () => {
+      const results = searchCommands('', ['logs', 'memory']);
+      expect(results[0].command.command).toBe('logs');
+      expect(results[1].command.command).toBe('memory');
+      expect(results[0].command.section).toBe('RECENT');
+      expect(results[1].command.section).toBe('RECENT');
+    });
+
+    test('recent commands have higher score than non-recent when empty', () => {
+      const results = searchCommands('', ['costs']);
+      const recent = results.find(r => r.command.command === 'costs');
+      const nonRecent = results.find(r => r.command.command === 'dashboard');
+      expect(recent).toBeDefined();
+      expect(nonRecent).toBeDefined();
+      expect(recent!.score).toBeGreaterThan(nonRecent!.score);
+    });
+
+    test('non-recent commands still appear after recent ones', () => {
+      const results = searchCommands('', ['logs']);
+      // First is recent
+      expect(results[0].command.command).toBe('logs');
+      // Rest are all non-recent view commands
+      const rest = results.slice(1);
+      expect(rest.length).toBeGreaterThan(0);
+      expect(rest.every(r => r.command.section !== 'RECENT')).toBe(true);
+    });
+
+    test('LRU boost gives tiebreak advantage when query has text', () => {
+      // Both 'logs' and 'roles' contain 'lo' — with LRU boost, 'logs' should rank first
+      const withLru = searchCommands('lo', ['logs']);
+      const logsIdx = withLru.findIndex(r => r.command.command === 'logs');
+      expect(logsIdx).toBe(0);
+    });
+
+    test('works without LRU parameter (backward compatible)', () => {
+      const results = searchCommands('dash');
+      expect(results.some(r => r.command.command === 'dashboard')).toBe(true);
+    });
+
+    test('ignores invalid LRU entries', () => {
+      const results = searchCommands('', ['nonexistent', 'logs']);
+      // nonexistent is silently skipped, logs still shows as recent
+      expect(results[0].command.command).toBe('logs');
+      expect(results[0].command.section).toBe('RECENT');
+    });
+  });
 });

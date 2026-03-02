@@ -13,15 +13,19 @@ import { searchCommands, resolveCommand, resolveAction, type MatchedCommand } fr
 interface CommandBarProps {
   onSelect: (view: View) => void;
   onClose: () => void;
+  /** #1871: Recently used command names for LRU ordering */
+  recentCommands?: string[];
+  /** #1871: Callback when a command is selected (for LRU tracking) */
+  onCommandUsed?: (command: string) => void;
 }
 
-const MAX_SUGGESTIONS = 5;
+const MAX_SUGGESTIONS = 10;
 
-export function CommandBar({ onSelect, onClose }: CommandBarProps): React.ReactElement {
+export function CommandBar({ onSelect, onClose, recentCommands = [], onCommandUsed }: CommandBarProps): React.ReactElement {
   const [input, setInput] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  const matches = searchCommands(input).slice(0, MAX_SUGGESTIONS);
+  const matches = searchCommands(input, recentCommands).slice(0, MAX_SUGGESTIONS);
 
   useInput((char, key) => {
     if (key.escape) {
@@ -40,8 +44,10 @@ export function CommandBar({ onSelect, onClose }: CommandBarProps): React.ReactE
       // Try exact view resolve first, then use selected suggestion
       const resolved = resolveCommand(input);
       if (resolved) {
+        onCommandUsed?.(input.toLowerCase().trim());
         onSelect(resolved);
       } else if (matches.length > 0 && matches[selectedIndex].command.view) {
+        onCommandUsed?.(matches[selectedIndex].command.command);
         onSelect(matches[selectedIndex].command.view);
       }
       return;
