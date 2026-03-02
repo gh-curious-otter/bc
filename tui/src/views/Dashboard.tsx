@@ -71,51 +71,52 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
         lastRefresh={lastRefresh}
       />
 
-      {/* Summary Cards - Agent counts */}
-      <SummaryCards
-        total={summary.total}
-        active={summary.active}
-        working={summary.working}
-        idle={summary.idle}
-        stuck={summary.stuck}
-        errorCount={summary.error}
-        isNarrow={isNarrow}
-      />
-
-      {/* #1614: Simplified layout - StatsPanels renders once with layout prop */}
-      {/* Main Content - Uses responsive layout for flexible column arrangement */}
-      <Box marginTop={1} flexDirection={canMultiColumn ? 'row' : 'column'}>
-        {/* Stats panels at top when narrow */}
-        {!canMultiColumn && (
-          <StatsPanels
-            summary={summary}
-            agentStats={agentStats}
-            showInitialLoading={showInitialLoading}
+      {/* #1895: Hide cards during initial load — show spinner instead of 0 values */}
+      {showInitialLoading ? (
+        <LoadingIndicator message="Loading workspace data..." />
+      ) : (
+        <>
+          {/* Summary Cards - Agent counts */}
+          <SummaryCards
+            total={summary.total}
+            active={summary.active}
+            working={summary.working}
+            idle={summary.idle}
+            stuck={summary.stuck}
+            errorCount={summary.error}
             isNarrow={isNarrow}
           />
-        )}
 
-        {/* Activity Feed - primary focus */}
-        <Box flexDirection="column" flexGrow={1} marginRight={canMultiColumn ? 1 : 0}>
-          {showInitialLoading ? (
-            <LoadingIndicator message="Loading activity..." />
-          ) : (
-            <ActivityFeed maxEntries={isMedium || isWide ? 15 : 8} compact={!isWide} showFilterHints={canMultiColumn} />
-          )}
-        </Box>
+          {/* #1614: Simplified layout - StatsPanels renders once with layout prop */}
+          {/* Main Content - Uses responsive layout for flexible column arrangement */}
+          <Box marginTop={1} flexDirection={canMultiColumn ? 'row' : 'column'}>
+            {/* Stats panels at top when narrow */}
+            {!canMultiColumn && (
+              <StatsPanels
+                summary={summary}
+                agentStats={agentStats}
+                isNarrow={isNarrow}
+              />
+            )}
 
-        {/* Stats & Health panels - side column when space allows (medium+) */}
-        {canMultiColumn && (
-          <Box flexDirection="column" width={Math.min(32, Math.max(26, Math.floor((terminalWidth - 4) * 0.28)))}>
-            <StatsPanels
-              summary={summary}
-              agentStats={agentStats}
-              showInitialLoading={showInitialLoading}
-              isNarrow={isNarrow}
-            />
+            {/* Activity Feed - primary focus */}
+            <Box flexDirection="column" flexGrow={1} marginRight={canMultiColumn ? 1 : 0}>
+              <ActivityFeed maxEntries={isMedium || isWide ? 15 : 8} compact={!isWide} showFilterHints={canMultiColumn} />
+            </Box>
+
+            {/* Stats & Health panels - side column when space allows (medium+) */}
+            {canMultiColumn && (
+              <Box flexDirection="column" width={Math.min(32, Math.max(26, Math.floor((terminalWidth - 4) * 0.28)))}>
+                <StatsPanels
+                  summary={summary}
+                  agentStats={agentStats}
+                  isNarrow={isNarrow}
+                />
+              </Box>
+            )}
           </Box>
-        )}
-      </Box>
+        </>
+      )}
 
       {/* Footer with keyboard hints - Issue #1514: use drawer navigation (#1467) */}
       <Footer
@@ -154,7 +155,7 @@ const Header = memo(function Header({ workspaceName, isLoading, lastRefresh }: H
       <Text>{workspaceName}</Text>
       <Box flexGrow={1} />
       {isLoading ? (
-        <Text color="yellow">↻ refreshing...</Text>
+        <Text color="yellow">↻ {lastRefresh ? 'refreshing...' : 'Loading...'}</Text>
       ) : (
         <Text dimColor>{refreshText}</Text>
       )}
@@ -509,24 +510,19 @@ interface StatsPanelsProps {
     byState: Record<string, number>;
     byRole: Record<string, number>;
   };
-  showInitialLoading: boolean;
   isNarrow: boolean;
 }
 
 /**
  * StatsPanels - Consolidated stats display (#1614)
  * Reduces layout complexity by rendering panels once
+ * #1895: No longer needs showInitialLoading — parent hides entire section during load
  */
 const StatsPanels = memo(function StatsPanels({
   summary,
   agentStats,
-  showInitialLoading,
   isNarrow,
 }: StatsPanelsProps) {
-  if (showInitialLoading) {
-    return <LoadingIndicator message="Loading stats..." />;
-  }
-
   return (
     <>
       <SystemHealthPanel
