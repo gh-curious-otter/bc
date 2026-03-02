@@ -17,6 +17,8 @@ export interface ChatMessageProps {
   maxBubbleWidth?: number;
   /** Maximum lines to display before truncating (default: unlimited, set 0 for no limit) */
   maxLines?: number;
+  /** #1899: Compact mode — no bubble borders, flat layout for narrow terminals */
+  compact?: boolean;
 }
 
 const formatRelativeTime = (timestamp: string): string => {
@@ -68,6 +70,7 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
   isSelected = false,
   maxBubbleWidth = 60,
   maxLines = 0, // #1718: Default to no truncation for full message visibility
+  compact = false, // #1899: Flat layout for narrow terminals
 }) {
   const time = formatRelativeTime(timestamp);
   const senderColor = getColorForName(sender);
@@ -81,6 +84,32 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
   const displayMessage = isTruncated
     ? lines.slice(0, maxLines).join('\n')
     : message;
+
+  // #1899: Compact mode — no bubble borders, sender + time on one line, message below
+  // Used at narrow terminals (<100 cols) to avoid border corruption and wasted space
+  if (compact) {
+    return (
+      <Box flexDirection="column" width="100%" paddingX={1} marginBottom={1}>
+        <Box>
+          <Text color={senderColor} bold>{rolePrefix}{sender}</Text>
+          {isOwnMessage && <Text color="cyan" dimColor> (you)</Text>}
+          <Text dimColor>  {time}</Text>
+          {!isRead && <Text color="blue"> ●</Text>}
+        </Box>
+        <Box paddingLeft={2} flexDirection="column">
+          <MentionText text={displayMessage} currentUser={currentUser} />
+          {isTruncated && (
+            <Text dimColor>... ({lines.length - maxLines} more lines)</Text>
+          )}
+        </Box>
+        {reactions.length > 0 && (
+          <Box paddingLeft={2}>
+            <ReactionBar reactions={reactions} />
+          </Box>
+        )}
+      </Box>
+    );
+  }
 
   // Bubble styling based on ownership
   const bubbleBorderColor = isOwnMessage ? 'cyan' : 'gray';

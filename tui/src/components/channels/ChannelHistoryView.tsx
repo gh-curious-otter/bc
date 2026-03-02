@@ -86,19 +86,26 @@ export function ChannelHistoryView({
     [messageBuffer.length, terminalWidth]
   );
 
+  // #1899: Compact mode for narrow terminals — no bubble borders, flat layout
+  const isNarrow = terminalWidth < 100;
+
   // Dynamic layout based on terminal size (#976)
   // CLI directive: Fix messages appearing behind input field
-  // Layout breakdown: header(3+1margin) + input(inputHeight+1margin) + footer(1) + borders(4) + safety(2)
-  const layoutOverhead = 4 + inputHeight + 1 + 1 + 4 + 2; // = 12 + inputHeight
+  // #1899: Updated overhead for HeaderBar (2 lines) vs old header (4 lines)
+  // Layout: HeaderBar(2) + description?(2) + msgBorder(2) + inputHeight + inputMargin(1) + footer(1) + safety(2)
+  const headerOverhead = channel.description ? 4 : 2;
+  const layoutOverhead = headerOverhead + 2 + inputHeight + 1 + 1 + 2;
   const messageAreaHeight = Math.max(8, terminalHeight - layoutOverhead);
 
-  // Dynamic bubble width: 80% of available width, min 40, max 140
-  // #1681 fix: Account for container overhead (8 cols: view border/padding + bubble border/padding)
-  const containerOverhead = 8;
-  const maxBubbleWidth = Math.min(140, Math.max(40, Math.floor((terminalWidth - containerOverhead) * 0.8)));
+  // #1899: At narrow widths, use full width for compact messages (no bubble borders)
+  // At wide widths, use 80% with bubble border overhead
+  const containerOverhead = isNarrow ? 4 : 8; // narrow: just message area border/padding; wide: + bubble border/padding
+  const bubblePercent = isNarrow ? 1.0 : 0.8;
+  const maxBubbleWidth = Math.min(140, Math.max(40, Math.floor((terminalWidth - containerOverhead) * bubblePercent)));
 
-  // Dynamic message count: ~4 lines per message bubble
-  const maxMessages = Math.max(3, Math.floor(messageAreaHeight / 4));
+  // Dynamic message count: compact messages are ~3 lines, bubbles ~4 lines
+  const linesPerMessage = isNarrow ? 3 : 4;
+  const maxMessages = Math.max(3, Math.floor(messageAreaHeight / linesPerMessage));
 
   /**
    * Synchronize focus state with input mode
@@ -226,6 +233,7 @@ export function ChannelHistoryView({
                 timestamp={msg.time}
                 currentUser={process.env.BC_AGENT_ID}
                 maxBubbleWidth={maxBubbleWidth}
+                compact={isNarrow}
               />
             ))}
             {hasMoreBelow && <Text dimColor>↓ more messages below</Text>}
