@@ -23,7 +23,7 @@ export const MetricCard = memo(function MetricCard({
   suffix = '',
 }: MetricCardProps) {
   return (
-    <Box flexDirection="column" paddingX={1} borderStyle="single" borderColor="gray" minHeight={4}>
+    <Box flexDirection="column" paddingX={1} marginRight={1} borderStyle="single" borderColor="gray" minHeight={4}>
       <Text dimColor>{label}</Text>
       <Text bold color={color}>
         {prefix}{value}{suffix}
