@@ -204,11 +204,12 @@ export interface BcEvent {
 }
 
 // Log entry from bc logs --json
+// Note: type/agent/message can be undefined at runtime due to Go's omitempty (#1874)
 export interface LogEntry {
   ts: string;
-  type: string;
-  agent: string;
-  message: string;
+  type?: string;
+  agent?: string;
+  message?: string;
   data?: Record<string, unknown>;
 }
 

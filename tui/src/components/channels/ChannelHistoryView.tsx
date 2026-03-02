@@ -8,6 +8,7 @@ import { Box, Text, useInput, useStdout } from 'ink';
 import { useChannelHistory, useUnread } from '../../hooks';
 import { useFocus } from '../../navigation/FocusContext';
 import { ChatMessage } from '../ChatMessage';
+import { Footer } from '../Footer';
 import type { Channel } from '../../types';
 
 /** Duration in ms to show send errors before auto-clearing */
@@ -253,7 +254,20 @@ export function ChannelHistoryView({
         )}
       </Box>
 
-      {/* #1461 fix: Removed duplicate footer - global footer shows navigation hints */}
+      {/* Footer with context-aware hints */}
+      {inputMode ? (
+        <Footer hints={[
+          { key: 'Enter', label: 'send' },
+          { key: 'Esc', label: 'save draft' },
+        ]} />
+      ) : (
+        <Footer hints={[
+          { key: 'j/k', label: 'scroll' },
+          { key: 'm', label: 'compose' },
+          ...(messageBuffer ? [{ key: 'c', label: 'clear draft' }] : []),
+          { key: 'Esc', label: 'back' },
+        ]} />
+      )}
     </Box>
   );
 }

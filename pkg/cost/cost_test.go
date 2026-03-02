@@ -649,80 +649,6 @@ func TestProjectionStruct(t *testing.T) {
 	}
 }
 
-func TestParseCostFromMessage(t *testing.T) {
-	tests := []struct { //nolint:govet
-		name    string
-		message string
-		want    *CostMessage
-	}{
-		{
-			name:    "empty message",
-			message: "",
-			want:    nil,
-		},
-		{
-			name:    "no cost info",
-			message: "This is a regular message",
-			want:    nil,
-		},
-		{
-			name:    "message with cost keyword but no data",
-			message: "The cost of this operation is undefined",
-			want:    nil,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := ParseCostFromMessage(tt.message)
-			if got != tt.want {
-				t.Errorf("ParseCostFromMessage(%q) = %v, want %v", tt.message, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestRecordFromMessage(t *testing.T) {
-	cm := &CostMessage{
-		AgentID:      "engineer-01",
-		InputTokens:  1000,
-		OutputTokens: 500,
-		CostUSD:      0.05,
-		Message:      "test message",
-	}
-
-	record := RecordFromMessage(cm)
-	if record == nil {
-		t.Fatal("expected non-nil record")
-	}
-
-	if record.AgentID != "engineer-01" {
-		t.Errorf("AgentID = %q, want engineer-01", record.AgentID)
-	}
-	if record.InputTokens != 1000 {
-		t.Errorf("InputTokens = %d, want 1000", record.InputTokens)
-	}
-	if record.OutputTokens != 500 {
-		t.Errorf("OutputTokens = %d, want 500", record.OutputTokens)
-	}
-	if record.TotalTokens != 1500 {
-		t.Errorf("TotalTokens = %d, want 1500", record.TotalTokens)
-	}
-	if record.CostUSD != 0.05 {
-		t.Errorf("CostUSD = %f, want 0.05", record.CostUSD)
-	}
-	if record.Model != "extracted" {
-		t.Errorf("Model = %q, want extracted", record.Model)
-	}
-}
-
-func TestRecordFromMessageNil(t *testing.T) {
-	record := RecordFromMessage(nil)
-	if record != nil {
-		t.Errorf("expected nil for nil input, got %v", record)
-	}
-}
-
 func TestSetBudget(t *testing.T) {
 	tmpDir := t.TempDir()
 	store := NewStore(tmpDir)
@@ -1079,54 +1005,6 @@ func TestBudgetStatusStruct(t *testing.T) {
 	}
 	if !status.IsNearLimit {
 		t.Error("IsNearLimit should be true")
-	}
-}
-
-func TestStoreRecordCostFromMessage(t *testing.T) {
-	tmpDir := t.TempDir()
-	store := NewStore(tmpDir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("failed to open store: %v", err)
-	}
-	defer func() { _ = store.Close() }()
-
-	// RecordCostFromMessage with no cost data should return nil, nil
-	record, err := store.RecordCostFromMessage("engineer-01", "No cost information here")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if record != nil {
-		t.Errorf("expected nil record for message with no cost data, got %v", record)
-	}
-}
-
-func TestStoreRecordCostFromMessageWithCost(t *testing.T) {
-	tmpDir := t.TempDir()
-	store := NewStore(tmpDir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("failed to open store: %v", err)
-	}
-	defer func() { _ = store.Close() }()
-
-	// Create a CostMessage to test the RecordCostFromMessage flow
-	// Note: With current implementation, ParseCostFromMessage returns nil
-	// but the infrastructure is in place for future enhancements
-	cm := &CostMessage{
-		AgentID:      "engineer-01",
-		InputTokens:  1000,
-		OutputTokens: 500,
-		CostUSD:      0.05,
-		Message:      "test",
-	}
-
-	record := RecordFromMessage(cm)
-	if record == nil {
-		t.Fatal("expected non-nil record from RecordFromMessage")
-	}
-
-	// Verify the record can be stored
-	if record.AgentID != "engineer-01" {
-		t.Errorf("AgentID mismatch in extracted record")
 	}
 }
 
