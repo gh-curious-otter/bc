@@ -24,6 +24,7 @@ import { execBc } from '../services/bc';
 import type { Agent } from '../types';
 
 // Import extracted components
+import { Footer } from '../components/Footer';
 import {
   AgentList,
   AgentActions,
@@ -386,11 +387,16 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
       )}
 
       {/* Footer */}
-      <Box marginTop={1}>
-        <Text color="gray" wrap="truncate">
-          j/k: nav | Enter: attach | d: detail | v: {groupedView ? 'flat' : 'grouped'} | /: search{search.query ? ' | c: clear' : ''} | p: peek | r: refresh | q: back
-        </Text>
-      </Box>
+      <Footer hints={[
+        { key: 'j/k', label: 'nav' },
+        { key: 'Enter', label: 'attach' },
+        { key: 'd', label: 'detail' },
+        { key: 'v', label: groupedView ? 'flat' : 'grouped' },
+        { key: '/', label: 'search' },
+        ...(search.query ? [{ key: 'c', label: 'clear' }] : []),
+        { key: 'p', label: 'peek' },
+        { key: 'r', label: 'refresh' },
+      ]} />
     </Box>
   );
 };
