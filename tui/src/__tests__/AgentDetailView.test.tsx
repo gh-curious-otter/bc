@@ -57,8 +57,62 @@ describe('AgentDetailView - normalizeTask', () => {
   });
 });
 
+describe('AgentDetailView - ANSI detection (#1844)', () => {
+  // eslint-disable-next-line no-control-regex
+  const ANSI_REGEX = /\x1b\[[0-9;]*m/;
+
+  function hasAnsiCodes(line: string): boolean {
+    return ANSI_REGEX.test(line);
+  }
+
+  test('detects SGR color codes', () => {
+    expect(hasAnsiCodes('\x1b[31mred text\x1b[0m')).toBe(true);
+    expect(hasAnsiCodes('\x1b[1;32mbold green\x1b[0m')).toBe(true);
+  });
+
+  test('returns false for plain text', () => {
+    expect(hasAnsiCodes('just plain text')).toBe(false);
+    expect(hasAnsiCodes('Error: something failed')).toBe(false);
+  });
+
+  test('detects reset codes', () => {
+    expect(hasAnsiCodes('\x1b[0m')).toBe(true);
+  });
+});
+
+describe('AgentDetailView - peek header stripping (#1844)', () => {
+  function isPeekHeader(line: string): boolean {
+    return /^=== .+ \(last \d+ lines\) ===$/.test(line.trim());
+  }
+
+  test('detects standard peek header', () => {
+    expect(isPeekHeader('=== eng-01 (last 50 lines) ===')).toBe(true);
+    expect(isPeekHeader('=== my-agent (last 200 lines) ===')).toBe(true);
+  });
+
+  test('does not match normal output lines', () => {
+    expect(isPeekHeader('some normal output')).toBe(false);
+    expect(isPeekHeader('=== not a header ===')).toBe(false);
+    expect(isPeekHeader('Error: failed')).toBe(false);
+  });
+
+  test('filters headers from output', () => {
+    const raw = '=== eng-01 (last 50 lines) ===\nline 1\nline 2\n';
+    const lines = raw.split('\n').filter(line => line.trim() && !isPeekHeader(line));
+    expect(lines).toEqual(['line 1', 'line 2']);
+  });
+});
+
 describe('AgentDetailView - colorizeOutputLine patterns', () => {
-  function getLineType(line: string): 'error' | 'warning' | 'success' | 'command' | 'default' {
+  // eslint-disable-next-line no-control-regex
+  const ANSI_REGEX = /\x1b\[[0-9;]*m/;
+
+  function getLineType(line: string): 'error' | 'warning' | 'success' | 'command' | 'ansi' | 'default' {
+    // #1844: Lines with ANSI codes pass through without semantic coloring
+    if (ANSI_REGEX.test(line)) {
+      return 'ansi';
+    }
+
     const trimmed = line.trim().toLowerCase();
 
     if (
@@ -146,6 +200,11 @@ describe('AgentDetailView - colorizeOutputLine patterns', () => {
 
   test('returns default for normal text', () => {
     expect(getLineType('Just some text')).toBe('default');
+  });
+
+  test('returns ansi for lines with ANSI codes (#1844)', () => {
+    expect(getLineType('\x1b[31mError: failed\x1b[0m')).toBe('ansi');
+    expect(getLineType('\x1b[32m✓ All tests passed\x1b[0m')).toBe('ansi');
   });
 });
 

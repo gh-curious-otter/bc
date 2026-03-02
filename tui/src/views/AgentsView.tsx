@@ -223,7 +223,10 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
     dispatch({ type: 'SET_PEEK_LOADING', loading: true });
     try {
       const output = await execBc(['agent', 'peek', agentName, '--lines', '8']);
-      const lines = output.split('\n').filter((line: string) => line.trim());
+      // #1844: Strip peek headers and empty lines
+      const lines = output.split('\n').filter((line: string) =>
+        line.trim() && !/^=== .+ \(last \d+ lines\) ===$/.test(line.trim())
+      );
       dispatch({ type: 'SET_PEEK_OUTPUT', output: lines.slice(-6) });
     } catch {
       dispatch({ type: 'SET_PEEK_OUTPUT', output: ['(No output available)'] });
