@@ -21,7 +21,7 @@
 // All connections use these settings:
 //   - WAL journal mode for better concurrency
 //   - Foreign keys enabled
-//   - 5 second busy timeout
+//   - 30 second busy timeout
 //   - Single connection pool (SQLite limitation)
 //   - Optimized cache and synchronous settings
 package db
@@ -39,7 +39,9 @@ import (
 )
 
 // DefaultBusyTimeout is the default timeout for SQLite busy handling.
-const DefaultBusyTimeout = 5000 // milliseconds
+// Set to 30s to handle concurrent agent access; SQLite returns as soon as
+// the lock is available — this is just the worst-case upper bound.
+const DefaultBusyTimeout = 30000 // milliseconds
 
 // DefaultCacheSize is the default SQLite page cache size in KB.
 const DefaultCacheSize = 2000
@@ -47,7 +49,7 @@ const DefaultCacheSize = 2000
 // Config holds database configuration options.
 type Config struct {
 	// BusyTimeout is the SQLite busy timeout in milliseconds.
-	// Default: 5000 (5 seconds)
+	// Default: 30000 (30 seconds)
 	BusyTimeout int
 
 	// CacheSize is the SQLite page cache size in KB.

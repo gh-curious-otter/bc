@@ -815,18 +815,6 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 		}
 	}
 
-	// Send bootstrap prompt if we have content
-	if len(promptParts) > 0 {
-		// Wait for agent to initialize (Gemini/Claude needs time to start REPL)
-		time.Sleep(m.getBootstrapDelay())
-
-		prompt := strings.Join(promptParts, "\n\n---\n\n")
-		prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nAgent ID: %s\n", workspace, name)
-		if err := m.tmux.SendKeys(context.TODO(), name, prompt); err != nil {
-			log.Warn("failed to send bootstrap prompt", "agent", name, "error", err)
-		}
-	}
-
 	// Update parent's children list
 	if parentID != "" {
 		if parent, exists := m.agents[parentID]; exists {
@@ -838,6 +826,25 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	// Save state
 	if err := m.saveState(); err != nil {
 		log.Warn("failed to save agent state", "error", err)
+	}
+
+	// Send bootstrap prompt asynchronously (like respawn path at line 656)
+	// to avoid holding m.mu during the blocking sleep.
+	if len(promptParts) > 0 {
+		bootstrapName := name
+		bootstrapWorkspace := workspace
+		bootstrapParts := make([]string, len(promptParts))
+		copy(bootstrapParts, promptParts)
+		bootstrapDelay := m.getBootstrapDelay()
+
+		go func() {
+			time.Sleep(bootstrapDelay)
+			prompt := strings.Join(bootstrapParts, "\n\n---\n\n")
+			prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nAgent ID: %s\n", bootstrapWorkspace, bootstrapName)
+			if err := m.tmux.SendKeys(context.TODO(), bootstrapName, prompt); err != nil {
+				log.Warn("failed to send bootstrap prompt", "agent", bootstrapName, "error", err)
+			}
+		}()
 	}
 
 	return agent, nil
@@ -945,13 +952,27 @@ func truncateLogFile(path string, maxBytes int64) {
 }
 
 // createWorktree creates a per-agent git worktree so agents don't clobber each other.
+// Uses a cross-process file lock to prevent concurrent git worktree operations.
 // Returns the worktree directory path.
 func createWorktree(workspace, agentName string) (string, error) {
 	worktreeDir := filepath.Join(workspace, ".bc", "worktrees", agentName)
 
-	// If worktree already exists, reuse it
+	// If worktree already exists, reuse it (fast path, no lock needed)
 	if _, err := os.Stat(worktreeDir); err == nil {
 		log.Debug("reusing existing worktree", "agent", agentName, "dir", worktreeDir)
+		return worktreeDir, nil
+	}
+
+	// Acquire cross-process lock for git worktree operations
+	fl := newFileLock(worktreeLockPath(workspace))
+	if err := fl.Lock(30 * time.Second); err != nil {
+		return "", fmt.Errorf("failed to acquire worktree lock: %w", err)
+	}
+	defer fl.Unlock()
+
+	// Re-check after acquiring lock (another process may have created it)
+	if _, err := os.Stat(worktreeDir); err == nil {
+		log.Debug("reusing existing worktree (after lock)", "agent", agentName, "dir", worktreeDir)
 		return worktreeDir, nil
 	}
 
@@ -960,27 +981,40 @@ func createWorktree(workspace, agentName string) (string, error) {
 		return "", fmt.Errorf("failed to create worktrees dir: %w", err)
 	}
 
-	// Create detached worktree at HEAD (current main)
-	cmd := exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "add", "--detach", worktreeDir, "HEAD") //nolint:gosec // args are trusted internal paths
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		// If failed because it's already registered but missing, prune and retry
-		if strings.Contains(string(output), "already registered") {
-			log.Info("pruning stale worktrees to recover", "agent", agentName)
-			_ = exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "prune").Run()
+	// Retry with backoff for transient git errors under concurrency
+	var lastErr error
+	backoffs := []time.Duration{100 * time.Millisecond, 200 * time.Millisecond, 400 * time.Millisecond}
 
-			// Retry
-			cmd = exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "add", "--detach", worktreeDir, "HEAD") //nolint:gosec // args are trusted internal paths
-			output, err = cmd.CombinedOutput()
+	for attempt := 0; attempt <= len(backoffs); attempt++ {
+		if attempt > 0 {
+			time.Sleep(backoffs[attempt-1])
 		}
 
+		// Create detached worktree at HEAD (current main)
+		cmd := exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "add", "--detach", worktreeDir, "HEAD") //nolint:gosec // args are trusted internal paths
+		output, err := cmd.CombinedOutput()
 		if err != nil {
-			return "", fmt.Errorf("failed to create worktree for %s: %w (%s)", agentName, err, string(output))
+			// If failed because it's already registered but missing, prune and retry
+			if strings.Contains(string(output), "already registered") {
+				log.Info("pruning stale worktrees to recover", "agent", agentName)
+				_ = exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "prune").Run()
+
+				// Retry after prune
+				cmd = exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "add", "--detach", worktreeDir, "HEAD") //nolint:gosec // args are trusted internal paths
+				output, err = cmd.CombinedOutput()
+			}
+
+			if err != nil {
+				lastErr = fmt.Errorf("failed to create worktree for %s: %w (%s)", agentName, err, string(output))
+				continue
+			}
 		}
+
+		log.Debug("created worktree", "agent", agentName, "dir", worktreeDir)
+		return worktreeDir, nil
 	}
 
-	log.Debug("created worktree", "agent", agentName, "dir", worktreeDir)
-	return worktreeDir, nil
+	return "", lastErr
 }
 
 // gitWrapperScript is the shell script that shadows git to warn on write
@@ -1070,10 +1104,20 @@ func createMemoryDir(workspace, agentName string) (string, error) {
 }
 
 // removeWorktree removes a per-agent git worktree.
+// Uses a cross-process file lock to prevent concurrent git worktree operations.
 func removeWorktree(workspace, worktreeDir string) {
 	if worktreeDir == "" {
 		return
 	}
+
+	// Acquire cross-process lock for git worktree operations
+	fl := newFileLock(worktreeLockPath(workspace))
+	if err := fl.Lock(30 * time.Second); err != nil {
+		log.Warn("failed to acquire worktree lock for removal", "dir", worktreeDir, "error", err)
+		return
+	}
+	defer fl.Unlock()
+
 	cmd := exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "remove", "--force", worktreeDir)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		log.Warn("failed to remove worktree", "dir", worktreeDir, "error", err, "output", string(output))
@@ -1782,7 +1826,9 @@ func (m *Manager) AttachToAgent(name string) error {
 	return cmd.Run()
 }
 
-// saveState persists agent state to disk.
+// saveState persists agent state to disk using atomic write (temp + rename)
+// and a cross-process file lock to prevent corruption from concurrent writers.
+// Must be called while holding m.mu.
 func (m *Manager) saveState() error {
 	if m.stateDir == "" {
 		return nil
@@ -1797,16 +1843,38 @@ func (m *Manager) saveState() error {
 		return err
 	}
 
-	return os.WriteFile(filepath.Join(m.stateDir, "agents.json"), data, 0600)
+	// Acquire cross-process lock
+	fl := newFileLock(stateLockPath(m.stateDir))
+	if err := fl.Lock(30 * time.Second); err != nil {
+		return fmt.Errorf("failed to acquire state lock: %w", err)
+	}
+	defer fl.Unlock()
+
+	// Atomic write: temp file then rename
+	target := filepath.Join(m.stateDir, "agents.json")
+	tmp := target + ".tmp"
+	if err := os.WriteFile(tmp, data, 0600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, target)
 }
 
 // LoadState loads agent state from disk.
+// Uses a cross-process file lock to prevent reading a partially written file.
 func (m *Manager) LoadState() error {
 	if m.stateDir == "" {
 		return nil
 	}
 
+	// Acquire cross-process lock before reading
+	fl := newFileLock(stateLockPath(m.stateDir))
+	if err := fl.Lock(30 * time.Second); err != nil {
+		return fmt.Errorf("failed to acquire state lock for read: %w", err)
+	}
+
 	data, err := os.ReadFile(filepath.Join(m.stateDir, "agents.json"))
+	fl.Unlock()
+
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
