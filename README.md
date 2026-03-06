@@ -264,13 +264,13 @@ bc down
 
 | Command | Description |
 |---------|-------------|
+| `bc cost [agent]` | Show cost records (default) |
 | `bc cost show [agent]` | Show cost records |
-| `bc cost summary` | Show cost summary |
-| `bc cost by-agent` | Show costs grouped by agent |
-| `bc cost budget` | Manage cost budgets |
-| `bc cost dashboard` | Show comprehensive cost dashboard |
-| `bc cost project` | Project future costs |
-| `bc cost trends` | Show spending trends |
+| `bc cost usage` | Claude Code token usage via ccusage |
+| `bc cost usage --monthly` | Monthly usage summary |
+| `bc cost budget show` | Show budget status |
+| `bc cost budget set <amount>` | Set a cost budget |
+| `bc cost budget delete` | Delete a budget |
 
 ### Worktrees
 
