@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -102,15 +101,12 @@ func runSpawn(cmd *cobra.Command, args []string) error {
 	fmt.Printf("✓ (session: %s)\n", mgr.Tmux().SessionName(spawned.Session))
 
 	// Log event
-	evtLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	if err := evtLog.Append(events.Event{
+	logEvent(ws, events.Event{
 		Type:    events.AgentSpawned,
 		Agent:   agentName,
 		Message: fmt.Sprintf("dynamically spawned with role %s", role),
 		Data:    map[string]any{"role": string(role), "tool": toolName},
-	}); err != nil {
-		log.Warn("failed to log spawn event", "error", err)
-	}
+	})
 
 	// Print helpful info
 	fmt.Println()

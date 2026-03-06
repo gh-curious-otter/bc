@@ -47,6 +47,16 @@ type Event struct {
 	Message   string         `json:"message,omitempty"`
 }
 
+// EventStore is the interface for reading and writing events.
+// Both the file-based Log and SQLiteLog implement this interface.
+type EventStore interface {
+	Append(event Event) error
+	Read() ([]Event, error)
+	ReadLast(n int) ([]Event, error)
+	ReadByAgent(name string) ([]Event, error)
+	Close() error
+}
+
 // Log manages the append-only event log file.
 type Log struct {
 	path            string
@@ -144,6 +154,11 @@ func (l *Log) ReadLast(n int) ([]Event, error) {
 		return all, nil
 	}
 	return all[len(all)-n:], nil
+}
+
+// Close is a no-op for the file-based log (satisfies EventStore interface).
+func (l *Log) Close() error {
+	return nil
 }
 
 // ReadByAgent returns events for a specific agent.

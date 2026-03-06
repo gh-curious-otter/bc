@@ -6,8 +6,12 @@ import (
 	"os"
 	"os/exec"
 	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // Issue #1875: bc cost usage — wraps ccusage for Claude Code token analytics
@@ -38,6 +42,7 @@ var (
 	usageSessionFlag bool
 	usageSinceFlag   string
 	usageUntilFlag   string
+	usageRefreshFlag bool
 )
 
 func initCostUsageFlags() {
@@ -45,6 +50,7 @@ func initCostUsageFlags() {
 	costUsageCmd.Flags().BoolVar(&usageSessionFlag, "session", false, "Show per-session breakdown")
 	costUsageCmd.Flags().StringVar(&usageSinceFlag, "since", "", "Filter from date (YYYYMMDD)")
 	costUsageCmd.Flags().StringVar(&usageUntilFlag, "until", "", "Filter until date (YYYYMMDD)")
+	costUsageCmd.Flags().BoolVar(&usageRefreshFlag, "refresh", false, "Force refresh cached data")
 }
 
 // ccusage JSON types — daily report (default)
@@ -123,21 +129,68 @@ type ccusageSessionEntry struct {
 }
 
 func runCostUsage(cmd *cobra.Command, args []string) error {
-	// Check npx availability
-	npxPath, err := exec.LookPath("npx")
-	if err != nil {
-		return fmt.Errorf("npx not found — install Node.js to use 'bc cost usage' (ccusage requires npx)")
+	// Build cache key from flags
+	cacheKey := "daily"
+	if usageMonthlyFlag {
+		cacheKey = "monthly"
+	} else if usageSessionFlag {
+		cacheKey = "session"
+	}
+	if usageSinceFlag != "" {
+		cacheKey += "_since_" + usageSinceFlag
+	}
+	if usageUntilFlag != "" {
+		cacheKey += "_until_" + usageUntilFlag
 	}
 
-	// Build ccusage arguments
-	ccArgs := []string{npxPath, "ccusage@latest", "--json"}
+	// Try loading from cache first (unless --refresh)
+	var cache *cost.Cache
+	if ws, wsErr := getWorkspace(); wsErr == nil {
+		c, cacheErr := cost.NewCache(stateDBPath(ws))
+		if cacheErr == nil {
+			cache = c
+			defer func() { _ = cache.Close() }()
+		}
+	}
 
+	if cache != nil && !usageRefreshFlag {
+		cached, fetchedAt, loadErr := cache.Load(cacheKey)
+		if loadErr == nil && cached != nil {
+			age := time.Since(fetchedAt).Round(time.Second)
+			cmd.Printf("(cached %s ago, use --refresh to update)\n\n", age)
+			return displayOutput(cmd, cached)
+		}
+	}
+
+	// Fetch fresh data from ccusage
+	output, err := fetchCCUsage(cmd)
+	if err != nil {
+		return err
+	}
+
+	// Save to cache
+	if cache != nil {
+		if saveErr := cache.Save(cacheKey, json.RawMessage(output)); saveErr != nil {
+			log.Warn("failed to cache ccusage result", "error", saveErr)
+		}
+	}
+
+	return displayOutput(cmd, output)
+}
+
+// fetchCCUsage runs the ccusage CLI tool and returns its JSON output.
+func fetchCCUsage(cmd *cobra.Command) ([]byte, error) {
+	npxPath, err := exec.LookPath("npx")
+	if err != nil {
+		return nil, fmt.Errorf("npx not found — install Node.js to use 'bc cost usage' (ccusage requires npx)")
+	}
+
+	ccArgs := []string{npxPath, "ccusage@latest", "--json"}
 	if usageMonthlyFlag {
 		ccArgs = append(ccArgs, "monthly")
 	} else if usageSessionFlag {
 		ccArgs = append(ccArgs, "session")
 	}
-
 	if usageSinceFlag != "" {
 		ccArgs = append(ccArgs, "--since", usageSinceFlag)
 	}
@@ -145,29 +198,29 @@ func runCostUsage(cmd *cobra.Command, args []string) error {
 		ccArgs = append(ccArgs, "--until", usageUntilFlag)
 	}
 
-	// Run ccusage
 	ccCmd := exec.CommandContext(cmd.Context(), ccArgs[0], ccArgs[1:]...) //nolint:gosec // args are built from validated flags
 	ccCmd.Stderr = os.Stderr
 	output, err := ccCmd.Output()
 	if err != nil {
-		return fmt.Errorf("ccusage failed: %w\nEnsure ccusage is available via npx (npx ccusage@latest)", err)
+		return nil, fmt.Errorf("ccusage failed: %w\nEnsure ccusage is available via npx (npx ccusage@latest)", err)
 	}
+	return output, nil
+}
 
-	// JSON output mode — pass through raw ccusage JSON
+// displayOutput handles JSON passthrough or formatted display.
+func displayOutput(cmd *cobra.Command, data []byte) error {
 	jsonOutput, _ := cmd.Flags().GetBool("json")
 	if jsonOutput {
-		_, err = cmd.OutOrStdout().Write(output)
+		_, err := cmd.OutOrStdout().Write(data)
 		return err
 	}
-
-	// Parse and display based on report type
 	if usageMonthlyFlag {
-		return displayMonthlyUsage(cmd, output)
+		return displayMonthlyUsage(cmd, data)
 	}
 	if usageSessionFlag {
-		return displaySessionUsage(cmd, output)
+		return displaySessionUsage(cmd, data)
 	}
-	return displayDailyUsage(cmd, output)
+	return displayDailyUsage(cmd, data)
 }
 
 func displayDailyUsage(cmd *cobra.Command, data []byte) error {

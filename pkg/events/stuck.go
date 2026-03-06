@@ -162,11 +162,11 @@ func checkWorkTimeout(events []Event, timeout time.Duration) string {
 }
 
 // DetectAllStuck analyzes events for multiple agents.
-func DetectAllStuck(log *Log, agentNames []string, config StuckConfig) ([]StuckDetection, error) {
+func DetectAllStuck(store EventStore, agentNames []string, config StuckConfig) ([]StuckDetection, error) {
 	var results []StuckDetection
 
 	for _, name := range agentNames {
-		events, err := log.ReadByAgent(name)
+		events, err := store.ReadByAgent(name)
 		if err != nil {
 			return nil, err
 		}

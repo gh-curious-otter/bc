@@ -90,8 +90,6 @@ func runReport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to update agent state: %w", err)
 	}
 
-	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-
 	// Build event data
 	eventData := make(map[string]any)
 	eventMsg := fmt.Sprintf("%s: %s", state, message)
@@ -120,9 +118,7 @@ func runReport(cmd *cobra.Command, args []string) error {
 	if len(eventData) > 0 {
 		event.Data = eventData
 	}
-	if err := log.Append(event); err != nil {
-		bclog.Warn("failed to append agent report event", "error", err)
-	}
+	logEvent(ws, event)
 
 	// Auto-record experience when agent reports done
 	if state == agent.StateDone && message != "" {
@@ -223,13 +219,10 @@ func checkWorktreeWarning(agentID string, ws *workspace.Workspace) {
 	fmt.Fprintf(os.Stderr, "  (Use 'cd %s' to return to your workspace)\n", worktreeAbs)
 
 	// Log to events
-	log := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	if err := log.Append(events.Event{
+	logEvent(ws, events.Event{
 		Type:    events.AgentReport,
 		Agent:   agentID,
 		Message: fmt.Sprintf("worktree violation: cwd=%s expected=%s", cwdAbs, worktreeAbs),
 		Data:    map[string]any{"violation": "worktree_mismatch", "cwd": cwdAbs, "worktree": worktreeAbs},
-	}); err != nil {
-		bclog.Warn("failed to log worktree violation", "error", err)
-	}
+	})
 }

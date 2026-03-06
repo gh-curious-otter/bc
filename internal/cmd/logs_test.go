@@ -40,10 +40,14 @@ func setupLogsWorkspace(t *testing.T) (string, func()) {
 	return tmpDir, func() { _ = os.Chdir(origDir) }
 }
 
-// seedLogsEvents writes events to the workspace events.jsonl file.
+// seedLogsEvents writes events to the workspace state.db SQLite database.
 func seedLogsEvents(t *testing.T, wsDir string, evts []events.Event) {
 	t.Helper()
-	evtLog := events.NewLog(filepath.Join(wsDir, ".bc", "events.jsonl"))
+	evtLog, err := events.NewSQLiteLog(filepath.Join(wsDir, ".bc", "state.db"))
+	if err != nil {
+		t.Fatalf("failed to open event log: %v", err)
+	}
+	defer func() { _ = evtLog.Close() }()
 	for _, ev := range evts {
 		if err := evtLog.Append(ev); err != nil {
 			t.Fatalf("failed to append event: %v", err)
