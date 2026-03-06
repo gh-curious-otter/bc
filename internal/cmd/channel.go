@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -113,9 +114,12 @@ var channelHistoryCmd = &cobra.Command{
 	Long: `Display the history of messages sent to a channel.
 
 Examples:
-  bc channel history eng                # Last 50 messages (default)
-  bc channel history eng --limit 10     # Last 10 messages
-  bc channel history eng --since 1h     # Messages from last hour
+  bc channel history eng                       # Last 50 messages (default)
+  bc channel history eng --limit 10            # Last 10 messages
+  bc channel history eng --since 1h            # Messages from last hour
+  bc channel history eng --agent agent-core    # Messages from agent-core only
+  bc channel history eng --from 2026-03-01     # Messages from date
+  bc channel history eng --from 2026-03-01 --to 2026-03-05  # Date range
   bc channel history eng --limit 20 --offset 20  # Page 2 of 20`,
 	Args: cobra.ExactArgs(1),
 	RunE: runChannelHistory,
@@ -157,6 +161,19 @@ var channelDescCmd = &cobra.Command{
 	RunE:  runChannelDesc,
 }
 
+var channelStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show channel overview with activity details",
+	Long: `List all channels with detailed status columns.
+
+Columns: Name, Members, Messages, Last Message (preview), Last Activity.
+
+Examples:
+  bc channel status           # Show all channels with details
+  bc channel status --json    # JSON output`,
+	RunE: runChannelStatus,
+}
+
 var channelCreateDesc string
 
 // Channel history flags
@@ -164,6 +181,9 @@ var (
 	channelHistoryLimit  int
 	channelHistoryOffset int
 	channelHistorySince  string
+	channelHistoryAgent  string
+	channelHistoryFrom   string
+	channelHistoryTo     string
 )
 
 func init() {
@@ -171,6 +191,9 @@ func init() {
 	channelHistoryCmd.Flags().IntVar(&channelHistoryLimit, "limit", 50, "Maximum number of messages to show")
 	channelHistoryCmd.Flags().IntVar(&channelHistoryOffset, "offset", 0, "Number of messages to skip")
 	channelHistoryCmd.Flags().StringVar(&channelHistorySince, "since", "", "Show messages since duration (e.g., 1h, 30m)")
+	channelHistoryCmd.Flags().StringVar(&channelHistoryAgent, "agent", "", "Filter messages by sender agent")
+	channelHistoryCmd.Flags().StringVar(&channelHistoryFrom, "from", "", "Show messages from timestamp (RFC3339 or 2006-01-02)")
+	channelHistoryCmd.Flags().StringVar(&channelHistoryTo, "to", "", "Show messages until timestamp (RFC3339 or 2006-01-02)")
 
 	// Add shell completion for channel name arguments
 	channelAddCmd.ValidArgsFunction = CompleteChannelNames
@@ -196,6 +219,7 @@ func init() {
 	channelCmd.AddCommand(channelReactCmd)
 	channelCmd.AddCommand(channelShowCmd)
 	channelCmd.AddCommand(channelDescCmd)
+	channelCmd.AddCommand(channelStatusCmd)
 	rootCmd.AddCommand(channelCmd)
 }
 
@@ -611,6 +635,47 @@ func runChannelHistory(cmd *cobra.Command, args []string) error {
 		history = filtered
 	}
 
+	// Filter by --from timestamp
+	if channelHistoryFrom != "" {
+		fromTime, parseErr := parseTimestamp(channelHistoryFrom)
+		if parseErr != nil {
+			return fmt.Errorf("invalid --from timestamp: %w", parseErr)
+		}
+		filtered := history[:0]
+		for _, entry := range history {
+			if !entry.Time.Before(fromTime) {
+				filtered = append(filtered, entry)
+			}
+		}
+		history = filtered
+	}
+
+	// Filter by --to timestamp
+	if channelHistoryTo != "" {
+		toTime, parseErr := parseTimestamp(channelHistoryTo)
+		if parseErr != nil {
+			return fmt.Errorf("invalid --to timestamp: %w", parseErr)
+		}
+		filtered := history[:0]
+		for _, entry := range history {
+			if entry.Time.Before(toTime) {
+				filtered = append(filtered, entry)
+			}
+		}
+		history = filtered
+	}
+
+	// Filter by --agent (sender)
+	if channelHistoryAgent != "" {
+		filtered := history[:0]
+		for _, entry := range history {
+			if entry.Sender == channelHistoryAgent {
+				filtered = append(filtered, entry)
+			}
+		}
+		history = filtered
+	}
+
 	// Apply --offset and --limit
 	if channelHistoryOffset > 0 {
 		if channelHistoryOffset >= len(history) {
@@ -845,6 +910,105 @@ func runChannelDesc(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Updated description for channel %q: %s\n", channelName, description)
 	return nil
+}
+
+func runChannelStatus(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return errNotInWorkspace(err)
+	}
+
+	store, err := loadChannelStore(ws.RootDir)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = store.Close() }()
+
+	channels := store.List()
+
+	jsonOutput, err := cmd.Flags().GetBool("json")
+	if err != nil {
+		return err
+	}
+
+	type ChannelStatus struct {
+		Name         string `json:"name"`
+		Description  string `json:"description,omitempty"`
+		MemberCount  int    `json:"member_count"`
+		MessageCount int    `json:"message_count"`
+		LastMessage  string `json:"last_message,omitempty"`
+		LastSender   string `json:"last_sender,omitempty"`
+		LastActivity string `json:"last_activity,omitempty"`
+	}
+
+	statuses := make([]ChannelStatus, 0, len(channels))
+	for _, ch := range channels {
+		desc, _ := store.GetDescription(ch.Name)
+		history, _ := store.GetHistory(ch.Name)
+
+		cs := ChannelStatus{
+			Name:         ch.Name,
+			Description:  desc,
+			MemberCount:  len(ch.Members),
+			MessageCount: len(history),
+		}
+
+		if len(history) > 0 {
+			last := history[len(history)-1]
+			cs.LastSender = last.Sender
+			cs.LastMessage = truncateMessage(strings.ReplaceAll(last.Message, "\n", " "), 40)
+			cs.LastActivity = last.Time.Format(time.RFC3339)
+		}
+
+		statuses = append(statuses, cs)
+	}
+
+	if jsonOutput {
+		response := struct {
+			Channels []ChannelStatus `json:"channels"`
+		}{Channels: statuses}
+		enc := json.NewEncoder(cmd.OutOrStdout())
+		enc.SetIndent("", "  ")
+		return enc.Encode(response)
+	}
+
+	if len(statuses) == 0 {
+		ui.Warning("No channels defined")
+		return nil
+	}
+
+	table := ui.NewTable("CHANNEL", "MEMBERS", "MESSAGES", "LAST SENDER", "LAST MESSAGE", "LAST ACTIVITY")
+	for _, cs := range statuses {
+		activity := ""
+		if cs.LastActivity != "" {
+			if t, err := time.Parse(time.RFC3339, cs.LastActivity); err == nil {
+				activity = t.Format("Jan 02 15:04")
+			}
+		}
+		table.AddRow(
+			cs.Name,
+			fmt.Sprintf("%d", cs.MemberCount),
+			fmt.Sprintf("%d", cs.MessageCount),
+			cs.LastSender,
+			cs.LastMessage,
+			activity,
+		)
+	}
+	table.Print()
+	return nil
+}
+
+// parseTimestamp parses a timestamp string in RFC3339 or date-only format.
+func parseTimestamp(s string) (time.Time, error) {
+	// Try RFC3339 first
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+	// Try date-only format
+	if t, err := time.Parse("2006-01-02", s); err == nil {
+		return t, nil
+	}
+	return time.Time{}, fmt.Errorf("expected RFC3339 (2006-01-02T15:04:05Z) or date (2006-01-02), got %q", s)
 }
 
 // getUserSender returns the sender identity for channel messages.
