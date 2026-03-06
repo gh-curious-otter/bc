@@ -71,8 +71,3 @@ func (fl *fileLock) Unlock() {
 func worktreeLockPath(workspace string) string {
 	return filepath.Join(workspace, ".bc", "worktree.lock")
 }
-
-// stateLockPath returns the path for the agent state file lock.
-func stateLockPath(stateDir string) string {
-	return filepath.Join(stateDir, "agents.lock")
-}

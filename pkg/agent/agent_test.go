@@ -37,10 +37,17 @@ func TestMain(m *testing.M) {
 // The tmux manager uses a prefix that won't match any real sessions.
 func newTestManager(t *testing.T) *Manager {
 	t.Helper()
+	dir := t.TempDir()
+	store, err := NewSQLiteStore(filepath.Join(dir, "state.db"))
+	if err != nil {
+		t.Fatalf("NewSQLiteStore: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
 	return &Manager{
 		agents:   make(map[string]*Agent),
 		tmux:     tmux.NewManager(fmt.Sprintf("bctest-%d-", time.Now().UnixNano())),
-		stateDir: t.TempDir(),
+		stateDir: dir,
+		store:    store,
 		agentCmd: "/bin/true",
 	}
 }
@@ -568,38 +575,48 @@ func TestListAgents_SortOrder(t *testing.T) {
 
 func TestSaveAndLoadState(t *testing.T) {
 	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "state.db")
+
+	store, err := NewSQLiteStore(dbPath)
+	if err != nil {
+		t.Fatalf("NewSQLiteStore: %v", err)
+	}
 
 	// Create manager and add agents
 	m1 := &Manager{
 		agents:   make(map[string]*Agent),
 		tmux:     tmux.NewManager("test-"),
 		stateDir: tmpDir,
+		store:    store,
 	}
 	m1.agents["eng-1"] = &Agent{
 		Name:      "eng-1",
 		Role:      Role("engineer"),
 		State:     StateWorking,
 		Task:      "implementing feature",
+		Workspace: "/ws",
 		Children:  []string{},
 		StartedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
 	m1.agents["qa-1"] = &Agent{
-		Name:     "qa-1",
-		Role:     Role("qa"),
-		State:    StateIdle,
-		Children: []string{},
+		Name:      "qa-1",
+		Role:      Role("qa"),
+		State:     StateIdle,
+		Workspace: "/ws",
+		Children:  []string{},
+		StartedAt: time.Now(),
 	}
 
 	// Save state
 	if err := m1.saveState(); err != nil {
 		t.Fatalf("saveState failed: %v", err)
 	}
+	_ = store.Close()
 
-	// Verify file exists
-	stateFile := filepath.Join(tmpDir, "agents.json")
-	if _, err := os.Stat(stateFile); err != nil {
-		t.Fatalf("state file not created: %v", err)
+	// Verify DB file exists
+	if _, err := os.Stat(dbPath); err != nil {
+		t.Fatalf("state.db not created: %v", err)
 	}
 
 	// Load into new manager
@@ -611,6 +628,7 @@ func TestSaveAndLoadState(t *testing.T) {
 	if err := m2.LoadState(); err != nil {
 		t.Fatalf("LoadState failed: %v", err)
 	}
+	defer func() { _ = m2.Close() }()
 
 	// Verify loaded agents
 	if len(m2.agents) != 2 {
@@ -670,73 +688,92 @@ func TestSaveState_EmptyStateDir(t *testing.T) {
 
 func TestSaveState_WithAgents(t *testing.T) {
 	tmpDir := t.TempDir()
+
+	store, err := NewSQLiteStore(filepath.Join(tmpDir, "state.db"))
+	if err != nil {
+		t.Fatalf("NewSQLiteStore: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
 	m := &Manager{
 		agents: map[string]*Agent{
 			"test-agent": {
-				Name:  "test-agent",
-				Role:  Role("engineer"),
-				State: StateWorking,
-				Task:  "testing",
+				Name:      "test-agent",
+				Role:      Role("engineer"),
+				State:     StateWorking,
+				Task:      "testing",
+				Workspace: "/ws",
+				StartedAt: time.Now(),
 			},
 		},
 		stateDir: tmpDir,
+		store:    store,
 	}
-	if err := m.saveState(); err != nil {
-		t.Fatalf("saveState failed: %v", err)
+	if saveErr := m.saveState(); saveErr != nil {
+		t.Fatalf("saveState failed: %v", saveErr)
 	}
 
-	// Verify file was created
-	stateFile := filepath.Join(tmpDir, "agents.json")
-	data, err := os.ReadFile(stateFile) //nolint:gosec // test file path from t.TempDir
+	// Verify agent was saved to SQLite
+	loaded, err := store.Load("test-agent")
 	if err != nil {
-		t.Fatalf("failed to read state file: %v", err)
+		t.Fatalf("Load: %v", err)
 	}
-	if !strings.Contains(string(data), "test-agent") {
-		t.Errorf("state file should contain agent name, got: %s", string(data))
+	if loaded == nil {
+		t.Fatal("expected agent in SQLite after saveState")
+	}
+	if loaded.Task != "testing" {
+		t.Errorf("task = %q, want testing", loaded.Task)
 	}
 }
 
-func TestSaveState_CreatesDirectory(t *testing.T) {
-	tmpDir := t.TempDir()
-	stateDir := filepath.Join(tmpDir, "nested", "state", "dir")
+func TestSaveState_NilStore(t *testing.T) {
 	m := &Manager{
 		agents:   map[string]*Agent{},
-		stateDir: stateDir,
+		stateDir: t.TempDir(),
+		store:    nil, // no store
 	}
 	if err := m.saveState(); err != nil {
-		t.Fatalf("saveState should create nested directory: %v", err)
-	}
-
-	// Verify directory was created
-	if _, err := os.Stat(stateDir); os.IsNotExist(err) {
-		t.Error("saveState should have created the state directory")
+		t.Fatalf("saveState with nil store should be no-op: %v", err)
 	}
 }
 
 func TestSaveState_RoundTrip(t *testing.T) {
 	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "state.db")
+
+	store, err := NewSQLiteStore(dbPath)
+	if err != nil {
+		t.Fatalf("NewSQLiteStore: %v", err)
+	}
+
 	original := &Manager{
 		agents: map[string]*Agent{
 			"agent-1": {
-				Name:     "agent-1",
-				Role:     Role("engineer"),
-				State:    StateIdle,
-				ParentID: "root",
+				Name:      "agent-1",
+				Role:      Role("engineer"),
+				State:     StateIdle,
+				ParentID:  "root",
+				Workspace: "/ws",
+				StartedAt: time.Now(),
 			},
 			"agent-2": {
-				Name:  "agent-2",
-				Role:  Role("qa"),
-				State: StateWorking,
-				Task:  "running tests",
+				Name:      "agent-2",
+				Role:      Role("qa"),
+				State:     StateWorking,
+				Task:      "running tests",
+				Workspace: "/ws",
+				StartedAt: time.Now(),
 			},
 		},
 		stateDir: tmpDir,
+		store:    store,
 	}
 	if err := original.saveState(); err != nil {
 		t.Fatalf("saveState failed: %v", err)
 	}
+	_ = store.Close()
 
-	// Load into new manager
+	// Load into new manager (LoadState opens a new store)
 	loaded := &Manager{
 		agents:   make(map[string]*Agent),
 		stateDir: tmpDir,
@@ -744,6 +781,7 @@ func TestSaveState_RoundTrip(t *testing.T) {
 	if err := loaded.LoadState(); err != nil {
 		t.Fatalf("LoadState failed: %v", err)
 	}
+	defer func() { _ = loaded.Close() }()
 
 	if len(loaded.agents) != 2 {
 		t.Errorf("expected 2 agents after load, got %d", len(loaded.agents))
@@ -759,7 +797,7 @@ func TestSaveState_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestLoadState_InvalidJSON(t *testing.T) {
+func TestLoadState_MigratesCorruptJSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	stateFile := filepath.Join(tmpDir, "agents.json")
 	if err := os.WriteFile(stateFile, []byte("not json"), 0600); err != nil {
@@ -770,8 +808,16 @@ func TestLoadState_InvalidJSON(t *testing.T) {
 		agents:   make(map[string]*Agent),
 		stateDir: tmpDir,
 	}
-	if err := m.LoadState(); err == nil {
-		t.Error("LoadState with invalid JSON should return error")
+	// Migration will warn about corrupt JSON but LoadState still succeeds
+	// (the corrupt file triggers migration which logs a warning and continues)
+	if err := m.LoadState(); err != nil {
+		t.Fatalf("LoadState should not error on corrupt JSON (migration handles it): %v", err)
+	}
+	defer func() { _ = m.Close() }()
+
+	// Should have no agents since the JSON was corrupt
+	if len(m.agents) != 0 {
+		t.Errorf("expected 0 agents from corrupt JSON, got %d", len(m.agents))
 	}
 }
 
@@ -893,10 +939,16 @@ func TestStopAgent(t *testing.T) {
 		t.Errorf("parent children = %v, want empty", m.agents["mgr"].Children)
 	}
 
-	// State file should be written
-	stateFile := filepath.Join(m.stateDir, "agents.json")
-	if _, err := os.Stat(stateFile); err != nil {
-		t.Error("state file should exist after StopAgent")
+	// State should be persisted to SQLite
+	loaded, err := m.store.Load("eng-1")
+	if err != nil {
+		t.Fatalf("store.Load: %v", err)
+	}
+	if loaded == nil {
+		t.Error("state should be persisted after StopAgent")
+	}
+	if loaded != nil && loaded.State != StateStopped {
+		t.Errorf("persisted state = %s, want %s", loaded.State, StateStopped)
 	}
 }
 
@@ -1209,10 +1261,16 @@ func TestUpdateAgentState_TaskUpdate(t *testing.T) {
 		t.Error("UpdatedAt should be set")
 	}
 
-	// State file should be written
-	stateFile := filepath.Join(m.stateDir, "agents.json")
-	if _, err := os.Stat(stateFile); err != nil {
-		t.Error("state file should exist after UpdateAgentState")
+	// State should be persisted to SQLite
+	loaded, err := m.store.Load("eng-1")
+	if err != nil {
+		t.Fatalf("store.Load: %v", err)
+	}
+	if loaded == nil {
+		t.Error("state should be persisted after UpdateAgentState")
+	}
+	if loaded != nil && loaded.Task != "writing tests" {
+		t.Errorf("persisted task = %q, want %q", loaded.Task, "writing tests")
 	}
 }
 
@@ -1270,11 +1328,18 @@ func TestRemoveFromParent(t *testing.T) {
 
 func TestSaveLoadState_ComplexHierarchy(t *testing.T) {
 	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "state.db")
+
+	store, err := NewSQLiteStore(dbPath)
+	if err != nil {
+		t.Fatalf("NewSQLiteStore: %v", err)
+	}
 
 	m := &Manager{
 		agents:   make(map[string]*Agent),
 		tmux:     tmux.NewManager("test-"),
 		stateDir: tmpDir,
+		store:    store,
 	}
 
 	now := time.Now().Truncate(time.Second)
@@ -1312,6 +1377,7 @@ func TestSaveLoadState_ComplexHierarchy(t *testing.T) {
 	if err := m.saveState(); err != nil {
 		t.Fatalf("saveState failed: %v", err)
 	}
+	_ = store.Close()
 
 	// Load into fresh manager
 	m2 := &Manager{
@@ -1322,18 +1388,16 @@ func TestSaveLoadState_ComplexHierarchy(t *testing.T) {
 	if err := m2.LoadState(); err != nil {
 		t.Fatalf("LoadState failed: %v", err)
 	}
+	if m2.store != nil {
+		t.Cleanup(func() { _ = m2.store.Close() })
+	}
 
 	// Verify complex fields
 	coord := m2.agents["coord"]
 	if coord == nil {
 		t.Fatal("coord not found")
 	}
-	if coord.Memory == nil {
-		t.Fatal("coord Memory should not be nil")
-	}
-	if coord.Memory.RolePrompt != "You are a root." {
-		t.Errorf("RolePrompt = %q, want %q", coord.Memory.RolePrompt, "You are a root.")
-	}
+	// Memory is a runtime-only field (not persisted to SQLite)
 	if len(coord.Children) != 1 || coord.Children[0] != "mgr" {
 		t.Errorf("coord children = %v, want [mgr]", coord.Children)
 	}

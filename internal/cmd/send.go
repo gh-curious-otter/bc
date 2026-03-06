@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -76,17 +75,14 @@ func runSend(cmd *cobra.Command, args []string) error {
 	if sender == "" {
 		sender = "root"
 	}
-	evtLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-	if err := evtLog.Append(events.Event{
+	logEvent(ws, events.Event{
 		Type:    events.MessageSent,
 		Agent:   sender,
 		Message: message,
 		Data: map[string]any{
 			"recipient": agentName,
 		},
-	}); err != nil {
-		log.Warn("failed to log send event", "error", err)
-	}
+	})
 
 	fmt.Printf("Sent to %s: %s\n", agentName, message)
 	return nil

@@ -109,11 +109,3 @@ func TestWorktreeLockPath(t *testing.T) {
 		t.Fatalf("worktreeLockPath = %q, want %q", got, want)
 	}
 }
-
-func TestStateLockPath(t *testing.T) {
-	got := stateLockPath("/workspace/.bc/agents")
-	want := filepath.Join("/workspace/.bc/agents", "agents.lock")
-	if got != want {
-		t.Fatalf("stateLockPath = %q, want %q", got, want)
-	}
-}
