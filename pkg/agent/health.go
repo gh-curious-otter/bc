@@ -41,7 +41,7 @@ type HealthCheckResult struct {
 type HealthChecker struct {
 	rootStore      *RootStateStore
 	tmux           TmuxChecker
-	eventLog       *events.Log
+	eventLog       events.EventStore
 	onUnhealthy    func(*HealthCheckResult) // callback when unhealthy detected
 	lastResult     *HealthCheckResult
 	stopCh         chan struct{}
@@ -76,7 +76,7 @@ func WithUnhealthyCallback(fn func(*HealthCheckResult)) HealthCheckerOption {
 }
 
 // NewHealthChecker creates a new health checker for the root agent.
-func NewHealthChecker(rootStore *RootStateStore, tmux TmuxChecker, eventLog *events.Log, opts ...HealthCheckerOption) *HealthChecker {
+func NewHealthChecker(rootStore *RootStateStore, tmux TmuxChecker, eventLog events.EventStore, opts ...HealthCheckerOption) *HealthChecker {
 	h := &HealthChecker{
 		rootStore:      rootStore,
 		tmux:           tmux,

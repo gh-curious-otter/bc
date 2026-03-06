@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -123,10 +122,13 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 	}
 
 	// Prepare stuck detection if enabled
-	var eventLog *events.Log
+	var eventLog events.EventStore
 	var stuckConfig events.StuckConfig
 	if agentHealthDetect {
-		eventLog = events.NewLog(filepath.Join(ws.RootDir, ".bc", "events.jsonl"))
+		eventLog = openEventLog(ws)
+		if eventLog != nil {
+			defer func() { _ = eventLog.Close() }()
+		}
 		stuckConfig = events.StuckConfig{
 			ActivityTimeout: timeout,
 			WorkTimeout:     workTimeout,

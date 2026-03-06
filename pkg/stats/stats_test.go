@@ -168,12 +168,14 @@ func seedAgentsFile(t *testing.T, stateDir string, agents map[string]*agent.Agen
 	if err := os.MkdirAll(agentsDir, 0750); err != nil {
 		t.Fatalf("mkdir agents: %v", err)
 	}
-	data, err := json.MarshalIndent(agents, "", "  ")
+	// Write to agentsDir/state.db since NewWorkspaceManager uses agentsDir as stateDir
+	store, err := agent.NewSQLiteStore(filepath.Join(agentsDir, "state.db"))
 	if err != nil {
-		t.Fatalf("marshal agents: %v", err)
+		t.Fatalf("NewSQLiteStore: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0600); err != nil {
-		t.Fatalf("write agents.json: %v", err)
+	defer func() { _ = store.Close() }()
+	if err := store.SaveAll(agents); err != nil {
+		t.Fatalf("SaveAll: %v", err)
 	}
 }
 
@@ -395,15 +397,17 @@ func TestLoadInvalidAgentsFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Write invalid JSON — migration logs a warning but doesn't error
 	if err := os.WriteFile(filepath.Join(agentsDir, "agents.json"), []byte("not json{{{"), 0600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 
-	_, err := Load(stateDir)
-	if err == nil {
-		t.Fatal("expected error for invalid agents.json")
+	s, err := Load(stateDir)
+	if err != nil {
+		t.Fatalf("Load: %v (migration should be lenient with corrupt JSON)", err)
 	}
-	if !strings.Contains(err.Error(), "failed to load agents") {
-		t.Errorf("error = %q, want contains 'failed to load agents'", err)
+	// No agents should be loaded from corrupt file
+	if s.Agents.TotalAgents != 0 {
+		t.Errorf("TotalAgents = %d, want 0 for corrupt JSON", s.Agents.TotalAgents)
 	}
 }

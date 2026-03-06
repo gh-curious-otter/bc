@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -99,7 +98,11 @@ func runLogs(cmd *cobra.Command, args []string) error {
 
 	log.Debug("logs command started", "agent", logsAgent, "type", logsType, "since", logsSince, "tail", logsTail)
 
-	eventLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
+	eventLog := openEventLog(ws)
+	if eventLog == nil {
+		return fmt.Errorf("failed to open event log")
+	}
+	defer func() { _ = eventLog.Close() }()
 
 	// Read all events, then filter in sequence
 	evts, err := eventLog.Read()

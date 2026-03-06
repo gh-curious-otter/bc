@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -92,9 +91,6 @@ func runUp(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
-	// Event log
-	evtLog := events.NewLog(filepath.Join(ws.StateDir(), "events.jsonl"))
-
 	// Start root (acts as root agent)
 	fmt.Print("Starting root... ")
 	coord, err := mgr.SpawnAgent("root", agent.RoleRoot, ws.RootDir)
@@ -119,12 +115,11 @@ func runUp(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if err := evtLog.Append(events.Event{
+	// Log event
+	logEvent(ws, events.Event{
 		Type:  events.AgentSpawned,
 		Agent: "root",
-	}); err != nil {
-		log.Warn("failed to log root spawn event", "error", err)
-	}
+	})
 
 	// Wait for agent to initialize (Gemini/Claude needs time to start REPL)
 	time.Sleep(3 * time.Second)

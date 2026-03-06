@@ -52,7 +52,6 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -316,24 +315,28 @@ type AgentMemory struct {
 
 // Agent represents a running AI agent.
 type Agent struct {
-	UpdatedAt   time.Time    `json:"updated_at"`
-	StartedAt   time.Time    `json:"started_at"`
-	Memory      *AgentMemory `json:"memory,omitempty"`
-	Workspace   string       `json:"workspace"`
-	ID          string       `json:"id"`
-	Name        string       `json:"name"`
-	Task        string       `json:"task,omitempty"`
-	Session     string       `json:"session"`
-	Tool        string       `json:"tool,omitempty"`
-	ParentID    string       `json:"parent_id,omitempty"`
-	HookedWork  string       `json:"hooked_work,omitempty"`
-	WorktreeDir string       `json:"worktree_dir,omitempty"`
-	MemoryDir   string       `json:"memory_dir,omitempty"`
-	LogFile     string       `json:"log_file,omitempty"`
-	Team        string       `json:"team,omitempty"`
-	Role        Role         `json:"role"`
-	State       State        `json:"state"`
-	Children    []string     `json:"children,omitempty"`
+	UpdatedAt     time.Time    `json:"updated_at"`
+	StartedAt     time.Time    `json:"started_at"`
+	Memory        *AgentMemory `json:"memory,omitempty"`
+	Workspace     string       `json:"workspace"`
+	ID            string       `json:"id"`
+	Name          string       `json:"name"`
+	Task          string       `json:"task,omitempty"`
+	Session       string       `json:"session"`
+	Tool          string       `json:"tool,omitempty"`
+	ParentID      string       `json:"parent_id,omitempty"`
+	HookedWork    string       `json:"hooked_work,omitempty"`
+	WorktreeDir   string       `json:"worktree_dir,omitempty"`
+	MemoryDir     string       `json:"memory_dir,omitempty"`
+	LogFile       string       `json:"log_file,omitempty"`
+	Team          string       `json:"team,omitempty"`
+	RecoveredFrom string       `json:"recovered_from,omitempty"`
+	LastCrashTime *time.Time   `json:"last_crash_time,omitempty"`
+	Role          Role         `json:"role"`
+	State         State        `json:"state"`
+	Children      []string     `json:"children,omitempty"`
+	CrashCount    int          `json:"crash_count,omitempty"`
+	IsRoot        bool         `json:"is_root,omitempty"`
 }
 
 // HasCapability checks if this agent has a specific capability.
@@ -399,6 +402,7 @@ const DefaultBootstrapDelay = 3 * time.Second
 // Manager handles agent lifecycle.
 type Manager struct {
 	agents           map[string]*Agent
+	store            *SQLiteStore // SQLite-backed agent persistence
 	tmux             *tmux.Manager
 	providerRegistry *provider.Registry
 
@@ -1826,71 +1830,62 @@ func (m *Manager) AttachToAgent(name string) error {
 	return cmd.Run()
 }
 
-// saveState persists agent state to disk using atomic write (temp + rename)
-// and a cross-process file lock to prevent corruption from concurrent writers.
+// saveState persists agent state to SQLite.
+// SQLite with WAL mode handles concurrency natively — no file locks needed.
 // Must be called while holding m.mu.
 func (m *Manager) saveState() error {
-	if m.stateDir == "" {
+	if m.store == nil {
 		return nil
 	}
-
-	if err := os.MkdirAll(m.stateDir, 0750); err != nil {
-		return err
-	}
-
-	data, err := json.MarshalIndent(m.agents, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	// Acquire cross-process lock
-	fl := newFileLock(stateLockPath(m.stateDir))
-	if err := fl.Lock(30 * time.Second); err != nil {
-		return fmt.Errorf("failed to acquire state lock: %w", err)
-	}
-	defer fl.Unlock()
-
-	// Atomic write: temp file then rename
-	target := filepath.Join(m.stateDir, "agents.json")
-	tmp := target + ".tmp"
-	if err := os.WriteFile(tmp, data, 0600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, target)
+	return m.store.SaveAll(m.agents)
 }
 
-// LoadState loads agent state from disk.
-// Uses a cross-process file lock to prevent reading a partially written file.
+// LoadState loads agent state from SQLite.
+// On first run after upgrade, migrates JSON files to SQLite automatically.
 func (m *Manager) LoadState() error {
 	if m.stateDir == "" {
 		return nil
 	}
 
-	// Acquire cross-process lock before reading
-	fl := newFileLock(stateLockPath(m.stateDir))
-	if err := fl.Lock(30 * time.Second); err != nil {
-		return fmt.Errorf("failed to acquire state lock for read: %w", err)
+	// Open SQLite store (state.db lives alongside agents dir)
+	dbPath := filepath.Join(m.stateDir, "state.db")
+	store, err := NewSQLiteStore(dbPath)
+	if err != nil {
+		return fmt.Errorf("open agent store: %w", err)
+	}
+	m.store = store
+
+	// Auto-migrate JSON files if they exist
+	if needsMigration(m.stateDir) {
+		log.Info("migrating agent state from JSON to SQLite")
+		if migErr := migrateJSONToSQLite(store, m.stateDir, m.workspacePath); migErr != nil {
+			log.Warn("migration had errors", "error", migErr)
+		}
 	}
 
-	data, err := os.ReadFile(filepath.Join(m.stateDir, "agents.json"))
-	fl.Unlock()
-
+	// Load all agents from SQLite
+	agents, err := store.LoadAll()
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
+		return fmt.Errorf("load agents: %w", err)
 	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	return json.Unmarshal(data, &m.agents)
+	m.agents = agents
+	return nil
 }
 
 // Tmux returns the underlying tmux manager.
 func (m *Manager) Tmux() *tmux.Manager {
 	return m.tmux
+}
+
+// Close closes the SQLite store. Call when done with the manager.
+func (m *Manager) Close() error {
+	if m.store != nil {
+		return m.store.Close()
+	}
+	return nil
 }
 
 // enforceRootSingleton checks if a root agent can be spawned.
