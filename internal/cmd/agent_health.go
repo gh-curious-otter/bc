@@ -93,7 +93,7 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := cmd.Context()
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if loadErr := mgr.LoadState(); loadErr != nil {
 		log.Warn("failed to load agent state", "error", loadErr)
 	}
@@ -251,7 +251,7 @@ func computeAgentHealth(ctx context.Context, a *agent.Agent, mgr *agent.Manager,
 	}
 
 	// Check tmux session
-	health.TmuxAlive = mgr.Tmux().HasSession(ctx, a.Name)
+	health.TmuxAlive = mgr.Runtime().HasSession(ctx, a.Name)
 
 	// Check state freshness
 	staleDuration := time.Since(a.UpdatedAt)

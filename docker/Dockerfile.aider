@@ -1,0 +1,20 @@
+# Aider agent image
+# Usage: docker build -t bc-agent-aider:latest -f docker/Dockerfile.aider .
+
+FROM python:3.12-slim AS builder
+RUN pip install --no-cache-dir aider-chat
+
+FROM ubuntu:24.04
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        git curl ca-certificates openssh-client gh tmux python3 && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /usr/local/lib/python3.12 /usr/local/lib/python3.12
+COPY --from=builder /usr/local/bin/aider /usr/local/bin/aider
+RUN ln -sf /usr/bin/python3 /usr/local/bin/python
+
+RUN useradd -m -s /bin/bash agent
+USER agent
+WORKDIR /workspace
+ENTRYPOINT ["bash", "-c"]

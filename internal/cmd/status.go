@@ -69,7 +69,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	log.Debug("workspace found", "root", ws.RootDir)
 
 	// Create agent manager and load state
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if err = mgr.LoadState(); err != nil {
 		log.Warn("failed to load agent state", "error", err)
 	}

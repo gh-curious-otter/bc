@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/workspace"
@@ -19,7 +18,7 @@ func CompleteAgentNames(cmd *cobra.Command, args []string, toComplete string) ([
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if loadErr := mgr.LoadState(); loadErr != nil {
 		log.Debug("completion: failed to load agent state", "error", loadErr)
 	}

@@ -16,12 +16,29 @@ import (
 
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/container"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/names"
 	"github.com/rpuneet/bc/pkg/team"
 	"github.com/rpuneet/bc/pkg/ui"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
+
+// newAgentManager creates an agent manager with the appropriate runtime backend.
+// If workspace config specifies docker backend, uses Docker; otherwise defaults to tmux.
+func newAgentManager(ws *workspace.Workspace) *agent.Manager {
+	if ws.V2Config != nil && ws.V2Config.Runtime.Backend == "docker" {
+		dockerCfg := container.ConfigFromWorkspace(ws.V2Config.Runtime.Docker)
+		backend, err := container.NewBackend(dockerCfg, "bc-", ws.RootDir)
+		if err != nil {
+			log.Warn("Docker unavailable, falling back to tmux", "error", err)
+		} else {
+			return agent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, backend)
+		}
+	}
+	return agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+}
 
 // agentCmd is the parent command for all agent operations
 var agentCmd = &cobra.Command{
@@ -331,6 +348,7 @@ func init() {
 	agentCmd.AddCommand(agentBroadcastCmd)
 	agentCmd.AddCommand(agentSendRoleCmd)
 	agentCmd.AddCommand(agentSendPatternCmd)
+	agentCmd.AddCommand(agentAuthCmd)
 
 	// Add parent command to root
 	rootCmd.AddCommand(agentCmd)
@@ -342,7 +360,7 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		return errNotInWorkspace(err)
 	}
 
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if loadErr := mgr.LoadState(); loadErr != nil {
 		log.Warn("failed to load agent state", "error", loadErr)
 	}
@@ -445,7 +463,7 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		fmt.Println("✗")
 		return fmt.Errorf("failed to create %s: %w", agentName, spawnErr)
 	}
-	fmt.Printf("✓ (session: %s)\n", mgr.Tmux().SessionName(spawned.Session))
+	fmt.Printf("✓ (session: %s)\n", mgr.Runtime().SessionName(spawned.Session))
 
 	// Set team if specified
 	if agentCreateTeam != "" {
@@ -570,9 +588,9 @@ func runAgentAttach(cmd *cobra.Command, args []string) error {
 		return errNotInWorkspace(err)
 	}
 
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 
-	if !mgr.Tmux().HasSession(context.TODO(), agentName) {
+	if !mgr.Runtime().HasSession(context.TODO(), agentName) {
 		return fmt.Errorf("agent %q not running", agentName)
 	}
 
@@ -588,7 +606,7 @@ func runAgentPeek(cmd *cobra.Command, args []string) error {
 		return errNotInWorkspace(err)
 	}
 
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if loadErr := mgr.LoadState(); loadErr != nil {
 		log.Warn("failed to load agent state", "error", loadErr)
 	}
@@ -637,7 +655,7 @@ func runAgentShow(cmd *cobra.Command, args []string) error {
 		return errNotInWorkspace(err)
 	}
 
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if loadErr := mgr.LoadState(); loadErr != nil {
 		log.Warn("failed to load agent state", "error", loadErr)
 	}
@@ -700,7 +718,7 @@ func runAgentStart(cmd *cobra.Command, args []string) error {
 		return errNotInWorkspace(err)
 	}
 
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if loadErr := mgr.LoadState(); loadErr != nil {
 		log.Warn("failed to load agent state", "error", loadErr)
 	}
@@ -723,7 +741,7 @@ func runAgentStart(cmd *cobra.Command, args []string) error {
 		fmt.Println("✗")
 		return fmt.Errorf("failed to start %s: %w", agentName, spawnErr)
 	}
-	fmt.Printf("✓ (session: %s)\n", mgr.Tmux().SessionName(spawned.Session))
+	fmt.Printf("✓ (session: %s)\n", mgr.Runtime().SessionName(spawned.Session))
 
 	// Log event
 	logEvent(ws, events.Event{
@@ -743,7 +761,7 @@ func runAgentStop(cmd *cobra.Command, args []string) error {
 		return errNotInWorkspace(err)
 	}
 
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if loadErr := mgr.LoadState(); loadErr != nil {
 		log.Warn("failed to load agent state", "error", loadErr)
 	}
@@ -782,7 +800,7 @@ func runAgentSend(cmd *cobra.Command, args []string) error {
 		return errNotInWorkspace(err)
 	}
 
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if loadErr := mgr.LoadState(); loadErr != nil {
 		log.Warn("failed to load agent state", "error", loadErr)
 	}
@@ -872,7 +890,7 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 		return errNotInWorkspace(err)
 	}
 
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if loadErr := mgr.LoadState(); loadErr != nil {
 		log.Warn("failed to load agent state", "error", loadErr)
 	}
@@ -978,7 +996,7 @@ func runAgentRename(cmd *cobra.Command, args []string) error {
 		return errNotInWorkspace(err)
 	}
 
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if loadErr := mgr.LoadState(); loadErr != nil {
 		log.Warn("failed to load agent state", "error", loadErr)
 	}
@@ -1010,9 +1028,9 @@ func runAgentRename(cmd *cobra.Command, args []string) error {
 	fmt.Println("✓")
 
 	// Step 2: Rename tmux session if exists
-	if mgr.Tmux().HasSession(context.TODO(), oldName) {
+	if mgr.Runtime().HasSession(context.TODO(), oldName) {
 		fmt.Print("  Renaming tmux session... ")
-		if renameErr := mgr.Tmux().RenameSession(context.TODO(), oldName, newName); renameErr != nil {
+		if renameErr := mgr.Runtime().RenameSession(context.TODO(), oldName, newName); renameErr != nil {
 			fmt.Println("✗")
 			log.Warn("failed to rename tmux session", "error", renameErr)
 		} else {
@@ -1091,7 +1109,7 @@ func runAgentBroadcast(cmd *cobra.Command, args []string) error {
 		return errNotInWorkspace(err)
 	}
 
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if loadErr := mgr.LoadState(); loadErr != nil {
 		log.Warn("failed to load agent state", "error", loadErr)
 	}
@@ -1161,7 +1179,7 @@ func runAgentSendRole(cmd *cobra.Command, args []string) error {
 		return errNotInWorkspace(err)
 	}
 
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if loadErr := mgr.LoadState(); loadErr != nil {
 		log.Warn("failed to load agent state", "error", loadErr)
 	}
@@ -1242,7 +1260,7 @@ func runAgentSendPattern(cmd *cobra.Command, args []string) error {
 		return errNotInWorkspace(err)
 	}
 
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if loadErr := mgr.LoadState(); loadErr != nil {
 		log.Warn("failed to load agent state", "error", loadErr)
 	}
@@ -1381,4 +1399,79 @@ func toCompactAgents(agents []*agent.Agent) []compactAgent {
 		result[i] = toCompactAgent(a)
 	}
 	return result
+}
+
+// agentAuthCmd extracts host auth credentials for Docker container use.
+var agentAuthCmd = &cobra.Command{
+	Use:   "auth [agent-name]",
+	Short: "Manage agent authentication for Docker containers",
+	Long: `Extract authentication tokens from the host system (keychain, env vars)
+and store them for use by Docker-based agents.
+
+Each agent gets its own isolated credentials directory. If no agent name is
+given, extracts credentials for all existing agents.
+
+For first-time setup:
+  1. Run 'claude auth login' on the host to authenticate via browser
+  2. Run 'bc agent auth' to extract tokens for container use
+  3. Create agents normally - they will use the extracted credentials`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ws, err := getWorkspace()
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("Extracting auth credentials for Docker agents...")
+
+		if len(args) > 0 {
+			// Extract for a specific agent
+			agentName := args[0]
+			credsDir, credErr := container.EnsureCredentials(ws.RootDir, agentName)
+			if credErr != nil {
+				return fmt.Errorf("failed to extract credentials: %w", credErr)
+			}
+			printCredentials(agentName, credsDir)
+			return nil
+		}
+
+		// Extract for all existing agents
+		mgr := newAgentManager(ws)
+		agents := mgr.ListAgents()
+
+		if len(agents) == 0 {
+			credsDir, credErr := container.EnsureCredentials(ws.RootDir, "_default")
+			if credErr != nil {
+				return fmt.Errorf("failed to extract credentials: %w", credErr)
+			}
+			printCredentials("_default", credsDir)
+			return nil
+		}
+
+		for _, a := range agents {
+			credsDir, credErr := container.EnsureCredentials(ws.RootDir, a.Name)
+			if credErr != nil {
+				log.Warn("failed to extract credentials for agent", "agent", a.Name, "error", credErr)
+				continue
+			}
+			printCredentials(a.Name, credsDir)
+		}
+
+		return nil
+	},
+}
+
+func printCredentials(agentName, credsDir string) {
+	entries, err := os.ReadDir(credsDir)
+	if err != nil || len(entries) == 0 {
+		fmt.Printf("  %s: no credentials found\n", agentName)
+		return
+	}
+	fmt.Printf("  %s:\n", agentName)
+	for _, e := range entries {
+		name := e.Name()
+		if strings.HasSuffix(name, ".json") {
+			name = strings.TrimSuffix(name, ".json")
+		}
+		fmt.Printf("    - %s\n", name)
+	}
 }

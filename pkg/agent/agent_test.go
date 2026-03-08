@@ -14,6 +14,7 @@ import (
 
 	"github.com/rpuneet/bc/config"
 	"github.com/rpuneet/bc/pkg/provider"
+	"github.com/rpuneet/bc/pkg/runtime"
 	"github.com/rpuneet/bc/pkg/tmux"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -45,7 +46,7 @@ func newTestManager(t *testing.T) *Manager {
 	t.Cleanup(func() { _ = store.Close() })
 	return &Manager{
 		agents:   make(map[string]*Agent),
-		tmux:     tmux.NewManager(fmt.Sprintf("bctest-%d-", time.Now().UnixNano())),
+		runtime:  runtime.NewTmuxBackend(tmux.NewManager(fmt.Sprintf("bctest-%d-", time.Now().UnixNano()))),
 		stateDir: dir,
 		store:    store,
 		agentCmd: "/bin/true",
@@ -180,8 +181,8 @@ func TestNewManager(t *testing.T) {
 	if m.agents == nil {
 		t.Error("agents map should be initialized")
 	}
-	if m.tmux == nil {
-		t.Error("tmux manager should be initialized")
+	if m.runtime == nil {
+		t.Error("runtime backend should be initialized")
 	}
 	if m.stateDir != "/tmp/test-agents" {
 		t.Errorf("stateDir = %q, want %q", m.stateDir, "/tmp/test-agents")
@@ -196,8 +197,8 @@ func TestNewWorkspaceManager(t *testing.T) {
 	if m.agents == nil {
 		t.Error("agents map should be initialized")
 	}
-	if m.tmux == nil {
-		t.Error("tmux manager should be initialized")
+	if m.runtime == nil {
+		t.Error("runtime backend should be initialized")
 	}
 	if m.workspacePath != "/workspace" {
 		t.Errorf("workspacePath = %q, want %q", m.workspacePath, "/workspace")
@@ -585,7 +586,7 @@ func TestSaveAndLoadState(t *testing.T) {
 	// Create manager and add agents
 	m1 := &Manager{
 		agents:   make(map[string]*Agent),
-		tmux:     tmux.NewManager("test-"),
+		runtime:  runtime.NewTmuxBackend(tmux.NewManager("test-")),
 		stateDir: tmpDir,
 		store:    store,
 	}
@@ -622,7 +623,7 @@ func TestSaveAndLoadState(t *testing.T) {
 	// Load into new manager
 	m2 := &Manager{
 		agents:   make(map[string]*Agent),
-		tmux:     tmux.NewManager("test-"),
+		runtime:  runtime.NewTmuxBackend(tmux.NewManager("test-")),
 		stateDir: tmpDir,
 	}
 	if err := m2.LoadState(); err != nil {
@@ -654,7 +655,7 @@ func TestLoadState_NoFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	m := &Manager{
 		agents:   make(map[string]*Agent),
-		tmux:     tmux.NewManager("test-"),
+		runtime:  runtime.NewTmuxBackend(tmux.NewManager("test-")),
 		stateDir: tmpDir,
 	}
 	// No agents.json exists, should return nil (not error)
@@ -1226,15 +1227,16 @@ func TestSpawnAgentWithOptions_UnknownTool(t *testing.T) {
 	}
 }
 
-// --- Tmux accessor test ---
+// --- Runtime accessor test ---
 
-func TestTmux(t *testing.T) {
+func TestRuntime(t *testing.T) {
 	m := newTestManager(t)
-	if m.Tmux() == nil {
-		t.Error("Tmux() should not return nil")
+	if m.Runtime() == nil {
+		t.Error("Runtime() should not return nil")
 	}
-	if m.Tmux() != m.tmux {
-		t.Error("Tmux() should return the same tmux manager")
+	// Tmux() should return the underlying tmux.Manager when backend is tmux
+	if m.Tmux() == nil {
+		t.Error("Tmux() should not return nil for tmux backend")
 	}
 }
 
@@ -1337,7 +1339,7 @@ func TestSaveLoadState_ComplexHierarchy(t *testing.T) {
 
 	m := &Manager{
 		agents:   make(map[string]*Agent),
-		tmux:     tmux.NewManager("test-"),
+		runtime:  runtime.NewTmuxBackend(tmux.NewManager("test-")),
 		stateDir: tmpDir,
 		store:    store,
 	}
@@ -1382,7 +1384,7 @@ func TestSaveLoadState_ComplexHierarchy(t *testing.T) {
 	// Load into fresh manager
 	m2 := &Manager{
 		agents:   make(map[string]*Agent),
-		tmux:     tmux.NewManager("test-"),
+		runtime:  runtime.NewTmuxBackend(tmux.NewManager("test-")),
 		stateDir: tmpDir,
 	}
 	if err := m2.LoadState(); err != nil {
@@ -1989,7 +1991,7 @@ func TestSpawnAgent_ExistingSessionCreatesWorktree(t *testing.T) {
 	}
 
 	// Create a real tmux session so HasSession returns true
-	sessionName := m.tmux.SessionName("eng-1")
+	sessionName := m.runtime.SessionName("eng-1")
 	cmd = exec.CommandContext(context.Background(), "tmux", "new-session", "-d", "-s", sessionName) //nolint:gosec // test helper
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("tmux new-session failed: %v (%s)", err, out)
@@ -3638,7 +3640,7 @@ func newTestManagerWithProvider(t *testing.T, p provider.Provider) *Manager {
 	reg.Register(p)
 	return &Manager{
 		agents:           make(map[string]*Agent),
-		tmux:             tmux.NewManager(fmt.Sprintf("bctest-%d-", time.Now().UnixNano())),
+		runtime:          runtime.NewTmuxBackend(tmux.NewManager(fmt.Sprintf("bctest-%d-", time.Now().UnixNano()))),
 		providerRegistry: reg,
 		stateDir:         t.TempDir(),
 		agentCmd:         "/bin/true",
@@ -3666,7 +3668,7 @@ func TestSpawnWithProvider_Installed(t *testing.T) {
 	}
 
 	// Clean up tmux session
-	_ = m.tmux.KillSession(context.Background(), "test-agent")
+	_ = m.runtime.KillSession(context.Background(), "test-agent")
 }
 
 func TestSpawnWithProvider_NotInstalled(t *testing.T) {
@@ -3695,7 +3697,7 @@ func TestSpawnWithProvider_CustomToolFallback(t *testing.T) {
 
 	m := &Manager{
 		agents:           make(map[string]*Agent),
-		tmux:             tmux.NewManager(fmt.Sprintf("bctest-%d-", time.Now().UnixNano())),
+		runtime:          runtime.NewTmuxBackend(tmux.NewManager(fmt.Sprintf("bctest-%d-", time.Now().UnixNano()))),
 		providerRegistry: reg,
 		stateDir:         t.TempDir(),
 		agentCmd:         "/bin/true",
@@ -3715,7 +3717,7 @@ func TestSpawnWithProvider_CustomToolFallback(t *testing.T) {
 	}
 
 	// Clean up
-	_ = m.tmux.KillSession(context.Background(), "test-agent")
+	_ = m.runtime.KillSession(context.Background(), "test-agent")
 }
 
 func TestDetectAgentState_WithProvider(t *testing.T) {

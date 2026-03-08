@@ -1,4 +1,4 @@
-.PHONY: dev build build-release build-all clean gen test coverage bench fmt vet lint check deps help version build-tui test-tui lint-tui
+.PHONY: dev build build-release build-all clean gen test coverage bench fmt vet lint check deps help version build-tui test-tui lint-tui build-agent-image build-agent-images
 
 # Version information
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -30,6 +30,11 @@ help:
 	@echo "  build-tui     - Build the TUI package"
 	@echo "  test-tui      - Run TUI tests"
 	@echo "  lint-tui      - Lint TUI code"
+	@echo ""
+	@echo "Docker agent targets:"
+	@echo "  build-agent-image       - Build default (claude) agent image"
+	@echo "  build-agent-image-NAME  - Build specific agent image (claude, gemini, codex, aider, opencode, openclaw, cursor)"
+	@echo "  build-agent-images      - Build all agent images"
 	@echo ""
 	@echo "Version variables (can be overridden):"
 	@echo "  VERSION=$(VERSION)"
@@ -101,3 +106,20 @@ test-tui:
 lint-tui:
 	@echo "Linting TUI..."
 	cd tui && bun run lint
+
+# Docker agent images (per-provider)
+AGENT_PROVIDERS := claude gemini codex aider opencode openclaw cursor
+
+build-agent-image: build-agent-image-claude
+	@echo "Default agent image built (claude)"
+
+build-agent-image-%:
+	@echo "Building bc-agent-$* image..."
+	docker build -t bc-agent-$*:latest -f docker/Dockerfile.$* .
+
+build-agent-images:
+	@for p in $(AGENT_PROVIDERS); do \
+		echo "Building bc-agent-$$p..."; \
+		docker build -t bc-agent-$$p:latest -f docker/Dockerfile.$$p . || exit 1; \
+	done
+	@echo "All agent images built."

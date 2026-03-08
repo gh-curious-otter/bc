@@ -5,7 +5,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/log"
 )
 
@@ -41,7 +40,7 @@ func runDown(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Stopping bc agents in %s\n\n", ws.RootDir)
 
 	// Create agent manager and load state
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if err := mgr.LoadState(); err != nil {
 		log.Warn("failed to load agent state", "error", err)
 	}

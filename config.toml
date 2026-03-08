@@ -186,6 +186,25 @@ qa = 2
 session_prefix = "bc-"
 
 # =============================================================================
+# Runtime Settings
+# =============================================================================
+[runtime]
+# Backend for agent sessions: "tmux" (default) or "docker"
+backend = "tmux"
+
+[runtime.docker]
+# Docker image for agent containers
+image = "bc-agent:latest"
+# CPU limit per container (fractional cores)
+cpus = 2.0
+# Memory limit per container in MB
+memory_mb = 2048
+# Docker network mode
+network = "host"
+# Extra volume mounts (host:container:mode)
+# extra_mounts = ["/data:/data:ro"]
+
+# =============================================================================
 # Performance Settings (Phase 5 - Epic #962)
 # =============================================================================
 [performance]

@@ -66,6 +66,7 @@ import (
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/memory"
 	"github.com/rpuneet/bc/pkg/provider"
+	"github.com/rpuneet/bc/pkg/runtime"
 	"github.com/rpuneet/bc/pkg/tmux"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -403,7 +404,7 @@ const DefaultBootstrapDelay = 3 * time.Second
 type Manager struct {
 	agents           map[string]*Agent
 	store            *SQLiteStore // SQLite-backed agent persistence
-	tmux             *tmux.Manager
+	runtime          runtime.Backend
 	providerRegistry *provider.Registry
 
 	stateDir string
@@ -425,7 +426,7 @@ type Manager struct {
 func NewManager(stateDir string) *Manager {
 	return &Manager{
 		agents:           make(map[string]*Agent),
-		tmux:             tmux.NewManager(config.Tmux.SessionPrefix),
+		runtime:          runtime.NewTmuxBackend(tmux.NewManager(config.Tmux.SessionPrefix)),
 		providerRegistry: provider.DefaultRegistry,
 		stateDir:         stateDir,
 		agentCmd:         config.AgentLegacy.Command,
@@ -433,11 +434,23 @@ func NewManager(stateDir string) *Manager {
 }
 
 // NewWorkspaceManager creates an agent manager scoped to a workspace.
-// Tmux session names will be unique per workspace to avoid collisions.
+// Session names will be unique per workspace to avoid collisions.
 func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 	return &Manager{
 		agents:           make(map[string]*Agent),
-		tmux:             tmux.NewWorkspaceManager(config.Tmux.SessionPrefix, workspacePath),
+		runtime:          runtime.NewTmuxBackend(tmux.NewWorkspaceManager(config.Tmux.SessionPrefix, workspacePath)),
+		providerRegistry: provider.DefaultRegistry,
+		stateDir:         stateDir,
+		agentCmd:         config.AgentLegacy.Command,
+		workspacePath:    workspacePath,
+	}
+}
+
+// NewWorkspaceManagerWithRuntime creates an agent manager with a specific runtime backend.
+func NewWorkspaceManagerWithRuntime(stateDir, workspacePath string, rt runtime.Backend) *Manager {
+	return &Manager{
+		agents:           make(map[string]*Agent),
+		runtime:          rt,
 		providerRegistry: provider.DefaultRegistry,
 		stateDir:         stateDir,
 		agentCmd:         config.AgentLegacy.Command,
@@ -572,7 +585,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	// Check if already exists in our state
 	if existing, exists := m.agents[name]; exists {
 		// If its tmux session is still alive, reuse it
-		if m.tmux.HasSession(context.TODO(), name) {
+		if m.runtime.HasSession(context.TODO(), name) {
 			// Create worktree if missing (agents created before worktree feature)
 			if existing.WorktreeDir == "" {
 				if wtDir, err := createWorktree(workspace, name); err == nil {
@@ -641,14 +654,14 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 			if existing.ParentID != "" {
 				env["BC_PARENT_ID"] = existing.ParentID
 			}
-			if err := m.tmux.CreateSessionWithEnv(context.TODO(), name, sessionDir, agentCmd, env); err != nil {
+			if err := m.runtime.CreateSessionWithEnv(context.TODO(), name, sessionDir, agentCmd, env); err != nil {
 				return nil, fmt.Errorf("failed to recreate tmux session: %w", err)
 			}
 
 			// Resume log streaming if log file was set
 			if existing.LogFile != "" {
 				truncateLogFile(existing.LogFile, config.Logs.MaxBytes)
-				if pipeErr := m.tmux.PipePane(context.TODO(), name, existing.LogFile); pipeErr != nil {
+				if pipeErr := m.runtime.PipePane(context.TODO(), name, existing.LogFile); pipeErr != nil {
 					log.Warn("failed to resume pipe-pane", "agent", name, "error", pipeErr)
 				}
 			} else {
@@ -668,8 +681,8 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	}
 
 	// If a tmux session exists from a previous crash, kill it first
-	if m.tmux.HasSession(context.TODO(), name) {
-		if err := m.tmux.KillSession(context.TODO(), name); err != nil {
+	if m.runtime.HasSession(context.TODO(), name) {
+		if err := m.runtime.KillSession(context.TODO(), name); err != nil {
 			log.Warn("failed to kill existing session", "session", name, "error", err)
 		}
 	}
@@ -774,7 +787,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	}
 
 	// Create tmux session in the agent's worktree directory
-	if err := m.tmux.CreateSessionWithEnv(context.TODO(), name, worktreeDir, agentCmd, env); err != nil {
+	if err := m.runtime.CreateSessionWithEnv(context.TODO(), name, worktreeDir, agentCmd, env); err != nil {
 		return nil, fmt.Errorf("failed to create tmux session: %w", err)
 	}
 
@@ -845,7 +858,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 			time.Sleep(bootstrapDelay)
 			prompt := strings.Join(bootstrapParts, "\n\n---\n\n")
 			prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nAgent ID: %s\n", bootstrapWorkspace, bootstrapName)
-			if err := m.tmux.SendKeys(context.TODO(), bootstrapName, prompt); err != nil {
+			if err := m.runtime.SendKeys(context.TODO(), bootstrapName, prompt); err != nil {
 				log.Warn("failed to send bootstrap prompt", "agent", bootstrapName, "error", err)
 			}
 		}()
@@ -893,7 +906,7 @@ func (m *Manager) sendRespawnBootstrap(name string, agent *Agent, workspace stri
 	if len(promptParts) > 0 {
 		prompt := strings.Join(promptParts, "\n\n---\n\n")
 		prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nAgent ID: %s\n(Respawned session — continuing previous work)\n", workspace, name)
-		if err := m.tmux.SendKeys(context.TODO(), name, prompt); err != nil {
+		if err := m.runtime.SendKeys(context.TODO(), name, prompt); err != nil {
 			log.Warn("failed to send respawn bootstrap", "agent", name, "error", err)
 		}
 	}
@@ -913,7 +926,7 @@ func (m *Manager) setupLogPipe(name, workspace string) string {
 	// Truncate if over max size
 	truncateLogFile(logPath, config.Logs.MaxBytes)
 
-	if err := m.tmux.PipePane(context.TODO(), name, logPath); err != nil {
+	if err := m.runtime.PipePane(context.TODO(), name, logPath); err != nil {
 		log.Warn("failed to start pipe-pane", "agent", name, "error", err)
 		return ""
 	}
@@ -1180,7 +1193,7 @@ func (m *Manager) StopAgent(name string) error {
 	}
 
 	// Kill tmux session (ignore error - session might already be dead)
-	_ = m.tmux.KillSession(context.TODO(), name)
+	_ = m.runtime.KillSession(context.TODO(), name)
 
 	// Note: Worktree is intentionally preserved on stop so agents can resume work.
 	// Only DeleteAgent removes the worktree permanently.
@@ -1219,7 +1232,7 @@ func (m *Manager) stopAgentTreeLocked(name string) error {
 	}
 
 	// Kill this agent's tmux session (ignore error - session might already be dead)
-	_ = m.tmux.KillSession(context.TODO(), name)
+	_ = m.runtime.KillSession(context.TODO(), name)
 
 	agent.State = StateStopped
 	agent.UpdatedAt = time.Now()
@@ -1253,7 +1266,7 @@ func (m *Manager) DeleteAgentWithOptions(name string, opts DeleteOptions) error 
 	}
 
 	// Kill tmux session (ignore error - session might already be dead)
-	_ = m.tmux.KillSession(context.TODO(), name)
+	_ = m.runtime.KillSession(context.TODO(), name)
 
 	// Clean up per-agent git worktree
 	if agent.WorktreeDir != "" && agent.WorktreeDir != agent.Workspace {
@@ -1336,7 +1349,7 @@ func (m *Manager) StopAll() error {
 	defer m.mu.Unlock()
 
 	for name, agent := range m.agents {
-		_ = m.tmux.KillSession(context.TODO(), name) //nolint:errcheck // best-effort cleanup
+		_ = m.runtime.KillSession(context.TODO(), name) //nolint:errcheck // best-effort cleanup
 		agent.State = StateStopped
 		agent.UpdatedAt = time.Now()
 	}
@@ -1489,7 +1502,7 @@ func (m *Manager) RefreshState() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	sessions, err := m.tmux.ListSessions(context.TODO())
+	sessions, err := m.runtime.ListSessions(context.TODO())
 	if err != nil {
 		return err
 	}
@@ -1579,7 +1592,7 @@ func (m *Manager) detectAgentState(tool, output string) State {
 }
 
 func (m *Manager) captureLiveTask(name string) string {
-	output, err := m.tmux.Capture(context.TODO(), name, 15)
+	output, err := m.runtime.Capture(context.TODO(), name, 15)
 	if err != nil {
 		return ""
 	}
@@ -1690,7 +1703,7 @@ func (m *Manager) SetAgentTeam(name, team string) error {
 // SendToAgent sends a message/command to an agent's session.
 // Sends Enter after the message to submit it.
 func (m *Manager) SendToAgent(name, message string) error {
-	return m.tmux.SendKeys(context.TODO(), name, message)
+	return m.runtime.SendKeys(context.TODO(), name, message)
 }
 
 // CaptureOutput captures recent output from an agent's session.
@@ -1711,7 +1724,7 @@ func (m *Manager) CaptureOutput(name string, lines int) (string, error) {
 	}
 
 	// Fall back to tmux capture-pane
-	return m.tmux.Capture(context.TODO(), name, lines)
+	return m.runtime.Capture(context.TODO(), name, lines)
 }
 
 // tailFile reads the last N lines from a file.
@@ -1823,7 +1836,7 @@ func (m *Manager) FollowOutput(ctx context.Context, name string, lines int, w io
 
 // AttachToAgent returns the command to attach to an agent's session.
 func (m *Manager) AttachToAgent(name string) error {
-	cmd := m.tmux.AttachCmd(context.TODO(), name)
+	cmd := m.runtime.AttachCmd(context.TODO(), name)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -1875,9 +1888,18 @@ func (m *Manager) LoadState() error {
 	return nil
 }
 
-// Tmux returns the underlying tmux manager.
+// Runtime returns the runtime backend for session management.
+func (m *Manager) Runtime() runtime.Backend {
+	return m.runtime
+}
+
+// Tmux returns the underlying tmux manager if the backend is tmux.
+// Deprecated: Use Runtime() instead. This is kept for backward compatibility.
 func (m *Manager) Tmux() *tmux.Manager {
-	return m.tmux
+	if tb, ok := m.runtime.(*runtime.TmuxBackend); ok {
+		return tb.TmuxManager()
+	}
+	return nil
 }
 
 // Close closes the SQLite store. Call when done with the manager.

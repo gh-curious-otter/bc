@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/team"
 )
 
@@ -294,7 +293,7 @@ func runTeamAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	// Validate agent exists
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	_ = mgr.LoadState() //nolint:errcheck // continue even if state doesn't load
 	if mgr.GetAgent(agentName) == nil {
 		return fmt.Errorf("agent %q does not exist. Create it first with: bc agent create %s", agentName, agentName)
@@ -398,7 +397,7 @@ func runTeamCleanup(cmd *cobra.Command, args []string) error {
 	fix, _ := cmd.Flags().GetBool("fix")
 
 	// Set up agent existence check
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	_ = mgr.LoadState() //nolint:errcheck // continue even if state doesn't load
 
 	agentExists := func(name string) bool {

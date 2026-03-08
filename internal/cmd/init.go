@@ -286,7 +286,7 @@ func withAgentManager(fn func(ctx *WorkspaceContext) error) error {
 		return err
 	}
 
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if loadErr := mgr.LoadState(); loadErr != nil {
 		log.Warn("failed to load agent state", "error", loadErr)
 	}

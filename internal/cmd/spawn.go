@@ -57,7 +57,7 @@ func runSpawn(cmd *cobra.Command, args []string) error {
 	log.Debug("workspace found", "root", ws.RootDir)
 
 	// Create workspace-scoped agent manager
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if err = mgr.LoadState(); err != nil {
 		log.Warn("failed to load agent state", "error", err)
 	}
@@ -98,7 +98,7 @@ func runSpawn(cmd *cobra.Command, args []string) error {
 		fmt.Println("✗")
 		return fmt.Errorf("failed to spawn %s: %w", agentName, err)
 	}
-	fmt.Printf("✓ (session: %s)\n", mgr.Tmux().SessionName(spawned.Session))
+	fmt.Printf("✓ (session: %s)\n", mgr.Runtime().SessionName(spawned.Session))
 
 	// Log event
 	logEvent(ws, events.Event{

@@ -82,7 +82,7 @@ func runReport(cmd *cobra.Command, args []string) error {
 	checkWorktreeWarning(agentID, ws)
 
 	// Update agent state
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if err := mgr.LoadState(); err != nil {
 		bclog.Warn("failed to load agent state", "error", err)
 	}

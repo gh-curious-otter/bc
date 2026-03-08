@@ -418,7 +418,7 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create workspace-scoped agent manager
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if err := mgr.LoadState(); err != nil {
 		fmt.Printf("Warning: failed to load agent state: %v\n", err)
 	}

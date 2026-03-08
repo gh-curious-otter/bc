@@ -649,14 +649,14 @@ export async function pruneWorktrees(force = false): Promise<string> {
 }
 
 /**
- * Attach to an agent's tmux session
- * @param sessionName - Tmux session name for the agent
+ * Attach to an agent's session via the bc CLI.
+ * Routes through the Go backend which uses the configured runtime (tmux or docker).
+ * @param agentName - Agent name to attach to
  * @throws Error if session doesn't exist or attachment fails
  */
-export function attachToAgentSession(sessionName: string): void {
-  // Use spawnSync to attach to tmux session with full stdio inheritance
-  // This will replace the current process with the tmux session
-  spawnSync('tmux', ['attach-session', '-t', sessionName], {
+export function attachToAgentSession(agentName: string): void {
+  const bcBin = process.env.BC_BIN ?? 'bc';
+  spawnSync(bcBin, ['agent', 'attach', agentName], {
     stdio: 'inherit',
   });
   // Exit after attachment ends

@@ -45,7 +45,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 
 	// Create workspace-scoped agent manager
 	ctx := cmd.Context()
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 
 	// Load existing agent state to preserve other agents when starting root
 	if loadErr := mgr.LoadState(); loadErr != nil {
@@ -63,7 +63,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 
 	// Check for existing root state and handle recovery
 	rootStore := agent.NewRootStateStore(ws.StateDir())
-	recovery, err := rootStore.CheckRecovery(ctx, mgr.Tmux())
+	recovery, err := rootStore.CheckRecovery(ctx, mgr.Runtime())
 	if err != nil {
 		return fmt.Errorf("failed to check root state: %w", err)
 	}
@@ -98,7 +98,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 		fmt.Println("✗")
 		return fmt.Errorf("failed to start root: %w", err)
 	}
-	fmt.Printf("✓ (session: %s)\n", mgr.Tmux().SessionName(coord.Session))
+	fmt.Printf("✓ (session: %s)\n", mgr.Runtime().SessionName(coord.Session))
 
 	// Create or update root state
 	if recovery.NeedsCreate || recovery.NeedsRecover {

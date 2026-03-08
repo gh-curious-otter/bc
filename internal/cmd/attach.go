@@ -5,7 +5,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/log"
 )
 
@@ -41,10 +40,10 @@ func runAttach(cmd *cobra.Command, args []string) error {
 
 	// Create agent manager
 	ctx := cmd.Context()
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 
 	// Check if session exists
-	if !mgr.Tmux().HasSession(ctx, agentName) {
+	if !mgr.Runtime().HasSession(ctx, agentName) {
 		log.Debug("agent session not found", "agent", agentName)
 		return fmt.Errorf("agent %q not running (session bc-%s not found)", agentName, agentName)
 	}

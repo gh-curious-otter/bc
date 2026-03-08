@@ -28,8 +28,24 @@ type V2Config struct {
 	Worktrees   WorktreesConfig   `toml:"worktrees"`
 	Channels    ChannelsConfig    `toml:"channels"`
 	Logs        LogsConfig        `toml:"logs"`
+	Runtime     RuntimeConfig     `toml:"runtime"`
 	Performance PerformanceConfig `toml:"performance"`
 	Roster      RosterConfig      `toml:"roster"`
+}
+
+// RuntimeConfig configures the agent session backend.
+type RuntimeConfig struct {
+	Backend string              `toml:"backend"` // "tmux" (default) or "docker"
+	Docker  DockerRuntimeConfig `toml:"docker"`
+}
+
+// DockerRuntimeConfig configures Docker container settings for agents.
+type DockerRuntimeConfig struct {
+	Image       string   `toml:"image"`
+	Network     string   `toml:"network"`
+	ExtraMounts []string `toml:"extra_mounts"`
+	CPUs        float64  `toml:"cpus"`
+	MemoryMB    int64    `toml:"memory_mb"`
 }
 
 // LogsConfig configures persistent session log streaming.

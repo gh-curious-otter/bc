@@ -11,7 +11,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
@@ -256,7 +255,7 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 
 	// Load agents to count per role
 	agentCounts := make(map[string]int)
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if loadErr := mgr.LoadState(); loadErr == nil {
 		agents := mgr.ListAgents()
 		for _, ag := range agents {

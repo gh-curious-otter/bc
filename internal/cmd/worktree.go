@@ -189,7 +189,7 @@ func runWorktreeList(cmd *cobra.Command, args []string) error {
 	worktreesDir := filepath.Join(ws.RootDir, ".bc", "worktrees")
 
 	// Load registered agents
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if err = mgr.LoadState(); err != nil {
 		return fmt.Errorf("failed to load agent state: %w", err)
 	}
@@ -313,7 +313,7 @@ func runWorktreePrune(cmd *cobra.Command, args []string) error {
 	worktreesDir := filepath.Join(ws.RootDir, ".bc", "worktrees")
 
 	// Load registered agents
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := newAgentManager(ws)
 	if err = mgr.LoadState(); err != nil {
 		// Warn but continue - missing state file is fine
 		fmt.Fprintf(os.Stderr, "Warning: failed to load agent state: %v\n", err)

@@ -95,6 +95,18 @@ type RosterConfig struct {
 	TechLeads int64
 }
 
+type RuntimeConfig struct {
+	Backend string
+	Docker  RuntimeDockerConfig
+}
+
+type RuntimeDockerConfig struct {
+	Cpus     float64
+	Image    string
+	MemoryMb int64
+	Network  string
+}
+
 type ServicesConfig struct {
 	Github ServicesGithubConfig
 	Gitlab ServicesGitlabConfig
@@ -302,6 +314,15 @@ var (
 		Engineers: 4,
 		Qa:        2,
 		TechLeads: 2,
+	}
+	Runtime = RuntimeConfig{
+		Backend: "tmux",
+		Docker: RuntimeDockerConfig{
+			Cpus:     2,
+			Image:    "bc-agent:latest",
+			MemoryMb: 2048,
+			Network:  "host",
+		},
 	}
 	Services = ServicesConfig{
 		Github: ServicesGithubConfig{
