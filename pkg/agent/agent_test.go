@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -1964,73 +1963,6 @@ func TestConcurrentAgentCount(t *testing.T) {
 	wg.Wait()
 }
 
-func TestSpawnAgent_ExistingSessionCreatesWorktree(t *testing.T) {
-	// Setup: create a real git repo so createWorktree works
-	workspace := t.TempDir()
-	cmd := exec.CommandContext(context.Background(), "git", "init", workspace) //nolint:gosec // test helper
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git init failed: %v (%s)", err, out)
-	}
-	// Configure git user for CI environments where global config is absent
-	if err := exec.CommandContext(context.Background(), "git", "-C", workspace, "config", "user.email", "test@test.com").Run(); err != nil { //nolint:gosec // test helper
-		t.Fatal(err)
-	}
-	if err := exec.CommandContext(context.Background(), "git", "-C", workspace, "config", "user.name", "Test").Run(); err != nil { //nolint:gosec // test helper
-		t.Fatal(err)
-	}
-	// Need at least one commit for git worktree add to work
-	cmd = exec.CommandContext(context.Background(), "git", "-C", workspace, "commit", "--allow-empty", "-m", "init") //nolint:gosec // test helper
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git commit failed: %v (%s)", err, out)
-	}
-
-	m := newTestManager(t)
-	m.stateDir = filepath.Join(workspace, ".bc", "agents")
-	if err := os.MkdirAll(m.stateDir, 0750); err != nil {
-		t.Fatalf("failed to create state dir: %v", err)
-	}
-
-	// Create a real tmux session so HasSession returns true
-	sessionName := m.runtime.SessionName("eng-1")
-	cmd = exec.CommandContext(context.Background(), "tmux", "new-session", "-d", "-s", sessionName) //nolint:gosec // test helper
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("tmux new-session failed: %v (%s)", err, out)
-	}
-	t.Cleanup(func() {
-		_ = exec.CommandContext(context.Background(), "tmux", "kill-session", "-t", sessionName).Run() //nolint:errcheck,gosec // best-effort cleanup
-	})
-
-	// Pre-populate agent WITHOUT WorktreeDir (simulates pre-worktree agent)
-	m.agents["eng-1"] = &Agent{
-		ID:        "eng-1",
-		Name:      "eng-1",
-		Role:      Role("engineer"),
-		State:     StateIdle,
-		Workspace: workspace,
-		Session:   "eng-1",
-		Children:  []string{},
-	}
-
-	// SpawnAgentWithOptions should reuse session but create worktree
-	agent, err := m.SpawnAgentWithOptions("eng-1", Role("engineer"), workspace, "", "")
-	if err != nil {
-		t.Fatalf("SpawnAgentWithOptions failed: %v", err)
-	}
-
-	expectedDir := filepath.Join(workspace, ".bc", "worktrees", "eng-1")
-	if agent.WorktreeDir != expectedDir {
-		t.Errorf("WorktreeDir = %q, want %q", agent.WorktreeDir, expectedDir)
-	}
-
-	// Verify worktree actually exists on disk
-	if _, err := os.Stat(expectedDir); os.IsNotExist(err) {
-		t.Error("worktree directory was not created on disk")
-	}
-
-	// Cleanup worktree
-	_ = exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "remove", "--force", expectedDir).Run() //nolint:errcheck,gosec // best-effort cleanup
-}
-
 func TestSpawnAgent_PreservesWorkingState(t *testing.T) {
 	m := newTestManager(t)
 	// Setup agent in working state
@@ -2102,98 +2034,6 @@ func TestBootstrapDelay(t *testing.T) {
 	m.SetBootstrapDelay(0)
 	if d := m.getBootstrapDelay(); d != DefaultBootstrapDelay {
 		t.Errorf("zero bootstrap delay should use default: got %v, want %v", d, DefaultBootstrapDelay)
-	}
-}
-
-// --- Git wrapper tests ---
-
-func TestEnsureGitWrapper_CreatesFile(t *testing.T) {
-	workspace := t.TempDir()
-
-	if err := ensureGitWrapper(workspace); err != nil {
-		t.Fatalf("ensureGitWrapper failed: %v", err)
-	}
-
-	wrapperPath := filepath.Join(workspace, ".bc", "bin", "git")
-	info, err := os.Stat(wrapperPath)
-	if err != nil {
-		t.Fatalf("wrapper not created: %v", err)
-	}
-
-	// Check executable permission
-	if info.Mode()&0111 == 0 {
-		t.Errorf("wrapper not executable: mode %v", info.Mode())
-	}
-
-	// Check content contains key elements
-	content, err := os.ReadFile(wrapperPath) //nolint:gosec // test file read
-	if err != nil {
-		t.Fatalf("failed to read wrapper: %v", err)
-	}
-	s := string(content)
-	if s == "" {
-		t.Fatal("wrapper is empty")
-	}
-	for _, want := range []string{"/usr/bin/git", "BC_AGENT_WORKTREE", "exec"} {
-		found := false
-		for i := 0; i <= len(s)-len(want); i++ {
-			if s[i:i+len(want)] == want {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("wrapper missing expected string %q", want)
-		}
-	}
-}
-
-func TestEnsureGitWrapper_Idempotent(t *testing.T) {
-	workspace := t.TempDir()
-
-	if err := ensureGitWrapper(workspace); err != nil {
-		t.Fatalf("first call failed: %v", err)
-	}
-
-	wrapperPath := filepath.Join(workspace, ".bc", "bin", "git")
-	info1, err := os.Stat(wrapperPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Second call should be a no-op (file already exists)
-	if ensureErr := ensureGitWrapper(workspace); ensureErr != nil {
-		t.Fatalf("second call failed: %v", ensureErr)
-	}
-
-	info2, err := os.Stat(wrapperPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info1.ModTime() != info2.ModTime() {
-		t.Error("wrapper was rewritten on second call (not idempotent)")
-	}
-}
-
-func TestEnsureGitWrapper_CreatesBinDir(t *testing.T) {
-	workspace := t.TempDir()
-	binDir := filepath.Join(workspace, ".bc", "bin")
-
-	// .bc/bin should not exist yet
-	if _, err := os.Stat(binDir); err == nil {
-		t.Fatal(".bc/bin already exists before test")
-	}
-
-	if err := ensureGitWrapper(workspace); err != nil {
-		t.Fatalf("ensureGitWrapper failed: %v", err)
-	}
-
-	info, err := os.Stat(binDir)
-	if err != nil {
-		t.Fatalf(".bc/bin not created: %v", err)
-	}
-	if !info.IsDir() {
-		t.Error(".bc/bin is not a directory")
 	}
 }
 
@@ -2304,104 +2144,48 @@ func TestRoleRoot_HasCapability(t *testing.T) {
 // --- Singleton enforcement tests ---
 
 func TestEnforceRootSingleton_NoRootExists(t *testing.T) {
-	workspace := t.TempDir()
 	m := newTestManager(t)
 
 	// No root exists - should allow creation
-	if err := m.enforceRootSingleton(workspace); err != nil {
+	if err := m.enforceRootSingleton(""); err != nil {
 		t.Errorf("enforceRootSingleton should allow creation when no root exists: %v", err)
 	}
 }
 
 func TestEnforceRootSingleton_RootActiveBlocks(t *testing.T) {
-	workspace := t.TempDir()
 	m := newTestManager(t)
 
-	// Create root in active state (idle)
-	bcDir := filepath.Join(workspace, ".bc")
-	store := NewRootStateStore(bcDir)
-	if _, err := store.Create("root", RoleRoot, "claude"); err != nil {
-		t.Fatalf("failed to create root: %v", err)
-	}
+	// Add root in idle state
+	m.agents["root"] = &Agent{Name: "root", Role: RoleRoot, State: StateIdle, IsRoot: true}
 
 	// Active root should block new spawn
-	err := m.enforceRootSingleton(workspace)
+	err := m.enforceRootSingleton("")
 	if err == nil {
 		t.Error("enforceRootSingleton should block when active root exists")
-	}
-	if err != nil && err.Error() == "" {
-		t.Error("error message should not be empty")
-	}
-}
-
-func TestEnforceRootSingleton_RootWorkingBlocks(t *testing.T) {
-	workspace := t.TempDir()
-	m := newTestManager(t)
-
-	// Create root in working state
-	bcDir := filepath.Join(workspace, ".bc")
-	store := NewRootStateStore(bcDir)
-	if _, err := store.Create("root", RoleRoot, "claude"); err != nil {
-		t.Fatalf("failed to create root: %v", err)
-	}
-	if err := store.UpdateState(StateWorking); err != nil {
-		t.Fatalf("failed to update state: %v", err)
-	}
-
-	// Working root should block new spawn
-	err := m.enforceRootSingleton(workspace)
-	if err == nil {
-		t.Error("enforceRootSingleton should block when working root exists")
 	}
 }
 
 func TestEnforceRootSingleton_RootStoppedAllows(t *testing.T) {
-	workspace := t.TempDir()
 	m := newTestManager(t)
 
-	// Create root in stopped state
-	bcDir := filepath.Join(workspace, ".bc")
-	store := NewRootStateStore(bcDir)
-	if _, err := store.Create("root", RoleRoot, "claude"); err != nil {
-		t.Fatalf("failed to create root: %v", err)
-	}
-	if err := store.UpdateState(StateStopped); err != nil {
-		t.Fatalf("failed to update state: %v", err)
-	}
+	// Add root in stopped state
+	m.agents["root"] = &Agent{Name: "root", Role: RoleRoot, State: StateStopped, IsRoot: true}
 
 	// Stopped root should allow respawn
-	if err := m.enforceRootSingleton(workspace); err != nil {
+	if err := m.enforceRootSingleton(""); err != nil {
 		t.Errorf("enforceRootSingleton should allow respawn when root is stopped: %v", err)
-	}
-
-	// Verify old root state was deleted
-	if store.Exists() {
-		t.Error("old root state should be deleted after allowing respawn")
 	}
 }
 
 func TestEnforceRootSingleton_RootErrorAllows(t *testing.T) {
-	workspace := t.TempDir()
 	m := newTestManager(t)
 
-	// Create root in error state
-	bcDir := filepath.Join(workspace, ".bc")
-	store := NewRootStateStore(bcDir)
-	if _, err := store.Create("root", RoleRoot, "claude"); err != nil {
-		t.Fatalf("failed to create root: %v", err)
-	}
-	if err := store.UpdateState(StateError); err != nil {
-		t.Fatalf("failed to update state: %v", err)
-	}
+	// Add root in error state
+	m.agents["root"] = &Agent{Name: "root", Role: RoleRoot, State: StateError, IsRoot: true}
 
 	// Error state should allow respawn
-	if err := m.enforceRootSingleton(workspace); err != nil {
+	if err := m.enforceRootSingleton(""); err != nil {
 		t.Errorf("enforceRootSingleton should allow respawn when root is in error: %v", err)
-	}
-
-	// Verify old root state was deleted
-	if store.Exists() {
-		t.Error("old root state should be deleted after allowing respawn")
 	}
 }
 
@@ -2905,35 +2689,24 @@ func TestIsValidAgentName(t *testing.T) {
 	}
 }
 
-func TestContainsShellMetachars(t *testing.T) {
+func TestInjectWorktreeFlag(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    string
-		expected bool
+		cmd      string
+		agent    string
+		expected string
 	}{
-		{"clean string", "hello", false},
-		{"alphanumeric", "agent123", false},
-		{"with hyphen", "my-agent", false},
-		{"with underscore", "my_agent", false},
-		{"semicolon injection", "cmd; rm -rf", true},
-		{"pipe injection", "cmd | cat /etc/passwd", true},
-		{"background", "cmd &", true},
-		{"variable expansion", "$HOME", true},
-		{"backtick execution", "`id`", true},
-		{"parentheses", "$(whoami)", true},
-		{"curly braces", "${var}", true},
-		{"square brackets", "[test]", true},
-		{"redirect output", "cmd > /tmp/out", true},
-		{"redirect input", "cmd < /etc/passwd", true},
-		{"newline injection", "cmd\nrm", true},
-		{"carriage return", "cmd\rrm", true},
+		{"claude basic", "claude", "eng-01", "claude -w eng-01 "},
+		{"claude with flags", "claude --dangerously-skip-permissions", "root", "claude -w root  --dangerously-skip-permissions"},
+		{"non-claude", "cursor", "eng-01", "cursor"},
+		{"empty", "", "eng-01", ""},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := containsShellMetachars(tc.input)
+			result := injectWorktreeFlag(tc.cmd, tc.agent)
 			if result != tc.expected {
-				t.Errorf("containsShellMetachars(%q) = %v, want %v", tc.input, result, tc.expected)
+				t.Errorf("injectWorktreeFlag(%q, %q) = %q, want %q", tc.cmd, tc.agent, result, tc.expected)
 			}
 		})
 	}
@@ -3791,14 +3564,14 @@ func TestGetAgentCommandFromConfig(t *testing.T) {
 	tests := []struct {
 		name    string
 		tool    string
-		cfg     *workspace.V2Config
+		cfg     *workspace.Config
 		wantCmd string
 		wantOk  bool
 	}{
 		{
 			name: "workspace config takes precedence",
 			tool: "claude",
-			cfg: &workspace.V2Config{
+			cfg: &workspace.Config{
 				Providers: workspace.ProvidersConfig{
 					Claude: &workspace.ProviderConfig{Command: "claude --workspace", Enabled: true},
 				},
@@ -3809,7 +3582,7 @@ func TestGetAgentCommandFromConfig(t *testing.T) {
 		{
 			name:    "falls back to global config",
 			tool:    "claude",
-			cfg:     &workspace.V2Config{},
+			cfg:     &workspace.Config{},
 			wantCmd: "claude --dangerously-skip-permissions",
 			wantOk:  true,
 		},

@@ -82,10 +82,6 @@ func NewBackend(cfg Config, prefix, workspacePath string) (*Backend, error) {
 		return nil, fmt.Errorf("docker daemon not available: %w", err)
 	}
 
-	// Pre-check that credential extraction works (don't fail startup for this)
-	if _, err := EnsureAllCredentials(workspacePath); err != nil {
-		log.Debug("credential extraction had issues (containers may need manual auth)", "error", err)
-	}
 
 	h := sha256.Sum256([]byte(workspacePath))
 	return &Backend{
@@ -110,13 +106,7 @@ func (b *Backend) imageForTool(toolName string) string {
 	return "bc-agent-" + toolName + ":latest"
 }
 
-// credentialsDirName is the directory under the workspace .bc/ dir where
-// extracted auth credentials are stored for container use.
-const credentialsDirName = "container-credentials"
-
 // passthroughEnvKeys are environment variables passed from host to container.
-// Note: API keys (ANTHROPIC_API_KEY, etc.) are NOT passed as env vars for security.
-// Auth is handled by mounting credential files extracted from the host keychain.
 var passthroughEnvKeys = []string{
 	"GITHUB_TOKEN",
 	"GH_TOKEN",
@@ -185,16 +175,20 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		args = append(args, "-v", dir+":/workspace")
 	}
 
-	// Mount auth credentials
-	// All host config dirs are mounted READ-ONLY to a staging area.
-	// The entrypoint script copies them to writable locations inside the container.
-	// This prevents concurrent containers from corrupting shared host files.
+	// Per-agent auth directory — each agent has its own isolated credentials.
+	// This dir was populated by `claude auth login` on the host before container start.
+	authDir, authErr := EnsureAuthDir(b.workspacePath, name)
+	if authErr != nil {
+		log.Debug("failed to create agent auth dir", "agent", name, "error", authErr)
+	}
+	if authErr == nil {
+		args = append(args, "-v", authDir+":/home/agent/.claude")
+	}
+
+	// Read-only host config mounts (git, ssh)
 	home, _ := os.UserHomeDir()
 	if home != "" {
 		roMounts := []struct{ src, dst string }{
-			{home + "/.claude", "/home/agent/.host-claude"},
-			{home + "/.claude.json", "/home/agent/.host-claude.json"},
-			{home + "/.config/gh", "/home/agent/.host-config-gh"},
 			{home + "/.ssh", "/home/agent/.ssh"},
 			{home + "/.gitconfig", "/home/agent/.gitconfig"},
 		}
@@ -203,16 +197,6 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 				args = append(args, "-v", m.src+":"+m.dst+":ro")
 			}
 		}
-	}
-
-	// Extract and mount per-agent credentials (isolated per agent)
-	credsDir, credErr := EnsureCredentials(b.workspacePath, name)
-	if credErr != nil {
-		log.Debug("credential extraction failed for agent", "agent", name, "error", credErr)
-	}
-	if credErr == nil {
-		args = append(args, "-v", credsDir+":/home/agent/.credentials:ro")
-		args = append(args, "-e", "BC_CREDENTIALS_DIR=/home/agent/.credentials")
 	}
 
 	// Extra mounts from config
@@ -245,32 +229,11 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		image = b.imageForTool(toolName)
 	}
 
-	// Entrypoint:
-	// 1. Copy host config from read-only mounts to writable locations
-	// 2. Load API keys from mounted credential files (if present)
-	// 3. Start agent in tmux
-	// 4. Wait for session to exit
+	// Entrypoint: start agent command in tmux, wait for session to exit.
+	// Auth credentials are already in place via the mounted ~/.claude/ dir.
 	escapedCmd := strings.ReplaceAll(command, `"`, `\"`)
 	entrypoint := fmt.Sprintf(
-		// Copy host config dirs to writable locations (prevents corruption of shared host files)
-		`if [ -d /home/agent/.host-claude ]; then cp -a /home/agent/.host-claude /home/agent/.claude; fi && `+
-			`if [ -f /home/agent/.host-claude.json ]; then cp /home/agent/.host-claude.json /home/agent/.claude.json; fi && `+
-			`if [ -d /home/agent/.host-config-gh ]; then mkdir -p /home/agent/.config && cp -a /home/agent/.host-config-gh /home/agent/.config/gh; fi && `+
-			// Load credentials from JSON files into env vars
-			`if [ -d /home/agent/.credentials ]; then `+
-			`for f in /home/agent/.credentials/*.json; do `+
-			`[ -f "$f" ] || continue; `+
-			`provider=$(basename "$f" .json); `+
-			`token=$(cat "$f" | grep -o '"token":"[^"]*"' | cut -d'"' -f4); `+
-			`case "$provider" in `+
-			`anthropic|claude-code|claude) export ANTHROPIC_API_KEY="$token" ;; `+
-			`google|gemini) export GOOGLE_API_KEY="$token" ;; `+
-			`openai) export OPENAI_API_KEY="$token" ;; `+
-			`esac; `+
-			`done; `+
-			`fi && `+
-			// Start agent in tmux
-			`tmux new-session -d -s agent -x 200 -y 50 "%s" && `+
+		`tmux new-session -d -s agent -x 200 -y 50 "%s" && `+
 			`while tmux has-session -t agent 2>/dev/null; do sleep 2; done`,
 		escapedCmd,
 	)

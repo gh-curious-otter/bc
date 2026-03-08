@@ -9,8 +9,8 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-func TestDefaultV2Config(t *testing.T) {
-	cfg := DefaultV2Config("test-project")
+func TestDefaultConfig(t *testing.T) {
+	cfg := DefaultConfig("test-project")
 
 	if cfg.Workspace.Name != "test-project" {
 		t.Errorf("expected name 'test-project', got %q", cfg.Workspace.Name)
@@ -50,7 +50,7 @@ func TestDefaultV2Config(t *testing.T) {
 	}
 }
 
-func TestParseV2ConfigWithLogs(t *testing.T) {
+func TestParseConfigWithLogs(t *testing.T) {
 	tomlData := []byte(`
 [workspace]
 name = "test"
@@ -72,7 +72,7 @@ path = ".bc/custom-logs"
 max_bytes = 2097152
 preserve_ansi = false
 `)
-	cfg, err := ParseV2Config(tomlData)
+	cfg, err := ParseConfig(tomlData)
 	if err != nil {
 		t.Fatalf("failed to parse: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestLogsConfigSaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.toml")
 
-	cfg := DefaultV2Config("test")
+	cfg := DefaultConfig("test")
 	cfg.Logs.Path = ".bc/my-logs"
 	cfg.Logs.MaxBytes = 512000
 	cfg.Logs.PreserveAnsi = false
@@ -100,7 +100,7 @@ func TestLogsConfigSaveAndLoad(t *testing.T) {
 		t.Fatalf("failed to save: %v", err)
 	}
 
-	loaded, err := LoadV2Config(path)
+	loaded, err := LoadConfig(path)
 	if err != nil {
 		t.Fatalf("failed to load: %v", err)
 	}
@@ -116,7 +116,7 @@ func TestLogsConfigSaveAndLoad(t *testing.T) {
 	}
 }
 
-func TestParseV2Config(t *testing.T) {
+func TestParseConfig(t *testing.T) {
 	tomlData := []byte(`
 [workspace]
 name = "my-project"
@@ -141,7 +141,7 @@ path = ".bc/memory"
 default = ["general", "engineering"]
 `)
 
-	cfg, err := ParseV2Config(tomlData)
+	cfg, err := ParseConfig(tomlData)
 	if err != nil {
 		t.Fatalf("failed to parse config: %v", err)
 	}
@@ -181,7 +181,7 @@ default = ["general", "engineering"]
 	}
 }
 
-func TestParseV2ConfigWithRoster(t *testing.T) {
+func TestParseConfigWithRoster(t *testing.T) {
 	tomlData := []byte(`
 [workspace]
 name = "roster-project"
@@ -204,7 +204,7 @@ tech_leads = 3
 qa = 1
 `)
 
-	cfg, err := ParseV2Config(tomlData)
+	cfg, err := ParseConfig(tomlData)
 	if err != nil {
 		t.Fatalf("failed to parse config: %v", err)
 	}
@@ -220,8 +220,8 @@ qa = 1
 	}
 }
 
-// TestParseV2ConfigWithPerformance tests parsing [performance] section from TOML (#1013)
-func TestParseV2ConfigWithPerformance(t *testing.T) {
+// TestParseConfigWithPerformance tests parsing [performance] section from TOML (#1013)
+func TestParseConfigWithPerformance(t *testing.T) {
 	tomlData := []byte(`
 [workspace]
 name = "perf-project"
@@ -254,7 +254,7 @@ adaptive_slow_interval = 3500
 adaptive_max_interval = 7000
 `)
 
-	cfg, err := ParseV2Config(tomlData)
+	cfg, err := ParseConfig(tomlData)
 	if err != nil {
 		t.Fatalf("failed to parse config: %v", err)
 	}
@@ -305,8 +305,8 @@ adaptive_max_interval = 7000
 	}
 }
 
-// TestParseV2ConfigWithTUI tests parsing [tui] section from TOML (#1022)
-func TestParseV2ConfigWithTUI(t *testing.T) {
+// TestParseConfigWithTUI tests parsing [tui] section from TOML (#1022)
+func TestParseConfigWithTUI(t *testing.T) {
 	tomlData := []byte(`
 [workspace]
 name = "tui-project"
@@ -328,7 +328,7 @@ theme = "synthwave"
 mode = "dark"
 `)
 
-	cfg, err := ParseV2Config(tomlData)
+	cfg, err := ParseConfig(tomlData)
 	if err != nil {
 		t.Fatalf("failed to parse config: %v", err)
 	}
@@ -342,35 +342,35 @@ mode = "dark"
 	}
 }
 
-func TestV2ConfigValidation(t *testing.T) {
+func TestConfigValidation(t *testing.T) {
 	tests := []struct {
 		name    string
 		wantErr error
-		cfg     V2Config
+		cfg     Config
 	}{
 		{
 			name:    "missing workspace name",
 			wantErr: ErrMissingWorkspaceName,
-			cfg:     V2Config{Workspace: WorkspaceConfig{Version: 2}},
+			cfg:     Config{Workspace: WorkspaceConfig{Version: 2}},
 		},
 		{
 			name:    "invalid version",
 			wantErr: ErrInvalidVersion,
-			cfg: V2Config{
+			cfg: Config{
 				Workspace: WorkspaceConfig{Name: "test", Version: 1},
 			},
 		},
 		{
 			name:    "missing default tool",
 			wantErr: ErrMissingDefaultTool,
-			cfg: V2Config{
+			cfg: Config{
 				Workspace: WorkspaceConfig{Name: "test", Version: 2},
 			},
 		},
 		{
 			name:    "default tool not defined",
 			wantErr: ErrDefaultToolNotFound,
-			cfg: V2Config{
+			cfg: Config{
 				Workspace: WorkspaceConfig{Name: "test", Version: 2},
 				Tools:     ToolsConfig{Default: "nonexistent"},
 			},
@@ -378,7 +378,7 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "missing memory backend",
 			wantErr: ErrMissingMemoryBackend,
-			cfg: V2Config{
+			cfg: Config{
 				Workspace: WorkspaceConfig{Name: "test", Version: 2},
 				Tools:     ToolsConfig{Default: "claude", Claude: &ToolConfig{Enabled: true}},
 			},
@@ -386,7 +386,7 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "missing memory path",
 			wantErr: ErrMissingMemoryPath,
-			cfg: V2Config{
+			cfg: Config{
 				Workspace: WorkspaceConfig{Name: "test", Version: 2},
 				Tools:     ToolsConfig{Default: "claude", Claude: &ToolConfig{Enabled: true}},
 				Memory:    MemoryConfig{Backend: "file"},
@@ -395,13 +395,13 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "valid config",
 			wantErr: nil,
-			cfg:     DefaultV2Config("test"),
+			cfg:     DefaultConfig("test"),
 		},
 		{
 			name:    "roster product_manager too high",
 			wantErr: ErrRosterProductManagerRange,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Roster.ProductManager = 11
 				return cfg
 			}(),
@@ -409,8 +409,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "roster product_manager negative",
 			wantErr: ErrRosterProductManagerRange,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Roster.ProductManager = -1
 				return cfg
 			}(),
@@ -418,8 +418,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "roster manager too high",
 			wantErr: ErrRosterManagerRange,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Roster.Manager = 11
 				return cfg
 			}(),
@@ -427,8 +427,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "roster manager negative",
 			wantErr: ErrRosterManagerRange,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Roster.Manager = -1
 				return cfg
 			}(),
@@ -436,8 +436,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "roster engineers too high",
 			wantErr: ErrRosterEngineersRange,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Roster.Engineers = 11
 				return cfg
 			}(),
@@ -445,8 +445,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "roster engineers negative",
 			wantErr: ErrRosterEngineersRange,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Roster.Engineers = -1
 				return cfg
 			}(),
@@ -454,8 +454,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "roster tech_leads too high",
 			wantErr: ErrRosterTechLeadsRange,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Roster.TechLeads = 11
 				return cfg
 			}(),
@@ -463,8 +463,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "roster qa too high",
 			wantErr: ErrRosterQARange,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Roster.QA = 11
 				return cfg
 			}(),
@@ -472,8 +472,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "roster zero values valid",
 			wantErr: nil,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Roster.ProductManager = 0
 				cfg.Roster.Manager = 0
 				cfg.Roster.Engineers = 0
@@ -486,8 +486,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "poll interval too low",
 			wantErr: ErrPollIntervalTooLow,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Performance.PollIntervalAgents = 100 // Below 500ms minimum
 				return cfg
 			}(),
@@ -495,8 +495,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "poll interval at minimum valid",
 			wantErr: nil,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Performance.PollIntervalAgents = 500 // Exactly at minimum
 				return cfg
 			}(),
@@ -504,8 +504,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "poll interval channels too low",
 			wantErr: ErrPollIntervalTooLow,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Performance.PollIntervalChannels = 250 // Below 500ms minimum
 				return cfg
 			}(),
@@ -513,8 +513,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "poll interval costs too low",
 			wantErr: ErrPollIntervalTooLow,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Performance.PollIntervalCosts = 499 // Just below 500ms minimum
 				return cfg
 			}(),
@@ -522,8 +522,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "poll interval status too low",
 			wantErr: ErrPollIntervalTooLow,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Performance.PollIntervalStatus = 1 // Way below minimum
 				return cfg
 			}(),
@@ -531,8 +531,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "poll interval logs too low",
 			wantErr: ErrPollIntervalTooLow,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Performance.PollIntervalLogs = 300
 				return cfg
 			}(),
@@ -540,8 +540,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "poll interval teams too low",
 			wantErr: ErrPollIntervalTooLow,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Performance.PollIntervalTeams = 400
 				return cfg
 			}(),
@@ -549,8 +549,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "poll interval demons too low",
 			wantErr: ErrPollIntervalTooLow,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Performance.PollIntervalDemons = 200
 				return cfg
 			}(),
@@ -558,8 +558,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "adaptive interval too low",
 			wantErr: ErrPollIntervalTooLow,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Performance.AdaptiveFastInterval = 200 // Below 500ms minimum
 				return cfg
 			}(),
@@ -567,8 +567,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "adaptive normal interval too low",
 			wantErr: ErrPollIntervalTooLow,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Performance.AdaptiveNormalInterval = 300
 				return cfg
 			}(),
@@ -576,8 +576,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "adaptive slow interval too low",
 			wantErr: ErrPollIntervalTooLow,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Performance.AdaptiveSlowInterval = 450
 				return cfg
 			}(),
@@ -585,8 +585,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "adaptive max interval too low",
 			wantErr: ErrPollIntervalTooLow,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Performance.AdaptiveMaxInterval = 100
 				return cfg
 			}(),
@@ -594,8 +594,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "cache TTL too low",
 			wantErr: ErrCacheTTLRange,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Performance.CacheTTLTmux = 50 // Below 100ms minimum
 				return cfg
 			}(),
@@ -603,8 +603,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "cache TTL commands too low",
 			wantErr: ErrCacheTTLRange,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Performance.CacheTTLCommands = 99 // Just below 100ms minimum
 				return cfg
 			}(),
@@ -612,8 +612,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "cache TTL too high",
 			wantErr: ErrCacheTTLRange,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Performance.CacheTTLCommands = 120000 // Above 60000ms maximum
 				return cfg
 			}(),
@@ -621,8 +621,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "cache TTL tmux too high",
 			wantErr: ErrCacheTTLRange,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Performance.CacheTTLTmux = 60001 // Just above 60000ms max
 				return cfg
 			}(),
@@ -630,8 +630,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "cache TTL at bounds valid",
 			wantErr: nil,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Performance.CacheTTLTmux = 100       // At minimum
 				cfg.Performance.CacheTTLCommands = 60000 // At maximum
 				return cfg
@@ -640,8 +640,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "performance zero values valid (use defaults)",
 			wantErr: nil,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Performance = PerformanceConfig{} // All zeros - valid, uses defaults
 				return cfg
 			}(),
@@ -649,8 +649,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "all performance values at valid minimum",
 			wantErr: nil,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.Performance = PerformanceConfig{
 					PollIntervalAgents:     500,
 					PollIntervalChannels:   500,
@@ -673,8 +673,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "tui invalid theme",
 			wantErr: ErrInvalidTheme,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.TUI.Theme = "invalid-theme"
 				return cfg
 			}(),
@@ -682,8 +682,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "tui invalid mode",
 			wantErr: ErrInvalidThemeMode,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.TUI.Mode = "invalid-mode"
 				return cfg
 			}(),
@@ -691,8 +691,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "tui valid dark theme",
 			wantErr: nil,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.TUI.Theme = "dark"
 				cfg.TUI.Mode = "auto"
 				return cfg
@@ -701,8 +701,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "tui valid light theme",
 			wantErr: nil,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.TUI.Theme = "light"
 				cfg.TUI.Mode = "light"
 				return cfg
@@ -711,8 +711,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "tui valid matrix theme",
 			wantErr: nil,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.TUI.Theme = "matrix"
 				cfg.TUI.Mode = "dark"
 				return cfg
@@ -721,8 +721,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "tui valid synthwave theme",
 			wantErr: nil,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.TUI.Theme = "synthwave"
 				return cfg
 			}(),
@@ -730,8 +730,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "tui valid high-contrast theme",
 			wantErr: nil,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.TUI.Theme = "high-contrast"
 				return cfg
 			}(),
@@ -739,8 +739,8 @@ func TestV2ConfigValidation(t *testing.T) {
 		{
 			name:    "tui empty values valid (use defaults)",
 			wantErr: nil,
-			cfg: func() V2Config {
-				cfg := DefaultV2Config("test")
+			cfg: func() Config {
+				cfg := DefaultConfig("test")
 				cfg.TUI = TUIConfig{} // Empty - valid, uses defaults
 				return cfg
 			}(),
@@ -757,8 +757,8 @@ func TestV2ConfigValidation(t *testing.T) {
 	}
 }
 
-func TestV2ConfigGetTool(t *testing.T) {
-	cfg := DefaultV2Config("test")
+func TestConfigGetTool(t *testing.T) {
+	cfg := DefaultConfig("test")
 
 	// Test getting claude (default)
 	tool := cfg.GetTool("claude")
@@ -782,12 +782,12 @@ func TestV2ConfigGetTool(t *testing.T) {
 	}
 }
 
-func TestV2ConfigSaveAndLoad(t *testing.T) {
+func TestConfigSaveAndLoad(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, ".bc", "config.toml")
 
 	// Create and save config
-	cfg := DefaultV2Config("save-test")
+	cfg := DefaultConfig("save-test")
 	cfg.Channels.Default = []string{"custom-channel"}
 
 	if err := cfg.Save(configPath); err != nil {
@@ -800,7 +800,7 @@ func TestV2ConfigSaveAndLoad(t *testing.T) {
 	}
 
 	// Load and verify
-	loaded, err := LoadV2Config(configPath)
+	loaded, err := LoadConfig(configPath)
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}
@@ -813,13 +813,13 @@ func TestV2ConfigSaveAndLoad(t *testing.T) {
 	}
 }
 
-// TestV2ConfigSaveAndLoadPerformance tests save/load round-trip for performance config (#1013)
-func TestV2ConfigSaveAndLoadPerformance(t *testing.T) {
+// TestConfigSaveAndLoadPerformance tests save/load round-trip for performance config (#1013)
+func TestConfigSaveAndLoadPerformance(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, ".bc", "config.toml")
 
 	// Create config with custom performance values
-	cfg := DefaultV2Config("perf-save-test")
+	cfg := DefaultConfig("perf-save-test")
 	cfg.Performance = PerformanceConfig{
 		PollIntervalAgents:     1500,
 		PollIntervalChannels:   2500,
@@ -841,7 +841,7 @@ func TestV2ConfigSaveAndLoadPerformance(t *testing.T) {
 	}
 
 	// Load and verify performance values are preserved
-	loaded, err := LoadV2Config(configPath)
+	loaded, err := LoadConfig(configPath)
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}
@@ -882,22 +882,22 @@ func TestConfigPath(t *testing.T) {
 	}
 }
 
-func TestLoadV2ConfigNotFound(t *testing.T) {
-	_, err := LoadV2Config("/nonexistent/path/config.toml")
+func TestLoadConfigNotFound(t *testing.T) {
+	_, err := LoadConfig("/nonexistent/path/config.toml")
 	if err == nil {
 		t.Error("expected error for nonexistent file")
 	}
 }
 
-func TestParseV2ConfigInvalid(t *testing.T) {
-	_, err := ParseV2Config([]byte("invalid toml {{{"))
+func TestParseConfigInvalid(t *testing.T) {
+	_, err := ParseConfig([]byte("invalid toml {{{"))
 	if err == nil {
 		t.Error("expected error for invalid TOML")
 	}
 }
 
-func TestV2ConfigGetTool_Cursor(t *testing.T) {
-	cfg := V2Config{
+func TestConfigGetTool_Cursor(t *testing.T) {
+	cfg := Config{
 		Workspace: WorkspaceConfig{Name: "test", Version: 2},
 		Tools: ToolsConfig{
 			Default: "cursor",
@@ -932,8 +932,8 @@ func TestV2ConfigGetTool_Cursor(t *testing.T) {
 	}
 }
 
-func TestV2ConfigGetTool_Codex(t *testing.T) {
-	cfg := V2Config{
+func TestConfigGetTool_Codex(t *testing.T) {
+	cfg := Config{
 		Workspace: WorkspaceConfig{Name: "test", Version: 2},
 		Tools: ToolsConfig{
 			Default: "codex",
@@ -968,8 +968,8 @@ func TestV2ConfigGetTool_Codex(t *testing.T) {
 	}
 }
 
-func TestV2ConfigGetTool_Gemini(t *testing.T) {
-	cfg := V2Config{
+func TestConfigGetTool_Gemini(t *testing.T) {
+	cfg := Config{
 		Workspace: WorkspaceConfig{Name: "test", Version: 2},
 		Tools: ToolsConfig{
 			Default: "gemini",
@@ -1004,8 +1004,8 @@ func TestV2ConfigGetTool_Gemini(t *testing.T) {
 	}
 }
 
-func TestV2ConfigCustomTools(t *testing.T) {
-	cfg := V2Config{
+func TestConfigCustomTools(t *testing.T) {
+	cfg := Config{
 		Workspace: WorkspaceConfig{Name: "test", Version: 2},
 		Tools: ToolsConfig{
 			Default: "my-custom-agent",
@@ -1067,17 +1067,17 @@ func TestV2ConfigCustomTools(t *testing.T) {
 	}
 }
 
-func TestV2ConfigHasToolDefined(t *testing.T) {
+func TestConfigHasToolDefined(t *testing.T) {
 	tests := []struct {
 		name     string
 		toolName string
-		cfg      V2Config
+		cfg      Config
 		want     bool
 	}{
 		{
 			name:     "claude defined",
 			toolName: "claude",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{Claude: &ToolConfig{Command: "claude"}},
 			},
 			want: true,
@@ -1085,13 +1085,13 @@ func TestV2ConfigHasToolDefined(t *testing.T) {
 		{
 			name:     "claude not defined",
 			toolName: "claude",
-			cfg:      V2Config{Tools: ToolsConfig{}},
+			cfg:      Config{Tools: ToolsConfig{}},
 			want:     false,
 		},
 		{
 			name:     "cursor defined",
 			toolName: "cursor",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{Cursor: &ToolConfig{Command: "cursor"}},
 			},
 			want: true,
@@ -1099,13 +1099,13 @@ func TestV2ConfigHasToolDefined(t *testing.T) {
 		{
 			name:     "cursor not defined",
 			toolName: "cursor",
-			cfg:      V2Config{Tools: ToolsConfig{}},
+			cfg:      Config{Tools: ToolsConfig{}},
 			want:     false,
 		},
 		{
 			name:     "codex defined",
 			toolName: "codex",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{Codex: &ToolConfig{Command: "codex"}},
 			},
 			want: true,
@@ -1113,13 +1113,13 @@ func TestV2ConfigHasToolDefined(t *testing.T) {
 		{
 			name:     "codex not defined",
 			toolName: "codex",
-			cfg:      V2Config{Tools: ToolsConfig{}},
+			cfg:      Config{Tools: ToolsConfig{}},
 			want:     false,
 		},
 		{
 			name:     "custom tool defined",
 			toolName: "my-agent",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					Custom: map[string]ToolConfig{
 						"my-agent": {Command: "my-agent"},
@@ -1131,7 +1131,7 @@ func TestV2ConfigHasToolDefined(t *testing.T) {
 		{
 			name:     "custom tool not defined",
 			toolName: "my-agent",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{Custom: map[string]ToolConfig{}},
 			},
 			want: false,
@@ -1139,7 +1139,7 @@ func TestV2ConfigHasToolDefined(t *testing.T) {
 		{
 			name:     "custom tool with nil map",
 			toolName: "my-agent",
-			cfg:      V2Config{Tools: ToolsConfig{}},
+			cfg:      Config{Tools: ToolsConfig{}},
 			want:     false,
 		},
 	}
@@ -1154,16 +1154,16 @@ func TestV2ConfigHasToolDefined(t *testing.T) {
 	}
 }
 
-func TestV2ConfigValidation_ToolVariants(t *testing.T) {
+func TestConfigValidation_ToolVariants(t *testing.T) {
 	tests := []struct {
 		name    string
 		wantErr error
-		cfg     V2Config
+		cfg     Config
 	}{
 		{
 			name:    "valid with cursor default",
 			wantErr: nil,
-			cfg: V2Config{
+			cfg: Config{
 				Workspace: WorkspaceConfig{Name: "test", Version: 2},
 				Tools: ToolsConfig{
 					Default: "cursor",
@@ -1175,7 +1175,7 @@ func TestV2ConfigValidation_ToolVariants(t *testing.T) {
 		{
 			name:    "valid with codex default",
 			wantErr: nil,
-			cfg: V2Config{
+			cfg: Config{
 				Workspace: WorkspaceConfig{Name: "test", Version: 2},
 				Tools: ToolsConfig{
 					Default: "codex",
@@ -1187,7 +1187,7 @@ func TestV2ConfigValidation_ToolVariants(t *testing.T) {
 		{
 			name:    "valid with custom tool default",
 			wantErr: nil,
-			cfg: V2Config{
+			cfg: Config{
 				Workspace: WorkspaceConfig{Name: "test", Version: 2},
 				Tools: ToolsConfig{
 					Default: "my-tool",
@@ -1201,7 +1201,7 @@ func TestV2ConfigValidation_ToolVariants(t *testing.T) {
 		{
 			name:    "cursor default but not defined",
 			wantErr: ErrDefaultToolNotFound,
-			cfg: V2Config{
+			cfg: Config{
 				Workspace: WorkspaceConfig{Name: "test", Version: 2},
 				Tools:     ToolsConfig{Default: "cursor"},
 				Memory:    MemoryConfig{Backend: "file", Path: ".bc/memory"},
@@ -1210,7 +1210,7 @@ func TestV2ConfigValidation_ToolVariants(t *testing.T) {
 		{
 			name:    "codex default but not defined",
 			wantErr: ErrDefaultToolNotFound,
-			cfg: V2Config{
+			cfg: Config{
 				Workspace: WorkspaceConfig{Name: "test", Version: 2},
 				Tools:     ToolsConfig{Default: "codex"},
 				Memory:    MemoryConfig{Backend: "file", Path: ".bc/memory"},
@@ -1219,7 +1219,7 @@ func TestV2ConfigValidation_ToolVariants(t *testing.T) {
 		{
 			name:    "custom default but not defined",
 			wantErr: ErrDefaultToolNotFound,
-			cfg: V2Config{
+			cfg: Config{
 				Workspace: WorkspaceConfig{Name: "test", Version: 2},
 				Tools:     ToolsConfig{Default: "undefined-custom"},
 				Memory:    MemoryConfig{Backend: "file", Path: ".bc/memory"},
@@ -1237,7 +1237,7 @@ func TestV2ConfigValidation_ToolVariants(t *testing.T) {
 	}
 }
 
-func TestParseV2Config_MultipleTools(t *testing.T) {
+func TestParseConfig_MultipleTools(t *testing.T) {
 	tomlData := []byte(`
 [workspace]
 name = "multi-tool-project"
@@ -1263,7 +1263,7 @@ backend = "file"
 path = ".bc/memory"
 `)
 
-	cfg, err := ParseV2Config(tomlData)
+	cfg, err := ParseConfig(tomlData)
 	if err != nil {
 		t.Fatalf("failed to parse config: %v", err)
 	}
@@ -1319,19 +1319,19 @@ func TestMergeUserDefaults(t *testing.T) {
 		name            string
 		wantNickname    string
 		wantDefaultTool string
-		cfg             V2Config
+		cfg             Config
 		defaults        *UserDefaultsConfig
 	}{
 		{
 			name:            "nil defaults - no change",
-			cfg:             V2Config{User: UserConfig{Nickname: "@workspace"}, Tools: ToolsConfig{Default: "claude"}},
+			cfg:             Config{User: UserConfig{Nickname: "@workspace"}, Tools: ToolsConfig{Default: "claude"}},
 			defaults:        nil,
 			wantNickname:    "@workspace",
 			wantDefaultTool: "claude",
 		},
 		{
 			name: "merge nickname when workspace empty",
-			cfg:  V2Config{User: UserConfig{Nickname: ""}, Tools: ToolsConfig{Default: "claude"}},
+			cfg:  Config{User: UserConfig{Nickname: ""}, Tools: ToolsConfig{Default: "claude"}},
 			defaults: &UserDefaultsConfig{
 				User: UserDefaultsUser{Nickname: "@alice"},
 			},
@@ -1340,7 +1340,7 @@ func TestMergeUserDefaults(t *testing.T) {
 		},
 		{
 			name: "workspace nickname takes precedence",
-			cfg:  V2Config{User: UserConfig{Nickname: "@workspace"}, Tools: ToolsConfig{Default: "claude"}},
+			cfg:  Config{User: UserConfig{Nickname: "@workspace"}, Tools: ToolsConfig{Default: "claude"}},
 			defaults: &UserDefaultsConfig{
 				User: UserDefaultsUser{Nickname: "@alice"},
 			},
@@ -1349,7 +1349,7 @@ func TestMergeUserDefaults(t *testing.T) {
 		},
 		{
 			name: "merge preferred tool when workspace empty",
-			cfg:  V2Config{User: UserConfig{Nickname: "@bc"}, Tools: ToolsConfig{Default: ""}},
+			cfg:  Config{User: UserConfig{Nickname: "@bc"}, Tools: ToolsConfig{Default: ""}},
 			defaults: &UserDefaultsConfig{
 				Tools: UserDefaultsTools{Preferred: []string{"cursor", "claude"}},
 			},
@@ -1358,7 +1358,7 @@ func TestMergeUserDefaults(t *testing.T) {
 		},
 		{
 			name: "workspace tool takes precedence",
-			cfg:  V2Config{User: UserConfig{Nickname: "@bc"}, Tools: ToolsConfig{Default: "claude"}},
+			cfg:  Config{User: UserConfig{Nickname: "@bc"}, Tools: ToolsConfig{Default: "claude"}},
 			defaults: &UserDefaultsConfig{
 				Tools: UserDefaultsTools{Preferred: []string{"cursor"}},
 			},
@@ -1367,7 +1367,7 @@ func TestMergeUserDefaults(t *testing.T) {
 		},
 		{
 			name: "merge both nickname and tool",
-			cfg:  V2Config{User: UserConfig{Nickname: ""}, Tools: ToolsConfig{Default: ""}},
+			cfg:  Config{User: UserConfig{Nickname: ""}, Tools: ToolsConfig{Default: ""}},
 			defaults: &UserDefaultsConfig{
 				User:  UserDefaultsUser{Nickname: "@alice"},
 				Tools: UserDefaultsTools{Preferred: []string{"gemini"}},
@@ -1599,7 +1599,7 @@ func TestUserDefaultsPathEmpty(t *testing.T) {
 // TestGetProvider tests the new GetProvider method (Issue #1771)
 func TestGetProvider(t *testing.T) {
 	tests := []struct { //nolint:govet // test struct alignment not critical
-		cfg          V2Config
+		cfg          Config
 		name         string
 		providerName string
 		wantCommand  string
@@ -1607,7 +1607,7 @@ func TestGetProvider(t *testing.T) {
 	}{
 		{
 			name: "provider from new config",
-			cfg: V2Config{
+			cfg: Config{
 				Providers: ProvidersConfig{
 					Claude: &ProviderConfig{Command: "claude --new", Enabled: true},
 				},
@@ -1618,7 +1618,7 @@ func TestGetProvider(t *testing.T) {
 		},
 		{
 			name: "provider from legacy config fallback",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					Claude: &ToolConfig{Command: "claude --legacy", Enabled: true},
 				},
@@ -1629,7 +1629,7 @@ func TestGetProvider(t *testing.T) {
 		},
 		{
 			name: "new config takes precedence over legacy",
-			cfg: V2Config{
+			cfg: Config{
 				Providers: ProvidersConfig{
 					Claude: &ProviderConfig{Command: "claude --new", Enabled: true},
 				},
@@ -1643,13 +1643,13 @@ func TestGetProvider(t *testing.T) {
 		},
 		{
 			name:         "unknown provider returns nil",
-			cfg:          V2Config{},
+			cfg:          Config{},
 			providerName: "unknown",
 			wantNil:      true,
 		},
 		{
 			name: "gemini from new config",
-			cfg: V2Config{
+			cfg: Config{
 				Providers: ProvidersConfig{
 					Gemini: &ProviderConfig{Command: "gemini-cli", Enabled: true},
 				},
@@ -1660,7 +1660,7 @@ func TestGetProvider(t *testing.T) {
 		},
 		{
 			name: "gemini from legacy fallback",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					Gemini: &ToolConfig{Command: "gemini-legacy", Enabled: true},
 				},
@@ -1671,7 +1671,7 @@ func TestGetProvider(t *testing.T) {
 		},
 		{
 			name: "cursor from new config",
-			cfg: V2Config{
+			cfg: Config{
 				Providers: ProvidersConfig{
 					Cursor: &ProviderConfig{Command: "cursor-cli", Enabled: true},
 				},
@@ -1682,7 +1682,7 @@ func TestGetProvider(t *testing.T) {
 		},
 		{
 			name: "cursor from legacy fallback",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					Cursor: &ToolConfig{Command: "cursor-legacy", Enabled: true},
 				},
@@ -1693,7 +1693,7 @@ func TestGetProvider(t *testing.T) {
 		},
 		{
 			name: "codex from new config",
-			cfg: V2Config{
+			cfg: Config{
 				Providers: ProvidersConfig{
 					Codex: &ProviderConfig{Command: "codex-cli", Enabled: true},
 				},
@@ -1704,7 +1704,7 @@ func TestGetProvider(t *testing.T) {
 		},
 		{
 			name: "codex from legacy fallback",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					Codex: &ToolConfig{Command: "codex-legacy", Enabled: true},
 				},
@@ -1715,7 +1715,7 @@ func TestGetProvider(t *testing.T) {
 		},
 		{
 			name: "opencode from new config",
-			cfg: V2Config{
+			cfg: Config{
 				Providers: ProvidersConfig{
 					OpenCode: &ProviderConfig{Command: "opencode-cli", Enabled: true},
 				},
@@ -1726,7 +1726,7 @@ func TestGetProvider(t *testing.T) {
 		},
 		{
 			name: "openclaw from new config",
-			cfg: V2Config{
+			cfg: Config{
 				Providers: ProvidersConfig{
 					OpenClaw: &ProviderConfig{Command: "openclaw-cli", Enabled: true},
 				},
@@ -1737,7 +1737,7 @@ func TestGetProvider(t *testing.T) {
 		},
 		{
 			name: "aider from new config",
-			cfg: V2Config{
+			cfg: Config{
 				Providers: ProvidersConfig{
 					Aider: &ProviderConfig{Command: "aider-cli", Enabled: true},
 				},
@@ -1748,7 +1748,7 @@ func TestGetProvider(t *testing.T) {
 		},
 		{
 			name: "custom provider",
-			cfg: V2Config{
+			cfg: Config{
 				Providers: ProvidersConfig{
 					Custom: map[string]ProviderConfig{
 						"my-provider": {Command: "my-cmd", Enabled: true},
@@ -1783,7 +1783,7 @@ func TestGetProvider(t *testing.T) {
 // TestGetTool tests all branches of the GetTool method
 func TestGetTool(t *testing.T) {
 	tests := []struct { //nolint:govet // test struct alignment not critical
-		cfg         V2Config
+		cfg         Config
 		name        string
 		toolName    string
 		wantCommand string
@@ -1791,49 +1791,49 @@ func TestGetTool(t *testing.T) {
 	}{
 		{
 			name:     "claude",
-			cfg:      V2Config{Tools: ToolsConfig{Claude: &ToolConfig{Command: "claude"}}},
+			cfg:      Config{Tools: ToolsConfig{Claude: &ToolConfig{Command: "claude"}}},
 			toolName: "claude", wantCommand: "claude",
 		},
 		{
 			name:     "cursor",
-			cfg:      V2Config{Tools: ToolsConfig{Cursor: &ToolConfig{Command: "cursor"}}},
+			cfg:      Config{Tools: ToolsConfig{Cursor: &ToolConfig{Command: "cursor"}}},
 			toolName: "cursor", wantCommand: "cursor",
 		},
 		{
 			name:     "codex",
-			cfg:      V2Config{Tools: ToolsConfig{Codex: &ToolConfig{Command: "codex"}}},
+			cfg:      Config{Tools: ToolsConfig{Codex: &ToolConfig{Command: "codex"}}},
 			toolName: "codex", wantCommand: "codex",
 		},
 		{
 			name:     "gemini",
-			cfg:      V2Config{Tools: ToolsConfig{Gemini: &ToolConfig{Command: "gemini"}}},
+			cfg:      Config{Tools: ToolsConfig{Gemini: &ToolConfig{Command: "gemini"}}},
 			toolName: "gemini", wantCommand: "gemini",
 		},
 		{
 			name:     "github",
-			cfg:      V2Config{Tools: ToolsConfig{GitHub: &ToolConfig{Command: "gh"}}},
+			cfg:      Config{Tools: ToolsConfig{GitHub: &ToolConfig{Command: "gh"}}},
 			toolName: "github", wantCommand: "gh",
 		},
 		{
 			name:     "gitlab",
-			cfg:      V2Config{Tools: ToolsConfig{GitLab: &ToolConfig{Command: "glab"}}},
+			cfg:      Config{Tools: ToolsConfig{GitLab: &ToolConfig{Command: "glab"}}},
 			toolName: "gitlab", wantCommand: "glab",
 		},
 		{
 			name:     "jira",
-			cfg:      V2Config{Tools: ToolsConfig{Jira: &ToolConfig{Command: "jira"}}},
+			cfg:      Config{Tools: ToolsConfig{Jira: &ToolConfig{Command: "jira"}}},
 			toolName: "jira", wantCommand: "jira",
 		},
 		{
 			name: "custom tool",
-			cfg: V2Config{Tools: ToolsConfig{Custom: map[string]ToolConfig{
+			cfg: Config{Tools: ToolsConfig{Custom: map[string]ToolConfig{
 				"my-tool": {Command: "my-cmd"},
 			}}},
 			toolName: "my-tool", wantCommand: "my-cmd",
 		},
 		{
 			name:     "unknown returns nil",
-			cfg:      V2Config{},
+			cfg:      Config{},
 			toolName: "nonexistent", wantNil: true,
 		},
 	}
@@ -1860,7 +1860,7 @@ func TestGetTool(t *testing.T) {
 // TestGetService tests the new GetService method (Issue #1771)
 func TestGetService(t *testing.T) {
 	tests := []struct { //nolint:govet // test struct alignment not critical
-		cfg         V2Config
+		cfg         Config
 		name        string
 		serviceName string
 		wantCommand string
@@ -1868,7 +1868,7 @@ func TestGetService(t *testing.T) {
 	}{
 		{
 			name: "github from new config",
-			cfg: V2Config{
+			cfg: Config{
 				Services: ServicesConfig{
 					GitHub: &ServiceConfig{Command: "gh", Enabled: true},
 				},
@@ -1879,7 +1879,7 @@ func TestGetService(t *testing.T) {
 		},
 		{
 			name: "github from legacy config fallback",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					GitHub: &ToolConfig{Command: "gh-legacy", Enabled: true},
 				},
@@ -1890,7 +1890,7 @@ func TestGetService(t *testing.T) {
 		},
 		{
 			name: "github new config takes precedence over legacy",
-			cfg: V2Config{
+			cfg: Config{
 				Services: ServicesConfig{
 					GitHub: &ServiceConfig{Command: "gh-new", Enabled: true},
 				},
@@ -1904,7 +1904,7 @@ func TestGetService(t *testing.T) {
 		},
 		{
 			name: "gitlab from new config",
-			cfg: V2Config{
+			cfg: Config{
 				Services: ServicesConfig{
 					GitLab: &ServiceConfig{Command: "glab", Enabled: true},
 				},
@@ -1915,7 +1915,7 @@ func TestGetService(t *testing.T) {
 		},
 		{
 			name: "gitlab from legacy config fallback",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					GitLab: &ToolConfig{Command: "glab-legacy", Enabled: true},
 				},
@@ -1926,7 +1926,7 @@ func TestGetService(t *testing.T) {
 		},
 		{
 			name: "gitlab new config takes precedence over legacy",
-			cfg: V2Config{
+			cfg: Config{
 				Services: ServicesConfig{
 					GitLab: &ServiceConfig{Command: "glab-new", Enabled: true},
 				},
@@ -1940,7 +1940,7 @@ func TestGetService(t *testing.T) {
 		},
 		{
 			name: "jira from new config",
-			cfg: V2Config{
+			cfg: Config{
 				Services: ServicesConfig{
 					Jira: &ServiceConfig{Command: "jira-cli", Enabled: true},
 				},
@@ -1951,7 +1951,7 @@ func TestGetService(t *testing.T) {
 		},
 		{
 			name: "jira from legacy config fallback",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					Jira: &ToolConfig{Command: "jira-legacy", Enabled: true},
 				},
@@ -1962,7 +1962,7 @@ func TestGetService(t *testing.T) {
 		},
 		{
 			name: "jira new config takes precedence over legacy",
-			cfg: V2Config{
+			cfg: Config{
 				Services: ServicesConfig{
 					Jira: &ServiceConfig{Command: "jira-new", Enabled: true},
 				},
@@ -1976,7 +1976,7 @@ func TestGetService(t *testing.T) {
 		},
 		{
 			name:        "unknown service returns nil",
-			cfg:         V2Config{},
+			cfg:         Config{},
 			serviceName: "unknown",
 			wantNil:     true,
 		},
@@ -2004,13 +2004,13 @@ func TestGetService(t *testing.T) {
 // TestGetDefaultProvider tests the GetDefaultProvider method (Issue #1771)
 func TestGetDefaultProvider(t *testing.T) {
 	tests := []struct { //nolint:govet // test struct alignment not critical
-		cfg  V2Config
+		cfg  Config
 		name string
 		want string
 	}{
 		{
 			name: "default from new config",
-			cfg: V2Config{
+			cfg: Config{
 				Providers: ProvidersConfig{Default: "gemini"},
 				Tools:     ToolsConfig{Default: "claude"},
 			},
@@ -2018,14 +2018,14 @@ func TestGetDefaultProvider(t *testing.T) {
 		},
 		{
 			name: "fallback to legacy config",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{Default: "claude"},
 			},
 			want: "claude",
 		},
 		{
 			name: "empty when nothing set",
-			cfg:  V2Config{},
+			cfg:  Config{},
 			want: "",
 		},
 	}
@@ -2044,12 +2044,12 @@ func TestGetDefaultProvider(t *testing.T) {
 func TestListProviders(t *testing.T) {
 	tests := []struct { //nolint:govet // test struct alignment not critical
 		name string
-		cfg  V2Config
+		cfg  Config
 		want []string
 	}{
 		{
 			name: "providers from new config",
-			cfg: V2Config{
+			cfg: Config{
 				Providers: ProvidersConfig{
 					Claude: &ProviderConfig{Command: "claude", Enabled: true},
 					Gemini: &ProviderConfig{Command: "gemini", Enabled: true},
@@ -2060,7 +2060,7 @@ func TestListProviders(t *testing.T) {
 		},
 		{
 			name: "fallback to legacy tools",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					Claude: &ToolConfig{Command: "claude", Enabled: true},
 					Cursor: &ToolConfig{Command: "cursor", Enabled: true},
@@ -2070,7 +2070,7 @@ func TestListProviders(t *testing.T) {
 		},
 		{
 			name: "new config takes precedence, no duplicates",
-			cfg: V2Config{
+			cfg: Config{
 				Providers: ProvidersConfig{
 					Claude: &ProviderConfig{Command: "claude --new", Enabled: true},
 				},
@@ -2083,7 +2083,7 @@ func TestListProviders(t *testing.T) {
 		},
 		{
 			name: "empty config returns nil",
-			cfg:  V2Config{},
+			cfg:  Config{},
 			want: nil,
 		},
 	}
@@ -2114,12 +2114,12 @@ func TestListProviders(t *testing.T) {
 func TestListServices(t *testing.T) {
 	tests := []struct { //nolint:govet // test struct alignment not critical
 		name string
-		cfg  V2Config
+		cfg  Config
 		want []string
 	}{
 		{
 			name: "services from new config",
-			cfg: V2Config{
+			cfg: Config{
 				Services: ServicesConfig{
 					GitHub: &ServiceConfig{Command: "gh", Enabled: true},
 					Jira:   &ServiceConfig{Command: "jira", Enabled: false},
@@ -2129,7 +2129,7 @@ func TestListServices(t *testing.T) {
 		},
 		{
 			name: "fallback to legacy tools",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					GitHub: &ToolConfig{Command: "gh", Enabled: true},
 					GitLab: &ToolConfig{Command: "glab", Enabled: true},
@@ -2139,7 +2139,7 @@ func TestListServices(t *testing.T) {
 		},
 		{
 			name: "no duplicates when both defined",
-			cfg: V2Config{
+			cfg: Config{
 				Services: ServicesConfig{
 					GitHub: &ServiceConfig{Command: "gh", Enabled: true},
 				},
@@ -2152,7 +2152,7 @@ func TestListServices(t *testing.T) {
 		},
 		{
 			name: "empty config returns nil",
-			cfg:  V2Config{},
+			cfg:  Config{},
 			want: nil,
 		},
 	}
@@ -2181,7 +2181,7 @@ func TestListServices(t *testing.T) {
 
 // TestHasTool_ChecksProviders tests that hasToolDefined checks providers first (Issue #1869)
 func TestHasTool_ChecksProviders(t *testing.T) {
-	cfg := V2Config{
+	cfg := Config{
 		Providers: ProvidersConfig{
 			OpenCode: &ProviderConfig{Command: "crush", Enabled: true},
 		},
@@ -2203,13 +2203,13 @@ func TestHasTool_ChecksServices(t *testing.T) {
 	tests := []struct {
 		name     string
 		toolName string
-		cfg      V2Config
+		cfg      Config
 		want     bool
 	}{
 		{
 			name:     "github from services config",
 			toolName: "github",
-			cfg: V2Config{
+			cfg: Config{
 				Services: ServicesConfig{
 					GitHub: &ServiceConfig{Command: "gh", Enabled: true},
 				},
@@ -2219,7 +2219,7 @@ func TestHasTool_ChecksServices(t *testing.T) {
 		{
 			name:     "gitlab from services config",
 			toolName: "gitlab",
-			cfg: V2Config{
+			cfg: Config{
 				Services: ServicesConfig{
 					GitLab: &ServiceConfig{Command: "glab", Enabled: true},
 				},
@@ -2229,7 +2229,7 @@ func TestHasTool_ChecksServices(t *testing.T) {
 		{
 			name:     "jira from services config",
 			toolName: "jira",
-			cfg: V2Config{
+			cfg: Config{
 				Services: ServicesConfig{
 					Jira: &ServiceConfig{Command: "jira", Enabled: true},
 				},
@@ -2239,7 +2239,7 @@ func TestHasTool_ChecksServices(t *testing.T) {
 		{
 			name:     "provider found before service checked",
 			toolName: "claude",
-			cfg: V2Config{
+			cfg: Config{
 				Providers: ProvidersConfig{
 					Claude: &ProviderConfig{Command: "claude", Enabled: true},
 				},
@@ -2249,7 +2249,7 @@ func TestHasTool_ChecksServices(t *testing.T) {
 		{
 			name:     "custom provider defined",
 			toolName: "my-provider",
-			cfg: V2Config{
+			cfg: Config{
 				Providers: ProvidersConfig{
 					Custom: map[string]ProviderConfig{
 						"my-provider": {Command: "my-cmd", Enabled: true},
@@ -2261,7 +2261,7 @@ func TestHasTool_ChecksServices(t *testing.T) {
 		{
 			name:     "gemini from legacy tools",
 			toolName: "gemini",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					Gemini: &ToolConfig{Command: "gemini", Enabled: true},
 				},
@@ -2271,7 +2271,7 @@ func TestHasTool_ChecksServices(t *testing.T) {
 		{
 			name:     "github from legacy tools",
 			toolName: "github",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					GitHub: &ToolConfig{Command: "gh", Enabled: true},
 				},
@@ -2281,7 +2281,7 @@ func TestHasTool_ChecksServices(t *testing.T) {
 		{
 			name:     "gitlab from legacy tools",
 			toolName: "gitlab",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					GitLab: &ToolConfig{Command: "glab", Enabled: true},
 				},
@@ -2291,7 +2291,7 @@ func TestHasTool_ChecksServices(t *testing.T) {
 		{
 			name:     "jira from legacy tools",
 			toolName: "jira",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					Jira: &ToolConfig{Command: "jira", Enabled: true},
 				},
@@ -2310,19 +2310,19 @@ func TestHasTool_ChecksServices(t *testing.T) {
 	}
 }
 
-// TestDefaultV2Config_PopulatesProviders tests that defaults include ProvidersConfig (Issue #1869)
-func TestDefaultV2Config_PopulatesProviders(t *testing.T) {
-	cfg := DefaultV2Config("test")
+// TestDefaultConfig_PopulatesProviders tests that defaults include ProvidersConfig (Issue #1869)
+func TestDefaultConfig_PopulatesProviders(t *testing.T) {
+	cfg := DefaultConfig("test")
 
 	// ProvidersConfig should have defaults
 	if cfg.Providers.Default == "" {
-		t.Error("DefaultV2Config should set Providers.Default")
+		t.Error("DefaultConfig should set Providers.Default")
 	}
 	if cfg.Providers.Claude == nil {
-		t.Error("DefaultV2Config should set Providers.Claude")
+		t.Error("DefaultConfig should set Providers.Claude")
 	}
 	if cfg.Providers.Gemini == nil {
-		t.Error("DefaultV2Config should set Providers.Gemini")
+		t.Error("DefaultConfig should set Providers.Gemini")
 	}
 
 	// Should match Tools defaults
@@ -2332,7 +2332,7 @@ func TestDefaultV2Config_PopulatesProviders(t *testing.T) {
 }
 
 func TestHasToolDefinedCustomTool(t *testing.T) {
-	cfg := V2Config{
+	cfg := Config{
 		Tools: ToolsConfig{
 			Custom: map[string]ToolConfig{
 				"my-custom": {Command: "my-custom --yolo", Enabled: true},
@@ -2352,49 +2352,49 @@ func TestHasToolDefinedLegacyFallbacks(t *testing.T) {
 	tests := []struct {
 		name     string
 		toolName string
-		cfg      V2Config
+		cfg      Config
 		want     bool
 	}{
 		{
 			name:     "legacy claude",
 			toolName: "claude",
-			cfg:      V2Config{Tools: ToolsConfig{Claude: &ToolConfig{Enabled: true}}},
+			cfg:      Config{Tools: ToolsConfig{Claude: &ToolConfig{Enabled: true}}},
 			want:     true,
 		},
 		{
 			name:     "legacy cursor",
 			toolName: "cursor",
-			cfg:      V2Config{Tools: ToolsConfig{Cursor: &ToolConfig{Enabled: true}}},
+			cfg:      Config{Tools: ToolsConfig{Cursor: &ToolConfig{Enabled: true}}},
 			want:     true,
 		},
 		{
 			name:     "legacy codex",
 			toolName: "codex",
-			cfg:      V2Config{Tools: ToolsConfig{Codex: &ToolConfig{Enabled: true}}},
+			cfg:      Config{Tools: ToolsConfig{Codex: &ToolConfig{Enabled: true}}},
 			want:     true,
 		},
 		{
 			name:     "legacy github",
 			toolName: "github",
-			cfg:      V2Config{Tools: ToolsConfig{GitHub: &ToolConfig{Enabled: true}}},
+			cfg:      Config{Tools: ToolsConfig{GitHub: &ToolConfig{Enabled: true}}},
 			want:     true,
 		},
 		{
 			name:     "legacy gitlab",
 			toolName: "gitlab",
-			cfg:      V2Config{Tools: ToolsConfig{GitLab: &ToolConfig{Enabled: true}}},
+			cfg:      Config{Tools: ToolsConfig{GitLab: &ToolConfig{Enabled: true}}},
 			want:     true,
 		},
 		{
 			name:     "legacy jira",
 			toolName: "jira",
-			cfg:      V2Config{Tools: ToolsConfig{Jira: &ToolConfig{Enabled: true}}},
+			cfg:      Config{Tools: ToolsConfig{Jira: &ToolConfig{Enabled: true}}},
 			want:     true,
 		},
 		{
 			name:     "nil custom map",
 			toolName: "custom-x",
-			cfg:      V2Config{},
+			cfg:      Config{},
 			want:     false,
 		},
 	}
@@ -2410,7 +2410,7 @@ func TestHasToolDefinedLegacyFallbacks(t *testing.T) {
 }
 
 func TestListProvidersCustomProviders(t *testing.T) {
-	cfg := V2Config{
+	cfg := Config{
 		Providers: ProvidersConfig{
 			Claude: &ProviderConfig{Enabled: true, Command: "claude"},
 			Custom: map[string]ProviderConfig{
@@ -2435,7 +2435,7 @@ func TestListProvidersCustomProviders(t *testing.T) {
 }
 
 func TestListProvidersDisabledCustom(t *testing.T) {
-	cfg := V2Config{
+	cfg := Config{
 		Providers: ProvidersConfig{
 			Custom: map[string]ProviderConfig{
 				"disabled-llm": {Enabled: false, Command: "disabled"},
@@ -2451,8 +2451,8 @@ func TestListProvidersDisabledCustom(t *testing.T) {
 	}
 }
 
-func TestV2ConfigSaveErrorPath(t *testing.T) {
-	cfg := DefaultV2Config("test")
+func TestConfigSaveErrorPath(t *testing.T) {
+	cfg := DefaultConfig("test")
 
 	// Try to save to a path where the parent can't be created
 	err := cfg.Save("/dev/null/impossible/config.toml")
@@ -2462,7 +2462,7 @@ func TestV2ConfigSaveErrorPath(t *testing.T) {
 }
 
 func TestValidatePerformancePollTooLow(t *testing.T) {
-	cfg := DefaultV2Config("test")
+	cfg := DefaultConfig("test")
 	cfg.Performance.PollIntervalAgents = 100 // Below 500ms minimum
 
 	err := cfg.Validate()
@@ -2472,7 +2472,7 @@ func TestValidatePerformancePollTooLow(t *testing.T) {
 }
 
 func TestValidatePerformanceAdaptiveTooLow(t *testing.T) {
-	cfg := DefaultV2Config("test")
+	cfg := DefaultConfig("test")
 	cfg.Performance.AdaptiveFastInterval = 200 // Below 500ms minimum
 
 	err := cfg.Validate()
@@ -2482,7 +2482,7 @@ func TestValidatePerformanceAdaptiveTooLow(t *testing.T) {
 }
 
 func TestValidatePerformanceCacheTTLOutOfRange(t *testing.T) {
-	cfg := DefaultV2Config("test")
+	cfg := DefaultConfig("test")
 	cfg.Performance.CacheTTLTmux = 50 // Below 100ms minimum
 
 	err := cfg.Validate()
@@ -2491,7 +2491,7 @@ func TestValidatePerformanceCacheTTLOutOfRange(t *testing.T) {
 	}
 
 	// Also test above max
-	cfg2 := DefaultV2Config("test")
+	cfg2 := DefaultConfig("test")
 	cfg2.Performance.CacheTTLCommands = 70000 // Above 60000ms max
 
 	err = cfg2.Validate()
@@ -2501,7 +2501,7 @@ func TestValidatePerformanceCacheTTLOutOfRange(t *testing.T) {
 }
 
 func TestValidateUserNickname(t *testing.T) {
-	cfg := DefaultV2Config("test")
+	cfg := DefaultConfig("test")
 	cfg.User.Nickname = "no-at-prefix"
 
 	err := cfg.Validate()
@@ -2511,7 +2511,7 @@ func TestValidateUserNickname(t *testing.T) {
 }
 
 func TestGetProviderCustomProvider(t *testing.T) {
-	cfg := V2Config{
+	cfg := Config{
 		Providers: ProvidersConfig{
 			Custom: map[string]ProviderConfig{
 				"custom-llm": {Enabled: true, Command: "custom-llm --run"},
@@ -2535,7 +2535,7 @@ func TestGetProviderCustomProvider(t *testing.T) {
 
 func TestGetProviderLegacyFallbacks(t *testing.T) {
 	// Only legacy Tools config set (no Providers)
-	cfg := V2Config{
+	cfg := Config{
 		Tools: ToolsConfig{
 			Claude: &ToolConfig{Command: "claude --legacy", Enabled: true},
 			Gemini: &ToolConfig{Command: "gemini --legacy", Enabled: true},
@@ -2557,7 +2557,7 @@ func TestGetProviderLegacyFallbacks(t *testing.T) {
 }
 
 func TestGetProviderNewProviders(t *testing.T) {
-	cfg := V2Config{
+	cfg := Config{
 		Providers: ProvidersConfig{
 			OpenCode: &ProviderConfig{Command: "opencode", Enabled: true},
 			OpenClaw: &ProviderConfig{Command: "openclaw", Enabled: true},
@@ -2574,7 +2574,7 @@ func TestGetProviderNewProviders(t *testing.T) {
 }
 
 func TestGetServiceLegacyFallback(t *testing.T) {
-	cfg := V2Config{
+	cfg := Config{
 		Tools: ToolsConfig{
 			GitHub: &ToolConfig{Command: "gh", Enabled: true},
 			GitLab: &ToolConfig{Command: "glab", Enabled: true},
@@ -2596,7 +2596,7 @@ func TestGetServiceLegacyFallback(t *testing.T) {
 }
 
 func TestListServicesLegacyFallback(t *testing.T) {
-	cfg := V2Config{
+	cfg := Config{
 		Tools: ToolsConfig{
 			GitHub: &ToolConfig{Command: "gh", Enabled: true},
 		},
@@ -2615,7 +2615,7 @@ func TestListServicesLegacyFallback(t *testing.T) {
 }
 
 func TestListServicesNewConfig(t *testing.T) {
-	cfg := V2Config{
+	cfg := Config{
 		Services: ServicesConfig{
 			GitHub: &ServiceConfig{Command: "gh", Enabled: true},
 			GitLab: &ServiceConfig{Command: "glab", Enabled: true},
@@ -2629,7 +2629,7 @@ func TestListServicesNewConfig(t *testing.T) {
 }
 
 func TestListServicesDedup(t *testing.T) {
-	cfg := V2Config{
+	cfg := Config{
 		Services: ServicesConfig{
 			GitHub: &ServiceConfig{Command: "gh", Enabled: true},
 		},

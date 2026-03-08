@@ -131,7 +131,7 @@ func scanDir(dir string, maxDepth int, seen map[string]bool, workspaces *[]Disco
 
 		// Try to get name from config
 		if w, loadErr := Load(absDir); loadErr == nil {
-			ws.Name = w.Config.Name
+			ws.Name = w.Name()
 		}
 
 		mu.Lock()

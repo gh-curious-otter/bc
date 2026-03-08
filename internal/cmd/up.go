@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -44,7 +43,6 @@ func runUp(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Starting bc in %s\n\n", ws.RootDir)
 
 	// Create workspace-scoped agent manager
-	ctx := cmd.Context()
 	mgr := newAgentManager(ws)
 
 	// Load existing agent state to preserve other agents when starting root
@@ -52,68 +50,33 @@ func runUp(cmd *cobra.Command, args []string) error {
 		log.Warn("failed to load agent state", "error", loadErr)
 	}
 
-	// Use custom agent command: workspace config > --agent flag > default
-	if ws.Config.AgentCommand != "" {
-		mgr.SetAgentCommand(ws.Config.AgentCommand)
-	} else if upAgent != "" {
+	// Use custom agent command: --agent flag > default
+	if upAgent != "" {
 		if !mgr.SetAgentByName(upAgent) {
 			return fmt.Errorf("unknown agent %q (check config [[agents]] for valid names)", upAgent)
 		}
 	}
 
-	// Check for existing root state and handle recovery
-	rootStore := agent.NewRootStateStore(ws.StateDir())
-	recovery, err := rootStore.CheckRecovery(ctx, mgr.Runtime())
-	if err != nil {
-		return fmt.Errorf("failed to check root state: %w", err)
-	}
-
-	if recovery.IsRunning {
-		// Root is already running
-		fmt.Println("Root agent already running!")
-		fmt.Printf("  Session: %s\n", recovery.State.Session)
-		fmt.Printf("  State: %s\n", recovery.State.State)
-		if len(recovery.State.Children) > 0 {
-			fmt.Printf("  Children: %s\n", strings.Join(recovery.State.Children, ", "))
-		}
-		fmt.Println()
-		fmt.Println("Use 'bc attach root' to attach or 'bc down' first to restart.")
-		return nil
-	}
-
-	if recovery.NeedsRecover {
-		// Root state exists but session is dead - recover
-		fmt.Println("Recovering crashed root agent...")
-		fmt.Printf("  Previous session: %s\n", recovery.State.Session)
-		if len(recovery.State.Children) > 0 {
-			fmt.Printf("  Children to preserve: %s\n", strings.Join(recovery.State.Children, ", "))
-		}
-		fmt.Println()
-	}
-
-	// Start root (acts as root agent)
+	// Start root agent — SpawnAgent handles all cases:
+	// - No existing root → create fresh
+	// - Existing root with live session → return "already running"
+	// - Existing root with dead session → respawn (recreate tmux)
 	fmt.Print("Starting root... ")
 	coord, err := mgr.SpawnAgent("root", agent.RoleRoot, ws.RootDir)
 	if err != nil {
 		fmt.Println("✗")
+		// Check if root is already running
+		if existing := mgr.GetAgent("root"); existing != nil && mgr.Runtime().HasSession(cmd.Context(), existing.Name) {
+			fmt.Printf("\nRoot agent already running!\n")
+			fmt.Printf("  Session: %s\n", existing.Session)
+			fmt.Printf("  State: %s\n", existing.State)
+			fmt.Println()
+			fmt.Println("Use 'bc attach root' to attach or 'bc down' first to restart.")
+			return nil
+		}
 		return fmt.Errorf("failed to start root: %w", err)
 	}
 	fmt.Printf("✓ (session: %s)\n", mgr.Runtime().SessionName(coord.Session))
-
-	// Create or update root state
-	if recovery.NeedsCreate || recovery.NeedsRecover {
-		if recovery.NeedsCreate {
-			// Create new root state
-			_, createErr := rootStore.Create("root", agent.RoleRoot, ws.DefaultTool())
-			if createErr != nil && createErr != agent.ErrRootExists {
-				fmt.Printf("  Warning: failed to create root state: %v\n", createErr)
-			}
-		}
-		// Update session in root state
-		if updateErr := rootStore.MarkRecovered(coord.Session); updateErr != nil {
-			fmt.Printf("  Warning: failed to update root session: %v\n", updateErr)
-		}
-	}
 
 	// Log event
 	logEvent(ws, events.Event{
@@ -161,9 +124,8 @@ Workspace: %s
 === ROOT RESPONSIBILITIES ===
 1. System Health: Monitor all agents via bc status, bc stats
 2. Agent Health: Detect stuck agents via bc agent peek, send nudges when needed
-4. Worktree Health: Monitor via bc worktree list, prune orphaned worktrees
-5. Event Monitoring: Track activity via bc logs
-6. Cost Monitoring: Track resource usage via bc cost show
+3. Event Monitoring: Track activity via bc logs
+4. Cost Monitoring: Track resource usage via bc cost show
 
 === BOUNDARIES ===
 NEVER: Assign work (manager role), use channels (cause flooding), manipulate files directly
@@ -192,11 +154,6 @@ bc logs --since DURATION            # Events since duration (1h, 30m)
 bc logs --tail N                    # Last N events
 bc logs --full                      # Full messages
 bc logs --json                      # JSON output
-
-** Worktree Health **
-bc worktree list                    # List all worktrees and status
-bc worktree check                   # Check if agent in correct worktree
-bc worktree prune                   # Clean orphaned worktrees
 
 ** Cost Monitoring **
 bc cost show                        # Current agent costs
@@ -242,19 +199,14 @@ bc stats --json                     # JSON format
 === MONITORING WORKFLOW ===
 1. Check system: bc status
 2. Review activity: bc logs --since 1h
-3. Check worktrees: bc worktree list
-4. If agent stuck: bc agent peek NAME → bc agent send NAME "nudge message"
-5. Monitor costs: bc cost show (periodic)
+3. If agent stuck: bc agent peek NAME → bc agent send NAME "nudge message"
+4. Monitor costs: bc cost show (periodic)
 
 === HEALTH CHECK PATTERNS ===
 Stuck agent detection:
 - bc status shows long-running task
 - bc agent peek NAME shows no progress
 - Action: bc agent send NAME "Brief nudge about specific issue"
-
-Worktree issues:
-- bc worktree list shows ORPHANED
-- Action: bc worktree prune
 `, rootDir)
 }
 

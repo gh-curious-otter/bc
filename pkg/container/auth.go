@@ -7,104 +7,101 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 
 	"github.com/rpuneet/bc/pkg/log"
 )
 
-// credentialsFile holds extracted auth credentials for a provider.
-type credentialsFile struct {
-	Provider string `json:"provider"`
-	Token    string `json:"token"`
-}
-
-// EnsureCredentials extracts auth tokens from the host system and writes them
-// to a per-agent credentials directory that can be mounted into containers.
-// Each agent gets its own isolated copy so credentials can diverge at runtime.
+// AgentAuthDir returns the per-agent auth directory.
+// This directory is mounted into the container as ~/.claude/ and persists
+// across container restarts. Each agent has its own isolated credentials.
 //
-// For macOS: extracts from the Keychain.
-// For Linux: extracts from file-based credential stores.
+// Layout: <workspaceDir>/.bc/agents/<agentName>/auth/.claude/
+func AgentAuthDir(workspaceDir, agentName string) string {
+	return filepath.Join(workspaceDir, ".bc", "agents", agentName, "auth", ".claude")
+}
+
+// EnsureAuthDir creates the per-agent auth directory if it doesn't exist.
+func EnsureAuthDir(workspaceDir, agentName string) (string, error) {
+	dir := AgentAuthDir(workspaceDir, agentName)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return "", fmt.Errorf("failed to create agent auth dir: %w", err)
+	}
+	return dir, nil
+}
+
+// IsAuthenticated checks if an agent has valid auth credentials.
+// Runs `claude auth status` with HOME set to the agent's auth dir parent.
+func IsAuthenticated(ctx context.Context, workspaceDir, agentName string) (bool, error) {
+	authDir := AgentAuthDir(workspaceDir, agentName)
+	if _, err := os.Stat(authDir); os.IsNotExist(err) {
+		return false, nil
+	}
+
+	// claude auth status --json returns {"loggedIn": true/false, ...}
+	//nolint:gosec // trusted binary + agent name from internal state
+	cmd := exec.CommandContext(ctx, "claude", "auth", "status", "--json")
+	cmd.Env = authEnv(authDir)
+	output, err := cmd.Output()
+	if err != nil {
+		return false, nil
+	}
+
+	var status struct {
+		LoggedIn bool `json:"loggedIn"`
+	}
+	if err := json.Unmarshal(output, &status); err != nil {
+		return false, nil
+	}
+	return status.LoggedIn, nil
+}
+
+// Login runs `claude auth login` for a specific agent.
+// This opens a browser on the host for OAuth. The credentials are stored
+// in the agent's isolated auth directory.
 //
-// Returns the path to the agent's credentials directory.
-func EnsureCredentials(workspaceDir, agentName string) (string, error) {
-	credsDir := filepath.Join(workspaceDir, ".bc", credentialsDirName, agentName)
-	if err := os.MkdirAll(credsDir, 0700); err != nil {
-		return "", fmt.Errorf("failed to create credentials dir: %w", err)
+// Must be run interactively (stdin/stdout/stderr attached to terminal).
+func Login(ctx context.Context, workspaceDir, agentName string) error {
+	authDir, err := EnsureAuthDir(workspaceDir, agentName)
+	if err != nil {
+		return err
 	}
 
-	// Extract Claude OAuth token
-	if err := extractClaudeToken(credsDir); err != nil {
-		log.Debug("failed to extract claude token (may need login)", "error", err)
-	}
-
-	// Extract other provider tokens from env vars and write to files
-	// This way they're in files (not visible in docker inspect) and mounted read-only.
-	envProviders := map[string]string{
-		"anthropic": "ANTHROPIC_API_KEY",
-		"google":    "GOOGLE_API_KEY",
-		"gemini":    "GEMINI_API_KEY",
-		"openai":    "OPENAI_API_KEY",
-	}
-	for name, envKey := range envProviders {
-		if val := os.Getenv(envKey); val != "" {
-			cred := credentialsFile{Provider: name, Token: val}
-			writeCredential(credsDir, name, cred)
-		}
-	}
-
-	return credsDir, nil
+	//nolint:gosec // trusted binary
+	cmd := exec.CommandContext(ctx, "claude", "auth", "login")
+	cmd.Env = authEnv(authDir)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
-// EnsureAllCredentials extracts credentials for all agents or a default set.
-// Used by `bc agent auth` to refresh credentials workspace-wide.
-func EnsureAllCredentials(workspaceDir string) (string, error) {
-	return EnsureCredentials(workspaceDir, "_default")
-}
-
-// extractClaudeToken pulls the Claude Code OAuth token from the system keychain.
-func extractClaudeToken(credsDir string) error {
-	if runtime.GOOS != "darwin" {
-		return fmt.Errorf("keychain extraction only supported on macOS")
+// LoginIfNeeded checks auth status and runs login if not authenticated.
+func LoginIfNeeded(ctx context.Context, workspaceDir, agentName string) error {
+	ok, _ := IsAuthenticated(ctx, workspaceDir, agentName)
+	if ok {
+		log.Debug("agent already authenticated", "agent", agentName)
+		return nil
 	}
 
-	// Try both keychain entries Claude Code uses
-	ctx := context.Background()
-	for _, service := range []string{"claude-code", "claude"} {
-		//nolint:gosec // service names are hardcoded strings
-		cmd := exec.CommandContext(ctx, "security", "find-generic-password", "-s", service, "-w")
-		output, err := cmd.Output()
-		if err != nil {
+	fmt.Printf("Agent %q needs authentication. Opening browser for login...\n", agentName)
+	return Login(ctx, workspaceDir, agentName)
+}
+
+// authEnv returns environment variables with HOME set to the agent's auth
+// directory parent, so claude stores credentials in the agent's isolated dir.
+func authEnv(authDir string) []string {
+	// authDir is .../auth/.claude, so parent is .../auth/
+	// Setting HOME to .../auth/ means claude writes to $HOME/.claude/ = authDir
+	home := filepath.Dir(authDir)
+	env := os.Environ()
+	result := make([]string, 0, len(env)+1)
+	for _, e := range env {
+		// Replace HOME
+		if len(e) > 5 && e[:5] == "HOME=" {
 			continue
 		}
-		token := string(output)
-		if len(token) > 0 {
-			// Remove trailing newline
-			if token[len(token)-1] == '\n' {
-				token = token[:len(token)-1]
-			}
-			cred := credentialsFile{Provider: service, Token: token}
-			writeCredential(credsDir, service, cred)
-			return nil
-		}
+		result = append(result, e)
 	}
-
-	return fmt.Errorf("no claude token found in keychain")
-}
-
-// writeCredential writes a credential to a JSON file with restricted permissions.
-func writeCredential(dir, name string, cred credentialsFile) {
-	data, err := json.Marshal(cred)
-	if err != nil {
-		log.Warn("failed to marshal credential", "name", name, "error", err)
-		return
-	}
-	path := filepath.Join(dir, name+".json")
-	if err := os.WriteFile(path, data, 0600); err != nil {
-		log.Warn("failed to write credential", "name", name, "error", err)
-	}
-}
-
-// AgentCredentialsDir returns the per-agent credentials directory path.
-func AgentCredentialsDir(workspaceDir, agentName string) string {
-	return filepath.Join(workspaceDir, ".bc", credentialsDirName, agentName)
+	result = append(result, "HOME="+home)
+	return result
 }

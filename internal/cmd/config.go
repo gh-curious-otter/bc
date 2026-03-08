@@ -212,18 +212,18 @@ func init() {
 	rootCmd.AddCommand(configCmd)
 }
 
-func loadWorkspaceConfig() (*workspace.V2Config, string, error) {
+func loadWorkspaceConfig() (*workspace.Config, string, error) {
 	ws, err := getWorkspace()
 	if err != nil {
 		return nil, "", fmt.Errorf("not in a bc workspace: %w", err)
 	}
 
-	if ws.V2Config == nil {
+	if ws.Config == nil {
 		return nil, "", fmt.Errorf("workspace is using v1 config format. Run 'bc init' to upgrade to v2")
 	}
 
 	configPath := workspace.ConfigPath(ws.RootDir)
-	return ws.V2Config, configPath, nil
+	return ws.Config, configPath, nil
 }
 
 func runConfigShow(cmd *cobra.Command, args []string) error {
@@ -392,7 +392,7 @@ func runConfigReset(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create default config
-	defaultCfg := workspace.DefaultV2Config(ws.Config.Name)
+	defaultCfg := workspace.DefaultConfig(ws.Name())
 
 	// Save it
 	if err := defaultCfg.Save(configPath); err != nil {
@@ -406,7 +406,7 @@ func runConfigReset(cmd *cobra.Command, args []string) error {
 
 // Helper functions
 
-func getConfigValue(cfg *workspace.V2Config, key string) (any, error) {
+func getConfigValue(cfg *workspace.Config, key string) (any, error) {
 	parts := strings.Split(key, ".")
 	v := reflect.ValueOf(*cfg)
 
@@ -431,7 +431,7 @@ func getConfigValue(cfg *workspace.V2Config, key string) (any, error) {
 	return v.Interface(), nil
 }
 
-func setConfigValue(cfg *workspace.V2Config, key, valueStr string) error {
+func setConfigValue(cfg *workspace.Config, key, valueStr string) error {
 	parts := strings.Split(key, ".")
 	v := reflect.ValueOf(cfg).Elem()
 
@@ -519,7 +519,7 @@ func findField(v reflect.Value, name string) reflect.Value {
 	return reflect.Value{}
 }
 
-func listConfigKeys(cfg *workspace.V2Config, prefix string) []string {
+func listConfigKeys(cfg *workspace.Config, prefix string) []string {
 	var keys []string
 	v := reflect.ValueOf(*cfg)
 	t := v.Type()
@@ -589,7 +589,7 @@ func listStructKeys(v reflect.Value, prefix string) []string {
 	return keys
 }
 
-func printConfig(cfg *workspace.V2Config) {
+func printConfig(cfg *workspace.Config) {
 	fmt.Println("Workspace Configuration")
 	fmt.Println(strings.Repeat("=", 60))
 	fmt.Println()

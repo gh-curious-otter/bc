@@ -121,7 +121,7 @@ func UserRCExists() bool {
 // MergeWithUserRC merges user-level defaults from .bcrc into a workspace config.
 // Workspace config takes precedence over user config for all explicitly set values.
 // This function only fills in unset values from .bcrc.
-func (c *V2Config) MergeWithUserRC(rc *UserRCConfig) {
+func (c *Config) MergeWithUserRC(rc *UserRCConfig) {
 	if rc == nil {
 		return
 	}
@@ -139,7 +139,7 @@ func (c *V2Config) MergeWithUserRC(rc *UserRCConfig) {
 
 // GetPreferredTool returns the first available preferred tool from .bcrc,
 // or the workspace default if no preference is set.
-func (c *V2Config) GetPreferredTool(rc *UserRCConfig) string {
+func (c *Config) GetPreferredTool(rc *UserRCConfig) string {
 	if rc == nil || len(rc.Tools.Preferred) == 0 {
 		return c.Tools.Default
 	}
@@ -155,7 +155,7 @@ func (c *V2Config) GetPreferredTool(rc *UserRCConfig) string {
 }
 
 // HasTool checks if a tool is configured in the workspace.
-func (c *V2Config) HasTool(name string) bool {
+func (c *Config) HasTool(name string) bool {
 	switch name {
 	case "claude", "claude-code":
 		return c.Tools.Claude != nil && c.Tools.Claude.Enabled

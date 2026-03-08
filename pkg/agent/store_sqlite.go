@@ -112,6 +112,25 @@ func (s *SQLiteStore) Load(name string) (*Agent, error) {
 	return a, nil
 }
 
+// LoadRoot reads the root agent (is_root=1). Returns nil, nil if not found.
+func (s *SQLiteStore) LoadRoot() (*Agent, error) {
+	row := s.db.QueryRow(`
+		SELECT name, role, state, tool, parent_id, team, task, session, workspace,
+		       worktree_dir, memory_dir, log_file, hooked_work, children,
+		       is_root, crash_count, last_crash_time, recovered_from,
+		       started_at, updated_at
+		FROM agents WHERE is_root = 1 LIMIT 1`)
+
+	a, err := scanAgentRow(row)
+	if err != nil {
+		if err.Error() == "sql: no rows in result set" {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return a, nil
+}
+
 // Delete removes a single agent by name.
 func (s *SQLiteStore) Delete(name string) error {
 	_, err := s.db.Exec("DELETE FROM agents WHERE name = ?", name)

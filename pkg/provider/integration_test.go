@@ -53,8 +53,8 @@ func TestRegistryCompleteness(t *testing.T) {
 }
 
 func TestProviderConfigRoundtrip(t *testing.T) {
-	// Build a V2Config with all providers enabled
-	cfg := workspace.V2Config{
+	// Build a Config with all providers enabled
+	cfg := workspace.Config{
 		Providers: workspace.ProvidersConfig{
 			Claude:   &workspace.ProviderConfig{Command: "claude --skip", Enabled: true},
 			Gemini:   &workspace.ProviderConfig{Command: "gemini --yolo", Enabled: true},
@@ -91,14 +91,14 @@ func TestGetAgentCommandFromConfig_RealConfigs(t *testing.T) {
 	tests := []struct {
 		name    string
 		tool    string
-		cfg     *workspace.V2Config
+		cfg     *workspace.Config
 		wantCmd string
 		wantOk  bool
 	}{
 		{
 			name: "workspace claude override",
 			tool: "claude",
-			cfg: &workspace.V2Config{
+			cfg: &workspace.Config{
 				Providers: workspace.ProvidersConfig{
 					Claude: &workspace.ProviderConfig{
 						Command: "claude --model opus",
@@ -112,7 +112,7 @@ func TestGetAgentCommandFromConfig_RealConfigs(t *testing.T) {
 		{
 			name: "workspace gemini override",
 			tool: "gemini",
-			cfg: &workspace.V2Config{
+			cfg: &workspace.Config{
 				Providers: workspace.ProvidersConfig{
 					Gemini: &workspace.ProviderConfig{
 						Command: "gemini --safe-mode",
@@ -126,7 +126,7 @@ func TestGetAgentCommandFromConfig_RealConfigs(t *testing.T) {
 		{
 			name: "legacy tools fallback through providers",
 			tool: "claude",
-			cfg: &workspace.V2Config{
+			cfg: &workspace.Config{
 				Tools: workspace.ToolsConfig{
 					Claude: &workspace.ToolConfig{
 						Command: "claude --legacy-flag",
@@ -140,7 +140,7 @@ func TestGetAgentCommandFromConfig_RealConfigs(t *testing.T) {
 		{
 			name: "providers take precedence over tools",
 			tool: "codex",
-			cfg: &workspace.V2Config{
+			cfg: &workspace.Config{
 				Providers: workspace.ProvidersConfig{
 					Codex: &workspace.ProviderConfig{
 						Command: "codex --new-flag",
@@ -188,7 +188,7 @@ func TestGetAgentCommandFromConfig_RealConfigs(t *testing.T) {
 
 func TestConfigProviderRegistrySync(t *testing.T) {
 	// Load config.toml defaults and verify they match DefaultRegistry
-	cfg := workspace.DefaultV2Config("test")
+	cfg := workspace.DefaultConfig("test")
 
 	// Every provider in config should be in the registry
 	configProviders := []struct {
@@ -201,7 +201,7 @@ func TestConfigProviderRegistrySync(t *testing.T) {
 
 	for _, cp := range configProviders {
 		if cp.cfg == nil {
-			t.Errorf("DefaultV2Config missing provider %q in ProvidersConfig", cp.name)
+			t.Errorf("DefaultConfig missing provider %q in ProvidersConfig", cp.name)
 			continue
 		}
 
@@ -218,7 +218,7 @@ func TestConfigProviderRegistrySync(t *testing.T) {
 		}
 	}
 
-	// Every provider in DefaultRegistry should be gettable via V2Config.GetProvider
+	// Every provider in DefaultRegistry should be gettable via Config.GetProvider
 	// (either from ProvidersConfig or legacy ToolsConfig)
 	registryProviders := provider.ListProviders()
 	for _, p := range registryProviders {
@@ -228,8 +228,8 @@ func TestConfigProviderRegistrySync(t *testing.T) {
 		if !cfg.HasProviderDefined(name) {
 			// Only flag as error for providers that have entries in config.toml
 			// Some providers (openclaw, aider, cursor, codex, opencode) may not
-			// be in DefaultV2Config but are still valid registry entries
-			t.Logf("provider %q in registry but not in DefaultV2Config (acceptable for optional providers)", name)
+			// be in DefaultConfig but are still valid registry entries
+			t.Logf("provider %q in registry but not in DefaultConfig (acceptable for optional providers)", name)
 		}
 	}
 

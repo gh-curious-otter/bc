@@ -239,7 +239,7 @@ func runWorkspaceAdd(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load workspace: %w", err)
 	}
-	name := ws.Config.Name
+	name := ws.Name()
 
 	// Load registry and add
 	reg, err := workspace.LoadRegistry()

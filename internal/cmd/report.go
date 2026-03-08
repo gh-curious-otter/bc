@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -12,7 +11,6 @@ import (
 	"github.com/rpuneet/bc/pkg/events"
 	bclog "github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/memory"
-	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // Flags for report command (enhanced for stuck reports - #675)
@@ -78,8 +76,7 @@ func runReport(cmd *cobra.Command, args []string) error {
 		return errNotInWorkspace(err)
 	}
 
-	// Worktree validation: warn if agent is outside its assigned worktree
-	checkWorktreeWarning(agentID, ws)
+
 
 	// Update agent state
 	mgr := newAgentManager(ws)
@@ -185,44 +182,3 @@ func recordExperience(rootDir, agentID, description, outcome string) error {
 	return nil
 }
 
-// checkWorktreeWarning warns (to stderr + event log) if the agent is outside its worktree.
-// Never blocks — the report always proceeds.
-func checkWorktreeWarning(agentID string, ws *workspace.Workspace) {
-	worktree := os.Getenv("BC_AGENT_WORKTREE")
-	if worktree == "" {
-		return // Not set (pre-Phase A agent, or test environment)
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		return // Can't determine cwd, skip check
-	}
-
-	// Resolve symlinks for accurate comparison
-	worktreeAbs, err := filepath.EvalSymlinks(worktree)
-	if err != nil {
-		return // Worktree doesn't exist, skip (will be caught by bc worktree check)
-	}
-	cwdAbs, err := filepath.EvalSymlinks(cwd)
-	if err != nil {
-		return
-	}
-
-	if isWithinDir(cwdAbs, worktreeAbs) {
-		return // All good
-	}
-
-	// Agent is outside its worktree — warn but don't block
-	fmt.Fprintf(os.Stderr, "WARNING: Agent %s is running outside its assigned directory\n", agentID)
-	fmt.Fprintf(os.Stderr, "  Current:  %s\n", cwdAbs)
-	fmt.Fprintf(os.Stderr, "  Expected: %s\n", worktreeAbs)
-	fmt.Fprintf(os.Stderr, "  (Use 'cd %s' to return to your workspace)\n", worktreeAbs)
-
-	// Log to events
-	logEvent(ws, events.Event{
-		Type:    events.AgentReport,
-		Agent:   agentID,
-		Message: fmt.Sprintf("worktree violation: cwd=%s expected=%s", cwdAbs, worktreeAbs),
-		Data:    map[string]any{"violation": "worktree_mismatch", "cwd": cwdAbs, "worktree": worktreeAbs},
-	})
-}

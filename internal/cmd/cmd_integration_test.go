@@ -1136,7 +1136,7 @@ func TestInitNewDirectory(t *testing.T) {
 }
 
 func TestInitAlreadyInitialized(t *testing.T) {
-	// setupIntegrationWorkspace creates a v1 workspace, which triggers v1 detection
+	// setupIntegrationWorkspace creates a workspace, re-init should error
 	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
@@ -1144,9 +1144,9 @@ func TestInitAlreadyInitialized(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for already initialized workspace, got nil")
 	}
-	// v1 workspace detection returns specific error
-	if !strings.Contains(err.Error(), "v1 workspace exists") {
-		t.Errorf("expected 'v1 workspace exists' error, got: %v", err)
+	// workspace already initialized
+	if !strings.Contains(err.Error(), "already initialized") {
+		t.Errorf("expected 'already initialized' error, got: %v", err)
 	}
 }
 

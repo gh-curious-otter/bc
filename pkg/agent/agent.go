@@ -71,18 +71,6 @@ import (
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
-// containsShellMetachars checks if a string contains shell metacharacters that could be exploited
-func containsShellMetachars(s string) bool {
-	// Check for common shell injection characters
-	dangerous := []string{";", "|", "&", "$", "`", "(", ")", "{", "}", "[", "]", "<", ">", "\n", "\r"}
-	for _, char := range dangerous {
-		if strings.Contains(s, char) {
-			return true
-		}
-	}
-	return false
-}
-
 // IsValidAgentName validates that agent names contain only alphanumeric characters, hyphens, and underscores.
 // This ensures agent names are safe for use in file paths, shell environments, and tmux sessions.
 func IsValidAgentName(name string) bool {
@@ -507,7 +495,7 @@ func GetAgentCommand(toolName string) (string, bool) {
 // GetAgentCommandFromConfig returns the command for a tool name,
 // checking workspace ProvidersConfig first, then falling back to global config.
 // This enables per-workspace tool customization.
-func GetAgentCommandFromConfig(toolName string, wsCfg *workspace.V2Config) (string, bool) {
+func GetAgentCommandFromConfig(toolName string, wsCfg *workspace.Config) (string, bool) {
 	// Check workspace ProvidersConfig first
 	if wsCfg != nil {
 		if p := wsCfg.GetProvider(toolName); p != nil && p.Command != "" {
@@ -586,12 +574,6 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	if existing, exists := m.agents[name]; exists {
 		// If its tmux session is still alive, reuse it
 		if m.runtime.HasSession(context.TODO(), name) {
-			// Create worktree if missing (agents created before worktree feature)
-			if existing.WorktreeDir == "" {
-				if wtDir, err := createWorktree(workspace, name); err == nil {
-					existing.WorktreeDir = wtDir
-				}
-			}
 			existing.UpdatedAt = time.Now()
 			if err := m.saveState(); err != nil {
 				log.Warn("failed to save agent state", "error", err)
@@ -616,37 +598,10 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 				}
 			}
 
-			// Ensure worktree exists for respawn
-			sessionDir := workspace
-			if existing.WorktreeDir != "" {
-				sessionDir = existing.WorktreeDir
-			} else {
-				if wtDir, err := createWorktree(workspace, name); err == nil {
-					sessionDir = wtDir
-					existing.WorktreeDir = wtDir
-				}
-			}
-
-			// Install git wrapper for worktree enforcement
-			if wrapErr := ensureGitWrapper(workspace); wrapErr != nil {
-				log.Warn("failed to install git wrapper", "error", wrapErr)
-			}
-
-			// Build PATH safely: only use trusted paths, not user-controlled ones
-			bcBinPath := filepath.Join(workspace, ".bc", "bin")
-			systemPath := os.Getenv("PATH")
-			// Validate PATH doesn't contain shell metacharacters
-			if containsShellMetachars(systemPath) {
-				log.Warn("PATH contains suspicious characters, using minimal PATH")
-				systemPath = "/usr/local/bin:/usr/bin:/bin"
-			}
-
 			env := map[string]string{
-				"BC_AGENT_ID":       name,
-				"BC_AGENT_ROLE":     string(existing.Role),
-				"BC_WORKSPACE":      workspace,
-				"BC_AGENT_WORKTREE": sessionDir,
-				"PATH":              bcBinPath + ":" + systemPath,
+				"BC_AGENT_ID":   name,
+				"BC_AGENT_ROLE": string(existing.Role),
+				"BC_WORKSPACE":  workspace,
 			}
 			if existing.Tool != "" {
 				env["BC_AGENT_TOOL"] = existing.Tool
@@ -654,7 +609,8 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 			if existing.ParentID != "" {
 				env["BC_PARENT_ID"] = existing.ParentID
 			}
-			if err := m.runtime.CreateSessionWithEnv(context.TODO(), name, sessionDir, agentCmd, env); err != nil {
+			agentCmd = injectWorktreeFlag(agentCmd, name)
+			if err := m.runtime.CreateSessionWithEnv(context.TODO(), name, workspace, agentCmd, env); err != nil {
 				return nil, fmt.Errorf("failed to recreate tmux session: %w", err)
 			}
 
@@ -734,17 +690,10 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 		Tool:      tool,
 		ParentID:  parentID,
 		Children:  []string{},
+		IsRoot:    role == RoleRoot,
 		StartedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-
-	// Create per-agent git worktree so agents don't clobber each other
-	worktreeDir, err := createWorktree(workspace, name)
-	if err != nil {
-		log.Warn("failed to create worktree, falling back to shared workspace", "agent", name, "error", err)
-		worktreeDir = workspace
-	}
-	agent.WorktreeDir = worktreeDir
 
 	// Create memory directory for agent
 	memoryDir, err := createMemoryDir(workspace, name)
@@ -754,27 +703,11 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 		agent.MemoryDir = memoryDir
 	}
 
-	// Install git wrapper for worktree enforcement
-	if err := ensureGitWrapper(workspace); err != nil {
-		log.Warn("failed to install git wrapper", "error", err)
-	}
-
 	// Build env vars so the spawned process sees them immediately
-	// Build PATH safely: only use trusted paths, not user-controlled ones
-	bcBinPath := filepath.Join(workspace, ".bc", "bin")
-	systemPath := os.Getenv("PATH")
-	// Validate PATH doesn't contain shell metacharacters
-	if containsShellMetachars(systemPath) {
-		log.Warn("PATH contains suspicious characters, using minimal PATH")
-		systemPath = "/usr/local/bin:/usr/bin:/bin"
-	}
-
 	env := map[string]string{
-		"BC_AGENT_ID":       name,
-		"BC_AGENT_ROLE":     string(role),
-		"BC_WORKSPACE":      workspace,
-		"BC_AGENT_WORKTREE": worktreeDir,
-		"PATH":              bcBinPath + ":" + systemPath,
+		"BC_AGENT_ID":   name,
+		"BC_AGENT_ROLE": string(role),
+		"BC_WORKSPACE":  workspace,
 	}
 	if tool != "" {
 		env["BC_AGENT_TOOL"] = tool
@@ -786,8 +719,11 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 		env["BC_AGENT_MEMORY"] = agent.MemoryDir
 	}
 
-	// Create tmux session in the agent's worktree directory
-	if err := m.runtime.CreateSessionWithEnv(context.TODO(), name, worktreeDir, agentCmd, env); err != nil {
+	// Inject -w flag for claude-based commands to use built-in worktree isolation
+	agentCmd = injectWorktreeFlag(agentCmd, name)
+
+	// Create tmux session in the workspace directory
+	if err := m.runtime.CreateSessionWithEnv(context.TODO(), name, workspace, agentCmd, env); err != nil {
 		return nil, fmt.Errorf("failed to create tmux session: %w", err)
 	}
 
@@ -968,121 +904,13 @@ func truncateLogFile(path string, maxBytes int64) {
 	}
 }
 
-// createWorktree creates a per-agent git worktree so agents don't clobber each other.
-// Uses a cross-process file lock to prevent concurrent git worktree operations.
-// Returns the worktree directory path.
-func createWorktree(workspace, agentName string) (string, error) {
-	worktreeDir := filepath.Join(workspace, ".bc", "worktrees", agentName)
-
-	// If worktree already exists, reuse it (fast path, no lock needed)
-	if _, err := os.Stat(worktreeDir); err == nil {
-		log.Debug("reusing existing worktree", "agent", agentName, "dir", worktreeDir)
-		return worktreeDir, nil
+// injectWorktreeFlag adds `-w <name>` to claude commands for built-in worktree isolation.
+// Non-claude commands are returned unchanged.
+func injectWorktreeFlag(agentCmd, name string) string {
+	if strings.HasPrefix(agentCmd, "claude") {
+		return "claude -w " + name + " " + strings.TrimPrefix(agentCmd, "claude")
 	}
-
-	// Acquire cross-process lock for git worktree operations
-	fl := newFileLock(worktreeLockPath(workspace))
-	if err := fl.Lock(30 * time.Second); err != nil {
-		return "", fmt.Errorf("failed to acquire worktree lock: %w", err)
-	}
-	defer fl.Unlock()
-
-	// Re-check after acquiring lock (another process may have created it)
-	if _, err := os.Stat(worktreeDir); err == nil {
-		log.Debug("reusing existing worktree (after lock)", "agent", agentName, "dir", worktreeDir)
-		return worktreeDir, nil
-	}
-
-	// Create parent directory
-	if err := os.MkdirAll(filepath.Dir(worktreeDir), 0750); err != nil {
-		return "", fmt.Errorf("failed to create worktrees dir: %w", err)
-	}
-
-	// Retry with backoff for transient git errors under concurrency
-	var lastErr error
-	backoffs := []time.Duration{100 * time.Millisecond, 200 * time.Millisecond, 400 * time.Millisecond}
-
-	for attempt := 0; attempt <= len(backoffs); attempt++ {
-		if attempt > 0 {
-			time.Sleep(backoffs[attempt-1])
-		}
-
-		// Create detached worktree at HEAD (current main)
-		cmd := exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "add", "--detach", worktreeDir, "HEAD") //nolint:gosec // args are trusted internal paths
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			// If failed because it's already registered but missing, prune and retry
-			if strings.Contains(string(output), "already registered") {
-				log.Info("pruning stale worktrees to recover", "agent", agentName)
-				_ = exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "prune").Run()
-
-				// Retry after prune
-				cmd = exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "add", "--detach", worktreeDir, "HEAD") //nolint:gosec // args are trusted internal paths
-				output, err = cmd.CombinedOutput()
-			}
-
-			if err != nil {
-				lastErr = fmt.Errorf("failed to create worktree for %s: %w (%s)", agentName, err, string(output))
-				continue
-			}
-		}
-
-		log.Debug("created worktree", "agent", agentName, "dir", worktreeDir)
-		return worktreeDir, nil
-	}
-
-	return "", lastErr
-}
-
-// gitWrapperScript is the shell script that shadows git to warn on write
-// operations outside the agent's worktree. It always execs real git — never
-// blocks — and is a no-op when BC_AGENT_WORKTREE is unset (tests, humans).
-const gitWrapperScript = `#!/bin/bash
-# bc worktree enforcement — warns on git write ops outside agent worktree
-REAL_GIT="/usr/bin/git"
-
-# No-op when BC_AGENT_WORKTREE is unset (tests, human usage)
-if [ -z "$BC_AGENT_WORKTREE" ]; then
-    exec "$REAL_GIT" "$@"
-fi
-
-# Check if CWD is inside the agent's worktree
-case "$PWD" in
-    "$BC_AGENT_WORKTREE"*) ;; # Inside worktree — OK
-    *)
-        # Warn only on write operations, not reads
-        case "$1" in
-            checkout|commit|push|reset|clean|merge|rebase|stash|add|rm|mv|init)
-                echo "WARNING: git $1 outside worktree ($PWD != $BC_AGENT_WORKTREE)" >&2
-                ;;
-        esac
-        ;;
-esac
-
-exec "$REAL_GIT" "$@"
-`
-
-// ensureGitWrapper creates the .bc/bin/git wrapper script if it does not
-// already exist. The wrapper shadows /usr/bin/git on PATH and warns when
-// agents run git write operations outside their worktree.
-func ensureGitWrapper(workspace string) error {
-	binDir := filepath.Join(workspace, ".bc", "bin")
-	wrapperPath := filepath.Join(binDir, "git")
-
-	// Idempotent — skip if already exists
-	if _, err := os.Stat(wrapperPath); err == nil {
-		return nil
-	}
-
-	if err := os.MkdirAll(binDir, 0750); err != nil {
-		return fmt.Errorf("failed to create .bc/bin: %w", err)
-	}
-
-	if err := os.WriteFile(wrapperPath, []byte(gitWrapperScript), 0700); err != nil { //nolint:gosec // executable script needs 0700
-		return fmt.Errorf("failed to write git wrapper: %w", err)
-	}
-
-	return nil
+	return agentCmd
 }
 
 // createMemoryDir creates the per-agent memory directory structure.
@@ -1118,29 +946,6 @@ func createMemoryDir(workspace, agentName string) (string, error) {
 
 	log.Debug("created memory dir", "agent", agentName, "dir", memoryDir)
 	return memoryDir, nil
-}
-
-// removeWorktree removes a per-agent git worktree.
-// Uses a cross-process file lock to prevent concurrent git worktree operations.
-func removeWorktree(workspace, worktreeDir string) {
-	if worktreeDir == "" {
-		return
-	}
-
-	// Acquire cross-process lock for git worktree operations
-	fl := newFileLock(worktreeLockPath(workspace))
-	if err := fl.Lock(30 * time.Second); err != nil {
-		log.Warn("failed to acquire worktree lock for removal", "dir", worktreeDir, "error", err)
-		return
-	}
-	defer fl.Unlock()
-
-	cmd := exec.CommandContext(context.Background(), "git", "-C", workspace, "worktree", "remove", "--force", worktreeDir)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		log.Warn("failed to remove worktree", "dir", worktreeDir, "error", err, "output", string(output))
-	} else {
-		log.Debug("removed worktree", "dir", worktreeDir)
-	}
 }
 
 // SpawnChildAgent creates a child agent under a parent agent.
@@ -1195,9 +1000,6 @@ func (m *Manager) StopAgent(name string) error {
 	// Kill tmux session (ignore error - session might already be dead)
 	_ = m.runtime.KillSession(context.TODO(), name)
 
-	// Note: Worktree is intentionally preserved on stop so agents can resume work.
-	// Only DeleteAgent removes the worktree permanently.
-
 	agent.State = StateStopped
 	agent.UpdatedAt = time.Now()
 
@@ -1248,7 +1050,7 @@ type DeleteOptions struct {
 }
 
 // DeleteAgent permanently removes an agent from the workspace.
-// This stops the agent, removes its worktree, memory directory, and state.
+// This stops the agent, removes its memory directory and state.
 func (m *Manager) DeleteAgent(name string) error {
 	return m.DeleteAgentWithOptions(name, DeleteOptions{PurgeMemory: true})
 }
@@ -1267,11 +1069,6 @@ func (m *Manager) DeleteAgentWithOptions(name string, opts DeleteOptions) error 
 
 	// Kill tmux session (ignore error - session might already be dead)
 	_ = m.runtime.KillSession(context.TODO(), name)
-
-	// Clean up per-agent git worktree
-	if agent.WorktreeDir != "" && agent.WorktreeDir != agent.Workspace {
-		removeWorktree(agent.Workspace, agent.WorktreeDir)
-	}
 
 	// Clean up per-agent memory directory (only if purge requested)
 	if opts.PurgeMemory && agent.MemoryDir != "" {
@@ -1911,33 +1708,22 @@ func (m *Manager) Close() error {
 }
 
 // enforceRootSingleton checks if a root agent can be spawned.
-// Returns ErrRootExists if a root already exists and is running.
+// Returns an error if a root already exists and is running.
 // Allows respawn if root is stopped or in error state.
-func (m *Manager) enforceRootSingleton(workspace string) error {
-	bcDir := filepath.Join(workspace, ".bc")
-	rootStore := NewRootStateStore(bcDir)
-
-	// Check if root state exists
-	rootState, err := rootStore.Load()
-	if err != nil {
-		if err == ErrRootNotFound {
-			// No root exists - allow creation
-			return nil
+func (m *Manager) enforceRootSingleton(_ string) error {
+	// Check in-memory state for existing root
+	for _, a := range m.agents {
+		if a.IsRoot {
+			switch a.State {
+			case StateStopped, StateError:
+				// Terminal state - allow respawn
+				log.Debug("root in terminal state, allowing respawn", "state", a.State)
+				return nil
+			default:
+				// Root is active - deny new spawn
+				return fmt.Errorf("root agent already exists and is in state %q", a.State)
+			}
 		}
-		return fmt.Errorf("failed to check root state: %w", err)
 	}
-
-	// Root exists - check if it's in a terminal state that allows respawn
-	switch rootState.State {
-	case StateStopped, StateError:
-		// Terminal state - allow respawn by deleting old state
-		log.Debug("root in terminal state, allowing respawn", "state", rootState.State)
-		if delErr := rootStore.Delete(); delErr != nil {
-			log.Warn("failed to delete old root state", "error", delErr)
-		}
-		return nil
-	default:
-		// Root is active (idle, working, stuck, etc.) - deny new spawn
-		return fmt.Errorf("%w: existing root is in state %q", ErrRootExists, rootState.State)
-	}
+	return nil
 }

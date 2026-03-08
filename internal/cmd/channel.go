@@ -858,9 +858,9 @@ func getUserSender() string {
 
 	// Try to get nickname from workspace config (v2)
 	ws, err := getWorkspace()
-	if err == nil && ws != nil && ws.V2Config != nil {
-		if ws.V2Config.User.Nickname != "" {
-			return ws.V2Config.User.Nickname
+	if err == nil && ws != nil && ws.Config != nil {
+		if ws.Config.User.Nickname != "" {
+			return ws.Config.User.Nickname
 		}
 	}
 

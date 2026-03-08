@@ -136,7 +136,7 @@ func initV2Workspace(rootDir string) error {
 
 	// Create and save v2 config
 	name := filepath.Base(rootDir)
-	cfg := workspace.DefaultV2Config(name)
+	cfg := workspace.DefaultConfig(name)
 	configPath := workspace.ConfigPath(rootDir)
 
 	if err := cfg.Save(configPath); err != nil {
@@ -234,11 +234,6 @@ func logEvent(ws *workspace.Workspace, event events.Event) {
 // errorAgentNotRunning returns an error message for commands that require BC_AGENT_ID.
 func errorAgentNotRunning(commandUsage string) error {
 	return fmt.Errorf("this command can only be run by agents in the bc system (use: bc agent send <agent-name> %q)", commandUsage)
-}
-
-// errorWorktreeNotSet returns an error message for commands that require BC_AGENT_WORKTREE.
-func errorWorktreeNotSet() error {
-	return fmt.Errorf("this command must run inside an agent session. Attach to an agent with 'bc agent attach <name>' first")
 }
 
 // errNotInWorkspace returns an actionable error for commands that require a bc workspace.
@@ -372,7 +367,7 @@ func initV2WorkspaceWithNickname(rootDir string, nickname string) error {
 
 	// Create and save v2 config with nickname
 	name := filepath.Base(rootDir)
-	cfg := workspace.DefaultV2Config(name)
+	cfg := workspace.DefaultConfig(name)
 	cfg.User.Nickname = nickname
 	configPath := workspace.ConfigPath(rootDir)
 

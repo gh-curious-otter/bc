@@ -73,7 +73,7 @@ func TestInitV2Workspace(t *testing.T) {
 
 	// Verify config.toml exists and is valid
 	configPath := filepath.Join(bcDir, "config.toml")
-	cfg, err := workspace.LoadV2Config(configPath)
+	cfg, err := workspace.LoadConfig(configPath)
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}

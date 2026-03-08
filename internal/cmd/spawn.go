@@ -70,16 +70,13 @@ func runSpawn(cmd *cobra.Command, args []string) error {
 		// Stopped agent will be respawned
 	}
 
-	// Determine tool: --tool flag > workspace config Tool > workspace config AgentCommand > default
+	// Determine tool: --tool flag > workspace config > default
 	toolName := spawnTool
-	if toolName == "" && ws.Config.Tool != "" {
-		toolName = ws.Config.Tool
+	if toolName == "" {
+		toolName = ws.DefaultTool()
 	}
 
-	// If a custom agent command is set in workspace, use that
-	if ws.Config.AgentCommand != "" && toolName == "" {
-		mgr.SetAgentCommand(ws.Config.AgentCommand)
-	} else if toolName != "" {
+	if toolName != "" {
 		if !mgr.SetAgentByName(toolName) {
 			return fmt.Errorf("unknown tool %q (available: %v)", toolName, agent.ListAvailableTools())
 		}

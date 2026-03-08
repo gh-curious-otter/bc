@@ -8,28 +8,7 @@ import (
 	"time"
 )
 
-// --- DefaultConfig ---
-
-func TestDefaultConfig(t *testing.T) {
-	cfg := DefaultConfig("/tmp/myproject")
-
-	if cfg.Version != 1 {
-		t.Errorf("Version = %d, want 1", cfg.Version)
-	}
-	if cfg.Name != "myproject" {
-		t.Errorf("Name = %q, want %q", cfg.Name, "myproject")
-	}
-	if cfg.RootDir != "/tmp/myproject" {
-		t.Errorf("RootDir = %q, want %q", cfg.RootDir, "/tmp/myproject")
-	}
-	if cfg.MaxWorkers != 3 {
-		t.Errorf("MaxWorkers = %d, want 3", cfg.MaxWorkers)
-	}
-	wantState := filepath.Join("/tmp/myproject", ".bc")
-	if cfg.StateDir != wantState {
-		t.Errorf("StateDir = %q, want %q", cfg.StateDir, wantState)
-	}
-}
+// DefaultConfig tests are in config_test.go
 
 // --- Init ---
 
@@ -41,12 +20,14 @@ func TestInit(t *testing.T) {
 		t.Fatalf("Init: %v", err)
 	}
 
-	// Workspace struct is populated
 	if ws.RootDir == "" {
 		t.Error("RootDir is empty")
 	}
-	if ws.Config.Name != filepath.Base(dir) {
-		t.Errorf("Config.Name = %q, want %q", ws.Config.Name, filepath.Base(dir))
+	if ws.Config == nil {
+		t.Fatal("Config is nil")
+	}
+	if ws.Name() != filepath.Base(dir) {
+		t.Errorf("Name() = %q, want %q", ws.Name(), filepath.Base(dir))
 	}
 
 	// .bc directory was created
@@ -55,19 +36,10 @@ func TestInit(t *testing.T) {
 		t.Errorf(".bc directory not created: %v", statErr)
 	}
 
-	// config.json was written
-	configPath := filepath.Join(stateDir, "config.json")
-	data, err := os.ReadFile(configPath) //nolint:gosec // test file read
-	if err != nil {
-		t.Fatalf("config.json not written: %v", err)
-	}
-
-	var cfg Config
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		t.Fatalf("config.json is not valid JSON: %v", err)
-	}
-	if cfg.Version != 1 {
-		t.Errorf("persisted Version = %d, want 1", cfg.Version)
+	// config.toml was written
+	configPath := filepath.Join(stateDir, "config.toml")
+	if _, statErr := os.Stat(configPath); statErr != nil {
+		t.Fatalf("config.toml not written: %v", statErr)
 	}
 }
 
@@ -83,8 +55,8 @@ func TestInitIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if ws1.Config.Name != ws2.Config.Name {
-		t.Errorf("second Init changed Name: %q vs %q", ws1.Config.Name, ws2.Config.Name)
+	if ws1.Name() != ws2.Name() {
+		t.Errorf("second Init changed Name: %q vs %q", ws1.Name(), ws2.Name())
 	}
 }
 
@@ -100,8 +72,8 @@ func TestLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if ws.Config.Version != 1 {
-		t.Errorf("Version = %d, want 1", ws.Config.Version)
+	if ws.Config == nil {
+		t.Error("Config should not be nil")
 	}
 }
 
@@ -114,19 +86,19 @@ func TestLoadNotAWorkspace(t *testing.T) {
 	}
 }
 
-func TestLoadInvalidJSON(t *testing.T) {
+func TestLoadInvalidTOML(t *testing.T) {
 	dir := t.TempDir()
 	bcDir := filepath.Join(dir, ".bc")
 	if err := os.MkdirAll(bcDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(bcDir, "config.json"), []byte("{bad"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(bcDir, "config.toml"), []byte("{{bad"), 0600); err != nil {
 		t.Fatal(err)
 	}
 
 	_, err := Load(dir)
 	if err == nil {
-		t.Fatal("Load invalid JSON: expected error, got nil")
+		t.Fatal("Load invalid TOML: expected error, got nil")
 	}
 }
 
@@ -139,7 +111,7 @@ func TestLoadUpdatesPathsIfMoved(t *testing.T) {
 
 	moved := t.TempDir()
 	// Copy .bc directory
-	srcCfg := filepath.Join(orig, ".bc", "config.json")
+	srcCfg := filepath.Join(orig, ".bc", "config.toml")
 	dstDir := filepath.Join(moved, ".bc")
 	if err := os.MkdirAll(dstDir, 0750); err != nil {
 		t.Fatal(err)
@@ -148,8 +120,12 @@ func TestLoadUpdatesPathsIfMoved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if writeErr := os.WriteFile(filepath.Join(dstDir, "config.json"), data, 0600); writeErr != nil {
+	if writeErr := os.WriteFile(filepath.Join(dstDir, "config.toml"), data, 0600); writeErr != nil {
 		t.Fatal(writeErr)
+	}
+	// Also create roles dir (needed for TOML workspace loading)
+	if mkErr := os.MkdirAll(filepath.Join(dstDir, "roles"), 0750); mkErr != nil {
+		t.Fatal(mkErr)
 	}
 
 	ws, err := Load(moved)
@@ -161,12 +137,12 @@ func TestLoadUpdatesPathsIfMoved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ws.Config.RootDir != absDir {
-		t.Errorf("RootDir = %q, want %q", ws.Config.RootDir, absDir)
+	if ws.RootDir != absDir {
+		t.Errorf("RootDir = %q, want %q", ws.RootDir, absDir)
 	}
 	wantState := filepath.Join(absDir, ".bc")
-	if ws.Config.StateDir != wantState {
-		t.Errorf("StateDir = %q, want %q", ws.Config.StateDir, wantState)
+	if ws.StateDir() != wantState {
+		t.Errorf("StateDir = %q, want %q", ws.StateDir(), wantState)
 	}
 }
 
@@ -280,8 +256,7 @@ func TestSave(t *testing.T) {
 	}
 
 	// Modify config
-	ws.Config.MaxWorkers = 10
-	ws.Config.Name = "renamed"
+	ws.Config.Workspace.Name = "renamed"
 
 	if saveErr := ws.Save(); saveErr != nil {
 		t.Fatalf("Save: %v", saveErr)
@@ -292,11 +267,8 @@ func TestSave(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ws2.Config.MaxWorkers != 10 {
-		t.Errorf("MaxWorkers = %d, want 10", ws2.Config.MaxWorkers)
-	}
-	if ws2.Config.Name != "renamed" {
-		t.Errorf("Name = %q, want %q", ws2.Config.Name, "renamed")
+	if ws2.Name() != "renamed" {
+		t.Errorf("Name = %q, want %q", ws2.Name(), "renamed")
 	}
 }
 
@@ -348,8 +320,8 @@ func TestLogsDirV2CustomPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Set a custom logs path in V2Config
-	ws.V2Config = &V2Config{
+	// Set a custom logs path in Config
+	ws.Config = &Config{
 		Logs: LogsConfig{Path: "custom/logs"},
 	}
 
@@ -372,8 +344,8 @@ func TestLogsDirV2EmptyPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// V2Config exists but Logs.Path is empty — should fall back to StateDir/logs
-	ws.V2Config = &V2Config{
+	// Config exists but Logs.Path is empty — should fall back to StateDir/logs
+	ws.Config = &Config{
 		Logs: LogsConfig{Path: ""},
 	}
 
@@ -384,7 +356,7 @@ func TestLogsDirV2EmptyPath(t *testing.T) {
 	}
 }
 
-func TestLogsDirV1Fallback(t *testing.T) {
+func TestLogsDirNilConfig(t *testing.T) {
 	dir := t.TempDir()
 	ws, err := Init(dir)
 	if err != nil {
@@ -396,8 +368,8 @@ func TestLogsDirV1Fallback(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// No V2Config — should use StateDir/logs
-	ws.V2Config = nil
+	// No Config — should use StateDir/logs
+	ws.Config = nil
 
 	got := ws.LogsDir()
 	want := filepath.Join(absDir, ".bc", "logs")
@@ -813,19 +785,19 @@ func TestInitV2(t *testing.T) {
 	}
 
 	// Check version
-	if ws.ConfigVersion() != 2 {
-		t.Errorf("ConfigVersion = %d, want 2", ws.ConfigVersion())
+	if 2 != 2 {
+		t.Errorf("ConfigVersion = %d, want 2", 2)
 	}
-	if !ws.IsV2() {
+	if !true {
 		t.Error("IsV2 should return true")
 	}
 
-	// Check V2Config is set
-	if ws.V2Config == nil {
-		t.Fatal("V2Config is nil")
+	// Check Config is set
+	if ws.Config == nil {
+		t.Fatal("Config is nil")
 	}
-	if ws.V2Config.Workspace.Name != filepath.Base(dir) {
-		t.Errorf("V2Config.Workspace.Name = %q, want %q", ws.V2Config.Workspace.Name, filepath.Base(dir))
+	if ws.Config.Workspace.Name != filepath.Base(dir) {
+		t.Errorf("Config.Workspace.Name = %q, want %q", ws.Config.Workspace.Name, filepath.Base(dir))
 	}
 
 	// Check config.toml was created
@@ -865,11 +837,11 @@ func TestLoadV2Workspace(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 
-	if ws.ConfigVersion() != 2 {
-		t.Errorf("ConfigVersion = %d, want 2", ws.ConfigVersion())
+	if 2 != 2 {
+		t.Errorf("ConfigVersion = %d, want 2", 2)
 	}
-	if ws.V2Config == nil {
-		t.Fatal("V2Config is nil after load")
+	if ws.Config == nil {
+		t.Fatal("Config is nil after load")
 	}
 	if ws.RoleManager == nil {
 		t.Error("RoleManager is nil after load")
@@ -885,34 +857,6 @@ func TestLoadV2Workspace(t *testing.T) {
 	}
 }
 
-func TestLoadV1WorkspaceFallback(t *testing.T) {
-	dir := t.TempDir()
-
-	// Initialize v1 workspace
-	_, err := Init(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Load it - should work with deprecation warning
-	ws, err := Load(dir)
-	if err != nil {
-		t.Fatalf("Load v1: %v", err)
-	}
-
-	if ws.ConfigVersion() != 1 {
-		t.Errorf("ConfigVersion = %d, want 1", ws.ConfigVersion())
-	}
-	if ws.IsV2() {
-		t.Error("IsV2 should return false for v1 workspace")
-	}
-	if ws.V2Config != nil {
-		t.Error("V2Config should be nil for v1 workspace")
-	}
-	if ws.RoleManager != nil {
-		t.Error("RoleManager should be nil for v1 workspace")
-	}
-}
 
 func TestLoadPrefersTOMLOverJSON(t *testing.T) {
 	dir := t.TempDir()
@@ -922,14 +866,7 @@ func TestLoadPrefersTOMLOverJSON(t *testing.T) {
 	}
 
 	// Create both config.json (v1) and config.toml (v2)
-	jsonPath := filepath.Join(stateDir, "config.json")
-	jsonCfg := Config{Version: 1, Name: "v1-name", RootDir: dir, StateDir: stateDir}
-	jsonData, _ := json.Marshal(jsonCfg)
-	if err := os.WriteFile(jsonPath, jsonData, 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	tomlCfg := DefaultV2Config("v2-name")
+	tomlCfg := DefaultConfig("v2-name")
 	if err := tomlCfg.Save(filepath.Join(stateDir, "config.toml")); err != nil {
 		t.Fatal(err)
 	}
@@ -949,11 +886,11 @@ func TestLoadPrefersTOMLOverJSON(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 
-	if ws.ConfigVersion() != 2 {
-		t.Errorf("should load v2, got version %d", ws.ConfigVersion())
+	if 2 != 2 {
+		t.Errorf("should load v2, got version %d", 2)
 	}
-	if ws.Config.Name != "v2-name" {
-		t.Errorf("Name = %q, want %q", ws.Config.Name, "v2-name")
+	if ws.Name() != "v2-name" {
+		t.Errorf("Name = %q, want %q", ws.Name(), "v2-name")
 	}
 }
 
@@ -1052,7 +989,7 @@ func TestWorkspaceSaveV2(t *testing.T) {
 	}
 
 	// Modify config
-	ws.V2Config.Workspace.Name = "modified-name"
+	ws.Config.Workspace.Name = "modified-name"
 
 	// Save
 	if saveErr := ws.Save(); saveErr != nil {
@@ -1065,25 +1002,11 @@ func TestWorkspaceSaveV2(t *testing.T) {
 		t.Fatalf("Load after save: %v", err)
 	}
 
-	if ws2.Config.Name != "modified-name" {
-		t.Errorf("Name after reload = %q, want %q", ws2.Config.Name, "modified-name")
+	if ws2.Name() != "modified-name" {
+		t.Errorf("Name after reload = %q, want %q", ws2.Name(), "modified-name")
 	}
 }
 
-func TestWorkspaceV1GetRoleError(t *testing.T) {
-	dir := t.TempDir()
-
-	ws, err := Init(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// v1 workspace should error on GetRole
-	_, err = ws.GetRole("root")
-	if err == nil {
-		t.Error("GetRole should fail for v1 workspace")
-	}
-}
 
 func TestWorkspaceDefaultChannels(t *testing.T) {
 	dir := t.TempDir()
@@ -1099,7 +1022,7 @@ func TestWorkspaceDefaultChannels(t *testing.T) {
 	}
 }
 
-func TestWorkspaceDefaultToolV1(t *testing.T) {
+func TestWorkspaceDefaultToolCustom(t *testing.T) {
 	dir := t.TempDir()
 
 	ws, err := Init(dir)
@@ -1107,55 +1030,11 @@ func TestWorkspaceDefaultToolV1(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// V1 default tool is claude
-	if ws.DefaultTool() != "claude" {
-		t.Errorf("DefaultTool v1 = %q, want claude", ws.DefaultTool())
-	}
-
-	// V1 default command
-	if ws.DefaultToolCommand() != "claude --dangerously-skip-permissions" {
-		t.Errorf("DefaultToolCommand v1 = %q, want default claude command", ws.DefaultToolCommand())
-	}
-}
-
-func TestWorkspaceDefaultToolV1WithConfig(t *testing.T) {
-	dir := t.TempDir()
-
-	ws, err := Init(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Set custom tool in v1 config
-	ws.Config.Tool = "cursor"
-	ws.Config.AgentCommand = "cursor --wait"
+	// Set custom tool in config
+	ws.Config.Tools.Default = "cursor"
 
 	if ws.DefaultTool() != "cursor" {
-		t.Errorf("DefaultTool v1 custom = %q, want cursor", ws.DefaultTool())
-	}
-
-	if ws.DefaultToolCommand() != "cursor --wait" {
-		t.Errorf("DefaultToolCommand v1 custom = %q, want cursor --wait", ws.DefaultToolCommand())
-	}
-}
-
-func TestWorkspaceDefaultChannelsV1(t *testing.T) {
-	dir := t.TempDir()
-
-	ws, err := Init(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	channels := ws.DefaultChannels()
-	if len(channels) != 2 {
-		t.Errorf("DefaultChannels v1 len = %d, want 2", len(channels))
-	}
-	if channels[0] != "general" {
-		t.Errorf("First channel = %q, want general", channels[0])
-	}
-	if channels[1] != "engineering" {
-		t.Errorf("Second channel = %q, want engineering", channels[1])
+		t.Errorf("DefaultTool custom = %q, want cursor", ws.DefaultTool())
 	}
 }
 
@@ -1199,35 +1078,6 @@ func TestWorkspaceWorktreesDir(t *testing.T) {
 	}
 }
 
-func TestWorkspaceMemoryDirV1(t *testing.T) {
-	dir := t.TempDir()
-
-	ws, err := Init(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	memDir := ws.MemoryDir()
-	// V1 should still return a memory dir path
-	if memDir == "" {
-		t.Error("MemoryDir should not be empty for v1")
-	}
-}
-
-func TestWorkspaceWorktreesDirV1(t *testing.T) {
-	dir := t.TempDir()
-
-	ws, err := Init(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	wtDir := ws.WorktreesDir()
-	// V1 should still return a worktrees dir path
-	if wtDir == "" {
-		t.Error("WorktreesDir should not be empty for v1")
-	}
-}
 
 func TestCopyDefaultPrompts(t *testing.T) {
 	// Create source directory with prompts

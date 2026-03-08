@@ -115,7 +115,7 @@ func TestUserRCConfigSaveAndLoad(t *testing.T) {
 
 func TestMergeWithUserRC(t *testing.T) {
 	// Create a workspace config with default nickname
-	wsCfg := DefaultV2Config("test")
+	wsCfg := DefaultConfig("test")
 
 	// Create a user config with custom nickname
 	rcCfg := &UserRCConfig{
@@ -134,7 +134,7 @@ func TestMergeWithUserRC(t *testing.T) {
 }
 
 func TestHasTool(t *testing.T) {
-	cfg := DefaultV2Config("test")
+	cfg := DefaultConfig("test")
 
 	if !cfg.HasTool("gemini") {
 		t.Error("expected gemini to be available")
@@ -153,13 +153,13 @@ func TestHasToolAllTypes(t *testing.T) {
 	tests := []struct {
 		name     string
 		toolName string
-		cfg      V2Config
+		cfg      Config
 		want     bool
 	}{
 		{
 			name:     "claude enabled",
 			toolName: "claude",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{Claude: &ToolConfig{Enabled: true}},
 			},
 			want: true,
@@ -167,7 +167,7 @@ func TestHasToolAllTypes(t *testing.T) {
 		{
 			name:     "claude-code enabled",
 			toolName: "claude-code",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{Claude: &ToolConfig{Enabled: true}},
 			},
 			want: true,
@@ -175,7 +175,7 @@ func TestHasToolAllTypes(t *testing.T) {
 		{
 			name:     "claude disabled",
 			toolName: "claude",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{Claude: &ToolConfig{Enabled: false}},
 			},
 			want: false,
@@ -183,7 +183,7 @@ func TestHasToolAllTypes(t *testing.T) {
 		{
 			name:     "cursor enabled",
 			toolName: "cursor",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{Cursor: &ToolConfig{Enabled: true}},
 			},
 			want: true,
@@ -191,7 +191,7 @@ func TestHasToolAllTypes(t *testing.T) {
 		{
 			name:     "cursor disabled",
 			toolName: "cursor",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{Cursor: &ToolConfig{Enabled: false}},
 			},
 			want: false,
@@ -199,7 +199,7 @@ func TestHasToolAllTypes(t *testing.T) {
 		{
 			name:     "codex enabled",
 			toolName: "codex",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{Codex: &ToolConfig{Enabled: true}},
 			},
 			want: true,
@@ -207,7 +207,7 @@ func TestHasToolAllTypes(t *testing.T) {
 		{
 			name:     "gemini enabled",
 			toolName: "gemini",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{Gemini: &ToolConfig{Enabled: true}},
 			},
 			want: true,
@@ -215,7 +215,7 @@ func TestHasToolAllTypes(t *testing.T) {
 		{
 			name:     "custom tool enabled",
 			toolName: "my-tool",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					Custom: map[string]ToolConfig{
 						"my-tool": {Enabled: true},
@@ -227,7 +227,7 @@ func TestHasToolAllTypes(t *testing.T) {
 		{
 			name:     "custom tool disabled still exists",
 			toolName: "my-tool",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					Custom: map[string]ToolConfig{
 						"my-tool": {Enabled: false},
@@ -239,7 +239,7 @@ func TestHasToolAllTypes(t *testing.T) {
 		{
 			name:     "custom tool not in map",
 			toolName: "my-tool",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{Custom: map[string]ToolConfig{}},
 			},
 			want: false,
@@ -247,7 +247,7 @@ func TestHasToolAllTypes(t *testing.T) {
 		{
 			name:     "nil tools",
 			toolName: "claude",
-			cfg:      V2Config{},
+			cfg:      Config{},
 			want:     false,
 		},
 	}
@@ -289,13 +289,13 @@ func TestUserRCExists(t *testing.T) {
 func TestGetPreferredTool(t *testing.T) {
 	tests := []struct { //nolint:govet // test struct alignment not critical
 		name     string
-		cfg      V2Config
+		cfg      Config
 		rc       *UserRCConfig
 		expected string
 	}{
 		{
 			name: "nil rc returns default",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					Default: "claude",
 					Claude:  &ToolConfig{Enabled: true},
@@ -306,7 +306,7 @@ func TestGetPreferredTool(t *testing.T) {
 		},
 		{
 			name: "empty preferred list returns default",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					Default: "claude",
 					Claude:  &ToolConfig{Enabled: true},
@@ -317,7 +317,7 @@ func TestGetPreferredTool(t *testing.T) {
 		},
 		{
 			name: "first preferred tool available",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					Default: "claude",
 					Claude:  &ToolConfig{Enabled: true},
@@ -333,7 +333,7 @@ func TestGetPreferredTool(t *testing.T) {
 		},
 		{
 			name: "skip unavailable tool",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					Default: "claude",
 					Claude:  &ToolConfig{Enabled: true},
@@ -348,7 +348,7 @@ func TestGetPreferredTool(t *testing.T) {
 		},
 		{
 			name: "no preferred tools available",
-			cfg: V2Config{
+			cfg: Config{
 				Tools: ToolsConfig{
 					Default: "gemini",
 					Gemini:  &ToolConfig{Enabled: true},
@@ -390,7 +390,7 @@ func TestLoadUserRCConfigNotFound(t *testing.T) {
 }
 
 func TestMergeWithUserRCNil(t *testing.T) {
-	cfg := DefaultV2Config("test")
+	cfg := DefaultConfig("test")
 	originalNickname := cfg.User.Nickname
 
 	// Merge with nil should not change anything
@@ -402,7 +402,7 @@ func TestMergeWithUserRCNil(t *testing.T) {
 }
 
 func TestMergeWithUserRCPreserveWorkspace(t *testing.T) {
-	cfg := DefaultV2Config("test")
+	cfg := DefaultConfig("test")
 	cfg.User.Nickname = "@workspace-user"
 
 	rc := &UserRCConfig{
@@ -430,49 +430,49 @@ func TestHasToolGitHubGitLabJira(t *testing.T) {
 	tests := []struct {
 		name     string
 		toolName string
-		cfg      V2Config
+		cfg      Config
 		want     bool
 	}{
 		{
 			name:     "github enabled",
 			toolName: "github",
-			cfg:      V2Config{Tools: ToolsConfig{GitHub: &ToolConfig{Enabled: true}}},
+			cfg:      Config{Tools: ToolsConfig{GitHub: &ToolConfig{Enabled: true}}},
 			want:     true,
 		},
 		{
 			name:     "github nil",
 			toolName: "github",
-			cfg:      V2Config{},
+			cfg:      Config{},
 			want:     false,
 		},
 		{
 			name:     "gitlab enabled",
 			toolName: "gitlab",
-			cfg:      V2Config{Tools: ToolsConfig{GitLab: &ToolConfig{Enabled: true}}},
+			cfg:      Config{Tools: ToolsConfig{GitLab: &ToolConfig{Enabled: true}}},
 			want:     true,
 		},
 		{
 			name:     "gitlab nil",
 			toolName: "gitlab",
-			cfg:      V2Config{},
+			cfg:      Config{},
 			want:     false,
 		},
 		{
 			name:     "jira enabled",
 			toolName: "jira",
-			cfg:      V2Config{Tools: ToolsConfig{Jira: &ToolConfig{Enabled: true}}},
+			cfg:      Config{Tools: ToolsConfig{Jira: &ToolConfig{Enabled: true}}},
 			want:     true,
 		},
 		{
 			name:     "jira nil",
 			toolName: "jira",
-			cfg:      V2Config{},
+			cfg:      Config{},
 			want:     false,
 		},
 		{
 			name:     "custom tool nil map",
 			toolName: "unknown",
-			cfg:      V2Config{},
+			cfg:      Config{},
 			want:     false,
 		},
 	}

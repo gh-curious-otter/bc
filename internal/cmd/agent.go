@@ -28,8 +28,8 @@ import (
 // newAgentManager creates an agent manager with the appropriate runtime backend.
 // If workspace config specifies docker backend, uses Docker; otherwise defaults to tmux.
 func newAgentManager(ws *workspace.Workspace) *agent.Manager {
-	if ws.V2Config != nil && ws.V2Config.Runtime.Backend == "docker" {
-		dockerCfg := container.ConfigFromWorkspace(ws.V2Config.Runtime.Docker)
+	if ws.Config != nil && ws.Config.Runtime.Backend == "docker" {
+		dockerCfg := container.ConfigFromWorkspace(ws.Config.Runtime.Docker)
 		backend, err := container.NewBackend(dockerCfg, "bc-", ws.RootDir)
 		if err != nil {
 			log.Warn("Docker unavailable, falling back to tmux", "error", err)
@@ -144,7 +144,7 @@ var agentStartCmd = &cobra.Command{
 	Short: "Start a stopped agent",
 	Long: `Start a previously stopped agent from its saved state.
 
-This resurrects the agent's tmux session, git worktree, and memory.
+This resurrects the agent's tmux session and memory.
 The agent must have been previously created and stopped.
 
 Examples:
@@ -189,7 +189,7 @@ var agentDeleteCmd = &cobra.Command{
 	Short: "Permanently delete an agent",
 	Long: `Permanently delete an agent from the workspace.
 
-This removes the agent's tmux session, git worktree, channel memberships,
+This removes the agent's tmux session, channel memberships,
 and agent state. Memory is preserved by default for recovery.
 
 Use --force to delete an agent without stopping it first.
@@ -210,7 +210,7 @@ var agentRenameCmd = &cobra.Command{
 	Short: "Rename an agent",
 	Long: `Rename an agent to a new name.
 
-This updates the agent's name, channel memberships, and worktree directory.
+This updates the agent's name and channel memberships.
 By default, running agents cannot be renamed (use --force to override).
 
 Examples:
@@ -397,13 +397,11 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 
 	// Determine tool
 	toolName := agentCreateTool
-	if toolName == "" && ws.Config.Tool != "" {
-		toolName = ws.Config.Tool
+	if toolName == "" {
+		toolName = ws.DefaultTool()
 	}
 
-	if ws.Config.AgentCommand != "" && toolName == "" {
-		mgr.SetAgentCommand(ws.Config.AgentCommand)
-	} else if toolName != "" {
+	if toolName != "" {
 		if !mgr.SetAgentByName(toolName) {
 			return fmt.Errorf("unknown tool %q (available: %v)", toolName, agent.ListAvailableTools())
 		}
@@ -454,6 +452,13 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("role %q not found. Available roles: %s", role, strings.Join(availableRoles, ", "))
 		}
 		return fmt.Errorf("role %q not found. Create it first with 'bc role create %s'", role, role)
+	}
+
+	// For Docker backend: ensure agent is authenticated before starting container
+	if ws.Config != nil && ws.Config.Runtime.Backend == "docker" {
+		if authErr := container.LoginIfNeeded(cmd.Context(), ws.RootDir, agentName); authErr != nil {
+			return fmt.Errorf("agent auth failed: %w", authErr)
+		}
 	}
 
 	// Spawn the agent (with parent if specified)
@@ -686,9 +691,6 @@ func runAgentShow(cmd *cobra.Command, args []string) error {
 		pairs = append(pairs, "Team", a.Team)
 	}
 	pairs = append(pairs, "Session", a.Session)
-	if a.WorktreeDir != "" {
-		pairs = append(pairs, "Worktree", a.WorktreeDir)
-	}
 	if a.Task != "" {
 		pairs = append(pairs, "Task", normalizeTask(a.Task))
 	}
@@ -909,7 +911,6 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 	if !agentDeleteForce {
 		fmt.Printf("Delete agent %q? This will remove:\n", agentName)
 		fmt.Println("  - tmux session")
-		fmt.Println("  - git worktree")
 		fmt.Println("  - channel memberships")
 		fmt.Println("  - agent state")
 		if agentDeletePurge {
@@ -1070,19 +1071,6 @@ func runAgentRename(cmd *cobra.Command, args []string) error {
 	}
 	_ = channelStore.Close()
 	fmt.Printf("✓ (%d channels)\n", channelsUpdated)
-
-	// Step 3: Rename worktree directory if exists
-	oldWorktree := filepath.Join(ws.WorktreesDir(), oldName)
-	newWorktree := filepath.Join(ws.WorktreesDir(), newName)
-	if _, statErr := os.Stat(oldWorktree); statErr == nil {
-		fmt.Print("  Renaming worktree directory... ")
-		if renameErr := os.Rename(oldWorktree, newWorktree); renameErr != nil {
-			fmt.Println("✗")
-			log.Warn("failed to rename worktree directory", "error", renameErr)
-		} else {
-			fmt.Println("✓")
-		}
-	}
 
 	// Log event
 	logEvent(ws, events.Event{
@@ -1366,10 +1354,9 @@ type compactAgent struct {
 	Team        string    `json:"team,omitempty"`
 	Tool        string    `json:"tool,omitempty"`
 	ParentID    string    `json:"parent_id,omitempty"`
-	Children    []string  `json:"children,omitempty"`
-	Session     string    `json:"session"`
-	WorktreeDir string    `json:"worktree_dir,omitempty"`
-	StartedAt   time.Time `json:"started_at"`
+	Children  []string  `json:"children,omitempty"`
+	Session   string    `json:"session"`
+	StartedAt time.Time `json:"started_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
@@ -1384,10 +1371,9 @@ func toCompactAgent(a *agent.Agent) compactAgent {
 		Team:        a.Team,
 		Tool:        a.Tool,
 		ParentID:    a.ParentID,
-		Children:    a.Children,
-		Session:     a.Session,
-		WorktreeDir: a.WorktreeDir,
-		StartedAt:   a.StartedAt,
+		Children:  a.Children,
+		Session:   a.Session,
+		StartedAt: a.StartedAt,
 		UpdatedAt:   a.UpdatedAt,
 	}
 }
@@ -1401,77 +1387,40 @@ func toCompactAgents(agents []*agent.Agent) []compactAgent {
 	return result
 }
 
-// agentAuthCmd extracts host auth credentials for Docker container use.
+// agentAuthCmd manages per-agent authentication for Docker containers.
 var agentAuthCmd = &cobra.Command{
-	Use:   "auth [agent-name]",
-	Short: "Manage agent authentication for Docker containers",
-	Long: `Extract authentication tokens from the host system (keychain, env vars)
-and store them for use by Docker-based agents.
+	Use:   "auth <agent-name>",
+	Short: "Authenticate an agent for Docker containers",
+	Long: `Run OAuth login for a specific agent. Each agent has its own isolated
+credentials directory. Opens a browser for authentication.
 
-Each agent gets its own isolated credentials directory. If no agent name is
-given, extracts credentials for all existing agents.
-
-For first-time setup:
-  1. Run 'claude auth login' on the host to authenticate via browser
-  2. Run 'bc agent auth' to extract tokens for container use
-  3. Create agents normally - they will use the extracted credentials`,
+Usage:
+  bc agent auth my-agent        # Login for a specific agent
+  bc agent auth my-agent status # Check auth status`,
+	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ws, err := getWorkspace()
 		if err != nil {
 			return err
 		}
 
-		fmt.Println("Extracting auth credentials for Docker agents...")
+		agentName := args[0]
 
-		if len(args) > 0 {
-			// Extract for a specific agent
-			agentName := args[0]
-			credsDir, credErr := container.EnsureCredentials(ws.RootDir, agentName)
-			if credErr != nil {
-				return fmt.Errorf("failed to extract credentials: %w", credErr)
+		// Subcommand: status
+		if len(args) > 1 && args[1] == "status" {
+			ok, statusErr := container.IsAuthenticated(cmd.Context(), ws.RootDir, agentName)
+			if statusErr != nil {
+				return statusErr
 			}
-			printCredentials(agentName, credsDir)
+			if ok {
+				fmt.Printf("Agent %q is authenticated.\n", agentName)
+			} else {
+				fmt.Printf("Agent %q is not authenticated. Run: bc agent auth %s\n", agentName, agentName)
+			}
 			return nil
 		}
 
-		// Extract for all existing agents
-		mgr := newAgentManager(ws)
-		agents := mgr.ListAgents()
-
-		if len(agents) == 0 {
-			credsDir, credErr := container.EnsureCredentials(ws.RootDir, "_default")
-			if credErr != nil {
-				return fmt.Errorf("failed to extract credentials: %w", credErr)
-			}
-			printCredentials("_default", credsDir)
-			return nil
-		}
-
-		for _, a := range agents {
-			credsDir, credErr := container.EnsureCredentials(ws.RootDir, a.Name)
-			if credErr != nil {
-				log.Warn("failed to extract credentials for agent", "agent", a.Name, "error", credErr)
-				continue
-			}
-			printCredentials(a.Name, credsDir)
-		}
-
-		return nil
+		// Run login
+		return container.LoginIfNeeded(cmd.Context(), ws.RootDir, agentName)
 	},
-}
-
-func printCredentials(agentName, credsDir string) {
-	entries, err := os.ReadDir(credsDir)
-	if err != nil || len(entries) == 0 {
-		fmt.Printf("  %s: no credentials found\n", agentName)
-		return
-	}
-	fmt.Printf("  %s:\n", agentName)
-	for _, e := range entries {
-		name := e.Name()
-		if strings.HasSuffix(name, ".json") {
-			name = strings.TrimSuffix(name, ".json")
-		}
-		fmt.Printf("    - %s\n", name)
-	}
 }

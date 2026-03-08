@@ -9,6 +9,8 @@ import (
 	"github.com/rpuneet/bc/pkg/log"
 )
 
+const rootFileName = "root.json"
+
 // migrateJSONToSQLite migrates agent state from JSON files to SQLite.
 // It reads agents.json, root.json, and per-agent JSON files, saves each
 // to the SQLite store, then renames the processed files to .migrated.
@@ -41,12 +43,17 @@ func migrateJSONToSQLite(store *SQLiteStore, stateDir, workspace string) error {
 		}
 	}
 
-	// 2. Migrate root.json
-	rootFile := filepath.Join(agentsDir, RootFileName)
+	// 2. Migrate root.json (legacy root agent state)
+	rootFile := filepath.Join(agentsDir, rootFileName)
 	if data, readErr := os.ReadFile(rootFile); readErr == nil { //nolint:gosec // known path
-		var rootState RootAgentState
-		if parseErr := json.Unmarshal(data, &rootState); parseErr == nil {
-			a := rootStateToAgent(&rootState, workspace)
+		var state AgentState
+		if parseErr := json.Unmarshal(data, &state); parseErr == nil {
+			a := state.ToAgent(workspace)
+			a.IsRoot = true
+			if a.Name == "" {
+				a.Name = "root"
+			}
+			a.ID = a.Name
 			if saveErr := store.Save(a); saveErr != nil {
 				log.Warn("migrate: failed to save root agent", "error", saveErr)
 			} else {
@@ -66,7 +73,7 @@ func migrateJSONToSQLite(store *SQLiteStore, stateDir, workspace string) error {
 			}
 			name := entry.Name()
 			// Skip non-json, temp, already-migrated, and root.json
-			if filepath.Ext(name) != ".json" || name[0] == '.' || name == RootFileName {
+			if filepath.Ext(name) != ".json" || name[0] == '.' || name == rootFileName {
 				continue
 			}
 			agentName := name[:len(name)-5] // strip .json
@@ -104,7 +111,7 @@ func migrateJSONToSQLite(store *SQLiteStore, stateDir, workspace string) error {
 		// Rename per-agent JSONs
 		for _, entry := range entries {
 			name := entry.Name()
-			if filepath.Ext(name) != ".json" || name[0] == '.' || name == RootFileName {
+			if filepath.Ext(name) != ".json" || name[0] == '.' || name == rootFileName {
 				continue
 			}
 			src := filepath.Join(agentsDir, name)
@@ -115,21 +122,6 @@ func migrateJSONToSQLite(store *SQLiteStore, stateDir, workspace string) error {
 	return nil
 }
 
-// rootStateToAgent converts a RootAgentState to an Agent with root-specific fields.
-func rootStateToAgent(rs *RootAgentState, workspace string) *Agent {
-	a := rs.ToAgent(workspace)
-	a.IsRoot = true
-	a.Children = rs.Children
-	a.CrashCount = rs.CrashCount
-	a.LastCrashTime = rs.LastCrashTime
-	a.RecoveredFrom = rs.RecoveredFrom
-	if a.Name == "" {
-		a.Name = "root"
-	}
-	a.ID = a.Name
-	return a
-}
-
 // needsMigration checks whether JSON state files exist that should be migrated.
 func needsMigration(stateDir string) bool {
 	agentsFile := filepath.Join(stateDir, "agents.json")
@@ -137,7 +129,7 @@ func needsMigration(stateDir string) bool {
 		return true
 	}
 
-	rootFile := filepath.Join(stateDir, "agents", RootFileName)
+	rootFile := filepath.Join(stateDir, "agents", rootFileName)
 	if _, err := os.Stat(rootFile); err == nil {
 		return true
 	}

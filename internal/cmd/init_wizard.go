@@ -361,7 +361,7 @@ func createWorkspaceFromWizard(state *WizardState) error {
 
 	// Create config
 	name := filepath.Base(state.Dir)
-	cfg := workspace.DefaultV2Config(name)
+	cfg := workspace.DefaultConfig(name)
 	cfg.User.Nickname = state.Nickname
 	cfg.Roster = state.Roster
 	cfg.Tools.Default = state.Tool

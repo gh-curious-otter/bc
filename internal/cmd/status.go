@@ -17,10 +17,7 @@ import (
 	"github.com/rpuneet/bc/pkg/ui"
 )
 
-var (
-	statusWithWorktrees bool
-	statusActivity      bool
-)
+var statusActivity bool
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
@@ -30,7 +27,6 @@ var statusCmd = &cobra.Command{
 Examples:
   bc status                   # Show all agents
   bc status --json            # Output as JSON
-  bc status --with-worktrees  # Include worktree status
   bc status --activity        # Show recent channel activity
 
 Output:
@@ -53,7 +49,6 @@ See Also:
 }
 
 func init() {
-	statusCmd.Flags().BoolVar(&statusWithWorktrees, "with-worktrees", false, "Include worktree status for each agent")
 	statusCmd.Flags().BoolVar(&statusActivity, "activity", false, "Show recent channel activity")
 	rootCmd.AddCommand(statusCmd)
 }
@@ -137,38 +132,15 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		termWidth = w
 	}
 
-	// Build worktree status map if requested
-	worktreeStatus := make(map[string]string)
-	if statusWithWorktrees {
-		worktreesDir := filepath.Join(ws.RootDir, ".bc", "worktrees")
-		for _, a := range agents {
-			wtDir := filepath.Join(worktreesDir, a.Name)
-			if _, statErr := os.Stat(wtDir); os.IsNotExist(statErr) {
-				worktreeStatus[a.Name] = "MISSING"
-			} else {
-				worktreeStatus[a.Name] = "OK"
-			}
-		}
-	}
-
-	// Fixed columns vary based on worktree flag
-	// Without worktrees: AGENT(15) + ROLE(12) + STATE(10) + UPTIME(20) = 57
-	// With worktrees: AGENT(15) + ROLE(12) + STATE(10) + WORKTREE(10) + UPTIME(20) = 67
+	// Fixed columns: AGENT(15) + ROLE(12) + STATE(10) + UPTIME(20) = 57
 	fixedWidth := 57
-	if statusWithWorktrees {
-		fixedWidth = 67
-	}
 	taskWidth := termWidth - fixedWidth
 	if taskWidth < 20 {
 		taskWidth = 20
 	}
 
 	// Print header
-	if statusWithWorktrees {
-		fmt.Printf("%-15s %-12s %-10s %-10s %-20s %s\n", "AGENT", "ROLE", "STATE", "WORKTREE", "UPTIME", "TASK")
-	} else {
-		fmt.Printf("%-15s %-12s %-10s %-20s %s\n", "AGENT", "ROLE", "STATE", "UPTIME", "TASK")
-	}
+	fmt.Printf("%-15s %-12s %-10s %-20s %s\n", "AGENT", "ROLE", "STATE", "UPTIME", "TASK")
 	fmt.Println(strings.Repeat("-", termWidth))
 
 	// Print agents
@@ -188,26 +160,13 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 		stateStr := colorState(a.State)
 
-		if statusWithWorktrees {
-			wtStatus := worktreeStatus[a.Name]
-			wtStatusStr := colorWorktreeStatus(wtStatus)
-			fmt.Printf("%-15s %-12s %s %s %-20s %s\n",
-				a.Name,
-				a.Role,
-				stateStr,
-				wtStatusStr,
-				uptime,
-				task,
-			)
-		} else {
-			fmt.Printf("%-15s %-12s %s %-20s %s\n",
-				a.Name,
-				a.Role,
-				stateStr,
-				uptime,
-				task,
-			)
-		}
+		fmt.Printf("%-15s %-12s %s %-20s %s\n",
+			a.Name,
+			a.Role,
+			stateStr,
+			uptime,
+			task,
+		)
 	}
 
 	fmt.Println()
@@ -340,17 +299,4 @@ func colorState(s agent.State) string {
 	}
 }
 
-func colorWorktreeStatus(s string) string {
-	padded := fmt.Sprintf("%-10s", s)
 
-	switch s {
-	case "OK":
-		return ui.GreenText(padded)
-	case "MISSING":
-		return ui.RedText(padded)
-	case "ORPHANED":
-		return ui.YellowText(padded)
-	default:
-		return padded
-	}
-}

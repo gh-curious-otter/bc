@@ -66,19 +66,14 @@ func TestMigrateJSONToSQLite_RootJSON(t *testing.T) {
 	agentsDir := filepath.Join(stateDir, "agents")
 	_ = os.MkdirAll(agentsDir, 0750)
 
-	// Write root.json
+	// Write root.json (legacy format)
 	now := time.Now()
-	rootState := RootAgentState{
-		AgentState: AgentState{
-			Name:      "root",
-			Role:      RoleRoot,
-			State:     StateIdle,
-			StartedAt: now,
-			Session:   "tmux-root",
-		},
-		Children:    []string{"eng-01"},
-		CrashCount:  1,
-		IsSingleton: true,
+	rootState := AgentState{
+		Name:      "root",
+		Role:      RoleRoot,
+		State:     StateIdle,
+		StartedAt: now,
+		Session:   "tmux-root",
 	}
 	data, _ := json.MarshalIndent(rootState, "", "  ")
 	_ = os.WriteFile(filepath.Join(agentsDir, "root.json"), data, 0600)
@@ -99,12 +94,6 @@ func TestMigrateJSONToSQLite_RootJSON(t *testing.T) {
 	}
 	if !root.IsRoot {
 		t.Error("root should have IsRoot=true")
-	}
-	if root.CrashCount != 1 {
-		t.Errorf("CrashCount = %d, want 1", root.CrashCount)
-	}
-	if len(root.Children) != 1 || root.Children[0] != "eng-01" {
-		t.Errorf("Children = %v, want [eng-01]", root.Children)
 	}
 }
 

@@ -15,9 +15,9 @@ import (
 // ConfigVersion is the current config schema version.
 const ConfigVersion = 2
 
-// V2Config represents the TOML-based workspace configuration for bc v2.
+// Config represents the TOML-based workspace configuration for bc v2.
 // Field order is optimized by fieldalignment for minimal struct padding.
-type V2Config struct {
+type Config struct {
 	Services    ServicesConfig    `toml:"services"`
 	Providers   ProvidersConfig   `toml:"providers"`
 	Tools       ToolsConfig       `toml:"tools"`
@@ -228,9 +228,9 @@ var (
 	ErrNicknameInvalidChars      = errors.New("user.nickname must contain only letters, numbers, and underscores")
 )
 
-// DefaultV2Config returns sensible defaults for a new v2 workspace.
-func DefaultV2Config(name string) V2Config {
-	return V2Config{
+// DefaultConfig returns sensible defaults for a new v2 workspace.
+func DefaultConfig(name string) Config {
+	return Config{
 		Workspace: WorkspaceConfig{
 			Name:    name,
 			Version: ConfigVersion,
@@ -305,19 +305,19 @@ func DefaultV2Config(name string) V2Config {
 	}
 }
 
-// LoadV2Config reads and parses a TOML config file.
-func LoadV2Config(path string) (*V2Config, error) {
+// LoadConfig reads and parses a TOML config file.
+func LoadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // path provided by caller
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 
-	return ParseV2Config(data)
+	return ParseConfig(data)
 }
 
-// ParseV2Config parses TOML data into a V2Config.
-func ParseV2Config(data []byte) (*V2Config, error) {
-	var cfg V2Config
+// ParseConfig parses TOML data into a Config.
+func ParseConfig(data []byte) (*Config, error) {
+	var cfg Config
 	if err := toml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
@@ -326,7 +326,7 @@ func ParseV2Config(data []byte) (*V2Config, error) {
 }
 
 // Validate checks the config for required fields and consistency.
-func (c *V2Config) Validate() error {
+func (c *Config) Validate() error {
 	// Workspace validation
 	if c.Workspace.Name == "" {
 		return ErrMissingWorkspaceName
@@ -388,7 +388,7 @@ func (c *V2Config) Validate() error {
 
 // validatePerformance validates performance config values.
 // Zero values are acceptable (will use defaults).
-func (c *V2Config) validatePerformance() error {
+func (c *Config) validatePerformance() error {
 	p := c.Performance
 
 	// Validate poll intervals (must be >= 500ms if set)
@@ -427,7 +427,7 @@ func (c *V2Config) validatePerformance() error {
 
 // validateTUI validates TUI config values.
 // Empty values are acceptable (will use defaults).
-func (c *V2Config) validateTUI() error {
+func (c *Config) validateTUI() error {
 	t := c.TUI
 
 	// Validate theme (must be one of valid themes if set)
@@ -465,7 +465,7 @@ func isValidMode(mode string) bool {
 
 // validateUser validates user config values.
 // Empty values are acceptable (will use default @bc).
-func (c *V2Config) validateUser() error {
+func (c *Config) validateUser() error {
 	u := c.User
 
 	// Empty nickname is ok (uses default)
@@ -527,7 +527,7 @@ func NormalizeNickname(nickname string) (string, error) {
 
 // hasToolDefined checks if a tool is configured (either in new or legacy config).
 // Issue #1771: Updated to check both Providers/Services and legacy Tools.
-func (c *V2Config) hasToolDefined(name string) bool {
+func (c *Config) hasToolDefined(name string) bool {
 	// Check if it's an AI provider
 	if c.HasProviderDefined(name) {
 		return true
@@ -560,7 +560,7 @@ func (c *V2Config) hasToolDefined(name string) bool {
 
 // GetTool returns the configuration for a named tool.
 // DEPRECATED: Use GetProvider or GetService instead.
-func (c *V2Config) GetTool(name string) *ToolConfig {
+func (c *Config) GetTool(name string) *ToolConfig {
 	switch name {
 	case "claude":
 		return c.Tools.Claude
@@ -587,7 +587,7 @@ func (c *V2Config) GetTool(name string) *ToolConfig {
 // GetProvider returns an AI provider's configuration by name.
 // Falls back to legacy Tools config if new Providers section is not defined.
 // Issue #1771: New method for cleaner provider access.
-func (c *V2Config) GetProvider(name string) *ProviderConfig {
+func (c *Config) GetProvider(name string) *ProviderConfig {
 	// Try new Providers config first
 	switch name {
 	case "claude":
@@ -642,7 +642,7 @@ func (c *V2Config) GetProvider(name string) *ProviderConfig {
 // GetService returns an external service's configuration by name.
 // Falls back to legacy Tools config if new Services section is not defined.
 // Issue #1771: New method for cleaner service access.
-func (c *V2Config) GetService(name string) *ServiceConfig {
+func (c *Config) GetService(name string) *ServiceConfig {
 	// Try new Services config first
 	switch name {
 	case "github":
@@ -673,7 +673,7 @@ func (c *V2Config) GetService(name string) *ServiceConfig {
 
 // GetDefaultProvider returns the default AI provider name.
 // Falls back to legacy Tools.Default if new Providers.Default is not set.
-func (c *V2Config) GetDefaultProvider() string {
+func (c *Config) GetDefaultProvider() string {
 	if c.Providers.Default != "" {
 		return c.Providers.Default
 	}
@@ -681,18 +681,18 @@ func (c *V2Config) GetDefaultProvider() string {
 }
 
 // HasProviderDefined checks if an AI provider is configured.
-func (c *V2Config) HasProviderDefined(name string) bool {
+func (c *Config) HasProviderDefined(name string) bool {
 	return c.GetProvider(name) != nil
 }
 
 // HasServiceDefined checks if an external service is configured.
-func (c *V2Config) HasServiceDefined(name string) bool {
+func (c *Config) HasServiceDefined(name string) bool {
 	return c.GetService(name) != nil
 }
 
 // ListProviders returns the names of all enabled AI providers.
 // Checks ProvidersConfig first, then falls back to legacy ToolsConfig.
-func (c *V2Config) ListProviders() []string {
+func (c *Config) ListProviders() []string {
 	seen := make(map[string]bool)
 	var names []string
 
@@ -744,7 +744,7 @@ func (c *V2Config) ListProviders() []string {
 
 // ListServices returns the names of all enabled external services.
 // Checks ServicesConfig first, then falls back to legacy ToolsConfig.
-func (c *V2Config) ListServices() []string {
+func (c *Config) ListServices() []string {
 	seen := make(map[string]bool)
 	var names []string
 
@@ -783,12 +783,12 @@ func (c *V2Config) ListServices() []string {
 }
 
 // GetDefaultTool returns the default tool configuration.
-func (c *V2Config) GetDefaultTool() *ToolConfig {
+func (c *Config) GetDefaultTool() *ToolConfig {
 	return c.GetTool(c.Tools.Default)
 }
 
 // Save writes the config to a TOML file.
-func (c *V2Config) Save(path string) error {
+func (c *Config) Save(path string) error {
 	// Ensure parent directory exists
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0750); err != nil {
@@ -876,9 +876,9 @@ func LoadUserDefaults() (*UserDefaultsConfig, error) {
 	return &cfg, nil
 }
 
-// MergeUserDefaults merges user defaults into a V2Config.
+// MergeUserDefaults merges user defaults into a Config.
 // Workspace config values take precedence over user defaults.
-func MergeUserDefaults(cfg *V2Config, defaults *UserDefaultsConfig) {
+func MergeUserDefaults(cfg *Config, defaults *UserDefaultsConfig) {
 	if defaults == nil {
 		return
 	}

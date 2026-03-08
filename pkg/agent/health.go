@@ -18,6 +18,11 @@ const (
 	DefaultStaleThreshold = 60 * time.Second
 )
 
+// TmuxChecker interface for checking tmux session status.
+type TmuxChecker interface {
+	HasSession(ctx context.Context, name string) bool
+}
+
 // HealthStatus represents the current health of the root agent.
 type HealthStatus string
 
@@ -39,7 +44,7 @@ type HealthCheckResult struct {
 
 // HealthChecker monitors root agent health and triggers recovery.
 type HealthChecker struct {
-	rootStore      *RootStateStore
+	store          *SQLiteStore
 	tmux           TmuxChecker
 	eventLog       events.EventStore
 	onUnhealthy    func(*HealthCheckResult) // callback when unhealthy detected
@@ -76,9 +81,9 @@ func WithUnhealthyCallback(fn func(*HealthCheckResult)) HealthCheckerOption {
 }
 
 // NewHealthChecker creates a new health checker for the root agent.
-func NewHealthChecker(rootStore *RootStateStore, tmux TmuxChecker, eventLog events.EventStore, opts ...HealthCheckerOption) *HealthChecker {
+func NewHealthChecker(store *SQLiteStore, tmux TmuxChecker, eventLog events.EventStore, opts ...HealthCheckerOption) *HealthChecker {
 	h := &HealthChecker{
-		rootStore:      rootStore,
+		store:          store,
 		tmux:           tmux,
 		eventLog:       eventLog,
 		interval:       DefaultHealthCheckInterval,
@@ -97,23 +102,27 @@ func (h *HealthChecker) Check(ctx context.Context) *HealthCheckResult {
 		CheckedAt: time.Now(),
 	}
 
-	// Load root state
-	state, err := h.rootStore.Load()
-	if err != nil {
+	// Load root state from SQLite
+	root, err := h.store.LoadRoot()
+	if err != nil || root == nil {
 		result.Status = HealthStatusUnhealthy
-		result.ErrorMessage = fmt.Sprintf("failed to load root state: %v", err)
+		if err != nil {
+			result.ErrorMessage = fmt.Sprintf("failed to load root state: %v", err)
+		} else {
+			result.ErrorMessage = "root agent not found"
+		}
 		h.updateLastResult(result)
 		return result
 	}
 
 	// Check state freshness
-	result.LastUpdated = state.UpdatedAt
-	staleDuration := time.Since(state.UpdatedAt)
+	result.LastUpdated = root.UpdatedAt
+	staleDuration := time.Since(root.UpdatedAt)
 	result.StateFresh = staleDuration < h.staleThreshold
 
 	// Check tmux session
-	if state.Session != "" {
-		result.TmuxAlive = h.tmux.HasSession(ctx, state.Session)
+	if root.Session != "" {
+		result.TmuxAlive = h.tmux.HasSession(ctx, root.Session)
 	}
 
 	// Determine overall status
