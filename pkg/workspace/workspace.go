@@ -248,7 +248,7 @@ func (w *Workspace) DefaultProviderCommand() string {
 			return p.Command
 		}
 	}
-	return "claude --dangerously-skip-permissions"
+	return ""
 }
 
 // Name returns the workspace name.

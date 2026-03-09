@@ -39,6 +39,36 @@ func (p *ClaudeProvider) Command() string {
 	return p.command
 }
 
+// Binary returns the executable name for LookPath/version checks.
+func (p *ClaudeProvider) Binary() string {
+	return p.binary
+}
+
+// InstallHint returns a human-readable install instruction.
+func (p *ClaudeProvider) InstallHint() string {
+	return "npx -y @anthropic-ai/claude-code"
+}
+
+// BuildCommand returns the full command for a given runtime context.
+func (p *ClaudeProvider) BuildCommand(opts CommandOpts) string {
+	cmd := p.command
+	if opts.AgentName != "" {
+		cmd = "claude -w " + opts.AgentName + " " + strings.TrimPrefix(cmd, "claude")
+	}
+	return cmd
+}
+
+// AdjustContainerCommand injects --tmux for Docker execution.
+func (p *ClaudeProvider) AdjustContainerCommand(command string) string {
+	if !strings.Contains(command, "--tmux") {
+		return strings.Replace(command, "claude", "claude --tmux", 1)
+	}
+	return command
+}
+
+// DockerImage returns empty to use default convention.
+func (p *ClaudeProvider) DockerImage() string { return "" }
+
 // IsInstalled checks if the provider binary is available.
 func (p *ClaudeProvider) IsInstalled(ctx context.Context) bool {
 	return checkBinaryExists(ctx, p.binary)
@@ -83,5 +113,6 @@ func (p *ClaudeProvider) DetectState(output string) State {
 	return StateUnknown
 }
 
-// Ensure ClaudeProvider implements Provider interface.
+// Ensure ClaudeProvider implements Provider and ContainerCustomizer interfaces.
 var _ Provider = (*ClaudeProvider)(nil)
+var _ ContainerCustomizer = (*ClaudeProvider)(nil)

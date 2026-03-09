@@ -772,6 +772,92 @@ func TestCursorProvider(t *testing.T) {
 	}
 }
 
+func TestProviderBinaryAndInstallHint(t *testing.T) {
+	tests := []struct {
+		name        string
+		provider    Provider
+		binary      string
+		installHint string
+	}{
+		{"claude", NewClaudeProvider(), "claude", "npx -y @anthropic-ai/claude-code"},
+		{"gemini", NewGeminiProvider(), "gemini", "pip install google-generativeai"},
+		{"cursor", NewCursorProvider(), "cursor-agent", "https://cursor.sh"},
+		{"codex", NewCodexProvider(), "codex", "npm install -g @openai/codex"},
+		{"opencode", NewOpenCodeProvider(), "crush", "go install github.com/opencode-ai/opencode@latest"},
+		{"openclaw", NewOpenClawProvider(), "openclaw", "pip install openclaw"},
+		{"aider", NewAiderProvider(), "aider", "pip install aider-chat"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.provider.Binary(); got != tt.binary {
+				t.Errorf("Binary() = %q, want %q", got, tt.binary)
+			}
+			if got := tt.provider.InstallHint(); got != tt.installHint {
+				t.Errorf("InstallHint() = %q, want %q", got, tt.installHint)
+			}
+		})
+	}
+}
+
+func TestProviderBuildCommand(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider Provider
+		opts     CommandOpts
+		want     string
+	}{
+		{"claude no opts", NewClaudeProvider(), CommandOpts{}, "claude --dangerously-skip-permissions"},
+		{"claude with agent", NewClaudeProvider(), CommandOpts{AgentName: "eng-01"}, "claude -w eng-01  --dangerously-skip-permissions"},
+		{"gemini no opts", NewGeminiProvider(), CommandOpts{}, "gemini --yolo"},
+		{"gemini with agent", NewGeminiProvider(), CommandOpts{AgentName: "eng-01"}, "gemini --yolo"},
+		{"codex no opts", NewCodexProvider(), CommandOpts{}, "codex --full-auto"},
+		{"aider no opts", NewAiderProvider(), CommandOpts{}, "aider --yes"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.provider.BuildCommand(tt.opts)
+			if got != tt.want {
+				t.Errorf("BuildCommand() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestContainerCustomizer(t *testing.T) {
+	claude := NewClaudeProvider()
+
+	// Claude implements ContainerCustomizer
+	cc, ok := interface{}(claude).(ContainerCustomizer)
+	if !ok {
+		t.Fatal("ClaudeProvider should implement ContainerCustomizer")
+	}
+
+	// Test AdjustContainerCommand
+	adjusted := cc.AdjustContainerCommand("claude --dangerously-skip-permissions")
+	if adjusted != "claude --tmux --dangerously-skip-permissions" {
+		t.Errorf("AdjustContainerCommand() = %q, want %q", adjusted, "claude --tmux --dangerously-skip-permissions")
+	}
+
+	// Already has --tmux
+	alreadyTmux := cc.AdjustContainerCommand("claude --tmux --dangerously-skip-permissions")
+	if alreadyTmux != "claude --tmux --dangerously-skip-permissions" {
+		t.Errorf("AdjustContainerCommand() should not modify if --tmux present, got %q", alreadyTmux)
+	}
+
+	// DockerImage returns empty
+	if img := cc.DockerImage(); img != "" {
+		t.Errorf("DockerImage() = %q, want empty", img)
+	}
+
+	// Gemini does NOT implement ContainerCustomizer
+	gemini := NewGeminiProvider()
+	if _, ok := interface{}(gemini).(ContainerCustomizer); ok {
+		t.Error("GeminiProvider should not implement ContainerCustomizer")
+	}
+}
+
 func TestCursorDetectState(t *testing.T) {
 	p := NewCursorProvider()
 

@@ -38,6 +38,21 @@ func (p *CursorProvider) Command() string {
 	return p.command
 }
 
+// Binary returns the executable name for LookPath/version checks.
+func (p *CursorProvider) Binary() string {
+	return p.binary
+}
+
+// InstallHint returns a human-readable install instruction.
+func (p *CursorProvider) InstallHint() string {
+	return "https://cursor.sh"
+}
+
+// BuildCommand returns the full command for a given runtime context.
+func (p *CursorProvider) BuildCommand(_ CommandOpts) string {
+	return p.command
+}
+
 // IsInstalled checks if the provider binary is available.
 func (p *CursorProvider) IsInstalled(ctx context.Context) bool {
 	return checkBinaryExists(ctx, p.binary)

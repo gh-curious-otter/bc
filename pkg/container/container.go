@@ -20,6 +20,7 @@ import (
 	"sync"
 
 	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/provider"
 	"github.com/rpuneet/bc/pkg/runtime"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -63,17 +64,18 @@ func ConfigFromWorkspace(dcfg workspace.DockerRuntimeConfig) Config {
 // Backend manages Docker containers as agent sessions.
 // Each container runs tmux internally for interactive session management.
 type Backend struct {
-	logCancels    map[string]context.CancelFunc
-	prefix        string
-	workspaceHash string
-	workspacePath string
-	cfg           Config
-	mu            sync.RWMutex
+	logCancels       map[string]context.CancelFunc
+	providerRegistry *provider.Registry
+	prefix           string
+	workspaceHash    string
+	workspacePath    string
+	cfg              Config
+	mu               sync.RWMutex
 }
 
 // NewBackend creates a Docker runtime backend.
 // Returns an error if the Docker daemon is not reachable.
-func NewBackend(cfg Config, prefix, workspacePath string) (*Backend, error) {
+func NewBackend(cfg Config, prefix, workspacePath string, registry *provider.Registry) (*Backend, error) {
 	ctx := context.Background()
 	cmd := exec.CommandContext(ctx, "docker", "info") //nolint:gosec // trusted binary
 	cmd.Stdout = io.Discard
@@ -85,11 +87,12 @@ func NewBackend(cfg Config, prefix, workspacePath string) (*Backend, error) {
 
 	h := sha256.Sum256([]byte(workspacePath))
 	return &Backend{
-		cfg:           cfg,
-		prefix:        prefix,
-		workspaceHash: fmt.Sprintf("%x", h[:3]),
-		workspacePath: workspacePath,
-		logCancels:    make(map[string]context.CancelFunc),
+		cfg:              cfg,
+		prefix:           prefix,
+		workspaceHash:    fmt.Sprintf("%x", h[:3]),
+		workspacePath:    workspacePath,
+		providerRegistry: registry,
+		logCancels:       make(map[string]context.CancelFunc),
 	}, nil
 }
 
@@ -102,6 +105,15 @@ func (b *Backend) containerName(name string) string {
 func (b *Backend) imageForTool(toolName string) string {
 	if toolName == "" {
 		return b.cfg.Image
+	}
+	if b.providerRegistry != nil {
+		if p, ok := b.providerRegistry.Get(toolName); ok {
+			if cc, ccOk := p.(provider.ContainerCustomizer); ccOk {
+				if img := cc.DockerImage(); img != "" {
+					return img
+				}
+			}
+		}
 	}
 	return "bc-agent-" + toolName + ":latest"
 }
@@ -226,6 +238,15 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	image := b.cfg.Image
 	if toolName, ok := env["BC_AGENT_TOOL"]; ok && toolName != "" {
 		image = b.imageForTool(toolName)
+	}
+
+	// Let provider customize the command for Docker execution (e.g., claude injects --tmux).
+	if toolName, ok := env["BC_AGENT_TOOL"]; ok && toolName != "" && b.providerRegistry != nil {
+		if p, pOk := b.providerRegistry.Get(toolName); pOk {
+			if cc, ccOk := p.(provider.ContainerCustomizer); ccOk {
+				command = cc.AdjustContainerCommand(command)
+			}
+		}
 	}
 
 	// Run the agent command directly. claude --tmux handles its own tmux session.

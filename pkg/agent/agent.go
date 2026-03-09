@@ -398,6 +398,9 @@ type Manager struct {
 	// Agent command (e.g., "claude" or "claude --dangerously-skip-permissions")
 	agentCmd string
 
+	// defaultTool is the provider name for the default agentCmd (for BuildCommand)
+	defaultTool string
+
 	// Workspace path for env vars
 	workspacePath string
 
@@ -410,58 +413,64 @@ type Manager struct {
 
 // NewManager creates a new agent manager with workspace-scoped tmux sessions.
 func NewManager(stateDir string) *Manager {
+	cmd, tool := defaultAgentCmd()
 	return &Manager{
 		agents:           make(map[string]*Agent),
 		runtime:          runtime.NewTmuxBackend(tmux.NewManager(config.Tmux.SessionPrefix)),
 		providerRegistry: provider.DefaultRegistry,
 		stateDir:         stateDir,
-		agentCmd:         defaultAgentCmd(),
+		agentCmd:         cmd,
+		defaultTool:      tool,
 	}
 }
 
 // NewWorkspaceManager creates an agent manager scoped to a workspace.
 // Session names will be unique per workspace to avoid collisions.
 func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
+	cmd, tool := defaultAgentCmd()
 	return &Manager{
 		agents:           make(map[string]*Agent),
 		runtime:          runtime.NewTmuxBackend(tmux.NewWorkspaceManager(config.Tmux.SessionPrefix, workspacePath)),
 		providerRegistry: provider.DefaultRegistry,
 		stateDir:         stateDir,
-		agentCmd:         defaultAgentCmd(),
+		agentCmd:         cmd,
+		defaultTool:      tool,
 		workspacePath:    workspacePath,
 	}
 }
 
 // NewWorkspaceManagerWithRuntime creates an agent manager with a specific runtime backend.
 func NewWorkspaceManagerWithRuntime(stateDir, workspacePath string, rt runtime.Backend) *Manager {
+	cmd, tool := defaultAgentCmd()
 	return &Manager{
 		agents:           make(map[string]*Agent),
 		runtime:          rt,
 		providerRegistry: provider.DefaultRegistry,
 		stateDir:         stateDir,
-		agentCmd:         defaultAgentCmd(),
+		agentCmd:         cmd,
+		defaultTool:      tool,
 		workspacePath:    workspacePath,
 	}
 }
 
-// defaultAgentCmd returns the command for the default provider.
-func defaultAgentCmd() string {
+// defaultAgentCmd returns the command and tool name for the default provider.
+func defaultAgentCmd() (string, string) {
 	name := config.Providers.Default
 	if name == "" {
-		return ""
+		return "", ""
 	}
 	p, ok := provider.DefaultRegistry.Get(name)
 	if !ok {
-		return ""
+		return "", ""
 	}
-	return p.Command()
+	return p.Command(), name
 }
 
 // getAgentCommand looks up the command for a tool from the manager's provider registry.
-func (m *Manager) getAgentCommand(toolName string) (string, bool) {
+func (m *Manager) getAgentCommand(toolName, agentName string) (string, bool) {
 	if m.providerRegistry != nil {
 		if p, ok := m.providerRegistry.Get(toolName); ok {
-			return p.Command(), true
+			return p.BuildCommand(provider.CommandOpts{AgentName: agentName}), true
 		}
 	}
 	return "", false
@@ -496,6 +505,7 @@ func (m *Manager) SetAgentByName(name string) bool {
 		return false
 	}
 	m.agentCmd = p.Command()
+	m.defaultTool = name
 	return true
 }
 
@@ -624,9 +634,13 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 		default:
 			// Active state (working, idle, stuck, etc.) with dead session —
 			// restart the tmux session but preserve agent state.
+			toolName := existing.Tool
+			if toolName == "" {
+				toolName = m.defaultTool
+			}
 			agentCmd := m.agentCmd
-			if existing.Tool != "" {
-				if cmd, ok := m.getAgentCommand(existing.Tool); ok {
+			if toolName != "" {
+				if cmd, ok := m.getAgentCommand(toolName, name); ok {
 					agentCmd = cmd
 				}
 			}
@@ -642,7 +656,6 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 			if existing.ParentID != "" {
 				env["BC_PARENT_ID"] = existing.ParentID
 			}
-			agentCmd = injectWorktreeFlag(agentCmd, name)
 			if err := m.runtime.CreateSessionWithEnv(context.TODO(), name, workspace, agentCmd, env); err != nil {
 				return nil, fmt.Errorf("failed to recreate tmux session: %w", err)
 			}
@@ -679,10 +692,14 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	// Determine the command to use
 	agentCmd := m.agentCmd
 	if tool != "" {
-		if cmd, ok := m.getAgentCommand(tool); ok {
+		if cmd, ok := m.getAgentCommand(tool, name); ok {
 			agentCmd = cmd
 		} else {
 			return nil, fmt.Errorf("unknown tool %q, available tools: %v", tool, m.listAvailableTools())
+		}
+	} else if m.defaultTool != "" {
+		if cmd, ok := m.getAgentCommand(m.defaultTool, name); ok {
+			agentCmd = cmd
 		}
 	}
 
@@ -740,9 +757,6 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	if parentID != "" {
 		env["BC_PARENT_ID"] = parentID
 	}
-
-	// Inject -w flag for claude-based commands to use built-in worktree isolation
-	agentCmd = injectWorktreeFlag(agentCmd, name)
 
 	// Create tmux session in the workspace directory
 	if err := m.runtime.CreateSessionWithEnv(context.TODO(), name, workspace, agentCmd, env); err != nil {
@@ -887,14 +901,6 @@ func truncateLogFile(path string, maxBytes int64) {
 	}
 }
 
-// injectWorktreeFlag adds `-w <name>` to claude commands for built-in worktree isolation.
-// Non-claude commands are returned unchanged.
-func injectWorktreeFlag(agentCmd, name string) string {
-	if strings.HasPrefix(agentCmd, "claude") {
-		return "claude -w " + name + " " + strings.TrimPrefix(agentCmd, "claude")
-	}
-	return agentCmd
-}
 
 
 // SpawnChildAgent creates a child agent under a parent agent.

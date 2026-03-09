@@ -41,6 +41,21 @@ func (p *CodexProvider) Command() string {
 	return p.command
 }
 
+// Binary returns the executable name for LookPath/version checks.
+func (p *CodexProvider) Binary() string {
+	return p.binary
+}
+
+// InstallHint returns a human-readable install instruction.
+func (p *CodexProvider) InstallHint() string {
+	return "npm install -g @openai/codex"
+}
+
+// BuildCommand returns the full command for a given runtime context.
+func (p *CodexProvider) BuildCommand(_ CommandOpts) string {
+	return p.command
+}
+
 // IsInstalled checks if the provider binary is available.
 func (p *CodexProvider) IsInstalled(ctx context.Context) bool {
 	return checkBinaryExists(ctx, p.binary)

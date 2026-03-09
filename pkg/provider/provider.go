@@ -22,6 +22,15 @@ type Provider interface {
 	// Command returns the shell command to start this provider
 	Command() string
 
+	// Binary returns the executable name for LookPath/version checks
+	Binary() string
+
+	// InstallHint returns a human-readable install instruction
+	InstallHint() string
+
+	// BuildCommand returns the full command for a given runtime context
+	BuildCommand(opts CommandOpts) string
+
 	// IsInstalled checks if the provider binary is available on the system
 	IsInstalled(ctx context.Context) bool
 
@@ -30,6 +39,21 @@ type Provider interface {
 
 	// DetectState analyzes output to determine agent state (working, idle, done, etc.)
 	DetectState(output string) State
+}
+
+// CommandOpts configures how a provider builds its command.
+type CommandOpts struct {
+	AgentName string // worktree isolation (claude uses -w <name>)
+	Docker    bool   // running inside Docker container
+}
+
+// ContainerCustomizer is optionally implemented by providers needing
+// special Docker container behavior.
+type ContainerCustomizer interface {
+	// AdjustContainerCommand modifies the command for Docker execution.
+	AdjustContainerCommand(command string) string
+	// DockerImage returns custom image name, or empty for default convention.
+	DockerImage() string
 }
 
 // State represents the detected state of a provider's agent.

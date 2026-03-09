@@ -41,6 +41,21 @@ func (p *AiderProvider) Command() string {
 	return p.command
 }
 
+// Binary returns the executable name for LookPath/version checks.
+func (p *AiderProvider) Binary() string {
+	return p.binary
+}
+
+// InstallHint returns a human-readable install instruction.
+func (p *AiderProvider) InstallHint() string {
+	return "pip install aider-chat"
+}
+
+// BuildCommand returns the full command for a given runtime context.
+func (p *AiderProvider) BuildCommand(_ CommandOpts) string {
+	return p.command
+}
+
 // IsInstalled checks if the provider binary is available.
 func (p *AiderProvider) IsInstalled(ctx context.Context) bool {
 	return checkBinaryExists(ctx, p.binary)

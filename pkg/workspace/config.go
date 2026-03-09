@@ -412,27 +412,26 @@ func NormalizeNickname(nickname string) (string, error) {
 	return nickname, nil
 }
 
+// providerFieldMap returns a map of provider name to config pointer.
+func (c *Config) providerFieldMap() map[string]*ProviderConfig {
+	return map[string]*ProviderConfig{
+		"claude":   c.Providers.Claude,
+		"gemini":   c.Providers.Gemini,
+		"cursor":   c.Providers.Cursor,
+		"codex":    c.Providers.Codex,
+		"opencode": c.Providers.OpenCode,
+		"openclaw": c.Providers.OpenClaw,
+		"aider":    c.Providers.Aider,
+	}
+}
+
 // GetProvider returns an AI provider's configuration by name.
 func (c *Config) GetProvider(name string) *ProviderConfig {
-	switch name {
-	case "claude":
-		return c.Providers.Claude
-	case "gemini":
-		return c.Providers.Gemini
-	case "cursor":
-		return c.Providers.Cursor
-	case "codex":
-		return c.Providers.Codex
-	case "opencode":
-		return c.Providers.OpenCode
-	case "openclaw":
-		return c.Providers.OpenClaw
-	case "aider":
-		return c.Providers.Aider
-	default:
-		if cfg, ok := c.Providers.Custom[name]; ok {
-			return &cfg
-		}
+	if cfg, ok := c.providerFieldMap()[name]; ok && cfg != nil {
+		return cfg
+	}
+	if cfg, ok := c.Providers.Custom[name]; ok {
+		return &cfg
 	}
 	return nil
 }
@@ -470,22 +469,10 @@ func (c *Config) ListProviders() []string {
 	var names []string
 	seen := make(map[string]bool)
 
-	providerFields := []struct {
-		cfg  *ProviderConfig
-		name string
-	}{
-		{c.Providers.Claude, "claude"},
-		{c.Providers.Gemini, "gemini"},
-		{c.Providers.Cursor, "cursor"},
-		{c.Providers.Codex, "codex"},
-		{c.Providers.OpenCode, "opencode"},
-		{c.Providers.OpenClaw, "openclaw"},
-		{c.Providers.Aider, "aider"},
-	}
-	for _, pf := range providerFields {
-		if pf.cfg != nil && pf.cfg.Enabled {
-			names = append(names, pf.name)
-			seen[pf.name] = true
+	for name, cfg := range c.providerFieldMap() {
+		if cfg != nil && cfg.Enabled {
+			names = append(names, name)
+			seen[name] = true
 		}
 	}
 	for name, cfg := range c.Providers.Custom {

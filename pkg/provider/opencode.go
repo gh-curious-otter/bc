@@ -42,6 +42,21 @@ func (p *OpenCodeProvider) Command() string {
 	return p.command
 }
 
+// Binary returns the executable name for LookPath/version checks.
+func (p *OpenCodeProvider) Binary() string {
+	return p.binary
+}
+
+// InstallHint returns a human-readable install instruction.
+func (p *OpenCodeProvider) InstallHint() string {
+	return "go install github.com/opencode-ai/opencode@latest"
+}
+
+// BuildCommand returns the full command for a given runtime context.
+func (p *OpenCodeProvider) BuildCommand(_ CommandOpts) string {
+	return p.command
+}
+
 // IsInstalled checks if the provider binary is available.
 func (p *OpenCodeProvider) IsInstalled(ctx context.Context) bool {
 	// Check for crush (successor) first

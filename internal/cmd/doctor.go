@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/bc/pkg/provider"
 	"github.com/rpuneet/bc/pkg/ui"
 )
 
@@ -78,26 +79,10 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	// Required: git
 	checks = append(checks, checkCommand(ctx, "git", true, "brew install git"))
 
-	// Optional: claude CLI
-	checks = append(checks, checkCommand(ctx, "claude", false, "npx -y @anthropic-ai/claude-code"))
-
-	// Optional: gemini CLI
-	checks = append(checks, checkCommand(ctx, "gemini", false, "pip install google-generativeai"))
-
-	// Optional: cursor
-	checks = append(checks, checkCommand(ctx, "cursor", false, "https://cursor.sh"))
-
-	// Optional: codex CLI
-	checks = append(checks, checkCommand(ctx, "codex", false, "npm install -g @openai/codex"))
-
-	// Optional: opencode CLI
-	checks = append(checks, checkCommand(ctx, "opencode", false, "go install github.com/opencode-ai/opencode@latest"))
-
-	// Optional: openclaw CLI
-	checks = append(checks, checkCommand(ctx, "openclaw", false, "pip install openclaw"))
-
-	// Optional: aider
-	checks = append(checks, checkCommand(ctx, "aider", false, "pip install aider-chat"))
+	// Optional: AI coding tools from provider registry
+	for _, p := range provider.ListProviders() {
+		checks = append(checks, checkProvider(ctx, p))
+	}
 
 	// Check ANTHROPIC_API_KEY
 	checks = append(checks, checkEnvVar("ANTHROPIC_API_KEY", false))
@@ -190,21 +175,11 @@ func getVersion(ctx context.Context, name string) string {
 		cmd = exec.CommandContext(ctx, "tmux", "-V")
 	case "git":
 		cmd = exec.CommandContext(ctx, "git", "--version")
-	case "claude":
-		cmd = exec.CommandContext(ctx, "claude", "--version")
-	case "gemini":
-		cmd = exec.CommandContext(ctx, "gemini", "--version")
-	case "cursor":
-		cmd = exec.CommandContext(ctx, "cursor", "--version")
-	case "codex":
-		cmd = exec.CommandContext(ctx, "codex", "--version")
-	case "opencode":
-		cmd = exec.CommandContext(ctx, "opencode", "--version")
-	case "openclaw":
-		cmd = exec.CommandContext(ctx, "openclaw", "--version")
-	case "aider":
-		cmd = exec.CommandContext(ctx, "aider", "--version")
 	default:
+		// Check provider registry
+		if p, ok := provider.DefaultRegistry.Get(name); ok {
+			return p.Version(ctx)
+		}
 		return ""
 	}
 
@@ -213,6 +188,33 @@ func getVersion(ctx context.Context, name string) string {
 		return ""
 	}
 	return strings.TrimSpace(strings.Split(string(out), "\n")[0])
+}
+
+// checkProvider creates a check for a provider from the registry.
+func checkProvider(ctx context.Context, p provider.Provider) check {
+	c := check{
+		Name:     p.Name(),
+		Required: false,
+		Fix:      p.InstallHint(),
+	}
+
+	if !p.IsInstalled(ctx) {
+		c.Status = checkFail
+		c.Message = "not found"
+		return c
+	}
+
+	version := p.Version(ctx)
+	path, _ := exec.LookPath(p.Binary())
+	if version != "" {
+		c.Message = fmt.Sprintf("%s (%s)", path, version)
+	} else if path != "" {
+		c.Message = path
+	} else {
+		c.Message = "installed"
+	}
+	c.Status = checkOK
+	return c
 }
 
 func printCheck(c check) {

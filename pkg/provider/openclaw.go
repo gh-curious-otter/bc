@@ -41,6 +41,21 @@ func (p *OpenClawProvider) Command() string {
 	return p.command
 }
 
+// Binary returns the executable name for LookPath/version checks.
+func (p *OpenClawProvider) Binary() string {
+	return p.binary
+}
+
+// InstallHint returns a human-readable install instruction.
+func (p *OpenClawProvider) InstallHint() string {
+	return "pip install openclaw"
+}
+
+// BuildCommand returns the full command for a given runtime context.
+func (p *OpenClawProvider) BuildCommand(_ CommandOpts) string {
+	return p.command
+}
+
 // IsInstalled checks if the provider binary is available.
 func (p *OpenClawProvider) IsInstalled(ctx context.Context) bool {
 	return checkBinaryExists(ctx, p.binary)

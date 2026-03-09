@@ -20,6 +20,7 @@ import (
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/names"
+	"github.com/rpuneet/bc/pkg/provider"
 	"github.com/rpuneet/bc/pkg/team"
 	"github.com/rpuneet/bc/pkg/ui"
 	"github.com/rpuneet/bc/pkg/workspace"
@@ -30,7 +31,7 @@ import (
 func newAgentManager(ws *workspace.Workspace) *agent.Manager {
 	if ws.Config != nil && ws.Config.Runtime.Backend == "docker" {
 		dockerCfg := container.ConfigFromWorkspace(ws.Config.Runtime.Docker)
-		backend, err := container.NewBackend(dockerCfg, "bc-", ws.RootDir)
+		backend, err := container.NewBackend(dockerCfg, "bc-", ws.RootDir, provider.DefaultRegistry)
 		if err != nil {
 			log.Warn("Docker unavailable, falling back to tmux", "error", err)
 		} else {

@@ -38,6 +38,21 @@ func (p *GeminiProvider) Command() string {
 	return p.command
 }
 
+// Binary returns the executable name for LookPath/version checks.
+func (p *GeminiProvider) Binary() string {
+	return p.binary
+}
+
+// InstallHint returns a human-readable install instruction.
+func (p *GeminiProvider) InstallHint() string {
+	return "pip install google-generativeai"
+}
+
+// BuildCommand returns the full command for a given runtime context.
+func (p *GeminiProvider) BuildCommand(_ CommandOpts) string {
+	return p.command
+}
+
 // IsInstalled checks if the provider binary is available.
 func (p *GeminiProvider) IsInstalled(ctx context.Context) bool {
 	return checkBinaryExists(ctx, p.binary)

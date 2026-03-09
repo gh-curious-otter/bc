@@ -2563,24 +2563,24 @@ func TestIsValidAgentName(t *testing.T) {
 	}
 }
 
-func TestInjectWorktreeFlag(t *testing.T) {
+func TestClaudeBuildCommand(t *testing.T) {
+	p := provider.NewClaudeProvider()
+
 	tests := []struct {
 		name     string
-		cmd      string
-		agent    string
+		opts     provider.CommandOpts
 		expected string
 	}{
-		{"claude basic", "claude", "eng-01", "claude -w eng-01 "},
-		{"claude with flags", "claude --dangerously-skip-permissions", "root", "claude -w root  --dangerously-skip-permissions"},
-		{"non-claude", "cursor", "eng-01", "cursor"},
-		{"empty", "", "eng-01", ""},
+		{"no agent", provider.CommandOpts{}, "claude --dangerously-skip-permissions"},
+		{"with agent", provider.CommandOpts{AgentName: "eng-01"}, "claude -w eng-01  --dangerously-skip-permissions"},
+		{"root agent", provider.CommandOpts{AgentName: "root"}, "claude -w root  --dangerously-skip-permissions"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := injectWorktreeFlag(tc.cmd, tc.agent)
+			result := p.BuildCommand(tc.opts)
 			if result != tc.expected {
-				t.Errorf("injectWorktreeFlag(%q, %q) = %q, want %q", tc.cmd, tc.agent, result, tc.expected)
+				t.Errorf("BuildCommand(%+v) = %q, want %q", tc.opts, result, tc.expected)
 			}
 		})
 	}
@@ -3278,6 +3278,14 @@ type mockProvider struct {
 func (m mockProvider) Name() string        { return m.name }
 func (m mockProvider) Description() string { return "mock " + m.name }
 func (m mockProvider) Command() string {
+	if m.command != "" {
+		return m.command
+	}
+	return m.name
+}
+func (m mockProvider) Binary() string      { return m.name }
+func (m mockProvider) InstallHint() string { return "install " + m.name }
+func (m mockProvider) BuildCommand(opts provider.CommandOpts) string {
 	if m.command != "" {
 		return m.command
 	}
