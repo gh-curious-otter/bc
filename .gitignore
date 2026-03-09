@@ -1,6 +1,7 @@
 # Build output
 /bin/
 /dist/
+.claude/
 
 # Go build artifacts
 *.exe
