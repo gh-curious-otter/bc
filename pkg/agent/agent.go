@@ -650,8 +650,8 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 				"BC_AGENT_ROLE": string(existing.Role),
 				"BC_WORKSPACE":  workspace,
 			}
-			if existing.Tool != "" {
-				env["BC_AGENT_TOOL"] = existing.Tool
+			if toolName != "" {
+				env["BC_AGENT_TOOL"] = toolName
 			}
 			if existing.ParentID != "" {
 				env["BC_PARENT_ID"] = existing.ParentID
@@ -751,8 +751,12 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 		"BC_AGENT_ROLE": string(role),
 		"BC_WORKSPACE":  workspace,
 	}
-	if tool != "" {
-		env["BC_AGENT_TOOL"] = tool
+	effectiveTool := tool
+	if effectiveTool == "" {
+		effectiveTool = m.defaultTool
+	}
+	if effectiveTool != "" {
+		env["BC_AGENT_TOOL"] = effectiveTool
 	}
 	if parentID != "" {
 		env["BC_PARENT_ID"] = parentID
