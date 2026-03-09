@@ -57,8 +57,6 @@ func Init(rootDir string) (*Workspace, error) {
 		stateDir,
 		filepath.Join(stateDir, "agents"),
 		filepath.Join(stateDir, "roles"),
-		filepath.Join(stateDir, "memory"),
-		filepath.Join(stateDir, "worktrees"),
 		filepath.Join(stateDir, "channels"),
 		filepath.Join(stateDir, "prompts"),
 	}
@@ -182,22 +180,6 @@ func (w *Workspace) RolesDir() string {
 	return filepath.Join(w.StateDir(), "roles")
 }
 
-// MemoryDir returns the memory directory path.
-func (w *Workspace) MemoryDir() string {
-	if w.Config != nil {
-		return filepath.Join(w.RootDir, w.Config.Memory.Path)
-	}
-	return filepath.Join(w.StateDir(), "memory")
-}
-
-// WorktreesDir returns the worktrees directory path.
-func (w *Workspace) WorktreesDir() string {
-	if w.Config != nil {
-		return filepath.Join(w.RootDir, w.Config.Worktrees.Path)
-	}
-	return filepath.Join(w.StateDir(), "worktrees")
-}
-
 // ChannelsDir returns the channels directory path.
 func (w *Workspace) ChannelsDir() string {
 	return filepath.Join(w.StateDir(), "channels")
@@ -210,8 +192,6 @@ func (w *Workspace) EnsureDirs() error {
 		w.AgentsDir(),
 		w.LogsDir(),
 		w.RolesDir(),
-		w.MemoryDir(),
-		w.WorktreesDir(),
 		w.ChannelsDir(),
 	}
 
@@ -253,30 +233,22 @@ func (w *Workspace) GetRolePrompt(name string) string {
 	return role.Prompt
 }
 
-// DefaultTool returns the default tool name for this workspace.
-func (w *Workspace) DefaultTool() string {
+// DefaultProvider returns the default provider name for this workspace.
+func (w *Workspace) DefaultProvider() string {
 	if w.Config != nil {
-		return w.Config.Tools.Default
+		return w.Config.GetDefaultProvider()
 	}
 	return "claude"
 }
 
-// DefaultToolCommand returns the command for the default tool.
-func (w *Workspace) DefaultToolCommand() string {
+// DefaultProviderCommand returns the command for the default provider.
+func (w *Workspace) DefaultProviderCommand() string {
 	if w.Config != nil {
-		if tool := w.Config.GetDefaultTool(); tool != nil {
-			return tool.Command
+		if p := w.Config.GetProvider(w.Config.GetDefaultProvider()); p != nil {
+			return p.Command
 		}
 	}
 	return "claude --dangerously-skip-permissions"
-}
-
-// DefaultChannels returns the default channel names.
-func (w *Workspace) DefaultChannels() []string {
-	if w.Config != nil {
-		return w.Config.Channels.Default
-	}
-	return []string{"general", "engineering"}
 }
 
 // Name returns the workspace name.

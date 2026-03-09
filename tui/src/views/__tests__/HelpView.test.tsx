@@ -53,7 +53,6 @@ const helpSections: HelpSection[] = [
   { type: 'section', title: 'Global', shortcuts: [
     { keys: 'Tab', desc: 'Next view' },
     { keys: 'Shift+Tab', desc: 'Previous view' },
-    { keys: 'M', desc: 'Memory view' },
     { keys: 'R', desc: 'Routing view' },
     { keys: '?', desc: 'Toggle help' },
     { keys: 'ESC', desc: 'Go back / Home' },
@@ -90,13 +89,6 @@ const helpSections: HelpSection[] = [
     { keys: '/', desc: 'Search commands' },
     { keys: 'f', desc: 'Toggle favorite' },
     { keys: 'Enter', desc: 'Copy command' },
-  ]},
-  { type: 'section', title: 'Memory', shortcuts: [
-    { keys: 'j/k', desc: 'Navigate agents' },
-    { keys: 'Enter', desc: 'View details' },
-    { keys: '/', desc: 'Search memories' },
-    { keys: '1/2', desc: 'Switch exp/learnings' },
-    { keys: 'c', desc: 'Clear memory' },
   ]},
   { type: 'section', title: 'Routing', shortcuts: [
     { keys: 'j/k', desc: 'Navigate rules' },
@@ -152,8 +144,8 @@ describe('HelpView', () => {
 
   describe('Help Sections Structure', () => {
     test('has correct number of sections', () => {
-      // 1 header + 8 sections + 1 footer = 10 total
-      expect(helpSections.length).toBe(10);
+      // 1 header + 7 sections + 1 footer = 9 total
+      expect(helpSections.length).toBe(9);
     });
 
     test('first section is header', () => {
@@ -164,9 +156,9 @@ describe('HelpView', () => {
       expect(helpSections[helpSections.length - 1].type).toBe('footer');
     });
 
-    test('Global section has 8 shortcuts', () => {
+    test('Global section has 7 shortcuts', () => {
       const globalSection = helpSections.find(s => s.type === 'section' && s.title === 'Global') as ShortcutSection;
-      expect(globalSection.shortcuts.length).toBe(8);
+      expect(globalSection.shortcuts.length).toBe(7);
     });
 
     test('Navigation section has 5 shortcuts', () => {
@@ -204,16 +196,15 @@ describe('HelpView', () => {
       // Header: 2 lines
       // Footer: 3 lines
       // Each section: 1 (title) + shortcuts + 1 (margin)
-      // Global: 1 + 8 + 1 = 10
+      // Global: 1 + 7 + 1 = 9
       // Navigation: 1 + 5 + 1 = 7
       // Agents: 1 + 5 + 1 = 7
       // Channels: 1 + 4 + 1 = 6
       // Costs: 1 + 4 + 1 = 6
       // Commands: 1 + 3 + 1 = 5
-      // Memory: 1 + 5 + 1 = 7
       // Routing: 1 + 2 + 1 = 4
-      // Total: 2 + 3 + 10 + 7 + 7 + 6 + 6 + 5 + 7 + 4 = 57
-      expect(totalLines).toBe(57);
+      // Total: 2 + 3 + 9 + 7 + 7 + 6 + 6 + 5 + 4 = 49
+      expect(totalLines).toBe(49);
     });
 
     test('header contributes 2 lines', () => {

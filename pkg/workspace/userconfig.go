@@ -132,47 +132,21 @@ func (c *Config) MergeWithUserRC(rc *UserRCConfig) {
 			c.User.Nickname = rc.User.Nickname
 		}
 	}
-
-	// Note: Other settings like default_role and preferred tools are used
-	// by commands at runtime, not merged into workspace config
 }
 
 // GetPreferredTool returns the first available preferred tool from .bcrc,
 // or the workspace default if no preference is set.
 func (c *Config) GetPreferredTool(rc *UserRCConfig) string {
 	if rc == nil || len(rc.Tools.Preferred) == 0 {
-		return c.Tools.Default
+		return c.Providers.Default
 	}
 
 	// Check if any preferred tool is available in workspace
 	for _, tool := range rc.Tools.Preferred {
-		if c.HasTool(tool) {
+		if c.HasProviderDefined(tool) {
 			return tool
 		}
 	}
 
-	return c.Tools.Default
-}
-
-// HasTool checks if a tool is configured in the workspace.
-func (c *Config) HasTool(name string) bool {
-	switch name {
-	case "claude", "claude-code":
-		return c.Tools.Claude != nil && c.Tools.Claude.Enabled
-	case "cursor":
-		return c.Tools.Cursor != nil && c.Tools.Cursor.Enabled
-	case "codex":
-		return c.Tools.Codex != nil && c.Tools.Codex.Enabled
-	case "gemini":
-		return c.Tools.Gemini != nil && c.Tools.Gemini.Enabled
-	case "github":
-		return c.Tools.GitHub != nil && c.Tools.GitHub.Enabled
-	case "gitlab":
-		return c.Tools.GitLab != nil && c.Tools.GitLab.Enabled
-	case "jira":
-		return c.Tools.Jira != nil && c.Tools.Jira.Enabled
-	default:
-		_, ok := c.Tools.Custom[name]
-		return ok
-	}
+	return c.Providers.Default
 }

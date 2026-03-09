@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/config"
 	"github.com/rpuneet/bc/pkg/provider"
 	"github.com/rpuneet/bc/pkg/runtime"
 	"github.com/rpuneet/bc/pkg/tmux"
@@ -207,56 +206,40 @@ func TestNewWorkspaceManager(t *testing.T) {
 // --- Config-dependent function tests ---
 
 func TestSetAgentByName(t *testing.T) {
-	// Save original config and restore after test
-	origAgents := config.Agents
-	defer func() { config.Agents = origAgents }()
-
-	config.Agents = []config.AgentsItem{
-		{Name: "claude", Command: "claude --skip", Description: "Claude"},
-		{Name: "cursor", Command: "cursor-agent", Description: "Cursor"},
-	}
-
-	m := newTestManager(t)
+	mp := mockProvider{name: "testprov", installed: true, version: "1.0"}
+	m := newTestManagerWithProvider(t, mp)
 
 	t.Run("found", func(t *testing.T) {
-		if !m.SetAgentByName("claude") {
-			t.Error("expected SetAgentByName to return true for known agent")
+		if !m.SetAgentByName("testprov") {
+			t.Error("expected SetAgentByName to return true for known provider")
 		}
-		if m.agentCmd != "claude --skip" {
-			t.Errorf("agentCmd = %q, want %q", m.agentCmd, "claude --skip")
+		if m.agentCmd == "" {
+			t.Error("agentCmd should not be empty after SetAgentByName")
 		}
 	})
 
 	t.Run("not found", func(t *testing.T) {
 		if m.SetAgentByName("nonexistent") {
-			t.Error("expected SetAgentByName to return false for unknown agent")
+			t.Error("expected SetAgentByName to return false for unknown provider")
 		}
 	})
 }
 
 func TestGetAgentCommand(t *testing.T) {
-	origAgents := config.Agents
-	defer func() { config.Agents = origAgents }()
-
-	config.Agents = []config.AgentsItem{
-		{Name: "claude", Command: "claude --skip"},
-		{Name: "codex", Command: "codex --full-auto"},
-	}
-
 	t.Run("found", func(t *testing.T) {
 		cmd, ok := GetAgentCommand("claude")
 		if !ok {
-			t.Error("expected ok=true for known tool")
+			t.Error("expected ok=true for known provider")
 		}
-		if cmd != "claude --skip" {
-			t.Errorf("cmd = %q, want %q", cmd, "claude --skip")
+		if cmd == "" {
+			t.Error("cmd should not be empty for known provider")
 		}
 	})
 
 	t.Run("not found", func(t *testing.T) {
 		cmd, ok := GetAgentCommand("nonexistent")
 		if ok {
-			t.Error("expected ok=false for unknown tool")
+			t.Error("expected ok=false for unknown provider")
 		}
 		if cmd != "" {
 			t.Errorf("cmd = %q, want empty", cmd)
@@ -265,28 +248,17 @@ func TestGetAgentCommand(t *testing.T) {
 }
 
 func TestListAvailableTools(t *testing.T) {
-	origAgents := config.Agents
-	defer func() { config.Agents = origAgents }()
-
-	config.Agents = []config.AgentsItem{
-		{Name: "claude"},
-		{Name: "cursor"},
-		{Name: "codex"},
-	}
-
 	tools := ListAvailableTools()
-	if len(tools) != 3 {
-		t.Fatalf("expected 3 tools, got %d", len(tools))
+	if len(tools) == 0 {
+		t.Fatal("expected at least one tool from provider registry")
 	}
-	// Tools should contain all names (order depends on slice)
+	// Should contain claude at minimum
 	found := map[string]bool{}
 	for _, tool := range tools {
 		found[tool] = true
 	}
-	for _, name := range []string{"claude", "cursor", "codex"} {
-		if !found[name] {
-			t.Errorf("missing tool %q in result", name)
-		}
+	if !found["claude"] {
+		t.Error("missing 'claude' in ListAvailableTools result")
 	}
 }
 
@@ -1213,12 +1185,6 @@ func TestSpawnAgentWithOptions_NullRole(t *testing.T) {
 }
 
 func TestSpawnAgentWithOptions_UnknownTool(t *testing.T) {
-	origAgents := config.Agents
-	defer func() { config.Agents = origAgents }()
-	config.Agents = []config.AgentsItem{
-		{Name: "claude", Command: "claude"},
-	}
-
 	m := newTestManager(t)
 	_, err := m.SpawnAgentWithOptions("eng-1", Role("engineer"), "/tmp", "", "nonexistent-tool")
 	if err == nil {
@@ -1354,7 +1320,7 @@ func TestSaveLoadState_ComplexHierarchy(t *testing.T) {
 		Children:  []string{"mgr"},
 		StartedAt: now,
 		UpdatedAt: now,
-		Memory: &AgentMemory{
+		RolePrompt: &AgentMemory{
 			RolePrompt: "You are a root.",
 			LoadedAt:   now,
 		},
@@ -1455,7 +1421,7 @@ func TestAgentJSON_RoundTrip(t *testing.T) {
 		WorktreeDir: "/workspace/.bc/worktrees/eng-1",
 		StartedAt:   time.Now().Truncate(time.Second),
 		UpdatedAt:   time.Now().Truncate(time.Second),
-		Memory: &AgentMemory{
+		RolePrompt: &AgentMemory{
 			RolePrompt: "test prompt",
 			LoadedAt:   time.Now().Truncate(time.Second),
 		},
@@ -1486,11 +1452,11 @@ func TestAgentJSON_RoundTrip(t *testing.T) {
 	if loaded.ParentID != original.ParentID {
 		t.Errorf("ParentID mismatch: %q vs %q", loaded.ParentID, original.ParentID)
 	}
-	if loaded.Memory == nil {
-		t.Fatal("Memory should not be nil after round-trip")
+	if loaded.RolePrompt == nil {
+		t.Fatal("RolePrompt should not be nil after round-trip")
 	}
-	if loaded.Memory.RolePrompt != original.Memory.RolePrompt {
-		t.Errorf("RolePrompt mismatch: %q vs %q", loaded.Memory.RolePrompt, original.Memory.RolePrompt)
+	if loaded.RolePrompt.RolePrompt != original.RolePrompt.RolePrompt {
+		t.Errorf("RolePrompt mismatch: %q vs %q", loaded.RolePrompt.RolePrompt, original.RolePrompt.RolePrompt)
 	}
 }
 
@@ -2189,70 +2155,6 @@ func TestEnforceRootSingleton_RootErrorAllows(t *testing.T) {
 	}
 }
 
-// --- Memory Directory Tests ---
-
-func TestCreateMemoryDir(t *testing.T) {
-	workspace := t.TempDir()
-	agentName := "test-agent"
-
-	memoryDir, err := createMemoryDir(workspace, agentName)
-	if err != nil {
-		t.Fatalf("createMemoryDir failed: %v", err)
-	}
-
-	expectedDir := filepath.Join(workspace, ".bc", "memory", agentName)
-	if memoryDir != expectedDir {
-		t.Errorf("memoryDir = %q, want %q", memoryDir, expectedDir)
-	}
-
-	// Verify directory exists
-	if _, statErr := os.Stat(memoryDir); os.IsNotExist(statErr) {
-		t.Error("memory directory was not created")
-	}
-
-	// Verify experiences.jsonl exists
-	experiencesPath := filepath.Join(memoryDir, "experiences.jsonl")
-	if _, statErr := os.Stat(experiencesPath); os.IsNotExist(statErr) {
-		t.Error("experiences.jsonl was not created")
-	}
-
-	// Verify learnings.md exists and has header
-	learningsPath := filepath.Join(memoryDir, "learnings.md")
-	if _, statErr := os.Stat(learningsPath); os.IsNotExist(statErr) {
-		t.Error("learnings.md was not created")
-	}
-
-	// Read learnings.md content - path is constructed from test inputs
-	content, readErr := os.ReadFile(learningsPath) //nolint:gosec // test file path from t.TempDir()
-	if readErr != nil {
-		t.Fatalf("failed to read learnings.md: %v", readErr)
-	}
-	if len(content) == 0 {
-		t.Error("learnings.md is empty, expected header")
-	}
-}
-
-func TestCreateMemoryDir_Idempotent(t *testing.T) {
-	workspace := t.TempDir()
-	agentName := "test-agent"
-
-	// Create once
-	memoryDir1, err := createMemoryDir(workspace, agentName)
-	if err != nil {
-		t.Fatalf("first createMemoryDir failed: %v", err)
-	}
-
-	// Create again - should reuse existing
-	memoryDir2, err := createMemoryDir(workspace, agentName)
-	if err != nil {
-		t.Fatalf("second createMemoryDir failed: %v", err)
-	}
-
-	if memoryDir1 != memoryDir2 {
-		t.Errorf("memory dirs should match: %q != %q", memoryDir1, memoryDir2)
-	}
-}
-
 // --- Permission function tests ---
 
 func TestDefaultPermissions(t *testing.T) {
@@ -2479,13 +2381,7 @@ func TestDeleteAgent(t *testing.T) {
 		Role:      Role("engineer"),
 		State:     StateIdle,
 		Workspace: m.stateDir,
-		MemoryDir: filepath.Join(m.stateDir, "memory-doomed"),
 		Children:  []string{},
-	}
-
-	// Create memory dir
-	if mkErr := os.MkdirAll(m.agents["doomed"].MemoryDir, 0750); mkErr != nil {
-		t.Fatalf("failed to create memory dir: %v", mkErr)
 	}
 
 	// Delete should succeed
@@ -2496,11 +2392,6 @@ func TestDeleteAgent(t *testing.T) {
 	// Agent should be gone
 	if _, exists := m.agents["doomed"]; exists {
 		t.Error("agent should be deleted from map")
-	}
-
-	// Memory dir should be removed (PurgeMemory is true by default)
-	if _, statErr := os.Stat(filepath.Join(m.stateDir, "memory-doomed")); !os.IsNotExist(statErr) {
-		t.Error("memory dir should be removed")
 	}
 }
 
@@ -2518,31 +2409,19 @@ func TestDeleteAgent_NotFound(t *testing.T) {
 
 // --- DeleteAgentWithOptions tests (#1236) ---
 
-func TestDeleteAgentWithOptions_PreserveMemory(t *testing.T) {
+func TestDeleteAgentWithOptions_Default(t *testing.T) {
 	m := newTestManager(t)
 
-	memDir := filepath.Join(m.stateDir, "memory-preserve")
 	m.agents["preserve"] = &Agent{
 		Name:      "preserve",
 		Role:      Role("engineer"),
 		State:     StateIdle,
 		Workspace: m.stateDir,
-		MemoryDir: memDir,
 		Children:  []string{},
 	}
 
-	// Create memory dir
-	if mkErr := os.MkdirAll(memDir, 0750); mkErr != nil {
-		t.Fatalf("failed to create memory dir: %v", mkErr)
-	}
-	// Create a test file
-	testFile := filepath.Join(memDir, "test.json")
-	if writeErr := os.WriteFile(testFile, []byte("{}"), 0600); writeErr != nil {
-		t.Fatalf("failed to create test file: %v", writeErr)
-	}
-
-	// Delete with PurgeMemory=false
-	err := m.DeleteAgentWithOptions("preserve", DeleteOptions{PurgeMemory: false})
+	// Delete with default options
+	err := m.DeleteAgentWithOptions("preserve", DeleteOptions{})
 	if err != nil {
 		t.Errorf("DeleteAgentWithOptions failed: %v", err)
 	}
@@ -2550,11 +2429,6 @@ func TestDeleteAgentWithOptions_PreserveMemory(t *testing.T) {
 	// Agent should be gone
 	if _, exists := m.agents["preserve"]; exists {
 		t.Error("agent should be deleted")
-	}
-
-	// Memory dir should still exist
-	if _, statErr := os.Stat(memDir); os.IsNotExist(statErr) {
-		t.Error("memory dir should be preserved with PurgeMemory=false")
 	}
 }
 
@@ -2571,7 +2445,7 @@ func TestDeleteAgentWithOptions_WithWorktree(t *testing.T) {
 	}
 
 	// Delete should succeed (worktree removal is best-effort)
-	err := m.DeleteAgentWithOptions("with-worktree", DeleteOptions{PurgeMemory: true})
+	err := m.DeleteAgentWithOptions("with-worktree", DeleteOptions{Force: true})
 	if err != nil {
 		t.Errorf("DeleteAgentWithOptions failed: %v", err)
 	}
@@ -2600,7 +2474,7 @@ func TestDeleteAgentWithOptions_RemovesFromParent(t *testing.T) {
 	}
 
 	// Delete child
-	err := m.DeleteAgentWithOptions("child-eng", DeleteOptions{PurgeMemory: false})
+	err := m.DeleteAgentWithOptions("child-eng", DeleteOptions{})
 	if err != nil {
 		t.Errorf("DeleteAgentWithOptions failed: %v", err)
 	}
@@ -3397,12 +3271,18 @@ type mockProvider struct {
 	detectState provider.State
 	name        string
 	version     string
+	command     string
 	installed   bool
 }
 
-func (m mockProvider) Name() string                        { return m.name }
-func (m mockProvider) Description() string                 { return "mock " + m.name }
-func (m mockProvider) Command() string                     { return m.name }
+func (m mockProvider) Name() string        { return m.name }
+func (m mockProvider) Description() string { return "mock " + m.name }
+func (m mockProvider) Command() string {
+	if m.command != "" {
+		return m.command
+	}
+	return m.name
+}
 func (m mockProvider) IsInstalled(_ context.Context) bool  { return m.installed }
 func (m mockProvider) Version(_ context.Context) string    { return m.version }
 func (m mockProvider) DetectState(_ string) provider.State { return m.detectState }
@@ -3425,10 +3305,6 @@ func TestSpawnWithProvider_Installed(t *testing.T) {
 	mp := mockProvider{name: "testcli", installed: true, version: "1.2.3"}
 	m := newTestManagerWithProvider(t, mp)
 
-	// Configure tool in config so GetAgentCommand finds it
-	config.Agents = append(config.Agents, config.AgentsItem{Name: "testcli", Command: "/bin/true"})
-	defer func() { config.Agents = config.Agents[:len(config.Agents)-1] }()
-
 	ag, err := m.SpawnAgentWithTool("test-agent", Role("engineer"), t.TempDir(), "testcli")
 	if err != nil {
 		t.Fatalf("expected spawn to succeed with installed provider, got: %v", err)
@@ -3449,10 +3325,6 @@ func TestSpawnWithProvider_NotInstalled(t *testing.T) {
 	mp := mockProvider{name: "missingtool", installed: false}
 	m := newTestManagerWithProvider(t, mp)
 
-	// Configure tool in config
-	config.Agents = append(config.Agents, config.AgentsItem{Name: "missingtool", Command: "missingtool"})
-	defer func() { config.Agents = config.Agents[:len(config.Agents)-1] }()
-
 	_, err := m.SpawnAgentWithTool("test-agent", Role("engineer"), t.TempDir(), "missingtool")
 	if err == nil {
 		t.Fatal("expected error for uninstalled provider")
@@ -3463,9 +3335,8 @@ func TestSpawnWithProvider_NotInstalled(t *testing.T) {
 }
 
 func TestSpawnWithProvider_CustomToolFallback(t *testing.T) {
-	// Manager has a registry but the tool is NOT registered in it
+	// Manager has a registry with "sometool" but NOT "customtool"
 	reg := provider.NewRegistry()
-	// Only register "sometool" — "customtool" is unknown
 	reg.Register(mockProvider{name: "sometool", installed: true})
 
 	m := &Manager{
@@ -3476,21 +3347,11 @@ func TestSpawnWithProvider_CustomToolFallback(t *testing.T) {
 		agentCmd:         "/bin/true",
 	}
 
-	// Configure custom tool that exists as a binary
-	config.Agents = append(config.Agents, config.AgentsItem{Name: "customtool", Command: "true"})
-	defer func() { config.Agents = config.Agents[:len(config.Agents)-1] }()
-
-	// Should succeed because "true" exists in PATH (falls back to exec.LookPath)
-	ag, err := m.SpawnAgentWithTool("test-agent", Role("engineer"), t.TempDir(), "customtool")
-	if err != nil {
-		t.Fatalf("expected spawn to succeed for unknown tool with valid binary, got: %v", err)
+	// "customtool" is unknown to the registry, so SpawnAgentWithTool should fail
+	_, err := m.SpawnAgentWithTool("test-agent", Role("engineer"), t.TempDir(), "customtool")
+	if err == nil {
+		t.Fatal("expected error for unknown tool not in registry")
 	}
-	if ag == nil {
-		t.Fatal("expected non-nil agent")
-	}
-
-	// Clean up
-	_ = m.runtime.KillSession(context.Background(), "test-agent")
 }
 
 func TestDetectAgentState_WithProvider(t *testing.T) {

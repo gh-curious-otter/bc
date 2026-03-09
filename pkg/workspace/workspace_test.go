@@ -416,11 +416,9 @@ func TestEnsureDirsV2(t *testing.T) {
 		t.Fatalf("EnsureDirs V2: %v", err)
 	}
 
-	// V2 creates additional dirs: roles, memory, worktrees, channels
+	// V2 creates additional dirs: roles, channels
 	v2Dirs := []string{
 		ws.RolesDir(),
-		ws.MemoryDir(),
-		ws.WorktreesDir(),
 		ws.ChannelsDir(),
 	}
 	for _, d := range v2Dirs {
@@ -904,10 +902,8 @@ func TestWorkspaceV2Directories(t *testing.T) {
 
 	// Check all v2 directories exist
 	dirs := map[string]string{
-		"RolesDir":     ws.RolesDir(),
-		"MemoryDir":    ws.MemoryDir(),
-		"WorktreesDir": ws.WorktreesDir(),
-		"ChannelsDir":  ws.ChannelsDir(),
+		"RolesDir":    ws.RolesDir(),
+		"ChannelsDir": ws.ChannelsDir(),
 	}
 
 	for name, path := range dirs {
@@ -961,22 +957,22 @@ func TestWorkspaceGetRolePrompt(t *testing.T) {
 	}
 }
 
-func TestWorkspaceDefaultTool(t *testing.T) {
+func TestWorkspaceDefaultProvider(t *testing.T) {
 	dir := t.TempDir()
 
-	// v2 workspace - default tool is gemini (minimal root-only startup)
+	// v2 workspace - default provider is gemini (minimal root-only startup)
 	ws, err := InitV2(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if ws.DefaultTool() != "gemini" {
-		t.Errorf("DefaultTool = %q, want %q", ws.DefaultTool(), "gemini")
+	if ws.DefaultProvider() != "gemini" {
+		t.Errorf("DefaultProvider = %q, want %q", ws.DefaultProvider(), "gemini")
 	}
 
-	cmd := ws.DefaultToolCommand()
+	cmd := ws.DefaultProviderCommand()
 	if cmd != "gemini --yolo" {
-		t.Errorf("DefaultToolCommand = %q, want %q", cmd, "gemini --yolo")
+		t.Errorf("DefaultProviderCommand = %q, want %q", cmd, "gemini --yolo")
 	}
 }
 
@@ -1008,21 +1004,7 @@ func TestWorkspaceSaveV2(t *testing.T) {
 }
 
 
-func TestWorkspaceDefaultChannels(t *testing.T) {
-	dir := t.TempDir()
-
-	ws, err := InitV2(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	channels := ws.DefaultChannels()
-	if len(channels) != 2 {
-		t.Errorf("DefaultChannels len = %d, want 2", len(channels))
-	}
-}
-
-func TestWorkspaceDefaultToolCustom(t *testing.T) {
+func TestWorkspaceDefaultProviderCustom(t *testing.T) {
 	dir := t.TempDir()
 
 	ws, err := Init(dir)
@@ -1030,54 +1012,13 @@ func TestWorkspaceDefaultToolCustom(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Set custom tool in config
-	ws.Config.Tools.Default = "cursor"
+	// Set custom provider in config
+	ws.Config.Providers.Default = "cursor"
 
-	if ws.DefaultTool() != "cursor" {
-		t.Errorf("DefaultTool custom = %q, want cursor", ws.DefaultTool())
+	if ws.DefaultProvider() != "cursor" {
+		t.Errorf("DefaultProvider custom = %q, want cursor", ws.DefaultProvider())
 	}
 }
-
-func TestWorkspaceMemoryDir(t *testing.T) {
-	dir := t.TempDir()
-
-	ws, err := InitV2(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	memDir := ws.MemoryDir()
-	if memDir == "" {
-		t.Error("MemoryDir should not be empty")
-	}
-
-	// Should contain .bc/memory
-	expected := filepath.Join(dir, ".bc", "memory")
-	if memDir != expected {
-		t.Errorf("MemoryDir = %q, want %q", memDir, expected)
-	}
-}
-
-func TestWorkspaceWorktreesDir(t *testing.T) {
-	dir := t.TempDir()
-
-	ws, err := InitV2(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	wtDir := ws.WorktreesDir()
-	if wtDir == "" {
-		t.Error("WorktreesDir should not be empty")
-	}
-
-	// Should contain .bc/worktrees
-	expected := filepath.Join(dir, ".bc", "worktrees")
-	if wtDir != expected {
-		t.Errorf("WorktreesDir = %q, want %q", wtDir, expected)
-	}
-}
-
 
 func TestCopyDefaultPrompts(t *testing.T) {
 	// Create source directory with prompts

@@ -398,7 +398,7 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 	// Determine tool
 	toolName := agentCreateTool
 	if toolName == "" {
-		toolName = ws.DefaultTool()
+		toolName = ws.DefaultProvider()
 	}
 
 	if toolName != "" {
@@ -958,7 +958,7 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 	// Delete agent with options
 	fmt.Printf("Deleting %s... ", agentName)
 	deleteOpts := agent.DeleteOptions{
-		PurgeMemory: agentDeletePurge,
+		Force: agentDeleteForce,
 	}
 	if delErr := mgr.DeleteAgentWithOptions(agentName, deleteOpts); delErr != nil {
 		fmt.Println("✗")

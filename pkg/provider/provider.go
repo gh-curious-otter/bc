@@ -61,6 +61,11 @@ func (r *Registry) Register(p Provider) {
 	r.providers[p.Name()] = p
 }
 
+// Unregister removes a provider from the registry by name.
+func (r *Registry) Unregister(name string) {
+	delete(r.providers, name)
+}
+
 // Get returns a provider by name.
 func (r *Registry) Get(name string) (Provider, bool) {
 	p, ok := r.providers[name]

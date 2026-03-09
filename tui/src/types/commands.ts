@@ -200,34 +200,6 @@ export const COMMAND_REGISTRY: CommandCategory[] = [
     ],
   },
   {
-    name: 'Memory & Learning',
-    commands: [
-      {
-        name: 'memory show',
-        category: 'Memory & Learning',
-        description: 'Show agent learnings and experiences',
-        usage: 'bc memory show',
-        readOnly: true,
-        flags: ['--agent', '--json'],
-      },
-      {
-        name: 'memory search',
-        category: 'Memory & Learning',
-        description: 'Search agent memory',
-        usage: 'bc memory search <keyword>',
-        readOnly: true,
-        flags: ['--agent'],
-      },
-      {
-        name: 'memory learn',
-        category: 'Memory & Learning',
-        description: 'Record learning to agent memory',
-        usage: 'bc memory learn <category> <content>',
-        readOnly: false,
-      },
-    ],
-  },
-  {
     name: 'Utilities',
     commands: [
       {

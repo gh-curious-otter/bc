@@ -13,19 +13,11 @@ name = "bc"
 # Config schema version (DO NOT CHANGE unless migrating)
 version = 2
 
-# =============================================================================
-# Git Worktrees
-# =============================================================================
-[worktrees]
-# Directory for agent-specific git worktrees (relative to workspace root)
-# Each agent gets an isolated worktree to prevent merge conflicts
-path = ".bc/worktrees"
-
-# Automatically cleanup worktrees when agents are stopped
-auto_cleanup = true
+# Workspace root path (set automatically on init)
+path = ""
 
 # =============================================================================
-# AI Providers (preferred — use this for new configs)
+# AI Providers
 # =============================================================================
 [providers]
 # Default provider for new agents
@@ -77,61 +69,6 @@ command = "jira"
 enabled = false
 
 # =============================================================================
-# AI Tools Configuration (DEPRECATED — use [providers] and [services] above)
-# Kept for backward compatibility with existing configs
-# =============================================================================
-[tools]
-# Default tool to use when spawning agents (must be defined below)
-# Options: "claude", "cursor", "codex", or custom tool name
-default = "claude"
-
-# Claude Code (Anthropic) - Recommended default
-[tools.claude]
-command = "claude --dangerously-skip-permissions"
-enabled = true
-
-# Gemini (Google) - YOLO mode
-[tools.gemini]
-command = "gemini --yolo"
-enabled = true
-
-# Cursor Agent - Alternative option
-[tools.cursor]
-command = "cursor-agent --force --print"
-enabled = false
-
-# OpenAI Codex - Alternative option
-[tools.codex]
-command = "codex --full-auto"
-enabled = false
-
-# OpenCode/Crush - Charmbracelet's AI coding assistant
-# Note: OpenCode was archived, Crush is the successor
-[tools.opencode]
-command = "crush"
-enabled = false
-
-# GitHub integration - for issue tracking and PR management
-[tools.github]
-command = "gh"
-enabled = false
-
-# GitLab integration - for GitLab instance integration
-[tools.gitlab]
-command = "glab"
-enabled = false
-
-# Jira integration - for issue tracking with Jira
-[tools.jira]
-command = "jira"
-enabled = false
-
-# Custom tools can be added here
-# [tools.custom_name]
-# command = "your-agent-command"
-# enabled = true
-
-# =============================================================================
 # Session Logging
 # =============================================================================
 [logs]
@@ -146,38 +83,9 @@ max_bytes = 1048576  # 1MB
 preserve_ansi = true
 
 # =============================================================================
-# Agent Memory System
-# =============================================================================
-[memory]
-# Memory backend type: "file" (default), "sqlite" (future)
-backend = "file"
-
-# Directory for agent memory, experiences, and learnings
-path = ".bc/memory"
-
-# =============================================================================
 # Communication Channels
 # =============================================================================
 [channels]
-# Default channels created on workspace initialization
-# Agents can be added to channels for group messaging
-default = ["general", "engineering"]
-
-# =============================================================================
-# Default Agent Roster (for `bc up`)
-# =============================================================================
-[roster]
-# Number of engineer agents to spawn (0-10)
-# Engineers implement tasks, write code, and run tests
-engineers = 4
-
-# Number of tech-lead agents to spawn (0-10)
-# Tech leads review code, manage engineers, and coordinate work
-tech_leads = 2
-
-# Number of QA agents to spawn (0-10)
-# QA agents test features and verify quality
-qa = 2
 
 # =============================================================================
 # Tmux Settings
@@ -189,8 +97,8 @@ session_prefix = "bc-"
 # Runtime Settings
 # =============================================================================
 [runtime]
-# Backend for agent sessions: "tmux" (default) or "docker"
-backend = "tmux"
+# Backend for agent sessions: "tmux" or "docker" (default)
+backend = "docker"
 
 [runtime.docker]
 # Docker image for agent containers
@@ -205,7 +113,7 @@ network = "host"
 # extra_mounts = ["/data:/data:ro"]
 
 # =============================================================================
-# Performance Settings (Phase 5 - Epic #962)
+# Performance Settings
 # =============================================================================
 [performance]
 # TUI polling intervals in milliseconds (min: 500ms)
@@ -256,47 +164,3 @@ s = "sessions"      # Ctrl+X s -> Session list
 x = "export"        # Ctrl+X x -> Export session
 n = "new_session"   # Ctrl+X n -> New session
 q = "quit"          # Ctrl+X q -> Quit
-
-# =============================================================================
-# Agent Defaults (internal use)
-# =============================================================================
-[agent_legacy]
-command = "claude --dangerously-skip-permissions"
-
-# =============================================================================
-# Agent Type Definitions (for bc agent create --tool)
-# =============================================================================
-[[agents]]
-name = "claude"
-command = "claude --dangerously-skip-permissions"
-description = "Anthropic Claude Code"
-
-[[agents]]
-name = "gemini"
-command = "gemini --yolo"
-description = "Gemini Agent"
-
-[[agents]]
-name = "cursor"
-command = "cursor-agent --force --print"
-description = "Cursor Agent"
-
-[[agents]]
-name = "codex"
-command = "codex --full-auto"
-description = "OpenAI Codex"
-
-[[agents]]
-name = "opencode"
-command = "crush"
-description = "OpenCode/Crush AI coding assistant"
-
-[[agents]]
-name = "openclaw"
-command = "openclaw --auto"
-description = "OpenClaw AI Coding Assistant"
-
-[[agents]]
-name = "aider"
-command = "aider --yes"
-description = "Aider AI Pair Programming"

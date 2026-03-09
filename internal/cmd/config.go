@@ -22,13 +22,13 @@ var configCmd = &cobra.Command{
 
 Configuration uses a hierarchical key structure with dot notation:
   workspace.name
-  tools.claude.command
-  roster.engineers
+  providers.claude.command
+  providers.default
 
 Examples:
   bc config show                        # Show all config
-  bc config get tools.default           # Get a specific value
-  bc config set roster.engineers 6      # Set a value
+  bc config get providers.default           # Get a specific value
+  bc config set providers.default 6      # Set a value
   bc config list                        # List all config keys
   bc config edit                        # Open config in editor
   bc config validate                    # Validate config file
@@ -59,8 +59,8 @@ var configGetCmd = &cobra.Command{
 
 Examples:
   bc config get workspace.name
-  bc config get tools.default
-  bc config get roster.engineers
+  bc config get providers.default
+  bc config get providers.default
   bc config get tools.claude.command`,
 	Args: cobra.ExactArgs(1),
 	RunE: runConfigGet,
@@ -74,9 +74,9 @@ var configSetCmd = &cobra.Command{
 The value type is automatically inferred (string, number, boolean).
 
 Examples:
-  bc config set roster.engineers 6
-  bc config set tools.default claude
-  bc config set worktrees.auto_cleanup true
+  bc config set providers.default 6
+  bc config set providers.default claude
+  bc config set runtime.backend docker
   bc config set tools.claude.command "claude --force"`,
 	Args: cobra.ExactArgs(2),
 	RunE: runConfigSet,
@@ -599,40 +599,16 @@ func printConfig(cfg *workspace.Config) {
 	fmt.Printf("  version: %d\n", cfg.Workspace.Version)
 	fmt.Println()
 
-	fmt.Println("[worktrees]")
-	fmt.Printf("  path: %s\n", cfg.Worktrees.Path)
-	fmt.Printf("  auto_cleanup: %v\n", cfg.Worktrees.AutoCleanup)
-	fmt.Println()
-
-	fmt.Println("[tools]")
-	fmt.Printf("  default: %s\n", cfg.Tools.Default)
-	if cfg.Tools.Claude != nil {
-		fmt.Printf("  claude.command: %s\n", cfg.Tools.Claude.Command)
-		fmt.Printf("  claude.enabled: %v\n", cfg.Tools.Claude.Enabled)
+	fmt.Println("[providers]")
+	fmt.Printf("  default: %s\n", cfg.Providers.Default)
+	if cfg.Providers.Claude != nil {
+		fmt.Printf("  claude.command: %s\n", cfg.Providers.Claude.Command)
+		fmt.Printf("  claude.enabled: %v\n", cfg.Providers.Claude.Enabled)
 	}
-	if cfg.Tools.Cursor != nil {
-		fmt.Printf("  cursor.command: %s\n", cfg.Tools.Cursor.Command)
-		fmt.Printf("  cursor.enabled: %v\n", cfg.Tools.Cursor.Enabled)
+	if cfg.Providers.Gemini != nil {
+		fmt.Printf("  gemini.command: %s\n", cfg.Providers.Gemini.Command)
+		fmt.Printf("  gemini.enabled: %v\n", cfg.Providers.Gemini.Enabled)
 	}
-	if cfg.Tools.Codex != nil {
-		fmt.Printf("  codex.command: %s\n", cfg.Tools.Codex.Command)
-		fmt.Printf("  codex.enabled: %v\n", cfg.Tools.Codex.Enabled)
-	}
-	fmt.Println()
-
-	fmt.Println("[memory]")
-	fmt.Printf("  backend: %s\n", cfg.Memory.Backend)
-	fmt.Printf("  path: %s\n", cfg.Memory.Path)
-	fmt.Println()
-
-	fmt.Println("[channels]")
-	fmt.Printf("  default: %v\n", cfg.Channels.Default)
-	fmt.Println()
-
-	fmt.Println("[roster]")
-	fmt.Printf("  engineers: %d\n", cfg.Roster.Engineers)
-	fmt.Printf("  tech_leads: %d\n", cfg.Roster.TechLeads)
-	fmt.Printf("  qa: %d\n", cfg.Roster.QA)
 	fmt.Println()
 
 	fmt.Println("[performance]")

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/rpuneet/bc/pkg/channel"
@@ -31,7 +30,6 @@ type WizardState struct {
 	Tool      string
 	Preset    WizardPreset
 	Channels  []string
-	Roster    workspace.RosterConfig
 	Step      int
 	TotalStep int
 }
@@ -40,7 +38,7 @@ type WizardState struct {
 func NewWizardState(dir string) *WizardState {
 	return &WizardState{
 		Step:      1,
-		TotalStep: 4,
+		TotalStep: 3,
 		Dir:       dir,
 		Nickname:  workspace.DefaultNickname,
 		Preset:    PresetSolo,
@@ -77,19 +75,12 @@ func RunWizard(dir string) error {
 		return err
 	}
 
-	// Step 2: Preset selection
-	if err := wizardStepPreset(state, reader); err != nil {
+	// Step 2: Tool selection
+	if err := wizardStepTools(state, reader); err != nil {
 		return err
 	}
 
-	// Step 3: Tool selection (only for custom preset)
-	if state.Preset == PresetCustom {
-		if err := wizardStepTools(state, reader); err != nil {
-			return err
-		}
-	}
-
-	// Step 4: Confirmation
+	// Step 3: Confirmation
 	if err := wizardStepConfirm(state, reader); err != nil {
 		return err
 	}
@@ -141,112 +132,11 @@ func wizardStepBasics(state *WizardState, reader *bufio.Reader) error {
 	return nil
 }
 
-// wizardStepPreset handles step 2: preset selection.
-func wizardStepPreset(state *WizardState, reader *bufio.Reader) error {
-	printStepHeader(2, state.TotalStep, "Team Configuration")
-
-	fmt.Println("  Select a configuration preset:")
-	fmt.Println()
-	fmt.Printf("    %s Solo Developer %s\n", ui.GreenText("[1]"), ui.GrayText("(recommended for starting out)"))
-	fmt.Println("        Root agent only - ideal for personal projects")
-	fmt.Println()
-	fmt.Printf("    %s Small Team %s\n", ui.CyanText("[2]"), ui.GrayText("(for small teams)"))
-	fmt.Println("        Root + 1 PM + 1 Manager + 2 Engineers")
-	fmt.Println()
-	fmt.Printf("    %s Full Team %s\n", ui.CyanText("[3]"), ui.GrayText("(for larger projects)"))
-	fmt.Println("        Root + 1 PM + 1 Manager + 4 Engineers + 2 QA")
-	fmt.Println()
-	fmt.Printf("    %s Custom %s\n", ui.CyanText("[4]"), ui.GrayText("(configure everything)"))
-	fmt.Println("        Choose your own roster and tools")
-	fmt.Println()
-
-	fmt.Print("  Enter choice [1]: ")
-	input, err := reader.ReadString('\n')
-	if err != nil {
-		return fmt.Errorf("failed to read input: %w", err)
-	}
-
-	choice := strings.TrimSpace(input)
-	switch choice {
-	case "", "1":
-		state.Preset = PresetSolo
-		state.Roster = workspace.RosterConfig{} // All zeros = root only
-		fmt.Printf("  %s Solo Developer preset selected\n", ui.GreenText("✓"))
-	case "2":
-		state.Preset = PresetSmallTeam
-		state.Roster = workspace.RosterConfig{
-			ProductManager: 1,
-			Manager:        1,
-			Engineers:      2,
-		}
-		fmt.Printf("  %s Small Team preset selected\n", ui.GreenText("✓"))
-	case "3":
-		state.Preset = PresetFullTeam
-		state.Roster = workspace.RosterConfig{
-			ProductManager: 1,
-			Manager:        1,
-			Engineers:      4,
-			TechLeads:      2,
-			QA:             2,
-		}
-		fmt.Printf("  %s Full Team preset selected\n", ui.GreenText("✓"))
-	case "4":
-		state.Preset = PresetCustom
-		if err := promptCustomRoster(state, reader); err != nil {
-			return err
-		}
-	default:
-		fmt.Printf("  %s Invalid choice, using Solo Developer\n", ui.YellowText("!"))
-		state.Preset = PresetSolo
-	}
-
-	fmt.Println()
-	return nil
-}
-
-// promptCustomRoster prompts for custom roster configuration.
-func promptCustomRoster(state *WizardState, reader *bufio.Reader) error {
-	fmt.Println()
-	fmt.Println("  Configure agent roster (enter 0-10 for each):")
-	fmt.Println()
-
-	state.Roster.ProductManager = promptInt(reader, "  Product Managers", 0)
-	state.Roster.Manager = promptInt(reader, "  Managers", 0)
-	state.Roster.Engineers = promptInt(reader, "  Engineers", 2)
-	state.Roster.TechLeads = promptInt(reader, "  Tech Leads", 0)
-	state.Roster.QA = promptInt(reader, "  QA Engineers", 0)
-
-	fmt.Printf("  %s Custom roster configured\n", ui.GreenText("✓"))
-	return nil
-}
-
-// promptInt prompts for an integer value with a default.
-func promptInt(reader *bufio.Reader, label string, defaultVal int) int {
-	fmt.Printf("%s [%d]: ", label, defaultVal)
-	input, err := reader.ReadString('\n')
-	if err != nil {
-		return defaultVal
-	}
-
-	input = strings.TrimSpace(input)
-	if input == "" {
-		return defaultVal
-	}
-
-	val, err := strconv.Atoi(input)
-	if err != nil || val < 0 || val > 10 {
-		fmt.Printf("  %s Invalid value, using %d\n", ui.YellowText("!"), defaultVal)
-		return defaultVal
-	}
-
-	return val
-}
-
-// wizardStepTools handles step 3: tool selection (custom preset only).
+// wizardStepTools handles step 2: tool selection.
 func wizardStepTools(state *WizardState, reader *bufio.Reader) error {
-	printStepHeader(3, state.TotalStep, "AI Tool Selection")
+	printStepHeader(2, state.TotalStep, "AI Provider Selection")
 
-	fmt.Println("  Select your default AI tool:")
+	fmt.Println("  Select your default AI provider:")
 	fmt.Println()
 	fmt.Printf("    %s Claude %s\n", ui.CyanText("[1]"), ui.GrayText("(Anthropic Claude Code)"))
 	fmt.Printf("    %s Gemini %s\n", ui.CyanText("[2]"), ui.GrayText("(Google Gemini CLI)"))
@@ -281,36 +171,13 @@ func wizardStepTools(state *WizardState, reader *bufio.Reader) error {
 
 // wizardStepConfirm handles the final confirmation step.
 func wizardStepConfirm(state *WizardState, reader *bufio.Reader) error {
-	step := state.TotalStep
-	if state.Preset != PresetCustom {
-		step = 3 // Skip tool step for non-custom
-	}
-	printStepHeader(step, step, "Confirmation")
+	printStepHeader(3, state.TotalStep, "Confirmation")
 
 	fmt.Println("  Review your configuration:")
 	fmt.Println()
 	fmt.Printf("    Directory:  %s\n", state.Dir)
 	fmt.Printf("    Nickname:   %s\n", state.Nickname)
-	fmt.Printf("    Preset:     %s\n", presetLabel(state.Preset))
-	fmt.Printf("    AI Tool:    %s\n", state.Tool)
-	fmt.Println()
-	fmt.Println("  Agents to create:")
-	fmt.Println("    - root (always created)")
-	if state.Roster.ProductManager > 0 {
-		fmt.Printf("    - %d product manager(s)\n", state.Roster.ProductManager)
-	}
-	if state.Roster.Manager > 0 {
-		fmt.Printf("    - %d manager(s)\n", state.Roster.Manager)
-	}
-	if state.Roster.Engineers > 0 {
-		fmt.Printf("    - %d engineer(s)\n", state.Roster.Engineers)
-	}
-	if state.Roster.TechLeads > 0 {
-		fmt.Printf("    - %d tech lead(s)\n", state.Roster.TechLeads)
-	}
-	if state.Roster.QA > 0 {
-		fmt.Printf("    - %d QA engineer(s)\n", state.Roster.QA)
-	}
+	fmt.Printf("    AI Provider: %s\n", state.Tool)
 	fmt.Println()
 
 	fmt.Print("  Proceed? [Y/n]: ")
@@ -326,22 +193,6 @@ func wizardStepConfirm(state *WizardState, reader *bufio.Reader) error {
 
 	fmt.Println()
 	return nil
-}
-
-// presetLabel returns a human-readable label for a preset.
-func presetLabel(preset WizardPreset) string {
-	switch preset {
-	case PresetSolo:
-		return "Solo Developer"
-	case PresetSmallTeam:
-		return "Small Team"
-	case PresetFullTeam:
-		return "Full Team"
-	case PresetCustom:
-		return "Custom"
-	default:
-		return string(preset)
-	}
 }
 
 // createWorkspaceFromWizard creates a workspace using wizard settings.
@@ -363,9 +214,7 @@ func createWorkspaceFromWizard(state *WizardState) error {
 	name := filepath.Base(state.Dir)
 	cfg := workspace.DefaultConfig(name)
 	cfg.User.Nickname = state.Nickname
-	cfg.Roster = state.Roster
-	cfg.Tools.Default = state.Tool
-	cfg.Channels.Default = state.Channels
+	cfg.Providers.Default = state.Tool
 
 	configPath := workspace.ConfigPath(state.Dir)
 	if err := cfg.Save(configPath); err != nil {
@@ -435,28 +284,6 @@ func InitWithPreset(dir string, preset WizardPreset) error {
 
 	state := NewWizardState(absDir)
 	state.Preset = preset
-
-	// Apply preset roster
-	switch preset {
-	case PresetSolo:
-		state.Roster = workspace.RosterConfig{}
-	case PresetSmallTeam:
-		state.Roster = workspace.RosterConfig{
-			ProductManager: 1,
-			Manager:        1,
-			Engineers:      2,
-		}
-	case PresetFullTeam:
-		state.Roster = workspace.RosterConfig{
-			ProductManager: 1,
-			Manager:        1,
-			Engineers:      4,
-			TechLeads:      2,
-			QA:             2,
-		}
-	default:
-		return fmt.Errorf("unknown preset: %s", preset)
-	}
 
 	return createWorkspaceFromWizard(state)
 }

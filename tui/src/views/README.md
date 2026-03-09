@@ -39,7 +39,6 @@ views/
 - `ProcessesView.tsx` (~200 lines)
 - `RoutingView.tsx` (~290 lines)
 - `RolesView.tsx` (~460 lines) - Could be split
-- `MemoryView.tsx` (~400 lines) - Could be split
 
 ### Views That Could Be Refactored
 Large views that would benefit from extraction:

@@ -176,8 +176,7 @@ func initV2Workspace(rootDir string) error {
 	}
 	fmt.Printf("    .bc/channels.db     # Channel database\n")
 	fmt.Printf("\n")
-	fmt.Printf("  Default tool: %s\n", cfg.Tools.Default)
-	fmt.Printf("  Memory: %s (%s)\n", cfg.Memory.Backend, cfg.Memory.Path)
+	fmt.Printf("  Default provider: %s\n", cfg.Providers.Default)
 	fmt.Printf("\n")
 	fmt.Printf("Next steps:\n")
 	fmt.Printf("  bc up       # Start agents\n")

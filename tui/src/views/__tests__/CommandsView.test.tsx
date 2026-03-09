@@ -19,7 +19,6 @@ describe('Command Registry', () => {
     expect(categoryNames).toContain('Tracking & Monitoring');
     expect(categoryNames).toContain('Configuration');
     expect(categoryNames).toContain('Process Management');
-    expect(categoryNames).toContain('Memory & Learning');
     expect(categoryNames).toContain('Utilities');
   });
 
@@ -100,9 +99,9 @@ describe('searchCommands()', () => {
   });
 
   test('finds commands by category', () => {
-    const results = searchCommands('memory');
+    const results = searchCommands('tracking');
     expect(results.length).toBeGreaterThan(0);
-    expect(results.some(cmd => cmd.category === 'Memory & Learning')).toBe(true);
+    expect(results.some(cmd => cmd.category === 'Tracking & Monitoring')).toBe(true);
   });
 
   test('supports partial matches', () => {
@@ -143,7 +142,6 @@ describe('getCommandsByCategory()', () => {
       'Tracking & Monitoring',
       'Configuration',
       'Process Management',
-      'Memory & Learning',
       'Utilities',
     ];
 

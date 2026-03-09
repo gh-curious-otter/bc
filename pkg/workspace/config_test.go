@@ -18,25 +18,12 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Workspace.Version != ConfigVersion {
 		t.Errorf("expected version %d, got %d", ConfigVersion, cfg.Workspace.Version)
 	}
-	// Default tool is gemini (minimal root-only startup)
-	if cfg.Tools.Default != "gemini" {
-		t.Errorf("expected default tool 'gemini', got %q", cfg.Tools.Default)
+	// Default provider is gemini (minimal root-only startup)
+	if cfg.Providers.Default != "gemini" {
+		t.Errorf("expected default provider 'gemini', got %q", cfg.Providers.Default)
 	}
-	if cfg.Tools.Gemini == nil {
-		t.Error("expected gemini tool to be configured")
-	}
-	if cfg.Memory.Backend != "file" {
-		t.Errorf("expected memory backend 'file', got %q", cfg.Memory.Backend)
-	}
-	// Minimal startup: roster values default to 0
-	if cfg.Roster.Engineers != 0 {
-		t.Errorf("expected roster.engineers = 0, got %d", cfg.Roster.Engineers)
-	}
-	if cfg.Roster.TechLeads != 0 {
-		t.Errorf("expected roster.tech_leads = 0, got %d", cfg.Roster.TechLeads)
-	}
-	if cfg.Roster.QA != 0 {
-		t.Errorf("expected roster.qa = 0, got %d", cfg.Roster.QA)
+	if cfg.Providers.Gemini == nil {
+		t.Error("expected gemini provider to be configured")
 	}
 	// Logs config defaults
 	if cfg.Logs.Path != ".bc/logs" {
@@ -56,16 +43,12 @@ func TestParseConfigWithLogs(t *testing.T) {
 name = "test"
 version = 2
 
-[tools]
+[providers]
 default = "claude"
 
-[tools.claude]
+[providers.claude]
 command = "claude"
 enabled = true
-
-[memory]
-backend = "file"
-path = ".bc/memory"
 
 [logs]
 path = ".bc/custom-logs"
@@ -122,23 +105,12 @@ func TestParseConfig(t *testing.T) {
 name = "my-project"
 version = 2
 
-[worktrees]
-path = ".bc/worktrees"
-auto_cleanup = true
-
-[tools]
+[providers]
 default = "claude"
 
-[tools.claude]
+[providers.claude]
 command = "claude --dangerously-skip-permissions"
 enabled = true
-
-[memory]
-backend = "file"
-path = ".bc/memory"
-
-[channels]
-default = ["general", "engineering"]
 `)
 
 	cfg, err := ParseConfig(tomlData)
@@ -152,71 +124,17 @@ default = ["general", "engineering"]
 	if cfg.Workspace.Version != 2 {
 		t.Errorf("expected version 2, got %d", cfg.Workspace.Version)
 	}
-	if cfg.Worktrees.Path != ".bc/worktrees" {
-		t.Errorf("expected worktrees path '.bc/worktrees', got %q", cfg.Worktrees.Path)
+	if cfg.Providers.Default != "claude" {
+		t.Errorf("expected default provider 'claude', got %q", cfg.Providers.Default)
 	}
-	if !cfg.Worktrees.AutoCleanup {
-		t.Error("expected auto_cleanup to be true")
+	if cfg.Providers.Claude == nil {
+		t.Fatal("expected claude provider config")
 	}
-	if cfg.Tools.Default != "claude" {
-		t.Errorf("expected default tool 'claude', got %q", cfg.Tools.Default)
+	if cfg.Providers.Claude.Command != "claude --dangerously-skip-permissions" {
+		t.Errorf("unexpected claude command: %q", cfg.Providers.Claude.Command)
 	}
-	if cfg.Tools.Claude == nil {
-		t.Fatal("expected claude tool config")
-	}
-	if cfg.Tools.Claude.Command != "claude --dangerously-skip-permissions" {
-		t.Errorf("unexpected claude command: %q", cfg.Tools.Claude.Command)
-	}
-	if !cfg.Tools.Claude.Enabled {
+	if !cfg.Providers.Claude.Enabled {
 		t.Error("expected claude to be enabled")
-	}
-	if cfg.Memory.Backend != "file" {
-		t.Errorf("expected memory backend 'file', got %q", cfg.Memory.Backend)
-	}
-	if cfg.Memory.Path != ".bc/memory" {
-		t.Errorf("expected memory path '.bc/memory', got %q", cfg.Memory.Path)
-	}
-	if len(cfg.Channels.Default) != 2 {
-		t.Errorf("expected 2 default channels, got %d", len(cfg.Channels.Default))
-	}
-}
-
-func TestParseConfigWithRoster(t *testing.T) {
-	tomlData := []byte(`
-[workspace]
-name = "roster-project"
-version = 2
-
-[tools]
-default = "claude"
-
-[tools.claude]
-command = "claude"
-enabled = true
-
-[memory]
-backend = "file"
-path = ".bc/memory"
-
-[roster]
-engineers = 5
-tech_leads = 3
-qa = 1
-`)
-
-	cfg, err := ParseConfig(tomlData)
-	if err != nil {
-		t.Fatalf("failed to parse config: %v", err)
-	}
-
-	if cfg.Roster.Engineers != 5 {
-		t.Errorf("expected roster.engineers = 5, got %d", cfg.Roster.Engineers)
-	}
-	if cfg.Roster.TechLeads != 3 {
-		t.Errorf("expected roster.tech_leads = 3, got %d", cfg.Roster.TechLeads)
-	}
-	if cfg.Roster.QA != 1 {
-		t.Errorf("expected roster.qa = 1, got %d", cfg.Roster.QA)
 	}
 }
 
@@ -227,16 +145,12 @@ func TestParseConfigWithPerformance(t *testing.T) {
 name = "perf-project"
 version = 2
 
-[tools]
+[providers]
 default = "claude"
 
-[tools.claude]
+[providers.claude]
 command = "claude"
 enabled = true
-
-[memory]
-backend = "file"
-path = ".bc/memory"
 
 [performance]
 poll_interval_agents = 1500
@@ -312,16 +226,12 @@ func TestParseConfigWithTUI(t *testing.T) {
 name = "tui-project"
 version = 2
 
-[tools]
+[providers]
 default = "claude"
 
-[tools.claude]
+[providers.claude]
 command = "claude"
 enabled = true
-
-[memory]
-backend = "file"
-path = ".bc/memory"
 
 [tui]
 theme = "synthwave"
@@ -361,126 +271,24 @@ func TestConfigValidation(t *testing.T) {
 			},
 		},
 		{
-			name:    "missing default tool",
-			wantErr: ErrMissingDefaultTool,
+			name:    "missing default provider",
+			wantErr: ErrMissingDefaultProvider,
 			cfg: Config{
 				Workspace: WorkspaceConfig{Name: "test", Version: 2},
 			},
 		},
 		{
-			name:    "default tool not defined",
-			wantErr: ErrDefaultToolNotFound,
+			name:    "default provider not defined",
+			wantErr: ErrDefaultProviderNotFound,
 			cfg: Config{
 				Workspace: WorkspaceConfig{Name: "test", Version: 2},
-				Tools:     ToolsConfig{Default: "nonexistent"},
-			},
-		},
-		{
-			name:    "missing memory backend",
-			wantErr: ErrMissingMemoryBackend,
-			cfg: Config{
-				Workspace: WorkspaceConfig{Name: "test", Version: 2},
-				Tools:     ToolsConfig{Default: "claude", Claude: &ToolConfig{Enabled: true}},
-			},
-		},
-		{
-			name:    "missing memory path",
-			wantErr: ErrMissingMemoryPath,
-			cfg: Config{
-				Workspace: WorkspaceConfig{Name: "test", Version: 2},
-				Tools:     ToolsConfig{Default: "claude", Claude: &ToolConfig{Enabled: true}},
-				Memory:    MemoryConfig{Backend: "file"},
+				Providers: ProvidersConfig{Default: "nonexistent"},
 			},
 		},
 		{
 			name:    "valid config",
 			wantErr: nil,
 			cfg:     DefaultConfig("test"),
-		},
-		{
-			name:    "roster product_manager too high",
-			wantErr: ErrRosterProductManagerRange,
-			cfg: func() Config {
-				cfg := DefaultConfig("test")
-				cfg.Roster.ProductManager = 11
-				return cfg
-			}(),
-		},
-		{
-			name:    "roster product_manager negative",
-			wantErr: ErrRosterProductManagerRange,
-			cfg: func() Config {
-				cfg := DefaultConfig("test")
-				cfg.Roster.ProductManager = -1
-				return cfg
-			}(),
-		},
-		{
-			name:    "roster manager too high",
-			wantErr: ErrRosterManagerRange,
-			cfg: func() Config {
-				cfg := DefaultConfig("test")
-				cfg.Roster.Manager = 11
-				return cfg
-			}(),
-		},
-		{
-			name:    "roster manager negative",
-			wantErr: ErrRosterManagerRange,
-			cfg: func() Config {
-				cfg := DefaultConfig("test")
-				cfg.Roster.Manager = -1
-				return cfg
-			}(),
-		},
-		{
-			name:    "roster engineers too high",
-			wantErr: ErrRosterEngineersRange,
-			cfg: func() Config {
-				cfg := DefaultConfig("test")
-				cfg.Roster.Engineers = 11
-				return cfg
-			}(),
-		},
-		{
-			name:    "roster engineers negative",
-			wantErr: ErrRosterEngineersRange,
-			cfg: func() Config {
-				cfg := DefaultConfig("test")
-				cfg.Roster.Engineers = -1
-				return cfg
-			}(),
-		},
-		{
-			name:    "roster tech_leads too high",
-			wantErr: ErrRosterTechLeadsRange,
-			cfg: func() Config {
-				cfg := DefaultConfig("test")
-				cfg.Roster.TechLeads = 11
-				return cfg
-			}(),
-		},
-		{
-			name:    "roster qa too high",
-			wantErr: ErrRosterQARange,
-			cfg: func() Config {
-				cfg := DefaultConfig("test")
-				cfg.Roster.QA = 11
-				return cfg
-			}(),
-		},
-		{
-			name:    "roster zero values valid",
-			wantErr: nil,
-			cfg: func() Config {
-				cfg := DefaultConfig("test")
-				cfg.Roster.ProductManager = 0
-				cfg.Roster.Manager = 0
-				cfg.Roster.Engineers = 0
-				cfg.Roster.TechLeads = 0
-				cfg.Roster.QA = 0
-				return cfg
-			}(),
 		},
 		// Performance config validation tests (#1013)
 		{
@@ -757,28 +565,28 @@ func TestConfigValidation(t *testing.T) {
 	}
 }
 
-func TestConfigGetTool(t *testing.T) {
+func TestConfigGetProvider_Default(t *testing.T) {
 	cfg := DefaultConfig("test")
 
-	// Test getting claude (default)
-	tool := cfg.GetTool("claude")
-	if tool == nil {
-		t.Fatal("expected claude tool config")
+	// Test getting claude
+	p := cfg.GetProvider("claude")
+	if p == nil {
+		t.Fatal("expected claude provider config")
 	}
-	if tool.Command != "claude --dangerously-skip-permissions" {
-		t.Errorf("unexpected command: %q", tool.Command)
-	}
-
-	// Test getting non-existent tool
-	tool = cfg.GetTool("nonexistent")
-	if tool != nil {
-		t.Error("expected nil for nonexistent tool")
+	if p.Command != "claude --dangerously-skip-permissions" {
+		t.Errorf("unexpected command: %q", p.Command)
 	}
 
-	// Test GetDefaultTool
-	tool = cfg.GetDefaultTool()
-	if tool == nil {
-		t.Fatal("expected default tool config")
+	// Test getting non-existent provider
+	p = cfg.GetProvider("nonexistent")
+	if p != nil {
+		t.Error("expected nil for nonexistent provider")
+	}
+
+	// Test GetDefaultProvider
+	defaultProv := cfg.GetDefaultProvider()
+	if defaultProv != "gemini" {
+		t.Errorf("expected default provider 'gemini', got %q", defaultProv)
 	}
 }
 
@@ -788,7 +596,6 @@ func TestConfigSaveAndLoad(t *testing.T) {
 
 	// Create and save config
 	cfg := DefaultConfig("save-test")
-	cfg.Channels.Default = []string{"custom-channel"}
 
 	if err := cfg.Save(configPath); err != nil {
 		t.Fatalf("failed to save config: %v", err)
@@ -808,8 +615,8 @@ func TestConfigSaveAndLoad(t *testing.T) {
 	if loaded.Workspace.Name != "save-test" {
 		t.Errorf("expected name 'save-test', got %q", loaded.Workspace.Name)
 	}
-	if len(loaded.Channels.Default) != 1 || loaded.Channels.Default[0] != "custom-channel" {
-		t.Errorf("unexpected channels: %v", loaded.Channels.Default)
+	if loaded.Providers.Default != "gemini" {
+		t.Errorf("expected default provider 'gemini', got %q", loaded.Providers.Default)
 	}
 }
 
@@ -896,17 +703,16 @@ func TestParseConfigInvalid(t *testing.T) {
 	}
 }
 
-func TestConfigGetTool_Cursor(t *testing.T) {
+func TestConfigGetProvider_Cursor(t *testing.T) {
 	cfg := Config{
 		Workspace: WorkspaceConfig{Name: "test", Version: 2},
-		Tools: ToolsConfig{
+		Providers: ProvidersConfig{
 			Default: "cursor",
-			Cursor: &ToolConfig{
+			Cursor: &ProviderConfig{
 				Command: "cursor --wait",
 				Enabled: true,
 			},
 		},
-		Memory: MemoryConfig{Backend: "file", Path: ".bc/memory"},
 	}
 
 	// Validate should pass with cursor as default
@@ -914,247 +720,25 @@ func TestConfigGetTool_Cursor(t *testing.T) {
 		t.Fatalf("validation failed: %v", err)
 	}
 
-	// GetTool should return cursor config
-	tool := cfg.GetTool("cursor")
-	if tool == nil {
-		t.Fatal("expected cursor tool config")
+	// GetProvider should return cursor config
+	p := cfg.GetProvider("cursor")
+	if p == nil {
+		t.Fatal("expected cursor provider config")
 	}
-	if tool.Command != "cursor --wait" {
-		t.Errorf("expected command 'cursor --wait', got %q", tool.Command)
+	if p.Command != "cursor --wait" {
+		t.Errorf("expected command 'cursor --wait', got %q", p.Command)
 	}
-	if !tool.Enabled {
+	if !p.Enabled {
 		t.Error("expected cursor to be enabled")
 	}
 
 	// Claude should be nil when not configured
-	if cfg.GetTool("claude") != nil {
+	if cfg.GetProvider("claude") != nil {
 		t.Error("expected nil for unconfigured claude")
 	}
 }
 
-func TestConfigGetTool_Codex(t *testing.T) {
-	cfg := Config{
-		Workspace: WorkspaceConfig{Name: "test", Version: 2},
-		Tools: ToolsConfig{
-			Default: "codex",
-			Codex: &ToolConfig{
-				Command: "codex --full-auto",
-				Enabled: true,
-			},
-		},
-		Memory: MemoryConfig{Backend: "file", Path: ".bc/memory"},
-	}
-
-	// Validate should pass with codex as default
-	if err := cfg.Validate(); err != nil {
-		t.Fatalf("validation failed: %v", err)
-	}
-
-	// GetTool should return codex config
-	tool := cfg.GetTool("codex")
-	if tool == nil {
-		t.Fatal("expected codex tool config")
-	}
-	if tool.Command != "codex --full-auto" {
-		t.Errorf("expected command 'codex --full-auto', got %q", tool.Command)
-	}
-	if !tool.Enabled {
-		t.Error("expected codex to be enabled")
-	}
-
-	// Cursor should be nil when not configured
-	if cfg.GetTool("cursor") != nil {
-		t.Error("expected nil for unconfigured cursor")
-	}
-}
-
-func TestConfigGetTool_Gemini(t *testing.T) {
-	cfg := Config{
-		Workspace: WorkspaceConfig{Name: "test", Version: 2},
-		Tools: ToolsConfig{
-			Default: "gemini",
-			Gemini: &ToolConfig{
-				Command: "gemini --yolo",
-				Enabled: true,
-			},
-		},
-		Memory: MemoryConfig{Backend: "file", Path: ".bc/memory"},
-	}
-
-	// Validate should pass with gemini as default
-	if err := cfg.Validate(); err != nil {
-		t.Fatalf("validation failed: %v", err)
-	}
-
-	// GetTool should return gemini config
-	tool := cfg.GetTool("gemini")
-	if tool == nil {
-		t.Fatal("expected gemini tool config")
-	}
-	if tool.Command != "gemini --yolo" {
-		t.Errorf("expected command 'gemini --yolo', got %q", tool.Command)
-	}
-	if !tool.Enabled {
-		t.Error("expected gemini to be enabled")
-	}
-
-	// Cursor should be nil when not configured
-	if cfg.GetTool("cursor") != nil {
-		t.Error("expected nil for unconfigured cursor")
-	}
-}
-
-func TestConfigCustomTools(t *testing.T) {
-	cfg := Config{
-		Workspace: WorkspaceConfig{Name: "test", Version: 2},
-		Tools: ToolsConfig{
-			Default: "my-custom-agent",
-			Custom: map[string]ToolConfig{
-				"my-custom-agent": {
-					Command: "/usr/local/bin/my-agent --special-flag",
-					Enabled: true,
-				},
-				"another-tool": {
-					Command: "another-tool run",
-					Enabled: false,
-				},
-			},
-		},
-		Memory: MemoryConfig{Backend: "file", Path: ".bc/memory"},
-	}
-
-	// Validate should pass with custom tool as default
-	if err := cfg.Validate(); err != nil {
-		t.Fatalf("validation failed: %v", err)
-	}
-
-	// GetTool should return custom tool config
-	tool := cfg.GetTool("my-custom-agent")
-	if tool == nil {
-		t.Fatal("expected custom tool config")
-	}
-	if tool.Command != "/usr/local/bin/my-agent --special-flag" {
-		t.Errorf("unexpected command: %q", tool.Command)
-	}
-	if !tool.Enabled {
-		t.Error("expected custom tool to be enabled")
-	}
-
-	// GetTool should return second custom tool
-	tool2 := cfg.GetTool("another-tool")
-	if tool2 == nil {
-		t.Fatal("expected another-tool config")
-	}
-	if tool2.Command != "another-tool run" {
-		t.Errorf("unexpected command: %q", tool2.Command)
-	}
-	if tool2.Enabled {
-		t.Error("expected another-tool to be disabled")
-	}
-
-	// GetDefaultTool should return the custom default
-	defaultTool := cfg.GetDefaultTool()
-	if defaultTool == nil {
-		t.Fatal("expected default tool config")
-	}
-	if defaultTool.Command != "/usr/local/bin/my-agent --special-flag" {
-		t.Errorf("unexpected default tool command: %q", defaultTool.Command)
-	}
-
-	// Non-existent custom tool should return nil
-	if cfg.GetTool("undefined-tool") != nil {
-		t.Error("expected nil for undefined custom tool")
-	}
-}
-
-func TestConfigHasToolDefined(t *testing.T) {
-	tests := []struct {
-		name     string
-		toolName string
-		cfg      Config
-		want     bool
-	}{
-		{
-			name:     "claude defined",
-			toolName: "claude",
-			cfg: Config{
-				Tools: ToolsConfig{Claude: &ToolConfig{Command: "claude"}},
-			},
-			want: true,
-		},
-		{
-			name:     "claude not defined",
-			toolName: "claude",
-			cfg:      Config{Tools: ToolsConfig{}},
-			want:     false,
-		},
-		{
-			name:     "cursor defined",
-			toolName: "cursor",
-			cfg: Config{
-				Tools: ToolsConfig{Cursor: &ToolConfig{Command: "cursor"}},
-			},
-			want: true,
-		},
-		{
-			name:     "cursor not defined",
-			toolName: "cursor",
-			cfg:      Config{Tools: ToolsConfig{}},
-			want:     false,
-		},
-		{
-			name:     "codex defined",
-			toolName: "codex",
-			cfg: Config{
-				Tools: ToolsConfig{Codex: &ToolConfig{Command: "codex"}},
-			},
-			want: true,
-		},
-		{
-			name:     "codex not defined",
-			toolName: "codex",
-			cfg:      Config{Tools: ToolsConfig{}},
-			want:     false,
-		},
-		{
-			name:     "custom tool defined",
-			toolName: "my-agent",
-			cfg: Config{
-				Tools: ToolsConfig{
-					Custom: map[string]ToolConfig{
-						"my-agent": {Command: "my-agent"},
-					},
-				},
-			},
-			want: true,
-		},
-		{
-			name:     "custom tool not defined",
-			toolName: "my-agent",
-			cfg: Config{
-				Tools: ToolsConfig{Custom: map[string]ToolConfig{}},
-			},
-			want: false,
-		},
-		{
-			name:     "custom tool with nil map",
-			toolName: "my-agent",
-			cfg:      Config{Tools: ToolsConfig{}},
-			want:     false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.cfg.hasToolDefined(tt.toolName)
-			if got != tt.want {
-				t.Errorf("hasToolDefined(%q) = %v, want %v", tt.toolName, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestConfigValidation_ToolVariants(t *testing.T) {
+func TestConfigValidation_ProviderVariants(t *testing.T) {
 	tests := []struct {
 		name    string
 		wantErr error
@@ -1165,11 +749,10 @@ func TestConfigValidation_ToolVariants(t *testing.T) {
 			wantErr: nil,
 			cfg: Config{
 				Workspace: WorkspaceConfig{Name: "test", Version: 2},
-				Tools: ToolsConfig{
+				Providers: ProvidersConfig{
 					Default: "cursor",
-					Cursor:  &ToolConfig{Command: "cursor", Enabled: true},
+					Cursor:  &ProviderConfig{Command: "cursor", Enabled: true},
 				},
-				Memory: MemoryConfig{Backend: "file", Path: ".bc/memory"},
 			},
 		},
 		{
@@ -1177,52 +760,47 @@ func TestConfigValidation_ToolVariants(t *testing.T) {
 			wantErr: nil,
 			cfg: Config{
 				Workspace: WorkspaceConfig{Name: "test", Version: 2},
-				Tools: ToolsConfig{
+				Providers: ProvidersConfig{
 					Default: "codex",
-					Codex:   &ToolConfig{Command: "codex", Enabled: true},
+					Codex:   &ProviderConfig{Command: "codex", Enabled: true},
 				},
-				Memory: MemoryConfig{Backend: "file", Path: ".bc/memory"},
 			},
 		},
 		{
-			name:    "valid with custom tool default",
+			name:    "valid with custom provider default",
 			wantErr: nil,
 			cfg: Config{
 				Workspace: WorkspaceConfig{Name: "test", Version: 2},
-				Tools: ToolsConfig{
-					Default: "my-tool",
-					Custom: map[string]ToolConfig{
-						"my-tool": {Command: "my-tool", Enabled: true},
+				Providers: ProvidersConfig{
+					Default: "my-provider",
+					Custom: map[string]ProviderConfig{
+						"my-provider": {Command: "my-provider", Enabled: true},
 					},
 				},
-				Memory: MemoryConfig{Backend: "file", Path: ".bc/memory"},
 			},
 		},
 		{
 			name:    "cursor default but not defined",
-			wantErr: ErrDefaultToolNotFound,
+			wantErr: ErrDefaultProviderNotFound,
 			cfg: Config{
 				Workspace: WorkspaceConfig{Name: "test", Version: 2},
-				Tools:     ToolsConfig{Default: "cursor"},
-				Memory:    MemoryConfig{Backend: "file", Path: ".bc/memory"},
+				Providers: ProvidersConfig{Default: "cursor"},
 			},
 		},
 		{
 			name:    "codex default but not defined",
-			wantErr: ErrDefaultToolNotFound,
+			wantErr: ErrDefaultProviderNotFound,
 			cfg: Config{
 				Workspace: WorkspaceConfig{Name: "test", Version: 2},
-				Tools:     ToolsConfig{Default: "codex"},
-				Memory:    MemoryConfig{Backend: "file", Path: ".bc/memory"},
+				Providers: ProvidersConfig{Default: "codex"},
 			},
 		},
 		{
 			name:    "custom default but not defined",
-			wantErr: ErrDefaultToolNotFound,
+			wantErr: ErrDefaultProviderNotFound,
 			cfg: Config{
 				Workspace: WorkspaceConfig{Name: "test", Version: 2},
-				Tools:     ToolsConfig{Default: "undefined-custom"},
-				Memory:    MemoryConfig{Backend: "file", Path: ".bc/memory"},
+				Providers: ProvidersConfig{Default: "undefined-custom"},
 			},
 		},
 	}
@@ -1237,30 +815,26 @@ func TestConfigValidation_ToolVariants(t *testing.T) {
 	}
 }
 
-func TestParseConfig_MultipleTools(t *testing.T) {
+func TestParseConfig_MultipleProviders(t *testing.T) {
 	tomlData := []byte(`
 [workspace]
-name = "multi-tool-project"
+name = "multi-provider-project"
 version = 2
 
-[tools]
+[providers]
 default = "claude"
 
-[tools.claude]
+[providers.claude]
 command = "claude --dangerously-skip-permissions"
 enabled = true
 
-[tools.cursor]
+[providers.cursor]
 command = "cursor --wait"
 enabled = true
 
-[tools.codex]
+[providers.codex]
 command = "codex --full-auto"
 enabled = false
-
-[memory]
-backend = "file"
-path = ".bc/memory"
 `)
 
 	cfg, err := ParseConfig(tomlData)
@@ -1268,29 +842,29 @@ path = ".bc/memory"
 		t.Fatalf("failed to parse config: %v", err)
 	}
 
-	// Verify all tools are parsed
-	if cfg.Tools.Claude == nil {
+	// Verify all providers are parsed
+	if cfg.Providers.Claude == nil {
 		t.Error("expected claude to be configured")
 	}
-	if cfg.Tools.Cursor == nil {
+	if cfg.Providers.Cursor == nil {
 		t.Error("expected cursor to be configured")
 	}
-	if cfg.Tools.Codex == nil {
+	if cfg.Providers.Codex == nil {
 		t.Error("expected codex to be configured")
 	}
 
-	// Verify tool properties
-	if cfg.Tools.Cursor.Command != "cursor --wait" {
-		t.Errorf("unexpected cursor command: %q", cfg.Tools.Cursor.Command)
+	// Verify provider properties
+	if cfg.Providers.Cursor.Command != "cursor --wait" {
+		t.Errorf("unexpected cursor command: %q", cfg.Providers.Cursor.Command)
 	}
-	if !cfg.Tools.Cursor.Enabled {
+	if !cfg.Providers.Cursor.Enabled {
 		t.Error("expected cursor to be enabled")
 	}
 
-	if cfg.Tools.Codex.Command != "codex --full-auto" {
-		t.Errorf("unexpected codex command: %q", cfg.Tools.Codex.Command)
+	if cfg.Providers.Codex.Command != "codex --full-auto" {
+		t.Errorf("unexpected codex command: %q", cfg.Providers.Codex.Command)
 	}
-	if cfg.Tools.Codex.Enabled {
+	if cfg.Providers.Codex.Enabled {
 		t.Error("expected codex to be disabled")
 	}
 
@@ -1316,64 +890,64 @@ func TestLoadUserDefaults(t *testing.T) {
 // TestMergeUserDefaults tests merging user defaults with workspace config (#1160)
 func TestMergeUserDefaults(t *testing.T) {
 	tests := []struct { //nolint:govet // test struct field alignment not critical
-		name            string
-		wantNickname    string
-		wantDefaultTool string
-		cfg             Config
-		defaults        *UserDefaultsConfig
+		name                string
+		wantNickname        string
+		wantDefaultProvider string
+		cfg                 Config
+		defaults            *UserDefaultsConfig
 	}{
 		{
-			name:            "nil defaults - no change",
-			cfg:             Config{User: UserConfig{Nickname: "@workspace"}, Tools: ToolsConfig{Default: "claude"}},
-			defaults:        nil,
-			wantNickname:    "@workspace",
-			wantDefaultTool: "claude",
+			name:                "nil defaults - no change",
+			cfg:                 Config{User: UserConfig{Nickname: "@workspace"}, Providers: ProvidersConfig{Default: "claude"}},
+			defaults:            nil,
+			wantNickname:        "@workspace",
+			wantDefaultProvider: "claude",
 		},
 		{
 			name: "merge nickname when workspace empty",
-			cfg:  Config{User: UserConfig{Nickname: ""}, Tools: ToolsConfig{Default: "claude"}},
+			cfg:  Config{User: UserConfig{Nickname: ""}, Providers: ProvidersConfig{Default: "claude"}},
 			defaults: &UserDefaultsConfig{
 				User: UserDefaultsUser{Nickname: "@alice"},
 			},
-			wantNickname:    "@alice",
-			wantDefaultTool: "claude",
+			wantNickname:        "@alice",
+			wantDefaultProvider: "claude",
 		},
 		{
 			name: "workspace nickname takes precedence",
-			cfg:  Config{User: UserConfig{Nickname: "@workspace"}, Tools: ToolsConfig{Default: "claude"}},
+			cfg:  Config{User: UserConfig{Nickname: "@workspace"}, Providers: ProvidersConfig{Default: "claude"}},
 			defaults: &UserDefaultsConfig{
 				User: UserDefaultsUser{Nickname: "@alice"},
 			},
-			wantNickname:    "@workspace",
-			wantDefaultTool: "claude",
+			wantNickname:        "@workspace",
+			wantDefaultProvider: "claude",
 		},
 		{
 			name: "merge preferred tool when workspace empty",
-			cfg:  Config{User: UserConfig{Nickname: "@bc"}, Tools: ToolsConfig{Default: ""}},
+			cfg:  Config{User: UserConfig{Nickname: "@bc"}, Providers: ProvidersConfig{Default: ""}},
 			defaults: &UserDefaultsConfig{
 				Tools: UserDefaultsTools{Preferred: []string{"cursor", "claude"}},
 			},
-			wantNickname:    "@bc",
-			wantDefaultTool: "cursor",
+			wantNickname:        "@bc",
+			wantDefaultProvider: "cursor",
 		},
 		{
-			name: "workspace tool takes precedence",
-			cfg:  Config{User: UserConfig{Nickname: "@bc"}, Tools: ToolsConfig{Default: "claude"}},
+			name: "workspace provider takes precedence",
+			cfg:  Config{User: UserConfig{Nickname: "@bc"}, Providers: ProvidersConfig{Default: "claude"}},
 			defaults: &UserDefaultsConfig{
 				Tools: UserDefaultsTools{Preferred: []string{"cursor"}},
 			},
-			wantNickname:    "@bc",
-			wantDefaultTool: "claude",
+			wantNickname:        "@bc",
+			wantDefaultProvider: "claude",
 		},
 		{
-			name: "merge both nickname and tool",
-			cfg:  Config{User: UserConfig{Nickname: ""}, Tools: ToolsConfig{Default: ""}},
+			name: "merge both nickname and provider",
+			cfg:  Config{User: UserConfig{Nickname: ""}, Providers: ProvidersConfig{Default: ""}},
 			defaults: &UserDefaultsConfig{
 				User:  UserDefaultsUser{Nickname: "@alice"},
 				Tools: UserDefaultsTools{Preferred: []string{"gemini"}},
 			},
-			wantNickname:    "@alice",
-			wantDefaultTool: "gemini",
+			wantNickname:        "@alice",
+			wantDefaultProvider: "gemini",
 		},
 	}
 
@@ -1385,8 +959,8 @@ func TestMergeUserDefaults(t *testing.T) {
 			if cfg.User.Nickname != tt.wantNickname {
 				t.Errorf("Nickname = %q, want %q", cfg.User.Nickname, tt.wantNickname)
 			}
-			if cfg.Tools.Default != tt.wantDefaultTool {
-				t.Errorf("Tools.Default = %q, want %q", cfg.Tools.Default, tt.wantDefaultTool)
+			if cfg.Providers.Default != tt.wantDefaultProvider {
+				t.Errorf("Providers.Default = %q, want %q", cfg.Providers.Default, tt.wantDefaultProvider)
 			}
 		})
 	}
@@ -1617,31 +1191,6 @@ func TestGetProvider(t *testing.T) {
 			wantCommand:  "claude --new",
 		},
 		{
-			name: "provider from legacy config fallback",
-			cfg: Config{
-				Tools: ToolsConfig{
-					Claude: &ToolConfig{Command: "claude --legacy", Enabled: true},
-				},
-			},
-			providerName: "claude",
-			wantNil:      false,
-			wantCommand:  "claude --legacy",
-		},
-		{
-			name: "new config takes precedence over legacy",
-			cfg: Config{
-				Providers: ProvidersConfig{
-					Claude: &ProviderConfig{Command: "claude --new", Enabled: true},
-				},
-				Tools: ToolsConfig{
-					Claude: &ToolConfig{Command: "claude --legacy", Enabled: true},
-				},
-			},
-			providerName: "claude",
-			wantNil:      false,
-			wantCommand:  "claude --new",
-		},
-		{
 			name:         "unknown provider returns nil",
 			cfg:          Config{},
 			providerName: "unknown",
@@ -1659,17 +1208,6 @@ func TestGetProvider(t *testing.T) {
 			wantCommand:  "gemini-cli",
 		},
 		{
-			name: "gemini from legacy fallback",
-			cfg: Config{
-				Tools: ToolsConfig{
-					Gemini: &ToolConfig{Command: "gemini-legacy", Enabled: true},
-				},
-			},
-			providerName: "gemini",
-			wantNil:      false,
-			wantCommand:  "gemini-legacy",
-		},
-		{
 			name: "cursor from new config",
 			cfg: Config{
 				Providers: ProvidersConfig{
@@ -1681,17 +1219,6 @@ func TestGetProvider(t *testing.T) {
 			wantCommand:  "cursor-cli",
 		},
 		{
-			name: "cursor from legacy fallback",
-			cfg: Config{
-				Tools: ToolsConfig{
-					Cursor: &ToolConfig{Command: "cursor-legacy", Enabled: true},
-				},
-			},
-			providerName: "cursor",
-			wantNil:      false,
-			wantCommand:  "cursor-legacy",
-		},
-		{
 			name: "codex from new config",
 			cfg: Config{
 				Providers: ProvidersConfig{
@@ -1701,17 +1228,6 @@ func TestGetProvider(t *testing.T) {
 			providerName: "codex",
 			wantNil:      false,
 			wantCommand:  "codex-cli",
-		},
-		{
-			name: "codex from legacy fallback",
-			cfg: Config{
-				Tools: ToolsConfig{
-					Codex: &ToolConfig{Command: "codex-legacy", Enabled: true},
-				},
-			},
-			providerName: "codex",
-			wantNil:      false,
-			wantCommand:  "codex-legacy",
 		},
 		{
 			name: "opencode from new config",
@@ -1780,83 +1296,6 @@ func TestGetProvider(t *testing.T) {
 	}
 }
 
-// TestGetTool tests all branches of the GetTool method
-func TestGetTool(t *testing.T) {
-	tests := []struct { //nolint:govet // test struct alignment not critical
-		cfg         Config
-		name        string
-		toolName    string
-		wantCommand string
-		wantNil     bool
-	}{
-		{
-			name:     "claude",
-			cfg:      Config{Tools: ToolsConfig{Claude: &ToolConfig{Command: "claude"}}},
-			toolName: "claude", wantCommand: "claude",
-		},
-		{
-			name:     "cursor",
-			cfg:      Config{Tools: ToolsConfig{Cursor: &ToolConfig{Command: "cursor"}}},
-			toolName: "cursor", wantCommand: "cursor",
-		},
-		{
-			name:     "codex",
-			cfg:      Config{Tools: ToolsConfig{Codex: &ToolConfig{Command: "codex"}}},
-			toolName: "codex", wantCommand: "codex",
-		},
-		{
-			name:     "gemini",
-			cfg:      Config{Tools: ToolsConfig{Gemini: &ToolConfig{Command: "gemini"}}},
-			toolName: "gemini", wantCommand: "gemini",
-		},
-		{
-			name:     "github",
-			cfg:      Config{Tools: ToolsConfig{GitHub: &ToolConfig{Command: "gh"}}},
-			toolName: "github", wantCommand: "gh",
-		},
-		{
-			name:     "gitlab",
-			cfg:      Config{Tools: ToolsConfig{GitLab: &ToolConfig{Command: "glab"}}},
-			toolName: "gitlab", wantCommand: "glab",
-		},
-		{
-			name:     "jira",
-			cfg:      Config{Tools: ToolsConfig{Jira: &ToolConfig{Command: "jira"}}},
-			toolName: "jira", wantCommand: "jira",
-		},
-		{
-			name: "custom tool",
-			cfg: Config{Tools: ToolsConfig{Custom: map[string]ToolConfig{
-				"my-tool": {Command: "my-cmd"},
-			}}},
-			toolName: "my-tool", wantCommand: "my-cmd",
-		},
-		{
-			name:     "unknown returns nil",
-			cfg:      Config{},
-			toolName: "nonexistent", wantNil: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.cfg.GetTool(tt.toolName)
-			if tt.wantNil {
-				if got != nil {
-					t.Errorf("GetTool(%q) = %v, want nil", tt.toolName, got)
-				}
-				return
-			}
-			if got == nil {
-				t.Fatalf("GetTool(%q) returned nil, want non-nil", tt.toolName)
-			}
-			if got.Command != tt.wantCommand {
-				t.Errorf("GetTool(%q).Command = %q, want %q", tt.toolName, got.Command, tt.wantCommand)
-			}
-		})
-	}
-}
-
 // TestGetService tests the new GetService method (Issue #1771)
 func TestGetService(t *testing.T) {
 	tests := []struct { //nolint:govet // test struct alignment not critical
@@ -1878,31 +1317,6 @@ func TestGetService(t *testing.T) {
 			wantCommand: "gh",
 		},
 		{
-			name: "github from legacy config fallback",
-			cfg: Config{
-				Tools: ToolsConfig{
-					GitHub: &ToolConfig{Command: "gh-legacy", Enabled: true},
-				},
-			},
-			serviceName: "github",
-			wantNil:     false,
-			wantCommand: "gh-legacy",
-		},
-		{
-			name: "github new config takes precedence over legacy",
-			cfg: Config{
-				Services: ServicesConfig{
-					GitHub: &ServiceConfig{Command: "gh-new", Enabled: true},
-				},
-				Tools: ToolsConfig{
-					GitHub: &ToolConfig{Command: "gh-legacy", Enabled: true},
-				},
-			},
-			serviceName: "github",
-			wantNil:     false,
-			wantCommand: "gh-new",
-		},
-		{
 			name: "gitlab from new config",
 			cfg: Config{
 				Services: ServicesConfig{
@@ -1914,31 +1328,6 @@ func TestGetService(t *testing.T) {
 			wantCommand: "glab",
 		},
 		{
-			name: "gitlab from legacy config fallback",
-			cfg: Config{
-				Tools: ToolsConfig{
-					GitLab: &ToolConfig{Command: "glab-legacy", Enabled: true},
-				},
-			},
-			serviceName: "gitlab",
-			wantNil:     false,
-			wantCommand: "glab-legacy",
-		},
-		{
-			name: "gitlab new config takes precedence over legacy",
-			cfg: Config{
-				Services: ServicesConfig{
-					GitLab: &ServiceConfig{Command: "glab-new", Enabled: true},
-				},
-				Tools: ToolsConfig{
-					GitLab: &ToolConfig{Command: "glab-legacy", Enabled: true},
-				},
-			},
-			serviceName: "gitlab",
-			wantNil:     false,
-			wantCommand: "glab-new",
-		},
-		{
 			name: "jira from new config",
 			cfg: Config{
 				Services: ServicesConfig{
@@ -1948,31 +1337,6 @@ func TestGetService(t *testing.T) {
 			serviceName: "jira",
 			wantNil:     false,
 			wantCommand: "jira-cli",
-		},
-		{
-			name: "jira from legacy config fallback",
-			cfg: Config{
-				Tools: ToolsConfig{
-					Jira: &ToolConfig{Command: "jira-legacy", Enabled: true},
-				},
-			},
-			serviceName: "jira",
-			wantNil:     false,
-			wantCommand: "jira-legacy",
-		},
-		{
-			name: "jira new config takes precedence over legacy",
-			cfg: Config{
-				Services: ServicesConfig{
-					Jira: &ServiceConfig{Command: "jira-new", Enabled: true},
-				},
-				Tools: ToolsConfig{
-					Jira: &ToolConfig{Command: "jira-legacy", Enabled: true},
-				},
-			},
-			serviceName: "jira",
-			wantNil:     false,
-			wantCommand: "jira-new",
 		},
 		{
 			name:        "unknown service returns nil",
@@ -2009,19 +1373,11 @@ func TestGetDefaultProvider(t *testing.T) {
 		want string
 	}{
 		{
-			name: "default from new config",
+			name: "default from config",
 			cfg: Config{
 				Providers: ProvidersConfig{Default: "gemini"},
-				Tools:     ToolsConfig{Default: "claude"},
 			},
 			want: "gemini",
-		},
-		{
-			name: "fallback to legacy config",
-			cfg: Config{
-				Tools: ToolsConfig{Default: "claude"},
-			},
-			want: "claude",
 		},
 		{
 			name: "empty when nothing set",
@@ -2054,29 +1410,6 @@ func TestListProviders(t *testing.T) {
 					Claude: &ProviderConfig{Command: "claude", Enabled: true},
 					Gemini: &ProviderConfig{Command: "gemini", Enabled: true},
 					Codex:  &ProviderConfig{Command: "codex", Enabled: false},
-				},
-			},
-			want: []string{"claude", "gemini"},
-		},
-		{
-			name: "fallback to legacy tools",
-			cfg: Config{
-				Tools: ToolsConfig{
-					Claude: &ToolConfig{Command: "claude", Enabled: true},
-					Cursor: &ToolConfig{Command: "cursor", Enabled: true},
-				},
-			},
-			want: []string{"claude", "cursor"},
-		},
-		{
-			name: "new config takes precedence, no duplicates",
-			cfg: Config{
-				Providers: ProvidersConfig{
-					Claude: &ProviderConfig{Command: "claude --new", Enabled: true},
-				},
-				Tools: ToolsConfig{
-					Claude: &ToolConfig{Command: "claude --old", Enabled: true},
-					Gemini: &ToolConfig{Command: "gemini", Enabled: true},
 				},
 			},
 			want: []string{"claude", "gemini"},
@@ -2128,29 +1461,6 @@ func TestListServices(t *testing.T) {
 			want: []string{"github"},
 		},
 		{
-			name: "fallback to legacy tools",
-			cfg: Config{
-				Tools: ToolsConfig{
-					GitHub: &ToolConfig{Command: "gh", Enabled: true},
-					GitLab: &ToolConfig{Command: "glab", Enabled: true},
-				},
-			},
-			want: []string{"github", "gitlab"},
-		},
-		{
-			name: "no duplicates when both defined",
-			cfg: Config{
-				Services: ServicesConfig{
-					GitHub: &ServiceConfig{Command: "gh", Enabled: true},
-				},
-				Tools: ToolsConfig{
-					GitHub: &ToolConfig{Command: "gh-old", Enabled: true},
-					GitLab: &ToolConfig{Command: "glab", Enabled: true},
-				},
-			},
-			want: []string{"github", "gitlab"},
-		},
-		{
 			name: "empty config returns nil",
 			cfg:  Config{},
 			want: nil,
@@ -2179,137 +1489,6 @@ func TestListServices(t *testing.T) {
 	}
 }
 
-// TestHasTool_ChecksProviders tests that hasToolDefined checks providers first (Issue #1869)
-func TestHasTool_ChecksProviders(t *testing.T) {
-	cfg := Config{
-		Providers: ProvidersConfig{
-			OpenCode: &ProviderConfig{Command: "crush", Enabled: true},
-		},
-	}
-
-	// opencode is only in Providers, not in legacy Tools
-	if !cfg.hasToolDefined("opencode") {
-		t.Error("hasToolDefined('opencode') should return true when defined in ProvidersConfig")
-	}
-
-	// unknown should return false
-	if cfg.hasToolDefined("nonexistent") {
-		t.Error("hasToolDefined('nonexistent') should return false")
-	}
-}
-
-// TestHasTool_ChecksServices tests that hasToolDefined checks services
-func TestHasTool_ChecksServices(t *testing.T) {
-	tests := []struct {
-		name     string
-		toolName string
-		cfg      Config
-		want     bool
-	}{
-		{
-			name:     "github from services config",
-			toolName: "github",
-			cfg: Config{
-				Services: ServicesConfig{
-					GitHub: &ServiceConfig{Command: "gh", Enabled: true},
-				},
-			},
-			want: true,
-		},
-		{
-			name:     "gitlab from services config",
-			toolName: "gitlab",
-			cfg: Config{
-				Services: ServicesConfig{
-					GitLab: &ServiceConfig{Command: "glab", Enabled: true},
-				},
-			},
-			want: true,
-		},
-		{
-			name:     "jira from services config",
-			toolName: "jira",
-			cfg: Config{
-				Services: ServicesConfig{
-					Jira: &ServiceConfig{Command: "jira", Enabled: true},
-				},
-			},
-			want: true,
-		},
-		{
-			name:     "provider found before service checked",
-			toolName: "claude",
-			cfg: Config{
-				Providers: ProvidersConfig{
-					Claude: &ProviderConfig{Command: "claude", Enabled: true},
-				},
-			},
-			want: true,
-		},
-		{
-			name:     "custom provider defined",
-			toolName: "my-provider",
-			cfg: Config{
-				Providers: ProvidersConfig{
-					Custom: map[string]ProviderConfig{
-						"my-provider": {Command: "my-cmd", Enabled: true},
-					},
-				},
-			},
-			want: true,
-		},
-		{
-			name:     "gemini from legacy tools",
-			toolName: "gemini",
-			cfg: Config{
-				Tools: ToolsConfig{
-					Gemini: &ToolConfig{Command: "gemini", Enabled: true},
-				},
-			},
-			want: true,
-		},
-		{
-			name:     "github from legacy tools",
-			toolName: "github",
-			cfg: Config{
-				Tools: ToolsConfig{
-					GitHub: &ToolConfig{Command: "gh", Enabled: true},
-				},
-			},
-			want: true,
-		},
-		{
-			name:     "gitlab from legacy tools",
-			toolName: "gitlab",
-			cfg: Config{
-				Tools: ToolsConfig{
-					GitLab: &ToolConfig{Command: "glab", Enabled: true},
-				},
-			},
-			want: true,
-		},
-		{
-			name:     "jira from legacy tools",
-			toolName: "jira",
-			cfg: Config{
-				Tools: ToolsConfig{
-					Jira: &ToolConfig{Command: "jira", Enabled: true},
-				},
-			},
-			want: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.cfg.hasToolDefined(tt.toolName)
-			if got != tt.want {
-				t.Errorf("hasToolDefined(%q) = %v, want %v", tt.toolName, got, tt.want)
-			}
-		})
-	}
-}
-
 // TestDefaultConfig_PopulatesProviders tests that defaults include ProvidersConfig (Issue #1869)
 func TestDefaultConfig_PopulatesProviders(t *testing.T) {
 	cfg := DefaultConfig("test")
@@ -2325,88 +1504,6 @@ func TestDefaultConfig_PopulatesProviders(t *testing.T) {
 		t.Error("DefaultConfig should set Providers.Gemini")
 	}
 
-	// Should match Tools defaults
-	if cfg.Providers.Default != cfg.Tools.Default {
-		t.Errorf("Providers.Default (%q) should match Tools.Default (%q)", cfg.Providers.Default, cfg.Tools.Default)
-	}
-}
-
-func TestHasToolDefinedCustomTool(t *testing.T) {
-	cfg := Config{
-		Tools: ToolsConfig{
-			Custom: map[string]ToolConfig{
-				"my-custom": {Command: "my-custom --yolo", Enabled: true},
-			},
-		},
-	}
-
-	if !cfg.hasToolDefined("my-custom") {
-		t.Error("hasToolDefined should return true for custom tool in Tools.Custom")
-	}
-	if cfg.hasToolDefined("not-exists") {
-		t.Error("hasToolDefined should return false for undefined custom tool")
-	}
-}
-
-func TestHasToolDefinedLegacyFallbacks(t *testing.T) {
-	tests := []struct {
-		name     string
-		toolName string
-		cfg      Config
-		want     bool
-	}{
-		{
-			name:     "legacy claude",
-			toolName: "claude",
-			cfg:      Config{Tools: ToolsConfig{Claude: &ToolConfig{Enabled: true}}},
-			want:     true,
-		},
-		{
-			name:     "legacy cursor",
-			toolName: "cursor",
-			cfg:      Config{Tools: ToolsConfig{Cursor: &ToolConfig{Enabled: true}}},
-			want:     true,
-		},
-		{
-			name:     "legacy codex",
-			toolName: "codex",
-			cfg:      Config{Tools: ToolsConfig{Codex: &ToolConfig{Enabled: true}}},
-			want:     true,
-		},
-		{
-			name:     "legacy github",
-			toolName: "github",
-			cfg:      Config{Tools: ToolsConfig{GitHub: &ToolConfig{Enabled: true}}},
-			want:     true,
-		},
-		{
-			name:     "legacy gitlab",
-			toolName: "gitlab",
-			cfg:      Config{Tools: ToolsConfig{GitLab: &ToolConfig{Enabled: true}}},
-			want:     true,
-		},
-		{
-			name:     "legacy jira",
-			toolName: "jira",
-			cfg:      Config{Tools: ToolsConfig{Jira: &ToolConfig{Enabled: true}}},
-			want:     true,
-		},
-		{
-			name:     "nil custom map",
-			toolName: "custom-x",
-			cfg:      Config{},
-			want:     false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.cfg.hasToolDefined(tt.toolName)
-			if got != tt.want {
-				t.Errorf("hasToolDefined(%q) = %v, want %v", tt.toolName, got, tt.want)
-			}
-		})
-	}
 }
 
 func TestListProvidersCustomProviders(t *testing.T) {
@@ -2533,29 +1630,6 @@ func TestGetProviderCustomProvider(t *testing.T) {
 	}
 }
 
-func TestGetProviderLegacyFallbacks(t *testing.T) {
-	// Only legacy Tools config set (no Providers)
-	cfg := Config{
-		Tools: ToolsConfig{
-			Claude: &ToolConfig{Command: "claude --legacy", Enabled: true},
-			Gemini: &ToolConfig{Command: "gemini --legacy", Enabled: true},
-			Cursor: &ToolConfig{Command: "cursor --legacy", Enabled: true},
-			Codex:  &ToolConfig{Command: "codex --legacy", Enabled: true},
-		},
-	}
-
-	for _, name := range []string{"claude", "gemini", "cursor", "codex"} {
-		p := cfg.GetProvider(name)
-		if p == nil {
-			t.Errorf("GetProvider(%q) should fall back to legacy Tools", name)
-			continue
-		}
-		if !strings.Contains(p.Command, "--legacy") {
-			t.Errorf("GetProvider(%q).Command = %q, expected legacy fallback", name, p.Command)
-		}
-	}
-}
-
 func TestGetProviderNewProviders(t *testing.T) {
 	cfg := Config{
 		Providers: ProvidersConfig{
@@ -2573,47 +1647,6 @@ func TestGetProviderNewProviders(t *testing.T) {
 	}
 }
 
-func TestGetServiceLegacyFallback(t *testing.T) {
-	cfg := Config{
-		Tools: ToolsConfig{
-			GitHub: &ToolConfig{Command: "gh", Enabled: true},
-			GitLab: &ToolConfig{Command: "glab", Enabled: true},
-			Jira:   &ToolConfig{Command: "jira", Enabled: true},
-		},
-	}
-
-	for _, name := range []string{"github", "gitlab", "jira"} {
-		s := cfg.GetService(name)
-		if s == nil {
-			t.Errorf("GetService(%q) should fall back to legacy Tools", name)
-		}
-	}
-
-	// Undefined service
-	if cfg.GetService("slack") != nil {
-		t.Error("GetService(slack) should return nil")
-	}
-}
-
-func TestListServicesLegacyFallback(t *testing.T) {
-	cfg := Config{
-		Tools: ToolsConfig{
-			GitHub: &ToolConfig{Command: "gh", Enabled: true},
-		},
-	}
-
-	services := cfg.ListServices()
-	found := false
-	for _, s := range services {
-		if s == "github" {
-			found = true
-		}
-	}
-	if !found {
-		t.Error("expected github in legacy services list")
-	}
-}
-
 func TestListServicesNewConfig(t *testing.T) {
 	cfg := Config{
 		Services: ServicesConfig{
@@ -2628,24 +1661,3 @@ func TestListServicesNewConfig(t *testing.T) {
 	}
 }
 
-func TestListServicesDedup(t *testing.T) {
-	cfg := Config{
-		Services: ServicesConfig{
-			GitHub: &ServiceConfig{Command: "gh", Enabled: true},
-		},
-		Tools: ToolsConfig{
-			GitHub: &ToolConfig{Command: "gh", Enabled: true},
-		},
-	}
-
-	services := cfg.ListServices()
-	count := 0
-	for _, s := range services {
-		if s == "github" {
-			count++
-		}
-	}
-	if count != 1 {
-		t.Errorf("expected github once (deduped), got %d", count)
-	}
-}
