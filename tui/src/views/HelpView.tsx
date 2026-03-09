@@ -47,7 +47,6 @@ export function HelpView(): React.ReactElement {
     { type: 'section' as const, title: 'Global', shortcuts: [
       { keys: 'Tab', desc: 'Next view' },
       { keys: 'Shift+Tab', desc: 'Previous view' },
-      { keys: 'M', desc: 'Memory view' },
       { keys: 'I', desc: 'Issues view' },
       { keys: '?', desc: 'Toggle help' },
       { keys: 'ESC', desc: 'Go back / Home' },
@@ -84,13 +83,6 @@ export function HelpView(): React.ReactElement {
       { keys: '/', desc: 'Search commands' },
       { keys: 'f', desc: 'Toggle favorite' },
       { keys: 'Enter', desc: 'Copy command' },
-    ]},
-    { type: 'section' as const, title: 'Memory', shortcuts: [
-      { keys: 'j/k', desc: 'Navigate agents' },
-      { keys: 'Enter', desc: 'View details' },
-      { keys: '/', desc: 'Search memories' },
-      { keys: '1/2', desc: 'Switch exp/learnings' },
-      { keys: 'c', desc: 'Clear memory' },
     ]},
     { type: 'section' as const, title: 'Issues', shortcuts: [
       { keys: 'j/k', desc: 'Navigate issues' },

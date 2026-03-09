@@ -342,48 +342,6 @@ export interface TUIConfig {
   mode: ThemeMode;
 }
 
-// Memory types for agent memory system
-export interface MemoryExperience {
-  id: string;
-  timestamp: string;
-  category: string;
-  outcome: string;
-  message: string;
-}
-
-export interface MemoryLearning {
-  topic: string;
-  content: string;
-}
-
-export interface AgentMemory {
-  agent: string;
-  experiences: MemoryExperience[];
-  learnings: MemoryLearning[];
-  experience_count: number;
-  learning_count: number;
-}
-
-export interface MemoryListResponse {
-  agents: AgentMemorySummary[];
-}
-
-export interface AgentMemorySummary {
-  agent: string;
-  experience_count: number;
-  learning_count: number;
-  last_updated?: string;
-}
-
-export interface MemorySearchResult {
-  agent: string;
-  type: 'experience' | 'learning';
-  content: string;
-  timestamp?: string;
-  category?: string;
-  topic?: string;
-}
-
 // Routing types for task routing
 export interface RoutingRule {
   task_type: string;

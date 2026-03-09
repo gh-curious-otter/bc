@@ -44,7 +44,6 @@ func createAgentsTable(d *db.DB) error {
 			session       TEXT,
 			workspace     TEXT NOT NULL,
 			worktree_dir  TEXT,
-			memory_dir    TEXT,
 			log_file      TEXT,
 			hooked_work   TEXT,
 			children      TEXT,
@@ -77,14 +76,14 @@ func (s *SQLiteStore) Save(a *Agent) error {
 	_, err = s.db.Exec(`
 		INSERT OR REPLACE INTO agents
 		(name, role, state, tool, parent_id, team, task, session, workspace,
-		 worktree_dir, memory_dir, log_file, hooked_work, children,
+		 worktree_dir, log_file, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
 		 started_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.Name, string(a.Role), string(a.State),
 		nullStr(a.Tool), nullStr(a.ParentID), nullStr(a.Team), nullStr(a.Task),
 		nullStr(a.Session), a.Workspace,
-		nullStr(a.WorktreeDir), nullStr(a.MemoryDir), nullStr(a.LogFile),
+		nullStr(a.WorktreeDir), nullStr(a.LogFile),
 		nullStr(a.HookedWork), string(children),
 		boolToInt(a.IsRoot), a.CrashCount,
 		nullTime(a.LastCrashTime), nullStr(a.RecoveredFrom),
@@ -97,7 +96,7 @@ func (s *SQLiteStore) Save(a *Agent) error {
 func (s *SQLiteStore) Load(name string) (*Agent, error) {
 	row := s.db.QueryRow(`
 		SELECT name, role, state, tool, parent_id, team, task, session, workspace,
-		       worktree_dir, memory_dir, log_file, hooked_work, children,
+		       worktree_dir, log_file, hooked_work, children,
 		       is_root, crash_count, last_crash_time, recovered_from,
 		       started_at, updated_at
 		FROM agents WHERE name = ?`, name)
@@ -116,7 +115,7 @@ func (s *SQLiteStore) Load(name string) (*Agent, error) {
 func (s *SQLiteStore) LoadRoot() (*Agent, error) {
 	row := s.db.QueryRow(`
 		SELECT name, role, state, tool, parent_id, team, task, session, workspace,
-		       worktree_dir, memory_dir, log_file, hooked_work, children,
+		       worktree_dir, log_file, hooked_work, children,
 		       is_root, crash_count, last_crash_time, recovered_from,
 		       started_at, updated_at
 		FROM agents WHERE is_root = 1 LIMIT 1`)
@@ -141,7 +140,7 @@ func (s *SQLiteStore) Delete(name string) error {
 func (s *SQLiteStore) LoadAll() (map[string]*Agent, error) {
 	rows, err := s.db.Query(`
 		SELECT name, role, state, tool, parent_id, team, task, session, workspace,
-		       worktree_dir, memory_dir, log_file, hooked_work, children,
+		       worktree_dir, log_file, hooked_work, children,
 		       is_root, crash_count, last_crash_time, recovered_from,
 		       started_at, updated_at
 		FROM agents`)
@@ -172,10 +171,10 @@ func (s *SQLiteStore) SaveAll(agents map[string]*Agent) error {
 	stmt, err := tx.Prepare(`
 		INSERT OR REPLACE INTO agents
 		(name, role, state, tool, parent_id, team, task, session, workspace,
-		 worktree_dir, memory_dir, log_file, hooked_work, children,
+		 worktree_dir, log_file, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
 		 started_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -191,7 +190,7 @@ func (s *SQLiteStore) SaveAll(agents map[string]*Agent) error {
 			a.Name, string(a.Role), string(a.State),
 			nullStr(a.Tool), nullStr(a.ParentID), nullStr(a.Team), nullStr(a.Task),
 			nullStr(a.Session), a.Workspace,
-			nullStr(a.WorktreeDir), nullStr(a.MemoryDir), nullStr(a.LogFile),
+			nullStr(a.WorktreeDir), nullStr(a.LogFile),
 			nullStr(a.HookedWork), string(children),
 			boolToInt(a.IsRoot), a.CrashCount,
 			nullTime(a.LastCrashTime), nullStr(a.RecoveredFrom),
@@ -225,7 +224,7 @@ func (s *SQLiteStore) UpdateField(name, field, value string) error {
 	// Allowlist of updatable columns to prevent SQL injection.
 	allowed := map[string]bool{
 		"tool": true, "parent_id": true, "team": true, "task": true,
-		"session": true, "worktree_dir": true, "memory_dir": true,
+		"session": true, "worktree_dir": true,
 		"log_file": true, "hooked_work": true, "children": true,
 		"recovered_from": true,
 	}
@@ -255,7 +254,7 @@ func (s *SQLiteStore) Close() error {
 func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	var a Agent
 	var role, state string
-	var tool, parentID, team, task, session, worktreeDir, memoryDir, logFile, hookedWork, childrenJSON *string
+	var tool, parentID, team, task, session, worktreeDir, logFile, hookedWork, childrenJSON *string
 	var lastCrashTime, recoveredFrom *string
 	var startedAt, updatedAt string
 	var isRoot, crashCount int
@@ -263,7 +262,7 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	err := s.Scan(
 		&a.Name, &role, &state,
 		&tool, &parentID, &team, &task, &session, &a.Workspace,
-		&worktreeDir, &memoryDir, &logFile, &hookedWork, &childrenJSON,
+		&worktreeDir, &logFile, &hookedWork, &childrenJSON,
 		&isRoot, &crashCount, &lastCrashTime, &recoveredFrom,
 		&startedAt, &updatedAt,
 	)
@@ -280,7 +279,6 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	a.Task = deref(task)
 	a.Session = deref(session)
 	a.WorktreeDir = deref(worktreeDir)
-	a.MemoryDir = deref(memoryDir)
 	a.LogFile = deref(logFile)
 	a.HookedWork = deref(hookedWork)
 	a.IsRoot = isRoot != 0

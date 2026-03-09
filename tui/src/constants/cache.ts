@@ -35,8 +35,6 @@ export const CACHE_TTLS = {
   PROCESSES: 2000,
   /** Demons - medium */
   DEMONS: 5000,
-  /** Memory/experiences - medium */
-  MEMORY: 5000,
   /** Routing rules - long */
   ROUTING: 30000,
   /** Teams - medium */
@@ -75,7 +73,6 @@ export const CACHE_KEYS = {
   CONFIG: 'config',
   PROCESSES: 'processes',
   DEMONS: 'demons',
-  MEMORY: 'memory',
   ROUTING: 'routing',
   TEAMS: 'teams',
   WORKTREES: 'worktrees',

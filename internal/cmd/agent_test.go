@@ -837,15 +837,15 @@ func TestAgentDelete_NonexistentAgent(t *testing.T) {
 func TestAgentDeleteOptions(t *testing.T) {
 	// Test DeleteOptions struct
 	opts := agent.DeleteOptions{
-		PurgeMemory: false,
+		Force: false,
 	}
-	if opts.PurgeMemory {
-		t.Error("expected PurgeMemory to be false by default")
+	if opts.Force {
+		t.Error("expected Force to be false by default")
 	}
 
-	opts.PurgeMemory = true
-	if !opts.PurgeMemory {
-		t.Error("expected PurgeMemory to be true after setting")
+	opts.Force = true
+	if !opts.Force {
+		t.Error("expected Force to be true after setting")
 	}
 }
 

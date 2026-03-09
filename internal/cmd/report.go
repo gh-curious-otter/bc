@@ -10,7 +10,6 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/events"
 	bclog "github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/memory"
 )
 
 // Flags for report command (enhanced for stuck reports - #675)
@@ -76,8 +75,6 @@ func runReport(cmd *cobra.Command, args []string) error {
 		return errNotInWorkspace(err)
 	}
 
-
-
 	// Update agent state
 	mgr := newAgentManager(ws)
 	if err := mgr.LoadState(); err != nil {
@@ -117,13 +114,6 @@ func runReport(cmd *cobra.Command, args []string) error {
 	}
 	logEvent(ws, event)
 
-	// Auto-record experience when agent reports done
-	if state == agent.StateDone && message != "" {
-		if err := recordExperience(ws.RootDir, agentID, message, "success"); err != nil {
-			bclog.Warn("failed to auto-record experience", "error", err)
-		}
-	}
-
 	// Output message
 	if state == agent.StateStuck && reportReason != "" {
 		fmt.Printf("Reported: %s [%s]\n", state, reportSeverity)
@@ -136,49 +126,3 @@ func runReport(cmd *cobra.Command, args []string) error {
 	}
 	return nil
 }
-
-// recordExperience records a task completion experience to the agent's memory.
-// Deduplicates by checking if the exact description already exists in recent experiences.
-func recordExperience(rootDir, agentID, description, outcome string) error {
-	store := memory.NewStore(rootDir, agentID)
-
-	// Initialize memory if it doesn't exist
-	if !store.Exists() {
-		if err := store.Init(); err != nil {
-			return fmt.Errorf("failed to initialize memory: %w", err)
-		}
-	}
-
-	// Check for duplicates in recent experiences
-	experiences, err := store.GetExperiences()
-	if err != nil {
-		return fmt.Errorf("failed to get experiences: %w", err)
-	}
-
-	// Check last 5 experiences for duplicates
-	checkCount := 5
-	if len(experiences) < checkCount {
-		checkCount = len(experiences)
-	}
-	for i := len(experiences) - checkCount; i < len(experiences); i++ {
-		if experiences[i].Description == description {
-			bclog.Debug("skipping duplicate experience", "description", description)
-			return nil // Already recorded
-		}
-	}
-
-	// Record the experience
-	exp := memory.Experience{
-		Description: description,
-		Outcome:     outcome,
-		TaskType:    "task", // Default task type for auto-recorded experiences
-	}
-
-	if err := store.RecordExperience(exp); err != nil {
-		return fmt.Errorf("failed to record experience: %w", err)
-	}
-
-	bclog.Debug("auto-recorded experience", "agent", agentID, "description", description)
-	return nil
-}
-

@@ -64,7 +64,6 @@ import (
 
 	"github.com/rpuneet/bc/config"
 	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/memory"
 	"github.com/rpuneet/bc/pkg/provider"
 	"github.com/rpuneet/bc/pkg/runtime"
 	"github.com/rpuneet/bc/pkg/tmux"
@@ -306,7 +305,7 @@ type AgentMemory struct {
 type Agent struct {
 	UpdatedAt     time.Time    `json:"updated_at"`
 	StartedAt     time.Time    `json:"started_at"`
-	Memory        *AgentMemory `json:"memory,omitempty"`
+	RolePrompt    *AgentMemory `json:"memory,omitempty"`
 	Workspace     string       `json:"workspace"`
 	ID            string       `json:"id"`
 	Name          string       `json:"name"`
@@ -316,7 +315,6 @@ type Agent struct {
 	ParentID      string       `json:"parent_id,omitempty"`
 	HookedWork    string       `json:"hooked_work,omitempty"`
 	WorktreeDir   string       `json:"worktree_dir,omitempty"`
-	MemoryDir     string       `json:"memory_dir,omitempty"`
 	LogFile       string       `json:"log_file,omitempty"`
 	Team          string       `json:"team,omitempty"`
 	RecoveredFrom string       `json:"recovered_from,omitempty"`
@@ -417,7 +415,7 @@ func NewManager(stateDir string) *Manager {
 		runtime:          runtime.NewTmuxBackend(tmux.NewManager(config.Tmux.SessionPrefix)),
 		providerRegistry: provider.DefaultRegistry,
 		stateDir:         stateDir,
-		agentCmd:         config.AgentLegacy.Command,
+		agentCmd:         defaultAgentCmd(),
 	}
 }
 
@@ -429,7 +427,7 @@ func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 		runtime:          runtime.NewTmuxBackend(tmux.NewWorkspaceManager(config.Tmux.SessionPrefix, workspacePath)),
 		providerRegistry: provider.DefaultRegistry,
 		stateDir:         stateDir,
-		agentCmd:         config.AgentLegacy.Command,
+		agentCmd:         defaultAgentCmd(),
 		workspacePath:    workspacePath,
 	}
 }
@@ -441,9 +439,45 @@ func NewWorkspaceManagerWithRuntime(stateDir, workspacePath string, rt runtime.B
 		runtime:          rt,
 		providerRegistry: provider.DefaultRegistry,
 		stateDir:         stateDir,
-		agentCmd:         config.AgentLegacy.Command,
+		agentCmd:         defaultAgentCmd(),
 		workspacePath:    workspacePath,
 	}
+}
+
+// defaultAgentCmd returns the command for the default provider.
+func defaultAgentCmd() string {
+	name := config.Providers.Default
+	if name == "" {
+		return ""
+	}
+	p, ok := provider.DefaultRegistry.Get(name)
+	if !ok {
+		return ""
+	}
+	return p.Command()
+}
+
+// getAgentCommand looks up the command for a tool from the manager's provider registry.
+func (m *Manager) getAgentCommand(toolName string) (string, bool) {
+	if m.providerRegistry != nil {
+		if p, ok := m.providerRegistry.Get(toolName); ok {
+			return p.Command(), true
+		}
+	}
+	return "", false
+}
+
+// listAvailableTools returns tool names from the manager's provider registry.
+func (m *Manager) listAvailableTools() []string {
+	if m.providerRegistry == nil {
+		return nil
+	}
+	providers := m.providerRegistry.List()
+	tools := make([]string, 0, len(providers))
+	for _, p := range providers {
+		tools = append(tools, p.Name())
+	}
+	return tools
 }
 
 // SetAgentCommand sets the command to run for agents.
@@ -453,17 +487,16 @@ func (m *Manager) SetAgentCommand(cmd string) {
 	m.agentCmd = cmd
 }
 
-// SetAgentByName sets the agent command by looking up the agent name in config.
+// SetAgentByName sets the agent command by looking up the provider name in the registry.
 func (m *Manager) SetAgentByName(name string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	for _, a := range config.Agents {
-		if a.Name == name {
-			m.agentCmd = a.Command
-			return true
-		}
+	p, ok := m.providerRegistry.Get(name)
+	if !ok {
+		return false
 	}
-	return false
+	m.agentCmd = p.Command()
+	return true
 }
 
 // SetBootstrapDelay sets the delay before sending bootstrap prompts.
@@ -481,15 +514,14 @@ func (m *Manager) getBootstrapDelay() time.Duration {
 	return DefaultBootstrapDelay
 }
 
-// GetAgentCommand returns the command for a tool name from config.
+// GetAgentCommand returns the command for a tool name from the provider registry.
 // Returns the command and true if found, or empty string and false if not.
 func GetAgentCommand(toolName string) (string, bool) {
-	for _, a := range config.Agents {
-		if a.Name == toolName {
-			return a.Command, true
-		}
+	p, ok := provider.DefaultRegistry.Get(toolName)
+	if !ok {
+		return "", false
 	}
-	return "", false
+	return p.Command(), true
 }
 
 // GetAgentCommandFromConfig returns the command for a tool name,
@@ -506,11 +538,12 @@ func GetAgentCommandFromConfig(toolName string, wsCfg *workspace.Config) (string
 	return GetAgentCommand(toolName)
 }
 
-// ListAvailableTools returns a list of configured tool names.
+// ListAvailableTools returns a list of configured tool names from the provider registry.
 func ListAvailableTools() []string {
-	tools := make([]string, 0, len(config.Agents))
-	for _, a := range config.Agents {
-		tools = append(tools, a.Name)
+	providers := provider.DefaultRegistry.List()
+	tools := make([]string, 0, len(providers))
+	for _, p := range providers {
+		tools = append(tools, p.Name())
 	}
 	return tools
 }
@@ -593,7 +626,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 			// restart the tmux session but preserve agent state.
 			agentCmd := m.agentCmd
 			if existing.Tool != "" {
-				if cmd, ok := GetAgentCommand(existing.Tool); ok {
+				if cmd, ok := m.getAgentCommand(existing.Tool); ok {
 					agentCmd = cmd
 				}
 			}
@@ -646,10 +679,10 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	// Determine the command to use
 	agentCmd := m.agentCmd
 	if tool != "" {
-		if cmd, ok := GetAgentCommand(tool); ok {
+		if cmd, ok := m.getAgentCommand(tool); ok {
 			agentCmd = cmd
 		} else {
-			return nil, fmt.Errorf("unknown tool %q, available tools: %v", tool, ListAvailableTools())
+			return nil, fmt.Errorf("unknown tool %q, available tools: %v", tool, m.listAvailableTools())
 		}
 	}
 
@@ -695,14 +728,6 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 		UpdatedAt: time.Now(),
 	}
 
-	// Create memory directory for agent
-	memoryDir, err := createMemoryDir(workspace, name)
-	if err != nil {
-		log.Warn("failed to create memory dir", "agent", name, "error", err)
-	} else {
-		agent.MemoryDir = memoryDir
-	}
-
 	// Build env vars so the spawned process sees them immediately
 	env := map[string]string{
 		"BC_AGENT_ID":   name,
@@ -714,9 +739,6 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	}
 	if parentID != "" {
 		env["BC_PARENT_ID"] = parentID
-	}
-	if agent.MemoryDir != "" {
-		env["BC_AGENT_MEMORY"] = agent.MemoryDir
 	}
 
 	// Inject -w flag for claude-based commands to use built-in worktree isolation
@@ -730,42 +752,20 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	// Start log streaming via pipe-pane
 	agent.LogFile = m.setupLogPipe(name, workspace)
 
-	// Load role memory from prompts/<role>.md
-	agent.Memory = LoadRoleMemory(workspace, role)
-
-	// Persist role prompt in agent memory for respawn
-	if agent.Memory != nil && agent.Memory.RolePrompt != "" && agent.MemoryDir != "" {
-		memStore := memory.NewStore(workspace, name)
-		if err := memStore.SaveRolePrompt(agent.Memory.RolePrompt); err != nil {
-			log.Warn("failed to persist role prompt", "agent", name, "error", err)
-		}
-	}
+	// Load role prompt from prompts/<role>.md
+	agent.RolePrompt = LoadRoleMemory(workspace, role)
 
 	// Update state
 	agent.State = StateIdle
 	agent.UpdatedAt = time.Now()
 	m.agents[name] = agent
 
-	// Build bootstrap prompt with role prompt and agent memories
+	// Build bootstrap prompt with role prompt
 	var promptParts []string
 
 	// Add role prompt if available
-	if agent.Memory != nil && agent.Memory.RolePrompt != "" {
-		promptParts = append(promptParts, agent.Memory.RolePrompt)
-	}
-
-	// Load and inject agent memories from .bc/memory/<agent-name>/
-	if agent.MemoryDir != "" {
-		memStore := memory.NewStore(workspace, name)
-		if memStore.Exists() {
-			memCtx, memErr := memStore.GetMemoryContext(memory.DefaultMemoryLimit)
-			if memErr != nil {
-				log.Warn("failed to load agent memories", "agent", name, "error", memErr)
-			} else if memCtx != "" {
-				promptParts = append(promptParts, memCtx)
-				log.Debug("injected agent memories", "agent", name)
-			}
-		}
+	if agent.RolePrompt != nil && agent.RolePrompt.RolePrompt != "" {
+		promptParts = append(promptParts, agent.RolePrompt.RolePrompt)
 	}
 
 	// Update parent's children list
@@ -803,39 +803,22 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	return agent, nil
 }
 
-// sendRespawnBootstrap sends the role prompt and memories to a respawned agent.
+// sendRespawnBootstrap sends the role prompt to a respawned agent.
 // Runs in a goroutine since it needs to wait for the agent to initialize.
 func (m *Manager) sendRespawnBootstrap(name string, agent *Agent, workspace string) {
 	time.Sleep(m.getBootstrapDelay())
 
 	var promptParts []string
 
-	// Add role prompt from memory store if available
-	if agent.MemoryDir != "" {
-		memStore := memory.NewStore(workspace, name)
-		rolePrompt, err := memStore.GetRolePrompt()
-		if err != nil {
-			log.Warn("failed to load stored role prompt", "agent", name, "error", err)
-		} else if rolePrompt != "" {
-			promptParts = append(promptParts, rolePrompt)
-		}
+	// Load role prompt from role files
+	if agent.RolePrompt != nil && agent.RolePrompt.RolePrompt != "" {
+		promptParts = append(promptParts, agent.RolePrompt.RolePrompt)
 	}
 
-	// Fall back to loading from role files if no stored prompt
-	if len(promptParts) == 0 && agent.Memory != nil && agent.Memory.RolePrompt != "" {
-		promptParts = append(promptParts, agent.Memory.RolePrompt)
-	}
-
-	// Load agent memories
-	if agent.MemoryDir != "" {
-		memStore := memory.NewStore(workspace, name)
-		if memStore.Exists() {
-			memCtx, memErr := memStore.GetMemoryContext(memory.DefaultMemoryLimit)
-			if memErr != nil {
-				log.Warn("failed to load agent memories for respawn", "agent", name, "error", memErr)
-			} else if memCtx != "" {
-				promptParts = append(promptParts, memCtx)
-			}
+	// Fall back to loading from role manager
+	if len(promptParts) == 0 {
+		if mem := LoadRoleMemory(workspace, agent.Role); mem != nil && mem.RolePrompt != "" {
+			promptParts = append(promptParts, mem.RolePrompt)
 		}
 	}
 
@@ -913,40 +896,6 @@ func injectWorktreeFlag(agentCmd, name string) string {
 	return agentCmd
 }
 
-// createMemoryDir creates the per-agent memory directory structure.
-// Memory is stored in .bc/memory/<agent-name>/ with:
-// - experiences.jsonl for task outcomes
-// - learnings.md for agent insights
-func createMemoryDir(workspace, agentName string) (string, error) {
-	memoryDir := filepath.Join(workspace, ".bc", "memory", agentName)
-
-	// If memory dir already exists, reuse it
-	if _, err := os.Stat(memoryDir); err == nil {
-		log.Debug("reusing existing memory dir", "agent", agentName, "dir", memoryDir)
-		return memoryDir, nil
-	}
-
-	// Create memory directory
-	if err := os.MkdirAll(memoryDir, 0750); err != nil {
-		return "", fmt.Errorf("failed to create memory dir: %w", err)
-	}
-
-	// Initialize experiences.jsonl (empty JSONL file)
-	experiencesPath := filepath.Join(memoryDir, "experiences.jsonl")
-	if err := os.WriteFile(experiencesPath, []byte{}, 0600); err != nil {
-		return "", fmt.Errorf("failed to create experiences.jsonl: %w", err)
-	}
-
-	// Initialize learnings.md with header
-	learningsPath := filepath.Join(memoryDir, "learnings.md")
-	learningsContent := fmt.Sprintf("# %s Learnings\n\nAgent insights and lessons learned.\n", agentName)
-	if err := os.WriteFile(learningsPath, []byte(learningsContent), 0600); err != nil {
-		return "", fmt.Errorf("failed to create learnings.md: %w", err)
-	}
-
-	log.Debug("created memory dir", "agent", agentName, "dir", memoryDir)
-	return memoryDir, nil
-}
 
 // SpawnChildAgent creates a child agent under a parent agent.
 // Validates that the parent has permission to create the child role.
@@ -1045,14 +994,13 @@ func (m *Manager) stopAgentTreeLocked(name string) error {
 
 // DeleteOptions configures agent deletion behavior.
 type DeleteOptions struct {
-	// PurgeMemory removes the memory directory. Default (false) preserves it.
-	PurgeMemory bool
+	// Placeholder for future options.
+	Force bool
 }
 
 // DeleteAgent permanently removes an agent from the workspace.
-// This stops the agent, removes its memory directory and state.
 func (m *Manager) DeleteAgent(name string) error {
-	return m.DeleteAgentWithOptions(name, DeleteOptions{PurgeMemory: true})
+	return m.DeleteAgentWithOptions(name, DeleteOptions{})
 }
 
 // DeleteAgentWithOptions permanently removes an agent with configurable options.
@@ -1060,24 +1008,15 @@ func (m *Manager) DeleteAgentWithOptions(name string, opts DeleteOptions) error 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	log.Debug("deleting agent", "name", name, "purgeMemory", opts.PurgeMemory)
+	log.Debug("deleting agent", "name", name)
 
-	agent, exists := m.agents[name]
+	_, exists := m.agents[name]
 	if !exists {
 		return fmt.Errorf("agent %s not found", name)
 	}
 
 	// Kill tmux session (ignore error - session might already be dead)
 	_ = m.runtime.KillSession(context.TODO(), name)
-
-	// Clean up per-agent memory directory (only if purge requested)
-	if opts.PurgeMemory && agent.MemoryDir != "" {
-		if err := os.RemoveAll(agent.MemoryDir); err != nil {
-			log.Warn("failed to remove memory dir", "dir", agent.MemoryDir, "error", err)
-		} else {
-			log.Debug("removed memory dir", "dir", agent.MemoryDir)
-		}
-	}
 
 	// Remove from parent's children list
 	m.removeFromParent(name)

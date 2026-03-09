@@ -80,31 +80,18 @@ func setupTestWorkspace(t *testing.T) string {
 	if err := os.MkdirAll(filepath.Join(bcDir, "demons"), 0750); err != nil {
 		t.Fatalf("failed to create .bc/demons: %v", err)
 	}
-	if err := os.MkdirAll(filepath.Join(bcDir, "memory"), 0750); err != nil {
-		t.Fatalf("failed to create .bc/memory: %v", err)
-	}
-
 	// Create minimal config.toml for v2 workspace detection
 	configPath := filepath.Join(bcDir, "config.toml")
 	configContent := `[workspace]
 name = "test"
 version = 2
 
-[tools]
+[providers]
 default = "claude"
 
-[tools.claude]
+[providers.claude]
 command = "claude"
 enabled = true
-
-[memory]
-backend = "file"
-path = ".bc/memory"
-
-[roster]
-engineers = 4
-tech_leads = 2
-qa = 2
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0600); err != nil {
 		t.Fatalf("failed to write config.toml: %v", err)

@@ -154,7 +154,6 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		"--label", "bc.managed=true",
 		"--label", "bc.workspace=" + b.workspaceHash,
 		"--label", "bc.agent=" + name,
-		"-t", // TTY for tmux
 	}
 
 	// Resource limits
@@ -229,16 +228,9 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		image = b.imageForTool(toolName)
 	}
 
-	// Entrypoint: start agent command in tmux, wait for session to exit.
-	// Auth credentials are already in place via the mounted ~/.claude/ dir.
-	escapedCmd := strings.ReplaceAll(command, `"`, `\"`)
-	entrypoint := fmt.Sprintf(
-		`tmux new-session -d -s agent -x 200 -y 50 "%s" && `+
-			`while tmux has-session -t agent 2>/dev/null; do sleep 2; done`,
-		escapedCmd,
-	)
-	// Override entrypoint to avoid conflict with Dockerfile ENTRYPOINT
-	args = append(args, "--entrypoint", "bash", image, "-c", entrypoint)
+	// Run the agent command directly. claude --tmux handles its own tmux session.
+	// Override entrypoint to avoid conflict with Dockerfile ENTRYPOINT.
+	args = append(args, "--entrypoint", "bash", image, "-c", command)
 
 	log.Debug("creating docker container", "name", cn, "image", image)
 	//nolint:gosec // args are constructed from trusted internal values
@@ -318,7 +310,7 @@ func (b *Backend) SendKeysWithSubmit(ctx context.Context, name, keys, submitKey 
 	// Send text literally (not as key names)
 	//nolint:gosec // all args are trusted internal values
 	sendCmd := exec.CommandContext(ctx, "docker", "exec", cn,
-		"tmux", "send-keys", "-t", "agent", "-l", "--", keys)
+		"tmux", "send-keys", "-t", name, "-l", "--", keys)
 	if output, err := sendCmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to send keys to %s: %w (%s)", cn, err, strings.TrimSpace(string(output)))
 	}
@@ -327,7 +319,7 @@ func (b *Backend) SendKeysWithSubmit(ctx context.Context, name, keys, submitKey 
 	if submitKey != "" {
 		//nolint:gosec // trusted
 		keyCmd := exec.CommandContext(ctx, "docker", "exec", cn,
-			"tmux", "send-keys", "-t", "agent", submitKey)
+			"tmux", "send-keys", "-t", name, submitKey)
 		if output, err := keyCmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("failed to send submit key to %s: %w (%s)", cn, err, strings.TrimSpace(string(output)))
 		}
@@ -347,7 +339,7 @@ func (b *Backend) Capture(ctx context.Context, name string, lines int) (string, 
 
 	//nolint:gosec // all args are trusted
 	cmd := exec.CommandContext(ctx, "docker", "exec", cn,
-		"tmux", "capture-pane", "-t", "agent", "-p", "-S", startLine)
+		"tmux", "capture-pane", "-t", name, "-p", "-S", startLine)
 	output, err := cmd.Output()
 	if err != nil {
 		// Fall back to docker logs if tmux capture fails
@@ -402,7 +394,7 @@ func (b *Backend) ListSessions(ctx context.Context) ([]runtime.Session, error) {
 func (b *Backend) AttachCmd(ctx context.Context, name string) *exec.Cmd {
 	cn := b.containerName(name)
 	//nolint:gosec // trusted
-	return exec.CommandContext(ctx, "docker", "exec", "-it", cn, "tmux", "attach", "-t", "agent")
+	return exec.CommandContext(ctx, "docker", "exec", "-it", cn, "tmux", "attach", "-t", name)
 }
 
 // IsRunning checks if the Docker daemon is running.

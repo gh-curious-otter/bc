@@ -241,21 +241,21 @@ func BenchmarkAgentsDir(b *testing.B) {
 	}
 }
 
-func BenchmarkDefaultTool(b *testing.B) {
+func BenchmarkDefaultProvider(b *testing.B) {
 	ws := setupV2Workspace(b)
 
 	b.ResetTimer()
 	for range b.N {
-		_ = ws.DefaultTool()
+		_ = ws.DefaultProvider()
 	}
 }
 
-func BenchmarkDefaultToolCommand(b *testing.B) {
+func BenchmarkDefaultProviderCommand(b *testing.B) {
 	ws := setupV2Workspace(b)
 
 	b.ResetTimer()
 	for range b.N {
-		_ = ws.DefaultToolCommand()
+		_ = ws.DefaultProviderCommand()
 	}
 }
 

@@ -2,29 +2,13 @@
 
 package config
 
-type AgentLegacyConfig struct {
-	Command string
-}
-
-type AgentsItem struct {
-	Command     string
-	Description string
-	Name        string
-}
-
 type ChannelsConfig struct {
-	Default []string
 }
 
 type LogsConfig struct {
 	MaxBytes     int64
 	Path         string
 	PreserveAnsi bool
-}
-
-type MemoryConfig struct {
-	Backend string
-	Path    string
 }
 
 type PerformanceConfig struct {
@@ -89,12 +73,6 @@ type ProvidersOpencodeConfig struct {
 	Enabled bool
 }
 
-type RosterConfig struct {
-	Engineers int64
-	Qa        int64
-	TechLeads int64
-}
-
 type RuntimeConfig struct {
 	Backend string
 	Docker  RuntimeDockerConfig
@@ -132,58 +110,6 @@ type TmuxConfig struct {
 	SessionPrefix string
 }
 
-type ToolsClaudeConfig struct {
-	Command string
-	Enabled bool
-}
-
-type ToolsCodexConfig struct {
-	Command string
-	Enabled bool
-}
-
-type ToolsConfig struct {
-	Claude   ToolsClaudeConfig
-	Codex    ToolsCodexConfig
-	Cursor   ToolsCursorConfig
-	Default  string
-	Gemini   ToolsGeminiConfig
-	Github   ToolsGithubConfig
-	Gitlab   ToolsGitlabConfig
-	Jira     ToolsJiraConfig
-	Opencode ToolsOpencodeConfig
-}
-
-type ToolsCursorConfig struct {
-	Command string
-	Enabled bool
-}
-
-type ToolsGeminiConfig struct {
-	Command string
-	Enabled bool
-}
-
-type ToolsGithubConfig struct {
-	Command string
-	Enabled bool
-}
-
-type ToolsGitlabConfig struct {
-	Command string
-	Enabled bool
-}
-
-type ToolsJiraConfig struct {
-	Command string
-	Enabled bool
-}
-
-type ToolsOpencodeConfig struct {
-	Command string
-	Enabled bool
-}
-
 type TuiConfig struct {
 	LeaderBindings     TuiLeaderBindingsConfig
 	LeaderKey          string
@@ -203,66 +129,16 @@ type TuiLeaderBindingsConfig struct {
 
 type WorkspaceConfig struct {
 	Name    string
+	Path    string
 	Version int64
 }
 
-type WorktreesConfig struct {
-	AutoCleanup bool
-	Path        string
-}
-
 var (
-	AgentLegacy = AgentLegacyConfig{
-		Command: "claude --dangerously-skip-permissions",
-	}
-	Agents = []AgentsItem{
-		{
-			Command:     "claude --dangerously-skip-permissions",
-			Description: "Anthropic Claude Code",
-			Name:        "claude",
-		},
-		{
-			Command:     "gemini --yolo",
-			Description: "Gemini Agent",
-			Name:        "gemini",
-		},
-		{
-			Command:     "cursor-agent --force --print",
-			Description: "Cursor Agent",
-			Name:        "cursor",
-		},
-		{
-			Command:     "codex --full-auto",
-			Description: "OpenAI Codex",
-			Name:        "codex",
-		},
-		{
-			Command:     "crush",
-			Description: "OpenCode/Crush AI coding assistant",
-			Name:        "opencode",
-		},
-		{
-			Command:     "openclaw --auto",
-			Description: "OpenClaw AI Coding Assistant",
-			Name:        "openclaw",
-		},
-		{
-			Command:     "aider --yes",
-			Description: "Aider AI Pair Programming",
-			Name:        "aider",
-		},
-	}
-	Channels = ChannelsConfig{
-		Default: []string{"general", "engineering"},
-	}
-	Logs = LogsConfig{
+	Channels = ChannelsConfig{}
+	Logs     = LogsConfig{
 		MaxBytes:     1048576,
 		Path:         ".bc/logs",
 		PreserveAnsi: true,
-	}
-	Memory = MemoryConfig{
-		Backend: "file",
-		Path:    ".bc/memory",
 	}
 	Performance = PerformanceConfig{
 		AdaptiveFastInterval:   1000,
@@ -310,13 +186,8 @@ var (
 			Enabled: false,
 		},
 	}
-	Roster = RosterConfig{
-		Engineers: 4,
-		Qa:        2,
-		TechLeads: 2,
-	}
 	Runtime = RuntimeConfig{
-		Backend: "tmux",
+		Backend: "docker",
 		Docker: RuntimeDockerConfig{
 			Cpus:     2,
 			Image:    "bc-agent:latest",
@@ -341,41 +212,6 @@ var (
 	Tmux = TmuxConfig{
 		SessionPrefix: "bc-",
 	}
-	Tools = ToolsConfig{
-		Claude: ToolsClaudeConfig{
-			Command: "claude --dangerously-skip-permissions",
-			Enabled: true,
-		},
-		Codex: ToolsCodexConfig{
-			Command: "codex --full-auto",
-			Enabled: false,
-		},
-		Cursor: ToolsCursorConfig{
-			Command: "cursor-agent --force --print",
-			Enabled: false,
-		},
-		Default: "claude",
-		Gemini: ToolsGeminiConfig{
-			Command: "gemini --yolo",
-			Enabled: true,
-		},
-		Github: ToolsGithubConfig{
-			Command: "gh",
-			Enabled: false,
-		},
-		Gitlab: ToolsGitlabConfig{
-			Command: "glab",
-			Enabled: false,
-		},
-		Jira: ToolsJiraConfig{
-			Command: "jira",
-			Enabled: false,
-		},
-		Opencode: ToolsOpencodeConfig{
-			Command: "crush",
-			Enabled: false,
-		},
-	}
 	Tui = TuiConfig{
 		LeaderBindings: TuiLeaderBindingsConfig{
 			H: "help",
@@ -392,10 +228,7 @@ var (
 	}
 	Workspace = WorkspaceConfig{
 		Name:    "bc",
+		Path:    "",
 		Version: 2,
-	}
-	Worktrees = WorktreesConfig{
-		AutoCleanup: true,
-		Path:        ".bc/worktrees",
 	}
 )

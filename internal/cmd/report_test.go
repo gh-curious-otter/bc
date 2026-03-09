@@ -4,8 +4,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-
-	"github.com/rpuneet/bc/pkg/memory"
 )
 
 // --- Report Command Unit Tests ---
@@ -79,101 +77,6 @@ func TestReportCommand_AcceptsStateAndMessage(t *testing.T) {
 	err := reportCmd.Args(reportCmd, []string{"working", "test", "message"})
 	if err != nil {
 		t.Errorf("unexpected error for state + message args: %v", err)
-	}
-}
-
-// --- Auto-Record Experience Tests ---
-
-func TestRecordExperience(t *testing.T) {
-	wsDir := setupTestWorkspace(t)
-
-	err := recordExperience(wsDir, "test-agent", "Completed task X", "success")
-	if err != nil {
-		t.Fatalf("recordExperience failed: %v", err)
-	}
-
-	// Verify experience was recorded
-	store := memory.NewStore(wsDir, "test-agent")
-	experiences, err := store.GetExperiences()
-	if err != nil {
-		t.Fatalf("failed to get experiences: %v", err)
-	}
-
-	if len(experiences) != 1 {
-		t.Fatalf("expected 1 experience, got %d", len(experiences))
-	}
-
-	if experiences[0].Description != "Completed task X" {
-		t.Errorf("expected 'Completed task X', got %q", experiences[0].Description)
-	}
-	if experiences[0].Outcome != "success" {
-		t.Errorf("expected 'success', got %q", experiences[0].Outcome)
-	}
-}
-
-func TestRecordExperience_Deduplication(t *testing.T) {
-	wsDir := setupTestWorkspace(t)
-
-	// Record same experience twice
-	err := recordExperience(wsDir, "dedup-agent", "Fixed bug", "success")
-	if err != nil {
-		t.Fatalf("first recordExperience failed: %v", err)
-	}
-
-	err = recordExperience(wsDir, "dedup-agent", "Fixed bug", "success")
-	if err != nil {
-		t.Fatalf("second recordExperience failed: %v", err)
-	}
-
-	// Verify only 1 experience recorded (deduplicated)
-	store := memory.NewStore(wsDir, "dedup-agent")
-	experiences, err := store.GetExperiences()
-	if err != nil {
-		t.Fatalf("failed to get experiences: %v", err)
-	}
-
-	if len(experiences) != 1 {
-		t.Errorf("expected 1 experience after dedup, got %d", len(experiences))
-	}
-}
-
-func TestRecordExperience_DifferentDescriptions(t *testing.T) {
-	wsDir := setupTestWorkspace(t)
-
-	// Record different experiences
-	if err := recordExperience(wsDir, "multi-agent", "Task A", "success"); err != nil {
-		t.Fatalf("first recordExperience failed: %v", err)
-	}
-
-	if err := recordExperience(wsDir, "multi-agent", "Task B", "success"); err != nil {
-		t.Fatalf("second recordExperience failed: %v", err)
-	}
-
-	// Verify both recorded
-	store := memory.NewStore(wsDir, "multi-agent")
-	experiences, err := store.GetExperiences()
-	if err != nil {
-		t.Fatalf("failed to get experiences: %v", err)
-	}
-
-	if len(experiences) != 2 {
-		t.Errorf("expected 2 experiences, got %d", len(experiences))
-	}
-}
-
-func TestRecordExperience_InitializesMemory(t *testing.T) {
-	wsDir := setupTestWorkspace(t)
-
-	// Record to non-existent agent memory
-	err := recordExperience(wsDir, "new-agent", "First task", "success")
-	if err != nil {
-		t.Fatalf("recordExperience failed: %v", err)
-	}
-
-	// Verify memory was initialized
-	store := memory.NewStore(wsDir, "new-agent")
-	if !store.Exists() {
-		t.Error("memory should be initialized after recording")
 	}
 }
 

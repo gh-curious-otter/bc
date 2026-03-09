@@ -161,15 +161,6 @@ bc cost show AGENT                  # Specific agent costs
 bc cost summary --workspace         # Workspace total
 bc cost dashboard                   # Comprehensive view
 
-** Memory Management **
-bc memory show                      # Current agent memory
-bc memory show AGENT                # Specific agent memory
-bc memory record "text"             # Record experience
-bc memory learn "topic" "text"      # Add learning
-bc memory search "query"            # Search memories
-bc memory prune --older-than 30d    # Remove old experiences
-bc memory prune --agent NAME        # Prune specific agent
-
 ** Configuration **
 bc config show                      # Show all config
 bc config get KEY                   # Get config value (e.g. tools.default)

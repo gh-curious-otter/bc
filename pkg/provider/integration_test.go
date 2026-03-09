@@ -124,32 +124,12 @@ func TestGetAgentCommandFromConfig_RealConfigs(t *testing.T) {
 			wantOk:  true,
 		},
 		{
-			name: "legacy tools fallback through providers",
-			tool: "claude",
-			cfg: &workspace.Config{
-				Tools: workspace.ToolsConfig{
-					Claude: &workspace.ToolConfig{
-						Command: "claude --legacy-flag",
-						Enabled: true,
-					},
-				},
-			},
-			wantCmd: "claude --legacy-flag",
-			wantOk:  true,
-		},
-		{
-			name: "providers take precedence over tools",
+			name: "providers config",
 			tool: "codex",
 			cfg: &workspace.Config{
 				Providers: workspace.ProvidersConfig{
 					Codex: &workspace.ProviderConfig{
 						Command: "codex --new-flag",
-						Enabled: true,
-					},
-				},
-				Tools: workspace.ToolsConfig{
-					Codex: &workspace.ToolConfig{
-						Command: "codex --old-flag",
 						Enabled: true,
 					},
 				},
@@ -219,24 +199,12 @@ func TestConfigProviderRegistrySync(t *testing.T) {
 	}
 
 	// Every provider in DefaultRegistry should be gettable via Config.GetProvider
-	// (either from ProvidersConfig or legacy ToolsConfig)
 	registryProviders := provider.ListProviders()
 	for _, p := range registryProviders {
 		name := p.Name()
-		// The provider must be recognizable by the config layer
-		// (GetProvider handles known names even if not explicitly configured)
 		if !cfg.HasProviderDefined(name) {
-			// Only flag as error for providers that have entries in config.toml
-			// Some providers (openclaw, aider, cursor, codex, opencode) may not
-			// be in DefaultConfig but are still valid registry entries
 			t.Logf("provider %q in registry but not in DefaultConfig (acceptable for optional providers)", name)
 		}
-	}
-
-	// Verify Providers.Default matches Tools.Default
-	if cfg.Providers.Default != cfg.Tools.Default {
-		t.Errorf("Providers.Default (%q) != Tools.Default (%q) — config drift detected",
-			cfg.Providers.Default, cfg.Tools.Default)
 	}
 
 	// Verify GetDefaultProvider returns a valid provider from registry

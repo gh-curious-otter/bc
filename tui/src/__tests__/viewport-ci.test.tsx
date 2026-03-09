@@ -34,7 +34,6 @@ import { LogsView } from '../views/LogsView';
 import { WorktreesView } from '../views/WorktreesView';
 import { DemonsView } from '../views/DemonsView';
 import { ProcessesView } from '../views/ProcessesView';
-import { MemoryView } from '../views/MemoryView';
 import { HelpView } from '../views/HelpView';
 import { IssuesView } from '../views/IssuesView';
 import { FilesView } from '../views/FilesView';
@@ -184,7 +183,6 @@ describe('Viewport CI - 80x24 Compliance', () => {
       { name: 'WorktreesView', component: <WorktreesView /> },
       { name: 'DemonsView', component: <DemonsView /> },
       { name: 'ProcessesView', component: <ProcessesView /> },
-      { name: 'MemoryView', component: <MemoryView /> },
       { name: 'HelpView', component: <HelpView /> },
       { name: 'IssuesView', component: <IssuesView /> },
       { name: 'FilesView', component: <FilesView /> },

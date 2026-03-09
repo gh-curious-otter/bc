@@ -73,7 +73,7 @@ func runSpawn(cmd *cobra.Command, args []string) error {
 	// Determine tool: --tool flag > workspace config > default
 	toolName := spawnTool
 	if toolName == "" {
-		toolName = ws.DefaultTool()
+		toolName = ws.DefaultProvider()
 	}
 
 	if toolName != "" {

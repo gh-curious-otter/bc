@@ -25,7 +25,6 @@ import { ChannelsView } from './views/ChannelsView';
 import { CostsView } from './views/CostsView';
 import { LogsView } from './views/LogsView';
 import { WorktreesView } from './views/WorktreesView';
-import { MemoryView } from './views/MemoryView';
 import { HelpView } from './views/HelpView';
 import { ToolsView } from './views/ToolsView';
 import { CommandBar } from './components/CommandBar';
@@ -197,8 +196,6 @@ const ViewContent = memo(function ViewContent({ view }: ViewContentProps): React
       return <RolesView />;
     case 'worktrees':
       return <WorktreesView />;
-    case 'memory':
-      return <MemoryView />;
     case 'tools':
       return <ToolsView />;
     case 'help':

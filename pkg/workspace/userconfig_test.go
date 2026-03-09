@@ -133,130 +133,94 @@ func TestMergeWithUserRC(t *testing.T) {
 	}
 }
 
-func TestHasTool(t *testing.T) {
+func TestHasProviderDefined(t *testing.T) {
 	cfg := DefaultConfig("test")
 
-	if !cfg.HasTool("gemini") {
+	if !cfg.HasProviderDefined("gemini") {
 		t.Error("expected gemini to be available")
 	}
 
-	if !cfg.HasTool("claude") {
+	if !cfg.HasProviderDefined("claude") {
 		t.Error("expected claude to be available")
 	}
 
-	if cfg.HasTool("unknown-tool") {
+	if cfg.HasProviderDefined("unknown-tool") {
 		t.Error("expected unknown-tool to not be available")
 	}
 }
 
-func TestHasToolAllTypes(t *testing.T) {
+func TestHasProviderDefinedAllTypes(t *testing.T) {
 	tests := []struct {
-		name     string
-		toolName string
-		cfg      Config
-		want     bool
+		name         string
+		providerName string
+		cfg          Config
+		want         bool
 	}{
 		{
-			name:     "claude enabled",
-			toolName: "claude",
+			name:         "claude defined",
+			providerName: "claude",
 			cfg: Config{
-				Tools: ToolsConfig{Claude: &ToolConfig{Enabled: true}},
+				Providers: ProvidersConfig{Claude: &ProviderConfig{Enabled: true}},
 			},
 			want: true,
 		},
 		{
-			name:     "claude-code enabled",
-			toolName: "claude-code",
+			name:         "cursor defined",
+			providerName: "cursor",
 			cfg: Config{
-				Tools: ToolsConfig{Claude: &ToolConfig{Enabled: true}},
+				Providers: ProvidersConfig{Cursor: &ProviderConfig{Enabled: true}},
 			},
 			want: true,
 		},
 		{
-			name:     "claude disabled",
-			toolName: "claude",
+			name:         "codex defined",
+			providerName: "codex",
 			cfg: Config{
-				Tools: ToolsConfig{Claude: &ToolConfig{Enabled: false}},
-			},
-			want: false,
-		},
-		{
-			name:     "cursor enabled",
-			toolName: "cursor",
-			cfg: Config{
-				Tools: ToolsConfig{Cursor: &ToolConfig{Enabled: true}},
+				Providers: ProvidersConfig{Codex: &ProviderConfig{Enabled: true}},
 			},
 			want: true,
 		},
 		{
-			name:     "cursor disabled",
-			toolName: "cursor",
+			name:         "gemini defined",
+			providerName: "gemini",
 			cfg: Config{
-				Tools: ToolsConfig{Cursor: &ToolConfig{Enabled: false}},
-			},
-			want: false,
-		},
-		{
-			name:     "codex enabled",
-			toolName: "codex",
-			cfg: Config{
-				Tools: ToolsConfig{Codex: &ToolConfig{Enabled: true}},
+				Providers: ProvidersConfig{Gemini: &ProviderConfig{Enabled: true}},
 			},
 			want: true,
 		},
 		{
-			name:     "gemini enabled",
-			toolName: "gemini",
+			name:         "custom provider defined",
+			providerName: "my-provider",
 			cfg: Config{
-				Tools: ToolsConfig{Gemini: &ToolConfig{Enabled: true}},
-			},
-			want: true,
-		},
-		{
-			name:     "custom tool enabled",
-			toolName: "my-tool",
-			cfg: Config{
-				Tools: ToolsConfig{
-					Custom: map[string]ToolConfig{
-						"my-tool": {Enabled: true},
+				Providers: ProvidersConfig{
+					Custom: map[string]ProviderConfig{
+						"my-provider": {Enabled: true},
 					},
 				},
 			},
 			want: true,
 		},
 		{
-			name:     "custom tool disabled still exists",
-			toolName: "my-tool",
+			name:         "custom provider not in map",
+			providerName: "my-provider",
 			cfg: Config{
-				Tools: ToolsConfig{
-					Custom: map[string]ToolConfig{
-						"my-tool": {Enabled: false},
-					},
-				},
-			},
-			want: true, // custom tools check existence only, not Enabled
-		},
-		{
-			name:     "custom tool not in map",
-			toolName: "my-tool",
-			cfg: Config{
-				Tools: ToolsConfig{Custom: map[string]ToolConfig{}},
+				Providers: ProvidersConfig{Custom: map[string]ProviderConfig{}},
 			},
 			want: false,
 		},
 		{
-			name:     "nil tools",
-			toolName: "claude",
-			cfg:      Config{},
-			want:     false,
+			name:         "nil providers",
+			providerName: "claude",
+			cfg:          Config{},
+			want:         false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.cfg.HasTool(tt.toolName)
+			got := tt.cfg.HasProviderDefined(tt.providerName)
 			if got != tt.want {
-				t.Errorf("HasTool(%q) = %v, want %v", tt.toolName, got, tt.want)
+				t.Errorf("HasProviderDefined(%q) = %v, want %v", tt.providerName, got, tt.want)
 			}
 		})
 	}
@@ -296,9 +260,9 @@ func TestGetPreferredTool(t *testing.T) {
 		{
 			name: "nil rc returns default",
 			cfg: Config{
-				Tools: ToolsConfig{
+				Providers: ProvidersConfig{
 					Default: "claude",
-					Claude:  &ToolConfig{Enabled: true},
+					Claude:  &ProviderConfig{Enabled: true},
 				},
 			},
 			rc:       nil,
@@ -307,9 +271,9 @@ func TestGetPreferredTool(t *testing.T) {
 		{
 			name: "empty preferred list returns default",
 			cfg: Config{
-				Tools: ToolsConfig{
+				Providers: ProvidersConfig{
 					Default: "claude",
-					Claude:  &ToolConfig{Enabled: true},
+					Claude:  &ProviderConfig{Enabled: true},
 				},
 			},
 			rc:       &UserRCConfig{},
@@ -318,10 +282,10 @@ func TestGetPreferredTool(t *testing.T) {
 		{
 			name: "first preferred tool available",
 			cfg: Config{
-				Tools: ToolsConfig{
+				Providers: ProvidersConfig{
 					Default: "claude",
-					Claude:  &ToolConfig{Enabled: true},
-					Cursor:  &ToolConfig{Enabled: true},
+					Claude:  &ProviderConfig{Enabled: true},
+					Cursor:  &ProviderConfig{Enabled: true},
 				},
 			},
 			rc: &UserRCConfig{
@@ -332,11 +296,11 @@ func TestGetPreferredTool(t *testing.T) {
 			expected: "cursor",
 		},
 		{
-			name: "skip unavailable tool",
+			name: "skip unavailable provider",
 			cfg: Config{
-				Tools: ToolsConfig{
+				Providers: ProvidersConfig{
 					Default: "claude",
-					Claude:  &ToolConfig{Enabled: true},
+					Claude:  &ProviderConfig{Enabled: true},
 				},
 			},
 			rc: &UserRCConfig{
@@ -347,11 +311,11 @@ func TestGetPreferredTool(t *testing.T) {
 			expected: "claude",
 		},
 		{
-			name: "no preferred tools available",
+			name: "no preferred providers available",
 			cfg: Config{
-				Tools: ToolsConfig{
+				Providers: ProvidersConfig{
 					Default: "gemini",
-					Gemini:  &ToolConfig{Enabled: true},
+					Gemini:  &ProviderConfig{Enabled: true},
 				},
 			},
 			rc: &UserRCConfig{
@@ -426,62 +390,62 @@ func TestParseUserRCConfigInvalidTOML(t *testing.T) {
 	}
 }
 
-func TestHasToolGitHubGitLabJira(t *testing.T) {
+func TestHasServiceDefined(t *testing.T) {
 	tests := []struct {
-		name     string
-		toolName string
-		cfg      Config
-		want     bool
+		name        string
+		serviceName string
+		cfg         Config
+		want        bool
 	}{
 		{
-			name:     "github enabled",
-			toolName: "github",
-			cfg:      Config{Tools: ToolsConfig{GitHub: &ToolConfig{Enabled: true}}},
-			want:     true,
+			name:        "github defined",
+			serviceName: "github",
+			cfg:         Config{Services: ServicesConfig{GitHub: &ServiceConfig{Enabled: true}}},
+			want:        true,
 		},
 		{
-			name:     "github nil",
-			toolName: "github",
-			cfg:      Config{},
-			want:     false,
+			name:        "github nil",
+			serviceName: "github",
+			cfg:         Config{},
+			want:        false,
 		},
 		{
-			name:     "gitlab enabled",
-			toolName: "gitlab",
-			cfg:      Config{Tools: ToolsConfig{GitLab: &ToolConfig{Enabled: true}}},
-			want:     true,
+			name:        "gitlab defined",
+			serviceName: "gitlab",
+			cfg:         Config{Services: ServicesConfig{GitLab: &ServiceConfig{Enabled: true}}},
+			want:        true,
 		},
 		{
-			name:     "gitlab nil",
-			toolName: "gitlab",
-			cfg:      Config{},
-			want:     false,
+			name:        "gitlab nil",
+			serviceName: "gitlab",
+			cfg:         Config{},
+			want:        false,
 		},
 		{
-			name:     "jira enabled",
-			toolName: "jira",
-			cfg:      Config{Tools: ToolsConfig{Jira: &ToolConfig{Enabled: true}}},
-			want:     true,
+			name:        "jira defined",
+			serviceName: "jira",
+			cfg:         Config{Services: ServicesConfig{Jira: &ServiceConfig{Enabled: true}}},
+			want:        true,
 		},
 		{
-			name:     "jira nil",
-			toolName: "jira",
-			cfg:      Config{},
-			want:     false,
+			name:        "jira nil",
+			serviceName: "jira",
+			cfg:         Config{},
+			want:        false,
 		},
 		{
-			name:     "custom tool nil map",
-			toolName: "unknown",
-			cfg:      Config{},
-			want:     false,
+			name:        "unknown service",
+			serviceName: "unknown",
+			cfg:         Config{},
+			want:        false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.cfg.HasTool(tt.toolName)
+			got := tt.cfg.HasServiceDefined(tt.serviceName)
 			if got != tt.want {
-				t.Errorf("HasTool(%q) = %v, want %v", tt.toolName, got, tt.want)
+				t.Errorf("HasServiceDefined(%q) = %v, want %v", tt.serviceName, got, tt.want)
 			}
 		})
 	}

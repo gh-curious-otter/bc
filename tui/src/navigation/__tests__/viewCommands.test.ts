@@ -17,15 +17,7 @@ describe('viewCommands', () => {
     test('resolves aliases', () => {
       expect(resolveCommand('dash')).toBe('dashboard');
       expect(resolveCommand('ag')).toBe('agents');
-      expect(resolveCommand('mem')).toBe('memory');
-      expect(resolveCommand('m')).toBe('memory');
       expect(resolveCommand('?')).toBe('help');
-    });
-
-    test('resolves :memory and :mem to memory view', () => {
-      expect(resolveCommand('memory')).toBe('memory');
-      expect(resolveCommand('mem')).toBe('memory');
-      expect(resolveCommand('m')).toBe('memory');
     });
 
     test('returns null for unknown commands', () => {
@@ -98,9 +90,9 @@ describe('viewCommands', () => {
 
   describe('searchCommands LRU (#1871)', () => {
     test('shows recent commands first when query is empty', () => {
-      const results = searchCommands('', ['logs', 'memory']);
+      const results = searchCommands('', ['logs', 'costs']);
       expect(results[0].command.command).toBe('logs');
-      expect(results[1].command.command).toBe('memory');
+      expect(results[1].command.command).toBe('costs');
       expect(results[0].command.section).toBe('RECENT');
       expect(results[1].command.section).toBe('RECENT');
     });

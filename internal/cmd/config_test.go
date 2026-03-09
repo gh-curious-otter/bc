@@ -20,11 +20,7 @@ func TestConfigShow(t *testing.T) {
 	// Check that output contains expected sections
 	expectedSections := []string{
 		"[workspace]",
-		"[worktrees]",
-		"[tools]",
-		"[memory]",
-		"[channels]",
-		"[roster]",
+		"[providers]",
 	}
 
 	for _, section := range expectedSections {
@@ -37,26 +33,23 @@ func TestConfigShow(t *testing.T) {
 func TestConfigShowSection(t *testing.T) {
 	_ = setupTestWorkspace(t)
 
-	stdout, _, err := executeIntegrationCmd("config", "show", "roster")
+	stdout, _, err := executeIntegrationCmd("config", "show", "providers")
 	if err != nil {
-		t.Fatalf("config show roster failed: %v", err)
+		t.Fatalf("config show providers failed: %v", err)
 	}
 
-	if !strings.Contains(stdout, "engineers") {
-		t.Errorf("expected output to contain 'engineers', got:\n%s", stdout)
+	if !strings.Contains(stdout, "default") {
+		t.Errorf("expected output to contain 'default', got:\n%s", stdout)
 	}
-	if !strings.Contains(stdout, "tech_leads") {
-		t.Errorf("expected output to contain 'tech_leads', got:\n%s", stdout)
-	}
-	if !strings.Contains(stdout, "qa") {
-		t.Errorf("expected output to contain 'qa', got:\n%s", stdout)
+	if !strings.Contains(stdout, "claude") {
+		t.Errorf("expected output to contain 'claude', got:\n%s", stdout)
 	}
 }
 
 func TestConfigShowJSON(t *testing.T) {
 	_ = setupTestWorkspace(t)
 
-	stdout, _, err := executeIntegrationCmd("config", "show", "roster", "--json")
+	stdout, _, err := executeIntegrationCmd("config", "show", "providers", "--json")
 	if err != nil {
 		t.Fatalf("config show --json failed: %v", err)
 	}
@@ -68,14 +61,8 @@ func TestConfigShowJSON(t *testing.T) {
 	}
 
 	// Check expected fields
-	if _, ok := data["Engineers"]; !ok {
-		t.Error("expected 'Engineers' field in JSON output")
-	}
-	if _, ok := data["TechLeads"]; !ok {
-		t.Error("expected 'TechLeads' field in JSON output")
-	}
-	if _, ok := data["QA"]; !ok {
-		t.Error("expected 'QA' field in JSON output")
+	if _, ok := data["Default"]; !ok {
+		t.Error("expected 'Default' field in JSON output")
 	}
 }
 
@@ -86,11 +73,8 @@ func TestConfigGet(t *testing.T) {
 		key      string
 		expected string
 	}{
-		{"roster.engineers", "4"},
-		{"roster.tech_leads", "2"},
-		{"roster.qa", "2"},
-		{"tools.default", "claude"},
-		{"memory.backend", "file"},
+		{"providers.default", "claude"},
+		{"workspace.name", "test"},
 	}
 
 	for _, tt := range tests {
@@ -124,40 +108,25 @@ func TestConfigGetInvalidKey(t *testing.T) {
 func TestConfigSet(t *testing.T) {
 	_ = setupTestWorkspace(t)
 
-	tests := []struct {
-		key      string
-		value    string
-		checkKey string
-		expected string
-	}{
-		{"roster.engineers", "6", "roster.engineers", "6"},
-		{"roster.tech_leads", "3", "roster.tech_leads", "3"},
-		{"tools.claude.command", "claude --force", "tools.claude.command", "claude --force"},
+	// Set workspace.name (safe key that doesn't trigger provider validation issues)
+	stdout, _, err := executeIntegrationCmd("config", "set", "workspace.name", "newname")
+	if err != nil {
+		t.Fatalf("config set workspace.name=newname failed: %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.key, func(t *testing.T) {
-			// Set the value
-			stdout, _, err := executeIntegrationCmd("config", "set", tt.key, tt.value)
-			if err != nil {
-				t.Fatalf("config set %s=%s failed: %v", tt.key, tt.value, err)
-			}
+	if !strings.Contains(stdout, "Set workspace.name") {
+		t.Errorf("expected confirmation message, got: %s", stdout)
+	}
 
-			if !strings.Contains(stdout, "Set "+tt.key) {
-				t.Errorf("expected confirmation message, got: %s", stdout)
-			}
+	// Verify the value was set
+	stdout, _, err = executeIntegrationCmd("config", "get", "workspace.name")
+	if err != nil {
+		t.Fatalf("config get workspace.name failed: %v", err)
+	}
 
-			// Verify the value was set
-			stdout, _, err = executeIntegrationCmd("config", "get", tt.checkKey)
-			if err != nil {
-				t.Fatalf("config get %s failed: %v", tt.checkKey, err)
-			}
-
-			stdout = strings.TrimSpace(stdout)
-			if stdout != tt.expected {
-				t.Errorf("expected %q, got %q", tt.expected, stdout)
-			}
-		})
+	stdout = strings.TrimSpace(stdout)
+	if stdout != "newname" {
+		t.Errorf("expected %q, got %q", "newname", stdout)
 	}
 }
 
@@ -169,8 +138,7 @@ func TestConfigSetInvalidValue(t *testing.T) {
 		value string
 		desc  string
 	}{
-		{"roster.engineers", "not-a-number", "invalid integer"},
-		{"worktrees.auto_cleanup", "not-a-bool", "invalid boolean"},
+		{"nonexistent.key", "value", "unknown key"},
 	}
 
 	for _, tt := range tests {
@@ -194,12 +162,7 @@ func TestConfigList(t *testing.T) {
 	expectedKeys := []string{
 		"workspace.name",
 		"workspace.version",
-		"worktrees.path",
-		"tools.default",
-		"roster.engineers",
-		"roster.tech_leads",
-		"roster.qa",
-		"memory.backend",
+		"providers.default",
 	}
 
 	for _, key := range expectedKeys {

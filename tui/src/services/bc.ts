@@ -22,9 +22,6 @@ import type {
   RolesResponse,
   Worktree,
   WorkspacesResponse,
-  AgentMemory,
-  MemoryListResponse,
-  MemorySearchResult,
   ToolInfo,
   CostUsageDailyResponse,
   CostUsageMonthlyResponse,
@@ -233,8 +230,7 @@ function getTtlForCommand(args: string[]): number {
 export async function execBc(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     // Always add --json flag if not present and command supports it
-    // #1756: Added 'memory' to fix Memory tab showing nothing
-    const jsonCommands = ['status', 'stats', 'channel', 'cost', 'logs', 'agent', 'process', 'demon', 'team', 'role', 'worktree', 'memory', 'tool'];
+    const jsonCommands = ['status', 'stats', 'channel', 'cost', 'logs', 'agent', 'process', 'demon', 'team', 'role', 'worktree', 'tool'];
     const hasJsonFlag = args.includes('--json');
     const command = args[0];
 
@@ -718,87 +714,6 @@ export async function getWorkspaces(scanPaths?: string[]): Promise<WorkspacesRes
   } catch {
     return { workspaces: [] };
   }
-}
-
-// ============================================================================
-// Memory Commands (#1231 - TUI Views)
-// ============================================================================
-
-/**
- * List all agent memories (summary)
- * #1595: Uses caching with 5s TTL
- */
-export async function getMemoryList(): Promise<MemoryListResponse> {
-  try {
-    return await execBcJsonCached<MemoryListResponse>(['memory', 'list'], 5000);
-  } catch {
-    return { agents: [] };
-  }
-}
-
-/**
- * Get detailed memory for a specific agent
- * @param agentName - Name of agent (optional, uses current agent if not specified)
- * #1595: Uses caching with 5s TTL
- */
-export async function getMemory(agentName?: string): Promise<AgentMemory | null> {
-  try {
-    const args = ['memory', 'show'];
-    if (agentName) {
-      args.push(agentName);
-    }
-    return await execBcJsonCached<AgentMemory>(args, 5000);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Search agent memories
- * @param query - Search query
- * @param agentName - Optional agent to search (searches all if not specified)
- */
-export async function searchMemory(query: string, agentName?: string): Promise<MemorySearchResult[]> {
-  try {
-    const args = ['memory', 'search', query];
-    if (agentName) {
-      args.push('--agent', agentName);
-    }
-    return await execBcJson<MemorySearchResult[]>(args);
-  } catch {
-    return [];
-  }
-}
-
-/**
- * Clear an agent's memory
- * @param agentName - Name of agent
- */
-export async function clearMemory(agentName: string): Promise<void> {
-  await execBc(['memory', 'clear', agentName]);
-  // #1595: Invalidate both the agent's specific memory and the list
-  invalidateCacheKey(`memory:show:${agentName}`);
-  invalidateCacheKey('memory:list');
-}
-
-/**
- * Delete an experience by index
- * @param agentName - Name of agent
- * @param index - 1-based experience index
- * #1854: Uses bc memory delete <agent> <index>
- */
-export async function deleteExperience(agentName: string, index: number): Promise<void> {
-  await execBc(['memory', 'delete', agentName, String(index)]);
-  invalidateCacheKey(`memory:show:${agentName}`);
-  invalidateCacheKey('memory:list');
-}
-
-/**
- * Export agent memory to JSON
- * @param agentName - Name of agent
- */
-export async function exportMemory(agentName: string): Promise<string> {
-  return await execBc(['memory', 'export', agentName]);
 }
 
 // ============================================================================
