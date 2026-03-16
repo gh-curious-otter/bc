@@ -27,7 +27,13 @@ type Config struct {
 	Channels    ChannelsConfig    `toml:"channels"`
 	Logs        LogsConfig        `toml:"logs"`
 	Runtime     RuntimeConfig     `toml:"runtime"`
+	Server      ServerConfig      `toml:"server"`
 	Performance PerformanceConfig `toml:"performance"`
+}
+
+// ServerConfig configures the bcd daemon server.
+type ServerConfig struct {
+	Addr string `toml:"addr"` // Listen address (default "127.0.0.1:9374")
 }
 
 // RuntimeConfig configures the agent session backend.

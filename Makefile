@@ -1,4 +1,4 @@
-.PHONY: dev build build-release build-all clean gen test coverage bench fmt vet lint check deps help version build-tui test-tui lint-tui build-agent-image build-agent-images
+.PHONY: dev build build-daemon build-release build-all clean gen test coverage bench fmt vet lint check deps help version build-tui test-tui lint-tui build-agent-image build-agent-images
 
 # Version information
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -51,6 +51,9 @@ dev:
 
 build: gen
 	go build -ldflags="$(LDFLAGS_VERSION)" -o bin/bc ./cmd/bc
+
+build-daemon: gen
+	go build -ldflags="$(LDFLAGS_VERSION)" -o bin/bcd ./cmd/bcd
 
 build-release: gen
 	go build -ldflags="-s -w $(LDFLAGS_VERSION)" -o bin/bc ./cmd/bc
