@@ -170,7 +170,7 @@ func runDaemonBackground(rootDir, stateDir, addr string) error {
 		return fmt.Errorf("find executable: %w", err)
 	}
 	bcdPath := filepath.Join(filepath.Dir(self), "bcd")
-	if _, err := os.Stat(bcdPath); err != nil {
+	if _, statErr := os.Stat(bcdPath); statErr != nil {
 		bcdPath, err = exec.LookPath("bcd")
 		if err != nil {
 			return fmt.Errorf("bcd binary not found (install it or run with --foreground): %w", err)
@@ -186,7 +186,7 @@ func runDaemonBackground(rootDir, stateDir, addr string) error {
 	}
 
 	// #nosec G204 - bcdPath is resolved from known locations
-	proc := exec.Command(bcdPath, "--addr", addr, "--workspace", rootDir)
+	proc := exec.CommandContext(context.Background(), bcdPath, "--addr", addr, "--workspace", rootDir)
 	proc.Dir = rootDir
 	proc.Env = append(os.Environ(), "BC_WORKSPACE="+rootDir)
 	proc.Stdout = logFile
@@ -312,7 +312,7 @@ func runDaemonStatus(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Try health check.
-	healthStatus := "unknown"
+	var healthStatus string
 	client := &http.Client{Timeout: 2 * time.Second}
 	healthURL := fmt.Sprintf("http://%s/health", info.Addr)
 	resp, err := client.Get(healthURL) //nolint:noctx // short-lived health check

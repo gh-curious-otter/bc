@@ -25,14 +25,14 @@ type Config struct {
 
 // Server is the bcd HTTP API server.
 type Server struct {
-	cfg       Config
+	startedAt time.Time
+	events    events.EventStore
 	ws        *workspace.Workspace
 	agents    *agent.Manager
 	channels  *channel.SQLiteStore
 	costs     *cost.Store
-	events    events.EventStore
 	httpSrv   *http.Server
-	startedAt time.Time
+	cfg       Config
 }
 
 // New creates a new Server from the given config.
@@ -47,19 +47,19 @@ func New(cfg Config) (*Server, error) {
 	}
 
 	mgr := newAgentManager(ws)
-	if err := mgr.LoadState(); err != nil {
-		log.Warn("failed to load agent state", "error", err)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
 	}
 
 	ch := channel.NewSQLiteStore(ws.RootDir)
-	if err := ch.Open(); err != nil {
-		return nil, err
+	if openErr := ch.Open(); openErr != nil {
+		return nil, openErr
 	}
 
 	cs := cost.NewStore(ws.RootDir)
-	if err := cs.Open(); err != nil {
+	if openErr := cs.Open(); openErr != nil {
 		_ = ch.Close()
-		return nil, err
+		return nil, openErr
 	}
 
 	ev, err := events.NewSQLiteLog(filepath.Join(ws.StateDir(), "state.db"))
@@ -93,7 +93,7 @@ func newAgentManager(ws *workspace.Workspace) *agent.Manager {
 	return agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
 }
 
-// Start sets up routes, starts the HTTP server, and blocks until ctx is cancelled.
+// Start sets up routes, starts the HTTP server, and blocks until ctx is canceled.
 func (s *Server) Start(ctx context.Context) error {
 	s.startedAt = time.Now()
 
@@ -124,20 +124,20 @@ func (s *Server) Start(ctx context.Context) error {
 func (s *Server) Shutdown(ctx context.Context) error {
 	log.Info("shutting down bcd")
 
-	var firstErr error
+	var errs []error
 	if s.httpSrv != nil {
-		if err := s.httpSrv.Shutdown(ctx); err != nil && firstErr == nil {
-			firstErr = err
+		if err := s.httpSrv.Shutdown(ctx); err != nil {
+			errs = append(errs, err)
 		}
 	}
-	if err := s.channels.Close(); err != nil && firstErr == nil {
-		firstErr = err
+	if err := s.channels.Close(); err != nil {
+		errs = append(errs, err)
 	}
-	if err := s.costs.Close(); err != nil && firstErr == nil {
-		firstErr = err
+	if err := s.costs.Close(); err != nil {
+		errs = append(errs, err)
 	}
-	if err := s.events.Close(); err != nil && firstErr == nil {
-		firstErr = err
+	if err := s.events.Close(); err != nil {
+		errs = append(errs, err)
 	}
-	return firstErr
+	return errors.Join(errs...)
 }

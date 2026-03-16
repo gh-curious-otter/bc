@@ -85,6 +85,10 @@ type RuntimeDockerConfig struct {
 	Network  string
 }
 
+type ServerConfig struct {
+	Addr string
+}
+
 type ServicesConfig struct {
 	Github ServicesGithubConfig
 	Gitlab ServicesGitlabConfig
@@ -194,6 +198,9 @@ var (
 			MemoryMb: 2048,
 			Network:  "host",
 		},
+	}
+	Server = ServerConfig{
+		Addr: "127.0.0.1:9374",
 	}
 	Services = ServicesConfig{
 		Github: ServicesGithubConfig{

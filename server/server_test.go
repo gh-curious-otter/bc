@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -31,11 +32,15 @@ func setupTestServer(t *testing.T) *Server {
 	return srv
 }
 
+func newReq(method, target string) *http.Request {
+	return httptest.NewRequestWithContext(context.Background(), method, target, nil)
+}
+
 func TestHealthEndpoint(t *testing.T) {
 	srv := setupTestServer(t)
 	handler := srv.routes()
 
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req := newReq(http.MethodGet, "/health")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -57,7 +62,7 @@ func TestAgentListEmpty(t *testing.T) {
 	srv := setupTestServer(t)
 	handler := srv.routes()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/agents", nil)
+	req := newReq(http.MethodGet, "/api/v1/agents")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -70,7 +75,7 @@ func TestChannelList(t *testing.T) {
 	srv := setupTestServer(t)
 	handler := srv.routes()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/channels", nil)
+	req := newReq(http.MethodGet, "/api/v1/channels")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -83,7 +88,7 @@ func TestWorkspaceStatus(t *testing.T) {
 	srv := setupTestServer(t)
 	handler := srv.routes()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/workspace", nil)
+	req := newReq(http.MethodGet, "/api/v1/workspace")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -105,7 +110,7 @@ func TestRoleList(t *testing.T) {
 	srv := setupTestServer(t)
 	handler := srv.routes()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/roles", nil)
+	req := newReq(http.MethodGet, "/api/v1/roles")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -118,7 +123,7 @@ func TestCostSummary(t *testing.T) {
 	srv := setupTestServer(t)
 	handler := srv.routes()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/costs", nil)
+	req := newReq(http.MethodGet, "/api/v1/costs")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -131,7 +136,7 @@ func TestEventList(t *testing.T) {
 	srv := setupTestServer(t)
 	handler := srv.routes()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/events?limit=10", nil)
+	req := newReq(http.MethodGet, "/api/v1/events?limit=10")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -144,7 +149,7 @@ func TestAgentNotFound(t *testing.T) {
 	srv := setupTestServer(t)
 	handler := srv.routes()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/agents/nonexistent", nil)
+	req := newReq(http.MethodGet, "/api/v1/agents/nonexistent")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -157,7 +162,7 @@ func TestCORSHeaders(t *testing.T) {
 	srv := setupTestServer(t)
 	handler := srv.routes()
 
-	req := httptest.NewRequest(http.MethodOptions, "/api/v1/agents", nil)
+	req := newReq(http.MethodOptions, "/api/v1/agents")
 	req.Header.Set("Origin", "http://localhost:3000")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
