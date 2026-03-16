@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -413,6 +414,9 @@ func TestChannelCommandSubcommands(t *testing.T) {
 		"leave":   false,
 		"history": false,
 		"show":    false,
+		"react":   false,
+		"desc":    false,
+		"status":  false,
 	}
 
 	for _, cmd := range subcommands {
@@ -563,6 +567,238 @@ func TestChannelShow_JSON(t *testing.T) {
 	}
 	if !strings.Contains(stdout, `"member_count": 1`) {
 		t.Errorf("expected JSON member_count field, got: %s", stdout)
+	}
+}
+
+// --- Channel Status Tests ---
+
+func TestChannelStatus_Empty(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	stdout, _, err := executeIntegrationCmd("channel", "status")
+	if err != nil {
+		t.Fatalf("channel status error: %v", err)
+	}
+	if !strings.Contains(stdout, "No channels") {
+		t.Errorf("expected 'No channels' message, got: %s", stdout)
+	}
+}
+
+func TestChannelStatus_WithChannels(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	store := channel.NewStore(wsDir)
+	if err := store.Load(); err != nil {
+		t.Fatalf("failed to load store: %v", err)
+	}
+	if _, err := store.Create("test-channel"); err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+	if err := store.AddMember("test-channel", "agent-01"); err != nil {
+		t.Fatalf("failed to add member: %v", err)
+	}
+	if err := store.AddHistory("test-channel", "agent-01", "hello world"); err != nil {
+		t.Fatalf("failed to add history: %v", err)
+	}
+	if err := store.Save(); err != nil {
+		t.Fatalf("failed to save: %v", err)
+	}
+
+	stdout, _, err := executeIntegrationCmd("channel", "status")
+	if err != nil {
+		t.Fatalf("channel status error: %v", err)
+	}
+	if !strings.Contains(stdout, "test-channel") {
+		t.Errorf("expected channel name in output, got: %s", stdout)
+	}
+}
+
+func TestChannelStatus_JSON(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	store := channel.NewStore(wsDir)
+	if err := store.Load(); err != nil {
+		t.Fatalf("failed to load store: %v", err)
+	}
+	if _, err := store.Create("json-status"); err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+	if err := store.Save(); err != nil {
+		t.Fatalf("failed to save: %v", err)
+	}
+
+	stdout, _, err := executeIntegrationCmd("channel", "status", "--json")
+	if err != nil {
+		t.Fatalf("channel status --json error: %v", err)
+	}
+	if !strings.Contains(stdout, `"name": "json-status"`) {
+		t.Errorf("expected JSON name field, got: %s", stdout)
+	}
+}
+
+// --- Channel Desc Tests ---
+
+func TestChannelDesc_RequiresArgs(t *testing.T) {
+	_, _, err := executeIntegrationCmd("channel", "desc")
+	if err == nil {
+		t.Fatal("expected error for missing args, got nil")
+	}
+	if !strings.Contains(err.Error(), "requires at least 2 arg") {
+		t.Errorf("expected arg count error, got: %v", err)
+	}
+}
+
+func TestChannelDesc_SetDescription(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	store := channel.NewStore(wsDir)
+	if err := store.Load(); err != nil {
+		t.Fatalf("failed to load store: %v", err)
+	}
+	if _, err := store.Create("desc-test"); err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+	if err := store.Save(); err != nil {
+		t.Fatalf("failed to save: %v", err)
+	}
+
+	stdout, _, err := executeIntegrationCmd("channel", "desc", "desc-test", "My channel description")
+	if err != nil {
+		t.Fatalf("channel desc error: %v", err)
+	}
+	if !strings.Contains(stdout, "Updated description") {
+		t.Errorf("expected success message, got: %s", stdout)
+	}
+}
+
+// --- Channel React Tests ---
+
+func TestChannelReact_RequiresArgs(t *testing.T) {
+	_, _, err := executeIntegrationCmd("channel", "react")
+	if err == nil {
+		t.Fatal("expected error for missing args, got nil")
+	}
+	if !strings.Contains(err.Error(), "accepts 3 arg") {
+		t.Errorf("expected arg count error, got: %v", err)
+	}
+}
+
+func TestChannelReact_InvalidIndex(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	_, _, err := executeIntegrationCmd("channel", "react", "test", "abc", "👍")
+	if err == nil {
+		t.Fatal("expected error for invalid index, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid message index") {
+		t.Errorf("expected 'invalid message index' error, got: %v", err)
+	}
+}
+
+// --- Channel History Filter Tests ---
+
+func TestChannelHistory_WithAgentFilter(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	store := channel.NewStore(wsDir)
+	if err := store.Load(); err != nil {
+		t.Fatalf("failed to load store: %v", err)
+	}
+	if _, err := store.Create("filter-test"); err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+	if err := store.AddHistory("filter-test", "agent-01", "hello from agent-01"); err != nil {
+		t.Fatalf("failed to add history: %v", err)
+	}
+	if err := store.AddHistory("filter-test", "agent-02", "hello from agent-02"); err != nil {
+		t.Fatalf("failed to add history: %v", err)
+	}
+	if err := store.Save(); err != nil {
+		t.Fatalf("failed to save: %v", err)
+	}
+
+	stdout, _, err := executeIntegrationCmd("channel", "history", "filter-test", "--agent", "agent-01")
+	if err != nil {
+		t.Fatalf("channel history --agent error: %v", err)
+	}
+	if !strings.Contains(stdout, "agent-01") {
+		t.Errorf("expected agent-01 messages, got: %s", stdout)
+	}
+	if strings.Contains(stdout, "agent-02") {
+		t.Errorf("should not contain agent-02 messages when filtering by agent-01, got: %s", stdout)
+	}
+}
+
+func TestChannelHistory_WithLimit(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	store := channel.NewStore(wsDir)
+	if err := store.Load(); err != nil {
+		t.Fatalf("failed to load store: %v", err)
+	}
+	if _, err := store.Create("limit-test"); err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+	for i := 0; i < 10; i++ {
+		if err := store.AddHistory("limit-test", "agent", fmt.Sprintf("message %d", i)); err != nil {
+			t.Fatalf("failed to add history: %v", err)
+		}
+	}
+	if err := store.Save(); err != nil {
+		t.Fatalf("failed to save: %v", err)
+	}
+
+	stdout, _, err := executeIntegrationCmd("channel", "history", "limit-test", "--limit", "3")
+	if err != nil {
+		t.Fatalf("channel history --limit error: %v", err)
+	}
+	// Should show only 3 messages (the last 3)
+	lines := strings.Split(strings.TrimSpace(stdout), "\n")
+	messageLines := 0
+	for _, line := range lines {
+		if strings.HasPrefix(line, "[") && strings.Contains(line, "agent:") {
+			messageLines++
+		}
+	}
+	if messageLines > 3 {
+		t.Errorf("expected at most 3 message lines with --limit 3, got %d", messageLines)
+	}
+}
+
+func TestChannelHistory_JSON(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	store := channel.NewStore(wsDir)
+	if err := store.Load(); err != nil {
+		t.Fatalf("failed to load store: %v", err)
+	}
+	if _, err := store.Create("json-history"); err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+	if err := store.AddHistory("json-history", "agent-01", "test message"); err != nil {
+		t.Fatalf("failed to add history: %v", err)
+	}
+	if err := store.Save(); err != nil {
+		t.Fatalf("failed to save: %v", err)
+	}
+
+	stdout, _, err := executeIntegrationCmd("channel", "history", "json-history", "--json")
+	if err != nil {
+		t.Fatalf("channel history --json error: %v", err)
+	}
+	if !strings.Contains(stdout, `"channel": "json-history"`) {
+		t.Errorf("expected JSON channel field, got: %s", stdout)
+	}
+	if !strings.Contains(stdout, "test message") {
+		t.Errorf("expected message content in JSON, got: %s", stdout)
 	}
 }
 
