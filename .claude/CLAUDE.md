@@ -33,6 +33,14 @@ cd tui && bun test                       # Run TUI tests
 cd tui && bun run lint                   # Lint TUI code
 ```
 
+**Docker Agent Images**
+```bash
+make build-agent-image            # Build default (claude) agent image
+make build-agent-image-gemini     # Build specific provider image
+make build-agent-images           # Build all provider images
+```
+Supported providers: claude, gemini, codex, aider, opencode, openclaw, cursor. Dockerfiles in `docker/`.
+
 ## Project Structure
 
 ### Core Architecture
@@ -142,6 +150,7 @@ cd tui && bun run lint                   # Lint TUI code
 - Integration tests are acceptable but should clean up after themselves
 
 **Dependencies**
+- Go 1.25.1+ required (uses `tool` directive in go.mod for cfgx code generation)
 - Keep minimal: BurntSushi/toml, charmbracelet/x, mattn/go-sqlite3, spf13/cobra
 - Run `make deps` to download and tidy
 
