@@ -45,6 +45,7 @@ type Provider interface {
 type CommandOpts struct {
 	AgentName string // worktree isolation (claude uses -w <name>)
 	Docker    bool   // running inside Docker container
+	Resume    bool   // resume previous session (claude uses --continue)
 }
 
 // ContainerCustomizer is optionally implemented by providers needing
