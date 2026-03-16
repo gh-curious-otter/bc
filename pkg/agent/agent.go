@@ -66,6 +66,7 @@ import (
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/provider"
 	"github.com/rpuneet/bc/pkg/runtime"
+	"github.com/rpuneet/bc/pkg/secret"
 	"github.com/rpuneet/bc/pkg/tmux"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -647,6 +648,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 		if existing.ParentID != "" {
 			env["BC_PARENT_ID"] = existing.ParentID
 		}
+		injectSecrets(env, workspace)
 		if err := m.runtime.CreateSessionWithEnv(context.TODO(), name, workspace, agentCmd, env); err != nil {
 			return nil, fmt.Errorf("failed to recreate tmux session: %w", err)
 		}
@@ -757,6 +759,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	if parentID != "" {
 		env["BC_PARENT_ID"] = parentID
 	}
+	injectSecrets(env, workspace)
 
 	// Create tmux session in the workspace directory
 	if err := m.runtime.CreateSessionWithEnv(context.TODO(), name, workspace, agentCmd, env); err != nil {
@@ -900,8 +903,6 @@ func truncateLogFile(path string, maxBytes int64) {
 		log.Warn("failed to truncate log", "path", path, "error", err)
 	}
 }
-
-
 
 // SpawnChildAgent creates a child agent under a parent agent.
 // Validates that the parent has permission to create the child role.
@@ -1671,4 +1672,25 @@ func (m *Manager) enforceRootSingleton(_ string) error {
 		}
 	}
 	return nil
+}
+
+// injectSecrets loads all workspace secrets from the keychain and merges
+// them into the environment map. Errors are logged but not fatal — agents
+// should still start even if keychain access fails.
+func injectSecrets(env map[string]string, workspacePath string) {
+	ctx := context.TODO()
+	store := secret.NewStore(filepath.Base(workspacePath))
+	names, err := store.List(ctx)
+	if err != nil {
+		log.Debug("failed to list secrets", "error", err)
+		return
+	}
+	for _, name := range names {
+		val, err := store.Get(ctx, name)
+		if err != nil {
+			log.Debug("failed to get secret", "name", name, "error", err)
+			continue
+		}
+		env[name] = val
+	}
 }
