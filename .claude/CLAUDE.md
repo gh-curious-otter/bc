@@ -12,9 +12,10 @@ make build-release      # Optimized release build
 
 **Test**
 ```bash
-make test               # Run all tests with race detector
-make coverage           # Generate coverage report
-make test -k TestName   # Run specific test (use pattern matching)
+make test                                      # Run all tests with race detector
+make coverage                                  # Generate coverage report
+go test -race ./pkg/agent/ -run TestName       # Run a specific test
+go test -race ./internal/cmd/ -run TestName    # Run a specific cmd test
 ```
 
 **Development**
