@@ -43,19 +43,20 @@ bun test src/hooks/__tests__/useStatus.test.tsx  # Run specific TUI test (from t
 
 - **cmd/bc/main.go** → entry point, injects version via ldflags, delegates to internal/cmd
 - **internal/cmd/** → all Cobra CLI commands in a single package. Commands are `*Cmd` variables registered via `init()`. Access workspace via `getWorkspace(cmd)` helper.
-- **pkg/** → reusable packages (agent, workspace, channel, cost, events, memory, tmux, git, etc.)
+- **pkg/** → reusable packages (agent, workspace, channel, cost, events, provider, container, tmux, etc.)
+- **pkg/provider/** → per-provider files (claude.go, gemini.go, etc.) implementing Provider interface with Binary(), BuildCommand(), InstallHint()
 - **config/** → generated from config.toml via `make gen` (uses cfgx tool)
-- **tui/src/** → React/Ink terminal UI with 14 views, compiled to CommonJS in tui/dist/
+- **tui/src/** → React/Ink terminal UI with 9 views, k9s-style `:command` navigation, compiled to CommonJS in tui/dist/
 - **prompts/** → default role prompt templates
 - **docker/** → per-provider Dockerfiles (claude, gemini, codex, aider, opencode, openclaw, cursor)
 
 ### Key Concepts
 
-- **Agents**: Isolated AI assistants in tmux sessions, each with own git worktree. Have roles (root, engineer, manager) with capabilities. State in `.bc/agents/<name>/`.
-- **Workspace**: Project dir with `.bc/` subdirectory for config, state, logs. Supports v2 (TOML) and legacy v1 (JSON) config formats.
+- **Agents**: Isolated AI assistants running in tmux sessions or Docker containers. Use `claude -w <name>` for built-in worktree isolation (no custom git worktree management). State stored in SQLite (including root agent as `is_root=1`). Have roles (root, engineer, manager) with capabilities.
+- **Workspace**: Project dir with `.bc/` subdirectory for config, state (SQLite), logs. Supports v2 (TOML) and legacy v1 (JSON) config formats.
 - **Channels**: SQLite-backed persistent inter-agent communication with reactions.
-- **Memory**: Per-agent persistent knowledge (experiences, learnings).
-- **Runtime backends**: Agents run in either tmux sessions or Docker containers, configured via `[runtime]` in config.toml.
+- **Providers**: Per-provider implementations in pkg/provider/ (claude, gemini, cursor, aider, codex, opencode, openclaw). Each owns its behavior via Provider interface; optional ContainerCustomizer interface for Docker-specific config.
+- **Runtime backends**: Default is Docker. Configured via `[runtime]` in config.toml. Tmux also supported.
 - **Roles**: Defined in `.bc/roles/*.md` with capabilities (create_agents, assign_work, implement_tasks, etc.) and hierarchy.
 
 ### Config Generation
@@ -71,7 +72,7 @@ Config code is generated from `config.toml` using the `cfgx` tool (`go generate 
 - Global flags: `-v/--verbose`, `--json`
 
 ### Database
-- SQLite for persistent storage (channels, cost, events) in `.bc/` directory
+- SQLite for all persistent storage (agent state, channels, cost, events) in `.bc/` directory using WAL mode
 - Tables created with `IF NOT EXISTS` for idempotency
 - JSON encoding for complex data types
 
