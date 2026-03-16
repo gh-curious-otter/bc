@@ -1137,7 +1137,7 @@ func TestRefreshState(t *testing.T) {
 
 func TestSpawnAgentWithOptions_ParentNotFound(t *testing.T) {
 	m := newTestManager(t)
-	_, err := m.SpawnAgentWithOptions("eng-1", Role("engineer"), "/tmp", "nonexistent-parent", "")
+	_, err := m.SpawnAgentWithOptions(SpawnOptions{Name: "eng-1", Role: Role("engineer"), Workspace: "/tmp", ParentID: "nonexistent-parent"})
 	if err == nil {
 		t.Error("expected error when parent not found")
 	}
@@ -1153,7 +1153,7 @@ func TestSpawnAgentWithOptions_ParentCantCreate(t *testing.T) {
 	}
 
 	// Engineer cannot create other engineers
-	_, err := m.SpawnAgentWithOptions("eng-2", Role("engineer"), "/tmp", "eng-1", "")
+	_, err := m.SpawnAgentWithOptions(SpawnOptions{Name: "eng-2", Role: Role("engineer"), Workspace: "/tmp", ParentID: "eng-1"})
 	if err == nil {
 		t.Error("expected error when parent can't create child role")
 	}
@@ -1173,7 +1173,7 @@ func TestSpawnAgentWithOptions_NullRole(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := m.SpawnAgentWithOptions("test-agent", tt.role, "/tmp", "", "")
+			_, err := m.SpawnAgentWithOptions(SpawnOptions{Name: "test-agent", Role: tt.role, Workspace: "/tmp"})
 			if err == nil {
 				t.Errorf("expected error for %s, got nil", tt.name)
 			}
@@ -1186,7 +1186,7 @@ func TestSpawnAgentWithOptions_NullRole(t *testing.T) {
 
 func TestSpawnAgentWithOptions_UnknownTool(t *testing.T) {
 	m := newTestManager(t)
-	_, err := m.SpawnAgentWithOptions("eng-1", Role("engineer"), "/tmp", "", "nonexistent-tool")
+	_, err := m.SpawnAgentWithOptions(SpawnOptions{Name: "eng-1", Role: Role("engineer"), Workspace: "/tmp", Tool: "nonexistent-tool"})
 	if err == nil {
 		t.Error("expected error for unknown tool")
 	}
