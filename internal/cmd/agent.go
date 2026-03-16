@@ -1347,35 +1347,35 @@ func isValidAgentName(name string) bool {
 //
 //nolint:govet // fieldalignment: JSON field order preferred for readability
 type compactAgent struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Role        string    `json:"role"`
-	State       string    `json:"state"`
-	Task        string    `json:"task,omitempty"`
-	Team        string    `json:"team,omitempty"`
-	Tool        string    `json:"tool,omitempty"`
-	ParentID    string    `json:"parent_id,omitempty"`
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Role      string    `json:"role"`
+	State     string    `json:"state"`
+	Task      string    `json:"task,omitempty"`
+	Team      string    `json:"team,omitempty"`
+	Tool      string    `json:"tool,omitempty"`
+	ParentID  string    `json:"parent_id,omitempty"`
 	Children  []string  `json:"children,omitempty"`
 	Session   string    `json:"session"`
 	StartedAt time.Time `json:"started_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // toCompactAgent converts a full agent to compact representation.
 func toCompactAgent(a *agent.Agent) compactAgent {
 	return compactAgent{
-		ID:          a.ID,
-		Name:        a.Name,
-		Role:        string(a.Role),
-		State:       string(a.State),
-		Task:        a.Task,
-		Team:        a.Team,
-		Tool:        a.Tool,
-		ParentID:    a.ParentID,
+		ID:        a.ID,
+		Name:      a.Name,
+		Role:      string(a.Role),
+		State:     string(a.State),
+		Task:      a.Task,
+		Team:      a.Team,
+		Tool:      a.Tool,
+		ParentID:  a.ParentID,
 		Children:  a.Children,
 		Session:   a.Session,
 		StartedAt: a.StartedAt,
-		UpdatedAt:   a.UpdatedAt,
+		UpdatedAt: a.UpdatedAt,
 	}
 }
 

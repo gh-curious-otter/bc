@@ -934,11 +934,11 @@ func runChannelStatus(cmd *cobra.Command, args []string) error {
 	type ChannelStatus struct {
 		Name         string `json:"name"`
 		Description  string `json:"description,omitempty"`
-		MemberCount  int    `json:"member_count"`
-		MessageCount int    `json:"message_count"`
 		LastMessage  string `json:"last_message,omitempty"`
 		LastSender   string `json:"last_sender,omitempty"`
 		LastActivity string `json:"last_activity,omitempty"`
+		MemberCount  int    `json:"member_count"`
+		MessageCount int    `json:"message_count"`
 	}
 
 	statuses := make([]ChannelStatus, 0, len(channels))

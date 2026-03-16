@@ -803,16 +803,16 @@ func TestProviderBinaryAndInstallHint(t *testing.T) {
 func TestProviderBuildCommand(t *testing.T) {
 	tests := []struct {
 		name     string
+		want     string
 		provider Provider
 		opts     CommandOpts
-		want     string
 	}{
-		{"claude no opts", NewClaudeProvider(), CommandOpts{}, "claude --dangerously-skip-permissions"},
-		{"claude with agent", NewClaudeProvider(), CommandOpts{AgentName: "eng-01"}, "claude -w eng-01  --dangerously-skip-permissions"},
-		{"gemini no opts", NewGeminiProvider(), CommandOpts{}, "gemini --yolo"},
-		{"gemini with agent", NewGeminiProvider(), CommandOpts{AgentName: "eng-01"}, "gemini --yolo"},
-		{"codex no opts", NewCodexProvider(), CommandOpts{}, "codex --full-auto"},
-		{"aider no opts", NewAiderProvider(), CommandOpts{}, "aider --yes"},
+		{"claude no opts", "claude --dangerously-skip-permissions", NewClaudeProvider(), CommandOpts{}},
+		{"claude with agent", "claude -w eng-01  --dangerously-skip-permissions", NewClaudeProvider(), CommandOpts{AgentName: "eng-01"}},
+		{"gemini no opts", "gemini --yolo", NewGeminiProvider(), CommandOpts{}},
+		{"gemini with agent", "gemini --yolo", NewGeminiProvider(), CommandOpts{AgentName: "eng-01"}},
+		{"codex no opts", "codex --full-auto", NewCodexProvider(), CommandOpts{}},
+		{"aider no opts", "aider --yes", NewAiderProvider(), CommandOpts{}},
 	}
 
 	for _, tt := range tests {

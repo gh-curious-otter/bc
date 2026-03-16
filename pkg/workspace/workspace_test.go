@@ -782,14 +782,6 @@ func TestInitV2(t *testing.T) {
 		t.Fatalf("InitV2: %v", err)
 	}
 
-	// Check version
-	if 2 != 2 {
-		t.Errorf("ConfigVersion = %d, want 2", 2)
-	}
-	if !true {
-		t.Error("IsV2 should return true")
-	}
-
 	// Check Config is set
 	if ws.Config == nil {
 		t.Fatal("Config is nil")
@@ -835,11 +827,11 @@ func TestLoadV2Workspace(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 
-	if 2 != 2 {
-		t.Errorf("ConfigVersion = %d, want 2", 2)
-	}
 	if ws.Config == nil {
 		t.Fatal("Config is nil after load")
+	}
+	if ws.Config.Workspace.Version != 2 {
+		t.Errorf("ConfigVersion = %d, want 2", ws.Config.Workspace.Version)
 	}
 	if ws.RoleManager == nil {
 		t.Error("RoleManager is nil after load")
@@ -854,7 +846,6 @@ func TestLoadV2Workspace(t *testing.T) {
 		t.Errorf("root role name = %q, want %q", role.Metadata.Name, "root")
 	}
 }
-
 
 func TestLoadPrefersTOMLOverJSON(t *testing.T) {
 	dir := t.TempDir()
@@ -884,8 +875,8 @@ func TestLoadPrefersTOMLOverJSON(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 
-	if 2 != 2 {
-		t.Errorf("should load v2, got version %d", 2)
+	if ws.Config == nil || ws.Config.Workspace.Version != 2 {
+		t.Errorf("should load v2 config")
 	}
 	if ws.Name() != "v2-name" {
 		t.Errorf("Name = %q, want %q", ws.Name(), "v2-name")
@@ -1002,7 +993,6 @@ func TestWorkspaceSaveV2(t *testing.T) {
 		t.Errorf("Name after reload = %q, want %q", ws2.Name(), "modified-name")
 	}
 }
-
 
 func TestWorkspaceDefaultProviderCustom(t *testing.T) {
 	dir := t.TempDir()

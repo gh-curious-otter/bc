@@ -153,17 +153,17 @@ const (
 
 // Validation errors.
 var (
-	ErrMissingWorkspaceName  = errors.New("workspace.name is required")
-	ErrInvalidVersion        = errors.New("workspace.version must be 2")
-	ErrMissingDefaultProvider = errors.New("providers.default is required")
+	ErrMissingWorkspaceName    = errors.New("workspace.name is required")
+	ErrInvalidVersion          = errors.New("workspace.version must be 2")
+	ErrMissingDefaultProvider  = errors.New("providers.default is required")
 	ErrDefaultProviderNotFound = errors.New("providers.default references undefined provider")
-	ErrPollIntervalTooLow    = errors.New("poll intervals must be at least 500ms")
-	ErrCacheTTLRange         = errors.New("cache TTL must be between 100ms and 60000ms")
-	ErrInvalidTheme          = errors.New("tui.theme must be one of: dark, light, matrix, synthwave, high-contrast")
-	ErrInvalidThemeMode      = errors.New("tui.mode must be one of: auto, dark, light")
-	ErrNicknameTooLong       = errors.New("user.nickname must be 15 characters or less")
-	ErrNicknameMissingPrefix = errors.New("user.nickname must start with @")
-	ErrNicknameInvalidChars  = errors.New("user.nickname must contain only letters, numbers, and underscores")
+	ErrPollIntervalTooLow      = errors.New("poll intervals must be at least 500ms")
+	ErrCacheTTLRange           = errors.New("cache TTL must be between 100ms and 60000ms")
+	ErrInvalidTheme            = errors.New("tui.theme must be one of: dark, light, matrix, synthwave, high-contrast")
+	ErrInvalidThemeMode        = errors.New("tui.mode must be one of: auto, dark, light")
+	ErrNicknameTooLong         = errors.New("user.nickname must be 15 characters or less")
+	ErrNicknameMissingPrefix   = errors.New("user.nickname must start with @")
+	ErrNicknameInvalidChars    = errors.New("user.nickname must contain only letters, numbers, and underscores")
 )
 
 // DefaultConfig returns sensible defaults for a new v2 workspace.
