@@ -127,8 +127,8 @@ cd tui && bun run lint                   # Lint TUI code
 **Code Style**
 - gofmt with -s (simplify)
 - Avoid package-level variables except for cobra commands
-- Struct field alignment matters (fieldalignment linter)
 - Short identifiers preferred (receiver name 'w' for workspace, 'a' for agent)
+- Import ordering: goimports with local prefix `github.com/rpuneet/bc`
 
 **Logging**
 - Use pkg/log for all logging
@@ -147,14 +147,16 @@ cd tui && bun run lint                   # Lint TUI code
 
 ## Linting & Quality
 
-Critical lint rules enforced:
-- **errcheck**: All errors must be handled
+Critical lint rules enforced (see `.golangci.yml`):
+- **errcheck**: All errors must be handled (check-type-assertions enabled)
 - **gosec**: Security issues must be addressed
-- **govet**: No shadowed variables
+- **govet**: enable-all mode (includes shadow detection, field alignment, etc.)
 - **noctx**: Context must be propagated properly
-- **fieldalignment**: Struct fields optimally aligned
+- **bodyclose**: HTTP response bodies must be closed
+- **prealloc**: Slice pre-allocation where possible
+- **staticcheck**, **ineffassign**, **unused**, **unconvert**, **misspell**
 
-Run `make lint` to check. Configuration is in `.golangci.yml` with exceptions for deprecated queue/beads migration.
+Run `make lint` to check. Exclusions exist for deprecated queue/beads migration packages.
 
 ## Architecture Patterns
 
