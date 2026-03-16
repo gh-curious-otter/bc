@@ -272,6 +272,7 @@ var (
 	agentCreateRole   string
 	agentCreateParent string
 	agentCreateTeam   string
+	agentCreateEnv    string
 	agentListRole     string
 	agentListJSON     bool
 	agentListFull     bool
@@ -293,6 +294,7 @@ func init() {
 	agentCreateCmd.Flags().StringVar(&agentCreateRole, "role", "", "Agent role (required). Use 'bc role list' to see available roles")
 	agentCreateCmd.Flags().StringVar(&agentCreateParent, "parent", "", "Parent agent ID (must have permission to create this role)")
 	agentCreateCmd.Flags().StringVar(&agentCreateTeam, "team", "", "Team name (alphanumeric)")
+	agentCreateCmd.Flags().StringVar(&agentCreateEnv, "env", "", "Path to env file (KEY=VALUE per line)")
 	_ = agentCreateCmd.MarkFlagRequired("role")
 
 	// List flags
@@ -455,16 +457,16 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("role %q not found. Create it first with 'bc role create %s'", role, role)
 	}
 
-	// For Docker backend: ensure agent is authenticated before starting container
-	if ws.Config != nil && ws.Config.Runtime.Backend == "docker" {
-		if authErr := container.LoginIfNeeded(cmd.Context(), ws.RootDir, agentName); authErr != nil {
-			return fmt.Errorf("agent auth failed: %w", authErr)
-		}
-	}
-
 	// Spawn the agent (with parent if specified)
 	fmt.Printf("Creating %s (%s)... ", agentName, role)
-	spawned, spawnErr := mgr.SpawnAgentWithOptions(agentName, role, ws.RootDir, agentCreateParent, toolName)
+	spawned, spawnErr := mgr.SpawnAgentWithOptions(agent.SpawnOptions{
+		Name:      agentName,
+		Role:      role,
+		Workspace: ws.RootDir,
+		ParentID:  agentCreateParent,
+		Tool:      toolName,
+		EnvFile:   agentCreateEnv,
+	})
 	if spawnErr != nil {
 		fmt.Println("✗")
 		return fmt.Errorf("failed to create %s: %w", agentName, spawnErr)
@@ -739,7 +741,14 @@ func runAgentStart(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Starting %s (%s)... ", agentName, a.Role)
 	// SpawnAgentWithOptions will detect the stopped state and resurrect it
-	spawned, spawnErr := mgr.SpawnAgentWithOptions(agentName, a.Role, ws.RootDir, a.ParentID, a.Tool)
+	spawned, spawnErr := mgr.SpawnAgentWithOptions(agent.SpawnOptions{
+		Name:      agentName,
+		Role:      a.Role,
+		Workspace: ws.RootDir,
+		ParentID:  a.ParentID,
+		Tool:      a.Tool,
+		EnvFile:   a.EnvFile,
+	})
 	if spawnErr != nil {
 		fmt.Println("✗")
 		return fmt.Errorf("failed to start %s: %w", agentName, spawnErr)

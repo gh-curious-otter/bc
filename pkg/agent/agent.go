@@ -66,7 +66,6 @@ import (
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/provider"
 	"github.com/rpuneet/bc/pkg/runtime"
-	"github.com/rpuneet/bc/pkg/secret"
 	"github.com/rpuneet/bc/pkg/tmux"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -319,6 +318,7 @@ type Agent struct {
 	LogFile       string       `json:"log_file,omitempty"`
 	Team          string       `json:"team,omitempty"`
 	RecoveredFrom string       `json:"recovered_from,omitempty"`
+	EnvFile       string       `json:"env_file,omitempty"`
 	LastCrashTime *time.Time   `json:"last_crash_time,omitempty"`
 	Role          Role         `json:"role"`
 	State         State        `json:"state"`
@@ -559,32 +559,48 @@ func ListAvailableTools() []string {
 	return tools
 }
 
+// SpawnOptions holds all parameters for creating an agent.
+type SpawnOptions struct {
+	Name      string
+	Role      Role
+	Workspace string
+	ParentID  string
+	Tool      string
+	EnvFile   string
+}
+
 // SpawnAgent creates and starts a new agent.
 // Idempotent: if the agent already exists and its tmux session is alive, reuse it.
 func (m *Manager) SpawnAgent(name string, role Role, workspace string) (*Agent, error) {
-	return m.SpawnAgentWithOptions(name, role, workspace, "", "")
+	return m.SpawnAgentWithOptions(SpawnOptions{Name: name, Role: role, Workspace: workspace})
 }
 
 // SpawnAgentWithTool creates and starts a new agent with a specific tool.
 // If tool is empty, uses the manager's default agent command.
 func (m *Manager) SpawnAgentWithTool(name string, role Role, workspace string, tool string) (*Agent, error) {
-	return m.SpawnAgentWithOptions(name, role, workspace, "", tool)
+	return m.SpawnAgentWithOptions(SpawnOptions{Name: name, Role: role, Workspace: workspace, Tool: tool})
 }
 
 // SpawnAgentWithParent creates and starts a new agent with a parent relationship.
 // Idempotent: if the agent already exists and its tmux session is alive, reuse it.
 func (m *Manager) SpawnAgentWithParent(name string, role Role, workspace string, parentID string) (*Agent, error) {
-	return m.SpawnAgentWithOptions(name, role, workspace, parentID, "")
+	return m.SpawnAgentWithOptions(SpawnOptions{Name: name, Role: role, Workspace: workspace, ParentID: parentID})
 }
 
 // SpawnAgentWithOptions creates and starts a new agent with all options.
 // If tool is empty, uses the manager's default agent command.
 // Idempotent: if the agent already exists and its tmux session is alive, reuse it.
-func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string, parentID string, tool string) (*Agent, error) {
+func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
+	name := opts.Name
+	role := opts.Role
+	wsPath := opts.Workspace
+	parentID := opts.ParentID
+	tool := opts.Tool
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	log.Debug("spawning agent", "name", name, "role", role, "workspace", workspace, "parentID", parentID, "tool", tool)
+	log.Debug("spawning agent", "name", name, "role", role, "workspace", wsPath, "parentID", parentID, "tool", tool)
 
 	// Validate agent name format
 	if !IsValidAgentName(name) {
@@ -598,7 +614,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 
 	// Enforce root singleton constraint
 	if role == RoleRoot {
-		if err := m.enforceRootSingleton(workspace); err != nil {
+		if err := m.enforceRootSingleton(wsPath); err != nil {
 			return nil, err
 		}
 	}
@@ -640,7 +656,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 		env := map[string]string{
 			"BC_AGENT_ID":   name,
 			"BC_AGENT_ROLE": string(existing.Role),
-			"BC_WORKSPACE":  workspace,
+			"BC_WORKSPACE":  wsPath,
 		}
 		if toolName != "" {
 			env["BC_AGENT_TOOL"] = toolName
@@ -648,8 +664,8 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 		if existing.ParentID != "" {
 			env["BC_PARENT_ID"] = existing.ParentID
 		}
-		injectSecrets(env, workspace)
-		if err := m.runtime.CreateSessionWithEnv(context.TODO(), name, workspace, agentCmd, env); err != nil {
+		injectEnv(env, wsPath, toolName, existing.EnvFile)
+		if err := m.runtime.CreateSessionWithEnv(context.TODO(), name, wsPath, agentCmd, env); err != nil {
 			return nil, fmt.Errorf("failed to recreate tmux session: %w", err)
 		}
 
@@ -661,13 +677,13 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 			}
 		} else {
 			// Set up new log pipe for agents that didn't have one
-			existing.LogFile = m.setupLogPipe(name, workspace)
+			existing.LogFile = m.setupLogPipe(name, wsPath)
 		}
 
 		// Only inject bootstrap prompt for non-terminal states (active respawn)
 		// For stopped/error agents, --continue handles resumption
 		if existing.State != StateStopped && existing.State != StateError {
-			go m.sendRespawnBootstrap(name, existing, workspace)
+			go m.sendRespawnBootstrap(name, existing, wsPath)
 		} else {
 			// Terminal state — reset to starting
 			existing.State = StateStarting
@@ -733,10 +749,11 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 		Name:      name,
 		Role:      role,
 		State:     StateStarting,
-		Workspace: workspace,
+		Workspace: wsPath,
 		Session:   name,
 		Tool:      tool,
 		ParentID:  parentID,
+		EnvFile:   opts.EnvFile,
 		Children:  []string{},
 		IsRoot:    role == RoleRoot,
 		StartedAt: time.Now(),
@@ -747,7 +764,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	env := map[string]string{
 		"BC_AGENT_ID":   name,
 		"BC_AGENT_ROLE": string(role),
-		"BC_WORKSPACE":  workspace,
+		"BC_WORKSPACE":  wsPath,
 	}
 	effectiveTool := tool
 	if effectiveTool == "" {
@@ -759,18 +776,18 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	if parentID != "" {
 		env["BC_PARENT_ID"] = parentID
 	}
-	injectSecrets(env, workspace)
+	injectEnv(env, wsPath, effectiveTool, opts.EnvFile)
 
 	// Create tmux session in the workspace directory
-	if err := m.runtime.CreateSessionWithEnv(context.TODO(), name, workspace, agentCmd, env); err != nil {
+	if err := m.runtime.CreateSessionWithEnv(context.TODO(), name, wsPath, agentCmd, env); err != nil {
 		return nil, fmt.Errorf("failed to create tmux session: %w", err)
 	}
 
 	// Start log streaming via pipe-pane
-	agent.LogFile = m.setupLogPipe(name, workspace)
+	agent.LogFile = m.setupLogPipe(name, wsPath)
 
 	// Load role prompt from prompts/<role>.md
-	agent.RolePrompt = LoadRoleMemory(workspace, role)
+	agent.RolePrompt = LoadRoleMemory(wsPath, role)
 
 	// Update state
 	agent.State = StateIdle
@@ -802,7 +819,7 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 	// to avoid holding m.mu during the blocking sleep.
 	if len(promptParts) > 0 {
 		bootstrapName := name
-		bootstrapWorkspace := workspace
+		bootstrapWorkspace := wsPath
 		bootstrapParts := make([]string, len(promptParts))
 		copy(bootstrapParts, promptParts)
 		bootstrapDelay := m.getBootstrapDelay()
@@ -907,13 +924,13 @@ func truncateLogFile(path string, maxBytes int64) {
 // SpawnChildAgent creates a child agent under a parent agent.
 // Validates that the parent has permission to create the child role.
 func (m *Manager) SpawnChildAgent(parentID, childName string, childRole Role, workspace string) (*Agent, error) {
-	return m.SpawnAgentWithOptions(childName, childRole, workspace, parentID, "")
+	return m.SpawnAgentWithOptions(SpawnOptions{Name: childName, Role: childRole, Workspace: workspace, ParentID: parentID})
 }
 
 // SpawnChildAgentWithTool creates a child agent under a parent agent with a specific tool.
 // Validates that the parent has permission to create the child role.
 func (m *Manager) SpawnChildAgentWithTool(parentID, childName string, childRole Role, workspace, tool string) (*Agent, error) {
-	return m.SpawnAgentWithOptions(childName, childRole, workspace, parentID, tool)
+	return m.SpawnAgentWithOptions(SpawnOptions{Name: childName, Role: childRole, Workspace: workspace, ParentID: parentID, Tool: tool})
 }
 
 // removeFromParent removes an agent from its parent's children list.
@@ -1674,23 +1691,47 @@ func (m *Manager) enforceRootSingleton(_ string) error {
 	return nil
 }
 
-// injectSecrets loads all workspace secrets from the keychain and merges
-// them into the environment map. Errors are logged but not fatal — agents
-// should still start even if keychain access fails.
-func injectSecrets(env map[string]string, workspacePath string) {
-	ctx := context.TODO()
-	store := secret.NewStore(filepath.Base(workspacePath))
-	names, err := store.List(ctx)
+// injectEnv merges layered environment variables into the env map.
+// Priority (highest wins): agent env file > provider env > workspace env.
+func injectEnv(env map[string]string, workspacePath, toolName, envFile string) {
+	// 1. Workspace [env] (lowest priority)
+	ws, err := workspace.Load(workspacePath)
+	if err == nil && ws.Config != nil {
+		for k, v := range ws.Config.Env {
+			env[k] = v
+		}
+		// 2. Provider-specific env
+		if toolName != "" {
+			if p := ws.Config.GetProvider(toolName); p != nil {
+				for k, v := range p.Env {
+					env[k] = v
+				}
+			}
+		}
+	}
+	// 3. Agent env file (highest priority)
+	if envFile != "" {
+		parseEnvFile(env, envFile)
+	}
+}
+
+// parseEnvFile reads KEY=VALUE lines from a file and merges them into env.
+// Lines starting with # and blank lines are skipped.
+func parseEnvFile(env map[string]string, path string) {
+	data, err := os.ReadFile(path) //nolint:gosec // path provided by caller
 	if err != nil {
-		log.Debug("failed to list secrets", "error", err)
+		log.Warn("failed to read env file", "path", path, "error", err)
 		return
 	}
-	for _, name := range names {
-		val, err := store.Get(ctx, name)
-		if err != nil {
-			log.Debug("failed to get secret", "name", name, "error", err)
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		env[name] = val
+		k, v, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		env[strings.TrimSpace(k)] = strings.TrimSpace(v)
 	}
 }

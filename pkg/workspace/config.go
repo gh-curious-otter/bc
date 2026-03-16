@@ -18,6 +18,7 @@ const ConfigVersion = 2
 // Config represents the TOML-based workspace configuration for bc v2.
 // Field order is optimized by fieldalignment for minimal struct padding.
 type Config struct {
+	Env         map[string]string `toml:"env"`
 	Services    ServicesConfig    `toml:"services"`
 	Providers   ProvidersConfig   `toml:"providers"`
 	TUI         TUIConfig         `toml:"tui"`
@@ -78,9 +79,10 @@ type ProvidersConfig struct {
 
 // ProviderConfig defines an AI provider's configuration.
 type ProviderConfig struct {
-	Command string `toml:"command"`         // Command to launch the provider
-	Model   string `toml:"model,omitempty"` // Default model (for API providers)
-	Enabled bool   `toml:"enabled"`         // Whether the provider is enabled
+	Env     map[string]string `toml:"env"`             // Per-provider env vars
+	Command string            `toml:"command"`         // Command to launch the provider
+	Model   string            `toml:"model,omitempty"` // Default model (for API providers)
+	Enabled bool              `toml:"enabled"`         // Whether the provider is enabled
 }
 
 // ServicesConfig configures external service integrations (GitHub, GitLab, etc.).
