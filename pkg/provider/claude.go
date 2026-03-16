@@ -55,6 +55,9 @@ func (p *ClaudeProvider) BuildCommand(opts CommandOpts) string {
 	if opts.AgentName != "" {
 		cmd = "claude -w " + opts.AgentName + " " + strings.TrimPrefix(cmd, "claude")
 	}
+	if opts.Resume {
+		cmd += " --continue"
+	}
 	return cmd
 }
 

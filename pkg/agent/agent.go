@@ -467,10 +467,10 @@ func defaultAgentCmd() (string, string) {
 }
 
 // getAgentCommand looks up the command for a tool from the manager's provider registry.
-func (m *Manager) getAgentCommand(toolName, agentName string) (string, bool) {
+func (m *Manager) getAgentCommand(toolName, agentName string, resume bool) (string, bool) {
 	if m.providerRegistry != nil {
 		if p, ok := m.providerRegistry.Get(toolName); ok {
-			return p.BuildCommand(provider.CommandOpts{AgentName: agentName}), true
+			return p.BuildCommand(provider.CommandOpts{AgentName: agentName, Resume: resume}), true
 		}
 	}
 	return "", false
@@ -623,63 +623,59 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 			}
 			return existing, nil
 		}
-		// Session is dead but agent is in an active state — only respawn
-		// if agent is in a terminal state (stopped/error). Otherwise preserve
-		// the record so we don't overwrite working/stuck state.
-		switch existing.State {
-		case StateStopped, StateError:
-			// Terminal state — clean up and respawn below
-			m.removeFromParent(name)
-			delete(m.agents, name)
-		default:
-			// Active state (working, idle, stuck, etc.) with dead session —
-			// restart the tmux session but preserve agent state.
-			toolName := existing.Tool
-			if toolName == "" {
-				toolName = m.defaultTool
-			}
-			agentCmd := m.agentCmd
-			if toolName != "" {
-				if cmd, ok := m.getAgentCommand(toolName, name); ok {
-					agentCmd = cmd
-				}
-			}
-
-			env := map[string]string{
-				"BC_AGENT_ID":   name,
-				"BC_AGENT_ROLE": string(existing.Role),
-				"BC_WORKSPACE":  workspace,
-			}
-			if toolName != "" {
-				env["BC_AGENT_TOOL"] = toolName
-			}
-			if existing.ParentID != "" {
-				env["BC_PARENT_ID"] = existing.ParentID
-			}
-			if err := m.runtime.CreateSessionWithEnv(context.TODO(), name, workspace, agentCmd, env); err != nil {
-				return nil, fmt.Errorf("failed to recreate tmux session: %w", err)
-			}
-
-			// Resume log streaming if log file was set
-			if existing.LogFile != "" {
-				truncateLogFile(existing.LogFile, config.Logs.MaxBytes)
-				if pipeErr := m.runtime.PipePane(context.TODO(), name, existing.LogFile); pipeErr != nil {
-					log.Warn("failed to resume pipe-pane", "agent", name, "error", pipeErr)
-				}
-			} else {
-				// Set up new log pipe for agents that didn't have one
-				existing.LogFile = m.setupLogPipe(name, workspace)
-			}
-
-			// Inject bootstrap prompt on respawn (role + memories)
-			go m.sendRespawnBootstrap(name, existing, workspace)
-
-			existing.UpdatedAt = time.Now()
-			if err := m.saveState(); err != nil {
-				log.Warn("failed to save agent state", "error", err)
-			}
-			return existing, nil
+		// Agent exists but session is dead — always resume with --continue
+		// to pick up the previous Claude conversation.
+		toolName := existing.Tool
+		if toolName == "" {
+			toolName = m.defaultTool
 		}
+		agentCmd := m.agentCmd
+		if toolName != "" {
+			if cmd, ok := m.getAgentCommand(toolName, name, true); ok {
+				agentCmd = cmd
+			}
+		}
+
+		env := map[string]string{
+			"BC_AGENT_ID":   name,
+			"BC_AGENT_ROLE": string(existing.Role),
+			"BC_WORKSPACE":  workspace,
+		}
+		if toolName != "" {
+			env["BC_AGENT_TOOL"] = toolName
+		}
+		if existing.ParentID != "" {
+			env["BC_PARENT_ID"] = existing.ParentID
+		}
+		if err := m.runtime.CreateSessionWithEnv(context.TODO(), name, workspace, agentCmd, env); err != nil {
+			return nil, fmt.Errorf("failed to recreate tmux session: %w", err)
+		}
+
+		// Resume log streaming if log file was set
+		if existing.LogFile != "" {
+			truncateLogFile(existing.LogFile, config.Logs.MaxBytes)
+			if pipeErr := m.runtime.PipePane(context.TODO(), name, existing.LogFile); pipeErr != nil {
+				log.Warn("failed to resume pipe-pane", "agent", name, "error", pipeErr)
+			}
+		} else {
+			// Set up new log pipe for agents that didn't have one
+			existing.LogFile = m.setupLogPipe(name, workspace)
+		}
+
+		// Only inject bootstrap prompt for non-terminal states (active respawn)
+		// For stopped/error agents, --continue handles resumption
+		if existing.State != StateStopped && existing.State != StateError {
+			go m.sendRespawnBootstrap(name, existing, workspace)
+		} else {
+			// Terminal state — reset to starting
+			existing.State = StateStarting
+		}
+
+		existing.UpdatedAt = time.Now()
+		if err := m.saveState(); err != nil {
+			log.Warn("failed to save agent state", "error", err)
+		}
+		return existing, nil
 	}
 
 	// If a tmux session exists from a previous crash, kill it first
@@ -689,16 +685,16 @@ func (m *Manager) SpawnAgentWithOptions(name string, role Role, workspace string
 		}
 	}
 
-	// Determine the command to use
+	// Determine the command to use (fresh create — no resume)
 	agentCmd := m.agentCmd
 	if tool != "" {
-		if cmd, ok := m.getAgentCommand(tool, name); ok {
+		if cmd, ok := m.getAgentCommand(tool, name, false); ok {
 			agentCmd = cmd
 		} else {
 			return nil, fmt.Errorf("unknown tool %q, available tools: %v", tool, m.listAvailableTools())
 		}
 	} else if m.defaultTool != "" {
-		if cmd, ok := m.getAgentCommand(m.defaultTool, name); ok {
+		if cmd, ok := m.getAgentCommand(m.defaultTool, name, false); ok {
 			agentCmd = cmd
 		}
 	}
