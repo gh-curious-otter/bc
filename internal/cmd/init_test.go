@@ -188,7 +188,9 @@ func TestRunInitFreshDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Init should succeed on fresh directory
+	// Use quick mode to skip interactive wizard (no stdin in tests)
+	initQuick = true
+	defer func() { initQuick = false }()
 	err := runInit(nil, []string{projectDir})
 	if err != nil {
 		t.Fatalf("init on fresh directory failed: %v", err)

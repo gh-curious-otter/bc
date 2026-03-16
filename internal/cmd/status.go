@@ -298,5 +298,3 @@ func colorState(s agent.State) string {
 		return padded
 	}
 }
-
-

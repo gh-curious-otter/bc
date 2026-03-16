@@ -2568,12 +2568,12 @@ func TestClaudeBuildCommand(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		opts     provider.CommandOpts
 		expected string
+		opts     provider.CommandOpts
 	}{
-		{"no agent", provider.CommandOpts{}, "claude --dangerously-skip-permissions"},
-		{"with agent", provider.CommandOpts{AgentName: "eng-01"}, "claude -w eng-01  --dangerously-skip-permissions"},
-		{"root agent", provider.CommandOpts{AgentName: "root"}, "claude -w root  --dangerously-skip-permissions"},
+		{"no agent", "claude --dangerously-skip-permissions", provider.CommandOpts{}},
+		{"with agent", "claude -w eng-01  --dangerously-skip-permissions", provider.CommandOpts{AgentName: "eng-01"}},
+		{"root agent", "claude -w root  --dangerously-skip-permissions", provider.CommandOpts{AgentName: "root"}},
 	}
 
 	for _, tc := range tests {

@@ -1660,4 +1660,3 @@ func TestListServicesNewConfig(t *testing.T) {
 		t.Errorf("expected 2 services, got %d", len(services))
 	}
 }
-

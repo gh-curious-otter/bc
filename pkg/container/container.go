@@ -84,7 +84,6 @@ func NewBackend(cfg Config, prefix, workspacePath string, registry *provider.Reg
 		return nil, fmt.Errorf("docker daemon not available: %w", err)
 	}
 
-
 	h := sha256.Sum256([]byte(workspacePath))
 	return &Backend{
 		cfg:              cfg,

@@ -10,8 +10,6 @@ import (
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/memory"
-	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 var upCmd = &cobra.Command{
@@ -89,12 +87,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 	// Wait for agent to initialize (Gemini/Claude needs time to start REPL)
 	time.Sleep(3 * time.Second)
 
-	// Start roster agents if configured
 	allAgents := []string{"root"}
-	if ws.V2Config != nil {
-		rosterAgents := startRosterAgents(mgr, ws)
-		allAgents = append(allAgents, rosterAgents...)
-	}
 
 	// Create default channels for all agents
 	createDefaultChannels(ws.RootDir, allAgents)
@@ -102,17 +95,6 @@ func runUp(cmd *cobra.Command, args []string) error {
 	// Send bootstrap prompt to root (with memory if available)
 	fmt.Print("Sending bootstrap prompt to root... ")
 	prompt := buildBootstrapPrompt(ws.RootDir)
-
-	// Append agent memory if available (#1915)
-	memStore := memory.NewStore(ws.RootDir, "root")
-	if memStore.Exists() {
-		memCtx, memErr := memStore.GetMemoryContext(memory.DefaultMemoryLimit)
-		if memErr != nil {
-			log.Warn("failed to load root memory", "error", memErr)
-		} else if memCtx != "" {
-			prompt += "\n\n---\n\n" + memCtx
-		}
-	}
 
 	if err := mgr.SendToAgent("root", prompt); err != nil {
 		fmt.Println("✗")
@@ -224,54 +206,6 @@ Stuck agent detection:
 - bc agent peek NAME shows no progress
 - Action: bc agent send NAME "Brief nudge about specific issue"
 `, rootDir)
-}
-
-// rosterEntry maps a role name to a count from the roster config.
-type rosterEntry struct {
-	role  string
-	count int
-}
-
-// startRosterAgents starts all agents defined in the workspace roster config.
-// Returns the list of agent names that were started.
-func startRosterAgents(mgr *agent.Manager, ws *workspace.Workspace) []string {
-	roster := ws.V2Config.Roster
-	entries := []rosterEntry{
-		{"product-manager", roster.ProductManager},
-		{"manager", roster.Manager},
-		{"engineer", roster.Engineers},
-		{"tech-lead", roster.TechLeads},
-		{"qa", roster.QA},
-	}
-
-	var started []string
-	for _, entry := range entries {
-		for i := 1; i <= entry.count; i++ {
-			name := fmt.Sprintf("%s-%02d", entry.role, i)
-			fmt.Printf("Starting %s... ", name)
-
-			a, spawnErr := mgr.SpawnAgentWithParent(name, agent.Role(entry.role), ws.RootDir, "root")
-			if spawnErr != nil {
-				fmt.Println("✗")
-				fmt.Printf("  Warning: failed to start %s: %v\n", name, spawnErr)
-				continue
-			}
-			fmt.Printf("✓ (session: %s)\n", mgr.Tmux().SessionName(a.Session))
-
-			logEvent(ws, events.Event{
-				Type:    events.AgentSpawned,
-				Agent:   name,
-				Message: "started via bc up roster",
-			})
-
-			started = append(started, name)
-
-			// Brief delay between agent starts to avoid resource contention
-			time.Sleep(1 * time.Second)
-		}
-	}
-
-	return started
 }
 
 // createDefaultChannels sets up the default communication channels.

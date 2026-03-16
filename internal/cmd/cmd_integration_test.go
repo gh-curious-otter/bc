@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
 	"github.com/rpuneet/bc/pkg/agent"
@@ -22,6 +23,18 @@ func durationFromSeconds(s int) time.Duration {
 	return time.Duration(s) * time.Second
 }
 
+// resetFlags recursively resets all flags on a command and its subcommands
+// to their default values, preventing state from leaking between tests.
+func resetFlags(cmd *cobra.Command) {
+	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		f.Changed = false
+		_ = f.Value.Set(f.DefValue)
+	})
+	for _, sub := range cmd.Commands() {
+		resetFlags(sub)
+	}
+}
+
 // setupIntegrationWorkspace creates a temporary bc workspace and changes into it.
 // Returns the workspace root path and a cleanup function that restores
 // the original working directory and BC_WORKSPACE env var.
@@ -32,11 +45,6 @@ func setupIntegrationWorkspace(t *testing.T) (string, func()) {
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
-
-	// Clear BC_WORKSPACE to ensure tests use the temp workspace, not outer workspace.
-	// This is critical when running tests in an active bc workspace.
-	origBCWorkspace := os.Getenv("BC_WORKSPACE")
-	_ = os.Unsetenv("BC_WORKSPACE")
 
 	tmpDir := t.TempDir()
 
@@ -49,15 +57,16 @@ func setupIntegrationWorkspace(t *testing.T) (string, func()) {
 		t.Fatalf("failed to ensure dirs: %v", err)
 	}
 
+	// Point BC_WORKSPACE at the temp workspace so getWorkspace() finds it
+	// regardless of cwd races between parallel tests.
+	t.Setenv("BC_WORKSPACE", tmpDir)
+
 	if err := os.Chdir(tmpDir); err != nil {
 		t.Fatalf("failed to chdir to temp workspace: %v", err)
 	}
 
 	return tmpDir, func() {
 		_ = os.Chdir(origDir)
-		if origBCWorkspace != "" {
-			_ = os.Setenv("BC_WORKSPACE", origBCWorkspace)
-		}
 	}
 }
 
@@ -88,10 +97,9 @@ func executeIntegrationCmd(args ...string) (string, string, error) {
 	defer func() { _ = rootCmd.PersistentFlags().Set("json", "false") }()
 	defer func() { _ = rootCmd.PersistentFlags().Set("verbose", "false") }()
 
-	// Reset subcommand flags (e.g. logs --tail) to prevent Changed state leaking
-	for _, sub := range rootCmd.Commands() {
-		sub.Flags().VisitAll(func(f *pflag.Flag) { f.Changed = false })
-	}
+	// Reset all subcommand flags to default values to prevent state leaking
+	// between tests. Must recurse into nested subcommands (e.g. channel history).
+	resetFlags(rootCmd)
 
 	err := rootCmd.Execute()
 
@@ -606,14 +614,29 @@ func TestStatsSave(t *testing.T) {
 // seedChannels creates a channels.json file in the workspace.
 func seedChannels(t *testing.T, wsDir string, channels []*channel.Channel) {
 	t.Helper()
-	channelPath := filepath.Join(wsDir, ".bc", "channels.json")
-	data, err := json.MarshalIndent(channels, "", "  ")
-	if err != nil {
-		t.Fatalf("failed to marshal channels: %v", err)
+	store := channel.NewStore(wsDir)
+	if err := store.Load(); err != nil {
+		t.Fatalf("failed to load channel store: %v", err)
 	}
-	if err := os.WriteFile(channelPath, data, 0600); err != nil {
-		t.Fatalf("failed to write channels.json: %v", err)
+	for _, ch := range channels {
+		if _, createErr := store.Create(ch.Name); createErr != nil {
+			t.Fatalf("failed to create channel %s: %v", ch.Name, createErr)
+		}
+		for _, m := range ch.Members {
+			if addErr := store.AddMember(ch.Name, m); addErr != nil {
+				t.Fatalf("failed to add member %s: %v", m, addErr)
+			}
+		}
+		for _, h := range ch.History {
+			if addErr := store.AddHistory(ch.Name, h.Sender, h.Message); addErr != nil {
+				t.Fatalf("failed to add history: %v", addErr)
+			}
+		}
 	}
+	if saveErr := store.Save(); saveErr != nil {
+		t.Fatalf("failed to save channel store: %v", saveErr)
+	}
+	_ = store.Close()
 }
 
 func TestChannelListNoWorkspace(t *testing.T) {
@@ -621,6 +644,9 @@ func TestChannelListNoWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
+
+	// Ensure no workspace is found via env var
+	t.Setenv("BC_WORKSPACE", "")
 
 	tmpDir := t.TempDir()
 	if err = os.Chdir(tmpDir); err != nil {
