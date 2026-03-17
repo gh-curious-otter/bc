@@ -50,10 +50,16 @@ func (p *ClaudeProvider) InstallHint() string {
 }
 
 // BuildCommand returns the full command for a given runtime context.
+// Uses -w bc-<workspace>-<agent> for unique worktree names across workspaces
+// to avoid branch collisions with other Claude Code sessions.
 func (p *ClaudeProvider) BuildCommand(opts CommandOpts) string {
 	cmd := p.command
 	if opts.AgentName != "" {
-		cmd = "claude -w " + opts.AgentName + " " + strings.TrimPrefix(cmd, "claude")
+		worktreeName := "bc-" + opts.AgentName
+		if opts.WorkspaceName != "" {
+			worktreeName = "bc-" + opts.WorkspaceName + "-" + opts.AgentName
+		}
+		cmd = "claude -w " + worktreeName + " " + strings.TrimPrefix(cmd, "claude")
 	}
 	if opts.Resume {
 		cmd += " --continue"
@@ -61,12 +67,18 @@ func (p *ClaudeProvider) BuildCommand(opts CommandOpts) string {
 	return cmd
 }
 
-// AdjustContainerCommand injects --tmux for Docker execution.
-func (p *ClaudeProvider) AdjustContainerCommand(command string) string {
+// AdjustSessionCommand injects --tmux for headless session execution (tmux or Docker).
+func (p *ClaudeProvider) AdjustSessionCommand(command string) string {
 	if !strings.Contains(command, "--tmux") {
 		return strings.Replace(command, "claude", "claude --tmux", 1)
 	}
 	return command
+}
+
+// AdjustContainerCommand injects --tmux for Docker execution.
+// Delegates to AdjustSessionCommand since the adjustment is the same.
+func (p *ClaudeProvider) AdjustContainerCommand(command string) string {
+	return p.AdjustSessionCommand(command)
 }
 
 // DockerImage returns empty to use default convention.
@@ -116,6 +128,7 @@ func (p *ClaudeProvider) DetectState(output string) State {
 	return StateUnknown
 }
 
-// Ensure ClaudeProvider implements Provider and ContainerCustomizer interfaces.
+// Ensure ClaudeProvider implements Provider, ContainerCustomizer, and SessionCustomizer interfaces.
 var _ Provider = (*ClaudeProvider)(nil)
 var _ ContainerCustomizer = (*ClaudeProvider)(nil)
+var _ SessionCustomizer = (*ClaudeProvider)(nil)

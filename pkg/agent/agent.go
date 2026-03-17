@@ -303,28 +303,29 @@ type AgentMemory struct {
 
 // Agent represents a running AI agent.
 type Agent struct {
-	UpdatedAt     time.Time    `json:"updated_at"`
-	StartedAt     time.Time    `json:"started_at"`
-	RolePrompt    *AgentMemory `json:"memory,omitempty"`
-	Workspace     string       `json:"workspace"`
-	ID            string       `json:"id"`
-	Name          string       `json:"name"`
-	Task          string       `json:"task,omitempty"`
-	Session       string       `json:"session"`
-	Tool          string       `json:"tool,omitempty"`
-	ParentID      string       `json:"parent_id,omitempty"`
-	HookedWork    string       `json:"hooked_work,omitempty"`
-	WorktreeDir   string       `json:"worktree_dir,omitempty"`
-	LogFile       string       `json:"log_file,omitempty"`
-	Team          string       `json:"team,omitempty"`
-	RecoveredFrom string       `json:"recovered_from,omitempty"`
-	EnvFile       string       `json:"env_file,omitempty"`
-	LastCrashTime *time.Time   `json:"last_crash_time,omitempty"`
-	Role          Role         `json:"role"`
-	State         State        `json:"state"`
-	Children      []string     `json:"children,omitempty"`
-	CrashCount    int          `json:"crash_count,omitempty"`
-	IsRoot        bool         `json:"is_root,omitempty"`
+	UpdatedAt      time.Time    `json:"updated_at"`
+	StartedAt      time.Time    `json:"started_at"`
+	RolePrompt     *AgentMemory `json:"memory,omitempty"`
+	Workspace      string       `json:"workspace"`
+	ID             string       `json:"id"`
+	Name           string       `json:"name"`
+	Task           string       `json:"task,omitempty"`
+	Session        string       `json:"session"`
+	Tool           string       `json:"tool,omitempty"`
+	ParentID       string       `json:"parent_id,omitempty"`
+	HookedWork     string       `json:"hooked_work,omitempty"`
+	WorktreeDir    string       `json:"worktree_dir,omitempty"`
+	LogFile        string       `json:"log_file,omitempty"`
+	Team           string       `json:"team,omitempty"`
+	RecoveredFrom  string       `json:"recovered_from,omitempty"`
+	EnvFile        string       `json:"env_file,omitempty"`
+	RuntimeBackend string       `json:"runtime_backend,omitempty"`
+	LastCrashTime  *time.Time   `json:"last_crash_time,omitempty"`
+	Role           Role         `json:"role"`
+	State          State        `json:"state"`
+	Children       []string     `json:"children,omitempty"`
+	CrashCount     int          `json:"crash_count,omitempty"`
+	IsRoot         bool         `json:"is_root,omitempty"`
 }
 
 // HasCapability checks if this agent has a specific capability.
@@ -390,8 +391,9 @@ const DefaultBootstrapDelay = 3 * time.Second
 // Manager handles agent lifecycle.
 type Manager struct {
 	agents           map[string]*Agent
-	store            *SQLiteStore // SQLite-backed agent persistence
-	runtime          runtime.Backend
+	store            *SQLiteStore               // SQLite-backed agent persistence
+	backends         map[string]runtime.Backend // keyed by "tmux", "docker"
+	defaultBackend   string                     // "tmux" or "docker"
 	providerRegistry *provider.Registry
 
 	stateDir string
@@ -412,12 +414,30 @@ type Manager struct {
 	mu sync.RWMutex
 }
 
+// runtime returns the default runtime backend.
+func (m *Manager) runtime() runtime.Backend {
+	return m.backends[m.defaultBackend]
+}
+
+// runtimeForAgent returns the appropriate runtime backend for an agent,
+// based on the agent's stored RuntimeBackend. Falls back to the default.
+func (m *Manager) runtimeForAgent(name string) runtime.Backend {
+	if a, ok := m.agents[name]; ok && a.RuntimeBackend != "" {
+		if be, ok := m.backends[a.RuntimeBackend]; ok {
+			return be
+		}
+	}
+	return m.runtime()
+}
+
 // NewManager creates a new agent manager with workspace-scoped tmux sessions.
 func NewManager(stateDir string) *Manager {
 	cmd, tool := defaultAgentCmd()
+	tmuxBe := runtime.NewTmuxBackend(tmux.NewManager(config.Tmux.SessionPrefix))
 	return &Manager{
 		agents:           make(map[string]*Agent),
-		runtime:          runtime.NewTmuxBackend(tmux.NewManager(config.Tmux.SessionPrefix)),
+		backends:         map[string]runtime.Backend{"tmux": tmuxBe},
+		defaultBackend:   "tmux",
 		providerRegistry: provider.DefaultRegistry,
 		stateDir:         stateDir,
 		agentCmd:         cmd,
@@ -429,9 +449,11 @@ func NewManager(stateDir string) *Manager {
 // Session names will be unique per workspace to avoid collisions.
 func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 	cmd, tool := defaultAgentCmd()
+	tmuxBe := runtime.NewTmuxBackend(tmux.NewWorkspaceManager(config.Tmux.SessionPrefix, workspacePath))
 	return &Manager{
 		agents:           make(map[string]*Agent),
-		runtime:          runtime.NewTmuxBackend(tmux.NewWorkspaceManager(config.Tmux.SessionPrefix, workspacePath)),
+		backends:         map[string]runtime.Backend{"tmux": tmuxBe},
+		defaultBackend:   "tmux",
 		providerRegistry: provider.DefaultRegistry,
 		stateDir:         stateDir,
 		agentCmd:         cmd,
@@ -441,11 +463,18 @@ func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 }
 
 // NewWorkspaceManagerWithRuntime creates an agent manager with a specific runtime backend.
-func NewWorkspaceManagerWithRuntime(stateDir, workspacePath string, rt runtime.Backend) *Manager {
+// rtName should be "docker" or "tmux".
+func NewWorkspaceManagerWithRuntime(stateDir, workspacePath string, rt runtime.Backend, rtName string) *Manager {
 	cmd, tool := defaultAgentCmd()
+	bes := map[string]runtime.Backend{rtName: rt}
+	// Always register a tmux backend so agents with RuntimeBackend="tmux" work
+	if rtName != "tmux" {
+		bes["tmux"] = runtime.NewTmuxBackend(tmux.NewWorkspaceManager(config.Tmux.SessionPrefix, workspacePath))
+	}
 	return &Manager{
 		agents:           make(map[string]*Agent),
-		runtime:          rt,
+		backends:         bes,
+		defaultBackend:   rtName,
 		providerRegistry: provider.DefaultRegistry,
 		stateDir:         stateDir,
 		agentCmd:         cmd,
@@ -471,7 +500,12 @@ func defaultAgentCmd() (string, string) {
 func (m *Manager) getAgentCommand(toolName, agentName string, resume bool) (string, bool) {
 	if m.providerRegistry != nil {
 		if p, ok := m.providerRegistry.Get(toolName); ok {
-			return p.BuildCommand(provider.CommandOpts{AgentName: agentName, Resume: resume}), true
+			wsName := filepath.Base(m.workspacePath)
+			return p.BuildCommand(provider.CommandOpts{
+				AgentName:     agentName,
+				WorkspaceName: wsName,
+				Resume:        resume,
+			}), true
 		}
 	}
 	return "", false
@@ -567,6 +601,7 @@ type SpawnOptions struct {
 	ParentID  string
 	Tool      string
 	EnvFile   string
+	Runtime   string // override runtime backend ("tmux" or "docker"); empty uses manager default
 }
 
 // SpawnAgent creates and starts a new agent.
@@ -633,7 +668,7 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 	// Check if already exists in our state
 	if existing, exists := m.agents[name]; exists {
 		// If its tmux session is still alive, reuse it
-		if m.runtime.HasSession(context.TODO(), name) {
+		if m.runtimeForAgent(name).HasSession(context.TODO(), name) {
 			existing.UpdatedAt = time.Now()
 			if err := m.saveState(); err != nil {
 				log.Warn("failed to save agent state", "error", err)
@@ -642,6 +677,10 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		}
 		// Agent exists but session is dead — always resume with --continue
 		// to pick up the previous Claude conversation.
+		// Update runtime backend if overridden
+		if opts.Runtime != "" {
+			existing.RuntimeBackend = opts.Runtime
+		}
 		toolName := existing.Tool
 		if toolName == "" {
 			toolName = m.defaultTool
@@ -650,6 +689,18 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		if toolName != "" {
 			if cmd, ok := m.getAgentCommand(toolName, name, true); ok {
 				agentCmd = cmd
+			}
+		}
+
+		// Apply provider session customization for container backends only.
+		// Claude's --tmux flag is only needed inside Docker, not native tmux.
+		if existing.RuntimeBackend != "tmux" {
+			if toolName != "" && m.providerRegistry != nil {
+				if p, ok := m.providerRegistry.Get(toolName); ok {
+					if sc, ok := p.(provider.SessionCustomizer); ok {
+						agentCmd = sc.AdjustSessionCommand(agentCmd)
+					}
+				}
 			}
 		}
 
@@ -665,14 +716,14 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 			env["BC_PARENT_ID"] = existing.ParentID
 		}
 		injectEnv(env, wsPath, toolName, existing.EnvFile)
-		if err := m.runtime.CreateSessionWithEnv(context.TODO(), name, wsPath, agentCmd, env); err != nil {
+		if err := m.runtimeForAgent(name).CreateSessionWithEnv(context.TODO(), name, wsPath, agentCmd, env); err != nil {
 			return nil, fmt.Errorf("failed to recreate tmux session: %w", err)
 		}
 
 		// Resume log streaming if log file was set
 		if existing.LogFile != "" {
 			truncateLogFile(existing.LogFile, config.Logs.MaxBytes)
-			if pipeErr := m.runtime.PipePane(context.TODO(), name, existing.LogFile); pipeErr != nil {
+			if pipeErr := m.runtimeForAgent(name).PipePane(context.TODO(), name, existing.LogFile); pipeErr != nil {
 				log.Warn("failed to resume pipe-pane", "agent", name, "error", pipeErr)
 			}
 		} else {
@@ -696,10 +747,13 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		return existing, nil
 	}
 
-	// If a tmux session exists from a previous crash, kill it first
-	if m.runtime.HasSession(context.TODO(), name) {
-		if err := m.runtime.KillSession(context.TODO(), name); err != nil {
-			log.Warn("failed to kill existing session", "session", name, "error", err)
+	// If a session exists from a previous crash, kill it in all backends
+	for beName, be := range m.backends {
+		if be.HasSession(context.TODO(), name) {
+			log.Debug("killing stale session", "session", name, "backend", beName)
+			if err := be.KillSession(context.TODO(), name); err != nil {
+				log.Warn("failed to kill existing session", "session", name, "backend", beName, "error", err)
+			}
 		}
 	}
 
@@ -714,6 +768,29 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 	} else if m.defaultTool != "" {
 		if cmd, ok := m.getAgentCommand(m.defaultTool, name, false); ok {
 			agentCmd = cmd
+		}
+	}
+
+	// Determine runtime backend for this agent
+	agentRuntime := m.defaultBackend
+	if opts.Runtime != "" {
+		agentRuntime = opts.Runtime
+	}
+
+	// Apply provider session customization for container backends only.
+	// Claude's --tmux flag is needed inside Docker (tmux runs inside the container)
+	// but NOT for native tmux sessions (claude detects tmux automatically).
+	if agentRuntime != "tmux" {
+		sessionTool := tool
+		if sessionTool == "" {
+			sessionTool = m.defaultTool
+		}
+		if sessionTool != "" && m.providerRegistry != nil {
+			if p, ok := m.providerRegistry.Get(sessionTool); ok {
+				if sc, ok := p.(provider.SessionCustomizer); ok {
+					agentCmd = sc.AdjustSessionCommand(agentCmd)
+				}
+			}
 		}
 	}
 
@@ -742,23 +819,28 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 			}
 		}
 	}
+	log.Debug("agent runtime selected", "agent", name, "runtime", agentRuntime, "default", m.defaultBackend, "override", opts.Runtime)
 
 	// Create agent
 	agent := &Agent{
-		ID:        name,
-		Name:      name,
-		Role:      role,
-		State:     StateStarting,
-		Workspace: wsPath,
-		Session:   name,
-		Tool:      tool,
-		ParentID:  parentID,
-		EnvFile:   opts.EnvFile,
-		Children:  []string{},
-		IsRoot:    role == RoleRoot,
-		StartedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:             name,
+		Name:           name,
+		Role:           role,
+		State:          StateStarting,
+		Workspace:      wsPath,
+		Session:        name,
+		Tool:           tool,
+		ParentID:       parentID,
+		EnvFile:        opts.EnvFile,
+		RuntimeBackend: agentRuntime,
+		Children:       []string{},
+		IsRoot:         role == RoleRoot,
+		StartedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
 	}
+
+	// Register agent early so runtimeForAgent can resolve the correct backend
+	m.agents[name] = agent
 
 	// Build env vars so the spawned process sees them immediately
 	env := map[string]string{
@@ -778,9 +860,10 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 	}
 	injectEnv(env, wsPath, effectiveTool, opts.EnvFile)
 
-	// Create tmux session in the workspace directory
-	if err := m.runtime.CreateSessionWithEnv(context.TODO(), name, wsPath, agentCmd, env); err != nil {
-		return nil, fmt.Errorf("failed to create tmux session: %w", err)
+	// Create session in the workspace directory using the agent's runtime backend
+	if err := m.runtimeForAgent(name).CreateSessionWithEnv(context.TODO(), name, wsPath, agentCmd, env); err != nil {
+		delete(m.agents, name) // clean up early registration
+		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
 	// Start log streaming via pipe-pane
@@ -792,7 +875,6 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 	// Update state
 	agent.State = StateIdle
 	agent.UpdatedAt = time.Now()
-	m.agents[name] = agent
 
 	// Build bootstrap prompt with role prompt
 	var promptParts []string
@@ -828,7 +910,7 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 			time.Sleep(bootstrapDelay)
 			prompt := strings.Join(bootstrapParts, "\n\n---\n\n")
 			prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nAgent ID: %s\n", bootstrapWorkspace, bootstrapName)
-			if err := m.runtime.SendKeys(context.TODO(), bootstrapName, prompt); err != nil {
+			if err := m.runtimeForAgent(name).SendKeys(context.TODO(), bootstrapName, prompt); err != nil {
 				log.Warn("failed to send bootstrap prompt", "agent", bootstrapName, "error", err)
 			}
 		}()
@@ -859,7 +941,7 @@ func (m *Manager) sendRespawnBootstrap(name string, agent *Agent, workspace stri
 	if len(promptParts) > 0 {
 		prompt := strings.Join(promptParts, "\n\n---\n\n")
 		prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nAgent ID: %s\n(Respawned session — continuing previous work)\n", workspace, name)
-		if err := m.runtime.SendKeys(context.TODO(), name, prompt); err != nil {
+		if err := m.runtimeForAgent(name).SendKeys(context.TODO(), name, prompt); err != nil {
 			log.Warn("failed to send respawn bootstrap", "agent", name, "error", err)
 		}
 	}
@@ -879,7 +961,7 @@ func (m *Manager) setupLogPipe(name, workspace string) string {
 	// Truncate if over max size
 	truncateLogFile(logPath, config.Logs.MaxBytes)
 
-	if err := m.runtime.PipePane(context.TODO(), name, logPath); err != nil {
+	if err := m.runtimeForAgent(name).PipePane(context.TODO(), name, logPath); err != nil {
 		log.Warn("failed to start pipe-pane", "agent", name, "error", err)
 		return ""
 	}
@@ -971,7 +1053,7 @@ func (m *Manager) StopAgent(name string) error {
 	}
 
 	// Kill tmux session (ignore error - session might already be dead)
-	_ = m.runtime.KillSession(context.TODO(), name)
+	_ = m.runtimeForAgent(name).KillSession(context.TODO(), name)
 
 	agent.State = StateStopped
 	agent.UpdatedAt = time.Now()
@@ -1007,7 +1089,7 @@ func (m *Manager) stopAgentTreeLocked(name string) error {
 	}
 
 	// Kill this agent's tmux session (ignore error - session might already be dead)
-	_ = m.runtime.KillSession(context.TODO(), name)
+	_ = m.runtimeForAgent(name).KillSession(context.TODO(), name)
 
 	agent.State = StateStopped
 	agent.UpdatedAt = time.Now()
@@ -1040,7 +1122,7 @@ func (m *Manager) DeleteAgentWithOptions(name string, opts DeleteOptions) error 
 	}
 
 	// Kill tmux session (ignore error - session might already be dead)
-	_ = m.runtime.KillSession(context.TODO(), name)
+	_ = m.runtimeForAgent(name).KillSession(context.TODO(), name)
 
 	// Remove from parent's children list
 	m.removeFromParent(name)
@@ -1109,7 +1191,7 @@ func (m *Manager) StopAll() error {
 	defer m.mu.Unlock()
 
 	for name, agent := range m.agents {
-		_ = m.runtime.KillSession(context.TODO(), name) //nolint:errcheck // best-effort cleanup
+		_ = m.runtimeForAgent(name).KillSession(context.TODO(), name) //nolint:errcheck // best-effort cleanup
 		agent.State = StateStopped
 		agent.UpdatedAt = time.Now()
 	}
@@ -1262,15 +1344,16 @@ func (m *Manager) RefreshState() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	sessions, err := m.runtime.ListSessions(context.TODO())
-	if err != nil {
-		return err
-	}
-
-	// Build map of active sessions
+	// List sessions from all backends to support mixed runtimes
 	active := make(map[string]bool)
-	for _, s := range sessions {
-		active[s.Name] = true
+	for _, be := range m.backends {
+		sessions, err := be.ListSessions(context.TODO())
+		if err != nil {
+			continue // backend may be unavailable
+		}
+		for _, s := range sessions {
+			active[s.Name] = true
+		}
 	}
 
 	// Update agent states and capture live tasks
@@ -1352,7 +1435,7 @@ func (m *Manager) detectAgentState(tool, output string) State {
 }
 
 func (m *Manager) captureLiveTask(name string) string {
-	output, err := m.runtime.Capture(context.TODO(), name, 15)
+	output, err := m.runtimeForAgent(name).Capture(context.TODO(), name, 15)
 	if err != nil {
 		return ""
 	}
@@ -1463,7 +1546,10 @@ func (m *Manager) SetAgentTeam(name, team string) error {
 // SendToAgent sends a message/command to an agent's session.
 // Sends Enter after the message to submit it.
 func (m *Manager) SendToAgent(name, message string) error {
-	return m.runtime.SendKeys(context.TODO(), name, message)
+	m.mu.RLock()
+	be := m.runtimeForAgent(name)
+	m.mu.RUnlock()
+	return be.SendKeys(context.TODO(), name, message)
 }
 
 // CaptureOutput captures recent output from an agent's session.
@@ -1484,7 +1570,7 @@ func (m *Manager) CaptureOutput(name string, lines int) (string, error) {
 	}
 
 	// Fall back to tmux capture-pane
-	return m.runtime.Capture(context.TODO(), name, lines)
+	return m.runtimeForAgent(name).Capture(context.TODO(), name, lines)
 }
 
 // tailFile reads the last N lines from a file.
@@ -1596,7 +1682,10 @@ func (m *Manager) FollowOutput(ctx context.Context, name string, lines int, w io
 
 // AttachToAgent returns the command to attach to an agent's session.
 func (m *Manager) AttachToAgent(name string) error {
-	cmd := m.runtime.AttachCmd(context.TODO(), name)
+	m.mu.RLock()
+	be := m.runtimeForAgent(name)
+	m.mu.RUnlock()
+	cmd := be.AttachCmd(context.TODO(), name)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -1648,15 +1737,22 @@ func (m *Manager) LoadState() error {
 	return nil
 }
 
-// Runtime returns the runtime backend for session management.
+// Runtime returns the default runtime backend for session management.
 func (m *Manager) Runtime() runtime.Backend {
-	return m.runtime
+	return m.runtime()
 }
 
-// Tmux returns the underlying tmux manager if the backend is tmux.
+// RuntimeForAgent returns the runtime backend for a specific agent.
+func (m *Manager) RuntimeForAgent(name string) runtime.Backend {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.runtimeForAgent(name)
+}
+
+// Tmux returns the underlying tmux manager if the default backend is tmux.
 // Deprecated: Use Runtime() instead. This is kept for backward compatibility.
 func (m *Manager) Tmux() *tmux.Manager {
-	if tb, ok := m.runtime.(*runtime.TmuxBackend); ok {
+	if tb, ok := m.runtime().(*runtime.TmuxBackend); ok {
 		return tb.TmuxManager()
 	}
 	return nil

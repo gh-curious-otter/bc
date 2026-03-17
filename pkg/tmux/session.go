@@ -246,7 +246,9 @@ func (m *Manager) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	fullName := m.SessionName(name)
 
 	// Build shell command with env vars prefixed
-	parts := make([]string, 0, len(env)+1)
+	parts := make([]string, 0, len(env)+2)
+	// Unset CLAUDECODE so spawned Claude doesn't detect a nested session
+	parts = append(parts, "unset CLAUDECODE;")
 	for k, v := range env {
 		// Validate env var key to prevent shell injection
 		if !validEnvVarName.MatchString(k) {

@@ -21,12 +21,57 @@ func AgentAuthDir(workspaceDir, agentName string) string {
 }
 
 // EnsureAuthDir creates the per-agent auth directory if it doesn't exist.
+// If the directory is newly created (empty), seeds it from the host's ~/.claude
+// credentials so agents don't require a separate login.
 func EnsureAuthDir(workspaceDir, agentName string) (string, error) {
 	dir := AgentAuthDir(workspaceDir, agentName)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return "", fmt.Errorf("failed to create agent auth dir: %w", err)
 	}
+
+	// If the auth dir is empty, seed from host credentials
+	entries, err := os.ReadDir(dir)
+	if err == nil && len(entries) == 0 {
+		seedAuthFromHost(dir)
+	}
+
 	return dir, nil
+}
+
+// seedAuthFromHost copies credential files from the host's ~/.claude directory
+// into the agent's auth directory so agents inherit the host's authentication.
+func seedAuthFromHost(agentAuthDir string) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+
+	hostClaudeDir := filepath.Join(home, ".claude")
+	if _, err := os.Stat(hostClaudeDir); os.IsNotExist(err) {
+		return
+	}
+
+	// Copy credential-related files (not the entire directory)
+	credFiles := []string{
+		".credentials.json",
+		"credentials.json",
+		"settings.json",
+		"auth.json",
+	}
+
+	for _, name := range credFiles {
+		src := filepath.Join(hostClaudeDir, name)
+		data, err := os.ReadFile(src) //nolint:gosec // src is constructed from known credential file names
+		if err != nil {
+			continue // file doesn't exist or not readable
+		}
+		dst := filepath.Join(agentAuthDir, name)
+		if writeErr := os.WriteFile(dst, data, 0600); writeErr != nil {
+			log.Debug("failed to seed auth file", "file", name, "error", writeErr)
+		}
+	}
+
+	log.Debug("seeded agent auth from host credentials", "agent_auth_dir", agentAuthDir)
 }
 
 // IsAuthenticated checks if an agent has valid auth credentials.

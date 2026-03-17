@@ -211,10 +211,6 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
           await execBc(['agent', 'kill', agentName]);
           showActionFeedback(action, agentName, 'success', `Killed ${agentName}`);
           break;
-        case 'restart':
-          await execBc(['agent', 'restart', agentName]);
-          showActionFeedback(action, agentName, 'success', `Restarted ${agentName}`);
-          break;
         case 'attach':
           await execBc(['agent', 'attach', agentName]);
           showActionFeedback(action, agentName, 'success', `Attached to ${agentName}`);
@@ -301,7 +297,7 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
     } else if (input === 'X' && selectedAgent) {
       dispatch({ type: 'SET_CONFIRM_ACTION', action: 'kill' });
     } else if (input === 'R' && selectedAgent) {
-      dispatch({ type: 'SET_CONFIRM_ACTION', action: 'restart' });
+      dispatch({ type: 'SET_CONFIRM_ACTION', action: 'start' });
     } else if (input === 'p' && selectedAgent) {
       if (peekOutput) {
         dispatch({ type: 'SET_PEEK_OUTPUT', output: null });

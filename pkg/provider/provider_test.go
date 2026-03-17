@@ -808,7 +808,8 @@ func TestProviderBuildCommand(t *testing.T) {
 		opts     CommandOpts
 	}{
 		{"claude no opts", "claude --dangerously-skip-permissions", NewClaudeProvider(), CommandOpts{}},
-		{"claude with agent", "claude -w eng-01  --dangerously-skip-permissions", NewClaudeProvider(), CommandOpts{AgentName: "eng-01"}},
+		{"claude with agent", "claude -w bc-eng-01  --dangerously-skip-permissions", NewClaudeProvider(), CommandOpts{AgentName: "eng-01"}},
+		{"claude with workspace", "claude -w bc-myproject-eng-01  --dangerously-skip-permissions", NewClaudeProvider(), CommandOpts{AgentName: "eng-01", WorkspaceName: "myproject"}},
 		{"gemini no opts", "gemini --yolo", NewGeminiProvider(), CommandOpts{}},
 		{"gemini with agent", "gemini --yolo", NewGeminiProvider(), CommandOpts{AgentName: "eng-01"}},
 		{"codex no opts", "codex --full-auto", NewCodexProvider(), CommandOpts{}},

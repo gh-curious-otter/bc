@@ -51,6 +51,7 @@ func createAgentsTable(d *db.DB) error {
 			crash_count   INTEGER NOT NULL DEFAULT 0,
 			last_crash_time TEXT,
 			recovered_from  TEXT,
+			runtime_backend TEXT,
 			started_at    TEXT NOT NULL,
 			updated_at    TEXT NOT NULL
 		);
@@ -62,6 +63,10 @@ func createAgentsTable(d *db.DB) error {
 	if err != nil {
 		return fmt.Errorf("create agents table: %w", err)
 	}
+
+	// Migration: add runtime_backend column for existing databases
+	_, _ = d.Exec(`ALTER TABLE agents ADD COLUMN runtime_backend TEXT`) //nolint:errcheck // ignore if already exists
+
 	return nil
 }
 
@@ -78,8 +83,8 @@ func (s *SQLiteStore) Save(a *Agent) error {
 		(name, role, state, tool, parent_id, team, task, session, workspace,
 		 worktree_dir, log_file, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
-		 started_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 runtime_backend, started_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.Name, string(a.Role), string(a.State),
 		nullStr(a.Tool), nullStr(a.ParentID), nullStr(a.Team), nullStr(a.Task),
 		nullStr(a.Session), a.Workspace,
@@ -87,7 +92,7 @@ func (s *SQLiteStore) Save(a *Agent) error {
 		nullStr(a.HookedWork), string(children),
 		boolToInt(a.IsRoot), a.CrashCount,
 		nullTime(a.LastCrashTime), nullStr(a.RecoveredFrom),
-		formatTime(a.StartedAt), formatTime(now),
+		nullStr(a.RuntimeBackend), formatTime(a.StartedAt), formatTime(now),
 	)
 	return err
 }
@@ -98,7 +103,7 @@ func (s *SQLiteStore) Load(name string) (*Agent, error) {
 		SELECT name, role, state, tool, parent_id, team, task, session, workspace,
 		       worktree_dir, log_file, hooked_work, children,
 		       is_root, crash_count, last_crash_time, recovered_from,
-		       started_at, updated_at
+		       runtime_backend, started_at, updated_at
 		FROM agents WHERE name = ?`, name)
 
 	a, err := scanAgentRow(row)
@@ -117,7 +122,7 @@ func (s *SQLiteStore) LoadRoot() (*Agent, error) {
 		SELECT name, role, state, tool, parent_id, team, task, session, workspace,
 		       worktree_dir, log_file, hooked_work, children,
 		       is_root, crash_count, last_crash_time, recovered_from,
-		       started_at, updated_at
+		       runtime_backend, started_at, updated_at
 		FROM agents WHERE is_root = 1 LIMIT 1`)
 
 	a, err := scanAgentRow(row)
@@ -142,7 +147,7 @@ func (s *SQLiteStore) LoadAll() (map[string]*Agent, error) {
 		SELECT name, role, state, tool, parent_id, team, task, session, workspace,
 		       worktree_dir, log_file, hooked_work, children,
 		       is_root, crash_count, last_crash_time, recovered_from,
-		       started_at, updated_at
+		       runtime_backend, started_at, updated_at
 		FROM agents`)
 	if err != nil {
 		return nil, err
@@ -173,8 +178,8 @@ func (s *SQLiteStore) SaveAll(agents map[string]*Agent) error {
 		(name, role, state, tool, parent_id, team, task, session, workspace,
 		 worktree_dir, log_file, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
-		 started_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		 runtime_backend, started_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -194,7 +199,7 @@ func (s *SQLiteStore) SaveAll(agents map[string]*Agent) error {
 			nullStr(a.HookedWork), string(children),
 			boolToInt(a.IsRoot), a.CrashCount,
 			nullTime(a.LastCrashTime), nullStr(a.RecoveredFrom),
-			formatTime(a.StartedAt), formatTime(now),
+			nullStr(a.RuntimeBackend), formatTime(a.StartedAt), formatTime(now),
 		)
 		if err != nil {
 			return fmt.Errorf("save agent %s: %w", a.Name, err)
@@ -226,7 +231,7 @@ func (s *SQLiteStore) UpdateField(name, field, value string) error {
 		"tool": true, "parent_id": true, "team": true, "task": true,
 		"session": true, "worktree_dir": true,
 		"log_file": true, "hooked_work": true, "children": true,
-		"recovered_from": true,
+		"recovered_from": true, "runtime_backend": true,
 	}
 	if !allowed[field] {
 		return fmt.Errorf("field %q is not updatable", field)
@@ -255,7 +260,7 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	var a Agent
 	var role, state string
 	var tool, parentID, team, task, session, worktreeDir, logFile, hookedWork, childrenJSON *string
-	var lastCrashTime, recoveredFrom *string
+	var lastCrashTime, recoveredFrom, runtimeBackend *string
 	var startedAt, updatedAt string
 	var isRoot, crashCount int
 
@@ -264,7 +269,7 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 		&tool, &parentID, &team, &task, &session, &a.Workspace,
 		&worktreeDir, &logFile, &hookedWork, &childrenJSON,
 		&isRoot, &crashCount, &lastCrashTime, &recoveredFrom,
-		&startedAt, &updatedAt,
+		&runtimeBackend, &startedAt, &updatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -284,6 +289,7 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	a.IsRoot = isRoot != 0
 	a.CrashCount = crashCount
 	a.RecoveredFrom = deref(recoveredFrom)
+	a.RuntimeBackend = deref(runtimeBackend)
 
 	if childrenJSON != nil && *childrenJSON != "" {
 		_ = json.Unmarshal([]byte(*childrenJSON), &a.Children) //nolint:errcheck // best-effort

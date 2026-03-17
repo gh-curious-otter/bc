@@ -27,15 +27,25 @@ import (
 )
 
 // newAgentManager creates an agent manager with the appropriate runtime backend.
-// If workspace config specifies docker backend, uses Docker; otherwise defaults to tmux.
+// Uses workspace config to determine the default backend. Both tmux and docker
+// backends are always available so agents can use either runtime.
 func newAgentManager(ws *workspace.Workspace) *agent.Manager {
-	if ws.Config != nil && ws.Config.Runtime.Backend == "docker" {
-		dockerCfg := container.ConfigFromWorkspace(ws.Config.Runtime.Docker)
-		backend, err := container.NewBackend(dockerCfg, "bc-", ws.RootDir, provider.DefaultRegistry)
+	backend := ""
+	if ws.Config != nil {
+		backend = ws.Config.Runtime.Backend
+	}
+
+	if backend == "docker" {
+		var wsCfg workspace.DockerRuntimeConfig
+		if ws.Config != nil {
+			wsCfg = ws.Config.Runtime.Docker
+		}
+		dockerCfg := container.ConfigFromWorkspace(wsCfg)
+		be, err := container.NewBackend(dockerCfg, "bc-", ws.RootDir, provider.DefaultRegistry)
 		if err != nil {
 			log.Warn("Docker unavailable, falling back to tmux", "error", err)
 		} else {
-			return agent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, backend)
+			return agent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, be, "docker")
 		}
 	}
 	return agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
@@ -268,23 +278,25 @@ Examples:
 
 // Flags
 var (
-	agentCreateTool   string
-	agentCreateRole   string
-	agentCreateParent string
-	agentCreateTeam   string
-	agentCreateEnv    string
-	agentListRole     string
-	agentListJSON     bool
-	agentListFull     bool
-	agentShowJSON     bool
-	agentShowFull     bool
-	agentPeekLines    int
-	agentPeekFollow   bool
-	agentStopForce    bool
-	agentDeleteForce  bool
-	agentDeletePurge  bool
-	agentRenameForce  bool
-	agentSendPreview  bool
+	agentCreateTool    string
+	agentCreateRole    string
+	agentCreateParent  string
+	agentCreateTeam    string
+	agentCreateEnv     string
+	agentCreateRuntime string
+	agentStartRuntime  string
+	agentListRole      string
+	agentListJSON      bool
+	agentListFull      bool
+	agentShowJSON      bool
+	agentShowFull      bool
+	agentPeekLines     int
+	agentPeekFollow    bool
+	agentStopForce     bool
+	agentDeleteForce   bool
+	agentDeletePurge   bool
+	agentRenameForce   bool
+	agentSendPreview   bool
 	// Health flags are defined in agent_health.go (issue #1648)
 )
 
@@ -295,6 +307,7 @@ func init() {
 	agentCreateCmd.Flags().StringVar(&agentCreateParent, "parent", "", "Parent agent ID (must have permission to create this role)")
 	agentCreateCmd.Flags().StringVar(&agentCreateTeam, "team", "", "Team name (alphanumeric)")
 	agentCreateCmd.Flags().StringVar(&agentCreateEnv, "env", "", "Path to env file (KEY=VALUE per line)")
+	agentCreateCmd.Flags().StringVar(&agentCreateRuntime, "runtime", "", "Runtime backend override: tmux or docker")
 	_ = agentCreateCmd.MarkFlagRequired("role")
 
 	// List flags
@@ -325,6 +338,9 @@ func init() {
 
 	// Send flags
 	agentSendCmd.Flags().BoolVar(&agentSendPreview, "preview", false, "Show preview of action before sending (Intent Preview)")
+
+	// Start flags
+	agentStartCmd.Flags().StringVar(&agentStartRuntime, "runtime", "", "Runtime backend override: tmux or docker")
 
 	// Add shell completion for agent name arguments
 	agentAttachCmd.ValidArgsFunction = CompleteAgentNames
@@ -466,12 +482,13 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		ParentID:  agentCreateParent,
 		Tool:      toolName,
 		EnvFile:   agentCreateEnv,
+		Runtime:   agentCreateRuntime,
 	})
 	if spawnErr != nil {
 		fmt.Println("✗")
 		return fmt.Errorf("failed to create %s: %w", agentName, spawnErr)
 	}
-	fmt.Printf("✓ (session: %s)\n", mgr.Runtime().SessionName(spawned.Session))
+	fmt.Printf("✓ (session: %s)\n", mgr.RuntimeForAgent(spawned.Name).SessionName(spawned.Session))
 
 	// Set team if specified
 	if agentCreateTeam != "" {
@@ -597,8 +614,11 @@ func runAgentAttach(cmd *cobra.Command, args []string) error {
 	}
 
 	mgr := newAgentManager(ws)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
 
-	if !mgr.Runtime().HasSession(context.TODO(), agentName) {
+	if !mgr.RuntimeForAgent(agentName).HasSession(context.TODO(), agentName) {
 		return fmt.Errorf("agent %q not running", agentName)
 	}
 
@@ -748,12 +768,13 @@ func runAgentStart(cmd *cobra.Command, args []string) error {
 		ParentID:  a.ParentID,
 		Tool:      a.Tool,
 		EnvFile:   a.EnvFile,
+		Runtime:   agentStartRuntime,
 	})
 	if spawnErr != nil {
 		fmt.Println("✗")
 		return fmt.Errorf("failed to start %s: %w", agentName, spawnErr)
 	}
-	fmt.Printf("✓ (session: %s)\n", mgr.Runtime().SessionName(spawned.Session))
+	fmt.Printf("✓ (session: %s)\n", mgr.RuntimeForAgent(spawned.Name).SessionName(spawned.Session))
 
 	// Log event
 	logEvent(ws, events.Event{
@@ -1039,9 +1060,9 @@ func runAgentRename(cmd *cobra.Command, args []string) error {
 	fmt.Println("✓")
 
 	// Step 2: Rename tmux session if exists
-	if mgr.Runtime().HasSession(context.TODO(), oldName) {
+	if mgr.RuntimeForAgent(oldName).HasSession(context.TODO(), oldName) {
 		fmt.Print("  Renaming tmux session... ")
-		if renameErr := mgr.Runtime().RenameSession(context.TODO(), oldName, newName); renameErr != nil {
+		if renameErr := mgr.RuntimeForAgent(oldName).RenameSession(context.TODO(), oldName, newName); renameErr != nil {
 			fmt.Println("✗")
 			log.Warn("failed to rename tmux session", "error", renameErr)
 		} else {

@@ -251,7 +251,7 @@ func computeAgentHealth(ctx context.Context, a *agent.Agent, mgr *agent.Manager,
 	}
 
 	// Check tmux session
-	health.TmuxAlive = mgr.Runtime().HasSession(ctx, a.Name)
+	health.TmuxAlive = mgr.RuntimeForAgent(a.Name).HasSession(ctx, a.Name)
 
 	// Check state freshness
 	staleDuration := time.Since(a.UpdatedAt)

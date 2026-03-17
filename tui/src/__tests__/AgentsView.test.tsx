@@ -111,7 +111,7 @@ describe('AgentsView Loading Indicators (Issue #1039)', () => {
  */
 describe('AgentsView Inline Actions Logic', () => {
   // Action types
-  type AgentAction = 'stop' | 'kill' | 'restart' | 'attach';
+  type AgentAction = 'stop' | 'kill' | 'start' | 'attach';
 
   interface ActionState {
     action: AgentAction | null;
@@ -167,13 +167,13 @@ describe('AgentsView Inline Actions Logic', () => {
       expect(confirmAction).toBe('kill');
     });
 
-    it('restart requires confirmation', () => {
+    it('start requires confirmation', () => {
       let confirmAction: AgentAction | null = null;
       const input = 'R';
       if (input === 'R') {
-        confirmAction = 'restart';
+        confirmAction = 'start';
       }
-      expect(confirmAction).toBe('restart');
+      expect(confirmAction).toBe('start');
     });
 
     it('y confirms action', () => {
@@ -209,13 +209,13 @@ describe('AgentsView Inline Actions Logic', () => {
       expect(canStop).toBe(false);
     });
 
-    it('restart available when agent is stopped', () => {
+    it('start available when agent is stopped', () => {
       const state = 'stopped';
       const canRestart = state === 'stopped' || state === 'error';
       expect(canRestart).toBe(true);
     });
 
-    it('restart available when agent has error', () => {
+    it('start available when agent has error', () => {
       const state = 'error';
       const canRestart = state === 'stopped' || state === 'error';
       expect(canRestart).toBe(true);
@@ -233,7 +233,7 @@ describe('AgentsView Inline Actions Logic', () => {
       const shortcuts: Record<string, AgentAction> = {
         x: 'stop',
         X: 'kill',
-        R: 'restart',
+        R: 'start',
         a: 'attach',
       };
       return shortcuts[key];
@@ -247,8 +247,8 @@ describe('AgentsView Inline Actions Logic', () => {
       expect(getActionForKey('X')).toBe('kill');
     });
 
-    it('R triggers restart', () => {
-      expect(getActionForKey('R')).toBe('restart');
+    it('R triggers start', () => {
+      expect(getActionForKey('R')).toBe('start');
     });
 
     it('a triggers attach/details', () => {

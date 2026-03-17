@@ -43,9 +43,10 @@ type Provider interface {
 
 // CommandOpts configures how a provider builds its command.
 type CommandOpts struct {
-	AgentName string // worktree isolation (claude uses -w <name>)
-	Docker    bool   // running inside Docker container
-	Resume    bool   // resume previous session (claude uses --continue)
+	AgentName     string // agent name for session identification
+	WorkspaceName string // workspace name for unique worktree naming
+	Docker        bool   // running inside Docker container
+	Resume        bool   // resume previous session (claude uses --continue)
 }
 
 // ContainerCustomizer is optionally implemented by providers needing
@@ -55,6 +56,14 @@ type ContainerCustomizer interface {
 	AdjustContainerCommand(command string) string
 	// DockerImage returns custom image name, or empty for default convention.
 	DockerImage() string
+}
+
+// SessionCustomizer is optionally implemented by providers that need to
+// adjust their command for headless execution in any session backend
+// (tmux or Docker). This is checked before ContainerCustomizer.
+type SessionCustomizer interface {
+	// AdjustSessionCommand modifies the command for headless session execution.
+	AdjustSessionCommand(command string) string
 }
 
 // State represents the detected state of a provider's agent.

@@ -43,7 +43,10 @@ func runAttach(cmd *cobra.Command, args []string) error {
 	mgr := newAgentManager(ws)
 
 	// Check if session exists
-	if !mgr.Runtime().HasSession(ctx, agentName) {
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+	if !mgr.RuntimeForAgent(agentName).HasSession(ctx, agentName) {
 		log.Debug("agent session not found", "agent", agentName)
 		return fmt.Errorf("agent %q not running (session bc-%s not found)", agentName, agentName)
 	}
