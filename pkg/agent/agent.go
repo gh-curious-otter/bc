@@ -305,12 +305,15 @@ type AgentMemory struct {
 type Agent struct {
 	UpdatedAt      time.Time    `json:"updated_at"`
 	StartedAt      time.Time    `json:"started_at"`
+	CreatedAt      time.Time    `json:"created_at"`
+	StoppedAt      *time.Time   `json:"stopped_at,omitempty"`
 	RolePrompt     *AgentMemory `json:"memory,omitempty"`
 	Workspace      string       `json:"workspace"`
 	ID             string       `json:"id"`
 	Name           string       `json:"name"`
 	Task           string       `json:"task,omitempty"`
 	Session        string       `json:"session"`
+	SessionID      string       `json:"session_id,omitempty"` // For session resume (#1939)
 	Tool           string       `json:"tool,omitempty"`
 	ParentID       string       `json:"parent_id,omitempty"`
 	HookedWork     string       `json:"hooked_work,omitempty"`
@@ -602,6 +605,7 @@ type SpawnOptions struct {
 	Tool      string
 	EnvFile   string
 	Runtime   string // override runtime backend ("tmux" or "docker"); empty uses manager default
+	Fresh     bool   // Force new session (ignore session_id)
 }
 
 // SpawnAgent creates and starts a new agent.
@@ -675,11 +679,16 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 			}
 			return existing, nil
 		}
-		// Agent exists but session is dead — always resume with --continue
-		// to pick up the previous Claude conversation.
+		// Agent exists but session is dead — resume with --continue
+		// to pick up the previous conversation (unless --fresh).
 		// Update runtime backend if overridden
 		if opts.Runtime != "" {
 			existing.RuntimeBackend = opts.Runtime
+		}
+		// Fresh flag clears session ID to force a new session
+		resume := !opts.Fresh && existing.SessionID != ""
+		if opts.Fresh {
+			existing.SessionID = ""
 		}
 		toolName := existing.Tool
 		if toolName == "" {
@@ -687,7 +696,7 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		}
 		agentCmd := m.agentCmd
 		if toolName != "" {
-			if cmd, ok := m.getAgentCommand(toolName, name, true); ok {
+			if cmd, ok := m.getAgentCommand(toolName, name, resume || !opts.Fresh); ok {
 				agentCmd = cmd
 			}
 		}
@@ -822,6 +831,7 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 	log.Debug("agent runtime selected", "agent", name, "runtime", agentRuntime, "default", m.defaultBackend, "override", opts.Runtime)
 
 	// Create agent
+	now := time.Now()
 	agent := &Agent{
 		ID:             name,
 		Name:           name,
@@ -835,8 +845,9 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		RuntimeBackend: agentRuntime,
 		Children:       []string{},
 		IsRoot:         role == RoleRoot,
-		StartedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		CreatedAt:      now,
+		StartedAt:      now,
+		UpdatedAt:      now,
 	}
 
 	// Register agent early so runtimeForAgent can resolve the correct backend
@@ -1055,8 +1066,10 @@ func (m *Manager) StopAgent(name string) error {
 	// Kill tmux session (ignore error - session might already be dead)
 	_ = m.runtimeForAgent(name).KillSession(context.TODO(), name)
 
+	now := time.Now()
 	agent.State = StateStopped
-	agent.UpdatedAt = time.Now()
+	agent.StoppedAt = &now
+	agent.UpdatedAt = now
 
 	// Remove from parent's children list
 	m.removeFromParent(name)
@@ -1091,8 +1104,10 @@ func (m *Manager) stopAgentTreeLocked(name string) error {
 	// Kill this agent's tmux session (ignore error - session might already be dead)
 	_ = m.runtimeForAgent(name).KillSession(context.TODO(), name)
 
+	now := time.Now()
 	agent.State = StateStopped
-	agent.UpdatedAt = time.Now()
+	agent.StoppedAt = &now
+	agent.UpdatedAt = now
 	agent.Children = []string{} // Clear children since they're stopped
 
 	return nil
@@ -1190,10 +1205,12 @@ func (m *Manager) StopAll() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	now := time.Now()
 	for name, agent := range m.agents {
 		_ = m.runtimeForAgent(name).KillSession(context.TODO(), name) //nolint:errcheck // best-effort cleanup
 		agent.State = StateStopped
-		agent.UpdatedAt = time.Now()
+		agent.StoppedAt = &now
+		agent.UpdatedAt = now
 	}
 
 	if err := m.saveState(); err != nil {

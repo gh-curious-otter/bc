@@ -333,7 +333,7 @@ bc memory record "Fixed bug"
 |-------|---------------|
 | Agent spawn | Inject memory context |
 | Task completion | Auto-record experience |
-| `bc report done` | Record with outcome |
+| `bc agent report done` | Record with outcome |
 | Session end | Prune old entries |
 
 ## Troubleshooting

@@ -38,11 +38,11 @@ Coordinate multiple AI agents with predictable behavior and cost awareness.
 Supports Claude Code, Cursor, Codex, and other AI coding tools.
 
 Getting Started:
-  bc init                              # Initialize workspace
-  bc up                                # Start root agent
+  bc init                                 # Initialize workspace
+  bc up                                   # Start root agent
   bc agent create eng-01 --role engineer  # Create engineer agent
-  bc status                            # View agent status
-  bc home                              # Open TUI dashboard
+  bc status                               # View agent status
+  bc home                                 # Open TUI dashboard
 
 Common Workflows:
   Start working:    bc up && bc status
@@ -50,6 +50,14 @@ Common Workflows:
   Send message:     bc channel send eng "message"
   Debug agent:      bc logs --agent eng-01 --tail 50
   Cost check:       bc cost show
+
+Command Groups (with short aliases):
+  agent                        Manage agents
+  channel (ch)                 Communication channels
+  cost (co)                    Cost tracking and budgets
+  workspace (ws)               Workspace management
+  doctor (dr)                  Health checks
+  demon (cr/cron)              Scheduled tasks
 
 Key Features:
   • Coordinate multiple AI coding agents in parallel

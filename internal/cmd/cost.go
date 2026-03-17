@@ -15,8 +15,9 @@ import (
 )
 
 var costCmd = &cobra.Command{
-	Use:   "cost",
-	Short: "Show cost information",
+	Use:     "cost",
+	Aliases: []string{"co"},
+	Short:   "Show cost information",
 	Long: `Commands for viewing API cost information.
 
 Shows Claude Code token usage, costs, and budget management.

@@ -64,8 +64,12 @@ func createAgentsTable(d *db.DB) error {
 		return fmt.Errorf("create agents table: %w", err)
 	}
 
-	// Migration: add runtime_backend column for existing databases
-	_, _ = d.Exec(`ALTER TABLE agents ADD COLUMN runtime_backend TEXT`) //nolint:errcheck // ignore if already exists
+	// Migrations: add columns for existing databases
+	_, _ = d.Exec(`ALTER TABLE agents ADD COLUMN runtime_backend TEXT`)           //nolint:errcheck // ignore if already exists
+	_, _ = d.Exec(`ALTER TABLE agents ADD COLUMN session_id TEXT`)                //nolint:errcheck // ignore if already exists
+	_, _ = d.Exec(`ALTER TABLE agents ADD COLUMN ttl INTEGER NOT NULL DEFAULT 0`) //nolint:errcheck // ignore if already exists
+	_, _ = d.Exec(`ALTER TABLE agents ADD COLUMN created_at TEXT`)                //nolint:errcheck // ignore if already exists
+	_, _ = d.Exec(`ALTER TABLE agents ADD COLUMN stopped_at TEXT`)                //nolint:errcheck // ignore if already exists
 
 	return nil
 }
@@ -78,13 +82,18 @@ func (s *SQLiteStore) Save(a *Agent) error {
 	}
 
 	now := time.Now()
+	createdAt := a.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = a.StartedAt // backward compat: use started_at if created_at not set
+	}
 	_, err = s.db.Exec(`
 		INSERT OR REPLACE INTO agents
 		(name, role, state, tool, parent_id, team, task, session, workspace,
 		 worktree_dir, log_file, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
-		 runtime_backend, started_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 runtime_backend, session_id, created_at, stopped_at,
+		 started_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.Name, string(a.Role), string(a.State),
 		nullStr(a.Tool), nullStr(a.ParentID), nullStr(a.Team), nullStr(a.Task),
 		nullStr(a.Session), a.Workspace,
@@ -92,19 +101,16 @@ func (s *SQLiteStore) Save(a *Agent) error {
 		nullStr(a.HookedWork), string(children),
 		boolToInt(a.IsRoot), a.CrashCount,
 		nullTime(a.LastCrashTime), nullStr(a.RecoveredFrom),
-		nullStr(a.RuntimeBackend), formatTime(a.StartedAt), formatTime(now),
+		nullStr(a.RuntimeBackend), nullStr(a.SessionID),
+		formatTime(createdAt), nullTime(a.StoppedAt),
+		formatTime(a.StartedAt), formatTime(now),
 	)
 	return err
 }
 
 // Load reads a single agent by name. Returns nil, nil if not found.
 func (s *SQLiteStore) Load(name string) (*Agent, error) {
-	row := s.db.QueryRow(`
-		SELECT name, role, state, tool, parent_id, team, task, session, workspace,
-		       worktree_dir, log_file, hooked_work, children,
-		       is_root, crash_count, last_crash_time, recovered_from,
-		       runtime_backend, started_at, updated_at
-		FROM agents WHERE name = ?`, name)
+	row := s.db.QueryRow(agentSelectCols+` FROM agents WHERE name = ?`, name)
 
 	a, err := scanAgentRow(row)
 	if err != nil {
@@ -118,12 +124,7 @@ func (s *SQLiteStore) Load(name string) (*Agent, error) {
 
 // LoadRoot reads the root agent (is_root=1). Returns nil, nil if not found.
 func (s *SQLiteStore) LoadRoot() (*Agent, error) {
-	row := s.db.QueryRow(`
-		SELECT name, role, state, tool, parent_id, team, task, session, workspace,
-		       worktree_dir, log_file, hooked_work, children,
-		       is_root, crash_count, last_crash_time, recovered_from,
-		       runtime_backend, started_at, updated_at
-		FROM agents WHERE is_root = 1 LIMIT 1`)
+	row := s.db.QueryRow(agentSelectCols + ` FROM agents WHERE is_root = 1 LIMIT 1`)
 
 	a, err := scanAgentRow(row)
 	if err != nil {
@@ -143,12 +144,7 @@ func (s *SQLiteStore) Delete(name string) error {
 
 // LoadAll reads every agent into a map keyed by name.
 func (s *SQLiteStore) LoadAll() (map[string]*Agent, error) {
-	rows, err := s.db.Query(`
-		SELECT name, role, state, tool, parent_id, team, task, session, workspace,
-		       worktree_dir, log_file, hooked_work, children,
-		       is_root, crash_count, last_crash_time, recovered_from,
-		       runtime_backend, started_at, updated_at
-		FROM agents`)
+	rows, err := s.db.Query(agentSelectCols + ` FROM agents`)
 	if err != nil {
 		return nil, err
 	}
@@ -178,8 +174,9 @@ func (s *SQLiteStore) SaveAll(agents map[string]*Agent) error {
 		(name, role, state, tool, parent_id, team, task, session, workspace,
 		 worktree_dir, log_file, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
-		 runtime_backend, started_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		 runtime_backend, session_id, created_at, stopped_at,
+		 started_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -191,6 +188,10 @@ func (s *SQLiteStore) SaveAll(agents map[string]*Agent) error {
 		if err != nil {
 			return fmt.Errorf("marshal children for %s: %w", a.Name, err)
 		}
+		createdAt := a.CreatedAt
+		if createdAt.IsZero() {
+			createdAt = a.StartedAt
+		}
 		_, err = stmt.Exec(
 			a.Name, string(a.Role), string(a.State),
 			nullStr(a.Tool), nullStr(a.ParentID), nullStr(a.Team), nullStr(a.Task),
@@ -199,7 +200,9 @@ func (s *SQLiteStore) SaveAll(agents map[string]*Agent) error {
 			nullStr(a.HookedWork), string(children),
 			boolToInt(a.IsRoot), a.CrashCount,
 			nullTime(a.LastCrashTime), nullStr(a.RecoveredFrom),
-			nullStr(a.RuntimeBackend), formatTime(a.StartedAt), formatTime(now),
+			nullStr(a.RuntimeBackend), nullStr(a.SessionID),
+			formatTime(createdAt), nullTime(a.StoppedAt),
+			formatTime(a.StartedAt), formatTime(now),
 		)
 		if err != nil {
 			return fmt.Errorf("save agent %s: %w", a.Name, err)
@@ -229,7 +232,7 @@ func (s *SQLiteStore) UpdateField(name, field, value string) error {
 	// Allowlist of updatable columns to prevent SQL injection.
 	allowed := map[string]bool{
 		"tool": true, "parent_id": true, "team": true, "task": true,
-		"session": true, "worktree_dir": true,
+		"session": true, "session_id": true, "worktree_dir": true,
 		"log_file": true, "hooked_work": true, "children": true,
 		"recovered_from": true, "runtime_backend": true,
 	}
@@ -256,11 +259,19 @@ func (s *SQLiteStore) Close() error {
 
 // --- scan helpers ---
 
+// agentSelectCols is the SELECT column list used by all Load* methods.
+const agentSelectCols = `SELECT name, role, state, tool, parent_id, team, task, session, workspace,
+	       worktree_dir, log_file, hooked_work, children,
+	       is_root, crash_count, last_crash_time, recovered_from,
+	       runtime_backend, session_id, created_at, stopped_at,
+	       started_at, updated_at`
+
 func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	var a Agent
 	var role, state string
 	var tool, parentID, team, task, session, worktreeDir, logFile, hookedWork, childrenJSON *string
-	var lastCrashTime, recoveredFrom, runtimeBackend *string
+	var lastCrashTime, recoveredFrom, runtimeBackend, sessionID *string
+	var createdAt, stoppedAt *string
 	var startedAt, updatedAt string
 	var isRoot, crashCount int
 
@@ -269,7 +280,8 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 		&tool, &parentID, &team, &task, &session, &a.Workspace,
 		&worktreeDir, &logFile, &hookedWork, &childrenJSON,
 		&isRoot, &crashCount, &lastCrashTime, &recoveredFrom,
-		&runtimeBackend, &startedAt, &updatedAt,
+		&runtimeBackend, &sessionID, &createdAt, &stoppedAt,
+		&startedAt, &updatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -283,6 +295,7 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	a.Team = deref(team)
 	a.Task = deref(task)
 	a.Session = deref(session)
+	a.SessionID = deref(sessionID)
 	a.WorktreeDir = deref(worktreeDir)
 	a.LogFile = deref(logFile)
 	a.HookedWork = deref(hookedWork)
@@ -299,8 +312,23 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 			a.LastCrashTime = &t
 		}
 	}
+	if createdAt != nil && *createdAt != "" {
+		if t, err := time.Parse(time.RFC3339, *createdAt); err == nil {
+			a.CreatedAt = t
+		}
+	}
+	if stoppedAt != nil && *stoppedAt != "" {
+		if t, err := time.Parse(time.RFC3339, *stoppedAt); err == nil {
+			a.StoppedAt = &t
+		}
+	}
 	a.StartedAt, _ = time.Parse(time.RFC3339, startedAt)
 	a.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+
+	// Backward compat: if created_at not set, use started_at
+	if a.CreatedAt.IsZero() {
+		a.CreatedAt = a.StartedAt
+	}
 
 	return &a, nil
 }

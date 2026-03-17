@@ -285,7 +285,7 @@ func TestChannelAdd_RequiresArgs(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing args, got nil")
 	}
-	if !strings.Contains(err.Error(), "requires at least 2 arg") {
+	if !strings.Contains(err.Error(), "requires at least 1 arg") {
 		t.Errorf("expected arg count error, got: %v", err)
 	}
 }
@@ -313,7 +313,7 @@ func TestChannelRemove_RequiresArgs(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing args, got nil")
 	}
-	if !strings.Contains(err.Error(), "accepts 2 arg") {
+	if !strings.Contains(err.Error(), "between 1 and 2 arg") {
 		t.Errorf("expected arg count error, got: %v", err)
 	}
 }
@@ -799,6 +799,168 @@ func TestChannelHistory_JSON(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "test message") {
 		t.Errorf("expected message content in JSON, got: %s", stdout)
+	}
+}
+
+// --- Channel Edit Tests ---
+
+func TestChannelEdit_RequiresArgs(t *testing.T) {
+	_, _, err := executeIntegrationCmd("channel", "edit")
+	if err == nil {
+		t.Fatal("expected error for missing args, got nil")
+	}
+	if !strings.Contains(err.Error(), "accepts 1 arg") {
+		t.Errorf("expected arg count error, got: %v", err)
+	}
+}
+
+func TestChannelEdit_NonexistentChannel(t *testing.T) {
+	_, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	_, _, err := executeIntegrationCmd("channel", "edit", "nonexistent", "--desc", "new desc")
+	if err == nil {
+		t.Fatal("expected error for nonexistent channel, got nil")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("expected 'not found' error, got: %v", err)
+	}
+}
+
+func TestChannelEdit_NoFlags(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	store := channel.NewStore(wsDir)
+	if err := store.Load(); err != nil {
+		t.Fatalf("failed to load store: %v", err)
+	}
+	if _, err := store.Create("edit-test"); err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+	if err := store.Save(); err != nil {
+		t.Fatalf("failed to save: %v", err)
+	}
+
+	_, _, err := executeIntegrationCmd("channel", "edit", "edit-test")
+	if err == nil {
+		t.Fatal("expected error for edit with no flags, got nil")
+	}
+	if !strings.Contains(err.Error(), "at least one setting") {
+		t.Errorf("expected 'at least one setting' error, got: %v", err)
+	}
+}
+
+func TestChannelEdit_SetDescription(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	store := channel.NewStore(wsDir)
+	if err := store.Load(); err != nil {
+		t.Fatalf("failed to load store: %v", err)
+	}
+	if _, err := store.Create("edit-desc"); err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+	if err := store.Save(); err != nil {
+		t.Fatalf("failed to save: %v", err)
+	}
+
+	stdout, _, err := executeIntegrationCmd("channel", "edit", "edit-desc", "--desc", "New description")
+	if err != nil {
+		t.Fatalf("channel edit error: %v", err)
+	}
+	if !strings.Contains(stdout, "Updated channel") {
+		t.Errorf("expected success message, got: %s", stdout)
+	}
+}
+
+// --- Channel Add with --agent flag ---
+
+func TestChannelAdd_WithAgentFlag(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	store := channel.NewStore(wsDir)
+	if err := store.Load(); err != nil {
+		t.Fatalf("failed to load store: %v", err)
+	}
+	if _, err := store.Create("flag-test"); err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+	if err := store.Save(); err != nil {
+		t.Fatalf("failed to save: %v", err)
+	}
+
+	stdout, _, err := executeIntegrationCmd("channel", "add", "flag-test", "--agent", "agent-flag")
+	if err != nil {
+		t.Fatalf("channel add --agent error: %v", err)
+	}
+	if !strings.Contains(stdout, "Added 1") {
+		t.Errorf("expected 'Added 1' in output, got: %s", stdout)
+	}
+}
+
+func TestChannelAdd_NoMember(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	store := channel.NewStore(wsDir)
+	if err := store.Load(); err != nil {
+		t.Fatalf("failed to load store: %v", err)
+	}
+	if _, err := store.Create("no-member-test"); err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+	if err := store.Save(); err != nil {
+		t.Fatalf("failed to save: %v", err)
+	}
+
+	_, _, err := executeIntegrationCmd("channel", "add", "no-member-test")
+	if err == nil {
+		t.Fatal("expected error for add with no member, got nil")
+	}
+	if !strings.Contains(err.Error(), "at least one member") {
+		t.Errorf("expected 'at least one member' error, got: %v", err)
+	}
+}
+
+// --- Channel History with --last flag ---
+
+func TestChannelHistory_WithLastFlag(t *testing.T) {
+	wsDir, cleanup := setupIntegrationWorkspace(t)
+	defer cleanup()
+
+	store := channel.NewStore(wsDir)
+	if err := store.Load(); err != nil {
+		t.Fatalf("failed to load store: %v", err)
+	}
+	if _, err := store.Create("last-test"); err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+	for i := 0; i < 10; i++ {
+		if err := store.AddHistory("last-test", "agent", fmt.Sprintf("message %d", i)); err != nil {
+			t.Fatalf("failed to add history: %v", err)
+		}
+	}
+	if err := store.Save(); err != nil {
+		t.Fatalf("failed to save: %v", err)
+	}
+
+	stdout, _, err := executeIntegrationCmd("channel", "history", "last-test", "--last", "3")
+	if err != nil {
+		t.Fatalf("channel history --last error: %v", err)
+	}
+	// Should show only 3 messages (the last 3)
+	lines := strings.Split(strings.TrimSpace(stdout), "\n")
+	messageLines := 0
+	for _, line := range lines {
+		if strings.HasPrefix(line, "[") && strings.Contains(line, "agent:") {
+			messageLines++
+		}
+	}
+	if messageLines > 3 {
+		t.Errorf("expected at most 3 message lines with --last 3, got %d", messageLines)
 	}
 }
 

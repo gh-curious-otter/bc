@@ -27,14 +27,14 @@ gh issue create -t "Create login form component" -b "Part of auth epic. React fo
 gh issue create -t "Write auth integration tests" -b "Part of auth epic. Test login flow end-to-end."
 ```
 
-### Spawning Engineers
+### Creating Engineers
 
-Spawn engineers to work on tasks:
+Create engineers to work on tasks:
 
 ```bash
-bc spawn engineer alice
-bc spawn engineer bob
-bc spawn engineer charlie
+bc agent create alice --role engineer
+bc agent create bob --role engineer
+bc agent create charlie --role engineer
 ```
 
 ### Assigning Work
@@ -44,7 +44,7 @@ Assign issues to engineers by sending them tasks via channels or direct messages
 Then send them detailed instructions:
 
 ```bash
-bc send alice "Your task: Implement the user login API endpoint.
+bc agent sendalice "Your task: Implement the user login API endpoint.
 
 Requirements:
 - POST /api/auth/login
@@ -55,7 +55,7 @@ Requirements:
 Branch: feature/auth-login-api
 Tests: Required in pkg/auth/login_test.go
 
-When done: bc report done 'login API implemented'"
+When done: bc agent reportdone 'login API implemented'"
 ```
 
 ### Monitoring Progress
@@ -83,15 +83,15 @@ go test ./pkg/auth/...
 gh issue close <issue-number>
 
 # If needs changes, send feedback
-bc send alice "Good progress! Please also add rate limiting to the login endpoint."
+bc agent sendalice "Good progress! Please also add rate limiting to the login endpoint."
 ```
 
 ### Reporting Status
 
 ```bash
-bc report working "Breaking down auth epic"
-bc report done "Auth tasks assigned to engineers"
-bc report stuck "Blocked on API design decision"
+bc agent reportworking "Breaking down auth epic"
+bc agent reportdone "Auth tasks assigned to engineers"
+bc agent reportstuck "Blocked on API design decision"
 ```
 
 ## Task Writing Guidelines
@@ -130,7 +130,7 @@ Describe what tests are needed.
 ### Example Task Assignment
 
 ```bash
-bc send alice "Your task: Implement password reset flow
+bc agent sendalice "Your task: Implement password reset flow
 
 ## Context
 Users need to reset forgotten passwords. This is part of the auth epic.
@@ -154,7 +154,7 @@ feature/auth-password-reset
 - Unit tests for token generation/validation
 - Integration test for full reset flow
 
-When done: bc report done 'password reset implemented'"
+When done: bc agent reportdone 'password reset implemented'"
 ```
 
 ## Workflow

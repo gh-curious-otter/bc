@@ -21,7 +21,7 @@ func TestReport_NoAgentID(t *testing.T) {
 	}()
 
 	// Report without BC_AGENT_ID should fail
-	_, err := executeCmd("report", "working", "test message")
+	_, err := executeCmd("agent", "report", "working", "test message")
 	if err == nil {
 		t.Error("expected error when BC_AGENT_ID not set")
 	}
@@ -45,7 +45,7 @@ func TestReport_InvalidState(t *testing.T) {
 	}()
 
 	// Report with invalid state should fail
-	_, err := executeCmd("report", "invalid-state", "test message")
+	_, err := executeCmd("agent", "report", "invalid-state", "test message")
 	if err == nil {
 		t.Error("expected error for invalid state")
 	}
@@ -58,7 +58,7 @@ func TestReport_InvalidState(t *testing.T) {
 
 func TestReportCommand_RequiresState(t *testing.T) {
 	// Report requires at least 1 arg (state)
-	err := reportCmd.Args(reportCmd, []string{})
+	err := agentReportCmd.Args(agentReportCmd, []string{})
 	if err == nil {
 		t.Error("expected error for missing state arg")
 	}
@@ -66,7 +66,7 @@ func TestReportCommand_RequiresState(t *testing.T) {
 
 func TestReportCommand_AcceptsStateOnly(t *testing.T) {
 	// Report accepts state only
-	err := reportCmd.Args(reportCmd, []string{"working"})
+	err := agentReportCmd.Args(agentReportCmd, []string{"working"})
 	if err != nil {
 		t.Errorf("unexpected error for state-only args: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestReportCommand_AcceptsStateOnly(t *testing.T) {
 
 func TestReportCommand_AcceptsStateAndMessage(t *testing.T) {
 	// Report accepts state + message
-	err := reportCmd.Args(reportCmd, []string{"working", "test", "message"})
+	err := agentReportCmd.Args(agentReportCmd, []string{"working", "test", "message"})
 	if err != nil {
 		t.Errorf("unexpected error for state + message args: %v", err)
 	}
@@ -84,17 +84,17 @@ func TestReportCommand_AcceptsStateAndMessage(t *testing.T) {
 
 func TestReportCommand_StuckFlags(t *testing.T) {
 	// Test that stuck report flags are defined
-	reasonFlag := reportCmd.Flags().Lookup("reason")
+	reasonFlag := agentReportCmd.Flags().Lookup("reason")
 	if reasonFlag == nil {
 		t.Error("--reason flag should be defined")
 	}
 
-	reproductionFlag := reportCmd.Flags().Lookup("reproduction")
+	reproductionFlag := agentReportCmd.Flags().Lookup("reproduction")
 	if reproductionFlag == nil {
 		t.Error("--reproduction flag should be defined")
 	}
 
-	severityFlag := reportCmd.Flags().Lookup("severity")
+	severityFlag := agentReportCmd.Flags().Lookup("severity")
 	if severityFlag == nil {
 		t.Error("--severity flag should be defined")
 	}

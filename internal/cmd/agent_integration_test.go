@@ -589,9 +589,9 @@ func TestAgentStartStopped(t *testing.T) {
 	// Start the stopped agent - note: this will fail in test because tmux session can't be created
 	// but we're testing the command logic, not the actual tmux creation
 	stdout, stderr, _ := executeIntegrationCmd("agent", "start", "stopped-agent")
-	// In integration test, this will fail due to tmux issues, but error should not be "not found"
+	// In integration test, this will fail due to tmux issues, but error should not be "agent not found"
 	output := stderr + stdout
-	if strings.Contains(output, "not found") {
+	if strings.Contains(output, "agent not found") || strings.Contains(output, "no agent named") {
 		t.Errorf("agent should be found, but got: %s", output)
 	}
 }

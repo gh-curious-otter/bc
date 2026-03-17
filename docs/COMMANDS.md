@@ -50,12 +50,12 @@ bc status --activity       # Include recent activity
 bc status --with-worktrees # Show worktree paths
 ```
 
-### bc stats
+### bc workspace stats
 
 Show workspace statistics.
 
 ```bash
-bc stats                   # Workspace metrics
+bc workspace stats         # Workspace metrics
 ```
 
 ### bc home
@@ -203,16 +203,16 @@ bc agent rename eng-01 senior-eng-01
 
 ## Report Commands
 
-### bc report
+### bc agent report
 
 Report agent state (run from within agent session).
 
 ```bash
-bc report idle "Waiting for work"
-bc report working "Implementing feature X"
-bc report done "Feature complete"
-bc report stuck "Blocked on API access"
-bc report error "Build failed"
+bc agent reportidle "Waiting for work"
+bc agent reportworking "Implementing feature X"
+bc agent reportdone "Feature complete"
+bc agent reportstuck "Blocked on API access"
+bc agent reporterror "Build failed"
 ```
 
 States: `idle`, `working`, `done`, `stuck`, `error`

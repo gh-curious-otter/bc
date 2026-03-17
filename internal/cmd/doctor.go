@@ -33,8 +33,9 @@ type check struct {
 }
 
 var doctorCmd = &cobra.Command{
-	Use:   "doctor",
-	Short: "Check system dependencies and configuration",
+	Use:     "doctor",
+	Aliases: []string{"dr"},
+	Short:   "Check system dependencies and configuration",
 	Long: `Diagnose your bc installation by checking required dependencies.
 
 Required dependencies:

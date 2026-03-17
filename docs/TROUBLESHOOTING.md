@@ -151,11 +151,11 @@ bc agent start agent-name
 **Solution**:
 ```bash
 # These commands only work inside agent sessions:
-bc report working "..."
+bc agent reportworking "..."
 bc channel join eng
 
 # Use agent send instead:
-bc agent send eng-01 "bc report working '...'"
+bc agent send eng-01 "bc agent reportworking '...'"
 ```
 
 ## Channel Issues

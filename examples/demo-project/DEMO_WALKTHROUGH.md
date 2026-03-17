@@ -90,7 +90,7 @@ qa-01           qa              idle
 cat src/greeting.go
 
 # PM creates an issue via channel broadcast
-bc send product-manager "There's a typo bug in greeting.go - it says 'Helo' instead of 'Hello'. Please create a work item to fix it."
+bc agent sendproduct-manager "There's a typo bug in greeting.go - it says 'Helo' instead of 'Hello'. Please create a work item to fix it."
 ```
 
 **What happens:** PM analyzes and creates a GitHub Issue for tracking.
@@ -115,7 +115,7 @@ gh issue list
 
 ```bash
 # Manager assigns the work
-bc send manager "Please assign issue #1 to an available engineer."
+bc agent sendmanager "Please assign issue #1 to an available engineer."
 
 # Wait for assignment, then check status
 bc status
@@ -138,7 +138,7 @@ engineer-01     engineer   working  Fix greeting typo
 
 ```bash
 # Attach to engineer's session to watch
-bc attach engineer-01
+bc agent attachengineer-01
 ```
 
 **What you'll see:** The engineer:
@@ -146,7 +146,7 @@ bc attach engineer-01
 2. Edits `src/greeting.go` to fix "Helo" → "Hello"
 3. Runs tests: `go test ./...`
 4. Commits: `git commit -m "fix: correct greeting typo"`
-5. Reports done: `bc report done "Fixed greeting typo"`
+5. Reports done: `bc agent reportdone "Fixed greeting typo"`
 
 **To exit:** Press `Ctrl+B` then `D` to detach from tmux.
 
@@ -172,17 +172,17 @@ engineer-01   engineer  idle   -
 
 ```bash
 # Send to QA for validation
-bc send qa-01 "Please validate the fix in work-001 - verify the greeting typo is corrected."
+bc agent sendqa-01 "Please validate the fix in work-001 - verify the greeting typo is corrected."
 
 # Optionally attach to watch
-bc attach qa-01
+bc agent attachqa-01
 ```
 
 **What QA does:**
 1. Checks out the engineer's branch
 2. Runs tests
 3. Verifies the fix: `grep "Hello" src/greeting.go`
-4. Approves: `bc report done "QA validated - fix is correct"`
+4. Approves: `bc agent reportdone "QA validated - fix is correct"`
 
 **Key point:** "QA is independent - they verify before anything goes to main."
 
@@ -194,10 +194,10 @@ bc attach qa-01
 
 ```bash
 # Manager handles the merge
-bc send manager "Work-001 is validated by QA. Please merge to main."
+bc agent sendmanager "Work-001 is validated by QA. Please merge to main."
 
 # Watch the merge happen
-bc attach manager
+bc agent attachmanager
 ```
 
 **What happens:**
@@ -286,7 +286,7 @@ bc up
 bc status
 
 # Send a nudge
-bc send <agent> "Please continue with your current task."
+bc agent send<agent> "Please continue with your current task."
 ```
 
 ### Work item not appearing
@@ -323,7 +323,7 @@ tmux attach -t bc-<agent-name>
 ### Technical Deep Dive
 - Show `.bc/` directory contents
 - Explain worktree structure
-- Demonstrate `bc attach` with live coding
+- Demonstrate `bc agent attach` with live coding
 
 ---
 

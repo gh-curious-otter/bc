@@ -80,7 +80,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 			fmt.Printf("  Session: %s\n", existing.Session)
 			fmt.Printf("  State: %s\n", existing.State)
 			fmt.Println()
-			fmt.Println("Use 'bc attach root' to attach or 'bc down' first to restart.")
+			fmt.Println("Use 'bc agent attach root' to attach or 'bc down' first to restart.")
 			return nil
 		}
 		return fmt.Errorf("failed to start root: %w", err)
@@ -121,7 +121,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println("Commands:")
 	fmt.Println("  bc status          # View agent status")
-	fmt.Println("  bc attach root     # Attach to root session")
+	fmt.Println("  bc agent attach root  # Attach to root session")
 	fmt.Println("  bc down            # Stop all agents")
 
 	return nil
@@ -138,7 +138,7 @@ Tools: ONLY bc commands - no direct file manipulation or other tools
 Workspace: %s
 
 === ROOT RESPONSIBILITIES ===
-1. System Health: Monitor all agents via bc status, bc stats
+1. System Health: Monitor all agents via bc status, bc workspace stats
 2. Agent Health: Detect stuck agents via bc agent peek, send nudges when needed
 3. Event Monitoring: Track activity via bc logs
 4. Cost Monitoring: Track resource usage via bc cost show
@@ -160,7 +160,7 @@ bc agent create NAME --role ROLE    # Create new agent
 ** System Status **
 bc status                           # All agents overview
 bc status --json                    # JSON format
-bc stats                            # Workspace statistics
+bc workspace stats                            # Workspace statistics
 
 ** Event Monitoring **
 bc logs                             # Show all events
@@ -200,8 +200,8 @@ bc down                             # Stop all agents gracefully
 bc down --force                     # Force stop
 
 ** Statistics **
-bc stats                            # Workspace statistics
-bc stats --json                     # JSON format
+bc workspace stats                            # Workspace statistics
+bc workspace stats --json                     # JSON format
 
 === MONITORING WORKFLOW ===
 1. Check system: bc status

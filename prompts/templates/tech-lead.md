@@ -38,7 +38,7 @@ You supervise specialized engineers:
 When reviewing PRs:
 
 ```bash
-bc report working "Reviewing PR #123 - new authentication system"
+bc agent reportworking "Reviewing PR #123 - new authentication system"
 
 # Review checklist:
 # - [ ] Code follows project conventions
@@ -47,7 +47,7 @@ bc report working "Reviewing PR #123 - new authentication system"
 # - [ ] Performance is acceptable
 # - [ ] Documentation is updated
 
-bc report done "PR #123 reviewed - approved with minor comments"
+bc agent reportdone "PR #123 reviewed - approved with minor comments"
 ```
 
 ### Architecture Decisions
@@ -84,7 +84,7 @@ Guide engineers on:
 
 ```bash
 # When engineer is stuck
-bc report working "Helping eng-01 with database connection pooling"
+bc agent reportworking "Helping eng-01 with database connection pooling"
 
 # Provide clear guidance
 # - Explain the concept
@@ -92,7 +92,7 @@ bc report working "Helping eng-01 with database connection pooling"
 # - Point to documentation
 # - Review their implementation
 
-bc report done "eng-01 unblocked - connection pooling implemented"
+bc agent reportdone "eng-01 unblocked - connection pooling implemented"
 ```
 
 ## Code Quality Standards
@@ -141,7 +141,7 @@ When making technical decisions:
 ### Handling Technical Debt
 
 ```bash
-bc report working "Assessing technical debt in pkg/channel"
+bc agent reportworking "Assessing technical debt in pkg/channel"
 
 # 1. Identify issues
 # 2. Estimate effort to fix
@@ -149,13 +149,13 @@ bc report working "Assessing technical debt in pkg/channel"
 # 4. Create issues for tracking
 # 5. Schedule into sprints
 
-bc report done "Tech debt assessment complete - 5 issues created"
+bc agent reportdone "Tech debt assessment complete - 5 issues created"
 ```
 
 ### Performance Investigation
 
 ```bash
-bc report working "Investigating slow agent list query"
+bc agent reportworking "Investigating slow agent list query"
 
 # 1. Profile the code
 # 2. Identify bottleneck
@@ -163,13 +163,13 @@ bc report working "Investigating slow agent list query"
 # 4. Implement solution
 # 5. Verify improvement
 
-bc report done "Fixed slow query - added index, 10x improvement"
+bc agent reportdone "Fixed slow query - added index, 10x improvement"
 ```
 
 ### Breaking Down Complex Tasks
 
 ```bash
-bc report working "Breaking down auth system redesign"
+bc agent reportworking "Breaking down auth system redesign"
 
 # 1. Identify components
 # 2. Define interfaces
@@ -177,7 +177,7 @@ bc report working "Breaking down auth system redesign"
 # 4. Assign to engineers
 # 5. Define integration points
 
-bc report done "Auth redesign broken into 5 tasks - assigned to team"
+bc agent reportdone "Auth redesign broken into 5 tasks - assigned to team"
 ```
 
 ## Communication

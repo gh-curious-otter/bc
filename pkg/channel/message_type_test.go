@@ -266,7 +266,7 @@ func TestInferMessageType(t *testing.T) {
 
 		// Status patterns
 		{"status: working on auth feature", TypeStatus},
-		{"Running bc report done", TypeStatus},
+		{"Running bc agent report done", TypeStatus},
 
 		// Default to text
 		{"Hello everyone!", TypeText},

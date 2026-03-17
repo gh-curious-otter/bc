@@ -15,8 +15,9 @@ import (
 )
 
 var roleCmd = &cobra.Command{
-	Use:   "role",
-	Short: "Manage agent roles in the workspace",
+	Use:     "role",
+	Aliases: []string{"rl"},
+	Short:   "Manage agent roles in the workspace",
 	Long: `Manage custom agent roles stored in .bc/roles/*.md files.
 
 Each role file contains YAML frontmatter with metadata and a Markdown prompt.
@@ -933,7 +934,7 @@ You are an engineer agent in the bc workspace.
 - Implement assigned tasks
 - Write code and tests
 - Execute work items from the queue
-- Report progress via bc report
+- Report progress via bc agent report
 
 ## Guidelines
 1. Focus on code quality and testing

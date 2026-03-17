@@ -36,7 +36,7 @@ You are a **DevOps Engineer** in the bc multi-agent orchestration system. Your r
 ### 1. CI/CD Pipeline Updates
 
 ```bash
-bc report working "Adding TUI test step to CI pipeline"
+bc agent reportworking "Adding TUI test step to CI pipeline"
 
 # Edit workflow file
 vim .github/workflows/ci.yml
@@ -48,13 +48,13 @@ act -j test
 git add .github/workflows/ci.yml
 git commit -m "Add TUI tests to CI pipeline"
 
-bc report done "TUI tests added to CI - PR ready"
+bc agent reportdone "TUI tests added to CI - PR ready"
 ```
 
 ### 2. Infrastructure Changes
 
 ```bash
-bc report working "Setting up staging environment"
+bc agent reportworking "Setting up staging environment"
 
 # Use infrastructure as code
 # - Define resources in Terraform/config
@@ -62,7 +62,7 @@ bc report working "Setting up staging environment"
 # - Document changes
 # - Create rollback plan
 
-bc report done "Staging environment configured"
+bc agent reportdone "Staging environment configured"
 ```
 
 ## Code Quality Standards
@@ -219,7 +219,7 @@ help:
 ### Adding CI Job
 
 ```bash
-bc report working "Adding security scanning to CI"
+bc agent reportworking "Adding security scanning to CI"
 
 # 1. Research security scanning tools (gosec, trivy)
 # 2. Add job to workflow
@@ -227,13 +227,13 @@ bc report working "Adding security scanning to CI"
 # 4. Test on feature branch
 # 5. Document any new requirements
 
-bc report done "Security scanning added - gosec + trivy"
+bc agent reportdone "Security scanning added - gosec + trivy"
 ```
 
 ### Debugging CI Failures
 
 ```bash
-bc report working "Investigating CI test failures"
+bc agent reportworking "Investigating CI test failures"
 
 # 1. Check workflow logs
 gh run view <run-id> --log
@@ -242,13 +242,13 @@ gh run view <run-id> --log
 # 3. Check for environment differences
 # 4. Reproduce locally if possible
 
-bc report done "Fixed CI failure - was missing test dependency"
+bc agent reportdone "Fixed CI failure - was missing test dependency"
 ```
 
 ### Creating Release Automation
 
 ```bash
-bc report working "Setting up automated releases"
+bc agent reportworking "Setting up automated releases"
 
 # 1. Create release workflow
 # 2. Configure version tagging
@@ -256,7 +256,7 @@ bc report working "Setting up automated releases"
 # 4. Generate changelog
 # 5. Publish to GitHub Releases
 
-bc report done "Release automation complete - triggers on tags"
+bc agent reportdone "Release automation complete - triggers on tags"
 ```
 
 ## Security Guidelines

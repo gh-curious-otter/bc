@@ -10,16 +10,16 @@ import (
 	"github.com/rpuneet/bc/pkg/stats"
 )
 
-var statsCmd = &cobra.Command{
+var workspaceStatsCmd = &cobra.Command{
 	Use:   "stats",
 	Short: "Show workspace statistics",
 	Long: `Display statistics about the current workspace including work item
 metrics, agent utilization, and completion rates.
 
 Examples:
-  bc stats             # human-readable summary
-  bc stats --json      # JSON output for scripting
-  bc stats --save      # save stats snapshot to .bc/stats.json`,
+  bc workspace stats             # human-readable summary
+  bc workspace stats --json      # JSON output for scripting
+  bc workspace stats --save      # save stats snapshot to .bc/stats.json`,
 	RunE: runStats,
 }
 
@@ -29,9 +29,9 @@ var (
 )
 
 func init() {
-	statsCmd.Flags().BoolVar(&statsJSON, "json", false, "Output as JSON")
-	statsCmd.Flags().BoolVar(&statsSave, "save", false, "Save stats snapshot to disk")
-	rootCmd.AddCommand(statsCmd)
+	workspaceStatsCmd.Flags().BoolVar(&statsJSON, "json", false, "Output as JSON")
+	workspaceStatsCmd.Flags().BoolVar(&statsSave, "save", false, "Save stats snapshot to disk")
+	workspaceCmd.AddCommand(workspaceStatsCmd)
 }
 
 func runStats(cmd *cobra.Command, args []string) error {
