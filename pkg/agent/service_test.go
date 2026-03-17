@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"testing"
-	"time"
 )
 
 // mockEventPublisher records published events.
@@ -267,58 +266,6 @@ func TestAgentService_Get(t *testing.T) {
 			t.Error("expected error for nonexistent agent")
 		}
 	})
-}
-
-func TestAgentService_TTLCheck(t *testing.T) {
-	mgr := newTestManager(t)
-	// Agent with 1-second TTL that started 2 seconds ago
-	mgr.agents["eng-ttl"] = &Agent{
-		Name:      "eng-ttl",
-		Role:      Role("engineer"),
-		State:     StateIdle,
-		TTL:       1,
-		StartedAt: time.Now().Add(-2 * time.Second),
-		Children:  []string{},
-	}
-	// Agent with no TTL
-	mgr.agents["eng-no-ttl"] = &Agent{
-		Name:      "eng-no-ttl",
-		Role:      Role("engineer"),
-		State:     StateIdle,
-		TTL:       0,
-		StartedAt: time.Now().Add(-2 * time.Second),
-		Children:  []string{},
-	}
-	// Agent with TTL not yet expired
-	mgr.agents["eng-future"] = &Agent{
-		Name:      "eng-future",
-		Role:      Role("engineer"),
-		State:     StateIdle,
-		TTL:       3600,
-		StartedAt: time.Now(),
-		Children:  []string{},
-	}
-
-	pub := &mockEventPublisher{}
-	svc := NewAgentService(mgr, pub, nil)
-
-	// Run TTL check
-	svc.checkTTLs(context.Background())
-
-	// eng-ttl should be stopped (TTL expired)
-	if a := mgr.GetAgent("eng-ttl"); a != nil && a.State != StateStopped {
-		t.Errorf("eng-ttl state = %q, want stopped", a.State)
-	}
-
-	// eng-no-ttl should not be stopped
-	if a := mgr.GetAgent("eng-no-ttl"); a != nil && a.State == StateStopped {
-		t.Error("eng-no-ttl should not be stopped (TTL=0)")
-	}
-
-	// eng-future should not be stopped
-	if a := mgr.GetAgent("eng-future"); a != nil && a.State == StateStopped {
-		t.Error("eng-future should not be stopped (TTL not expired)")
-	}
 }
 
 func TestAgentService_Manager(t *testing.T) {

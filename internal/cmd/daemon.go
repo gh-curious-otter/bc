@@ -91,7 +91,7 @@ func runDaemonStart(cmd *cobra.Command, args []string) error {
 func runDaemonStop(cmd *cobra.Command, args []string) error {
 	c := getClient()
 	if err := c.Ping(cmd.Context()); err != nil {
-		return fmt.Errorf("daemon is not running")
+		return fmt.Errorf("daemon is not running: %w", err)
 	}
 	// TODO(#1938): Implement graceful shutdown
 	fmt.Println("Stopping bcd daemon...")

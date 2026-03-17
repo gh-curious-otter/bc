@@ -327,7 +327,6 @@ type Agent struct {
 	Role           Role         `json:"role"`
 	State          State        `json:"state"`
 	Children       []string     `json:"children,omitempty"`
-	TTL            int          `json:"ttl,omitempty"` // Auto-stop after N seconds (0 = no TTL)
 	CrashCount     int          `json:"crash_count,omitempty"`
 	IsRoot         bool         `json:"is_root,omitempty"`
 }
@@ -606,7 +605,6 @@ type SpawnOptions struct {
 	Tool      string
 	EnvFile   string
 	Runtime   string // override runtime backend ("tmux" or "docker"); empty uses manager default
-	TTL       int    // Auto-stop after N seconds (0 = no TTL)
 	Fresh     bool   // Force new session (ignore session_id)
 }
 
@@ -847,7 +845,6 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		RuntimeBackend: agentRuntime,
 		Children:       []string{},
 		IsRoot:         role == RoleRoot,
-		TTL:            opts.TTL,
 		CreatedAt:      now,
 		StartedAt:      now,
 		UpdatedAt:      now,

@@ -89,7 +89,10 @@ func (c *Client) get(ctx context.Context, path string, result any) error {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+		}
 		return fmt.Errorf("request failed (status %d): %s", resp.StatusCode, string(body))
 	}
 

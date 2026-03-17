@@ -91,9 +91,9 @@ func (s *SQLiteStore) Save(a *Agent) error {
 		(name, role, state, tool, parent_id, team, task, session, workspace,
 		 worktree_dir, log_file, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
-		 runtime_backend, session_id, ttl, created_at, stopped_at,
+		 runtime_backend, session_id, created_at, stopped_at,
 		 started_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.Name, string(a.Role), string(a.State),
 		nullStr(a.Tool), nullStr(a.ParentID), nullStr(a.Team), nullStr(a.Task),
 		nullStr(a.Session), a.Workspace,
@@ -101,7 +101,7 @@ func (s *SQLiteStore) Save(a *Agent) error {
 		nullStr(a.HookedWork), string(children),
 		boolToInt(a.IsRoot), a.CrashCount,
 		nullTime(a.LastCrashTime), nullStr(a.RecoveredFrom),
-		nullStr(a.RuntimeBackend), nullStr(a.SessionID), a.TTL,
+		nullStr(a.RuntimeBackend), nullStr(a.SessionID),
 		formatTime(createdAt), nullTime(a.StoppedAt),
 		formatTime(a.StartedAt), formatTime(now),
 	)
@@ -174,9 +174,9 @@ func (s *SQLiteStore) SaveAll(agents map[string]*Agent) error {
 		(name, role, state, tool, parent_id, team, task, session, workspace,
 		 worktree_dir, log_file, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
-		 runtime_backend, session_id, ttl, created_at, stopped_at,
+		 runtime_backend, session_id, created_at, stopped_at,
 		 started_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -200,7 +200,7 @@ func (s *SQLiteStore) SaveAll(agents map[string]*Agent) error {
 			nullStr(a.HookedWork), string(children),
 			boolToInt(a.IsRoot), a.CrashCount,
 			nullTime(a.LastCrashTime), nullStr(a.RecoveredFrom),
-			nullStr(a.RuntimeBackend), nullStr(a.SessionID), a.TTL,
+			nullStr(a.RuntimeBackend), nullStr(a.SessionID),
 			formatTime(createdAt), nullTime(a.StoppedAt),
 			formatTime(a.StartedAt), formatTime(now),
 		)
@@ -263,7 +263,7 @@ func (s *SQLiteStore) Close() error {
 const agentSelectCols = `SELECT name, role, state, tool, parent_id, team, task, session, workspace,
 	       worktree_dir, log_file, hooked_work, children,
 	       is_root, crash_count, last_crash_time, recovered_from,
-	       runtime_backend, session_id, ttl, created_at, stopped_at,
+	       runtime_backend, session_id, created_at, stopped_at,
 	       started_at, updated_at`
 
 func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
@@ -273,14 +273,14 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	var lastCrashTime, recoveredFrom, runtimeBackend, sessionID *string
 	var createdAt, stoppedAt *string
 	var startedAt, updatedAt string
-	var isRoot, crashCount, ttl int
+	var isRoot, crashCount int
 
 	err := s.Scan(
 		&a.Name, &role, &state,
 		&tool, &parentID, &team, &task, &session, &a.Workspace,
 		&worktreeDir, &logFile, &hookedWork, &childrenJSON,
 		&isRoot, &crashCount, &lastCrashTime, &recoveredFrom,
-		&runtimeBackend, &sessionID, &ttl, &createdAt, &stoppedAt,
+		&runtimeBackend, &sessionID, &createdAt, &stoppedAt,
 		&startedAt, &updatedAt,
 	)
 	if err != nil {
@@ -301,7 +301,6 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	a.HookedWork = deref(hookedWork)
 	a.IsRoot = isRoot != 0
 	a.CrashCount = crashCount
-	a.TTL = ttl
 	a.RecoveredFrom = deref(recoveredFrom)
 	a.RuntimeBackend = deref(runtimeBackend)
 

@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/rpuneet/bc/pkg/log"
 )
@@ -42,7 +41,6 @@ type CreateOptions struct {
 	EnvFile string
 	Runtime string
 	Parent  string
-	TTL     int // Auto-stop after N seconds (0 = no TTL)
 }
 
 // StartOptions configures agent start behavior.
@@ -52,14 +50,12 @@ type StartOptions struct {
 }
 
 // AgentService provides the application-level API for agent management.
-// It wraps Manager with event publishing, cost queries, and TTL enforcement.
+// It wraps Manager with event publishing and cost queries.
 // This is the boundary that the daemon (issue #1938) will use.
 type AgentService struct {
 	manager *Manager
 	events  EventPublisher
 	costs   CostQuerier
-
-	stopCh chan struct{}
 }
 
 // NewAgentService creates a new agent service wrapping the given manager.
@@ -68,7 +64,6 @@ func NewAgentService(mgr *Manager, events EventPublisher, costs CostQuerier) *Ag
 		manager: mgr,
 		events:  events,
 		costs:   costs,
-		stopCh:  make(chan struct{}),
 	}
 }
 
@@ -127,7 +122,6 @@ func (s *AgentService) Create(ctx context.Context, opts CreateOptions) (*Agent, 
 		Tool:      opts.Tool,
 		EnvFile:   opts.EnvFile,
 		Runtime:   opts.Runtime,
-		TTL:       opts.TTL,
 	})
 	if err != nil {
 		return nil, err
@@ -269,58 +263,6 @@ func (s *AgentService) Get(ctx context.Context, name string) (*Agent, error) {
 		return nil, fmt.Errorf("agent %q not found", name)
 	}
 	return a, nil
-}
-
-// StartTTLWatcher starts a background goroutine that auto-stops agents
-// whose TTL has expired. Call Stop() to terminate the watcher.
-func (s *AgentService) StartTTLWatcher(ctx context.Context) {
-	go s.ttlWatchLoop(ctx)
-}
-
-// StopWatcher terminates the TTL watcher.
-func (s *AgentService) StopWatcher() {
-	close(s.stopCh)
-}
-
-func (s *AgentService) ttlWatchLoop(ctx context.Context) {
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-s.stopCh:
-			return
-		case <-ticker.C:
-			s.checkTTLs(ctx)
-		}
-	}
-}
-
-func (s *AgentService) checkTTLs(ctx context.Context) {
-	agents := s.manager.ListAgents()
-	now := time.Now()
-
-	for _, a := range agents {
-		if a.TTL <= 0 || a.State == StateStopped {
-			continue
-		}
-
-		elapsed := now.Sub(a.StartedAt)
-		ttlDuration := time.Duration(a.TTL) * time.Second
-		if elapsed >= ttlDuration {
-			log.Info("TTL expired, stopping agent", "agent", a.Name, "ttl", a.TTL, "elapsed", elapsed)
-			if err := s.manager.StopAgent(a.Name); err != nil {
-				log.Warn("TTL stop failed", "agent", a.Name, "error", err)
-				continue
-			}
-			s.publishEvent("agent.stopped", map[string]any{
-				"name":   a.Name,
-				"reason": "ttl_expired",
-			})
-		}
-	}
 }
 
 func (s *AgentService) publishEvent(eventType string, data map[string]any) {

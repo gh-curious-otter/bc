@@ -24,7 +24,6 @@ func TestSQLiteStore_SaveLoadDelete(t *testing.T) {
 		Workspace: "/tmp/ws",
 		CreatedAt: now,
 		StartedAt: now,
-		TTL:       3600,
 		SessionID: "ses-abc123",
 		Children:  []string{"child-1", "child-2"},
 	}
@@ -53,9 +52,6 @@ func TestSQLiteStore_SaveLoadDelete(t *testing.T) {
 	}
 	if len(loaded.Children) != 2 {
 		t.Errorf("Children len = %d, want 2", len(loaded.Children))
-	}
-	if loaded.TTL != 3600 {
-		t.Errorf("TTL = %d, want 3600", loaded.TTL)
 	}
 	if loaded.SessionID != "ses-abc123" {
 		t.Errorf("SessionID = %q, want ses-abc123", loaded.SessionID)

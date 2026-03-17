@@ -288,7 +288,6 @@ var (
 	agentCreateTeam    string
 	agentCreateEnv     string
 	agentCreateRuntime string
-	agentCreateTTL     string
 	agentStartRuntime  string
 	agentStartFresh    bool
 	agentListRole      string
@@ -316,7 +315,6 @@ func init() {
 	agentCreateCmd.Flags().StringVar(&agentCreateTeam, "team", "", "Team name (alphanumeric)")
 	agentCreateCmd.Flags().StringVar(&agentCreateEnv, "env", "", "Path to env file (KEY=VALUE per line)")
 	agentCreateCmd.Flags().StringVar(&agentCreateRuntime, "runtime", "", "Runtime backend override: tmux or docker")
-	agentCreateCmd.Flags().StringVar(&agentCreateTTL, "ttl", "", "Auto-stop after duration (e.g., 30m, 2h, 8h). 0 or empty = no TTL")
 	_ = agentCreateCmd.MarkFlagRequired("role")
 
 	// List flags
@@ -489,19 +487,6 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("role %q not found. Create it first with 'bc role create %s'", role, role)
 	}
 
-	// Parse TTL if specified
-	var ttlSeconds int
-	if agentCreateTTL != "" && agentCreateTTL != "0" {
-		ttlDuration, ttlErr := time.ParseDuration(agentCreateTTL)
-		if ttlErr != nil {
-			return fmt.Errorf("invalid TTL %q (use e.g. 30m, 2h, 8h): %w", agentCreateTTL, ttlErr)
-		}
-		ttlSeconds = int(ttlDuration.Seconds())
-		if ttlSeconds <= 0 {
-			return fmt.Errorf("TTL must be positive, got %s", agentCreateTTL)
-		}
-	}
-
 	// Spawn the agent (with parent if specified)
 	fmt.Printf("Creating %s (%s)... ", agentName, role)
 	spawned, spawnErr := mgr.SpawnAgentWithOptions(agent.SpawnOptions{
@@ -512,7 +497,6 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		Tool:      toolName,
 		EnvFile:   agentCreateEnv,
 		Runtime:   agentCreateRuntime,
-		TTL:       ttlSeconds,
 	})
 	if spawnErr != nil {
 		fmt.Println("✗")
@@ -541,10 +525,6 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		Message: fmt.Sprintf("created with role %s", role),
 		Data:    eventData,
 	})
-
-	if ttlSeconds > 0 {
-		fmt.Printf("TTL: %s (auto-stops after this duration)\n", agentCreateTTL)
-	}
 
 	fmt.Println()
 	fmt.Println("Agent created successfully!")
@@ -663,7 +643,7 @@ func runAgentAttach(cmd *cobra.Command, args []string) error {
 		log.Warn("failed to load agent state", "error", loadErr)
 	}
 
-	if !mgr.RuntimeForAgent(agentName).HasSession(context.TODO(), agentName) {
+	if !mgr.RuntimeForAgent(agentName).HasSession(cmd.Context(), agentName) {
 		return fmt.Errorf("agent %q not running", agentName)
 	}
 
@@ -773,14 +753,6 @@ func runAgentShow(cmd *cobra.Command, args []string) error {
 	}
 	if a.SessionID != "" {
 		pairs = append(pairs, "Session ID", a.SessionID)
-	}
-	if a.TTL > 0 {
-		ttlDur := time.Duration(a.TTL) * time.Second
-		remaining := ttlDur - time.Since(a.StartedAt)
-		if remaining < 0 {
-			remaining = 0
-		}
-		pairs = append(pairs, "TTL", fmt.Sprintf("%s (remaining: %s)", ttlDur, formatDuration(remaining)))
 	}
 	pairs = append(pairs,
 		"Created", a.CreatedAt.Format(time.RFC3339),
@@ -1020,7 +992,7 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 		if _, scanErr := fmt.Scanln(&response); scanErr != nil {
 			return fmt.Errorf("deletion canceled")
 		}
-		if response != "yes" {
+		if strings.TrimSpace(strings.ToLower(response)) != "yes" {
 			return fmt.Errorf("deletion canceled")
 		}
 	}
@@ -1074,8 +1046,17 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 	})
 
 	fmt.Printf("Agent '%s' has been permanently deleted.\n", agentName)
-	if !agentDeletePurge {
-		fmt.Printf("Memory preserved at .bc/memory/%s\n", agentName)
+
+	// Purge memory directory if requested
+	memDir := filepath.Join(ws.StateDir(), "memory", agentName)
+	if agentDeletePurge {
+		if purgeErr := os.RemoveAll(memDir); purgeErr != nil {
+			fmt.Printf("Warning: failed to purge memory directory: %v\n", purgeErr)
+		} else {
+			fmt.Printf("Memory directory purged.\n")
+		}
+	} else {
+		fmt.Printf("Memory preserved at %s\n", memDir)
 	}
 	return nil
 }
@@ -1125,9 +1106,9 @@ func runAgentRename(cmd *cobra.Command, args []string) error {
 	fmt.Println("✓")
 
 	// Step 2: Rename tmux session if exists
-	if mgr.RuntimeForAgent(oldName).HasSession(context.TODO(), oldName) {
+	if mgr.RuntimeForAgent(oldName).HasSession(cmd.Context(), oldName) {
 		fmt.Print("  Renaming tmux session... ")
-		if renameErr := mgr.RuntimeForAgent(oldName).RenameSession(context.TODO(), oldName, newName); renameErr != nil {
+		if renameErr := mgr.RuntimeForAgent(oldName).RenameSession(cmd.Context(), oldName, newName); renameErr != nil {
 			fmt.Println("✗")
 			log.Warn("failed to rename tmux session", "error", renameErr)
 		} else {
@@ -1137,7 +1118,11 @@ func runAgentRename(cmd *cobra.Command, args []string) error {
 
 	// Step 3: Update channel memberships (renumber after adding tmux step)
 	fmt.Print("  Updating channel memberships... ")
-	channelStore := channel.NewStore(filepath.Join(ws.StateDir(), "channels"))
+	channelStore, chanErr := channel.OpenStore(ws.RootDir)
+	if chanErr != nil {
+		fmt.Println("✗")
+		return fmt.Errorf("failed to open channel store: %w", chanErr)
+	}
 	if err := channelStore.Load(); err != nil {
 		fmt.Println("✗")
 		_ = channelStore.Close()
@@ -1471,7 +1456,6 @@ type compactAgent struct {
 	Children  []string   `json:"children,omitempty"`
 	Session   string     `json:"session"`
 	SessionID string     `json:"session_id,omitempty"`
-	TTL       int        `json:"ttl,omitempty"`
 	CreatedAt time.Time  `json:"created_at"`
 	StartedAt time.Time  `json:"started_at"`
 	StoppedAt *time.Time `json:"stopped_at,omitempty"`
@@ -1492,7 +1476,6 @@ func toCompactAgent(a *agent.Agent) compactAgent {
 		Children:  a.Children,
 		Session:   a.Session,
 		SessionID: a.SessionID,
-		TTL:       a.TTL,
 		CreatedAt: a.CreatedAt,
 		StartedAt: a.StartedAt,
 		StoppedAt: a.StoppedAt,
