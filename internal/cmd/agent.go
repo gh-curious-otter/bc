@@ -17,6 +17,7 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/container"
+	"github.com/rpuneet/bc/pkg/cost"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/names"
@@ -158,9 +159,11 @@ var agentStartCmd = &cobra.Command{
 
 This resurrects the agent's tmux session and memory.
 The agent must have been previously created and stopped.
+By default, resumes the previous session if available.
 
 Examples:
-  bc agent start eng-01       # Start stopped agent eng-01`,
+  bc agent start eng-01          # Start stopped agent (resumes session)
+  bc agent start eng-01 --fresh  # Force new session`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAgentStart,
 }
@@ -285,8 +288,11 @@ var (
 	agentCreateTeam    string
 	agentCreateEnv     string
 	agentCreateRuntime string
+	agentCreateTTL     string
 	agentStartRuntime  string
+	agentStartFresh    bool
 	agentListRole      string
+	agentListStatus    string
 	agentListJSON      bool
 	agentListFull      bool
 	agentShowJSON      bool
@@ -298,6 +304,7 @@ var (
 	agentDeletePurge   bool
 	agentRenameForce   bool
 	agentSendPreview   bool
+	agentLogsSince     string
 	// Health flags are defined in agent_health.go (issue #1648)
 )
 
@@ -309,10 +316,12 @@ func init() {
 	agentCreateCmd.Flags().StringVar(&agentCreateTeam, "team", "", "Team name (alphanumeric)")
 	agentCreateCmd.Flags().StringVar(&agentCreateEnv, "env", "", "Path to env file (KEY=VALUE per line)")
 	agentCreateCmd.Flags().StringVar(&agentCreateRuntime, "runtime", "", "Runtime backend override: tmux or docker")
+	agentCreateCmd.Flags().StringVar(&agentCreateTTL, "ttl", "", "Auto-stop after duration (e.g., 30m, 2h, 8h). 0 or empty = no TTL")
 	_ = agentCreateCmd.MarkFlagRequired("role")
 
 	// List flags
 	agentListCmd.Flags().StringVar(&agentListRole, "role", "", "Filter by role")
+	agentListCmd.Flags().StringVar(&agentListStatus, "status", "", "Filter by status (running, stopped, error)")
 	agentListCmd.Flags().BoolVar(&agentListJSON, "json", false, "Output as JSON (compact by default)")
 	agentListCmd.Flags().BoolVar(&agentListFull, "full", false, "Include full agent data including prompts (with --json)")
 
@@ -342,6 +351,7 @@ func init() {
 
 	// Start flags
 	agentStartCmd.Flags().StringVar(&agentStartRuntime, "runtime", "", "Runtime backend override: tmux or docker")
+	agentStartCmd.Flags().BoolVar(&agentStartFresh, "fresh", false, "Force new session (ignore saved session)")
 
 	// Add shell completion for agent name arguments
 	agentAttachCmd.ValidArgsFunction = CompleteAgentNames
@@ -369,6 +379,11 @@ func init() {
 	agentCmd.AddCommand(agentSendRoleCmd)
 	agentCmd.AddCommand(agentSendPatternCmd)
 	agentCmd.AddCommand(agentAuthCmd)
+	agentCmd.AddCommand(agentCostCmd)
+	agentCmd.AddCommand(agentLogsCmd)
+
+	// Logs flags
+	agentLogsCmd.Flags().StringVar(&agentLogsSince, "since", "", "Show events since duration (e.g., 1h, 30m)")
 
 	// Add parent command to root
 	rootCmd.AddCommand(agentCmd)
@@ -474,6 +489,19 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("role %q not found. Create it first with 'bc role create %s'", role, role)
 	}
 
+	// Parse TTL if specified
+	var ttlSeconds int
+	if agentCreateTTL != "" && agentCreateTTL != "0" {
+		ttlDuration, ttlErr := time.ParseDuration(agentCreateTTL)
+		if ttlErr != nil {
+			return fmt.Errorf("invalid TTL %q (use e.g. 30m, 2h, 8h): %w", agentCreateTTL, ttlErr)
+		}
+		ttlSeconds = int(ttlDuration.Seconds())
+		if ttlSeconds <= 0 {
+			return fmt.Errorf("TTL must be positive, got %s", agentCreateTTL)
+		}
+	}
+
 	// Spawn the agent (with parent if specified)
 	fmt.Printf("Creating %s (%s)... ", agentName, role)
 	spawned, spawnErr := mgr.SpawnAgentWithOptions(agent.SpawnOptions{
@@ -484,6 +512,7 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		Tool:      toolName,
 		EnvFile:   agentCreateEnv,
 		Runtime:   agentCreateRuntime,
+		TTL:       ttlSeconds,
 	})
 	if spawnErr != nil {
 		fmt.Println("✗")
@@ -512,6 +541,10 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		Message: fmt.Sprintf("created with role %s", role),
 		Data:    eventData,
 	})
+
+	if ttlSeconds > 0 {
+		fmt.Printf("TTL: %s (auto-stops after this duration)\n", agentCreateTTL)
+	}
 
 	fmt.Println()
 	fmt.Println("Agent created successfully!")
@@ -543,6 +576,17 @@ func runAgentList(cmd *cobra.Command, args []string) error {
 			filtered := make([]*agent.Agent, 0, len(agents))
 			for _, a := range agents {
 				if a.Role == filterRole {
+					filtered = append(filtered, a)
+				}
+			}
+			agents = filtered
+		}
+
+		// Filter by status if specified
+		if agentListStatus != "" {
+			filtered := make([]*agent.Agent, 0, len(agents))
+			for _, a := range agents {
+				if matchesAgentStatus(a.State, agentListStatus) {
 					filtered = append(filtered, a)
 				}
 			}
@@ -727,10 +771,25 @@ func runAgentShow(cmd *cobra.Command, args []string) error {
 	if len(a.Children) > 0 {
 		pairs = append(pairs, "Children", strings.Join(a.Children, ", "))
 	}
+	if a.SessionID != "" {
+		pairs = append(pairs, "Session ID", a.SessionID)
+	}
+	if a.TTL > 0 {
+		ttlDur := time.Duration(a.TTL) * time.Second
+		remaining := ttlDur - time.Since(a.StartedAt)
+		if remaining < 0 {
+			remaining = 0
+		}
+		pairs = append(pairs, "TTL", fmt.Sprintf("%s (remaining: %s)", ttlDur, formatDuration(remaining)))
+	}
 	pairs = append(pairs,
+		"Created", a.CreatedAt.Format(time.RFC3339),
 		"Started", a.StartedAt.Format(time.RFC3339),
-		"Updated", a.UpdatedAt.Format(time.RFC3339),
 	)
+	if a.StoppedAt != nil {
+		pairs = append(pairs, "Stopped", a.StoppedAt.Format(time.RFC3339))
+	}
+	pairs = append(pairs, "Updated", a.UpdatedAt.Format(time.RFC3339))
 	ui.SimpleTable(pairs...)
 
 	return nil
@@ -760,7 +819,11 @@ func runAgentStart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("agent %q is already running (state: %s). Stop it first with: bc agent stop %s", agentName, a.State, agentName)
 	}
 
-	fmt.Printf("Starting %s (%s)... ", agentName, a.Role)
+	if agentStartFresh {
+		fmt.Printf("Starting %s (%s) with fresh session... ", agentName, a.Role)
+	} else {
+		fmt.Printf("Starting %s (%s)... ", agentName, a.Role)
+	}
 	// SpawnAgentWithOptions will detect the stopped state and resurrect it
 	spawned, spawnErr := mgr.SpawnAgentWithOptions(agent.SpawnOptions{
 		Name:      agentName,
@@ -770,6 +833,7 @@ func runAgentStart(cmd *cobra.Command, args []string) error {
 		Tool:      a.Tool,
 		EnvFile:   a.EnvFile,
 		Runtime:   agentStartRuntime,
+		Fresh:     agentStartFresh,
 	})
 	if spawnErr != nil {
 		fmt.Println("✗")
@@ -1396,18 +1460,22 @@ func isValidAgentName(name string) bool {
 //
 //nolint:govet // fieldalignment: JSON field order preferred for readability
 type compactAgent struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Role      string    `json:"role"`
-	State     string    `json:"state"`
-	Task      string    `json:"task,omitempty"`
-	Team      string    `json:"team,omitempty"`
-	Tool      string    `json:"tool,omitempty"`
-	ParentID  string    `json:"parent_id,omitempty"`
-	Children  []string  `json:"children,omitempty"`
-	Session   string    `json:"session"`
-	StartedAt time.Time `json:"started_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        string     `json:"id"`
+	Name      string     `json:"name"`
+	Role      string     `json:"role"`
+	State     string     `json:"state"`
+	Task      string     `json:"task,omitempty"`
+	Team      string     `json:"team,omitempty"`
+	Tool      string     `json:"tool,omitempty"`
+	ParentID  string     `json:"parent_id,omitempty"`
+	Children  []string   `json:"children,omitempty"`
+	Session   string     `json:"session"`
+	SessionID string     `json:"session_id,omitempty"`
+	TTL       int        `json:"ttl,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+	StartedAt time.Time  `json:"started_at"`
+	StoppedAt *time.Time `json:"stopped_at,omitempty"`
+	UpdatedAt time.Time  `json:"updated_at"`
 }
 
 // toCompactAgent converts a full agent to compact representation.
@@ -1423,7 +1491,11 @@ func toCompactAgent(a *agent.Agent) compactAgent {
 		ParentID:  a.ParentID,
 		Children:  a.Children,
 		Session:   a.Session,
+		SessionID: a.SessionID,
+		TTL:       a.TTL,
+		CreatedAt: a.CreatedAt,
 		StartedAt: a.StartedAt,
+		StoppedAt: a.StoppedAt,
 		UpdatedAt: a.UpdatedAt,
 	}
 }
@@ -1435,6 +1507,168 @@ func toCompactAgents(agents []*agent.Agent) []compactAgent {
 		result[i] = toCompactAgent(a)
 	}
 	return result
+}
+
+// matchesAgentStatus checks if an agent state matches a status filter.
+// Maps detailed internal states to the simplified 4-state model from #1918.
+func matchesAgentStatus(state agent.State, status string) bool {
+	switch status {
+	case "running":
+		return state == agent.StateIdle || state == agent.StateWorking || state == agent.StateStarting
+	case "stopped":
+		return state == agent.StateStopped
+	case "error":
+		return state == agent.StateError
+	case "starting":
+		return state == agent.StateStarting
+	default:
+		// Allow matching by exact internal state name
+		return string(state) == status
+	}
+}
+
+// agentCostCmd shows per-agent cost breakdown
+var agentCostCmd = &cobra.Command{
+	Use:   "cost <agent>",
+	Short: "Show per-agent cost breakdown",
+	Long: `Show the cost breakdown for a specific agent including tokens and USD cost.
+
+Examples:
+  bc agent cost eng-01       # Show eng-01 cost
+  bc agent cost eng-01 --json  # Output as JSON`,
+	Args: cobra.ExactArgs(1),
+	RunE: runAgentCost,
+}
+
+// agentLogsCmd shows agent event history
+var agentLogsCmd = &cobra.Command{
+	Use:   "logs <agent>",
+	Short: "Show agent event history",
+	Long: `Show the event log history for a specific agent.
+
+Examples:
+  bc agent logs eng-01               # Show all events
+  bc agent logs eng-01 --since 1h    # Show events from last hour`,
+	Args: cobra.ExactArgs(1),
+	RunE: runAgentLogs,
+}
+
+func runAgentCost(cmd *cobra.Command, args []string) error {
+	agentName := args[0]
+
+	ws, err := getWorkspace()
+	if err != nil {
+		return errNotInWorkspace(err)
+	}
+
+	mgr := newAgentManager(ws)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+
+	a := mgr.GetAgent(agentName)
+	if a == nil {
+		return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentName)
+	}
+
+	// Try to get cost data
+	costStore := newCostStore(ws.RootDir)
+	if costStore == nil {
+		fmt.Printf("Agent: %s\n", a.Name)
+		fmt.Println("No cost data available (cost tracking not enabled)")
+		return nil
+	}
+	defer func() { _ = costStore.Close() }()
+
+	summary, costErr := costStore.AgentSummary(agentName)
+	if costErr != nil || summary == nil {
+		fmt.Printf("Agent: %s\n", a.Name)
+		fmt.Println("No cost data recorded yet")
+		return nil
+	}
+
+	fmt.Printf("Agent: %s\n", a.Name)
+	fmt.Printf("  Input tokens:  %d\n", summary.InputTokens)
+	fmt.Printf("  Output tokens: %d\n", summary.OutputTokens)
+	fmt.Printf("  Total tokens:  %d\n", summary.TotalTokens)
+	fmt.Printf("  Total cost:    $%.4f\n", summary.TotalCostUSD)
+	fmt.Printf("  Requests:      %d\n", summary.RecordCount)
+
+	return nil
+}
+
+func runAgentLogs(cmd *cobra.Command, args []string) error {
+	agentName := args[0]
+
+	ws, err := getWorkspace()
+	if err != nil {
+		return errNotInWorkspace(err)
+	}
+
+	mgr := newAgentManager(ws)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+
+	a := mgr.GetAgent(agentName)
+	if a == nil {
+		return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentName)
+	}
+
+	el := openEventLog(ws)
+	if el == nil {
+		fmt.Println("No event log available")
+		return nil
+	}
+	defer func() { _ = el.Close() }()
+
+	agentEvents, readErr := el.ReadByAgent(agentName)
+	if readErr != nil {
+		return fmt.Errorf("failed to read agent events: %w", readErr)
+	}
+
+	// Filter by --since if specified
+	if agentLogsSince != "" {
+		since, parseErr := time.ParseDuration(agentLogsSince)
+		if parseErr != nil {
+			return fmt.Errorf("invalid --since duration %q: %w", agentLogsSince, parseErr)
+		}
+		cutoff := time.Now().Add(-since)
+		filtered := make([]events.Event, 0, len(agentEvents))
+		for _, e := range agentEvents {
+			if e.Timestamp.After(cutoff) {
+				filtered = append(filtered, e)
+			}
+		}
+		agentEvents = filtered
+	}
+
+	if len(agentEvents) == 0 {
+		fmt.Printf("No events found for agent %q\n", agentName)
+		return nil
+	}
+
+	fmt.Printf("=== Events for %s (%d total) ===\n\n", agentName, len(agentEvents))
+	for _, e := range agentEvents {
+		fmt.Printf("[%s] %s: %s\n", e.Timestamp.Format("15:04:05"), e.Type, e.Message)
+	}
+
+	return nil
+}
+
+// newCostStore opens the cost store, returning nil if unavailable.
+func newCostStore(workspacePath string) costStoreCloser {
+	cs := cost.NewStore(workspacePath)
+	if err := cs.Open(); err != nil {
+		return nil
+	}
+	return cs
+}
+
+// costStoreCloser wraps cost.Store for agent cost queries.
+type costStoreCloser interface {
+	AgentSummary(agentID string) (*cost.Summary, error)
+	Close() error
 }
 
 // agentAuthCmd manages per-agent authentication for Docker containers.
