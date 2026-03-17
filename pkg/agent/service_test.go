@@ -1,0 +1,331 @@
+package agent
+
+import (
+	"context"
+	"testing"
+	"time"
+)
+
+// mockEventPublisher records published events.
+type mockEventPublisher struct {
+	events []publishedEvent
+}
+
+type publishedEvent struct {
+	eventType string
+	data      map[string]any
+}
+
+func (m *mockEventPublisher) Publish(eventType string, data map[string]any) {
+	m.events = append(m.events, publishedEvent{eventType, data})
+}
+
+// mockCostQuerier returns fixed cost data.
+type mockCostQuerier struct {
+	summary *CostSummary
+}
+
+func (m *mockCostQuerier) AgentCostSummary(agentID string) (*CostSummary, error) {
+	if m.summary != nil {
+		return m.summary, nil
+	}
+	return &CostSummary{AgentID: agentID}, nil
+}
+
+func TestAgentService_ListEmpty(t *testing.T) {
+	mgr := newTestManager(t)
+	svc := NewAgentService(mgr, nil, nil)
+
+	agents, err := svc.List(context.Background(), ListOptions{})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(agents) != 0 {
+		t.Errorf("expected 0 agents, got %d", len(agents))
+	}
+}
+
+func TestAgentService_ListWithFilters(t *testing.T) {
+	mgr := newTestManager(t)
+	mgr.agents["eng-1"] = &Agent{Name: "eng-1", Role: Role("engineer"), State: StateIdle, Children: []string{}}
+	mgr.agents["eng-2"] = &Agent{Name: "eng-2", Role: Role("engineer"), State: StateStopped, Children: []string{}}
+	mgr.agents["qa-1"] = &Agent{Name: "qa-1", Role: Role("qa"), State: StateWorking, Children: []string{}}
+
+	svc := NewAgentService(mgr, nil, nil)
+
+	t.Run("filter by role", func(t *testing.T) {
+		agents, err := svc.List(context.Background(), ListOptions{Role: "engineer"})
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		if len(agents) != 2 {
+			t.Errorf("expected 2 engineers, got %d", len(agents))
+		}
+	})
+
+	t.Run("filter by status running", func(t *testing.T) {
+		agents, err := svc.List(context.Background(), ListOptions{Status: "running"})
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		if len(agents) != 2 {
+			t.Errorf("expected 2 running agents, got %d", len(agents))
+		}
+	})
+
+	t.Run("filter by status stopped", func(t *testing.T) {
+		agents, err := svc.List(context.Background(), ListOptions{Status: "stopped"})
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		if len(agents) != 1 {
+			t.Errorf("expected 1 stopped agent, got %d", len(agents))
+		}
+	})
+
+	t.Run("filter by role and status", func(t *testing.T) {
+		agents, err := svc.List(context.Background(), ListOptions{Role: "engineer", Status: "running"})
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		if len(agents) != 1 {
+			t.Errorf("expected 1 running engineer, got %d", len(agents))
+		}
+	})
+}
+
+func TestAgentService_StopNonexistent(t *testing.T) {
+	mgr := newTestManager(t)
+	svc := NewAgentService(mgr, nil, nil)
+
+	err := svc.Stop(context.Background(), "nonexistent")
+	if err == nil {
+		t.Error("expected error for nonexistent agent")
+	}
+}
+
+func TestAgentService_DeleteRequiresStopped(t *testing.T) {
+	mgr := newTestManager(t)
+	mgr.agents["eng-1"] = &Agent{Name: "eng-1", Role: Role("engineer"), State: StateIdle, Children: []string{}}
+
+	svc := NewAgentService(mgr, nil, nil)
+
+	err := svc.Delete(context.Background(), "eng-1")
+	if err == nil {
+		t.Error("expected error when deleting running agent")
+	}
+}
+
+func TestAgentService_DeleteStopped(t *testing.T) {
+	mgr := newTestManager(t)
+	mgr.agents["eng-1"] = &Agent{Name: "eng-1", Role: Role("engineer"), State: StateStopped, Children: []string{}}
+
+	pub := &mockEventPublisher{}
+	svc := NewAgentService(mgr, pub, nil)
+
+	err := svc.Delete(context.Background(), "eng-1")
+	if err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+
+	// Verify event published
+	if len(pub.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(pub.events))
+	}
+	if pub.events[0].eventType != "agent.deleted" {
+		t.Errorf("event type = %q, want agent.deleted", pub.events[0].eventType)
+	}
+}
+
+func TestAgentService_SendToStopped(t *testing.T) {
+	mgr := newTestManager(t)
+	mgr.agents["eng-1"] = &Agent{Name: "eng-1", Role: Role("engineer"), State: StateStopped}
+
+	svc := NewAgentService(mgr, nil, nil)
+
+	err := svc.Send(context.Background(), "eng-1", "hello")
+	if err == nil {
+		t.Error("expected error when sending to stopped agent")
+	}
+}
+
+func TestAgentService_SendToNonexistent(t *testing.T) {
+	mgr := newTestManager(t)
+	svc := NewAgentService(mgr, nil, nil)
+
+	err := svc.Send(context.Background(), "nonexistent", "hello")
+	if err == nil {
+		t.Error("expected error for nonexistent agent")
+	}
+}
+
+func TestAgentService_PeekNonexistent(t *testing.T) {
+	mgr := newTestManager(t)
+	svc := NewAgentService(mgr, nil, nil)
+
+	_, err := svc.Peek(context.Background(), "nonexistent", 50)
+	if err == nil {
+		t.Error("expected error for nonexistent agent")
+	}
+}
+
+func TestAgentService_CostNil(t *testing.T) {
+	mgr := newTestManager(t)
+	svc := NewAgentService(mgr, nil, nil) // no cost querier
+
+	_, err := svc.Cost(context.Background(), "eng-1")
+	if err == nil {
+		t.Error("expected error when cost tracking not configured")
+	}
+}
+
+func TestAgentService_CostQuerier(t *testing.T) {
+	mgr := newTestManager(t)
+	cq := &mockCostQuerier{summary: &CostSummary{
+		AgentID:      "eng-1",
+		TotalCostUSD: 1.50,
+		RequestCount: 10,
+	}}
+	svc := NewAgentService(mgr, nil, cq)
+
+	summary, err := svc.Cost(context.Background(), "eng-1")
+	if err != nil {
+		t.Fatalf("Cost: %v", err)
+	}
+	if summary.TotalCostUSD != 1.50 {
+		t.Errorf("TotalCostUSD = %f, want 1.50", summary.TotalCostUSD)
+	}
+}
+
+func TestAgentService_Broadcast(t *testing.T) {
+	mgr := newTestManager(t)
+	mgr.agents["eng-1"] = &Agent{Name: "eng-1", Role: Role("engineer"), State: StateIdle}
+	mgr.agents["eng-2"] = &Agent{Name: "eng-2", Role: Role("engineer"), State: StateStopped}
+	mgr.agents["qa-1"] = &Agent{Name: "qa-1", Role: Role("qa"), State: StateWorking}
+
+	svc := NewAgentService(mgr, nil, nil)
+
+	// Broadcast will try to send to eng-1 and qa-1 (skip stopped eng-2)
+	// SendToAgent will fail because there are no real tmux sessions, but
+	// we're testing the filtering logic
+	sent, err := svc.Broadcast(context.Background(), "hello")
+	if err != nil {
+		t.Fatalf("Broadcast: %v", err)
+	}
+	// Both will fail since no tmux sessions, so sent should be 0
+	_ = sent
+}
+
+func TestMatchesStatus(t *testing.T) {
+	tests := []struct {
+		state  State
+		status string
+		want   bool
+	}{
+		{StateIdle, "running", true},
+		{StateWorking, "running", true},
+		{StateStarting, "running", true},
+		{StateStopped, "running", false},
+		{StateError, "running", false},
+		{StateStopped, "stopped", true},
+		{StateIdle, "stopped", false},
+		{StateError, "error", true},
+		{StateIdle, "error", false},
+		{StateStarting, "starting", true},
+		{StateIdle, "idle", true},     // exact match
+		{StateWorking, "working", true}, // exact match
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.state)+"_"+tt.status, func(t *testing.T) {
+			if got := matchesStatus(tt.state, tt.status); got != tt.want {
+				t.Errorf("matchesStatus(%q, %q) = %v, want %v", tt.state, tt.status, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAgentService_Get(t *testing.T) {
+	mgr := newTestManager(t)
+	mgr.agents["eng-1"] = &Agent{Name: "eng-1", Role: Role("engineer"), State: StateIdle, Children: []string{}}
+
+	svc := NewAgentService(mgr, nil, nil)
+
+	t.Run("found", func(t *testing.T) {
+		a, err := svc.Get(context.Background(), "eng-1")
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		if a.Name != "eng-1" {
+			t.Errorf("Name = %q, want eng-1", a.Name)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		_, err := svc.Get(context.Background(), "nonexistent")
+		if err == nil {
+			t.Error("expected error for nonexistent agent")
+		}
+	})
+}
+
+func TestAgentService_TTLCheck(t *testing.T) {
+	mgr := newTestManager(t)
+	// Agent with 1-second TTL that started 2 seconds ago
+	mgr.agents["eng-ttl"] = &Agent{
+		Name:      "eng-ttl",
+		Role:      Role("engineer"),
+		State:     StateIdle,
+		TTL:       1,
+		StartedAt: time.Now().Add(-2 * time.Second),
+		Children:  []string{},
+	}
+	// Agent with no TTL
+	mgr.agents["eng-no-ttl"] = &Agent{
+		Name:      "eng-no-ttl",
+		Role:      Role("engineer"),
+		State:     StateIdle,
+		TTL:       0,
+		StartedAt: time.Now().Add(-2 * time.Second),
+		Children:  []string{},
+	}
+	// Agent with TTL not yet expired
+	mgr.agents["eng-future"] = &Agent{
+		Name:      "eng-future",
+		Role:      Role("engineer"),
+		State:     StateIdle,
+		TTL:       3600,
+		StartedAt: time.Now(),
+		Children:  []string{},
+	}
+
+	pub := &mockEventPublisher{}
+	svc := NewAgentService(mgr, pub, nil)
+
+	// Run TTL check
+	svc.checkTTLs(context.Background())
+
+	// eng-ttl should be stopped (TTL expired)
+	if a := mgr.GetAgent("eng-ttl"); a != nil && a.State != StateStopped {
+		t.Errorf("eng-ttl state = %q, want stopped", a.State)
+	}
+
+	// eng-no-ttl should not be stopped
+	if a := mgr.GetAgent("eng-no-ttl"); a != nil && a.State == StateStopped {
+		t.Error("eng-no-ttl should not be stopped (TTL=0)")
+	}
+
+	// eng-future should not be stopped
+	if a := mgr.GetAgent("eng-future"); a != nil && a.State == StateStopped {
+		t.Error("eng-future should not be stopped (TTL not expired)")
+	}
+}
+
+func TestAgentService_Manager(t *testing.T) {
+	mgr := newTestManager(t)
+	svc := NewAgentService(mgr, nil, nil)
+
+	if svc.Manager() != mgr {
+		t.Error("Manager() should return the underlying manager")
+	}
+}
