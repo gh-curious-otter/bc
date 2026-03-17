@@ -28,13 +28,20 @@ delivered to all member tmux sessions.
 Examples:
   bc channel list                      # List all channels
   bc channel create workers            # Create a channel named "workers"
+  bc channel show workers              # Show channel details
   bc channel add workers worker-01     # Add member to channel
+  bc channel add workers --agent w-01  # Add member via --agent flag
   bc channel send workers "run tests"  # Send to all members
+  bc channel history workers --last 20 # Show last 20 messages
+  bc channel react workers 5 👍        # React to message
+  bc channel edit workers --desc "..."  # Edit channel description
   bc channel remove workers worker-01  # Remove a member
   bc channel delete workers            # Delete the channel
+  bc channel status                    # Overview of all channels
+
+Agent Commands (require BC_AGENT_ID):
   bc channel join workers              # Join a channel (current agent)
   bc channel leave workers             # Leave a channel (current agent)
-  bc channel history workers           # Show channel message history
 
 Default Channels:
   #eng       Engineering team (all engineer agents)
@@ -60,16 +67,16 @@ var channelCreateCmd = &cobra.Command{
 }
 
 var channelAddCmd = &cobra.Command{
-	Use:   "add <channel> <member> [member...]",
+	Use:   "add <channel> [member...]",
 	Short: "Add members to a channel",
-	Args:  cobra.MinimumNArgs(2),
+	Args:  cobra.MinimumNArgs(1),
 	RunE:  runChannelAdd,
 }
 
 var channelRemoveCmd = &cobra.Command{
-	Use:   "remove <channel> <member>",
+	Use:   "remove <channel> [member]",
 	Short: "Remove a member from a channel",
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE:  runChannelRemove,
 }
 
@@ -175,11 +182,30 @@ Examples:
 	RunE: runChannelStatus,
 }
 
+var channelEditCmd = &cobra.Command{
+	Use:   "edit <channel>",
+	Short: "Edit channel description/settings",
+	Long: `Edit a channel's description or settings.
+
+Examples:
+  bc channel edit eng --desc "Engineering discussion"`,
+	Args: cobra.ExactArgs(1),
+	RunE: runChannelEdit,
+}
+
 var channelCreateDesc string
+var channelEditDesc string
+
+// Channel add/remove --agent flags
+var (
+	channelAddAgent    string
+	channelRemoveAgent string
+)
 
 // Channel history flags
 var (
 	channelHistoryLimit  int
+	channelHistoryLast   int
 	channelHistoryOffset int
 	channelHistorySince  string
 	channelHistoryAgent  string
@@ -189,7 +215,14 @@ var (
 
 func init() {
 	channelCreateCmd.Flags().StringVar(&channelCreateDesc, "desc", "", "Channel description")
+	channelEditCmd.Flags().StringVar(&channelEditDesc, "desc", "", "New channel description")
+
+	// --agent flag for add/remove (alternative to positional args)
+	channelAddCmd.Flags().StringVar(&channelAddAgent, "agent", "", "Agent to add to channel")
+	channelRemoveCmd.Flags().StringVar(&channelRemoveAgent, "agent", "", "Agent to remove from channel")
+
 	channelHistoryCmd.Flags().IntVar(&channelHistoryLimit, "limit", 50, "Maximum number of messages to show")
+	channelHistoryCmd.Flags().IntVar(&channelHistoryLast, "last", 0, "Show last N messages (alias for --limit)")
 	channelHistoryCmd.Flags().IntVar(&channelHistoryOffset, "offset", 0, "Number of messages to skip")
 	channelHistoryCmd.Flags().StringVar(&channelHistorySince, "since", "", "Show messages since duration (e.g., 1h, 30m)")
 	channelHistoryCmd.Flags().StringVar(&channelHistoryAgent, "agent", "", "Filter messages by sender agent")
@@ -207,6 +240,7 @@ func init() {
 	channelReactCmd.ValidArgsFunction = CompleteChannelNames
 	channelShowCmd.ValidArgsFunction = CompleteChannelNames
 	channelDescCmd.ValidArgsFunction = CompleteChannelNames
+	channelEditCmd.ValidArgsFunction = CompleteChannelNames
 
 	channelCmd.AddCommand(channelCreateCmd)
 	channelCmd.AddCommand(channelAddCmd)
@@ -221,6 +255,7 @@ func init() {
 	channelCmd.AddCommand(channelShowCmd)
 	channelCmd.AddCommand(channelDescCmd)
 	channelCmd.AddCommand(channelStatusCmd)
+	channelCmd.AddCommand(channelEditCmd)
 	rootCmd.AddCommand(channelCmd)
 }
 
@@ -363,7 +398,15 @@ func runChannelAdd(cmd *cobra.Command, args []string) error {
 	if !validIdentifier(channelName) {
 		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", channelName)
 	}
+
+	// Collect members from positional args and --agent flag
 	members := args[1:]
+	if channelAddAgent != "" {
+		members = append(members, channelAddAgent)
+	}
+	if len(members) == 0 {
+		return fmt.Errorf("at least one member is required (use positional args or --agent)")
+	}
 
 	added := 0
 	for _, member := range members {
@@ -399,7 +442,16 @@ func runChannelRemove(cmd *cobra.Command, args []string) error {
 	if !validIdentifier(channelName) {
 		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", channelName)
 	}
-	member := args[1]
+
+	// Get member from positional arg or --agent flag
+	var member string
+	if len(args) > 1 {
+		member = args[1]
+	} else if channelRemoveAgent != "" {
+		member = channelRemoveAgent
+	} else {
+		return fmt.Errorf("member is required (use positional arg or --agent)")
+	}
 
 	if err := store.RemoveMember(channelName, member); err != nil {
 		return err
@@ -677,6 +729,11 @@ func runChannelHistory(cmd *cobra.Command, args []string) error {
 		history = filtered
 	}
 
+	// --last overrides --limit when explicitly set
+	if channelHistoryLast > 0 {
+		channelHistoryLimit = channelHistoryLast
+	}
+
 	// Apply --offset and --limit
 	if channelHistoryOffset > 0 {
 		if channelHistoryOffset >= len(history) {
@@ -910,6 +967,44 @@ func runChannelDesc(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Updated description for channel %q: %s\n", channelName, description)
+	return nil
+}
+
+func runChannelEdit(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return errNotInWorkspace(err)
+	}
+
+	store, err := loadChannelStore(ws.RootDir)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = store.Close() }()
+
+	channelName := args[0]
+	if !validIdentifier(channelName) {
+		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", channelName)
+	}
+
+	// Verify channel exists
+	if _, exists := store.Get(channelName); !exists {
+		return fmt.Errorf("channel %q not found (use 'bc channel list' to see available channels)", channelName)
+	}
+
+	if channelEditDesc == "" {
+		return fmt.Errorf("at least one setting is required (e.g. --desc)")
+	}
+
+	if err := store.SetDescription(channelName, channelEditDesc); err != nil {
+		return fmt.Errorf("failed to set description: %w", err)
+	}
+
+	if err := store.Save(); err != nil {
+		return fmt.Errorf("failed to save channels: %w", err)
+	}
+
+	fmt.Printf("Updated channel %q\n", channelName)
 	return nil
 }
 
