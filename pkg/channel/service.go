@@ -8,12 +8,12 @@ import (
 
 // ChannelDTO is the API representation of a channel.
 type ChannelDTO struct {
-	Name         string    `json:"name"`
-	Description  string    `json:"description,omitempty"`
-	Members      []string  `json:"members"`
-	Type         string    `json:"type"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
+	Name         string    `json:"name"`
+	Description  string    `json:"description,omitempty"`
+	Type         string    `json:"type"`
+	Members      []string  `json:"members"`
 	MemberCount  int       `json:"member_count"`
 	MessageCount int       `json:"message_count"`
 }

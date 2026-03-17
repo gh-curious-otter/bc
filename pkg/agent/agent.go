@@ -327,7 +327,7 @@ type Agent struct {
 	Role           Role         `json:"role"`
 	State          State        `json:"state"`
 	Children       []string     `json:"children,omitempty"`
-	TTL            int          `json:"ttl,omitempty"`        // Auto-stop after N seconds (0 = no TTL)
+	TTL            int          `json:"ttl,omitempty"` // Auto-stop after N seconds (0 = no TTL)
 	CrashCount     int          `json:"crash_count,omitempty"`
 	IsRoot         bool         `json:"is_root,omitempty"`
 }

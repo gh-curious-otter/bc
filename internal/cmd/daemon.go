@@ -90,7 +90,7 @@ func runDaemonStart(cmd *cobra.Command, args []string) error {
 
 func runDaemonStop(cmd *cobra.Command, args []string) error {
 	c := getClient()
-	if err := c.Ping(); err != nil {
+	if err := c.Ping(cmd.Context()); err != nil {
 		return fmt.Errorf("daemon is not running")
 	}
 	// TODO(#1938): Implement graceful shutdown
@@ -100,7 +100,7 @@ func runDaemonStop(cmd *cobra.Command, args []string) error {
 
 func runDaemonStatus(cmd *cobra.Command, args []string) error {
 	c := getClient()
-	if err := c.Ping(); err != nil {
+	if err := c.Ping(cmd.Context()); err != nil {
 		fmt.Println("Daemon: not running")
 		return nil
 	}

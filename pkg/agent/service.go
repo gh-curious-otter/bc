@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/rpuneet/bc/pkg/log"
@@ -40,16 +39,16 @@ type CreateOptions struct {
 	Name    string
 	Role    Role
 	Tool    string
-	TTL     int    // Auto-stop after N seconds (0 = no TTL)
 	EnvFile string
 	Runtime string
 	Parent  string
+	TTL     int // Auto-stop after N seconds (0 = no TTL)
 }
 
 // StartOptions configures agent start behavior.
 type StartOptions struct {
-	Fresh   bool   // Force new session (ignore session_id)
 	Runtime string // Runtime backend override
+	Fresh   bool   // Force new session (ignore session_id)
 }
 
 // AgentService provides the application-level API for agent management.
@@ -61,7 +60,6 @@ type AgentService struct {
 	costs   CostQuerier
 
 	stopCh chan struct{}
-	mu     sync.RWMutex
 }
 
 // NewAgentService creates a new agent service wrapping the given manager.

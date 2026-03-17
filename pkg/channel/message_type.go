@@ -215,7 +215,8 @@ func InferMessageType(content string) MessageType {
 
 	// Check for status patterns
 	if strings.HasPrefix(lower, "status:") ||
-		strings.Contains(lower, "bc report") {
+		strings.Contains(lower, "bc report") ||
+		strings.Contains(lower, "agent report") {
 		return TypeStatus
 	}
 

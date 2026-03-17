@@ -12,12 +12,12 @@ type mockEventPublisher struct {
 }
 
 type publishedEvent struct {
-	eventType string
 	data      map[string]any
+	eventType string
 }
 
 func (m *mockEventPublisher) Publish(eventType string, data map[string]any) {
-	m.events = append(m.events, publishedEvent{eventType, data})
+	m.events = append(m.events, publishedEvent{eventType: eventType, data: data})
 }
 
 // mockCostQuerier returns fixed cost data.
@@ -232,7 +232,7 @@ func TestMatchesStatus(t *testing.T) {
 		{StateError, "error", true},
 		{StateIdle, "error", false},
 		{StateStarting, "starting", true},
-		{StateIdle, "idle", true},     // exact match
+		{StateIdle, "idle", true},       // exact match
 		{StateWorking, "working", true}, // exact match
 	}
 

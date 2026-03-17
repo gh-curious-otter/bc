@@ -1,5 +1,7 @@
 package client
 
+import "context"
+
 // AgentsClient provides agent operations via the daemon.
 type AgentsClient struct {
 	client *Client
@@ -17,9 +19,9 @@ type AgentInfo struct {
 }
 
 // List returns all agents from the daemon.
-func (a *AgentsClient) List() ([]AgentInfo, error) {
+func (a *AgentsClient) List(ctx context.Context) ([]AgentInfo, error) {
 	var agents []AgentInfo
-	if err := a.client.get("/api/agents", &agents); err != nil {
+	if err := a.client.get(ctx, "/api/agents", &agents); err != nil {
 		return nil, err
 	}
 	return agents, nil

@@ -182,7 +182,8 @@ func TestServiceDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := svc.Delete(ctx, "eng"); err != nil {
+	err = svc.Delete(ctx, "eng")
+	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -208,10 +209,12 @@ func TestServiceMembers(t *testing.T) {
 	}
 
 	// Add members
-	if err := svc.AddMember(ctx, "eng", "agent-1"); err != nil {
+	err = svc.AddMember(ctx, "eng", "agent-1")
+	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if err := svc.AddMember(ctx, "eng", "agent-2"); err != nil {
+	err = svc.AddMember(ctx, "eng", "agent-2")
+	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -225,7 +228,8 @@ func TestServiceMembers(t *testing.T) {
 	}
 
 	// Remove member
-	if err := svc.RemoveMember(ctx, "eng", "agent-1"); err != nil {
+	err = svc.RemoveMember(ctx, "eng", "agent-1")
+	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -238,12 +242,14 @@ func TestServiceMembers(t *testing.T) {
 	}
 
 	// Add to nonexistent channel
-	if err := svc.AddMember(ctx, "nope", "agent-1"); err == nil {
+	err = svc.AddMember(ctx, "nope", "agent-1")
+	if err == nil {
 		t.Error("expected error for nonexistent channel")
 	}
 
 	// Remove nonexistent member
-	if err := svc.RemoveMember(ctx, "eng", "ghost"); err == nil {
+	err = svc.RemoveMember(ctx, "eng", "ghost")
+	if err == nil {
 		t.Error("expected error for nonexistent member")
 	}
 }
@@ -293,9 +299,9 @@ func TestServiceHistory(t *testing.T) {
 		if i%2 == 0 {
 			sender = "agent-2"
 		}
-		_, err := svc.Send(ctx, "eng", sender, fmt.Sprintf("msg-%d", i))
-		if err != nil {
-			t.Fatal(err)
+		_, sendErr := svc.Send(ctx, "eng", sender, fmt.Sprintf("msg-%d", i))
+		if sendErr != nil {
+			t.Fatal(sendErr)
 		}
 	}
 
@@ -333,9 +339,9 @@ func TestServiceHistory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dtos, err := svc.History(ctx, "eng", tt.opts)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+			dtos, histErr := svc.History(ctx, "eng", tt.opts)
+			if histErr != nil {
+				t.Fatalf("unexpected error: %v", histErr)
 			}
 			if len(dtos) != tt.wantCount {
 				t.Errorf("got %d messages, want %d", len(dtos), tt.wantCount)

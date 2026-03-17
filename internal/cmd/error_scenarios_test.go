@@ -35,11 +35,6 @@ func TestInputValidation_SpecialCharacters(t *testing.T) {
 			args:     []string{"channel", "create", "test@channel"},
 			wantErrs: []string{"invalid"},
 		},
-		{
-			name:     "team name with slash",
-			args:     []string{"team", "create", "test/team"},
-			wantErrs: []string{"invalid", "no such file", "directory"}, // slash causes path issues
-		},
 	}
 
 	for _, tt := range tests {
@@ -250,48 +245,7 @@ func TestNonExistentChannel(t *testing.T) {
 	}
 }
 
-// TestNonExistentTeam tests operations on non-existent teams
-func TestNonExistentTeam(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	tests := []struct {
-		name    string
-		wantErr string
-		args    []string
-	}{
-		{
-			name:    "show non-existent team",
-			args:    []string{"team", "show", "nonexistent-team"},
-			wantErr: "not found",
-		},
-		{
-			name:    "add to non-existent team",
-			args:    []string{"team", "add", "nonexistent-team", "some-agent"},
-			wantErr: "not found",
-		},
-		{
-			name:    "remove from non-existent team",
-			args:    []string{"team", "remove", "nonexistent-team", "some-agent"},
-			wantErr: "not found",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, _, err := executeIntegrationCmd(tt.args...)
-			if err == nil {
-				t.Errorf("expected error for %v, got nil", tt.args)
-				return
-			}
-			if !strings.Contains(strings.ToLower(err.Error()), tt.wantErr) {
-				t.Errorf("expected error containing %q, got: %v", tt.wantErr, err)
-			}
-		})
-	}
-}
-
-// Deprecated demon and process commands removed in CLI restructure (#1916)
+// Team command removed in CLI restructure (#1916)
 
 // --- State Violation Tests ---
 
@@ -477,10 +431,6 @@ func TestNoWorkspace(t *testing.T) {
 		{
 			name: "channel list outside workspace",
 			args: []string{"channel", "list"},
-		},
-		{
-			name: "team list outside workspace",
-			args: []string{"team", "list"},
 		},
 		{
 			name: "status outside workspace",

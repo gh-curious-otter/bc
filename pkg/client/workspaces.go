@@ -1,5 +1,7 @@
 package client
 
+import "context"
+
 // WorkspacesClient provides workspace operations via the daemon.
 type WorkspacesClient struct {
 	client *Client
@@ -14,9 +16,9 @@ type WorkspaceStatus struct {
 }
 
 // Status returns the current workspace status.
-func (w *WorkspacesClient) Status() (*WorkspaceStatus, error) {
+func (w *WorkspacesClient) Status(ctx context.Context) (*WorkspaceStatus, error) {
 	var status WorkspaceStatus
-	if err := w.client.get("/api/workspace/status", &status); err != nil {
+	if err := w.client.get(ctx, "/api/workspace/status", &status); err != nil {
 		return nil, err
 	}
 	return &status, nil

@@ -1,5 +1,7 @@
 package client
 
+import "context"
+
 // ChannelsClient provides channel operations via the daemon.
 type ChannelsClient struct {
 	client *Client
@@ -12,9 +14,9 @@ type ChannelInfo struct {
 }
 
 // List returns all channels from the daemon.
-func (ch *ChannelsClient) List() ([]ChannelInfo, error) {
+func (ch *ChannelsClient) List(ctx context.Context) ([]ChannelInfo, error) {
 	var channels []ChannelInfo
-	if err := ch.client.get("/api/channels", &channels); err != nil {
+	if err := ch.client.get(ctx, "/api/channels", &channels); err != nil {
 		return nil, err
 	}
 	return channels, nil

@@ -6,6 +6,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,13 +30,11 @@ const DefaultHTTPAddr = "http://localhost:4880"
 
 // Client is the HTTP client for the bcd daemon.
 type Client struct {
-	BaseURL    string
 	HTTPClient *http.Client
-
-	// Resource clients
 	Agents     *AgentsClient
 	Channels   *ChannelsClient
 	Workspaces *WorkspacesClient
+	BaseURL    string
 }
 
 // New creates a new bcd client with the given base URL.
@@ -60,8 +59,12 @@ func New(addr string) *Client {
 }
 
 // Ping checks if the daemon is reachable.
-func (c *Client) Ping() error {
-	resp, err := c.HTTPClient.Get(c.BaseURL + "/health")
+func (c *Client) Ping(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/health", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("daemon not running (connect to %s failed): %w", c.BaseURL, err)
 	}
@@ -74,8 +77,12 @@ func (c *Client) Ping() error {
 }
 
 // get performs a GET request and decodes the JSON response.
-func (c *Client) get(path string, result any) error {
-	resp, err := c.HTTPClient.Get(c.BaseURL + path)
+func (c *Client) get(ctx context.Context, path string, result any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+path, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("daemon not running: %w", err)
 	}
