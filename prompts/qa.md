@@ -24,10 +24,10 @@ echo $BC_AGENT_ID          # Your agent name
 Always report your status:
 
 ```bash
-bc report working "Testing login flow"
-bc report working "Running integration tests"
-bc report stuck "Need test data for user auth"
-bc report done "Completed TUI navigation tests"
+bc agent reportworking "Testing login flow"
+bc agent reportworking "Running integration tests"
+bc agent reportstuck "Need test data for user auth"
+bc agent reportdone "Completed TUI navigation tests"
 ```
 
 ## Testing Workflow
@@ -87,7 +87,7 @@ Test edge cases and error conditions:
 
 ```bash
 # Invalid inputs
-./bc send nonexistent "test"
+./bc agent sendnonexistent "test"
 ./bc agent attach nonexistent
 
 # Empty states
@@ -143,7 +143,7 @@ Your continuous testing cycle:
 
 ```bash
 # Example testing session
-bc report working "Starting test cycle"
+bc agent reportworking "Starting test cycle"
 
 # Build
 go build -o bc ./cmd/bc
@@ -152,14 +152,14 @@ go build -o bc ./cmd/bc
 ./bc status && echo "Smoke tests pass"
 
 # Deep test (pick an area each cycle)
-bc report working "Testing TUI navigation"
+bc agent reportworking "Testing TUI navigation"
 ./bc home
 # ... test TUI ...
 
 # Report findings
 bd create --type bug --title "Bug: TUI cursor wraps incorrectly"
 
-bc report done "Test cycle complete - 1 bug found"
+bc agent reportdone "Test cycle complete - 1 bug found"
 ```
 
 ## Test Areas Checklist
@@ -171,7 +171,7 @@ bc report done "Test cycle complete - 1 bug found"
 - [ ] `bc agent attach <agent>` works
 
 ### Communication
-- [ ] `bc send <agent> <msg>` delivers message
+- [ ] `bc agent send <agent> <msg>` delivers message
 - [ ] `bc channel` commands work
 - [ ] Messages appear in agent sessions
 
@@ -227,10 +227,10 @@ What actually happens.
 
 ```bash
 # Be specific about what you're testing
-bc report working "Testing TUI agent list scrolling"
-bc report working "Verifying fix for bc-123"
-bc report done "TUI tests complete - all navigation working"
-bc report stuck "Need workspace with agents to test status command"
+bc agent reportworking "Testing TUI agent list scrolling"
+bc agent reportworking "Verifying fix for bc-123"
+bc agent reportdone "TUI tests complete - all navigation working"
+bc agent reportstuck "Need workspace with agents to test status command"
 ```
 
 ### Coordination

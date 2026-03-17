@@ -25,10 +25,10 @@ echo $BC_AGENT_ID          # Your agent name
 Always report your status so the team knows what you're doing:
 
 ```bash
-bc report working "Implementing login API endpoint"
-bc report working "Writing tests for password hashing"
-bc report stuck "Need clarification on error response format"
-bc report done "Login API implemented and tested"
+bc agent reportworking "Implementing login API endpoint"
+bc agent reportworking "Writing tests for password hashing"
+bc agent reportstuck "Need clarification on error response format"
+bc agent reportdone "Login API implemented and tested"
 ```
 
 ### Getting Help
@@ -36,7 +36,7 @@ bc report done "Login API implemented and tested"
 If you're blocked or need clarification:
 
 ```bash
-bc report stuck "Need database schema for users table"
+bc agent reportstuck "Need database schema for users table"
 # Manager will see this and help you
 ```
 
@@ -69,7 +69,7 @@ git checkout -b $BC_AGENT_ID/bc-34b.5/description
 ### 3. Report You're Working
 
 ```bash
-bc report working "Starting implementation of <task>"
+bc agent reportworking "Starting implementation of <task>"
 ```
 
 ### 4. Implement
@@ -123,7 +123,7 @@ golangci-lint run
 ### 8. Report Done
 
 ```bash
-bc report done "Login API implemented and tested"
+bc agent reportdone "Login API implemented and tested"
 ```
 
 ## Code Quality Standards
@@ -190,7 +190,7 @@ pwd  # Should show $BC_AGENT_WORKTREE
 git checkout -b $BC_AGENT_ID/feature/my-feature
 
 # Report status
-bc report working "Starting my-feature implementation"
+bc agent reportworking "Starting my-feature implementation"
 
 # ... implement ...
 
@@ -198,14 +198,14 @@ bc report working "Starting my-feature implementation"
 git add <files> && git commit -m "Implement my-feature"
 
 # Report done
-bc report done "my-feature complete"
+bc agent reportdone "my-feature complete"
 ```
 
 ### Handling Blockers
 
 ```bash
 # Report you're stuck
-bc report stuck "Need API design decision for error responses"
+bc agent reportstuck "Need API design decision for error responses"
 
 # While waiting, you can:
 # - Work on tests you can write without the decision
@@ -213,7 +213,7 @@ bc report stuck "Need API design decision for error responses"
 # - Review your own code
 
 # When unblocked, report working again
-bc report working "Resuming with clarified requirements"
+bc agent reportworking "Resuming with clarified requirements"
 ```
 
 ### Fixing Review Feedback
@@ -222,7 +222,7 @@ bc report working "Resuming with clarified requirements"
 # Manager sends feedback
 # "Please add rate limiting to the login endpoint"
 
-bc report working "Adding rate limiting per review feedback"
+bc agent reportworking "Adding rate limiting per review feedback"
 
 # Make changes
 # ...
@@ -233,7 +233,7 @@ Addresses review feedback:
 - 5 attempts per minute per IP
 - Returns 429 when exceeded"
 
-bc report done "Rate limiting added"
+bc agent reportdone "Rate limiting added"
 ```
 
 ## Debugging Tips
@@ -299,14 +299,14 @@ Be specific in your status reports:
 
 ```bash
 # Good
-bc report working "Implementing JWT token generation in pkg/auth/token.go"
-bc report done "Login API complete: endpoint, validation, tests all passing"
-bc report stuck "Test failing: mock database not returning expected user"
+bc agent reportworking "Implementing JWT token generation in pkg/auth/token.go"
+bc agent reportdone "Login API complete: endpoint, validation, tests all passing"
+bc agent reportstuck "Test failing: mock database not returning expected user"
 
 # Too vague
-bc report working "Working on auth"
-bc report done "Done"
-bc report stuck "Tests failing"
+bc agent reportworking "Working on auth"
+bc agent reportdone "Done"
+bc agent reportstuck "Tests failing"
 ```
 
 ### Asking Questions
@@ -314,7 +314,7 @@ bc report stuck "Tests failing"
 If you need to ask your manager something:
 
 ```bash
-bc report stuck "Question: Should login endpoint accept username or email?"
+bc agent reportstuck "Question: Should login endpoint accept username or email?"
 ```
 
 The manager will see this and respond.

@@ -129,9 +129,9 @@ func seedAgents(t *testing.T, wsDir string, agents map[string]*agent.Agent) {
 	}
 }
 
-// --- Send command tests ---
+// --- Agent Send command tests ---
 
-func TestSendNoWorkspace(t *testing.T) {
+func TestAgentSendNoWorkspace(t *testing.T) {
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
@@ -143,7 +143,7 @@ func TestSendNoWorkspace(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
-	_, _, err = executeIntegrationCmd("send", "worker-01", "hello")
+	_, _, err = executeIntegrationCmd("agent", "send", "worker-01", "hello")
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
@@ -152,11 +152,11 @@ func TestSendNoWorkspace(t *testing.T) {
 	}
 }
 
-func TestSendAgentNotFound(t *testing.T) {
+func TestAgentSendAgentNotFound(t *testing.T) {
 	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
 
-	_, _, err := executeIntegrationCmd("send", "nonexistent-agent", "hello")
+	_, _, err := executeIntegrationCmd("agent", "send", "nonexistent-agent", "hello")
 	if err == nil {
 		t.Fatal("expected error for missing agent, got nil")
 	}
@@ -165,16 +165,16 @@ func TestSendAgentNotFound(t *testing.T) {
 	}
 }
 
-func TestSendRequiresArgs(t *testing.T) {
-	_, _, err := executeIntegrationCmd("send")
+func TestAgentSendRequiresArgs(t *testing.T) {
+	_, _, err := executeIntegrationCmd("agent", "send")
 	if err == nil {
 		t.Fatal("expected error for missing args, got nil")
 	}
 }
 
-// --- Report command tests ---
+// --- Agent Report command tests ---
 
-func TestReportNoAgentID(t *testing.T) {
+func TestAgentReportNoAgentID(t *testing.T) {
 	// Ensure BC_AGENT_ID is not set
 	orig := os.Getenv("BC_AGENT_ID")
 	if err := os.Unsetenv("BC_AGENT_ID"); err != nil {
@@ -186,7 +186,7 @@ func TestReportNoAgentID(t *testing.T) {
 		}
 	}()
 
-	_, _, err := executeIntegrationCmd("report", "working", "testing")
+	_, _, err := executeIntegrationCmd("agent", "report", "working", "testing")
 	if err == nil {
 		t.Fatal("expected error when BC_AGENT_ID not set, got nil")
 	}
@@ -195,10 +195,10 @@ func TestReportNoAgentID(t *testing.T) {
 	}
 }
 
-func TestReportInvalidState(t *testing.T) {
+func TestAgentReportInvalidState(t *testing.T) {
 	t.Setenv("BC_AGENT_ID", "test-agent")
 
-	_, _, err := executeIntegrationCmd("report", "invalid-state")
+	_, _, err := executeIntegrationCmd("agent", "report", "invalid-state")
 	if err == nil {
 		t.Fatal("expected error for invalid state, got nil")
 	}
@@ -207,7 +207,7 @@ func TestReportInvalidState(t *testing.T) {
 	}
 }
 
-func TestReportNoWorkspace(t *testing.T) {
+func TestAgentReportNoWorkspace(t *testing.T) {
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
@@ -224,7 +224,7 @@ func TestReportNoWorkspace(t *testing.T) {
 	t.Setenv("BC_AGENT_WORKTREE", "")
 	t.Setenv("BC_AGENT_ID", "test-agent")
 
-	_, _, err = executeIntegrationCmd("report", "working", "testing")
+	_, _, err = executeIntegrationCmd("agent", "report", "working", "testing")
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
@@ -233,7 +233,7 @@ func TestReportNoWorkspace(t *testing.T) {
 	}
 }
 
-func TestReportValidStates(t *testing.T) {
+func TestAgentReportValidStates(t *testing.T) {
 	validStates := []string{"idle", "working", "done", "stuck", "error"}
 
 	for _, state := range validStates {
@@ -255,7 +255,7 @@ func TestReportValidStates(t *testing.T) {
 			}
 			defer func() { _ = os.Chdir(origDir) }()
 
-			_, _, err = executeIntegrationCmd("report", state, "test message")
+			_, _, err = executeIntegrationCmd("agent", "report", state, "test message")
 			// Should fail with workspace error, NOT invalid state error
 			if err == nil {
 				t.Fatal("expected workspace error, got nil")
@@ -267,8 +267,8 @@ func TestReportValidStates(t *testing.T) {
 	}
 }
 
-func TestReportRequiresArgs(t *testing.T) {
-	_, _, err := executeIntegrationCmd("report")
+func TestAgentReportRequiresArgs(t *testing.T) {
+	_, _, err := executeIntegrationCmd("agent", "report")
 	if err == nil {
 		t.Fatal("expected error for missing args, got nil")
 	}
@@ -548,7 +548,7 @@ func TestStatsNoWorkspace(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
-	_, _, err = executeIntegrationCmd("stats")
+	_, _, err = executeIntegrationCmd("workspace", "stats")
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
@@ -570,9 +570,9 @@ func TestStatsEmptyWorkspace(t *testing.T) {
 	statsJSON = false
 	statsSave = false
 
-	stdout, _, err := executeIntegrationCmd("stats")
+	stdout, _, err := executeIntegrationCmd("workspace", "stats")
 	if err != nil {
-		t.Fatalf("stats returned error: %v", err)
+		t.Fatalf("workspace stats returned error: %v", err)
 	}
 	if !strings.Contains(stdout, "Workspace Stats") {
 		t.Errorf("expected 'Workspace Stats' header, got: %s", stdout)
@@ -594,9 +594,9 @@ func TestStatsSave(t *testing.T) {
 	statsJSON = false
 	defer func() { statsSave = false }()
 
-	stdout, _, err := executeIntegrationCmd("stats", "--save")
+	stdout, _, err := executeIntegrationCmd("workspace", "stats", "--save")
 	if err != nil {
-		t.Fatalf("stats --save returned error: %v", err)
+		t.Fatalf("workspace stats --save returned error: %v", err)
 	}
 	if !strings.Contains(stdout, "Stats saved") {
 		t.Errorf("expected 'Stats saved' message, got: %s", stdout)
@@ -962,7 +962,7 @@ func TestReportWorkingInWorkspace(t *testing.T) {
 
 	t.Setenv("BC_AGENT_ID", "test-agent")
 
-	stdout, _, err := executeIntegrationCmd("report", "working", "fixing auth bug")
+	stdout, _, err := executeIntegrationCmd("agent", "report", "working", "fixing auth bug")
 	if err != nil {
 		t.Fatalf("report returned error: %v", err)
 	}
@@ -988,7 +988,7 @@ func TestReportDoneInWorkspace(t *testing.T) {
 
 	t.Setenv("BC_AGENT_ID", "test-agent")
 
-	stdout, _, err := executeIntegrationCmd("report", "done", "auth bug fixed")
+	stdout, _, err := executeIntegrationCmd("agent", "report", "done", "auth bug fixed")
 	if err != nil {
 		t.Fatalf("report returned error: %v", err)
 	}
@@ -1038,7 +1038,7 @@ func TestReportStuckInWorkspace(t *testing.T) {
 
 	t.Setenv("BC_AGENT_ID", "test-agent")
 
-	stdout, _, err := executeIntegrationCmd("report", "stuck", "need database credentials")
+	stdout, _, err := executeIntegrationCmd("agent", "report", "stuck", "need database credentials")
 	if err != nil {
 		t.Fatalf("report returned error: %v", err)
 	}
@@ -1113,7 +1113,7 @@ func TestStatsJSON(t *testing.T) {
 	statsSave = false
 	defer func() { statsJSON = false }()
 
-	stdout, _, err := executeIntegrationCmd("stats", "--json")
+	stdout, _, err := executeIntegrationCmd("workspace", "stats", "--json")
 	if err != nil {
 		t.Fatalf("stats --json returned error: %v", err)
 	}
@@ -1192,7 +1192,7 @@ func TestSendToStoppedAgent(t *testing.T) {
 		},
 	})
 
-	_, _, err := executeIntegrationCmd("send", "worker-01", "hello")
+	_, _, err := executeIntegrationCmd("agent", "send", "worker-01", "hello")
 	if err == nil {
 		t.Fatal("expected error for stopped agent, got nil")
 	}

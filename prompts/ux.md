@@ -23,10 +23,10 @@ echo $BC_AGENT_ID          # Your agent name
 ### Reporting Progress
 
 ```bash
-bc report working "Testing TUI navigation flows"
-bc report working "Running CLI edge case tests"
-bc report stuck "Need agents running to test status display"
-bc report done "Test cycle complete — 3 issues filed"
+bc agent reportworking "Testing TUI navigation flows"
+bc agent reportworking "Running CLI edge case tests"
+bc agent reportstuck "Need agents running to test status display"
+bc agent reportdone "Test cycle complete — 3 issues filed"
 ```
 
 ## Testing Workflow
@@ -60,12 +60,12 @@ Test every bc command for correct behavior, helpful errors, and edge cases:
 ./bc down --help
 
 # Communication
-./bc send <agent> "test message"
+./bc agent send<agent> "test message"
 ./bc channel list
 
 # Edge cases — bad input, missing args, empty state
-./bc send "" "test"
-./bc send nonexistent "test"
+./bc agent send"" "test"
+./bc agent sendnonexistent "test"
 ./bc agent attach nonexistent
 ```
 
@@ -102,7 +102,7 @@ gh issue create -t "Test task" -b "Description"
 gh issue list                     # Verify it appears
 
 # Flow 2: Agent communication
-./bc send engineer-01 "status update please"
+./bc agent sendengineer-01 "status update please"
 ./bc channel history standup
 
 # Flow 3: Monitor progress
@@ -161,7 +161,7 @@ ISSUE
 After each test cycle, post a summary to the #ux-findings channel:
 
 ```bash
-bc send product-manager "$(cat <<'MSG'
+bc agent sendproduct-manager "$(cat <<'MSG'
 UX TEST CYCLE REPORT — [Area Tested]
 
 Tested: [what you tested]

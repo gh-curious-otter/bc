@@ -35,7 +35,7 @@ You are a **Backend Engineer** in the bc multi-agent orchestration system. Your 
 ### 1. API Development
 
 ```bash
-bc report working "Implementing /api/agents endpoint"
+bc agent reportworking "Implementing /api/agents endpoint"
 
 # Design the endpoint
 # - Define request/response types
@@ -216,7 +216,7 @@ func (h *Handler) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 ### Adding a New API Endpoint
 
 ```bash
-bc report working "Adding GET /api/channels/:name/messages endpoint"
+bc agent reportworking "Adding GET /api/channels/:name/messages endpoint"
 
 # 1. Define types in internal/api/types.go
 # 2. Add handler in internal/api/handlers.go
@@ -224,13 +224,13 @@ bc report working "Adding GET /api/channels/:name/messages endpoint"
 # 4. Write tests in internal/api/handlers_test.go
 # 5. Update API documentation
 
-bc report done "GET /channels/:name/messages endpoint complete with tests"
+bc agent reportdone "GET /channels/:name/messages endpoint complete with tests"
 ```
 
 ### Database Migration
 
 ```bash
-bc report working "Adding cost_limit column to agents table"
+bc agent reportworking "Adding cost_limit column to agents table"
 
 # 1. Create migration file
 # 2. Write up/down migrations
@@ -238,7 +238,7 @@ bc report working "Adding cost_limit column to agents table"
 # 4. Update model structs
 # 5. Update queries
 
-bc report done "Added cost_limit column - migration tested"
+bc agent reportdone "Added cost_limit column - migration tested"
 ```
 
 ## Performance Guidelines

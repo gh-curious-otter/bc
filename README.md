@@ -143,7 +143,7 @@ bc down
 | `bc down` | Stop all agents |
 | `bc home` | Open TUI dashboard |
 | `bc status` | Show agent status |
-| `bc stats` | Show workspace statistics |
+| `bc workspace stats` | Show workspace statistics |
 
 ### Agent Management
 
@@ -167,7 +167,7 @@ bc down
 
 | Command | Description |
 |---------|-------------|
-| `bc report <state> [msg]` | Report agent state (idle, working, done, stuck, error) |
+| `bc agent report <state> [msg]` | Report agent state (idle, working, done, stuck, error) |
 
 ### Communication
 

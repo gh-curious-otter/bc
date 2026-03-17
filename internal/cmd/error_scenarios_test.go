@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/rpuneet/bc/pkg/channel"
-	"github.com/rpuneet/bc/pkg/team"
 )
 
 // --- Input Validation Tests ---
@@ -292,87 +291,7 @@ func TestNonExistentTeam(t *testing.T) {
 	}
 }
 
-// TestNonExistentDemon tests operations on non-existent demons
-func TestNonExistentDemon(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	tests := []struct {
-		name    string
-		wantErr string
-		args    []string
-	}{
-		{
-			name:    "show non-existent demon",
-			args:    []string{"demon", "show", "nonexistent-demon"},
-			wantErr: "not found",
-		},
-		{
-			name:    "run non-existent demon",
-			args:    []string{"demon", "run", "nonexistent-demon"},
-			wantErr: "not found",
-		},
-		{
-			name:    "enable non-existent demon",
-			args:    []string{"demon", "enable", "nonexistent-demon"},
-			wantErr: "not found",
-		},
-		{
-			name:    "disable non-existent demon",
-			args:    []string{"demon", "disable", "nonexistent-demon"},
-			wantErr: "not found",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, _, err := executeIntegrationCmd(tt.args...)
-			if err == nil {
-				t.Errorf("expected error for %v, got nil", tt.args)
-				return
-			}
-			if !strings.Contains(strings.ToLower(err.Error()), tt.wantErr) {
-				t.Errorf("expected error containing %q, got: %v", tt.wantErr, err)
-			}
-		})
-	}
-}
-
-// TestNonExistentProcess tests operations on non-existent processes
-func TestNonExistentProcess(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	tests := []struct {
-		name    string
-		wantErr string
-		args    []string
-	}{
-		{
-			name:    "logs of non-existent process",
-			args:    []string{"process", "logs", "nonexistent-process"},
-			wantErr: "not found",
-		},
-		{
-			name:    "stop non-existent process",
-			args:    []string{"process", "stop", "nonexistent-process"},
-			wantErr: "not found",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, _, err := executeIntegrationCmd(tt.args...)
-			if err == nil {
-				t.Errorf("expected error for %v, got nil", tt.args)
-				return
-			}
-			if !strings.Contains(strings.ToLower(err.Error()), tt.wantErr) {
-				t.Errorf("expected error containing %q, got: %v", tt.wantErr, err)
-			}
-		})
-	}
-}
+// Deprecated demon and process commands removed in CLI restructure (#1916)
 
 // --- State Violation Tests ---
 
@@ -404,27 +323,6 @@ func TestDuplicateResources(t *testing.T) {
 	}
 }
 
-// TestDuplicateTeam tests creating duplicate teams
-func TestDuplicateTeam(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
-	// Create a team first using the Store API
-	teamStore := team.NewStore(wsDir)
-	if err := teamStore.Init(); err != nil {
-		t.Fatalf("failed to init team store: %v", err)
-	}
-	if _, err := teamStore.Create("duplicate-team"); err != nil {
-		t.Fatalf("failed to create team: %v", err)
-	}
-
-	// Try to create the same team again
-	_, _, err := executeIntegrationCmd("team", "create", "duplicate-team")
-	if err == nil {
-		t.Error("expected error when creating duplicate team, got nil")
-	}
-}
-
 // --- Empty List Tests ---
 
 // TestEmptyLists tests listing resources when none exist
@@ -444,18 +342,7 @@ func TestEmptyLists(t *testing.T) {
 			name: "empty channel list",
 			args: []string{"channel", "list"},
 		},
-		{
-			name: "empty team list",
-			args: []string{"team", "list"},
-		},
-		{
-			name: "empty demon list",
-			args: []string{"demon", "list"},
-		},
-		{
-			name: "empty process list",
-			args: []string{"process", "list"},
-		},
+		// team, demon, process commands removed in CLI restructure (#1916)
 	}
 
 	for _, tt := range tests {

@@ -35,7 +35,7 @@ You are a **Frontend Engineer** in the bc multi-agent orchestration system. Your
 
 ```bash
 # Report starting work
-bc report working "Implementing StatusBadge component"
+bc agent reportworking "Implementing StatusBadge component"
 
 # Create component file
 touch src/components/StatusBadge.tsx
@@ -157,20 +157,20 @@ useInput((input, key) => {
 ### Creating a New Component
 
 ```bash
-bc report working "Creating TableView component"
+bc agent reportworking "Creating TableView component"
 
 # 1. Create component with types
 # 2. Create tests
 # 3. Add to exports
 # 4. Document props
 
-bc report done "TableView component complete with tests"
+bc agent reportdone "TableView component complete with tests"
 ```
 
 ### Fixing UI Bugs
 
 ```bash
-bc report working "Fixing overflow in ChannelView at 80x24"
+bc agent reportworking "Fixing overflow in ChannelView at 80x24"
 
 # 1. Reproduce the bug
 # 2. Add failing test
@@ -178,7 +178,7 @@ bc report working "Fixing overflow in ChannelView at 80x24"
 # 4. Verify test passes
 # 5. Test at multiple sizes
 
-bc report done "Fixed ChannelView overflow - tested at 80x24, 100x30, 120x40"
+bc agent reportdone "Fixed ChannelView overflow - tested at 80x24, 100x30, 120x40"
 ```
 
 ## Performance Guidelines

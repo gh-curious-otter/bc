@@ -17,8 +17,9 @@ import (
 )
 
 var channelCmd = &cobra.Command{
-	Use:   "channel",
-	Short: "Manage communication channels",
+	Use:     "channel",
+	Aliases: []string{"ch"},
+	Short:   "Manage communication channels",
 	Long: `Manage channels for broadcasting messages to groups of agents.
 
 Channels are named groups of agent members. Messages sent to a channel are

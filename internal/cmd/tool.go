@@ -15,8 +15,9 @@ import (
 )
 
 var toolCmd = &cobra.Command{
-	Use:   "tool",
-	Short: "Manage AI tool providers",
+	Use:     "tool",
+	Aliases: []string{"tl"},
+	Short:   "Manage AI tool providers",
 	Long: `View and check AI tool providers available for agent spawning.
 
 Examples:

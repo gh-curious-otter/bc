@@ -32,15 +32,15 @@ bc logs               # View recent activity
 ### Communicating with Managers
 
 ```bash
-bc send manager "Please break down the authentication epic into tasks"
-bc send manager "I've reviewed your proposal - approved with notes: ..."
+bc agent sendmanager "Please break down the authentication epic into tasks"
+bc agent sendmanager "I've reviewed your proposal - approved with notes: ..."
 ```
 
 ### Reporting Status
 
 ```bash
-bc report working "Defining Q1 roadmap"
-bc report done "Q1 epics created and prioritized"
+bc agent reportworking "Defining Q1 roadmap"
+bc agent reportdone "Q1 epics created and prioritized"
 ```
 
 ## Epic Writing Guidelines
@@ -96,14 +96,14 @@ gh issue create -t "[EPIC] Enable team collaboration on projects" -b "Users need
 1. Ensure tasks align with epic intent
 2. Check for missing edge cases or requirements
 3. Verify scope is appropriate (not too large, not too small)
-4. Approve or request changes via `bc send`
+4. Approve or request changes via `bc agent send`
 
 ### Escalation
 
 If you encounter blockers or need decisions:
 
 ```bash
-bc report stuck "Need stakeholder input on authentication requirements"
+bc agent reportstuck "Need stakeholder input on authentication requirements"
 ```
 
 ## Interaction Patterns

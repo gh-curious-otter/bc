@@ -19,7 +19,7 @@ var (
 	reportSeverity     string
 )
 
-var reportCmd = &cobra.Command{
+var agentReportCmd = &cobra.Command{
 	Use:   "report <state> [message]",
 	Short: "Report agent state (called by agents)",
 	Long: `Report the calling agent's current state. This command must be run from within an agent session.
@@ -27,31 +27,31 @@ var reportCmd = &cobra.Command{
 Valid states: idle, working, done, stuck, error
 
 For stuck state, use --reason to provide detailed context:
-  bc report stuck --reason "database connection timeout"
-  bc report stuck --reason "auth fails" --reproduction "login with test user" --severity critical
+  bc agent report stuck --reason "database connection timeout"
+  bc agent report stuck --reason "auth fails" --reproduction "login with test user" --severity critical
 
 Examples:
-  bc report working "fixing auth bug"
-  bc report done "auth bug fixed"
-  bc report stuck "need database credentials"
-  bc report stuck --reason "TUI freezes on channel select" --severity high`,
+  bc agent report working "fixing auth bug"
+  bc agent report done "auth bug fixed"
+  bc agent report stuck "need database credentials"
+  bc agent report stuck --reason "TUI freezes on channel select" --severity high`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: runReport,
 }
 
 func init() {
-	rootCmd.AddCommand(reportCmd)
+	agentCmd.AddCommand(agentReportCmd)
 
 	// Enhanced flags for stuck reports (#675)
-	reportCmd.Flags().StringVar(&reportReason, "reason", "", "Detailed reason for stuck state")
-	reportCmd.Flags().StringVar(&reportReproduction, "reproduction", "", "Steps to reproduce the issue")
-	reportCmd.Flags().StringVar(&reportSeverity, "severity", "medium", "Issue severity (critical, high, medium, low)")
+	agentReportCmd.Flags().StringVar(&reportReason, "reason", "", "Detailed reason for stuck state")
+	agentReportCmd.Flags().StringVar(&reportReproduction, "reproduction", "", "Steps to reproduce the issue")
+	agentReportCmd.Flags().StringVar(&reportSeverity, "severity", "medium", "Issue severity (critical, high, medium, low)")
 }
 
 func runReport(cmd *cobra.Command, args []string) error {
 	agentID := os.Getenv("BC_AGENT_ID")
 	if agentID == "" {
-		return errorAgentNotRunning(fmt.Sprintf("bc report %s", args[0]))
+		return errorAgentNotRunning(fmt.Sprintf("bc agent report %s", args[0]))
 	}
 
 	stateStr := args[0]

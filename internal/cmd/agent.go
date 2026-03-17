@@ -53,8 +53,9 @@ func newAgentManager(ws *workspace.Workspace) *agent.Manager {
 
 // agentCmd is the parent command for all agent operations
 var agentCmd = &cobra.Command{
-	Use:   "agent",
-	Short: "Manage bc agents",
+	Use:     "agent",
+	Aliases: []string{"ag"},
+	Short:   "Manage bc agents",
 	Long: `Manage bc agent lifecycle: create, list, attach, peek, stop, send.
 
 Examples:
@@ -435,7 +436,7 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		// Validate team exists
 		teamStore := team.NewStore(filepath.Join(ws.StateDir(), "teams"))
 		if !teamStore.Exists(agentCreateTeam) {
-			return fmt.Errorf("team %q does not exist. Create it first with: bc team create %s", agentCreateTeam, agentCreateTeam)
+			return fmt.Errorf("team %q does not exist", agentCreateTeam)
 		}
 	}
 
@@ -1348,6 +1349,24 @@ func runAgentSendPattern(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("\nSent to %d of %d matching agents (%d skipped, %d failed)\n", sent, matched, skipped, failed)
 	return nil
+}
+
+// parseRole parses and validates a role string.
+func parseRole(roleStr string) (agent.Role, error) {
+	roleStr = strings.ToLower(strings.TrimSpace(roleStr))
+	if roleStr == "" {
+		return agent.RoleRoot, nil // Default to root if not specified
+	}
+	// "null" role is a special case - represents an agent with no system prompt
+	if roleStr == "null" {
+		return agent.Role("null"), nil
+	}
+	// All roles are now custom - loaded from .bc/roles/<role>.md files
+	// Just validate that the role name is sensible
+	if !isValidRoleName(roleStr) {
+		return "", fmt.Errorf("invalid role name %q (must be alphanumeric with hyphens)", roleStr)
+	}
+	return agent.Role(roleStr), nil
 }
 
 // isValidTeamName validates that a team name is alphanumeric with optional hyphens/underscores.

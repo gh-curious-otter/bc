@@ -13,8 +13,9 @@ import (
 
 // workspaceCmd is the parent command for workspace operations
 var workspaceCmd = &cobra.Command{
-	Use:   "workspace",
-	Short: "Manage bc workspaces",
+	Use:     "workspace",
+	Aliases: []string{"ws"},
+	Short:   "Manage bc workspaces",
 	Long: `Manage bc workspaces: discover, list, switch.
 
 Examples:

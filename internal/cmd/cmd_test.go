@@ -77,9 +77,7 @@ func setupTestWorkspace(t *testing.T) string {
 	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0750); err != nil {
 		t.Fatalf("failed to create .bc/agents: %v", err)
 	}
-	if err := os.MkdirAll(filepath.Join(bcDir, "demons"), 0750); err != nil {
-		t.Fatalf("failed to create .bc/demons: %v", err)
-	}
+	// demons directory removed in CLI restructure (#1916)
 	// Create minimal config.toml for v2 workspace detection
 	configPath := filepath.Join(bcDir, "config.toml")
 	configContent := `[workspace]

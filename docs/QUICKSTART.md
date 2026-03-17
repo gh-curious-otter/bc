@@ -121,9 +121,9 @@ bc channel history eng
 Agents report their status:
 
 ```bash
-bc report working "Implementing login API"
-bc report done "Feature complete"
-bc report stuck "Need database access"
+bc agent reportworking "Implementing login API"
+bc agent reportdone "Feature complete"
+bc agent reportstuck "Need database access"
 ```
 
 ### Cost Tracking
