@@ -3,7 +3,7 @@ import { Box, Text } from 'ink';
 import type { Agent } from '../../types';
 
 /** Available agent actions */
-export type AgentAction = 'start' | 'stop' | 'kill' | 'restart' | 'attach';
+export type AgentAction = 'start' | 'stop' | 'kill' | 'attach';
 
 export interface AgentConfirmDialogProps {
   action: AgentAction;
@@ -29,14 +29,12 @@ export function AgentConfirmDialog({
         return `Stop agent "${agent.name}"?`;
       case 'kill':
         return `Kill agent "${agent.name}"? (force terminate)`;
-      case 'restart':
-        return `Restart agent "${agent.name}"?`;
       default:
         return `${action} agent "${agent.name}"?`;
     }
   };
 
-  // #1847 P2b: destructive actions (kill) use red, caution actions (stop/restart) use yellow
+  // #1847 P2b: destructive actions (kill) use red, caution actions (stop/start) use yellow
   const isDestructive = action === 'kill';
   const borderColor = isDestructive ? 'red' : 'yellow';
 

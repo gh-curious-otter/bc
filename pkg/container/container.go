@@ -258,14 +258,8 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		image = b.imageForTool(toolName)
 	}
 
-	// Let provider customize the command for Docker execution (e.g., claude injects --tmux).
-	if toolName, ok := env["BC_AGENT_TOOL"]; ok && toolName != "" && b.providerRegistry != nil {
-		if p, pOk := b.providerRegistry.Get(toolName); pOk {
-			if cc, ccOk := p.(provider.ContainerCustomizer); ccOk {
-				command = cc.AdjustContainerCommand(command)
-			}
-		}
-	}
+	// NOTE: Provider session customization (e.g., --tmux) is now applied
+	// in agent.Manager.SpawnAgentWithOptions for ALL backends.
 
 	// Run the agent command directly. claude --tmux handles its own tmux session.
 	// Override entrypoint to avoid conflict with Dockerfile ENTRYPOINT.

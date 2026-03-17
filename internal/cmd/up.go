@@ -26,10 +26,14 @@ Examples:
 	RunE: runUp,
 }
 
-var upAgent string
+var (
+	upAgent   string
+	upRuntime string
+)
 
 func init() {
 	upCmd.Flags().StringVar(&upAgent, "agent", "", "Agent type from config (e.g. claude, cursor, cursor-agent, codex)")
+	upCmd.Flags().StringVar(&upRuntime, "runtime", "", "Runtime backend override: tmux or docker")
 	rootCmd.AddCommand(upCmd)
 }
 
@@ -42,7 +46,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Starting bc in %s\n\n", ws.RootDir)
 
-	// Create workspace-scoped agent manager
+	// Create workspace-scoped agent manager (always uses config default)
 	mgr := newAgentManager(ws)
 
 	// Load existing agent state to preserve other agents when starting root
@@ -62,11 +66,16 @@ func runUp(cmd *cobra.Command, args []string) error {
 	// - Existing root with live session → return "already running"
 	// - Existing root with dead session → respawn (recreate tmux)
 	fmt.Print("Starting root... ")
-	coord, err := mgr.SpawnAgent("root", agent.RoleRoot, ws.RootDir)
+	coord, err := mgr.SpawnAgentWithOptions(agent.SpawnOptions{
+		Name:      "root",
+		Role:      agent.RoleRoot,
+		Workspace: ws.RootDir,
+		Runtime:   upRuntime,
+	})
 	if err != nil {
 		fmt.Println("✗")
 		// Check if root is already running
-		if existing := mgr.GetAgent("root"); existing != nil && mgr.Runtime().HasSession(cmd.Context(), existing.Name) {
+		if existing := mgr.GetAgent("root"); existing != nil && mgr.RuntimeForAgent(existing.Name).HasSession(cmd.Context(), existing.Name) {
 			fmt.Printf("\nRoot agent already running!\n")
 			fmt.Printf("  Session: %s\n", existing.Session)
 			fmt.Printf("  State: %s\n", existing.State)
@@ -76,7 +85,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 		}
 		return fmt.Errorf("failed to start root: %w", err)
 	}
-	fmt.Printf("✓ (session: %s)\n", mgr.Runtime().SessionName(coord.Session))
+	fmt.Printf("✓ (session: %s)\n", mgr.RuntimeForAgent(coord.Name).SessionName(coord.Session))
 
 	// Log event
 	logEvent(ws, events.Event{

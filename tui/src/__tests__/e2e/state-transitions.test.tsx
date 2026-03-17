@@ -172,7 +172,7 @@ describe('State Transitions: Error Recovery', () => {
     }
   });
 
-  it('error agent can be stopped and restarted', () => {
+  it('error agent can be stopped and started', () => {
     const flow = ['error', 'stopped', 'starting', 'idle'];
 
     for (let i = 0; i < flow.length - 1; i++) {

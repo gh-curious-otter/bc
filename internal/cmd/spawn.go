@@ -95,7 +95,7 @@ func runSpawn(cmd *cobra.Command, args []string) error {
 		fmt.Println("✗")
 		return fmt.Errorf("failed to spawn %s: %w", agentName, err)
 	}
-	fmt.Printf("✓ (session: %s)\n", mgr.Runtime().SessionName(spawned.Session))
+	fmt.Printf("✓ (session: %s)\n", mgr.RuntimeForAgent(spawned.Name).SessionName(spawned.Session))
 
 	// Log event
 	logEvent(ws, events.Event{

@@ -71,7 +71,7 @@ const helpSections: HelpSection[] = [
     { keys: 'p', desc: 'Peek agent output' },
     { keys: 'x', desc: 'Stop agent' },
     { keys: 'X', desc: 'Kill agent (force)' },
-    { keys: 'R', desc: 'Restart agent' },
+    { keys: 'R', desc: 'Start agent' },
   ]},
   { type: 'section', title: 'Channels', shortcuts: [
     { keys: 'Enter', desc: 'View channel history' },

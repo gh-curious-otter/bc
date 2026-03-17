@@ -30,7 +30,7 @@ export function AgentActions({ agent }: AgentActionsProps): React.ReactElement {
         </>
       )}
       <Text color="green">[R]</Text>
-      <Text dimColor> restart </Text>
+      <Text dimColor> start </Text>
       <Text color="cyan">[Enter]</Text>
       <Text dimColor> attach</Text>
     </Box>
