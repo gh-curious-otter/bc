@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bc-bg: #0f1117;
+  --bc-surface: #1a1d27;
+  --bc-border: #2a2d3a;
+  --bc-text: #e2e4e9;
+  --bc-muted: #6b7280;
+  --bc-accent: #60a5fa;
+  --bc-success: #34d399;
+  --bc-warning: #fbbf24;
+  --bc-error: #f87171;
+
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
