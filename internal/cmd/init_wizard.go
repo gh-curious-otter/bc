@@ -242,6 +242,9 @@ func createWorkspaceFromWizard(state *WizardState) error {
 		_ = reg.Save()
 	}
 
+	// Bootstrap server daemons (non-fatal; warns if Docker unavailable)
+	bootstrapServerDaemons(state.Dir)
+
 	// Print success
 	printWizardSuccess(state)
 	return nil
