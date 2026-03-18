@@ -9,6 +9,8 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
+
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // Store is a SQLite-backed cron job store.
@@ -205,10 +207,12 @@ func (s *Store) RecordRun(ctx context.Context, entry *LogEntry) error {
 	now := time.Now()
 	var nextRunPtr *time.Time
 	var schedule string
-	if err := tx.QueryRowContext(ctx, `SELECT schedule FROM cron_jobs WHERE name = ?`, entry.JobName).Scan(&schedule); err == nil {
-		if t, calcErr := NextRun(schedule, now); calcErr == nil {
-			nextRunPtr = &t
-		}
+	if scanErr := tx.QueryRowContext(ctx, `SELECT schedule FROM cron_jobs WHERE name = ?`, entry.JobName).Scan(&schedule); scanErr != nil {
+		log.Warn("failed to query schedule for next_run", "job", entry.JobName, "error", scanErr)
+	} else if t, calcErr := NextRun(schedule, now); calcErr != nil {
+		log.Warn("failed to compute next_run", "job", entry.JobName, "schedule", schedule, "error", calcErr)
+	} else {
+		nextRunPtr = &t
 	}
 
 	_, err = tx.ExecContext(ctx,
@@ -235,24 +239,33 @@ func (s *Store) RecordManualTrigger(ctx context.Context, name string) error {
 	}
 
 	now := time.Now()
-	nextRun, _ := NextRun(job.Schedule, now)
+	var nextRunPtr *time.Time
+	if t, calcErr := NextRun(job.Schedule, now); calcErr != nil {
+		log.Warn("failed to compute next_run", "job", name, "schedule", job.Schedule, "error", calcErr)
+	} else {
+		nextRunPtr = &t
+	}
 
 	_, err = s.db.ExecContext(ctx,
 		`UPDATE cron_jobs SET last_run = ?, next_run = ?, run_count = run_count + 1 WHERE name = ?`,
-		now, nextRun, name,
+		now, nullTime(nextRunPtr), name,
 	)
 	return err
 }
 
 // GetLogs returns execution history for a job. If last > 0, limits to that many entries.
 func (s *Store) GetLogs(ctx context.Context, jobName string, last int) ([]*LogEntry, error) {
-	q := `SELECT id, job_name, status, duration_ms, cost_usd, output, run_at
-          FROM cron_logs WHERE job_name = ? ORDER BY run_at DESC`
+	// Use a parameterized LIMIT to avoid string-building in SQL queries.
+	// SQLite accepts -1 as "no limit" in the LIMIT clause.
+	limit := -1
 	if last > 0 {
-		q += fmt.Sprintf(" LIMIT %d", last)
+		limit = last
 	}
 
-	rows, err := s.db.QueryContext(ctx, q, jobName)
+	const q = `SELECT id, job_name, status, duration_ms, cost_usd, output, run_at
+          FROM cron_logs WHERE job_name = ? ORDER BY run_at DESC LIMIT ?`
+
+	rows, err := s.db.QueryContext(ctx, q, jobName, limit)
 	if err != nil {
 		return nil, fmt.Errorf("query cron logs: %w", err)
 	}
