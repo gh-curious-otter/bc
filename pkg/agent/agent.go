@@ -899,6 +899,13 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
+	// Write workspace-level Claude Code hook settings so agents emit state events.
+	if wsPath != "" {
+		if err := WriteWorkspaceHookSettings(wsPath); err != nil {
+			log.Debug("failed to write hook settings", "workspace", wsPath, "error", err)
+		}
+	}
+
 	// Start log streaming via pipe-pane
 	agent.LogFile = m.setupLogPipe(name, wsPath)
 
@@ -1953,6 +1960,22 @@ func (m *Manager) Tmux() *tmux.Manager {
 		return tb.TmuxManager()
 	}
 	return nil
+}
+
+// saveAgentStats persists a Docker stats sample via the SQLite store.
+func (m *Manager) saveAgentStats(rec *AgentStatsRecord) error {
+	if m.store == nil {
+		return fmt.Errorf("no store available")
+	}
+	return m.store.SaveStats(rec)
+}
+
+// QueryAgentStats returns up to limit recent stats records for the named agent.
+func (m *Manager) QueryAgentStats(agentName string, limit int) ([]*AgentStatsRecord, error) {
+	if m.store == nil {
+		return nil, fmt.Errorf("no store available")
+	}
+	return m.store.QueryStats(agentName, limit)
 }
 
 // Close closes the SQLite store. Call when done with the manager.
