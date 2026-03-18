@@ -135,7 +135,15 @@ func writeMCPJSON(workspacePath, agentName string, resolved *workspace.ResolvedR
 		if len(def.Env) > 0 {
 			entry.Env = make(map[string]string, len(def.Env))
 			for k, v := range def.Env {
-				entry.Env[k] = resolveSecretValue(v, secrets)
+				// Try to resolve ${secret:NAME} to actual value
+				resolved := resolveSecretValue(v, secrets)
+				if resolved != "" {
+					entry.Env[k] = resolved
+				} else {
+					// Secret not available — use env var reference so Claude Code
+					// can resolve it from the container environment instead
+					entry.Env[k] = "${" + k + "}"
+				}
 			}
 		}
 		cfg.MCPServers[name] = entry
