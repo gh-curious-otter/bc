@@ -73,6 +73,8 @@ func toDTO(a *agent.Agent) agentDTO {
 func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
+		// Reconcile in-memory state with live sessions before listing
+		_ = h.svc.Refresh() //nolint:errcheck // best-effort reconciliation
 		agents, err := h.svc.List(r.Context(), agent.ListOptions{})
 		if err != nil {
 			httpError(w, "list agents: "+err.Error(), http.StatusInternalServerError)

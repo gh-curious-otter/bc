@@ -1578,6 +1578,13 @@ func (m *Manager) RefreshState() error {
 			continue
 		}
 
+		// Correct stale stopped/error state when session is actually alive
+		if a.State == StateStopped || a.State == StateError {
+			a.State = StateIdle
+			a.StartedAt = time.Now()
+			a.UpdatedAt = time.Now()
+		}
+
 		// Capture live task from tmux pane
 		if live := m.captureLiveTask(name); live != "" {
 			a.Task = live
