@@ -3,12 +3,16 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/mcp"
+	pkgmcp "github.com/rpuneet/bc/pkg/mcp"
 	"github.com/rpuneet/bc/pkg/ui"
+	srvmcp "github.com/rpuneet/bc/server/mcp"
 )
 
 var mcpCmd = &cobra.Command{
@@ -87,6 +91,53 @@ var mcpDisableCmd = &cobra.Command{
 	RunE:  runMCPDisable,
 }
 
+// Issue #1985: bc-as-MCP-server commands
+var mcpServeCmd = &cobra.Command{
+	Use:   "serve",
+	Short: "Start bc as an MCP server",
+	Long: `Start bc as an MCP (Model Context Protocol) server.
+
+AI tools like Claude Code and Cursor can connect to bc via MCP to query
+workspace state and control agents natively.
+
+Default transport is stdio (newline-delimited JSON on stdin/stdout).
+Use --sse to start an HTTP server instead.
+
+Resources exposed:
+  bc://workspace/status   Workspace name, path, and config
+  bc://agents             All agents with state, role, and worktree info
+  bc://channels           All channels with members and message counts
+  bc://costs              Workspace and per-agent cost summaries
+  bc://roles              Role definitions with capabilities
+  bc://tools              Available AI agent tools
+
+Tools available:
+  create_agent     Create a new agent in the workspace
+  send_message     Send a message to a channel
+  report_status    Update an agent's current task
+  query_costs      Query cost usage
+
+Examples:
+  bc mcp serve                    # stdio — use in Claude Code settings.json
+  bc mcp serve --sse              # SSE on :8811
+  bc mcp serve --sse --addr :9000 # SSE on custom port`,
+	RunE: runMCPServe,
+}
+
+var mcpRegisterCmd = &cobra.Command{
+	Use:   "register",
+	Short: "Register bc as an MCP server in agent settings.json",
+	Long: `Automatically add bc to the Claude Code MCP server configuration.
+
+This writes (or updates) the mcp.servers entry in the workspace
+settings.json so that agents automatically have access to bc MCP tools.
+
+Examples:
+  bc mcp register               # Register with stdio transport
+  bc mcp register --sse         # Register with SSE transport`,
+	RunE: runMCPRegister,
+}
+
 // Flags for mcp add.
 var (
 	mcpAddTransport string
@@ -96,6 +147,12 @@ var (
 	mcpAddEnv       []string
 )
 
+// Flags for mcp serve / register.
+var (
+	mcpServeSSE  bool
+	mcpServeAddr string
+)
+
 func init() {
 	mcpAddCmd.Flags().StringVar(&mcpAddTransport, "transport", "stdio", "Transport type (stdio or sse)")
 	mcpAddCmd.Flags().StringVar(&mcpAddCommand, "command", "", "Command to run (for stdio transport)")
@@ -103,21 +160,29 @@ func init() {
 	mcpAddCmd.Flags().StringVar(&mcpAddURL, "url", "", "Server URL (for sse transport)")
 	mcpAddCmd.Flags().StringArrayVar(&mcpAddEnv, "env", nil, "Environment variables (KEY=VALUE, repeatable)")
 
+	mcpServeCmd.Flags().BoolVar(&mcpServeSSE, "sse", false, "Use SSE transport instead of stdio")
+	mcpServeCmd.Flags().StringVar(&mcpServeAddr, "addr", ":8811", "Address to listen on (SSE mode only)")
+
+	mcpRegisterCmd.Flags().BoolVar(&mcpServeSSE, "sse", false, "Register SSE transport endpoint")
+	mcpRegisterCmd.Flags().StringVar(&mcpServeAddr, "addr", ":8811", "SSE server address to register")
+
 	mcpCmd.AddCommand(mcpAddCmd)
 	mcpCmd.AddCommand(mcpListCmd)
 	mcpCmd.AddCommand(mcpShowCmd)
 	mcpCmd.AddCommand(mcpRemoveCmd)
 	mcpCmd.AddCommand(mcpEnableCmd)
 	mcpCmd.AddCommand(mcpDisableCmd)
+	mcpCmd.AddCommand(mcpServeCmd)
+	mcpCmd.AddCommand(mcpRegisterCmd)
 	rootCmd.AddCommand(mcpCmd)
 }
 
-func openMCPStore() (*mcp.Store, error) {
+func openMCPStore() (*pkgmcp.Store, error) {
 	ws, err := getWorkspace()
 	if err != nil {
 		return nil, errNotInWorkspace(err)
 	}
-	return mcp.NewStore(ws.RootDir)
+	return pkgmcp.NewStore(ws.RootDir)
 }
 
 func runMCPAdd(cmd *cobra.Command, args []string) error {
@@ -126,7 +191,7 @@ func runMCPAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("server name %q contains invalid characters (use letters, numbers, dash, underscore)", name)
 	}
 
-	transport := mcp.Transport(mcpAddTransport)
+	transport := pkgmcp.Transport(mcpAddTransport)
 
 	// Parse env vars
 	env := make(map[string]string)
@@ -144,7 +209,7 @@ func runMCPAdd(cmd *cobra.Command, args []string) error {
 		serverArgs = strings.Split(mcpAddArgs, ",")
 	}
 
-	cfg := &mcp.ServerConfig{
+	cfg := &pkgmcp.ServerConfig{
 		Name:      name,
 		Transport: transport,
 		Command:   mcpAddCommand,
@@ -186,7 +251,7 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 	}
 	if jsonOutput {
 		response := struct {
-			Servers []*mcp.ServerConfig `json:"servers"`
+			Servers []*pkgmcp.ServerConfig `json:"servers"`
 		}{Servers: configs}
 		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")
@@ -203,7 +268,7 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 	table := ui.NewTable("NAME", "TRANSPORT", "COMMAND/URL", "ENABLED")
 	for _, cfg := range configs {
 		target := cfg.Command
-		if cfg.Transport == mcp.TransportSSE {
+		if cfg.Transport == pkgmcp.TransportSSE {
 			target = cfg.URL
 		}
 		enabled := "yes"
@@ -342,5 +407,115 @@ func runMCPDisable(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Disabled MCP server %q\n", name)
+	return nil
+}
+
+// ─── bc mcp serve (#1985) ─────────────────────────────────────────────────────
+
+func runMCPServe(cmd *cobra.Command, _ []string) error {
+	ctx := cmd.Context()
+
+	ws, err := requireWorkspace()
+	if err != nil {
+		return err
+	}
+
+	srv, err := srvmcp.New(srvmcp.Config{
+		Workspace: ws,
+		Version:   version,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create MCP server: %w", err)
+	}
+	defer srv.Close() //nolint:errcheck
+
+	if mcpServeSSE {
+		fmt.Fprintf(os.Stderr, "bc MCP server listening on %s (SSE transport)\n", mcpServeAddr)
+		fmt.Fprintf(os.Stderr, "  Connect via: http://%s/sse\n", mcpServeAddr)
+		return srv.ServeSSE(ctx, mcpServeAddr)
+	}
+
+	// stdio transport — don't write to stdout (it's the protocol stream)
+	fmt.Fprintf(os.Stderr, "bc MCP server ready (stdio transport)\n")
+	return srv.ServeStdio(ctx)
+}
+
+// ─── bc mcp register (#1985) ──────────────────────────────────────────────────
+
+func runMCPRegister(cmd *cobra.Command, _ []string) error {
+	ws, err := requireWorkspace()
+	if err != nil {
+		return err
+	}
+
+	settingsPath := filepath.Join(ws.StateDir(), "settings.json")
+
+	// Load or create settings
+	settings := map[string]any{}
+	if data, readErr := os.ReadFile(settingsPath); readErr == nil { //nolint:gosec // known path
+		if jsonErr := json.Unmarshal(data, &settings); jsonErr != nil {
+			return fmt.Errorf("failed to parse settings.json: %w", jsonErr)
+		}
+	}
+
+	// Build MCP server entry
+	var mcpEntry map[string]any
+	if mcpServeSSE {
+		mcpEntry = map[string]any{
+			"name":      "bc",
+			"transport": "sse",
+			"url":       "http://" + mcpServeAddr + "/sse",
+		}
+	} else {
+		bcPath, lookErr := exec.LookPath("bc")
+		if lookErr != nil {
+			bcPath = "bc"
+		}
+		mcpEntry = map[string]any{
+			"name":    "bc",
+			"command": bcPath,
+			"args":    []string{"mcp", "serve"},
+		}
+	}
+
+	// Update mcp.servers in settings
+	mcpSection, _ := settings["mcp"].(map[string]any)
+	if mcpSection == nil {
+		mcpSection = map[string]any{}
+	}
+
+	servers, _ := mcpSection["servers"].([]any)
+	updated := false
+	for i, s := range servers {
+		if m, ok := s.(map[string]any); ok && m["name"] == "bc" {
+			servers[i] = mcpEntry
+			updated = true
+			break
+		}
+	}
+	if !updated {
+		servers = append(servers, mcpEntry)
+	}
+
+	mcpSection["servers"] = servers
+	settings["mcp"] = mcpSection
+
+	data, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal settings: %w", err)
+	}
+
+	if writeErr := os.WriteFile(settingsPath, data, 0600); writeErr != nil { //nolint:gosec // 0600 is correct for settings
+		return fmt.Errorf("failed to write settings.json: %w", writeErr)
+	}
+
+	transport := "stdio"
+	if mcpServeSSE {
+		transport = "sse (" + mcpServeAddr + ")"
+	}
+	fmt.Printf("✓ Registered bc MCP server in %s\n", settingsPath)
+	fmt.Printf("  Transport: %s\n", transport)
+	fmt.Println("\nAgents will automatically have access to bc MCP tools.")
+
 	return nil
 }
