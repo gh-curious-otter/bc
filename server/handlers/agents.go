@@ -21,7 +21,13 @@ func NewAgentHandler(svc *agent.AgentService) *AgentHandler {
 }
 
 // Register mounts agent routes on mux.
+// Exact-path routes must be registered before the prefix route "/api/agents/".
 func (h *AgentHandler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("/api/agents/generate-name", h.generateName)
+	mux.HandleFunc("/api/agents/broadcast", h.broadcast)
+	mux.HandleFunc("/api/agents/send-role", h.sendRole)
+	mux.HandleFunc("/api/agents/send-pattern", h.sendPattern)
+	mux.HandleFunc("/api/agents/stop-all", h.stopAll)
 	mux.HandleFunc("/api/agents", h.list)
 	mux.HandleFunc("/api/agents/", h.byName)
 }
@@ -205,7 +211,129 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, records)
 
+	case r.Method == http.MethodPost && action == "rename":
+		var req struct {
+			NewName string `json:"new_name"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if err := h.svc.Rename(r.Context(), name, req.NewName); err != nil {
+			httpError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "renamed", "name": req.NewName})
+
+	case r.Method == http.MethodGet && action == "peek":
+		lines := 500
+		if lStr := r.URL.Query().Get("lines"); lStr != "" {
+			if n, err := strconv.Atoi(lStr); err == nil && n > 0 {
+				lines = n
+			}
+		}
+		output, err := h.svc.Peek(r.Context(), name, lines)
+		if err != nil {
+			httpError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"output": output})
+
+	case r.Method == http.MethodGet && action == "sessions":
+		sessions, err := h.svc.Sessions(r.Context(), name)
+		if err != nil {
+			httpError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if sessions == nil {
+			sessions = []agent.SessionEntry{}
+		}
+		writeJSON(w, http.StatusOK, sessions)
+
 	default:
 		httpError(w, "not found", http.StatusNotFound)
 	}
+}
+
+func (h *AgentHandler) generateName(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	name, err := h.svc.GenerateName(r.Context())
+	if err != nil {
+		httpError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"name": name})
+}
+
+func (h *AgentHandler) broadcast(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	var req struct {
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	sent, err := h.svc.Broadcast(r.Context(), req.Message)
+	if err != nil {
+		httpError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"sent": sent})
+}
+
+func (h *AgentHandler) sendRole(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	var req struct {
+		Role    string `json:"role"`
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	result, err := h.svc.SendToRole(r.Context(), req.Role, req.Message)
+	if err != nil {
+		httpError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *AgentHandler) sendPattern(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	var req struct {
+		Pattern string `json:"pattern"`
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	result, err := h.svc.SendToPattern(r.Context(), req.Pattern, req.Message)
+	if err != nil {
+		httpError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *AgentHandler) stopAll(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	stopped, err := h.svc.StopAll(r.Context())
+	if err != nil {
+		httpError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"stopped": stopped})
 }

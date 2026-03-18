@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/cron"
 	"github.com/rpuneet/bc/pkg/ui"
 )
@@ -180,18 +181,6 @@ func init() {
 	rootCmd.AddCommand(cronCmd)
 }
 
-func openCronStore() (*cron.Store, error) {
-	ws, err := getWorkspace()
-	if err != nil {
-		return nil, errNotInWorkspace(err)
-	}
-	store, err := cron.Open(ws.RootDir)
-	if err != nil {
-		return nil, fmt.Errorf("open cron store: %w", err)
-	}
-	return store, nil
-}
-
 func runCronAdd(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	if !validIdentifier(name) {
@@ -207,13 +196,12 @@ func runCronAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid schedule: %w", err)
 	}
 
-	store, err := openCronStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer store.Close() //nolint:errcheck // best-effort
 
-	job := &cron.Job{
+	job := &client.CronJob{
 		Name:      name,
 		Schedule:  cronAddSchedule,
 		AgentName: cronAddAgent,
@@ -222,15 +210,9 @@ func runCronAdd(cmd *cobra.Command, args []string) error {
 		Enabled:   !cronAddDisabled,
 	}
 
-	if err := store.AddJob(cmd.Context(), job); err != nil {
-		return fmt.Errorf("add cron job: %w", err)
-	}
-
-	// Fetch to show computed next_run
-	added, err := store.GetJob(cmd.Context(), name)
-	if err != nil || added == nil {
-		fmt.Printf("✓ cron job %q added\n", name)
-		return nil
+	added, addErr := c.Cron.Add(cmd.Context(), job)
+	if addErr != nil {
+		return fmt.Errorf("add cron job: %w", addErr)
 	}
 
 	fmt.Printf("✓ cron job %q added\n", name)
@@ -242,15 +224,14 @@ func runCronAdd(cmd *cobra.Command, args []string) error {
 }
 
 func runCronList(cmd *cobra.Command, args []string) error {
-	store, err := openCronStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer store.Close() //nolint:errcheck // best-effort
 
-	jobs, err := store.ListJobs(cmd.Context())
-	if err != nil {
-		return fmt.Errorf("list cron jobs: %w", err)
+	jobs, listErr := c.Cron.List(cmd.Context())
+	if listErr != nil {
+		return fmt.Errorf("list cron jobs: %w", listErr)
 	}
 
 	if cronListJSON {
@@ -272,29 +253,25 @@ func runCronList(cmd *cobra.Command, args []string) error {
 		if j.NextRun != nil {
 			nextRun = formatRelTime(*j.NextRun)
 		}
-		agent := j.AgentName
-		if agent == "" {
-			agent = "(shell)"
+		agentName := j.AgentName
+		if agentName == "" {
+			agentName = "(shell)"
 		}
-		table.AddRow(j.Name, j.Schedule, agent, enabled, nextRun, fmt.Sprintf("%d", j.RunCount))
+		table.AddRow(j.Name, j.Schedule, agentName, enabled, nextRun, fmt.Sprintf("%d", j.RunCount))
 	}
 	table.Print()
 	return nil
 }
 
 func runCronShow(cmd *cobra.Command, args []string) error {
-	store, err := openCronStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer store.Close() //nolint:errcheck // best-effort
 
-	job, err := store.GetJob(cmd.Context(), args[0])
-	if err != nil {
-		return fmt.Errorf("get cron job: %w", err)
-	}
-	if job == nil {
-		return fmt.Errorf("cron job %q not found", args[0])
+	job, getErr := c.Cron.Get(cmd.Context(), args[0])
+	if getErr != nil {
+		return fmt.Errorf("get cron job: %w", getErr)
 	}
 
 	if cronShowJSON {
@@ -306,7 +283,9 @@ func runCronShow(cmd *cobra.Command, args []string) error {
 		"Schedule", job.Schedule,
 		"Enabled", boolStr(job.Enabled),
 		"Run Count", fmt.Sprintf("%d", job.RunCount),
-		"Created", job.CreatedAt.Format(time.RFC3339),
+	}
+	if job.CreatedAt != nil {
+		pairs = append(pairs, "Created", job.CreatedAt.Format(time.RFC3339))
 	}
 	if job.AgentName != "" {
 		pairs = append(pairs, "Agent", job.AgentName)
@@ -329,13 +308,12 @@ func runCronShow(cmd *cobra.Command, args []string) error {
 }
 
 func runCronRemove(cmd *cobra.Command, args []string) error {
-	store, err := openCronStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer store.Close() //nolint:errcheck // best-effort
 
-	if err := store.DeleteJob(cmd.Context(), args[0]); err != nil {
+	if err := c.Cron.Delete(cmd.Context(), args[0]); err != nil {
 		return err
 	}
 	fmt.Printf("✓ cron job %q removed\n", args[0])
@@ -343,13 +321,12 @@ func runCronRemove(cmd *cobra.Command, args []string) error {
 }
 
 func runCronEnable(cmd *cobra.Command, args []string) error {
-	store, err := openCronStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer store.Close() //nolint:errcheck // best-effort
 
-	if err := store.SetEnabled(cmd.Context(), args[0], true); err != nil {
+	if err := c.Cron.Enable(cmd.Context(), args[0]); err != nil {
 		return err
 	}
 	fmt.Printf("✓ cron job %q enabled\n", args[0])
@@ -357,13 +334,12 @@ func runCronEnable(cmd *cobra.Command, args []string) error {
 }
 
 func runCronDisable(cmd *cobra.Command, args []string) error {
-	store, err := openCronStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer store.Close() //nolint:errcheck // best-effort
 
-	if err := store.SetEnabled(cmd.Context(), args[0], false); err != nil {
+	if err := c.Cron.Disable(cmd.Context(), args[0]); err != nil {
 		return err
 	}
 	fmt.Printf("✓ cron job %q disabled\n", args[0])
@@ -371,25 +347,19 @@ func runCronDisable(cmd *cobra.Command, args []string) error {
 }
 
 func runCronRun(cmd *cobra.Command, args []string) error {
-	store, err := openCronStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer store.Close() //nolint:errcheck // best-effort
 
-	job, err := store.GetJob(cmd.Context(), args[0])
-	if err != nil {
-		return fmt.Errorf("get cron job: %w", err)
-	}
-	if job == nil {
-		return fmt.Errorf("cron job %q not found", args[0])
-	}
-	if !job.Enabled {
-		return fmt.Errorf("cron job %q is disabled — enable it first with: bc cron enable %s", args[0], args[0])
+	// Fetch job info first for display
+	job, getErr := c.Cron.Get(cmd.Context(), args[0])
+	if getErr != nil {
+		return fmt.Errorf("get cron job: %w", getErr)
 	}
 
-	if err := store.RecordManualTrigger(cmd.Context(), args[0]); err != nil {
-		return fmt.Errorf("record trigger: %w", err)
+	if runErr := c.Cron.Run(cmd.Context(), args[0]); runErr != nil {
+		return fmt.Errorf("trigger cron job: %w", runErr)
 	}
 
 	fmt.Printf("✓ triggered cron job %q\n", args[0])
@@ -405,24 +375,14 @@ func runCronRun(cmd *cobra.Command, args []string) error {
 }
 
 func runCronLogs(cmd *cobra.Command, args []string) error {
-	store, err := openCronStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer store.Close() //nolint:errcheck // best-effort
 
-	// Verify job exists
-	job, err := store.GetJob(cmd.Context(), args[0])
-	if err != nil {
-		return fmt.Errorf("get cron job: %w", err)
-	}
-	if job == nil {
-		return fmt.Errorf("cron job %q not found", args[0])
-	}
-
-	entries, err := store.GetLogs(cmd.Context(), args[0], cronLogsLast)
-	if err != nil {
-		return fmt.Errorf("get cron logs: %w", err)
+	entries, logsErr := c.Cron.Logs(cmd.Context(), args[0], cronLogsLast)
+	if logsErr != nil {
+		return fmt.Errorf("get cron logs: %w", logsErr)
 	}
 
 	if cronLogsJSON {
@@ -437,11 +397,11 @@ func runCronLogs(cmd *cobra.Command, args []string) error {
 	table := ui.NewTable("RUN AT", "STATUS", "DURATION", "COST")
 	for _, e := range entries {
 		dur := fmt.Sprintf("%dms", e.DurationMS)
-		cost := "-"
+		costStr := "-"
 		if e.CostUSD > 0 {
-			cost = fmt.Sprintf("$%.4f", e.CostUSD)
+			costStr = fmt.Sprintf("$%.4f", e.CostUSD)
 		}
-		table.AddRow(e.RunAt.Format("2006-01-02 15:04:05"), e.Status, dur, cost)
+		table.AddRow(e.RunAt.Format("2006-01-02 15:04:05"), e.Status, dur, costStr)
 	}
 	table.Print()
 	return nil
@@ -482,4 +442,3 @@ func truncateStr(s string, max int) string {
 	}
 	return string(runes[:max-1]) + "…"
 }
-

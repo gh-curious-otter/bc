@@ -23,7 +23,7 @@ type EventInfo struct {
 // List returns all events from the daemon.
 func (e *EventsClient) List(ctx context.Context) ([]EventInfo, error) {
 	var evts []EventInfo
-	if err := e.client.get(ctx, "/api/events", &evts); err != nil {
+	if err := e.client.get(ctx, "/api/logs", &evts); err != nil {
 		return nil, err
 	}
 	return evts, nil
@@ -32,7 +32,7 @@ func (e *EventsClient) List(ctx context.Context) ([]EventInfo, error) {
 // ListByAgent returns events for a specific agent.
 func (e *EventsClient) ListByAgent(ctx context.Context, agentName string) ([]EventInfo, error) {
 	var evts []EventInfo
-	if err := e.client.get(ctx, "/api/events?agent="+agentName, &evts); err != nil {
+	if err := e.client.get(ctx, "/api/logs/"+agentName, &evts); err != nil {
 		return nil, err
 	}
 	return evts, nil
@@ -41,7 +41,7 @@ func (e *EventsClient) ListByAgent(ctx context.Context, agentName string) ([]Eve
 // Tail returns the last N events.
 func (e *EventsClient) Tail(ctx context.Context, n int) ([]EventInfo, error) {
 	var evts []EventInfo
-	if err := e.client.get(ctx, fmt.Sprintf("/api/events?tail=%d", n), &evts); err != nil {
+	if err := e.client.get(ctx, fmt.Sprintf("/api/logs?tail=%d", n), &evts); err != nil {
 		return nil, err
 	}
 	return evts, nil

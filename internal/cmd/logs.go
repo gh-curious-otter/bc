@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/events"
+	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/ui"
 )
@@ -91,41 +91,29 @@ func runLogs(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("tail must be a positive number")
 	}
 
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
 	log.Debug("logs command started", "agent", logsAgent, "type", logsType, "since", logsSince, "tail", logsTail)
 
-	eventLog := openEventLog(ws)
-	if eventLog == nil {
-		return fmt.Errorf("failed to open event log")
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
+		return err
 	}
-	defer func() { _ = eventLog.Close() }()
 
-	// Read all events, then filter in sequence
-	evts, err := eventLog.Read()
+	// Fetch events from daemon
+	var evts []client.EventInfo
+	if logsAgent != "" {
+		evts, err = c.Events.ListByAgent(cmd.Context(), logsAgent)
+	} else {
+		evts, err = c.Events.List(cmd.Context())
+	}
 	if err != nil {
 		return fmt.Errorf("failed to read events: %w", err)
-	}
-
-	// Filter by agent
-	if logsAgent != "" {
-		filtered := evts[:0]
-		for _, ev := range evts {
-			if ev.Agent == logsAgent {
-				filtered = append(filtered, ev)
-			}
-		}
-		evts = filtered
 	}
 
 	// Filter by event type
 	if logsType != "" {
 		filtered := evts[:0]
 		for _, ev := range evts {
-			if string(ev.Type) == logsType {
+			if ev.Type == logsType {
 				filtered = append(filtered, ev)
 			}
 		}
@@ -173,6 +161,7 @@ func runLogs(cmd *cobra.Command, args []string) error {
 		return enc.Encode(evts)
 	}
 
+	const messageSentType = "message.sent"
 	for _, ev := range evts {
 		ts := ev.Timestamp.Format("15:04:05")
 		agentStr := ""
@@ -180,7 +169,7 @@ func runLogs(cmd *cobra.Command, args []string) error {
 			agentStr = fmt.Sprintf(" [%s]", ev.Agent)
 		}
 		// For message.sent, show sender → recipient
-		if ev.Type == events.MessageSent && ev.Data != nil {
+		if ev.Type == messageSentType && ev.Data != nil {
 			if recipient, ok := ev.Data["recipient"].(string); ok && recipient != "" {
 				agentStr = fmt.Sprintf(" [%s] → [%s]", ev.Agent, recipient)
 			}

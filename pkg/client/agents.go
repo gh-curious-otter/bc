@@ -41,6 +41,19 @@ type CreateAgentReq struct {
 	EnvFile string `json:"env_file,omitempty"`
 }
 
+// AgentStatsRecord holds a single Docker stats sample for an agent.
+type AgentStatsRecord struct {
+	CollectedAt  time.Time `json:"collected_at"`
+	AgentName    string    `json:"agent_name"`
+	CPUPct       float64   `json:"cpu_pct"`
+	MemUsedMB    float64   `json:"mem_used_mb"`
+	MemLimitMB   float64   `json:"mem_limit_mb"`
+	NetRxMB      float64   `json:"net_rx_mb"`
+	NetTxMB      float64   `json:"net_tx_mb"`
+	BlockReadMB  float64   `json:"block_read_mb"`
+	BlockWriteMB float64   `json:"block_write_mb"`
+}
+
 // SendResultInfo holds the result of a broadcast/role/pattern send.
 type SendResultInfo struct {
 	Matched []string `json:"matched"`
@@ -186,6 +199,16 @@ func (a *AgentsClient) GenerateName(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return result["name"], nil
+}
+
+// Stats returns Docker resource stats samples for an agent.
+func (a *AgentsClient) Stats(ctx context.Context, name string, limit int) ([]*AgentStatsRecord, error) {
+	path := fmt.Sprintf("/api/agents/%s/stats?limit=%d", name, limit)
+	var records []*AgentStatsRecord
+	if err := a.client.get(ctx, path, &records); err != nil {
+		return nil, err
+	}
+	return records, nil
 }
 
 // StopAll stops all running agents. Returns the number of agents stopped.

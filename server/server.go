@@ -24,6 +24,7 @@ import (
 	"github.com/rpuneet/bc/pkg/cost"
 	"github.com/rpuneet/bc/pkg/cron"
 	"github.com/rpuneet/bc/pkg/daemon"
+	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/mcp"
 	"github.com/rpuneet/bc/pkg/secret"
@@ -58,6 +59,7 @@ type Services struct {
 	Secrets      *secret.Store
 	MCP          *mcp.Store
 	Tools        *tool.Store
+	EventLog     events.EventStore
 	WS           *workspace.Workspace
 }
 
@@ -115,6 +117,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	if svc.Tools != nil {
 		handlers.NewToolHandler(svc.Tools).Register(mux)
+	}
+	if svc.EventLog != nil {
+		handlers.NewEventHandler(svc.EventLog).Register(mux)
 	}
 	if svc.WS != nil {
 		handlers.NewWorkspaceHandler(svc.Agents, svc.WS).Register(mux)
