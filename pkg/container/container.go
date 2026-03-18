@@ -161,11 +161,11 @@ func (b *Backend) HasSession(ctx context.Context, name string) bool {
 		return false
 	}
 
-	// Also verify the tmux session inside the container is alive.
-	// `claude --tmux` creates a session named "workspace0".
-	// If it's dead (zombie), treat the whole session as gone.
+	// Also verify at least one tmux session is alive inside the container.
+	// Claude --tmux creates sessions with varying names (workspace0, workspace_worktree-*).
+	// If all tmux sessions are dead (zombie), treat the container as gone.
 	//nolint:gosec // trusted
-	tmuxCheck := exec.CommandContext(ctx, "docker", "exec", cn, "tmux", "has-session", "-t", "workspace0")
+	tmuxCheck := exec.CommandContext(ctx, "docker", "exec", cn, "tmux", "list-sessions")
 	return tmuxCheck.Run() == nil
 }
 
