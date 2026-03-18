@@ -242,8 +242,13 @@ func (s *AgentService) Send(ctx context.Context, name, message string) error {
 	if a == nil {
 		return fmt.Errorf("agent %q not found", name)
 	}
+	// Reconcile stale state: if marked stopped but session is alive, correct it
 	if a.State == StateStopped {
-		return fmt.Errorf("agent %q is stopped", name)
+		if s.manager.RuntimeForAgent(name).HasSession(ctx, name) {
+			a.State = StateIdle
+		} else {
+			return fmt.Errorf("agent %q is stopped", name)
+		}
 	}
 	return s.manager.SendToAgent(name, message)
 }
