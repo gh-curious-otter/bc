@@ -132,7 +132,7 @@ var agentPeekCmd = &cobra.Command{
 	Long: `Capture and display recent output from an agent's session.
 
 Examples:
-  bc agent peek eng-01              # Show last 50 lines
+  bc agent peek eng-01              # Show last 500 lines
   bc agent peek eng-01 --lines 100  # Show last 100 lines
   bc agent peek eng-01 --follow     # Stream live output (Ctrl+C to stop)`,
 	Args: cobra.ExactArgs(1),
@@ -353,7 +353,7 @@ func init() {
 	agentShowCmd.Flags().BoolVar(&agentShowFull, "full", false, "Include full agent data including prompts (with --json)")
 
 	// Peek flags
-	agentPeekCmd.Flags().IntVar(&agentPeekLines, "lines", 50, "Number of lines to show")
+	agentPeekCmd.Flags().IntVar(&agentPeekLines, "lines", 500, "Number of lines to show")
 	agentPeekCmd.Flags().BoolVarP(&agentPeekFollow, "follow", "f", false, "Stream live output (like tail -f)")
 
 	// Stop flags
