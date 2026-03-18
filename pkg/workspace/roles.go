@@ -59,12 +59,35 @@ type RoleManager struct {
 	rolesDir string
 }
 
+// DefaultBaseRole is the foundational role all other roles inherit from.
+// It provides the bc MCP server so every agent can communicate with the workspace.
+const DefaultBaseRole = `---
+name: base
+description: Base role — provides bc MCP server to all agents
+mcp_servers:
+  - bc
+prompt_start: |
+  Report your status using the report_status MCP tool.
+---
+
+# Base Agent
+
+You are an agent in a bc workspace — an AI agent orchestration system.
+
+## MCP Tools
+Use bc MCP tools for workspace communication (never use CLI):
+- **send_message**: Send messages to channels {channel, message, sender}
+- **report_status**: Update your current task {agent, task}
+- **query_costs**: Query cost data {agent?}
+`
+
 // DefaultRootRole returns the default content for root.md.
 const DefaultRootRole = `---
 name: root
 description: Root orchestrator — singleton workspace owner
+parent_roles:
+  - base
 mcp_servers:
-  - bc
   - github
 secrets:
   - GITHUB_PERSONAL_ACCESS_TOKEN
@@ -75,14 +98,10 @@ prompt_start: |
 
 # Root Agent
 
-You are the root agent for this bc workspace — an AI agent orchestration system.
+You are the root agent for this bc workspace.
 
-## MCP Tools
-Use bc MCP tools for all workspace operations (never use CLI):
-- **send_message**: Send messages to channels {channel, message, sender}
-- **report_status**: Update your current task {agent, task}
+## Additional MCP Tools
 - **create_agent**: Create new agents {name, role, tool}
-- **query_costs**: Query cost data {agent?}
 
 ## Responsibilities
 - Oversee all workspace operations
@@ -97,23 +116,19 @@ var DefaultRoles = map[string]string{
 	"feature-dev": `---
 name: feature-dev
 description: Feature developer — implements tasks in isolated worktrees
+parent_roles:
+  - base
 mcp_servers:
-  - bc
   - github
 secrets:
   - GITHUB_PERSONAL_ACCESS_TOKEN
 prompt_start: |
   Check #engineering channel for any new assignments or updates.
-  Report your status using the report_status MCP tool.
 ---
 
 # Feature Developer
 
 You implement features, fix bugs, and write tests in an isolated git worktree.
-
-## MCP Tools
-- **send_message**: Post updates to #engineering or #merge channels
-- **report_status**: Keep your task status current
 
 ## Workflow
 1. Read the assigned issue, create a feature branch (feat/<issue>-<slug>)
@@ -125,11 +140,6 @@ name: go-reviewer
 description: Go code quality reviewer
 parent_roles:
   - feature-dev
-mcp_servers:
-  - bc
-  - github
-secrets:
-  - GITHUB_PERSONAL_ACCESS_TOKEN
 ---
 
 # Go Reviewer
@@ -143,11 +153,6 @@ name: web-reviewer
 description: Web/TypeScript UI reviewer
 parent_roles:
   - feature-dev
-mcp_servers:
-  - bc
-  - github
-secrets:
-  - GITHUB_PERSONAL_ACCESS_TOKEN
 ---
 
 # Web Reviewer
@@ -161,11 +166,6 @@ name: designer
 description: Design system and Web UI specialist
 parent_roles:
   - feature-dev
-mcp_servers:
-  - bc
-  - github
-secrets:
-  - GITHUB_PERSONAL_ACCESS_TOKEN
 ---
 
 # Designer
@@ -176,8 +176,9 @@ CSS/Tailwind changes for the web dashboard. Accessibility is non-negotiable.
 	"product-manager": `---
 name: product-manager
 description: Product coordination and epic management
+parent_roles:
+  - base
 mcp_servers:
-  - bc
   - github
 secrets:
   - GITHUB_PERSONAL_ACCESS_TOKEN
@@ -193,11 +194,6 @@ name: docs
 description: Documentation writer
 parent_roles:
   - feature-dev
-mcp_servers:
-  - bc
-  - github
-secrets:
-  - GITHUB_PERSONAL_ACCESS_TOKEN
 ---
 
 # Documentation Writer
@@ -248,24 +244,28 @@ func (rm *RoleManager) EnsureDefaultRoles() ([]string, error) {
 	return created, nil
 }
 
-// EnsureDefaultRoot creates the default root.md if it doesn't exist.
-// Returns true if the file was created, false if it already existed.
+// EnsureDefaultRoot creates the default root.md and base.md if they don't exist.
+// Returns true if root.md was created, false if it already existed.
 func (rm *RoleManager) EnsureDefaultRoot() (bool, error) {
-	rootPath := filepath.Join(rm.rolesDir, "root.md")
+	if err := rm.EnsureRolesDir(); err != nil {
+		return false, err
+	}
 
-	// Check if file exists
+	// Always ensure base.md exists (root and all roles inherit from it)
+	basePath := filepath.Join(rm.rolesDir, "base.md")
+	if _, err := os.Stat(basePath); os.IsNotExist(err) {
+		if writeErr := os.WriteFile(basePath, []byte(DefaultBaseRole), 0600); writeErr != nil {
+			return false, fmt.Errorf("failed to create base.md: %w", writeErr)
+		}
+	}
+
+	rootPath := filepath.Join(rm.rolesDir, "root.md")
 	if _, err := os.Stat(rootPath); err == nil {
 		return false, nil // Already exists
 	} else if !os.IsNotExist(err) {
 		return false, fmt.Errorf("failed to check root.md: %w", err)
 	}
 
-	// Create roles directory if needed
-	if err := rm.EnsureRolesDir(); err != nil {
-		return false, err
-	}
-
-	// Write default root.md
 	if err := os.WriteFile(rootPath, []byte(DefaultRootRole), 0600); err != nil {
 		return false, fmt.Errorf("failed to create root.md: %w", err)
 	}

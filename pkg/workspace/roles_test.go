@@ -235,9 +235,9 @@ Manager prompt.
 		t.Fatalf("LoadAllRoles failed: %v", err)
 	}
 
-	// Should have engineer, manager, and auto-generated root
-	if len(loadedRoles) != 3 {
-		t.Errorf("Should have 3 roles (engineer, manager, root), got %d", len(loadedRoles))
+	// Should have engineer, manager, auto-generated root, and auto-generated base
+	if len(loadedRoles) != 4 {
+		t.Errorf("Should have 4 roles (engineer, manager, root, base), got %d", len(loadedRoles))
 	}
 
 	if _, ok := loadedRoles["engineer"]; !ok {
