@@ -3,6 +3,7 @@ package mcp
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -186,6 +187,9 @@ func TestAddDuplicate(t *testing.T) {
 	err := s.Add(cfg)
 	if err == nil {
 		t.Fatal("expected error for duplicate add")
+	}
+	if !strings.Contains(err.Error(), "already exists") {
+		t.Errorf("expected 'already exists' error, got: %v", err)
 	}
 }
 

@@ -241,9 +241,17 @@ func runMCPShow(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if jsonOutput {
+		// Mask env values in JSON output to avoid leaking secrets
+		masked := *cfg
+		if len(masked.Env) > 0 {
+			masked.Env = make(map[string]string, len(cfg.Env))
+			for k := range cfg.Env {
+				masked.Env[k] = "***"
+			}
+		}
 		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")
-		return enc.Encode(cfg)
+		return enc.Encode(&masked)
 	}
 
 	enabled := "yes"

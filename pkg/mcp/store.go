@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/rpuneet/bc/pkg/db"
@@ -106,6 +107,9 @@ func (s *Store) Add(cfg *ServerConfig) error {
 		cfg.Name, cfg.Transport, cfg.Command, string(argsJSON), cfg.URL, string(envJSON), cfg.Enabled,
 	)
 	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint") {
+			return fmt.Errorf("mcp server %q already exists (use 'bc mcp remove %s' first)", cfg.Name, cfg.Name)
+		}
 		return fmt.Errorf("add mcp server %q: %w", cfg.Name, err)
 	}
 	return nil
