@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/log"
 )
 
@@ -31,43 +32,28 @@ func init() {
 func runDown(cmd *cobra.Command, args []string) error {
 	log.Debug("down command started", "force", downForce)
 
-	// Find workspace
 	ws, err := getWorkspace()
 	if err != nil {
 		return errNotInWorkspace(err)
 	}
 
-	fmt.Printf("Stopping bc agents in %s\n\n", ws.RootDir)
-
-	// Create agent manager and load state
-	mgr := newAgentManager(ws)
-	if err := mgr.LoadState(); err != nil {
-		log.Warn("failed to load agent state", "error", err)
+	c := client.New("")
+	if pingErr := c.Ping(cmd.Context()); pingErr != nil {
+		return fmt.Errorf("bcd is not running — start it with 'bc up' first\n(%w)", pingErr)
 	}
 
-	agents := mgr.ListAgents()
-	log.Debug("agents to stop", "count", len(agents))
-	if len(agents) == 0 {
+	fmt.Printf("Stopping bc agents in %s\n\n", ws.RootDir)
+
+	stopped, stopErr := c.Workspaces.Down(cmd.Context())
+	if stopErr != nil {
+		return fmt.Errorf("failed to stop agents: %w", stopErr)
+	}
+
+	if stopped == 0 {
 		fmt.Println("No agents running")
 		return nil
 	}
 
-	// Stop all agents
-	for _, a := range agents {
-		log.Debug("stopping agent", "name", a.Name, "state", a.State)
-		fmt.Printf("Stopping %s... ", a.Name)
-		if err := mgr.StopAgent(a.Name); err != nil {
-			log.Debug("agent stop failed", "name", a.Name, "error", err)
-			fmt.Println("✗")
-			fmt.Printf("  Warning: %v\n", err)
-		} else {
-			log.Debug("agent stopped", "name", a.Name)
-			fmt.Println("✓")
-		}
-	}
-
-	fmt.Println()
-	fmt.Println("All agents stopped")
-
+	fmt.Printf("Stopped %d agent(s)\n", stopped)
 	return nil
 }
