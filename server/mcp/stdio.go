@@ -15,7 +15,13 @@ func (s *Server) ServeStdio(ctx context.Context) error {
 	return s.serveStdio(ctx, os.Stdin, os.Stdout)
 }
 
-// serveStdio is the testable inner implementation.
+// ServeStdioRW runs the MCP server using the provided reader/writer instead of
+// os.Stdin/os.Stdout. Useful for testing.
+func (s *Server) ServeStdioRW(ctx context.Context, r io.Reader, w io.Writer) error {
+	return s.serveStdio(ctx, r, w)
+}
+
+// serveStdio is the inner implementation.
 func (s *Server) serveStdio(ctx context.Context, r io.Reader, w io.Writer) error {
 	enc := json.NewEncoder(w)
 	scanner := bufio.NewScanner(r)

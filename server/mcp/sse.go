@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 )
 
@@ -15,13 +16,19 @@ import (
 //   - GET  /sse      — client connects; receives server→client events as SSE
 //   - POST /message  — client sends JSON-RPC requests; response sent via SSE
 //
+// addr must be a host:port pair. If addr is a bare ":port" it is rewritten
+// to "127.0.0.1:port" so the server only listens on localhost — never on all
+// interfaces — which prevents accidental network exposure.
+//
 // The server shuts down cleanly when ctx is cancelled.
 func (s *Server) ServeSSE(ctx context.Context, addr string) error {
-	broker := newSSEBroker()
+	addr = LocalhostAddr(addr)
+
+	broker := NewSSEBroker()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/sse", broker.handleSSE)
-	mux.HandleFunc("/message", s.handleSSEMessage(ctx, broker))
+	mux.HandleFunc("/message", s.HandleSSEMessage(ctx, broker))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"status":"ok","server":"bc-mcp","version":%q}`, s.version)
@@ -44,8 +51,9 @@ func (s *Server) ServeSSE(ctx context.Context, addr string) error {
 	return nil
 }
 
-// handleSSEMessage processes POST /message — client→server direction.
-func (s *Server) handleSSEMessage(ctx context.Context, broker *sseBroker) http.HandlerFunc {
+// HandleSSEMessage processes POST /message — client→server direction.
+// Exported so tests can mount it on their own ServeMux.
+func (s *Server) HandleSSEMessage(ctx context.Context, broker *SSEBroker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -81,16 +89,18 @@ func (s *Server) handleSSEMessage(ctx context.Context, broker *sseBroker) http.H
 
 // ─── SSE broker ───────────────────────────────────────────────────────────────
 
-type sseBroker struct {
+// SSEBroker fans out SSE messages to all connected clients.
+type SSEBroker struct {
 	mu      sync.Mutex
 	clients map[chan []byte]struct{}
 }
 
-func newSSEBroker() *sseBroker {
-	return &sseBroker{clients: make(map[chan []byte]struct{})}
+// NewSSEBroker creates an SSEBroker ready to use.
+func NewSSEBroker() *SSEBroker {
+	return &SSEBroker{clients: make(map[chan []byte]struct{})}
 }
 
-func (b *sseBroker) subscribe() chan []byte {
+func (b *SSEBroker) subscribe() chan []byte {
 	ch := make(chan []byte, 8)
 	b.mu.Lock()
 	b.clients[ch] = struct{}{}
@@ -98,13 +108,13 @@ func (b *sseBroker) subscribe() chan []byte {
 	return ch
 }
 
-func (b *sseBroker) unsubscribe(ch chan []byte) {
+func (b *SSEBroker) unsubscribe(ch chan []byte) {
 	b.mu.Lock()
 	delete(b.clients, ch)
 	b.mu.Unlock()
 }
 
-func (b *sseBroker) send(v any) {
+func (b *SSEBroker) send(v any) {
 	data, err := json.Marshal(v)
 	if err != nil {
 		return
@@ -123,7 +133,7 @@ func (b *sseBroker) send(v any) {
 }
 
 // handleSSE streams server→client events over SSE.
-func (b *sseBroker) handleSSE(w http.ResponseWriter, r *http.Request) {
+func (b *SSEBroker) handleSSE(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
@@ -154,4 +164,14 @@ func (b *sseBroker) handleSSE(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 	}
+}
+
+// LocalhostAddr rewrites a bare ":port" address to "127.0.0.1:port".
+// Explicit host addresses (e.g. "0.0.0.0:8811") are returned unchanged so
+// callers that deliberately want to bind all interfaces can still do so.
+func LocalhostAddr(addr string) string {
+	if strings.HasPrefix(addr, ":") {
+		return "127.0.0.1" + addr
+	}
+	return addr
 }
