@@ -1,0 +1,259 @@
+package mcp
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/workspace"
+)
+
+// Server is a bc MCP server. It owns handles to workspace state and dispatches
+// JSON-RPC 2.0 requests from either stdio or SSE transports.
+type Server struct {
+	ws      *workspace.Workspace
+	agents  *agent.Manager
+	chans   *channel.Store
+	costs   *cost.Store
+	version string
+}
+
+// Config holds the dependencies needed to build a Server.
+type Config struct {
+	Workspace *workspace.Workspace
+	Version   string // bc binary version, e.g. "1.2.3"
+}
+
+// New creates a Server. Call Close when done.
+func New(cfg Config) (*Server, error) {
+	if cfg.Workspace == nil {
+		return nil, fmt.Errorf("workspace is required")
+	}
+
+	// Agent manager (tmux backend; read-only usage)
+	mgr := agent.NewWorkspaceManager(cfg.Workspace.AgentsDir(), cfg.Workspace.RootDir)
+	if err := mgr.LoadState(); err != nil {
+		// Non-fatal: an empty or uninitialized workspace has no agents yet
+		_ = err
+	}
+
+	// Channel store
+	cs := channel.NewStore(cfg.Workspace.RootDir)
+	if err := cs.Load(); err != nil {
+		_ = err // Non-fatal: no channels yet
+	}
+
+	// Cost store
+	costStore := cost.NewStore(cfg.Workspace.RootDir)
+	if err := costStore.Open(); err != nil {
+		_ = err // Non-fatal: no cost data yet
+	}
+
+	v := cfg.Version
+	if v == "" {
+		v = "dev"
+	}
+
+	return &Server{
+		ws:      cfg.Workspace,
+		agents:  mgr,
+		chans:   cs,
+		costs:   costStore,
+		version: v,
+	}, nil
+}
+
+// Close releases resources held by the server.
+func (s *Server) Close() error {
+	if s.costs != nil {
+		return s.costs.Close()
+	}
+	return nil
+}
+
+// Handle processes a single JSON-RPC request and returns the response.
+// For notifications (no ID), the returned Response has a nil ID and no result/error set.
+func (s *Server) Handle(ctx context.Context, req Request) Response {
+	switch req.Method {
+	case "initialize":
+		return s.handleInitialize(req)
+	case "initialized":
+		// Notification — no response needed; caller should discard
+		return Response{}
+	case "resources/list":
+		return s.handleResourcesList(req)
+	case "resources/read":
+		return s.handleResourcesRead(req)
+	case "tools/list":
+		return s.handleToolsList(req)
+	case "tools/call":
+		return s.handleToolsCall(ctx, req)
+	default:
+		return errResponse(req.ID, ErrMethodNotFound,
+			fmt.Sprintf("method not found: %s", req.Method))
+	}
+}
+
+// ─── initialize ──────────────────────────────────────────────────────────────
+
+func (s *Server) handleInitialize(req Request) Response {
+	// Accept any client capabilities — we don't require specific ones.
+	return okResponse(req.ID, initializeResult{
+		ProtocolVersion: ProtocolVersion,
+		Capabilities: serverCapabilities{
+			Resources: &resourcesCapability{},
+			Tools:     &toolsCapability{},
+		},
+		ServerInfo: serverInfo{
+			Name:    "bc",
+			Version: s.version,
+		},
+	})
+}
+
+// ─── resources/list ──────────────────────────────────────────────────────────
+
+func (s *Server) handleResourcesList(req Request) Response {
+	return okResponse(req.ID, resourcesListResult{
+		Resources: definedResources(),
+	})
+}
+
+// definedResources returns the static list of resources this server exposes.
+func definedResources() []Resource {
+	return []Resource{
+		{
+			URI:         "bc://workspace/status",
+			Name:        "Workspace Status",
+			Description: "Workspace name, path, version, and configuration summary",
+			MIMEType:    "application/json",
+		},
+		{
+			URI:         "bc://agents",
+			Name:        "Agents",
+			Description: "All agents with their state, role, tool, and worktree info",
+			MIMEType:    "application/json",
+		},
+		{
+			URI:         "bc://channels",
+			Name:        "Channels",
+			Description: "All channels with members and recent message counts",
+			MIMEType:    "application/json",
+		},
+		{
+			URI:         "bc://costs",
+			Name:        "Costs",
+			Description: "Workspace cost summary and per-agent breakdown",
+			MIMEType:    "application/json",
+		},
+		{
+			URI:         "bc://roles",
+			Name:        "Roles",
+			Description: "Role definitions with capabilities, permissions, and MCP server associations",
+			MIMEType:    "application/json",
+		},
+		{
+			URI:         "bc://tools",
+			Name:        "Tools",
+			Description: "AI agent tools available in this workspace",
+			MIMEType:    "application/json",
+		},
+	}
+}
+
+// ─── resources/read ──────────────────────────────────────────────────────────
+
+func (s *Server) handleResourcesRead(req Request) Response {
+	var p resourcesReadParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return errResponse(req.ID, ErrInvalidParams, "invalid params: "+err.Error())
+	}
+
+	var (
+		content string
+		err     error
+	)
+
+	switch p.URI {
+	case "bc://workspace/status":
+		content, err = s.readWorkspaceStatus()
+	case "bc://agents":
+		content, err = s.readAgents()
+	case "bc://channels":
+		content, err = s.readChannels()
+	case "bc://costs":
+		content, err = s.readCosts()
+	case "bc://roles":
+		content, err = s.readRoles()
+	case "bc://tools":
+		content, err = s.readTools()
+	default:
+		return errResponse(req.ID, ErrInvalidParams, fmt.Sprintf("unknown resource URI: %s", p.URI))
+	}
+
+	if err != nil {
+		return errResponse(req.ID, ErrInternal, err.Error())
+	}
+
+	return okResponse(req.ID, resourcesReadResult{
+		Contents: []ResourceContent{
+			{URI: p.URI, MIMEType: "application/json", Text: content},
+		},
+	})
+}
+
+// ─── tools/list ──────────────────────────────────────────────────────────────
+
+func (s *Server) handleToolsList(req Request) Response {
+	return okResponse(req.ID, toolsListResult{Tools: definedTools()})
+}
+
+// ─── tools/call ──────────────────────────────────────────────────────────────
+
+func (s *Server) handleToolsCall(ctx context.Context, req Request) Response {
+	var p toolsCallParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return errResponse(req.ID, ErrInvalidParams, "invalid params: "+err.Error())
+	}
+
+	var (
+		result *toolsCallResult
+		err    error
+	)
+
+	switch p.Name {
+	case "create_agent":
+		result, err = s.toolCreateAgent(ctx, p.Arguments)
+	case "send_message":
+		result, err = s.toolSendMessage(p.Arguments)
+	case "report_status":
+		result, err = s.toolReportStatus(p.Arguments)
+	case "query_costs":
+		result, err = s.toolQueryCosts(p.Arguments)
+	default:
+		return errResponse(req.ID, ErrInvalidParams, fmt.Sprintf("unknown tool: %s", p.Name))
+	}
+
+	if err != nil {
+		return okResponse(req.ID, toolsCallResult{
+			Content: []ToolContent{textContent(err.Error())},
+			IsError: true,
+		})
+	}
+
+	return okResponse(req.ID, result)
+}
+
+// ─── JSON marshalling helper ──────────────────────────────────────────────────
+
+func marshalJSON(v any) (string, error) {
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(b)), nil
+}
