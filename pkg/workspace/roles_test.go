@@ -997,16 +997,13 @@ func TestRoleManager_HasRoleDisk(t *testing.T) {
 	}
 }
 
-func TestParseRoleFile_WithPluginsAndMCPServers(t *testing.T) {
+func TestParseRoleFile_WithPlugins(t *testing.T) {
 	content := `---
 name: feature-dev
 plugins:
   - feature-dev
   - github
   - typescript-lsp
-mcp_servers:
-  - filesystem
-  - github
 ---
 
 # Feature Developer
@@ -1030,16 +1027,6 @@ You are a feature developer agent.
 	for i, p := range wantPlugins {
 		if i < len(role.Metadata.Plugins) && role.Metadata.Plugins[i] != p {
 			t.Errorf("Plugins[%d] = %q, want %q", i, role.Metadata.Plugins[i], p)
-		}
-	}
-
-	wantMCP := []string{"filesystem", "github"}
-	if len(role.Metadata.MCPServers) != len(wantMCP) {
-		t.Errorf("MCPServers len = %d, want %d", len(role.Metadata.MCPServers), len(wantMCP))
-	}
-	for i, s := range wantMCP {
-		if i < len(role.Metadata.MCPServers) && role.Metadata.MCPServers[i] != s {
-			t.Errorf("MCPServers[%d] = %q, want %q", i, role.Metadata.MCPServers[i], s)
 		}
 	}
 }

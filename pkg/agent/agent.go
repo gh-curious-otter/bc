@@ -941,22 +941,7 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 			}
 
 			// Install role-defined plugins before sending the role prompt.
-			// Each /plugin command is sent as a slash command to Claude Code.
-			if len(bootstrapPlugins) > 0 {
-				time.Sleep(2 * time.Second)
-				for _, plugin := range bootstrapPlugins {
-					if err := rt.SendKeys(context.TODO(), bootstrapName, "/plugin "+plugin); err != nil {
-						log.Warn("failed to install plugin", "agent", bootstrapName, "plugin", plugin, "error", err)
-						break
-					}
-					time.Sleep(2 * time.Second)
-				}
-				// Reload to activate all newly installed plugins at once.
-				if err := rt.SendKeys(context.TODO(), bootstrapName, "/reload-plugins"); err != nil {
-					log.Warn("failed to reload plugins", "agent", bootstrapName, "error", err)
-				}
-				time.Sleep(2 * time.Second)
-			}
+			m.sendPluginBootstrap(bootstrapName, bootstrapPlugins, rt)
 
 			// Then send the actual bootstrap prompt if we have role instructions
 			if len(bootstrapParts) > 0 {
@@ -971,6 +956,28 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 	}
 
 	return agent, nil
+}
+
+// sendPluginBootstrap sends /plugin slash commands for each named plugin then
+// /reload-plugins to activate them. Called from both fresh-create and respawn
+// bootstrap goroutines so the logic stays in one place.
+func (m *Manager) sendPluginBootstrap(agentName string, plugins []string, rt runtime.Backend) {
+	if len(plugins) == 0 {
+		return
+	}
+	time.Sleep(2 * time.Second)
+	for _, plugin := range plugins {
+		if err := rt.SendKeys(context.TODO(), agentName, "/plugin "+plugin); err != nil {
+			log.Warn("failed to install plugin", "agent", agentName, "plugin", plugin, "error", err)
+			break
+		}
+		time.Sleep(2 * time.Second)
+	}
+	// Reload to activate all newly installed plugins at once.
+	if err := rt.SendKeys(context.TODO(), agentName, "/reload-plugins"); err != nil {
+		log.Warn("failed to reload plugins", "agent", agentName, "error", err)
+	}
+	time.Sleep(2 * time.Second)
 }
 
 // sendRespawnBootstrap sends the role prompt to a respawned agent.
@@ -1004,19 +1011,7 @@ func (m *Manager) sendRespawnBootstrap(name string, agent *Agent, workspace stri
 	rt := m.runtimeForAgent(name)
 
 	// Install role-defined plugins before sending the role prompt.
-	if len(plugins) > 0 {
-		for _, plugin := range plugins {
-			if err := rt.SendKeys(context.TODO(), name, "/plugin "+plugin); err != nil {
-				log.Warn("failed to install plugin on respawn", "agent", name, "plugin", plugin, "error", err)
-				break
-			}
-			time.Sleep(2 * time.Second)
-		}
-		if err := rt.SendKeys(context.TODO(), name, "/reload-plugins"); err != nil {
-			log.Warn("failed to reload plugins on respawn", "agent", name, "error", err)
-		}
-		time.Sleep(2 * time.Second)
-	}
+	m.sendPluginBootstrap(name, plugins, rt)
 
 	if len(promptParts) > 0 {
 		prompt := strings.Join(promptParts, "\n\n---\n\n")
