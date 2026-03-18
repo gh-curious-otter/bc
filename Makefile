@@ -1,4 +1,4 @@
-.PHONY: dev build build-release build-all clean gen test coverage bench fmt vet lint check deps help version build-tui test-tui lint-tui build-agent-image build-agent-images
+.PHONY: dev build build-release build-all clean gen test coverage bench fmt vet lint check deps help version build-tui test-tui lint-tui build-agent-base build-agent-image build-agent-images
 
 # Version information
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -110,14 +110,18 @@ lint-tui:
 # Docker agent images (per-provider)
 AGENT_PROVIDERS := claude gemini codex aider opencode openclaw cursor
 
-build-agent-image: build-agent-image-claude
+build-agent-base:
+	@echo "Building bc-agent-base image..."
+	docker build -t bc-agent-base:latest -f docker/Dockerfile.base .
+
+build-agent-image: build-agent-base build-agent-image-claude
 	@echo "Default agent image built (claude)"
 
-build-agent-image-%:
+build-agent-image-%: build-agent-base
 	@echo "Building bc-agent-$* image..."
 	docker build -t bc-agent-$*:latest -f docker/Dockerfile.$* .
 
-build-agent-images:
+build-agent-images: build-agent-base
 	@for p in $(AGENT_PROVIDERS); do \
 		echo "Building bc-agent-$$p..."; \
 		docker build -t bc-agent-$$p:latest -f docker/Dockerfile.$$p . || exit 1; \

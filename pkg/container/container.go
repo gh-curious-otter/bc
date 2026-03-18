@@ -147,16 +147,26 @@ func (b *Backend) tmuxTarget(ctx context.Context, name string) string {
 	return name
 }
 
-// HasSession checks if a container exists and is running.
+// HasSession checks if a container exists, is running, AND has a live tmux
+// session inside. A container with only zombie processes is treated as dead
+// so the caller will respawn it rather than reusing a broken session.
 func (b *Backend) HasSession(ctx context.Context, name string) bool {
 	cn := b.containerName(name)
+
+	// Check container is running
 	//nolint:gosec // trusted
-	cmd := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{.State.Running}}", cn)
-	output, err := cmd.Output()
-	if err != nil {
+	inspect := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{.State.Running}}", cn)
+	out, err := inspect.Output()
+	if err != nil || strings.TrimSpace(string(out)) != "true" {
 		return false
 	}
-	return strings.TrimSpace(string(output)) == "true"
+
+	// Also verify the tmux session inside the container is alive.
+	// `claude --tmux` creates a session named "workspace0".
+	// If it's dead (zombie), treat the whole session as gone.
+	//nolint:gosec // trusted
+	tmuxCheck := exec.CommandContext(ctx, "docker", "exec", cn, "tmux", "has-session", "-t", "workspace0")
+	return tmuxCheck.Run() == nil
 }
 
 // CreateSession creates a new container session.
@@ -177,6 +187,11 @@ func (b *Backend) CreateSessionWithCommand(ctx context.Context, name, dir, comma
 // All interaction happens via `docker exec ... tmux send-keys/capture-pane/attach`.
 func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command string, env map[string]string) error {
 	cn := b.containerName(name)
+
+	// Remove any stale container with the same name before creating a new one.
+	// This prevents "container name already in use" errors on agent restart.
+	//nolint:gosec // trusted
+	_ = exec.CommandContext(ctx, "docker", "rm", "-f", cn).Run() //nolint:errcheck // best-effort cleanup
 
 	args := []string{
 		"run", "-d", "-t",
@@ -204,14 +219,21 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		args = append(args, "-v", dir+":/workspace")
 	}
 
-	// Per-agent auth directory — each agent has its own isolated credentials.
-	// This dir was populated by `claude auth login` on the host before container start.
+	// Per-agent auth — seeded from host credentials on first use so agents start
+	// pre-authenticated without a separate login. Two mounts:
+	//   1. auth/.claude/      → /home/agent/.claude/     (settings + cache)
+	//   2. auth/.claude.json  → /home/agent/.claude.json (primary auth token)
+	// Mounting the token file individually avoids replacing all of /home/agent.
 	authDir, authErr := EnsureAuthDir(b.workspacePath, name)
 	if authErr != nil {
 		log.Debug("failed to create agent auth dir", "agent", name, "error", authErr)
 	}
 	if authErr == nil {
 		args = append(args, "-v", authDir+":/home/agent/.claude")
+		tokenFile := AgentAuthTokenFile(b.workspacePath, name)
+		if _, statErr := os.Stat(tokenFile); statErr == nil {
+			args = append(args, "-v", tokenFile+":/home/agent/.claude.json")
+		}
 	}
 
 	// Read-only host config mounts (git, ssh)

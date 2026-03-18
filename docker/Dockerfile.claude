@@ -1,12 +1,10 @@
-# Claude Code agent image (native binary with syntax highlighting)
+# Claude Code agent image
 # Usage: docker build -t bc-agent-claude:latest -f docker/Dockerfile.claude .
+# Requires: bc-agent-base:latest (docker build -f docker/Dockerfile.base .)
 
-FROM ubuntu:24.04
+FROM bc-agent-base:latest AS base
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        git curl ca-certificates openssh-client gh tmux && \
-    rm -rf /var/lib/apt/lists/*
+USER root
 
 # Install Claude Code native binary (includes syntax highlighting + tree-sitter)
 SHELL ["/bin/bash", "-c"]
@@ -15,7 +13,6 @@ RUN curl -fsSL https://claude.ai/install.sh | bash && \
     chmod +x /usr/local/bin/claude && \
     rm -rf /root/.local/share/claude /root/.claude
 
-RUN useradd -m -s /bin/bash agent
 USER agent
 WORKDIR /workspace
 ENTRYPOINT ["bash", "-c"]

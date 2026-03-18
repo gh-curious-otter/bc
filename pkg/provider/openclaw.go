@@ -5,8 +5,13 @@ import (
 	"strings"
 )
 
-// OpenClawProvider implements the Provider interface for OpenClaw CLI.
-// OpenClaw is an open-source AI coding assistant.
+// OpenClawProvider implements the Provider interface for OpenClaw.
+// OpenClaw is a multi-channel AI gateway that connects to Telegram, Discord,
+// WhatsApp, Slack, and other messaging platforms. It runs as a long-lived
+// WebSocket gateway service, not an interactive CLI session.
+//
+// Setup: `openclaw configure` to set up credentials and channels.
+// Run:   `openclaw gateway` to start the gateway service.
 //
 // Issue #1478: OpenClaw CLI Provider Integration
 type OpenClawProvider struct {
@@ -20,8 +25,8 @@ type OpenClawProvider struct {
 func NewOpenClawProvider() *OpenClawProvider {
 	return &OpenClawProvider{
 		name:        "openclaw",
-		description: "OpenClaw AI Coding Assistant",
-		command:     "openclaw --auto",
+		description: "OpenClaw Multi-Channel AI Gateway (Telegram, Discord, WhatsApp)",
+		command:     "openclaw gateway",
 		binary:      "openclaw",
 	}
 }
@@ -48,12 +53,18 @@ func (p *OpenClawProvider) Binary() string {
 
 // InstallHint returns a human-readable install instruction.
 func (p *OpenClawProvider) InstallHint() string {
-	return "pip install openclaw"
+	return "bun install -g openclaw"
 }
 
 // BuildCommand returns the full command for a given runtime context.
-func (p *OpenClawProvider) BuildCommand(_ CommandOpts) string {
-	return p.command
+// OpenClaw runs as a gateway server — profile isolation per agent prevents
+// config collisions when multiple openclaw agents run in the same workspace.
+func (p *OpenClawProvider) BuildCommand(opts CommandOpts) string {
+	cmd := p.command
+	if opts.AgentName != "" {
+		cmd += " --profile " + opts.AgentName
+	}
+	return cmd
 }
 
 // IsInstalled checks if the provider binary is available.
