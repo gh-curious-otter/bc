@@ -9,7 +9,7 @@ import { Table } from '../components/Table';
 export function Agents() {
   const fetcher = useCallback(async () => {
     const res = await api.listAgents();
-    return res.agents;
+    return res;
   }, []);
   const { data: agents, loading, error, refresh } = usePolling(fetcher, 5000);
   const { subscribe } = useWebSocket();

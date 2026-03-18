@@ -1,4 +1,4 @@
-const BASE = '/api/v1';
+const BASE = '/api';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -52,14 +52,14 @@ export interface AgentCostSummary {
 }
 
 export const api = {
-  listAgents: () => request<{ agents: Agent[] }>('/agents'),
+  listAgents: () => request<Agent[]>('/agents'),
   getAgent: (name: string) => request<Agent>(`/agents/${name}`),
   startAgent: (name: string) => request<Agent>(`/agents/${name}/start`, { method: 'POST' }),
   stopAgent: (name: string) => request<void>(`/agents/${name}/stop`, { method: 'POST' }),
   sendToAgent: (name: string, message: string) =>
     request<void>(`/agents/${name}/send`, { method: 'POST', body: JSON.stringify({ message }) }),
 
-  listChannels: () => request<{ channels: Channel[] }>('/channels'),
+  listChannels: () => request<Channel[]>('/channels'),
   getChannelHistory: (name: string, limit = 50) =>
     request<{ messages: ChannelMessage[] }>(`/channels/${name}/history?limit=${limit}`),
   sendToChannel: (name: string, message: string) =>

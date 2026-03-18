@@ -7,7 +7,7 @@ import { useWebSocket } from '../hooks/useWebSocket';
 export function Channels() {
   const fetcher = useCallback(async () => {
     const res = await api.listChannels();
-    return res.channels;
+    return res;
   }, []);
   const { data: channels, loading, error } = usePolling(fetcher, 10000);
   const [selected, setSelected] = useState<string | null>(null);

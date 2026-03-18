@@ -28,7 +28,7 @@ export function Dashboard() {
       api.listChannels(),
       api.getCostSummary(),
     ]);
-    return { agents: agentsRes.agents, channels: channelsRes.channels, costs };
+    return { agents: agentsRes, channels: channelsRes, costs };
   }, []);
 
   const { data, loading, error } = usePolling(fetcher, 5000);
