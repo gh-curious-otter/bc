@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rpuneet/bc/pkg/db"
 	"github.com/rpuneet/bc/pkg/log"
 )
 
@@ -33,10 +34,10 @@ type Channel struct {
 }
 
 // Store manages channel persistence and operations.
-// When sqlite is non-nil, all operations use SQLite (.bc/channels.db); otherwise JSON (.bc/channels.json).
+// When backend is non-nil (SQLite or Postgres), all operations use it; otherwise JSON (.bc/channels.json).
 type Store struct {
 	channels map[string]*Channel
-	sqlite   *SQLiteStore // when set, use SQLite backend (unified with bc up)
+	backend  ChannelBackend // SQLiteStore or PostgresStore; nil = JSON fallback
 	path     string
 	mu       sync.RWMutex
 }
@@ -49,10 +50,31 @@ func NewStore(workspacePath string) *Store {
 	}
 }
 
-// OpenStore opens the channel store for the workspace: uses SQLite when .bc/channels.db exists,
-// otherwise falls back to JSON. This unifies CLI/TUI with bc up (which creates SQLite channels).
-// Part of #341 / #340: fix messages reaching channel by using the same store as bc up.
+// OpenStore opens the channel store for the workspace.
+// Priority: DATABASE_URL (Postgres) > .bc/channels.db (SQLite) > JSON fallback.
 func OpenStore(workspacePath string) (*Store, error) {
+	// Try Postgres first when DATABASE_URL is set
+	if db.IsPostgresEnabled() {
+		pgDB, err := db.TryOpenPostgres()
+		if err != nil {
+			log.Warn("failed to connect to Postgres, falling back to SQLite", "error", err)
+		} else if pgDB != nil {
+			pg := NewPostgresStore(pgDB)
+			if schemaErr := pg.InitSchema(); schemaErr != nil {
+				_ = pg.Close()
+				log.Warn("failed to init Postgres channel schema, falling back to SQLite", "error", schemaErr)
+			} else {
+				log.Debug("channel store: using Postgres backend")
+				return &Store{
+					path:     filepath.Join(workspacePath, ".bc", "channels.json"),
+					channels: make(map[string]*Channel),
+					backend:  pg,
+				}, nil
+			}
+		}
+	}
+
+	// Fall back to SQLite if .bc/channels.db exists
 	dbPath := filepath.Join(workspacePath, ".bc", "channels.db")
 	if _, err := os.Stat(dbPath); err == nil {
 		s := NewSQLiteStore(workspacePath)
@@ -62,7 +84,7 @@ func OpenStore(workspacePath string) (*Store, error) {
 		return &Store{
 			path:     filepath.Join(workspacePath, ".bc", "channels.json"),
 			channels: make(map[string]*Channel),
-			sqlite:   s,
+			backend:  s,
 		}, nil
 	}
 	return NewStore(workspacePath), nil
@@ -70,7 +92,7 @@ func OpenStore(workspacePath string) (*Store, error) {
 
 // Load reads channels from disk. When using SQLite backend, Load is a no-op (data read on demand).
 func (s *Store) Load() error {
-	if s.sqlite != nil {
+	if s.backend != nil {
 		return nil
 	}
 	s.mu.Lock()
@@ -100,7 +122,7 @@ func (s *Store) Load() error {
 
 // Save writes channels to disk. When using SQLite backend, Save is a no-op (writes are immediate).
 func (s *Store) Save() error {
-	if s.sqlite != nil {
+	if s.backend != nil {
 		return nil
 	}
 	s.mu.RLock()
@@ -143,16 +165,16 @@ func (s *Store) Save() error {
 // Close closes the underlying database connection.
 // Safe to call on JSON-backed stores (no-op).
 func (s *Store) Close() error {
-	if s.sqlite != nil {
-		return s.sqlite.Close()
+	if s.backend != nil {
+		return s.backend.Close()
 	}
 	return nil
 }
 
 // Create creates a new channel with the given name.
 func (s *Store) Create(name string) (*Channel, error) {
-	if s.sqlite != nil {
-		info, err := s.sqlite.CreateChannel(name, ChannelTypeGroup, "")
+	if s.backend != nil {
+		info, err := s.backend.CreateChannel(name, ChannelTypeGroup, "")
 		if err != nil {
 			return nil, err
 		}
@@ -170,16 +192,16 @@ func (s *Store) Create(name string) (*Channel, error) {
 
 // Get returns a channel by name.
 func (s *Store) Get(name string) (*Channel, bool) {
-	if s.sqlite != nil {
-		info, err := s.sqlite.GetChannel(name)
+	if s.backend != nil {
+		info, err := s.backend.GetChannel(name)
 		if err != nil || info == nil {
 			return nil, false
 		}
-		members, err := s.sqlite.GetMembers(name)
+		members, err := s.backend.GetMembers(name)
 		if err != nil {
 			log.Warn("failed to get channel members", "channel", name, "error", err)
 		}
-		msgs, err := s.sqlite.GetHistory(name, 100)
+		msgs, err := s.backend.GetHistory(name, 100)
 		if err != nil {
 			log.Warn("failed to get channel history", "channel", name, "error", err)
 		}
@@ -194,18 +216,18 @@ func (s *Store) Get(name string) (*Channel, bool) {
 
 // List returns all channels sorted by name for stable ordering.
 func (s *Store) List() []*Channel {
-	if s.sqlite != nil {
-		infos, err := s.sqlite.ListChannels()
+	if s.backend != nil {
+		infos, err := s.backend.ListChannels()
 		if err != nil {
 			return nil
 		}
 		out := make([]*Channel, 0, len(infos))
 		for _, info := range infos {
-			members, err := s.sqlite.GetMembers(info.Name)
+			members, err := s.backend.GetMembers(info.Name)
 			if err != nil {
 				log.Warn("failed to get channel members", "channel", info.Name, "error", err)
 			}
-			msgs, err := s.sqlite.GetHistory(info.Name, 100)
+			msgs, err := s.backend.GetHistory(info.Name, 100)
 			if err != nil {
 				log.Warn("failed to get channel history", "channel", info.Name, "error", err)
 			}
@@ -233,8 +255,8 @@ func (s *Store) List() []*Channel {
 
 // Delete removes a channel by name.
 func (s *Store) Delete(name string) error {
-	if s.sqlite != nil {
-		return s.sqlite.DeleteChannel(name)
+	if s.backend != nil {
+		return s.backend.DeleteChannel(name)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -247,8 +269,8 @@ func (s *Store) Delete(name string) error {
 
 // AddMember adds a member to a channel.
 func (s *Store) AddMember(channelName, member string) error {
-	if s.sqlite != nil {
-		return s.sqlite.AddMember(channelName, member)
+	if s.backend != nil {
+		return s.backend.AddMember(channelName, member)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -265,8 +287,8 @@ func (s *Store) AddMember(channelName, member string) error {
 
 // RemoveMember removes a member from a channel.
 func (s *Store) RemoveMember(channelName, member string) error {
-	if s.sqlite != nil {
-		return s.sqlite.RemoveMember(channelName, member)
+	if s.backend != nil {
+		return s.backend.RemoveMember(channelName, member)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -284,8 +306,8 @@ func (s *Store) RemoveMember(channelName, member string) error {
 
 // GetMembers returns the members of a channel.
 func (s *Store) GetMembers(channelName string) ([]string, error) {
-	if s.sqlite != nil {
-		return s.sqlite.GetMembers(channelName)
+	if s.backend != nil {
+		return s.backend.GetMembers(channelName)
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -300,8 +322,8 @@ func (s *Store) GetMembers(channelName string) ([]string, error) {
 
 // AddHistory adds a message to the channel's history.
 func (s *Store) AddHistory(channelName, sender, message string) error {
-	if s.sqlite != nil {
-		_, err := s.sqlite.AddMessage(channelName, sender, message, TypeText, "")
+	if s.backend != nil {
+		_, err := s.backend.AddMessage(channelName, sender, message, TypeText, "")
 		return err
 	}
 	s.mu.Lock()
@@ -324,8 +346,8 @@ func (s *Store) AddHistory(channelName, sender, message string) error {
 
 // GetHistory returns the message history for a channel.
 func (s *Store) GetHistory(channelName string) ([]HistoryEntry, error) {
-	if s.sqlite != nil {
-		msgs, err := s.sqlite.GetHistory(channelName, 100)
+	if s.backend != nil {
+		msgs, err := s.backend.GetHistory(channelName, 100)
 		if err != nil {
 			return nil, err
 		}
@@ -333,7 +355,7 @@ func (s *Store) GetHistory(channelName string) ([]HistoryEntry, error) {
 		for _, m := range msgs {
 			entry := HistoryEntry{Time: m.CreatedAt, Sender: m.Sender, Message: m.Content}
 			// Fetch reactions for this message
-			if reactions, reactErr := s.sqlite.GetReactions(m.ID); reactErr == nil && len(reactions) > 0 {
+			if reactions, reactErr := s.backend.GetReactions(m.ID); reactErr == nil && len(reactions) > 0 {
 				entry.Reactions = reactions
 			}
 			out = append(out, entry)
@@ -353,8 +375,8 @@ func (s *Store) GetHistory(channelName string) ([]HistoryEntry, error) {
 
 // SetDescription sets the description for a channel.
 func (s *Store) SetDescription(channelName, description string) error {
-	if s.sqlite != nil {
-		return s.sqlite.SetChannelDescription(channelName, description)
+	if s.backend != nil {
+		return s.backend.SetChannelDescription(channelName, description)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -368,8 +390,8 @@ func (s *Store) SetDescription(channelName, description string) error {
 
 // GetDescription returns the description for a channel.
 func (s *Store) GetDescription(channelName string) (string, error) {
-	if s.sqlite != nil {
-		info, err := s.sqlite.GetChannel(channelName)
+	if s.backend != nil {
+		info, err := s.backend.GetChannel(channelName)
 		if err != nil || info == nil {
 			return "", fmt.Errorf("channel %q not found", channelName)
 		}
@@ -455,15 +477,15 @@ func (s *Store) RemoveReaction(channelName string, messageIndex int, emoji, user
 // ToggleReaction toggles an emoji reaction on a message.
 // Returns true if the reaction was added, false if removed.
 func (s *Store) ToggleReaction(channelName string, messageIndex int, emoji, user string) (added bool, err error) {
-	if s.sqlite != nil {
-		msgs, err := s.sqlite.GetHistory(channelName, 100)
+	if s.backend != nil {
+		msgs, err := s.backend.GetHistory(channelName, 100)
 		if err != nil {
 			return false, err
 		}
 		if messageIndex < 0 || messageIndex >= len(msgs) {
 			return false, fmt.Errorf("message index %d out of range", messageIndex)
 		}
-		return s.sqlite.ToggleReaction(msgs[messageIndex].ID, emoji, user)
+		return s.backend.ToggleReaction(msgs[messageIndex].ID, emoji, user)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -500,15 +522,15 @@ func (s *Store) ToggleReaction(channelName string, messageIndex int, emoji, user
 
 // GetReactions returns all reactions for a message.
 func (s *Store) GetReactions(channelName string, messageIndex int) (map[string][]string, error) {
-	if s.sqlite != nil {
-		msgs, err := s.sqlite.GetHistory(channelName, 100)
+	if s.backend != nil {
+		msgs, err := s.backend.GetHistory(channelName, 100)
 		if err != nil {
 			return nil, err
 		}
 		if messageIndex < 0 || messageIndex >= len(msgs) {
 			return nil, fmt.Errorf("message index %d out of range", messageIndex)
 		}
-		return s.sqlite.GetReactions(msgs[messageIndex].ID)
+		return s.backend.GetReactions(msgs[messageIndex].ID)
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
