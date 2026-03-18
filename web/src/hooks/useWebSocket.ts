@@ -3,11 +3,15 @@ import type { WSEvent, WSEventType } from '../api/types';
 
 type Listener = (event: WSEvent) => void;
 
+const BASE_DELAY = 1000;
+const MAX_DELAY = 30000;
+
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const listenersRef = useRef<Map<WSEventType, Set<Listener>>>(new Map());
   const [connected, setConnected] = useState(false);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
+  const retriesRef = useRef(0);
 
   const connect = useCallback(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -15,12 +19,12 @@ export function useWebSocket() {
     try {
       ws = new WebSocket(`${protocol}//${window.location.host}/api/events`);
     } catch {
-      // WebSocket not available — degrade gracefully
       return;
     }
 
     ws.onopen = () => {
       setConnected(true);
+      retriesRef.current = 0; // Reset backoff on successful connection
       ws.send(JSON.stringify({
         action: 'subscribe',
         types: ['agent.*', 'channel.message', 'cost.updated', 'cost.budget_alert'],
@@ -39,7 +43,10 @@ export function useWebSocket() {
 
     ws.onclose = () => {
       setConnected(false);
-      reconnectTimer.current = setTimeout(connect, 3000);
+      // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (max)
+      const delay = Math.min(BASE_DELAY * Math.pow(2, retriesRef.current), MAX_DELAY);
+      retriesRef.current++;
+      reconnectTimer.current = setTimeout(connect, delay);
     };
 
     ws.onerror = () => {

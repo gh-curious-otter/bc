@@ -52,7 +52,7 @@ export function Costs() {
     },
     {
       key: 'cost', label: 'Cost',
-      render: (r: AgentCostSummary) => <span>${r.total_cost.toFixed(4)}</span>,
+      render: (r: AgentCostSummary) => <span>${(r.total_cost_usd ?? 0).toFixed(4)}</span>,
     },
     {
       key: 'input', label: 'Input Tokens',

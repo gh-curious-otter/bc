@@ -23,12 +23,13 @@ function Card({ label, value, sub }: { label: string; value: string; sub?: strin
 
 export function Dashboard() {
   const fetcher = useCallback(async (): Promise<DashData> => {
-    const [agentsRes, channelsRes, costs] = await Promise.all([
-      api.listAgents(),
-      api.listChannels(),
-      api.getCostSummary(),
-    ]);
-    return { agents: agentsRes, channels: channelsRes, costs };
+    let agents: Agent[] = [];
+    let channels: Channel[] = [];
+    let costs: CostSummary = { input_tokens: 0, output_tokens: 0, total_tokens: 0, total_cost_usd: 0, record_count: 0 };
+    try { agents = await api.listAgents(); } catch { /* API may be unavailable */ }
+    try { channels = await api.listChannels(); } catch { /* API may be unavailable */ }
+    try { costs = await api.getCostSummary(); } catch { /* API may be unavailable */ }
+    return { agents, channels, costs };
   }, []);
 
   const { data, loading, error } = usePolling(fetcher, 5000);
@@ -50,8 +51,8 @@ export function Dashboard() {
       <div className="grid grid-cols-4 gap-4">
         <Card label="Active Agents" value={String(activeAgents.length)} sub={`${data.agents.length} total`} />
         <Card label="Channels" value={String(data.channels.length)} />
-        <Card label="Total Cost" value={`$${data.costs.total_cost_usd.toFixed(2)}`} />
-        <Card label="Tokens" value={String(data.costs.total_tokens)} sub={`${data.costs.record_count} records`} />
+        <Card label="Total Cost" value={`$${(data.costs.total_cost_usd ?? 0).toFixed(2)}`} />
+        <Card label="Tokens" value={String(data.costs.total_tokens ?? 0)} sub={`${data.costs.record_count ?? 0} records`} />
       </div>
 
       <section>
