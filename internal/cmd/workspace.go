@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/ui"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
@@ -16,12 +19,111 @@ var workspaceCmd = &cobra.Command{
 	Use:     "workspace",
 	Aliases: []string{"ws"},
 	Short:   "Manage bc workspaces",
-	Long: `Manage bc workspaces: discover, list, switch.
+	Long: `Manage bc workspaces: info, config, logs, list, migrate.
 
 Examples:
+  bc workspace info                   # Show workspace details
+  bc workspace status                 # Show agents and health
+  bc workspace config show            # Show workspace config
+  bc workspace config set KEY VAL     # Set config value
+  bc workspace migrate                # Migrate v1 workspace to v2
   bc workspace list                   # List discovered workspaces
   bc workspace list --scan ~/Projects # Scan additional paths
   bc workspace discover               # Discover and register new workspaces`,
+}
+
+// workspaceInfoCmd shows detailed workspace information.
+var workspaceInfoCmd = &cobra.Command{
+	Use:     "info",
+	Aliases: []string{"i"},
+	Short:   "Show workspace information",
+	Long: `Display detailed information about the current workspace.
+
+Shows workspace name, path, version, runtime backend, role count,
+and agent summary.
+
+Examples:
+  bc workspace info         # Human-readable output
+  bc workspace info --json  # JSON output`,
+	RunE: runWorkspaceInfo,
+}
+
+// workspaceStatusCmd shows workspace agent health overview.
+var workspaceStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show workspace status and agent health",
+	Long: `Show a health overview of the workspace: running agents, idle agents,
+config validity, and uptime.
+
+Examples:
+  bc workspace status         # Status overview
+  bc workspace status --json  # JSON output`,
+	RunE: runWorkspaceStatus,
+}
+
+// workspaceConfigCmd groups config management subcommands.
+var workspaceConfigCmd = &cobra.Command{
+	Use:   "config",
+	Short: "Manage workspace configuration",
+	Long: `Manage workspace configuration (.bc/config.toml).
+
+Examples:
+  bc workspace config show                    # Show full config
+  bc workspace config get providers.default   # Get a value
+  bc workspace config set providers.default claude # Set a value
+  bc workspace config validate                # Validate config
+  bc workspace config edit                    # Open in $EDITOR`,
+	RunE: runConfigShow,
+}
+
+var workspaceConfigShowCmd = &cobra.Command{
+	Use:   "show [key]",
+	Short: "Show configuration",
+	Args:  cobra.MaximumNArgs(1),
+	RunE:  runConfigShow,
+}
+
+var workspaceConfigGetCmd = &cobra.Command{
+	Use:   "get <key>",
+	Short: "Get a configuration value",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runConfigGet,
+}
+
+var workspaceConfigSetCmd = &cobra.Command{
+	Use:   "set <key> <value>",
+	Short: "Set a configuration value",
+	Args:  cobra.ExactArgs(2),
+	RunE:  runConfigSet,
+}
+
+var workspaceConfigValidateCmd = &cobra.Command{
+	Use:   "validate",
+	Short: "Validate configuration file",
+	RunE:  runConfigValidate,
+}
+
+var workspaceConfigEditCmd = &cobra.Command{
+	Use:   "edit",
+	Short: "Edit configuration file in $EDITOR",
+	RunE:  runConfigEdit,
+}
+
+// workspaceMigrateCmd guides migration from v1 to v2.
+var workspaceMigrateCmd = &cobra.Command{
+	Use:   "migrate [directory]",
+	Short: "Migrate a v1 workspace to v2",
+	Long: `Check migration status and guide upgrade from bc v1 to v2 format.
+
+bc v2 uses .bc/config.toml (TOML) instead of the v1 .bc/config.json (JSON).
+Since v2 is a clean break, migration requires re-initialising the workspace
+and re-creating agents from scratch.
+
+Examples:
+  bc workspace migrate          # Check current directory
+  bc workspace migrate ~/myapp  # Check a specific path`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: runWorkspaceMigrate,
 }
 
 // workspaceListCmd lists all discovered workspaces
@@ -118,7 +220,18 @@ func init() {
 	// Switch command flags (#1218)
 	workspaceSwitchCmd.Flags().Bool("clear", false, "Clear active workspace")
 
+	// Config subcommands — reuse root-level config handlers
+	workspaceConfigCmd.AddCommand(workspaceConfigShowCmd)
+	workspaceConfigCmd.AddCommand(workspaceConfigGetCmd)
+	workspaceConfigCmd.AddCommand(workspaceConfigSetCmd)
+	workspaceConfigCmd.AddCommand(workspaceConfigValidateCmd)
+	workspaceConfigCmd.AddCommand(workspaceConfigEditCmd)
+
 	// Add subcommands
+	workspaceCmd.AddCommand(workspaceInfoCmd)
+	workspaceCmd.AddCommand(workspaceStatusCmd)
+	workspaceCmd.AddCommand(workspaceConfigCmd)
+	workspaceCmd.AddCommand(workspaceMigrateCmd)
 	workspaceCmd.AddCommand(workspaceListCmd)
 	workspaceCmd.AddCommand(workspaceDiscoverCmd)
 	workspaceCmd.AddCommand(workspaceAddCmd)
@@ -376,4 +489,228 @@ func runWorkspaceSwitch(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Switched to workspace '%s' (%s)\n", active.Name, active.Path)
 	return nil
+}
+
+// runWorkspaceInfo displays detailed workspace information.
+func runWorkspaceInfo(cmd *cobra.Command, _ []string) error {
+	ws, err := requireWorkspace()
+	if err != nil {
+		return err
+	}
+
+	jsonOutput, err := cmd.Flags().GetBool("json")
+	if err != nil {
+		return err
+	}
+
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		// Non-fatal: continue without agent counts
+	}
+	agents := mgr.ListAgents()
+
+	// Count roles
+	roleCount := 0
+	if entries, readErr := os.ReadDir(ws.RolesDir()); readErr == nil {
+		for _, e := range entries {
+			if !e.IsDir() && filepath.Ext(e.Name()) == ".md" {
+				roleCount++
+			}
+		}
+	}
+
+	backend := "tmux"
+	if ws.Config != nil && ws.Config.Runtime.Backend != "" {
+		backend = ws.Config.Runtime.Backend
+	}
+
+	if jsonOutput {
+		info := struct { //nolint:govet // fieldalignment: inline struct for JSON, alignment not critical
+			Name        string `json:"name"`
+			Path        string `json:"path"`
+			StateDir    string `json:"state_dir"`
+			Version     int    `json:"version"`
+			Backend     string `json:"backend"`
+			RoleCount   int    `json:"role_count"`
+			AgentCount  int    `json:"agent_count"`
+			ConfigValid bool   `json:"config_valid"`
+		}{
+			Name:       ws.Name(),
+			Path:       ws.RootDir,
+			StateDir:   ws.StateDir(),
+			Version:    workspace.ConfigVersion,
+			Backend:    backend,
+			RoleCount:  roleCount,
+			AgentCount: len(agents),
+		}
+		if ws.Config != nil {
+			info.ConfigValid = ws.Config.Validate() == nil
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(info)
+	}
+
+	fmt.Println(ui.BoldText("Workspace Info"))
+	fmt.Println()
+	fmt.Printf("  %-18s %s\n", "Name:", ws.Name())
+	fmt.Printf("  %-18s %s\n", "Path:", ws.RootDir)
+	fmt.Printf("  %-18s %s\n", "State dir:", ws.StateDir())
+	fmt.Printf("  %-18s v%d\n", "Version:", workspace.ConfigVersion)
+	fmt.Printf("  %-18s %s\n", "Runtime:", backend)
+	fmt.Printf("  %-18s %d\n", "Roles:", roleCount)
+	fmt.Printf("  %-18s %d\n", "Agents:", len(agents))
+
+	if ws.Config != nil {
+		if err := ws.Config.Validate(); err != nil {
+			fmt.Printf("  %-18s %s\n", "Config:", ui.RedText("invalid — "+err.Error()))
+		} else {
+			fmt.Printf("  %-18s %s\n", "Config:", ui.GreenText("valid"))
+		}
+	}
+
+	fmt.Println()
+	return nil
+}
+
+// runWorkspaceStatus shows a health overview: agent counts and state breakdown.
+func runWorkspaceStatus(cmd *cobra.Command, _ []string) error {
+	ws, err := requireWorkspace()
+	if err != nil {
+		return err
+	}
+
+	jsonOutput, err := cmd.Flags().GetBool("json")
+	if err != nil {
+		return err
+	}
+
+	mgr := newAgentManager(ws)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		// Non-fatal warning
+	}
+	agents := mgr.ListAgents()
+
+	var running, idle, working, stopped int
+	for _, a := range agents {
+		switch a.State {
+		case agent.StateWorking:
+			working++
+			running++
+		case agent.StateIdle, agent.StateStarting:
+			idle++
+			running++
+		case agent.StateStopped, agent.StateError, agent.StateDone:
+			stopped++
+		default:
+			stopped++
+		}
+	}
+
+	configValid := ws.Config != nil && ws.Config.Validate() == nil
+
+	if jsonOutput {
+		out := struct { //nolint:govet // fieldalignment: inline struct for JSON, alignment not critical
+			Workspace   string `json:"workspace"`
+			Path        string `json:"path"`
+			Total       int    `json:"total"`
+			Running     int    `json:"running"`
+			Working     int    `json:"working"`
+			Idle        int    `json:"idle"`
+			Stopped     int    `json:"stopped"`
+			ConfigValid bool   `json:"config_valid"`
+		}{
+			Workspace:   ws.Name(),
+			Path:        ws.RootDir,
+			Total:       len(agents),
+			Running:     running,
+			Working:     working,
+			Idle:        idle,
+			Stopped:     stopped,
+			ConfigValid: configValid,
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(out)
+	}
+
+	// Header
+	fmt.Printf("%s  %s\n", ui.BoldText(ws.Name()), ui.DimText(ws.RootDir))
+	fmt.Println()
+
+	// Config
+	cfgStatus := ui.GreenText("✓ valid")
+	if !configValid {
+		cfgStatus = ui.RedText("✗ invalid")
+	}
+	fmt.Printf("  %-18s %s\n", "Config:", cfgStatus)
+
+	// Agents
+	fmt.Printf("  %-18s %d total  %d running  %d working  %d stopped\n",
+		"Agents:", len(agents), running, working, stopped)
+
+	if len(agents) > 0 {
+		fmt.Println()
+		fmt.Printf("  %-16s %-12s %-10s %s\n", "AGENT", "ROLE", "STATE", "UPTIME")
+		for _, a := range agents {
+			uptime := "-"
+			if a.State != agent.StateStopped && a.State != agent.StateError {
+				uptime = formatDuration(time.Since(a.StartedAt))
+			}
+			fmt.Printf("  %-16s %-12s %-10s %s\n",
+				a.Name, string(a.Role), string(a.State), uptime)
+		}
+	}
+
+	fmt.Println()
+	return nil
+}
+
+// runWorkspaceMigrate checks migration status and guides v1→v2 upgrade.
+func runWorkspaceMigrate(_ *cobra.Command, args []string) error {
+	dir := "."
+	if len(args) > 0 {
+		dir = args[0]
+	}
+
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return fmt.Errorf("invalid directory: %w", err)
+	}
+
+	hasV2 := isV2Workspace(absDir)
+	hasV1 := isV1Workspace(absDir)
+
+	switch {
+	case hasV2:
+		fmt.Printf("%s Already on v2 — %s\n", ui.GreenText("✓"), absDir)
+		fmt.Println()
+		fmt.Printf("  Config: %s\n", filepath.Join(absDir, ".bc", "config.toml"))
+		return nil
+
+	case hasV1:
+		fmt.Printf("%s v1 workspace detected at %s\n", ui.YellowText("⚠"), absDir)
+		fmt.Println()
+		fmt.Println("  bc v2 uses a TOML-based config format (.bc/config.toml).")
+		fmt.Println("  v1 data is not automatically migrated — this is a clean break.")
+		fmt.Println()
+		fmt.Println("  Migration steps:")
+		fmt.Printf("    1. Backup your current .bc/ directory\n")
+		fmt.Printf("       cp -r %s %s.bak\n",
+			filepath.Join(absDir, ".bc"),
+			filepath.Join(absDir, ".bc"))
+		fmt.Printf("    2. Remove the old v1 directory\n")
+		fmt.Printf("       rm -rf %s\n", filepath.Join(absDir, ".bc"))
+		fmt.Printf("    3. Re-initialize as v2\n")
+		fmt.Printf("       cd %s && bc init\n", absDir)
+		fmt.Println()
+		fmt.Println("  Your source code and git history are unaffected.")
+		return nil
+
+	default:
+		fmt.Printf("%s No bc workspace found at %s\n", ui.RedText("✗"), absDir)
+		fmt.Println()
+		fmt.Printf("  Run 'bc init %s' to create a new workspace.\n", dir)
+		return fmt.Errorf("not a bc workspace")
+	}
 }
