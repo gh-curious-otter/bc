@@ -108,11 +108,6 @@ var secretRefPattern = regexp.MustCompile(`\$\{secret:([^}]+)\}`)
 func writeMCPJSON(workspacePath, agentName string, resolved *workspace.ResolvedRole, secrets map[string]string, targetDir string) error {
 	cfg := mcpConfig{MCPServers: make(map[string]mcpServerEntry)}
 
-	cfg.MCPServers["bc"] = mcpServerEntry{
-		Type: "sse",
-		URL:  "http://localhost:9374/mcp/sse",
-	}
-
 	mcpStore, mcpErr := pkgmcp.NewStore(workspacePath)
 	if mcpErr != nil {
 		log.Debug("MCP store unavailable", "error", mcpErr)
@@ -121,9 +116,6 @@ func writeMCPJSON(workspacePath, agentName string, resolved *workspace.ResolvedR
 	defer mcpStore.Close() //nolint:errcheck
 
 	for _, name := range resolved.MCPServers {
-		if name == "bc" {
-			continue
-		}
 		def, getErr := mcpStore.Get(name)
 		if getErr != nil || def == nil || !def.Enabled {
 			continue
