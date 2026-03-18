@@ -35,12 +35,11 @@ export interface ChannelMessage {
 }
 
 export interface CostSummary {
-  today_cost: number;
-  week_cost: number;
-  month_cost: number;
-  all_time_cost: number;
-  total_records: number;
+  input_tokens: number;
+  output_tokens: number;
   total_tokens: number;
+  total_cost_usd: number;
+  record_count: number;
 }
 
 export interface AgentCostSummary {
@@ -65,6 +64,6 @@ export const api = {
   sendToChannel: (name: string, message: string) =>
     request<void>(`/channels/${name}/send`, { method: 'POST', body: JSON.stringify({ message }) }),
 
-  getCostSummary: () => request<CostSummary>('/costs/summary'),
-  getCostByAgent: () => request<{ agents: AgentCostSummary[] }>('/costs/agents'),
+  getCostSummary: () => request<CostSummary>('/costs'),
+  getCostByAgent: () => request<AgentCostSummary[]>('/costs/agents'),
 };

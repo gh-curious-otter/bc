@@ -20,11 +20,14 @@ function CostCard({ label, value }: { label: string; value: string }) {
 
 export function Costs() {
   const fetcher = useCallback(async (): Promise<CostData> => {
-    const [summary, agentRes] = await Promise.all([
-      api.getCostSummary(),
-      api.getCostByAgent(),
-    ]);
-    return { summary, byAgent: agentRes.agents };
+    const summary = await api.getCostSummary();
+    let byAgent: AgentCostSummary[] = [];
+    try {
+      byAgent = await api.getCostByAgent();
+    } catch {
+      // /api/costs/agents may not exist yet
+    }
+    return { summary, byAgent };
   }, []);
 
   const { data, loading, error } = usePolling(fetcher, 10000);
@@ -64,11 +67,10 @@ export function Costs() {
     <div className="p-6 space-y-6">
       <h1 className="text-xl font-bold">Costs</h1>
 
-      <div className="grid grid-cols-4 gap-4">
-        <CostCard label="Today" value={`$${data.summary.today_cost.toFixed(2)}`} />
-        <CostCard label="This Week" value={`$${data.summary.week_cost.toFixed(2)}`} />
-        <CostCard label="This Month" value={`$${data.summary.month_cost.toFixed(2)}`} />
-        <CostCard label="All Time" value={`$${data.summary.all_time_cost.toFixed(2)}`} />
+      <div className="grid grid-cols-3 gap-4">
+        <CostCard label="Total Cost" value={`$${data.summary.total_cost_usd.toFixed(2)}`} />
+        <CostCard label="Total Tokens" value={data.summary.total_tokens.toLocaleString()} />
+        <CostCard label="Records" value={String(data.summary.record_count)} />
       </div>
 
       <section>
