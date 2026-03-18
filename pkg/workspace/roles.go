@@ -26,6 +26,14 @@ type RoleMetadata struct {
 	PromptStart  string `yaml:"prompt_start,omitempty"`  // Sent on each start/resume
 	PromptStop   string `yaml:"prompt_stop,omitempty"`   // Sent before stopping
 	PromptDelete string `yaml:"prompt_delete,omitempty"` // Sent before deletion
+
+	// Claude Code workspace files generated from role
+	Settings map[string]any    `yaml:"settings,omitempty"` // Written to .claude/settings.json
+	Commands map[string]string `yaml:"commands,omitempty"` // Written to .claude/commands/<name>.md
+	Skills   map[string]string `yaml:"skills,omitempty"`   // Written to .claude/skills/<name>.md
+	Agents   map[string]string `yaml:"agents,omitempty"`   // Written to .claude/agents/<name>.md
+	Rules    map[string]string `yaml:"rules,omitempty"`    // Written to .claude/rules/<name>.md
+	Review   string            `yaml:"review,omitempty"`   // Written to REVIEW.md
 }
 
 // Role represents a parsed role file with metadata and prompt content.
@@ -508,6 +516,14 @@ type ResolvedRole struct {
 	PromptStart  string  // Lifecycle prompt for start
 	PromptStop   string  // Lifecycle prompt for stop
 	PromptDelete string  // Lifecycle prompt for delete
+
+	// Claude Code workspace files (merged from role hierarchy)
+	Settings map[string]any    // Merged settings (child keys win)
+	Commands map[string]string // Merged commands (child wins per name)
+	Skills   map[string]string // Merged skills (child wins per name)
+	Agents   map[string]string // Merged agents (child wins per name)
+	Rules    map[string]string // Merged rules (child wins per name)
+	Review   string            // Review content (child's if set, else first parent's)
 }
 
 // ResolveRole performs BFS inheritance merge starting from the given role.
@@ -529,6 +545,12 @@ func (rm *RoleManager) ResolveRole(name string) (*ResolvedRole, error) {
 		PromptStart:  role.Metadata.PromptStart,
 		PromptStop:   role.Metadata.PromptStop,
 		PromptDelete: role.Metadata.PromptDelete,
+		Settings:     mergeAnyMaps(nil, role.Metadata.Settings),
+		Commands:     mergeMaps(nil, role.Metadata.Commands),
+		Skills:       mergeMaps(nil, role.Metadata.Skills),
+		Agents:       mergeMaps(nil, role.Metadata.Agents),
+		Rules:        mergeMaps(nil, role.Metadata.Rules),
+		Review:       role.Metadata.Review,
 	}
 
 	// BFS through parent roles
@@ -570,6 +592,18 @@ func (rm *RoleManager) ResolveRole(name string) (*ResolvedRole, error) {
 			resolved.PromptDelete = parent.Metadata.PromptDelete
 		}
 
+		// Merge map fields — child keys take priority
+		resolved.Settings = mergeAnyMaps(resolved.Settings, parent.Metadata.Settings)
+		resolved.Commands = mergeMaps(resolved.Commands, parent.Metadata.Commands)
+		resolved.Skills = mergeMaps(resolved.Skills, parent.Metadata.Skills)
+		resolved.Agents = mergeMaps(resolved.Agents, parent.Metadata.Agents)
+		resolved.Rules = mergeMaps(resolved.Rules, parent.Metadata.Rules)
+
+		// Review — use parent's only if child doesn't have one
+		if resolved.Review == "" {
+			resolved.Review = parent.Metadata.Review
+		}
+
 		// Enqueue grandparents
 		queue = append(queue, parent.Metadata.ParentRoles...)
 	}
@@ -587,6 +621,40 @@ func mergeUnique(dst, src []string) []string {
 		if !seen[v] {
 			dst = append(dst, v)
 			seen[v] = true
+		}
+	}
+	return dst
+}
+
+// mergeMaps copies src entries to dst only if the key doesn't already exist in dst.
+// If dst is nil, a new map is created. Returns nil if both are empty/nil.
+func mergeMaps(dst, src map[string]string) map[string]string {
+	if len(src) == 0 {
+		return dst
+	}
+	if dst == nil {
+		dst = make(map[string]string, len(src))
+	}
+	for k, v := range src {
+		if _, exists := dst[k]; !exists {
+			dst[k] = v
+		}
+	}
+	return dst
+}
+
+// mergeAnyMaps copies src entries to dst only if the key doesn't already exist in dst.
+// If dst is nil, a new map is created. Returns nil if both are empty/nil.
+func mergeAnyMaps(dst, src map[string]any) map[string]any {
+	if len(src) == 0 {
+		return dst
+	}
+	if dst == nil {
+		dst = make(map[string]any, len(src))
+	}
+	for k, v := range src {
+		if _, exists := dst[k]; !exists {
+			dst[k] = v
 		}
 	}
 	return dst

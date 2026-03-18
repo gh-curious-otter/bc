@@ -913,13 +913,13 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		}
 	}
 
-	// Generate per-agent .mcp.json from role's MCP server list
-	mcpTarget := wsPath
+	// Set up agent workspace from role (CLAUDE.md, .mcp.json, settings, commands, etc.)
+	roleTarget := wsPath
 	if agent.WorktreeDir != "" {
-		mcpTarget = agent.WorktreeDir
+		roleTarget = agent.WorktreeDir
 	}
-	if mcpErr := GenerateAgentMCPConfig(wsPath, name, string(role), mcpTarget); mcpErr != nil {
-		log.Warn("failed to generate .mcp.json", "agent", name, "error", mcpErr)
+	if setupErr := SetupAgentFromRole(wsPath, name, string(role), roleTarget); setupErr != nil {
+		log.Warn("role setup failed", "agent", name, "error", setupErr)
 	}
 
 	// Start log streaming via pipe-pane
