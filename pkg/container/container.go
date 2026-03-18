@@ -122,6 +122,8 @@ func (b *Backend) imageForTool(toolName string) string {
 var passthroughEnvKeys = []string{
 	"GITHUB_TOKEN",
 	"GH_TOKEN",
+	"GITHUB_PERSONAL_ACCESS_TOKEN",
+	"ANTHROPIC_API_KEY",
 }
 
 // SessionName returns the full session name with prefix.
