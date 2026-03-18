@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/ui"
@@ -233,6 +235,16 @@ func logEvent(ws *workspace.Workspace, event events.Event) {
 // errorAgentNotRunning returns an error message for commands that require BC_AGENT_ID.
 func errorAgentNotRunning(commandUsage string) error {
 	return fmt.Errorf("this command can only be run by agents in the bc system (use: bc agent send <agent-name> %q)", commandUsage)
+}
+
+// newDaemonClient creates a client connected to the bcd daemon.
+// Returns an error if the daemon is not running.
+func newDaemonClient(ctx context.Context) (*client.Client, error) {
+	c := client.New("")
+	if err := c.Ping(ctx); err != nil {
+		return nil, fmt.Errorf("bcd is not running — start it with 'bcd' or 'bc up' first\n(%w)", err)
+	}
+	return c, nil
 }
 
 // errNotInWorkspace returns an actionable error for commands that require a bc workspace.

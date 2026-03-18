@@ -3,8 +3,14 @@ package agent
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/names"
 )
 
 // EventPublisher is the interface for publishing agent lifecycle events.
@@ -47,6 +53,21 @@ type CreateOptions struct {
 type StartOptions struct {
 	Runtime string // Runtime backend override
 	Fresh   bool   // Force new session (ignore session_id)
+}
+
+// SessionEntry represents a single session history record.
+type SessionEntry struct {
+	Timestamp time.Time `json:"timestamp,omitempty"`
+	ID        string    `json:"id"`
+	Current   bool      `json:"current,omitempty"`
+}
+
+// SendResult holds the result of a broadcast/role/pattern send operation.
+type SendResult struct {
+	Matched []string `json:"matched"`
+	Sent    int      `json:"sent"`
+	Skipped int      `json:"skipped"`
+	Failed  int      `json:"failed"`
 }
 
 // AgentService provides the application-level API for agent management.
@@ -269,4 +290,136 @@ func (s *AgentService) publishEvent(eventType string, data map[string]any) {
 	if s.events != nil {
 		s.events.Publish(eventType, data)
 	}
+}
+
+// StopAll stops all running agents. Returns count of agents stopped.
+func (s *AgentService) StopAll(ctx context.Context) (int, error) {
+	agents := s.manager.ListAgents()
+	count := 0
+	for _, a := range agents {
+		if a.State != StateStopped && a.State != StateError {
+			count++
+		}
+	}
+	if err := s.manager.StopAll(); err != nil {
+		return 0, err
+	}
+	s.publishEvent("agents.stopped_all", map[string]any{"count": count})
+	return count, nil
+}
+
+// Rename renames an agent.
+func (s *AgentService) Rename(ctx context.Context, oldName, newName string) error {
+	if err := s.manager.RenameAgent(oldName, newName); err != nil {
+		return err
+	}
+	s.publishEvent("agent.renamed", map[string]any{
+		"old_name": oldName,
+		"new_name": newName,
+	})
+	return nil
+}
+
+// Sessions returns session history for an agent.
+func (s *AgentService) Sessions(ctx context.Context, name string) ([]SessionEntry, error) {
+	a := s.manager.GetAgent(name)
+	if a == nil {
+		return nil, fmt.Errorf("agent %q not found", name)
+	}
+
+	var entries []SessionEntry
+
+	if a.SessionID != "" {
+		entries = append(entries, SessionEntry{ID: a.SessionID, Current: true})
+	}
+
+	histDir := filepath.Join(s.manager.stateDir, "agents", name, "session_history")
+	files, err := os.ReadDir(histDir)
+	if err == nil {
+		sort.Slice(files, func(i, j int) bool {
+			return files[i].Name() > files[j].Name()
+		})
+		for _, f := range files {
+			if f.IsDir() {
+				continue
+			}
+			data, readErr := os.ReadFile(filepath.Join(histDir, f.Name())) //nolint:gosec // trusted path
+			if readErr != nil {
+				continue
+			}
+			id := strings.TrimSpace(string(data))
+			if id == "" || id == a.SessionID {
+				continue
+			}
+			fname := strings.TrimSuffix(f.Name(), ".txt")
+			ts, parseErr := time.Parse("2006-01-02T15:04:05", fname)
+			entry := SessionEntry{ID: id}
+			if parseErr == nil {
+				entry.Timestamp = ts
+			}
+			entries = append(entries, entry)
+		}
+	}
+
+	return entries, nil
+}
+
+// SendToRole sends a message to all running agents with the given role.
+func (s *AgentService) SendToRole(ctx context.Context, role, message string) (SendResult, error) {
+	agents := s.manager.ListAgents()
+	result := SendResult{}
+	for _, a := range agents {
+		if string(a.Role) != role {
+			continue
+		}
+		result.Matched = append(result.Matched, a.Name)
+		if a.State == StateStopped || a.State == StateError {
+			result.Skipped++
+			continue
+		}
+		if err := s.manager.SendToAgent(a.Name, message); err != nil {
+			log.Warn("send-role: failed to send", "agent", a.Name, "error", err)
+			result.Failed++
+			continue
+		}
+		result.Sent++
+	}
+	return result, nil
+}
+
+// SendToPattern sends a message to all agents whose names match the given glob pattern.
+func (s *AgentService) SendToPattern(ctx context.Context, pattern, message string) (SendResult, error) {
+	agents := s.manager.ListAgents()
+	result := SendResult{}
+	for _, a := range agents {
+		match, matchErr := filepath.Match(pattern, a.Name)
+		if matchErr != nil {
+			return result, fmt.Errorf("invalid pattern %q: %w", pattern, matchErr)
+		}
+		if !match {
+			continue
+		}
+		result.Matched = append(result.Matched, a.Name)
+		if a.State == StateStopped || a.State == StateError {
+			result.Skipped++
+			continue
+		}
+		if err := s.manager.SendToAgent(a.Name, message); err != nil {
+			log.Warn("send-pattern: failed to send", "agent", a.Name, "error", err)
+			result.Failed++
+			continue
+		}
+		result.Sent++
+	}
+	return result, nil
+}
+
+// GenerateName generates a unique agent name not already in use.
+func (s *AgentService) GenerateName(ctx context.Context) (string, error) {
+	agents := s.manager.ListAgents()
+	existing := make([]string, 0, len(agents))
+	for _, a := range agents {
+		existing = append(existing, a.Name)
+	}
+	return names.GenerateUniqueFromList(existing, 20)
 }

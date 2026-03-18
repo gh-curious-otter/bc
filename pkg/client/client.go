@@ -6,6 +6,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -34,6 +36,7 @@ type Client struct {
 	Agents     *AgentsClient
 	Channels   *ChannelsClient
 	Workspaces *WorkspacesClient
+	Events     *EventsClient
 	BaseURL    string
 }
 
@@ -54,6 +57,7 @@ func New(addr string) *Client {
 	c.Agents = &AgentsClient{client: c}
 	c.Channels = &ChannelsClient{client: c}
 	c.Workspaces = &WorkspacesClient{client: c}
+	c.Events = &EventsClient{client: c}
 
 	return c
 }
@@ -106,4 +110,73 @@ func discoverDaemon() string {
 		return addr
 	}
 	return DefaultHTTPAddr
+}
+
+// IsDaemonNotRunning returns true if the error indicates the daemon is not running.
+func IsDaemonNotRunning(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "daemon not running") ||
+		strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "no such file")
+}
+
+// post performs a POST request with JSON body and decodes the JSON response.
+func (c *Client) post(ctx context.Context, path string, body, result any) error {
+	return c.do(ctx, http.MethodPost, path, body, result)
+}
+
+// put performs a PUT request with JSON body and decodes the JSON response.
+func (c *Client) put(ctx context.Context, path string, body, result any) error {
+	return c.do(ctx, http.MethodPut, path, body, result)
+}
+
+// delete performs a DELETE request (no body, no response body expected).
+func (c *Client) delete(ctx context.Context, path string) error {
+	return c.do(ctx, http.MethodDelete, path, nil, nil)
+}
+
+// do performs an HTTP request with optional JSON body and response.
+func (c *Client) do(ctx context.Context, method, path string, body, result any) error {
+	var bodyReader io.Reader
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("marshal request: %w", err)
+		}
+		bodyReader = bytes.NewReader(data)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, c.BaseURL+path, bodyReader)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("daemon not running: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode == http.StatusNoContent {
+		return nil
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("request failed (status %d)", resp.StatusCode)
+		}
+		return fmt.Errorf("request failed (status %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	if result != nil {
+		return json.NewDecoder(resp.Body).Decode(result)
+	}
+	return nil
 }
