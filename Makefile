@@ -5,6 +5,9 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 DATE    ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
+# Build output directory (override with BUILD_DIR=/tmp/bc-build for Docker agents)
+BUILD_DIR ?= bin
+
 # ldflags for version injection
 LDFLAGS_VERSION = -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
 
@@ -58,7 +61,8 @@ dev:
 	go run ./cmd/bc
 
 build: gen
-	go build -ldflags="$(LDFLAGS_VERSION)" -o bin/bc ./cmd/bc
+	@mkdir -p $(BUILD_DIR)
+	go build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bc ./cmd/bc
 
 build-web:
 	@echo "Building React web UI..."
@@ -69,10 +73,12 @@ build-web:
 
 build-bcd: gen build-web
 	@echo "Building bcd server (with embedded web UI)..."
-	go build -ldflags="$(LDFLAGS_VERSION)" -o bin/bcd ./cmd/bcd
+	@mkdir -p $(BUILD_DIR)
+	go build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bcd ./cmd/bcd
 
 build-release: gen
-	go build -ldflags="-s -w $(LDFLAGS_VERSION)" -o bin/bc ./cmd/bc
+	@mkdir -p $(BUILD_DIR)
+	go build -ldflags="-s -w $(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bc ./cmd/bc
 
 build-all: gen
 	@mkdir -p dist
@@ -83,7 +89,7 @@ build-all: gen
 	GOOS=windows GOARCH=amd64 go build -ldflags="-s -w $(LDFLAGS_VERSION)" -o dist/bc-windows-amd64.exe ./cmd/bc
 
 clean:
-	rm -rf bin/ dist/
+	rm -rf $(BUILD_DIR)/ dist/
 
 gen:
 	go generate ./...
