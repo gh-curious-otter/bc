@@ -415,9 +415,18 @@ func CheckAgents(ctx context.Context, ws *workspace.Workspace) CategoryReport {
 		// Check for stale state (active but no recent update)
 		if agentOK && (a.State == agent.StateWorking || a.State == agent.StateIdle) {
 			if time.Since(a.UpdatedAt) > staleAgentThreshold {
+				idle := time.Since(a.UpdatedAt).Round(time.Minute)
+				h := int(idle.Hours())
+				m := int(idle.Minutes()) % 60
+				var idleStr string
+				if h > 0 {
+					idleStr = fmt.Sprintf("%dh%dm", h, m)
+				} else {
+					idleStr = fmt.Sprintf("%dm", m)
+				}
 				cat.Items = append(cat.Items, Item{
 					Name:     a.Name,
-					Message:  fmt.Sprintf("no activity for %s (may be stuck)", formatDuration(time.Since(a.UpdatedAt))),
+					Message:  fmt.Sprintf("no activity for %s (may be stuck)", idleStr),
 					Severity: SeverityWarn,
 				})
 				agentOK = false
@@ -442,7 +451,7 @@ func CheckAgents(ctx context.Context, ws *workspace.Workspace) CategoryReport {
 
 // ─── Tools ───────────────────────────────────────────────────────────────────
 
-// CheckTools checks binary installations: tmux, git, and registered providers.
+// CheckTools checks binary installations: tmux, git, registered providers, and env vars.
 func CheckTools(ctx context.Context) CategoryReport {
 	cat := CategoryReport{Name: "Tools"}
 
@@ -479,7 +488,25 @@ func CheckTools(ctx context.Context) CategoryReport {
 		cat.Items = append(cat.Items, item)
 	}
 
+	// Check ANTHROPIC_API_KEY
+	cat.Items = append(cat.Items, checkEnvVar("ANTHROPIC_API_KEY"))
+
 	return cat
+}
+
+// checkEnvVar checks whether an environment variable is set.
+// Returns a warn item if unset, ok item (with masked value) if set.
+func checkEnvVar(name string) Item {
+	value := os.Getenv(name)
+	if value == "" {
+		return Item{Name: name, Message: "not set", Severity: SeverityWarn}
+	}
+	// Mask value: show first 4 and last 4 characters
+	masked := value
+	if len(value) >= 8 {
+		masked = value[:4] + "..." + value[len(value)-4:]
+	}
+	return Item{Name: name, Message: masked, Severity: SeverityOK}
 }
 
 // checkBinary checks whether a binary is in PATH.
@@ -691,15 +718,3 @@ func fixWorkspace(ws *workspace.Workspace, cat *CategoryReport, dryRun bool) []F
 	return results
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-// formatDuration formats a duration in human-readable form (e.g. "2h15m").
-func formatDuration(d time.Duration) string {
-	d = d.Round(time.Minute)
-	h := int(d.Hours())
-	m := int(d.Minutes()) % 60
-	if h > 0 {
-		return fmt.Sprintf("%dh%dm", h, m)
-	}
-	return fmt.Sprintf("%dm", m)
-}
