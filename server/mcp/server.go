@@ -15,42 +15,66 @@ import (
 // Server is a bc MCP server. It owns handles to workspace state and dispatches
 // JSON-RPC 2.0 requests from either stdio or SSE transports.
 type Server struct {
-	ws      *workspace.Workspace
-	agents  *agent.Manager
-	chans   *channel.Store
-	costs   *cost.Store
-	version string
+	ws       *workspace.Workspace
+	agents   *agent.Manager
+	chans    *channel.Store
+	costs    *cost.Store
+	version  string
+	ownChans bool // true if we created the channel store (so Close cleans it up)
+	ownCosts bool // true if we created the cost store
 }
 
 // Config holds the dependencies needed to build a Server.
+// When Channels or Costs are provided, the server reuses them (e.g. from bcd)
+// instead of opening its own connections.
 type Config struct {
 	Workspace *workspace.Workspace
-	Version   string // bc binary version, e.g. "1.2.3"
+	Agents    *agent.Manager // optional: pre-built agent manager
+	Channels  *channel.Store // optional: pre-built channel store (SQLite/Postgres)
+	Costs     *cost.Store    // optional: pre-built cost store
+	Version   string         // bc binary version, e.g. "1.2.3"
 }
 
 // New creates a Server. Call Close when done.
+// When stores are provided via Config, the caller owns their lifecycle and
+// Close will not close them.
 func New(cfg Config) (*Server, error) {
 	if cfg.Workspace == nil {
 		return nil, fmt.Errorf("workspace is required")
 	}
 
-	// Agent manager (tmux backend; read-only usage)
-	mgr := agent.NewWorkspaceManager(cfg.Workspace.AgentsDir(), cfg.Workspace.RootDir)
-	if err := mgr.LoadState(); err != nil {
-		// Non-fatal: an empty or uninitialized workspace has no agents yet
-		_ = err
+	// Track whether we created stores ourselves (so Close knows what to clean up).
+	var ownChans, ownCosts bool
+
+	// Agent manager
+	mgr := cfg.Agents
+	if mgr == nil {
+		mgr = agent.NewWorkspaceManager(cfg.Workspace.AgentsDir(), cfg.Workspace.RootDir)
+		if err := mgr.LoadState(); err != nil {
+			_ = err // Non-fatal
+		}
 	}
 
 	// Channel store
-	cs := channel.NewStore(cfg.Workspace.RootDir)
-	if err := cs.Load(); err != nil {
-		_ = err // Non-fatal: no channels yet
+	cs := cfg.Channels
+	if cs == nil {
+		var err error
+		cs, err = channel.OpenStore(cfg.Workspace.RootDir)
+		if err != nil {
+			cs = channel.NewStore(cfg.Workspace.RootDir)
+			_ = cs.Load()
+		}
+		ownChans = true
 	}
 
 	// Cost store
-	costStore := cost.NewStore(cfg.Workspace.RootDir)
-	if err := costStore.Open(); err != nil {
-		_ = err // Non-fatal: no cost data yet
+	costStore := cfg.Costs
+	if costStore == nil {
+		costStore = cost.NewStore(cfg.Workspace.RootDir)
+		if err := costStore.Open(); err != nil {
+			_ = err // Non-fatal
+		}
+		ownCosts = true
 	}
 
 	v := cfg.Version
@@ -59,17 +83,25 @@ func New(cfg Config) (*Server, error) {
 	}
 
 	return &Server{
-		ws:      cfg.Workspace,
-		agents:  mgr,
-		chans:   cs,
-		costs:   costStore,
-		version: v,
+		ws:       cfg.Workspace,
+		agents:   mgr,
+		chans:    cs,
+		costs:    costStore,
+		version:  v,
+		ownChans: ownChans,
+		ownCosts: ownCosts,
 	}, nil
 }
 
 // Close releases resources held by the server.
+// Only closes stores that the server created itself (not injected ones).
 func (s *Server) Close() error {
-	if s.costs != nil {
+	if s.ownChans && s.chans != nil {
+		if err := s.chans.Close(); err != nil {
+			return err
+		}
+	}
+	if s.ownCosts && s.costs != nil {
 		return s.costs.Close()
 	}
 	return nil

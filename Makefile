@@ -16,8 +16,8 @@ help:
 	@echo "  dev           - Run in development mode"
 	@echo "  build         - Build the binary with version info"
 	@echo "  build-release - Build optimized release binary with version info"
-	@echo "  build-all     - Cross-compile for all platforms to dist/"
-	@echo "  clean         - Remove build artifacts"
+	@echo "  build-all     - Build everything (bc, bcd, TUI, web UI)"
+	@echo "  clean         - Remove all build artifacts (bin, dist, node_modules, coverage)"
 	@echo "  gen           - Generate config code from config.toml"
 	@echo "  test          - Run tests"
 	@echo "  coverage      - Run tests with coverage report"
@@ -80,16 +80,15 @@ build-release: gen
 	@mkdir -p $(BUILD_DIR)
 	go build -ldflags="-s -w $(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bc ./cmd/bc
 
-build-all: gen
-	@mkdir -p dist
-	GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w $(LDFLAGS_VERSION)" -o dist/bc-darwin-amd64 ./cmd/bc
-	GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w $(LDFLAGS_VERSION)" -o dist/bc-darwin-arm64 ./cmd/bc
-	GOOS=linux GOARCH=amd64 go build -ldflags="-s -w $(LDFLAGS_VERSION)" -o dist/bc-linux-amd64 ./cmd/bc
-	GOOS=linux GOARCH=arm64 go build -ldflags="-s -w $(LDFLAGS_VERSION)" -o dist/bc-linux-arm64 ./cmd/bc
-	GOOS=windows GOARCH=amd64 go build -ldflags="-s -w $(LDFLAGS_VERSION)" -o dist/bc-windows-amd64.exe ./cmd/bc
+build-all: build build-tui build-bcd
+	@echo "All binaries built: bc, bcd (with web UI and TUI)"
 
 clean:
 	rm -rf $(BUILD_DIR)/ dist/
+	rm -rf tui/node_modules tui/dist
+	rm -rf web/node_modules web/dist server/web/dist
+	rm -rf landing/dist
+	rm -f coverage.out
 
 gen:
 	go generate ./...

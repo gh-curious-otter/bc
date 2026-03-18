@@ -128,7 +128,11 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 
 	// MCP protocol server (SSE transport) at /mcp/
 	if svc.WS != nil {
-		mcpSrv, mcpErr := servermcp.New(servermcp.Config{Workspace: svc.WS})
+		mcpCfg := servermcp.Config{Workspace: svc.WS, Costs: svc.Costs}
+		if svc.Channels != nil {
+			mcpCfg.Channels = svc.Channels.Store()
+		}
+		mcpSrv, mcpErr := servermcp.New(mcpCfg)
 		if mcpErr != nil {
 			log.Warn("MCP server unavailable", "error", mcpErr)
 		} else {

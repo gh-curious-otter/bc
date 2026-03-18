@@ -61,6 +61,11 @@ func NewChannelService(store *Store) *ChannelService {
 	return &ChannelService{store: store}
 }
 
+// Store returns the underlying channel store.
+func (s *ChannelService) Store() *Store {
+	return s.store
+}
+
 // List returns all channels as DTOs.
 func (s *ChannelService) List(_ context.Context) ([]ChannelDTO, error) {
 	channels := s.store.List()
