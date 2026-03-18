@@ -696,7 +696,7 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		}
 		agentCmd := m.agentCmd
 		if toolName != "" {
-			if cmd, ok := m.getAgentCommand(toolName, name, resume || !opts.Fresh); ok {
+			if cmd, ok := m.getAgentCommand(toolName, name, resume); ok {
 				agentCmd = cmd
 			}
 		}

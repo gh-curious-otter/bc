@@ -11,67 +11,79 @@ import (
 	"github.com/rpuneet/bc/pkg/log"
 )
 
-// AgentAuthDir returns the per-agent auth directory.
-// This directory is mounted into the container as ~/.claude/ and persists
-// across container restarts. Each agent has its own isolated credentials.
+// AgentAuthDir returns the per-agent .claude settings directory.
+// Mounted as /home/agent/.claude inside the container and persists across
+// restarts. Each agent has isolated credentials.
 //
 // Layout: <workspaceDir>/.bc/agents/<agentName>/auth/.claude/
 func AgentAuthDir(workspaceDir, agentName string) string {
 	return filepath.Join(workspaceDir, ".bc", "agents", agentName, "auth", ".claude")
 }
 
-// EnsureAuthDir creates the per-agent auth directory if it doesn't exist.
-// If the directory is newly created (empty), seeds it from the host's ~/.claude
-// credentials so agents don't require a separate login.
+// AgentAuthTokenFile returns the path of the per-agent .claude.json token file.
+// This is the primary auth token Claude Code reads at startup ($HOME/.claude.json).
+// It lives alongside (not inside) the .claude/ dir so it can be bind-mounted
+// individually as /home/agent/.claude.json without touching the rest of HOME.
+//
+// Layout: <workspaceDir>/.bc/agents/<agentName>/auth/.claude.json
+func AgentAuthTokenFile(workspaceDir, agentName string) string {
+	return filepath.Join(workspaceDir, ".bc", "agents", agentName, "auth", ".claude.json")
+}
+
+// EnsureAuthDir creates the per-agent auth directories and seeds credentials
+// from the host on first use so agents start pre-authenticated.
 func EnsureAuthDir(workspaceDir, agentName string) (string, error) {
 	dir := AgentAuthDir(workspaceDir, agentName)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return "", fmt.Errorf("failed to create agent auth dir: %w", err)
 	}
 
-	// If the auth dir is empty, seed from host credentials
-	entries, err := os.ReadDir(dir)
-	if err == nil && len(entries) == 0 {
-		seedAuthFromHost(dir)
+	// Seed on first use: if .claude.json token is absent the agent will prompt for login
+	tokenFile := AgentAuthTokenFile(workspaceDir, agentName)
+	if _, err := os.Stat(tokenFile); os.IsNotExist(err) {
+		seedAuthFromHost(filepath.Dir(dir)) // pass auth/ parent so seeding writes to correct locations
 	}
 
 	return dir, nil
 }
 
-// seedAuthFromHost copies credential files from the host's ~/.claude directory
-// into the agent's auth directory so agents inherit the host's authentication.
-func seedAuthFromHost(agentAuthDir string) {
+// seedAuthFromHost seeds agent auth from the host's credentials.
+// parentDir is the auth/ directory: it receives .claude.json and .claude/subdir.
+func seedAuthFromHost(parentDir string) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return
 	}
 
+	// Copy ~/.claude.json — primary auth token, lives at $HOME level
+	claudeJSON := filepath.Join(home, ".claude.json")
+	if data, readErr := os.ReadFile(claudeJSON); readErr == nil { //nolint:gosec // known credential file
+		dst := filepath.Join(parentDir, ".claude.json")
+		if writeErr := os.WriteFile(dst, data, 0600); writeErr != nil {
+			log.Debug("failed to seed .claude.json", "error", writeErr)
+		}
+	}
+
+	// Copy credential files from ~/.claude/ into auth/.claude/
 	hostClaudeDir := filepath.Join(home, ".claude")
-	if _, err := os.Stat(hostClaudeDir); os.IsNotExist(err) {
+	agentClaudeDir := filepath.Join(parentDir, ".claude")
+	if err := os.MkdirAll(agentClaudeDir, 0700); err != nil {
 		return
 	}
 
-	// Copy credential-related files (not the entire directory)
-	credFiles := []string{
-		".credentials.json",
-		"credentials.json",
-		"settings.json",
-		"auth.json",
-	}
-
-	for _, name := range credFiles {
+	for _, name := range []string{".credentials.json", "credentials.json", "settings.json", "auth.json"} {
 		src := filepath.Join(hostClaudeDir, name)
-		data, err := os.ReadFile(src) //nolint:gosec // src is constructed from known credential file names
+		data, err := os.ReadFile(src) //nolint:gosec // known credential file names
 		if err != nil {
-			continue // file doesn't exist or not readable
+			continue
 		}
-		dst := filepath.Join(agentAuthDir, name)
+		dst := filepath.Join(agentClaudeDir, name)
 		if writeErr := os.WriteFile(dst, data, 0600); writeErr != nil {
 			log.Debug("failed to seed auth file", "file", name, "error", writeErr)
 		}
 	}
 
-	log.Debug("seeded agent auth from host credentials", "agent_auth_dir", agentAuthDir)
+	log.Debug("seeded agent auth from host credentials", "auth_dir", parentDir)
 }
 
 // IsAuthenticated checks if an agent has valid auth credentials.
@@ -132,11 +144,13 @@ func LoginIfNeeded(ctx context.Context, workspaceDir, agentName string) error {
 	return Login(ctx, workspaceDir, agentName)
 }
 
-// authEnv returns environment variables with HOME set to the agent's auth
-// directory parent, so claude stores credentials in the agent's isolated dir.
+// authEnv returns environment variables with HOME set to the auth parent dir,
+// so claude reads/writes to the agent's isolated persistent credential locations.
 func authEnv(authDir string) []string {
-	// authDir is .../auth/.claude, so parent is .../auth/
-	// Setting HOME to .../auth/ means claude writes to $HOME/.claude/ = authDir
+	// authDir is .../auth/.claude — parent is .../auth/
+	// Setting HOME to .../auth/ means:
+	//   $HOME/.claude.json = .../auth/.claude.json  (seeded token file)
+	//   $HOME/.claude/     = .../auth/.claude/       (settings dir, = authDir)
 	home := filepath.Dir(authDir)
 	env := os.Environ()
 	result := make([]string, 0, len(env)+1)

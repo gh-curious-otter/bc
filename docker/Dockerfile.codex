@@ -1,24 +1,13 @@
 # OpenAI Codex agent image
-# Usage: docker build -t bc-agent-codex:latest -f docker/Dockerfile.codex .
+# Requires: bc-agent-base:latest
 
 FROM oven/bun:latest AS builder
 RUN bun install -g @openai/codex
 
-FROM ubuntu:24.04
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        git curl ca-certificates openssh-client gh tmux && \
-    rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /usr/local/bin/bun /usr/local/bin/bun
-RUN ln -sf /usr/local/bin/bun /usr/local/bin/bunx && \
-    ln -sf /usr/local/bin/bun /usr/local/bin/node
+FROM bc-agent-base:latest
+USER root
 COPY --from=builder /root/.bun/install/global/node_modules /usr/local/lib/node_modules
-RUN for f in /usr/local/lib/node_modules/.bin/*; do \
-        ln -sf "$f" /usr/local/bin/ 2>/dev/null || true; \
-    done
-
-RUN useradd -m -s /bin/bash agent
+RUN for f in /usr/local/lib/node_modules/.bin/*; do ln -sf "$f" /usr/local/bin/ 2>/dev/null || true; done
 USER agent
 WORKDIR /workspace
 ENTRYPOINT ["bash", "-c"]

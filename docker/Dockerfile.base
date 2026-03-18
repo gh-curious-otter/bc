@@ -1,0 +1,26 @@
+# bc agent base image — developer tools shared by all provider images
+# Usage: docker build -t bc-agent-base:latest -f docker/Dockerfile.base .
+
+FROM ubuntu:24.04
+
+ENV GOVERSION=1.24.1
+ENV PATH=/usr/local/go/bin:/root/go/bin:/home/agent/go/bin:$PATH
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        git curl ca-certificates openssh-client gh tmux \
+        gcc libc6-dev make sqlite3 jq unzip && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Go (arch-aware)
+RUN ARCH=$(dpkg --print-architecture | sed 's/amd64/amd64/;s/arm64/arm64/') && \
+    curl -fsSL "https://go.dev/dl/go${GOVERSION}.linux-${ARCH}.tar.gz" | tar -C /usr/local -xz
+
+# Install Bun (for TUI / JS tooling)
+RUN curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash && \
+    ln -sf /usr/local/bin/bun /usr/local/bin/bunx && \
+    ln -sf /usr/local/bin/bun /usr/local/bin/node
+
+RUN useradd -m -s /bin/bash agent
+USER agent
+WORKDIR /workspace
