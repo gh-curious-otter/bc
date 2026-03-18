@@ -40,6 +40,7 @@ type Client struct {
 	Cron       *CronClient
 	MCP        *MCPClient
 	Tools      *ToolsClient
+	Roles      *RolesClient
 	BaseURL    string
 }
 
@@ -64,6 +65,7 @@ func New(addr string) *Client {
 	c.Cron = &CronClient{client: c}
 	c.MCP = &MCPClient{client: c}
 	c.Tools = &ToolsClient{client: c}
+	c.Roles = &RolesClient{client: c}
 
 	return c
 }

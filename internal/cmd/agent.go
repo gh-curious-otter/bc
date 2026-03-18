@@ -448,26 +448,6 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("cannot create root agent via 'bc agent create'. Use 'bc up' to initialize the root agent")
 	}
 
-	// Validate role exists in workspace (local check for better error messages)
-	ws, wsErr := getWorkspace()
-	if wsErr == nil {
-		roleFile := filepath.Join(ws.RolesDir(), string(role)+".md")
-		if _, statErr := os.Stat(roleFile); statErr != nil {
-			availableRoles := []string{}
-			if entries, dirErr := os.ReadDir(ws.RolesDir()); dirErr == nil {
-				for _, entry := range entries {
-					if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
-						availableRoles = append(availableRoles, strings.TrimSuffix(entry.Name(), ".md"))
-					}
-				}
-			}
-			if len(availableRoles) > 0 {
-				return fmt.Errorf("role %q not found. Available roles: %s", role, strings.Join(availableRoles, ", "))
-			}
-			return fmt.Errorf("role %q not found. Create it first with 'bc role create %s'", role, role)
-		}
-	}
-
 	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
@@ -483,11 +463,8 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Generated name: %s\n", agentName)
 	}
 
-	// Determine tool
+	// Determine tool (server uses workspace default if empty)
 	toolName := agentCreateTool
-	if toolName == "" && wsErr == nil {
-		toolName = ws.DefaultProvider()
-	}
 
 	// Create via client
 	fmt.Printf("Creating %s (%s)... ", agentName, role)

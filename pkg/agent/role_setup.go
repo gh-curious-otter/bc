@@ -125,7 +125,7 @@ func writeMCPJSON(workspacePath, agentName string, resolved *workspace.ResolvedR
 			continue
 		}
 		def, getErr := mcpStore.Get(name)
-		if getErr != nil || !def.Enabled {
+		if getErr != nil || def == nil || !def.Enabled {
 			continue
 		}
 		entry := mcpServerEntry{Command: def.Command, Args: def.Args, URL: def.URL}

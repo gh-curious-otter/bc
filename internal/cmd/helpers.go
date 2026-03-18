@@ -14,3 +14,19 @@ func validIdentifier(s string) bool {
 	}
 	return identifierPattern.MatchString(s)
 }
+
+// isValidRoleName checks if a role name is valid.
+func isValidRoleName(name string) bool {
+	if name == "" || len(name) > 50 {
+		return false
+	}
+	for _, ch := range name {
+		isLower := ch >= 'a' && ch <= 'z'
+		isDigit := ch >= '0' && ch <= '9'
+		isValid := isLower || isDigit || ch == '-' || ch == '_'
+		if !isValid {
+			return false
+		}
+	}
+	return true
+}

@@ -8,7 +8,7 @@ import (
 
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/workspace"
+
 )
 
 // CompleteAgentNames returns a completion function for agent names
@@ -53,24 +53,23 @@ func CompleteChannelNames(cmd *cobra.Command, args []string, toComplete string) 
 	return names, cobra.ShellCompDirectiveNoFileComp
 }
 
-// CompleteRoleNames returns a completion function for role names
+// CompleteRoleNames returns a completion function for role names.
+// Uses the daemon API to get role names (roles are managed by bcd, not local files).
 func CompleteRoleNames(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	ws, err := getWorkspace()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
-		// Return built-in roles as fallback
-		return []string{"root", "manager", "engineer", "tech-lead", "product-manager"}, cobra.ShellCompDirectiveNoFileComp
+		return []string{"root", "feature-dev", "base"}, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	rm := workspace.NewRoleManager(ws.StateDir())
-	roles, rolesErr := rm.LoadAllRoles()
+	roles, rolesErr := c.Roles.List(cmd.Context())
 	if rolesErr != nil {
 		log.Debug("completion: failed to list roles", "error", rolesErr)
-		return []string{"root", "manager", "engineer", "tech-lead", "product-manager"}, cobra.ShellCompDirectiveNoFileComp
+		return []string{"root", "feature-dev", "base"}, cobra.ShellCompDirectiveNoFileComp
 	}
 
 	names := make([]string, 0, len(roles))
-	for _, r := range roles {
-		names = append(names, r.Metadata.Name)
+	for name := range roles {
+		names = append(names, name)
 	}
 	return names, cobra.ShellCompDirectiveNoFileComp
 }
