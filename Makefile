@@ -1,4 +1,4 @@
-.PHONY: dev build build-release build-all clean gen test coverage bench fmt vet lint check deps help version build-tui test-tui lint-tui build-web build-bcd build-agent-base build-agent-image build-agent-images build-landing dev-landing
+.PHONY: dev build build-release build-all clean gen test coverage bench fmt vet lint check deps help version build-tui test-tui lint-tui build-web build-bcd build-bcd-image build-bcdb-image build-agent-base build-agent-image build-agent-images build-landing dev-landing
 
 # Version information
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -137,6 +137,15 @@ build-landing:
 dev-landing:
 	@echo "Starting landing page dev server at http://localhost:8080"
 	@cd landing && python3 -m http.server 8080
+
+# Docker server images (bcd + bcdb)
+build-bcd-image:
+	@echo "Building bc-bcd image (includes web UI)..."
+	docker build -t bc-bcd:latest -f docker/Dockerfile.bcd .
+
+build-bcdb-image:
+	@echo "Building bc-bcdb image (postgres:17 + init SQL)..."
+	docker build -t bc-bcdb:latest -f docker/Dockerfile.bcdb .
 
 # Docker agent images (per-provider)
 AGENT_PROVIDERS := claude gemini codex aider opencode openclaw cursor

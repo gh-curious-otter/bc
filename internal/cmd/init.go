@@ -421,6 +421,10 @@ func initV2WorkspaceWithNickname(rootDir string, nickname string) error {
 	}
 	fmt.Println("    .bc/channels.db     # Channel database")
 	fmt.Println()
+
+	// Bootstrap server daemons (non-fatal; warns if Docker unavailable)
+	bootstrapServerDaemons(rootDir)
+
 	fmt.Println("  Next steps:")
 	fmt.Println("    bc          # Open the dashboard")
 	fmt.Println("    bc up       # Start agents")
