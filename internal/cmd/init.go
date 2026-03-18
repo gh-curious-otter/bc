@@ -187,6 +187,28 @@ func initV2Workspace(rootDir string) error {
 	return nil
 }
 
+// createDefaultChannels creates the "all" channel and one channel per agent.
+// rootDir is the workspace root directory; agentNames is the list of agent names.
+func createDefaultChannels(rootDir string, agentNames []string) {
+	store := channel.NewSQLiteStore(rootDir)
+	if err := store.Open(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not open channel store: %v\n", err)
+		return
+	}
+	defer func() { _ = store.Close() }()
+
+	names := append([]string{"all"}, agentNames...)
+	for _, name := range names {
+		existing, getErr := store.GetChannel(name)
+		if getErr != nil || existing != nil {
+			continue
+		}
+		if _, createErr := store.CreateChannel(name, channel.ChannelTypeGroup, ""); createErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not create channel %q: %v\n", name, createErr)
+		}
+	}
+}
+
 // getWorkspace finds the current workspace.
 // Supports both v1 (config.json) and v2 (config.toml) workspaces.
 // Checks BC_WORKSPACE env var first (for agents in worktrees), then walks up directory tree.

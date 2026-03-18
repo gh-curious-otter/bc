@@ -18,7 +18,6 @@ import (
 	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/container"
 	"github.com/rpuneet/bc/pkg/cost"
-	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/provider"
 	"github.com/rpuneet/bc/pkg/ui"
@@ -1133,19 +1132,12 @@ func runAgentCost(cmd *cobra.Command, args []string) error {
 func runAgentLogs(cmd *cobra.Command, args []string) error {
 	agentName := args[0]
 
-	ws, err := getWorkspace()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
-		return errNotInWorkspace(err)
+		return err
 	}
 
-	el := openEventLog(ws)
-	if el == nil {
-		fmt.Println("No event log available")
-		return nil
-	}
-	defer func() { _ = el.Close() }()
-
-	agentEvents, readErr := el.ReadByAgent(agentName)
+	agentEvents, readErr := c.Events.ListByAgent(cmd.Context(), agentName)
 	if readErr != nil {
 		return fmt.Errorf("failed to read agent events: %w", readErr)
 	}
@@ -1157,7 +1149,7 @@ func runAgentLogs(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("invalid --since duration %q: %w", agentLogsSince, parseErr)
 		}
 		cutoff := time.Now().Add(-since)
-		filtered := make([]events.Event, 0, len(agentEvents))
+		filtered := agentEvents[:0]
 		for _, e := range agentEvents {
 			if e.Timestamp.After(cutoff) {
 				filtered = append(filtered, e)
@@ -1292,18 +1284,14 @@ Examples:
 }
 
 func runAgentStats(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
 	agentName := args[0]
-	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
+
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
+		return err
 	}
 
-	records, err := mgr.QueryAgentStats(agentName, agentStatsLimit)
+	records, err := c.Agents.Stats(cmd.Context(), agentName, agentStatsLimit)
 	if err != nil {
 		return fmt.Errorf("query stats: %w", err)
 	}
@@ -1312,7 +1300,7 @@ func runAgentStats(cmd *cobra.Command, args []string) error {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		if records == nil {
-			records = []*agent.AgentStatsRecord{}
+			records = []*client.AgentStatsRecord{}
 		}
 		return enc.Encode(records)
 	}

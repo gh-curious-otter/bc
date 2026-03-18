@@ -27,6 +27,7 @@ import (
 	bccost "github.com/rpuneet/bc/pkg/cost"
 	bccron "github.com/rpuneet/bc/pkg/cron"
 	bcdaemon "github.com/rpuneet/bc/pkg/daemon"
+	bcevents "github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	bcmcp "github.com/rpuneet/bc/pkg/mcp"
 	"github.com/rpuneet/bc/pkg/provider"
@@ -187,6 +188,15 @@ func run(addr, wsRoot string) error {
 		defer ts.Close() //nolint:errcheck // best-effort
 	}
 
+	// Event log
+	var eventLog bcevents.EventStore
+	if el, err := bcevents.NewSQLiteLog(filepath.Join(ws.StateDir(), "state.db")); err != nil {
+		log.Warn("event log unavailable", "error", err)
+	} else {
+		eventLog = el
+		defer el.Close() //nolint:errcheck // best-effort
+	}
+
 	svc := server.Services{
 		Agents:       agentSvc,
 		Channels:     channelSvc,
@@ -197,6 +207,7 @@ func run(addr, wsRoot string) error {
 		Secrets:      secretStore,
 		MCP:          mcpStore,
 		Tools:        toolStore,
+		EventLog:     eventLog,
 		WS:           ws,
 	}
 

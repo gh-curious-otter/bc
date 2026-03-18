@@ -74,6 +74,8 @@ func (h *CronHandler) byName(w http.ResponseWriter, r *http.Request) {
 		h.setEnabled(w, r, name, true)
 	case "disable":
 		h.setEnabled(w, r, name, false)
+	case "run":
+		h.run(w, r, name)
 	case "logs":
 		h.logs(w, r, name)
 	default:
@@ -112,6 +114,30 @@ func (h *CronHandler) setEnabled(w http.ResponseWriter, r *http.Request, name st
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"enabled": enabled})
+}
+
+func (h *CronHandler) run(w http.ResponseWriter, r *http.Request, name string) {
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	job, err := h.store.GetJob(r.Context(), name)
+	if err != nil {
+		httpError(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if job == nil {
+		httpError(w, "cron job not found", http.StatusNotFound)
+		return
+	}
+	if !job.Enabled {
+		httpError(w, "cron job is disabled", http.StatusBadRequest)
+		return
+	}
+	if err := h.store.RecordManualTrigger(r.Context(), name); err != nil {
+		httpError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "triggered"})
 }
 
 func (h *CronHandler) logs(w http.ResponseWriter, r *http.Request, name string) {

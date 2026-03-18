@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/bc/pkg/client"
 	pkgmcp "github.com/rpuneet/bc/pkg/mcp"
 	"github.com/rpuneet/bc/pkg/ui"
 	srvmcp "github.com/rpuneet/bc/server/mcp"
@@ -191,8 +192,6 @@ func runMCPAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("server name %q contains invalid characters (use letters, numbers, dash, underscore)", name)
 	}
 
-	transport := pkgmcp.Transport(mcpAddTransport)
-
 	// Parse env vars
 	env := make(map[string]string)
 	for _, e := range mcpAddEnv {
@@ -209,9 +208,14 @@ func runMCPAdd(cmd *cobra.Command, args []string) error {
 		serverArgs = strings.Split(mcpAddArgs, ",")
 	}
 
-	cfg := &pkgmcp.ServerConfig{
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
+		return err
+	}
+
+	cfg := &client.MCPServerConfig{
 		Name:      name,
-		Transport: transport,
+		Transport: mcpAddTransport,
 		Command:   mcpAddCommand,
 		Args:      serverArgs,
 		URL:       mcpAddURL,
@@ -219,30 +223,23 @@ func runMCPAdd(cmd *cobra.Command, args []string) error {
 		Enabled:   true,
 	}
 
-	store, err := openMCPStore()
-	if err != nil {
-		return err
-	}
-	defer func() { _ = store.Close() }()
-
-	if err := store.Add(cfg); err != nil {
-		return err
+	if _, addErr := c.MCP.Add(cmd.Context(), cfg); addErr != nil {
+		return fmt.Errorf("add mcp server: %w", addErr)
 	}
 
-	fmt.Printf("Added MCP server %q (%s)\n", name, transport)
+	fmt.Printf("Added MCP server %q (%s)\n", name, mcpAddTransport)
 	return nil
 }
 
 func runMCPList(cmd *cobra.Command, args []string) error {
-	store, err := openMCPStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = store.Close() }()
 
-	configs, err := store.List()
-	if err != nil {
-		return err
+	configs, listErr := c.MCP.List(cmd.Context())
+	if listErr != nil {
+		return fmt.Errorf("list mcp servers: %w", listErr)
 	}
 
 	jsonOutput, err := cmd.Flags().GetBool("json")
@@ -251,7 +248,7 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 	}
 	if jsonOutput {
 		response := struct {
-			Servers []*pkgmcp.ServerConfig `json:"servers"`
+			Servers []*client.MCPServerConfig `json:"servers"`
 		}{Servers: configs}
 		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")
@@ -268,14 +265,14 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 	table := ui.NewTable("NAME", "TRANSPORT", "COMMAND/URL", "ENABLED")
 	for _, cfg := range configs {
 		target := cfg.Command
-		if cfg.Transport == pkgmcp.TransportSSE {
+		if cfg.Transport == "sse" {
 			target = cfg.URL
 		}
 		enabled := "yes"
 		if !cfg.Enabled {
 			enabled = "no"
 		}
-		table.AddRow(cfg.Name, string(cfg.Transport), target, enabled)
+		table.AddRow(cfg.Name, cfg.Transport, target, enabled)
 	}
 	table.Print()
 	return nil
@@ -287,18 +284,14 @@ func runMCPShow(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("server name %q contains invalid characters", name)
 	}
 
-	store, err := openMCPStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = store.Close() }()
 
-	cfg, err := store.Get(name)
-	if err != nil {
-		return err
-	}
-	if cfg == nil {
-		return fmt.Errorf("mcp server %q not found (use 'bc mcp list' to see available servers)", name)
+	cfg, getErr := c.MCP.Get(cmd.Context(), name)
+	if getErr != nil {
+		return fmt.Errorf("get mcp server: %w", getErr)
 	}
 
 	jsonOutput, err := cmd.Flags().GetBool("json")
@@ -326,7 +319,7 @@ func runMCPShow(cmd *cobra.Command, args []string) error {
 
 	ui.SimpleTable(
 		"Name", cfg.Name,
-		"Transport", string(cfg.Transport),
+		"Transport", cfg.Transport,
 		"Enabled", enabled,
 	)
 
@@ -356,14 +349,13 @@ func runMCPRemove(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("server name %q contains invalid characters", name)
 	}
 
-	store, err := openMCPStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = store.Close() }()
 
-	if err := store.Remove(name); err != nil {
-		return err
+	if removeErr := c.MCP.Remove(cmd.Context(), name); removeErr != nil {
+		return fmt.Errorf("remove mcp server: %w", removeErr)
 	}
 
 	fmt.Printf("Removed MCP server %q\n", name)
@@ -376,14 +368,13 @@ func runMCPEnable(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("server name %q contains invalid characters", name)
 	}
 
-	store, err := openMCPStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = store.Close() }()
 
-	if err := store.SetEnabled(name, true); err != nil {
-		return err
+	if enableErr := c.MCP.Enable(cmd.Context(), name); enableErr != nil {
+		return fmt.Errorf("enable mcp server: %w", enableErr)
 	}
 
 	fmt.Printf("Enabled MCP server %q\n", name)
@@ -396,14 +387,13 @@ func runMCPDisable(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("server name %q contains invalid characters", name)
 	}
 
-	store, err := openMCPStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = store.Close() }()
 
-	if err := store.SetEnabled(name, false); err != nil {
-		return err
+	if disableErr := c.MCP.Disable(cmd.Context(), name); disableErr != nil {
+		return fmt.Errorf("disable mcp server: %w", disableErr)
 	}
 
 	fmt.Printf("Disabled MCP server %q\n", name)

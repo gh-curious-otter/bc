@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/rpuneet/bc/pkg/agent"
@@ -23,6 +24,8 @@ func (h *WorkspaceHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/workspace", h.status) // root = status
 	mux.HandleFunc("/api/workspace/status", h.status)
 	mux.HandleFunc("/api/workspace/roles", h.roles)
+	mux.HandleFunc("/api/workspace/up", h.up)
+	mux.HandleFunc("/api/workspace/down", h.down)
 }
 
 func (h *WorkspaceHandler) status(w http.ResponseWriter, r *http.Request) {
@@ -59,4 +62,64 @@ func (h *WorkspaceHandler) roles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, roles)
+}
+
+func (h *WorkspaceHandler) up(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	var req struct {
+		Tool    string `json:"tool"`
+		Runtime string `json:"runtime"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req) //nolint:errcheck // optional body
+	a, err := h.svc.Create(r.Context(), agent.CreateOptions{
+		Name:    "root",
+		Role:    agent.RoleRoot,
+		Tool:    req.Tool,
+		Runtime: req.Runtime,
+	})
+	if err != nil {
+		if isAlreadyRunning(err) {
+			writeJSON(w, http.StatusOK, map[string]string{"status": "already_running"})
+			return
+		}
+		httpError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "started", "session": a.Session})
+}
+
+func (h *WorkspaceHandler) down(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	stopped, err := h.svc.StopAll(r.Context())
+	if err != nil {
+		httpError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"stopped": stopped})
+}
+
+// isAlreadyRunning detects "already running" errors from Create/Start.
+func isAlreadyRunning(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return len(msg) > 0 && (contains(msg, "already running") || contains(msg, "session is alive"))
+}
+
+func contains(s, sub string) bool {
+	return len(s) >= len(sub) && (s == sub || len(s) > 0 && indexBytes(s, sub) >= 0)
+}
+
+func indexBytes(s, sub string) int {
+	for i := 0; i <= len(s)-len(sub); i++ {
+		if s[i:i+len(sub)] == sub {
+			return i
+		}
+	}
+	return -1
 }
