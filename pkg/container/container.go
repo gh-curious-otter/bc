@@ -256,7 +256,9 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		}
 	}
 
-	// Read-only host config mounts (git, ssh)
+	// Read-only host config mounts (git, ssh only)
+	// Docker agents are self-contained — no host .claude/ mounts.
+	// All Claude config (plugins, settings, MCP) is written by role_setup.
 	home, _ := os.UserHomeDir()
 	if home != "" {
 		roMounts := []struct{ src, dst string }{

@@ -38,21 +38,30 @@ func SetupAgentFromRole(workspacePath, agentName, roleName, targetDir string) er
 	secrets := loadSecrets(workspacePath, resolved.Secrets)
 	var errs []string
 
-	// CLAUDE.md
+	// CLAUDE.md (project-level prompt)
 	if resolved.Prompt != "" {
 		if e := writeTextFile(targetDir, "CLAUDE.md", resolved.Prompt); e != nil {
 			errs = append(errs, e.Error())
 		}
 	}
 
-	// .mcp.json
+	// .mcp.json (project-level MCP config)
 	if e := writeMCPJSON(workspacePath, agentName, resolved, secrets, targetDir); e != nil {
 		errs = append(errs, e.Error())
 	}
 
-	// .claude/settings.json
+	// .claude/settings.json (project-level settings)
 	if len(resolved.Settings) > 0 {
 		if e := writeJSONFile(filepath.Join(targetDir, ".claude"), "settings.json", resolved.Settings); e != nil {
+			errs = append(errs, e.Error())
+		}
+	}
+
+	// Write plugin config to the agent's auth dir (user-level .claude/)
+	// so Docker agents have plugins available without host mounts.
+	authClaudeDir := filepath.Join(workspacePath, ".bc", "agents", agentName, "auth", ".claude")
+	if len(resolved.Plugins) > 0 {
+		if e := writePluginConfig(authClaudeDir, resolved.Plugins); e != nil {
 			errs = append(errs, e.Error())
 		}
 	}
@@ -178,6 +187,50 @@ func resolveSecretValue(value string, secrets map[string]string) string {
 		}
 		return ""
 	})
+}
+
+// ── Plugin config ────────────────────────────────────────────────────────────
+
+// writePluginConfig writes settings.json with enabled plugins and
+// installed_plugins.json to the agent's user-level .claude/ directory.
+// This enables plugins for Docker agents without mounting host dirs.
+func writePluginConfig(claudeDir string, plugins []string) error {
+	if len(plugins) == 0 {
+		return nil
+	}
+
+	// Build enabledPlugins map for settings.json
+	enabled := make(map[string]bool, len(plugins))
+	for _, p := range plugins {
+		enabled[p] = true
+	}
+
+	// Write/merge settings.json with enabledPlugins
+	settingsPath := filepath.Join(claudeDir, "settings.json")
+	settings := map[string]any{}
+	if data, err := os.ReadFile(settingsPath); err == nil { //nolint:gosec // agent auth dir
+		_ = json.Unmarshal(data, &settings)
+	}
+	settings["enabledPlugins"] = enabled
+	if err := writeJSONFile(claudeDir, "settings.json", settings); err != nil {
+		return fmt.Errorf("write plugin settings: %w", err)
+	}
+
+	// Copy host installed_plugins.json if available (tells Claude where plugin cache is)
+	home, _ := os.UserHomeDir()
+	if home != "" {
+		src := filepath.Join(home, ".claude", "plugins", "installed_plugins.json")
+		if data, err := os.ReadFile(src); err == nil { //nolint:gosec // known path
+			pluginsDir := filepath.Join(claudeDir, "plugins")
+			_ = os.MkdirAll(pluginsDir, 0750) //nolint:errcheck
+			dst := filepath.Join(pluginsDir, "installed_plugins.json")
+			if writeErr := os.WriteFile(dst, data, 0600); writeErr != nil {
+				log.Debug("failed to copy installed_plugins.json", "error", writeErr)
+			}
+		}
+	}
+
+	return nil
 }
 
 // ── File writers ────────────────────────────────────────────────────────────
