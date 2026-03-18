@@ -1,241 +1,249 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
-	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/provider"
+	"github.com/rpuneet/bc/pkg/doctor"
 	"github.com/rpuneet/bc/pkg/ui"
 )
-
-// Check result status
-type checkStatus int
-
-const (
-	checkOK checkStatus = iota
-	checkWarn
-	checkFail
-)
-
-// Check represents a single dependency check
-type check struct {
-	Name    string
-	Message string
-	Fix     string
-	Status  checkStatus
-	// Required must be last for fieldalignment
-	Required bool
-}
 
 var doctorCmd = &cobra.Command{
 	Use:     "doctor",
 	Aliases: []string{"dr"},
-	Short:   "Check system dependencies and configuration",
-	Long: `Diagnose your bc installation by checking required dependencies.
+	Short:   "Health checks and diagnostics",
+	Long: `Run health checks on your bc workspace and dependencies.
 
-Required dependencies:
-  tmux    Terminal multiplexer for agent sessions
-  git     Version control for worktrees
+Checks workspace config, agent state, databases, tools, and git worktrees.
 
-Optional dependencies (AI coding tools):
-  claude    Anthropic Claude CLI
-  gemini    Google Gemini CLI
-  cursor    Cursor editor
-  codex     OpenAI Codex CLI
-  opencode  OpenCode CLI
-  openclaw  OpenClaw CLI
-  aider     Aider AI pair programmer
+Categories:
+  workspace   .bc/ directory, config.toml, role files
+  database    SQLite integrity and table existence
+  agents      Running agents, stale sessions, missing worktrees
+  tools       tmux, git, and AI provider installations
+  git         Worktree validity and orphaned worktrees
 
 Examples:
-  bc doctor           # Run all checks
-  bc doctor --json    # Output as JSON
+  bc doctor                          # Full health check
+  bc doctor check workspace          # Check specific category
+  bc doctor fix                      # Auto-fix fixable issues
+  bc doctor fix --dry-run            # Preview fixes
+  bc doctor fix --category git       # Fix specific category
 
 Exit codes:
-  0  All required checks passed
-  1  One or more required checks failed`,
+  0  All checks passed or only warnings
+  1  One or more checks failed`,
 	RunE: runDoctor,
+}
+
+var doctorCheckCmd = &cobra.Command{
+	Use:       "check [category]",
+	Short:     "Check a specific health category",
+	Args:      cobra.MaximumNArgs(1),
+	ValidArgs: doctor.ValidCategories(),
+	RunE:      runDoctorCheck,
+}
+
+var doctorFixCmd = &cobra.Command{
+	Use:   "fix",
+	Short: "Auto-fix fixable issues",
+	Long: `Attempt to automatically repair fixable issues found by 'bc doctor'.
+
+Fixable issues include:
+  - Orphaned git worktrees
+  - Missing workspace directories
+
+Use --dry-run to preview actions without making changes.
+
+Examples:
+  bc doctor fix                      # Fix all fixable issues
+  bc doctor fix --dry-run            # Preview fixes
+  bc doctor fix --category git       # Fix specific category`,
+	RunE: runDoctorFix,
 }
 
 func init() {
 	rootCmd.AddCommand(doctorCmd)
+	doctorCmd.AddCommand(doctorCheckCmd)
+	doctorCmd.AddCommand(doctorFixCmd)
+
+	doctorFixCmd.Flags().Bool("dry-run", false, "Preview fixes without making changes")
+	doctorFixCmd.Flags().String("category", "", "Fix only the specified category")
 }
 
-func runDoctor(cmd *cobra.Command, args []string) error {
+func runDoctor(cmd *cobra.Command, _ []string) error {
+	ctx := cmd.Context()
+
+	ws, err := getWorkspace()
+	if err != nil {
+		// No workspace: run tools-only check
+		fmt.Println("bc doctor")
+		fmt.Println(strings.Repeat("─", 40))
+		fmt.Println()
+		fmt.Println(ui.YellowText("⚠") + " No workspace found — running tools check only")
+		fmt.Println()
+		cat := doctor.CheckTools(ctx)
+		printCategory(cat)
+		fmt.Println()
+		return nil
+	}
+
+	report := doctor.RunAll(ctx, ws)
+	printReport(report)
+
+	_, _, fail := report.Summary()
+	if fail > 0 {
+		return fmt.Errorf("health check failed")
+	}
+	return nil
+}
+
+func runDoctorCheck(cmd *cobra.Command, args []string) error {
+	ctx := cmd.Context()
+
+	if len(args) == 0 {
+		return cmd.Help()
+	}
+
+	name := args[0]
+
+	ws, wsErr := getWorkspace()
+
+	// Tools check works without a workspace
+	if wsErr != nil && name != "tools" {
+		return errNotInWorkspace(wsErr)
+	}
+
+	var cat *doctor.CategoryReport
+	if wsErr != nil {
+		c := doctor.CheckTools(ctx)
+		cat = &c
+	} else {
+		cat = doctor.CategoryByName(ctx, ws, name)
+		if cat == nil {
+			return fmt.Errorf("unknown category %q — valid categories: %s",
+				name, strings.Join(doctor.ValidCategories(), ", "))
+		}
+	}
+
+	printCategory(*cat)
+	fmt.Println()
+
+	_, _, fail := cat.Counts()
+	if fail > 0 {
+		return fmt.Errorf("check failed")
+	}
+	return nil
+}
+
+func runDoctorFix(cmd *cobra.Command, _ []string) error {
+	ctx := cmd.Context()
+
+	dryRun, err := cmd.Flags().GetBool("dry-run")
+	if err != nil {
+		return err
+	}
+	categoryFilter, err := cmd.Flags().GetString("category")
+	if err != nil {
+		return err
+	}
+
+	ws, wsErr := requireWorkspace()
+	if wsErr != nil {
+		return wsErr
+	}
+
+	if dryRun {
+		fmt.Println(ui.DimText("Dry-run mode — no changes will be made"))
+		fmt.Println()
+	}
+
+	var fixes []doctor.FixResult
+
+	if categoryFilter != "" {
+		cat := doctor.CategoryByName(ctx, ws, categoryFilter)
+		if cat == nil {
+			return fmt.Errorf("unknown category %q — valid categories: %s",
+				categoryFilter, strings.Join(doctor.ValidCategories(), ", "))
+		}
+		fixes = doctor.FixCategory(ctx, ws, cat, dryRun)
+	} else {
+		report := doctor.RunAll(ctx, ws)
+		fixes = doctor.Fix(ctx, ws, report, dryRun)
+	}
+
+	if len(fixes) == 0 {
+		fmt.Println(ui.GreenText("✓") + " Nothing to fix")
+		return nil
+	}
+
+	for _, f := range fixes {
+		icon := ui.GreenText("✓")
+		if !f.Success {
+			icon = ui.RedText("✗")
+		}
+		suffix := ""
+		if f.Message != "" {
+			suffix = "  " + ui.DimText(f.Message)
+		}
+		fmt.Printf("  %s %s%s\n", icon, f.Action, suffix)
+	}
+	fmt.Println()
+	return nil
+}
+
+// ─── Output helpers ───────────────────────────────────────────────────────────
+
+func printReport(report *doctor.Report) {
 	fmt.Println("bc doctor")
 	fmt.Println(strings.Repeat("─", 40))
 	fmt.Println()
 
-	ctx := cmd.Context()
-	checks := make([]check, 0, 10)
-	allRequired := true
-
-	// Required: tmux
-	checks = append(checks, checkCommand(ctx, "tmux", true, "brew install tmux"))
-
-	// Required: git
-	checks = append(checks, checkCommand(ctx, "git", true, "brew install git"))
-
-	// Optional: AI coding tools from provider registry
-	for _, p := range provider.ListProviders() {
-		checks = append(checks, checkProvider(ctx, p))
+	for _, cat := range report.Categories {
+		printCategory(cat)
+		fmt.Println()
 	}
 
-	// Check ANTHROPIC_API_KEY
-	checks = append(checks, checkEnvVar("ANTHROPIC_API_KEY", false))
+	ok, warn, fail := report.Summary()
+	summary := fmt.Sprintf("Summary: %d passed, %d failed, %d warnings",
+		ok, fail, warn)
 
-	// Print results
-	fmt.Println("Required:")
-	for _, c := range checks {
-		if c.Required {
-			printCheck(c)
-			if c.Status == checkFail {
-				allRequired = false
-			}
-		}
-	}
-
-	fmt.Println()
-	fmt.Println("Optional:")
-	for _, c := range checks {
-		if !c.Required {
-			printCheck(c)
-		}
-	}
-
-	fmt.Println()
-
-	// Summary
-	if allRequired {
-		fmt.Println(ui.GreenText("✓") + " All required dependencies installed")
-		return nil
-	}
-
-	fmt.Println(ui.RedText("✗") + " Some required dependencies are missing")
-	fmt.Println()
-	fmt.Println("Install missing dependencies and run 'bc doctor' again.")
-	return fmt.Errorf("required dependencies missing")
-}
-
-func checkCommand(ctx context.Context, name string, required bool, fix string) check {
-	c := check{
-		Name:     name,
-		Required: required,
-		Fix:      fix,
-	}
-
-	path, err := exec.LookPath(name)
-	if err != nil {
-		c.Status = checkFail
-		c.Message = "not found"
-		return c
-	}
-
-	// Get version if available
-	version := getVersion(ctx, name)
-	if version != "" {
-		c.Message = fmt.Sprintf("%s (%s)", path, version)
+	if fail > 0 {
+		fmt.Println(ui.RedText(summary))
+		fmt.Println()
+		fmt.Println("Run 'bc doctor fix' to auto-repair fixable issues.")
+	} else if warn > 0 {
+		fmt.Println(ui.YellowText(summary))
 	} else {
-		c.Message = path
+		fmt.Println(ui.GreenText(summary))
 	}
-	c.Status = checkOK
-	return c
 }
 
-func checkEnvVar(name string, required bool) check {
-	c := check{
-		Name:     name,
-		Required: required,
-	}
-
-	value := os.Getenv(name)
-	if value == "" {
-		c.Status = checkWarn
-		c.Message = "not set"
-		if required {
-			c.Status = checkFail
+func printCategory(cat doctor.CategoryReport) {
+	fmt.Println(ui.BoldText(cat.Name))
+	for _, item := range cat.Items {
+		var icon string
+		switch item.Severity {
+		case doctor.SeverityOK:
+			icon = ui.GreenText("✓")
+		case doctor.SeverityWarn:
+			icon = ui.YellowText("⚠")
+		default:
+			icon = ui.RedText("✗")
 		}
-		return c
-	}
 
-	// Mask the value
-	masked := value[:4] + "..." + value[len(value)-4:]
-	c.Message = masked
-	c.Status = checkOK
-	return c
-}
-
-func getVersion(ctx context.Context, name string) string {
-	var cmd *exec.Cmd
-	switch name {
-	case "tmux":
-		cmd = exec.CommandContext(ctx, "tmux", "-V")
-	case "git":
-		cmd = exec.CommandContext(ctx, "git", "--version")
-	default:
-		// Check provider registry
-		if p, ok := provider.DefaultRegistry.Get(name); ok {
-			return p.Version(ctx)
+		name := item.Name
+		if item.Severity == doctor.SeverityFail {
+			name = ui.RedText(name)
+		} else if item.Severity == doctor.SeverityWarn {
+			name = ui.YellowText(name)
 		}
-		return ""
-	}
 
-	out, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(strings.Split(string(out), "\n")[0])
-}
-
-// checkProvider creates a check for a provider from the registry.
-func checkProvider(ctx context.Context, p provider.Provider) check {
-	c := check{
-		Name:     p.Name(),
-		Required: false,
-		Fix:      p.InstallHint(),
-	}
-
-	if !p.IsInstalled(ctx) {
-		c.Status = checkFail
-		c.Message = "not found"
-		return c
-	}
-
-	version := p.Version(ctx)
-	path, _ := exec.LookPath(p.Binary())
-	if version != "" {
-		c.Message = fmt.Sprintf("%s (%s)", path, version)
-	} else if path != "" {
-		c.Message = path
-	} else {
-		c.Message = "installed"
-	}
-	c.Status = checkOK
-	return c
-}
-
-func printCheck(c check) {
-	var icon string
-	var nameColor string
-
-	switch c.Status {
-	case checkOK:
-		icon = ui.GreenText("✓")
-		nameColor = c.Name
-	case checkWarn:
-		icon = ui.YellowText("⚠")
-		nameColor = ui.YellowText(c.Name)
-	case checkFail:
-		icon = ui.RedText("✗")
-		nameColor = ui.RedText(c.Name)
-	}
-
-	fmt.Printf("  %s %-20s %s\n", icon, nameColor, c.Message)
-	if c.Status == checkFail && c.Fix != "" {
-		fmt.Printf("    Fix: %s\n", c.Fix)
+		fmt.Printf("  %s %-35s %s\n", icon, name, item.Message)
+		if item.Fix != "" && (item.Severity == doctor.SeverityFail || item.Severity == doctor.SeverityWarn) {
+			fmt.Printf("    %s %s\n", ui.DimText("→"), ui.DimText(item.Fix))
+		}
 	}
 }
