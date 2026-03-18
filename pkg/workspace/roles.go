@@ -71,7 +71,7 @@ type RoleManager struct {
 // It provides the bc MCP server so every agent can communicate with the workspace.
 const DefaultBaseRole = `---
 name: base
-description: Base role — provides bc MCP server and workspace communication to all agents
+description: Base role — provides bc MCP server, workspace communication, and shared commands to all agents
 mcp_servers:
   - bc
 prompt_create: |
@@ -84,15 +84,39 @@ prompt_start: |
 prompt_stop: |
   You are being stopped. Save any important state.
   Post a status update to #engineering if you have work in progress.
+commands:
+  status: |
+    Check all channels for recent messages addressed to you.
+    Report your current task using the report_status MCP tool.
+    Query workspace costs using query_costs.
+  channels: |
+    Read recent messages from all channels: all, engineering, general, merge, ops.
+    Summarize any messages that are relevant to your current work.
+  announce: |
+    Send an announcement to the #all channel using send_message.
+    Include your agent name as the sender.
+rules:
+  workspace-communication: |
+    All workspace operations MUST use bc MCP tools. Never use bc CLI commands directly.
+    Available MCP tools: send_message, report_status, query_costs.
+    Always include your agent name as sender when sending messages.
+  channel-etiquette: |
+    Use the right channel for the right purpose:
+    - #all for broadcast announcements only
+    - #engineering for technical coordination
+    - #general for general discussion
+    - #merge for PR review requests
+    - #ops for system health and cost reports
+    Do not spam #all with routine updates.
 ---
 
 # bc Agent
 
 You are an agent in a **bc** workspace — a CLI-first AI agent orchestration system.
 
-## Workspace Communication
+## MCP Tools
 
-All workspace operations MUST use bc MCP tools (never use CLI commands):
+All workspace operations use bc MCP tools (never CLI commands):
 
 | Tool | Purpose | Parameters |
 |------|---------|------------|
@@ -110,7 +134,7 @@ All workspace operations MUST use bc MCP tools (never use CLI commands):
 
 ## Guidelines
 
-- Always report your status when starting or finishing work
+- Report your status when starting or finishing work
 - Post to the appropriate channel, not #all, for routine updates
 - Use #merge when a PR is ready for review
 - Check channels for messages before starting new work
