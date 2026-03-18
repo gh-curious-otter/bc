@@ -162,14 +162,17 @@ func TestSummaryNoAgentStatsSection(t *testing.T) {
 	}
 }
 
-func seedAgentsFile(t *testing.T, stateDir string, agents map[string]*agent.Agent) {
+// seedAgentsFile seeds agents into the unified bc.db.
+// bcDir is the workspace's .bc/ directory (e.g. workspace/.bc).
+// bc.db lives at bcDir/bc.db (= workspacePath/.bc/bc.db).
+func seedAgentsFile(t *testing.T, bcDir string, agents map[string]*agent.Agent) {
 	t.Helper()
-	agentsDir := filepath.Join(stateDir, "agents")
+	agentsDir := filepath.Join(bcDir, "agents")
 	if err := os.MkdirAll(agentsDir, 0750); err != nil {
 		t.Fatalf("mkdir agents: %v", err)
 	}
-	// Write to agentsDir/state.db since NewWorkspaceManager uses agentsDir as stateDir
-	store, err := agent.NewSQLiteStore(filepath.Join(agentsDir, "state.db"))
+	// bc.db path: bcDir/bc.db (bcDir = workspacePath/.bc)
+	store, err := agent.NewSQLiteStore(filepath.Join(bcDir, "bc.db"))
 	if err != nil {
 		t.Fatalf("NewSQLiteStore: %v", err)
 	}
@@ -203,7 +206,8 @@ func TestCollectAgentMetricsEmpty(t *testing.T) {
 }
 
 func TestCollectAgentMetricsRoleCounts(t *testing.T) {
-	stateDir := t.TempDir()
+	workspace := t.TempDir()
+	stateDir := filepath.Join(workspace, ".bc")
 	agentsDir := filepath.Join(stateDir, "agents")
 
 	agents := map[string]*agent.Agent{
@@ -215,7 +219,7 @@ func TestCollectAgentMetricsRoleCounts(t *testing.T) {
 	}
 	seedAgentsFile(t, stateDir, agents)
 
-	mgr := agent.NewWorkspaceManager(agentsDir, filepath.Dir(stateDir))
+	mgr := agent.NewWorkspaceManager(agentsDir, workspace)
 	if err := mgr.LoadState(); err != nil {
 		t.Fatalf("LoadState: %v", err)
 	}
@@ -235,7 +239,8 @@ func TestCollectAgentMetricsRoleCounts(t *testing.T) {
 }
 
 func TestCollectAgentMetricsStateCounts(t *testing.T) {
-	stateDir := t.TempDir()
+	workspace := t.TempDir()
+	stateDir := filepath.Join(workspace, ".bc")
 	agentsDir := filepath.Join(stateDir, "agents")
 
 	agents := map[string]*agent.Agent{
@@ -248,7 +253,7 @@ func TestCollectAgentMetricsStateCounts(t *testing.T) {
 	}
 	seedAgentsFile(t, stateDir, agents)
 
-	mgr := agent.NewWorkspaceManager(agentsDir, filepath.Dir(stateDir))
+	mgr := agent.NewWorkspaceManager(agentsDir, workspace)
 	if err := mgr.LoadState(); err != nil {
 		t.Fatalf("LoadState: %v", err)
 	}
@@ -281,7 +286,8 @@ func TestCollectAgentMetricsStateCounts(t *testing.T) {
 }
 
 func TestCollectAgentMetricsUptime(t *testing.T) {
-	stateDir := t.TempDir()
+	workspace := t.TempDir()
+	stateDir := filepath.Join(workspace, ".bc")
 	agentsDir := filepath.Join(stateDir, "agents")
 
 	startTime := time.Now().Add(-2 * time.Hour)
@@ -292,7 +298,7 @@ func TestCollectAgentMetricsUptime(t *testing.T) {
 	}
 	seedAgentsFile(t, stateDir, agents)
 
-	mgr := agent.NewWorkspaceManager(agentsDir, filepath.Dir(stateDir))
+	mgr := agent.NewWorkspaceManager(agentsDir, workspace)
 	if err := mgr.LoadState(); err != nil {
 		t.Fatalf("LoadState: %v", err)
 	}
@@ -319,7 +325,11 @@ func TestCollectAgentMetricsUptime(t *testing.T) {
 }
 
 func TestLoadEmptyStateDir(t *testing.T) {
-	stateDir := t.TempDir()
+	workspace := t.TempDir()
+	stateDir := filepath.Join(workspace, ".bc")
+	if err := os.MkdirAll(stateDir, 0750); err != nil {
+		t.Fatal(err)
+	}
 
 	s, err := Load(stateDir)
 	if err != nil {
@@ -332,13 +342,14 @@ func TestLoadEmptyStateDir(t *testing.T) {
 	if s.CollectedAt.IsZero() {
 		t.Error("CollectedAt should not be zero")
 	}
-	if s.WorkspacePath != filepath.Dir(stateDir) {
-		t.Errorf("WorkspacePath = %q, want %q", s.WorkspacePath, filepath.Dir(stateDir))
+	if s.WorkspacePath != workspace {
+		t.Errorf("WorkspacePath = %q, want %q", s.WorkspacePath, workspace)
 	}
 }
 
 func TestLoadWithAgentsData(t *testing.T) {
-	stateDir := t.TempDir()
+	workspace := t.TempDir()
+	stateDir := filepath.Join(workspace, ".bc")
 
 	// Seed agents as already stopped so RefreshState won't change their state
 	agents := map[string]*agent.Agent{

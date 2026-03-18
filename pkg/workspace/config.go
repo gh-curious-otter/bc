@@ -25,10 +25,25 @@ type Config struct {
 	User        UserConfig        `toml:"user"`
 	Workspace   WorkspaceConfig   `toml:"workspace"`
 	Channels    ChannelsConfig    `toml:"channels"`
+	Database    DatabaseConfig    `toml:"database"`
 	Logs        LogsConfig        `toml:"logs"`
 	Runtime     RuntimeConfig     `toml:"runtime"`
 	Performance PerformanceConfig `toml:"performance"`
 	Roster      RosterConfig      `toml:"roster"`
+}
+
+// DatabaseConfig configures the bc database backend.
+// Default is SQLite using a single unified .bc/bc.db file.
+// Postgres support is optional: set Driver to "postgres" and provide URL.
+type DatabaseConfig struct {
+	// URL is the Postgres connection string (only used when Driver is "postgres").
+	// Example: "postgres://bc:bc@localhost:5432/bc?sslmode=disable"
+	URL string `toml:"url"`
+	// SQLitePath overrides the default SQLite database path (relative to workspace root).
+	// Default: ".bc/bc.db"
+	SQLitePath string `toml:"sqlite_path"`
+	// Driver selects the storage backend: "sqlite" (default) or "postgres".
+	Driver string `toml:"driver"`
 }
 
 // RosterConfig defines the team roster: agents that bc ws up will start.

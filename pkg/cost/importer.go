@@ -159,7 +159,7 @@ func initImporterSchema(db *sql.DB) error {
 			source_path  TEXT NOT NULL,
 			watermark    TEXT NOT NULL,
 			record_count INTEGER NOT NULL DEFAULT 0,
-			imported_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+			imported_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (source_path)
 		);
 	`
@@ -209,14 +209,15 @@ func (imp *Importer) insertRecord(ctx context.Context, e SessionEntry, agentID s
 }
 
 func (imp *Importer) recordImport(ctx context.Context, path string, watermark time.Time, count int) error {
+	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := imp.store.db.ExecContext(ctx,
 		`INSERT INTO cost_imports (source_path, watermark, record_count, imported_at)
-		 VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+		 VALUES (?, ?, ?, ?)
 		 ON CONFLICT(source_path) DO UPDATE SET
 		   watermark    = excluded.watermark,
 		   record_count = cost_imports.record_count + excluded.record_count,
 		   imported_at  = excluded.imported_at`,
-		path, watermark.UTC().Format(time.RFC3339Nano), count,
+		path, watermark.UTC().Format(time.RFC3339Nano), count, now,
 	)
 	return err
 }

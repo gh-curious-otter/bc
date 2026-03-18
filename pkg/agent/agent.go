@@ -398,7 +398,7 @@ const DefaultBootstrapDelay = 3 * time.Second
 // Manager handles agent lifecycle.
 type Manager struct {
 	agents           map[string]*Agent
-	store            *SQLiteStore               // SQLite-backed agent persistence
+	store            AgentBackend               // SQLite-backed agent persistence
 	backends         map[string]runtime.Backend // keyed by "tmux", "docker"
 	defaultBackend   string                     // "tmux" or "docker"
 	providerRegistry *provider.Registry
@@ -1908,6 +1908,17 @@ func (m *Manager) saveState() error {
 	return m.store.SaveAll(m.agents)
 }
 
+// bcDBPath returns the path to the unified bc database.
+// When workspacePath is set, uses <workspace>/.bc/bc.db.
+// Falls back to <stateDir>/../bc.db for managers created without a workspace path.
+func (m *Manager) bcDBPath() string {
+	if m.workspacePath != "" {
+		return filepath.Join(m.workspacePath, ".bc", "bc.db")
+	}
+	// stateDir is <workspace>/.bc/agents; go up one level to .bc/
+	return filepath.Join(filepath.Dir(m.stateDir), "bc.db")
+}
+
 // LoadState loads agent state from SQLite.
 // On first run after upgrade, migrates JSON files to SQLite automatically.
 func (m *Manager) LoadState() error {
@@ -1915,8 +1926,8 @@ func (m *Manager) LoadState() error {
 		return nil
 	}
 
-	// Open SQLite store (state.db lives alongside agents dir)
-	dbPath := filepath.Join(m.stateDir, "state.db")
+	// Open SQLite store: use unified bc.db in workspace .bc dir.
+	dbPath := m.bcDBPath()
 	store, err := NewSQLiteStore(dbPath)
 	if err != nil {
 		return fmt.Errorf("open agent store: %w", err)

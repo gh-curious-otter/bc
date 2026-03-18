@@ -42,7 +42,7 @@ type Store struct {
 
 // NewStore creates a new MCP store for the given workspace path.
 func NewStore(workspacePath string) (*Store, error) {
-	dbPath := filepath.Join(workspacePath, ".bc", "mcp.db")
+	dbPath := filepath.Join(workspacePath, ".bc", "bc.db")
 	d, err := db.Open(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open mcp database: %w", err)
@@ -68,7 +68,7 @@ func (s *Store) initSchema() error {
 			url         TEXT,
 			env         TEXT,
 			enabled     INTEGER NOT NULL DEFAULT 1,
-			created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+			created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers(enabled);
 	`

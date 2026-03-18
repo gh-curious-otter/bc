@@ -549,7 +549,8 @@ func TestListAgents_SortOrder(t *testing.T) {
 
 func TestSaveAndLoadState(t *testing.T) {
 	tmpDir := t.TempDir()
-	dbPath := filepath.Join(tmpDir, "state.db")
+	// Use same path that bcDBPath() resolves: workspacePath/.bc/bc.db
+	dbPath := filepath.Join(tmpDir, ".bc", "bc.db")
 
 	store, err := NewSQLiteStore(dbPath)
 	if err != nil {
@@ -561,7 +562,8 @@ func TestSaveAndLoadState(t *testing.T) {
 		agents:         make(map[string]*Agent),
 		backends:       map[string]runtime.Backend{"tmux": runtime.NewTmuxBackend(tmux.NewManager("test-"))},
 		defaultBackend: "tmux",
-		stateDir:       tmpDir,
+		workspacePath:  tmpDir,
+		stateDir:       filepath.Join(tmpDir, ".bc", "agents"),
 		store:          store,
 	}
 	m1.agents["eng-1"] = &Agent{
@@ -591,7 +593,7 @@ func TestSaveAndLoadState(t *testing.T) {
 
 	// Verify DB file exists
 	if _, err := os.Stat(dbPath); err != nil {
-		t.Fatalf("state.db not created: %v", err)
+		t.Fatalf("bc.db not created: %v", err)
 	}
 
 	// Load into new manager
@@ -599,7 +601,8 @@ func TestSaveAndLoadState(t *testing.T) {
 		agents:         make(map[string]*Agent),
 		backends:       map[string]runtime.Backend{"tmux": runtime.NewTmuxBackend(tmux.NewManager("test-"))},
 		defaultBackend: "tmux",
-		stateDir:       tmpDir,
+		workspacePath:  tmpDir,
+		stateDir:       filepath.Join(tmpDir, ".bc", "agents"),
 	}
 	if err := m2.LoadState(); err != nil {
 		t.Fatalf("LoadState failed: %v", err)
@@ -716,7 +719,8 @@ func TestSaveState_NilStore(t *testing.T) {
 
 func TestSaveState_RoundTrip(t *testing.T) {
 	tmpDir := t.TempDir()
-	dbPath := filepath.Join(tmpDir, "state.db")
+	// Use same path that bcDBPath() will resolve: workspacePath/.bc/bc.db
+	dbPath := filepath.Join(tmpDir, ".bc", "bc.db")
 
 	store, err := NewSQLiteStore(dbPath)
 	if err != nil {
@@ -742,8 +746,9 @@ func TestSaveState_RoundTrip(t *testing.T) {
 				StartedAt: time.Now(),
 			},
 		},
-		stateDir: tmpDir,
-		store:    store,
+		workspacePath: tmpDir,
+		stateDir:      filepath.Join(tmpDir, ".bc", "agents"),
+		store:         store,
 	}
 	if err := original.saveState(); err != nil {
 		t.Fatalf("saveState failed: %v", err)
@@ -752,8 +757,9 @@ func TestSaveState_RoundTrip(t *testing.T) {
 
 	// Load into new manager (LoadState opens a new store)
 	loaded := &Manager{
-		agents:   make(map[string]*Agent),
-		stateDir: tmpDir,
+		agents:        make(map[string]*Agent),
+		workspacePath: tmpDir,
+		stateDir:      filepath.Join(tmpDir, ".bc", "agents"),
 	}
 	if err := loaded.LoadState(); err != nil {
 		t.Fatalf("LoadState failed: %v", err)
@@ -1300,7 +1306,7 @@ func TestRemoveFromParent(t *testing.T) {
 
 func TestSaveLoadState_ComplexHierarchy(t *testing.T) {
 	tmpDir := t.TempDir()
-	dbPath := filepath.Join(tmpDir, "state.db")
+	dbPath := filepath.Join(tmpDir, ".bc", "bc.db")
 
 	store, err := NewSQLiteStore(dbPath)
 	if err != nil {
@@ -1311,7 +1317,8 @@ func TestSaveLoadState_ComplexHierarchy(t *testing.T) {
 		agents:         make(map[string]*Agent),
 		backends:       map[string]runtime.Backend{"tmux": runtime.NewTmuxBackend(tmux.NewManager("test-"))},
 		defaultBackend: "tmux",
-		stateDir:       tmpDir,
+		workspacePath:  tmpDir,
+		stateDir:       filepath.Join(tmpDir, ".bc", "agents"),
 		store:          store,
 	}
 
@@ -1357,7 +1364,8 @@ func TestSaveLoadState_ComplexHierarchy(t *testing.T) {
 		agents:         make(map[string]*Agent),
 		backends:       map[string]runtime.Backend{"tmux": runtime.NewTmuxBackend(tmux.NewManager("test-"))},
 		defaultBackend: "tmux",
-		stateDir:       tmpDir,
+		workspacePath:  tmpDir,
+		stateDir:       filepath.Join(tmpDir, ".bc", "agents"),
 	}
 	if err := m2.LoadState(); err != nil {
 		t.Fatalf("LoadState failed: %v", err)

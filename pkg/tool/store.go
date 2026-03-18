@@ -98,7 +98,7 @@ type Store struct {
 // NewStore creates a new tool store for the given workspace state directory.
 func NewStore(stateDir string) *Store {
 	return &Store{
-		path: filepath.Join(stateDir, "tools.db"),
+		path: filepath.Join(stateDir, "bc.db"),
 	}
 }
 
@@ -151,9 +151,9 @@ func initSchema(db *sql.DB) error {
 			slash_cmds  TEXT,
 			mcp_servers TEXT,
 			config      TEXT,
-			builtin     BOOLEAN DEFAULT FALSE,
-			enabled     BOOLEAN DEFAULT TRUE,
-			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+			builtin     INTEGER NOT NULL DEFAULT 0,
+			enabled     INTEGER NOT NULL DEFAULT 1,
+			created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)
 	`)
 	return err

@@ -90,7 +90,7 @@ type Manager struct {
 // NewManager creates a daemon manager for the given workspace.
 // The db is at workspaceDir/.bc/daemons.db.
 func NewManager(workspaceDir string) (*Manager, error) {
-	dbPath := filepath.Join(workspaceDir, ".bc", "daemons.db")
+	dbPath := filepath.Join(workspaceDir, ".bc", "bc.db")
 	database, err := db.Open(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open daemons db: %w", err)

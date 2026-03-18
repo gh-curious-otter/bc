@@ -123,7 +123,7 @@ type Store struct {
 // NewStore creates a new cost store for the given workspace.
 func NewStore(workspacePath string) *Store {
 	return &Store{
-		path: filepath.Join(workspacePath, ".bc", "costs.db"),
+		path: filepath.Join(workspacePath, ".bc", "bc.db"),
 	}
 }
 
@@ -177,7 +177,7 @@ func (s *Store) initSchema(db *sql.DB) error {
 
 	schema := `
 		CREATE TABLE IF NOT EXISTS cost_records (
-			id            INTEGER PRIMARY KEY AUTOINCREMENT,
+			id            INTEGER PRIMARY KEY,
 			agent_id      TEXT NOT NULL,
 			team_id       TEXT,
 			model         TEXT NOT NULL,
@@ -185,7 +185,7 @@ func (s *Store) initSchema(db *sql.DB) error {
 			output_tokens INTEGER NOT NULL DEFAULT 0,
 			total_tokens  INTEGER NOT NULL DEFAULT 0,
 			cost_usd      REAL NOT NULL DEFAULT 0,
-			timestamp     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+			timestamp     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_cost_records_agent ON cost_records(agent_id);
 		CREATE INDEX IF NOT EXISTS idx_cost_records_team ON cost_records(team_id);
@@ -193,13 +193,13 @@ func (s *Store) initSchema(db *sql.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_cost_records_timestamp ON cost_records(timestamp DESC);
 
 		CREATE TABLE IF NOT EXISTS cost_budgets (
-			id         INTEGER PRIMARY KEY AUTOINCREMENT,
+			id         INTEGER PRIMARY KEY,
 			scope      TEXT NOT NULL UNIQUE,
 			period     TEXT NOT NULL DEFAULT 'monthly' CHECK (period IN ('daily', 'weekly', 'monthly')),
 			limit_usd  REAL NOT NULL DEFAULT 0,
 			alert_at   REAL NOT NULL DEFAULT 0.8,
 			hard_stop  INTEGER NOT NULL DEFAULT 0,
-			updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+			updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_cost_budgets_scope ON cost_budgets(scope);
 	`
@@ -234,9 +234,10 @@ func (s *Store) Record(agentID, teamID, model string, inputTokens, outputTokens 
 	}
 
 	result, err := s.db.ExecContext(ctx,
-		`INSERT INTO cost_records (agent_id, team_id, model, input_tokens, output_tokens, total_tokens, cost_usd)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO cost_records (agent_id, team_id, model, input_tokens, output_tokens, total_tokens, cost_usd, timestamp)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		agentID, teamPtr, model, inputTokens, outputTokens, totalTokens, costUSD,
+		time.Now().UTC().Format(time.RFC3339),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to record cost: %w", err)
@@ -539,16 +540,17 @@ func (s *Store) SetBudget(scope string, period BudgetPeriod, limitUSD, alertAt f
 		hardStopInt = 1
 	}
 
+	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO cost_budgets (scope, period, limit_usd, alert_at, hard_stop, updated_at)
-		 VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+		 VALUES (?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(scope) DO UPDATE SET
 		   period = excluded.period,
 		   limit_usd = excluded.limit_usd,
 		   alert_at = excluded.alert_at,
 		   hard_stop = excluded.hard_stop,
 		   updated_at = excluded.updated_at`,
-		scope, period, limitUSD, alertAt, hardStopInt,
+		scope, period, limitUSD, alertAt, hardStopInt, now,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to set budget: %w", err)

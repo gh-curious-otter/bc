@@ -21,7 +21,7 @@ type Store struct {
 
 // Open opens (or creates) the cron database for the given workspace.
 func Open(workspacePath string) (*Store, error) {
-	path := filepath.Join(workspacePath, ".bc", "cron.db")
+	path := filepath.Join(workspacePath, ".bc", "bc.db")
 	if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
 		return nil, fmt.Errorf("create cron db directory: %w", err)
 	}
@@ -57,20 +57,20 @@ CREATE TABLE IF NOT EXISTS cron_jobs (
     prompt      TEXT,
     command     TEXT,
     enabled     INTEGER NOT NULL DEFAULT 1,
-    last_run    DATETIME,
-    next_run    DATETIME,
+    last_run    TIMESTAMP,
+    next_run    TIMESTAMP,
     run_count   INTEGER NOT NULL DEFAULT 0,
-    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS cron_logs (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id          INTEGER PRIMARY KEY,
     job_name    TEXT NOT NULL REFERENCES cron_jobs(name) ON DELETE CASCADE,
     status      TEXT NOT NULL,
     duration_ms INTEGER NOT NULL DEFAULT 0,
     cost_usd    REAL NOT NULL DEFAULT 0,
     output      TEXT,
-    run_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    run_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_cron_logs_job ON cron_logs(job_name, run_at DESC);

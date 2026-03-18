@@ -10,8 +10,8 @@ func TestNewStore(t *testing.T) {
 	if store == nil {
 		t.Fatal("NewStore returned nil")
 	}
-	if store.path != "/tmp/test/.bc/costs.db" {
-		t.Errorf("path = %q, want %q", store.path, "/tmp/test/.bc/costs.db")
+	if store.path != "/tmp/test/.bc/bc.db" {
+		t.Errorf("path = %q, want %q", store.path, "/tmp/test/.bc/bc.db")
 	}
 }
 

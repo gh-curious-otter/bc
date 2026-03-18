@@ -11,7 +11,7 @@ func TestNewStore(t *testing.T) {
 		t.Fatal("NewStore returned nil")
 	}
 
-	expectedPath := "/tmp/test-state/queues.db"
+	expectedPath := "/tmp/test-state/bc.db"
 	if store.path != expectedPath {
 		t.Errorf("path = %q, want %q", store.path, expectedPath)
 	}

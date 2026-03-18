@@ -94,6 +94,20 @@ preserve_ansi = true
 session_prefix = "bc-"
 
 # =============================================================================
+# Database Settings
+# =============================================================================
+[database]
+# Database driver: "sqlite" (default) or "postgres"
+driver = "sqlite"
+
+# SQLite: path to unified database file (relative to workspace root)
+# All packages share this single file instead of separate per-package databases.
+# sqlite_path = ".bc/bc.db"  # default, no need to set unless overriding
+
+# PostgreSQL: connection URL (only used when driver = "postgres")
+# url = "postgres://bc:bc@localhost:5432/bc?sslmode=disable"
+
+# =============================================================================
 # Runtime Settings
 # =============================================================================
 [runtime]

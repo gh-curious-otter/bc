@@ -74,7 +74,7 @@ func createAgentsTable(d *db.DB) error {
 	// agent_stats: time-series Docker resource samples.
 	statsSchema := `
 		CREATE TABLE IF NOT EXISTS agent_stats (
-			id            INTEGER PRIMARY KEY AUTOINCREMENT,
+			id            INTEGER PRIMARY KEY,
 			agent_name    TEXT    NOT NULL,
 			collected_at  TEXT    NOT NULL,
 			cpu_pct       REAL    NOT NULL DEFAULT 0,

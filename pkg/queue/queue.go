@@ -93,7 +93,7 @@ type Store struct {
 // NewStore creates a new queue store
 func NewStore(stateDir string) *Store {
 	return &Store{
-		path: filepath.Join(stateDir, "queues.db"),
+		path: filepath.Join(stateDir, "bc.db"),
 	}
 }
 
@@ -142,7 +142,7 @@ func (s *Store) initSchema(ctx context.Context, db *sql.DB) error {
 	schema := `
 		-- Work Queue: tasks assigned TO agents
 		CREATE TABLE IF NOT EXISTS work_queue (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id INTEGER PRIMARY KEY,
 			agent_id TEXT NOT NULL,
 			title TEXT NOT NULL,
 			description TEXT,
@@ -152,15 +152,15 @@ func (s *Store) initSchema(ctx context.Context, db *sql.DB) error {
 			issue_ref TEXT,
 			branch TEXT,
 			metadata TEXT,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			accepted_at DATETIME,
-			completed_at DATETIME
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			accepted_at TIMESTAMP,
+			completed_at TIMESTAMP
 		);
 
 		-- Merge Queue: branches awaiting review FROM children
 		CREATE TABLE IF NOT EXISTS merge_queue (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id INTEGER PRIMARY KEY,
 			agent_id TEXT NOT NULL,
 			branch TEXT NOT NULL,
 			title TEXT NOT NULL,
@@ -170,10 +170,10 @@ func (s *Store) initSchema(ctx context.Context, db *sql.DB) error {
 			reviewer TEXT,
 			reason TEXT,
 			metadata TEXT,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			reviewed_at DATETIME,
-			merged_at DATETIME
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			reviewed_at TIMESTAMP,
+			merged_at TIMESTAMP
 		);
 
 		-- Indexes for work queue queries

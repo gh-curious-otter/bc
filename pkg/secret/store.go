@@ -79,7 +79,7 @@ func Passphrase() (string, error) {
 // NewStore creates a new secrets store for the given workspace path.
 // The passphrase is used to derive the encryption key via PBKDF2.
 func NewStore(workspacePath, passphrase string) (*Store, error) {
-	dbPath := filepath.Join(workspacePath, ".bc", "secrets.db")
+	dbPath := filepath.Join(workspacePath, ".bc", "bc.db")
 	d, err := db.Open(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open secrets database: %w", err)
@@ -107,8 +107,8 @@ func (s *Store) initSchema() error {
 			name        TEXT PRIMARY KEY,
 			value       TEXT NOT NULL,
 			description TEXT,
-			created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-			updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+			created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 
 		CREATE TABLE IF NOT EXISTS secret_meta (
@@ -183,7 +183,7 @@ func (s *Store) Set(name, value, description string) error {
 		ON CONFLICT(name) DO UPDATE SET
 			value = excluded.value,
 			description = COALESCE(NULLIF(excluded.description, ''), secrets.description),
-			updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+			updated_at = CURRENT_TIMESTAMP
 	`, name, encrypted, description)
 	if err != nil {
 		return fmt.Errorf("set secret %q: %w", name, err)
