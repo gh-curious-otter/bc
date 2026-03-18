@@ -28,6 +28,20 @@ type Config struct {
 	Logs        LogsConfig        `toml:"logs"`
 	Runtime     RuntimeConfig     `toml:"runtime"`
 	Performance PerformanceConfig `toml:"performance"`
+	Roster      RosterConfig      `toml:"roster"`
+}
+
+// RosterConfig defines the team roster: agents that bc ws up will start.
+type RosterConfig struct {
+	Agents []RosterEntry `toml:"agents"`
+}
+
+// RosterEntry describes a single agent in the workspace roster.
+type RosterEntry struct {
+	Name    string `toml:"name"`    // Agent name
+	Role    string `toml:"role"`    // Role file name (e.g. "feature-dev")
+	Tool    string `toml:"tool"`    // Provider tool (e.g. "claude")
+	Runtime string `toml:"runtime"` // Runtime backend override (optional)
 }
 
 // RuntimeConfig configures the agent session backend.

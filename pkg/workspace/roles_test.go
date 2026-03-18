@@ -1030,3 +1030,95 @@ You are a feature developer agent.
 		}
 	}
 }
+
+func TestEnsureDefaultRoles_CreatesFiles(t *testing.T) {
+	dir := t.TempDir()
+	rm := NewRoleManager(dir)
+
+	created, err := rm.EnsureDefaultRoles()
+	if err != nil {
+		t.Fatalf("EnsureDefaultRoles: %v", err)
+	}
+
+	if len(created) != len(DefaultRoles) {
+		t.Errorf("created %d roles, want %d", len(created), len(DefaultRoles))
+	}
+
+	for name := range DefaultRoles {
+		rolePath := filepath.Join(rm.RolesDir(), name+".md")
+		if _, statErr := os.Stat(rolePath); statErr != nil {
+			t.Errorf("expected role file %s.md to exist", name)
+		}
+	}
+}
+
+func TestEnsureDefaultRoles_Idempotent(t *testing.T) {
+	dir := t.TempDir()
+	rm := NewRoleManager(dir)
+
+	_, err := rm.EnsureDefaultRoles()
+	if err != nil {
+		t.Fatalf("first EnsureDefaultRoles: %v", err)
+	}
+
+	created, err := rm.EnsureDefaultRoles()
+	if err != nil {
+		t.Fatalf("second EnsureDefaultRoles: %v", err)
+	}
+	if len(created) != 0 {
+		t.Errorf("second call created %v, want none", created)
+	}
+}
+
+func TestEnsureDefaultRoles_ParsesCleanly(t *testing.T) {
+	dir := t.TempDir()
+	rm := NewRoleManager(dir)
+
+	if _, err := rm.EnsureDefaultRoles(); err != nil {
+		t.Fatalf("EnsureDefaultRoles: %v", err)
+	}
+
+	for name := range DefaultRoles {
+		role, err := rm.LoadRole(name)
+		if err != nil {
+			t.Errorf("LoadRole(%q): %v", name, err)
+			continue
+		}
+		if role.Metadata.Name != name {
+			t.Errorf("role %q: Name = %q, want %q", name, role.Metadata.Name, name)
+		}
+		if len(role.Metadata.Capabilities) == 0 {
+			t.Errorf("role %q: no capabilities defined", name)
+		}
+	}
+}
+
+func TestDefaultRoles_HaveValidLevels(t *testing.T) {
+	managerRoles := map[string]bool{
+		"go-reviewer":     true,
+		"web-reviewer":    true,
+		"product-manager": true,
+	}
+	engineerRoles := map[string]bool{
+		"feature-dev": true,
+		"designer":    true,
+		"docs":        true,
+	}
+
+	for name, content := range DefaultRoles {
+		role, err := ParseRoleFile([]byte(content))
+		if err != nil {
+			t.Fatalf("ParseRoleFile(%q): %v", name, err)
+		}
+		switch {
+		case managerRoles[name]:
+			if role.Metadata.Level != 0 {
+				t.Errorf("role %q: Level = %d, want 0 (manager)", name, role.Metadata.Level)
+			}
+		case engineerRoles[name]:
+			if role.Metadata.Level != 1 {
+				t.Errorf("role %q: Level = %d, want 1 (engineer)", name, role.Metadata.Level)
+			}
+		}
+	}
+}

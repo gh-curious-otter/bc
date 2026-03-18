@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/ui"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -204,6 +206,21 @@ Examples:
 	RunE: runWorkspaceSwitch,
 }
 
+// workspaceUpCmd starts all agents defined in the roster config.
+var workspaceUpCmd = &cobra.Command{
+	Use:   "up",
+	Short: "Start all roster agents",
+	Long: `Start all agents defined in [roster] of .bc/config.toml.
+
+Agents that are already running are skipped. Missing role files are
+created from built-in defaults automatically.
+
+Examples:
+  bc workspace up          # Start roster agents
+  bc ws up                 # Short alias`,
+	RunE: runWorkspaceUp,
+}
+
 func init() {
 	// List command flags
 	workspaceListCmd.Flags().StringSlice("scan", nil, "Additional paths to scan")
@@ -230,6 +247,7 @@ func init() {
 	// Add subcommands
 	workspaceCmd.AddCommand(workspaceInfoCmd)
 	workspaceCmd.AddCommand(workspaceStatusCmd)
+	workspaceCmd.AddCommand(workspaceUpCmd)
 	workspaceCmd.AddCommand(workspaceConfigCmd)
 	workspaceCmd.AddCommand(workspaceMigrateCmd)
 	workspaceCmd.AddCommand(workspaceListCmd)
@@ -240,6 +258,86 @@ func init() {
 
 	// Register with root
 	rootCmd.AddCommand(workspaceCmd)
+}
+
+func runWorkspaceUp(cmd *cobra.Command, _ []string) error {
+	ws, err := requireWorkspace()
+	if err != nil {
+		return err
+	}
+
+	roster := ws.Config.Roster.Agents
+	if len(roster) == 0 {
+		fmt.Println("No agents in roster. Add agents under [roster] in .bc/config.toml.")
+		fmt.Println()
+		fmt.Println("Example:")
+		fmt.Println("  [[roster.agents]]")
+		fmt.Println("  name = \"go-reviewer\"")
+		fmt.Println("  role = \"go-reviewer\"")
+		fmt.Println("  tool = \"claude\"")
+		return nil
+	}
+
+	// Ensure built-in role files exist before spawning agents.
+	if _, err := ws.RoleManager.EnsureDefaultRoles(); err != nil {
+		return fmt.Errorf("failed to ensure default roles: %w", err)
+	}
+
+	mgr := newAgentManager(ws)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+
+	var started, skipped, failed int
+	for _, entry := range roster {
+		existing := mgr.GetAgent(entry.Name)
+		if existing != nil && existing.State != agent.StateStopped && existing.State != agent.StateError {
+			fmt.Printf("  %-20s %s\n", entry.Name, ui.DimText("already running"))
+			skipped++
+			continue
+		}
+
+		// Validate role file exists
+		roleFile := filepath.Join(ws.RolesDir(), entry.Role+".md")
+		if _, statErr := os.Stat(roleFile); statErr != nil {
+			fmt.Printf("  %-20s %s\n", entry.Name, ui.RedText("✗ role not found: "+entry.Role))
+			failed++
+			continue
+		}
+
+		tool := entry.Tool
+		if tool == "" {
+			tool = ws.DefaultProvider()
+		}
+
+		role := agent.Role(strings.ToLower(entry.Role))
+		fmt.Printf("  %-20s starting...", entry.Name)
+
+		_, spawnErr := mgr.SpawnAgentWithOptions(agent.SpawnOptions{
+			Name:      entry.Name,
+			Role:      role,
+			Workspace: ws.RootDir,
+			Tool:      tool,
+			Runtime:   entry.Runtime,
+		})
+		if spawnErr != nil {
+			fmt.Printf(" %s\n", ui.RedText("✗"))
+			log.Warn("failed to start agent", "name", entry.Name, "error", spawnErr)
+			failed++
+			continue
+		}
+
+		fmt.Printf(" %s\n", ui.GreenText("✓"))
+		started++
+	}
+
+	fmt.Println()
+	fmt.Printf("Started %d, skipped %d", started, skipped)
+	if failed > 0 {
+		fmt.Printf(", failed %d", failed)
+	}
+	fmt.Println()
+	return nil
 }
 
 func runWorkspaceList(cmd *cobra.Command, args []string) error {
