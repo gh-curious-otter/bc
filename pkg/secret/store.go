@@ -30,8 +30,9 @@ type SecretMeta struct {
 // Values are encrypted with AES-256-GCM; the encryption key is derived
 // from a master passphrase via PBKDF2.
 type Store struct {
-	db  *db.DB
-	key []byte // derived AES-256 key
+	db     *sql.DB
+	key    []byte // derived AES-256 key
+	driver string
 }
 
 // Passphrase returns the passphrase for secret encryption.
@@ -85,7 +86,7 @@ func NewStore(workspacePath, passphrase string) (*Store, error) {
 		return nil, fmt.Errorf("open secrets database: %w", err)
 	}
 
-	s := &Store{db: d}
+	s := &Store{db: d.DB, driver: db.DriverSQLite}
 	if err := s.initSchema(); err != nil {
 		_ = d.Close()
 		return nil, fmt.Errorf("init secrets schema: %w", err)
@@ -99,6 +100,24 @@ func NewStore(workspacePath, passphrase string) (*Store, error) {
 	return s, nil
 }
 
+// NewStoreWithDB creates a new secrets store using an existing *sql.DB connection.
+// driver should be db.DriverPostgres or db.DriverSQLite.
+func NewStoreWithDB(sqlDB *sql.DB, driver, passphrase string) (*Store, error) {
+	s := &Store{db: sqlDB, driver: driver}
+	if err := s.initSchema(); err != nil {
+		return nil, fmt.Errorf("init secrets schema: %w", err)
+	}
+	if err := s.initKey(passphrase); err != nil {
+		return nil, fmt.Errorf("init encryption key: %w", err)
+	}
+	return s, nil
+}
+
+// rebind converts ? placeholders to the driver-appropriate form.
+func (s *Store) rebind(q string) string {
+	return db.Rebind(s.driver, q)
+}
+
 // initSchema creates the secrets tables.
 func (s *Store) initSchema() error {
 	ctx := context.Background()
@@ -107,8 +126,8 @@ func (s *Store) initSchema() error {
 			name        TEXT PRIMARY KEY,
 			value       TEXT NOT NULL,
 			description TEXT,
-			created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-			updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+			created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 
 		CREATE TABLE IF NOT EXISTS secret_meta (
@@ -127,7 +146,7 @@ func (s *Store) initKey(passphrase string) error {
 
 	var saltB64 string
 	err := s.db.QueryRowContext(ctx,
-		"SELECT value FROM secret_meta WHERE key = 'salt'",
+		s.rebind("SELECT value FROM secret_meta WHERE key = 'salt'"),
 	).Scan(&saltB64)
 
 	if err == sql.ErrNoRows {
@@ -138,7 +157,7 @@ func (s *Store) initKey(passphrase string) error {
 		}
 		saltB64 = base64.StdEncoding.EncodeToString(salt)
 		if _, err := s.db.ExecContext(ctx,
-			"INSERT INTO secret_meta (key, value) VALUES ('salt', ?)", saltB64,
+			s.rebind("INSERT INTO secret_meta (key, value) VALUES (?, ?)"), "salt", saltB64,
 		); err != nil {
 			return fmt.Errorf("store salt: %w", err)
 		}
@@ -177,14 +196,15 @@ func (s *Store) Set(name, value, description string) error {
 	}
 
 	ctx := context.Background()
-	_, err = s.db.ExecContext(ctx, `
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err = s.db.ExecContext(ctx, s.rebind(`
 		INSERT INTO secrets (name, value, description)
 		VALUES (?, ?, ?)
 		ON CONFLICT(name) DO UPDATE SET
 			value = excluded.value,
 			description = COALESCE(NULLIF(excluded.description, ''), secrets.description),
-			updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-	`, name, encrypted, description)
+			updated_at = ?
+	`), name, encrypted, description, now)
 	if err != nil {
 		return fmt.Errorf("set secret %q: %w", name, err)
 	}
@@ -196,7 +216,7 @@ func (s *Store) GetValue(name string) (string, error) {
 	ctx := context.Background()
 	var encrypted string
 	err := s.db.QueryRowContext(ctx,
-		"SELECT value FROM secrets WHERE name = ?", name,
+		s.rebind("SELECT value FROM secrets WHERE name = ?"), name,
 	).Scan(&encrypted)
 	if err == sql.ErrNoRows {
 		return "", fmt.Errorf("secret %q not found", name)
@@ -216,8 +236,8 @@ func (s *Store) GetValue(name string) (string, error) {
 func (s *Store) GetMeta(name string) (*SecretMeta, error) {
 	ctx := context.Background()
 	row := s.db.QueryRowContext(ctx,
-		`SELECT name, description, created_at, updated_at
-		 FROM secrets WHERE name = ?`, name,
+		s.rebind(`SELECT name, description, created_at, updated_at
+		 FROM secrets WHERE name = ?`), name,
 	)
 	return s.scanMeta(row)
 }
@@ -257,7 +277,7 @@ func (s *Store) List() ([]*SecretMeta, error) {
 // Delete removes a secret.
 func (s *Store) Delete(name string) error {
 	ctx := context.Background()
-	result, err := s.db.ExecContext(ctx, "DELETE FROM secrets WHERE name = ?", name)
+	result, err := s.db.ExecContext(ctx, s.rebind("DELETE FROM secrets WHERE name = ?"), name)
 	if err != nil {
 		return fmt.Errorf("delete secret %q: %w", name, err)
 	}

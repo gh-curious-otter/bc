@@ -11,6 +11,8 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/rpuneet/bc/pkg/db"
 )
 
 // Tool represents a configured AI tool provider stored in the workspace.
@@ -91,15 +93,35 @@ var builtinTools = []Tool{
 
 // Store provides SQLite-backed tool management.
 type Store struct {
-	db   *sql.DB
-	path string
+	db     *sql.DB
+	path   string
+	driver string
 }
 
 // NewStore creates a new tool store for the given workspace state directory.
 func NewStore(stateDir string) *Store {
 	return &Store{
-		path: filepath.Join(stateDir, "tools.db"),
+		path:   filepath.Join(stateDir, "tools.db"),
+		driver: db.DriverSQLite,
 	}
+}
+
+// OpenWithDB initializes the store using an existing *sql.DB connection.
+// driver should be db.DriverPostgres or db.DriverSQLite.
+func OpenWithDB(sqlDB *sql.DB, driver string) (*Store, error) {
+	s := &Store{db: sqlDB, driver: driver}
+	if err := initSchema(sqlDB, driver); err != nil {
+		return nil, fmt.Errorf("failed to initialize schema: %w", err)
+	}
+	if err := s.seedBuiltins(context.Background()); err != nil {
+		return nil, fmt.Errorf("failed to seed built-in tools: %w", err)
+	}
+	return s, nil
+}
+
+// rebind converts ? placeholders to the driver-appropriate form.
+func (s *Store) rebind(q string) string {
+	return db.Rebind(s.driver, q)
 }
 
 // Open initializes the SQLite database and seeds built-in tools.
@@ -108,25 +130,25 @@ func (s *Store) Open() error {
 		return fmt.Errorf("failed to create database directory: %w", err)
 	}
 
-	db, err := sql.Open("sqlite3", s.path+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000")
+	sqldb, err := sql.Open("sqlite3", s.path+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000")
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	db.SetConnMaxLifetime(time.Hour)
-	db.SetConnMaxIdleTime(10 * time.Minute)
+	sqldb.SetMaxOpenConns(1)
+	sqldb.SetMaxIdleConns(1)
+	sqldb.SetConnMaxLifetime(time.Hour)
+	sqldb.SetConnMaxIdleTime(10 * time.Minute)
 
-	if err := initSchema(db); err != nil {
-		_ = db.Close()
+	if err := initSchema(sqldb, db.DriverSQLite); err != nil {
+		_ = sqldb.Close()
 		return fmt.Errorf("failed to initialize schema: %w", err)
 	}
 
-	s.db = db
+	s.db = sqldb
 
 	if err := s.seedBuiltins(context.Background()); err != nil {
-		_ = db.Close()
+		_ = sqldb.Close()
 		return fmt.Errorf("failed to seed built-in tools: %w", err)
 	}
 
@@ -141,8 +163,8 @@ func (s *Store) Close() error {
 	return nil
 }
 
-func initSchema(db *sql.DB) error {
-	_, err := db.Exec(`
+func initSchema(sqldb *sql.DB, driver string) error {
+	_, err := sqldb.Exec(db.Rebind(driver, `
 		CREATE TABLE IF NOT EXISTS tools (
 			name        TEXT PRIMARY KEY,
 			command     TEXT NOT NULL,
@@ -151,11 +173,11 @@ func initSchema(db *sql.DB) error {
 			slash_cmds  TEXT,
 			mcp_servers TEXT,
 			config      TEXT,
-			builtin     BOOLEAN DEFAULT FALSE,
-			enabled     BOOLEAN DEFAULT TRUE,
-			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+			builtin     INTEGER NOT NULL DEFAULT 0,
+			enabled     INTEGER NOT NULL DEFAULT 1,
+			created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)
-	`)
+	`))
 	return err
 }
 
@@ -224,8 +246,8 @@ func (s *Store) add(ctx context.Context, t *Tool) error {
 	}
 
 	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO tools (name, command, install_cmd, upgrade_cmd, slash_cmds, mcp_servers, config, builtin, enabled)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		s.rebind(`INSERT INTO tools (name, command, install_cmd, upgrade_cmd, slash_cmds, mcp_servers, config, builtin, enabled)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`),
 		t.Name, t.Command, t.InstallCmd, t.UpgradeCmd,
 		slashCmds, mcpServers, config, t.Builtin, t.Enabled,
 	)
@@ -250,8 +272,8 @@ func (s *Store) Add(ctx context.Context, t *Tool) error {
 // Get returns a tool by name. Returns nil, nil if not found.
 func (s *Store) Get(ctx context.Context, name string) (*Tool, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT name, command, install_cmd, upgrade_cmd, slash_cmds, mcp_servers, config, builtin, enabled, created_at
-		 FROM tools WHERE name = ?`, name)
+		s.rebind(`SELECT name, command, install_cmd, upgrade_cmd, slash_cmds, mcp_servers, config, builtin, enabled, created_at
+		 FROM tools WHERE name = ?`), name)
 	return scanTool(row)
 }
 
@@ -280,8 +302,8 @@ func scanTool(row *sql.Row) (*Tool, error) {
 // List returns all tools.
 func (s *Store) List(ctx context.Context) ([]*Tool, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT name, command, install_cmd, upgrade_cmd, slash_cmds, mcp_servers, config, builtin, enabled, created_at
-		 FROM tools ORDER BY builtin DESC, name ASC`)
+		s.rebind(`SELECT name, command, install_cmd, upgrade_cmd, slash_cmds, mcp_servers, config, builtin, enabled, created_at
+		 FROM tools ORDER BY builtin DESC, name ASC`))
 	if err != nil {
 		return nil, err
 	}
@@ -325,8 +347,8 @@ func (s *Store) Update(ctx context.Context, t *Tool) error {
 	}
 
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE tools SET command=?, install_cmd=?, upgrade_cmd=?, slash_cmds=?, mcp_servers=?, config=?, enabled=?
-		 WHERE name=?`,
+		s.rebind(`UPDATE tools SET command=?, install_cmd=?, upgrade_cmd=?, slash_cmds=?, mcp_servers=?, config=?, enabled=?
+		 WHERE name=?`),
 		t.Command, t.InstallCmd, t.UpgradeCmd,
 		slashCmds, mcpServers, config, t.Enabled,
 		t.Name,
@@ -346,7 +368,7 @@ func (s *Store) Update(ctx context.Context, t *Tool) error {
 
 // Delete removes a tool by name.
 func (s *Store) Delete(ctx context.Context, name string) error {
-	res, err := s.db.ExecContext(ctx, `DELETE FROM tools WHERE name = ?`, name)
+	res, err := s.db.ExecContext(ctx, s.rebind(`DELETE FROM tools WHERE name = ?`), name)
 	if err != nil {
 		return err
 	}
@@ -362,7 +384,7 @@ func (s *Store) Delete(ctx context.Context, name string) error {
 
 // SetEnabled enables or disables a tool.
 func (s *Store) SetEnabled(ctx context.Context, name string, enabled bool) error {
-	res, err := s.db.ExecContext(ctx, `UPDATE tools SET enabled=? WHERE name=?`, enabled, name)
+	res, err := s.db.ExecContext(ctx, s.rebind(`UPDATE tools SET enabled=? WHERE name=?`), enabled, name)
 	if err != nil {
 		return err
 	}

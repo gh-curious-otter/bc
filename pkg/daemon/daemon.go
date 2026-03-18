@@ -79,10 +79,11 @@ type RunOptions struct {
 // Manager manages workspace daemons using SQLite state and tmux/Docker.
 type Manager struct {
 	tmuxMgr       *tmux.Manager
-	db            *db.DB
+	db            *sql.DB
 	workspacePath string
 	workspaceHash string
 	logsDir       string
+	driver        string
 }
 
 // NewManager creates a daemon manager for the given workspace.
@@ -103,7 +104,8 @@ func NewManager(workspaceDir string) (*Manager, error) {
 	}
 
 	mgr := &Manager{
-		db:            database,
+		db:            database.DB,
+		driver:        db.DriverSQLite,
 		workspacePath: workspaceDir,
 		workspaceHash: hash,
 		logsDir:       logsDir,
@@ -118,9 +120,44 @@ func NewManager(workspaceDir string) (*Manager, error) {
 	return mgr, nil
 }
 
+// NewManagerWithDB creates a daemon manager using an existing *sql.DB connection.
+// driver should be db.DriverPostgres or db.DriverSQLite.
+func NewManagerWithDB(sqlDB *sql.DB, driver, workspaceDir string) (*Manager, error) {
+	h := sha256.Sum256([]byte(workspaceDir))
+	hash := fmt.Sprintf("%x", h[:3])
+
+	logsDir := filepath.Join(workspaceDir, ".bc", "logs")
+	if mkErr := os.MkdirAll(logsDir, 0750); mkErr != nil {
+		log.Debug("failed to create logs dir", "error", mkErr)
+	}
+
+	mgr := &Manager{
+		db:            sqlDB,
+		driver:        driver,
+		workspacePath: workspaceDir,
+		workspaceHash: hash,
+		logsDir:       logsDir,
+		tmuxMgr:       tmux.NewManager("bc-daemon-"),
+	}
+
+	if err := mgr.initSchema(); err != nil {
+		return nil, fmt.Errorf("init daemon schema: %w", err)
+	}
+
+	return mgr, nil
+}
+
+// rebind converts ? placeholders to the driver-appropriate form.
+func (m *Manager) rebind(q string) string {
+	return db.Rebind(m.driver, q)
+}
+
 // Close releases database resources.
 func (m *Manager) Close() error {
-	return m.db.Close()
+	if m.db != nil {
+		return m.db.Close()
+	}
+	return nil
 }
 
 // initSchema creates the daemons table if it does not exist.
@@ -376,7 +413,7 @@ func (m *Manager) Remove(ctx context.Context, name string) error {
 		return fmt.Errorf("daemon %q is running — stop it first with: bc daemon stop %s", name, name)
 	}
 
-	_, err = m.db.ExecContext(ctx, `DELETE FROM daemons WHERE name = ?`, name)
+	_, err = m.db.ExecContext(ctx, m.rebind(`DELETE FROM daemons WHERE name = ?`), name)
 	return err
 }
 
@@ -384,10 +421,10 @@ func (m *Manager) Remove(ctx context.Context, name string) error {
 // syncStatus writes are deferred until after rows are fully consumed to
 // avoid a deadlock on SQLite's single-writer connection.
 func (m *Manager) List(ctx context.Context) ([]*Daemon, error) {
-	rows, err := m.db.QueryContext(ctx, `
+	rows, err := m.db.QueryContext(ctx, m.rebind(`
 		SELECT name, runtime, cmd, image, status, pid, container_id,
 		       ports, env, restart, created_at, started_at, stopped_at
-		FROM daemons ORDER BY created_at ASC`)
+		FROM daemons ORDER BY created_at ASC`))
 	if err != nil {
 		return nil, fmt.Errorf("query daemons: %w", err)
 	}
@@ -419,10 +456,10 @@ func (m *Manager) List(ctx context.Context) ([]*Daemon, error) {
 
 // Get returns a daemon by name or nil if not found.
 func (m *Manager) Get(ctx context.Context, name string) (*Daemon, error) {
-	row := m.db.QueryRowContext(ctx, `
+	row := m.db.QueryRowContext(ctx, m.rebind(`
 		SELECT name, runtime, cmd, image, status, pid, container_id,
 		       ports, env, restart, created_at, started_at, stopped_at
-		FROM daemons WHERE name = ?`, name)
+		FROM daemons WHERE name = ?`), name)
 
 	d, err := scanDaemon(row)
 	if err != nil {
@@ -522,7 +559,7 @@ func (m *Manager) save(ctx context.Context, d *Daemon) error {
 		startedAt = ""
 	}
 
-	_, err = m.db.ExecContext(ctx, `
+	_, err = m.db.ExecContext(ctx, m.rebind(`
 		INSERT INTO daemons (name, runtime, cmd, image, status, pid, container_id,
 		                     ports, env, restart, created_at, started_at, stopped_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -530,7 +567,7 @@ func (m *Manager) save(ctx context.Context, d *Daemon) error {
 			runtime=excluded.runtime, cmd=excluded.cmd, image=excluded.image,
 			status=excluded.status, pid=excluded.pid, container_id=excluded.container_id,
 			ports=excluded.ports, env=excluded.env, restart=excluded.restart,
-			started_at=excluded.started_at, stopped_at=excluded.stopped_at`,
+			started_at=excluded.started_at, stopped_at=excluded.stopped_at`),
 		d.Name, d.Runtime, nullStr(d.Cmd), nullStr(d.Image),
 		string(d.Status), d.PID, nullStr(d.ContainerID),
 		string(portsJSON), string(envJSON), d.Restart,

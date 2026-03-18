@@ -5,10 +5,31 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // Postgres driver via pgx
 )
+
+// Rebind converts ? placeholders to $1, $2, ... for Postgres.
+// For any other driver it returns the query unchanged.
+func Rebind(driver, query string) string {
+	if driver != DriverPostgres {
+		return query
+	}
+	n := 0
+	var b strings.Builder
+	b.Grow(len(query))
+	for i := 0; i < len(query); i++ {
+		if query[i] == '?' {
+			n++
+			fmt.Fprintf(&b, "$%d", n)
+		} else {
+			b.WriteByte(query[i])
+		}
+	}
+	return b.String()
+}
 
 // DefaultPostgresDSN is the connection string for the bcdb container.
 const DefaultPostgresDSN = "postgres://bc:bc@localhost:5432/bc"

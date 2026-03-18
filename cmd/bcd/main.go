@@ -12,6 +12,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"flag"
 	"fmt"
 	"os"
@@ -27,6 +28,7 @@ import (
 	bccost "github.com/rpuneet/bc/pkg/cost"
 	bccron "github.com/rpuneet/bc/pkg/cron"
 	bcdaemon "github.com/rpuneet/bc/pkg/daemon"
+	bcdb "github.com/rpuneet/bc/pkg/db"
 	"github.com/rpuneet/bc/pkg/log"
 	bcmcp "github.com/rpuneet/bc/pkg/mcp"
 	"github.com/rpuneet/bc/pkg/provider"
@@ -75,6 +77,19 @@ func run(addr, wsRoot string) error {
 	go hub.Run()
 	defer hub.Stop()
 
+	// Open shared Postgres connection if DATABASE_URL is set.
+	// When available, all stores use this connection instead of per-store SQLite files.
+	var pgDB *sql.DB
+	if bcdb.IsPostgresEnabled() {
+		if db, pgErr := bcdb.TryOpenPostgres(); pgErr != nil {
+			log.Warn("bcd: Postgres unavailable, falling back to SQLite", "error", pgErr)
+		} else if db != nil {
+			pgDB = db
+			log.Info("bcd: using Postgres backend", "dsn", bcdb.PostgresDSN())
+			defer pgDB.Close() //nolint:errcheck // best-effort
+		}
+	}
+
 	// Agent service
 	agentMgr := newAgentManager(ws)
 	if err := agentMgr.LoadState(); err != nil {
@@ -86,8 +101,7 @@ func run(addr, wsRoot string) error {
 	statsCollector := bcagent.NewStatsCollector(agentMgr)
 	go statsCollector.Run(ctx)
 
-
-	// Channel service
+	// Channel service (already handles DATABASE_URL internally)
 	var channelSvc *bcchannel.ChannelService
 	if chStore, err := bcchannel.OpenStore(ws.RootDir); err != nil {
 		log.Warn("channel store unavailable", "error", err)
@@ -98,7 +112,13 @@ func run(addr, wsRoot string) error {
 
 	// Daemon manager
 	var daemonMgr *bcdaemon.Manager
-	if mgr, err := bcdaemon.NewManager(ws.RootDir); err != nil {
+	if pgDB != nil {
+		if mgr, err := bcdaemon.NewManagerWithDB(pgDB, bcdb.DriverPostgres, ws.RootDir); err != nil {
+			log.Warn("daemon manager (Postgres) unavailable", "error", err)
+		} else {
+			daemonMgr = mgr
+		}
+	} else if mgr, err := bcdaemon.NewManager(ws.RootDir); err != nil {
 		log.Warn("daemon manager unavailable", "error", err)
 	} else {
 		daemonMgr = mgr
@@ -109,12 +129,19 @@ func run(addr, wsRoot string) error {
 	var costStore *bccost.Store
 	var costImporter *bccost.Importer
 	cs := bccost.NewStore(ws.RootDir)
-	if err := cs.Open(); err != nil {
+	if pgDB != nil {
+		if err := cs.OpenWithDB(pgDB, bcdb.DriverPostgres); err != nil {
+			log.Warn("cost store (Postgres) unavailable", "error", err)
+		} else {
+			costStore = cs
+		}
+	} else if err := cs.Open(); err != nil {
 		log.Warn("cost store unavailable", "error", err)
 	} else {
 		costStore = cs
 		defer cs.Close() //nolint:errcheck // best-effort
-
+	}
+	if costStore != nil {
 		costImporter = bccost.NewImporter(cs, ws.RootDir)
 		// Run initial import and schedule periodic refresh every 5 minutes.
 		go func() {
@@ -142,7 +169,13 @@ func run(addr, wsRoot string) error {
 
 	// Cron store
 	var cronStore *bccron.Store
-	if cr, err := bccron.Open(ws.RootDir); err != nil {
+	if pgDB != nil {
+		if cr, err := bccron.OpenWithDB(pgDB, bcdb.DriverPostgres); err != nil {
+			log.Warn("cron store (Postgres) unavailable", "error", err)
+		} else {
+			cronStore = cr
+		}
+	} else if cr, err := bccron.Open(ws.RootDir); err != nil {
 		log.Warn("cron store unavailable", "error", err)
 	} else {
 		cronStore = cr
@@ -156,7 +189,13 @@ func run(addr, wsRoot string) error {
 		log.Warn("secret passphrase unavailable — secret store disabled", "error", passphraseErr)
 	}
 	if passphraseErr == nil {
-		if ss, err := bcsecret.NewStore(ws.RootDir, passphrase); err != nil {
+		if pgDB != nil {
+			if ss, err := bcsecret.NewStoreWithDB(pgDB, bcdb.DriverPostgres, passphrase); err != nil {
+				log.Warn("secret store (Postgres) unavailable", "error", err)
+			} else {
+				secretStore = ss
+			}
+		} else if ss, err := bcsecret.NewStore(ws.RootDir, passphrase); err != nil {
 			log.Warn("secret store unavailable", "error", err)
 		} else {
 			secretStore = ss
@@ -166,7 +205,13 @@ func run(addr, wsRoot string) error {
 
 	// MCP store
 	var mcpStore *bcmcp.Store
-	if ms, err := bcmcp.NewStore(ws.RootDir); err != nil {
+	if pgDB != nil {
+		if ms, err := bcmcp.NewStoreWithDB(pgDB, bcdb.DriverPostgres); err != nil {
+			log.Warn("mcp store (Postgres) unavailable", "error", err)
+		} else {
+			mcpStore = ms
+		}
+	} else if ms, err := bcmcp.NewStore(ws.RootDir); err != nil {
 		log.Warn("mcp store unavailable", "error", err)
 	} else {
 		mcpStore = ms
@@ -175,12 +220,20 @@ func run(addr, wsRoot string) error {
 
 	// Tool store
 	var toolStore *bctool.Store
-	ts := bctool.NewStore(ws.StateDir())
-	if err := ts.Open(); err != nil {
-		log.Warn("tool store unavailable", "error", err)
+	if pgDB != nil {
+		if ts, err := bctool.OpenWithDB(pgDB, bcdb.DriverPostgres); err != nil {
+			log.Warn("tool store (Postgres) unavailable", "error", err)
+		} else {
+			toolStore = ts
+		}
 	} else {
-		toolStore = ts
-		defer ts.Close() //nolint:errcheck // best-effort
+		ts := bctool.NewStore(ws.StateDir())
+		if err := ts.Open(); err != nil {
+			log.Warn("tool store unavailable", "error", err)
+		} else {
+			toolStore = ts
+			defer ts.Close() //nolint:errcheck // best-effort
+		}
 	}
 
 	svc := server.Services{

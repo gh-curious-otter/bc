@@ -151,7 +151,7 @@ func (imp *Importer) resolveAgent(cwd, path string) string {
 
 // initImporterSchema adds the cost_imports and session_id/cache columns if missing.
 // Called once from Store.Open via migrate().
-func initImporterSchema(db *sql.DB) error {
+func initImporterSchema(sqldb *sql.DB) error {
 	ctx := context.Background()
 
 	schema := `
@@ -159,11 +159,11 @@ func initImporterSchema(db *sql.DB) error {
 			source_path  TEXT NOT NULL,
 			watermark    TEXT NOT NULL,
 			record_count INTEGER NOT NULL DEFAULT 0,
-			imported_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+			imported_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (source_path)
 		);
 	`
-	if _, err := db.ExecContext(ctx, schema); err != nil {
+	if _, err := sqldb.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("cost_imports schema: %w", err)
 	}
 
@@ -174,14 +174,14 @@ func initImporterSchema(db *sql.DB) error {
 		`ALTER TABLE cost_records ADD COLUMN cache_read_tokens INTEGER NOT NULL DEFAULT 0`,
 	}
 	for _, m := range migrations {
-		_, _ = db.ExecContext(ctx, m) // ignore "duplicate column" errors
+		_, _ = sqldb.ExecContext(ctx, m) // ignore "duplicate column" errors
 	}
 	return nil
 }
 
 func (imp *Importer) lastImportedTimestamp(ctx context.Context, path string) (time.Time, error) {
 	row := imp.store.db.QueryRowContext(ctx,
-		`SELECT watermark FROM cost_imports WHERE source_path = ?`, path)
+		imp.store.Rebind(`SELECT watermark FROM cost_imports WHERE source_path = ?`), path)
 	var watermark string
 	if err := row.Scan(&watermark); err == sql.ErrNoRows {
 		return time.Time{}, nil
@@ -195,10 +195,10 @@ func (imp *Importer) lastImportedTimestamp(ctx context.Context, path string) (ti
 func (imp *Importer) insertRecord(ctx context.Context, e SessionEntry, agentID string, costUSD float64) error {
 	total := e.InputTokens + e.OutputTokens + e.CacheCreationTokens + e.CacheReadTokens
 	_, err := imp.store.db.ExecContext(ctx,
-		`INSERT INTO cost_records
+		imp.store.Rebind(`INSERT INTO cost_records
 		 (agent_id, model, session_id, input_tokens, output_tokens, total_tokens,
 		  cache_creation_tokens, cache_read_tokens, cost_usd, timestamp)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
 		agentID, e.Model, e.SessionID,
 		e.InputTokens, e.OutputTokens, total,
 		e.CacheCreationTokens, e.CacheReadTokens,
@@ -209,14 +209,15 @@ func (imp *Importer) insertRecord(ctx context.Context, e SessionEntry, agentID s
 }
 
 func (imp *Importer) recordImport(ctx context.Context, path string, watermark time.Time, count int) error {
+	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := imp.store.db.ExecContext(ctx,
-		`INSERT INTO cost_imports (source_path, watermark, record_count, imported_at)
-		 VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+		imp.store.Rebind(`INSERT INTO cost_imports (source_path, watermark, record_count, imported_at)
+		 VALUES (?, ?, ?, ?)
 		 ON CONFLICT(source_path) DO UPDATE SET
 		   watermark    = excluded.watermark,
 		   record_count = cost_imports.record_count + excluded.record_count,
-		   imported_at  = excluded.imported_at`,
-		path, watermark.UTC().Format(time.RFC3339Nano), count,
+		   imported_at  = excluded.imported_at`),
+		path, watermark.UTC().Format(time.RFC3339Nano), count, now,
 	)
 	return err
 }

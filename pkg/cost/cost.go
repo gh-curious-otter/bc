@@ -56,6 +56,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/rpuneet/bc/pkg/db"
 	"github.com/rpuneet/bc/pkg/log"
 )
 
@@ -116,15 +117,36 @@ type Summary struct {
 
 // Store provides SQLite-backed cost tracking.
 type Store struct {
-	db   *sql.DB
-	path string
+	db     *sql.DB
+	path   string
+	driver string
 }
 
 // NewStore creates a new cost store for the given workspace.
 func NewStore(workspacePath string) *Store {
 	return &Store{
-		path: filepath.Join(workspacePath, ".bc", "costs.db"),
+		path:   filepath.Join(workspacePath, ".bc", "costs.db"),
+		driver: db.DriverSQLite,
 	}
+}
+
+// OpenWithDB initializes the store using an existing *sql.DB connection.
+// driver should be db.DriverPostgres or db.DriverSQLite.
+func (s *Store) OpenWithDB(sqlDB *sql.DB, driver string) error {
+	s.db = sqlDB
+	s.driver = driver
+	if err := s.initSchema(sqlDB); err != nil {
+		return fmt.Errorf("failed to initialize schema: %w", err)
+	}
+	if err := initImporterSchema(sqlDB); err != nil {
+		return fmt.Errorf("failed to initialize importer schema: %w", err)
+	}
+	return nil
+}
+
+// Rebind converts ? placeholders to the driver-appropriate form.
+func (s *Store) Rebind(q string) string {
+	return db.Rebind(s.driver, q)
 }
 
 // Open initializes the SQLite database.
@@ -134,24 +156,24 @@ func (s *Store) Open() error {
 	}
 
 	// #1011: Add WAL mode and busy timeout for better concurrency
-	db, err := sql.Open("sqlite3", s.path+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000")
+	sqldb, err := sql.Open("sqlite3", s.path+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000")
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 
 	// #1011: Configure connection pool for SQLite's single-writer model
 	// SQLite only allows one writer at a time, so limit connections
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	db.SetConnMaxLifetime(time.Hour)
-	db.SetConnMaxIdleTime(10 * time.Minute)
+	sqldb.SetMaxOpenConns(1)
+	sqldb.SetMaxIdleConns(1)
+	sqldb.SetConnMaxLifetime(time.Hour)
+	sqldb.SetConnMaxIdleTime(10 * time.Minute)
 
-	if err := s.initSchema(db); err != nil {
-		_ = db.Close()
+	if err := s.initSchema(sqldb); err != nil {
+		_ = sqldb.Close()
 		return fmt.Errorf("failed to initialize schema: %w", err)
 	}
-	if err := initImporterSchema(db); err != nil {
-		_ = db.Close()
+	if err := initImporterSchema(sqldb); err != nil {
+		_ = sqldb.Close()
 		return fmt.Errorf("failed to initialize schema: %w", err)
 	}
 
@@ -162,22 +184,29 @@ func (s *Store) Open() error {
 		PRAGMA cache_size = -2000;
 		PRAGMA temp_store = MEMORY;
 	`
-	if _, err := db.ExecContext(ctx, pragmas); err != nil {
+	if _, err := sqldb.ExecContext(ctx, pragmas); err != nil {
 		// Log warning but don't fail - pragmas are optional optimization
 		_ = err // Ignore pragma errors
 	}
 
-	s.db = db
+	s.db = sqldb
 	return nil
 }
 
 // initSchema creates the database tables.
-func (s *Store) initSchema(db *sql.DB) error {
+func (s *Store) initSchema(sqldb *sql.DB) error {
 	ctx := context.Background()
 
-	schema := `
+	var idCol string
+	if s.driver == db.DriverPostgres {
+		idCol = "BIGSERIAL PRIMARY KEY"
+	} else {
+		idCol = "INTEGER PRIMARY KEY"
+	}
+
+	schema := fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS cost_records (
-			id            INTEGER PRIMARY KEY AUTOINCREMENT,
+			id            %s,
 			agent_id      TEXT NOT NULL,
 			team_id       TEXT,
 			model         TEXT NOT NULL,
@@ -185,7 +214,7 @@ func (s *Store) initSchema(db *sql.DB) error {
 			output_tokens INTEGER NOT NULL DEFAULT 0,
 			total_tokens  INTEGER NOT NULL DEFAULT 0,
 			cost_usd      REAL NOT NULL DEFAULT 0,
-			timestamp     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+			timestamp     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_cost_records_agent ON cost_records(agent_id);
 		CREATE INDEX IF NOT EXISTS idx_cost_records_team ON cost_records(team_id);
@@ -193,18 +222,18 @@ func (s *Store) initSchema(db *sql.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_cost_records_timestamp ON cost_records(timestamp DESC);
 
 		CREATE TABLE IF NOT EXISTS cost_budgets (
-			id         INTEGER PRIMARY KEY AUTOINCREMENT,
+			id         %s,
 			scope      TEXT NOT NULL UNIQUE,
 			period     TEXT NOT NULL DEFAULT 'monthly' CHECK (period IN ('daily', 'weekly', 'monthly')),
 			limit_usd  REAL NOT NULL DEFAULT 0,
 			alert_at   REAL NOT NULL DEFAULT 0.8,
 			hard_stop  INTEGER NOT NULL DEFAULT 0,
-			updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+			updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_cost_budgets_scope ON cost_budgets(scope);
-	`
+	`, idCol, idCol)
 
-	if _, err := db.ExecContext(ctx, schema); err != nil {
+	if _, err := sqldb.ExecContext(ctx, schema); err != nil {
 		return err
 	}
 	return nil
@@ -227,22 +256,34 @@ func (s *Store) DB() *sql.DB {
 func (s *Store) Record(agentID, teamID, model string, inputTokens, outputTokens int64, costUSD float64) (*Record, error) {
 	ctx := context.Background()
 	totalTokens := inputTokens + outputTokens
+	now := time.Now().UTC().Format(time.RFC3339)
 
 	var teamPtr *string
 	if teamID != "" {
 		teamPtr = &teamID
 	}
 
-	result, err := s.db.ExecContext(ctx,
-		`INSERT INTO cost_records (agent_id, team_id, model, input_tokens, output_tokens, total_tokens, cost_usd)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		agentID, teamPtr, model, inputTokens, outputTokens, totalTokens, costUSD,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to record cost: %w", err)
+	var id int64
+	if s.driver == db.DriverPostgres {
+		err := s.db.QueryRowContext(ctx,
+			s.Rebind(`INSERT INTO cost_records (agent_id, team_id, model, input_tokens, output_tokens, total_tokens, cost_usd, timestamp)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`),
+			agentID, teamPtr, model, inputTokens, outputTokens, totalTokens, costUSD, now,
+		).Scan(&id)
+		if err != nil {
+			return nil, fmt.Errorf("failed to record cost: %w", err)
+		}
+	} else {
+		result, err := s.db.ExecContext(ctx,
+			s.Rebind(`INSERT INTO cost_records (agent_id, team_id, model, input_tokens, output_tokens, total_tokens, cost_usd, timestamp)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`),
+			agentID, teamPtr, model, inputTokens, outputTokens, totalTokens, costUSD, now,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to record cost: %w", err)
+		}
+		id, _ = result.LastInsertId()
 	}
-
-	id, _ := result.LastInsertId()
 	return s.GetByID(id)
 }
 
@@ -250,8 +291,8 @@ func (s *Store) Record(agentID, teamID, model string, inputTokens, outputTokens 
 func (s *Store) GetByID(id int64) (*Record, error) {
 	ctx := context.Background()
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, agent_id, team_id, model, input_tokens, output_tokens, total_tokens, cost_usd, timestamp
-		 FROM cost_records WHERE id = ?`,
+		s.Rebind(`SELECT id, agent_id, team_id, model, input_tokens, output_tokens, total_tokens, cost_usd, timestamp
+		 FROM cost_records WHERE id = ?`),
 		id,
 	)
 	return s.scanRecord(row)
@@ -295,8 +336,8 @@ func (s *Store) GetByAgentWithOffset(agentID string, limit, offset int) ([]*Reco
 
 	ctx := context.Background()
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, agent_id, team_id, model, input_tokens, output_tokens, total_tokens, cost_usd, timestamp
-		 FROM cost_records WHERE agent_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?`,
+		s.Rebind(`SELECT id, agent_id, team_id, model, input_tokens, output_tokens, total_tokens, cost_usd, timestamp
+		 FROM cost_records WHERE agent_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?`),
 		agentID, limit, offset,
 	)
 	if err != nil {
@@ -315,8 +356,8 @@ func (s *Store) GetByTeam(teamID string, limit int) ([]*Record, error) {
 
 	ctx := context.Background()
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, agent_id, team_id, model, input_tokens, output_tokens, total_tokens, cost_usd, timestamp
-		 FROM cost_records WHERE team_id = ? ORDER BY timestamp DESC LIMIT ?`,
+		s.Rebind(`SELECT id, agent_id, team_id, model, input_tokens, output_tokens, total_tokens, cost_usd, timestamp
+		 FROM cost_records WHERE team_id = ? ORDER BY timestamp DESC LIMIT ?`),
 		teamID, limit,
 	)
 	if err != nil {
@@ -343,8 +384,8 @@ func (s *Store) GetAllWithOffset(limit, offset int) ([]*Record, error) {
 
 	ctx := context.Background()
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, agent_id, team_id, model, input_tokens, output_tokens, total_tokens, cost_usd, timestamp
-		 FROM cost_records ORDER BY timestamp DESC LIMIT ? OFFSET ?`,
+		s.Rebind(`SELECT id, agent_id, team_id, model, input_tokens, output_tokens, total_tokens, cost_usd, timestamp
+		 FROM cost_records ORDER BY timestamp DESC LIMIT ? OFFSET ?`),
 		limit, offset,
 	)
 	if err != nil {
@@ -478,8 +519,8 @@ func (s *Store) WorkspaceSummary() (*Summary, error) {
 func (s *Store) AgentSummary(agentID string) (*Summary, error) {
 	ctx := context.Background()
 	row := s.db.QueryRowContext(ctx,
-		`SELECT SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
-		 FROM cost_records WHERE agent_id = ?`,
+		s.Rebind(`SELECT SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
+		 FROM cost_records WHERE agent_id = ?`),
 		agentID,
 	)
 
@@ -506,8 +547,8 @@ func (s *Store) AgentSummary(agentID string) (*Summary, error) {
 func (s *Store) TeamSummary(teamID string) (*Summary, error) {
 	ctx := context.Background()
 	row := s.db.QueryRowContext(ctx,
-		`SELECT SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
-		 FROM cost_records WHERE team_id = ?`,
+		s.Rebind(`SELECT SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
+		 FROM cost_records WHERE team_id = ?`),
 		teamID,
 	)
 
@@ -539,16 +580,17 @@ func (s *Store) SetBudget(scope string, period BudgetPeriod, limitUSD, alertAt f
 		hardStopInt = 1
 	}
 
+	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO cost_budgets (scope, period, limit_usd, alert_at, hard_stop, updated_at)
-		 VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+		s.Rebind(`INSERT INTO cost_budgets (scope, period, limit_usd, alert_at, hard_stop, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(scope) DO UPDATE SET
 		   period = excluded.period,
 		   limit_usd = excluded.limit_usd,
 		   alert_at = excluded.alert_at,
 		   hard_stop = excluded.hard_stop,
-		   updated_at = excluded.updated_at`,
-		scope, period, limitUSD, alertAt, hardStopInt,
+		   updated_at = excluded.updated_at`),
+		scope, period, limitUSD, alertAt, hardStopInt, now,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to set budget: %w", err)
@@ -561,8 +603,8 @@ func (s *Store) SetBudget(scope string, period BudgetPeriod, limitUSD, alertAt f
 func (s *Store) GetBudget(scope string) (*Budget, error) {
 	ctx := context.Background()
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, scope, period, limit_usd, alert_at, hard_stop, updated_at
-		 FROM cost_budgets WHERE scope = ?`,
+		s.Rebind(`SELECT id, scope, period, limit_usd, alert_at, hard_stop, updated_at
+		 FROM cost_budgets WHERE scope = ?`),
 		scope,
 	)
 
@@ -623,7 +665,7 @@ func (s *Store) GetAllBudgets() ([]*Budget, error) {
 // DeleteBudget removes a budget for the given scope.
 func (s *Store) DeleteBudget(scope string) error {
 	ctx := context.Background()
-	result, err := s.db.ExecContext(ctx, "DELETE FROM cost_budgets WHERE scope = ?", scope)
+	result, err := s.db.ExecContext(ctx, s.Rebind("DELETE FROM cost_budgets WHERE scope = ?"), scope)
 	if err != nil {
 		return fmt.Errorf("failed to delete budget: %w", err)
 	}
@@ -678,7 +720,7 @@ func (s *Store) CheckBudget(scope string) (*BudgetStatus, error) {
 		}
 	}
 
-	row := s.db.QueryRowContext(ctx, query, args...)
+	row := s.db.QueryRowContext(ctx, s.Rebind(query), args...)
 	if err := row.Scan(&currentSpend); err != nil {
 		return nil, fmt.Errorf("failed to calculate current spend: %w", err)
 	}
@@ -746,7 +788,7 @@ type Projection struct {
 func (s *Store) GetDailyCosts(since time.Time) ([]*DailyCost, error) {
 	ctx := context.Background()
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT
+		s.Rebind(`SELECT
 			date(timestamp) as day,
 			SUM(cost_usd) as cost,
 			SUM(total_tokens) as tokens,
@@ -756,7 +798,7 @@ func (s *Store) GetDailyCosts(since time.Time) ([]*DailyCost, error) {
 		 FROM cost_records
 		 WHERE timestamp >= ?
 		 GROUP BY date(timestamp)
-		 ORDER BY day ASC`,
+		 ORDER BY day ASC`),
 		since.Format(time.RFC3339),
 	)
 	if err != nil {
@@ -779,7 +821,7 @@ func (s *Store) GetDailyCosts(since time.Time) ([]*DailyCost, error) {
 func (s *Store) GetAgentDailyCosts(since time.Time) ([]*AgentDailyCost, error) {
 	ctx := context.Background()
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT
+		s.Rebind(`SELECT
 			agent_id,
 			date(timestamp) as day,
 			SUM(cost_usd) as cost,
@@ -790,7 +832,7 @@ func (s *Store) GetAgentDailyCosts(since time.Time) ([]*AgentDailyCost, error) {
 		 FROM cost_records
 		 WHERE timestamp >= ?
 		 GROUP BY agent_id, date(timestamp)
-		 ORDER BY agent_id, day ASC`,
+		 ORDER BY agent_id, day ASC`),
 		since.Format(time.RFC3339),
 	)
 	if err != nil {
@@ -813,14 +855,14 @@ func (s *Store) GetAgentDailyCosts(since time.Time) ([]*AgentDailyCost, error) {
 func (s *Store) GetSummarySince(since time.Time) (*Summary, error) {
 	ctx := context.Background()
 	row := s.db.QueryRowContext(ctx,
-		`SELECT
+		s.Rebind(`SELECT
 			COALESCE(SUM(input_tokens), 0),
 			COALESCE(SUM(output_tokens), 0),
 			COALESCE(SUM(total_tokens), 0),
 			COALESCE(SUM(cost_usd), 0),
 			COUNT(*)
 		 FROM cost_records
-		 WHERE timestamp >= ?`,
+		 WHERE timestamp >= ?`),
 		since.Format(time.RFC3339),
 	)
 
@@ -835,7 +877,7 @@ func (s *Store) GetSummarySince(since time.Time) (*Summary, error) {
 func (s *Store) GetAgentSummarySince(since time.Time) ([]*Summary, error) {
 	ctx := context.Background()
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT
+		s.Rebind(`SELECT
 			agent_id,
 			SUM(input_tokens),
 			SUM(output_tokens),
@@ -845,7 +887,7 @@ func (s *Store) GetAgentSummarySince(since time.Time) ([]*Summary, error) {
 		 FROM cost_records
 		 WHERE timestamp >= ?
 		 GROUP BY agent_id
-		 ORDER BY SUM(cost_usd) DESC`,
+		 ORDER BY SUM(cost_usd) DESC`),
 		since.Format(time.RFC3339),
 	)
 	if err != nil {

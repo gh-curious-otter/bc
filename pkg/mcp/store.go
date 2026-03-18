@@ -37,7 +37,8 @@ type ServerConfig struct {
 
 // Store provides SQLite-backed MCP server config storage.
 type Store struct {
-	db *db.DB
+	db     *sql.DB
+	driver string
 }
 
 // NewStore creates a new MCP store for the given workspace path.
@@ -48,12 +49,27 @@ func NewStore(workspacePath string) (*Store, error) {
 		return nil, fmt.Errorf("open mcp database: %w", err)
 	}
 
-	s := &Store{db: d}
+	s := &Store{db: d.DB, driver: db.DriverSQLite}
 	if err := s.initSchema(); err != nil {
 		_ = d.Close()
 		return nil, fmt.Errorf("init mcp schema: %w", err)
 	}
 	return s, nil
+}
+
+// NewStoreWithDB creates a new MCP store using an existing *sql.DB connection.
+// driver should be db.DriverPostgres or db.DriverSQLite.
+func NewStoreWithDB(sqlDB *sql.DB, driver string) (*Store, error) {
+	s := &Store{db: sqlDB, driver: driver}
+	if err := s.initSchema(); err != nil {
+		return nil, fmt.Errorf("init mcp schema: %w", err)
+	}
+	return s, nil
+}
+
+// rebind converts ? placeholders to the driver-appropriate form.
+func (s *Store) rebind(q string) string {
+	return db.Rebind(s.driver, q)
 }
 
 // initSchema creates the MCP server configs table.
@@ -68,7 +84,7 @@ func (s *Store) initSchema() error {
 			url         TEXT,
 			env         TEXT,
 			enabled     INTEGER NOT NULL DEFAULT 1,
-			created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+			created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers(enabled);
 	`
@@ -102,8 +118,8 @@ func (s *Store) Add(cfg *ServerConfig) error {
 
 	ctx := context.Background()
 	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO mcp_servers (name, transport, command, args, url, env, enabled)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		s.rebind(`INSERT INTO mcp_servers (name, transport, command, args, url, env, enabled)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`),
 		cfg.Name, cfg.Transport, cfg.Command, string(argsJSON), cfg.URL, string(envJSON), cfg.Enabled,
 	)
 	if err != nil {
@@ -119,8 +135,8 @@ func (s *Store) Add(cfg *ServerConfig) error {
 func (s *Store) Get(name string) (*ServerConfig, error) {
 	ctx := context.Background()
 	row := s.db.QueryRowContext(ctx,
-		`SELECT name, transport, command, args, url, env, enabled, created_at
-		 FROM mcp_servers WHERE name = ?`, name,
+		s.rebind(`SELECT name, transport, command, args, url, env, enabled, created_at
+		 FROM mcp_servers WHERE name = ?`), name,
 	)
 	return scanInto(row)
 }
@@ -151,7 +167,7 @@ func (s *Store) List() ([]*ServerConfig, error) {
 // Remove deletes an MCP server config by name.
 func (s *Store) Remove(name string) error {
 	ctx := context.Background()
-	result, err := s.db.ExecContext(ctx, "DELETE FROM mcp_servers WHERE name = ?", name)
+	result, err := s.db.ExecContext(ctx, s.rebind("DELETE FROM mcp_servers WHERE name = ?"), name)
 	if err != nil {
 		return fmt.Errorf("remove mcp server %q: %w", name, err)
 	}
@@ -166,7 +182,7 @@ func (s *Store) Remove(name string) error {
 func (s *Store) SetEnabled(name string, enabled bool) error {
 	ctx := context.Background()
 	result, err := s.db.ExecContext(ctx,
-		"UPDATE mcp_servers SET enabled = ? WHERE name = ?",
+		s.rebind("UPDATE mcp_servers SET enabled = ? WHERE name = ?"),
 		enabled, name,
 	)
 	if err != nil {

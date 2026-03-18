@@ -10,13 +10,15 @@ import (
 
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
 
+	"github.com/rpuneet/bc/pkg/db"
 	"github.com/rpuneet/bc/pkg/log"
 )
 
 // Store is a SQLite-backed cron job store.
 type Store struct {
-	db   *sql.DB
-	path string
+	db     *sql.DB
+	path   string
+	driver string
 }
 
 // Open opens (or creates) the cron database for the given workspace.
@@ -26,21 +28,36 @@ func Open(workspacePath string) (*Store, error) {
 		return nil, fmt.Errorf("create cron db directory: %w", err)
 	}
 
-	db, err := sql.Open("sqlite3", path+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000")
+	sqldb, err := sql.Open("sqlite3", path+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000")
 	if err != nil {
 		return nil, fmt.Errorf("open cron database: %w", err)
 	}
 
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	db.SetConnMaxLifetime(time.Hour)
+	sqldb.SetMaxOpenConns(1)
+	sqldb.SetMaxIdleConns(1)
+	sqldb.SetConnMaxLifetime(time.Hour)
 
-	s := &Store{db: db, path: path}
+	s := &Store{db: sqldb, path: path, driver: db.DriverSQLite}
 	if err := s.initSchema(); err != nil {
-		_ = db.Close()
+		_ = sqldb.Close()
 		return nil, fmt.Errorf("init cron schema: %w", err)
 	}
 	return s, nil
+}
+
+// OpenWithDB creates a cron store using an existing *sql.DB connection.
+// driver should be db.DriverPostgres or db.DriverSQLite.
+func OpenWithDB(sqlDB *sql.DB, driver string) (*Store, error) {
+	s := &Store{db: sqlDB, driver: driver}
+	if err := s.initSchema(); err != nil {
+		return nil, fmt.Errorf("init cron schema: %w", err)
+	}
+	return s, nil
+}
+
+// rebind converts ? placeholders to the driver-appropriate form.
+func (s *Store) rebind(q string) string {
+	return db.Rebind(s.driver, q)
 }
 
 // Close closes the database connection.
@@ -49,7 +66,14 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) initSchema() error {
-	const schema = `
+	var idCol string
+	if s.driver == db.DriverPostgres {
+		idCol = "BIGSERIAL PRIMARY KEY"
+	} else {
+		idCol = "INTEGER PRIMARY KEY"
+	}
+
+	schema := fmt.Sprintf(`
 CREATE TABLE IF NOT EXISTS cron_jobs (
     name        TEXT PRIMARY KEY,
     schedule    TEXT NOT NULL,
@@ -57,24 +81,24 @@ CREATE TABLE IF NOT EXISTS cron_jobs (
     prompt      TEXT,
     command     TEXT,
     enabled     INTEGER NOT NULL DEFAULT 1,
-    last_run    DATETIME,
-    next_run    DATETIME,
+    last_run    TIMESTAMP,
+    next_run    TIMESTAMP,
     run_count   INTEGER NOT NULL DEFAULT 0,
-    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS cron_logs (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id          %s,
     job_name    TEXT NOT NULL REFERENCES cron_jobs(name) ON DELETE CASCADE,
     status      TEXT NOT NULL,
     duration_ms INTEGER NOT NULL DEFAULT 0,
     cost_usd    REAL NOT NULL DEFAULT 0,
     output      TEXT,
-    run_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    run_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_cron_logs_job ON cron_logs(job_name, run_at DESC);
-`
+`, idCol)
 	_, err := s.db.Exec(schema)
 	return err
 }
@@ -86,9 +110,9 @@ func (s *Store) AddJob(ctx context.Context, job *Job) error {
 		return fmt.Errorf("compute next_run: %w", err)
 	}
 
-	const q = `
+	q := s.rebind(`
 INSERT INTO cron_jobs (name, schedule, agent_name, prompt, command, enabled, next_run, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
 
 	enabled := 1
 	if !job.Enabled {
@@ -108,9 +132,9 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 
 // GetJob returns a job by name. Returns nil, nil if not found.
 func (s *Store) GetJob(ctx context.Context, name string) (*Job, error) {
-	const q = `
+	q := s.rebind(`
 SELECT name, schedule, agent_name, prompt, command, enabled, last_run, next_run, run_count, created_at
-FROM cron_jobs WHERE name = ?`
+FROM cron_jobs WHERE name = ?`)
 
 	row := s.db.QueryRowContext(ctx, q, name)
 	job, err := scanJob(row)
@@ -122,9 +146,9 @@ FROM cron_jobs WHERE name = ?`
 
 // ListJobs returns all cron jobs ordered by name.
 func (s *Store) ListJobs(ctx context.Context) ([]*Job, error) {
-	const q = `
+	q := s.rebind(`
 SELECT name, schedule, agent_name, prompt, command, enabled, last_run, next_run, run_count, created_at
-FROM cron_jobs ORDER BY name`
+FROM cron_jobs ORDER BY name`)
 
 	rows, err := s.db.QueryContext(ctx, q)
 	if err != nil {
@@ -145,7 +169,7 @@ FROM cron_jobs ORDER BY name`
 
 // DeleteJob removes a cron job and its logs by name.
 func (s *Store) DeleteJob(ctx context.Context, name string) error {
-	res, err := s.db.ExecContext(ctx, `DELETE FROM cron_jobs WHERE name = ?`, name)
+	res, err := s.db.ExecContext(ctx, s.rebind(`DELETE FROM cron_jobs WHERE name = ?`), name)
 	if err != nil {
 		return fmt.Errorf("delete cron job: %w", err)
 	}
@@ -178,7 +202,7 @@ func (s *Store) SetEnabled(ctx context.Context, name string, enabled bool) error
 	}
 
 	_, err = s.db.ExecContext(ctx,
-		`UPDATE cron_jobs SET enabled = ?, next_run = ? WHERE name = ?`,
+		s.rebind(`UPDATE cron_jobs SET enabled = ?, next_run = ? WHERE name = ?`),
 		enabledInt, nullTime(nextRun), name,
 	)
 	return err
@@ -193,8 +217,8 @@ func (s *Store) RecordRun(ctx context.Context, entry *LogEntry) error {
 	defer tx.Rollback() //nolint:errcheck // rolled back on error
 
 	_, err = tx.ExecContext(ctx,
-		`INSERT INTO cron_logs (job_name, status, duration_ms, cost_usd, output, run_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+		s.rebind(`INSERT INTO cron_logs (job_name, status, duration_ms, cost_usd, output, run_at)
+         VALUES (?, ?, ?, ?, ?, ?)`),
 		entry.JobName, entry.Status, entry.DurationMS, entry.CostUSD,
 		nullStr(entry.Output), entry.RunAt,
 	)
@@ -207,7 +231,7 @@ func (s *Store) RecordRun(ctx context.Context, entry *LogEntry) error {
 	now := time.Now()
 	var nextRunPtr *time.Time
 	var schedule string
-	if scanErr := tx.QueryRowContext(ctx, `SELECT schedule FROM cron_jobs WHERE name = ?`, entry.JobName).Scan(&schedule); scanErr != nil {
+	if scanErr := tx.QueryRowContext(ctx, s.rebind(`SELECT schedule FROM cron_jobs WHERE name = ?`), entry.JobName).Scan(&schedule); scanErr != nil {
 		log.Warn("failed to query schedule for next_run", "job", entry.JobName, "error", scanErr)
 	} else if t, calcErr := NextRun(schedule, now); calcErr != nil {
 		log.Warn("failed to compute next_run", "job", entry.JobName, "schedule", schedule, "error", calcErr)
@@ -216,9 +240,9 @@ func (s *Store) RecordRun(ctx context.Context, entry *LogEntry) error {
 	}
 
 	_, err = tx.ExecContext(ctx,
-		`UPDATE cron_jobs
+		s.rebind(`UPDATE cron_jobs
          SET last_run = ?, next_run = ?, run_count = run_count + 1
-         WHERE name = ?`,
+         WHERE name = ?`),
 		now, nullTime(nextRunPtr), entry.JobName,
 	)
 	if err != nil {
@@ -247,7 +271,7 @@ func (s *Store) RecordManualTrigger(ctx context.Context, name string) error {
 	}
 
 	_, err = s.db.ExecContext(ctx,
-		`UPDATE cron_jobs SET last_run = ?, next_run = ?, run_count = run_count + 1 WHERE name = ?`,
+		s.rebind(`UPDATE cron_jobs SET last_run = ?, next_run = ?, run_count = run_count + 1 WHERE name = ?`),
 		now, nullTime(nextRunPtr), name,
 	)
 	return err
@@ -262,8 +286,8 @@ func (s *Store) GetLogs(ctx context.Context, jobName string, last int) ([]*LogEn
 		limit = last
 	}
 
-	const q = `SELECT id, job_name, status, duration_ms, cost_usd, output, run_at
-          FROM cron_logs WHERE job_name = ? ORDER BY run_at DESC LIMIT ?`
+	q := s.rebind(`SELECT id, job_name, status, duration_ms, cost_usd, output, run_at
+          FROM cron_logs WHERE job_name = ? ORDER BY run_at DESC LIMIT ?`)
 
 	rows, err := s.db.QueryContext(ctx, q, jobName, limit)
 	if err != nil {
