@@ -68,9 +68,9 @@ export function Costs() {
       <h1 className="text-xl font-bold">Costs</h1>
 
       <div className="grid grid-cols-3 gap-4">
-        <CostCard label="Total Cost" value={`$${data.summary.total_cost_usd.toFixed(2)}`} />
-        <CostCard label="Total Tokens" value={data.summary.total_tokens.toLocaleString()} />
-        <CostCard label="Records" value={String(data.summary.record_count)} />
+        <CostCard label="Total Cost" value={`$${(data.summary?.total_cost_usd ?? 0).toFixed(2)}`} />
+        <CostCard label="Total Tokens" value={(data.summary?.total_tokens ?? 0).toLocaleString()} />
+        <CostCard label="Records" value={String(data.summary?.record_count ?? 0)} />
       </div>
 
       <section>
