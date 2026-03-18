@@ -611,6 +611,7 @@ type SpawnOptions struct {
 	Tool      string
 	EnvFile   string
 	Runtime   string // override runtime backend ("tmux" or "docker"); empty uses manager default
+	Team      string // optional team assignment
 	Fresh     bool   // Force new session (ignore session_id)
 	SessionID string // Explicit session ID to resume (overrides stored session_id)
 }
@@ -863,6 +864,7 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		Session:        name,
 		Tool:           tool,
 		ParentID:       parentID,
+		Team:           opts.Team,
 		EnvFile:        opts.EnvFile,
 		RuntimeBackend: agentRuntime,
 		Children:       []string{},

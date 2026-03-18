@@ -47,12 +47,14 @@ type CreateOptions struct {
 	EnvFile string
 	Runtime string
 	Parent  string
+	Team    string
 }
 
 // StartOptions configures agent start behavior.
 type StartOptions struct {
-	Runtime string // Runtime backend override
-	Fresh   bool   // Force new session (ignore session_id)
+	Runtime  string // Runtime backend override
+	ResumeID string // Explicit session ID to resume
+	Fresh    bool   // Force new session (ignore session_id)
 }
 
 // SessionEntry represents a single session history record.
@@ -143,6 +145,7 @@ func (s *AgentService) Create(ctx context.Context, opts CreateOptions) (*Agent, 
 		Tool:      opts.Tool,
 		EnvFile:   opts.EnvFile,
 		Runtime:   opts.Runtime,
+		Team:      opts.Team,
 	})
 	if err != nil {
 		return nil, err
@@ -177,6 +180,7 @@ func (s *AgentService) Start(ctx context.Context, name string, opts StartOptions
 		EnvFile:   existing.EnvFile,
 		Runtime:   opts.Runtime,
 		Fresh:     opts.Fresh,
+		SessionID: opts.ResumeID,
 	})
 	if err != nil {
 		return nil, err

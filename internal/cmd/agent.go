@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -491,6 +490,7 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		Tool:    toolName,
 		Runtime: agentCreateRuntime,
 		Parent:  agentCreateParent,
+		Team:    agentCreateTeam,
 		EnvFile: agentCreateEnv,
 	})
 	if createErr != nil {
@@ -749,7 +749,7 @@ func runAgentStart(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Starting %s... ", agentName)
-	a, startErr := c.Agents.Start(cmd.Context(), agentName, agentStartRuntime, agentStartFresh)
+	a, startErr := c.Agents.Start(cmd.Context(), agentName, agentStartRuntime, agentStartResume, agentStartFresh)
 	if startErr != nil {
 		fmt.Println("✗")
 		return fmt.Errorf("failed to start %s: %w", agentName, startErr)
@@ -1044,58 +1044,6 @@ func isValidAgentName(name string) bool {
 	return isValidTeamName(name)
 }
 
-// compactAgent is a JSON-friendly agent representation without verbose fields.
-// Used for --json output without --full flag to reduce output size.
-//
-//nolint:govet // fieldalignment: JSON field order preferred for readability
-type compactAgent struct {
-	ID        string     `json:"id"`
-	Name      string     `json:"name"`
-	Role      string     `json:"role"`
-	State     string     `json:"state"`
-	Task      string     `json:"task,omitempty"`
-	Team      string     `json:"team,omitempty"`
-	Tool      string     `json:"tool,omitempty"`
-	ParentID  string     `json:"parent_id,omitempty"`
-	Children  []string   `json:"children,omitempty"`
-	Session   string     `json:"session"`
-	SessionID string     `json:"session_id,omitempty"`
-	CreatedAt time.Time  `json:"created_at"`
-	StartedAt time.Time  `json:"started_at"`
-	StoppedAt *time.Time `json:"stopped_at,omitempty"`
-	UpdatedAt time.Time  `json:"updated_at"`
-}
-
-// toCompactAgent converts a full agent to compact representation.
-func toCompactAgent(a *agent.Agent) compactAgent {
-	return compactAgent{
-		ID:        a.ID,
-		Name:      a.Name,
-		Role:      string(a.Role),
-		State:     string(a.State),
-		Task:      a.Task,
-		Team:      a.Team,
-		Tool:      a.Tool,
-		ParentID:  a.ParentID,
-		Children:  a.Children,
-		Session:   a.Session,
-		SessionID: a.SessionID,
-		CreatedAt: a.CreatedAt,
-		StartedAt: a.StartedAt,
-		StoppedAt: a.StoppedAt,
-		UpdatedAt: a.UpdatedAt,
-	}
-}
-
-// toCompactAgents converts a slice of agents to compact representations.
-func toCompactAgents(agents []*agent.Agent) []compactAgent {
-	result := make([]compactAgent, len(agents))
-	for i, a := range agents {
-		result[i] = toCompactAgent(a)
-	}
-	return result
-}
-
 // matchesAgentStatus checks if an agent state matches a status filter.
 // Maps detailed internal states to the simplified 4-state model from #1918.
 func matchesAgentStatus(state agent.State, status string) bool {
@@ -1279,88 +1227,39 @@ Usage:
 func runAgentSessions(cmd *cobra.Command, args []string) error {
 	agentName := args[0]
 
-	ws, err := getWorkspace()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
-		return errNotInWorkspace(err)
+		return err
 	}
 
-	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
-	}
-
-	a := mgr.GetAgent(agentName)
-	if a == nil {
-		return fmt.Errorf("agent %q not found", agentName)
-	}
-
-	type sessionEntry struct {
-		ID        string    `json:"id"`
-		Timestamp time.Time `json:"timestamp,omitempty"`
-		Current   bool      `json:"current,omitempty"`
-	}
-
-	var entries []sessionEntry
-
-	// Current stored session ID from state DB
-	if a.SessionID != "" {
-		entries = append(entries, sessionEntry{ID: a.SessionID, Current: true})
-	}
-
-	// Session history files from .bc/agents/<name>/session_history/
-	histDir := filepath.Join(ws.StateDir(), "agents", agentName, "session_history")
-	files, readErr := os.ReadDir(histDir)
-	if readErr == nil {
-		// Sort descending (newest first)
-		sort.Slice(files, func(i, j int) bool {
-			return files[i].Name() > files[j].Name()
-		})
-		for _, f := range files {
-			if f.IsDir() {
-				continue
-			}
-			data, readFileErr := os.ReadFile(filepath.Join(histDir, f.Name())) //nolint:gosec // trusted path
-			if readFileErr != nil {
-				continue
-			}
-			id := strings.TrimSpace(string(data))
-			if id == "" || id == a.SessionID {
-				continue // skip duplicates
-			}
-			// Parse timestamp from filename (2006-01-02T15:04:05.txt)
-			name := strings.TrimSuffix(f.Name(), ".txt")
-			ts, parseErr := time.Parse("2006-01-02T15:04:05", name)
-			entry := sessionEntry{ID: id}
-			if parseErr == nil {
-				entry.Timestamp = ts
-			}
-			entries = append(entries, entry)
-		}
+	sessions, sessErr := c.Agents.Sessions(cmd.Context(), agentName)
+	if sessErr != nil {
+		return fmt.Errorf("failed to get sessions for %q: %w", agentName, sessErr)
 	}
 
 	if agentSessionsJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(entries)
+		return enc.Encode(sessions)
 	}
 
-	if len(entries) == 0 {
+	if len(sessions) == 0 {
 		fmt.Printf("No session IDs stored for agent %s.\n", agentName)
 		fmt.Printf("Session IDs are captured automatically when the agent stops.\n")
 		return nil
 	}
 
 	fmt.Printf("Sessions for %s:\n\n", agentName)
-	for _, e := range entries {
+	for _, s := range sessions {
 		current := ""
-		if e.Current {
+		if s.Current {
 			current = " " + ui.GreenText("(current)")
 		}
 		ts := ""
-		if !e.Timestamp.IsZero() {
-			ts = "  " + ui.DimText(e.Timestamp.Format("2006-01-02 15:04:05"))
+		if !s.Timestamp.IsZero() {
+			ts = "  " + ui.DimText(s.Timestamp.Format("2006-01-02 15:04:05"))
 		}
-		fmt.Printf("  %s%s%s\n", e.ID, current, ts)
+		fmt.Printf("  %s%s%s\n", s.ID, current, ts)
 	}
 	fmt.Printf("\nResume a session: bc agent start %s --resume <id>\n", agentName)
 
