@@ -49,15 +49,16 @@ func DefaultConfig() Config {
 
 // Services bundles all service/store dependencies for the handlers.
 type Services struct {
-	Agents   *agent.AgentService
-	Channels *channel.ChannelService
-	Daemons  *daemon.Manager
-	Costs    *cost.Store
-	Cron     *cron.Store
-	Secrets  *secret.Store
-	MCP      *mcp.Store
-	Tools    *tool.Store
-	WS       *workspace.Workspace
+	Agents       *agent.AgentService
+	Channels     *channel.ChannelService
+	Daemons      *daemon.Manager
+	Costs        *cost.Store
+	CostImporter *cost.Importer
+	Cron         *cron.Store
+	Secrets      *secret.Store
+	MCP          *mcp.Store
+	Tools        *tool.Store
+	WS           *workspace.Workspace
 }
 
 // Server is the bcd HTTP server.
@@ -101,7 +102,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewDaemonHandler(svc.Daemons).Register(mux)
 	}
 	if svc.Costs != nil {
-		handlers.NewCostHandler(svc.Costs).Register(mux)
+		handlers.NewCostHandler(svc.Costs, svc.CostImporter).Register(mux)
 	}
 	if svc.Cron != nil {
 		handlers.NewCronHandler(svc.Cron).Register(mux)

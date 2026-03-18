@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"syscall"
+	"time"
 
 	bcagent "github.com/rpuneet/bc/pkg/agent"
 	bcchannel "github.com/rpuneet/bc/pkg/channel"
@@ -63,6 +64,10 @@ func run(addr, wsRoot string) error {
 	}
 	defer os.Remove(pidPath) //nolint:errcheck // best-effort cleanup
 
+	// Context — create early so goroutines can use it.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	// SSE hub
 	hub := bcws.NewHub()
 	go hub.Run()
@@ -93,14 +98,39 @@ func run(addr, wsRoot string) error {
 		defer mgr.Close() //nolint:errcheck // best-effort
 	}
 
-	// Cost store
+	// Cost store + importer
 	var costStore *bccost.Store
+	var costImporter *bccost.Importer
 	cs := bccost.NewStore(ws.RootDir)
 	if err := cs.Open(); err != nil {
 		log.Warn("cost store unavailable", "error", err)
 	} else {
 		costStore = cs
 		defer cs.Close() //nolint:errcheck // best-effort
+
+		costImporter = bccost.NewImporter(cs, ws.RootDir)
+		// Run initial import and schedule periodic refresh every 5 minutes.
+		go func() {
+			if n, err := costImporter.ImportAll(ctx); err != nil {
+				log.Warn("cost import failed", "error", err)
+			} else if n > 0 {
+				log.Info("cost import: imported records", "count", n)
+			}
+			ticker := time.NewTicker(5 * time.Minute)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					if n, err := costImporter.ImportAll(ctx); err != nil {
+						log.Warn("cost import failed", "error", err)
+					} else if n > 0 {
+						log.Info("cost import: imported records", "count", n)
+					}
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
 	}
 
 	// Cron store
@@ -147,15 +177,16 @@ func run(addr, wsRoot string) error {
 	}
 
 	svc := server.Services{
-		Agents:   agentSvc,
-		Channels: channelSvc,
-		Daemons:  daemonMgr,
-		Costs:    costStore,
-		Cron:     cronStore,
-		Secrets:  secretStore,
-		MCP:      mcpStore,
-		Tools:    toolStore,
-		WS:       ws,
+		Agents:       agentSvc,
+		Channels:     channelSvc,
+		Daemons:      daemonMgr,
+		Costs:        costStore,
+		CostImporter: costImporter,
+		Cron:         cronStore,
+		Secrets:      secretStore,
+		MCP:          mcpStore,
+		Tools:        toolStore,
+		WS:           ws,
 	}
 
 	cfg := server.DefaultConfig()
@@ -164,10 +195,6 @@ func run(addr, wsRoot string) error {
 	}
 
 	srv := server.New(cfg, svc, hub, server.WebDist())
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
 	return srv.Start(ctx)
 }
 
