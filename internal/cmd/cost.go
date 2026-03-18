@@ -68,6 +68,9 @@ func init() {
 	// Usage flags (in cost_usage.go)
 	initCostUsageFlags()
 
+	// Analytics subcommands (in cost_analytics.go)
+	initCostAnalyticsFlags()
+
 	costCmd.AddCommand(costShowCmd)
 	costCmd.AddCommand(costBudgetCmd)
 	costCmd.AddCommand(costUsageCmd)
