@@ -17,6 +17,8 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/rpuneet/bc/pkg/agent"
@@ -38,8 +40,9 @@ const defaultAddr = "127.0.0.1:9374"
 
 // Config holds server configuration.
 type Config struct {
-	Addr string // default "127.0.0.1:9374"
-	CORS bool   // enable permissive CORS headers (safe for loopback)
+	Addr     string // default "127.0.0.1:9374"
+	AddrFile string // path to write the resolved listen address on startup (e.g. .bc/bcd.addr)
+	CORS     bool   // enable permissive CORS headers (safe for loopback)
 }
 
 // DefaultConfig returns the default server configuration.
@@ -65,6 +68,7 @@ type Services struct {
 type Server struct {
 	httpServer *http.Server
 	handler    http.Handler
+	addrFile   string
 	addr       string
 }
 
@@ -142,8 +146,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 
 	return &Server{
-		addr:    cfg.Addr,
-		handler: handler,
+		addr:     cfg.Addr,
+		addrFile: cfg.AddrFile,
+		handler:  handler,
 		httpServer: &http.Server{
 			Addr:        cfg.Addr,
 			Handler:     handler,
@@ -176,6 +181,16 @@ func (s *Server) Start(ctx context.Context) error {
 
 	log.Info("bcd listening", "addr", s.addr)
 
+	// Write the resolved address to bcd.addr so the CLI can discover it.
+	if s.addrFile != "" {
+		httpAddr := "http://" + s.addr
+		if err := writeAddrFile(s.addrFile, httpAddr); err != nil {
+			log.Warn("failed to write addr file", "path", s.addrFile, "error", err)
+		} else {
+			defer os.Remove(s.addrFile) //nolint:errcheck // best-effort cleanup
+		}
+	}
+
 	go func() {
 		<-ctx.Done()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -189,4 +204,11 @@ func (s *Server) Start(ctx context.Context) error {
 		return fmt.Errorf("serve: %w", err)
 	}
 	return nil
+}
+
+func writeAddrFile(path, addr string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(addr+"\n"), 0600)
 }

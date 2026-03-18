@@ -200,6 +200,7 @@ func run(addr, wsRoot string) error {
 	if addr != "" {
 		cfg.Addr = addr
 	}
+	cfg.AddrFile = filepath.Join(ws.RootDir, ".bc", "bcd.addr")
 
 	srv := server.New(cfg, svc, hub, server.WebDist())
 	return srv.Start(ctx)

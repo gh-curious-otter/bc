@@ -18,17 +18,13 @@ import (
 	"time"
 )
 
-// DefaultSocketPath returns the default Unix socket path for bcd.
-func DefaultSocketPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "/tmp/bcd.sock"
-	}
-	return filepath.Join(home, ".bc", "bcd.sock")
-}
-
 // DefaultHTTPAddr is the fallback HTTP address for bcd.
-const DefaultHTTPAddr = "http://localhost:4880"
+// Uses 127.0.0.1 (IPv4 loopback) to match the server's bind address and avoid
+// localhost→::1 (IPv6) resolution failures on dual-stack systems.
+const DefaultHTTPAddr = "http://127.0.0.1:9374"
+
+// AddrFileName is the name of the file written by bcd containing its listen address.
+const AddrFileName = "bcd.addr"
 
 // Client is the HTTP client for the bcd daemon.
 type Client struct {
@@ -104,12 +100,39 @@ func (c *Client) get(ctx context.Context, path string, result any) error {
 }
 
 // discoverDaemon tries to find the daemon address.
-// Priority: BC_DAEMON_ADDR env > default HTTP address.
+// Priority: BC_DAEMON_ADDR env > bcd.addr file in workspace .bc/ > default HTTP address.
 func discoverDaemon() string {
 	if addr := os.Getenv("BC_DAEMON_ADDR"); addr != "" {
 		return addr
 	}
+	if addr := readAddrFile(); addr != "" {
+		return addr
+	}
 	return DefaultHTTPAddr
+}
+
+// readAddrFile walks up from the current directory looking for a .bc/bcd.addr file
+// written by bcd on startup, and returns the address it contains.
+func readAddrFile() string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	for {
+		addrPath := filepath.Join(dir, ".bc", AddrFileName)
+		if data, err := os.ReadFile(addrPath); err == nil {
+			addr := strings.TrimSpace(string(data))
+			if addr != "" {
+				return addr
+			}
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return ""
 }
 
 // IsDaemonNotRunning returns true if the error indicates the daemon is not running.
