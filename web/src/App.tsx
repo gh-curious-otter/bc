@@ -10,6 +10,9 @@ import { Tools } from './views/Tools';
 import { MCP } from './views/MCP';
 import { Logs } from './views/Logs';
 import { Doctor } from './views/Doctor';
+import { Cron } from './views/Cron';
+import { Secrets } from './views/Secrets';
+import { Workspace } from './views/Workspace';
 
 export function App() {
   return (
@@ -26,6 +29,9 @@ export function App() {
             <Route path="mcp" element={<ErrorBoundary><MCP /></ErrorBoundary>} />
             <Route path="logs" element={<ErrorBoundary><Logs /></ErrorBoundary>} />
             <Route path="doctor" element={<ErrorBoundary><Doctor /></ErrorBoundary>} />
+            <Route path="cron" element={<ErrorBoundary><Cron /></ErrorBoundary>} />
+            <Route path="secrets" element={<ErrorBoundary><Secrets /></ErrorBoundary>} />
+            <Route path="workspace" element={<ErrorBoundary><Workspace /></ErrorBoundary>} />
           </Route>
         </Routes>
       </BrowserRouter>

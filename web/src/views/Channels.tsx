@@ -87,12 +87,21 @@ function ChatRoom({ channelName }: { channelName: string }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const fetchMessages = async () => {
+    try {
+      const msgs = await api.getChannelHistory(channelName, 100);
+      setMessages(msgs ?? []);
+    } catch { /* ignore */ }
+  };
+
   const handleSend = async () => {
     if (!input.trim()) return;
     setSending(true);
     try {
       await api.sendToChannel(channelName, input);
       setInput('');
+      // Refetch to show the new message immediately
+      await fetchMessages();
     } finally {
       setSending(false);
     }

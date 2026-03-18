@@ -96,6 +96,26 @@ export interface DoctorReport {
   Categories: DoctorCategory[];
 }
 
+export interface CronJob {
+  name: string;
+  schedule: string;
+  agent_name: string;
+  prompt: string;
+  command: string;
+  enabled: boolean;
+  run_count: number;
+  last_run: string | null;
+  next_run: string | null;
+  created_at: string;
+}
+
+export interface Secret {
+  name: string;
+  description: string;
+  backend: string;
+  created_at: string;
+}
+
 export const api = {
   listAgents: () => request<Agent[]>('/agents'),
   getAgent: (name: string) => request<Agent>(`/agents/${name}`),
@@ -118,4 +138,8 @@ export const api = {
   listMCP: () => request<MCPServer[]>('/mcp'),
   getLogs: (tail = 50) => request<EventLogEntry[]>(`/logs?tail=${tail}`),
   getDoctor: () => request<DoctorReport>('/doctor'),
+
+  listCron: () => request<CronJob[]>('/cron'),
+  listSecrets: () => request<Secret[]>('/secrets'),
+  getWorkspaceStatus: () => request<Record<string, unknown>>('/workspace/status'),
 };
