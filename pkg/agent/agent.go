@@ -66,6 +66,7 @@ import (
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/provider"
 	"github.com/rpuneet/bc/pkg/runtime"
+	"github.com/rpuneet/bc/pkg/secret"
 	"github.com/rpuneet/bc/pkg/tmux"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -1920,6 +1921,43 @@ func injectEnv(env map[string]string, workspacePath, toolName, envFile string) {
 	// 3. Agent env file (highest priority)
 	if envFile != "" {
 		parseEnvFile(env, envFile)
+	}
+
+	// 4. Resolve ${secret:NAME} references in all env values
+	resolveSecretRefs(env, workspacePath)
+}
+
+// resolveSecretRefs resolves ${secret:NAME} references in env values using the
+// workspace secret store. If the store cannot be opened, references are left as-is.
+func resolveSecretRefs(env map[string]string, workspacePath string) {
+	// Check if any values contain secret references before opening the store
+	hasRefs := false
+	for _, v := range env {
+		if strings.Contains(v, "${secret:") {
+			hasRefs = true
+			break
+		}
+	}
+	if !hasRefs {
+		return
+	}
+
+	passphrase, err := secret.Passphrase()
+	if err != nil {
+		log.Warn("failed to resolve secret passphrase", "error", err)
+		return
+	}
+
+	store, err := secret.NewStore(workspacePath, passphrase)
+	if err != nil {
+		log.Warn("failed to open secret store for env resolution", "error", err)
+		return
+	}
+	defer func() { _ = store.Close() }()
+
+	resolved := store.ResolveEnv(env)
+	for k, v := range resolved {
+		env[k] = v
 	}
 }
 
