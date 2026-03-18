@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { api } from '../api/client';
 import type { Role } from '../api/client';
 import { usePolling } from '../hooks/usePolling';
@@ -6,7 +6,7 @@ import { usePolling } from '../hooks/usePolling';
 export function Roles() {
   const fetcher = useCallback(async () => {
     const res = await api.listRoles();
-    return Object.entries(res).map(([name, role]) => ({ name, ...role }));
+    return Object.entries(res).map(([key, role]) => ({ key, ...role }));
   }, []);
   const { data: roles, loading, error } = usePolling(fetcher, 30000);
 
@@ -23,47 +23,110 @@ export function Roles() {
         <h1 className="text-xl font-bold">Roles</h1>
         <span className="text-sm text-bc-muted">{roles?.length ?? 0} roles</span>
       </div>
-
       <div className="grid gap-4">
-        {(roles ?? []).map((role) => (
-          <RoleCard key={role.name} name={role.name} role={role} />
+        {(roles ?? []).map((r) => (
+          <RoleCard key={r.key} role={r} />
         ))}
       </div>
     </div>
   );
 }
 
-function RoleCard({ name, role }: { name: string; role: Role & { name: string } }) {
+function Tags({ label, items, color }: { label: string; items: string[]; color: string }) {
+  if (!items || items.length === 0) return null;
   return (
-    <div className="rounded border border-bc-border bg-bc-surface p-4 space-y-2">
-      <div className="flex items-center justify-between">
-        <h3 className="font-medium text-lg">{name}</h3>
-        <div className="flex gap-2">
-          {role.Metadata.IsSingleton && (
-            <span className="text-xs px-2 py-0.5 rounded bg-bc-accent/20 text-bc-accent">singleton</span>
-          )}
-          <span className="text-xs px-2 py-0.5 rounded bg-bc-border text-bc-muted">
-            level {role.Metadata.Level}
-          </span>
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-xs text-bc-muted w-20 shrink-0">{label}</span>
+      {items.map((v) => (
+        <span key={v} className={`text-xs px-2 py-0.5 rounded ${color}`}>{v}</span>
+      ))}
+    </div>
+  );
+}
+
+function MapTags({ label, items, color }: { label: string; items: Record<string, string>; color: string }) {
+  const keys = Object.keys(items ?? {});
+  if (keys.length === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-xs text-bc-muted w-20 shrink-0">{label}</span>
+      {keys.map((k) => (
+        <span key={k} className={`text-xs px-2 py-0.5 rounded ${color}`}>{k}</span>
+      ))}
+    </div>
+  );
+}
+
+function Pre({ label, text }: { label: string; text: string }) {
+  if (!text) return null;
+  return (
+    <div className="space-y-1">
+      <span className="text-xs text-bc-muted">{label}</span>
+      <pre className="text-xs bg-bc-bg rounded p-2 whitespace-pre-wrap text-bc-fg/80 border border-bc-border">
+        {text.trim()}
+      </pre>
+    </div>
+  );
+}
+
+function RoleCard({ role }: { role: Role & { key: string } }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasPrompts = role.PromptCreate || role.PromptStart || role.PromptStop || role.PromptDelete;
+  const hasCommands = Object.keys(role.Commands ?? {}).length > 0;
+  const hasRules = Object.keys(role.Rules ?? {}).length > 0;
+  const hasSkills = Object.keys(role.Skills ?? {}).length > 0;
+
+  return (
+    <div className="rounded border border-bc-border bg-bc-surface p-4 space-y-3">
+      <div className="flex items-center justify-between cursor-pointer" onClick={() => setExpanded(!expanded)}>
+        <div className="flex items-center gap-3">
+          <h3 className="font-medium text-lg">{role.Name}</h3>
+        </div>
+        <div className="flex items-center gap-2">
+          {hasPrompts && <span className="text-xs px-2 py-0.5 rounded bg-purple-500/20 text-purple-400">lifecycle</span>}
+          {hasCommands && <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400">commands</span>}
+          {hasRules && <span className="text-xs px-2 py-0.5 rounded bg-orange-500/20 text-orange-400">rules</span>}
+          <span className="text-xs text-bc-muted">{expanded ? '▼' : '▶'}</span>
         </div>
       </div>
-      {role.Metadata.Description && (
-        <p className="text-sm text-bc-muted">{role.Metadata.Description}</p>
-      )}
-      <div className="flex flex-wrap gap-2">
-        {(role.Metadata.Capabilities ?? []).map((cap) => (
-          <span key={cap} className="text-xs px-2 py-0.5 rounded border border-bc-border text-bc-muted">
-            {cap}
-          </span>
-        ))}
+
+      <div className="space-y-1.5">
+        <Tags label="mcp" items={role.MCPServers ?? []} color="bg-blue-500/20 text-blue-400" />
+        <Tags label="secrets" items={role.Secrets ?? []} color="bg-yellow-500/20 text-yellow-400" />
+        <Tags label="plugins" items={role.Plugins ?? []} color="bg-green-500/20 text-green-400" />
+        <MapTags label="commands" items={role.Commands} color="bg-cyan-500/20 text-cyan-400" />
+        <MapTags label="rules" items={role.Rules} color="bg-orange-500/20 text-orange-400" />
+        {hasSkills && <MapTags label="skills" items={role.Skills} color="bg-emerald-500/20 text-emerald-400" />}
       </div>
-      {(role.Metadata.Permissions ?? []).length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {role.Metadata.Permissions.map((perm) => (
-            <span key={perm} className="text-xs px-2 py-0.5 rounded border border-bc-accent/30 text-bc-accent">
-              {perm}
-            </span>
-          ))}
+
+      {expanded && (
+        <div className="space-y-3 pt-2 border-t border-bc-border">
+          <Pre label="Role Prompt (CLAUDE.md)" text={role.Prompt} />
+          {hasPrompts && (
+            <div className="grid grid-cols-2 gap-3">
+              <Pre label="on create" text={role.PromptCreate} />
+              <Pre label="on start" text={role.PromptStart} />
+              <Pre label="on stop" text={role.PromptStop} />
+              <Pre label="on delete" text={role.PromptDelete} />
+            </div>
+          )}
+          {hasCommands && (
+            <div className="space-y-2">
+              <span className="text-xs text-bc-muted">Commands (.claude/commands/)</span>
+              {Object.entries(role.Commands).map(([name, content]) => (
+                <Pre key={name} label={`/${name}`} text={content} />
+              ))}
+            </div>
+          )}
+          {hasRules && (
+            <div className="space-y-2">
+              <span className="text-xs text-bc-muted">Rules (.claude/rules/)</span>
+              {Object.entries(role.Rules).map(([name, content]) => (
+                <Pre key={name} label={name} text={content} />
+              ))}
+            </div>
+          )}
+          {role.Review && <Pre label="REVIEW.md" text={role.Review} />}
         </div>
       )}
     </div>

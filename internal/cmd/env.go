@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -202,7 +203,14 @@ func printEnvMap(env map[string]string, provider string) {
 		fmt.Printf("[%s]\n", provider)
 	}
 	for _, k := range keys {
-		fmt.Printf("%s=%s\n", k, env[k])
+		v := env[k]
+		// Mask sensitive values (tokens, keys, secrets, passwords)
+		lk := strings.ToLower(k)
+		if (strings.Contains(lk, "token") || strings.Contains(lk, "key") ||
+			strings.Contains(lk, "secret") || strings.Contains(lk, "password")) && len(v) > 8 {
+			v = v[:4] + "****" + v[len(v)-4:]
+		}
+		fmt.Printf("%s=%s\n", k, v)
 	}
 }
 

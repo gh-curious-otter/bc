@@ -35,7 +35,8 @@ Examples:
 Exit codes:
   0  All checks passed or only warnings
   1  One or more checks failed`,
-	RunE: runDoctor,
+	SilenceUsage: true,
+	RunE:         runDoctor,
 }
 
 var doctorCheckCmd = &cobra.Command{
