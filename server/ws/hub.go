@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // Event is the payload broadcast to SSE subscribers.
@@ -24,6 +26,7 @@ type subscriber struct {
 // It implements agent.EventPublisher so it can be wired into AgentService.
 type Hub struct {
 	mu          sync.RWMutex
+	stopOnce    sync.Once
 	subscribers map[*subscriber]struct{}
 	broadcast   chan []byte
 	done        chan struct{}
@@ -50,9 +53,9 @@ func (h *Hub) Run() {
 	}
 }
 
-// Stop shuts down the hub's Run loop.
+// Stop shuts down the hub's Run loop. Safe to call multiple times.
 func (h *Hub) Stop() {
-	close(h.done)
+	h.stopOnce.Do(func() { close(h.done) })
 }
 
 // Publish implements agent.EventPublisher.
@@ -64,7 +67,8 @@ func (h *Hub) Publish(eventType string, data map[string]any) {
 	}
 	select {
 	case h.broadcast <- msg:
-	default: // drop if full — clients should reconnect
+	default:
+		log.Debug("event dropped: broadcast buffer full", "type", eventType)
 	}
 }
 

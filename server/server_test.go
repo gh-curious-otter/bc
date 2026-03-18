@@ -23,14 +23,38 @@ func buildTestServer(t *testing.T) *httptest.Server {
 	return httptest.NewServer(srv.Handler())
 }
 
+func get(t *testing.T, url string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
+}
+
+func post(t *testing.T, url, contentType string, body *string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", contentType)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
+}
+
 func TestHandleHealth(t *testing.T) {
 	ts := buildTestServer(t)
 	defer ts.Close()
 
-	resp, err := http.Get(ts.URL + "/health")
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := get(t, ts.URL+"/health")
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -49,10 +73,7 @@ func TestHandleHealth_MethodNotAllowed(t *testing.T) {
 	ts := buildTestServer(t)
 	defer ts.Close()
 
-	resp, err := http.Post(ts.URL+"/health", "application/json", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := post(t, ts.URL+"/health", "application/json", nil)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusMethodNotAllowed {
@@ -64,10 +85,7 @@ func TestCORSHeaders(t *testing.T) {
 	ts := buildTestServer(t)
 	defer ts.Close()
 
-	resp, err := http.Get(ts.URL + "/health")
-	if err != nil {
-		t.Fatal(err)
-	}
+	resp := get(t, ts.URL+"/health")
 	defer resp.Body.Close()
 
 	if resp.Header.Get("Access-Control-Allow-Origin") != "*" {
@@ -87,7 +105,6 @@ func TestServerStartShutdown(t *testing.T) {
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.Start(ctx) }()
 
-	// Give it time to start
 	time.Sleep(50 * time.Millisecond)
 	cancel()
 

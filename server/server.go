@@ -133,10 +133,12 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		addr:    cfg.Addr,
 		handler: handler,
 		httpServer: &http.Server{
-			Addr:         cfg.Addr,
-			Handler:      handler,
-			ReadTimeout:  30 * time.Second,
-			WriteTimeout: 30 * time.Second,
+			Addr:        cfg.Addr,
+			Handler:     handler,
+			ReadTimeout: 30 * time.Second,
+			// WriteTimeout must be 0 for SSE connections (/api/events) which are long-lived.
+			// Per-handler timeouts are used instead where needed.
+			WriteTimeout: 0,
 			IdleTimeout:  120 * time.Second,
 		},
 	}

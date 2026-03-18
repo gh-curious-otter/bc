@@ -114,12 +114,17 @@ func run(addr, wsRoot string) error {
 
 	// Secret store
 	var secretStore *bcsecret.Store
-	passphrase, _ := bcsecret.Passphrase()
-	if ss, err := bcsecret.NewStore(ws.RootDir, passphrase); err != nil {
-		log.Warn("secret store unavailable", "error", err)
-	} else {
-		secretStore = ss
-		defer ss.Close() //nolint:errcheck // best-effort
+	passphrase, passphraseErr := bcsecret.Passphrase()
+	if passphraseErr != nil {
+		log.Warn("secret passphrase unavailable — secret store disabled", "error", passphraseErr)
+	}
+	if passphraseErr == nil {
+		if ss, err := bcsecret.NewStore(ws.RootDir, passphrase); err != nil {
+			log.Warn("secret store unavailable", "error", err)
+		} else {
+			secretStore = ss
+			defer ss.Close() //nolint:errcheck // best-effort
+		}
 	}
 
 	// MCP store

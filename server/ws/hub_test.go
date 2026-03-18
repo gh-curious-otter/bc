@@ -2,6 +2,7 @@ package ws
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,19 @@ import (
 	"testing"
 	"time"
 )
+
+func sseGet(t *testing.T, url string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
+}
 
 func TestHub_Publish_NoClients(t *testing.T) {
 	h := NewHub()
@@ -29,6 +43,13 @@ func TestHub_ClientCount(t *testing.T) {
 	}
 }
 
+func TestHub_Stop_IdempotentNoPanic(t *testing.T) {
+	h := NewHub()
+	go h.Run()
+	h.Stop()
+	h.Stop() // must not panic
+}
+
 func TestHub_ServeHTTP_ConnectedEvent(t *testing.T) {
 	h := NewHub()
 	go h.Run()
@@ -41,11 +62,7 @@ func TestHub_ServeHTTP_ConnectedEvent(t *testing.T) {
 	defer srv.Close()
 
 	go func() {
-		resp, err := http.Get(srv.URL)
-		if err != nil {
-			close(done)
-			return
-		}
+		resp := sseGet(t, srv.URL)
 		defer resp.Body.Close()
 
 		scanner := bufio.NewScanner(resp.Body)
@@ -83,10 +100,7 @@ func TestHub_EventDelivery(t *testing.T) {
 	connected := make(chan struct{})
 
 	go func() {
-		resp, err := http.Get(srv.URL)
-		if err != nil {
-			return
-		}
+		resp := sseGet(t, srv.URL)
 		defer resp.Body.Close()
 
 		scanner := bufio.NewScanner(resp.Body)
@@ -111,7 +125,6 @@ func TestHub_EventDelivery(t *testing.T) {
 		}
 	}()
 
-	// Wait for client to connect
 	select {
 	case <-connected:
 	case <-time.After(3 * time.Second):
