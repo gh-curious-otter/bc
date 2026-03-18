@@ -150,6 +150,10 @@ func (s *Store) Open() error {
 		_ = db.Close()
 		return fmt.Errorf("failed to initialize schema: %w", err)
 	}
+	if err := initImporterSchema(db); err != nil {
+		_ = db.Close()
+		return fmt.Errorf("failed to initialize schema: %w", err)
+	}
 
 	// #1011: Set optimal SQLite pragmas for performance
 	ctx := context.Background()
