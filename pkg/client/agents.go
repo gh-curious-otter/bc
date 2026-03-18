@@ -37,6 +37,7 @@ type CreateAgentReq struct {
 	Tool    string `json:"tool,omitempty"`
 	Runtime string `json:"runtime,omitempty"`
 	Parent  string `json:"parent,omitempty"`
+	Team    string `json:"team,omitempty"`
 	EnvFile string `json:"env_file,omitempty"`
 }
 
@@ -97,9 +98,9 @@ func (a *AgentsClient) Create(ctx context.Context, req CreateAgentReq) (*AgentIn
 	return &info, nil
 }
 
-// Start starts a stopped agent.
-func (a *AgentsClient) Start(ctx context.Context, name string, runtime string, fresh bool) (*AgentInfo, error) {
-	body := map[string]any{"runtime": runtime, "fresh": fresh}
+// Start starts a stopped agent. resumeID optionally specifies a session ID to resume.
+func (a *AgentsClient) Start(ctx context.Context, name, runtime, resumeID string, fresh bool) (*AgentInfo, error) {
+	body := map[string]any{"runtime": runtime, "fresh": fresh, "resume_id": resumeID}
 	var info AgentInfo
 	if err := a.client.post(ctx, "/api/agents/"+name+"/start", body, &info); err != nil {
 		return nil, err

@@ -253,6 +253,7 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 			Tool    string `json:"tool,omitempty"`
 			Runtime string `json:"runtime,omitempty"`
 			Parent  string `json:"parent,omitempty"`
+			Team    string `json:"team,omitempty"`
 			EnvFile string `json:"env_file,omitempty"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -265,6 +266,7 @@ func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
 			Tool:    req.Tool,
 			Runtime: req.Runtime,
 			Parent:  req.Parent,
+			Team:    req.Team,
 			EnvFile: req.EnvFile,
 		})
 		if err != nil {
@@ -384,13 +386,15 @@ func (s *Server) handleAgentByName(w http.ResponseWriter, r *http.Request) {
 
 	case r.Method == http.MethodPost && action == "start":
 		var req struct {
-			Runtime string `json:"runtime,omitempty"`
-			Fresh   bool   `json:"fresh,omitempty"`
+			Runtime  string `json:"runtime,omitempty"`
+			ResumeID string `json:"resume_id,omitempty"`
+			Fresh    bool   `json:"fresh,omitempty"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&req) //nolint:errcheck // optional body
 		a, err := s.agents.Start(r.Context(), name, agent.StartOptions{
-			Runtime: req.Runtime,
-			Fresh:   req.Fresh,
+			Runtime:  req.Runtime,
+			ResumeID: req.ResumeID,
+			Fresh:    req.Fresh,
 		})
 		if err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)

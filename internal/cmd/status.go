@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/ui"
 )
@@ -56,35 +56,31 @@ func init() {
 func runStatus(cmd *cobra.Command, args []string) error {
 	log.Debug("status command started")
 
-	// Find workspace
 	ws, err := getWorkspace()
 	if err != nil {
 		return errNotInWorkspace(err)
 	}
-	log.Debug("workspace found", "root", ws.RootDir)
 
-	// Create agent manager and load state
-	mgr := newAgentManager(ws)
-	if err = mgr.LoadState(); err != nil {
-		log.Warn("failed to load agent state", "error", err)
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
+		return err
 	}
 
-	// Refresh state from tmux
-	if err = mgr.RefreshState(); err != nil {
-		log.Warn("failed to refresh agent state", "error", err)
+	agentList, err := c.Agents.List(cmd.Context())
+	if err != nil {
+		return fmt.Errorf("list agents: %w", err)
 	}
+	log.Debug("agents loaded", "count", len(agentList))
 
-	agents := mgr.ListAgents()
-	log.Debug("agents loaded", "count", len(agents))
-
-	// Count active agents
+	// Count active/working agents
 	activeCount := 0
 	workingCount := 0
-	for _, a := range agents {
-		if a.State != agent.StateStopped && a.State != agent.StateError {
+	for _, a := range agentList {
+		st := agent.State(a.State)
+		if st != agent.StateStopped && st != agent.StateError {
 			activeCount++
 		}
-		if a.State == agent.StateWorking {
+		if st == agent.StateWorking {
 			workingCount++
 		}
 	}
@@ -94,17 +90,16 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if jsonOutput {
-		// Enhanced JSON output with summary
-		output := struct { //nolint:govet // fieldalignment: inline struct for JSON, alignment not critical
-			Workspace string         `json:"workspace"`
-			Total     int            `json:"total"`
-			Active    int            `json:"active"`
-			Working   int            `json:"working"`
-			Agents    []*agent.Agent `json:"agents"`
+		output := struct { //nolint:govet // fieldalignment: inline struct for JSON
+			Workspace string             `json:"workspace"`
+			Total     int                `json:"total"`
+			Active    int                `json:"active"`
+			Working   int                `json:"working"`
+			Agents    []client.AgentInfo `json:"agents"`
 		}{
 			Workspace: filepath.Base(ws.RootDir),
-			Agents:    agents,
-			Total:     len(agents),
+			Agents:    agentList,
+			Total:     len(agentList),
 			Active:    activeCount,
 			Working:   workingCount,
 		}
@@ -115,11 +110,11 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Summary header
 	wsName := filepath.Base(ws.RootDir)
-	fmt.Printf("Workspace: %s | Agents: %d | Active: %d | Working: %d\n", wsName, len(agents), activeCount, workingCount)
+	fmt.Printf("Workspace: %s | Agents: %d | Active: %d | Working: %d\n", wsName, len(agentList), activeCount, workingCount)
 	fmt.Println(strings.Repeat("─", 60))
 	fmt.Println()
 
-	if len(agents) == 0 {
+	if len(agentList) == 0 {
 		fmt.Println("No agents configured")
 		fmt.Println()
 		fmt.Println("Run 'bc up' to start agents")
@@ -128,25 +123,22 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Determine terminal width for dynamic task column
 	termWidth := 80
-	if w, _, err := term.GetSize(os.Stdout.Fd()); err == nil && w > 0 {
+	if w, _, termErr := term.GetSize(os.Stdout.Fd()); termErr == nil && w > 0 {
 		termWidth = w
 	}
 
-	// Fixed columns: AGENT(15) + ROLE(12) + STATE(10) + UPTIME(20) = 57
 	fixedWidth := 57
 	taskWidth := termWidth - fixedWidth
 	if taskWidth < 20 {
 		taskWidth = 20
 	}
 
-	// Print header
 	fmt.Printf("%-15s %-12s %-10s %-20s %s\n", "AGENT", "ROLE", "STATE", "UPTIME", "TASK")
 	fmt.Println(strings.Repeat("-", termWidth))
 
-	// Print agents
-	for _, a := range agents {
+	for _, a := range agentList {
 		uptime := "-"
-		if a.State != agent.StateStopped {
+		if agent.State(a.State) != agent.StateStopped && !a.StartedAt.IsZero() {
 			uptime = formatDuration(time.Since(a.StartedAt))
 		}
 
@@ -158,15 +150,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			task = task[:taskWidth-3] + "..."
 		}
 
-		stateStr := colorState(a.State)
-
-		fmt.Printf("%-15s %-12s %s %-20s %s\n",
-			a.Name,
-			a.Role,
-			stateStr,
-			uptime,
-			task,
-		)
+		stateStr := colorState(agent.State(a.State))
+		fmt.Printf("%-15s %-12s %s %-20s %s\n", a.Name, a.Role, stateStr, uptime, task)
 	}
 
 	fmt.Println()
@@ -182,33 +167,24 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		fmt.Println("Recent Activity:")
 		fmt.Println()
 
-		store, storeErr := channel.OpenStore(ws.RootDir)
-		if storeErr == nil {
-			defer func() { _ = store.Close() }()
-			if loadErr := store.Load(); loadErr == nil {
-				channels := store.List()
-				messageCount := 0
-				for _, ch := range channels {
-					history, histErr := store.GetHistory(ch.Name)
-					if histErr != nil {
-						continue
-					}
-					// Show last 3 messages per channel
-					start := 0
-					if len(history) > 3 {
-						start = len(history) - 3
-					}
-					for _, entry := range history[start:] {
-						age := time.Since(entry.Time)
-						ageStr := formatDuration(age) + " ago"
-						msgPreview := truncateActivityMsg(entry.Message, 50)
-						fmt.Printf("  [#%s] %s: %s (%s)\n", ch.Name, entry.Sender, msgPreview, ageStr)
-						messageCount++
-					}
+		channels, chErr := c.Channels.List(cmd.Context())
+		if chErr == nil {
+			messageCount := 0
+			for _, ch := range channels {
+				msgs, histErr := c.Channels.History(cmd.Context(), ch.Name, 3, 0, "")
+				if histErr != nil {
+					continue
 				}
-				if messageCount == 0 {
-					fmt.Println("  No recent messages")
+				for _, msg := range msgs {
+					age := time.Since(msg.CreatedAt)
+					ageStr := formatDuration(age) + " ago"
+					msgPreview := truncateActivityMsg(msg.Content, 50)
+					fmt.Printf("  [#%s] %s: %s (%s)\n", ch.Name, msg.Sender, msgPreview, ageStr)
+					messageCount++
 				}
+			}
+			if messageCount == 0 {
+				fmt.Println("  No recent messages")
 			}
 		}
 	}
@@ -224,10 +200,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 // truncateActivityMsg truncates a message to maxLen, removing newlines
 func truncateActivityMsg(s string, maxLen int) string {
-	// Replace newlines with spaces
 	s = strings.ReplaceAll(s, "\n", " ")
 	s = strings.ReplaceAll(s, "\r", "")
-	// Collapse multiple spaces
 	for strings.Contains(s, "  ") {
 		s = strings.ReplaceAll(s, "  ", " ")
 	}
@@ -259,12 +233,11 @@ func formatDuration(d time.Duration) string {
 // normalizeTask transforms cooking metaphors in Claude Code's status line
 // to clearer terminology. Issue #970.
 func normalizeTask(task string) string {
-	// Map cooking metaphors to clear terms
 	replacements := []struct {
 		old, new string
 	}{
 		{"Sautéed", "Working"},
-		{"Sauteed", "Working"}, // ASCII fallback
+		{"Sauteed", "Working"},
 		{"Cooked", "Processed"},
 		{"Cogitated", "Thinking"},
 		{"Marinated", "Idle"},

@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -16,14 +15,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/container"
 	"github.com/rpuneet/bc/pkg/cost"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/names"
 	"github.com/rpuneet/bc/pkg/provider"
-	"github.com/rpuneet/bc/pkg/team"
 	"github.com/rpuneet/bc/pkg/ui"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -427,68 +424,12 @@ func init() {
 }
 
 func runAgentCreate(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
-	}
-
-	// Determine agent name: use provided name or generate one
+	// Validate agent name if provided
 	var agentName string
 	if len(args) > 0 && strings.TrimSpace(args[0]) != "" {
 		agentName = strings.TrimSpace(args[0])
-		// Validate agent name doesn't contain shell metacharacters
 		if !isValidAgentName(agentName) {
 			return fmt.Errorf("agent name %q contains invalid characters (use letters, numbers, dash, underscore)", agentName)
-		}
-	} else {
-		// Generate unique name
-		existingAgents := mgr.ListAgents()
-		existingNames := make([]string, len(existingAgents))
-		for i, a := range existingAgents {
-			existingNames[i] = a.Name
-		}
-		generatedName, genErr := names.GenerateUniqueFromList(existingNames, 100)
-		if genErr != nil {
-			return fmt.Errorf("failed to generate agent name: %w", genErr)
-		}
-		agentName = generatedName
-		fmt.Printf("Generated name: %s\n", agentName)
-	}
-
-	// Check if agent already exists
-	if existing := mgr.GetAgent(agentName); existing != nil {
-		if existing.State != agent.StateStopped {
-			return fmt.Errorf("agent %q already exists and is %s", agentName, existing.State)
-		}
-	}
-
-	// Determine tool
-	toolName := agentCreateTool
-	if toolName == "" {
-		toolName = ws.DefaultProvider()
-	}
-
-	if toolName != "" {
-		if !mgr.SetAgentByName(toolName) {
-			return fmt.Errorf("unknown tool %q (available: %v)", toolName, agent.ListAvailableTools())
-		}
-	}
-
-	// Validate team name if specified (do this before role validation)
-	if agentCreateTeam != "" {
-		if !isValidTeamName(agentCreateTeam) {
-			return fmt.Errorf("team name must be alphanumeric with optional hyphens/underscores")
-		}
-
-		// Validate team exists
-		teamStore := team.NewStore(filepath.Join(ws.StateDir(), "teams"))
-		if !teamStore.Exists(agentCreateTeam) {
-			return fmt.Errorf("team %q does not exist", agentCreateTeam)
 		}
 	}
 
@@ -508,62 +449,63 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("cannot create root agent via 'bc agent create'. Use 'bc up' to initialize the root agent")
 	}
 
-	// Validate role exists in workspace
-	roleFile := filepath.Join(ws.RolesDir(), string(role)+".md")
-	if _, err := os.Stat(roleFile); err != nil {
-		// List available roles for helpful error message
-		availableRoles := []string{}
-		if entries, dirErr := os.ReadDir(ws.RolesDir()); dirErr == nil {
-			for _, entry := range entries {
-				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
-					availableRoles = append(availableRoles, strings.TrimSuffix(entry.Name(), ".md"))
+	// Validate role exists in workspace (local check for better error messages)
+	ws, wsErr := getWorkspace()
+	if wsErr == nil {
+		roleFile := filepath.Join(ws.RolesDir(), string(role)+".md")
+		if _, statErr := os.Stat(roleFile); statErr != nil {
+			availableRoles := []string{}
+			if entries, dirErr := os.ReadDir(ws.RolesDir()); dirErr == nil {
+				for _, entry := range entries {
+					if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
+						availableRoles = append(availableRoles, strings.TrimSuffix(entry.Name(), ".md"))
+					}
 				}
 			}
+			if len(availableRoles) > 0 {
+				return fmt.Errorf("role %q not found. Available roles: %s", role, strings.Join(availableRoles, ", "))
+			}
+			return fmt.Errorf("role %q not found. Create it first with 'bc role create %s'", role, role)
 		}
-		if len(availableRoles) > 0 {
-			return fmt.Errorf("role %q not found. Available roles: %s", role, strings.Join(availableRoles, ", "))
-		}
-		return fmt.Errorf("role %q not found. Create it first with 'bc role create %s'", role, role)
 	}
 
-	// Spawn the agent (with parent if specified)
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
+		return err
+	}
+
+	// Generate name if not provided
+	if agentName == "" {
+		generated, genErr := c.Agents.GenerateName(cmd.Context())
+		if genErr != nil {
+			return fmt.Errorf("failed to generate agent name: %w", genErr)
+		}
+		agentName = generated
+		fmt.Printf("Generated name: %s\n", agentName)
+	}
+
+	// Determine tool
+	toolName := agentCreateTool
+	if toolName == "" && wsErr == nil {
+		toolName = ws.DefaultProvider()
+	}
+
+	// Create via client
 	fmt.Printf("Creating %s (%s)... ", agentName, role)
-	spawned, spawnErr := mgr.SpawnAgentWithOptions(agent.SpawnOptions{
-		Name:      agentName,
-		Role:      role,
-		Workspace: ws.RootDir,
-		ParentID:  agentCreateParent,
-		Tool:      toolName,
-		EnvFile:   agentCreateEnv,
-		Runtime:   agentCreateRuntime,
+	info, createErr := c.Agents.Create(cmd.Context(), client.CreateAgentReq{
+		Name:    agentName,
+		Role:    string(role),
+		Tool:    toolName,
+		Runtime: agentCreateRuntime,
+		Parent:  agentCreateParent,
+		Team:    agentCreateTeam,
+		EnvFile: agentCreateEnv,
 	})
-	if spawnErr != nil {
+	if createErr != nil {
 		fmt.Println("✗")
-		return fmt.Errorf("failed to create %s: %w", agentName, spawnErr)
+		return fmt.Errorf("failed to create %s: %w", agentName, createErr)
 	}
-	fmt.Printf("✓ (session: %s)\n", mgr.RuntimeForAgent(spawned.Name).SessionName(spawned.Session))
-
-	// Set team if specified
-	if agentCreateTeam != "" {
-		if teamErr := mgr.SetAgentTeam(agentName, agentCreateTeam); teamErr != nil {
-			log.Warn("failed to set team", "error", teamErr)
-		}
-	}
-
-	// Log event
-	eventData := map[string]any{"role": string(role), "tool": toolName}
-	if agentCreateParent != "" {
-		eventData["parent"] = agentCreateParent
-	}
-	if agentCreateTeam != "" {
-		eventData["team"] = agentCreateTeam
-	}
-	logEvent(ws, events.Event{
-		Type:    events.AgentSpawned,
-		Agent:   agentName,
-		Message: fmt.Sprintf("created with role %s", role),
-		Data:    eventData,
-	})
+	fmt.Printf("✓ (session: %s)\n", info.Session)
 
 	fmt.Println()
 	fmt.Println("Agent created successfully!")
@@ -579,94 +521,92 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 func runAgentList(cmd *cobra.Command, args []string) error {
 	log.Debug("agent list command started", "role", agentListRole, "json", agentListJSON)
 
-	return withAgentManager(func(ctx *WorkspaceContext) error {
-		if refreshErr := ctx.Manager.RefreshState(); refreshErr != nil {
-			log.Warn("failed to refresh agent state", "error", refreshErr)
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
+		return err
+	}
+
+	agentList, err := c.Agents.List(cmd.Context())
+	if err != nil {
+		return fmt.Errorf("list agents: %w", err)
+	}
+
+	// Filter by role if specified
+	if agentListRole != "" {
+		filterRole, roleErr := parseRole(agentListRole)
+		if roleErr != nil {
+			return roleErr
 		}
+		filtered := make([]client.AgentInfo, 0, len(agentList))
+		for _, a := range agentList {
+			if a.Role == string(filterRole) {
+				filtered = append(filtered, a)
+			}
+		}
+		agentList = filtered
+	}
 
-		agents := ctx.Manager.ListAgents()
+	// Filter by status if specified
+	if agentListStatus != "" {
+		filtered := make([]client.AgentInfo, 0, len(agentList))
+		for _, a := range agentList {
+			if matchesAgentStatus(agent.State(a.State), agentListStatus) {
+				filtered = append(filtered, a)
+			}
+		}
+		agentList = filtered
+	}
 
-		// Filter by role if specified
+	log.Debug("agents loaded", "count", len(agentList))
+
+	if agentListJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(agentList)
+	}
+
+	if len(agentList) == 0 {
+		ui.Warning("No agents found")
 		if agentListRole != "" {
-			filterRole, roleErr := parseRole(agentListRole)
-			if roleErr != nil {
-				return roleErr
-			}
-			filtered := make([]*agent.Agent, 0, len(agents))
-			for _, a := range agents {
-				if a.Role == filterRole {
-					filtered = append(filtered, a)
-				}
-			}
-			agents = filtered
+			fmt.Printf("(filtered by role: %s)\n", agentListRole)
 		}
-
-		// Filter by status if specified
-		if agentListStatus != "" {
-			filtered := make([]*agent.Agent, 0, len(agents))
-			for _, a := range agents {
-				if matchesAgentStatus(a.State, agentListStatus) {
-					filtered = append(filtered, a)
-				}
-			}
-			agents = filtered
-		}
-
-		log.Debug("agents loaded", "count", len(agents))
-
-		if agentListJSON {
-			enc := json.NewEncoder(os.Stdout)
-			enc.SetIndent("", "  ")
-			if agentListFull {
-				return enc.Encode(agents)
-			}
-			// Compact output: omit memory/prompts for cleaner output
-			return enc.Encode(toCompactAgents(agents))
-		}
-
-		if len(agents) == 0 {
-			ui.Warning("No agents found")
-			if agentListRole != "" {
-				fmt.Printf("(filtered by role: %s)\n", agentListRole)
-			}
-			return nil
-		}
-
-		// Determine terminal width for task truncation
-		termWidth := 80
-		if w, _, termErr := term.GetSize(os.Stdout.Fd()); termErr == nil && w > 0 {
-			termWidth = w
-		}
-		taskWidth := termWidth - 57
-		if taskWidth < 20 {
-			taskWidth = 20
-		}
-
-		// Use pkg/ui table for consistent formatting
-		table := ui.NewTable("AGENT", "ROLE", "STATE", "UPTIME", "TASK")
-
-		for _, a := range agents {
-			uptime := "-"
-			if a.State != agent.StateStopped {
-				uptime = formatDuration(time.Since(a.StartedAt))
-			}
-
-			task := normalizeTask(a.Task)
-			if task == "" {
-				task = "-"
-			}
-			if len(task) > taskWidth {
-				task = task[:taskWidth-3] + "..."
-			}
-
-			stateStr := colorState(a.State)
-
-			table.AddRow(a.Name, string(a.Role), stateStr, uptime, task)
-		}
-
-		table.Print()
 		return nil
-	})
+	}
+
+	// Determine terminal width for task truncation
+	termWidth := 80
+	if w, _, termErr := term.GetSize(os.Stdout.Fd()); termErr == nil && w > 0 {
+		termWidth = w
+	}
+	taskWidth := termWidth - 57
+	if taskWidth < 20 {
+		taskWidth = 20
+	}
+
+	// Use pkg/ui table for consistent formatting
+	table := ui.NewTable("AGENT", "ROLE", "STATE", "UPTIME", "TASK")
+
+	for _, a := range agentList {
+		uptime := "-"
+		if agent.State(a.State) != agent.StateStopped {
+			uptime = formatDuration(time.Since(a.StartedAt))
+		}
+
+		task := normalizeTask(a.Task)
+		if task == "" {
+			task = "-"
+		}
+		if len(task) > taskWidth {
+			task = task[:taskWidth-3] + "..."
+		}
+
+		stateStr := colorState(agent.State(a.State))
+
+		table.AddRow(a.Name, a.Role, stateStr, uptime, task)
+	}
+
+	table.Print()
+	return nil
 }
 
 func runAgentAttach(cmd *cobra.Command, args []string) error {
@@ -693,26 +633,27 @@ func runAgentAttach(cmd *cobra.Command, args []string) error {
 func runAgentPeek(cmd *cobra.Command, args []string) error {
 	agentName := args[0]
 
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
-	}
-
-	a := mgr.GetAgent(agentName)
-	if a == nil {
-		return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentName)
-	}
-
-	if a.State == agent.StateStopped {
-		return fmt.Errorf("agent %q is stopped (use 'bc agent start %s' to start it)", agentName, agentName)
-	}
-
+	// --follow mode: keep local tmux access
 	if agentPeekFollow {
+		ws, err := getWorkspace()
+		if err != nil {
+			return errNotInWorkspace(err)
+		}
+
+		mgr := newAgentManager(ws)
+		if loadErr := mgr.LoadState(); loadErr != nil {
+			log.Warn("failed to load agent state", "error", loadErr)
+		}
+
+		a := mgr.GetAgent(agentName)
+		if a == nil {
+			return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentName)
+		}
+
+		if a.State == agent.StateStopped {
+			return fmt.Errorf("agent %q is stopped (use 'bc agent start %s' to start it)", agentName, agentName)
+		}
+
 		fmt.Printf("=== %s (following, Ctrl+C to stop) ===\n", agentName)
 
 		ctx, cancel := context.WithCancel(cmd.Context())
@@ -728,9 +669,15 @@ func runAgentPeek(cmd *cobra.Command, args []string) error {
 		return mgr.FollowOutput(ctx, agentName, agentPeekLines, os.Stdout)
 	}
 
-	output, captureErr := mgr.CaptureOutput(agentName, agentPeekLines)
-	if captureErr != nil {
-		return fmt.Errorf("failed to capture output: %w", captureErr)
+	// Static peek: use daemon client
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
+		return err
+	}
+
+	output, peekErr := c.Agents.Peek(cmd.Context(), agentName, agentPeekLines)
+	if peekErr != nil {
+		return fmt.Errorf("failed to peek %s: %w", agentName, peekErr)
 	}
 
 	fmt.Printf("=== %s (last %d lines) ===\n", agentName, agentPeekLines)
@@ -742,37 +689,28 @@ func runAgentPeek(cmd *cobra.Command, args []string) error {
 func runAgentShow(cmd *cobra.Command, args []string) error {
 	agentName := args[0]
 
-	ws, err := getWorkspace()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
-		return errNotInWorkspace(err)
+		return err
 	}
 
-	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
-	}
-
-	a := mgr.GetAgent(agentName)
-	if a == nil {
-		return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentName)
+	a, err := c.Agents.Get(cmd.Context(), agentName)
+	if err != nil {
+		return fmt.Errorf("agent %q not found: %w", agentName, err)
 	}
 
 	// JSON output
 	if agentShowJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		if agentShowFull {
-			return enc.Encode(a)
-		}
-		// Compact output: omit memory/prompts for cleaner output
-		return enc.Encode(toCompactAgent(a))
+		return enc.Encode(a)
 	}
 
 	// Human-readable output using pkg/ui
 	pairs := []string{
 		"Agent", a.Name,
-		"Role", string(a.Role),
-		"State", string(a.State),
+		"Role", a.Role,
+		"State", a.State,
 	}
 	if a.Team != "" {
 		pairs = append(pairs, "Team", a.Team)
@@ -809,63 +747,22 @@ func runAgentShow(cmd *cobra.Command, args []string) error {
 func runAgentStart(cmd *cobra.Command, args []string) error {
 	agentName := args[0]
 
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
-	}
-
-	// Check if agent exists
-	a := mgr.GetAgent(agentName)
-	if a == nil {
-		return fmt.Errorf("agent %q not found - create it first with 'bc agent create %s'", agentName, agentName)
-	}
-
-	// Check if agent is in stopped state
-	if a.State != agent.StateStopped {
-		return fmt.Errorf("agent %q is already running (state: %s). Stop it first with: bc agent stop %s", agentName, a.State, agentName)
-	}
-
 	if agentStartFresh && agentStartResume != "" {
 		return fmt.Errorf("--fresh and --resume are mutually exclusive")
 	}
 
-	switch {
-	case agentStartFresh:
-		fmt.Printf("Starting %s (%s) with fresh session... ", agentName, a.Role)
-	case agentStartResume != "":
-		fmt.Printf("Starting %s (%s) resuming session %s... ", agentName, a.Role, agentStartResume)
-	default:
-		fmt.Printf("Starting %s (%s)... ", agentName, a.Role)
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
+		return err
 	}
-	// SpawnAgentWithOptions will detect the stopped state and resurrect it
-	spawned, spawnErr := mgr.SpawnAgentWithOptions(agent.SpawnOptions{
-		Name:      agentName,
-		Role:      a.Role,
-		Workspace: ws.RootDir,
-		ParentID:  a.ParentID,
-		Tool:      a.Tool,
-		EnvFile:   a.EnvFile,
-		Runtime:   agentStartRuntime,
-		Fresh:     agentStartFresh,
-		SessionID: agentStartResume,
-	})
-	if spawnErr != nil {
-		fmt.Println("✗")
-		return fmt.Errorf("failed to start %s: %w", agentName, spawnErr)
-	}
-	fmt.Printf("✓ (session: %s)\n", mgr.RuntimeForAgent(spawned.Name).SessionName(spawned.Session))
 
-	// Log event
-	logEvent(ws, events.Event{
-		Type:    events.AgentSpawned,
-		Agent:   agentName,
-		Message: "restarted via bc agent start",
-	})
+	fmt.Printf("Starting %s... ", agentName)
+	a, startErr := c.Agents.Start(cmd.Context(), agentName, agentStartRuntime, agentStartResume, agentStartFresh)
+	if startErr != nil {
+		fmt.Println("✗")
+		return fmt.Errorf("failed to start %s: %w", agentName, startErr)
+	}
+	fmt.Printf("✓ (session: %s)\n", a.Session)
 
 	return nil
 }
@@ -873,34 +770,17 @@ func runAgentStart(cmd *cobra.Command, args []string) error {
 func runAgentStop(cmd *cobra.Command, args []string) error {
 	agentName := args[0]
 
-	ws, err := getWorkspace()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
-	}
-
-	a := mgr.GetAgent(agentName)
-	if a == nil {
-		return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentName)
+		return err
 	}
 
 	fmt.Printf("Stopping %s... ", agentName)
-	if stopErr := mgr.StopAgent(agentName); stopErr != nil {
+	if stopErr := c.Agents.Stop(cmd.Context(), agentName); stopErr != nil {
 		fmt.Println("✗")
 		return fmt.Errorf("failed to stop %s: %w", agentName, stopErr)
 	}
 	fmt.Println("✓")
-
-	// Log event
-	logEvent(ws, events.Event{
-		Type:    events.AgentStopped,
-		Agent:   agentName,
-		Message: "stopped via bc agent stop",
-	})
 
 	return nil
 }
@@ -912,45 +792,36 @@ func runAgentSend(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("message cannot be empty")
 	}
 
-	ws, err := getWorkspace()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
-	}
-
-	a := mgr.GetAgent(agentName)
-	if a == nil {
-		return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentName)
-	}
-
-	if a.State == agent.StateStopped {
-		return fmt.Errorf("agent %q is stopped (use 'bc agent start %s' to start it)", agentName, agentName)
+		return err
 	}
 
 	// Intent Preview: show what will happen and ask for confirmation
 	if agentSendPreview {
+		a, _ := c.Agents.Get(cmd.Context(), agentName)
+
 		fmt.Println()
 		fmt.Println("╭─────────────────────────────────────────────────────────────╮")
 		fmt.Println("│                     Intent Preview                          │")
 		fmt.Println("╰─────────────────────────────────────────────────────────────╯")
 		fmt.Println()
 
-		// Agent details
-		fmt.Printf("  Agent:    %s\n", a.Name)
-		fmt.Printf("  Role:     %s\n", a.Role)
-		fmt.Printf("  State:    %s\n", a.State)
-		if a.Team != "" {
-			fmt.Printf("  Team:     %s\n", a.Team)
-		}
-		if a.Tool != "" {
-			fmt.Printf("  Tool:     %s\n", a.Tool)
-		}
-		if a.Task != "" {
-			fmt.Printf("  Current:  %s\n", normalizeTask(a.Task))
+		if a != nil {
+			fmt.Printf("  Agent:    %s\n", a.Name)
+			fmt.Printf("  Role:     %s\n", a.Role)
+			fmt.Printf("  State:    %s\n", a.State)
+			if a.Team != "" {
+				fmt.Printf("  Team:     %s\n", a.Team)
+			}
+			if a.Tool != "" {
+				fmt.Printf("  Tool:     %s\n", a.Tool)
+			}
+			if a.Task != "" {
+				fmt.Printf("  Current:  %s\n", normalizeTask(a.Task))
+			}
+		} else {
+			fmt.Printf("  Agent:    %s\n", agentName)
 		}
 		fmt.Println()
 
@@ -977,23 +848,9 @@ func runAgentSend(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
-	if sendErr := mgr.SendToAgent(agentName, message); sendErr != nil {
+	if sendErr := c.Agents.Send(cmd.Context(), agentName, message); sendErr != nil {
 		return fmt.Errorf("failed to send to %s: %w", agentName, sendErr)
 	}
-
-	// Log event - Agent field is the sender, recipient goes in Data
-	sender := os.Getenv("BC_AGENT_ID")
-	if sender == "" {
-		sender = "root"
-	}
-	logEvent(ws, events.Event{
-		Type:    events.MessageSent,
-		Agent:   sender,
-		Message: message,
-		Data: map[string]any{
-			"recipient": agentName,
-		},
-	})
 
 	fmt.Printf("Sent to %s: %s\n", agentName, message)
 	return nil
@@ -1001,26 +858,6 @@ func runAgentSend(cmd *cobra.Command, args []string) error {
 
 func runAgentDelete(cmd *cobra.Command, args []string) error {
 	agentName := args[0]
-
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
-	}
-
-	a := mgr.GetAgent(agentName)
-	if a == nil {
-		return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentName)
-	}
-
-	// Check if agent is not stopped - require --force or stop first
-	if a.State != agent.StateStopped && !agentDeleteForce {
-		return fmt.Errorf("agent %q is %s (not stopped). Stop it first with 'bc agent stop %s' or use --force to delete anyway", agentName, a.State, agentName)
-	}
 
 	// Confirm deletion (show what will happen)
 	if !agentDeleteForce {
@@ -1044,66 +881,31 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Remove from all channels
-	channelStore, chanErr := channel.OpenStore(ws.RootDir)
-	if chanErr == nil {
-		if loadChanErr := channelStore.Load(); loadChanErr == nil {
-			channels := channelStore.List()
-			for _, ch := range channels {
-				for _, member := range ch.Members {
-					if member == agentName {
-						_ = channelStore.RemoveMember(ch.Name, agentName)
-						fmt.Printf("Removed from channel #%s\n", ch.Name)
-						break
-					}
-				}
-			}
-			_ = channelStore.Save()
-		}
-		_ = channelStore.Close()
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
+		return err
 	}
 
-	// Remove from all teams (issue #730)
-	teamStore := team.NewStore(ws.RootDir)
-	if teamErr := teamStore.RemoveAgentFromAllTeams(agentName); teamErr != nil {
-		// Log warning but don't fail deletion
-		fmt.Printf("Warning: failed to clean up team memberships: %v\n", teamErr)
-	}
-
-	// Delete agent with options
 	fmt.Printf("Deleting %s... ", agentName)
-	deleteOpts := agent.DeleteOptions{
-		Force: agentDeleteForce,
-	}
-	if delErr := mgr.DeleteAgentWithOptions(agentName, deleteOpts); delErr != nil {
+	if delErr := c.Agents.Delete(cmd.Context(), agentName); delErr != nil {
 		fmt.Println("✗")
 		return fmt.Errorf("failed to delete %s: %w", agentName, delErr)
 	}
 	fmt.Println("✓")
 
-	// Log event
-	logEvent(ws, events.Event{
-		Type:    events.AgentStopped,
-		Agent:   agentName,
-		Message: "deleted via bc agent delete",
-		Data: map[string]any{
-			"purge_memory": agentDeletePurge,
-			"forced":       agentDeleteForce,
-		},
-	})
-
 	fmt.Printf("Agent '%s' has been permanently deleted.\n", agentName)
 
-	// Purge memory directory if requested
-	memDir := filepath.Join(ws.StateDir(), "memory", agentName)
+	// Purge memory directory if requested (local file operation)
 	if agentDeletePurge {
-		if purgeErr := os.RemoveAll(memDir); purgeErr != nil {
-			fmt.Printf("Warning: failed to purge memory directory: %v\n", purgeErr)
-		} else {
-			fmt.Printf("Memory directory purged.\n")
+		ws, wsErr := getWorkspace()
+		if wsErr == nil {
+			memDir := filepath.Join(ws.StateDir(), "memory", agentName)
+			if purgeErr := os.RemoveAll(memDir); purgeErr != nil {
+				fmt.Printf("Warning: failed to purge memory directory: %v\n", purgeErr)
+			} else {
+				fmt.Printf("Memory directory purged.\n")
+			}
 		}
-	} else {
-		fmt.Printf("Memory preserved at %s\n", memDir)
 	}
 	return nil
 }
@@ -1116,99 +918,15 @@ func runAgentRename(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("old and new names are the same")
 	}
 
-	ws, err := getWorkspace()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
-	}
-
-	// Check if agent exists
-	a := mgr.GetAgent(oldName)
-	if a == nil {
-		return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", oldName)
-	}
-
-	// Check if new name already exists
-	if existing := mgr.GetAgent(newName); existing != nil {
-		return fmt.Errorf("agent %q already exists", newName)
-	}
-
-	// Check if running (block unless --force)
-	if a.State != agent.StateStopped && !agentRenameForce {
-		return fmt.Errorf("agent %q is running; use --force to rename anyway", oldName)
+		return err
 	}
 
 	fmt.Printf("Renaming agent %q to '%s'...\n", oldName, newName)
-
-	// Step 1: Rename agent in manager (updates state)
-	fmt.Print("  Updating agent state... ")
-	if renameErr := mgr.RenameAgent(oldName, newName); renameErr != nil {
-		fmt.Println("✗")
-		return fmt.Errorf("failed to rename agent state: %w", renameErr)
+	if renameErr := c.Agents.Rename(cmd.Context(), oldName, newName); renameErr != nil {
+		return fmt.Errorf("failed to rename agent: %w", renameErr)
 	}
-	fmt.Println("✓")
-
-	// Step 2: Rename tmux session if exists
-	if mgr.RuntimeForAgent(oldName).HasSession(cmd.Context(), oldName) {
-		fmt.Print("  Renaming tmux session... ")
-		if renameErr := mgr.RuntimeForAgent(oldName).RenameSession(cmd.Context(), oldName, newName); renameErr != nil {
-			fmt.Println("✗")
-			log.Warn("failed to rename tmux session", "error", renameErr)
-		} else {
-			fmt.Println("✓")
-		}
-	}
-
-	// Step 3: Update channel memberships (renumber after adding tmux step)
-	fmt.Print("  Updating channel memberships... ")
-	channelStore, chanErr := channel.OpenStore(ws.RootDir)
-	if chanErr != nil {
-		fmt.Println("✗")
-		return fmt.Errorf("failed to open channel store: %w", chanErr)
-	}
-	if err := channelStore.Load(); err != nil {
-		fmt.Println("✗")
-		_ = channelStore.Close()
-		return fmt.Errorf("failed to load channel state: %w", err)
-	}
-	channels := channelStore.List()
-	channelsUpdated := 0
-	for _, ch := range channels {
-		members, memberErr := channelStore.GetMembers(ch.Name)
-		if memberErr != nil {
-			continue
-		}
-		for _, member := range members {
-			if member == oldName {
-				// Remove old name, add new name
-				_ = channelStore.RemoveMember(ch.Name, oldName)
-				_ = channelStore.AddMember(ch.Name, newName)
-				channelsUpdated++
-				break
-			}
-		}
-	}
-	if err := channelStore.Save(); err != nil {
-		fmt.Println("✗")
-		_ = channelStore.Close()
-		return fmt.Errorf("failed to save channel state: %w", err)
-	}
-	_ = channelStore.Close()
-	fmt.Printf("✓ (%d channels)\n", channelsUpdated)
-
-	// Log event
-	logEvent(ws, events.Event{
-		Type:    events.AgentSpawned, // Using spawned as rename event
-		Agent:   newName,
-		Message: fmt.Sprintf("renamed from %s", oldName),
-		Data: map[string]any{
-			"previous_name": oldName,
-		},
-	})
 
 	fmt.Printf("\nAgent '%s' has been renamed to '%s'.\n", oldName, newName)
 	return nil
@@ -1220,66 +938,17 @@ func runAgentBroadcast(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("message cannot be empty")
 	}
 
-	ws, err := getWorkspace()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
-		return errNotInWorkspace(err)
+		return err
 	}
 
-	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
+	sent, broadcastErr := c.Agents.Broadcast(cmd.Context(), message)
+	if broadcastErr != nil {
+		return fmt.Errorf("broadcast failed: %w", broadcastErr)
 	}
 
-	agents := mgr.ListAgents()
-	if len(agents) == 0 {
-		fmt.Println("No agents to broadcast to")
-		return nil
-	}
-
-	sender := os.Getenv("BC_AGENT_ID")
-	if sender == "" {
-		sender = "root"
-	}
-
-	sent := 0
-	skipped := 0
-	failed := 0
-
-	for _, a := range agents {
-		// Skip stopped agents
-		if a.State == agent.StateStopped {
-			skipped++
-			continue
-		}
-		// Skip the sender to avoid echo
-		if a.Name == sender {
-			skipped++
-			continue
-		}
-
-		if sendErr := mgr.SendToAgent(a.Name, message); sendErr != nil {
-			fmt.Printf("  %s: failed - %v\n", a.Name, sendErr)
-			failed++
-			continue
-		}
-		fmt.Printf("  %s: sent\n", a.Name)
-		sent++
-	}
-
-	// Log event
-	logEvent(ws, events.Event{
-		Type:    events.MessageSent,
-		Agent:   sender,
-		Message: message,
-		Data: map[string]any{
-			"broadcast": true,
-			"sent":      sent,
-			"skipped":   skipped,
-			"failed":    failed,
-		},
-	})
-
-	fmt.Printf("\nBroadcast sent to %d agents (%d skipped, %d failed)\n", sent, skipped, failed)
+	fmt.Printf("Broadcast sent to %d agents\n", sent)
 	return nil
 }
 
@@ -1290,77 +959,26 @@ func runAgentSendRole(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("message cannot be empty")
 	}
 
-	ws, err := getWorkspace()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
-		return errNotInWorkspace(err)
+		return err
 	}
 
-	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
+	result, sendErr := c.Agents.SendToRole(cmd.Context(), roleName, message)
+	if sendErr != nil {
+		return fmt.Errorf("send-to-role failed: %w", sendErr)
 	}
 
-	// Parse and validate role
-	role, roleErr := parseRole(roleName)
-	if roleErr != nil {
-		return roleErr
+	for _, name := range result.Matched {
+		fmt.Printf("  %s: sent\n", name)
 	}
 
-	agents := mgr.ListAgents()
-
-	sender := os.Getenv("BC_AGENT_ID")
-	if sender == "" {
-		sender = "root"
-	}
-
-	sent := 0
-	skipped := 0
-	failed := 0
-
-	for _, a := range agents {
-		// Skip if role doesn't match
-		if a.Role != role {
-			continue
-		}
-		// Skip stopped agents
-		if a.State == agent.StateStopped {
-			skipped++
-			continue
-		}
-		// Skip the sender to avoid echo
-		if a.Name == sender {
-			skipped++
-			continue
-		}
-
-		if sendErr := mgr.SendToAgent(a.Name, message); sendErr != nil {
-			fmt.Printf("  %s: failed - %v\n", a.Name, sendErr)
-			failed++
-			continue
-		}
-		fmt.Printf("  %s: sent\n", a.Name)
-		sent++
-	}
-
-	if sent == 0 && skipped == 0 && failed == 0 {
+	if result.Sent == 0 && result.Skipped == 0 && result.Failed == 0 {
 		fmt.Printf("No running agents with role %q found\n", roleName)
 		return nil
 	}
 
-	// Log event
-	logEvent(ws, events.Event{
-		Type:    events.MessageSent,
-		Agent:   sender,
-		Message: message,
-		Data: map[string]any{
-			"role":    roleName,
-			"sent":    sent,
-			"skipped": skipped,
-			"failed":  failed,
-		},
-	})
-
-	fmt.Printf("\nSent to %d %s(s) (%d skipped, %d failed)\n", sent, roleName, skipped, failed)
+	fmt.Printf("\nSent to %d %s(s) (%d skipped, %d failed)\n", result.Sent, roleName, result.Skipped, result.Failed)
 	return nil
 }
 
@@ -1371,79 +989,26 @@ func runAgentSendPattern(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("message cannot be empty")
 	}
 
-	ws, err := getWorkspace()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
-		return errNotInWorkspace(err)
+		return err
 	}
 
-	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
+	result, sendErr := c.Agents.SendToPattern(cmd.Context(), pattern, message)
+	if sendErr != nil {
+		return fmt.Errorf("send-pattern failed: %w", sendErr)
 	}
 
-	agents := mgr.ListAgents()
-
-	sender := os.Getenv("BC_AGENT_ID")
-	if sender == "" {
-		sender = "root"
-	}
-
-	sent := 0
-	skipped := 0
-	failed := 0
-	matched := 0
-
-	for _, a := range agents {
-		// Check if name matches pattern using filepath.Match (glob-style)
-		match, matchErr := filepath.Match(pattern, a.Name)
-		if matchErr != nil {
-			return fmt.Errorf("invalid pattern %q: %w", pattern, matchErr)
-		}
-		if !match {
-			continue
-		}
-		matched++
-
-		// Skip stopped agents
-		if a.State == agent.StateStopped {
-			skipped++
-			continue
-		}
-		// Skip the sender to avoid echo
-		if a.Name == sender {
-			skipped++
-			continue
-		}
-
-		if sendErr := mgr.SendToAgent(a.Name, message); sendErr != nil {
-			fmt.Printf("  %s: failed - %v\n", a.Name, sendErr)
-			failed++
-			continue
-		}
-		fmt.Printf("  %s: sent\n", a.Name)
-		sent++
-	}
-
-	if matched == 0 {
+	if len(result.Matched) == 0 {
 		fmt.Printf("No agents matching pattern %q found\n", pattern)
 		return nil
 	}
 
-	// Log event
-	logEvent(ws, events.Event{
-		Type:    events.MessageSent,
-		Agent:   sender,
-		Message: message,
-		Data: map[string]any{
-			"pattern": pattern,
-			"matched": matched,
-			"sent":    sent,
-			"skipped": skipped,
-			"failed":  failed,
-		},
-	})
+	for _, name := range result.Matched {
+		fmt.Printf("  %s: sent\n", name)
+	}
 
-	fmt.Printf("\nSent to %d of %d matching agents (%d skipped, %d failed)\n", sent, matched, skipped, failed)
+	fmt.Printf("\nSent to %d of %d matching agents (%d skipped, %d failed)\n", result.Sent, len(result.Matched), result.Skipped, result.Failed)
 	return nil
 }
 
@@ -1485,58 +1050,6 @@ func isValidTeamName(name string) bool {
 // isValidAgentName checks if an agent name contains only safe characters
 func isValidAgentName(name string) bool {
 	return isValidTeamName(name)
-}
-
-// compactAgent is a JSON-friendly agent representation without verbose fields.
-// Used for --json output without --full flag to reduce output size.
-//
-//nolint:govet // fieldalignment: JSON field order preferred for readability
-type compactAgent struct {
-	ID        string     `json:"id"`
-	Name      string     `json:"name"`
-	Role      string     `json:"role"`
-	State     string     `json:"state"`
-	Task      string     `json:"task,omitempty"`
-	Team      string     `json:"team,omitempty"`
-	Tool      string     `json:"tool,omitempty"`
-	ParentID  string     `json:"parent_id,omitempty"`
-	Children  []string   `json:"children,omitempty"`
-	Session   string     `json:"session"`
-	SessionID string     `json:"session_id,omitempty"`
-	CreatedAt time.Time  `json:"created_at"`
-	StartedAt time.Time  `json:"started_at"`
-	StoppedAt *time.Time `json:"stopped_at,omitempty"`
-	UpdatedAt time.Time  `json:"updated_at"`
-}
-
-// toCompactAgent converts a full agent to compact representation.
-func toCompactAgent(a *agent.Agent) compactAgent {
-	return compactAgent{
-		ID:        a.ID,
-		Name:      a.Name,
-		Role:      string(a.Role),
-		State:     string(a.State),
-		Task:      a.Task,
-		Team:      a.Team,
-		Tool:      a.Tool,
-		ParentID:  a.ParentID,
-		Children:  a.Children,
-		Session:   a.Session,
-		SessionID: a.SessionID,
-		CreatedAt: a.CreatedAt,
-		StartedAt: a.StartedAt,
-		StoppedAt: a.StoppedAt,
-		UpdatedAt: a.UpdatedAt,
-	}
-}
-
-// toCompactAgents converts a slice of agents to compact representations.
-func toCompactAgents(agents []*agent.Agent) []compactAgent {
-	result := make([]compactAgent, len(agents))
-	for i, a := range agents {
-		result[i] = toCompactAgent(a)
-	}
-	return result
 }
 
 // matchesAgentStatus checks if an agent state matches a status filter.
@@ -1591,20 +1104,10 @@ func runAgentCost(cmd *cobra.Command, args []string) error {
 		return errNotInWorkspace(err)
 	}
 
-	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
-	}
-
-	a := mgr.GetAgent(agentName)
-	if a == nil {
-		return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentName)
-	}
-
 	// Try to get cost data
 	costStore := newCostStore(ws.RootDir)
 	if costStore == nil {
-		fmt.Printf("Agent: %s\n", a.Name)
+		fmt.Printf("Agent: %s\n", agentName)
 		fmt.Println("No cost data available (cost tracking not enabled)")
 		return nil
 	}
@@ -1612,12 +1115,12 @@ func runAgentCost(cmd *cobra.Command, args []string) error {
 
 	summary, costErr := costStore.AgentSummary(agentName)
 	if costErr != nil || summary == nil {
-		fmt.Printf("Agent: %s\n", a.Name)
+		fmt.Printf("Agent: %s\n", agentName)
 		fmt.Println("No cost data recorded yet")
 		return nil
 	}
 
-	fmt.Printf("Agent: %s\n", a.Name)
+	fmt.Printf("Agent: %s\n", agentName)
 	fmt.Printf("  Input tokens:  %d\n", summary.InputTokens)
 	fmt.Printf("  Output tokens: %d\n", summary.OutputTokens)
 	fmt.Printf("  Total tokens:  %d\n", summary.TotalTokens)
@@ -1633,16 +1136,6 @@ func runAgentLogs(cmd *cobra.Command, args []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
 		return errNotInWorkspace(err)
-	}
-
-	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
-	}
-
-	a := mgr.GetAgent(agentName)
-	if a == nil {
-		return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentName)
 	}
 
 	el := openEventLog(ws)
@@ -1742,88 +1235,39 @@ Usage:
 func runAgentSessions(cmd *cobra.Command, args []string) error {
 	agentName := args[0]
 
-	ws, err := getWorkspace()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
-		return errNotInWorkspace(err)
+		return err
 	}
 
-	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
-	}
-
-	a := mgr.GetAgent(agentName)
-	if a == nil {
-		return fmt.Errorf("agent %q not found", agentName)
-	}
-
-	type sessionEntry struct {
-		ID        string    `json:"id"`
-		Timestamp time.Time `json:"timestamp,omitempty"`
-		Current   bool      `json:"current,omitempty"`
-	}
-
-	var entries []sessionEntry
-
-	// Current stored session ID from state DB
-	if a.SessionID != "" {
-		entries = append(entries, sessionEntry{ID: a.SessionID, Current: true})
-	}
-
-	// Session history files from .bc/agents/<name>/session_history/
-	histDir := filepath.Join(ws.StateDir(), "agents", agentName, "session_history")
-	files, readErr := os.ReadDir(histDir)
-	if readErr == nil {
-		// Sort descending (newest first)
-		sort.Slice(files, func(i, j int) bool {
-			return files[i].Name() > files[j].Name()
-		})
-		for _, f := range files {
-			if f.IsDir() {
-				continue
-			}
-			data, readFileErr := os.ReadFile(filepath.Join(histDir, f.Name())) //nolint:gosec // trusted path
-			if readFileErr != nil {
-				continue
-			}
-			id := strings.TrimSpace(string(data))
-			if id == "" || id == a.SessionID {
-				continue // skip duplicates
-			}
-			// Parse timestamp from filename (2006-01-02T15:04:05.txt)
-			name := strings.TrimSuffix(f.Name(), ".txt")
-			ts, parseErr := time.Parse("2006-01-02T15:04:05", name)
-			entry := sessionEntry{ID: id}
-			if parseErr == nil {
-				entry.Timestamp = ts
-			}
-			entries = append(entries, entry)
-		}
+	sessions, sessErr := c.Agents.Sessions(cmd.Context(), agentName)
+	if sessErr != nil {
+		return fmt.Errorf("failed to get sessions for %q: %w", agentName, sessErr)
 	}
 
 	if agentSessionsJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(entries)
+		return enc.Encode(sessions)
 	}
 
-	if len(entries) == 0 {
+	if len(sessions) == 0 {
 		fmt.Printf("No session IDs stored for agent %s.\n", agentName)
 		fmt.Printf("Session IDs are captured automatically when the agent stops.\n")
 		return nil
 	}
 
 	fmt.Printf("Sessions for %s:\n\n", agentName)
-	for _, e := range entries {
+	for _, s := range sessions {
 		current := ""
-		if e.Current {
+		if s.Current {
 			current = " " + ui.GreenText("(current)")
 		}
 		ts := ""
-		if !e.Timestamp.IsZero() {
-			ts = "  " + ui.DimText(e.Timestamp.Format("2006-01-02 15:04:05"))
+		if !s.Timestamp.IsZero() {
+			ts = "  " + ui.DimText(s.Timestamp.Format("2006-01-02 15:04:05"))
 		}
-		fmt.Printf("  %s%s%s\n", e.ID, current, ts)
+		fmt.Printf("  %s%s%s\n", s.ID, current, ts)
 	}
 	fmt.Printf("\nResume a session: bc agent start %s --resume <id>\n", agentName)
 
