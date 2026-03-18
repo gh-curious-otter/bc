@@ -699,18 +699,19 @@ func runRoleDelete(cmd *cobra.Command, args []string) error {
 
 	// Check if any agents are currently using this role
 	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr == nil {
-		agents := mgr.ListAgents()
-		var usingAgents []string
-		for _, ag := range agents {
-			if string(ag.Role) == roleName {
-				usingAgents = append(usingAgents, ag.Name)
-			}
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		return fmt.Errorf("cannot verify role is unused — failed to load agent state: %w", loadErr)
+	}
+	agents := mgr.ListAgents()
+	var usingAgents []string
+	for _, ag := range agents {
+		if string(ag.Role) == roleName {
+			usingAgents = append(usingAgents, ag.Name)
 		}
-		if len(usingAgents) > 0 {
-			return fmt.Errorf("role %q is in use by agent(s): %s — stop or reassign agents before deleting",
-				roleName, strings.Join(usingAgents, ", "))
-		}
+	}
+	if len(usingAgents) > 0 {
+		return fmt.Errorf("role %q is in use by agent(s): %s — stop or reassign agents before deleting",
+			roleName, strings.Join(usingAgents, ", "))
 	}
 
 	if !roleForce {
@@ -846,14 +847,17 @@ func runRoleClone(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load source role %q: %w", srcName, err)
 	}
 
-	// Create a copy with new name
+	// Create a copy with new name — copy all fields to stay consistent with --from
 	dstRole := &workspace.Role{
 		Metadata: workspace.RoleMetadata{
 			Name:         dstName,
 			Description:  srcRole.Metadata.Description,
 			Capabilities: append([]string{}, srcRole.Metadata.Capabilities...),
+			Permissions:  append([]string{}, srcRole.Metadata.Permissions...),
 			ParentRoles:  append([]string{}, srcRole.Metadata.ParentRoles...),
-			IsSingleton:  false, // Clones should not be singletons by default
+			MCPServers:   append([]string{}, srcRole.Metadata.MCPServers...),
+			Level:        srcRole.Metadata.Level,
+			IsSingleton:  false, // Clones should not inherit singleton status
 		},
 		Prompt: srcRole.Prompt,
 	}
