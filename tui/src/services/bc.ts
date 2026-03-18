@@ -751,7 +751,7 @@ export interface MCPServer {
  */
 export async function getMCPList(): Promise<MCPServer[]> {
   try {
-    const result = await execBcJsonCached<{ servers: MCPServer[] }>(['mcp', 'list'], 30000);
+    const result = await execBcJsonCached<{ servers?: MCPServer[] }>(['mcp', 'list'], 30000);
     return result.servers ?? [];
   } catch {
     return [];
@@ -774,7 +774,7 @@ export interface SecretMeta {
  */
 export async function getSecretList(): Promise<SecretMeta[]> {
   try {
-    const result = await execBcJsonCached<{ secrets: SecretMeta[] }>(['secret', 'list'], 30000);
+    const result = await execBcJsonCached<{ secrets?: SecretMeta[] }>(['secret', 'list'], 30000);
     return result.secrets ?? [];
   } catch {
     return [];
@@ -798,7 +798,7 @@ export interface ProcessInfo {
  */
 export async function getProcessList(): Promise<ProcessInfo[]> {
   try {
-    const result = await execBcJsonCached<{ processes: ProcessInfo[] }>(['process', 'list'], 30000);
+    const result = await execBcJsonCached<{ processes?: ProcessInfo[] }>(['process', 'list'], 30000);
     return result.processes ?? [];
   } catch {
     return [];
