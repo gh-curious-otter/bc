@@ -961,6 +961,7 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 // sendPluginBootstrap sends /plugin slash commands for each named plugin then
 // /reload-plugins to activate them. Called from both fresh-create and respawn
 // bootstrap goroutines so the logic stays in one place.
+// /reload-plugins is only sent if all installs succeeded.
 func (m *Manager) sendPluginBootstrap(agentName string, plugins []string, rt runtime.Backend) {
 	if len(plugins) == 0 {
 		return
@@ -968,8 +969,8 @@ func (m *Manager) sendPluginBootstrap(agentName string, plugins []string, rt run
 	time.Sleep(2 * time.Second)
 	for _, plugin := range plugins {
 		if err := rt.SendKeys(context.TODO(), agentName, "/plugin "+plugin); err != nil {
-			log.Warn("failed to install plugin", "agent", agentName, "plugin", plugin, "error", err)
-			break
+			log.Warn("failed to install plugin — skipping reload", "agent", agentName, "plugin", plugin, "error", err)
+			return // skip /reload-plugins: some plugins may not be installed
 		}
 		time.Sleep(2 * time.Second)
 	}
