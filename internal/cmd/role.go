@@ -54,6 +54,7 @@ Examples:
   bc role create --name my-role --prompt "You are a specialized agent..."
   bc role create --name my-role --prompt-file ./prompts/custom.md
   bc role create --name my-role --description "Code reviewer" --prompt "Review code..."
+  bc role create --name my-role --from engineer  # Clone existing role as starting point
   bc role create --name my-role  # Creates blank role for editing`,
 	RunE: runRoleCreate,
 }
@@ -177,6 +178,39 @@ var rolePermissionsListCmd = &cobra.Command{
 	RunE:  runRolePermissionsList,
 }
 
+// Issue #1924: MCP server association commands
+var roleMcpCmd = &cobra.Command{
+	Use:   "mcp",
+	Short: "Manage MCP server associations for roles",
+	Long: `Associate MCP servers with roles so agents using those roles get the right tools.
+
+Examples:
+  bc role mcp list engineer              # Show MCP servers for the engineer role
+  bc role mcp add engineer github        # Associate the github MCP server
+  bc role mcp remove engineer github     # Remove the github MCP server`,
+}
+
+var roleMcpListCmd = &cobra.Command{
+	Use:   "list <role>",
+	Short: "List MCP servers associated with a role",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runRoleMcpList,
+}
+
+var roleMcpAddCmd = &cobra.Command{
+	Use:   "add <role> <server>",
+	Short: "Associate an MCP server with a role",
+	Args:  cobra.ExactArgs(2),
+	RunE:  runRoleMcpAdd,
+}
+
+var roleMcpRemoveCmd = &cobra.Command{
+	Use:   "remove <role> <server>",
+	Short: "Remove an MCP server association from a role",
+	Args:  cobra.ExactArgs(2),
+	RunE:  runRoleMcpRemove,
+}
+
 // Flags
 var (
 	roleName        string
@@ -184,6 +218,7 @@ var (
 	rolePrompt      string
 	rolePromptFile  string
 	roleDescription string
+	roleFrom        string
 	roleForce       bool
 )
 
@@ -198,6 +233,7 @@ func init() {
 	roleCmd.AddCommand(roleCloneCmd)
 	roleCmd.AddCommand(roleDiffCmd)
 	roleCmd.AddCommand(rolePermissionsCmd)
+	roleCmd.AddCommand(roleMcpCmd)
 
 	// Register permissions subcommands (#1191)
 	rolePermissionsCmd.AddCommand(rolePermissionsShowCmd)
@@ -206,17 +242,24 @@ func init() {
 	rolePermissionsCmd.AddCommand(rolePermissionsRemoveCmd)
 	rolePermissionsCmd.AddCommand(rolePermissionsListCmd)
 
+	// Register MCP subcommands (#1924)
+	roleMcpCmd.AddCommand(roleMcpListCmd)
+	roleMcpCmd.AddCommand(roleMcpAddCmd)
+	roleMcpCmd.AddCommand(roleMcpRemoveCmd)
+
 	roleCreateCmd.Flags().StringVar(&roleName, "name", "", "Name for the new role (required)")
 	roleCreateCmd.Flags().StringVar(&rolePrompt, "prompt", "", "Inline prompt text for the role")
 	roleCreateCmd.Flags().StringVar(&rolePromptFile, "prompt-file", "", "Path to file containing prompt text")
 	roleCreateCmd.Flags().StringVar(&roleDescription, "description", "", "Brief description of the role")
 	roleCreateCmd.Flags().StringVar(&roleTemplate, "template", "", "Template to use (engineer, manager, qa, blank) [deprecated]")
+	roleCreateCmd.Flags().StringVar(&roleFrom, "from", "", "Create from existing role (copies prompt and metadata)")
 	_ = roleCreateCmd.MarkFlagRequired("name")
 
 	roleDeleteCmd.Flags().BoolVar(&roleForce, "force", false, "Skip confirmation")
 
-	// Register --json flag for role list command (PR #942 follow-up)
+	// Register --json and --mcp flags for role list command
 	roleListCmd.Flags().Bool("json", false, "Output in JSON format")
+	roleListCmd.Flags().Bool("mcp", false, "Show MCP server associations column")
 
 	// Add shell completion for role name arguments
 	roleShowCmd.ValidArgsFunction = CompleteRoleNames
@@ -229,6 +272,9 @@ func init() {
 	rolePermissionsSetCmd.ValidArgsFunction = CompleteRoleNames
 	rolePermissionsAddCmd.ValidArgsFunction = CompleteRoleNames
 	rolePermissionsRemoveCmd.ValidArgsFunction = CompleteRoleNames
+	roleMcpListCmd.ValidArgsFunction = CompleteRoleNames
+	roleMcpAddCmd.ValidArgsFunction = CompleteRoleNames
+	roleMcpRemoveCmd.ValidArgsFunction = CompleteRoleNames
 
 	rootCmd.AddCommand(roleCmd)
 }
@@ -274,6 +320,7 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 			Description  string   `json:"description,omitempty"`
 			Parent       string   `json:"parent,omitempty"`
 			Capabilities []string `json:"capabilities"`
+			MCPServers   []string `json:"mcp_servers"`
 			AgentCount   int      `json:"agent_count"`
 		}
 		type jsonResponse struct {
@@ -286,6 +333,10 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 			if caps == nil {
 				caps = []string{}
 			}
+			mcps := role.Metadata.MCPServers
+			if mcps == nil {
+				mcps = []string{}
+			}
 			parent := ""
 			if len(role.Metadata.ParentRoles) > 0 {
 				parent = role.Metadata.ParentRoles[0]
@@ -294,6 +345,7 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 				Name:         name,
 				Description:  role.Description(),
 				Capabilities: caps,
+				MCPServers:   mcps,
 				Parent:       parent,
 				AgentCount:   agentCounts[name],
 			})
@@ -306,17 +358,21 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	showMCP, _ := cmd.Flags().GetBool("mcp")
+
 	// Collect role data and calculate column widths
 	type roleRow struct {
 		name         string
 		description  string
 		flags        string
+		mcpServers   string
 		capabilities int
 		agents       int
 	}
 	rows := make([]roleRow, 0, len(roles))
 	maxNameLen := 4  // "ROLE"
 	maxDescLen := 11 // "DESCRIPTION"
+	maxMCPLen := 3   // "MCP"
 
 	for name, role := range roles {
 		if len(name) > maxNameLen {
@@ -336,11 +392,23 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 			flags = "[singleton]"
 		}
 
+		mcpStr := ""
+		if len(role.Metadata.MCPServers) > 0 {
+			mcpStr = strings.Join(role.Metadata.MCPServers, ", ")
+			if len(mcpStr) > 30 {
+				mcpStr = mcpStr[:27] + "..."
+			}
+		}
+		if len(mcpStr) > maxMCPLen {
+			maxMCPLen = len(mcpStr)
+		}
+
 		rows = append(rows, roleRow{
 			name:         name,
 			capabilities: len(role.Metadata.Capabilities),
 			description:  desc,
 			flags:        flags,
+			mcpServers:   mcpStr,
 			agents:       agentCounts[name],
 		})
 	}
@@ -359,8 +427,16 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Print table header (hide CAPS column if all roles have 0 capabilities)
-	if hasCapabilities {
+	// Print table header
+	if showMCP {
+		if hasCapabilities {
+			fmt.Printf("%-*s  %-6s  %-4s  %-*s  %-*s  %s\n", maxNameLen, "ROLE", "AGENTS", "CAPS", maxDescLen, "DESCRIPTION", maxMCPLen, "MCP", "FLAGS")
+			fmt.Println(strings.Repeat("-", maxNameLen+maxDescLen+maxMCPLen+36))
+		} else {
+			fmt.Printf("%-*s  %-6s  %-*s  %-*s  %s\n", maxNameLen, "ROLE", "AGENTS", maxDescLen, "DESCRIPTION", maxMCPLen, "MCP", "FLAGS")
+			fmt.Println(strings.Repeat("-", maxNameLen+maxDescLen+maxMCPLen+30))
+		}
+	} else if hasCapabilities {
 		fmt.Printf("%-*s  %-6s  %-4s  %-*s  %s\n", maxNameLen, "ROLE", "AGENTS", "CAPS", maxDescLen, "DESCRIPTION", "FLAGS")
 		fmt.Println(strings.Repeat("-", maxNameLen+maxDescLen+28))
 	} else {
@@ -370,7 +446,13 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 
 	// Print rows
 	for _, r := range rows {
-		if hasCapabilities {
+		if showMCP {
+			if hasCapabilities {
+				fmt.Printf("%-*s  %-6d  %-4d  %-*s  %-*s  %s\n", maxNameLen, r.name, r.agents, r.capabilities, maxDescLen, r.description, maxMCPLen, r.mcpServers, r.flags)
+			} else {
+				fmt.Printf("%-*s  %-6d  %-*s  %-*s  %s\n", maxNameLen, r.name, r.agents, maxDescLen, r.description, maxMCPLen, r.mcpServers, r.flags)
+			}
+		} else if hasCapabilities {
 			fmt.Printf("%-*s  %-6d  %-4d  %-*s  %s\n", maxNameLen, r.name, r.agents, r.capabilities, maxDescLen, r.description, r.flags)
 		} else {
 			fmt.Printf("%-*s  %-6d  %-*s  %s\n", maxNameLen, r.name, r.agents, maxDescLen, r.description, r.flags)
@@ -395,6 +477,9 @@ func runRoleShow(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Role: %s\n", role.Metadata.Name)
+	if role.Metadata.Description != "" {
+		fmt.Printf("Description: %s\n", role.Metadata.Description)
+	}
 	if role.Metadata.IsSingleton {
 		fmt.Println("Singleton: true")
 	}
@@ -403,6 +488,9 @@ func runRoleShow(cmd *cobra.Command, args []string) error {
 	}
 	if len(role.Metadata.ParentRoles) > 0 {
 		fmt.Printf("Parent Roles: %s\n", strings.Join(role.Metadata.ParentRoles, ", "))
+	}
+	if len(role.Metadata.MCPServers) > 0 {
+		fmt.Printf("MCP Servers: %s\n", strings.Join(role.Metadata.MCPServers, ", "))
 	}
 	fmt.Printf("File: %s\n\n", role.FilePath)
 	fmt.Println("Prompt:")
@@ -432,6 +520,53 @@ func runRoleCreate(cmd *cobra.Command, args []string) error {
 		fmt.Fprintln(os.Stderr, "Warning: --template is deprecated. Use --prompt or --prompt-file instead.")
 	}
 
+	// Handle --from: clone an existing role as starting point
+	if roleFrom != "" {
+		srcRole, loadErr := rm.LoadRole(roleFrom)
+		if loadErr != nil {
+			return fmt.Errorf("failed to load source role %q: %w", roleFrom, loadErr)
+		}
+
+		newRole := &workspace.Role{
+			Metadata: workspace.RoleMetadata{
+				Name:         roleName,
+				Description:  srcRole.Metadata.Description,
+				Capabilities: append([]string{}, srcRole.Metadata.Capabilities...),
+				Permissions:  append([]string{}, srcRole.Metadata.Permissions...),
+				ParentRoles:  append([]string{}, srcRole.Metadata.ParentRoles...),
+				MCPServers:   append([]string{}, srcRole.Metadata.MCPServers...),
+				IsSingleton:  false, // Derived roles should not inherit singleton
+				Level:        srcRole.Metadata.Level,
+			},
+			Prompt: srcRole.Prompt,
+		}
+
+		// Override description if provided
+		if roleDescription != "" {
+			newRole.Metadata.Description = roleDescription
+		}
+		// Override prompt if provided
+		if rolePrompt != "" {
+			newRole.Prompt = rolePrompt
+		} else if rolePromptFile != "" {
+			content, readErr := os.ReadFile(rolePromptFile) //nolint:gosec // G304: File path is user-provided via CLI flag
+			if readErr != nil {
+				return fmt.Errorf("failed to read prompt file %q: %w", rolePromptFile, readErr)
+			}
+			newRole.Prompt = string(content)
+		}
+
+		if writeErr := rm.WriteRole(newRole); writeErr != nil {
+			return fmt.Errorf("failed to create role: %w", writeErr)
+		}
+
+		fmt.Printf("✓ Created role %q (from %q)\n", roleName, roleFrom)
+		fmt.Printf("  File: .bc/roles/%s.md\n\n", roleName)
+		fmt.Println("To edit the role:")
+		fmt.Printf("  bc role edit %s\n", roleName)
+		return nil
+	}
+
 	// Determine prompt content
 	var promptContent string
 	switch {
@@ -456,8 +591,8 @@ func runRoleCreate(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to parse template: %w", parseErr)
 		}
 		role.Metadata.Name = roleName
-		if err := rm.WriteRole(role); err != nil {
-			return fmt.Errorf("failed to create role: %w", err)
+		if writeErr := rm.WriteRole(role); writeErr != nil {
+			return fmt.Errorf("failed to create role: %w", writeErr)
 		}
 		fmt.Printf("✓ Created role %q\n", roleName)
 		fmt.Printf("  File: .bc/roles/%s.md\n\n", roleName)
@@ -472,17 +607,15 @@ func runRoleCreate(cmd *cobra.Command, args []string) error {
 	// Build role with custom prompt
 	role := &workspace.Role{
 		Metadata: workspace.RoleMetadata{
-			Name:         roleName,
-			Capabilities: []string{},
-			ParentRoles:  []string{},
-			IsSingleton:  false,
+			Name:        roleName,
+			Description: roleDescription,
 		},
 		Prompt: promptContent,
 	}
 
 	// Write role file
-	if err := rm.WriteRole(role); err != nil {
-		return fmt.Errorf("failed to create role: %w", err)
+	if writeErr := rm.WriteRole(role); writeErr != nil {
+		return fmt.Errorf("failed to create role: %w", writeErr)
 	}
 
 	fmt.Printf("✓ Created role %q\n", roleName)
@@ -562,6 +695,23 @@ func runRoleDelete(cmd *cobra.Command, args []string) error {
 	// Check if role exists
 	if !rm.HasRole(roleName) {
 		return fmt.Errorf("role %q not found (use 'bc role list' to see available roles)", roleName)
+	}
+
+	// Check if any agents are currently using this role
+	mgr := newAgentManager(ws)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		return fmt.Errorf("cannot verify role is unused — failed to load agent state: %w", loadErr)
+	}
+	agents := mgr.ListAgents()
+	var usingAgents []string
+	for _, ag := range agents {
+		if string(ag.Role) == roleName {
+			usingAgents = append(usingAgents, ag.Name)
+		}
+	}
+	if len(usingAgents) > 0 {
+		return fmt.Errorf("role %q is in use by agent(s): %s — stop or reassign agents before deleting",
+			roleName, strings.Join(usingAgents, ", "))
 	}
 
 	if !roleForce {
@@ -697,14 +847,17 @@ func runRoleClone(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load source role %q: %w", srcName, err)
 	}
 
-	// Create a copy with new name
+	// Create a copy with new name — copy all fields to stay consistent with --from
 	dstRole := &workspace.Role{
 		Metadata: workspace.RoleMetadata{
 			Name:         dstName,
 			Description:  srcRole.Metadata.Description,
 			Capabilities: append([]string{}, srcRole.Metadata.Capabilities...),
+			Permissions:  append([]string{}, srcRole.Metadata.Permissions...),
 			ParentRoles:  append([]string{}, srcRole.Metadata.ParentRoles...),
-			IsSingleton:  false, // Clones should not be singletons by default
+			MCPServers:   append([]string{}, srcRole.Metadata.MCPServers...),
+			Level:        srcRole.Metadata.Level,
+			IsSingleton:  false, // Clones should not inherit singleton status
 		},
 		Prompt: srcRole.Prompt,
 	}
@@ -1191,5 +1344,78 @@ func runRolePermissionsList(cmd *cobra.Command, args []string) error {
 	fmt.Println("                      can_send_messages")
 	fmt.Println("  Engineer (level 1): can_view_logs, can_send_commands, can_send_messages")
 
+	return nil
+}
+
+// Issue #1924: MCP server association command implementations
+
+func runRoleMcpList(cmd *cobra.Command, args []string) error {
+	_, rm, err := getWorkspaceRoleManager()
+	if err != nil {
+		return err
+	}
+
+	roleArg := args[0]
+	if !rm.HasRole(roleArg) {
+		return fmt.Errorf("role %q not found (use 'bc role list' to see available roles)", roleArg)
+	}
+
+	servers, err := rm.GetMCPServers(roleArg)
+	if err != nil {
+		return fmt.Errorf("failed to get MCP servers: %w", err)
+	}
+
+	fmt.Printf("MCP servers for role %q:\n", roleArg)
+	if len(servers) == 0 {
+		fmt.Println("  (none)")
+		return nil
+	}
+
+	for _, s := range servers {
+		fmt.Printf("  • %s\n", s)
+	}
+
+	return nil
+}
+
+func runRoleMcpAdd(cmd *cobra.Command, args []string) error {
+	_, rm, err := getWorkspaceRoleManager()
+	if err != nil {
+		return err
+	}
+
+	roleArg := args[0]
+	server := args[1]
+
+	if !rm.HasRole(roleArg) {
+		return fmt.Errorf("role %q not found (use 'bc role list' to see available roles)", roleArg)
+	}
+
+	if err := rm.AddMCPServer(roleArg, server); err != nil {
+		return fmt.Errorf("failed to add MCP server: %w", err)
+	}
+
+	fmt.Printf("✓ Associated MCP server %q with role %q\n", server, roleArg)
+	return nil
+}
+
+func runRoleMcpRemove(cmd *cobra.Command, args []string) error {
+	_, rm, err := getWorkspaceRoleManager()
+	if err != nil {
+		return err
+	}
+
+	roleArg := args[0]
+	server := args[1]
+
+	if !rm.HasRole(roleArg) {
+		return fmt.Errorf("role %q not found (use 'bc role list' to see available roles)", roleArg)
+	}
+
+	if err := rm.RemoveMCPServer(roleArg, server); err != nil {
+		return fmt.Errorf("failed to remove MCP server: %w", err)
+	}
+
+	fmt.Printf("✓ Removed MCP server %q from role %q\n", server, roleArg)
 	return nil
 }

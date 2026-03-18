@@ -16,8 +16,9 @@ type RoleMetadata struct {
 	Name         string   `yaml:"name"`
 	Description  string   `yaml:"description,omitempty"`
 	Capabilities []string `yaml:"capabilities,omitempty"`
-	Permissions  []string `yaml:"permissions,omitempty"` // RBAC permissions (#1191)
+	Permissions  []string `yaml:"permissions,omitempty"`  // RBAC permissions (#1191)
 	ParentRoles  []string `yaml:"parent_roles,omitempty"`
+	MCPServers   []string `yaml:"mcp_servers,omitempty"` // MCP server associations (#1924)
 	IsSingleton  bool     `yaml:"is_singleton,omitempty"`
 	Level        int      `yaml:"level,omitempty"`       // Role hierarchy level (-1=root, 0=manager, 1=engineer)
 	Plugins []string `yaml:"plugins,omitempty"` // Claude Code plugins to install on agent start (#1959)
@@ -436,6 +437,75 @@ func (rm *RoleManager) RemovePermission(roleName, permission string) error {
 		}
 	}
 	role.Metadata.Permissions = filtered
+
+	if err := rm.WriteRole(role); err != nil {
+		return fmt.Errorf("failed to save role: %w", err)
+	}
+
+	return nil
+}
+
+// GetMCPServers returns the MCP server associations for a role.
+func (rm *RoleManager) GetMCPServers(roleName string) ([]string, error) {
+	role, err := rm.LoadRole(roleName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load role: %w", err)
+	}
+	return role.Metadata.MCPServers, nil
+}
+
+// SetMCPServers replaces the MCP server list for a role.
+func (rm *RoleManager) SetMCPServers(roleName string, servers []string) error {
+	role, err := rm.LoadRole(roleName)
+	if err != nil {
+		return fmt.Errorf("failed to load role: %w", err)
+	}
+
+	role.Metadata.MCPServers = servers
+
+	if err := rm.WriteRole(role); err != nil {
+		return fmt.Errorf("failed to save role: %w", err)
+	}
+
+	return nil
+}
+
+// AddMCPServer adds an MCP server association to a role if not already present.
+func (rm *RoleManager) AddMCPServer(roleName, server string) error {
+	role, err := rm.LoadRole(roleName)
+	if err != nil {
+		return fmt.Errorf("failed to load role: %w", err)
+	}
+
+	for _, s := range role.Metadata.MCPServers {
+		if s == server {
+			return nil // Already associated
+		}
+	}
+
+	role.Metadata.MCPServers = append(role.Metadata.MCPServers, server)
+
+	if err := rm.WriteRole(role); err != nil {
+		return fmt.Errorf("failed to save role: %w", err)
+	}
+
+	return nil
+}
+
+// RemoveMCPServer removes an MCP server association from a role.
+func (rm *RoleManager) RemoveMCPServer(roleName, server string) error {
+	role, err := rm.LoadRole(roleName)
+	if err != nil {
+		return fmt.Errorf("failed to load role: %w", err)
+	}
+
+	filtered := make([]string, 0, len(role.Metadata.MCPServers))
+	for _, s := range role.Metadata.MCPServers {
+		if s != server {
+			filtered = append(filtered, s)
+		}
+	}
+	role.Metadata.MCPServers = filtered
 
 	if err := rm.WriteRole(role); err != nil {
 		return fmt.Errorf("failed to save role: %w", err)
