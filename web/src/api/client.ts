@@ -50,6 +50,52 @@ export interface AgentCostSummary {
   record_count: number;
 }
 
+export interface Role {
+  FilePath: string;
+  Prompt: string;
+  Metadata: {
+    Name: string;
+    Description: string;
+    Capabilities: string[];
+    Permissions: string[];
+    IsSingleton: boolean;
+    Level: number;
+  };
+}
+
+export interface Tool {
+  name: string;
+  command: string;
+  install_cmd: string;
+  builtin: boolean;
+  enabled: boolean;
+}
+
+export interface MCPServer {
+  name: string;
+  transport: string;
+  command: string;
+  url: string;
+  enabled: boolean;
+}
+
+export interface EventLogEntry {
+  id: number;
+  type: string;
+  agent: string;
+  message: string;
+  created_at: string;
+}
+
+export interface DoctorCategory {
+  Name: string;
+  Items: { Name: string; Message: string; Fix: string; Severity: number }[];
+}
+
+export interface DoctorReport {
+  Categories: DoctorCategory[];
+}
+
 export const api = {
   listAgents: () => request<Agent[]>('/agents'),
   getAgent: (name: string) => request<Agent>(`/agents/${name}`),
@@ -66,4 +112,10 @@ export const api = {
 
   getCostSummary: () => request<CostSummary>('/costs'),
   getCostByAgent: () => request<AgentCostSummary[]>('/costs/agents'),
+
+  listRoles: () => request<Record<string, Role>>('/workspace/roles'),
+  listTools: () => request<Tool[]>('/tools'),
+  listMCP: () => request<MCPServer[]>('/mcp'),
+  getLogs: (tail = 50) => request<EventLogEntry[]>(`/logs?tail=${tail}`),
+  getDoctor: () => request<DoctorReport>('/doctor'),
 };
