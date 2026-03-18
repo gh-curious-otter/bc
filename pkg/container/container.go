@@ -16,6 +16,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -217,12 +218,24 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	// Volume mounts
 	if dir != "" {
 		args = append(args, "-v", dir+":/workspace")
-		// Prevent container builds from overwriting host binaries (e.g. bin/bc).
-		// An anonymous volume shadows /workspace/bin so writes stay container-local.
-		args = append(args, "-v", "/workspace/bin")
-		// Same for dist/ directories that may differ per platform.
-		args = append(args, "-v", "/workspace/dist")
+
+		// Prevent container builds from overwriting host binaries (#2003).
+		// Mount bin/ and dist/ as read-only so `make build` inside the container
+		// cannot clobber the host's native binaries. The Makefile respects
+		// BUILD_DIR to redirect output to a container-local path.
+		binDir := filepath.Join(dir, "bin")
+		if _, err := os.Stat(binDir); err == nil {
+			args = append(args, "-v", binDir+":/workspace/bin:ro")
+		}
+		distDir := filepath.Join(dir, "dist")
+		if _, err := os.Stat(distDir); err == nil {
+			args = append(args, "-v", distDir+":/workspace/dist:ro")
+		}
 	}
+
+	// Tell the Makefile to write build output to a container-local directory
+	// so `make build` works even though bin/ is read-only.
+	env["BUILD_DIR"] = "/tmp/bc-build"
 
 	// Per-agent auth — seeded from host credentials on first use so agents start
 	// pre-authenticated without a separate login. Two mounts:
