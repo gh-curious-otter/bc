@@ -20,12 +20,17 @@ function CostCard({ label, value }: { label: string; value: string }) {
 
 export function Costs() {
   const fetcher = useCallback(async (): Promise<CostData> => {
-    const summary = await api.getCostSummary();
+    let summary: CostSummary = { input_tokens: 0, output_tokens: 0, total_tokens: 0, total_cost_usd: 0, record_count: 0 };
     let byAgent: AgentCostSummary[] = [];
+    try {
+      summary = await api.getCostSummary();
+    } catch {
+      // cost summary unavailable
+    }
     try {
       byAgent = await api.getCostByAgent();
     } catch {
-      // /api/costs/agents may not exist yet
+      // per-agent costs unavailable
     }
     return { summary, byAgent };
   }, []);
