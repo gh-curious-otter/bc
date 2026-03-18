@@ -1,0 +1,21 @@
+# bc Landing Page robots.txt
+# Allow all search engines to crawl and index the site
+
+User-agent: *
+Allow: /
+
+# Disallow private/admin paths (if any)
+Disallow: /.next/
+Disallow: /api/
+
+# Specific rules for search engines
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 0
+
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1
+
+# Sitemap location
+Sitemap: https://bc-infra.com/sitemap.xml

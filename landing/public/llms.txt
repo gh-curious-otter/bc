@@ -1,0 +1,49 @@
+# bc — Multi-Agent Orchestration Platform
+
+> bc is a CLI-first, agent-agnostic orchestration platform for AI coding agents. It coordinates teams of AI agents across isolated git worktrees with persistent memory, structured communication channels, and per-agent cost controls.
+
+## Key Features
+
+- **Multi-Agent Orchestration**: Run 5-10 AI coding agents in parallel, each on its own isolated git worktree branch
+- **Channel Communication**: Slack-like channels (#eng, #pr, #standup) for structured agent-to-agent coordination
+- **Persistent Memory**: Agents accumulate learnings and experiences that persist across sessions
+- **Cost Controls**: Per-agent token tracking, budgets, alerts, and automatic hard stops
+- **Scheduled Tasks (Demons)**: Cron-powered automation for tests, deploys, and reports
+- **14-View TUI Dashboard**: Real-time monitoring of agents, channels, costs, memory, and queues
+- **55 CLI Commands**: Full lifecycle management across 9 categories
+
+## Supported AI Tools
+
+bc works with any CLI-based AI coding assistant:
+- Claude Code
+- Cursor
+- GitHub Copilot
+- Gemini
+- Aider
+- OpenCode
+- Cline
+- Any custom CLI tool
+
+## Pages
+
+- [Home](https://bc-infra.com/): Overview and product introduction
+- [Product](https://bc-infra.com/product): Detailed feature breakdown with 55 commands across 9 categories
+- [Documentation](https://bc-infra.com/docs): CLI reference, configuration, and quick start guide
+- [Waitlist](https://bc-infra.com/waitlist): Sign up for early access to the open beta
+- [Privacy Policy](https://bc-infra.com/privacy): Data collection and usage practices
+- [Terms of Service](https://bc-infra.com/terms): Usage terms and conditions
+
+## Quick Start
+
+```bash
+bc init --preset small-team
+bc up
+bc home
+```
+
+## Contact
+
+- Email: puneet@bc-infra.com
+- GitHub: https://github.com/bcinfra1
+- Twitter: https://twitter.com/bc_infra
+- License: MIT

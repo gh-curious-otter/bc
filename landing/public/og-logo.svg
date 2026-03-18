@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <rect width="1200" height="630" fill="#0C0A08"/>
+  <text
+    x="50%"
+    y="48%"
+    dominant-baseline="middle"
+    text-anchor="middle"
+    font-family="monospace"
+    font-weight="700"
+    font-size="200"
+    letter-spacing="-6"
+    fill="#EA580C"
+  >bc</text>
+  <text
+    x="50%"
+    y="72%"
+    dominant-baseline="middle"
+    text-anchor="middle"
+    font-family="monospace"
+    font-weight="400"
+    font-size="36"
+    letter-spacing="4"
+    fill="#8C7E72"
+  >MULTI-AGENT ORCHESTRATION</text>
+</svg>

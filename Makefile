@@ -1,4 +1,4 @@
-.PHONY: dev build build-release build-all clean clean-deps gen test coverage bench fmt vet lint check check-all deps help version build-tui test-tui lint-tui build-web lint-web dev-web build-bcd build-bcd-release build-bcd-image build-bcdb-image build-server-images build-agent-base build-agent-image build-agent-images build-landing dev-landing
+.PHONY: dev build build-release build-all clean clean-deps gen test coverage bench fmt vet lint check check-all deps help version build-tui test-tui lint-tui build-web lint-web dev-web build-bcd build-bcd-release build-bcd-image build-bcdb-image build-server-images build-agent-base build-agent-image build-agent-images build-landing dev-landing lint-landing test-landing
 
 # Version information
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -42,9 +42,11 @@ help:
 	@echo "  lint-web       - Lint web UI code"
 	@echo "  dev-web        - Run web UI dev server (hot reload)"
 	@echo ""
-	@echo "Landing page targets:"
-	@echo "  build-landing  - Build static landing page to landing/dist/"
-	@echo "  dev-landing    - Run local dev server at http://localhost:8080"
+	@echo "Landing page targets (Next.js, requires bun):"
+	@echo "  build-landing  - Build landing page (next build)"
+	@echo "  dev-landing    - Run landing dev server (hot reload)"
+	@echo "  lint-landing   - Lint landing page code"
+	@echo "  test-landing   - Run landing page Playwright tests"
 	@echo ""
 	@echo "Docker targets:"
 	@echo "  build-server-images     - Build bcd + bcdb Docker images"
@@ -167,17 +169,22 @@ lint-tui:
 	@echo "Linting TUI..."
 	cd tui && bun run lint
 
-# Landing page
+# Landing page (Next.js)
 build-landing:
 	@echo "Building landing page..."
-	@mkdir -p landing/dist
-	@cp landing/index.html landing/dist/
-	@cp -r landing/assets landing/dist/
-	@echo "Landing page built to landing/dist/"
+	cd landing && bun install && bun run build
 
 dev-landing:
-	@echo "Starting landing page dev server at http://localhost:8080"
-	@cd landing && python3 -m http.server 8080
+	@echo "Starting landing page dev server..."
+	cd landing && bun run dev
+
+lint-landing:
+	@echo "Linting landing page..."
+	cd landing && bun run lint
+
+test-landing:
+	@echo "Testing landing page..."
+	cd landing && bun run test
 
 # Docker agent images (per-provider)
 AGENT_PROVIDERS := claude gemini codex aider opencode openclaw cursor
