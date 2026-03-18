@@ -1,0 +1,248 @@
+// Package mcp provides SQLite-backed storage for MCP server configurations.
+package mcp
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/rpuneet/bc/pkg/db"
+)
+
+// Transport represents an MCP server transport type.
+type Transport string
+
+const (
+	TransportStdio Transport = "stdio"
+	TransportSSE   Transport = "sse"
+)
+
+// ServerConfig represents an MCP server configuration.
+// Env values should use ${secret:NAME} references (resolved at runtime via
+// pkg/secret) rather than storing sensitive values directly.
+type ServerConfig struct {
+	CreatedAt time.Time         `json:"created_at"`
+	Name      string            `json:"name"`
+	Transport Transport         `json:"transport"`
+	Command   string            `json:"command,omitempty"`
+	Args      []string          `json:"args,omitempty"`
+	URL       string            `json:"url,omitempty"`
+	Env       map[string]string `json:"env,omitempty"`
+	Enabled   bool              `json:"enabled"`
+}
+
+// Store provides SQLite-backed MCP server config storage.
+type Store struct {
+	db *db.DB
+}
+
+// NewStore creates a new MCP store for the given workspace path.
+func NewStore(workspacePath string) (*Store, error) {
+	dbPath := filepath.Join(workspacePath, ".bc", "mcp.db")
+	d, err := db.Open(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("open mcp database: %w", err)
+	}
+
+	s := &Store{db: d}
+	if err := s.initSchema(); err != nil {
+		_ = d.Close()
+		return nil, fmt.Errorf("init mcp schema: %w", err)
+	}
+	return s, nil
+}
+
+// initSchema creates the MCP server configs table.
+func (s *Store) initSchema() error {
+	ctx := context.Background()
+	schema := `
+		CREATE TABLE IF NOT EXISTS mcp_servers (
+			name        TEXT PRIMARY KEY,
+			transport   TEXT NOT NULL DEFAULT 'stdio' CHECK (transport IN ('stdio', 'sse')),
+			command     TEXT,
+			args        TEXT,
+			url         TEXT,
+			env         TEXT,
+			enabled     INTEGER NOT NULL DEFAULT 1,
+			created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+		);
+		CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers(enabled);
+	`
+	_, err := s.db.ExecContext(ctx, schema)
+	return err
+}
+
+// Close closes the database connection.
+func (s *Store) Close() error {
+	if s.db != nil {
+		return s.db.Close()
+	}
+	return nil
+}
+
+// Add inserts a new MCP server configuration.
+func (s *Store) Add(cfg *ServerConfig) error {
+	if err := validateConfig(cfg); err != nil {
+		return err
+	}
+
+	argsJSON, err := json.Marshal(cfg.Args)
+	if err != nil {
+		return fmt.Errorf("marshal args: %w", err)
+	}
+
+	envJSON, err := json.Marshal(cfg.Env)
+	if err != nil {
+		return fmt.Errorf("marshal env: %w", err)
+	}
+
+	ctx := context.Background()
+	_, err = s.db.ExecContext(ctx,
+		`INSERT INTO mcp_servers (name, transport, command, args, url, env, enabled)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		cfg.Name, cfg.Transport, cfg.Command, string(argsJSON), cfg.URL, string(envJSON), cfg.Enabled,
+	)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint") {
+			return fmt.Errorf("mcp server %q already exists (use 'bc mcp remove %s' first)", cfg.Name, cfg.Name)
+		}
+		return fmt.Errorf("add mcp server %q: %w", cfg.Name, err)
+	}
+	return nil
+}
+
+// Get returns an MCP server config by name.
+func (s *Store) Get(name string) (*ServerConfig, error) {
+	ctx := context.Background()
+	row := s.db.QueryRowContext(ctx,
+		`SELECT name, transport, command, args, url, env, enabled, created_at
+		 FROM mcp_servers WHERE name = ?`, name,
+	)
+	return scanInto(row)
+}
+
+// List returns all MCP server configurations.
+func (s *Store) List() ([]*ServerConfig, error) {
+	ctx := context.Background()
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT name, transport, command, args, url, env, enabled, created_at
+		 FROM mcp_servers ORDER BY name`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list mcp servers: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var configs []*ServerConfig
+	for rows.Next() {
+		cfg, err := scanInto(rows)
+		if err != nil {
+			return nil, err
+		}
+		configs = append(configs, cfg)
+	}
+	return configs, rows.Err()
+}
+
+// Remove deletes an MCP server config by name.
+func (s *Store) Remove(name string) error {
+	ctx := context.Background()
+	result, err := s.db.ExecContext(ctx, "DELETE FROM mcp_servers WHERE name = ?", name)
+	if err != nil {
+		return fmt.Errorf("remove mcp server %q: %w", name, err)
+	}
+	affected, _ := result.RowsAffected()
+	if affected == 0 {
+		return fmt.Errorf("mcp server %q not found", name)
+	}
+	return nil
+}
+
+// SetEnabled enables or disables an MCP server config.
+func (s *Store) SetEnabled(name string, enabled bool) error {
+	ctx := context.Background()
+	result, err := s.db.ExecContext(ctx,
+		"UPDATE mcp_servers SET enabled = ? WHERE name = ?",
+		enabled, name,
+	)
+	if err != nil {
+		return fmt.Errorf("update mcp server %q: %w", name, err)
+	}
+	affected, _ := result.RowsAffected()
+	if affected == 0 {
+		return fmt.Errorf("mcp server %q not found", name)
+	}
+	return nil
+}
+
+// scanner is implemented by both *sql.Row and *sql.Rows.
+type scanner interface {
+	Scan(dest ...any) error
+}
+
+// scanInto scans a row into a ServerConfig. Returns (nil, nil) for sql.ErrNoRows.
+func scanInto(sc scanner) (*ServerConfig, error) {
+	var (
+		cfg               ServerConfig
+		command, url      sql.NullString
+		argsJSON, envJSON sql.NullString
+		enabled           int
+		createdAt         string
+	)
+
+	err := sc.Scan(&cfg.Name, &cfg.Transport, &command, &argsJSON, &url, &envJSON, &enabled, &createdAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("scan mcp server: %w", err)
+	}
+
+	cfg.Command = command.String
+	cfg.URL = url.String
+	cfg.Enabled = enabled == 1
+
+	if argsJSON.Valid && argsJSON.String != "" {
+		if err := json.Unmarshal([]byte(argsJSON.String), &cfg.Args); err != nil {
+			return nil, fmt.Errorf("unmarshal args: %w", err)
+		}
+	}
+
+	if envJSON.Valid && envJSON.String != "" {
+		if err := json.Unmarshal([]byte(envJSON.String), &cfg.Env); err != nil {
+			return nil, fmt.Errorf("unmarshal env: %w", err)
+		}
+	}
+
+	if t, err := time.Parse(time.RFC3339, createdAt); err == nil {
+		cfg.CreatedAt = t
+	}
+
+	return &cfg, nil
+}
+
+// validateConfig checks that a ServerConfig has valid fields.
+func validateConfig(cfg *ServerConfig) error {
+	if cfg.Name == "" {
+		return fmt.Errorf("mcp server name is required")
+	}
+
+	switch cfg.Transport {
+	case TransportStdio:
+		if cfg.Command == "" {
+			return fmt.Errorf("command is required for stdio transport")
+		}
+	case TransportSSE:
+		if cfg.URL == "" {
+			return fmt.Errorf("url is required for sse transport")
+		}
+	default:
+		return fmt.Errorf("invalid transport %q (must be 'stdio' or 'sse')", cfg.Transport)
+	}
+
+	return nil
+}
