@@ -59,6 +59,7 @@ type Daemon struct {
 	Restart     string     `json:"restart"`
 	Status      Status     `json:"status"`
 	Ports       []string   `json:"ports,omitempty"`
+	Volumes     []string   `json:"volumes,omitempty"`
 	EnvVars     []string   `json:"env,omitempty"`
 	PID         int64      `json:"pid,omitempty"`
 }
@@ -70,6 +71,7 @@ type RunOptions struct {
 	Cmd     string   // command for bash runtime
 	Image   string   // Docker image for docker runtime
 	Ports   []string // port mappings, e.g. "5432:5432"
+	Volumes []string // volume mounts, e.g. "/var/run/docker.sock:/var/run/docker.sock"
 	Env     []string // env vars, e.g. "KEY=VALUE"
 	EnvFile string
 	Restart string // "no", "always", "on-failure"
@@ -211,6 +213,7 @@ func (m *Manager) Run(ctx context.Context, opts RunOptions) (*Daemon, error) {
 		Cmd:       opts.Cmd,
 		Image:     opts.Image,
 		Ports:     opts.Ports,
+		Volumes:   opts.Volumes,
 		EnvVars:   env,
 		Restart:   opts.Restart,
 		Status:    StatusRunning,
@@ -281,6 +284,9 @@ func (m *Manager) startDocker(ctx context.Context, d *Daemon) error {
 
 	for _, p := range d.Ports {
 		args = append(args, "-p", p)
+	}
+	for _, v := range d.Volumes {
+		args = append(args, "-v", v)
 	}
 	for _, e := range d.EnvVars {
 		args = append(args, "-e", e)
@@ -357,6 +363,7 @@ func (m *Manager) Restart(ctx context.Context, name string) (*Daemon, error) {
 		Cmd:     d.Cmd,
 		Image:   d.Image,
 		Ports:   d.Ports,
+		Volumes: d.Volumes,
 		Env:     d.EnvVars,
 		Restart: d.Restart,
 		Detach:  true,

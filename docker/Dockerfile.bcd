@@ -19,9 +19,11 @@ RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /bcd ./cmd/bcd
 
 FROM ubuntu:24.04
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates tmux git && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates tmux git docker.io && \
     rm -rf /var/lib/apt/lists/*
 COPY --from=go-builder /bcd /usr/local/bin/bcd
+# Mount host Docker socket at runtime: -v /var/run/docker.sock:/var/run/docker.sock
 EXPOSE 9374
 ENTRYPOINT ["bcd"]
 CMD ["--addr", "0.0.0.0:9374"]
