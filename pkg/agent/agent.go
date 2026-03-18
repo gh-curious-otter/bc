@@ -731,6 +731,12 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 			return nil, fmt.Errorf("failed to recreate tmux session: %w", err)
 		}
 
+		// Refresh role CLAUDE.md in auth dir (mounted as ~/.claude/CLAUDE.md in Docker)
+		// so Claude Code auto-loads updated role instructions on restart.
+		if mem := LoadRoleMemory(wsPath, existing.Role); mem != nil && mem.RolePrompt != "" {
+			m.writeRoleCLAUDEMD(name, mem.RolePrompt)
+		}
+
 		// Resume log streaming if log file was set
 		if existing.LogFile != "" {
 			truncateLogFile(existing.LogFile, config.Logs.MaxBytes)
@@ -884,6 +890,12 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 
 	// Load role prompt from prompts/<role>.md
 	agent.RolePrompt = LoadRoleMemory(wsPath, role)
+
+	// Write role CLAUDE.md to agent auth dir — mounted as /home/agent/.claude/CLAUDE.md
+	// inside Docker containers so Claude Code auto-loads it as user instructions.
+	if agent.RolePrompt != nil && agent.RolePrompt.RolePrompt != "" {
+		m.writeRoleCLAUDEMD(name, agent.RolePrompt.RolePrompt)
+	}
 
 	// Update state
 	agent.State = StateIdle
@@ -1801,6 +1813,22 @@ func (m *Manager) Close() error {
 		return m.store.Close()
 	}
 	return nil
+}
+
+// writeRoleCLAUDEMD writes the role prompt to the agent's auth CLAUDE.md.
+// The auth dir is mounted as /home/agent/.claude/ inside Docker containers,
+// so this file appears at ~/.claude/CLAUDE.md which Claude Code auto-loads
+// as global user instructions alongside the project CLAUDE.md.
+func (m *Manager) writeRoleCLAUDEMD(name, rolePrompt string) {
+	claudeMDDir := filepath.Join(m.stateDir, name, "auth", ".claude")
+	if err := os.MkdirAll(claudeMDDir, 0700); err != nil {
+		log.Debug("failed to create auth claude dir", "agent", name, "error", err)
+		return
+	}
+	claudeMDPath := filepath.Join(claudeMDDir, "CLAUDE.md")
+	if err := os.WriteFile(claudeMDPath, []byte(rolePrompt), 0600); err != nil {
+		log.Debug("failed to write role CLAUDE.md", "agent", name, "error", err)
+	}
 }
 
 // enforceRootSingleton checks if a root agent can be spawned.
