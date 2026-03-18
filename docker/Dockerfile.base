@@ -5,11 +5,18 @@ FROM ubuntu:24.04
 
 ENV GOVERSION=1.24.1
 ENV PATH=/usr/local/go/bin:/root/go/bin:/home/agent/go/bin:$PATH
+ENV TERM=xterm-256color
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+ENV COLORTERM=truecolor
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         git curl ca-certificates openssh-client gh tmux \
-        gcc libc6-dev make sqlite3 jq unzip && \
+        gcc libc6-dev make sqlite3 jq unzip \
+        locales ncurses-term && \
+    sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen en_US.UTF-8 && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Go (arch-aware)

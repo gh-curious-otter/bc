@@ -32,7 +32,10 @@ func AgentAuthTokenFile(workspaceDir, agentName string) string {
 
 // EnsureAuthDir creates the per-agent auth directories and seeds credentials
 // from the host on first use so agents start pre-authenticated.
+// The workspaceName is filepath.Base(workspaceDir) — used to pre-create
+// Claude's project trust directory for the agent's worktree path.
 func EnsureAuthDir(workspaceDir, agentName string) (string, error) {
+	workspaceName := filepath.Base(workspaceDir)
 	dir := AgentAuthDir(workspaceDir, agentName)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return "", fmt.Errorf("failed to create agent auth dir: %w", err)
@@ -43,6 +46,9 @@ func EnsureAuthDir(workspaceDir, agentName string) (string, error) {
 	if _, err := os.Stat(tokenFile); os.IsNotExist(err) {
 		seedAuthFromHost(filepath.Dir(dir)) // pass auth/ parent so seeding writes to correct locations
 	}
+
+	// Pre-create project trust directories so the workspace trust prompt is skipped.
+	ensureProjectTrust(dir, workspaceName, agentName)
 
 	return dir, nil
 }
@@ -81,6 +87,13 @@ func seedAuthFromHost(parentDir string) {
 		if writeErr := os.WriteFile(dst, data, 0600); writeErr != nil {
 			log.Debug("failed to seed auth file", "file", name, "error", writeErr)
 		}
+	}
+
+	// Write default settings.json if not seeded from host — skips theme picker
+	// and permission prompts so agents start directly without interaction.
+	settingsPath := filepath.Join(agentClaudeDir, "settings.json")
+	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
+		writeDefaultSettings(settingsPath)
 	}
 
 	log.Debug("seeded agent auth from host credentials", "auth_dir", parentDir)
@@ -142,6 +155,50 @@ func LoginIfNeeded(ctx context.Context, workspaceDir, agentName string) error {
 
 	fmt.Printf("Agent %q needs authentication. Opening browser for login...\n", agentName)
 	return Login(ctx, workspaceDir, agentName)
+}
+
+// writeDefaultSettings creates a settings.json that pre-configures Claude Code
+// so agents skip interactive prompts and start working immediately.
+func writeDefaultSettings(path string) {
+	settings := map[string]any{
+		// UI — skip theme picker, use dark mode
+		"theme": "dark",
+		// Permissions — agents run with --dangerously-skip-permissions,
+		// this suppresses the confirmation prompt for that mode
+		"skipDangerousModePermissionPrompt": true,
+		// Auto-update — disabled inside containers (image controls version)
+		"autoUpdaterStatus": "disabled",
+		// Verbose tool output — helps with debugging agent actions
+		"verbose": false,
+	}
+	data, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return
+	}
+	if writeErr := os.WriteFile(path, data, 0600); writeErr != nil {
+		log.Debug("failed to write default settings", "error", writeErr)
+	}
+}
+
+// ensureProjectTrust pre-creates Claude's per-project directory so the workspace
+// trust prompt is skipped on agent start. Claude encodes directory paths by
+// replacing / with - (e.g., /workspace/.claude/worktrees/bc-myproj-eng-01
+// becomes -workspace--claude-worktrees-bc-myproj-eng-01).
+func ensureProjectTrust(claudeDir, workspaceName, agentName string) {
+	projectsDir := filepath.Join(claudeDir, "projects")
+
+	// The agent's worktree inside Docker is at:
+	//   /workspace/.claude/worktrees/bc-<workspaceName>-<agentName>
+	// Claude encodes this as:
+	//   -workspace--claude-worktrees-bc-<workspaceName>-<agentName>
+	worktreeName := "bc-" + workspaceName + "-" + agentName
+	encodedPath := "-workspace--claude-worktrees-" + worktreeName
+
+	// Also trust /workspace itself (root of the mounted workspace)
+	for _, p := range []string{"-workspace", encodedPath} {
+		dir := filepath.Join(projectsDir, p)
+		_ = os.MkdirAll(dir, 0700) //nolint:errcheck // best-effort
+	}
 }
 
 // authEnv returns environment variables with HOME set to the auth parent dir,

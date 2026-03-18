@@ -910,19 +910,37 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 
 	// Send bootstrap prompt asynchronously (like respawn path at line 656)
 	// to avoid holding m.mu during the blocking sleep.
-	if len(promptParts) > 0 {
+	{
 		bootstrapName := name
 		bootstrapWorkspace := wsPath
 		bootstrapParts := make([]string, len(promptParts))
 		copy(bootstrapParts, promptParts)
-		bootstrapDelay := m.getBootstrapDelay()
-
 		go func() {
-			time.Sleep(bootstrapDelay)
-			prompt := strings.Join(bootstrapParts, "\n\n---\n\n")
-			prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nAgent ID: %s\n", bootstrapWorkspace, bootstrapName)
-			if err := m.runtimeForAgent(name).SendKeys(context.TODO(), bootstrapName, prompt); err != nil {
-				log.Warn("failed to send bootstrap prompt", "agent", bootstrapName, "error", err)
+			// Wait for the agent's TUI to fully initialize (worktree creation,
+			// trust dialog render). Docker + tmux + claude startup takes ~10s.
+			time.Sleep(10 * time.Second)
+
+			// Auto-confirm interactive prompts (workspace trust dialog, theme picker)
+			// by sending Enter. Claude pre-selects "Yes, I trust" and "Dark mode"
+			// so Enter confirms the defaults. Send a few times with delays to catch
+			// any multi-step onboarding prompts.
+			rt := m.runtimeForAgent(bootstrapName)
+			for range 3 {
+				if err := rt.SendKeys(context.TODO(), bootstrapName, ""); err != nil {
+					log.Debug("pre-bootstrap Enter failed", "agent", bootstrapName, "error", err)
+					break // tmux not ready yet, stop trying
+				}
+				time.Sleep(3 * time.Second)
+			}
+
+			// Then send the actual bootstrap prompt if we have role instructions
+			if len(bootstrapParts) > 0 {
+				time.Sleep(3 * time.Second)
+				prompt := strings.Join(bootstrapParts, "\n\n---\n\n")
+				prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nAgent ID: %s\n", bootstrapWorkspace, bootstrapName)
+				if err := rt.SendKeys(context.TODO(), bootstrapName, prompt); err != nil {
+					log.Warn("failed to send bootstrap prompt", "agent", bootstrapName, "error", err)
+				}
 			}
 		}()
 	}
