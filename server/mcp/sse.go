@@ -166,6 +166,14 @@ func (b *SSEBroker) handleSSE(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// MountOn registers MCP SSE endpoints on an existing ServeMux under the given prefix.
+// This allows embedding the MCP server into bcd's HTTP server.
+func MountOn(mux *http.ServeMux, srv *Server, prefix string) {
+	broker := NewSSEBroker()
+	mux.HandleFunc(prefix+"/sse", broker.handleSSE)
+	mux.HandleFunc(prefix+"/message", srv.HandleSSEMessage(context.Background(), broker))
+}
+
 // LocalhostAddr rewrites a bare ":port" address to "127.0.0.1:port".
 // Explicit host addresses (e.g. "0.0.0.0:8811") are returned unchanged so
 // callers that deliberately want to bind all interfaces can still do so.

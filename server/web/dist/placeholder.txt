@@ -1,2 +1,0 @@
-This directory is a placeholder for the compiled web UI (web/dist/).
-Run `make build-web` to populate it with the actual static files.

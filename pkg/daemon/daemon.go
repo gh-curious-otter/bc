@@ -271,13 +271,13 @@ func (m *Manager) startDocker(ctx context.Context, d *Daemon) error {
 	//nolint:gosec // trusted binary
 	_ = exec.CommandContext(ctx, "docker", "rm", "-f", cn).Run() //nolint:errcheck // best-effort cleanup
 
-	args := []string{
-		"run", "--rm", "-d",
+	args := []string{"run", "-d"}
+	args = append(args,
 		"--name", cn,
 		"--label", "bc.daemon=true",
-		"--label", "bc.workspace=" + m.workspaceHash,
-		"--label", "bc.daemon.name=" + d.Name,
-	}
+		"--label", "bc.workspace="+m.workspaceHash,
+		"--label", "bc.daemon.name="+d.Name,
+	)
 
 	for _, p := range d.Ports {
 		args = append(args, "-p", p)
@@ -295,9 +295,9 @@ func (m *Manager) startDocker(ctx context.Context, d *Daemon) error {
 
 	//nolint:gosec // args constructed from internal values
 	cmd := exec.CommandContext(ctx, "docker", args...)
-	out, err := cmd.Output()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("docker run: %w", err)
+		return fmt.Errorf("docker run: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
 	d.ContainerID = strings.TrimSpace(string(out))
 

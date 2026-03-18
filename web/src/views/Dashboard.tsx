@@ -28,7 +28,7 @@ export function Dashboard() {
       api.listChannels(),
       api.getCostSummary(),
     ]);
-    return { agents: agentsRes.agents, channels: channelsRes.channels, costs };
+    return { agents: agentsRes, channels: channelsRes, costs };
   }, []);
 
   const { data, loading, error } = usePolling(fetcher, 5000);
@@ -50,8 +50,8 @@ export function Dashboard() {
       <div className="grid grid-cols-4 gap-4">
         <Card label="Active Agents" value={String(activeAgents.length)} sub={`${data.agents.length} total`} />
         <Card label="Channels" value={String(data.channels.length)} />
-        <Card label="Today" value={`$${data.costs.today_cost.toFixed(2)}`} />
-        <Card label="This Month" value={`$${data.costs.month_cost.toFixed(2)}`} sub={`$${data.costs.all_time_cost.toFixed(2)} all-time`} />
+        <Card label="Total Cost" value={`$${data.costs.total_cost_usd.toFixed(2)}`} />
+        <Card label="Tokens" value={String(data.costs.total_tokens)} sub={`${data.costs.record_count} records`} />
       </div>
 
       <section>
