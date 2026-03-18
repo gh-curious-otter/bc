@@ -77,6 +77,13 @@ export interface KeybindingConfig {
 
 /** Default global view shortcuts (uppercase = view navigation) */
 export const DEFAULT_VIEW_SHORTCUTS: Record<string, View> = {
+  'D': 'dashboard',
+  'A': 'agents',
+  'C': 'channels',
+  'L': 'logs',
+  'M': 'mcp',
+  'S': 'secrets',
+  'P': 'processes',
 };
 
 /** Default number key mappings */
@@ -89,6 +96,9 @@ export const DEFAULT_VIEW_NUMBERS: Record<string, View> = {
   '6': 'logs',
   '7': 'worktrees',
   '8': 'tools',
+  '9': 'mcp',
+  '0': 'secrets',
+  '-': 'processes',
 };
 
 /** Status bar hint for a keybinding */

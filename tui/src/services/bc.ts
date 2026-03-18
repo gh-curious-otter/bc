@@ -733,6 +733,79 @@ export async function getToolList(): Promise<ToolInfo[]> {
 }
 
 // ============================================================================
+// MCP Server Commands (#1927 - MCP View)
+// ============================================================================
+
+export interface MCPServer {
+  name: string;
+  transport: string;
+  command?: string;
+  url?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  enabled: boolean;
+}
+
+/**
+ * Get MCP server list
+ */
+export async function getMCPList(): Promise<MCPServer[]> {
+  try {
+    const result = await execBcJsonCached<{ servers: MCPServer[] }>(['mcp', 'list'], 30000);
+    return result.servers ?? [];
+  } catch {
+    return [];
+  }
+}
+
+// ============================================================================
+// Secret Commands (#1927 - Secrets View)
+// ============================================================================
+
+export interface SecretMeta {
+  name: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Get secret list (metadata only, no values)
+ */
+export async function getSecretList(): Promise<SecretMeta[]> {
+  try {
+    const result = await execBcJsonCached<{ secrets: SecretMeta[] }>(['secret', 'list'], 30000);
+    return result.secrets ?? [];
+  } catch {
+    return [];
+  }
+}
+
+// ============================================================================
+// Process Commands (#1927 - Processes View)
+// ============================================================================
+
+export interface ProcessInfo {
+  name: string;
+  command: string;
+  status: string;
+  pid?: number;
+  started_at?: string;
+}
+
+/**
+ * Get process list
+ */
+export async function getProcessList(): Promise<ProcessInfo[]> {
+  try {
+    const result = await execBcJsonCached<{ processes: ProcessInfo[] }>(['process', 'list'], 30000);
+    return result.processes ?? [];
+  } catch {
+    return [];
+  }
+}
+
+// ============================================================================
 // GitHub Issue Commands (#1754 - Issues View)
 // ============================================================================
 
