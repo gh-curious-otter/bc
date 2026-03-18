@@ -996,3 +996,37 @@ func TestRoleManager_HasRoleDisk(t *testing.T) {
 		t.Error("HasRole should return false for nonexistent role")
 	}
 }
+
+func TestParseRoleFile_WithPlugins(t *testing.T) {
+	content := `---
+name: feature-dev
+plugins:
+  - feature-dev
+  - github
+  - typescript-lsp
+---
+
+# Feature Developer
+
+You are a feature developer agent.
+`
+
+	role, err := ParseRoleFile([]byte(content))
+	if err != nil {
+		t.Fatalf("ParseRoleFile failed: %v", err)
+	}
+
+	if role.Metadata.Name != "feature-dev" {
+		t.Errorf("Name = %q, want %q", role.Metadata.Name, "feature-dev")
+	}
+
+	wantPlugins := []string{"feature-dev", "github", "typescript-lsp"}
+	if len(role.Metadata.Plugins) != len(wantPlugins) {
+		t.Errorf("Plugins len = %d, want %d", len(role.Metadata.Plugins), len(wantPlugins))
+	}
+	for i, p := range wantPlugins {
+		if i < len(role.Metadata.Plugins) && role.Metadata.Plugins[i] != p {
+			t.Errorf("Plugins[%d] = %q, want %q", i, role.Metadata.Plugins[i], p)
+		}
+	}
+}
