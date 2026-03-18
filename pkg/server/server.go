@@ -48,8 +48,9 @@ type Config struct {
 }
 
 // DefaultConfig returns the default server configuration.
+// The default address is localhost-only to prevent unintended network exposure.
 func DefaultConfig() Config {
-	return Config{Addr: ":4880"}
+	return Config{Addr: "127.0.0.1:4880"}
 }
 
 // New creates a new bcd server.
@@ -61,7 +62,7 @@ func New(
 	ws *workspace.Workspace,
 ) *Server {
 	if cfg.Addr == "" {
-		cfg.Addr = ":4880"
+		cfg.Addr = "127.0.0.1:4880"
 	}
 
 	s := &Server{

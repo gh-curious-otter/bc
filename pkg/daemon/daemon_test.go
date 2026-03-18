@@ -140,6 +140,43 @@ func TestReadEnvFile(t *testing.T) {
 	}
 }
 
+func TestIsValidDaemonName(t *testing.T) {
+	valid := []string{"db", "my-db", "my_db", "DB01", "a", strings.Repeat("a", 63)}
+	for _, name := range valid {
+		if !isValidDaemonName(name) {
+			t.Errorf("isValidDaemonName(%q) = false, want true", name)
+		}
+	}
+
+	invalid := []string{"", "has space", "has/slash", "has.dot", "../escape", strings.Repeat("a", 64)}
+	for _, name := range invalid {
+		if isValidDaemonName(name) {
+			t.Errorf("isValidDaemonName(%q) = true, want false", name)
+		}
+	}
+}
+
+func TestRunRejectsInvalidName(t *testing.T) {
+	dir := t.TempDir()
+	mgr, err := NewManager(dir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	defer func() { _ = mgr.Close() }()
+
+	_, err = mgr.Run(context.Background(), RunOptions{
+		Name:    "bad name!",
+		Runtime: RuntimeBash,
+		Cmd:     "echo hi",
+	})
+	if err == nil {
+		t.Fatal("expected validation error for invalid name")
+	}
+	if !strings.Contains(err.Error(), "invalid daemon name") {
+		t.Errorf("error %q should mention invalid daemon name", err.Error())
+	}
+}
+
 func TestNullStr(t *testing.T) {
 	if nullStr("") != nil {
 		t.Error("nullStr(\"\") should return nil")

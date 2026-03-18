@@ -147,10 +147,31 @@ func (m *Manager) initSchema() error {
 	return err
 }
 
+// isValidDaemonName returns true if name contains only safe characters.
+// Allows lowercase/uppercase letters, digits, hyphens, and underscores.
+// This prevents shell injection via tmux session names and Docker container names.
+func isValidDaemonName(name string) bool {
+	if name == "" || len(name) > 63 {
+		return false
+	}
+	for _, c := range name {
+		isLower := c >= 'a' && c <= 'z'
+		isUpper := c >= 'A' && c <= 'Z'
+		isDigit := c >= '0' && c <= '9'
+		if !isLower && !isUpper && !isDigit && c != '-' && c != '_' {
+			return false
+		}
+	}
+	return true
+}
+
 // Run starts a new daemon or restarts an existing stopped one.
 func (m *Manager) Run(ctx context.Context, opts RunOptions) (*Daemon, error) {
 	if opts.Name == "" {
 		return nil, fmt.Errorf("daemon name is required")
+	}
+	if !isValidDaemonName(opts.Name) {
+		return nil, fmt.Errorf("invalid daemon name %q: use only letters, digits, hyphens, underscores (max 63 chars)", opts.Name)
 	}
 	if opts.Runtime != RuntimeBash && opts.Runtime != RuntimeDocker {
 		return nil, fmt.Errorf("runtime must be %q or %q", RuntimeBash, RuntimeDocker)
@@ -360,6 +381,8 @@ func (m *Manager) Remove(ctx context.Context, name string) error {
 }
 
 // List returns all daemons.
+// syncStatus writes are deferred until after rows are fully consumed to
+// avoid a deadlock on SQLite's single-writer connection.
 func (m *Manager) List(ctx context.Context) ([]*Daemon, error) {
 	rows, err := m.db.QueryContext(ctx, `
 		SELECT name, runtime, cmd, image, status, pid, container_id,
@@ -368,19 +391,30 @@ func (m *Manager) List(ctx context.Context) ([]*Daemon, error) {
 	if err != nil {
 		return nil, fmt.Errorf("query daemons: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
 
+	// Collect all rows before closing — syncStatus does DB writes and must
+	// not run while the read query is still open on SQLite's single connection.
 	var daemons []*Daemon
 	for rows.Next() {
 		d, err := scanDaemon(rows)
 		if err != nil {
+			_ = rows.Close()
 			return nil, err
 		}
-		// Sync running state with actual process
-		m.syncStatus(ctx, d)
 		daemons = append(daemons, d)
 	}
-	return daemons, rows.Err()
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("close rows: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Now safe to write: reconcile live process state with DB records.
+	for _, d := range daemons {
+		m.syncStatus(ctx, d)
+	}
+	return daemons, nil
 }
 
 // Get returns a daemon by name or nil if not found.
