@@ -1,4 +1,4 @@
-.PHONY: dev build build-release build-all clean gen test coverage bench fmt vet lint check deps help version build-tui test-tui lint-tui build-web build-bcd build-bcd-image build-bcdb-image build-server-images build-agent-base build-agent-image build-agent-images build-landing dev-landing
+.PHONY: dev build build-release build-all clean gen test coverage bench fmt vet lint check deps help version build-tui test-tui lint-tui build-web build-bcd-image build-bcdb-image build-server-images build-agent-base build-agent-image build-agent-images build-landing dev-landing
 
 # Version information
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -36,7 +36,7 @@ help:
 	@echo ""
 	@echo "Server targets:"
 	@echo "  build-web     - Build React web UI (cd web && bun run build)"
-	@echo "  build-bcd     - Build bcd server binary (embeds web UI)"
+	@echo "      - Build bcd server binary (embeds web UI)"
 	@echo ""
 	@echo "Landing page targets:"
 	@echo "  build-landing - Build static landing page to landing/dist/"
@@ -70,11 +70,6 @@ build-web:
 	@rm -rf server/web/dist
 	@cp -r web/dist server/web/dist
 	@echo "Web UI copied to server/web/dist/ for embedding"
-
-build-bcd: gen build-web
-	@echo "Building bcd server (with embedded web UI)..."
-	@mkdir -p $(BUILD_DIR)
-	go build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bcd ./cmd/bcd
 
 build-release: gen
 	@mkdir -p $(BUILD_DIR)
