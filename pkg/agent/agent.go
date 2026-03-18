@@ -504,7 +504,8 @@ func defaultAgentCmd() (string, string) {
 }
 
 // getAgentCommand looks up the command for a tool from the manager's provider registry.
-func (m *Manager) getAgentCommand(toolName, agentName string, resume bool) (string, bool) {
+// SessionID takes priority over the resume flag when non-empty.
+func (m *Manager) getAgentCommand(toolName, agentName string, resume bool, sessionID string) (string, bool) {
 	if m.providerRegistry != nil {
 		if p, ok := m.providerRegistry.Get(toolName); ok {
 			wsName := filepath.Base(m.workspacePath)
@@ -512,6 +513,7 @@ func (m *Manager) getAgentCommand(toolName, agentName string, resume bool) (stri
 				AgentName:     agentName,
 				WorkspaceName: wsName,
 				Resume:        resume,
+				SessionID:     sessionID,
 			}), true
 		}
 	}
@@ -610,6 +612,7 @@ type SpawnOptions struct {
 	EnvFile   string
 	Runtime   string // override runtime backend ("tmux" or "docker"); empty uses manager default
 	Fresh     bool   // Force new session (ignore session_id)
+	SessionID string // Explicit session ID to resume (overrides stored session_id)
 }
 
 // SpawnAgent creates and starts a new agent.
@@ -692,9 +695,16 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		// Existing agent = `bc agent start` = resume previous session.
 		// The auth dir persists across restarts so --continue finds the prior conversation.
 		// --fresh overrides this and forces a new session.
+		// Session ID priority: explicit --resume flag > stored session_id > --continue.
 		resume := !opts.Fresh
+		sessionID := existing.SessionID
 		if opts.Fresh {
 			existing.SessionID = ""
+			sessionID = ""
+		}
+		if opts.SessionID != "" {
+			sessionID = opts.SessionID
+			existing.SessionID = sessionID
 		}
 		toolName := existing.Tool
 		if toolName == "" {
@@ -702,7 +712,7 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		}
 		agentCmd := m.agentCmd
 		if toolName != "" {
-			if cmd, ok := m.getAgentCommand(toolName, name, resume); ok {
+			if cmd, ok := m.getAgentCommand(toolName, name, resume, sessionID); ok {
 				agentCmd = cmd
 			}
 		}
@@ -778,16 +788,16 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		}
 	}
 
-	// Determine the command to use (fresh create — no resume)
+	// Determine the command to use (fresh create — no resume, no session ID)
 	agentCmd := m.agentCmd
 	if tool != "" {
-		if cmd, ok := m.getAgentCommand(tool, name, false); ok {
+		if cmd, ok := m.getAgentCommand(tool, name, false, ""); ok {
 			agentCmd = cmd
 		} else {
 			return nil, fmt.Errorf("unknown tool %q, available tools: %v", tool, m.listAvailableTools())
 		}
 	} else if m.defaultTool != "" {
-		if cmd, ok := m.getAgentCommand(m.defaultTool, name, false); ok {
+		if cmd, ok := m.getAgentCommand(m.defaultTool, name, false, ""); ok {
 			agentCmd = cmd
 		}
 	}
@@ -1130,6 +1140,89 @@ func (m *Manager) removeFromParent(name string) {
 	parent.UpdatedAt = time.Now()
 }
 
+// captureSessionIDLocked reads the agent's pane output and extracts the provider
+// session ID (e.g. Claude's "claude --resume <uuid>" line).
+// Must be called while holding m.mu (any variant).
+// Returns "" if the tool does not support resume or no session ID is found.
+func (m *Manager) captureSessionIDLocked(name string) string {
+	ag, exists := m.agents[name]
+	if !exists {
+		return ""
+	}
+
+	toolName := ag.Tool
+	if toolName == "" {
+		toolName = m.defaultTool
+	}
+	if m.providerRegistry == nil {
+		return ""
+	}
+	p, ok := m.providerRegistry.Get(toolName)
+	if !ok {
+		return ""
+	}
+	sr, ok := p.(provider.SessionResumer)
+	if !ok || !sr.SupportsResume() {
+		return ""
+	}
+
+	// Capture pane output without acquiring the lock (already held).
+	// Read from log file first; fall back to runtime capture.
+	var output string
+	if ag.LogFile != "" {
+		data, err := os.ReadFile(ag.LogFile) //nolint:gosec // trusted path
+		if err == nil {
+			output = string(data)
+		}
+	}
+	if output == "" {
+		var captureErr error
+		output, captureErr = m.runtimeForAgent(name).Capture(context.TODO(), name, 100)
+		if captureErr != nil {
+			log.Debug("failed to capture pane for session ID", "agent", name, "error", captureErr)
+			return ""
+		}
+	}
+
+	return sr.ParseSessionID(output)
+}
+
+// writeSessionIDFile persists the session ID to a plain-text file and archives
+// it in the session history directory alongside a timestamp.
+// Permissions are 0600 (session IDs may grant conversation access).
+func writeSessionIDFile(stateDir, agentName, sessionID string) {
+	agentDir := filepath.Join(stateDir, "agents", agentName)
+	if err := os.MkdirAll(agentDir, 0750); err != nil {
+		log.Warn("failed to create agent dir for session_id", "error", err)
+		return
+	}
+
+	sessionFile := filepath.Join(agentDir, "session_id")
+	if err := os.WriteFile(sessionFile, []byte(sessionID+"\n"), 0600); err != nil {
+		log.Warn("failed to write session_id file", "agent", agentName, "error", err)
+		return
+	}
+
+	// Archive to session_history/ with a timestamp name.
+	histDir := filepath.Join(agentDir, "session_history")
+	if err := os.MkdirAll(histDir, 0750); err != nil {
+		return
+	}
+	stamp := time.Now().UTC().Format("2006-01-02T15:04:05")
+	histFile := filepath.Join(histDir, stamp+".txt")
+	_ = os.WriteFile(histFile, []byte(sessionID+"\n"), 0600) //nolint:errcheck // best-effort history
+}
+
+// readSessionIDFile reads the persisted session ID for an agent, returning "" if absent.
+func readSessionIDFile(stateDir, agentName string) string {
+	path := filepath.Join(stateDir, "agents", agentName, "session_id")
+	data, err := os.ReadFile(path) //nolint:gosec // trusted path
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
 // StopAgent stops an agent.
 func (m *Manager) StopAgent(name string) error {
 	m.mu.Lock()
@@ -1141,6 +1234,13 @@ func (m *Manager) StopAgent(name string) error {
 	if !exists {
 		log.Warn("agent not found", "name", name)
 		return fmt.Errorf("agent %s not found", name)
+	}
+
+	// Capture session ID from output before killing the session.
+	if sessionID := m.captureSessionIDLocked(name); sessionID != "" {
+		agent.SessionID = sessionID
+		writeSessionIDFile(m.stateDir, name, sessionID)
+		log.Debug("captured session ID on stop", "agent", name, "session_id", sessionID)
 	}
 
 	// Kill tmux session (ignore error - session might already be dead)

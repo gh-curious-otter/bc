@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -242,6 +243,24 @@ Examples:
 
 // agentHealthCmd is defined in agent_health.go (issue #1648)
 
+// agentSessionsCmd lists session history for an agent
+var agentSessionsCmd = &cobra.Command{
+	Use:   "sessions <agent>",
+	Short: "List session history for an agent",
+	Long: `Show stored session IDs for an agent.
+
+The current session ID (if captured) is listed first, followed by archived
+session IDs from previous runs.
+
+Examples:
+  bc agent sessions eng-01       # List session IDs
+  bc agent sessions eng-01 --json`,
+	Args: cobra.ExactArgs(1),
+	RunE: runAgentSessions,
+}
+
+var agentSessionsJSON bool
+
 // agentBroadcastCmd sends a message to all running agents
 var agentBroadcastCmd = &cobra.Command{
 	Use:   "broadcast <message>",
@@ -295,6 +314,7 @@ var (
 	agentCreateRuntime string
 	agentStartRuntime  string
 	agentStartFresh    bool
+	agentStartResume   string // explicit session ID to resume
 	agentListRole      string
 	agentListStatus    string
 	agentListJSON      bool
@@ -355,6 +375,10 @@ func init() {
 	// Start flags
 	agentStartCmd.Flags().StringVar(&agentStartRuntime, "runtime", "", "Runtime backend override: tmux or docker")
 	agentStartCmd.Flags().BoolVar(&agentStartFresh, "fresh", false, "Force new session (ignore saved session)")
+	agentStartCmd.Flags().StringVar(&agentStartResume, "resume", "", "Resume a specific session by ID (e.g. --resume cc78cadf-89ce-4820-ab6e-950afd2b6838)")
+
+	// Sessions flags
+	agentSessionsCmd.Flags().BoolVar(&agentSessionsJSON, "json", false, "Output as JSON")
 
 	// Add shell completion for agent name arguments
 	agentAttachCmd.ValidArgsFunction = CompleteAgentNames
@@ -365,6 +389,7 @@ func init() {
 	agentSendCmd.ValidArgsFunction = CompleteAgentNames
 	agentDeleteCmd.ValidArgsFunction = CompleteAgentNames
 	agentRenameCmd.ValidArgsFunction = CompleteAgentNames
+	agentSessionsCmd.ValidArgsFunction = CompleteAgentNames
 
 	// Add subcommands
 	agentCmd.AddCommand(agentCreateCmd)
@@ -378,6 +403,7 @@ func init() {
 	agentCmd.AddCommand(agentDeleteCmd)
 	agentCmd.AddCommand(agentRenameCmd)
 	agentCmd.AddCommand(agentHealthCmd)
+	agentCmd.AddCommand(agentSessionsCmd)
 	agentCmd.AddCommand(agentBroadcastCmd)
 	agentCmd.AddCommand(agentSendRoleCmd)
 	agentCmd.AddCommand(agentSendPatternCmd)
@@ -796,9 +822,16 @@ func runAgentStart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("agent %q is already running (state: %s). Stop it first with: bc agent stop %s", agentName, a.State, agentName)
 	}
 
-	if agentStartFresh {
+	if agentStartFresh && agentStartResume != "" {
+		return fmt.Errorf("--fresh and --resume are mutually exclusive")
+	}
+
+	switch {
+	case agentStartFresh:
 		fmt.Printf("Starting %s (%s) with fresh session... ", agentName, a.Role)
-	} else {
+	case agentStartResume != "":
+		fmt.Printf("Starting %s (%s) resuming session %s... ", agentName, a.Role, agentStartResume)
+	default:
 		fmt.Printf("Starting %s (%s)... ", agentName, a.Role)
 	}
 	// SpawnAgentWithOptions will detect the stopped state and resurrect it
@@ -811,6 +844,7 @@ func runAgentStart(cmd *cobra.Command, args []string) error {
 		EnvFile:   a.EnvFile,
 		Runtime:   agentStartRuntime,
 		Fresh:     agentStartFresh,
+		SessionID: agentStartResume,
 	})
 	if spawnErr != nil {
 		fmt.Println("✗")
@@ -1695,4 +1729,95 @@ Usage:
 		// Run login
 		return container.LoginIfNeeded(cmd.Context(), ws.RootDir, agentName)
 	},
+}
+
+func runAgentSessions(cmd *cobra.Command, args []string) error {
+	agentName := args[0]
+
+	ws, err := getWorkspace()
+	if err != nil {
+		return errNotInWorkspace(err)
+	}
+
+	mgr := newAgentManager(ws)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+
+	a := mgr.GetAgent(agentName)
+	if a == nil {
+		return fmt.Errorf("agent %q not found", agentName)
+	}
+
+	type sessionEntry struct {
+		ID        string    `json:"id"`
+		Timestamp time.Time `json:"timestamp,omitempty"`
+		Current   bool      `json:"current,omitempty"`
+	}
+
+	var entries []sessionEntry
+
+	// Current stored session ID from state DB
+	if a.SessionID != "" {
+		entries = append(entries, sessionEntry{ID: a.SessionID, Current: true})
+	}
+
+	// Session history files from .bc/agents/<name>/session_history/
+	histDir := filepath.Join(ws.StateDir(), "agents", agentName, "session_history")
+	files, readErr := os.ReadDir(histDir)
+	if readErr == nil {
+		// Sort descending (newest first)
+		sort.Slice(files, func(i, j int) bool {
+			return files[i].Name() > files[j].Name()
+		})
+		for _, f := range files {
+			if f.IsDir() {
+				continue
+			}
+			data, readFileErr := os.ReadFile(filepath.Join(histDir, f.Name())) //nolint:gosec // trusted path
+			if readFileErr != nil {
+				continue
+			}
+			id := strings.TrimSpace(string(data))
+			if id == "" || id == a.SessionID {
+				continue // skip duplicates
+			}
+			// Parse timestamp from filename (2006-01-02T15:04:05.txt)
+			name := strings.TrimSuffix(f.Name(), ".txt")
+			ts, parseErr := time.Parse("2006-01-02T15:04:05", name)
+			entry := sessionEntry{ID: id}
+			if parseErr == nil {
+				entry.Timestamp = ts
+			}
+			entries = append(entries, entry)
+		}
+	}
+
+	if agentSessionsJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(entries)
+	}
+
+	if len(entries) == 0 {
+		fmt.Printf("No session IDs stored for agent %s.\n", agentName)
+		fmt.Printf("Session IDs are captured automatically when the agent stops.\n")
+		return nil
+	}
+
+	fmt.Printf("Sessions for %s:\n\n", agentName)
+	for _, e := range entries {
+		current := ""
+		if e.Current {
+			current = " " + ui.GreenText("(current)")
+		}
+		ts := ""
+		if !e.Timestamp.IsZero() {
+			ts = "  " + ui.DimText(e.Timestamp.Format("2006-01-02 15:04:05"))
+		}
+		fmt.Printf("  %s%s%s\n", e.ID, current, ts)
+	}
+	fmt.Printf("\nResume a session: bc agent start %s --resume <id>\n", agentName)
+
+	return nil
 }

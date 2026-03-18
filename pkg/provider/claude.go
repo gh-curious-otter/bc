@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"regexp"
 	"strings"
 )
 
@@ -52,6 +53,7 @@ func (p *ClaudeProvider) InstallHint() string {
 // BuildCommand returns the full command for a given runtime context.
 // Uses -w bc-<workspace>-<agent> for unique worktree names across workspaces
 // to avoid branch collisions with other Claude Code sessions.
+// Resume priority: SessionID (--resume <id>) > Resume flag (--continue).
 func (p *ClaudeProvider) BuildCommand(opts CommandOpts) string {
 	cmd := p.command
 	if opts.AgentName != "" {
@@ -61,7 +63,12 @@ func (p *ClaudeProvider) BuildCommand(opts CommandOpts) string {
 		}
 		cmd = "claude -w " + worktreeName + " " + strings.TrimPrefix(cmd, "claude")
 	}
-	if opts.Resume {
+	switch {
+	case opts.SessionID != "":
+		// Explicit session ID — resume that exact conversation.
+		cmd += " --resume " + opts.SessionID
+	case opts.Resume:
+		// Generic resume — pick up the most recent conversation.
 		cmd += " --continue"
 	}
 	return cmd
@@ -128,7 +135,26 @@ func (p *ClaudeProvider) DetectState(output string) State {
 	return StateUnknown
 }
 
-// Ensure ClaudeProvider implements Provider, ContainerCustomizer, and SessionCustomizer interfaces.
+// claudeResumePattern matches Claude's "Resume this session with: claude --resume <uuid>" output.
+// The UUID format is standard 8-4-4-4-12 hex.
+var claudeResumePattern = regexp.MustCompile(`claude --resume ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})`)
+
+// SupportsResume reports that Claude Code supports resuming sessions by ID.
+func (p *ClaudeProvider) SupportsResume() bool { return true }
+
+// ParseSessionID scans tool output for Claude's resume hint and returns the session UUID.
+// Returns "" if no session ID is found.
+// Claude prints "Resume this session with:\nclaude --resume <uuid>" on graceful exit.
+func (p *ClaudeProvider) ParseSessionID(output string) string {
+	m := claudeResumePattern.FindStringSubmatch(output)
+	if len(m) < 2 {
+		return ""
+	}
+	return m[1]
+}
+
+// Ensure ClaudeProvider implements all declared interfaces.
 var _ Provider = (*ClaudeProvider)(nil)
 var _ ContainerCustomizer = (*ClaudeProvider)(nil)
 var _ SessionCustomizer = (*ClaudeProvider)(nil)
+var _ SessionResumer = (*ClaudeProvider)(nil)
