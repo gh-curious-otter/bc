@@ -217,6 +217,11 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	// Volume mounts
 	if dir != "" {
 		args = append(args, "-v", dir+":/workspace")
+		// Prevent container builds from overwriting host binaries (e.g. bin/bc).
+		// An anonymous volume shadows /workspace/bin so writes stay container-local.
+		args = append(args, "-v", "/workspace/bin")
+		// Same for dist/ directories that may differ per platform.
+		args = append(args, "-v", "/workspace/dist")
 	}
 
 	// Per-agent auth — seeded from host credentials on first use so agents start
