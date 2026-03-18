@@ -280,8 +280,11 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		args = append(args, "-e", k+"="+v)
 	}
 
-	// Passthrough host env vars
+	// Passthrough host env vars (only if not already set by workspace/agent config)
 	for _, key := range passthroughEnvKeys {
+		if _, already := env[key]; already {
+			continue // workspace config takes priority over host env
+		}
 		if val := os.Getenv(key); val != "" {
 			args = append(args, "-e", key+"="+val)
 		}
