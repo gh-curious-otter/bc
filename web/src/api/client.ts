@@ -44,7 +44,7 @@ export interface CostSummary {
 
 export interface AgentCostSummary {
   agent_id: string;
-  total_cost: number;
+  total_cost_usd: number;
   input_tokens: number;
   output_tokens: number;
   record_count: number;
