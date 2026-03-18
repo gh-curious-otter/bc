@@ -97,7 +97,7 @@ func TestCalcCost_UnknownModelFallsBack(t *testing.T) {
 
 func TestPricingFor_Prefixes(t *testing.T) {
 	cases := []struct {
-		model string
+		model     string
 		wantInput float64
 	}{
 		{"claude-opus-4-6", 15.00},

@@ -92,11 +92,11 @@ Examples:
 }
 
 var (
-	toolAddCommand    string
-	toolAddInstall    string
-	toolAddUpgrade    string
-	toolAddSlashCmds  string
-	toolAddJSON       bool
+	toolAddCommand   string
+	toolAddInstall   string
+	toolAddUpgrade   string
+	toolAddSlashCmds string
+	toolAddJSON      bool
 )
 
 // ── setup ─────────────────────────────────────────────────────────────────────

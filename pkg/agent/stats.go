@@ -27,11 +27,11 @@ type AgentStatsRecord struct {
 
 // dockerStatsJSON is the raw JSON emitted by `docker stats --format json --no-stream`.
 type dockerStatsJSON struct {
-	Name        string `json:"Name"`
-	CPUPerc     string `json:"CPUPerc"`     // "0.50%"
-	MemUsage    string `json:"MemUsage"`    // "150MiB / 7.77GiB"
-	NetIO       string `json:"NetIO"`       // "1.5kB / 500B"
-	BlockIO     string `json:"BlockIO"`     // "10MB / 5MB"
+	Name     string `json:"Name"`
+	CPUPerc  string `json:"CPUPerc"`  // "0.50%"
+	MemUsage string `json:"MemUsage"` // "150MiB / 7.77GiB"
+	NetIO    string `json:"NetIO"`    // "1.5kB / 500B"
+	BlockIO  string `json:"BlockIO"`  // "10MB / 5MB"
 }
 
 // statsCollectInterval is how often Docker stats are polled.

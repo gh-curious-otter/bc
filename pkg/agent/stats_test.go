@@ -6,7 +6,10 @@ import (
 )
 
 func TestParseDockerPct(t *testing.T) {
-	tests := []struct{ in string; want float64 }{
+	tests := []struct {
+		in   string
+		want float64
+	}{
 		{"0.50%", 0.50},
 		{"100.00%", 100.0},
 		{"--", 0},

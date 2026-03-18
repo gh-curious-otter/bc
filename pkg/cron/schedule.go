@@ -22,11 +22,11 @@ func (f *fieldSpec) matches(v int) bool {
 
 // parsedSchedule holds all five parsed cron fields.
 type parsedSchedule struct {
-	minute  fieldSpec
-	hour    fieldSpec
-	dom     fieldSpec
-	month   fieldSpec
-	dow     fieldSpec
+	minute fieldSpec
+	hour   fieldSpec
+	dom    fieldSpec
+	month  fieldSpec
+	dow    fieldSpec
 }
 
 // matches reports whether t satisfies the schedule.
