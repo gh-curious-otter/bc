@@ -681,6 +681,11 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 	if existing, exists := m.agents[name]; exists {
 		// If its tmux session is still alive, reuse it
 		if m.runtimeForAgent(name).HasSession(context.TODO(), name) {
+			// Correct stale stopped/error state when session is actually alive
+			if existing.State == StateStopped || existing.State == StateError {
+				existing.State = StateIdle
+				existing.StartedAt = time.Now()
+			}
 			existing.UpdatedAt = time.Now()
 			if err := m.saveState(); err != nil {
 				log.Warn("failed to save agent state", "error", err)
