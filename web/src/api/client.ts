@@ -44,10 +44,76 @@ export interface CostSummary {
 
 export interface AgentCostSummary {
   agent_id: string;
-  total_cost: number;
+  total_cost_usd: number;
   input_tokens: number;
   output_tokens: number;
   record_count: number;
+}
+
+export interface Role {
+  FilePath: string;
+  Prompt: string;
+  Metadata: {
+    Name: string;
+    Description: string;
+    Capabilities: string[];
+    Permissions: string[];
+    IsSingleton: boolean;
+    Level: number;
+  };
+}
+
+export interface Tool {
+  name: string;
+  command: string;
+  install_cmd: string;
+  builtin: boolean;
+  enabled: boolean;
+}
+
+export interface MCPServer {
+  name: string;
+  transport: string;
+  command: string;
+  url: string;
+  enabled: boolean;
+}
+
+export interface EventLogEntry {
+  id: number;
+  type: string;
+  agent: string;
+  message: string;
+  created_at: string;
+}
+
+export interface DoctorCategory {
+  Name: string;
+  Items: { Name: string; Message: string; Fix: string; Severity: number }[];
+}
+
+export interface DoctorReport {
+  Categories: DoctorCategory[];
+}
+
+export interface CronJob {
+  name: string;
+  schedule: string;
+  agent_name: string;
+  prompt: string;
+  command: string;
+  enabled: boolean;
+  run_count: number;
+  last_run: string | null;
+  next_run: string | null;
+  created_at: string;
+}
+
+export interface Secret {
+  name: string;
+  description: string;
+  backend: string;
+  created_at: string;
 }
 
 export const api = {
@@ -60,10 +126,20 @@ export const api = {
 
   listChannels: () => request<Channel[]>('/channels'),
   getChannelHistory: (name: string, limit = 50) =>
-    request<{ messages: ChannelMessage[] }>(`/channels/${name}/history?limit=${limit}`),
-  sendToChannel: (name: string, message: string) =>
-    request<void>(`/channels/${name}/send`, { method: 'POST', body: JSON.stringify({ message }) }),
+    request<ChannelMessage[]>(`/channels/${name}/history?limit=${limit}`),
+  sendToChannel: (name: string, message: string, sender = 'web') =>
+    request<ChannelMessage>(`/channels/${name}/messages`, { method: 'POST', body: JSON.stringify({ sender, content: message }) }),
 
   getCostSummary: () => request<CostSummary>('/costs'),
   getCostByAgent: () => request<AgentCostSummary[]>('/costs/agents'),
+
+  listRoles: () => request<Record<string, Role>>('/workspace/roles'),
+  listTools: () => request<Tool[]>('/tools'),
+  listMCP: () => request<MCPServer[]>('/mcp'),
+  getLogs: (tail = 50) => request<EventLogEntry[]>(`/logs?tail=${tail}`),
+  getDoctor: () => request<DoctorReport>('/doctor'),
+
+  listCron: () => request<CronJob[]>('/cron'),
+  listSecrets: () => request<Secret[]>('/secrets'),
+  getWorkspaceStatus: () => request<Record<string, unknown>>('/workspace/status'),
 };

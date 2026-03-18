@@ -126,9 +126,13 @@ func (a *AgentsClient) Stop(ctx context.Context, name string) error {
 	return a.client.post(ctx, "/api/agents/"+name+"/stop", nil, nil)
 }
 
-// Delete permanently removes an agent.
-func (a *AgentsClient) Delete(ctx context.Context, name string) error {
-	return a.client.delete(ctx, "/api/agents/"+name)
+// Delete permanently removes an agent. If force is true, stops the agent first.
+func (a *AgentsClient) Delete(ctx context.Context, name string, force bool) error {
+	path := "/api/agents/" + name
+	if force {
+		path += "?force=true"
+	}
+	return a.client.delete(ctx, path)
 }
 
 // Send sends a message to a running agent.

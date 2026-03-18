@@ -14,7 +14,7 @@ interface TableProps<T> {
 }
 
 export function Table<T>({ columns, data, keyFn, onRowClick, emptyMessage = 'No data' }: TableProps<T>) {
-  if (data.length === 0) {
+  if (!data || data.length === 0) {
     return <p className="p-4 text-bc-muted text-sm">{emptyMessage}</p>;
   }
 

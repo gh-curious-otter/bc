@@ -96,9 +96,9 @@ func (ch *ChannelsClient) RemoveMember(ctx context.Context, chanName, agentName 
 
 // Send sends a message to a channel.
 func (ch *ChannelsClient) Send(ctx context.Context, chanName, sender, message string) (*MessageInfo, error) {
-	body := map[string]string{"sender": sender, "message": message}
+	body := map[string]string{"sender": sender, "content": message}
 	var msg MessageInfo
-	if err := ch.client.post(ctx, "/api/channels/"+chanName+"/send", body, &msg); err != nil {
+	if err := ch.client.post(ctx, "/api/channels/"+chanName+"/messages", body, &msg); err != nil {
 		return nil, err
 	}
 	return &msg, nil

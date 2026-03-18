@@ -451,10 +451,17 @@ func runMCPRegister(cmd *cobra.Command, _ []string) error {
 	// Build MCP server entry
 	var mcpEntry map[string]any
 	if mcpServeSSE {
+		sseURL := mcpServeAddr
+		if !strings.HasPrefix(sseURL, "http://") && !strings.HasPrefix(sseURL, "https://") {
+			sseURL = "http://" + sseURL
+		}
+		if !strings.HasSuffix(sseURL, "/sse") {
+			sseURL += "/sse"
+		}
 		mcpEntry = map[string]any{
 			"name":      "bc",
 			"transport": "sse",
-			"url":       "http://" + mcpServeAddr + "/sse",
+			"url":       sseURL,
 		}
 	} else {
 		bcPath, lookErr := exec.LookPath("bc")

@@ -5,6 +5,14 @@ const NAV_ITEMS = [
   { to: '/agents', label: 'Agents', icon: 'A' },
   { to: '/channels', label: 'Channels', icon: 'C' },
   { to: '/costs', label: 'Costs', icon: '$' },
+  { to: '/roles', label: 'Roles', icon: 'R' },
+  { to: '/tools', label: 'Tools', icon: 'T' },
+  { to: '/mcp', label: 'MCP', icon: 'M' },
+  { to: '/cron', label: 'Cron', icon: '@' },
+  { to: '/secrets', label: 'Secrets', icon: '#' },
+  { to: '/logs', label: 'Logs', icon: 'L' },
+  { to: '/workspace', label: 'Workspace', icon: 'W' },
+  { to: '/doctor', label: 'Doctor', icon: '+' },
 ] as const;
 
 export function Layout() {
