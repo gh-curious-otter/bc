@@ -10,8 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/ui"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -259,30 +258,16 @@ func init() {
 	rootCmd.AddCommand(channelCmd)
 }
 
-func loadChannelStore(rootDir string) (*channel.Store, error) {
-	store, err := channel.OpenStore(rootDir)
-	if err != nil {
-		return nil, err
-	}
-	if err := store.Load(); err != nil {
-		return nil, err
-	}
-	return store, nil
-}
-
-func runChannelList(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	store, err := loadChannelStore(ws.RootDir)
+func runChannelList(cmd *cobra.Command, _ []string) error {
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = store.Close() }()
 
-	channels := store.List()
+	channels, err := c.Channels.List(cmd.Context())
+	if err != nil {
+		return err
+	}
 
 	jsonOutput, err := cmd.Flags().GetBool("json")
 	if err != nil {
@@ -298,12 +283,11 @@ func runChannelList(cmd *cobra.Command, args []string) error {
 		}
 		summaries := make([]ChannelSummary, 0, len(channels))
 		for _, ch := range channels {
-			desc, _ := store.GetDescription(ch.Name)
 			summaries = append(summaries, ChannelSummary{
 				Name:        ch.Name,
 				Members:     ch.Members,
-				MemberCount: len(ch.Members),
-				Description: desc,
+				MemberCount: ch.MemberCount,
+				Description: ch.Description,
 			})
 		}
 		response := struct {
@@ -326,10 +310,10 @@ func runChannelList(cmd *cobra.Command, args []string) error {
 	table := ui.NewTable("CHANNEL", "MEMBERS", "DESCRIPTION")
 
 	for _, ch := range channels {
-		memberCount := fmt.Sprintf("(%d)", len(ch.Members))
+		memberCount := fmt.Sprintf("(%d)", ch.MemberCount)
 		desc := ""
-		if d, _ := store.GetDescription(ch.Name); d != "" {
-			desc = truncateMessage(d, 30)
+		if ch.Description != "" {
+			desc = truncateMessage(ch.Description, 30)
 		}
 		table.AddRow(ch.Name, memberCount, desc)
 	}
@@ -339,17 +323,6 @@ func runChannelList(cmd *cobra.Command, args []string) error {
 }
 
 func runChannelCreate(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	store, err := loadChannelStore(ws.RootDir)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = store.Close() }()
-
 	name := strings.TrimSpace(args[0])
 	if name == "" {
 		return fmt.Errorf("channel name cannot be empty")
@@ -358,41 +331,26 @@ func runChannelCreate(cmd *cobra.Command, args []string) error {
 	if !validIdentifier(name) {
 		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", name)
 	}
-	if _, err := store.Create(name); err != nil {
+
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
 		return err
 	}
 
-	// Set description if provided
-	if channelCreateDesc != "" {
-		if err := store.SetDescription(name, channelCreateDesc); err != nil {
-			return fmt.Errorf("failed to set description: %w", err)
-		}
+	ch, err := c.Channels.Create(cmd.Context(), name, channelCreateDesc)
+	if err != nil {
+		return err
 	}
 
-	if err := store.Save(); err != nil {
-		return fmt.Errorf("failed to save channels: %w", err)
-	}
-
-	if channelCreateDesc != "" {
-		fmt.Printf("Created channel %q with description: %s\n", name, channelCreateDesc)
+	if ch.Description != "" {
+		fmt.Printf("Created channel %q with description: %s\n", ch.Name, ch.Description)
 	} else {
-		fmt.Printf("Created channel %q\n", name)
+		fmt.Printf("Created channel %q\n", ch.Name)
 	}
 	return nil
 }
 
 func runChannelAdd(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	store, err := loadChannelStore(ws.RootDir)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = store.Close() }()
-
 	channelName := args[0]
 	// Validate channel name to prevent log injection
 	if !validIdentifier(channelName) {
@@ -408,17 +366,18 @@ func runChannelAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("at least one member is required (use positional args or --agent)")
 	}
 
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
+		return err
+	}
+
 	added := 0
 	for _, member := range members {
-		if err := store.AddMember(channelName, member); err != nil {
+		if err := c.Channels.AddMember(cmd.Context(), channelName, member); err != nil {
 			fmt.Printf("  Warning: %v\n", err)
 			continue
 		}
 		added++
-	}
-
-	if err := store.Save(); err != nil {
-		return fmt.Errorf("failed to save channels: %w", err)
 	}
 
 	fmt.Printf("Added %d member(s) to channel %q\n", added, channelName)
@@ -426,17 +385,6 @@ func runChannelAdd(cmd *cobra.Command, args []string) error {
 }
 
 func runChannelRemove(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	store, err := loadChannelStore(ws.RootDir)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = store.Close() }()
-
 	channelName := args[0]
 	// Validate channel name to prevent log injection
 	if !validIdentifier(channelName) {
@@ -453,12 +401,13 @@ func runChannelRemove(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("member is required (use positional arg or --agent)")
 	}
 
-	if err := store.RemoveMember(channelName, member); err != nil {
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
 		return err
 	}
 
-	if err := store.Save(); err != nil {
-		return fmt.Errorf("failed to save channels: %w", err)
+	if err := c.Channels.RemoveMember(cmd.Context(), channelName, member); err != nil {
+		return err
 	}
 
 	fmt.Printf("Removed %q from channel %q\n", member, channelName)
@@ -466,17 +415,6 @@ func runChannelRemove(cmd *cobra.Command, args []string) error {
 }
 
 func runChannelSend(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	store, err := loadChannelStore(ws.RootDir)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = store.Close() }()
-
 	channelName := args[0]
 	// Validate channel name to prevent log injection
 	if !validIdentifier(channelName) {
@@ -484,99 +422,34 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 	}
 	message := strings.Join(args[1:], " ")
 
-	members, err := store.GetMembers(channelName)
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
 
-	if len(members) == 0 {
-		fmt.Printf("Channel %q has no members\n", channelName)
-		return nil
-	}
-
-	// Create workspace-scoped agent manager
-	mgr := newAgentManager(ws)
-	if err := mgr.LoadState(); err != nil {
-		fmt.Printf("Warning: failed to load agent state: %v\n", err)
-	}
-
-	// Add to channel history
 	sender := getUserSender()
-	if err := store.AddHistory(channelName, sender, message); err != nil {
-		fmt.Printf("Warning: failed to record history: %v\n", err)
-	}
-	if err := store.Save(); err != nil {
-		fmt.Printf("Warning: failed to save history: %v\n", err)
+	if _, err := c.Channels.Send(cmd.Context(), channelName, sender, message); err != nil {
+		return err
 	}
 
-	// Send to all members except the sender
-	sent := 0
-	failed := 0
-	skipped := 0
-	fmt.Printf("Sending to %d member(s):\n", len(members))
-	for _, member := range members {
-		// Skip sending to the sender to avoid infinite loop
-		if member == sender {
-			skipped++
-			continue
-		}
-
-		a := mgr.GetAgent(member)
-		if a == nil {
-			fmt.Printf("  ❌ %s: agent not found\n", member)
-			failed++
-			continue
-		}
-		if a.State == agent.StateStopped {
-			fmt.Printf("  ⏸  %s: agent stopped\n", member)
-			failed++
-			continue
-		}
-
-		if err := mgr.SendToAgent(member, fmt.Sprintf("[#%s] %s: %s", channelName, sender, message)); err != nil {
-			fmt.Printf("  ❌ %s: unable to deliver message\n", member)
-			failed++
-			continue
-		}
-		fmt.Printf("  ✅ %s: sent\n", member)
-		sent++
-	}
-
-	totalTargets := len(members) - skipped
-	if totalTargets == 0 {
-		fmt.Printf("\nMessage recorded to channel (no other members to deliver to)\n")
-	} else {
-		fmt.Printf("\nResult: %d/%d members received message\n", sent, totalTargets)
-		if failed > 0 {
-			fmt.Printf("Warning: %d delivery failed\n", failed)
-		}
-	}
+	fmt.Printf("Sent message to #%s\n", channelName)
 	return nil
 }
 
 func runChannelDelete(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	store, err := loadChannelStore(ws.RootDir)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = store.Close() }()
-
 	name := args[0]
 	// Validate channel name to prevent log injection
 	if !validIdentifier(name) {
 		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", name)
 	}
-	if err := store.Delete(name); err != nil {
+
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
 		return err
 	}
 
-	if err := store.Save(); err != nil {
-		return fmt.Errorf("failed to save channels: %w", err)
+	if err := c.Channels.Delete(cmd.Context(), name); err != nil {
+		return err
 	}
 
 	fmt.Printf("Deleted channel %q\n", name)
@@ -584,33 +457,24 @@ func runChannelDelete(cmd *cobra.Command, args []string) error {
 }
 
 func runChannelJoin(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
 	agentID := os.Getenv("BC_AGENT_ID")
 	if agentID == "" {
 		return errorAgentNotRunning(fmt.Sprintf("bc channel join %s", args[0]))
 	}
-
-	store, err := loadChannelStore(ws.RootDir)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = store.Close() }()
 
 	channelName := args[0]
 	// Validate channel name to prevent log injection
 	if !validIdentifier(channelName) {
 		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", channelName)
 	}
-	if err := store.AddMember(channelName, agentID); err != nil {
+
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
 		return err
 	}
 
-	if err := store.Save(); err != nil {
-		return fmt.Errorf("failed to save channels: %w", err)
+	if err := c.Channels.AddMember(cmd.Context(), channelName, agentID); err != nil {
+		return err
 	}
 
 	fmt.Printf("Joined channel %q\n", channelName)
@@ -618,33 +482,24 @@ func runChannelJoin(cmd *cobra.Command, args []string) error {
 }
 
 func runChannelLeave(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
 	agentID := os.Getenv("BC_AGENT_ID")
 	if agentID == "" {
 		return errorAgentNotRunning(fmt.Sprintf("bc channel leave %s", args[0]))
 	}
-
-	store, err := loadChannelStore(ws.RootDir)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = store.Close() }()
 
 	channelName := args[0]
 	// Validate channel name to prevent log injection
 	if !validIdentifier(channelName) {
 		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", channelName)
 	}
-	if err := store.RemoveMember(channelName, agentID); err != nil {
+
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
 		return err
 	}
 
-	if err := store.Save(); err != nil {
-		return fmt.Errorf("failed to save channels: %w", err)
+	if err := c.Channels.RemoveMember(cmd.Context(), channelName, agentID); err != nil {
+		return err
 	}
 
 	fmt.Printf("Left channel %q\n", channelName)
@@ -652,23 +507,24 @@ func runChannelLeave(cmd *cobra.Command, args []string) error {
 }
 
 func runChannelHistory(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	store, err := loadChannelStore(ws.RootDir)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = store.Close() }()
-
 	channelName := args[0]
 	// Validate channel name to prevent log injection
 	if !validIdentifier(channelName) {
 		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", channelName)
 	}
-	history, err := store.GetHistory(channelName)
+
+	// --last overrides --limit when explicitly set
+	limit := channelHistoryLimit
+	if channelHistoryLast > 0 {
+		limit = channelHistoryLast
+	}
+
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
+		return err
+	}
+
+	msgs, err := c.Channels.History(cmd.Context(), channelName, limit, channelHistoryOffset, channelHistoryAgent)
 	if err != nil {
 		return err
 	}
@@ -679,13 +535,13 @@ func runChannelHistory(cmd *cobra.Command, args []string) error {
 		if parseErr != nil {
 			return parseErr
 		}
-		filtered := history[:0]
-		for _, entry := range history {
-			if !entry.Time.Before(cutoff) {
-				filtered = append(filtered, entry)
+		filtered := msgs[:0]
+		for _, msg := range msgs {
+			if !msg.CreatedAt.Before(cutoff) {
+				filtered = append(filtered, msg)
 			}
 		}
-		history = filtered
+		msgs = filtered
 	}
 
 	// Filter by --from timestamp
@@ -694,13 +550,13 @@ func runChannelHistory(cmd *cobra.Command, args []string) error {
 		if parseErr != nil {
 			return fmt.Errorf("invalid --from timestamp: %w", parseErr)
 		}
-		filtered := history[:0]
-		for _, entry := range history {
-			if !entry.Time.Before(fromTime) {
-				filtered = append(filtered, entry)
+		filtered := msgs[:0]
+		for _, msg := range msgs {
+			if !msg.CreatedAt.Before(fromTime) {
+				filtered = append(filtered, msg)
 			}
 		}
-		history = filtered
+		msgs = filtered
 	}
 
 	// Filter by --to timestamp
@@ -709,41 +565,13 @@ func runChannelHistory(cmd *cobra.Command, args []string) error {
 		if parseErr != nil {
 			return fmt.Errorf("invalid --to timestamp: %w", parseErr)
 		}
-		filtered := history[:0]
-		for _, entry := range history {
-			if entry.Time.Before(toTime) {
-				filtered = append(filtered, entry)
+		filtered := msgs[:0]
+		for _, msg := range msgs {
+			if msg.CreatedAt.Before(toTime) {
+				filtered = append(filtered, msg)
 			}
 		}
-		history = filtered
-	}
-
-	// Filter by --agent (sender)
-	if channelHistoryAgent != "" {
-		filtered := history[:0]
-		for _, entry := range history {
-			if entry.Sender == channelHistoryAgent {
-				filtered = append(filtered, entry)
-			}
-		}
-		history = filtered
-	}
-
-	// --last overrides --limit when explicitly set
-	if channelHistoryLast > 0 {
-		channelHistoryLimit = channelHistoryLast
-	}
-
-	// Apply --offset and --limit
-	if channelHistoryOffset > 0 {
-		if channelHistoryOffset >= len(history) {
-			history = nil
-		} else {
-			history = history[channelHistoryOffset:]
-		}
-	}
-	if channelHistoryLimit > 0 && len(history) > channelHistoryLimit {
-		history = history[len(history)-channelHistoryLimit:]
+		msgs = filtered
 	}
 
 	jsonOutput, err := cmd.Flags().GetBool("json")
@@ -753,31 +581,32 @@ func runChannelHistory(cmd *cobra.Command, args []string) error {
 	if jsonOutput {
 		// Wrap in object for TUI compatibility
 		response := struct {
-			Channel  string                 `json:"channel"`
-			Messages []channel.HistoryEntry `json:"messages"`
-		}{Channel: channelName, Messages: history}
+			Channel  string               `json:"channel"`
+			Messages []client.MessageInfo `json:"messages"`
+		}{Channel: channelName, Messages: msgs}
 		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")
 		return enc.Encode(response)
 	}
 
-	if len(history) == 0 {
+	if len(msgs) == 0 {
 		fmt.Printf("No message history for channel %q\n", channelName)
 		return nil
 	}
 
 	fmt.Printf("Message history for #%s:\n", channelName)
 	fmt.Println(strings.Repeat("-", 60))
-	for i, entry := range history {
-		if entry.Sender != "" {
-			fmt.Printf("[%d] [%s] %s: %s\n", i, entry.Time.Format("15:04:05"), entry.Sender, entry.Message)
+	for i, msg := range msgs {
+		timeStr := msg.CreatedAt.Local().Format("2006-01-02 15:04:05")
+		if msg.Sender != "" {
+			fmt.Printf("[%d] [%s] %s: %s\n", i, timeStr, msg.Sender, msg.Content)
 		} else {
-			fmt.Printf("[%d] [%s] %s\n", i, entry.Time.Format("15:04:05"), entry.Message)
+			fmt.Printf("[%d] [%s] %s\n", i, timeStr, msg.Content)
 		}
 		// Show reactions if any
-		if len(entry.Reactions) > 0 {
+		if len(msg.Reactions) > 0 {
 			var reactionStrs []string
-			for emoji, users := range entry.Reactions {
+			for emoji, users := range msg.Reactions {
 				reactionStrs = append(reactionStrs, fmt.Sprintf("%s %d", emoji, len(users)))
 			}
 			fmt.Printf("    Reactions: %s\n", strings.Join(reactionStrs, " "))
@@ -788,44 +617,41 @@ func runChannelHistory(cmd *cobra.Command, args []string) error {
 }
 
 func runChannelReact(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	store, err := loadChannelStore(ws.RootDir)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = store.Close() }()
-
 	channelName := args[0]
 	// Validate channel name to prevent log injection
 	if !validIdentifier(channelName) {
 		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", channelName)
 	}
-	messageIndex, err := strconv.Atoi(args[1])
+	msgIndex, err := strconv.Atoi(args[1])
 	if err != nil {
 		return fmt.Errorf("invalid message index %q: %w", args[1], err)
 	}
 	emoji := args[2]
 
-	// Get user identity
-	user := getUserSender()
-
-	added, err := store.ToggleReaction(channelName, messageIndex, emoji, user)
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
 
-	if err := store.Save(); err != nil {
-		return fmt.Errorf("failed to save reactions: %w", err)
+	// Fetch history to get the actual message ID at the given index
+	msgs, err := c.Channels.History(cmd.Context(), channelName, 1000, 0, "")
+	if err != nil {
+		return err
+	}
+	if msgIndex < 1 || msgIndex > len(msgs) {
+		return fmt.Errorf("message index %d out of range (1-%d)", msgIndex, len(msgs))
+	}
+	msgID := int(msgs[msgIndex-1].ID)
+
+	added, err := c.Channels.React(cmd.Context(), channelName, msgID, emoji, getUserSender())
+	if err != nil {
+		return err
 	}
 
 	if added {
-		fmt.Printf("Added %s reaction to message %d in #%s\n", emoji, messageIndex, channelName)
+		fmt.Printf("Added %s reaction to message %d in #%s\n", emoji, msgIndex, channelName)
 	} else {
-		fmt.Printf("Removed %s reaction from message %d in #%s\n", emoji, messageIndex, channelName)
+		fmt.Printf("Removed %s reaction from message %d in #%s\n", emoji, msgIndex, channelName)
 	}
 	return nil
 }
@@ -840,43 +666,23 @@ type ChannelInfo struct {
 }
 
 func runChannelShow(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	store, err := loadChannelStore(ws.RootDir)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = store.Close() }()
-
 	channelName := args[0]
 	// Validate channel name to prevent log injection
 	if !validIdentifier(channelName) {
 		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", channelName)
 	}
 
-	// Get channel
-	ch, exists := store.Get(channelName)
-	if !exists {
-		return fmt.Errorf("channel %q not found (use 'bc channel list' to see available channels)", channelName)
-	}
-
-	// Get members
-	members, err := store.GetMembers(channelName)
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
-		return fmt.Errorf("failed to get members: %w", err)
+		return err
 	}
 
-	// Get history for count
-	history, err := store.GetHistory(channelName)
+	ch, err := c.Channels.Get(cmd.Context(), channelName)
 	if err != nil {
-		return fmt.Errorf("failed to get history: %w", err)
+		return fmt.Errorf("channel %q not found (use 'bc channel list' to see available channels): %w", channelName, err)
 	}
 
-	// Get description
-	description, _ := store.GetDescription(channelName)
+	msgs, _ := c.Channels.History(cmd.Context(), channelName, 5, 0, "")
 
 	jsonOutput, err := cmd.Flags().GetBool("json")
 	if err != nil {
@@ -886,10 +692,10 @@ func runChannelShow(cmd *cobra.Command, args []string) error {
 	if jsonOutput {
 		info := ChannelInfo{
 			Name:         ch.Name,
-			Description:  description,
-			Members:      members,
-			MemberCount:  len(members),
-			HistoryCount: len(history),
+			Description:  ch.Description,
+			Members:      ch.Members,
+			MemberCount:  ch.MemberCount,
+			HistoryCount: ch.MessageCount,
 		}
 		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")
@@ -900,31 +706,26 @@ func runChannelShow(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Channel: #%s\n", ch.Name)
 	fmt.Println(strings.Repeat("-", 40))
 
-	if description != "" {
-		fmt.Printf("Description: %s\n", description)
+	if ch.Description != "" {
+		fmt.Printf("Description: %s\n", ch.Description)
 	}
 
-	fmt.Printf("Members (%d):\n", len(members))
-	if len(members) == 0 {
+	fmt.Printf("Members (%d):\n", ch.MemberCount)
+	if len(ch.Members) == 0 {
 		fmt.Println("  (none)")
 	} else {
-		for _, m := range members {
+		for _, m := range ch.Members {
 			fmt.Printf("  • %s\n", m)
 		}
 	}
 
-	fmt.Printf("\nMessage History: %d messages\n", len(history))
+	fmt.Printf("\nMessage History: %d messages\n", ch.MessageCount)
 
-	if len(history) > 0 {
+	if len(msgs) > 0 {
 		fmt.Println("\nRecent Messages (last 5):")
-		start := 0
-		if len(history) > 5 {
-			start = len(history) - 5
-		}
-		for i := start; i < len(history); i++ {
-			entry := history[i]
-			msg := strings.ReplaceAll(entry.Message, "\n", " ")
-			fmt.Printf("  [%s] %s: %s\n", entry.Time.Format("15:04"), entry.Sender, truncateMessage(msg, 50))
+		for _, msg := range msgs {
+			content := strings.ReplaceAll(msg.Content, "\n", " ")
+			fmt.Printf("  [%s] %s: %s\n", msg.CreatedAt.Local().Format("15:04"), msg.Sender, truncateMessage(content, 50))
 		}
 	}
 
@@ -932,17 +733,6 @@ func runChannelShow(cmd *cobra.Command, args []string) error {
 }
 
 func runChannelDesc(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	store, err := loadChannelStore(ws.RootDir)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = store.Close() }()
-
 	channelName := strings.TrimSpace(args[0])
 	if channelName == "" {
 		return fmt.Errorf("channel name cannot be empty")
@@ -958,12 +748,13 @@ func runChannelDesc(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("description cannot be empty")
 	}
 
-	if err := store.SetDescription(channelName, description); err != nil {
-		return fmt.Errorf("failed to set description: %w", err)
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
+		return err
 	}
 
-	if err := store.Save(); err != nil {
-		return fmt.Errorf("failed to save channels: %w", err)
+	if _, err := c.Channels.Update(cmd.Context(), channelName, description); err != nil {
+		return fmt.Errorf("failed to set description: %w", err)
 	}
 
 	fmt.Printf("Updated description for channel %q: %s\n", channelName, description)
@@ -971,37 +762,22 @@ func runChannelDesc(cmd *cobra.Command, args []string) error {
 }
 
 func runChannelEdit(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	store, err := loadChannelStore(ws.RootDir)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = store.Close() }()
-
 	channelName := args[0]
 	if !validIdentifier(channelName) {
 		return fmt.Errorf("channel name %q contains invalid characters (use letters, numbers, dash, underscore)", channelName)
-	}
-
-	// Verify channel exists
-	if _, exists := store.Get(channelName); !exists {
-		return fmt.Errorf("channel %q not found (use 'bc channel list' to see available channels)", channelName)
 	}
 
 	if channelEditDesc == "" {
 		return fmt.Errorf("at least one setting is required (e.g. --desc)")
 	}
 
-	if err := store.SetDescription(channelName, channelEditDesc); err != nil {
-		return fmt.Errorf("failed to set description: %w", err)
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
+		return err
 	}
 
-	if err := store.Save(); err != nil {
-		return fmt.Errorf("failed to save channels: %w", err)
+	if _, err := c.Channels.Update(cmd.Context(), channelName, channelEditDesc); err != nil {
+		return fmt.Errorf("failed to update channel: %w", err)
 	}
 
 	fmt.Printf("Updated channel %q\n", channelName)
@@ -1009,18 +785,15 @@ func runChannelEdit(cmd *cobra.Command, args []string) error {
 }
 
 func runChannelStatus(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	store, err := loadChannelStore(ws.RootDir)
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = store.Close() }()
 
-	channels := store.List()
+	channels, err := c.Channels.List(cmd.Context())
+	if err != nil {
+		return err
+	}
 
 	jsonOutput, err := cmd.Flags().GetBool("json")
 	if err != nil {
@@ -1039,21 +812,20 @@ func runChannelStatus(cmd *cobra.Command, args []string) error {
 
 	statuses := make([]ChannelStatus, 0, len(channels))
 	for _, ch := range channels {
-		desc, _ := store.GetDescription(ch.Name)
-		history, _ := store.GetHistory(ch.Name)
-
 		cs := ChannelStatus{
 			Name:         ch.Name,
-			Description:  desc,
-			MemberCount:  len(ch.Members),
-			MessageCount: len(history),
+			Description:  ch.Description,
+			MemberCount:  ch.MemberCount,
+			MessageCount: ch.MessageCount,
 		}
 
-		if len(history) > 0 {
-			last := history[len(history)-1]
+		// Fetch last message for this channel
+		msgs, histErr := c.Channels.History(cmd.Context(), ch.Name, 1, 0, "")
+		if histErr == nil && len(msgs) > 0 {
+			last := msgs[0]
 			cs.LastSender = last.Sender
-			cs.LastMessage = truncateMessage(strings.ReplaceAll(last.Message, "\n", " "), 40)
-			cs.LastActivity = last.Time.Format(time.RFC3339)
+			cs.LastMessage = truncateMessage(strings.ReplaceAll(last.Content, "\n", " "), 40)
+			cs.LastActivity = last.CreatedAt.UTC().Format(time.RFC3339)
 		}
 
 		statuses = append(statuses, cs)
@@ -1077,7 +849,7 @@ func runChannelStatus(cmd *cobra.Command, args []string) error {
 	for _, cs := range statuses {
 		activity := ""
 		if cs.LastActivity != "" {
-			if t, err := time.Parse(time.RFC3339, cs.LastActivity); err == nil {
+			if t, parseErr := time.Parse(time.RFC3339, cs.LastActivity); parseErr == nil {
 				activity = t.Format("Jan 02 15:04")
 			}
 		}
