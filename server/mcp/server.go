@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
@@ -22,6 +24,11 @@ type Server struct {
 	version  string
 	ownChans bool // true if we created the channel store (so Close cleans it up)
 	ownCosts bool // true if we created the cost store
+
+	// SSE notification support
+	broker     *SSEBroker
+	cancelPoll context.CancelFunc
+	pollWg     sync.WaitGroup
 }
 
 // Config holds the dependencies needed to build a Server.
@@ -96,6 +103,10 @@ func New(cfg Config) (*Server, error) {
 // Close releases resources held by the server.
 // Only closes stores that the server created itself (not injected ones).
 func (s *Server) Close() error {
+	if s.cancelPoll != nil {
+		s.cancelPoll()
+		s.pollWg.Wait()
+	}
 	if s.ownChans && s.chans != nil {
 		if err := s.chans.Close(); err != nil {
 			return err
@@ -105,6 +116,91 @@ func (s *Server) Close() error {
 		return s.costs.Close()
 	}
 	return nil
+}
+
+// SetBroker attaches an SSE broker and starts polling channels for new messages.
+// New messages are pushed as notifications/message to all connected clients.
+func (s *Server) SetBroker(broker *SSEBroker) {
+	s.broker = broker
+	ctx, cancel := context.WithCancel(context.Background())
+	s.cancelPoll = cancel
+	s.pollWg.Add(1)
+	go s.pollChannelMessages(ctx)
+}
+
+// channelMessagePayload is the notification payload for new channel messages.
+type channelMessagePayload struct {
+	Channel string    `json:"channel"`
+	Sender  string    `json:"sender"`
+	Message string    `json:"message"`
+	Time    time.Time `json:"time"`
+}
+
+// pollChannelMessages watches all channels for new messages and pushes them
+// as MCP notifications to connected SSE clients.
+func (s *Server) pollChannelMessages(ctx context.Context) {
+	defer s.pollWg.Done()
+
+	// Track the latest message count per channel to detect new messages.
+	lastCounts := make(map[string]int)
+
+	// Seed initial counts so we don't replay old history on startup.
+	for _, ch := range s.chans.List() {
+		history, err := s.chans.GetHistory(ch.Name)
+		if err == nil {
+			lastCounts[ch.Name] = len(history)
+		}
+	}
+
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.checkNewMessages(lastCounts)
+		}
+	}
+}
+
+// checkNewMessages checks each channel for messages beyond lastCounts and pushes them.
+func (s *Server) checkNewMessages(lastCounts map[string]int) {
+	for _, ch := range s.chans.List() {
+		history, err := s.chans.GetHistory(ch.Name)
+		if err != nil {
+			continue
+		}
+
+		prev := lastCounts[ch.Name]
+		if len(history) <= prev {
+			continue
+		}
+
+		// Push each new message as a notification
+		for _, entry := range history[prev:] {
+			s.pushMessageNotification(ch.Name, entry.Sender, entry.Message, entry.Time)
+		}
+		lastCounts[ch.Name] = len(history)
+	}
+}
+
+// pushMessageNotification sends a notifications/message event to all SSE clients.
+func (s *Server) pushMessageNotification(ch, sender, message string, t time.Time) {
+	if s.broker == nil {
+		return
+	}
+	s.broker.send(Notification{
+		JSONRPC: "2.0",
+		Method:  "notifications/message",
+		Params: channelMessagePayload{
+			Channel: ch,
+			Sender:  sender,
+			Message: message,
+			Time:    t,
+		},
+	})
 }
 
 // Handle processes a single JSON-RPC request and returns the response.

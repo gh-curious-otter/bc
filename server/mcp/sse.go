@@ -25,6 +25,7 @@ func (s *Server) ServeSSE(ctx context.Context, addr string) error {
 	addr = LocalhostAddr(addr)
 
 	broker := NewSSEBroker()
+	s.SetBroker(broker)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/sse", broker.handleSSE)
@@ -172,6 +173,7 @@ func (b *SSEBroker) handleSSE(w http.ResponseWriter, r *http.Request) {
 func MountOn(mux *http.ServeMux, srv *Server, prefix string) {
 	broker := NewSSEBroker()
 	broker.messageEndpoint = prefix + "/message"
+	srv.SetBroker(broker)
 	mux.HandleFunc(prefix+"/sse", broker.handleSSE)
 	mux.HandleFunc(prefix+"/message", srv.HandleSSEMessage(context.Background(), broker))
 }
