@@ -1,0 +1,110 @@
+package handlers
+
+import (
+	"encoding/json"
+	"net/http"
+	"strings"
+
+	"github.com/rpuneet/bc/pkg/secret"
+)
+
+// SecretHandler handles /api/secrets routes.
+// Values are never returned — only metadata.
+type SecretHandler struct {
+	store *secret.Store
+}
+
+// NewSecretHandler creates a SecretHandler.
+func NewSecretHandler(store *secret.Store) *SecretHandler {
+	return &SecretHandler{store: store}
+}
+
+// Register mounts secret routes on mux.
+func (h *SecretHandler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("/api/secrets", h.list)
+	mux.HandleFunc("/api/secrets/", h.byName)
+}
+
+func (h *SecretHandler) list(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		secrets, err := h.store.List()
+		if err != nil {
+			httpError(w, "list secrets: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, secrets)
+
+	case http.MethodPost:
+		var req struct {
+			Name        string `json:"name"`
+			Value       string `json:"value"`
+			Description string `json:"description"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if err := h.store.Set(req.Name, req.Value, req.Description); err != nil {
+			httpError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		meta, err := h.store.GetMeta(req.Name)
+		if err != nil {
+			httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusCreated, meta)
+
+	default:
+		methodNotAllowed(w)
+	}
+}
+
+func (h *SecretHandler) byName(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimPrefix(r.URL.Path, "/api/secrets/")
+	if name == "" {
+		httpError(w, "secret name required", http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		meta, err := h.store.GetMeta(name)
+		if err != nil {
+			httpError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		writeJSON(w, http.StatusOK, meta)
+
+	case http.MethodPut:
+		var req struct {
+			Value       string `json:"value"`
+			Description string `json:"description"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if err := h.store.Set(name, req.Value, req.Description); err != nil {
+			httpError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		meta, err := h.store.GetMeta(name)
+		if err != nil {
+			httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, meta)
+
+	case http.MethodDelete:
+		if err := h.store.Delete(name); err != nil {
+			httpError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+
+	default:
+		methodNotAllowed(w)
+	}
+}
