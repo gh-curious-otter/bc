@@ -23,11 +23,11 @@ export function Agents() {
   const columns = [
     { key: 'name', label: 'Name', render: (a: Agent) => <span className="font-medium">{a.name}</span> },
     { key: 'role', label: 'Role', render: (a: Agent) => <span className="text-bc-muted">{a.role}</span> },
-    { key: 'tool', label: 'Tool', render: (a: Agent) => <span className="text-bc-muted">{a.tool}</span> },
+    { key: 'tool', label: 'Tool', render: (a: Agent) => <span className="text-bc-muted">{a.tool || '—'}</span> },
     { key: 'state', label: 'Status', render: (a: Agent) => <StatusBadge status={a.state} /> },
     {
       key: 'cost', label: 'Cost', render: (a: Agent) => (
-        <span className="text-bc-muted">${a.cost_usd.toFixed(4)}</span>
+        <span className="text-bc-muted">{a.cost_usd != null ? `$${a.cost_usd.toFixed(4)}` : '—'}</span>
       ),
     },
   ];
@@ -92,7 +92,7 @@ function AgentDetail({ agent, onClose }: { agent?: Agent; onClose: () => void })
       <div className="grid grid-cols-3 gap-4 text-sm">
         <div><span className="text-bc-muted">Role:</span> {agent.role}</div>
         <div><span className="text-bc-muted">Tool:</span> {agent.tool}</div>
-        <div><span className="text-bc-muted">Cost:</span> ${agent.cost_usd.toFixed(4)}</div>
+        <div><span className="text-bc-muted">Cost:</span> {agent.cost_usd != null ? `$${agent.cost_usd.toFixed(4)}` : '—'}</div>
       </div>
       <div className="flex gap-2">
         <input
