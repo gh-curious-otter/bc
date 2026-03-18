@@ -62,7 +62,7 @@ type SQLiteStore struct {
 // NewSQLiteStore creates a new SQLite store for the given workspace.
 func NewSQLiteStore(workspacePath string) *SQLiteStore {
 	return &SQLiteStore{
-		path: filepath.Join(workspacePath, ".bc", "channels.db"),
+		path: filepath.Join(workspacePath, ".bc", "bc.db"),
 	}
 }
 

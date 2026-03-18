@@ -25,5 +25,6 @@ RUN apt-get update && \
 COPY --from=go-builder /bcd /usr/local/bin/bcd
 # Mount host Docker socket at runtime: -v /var/run/docker.sock:/var/run/docker.sock
 EXPOSE 9374
+WORKDIR /workspace
 ENTRYPOINT ["bcd"]
-CMD ["--addr", "0.0.0.0:9374"]
+CMD ["--addr", "0.0.0.0:9374", "--workspace", "/workspace"]
