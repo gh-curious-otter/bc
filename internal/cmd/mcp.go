@@ -45,7 +45,9 @@ Examples:
   bc mcp add github --command npx --args "@modelcontextprotocol/server-github"
   bc mcp add db --command npx --args "@modelcontextprotocol/server-sqlite,/tmp/test.db"
   bc mcp add remote --transport sse --url "https://api.example.com/mcp"
-  bc mcp add github --command npx --env "GITHUB_TOKEN=tok_123" --env "OWNER=me"`,
+  bc mcp add github --command npx --env 'GITHUB_TOKEN=${secret:GITHUB_TOKEN}' --env "OWNER=me"
+
+Use ${secret:NAME} references for sensitive values (see 'bc secret set').`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMCPAdd,
 }

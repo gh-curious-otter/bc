@@ -21,6 +21,8 @@ const (
 )
 
 // ServerConfig represents an MCP server configuration.
+// Env values should use ${secret:NAME} references (resolved at runtime via
+// pkg/secret) rather than storing sensitive values directly.
 type ServerConfig struct {
 	CreatedAt time.Time         `json:"created_at"`
 	Name      string            `json:"name"`
@@ -116,7 +118,7 @@ func (s *Store) Get(name string) (*ServerConfig, error) {
 		`SELECT name, transport, command, args, url, env, enabled, created_at
 		 FROM mcp_servers WHERE name = ?`, name,
 	)
-	return s.scanConfig(row)
+	return scanInto(row)
 }
 
 // List returns all MCP server configurations.
@@ -133,7 +135,7 @@ func (s *Store) List() ([]*ServerConfig, error) {
 
 	var configs []*ServerConfig
 	for rows.Next() {
-		cfg, err := s.scanConfigRow(rows)
+		cfg, err := scanInto(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -173,58 +175,26 @@ func (s *Store) SetEnabled(name string, enabled bool) error {
 	return nil
 }
 
-// scanConfig scans a single row into a ServerConfig.
-func (s *Store) scanConfig(row *sql.Row) (*ServerConfig, error) {
+// scanner is implemented by both *sql.Row and *sql.Rows.
+type scanner interface {
+	Scan(dest ...any) error
+}
+
+// scanInto scans a row into a ServerConfig. Returns (nil, nil) for sql.ErrNoRows.
+func scanInto(sc scanner) (*ServerConfig, error) {
 	var (
-		cfg              ServerConfig
-		command, url     sql.NullString
+		cfg               ServerConfig
+		command, url      sql.NullString
 		argsJSON, envJSON sql.NullString
-		enabled          int
-		createdAt        string
+		enabled           int
+		createdAt         string
 	)
 
-	err := row.Scan(&cfg.Name, &cfg.Transport, &command, &argsJSON, &url, &envJSON, &enabled, &createdAt)
+	err := sc.Scan(&cfg.Name, &cfg.Transport, &command, &argsJSON, &url, &envJSON, &enabled, &createdAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("scan mcp server: %w", err)
-	}
-
-	cfg.Command = command.String
-	cfg.URL = url.String
-	cfg.Enabled = enabled == 1
-
-	if argsJSON.Valid && argsJSON.String != "" {
-		if err := json.Unmarshal([]byte(argsJSON.String), &cfg.Args); err != nil {
-			return nil, fmt.Errorf("unmarshal args: %w", err)
-		}
-	}
-
-	if envJSON.Valid && envJSON.String != "" {
-		if err := json.Unmarshal([]byte(envJSON.String), &cfg.Env); err != nil {
-			return nil, fmt.Errorf("unmarshal env: %w", err)
-		}
-	}
-
-	if t, err := time.Parse(time.RFC3339, createdAt); err == nil {
-		cfg.CreatedAt = t
-	}
-
-	return &cfg, nil
-}
-
-// scanConfigRow scans a rows iterator into a ServerConfig.
-func (s *Store) scanConfigRow(rows *sql.Rows) (*ServerConfig, error) {
-	var (
-		cfg              ServerConfig
-		command, url     sql.NullString
-		argsJSON, envJSON sql.NullString
-		enabled          int
-		createdAt        string
-	)
-
-	if err := rows.Scan(&cfg.Name, &cfg.Transport, &command, &argsJSON, &url, &envJSON, &enabled, &createdAt); err != nil {
 		return nil, fmt.Errorf("scan mcp server: %w", err)
 	}
 
