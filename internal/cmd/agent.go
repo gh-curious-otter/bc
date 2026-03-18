@@ -161,9 +161,14 @@ This resurrects the agent's tmux session and memory.
 The agent must have been previously created and stopped.
 By default, resumes the previous session if available.
 
+The agent's tool (claude, gemini, cursor, etc.) is fixed at creation time
+and cannot be changed on restart. Use --runtime to switch infrastructure
+backends (tmux vs docker) without changing the agent's identity.
+
 Examples:
-  bc agent start eng-01          # Start stopped agent (resumes session)
-  bc agent start eng-01 --fresh  # Force new session`,
+  bc agent start eng-01                    # Start stopped agent (resumes session)
+  bc agent start eng-01 --fresh            # Force new session
+  bc agent start eng-01 --runtime docker   # Override runtime backend`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAgentStart,
 }
