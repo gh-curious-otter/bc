@@ -22,11 +22,13 @@ import (
 
 	bcagent "github.com/rpuneet/bc/pkg/agent"
 	bcchannel "github.com/rpuneet/bc/pkg/channel"
+	bccontainer "github.com/rpuneet/bc/pkg/container"
 	bccost "github.com/rpuneet/bc/pkg/cost"
 	bccron "github.com/rpuneet/bc/pkg/cron"
 	bcdaemon "github.com/rpuneet/bc/pkg/daemon"
 	"github.com/rpuneet/bc/pkg/log"
 	bcmcp "github.com/rpuneet/bc/pkg/mcp"
+	"github.com/rpuneet/bc/pkg/provider"
 	bcsecret "github.com/rpuneet/bc/pkg/secret"
 	bctool "github.com/rpuneet/bc/pkg/tool"
 	bcworkspace "github.com/rpuneet/bc/pkg/workspace"
@@ -69,7 +71,7 @@ func run(addr, wsRoot string) error {
 	defer hub.Stop()
 
 	// Agent service
-	agentMgr := bcagent.NewManager(ws.StateDir())
+	agentMgr := newAgentManager(ws)
 	if err := agentMgr.LoadState(); err != nil {
 		log.Warn("failed to load agent state", "error", err)
 	}
@@ -169,6 +171,30 @@ func run(addr, wsRoot string) error {
 	defer stop()
 
 	return srv.Start(ctx)
+}
+
+// newAgentManager creates an agent manager using the workspace's configured runtime backend.
+// Mirrors internal/cmd/agent.go:newAgentManager so bcd sees the same agents as the CLI.
+func newAgentManager(ws *bcworkspace.Workspace) *bcagent.Manager {
+	backend := ""
+	if ws.Config != nil {
+		backend = ws.Config.Runtime.Backend
+	}
+
+	if backend == "docker" {
+		var wsCfg bcworkspace.DockerRuntimeConfig
+		if ws.Config != nil {
+			wsCfg = ws.Config.Runtime.Docker
+		}
+		dockerCfg := bccontainer.ConfigFromWorkspace(wsCfg)
+		be, err := bccontainer.NewBackend(dockerCfg, "bc-", ws.RootDir, provider.DefaultRegistry)
+		if err != nil {
+			log.Warn("Docker unavailable, falling back to tmux", "error", err)
+		} else {
+			return bcagent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, be, "docker")
+		}
+	}
+	return bcagent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
 }
 
 func writePID(path string) error {
