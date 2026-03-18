@@ -208,14 +208,21 @@ func (s *AgentService) Stop(ctx context.Context, name string) error {
 	return nil
 }
 
-// Delete permanently removes an agent. Agent must be stopped first.
-func (s *AgentService) Delete(ctx context.Context, name string) error {
+// Delete permanently removes an agent. Agent must be stopped first unless force is true.
+func (s *AgentService) Delete(ctx context.Context, name string, force bool) error {
 	a := s.manager.GetAgent(name)
 	if a == nil {
 		return fmt.Errorf("agent %q not found", name)
 	}
-	if a.State != StateStopped {
-		return fmt.Errorf("agent %q must be stopped before deletion (state: %s)", name, a.State)
+	if !force && a.State != StateStopped {
+		return fmt.Errorf("agent %q must be stopped before deletion (state: %s). Use --force to delete anyway", name, a.State)
+	}
+
+	// Force: stop first if still running
+	if force && a.State != StateStopped {
+		if err := s.manager.StopAgent(name); err != nil {
+			log.Warn("force delete: failed to stop agent", "agent", name, "error", err)
+		}
 	}
 
 	if err := s.manager.DeleteAgent(name); err != nil {

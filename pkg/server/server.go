@@ -378,7 +378,8 @@ func (s *Server) handleAgentByName(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, toAgentDTO(a))
 
 	case r.Method == http.MethodDelete && action == "":
-		if err := s.agents.Delete(r.Context(), name); err != nil {
+		force := r.URL.Query().Get("force") == "true"
+		if err := s.agents.Delete(r.Context(), name, force); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}

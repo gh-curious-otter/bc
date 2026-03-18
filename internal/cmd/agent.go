@@ -886,7 +886,7 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Deleting %s... ", agentName)
-	if delErr := c.Agents.Delete(cmd.Context(), agentName); delErr != nil {
+	if delErr := c.Agents.Delete(cmd.Context(), agentName, agentDeleteForce); delErr != nil {
 		fmt.Println("✗")
 		return fmt.Errorf("failed to delete %s: %w", agentName, delErr)
 	}
