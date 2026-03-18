@@ -164,3 +164,21 @@ s = "sessions"      # Ctrl+X s -> Session list
 x = "export"        # Ctrl+X x -> Export session
 n = "new_session"   # Ctrl+X n -> New session
 q = "quit"          # Ctrl+X q -> Quit
+
+# =============================================================================
+# Database Settings
+# =============================================================================
+[database]
+# Database driver: "sqlite" (default, zero-config) or "postgres"
+driver = "sqlite"
+
+# Connection URL:
+#   sqlite  — file path relative to .bc/ (default: "" uses per-store files like channels.db, costs.db)
+#   postgres — postgresql://user:pass@host:5432/dbname?sslmode=disable
+url = ""
+
+# Maximum open connections (postgres only; sqlite always uses 1)
+max_open_conns = 10
+
+# Maximum idle connections (postgres only)
+max_idle_conns = 5

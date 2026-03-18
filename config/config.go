@@ -5,6 +5,13 @@ package config
 type ChannelsConfig struct {
 }
 
+type DatabaseConfig struct {
+	Driver       string
+	MaxIdleConns int64
+	MaxOpenConns int64
+	Url          string
+}
+
 type LogsConfig struct {
 	MaxBytes     int64
 	Path         string
@@ -135,7 +142,13 @@ type WorkspaceConfig struct {
 
 var (
 	Channels = ChannelsConfig{}
-	Logs     = LogsConfig{
+	Database = DatabaseConfig{
+		Driver:       "sqlite",
+		MaxIdleConns: 5,
+		MaxOpenConns: 10,
+		Url:          "",
+	}
+	Logs = LogsConfig{
 		MaxBytes:     1048576,
 		Path:         ".bc/logs",
 		PreserveAnsi: true,
