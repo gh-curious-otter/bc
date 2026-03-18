@@ -200,11 +200,13 @@ func (s *Store) RecordRun(ctx context.Context, entry *LogEntry) error {
 		return fmt.Errorf("insert cron log: %w", err)
 	}
 
-	// Update job stats: recompute next_run from the job's schedule.
+	// Update job stats: recompute next_run using the schedule queried via the
+	// same transaction to avoid a deadlock (single SQLite connection pool).
 	now := time.Now()
 	var nextRunPtr *time.Time
-	if j, getErr := s.GetJob(ctx, entry.JobName); getErr == nil && j != nil {
-		if t, calcErr := NextRun(j.Schedule, now); calcErr == nil {
+	var schedule string
+	if err := tx.QueryRowContext(ctx, `SELECT schedule FROM cron_jobs WHERE name = ?`, entry.JobName).Scan(&schedule); err == nil {
+		if t, calcErr := NextRun(schedule, now); calcErr == nil {
 			nextRunPtr = &t
 		}
 	}
