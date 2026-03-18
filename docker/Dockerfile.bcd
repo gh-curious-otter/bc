@@ -1,58 +1,27 @@
-# bc coordination daemon (bcd) — multi-stage build
-# Builds the React web UI, then the bcd binary with it embedded.
-#
-# Usage:
-#   docker build -t bc-bcd:latest -f docker/Dockerfile.bcd .
-#   docker run -p 9374:9374 -v /path/to/.bc:/workspace/.bc bc-bcd:latest
+# bcd server image — bc coordination daemon
+# Multi-stage build: Go binary + embedded React web UI
+# Usage: docker build -t bc-bcd:latest -f docker/Dockerfile.bcd .
 
-# ---------------------------------------------------------------------------
-# Stage 1: Build React web UI
-# ---------------------------------------------------------------------------
-FROM node:20-slim AS web-builder
+FROM oven/bun:latest AS web-builder
+WORKDIR /app/web
+COPY web/package.json web/bun.lock ./
+RUN bun install --frozen-lockfile
+COPY web/ .
+RUN bun run build
 
+FROM golang:1.24 AS go-builder
 WORKDIR /app
-
-# Install bun
-RUN npm install -g bun
-
-COPY web/package.json web/bun.lock ./web/
-RUN cd web && bun install --frozen-lockfile
-
-COPY web ./web
-RUN cd web && bun run build
-
-# ---------------------------------------------------------------------------
-# Stage 2: Build bcd Go binary (with embedded web UI)
-# ---------------------------------------------------------------------------
-FROM golang:1.25 AS builder
-
-WORKDIR /app
-
-# Cache dependencies
 COPY go.mod go.sum ./
 RUN go mod download
-
-# Copy source
 COPY . .
+COPY --from=web-builder /app/web/dist /app/server/web/dist
+RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /bcd ./cmd/bcd
 
-# Inject pre-built web UI so go:embed picks it up
-COPY --from=web-builder /app/web/dist ./web/dist
-RUN cp -r web/dist server/web/dist
-
-# Build bcd (CGO required for go-sqlite3)
-RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /bin/bcd ./cmd/bcd
-
-# ---------------------------------------------------------------------------
-# Stage 3: Minimal runtime image
-# ---------------------------------------------------------------------------
 FROM ubuntu:24.04
-
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates && \
+    apt-get install -y --no-install-recommends ca-certificates tmux git && \
     rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /bin/bcd /usr/local/bin/bcd
-
+COPY --from=go-builder /bcd /usr/local/bin/bcd
 EXPOSE 9374
-
 ENTRYPOINT ["bcd"]
+CMD ["--addr", "0.0.0.0:9374"]
