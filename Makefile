@@ -156,15 +156,6 @@ dev-landing:
 	@echo "Starting landing page dev server at http://localhost:8080"
 	@cd landing && python3 -m http.server 8080
 
-# Docker server images (bcd + bcdb)
-build-bcd-image:
-	@echo "Building bc-bcd image (includes web UI)..."
-	docker build -t bc-bcd:latest -f docker/Dockerfile.bcd .
-
-build-bcdb-image:
-	@echo "Building bc-bcdb image (postgres:17 + init SQL)..."
-	docker build -t bc-bcdb:latest -f docker/Dockerfile.bcdb .
-
 # Docker agent images (per-provider)
 AGENT_PROVIDERS := claude gemini codex aider opencode openclaw cursor
 

@@ -147,6 +147,7 @@ var (
 	daemonRunCmd_    string // underscore to avoid conflict with cobra command var
 	daemonRunImage   string
 	daemonRunPorts   []string
+	daemonRunVolumes []string
 	daemonRunEnv     []string
 	daemonRunEnvFile string
 	daemonRunRestart string
@@ -166,6 +167,7 @@ func init() {
 	daemonRunCmd.Flags().StringVar(&daemonRunCmd_, "cmd", "", "Command to run (bash runtime)")
 	daemonRunCmd.Flags().StringVar(&daemonRunImage, "image", "", "Docker image (docker runtime)")
 	daemonRunCmd.Flags().StringArrayVar(&daemonRunPorts, "port", nil, "Port mapping, e.g. 5432:5432 (repeatable)")
+	daemonRunCmd.Flags().StringArrayVar(&daemonRunVolumes, "volume", nil, "Volume mount, e.g. /var/run/docker.sock:/var/run/docker.sock (repeatable)")
 	daemonRunCmd.Flags().StringArrayVar(&daemonRunEnv, "env", nil, "Env var KEY=VALUE (repeatable)")
 	daemonRunCmd.Flags().StringVar(&daemonRunEnvFile, "env-file", "", "File of KEY=VALUE env vars")
 	daemonRunCmd.Flags().StringVar(&daemonRunRestart, "restart", "no", "Restart policy: no|always|on-failure")
@@ -393,6 +395,7 @@ func runDaemonRun(cmd *cobra.Command, _ []string) error {
 		Cmd:     daemonRunCmd_,
 		Image:   daemonRunImage,
 		Ports:   daemonRunPorts,
+		Volumes: daemonRunVolumes,
 		Env:     daemonRunEnv,
 		EnvFile: daemonRunEnvFile,
 		Restart: daemonRunRestart,

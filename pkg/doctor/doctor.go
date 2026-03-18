@@ -272,12 +272,12 @@ func CheckDatabase(ws *workspace.Workspace) CategoryReport {
 	stateDir := ws.StateDir()
 
 	// state.db
-	stateDB := filepath.Join(stateDir, "state.db")
-	cat.Items = append(cat.Items, checkSQLiteFile(stateDB, "state.db", []string{"agents"})...)
+	stateDB := filepath.Join(stateDir, "bc.db")
+	cat.Items = append(cat.Items, checkSQLiteFile(stateDB, "bc.db", []string{"agents"})...)
 
 	// channels.db
-	channelsDB := filepath.Join(stateDir, "channels.db")
-	cat.Items = append(cat.Items, checkSQLiteFile(channelsDB, "channels.db", []string{"channels", "messages"})...)
+	channelsDB := filepath.Join(stateDir, "bc.db")
+	cat.Items = append(cat.Items, checkSQLiteFile(channelsDB, "bc.db", []string{"channels", "messages"})...)
 
 	return cat
 }

@@ -13,6 +13,9 @@ RUN curl -fsSL https://claude.ai/install.sh | bash && \
     chmod +x /usr/local/bin/claude && \
     rm -rf /root/.local/share/claude /root/.claude
 
+# Pre-configure bc MCP server so agents can query workspace state
+# bcd runs on the host — accessible via host.docker.internal from containers
 USER agent
+RUN claude mcp add --transport http bc http://host.docker.internal:9374/mcp/sse 2>/dev/null || true
 WORKDIR /workspace
 ENTRYPOINT ["bash", "-c"]

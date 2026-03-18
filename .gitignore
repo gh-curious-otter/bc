@@ -49,3 +49,9 @@ tmp/
 
 # beads issue tracker state (local to each project)
 .beads/
+
+# Build artifacts
+bc
+bcd
+server/web/dist/*.html
+server/web/dist/assets/
