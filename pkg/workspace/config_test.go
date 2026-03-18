@@ -1660,3 +1660,82 @@ func TestListServicesNewConfig(t *testing.T) {
 		t.Errorf("expected 2 services, got %d", len(services))
 	}
 }
+
+func TestRosterConfig_ParsesTOML(t *testing.T) {
+	tomlData := `
+[workspace]
+name = "bc"
+version = 2
+
+[providers]
+default = "claude"
+
+[[roster.agents]]
+name = "go-reviewer"
+role = "go-reviewer"
+tool = "claude"
+
+[[roster.agents]]
+name = "agent-core"
+role = "feature-dev"
+tool = "claude"
+
+[[roster.agents]]
+name = "pm"
+role = "product-manager"
+tool = "claude"
+`
+	cfg, err := ParseConfig([]byte(tomlData))
+	if err != nil {
+		t.Fatalf("ParseConfig: %v", err)
+	}
+
+	if len(cfg.Roster.Agents) != 3 {
+		t.Fatalf("expected 3 roster agents, got %d", len(cfg.Roster.Agents))
+	}
+
+	agent := cfg.Roster.Agents[0]
+	if agent.Name != "go-reviewer" {
+		t.Errorf("Agents[0].Name = %q, want go-reviewer", agent.Name)
+	}
+	if agent.Role != "go-reviewer" {
+		t.Errorf("Agents[0].Role = %q, want go-reviewer", agent.Role)
+	}
+	if agent.Tool != "claude" {
+		t.Errorf("Agents[0].Tool = %q, want claude", agent.Tool)
+	}
+}
+
+func TestRosterConfig_EmptyByDefault(t *testing.T) {
+	cfg := DefaultConfig("test")
+	if len(cfg.Roster.Agents) != 0 {
+		t.Errorf("expected empty roster by default, got %d agents", len(cfg.Roster.Agents))
+	}
+}
+
+func TestRosterConfig_SaveAndLoad(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+
+	cfg := DefaultConfig("myws")
+	cfg.Roster.Agents = []RosterEntry{
+		{Name: "dev1", Role: "feature-dev", Tool: "claude"},
+		{Name: "reviewer", Role: "go-reviewer", Tool: "claude"},
+	}
+
+	if err := cfg.Save(path); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	loaded, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+
+	if len(loaded.Roster.Agents) != 2 {
+		t.Fatalf("loaded %d roster agents, want 2", len(loaded.Roster.Agents))
+	}
+	if loaded.Roster.Agents[0].Name != "dev1" {
+		t.Errorf("Agents[0].Name = %q, want dev1", loaded.Roster.Agents[0].Name)
+	}
+}

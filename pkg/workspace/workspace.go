@@ -81,6 +81,9 @@ func Init(rootDir string) (*Workspace, error) {
 	if _, err := rm.EnsureDefaultRoot(); err != nil {
 		return nil, fmt.Errorf("failed to create default role: %w", err)
 	}
+	if _, err := rm.EnsureDefaultRoles(); err != nil {
+		log.Warn("failed to create default roles", "error", err)
+	}
 
 	return &Workspace{
 		RootDir:     absRoot,
