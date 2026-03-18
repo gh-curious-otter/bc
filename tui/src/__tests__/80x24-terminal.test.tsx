@@ -80,15 +80,14 @@ describe('80x24 Terminal - TabBar', () => {
     );
   }
 
-  it('shows minimal mode (numbers only) at 80 columns', () => {
+  it('shows minimal mode (keys only) at 80 columns', () => {
     const { lastFrame } = renderTabBar(80);
     const output = lastFrame() ?? '';
 
-    // At 80 cols, should show minimal mode (numbers only) to fit 80x24
-    // Full labels (~140 chars) and short labels (~105 chars) don't fit
-    expect(output).toContain('[1]');
-    expect(output).toContain('[2]');
-    expect(output).toContain('[3]');
+    // At 80 cols, should show minimal mode (keys only) to fit 80x24
+    expect(output).toContain('[dash]');
+    expect(output).toContain('[ag]');
+    expect(output).toContain('[ch]');
     // Labels should NOT appear in minimal mode
     expect(output).not.toContain('Dashboard');
     expect(output).not.toContain('Dash');
@@ -99,7 +98,7 @@ describe('80x24 Terminal - TabBar', () => {
     const output = lastFrame() ?? '';
 
     // All tab keys must be visible
-    const keys = ['[1]', '[2]', '[3]', '[4]', '[5]', '[6]', '[7]', '[8]', '[?]'];
+    const keys = ['[dash]', '[ag]', '[ch]', '[co]', '[log]', '[ro]', '[wt]', '[tl]', '[mcp]', '[sec]', '[ps]', '[?]'];
     for (const key of keys) {
       expect(output).toContain(key);
     }
@@ -111,19 +110,17 @@ describe('80x24 Terminal - TabBar', () => {
 
     // At 100 cols, should show short labels
     expect(output).toContain('Dash');
-    // Agents label may be truncated to "Ag" with more tabs
     expect(output).toMatch(/Ag/);
     expect(output).not.toContain('Dashboard');
   });
 
-  it('shows full labels at 120 columns with 16 tabs', () => {
+  it('shows full labels at 120 columns', () => {
     const { lastFrame } = renderTabBar(120);
     const output = lastFrame() ?? '';
 
-    // With 17 tabs (performance + issues), 120 cols uses full mode
     // Full labels wrap due to ink-testing-library's 80-col render
-    expect(output).toContain('board'); // "Dashboard" wraps to Das + board
-    expect(output).toContain('[1]');
+    expect(output).toContain('board'); // "Dashboard" wraps
+    expect(output).toContain('[dash]');
   });
 });
 

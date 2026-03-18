@@ -27,6 +27,9 @@ import { LogsView } from './views/LogsView';
 import { WorktreesView } from './views/WorktreesView';
 import { HelpView } from './views/HelpView';
 import { ToolsView } from './views/ToolsView';
+import { MCPView } from './views/MCPView';
+import { SecretsView } from './views/SecretsView';
+import { ProcessesView } from './views/ProcessesView';
 import { CommandBar } from './components/CommandBar';
 import { FilterBar } from './components/FilterBar';
 import { FilterProvider } from './hooks/useFilter';
@@ -198,6 +201,12 @@ const ViewContent = memo(function ViewContent({ view }: ViewContentProps): React
       return <WorktreesView />;
     case 'tools':
       return <ToolsView />;
+    case 'mcp':
+      return <MCPView />;
+    case 'secrets':
+      return <SecretsView />;
+    case 'processes':
+      return <ProcessesView />;
     case 'help':
       return <HelpView />;
     default:
@@ -212,7 +221,7 @@ const Footer = memo(function Footer(): React.ReactElement {
   return (
     <Box marginTop={1}>
       <Text dimColor>
-        [<Text bold>:</Text>] command  [<Text bold>/</Text>] filter  [<Text bold>?</Text>] help  [<Text bold>Tab</Text>] next  [<Text bold>q</Text>] quit
+        [<Text bold>:</Text>] command  [<Text bold>/</Text>] filter  [<Text bold>1-0</Text>] views  [<Text bold>?</Text>] help  [<Text bold>Tab</Text>] next  [<Text bold>q</Text>] quit
       </Text>
     </Box>
   );

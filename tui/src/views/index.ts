@@ -13,4 +13,6 @@ export { RolesView } from './RolesView';
 export { WorktreesView } from './WorktreesView';
 export { ToolsView } from './ToolsView';
 export { HelpView } from './HelpView';
-
+export { MCPView } from './MCPView';
+export { SecretsView } from './SecretsView';
+export { ProcessesView } from './ProcessesView';
