@@ -30,6 +30,7 @@ import (
 	"github.com/rpuneet/bc/pkg/tool"
 	"github.com/rpuneet/bc/pkg/workspace"
 	"github.com/rpuneet/bc/server/handlers"
+	servermcp "github.com/rpuneet/bc/server/mcp"
 	"github.com/rpuneet/bc/server/ws"
 )
 
@@ -117,6 +118,16 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	if svc.WS != nil {
 		handlers.NewWorkspaceHandler(svc.Agents, svc.WS).Register(mux)
 		handlers.NewDoctorHandler(svc.WS).Register(mux)
+	}
+
+	// MCP protocol server (SSE transport) at /mcp/
+	if svc.WS != nil {
+		mcpSrv, mcpErr := servermcp.New(servermcp.Config{Workspace: svc.WS})
+		if mcpErr != nil {
+			log.Warn("MCP server unavailable", "error", mcpErr)
+		} else {
+			servermcp.MountOn(mux, mcpSrv, "/mcp")
+		}
 	}
 
 	// Static web UI (served last so API routes win)
