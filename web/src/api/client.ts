@@ -56,10 +56,14 @@ export interface Role {
   Metadata: {
     Name: string;
     Description: string;
-    Capabilities: string[];
-    Permissions: string[];
-    IsSingleton: boolean;
-    Level: number;
+    ParentRoles: string[];
+    MCPServers: string[];
+    Secrets: string[];
+    Plugins: string[];
+    PromptCreate: string;
+    PromptStart: string;
+    PromptStop: string;
+    PromptDelete: string;
   };
 }
 
