@@ -24,10 +24,10 @@ const (
 
 // Request is an incoming JSON-RPC 2.0 message (may be a request or notification).
 type Request struct {
-	JSONRPC string          `json:"jsonrpc"`
+	JSONRPC string           `json:"jsonrpc"`
 	ID      *json.RawMessage `json:"id,omitempty"` // nil for notifications
-	Method  string          `json:"method"`
-	Params  json.RawMessage `json:"params,omitempty"`
+	Method  string           `json:"method"`
+	Params  json.RawMessage  `json:"params,omitempty"`
 }
 
 // Response is an outgoing JSON-RPC 2.0 response.
@@ -79,9 +79,9 @@ type clientInfo struct {
 }
 
 type initializeResult struct {
-	ProtocolVersion string            `json:"protocolVersion"`
+	ProtocolVersion string             `json:"protocolVersion"`
 	Capabilities    serverCapabilities `json:"capabilities"`
-	ServerInfo      serverInfo        `json:"serverInfo"`
+	ServerInfo      serverInfo         `json:"serverInfo"`
 }
 
 type serverCapabilities struct {

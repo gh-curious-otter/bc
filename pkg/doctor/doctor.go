@@ -717,4 +717,3 @@ func fixWorkspace(ws *workspace.Workspace, cat *CategoryReport, dryRun bool) []F
 	}
 	return results
 }
-

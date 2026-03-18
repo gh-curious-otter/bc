@@ -17,19 +17,19 @@ var ErrNotV1Workspace = errors.New("not a v1 workspace (no .bc/config.json found
 type V1Config struct {
 	Name        string            `json:"name"`
 	Description string            `json:"description"`
-	Provider    string            `json:"provider"`    // default provider name
-	Command     string            `json:"command"`     // default provider command
-	Providers   map[string]string `json:"providers"`   // name → command
-	Nickname    string            `json:"nickname"`    // user nickname
-	Runtime     string            `json:"runtime"`     // "tmux" or "docker"
+	Provider    string            `json:"provider"`  // default provider name
+	Command     string            `json:"command"`   // default provider command
+	Providers   map[string]string `json:"providers"` // name → command
+	Nickname    string            `json:"nickname"`  // user nickname
+	Runtime     string            `json:"runtime"`   // "tmux" or "docker"
 }
 
 // MigrateResult summarises what the migration changed.
 type MigrateResult struct { //nolint:govet // fieldalignment: readability preferred over padding
-	BackupPath      string // path to the backed-up config.json
-	ConfigMigrated  bool   // config.json → config.toml
-	AgentFiles      int    // .json agent files found (auto-migrated on next Load)
-	ChannelJSON     bool   // channels.json found (auto-migrated on next channel open)
+	BackupPath     string // path to the backed-up config.json
+	ConfigMigrated bool   // config.json → config.toml
+	AgentFiles     int    // .json agent files found (auto-migrated on next Load)
+	ChannelJSON    bool   // channels.json found (auto-migrated on next channel open)
 }
 
 // V1ConfigPath returns the path to the v1 config.json.
