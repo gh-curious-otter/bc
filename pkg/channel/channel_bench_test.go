@@ -36,7 +36,7 @@ func newBenchSQLiteStore(b *testing.B) *Store {
 	store := &Store{
 		path:     filepath.Join(bcDir, "channels.json"),
 		channels: make(map[string]*Channel),
-		sqlite:   sqlite,
+		backend:  sqlite,
 	}
 	b.Cleanup(func() { _ = sqlite.Close() })
 	return store

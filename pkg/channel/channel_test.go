@@ -1004,7 +1004,7 @@ func newSQLiteTestStore(t *testing.T) *Store {
 	store := &Store{
 		path:     filepath.Join(bcDir, "channels.json"),
 		channels: make(map[string]*Channel),
-		sqlite:   sqlite,
+		backend:  sqlite,
 	}
 	t.Cleanup(func() { _ = sqlite.Close() })
 	return store
