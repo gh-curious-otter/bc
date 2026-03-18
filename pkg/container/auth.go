@@ -30,10 +30,10 @@ func AgentAuthTokenFile(workspaceDir, agentName string) string {
 	return filepath.Join(workspaceDir, ".bc", "agents", agentName, "auth", ".claude.json")
 }
 
-// EnsureAuthDir creates the per-agent auth directories and seeds credentials
-// from the host on first use so agents start pre-authenticated.
-// The workspaceName is filepath.Base(workspaceDir) — used to pre-create
-// Claude's project trust directory for the agent's worktree path.
+// EnsureAuthDir creates the per-agent auth directories.
+// Docker agents do NOT inherit host OAuth credentials — they must authenticate
+// independently (via API key or their own login). Only the directory structure
+// is created so Claude Code has a writable config location.
 func EnsureAuthDir(workspaceDir, agentName string) (string, error) {
 	workspaceName := filepath.Base(workspaceDir)
 	dir := AgentAuthDir(workspaceDir, agentName)
@@ -41,11 +41,9 @@ func EnsureAuthDir(workspaceDir, agentName string) (string, error) {
 		return "", fmt.Errorf("failed to create agent auth dir: %w", err)
 	}
 
-	// Seed on first use: if .claude.json token is absent the agent will prompt for login
-	tokenFile := AgentAuthTokenFile(workspaceDir, agentName)
-	if _, err := os.Stat(tokenFile); os.IsNotExist(err) {
-		seedAuthFromHost(filepath.Dir(dir)) // pass auth/ parent so seeding writes to correct locations
-	}
+	// Do NOT seed from host — Docker agents should use their own auth.
+	// If ANTHROPIC_API_KEY is set in the environment or passed via env config,
+	// Claude Code will use that. Otherwise the agent will prompt for login.
 
 	// Pre-create project trust directories so the workspace trust prompt is skipped.
 	ensureProjectTrust(dir, workspaceName, agentName)
