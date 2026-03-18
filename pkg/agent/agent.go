@@ -299,6 +299,8 @@ type AgentMemory struct {
 	LoadedAt time.Time `json:"loaded_at,omitempty"`
 	// RolePrompt is the full content of the role's prompt file.
 	RolePrompt string `json:"role_prompt,omitempty"`
+	// Plugins lists Claude Code plugin names to install on agent start (#1959).
+	Plugins []string `json:"plugins,omitempty"`
 }
 
 // Agent represents a running AI agent.
@@ -376,12 +378,13 @@ func LoadRoleMemory(workspacePath string, role Role) *AgentMemory {
 		return nil
 	}
 
-	if roleObj.Prompt == "" {
+	if roleObj.Prompt == "" && len(roleObj.Metadata.Plugins) == 0 {
 		return nil
 	}
 
 	return &AgentMemory{
 		RolePrompt: roleObj.Prompt,
+		Plugins:    roleObj.Metadata.Plugins,
 		LoadedAt:   time.Now(),
 	}
 }
@@ -915,6 +918,10 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		bootstrapWorkspace := wsPath
 		bootstrapParts := make([]string, len(promptParts))
 		copy(bootstrapParts, promptParts)
+		var bootstrapPlugins []string
+		if agent.RolePrompt != nil {
+			bootstrapPlugins = agent.RolePrompt.Plugins
+		}
 		go func() {
 			// Wait for the agent's TUI to fully initialize (worktree creation,
 			// trust dialog render). Docker + tmux + claude startup takes ~10s.
@@ -931,6 +938,24 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 					break // tmux not ready yet, stop trying
 				}
 				time.Sleep(3 * time.Second)
+			}
+
+			// Install role-defined plugins before sending the role prompt.
+			// Each /plugin command is sent as a slash command to Claude Code.
+			if len(bootstrapPlugins) > 0 {
+				time.Sleep(2 * time.Second)
+				for _, plugin := range bootstrapPlugins {
+					if err := rt.SendKeys(context.TODO(), bootstrapName, "/plugin "+plugin); err != nil {
+						log.Warn("failed to install plugin", "agent", bootstrapName, "plugin", plugin, "error", err)
+						break
+					}
+					time.Sleep(2 * time.Second)
+				}
+				// Reload to activate all newly installed plugins at once.
+				if err := rt.SendKeys(context.TODO(), bootstrapName, "/reload-plugins"); err != nil {
+					log.Warn("failed to reload plugins", "agent", bootstrapName, "error", err)
+				}
+				time.Sleep(2 * time.Second)
 			}
 
 			// Then send the actual bootstrap prompt if we have role instructions
@@ -953,24 +978,50 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 func (m *Manager) sendRespawnBootstrap(name string, agent *Agent, workspace string) {
 	time.Sleep(m.getBootstrapDelay())
 
-	var promptParts []string
+	var (
+		promptParts []string
+		plugins     []string
+	)
 
-	// Load role prompt from role files
-	if agent.RolePrompt != nil && agent.RolePrompt.RolePrompt != "" {
-		promptParts = append(promptParts, agent.RolePrompt.RolePrompt)
+	// Load role prompt and plugins from role files
+	if agent.RolePrompt != nil {
+		if agent.RolePrompt.RolePrompt != "" {
+			promptParts = append(promptParts, agent.RolePrompt.RolePrompt)
+		}
+		plugins = agent.RolePrompt.Plugins
 	}
 
 	// Fall back to loading from role manager
-	if len(promptParts) == 0 {
-		if mem := LoadRoleMemory(workspace, agent.Role); mem != nil && mem.RolePrompt != "" {
-			promptParts = append(promptParts, mem.RolePrompt)
+	if len(promptParts) == 0 && len(plugins) == 0 {
+		if mem := LoadRoleMemory(workspace, agent.Role); mem != nil {
+			if mem.RolePrompt != "" {
+				promptParts = append(promptParts, mem.RolePrompt)
+			}
+			plugins = mem.Plugins
 		}
+	}
+
+	rt := m.runtimeForAgent(name)
+
+	// Install role-defined plugins before sending the role prompt.
+	if len(plugins) > 0 {
+		for _, plugin := range plugins {
+			if err := rt.SendKeys(context.TODO(), name, "/plugin "+plugin); err != nil {
+				log.Warn("failed to install plugin on respawn", "agent", name, "plugin", plugin, "error", err)
+				break
+			}
+			time.Sleep(2 * time.Second)
+		}
+		if err := rt.SendKeys(context.TODO(), name, "/reload-plugins"); err != nil {
+			log.Warn("failed to reload plugins on respawn", "agent", name, "error", err)
+		}
+		time.Sleep(2 * time.Second)
 	}
 
 	if len(promptParts) > 0 {
 		prompt := strings.Join(promptParts, "\n\n---\n\n")
 		prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nAgent ID: %s\n(Respawned session — continuing previous work)\n", workspace, name)
-		if err := m.runtimeForAgent(name).SendKeys(context.TODO(), name, prompt); err != nil {
+		if err := rt.SendKeys(context.TODO(), name, prompt); err != nil {
 			log.Warn("failed to send respawn bootstrap", "agent", name, "error", err)
 		}
 	}

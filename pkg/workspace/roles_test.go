@@ -996,3 +996,50 @@ func TestRoleManager_HasRoleDisk(t *testing.T) {
 		t.Error("HasRole should return false for nonexistent role")
 	}
 }
+
+func TestParseRoleFile_WithPluginsAndMCPServers(t *testing.T) {
+	content := `---
+name: feature-dev
+plugins:
+  - feature-dev
+  - github
+  - typescript-lsp
+mcp_servers:
+  - filesystem
+  - github
+---
+
+# Feature Developer
+
+You are a feature developer agent.
+`
+
+	role, err := ParseRoleFile([]byte(content))
+	if err != nil {
+		t.Fatalf("ParseRoleFile failed: %v", err)
+	}
+
+	if role.Metadata.Name != "feature-dev" {
+		t.Errorf("Name = %q, want %q", role.Metadata.Name, "feature-dev")
+	}
+
+	wantPlugins := []string{"feature-dev", "github", "typescript-lsp"}
+	if len(role.Metadata.Plugins) != len(wantPlugins) {
+		t.Errorf("Plugins len = %d, want %d", len(role.Metadata.Plugins), len(wantPlugins))
+	}
+	for i, p := range wantPlugins {
+		if i < len(role.Metadata.Plugins) && role.Metadata.Plugins[i] != p {
+			t.Errorf("Plugins[%d] = %q, want %q", i, role.Metadata.Plugins[i], p)
+		}
+	}
+
+	wantMCP := []string{"filesystem", "github"}
+	if len(role.Metadata.MCPServers) != len(wantMCP) {
+		t.Errorf("MCPServers len = %d, want %d", len(role.Metadata.MCPServers), len(wantMCP))
+	}
+	for i, s := range wantMCP {
+		if i < len(role.Metadata.MCPServers) && role.Metadata.MCPServers[i] != s {
+			t.Errorf("MCPServers[%d] = %q, want %q", i, role.Metadata.MCPServers[i], s)
+		}
+	}
+}

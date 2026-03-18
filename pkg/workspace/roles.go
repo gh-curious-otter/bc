@@ -19,7 +19,9 @@ type RoleMetadata struct {
 	Permissions  []string `yaml:"permissions,omitempty"` // RBAC permissions (#1191)
 	ParentRoles  []string `yaml:"parent_roles,omitempty"`
 	IsSingleton  bool     `yaml:"is_singleton,omitempty"`
-	Level        int      `yaml:"level,omitempty"` // Role hierarchy level (-1=root, 0=manager, 1=engineer)
+	Level        int      `yaml:"level,omitempty"`       // Role hierarchy level (-1=root, 0=manager, 1=engineer)
+	Plugins      []string `yaml:"plugins,omitempty"`     // Claude Code plugins to install on agent start (#1959)
+	MCPServers   []string `yaml:"mcp_servers,omitempty"` // MCP server names to activate on agent start (#1959)
 }
 
 // Role represents a parsed role file with metadata and prompt content.
