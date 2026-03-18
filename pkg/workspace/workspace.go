@@ -98,6 +98,8 @@ func InitV2(rootDir string) (*Workspace, error) {
 }
 
 // Load loads a workspace from a directory.
+// If only a v1 config.json exists (no config.toml), Load returns an error
+// wrapping ErrNotV1Workspace so callers can suggest migration.
 func Load(rootDir string) (*Workspace, error) {
 	absRoot, err := filepath.Abs(rootDir)
 	if err != nil {
@@ -108,12 +110,23 @@ func Load(rootDir string) (*Workspace, error) {
 
 	tomlPath := filepath.Join(stateDir, "config.toml")
 	if _, err := os.Stat(tomlPath); err != nil {
+		// No config.toml — check for v1 workspace to give an actionable error.
+		if _, v1Err := os.Stat(filepath.Join(stateDir, "config.json")); v1Err == nil {
+			return nil, fmt.Errorf("%w: run 'bc workspace migrate' to upgrade", ErrNotV1Workspace)
+		}
 		return nil, fmt.Errorf("not a bc workspace (no .bc/config.toml found in %s)", absRoot)
 	}
 
 	cfg, loadErr := LoadConfig(tomlPath)
 	if loadErr != nil {
 		return nil, fmt.Errorf("failed to load config.toml: %w", loadErr)
+	}
+
+	// Backward-compatible version handling: if a config.toml has version < 2
+	// (written by an older bc release), bump and rewrite it automatically.
+	if cfg.Workspace.Version > 0 && cfg.Workspace.Version < ConfigVersion {
+		cfg.Workspace.Version = ConfigVersion
+		_ = cfg.Save(tomlPath) // best-effort; don't block Load on write error
 	}
 
 	if err := cfg.Validate(); err != nil {
