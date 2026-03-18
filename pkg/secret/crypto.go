@@ -15,7 +15,8 @@ import (
 
 const (
 	// pbkdf2Iterations is the number of PBKDF2 iterations for key derivation.
-	pbkdf2Iterations = 100000
+	// 600k per OWASP 2023 guidance for PBKDF2-SHA256.
+	pbkdf2Iterations = 600000
 	// saltSize is the byte length of the random salt.
 	saltSize = 16
 	// keySize is the AES-256 key size in bytes.

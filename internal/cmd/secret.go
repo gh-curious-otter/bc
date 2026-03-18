@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -44,6 +45,10 @@ var secretSetCmd = &cobra.Command{
 The value can be provided via --value, --from-env, or --from-file.
 If none are specified, reads from stdin.
 
+Note: --value appears in shell history. For sensitive values, prefer:
+  bc secret set API_KEY --from-env API_KEY
+  echo "sk-abc123" | bc secret set API_KEY
+
 Examples:
   bc secret set API_KEY --value "sk-abc123"
   bc secret set API_KEY --from-env API_KEY
@@ -83,24 +88,15 @@ var secretDeleteCmd = &cobra.Command{
 
 // Flags
 var (
-	secretSetValue   string
-	secretSetFromEnv string
+	secretSetValue    string
+	secretSetFromEnv  string
 	secretSetFromFile string
-	secretSetDesc    string
-	secretShowReveal bool
+	secretSetDesc     string
+	secretShowReveal  bool
 )
 
-// defaultPassphrase returns the master passphrase for secret encryption.
-// Uses BC_SECRET_PASSPHRASE env var, falling back to a workspace-scoped default.
-func defaultPassphrase() string {
-	if p := os.Getenv("BC_SECRET_PASSPHRASE"); p != "" {
-		return p
-	}
-	return "bc-workspace-default-key"
-}
-
 func init() {
-	secretSetCmd.Flags().StringVar(&secretSetValue, "value", "", "Secret value")
+	secretSetCmd.Flags().StringVar(&secretSetValue, "value", "", "Secret value (visible in shell history — prefer --from-env or stdin)")
 	secretSetCmd.Flags().StringVar(&secretSetFromEnv, "from-env", "", "Import value from environment variable")
 	secretSetCmd.Flags().StringVar(&secretSetFromFile, "from-file", "", "Import value from file")
 	secretSetCmd.Flags().StringVar(&secretSetDesc, "desc", "", "Secret description")
@@ -119,7 +115,11 @@ func openSecretStore() (*secret.Store, error) {
 	if err != nil {
 		return nil, errNotInWorkspace(err)
 	}
-	return secret.NewStore(ws.RootDir, defaultPassphrase())
+	passphrase, err := secret.Passphrase()
+	if err != nil {
+		return nil, fmt.Errorf("resolve secret passphrase: %w", err)
+	}
+	return secret.NewStore(ws.RootDir, passphrase)
 }
 
 func runSecretSet(cmd *cobra.Command, args []string) error {
@@ -150,12 +150,11 @@ func runSecretSet(cmd *cobra.Command, args []string) error {
 		if (stat.Mode() & os.ModeCharDevice) != 0 {
 			return fmt.Errorf("no value provided (use --value, --from-env, --from-file, or pipe to stdin)")
 		}
-		data := make([]byte, 1024*1024) // 1MB max
-		n, err := os.Stdin.Read(data)
-		if err != nil && n == 0 {
+		data, err := io.ReadAll(io.LimitReader(os.Stdin, 1024*1024)) // 1MB max
+		if err != nil {
 			return fmt.Errorf("read stdin: %w", err)
 		}
-		value = strings.TrimRight(string(data[:n]), "\n\r")
+		value = strings.TrimRight(string(data), "\n\r")
 	}
 
 	store, err := openSecretStore()

@@ -1895,9 +1895,10 @@ func resolveSecretRefs(env map[string]string, workspacePath string) {
 		return
 	}
 
-	passphrase := os.Getenv("BC_SECRET_PASSPHRASE")
-	if passphrase == "" {
-		passphrase = "bc-workspace-default-key"
+	passphrase, err := secret.Passphrase()
+	if err != nil {
+		log.Warn("failed to resolve secret passphrase", "error", err)
+		return
 	}
 
 	store, err := secret.NewStore(workspacePath, passphrase)

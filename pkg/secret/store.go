@@ -2,14 +2,21 @@ package secret
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/rpuneet/bc/pkg/db"
 )
+
+// PassphraseEnvVar is the environment variable for the master passphrase.
+const PassphraseEnvVar = "BC_SECRET_PASSPHRASE"
 
 // SecretMeta holds secret metadata (never includes the value).
 type SecretMeta struct {
@@ -25,6 +32,48 @@ type SecretMeta struct {
 type Store struct {
 	db  *db.DB
 	key []byte // derived AES-256 key
+}
+
+// Passphrase returns the passphrase for secret encryption.
+// Priority: BC_SECRET_PASSPHRASE env var > auto-generated key file at ~/.bc/secret-key.
+// The key file is created with 0600 permissions on first use.
+func Passphrase() (string, error) {
+	if p := os.Getenv(PassphraseEnvVar); p != "" {
+		return p, nil
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("cannot determine home directory: %w", err)
+	}
+
+	keyDir := filepath.Join(home, ".bc")
+	keyPath := filepath.Join(keyDir, "secret-key")
+
+	data, err := os.ReadFile(keyPath) //nolint:gosec // known path under home dir
+	if err == nil {
+		return strings.TrimSpace(string(data)), nil
+	}
+
+	if !os.IsNotExist(err) {
+		return "", fmt.Errorf("read secret key file: %w", err)
+	}
+
+	// Generate a random 32-byte key and write it
+	keyBytes := make([]byte, 32)
+	if _, err := rand.Read(keyBytes); err != nil {
+		return "", fmt.Errorf("generate secret key: %w", err)
+	}
+	key := hex.EncodeToString(keyBytes)
+
+	if err := os.MkdirAll(keyDir, 0700); err != nil {
+		return "", fmt.Errorf("create key directory: %w", err)
+	}
+	if err := os.WriteFile(keyPath, []byte(key+"\n"), 0600); err != nil {
+		return "", fmt.Errorf("write secret key file: %w", err)
+	}
+
+	return key, nil
 }
 
 // NewStore creates a new secrets store for the given workspace path.
@@ -236,14 +285,16 @@ func (s *Store) resolveValue(v string) string {
 
 	start := 0
 	for {
-		idx := indexOf(v, prefix, start)
+		idx := strings.Index(v[start:], prefix)
 		if idx < 0 {
 			break
 		}
-		end := indexOf(v, suffix, idx+len(prefix))
+		idx += start
+		end := strings.Index(v[idx+len(prefix):], suffix)
 		if end < 0 {
 			break
 		}
+		end += idx + len(prefix)
 		secretName := v[idx+len(prefix) : end]
 		val, err := s.GetValue(secretName)
 		if err != nil {
@@ -254,19 +305,6 @@ func (s *Store) resolveValue(v string) string {
 		start = idx + len(val)
 	}
 	return v
-}
-
-// indexOf returns the index of substr in s starting from start, or -1.
-func indexOf(s, substr string, start int) int {
-	if start >= len(s) {
-		return -1
-	}
-	for i := start; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
 }
 
 // scanMeta scans a single row into SecretMeta.
