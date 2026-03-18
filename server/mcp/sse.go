@@ -91,13 +91,14 @@ func (s *Server) HandleSSEMessage(ctx context.Context, broker *SSEBroker) http.H
 
 // SSEBroker fans out SSE messages to all connected clients.
 type SSEBroker struct {
-	mu      sync.Mutex
-	clients map[chan []byte]struct{}
+	mu              sync.Mutex
+	clients         map[chan []byte]struct{}
+	messageEndpoint string // path the client should POST to (e.g. "/mcp/message")
 }
 
 // NewSSEBroker creates an SSEBroker ready to use.
 func NewSSEBroker() *SSEBroker {
-	return &SSEBroker{clients: make(map[chan []byte]struct{})}
+	return &SSEBroker{clients: make(map[chan []byte]struct{}), messageEndpoint: "/message"}
 }
 
 func (b *SSEBroker) subscribe() chan []byte {
@@ -149,7 +150,7 @@ func (b *SSEBroker) handleSSE(w http.ResponseWriter, r *http.Request) {
 	defer b.unsubscribe(ch)
 
 	// Send endpoint event so client knows where to POST
-	fmt.Fprintf(w, "event: endpoint\ndata: /message\n\n")
+	fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", b.messageEndpoint)
 	flusher.Flush()
 
 	for {
@@ -170,6 +171,7 @@ func (b *SSEBroker) handleSSE(w http.ResponseWriter, r *http.Request) {
 // This allows embedding the MCP server into bcd's HTTP server.
 func MountOn(mux *http.ServeMux, srv *Server, prefix string) {
 	broker := NewSSEBroker()
+	broker.messageEndpoint = prefix + "/message"
 	mux.HandleFunc(prefix+"/sse", broker.handleSSE)
 	mux.HandleFunc(prefix+"/message", srv.HandleSSEMessage(context.Background(), broker))
 }
