@@ -119,6 +119,18 @@ deps:
 	go mod download
 	go mod tidy
 
+# Server images (bcd + bcdb)
+build-bcd-image:
+	@echo "Building bc-bcd:latest..."
+	docker build -t bc-bcd:latest -f docker/Dockerfile.bcd .
+
+build-bcdb-image:
+	@echo "Building bc-bcdb:latest..."
+	docker build -t bc-bcdb:latest -f docker/Dockerfile.bcdb .
+
+build-server-images: build-bcd-image build-bcdb-image
+	@echo "Server images built (bc-bcd, bc-bcdb)"
+
 # TUI targets (requires bun)
 build-tui:
 	@echo "Building TUI..."

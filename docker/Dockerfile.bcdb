@@ -1,23 +1,13 @@
-# bc database (bcdb) — Postgres 17 with bc-specific init scripts
-#
-# Usage:
-#   docker build -t bc-bcdb:latest -f docker/Dockerfile.bcdb .
-#   docker run -d \
-#     -e POSTGRES_DB=bc \
-#     -e POSTGRES_USER=bc \
-#     -e POSTGRES_PASSWORD=bc \
-#     -p 5432:5432 \
-#     -v /path/to/.bc/pgdata:/var/lib/postgresql/data \
-#     bc-bcdb:latest
+# bcdb image — Postgres database for bc workspaces
+# Usage: docker build -t bc-bcdb:latest -f docker/Dockerfile.bcdb .
 
 FROM postgres:17
 
-# Copy bc-specific init SQL scripts. Postgres runs *.sql files in /docker-entrypoint-initdb.d/
-# in alphabetical order on first startup.
-COPY docker/bcdb/ /docker-entrypoint-initdb.d/
-
-ENV POSTGRES_DB=bc
 ENV POSTGRES_USER=bc
 ENV POSTGRES_PASSWORD=bc
+ENV POSTGRES_DB=bc
+
+# Init scripts run on first start (alphabetical order)
+COPY docker/bcdb/init.sql /docker-entrypoint-initdb.d/01-init.sql
 
 EXPOSE 5432
