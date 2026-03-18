@@ -47,6 +47,7 @@ type CommandOpts struct {
 	WorkspaceName string // workspace name for unique worktree naming
 	Docker        bool   // running inside Docker container
 	Resume        bool   // resume previous session (claude uses --continue)
+	SessionID     string // explicit session ID for resume (overrides Resume flag if set)
 }
 
 // ContainerCustomizer is optionally implemented by providers needing
@@ -64,6 +65,16 @@ type ContainerCustomizer interface {
 type SessionCustomizer interface {
 	// AdjustSessionCommand modifies the command for headless session execution.
 	AdjustSessionCommand(command string) string
+}
+
+// SessionResumer is optionally implemented by providers that support resuming
+// a specific named session by ID (e.g. claude --resume <id>).
+type SessionResumer interface {
+	// SupportsResume reports whether this provider can resume a specific session by ID.
+	SupportsResume() bool
+	// ParseSessionID extracts a session ID from tool output, returning "" if none found.
+	// Claude prints "claude --resume <uuid>" on graceful exit.
+	ParseSessionID(output string) string
 }
 
 // State represents the detected state of a provider's agent.

@@ -895,3 +895,115 @@ func TestCursorDetectState(t *testing.T) {
 		})
 	}
 }
+
+func TestClaudeSessionResumer(t *testing.T) {
+	p := NewClaudeProvider()
+
+	// Verify interface implementation
+	sr, ok := interface{}(p).(SessionResumer)
+	if !ok {
+		t.Fatal("ClaudeProvider must implement SessionResumer")
+	}
+	if !sr.SupportsResume() {
+		t.Error("ClaudeProvider.SupportsResume() must return true")
+	}
+}
+
+func TestClaudeParseSessionID(t *testing.T) {
+	p := NewClaudeProvider()
+
+	tests := []struct {
+		name   string
+		output string
+		wantID string
+	}{
+		{
+			name: "standard resume line",
+			output: `Some output here...
+Resume this session with:
+claude --resume cc78cadf-89ce-4820-ab6e-950afd2b6838`,
+			wantID: "cc78cadf-89ce-4820-ab6e-950afd2b6838",
+		},
+		{
+			name: "resume line in middle of output",
+			output: `❯ 
+claude --resume aa11bb22-cc33-dd44-ee55-ff6677889900
+Some more output`,
+			wantID: "aa11bb22-cc33-dd44-ee55-ff6677889900",
+		},
+		{
+			name:   "no session ID present",
+			output: "Normal claude output without resume line",
+			wantID: "",
+		},
+		{
+			name:   "empty output",
+			output: "",
+			wantID: "",
+		},
+		{
+			name:   "malformed UUID",
+			output: "claude --resume not-a-valid-uuid-here",
+			wantID: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := p.ParseSessionID(tt.output)
+			if got != tt.wantID {
+				t.Errorf("ParseSessionID() = %q, want %q", got, tt.wantID)
+			}
+		})
+	}
+}
+
+func TestClaudeBuildCommandSessionID(t *testing.T) {
+	p := NewClaudeProvider()
+
+	tests := []struct {
+		name string
+		opts CommandOpts
+		want string
+	}{
+		{
+			name: "session ID takes priority over resume flag",
+			opts: CommandOpts{
+				AgentName: "eng-01",
+				SessionID: "cc78cadf-89ce-4820-ab6e-950afd2b6838",
+				Resume:    true,
+			},
+			want: "claude -w bc-eng-01  --dangerously-skip-permissions --resume cc78cadf-89ce-4820-ab6e-950afd2b6838",
+		},
+		{
+			name: "session ID alone",
+			opts: CommandOpts{
+				AgentName: "eng-01",
+				SessionID: "cc78cadf-89ce-4820-ab6e-950afd2b6838",
+			},
+			want: "claude -w bc-eng-01  --dangerously-skip-permissions --resume cc78cadf-89ce-4820-ab6e-950afd2b6838",
+		},
+		{
+			name: "resume flag without session ID uses --continue",
+			opts: CommandOpts{
+				AgentName: "eng-01",
+				Resume:    true,
+			},
+			want: "claude -w bc-eng-01  --dangerously-skip-permissions --continue",
+		},
+		{
+			name: "no resume flags — fresh session",
+			opts: CommandOpts{AgentName: "eng-01"},
+			want: "claude -w bc-eng-01  --dangerously-skip-permissions",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := p.BuildCommand(tt.opts)
+			if got != tt.want {
+				t.Errorf("BuildCommand() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
