@@ -54,9 +54,14 @@ func main() {
 }
 
 func run(addr, wsRoot string) error {
+	// Try to load existing workspace; if none exists, initialize a minimal one.
+	// This allows bcd to run in a fresh Docker container without a pre-existing workspace.
 	ws, err := bcworkspace.Load(wsRoot)
 	if err != nil {
-		return fmt.Errorf("load workspace %s: %w", wsRoot, err)
+		ws, err = bcworkspace.Init(wsRoot)
+		if err != nil {
+			return fmt.Errorf("init workspace %s: %w", wsRoot, err)
+		}
 	}
 
 	// Write PID file
