@@ -64,8 +64,8 @@ function ChatRoom({ channelName }: { channelName: string }) {
   useEffect(() => {
     void (async () => {
       try {
-        const res = await api.getChannelHistory(channelName, 100);
-        setMessages(res.messages);
+        const msgs = await api.getChannelHistory(channelName, 100);
+        setMessages(msgs ?? []);
       } catch {
         setMessages([]);
       }

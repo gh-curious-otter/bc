@@ -44,7 +44,7 @@ export interface CostSummary {
 
 export interface AgentCostSummary {
   agent_id: string;
-  total_cost: number;
+  total_cost_usd: number;
   input_tokens: number;
   output_tokens: number;
   record_count: number;
@@ -60,9 +60,9 @@ export const api = {
 
   listChannels: () => request<Channel[]>('/channels'),
   getChannelHistory: (name: string, limit = 50) =>
-    request<{ messages: ChannelMessage[] }>(`/channels/${name}/history?limit=${limit}`),
-  sendToChannel: (name: string, message: string) =>
-    request<void>(`/channels/${name}/send`, { method: 'POST', body: JSON.stringify({ message }) }),
+    request<ChannelMessage[]>(`/channels/${name}/history?limit=${limit}`),
+  sendToChannel: (name: string, message: string, sender = 'web') =>
+    request<ChannelMessage>(`/channels/${name}/messages`, { method: 'POST', body: JSON.stringify({ sender, content: message }) }),
 
   getCostSummary: () => request<CostSummary>('/costs'),
   getCostByAgent: () => request<AgentCostSummary[]>('/costs/agents'),
