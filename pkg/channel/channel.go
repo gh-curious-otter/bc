@@ -75,7 +75,7 @@ func OpenStore(workspacePath string) (*Store, error) {
 	}
 
 	// Fall back to SQLite if .bc/channels.db exists
-	dbPath := filepath.Join(workspacePath, ".bc", "channels.db")
+	dbPath := filepath.Join(workspacePath, ".bc", "bc.db")
 	if _, err := os.Stat(dbPath); err == nil {
 		s := NewSQLiteStore(workspacePath)
 		if err := s.Open(); err != nil {

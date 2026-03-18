@@ -54,9 +54,14 @@ func main() {
 }
 
 func run(addr, wsRoot string) error {
+	// Try to load existing workspace; if none exists, initialize a minimal one.
+	// This allows bcd to run in a fresh Docker container without a pre-existing workspace.
 	ws, err := bcworkspace.Load(wsRoot)
 	if err != nil {
-		return fmt.Errorf("load workspace %s: %w", wsRoot, err)
+		ws, err = bcworkspace.Init(wsRoot)
+		if err != nil {
+			return fmt.Errorf("init workspace %s: %w", wsRoot, err)
+		}
 	}
 
 	// Write PID file
@@ -85,7 +90,6 @@ func run(addr, wsRoot string) error {
 	// Stats collector: polls Docker stats + consumes hook event files every 30s.
 	statsCollector := bcagent.NewStatsCollector(agentMgr)
 	go statsCollector.Run(ctx)
-
 
 	// Channel service
 	var channelSvc *bcchannel.ChannelService
@@ -205,28 +209,21 @@ func run(addr, wsRoot string) error {
 	return srv.Start(ctx)
 }
 
-// newAgentManager creates an agent manager using the workspace's configured runtime backend.
-// Mirrors internal/cmd/agent.go:newAgentManager so bcd sees the same agents as the CLI.
+// newAgentManager creates an agent manager with Docker support if available.
+// bcd gets access to the host Docker socket via volume mount so it can
+// manage agent containers.
 func newAgentManager(ws *bcworkspace.Workspace) *bcagent.Manager {
-	backend := ""
+	var wsCfg bcworkspace.DockerRuntimeConfig
 	if ws.Config != nil {
-		backend = ws.Config.Runtime.Backend
+		wsCfg = ws.Config.Runtime.Docker
 	}
-
-	if backend == "docker" {
-		var wsCfg bcworkspace.DockerRuntimeConfig
-		if ws.Config != nil {
-			wsCfg = ws.Config.Runtime.Docker
-		}
-		dockerCfg := bccontainer.ConfigFromWorkspace(wsCfg)
-		be, err := bccontainer.NewBackend(dockerCfg, "bc-", ws.RootDir, provider.DefaultRegistry)
-		if err != nil {
-			log.Warn("Docker unavailable, falling back to tmux", "error", err)
-		} else {
-			return bcagent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, be, "docker")
-		}
+	dockerCfg := bccontainer.ConfigFromWorkspace(wsCfg)
+	be, err := bccontainer.NewBackend(dockerCfg, "bc-", ws.RootDir, provider.DefaultRegistry)
+	if err != nil {
+		log.Debug("Docker not available in bcd container", "error", err)
+		return bcagent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
 	}
-	return bcagent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	return bcagent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, be, "docker")
 }
 
 func writePID(path string) error {

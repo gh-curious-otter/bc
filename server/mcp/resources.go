@@ -28,14 +28,14 @@ func (s *Server) readWorkspaceStatus() (string, error) {
 // ─── bc://agents ─────────────────────────────────────────────────────────────
 
 type agentPayload struct {
-	Name    string `json:"name"`
-	Role    string `json:"role"`
-	State   string `json:"state"`
-	Tool    string `json:"tool,omitempty"`
-	Team    string `json:"team,omitempty"`
+	Name     string `json:"name"`
+	Role     string `json:"role"`
+	State    string `json:"state"`
+	Tool     string `json:"tool,omitempty"`
+	Team     string `json:"team,omitempty"`
 	Worktree string `json:"worktree,omitempty"`
-	Session string `json:"session,omitempty"`
-	IsRoot  bool   `json:"is_root,omitempty"`
+	Session  string `json:"session,omitempty"`
+	IsRoot   bool   `json:"is_root,omitempty"`
 }
 
 func (s *Server) readAgents() (string, error) {
@@ -59,10 +59,10 @@ func (s *Server) readAgents() (string, error) {
 // ─── bc://channels ────────────────────────────────────────────────────────────
 
 type channelPayload struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description,omitempty"`
-	Members     []string `json:"members"`
-	MessageCount int     `json:"message_count"`
+	Name         string   `json:"name"`
+	Description  string   `json:"description,omitempty"`
+	Members      []string `json:"members"`
+	MessageCount int      `json:"message_count"`
 }
 
 func (s *Server) readChannels() (string, error) {
@@ -70,9 +70,9 @@ func (s *Server) readChannels() (string, error) {
 	payload := make([]channelPayload, 0, len(chans))
 	for _, ch := range chans {
 		payload = append(payload, channelPayload{
-			Name:        ch.Name,
-			Description: ch.Description,
-			Members:     ch.Members,
+			Name:         ch.Name,
+			Description:  ch.Description,
+			Members:      ch.Members,
 			MessageCount: len(ch.History),
 		})
 	}
@@ -82,8 +82,8 @@ func (s *Server) readChannels() (string, error) {
 // ─── bc://costs ───────────────────────────────────────────────────────────────
 
 type costsPayload struct {
-	Workspace   *costSummaryPayload   `json:"workspace"`
-	ByAgent     []costSummaryPayload  `json:"by_agent,omitempty"`
+	Workspace *costSummaryPayload  `json:"workspace"`
+	ByAgent   []costSummaryPayload `json:"by_agent,omitempty"`
 }
 
 type costSummaryPayload struct {

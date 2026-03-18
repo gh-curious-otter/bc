@@ -131,9 +131,24 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		}
 	}
 
-	// Static web UI (served last so API routes win)
+	// Static web UI with SPA fallback — serves files if they exist,
+	// otherwise falls back to index.html for client-side routing.
 	if staticFiles != nil {
-		mux.Handle("/", http.FileServer(http.FS(staticFiles)))
+		fileServer := http.FileServer(http.FS(staticFiles))
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			// Try serving the exact file first
+			path := r.URL.Path
+			if path != "/" {
+				if f, err := staticFiles.Open(path[1:]); err == nil {
+					f.Close()
+					fileServer.ServeHTTP(w, r)
+					return
+				}
+			}
+			// Fallback: serve index.html for SPA client-side routes
+			r.URL.Path = "/"
+			fileServer.ServeHTTP(w, r)
+		})
 	}
 
 	var handler http.Handler = mux

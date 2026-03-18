@@ -482,4 +482,3 @@ func truncateStr(s string, max int) string {
 	}
 	return string(runes[:max-1]) + "…"
 }
-

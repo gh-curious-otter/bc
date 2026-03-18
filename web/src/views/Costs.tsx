@@ -20,12 +20,17 @@ function CostCard({ label, value }: { label: string; value: string }) {
 
 export function Costs() {
   const fetcher = useCallback(async (): Promise<CostData> => {
-    const summary = await api.getCostSummary();
+    let summary: CostSummary = { input_tokens: 0, output_tokens: 0, total_tokens: 0, total_cost_usd: 0, record_count: 0 };
     let byAgent: AgentCostSummary[] = [];
+    try {
+      summary = await api.getCostSummary();
+    } catch {
+      // cost summary unavailable
+    }
     try {
       byAgent = await api.getCostByAgent();
     } catch {
-      // /api/costs/agents may not exist yet
+      // per-agent costs unavailable
     }
     return { summary, byAgent };
   }, []);
@@ -68,9 +73,9 @@ export function Costs() {
       <h1 className="text-xl font-bold">Costs</h1>
 
       <div className="grid grid-cols-3 gap-4">
-        <CostCard label="Total Cost" value={`$${data.summary.total_cost_usd.toFixed(2)}`} />
-        <CostCard label="Total Tokens" value={data.summary.total_tokens.toLocaleString()} />
-        <CostCard label="Records" value={String(data.summary.record_count)} />
+        <CostCard label="Total Cost" value={`$${(data.summary?.total_cost_usd ?? 0).toFixed(2)}`} />
+        <CostCard label="Total Tokens" value={(data.summary?.total_tokens ?? 0).toLocaleString()} />
+        <CostCard label="Records" value={String(data.summary?.record_count ?? 0)} />
       </div>
 
       <section>

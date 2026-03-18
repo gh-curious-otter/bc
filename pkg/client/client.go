@@ -28,7 +28,7 @@ func DefaultSocketPath() string {
 }
 
 // DefaultHTTPAddr is the fallback HTTP address for bcd.
-const DefaultHTTPAddr = "http://localhost:4880"
+const DefaultHTTPAddr = "http://127.0.0.1:9374"
 
 // Client is the HTTP client for the bcd daemon.
 type Client struct {

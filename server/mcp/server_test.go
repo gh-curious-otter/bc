@@ -373,7 +373,7 @@ func TestToolCall_CreateAgent_MissingName(t *testing.T) {
 	srv := newTestServer(t)
 
 	var result struct {
-		IsError bool             `json:"isError"`
+		IsError bool              `json:"isError"`
 		Content []mcp.ToolContent `json:"content"`
 	}
 	rpc(t, srv, "tools/call", map[string]any{
@@ -390,7 +390,7 @@ func TestToolCall_CreateAgent_InvalidName(t *testing.T) {
 	srv := newTestServer(t)
 
 	var result struct {
-		IsError bool             `json:"isError"`
+		IsError bool              `json:"isError"`
 		Content []mcp.ToolContent `json:"content"`
 	}
 	rpc(t, srv, "tools/call", map[string]any{
@@ -410,7 +410,7 @@ func TestToolCall_SendMessage_MissingChannel(t *testing.T) {
 	srv := newTestServer(t)
 
 	var result struct {
-		IsError bool             `json:"isError"`
+		IsError bool              `json:"isError"`
 		Content []mcp.ToolContent `json:"content"`
 	}
 	rpc(t, srv, "tools/call", map[string]any{
@@ -427,7 +427,7 @@ func TestToolCall_ReportStatus_UnknownAgent(t *testing.T) {
 	srv := newTestServer(t)
 
 	var result struct {
-		IsError bool             `json:"isError"`
+		IsError bool              `json:"isError"`
 		Content []mcp.ToolContent `json:"content"`
 	}
 	rpc(t, srv, "tools/call", map[string]any{
@@ -450,7 +450,7 @@ func TestToolCall_QueryCosts_Empty(t *testing.T) {
 	srv := newTestServer(t)
 
 	var result struct {
-		IsError bool             `json:"isError"`
+		IsError bool              `json:"isError"`
 		Content []mcp.ToolContent `json:"content"`
 	}
 	rpc(t, srv, "tools/call", map[string]any{
