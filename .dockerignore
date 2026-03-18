@@ -1,0 +1,8 @@
+bin/
+dist/
+.bc/
+node_modules/
+web/node_modules/
+web/dist/
+tui/node_modules/
+tui/dist/
