@@ -129,13 +129,10 @@ func (s *Server) readCosts() (string, error) {
 // ─── bc://roles ───────────────────────────────────────────────────────────────
 
 type rolePayload struct {
-	Name         string   `json:"name"`
-	Description  string   `json:"description,omitempty"`
-	Capabilities []string `json:"capabilities,omitempty"`
-	Permissions  []string `json:"permissions,omitempty"`
-	MCPServers   []string `json:"mcp_servers,omitempty"`
-	IsSingleton  bool     `json:"is_singleton,omitempty"`
-	Level        int      `json:"level,omitempty"`
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	MCPServers  []string `json:"mcp_servers,omitempty"`
+	Secrets     []string `json:"secrets,omitempty"`
 }
 
 func (s *Server) readRoles() (string, error) {
@@ -148,13 +145,10 @@ func (s *Server) readRoles() (string, error) {
 	payload := make([]rolePayload, 0, len(roles))
 	for _, r := range roles {
 		payload = append(payload, rolePayload{
-			Name:         r.Metadata.Name,
-			Description:  r.Metadata.Description,
-			Capabilities: r.Metadata.Capabilities,
-			Permissions:  r.Metadata.Permissions,
-			MCPServers:   r.Metadata.MCPServers,
-			IsSingleton:  r.Metadata.IsSingleton,
-			Level:        r.Metadata.Level,
+			Name:        r.Metadata.Name,
+			Description: r.Metadata.Description,
+			MCPServers:  r.Metadata.MCPServers,
+			Secrets:     r.Metadata.Secrets,
 		})
 	}
 	return marshalJSON(payload)

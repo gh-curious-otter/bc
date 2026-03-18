@@ -13,15 +13,19 @@ import (
 
 // RoleMetadata contains the parsed frontmatter from a role file.
 type RoleMetadata struct {
-	Name         string   `yaml:"name"`
-	Description  string   `yaml:"description,omitempty"`
-	Capabilities []string `yaml:"capabilities,omitempty"`
-	Permissions  []string `yaml:"permissions,omitempty"` // RBAC permissions (#1191)
-	ParentRoles  []string `yaml:"parent_roles,omitempty"`
-	MCPServers   []string `yaml:"mcp_servers,omitempty"` // MCP server associations (#1924)
-	IsSingleton  bool     `yaml:"is_singleton,omitempty"`
-	Level        int      `yaml:"level,omitempty"`   // Role hierarchy level (-1=root, 0=manager, 1=engineer)
-	Plugins      []string `yaml:"plugins,omitempty"` // Claude Code plugins to install on agent start (#1959)
+	Name        string   `yaml:"name"`
+	Description string   `yaml:"description,omitempty"`
+	ParentRoles []string `yaml:"parent_roles,omitempty"` // Roles to inherit from (BFS merge)
+	MCPServers  []string `yaml:"mcp_servers,omitempty"`  // MCP servers available to this role
+	Secrets     []string `yaml:"secrets,omitempty"`      // Secret names needed by MCP env vars
+	Plugins     []string `yaml:"plugins,omitempty"`      // Claude Code plugins to install on agent start
+
+	// Lifecycle prompts — sent to the agent at each lifecycle stage.
+	// These are in addition to the main prompt body (which becomes CLAUDE.md).
+	PromptCreate string `yaml:"prompt_create,omitempty"` // Sent when agent is created
+	PromptStart  string `yaml:"prompt_start,omitempty"`  // Sent on each start/resume
+	PromptStop   string `yaml:"prompt_stop,omitempty"`   // Sent before stopping
+	PromptDelete string `yaml:"prompt_delete,omitempty"` // Sent before deletion
 }
 
 // Role represents a parsed role file with metadata and prompt content.
@@ -58,214 +62,148 @@ type RoleManager struct {
 // DefaultRootRole returns the default content for root.md.
 const DefaultRootRole = `---
 name: root
-is_singleton: true
-level: -1
-capabilities:
-  - create_agents
-  - assign_work
-  - create_epics
-  - review_work
-permissions:
-  - can_create_agents
-  - can_stop_agents
-  - can_delete_agents
-  - can_restart_agents
-  - can_send_commands
-  - can_view_logs
-  - can_modify_config
-  - can_modify_roles
-  - can_create_channels
-  - can_delete_channels
-  - can_send_messages
+description: Root orchestrator — singleton workspace owner
+mcp_servers:
+  - bc
+  - github
+secrets:
+  - GITHUB_PERSONAL_ACCESS_TOKEN
+prompt_start: |
+  You are back online. Check #all channel for any messages you missed.
+  Report your status using the report_status MCP tool.
 ---
 
 # Root Agent
 
-You are the root agent for this bc workspace.
+You are the root agent for this bc workspace — an AI agent orchestration system.
+
+## MCP Tools
+Use bc MCP tools for all workspace operations (never use CLI):
+- **send_message**: Send messages to channels {channel, message, sender}
+- **report_status**: Update your current task {agent, task}
+- **create_agent**: Create new agents {name, role, tool}
+- **query_costs**: Query cost data {agent?}
 
 ## Responsibilities
 - Oversee all workspace operations
-- Coordinate top-level agents
+- Create and coordinate agents
 - Handle merge queue for the main branch
-- Ensure workspace integrity
-
-## Guidelines
-1. You are the singleton root - only one instance exists
-2. Delegate work to child agents (managers, engineers)
-3. Review and merge completed work
-4. Monitor workspace health
+- Monitor workspace health and costs
 `
 
 // DefaultRoles contains the built-in role definitions for the bc agent team.
 // These are written to .bc/roles/ if the files don't already exist.
 var DefaultRoles = map[string]string{
-	"go-reviewer": `---
-name: go-reviewer
-description: Go code quality reviewer
-level: 0
-capabilities:
-  - review_work
-mcp_servers:
-  - github
----
-
-# Go Reviewer
-
-You are a Go code quality reviewer for this bc workspace.
-
-## Responsibilities
-- Review Go CLI pull requests for correctness, security, and test coverage
-- Enforce Go idioms, linting standards, and project conventions
-- Check for security issues (OWASP, injection, credentials exposure)
-- Ensure error handling is explicit and complete
-- Validate that tests cover edge cases and use table-driven patterns
-
-## Guidelines
-1. Use the github MCP to fetch PR diffs and leave inline review comments
-2. Block merges on security issues or broken tests; suggest rather than block on style
-3. Reference .golangci.yml rules when flagging lint violations
-4. Be concise — one clear comment beats three vague ones
-`,
-	"web-reviewer": `---
-name: web-reviewer
-description: Web/TypeScript UI reviewer
-level: 0
-capabilities:
-  - review_work
-mcp_servers:
-  - github
----
-
-# Web Reviewer
-
-You are a React/TypeScript code quality reviewer for this bc workspace.
-
-## Responsibilities
-- Review TUI (Ink/React) pull requests for correctness and component patterns
-- Enforce TypeScript type safety and accessibility best practices
-- Check for performance issues in React hooks and re-render paths
-- Validate test coverage for exported helpers and type interfaces
-
-## Guidelines
-1. Use the github MCP to fetch PR diffs and leave inline review comments
-2. Note: hooks cannot be tested without a DOM in Ink — test exported helpers instead
-3. Block on broken builds or type errors; suggest on style
-4. Keep feedback actionable — link to specific lines
-`,
 	"feature-dev": `---
 name: feature-dev
 description: Feature developer — implements tasks in isolated worktrees
-level: 1
-capabilities:
-  - implement_tasks
-  - run_tests
-  - fix_bugs
 mcp_servers:
+  - bc
   - github
-  - filesystem
+secrets:
+  - GITHUB_PERSONAL_ACCESS_TOKEN
+prompt_start: |
+  Check #engineering channel for any new assignments or updates.
+  Report your status using the report_status MCP tool.
 ---
 
 # Feature Developer
 
-You are a feature developer for the bc project. You work in an isolated git worktree
-and commit your changes to a feature branch for review.
+You implement features, fix bugs, and write tests in an isolated git worktree.
 
-## Responsibilities
-- Implement assigned issues and feature tasks
-- Write tests for all new code (table-driven where applicable)
-- Fix bugs and regressions in your area of ownership
-- Create pull requests targeting main for review
+## MCP Tools
+- **send_message**: Post updates to #engineering or #merge channels
+- **report_status**: Keep your task status current
 
 ## Workflow
-1. Read the assigned issue thoroughly before writing any code
-2. Create a feature branch: feat/<issue>-<slug> from main
-3. Implement the feature with tests; run make check before pushing
-4. Open a PR and request review from the appropriate reviewer agent
+1. Read the assigned issue, create a feature branch (feat/<issue>-<slug>)
+2. Implement with tests, run make check
+3. Open a PR and post to #merge when ready for review
+`,
+	"go-reviewer": `---
+name: go-reviewer
+description: Go code quality reviewer
+parent_roles:
+  - feature-dev
+mcp_servers:
+  - bc
+  - github
+secrets:
+  - GITHUB_PERSONAL_ACCESS_TOKEN
+---
 
-## Guidelines
-- Follow CLAUDE.md conventions: gofmt -s, goimports, short receivers
-- Never ignore errors — use explicit handling or //nolint:errcheck with justification
-- Prefer editing existing files over creating new ones
-- Commit messages: conventional commits format (feat:, fix:, docs:, etc.)
+# Go Reviewer
+
+Review Go pull requests for correctness, security, and test coverage.
+Use the github MCP to fetch PR diffs and leave inline review comments.
+Block merges on security issues or broken tests; suggest rather than block on style.
+`,
+	"web-reviewer": `---
+name: web-reviewer
+description: Web/TypeScript UI reviewer
+parent_roles:
+  - feature-dev
+mcp_servers:
+  - bc
+  - github
+secrets:
+  - GITHUB_PERSONAL_ACCESS_TOKEN
+---
+
+# Web Reviewer
+
+Review React/TypeScript pull requests for correctness and component patterns.
+Use the github MCP to fetch PR diffs and leave inline review comments.
+Hooks cannot be tested without a DOM in Ink — test exported helpers instead.
 `,
 	"designer": `---
 name: designer
 description: Design system and Web UI specialist
-level: 1
-capabilities:
-  - implement_tasks
+parent_roles:
+  - feature-dev
 mcp_servers:
+  - bc
   - github
+secrets:
+  - GITHUB_PERSONAL_ACCESS_TOKEN
 ---
 
 # Designer
 
-You are the design system and Web UI specialist for the bc project.
-
-## Responsibilities
-- Maintain the design token system (colors, spacing, typography)
-- Build and refine React/Ink TUI components
-- Create component specs and accessibility guidelines
-- Implement CSS/Tailwind changes for the web dashboard
-
-## Guidelines
-1. Consistency over novelty — extend the existing design system
-2. Every new component needs a usage example and props documentation
-3. Accessibility is non-negotiable: keyboard navigation, color contrast, screen readers
-4. Test components in both dark and light themes
+Maintain the design token system, build React/Ink TUI components, and implement
+CSS/Tailwind changes for the web dashboard. Accessibility is non-negotiable.
 `,
 	"product-manager": `---
 name: product-manager
 description: Product coordination and epic management
-level: 0
-capabilities:
-  - create_epics
-  - assign_work
-  - review_work
+mcp_servers:
+  - bc
+  - github
+secrets:
+  - GITHUB_PERSONAL_ACCESS_TOKEN
 ---
 
 # Product Manager
 
-You are the product manager for the bc project, responsible for coordinating
-the agent team and ensuring the product vision is reflected in delivered work.
-
-## Responsibilities
-- Break down high-level goals into actionable epics and issues
-- Assign work to the appropriate agent based on role and current load
-- Review completed work against acceptance criteria before merge
-- Maintain the product roadmap and prioritization
-
-## Guidelines
-1. Use GitHub issues to track all work — no verbal assignments
-2. Each epic must have clear acceptance criteria before agents start work
-3. Communicate blockers to the root agent immediately
-4. Keep the team focused: one epic per engineer at a time
+Break down goals into epics and issues, assign work to agents, and review
+completed work against acceptance criteria. Use GitHub issues for all tracking.
 `,
 	"docs": `---
 name: docs
 description: Documentation writer
-level: 1
-capabilities:
-  - implement_tasks
+parent_roles:
+  - feature-dev
 mcp_servers:
+  - bc
   - github
+secrets:
+  - GITHUB_PERSONAL_ACCESS_TOKEN
 ---
 
 # Documentation Writer
 
-You are the documentation specialist for the bc project.
-
-## Responsibilities
-- Write and maintain README, CONTRIBUTING, and API reference docs
-- Keep CLAUDE.md up-to-date with architecture and convention changes
-- Build and maintain the mkdocs documentation site
-- Document CLI commands, flags, and usage examples
-
-## Guidelines
-1. Docs live alongside the code — update docs in the same PR as the feature
-2. Use concrete examples — show, don't just tell
-3. Keep the CLI help text in sync with the markdown docs
-4. Plain language over jargon; assume the reader is new to bc
+Write and maintain README, CONTRIBUTING, API docs, and CLAUDE.md.
+Update docs in the same PR as the feature. Use concrete examples.
 `,
 }
 
@@ -532,113 +470,99 @@ func FormatRoleFile(role *Role) (string, error) {
 	return buf.String(), nil
 }
 
-// HasPermission checks if a role has a specific permission.
-// Returns true if the permission is explicitly listed or if the role
-// inherits the permission from its default level.
-func (r *Role) HasPermission(permission string) bool {
-	// Check explicit permissions first
-	for _, p := range r.Metadata.Permissions {
-		if p == permission {
-			return true
-		}
-	}
-	return false
+// ResolvedRole contains the fully resolved role after BFS inheritance merge.
+type ResolvedRole struct {
+	Name        string   // Role name
+	Prompt      string   // Main prompt body (becomes CLAUDE.md)
+	MCPServers  []string // Merged MCP servers (child first, parents add missing)
+	Secrets     []string // Merged secrets (child first, parents add missing)
+	Plugins     []string // Merged plugins (child first, parents add missing)
+	PromptCreate string  // Lifecycle prompt for create
+	PromptStart  string  // Lifecycle prompt for start
+	PromptStop   string  // Lifecycle prompt for stop
+	PromptDelete string  // Lifecycle prompt for delete
 }
 
-// GetEffectivePermissions returns all permissions for a role,
-// including inherited defaults based on role level.
-func (r *Role) GetEffectivePermissions() []string {
-	// If explicit permissions are set, use those
-	if len(r.Metadata.Permissions) > 0 {
-		return r.Metadata.Permissions
-	}
-
-	// Otherwise, return defaults based on role level
-	level := r.Metadata.Level
-	switch {
-	case level <= -1:
-		// Root level - all permissions
-		return []string{
-			"can_create_agents", "can_stop_agents", "can_delete_agents", "can_restart_agents",
-			"can_send_commands", "can_view_logs",
-			"can_modify_config", "can_modify_roles",
-			"can_create_channels", "can_delete_channels", "can_send_messages",
-		}
-	case level == 0:
-		// Manager level
-		return []string{
-			"can_create_agents", "can_stop_agents", "can_restart_agents",
-			"can_send_commands", "can_view_logs",
-			"can_create_channels", "can_send_messages",
-		}
-	default:
-		// Engineer/worker level
-		return []string{
-			"can_view_logs", "can_send_commands", "can_send_messages",
-		}
-	}
-}
-
-// SetPermissions updates the permissions for a role.
-func (rm *RoleManager) SetPermissions(roleName string, permissions []string) error {
-	role, err := rm.LoadRole(roleName)
+// ResolveRole performs BFS inheritance merge starting from the given role.
+// Child values take priority — parent values are only added if not already present.
+// MCP servers and secrets are unioned; lifecycle prompts use child's if set, else first parent's.
+func (rm *RoleManager) ResolveRole(name string) (*ResolvedRole, error) {
+	role, err := rm.LoadRole(name)
 	if err != nil {
-		return fmt.Errorf("failed to load role: %w", err)
+		return nil, fmt.Errorf("failed to load role %q: %w", name, err)
 	}
 
-	role.Metadata.Permissions = permissions
-
-	if err := rm.WriteRole(role); err != nil {
-		return fmt.Errorf("failed to save role: %w", err)
+	resolved := &ResolvedRole{
+		Name:         role.Metadata.Name,
+		Prompt:       role.Prompt,
+		MCPServers:   append([]string{}, role.Metadata.MCPServers...),
+		Secrets:      append([]string{}, role.Metadata.Secrets...),
+		Plugins:      append([]string{}, role.Metadata.Plugins...),
+		PromptCreate: role.Metadata.PromptCreate,
+		PromptStart:  role.Metadata.PromptStart,
+		PromptStop:   role.Metadata.PromptStop,
+		PromptDelete: role.Metadata.PromptDelete,
 	}
 
-	return nil
+	// BFS through parent roles
+	visited := map[string]bool{name: true}
+	queue := append([]string{}, role.Metadata.ParentRoles...)
+
+	for len(queue) > 0 {
+		parentName := queue[0]
+		queue = queue[1:]
+
+		if visited[parentName] {
+			continue
+		}
+		visited[parentName] = true
+
+		parent, loadErr := rm.LoadRole(parentName)
+		if loadErr != nil {
+			continue // Skip missing parents gracefully
+		}
+
+		// Merge MCP servers — add only if not already present
+		resolved.MCPServers = mergeUnique(resolved.MCPServers, parent.Metadata.MCPServers)
+		// Merge secrets — add only if not already present
+		resolved.Secrets = mergeUnique(resolved.Secrets, parent.Metadata.Secrets)
+		// Merge plugins — add only if not already present
+		resolved.Plugins = mergeUnique(resolved.Plugins, parent.Metadata.Plugins)
+
+		// Lifecycle prompts — use parent's only if child doesn't have one
+		if resolved.PromptCreate == "" {
+			resolved.PromptCreate = parent.Metadata.PromptCreate
+		}
+		if resolved.PromptStart == "" {
+			resolved.PromptStart = parent.Metadata.PromptStart
+		}
+		if resolved.PromptStop == "" {
+			resolved.PromptStop = parent.Metadata.PromptStop
+		}
+		if resolved.PromptDelete == "" {
+			resolved.PromptDelete = parent.Metadata.PromptDelete
+		}
+
+		// Enqueue grandparents
+		queue = append(queue, parent.Metadata.ParentRoles...)
+	}
+
+	return resolved, nil
 }
 
-// AddPermission adds a permission to a role if not already present.
-func (rm *RoleManager) AddPermission(roleName, permission string) error {
-	role, err := rm.LoadRole(roleName)
-	if err != nil {
-		return fmt.Errorf("failed to load role: %w", err)
+// mergeUnique appends items from src to dst only if they don't already exist in dst.
+func mergeUnique(dst, src []string) []string {
+	seen := make(map[string]bool, len(dst))
+	for _, v := range dst {
+		seen[v] = true
 	}
-
-	// Check if already has permission
-	for _, p := range role.Metadata.Permissions {
-		if p == permission {
-			return nil // Already has permission
+	for _, v := range src {
+		if !seen[v] {
+			dst = append(dst, v)
+			seen[v] = true
 		}
 	}
-
-	role.Metadata.Permissions = append(role.Metadata.Permissions, permission)
-
-	if err := rm.WriteRole(role); err != nil {
-		return fmt.Errorf("failed to save role: %w", err)
-	}
-
-	return nil
-}
-
-// RemovePermission removes a permission from a role.
-func (rm *RoleManager) RemovePermission(roleName, permission string) error {
-	role, err := rm.LoadRole(roleName)
-	if err != nil {
-		return fmt.Errorf("failed to load role: %w", err)
-	}
-
-	// Filter out the permission
-	filtered := make([]string, 0, len(role.Metadata.Permissions))
-	for _, p := range role.Metadata.Permissions {
-		if p != permission {
-			filtered = append(filtered, p)
-		}
-	}
-	role.Metadata.Permissions = filtered
-
-	if err := rm.WriteRole(role); err != nil {
-		return fmt.Errorf("failed to save role: %w", err)
-	}
-
-	return nil
+	return dst
 }
 
 // GetMCPServers returns the MCP server associations for a role.

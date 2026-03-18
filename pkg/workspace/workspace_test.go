@@ -917,8 +917,8 @@ func TestWorkspaceGetRole(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetRole(root): %v", err)
 	}
-	if !role.Metadata.IsSingleton {
-		t.Error("root role should be singleton")
+	if role.Metadata.Name != "root" {
+		t.Error("root role should have name 'root'")
 	}
 
 	// Get nonexistent role

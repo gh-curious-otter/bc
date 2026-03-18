@@ -316,12 +316,11 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 	if jsonOutput {
 		// Build JSON response matching TUI RolesResponse type
 		type jsonRole struct {
-			Name         string   `json:"name"`
-			Description  string   `json:"description,omitempty"`
-			Parent       string   `json:"parent,omitempty"`
-			Capabilities []string `json:"capabilities"`
-			MCPServers   []string `json:"mcp_servers"`
-			AgentCount   int      `json:"agent_count"`
+			Name        string   `json:"name"`
+			Description string   `json:"description,omitempty"`
+			Parent      string   `json:"parent,omitempty"`
+			MCPServers  []string `json:"mcp_servers"`
+			AgentCount  int      `json:"agent_count"`
 		}
 		type jsonResponse struct {
 			Roles []jsonRole `json:"roles"`
@@ -329,10 +328,6 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 
 		resp := jsonResponse{Roles: make([]jsonRole, 0, len(roles))}
 		for name, role := range roles {
-			caps := role.Metadata.Capabilities
-			if caps == nil {
-				caps = []string{}
-			}
 			mcps := role.Metadata.MCPServers
 			if mcps == nil {
 				mcps = []string{}
@@ -342,12 +337,11 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 				parent = role.Metadata.ParentRoles[0]
 			}
 			resp.Roles = append(resp.Roles, jsonRole{
-				Name:         name,
-				Description:  role.Description(),
-				Capabilities: caps,
-				MCPServers:   mcps,
-				Parent:       parent,
-				AgentCount:   agentCounts[name],
+				Name:        name,
+				Description: role.Description(),
+				MCPServers:  mcps,
+				Parent:      parent,
+				AgentCount:  agentCounts[name],
 			})
 		}
 		return json.NewEncoder(os.Stdout).Encode(resp)
@@ -362,12 +356,10 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 
 	// Collect role data and calculate column widths
 	type roleRow struct {
-		name         string
-		description  string
-		flags        string
-		mcpServers   string
-		capabilities int
-		agents       int
+		name        string
+		description string
+		mcpServers  string
+		agents      int
 	}
 	rows := make([]roleRow, 0, len(roles))
 	maxNameLen := 4  // "ROLE"
@@ -387,11 +379,6 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 			maxDescLen = len(desc)
 		}
 
-		flags := ""
-		if role.Metadata.IsSingleton {
-			flags = "[singleton]"
-		}
-
 		mcpStr := ""
 		if len(role.Metadata.MCPServers) > 0 {
 			mcpStr = strings.Join(role.Metadata.MCPServers, ", ")
@@ -404,12 +391,10 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 		}
 
 		rows = append(rows, roleRow{
-			name:         name,
-			capabilities: len(role.Metadata.Capabilities),
-			description:  desc,
-			flags:        flags,
-			mcpServers:   mcpStr,
-			agents:       agentCounts[name],
+			name:        name,
+			description: desc,
+			mcpServers:  mcpStr,
+			agents:      agentCounts[name],
 		})
 	}
 
@@ -418,44 +403,21 @@ func runRoleList(cmd *cobra.Command, args []string) error {
 		return rows[i].name < rows[j].name
 	})
 
-	// Check if any roles have capabilities defined
-	hasCapabilities := false
-	for _, r := range rows {
-		if r.capabilities > 0 {
-			hasCapabilities = true
-			break
-		}
-	}
-
 	// Print table header
 	if showMCP {
-		if hasCapabilities {
-			fmt.Printf("%-*s  %-6s  %-4s  %-*s  %-*s  %s\n", maxNameLen, "ROLE", "AGENTS", "CAPS", maxDescLen, "DESCRIPTION", maxMCPLen, "MCP", "FLAGS")
-			fmt.Println(strings.Repeat("-", maxNameLen+maxDescLen+maxMCPLen+36))
-		} else {
-			fmt.Printf("%-*s  %-6s  %-*s  %-*s  %s\n", maxNameLen, "ROLE", "AGENTS", maxDescLen, "DESCRIPTION", maxMCPLen, "MCP", "FLAGS")
-			fmt.Println(strings.Repeat("-", maxNameLen+maxDescLen+maxMCPLen+30))
-		}
-	} else if hasCapabilities {
-		fmt.Printf("%-*s  %-6s  %-4s  %-*s  %s\n", maxNameLen, "ROLE", "AGENTS", "CAPS", maxDescLen, "DESCRIPTION", "FLAGS")
-		fmt.Println(strings.Repeat("-", maxNameLen+maxDescLen+28))
+		fmt.Printf("%-*s  %-6s  %-*s  %s\n", maxNameLen, "ROLE", "AGENTS", maxDescLen, "DESCRIPTION", "MCP")
+		fmt.Println(strings.Repeat("-", maxNameLen+maxDescLen+maxMCPLen+14))
 	} else {
-		fmt.Printf("%-*s  %-6s  %-*s  %s\n", maxNameLen, "ROLE", "AGENTS", maxDescLen, "DESCRIPTION", "FLAGS")
-		fmt.Println(strings.Repeat("-", maxNameLen+maxDescLen+22))
+		fmt.Printf("%-*s  %-6s  %s\n", maxNameLen, "ROLE", "AGENTS", "DESCRIPTION")
+		fmt.Println(strings.Repeat("-", maxNameLen+maxDescLen+10))
 	}
 
 	// Print rows
 	for _, r := range rows {
 		if showMCP {
-			if hasCapabilities {
-				fmt.Printf("%-*s  %-6d  %-4d  %-*s  %-*s  %s\n", maxNameLen, r.name, r.agents, r.capabilities, maxDescLen, r.description, maxMCPLen, r.mcpServers, r.flags)
-			} else {
-				fmt.Printf("%-*s  %-6d  %-*s  %-*s  %s\n", maxNameLen, r.name, r.agents, maxDescLen, r.description, maxMCPLen, r.mcpServers, r.flags)
-			}
-		} else if hasCapabilities {
-			fmt.Printf("%-*s  %-6d  %-4d  %-*s  %s\n", maxNameLen, r.name, r.agents, r.capabilities, maxDescLen, r.description, r.flags)
+			fmt.Printf("%-*s  %-6d  %-*s  %s\n", maxNameLen, r.name, r.agents, maxDescLen, r.description, r.mcpServers)
 		} else {
-			fmt.Printf("%-*s  %-6d  %-*s  %s\n", maxNameLen, r.name, r.agents, maxDescLen, r.description, r.flags)
+			fmt.Printf("%-*s  %-6d  %s\n", maxNameLen, r.name, r.agents, r.description)
 		}
 	}
 
@@ -479,12 +441,6 @@ func runRoleShow(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Role: %s\n", role.Metadata.Name)
 	if role.Metadata.Description != "" {
 		fmt.Printf("Description: %s\n", role.Metadata.Description)
-	}
-	if role.Metadata.IsSingleton {
-		fmt.Println("Singleton: true")
-	}
-	if len(role.Metadata.Capabilities) > 0 {
-		fmt.Printf("Capabilities: %s\n", strings.Join(role.Metadata.Capabilities, ", "))
 	}
 	if len(role.Metadata.ParentRoles) > 0 {
 		fmt.Printf("Parent Roles: %s\n", strings.Join(role.Metadata.ParentRoles, ", "))
@@ -529,14 +485,11 @@ func runRoleCreate(cmd *cobra.Command, args []string) error {
 
 		newRole := &workspace.Role{
 			Metadata: workspace.RoleMetadata{
-				Name:         roleName,
-				Description:  srcRole.Metadata.Description,
-				Capabilities: append([]string{}, srcRole.Metadata.Capabilities...),
-				Permissions:  append([]string{}, srcRole.Metadata.Permissions...),
-				ParentRoles:  append([]string{}, srcRole.Metadata.ParentRoles...),
-				MCPServers:   append([]string{}, srcRole.Metadata.MCPServers...),
-				IsSingleton:  false, // Derived roles should not inherit singleton
-				Level:        srcRole.Metadata.Level,
+				Name:        roleName,
+				Description: srcRole.Metadata.Description,
+				ParentRoles: append([]string{}, srcRole.Metadata.ParentRoles...),
+				MCPServers:  append([]string{}, srcRole.Metadata.MCPServers...),
+				Secrets:     append([]string{}, srcRole.Metadata.Secrets...),
 			},
 			Prompt: srcRole.Prompt,
 		}
@@ -672,9 +625,6 @@ func runRoleEdit(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("✓ Updated role %q\n", roleName)
 	fmt.Printf("  Name: %s\n", updatedRole.Metadata.Name)
-	if len(updatedRole.Metadata.Capabilities) > 0 {
-		fmt.Printf("  Capabilities: %s\n", strings.Join(updatedRole.Metadata.Capabilities, ", "))
-	}
 
 	return nil
 }
@@ -850,14 +800,11 @@ func runRoleClone(cmd *cobra.Command, args []string) error {
 	// Create a copy with new name — copy all fields to stay consistent with --from
 	dstRole := &workspace.Role{
 		Metadata: workspace.RoleMetadata{
-			Name:         dstName,
-			Description:  srcRole.Metadata.Description,
-			Capabilities: append([]string{}, srcRole.Metadata.Capabilities...),
-			Permissions:  append([]string{}, srcRole.Metadata.Permissions...),
-			ParentRoles:  append([]string{}, srcRole.Metadata.ParentRoles...),
-			MCPServers:   append([]string{}, srcRole.Metadata.MCPServers...),
-			Level:        srcRole.Metadata.Level,
-			IsSingleton:  false, // Clones should not inherit singleton status
+			Name:        dstName,
+			Description: srcRole.Metadata.Description,
+			ParentRoles: append([]string{}, srcRole.Metadata.ParentRoles...),
+			MCPServers:  append([]string{}, srcRole.Metadata.MCPServers...),
+			Secrets:     append([]string{}, srcRole.Metadata.Secrets...),
 		},
 		Prompt: srcRole.Prompt,
 	}
@@ -907,41 +854,6 @@ func runRoleDiff(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %s: %s\n", nameB, roleB.Metadata.Description)
 	}
 
-	// Compare capabilities
-	capsA := make(map[string]bool)
-	capsB := make(map[string]bool)
-	for _, c := range roleA.Metadata.Capabilities {
-		capsA[c] = true
-	}
-	for _, c := range roleB.Metadata.Capabilities {
-		capsB[c] = true
-	}
-
-	var onlyInA, onlyInB []string
-	for c := range capsA {
-		if !capsB[c] {
-			onlyInA = append(onlyInA, c)
-		}
-	}
-	for c := range capsB {
-		if !capsA[c] {
-			onlyInB = append(onlyInB, c)
-		}
-	}
-
-	if len(onlyInA) > 0 || len(onlyInB) > 0 {
-		hasDiffs = true
-		fmt.Println("\nCapabilities:")
-		sort.Strings(onlyInA)
-		sort.Strings(onlyInB)
-		for _, c := range onlyInA {
-			fmt.Printf("  - %s (only in %s)\n", c, nameA)
-		}
-		for _, c := range onlyInB {
-			fmt.Printf("  + %s (only in %s)\n", c, nameB)
-		}
-	}
-
 	// Compare parent roles
 	parentsA := make(map[string]bool)
 	parentsB := make(map[string]bool)
@@ -975,14 +887,6 @@ func runRoleDiff(cmd *cobra.Command, args []string) error {
 		for _, p := range parentsOnlyB {
 			fmt.Printf("  + %s (only in %s)\n", p, nameB)
 		}
-	}
-
-	// Compare singleton status
-	if roleA.Metadata.IsSingleton != roleB.Metadata.IsSingleton {
-		hasDiffs = true
-		fmt.Println("\nSingleton:")
-		fmt.Printf("  %s: %v\n", nameA, roleA.Metadata.IsSingleton)
-		fmt.Printf("  %s: %v\n", nameB, roleB.Metadata.IsSingleton)
 	}
 
 	// Compare prompts (line count and first difference)
@@ -1060,9 +964,7 @@ func isValidRoleName(name string) bool {
 
 const blankTemplate = `---
 name: custom
-capabilities: []
 parent_roles: []
-is_singleton: false
 ---
 
 # Custom Role
@@ -1072,11 +974,7 @@ Define the purpose and responsibilities of this role.
 
 const engineerTemplate = `---
 name: engineer
-capabilities:
-  - implement_tasks
-  - test_work
 parent_roles: []
-is_singleton: false
 ---
 
 # Engineer
@@ -1098,12 +996,7 @@ You are an engineer agent in the bc workspace.
 
 const managerTemplate = `---
 name: manager
-capabilities:
-  - create_agents
-  - assign_work
-  - review_work
 parent_roles: []
-is_singleton: false
 ---
 
 # Manager
@@ -1127,11 +1020,7 @@ You are a manager agent in the bc workspace.
 
 const qaTemplate = `---
 name: qa
-capabilities:
-  - test_work
-  - review_work
 parent_roles: []
-is_singleton: false
 ---
 
 # QA Agent
@@ -1153,198 +1042,26 @@ You are a QA/testing agent in the bc workspace.
 5. Suggest improvements
 `
 
-// Issue #1191: RBAC permissions command implementations
+// Permissions commands removed — RBAC permissions are no longer part of RoleMetadata.
 
-func runRolePermissionsShow(cmd *cobra.Command, args []string) error {
-	_, rm, err := getWorkspaceRoleManager()
-	if err != nil {
-		return err
-	}
-
-	roleName := args[0]
-	role, err := rm.LoadRole(roleName)
-	if err != nil {
-		return fmt.Errorf("failed to load role %q: %w", roleName, err)
-	}
-
-	fmt.Printf("Permissions for role: %s\n", roleName)
-	fmt.Println(strings.Repeat("-", 40))
-
-	// Show explicit vs effective permissions
-	explicitPerms := role.Metadata.Permissions
-	effectivePerms := role.GetEffectivePermissions()
-
-	if len(explicitPerms) > 0 {
-		fmt.Println("\nExplicit permissions:")
-		for _, p := range explicitPerms {
-			fmt.Printf("  ✓ %s\n", p)
-		}
-	} else {
-		fmt.Printf("\nNo explicit permissions (using defaults for level %d)\n", role.Metadata.Level)
-	}
-
-	fmt.Println("\nEffective permissions:")
-	for _, p := range effectivePerms {
-		fmt.Printf("  • %s\n", p)
-	}
-
-	// Show all permissions with granted/denied status
-	fmt.Println("\nAll permissions:")
-	allPerms := []string{
-		"can_create_agents", "can_stop_agents", "can_delete_agents", "can_restart_agents",
-		"can_send_commands", "can_view_logs",
-		"can_modify_config", "can_modify_roles",
-		"can_create_channels", "can_delete_channels", "can_send_messages",
-	}
-
-	effectiveSet := make(map[string]bool)
-	for _, p := range effectivePerms {
-		effectiveSet[p] = true
-	}
-
-	for _, p := range allPerms {
-		if effectiveSet[p] {
-			fmt.Printf("  ✓ %s\n", p)
-		} else {
-			fmt.Printf("  ✗ %s\n", p)
-		}
-	}
-
-	return nil
+func runRolePermissionsShow(_ *cobra.Command, _ []string) error {
+	return fmt.Errorf("permissions subcommand has been removed from role metadata")
 }
 
-func runRolePermissionsSet(cmd *cobra.Command, args []string) error {
-	_, rm, err := getWorkspaceRoleManager()
-	if err != nil {
-		return err
-	}
-
-	roleName := args[0]
-
-	// Protect root role
-	if roleName == "root" {
-		return fmt.Errorf("cannot modify root role permissions (root has all permissions)")
-	}
-
-	// Validate permissions
-	permissions := args[1:]
-	validPerms := map[string]bool{
-		"can_create_agents": true, "can_stop_agents": true, "can_delete_agents": true, "can_restart_agents": true,
-		"can_send_commands": true, "can_view_logs": true,
-		"can_modify_config": true, "can_modify_roles": true,
-		"can_create_channels": true, "can_delete_channels": true, "can_send_messages": true,
-	}
-
-	for _, p := range permissions {
-		if !validPerms[p] {
-			return fmt.Errorf("invalid permission %q (use 'bc role permissions list' to see valid permissions)", p)
-		}
-	}
-
-	if err := rm.SetPermissions(roleName, permissions); err != nil {
-		return fmt.Errorf("failed to set permissions: %w", err)
-	}
-
-	fmt.Printf("✓ Updated permissions for role %q\n", roleName)
-	if len(permissions) > 0 {
-		fmt.Println("  Permissions:")
-		for _, p := range permissions {
-			fmt.Printf("    • %s\n", p)
-		}
-	} else {
-		fmt.Println("  Permissions cleared (will use defaults)")
-	}
-
-	return nil
+func runRolePermissionsSet(_ *cobra.Command, _ []string) error {
+	return fmt.Errorf("permissions subcommand has been removed from role metadata")
 }
 
-func runRolePermissionsAdd(cmd *cobra.Command, args []string) error {
-	_, rm, err := getWorkspaceRoleManager()
-	if err != nil {
-		return err
-	}
-
-	roleName := args[0]
-	permission := args[1]
-
-	// Protect root role
-	if roleName == "root" {
-		return fmt.Errorf("cannot modify root role permissions (root has all permissions)")
-	}
-
-	// Validate permission
-	validPerms := map[string]bool{
-		"can_create_agents": true, "can_stop_agents": true, "can_delete_agents": true, "can_restart_agents": true,
-		"can_send_commands": true, "can_view_logs": true,
-		"can_modify_config": true, "can_modify_roles": true,
-		"can_create_channels": true, "can_delete_channels": true, "can_send_messages": true,
-	}
-
-	if !validPerms[permission] {
-		return fmt.Errorf("invalid permission %q (use 'bc role permissions list' to see valid permissions)", permission)
-	}
-
-	if err := rm.AddPermission(roleName, permission); err != nil {
-		return fmt.Errorf("failed to add permission: %w", err)
-	}
-
-	fmt.Printf("✓ Added permission %q to role %q\n", permission, roleName)
-	return nil
+func runRolePermissionsAdd(_ *cobra.Command, _ []string) error {
+	return fmt.Errorf("permissions subcommand has been removed from role metadata")
 }
 
-func runRolePermissionsRemove(cmd *cobra.Command, args []string) error {
-	_, rm, err := getWorkspaceRoleManager()
-	if err != nil {
-		return err
-	}
-
-	roleName := args[0]
-	permission := args[1]
-
-	// Protect root role
-	if roleName == "root" {
-		return fmt.Errorf("cannot modify root role permissions (root has all permissions)")
-	}
-
-	if err := rm.RemovePermission(roleName, permission); err != nil {
-		return fmt.Errorf("failed to remove permission: %w", err)
-	}
-
-	fmt.Printf("✓ Removed permission %q from role %q\n", permission, roleName)
-	return nil
+func runRolePermissionsRemove(_ *cobra.Command, _ []string) error {
+	return fmt.Errorf("permissions subcommand has been removed from role metadata")
 }
 
-func runRolePermissionsList(cmd *cobra.Command, args []string) error {
-	fmt.Println("Available RBAC Permissions")
-	fmt.Println(strings.Repeat("=", 50))
-
-	fmt.Println("\nAgent Lifecycle:")
-	fmt.Println("  can_create_agents   - Create new agents")
-	fmt.Println("  can_stop_agents     - Stop running agents")
-	fmt.Println("  can_delete_agents   - Permanently delete agents")
-	fmt.Println("  can_restart_agents  - Restart stopped agents")
-
-	fmt.Println("\nCommunication:")
-	fmt.Println("  can_send_commands   - Send commands to agents")
-	fmt.Println("  can_view_logs       - View agent logs and output")
-
-	fmt.Println("\nConfiguration:")
-	fmt.Println("  can_modify_config   - Modify workspace configuration")
-	fmt.Println("  can_modify_roles    - Edit role definitions")
-
-	fmt.Println("\nChannels:")
-	fmt.Println("  can_create_channels - Create communication channels")
-	fmt.Println("  can_delete_channels - Delete channels")
-	fmt.Println("  can_send_messages   - Send messages to channels")
-
-	fmt.Println("\nDefault Permissions by Level:")
-	fmt.Println("  Root (level -1):    All permissions")
-	fmt.Println("  Manager (level 0):  can_create_agents, can_stop_agents, can_restart_agents,")
-	fmt.Println("                      can_send_commands, can_view_logs, can_create_channels,")
-	fmt.Println("                      can_send_messages")
-	fmt.Println("  Engineer (level 1): can_view_logs, can_send_commands, can_send_messages")
-
-	return nil
+func runRolePermissionsList(_ *cobra.Command, _ []string) error {
+	return fmt.Errorf("permissions subcommand has been removed from role metadata")
 }
 
 // Issue #1924: MCP server association command implementations
