@@ -82,6 +82,11 @@ func run(addr, wsRoot string) error {
 	}
 	agentSvc := bcagent.NewAgentService(agentMgr, hub, nil)
 
+	// Stats collector: polls Docker stats + consumes hook event files every 30s.
+	statsCollector := bcagent.NewStatsCollector(agentMgr)
+	go statsCollector.Run(ctx)
+
+
 	// Channel service
 	var channelSvc *bcchannel.ChannelService
 	if chStore, err := bcchannel.OpenStore(ws.RootDir); err != nil {

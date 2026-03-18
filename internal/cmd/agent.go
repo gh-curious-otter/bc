@@ -307,6 +307,8 @@ Examples:
 // Flags
 var (
 	agentCreateTool    string
+	agentStatsJSON     bool
+	agentStatsLimit    int
 	agentCreateRole    string
 	agentCreateParent  string
 	agentCreateTeam    string
@@ -410,9 +412,15 @@ func init() {
 	agentCmd.AddCommand(agentAuthCmd)
 	agentCmd.AddCommand(agentCostCmd)
 	agentCmd.AddCommand(agentLogsCmd)
+	agentCmd.AddCommand(agentStatsCmd)
 
 	// Logs flags
 	agentLogsCmd.Flags().StringVar(&agentLogsSince, "since", "", "Show events since duration (e.g., 1h, 30m)")
+
+	// Stats flags
+	agentStatsCmd.Flags().BoolVar(&agentStatsJSON, "json", false, "Output as JSON")
+	agentStatsCmd.Flags().IntVar(&agentStatsLimit, "limit", 20, "Number of records to show")
+	agentStatsCmd.ValidArgsFunction = CompleteAgentNames
 
 	// Add parent command to root
 	rootCmd.AddCommand(agentCmd)
@@ -1819,5 +1827,66 @@ func runAgentSessions(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("\nResume a session: bc agent start %s --resume <id>\n", agentName)
 
+	return nil
+}
+
+// agentStatsCmd shows Docker resource stats for a given agent.
+var agentStatsCmd = &cobra.Command{
+	Use:   "stats <name>",
+	Short: "Show Docker resource stats for an agent",
+	Long: `Display recorded Docker CPU and memory stats for an agent.
+
+Stats are collected every 30 s by bcd while the agent is running with a
+Docker runtime backend. They are stored in .bc/state.db.
+
+Examples:
+  bc agent stats eng-01              # Human-readable table
+  bc agent stats eng-01 --json       # JSON output
+  bc agent stats eng-01 --limit 50   # Show more records`,
+	Args: cobra.ExactArgs(1),
+	RunE: runAgentStats,
+}
+
+func runAgentStats(cmd *cobra.Command, args []string) error {
+	ws, err := getWorkspace()
+	if err != nil {
+		return errNotInWorkspace(err)
+	}
+
+	agentName := args[0]
+	mgr := newAgentManager(ws)
+	if loadErr := mgr.LoadState(); loadErr != nil {
+		log.Warn("failed to load agent state", "error", loadErr)
+	}
+
+	records, err := mgr.QueryAgentStats(agentName, agentStatsLimit)
+	if err != nil {
+		return fmt.Errorf("query stats: %w", err)
+	}
+
+	if agentStatsJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if records == nil {
+			records = []*agent.AgentStatsRecord{}
+		}
+		return enc.Encode(records)
+	}
+
+	if len(records) == 0 {
+		fmt.Printf("No stats recorded for agent %s.\n", agentName)
+		fmt.Println("Stats are collected when the agent is running with runtime=docker.")
+		return nil
+	}
+
+	fmt.Printf("Stats for %s (newest first):\n\n", agentName)
+	fmt.Printf("%-20s  %6s  %8s  %8s  %8s  %8s\n",
+		"Time", "CPU%", "Mem(MB)", "MemLim", "NetRx", "NetTx")
+	fmt.Println(strings.Repeat("-", 72))
+	for _, r := range records {
+		fmt.Printf("%-20s  %6.1f  %8.1f  %8.1f  %8.1f  %8.1f\n",
+			r.CollectedAt.Format("2006-01-02 15:04:05"),
+			r.CPUPct, r.MemUsedMB, r.MemLimitMB, r.NetRxMB, r.NetTxMB)
+	}
 	return nil
 }

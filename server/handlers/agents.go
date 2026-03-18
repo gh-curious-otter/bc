@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -163,6 +164,46 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+
+	case r.Method == http.MethodPost && action == "hook":
+		// Receive a Claude Code hook event and update agent state.
+		var req struct {
+			Event string `json:"event"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		ev := agent.HookEvent(req.Event)
+		targetState, ok := agent.StateForHookEvent(ev)
+		if !ok {
+			httpError(w, "unknown event: "+req.Event, http.StatusBadRequest)
+			return
+		}
+		if err := h.svc.Manager().UpdateAgentState(name, targetState, ""); err != nil {
+			// Transition may be invalid (agent stopped, etc.) — treat as no-op.
+			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skipped": true})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+
+	case r.Method == http.MethodGet && action == "stats":
+		// Return recent Docker stats samples for this agent.
+		limit := 20
+		if lStr := r.URL.Query().Get("limit"); lStr != "" {
+			if n, err := strconv.Atoi(lStr); err == nil && n > 0 {
+				limit = n
+			}
+		}
+		records, err := h.svc.Manager().QueryAgentStats(name, limit)
+		if err != nil {
+			httpError(w, "stats unavailable: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if records == nil {
+			records = []*agent.AgentStatsRecord{}
+		}
+		writeJSON(w, http.StatusOK, records)
 
 	default:
 		httpError(w, "not found", http.StatusNotFound)

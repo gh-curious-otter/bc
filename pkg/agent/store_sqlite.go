@@ -71,6 +71,27 @@ func createAgentsTable(d *db.DB) error {
 	_, _ = d.Exec(`ALTER TABLE agents ADD COLUMN created_at TEXT`)                //nolint:errcheck // ignore if already exists
 	_, _ = d.Exec(`ALTER TABLE agents ADD COLUMN stopped_at TEXT`)                //nolint:errcheck // ignore if already exists
 
+	// agent_stats: time-series Docker resource samples.
+	statsSchema := `
+		CREATE TABLE IF NOT EXISTS agent_stats (
+			id            INTEGER PRIMARY KEY AUTOINCREMENT,
+			agent_name    TEXT    NOT NULL,
+			collected_at  TEXT    NOT NULL,
+			cpu_pct       REAL    NOT NULL DEFAULT 0,
+			mem_used_mb   REAL    NOT NULL DEFAULT 0,
+			mem_limit_mb  REAL    NOT NULL DEFAULT 0,
+			net_rx_mb     REAL    NOT NULL DEFAULT 0,
+			net_tx_mb     REAL    NOT NULL DEFAULT 0,
+			block_read_mb  REAL   NOT NULL DEFAULT 0,
+			block_write_mb REAL   NOT NULL DEFAULT 0
+		);
+		CREATE INDEX IF NOT EXISTS idx_agent_stats_agent ON agent_stats(agent_name);
+		CREATE INDEX IF NOT EXISTS idx_agent_stats_time  ON agent_stats(collected_at);
+	`
+	if _, err := d.Exec(statsSchema); err != nil {
+		return fmt.Errorf("create agent_stats table: %w", err)
+	}
+
 	return nil
 }
 
@@ -369,4 +390,51 @@ func deref(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+// SaveStats inserts a single AgentStatsRecord into the agent_stats table.
+func (s *SQLiteStore) SaveStats(rec *AgentStatsRecord) error {
+	_, err := s.db.Exec(`
+		INSERT INTO agent_stats
+		(agent_name, collected_at, cpu_pct, mem_used_mb, mem_limit_mb,
+		 net_rx_mb, net_tx_mb, block_read_mb, block_write_mb)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		rec.AgentName, rec.CollectedAt.Format(time.RFC3339),
+		rec.CPUPct, rec.MemUsedMB, rec.MemLimitMB,
+		rec.NetRxMB, rec.NetTxMB, rec.BlockReadMB, rec.BlockWriteMB,
+	)
+	return err
+}
+
+// QueryStats returns the most recent limit stats rows for an agent, newest first.
+func (s *SQLiteStore) QueryStats(agentName string, limit int) ([]*AgentStatsRecord, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	rows, err := s.db.Query(`
+		SELECT agent_name, collected_at, cpu_pct, mem_used_mb, mem_limit_mb,
+		       net_rx_mb, net_tx_mb, block_read_mb, block_write_mb
+		FROM agent_stats
+		WHERE agent_name = ?
+		ORDER BY collected_at DESC
+		LIMIT ?`, agentName, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var records []*AgentStatsRecord
+	for rows.Next() {
+		var rec AgentStatsRecord
+		var collectedAt string
+		if err := rows.Scan(
+			&rec.AgentName, &collectedAt, &rec.CPUPct, &rec.MemUsedMB, &rec.MemLimitMB,
+			&rec.NetRxMB, &rec.NetTxMB, &rec.BlockReadMB, &rec.BlockWriteMB,
+		); err != nil {
+			return nil, err
+		}
+		rec.CollectedAt, _ = time.Parse(time.RFC3339, collectedAt)
+		records = append(records, &rec)
+	}
+	return records, rows.Err()
 }
