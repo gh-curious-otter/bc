@@ -685,8 +685,10 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		if opts.Runtime != "" {
 			existing.RuntimeBackend = opts.Runtime
 		}
-		// Fresh flag clears session ID to force a new session
-		resume := !opts.Fresh && existing.SessionID != ""
+		// Existing agent = `bc agent start` = resume previous session.
+		// The auth dir persists across restarts so --continue finds the prior conversation.
+		// --fresh overrides this and forces a new session.
+		resume := !opts.Fresh
 		if opts.Fresh {
 			existing.SessionID = ""
 		}

@@ -62,7 +62,9 @@ func (p *ClaudeProvider) BuildCommand(opts CommandOpts) string {
 		cmd = "claude -w " + worktreeName + " " + strings.TrimPrefix(cmd, "claude")
 	}
 	if opts.Resume {
-		cmd += " --continue"
+		// Try --continue to resume previous session; fall back to fresh start
+		// if no prior session exists (avoids "No conversation found" crash)
+		cmd += " --continue || " + cmd
 	}
 	return cmd
 }
