@@ -1175,29 +1175,14 @@ Usage:
   bc agent auth my-agent status # Check auth status`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ws, err := getWorkspace()
-		if err != nil {
-			return err
-		}
-
 		agentName := args[0]
-
-		// Subcommand: status
-		if len(args) > 1 && args[1] == "status" {
-			ok, statusErr := container.IsAuthenticated(cmd.Context(), ws.RootDir, agentName)
-			if statusErr != nil {
-				return statusErr
-			}
-			if ok {
-				fmt.Printf("Agent %q is authenticated.\n", agentName)
-			} else {
-				fmt.Printf("Agent %q is not authenticated. Run: bc agent auth %s\n", agentName, agentName)
-			}
-			return nil
-		}
-
-		// Run login
-		return container.LoginIfNeeded(cmd.Context(), ws.RootDir, agentName)
+		fmt.Printf("Agent auth is handled inside the container.\n\n")
+		fmt.Printf("To authenticate agent %q:\n", agentName)
+		fmt.Printf("  1. Attach: bc agent attach %s\n", agentName)
+		fmt.Printf("  2. Run /login inside Claude Code\n")
+		fmt.Printf("\nOr set ANTHROPIC_API_KEY in workspace env:\n")
+		fmt.Printf("  bc env set ANTHROPIC_API_KEY sk-ant-...\n")
+		return nil
 	},
 }
 
