@@ -1,4 +1,4 @@
-.PHONY: dev build build-release build-all clean gen test coverage bench fmt vet lint check deps help version build-tui test-tui lint-tui build-agent-base build-agent-image build-agent-images
+.PHONY: dev build build-release build-all clean gen test coverage bench fmt vet lint check deps help version build-tui test-tui lint-tui build-agent-base build-agent-image build-agent-images build-landing dev-landing
 
 # Version information
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -30,6 +30,10 @@ help:
 	@echo "  build-tui     - Build the TUI package"
 	@echo "  test-tui      - Run TUI tests"
 	@echo "  lint-tui      - Lint TUI code"
+	@echo ""
+	@echo "Landing page targets:"
+	@echo "  build-landing - Build static landing page to landing/dist/"
+	@echo "  dev-landing   - Run local dev server at http://localhost:8080"
 	@echo ""
 	@echo "Docker agent targets:"
 	@echo "  build-agent-image       - Build default (claude) agent image"
@@ -106,6 +110,18 @@ test-tui:
 lint-tui:
 	@echo "Linting TUI..."
 	cd tui && bun run lint
+
+# Landing page
+build-landing:
+	@echo "Building landing page..."
+	@mkdir -p landing/dist
+	@cp landing/index.html landing/dist/
+	@cp -r landing/assets landing/dist/
+	@echo "Landing page built to landing/dist/"
+
+dev-landing:
+	@echo "Starting landing page dev server at http://localhost:8080"
+	@cd landing && python3 -m http.server 8080
 
 # Docker agent images (per-provider)
 AGENT_PROVIDERS := claude gemini codex aider opencode openclaw cursor
