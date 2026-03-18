@@ -61,7 +61,16 @@ func (h *WorkspaceHandler) roles(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "list roles: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, http.StatusOK, roles)
+
+	// Resolve each role via BFS inheritance so response includes
+	// inherited MCP servers, secrets, commands, rules, etc.
+	resolved := make(map[string]*workspace.ResolvedRole, len(roles))
+	for name := range roles {
+		if res, resolveErr := h.ws.RoleManager.ResolveRole(name); resolveErr == nil {
+			resolved[name] = res
+		}
+	}
+	writeJSON(w, http.StatusOK, resolved)
 }
 
 func (h *WorkspaceHandler) up(w http.ResponseWriter, r *http.Request) {

@@ -50,21 +50,23 @@ export interface AgentCostSummary {
   record_count: number;
 }
 
+// ResolvedRole — BFS-resolved role with inherited fields merged
 export interface Role {
-  FilePath: string;
+  Name: string;
   Prompt: string;
-  Metadata: {
-    Name: string;
-    Description: string;
-    ParentRoles: string[];
-    MCPServers: string[];
-    Secrets: string[];
-    Plugins: string[];
-    PromptCreate: string;
-    PromptStart: string;
-    PromptStop: string;
-    PromptDelete: string;
-  };
+  MCPServers: string[];
+  Secrets: string[];
+  Plugins: string[];
+  PromptCreate: string;
+  PromptStart: string;
+  PromptStop: string;
+  PromptDelete: string;
+  Commands: Record<string, string>;
+  Skills: Record<string, string>;
+  Agents: Record<string, string>;
+  Rules: Record<string, string>;
+  Settings: Record<string, unknown>;
+  Review: string;
 }
 
 export interface Tool {
