@@ -12,7 +12,7 @@ permissions:
   pages: write
   id-token: write
 
-# Only one concurrent deployment
+# Only one concurrent deployment; skip in-progress runs but not queued ones
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -23,6 +23,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
 
       - name: Build landing page
         run: make build-landing
