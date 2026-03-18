@@ -11,7 +11,13 @@ export function useWebSocket() {
 
   const connect = useCallback(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(`${protocol}//${window.location.host}/api/events`);
+    } catch {
+      // WebSocket not available — degrade gracefully
+      return;
+    }
 
     ws.onopen = () => {
       setConnected(true);
