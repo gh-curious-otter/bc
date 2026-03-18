@@ -20,6 +20,7 @@ func NewWorkspaceHandler(svc *agent.AgentService, ws *workspace.Workspace) *Work
 
 // Register mounts workspace routes on mux.
 func (h *WorkspaceHandler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("/api/workspace", h.status) // root = status
 	mux.HandleFunc("/api/workspace/status", h.status)
 	mux.HandleFunc("/api/workspace/roles", h.roles)
 }
