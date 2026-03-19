@@ -698,29 +698,15 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 			existing.RuntimeBackend = opts.Runtime
 		}
 
-		// For Docker agents, try to restart the stopped container directly.
-		// This preserves auth, plugins, MCP config, and sessions.
+		// Determine if this is a restart (volume has config) or fresh create
+		isRestart := false
 		if existing.RuntimeBackend != "tmux" {
-			if cb, ok := m.runtimeForAgent(name).(*container.Backend); ok {
-				if cb.HasStoppedContainer(context.TODO(), name) {
-					if err := cb.RestartContainer(context.TODO(), name); err != nil {
-						log.Warn("failed to restart container, will recreate", "agent", name, "error", err)
-					} else {
-						// Container restarted — update state and return
-						existing.State = StateIdle
-						existing.StartedAt = time.Now()
-						existing.UpdatedAt = time.Now()
-						if err := m.saveState(); err != nil {
-							log.Warn("failed to save agent state", "error", err)
-						}
-						log.Debug("restarted stopped container", "agent", name)
-						return existing, nil
-					}
-				}
+			volumeDir := filepath.Join(m.workspacePath, ".bc", "volumes", name, ".claude")
+			if _, statErr := os.Stat(volumeDir); statErr == nil {
+				isRestart = true // volume exists = restart, skip setup commands
 			}
 		}
 
-		// Container doesn't exist or restart failed — recreate with resume
 		resume := !opts.Fresh
 		sessionID := existing.SessionID
 		if opts.Fresh {
@@ -766,8 +752,9 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		}
 		injectEnv(env, wsPath, toolName, existing.EnvFile)
 
-		// For Docker recreate, add setup commands (mcp, plugins)
-		if existing.RuntimeBackend != "tmux" {
+		// For Docker: add setup commands only on first create (not restart).
+		// On restart the volume already has plugins and MCP configured.
+		if existing.RuntimeBackend != "tmux" && !isRestart {
 			if setupCmd := BuildSetupCommand(wsPath, string(existing.Role)); setupCmd != "" {
 				agentCmd = setupCmd + " && " + agentCmd
 			}
