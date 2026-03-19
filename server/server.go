@@ -161,6 +161,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		}
 		if svc.Channels != nil {
 			mcpCfg.Channels = svc.Channels.Store()
+			mcpCfg.ChannelService = svc.Channels
 		}
 		mcpSrv, mcpErr := servermcp.New(mcpCfg)
 		if mcpErr != nil {

@@ -164,22 +164,22 @@ func (s *Server) toolSendMessage(raw json.RawMessage) (*toolsCallResult, error) 
 		sender = "mcp"
 	}
 
-	if err := s.chans.AddHistory(args.Channel, sender, args.Message); err != nil {
-		return &toolsCallResult{
-			Content: []ToolContent{textContent(fmt.Sprintf("failed to send message: %s", err))},
-			IsError: true,
-		}, nil
-	}
-
-	// Deliver to agent tmux/docker sessions
-	if s.agents != nil {
-		if ch, ok := s.chans.Get(args.Channel); ok {
-			for _, member := range ch.Members {
-				if member == sender {
-					continue
-				}
-				_ = s.agents.SendToAgent(member, args.Message)
-			}
+	// Use ChannelService when available — its OnMessage hook handles agent
+	// delivery and SSE event publishing automatically.
+	if s.chanSvc != nil {
+		if _, err := s.chanSvc.Send(context.Background(), args.Channel, sender, args.Message); err != nil {
+			return &toolsCallResult{
+				Content: []ToolContent{textContent(fmt.Sprintf("failed to send message: %s", err))},
+				IsError: true,
+			}, nil
+		}
+	} else {
+		// Standalone mode — store only (no delivery hooks available).
+		if err := s.chans.AddHistory(args.Channel, sender, args.Message); err != nil {
+			return &toolsCallResult{
+				Content: []ToolContent{textContent(fmt.Sprintf("failed to send message: %s", err))},
+				IsError: true,
+			}, nil
 		}
 	}
 

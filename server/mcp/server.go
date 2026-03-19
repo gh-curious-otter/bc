@@ -20,6 +20,7 @@ type Server struct {
 	ws       *workspace.Workspace
 	agents   *agent.Manager
 	chans    *channel.Store
+	chanSvc  *channel.ChannelService // when set, toolSendMessage uses this for delivery hooks
 	costs    *cost.Store
 	version  string
 	ownChans bool // true if we created the channel store (so Close cleans it up)
@@ -37,8 +38,9 @@ type Server struct {
 type Config struct {
 	Workspace *workspace.Workspace
 	Agents    *agent.Manager // optional: pre-built agent manager
-	Channels  *channel.Store // optional: pre-built channel store (SQLite/Postgres)
-	Costs     *cost.Store    // optional: pre-built cost store
+	Channels       *channel.Store          // optional: pre-built channel store (SQLite/Postgres)
+	ChannelService *channel.ChannelService // optional: service with OnMessage hook for delivery
+	Costs          *cost.Store             // optional: pre-built cost store
 	Version   string         // bc binary version, e.g. "1.2.3"
 }
 
@@ -93,6 +95,7 @@ func New(cfg Config) (*Server, error) {
 		ws:       cfg.Workspace,
 		agents:   mgr,
 		chans:    cs,
+		chanSvc:  cfg.ChannelService,
 		costs:    costStore,
 		version:  v,
 		ownChans: ownChans,
