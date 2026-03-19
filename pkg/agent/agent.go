@@ -1219,6 +1219,9 @@ func (m *Manager) DeleteAgentWithOptions(name string, opts DeleteOptions) error 
 	worktreeDir := filepath.Join(m.workspacePath, ".claude", "worktrees", worktreeName)
 	branchName := "worktree-" + worktreeName
 
+	// Prune stale worktree refs (handles /workspace/... Docker paths)
+	//nolint:gosec // trusted paths
+	_ = exec.CommandContext(context.TODO(), "git", "-C", m.workspacePath, "worktree", "prune").Run()
 	// git worktree remove
 	//nolint:gosec // trusted paths
 	_ = exec.CommandContext(context.TODO(), "git", "-C", m.workspacePath, "worktree", "remove", "--force", worktreeDir).Run()
