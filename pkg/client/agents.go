@@ -215,6 +215,25 @@ func (a *AgentsClient) Stats(ctx context.Context, name string, limit int) ([]*Ag
 	return records, nil
 }
 
+// AgentCostSummary holds cost breakdown for an agent.
+type AgentCostSummary struct {
+	AgentID      string  `json:"agent_id"`
+	InputTokens  int64   `json:"input_tokens"`
+	OutputTokens int64   `json:"output_tokens"`
+	TotalTokens  int64   `json:"total_tokens"`
+	TotalCostUSD float64 `json:"total_cost_usd"`
+	RequestCount int64   `json:"request_count"`
+}
+
+// Cost returns cost breakdown for an agent.
+func (a *AgentsClient) Cost(ctx context.Context, name string) (*AgentCostSummary, error) {
+	var summary AgentCostSummary
+	if err := a.client.get(ctx, "/api/agents/"+name+"/cost", &summary); err != nil {
+		return nil, err
+	}
+	return &summary, nil
+}
+
 // StopAll stops all running agents. Returns the number of agents stopped.
 func (a *AgentsClient) StopAll(ctx context.Context) (int, error) {
 	var result map[string]int

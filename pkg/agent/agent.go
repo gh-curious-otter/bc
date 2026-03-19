@@ -64,6 +64,7 @@ import (
 
 	"github.com/rpuneet/bc/config"
 	"github.com/rpuneet/bc/pkg/container"
+	"github.com/rpuneet/bc/pkg/db"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/provider"
 	"github.com/rpuneet/bc/pkg/runtime"
@@ -1834,8 +1835,14 @@ func (m *Manager) LoadState() error {
 		return nil
 	}
 
-	// Open SQLite store (state.db lives alongside agents dir)
-	dbPath := filepath.Join(m.stateDir, "state.db")
+	// Open SQLite store — use the unified bc.db when workspace path is known,
+	// otherwise fall back to state.db in the agents dir (tests / standalone).
+	var dbPath string
+	if m.workspacePath != "" {
+		dbPath = db.BCDBPath(m.workspacePath)
+	} else {
+		dbPath = filepath.Join(m.stateDir, "state.db")
+	}
 	store, err := NewSQLiteStore(dbPath)
 	if err != nil {
 		return fmt.Errorf("open agent store: %w", err)

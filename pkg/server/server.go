@@ -463,6 +463,18 @@ func (s *Server) handleAgentByName(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, entries)
 
+	case r.Method == http.MethodGet && action == "cost":
+		summary, err := s.agents.Cost(r.Context(), name)
+		if err != nil {
+			httpError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		if summary == nil {
+			writeJSON(w, http.StatusOK, &agent.CostSummary{AgentID: name})
+			return
+		}
+		writeJSON(w, http.StatusOK, summary)
+
 	default:
 		httpError(w, "not found", http.StatusNotFound)
 	}

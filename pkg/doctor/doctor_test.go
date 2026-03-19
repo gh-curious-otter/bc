@@ -357,9 +357,9 @@ func TestCheckDatabase_MissingTable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create state.db WITHOUT the agents table
-	stateDBPath := filepath.Join(stateDir, "state.db")
-	if err := createTestDB(t, stateDBPath /*, no tables*/); err != nil {
+	// Create bc.db WITHOUT the agents table
+	bcDBPath := filepath.Join(stateDir, "bc.db")
+	if err := createTestDB(t, bcDBPath /*, no tables*/); err != nil {
 		t.Fatal(err)
 	}
 
@@ -367,7 +367,7 @@ func TestCheckDatabase_MissingTable(t *testing.T) {
 
 	var foundMissingTable bool
 	for _, item := range cat.Items {
-		if item.Name == `state.db: table "agents"` && item.Severity == SeverityFail {
+		if item.Name == `bc.db: table "agents"` && item.Severity == SeverityFail {
 			foundMissingTable = true
 		}
 	}
