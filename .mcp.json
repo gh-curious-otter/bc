@@ -4,6 +4,15 @@
       "url": "http://host.docker.internal:9374/mcp/sse",
       "type": "sse"
     },
+    "github": {
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      },
+      "command": "npx",
+      "args": [
+        "@modelcontextprotocol/server-github"
+      ]
+    },
     "playwright": {
       "url": "http://host.docker.internal:3100/sse",
       "type": "sse"
