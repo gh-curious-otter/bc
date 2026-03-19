@@ -269,19 +269,39 @@ func (b *Backend) KillSession(ctx context.Context, name string) error {
 	}
 	b.mu.Unlock()
 
-	// Stop container (10s timeout)
+	// Stop container (10s timeout) — do NOT remove it.
+	// The container's volume preserves auth, plugins, MCP config, and sessions.
+	// bc agent start will restart the stopped container.
+	// bc agent delete handles removal.
 	//nolint:gosec // trusted
 	stopCmd := exec.CommandContext(ctx, "docker", "stop", "-t", "10", cn)
-	_ = stopCmd.Run() //nolint:errcheck // may already be stopped
+	output, err := stopCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to stop container %s: %w (%s)", cn, err, strings.TrimSpace(string(output)))
+	}
 
-	// Remove container
+	return nil
+}
+
+// RemoveSession stops and removes a container permanently.
+// Called by agent delete, not agent stop.
+func (b *Backend) RemoveSession(ctx context.Context, name string) error {
+	cn := b.containerName(name)
+
+	// Cancel any log stream
+	b.mu.Lock()
+	if cancel, ok := b.logCancels[cn]; ok {
+		cancel()
+		delete(b.logCancels, cn)
+	}
+	b.mu.Unlock()
+
 	//nolint:gosec // trusted
 	rmCmd := exec.CommandContext(ctx, "docker", "rm", "-f", cn)
 	output, err := rmCmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to remove container %s: %w (%s)", cn, err, strings.TrimSpace(string(output)))
 	}
-
 	return nil
 }
 
