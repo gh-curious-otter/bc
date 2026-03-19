@@ -743,6 +743,14 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		}
 		injectEnv(env, wsPath, toolName, existing.EnvFile)
 
+		// On restart (not fresh create), prepend role setup commands
+		// (mcp add, plugin install) so the agent has everything configured
+		// before Claude starts. First create is bare — user logs in first.
+		if existing.RuntimeBackend != "tmux" {
+			if setupCmd := BuildSetupCommand(wsPath, string(existing.Role)); setupCmd != "" {
+				agentCmd = setupCmd + " && " + agentCmd
+			}
+		}
 
 		if err := m.runtimeForAgent(name).CreateSessionWithEnv(context.TODO(), name, wsPath, agentCmd, env); err != nil {
 			return nil, fmt.Errorf("failed to recreate session: %w", err)
