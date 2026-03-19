@@ -698,8 +698,10 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 			existing.RuntimeBackend = opts.Runtime
 		}
 
-		resume := !opts.Fresh
+		// Only resume if we have a stored session ID — avoids
+		// "No conversation found to continue" on first stop/start.
 		sessionID := existing.SessionID
+		resume := !opts.Fresh && sessionID != ""
 		if opts.Fresh {
 			existing.SessionID = ""
 			sessionID = ""
