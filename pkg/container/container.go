@@ -118,13 +118,6 @@ func (b *Backend) imageForTool(toolName string) string {
 	return "bc-agent-" + toolName + ":latest"
 }
 
-// passthroughEnvKeys are environment variables passed from host to container.
-var passthroughEnvKeys = []string{
-	"GITHUB_TOKEN",
-	"GH_TOKEN",
-	"GITHUB_PERSONAL_ACCESS_TOKEN",
-	"ANTHROPIC_API_KEY",
-}
 
 // SessionName returns the full session name with prefix.
 func (b *Backend) SessionName(name string) string {
@@ -182,19 +175,23 @@ func (b *Backend) CreateSessionWithCommand(ctx context.Context, name, dir, comma
 	return b.CreateSessionWithEnv(ctx, name, dir, command, nil)
 }
 
-// CreateSessionWithEnv creates a container running the agent inside tmux.
-// The container entrypoint:
-//  1. Starts a tmux session named "agent" with the given command
-//  2. Polls until the tmux session exits, then the container stops
+// CreateSessionWithEnv creates a fully isolated Docker container for an agent.
 //
-// All interaction happens via `docker exec ... tmux send-keys/capture-pane/attach`.
+// Mounts:
+//   - workspace dir → /workspace (project code)
+//   - .bc/volumes/<agent>/.claude → /home/agent/.claude (persistent Claude state)
+//
+// Env vars:
+//   - From the env map (BC_AGENT_ID, BC_AGENT_ROLE, role secrets via bc env)
+//
+// Everything else (auth, plugins, MCP, settings) is managed by Claude inside
+// the container and persists in the .claude volume across restarts.
 func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command string, env map[string]string) error {
 	cn := b.containerName(name)
 
-	// Remove any stale container with the same name before creating a new one.
-	// This prevents "container name already in use" errors on agent restart.
+	// Remove any stale container with the same name.
 	//nolint:gosec // trusted
-	_ = exec.CommandContext(ctx, "docker", "rm", "-f", cn).Run() //nolint:errcheck // best-effort cleanup
+	_ = exec.CommandContext(ctx, "docker", "rm", "-f", cn).Run() //nolint:errcheck // best-effort
 
 	args := []string{
 		"run", "-d", "-t",
@@ -217,86 +214,26 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		args = append(args, "--network", b.cfg.Network)
 	}
 
-	// Volume mounts
+	// Mount 1: Project workspace
 	if dir != "" {
 		args = append(args, "-v", dir+":/workspace")
-
-		// Prevent container builds from overwriting host binaries (#2003).
-		// Mount bin/ and dist/ as read-only so `make build` inside the container
-		// cannot clobber the host's native binaries. The Makefile respects
-		// BUILD_DIR to redirect output to a container-local path.
-		binDir := filepath.Join(dir, "bin")
-		if _, err := os.Stat(binDir); err == nil {
-			args = append(args, "-v", binDir+":/workspace/bin:ro")
-		}
-		distDir := filepath.Join(dir, "dist")
-		if _, err := os.Stat(distDir); err == nil {
-			args = append(args, "-v", distDir+":/workspace/dist:ro")
-		}
 	}
 
-	// Tell the Makefile to write build output to a container-local directory
-	// so `make build` works even though bin/ is read-only.
-	env["BUILD_DIR"] = "/tmp/bc-build"
-
-	// Per-agent auth — seeded from host credentials on first use so agents start
-	// pre-authenticated without a separate login. Two mounts:
-	//   1. auth/.claude/      → /home/agent/.claude/     (settings + cache)
-	//   2. auth/.claude.json  → /home/agent/.claude.json (primary auth token)
-	// Mounting the token file individually avoids replacing all of /home/agent.
-	authDir, authErr := EnsureAuthDir(b.workspacePath, name)
-	if authErr != nil {
-		log.Debug("failed to create agent auth dir", "agent", name, "error", authErr)
-	}
-	if authErr == nil {
-		args = append(args, "-v", authDir+":/home/agent/.claude")
-		tokenFile := AgentAuthTokenFile(b.workspacePath, name)
-		if _, statErr := os.Stat(tokenFile); statErr == nil {
-			args = append(args, "-v", tokenFile+":/home/agent/.claude.json")
-		}
+	// Mount 2: Persistent Claude state volume
+	// Starts empty on first create. Claude populates it with auth, plugins,
+	// settings, sessions, etc. Persists across container restarts.
+	volumeDir := filepath.Join(b.workspacePath, ".bc", "volumes", name, ".claude")
+	if err := os.MkdirAll(volumeDir, 0750); err != nil {
+		log.Warn("failed to create agent volume dir", "agent", name, "error", err)
+	} else {
+		args = append(args, "-v", volumeDir+":/home/agent/.claude")
 	}
 
-	// Read-only host config mounts (git, ssh only)
-	// Docker agents are self-contained — no host .claude/ mounts.
-	// All Claude config (plugins, settings, MCP) is written by role_setup.
-	home, _ := os.UserHomeDir()
-	if home != "" {
-		roMounts := []struct{ src, dst string }{
-			{home + "/.ssh", "/home/agent/.ssh"},
-			{home + "/.gitconfig", "/home/agent/.gitconfig"},
-		}
-		for _, m := range roMounts {
-			if _, err := os.Stat(m.src); err == nil {
-				args = append(args, "-v", m.src+":"+m.dst+":ro")
-			}
-		}
-	}
-
-	// Extra mounts from config
-	for _, mount := range b.cfg.ExtraMounts {
-		args = append(args, "-v", mount)
-	}
-
-	// Environment variables from env map
+	// Environment variables — only from the env map.
+	// The env map contains BC_* identity vars and role secrets resolved
+	// from bc env by the agent manager's injectEnv().
 	for k, v := range env {
 		args = append(args, "-e", k+"="+v)
-	}
-
-	// Passthrough host env vars (only if not already set by workspace/agent config)
-	for _, key := range passthroughEnvKeys {
-		if _, already := env[key]; already {
-			continue // workspace config takes priority over host env
-		}
-		if val := os.Getenv(key); val != "" {
-			args = append(args, "-e", key+"="+val)
-		}
-	}
-
-	// BC_* env vars
-	for _, e := range os.Environ() {
-		if strings.HasPrefix(e, "BC_") {
-			args = append(args, "-e", e)
-		}
 	}
 
 	// Select image based on agent tool
@@ -305,11 +242,7 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		image = b.imageForTool(toolName)
 	}
 
-	// NOTE: Provider session customization (e.g., --tmux) is now applied
-	// in agent.Manager.SpawnAgentWithOptions for ALL backends.
-
-	// Run the agent command directly. claude --tmux handles its own tmux session.
-	// Override entrypoint to avoid conflict with Dockerfile ENTRYPOINT.
+	// Run the agent command. claude --tmux handles its own tmux session.
 	args = append(args, "--entrypoint", "bash", image, "-c", command)
 
 	log.Debug("creating docker container", "name", cn, "image", image)

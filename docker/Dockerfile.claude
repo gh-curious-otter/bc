@@ -13,6 +13,15 @@ RUN curl -fsSL https://claude.ai/install.sh | bash && \
     chmod +x /usr/local/bin/claude && \
     rm -rf /root/.local/share/claude /root/.claude
 
+# Pre-install official plugin marketplace so agents can install plugins at runtime.
+# The marketplace is a git repo — cloned at build time so docker exec claude plugin
+# install works without network access to claude.ai.
 USER agent
+RUN mkdir -p /home/agent/.claude/plugins/marketplaces && \
+    git clone --depth 1 https://github.com/anthropics/claude-plugins-official.git \
+        /home/agent/.claude/plugins/marketplaces/claude-plugins-official && \
+    echo '{"claude-plugins-official":{"source":{"source":"github","repo":"anthropics/claude-plugins-official"},"installLocation":"/home/agent/.claude/plugins/marketplaces/claude-plugins-official","lastUpdated":"2026-01-01T00:00:00.000Z"}}' \
+        > /home/agent/.claude/plugins/known_marketplaces.json
+
 WORKDIR /workspace
 ENTRYPOINT ["bash", "-c"]
