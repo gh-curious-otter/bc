@@ -55,4 +55,3 @@ bc
 bcd
 server/web/dist/*.html
 server/web/dist/assets/
-.mcp.json

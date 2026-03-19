@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "bc": {
+      "url": "http://host.docker.internal:9374/mcp/sse",
+      "type": "sse"
+    },
+    "playwright": {
+      "url": "http://host.docker.internal:3100/sse",
+      "type": "sse"
+    }
+  }
+}
