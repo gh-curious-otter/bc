@@ -98,6 +98,35 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewAgentHandler(svc.Agents).Register(mux)
 	}
 	if svc.Channels != nil {
+		svc.Channels.OnMessage = func(ch, sender, content string) {
+			// Deliver to agent tmux/docker sessions
+			if svc.Agents != nil {
+				chDTO, err := svc.Channels.Get(context.Background(), ch)
+				if err != nil {
+					log.Debug("channel send: failed to get channel", "channel", ch, "error", err)
+				} else {
+					for _, member := range chDTO.Members {
+						if member == sender {
+							continue
+						}
+						if err := svc.Agents.Send(context.Background(), member, content); err != nil {
+							log.Debug("channel send: failed to deliver to agent", "agent", member, "error", err)
+						}
+					}
+				}
+			}
+			// Publish SSE event for web UI
+			if hub != nil {
+				hub.Publish("channel.message", map[string]any{
+					"channel": ch,
+					"message": map[string]any{
+						"sender":  sender,
+						"content": content,
+						"type":    "text",
+					},
+				})
+			}
+		}
 		handlers.NewChannelHandler(svc.Channels).Register(mux)
 	}
 	if svc.Daemons != nil {
@@ -129,8 +158,12 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	// MCP protocol server (SSE transport) at /mcp/
 	if svc.WS != nil {
 		mcpCfg := servermcp.Config{Workspace: svc.WS, Costs: svc.Costs}
+		if svc.Agents != nil {
+			mcpCfg.Agents = svc.Agents.Manager()
+		}
 		if svc.Channels != nil {
 			mcpCfg.Channels = svc.Channels.Store()
+			mcpCfg.ChannelService = svc.Channels
 		}
 		mcpSrv, mcpErr := servermcp.New(mcpCfg)
 		if mcpErr != nil {
