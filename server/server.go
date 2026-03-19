@@ -102,7 +102,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 			// Deliver to agent tmux/docker sessions
 			if svc.Agents != nil {
 				chDTO, err := svc.Channels.Get(context.Background(), ch)
-				if err == nil {
+				if err != nil {
+					log.Debug("channel send: failed to get channel", "channel", ch, "error", err)
+				} else {
 					for _, member := range chDTO.Members {
 						if member == sender {
 							continue
