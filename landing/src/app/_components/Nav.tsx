@@ -188,10 +188,10 @@ export function Nav() {
           </nav>
         </div>
 
-        {/* Right: Theme toggle + Install */}
+        {/* Right: Install + Theme toggle */}
         <div className="hidden md:flex items-center gap-2 ml-auto">
-          <ThemeToggle />
           <InstallDropdown />
+          <ThemeToggle />
         </div>
 
         {/* Mobile: hamburger */}
