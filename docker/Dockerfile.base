@@ -26,7 +26,8 @@ RUN ARCH=$(dpkg --print-architecture | sed 's/amd64/amd64/;s/arm64/arm64/') && \
 # Install Bun (for TUI / JS tooling)
 RUN curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash && \
     ln -sf /usr/local/bin/bun /usr/local/bin/bunx && \
-    ln -sf /usr/local/bin/bun /usr/local/bin/node
+    ln -sf /usr/local/bin/bun /usr/local/bin/node && \
+    ln -sf /usr/local/bin/bunx /usr/local/bin/npx
 
 RUN useradd -m -s /bin/bash agent
 USER agent
