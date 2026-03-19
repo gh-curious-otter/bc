@@ -143,6 +143,32 @@ func (b *Backend) tmuxTarget(ctx context.Context, name string) string {
 	return name
 }
 
+// HasStoppedContainer checks if a container exists but is stopped.
+// Used to determine if we can docker start instead of docker run.
+func (b *Backend) HasStoppedContainer(ctx context.Context, name string) bool {
+	cn := b.containerName(name)
+	//nolint:gosec // trusted
+	inspect := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{.State.Status}}", cn)
+	out, err := inspect.Output()
+	if err != nil {
+		return false
+	}
+	status := strings.TrimSpace(string(out))
+	return status == "exited" || status == "created"
+}
+
+// RestartContainer starts a previously stopped container.
+func (b *Backend) RestartContainer(ctx context.Context, name string) error {
+	cn := b.containerName(name)
+	//nolint:gosec // trusted
+	cmd := exec.CommandContext(ctx, "docker", "start", cn)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to start container %s: %w (%s)", cn, err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
 // HasSession checks if a container exists, is running, AND has a live tmux
 // session inside. A container with only zombie processes is treated as dead
 // so the caller will respawn it rather than reusing a broken session.

@@ -63,6 +63,7 @@ import (
 	"time"
 
 	"github.com/rpuneet/bc/config"
+	"github.com/rpuneet/bc/pkg/container"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/provider"
 	"github.com/rpuneet/bc/pkg/runtime"
@@ -692,16 +693,34 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 			}
 			return existing, nil
 		}
-		// Agent exists but session is dead — resume with --continue
-		// to pick up the previous conversation (unless --fresh).
-		// Update runtime backend if overridden
+		// Agent exists but session is dead — restart it.
 		if opts.Runtime != "" {
 			existing.RuntimeBackend = opts.Runtime
 		}
-		// Existing agent = `bc agent start` = resume previous session.
-		// The auth dir persists across restarts so --continue finds the prior conversation.
-		// --fresh overrides this and forces a new session.
-		// Session ID priority: explicit --resume flag > stored session_id > --continue.
+
+		// For Docker agents, try to restart the stopped container directly.
+		// This preserves auth, plugins, MCP config, and sessions.
+		if existing.RuntimeBackend != "tmux" {
+			if cb, ok := m.runtimeForAgent(name).(*container.Backend); ok {
+				if cb.HasStoppedContainer(context.TODO(), name) {
+					if err := cb.RestartContainer(context.TODO(), name); err != nil {
+						log.Warn("failed to restart container, will recreate", "agent", name, "error", err)
+					} else {
+						// Container restarted — update state and return
+						existing.State = StateIdle
+						existing.StartedAt = time.Now()
+						existing.UpdatedAt = time.Now()
+						if err := m.saveState(); err != nil {
+							log.Warn("failed to save agent state", "error", err)
+						}
+						log.Debug("restarted stopped container", "agent", name)
+						return existing, nil
+					}
+				}
+			}
+		}
+
+		// Container doesn't exist or restart failed — recreate with resume
 		resume := !opts.Fresh
 		sessionID := existing.SessionID
 		if opts.Fresh {
@@ -724,7 +743,6 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		}
 
 		// Apply provider session customization for container backends only.
-		// Claude's --tmux flag is only needed inside Docker, not native tmux.
 		if existing.RuntimeBackend != "tmux" {
 			if toolName != "" && m.providerRegistry != nil {
 				if p, ok := m.providerRegistry.Get(toolName); ok {
@@ -747,32 +765,31 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 			env["BC_PARENT_ID"] = existing.ParentID
 		}
 		injectEnv(env, wsPath, toolName, existing.EnvFile)
+
+		// For Docker recreate, add setup commands (mcp, plugins)
+		if existing.RuntimeBackend != "tmux" {
+			if setupCmd := BuildSetupCommand(wsPath, string(existing.Role)); setupCmd != "" {
+				agentCmd = setupCmd + " && " + agentCmd
+			}
+		}
+
 		if err := m.runtimeForAgent(name).CreateSessionWithEnv(context.TODO(), name, wsPath, agentCmd, env); err != nil {
-			return nil, fmt.Errorf("failed to recreate tmux session: %w", err)
+			return nil, fmt.Errorf("failed to recreate session: %w", err)
 		}
 
-		// Refresh role CLAUDE.md in auth dir (mounted as ~/.claude/CLAUDE.md in Docker)
-		// so Claude Code auto-loads updated role instructions on restart.
-		if mem := LoadRoleMemory(wsPath, existing.Role); mem != nil && mem.RolePrompt != "" {
-			m.writeRoleCLAUDEMD(name, mem.RolePrompt)
-		}
-
-		// Resume log streaming if log file was set
+		// Resume log streaming
 		if existing.LogFile != "" {
 			truncateLogFile(existing.LogFile, config.Logs.MaxBytes)
 			if pipeErr := m.runtimeForAgent(name).PipePane(context.TODO(), name, existing.LogFile); pipeErr != nil {
 				log.Warn("failed to resume pipe-pane", "agent", name, "error", pipeErr)
 			}
 		} else {
-			// Set up new log pipe for agents that didn't have one
 			existing.LogFile = m.setupLogPipe(name, wsPath)
 		}
 
-		// Reset terminal state for respawn
 		if existing.State == StateStopped || existing.State == StateError {
 			existing.State = StateStarting
 		}
-
 		existing.UpdatedAt = time.Now()
 		if err := m.saveState(); err != nil {
 			log.Warn("failed to save agent state", "error", err)
