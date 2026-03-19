@@ -98,6 +98,64 @@ func SetupAgentFromRole(workspacePath, agentName, roleName, targetDir string) er
 	return nil
 }
 
+// BuildSetupCommand generates bash commands to configure Claude Code before
+// starting it. These run as part of the container entrypoint so plugins and
+// MCP servers are ready when Claude launches.
+//
+// Returns empty string if no setup is needed.
+func BuildSetupCommand(workspacePath, roleName string) string {
+	stateDir := filepath.Join(workspacePath, ".bc")
+	rm := workspace.NewRoleManager(stateDir)
+
+	resolved, err := rm.ResolveRole(roleName)
+	if err != nil {
+		log.Debug("failed to resolve role for setup command", "role", roleName, "error", err)
+		return ""
+	}
+
+	var cmds []string
+
+	// Add MCP servers using claude mcp add
+	if len(resolved.MCPServers) > 0 {
+		mcpStore, mcpErr := pkgmcp.NewStore(workspacePath)
+		if mcpErr == nil {
+			defer mcpStore.Close() //nolint:errcheck
+			for _, name := range resolved.MCPServers {
+				def, getErr := mcpStore.Get(name)
+				if getErr != nil || def == nil || !def.Enabled {
+					continue
+				}
+				switch def.Transport {
+				case "sse":
+					cmds = append(cmds, fmt.Sprintf("claude mcp add --transport http %s %s 2>/dev/null || true", name, def.URL))
+				default: // stdio
+					if def.Command != "" {
+						args := strings.Join(def.Args, " ")
+						if args != "" {
+							cmds = append(cmds, fmt.Sprintf("claude mcp add %s %s %s 2>/dev/null || true", name, def.Command, args))
+						} else {
+							cmds = append(cmds, fmt.Sprintf("claude mcp add %s %s 2>/dev/null || true", name, def.Command))
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Install plugins using claude plugin install
+	if len(resolved.Plugins) > 0 {
+		for _, plugin := range resolved.Plugins {
+			cmds = append(cmds, fmt.Sprintf("claude plugin install %s 2>/dev/null || true", plugin))
+		}
+	}
+
+	if len(cmds) == 0 {
+		return ""
+	}
+
+	return strings.Join(cmds, " && ")
+}
+
 // ── MCP config ──────────────────────────────────────────────────────────────
 
 type mcpConfig struct {

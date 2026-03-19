@@ -896,6 +896,14 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 	}
 	injectEnv(env, wsPath, effectiveTool, opts.EnvFile)
 
+	// For Docker agents, prepend role setup commands (plugin install, mcp add)
+	// so everything is configured before Claude starts.
+	if agentRuntime != "tmux" {
+		if setupCmd := BuildSetupCommand(wsPath, string(role)); setupCmd != "" {
+			agentCmd = setupCmd + " && " + agentCmd
+		}
+	}
+
 	// Create session in the workspace directory using the agent's runtime backend
 	if err := m.runtimeForAgent(name).CreateSessionWithEnv(context.TODO(), name, wsPath, agentCmd, env); err != nil {
 		delete(m.agents, name) // clean up early registration
