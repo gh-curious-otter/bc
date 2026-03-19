@@ -53,7 +53,8 @@ type HistoryOpts struct {
 // It provides the service layer between CLI/API handlers and storage,
 // enforcing validation and returning DTOs.
 type ChannelService struct {
-	store *Store
+	store     *Store
+	OnMessage func(channel, sender, content string) // called after a message is stored
 }
 
 // NewChannelService creates a ChannelService backed by the given Store.
@@ -176,6 +177,11 @@ func (s *ChannelService) Send(_ context.Context, ch, sender, content string) (*M
 		Type:      string(TypeText),
 		CreatedAt: time.Now(),
 	}
+
+	if s.OnMessage != nil {
+		s.OnMessage(ch, sender, content)
+	}
+
 	return dto, nil
 }
 

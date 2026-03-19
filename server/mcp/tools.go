@@ -171,6 +171,18 @@ func (s *Server) toolSendMessage(raw json.RawMessage) (*toolsCallResult, error) 
 		}, nil
 	}
 
+	// Deliver to agent tmux/docker sessions
+	if s.agents != nil {
+		if ch, ok := s.chans.Get(args.Channel); ok {
+			for _, member := range ch.Members {
+				if member == sender {
+					continue
+				}
+				_ = s.agents.SendToAgent(member, args.Message)
+			}
+		}
+	}
+
 	return &toolsCallResult{
 		Content: []ToolContent{
 			textContent(fmt.Sprintf("Sent message to #%s from %s", args.Channel, sender)),
