@@ -127,7 +127,7 @@ func BuildSetupCommand(workspacePath, roleName string) string {
 				}
 				switch def.Transport {
 				case "sse":
-					cmds = append(cmds, fmt.Sprintf("claude mcp add --transport http %s %s 2>/dev/null || true", name, def.URL))
+					cmds = append(cmds, fmt.Sprintf("claude mcp add --transport sse %s %s 2>/dev/null || true", name, def.URL))
 				default: // stdio
 					if def.Command != "" {
 						args := strings.Join(def.Args, " ")
