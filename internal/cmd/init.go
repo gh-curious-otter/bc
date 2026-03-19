@@ -13,6 +13,7 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/client"
+	"github.com/rpuneet/bc/pkg/db"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/ui"
@@ -225,9 +226,9 @@ func getWorkspace() (*workspace.Workspace, error) {
 	return workspace.Find(cwd)
 }
 
-// stateDBPath returns the path to the workspace's state.db for events and agents.
+// stateDBPath returns the path to the workspace's unified bc.db for events and agents.
 func stateDBPath(ws *workspace.Workspace) string {
-	return filepath.Join(ws.StateDir(), "state.db")
+	return db.BCDBPath(ws.RootDir)
 }
 
 // openEventLog opens the SQLite event log for the given workspace.

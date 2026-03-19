@@ -17,7 +17,6 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/container"
-	"github.com/rpuneet/bc/pkg/cost"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/provider"
 	"github.com/rpuneet/bc/pkg/ui"
@@ -1075,24 +1074,15 @@ Examples:
 func runAgentCost(cmd *cobra.Command, args []string) error {
 	agentName := args[0]
 
-	ws, err := getWorkspace()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
-		return errNotInWorkspace(err)
+		return err
 	}
 
-	// Try to get cost data
-	costStore := newCostStore(ws.RootDir)
-	if costStore == nil {
+	summary, costErr := c.Agents.Cost(cmd.Context(), agentName)
+	if costErr != nil {
 		fmt.Printf("Agent: %s\n", agentName)
 		fmt.Println("No cost data available (cost tracking not enabled)")
-		return nil
-	}
-	defer func() { _ = costStore.Close() }()
-
-	summary, costErr := costStore.AgentSummary(agentName)
-	if costErr != nil || summary == nil {
-		fmt.Printf("Agent: %s\n", agentName)
-		fmt.Println("No cost data recorded yet")
 		return nil
 	}
 
@@ -1101,7 +1091,7 @@ func runAgentCost(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Output tokens: %d\n", summary.OutputTokens)
 	fmt.Printf("  Total tokens:  %d\n", summary.TotalTokens)
 	fmt.Printf("  Total cost:    $%.4f\n", summary.TotalCostUSD)
-	fmt.Printf("  Requests:      %d\n", summary.RecordCount)
+	fmt.Printf("  Requests:      %d\n", summary.RequestCount)
 
 	return nil
 }
@@ -1146,21 +1136,6 @@ func runAgentLogs(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
-}
-
-// newCostStore opens the cost store, returning nil if unavailable.
-func newCostStore(workspacePath string) costStoreCloser {
-	cs := cost.NewStore(workspacePath)
-	if err := cs.Open(); err != nil {
-		return nil
-	}
-	return cs
-}
-
-// costStoreCloser wraps cost.Store for agent cost queries.
-type costStoreCloser interface {
-	AgentSummary(agentID string) (*cost.Summary, error)
-	Close() error
 }
 
 // agentAuthCmd manages per-agent authentication for Docker containers.
@@ -1235,7 +1210,7 @@ var agentStatsCmd = &cobra.Command{
 	Long: `Display recorded Docker CPU and memory stats for an agent.
 
 Stats are collected every 30 s by bcd while the agent is running with a
-Docker runtime backend. They are stored in .bc/state.db.
+Docker runtime backend. They are stored in .bc/bc.db.
 
 Examples:
   bc agent stats eng-01              # Human-readable table

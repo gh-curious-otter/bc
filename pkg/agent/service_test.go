@@ -109,7 +109,7 @@ func TestAgentService_DeleteRequiresStopped(t *testing.T) {
 
 	svc := NewAgentService(mgr, nil, nil)
 
-	err := svc.Delete(context.Background(), "eng-1")
+	err := svc.Delete(context.Background(), "eng-1", false)
 	if err == nil {
 		t.Error("expected error when deleting running agent")
 	}
@@ -122,7 +122,7 @@ func TestAgentService_DeleteStopped(t *testing.T) {
 	pub := &mockEventPublisher{}
 	svc := NewAgentService(mgr, pub, nil)
 
-	err := svc.Delete(context.Background(), "eng-1")
+	err := svc.Delete(context.Background(), "eng-1", false)
 	if err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
