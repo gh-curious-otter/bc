@@ -1223,6 +1223,7 @@ func (m *Manager) DeleteAgent(name string) error {
 }
 
 // DeleteAgentWithOptions permanently removes an agent with configurable options.
+// Cleans up: container, volume, worktree, git branch, state.
 func (m *Manager) DeleteAgentWithOptions(name string, opts DeleteOptions) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -1234,8 +1235,35 @@ func (m *Manager) DeleteAgentWithOptions(name string, opts DeleteOptions) error 
 		return fmt.Errorf("agent %s not found", name)
 	}
 
-	// Kill tmux session (ignore error - session might already be dead)
-	_ = m.runtimeForAgent(name).KillSession(context.TODO(), name)
+	rt := m.runtimeForAgent(name)
+
+	// Stop the container/session
+	_ = rt.KillSession(context.TODO(), name) //nolint:errcheck // may already be stopped
+
+	// Remove the container entirely (for Docker agents)
+	if cb, ok := rt.(*container.Backend); ok {
+		_ = cb.RemoveSession(context.TODO(), name) //nolint:errcheck // may not exist
+	}
+
+	// Remove persistent volume (.bc/volumes/<name>/)
+	volumeDir := filepath.Join(m.workspacePath, ".bc", "volumes", name)
+	if err := os.RemoveAll(volumeDir); err != nil {
+		log.Warn("failed to remove agent volume", "agent", name, "error", err)
+	}
+
+	// Remove git worktree and branch
+	worktreeName := "bc-" + filepath.Base(m.workspacePath) + "-" + name
+	worktreeDir := filepath.Join(m.workspacePath, ".claude", "worktrees", worktreeName)
+	branchName := "worktree-" + worktreeName
+
+	// git worktree remove
+	//nolint:gosec // trusted paths
+	_ = exec.CommandContext(context.TODO(), "git", "-C", m.workspacePath, "worktree", "remove", "--force", worktreeDir).Run()
+	// git branch -D
+	//nolint:gosec // trusted paths
+	_ = exec.CommandContext(context.TODO(), "git", "-C", m.workspacePath, "branch", "-D", branchName).Run()
+	// Clean up directory if still exists
+	_ = os.RemoveAll(worktreeDir)
 
 	// Remove from parent's children list
 	m.removeFromParent(name)
@@ -1247,6 +1275,7 @@ func (m *Manager) DeleteAgentWithOptions(name string, opts DeleteOptions) error 
 		log.Warn("failed to save agent state", "error", err)
 	}
 
+	log.Debug("agent fully deleted", "agent", name, "volume", volumeDir, "worktree", worktreeDir)
 	return nil
 }
 
