@@ -191,45 +191,12 @@ func resolveSecretValue(value string, secrets map[string]string) string {
 
 // ── Plugin config ────────────────────────────────────────────────────────────
 
-// writePluginConfig writes settings.json with enabled plugins and
-// installed_plugins.json to the agent's user-level .claude/ directory.
-// This enables plugins for Docker agents without mounting host dirs.
-func writePluginConfig(claudeDir string, plugins []string) error {
-	if len(plugins) == 0 {
-		return nil
-	}
-
-	// Build enabledPlugins map for settings.json
-	enabled := make(map[string]bool, len(plugins))
-	for _, p := range plugins {
-		enabled[p] = true
-	}
-
-	// Write/merge settings.json with enabledPlugins
-	settingsPath := filepath.Join(claudeDir, "settings.json")
-	settings := map[string]any{}
-	if data, err := os.ReadFile(settingsPath); err == nil { //nolint:gosec // agent auth dir
-		_ = json.Unmarshal(data, &settings)
-	}
-	settings["enabledPlugins"] = enabled
-	if err := writeJSONFile(claudeDir, "settings.json", settings); err != nil {
-		return fmt.Errorf("write plugin settings: %w", err)
-	}
-
-	// Copy host installed_plugins.json if available (tells Claude where plugin cache is)
-	home, _ := os.UserHomeDir()
-	if home != "" {
-		src := filepath.Join(home, ".claude", "plugins", "installed_plugins.json")
-		if data, err := os.ReadFile(src); err == nil { //nolint:gosec // known path
-			pluginsDir := filepath.Join(claudeDir, "plugins")
-			_ = os.MkdirAll(pluginsDir, 0750) //nolint:errcheck
-			dst := filepath.Join(pluginsDir, "installed_plugins.json")
-			if writeErr := os.WriteFile(dst, data, 0600); writeErr != nil {
-				log.Debug("failed to copy installed_plugins.json", "error", writeErr)
-			}
-		}
-	}
-
+// writePluginConfig is a no-op for now.
+// Plugins must be installed inside the Docker container at runtime
+// (via /plugin command) or pre-installed in the Docker image.
+// Copying host installed_plugins.json doesn't work because paths
+// reference the host filesystem which doesn't exist in containers.
+func writePluginConfig(_ string, _ []string) error {
 	return nil
 }
 
