@@ -698,15 +698,6 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 			existing.RuntimeBackend = opts.Runtime
 		}
 
-		// Determine if this is a restart (volume has config) or fresh create
-		isRestart := false
-		if existing.RuntimeBackend != "tmux" {
-			volumeDir := filepath.Join(m.workspacePath, ".bc", "volumes", name, ".claude")
-			if _, statErr := os.Stat(volumeDir); statErr == nil {
-				isRestart = true // volume exists = restart, skip setup commands
-			}
-		}
-
 		resume := !opts.Fresh
 		sessionID := existing.SessionID
 		if opts.Fresh {
@@ -752,13 +743,6 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		}
 		injectEnv(env, wsPath, toolName, existing.EnvFile)
 
-		// For Docker: add setup commands only on first create (not restart).
-		// On restart the volume already has plugins and MCP configured.
-		if existing.RuntimeBackend != "tmux" && !isRestart {
-			if setupCmd := BuildSetupCommand(wsPath, string(existing.Role)); setupCmd != "" {
-				agentCmd = setupCmd + " && " + agentCmd
-			}
-		}
 
 		if err := m.runtimeForAgent(name).CreateSessionWithEnv(context.TODO(), name, wsPath, agentCmd, env); err != nil {
 			return nil, fmt.Errorf("failed to recreate session: %w", err)
@@ -899,14 +883,6 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		env["BC_PARENT_ID"] = parentID
 	}
 	injectEnv(env, wsPath, effectiveTool, opts.EnvFile)
-
-	// For Docker agents, prepend role setup commands (plugin install, mcp add)
-	// so everything is configured before Claude starts.
-	if agentRuntime != "tmux" {
-		if setupCmd := BuildSetupCommand(wsPath, string(role)); setupCmd != "" {
-			agentCmd = setupCmd + " && " + agentCmd
-		}
-	}
 
 	// Create session in the workspace directory using the agent's runtime backend
 	if err := m.runtimeForAgent(name).CreateSessionWithEnv(context.TODO(), name, wsPath, agentCmd, env); err != nil {
