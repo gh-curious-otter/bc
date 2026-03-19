@@ -768,12 +768,8 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 			existing.LogFile = m.setupLogPipe(name, wsPath)
 		}
 
-		// Only inject bootstrap prompt for non-terminal states (active respawn)
-		// For stopped/error agents, --continue handles resumption
-		if existing.State != StateStopped && existing.State != StateError {
-			go m.sendRespawnBootstrap(name, existing, wsPath)
-		} else {
-			// Terminal state — reset to starting
+		// Reset terminal state for respawn
+		if existing.State == StateStopped || existing.State == StateError {
 			existing.State = StateStarting
 		}
 
@@ -925,26 +921,9 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 	// Start log streaming via pipe-pane
 	agent.LogFile = m.setupLogPipe(name, wsPath)
 
-	// Load role prompt from prompts/<role>.md
-	agent.RolePrompt = LoadRoleMemory(wsPath, role)
-
-	// Write role CLAUDE.md to agent auth dir — mounted as /home/agent/.claude/CLAUDE.md
-	// inside Docker containers so Claude Code auto-loads it as user instructions.
-	if agent.RolePrompt != nil && agent.RolePrompt.RolePrompt != "" {
-		m.writeRoleCLAUDEMD(name, agent.RolePrompt.RolePrompt)
-	}
-
 	// Update state
 	agent.State = StateIdle
 	agent.UpdatedAt = time.Now()
-
-	// Build bootstrap prompt with role prompt
-	var promptParts []string
-
-	// Add role prompt if available
-	if agent.RolePrompt != nil && agent.RolePrompt.RolePrompt != "" {
-		promptParts = append(promptParts, agent.RolePrompt.RolePrompt)
-	}
 
 	// Update parent's children list
 	if parentID != "" {
@@ -959,116 +938,7 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		log.Warn("failed to save agent state", "error", err)
 	}
 
-	// Send bootstrap prompt asynchronously (like respawn path at line 656)
-	// to avoid holding m.mu during the blocking sleep.
-	{
-		bootstrapName := name
-		bootstrapWorkspace := wsPath
-		bootstrapParts := make([]string, len(promptParts))
-		copy(bootstrapParts, promptParts)
-		var bootstrapPlugins []string
-		if agent.RolePrompt != nil {
-			bootstrapPlugins = agent.RolePrompt.Plugins
-		}
-		go func() {
-			// Wait for the agent's TUI to fully initialize (worktree creation,
-			// trust dialog render). Docker + tmux + claude startup takes ~10s.
-			time.Sleep(10 * time.Second)
-
-			// Auto-confirm interactive prompts (workspace trust dialog, theme picker)
-			// by sending Enter. Claude pre-selects "Yes, I trust" and "Dark mode"
-			// so Enter confirms the defaults. Send a few times with delays to catch
-			// any multi-step onboarding prompts.
-			rt := m.runtimeForAgent(bootstrapName)
-			for range 3 {
-				if err := rt.SendKeys(context.TODO(), bootstrapName, ""); err != nil {
-					log.Debug("pre-bootstrap Enter failed", "agent", bootstrapName, "error", err)
-					break // tmux not ready yet, stop trying
-				}
-				time.Sleep(3 * time.Second)
-			}
-
-			// Install role-defined plugins before sending the role prompt.
-			m.sendPluginBootstrap(bootstrapName, bootstrapPlugins, rt)
-
-			// Then send the actual bootstrap prompt if we have role instructions
-			if len(bootstrapParts) > 0 {
-				time.Sleep(3 * time.Second)
-				prompt := strings.Join(bootstrapParts, "\n\n---\n\n")
-				prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nAgent ID: %s\n", bootstrapWorkspace, bootstrapName)
-				if err := rt.SendKeys(context.TODO(), bootstrapName, prompt); err != nil {
-					log.Warn("failed to send bootstrap prompt", "agent", bootstrapName, "error", err)
-				}
-			}
-		}()
-	}
-
 	return agent, nil
-}
-
-// sendPluginBootstrap sends /plugin slash commands for each named plugin then
-// /reload-plugins to activate them. Called from both fresh-create and respawn
-// bootstrap goroutines so the logic stays in one place.
-// /reload-plugins is only sent if all installs succeeded.
-func (m *Manager) sendPluginBootstrap(agentName string, plugins []string, rt runtime.Backend) {
-	if len(plugins) == 0 {
-		return
-	}
-	time.Sleep(2 * time.Second)
-	for _, plugin := range plugins {
-		if err := rt.SendKeys(context.TODO(), agentName, "/plugin "+plugin); err != nil {
-			log.Warn("failed to install plugin — skipping reload", "agent", agentName, "plugin", plugin, "error", err)
-			return // skip /reload-plugins: some plugins may not be installed
-		}
-		time.Sleep(2 * time.Second)
-	}
-	// Reload to activate all newly installed plugins at once.
-	if err := rt.SendKeys(context.TODO(), agentName, "/reload-plugins"); err != nil {
-		log.Warn("failed to reload plugins", "agent", agentName, "error", err)
-	}
-	time.Sleep(2 * time.Second)
-}
-
-// sendRespawnBootstrap sends the role prompt to a respawned agent.
-// Runs in a goroutine since it needs to wait for the agent to initialize.
-func (m *Manager) sendRespawnBootstrap(name string, agent *Agent, workspace string) {
-	time.Sleep(m.getBootstrapDelay())
-
-	var (
-		promptParts []string
-		plugins     []string
-	)
-
-	// Load role prompt and plugins from role files
-	if agent.RolePrompt != nil {
-		if agent.RolePrompt.RolePrompt != "" {
-			promptParts = append(promptParts, agent.RolePrompt.RolePrompt)
-		}
-		plugins = agent.RolePrompt.Plugins
-	}
-
-	// Fall back to loading from role manager
-	if len(promptParts) == 0 && len(plugins) == 0 {
-		if mem := LoadRoleMemory(workspace, agent.Role); mem != nil {
-			if mem.RolePrompt != "" {
-				promptParts = append(promptParts, mem.RolePrompt)
-			}
-			plugins = mem.Plugins
-		}
-	}
-
-	rt := m.runtimeForAgent(name)
-
-	// Install role-defined plugins before sending the role prompt.
-	m.sendPluginBootstrap(name, plugins, rt)
-
-	if len(promptParts) > 0 {
-		prompt := strings.Join(promptParts, "\n\n---\n\n")
-		prompt += fmt.Sprintf("\n\n---\n\nWorkspace: %s\nAgent ID: %s\n(Respawned session — continuing previous work)\n", workspace, name)
-		if err := rt.SendKeys(context.TODO(), name, prompt); err != nil {
-			log.Warn("failed to send respawn bootstrap", "agent", name, "error", err)
-		}
-	}
 }
 
 // setupLogPipe creates the logs directory and starts pipe-pane for the agent.
