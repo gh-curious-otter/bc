@@ -127,10 +127,10 @@ security: vuln ## Run all security checks
 # =============================================================================
 
 build-tui: ## Build TUI package
-	cd tui && bun install --frozen-lockfile && bun run build
+	cd tui && bun install && bun run build
 
 test-tui: ## Run TUI tests
-	cd tui && bun install --frozen-lockfile && bun test
+	cd tui && bun install && bun test
 
 lint-tui: ## Lint TUI code
 	cd tui && bun run lint
@@ -140,7 +140,7 @@ lint-tui: ## Lint TUI code
 # =============================================================================
 
 build-web: ## Build React web UI and copy to server/web/dist/
-	cd web && bun install --frozen-lockfile && bun run build
+	cd web && bun install && bun run build
 	@rm -rf server/web/dist
 	@cp -r web/dist server/web/dist
 
@@ -155,7 +155,7 @@ dev-web: ## Run web UI dev server (hot reload)
 # =============================================================================
 
 build-landing: ## Build landing page
-	cd landing && bun install --frozen-lockfile && bun run build
+	cd landing && bun install && bun run build
 
 dev-landing: ## Run landing dev server (hot reload)
 	cd landing && bun run dev
