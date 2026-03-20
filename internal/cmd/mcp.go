@@ -11,7 +11,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/client"
-	pkgmcp "github.com/rpuneet/bc/pkg/mcp"
 	"github.com/rpuneet/bc/pkg/ui"
 	srvmcp "github.com/rpuneet/bc/server/mcp"
 )
@@ -176,14 +175,6 @@ func init() {
 	mcpCmd.AddCommand(mcpServeCmd)
 	mcpCmd.AddCommand(mcpRegisterCmd)
 	rootCmd.AddCommand(mcpCmd)
-}
-
-func openMCPStore() (*pkgmcp.Store, error) {
-	ws, err := getWorkspace()
-	if err != nil {
-		return nil, errNotInWorkspace(err)
-	}
-	return pkgmcp.NewStore(ws.RootDir)
 }
 
 func runMCPAdd(cmd *cobra.Command, args []string) error {

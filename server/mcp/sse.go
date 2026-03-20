@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 )
 
 // ServeSSE starts an HTTP server that implements the MCP SSE transport.
@@ -20,7 +21,7 @@ import (
 // to "127.0.0.1:port" so the server only listens on localhost — never on all
 // interfaces — which prevents accidental network exposure.
 //
-// The server shuts down cleanly when ctx is cancelled.
+// The server shuts down cleanly when ctx is canceled.
 func (s *Server) ServeSSE(ctx context.Context, addr string) error {
 	addr = LocalhostAddr(addr)
 
@@ -32,15 +33,16 @@ func (s *Server) ServeSSE(ctx context.Context, addr string) error {
 	mux.HandleFunc("/message", s.HandleSSEMessage(ctx, broker))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"status":"ok","server":"bc-mcp","version":%q}`, s.version)
+		fmt.Fprintf(w, `{"status":"ok","server":"bc-mcp","version":%q}`, s.version) //nolint:errcheck // writing to response
 	})
 
 	srv := &http.Server{
-		Addr:    addr,
-		Handler: mux,
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	// Shut down when ctx is cancelled
+	// Shut down when ctx is canceled
 	go func() {
 		<-ctx.Done()
 		_ = srv.Shutdown(context.Background()) //nolint:contextcheck
@@ -92,9 +94,9 @@ func (s *Server) HandleSSEMessage(ctx context.Context, broker *SSEBroker) http.H
 
 // SSEBroker fans out SSE messages to all connected clients.
 type SSEBroker struct {
-	mu              sync.Mutex
 	clients         map[chan []byte]struct{}
-	messageEndpoint string // path the client should POST to (e.g. "/mcp/message")
+	messageEndpoint string
+	mu              sync.Mutex
 }
 
 // NewSSEBroker creates an SSEBroker ready to use.
@@ -151,7 +153,7 @@ func (b *SSEBroker) handleSSE(w http.ResponseWriter, r *http.Request) {
 	defer b.unsubscribe(ch)
 
 	// Send endpoint event so client knows where to POST
-	fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", b.messageEndpoint)
+	fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", b.messageEndpoint) //nolint:errcheck // writing to response
 	flusher.Flush()
 
 	for {

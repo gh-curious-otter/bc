@@ -264,7 +264,7 @@ func daemonizeStart(workspaceDir string) error {
 	defer func() { _ = f.Close() }()
 
 	//nolint:gosec // trusted self-exec
-	proc := exec.Command(exe, "daemon", "start")
+	proc := exec.CommandContext(context.Background(), exe, "daemon", "start")
 	proc.Stdout = f
 	proc.Stderr = f
 	proc.Env = append(os.Environ(), "BC_DAEMON_BG=1")
@@ -435,13 +435,13 @@ func runDaemonList(cmd *cobra.Command, _ []string) error {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tRUNTIME\tSTATUS\tSTARTED\t")
+	fmt.Fprintln(w, "NAME\tRUNTIME\tSTATUS\tSTARTED\t") //nolint:errcheck // writing to tabwriter
 	for _, d := range daemons {
 		started := "-"
 		if !d.StartedAt.IsZero() {
 			started = time.Since(d.StartedAt).Round(time.Second).String() + " ago"
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t\n", d.Name, d.Runtime, d.Status, started)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t\n", d.Name, d.Runtime, d.Status, started) //nolint:errcheck // writing to tabwriter
 	}
 	return w.Flush()
 }

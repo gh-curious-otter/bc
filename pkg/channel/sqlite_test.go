@@ -30,7 +30,7 @@ func TestSQLiteStore_Open(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	dbPath := filepath.Join(tmpDir, ".bc", "channels.db")
+	dbPath := filepath.Join(tmpDir, ".bc", "bc.db")
 	if _, err := os.Stat(dbPath); err != nil {
 		t.Errorf("database file not created: %v", err)
 	}

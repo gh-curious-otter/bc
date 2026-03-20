@@ -104,7 +104,7 @@ func TestImporter_NewEntriesAfterWatermark(t *testing.T) {
 
 	// Append a new entry with a later timestamp.
 	line2 := `{"type":"assistant","sessionId":"s3","timestamp":"2026-03-10T11:00:00Z","cwd":"/p","message":{"model":"claude-sonnet-4-6","usage":{"input_tokens":20,"output_tokens":8}}}` + "\n"
-	f, err := os.OpenFile(jsonlPath, os.O_APPEND|os.O_WRONLY, 0600)
+	f, err := os.OpenFile(jsonlPath, os.O_APPEND|os.O_WRONLY, 0600) //nolint:gosec // test file, path is controlled
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func TestImporter_ResolveAgent_HostPath(t *testing.T) {
 func TestImporterSchema_MigratesColumns(t *testing.T) {
 	s := openTestStore(t)
 	// Verify the new columns exist by inserting a record that uses them.
-	_, err := s.db.Exec(
+	_, err := s.db.ExecContext(context.Background(),
 		`INSERT INTO cost_records (agent_id, model, session_id, input_tokens, output_tokens, total_tokens, cache_creation_tokens, cache_read_tokens, cost_usd, timestamp) VALUES (?,?,?,?,?,?,?,?,?,?)`,
 		"agent-a", "claude-sonnet-4-6", "sess-x", 1, 1, 2, 3, 4, 0.001,
 		time.Now().UTC().Format(time.RFC3339),

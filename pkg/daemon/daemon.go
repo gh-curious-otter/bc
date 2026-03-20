@@ -67,14 +67,14 @@ type Daemon struct {
 // RunOptions configures how a daemon is started.
 type RunOptions struct {
 	Name    string
-	Runtime string   // "bash" or "docker"
-	Cmd     string   // command for bash runtime
-	Image   string   // Docker image for docker runtime
-	Ports   []string // port mappings, e.g. "5432:5432"
-	Volumes []string // volume mounts, e.g. "/var/run/docker.sock:/var/run/docker.sock"
-	Env     []string // env vars, e.g. "KEY=VALUE"
+	Runtime string
+	Cmd     string
+	Image   string
 	EnvFile string
-	Restart string // "no", "always", "on-failure"
+	Restart string
+	Ports   []string
+	Volumes []string
+	Env     []string
 	Detach  bool
 }
 

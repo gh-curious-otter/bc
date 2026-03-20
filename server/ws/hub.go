@@ -13,8 +13,8 @@ import (
 
 // Event is the payload broadcast to SSE subscribers.
 type Event struct {
-	Type    string `json:"type"`
 	Payload any    `json:"payload"`
+	Type    string `json:"type"`
 }
 
 type subscriber struct {
@@ -25,11 +25,11 @@ type subscriber struct {
 // Hub manages SSE subscribers and broadcasts events.
 // It implements agent.EventPublisher so it can be wired into AgentService.
 type Hub struct {
-	mu          sync.RWMutex
-	stopOnce    sync.Once
 	subscribers map[*subscriber]struct{}
 	broadcast   chan []byte
 	done        chan struct{}
+	mu          sync.RWMutex
+	stopOnce    sync.Once
 }
 
 // NewHub creates and returns a new Hub. Call Run() in a goroutine.
@@ -108,13 +108,13 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Send initial connected event.
 	connected, _ := json.Marshal(Event{Type: "connected", Payload: map[string]any{}})
-	fmt.Fprintf(w, "data: %s\n\n", connected)
+	fmt.Fprintf(w, "data: %s\n\n", connected) //nolint:errcheck // writing to response
 	flusher.Flush()
 
 	for {
 		select {
 		case msg := <-sub.ch:
-			fmt.Fprintf(w, "data: %s\n\n", msg)
+			fmt.Fprintf(w, "data: %s\n\n", msg) //nolint:errcheck // writing to response
 			flusher.Flush()
 		case <-r.Context().Done():
 			return

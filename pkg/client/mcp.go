@@ -10,11 +10,11 @@ type MCPClient struct {
 // MCPServerConfig represents an MCP server configuration.
 type MCPServerConfig struct {
 	Env       map[string]string `json:"env,omitempty"`
-	Args      []string          `json:"args,omitempty"`
 	Name      string            `json:"name"`
 	Transport string            `json:"transport"`
 	Command   string            `json:"command,omitempty"`
 	URL       string            `json:"url,omitempty"`
+	Args      []string          `json:"args,omitempty"`
 	Enabled   bool              `json:"enabled"`
 }
 

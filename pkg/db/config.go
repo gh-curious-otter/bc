@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -75,7 +76,7 @@ func openPostgres(cfg DatabaseConfig) (*DB, error) {
 	sqlDB.SetConnMaxIdleTime(10 * time.Minute)
 
 	// Verify connectivity
-	if err := sqlDB.Ping(); err != nil {
+	if err := sqlDB.PingContext(context.TODO()); err != nil {
 		_ = sqlDB.Close()
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}

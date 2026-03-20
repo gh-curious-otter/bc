@@ -80,8 +80,8 @@ func TestSaveAndQueryStats(t *testing.T) {
 		NetRxMB:     0.1,
 		NetTxMB:     0.05,
 	}
-	if err := store.SaveStats(rec); err != nil {
-		t.Fatalf("SaveStats: %v", err)
+	if saveErr := store.SaveStats(rec); saveErr != nil {
+		t.Fatalf("SaveStats: %v", saveErr)
 	}
 
 	records, err := store.QueryStats("eng-01", 10)
@@ -132,8 +132,8 @@ func TestQueryStats_LimitRespected(t *testing.T) {
 			CollectedAt: time.Now().Add(time.Duration(i) * time.Second),
 			CPUPct:      float64(i),
 		}
-		if err := store.SaveStats(rec); err != nil {
-			t.Fatalf("SaveStats #%d: %v", i, err)
+		if saveErr := store.SaveStats(rec); saveErr != nil {
+			t.Fatalf("SaveStats #%d: %v", i, saveErr)
 		}
 	}
 	records, err := store.QueryStats("worker", 3)

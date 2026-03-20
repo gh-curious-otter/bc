@@ -264,8 +264,9 @@ func TestResourceRead_Channels_EmptyWorkspace(t *testing.T) {
 	if err := json.Unmarshal([]byte(text), &channels); err != nil {
 		t.Fatalf("bc://channels: invalid JSON: %v", err)
 	}
-	if len(channels) != 0 {
-		t.Errorf("expected 0 channels in fresh workspace, got %d", len(channels))
+	// Fresh workspace creates 3 default channels: general, engineering, all
+	if len(channels) != 3 {
+		t.Errorf("expected 3 default channels in fresh workspace, got %d", len(channels))
 	}
 }
 
@@ -373,8 +374,8 @@ func TestToolCall_CreateAgent_MissingName(t *testing.T) {
 	srv := newTestServer(t)
 
 	var result struct {
-		IsError bool              `json:"isError"`
 		Content []mcp.ToolContent `json:"content"`
+		IsError bool              `json:"isError"`
 	}
 	rpc(t, srv, "tools/call", map[string]any{
 		"name":      "create_agent",
@@ -390,8 +391,8 @@ func TestToolCall_CreateAgent_InvalidName(t *testing.T) {
 	srv := newTestServer(t)
 
 	var result struct {
-		IsError bool              `json:"isError"`
 		Content []mcp.ToolContent `json:"content"`
+		IsError bool              `json:"isError"`
 	}
 	rpc(t, srv, "tools/call", map[string]any{
 		"name": "create_agent",
@@ -410,8 +411,8 @@ func TestToolCall_SendMessage_MissingChannel(t *testing.T) {
 	srv := newTestServer(t)
 
 	var result struct {
-		IsError bool              `json:"isError"`
 		Content []mcp.ToolContent `json:"content"`
+		IsError bool              `json:"isError"`
 	}
 	rpc(t, srv, "tools/call", map[string]any{
 		"name":      "send_message",
@@ -427,8 +428,8 @@ func TestToolCall_ReportStatus_UnknownAgent(t *testing.T) {
 	srv := newTestServer(t)
 
 	var result struct {
-		IsError bool              `json:"isError"`
 		Content []mcp.ToolContent `json:"content"`
+		IsError bool              `json:"isError"`
 	}
 	rpc(t, srv, "tools/call", map[string]any{
 		"name": "report_status",
@@ -450,8 +451,8 @@ func TestToolCall_QueryCosts_Empty(t *testing.T) {
 	srv := newTestServer(t)
 
 	var result struct {
-		IsError bool              `json:"isError"`
 		Content []mcp.ToolContent `json:"content"`
+		IsError bool              `json:"isError"`
 	}
 	rpc(t, srv, "tools/call", map[string]any{
 		"name":      "query_costs",
@@ -586,13 +587,17 @@ func TestSSE_Health(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"status":"ok","server":"bc-mcp","version":"test"}`)
+		fmt.Fprintf(w, `{"status":"ok","server":"bc-mcp","version":"test"}`) //nolint:errcheck // writing to response
 	})
 
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	resp, err := http.Get(ts.URL + "/health")
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL+"/health", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("GET /health: %v", err)
 	}
@@ -612,10 +617,15 @@ func TestSSE_Message_ResourcesList(t *testing.T) {
 	defer ts.Close()
 
 	id := json.RawMessage(`7`)
-	req := mcp.Request{JSONRPC: "2.0", ID: &id, Method: "resources/list"}
-	body, _ := json.Marshal(req)
+	mcpReq := mcp.Request{JSONRPC: "2.0", ID: &id, Method: "resources/list"}
+	body, _ := json.Marshal(mcpReq)
 
-	resp, err := http.Post(ts.URL+"/message", "application/json", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, ts.URL+"/message", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("POST /message: %v", err)
 	}
@@ -634,7 +644,11 @@ func TestSSE_Message_WrongMethod(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	resp, err := http.Get(ts.URL + "/message")
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL+"/message", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("GET /message: %v", err)
 	}
@@ -657,7 +671,12 @@ func TestSSE_Broker_SendReceive(t *testing.T) {
 	// POST a notification (no ID) — broker should not send, server returns 202
 	notif := mcp.Request{JSONRPC: "2.0", Method: "initialized"}
 	body, _ := json.Marshal(notif)
-	resp, err := http.Post(ts.URL+"/message", "application/json", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, ts.URL+"/message", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("POST notification: %v", err)
 	}

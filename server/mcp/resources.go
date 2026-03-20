@@ -10,8 +10,8 @@ type workspaceStatusPayload struct {
 	Name      string `json:"name"`
 	Path      string `json:"path"`
 	StateDir  string `json:"state_dir"`
-	IsV2      bool   `json:"is_v2"`
 	AgentsDir string `json:"agents_dir"`
+	IsV2      bool   `json:"is_v2"`
 }
 
 func (s *Server) readWorkspaceStatus() (string, error) {

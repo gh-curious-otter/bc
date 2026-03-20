@@ -55,7 +55,7 @@ func TestHandleHealth(t *testing.T) {
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/health")
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("want 200, got %d", resp.StatusCode)
@@ -74,7 +74,7 @@ func TestHandleHealth_MethodNotAllowed(t *testing.T) {
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/health", "application/json", nil)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Fatalf("want 405, got %d", resp.StatusCode)
@@ -86,7 +86,7 @@ func TestCORSHeaders(t *testing.T) {
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/health")
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.Header.Get("Access-Control-Allow-Origin") != "*" {
 		t.Fatal("CORS header missing")

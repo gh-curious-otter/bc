@@ -35,12 +35,6 @@ var roleShowCmd = &cobra.Command{
 	RunE:  runRoleShow,
 }
 
-// Flags
-var (
-	roleName        string
-	roleDescription string
-)
-
 func init() {
 	roleCmd.AddCommand(roleListCmd)
 	roleCmd.AddCommand(roleShowCmd)

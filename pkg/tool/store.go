@@ -16,13 +16,13 @@ import (
 // Tool represents a configured AI tool provider stored in the workspace.
 type Tool struct {
 	CreatedAt  time.Time      `json:"created_at"`
+	Config     map[string]any `json:"config,omitempty"`
 	Name       string         `json:"name"`
 	Command    string         `json:"command"`
 	InstallCmd string         `json:"install_cmd,omitempty"`
 	UpgradeCmd string         `json:"upgrade_cmd,omitempty"`
 	SlashCmds  []string       `json:"slash_cmds,omitempty"`
 	MCPServers []string       `json:"mcp_servers,omitempty"`
-	Config     map[string]any `json:"config,omitempty"`
 	Builtin    bool           `json:"builtin,omitempty"`
 	Enabled    bool           `json:"enabled"`
 }
@@ -142,7 +142,7 @@ func (s *Store) Close() error {
 }
 
 func initSchema(db *sql.DB) error {
-	_, err := db.Exec(`
+	_, err := db.ExecContext(context.TODO(), `
 		CREATE TABLE IF NOT EXISTS tools (
 			name        TEXT PRIMARY KEY,
 			command     TEXT NOT NULL,

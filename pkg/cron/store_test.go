@@ -32,7 +32,7 @@ func TestStore_AddGetList(t *testing.T) {
 		Prompt:    "Run lint",
 		Enabled:   true,
 	}
-	if err := store.AddJob(ctx, job); err != nil {
+	if err := store.AddJob(ctx, job); err != nil { //nolint:govet // shadow in test is acceptable
 		t.Fatalf("AddJob: %v", err)
 	}
 
@@ -202,7 +202,7 @@ func TestStore_GetLogs(t *testing.T) {
 
 	ctx := context.Background()
 
-	if err := store.AddJob(ctx, &Job{
+	if err := store.AddJob(ctx, &Job{ //nolint:govet // shadow in test is acceptable
 		Name:     "log-job",
 		Schedule: "* * * * *",
 		Enabled:  true,
@@ -213,7 +213,7 @@ func TestStore_GetLogs(t *testing.T) {
 
 	// Record some runs
 	for i := 0; i < 3; i++ {
-		if err := store.RecordRun(ctx, &LogEntry{
+		if err := store.RecordRun(ctx, &LogEntry{ //nolint:govet // shadow in test is acceptable
 			JobName:    "log-job",
 			Status:     "success",
 			DurationMS: int64(100 + i*10),

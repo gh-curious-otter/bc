@@ -54,8 +54,8 @@ func TestStore_CRUD(t *testing.T) {
 		MCPServers: []string{"mcp-server-1"},
 		Enabled:    true,
 	}
-	if err := s.Add(ctx, custom); err != nil {
-		t.Fatalf("Add: %v", err)
+	if addErr := s.Add(ctx, custom); addErr != nil {
+		t.Fatalf("Add: %v", addErr)
 	}
 
 	// Get custom tool
@@ -83,15 +83,15 @@ func TestStore_CRUD(t *testing.T) {
 	}
 
 	// Duplicate add returns error
-	if err := s.Add(ctx, custom); err == nil {
+	if dupErr := s.Add(ctx, custom); dupErr == nil {
 		t.Error("expected error adding duplicate tool")
 	}
 
 	// Update
 	got.Command = "mytool --auto"
 	got.SlashCmds = []string{"/exit"}
-	if err := s.Update(ctx, got); err != nil {
-		t.Fatalf("Update: %v", err)
+	if updateErr := s.Update(ctx, got); updateErr != nil {
+		t.Fatalf("Update: %v", updateErr)
 	}
 	updated, err := s.Get(ctx, "mytool")
 	if err != nil {
@@ -105,8 +105,8 @@ func TestStore_CRUD(t *testing.T) {
 	}
 
 	// SetEnabled
-	if err := s.SetEnabled(ctx, "mytool", false); err != nil {
-		t.Fatalf("SetEnabled: %v", err)
+	if setErr := s.SetEnabled(ctx, "mytool", false); setErr != nil {
+		t.Fatalf("SetEnabled: %v", setErr)
 	}
 	disabled, err := s.Get(ctx, "mytool")
 	if err != nil {
@@ -117,8 +117,8 @@ func TestStore_CRUD(t *testing.T) {
 	}
 
 	// Delete custom
-	if err := s.Delete(ctx, "mytool"); err != nil {
-		t.Fatalf("Delete: %v", err)
+	if delErr := s.Delete(ctx, "mytool"); delErr != nil {
+		t.Fatalf("Delete: %v", delErr)
 	}
 	gone, err := s.Get(ctx, "mytool")
 	if err != nil {

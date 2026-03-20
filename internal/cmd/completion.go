@@ -8,7 +8,6 @@ import (
 
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/log"
-
 )
 
 // CompleteAgentNames returns a completion function for agent names

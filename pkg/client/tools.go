@@ -9,12 +9,12 @@ type ToolsClient struct {
 
 // ToolInfo represents a tool configuration returned by the daemon.
 type ToolInfo struct {
-	MCPServers []string `json:"mcp_servers,omitempty"`
-	SlashCmds  []string `json:"slash_cmds,omitempty"`
 	Name       string   `json:"name"`
 	Command    string   `json:"command,omitempty"`
 	InstallCmd string   `json:"install_cmd,omitempty"`
 	UpgradeCmd string   `json:"upgrade_cmd,omitempty"`
+	MCPServers []string `json:"mcp_servers,omitempty"`
+	SlashCmds  []string `json:"slash_cmds,omitempty"`
 	Enabled    bool     `json:"enabled"`
 	Builtin    bool     `json:"builtin,omitempty"`
 }

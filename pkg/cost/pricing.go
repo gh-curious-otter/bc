@@ -34,7 +34,7 @@ var modelPrices = []struct {
 	{"claude-3-haiku", ModelPricing{InputPerM: 0.25, OutputPerM: 1.25, CacheWritePerM: 0.30, CacheReadPerM: 0.03}},
 }
 
-// defaultPricing is used when a model is not recognised.
+// defaultPricing is used when a model is not recognized.
 var defaultPricing = ModelPricing{InputPerM: 3.00, OutputPerM: 15.00, CacheWritePerM: 3.75, CacheReadPerM: 0.30}
 
 // PricingFor returns the pricing for a model (matched by prefix, case-insensitive prefix walk).

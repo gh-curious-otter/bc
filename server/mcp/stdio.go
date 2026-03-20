@@ -10,7 +10,7 @@ import (
 )
 
 // ServeStdio runs the MCP server over stdin/stdout using newline-delimited JSON.
-// It blocks until ctx is cancelled or stdin is closed.
+// It blocks until ctx is canceled or stdin is closed.
 func (s *Server) ServeStdio(ctx context.Context) error {
 	return s.serveStdio(ctx, os.Stdin, os.Stdout)
 }

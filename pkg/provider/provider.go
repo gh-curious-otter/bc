@@ -43,11 +43,11 @@ type Provider interface {
 
 // CommandOpts configures how a provider builds its command.
 type CommandOpts struct {
-	AgentName     string // agent name for session identification
-	WorkspaceName string // workspace name for unique worktree naming
-	Docker        bool   // running inside Docker container
-	Resume        bool   // resume previous session (claude uses --continue)
-	SessionID     string // explicit session ID for resume (overrides Resume flag if set)
+	AgentName     string
+	WorkspaceName string
+	SessionID     string
+	Docker        bool
+	Resume        bool
 }
 
 // ContainerCustomizer is optionally implemented by providers needing

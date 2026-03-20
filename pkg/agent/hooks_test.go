@@ -36,7 +36,7 @@ func TestWriteWorkspaceHookSettings_CreatesFile(t *testing.T) {
 		t.Fatalf("WriteWorkspaceHookSettings: %v", err)
 	}
 	settingsPath := filepath.Join(dir, ".claude", "settings.json")
-	data, err := os.ReadFile(settingsPath)
+	data, err := os.ReadFile(settingsPath) //nolint:gosec // test file, path is controlled
 	if err != nil {
 		t.Fatalf("settings.json not created: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestWriteWorkspaceHookSettings_Idempotent(t *testing.T) {
 			t.Fatalf("call %d: WriteWorkspaceHookSettings: %v", i, err)
 		}
 	}
-	data, err := os.ReadFile(filepath.Join(dir, ".claude", "settings.json"))
+	data, err := os.ReadFile(filepath.Join(dir, ".claude", "settings.json")) //nolint:gosec // test file, path is controlled
 	if err != nil {
 		t.Fatalf("settings.json not found: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestWriteWorkspaceHookSettings_MergesExisting(t *testing.T) {
 	if err := WriteWorkspaceHookSettings(dir); err != nil {
 		t.Fatalf("WriteWorkspaceHookSettings: %v", err)
 	}
-	data, err := os.ReadFile(filepath.Join(claudeDir, "settings.json"))
+	data, err := os.ReadFile(filepath.Join(claudeDir, "settings.json")) //nolint:gosec // test file, path is controlled
 	if err != nil {
 		t.Fatalf("settings.json not found: %v", err)
 	}

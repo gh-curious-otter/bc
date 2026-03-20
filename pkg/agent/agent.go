@@ -614,8 +614,8 @@ type SpawnOptions struct {
 	EnvFile   string
 	Runtime   string // override runtime backend ("tmux" or "docker"); empty uses manager default
 	Team      string // optional team assignment
-	Fresh     bool   // Force new session (ignore session_id)
 	SessionID string // Explicit session ID to resume (overrides stored session_id)
+	Fresh     bool   // Force new session (ignore session_id)
 }
 
 // SpawnAgent creates and starts a new agent.
@@ -1103,16 +1103,6 @@ func writeSessionIDFile(stateDir, agentName, sessionID string) {
 	stamp := time.Now().UTC().Format("2006-01-02T15:04:05")
 	histFile := filepath.Join(histDir, stamp+".txt")
 	_ = os.WriteFile(histFile, []byte(sessionID+"\n"), 0600) //nolint:errcheck // best-effort history
-}
-
-// readSessionIDFile reads the persisted session ID for an agent, returning "" if absent.
-func readSessionIDFile(stateDir, agentName string) string {
-	path := filepath.Join(stateDir, "agents", agentName, "session_id")
-	data, err := os.ReadFile(path) //nolint:gosec // trusted path
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(data))
 }
 
 // StopAgent stops an agent.
@@ -1917,21 +1907,6 @@ func (m *Manager) Close() error {
 }
 
 // writeRoleCLAUDEMD writes the role prompt to the agent's auth CLAUDE.md.
-// The auth dir is mounted as /home/agent/.claude/ inside Docker containers,
-// so this file appears at ~/.claude/CLAUDE.md which Claude Code auto-loads
-// as global user instructions alongside the project CLAUDE.md.
-func (m *Manager) writeRoleCLAUDEMD(name, rolePrompt string) {
-	claudeMDDir := filepath.Join(m.stateDir, name, "auth", ".claude")
-	if err := os.MkdirAll(claudeMDDir, 0700); err != nil {
-		log.Debug("failed to create auth claude dir", "agent", name, "error", err)
-		return
-	}
-	claudeMDPath := filepath.Join(claudeMDDir, "CLAUDE.md")
-	if err := os.WriteFile(claudeMDPath, []byte(rolePrompt), 0600); err != nil {
-		log.Debug("failed to write role CLAUDE.md", "agent", name, "error", err)
-	}
-}
-
 // enforceRootSingleton checks if a root agent can be spawned.
 // Returns an error if a root already exists and is running.
 // Allows respawn if root is stopped or in error state.

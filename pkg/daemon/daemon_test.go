@@ -53,8 +53,8 @@ func TestRunValidation(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		opts    RunOptions
 		wantErr string
+		opts    RunOptions
 	}{
 		{
 			name:    "missing name",

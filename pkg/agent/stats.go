@@ -48,7 +48,7 @@ func NewStatsCollector(mgr *Manager) *StatsCollector {
 	return &StatsCollector{mgr: mgr}
 }
 
-// Run starts collecting stats until ctx is cancelled.
+// Run starts collecting stats until ctx is canceled.
 // It polls every statsCollectInterval.
 func (c *StatsCollector) Run(ctx context.Context) {
 	ticker := time.NewTicker(statsCollectInterval)

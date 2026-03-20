@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS cron_logs (
 
 CREATE INDEX IF NOT EXISTS idx_cron_logs_job ON cron_logs(job_name, run_at DESC);
 `
-	_, err := s.db.Exec(schema)
+	_, err := s.db.ExecContext(context.TODO(), schema)
 	return err
 }
 

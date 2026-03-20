@@ -88,11 +88,11 @@ func TestList(t *testing.T) {
 	}
 
 	// Add two configs
-	if err := s.Add(&ServerConfig{Name: "beta", Transport: TransportStdio, Command: "cmd-b"}); err != nil {
-		t.Fatal(err)
+	if addErr := s.Add(&ServerConfig{Name: "beta", Transport: TransportStdio, Command: "cmd-b"}); addErr != nil {
+		t.Fatal(addErr)
 	}
-	if err := s.Add(&ServerConfig{Name: "alpha", Transport: TransportSSE, URL: "https://example.com"}); err != nil {
-		t.Fatal(err)
+	if addErr := s.Add(&ServerConfig{Name: "alpha", Transport: TransportSSE, URL: "https://example.com"}); addErr != nil {
+		t.Fatal(addErr)
 	}
 
 	configs, err = s.List()
@@ -156,8 +156,8 @@ func TestSetEnabled(t *testing.T) {
 		t.Error("expected enabled = false after disable")
 	}
 
-	if err := s.SetEnabled("srv", true); err != nil {
-		t.Fatal(err)
+	if enableErr := s.SetEnabled("srv", true); enableErr != nil {
+		t.Fatal(enableErr)
 	}
 	got, err = s.Get("srv")
 	if err != nil {
@@ -196,14 +196,14 @@ func TestAddDuplicate(t *testing.T) {
 func TestValidation(t *testing.T) {
 	s := setupTestStore(t)
 
-	tests := []struct {
-		name string
+	tests := []struct { //nolint:govet // test struct, field order matches literal values
 		cfg  *ServerConfig
+		name string
 	}{
-		{"empty name", &ServerConfig{Transport: TransportStdio, Command: "cmd"}},
-		{"stdio no command", &ServerConfig{Name: "bad", Transport: TransportStdio}},
-		{"sse no url", &ServerConfig{Name: "bad", Transport: TransportSSE}},
-		{"invalid transport", &ServerConfig{Name: "bad", Transport: "grpc"}},
+		{&ServerConfig{Transport: TransportStdio, Command: "cmd"}, "empty name"},
+		{&ServerConfig{Name: "bad", Transport: TransportStdio}, "stdio no command"},
+		{&ServerConfig{Name: "bad", Transport: TransportSSE}, "sse no url"},
+		{&ServerConfig{Name: "bad", Transport: "grpc"}, "invalid transport"},
 	}
 
 	for _, tc := range tests {

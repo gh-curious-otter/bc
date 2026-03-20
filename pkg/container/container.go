@@ -118,7 +118,6 @@ func (b *Backend) imageForTool(toolName string) string {
 	return "bc-agent-" + toolName + ":latest"
 }
 
-
 // SessionName returns the full session name with prefix.
 func (b *Backend) SessionName(name string) string {
 	return b.containerName(name)

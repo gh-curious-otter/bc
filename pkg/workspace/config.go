@@ -18,17 +18,17 @@ const ConfigVersion = 2
 // Config represents the TOML-based workspace configuration for bc v2.
 // Field order is optimized by fieldalignment for minimal struct padding.
 type Config struct {
-	Env         map[string]string `toml:"env"`
+	Channels    ChannelsConfig    `toml:"channels"`
 	Services    ServicesConfig    `toml:"services"`
+	Env         map[string]string `toml:"env"`
 	Providers   ProvidersConfig   `toml:"providers"`
 	TUI         TUIConfig         `toml:"tui"`
 	User        UserConfig        `toml:"user"`
 	Workspace   WorkspaceConfig   `toml:"workspace"`
-	Channels    ChannelsConfig    `toml:"channels"`
+	Roster      RosterConfig      `toml:"roster"`
 	Logs        LogsConfig        `toml:"logs"`
 	Runtime     RuntimeConfig     `toml:"runtime"`
 	Performance PerformanceConfig `toml:"performance"`
-	Roster      RosterConfig      `toml:"roster"`
 }
 
 // RosterConfig defines the team roster: agents that bc ws up will start.

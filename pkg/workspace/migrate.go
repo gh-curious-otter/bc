@@ -24,12 +24,12 @@ type V1Config struct {
 	Runtime     string            `json:"runtime"`   // "tmux" or "docker"
 }
 
-// MigrateResult summarises what the migration changed.
-type MigrateResult struct { //nolint:govet // fieldalignment: readability preferred over padding
-	BackupPath     string // path to the backed-up config.json
-	ConfigMigrated bool   // config.json → config.toml
-	AgentFiles     int    // .json agent files found (auto-migrated on next Load)
-	ChannelJSON    bool   // channels.json found (auto-migrated on next channel open)
+// MigrateResult summarizes what the migration changed.
+type MigrateResult struct {
+	BackupPath     string
+	AgentFiles     int
+	ConfigMigrated bool
+	ChannelJSON    bool
 }
 
 // V1ConfigPath returns the path to the v1 config.json.

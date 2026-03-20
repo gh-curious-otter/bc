@@ -158,9 +158,9 @@ func runCostAgent(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		// Show specific agent
 		agentID := args[0]
-		summary, err := store.AgentSummary(agentID)
-		if err != nil {
-			return err
+		summary, agentErr := store.AgentSummary(agentID)
+		if agentErr != nil {
+			return agentErr
 		}
 
 		if jsonOutput {
@@ -374,11 +374,11 @@ func runCostDashboard(cmd *cobra.Command, args []string) error {
 	jsonOutput, _ := cmd.Flags().GetBool("json")
 	if jsonOutput {
 		response := struct {
+			ByAgent     []*costAgentSummary `json:"by_agent"`
+			ByModel     []*cost.Summary     `json:"by_model"`
 			TodayCost   float64             `json:"today_cost"`
 			MonthCost   float64             `json:"month_cost"`
 			AllTime     float64             `json:"all_time_cost"`
-			ByAgent     []*costAgentSummary `json:"by_agent"`
-			ByModel     []*cost.Summary     `json:"by_model"`
 			BudgetCount int                 `json:"budget_count"`
 		}{
 			TodayCost:   today.TotalCostUSD,

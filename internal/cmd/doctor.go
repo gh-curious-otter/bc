@@ -236,9 +236,10 @@ func printCategory(cat doctor.CategoryReport) {
 		}
 
 		name := item.Name
-		if item.Severity == doctor.SeverityFail {
+		switch item.Severity {
+		case doctor.SeverityFail:
 			name = ui.RedText(name)
-		} else if item.Severity == doctor.SeverityWarn {
+		case doctor.SeverityWarn:
 			name = ui.YellowText(name)
 		}
 

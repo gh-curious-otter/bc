@@ -85,7 +85,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"status":"ok","addr":%q}`, cfg.Addr)
+		fmt.Fprintf(w, `{"status":"ok","addr":%q}`, cfg.Addr) //nolint:errcheck // writing to response
 	})
 
 	// SSE event stream
@@ -182,7 +182,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 			path := r.URL.Path
 			if path != "/" {
 				if f, err := staticFiles.Open(path[1:]); err == nil {
-					f.Close()
+					_ = f.Close() //nolint:errcheck // best-effort close
 					fileServer.ServeHTTP(w, r)
 					return
 				}
@@ -225,7 +225,7 @@ func (s *Server) Addr() string {
 
 // Start begins listening. It blocks until ctx is canceled or an error occurs.
 func (s *Server) Start(ctx context.Context) error {
-	ln, err := net.Listen("tcp", s.addr)
+	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", s.addr)
 	if err != nil {
 		return fmt.Errorf("listen %s: %w", s.addr, err)
 	}
