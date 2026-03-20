@@ -10,7 +10,7 @@
  * This reduces provider nesting depth and groups related contexts.
  */
 
-import React, { type ReactNode } from 'react';
+import React, { useMemo, type ReactNode } from 'react';
 import { ConfigProvider, useThemeConfig } from '../config';
 import { ThemeProvider, type ThemeMode } from '../theme';
 
@@ -31,8 +31,10 @@ function RootProviderInner({ children }: RootProviderProps): React.ReactElement 
       ? 'dark' // Default to dark in auto mode (terminal UIs typically dark)
       : themeConfig.mode;
 
+  const themeProviderConfig = useMemo(() => ({ mode: effectiveMode }), [effectiveMode]);
+
   return (
-    <ThemeProvider config={{ mode: effectiveMode }}>
+    <ThemeProvider config={themeProviderConfig}>
       {children}
     </ThemeProvider>
   );
