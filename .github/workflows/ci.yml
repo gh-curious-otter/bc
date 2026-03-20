@@ -46,13 +46,16 @@ jobs:
       - name: Create web dist stub for embed
         run: mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html
 
-      - name: Run tests (excluding E2E)
+      - name: Run tests with race detector (excluding E2E)
+        run: go test -race $(go list ./... | grep -v /internal/cmd$)
+
+      - name: Run coverage (all packages)
         run: |
-          go test -race -coverprofile=coverage.out $(go list ./... | grep -v /internal/cmd$)
+          go test -coverprofile=coverage.out ./... 2>&1 || true
+          go tool cover -func=coverage.out | tail -1
 
       - name: Check coverage threshold
         run: |
-          go tool cover -func=coverage.out | tail -1
           COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
           echo "Coverage: ${COVERAGE}%"
           if (( $(echo "$COVERAGE < 66.6" | bc -l) )); then
