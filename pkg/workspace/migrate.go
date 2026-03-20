@@ -26,10 +26,10 @@ type V1Config struct {
 
 // MigrateResult summarizes what the migration changed.
 type MigrateResult struct {
-	BackupPath     string
-	AgentFiles     int
-	ConfigMigrated bool
-	ChannelJSON    bool
+	BackupPath     string // Path to backup of old .bc directory
+	AgentFiles     int    // Number of agent state files migrated
+	ConfigMigrated bool   // Whether config.json → config.toml migration ran
+	ChannelJSON    bool   // Whether channels.json was migrated to SQLite
 }
 
 // V1ConfigPath returns the path to the v1 config.json.

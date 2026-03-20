@@ -13,22 +13,22 @@ import (
 
 // RoleMetadata contains the parsed frontmatter from a role file.
 type RoleMetadata struct {
-	Settings     map[string]any    `yaml:"settings,omitempty"`
-	Rules        map[string]string `yaml:"rules,omitempty"`
-	Agents       map[string]string `yaml:"agents,omitempty"`
-	Skills       map[string]string `yaml:"skills,omitempty"`
-	Commands     map[string]string `yaml:"commands,omitempty"`
-	PromptStop   string            `yaml:"prompt_stop,omitempty"`
-	PromptCreate string            `yaml:"prompt_create,omitempty"`
-	PromptStart  string            `yaml:"prompt_start,omitempty"`
-	Name         string            `yaml:"name"`
-	PromptDelete string            `yaml:"prompt_delete,omitempty"`
-	Description  string            `yaml:"description,omitempty"`
-	Review       string            `yaml:"review,omitempty"`
-	Plugins      []string          `yaml:"plugins,omitempty"`
-	Secrets      []string          `yaml:"secrets,omitempty"`
-	MCPServers   []string          `yaml:"mcp_servers,omitempty"`
-	ParentRoles  []string          `yaml:"parent_roles,omitempty"`
+	Settings     map[string]any    `yaml:"settings,omitempty"`     // Claude settings overrides (e.g., model, permissions)
+	Rules        map[string]string `yaml:"rules,omitempty"`        // Rule files written to .claude/rules/*.md
+	Agents       map[string]string `yaml:"agents,omitempty"`       // Agent templates written to .claude/agents/*.md
+	Skills       map[string]string `yaml:"skills,omitempty"`       // Skill files written to .claude/skills/*.md
+	Commands     map[string]string `yaml:"commands,omitempty"`     // Command files written to .claude/commands/*.md
+	PromptStop   string            `yaml:"prompt_stop,omitempty"`  // Sent when agent is stopped
+	PromptCreate string            `yaml:"prompt_create,omitempty"` // Sent when agent is created
+	PromptStart  string            `yaml:"prompt_start,omitempty"` // Sent when agent is started/restarted
+	Name         string            `yaml:"name"`                   // Role name (e.g., "engineer", "manager")
+	PromptDelete string            `yaml:"prompt_delete,omitempty"` // Sent when agent is deleted
+	Description  string            `yaml:"description,omitempty"`  // Human-readable role description
+	Review       string            `yaml:"review,omitempty"`       // REVIEW.md content for the role
+	Plugins      []string          `yaml:"plugins,omitempty"`      // Claude Code plugins to install on agent start
+	Secrets      []string          `yaml:"secrets,omitempty"`      // Secret names needed by MCP env vars
+	MCPServers   []string          `yaml:"mcp_servers,omitempty"`  // MCP servers available to this role
+	ParentRoles  []string          `yaml:"parent_roles,omitempty"` // Roles to inherit from (capabilities, prompts)
 }
 
 // Role represents a parsed role file with metadata and prompt content.
@@ -526,21 +526,21 @@ func FormatRoleFile(role *Role) (string, error) {
 
 // ResolvedRole contains the fully resolved role after BFS inheritance merge.
 type ResolvedRole struct {
-	Settings     map[string]any
-	Rules        map[string]string
-	Agents       map[string]string
-	Skills       map[string]string
-	Commands     map[string]string
-	PromptStart  string
-	Name         string
-	PromptStop   string
-	PromptDelete string
-	PromptCreate string
-	Prompt       string
-	Review       string
-	Plugins      []string
-	Secrets      []string
-	MCPServers   []string
+	Settings     map[string]any    // Merged settings (child overrides parent)
+	Rules        map[string]string // Merged rule files (child overrides parent)
+	Agents       map[string]string // Merged agent templates
+	Skills       map[string]string // Merged skill files
+	Commands     map[string]string // Merged command files
+	PromptStart  string            // Lifecycle: sent on agent start/restart
+	Name         string            // Role name
+	PromptStop   string            // Lifecycle: sent on agent stop
+	PromptDelete string            // Lifecycle: sent on agent delete
+	PromptCreate string            // Lifecycle: sent on agent create
+	Prompt       string            // Merged prompt body (child + parent)
+	Review       string            // REVIEW.md content
+	Plugins      []string          // Unioned plugins from all ancestors
+	Secrets      []string          // Unioned secret names from all ancestors
+	MCPServers   []string          // Unioned MCP servers from all ancestors
 }
 
 // ResolveRole performs BFS inheritance merge starting from the given role.
