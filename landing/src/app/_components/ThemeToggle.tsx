@@ -10,7 +10,7 @@ export function ThemeToggle() {
     <button
       onClick={toggleTheme}
       aria-label={`Switch to ${resolvedTheme === "light" ? "dark" : "light"} mode`}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-lg hover:bg-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+      className="inline-flex h-10 w-10 items-center justify-center rounded-full hover:bg-accent transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
       title={`Current theme: ${resolvedTheme}`}
     >
       {resolvedTheme === "light" ? (
