@@ -46,13 +46,10 @@ jobs:
       - name: Create web dist stub for embed
         run: mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html
 
-      - name: Run tests with race detector (excluding E2E)
-        run: go test -race $(go list ./... | grep -v /internal/cmd$)
-
-      - name: Run coverage (all packages)
+      - name: Run tests with race detector and coverage
         run: |
-          go test -coverprofile=coverage.out ./... 2>&1 || true
-          go tool cover -func=coverage.out | tail -1
+          PACKAGES=$(go list ./... | grep -v /internal/cmd$)
+          go test -race -coverprofile=coverage.out $PACKAGES
 
       - name: Check coverage threshold (60%)
         run: |
@@ -94,7 +91,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ── TUI: Build + Test ───────────────────────────────────────────────
+  # ── TUI ─────────────────────────────────────────────────────────────
   tui:
     name: TUI
     runs-on: ubuntu-latest
@@ -107,24 +104,11 @@ jobs:
         run: cd tui && bun install
       - name: Build
         run: cd tui && bun run build
+      - name: Lint
+        run: cd tui && bun run lint
       - name: Test
         run: cd tui && bun test
         continue-on-error: true
-
-  # ── TUI: Lint (non-blocking) ─────────────────────────────────────────
-  tui-lint:
-    name: TUI Lint
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
-      - name: Install dependencies
-        run: cd tui && bun install
-      - name: Lint
-        run: cd tui && bun run lint
 
   # ── Build gate ───────────────────────────────────────────────────────
   build:
