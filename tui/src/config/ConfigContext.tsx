@@ -7,7 +7,7 @@
  * it available to all hooks via React context.
  */
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import type { PerformanceConfig, TUIConfig } from '../types';
 import { execBcJson } from '../services/bc';
 
@@ -63,7 +63,7 @@ export function ConfigProvider({ children }: ConfigProviderProps): React.ReactEl
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchConfig = async () => {
+  const fetchConfig = useCallback(async () => {
     try {
       // Fetch performance section from workspace config
       const performanceResponse = await execBcJson<PerformanceConfig>(['config', 'show', 'performance']);
@@ -92,20 +92,20 @@ export function ConfigProvider({ children }: ConfigProviderProps): React.ReactEl
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Fetch config on mount
   useEffect(() => {
     void fetchConfig();
   }, []);
 
-  const value: ConfigContextValue = {
+  const value = useMemo<ConfigContextValue>(() => ({
     performance,
     tui,
     loading,
     error,
     refresh: fetchConfig,
-  };
+  }), [performance, tui, loading, error, fetchConfig]);
 
   return (
     <ConfigContext.Provider value={value}>
