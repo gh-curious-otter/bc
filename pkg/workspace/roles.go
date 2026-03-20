@@ -13,22 +13,22 @@ import (
 
 // RoleMetadata contains the parsed frontmatter from a role file.
 type RoleMetadata struct {
-	Settings     map[string]any    `yaml:"settings,omitempty"`     // Claude settings overrides (e.g., model, permissions)
-	Rules        map[string]string `yaml:"rules,omitempty"`        // Rule files written to .claude/rules/*.md
-	Agents       map[string]string `yaml:"agents,omitempty"`       // Agent templates written to .claude/agents/*.md
-	Skills       map[string]string `yaml:"skills,omitempty"`       // Skill files written to .claude/skills/*.md
-	Commands     map[string]string `yaml:"commands,omitempty"`     // Command files written to .claude/commands/*.md
-	PromptStop   string            `yaml:"prompt_stop,omitempty"`  // Sent when agent is stopped
+	Settings     map[string]any    `yaml:"settings,omitempty"`      // Claude settings overrides (e.g., model, permissions)
+	Rules        map[string]string `yaml:"rules,omitempty"`         // Rule files written to .claude/rules/*.md
+	Agents       map[string]string `yaml:"agents,omitempty"`        // Agent templates written to .claude/agents/*.md
+	Skills       map[string]string `yaml:"skills,omitempty"`        // Skill files written to .claude/skills/*.md
+	Commands     map[string]string `yaml:"commands,omitempty"`      // Command files written to .claude/commands/*.md
+	PromptStop   string            `yaml:"prompt_stop,omitempty"`   // Sent when agent is stopped
 	PromptCreate string            `yaml:"prompt_create,omitempty"` // Sent when agent is created
-	PromptStart  string            `yaml:"prompt_start,omitempty"` // Sent when agent is started/restarted
-	Name         string            `yaml:"name"`                   // Role name (e.g., "engineer", "manager")
+	PromptStart  string            `yaml:"prompt_start,omitempty"`  // Sent when agent is started/restarted
+	Name         string            `yaml:"name"`                    // Role name (e.g., "engineer", "manager")
 	PromptDelete string            `yaml:"prompt_delete,omitempty"` // Sent when agent is deleted
-	Description  string            `yaml:"description,omitempty"`  // Human-readable role description
-	Review       string            `yaml:"review,omitempty"`       // REVIEW.md content for the role
-	Plugins      []string          `yaml:"plugins,omitempty"`      // Claude Code plugins to install on agent start
-	Secrets      []string          `yaml:"secrets,omitempty"`      // Secret names needed by MCP env vars
-	MCPServers   []string          `yaml:"mcp_servers,omitempty"`  // MCP servers available to this role
-	ParentRoles  []string          `yaml:"parent_roles,omitempty"` // Roles to inherit from (capabilities, prompts)
+	Description  string            `yaml:"description,omitempty"`   // Human-readable role description
+	Review       string            `yaml:"review,omitempty"`        // REVIEW.md content for the role
+	Plugins      []string          `yaml:"plugins,omitempty"`       // Claude Code plugins to install on agent start
+	Secrets      []string          `yaml:"secrets,omitempty"`       // Secret names needed by MCP env vars
+	MCPServers   []string          `yaml:"mcp_servers,omitempty"`   // MCP servers available to this role
+	ParentRoles  []string          `yaml:"parent_roles,omitempty"`  // Roles to inherit from (capabilities, prompts)
 }
 
 // Role represents a parsed role file with metadata and prompt content.
