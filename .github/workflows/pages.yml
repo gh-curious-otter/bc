@@ -1,10 +1,15 @@
-name: Deploy Landing Page to GitHub Pages
+# Deploy documentation to GitHub Pages
+# Landing page is deployed separately via Cloudflare Pages
+
+name: Deploy Docs
 
 on:
   push:
     branches: [main]
     paths:
-      - 'landing/**'
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:
@@ -12,7 +17,6 @@ permissions:
   pages: write
   id-token: write
 
-# Only one concurrent deployment; skip in-progress runs but not queued ones
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -21,19 +25,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Build landing page
-        run: make build-landing
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/setup-python@v5
         with:
-          path: landing/dist
+          python-version: '3.12'
+      - name: Build docs
+        run: |
+          pip install mkdocs-material pymdown-extensions
+          mkdocs build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
 
   deploy:
     needs: build
@@ -42,6 +45,5 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
+      - id: deployment
         uses: actions/deploy-pages@v4

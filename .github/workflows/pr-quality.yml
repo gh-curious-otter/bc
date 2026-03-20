@@ -9,103 +9,41 @@ jobs:
     name: Check PR Quality
     runs-on: ubuntu-latest
     steps:
-      - name: Check PR Title Format
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const title = context.payload.pull_request.title;
-
-            // Check for conventional commit format: type(scope): description
-            const conventionalRegex = /^(feat|fix|docs|style|refactor|test|chore|build|ci|perf|revert)(\(.+\))?: .+/;
-
-            if (!conventionalRegex.test(title)) {
-              core.warning(`PR title should follow conventional commit format: type(scope): description`);
-              core.warning(`Examples: feat(cli): add new command, fix(tui): resolve crash, test: add unit tests`);
-            }
-
-      - name: Check Linked Issue
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const body = context.payload.pull_request.body || '';
-
-            // Check for issue references
-            const issueRegex = /(fixes|closes|resolves|fix|close|resolve)\s+#\d+/i;
-            const hashRefRegex = /#\d+/;
-
-            if (!issueRegex.test(body) && !hashRefRegex.test(body)) {
-              core.warning('PR should reference an issue using "Fixes #123" or at least mention the issue number (#123)');
-              core.warning('This helps track what work is being done.');
-            }
-
-      - name: Check PR Description
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const body = context.payload.pull_request.body || '';
-
-            // Check for minimum description length
-            const minLength = 50;
-            const cleanBody = body.replace(/<!--[\s\S]*?-->/g, '').trim();
-
-            if (cleanBody.length < minLength) {
-              core.warning(`PR description is too short (${cleanBody.length} chars). Please add more context about the changes.`);
-              core.warning('A good PR description explains what changes were made and why.');
-            }
-
-      - name: Check for Test Evidence
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const body = context.payload.pull_request.body || '';
-
-            // Check for test plan or test evidence
-            const testPlanRegex = /(test plan|testing|tests pass|test evidence|\[x\].*test)/i;
-
-            if (!testPlanRegex.test(body)) {
-              core.warning('PR should include test evidence or a test plan section.');
-              core.warning('Example: "## Test plan\n- [x] Unit tests pass\n- [x] Manual testing done"');
-            }
-
-      - name: Summary
+      - name: Check PR standards
         uses: actions/github-script@v7
         with:
           script: |
             const title = context.payload.pull_request.title;
             const body = context.payload.pull_request.body || '';
+            const cleanBody = body.replace(/<!--[\s\S]*?-->/g, '').trim();
 
-            let issues = [];
+            let warnings = [];
 
-            // Check title
+            // Conventional commit title
             const conventionalRegex = /^(feat|fix|docs|style|refactor|test|chore|build|ci|perf|revert)(\(.+\))?: .+/;
             if (!conventionalRegex.test(title)) {
-              issues.push('Title should follow conventional commit format');
+              warnings.push('Title should follow conventional commit format: type(scope): description');
             }
 
-            // Check linked issue
-            const issueRegex = /(fixes|closes|resolves|fix|close|resolve)\s+#\d+/i;
-            const hashRefRegex = /#\d+/;
-            if (!issueRegex.test(body) && !hashRefRegex.test(body)) {
-              issues.push('Should reference an issue');
+            // Issue reference
+            if (!/#\d+/.test(body)) {
+              warnings.push('Should reference an issue (e.g., "Fixes #123")');
             }
 
-            // Check description length
-            const cleanBody = body.replace(/<!--[\s\S]*?-->/g, '').trim();
+            // Description length
             if (cleanBody.length < 50) {
-              issues.push('Description is too short');
+              warnings.push(`Description is too short (${cleanBody.length} chars, minimum 50)`);
             }
 
-            // Check test evidence
-            const testPlanRegex = /(test plan|testing|tests pass|test evidence|\[x\].*test)/i;
-            if (!testPlanRegex.test(body)) {
-              issues.push('Should include test evidence');
+            // Test evidence
+            if (!/(test plan|testing|tests pass|\[x\].*test)/i.test(body)) {
+              warnings.push('Should include a test plan or test evidence');
             }
 
-            // Output summary
-            if (issues.length === 0) {
+            // Report
+            if (warnings.length === 0) {
               core.info('✅ PR meets quality guidelines');
             } else {
-              core.warning('⚠️ PR quality suggestions:');
-              issues.forEach(issue => core.warning(`  - ${issue}`));
-              core.warning('These are suggestions to improve PR quality. The PR can still be merged.');
+              core.warning('PR quality suggestions:');
+              warnings.forEach(w => core.warning(`  - ${w}`));
             }

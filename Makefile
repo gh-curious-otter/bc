@@ -1,4 +1,7 @@
-.PHONY: dev build build-release build-all clean clean-deps gen test coverage bench fmt vet lint check check-all deps help version build-tui test-tui lint-tui build-web lint-web dev-web build-bcd build-bcd-release build-bcd-image build-bcdb-image build-server-images build-agent-base build-agent-image build-agent-images build-landing dev-landing lint-landing test-landing
+.PHONY: dev build build-bcd build-release build-bcd-release build-all clean clean-deps gen test coverage bench fmt vet lint check check-all deps install help version
+.PHONY: build-tui test-tui lint-tui build-web lint-web dev-web build-landing dev-landing lint-landing test-landing
+.PHONY: build-server-images build-bcd-image build-bcdb-image build-agent-base build-agent-image build-agent-images
+.PHONY: security vuln
 
 # Version information
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -10,197 +13,184 @@ BUILD_DIR ?= bin
 
 # ldflags for version injection
 LDFLAGS_VERSION = -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
+LDFLAGS_RELEASE = -s -w $(LDFLAGS_VERSION)
 
-help:
-	@echo "Available targets:"
-	@echo "  dev            - Run bc in development mode"
-	@echo "  build          - Build bc binary with version info"
-	@echo "  build-bcd      - Build bcd server binary (embeds web UI)"
-	@echo "  build-release  - Build optimized release binaries (bc + bcd)"
-	@echo "  build-all      - Build everything (bc, bcd, TUI, web UI, landing)"
-	@echo "  clean          - Remove build artifacts (bin, dist, coverage)"
-	@echo "  clean-deps     - Remove build artifacts AND node_modules"
-	@echo "  gen            - Generate config code from config.toml"
-	@echo "  test           - Run Go tests"
-	@echo "  coverage       - Run tests with coverage report"
-	@echo "  bench          - Run benchmarks"
-	@echo "  fmt            - Format code"
-	@echo "  vet            - Run go vet"
-	@echo "  lint           - Run golangci-lint"
-	@echo "  check          - Run Go checks (gen + fmt + vet + lint + test)"
-	@echo "  check-all      - Run all checks (Go + TUI + web)"
-	@echo "  deps           - Download and tidy dependencies"
-	@echo "  version        - Show version info that will be embedded"
-	@echo ""
-	@echo "TUI targets (requires bun):"
-	@echo "  build-tui      - Build the TUI package"
-	@echo "  test-tui       - Run TUI tests"
-	@echo "  lint-tui       - Lint TUI code"
-	@echo ""
-	@echo "Web UI targets (requires bun):"
-	@echo "  build-web      - Build React web UI (cd web && bun run build)"
-	@echo "  lint-web       - Lint web UI code"
-	@echo "  dev-web        - Run web UI dev server (hot reload)"
-	@echo ""
-	@echo "Landing page targets (Next.js, requires bun):"
-	@echo "  build-landing  - Build landing page (next build)"
-	@echo "  dev-landing    - Run landing dev server (hot reload)"
-	@echo "  lint-landing   - Lint landing page code"
-	@echo "  test-landing   - Run landing page Playwright tests"
+# Go binary — use system default
+GO ?= go
+
+# Coverage threshold (matches CI)
+COVERAGE_THRESHOLD ?= 66.6
+
+help: ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-24s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Docker targets:"
-	@echo "  build-server-images     - Build bcd + bcdb Docker images"
-	@echo "  build-agent-image       - Build default (claude) agent image"
-	@echo "  build-agent-image-NAME  - Build specific agent image (claude, gemini, codex, aider, opencode, openclaw, cursor)"
-	@echo "  build-agent-images      - Build all agent images"
+	@echo "  build-agent-image-NAME  Build specific agent image (claude, gemini, codex, aider, opencode, openclaw, cursor)"
 	@echo ""
-	@echo "Version variables (can be overridden):"
-	@echo "  VERSION=$(VERSION)"
-	@echo "  COMMIT=$(COMMIT)"
-	@echo "  DATE=$(DATE)"
+	@echo "Version: $(VERSION)  Commit: $(COMMIT)"
 
-version:
+version: ## Show version info that will be embedded
 	@echo "Version: $(VERSION)"
 	@echo "Commit:  $(COMMIT)"
 	@echo "Date:    $(DATE)"
 
-dev:
-	go run ./cmd/bc
+# =============================================================================
+# Core Go targets
+# =============================================================================
 
-build: gen
+dev: ## Run bc in development mode
+	$(GO) run ./cmd/bc
+
+build: gen ## Build bc binary
 	@mkdir -p $(BUILD_DIR)
-	go build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bc ./cmd/bc
+	$(GO) build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bc ./cmd/bc
 
-build-web:
-	@echo "Building React web UI..."
+build-bcd: gen build-web ## Build bcd server binary (embeds web UI)
+	@mkdir -p $(BUILD_DIR)
+	$(GO) build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bcd ./cmd/bcd
+
+build-release: gen ## Build optimized bc + bcd release binaries
+	@mkdir -p $(BUILD_DIR)
+	$(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/bc ./cmd/bc
+
+build-bcd-release: gen build-web ## Build optimized bcd release binary
+	@mkdir -p $(BUILD_DIR)
+	$(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/bcd ./cmd/bcd
+
+build-all: build build-tui build-bcd build-landing ## Build everything (bc, bcd, TUI, web, landing)
+
+install: build ## Install bc to $GOPATH/bin
+	cp $(BUILD_DIR)/bc $(shell $(GO) env GOPATH)/bin/
+
+gen: ## Generate config code from config.toml
+	$(GO) generate ./...
+
+deps: ## Download and tidy dependencies
+	$(GO) mod download
+	$(GO) mod tidy
+
+clean: ## Remove build artifacts
+	rm -rf $(BUILD_DIR)/ dist/
+	rm -rf tui/dist web/dist server/web/dist landing/.next landing/out
+	rm -f coverage.out coverage.html
+
+clean-deps: clean ## Remove build artifacts AND node_modules
+	rm -rf tui/node_modules web/node_modules landing/node_modules
+
+# =============================================================================
+# Testing & Quality
+# =============================================================================
+
+test: ## Run Go tests with race detector
+	$(GO) test -race ./...
+
+coverage: ## Run tests with coverage report
+	$(GO) test -race -coverprofile=coverage.out ./...
+	@$(GO) tool cover -func=coverage.out | tail -1
+	@echo ""
+	@COVERAGE=$$($(GO) tool cover -func=coverage.out | grep total | awk '{print $$3}' | sed 's/%//'); \
+	if [ $$(echo "$$COVERAGE < $(COVERAGE_THRESHOLD)" | bc -l) -eq 1 ]; then \
+		echo "❌ Coverage $${COVERAGE}% is below $(COVERAGE_THRESHOLD)% threshold"; \
+		exit 1; \
+	else \
+		echo "✅ Coverage $${COVERAGE}% meets $(COVERAGE_THRESHOLD)% threshold"; \
+	fi
+
+bench: ## Run benchmarks
+	$(GO) test -bench=. -benchmem -count=1 ./...
+
+fmt: ## Format Go code
+	gofmt -s -w $$(find . -name '*.go' -not -path './.bc/*' -not -path './vendor/*')
+
+vet: ## Run go vet
+	$(GO) vet ./...
+
+lint: ## Run golangci-lint
+	golangci-lint run ./...
+
+check: gen fmt vet lint test ## Run all Go checks (gen + fmt + vet + lint + test)
+
+check-all: check lint-tui test-tui lint-web ## Run all checks (Go + TUI + web)
+
+# =============================================================================
+# Security scanning
+# =============================================================================
+
+vuln: ## Run govulncheck for known vulnerabilities
+	$(GO) run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+security: vuln ## Run all security checks
+	@echo "Security checks passed."
+
+# =============================================================================
+# TUI targets (requires bun)
+# =============================================================================
+
+build-tui: ## Build TUI package
+	cd tui && bun install && bun run build
+
+test-tui: ## Run TUI tests
+	cd tui && bun install && bun test
+
+lint-tui: ## Lint TUI code
+	cd tui && bun run lint
+
+# =============================================================================
+# Web UI targets (requires bun)
+# =============================================================================
+
+build-web: ## Build React web UI and copy to server/web/dist/
 	cd web && bun install && bun run build
 	@rm -rf server/web/dist
 	@cp -r web/dist server/web/dist
-	@echo "Web UI copied to server/web/dist/ for embedding"
 
-build-bcd: gen build-web
-	@echo "Building bcd server (with embedded web UI)..."
-	@mkdir -p $(BUILD_DIR)
-	go build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bcd ./cmd/bcd
-
-build-release: gen
-	@mkdir -p $(BUILD_DIR)
-	go build -ldflags="-s -w $(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bc ./cmd/bc
-
-build-bcd-release: gen build-web
-	@echo "Building bcd release binary..."
-	@mkdir -p $(BUILD_DIR)
-	go build -ldflags="-s -w $(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bcd ./cmd/bcd
-
-build-all: build build-tui build-bcd build-landing
-	@echo "All binaries built: bc, bcd (with web UI and TUI), landing"
-
-clean:
-	rm -rf $(BUILD_DIR)/ dist/
-	rm -rf tui/dist
-	rm -rf web/dist server/web/dist
-	rm -rf landing/dist
-	rm -f coverage.out
-
-clean-deps: clean
-	rm -rf tui/node_modules
-	rm -rf web/node_modules
-
-gen:
-	go generate ./...
-
-test:
-	go test -race ./...
-
-coverage: gen
-	go test -coverprofile=coverage.out ./...
-	@go tool cover -func=coverage.out
-
-bench:
-	go test -bench=. -benchmem ./...
-
-fmt:
-	gofmt -s -w $(shell find . -name '*.go' -not -path './.bc/*')
-
-vet:
-	go vet ./...
-
-lint:
-	golangci-lint run ./...
-
-lint-web:
-	@echo "Linting web UI..."
+lint-web: ## Lint web UI code
 	cd web && bun run lint
 
-dev-web:
-	@echo "Starting web UI dev server..."
+dev-web: ## Run web UI dev server (hot reload)
 	cd web && bun run dev
 
-check: gen fmt vet lint test
+# =============================================================================
+# Landing page (Next.js, requires bun)
+# =============================================================================
 
-check-all: check lint-tui test-tui lint-web
-
-deps:
-	go mod download
-	go mod tidy
-
-# Server images (bcd + bcdb)
-build-bcd-image:
-	@echo "Building bc-bcd:latest..."
-	docker build -t bc-bcd:latest -f docker/Dockerfile.bcd .
-
-build-bcdb-image:
-	@echo "Building bc-bcdb:latest..."
-	docker build -t bc-bcdb:latest -f docker/Dockerfile.bcdb .
-
-build-server-images: build-bcd-image build-bcdb-image
-	@echo "Server images built (bc-bcd, bc-bcdb)"
-
-# TUI targets (requires bun)
-build-tui:
-	@echo "Building TUI..."
-	cd tui && bun install && bun run build
-
-test-tui:
-	@echo "Testing TUI..."
-	cd tui && bun test
-
-lint-tui:
-	@echo "Linting TUI..."
-	cd tui && bun run lint
-
-# Landing page (Next.js)
-build-landing:
-	@echo "Building landing page..."
+build-landing: ## Build landing page
 	cd landing && bun install && bun run build
 
-dev-landing:
-	@echo "Starting landing page dev server..."
+dev-landing: ## Run landing dev server (hot reload)
 	cd landing && bun run dev
 
-lint-landing:
-	@echo "Linting landing page..."
+lint-landing: ## Lint landing page code
 	cd landing && bun run lint
 
-test-landing:
-	@echo "Testing landing page..."
+test-landing: ## Run landing page Playwright tests
 	cd landing && bun run test
 
-# Docker agent images (per-provider)
+# =============================================================================
+# Docker targets
+# =============================================================================
+
+# Server images
+build-bcd-image: ## Build bcd server Docker image
+	docker build -t bc-bcd:latest -f docker/Dockerfile.bcd .
+
+build-bcdb-image: ## Build bcdb Postgres Docker image
+	docker build -t bc-bcdb:latest -f docker/Dockerfile.bcdb .
+
+build-server-images: build-bcd-image build-bcdb-image ## Build all server images
+
+# Agent images
 AGENT_PROVIDERS := claude gemini codex aider opencode openclaw cursor
 
-build-agent-base:
-	@echo "Building bc-agent-base image..."
+build-agent-base: ## Build agent base image
 	docker build -t bc-agent-base:latest -f docker/Dockerfile.base .
 
-build-agent-image: build-agent-base build-agent-image-claude
-	@echo "Default agent image built (claude)"
+build-agent-image: build-agent-base build-agent-image-claude ## Build default (claude) agent image
 
 build-agent-image-%: build-agent-base
-	@echo "Building bc-agent-$* image..."
 	docker build -t bc-agent-$*:latest -f docker/Dockerfile.$* .
 
-build-agent-images: build-agent-base
+build-agent-images: build-agent-base ## Build all agent images
 	@for p in $(AGENT_PROVIDERS); do \
 		echo "Building bc-agent-$$p..."; \
 		docker build -t bc-agent-$$p:latest -f docker/Dockerfile.$$p . || exit 1; \

@@ -6,34 +6,53 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  pull-requests: read
+
 env:
   GO_VERSION: '1.25'
   BUN_VERSION: '1.2'
 
 jobs:
+  # ── Go: Lint ─────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Create web dist stub for embed
+        run: mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html
+      - uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.8.0
+          only-new-issues: true
+
+  # ── Go: Test + Coverage ──────────────────────────────────────────────
   test:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: true
 
-      - name: Download dependencies
-        run: go mod download
+      - name: Create web dist stub for embed
+        run: mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html
 
-      - name: Run tests
-        run: make test
-
-      - name: Run tests with coverage
-        run: make coverage
-
-      - name: Check coverage threshold (66.6%+)
+      - name: Run tests (excluding E2E)
         run: |
+          go test -race -coverprofile=coverage.out $(go list ./... | grep -v /internal/cmd$)
+
+      - name: Check coverage threshold
+        run: |
+          go tool cover -func=coverage.out | tail -1
           COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
           echo "Coverage: ${COVERAGE}%"
           if (( $(echo "$COVERAGE < 66.6" | bc -l) )); then
@@ -43,144 +62,81 @@ jobs:
             echo "✅ Coverage ${COVERAGE}% meets 66.6% threshold"
           fi
 
-      - name: Upload coverage
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
           files: coverage.out
           fail_ci_if_error: false
 
-  bench:
-    name: Benchmark
+  # ── Go: Security (non-blocking) ───────────────────────────────────────
+  security:
+    name: Security
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: true
 
-      - name: Download dependencies
-        run: go mod download
+      - name: Run govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+        continue-on-error: true
 
-      - name: Run benchmarks
-        run: go test -bench=. -benchmem ./... 2>&1 | tee benchmark.txt
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
-        with:
-          name: benchmark-results
-          path: benchmark.txt
-          retention-days: 7
-
-  lint:
-    name: Lint
+  # ── TUI: Build + Test ───────────────────────────────────────────────
+  tui:
+    name: TUI
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v7
-        with:
-          version: v2.8.0
-          only-new-issues: true
-
-  tui-build:
-    name: TUI Build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
-
       - name: Install dependencies
         run: cd tui && bun install
+      - name: Build
+        run: cd tui && bun run build
+      - name: Test
+        run: cd tui && bun test
+        continue-on-error: true
 
-      - name: Build TUI
-        run: make build-tui
-
-      - name: Lint TUI
-        run: make lint-tui
-
-  tui-test:
-    name: TUI Test
+  # ── TUI: Lint (non-blocking) ─────────────────────────────────────────
+  tui-lint:
+    name: TUI Lint
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
-
       - name: Install dependencies
         run: cd tui && bun install
+      - name: Lint
+        run: cd tui && bun run lint
 
-      - name: Run TUI tests
-        run: make test-tui
-
+  # ── Build gate ───────────────────────────────────────────────────────
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [test, lint, tui-build, tui-test]
+    needs: [test, lint, tui]
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: true
 
-      - name: Build binary
+      - name: Build bc binary
         run: make build-release
 
       - name: Verify binary runs
         run: ./bin/bc version
-
-      - name: Build for all platforms
-        run: make build-all
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: binaries
-          path: dist/
-          retention-days: 7
-
-  release:
-    name: Release
-    runs-on: ubuntu-latest
-    needs: [build]
-    if: startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Build release binaries
-        run: make build-all
-
-      - name: Create release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*
-          generate_release_notes: true

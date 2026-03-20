@@ -5,13 +5,13 @@ bc maintains high code quality through continuous coverage enforcement. All PRs 
 
 ## Coverage Requirements
 
-### Global Minimum: 80%+
-All pull requests must maintain or improve overall code coverage to **80% or higher**.
+### Global Minimum: 66.6%
+All pull requests must maintain or improve overall code coverage to **66.6% or higher**.
 
 **Current Status**:
-- Phase 1: 66.6% (baseline)
-- Phase 2 Target: 80%+
-- Target achieved when: New PRs reach 80%
+- Phase 1: 66.6% (baseline) — **enforced in CI**
+- Phase 2 Target: 80%+ — not yet enforced
+- Target achieved when: Enough tests added to sustain 80%
 
 ### Per-Package Guidelines (Phase 3)
 
@@ -29,7 +29,7 @@ When implemented, these minimums will apply:
 ### Automatic Enforcement
 - **When**: Every PR to main
 - **Check**: Coverage threshold in CI
-- **Failure**: PR check fails if coverage < 80%
+- **Failure**: PR check fails if coverage < 66.6%
 - **Resolution**: Add tests until coverage improves
 
 ### Measuring Coverage
@@ -54,21 +54,20 @@ go tool cover -func=coverage.out | grep total
 
 ### CI Gate Details
 - **Location**: `.github/workflows/ci.yml`
-- **Step**: "Check coverage threshold (80%+)"
-- **Trigger**: After `make coverage`
-- **Action**: Parse coverage.out and verify >= 80%
+- **Step**: `make coverage` (includes threshold check)
+- **Trigger**: After test run
+- **Action**: Verify >= 66.6%
 - **Result**: Fail PR if below threshold
 
 ### For PR Authors
 1. Write code and tests
-2. Run `make test` and `make coverage` locally
-3. Check coverage: `go tool cover -func=coverage.out | grep total`
-4. If < 80%, add tests to improve coverage
-5. Submit PR when coverage >= 80%
+2. Run `make coverage` locally
+3. If below threshold, add tests to improve coverage
+4. Submit PR when coverage passes
 
 ### For Code Reviewers
 1. Check coverage report in CI
-2. Verify coverage meets 80%+ threshold
+2. Verify coverage meets threshold
 3. Approve only if CI passes
 4. Coverage gate prevents merge if below threshold
 
@@ -81,14 +80,8 @@ Future enhancements will include:
 - Coverage regression detection
 - Optional --strict-coverage mode for higher standards
 
-## Questions?
-
-- See `.bc/COVERAGE_STANDARDS.md` for internal details
-- Check `#eng` channel for discussions
-- Review swift-puma test reports for analysis
-
 ---
 
-**Status**: Phase 2 enforcement live
-**Last Updated**: 2026-02-15
-**Next Review**: When Phase 2 PRs start submitting
+**Status**: Phase 1 enforcement live (66.6%)
+**Last Updated**: 2026-03-21
+**Next Review**: When coverage consistently exceeds 80%
