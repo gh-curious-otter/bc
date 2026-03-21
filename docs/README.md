@@ -6,7 +6,7 @@ bc is a CLI-first orchestration system for coordinating teams of AI coding agent
 
 | Document | Description |
 |----------|-------------|
-| [System Overview](backend/overview.md) | Architecture layers, components, data flow diagrams |
+| [System Overview](overview.md) | Architecture layers, components, data flow diagrams |
 | [Agents](backend/agents.md) | Lifecycle state machine, runtimes, worktrees, roles |
 | [MCP Server](backend/mcp.md) | Resources, tools, transports, notifications |
 
