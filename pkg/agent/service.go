@@ -168,7 +168,15 @@ func (s *AgentService) Start(ctx context.Context, name string, opts StartOptions
 	}
 
 	if existing.State != StateStopped && existing.State != StateError {
-		return nil, fmt.Errorf("agent %q is already running (state: %s)", name, existing.State)
+		// Reconcile: container may have died without bcd noticing
+		if !s.manager.runtimeForAgent(name).HasSession(ctx, name) {
+			log.Info("reconciling dead agent for restart", "agent", name, "state", existing.State)
+			existing.State = StateStopped
+			existing.UpdatedAt = time.Now()
+			_ = s.manager.saveState()
+		} else {
+			return nil, fmt.Errorf("agent %q is already running (state: %s)", name, existing.State)
+		}
 	}
 
 	a, err := s.manager.SpawnAgentWithOptions(ctx, SpawnOptions{
@@ -215,7 +223,14 @@ func (s *AgentService) Delete(ctx context.Context, name string, force bool) erro
 		return fmt.Errorf("agent %q not found", name)
 	}
 	if !force && a.State != StateStopped {
-		return fmt.Errorf("agent %q must be stopped before deletion (state: %s). Use --force to delete anyway", name, a.State)
+		// Reconcile: container may have died without bcd noticing
+		if !s.manager.runtimeForAgent(name).HasSession(ctx, name) {
+			a.State = StateStopped
+			a.UpdatedAt = time.Now()
+			_ = s.manager.saveState()
+		} else {
+			return fmt.Errorf("agent %q must be stopped before deletion (state: %s). Use ?force=true to delete anyway", name, a.State)
+		}
 	}
 
 	// Force: stop first if still running
