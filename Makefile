@@ -112,6 +112,18 @@ check: gen fmt vet lint test ## Run all Go checks (gen + fmt + vet + lint + test
 
 check-all: check lint-tui test-tui lint-web ## Run all checks (Go + TUI + web)
 
+ci-local: ## Run full CI pipeline locally (replaces GitHub Actions when billing exhausted)
+	@echo "=== CI Local Pipeline ==="
+	@echo "--- Step 1: Generate ---" && $(GO) generate ./...
+	@echo "--- Step 2: Format ---" && gofmt -s -l $$(find . -name '*.go' -not -path './.bc/*' -not -path './vendor/*') | (grep . && echo "FAIL: files need formatting" && exit 1 || echo "PASS")
+	@echo "--- Step 3: Vet ---" && $(GO) vet ./...
+	@echo "--- Step 4: Lint ---" && golangci-lint run ./...
+	@echo "--- Step 5: Test (fast) ---" && mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html && $(GO) test -race $$($(GO) list ./... | grep -v /internal/cmd$$)
+	@echo "--- Step 6: Build ---" && $(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/bc ./cmd/bc
+	@echo "--- Step 7: Verify ---" && $(BUILD_DIR)/bc version
+	@echo ""
+	@echo "=== CI Local: ALL PASS ==="
+
 # =============================================================================
 # Security scanning
 # =============================================================================
