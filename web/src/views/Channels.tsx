@@ -72,12 +72,15 @@ function ChatRoom({ channelName }: { channelName: string }) {
     })();
   }, [channelName]);
 
-  // Live messages — cleanup prevents listener leak
+  // Live messages via SSE — deduplicate by ID to prevent doubles
   useEffect(() => {
     return subscribe('channel.message', (event) => {
       const data = event.data as { channel?: string; message?: ChannelMessage };
       if (data.channel === channelName && data.message) {
-        setMessages((prev) => [...prev, data.message!]);
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === data.message!.id)) return prev;
+          return [...prev, data.message!];
+        });
       }
     });
   }, [subscribe, channelName]);
@@ -87,21 +90,13 @@ function ChatRoom({ channelName }: { channelName: string }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const fetchMessages = async () => {
-    try {
-      const msgs = await api.getChannelHistory(channelName, 100);
-      setMessages(msgs ?? []);
-    } catch { /* ignore */ }
-  };
-
   const handleSend = async () => {
     if (!input.trim()) return;
     setSending(true);
     try {
       await api.sendToChannel(channelName, input);
       setInput('');
-      // Refetch to show the new message immediately
-      await fetchMessages();
+      // SSE listener will deliver the message — no refetch needed
     } finally {
       setSending(false);
     }
