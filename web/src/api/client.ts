@@ -59,6 +59,34 @@ export interface AgentCostSummary {
   record_count: number;
 }
 
+export interface ModelCostSummary {
+  model: string;
+  total_cost_usd: number;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  record_count: number;
+}
+
+export interface DailyCost {
+  date: string;
+  cost_usd: number;
+  total_tokens: number;
+  record_count: number;
+  input_tokens: number;
+  output_tokens: number;
+}
+
+export interface BudgetStatus {
+  scope: string;
+  period: string;
+  limit_usd: number;
+  alert_at: number;
+  hard_stop: boolean;
+  id: number;
+  updated_at: string;
+}
+
 // ResolvedRole — BFS-resolved role with inherited fields merged
 export interface Role {
   Name: string;
@@ -149,6 +177,9 @@ export const api = {
 
   getCostSummary: () => request<CostSummary>('/costs'),
   getCostByAgent: () => request<AgentCostSummary[]>('/costs/agents'),
+  getCostByModel: () => request<ModelCostSummary[]>('/costs/models'),
+  getCostDaily: (days = 14) => request<DailyCost[]>(`/costs/daily?days=${days}`),
+  getCostBudgets: () => request<BudgetStatus[]>('/costs/budgets'),
 
   listRoles: () => request<Record<string, Role>>('/workspace/roles'),
   listTools: () => request<Tool[]>('/tools'),
