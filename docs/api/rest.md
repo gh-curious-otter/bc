@@ -9,17 +9,31 @@
 ## Health
 
 ### `GET /health`
-Liveness + readiness probe. Checks DB connectivity and runtime availability.
+Liveness probe.
 
 **Response:** `200 OK`
 ```json
 {
   "status": "ok",
-  "addr": "127.0.0.1:9374",
-  "db": "ok",
-  "runtime": "tmux"
+  "addr": "127.0.0.1:9374"
 }
 ```
+
+### `GET /health/ready`
+Readiness probe. Checks DB connectivity and agent runtime.
+
+**Response:** `200 OK`
+```json
+{
+  "status": "ok",
+  "checks": {
+    "db": "ok",
+    "agents": "23 total"
+  }
+}
+```
+
+> Returns `503 Service Unavailable` if status is `"degraded"`.
 
 ---
 
@@ -108,7 +122,7 @@ Session history (current + archived UUIDs with timestamps).
 
 **Response:** `200 OK` — `SessionEntry[]`
 
-### `POST /api/agents/generate-name`
+### `GET /api/agents/generate-name`
 **Response:** `200 OK` — `{"name": "witty-parrot"}`
 
 ### `POST /api/agents/broadcast`
