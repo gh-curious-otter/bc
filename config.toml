@@ -24,7 +24,8 @@ path = ""
 default = "claude"
 
 [providers.claude]
-command = "claude --dangerously-skip-permissions"
+# Add --dangerously-skip-permissions if you want agents to run without approval prompts
+command = "claude"
 enabled = true
 
 [providers.gemini]
