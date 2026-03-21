@@ -105,11 +105,12 @@ func MaxBodySize(maxBytes int64) func(http.Handler) http.Handler {
 	}
 }
 
-// CORS returns a middleware that adds permissive CORS headers.
-// This is safe because bcd only binds to loopback by default.
-func CORS(next http.Handler) http.Handler {
+// CORSWithOrigin returns a middleware that adds CORS headers with the specified
+// allowed origin. Use "*" for permissive (safe on loopback) or a specific
+// origin like "http://localhost:9374" when exposed beyond loopback.
+func CORSWithOrigin(allowedOrigin string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if r.Method == http.MethodOptions {
@@ -118,4 +119,10 @@ func CORS(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// CORS returns a middleware with permissive CORS headers (Allow-Origin: *).
+// Safe because bcd only binds to loopback by default.
+func CORS(next http.Handler) http.Handler {
+	return CORSWithOrigin("*", next)
 }
