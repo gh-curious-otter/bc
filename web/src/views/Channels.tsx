@@ -6,6 +6,7 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import { AgentPeekPanel } from '../components/AgentPeekPanel';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { EmptyState } from '../components/EmptyState';
+import { MessageContent } from '../components/MessageContent';
 
 export function Channels() {
   const fetcher = useCallback(async () => {
@@ -264,7 +265,7 @@ function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAge
               </div>
               {group.messages.map((msg) => (
                 <p key={msg.id} className="mt-0.5 pl-0 whitespace-pre-wrap break-words">
-                  {msg.content}
+                  <MessageContent content={msg.content} />
                 </p>
               ))}
             </div>
