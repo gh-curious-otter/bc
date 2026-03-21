@@ -18,7 +18,7 @@ import (
 	"path/filepath"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	bcdb "github.com/rpuneet/bc/pkg/db"
 )
 
 // Work item status constants
@@ -86,7 +86,7 @@ type MergeItem struct {
 
 // Store manages the dual queue system
 type Store struct {
-	db   *sql.DB
+	db   *bcdb.DB
 	path string
 }
 
@@ -99,34 +99,17 @@ func NewStore(stateDir string) *Store {
 
 // Open opens the database connection and initializes schema
 func (s *Store) Open(ctx context.Context) error {
-	db, err := sql.Open("sqlite3", s.path+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000")
+	database, err := bcdb.Open(s.path)
 	if err != nil {
 		return fmt.Errorf("failed to open queue database: %w", err)
 	}
 
-	// SQLite single-writer model
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	db.SetConnMaxLifetime(time.Hour)
-	db.SetConnMaxIdleTime(10 * time.Minute)
-
-	// Set pragmas for performance
-	pragmas := `
-		PRAGMA synchronous = NORMAL;
-		PRAGMA cache_size = -2000;
-		PRAGMA temp_store = MEMORY;
-	`
-	if _, err := db.ExecContext(ctx, pragmas); err != nil {
-		db.Close() //nolint:errcheck // closing on error
-		return fmt.Errorf("failed to set pragmas: %w", err)
-	}
-
-	if err := s.initSchema(ctx, db); err != nil {
-		db.Close() //nolint:errcheck // closing on error
+	if err := s.initSchema(ctx, database.DB); err != nil {
+		database.Close() //nolint:errcheck // closing on error
 		return fmt.Errorf("failed to initialize schema: %w", err)
 	}
 
-	s.db = db
+	s.db = database
 	return nil
 }
 
