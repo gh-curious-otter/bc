@@ -5,6 +5,10 @@
 - [Database](architecture/database.md) — Schema, SQLite/Postgres, evolution history
 - [Agents](architecture/agents.md) — Lifecycle, runtimes, roles, state machine
 - [MCP](architecture/mcp.md) — Resources, tools, transports, notifications
+- [Web Dashboard](architecture/web-ui.md) — Component tree, routing, state management, SSE
+- [TUI](architecture/tui.md) — Provider tree, navigation, hooks, keyboard, CLI-to-API migration
+- [Design System](architecture/design-system.md) — Solar Flare palette, tokens, terminal mapping
+- [Frontend Data Flow](architecture/frontend-data-flow.md) — REST/SSE consumption, caching, channel delivery
 
 ## API Reference
 - [REST API](api/rest.md) — All 68 HTTP endpoints with params and response schemas
