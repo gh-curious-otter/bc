@@ -1532,6 +1532,28 @@ func (m *Manager) ListByRole(role Role) []*Agent {
 	return agents
 }
 
+// RunReconciler runs RefreshState on a background ticker until ctx is canceled.
+// This replaces the synchronous RefreshState call on every GET /api/agents.
+func (m *Manager) RunReconciler(ctx context.Context, interval time.Duration) {
+	// Run once immediately on startup
+	if err := m.RefreshState(); err != nil {
+		log.Warn("initial state refresh failed", "error", err)
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if err := m.RefreshState(); err != nil {
+				log.Warn("state refresh failed", "error", err)
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
 // RefreshState updates agent states from tmux.
 // Also captures a live task summary from each agent's tmux pane.
 func (m *Manager) RefreshState() error {
