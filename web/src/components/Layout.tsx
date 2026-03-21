@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { to: '/agents', label: 'Agents', icon: 'A' },
   { to: '/channels', label: 'Channels', icon: 'C' },
   { to: '/costs', label: 'Costs', icon: '$' },
+  { to: '/teams', label: 'Teams', icon: 'G' },
   { to: '/roles', label: 'Roles', icon: 'R' },
   { to: '/tools', label: 'Tools', icon: 'T' },
   { to: '/mcp', label: 'MCP', icon: 'M' },

@@ -79,7 +79,7 @@ export interface DailyCost {
   output_tokens: number;
 }
 
-export interface BudgetStatus {
+export interface Budget {
   scope: string;
   period: string;
   limit_usd: number;
@@ -87,6 +87,15 @@ export interface BudgetStatus {
   hard_stop: boolean;
   id: number;
   updated_at: string;
+}
+
+export interface BudgetStatus {
+  budget: Budget;
+  current_spend: number;
+  remaining: number;
+  percent_used: number;
+  is_over_budget: boolean;
+  is_near_limit: boolean;
 }
 
 // ResolvedRole — BFS-resolved role with inherited fields merged
@@ -223,6 +232,15 @@ export interface AgentStatsRecord {
   block_write_mb: number;
 }
 
+export interface Team {
+  name: string;
+  description: string;
+  lead: string;
+  members: string[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SettingsConfig {
   User: { Nickname: string };
   TUI: { Theme: string; Mode: string };
@@ -271,12 +289,25 @@ export const api = {
   getCostByAgent: () => request<AgentCostSummary[]>('/costs/agents'),
   getCostByModel: () => request<ModelCostSummary[]>('/costs/models'),
   getCostDaily: (days = 14) => request<DailyCost[]>(`/costs/daily?days=${days}`),
-  getCostBudgets: () => request<BudgetStatus[]>('/costs/budgets'),
+  getCostBudgets: () => request<Budget[]>('/costs/budgets'),
+  getCostBudgetStatus: (scope: string) => request<BudgetStatus>(`/costs/budgets/${encodeURIComponent(scope)}`),
+  setCostBudget: (budget: { scope: string; period: string; limit_usd: number; alert_at: number; hard_stop: boolean }) =>
+    request<Budget>('/costs/budgets', { method: 'POST', body: JSON.stringify(budget) }),
+  deleteCostBudget: (scope: string) =>
+    request<void>(`/costs/budgets/${encodeURIComponent(scope)}`, { method: 'DELETE' }),
 
   listRoles: () => request<Record<string, Role>>('/workspace/roles'),
+  getRole: (name: string) => request<Role>(`/roles/${encodeURIComponent(name)}`),
+  createRole: (role: Partial<Role> & { Name: string }) =>
+    request<Role>(`/roles`, { method: 'POST', body: JSON.stringify(role) }),
+  updateRole: (name: string, role: Partial<Role>) =>
+    request<Role>(`/roles/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify(role) }),
+  deleteRole: (name: string) =>
+    request<void>(`/roles/${encodeURIComponent(name)}`, { method: 'DELETE' }),
   listTools: () => request<Tool[]>('/tools'),
   listMCP: () => request<MCPServer[]>('/mcp'),
   getLogs: (tail = 50) => request<EventLogEntry[]>(`/logs?${new URLSearchParams({ tail: String(tail) })}`),
+  getAgentLogs: (agent: string, tail = 50) => request<EventLogEntry[]>(`/logs/${encodeURIComponent(agent)}?${new URLSearchParams({ tail: String(tail) })}`),
   getDoctor: () => request<DoctorReport>('/doctor'),
 
   listCron: () => request<CronJob[]>('/cron'),
@@ -287,6 +318,9 @@ export const api = {
   getStatsSystem: () => request<SystemStats>('/stats/system'),
   getStatsSummary: () => request<StatsSummary>('/stats/summary'),
   getStatsChannels: () => request<ChannelStats[]>('/stats/channels'),
+
+  listTeams: () => request<Team[]>('/teams'),
+  getTeam: (name: string) => request<Team>(`/teams/${encodeURIComponent(name)}`),
 
   getSettings: () => request<SettingsConfig>('/settings'),
   updateSettings: (patch: Record<string, unknown>) =>
