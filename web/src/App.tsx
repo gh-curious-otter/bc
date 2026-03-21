@@ -1,18 +1,25 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { Dashboard } from './views/Dashboard';
-import { Agents } from './views/Agents';
-import { Channels } from './views/Channels';
-import { Costs } from './views/Costs';
-import { Roles } from './views/Roles';
-import { Tools } from './views/Tools';
-import { MCP } from './views/MCP';
-import { Logs } from './views/Logs';
-import { Doctor } from './views/Doctor';
-import { Cron } from './views/Cron';
-import { Secrets } from './views/Secrets';
-import { Workspace } from './views/Workspace';
+
+// Lazy-loaded views — each gets its own chunk
+const Dashboard = lazy(() => import('./views/Dashboard').then(m => ({ default: m.Dashboard })));
+const Agents = lazy(() => import('./views/Agents').then(m => ({ default: m.Agents })));
+const Channels = lazy(() => import('./views/Channels').then(m => ({ default: m.Channels })));
+const Costs = lazy(() => import('./views/Costs').then(m => ({ default: m.Costs })));
+const Roles = lazy(() => import('./views/Roles').then(m => ({ default: m.Roles })));
+const Tools = lazy(() => import('./views/Tools').then(m => ({ default: m.Tools })));
+const MCP = lazy(() => import('./views/MCP').then(m => ({ default: m.MCP })));
+const Logs = lazy(() => import('./views/Logs').then(m => ({ default: m.Logs })));
+const Doctor = lazy(() => import('./views/Doctor').then(m => ({ default: m.Doctor })));
+const Cron = lazy(() => import('./views/Cron').then(m => ({ default: m.Cron })));
+const Secrets = lazy(() => import('./views/Secrets').then(m => ({ default: m.Secrets })));
+const Workspace = lazy(() => import('./views/Workspace').then(m => ({ default: m.Workspace })));
+
+function Loading() {
+  return <div className="p-6 text-bc-muted">Loading...</div>;
+}
 
 function NotFound() {
   return (
@@ -30,18 +37,18 @@ export function App() {
       <BrowserRouter>
         <Routes>
           <Route element={<Layout />}>
-            <Route index element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
-            <Route path="agents" element={<ErrorBoundary><Agents /></ErrorBoundary>} />
-            <Route path="channels" element={<ErrorBoundary><Channels /></ErrorBoundary>} />
-            <Route path="costs" element={<ErrorBoundary><Costs /></ErrorBoundary>} />
-            <Route path="roles" element={<ErrorBoundary><Roles /></ErrorBoundary>} />
-            <Route path="tools" element={<ErrorBoundary><Tools /></ErrorBoundary>} />
-            <Route path="mcp" element={<ErrorBoundary><MCP /></ErrorBoundary>} />
-            <Route path="logs" element={<ErrorBoundary><Logs /></ErrorBoundary>} />
-            <Route path="doctor" element={<ErrorBoundary><Doctor /></ErrorBoundary>} />
-            <Route path="cron" element={<ErrorBoundary><Cron /></ErrorBoundary>} />
-            <Route path="secrets" element={<ErrorBoundary><Secrets /></ErrorBoundary>} />
-            <Route path="workspace" element={<ErrorBoundary><Workspace /></ErrorBoundary>} />
+            <Route index element={<Suspense fallback={<Loading />}><ErrorBoundary><Dashboard /></ErrorBoundary></Suspense>} />
+            <Route path="agents" element={<Suspense fallback={<Loading />}><ErrorBoundary><Agents /></ErrorBoundary></Suspense>} />
+            <Route path="channels" element={<Suspense fallback={<Loading />}><ErrorBoundary><Channels /></ErrorBoundary></Suspense>} />
+            <Route path="costs" element={<Suspense fallback={<Loading />}><ErrorBoundary><Costs /></ErrorBoundary></Suspense>} />
+            <Route path="roles" element={<Suspense fallback={<Loading />}><ErrorBoundary><Roles /></ErrorBoundary></Suspense>} />
+            <Route path="tools" element={<Suspense fallback={<Loading />}><ErrorBoundary><Tools /></ErrorBoundary></Suspense>} />
+            <Route path="mcp" element={<Suspense fallback={<Loading />}><ErrorBoundary><MCP /></ErrorBoundary></Suspense>} />
+            <Route path="logs" element={<Suspense fallback={<Loading />}><ErrorBoundary><Logs /></ErrorBoundary></Suspense>} />
+            <Route path="doctor" element={<Suspense fallback={<Loading />}><ErrorBoundary><Doctor /></ErrorBoundary></Suspense>} />
+            <Route path="cron" element={<Suspense fallback={<Loading />}><ErrorBoundary><Cron /></ErrorBoundary></Suspense>} />
+            <Route path="secrets" element={<Suspense fallback={<Loading />}><ErrorBoundary><Secrets /></ErrorBoundary></Suspense>} />
+            <Route path="workspace" element={<Suspense fallback={<Loading />}><ErrorBoundary><Workspace /></ErrorBoundary></Suspense>} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
