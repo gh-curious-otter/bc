@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Quick Start
 
-**Prerequisites**: Go 1.25.1+, tmux, golangci-lint, make. For TUI: Bun.
+**Prerequisites**: Go 1.25.4+, tmux, golangci-lint, make. For TUI: Bun.
 
 **Build**
 ```bash

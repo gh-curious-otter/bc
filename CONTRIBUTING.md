@@ -6,7 +6,7 @@ Thank you for your interest in contributing to bc! This document provides guidel
 
 ### Prerequisites
 
-- Go 1.25.1+
+- Go 1.25.4+
 - Bun (for TUI development)
 - tmux
 - golangci-lint

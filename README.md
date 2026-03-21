@@ -1,7 +1,7 @@
 # bc - AI Agent Orchestration for Software Development
 
 [![Build Status](https://github.com/rpuneet/bc/actions/workflows/ci.yml/badge.svg)](https://github.com/rpuneet/bc/actions)
-[![Go Version](https://img.shields.io/badge/go-1.22+-blue.svg)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/go-1.25+-blue.svg)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 > **Orchestration for AI agents.** Coordinate teams of AI agents working together on your codebase.
@@ -69,7 +69,7 @@ git clone https://github.com/rpuneet/bc && cd bc && make install
 
 ### Prerequisites
 
-- Go 1.22+
+- Go 1.25+
 - `tmux`
 - A configured AI agent tool (e.g., Claude Code, Cursor)
 
