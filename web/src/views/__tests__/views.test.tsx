@@ -96,6 +96,8 @@ describe('Channels', () => {
 describe('Costs', () => {
   it('renders skeleton loading then cost data', async () => {
     fetchMock.mockImplementation((url: string) => {
+      if (url.includes('/costs/models')) return jsonResponse([]);
+      if (url.includes('/costs/daily')) return jsonResponse([]);
       if (url.includes('/costs/agents')) return jsonResponse([]);
       if (url.includes('/costs')) return jsonResponse({ input_tokens: 0, output_tokens: 0, total_tokens: 0, total_cost_usd: 0, record_count: 0 });
       return jsonResponse({});
