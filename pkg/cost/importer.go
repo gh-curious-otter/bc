@@ -127,7 +127,7 @@ func (imp *Importer) importFile(ctx context.Context, path string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("begin transaction: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }() //nolint:errcheck // no-op after commit
+	defer func() { _ = tx.Rollback() }() // no-op after commit
 
 	var inserted int
 	for _, ie := range toInsert {
