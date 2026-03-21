@@ -418,4 +418,4 @@ MCP SSE transport — server-to-client events.
 ### `POST /mcp/message`
 MCP JSON-RPC 2.0 — client-to-server. 4MB body limit.
 
-See [architecture/mcp.md](../architecture/mcp.md) for resources, tools, and notifications.
+See [architecture/mcp.md](../mcp.md) for resources, tools, and notifications.

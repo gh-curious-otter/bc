@@ -11,7 +11,7 @@
 
 bc is a Go CLI and daemon for AI agent orchestration, built in ~6 weeks (Feb 7 – Mar 21, 2026), largely by its own AI agents (dogfooding). The project went through two major architecture phases: v1 (CLI directly accessing SQLite/filesystem) and v2 (bcd server-first with HTTP API, web UI, MCP). The v2 pivot happened Mar 16-18 and is partially complete.
 
-The biggest **functional bugs** are in channel message delivery (#2164 — messages from web UI don't reach agents, MCP polling breaks after 100 messages) and agent lifecycle management (#2165 — create/start/stop/delete code is fragmented, delete doesn't clean up Docker containers or worktrees). The HTTP daemon lacks **request body size limits**, **panic recovery**, and **handler-level tests** (0 files in server/handlers/). The data layer went through 3 migrations (JSON → state.db → bc.db) and still has 5 stores bypassing pkg/db.
+The biggest **functional bugs** are in channel message delivery (#2164 — messages from web UI don't reach agents, MCP polling breaks after 100 messages) and agent lifecycle management (#2165 — create/start/stop/delete code is fragmented, delete doesn't clean up Docker containers or worktrees). The HTTP daemon lacks **request body size limits**, **panic recovery**, and **handler-level tests** (0 files in server/handlers/). The data layer went through 3 migrations (JSON → bc.db → bc.db) and still has 5 stores bypassing pkg/db.
 
 19 of 21 backend PRs were merged without review comments. Only #2041 (channel delivery) and #1967 (cron) received feedback. This explains why integration bugs compound.
 
@@ -28,7 +28,7 @@ Since the tool is local-only, API authentication is not a current priority.
 | Channel crisis | Feb 11-13 | — | Channels completely broken — JSON/SQLite split-brain, messages stored but never delivered |
 | Ink TUI | Feb 13-18 | — | 5-phase TUI built. Channel UI rewritten 5 times. 29 separate 80x24 layout bugs |
 | Feature expansion | Feb 18-22 | — | 14 TUI views, multi-provider, cost budgets, OSS prep |
-| v0.0.1 tracker | Mar 5-6 | #1933, #1934 | 15 EPICs filed. Concurrent agent crash fix. Agent state migrated from JSON to SQLite (state.db) |
+| v0.0.1 tracker | Mar 5-6 | #1933, #1934 | 15 EPICs filed. Concurrent agent crash fix. Agent state migrated from JSON to SQLite (bc.db) |
 | Agent reliability | Mar 6-9 | #1954, #1956 | Runtime abstraction solidified. 62-file cleanup PR removed 1800 lines. Agent service layer added |
 | v2 architecture | Mar 16-18 | #1953, #1974, #1988, #1991 | bcd daemon, MCP server, encrypted secrets, cron, tools, roles — all shipped in 2 days |
 | Thin client + DB | Mar 18 | #2010, #2017, #2020, #2022 | CLI migrated to HTTP client (partial — 17 files still direct). 9 DBs consolidated to bc.db |
@@ -38,11 +38,11 @@ Since the tool is local-only, API authentication is not a current priority.
 ### Database Evolution
 
 ```
-agents.json ──→ state.db (#1934) ──→ bc.db (#2017, #2039)
+agents.json ──→ bc.db (#1934) ──→ bc.db (#2017, #2039)
                                       ↑
-channels.json ──→ channels.db ────────┘ (partially — channel store still opens own connection)
+channels.json ──→ bc.db ────────┘ (partially — channel store still opens own connection)
                                       ↑
-costs.db, cron.db, secrets.db, ───────┘ (consolidated in #2017, but 5 stores still bypass pkg/db)
+bc.db, cron.db, secrets.db, ───────┘ (consolidated in #2017, but 5 stores still bypass pkg/db)
 mcp.db, tools.db, daemons.db
 ```
 
@@ -126,7 +126,7 @@ v2 migration is ~30% complete: bcd serves API, but 17 CLI files still import pkg
 | GET | /api/logs | None | tail param | No | **Unbounded without tail** |
 | GET | /api/logs/{agent} | None | None | No | **Unbounded** |
 | GET | /api/workspace | None | None | No | Leaks root_dir path |
-| GET | /api/workspace/roles | None | None | No | - |
+| GET | /api/roles | None | None | No | - |
 | POST | /api/workspace/up | None | None | No | Can start workspace |
 | POST | /api/workspace/down | None | None | No | Can stop all agents |
 | GET | /api/doctor | None | None | No | - |
@@ -221,7 +221,7 @@ The following were initially flagged as critical but are **acceptable for the lo
 | 16 | **Agent `send` endpoint injects raw text into tmux** | `pkg/agent/agent.go` | security | Could inject shell commands via tmux send-keys |
 | 17 | **ToggleReaction is not atomic** (check-then-act race) | `pkg/channel/sqlite.go:825` | data-layer | Concurrent toggles can double-add |
 | 18 | **Channel history limit not capped** | `server/handlers/channels.go:124` | performance | `?limit=999999999` returns entire history |
-| 19 | **Docker network=host by default** | `config.toml:113` | security | Containers share host network stack |
+| 19 | **Docker network=host by default** | `settings.toml:113` | security | Containers share host network stack |
 
 ## Minor Issues & Improvements
 
@@ -276,9 +276,9 @@ graph TB
     DockerRT --> Docker[Docker containers]
 
     ChannelSvc --> SQLite1[(bc.db)]
-    CostStore --> SQLite2[(costs.db)]
+    CostStore --> SQLite2[(bc.db)]
     SecretStore --> SQLite3[(secrets.db)]
-    EventLog --> SQLite4[(state.db)]
+    EventLog --> SQLite4[(bc.db)]
     CronStore --> SQLite5[(cron.db)]
 
     Docker --> Claude[Claude Code]
@@ -311,7 +311,7 @@ graph TB
   - #2017 consolidated DBs but left no migration for existing workspaces
   - #2022 changed default port from 4880 to 9374
   - #2010 made CLI commands dependent on bcd running (was previously standalone)
-  - #1934 introduced `state.db` name immediately replaced by `bc.db` in #2017
+  - #1934 introduced `bc.db` name immediately replaced by `bc.db` in #2017
 - **Incomplete migrations shipped:** #2010/#2020 migrated some CLI commands to thin client but left 17 files using direct pkg/ access (#2023)
 
 ## Known Documentation Issues

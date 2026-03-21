@@ -238,7 +238,7 @@ Importer scans `~/.bc/agents/*/auth/.claude/` for session JSONL files, extracts 
 ```
 OLD (per-project):                NEW (global):
   project/.bc/bc.db        ->     ~/.bc/bc.db
-  project/.bc/config.toml  ->     ~/.bc/settings.toml
+  project/.bc/settings.toml  ->     ~/.bc/settings.toml
   project/.bc/agents/      ->     ~/.bc/agents/
   project/.bc/roles/*.md   ->     roles table in bc.db
   project/.bc/logs/        ->     ~/.bc/logs/

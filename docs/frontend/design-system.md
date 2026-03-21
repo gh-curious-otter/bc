@@ -290,7 +290,7 @@ These are domain-specific tokens for agent orchestration UI. All four consumers 
 |---------------|---------|-----------|---------|--------|
 | `agent-idle` | Waiting for work | `#8C7E72` | `gray` | `○` |
 | `agent-working` | Actively processing | `#FB923C` | `yellow` | `●` |
-| `agent-done` | Completed successfully | `#22C55E` | `green` | `✓` |
+| `agent-stopped` | Completed successfully | `#22C55E` | `green` | `✓` |
 | `agent-stuck` | Needs attention | `#FDBA74` | `yellowBright` | `⚠` |
 | `agent-error` | Failed | `#EF4444` | `red` | `✗` |
 

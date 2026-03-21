@@ -26,7 +26,7 @@ graph TB
 
     subgraph Storage ["Storage Layer"]
         DB["SQLite<br/>~/.bc/bc.db<br/>agents, channels, costs,<br/>roles, events, cron"]
-        FS["Filesystem<br/>~/.bc/<br/>config.toml, logs,<br/>agent worktrees"]
+        FS["Filesystem<br/>~/.bc/<br/>settings.toml, logs,<br/>agent worktrees"]
     end
 
     CLI -->|"HTTP GET/POST"| REST
@@ -148,7 +148,7 @@ graph TD
             WebSpinner["Spinner.tsx<br/>CSS animation"]
         end
 
-        subgraph uiTui ["@bc/ui-tui"]
+        subgraph uiTui ["@bc/ui-ink"]
             TuiButton["Button.tsx<br/>renders Ink Box + Text"]
             TuiInput["Input.tsx<br/>renders Ink TextInput"]
             TuiBadge["Badge.tsx<br/>renders Ink Text with color"]
@@ -162,7 +162,7 @@ graph TD
 
     subgraph consumers ["Consumer Apps"]
         WebApp["web/ — Web Dashboard<br/>imports from @bc/ui-web"]
-        TuiApp["tui/ — Terminal UI<br/>imports from @bc/ui-tui"]
+        TuiApp["tui/ — Terminal UI<br/>imports from @bc/ui-ink"]
     end
 
     ui -->|"shared types + tokens"| uiWeb
@@ -175,7 +175,7 @@ graph TD
 
 Each primitive has a single props interface in `@bc/ui` and two renderers.
 
-| Component | `@bc/ui` Props | `@bc/ui-web` Renders As | `@bc/ui-tui` Renders As |
+| Component | `@bc/ui` Props | `@bc/ui-web` Renders As | `@bc/ui-ink` Renders As |
 |---|---|---|---|
 | **Button** | `variant`, `size`, `disabled`, `onClick`, `children` | `<button>` with Tailwind classes | Ink `<Box>` with border + `<Text>` |
 | **Input** | `value`, `onChange`, `placeholder`, `disabled` | `<input>` with Tailwind | Ink `TextInput` component |
@@ -221,9 +221,9 @@ graph LR
 
 **Phase 2 -- Web renderers.** Create `packages/ui-web/` implementing all primitives against the shared interfaces. Migrate `web/src/components/` to re-export from `@bc/ui-web`. The web dashboard's existing components become thin wrappers.
 
-**Phase 3 -- TUI renderers.** Create `packages/ui-tui/` implementing the same interfaces with Ink primitives. Migrate `tui/src/components/` to re-export from `@bc/ui-tui`.
+**Phase 3 -- TUI renderers.** Create `packages/ui-tui/` implementing the same interfaces with Ink primitives. Migrate `tui/src/components/` to re-export from `@bc/ui-ink`.
 
-**Phase 4 -- Delete duplicates.** Remove the original component files from both `web/src/components/` and `tui/src/components/`. All imports resolve to `@bc/ui-web` or `@bc/ui-tui`.
+**Phase 4 -- Delete duplicates.** Remove the original component files from both `web/src/components/` and `tui/src/components/`. All imports resolve to `@bc/ui-web` or `@bc/ui-ink`.
 
 ---
 
@@ -666,7 +666,7 @@ The config directory lives at `~/.bc/` as a global location. The web dashboard r
 
 - `Roles.tsx` displays labels for role field names from the DB, not filesystem paths.
 - The `Doctor` view surfaces file-path-based diagnostics that reference `~/.bc/` paths.
-- The `Teams` view shows the workspace config path as `~/.bc/config.toml`.
+- The `Teams` view shows the workspace config path as `~/.bc/settings.toml`.
 
 ---
 

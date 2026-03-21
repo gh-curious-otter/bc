@@ -14,10 +14,10 @@ graph TD
     end
 
     subgraph Server["bcd Daemon"]
-        API["REST API\n/api/v1/*"]
-        SSE["SSE Endpoint\n/api/v1/events"]
+        API["REST API\n/api/*"]
+        SSE["SSE Endpoint\n/api/events"]
         DB["SQLite\n~/.bc/bc.db"]
-        Config["Global Config\n~/.bc/config.toml"]
+        Config["Global Config\n~/.bc/settings.toml"]
     end
 
     TUI -->|"HTTP + SSE"| API
@@ -37,7 +37,7 @@ graph TD
 - The TUI calls `bcd`, not the `bc` CLI. The CLI is a sibling client, not an intermediary.
 - All four clients share the same REST contract. A feature available in one client can be built in any other without backend changes.
 - Real-time updates (agent state transitions, channel messages, cost ticks) arrive via SSE, not polling.
-- Global configuration lives at `~/.bc/config.toml`. Team-scoped configuration lives at `<project>/.bc/config.toml`.
+- Global configuration lives at `~/.bc/settings.toml`. Team-scoped configuration lives at `<project>/.bc/settings.toml`.
 
 ### Tech Stack
 
@@ -108,7 +108,7 @@ graph TD
 | Provider | File | Purpose | State Shape |
 |----------|------|---------|-------------|
 | `RootProvider` | `providers/RootProvider.tsx` | Groups ConfigProvider + ThemeProvider into a single wrapper | -- (composition only) |
-| `ConfigProvider` | `config/ConfigContext.tsx` | Fetches workspace config via `GET /api/v1/config`, provides `PerformanceConfig` (14 tunable intervals) and `TUIConfig` (theme name, mode) | `{ performance, tui, loading, error, refresh }` |
+| `ConfigProvider` | `config/ConfigContext.tsx` | Fetches workspace config via `GET /api/config`, provides `PerformanceConfig` (14 tunable intervals) and `TUIConfig` (theme name, mode) | `{ performance, tui, loading, error, refresh }` |
 | `ThemeProvider` | `theme/ThemeContext.tsx` | Dark/light mode, color accessor, theme cycling, auto-detection | `{ theme, mode, themeName, isDark, color(), toggleTheme(), cycleTheme() }` |
 | `NavigationProvider` | `navigation/NavigationContext.tsx` | Current view, history stack with back/forward, tab cycling, breadcrumbs | `{ currentView, previousView, history[], breadcrumbs[], navigate(), goBack(), nextTab() }` |
 | `FocusProvider` | `navigation/FocusContext.tsx` | Focus area tracking across 7 areas | `{ focusedArea, setFocus(), returnFocus(), cycleFocus() }` |
@@ -343,10 +343,10 @@ flowchart LR
     end
 
     subgraph Daemon["bcd Daemon"]
-        REST["REST API\nGET /api/v1/agents\nGET /api/v1/channels\nPOST /api/v1/channels/:name/messages\n..."]
-        Events["SSE Endpoint\nGET /api/v1/events"]
+        REST["REST API\nGET /api/agents\nGET /api/channels\nPOST /api/channels/:name/messages\n..."]
+        Events["SSE Endpoint\nGET /api/events"]
         DB["SQLite\n~/.bc/bc.db"]
-        TeamDB["Team Config\n.bc/config.toml"]
+        TeamDB["Team Config\n.bc/settings.toml"]
     end
 
     Hook -->|"initial fetch"| Client
@@ -364,7 +364,7 @@ flowchart LR
 
 ### Service Layer: `tui/src/services/api.ts`
 
-The service layer is an HTTP client that calls the `bcd` REST API at `localhost:9374` using `fetch()`. The base URL is configurable via the `BCD_URL` environment variable or read from `~/.bc/config.toml`.
+The service layer is an HTTP client that calls the `bcd` REST API at `localhost:9374` using `fetch()`. The base URL is configurable via the `BCD_ADDR` environment variable or read from `~/.bc/settings.toml`.
 
 **Key characteristics:**
 
@@ -377,7 +377,7 @@ The service layer is an HTTP client that calls the `bcd` REST API at `localhost:
 
 ### SSE: Real-Time Event Stream
 
-An `EventSource` connection to `GET /api/v1/events` receives server-pushed events for real-time updates. Event types include:
+An `EventSource` connection to `GET /api/events` receives server-pushed events for real-time updates. Event types include:
 
 | Event Type | Payload | Consumer |
 |-----------|---------|----------|
@@ -390,7 +390,7 @@ SSE events trigger React state updates, which cause hooks to re-render their con
 
 ### How Data Flows Through the System
 
-1. **Initial load:** Hook calls a service function (e.g., `getStatus()`), which issues `fetch('http://localhost:9374/api/v1/agents')`. The JSON response is parsed, typed, and returned to the hook, which sets React state.
+1. **Initial load:** Hook calls a service function (e.g., `getStatus()`), which issues `fetch('http://localhost:9374/api/agents')`. The JSON response is parsed, typed, and returned to the hook, which sets React state.
 2. **Real-time updates:** The SSE client receives a pushed event (e.g., `agent.state_changed`), parses it, and dispatches it to registered callbacks. The callback updates React state, triggering a re-render.
 3. **Write operations:** Hook calls a service function (e.g., `sendChannelMessage()`), which issues a POST request. On success, the SSE stream delivers the resulting event to all connected clients, keeping the UI in sync without manual cache invalidation.
 
@@ -753,7 +753,7 @@ The TUI centralizes magic numbers into `tui/src/constants/`:
 | `limits.ts` | `TRUNCATION` (name=12, description=45, message=70, preview=100 chars), `DISPLAY_LIMITS` (experiences=10, comments=3, capabilities=3, top roles=3), `COLUMN_WIDTHS` (selection=3, timestamp=9, agent=12, role=15, status=9) |
 | `colors.ts` | `ROLE_COLORS` (role name to ANSI color), `ROLE_PREFIXES` (agent name prefix to role mapping), `ROLE_EMOJIS`, helper functions |
 
-**Runtime-configurable values** come from workspace config via `ConfigContext` and can be tuned in `<project>/.bc/config.toml` under `[performance]`:
+**Runtime-configurable values** come from workspace config via `ConfigContext` and can be tuned in `<project>/.bc/settings.toml` under `[performance]`:
 
 | Config Key | Default | Purpose |
 |-----------|---------|---------|
