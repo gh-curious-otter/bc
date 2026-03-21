@@ -10,8 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
-
+	bcdb "github.com/rpuneet/bc/pkg/db"
 	"github.com/rpuneet/bc/pkg/log"
 )
 
@@ -54,7 +53,7 @@ type MentionRecord struct {
 
 // SQLiteStore provides SQLite-backed channel storage.
 type SQLiteStore struct {
-	db           *sql.DB
+	db           *bcdb.DB
 	path         string
 	ftsAvailable bool
 }
@@ -68,40 +67,17 @@ func NewSQLiteStore(workspacePath string) *SQLiteStore {
 
 // Open initializes the SQLite database.
 func (s *SQLiteStore) Open() error {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0750); err != nil {
-		return fmt.Errorf("failed to create database directory: %w", err)
-	}
-
-	// #1011: Add WAL mode and busy timeout for better concurrency
-	db, err := sql.Open("sqlite3", s.path+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000")
+	database, err := bcdb.Open(s.path)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// #1011: Configure connection pool for SQLite's single-writer model
-	// SQLite only allows one writer at a time, so limit connections
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	db.SetConnMaxLifetime(time.Hour)
-	db.SetConnMaxIdleTime(10 * time.Minute)
-
-	if err := s.initSchema(db); err != nil {
-		_ = db.Close()
+	if err := s.initSchema(database.DB); err != nil {
+		_ = database.Close()
 		return fmt.Errorf("failed to initialize schema: %w", err)
 	}
 
-	// #1011: Set optimal SQLite pragmas for performance
-	ctx := context.Background()
-	pragmas := `
-		PRAGMA synchronous = NORMAL;
-		PRAGMA cache_size = -2000;
-		PRAGMA temp_store = MEMORY;
-	`
-	if _, err := db.ExecContext(ctx, pragmas); err != nil {
-		log.Warn("failed to set SQLite pragmas", "error", err)
-	}
-
-	s.db = db
+	s.db = database
 	return nil
 }
 
@@ -215,7 +191,7 @@ func (s *SQLiteStore) Close() error {
 
 // DB returns the underlying database connection.
 func (s *SQLiteStore) DB() *sql.DB {
-	return s.db
+	return s.db.DB
 }
 
 // CreateChannel creates a new channel.
