@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { ThemeProvider } from './context/ThemeContext';
 
 // Lazy-loaded views — each gets its own chunk
 const Dashboard = lazy(() => import('./views/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -35,6 +36,7 @@ function NotFound() {
 export function App() {
   return (
     <ErrorBoundary>
+      <ThemeProvider>
       <BrowserRouter>
         <Routes>
           <Route element={<Layout />}>
@@ -55,6 +57,7 @@ export function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }

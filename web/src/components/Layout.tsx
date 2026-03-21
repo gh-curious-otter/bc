@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { useTheme } from '../context/ThemeContext';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: '~' },
@@ -16,8 +17,11 @@ const NAV_ITEMS = [
   { to: '/doctor', label: 'Doctor', icon: '+' },
 ] as const;
 
+const THEME_LABELS = { dark: 'Dark', light: 'Light', system: 'System' } as const;
+
 export function Layout() {
   const location = useLocation();
+  const { mode, toggle } = useTheme();
 
   // Dynamic page title (#2150)
   useEffect(() => {
@@ -54,8 +58,16 @@ export function Layout() {
             </li>
           ))}
         </ul>
-        <div className="p-3 border-t border-bc-border text-xs text-bc-muted">
-          <kbd className="text-bc-text">?</kbd> help
+        <div className="p-3 border-t border-bc-border text-xs text-bc-muted flex items-center justify-between">
+          <span><kbd className="text-bc-text">?</kbd> help</span>
+          <button
+            type="button"
+            onClick={toggle}
+            className="px-2 py-1 rounded border border-bc-border text-bc-muted hover:text-bc-text hover:border-bc-accent transition-colors"
+            title={`Theme: ${THEME_LABELS[mode]}`}
+          >
+            {THEME_LABELS[mode]}
+          </button>
         </div>
       </nav>
       <main className="flex-1 overflow-auto bg-bc-bg">
