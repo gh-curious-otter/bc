@@ -24,24 +24,152 @@ function MetadataRow({ label, value }: { label: string; value: React.ReactNode }
   return (
     <div className="flex items-start gap-2 py-1.5 border-b border-bc-border/30 last:border-0">
       <span className="text-bc-muted text-sm w-32 shrink-0">{label}</span>
-      <span className="text-sm break-all">{value ?? '—'}</span>
+      <span className="text-sm break-all">{value ?? '\u2014'}</span>
     </div>
   );
 }
 
 function formatTime(t?: string): string {
-  if (!t) return '—';
+  if (!t) return '\u2014';
   try {
     const d = new Date(t);
-    if (isNaN(d.getTime())) return '—';
+    if (isNaN(d.getTime())) return '\u2014';
     return d.toLocaleString();
   } catch {
-    return '—';
+    return '\u2014';
   }
 }
 
+/* ───────────────────────── Tab types ───────────────────────── */
+
+type Tab = 'logs' | 'overview' | 'stats' | 'role';
+
+const TABS: { key: Tab; label: string; shortcut: string }[] = [
+  { key: 'logs', label: 'Logs', shortcut: '1' },
+  { key: 'overview', label: 'Overview', shortcut: '2' },
+  { key: 'stats', label: 'Stats', shortcut: '3' },
+  { key: 'role', label: 'Role', shortcut: '4' },
+];
+
+/* ───────────────────────── Tab content ───────────────────────── */
+
+function LogsTab({
+  outputLines,
+  outputRef,
+}: {
+  outputLines: string[];
+  outputRef: React.RefObject<HTMLPreElement>;
+}) {
+  return (
+    <div className="space-y-2">
+      <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">Live Output</h2>
+      <pre
+        ref={outputRef}
+        className="rounded-lg border border-bc-border/50 bg-[#0a0a0f] p-4 text-xs leading-relaxed overflow-y-auto max-h-[32rem] whitespace-pre-wrap text-bc-text/90 shadow-inner"
+        style={{ fontFamily: "'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
+      >
+        {outputLines.length > 0
+          ? outputLines.join('\n')
+          : <span className="text-bc-muted italic">No output yet. Agent may be idle or stopped.</span>}
+      </pre>
+    </div>
+  );
+}
+
+function OverviewTab({ agent }: { agent: Agent }) {
+  return (
+    <div className="space-y-6">
+      {/* Task */}
+      {agent.task && (
+        <div className="rounded border border-bc-border bg-bc-surface p-3">
+          <span className="text-xs text-bc-muted uppercase tracking-wide">Current Task</span>
+          <p className="mt-1 text-sm">{agent.task}</p>
+        </div>
+      )}
+
+      {/* Identity */}
+      <div className="space-y-2">
+        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">Identity</h2>
+        <div className="rounded border border-bc-border bg-bc-surface p-4">
+          <MetadataRow label="Name" value={agent.name} />
+          <MetadataRow label="Role" value={agent.role} />
+          <MetadataRow label="State" value={<StatusBadge status={agent.state} />} />
+          <MetadataRow label="Tool" value={agent.tool || '\u2014'} />
+          <MetadataRow label="Team" value={agent.team || '\u2014'} />
+        </div>
+      </div>
+
+      {/* Hierarchy */}
+      <div className="space-y-2">
+        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">Hierarchy</h2>
+        <div className="rounded border border-bc-border bg-bc-surface p-4">
+          <MetadataRow label="Parent" value={agent.parent_id || '\u2014'} />
+          <MetadataRow
+            label="Children"
+            value={agent.children && agent.children.length > 0 ? agent.children.join(', ') : '\u2014'}
+          />
+        </div>
+      </div>
+
+      {/* Paths */}
+      <div className="space-y-2">
+        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">Paths</h2>
+        <div className="rounded border border-bc-border bg-bc-surface p-4">
+          <MetadataRow label="Session" value={agent.session || '\u2014'} />
+        </div>
+      </div>
+
+      {/* Timestamps */}
+      <div className="space-y-2">
+        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">Timestamps</h2>
+        <div className="rounded border border-bc-border bg-bc-surface p-4">
+          <MetadataRow label="Created" value={formatTime(agent.created_at)} />
+          <MetadataRow label="Started" value={formatTime(agent.started_at)} />
+          <MetadataRow label="Updated" value={formatTime(agent.updated_at)} />
+          <MetadataRow label="Stopped" value={formatTime(agent.stopped_at)} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatsTab({ agent }: { agent: Agent }) {
+  return (
+    <div className="space-y-2">
+      <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">Stats</h2>
+      <div className="rounded border border-bc-border bg-bc-surface p-4">
+        <MetadataRow label="Cost (USD)" value={agent.cost_usd != null ? `$${agent.cost_usd.toFixed(4)}` : '\u2014'} />
+        <MetadataRow label="State" value={<StatusBadge status={agent.state} />} />
+        <MetadataRow label="Started" value={formatTime(agent.started_at)} />
+        <MetadataRow label="Stopped" value={formatTime(agent.stopped_at)} />
+      </div>
+    </div>
+  );
+}
+
+function RoleTab({ agent }: { agent: Agent }) {
+  return (
+    <div className="space-y-2">
+      <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">Role</h2>
+      <div className="rounded border border-bc-border bg-bc-surface p-4">
+        <MetadataRow label="Role" value={<RoleBadge role={agent.role} />} />
+        <MetadataRow label="Tool" value={agent.tool || '\u2014'} />
+        <MetadataRow label="Team" value={agent.team || '\u2014'} />
+        <MetadataRow label="Parent" value={agent.parent_id || '\u2014'} />
+        <MetadataRow
+          label="Children"
+          value={agent.children && agent.children.length > 0 ? agent.children.join(', ') : '\u2014'}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ───────────────────────── Main component ───────────────────────── */
+
 export function AgentDetail() {
   const { name } = useParams<{ name: string }>();
+  const [activeTab, setActiveTab] = useState<Tab>('logs');
   const [outputLines, setOutputLines] = useState<string[]>([]);
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -63,7 +191,7 @@ export function AgentDetail() {
         setOutputLines(stripAnsi(output).split('\n'));
       }
     }).catch(() => {
-      // Peek may fail for stopped agents — ignore
+      // Peek may fail for stopped agents -- ignore
     });
   }, [name]);
 
@@ -118,6 +246,23 @@ export function AgentDetail() {
     return subscribe('agent.state_changed', () => void refresh());
   }, [subscribe, refresh]);
 
+  // Keyboard shortcuts: 1-4 to switch tabs
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Don't intercept when typing in an input
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+      const idx = parseInt(e.key, 10);
+      const tab = TABS[idx - 1];
+      if (idx >= 1 && idx <= TABS.length && tab) {
+        setActiveTab(tab.key);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   const handleSend = async () => {
     if (!name || !message.trim()) return;
     setSending(true);
@@ -143,76 +288,64 @@ export function AgentDetail() {
   if (!agent) return null;
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link to="/agents" className="text-bc-muted hover:text-bc-text text-sm">
-          &larr; Agents
-        </Link>
-        <h1 className="text-xl font-bold">{agent.name}</h1>
-        <RoleBadge role={agent.role} />
-        <StatusBadge status={agent.state} />
-      </div>
-
-      {/* Task */}
-      {agent.task && (
-        <div className="rounded border border-bc-border bg-bc-surface p-3">
-          <span className="text-xs text-bc-muted uppercase tracking-wide">Current Task</span>
-          <p className="mt-1 text-sm">{agent.task}</p>
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        {/* Breadcrumb + Header */}
+        <div className="flex items-center gap-4">
+          <Link to="/agents" className="text-bc-muted hover:text-bc-text text-sm">
+            &larr; Agents
+          </Link>
+          <h1 className="text-xl font-bold">{agent.name}</h1>
+          <RoleBadge role={agent.role} />
+          <StatusBadge status={agent.state} />
         </div>
-      )}
 
-      {/* Live Output */}
-      <div className="space-y-2">
-        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">Live Output</h2>
-        <pre
-          ref={outputRef}
-          className="rounded-lg border border-bc-border/50 bg-[#0a0a0f] p-4 text-xs leading-relaxed overflow-y-auto max-h-[32rem] whitespace-pre-wrap text-bc-text/90 shadow-inner"
-          style={{ fontFamily: "'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
-        >
-          {outputLines.length > 0
-            ? outputLines.join('\n')
-            : <span className="text-bc-muted italic">No output yet. Agent may be idle or stopped.</span>}
-        </pre>
+        {/* Tab bar */}
+        <div className="flex gap-1 border-b border-bc-border">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2 text-sm font-medium transition-colors relative ${
+                activeTab === tab.key
+                  ? 'text-bc-accent'
+                  : 'text-bc-muted hover:text-bc-text'
+              }`}
+            >
+              {tab.label}
+              <span className="ml-1.5 text-[10px] text-bc-muted/60">{tab.shortcut}</span>
+              {activeTab === tab.key && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-bc-accent" />
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        {activeTab === 'logs' && <LogsTab outputLines={outputLines} outputRef={outputRef} />}
+        {activeTab === 'overview' && <OverviewTab agent={agent} />}
+        {activeTab === 'stats' && <StatsTab agent={agent} />}
+        {activeTab === 'role' && <RoleTab agent={agent} />}
       </div>
 
-      {/* Send Message */}
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') void handleSend(); }}
-          placeholder="Send message to agent..."
-          className="flex-1 bg-bc-bg border border-bc-border rounded px-3 py-1.5 text-sm focus:outline-none focus:border-bc-accent"
-        />
-        <button
-          onClick={() => void handleSend()}
-          disabled={sending || !message.trim()}
-          className="px-3 py-1.5 bg-bc-accent text-bc-bg rounded text-sm font-medium disabled:opacity-50"
-        >
-          Send
-        </button>
-      </div>
-
-      {/* Metadata */}
-      <div className="space-y-2">
-        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">Agent Details</h2>
-        <div className="rounded border border-bc-border bg-bc-surface p-4">
-          <MetadataRow label="Role" value={agent.role} />
-          <MetadataRow label="Tool" value={agent.tool || '—'} />
-          <MetadataRow label="State" value={<StatusBadge status={agent.state} />} />
-          <MetadataRow label="Team" value={agent.team || '—'} />
-          <MetadataRow label="Session" value={agent.session || '—'} />
-          <MetadataRow label="Parent" value={agent.parent_id || '—'} />
-          <MetadataRow
-            label="Children"
-            value={agent.children && agent.children.length > 0 ? agent.children.join(', ') : '—'}
+      {/* Message input bar -- always visible at bottom */}
+      <div className="shrink-0 border-t border-bc-border p-4">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') void handleSend(); }}
+            placeholder="Send message to agent..."
+            className="flex-1 bg-bc-bg border border-bc-border rounded px-3 py-1.5 text-sm focus:outline-none focus:border-bc-accent"
           />
-          <MetadataRow label="Created" value={formatTime(agent.created_at)} />
-          <MetadataRow label="Started" value={formatTime(agent.started_at)} />
-          <MetadataRow label="Updated" value={formatTime(agent.updated_at)} />
-          <MetadataRow label="Stopped" value={formatTime(agent.stopped_at)} />
+          <button
+            onClick={() => void handleSend()}
+            disabled={sending || !message.trim()}
+            className="px-3 py-1.5 bg-bc-accent text-bc-bg rounded text-sm font-medium disabled:opacity-50"
+          >
+            Send
+          </button>
         </div>
       </div>
     </div>
