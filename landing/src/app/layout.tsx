@@ -83,7 +83,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap"
           rel="stylesheet"
         />
-        <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "ac44b346d3fb45fda9b810a63d1466e2"}'></script>
       </head>
       <body className="bg-background text-foreground antialiased transition-colors duration-300">
         <WebVitals />
