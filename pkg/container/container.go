@@ -57,7 +57,7 @@ func ConfigFromWorkspace(dcfg workspace.DockerRuntimeConfig) Config {
 		cfg.MemoryMB = 2048
 	}
 	if cfg.Network == "" {
-		cfg.Network = "host"
+		cfg.Network = "bridge"
 	}
 	return cfg
 }
