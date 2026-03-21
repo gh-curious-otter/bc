@@ -36,6 +36,15 @@ func (h *ToolHandler) list(w http.ResponseWriter, r *http.Request) {
 	if tools == nil {
 		tools = []*tool.Tool{}
 	}
+	limit, offset := parsePagination(r, 50)
+	if offset >= len(tools) {
+		tools = []*tool.Tool{}
+	} else {
+		tools = tools[offset:]
+		if len(tools) > limit {
+			tools = tools[:limit]
+		}
+	}
 	writeJSON(w, http.StatusOK, tools)
 }
 

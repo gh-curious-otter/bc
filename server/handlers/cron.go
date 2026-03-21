@@ -36,6 +36,15 @@ func (h *CronHandler) list(w http.ResponseWriter, r *http.Request) {
 		if jobs == nil {
 			jobs = []*cron.Job{}
 		}
+		limit, offset := parsePagination(r, 50)
+		if offset >= len(jobs) {
+			jobs = []*cron.Job{}
+		} else {
+			jobs = jobs[offset:]
+			if len(jobs) > limit {
+				jobs = jobs[:limit]
+			}
+		}
 		writeJSON(w, http.StatusOK, jobs)
 
 	case http.MethodPost:

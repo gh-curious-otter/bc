@@ -35,6 +35,15 @@ func (h *MCPHandler) list(w http.ResponseWriter, r *http.Request) {
 		if servers == nil {
 			servers = []*mcp.ServerConfig{}
 		}
+		limit, offset := parsePagination(r, 50)
+		if offset >= len(servers) {
+			servers = []*mcp.ServerConfig{}
+		} else {
+			servers = servers[offset:]
+			if len(servers) > limit {
+				servers = servers[:limit]
+			}
+		}
 		writeJSON(w, http.StatusOK, servers)
 
 	case http.MethodPost:

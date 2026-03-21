@@ -84,6 +84,15 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		for _, a := range agents {
 			dtos = append(dtos, toDTO(a))
 		}
+		limit, offset := parsePagination(r, 50)
+		if offset >= len(dtos) {
+			dtos = []agentDTO{}
+		} else {
+			dtos = dtos[offset:]
+			if len(dtos) > limit {
+				dtos = dtos[:limit]
+			}
+		}
 		writeJSON(w, http.StatusOK, dtos)
 
 	case http.MethodPost:
