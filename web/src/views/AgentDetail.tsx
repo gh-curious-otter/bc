@@ -145,7 +145,7 @@ export function AgentDetail() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         <Link to="/agents" className="text-bc-muted hover:text-bc-text text-sm">
           &larr; Agents
         </Link>
@@ -167,7 +167,7 @@ export function AgentDetail() {
         <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">Live Output</h2>
         <pre
           ref={outputRef}
-          className="rounded-lg border border-bc-border/50 bg-[#0a0a0f] p-4 text-xs leading-relaxed overflow-y-auto max-h-[32rem] whitespace-pre-wrap text-bc-text/90 shadow-inner"
+          className="rounded-lg border border-bc-border/50 bg-[#0a0a0f] p-4 text-xs leading-relaxed overflow-y-auto max-h-[50vh] md:max-h-[70vh] whitespace-pre-wrap text-bc-text/90 shadow-inner"
           style={{ fontFamily: "'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
         >
           {outputLines.length > 0
@@ -184,12 +184,12 @@ export function AgentDetail() {
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') void handleSend(); }}
           placeholder="Send message to agent..."
-          className="flex-1 bg-bc-bg border border-bc-border rounded px-3 py-1.5 text-sm focus:outline-none focus:border-bc-accent"
+          className="flex-1 min-w-0 bg-bc-bg border border-bc-border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent transition-colors duration-150"
         />
         <button
           onClick={() => void handleSend()}
           disabled={sending || !message.trim()}
-          className="px-3 py-1.5 bg-bc-accent text-bc-bg rounded text-sm font-medium disabled:opacity-50"
+          className="px-3 py-1.5 bg-bc-accent text-bc-bg rounded text-sm font-medium disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-bc-accent transition-colors duration-150"
         >
           Send
         </button>

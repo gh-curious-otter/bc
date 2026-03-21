@@ -111,10 +111,10 @@ export function Agents() {
               <tr className="border-b border-bc-border text-left">
                 <th className="px-4 py-2 font-medium text-bc-muted">Name</th>
                 <th className="px-4 py-2 font-medium text-bc-muted">Role</th>
-                <th className="px-4 py-2 font-medium text-bc-muted">Tool</th>
+                <th className="px-4 py-2 font-medium text-bc-muted hidden sm:table-cell">Tool</th>
                 <th className="px-4 py-2 font-medium text-bc-muted">Status</th>
                 <th className="px-4 py-2 font-medium text-bc-muted">Task</th>
-                <th className="px-4 py-2 font-medium text-bc-muted">Cost</th>
+                <th className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell">Cost</th>
                 <th className="px-4 py-2 font-medium text-bc-muted w-10"></th>
               </tr>
             </thead>
@@ -123,7 +123,7 @@ export function Agents() {
                 <Fragment key={a.name}>
                   <tr
                     onClick={() => navigate(`/agents/${encodeURIComponent(a.name)}`)}
-                    className="border-b border-bc-border/50 cursor-pointer hover:bg-bc-surface"
+                    className="border-b border-bc-border/50 cursor-pointer hover:bg-bc-surface transition-colors duration-150"
                   >
                     <td className="px-4 py-2">
                       <span className="font-medium">{a.name}</span>
@@ -131,7 +131,7 @@ export function Agents() {
                     <td className="px-4 py-2">
                       <span className="text-bc-muted">{a.role}</span>
                     </td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2 hidden sm:table-cell">
                       <span className="text-bc-muted">{a.tool || '\u2014'}</span>
                     </td>
                     <td className="px-4 py-2">
@@ -142,7 +142,7 @@ export function Agents() {
                         {a.task ? truncate(a.task, 50) : '\u2014'}
                       </span>
                     </td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2 hidden md:table-cell">
                       <span className="text-bc-muted">
                         {a.cost_usd != null ? `$${a.cost_usd.toFixed(4)}` : '\u2014'}
                       </span>
@@ -150,7 +150,7 @@ export function Agents() {
                     <td className="px-4 py-2 text-center">
                       <button
                         onClick={(e) => handlePeekToggle(a.name, e)}
-                        className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors ${
+                        className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-bc-accent ${
                           peekAgent === a.name
                             ? 'bg-bc-accent/20 text-bc-accent'
                             : 'text-bc-muted hover:text-bc-fg hover:bg-bc-surface'

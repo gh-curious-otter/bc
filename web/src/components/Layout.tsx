@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 
@@ -23,6 +23,7 @@ const THEME_LABELS = { dark: 'Dark', light: 'Light', system: 'System' } as const
 export function Layout() {
   const location = useLocation();
   const { mode, toggle } = useTheme();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Dynamic page title (#2150)
   useEffect(() => {
@@ -32,21 +33,45 @@ export function Layout() {
     document.title = match ? `${match.label} \u2014 bc` : 'bc';
   }, [location.pathname]);
 
+  // Close sidebar on navigation (mobile)
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
   return (
     <div className="flex h-screen">
-      <nav className="w-48 shrink-0 border-r border-bc-border bg-bc-surface flex flex-col">
+      {/* Mobile hamburger button */}
+      <button
+        type="button"
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        className="fixed top-3 left-3 z-50 md:hidden inline-flex items-center justify-center w-9 h-9 rounded border border-bc-border bg-bc-surface text-bc-muted hover:text-bc-text transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-bc-accent"
+        aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+      >
+        {sidebarOpen ? '\u2715' : '\u2630'}
+      </button>
+
+      {/* Backdrop overlay for mobile */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <nav className={`fixed inset-y-0 left-0 z-40 w-48 shrink-0 border-r border-bc-border bg-bc-surface flex flex-col transition-transform duration-200 md:static md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-4 border-b border-bc-border">
           <span className="text-lg font-bold text-bc-accent">bc</span>
           <span className="ml-2 text-xs text-bc-muted">v2</span>
         </div>
-        <ul className="flex-1 py-2">
+        <ul className="flex-1 py-2 overflow-y-auto">
           {NAV_ITEMS.map(({ to, label, icon }) => (
             <li key={to}>
               <NavLink
                 to={to}
                 end={to === '/'}
                 className={({ isActive }) =>
-                  `flex items-center gap-2 px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-inset ${
+                  `flex items-center gap-2 px-4 py-2 text-sm outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-inset ${
                     isActive
                       ? 'text-bc-accent bg-bc-bg font-medium'
                       : 'text-bc-muted hover:text-bc-text hover:bg-bc-bg/50'
@@ -64,7 +89,7 @@ export function Layout() {
           <button
             type="button"
             onClick={toggle}
-            className="px-2 py-1 rounded border border-bc-border text-bc-muted hover:text-bc-text hover:border-bc-accent transition-colors"
+            className="px-2 py-1 rounded border border-bc-border text-bc-muted hover:text-bc-text hover:border-bc-accent transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-bc-accent"
             title={`Theme: ${THEME_LABELS[mode]}`}
           >
             {THEME_LABELS[mode]}
