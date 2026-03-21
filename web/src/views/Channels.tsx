@@ -58,6 +58,7 @@ function ChatRoom({ channelName }: { channelName: string }) {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { subscribe } = useWebSocket();
 
   // Fetch history on channel change
@@ -85,9 +86,14 @@ function ChatRoom({ channelName }: { channelName: string }) {
     });
   }, [subscribe, channelName]);
 
-  // Auto-scroll
+  // Auto-scroll only when user is near the bottom
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+    if (isNearBottom) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   const handleSend = async () => {
@@ -107,7 +113,7 @@ function ChatRoom({ channelName }: { channelName: string }) {
       <div className="px-4 py-2 border-b border-bc-border bg-bc-surface">
         <span className="font-medium">#{channelName}</span>
       </div>
-      <div className="flex-1 overflow-auto p-4 space-y-2">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto p-4 space-y-2">
         {messages.map((msg) => (
           <div key={msg.id} className="text-sm">
             <span className="font-medium text-bc-accent">{msg.sender}</span>
