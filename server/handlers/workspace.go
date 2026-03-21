@@ -46,7 +46,6 @@ func (h *WorkspaceHandler) status(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"name":          h.ws.Name(),
-		"root_dir":      h.ws.RootDir,
 		"agent_count":   len(agents),
 		"running_count": runningCount,
 		"is_healthy":    true,
@@ -82,7 +81,12 @@ func (h *WorkspaceHandler) up(w http.ResponseWriter, r *http.Request) {
 		Tool    string `json:"tool"`
 		Runtime string `json:"runtime"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req) //nolint:errcheck // optional body
+	if r.ContentLength > 0 {
+		if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
+			httpError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+	}
 	a, err := h.svc.Create(r.Context(), agent.CreateOptions{
 		Name:    "root",
 		Role:    agent.RoleRoot,
