@@ -3,6 +3,8 @@
 package handlers
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 
@@ -57,6 +59,26 @@ func Recovery(next http.Handler) http.Handler {
 	})
 }
 
+// RequestID returns a middleware that generates a unique request ID for each request.
+// If the incoming request has an X-Request-ID header, it is reused.
+// The ID is set on the response header and available via the request context.
+func RequestID(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.Header.Get("X-Request-ID")
+		if id == "" {
+			id = generateRequestID()
+		}
+		w.Header().Set("X-Request-ID", id)
+		next.ServeHTTP(w, r)
+	})
+}
+
+func generateRequestID() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b) //nolint:errcheck // crypto/rand never fails on supported platforms
+	return hex.EncodeToString(b)
+}
+
 // clampInt clamps n to the range [min, max].
 func clampInt(n, min, max int) int {
 	if n < min {
@@ -66,6 +88,21 @@ func clampInt(n, min, max int) int {
 		return max
 	}
 	return n
+}
+
+// MaxBodySize returns a middleware that limits request body size.
+// Returns 413 Payload Too Large if the body exceeds maxBytes.
+func MaxBodySize(maxBytes int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.ContentLength > maxBytes {
+				httpError(w, "request body too large", http.StatusRequestEntityTooLarge)
+				return
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // CORSWithOrigin returns a middleware that adds CORS headers with the specified
