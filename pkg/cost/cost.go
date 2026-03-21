@@ -191,6 +191,8 @@ func (s *Store) initSchema(db *sql.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_cost_records_team ON cost_records(team_id);
 		CREATE INDEX IF NOT EXISTS idx_cost_records_model ON cost_records(model);
 		CREATE INDEX IF NOT EXISTS idx_cost_records_timestamp ON cost_records(timestamp DESC);
+		CREATE INDEX IF NOT EXISTS idx_cost_records_agent_time ON cost_records(agent_id, timestamp DESC);
+		CREATE INDEX IF NOT EXISTS idx_cost_records_team_time ON cost_records(team_id, timestamp DESC);
 
 		CREATE TABLE IF NOT EXISTS cost_budgets (
 			id         INTEGER PRIMARY KEY AUTOINCREMENT,
