@@ -2,6 +2,8 @@ import { useCallback } from 'react';
 import { api } from '../api/client';
 import type { DoctorCategory } from '../api/client';
 import { usePolling } from '../hooks/usePolling';
+import { LoadingSkeleton } from '../components/LoadingSkeleton';
+import { EmptyState } from '../components/EmptyState';
 
 const severityIcon = (s: number) => {
   switch (s) {
@@ -14,19 +16,48 @@ const severityIcon = (s: number) => {
 
 export function Doctor() {
   const fetcher = useCallback(() => api.getDoctor(), []);
-  const { data: report, loading, error } = usePolling(fetcher, 30000);
+  const { data: report, loading, error, refresh, timedOut } = usePolling(fetcher, 30000);
 
   if (loading && !report) {
-    return <div className="p-6 text-bc-muted">Running diagnostics...</div>;
+    return (
+      <div className="p-6 space-y-4">
+        <div className="h-6 w-24 animate-pulse rounded bg-bc-border/50" />
+        <LoadingSkeleton variant="text" rows={4} />
+        <LoadingSkeleton variant="text" rows={3} />
+      </div>
+    );
+  }
+  if (timedOut && !report) {
+    return (
+      <div className="p-6">
+        <EmptyState
+          icon="!"
+          title="Diagnostics took too long to run"
+          description="The server may be unavailable. Check your connection and try again."
+          actionLabel="Retry"
+          onAction={refresh}
+        />
+      </div>
+    );
   }
   if (error && !report) {
-    return <div className="p-6 text-bc-error">Error: {error}</div>;
+    return (
+      <div className="p-6">
+        <EmptyState
+          icon="!"
+          title="Failed to run diagnostics"
+          description={error}
+          actionLabel="Retry"
+          onAction={refresh}
+        />
+      </div>
+    );
   }
   if (!report) return null;
 
-  const totalPassed = report.Categories.reduce((n, c) => n + c.Items.filter(i => i.Severity === 0).length, 0);
-  const totalFailed = report.Categories.reduce((n, c) => n + c.Items.filter(i => i.Severity === 2).length, 0);
-  const totalWarnings = report.Categories.reduce((n, c) => n + c.Items.filter(i => i.Severity === 1).length, 0);
+  const totalPassed = report.Categories.reduce((n: number, c: DoctorCategory) => n + c.Items.filter(i => i.Severity === 0).length, 0);
+  const totalFailed = report.Categories.reduce((n: number, c: DoctorCategory) => n + c.Items.filter(i => i.Severity === 2).length, 0);
+  const totalWarnings = report.Categories.reduce((n: number, c: DoctorCategory) => n + c.Items.filter(i => i.Severity === 1).length, 0);
 
   return (
     <div className="p-6 space-y-6">
@@ -39,7 +70,7 @@ export function Doctor() {
         </div>
       </div>
 
-      {report.Categories.map((cat) => (
+      {report.Categories.map((cat: DoctorCategory) => (
         <CategorySection key={cat.Name} category={cat} />
       ))}
     </div>

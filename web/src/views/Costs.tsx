@@ -3,6 +3,8 @@ import { api } from '../api/client';
 import type { CostSummary, AgentCostSummary } from '../api/client';
 import { usePolling } from '../hooks/usePolling';
 import { Table } from '../components/Table';
+import { LoadingSkeleton } from '../components/LoadingSkeleton';
+import { EmptyState } from '../components/EmptyState';
 
 interface CostData {
   summary: CostSummary;
@@ -35,13 +37,42 @@ export function Costs() {
     return { summary, byAgent };
   }, []);
 
-  const { data, loading, error } = usePolling(fetcher, 10000);
+  const { data, loading, error, refresh, timedOut } = usePolling(fetcher, 10000);
 
   if (loading && !data) {
-    return <div className="p-6 text-bc-muted">Loading costs...</div>;
+    return (
+      <div className="p-6 space-y-6">
+        <div className="h-6 w-20 animate-pulse rounded bg-bc-border/50" />
+        <LoadingSkeleton variant="cards" rows={3} />
+        <LoadingSkeleton variant="table" rows={3} />
+      </div>
+    );
+  }
+  if (timedOut && !data) {
+    return (
+      <div className="p-6">
+        <EmptyState
+          icon="!"
+          title="Costs took too long to load"
+          description="The server may be unavailable. Check your connection and try again."
+          actionLabel="Retry"
+          onAction={refresh}
+        />
+      </div>
+    );
   }
   if (error && !data) {
-    return <div className="p-6 text-bc-error">Error: {error}</div>;
+    return (
+      <div className="p-6">
+        <EmptyState
+          icon="!"
+          title="Failed to load costs"
+          description={error}
+          actionLabel="Retry"
+          onAction={refresh}
+        />
+      </div>
+    );
   }
   if (!data) return null;
 
@@ -85,7 +116,9 @@ export function Costs() {
             columns={columns}
             data={data.byAgent}
             keyFn={(r) => r.agent_id}
-            emptyMessage="No cost records yet."
+            emptyMessage="No cost records yet"
+            emptyIcon="$"
+            emptyDescription="Cost data will appear here once agents start running and using tokens."
           />
         </div>
       </section>
