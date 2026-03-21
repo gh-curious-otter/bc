@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -254,6 +255,9 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, sessions)
 
+	case r.Method == http.MethodGet && action == "output":
+		h.streamOutput(w, r, name)
+
 	default:
 		httpError(w, "not found", http.StatusNotFound)
 	}
@@ -340,4 +344,62 @@ func (h *AgentHandler) stopAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]int{"stopped": stopped})
+}
+
+// streamOutput streams agent terminal output as SSE events.
+// Polls capture-pane every second and sends new lines as events.
+func (h *AgentHandler) streamOutput(w http.ResponseWriter, r *http.Request, name string) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		httpError(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	// Verify agent exists
+	if _, err := h.svc.Get(r.Context(), name); err != nil {
+		httpError(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	// Send initial snapshot
+	output, err := h.svc.Peek(r.Context(), name, 50)
+	if err == nil && output != "" {
+		data, _ := json.Marshal(map[string]string{"output": output})
+		fmt.Fprintf(w, "data: %s\n\n", data) //nolint:errcheck
+		flusher.Flush()
+	}
+
+	// Poll for new output every second
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	var lastLen int
+	if output != "" {
+		lastLen = len(output)
+	}
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			current, peekErr := h.svc.Peek(r.Context(), name, 200)
+			if peekErr != nil {
+				continue
+			}
+			if len(current) > lastLen {
+				// Send only the new portion
+				newOutput := current[lastLen:]
+				data, _ := json.Marshal(map[string]string{"output": newOutput})
+				fmt.Fprintf(w, "event: agent.output\ndata: %s\n\n", data) //nolint:errcheck
+				flusher.Flush()
+				lastLen = len(current)
+			}
+		}
+	}
 }
