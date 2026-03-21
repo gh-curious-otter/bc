@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -129,7 +130,7 @@ func runCostBudgetSet(cmd *cobra.Command, args []string) error {
 	}
 
 	scope := getBudgetScope()
-	budget, err := store.SetBudget(scope, period, limitUSD, budgetAlertAtFlag, budgetHardStop)
+	budget, err := store.SetBudget(context.Background(), scope, period, limitUSD, budgetAlertAtFlag, budgetHardStop)
 	if err != nil {
 		return fmt.Errorf("failed to set budget: %w", err)
 	}
@@ -153,7 +154,7 @@ func runCostBudgetShow(cmd *cobra.Command, args []string) error {
 
 	// If showing specific scope
 	if budgetAgentFlag != "" || budgetTeamFlag != "" || scope == "workspace" {
-		status, checkErr := store.CheckBudget(scope)
+		status, checkErr := store.CheckBudget(context.Background(), scope)
 		if checkErr != nil {
 			return fmt.Errorf("failed to check budget: %w", checkErr)
 		}
@@ -168,7 +169,7 @@ func runCostBudgetShow(cmd *cobra.Command, args []string) error {
 	}
 
 	// Show all budgets
-	budgets, err := store.GetAllBudgets()
+	budgets, err := store.GetAllBudgets(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to get budgets: %w", err)
 	}
@@ -183,7 +184,7 @@ func runCostBudgetShow(cmd *cobra.Command, args []string) error {
 	fmt.Println("==================")
 
 	for _, b := range budgets {
-		status, _ := store.CheckBudget(b.Scope)
+		status, _ := store.CheckBudget(context.Background(), b.Scope)
 		if status != nil {
 			printBudgetStatus(b.Scope, status)
 			fmt.Println()
@@ -222,7 +223,7 @@ func runCostBudgetDelete(cmd *cobra.Command, args []string) error {
 
 	scope := getBudgetScope()
 
-	if deleteErr := store.DeleteBudget(scope); deleteErr != nil {
+	if deleteErr := store.DeleteBudget(context.Background(), scope); deleteErr != nil {
 		return fmt.Errorf("failed to delete budget: %w", deleteErr)
 	}
 

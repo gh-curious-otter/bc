@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -94,19 +95,19 @@ func runCostSummary(cmd *cobra.Command, args []string) error {
 	weekStart := todayStart.AddDate(0, 0, -int(now.Weekday()))
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 
-	today, err := store.GetSummarySince(todayStart)
+	today, err := store.GetSummarySince(context.Background(), todayStart)
 	if err != nil {
 		return err
 	}
-	week, err := store.GetSummarySince(weekStart)
+	week, err := store.GetSummarySince(context.Background(), weekStart)
 	if err != nil {
 		return err
 	}
-	month, err := store.GetSummarySince(monthStart)
+	month, err := store.GetSummarySince(context.Background(), monthStart)
 	if err != nil {
 		return err
 	}
-	allTime, err := store.WorkspaceSummary()
+	allTime, err := store.WorkspaceSummary(context.Background())
 	if err != nil {
 		return err
 	}
@@ -158,7 +159,7 @@ func runCostAgent(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		// Show specific agent
 		agentID := args[0]
-		summary, agentErr := store.AgentSummary(agentID)
+		summary, agentErr := store.AgentSummary(context.Background(), agentID)
 		if agentErr != nil {
 			return agentErr
 		}
@@ -186,7 +187,7 @@ func runCostAgent(cmd *cobra.Command, args []string) error {
 	}
 
 	// Show all agents
-	summaries, err := store.SummaryByAgent()
+	summaries, err := store.SummaryByAgent(context.Background())
 	if err != nil {
 		return err
 	}
@@ -248,7 +249,7 @@ func runCostModel(cmd *cobra.Command, args []string) error {
 	}
 	defer func() { _ = store.Close() }()
 
-	summaries, err := store.SummaryByModel()
+	summaries, err := store.SummaryByModel(context.Background())
 	if err != nil {
 		return err
 	}
@@ -302,7 +303,7 @@ func runCostDaily(cmd *cobra.Command, args []string) error {
 	defer func() { _ = store.Close() }()
 
 	since := time.Now().AddDate(0, 0, -costDailyDaysFlag)
-	dailyCosts, err := store.GetDailyCosts(since)
+	dailyCosts, err := store.GetDailyCosts(context.Background(), since)
 	if err != nil {
 		return err
 	}
@@ -346,27 +347,27 @@ func runCostDashboard(cmd *cobra.Command, args []string) error {
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 
-	today, err := store.GetSummarySince(todayStart)
+	today, err := store.GetSummarySince(context.Background(), todayStart)
 	if err != nil {
 		return err
 	}
-	month, err := store.GetSummarySince(monthStart)
+	month, err := store.GetSummarySince(context.Background(), monthStart)
 	if err != nil {
 		return err
 	}
-	allTime, err := store.WorkspaceSummary()
+	allTime, err := store.WorkspaceSummary(context.Background())
 	if err != nil {
 		return err
 	}
-	agentSummaries, err := store.SummaryByAgent()
+	agentSummaries, err := store.SummaryByAgent(context.Background())
 	if err != nil {
 		return err
 	}
-	modelSummaries, err := store.SummaryByModel()
+	modelSummaries, err := store.SummaryByModel(context.Background())
 	if err != nil {
 		return err
 	}
-	budgets, err := store.GetAllBudgets()
+	budgets, err := store.GetAllBudgets(context.Background())
 	if err != nil {
 		return err
 	}
@@ -429,7 +430,7 @@ func runCostDashboard(cmd *cobra.Command, args []string) error {
 		fmt.Println("\nBudgets")
 		fmt.Println("-------")
 		for _, b := range budgets {
-			status, _ := store.CheckBudget(b.Scope)
+			status, _ := store.CheckBudget(context.Background(), b.Scope)
 			if status != nil {
 				printBudgetStatus(b.Scope, status)
 			}

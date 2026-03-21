@@ -1,6 +1,7 @@
 package cost
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -40,7 +41,7 @@ func TestStoreRecord(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	record, err := store.Record("engineer-01", "team-a", "claude-3-opus", 1000, 500, 0.05)
+	record, err := store.Record(context.Background(), "engineer-01", "team-a", "claude-3-opus", 1000, 500, 0.05)
 	if err != nil {
 		t.Fatalf("Record failed: %v", err)
 	}
@@ -82,7 +83,7 @@ func TestStoreRecordNoTeam(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	record, err := store.Record("engineer-01", "", "claude-3-sonnet", 500, 250, 0.01)
+	record, err := store.Record(context.Background(), "engineer-01", "", "claude-3-sonnet", 500, 250, 0.01)
 	if err != nil {
 		t.Fatalf("Record failed: %v", err)
 	}
@@ -100,9 +101,9 @@ func TestStoreGetByID(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	record, _ := store.Record("engineer-01", "team-a", "claude-3-opus", 1000, 500, 0.05)
+	record, _ := store.Record(context.Background(), "engineer-01", "team-a", "claude-3-opus", 1000, 500, 0.05)
 
-	got, err := store.GetByID(record.ID)
+	got, err := store.GetByID(context.Background(), record.ID)
 	if err != nil {
 		t.Fatalf("GetByID failed: %v", err)
 	}
@@ -122,7 +123,7 @@ func TestStoreGetByIDNotFound(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	got, err := store.GetByID(999)
+	got, err := store.GetByID(context.Background(), 999)
 	if err != nil {
 		t.Fatalf("GetByID should not error: %v", err)
 	}
@@ -139,11 +140,11 @@ func TestStoreGetByAgent(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	_, _ = store.Record("engineer-01", "", "model-a", 100, 50, 0.01)
-	_, _ = store.Record("engineer-01", "", "model-b", 200, 100, 0.02)
-	_, _ = store.Record("engineer-02", "", "model-a", 300, 150, 0.03)
+	_, _ = store.Record(context.Background(), "engineer-01", "", "model-a", 100, 50, 0.01)
+	_, _ = store.Record(context.Background(), "engineer-01", "", "model-b", 200, 100, 0.02)
+	_, _ = store.Record(context.Background(), "engineer-02", "", "model-a", 300, 150, 0.03)
 
-	records, err := store.GetByAgent("engineer-01", 10)
+	records, err := store.GetByAgent(context.Background(), "engineer-01", 10)
 	if err != nil {
 		t.Fatalf("GetByAgent failed: %v", err)
 	}
@@ -160,11 +161,11 @@ func TestStoreGetByTeam(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	_, _ = store.Record("engineer-01", "team-a", "model-a", 100, 50, 0.01)
-	_, _ = store.Record("engineer-02", "team-a", "model-a", 200, 100, 0.02)
-	_, _ = store.Record("engineer-03", "team-b", "model-a", 300, 150, 0.03)
+	_, _ = store.Record(context.Background(), "engineer-01", "team-a", "model-a", 100, 50, 0.01)
+	_, _ = store.Record(context.Background(), "engineer-02", "team-a", "model-a", 200, 100, 0.02)
+	_, _ = store.Record(context.Background(), "engineer-03", "team-b", "model-a", 300, 150, 0.03)
 
-	records, err := store.GetByTeam("team-a", 10)
+	records, err := store.GetByTeam(context.Background(), "team-a", 10)
 	if err != nil {
 		t.Fatalf("GetByTeam failed: %v", err)
 	}
@@ -181,11 +182,11 @@ func TestStoreGetAll(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 0.01)
-	_, _ = store.Record("agent-2", "", "model-a", 200, 100, 0.02)
-	_, _ = store.Record("agent-3", "", "model-a", 300, 150, 0.03)
+	_, _ = store.Record(context.Background(), "agent-1", "", "model-a", 100, 50, 0.01)
+	_, _ = store.Record(context.Background(), "agent-2", "", "model-a", 200, 100, 0.02)
+	_, _ = store.Record(context.Background(), "agent-3", "", "model-a", 300, 150, 0.03)
 
-	records, err := store.GetAll(10)
+	records, err := store.GetAll(context.Background(), 10)
 	if err != nil {
 		t.Fatalf("GetAll failed: %v", err)
 	}
@@ -202,11 +203,11 @@ func TestStoreSummaryByAgent(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	_, _ = store.Record("engineer-01", "", "model-a", 100, 50, 0.01)
-	_, _ = store.Record("engineer-01", "", "model-a", 200, 100, 0.02)
-	_, _ = store.Record("engineer-02", "", "model-a", 300, 150, 0.03)
+	_, _ = store.Record(context.Background(), "engineer-01", "", "model-a", 100, 50, 0.01)
+	_, _ = store.Record(context.Background(), "engineer-01", "", "model-a", 200, 100, 0.02)
+	_, _ = store.Record(context.Background(), "engineer-02", "", "model-a", 300, 150, 0.03)
 
-	summaries, err := store.SummaryByAgent()
+	summaries, err := store.SummaryByAgent(context.Background())
 	if err != nil {
 		t.Fatalf("SummaryByAgent failed: %v", err)
 	}
@@ -244,12 +245,12 @@ func TestStoreSummaryByTeam(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	_, _ = store.Record("agent-1", "team-a", "model-a", 100, 50, 0.01)
-	_, _ = store.Record("agent-2", "team-a", "model-a", 200, 100, 0.02)
-	_, _ = store.Record("agent-3", "team-b", "model-a", 300, 150, 0.03)
-	_, _ = store.Record("agent-4", "", "model-a", 400, 200, 0.04) // No team
+	_, _ = store.Record(context.Background(), "agent-1", "team-a", "model-a", 100, 50, 0.01)
+	_, _ = store.Record(context.Background(), "agent-2", "team-a", "model-a", 200, 100, 0.02)
+	_, _ = store.Record(context.Background(), "agent-3", "team-b", "model-a", 300, 150, 0.03)
+	_, _ = store.Record(context.Background(), "agent-4", "", "model-a", 400, 200, 0.04) // No team
 
-	summaries, err := store.SummaryByTeam()
+	summaries, err := store.SummaryByTeam(context.Background())
 	if err != nil {
 		t.Fatalf("SummaryByTeam failed: %v", err)
 	}
@@ -266,11 +267,11 @@ func TestStoreSummaryByModel(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	_, _ = store.Record("agent-1", "", "claude-3-opus", 1000, 500, 0.10)
-	_, _ = store.Record("agent-2", "", "claude-3-opus", 2000, 1000, 0.20)
-	_, _ = store.Record("agent-3", "", "claude-3-sonnet", 500, 250, 0.01)
+	_, _ = store.Record(context.Background(), "agent-1", "", "claude-3-opus", 1000, 500, 0.10)
+	_, _ = store.Record(context.Background(), "agent-2", "", "claude-3-opus", 2000, 1000, 0.20)
+	_, _ = store.Record(context.Background(), "agent-3", "", "claude-3-sonnet", 500, 250, 0.01)
 
-	summaries, err := store.SummaryByModel()
+	summaries, err := store.SummaryByModel(context.Background())
 	if err != nil {
 		t.Fatalf("SummaryByModel failed: %v", err)
 	}
@@ -292,11 +293,11 @@ func TestStoreWorkspaceSummary(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 0.01)
-	_, _ = store.Record("agent-2", "", "model-b", 200, 100, 0.02)
-	_, _ = store.Record("agent-3", "", "model-c", 300, 150, 0.03)
+	_, _ = store.Record(context.Background(), "agent-1", "", "model-a", 100, 50, 0.01)
+	_, _ = store.Record(context.Background(), "agent-2", "", "model-b", 200, 100, 0.02)
+	_, _ = store.Record(context.Background(), "agent-3", "", "model-c", 300, 150, 0.03)
 
-	summary, err := store.WorkspaceSummary()
+	summary, err := store.WorkspaceSummary(context.Background())
 	if err != nil {
 		t.Fatalf("WorkspaceSummary failed: %v", err)
 	}
@@ -326,7 +327,7 @@ func TestStoreWorkspaceSummaryEmpty(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	summary, err := store.WorkspaceSummary()
+	summary, err := store.WorkspaceSummary(context.Background())
 	if err != nil {
 		t.Fatalf("WorkspaceSummary failed: %v", err)
 	}
@@ -347,11 +348,11 @@ func TestStoreAgentSummary(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	_, _ = store.Record("engineer-01", "", "model-a", 100, 50, 0.01)
-	_, _ = store.Record("engineer-01", "", "model-b", 200, 100, 0.02)
-	_, _ = store.Record("engineer-02", "", "model-a", 300, 150, 0.03)
+	_, _ = store.Record(context.Background(), "engineer-01", "", "model-a", 100, 50, 0.01)
+	_, _ = store.Record(context.Background(), "engineer-01", "", "model-b", 200, 100, 0.02)
+	_, _ = store.Record(context.Background(), "engineer-02", "", "model-a", 300, 150, 0.03)
 
-	summary, err := store.AgentSummary("engineer-01")
+	summary, err := store.AgentSummary(context.Background(), "engineer-01")
 	if err != nil {
 		t.Fatalf("AgentSummary failed: %v", err)
 	}
@@ -378,11 +379,11 @@ func TestStoreTeamSummary(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	_, _ = store.Record("agent-1", "team-a", "model-a", 100, 50, 0.01)
-	_, _ = store.Record("agent-2", "team-a", "model-a", 200, 100, 0.02)
-	_, _ = store.Record("agent-3", "team-b", "model-a", 300, 150, 0.03)
+	_, _ = store.Record(context.Background(), "agent-1", "team-a", "model-a", 100, 50, 0.01)
+	_, _ = store.Record(context.Background(), "agent-2", "team-a", "model-a", 200, 100, 0.02)
+	_, _ = store.Record(context.Background(), "agent-3", "team-b", "model-a", 300, 150, 0.03)
 
-	summary, err := store.TeamSummary("team-a")
+	summary, err := store.TeamSummary(context.Background(), "team-a")
 	if err != nil {
 		t.Fatalf("TeamSummary failed: %v", err)
 	}
@@ -409,14 +410,14 @@ func TestStoreClear(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 0.01)
-	_, _ = store.Record("agent-2", "", "model-a", 200, 100, 0.02)
+	_, _ = store.Record(context.Background(), "agent-1", "", "model-a", 100, 50, 0.01)
+	_, _ = store.Record(context.Background(), "agent-2", "", "model-a", 200, 100, 0.02)
 
-	if err := store.Clear(); err != nil {
+	if err := store.Clear(context.Background()); err != nil {
 		t.Fatalf("Clear failed: %v", err)
 	}
 
-	records, err := store.GetAll(100)
+	records, err := store.GetAll(context.Background(), 100)
 	if err != nil {
 		t.Fatalf("GetAll failed: %v", err)
 	}
@@ -462,11 +463,11 @@ func TestGetDailyCosts(t *testing.T) {
 	defer func() { _ = store.Close() }()
 
 	// Add some records
-	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 0.01)
-	_, _ = store.Record("agent-2", "", "model-a", 200, 100, 0.02)
+	_, _ = store.Record(context.Background(), "agent-1", "", "model-a", 100, 50, 0.01)
+	_, _ = store.Record(context.Background(), "agent-2", "", "model-a", 200, 100, 0.02)
 
 	// Get daily costs for the last day
-	dailyCosts, err := store.GetDailyCosts(time.Now().AddDate(0, 0, -1))
+	dailyCosts, err := store.GetDailyCosts(context.Background(), time.Now().AddDate(0, 0, -1))
 	if err != nil {
 		t.Fatalf("GetDailyCosts failed: %v", err)
 	}
@@ -486,7 +487,7 @@ func TestGetDailyCostsEmpty(t *testing.T) {
 	defer func() { _ = store.Close() }()
 
 	// Get daily costs with no data
-	dailyCosts, err := store.GetDailyCosts(time.Now().AddDate(0, 0, -1))
+	dailyCosts, err := store.GetDailyCosts(context.Background(), time.Now().AddDate(0, 0, -1))
 	if err != nil {
 		t.Fatalf("GetDailyCosts failed: %v", err)
 	}
@@ -505,11 +506,11 @@ func TestGetAgentDailyCosts(t *testing.T) {
 	defer func() { _ = store.Close() }()
 
 	// Add records for multiple agents
-	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 0.01)
-	_, _ = store.Record("agent-2", "", "model-a", 200, 100, 0.02)
+	_, _ = store.Record(context.Background(), "agent-1", "", "model-a", 100, 50, 0.01)
+	_, _ = store.Record(context.Background(), "agent-2", "", "model-a", 200, 100, 0.02)
 
 	// Get agent daily costs
-	agentCosts, err := store.GetAgentDailyCosts(time.Now().AddDate(0, 0, -1))
+	agentCosts, err := store.GetAgentDailyCosts(context.Background(), time.Now().AddDate(0, 0, -1))
 	if err != nil {
 		t.Fatalf("GetAgentDailyCosts failed: %v", err)
 	}
@@ -528,10 +529,10 @@ func TestGetSummarySince(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 0.01)
-	_, _ = store.Record("agent-2", "", "model-a", 200, 100, 0.02)
+	_, _ = store.Record(context.Background(), "agent-1", "", "model-a", 100, 50, 0.01)
+	_, _ = store.Record(context.Background(), "agent-2", "", "model-a", 200, 100, 0.02)
 
-	summary, err := store.GetSummarySince(time.Now().AddDate(0, 0, -1))
+	summary, err := store.GetSummarySince(context.Background(), time.Now().AddDate(0, 0, -1))
 	if err != nil {
 		t.Fatalf("GetSummarySince failed: %v", err)
 	}
@@ -552,11 +553,11 @@ func TestGetAgentSummarySince(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 0.01)
-	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 0.01)
-	_, _ = store.Record("agent-2", "", "model-a", 200, 100, 0.02)
+	_, _ = store.Record(context.Background(), "agent-1", "", "model-a", 100, 50, 0.01)
+	_, _ = store.Record(context.Background(), "agent-1", "", "model-a", 100, 50, 0.01)
+	_, _ = store.Record(context.Background(), "agent-2", "", "model-a", 200, 100, 0.02)
 
-	summaries, err := store.GetAgentSummarySince(time.Now().AddDate(0, 0, -1))
+	summaries, err := store.GetAgentSummarySince(context.Background(), time.Now().AddDate(0, 0, -1))
 	if err != nil {
 		t.Fatalf("GetAgentSummarySince failed: %v", err)
 	}
@@ -575,11 +576,11 @@ func TestProjectCost(t *testing.T) {
 	defer func() { _ = store.Close() }()
 
 	// Add some records
-	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 0.10)
-	_, _ = store.Record("agent-2", "", "model-a", 200, 100, 0.20)
+	_, _ = store.Record(context.Background(), "agent-1", "", "model-a", 100, 50, 0.10)
+	_, _ = store.Record(context.Background(), "agent-2", "", "model-a", 200, 100, 0.20)
 
 	// Project for 7 days based on 7 days of history
-	proj, err := store.ProjectCost(7, 7*24*time.Hour)
+	proj, err := store.ProjectCost(context.Background(), 7, 7*24*time.Hour)
 	if err != nil {
 		t.Fatalf("ProjectCost failed: %v", err)
 	}
@@ -604,7 +605,7 @@ func TestProjectCostEmpty(t *testing.T) {
 	defer func() { _ = store.Close() }()
 
 	// Project with no data
-	proj, err := store.ProjectCost(7, 7*24*time.Hour)
+	proj, err := store.ProjectCost(context.Background(), 7, 7*24*time.Hour)
 	if err != nil {
 		t.Fatalf("ProjectCost failed: %v", err)
 	}
@@ -657,7 +658,7 @@ func TestSetBudget(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	budget, err := store.SetBudget("workspace", BudgetPeriodDaily, 100.0, 0.8, true)
+	budget, err := store.SetBudget(context.Background(), "workspace", BudgetPeriodDaily, 100.0, 0.8, true)
 	if err != nil {
 		t.Fatalf("SetBudget failed: %v", err)
 	}
@@ -691,13 +692,13 @@ func TestSetBudgetUpdate(t *testing.T) {
 	defer func() { _ = store.Close() }()
 
 	// Create initial budget
-	_, err := store.SetBudget("agent:eng-01", BudgetPeriodWeekly, 50.0, 0.7, false)
+	_, err := store.SetBudget(context.Background(), "agent:eng-01", BudgetPeriodWeekly, 50.0, 0.7, false)
 	if err != nil {
 		t.Fatalf("SetBudget failed: %v", err)
 	}
 
 	// Update the budget
-	budget, err := store.SetBudget("agent:eng-01", BudgetPeriodMonthly, 200.0, 0.9, true)
+	budget, err := store.SetBudget(context.Background(), "agent:eng-01", BudgetPeriodMonthly, 200.0, 0.9, true)
 	if err != nil {
 		t.Fatalf("SetBudget update failed: %v", err)
 	}
@@ -722,13 +723,13 @@ func TestGetBudget(t *testing.T) {
 	defer func() { _ = store.Close() }()
 
 	// Create a budget
-	_, err := store.SetBudget("team:backend", BudgetPeriodWeekly, 500.0, 0.75, false)
+	_, err := store.SetBudget(context.Background(), "team:backend", BudgetPeriodWeekly, 500.0, 0.75, false)
 	if err != nil {
 		t.Fatalf("SetBudget failed: %v", err)
 	}
 
 	// Get the budget
-	budget, err := store.GetBudget("team:backend")
+	budget, err := store.GetBudget(context.Background(), "team:backend")
 	if err != nil {
 		t.Fatalf("GetBudget failed: %v", err)
 	}
@@ -752,7 +753,7 @@ func TestGetBudgetNotFound(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	budget, err := store.GetBudget("nonexistent")
+	budget, err := store.GetBudget(context.Background(), "nonexistent")
 	if err != nil {
 		t.Fatalf("GetBudget should not error for missing budget: %v", err)
 	}
@@ -770,11 +771,11 @@ func TestGetAllBudgets(t *testing.T) {
 	defer func() { _ = store.Close() }()
 
 	// Create multiple budgets
-	_, _ = store.SetBudget("workspace", BudgetPeriodMonthly, 1000.0, 0.8, true)
-	_, _ = store.SetBudget("agent:eng-01", BudgetPeriodDaily, 50.0, 0.9, false)
-	_, _ = store.SetBudget("team:backend", BudgetPeriodWeekly, 300.0, 0.7, false)
+	_, _ = store.SetBudget(context.Background(), "workspace", BudgetPeriodMonthly, 1000.0, 0.8, true)
+	_, _ = store.SetBudget(context.Background(), "agent:eng-01", BudgetPeriodDaily, 50.0, 0.9, false)
+	_, _ = store.SetBudget(context.Background(), "team:backend", BudgetPeriodWeekly, 300.0, 0.7, false)
 
-	budgets, err := store.GetAllBudgets()
+	budgets, err := store.GetAllBudgets(context.Background())
 	if err != nil {
 		t.Fatalf("GetAllBudgets failed: %v", err)
 	}
@@ -792,7 +793,7 @@ func TestGetAllBudgetsEmpty(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	budgets, err := store.GetAllBudgets()
+	budgets, err := store.GetAllBudgets(context.Background())
 	if err != nil {
 		t.Fatalf("GetAllBudgets failed: %v", err)
 	}
@@ -811,19 +812,19 @@ func TestDeleteBudget(t *testing.T) {
 	defer func() { _ = store.Close() }()
 
 	// Create a budget
-	_, err := store.SetBudget("workspace", BudgetPeriodDaily, 100.0, 0.8, false)
+	_, err := store.SetBudget(context.Background(), "workspace", BudgetPeriodDaily, 100.0, 0.8, false)
 	if err != nil {
 		t.Fatalf("SetBudget failed: %v", err)
 	}
 
 	// Delete it
-	err = store.DeleteBudget("workspace")
+	err = store.DeleteBudget(context.Background(), "workspace")
 	if err != nil {
 		t.Fatalf("DeleteBudget failed: %v", err)
 	}
 
 	// Verify it's gone
-	budget, err := store.GetBudget("workspace")
+	budget, err := store.GetBudget(context.Background(), "workspace")
 	if err != nil {
 		t.Fatalf("GetBudget failed: %v", err)
 	}
@@ -840,7 +841,7 @@ func TestDeleteBudgetNotFound(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	err := store.DeleteBudget("nonexistent")
+	err := store.DeleteBudget(context.Background(), "nonexistent")
 	if err == nil {
 		t.Error("DeleteBudget should fail for nonexistent budget")
 	}
@@ -855,17 +856,17 @@ func TestCheckBudget(t *testing.T) {
 	defer func() { _ = store.Close() }()
 
 	// Create a budget
-	_, err := store.SetBudget("workspace", BudgetPeriodDaily, 100.0, 0.8, true)
+	_, err := store.SetBudget(context.Background(), "workspace", BudgetPeriodDaily, 100.0, 0.8, true)
 	if err != nil {
 		t.Fatalf("SetBudget failed: %v", err)
 	}
 
 	// Add some cost records
-	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 50.0)
-	_, _ = store.Record("agent-2", "", "model-a", 200, 100, 30.0)
+	_, _ = store.Record(context.Background(), "agent-1", "", "model-a", 100, 50, 50.0)
+	_, _ = store.Record(context.Background(), "agent-2", "", "model-a", 200, 100, 30.0)
 
 	// Check budget status
-	status, err := store.CheckBudget("workspace")
+	status, err := store.CheckBudget(context.Background(), "workspace")
 	if err != nil {
 		t.Fatalf("CheckBudget failed: %v", err)
 	}
@@ -901,7 +902,7 @@ func TestCheckBudgetNotFound(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	status, err := store.CheckBudget("nonexistent")
+	status, err := store.CheckBudget(context.Background(), "nonexistent")
 	if err != nil {
 		t.Fatalf("CheckBudget should not error for missing budget: %v", err)
 	}
@@ -919,15 +920,15 @@ func TestCheckBudgetOverLimit(t *testing.T) {
 	defer func() { _ = store.Close() }()
 
 	// Create a small budget
-	_, err := store.SetBudget("workspace", BudgetPeriodDaily, 10.0, 0.5, true)
+	_, err := store.SetBudget(context.Background(), "workspace", BudgetPeriodDaily, 10.0, 0.5, true)
 	if err != nil {
 		t.Fatalf("SetBudget failed: %v", err)
 	}
 
 	// Exceed the budget
-	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 15.0)
+	_, _ = store.Record(context.Background(), "agent-1", "", "model-a", 100, 50, 15.0)
 
-	status, err := store.CheckBudget("workspace")
+	status, err := store.CheckBudget(context.Background(), "workspace")
 	if err != nil {
 		t.Fatalf("CheckBudget failed: %v", err)
 	}
@@ -1020,7 +1021,7 @@ func TestStoreCloseActive(t *testing.T) {
 	}
 
 	// Record something first to ensure DB is active
-	_, recErr := store.Record("agent-1", "", "gpt-4", 100, 50, 0.01)
+	_, recErr := store.Record(context.Background(), "agent-1", "", "gpt-4", 100, 50, 0.01)
 	if recErr != nil {
 		t.Fatalf("Record: %v", recErr)
 	}
@@ -1051,14 +1052,14 @@ func TestGetByAgentDefaultLimit(t *testing.T) {
 
 	// Add records
 	for i := 0; i < 5; i++ {
-		_, recErr := store.Record("agent-default", "", "gpt-4", int64(100*i), 50, 0.01)
+		_, recErr := store.Record(context.Background(), "agent-default", "", "gpt-4", int64(100*i), 50, 0.01)
 		if recErr != nil {
 			t.Fatalf("Record %d: %v", i, recErr)
 		}
 	}
 
 	// Get with 0 limit (should use default 100)
-	records, getErr := store.GetByAgent("agent-default", 0)
+	records, getErr := store.GetByAgent(context.Background(), "agent-default", 0)
 	if getErr != nil {
 		t.Fatalf("GetByAgent: %v", getErr)
 	}
@@ -1080,14 +1081,14 @@ func TestGetByAgentWithLimit(t *testing.T) {
 
 	// Add 10 records
 	for i := 0; i < 10; i++ {
-		_, recErr := store.Record("agent-limit", "", "gpt-4", int64(100), 50, 0.01)
+		_, recErr := store.Record(context.Background(), "agent-limit", "", "gpt-4", int64(100), 50, 0.01)
 		if recErr != nil {
 			t.Fatalf("Record %d: %v", i, recErr)
 		}
 	}
 
 	// Get with limit 3
-	records, getErr := store.GetByAgent("agent-limit", 3)
+	records, getErr := store.GetByAgent(context.Background(), "agent-limit", 3)
 	if getErr != nil {
 		t.Fatalf("GetByAgent: %v", getErr)
 	}
@@ -1109,14 +1110,14 @@ func TestGetByTeamDefaultLimit(t *testing.T) {
 
 	// Add records with team
 	for i := 0; i < 5; i++ {
-		_, recErr := store.Record("agent-team", "backend", "gpt-4", int64(100), 50, 0.01)
+		_, recErr := store.Record(context.Background(), "agent-team", "backend", "gpt-4", int64(100), 50, 0.01)
 		if recErr != nil {
 			t.Fatalf("Record %d: %v", i, recErr)
 		}
 	}
 
 	// Get with 0 limit
-	records, getErr := store.GetByTeam("backend", 0)
+	records, getErr := store.GetByTeam(context.Background(), "backend", 0)
 	if getErr != nil {
 		t.Fatalf("GetByTeam: %v", getErr)
 	}
@@ -1138,14 +1139,14 @@ func TestGetByTeamWithLimit(t *testing.T) {
 
 	// Add 10 records
 	for i := 0; i < 10; i++ {
-		_, recErr := store.Record("agent-team2", "frontend", "gpt-4", int64(100), 50, 0.01)
+		_, recErr := store.Record(context.Background(), "agent-team2", "frontend", "gpt-4", int64(100), 50, 0.01)
 		if recErr != nil {
 			t.Fatalf("Record %d: %v", i, recErr)
 		}
 	}
 
 	// Get with limit 2
-	records, getErr := store.GetByTeam("frontend", 2)
+	records, getErr := store.GetByTeam(context.Background(), "frontend", 2)
 	if getErr != nil {
 		t.Fatalf("GetByTeam: %v", getErr)
 	}
@@ -1167,14 +1168,14 @@ func TestGetAllDefaultLimit(t *testing.T) {
 
 	// Add records
 	for i := 0; i < 5; i++ {
-		_, recErr := store.Record("agent-all", "", "gpt-4", int64(100), 50, 0.01)
+		_, recErr := store.Record(context.Background(), "agent-all", "", "gpt-4", int64(100), 50, 0.01)
 		if recErr != nil {
 			t.Fatalf("Record %d: %v", i, recErr)
 		}
 	}
 
 	// Get with 0 limit
-	records, getErr := store.GetAll(0)
+	records, getErr := store.GetAll(context.Background(), 0)
 	if getErr != nil {
 		t.Fatalf("GetAll: %v", getErr)
 	}
@@ -1196,14 +1197,14 @@ func TestGetAllWithLimit(t *testing.T) {
 
 	// Add 10 records
 	for i := 0; i < 10; i++ {
-		_, recErr := store.Record("agent-all2", "", "gpt-4", int64(100), 50, 0.01)
+		_, recErr := store.Record(context.Background(), "agent-all2", "", "gpt-4", int64(100), 50, 0.01)
 		if recErr != nil {
 			t.Fatalf("Record %d: %v", i, recErr)
 		}
 	}
 
 	// Get with limit 4
-	records, getErr := store.GetAll(4)
+	records, getErr := store.GetAll(context.Background(), 4)
 	if getErr != nil {
 		t.Fatalf("GetAll: %v", getErr)
 	}
@@ -1223,7 +1224,7 @@ func TestGetByAgentEmpty(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	records, getErr := store.GetByAgent("nonexistent", 10)
+	records, getErr := store.GetByAgent(context.Background(), "nonexistent", 10)
 	if getErr != nil {
 		t.Fatalf("GetByAgent: %v", getErr)
 	}
@@ -1243,7 +1244,7 @@ func TestGetByTeamEmpty(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	records, getErr := store.GetByTeam("nonexistent-team", 10)
+	records, getErr := store.GetByTeam(context.Background(), "nonexistent-team", 10)
 	if getErr != nil {
 		t.Fatalf("GetByTeam: %v", getErr)
 	}
@@ -1263,16 +1264,16 @@ func TestCheckBudgetWeeklyPeriod(t *testing.T) {
 	defer func() { _ = store.Close() }()
 
 	// Create weekly budget
-	_, err := store.SetBudget("workspace", BudgetPeriodWeekly, 500.0, 0.75, false)
+	_, err := store.SetBudget(context.Background(), "workspace", BudgetPeriodWeekly, 500.0, 0.75, false)
 	if err != nil {
 		t.Fatalf("SetBudget failed: %v", err)
 	}
 
 	// Add records
-	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 100.0)
-	_, _ = store.Record("agent-2", "", "model-a", 200, 100, 150.0)
+	_, _ = store.Record(context.Background(), "agent-1", "", "model-a", 100, 50, 100.0)
+	_, _ = store.Record(context.Background(), "agent-2", "", "model-a", 200, 100, 150.0)
 
-	status, err := store.CheckBudget("workspace")
+	status, err := store.CheckBudget(context.Background(), "workspace")
 	if err != nil {
 		t.Fatalf("CheckBudget failed: %v", err)
 	}
@@ -1297,15 +1298,15 @@ func TestCheckBudgetMonthlyPeriod(t *testing.T) {
 	defer func() { _ = store.Close() }()
 
 	// Create monthly budget
-	_, err := store.SetBudget("workspace", BudgetPeriodMonthly, 1000.0, 0.9, true)
+	_, err := store.SetBudget(context.Background(), "workspace", BudgetPeriodMonthly, 1000.0, 0.9, true)
 	if err != nil {
 		t.Fatalf("SetBudget failed: %v", err)
 	}
 
 	// Add records
-	_, _ = store.Record("agent-1", "", "model-a", 100, 50, 200.0)
+	_, _ = store.Record(context.Background(), "agent-1", "", "model-a", 100, 50, 200.0)
 
-	status, err := store.CheckBudget("workspace")
+	status, err := store.CheckBudget(context.Background(), "workspace")
 	if err != nil {
 		t.Fatalf("CheckBudget failed: %v", err)
 	}
@@ -1327,16 +1328,16 @@ func TestCheckBudgetAgentScope(t *testing.T) {
 	defer func() { _ = store.Close() }()
 
 	// Create agent-scoped budget
-	_, err := store.SetBudget("agent:eng-01", BudgetPeriodDaily, 50.0, 0.8, true)
+	_, err := store.SetBudget(context.Background(), "agent:eng-01", BudgetPeriodDaily, 50.0, 0.8, true)
 	if err != nil {
 		t.Fatalf("SetBudget failed: %v", err)
 	}
 
 	// Add records for different agents
-	_, _ = store.Record("eng-01", "", "model-a", 100, 50, 20.0)
-	_, _ = store.Record("eng-02", "", "model-a", 200, 100, 30.0) // different agent
+	_, _ = store.Record(context.Background(), "eng-01", "", "model-a", 100, 50, 20.0)
+	_, _ = store.Record(context.Background(), "eng-02", "", "model-a", 200, 100, 30.0) // different agent
 
-	status, err := store.CheckBudget("agent:eng-01")
+	status, err := store.CheckBudget(context.Background(), "agent:eng-01")
 	if err != nil {
 		t.Fatalf("CheckBudget failed: %v", err)
 	}
@@ -1359,17 +1360,17 @@ func TestCheckBudgetTeamScope(t *testing.T) {
 	defer func() { _ = store.Close() }()
 
 	// Create team-scoped budget
-	_, err := store.SetBudget("team:backend", BudgetPeriodDaily, 200.0, 0.7, false)
+	_, err := store.SetBudget(context.Background(), "team:backend", BudgetPeriodDaily, 200.0, 0.7, false)
 	if err != nil {
 		t.Fatalf("SetBudget failed: %v", err)
 	}
 
 	// Add records for different teams
-	_, _ = store.Record("eng-01", "backend", "model-a", 100, 50, 40.0)
-	_, _ = store.Record("eng-02", "backend", "model-a", 200, 100, 60.0)
-	_, _ = store.Record("eng-03", "frontend", "model-a", 300, 150, 80.0) // different team
+	_, _ = store.Record(context.Background(), "eng-01", "backend", "model-a", 100, 50, 40.0)
+	_, _ = store.Record(context.Background(), "eng-02", "backend", "model-a", 200, 100, 60.0)
+	_, _ = store.Record(context.Background(), "eng-03", "frontend", "model-a", 300, 150, 80.0) // different team
 
-	status, err := store.CheckBudget("team:backend")
+	status, err := store.CheckBudget(context.Background(), "team:backend")
 	if err != nil {
 		t.Fatalf("CheckBudget failed: %v", err)
 	}

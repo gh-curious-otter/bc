@@ -210,12 +210,12 @@ func runCostShow(cmd *cobra.Command, args []string) error {
 	// Get total count for pagination hint
 	var totalCount int64
 	if agentID != "" {
-		summary, summaryErr := store.AgentSummary(agentID)
+		summary, summaryErr := store.AgentSummary(context.Background(), agentID)
 		if summaryErr == nil && summary != nil {
 			totalCount = summary.RecordCount
 		}
 	} else {
-		summary, summaryErr := store.WorkspaceSummary()
+		summary, summaryErr := store.WorkspaceSummary(context.Background())
 		if summaryErr == nil && summary != nil {
 			totalCount = summary.RecordCount
 		}
@@ -223,9 +223,9 @@ func runCostShow(cmd *cobra.Command, args []string) error {
 
 	var records []*cost.Record
 	if agentID != "" {
-		records, err = store.GetByAgentWithOffset(agentID, costLimitFlag, costOffsetFlag)
+		records, err = store.GetByAgentWithOffset(context.Background(), agentID, costLimitFlag, costOffsetFlag)
 	} else {
-		records, err = store.GetAllWithOffset(costLimitFlag, costOffsetFlag)
+		records, err = store.GetAllWithOffset(context.Background(), costLimitFlag, costOffsetFlag)
 	}
 
 	if err != nil {

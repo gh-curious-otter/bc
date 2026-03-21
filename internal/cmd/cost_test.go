@@ -51,11 +51,11 @@ func TestCostShowWithRecords(t *testing.T) {
 		t.Fatalf("failed to open cost store: %v", err)
 	}
 
-	_, err := store.Record("engineer-01", "", "claude-3-opus", 1000, 500, 0.05)
+	_, err := store.Record(context.Background(), "engineer-01", "", "claude-3-opus", 1000, 500, 0.05)
 	if err != nil {
 		t.Fatalf("failed to record cost: %v", err)
 	}
-	_, err = store.Record("engineer-02", "", "claude-3-sonnet", 2000, 1000, 0.03)
+	_, err = store.Record(context.Background(), "engineer-02", "", "claude-3-sonnet", 2000, 1000, 0.03)
 	if err != nil {
 		t.Fatalf("failed to record cost: %v", err)
 	}
@@ -85,8 +85,8 @@ func TestCostShowByAgent(t *testing.T) {
 		t.Fatalf("failed to open cost store: %v", err)
 	}
 
-	_, _ = store.Record("engineer-01", "", "claude-3-opus", 1000, 500, 0.05)
-	_, _ = store.Record("engineer-02", "", "claude-3-sonnet", 2000, 1000, 0.03)
+	_, _ = store.Record(context.Background(), "engineer-01", "", "claude-3-opus", 1000, 500, 0.05)
+	_, _ = store.Record(context.Background(), "engineer-02", "", "claude-3-sonnet", 2000, 1000, 0.03)
 	_ = store.Close()
 
 	stdout, _, err := executeIntegrationCmd("cost", "show", "engineer-01")
@@ -113,7 +113,7 @@ func TestCostShowLimit(t *testing.T) {
 
 	// Create 5 records
 	for i := 0; i < 5; i++ {
-		_, _ = store.Record("engineer-01", "", "claude-3-opus", int64(1000+i*100), 500, 0.05)
+		_, _ = store.Record(context.Background(), "engineer-01", "", "claude-3-opus", int64(1000+i*100), 500, 0.05)
 		time.Sleep(10 * time.Millisecond) // Ensure different timestamps
 	}
 	_ = store.Close()
@@ -176,7 +176,7 @@ func TestCostShowJSON(t *testing.T) {
 	if err := store.Open(); err != nil {
 		t.Fatalf("failed to open store: %v", err)
 	}
-	_, _ = store.Record("engineer-01", "", "claude-3-opus", 1000, 500, 0.05)
+	_, _ = store.Record(context.Background(), "engineer-01", "", "claude-3-opus", 1000, 500, 0.05)
 	_ = store.Close()
 
 	stdout, _, err := executeIntegrationCmd("cost", "show", "--json")
@@ -219,7 +219,7 @@ func TestCostShowLargeLimit(t *testing.T) {
 
 	// Create many records
 	for i := 0; i < 50; i++ {
-		_, _ = store.Record("engineer-01", "", "claude-3-opus", int64(1000+i), 500, 0.05)
+		_, _ = store.Record(context.Background(), "engineer-01", "", "claude-3-opus", int64(1000+i), 500, 0.05)
 	}
 	_ = store.Close()
 
@@ -252,10 +252,10 @@ func TestCostShowMultipleModels(t *testing.T) {
 		t.Fatalf("failed to open store: %v", err)
 	}
 	// Create records with multiple models
-	_, _ = store.Record("eng-01", "", "claude-3-opus", 1000, 500, 0.10)
-	_, _ = store.Record("eng-01", "", "claude-3-sonnet", 1000, 500, 0.05)
-	_, _ = store.Record("eng-01", "", "claude-3-haiku", 1000, 500, 0.01)
-	_, _ = store.Record("eng-01", "", "gpt-4", 1000, 500, 0.08)
+	_, _ = store.Record(context.Background(), "eng-01", "", "claude-3-opus", 1000, 500, 0.10)
+	_, _ = store.Record(context.Background(), "eng-01", "", "claude-3-sonnet", 1000, 500, 0.05)
+	_, _ = store.Record(context.Background(), "eng-01", "", "claude-3-haiku", 1000, 500, 0.01)
+	_, _ = store.Record(context.Background(), "eng-01", "", "gpt-4", 1000, 500, 0.08)
 	_ = store.Close()
 
 	stdout, _, err := executeIntegrationCmd("cost", "show")
@@ -486,7 +486,7 @@ func TestCostBudgetShowWithSpending(t *testing.T) {
 	if storeErr := store.Open(); storeErr != nil {
 		t.Fatalf("failed to open store: %v", storeErr)
 	}
-	_, _ = store.Record("eng-01", "", "claude-3-opus", 1000, 500, 25.00)
+	_, _ = store.Record(context.Background(), "eng-01", "", "claude-3-opus", 1000, 500, 25.00)
 	_ = store.Close()
 
 	resetBudgetFlags()
@@ -516,7 +516,7 @@ func TestCostBudgetShowNearLimit(t *testing.T) {
 	if storeErr := store.Open(); storeErr != nil {
 		t.Fatalf("failed to open store: %v", storeErr)
 	}
-	_, _ = store.Record("eng-01", "", "claude-3-opus", 1000, 500, 85.00)
+	_, _ = store.Record(context.Background(), "eng-01", "", "claude-3-opus", 1000, 500, 85.00)
 	_ = store.Close()
 
 	resetBudgetFlags()
@@ -546,7 +546,7 @@ func TestCostBudgetShowOverBudget(t *testing.T) {
 	if storeErr := store.Open(); storeErr != nil {
 		t.Fatalf("failed to open store: %v", storeErr)
 	}
-	_, _ = store.Record("eng-01", "", "claude-3-opus", 1000, 500, 15.00)
+	_, _ = store.Record(context.Background(), "eng-01", "", "claude-3-opus", 1000, 500, 15.00)
 	_ = store.Close()
 
 	resetBudgetFlags()
@@ -1066,7 +1066,7 @@ func TestCostShowJSON_CCUsageUnavailable(t *testing.T) {
 	if openErr := store.Open(); openErr != nil {
 		t.Fatalf("failed to open cost store: %v", openErr)
 	}
-	_, _ = store.Record("eng-01", "", "claude-opus", 1000, 500, 0.05)
+	_, _ = store.Record(context.Background(), "eng-01", "", "claude-opus", 1000, 500, 0.05)
 	_ = store.Close()
 
 	stdout, _, err := executeIntegrationCmd("cost", "show", "--json")
@@ -1122,8 +1122,8 @@ func TestCostShowJSON_MixedDBAndCCUsage(t *testing.T) {
 	if openErr := store.Open(); openErr != nil {
 		t.Fatalf("failed to open cost store: %v", openErr)
 	}
-	_, _ = store.Record("eng-01", "", "claude-opus", 1000, 500, 0.05)
-	_, _ = store.Record("eng-02", "", "claude-sonnet", 2000, 1000, 0.03)
+	_, _ = store.Record(context.Background(), "eng-01", "", "claude-opus", 1000, 500, 0.05)
+	_, _ = store.Record(context.Background(), "eng-02", "", "claude-sonnet", 2000, 1000, 0.03)
 	_ = store.Close()
 
 	stdout, _, err := executeIntegrationCmd("cost", "show", "--json")

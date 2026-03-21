@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
@@ -98,7 +99,7 @@ type costSummaryPayload struct {
 func (s *Server) readCosts() (string, error) {
 	payload := costsPayload{}
 
-	ws, err := s.costs.WorkspaceSummary()
+	ws, err := s.costs.WorkspaceSummary(context.Background())
 	if err == nil && ws != nil {
 		payload.Workspace = &costSummaryPayload{
 			InputTokens:  ws.InputTokens,
@@ -108,7 +109,7 @@ func (s *Server) readCosts() (string, error) {
 		}
 	}
 
-	byAgent, err := s.costs.SummaryByAgent()
+	byAgent, err := s.costs.SummaryByAgent(context.Background())
 	if err == nil {
 		payload.ByAgent = make([]costSummaryPayload, 0, len(byAgent))
 		for _, a := range byAgent {
