@@ -80,15 +80,18 @@ func (h *ChannelHandler) byName(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch sub {
-	case "":
+	switch {
+	case sub == "":
 		h.channel(w, r, name)
-	case "history":
+	case sub == "history":
 		h.history(w, r, name)
-	case "messages":
+	case sub == "messages":
 		h.postMessage(w, r, name)
-	case "members":
+	case sub == "members":
 		h.members(w, r, name)
+	case strings.HasPrefix(sub, "members/"):
+		agent := strings.TrimPrefix(sub, "members/")
+		h.memberByPath(w, r, name, agent)
 	default:
 		httpError(w, "not found", http.StatusNotFound)
 	}
@@ -206,4 +209,19 @@ func (h *ChannelHandler) members(w http.ResponseWriter, r *http.Request, name st
 	default:
 		methodNotAllowed(w)
 	}
+}
+
+func (h *ChannelHandler) memberByPath(w http.ResponseWriter, r *http.Request, name, agentName string) {
+	if !requireMethod(w, r, http.MethodDelete) {
+		return
+	}
+	if agentName == "" {
+		httpError(w, "agent name required", http.StatusBadRequest)
+		return
+	}
+	if err := h.svc.RemoveMember(r.Context(), name, agentName); err != nil {
+		httpError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
