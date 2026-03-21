@@ -185,9 +185,13 @@ describe('Doctor', () => {
 
 describe('Cron', () => {
   it('renders skeleton loading then cron table', async () => {
-    fetchMock.mockReturnValue(jsonResponse([
-      { name: 'nightly', schedule: '0 0 * * *', agent_name: 'bot', prompt: '', command: '', enabled: true, run_count: 5, last_run: null, next_run: null, created_at: '' },
-    ]));
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes('/agents')) return jsonResponse([{ name: 'bot', role: 'engineer', tool: 'claude', state: 'running', cost_usd: 0 }]);
+      if (url.includes('/cron')) return jsonResponse([
+        { name: 'nightly', schedule: '0 0 * * *', agent_name: 'bot', prompt: '', command: '', enabled: true, run_count: 5, last_run: null, next_run: null, created_at: '' },
+      ]);
+      return jsonResponse({});
+    });
     const { container } = wrap(<Cron />);
     expectSkeletonLoading(container);
     await waitFor(() => {

@@ -154,6 +154,14 @@ export interface CronJob {
   created_at: string;
 }
 
+export interface CronLogEntry {
+  id: number;
+  job_name: string;
+  run_at: string;
+  status: string;
+  output: string;
+}
+
 export interface Secret {
   name: string;
   description: string;
@@ -280,6 +288,18 @@ export const api = {
   getDoctor: () => request<DoctorReport>('/doctor'),
 
   listCron: () => request<CronJob[]>('/cron'),
+  createCron: (job: { name: string; schedule: string; agent_name: string; prompt: string }) =>
+    request<CronJob>('/cron', { method: 'POST', body: JSON.stringify(job) }),
+  deleteCron: (name: string) =>
+    request<void>(`/cron/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+  enableCron: (name: string) =>
+    request<{ enabled: boolean }>(`/cron/${encodeURIComponent(name)}/enable`, { method: 'POST' }),
+  disableCron: (name: string) =>
+    request<{ enabled: boolean }>(`/cron/${encodeURIComponent(name)}/disable`, { method: 'POST' }),
+  runCron: (name: string) =>
+    request<{ status: string }>(`/cron/${encodeURIComponent(name)}/run`, { method: 'POST' }),
+  getCronLogs: (name: string, last = 20) =>
+    request<CronLogEntry[]>(`/cron/${encodeURIComponent(name)}/logs?${new URLSearchParams({ last: String(last) })}`),
   listSecrets: () => request<Secret[]>('/secrets'),
   getWorkspace: () => request<WorkspaceInfo>('/workspace'),
   getWorkspaceStatus: () => request<Record<string, unknown>>('/workspace/status'),
