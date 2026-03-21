@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"runtime"
-	"syscall"
 	"time"
 
 	"github.com/rpuneet/bc/pkg/agent"
@@ -14,6 +13,17 @@ import (
 	"github.com/rpuneet/bc/pkg/tool"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
+
+// systemMetrics holds platform-dependent system resource metrics.
+type systemMetrics struct {
+	MemoryTotalBytes uint64
+	MemoryUsedBytes  uint64
+	MemoryPercent    float64
+	DiskTotalBytes   uint64
+	DiskUsedBytes    uint64
+	DiskPercent      float64
+	CPUUsagePercent  float64
+}
 
 // serverStartTime is used to compute uptime.
 var serverStartTime = time.Now() //nolint:gochecknoglobals // intentional: tracks server start
@@ -57,56 +67,25 @@ func (h *StatsHandler) system(w http.ResponseWriter, r *http.Request) {
 
 	hostname, _ := os.Hostname() //nolint:errcheck // best-effort
 
-	var memStats runtime.MemStats
-	runtime.ReadMemStats(&memStats)
-
-	// System memory via Sysinfo
-	var sysInfo syscall.Sysinfo_t
-	var memTotal, memUsed uint64
-	var memPercent float64
-	if err := syscall.Sysinfo(&sysInfo); err == nil {
-		memTotal = sysInfo.Totalram * uint64(sysInfo.Unit)
-		freeRAM := sysInfo.Freeram * uint64(sysInfo.Unit)
-		memUsed = memTotal - freeRAM
-		if memTotal > 0 {
-			memPercent = roundTo(float64(memUsed)/float64(memTotal)*100, 1)
-		}
-	}
-
-	// Disk usage via Statfs on workspace root
-	var diskTotal, diskUsed uint64
-	var diskPercent float64
 	rootDir := "/"
 	if h.ws != nil {
 		rootDir = h.ws.RootDir
 	}
-	var statfs syscall.Statfs_t
-	if err := syscall.Statfs(rootDir, &statfs); err == nil && statfs.Bsize > 0 {
-		bsize := uint64(statfs.Bsize) //nolint:gosec // Bsize is always positive from the kernel
-		diskTotal = statfs.Blocks * bsize
-		diskFree := statfs.Bavail * bsize
-		diskUsed = diskTotal - diskFree
-		if diskTotal > 0 {
-			diskPercent = roundTo(float64(diskUsed)/float64(diskTotal)*100, 1)
-		}
-	}
 
-	// CPU usage approximation: ratio of Go's Sys memory to total (not ideal,
-	// but avoids cgo/proc parsing). We report 0 when unavailable.
-	cpuPercent := 0.0
+	metrics := getSystemMetrics(rootDir)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"hostname":             hostname,
 		"os":                   runtime.GOOS,
 		"arch":                 runtime.GOARCH,
 		"cpus":                 runtime.NumCPU(),
-		"cpu_usage_percent":    cpuPercent,
-		"memory_total_bytes":   memTotal,
-		"memory_used_bytes":    memUsed,
-		"memory_usage_percent": memPercent,
-		"disk_total_bytes":     diskTotal,
-		"disk_used_bytes":      diskUsed,
-		"disk_usage_percent":   diskPercent,
+		"cpu_usage_percent":    metrics.CPUUsagePercent,
+		"memory_total_bytes":   metrics.MemoryTotalBytes,
+		"memory_used_bytes":    metrics.MemoryUsedBytes,
+		"memory_usage_percent": metrics.MemoryPercent,
+		"disk_total_bytes":     metrics.DiskTotalBytes,
+		"disk_used_bytes":      metrics.DiskUsedBytes,
+		"disk_usage_percent":   metrics.DiskPercent,
 		"go_version":           runtime.Version(),
 		"uptime_seconds":       int64(time.Since(serverStartTime).Seconds()),
 		"goroutines":           runtime.NumGoroutine(),
