@@ -74,7 +74,7 @@ export function useAgents(options: UseAgentsOptions = {}): UseAgentsResult {
   const applyStateDebounce = useCallback((agents: Agent[]): Agent[] => {
     const now = Date.now();
 
-    return agents.map((agent) => {
+    const result = agents.map((agent) => {
       const prevState = prevStateRef.current[agent.name];
       const lastWorkingTime = lastWorkingTimeRef.current[agent.name] ?? 0;
 
@@ -101,6 +101,21 @@ export function useAgents(options: UseAgentsOptions = {}): UseAgentsResult {
       // #1427: Always return a new object to trigger React re-render
       return { ...agent };
     });
+
+    // Prune refs for agents no longer in the response to prevent memory leak
+    const currentNames = new Set(agents.map((a) => a.name));
+    for (const name of Object.keys(lastWorkingTimeRef.current)) {
+      if (!currentNames.has(name)) {
+        delete lastWorkingTimeRef.current[name];
+      }
+    }
+    for (const name of Object.keys(prevStateRef.current)) {
+      if (!currentNames.has(name)) {
+        delete prevStateRef.current[name];
+      }
+    }
+
+    return result;
   }, []);
 
   const fetchAgents = useCallback(async () => {
