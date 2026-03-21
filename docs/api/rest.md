@@ -9,11 +9,16 @@
 ## Health
 
 ### `GET /health`
-Liveness probe. Does not check downstream dependencies.
+Liveness + readiness probe. Checks DB connectivity and runtime availability.
 
 **Response:** `200 OK`
 ```json
-{"status": "ok", "addr": "127.0.0.1:9374"}
+{
+  "status": "ok",
+  "addr": "127.0.0.1:9374",
+  "db": "ok",
+  "runtime": "tmux"
+}
 ```
 
 ---
@@ -21,26 +26,16 @@ Liveness probe. Does not check downstream dependencies.
 ## Agents
 
 ### `GET /api/agents`
-List all agents. Calls RefreshState() to reconcile with live sessions.
+List all agents. Reconciles with live sessions before returning.
+
+**Query params:**
+| Param | Type | Description |
+|-------|------|-------------|
+| role | string | Filter by role |
+| state | string | Filter: running, stopped, error, starting |
+| team | string | Filter by team ID |
 
 **Response:** `200 OK` — `AgentDTO[]`
-```json
-[{
-  "name": "eng-01",
-  "role": "engineer",
-  "state": "working",
-  "task": "Implementing auth middleware",
-  "tool": "claude",
-  "session": "eng-01",
-  "session_id": "a1b2c3d4-...",
-  "team": "backend",
-  "parent_id": "root",
-  "children": [],
-  "created_at": "2026-03-20T10:00:00Z",
-  "started_at": "2026-03-20T10:00:05Z",
-  "updated_at": "2026-03-20T10:30:00Z"
-}]
-```
 
 ### `POST /api/agents`
 Create and start a new agent.
@@ -48,26 +43,30 @@ Create and start a new agent.
 **Body:**
 ```json
 {
-  "name": "eng-01",       // required, alphanumeric + hyphens/underscores
-  "role": "engineer",     // required, must match a .bc/roles/*.md file
-  "tool": "claude",       // optional, default from config
-  "runtime": "docker",    // optional, "tmux" or "docker"
-  "parent": "root"        // optional, parent agent name
+  "name": "eng-01",
+  "role": "engineer",
+  "workspace": "~/repos/my-project",
+  "tool": "claude",
+  "runtime": "docker",
+  "team": "backend-team"
 }
 ```
+- `name` — required, alphanumeric + hyphens/underscores
+- `role` — required, must exist in `roles` table
+- `workspace` — required if no team (inherits team workspace if omitted)
+- `tool` — optional, default from settings
+- `runtime` — optional, "tmux" or "docker"
+- `team` — optional, adds agent to team
+
 **Response:** `201 Created` — `AgentDTO`
 
 ### `GET /api/agents/{name}`
-Get single agent by name.
-
 **Response:** `200 OK` — `AgentDTO` | `404`
 
 ### `DELETE /api/agents/{name}?force=true`
-Delete agent. Must be stopped unless `force=true`.
+Delete agent. Cleans up Docker container, git worktree, and branch.
 
-**Query params:** `force` (boolean) — stop before deleting
-
-**Response:** `204 No Content` | `400`
+**Response:** `204 No Content`
 
 ### `POST /api/agents/{name}/start`
 Start a stopped agent. Resumes Claude session if valid UUID exists.
@@ -75,204 +74,232 @@ Start a stopped agent. Resumes Claude session if valid UUID exists.
 **Response:** `200 OK` — `AgentDTO`
 
 ### `POST /api/agents/{name}/stop`
-Stop a running agent.
-
 **Response:** `200 OK` — `{"status": "stopped"}`
 
 ### `POST /api/agents/{name}/send`
 Send text to agent's tmux/Docker session.
 
 **Body:** `{"message": "string"}`
-
 **Response:** `200 OK` — `{"status": "sent"}`
 
 ### `POST /api/agents/{name}/hook`
-Receive Claude Code hook event. Updates agent state (idle/working/etc).
+Receive Claude Code hook event. Updates agent state.
 
-**Body:** `{"event": "tool_use_start"}`
-
+**Body:** `{"event": "tool_use_start | tool_use_end | user_input_required | stop"}`
 **Response:** `200 OK` — `{"ok": true}`
 
-### `GET /api/agents/{name}/stats?limit=20`
-Docker resource stats for agent.
+### `GET /api/agents/{name}/peek?lines=500`
+Read recent terminal output via `tmux capture-pane`. Returns readable formatted output.
 
-**Query params:** `limit` (int, default 20)
+**Query params:** `lines` (int, default 500, max 10000)
+**Response:** `200 OK` — `{"output": "string"}`
+
+### `GET /api/agents/{name}/stats?limit=20`
+Docker resource stats (CPU, memory, network).
 
 **Response:** `200 OK` — `AgentStatsRecord[]`
 
 ### `POST /api/agents/{name}/rename`
 **Body:** `{"new_name": "string"}`
-
-**Response:** `200 OK` — `{"status": "renamed", "name": "new-name"}`
-
-### `GET /api/agents/{name}/peek?lines=500`
-Read recent terminal output.
-
-**Query params:** `lines` (int, default 500)
-
-**Response:** `200 OK` — `{"output": "string"}`
+**Response:** `200 OK`
 
 ### `GET /api/agents/{name}/sessions`
-List session history (current + archived).
+Session history (current + archived UUIDs with timestamps).
 
 **Response:** `200 OK` — `SessionEntry[]`
 
 ### `POST /api/agents/generate-name`
-Generate a unique agent name.
-
 **Response:** `200 OK` — `{"name": "witty-parrot"}`
 
 ### `POST /api/agents/broadcast`
-Send message to all running agents.
+Send to all running agents.
 
-**Body:** `{"message": "string"}`
-
+**Body:** `{"message": "string", "team": "optional-team-id"}`
+- If `team` specified, sends only to agents in that team
 **Response:** `200 OK` — `{"sent": 3}`
 
 ### `POST /api/agents/send-role`
 Send to all agents with a specific role.
 
 **Body:** `{"role": "engineer", "message": "string"}`
-
-**Response:** `200 OK` — `SendResult`
-
-### `POST /api/agents/send-pattern`
-Send to agents matching glob pattern.
-
-**Body:** `{"pattern": "eng-*", "message": "string"}`
-
 **Response:** `200 OK` — `SendResult`
 
 ### `POST /api/agents/stop-all`
-Stop all running agents.
-
 **Response:** `200 OK` — `{"stopped": 5}`
+
+---
+
+## Teams
+
+### `GET /api/teams`
+List all teams as a flat list. Use `parent_id` to build tree client-side.
+
+**Response:** `200 OK` — `TeamDTO[]`
+```json
+[{
+  "id": "backend-team",
+  "name": "Backend",
+  "parent_id": "root-team",
+  "workspace": "~/repos/api",
+  "agents": ["eng-01", "eng-02"],
+  "children": ["db-team"],
+  "created_at": 1711000000000
+}]
+```
+
+### `POST /api/teams`
+**Body:** `{"id": "backend", "name": "Backend Team", "parent_id": "root", "workspace": "~/repos/api"}`
+**Response:** `201 Created` — `TeamDTO`
+
+### `GET /api/teams/{id}`
+### `PUT /api/teams/{id}`
+### `DELETE /api/teams/{id}`
+Deleting a team does NOT delete its agents.
+
+### `POST /api/teams/{id}/members`
+Add agent to team.
+
+**Body:** `{"agent_id": "eng-01"}`
+**Response:** `204 No Content`
+
+### `DELETE /api/teams/{id}/members?agent_id=eng-01`
+Remove agent from team.
+
+---
+
+## Roles
+
+Roles are stored in the database. No markdown files on disk.
+
+### `GET /api/roles`
+List all roles (metadata only, no prompt bodies).
+
+### `POST /api/roles`
+Create role.
+
+**Body:**
+```json
+{
+  "name": "engineer",
+  "description": "Implements features and fixes bugs",
+  "prompt": "You are a senior engineer...",
+  "settings": {"model": "opus"},
+  "commands": {"lint": "Run linting on the codebase"},
+  "mcp_servers": ["playwright", "github"],
+  "secrets": ["GITHUB_TOKEN"]
+}
+```
+**Response:** `201 Created`
+
+### `GET /api/roles/{id}`
+Full role including prompt body and settings.
+
+### `PUT /api/roles/{id}`
+Update role.
+
+### `DELETE /api/roles/{id}`
+Delete role. Agents keep their current config.
 
 ---
 
 ## Channels
 
 ### `GET /api/channels`
-List all channels.
-
-**Response:** `200 OK` — `ChannelDTO[]`
-
 ### `POST /api/channels`
-Create channel.
-
 **Body:** `{"name": "reviews", "description": "Code review channel"}`
 
-**Response:** `201 Created` — `ChannelDTO`
-
 ### `GET /api/channels/{name}`
-**Response:** `200 OK` — `ChannelDTO`
-
 ### `PATCH /api/channels/{name}`
-Update channel description.
-
-**Body:** `{"description": "Updated description"}`
-
-**Response:** `200 OK` — `ChannelDTO`
-
 ### `DELETE /api/channels/{name}`
-**Response:** `204 No Content`
 
 ### `GET /api/channels/{name}/history?limit=50&offset=0`
-Message history for a channel.
-
-**Query params:** `limit` (int, default 50), `offset` (int, default 0)
-
-**Response:** `200 OK` — `MessageDTO[]`
+**Query params:** `limit` (max 1000), `offset`
 
 ### `POST /api/channels/{name}/messages`
-Post a message.
-
 **Body:** `{"sender": "eng-01", "content": "PR ready for review"}`
-
-**Response:** `201 Created` — `MessageDTO`
+Triggers delivery to all channel members via `tmux send-keys`.
 
 ### `POST /api/channels/{name}/members`
-Add member to channel.
-
 **Body:** `{"agent_id": "eng-01"}`
 
-**Response:** `204 No Content`
-
 ### `DELETE /api/channels/{name}/members?agent_id=eng-01`
-Remove member.
-
-**Response:** `204 No Content`
 
 ---
 
 ## Costs
 
 ### `GET /api/costs`
-Workspace cost summary.
+Workspace cost summary with token breakdown.
 
-**Response:** `200 OK` — `CostSummary`
+**Response:**
+```json
+{
+  "total_cost_usd": 12.50,
+  "input_tokens": 500000,
+  "output_tokens": 150000,
+  "cache_read_tokens": 300000,
+  "cache_creation_tokens": 50000,
+  "request_count": 250,
+  "period": "all_time"
+}
+```
 
 ### `GET /api/costs/agents`
-Cost breakdown by agent.
+Per-agent cost breakdown with token details.
 
 ### `GET /api/costs/teams`
-Cost breakdown by team.
+Per-team cost aggregation.
 
 ### `GET /api/costs/models`
-Cost breakdown by model.
+Per-model cost breakdown.
 
 ### `GET /api/costs/daily?days=30`
-Daily cost totals.
+Daily cost time series (for graphs).
 
-**Query params:** `days` (int, default 30)
+**Response:** `200 OK`
+```json
+[
+  {"date": "2026-03-20", "cost_usd": 2.50, "input_tokens": 100000, "output_tokens": 30000, "requests": 45},
+  {"date": "2026-03-21", "cost_usd": 3.10, "input_tokens": 120000, "output_tokens": 35000, "requests": 52}
+]
+```
+
+### `GET /api/costs/agent/{name}?days=7`
+Single agent cost time series.
 
 ### `POST /api/costs/sync`
-Trigger JSONL cost import.
-
-**Response:** `200 OK` — `{"imported": 42}`
+Trigger JSONL cost import from Claude session files.
 
 ---
 
 ## Secrets
 
-Values are AES-256-GCM encrypted. API never returns secret values — only metadata.
+Values are AES-256-GCM encrypted. API never returns values.
 
 ### `GET /api/secrets`
-List secret metadata.
-
 ### `POST /api/secrets`
 **Body:** `{"name": "GITHUB_TOKEN", "value": "ghp_...", "description": "GitHub PAT"}`
 
-**Response:** `201 Created` — `SecretMeta`
-
 ### `GET /api/secrets/{name}`
-Get secret metadata (no value).
+Metadata only (no value).
 
 ### `PUT /api/secrets/{name}`
-Update secret.
-
-**Body:** `{"value": "new-value", "description": "updated"}`
-
 ### `DELETE /api/secrets/{name}`
-**Response:** `204 No Content`
 
 ---
 
 ## Cron
 
+Scheduled bash commands that run on a timer. To prompt an agent, use a cron job that curls the agent send API.
+
 ### `GET /api/cron`
-List cron jobs.
-
 ### `POST /api/cron`
-Create cron job.
-
 **Body:**
 ```json
 {
   "name": "nightly-lint",
   "schedule": "0 2 * * *",
-  "agent": "eng-01",
-  "prompt": "Run lint and fix issues",
+  "command": "cd ~/repos/api && make lint",
   "enabled": true
 }
 ```
@@ -282,10 +309,9 @@ Create cron job.
 ### `POST /api/cron/{name}/enable`
 ### `POST /api/cron/{name}/disable`
 ### `POST /api/cron/{name}/run`
-Manual trigger. Job must be enabled.
+Manual trigger.
 
 ### `GET /api/cron/{name}/logs?last=20`
-Execution logs.
 
 ---
 
@@ -298,6 +324,7 @@ Long-running processes managed by bcd.
 **Body:** `{"name": "db", "cmd": "postgres", "runtime": "docker", "image": "postgres:17", "ports": ["5432:5432"]}`
 
 ### `GET /api/daemons/{name}`
+### `POST /api/daemons/{name}/start`
 ### `POST /api/daemons/{name}/stop`
 ### `POST /api/daemons/{name}/restart`
 ### `DELETE /api/daemons/{name}`
@@ -319,11 +346,20 @@ AI tool provider configurations.
 
 ## MCP Servers
 
-External MCP server configurations.
+External MCP server configurations for agents.
 
 ### `GET /api/mcp`
 ### `POST /api/mcp`
-**Body:** `{"name": "playwright", "transport": "sse", "url": "http://localhost:3100/sse"}`
+**Body:**
+```json
+{
+  "name": "playwright",
+  "transport": "sse",
+  "url": "http://localhost:3100/sse",
+  "env": {"BROWSER": "chromium"},
+  "enabled": true
+}
+```
 
 ### `GET /api/mcp/{name}`
 ### `DELETE /api/mcp/{name}`
@@ -335,40 +371,12 @@ External MCP server configurations.
 ## Event Log
 
 ### `GET /api/logs?tail=100`
-All events. **Warning:** unbounded without `tail` param.
+Recent events. Default: last 100.
+
+**Query params:** `tail` (int, default 100, max 10000), `type` (filter by event type)
 
 ### `GET /api/logs/{agent}`
-Events for specific agent. **Warning:** unbounded.
-
----
-
-## Workspace
-
-### `GET /api/workspace`
-Workspace status.
-
-**Response:** `200 OK`
-```json
-{
-  "name": "my-project",
-  "root_dir": "/home/user/project",
-  "agent_count": 5,
-  "running_count": 3,
-  "is_healthy": true
-}
-```
-
-### `GET /api/workspace/status`
-Alias for `GET /api/workspace`.
-
-### `GET /api/workspace/roles`
-All resolved roles (with BFS inheritance applied).
-
-### `POST /api/workspace/up`
-Start root agent. Optional body: `{"tool": "claude", "runtime": "docker"}`
-
-### `POST /api/workspace/down`
-Stop all agents.
+Events for specific agent. Same params.
 
 ---
 
@@ -378,22 +386,27 @@ Stop all agents.
 Run all health checks.
 
 ### `GET /api/doctor/{category}`
-Run specific category (workspace, agents, database, tools, etc.).
 
 ---
 
 ## SSE Events
 
 ### `GET /api/events`
-Server-Sent Events stream. Sends JSON payloads:
+Server-Sent Events stream.
 
-```
-data: {"type": "agent.created", "payload": {"name": "eng-01", "role": "engineer"}}
-data: {"type": "agent.stopped", "payload": {"name": "eng-01", "reason": "user_request"}}
-data: {"type": "channel.message", "payload": {"channel": "general", "message": {...}}}
-```
+**Event types:**
 
-Event types: `connected`, `agent.created`, `agent.started`, `agent.stopped`, `agent.deleted`, `agent.renamed`, `agents.stopped_all`, `channel.message`
+| Type | Payload | When |
+|------|---------|------|
+| `connected` | `{}` | Client connects |
+| `agent.created` | `{name, role, tool}` | Agent created |
+| `agent.started` | `{name, session_id}` | Agent started/restarted |
+| `agent.stopped` | `{name, reason}` | Agent stopped |
+| `agent.deleted` | `{name}` | Agent deleted |
+| `agent.state_changed` | `{name, state, task}` | State transition (idle/working/stuck) |
+| `channel.message` | `{channel, sender, content, type}` | New message |
+| `cost.updated` | `{agent, cost_usd, tokens}` | Cost import completed |
+| `team.updated` | `{team_id, action}` | Team membership changed |
 
 ---
 
@@ -403,6 +416,6 @@ Event types: `connected`, `agent.created`, `agent.started`, `agent.stopped`, `ag
 MCP SSE transport — server-to-client events.
 
 ### `POST /mcp/message`
-MCP JSON-RPC 2.0 — client-to-server requests. 4MB body limit.
+MCP JSON-RPC 2.0 — client-to-server. 4MB body limit.
 
-See [docs/architecture/mcp.md](../architecture/mcp.md) for protocol details.
+See [architecture/mcp.md](../architecture/mcp.md) for resources, tools, and notifications.

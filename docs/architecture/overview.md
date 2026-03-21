@@ -14,9 +14,10 @@ All bc state lives in `~/.bc/`:
   settings.toml          # Global config (providers, runtime, defaults)
   secret-key             # Auto-generated AES-256 encryption key (0600)
   agents/
-    <agent-name>/
-      auth/              # .claude/ dir mounted into containers
-        .claude/
+      .claude/            # Claude config (mounted into containers)
+        CLAUDE.md      # Role prompt
+        settings.json  # Claude Code settings + hooks
+        .mcp.json      # MCP server configs
           CLAUDE.md      # Role prompt
           settings.json  # Claude Code settings + hooks
           .mcp.json      # MCP server configs
