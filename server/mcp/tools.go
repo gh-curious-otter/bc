@@ -185,7 +185,7 @@ func (s *Server) toolSendMessage(raw json.RawMessage) (*toolsCallResult, error) 
 		// Best-effort delivery to channel members via agent manager
 		if s.agents != nil {
 			members, _ := s.chans.GetMembers(args.Channel)
-			formatted := fmt.Sprintf("[bc-mcp][%s] %s: %s", time.Now().UTC().Format(time.RFC3339), sender, args.Message)
+			formatted := fmt.Sprintf("[bc-mcp][%s][#%s] %s: %s", time.Now().UTC().Format(time.RFC3339), args.Channel, sender, args.Message)
 			for _, member := range members {
 				if member == sender {
 					continue

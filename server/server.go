@@ -136,7 +136,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	if svc.Channels != nil {
 		svc.Channels.OnMessage = func(ch, sender, content string) {
 			if svc.Agents != nil {
-				formatted := fmt.Sprintf("[bc-mcp][%s] %s: %s", time.Now().UTC().Format(time.RFC3339), sender, content)
+				formatted := fmt.Sprintf("[bc-mcp][%s][#%s] %s: %s", time.Now().UTC().Format(time.RFC3339), ch, sender, content)
 				chDTO, err := svc.Channels.Get(context.Background(), ch)
 				if err != nil {
 					log.Debug("channel send: failed to get channel", "channel", ch, "error", err)
