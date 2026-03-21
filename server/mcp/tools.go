@@ -174,12 +174,23 @@ func (s *Server) toolSendMessage(raw json.RawMessage) (*toolsCallResult, error) 
 			}, nil
 		}
 	} else {
-		// Standalone mode — store only (no delivery hooks available).
+		// Standalone mode — store message and attempt direct delivery.
 		if err := s.chans.AddHistory(args.Channel, sender, args.Message); err != nil {
 			return &toolsCallResult{
 				Content: []ToolContent{textContent(fmt.Sprintf("failed to send message: %s", err))},
 				IsError: true,
 			}, nil
+		}
+		// Best-effort delivery to channel members via agent manager
+		if s.agents != nil {
+			members, _ := s.chans.GetMembers(args.Channel)
+			formatted := fmt.Sprintf("[#%s @%s] %s", args.Channel, sender, args.Message)
+			for _, member := range members {
+				if member == sender {
+					continue
+				}
+				_ = s.agents.SendToAgent(member, formatted) //nolint:errcheck // best-effort
+			}
 		}
 	}
 

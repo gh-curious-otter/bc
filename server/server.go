@@ -99,8 +99,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	if svc.Channels != nil {
 		svc.Channels.OnMessage = func(ch, sender, content string) {
-			// Deliver to agent tmux/docker sessions
+			// Deliver to agent tmux/docker sessions with formatted context
 			if svc.Agents != nil {
+				formatted := fmt.Sprintf("[#%s @%s] %s", ch, sender, content)
 				chDTO, err := svc.Channels.Get(context.Background(), ch)
 				if err != nil {
 					log.Debug("channel send: failed to get channel", "channel", ch, "error", err)
@@ -109,8 +110,17 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 						if member == sender {
 							continue
 						}
-						if err := svc.Agents.Send(context.Background(), member, content); err != nil {
-							log.Debug("channel send: failed to deliver to agent", "agent", member, "error", err)
+						// Retry delivery up to 3 times
+						var sendErr error
+						for attempt := 0; attempt < 3; attempt++ {
+							sendErr = svc.Agents.Send(context.Background(), member, formatted)
+							if sendErr == nil {
+								break
+							}
+							time.Sleep(time.Duration(attempt+1) * 200 * time.Millisecond)
+						}
+						if sendErr != nil {
+							log.Warn("channel send: delivery failed after retries", "channel", ch, "agent", member, "error", sendErr)
 						}
 					}
 				}
