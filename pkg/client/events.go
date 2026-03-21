@@ -38,6 +38,11 @@ func (e *EventsClient) ListByAgent(ctx context.Context, agentName string) ([]Eve
 	return evts, nil
 }
 
+// Append logs a new event via the daemon.
+func (e *EventsClient) Append(ctx context.Context, ev EventInfo) error {
+	return e.client.post(ctx, "/api/logs", ev, nil)
+}
+
 // Tail returns the last N events.
 func (e *EventsClient) Tail(ctx context.Context, n int) ([]EventInfo, error) {
 	var evts []EventInfo

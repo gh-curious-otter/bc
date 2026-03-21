@@ -359,22 +359,22 @@ func TestColorStateIntegration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.state, func(t *testing.T) {
-			result := colorState(agent.State(tt.state))
+			result := colorStateStr(tt.state)
 			if !strings.Contains(result, tt.contains) {
-				t.Errorf("colorState(%s) = %q, should contain %q", tt.state, result, tt.contains)
+				t.Errorf("colorStateStr(%s) = %q, should contain %q", tt.state, result, tt.contains)
 			}
 		})
 	}
 }
 
-func TestColorState_Default(t *testing.T) {
-	result := colorState(agent.State("unknown"))
+func TestColorStateStr_Default(t *testing.T) {
+	result := colorStateStr("unknown")
 	if !strings.Contains(result, "unknown") {
-		t.Errorf("colorState(unknown) = %q, should contain 'unknown'", result)
+		t.Errorf("colorStateStr(unknown) = %q, should contain 'unknown'", result)
 	}
 	// Default should NOT contain ANSI escape codes
 	if strings.Contains(result, "\033[") {
-		t.Errorf("colorState(unknown) should not have color codes, got: %q", result)
+		t.Errorf("colorStateStr(unknown) should not have color codes, got: %q", result)
 	}
 }
 

@@ -5,23 +5,22 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/log"
 )
 
 // CompleteAgentNames returns a completion function for agent names
 func CompleteAgentNames(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	ws, err := getWorkspace()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Debug("completion: failed to load agent state", "error", loadErr)
+	agents, listErr := c.Agents.List(cmd.Context())
+	if listErr != nil {
+		log.Debug("completion: failed to list agents", "error", listErr)
+		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	agents := mgr.ListAgents()
 	names := make([]string, 0, len(agents))
 	for _, a := range agents {
 		names = append(names, a.Name)
@@ -31,19 +30,17 @@ func CompleteAgentNames(cmd *cobra.Command, args []string, toComplete string) ([
 
 // CompleteChannelNames returns a completion function for channel names
 func CompleteChannelNames(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	ws, err := getWorkspace()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	store := channel.NewStore(ws.RootDir)
-	defer func() {
-		if closeErr := store.Close(); closeErr != nil {
-			log.Debug("completion: failed to close channel store", "error", closeErr)
-		}
-	}()
+	channels, listErr := c.Channels.List(cmd.Context())
+	if listErr != nil {
+		log.Debug("completion: failed to list channels", "error", listErr)
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
 
-	channels := store.List()
 	names := make([]string, 0, len(channels))
 	for _, ch := range channels {
 		names = append(names, ch.Name)

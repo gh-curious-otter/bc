@@ -7,9 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/events"
-	bclog "github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/client"
 )
 
 // Flags for report command (enhanced for stuck reports - #675)
@@ -61,38 +59,32 @@ func runReport(cmd *cobra.Command, args []string) error {
 	}
 
 	// Validate state
-	state := agent.State(stateStr)
-	switch state {
-	case agent.StateIdle, agent.StateWorking, agent.StateDone, agent.StateStuck, agent.StateError:
+	switch stateStr {
+	case "idle", "working", "done", "stuck", "error":
 		// valid
 	default:
 		return fmt.Errorf("invalid state: %s (valid: idle, working, done, stuck, error)", stateStr)
 	}
 
-	// Find workspace
-	ws, err := getWorkspace()
+	// Update agent state via daemon
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
-		return errNotInWorkspace(err)
+		return err
 	}
 
-	// Update agent state
-	mgr := newAgentManager(ws)
-	if err := mgr.LoadState(); err != nil {
-		bclog.Warn("failed to load agent state", "error", err)
-	}
-	if err := mgr.UpdateAgentState(agentID, state, message); err != nil {
-		return fmt.Errorf("failed to update agent state: %w", err)
+	if reportErr := c.Agents.Report(cmd.Context(), agentID, stateStr, message); reportErr != nil {
+		return fmt.Errorf("failed to update agent state: %w", reportErr)
 	}
 
 	// Build event data
 	eventData := make(map[string]any)
-	eventMsg := fmt.Sprintf("%s: %s", state, message)
+	eventMsg := fmt.Sprintf("%s: %s", stateStr, message)
 
 	// Enhanced stuck reporting (#675)
-	if state == agent.StateStuck {
+	if stateStr == "stuck" {
 		if reportReason != "" {
 			eventData["reason"] = reportReason
-			eventMsg = fmt.Sprintf("%s: %s", state, reportReason)
+			eventMsg = fmt.Sprintf("%s: %s", stateStr, reportReason)
 		}
 		if reportReproduction != "" {
 			eventData["reproduction"] = reportReproduction
@@ -103,26 +95,29 @@ func runReport(cmd *cobra.Command, args []string) error {
 		eventData["stuck"] = true
 	}
 
-	// Log the report event
-	event := events.Event{
-		Type:    events.AgentReport,
+	// Log the report event via daemon
+	ev := client.EventInfo{
+		Type:    "agent_report",
 		Agent:   agentID,
 		Message: eventMsg,
 	}
 	if len(eventData) > 0 {
-		event.Data = eventData
+		ev.Data = eventData
 	}
-	logEvent(ws, event)
+	if appendErr := c.Events.Append(cmd.Context(), ev); appendErr != nil {
+		// Non-fatal: state was already updated
+		fmt.Fprintf(os.Stderr, "warning: failed to log event: %v\n", appendErr)
+	}
 
 	// Output message
-	if state == agent.StateStuck && reportReason != "" {
-		fmt.Printf("Reported: %s [%s]\n", state, reportSeverity)
+	if stateStr == "stuck" && reportReason != "" {
+		fmt.Printf("Reported: %s [%s]\n", stateStr, reportSeverity)
 		fmt.Printf("  Reason: %s\n", reportReason)
 		if reportReproduction != "" {
 			fmt.Printf("  Reproduction: %s\n", reportReproduction)
 		}
 	} else {
-		fmt.Printf("Reported: %s %s\n", state, message)
+		fmt.Printf("Reported: %s %s\n", stateStr, message)
 	}
 	return nil
 }

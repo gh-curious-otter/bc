@@ -29,6 +29,7 @@ func (h *AgentHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/agents/send-role", h.sendRole)
 	mux.HandleFunc("/api/agents/send-pattern", h.sendPattern)
 	mux.HandleFunc("/api/agents/stop-all", h.stopAll)
+	mux.HandleFunc("/api/agents/health", h.health)
 	mux.HandleFunc("/api/agents", h.list)
 	mux.HandleFunc("/api/agents/", h.byName)
 }
@@ -264,6 +265,22 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, sessions)
 
+	case r.Method == http.MethodPost && action == "report":
+		var req struct {
+			State   string `json:"state"`
+			Message string `json:"message"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		state := agent.State(req.State)
+		if err := h.svc.Manager().UpdateAgentState(name, state, req.Message); err != nil {
+			httpError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "reported"})
+
 	case r.Method == http.MethodGet && action == "output":
 		h.streamOutput(w, r, name)
 
@@ -353,6 +370,81 @@ func (h *AgentHandler) stopAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]int{"stopped": stopped})
+}
+
+// AgentHealthInfo represents health status of an agent.
+type AgentHealthInfo struct {
+	Name          string `json:"name"`
+	Role          string `json:"role"`
+	Status        string `json:"status"`
+	LastUpdated   string `json:"last_updated"`
+	StaleDuration string `json:"stale_duration,omitempty"`
+	ErrorMessage  string `json:"error_message,omitempty"`
+	TmuxAlive     bool   `json:"tmux_alive"`
+	StateFresh    bool   `json:"state_fresh"`
+}
+
+func (h *AgentHandler) health(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	timeoutStr := r.URL.Query().Get("timeout")
+	timeout := 60 * time.Second
+	if timeoutStr != "" {
+		if d, err := time.ParseDuration(timeoutStr); err == nil {
+			timeout = d
+		}
+	}
+
+	agents, err := h.svc.List(r.Context(), agent.ListOptions{})
+	if err != nil {
+		httpError(w, "list agents: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Optionally filter to a single agent.
+	nameFilter := r.URL.Query().Get("agent")
+
+	mgr := h.svc.Manager()
+	results := make([]AgentHealthInfo, 0, len(agents))
+	for _, a := range agents {
+		if nameFilter != "" && a.Name != nameFilter {
+			continue
+		}
+		health := AgentHealthInfo{
+			Name:        a.Name,
+			Role:        string(a.Role),
+			LastUpdated: a.UpdatedAt.Format(time.RFC3339),
+		}
+		health.TmuxAlive = mgr.RuntimeForAgent(a.Name).HasSession(r.Context(), a.Name)
+
+		staleDuration := time.Since(a.UpdatedAt)
+		health.StateFresh = staleDuration < timeout
+		if !health.StateFresh {
+			health.StaleDuration = staleDuration.Round(time.Second).String()
+		}
+
+		switch {
+		case a.State == agent.StateStopped:
+			health.Status = "unhealthy"
+			health.ErrorMessage = "agent stopped"
+		case a.State == agent.StateError:
+			health.Status = "unhealthy"
+			health.ErrorMessage = "agent in error state"
+		case !health.TmuxAlive:
+			health.Status = "unhealthy"
+			health.ErrorMessage = "tmux session not found"
+		case !health.StateFresh:
+			health.Status = "degraded"
+			health.ErrorMessage = fmt.Sprintf("state stale (%s since last update)", health.StaleDuration)
+		default:
+			health.Status = "healthy"
+		}
+
+		results = append(results, health)
+	}
+
+	writeJSON(w, http.StatusOK, results)
 }
 
 // streamOutput streams agent terminal output as SSE events.

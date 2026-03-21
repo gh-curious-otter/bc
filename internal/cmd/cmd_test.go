@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/spf13/pflag"
-
-	"github.com/rpuneet/bc/pkg/agent"
 )
 
 // --- Test helpers ---
@@ -128,25 +126,25 @@ func TestFormatDuration(t *testing.T) {
 	}
 }
 
-// --- colorState tests ---
+// --- colorStateStr tests ---
 
-func TestColorState(t *testing.T) {
+func TestColorStateStr(t *testing.T) {
 	tests := []struct {
-		state agent.State
+		state string
 		want  string
 	}{
-		{agent.StateIdle, "idle"},
-		{agent.StateWorking, "working"},
-		{agent.StateDone, "done"},
-		{agent.StateStuck, "stuck"},
-		{agent.StateError, "error"},
-		{agent.StateStopped, "stopped"},
+		{"idle", "idle"},
+		{"working", "working"},
+		{"done", "done"},
+		{"stuck", "stuck"},
+		{"error", "error"},
+		{"stopped", "stopped"},
 	}
 	for _, tt := range tests {
-		t.Run(string(tt.state), func(t *testing.T) {
-			result := colorState(tt.state)
+		t.Run(tt.state, func(t *testing.T) {
+			result := colorStateStr(tt.state)
 			if !strings.Contains(result, tt.want) {
-				t.Errorf("colorState(%q) = %q, should contain %q", tt.state, result, tt.want)
+				t.Errorf("colorStateStr(%q) = %q, should contain %q", tt.state, result, tt.want)
 			}
 		})
 	}
@@ -156,39 +154,39 @@ func TestColorState(t *testing.T) {
 
 // --- parseRole tests ---
 
-func TestParseRole(t *testing.T) {
-	// All roles are custom now - parseRole accepts any valid alphanumeric name
+func TestParseRoleStr(t *testing.T) {
+	// All roles are custom now - parseRoleStr accepts any valid alphanumeric name
 	// No alias expansion (pm, coord, tl are returned as-is)
 	// Empty defaults to root
 	tests := []struct {
 		input   string
-		want    agent.Role
+		want    string
 		wantErr bool
 	}{
-		{"worker", agent.Role("worker"), false},
-		{"engineer", agent.Role("engineer"), false},
-		{"manager", agent.Role("manager"), false},
-		{"product-manager", agent.Role("product-manager"), false},
-		{"pm", agent.Role("pm"), false}, // No expansion, returned as-is
-		{"coordinator", agent.Role("coordinator"), false},
-		{"coord", agent.Role("coord"), false}, // No expansion, returned as-is
-		{"qa", agent.Role("qa"), false},
-		{"WORKER", agent.Role("worker"), false},           // case insensitive (lowercased)
-		{"Engineer", agent.Role("engineer"), false},       // case insensitive (lowercased)
-		{"custom-role", agent.Role("custom-role"), false}, // Custom roles accepted
-		{"", agent.RoleRoot, false},                       // Empty defaults to root
-		{"role@invalid", "", true},                        // Format error (contains @)
-		{"role with space", "", true},                     // Format error (contains space)
+		{"worker", "worker", false},
+		{"engineer", "engineer", false},
+		{"manager", "manager", false},
+		{"product-manager", "product-manager", false},
+		{"pm", "pm", false}, // No expansion, returned as-is
+		{"coordinator", "coordinator", false},
+		{"coord", "coord", false}, // No expansion, returned as-is
+		{"qa", "qa", false},
+		{"WORKER", "worker", false},           // case insensitive (lowercased)
+		{"Engineer", "engineer", false},       // case insensitive (lowercased)
+		{"custom-role", "custom-role", false}, // Custom roles accepted
+		{"", "root", false},                   // Empty defaults to root
+		{"role@invalid", "", true},            // Format error (contains @)
+		{"role with space", "", true},         // Format error (contains space)
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got, err := parseRole(tt.input)
+			got, err := parseRoleStr(tt.input)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("parseRole(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+				t.Errorf("parseRoleStr(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
 				return
 			}
 			if got != tt.want {
-				t.Errorf("parseRole(%q) = %q, want %q", tt.input, got, tt.want)
+				t.Errorf("parseRoleStr(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}
