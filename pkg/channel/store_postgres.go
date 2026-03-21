@@ -274,8 +274,14 @@ func (s *PostgresStore) GetHistory(channelName string, limit int) ([]*Message, e
 func (s *PostgresStore) ToggleReaction(messageID int64, emoji, userID string) (bool, error) {
 	ctx := context.Background()
 
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, fmt.Errorf("toggle reaction: begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
 	// Try insert first
-	result, err := s.db.ExecContext(ctx,
+	result, err := tx.ExecContext(ctx,
 		`INSERT INTO reactions (message_id, emoji, user_id)
 		 VALUES ($1, $2, $3)
 		 ON CONFLICT (message_id, emoji, user_id) DO NOTHING`,
@@ -286,14 +292,24 @@ func (s *PostgresStore) ToggleReaction(messageID int64, emoji, userID string) (b
 
 	rows, _ := result.RowsAffected()
 	if rows > 0 {
+		if err := tx.Commit(); err != nil {
+			return false, fmt.Errorf("toggle reaction: commit: %w", err)
+		}
 		return true, nil // added
 	}
 
 	// Already existed — remove it
-	_, err = s.db.ExecContext(ctx,
+	_, err = tx.ExecContext(ctx,
 		`DELETE FROM reactions WHERE message_id = $1 AND emoji = $2 AND user_id = $3`,
 		messageID, emoji, userID)
-	return false, err
+	if err != nil {
+		return false, fmt.Errorf("toggle reaction: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return false, fmt.Errorf("toggle reaction: commit: %w", err)
+	}
+	return false, nil
 }
 
 func (s *PostgresStore) GetReactions(messageID int64) (map[string][]string, error) {
