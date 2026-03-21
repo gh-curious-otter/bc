@@ -27,10 +27,13 @@ export function AnimatedBackground() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
     // Particle configuration
-    const PARTICLE_COUNT = 80;
+    const PARTICLE_COUNT = 40;
     const CONNECTION_DISTANCE = 120;
+    const GRID_CELL_SIZE = CONNECTION_DISTANCE;
     const MOUSE_RADIUS = 200;
     const MOUSE_STRENGTH = 0.015;
+    let idleFrames = 0;
+    const IDLE_THRESHOLD = 120; // ~2s at 60fps before throttling
 
     interface Particle {
       x: number;
@@ -137,23 +140,47 @@ export function AnimatedBackground() {
         return { ...project(p.x, p.y, p.z), particle: p };
       });
 
-      // Draw connections
+      // Draw connections using spatial grid (O(n) average instead of O(n^2))
+      const grid = new Map<string, number[]>();
       for (let i = 0; i < projected.length; i++) {
-        for (let j = i + 1; j < projected.length; j++) {
-          const a = projected[i];
-          const b = projected[j];
-          const dx = a.x - b.x;
-          const dy = a.y - b.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
+        const cellX = Math.floor(projected[i].x / GRID_CELL_SIZE);
+        const cellY = Math.floor(projected[i].y / GRID_CELL_SIZE);
+        const key = `${cellX},${cellY}`;
+        const cell = grid.get(key);
+        if (cell) { cell.push(i); } else { grid.set(key, [i]); }
+      }
 
-          if (dist < CONNECTION_DISTANCE) {
-            const opacity = (1 - dist / CONNECTION_DISTANCE) * 0.12 * Math.min(a.scale, b.scale);
-            ctx!.strokeStyle = `${lineColor}${opacity})`;
-            ctx!.lineWidth = 0.5;
-            ctx!.beginPath();
-            ctx!.moveTo(a.x, a.y);
-            ctx!.lineTo(b.x, b.y);
-            ctx!.stroke();
+      for (const [key, indices] of grid) {
+        const [cx, cy] = key.split(",").map(Number);
+        // Check this cell and 4 neighbors (right, below, below-left, below-right) to avoid double-checking
+        const neighborKeys = [
+          key,
+          `${cx + 1},${cy}`,
+          `${cx},${cy + 1}`,
+          `${cx - 1},${cy + 1}`,
+          `${cx + 1},${cy + 1}`,
+        ];
+        for (const nk of neighborKeys) {
+          const neighbors = nk === key ? indices : grid.get(nk);
+          if (!neighbors) continue;
+          for (const i of indices) {
+            for (const j of neighbors) {
+              if (j <= i) continue;
+              const a = projected[i];
+              const b = projected[j];
+              const dx = a.x - b.x;
+              const dy = a.y - b.y;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < CONNECTION_DISTANCE) {
+                const opacity = (1 - dist / CONNECTION_DISTANCE) * 0.12 * Math.min(a.scale, b.scale);
+                ctx!.strokeStyle = `${lineColor}${opacity})`;
+                ctx!.lineWidth = 0.5;
+                ctx!.beginPath();
+                ctx!.moveTo(a.x, a.y);
+                ctx!.lineTo(b.x, b.y);
+                ctx!.stroke();
+              }
+            }
           }
         }
       }
@@ -179,12 +206,19 @@ export function AnimatedBackground() {
         }
       }
 
-      // Keep animating if there's motion, otherwise slow down to ~15fps
+      // Adaptive frame rate: 60fps when active, ~15fps when idle (2s no interaction)
       const hasMotion = Math.abs(scrollVelocity) > 0.1 || mouseX >= 0;
       if (hasMotion) {
+        idleFrames = 0;
         animationId = requestAnimationFrame(draw);
       } else {
-        animationId = setTimeout(() => requestAnimationFrame(draw), 66) as unknown as number;
+        idleFrames++;
+        const delay = idleFrames > IDLE_THRESHOLD ? 66 : 0; // ~15fps idle, 60fps active
+        if (delay > 0) {
+          animationId = setTimeout(() => requestAnimationFrame(draw), delay) as unknown as number;
+        } else {
+          animationId = requestAnimationFrame(draw);
+        }
       }
     }
 
@@ -218,6 +252,7 @@ export function AnimatedBackground() {
 
     return () => {
       cancelAnimationFrame(animationId);
+      clearTimeout(animationId);
       window.removeEventListener("resize", resize);
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("mousemove", handleMouseMove);
