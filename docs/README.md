@@ -1,56 +1,29 @@
 # bc Documentation
 
-Welcome to the bc documentation. bc is a CLI-first orchestration system for coordinating teams of AI agents in software development.
+## Architecture
+- [Overview](architecture/overview.md) — System layers, components, data flow
+- [Database](architecture/database.md) — Schema, SQLite/Postgres, evolution history
+- [Agents](architecture/agents.md) — Lifecycle, runtimes, roles, state machine
+- [MCP](architecture/mcp.md) — Resources, tools, transports, notifications
 
-## Getting Started
+## API Reference
+- [REST API](api/rest.md) — All 68 HTTP endpoints with params and response schemas
+- [MCP Protocol](architecture/mcp.md#tools) — 4 tools + 6 resources
 
-| Document | Description |
-|----------|-------------|
-| [Quick Start](QUICKSTART.md) | 5-minute setup guide |
-| [Commands Reference](COMMANDS.md) | Complete CLI reference |
+## Guides
+- [Quick Start](guides/quickstart.md) — 5-minute setup
+- [CLI Commands](guides/commands.md) — Full command reference
+- [Channels](guides/channels.md) — Message types, conventions, PR workflow
+- [Memory System](guides/memory.md) — Experiences + learnings
+- [Troubleshooting](guides/troubleshooting.md) — Common errors and fixes
 
-## Core Concepts
+## Development
+- [Contributing](../CONTRIBUTING.md) — Dev setup, build, test, PR process
 
-| Document | Description |
-|----------|-------------|
-| [Architecture](ARCHITECTURE.md) | System design and data flow |
-| [Roles & Responsibilities](roles-responsibilities.md) | Agent role hierarchy |
-| [Hierarchical Agents](hierarchical-agents.md) | Team structure patterns |
-| [Memory System](memory-system.md) | Persistent agent memory |
-| [Channel Conventions](channel-conventions.md) | Team communication |
+## Engineering Reviews
+- [Backend Review](reviews/backend.md) — Architecture, API, data layer, performance
+- [Frontend Review](reviews/frontend.md) — Web UI, TUI, landing page
+- [Infrastructure Review](reviews/infrastructure.md) — CI/CD, Docker, deployment
 
-## Extensions
-
-| Document | Description |
-|----------|-------------|
-| [Plugins](PLUGINS.md) | Plugin development guide |
-| [MCP Integration](MCP.md) | Model Context Protocol |
-
-## Reference
-
-| Document | Description |
-|----------|-------------|
-| [Troubleshooting](TROUBLESHOOTING.md) | Common issues and solutions |
-| [TUI Design](tui-design-proposal.md) | Terminal UI specification |
-| [TUI Technical](tui-technical-design.md) | TUI implementation details |
-
-## Quick Links
-
-- **Initialize workspace**: `bc init`
-- **Start agents**: `bc up`
-- **View dashboard**: `bc home`
-- **Check status**: `bc status`
-- **Get help**: `bc --help`
-
-## Philosophy
-
-- **CLI-First**: Every feature is scriptable via the command line
-- **Agent Agnostic**: Works with Claude Code, Cursor, Codex, Gemini, or any terminal AI
-- **Organic Growth**: Start with one agent, grow conversationally
-- **Persistent Memory**: Agents learn and accumulate knowledge
-- **Isolated Workspaces**: Each agent gets its own git worktree
-
-## Support
-
-- GitHub Issues: [github.com/rpuneet/bc/issues](https://github.com/rpuneet/bc/issues)
-- Documentation: [github.com/rpuneet/bc/docs](https://github.com/rpuneet/bc/docs)
+## Archive
+Old docs (v1 architecture, TUI design proposals, competitor research) in [bak/](bak/).
