@@ -2,7 +2,6 @@
 package channel
 
 import (
-	"fmt"
 	"strings"
 	"time"
 )
@@ -33,14 +32,6 @@ type QueryResult struct {
 
 // Query returns messages matching the given options.
 func (s *Store) Query(channelName string, opts QueryOptions) (*QueryResult, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	ch, exists := s.channels[channelName]
-	if !exists {
-		return nil, fmt.Errorf("channel %q not found", channelName)
-	}
-
 	// Apply defaults
 	if opts.Limit <= 0 {
 		opts.Limit = 50
@@ -49,9 +40,15 @@ func (s *Store) Query(channelName string, opts QueryOptions) (*QueryResult, erro
 		opts.Limit = 100
 	}
 
+	// Fetch history from backend
+	history, err := s.GetHistory(channelName)
+	if err != nil {
+		return nil, err
+	}
+
 	// Filter messages
 	filtered := make([]HistoryEntry, 0)
-	for _, entry := range ch.History {
+	for _, entry := range history {
 		if !matchesQuery(entry, opts) {
 			continue
 		}
@@ -119,9 +116,6 @@ type SearchResult struct {
 // Note: This is a basic implementation. For production use with large
 // datasets, use the SQLite FTS5 backend when available.
 func (s *Store) Search(query string, opts SearchOptions) ([]SearchResult, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	if opts.Limit <= 0 {
 		opts.Limit = 50
 	}
@@ -129,12 +123,15 @@ func (s *Store) Search(query string, opts SearchOptions) ([]SearchResult, error)
 	query = strings.ToLower(query)
 	results := make([]SearchResult, 0)
 
-	for name, ch := range s.channels {
+	// Get channel list from backend
+	channels := s.List()
+
+	for _, ch := range channels {
 		// Check if channel is in filter list
 		if len(opts.Channels) > 0 {
 			found := false
 			for _, c := range opts.Channels {
-				if c == name {
+				if c == ch.Name {
 					found = true
 					break
 				}
@@ -144,7 +141,12 @@ func (s *Store) Search(query string, opts SearchOptions) ([]SearchResult, error)
 			}
 		}
 
-		for _, entry := range ch.History {
+		history, err := s.GetHistory(ch.Name)
+		if err != nil {
+			continue
+		}
+
+		for _, entry := range history {
 			// Time filter
 			if opts.Since != nil && !entry.Time.After(*opts.Since) {
 				continue
@@ -154,7 +156,7 @@ func (s *Store) Search(query string, opts SearchOptions) ([]SearchResult, error)
 			if strings.Contains(strings.ToLower(entry.Message), query) ||
 				strings.Contains(strings.ToLower(entry.Sender), query) {
 				results = append(results, SearchResult{
-					Channel: name,
+					Channel: ch.Name,
 					Entry:   entry,
 				})
 
@@ -170,9 +172,6 @@ func (s *Store) Search(query string, opts SearchOptions) ([]SearchResult, error)
 
 // GetMentions returns messages mentioning an agent.
 func (s *Store) GetMentions(agent string, limit int) ([]SearchResult, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	if limit <= 0 {
 		limit = 50
 	}
@@ -180,11 +179,17 @@ func (s *Store) GetMentions(agent string, limit int) ([]SearchResult, error) {
 	mention := "@" + agent
 	results := make([]SearchResult, 0)
 
-	for name, ch := range s.channels {
-		for _, entry := range ch.History {
+	channels := s.List()
+	for _, ch := range channels {
+		history, err := s.GetHistory(ch.Name)
+		if err != nil {
+			continue
+		}
+
+		for _, entry := range history {
 			if strings.Contains(entry.Message, mention) {
 				results = append(results, SearchResult{
-					Channel: name,
+					Channel: ch.Name,
 					Entry:   entry,
 				})
 

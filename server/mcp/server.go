@@ -69,7 +69,6 @@ func New(cfg Config) (*Server, error) {
 		cs, err = channel.OpenStore(cfg.Workspace.RootDir)
 		if err != nil {
 			cs = channel.NewStore(cfg.Workspace.RootDir)
-			_ = cs.Load()
 		}
 		ownChans = true
 	}

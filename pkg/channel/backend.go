@@ -23,6 +23,8 @@ type ChannelBackend interface {
 	GetHistory(channelName string, limit int) ([]*Message, error)
 
 	// Reaction operations
+	AddReaction(messageID int64, emoji, userID string) error
+	RemoveReaction(messageID int64, emoji, userID string) error
 	ToggleReaction(messageID int64, emoji, userID string) (bool, error)
 	GetReactions(messageID int64) (map[string][]string, error)
 }

@@ -590,7 +590,7 @@ func (s *SQLiteStore) GetHistory(channelName string, limit int) ([]*Message, err
 	ctx := context.Background()
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, channel_id, sender, content, type, metadata, created_at
-		FROM messages WHERE channel_id = ? ORDER BY created_at DESC LIMIT ?
+		FROM messages WHERE channel_id = ? ORDER BY created_at DESC, id DESC LIMIT ?
 	`, ch.ID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get history: %w", err)

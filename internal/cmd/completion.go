@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -37,7 +36,7 @@ func CompleteChannelNames(cmd *cobra.Command, args []string, toComplete string) 
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 
-	store := channel.NewStore(filepath.Join(ws.StateDir(), "channels"))
+	store := channel.NewStore(ws.RootDir)
 	defer func() {
 		if closeErr := store.Close(); closeErr != nil {
 			log.Debug("completion: failed to close channel store", "error", closeErr)

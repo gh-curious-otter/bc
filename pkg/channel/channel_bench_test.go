@@ -9,43 +9,22 @@ import (
 
 // --- Benchmark helpers ---
 
-// newBenchJSONStore creates a JSON-backed store for benchmarking.
-func newBenchJSONStore(b *testing.B) *Store {
+// newBenchStore creates a SQLite-backed store for benchmarking.
+func newBenchStore(b *testing.B) *Store {
 	b.Helper()
 	dir := b.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0750); err != nil {
 		b.Fatal(err)
 	}
-	return NewStore(dir)
-}
-
-// newBenchSQLiteStore creates a SQLite-backed store for benchmarking.
-func newBenchSQLiteStore(b *testing.B) *Store {
-	b.Helper()
-	dir := b.TempDir()
-	bcDir := filepath.Join(dir, ".bc")
-	if err := os.MkdirAll(bcDir, 0750); err != nil {
-		b.Fatal(err)
-	}
-
-	sqlite := NewSQLiteStore(dir)
-	if err := sqlite.Open(); err != nil {
-		b.Fatal(err)
-	}
-
-	store := &Store{
-		path:     filepath.Join(bcDir, "channels.json"),
-		channels: make(map[string]*Channel),
-		backend:  sqlite,
-	}
-	b.Cleanup(func() { _ = sqlite.Close() })
-	return store
+	s := NewStore(dir)
+	b.Cleanup(func() { _ = s.Close() })
+	return s
 }
 
 // --- AddHistory (Send) benchmarks ---
 
 func BenchmarkAddHistory_JSON(b *testing.B) {
-	store := newBenchJSONStore(b)
+	store := newBenchStore(b)
 	if _, err := store.Create("bench"); err != nil {
 		b.Fatal(err)
 	}
@@ -59,7 +38,7 @@ func BenchmarkAddHistory_JSON(b *testing.B) {
 }
 
 func BenchmarkAddHistory_SQLite(b *testing.B) {
-	store := newBenchSQLiteStore(b)
+	store := newBenchStore(b)
 	if _, err := store.Create("bench"); err != nil {
 		b.Fatal(err)
 	}
@@ -73,7 +52,7 @@ func BenchmarkAddHistory_SQLite(b *testing.B) {
 }
 
 func BenchmarkAddHistory_JSON_Parallel(b *testing.B) {
-	store := newBenchJSONStore(b)
+	store := newBenchStore(b)
 	if _, err := store.Create("bench"); err != nil {
 		b.Fatal(err)
 	}
@@ -91,7 +70,7 @@ func BenchmarkAddHistory_JSON_Parallel(b *testing.B) {
 }
 
 func BenchmarkAddHistory_SQLite_Parallel(b *testing.B) {
-	store := newBenchSQLiteStore(b)
+	store := newBenchStore(b)
 	if _, err := store.Create("bench"); err != nil {
 		b.Fatal(err)
 	}
@@ -123,7 +102,7 @@ func BenchmarkGetHistory_JSON_100(b *testing.B) {
 }
 
 func benchGetHistoryJSON(b *testing.B, msgCount int) {
-	store := newBenchJSONStore(b)
+	store := newBenchStore(b)
 	if _, err := store.Create("bench"); err != nil {
 		b.Fatal(err)
 	}
@@ -154,7 +133,7 @@ func BenchmarkGetHistory_SQLite_100(b *testing.B) {
 }
 
 func benchGetHistorySQLite(b *testing.B, msgCount int) {
-	store := newBenchSQLiteStore(b)
+	store := newBenchStore(b)
 	if _, err := store.Create("bench"); err != nil {
 		b.Fatal(err)
 	}
@@ -187,7 +166,7 @@ func BenchmarkList_JSON_50(b *testing.B) {
 }
 
 func benchListJSON(b *testing.B, channelCount int) {
-	store := newBenchJSONStore(b)
+	store := newBenchStore(b)
 	for i := range channelCount {
 		if _, err := store.Create(fmt.Sprintf("channel-%d", i)); err != nil {
 			b.Fatal(err)
@@ -213,7 +192,7 @@ func BenchmarkList_SQLite_50(b *testing.B) {
 }
 
 func benchListSQLite(b *testing.B, channelCount int) {
-	store := newBenchSQLiteStore(b)
+	store := newBenchStore(b)
 	for i := range channelCount {
 		if _, err := store.Create(fmt.Sprintf("channel-%d", i)); err != nil {
 			b.Fatal(err)
@@ -229,7 +208,7 @@ func benchListSQLite(b *testing.B, channelCount int) {
 // --- Get benchmarks ---
 
 func BenchmarkGet_JSON(b *testing.B) {
-	store := newBenchJSONStore(b)
+	store := newBenchStore(b)
 	if _, err := store.Create("bench"); err != nil {
 		b.Fatal(err)
 	}
@@ -241,7 +220,7 @@ func BenchmarkGet_JSON(b *testing.B) {
 }
 
 func BenchmarkGet_SQLite(b *testing.B) {
-	store := newBenchSQLiteStore(b)
+	store := newBenchStore(b)
 	if _, err := store.Create("bench"); err != nil {
 		b.Fatal(err)
 	}
@@ -255,7 +234,7 @@ func BenchmarkGet_SQLite(b *testing.B) {
 // --- AddMember benchmarks ---
 
 func BenchmarkAddMember_JSON(b *testing.B) {
-	store := newBenchJSONStore(b)
+	store := newBenchStore(b)
 	if _, err := store.Create("bench"); err != nil {
 		b.Fatal(err)
 	}
@@ -277,7 +256,7 @@ func BenchmarkAddMember_JSON(b *testing.B) {
 }
 
 func BenchmarkAddMember_SQLite(b *testing.B) {
-	store := newBenchSQLiteStore(b)
+	store := newBenchStore(b)
 	if _, err := store.Create("bench"); err != nil {
 		b.Fatal(err)
 	}
@@ -301,7 +280,7 @@ func BenchmarkAddMember_SQLite(b *testing.B) {
 // --- Reaction benchmarks ---
 
 func BenchmarkToggleReaction_JSON(b *testing.B) {
-	store := newBenchJSONStore(b)
+	store := newBenchStore(b)
 	if _, err := store.Create("bench"); err != nil {
 		b.Fatal(err)
 	}
@@ -316,7 +295,7 @@ func BenchmarkToggleReaction_JSON(b *testing.B) {
 }
 
 func BenchmarkToggleReaction_SQLite(b *testing.B) {
-	store := newBenchSQLiteStore(b)
+	store := newBenchStore(b)
 	if _, err := store.Create("bench"); err != nil {
 		b.Fatal(err)
 	}
