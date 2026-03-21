@@ -758,6 +758,10 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 			}
 		}
 
+		// Clean stale worktree from previous container run to prevent
+		// "fatal: '<dir>' already exists" on restart.
+		cleanStaleWorktree(wsPath, name)
+
 		if err := m.runtimeForAgent(name).CreateSessionWithEnv(context.TODO(), name, wsPath, agentCmd, env); err != nil {
 			return nil, fmt.Errorf("failed to recreate session: %w", err)
 		}
@@ -897,6 +901,9 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		env["BC_PARENT_ID"] = parentID
 	}
 	injectEnv(env, wsPath, effectiveTool, opts.EnvFile)
+
+	// Clean stale worktree from previous container run (crash recovery).
+	cleanStaleWorktree(wsPath, name)
 
 	// Create session in the workspace directory using the agent's runtime backend
 	if err := m.runtimeForAgent(name).CreateSessionWithEnv(context.TODO(), name, wsPath, agentCmd, env); err != nil {
@@ -1176,6 +1183,39 @@ func (m *Manager) stopAgentTreeLocked(name string) error {
 	agent.Children = []string{} // Clear children since they're stopped
 
 	return nil
+}
+
+// cleanStaleWorktree removes a pre-existing git worktree directory that may
+// persist from a previous Docker container run. Without this, `claude -w`
+// fails with "fatal: '<dir>' already exists" on restart.
+func cleanStaleWorktree(workspacePath, agentName string) {
+	if workspacePath == "" {
+		return
+	}
+	worktreeName := "bc-" + filepath.Base(workspacePath) + "-" + agentName
+	worktreeDir := filepath.Join(workspacePath, ".claude", "worktrees", worktreeName)
+
+	// Check if directory exists before doing any work
+	if _, err := os.Stat(worktreeDir); os.IsNotExist(err) {
+		return
+	}
+
+	log.Debug("cleaning stale worktree", "agent", agentName, "dir", worktreeDir)
+
+	// Prune stale worktree refs (handles /workspace/... Docker paths that
+	// no longer exist on the host)
+	//nolint:gosec // trusted paths from workspace config
+	_ = exec.CommandContext(context.TODO(), "git", "-C", workspacePath, "worktree", "prune").Run()
+
+	// Try git worktree remove first (cleanest approach)
+	//nolint:gosec // trusted paths
+	if err := exec.CommandContext(context.TODO(), "git", "-C", workspacePath, "worktree", "remove", "--force", worktreeDir).Run(); err != nil {
+		// If git worktree remove fails, fall back to removing the directory
+		// This handles cases where the worktree is not tracked by git
+		// (e.g., created inside a Docker container with a different /workspace path)
+		log.Debug("git worktree remove failed, removing directory directly", "error", err)
+		_ = os.RemoveAll(worktreeDir)
+	}
 }
 
 // DeleteOptions configures agent deletion behavior.
