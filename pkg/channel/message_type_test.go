@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -37,23 +38,10 @@ func TestValidMessageTypes(t *testing.T) {
 	}
 	// Should contain all type names
 	for _, typ := range AllMessageTypes() {
-		if !contains(result, string(typ)) {
+		if !strings.Contains(result, string(typ)) {
 			t.Errorf("ValidMessageTypes missing %s", typ)
 		}
 	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
-}
-
-func containsHelper(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 func TestIsValidMessageType(t *testing.T) {
@@ -228,13 +216,13 @@ func TestTypedMessage_FormatForDisplay(t *testing.T) {
 	result := msg.FormatForDisplay()
 
 	// Should contain emoji and type
-	if !containsHelper(result, "👀") {
+	if !strings.Contains(result, "👀") {
 		t.Error("FormatForDisplay should contain review emoji")
 	}
-	if !containsHelper(result, "review") {
+	if !strings.Contains(result, "review") {
 		t.Error("FormatForDisplay should contain type name")
 	}
-	if !containsHelper(result, "Please review PR #123") {
+	if !strings.Contains(result, "Please review PR #123") {
 		t.Error("FormatForDisplay should contain message content")
 	}
 }

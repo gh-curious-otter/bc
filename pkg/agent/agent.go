@@ -57,6 +57,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -194,12 +195,7 @@ func CheckPermission(permissions []string, required Permission) error {
 
 // HasPermissionStr checks if a permission string is in the list.
 func HasPermissionStr(permissions []string, required string) bool {
-	for _, p := range permissions {
-		if p == required {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(permissions, required)
 }
 
 // RoleCapabilities and RoleHierarchy are empty here.

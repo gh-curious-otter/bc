@@ -490,13 +490,9 @@ func (c *CronSchedule) Next(after time.Time) time.Time {
 }
 
 func (c *CronSchedule) matches(t time.Time) bool {
-	return contains(c.Minute, t.Minute()) &&
-		contains(c.Hour, t.Hour()) &&
-		contains(c.DayOfMonth, t.Day()) &&
-		contains(c.Month, int(t.Month())) &&
-		contains(c.DayOfWeek, int(t.Weekday()))
-}
-
-func contains(slice []int, val int) bool {
-	return slices.Contains(slice, val)
+	return slices.Contains(c.Minute, t.Minute()) &&
+		slices.Contains(c.Hour, t.Hour()) &&
+		slices.Contains(c.DayOfMonth, t.Day()) &&
+		slices.Contains(c.Month, int(t.Month())) &&
+		slices.Contains(c.DayOfWeek, int(t.Weekday()))
 }
