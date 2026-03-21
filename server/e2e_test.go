@@ -74,7 +74,7 @@ enabled = true
 	hub := ws_hub(t)
 
 	// Agent service (no runtime backend — just state management)
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := agent.NewWorkspaceManager(ws.StateDir(), ws.RootDir)
 	_ = mgr.LoadState()
 	agentSvc := agent.NewAgentService(mgr, hub, nil)
 
