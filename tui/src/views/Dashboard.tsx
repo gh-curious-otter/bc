@@ -1,5 +1,6 @@
 import { memo, useCallback } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
+import { useIsOverlayActive } from '../navigation/FocusContext';
 import { Panel } from '../components/Panel.js';
 import { MetricCard } from '../components/MetricCard.js';
 import { Footer } from '../components/Footer.js';
@@ -50,7 +51,8 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
   // Global shortcuts (1-9, Tab, ESC, q) are handled by useKeyboardNavigation
   // Note: Letter shortcuts (a, c, $) removed to avoid confusion - use numbers [2] [3] [4]
   // See #1327 for comprehensive keybinding system design
-  useInput(handleDashboardInput);
+  const overlayActive = useIsOverlayActive();
+  useInput(handleDashboardInput, { isActive: !overlayActive });
 
   if (error) {
     return <ErrorDisplay error={error.message} onRetry={() => { void refresh(); }} />;
