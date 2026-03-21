@@ -44,8 +44,13 @@ func (h *WorkspaceHandler) status(w http.ResponseWriter, r *http.Request) {
 			runningCount++
 		}
 	}
+	nickname := ""
+	if h.ws.Config != nil {
+		nickname = h.ws.Config.User.Nickname
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"name":          h.ws.Name(),
+		"nickname":      nickname,
 		"agent_count":   len(agents),
 		"running_count": runningCount,
 		"is_healthy":    true,
