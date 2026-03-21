@@ -39,13 +39,14 @@ const defaultAddr = "127.0.0.1:9374"
 
 // Config holds server configuration.
 type Config struct {
-	Addr string // default "127.0.0.1:9374"
-	CORS bool   // enable permissive CORS headers (safe for loopback)
+	Addr       string // default "127.0.0.1:9374"
+	CORS       bool   // enable CORS headers
+	CORSOrigin string // allowed origin ("*" for permissive, or specific origin)
 }
 
 // DefaultConfig returns the default server configuration.
 func DefaultConfig() Config {
-	return Config{Addr: defaultAddr, CORS: true}
+	return Config{Addr: defaultAddr, CORS: true, CORSOrigin: "*"}
 }
 
 // Services bundles all service/store dependencies for the handlers.
@@ -204,10 +205,14 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 
 	// Middleware chain (outermost runs first):
-	// RequestLogger → Recovery → CORS → mux
+	// RequestLogger → Recovery → MaxBodySize → CORS → mux
 	var handler http.Handler = mux
 	if cfg.CORS {
-		handler = handlers.CORS(mux)
+		origin := cfg.CORSOrigin
+		if origin == "" {
+			origin = "*"
+		}
+		handler = handlers.CORSWithOrigin(origin, mux)
 	}
 	handler = handlers.MaxBodySize(1 << 20)(handler) // 1MB request body limit
 	handler = handlers.Recovery(handler)
