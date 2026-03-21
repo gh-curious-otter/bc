@@ -1251,59 +1251,78 @@ func (m *Manager) DeleteAgent(name string) error {
 }
 
 // DeleteAgentWithOptions permanently removes an agent with configurable options.
-// Cleans up: container, volume, worktree, git branch, state.
+// Cleans up all resources: container, volume, worktree, git branch, log file,
+// agent state directory, channel memberships, and child agent references.
+// Partial failures are logged but do not abort the deletion.
 func (m *Manager) DeleteAgentWithOptions(name string, opts DeleteOptions) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	log.Debug("deleting agent", "name", name)
 
-	_, exists := m.agents[name]
+	agent, exists := m.agents[name]
 	if !exists {
 		return fmt.Errorf("agent %s not found", name)
 	}
 
 	rt := m.runtimeForAgent(name)
 
-	// Stop the container/session
+	// 1. Stop the container/session
 	_ = rt.KillSession(context.TODO(), name) //nolint:errcheck // may already be stopped
 
-	// Remove the container entirely (for Docker agents)
+	// 2. Remove the container entirely (for Docker agents)
 	if cb, ok := rt.(*container.Backend); ok {
 		_ = cb.RemoveSession(context.TODO(), name) //nolint:errcheck // may not exist
 	}
 
-	// Remove persistent volume (.bc/volumes/<name>/)
+	// 3. Remove persistent volume (.bc/volumes/<name>/)
 	volumeDir := filepath.Join(m.workspacePath, ".bc", "volumes", name)
 	if err := os.RemoveAll(volumeDir); err != nil {
-		log.Warn("failed to remove agent volume", "agent", name, "error", err)
+		log.Warn("delete: failed to remove agent volume", "agent", name, "error", err)
 	}
 
-	// Remove git worktree and branch
+	// 4. Remove git worktree and branch
 	worktreeName := "bc-" + filepath.Base(m.workspacePath) + "-" + name
 	worktreeDir := filepath.Join(m.workspacePath, ".claude", "worktrees", worktreeName)
 	branchName := "worktree-" + worktreeName
 
-	// Prune stale worktree refs (handles /workspace/... Docker paths)
 	//nolint:gosec // trusted paths
 	_ = exec.CommandContext(context.TODO(), "git", "-C", m.workspacePath, "worktree", "prune").Run()
-	// git worktree remove
 	//nolint:gosec // trusted paths
 	_ = exec.CommandContext(context.TODO(), "git", "-C", m.workspacePath, "worktree", "remove", "--force", worktreeDir).Run()
-	// git branch -D
 	//nolint:gosec // trusted paths
 	_ = exec.CommandContext(context.TODO(), "git", "-C", m.workspacePath, "branch", "-D", branchName).Run()
-	// Clean up directory if still exists
 	_ = os.RemoveAll(worktreeDir)
 
-	// Remove from parent's children list
+	// 5. Remove log file
+	if agent.LogFile != "" {
+		if err := os.Remove(agent.LogFile); err != nil && !os.IsNotExist(err) {
+			log.Warn("delete: failed to remove log file", "agent", name, "path", agent.LogFile, "error", err)
+		}
+	}
+
+	// 6. Remove agent state directory (.bc/agents/<name>/ — auth, session history, etc.)
+	agentStateDir := filepath.Join(m.stateDir, "agents", name)
+	if err := os.RemoveAll(agentStateDir); err != nil {
+		log.Warn("delete: failed to remove agent state dir", "agent", name, "path", agentStateDir, "error", err)
+	}
+
+	// 7. Update children's ParentID to "" (orphan them cleanly)
+	for _, childName := range agent.Children {
+		if child, ok := m.agents[childName]; ok {
+			child.ParentID = ""
+			child.UpdatedAt = time.Now()
+		}
+	}
+
+	// 8. Remove from parent's children list
 	m.removeFromParent(name)
 
-	// Delete from state
+	// 9. Delete from state map
 	delete(m.agents, name)
 
 	if err := m.saveState(); err != nil {
-		log.Warn("failed to save agent state", "error", err)
+		log.Warn("delete: failed to save state", "agent", name, "error", err)
 	}
 
 	log.Debug("agent fully deleted", "agent", name, "volume", volumeDir, "worktree", worktreeDir)
