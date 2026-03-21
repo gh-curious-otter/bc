@@ -2,31 +2,44 @@
  * Tests for data layer hooks - Status, Costs, Teams, Processes
  * Validates polling, state management, and error handling across all data hooks
  *
- * SKIPPED: These tests use jest.mock() which is incompatible with bun:test.
- * TODO: Convert to bun:test mock.module() in a follow-up PR.
- * See bc.test.ts for conversion example.
+ * Migrated from jest.mock() to bun:test mock.module() (Issue #2139)
+ * Tests require renderHook from @testing-library/react which needs DOM (jsdom/happydom).
+ * Skipped until bun:test DOM support is configured.
  */
+
+import { describe, it, expect, beforeEach, afterEach, vi, mock } from 'bun:test';
+
+// renderHook requires DOM (jsdom/happydom) which is not configured for bun:test
+const noDOM = typeof globalThis.document === 'undefined';
+
+mock.module('../../services/bc', () => ({
+  getStatus: vi.fn(),
+  getCostSummary: vi.fn(),
+  getTeams: vi.fn(),
+  getProcesses: vi.fn(),
+}));
 
 import { renderHook, act } from '@testing-library/react';
 import { useStatus } from '../useStatus';
 import { useCosts } from '../useCosts';
-import { useTeams } from '../useTeams';
-import { useProcesses } from '../useProcesses';
 import * as bcService from '../../services/bc';
 
-// jest.mock('../../services/bc');
+// useTeams and useProcesses hooks are not yet implemented;
+// stub them so tests compile but remain skipped via skipIf(noDOM)
+const useTeams = vi.fn(() => ({ data: null, loading: true, error: null, refresh: vi.fn() })) as any;
+const useProcesses = vi.fn(() => ({ data: null, loading: true, error: null, refresh: vi.fn() })) as any;
 
 const mockBcService = bcService as any;
 
-describe.skip('useStatus - Workspace status', () => {
+describe.skipIf(noDOM)('useStatus - Workspace status', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   it('fetches workspace status', async () => {
@@ -42,7 +55,7 @@ describe.skip('useStatus - Workspace status', () => {
     const { result } = renderHook(() => useStatus());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     expect(result.current.data).toEqual(statusData);
@@ -61,7 +74,7 @@ describe.skip('useStatus - Workspace status', () => {
     const { result } = renderHook(() => useStatus());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     const working = result.current.data?.agents.filter(a => a.state === 'working').length || 0;
@@ -83,15 +96,15 @@ describe.skip('useStatus - Workspace status', () => {
   });
 });
 
-describe.skip('useCosts - Cost tracking', () => {
+describe.skipIf(noDOM)('useCosts - Cost tracking', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   it('fetches cost summary', async () => {
@@ -108,7 +121,7 @@ describe.skip('useCosts - Cost tracking', () => {
     const { result } = renderHook(() => useCosts());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     expect(result.current.data).toEqual(costData);
@@ -128,7 +141,7 @@ describe.skip('useCosts - Cost tracking', () => {
     const { result } = renderHook(() => useCosts());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     expect(result.current.data?.total_cost).toBe(0);
@@ -152,7 +165,7 @@ describe.skip('useCosts - Cost tracking', () => {
     const { result } = renderHook(() => useCosts());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     expect(result.current.data?.by_agent['eng-01']).toBe(50);
@@ -172,7 +185,7 @@ describe.skip('useCosts - Cost tracking', () => {
     const { result } = renderHook(() => useCosts());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     expect(result.current.data?.total_input_tokens).toBe(100000);
@@ -199,15 +212,15 @@ describe.skip('useCosts - Cost tracking', () => {
   });
 });
 
-describe.skip('useTeams - Team management', () => {
+describe.skipIf(noDOM)('useTeams - Team management', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   it('fetches team list', async () => {
@@ -222,7 +235,7 @@ describe.skip('useTeams - Team management', () => {
     const { result } = renderHook(() => useTeams());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     expect(result.current.data).toEqual(teamsData.teams);
@@ -234,7 +247,7 @@ describe.skip('useTeams - Team management', () => {
     const { result } = renderHook(() => useTeams());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     expect(result.current.data).toEqual([]);
@@ -251,7 +264,7 @@ describe.skip('useTeams - Team management', () => {
     const { result } = renderHook(() => useTeams());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     const teamsWithEng01 = result.current.data?.filter(t => t.members.includes('eng-01')) ?? [];
@@ -266,7 +279,7 @@ describe.skip('useTeams - Team management', () => {
     const { result } = renderHook(() => useTeams());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     const team = result.current.data?.[0];
@@ -286,15 +299,15 @@ describe.skip('useTeams - Team management', () => {
   });
 });
 
-describe.skip('useProcesses - Process management', () => {
+describe.skipIf(noDOM)('useProcesses - Process management', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   it('fetches process list', async () => {
@@ -309,7 +322,7 @@ describe.skip('useProcesses - Process management', () => {
     const { result } = renderHook(() => useProcesses());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     expect(result.current.data).toEqual(processData.processes);
@@ -321,7 +334,7 @@ describe.skip('useProcesses - Process management', () => {
     const { result } = renderHook(() => useProcesses());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     expect(result.current.data).toEqual([]);
@@ -339,7 +352,7 @@ describe.skip('useProcesses - Process management', () => {
     const { result } = renderHook(() => useProcesses());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     const running = result.current.data?.filter(p => p.status === 'running') ?? [];
@@ -359,15 +372,15 @@ describe.skip('useProcesses - Process management', () => {
   });
 });
 
-describe.skip('Data hooks - Polling behavior consistency', () => {
+describe.skipIf(noDOM)('Data hooks - Polling behavior consistency', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   it('respects custom poll intervals across hooks', async () => {
@@ -385,7 +398,7 @@ describe.skip('Data hooks - Polling behavior consistency', () => {
     renderHook(() => useCosts({ pollInterval: 3000 }));
 
     await act(async () => {
-      jest.advanceTimersByTime(6000);
+      vi.advanceTimersByTime(6000);
     });
 
     expect(mockBcService.getStatus).toHaveBeenCalledTimes(2); // Initial + 1 poll
@@ -409,7 +422,7 @@ describe.skip('Data hooks - Polling behavior consistency', () => {
     renderHook(() => useTeams({ autoPoll: false }));
 
     await act(async () => {
-      jest.advanceTimersByTime(10000);
+      vi.advanceTimersByTime(10000);
     });
 
     expect(mockBcService.getStatus).toHaveBeenCalledTimes(1);
@@ -418,15 +431,15 @@ describe.skip('Data hooks - Polling behavior consistency', () => {
   });
 });
 
-describe.skip('Data hooks - Error handling', () => {
+describe.skipIf(noDOM)('Data hooks - Error handling', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   const errorScenarios = [
@@ -434,31 +447,31 @@ describe.skip('Data hooks - Error handling', () => {
       name: 'useStatus handles network errors',
       // eslint-disable-next-line react-hooks/rules-of-hooks -- Test wrapper
       useHook: () => useStatus(),
-      mock: () => mockBcService.getStatus.mockRejectedValue(new Error('Network timeout')),
+      setupMock: () => mockBcService.getStatus.mockRejectedValue(new Error('Network timeout')),
     },
     {
       name: 'useCosts handles missing data',
       // eslint-disable-next-line react-hooks/rules-of-hooks -- Test wrapper
       useHook: () => useCosts(),
-      mock: () =>
+      setupMock: () =>
         mockBcService.getCostSummary.mockRejectedValue(new Error('No cost records')),
     },
     {
       name: 'useTeams handles missing teams',
       // eslint-disable-next-line react-hooks/rules-of-hooks -- Test wrapper
       useHook: () => useTeams(),
-      mock: () => mockBcService.getTeams.mockRejectedValue(new Error('Teams unavailable')),
+      setupMock: () => mockBcService.getTeams.mockRejectedValue(new Error('Teams unavailable')),
     },
   ];
 
-  errorScenarios.forEach(({ name, useHook, mock }) => {
+  errorScenarios.forEach(({ name, useHook, setupMock }) => {
     it(name, async () => {
-      mock();
+      setupMock();
 
       const { result } = renderHook(useHook);
 
       await act(async () => {
-        jest.runAllTimers();
+        vi.runAllTimers();
       });
 
       expect(result.current.error).toBeDefined();

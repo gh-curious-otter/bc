@@ -2,21 +2,38 @@
  * Data Layer Integration Tests - End-to-end workflows
  * Tests complete user workflows combining multiple data operations
  *
- * SKIPPED: These tests use jest.mock() which is incompatible with bun:test.
- * TODO: Convert to bun:test mock.module() in a follow-up PR.
- * See bc.test.ts for conversion example.
+ * Migrated from jest.mock() to bun:test mock.module() (Issue #2139)
  */
+
+import { describe, it, expect, beforeEach, vi, mock } from 'bun:test';
+
+mock.module('../services/bc', () => ({
+  getStatus: vi.fn(),
+  getChannels: vi.fn(),
+  getChannelHistory: vi.fn(),
+  sendChannelMessage: vi.fn(),
+  getCostSummary: vi.fn(),
+  reportState: vi.fn(),
+  getTeams: vi.fn(),
+  addTeamMember: vi.fn(),
+  removeTeamMember: vi.fn(),
+  getDemons: vi.fn(),
+  getDemon: vi.fn(),
+  getDemonLogs: vi.fn(),
+  enableDemon: vi.fn(),
+  disableDemon: vi.fn(),
+  runDemon: vi.fn(),
+  getProcesses: vi.fn(),
+  getProcessLogs: vi.fn(),
+}));
 
 import * as bcService from '../services/bc';
 
-// SKIPPED: jest.mock incompatible with bun:test - needs conversion to mock.module()
-// jest.mock('../services/bc');
-
 const mockBcService = bcService as any;
 
-describe.skip('Data Layer - Agent lifecycle workflow', () => {
+describe('Data Layer - Agent lifecycle workflow', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('complete agent workflow: status -> channels -> report', async () => {
@@ -67,9 +84,9 @@ describe.skip('Data Layer - Agent lifecycle workflow', () => {
   });
 });
 
-describe.skip('Data Layer - Channel communication workflow', () => {
+describe('Data Layer - Channel communication workflow', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('full channel conversation: list -> history -> send -> refresh', async () => {
@@ -129,9 +146,9 @@ describe.skip('Data Layer - Channel communication workflow', () => {
   });
 });
 
-describe.skip('Data Layer - Team coordination workflow', () => {
+describe('Data Layer - Team coordination workflow', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('team operations: list -> add member -> manage', async () => {
@@ -175,9 +192,9 @@ describe.skip('Data Layer - Team coordination workflow', () => {
   });
 });
 
-describe.skip('Data Layer - Demon (scheduled task) workflow', () => {
+describe('Data Layer - Demon (scheduled task) workflow', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('demon workflow: list -> get details -> manage', async () => {
@@ -227,9 +244,9 @@ describe.skip('Data Layer - Demon (scheduled task) workflow', () => {
   });
 });
 
-describe.skip('Data Layer - Cost tracking workflow', () => {
+describe('Data Layer - Cost tracking workflow', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('cost tracking through agent lifecycle', async () => {
@@ -264,9 +281,9 @@ describe.skip('Data Layer - Cost tracking workflow', () => {
   });
 });
 
-describe.skip('Data Layer - Process management workflow', () => {
+describe('Data Layer - Process management workflow', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('process management: list -> get logs -> track', async () => {
@@ -297,9 +314,9 @@ describe.skip('Data Layer - Process management workflow', () => {
   });
 });
 
-describe.skip('Data Layer - Complex concurrent operations', () => {
+describe('Data Layer - Complex concurrent operations', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('handles concurrent status and channel operations', async () => {
@@ -352,9 +369,9 @@ describe.skip('Data Layer - Complex concurrent operations', () => {
   });
 });
 
-describe.skip('Data Layer - Error recovery workflows', () => {
+describe('Data Layer - Error recovery workflows', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('recovers from transient failures', async () => {
@@ -394,9 +411,9 @@ describe.skip('Data Layer - Error recovery workflows', () => {
   });
 });
 
-describe.skip('Data Layer - State consistency', () => {
+describe('Data Layer - State consistency', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('maintains consistent state across multiple reads', async () => {

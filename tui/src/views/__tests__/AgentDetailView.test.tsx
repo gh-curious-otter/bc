@@ -1,4 +1,7 @@
 import { describe, test, expect } from 'bun:test';
+
+// useInput from Ink requires TTY stdin which is not available in test environments
+const noTTY = !process.stdin.isTTY;
 import React from 'react';
 import { render } from 'ink-testing-library';
 import { AgentDetailView } from '../AgentDetailView';
@@ -50,7 +53,7 @@ describe('AgentDetailView Component', () => {
 
   // Unit tests for component prop handling (no useInput)
   // Full rendering tests are skipped due to useInput requiring TTY stdin
-  test.skip('renders agent name in header', () => {
+  test.skipIf(noTTY)('renders agent name in header', () => {
     const { lastFrame } = render(
       <FocusProvider><AgentDetailView agent={mockAgent} onBack={() => {}} /></FocusProvider>
     );
@@ -58,7 +61,7 @@ describe('AgentDetailView Component', () => {
     expect(output).toContain('test-agent');
   });
 
-  test.skip('renders agent role in header', () => {
+  test.skipIf(noTTY)('renders agent role in header', () => {
     const { lastFrame } = render(
       <FocusProvider><AgentDetailView agent={mockAgent} onBack={() => {}} /></FocusProvider>
     );
@@ -79,7 +82,7 @@ describe('AgentDetailView Component', () => {
     expect(typeof onBack).toBe('function');
   });
 
-  test.skip('renders agent task', () => {
+  test.skipIf(noTTY)('renders agent task', () => {
     const { lastFrame } = render(
       <FocusProvider><AgentDetailView agent={mockAgent} onBack={() => {}} /></FocusProvider>
     );
@@ -87,7 +90,7 @@ describe('AgentDetailView Component', () => {
     expect(output).toContain('Implementing feature #662');
   });
 
-  test.skip('shows input prompt when not in input mode', () => {
+  test.skipIf(noTTY)('shows input prompt when not in input mode', () => {
     const { lastFrame } = render(
       <FocusProvider><AgentDetailView agent={mockAgent} onBack={() => {}} /></FocusProvider>
     );
@@ -95,7 +98,7 @@ describe('AgentDetailView Component', () => {
     expect(output).toContain('Press i or m');
   });
 
-  test.skip('shows navigation hints in footer', () => {
+  test.skipIf(noTTY)('shows navigation hints in footer', () => {
     const { lastFrame } = render(
       <FocusProvider><AgentDetailView agent={mockAgent} onBack={() => {}} /></FocusProvider>
     );
@@ -104,7 +107,7 @@ describe('AgentDetailView Component', () => {
     expect(output).toContain('r: refresh');
   });
 
-  test.skip('displays agent state (running)', () => {
+  test.skipIf(noTTY)('displays agent state (running)', () => {
     const { lastFrame } = render(
       <FocusProvider><AgentDetailView agent={mockAgent} onBack={() => {}} /></FocusProvider>
     );
@@ -132,7 +135,7 @@ describe('AgentDetailView Component', () => {
     expect(mockAgent.log_file).toBeUndefined();
   });
 
-  test.skip('renders with different agent states', () => {
+  test.skipIf(noTTY)('renders with different agent states', () => {
     const states: Agent['state'][] = ['running', 'idle', 'working', 'stopped'];
     states.forEach(state => {
       const agent = { ...mockAgent, state };
@@ -227,7 +230,7 @@ describe('AgentDetailView Integration Patterns', () => {
     session: 'integration-session',
   };
 
-  test.skip('component receives agent prop correctly', () => {
+  test.skipIf(noTTY)('component receives agent prop correctly', () => {
     const { lastFrame } = render(
       <AgentDetailView agent={agent} onBack={() => {}} />
     );
