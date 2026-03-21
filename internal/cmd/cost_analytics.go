@@ -1,16 +1,40 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/ui"
 )
+
+// nowDate returns today's date as YYYY-MM-DD.
+func nowDate() string {
+	return time.Now().UTC().Format("2006-01-02")
+}
+
+// weekStartDate returns the start of the current week (Sunday) as YYYY-MM-DD.
+func weekStartDate(today string) string {
+	t, err := time.Parse("2006-01-02", today)
+	if err != nil {
+		return today
+	}
+	weekday := int(t.Weekday())
+	start := t.AddDate(0, 0, -weekday)
+	return start.Format("2006-01-02")
+}
+
+// monthStartDate returns the first day of the current month as YYYY-MM-DD.
+func monthStartDate(today string) string {
+	t, err := time.Parse("2006-01-02", today)
+	if err != nil {
+		return today
+	}
+	return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC).Format("2006-01-02")
+}
 
 var costSummaryCmd = &cobra.Command{
 	Use:   "summary",
@@ -84,33 +108,23 @@ func initCostAnalyticsFlags() {
 }
 
 func runCostSummary(cmd *cobra.Command, args []string) error {
-	store, err := getCostStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = store.Close() }()
 
-	now := time.Now().UTC()
-	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	weekStart := todayStart.AddDate(0, 0, -int(now.Weekday()))
-	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	// Use daily costs to derive today/week/month summaries
+	dailyCosts, err := c.Costs.Daily(cmd.Context(), 365)
+	if err != nil {
+		return err
+	}
+	allTime, err := c.Costs.WorkspaceSummary(cmd.Context())
+	if err != nil {
+		return err
+	}
 
-	today, err := store.GetSummarySince(context.Background(), todayStart)
-	if err != nil {
-		return err
-	}
-	week, err := store.GetSummarySince(context.Background(), weekStart)
-	if err != nil {
-		return err
-	}
-	month, err := store.GetSummarySince(context.Background(), monthStart)
-	if err != nil {
-		return err
-	}
-	allTime, err := store.WorkspaceSummary(context.Background())
-	if err != nil {
-		return err
-	}
+	// Compute today/week/month from daily data
+	todayCost, weekCost, monthCost := aggregateDailyCosts(dailyCosts)
 
 	jsonOutput, _ := cmd.Flags().GetBool("json")
 	if jsonOutput {
@@ -122,9 +136,9 @@ func runCostSummary(cmd *cobra.Command, args []string) error {
 			TotalRecords int64   `json:"total_records"`
 			TotalTokens  int64   `json:"total_tokens"`
 		}{
-			TodayCost:    today.TotalCostUSD,
-			WeekCost:     week.TotalCostUSD,
-			MonthCost:    month.TotalCostUSD,
+			TodayCost:    todayCost,
+			WeekCost:     weekCost,
+			MonthCost:    monthCost,
 			AllTimeCost:  allTime.TotalCostUSD,
 			TotalRecords: allTime.RecordCount,
 			TotalTokens:  allTime.TotalTokens,
@@ -137,9 +151,9 @@ func runCostSummary(cmd *cobra.Command, args []string) error {
 	fmt.Println("Cost Summary")
 	fmt.Println("============")
 	ui.SimpleTable(
-		"Today", fmt.Sprintf("$%.4f", today.TotalCostUSD),
-		"This Week", fmt.Sprintf("$%.4f", week.TotalCostUSD),
-		"This Month", fmt.Sprintf("$%.4f", month.TotalCostUSD),
+		"Today", fmt.Sprintf("$%.4f", todayCost),
+		"This Week", fmt.Sprintf("$%.4f", weekCost),
+		"This Month", fmt.Sprintf("$%.4f", monthCost),
 		"All Time", fmt.Sprintf("$%.4f", allTime.TotalCostUSD),
 		"Total Records", fmt.Sprintf("%d", allTime.RecordCount),
 		"Total Tokens", fmt.Sprintf("%d", allTime.TotalTokens),
@@ -147,19 +161,42 @@ func runCostSummary(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// aggregateDailyCosts computes today, this week, and this month totals from daily cost data.
+func aggregateDailyCosts(dailyCosts []*client.DailyCost) (today, week, month float64) {
+	if len(dailyCosts) == 0 {
+		return 0, 0, 0
+	}
+
+	now := nowDate()
+	weekStart := weekStartDate(now)
+	monthStart := monthStartDate(now)
+
+	for _, dc := range dailyCosts {
+		if dc.Date == now {
+			today += dc.CostUSD
+		}
+		if dc.Date >= weekStart {
+			week += dc.CostUSD
+		}
+		if dc.Date >= monthStart {
+			month += dc.CostUSD
+		}
+	}
+	return today, week, month
+}
+
 func runCostAgent(cmd *cobra.Command, args []string) error {
-	store, err := getCostStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = store.Close() }()
 
 	jsonOutput, _ := cmd.Flags().GetBool("json")
 
 	if len(args) > 0 {
 		// Show specific agent
 		agentID := args[0]
-		summary, agentErr := store.AgentSummary(context.Background(), agentID)
+		detail, agentErr := c.Costs.AgentSummary(cmd.Context(), agentID)
 		if agentErr != nil {
 			return agentErr
 		}
@@ -167,10 +204,10 @@ func runCostAgent(cmd *cobra.Command, args []string) error {
 		if jsonOutput {
 			enc := json.NewEncoder(cmd.OutOrStdout())
 			enc.SetIndent("", "  ")
-			return enc.Encode(summary)
+			return enc.Encode(detail.Summary)
 		}
 
-		if summary.RecordCount == 0 {
+		if detail.Summary.RecordCount == 0 {
 			fmt.Printf("No cost records for agent %q\n", agentID)
 			return nil
 		}
@@ -178,16 +215,16 @@ func runCostAgent(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Cost: %s\n", agentID)
 		fmt.Println("============")
 		ui.SimpleTable(
-			"Total Cost", fmt.Sprintf("$%.4f", summary.TotalCostUSD),
-			"Input Tokens", fmt.Sprintf("%d", summary.InputTokens),
-			"Output Tokens", fmt.Sprintf("%d", summary.OutputTokens),
-			"Records", fmt.Sprintf("%d", summary.RecordCount),
+			"Total Cost", fmt.Sprintf("$%.4f", detail.Summary.TotalCostUSD),
+			"Input Tokens", fmt.Sprintf("%d", detail.Summary.InputTokens),
+			"Output Tokens", fmt.Sprintf("%d", detail.Summary.OutputTokens),
+			"Records", fmt.Sprintf("%d", detail.Summary.RecordCount),
 		)
 		return nil
 	}
 
 	// Show all agents
-	summaries, err := store.SummaryByAgent(context.Background())
+	summaries, err := c.Costs.SummaryByAgent(cmd.Context())
 	if err != nil {
 		return err
 	}
@@ -195,7 +232,7 @@ func runCostAgent(cmd *cobra.Command, args []string) error {
 	if jsonOutput {
 		response := struct {
 			Agents []*costAgentSummary `json:"agents"`
-		}{Agents: toAgentSummaries(summaries)}
+		}{Agents: toClientAgentSummaries(summaries)}
 		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")
 		return enc.Encode(response)
@@ -228,7 +265,7 @@ type costAgentSummary struct {
 	RecordCount  int64   `json:"record_count"`
 }
 
-func toAgentSummaries(summaries []*cost.Summary) []*costAgentSummary {
+func toClientAgentSummaries(summaries []*client.CostSummary) []*costAgentSummary {
 	result := make([]*costAgentSummary, len(summaries))
 	for i, s := range summaries {
 		result[i] = &costAgentSummary{
@@ -243,13 +280,12 @@ func toAgentSummaries(summaries []*cost.Summary) []*costAgentSummary {
 }
 
 func runCostModel(cmd *cobra.Command, args []string) error {
-	store, err := getCostStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = store.Close() }()
 
-	summaries, err := store.SummaryByModel(context.Background())
+	summaries, err := c.Costs.SummaryByModel(cmd.Context())
 	if err != nil {
 		return err
 	}
@@ -259,7 +295,7 @@ func runCostModel(cmd *cobra.Command, args []string) error {
 	// Filter to specific model if given
 	if len(args) > 0 {
 		modelName := args[0]
-		var filtered []*cost.Summary
+		var filtered []*client.CostSummary
 		for _, s := range summaries {
 			if s.Model == modelName {
 				filtered = append(filtered, s)
@@ -272,7 +308,7 @@ func runCostModel(cmd *cobra.Command, args []string) error {
 		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")
 		return enc.Encode(struct {
-			Models []*cost.Summary `json:"models"`
+			Models []*client.CostSummary `json:"models"`
 		}{Models: summaries})
 	}
 
@@ -296,14 +332,12 @@ func runCostModel(cmd *cobra.Command, args []string) error {
 }
 
 func runCostDaily(cmd *cobra.Command, args []string) error {
-	store, err := getCostStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = store.Close() }()
 
-	since := time.Now().AddDate(0, 0, -costDailyDaysFlag)
-	dailyCosts, err := store.GetDailyCosts(context.Background(), since)
+	dailyCosts, err := c.Costs.Daily(cmd.Context(), costDailyDaysFlag)
 	if err != nil {
 		return err
 	}
@@ -337,55 +371,48 @@ func runCostDaily(cmd *cobra.Command, args []string) error {
 }
 
 func runCostDashboard(cmd *cobra.Command, args []string) error {
-	store, err := getCostStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = store.Close() }()
 
-	now := time.Now().UTC()
-	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	dailyCosts, err := c.Costs.Daily(cmd.Context(), 365)
+	if err != nil {
+		return err
+	}
+	allTime, err := c.Costs.WorkspaceSummary(cmd.Context())
+	if err != nil {
+		return err
+	}
+	agentSummaries, err := c.Costs.SummaryByAgent(cmd.Context())
+	if err != nil {
+		return err
+	}
+	modelSummaries, err := c.Costs.SummaryByModel(cmd.Context())
+	if err != nil {
+		return err
+	}
+	budgets, err := c.Costs.ListBudgets(cmd.Context())
+	if err != nil {
+		return err
+	}
 
-	today, err := store.GetSummarySince(context.Background(), todayStart)
-	if err != nil {
-		return err
-	}
-	month, err := store.GetSummarySince(context.Background(), monthStart)
-	if err != nil {
-		return err
-	}
-	allTime, err := store.WorkspaceSummary(context.Background())
-	if err != nil {
-		return err
-	}
-	agentSummaries, err := store.SummaryByAgent(context.Background())
-	if err != nil {
-		return err
-	}
-	modelSummaries, err := store.SummaryByModel(context.Background())
-	if err != nil {
-		return err
-	}
-	budgets, err := store.GetAllBudgets(context.Background())
-	if err != nil {
-		return err
-	}
+	todayCost, _, monthCost := aggregateDailyCosts(dailyCosts)
 
 	jsonOutput, _ := cmd.Flags().GetBool("json")
 	if jsonOutput {
 		response := struct {
-			ByAgent     []*costAgentSummary `json:"by_agent"`
-			ByModel     []*cost.Summary     `json:"by_model"`
-			TodayCost   float64             `json:"today_cost"`
-			MonthCost   float64             `json:"month_cost"`
-			AllTime     float64             `json:"all_time_cost"`
-			BudgetCount int                 `json:"budget_count"`
+			ByAgent     []*costAgentSummary      `json:"by_agent"`
+			ByModel     []*client.CostSummary    `json:"by_model"`
+			TodayCost   float64                  `json:"today_cost"`
+			MonthCost   float64                  `json:"month_cost"`
+			AllTime     float64                  `json:"all_time_cost"`
+			BudgetCount int                      `json:"budget_count"`
 		}{
-			TodayCost:   today.TotalCostUSD,
-			MonthCost:   month.TotalCostUSD,
+			TodayCost:   todayCost,
+			MonthCost:   monthCost,
 			AllTime:     allTime.TotalCostUSD,
-			ByAgent:     toAgentSummaries(agentSummaries),
+			ByAgent:     toClientAgentSummaries(agentSummaries),
 			ByModel:     modelSummaries,
 			BudgetCount: len(budgets),
 		}
@@ -398,8 +425,8 @@ func runCostDashboard(cmd *cobra.Command, args []string) error {
 	fmt.Println("Cost Dashboard")
 	fmt.Println("==============")
 	ui.SimpleTable(
-		"Today", fmt.Sprintf("$%.4f", today.TotalCostUSD),
-		"This Month", fmt.Sprintf("$%.4f", month.TotalCostUSD),
+		"Today", fmt.Sprintf("$%.4f", todayCost),
+		"This Month", fmt.Sprintf("$%.4f", monthCost),
 		"All Time", fmt.Sprintf("$%.4f", allTime.TotalCostUSD),
 	)
 
@@ -430,7 +457,7 @@ func runCostDashboard(cmd *cobra.Command, args []string) error {
 		fmt.Println("\nBudgets")
 		fmt.Println("-------")
 		for _, b := range budgets {
-			status, _ := store.CheckBudget(context.Background(), b.Scope)
+			status, _ := c.Costs.CheckBudget(cmd.Context(), b.Scope)
 			if status != nil {
 				printBudgetStatus(b.Scope, status)
 			}

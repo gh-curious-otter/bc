@@ -37,6 +37,7 @@ type Client struct {
 	Channels   *ChannelsClient
 	Workspaces *WorkspacesClient
 	Events     *EventsClient
+	Costs      *CostsClient
 	Cron       *CronClient
 	MCP        *MCPClient
 	Tools      *ToolsClient
@@ -62,6 +63,7 @@ func New(addr string) *Client {
 	c.Channels = &ChannelsClient{client: c}
 	c.Workspaces = &WorkspacesClient{client: c}
 	c.Events = &EventsClient{client: c}
+	c.Costs = &CostsClient{client: c}
 	c.Cron = &CronClient{client: c}
 	c.MCP = &MCPClient{client: c}
 	c.Tools = &ToolsClient{client: c}

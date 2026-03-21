@@ -6,12 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"text/tabwriter"
-	"time"
 
 	"github.com/spf13/cobra"
-
-	"github.com/rpuneet/bc/pkg/cost"
-	"github.com/rpuneet/bc/pkg/log"
 )
 
 // Issue #1875: bc cost usage — wraps ccusage for Claude Code token analytics
@@ -129,50 +125,10 @@ type ccusageSessionEntry struct {
 }
 
 func runCostUsage(cmd *cobra.Command, args []string) error {
-	// Build cache key from flags
-	cacheKey := "daily"
-	if usageMonthlyFlag {
-		cacheKey = "monthly"
-	} else if usageSessionFlag {
-		cacheKey = "session"
-	}
-	if usageSinceFlag != "" {
-		cacheKey += "_since_" + usageSinceFlag
-	}
-	if usageUntilFlag != "" {
-		cacheKey += "_until_" + usageUntilFlag
-	}
-
-	// Try loading from cache first (unless --refresh)
-	var cache *cost.Cache
-	if ws, wsErr := getWorkspace(); wsErr == nil {
-		c, cacheErr := cost.NewCache(stateDBPath(ws))
-		if cacheErr == nil {
-			cache = c
-			defer func() { _ = cache.Close() }()
-		}
-	}
-
-	if cache != nil && !usageRefreshFlag {
-		cached, fetchedAt, loadErr := cache.Load(cacheKey)
-		if loadErr == nil && cached != nil {
-			age := time.Since(fetchedAt).Round(time.Second)
-			cmd.Printf("(cached %s ago, use --refresh to update)\n\n", age)
-			return displayOutput(cmd, cached)
-		}
-	}
-
 	// Fetch fresh data from ccusage
 	output, err := fetchCCUsage(cmd)
 	if err != nil {
 		return err
-	}
-
-	// Save to cache
-	if cache != nil {
-		if saveErr := cache.Save(cacheKey, json.RawMessage(output)); saveErr != nil {
-			log.Warn("failed to cache ccusage result", "error", saveErr)
-		}
 	}
 
 	return displayOutput(cmd, output)
