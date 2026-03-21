@@ -5,6 +5,7 @@ import type { Agent } from '../api/client';
 import { usePolling } from '../hooks/usePolling';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { StatusBadge } from '../components/StatusBadge';
+import { StatsTab as StatsTabComponent } from '../components/StatsTab';
 
 /** Strip ANSI escape sequences from a string. */
 function stripAnsi(s: string): string {
@@ -65,7 +66,7 @@ function LogsTab({
       <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">Live Output</h2>
       <pre
         ref={outputRef}
-        className="rounded-lg border border-bc-border/50 bg-[#0a0a0f] p-4 text-xs leading-relaxed overflow-y-auto max-h-[32rem] whitespace-pre-wrap text-bc-text/90 shadow-inner"
+        className="rounded-lg border border-bc-border/50 bg-[#0a0a0f] p-4 text-xs leading-relaxed overflow-y-auto max-h-[50vh] md:max-h-[70vh] whitespace-pre-wrap text-bc-text/90 shadow-inner"
         style={{ fontFamily: "'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
       >
         {outputLines.length > 0
@@ -134,17 +135,7 @@ function OverviewTab({ agent }: { agent: Agent }) {
 }
 
 function StatsTab({ agent }: { agent: Agent }) {
-  return (
-    <div className="space-y-2">
-      <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">Stats</h2>
-      <div className="rounded border border-bc-border bg-bc-surface p-4">
-        <MetadataRow label="Cost (USD)" value={agent.cost_usd != null ? `$${agent.cost_usd.toFixed(4)}` : '\u2014'} />
-        <MetadataRow label="State" value={<StatusBadge status={agent.state} />} />
-        <MetadataRow label="Started" value={formatTime(agent.started_at)} />
-        <MetadataRow label="Stopped" value={formatTime(agent.stopped_at)} />
-      </div>
-    </div>
-  );
+  return <StatsTabComponent agent={agent} />;
 }
 
 function RoleTab({ agent }: { agent: Agent }) {
@@ -301,7 +292,7 @@ export function AgentDetail() {
         </div>
 
         {/* Tab bar */}
-        <div className="flex gap-1 border-b border-bc-border">
+        <div className="flex flex-wrap gap-1 border-b border-bc-border">
           {TABS.map((tab) => (
             <button
               key={tab.key}

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 
@@ -23,6 +23,7 @@ const THEME_LABELS = { dark: 'Dark', light: 'Light', system: 'System' } as const
 export function Layout() {
   const location = useLocation();
   const { mode, toggle } = useTheme();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Dynamic page title (#2150)
   useEffect(() => {
@@ -32,14 +33,56 @@ export function Layout() {
     document.title = match ? `${match.label} \u2014 bc` : 'bc';
   }, [location.pathname]);
 
+  // Close sidebar on route change (mobile)
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
   return (
     <div className="flex h-screen">
-      <nav className="w-48 shrink-0 border-r border-bc-border bg-bc-surface flex flex-col">
-        <div className="p-4 border-b border-bc-border">
-          <span className="text-lg font-bold text-bc-accent">bc</span>
-          <span className="ml-2 text-xs text-bc-muted">v2</span>
+      {/* Mobile hamburger button */}
+      <button
+        type="button"
+        onClick={() => setSidebarOpen(true)}
+        className="fixed top-3 left-3 z-40 md:hidden p-2 rounded border border-bc-border bg-bc-surface text-bc-muted hover:text-bc-text transition-colors"
+        aria-label="Open navigation"
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M3 5h14M3 10h14M3 15h14" />
+        </svg>
+      </button>
+
+      {/* Overlay for mobile sidebar */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <nav
+        className={`fixed inset-y-0 left-0 z-50 w-48 shrink-0 border-r border-bc-border bg-bc-surface flex flex-col transform transition-transform duration-200 md:relative md:translate-x-0 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="p-4 border-b border-bc-border flex items-center justify-between">
+          <div>
+            <span className="text-lg font-bold text-bc-accent">bc</span>
+            <span className="ml-2 text-xs text-bc-muted">v2</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden p-1 rounded text-bc-muted hover:text-bc-text transition-colors"
+            aria-label="Close navigation"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 4l8 8M12 4l-8 8" />
+            </svg>
+          </button>
         </div>
-        <ul className="flex-1 py-2">
+        <ul className="flex-1 py-2 overflow-y-auto">
           {NAV_ITEMS.map(({ to, label, icon }) => (
             <li key={to}>
               <NavLink

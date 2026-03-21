@@ -211,6 +211,18 @@ export interface ChannelStats {
   top_senders: ChannelTopSender[];
 }
 
+export interface AgentStatsRecord {
+  collected_at: string;
+  agent_name: string;
+  cpu_pct: number;
+  mem_used_mb: number;
+  mem_limit_mb: number;
+  net_rx_mb: number;
+  net_tx_mb: number;
+  block_read_mb: number;
+  block_write_mb: number;
+}
+
 export const api = {
   listAgents: () => request<Agent[]>('/agents'),
   getAgent: (name: string) => request<Agent>(`/agents/${encodeURIComponent(name)}`),
@@ -220,6 +232,8 @@ export const api = {
   stopAgent: (name: string) => request<void>(`/agents/${encodeURIComponent(name)}/stop`, { method: 'POST' }),
   sendToAgent: (name: string, message: string) =>
     request<void>(`/agents/${encodeURIComponent(name)}/send`, { method: 'POST', body: JSON.stringify({ message }) }),
+  getAgentStats: (name: string, limit = 20) =>
+    request<AgentStatsRecord[]>(`/agents/${encodeURIComponent(name)}/stats?${new URLSearchParams({ limit: String(limit) })}`),
 
   listChannels: () => request<Channel[]>('/channels'),
   getChannelHistory: (name: string, limit = 50) =>
