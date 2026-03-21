@@ -2,104 +2,175 @@
 
 ## What is an Agent?
 
-An AI coding assistant running in an isolated tmux session or Docker container with its own git worktree. Agents have roles (engineer, manager, root) that define their capabilities, prompts, and permissions.
+An AI coding assistant running in an isolated tmux session or Docker container with its own git worktree. Each agent has a role (defining its prompt and tool access), a workspace (git repo), and optionally belongs to teams.
 
 ## State Machine
 
-```
-         create
-           |
-           v
-      [starting] ──→ [idle] ←──→ [working]
-           |            |              |
-           v            v              v
-        [error]    [stopped]      [stopped]
-           |            |              |
-           └────────────┴──── delete ──┘
+```mermaid
+stateDiagram-v2
+    [*] --> starting: create / start
+    starting --> idle: session alive
+    starting --> error: session failed
+    idle --> working: hook: tool_use_start
+    working --> idle: hook: tool_use_end
+    idle --> stuck: hook: user_input_required
+    stuck --> idle: hook: input_resolved
+    working --> stuck: hook: user_input_required
+    idle --> stopped: stop / session died
+    working --> stopped: stop / session died
+    stuck --> stopped: stop / session died
+    stopped --> starting: restart
+    error --> starting: restart
+    stopped --> [*]: delete
+    error --> [*]: delete
 ```
 
-Valid transitions:
-- starting → idle (session alive)
-- starting → error (session failed)
-- idle → working (hook: tool_use started)
-- working → idle (hook: tool_use completed)
-- idle/working → stopped (user stop or session died)
-- stopped/error → starting (restart)
-
-State updates come from Claude Code hooks (`POST /api/agents/{name}/hook`) which fire on tool use start/stop events.
+| State | Meaning |
+|-------|---------|
+| starting | Session being created, provider launching |
+| idle | Running, waiting for input |
+| working | Actively using a tool (edit, search, bash) |
+| stuck | Waiting for user input (permission prompt, question) |
+| stopped | Session terminated |
+| error | Failed to start or unrecoverable |
 
 ## Runtime Backends
 
-### Tmux (`pkg/runtime/tmux.go`)
-- Creates `bc-<agent>` tmux session
-- `send-keys -l` for message injection (literal mode, `--` prevents arg injection)
-- `pipe-pane` for log streaming to `.bc/logs/<agent>.log`
-- `capture-pane` for output capture (peek, session ID extraction)
+### Tmux
 
-### Docker (`pkg/container/container.go`)
-- Each agent gets a container: `bc-<hash>-<agent>`
-- Tmux runs inside the container for session management
-- Resource limits: 2 CPUs, 2048MB memory (configurable)
-- Network: host mode by default (configurable)
-- Volumes: workspace mounted read-write, agent auth dir at `/home/agent/.claude/`
+Local tmux sessions. Named with random suffix to avoid collisions on restart:
 
-## Agent Lifecycle
+```
+bc-<random6>-<team>-<agent>
+Example: bc-a3f2c1-backend-eng-01
+```
 
-### Create + Start (`SpawnAgentWithOptions`)
-1. Validate name (`IsValidAgentName` — alphanumeric, hyphens, underscores)
-2. Create git worktree (`git worktree add`)
-3. Setup role files (CLAUDE.md, settings.json, .mcp.json, commands/, skills/, agents/, rules/)
-4. Create tmux session or Docker container
-5. Start provider command (e.g., `claude --dangerously-skip-permissions`)
-6. Persist state to SQLite
+| Operation | Implementation |
+|-----------|---------------|
+| Create | `tmux new-session -d -s <name> -x 200 -y 50` |
+| Send | `tmux send-keys -l -- <text>` (literal, safe) |
+| Read | `tmux capture-pane -p -t <name> -S -<lines>` |
+| Log | `tmux pipe-pane -t <name> 'cat >> <logfile>'` |
+| Stop | `tmux kill-session -t <name>` |
 
-### Stop (`StopAgent`)
-1. Capture session ID (parse Claude's `--resume <uuid>` output)
-2. Archive session ID with timestamp
-3. Kill tmux session or Docker container
-4. Update state to stopped
+Messages >500 chars use `load-buffer` + `paste-buffer`.
 
-### Delete (`DeleteAgent`)
-1. Stop if running
-2. Remove from state DB
-3. **Known bug:** Does not clean up Docker container, git worktree, or branch (#2038)
+### Docker
+
+Isolated containers with tmux inside. Same naming:
+
+```
+bc-<random6>-<team>-<agent>
+```
+
+| Setting | Default |
+|---------|---------|
+| Image | `bc-agent-<tool>:latest` |
+| CPUs | 2.0 |
+| Memory | 2048 MB |
+| Network | bridge |
+| Volumes | workspace (rw), auth dir -> `/home/agent/.claude/` |
+
+Communication: `docker exec ... tmux send-keys`.
+
+## Worktree Management
+
+bc creates and manages git worktrees for ALL providers uniformly. No provider uses its own worktree flag (avoids nesting).
+
+### Flow
+
+```mermaid
+sequenceDiagram
+    participant Svc as Agent Service
+    participant Git as git
+    participant RT as Runtime
+
+    Svc->>Git: git worktree add ~/.bc/agents/<name>/worktree -b bc-<team>-<name>
+    Svc->>Svc: Write role files into worktree/.claude/
+    Svc->>RT: cd <worktree> && <provider-command>
+```
+
+### Lifecycle
+
+| Event | Worktree Action |
+|-------|-----------------|
+| Create | `git worktree add` from workspace repo |
+| Restart | `cd <existing-worktree> && <command>` (persists) |
+| Stop | Nothing — worktree stays |
+| Delete | `git worktree remove --force` + `git branch -D` |
+
+### Provider Commands
+
+All started with `cd <worktree> && <command>`:
+
+| Provider | Command |
+|----------|---------|
+| Claude | `claude` (no `-w` — bc owns worktree) |
+| Gemini | `gemini` |
+| Cursor | `cursor-agent --force --print` |
+| Aider | `aider --yes` |
+| Codex | `codex --full-auto` |
 
 ### Session Resume
-On restart, if a valid Claude session UUID exists (36 chars, `[0-9a-f]{8}-...`), the agent starts with `--continue` to resume the conversation. Fixed in #2169 — previously crashed when tmux session names were mistaken for UUIDs.
+
+On stop, bc captures Claude's UUID from output (`claude --resume <uuid>` pattern). On restart:
+
+```
+cd <worktree> && claude --resume <uuid>
+```
+
+Validation: `len == 36 && sessionID[8] == '-'`.
 
 ## Roles
 
-Defined in `.bc/roles/*.md` with YAML frontmatter:
+Stored in `roles` table (SQLite). No markdown files on disk.
 
-```yaml
----
-name: engineer
-description: Implements features and fixes bugs
-parent_roles: []
-mcp_servers: [playwright]
-secrets: [GITHUB_TOKEN]
-plugins: [github, commit-commands]
-prompt_create: "You are an engineer agent..."
-settings:
-  model: opus
-commands:
-  lint: "Run linting on the codebase"
----
-
-Main role prompt body (becomes CLAUDE.md in the agent's worktree)
+```mermaid
+erDiagram
+    roles ||--o{ role_mcp_servers : "has access to"
+    roles ||--o{ role_secrets : "can use"
+    roles ||--o{ agents : "assigned to"
+    roles {
+        text id PK
+        text name UK
+        blob prompt "CLAUDE.md content"
+        blob settings "JSON"
+        blob commands "JSON"
+        blob skills "JSON"
+        blob rules "JSON"
+    }
 ```
 
-Roles support BFS inheritance via `parent_roles`. Child settings override parent.
+### Role Setup on Agent Create
 
-## Manager (`pkg/agent/agent.go`)
+1. Read role from DB
+2. Write CLAUDE.md from `roles.prompt` -> auth dir
+3. Write settings.json from `roles.settings` -> auth dir
+4. Write .mcp.json from `role_mcp_servers` -> auth dir
+5. Write command/skill/rule files from BLOBs -> worktree `.claude/`
+6. Resolve `${secret:NAME}` in MCP env vars
 
-The Manager holds all agent state behind a `sync.RWMutex`. Key concern: the lock is held during slow Docker/tmux subprocess calls (#2106). `RefreshState()` runs on every `GET /api/agents` and shells out to `docker ps` / `tmux list-sessions` for each runtime while holding the write lock.
+### CRUD via API
 
-## Permissions (RBAC)
+| Method | Path | Action |
+|--------|------|--------|
+| POST | `/api/roles` | Create |
+| GET | `/api/roles` | List |
+| GET | `/api/roles/{id}` | Get with full prompt/settings |
+| PUT | `/api/roles/{id}` | Update |
+| DELETE | `/api/roles/{id}` | Delete (agents keep config) |
 
-Defined in `pkg/agent/agent.go:116-193`. Three levels:
-- **Root** (level -1): all permissions
-- **Manager** (level 0): create/stop/restart agents, send commands, create channels
-- **Engineer** (level 1+): view logs, send commands/messages
+## Channel Auto-Enrollment
 
-**Not enforced at API layer** — any HTTP client can call any endpoint regardless of role.
+On creation with a team, agent joins:
+1. `#all` (broadcast)
+2. `#general`
+3. Team-specific channels
+
+## Message Delivery
+
+Via `tmux send-keys` — the only mechanism to inject into a running Claude session.
+
+Format: `[#channel @sender] message content`
+
+On failure: logged, queued for retry. Agent receives missed messages via channel history on reconnect.

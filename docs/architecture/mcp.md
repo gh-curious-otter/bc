@@ -2,59 +2,105 @@
 
 ## Overview
 
-bc exposes a Model Context Protocol (MCP) server so AI agents (Claude Code, etc.) can read workspace state and take actions programmatically. Protocol version: `2024-11-05`.
+bc exposes a Model Context Protocol (MCP) server so AI agents can read state and take actions. Protocol version: `2024-11-05`.
 
 ## Transports
 
-| Transport | How | Use case |
-|-----------|-----|----------|
-| **stdio** | `bc mcp serve` — newline-delimited JSON on stdin/stdout | Claude Code connects via `.mcp.json` config |
-| **SSE** | `GET /mcp/sse` + `POST /mcp/message` on bcd :9374 | Browser-based MCP clients, remote access |
+```mermaid
+graph LR
+    subgraph "Claude Code Agent"
+        CC[Claude Code]
+    end
+    subgraph "bcd Daemon"
+        STDIO[stdio transport]
+        SSE_T[SSE transport]
+        MCP_S[MCP Server]
+    end
+    CC -->|.mcp.json| STDIO
+    CC -->|HTTP| SSE_T
+    STDIO --> MCP_S
+    SSE_T --> MCP_S
+```
 
-Both transports have a 4MB message size limit.
+| Transport | Entry | Limit | Use Case |
+|-----------|-------|-------|----------|
+| stdio | `bc mcp serve` | 4MB/line | Claude Code direct via .mcp.json |
+| SSE | `/mcp/sse` + `/mcp/message` | 4MB body | Browser clients, remote |
 
 ## Resources (read-only)
 
-| URI | Returns |
-|-----|---------|
-| `bc://workspace/status` | Name, path, state dir, version |
-| `bc://agents` | All agents: name, role, state, tool, worktree, session |
-| `bc://channels` | All channels: name, description, members, message count |
-| `bc://costs` | Workspace total + per-agent cost breakdown |
-| `bc://roles` | Role definitions: name, description, MCP servers, secrets |
-| `bc://tools` | Available AI tools with PATH availability check |
+| URI | Description |
+|-----|-------------|
+| `bc://agents` | All agents with state, role, tool, workspace |
+| `bc://agents/{name}` | Single agent detail + recent output |
+| `bc://teams` | Team hierarchy tree |
+| `bc://channels` | All channels with member counts |
+| `bc://channels/{name}/history` | Last 50 messages |
+| `bc://costs` | Workspace + per-agent + per-model breakdown |
+| `bc://roles` | Available roles with MCP/secret associations |
+| `bc://tools` | AI tools with availability check |
+| `bc://status` | System status summary |
 
-## Tools (actions)
+## Tools (curated actions)
 
-| Tool | Required Args | Description |
-|------|--------------|-------------|
-| `create_agent` | name, role | Creates and starts a new agent. Shells out to `bc agent create`. |
-| `send_message` | channel, message | Posts to a channel. Uses ChannelService when available (triggers delivery + SSE). |
-| `report_status` | agent, task | Updates agent's current task description. |
-| `query_costs` | (optional: agent) | Returns cost summary — workspace or per-agent. |
+### Agent Management
 
-## Notifications (server-pushed)
+| Tool | Args | Description |
+|------|------|-------------|
+| `create_agent` | name, role, workspace, tool, team | Create and start agent |
+| `stop_agent` | name | Stop running agent |
+| `delete_agent` | name, force | Delete + cleanup worktree |
+| `send_to_agent` | name, message | Send text to session |
+| `list_agents` | role, state | List with filters |
+
+### Communication
+
+| Tool | Args | Description |
+|------|------|-------------|
+| `send_message` | channel, message, sender | Post to channel, triggers delivery |
+| `list_channels` | — | List all channels |
+| `read_channel` | channel, limit | Read recent messages |
+
+### Status & Costs
+
+| Tool | Args | Description |
+|------|------|-------------|
+| `report_status` | agent, task | Update task description |
+| `query_costs` | agent, team, period | Query cost data |
+
+### Scheduling
+
+| Tool | Args | Description |
+|------|------|-------------|
+| `create_cron` | name, schedule, agent, prompt | Schedule recurring task |
+| `list_crons` | — | List scheduled jobs |
+
+## Notifications
 
 | Method | Trigger |
 |--------|---------|
-| `notifications/message` | New channel message (polled every 2s) |
+| `notifications/message` | New channel message |
+| `notifications/agent_state` | Agent state change |
 
-**Known bug:** Polling uses `len(history)` which caps at 100. After 100 messages per channel, no new messages are detected (#2164).
+Channel polling uses message ID watermarks (not array length) to avoid the >100 message bug.
 
-## MCP Server Config Store
+## External MCP Server Management
 
-bc also manages external MCP servers that agents connect to, stored in `mcp_servers` table:
-- Transport: stdio (command + args) or SSE (URL)
-- Env vars support `${secret:NAME}` references
-- Per-server enable/disable
-- Role-scoped: roles declare which MCP servers their agents get
+bc manages MCP servers that agents connect to (Playwright, GitHub, etc.):
 
-## Code
+- Stored in `mcp_servers` table
+- Associated with roles via `role_mcp_servers`
+- Env vars support `${secret:NAME}`
+- Written to agent `.mcp.json` during role setup
 
-- `server/mcp/server.go` — Server struct, Handle() dispatcher, channel polling
-- `server/mcp/protocol.go` — JSON-RPC 2.0 types
-- `server/mcp/tools.go` — Tool implementations
-- `server/mcp/resources.go` — Resource readers
-- `server/mcp/sse.go` — SSE transport + broker
-- `server/mcp/stdio.go` — stdio transport
-- `pkg/mcp/store.go` — MCP server config storage (SQLite)
+## Code Map
+
+| File | Purpose |
+|------|---------|
+| `server/mcp/server.go` | Server, dispatcher, polling |
+| `server/mcp/protocol.go` | JSON-RPC 2.0 types |
+| `server/mcp/tools.go` | Tool implementations |
+| `server/mcp/resources.go` | Resource readers |
+| `server/mcp/sse.go` | SSE transport + broker |
+| `server/mcp/stdio.go` | stdio transport |
+| `pkg/mcp/store.go` | External MCP config storage |

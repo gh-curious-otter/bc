@@ -2,132 +2,187 @@
 
 ## Overview
 
-All data stored in `.bc/bc.db` (SQLite, WAL mode). PostgreSQL supported via `[database]` config but not yet connected end-to-end.
+All bc data lives in a single SQLite database at `~/.bc/bc.db` using WAL mode. A server-based SQL backend is planned for future multi-user deployments but is not currently implemented.
 
-## Connection Management
+## Connection Architecture
 
-Centralized in `pkg/db/db.go`:
-- WAL journal mode
-- Foreign keys enabled
-- 30s busy timeout (handles concurrent agent access)
-- MaxOpenConns=1, MaxIdleConns=1 (SQLite single-writer)
-- `PRAGMA synchronous = NORMAL`, `cache_size = -2000`, `temp_store = MEMORY`, `mmap_size = 268435456`
-
-**Known issue:** 5 stores still bypass `pkg/db.Open()` and use raw `sql.Open()` with inconsistent pragmas (5s busy timeout vs 30s). See #2026.
-
-## Schema
-
-### agents
-```sql
-CREATE TABLE agents (
-    name            TEXT PRIMARY KEY,
-    role            TEXT NOT NULL,
-    state           TEXT NOT NULL DEFAULT 'idle',
-    task            TEXT,
-    tool            TEXT,
-    session         TEXT,
-    session_id      TEXT,
-    parent_id       TEXT,
-    workspace       TEXT,
-    worktree_dir    TEXT,
-    log_file        TEXT,
-    team            TEXT,
-    env_file        TEXT,
-    runtime_backend TEXT DEFAULT 'tmux',
-    hooked_work     TEXT,
-    children        TEXT, -- JSON array
-    is_root         INTEGER DEFAULT 0,
-    created_at      TEXT NOT NULL,
-    started_at      TEXT,
-    updated_at      TEXT NOT NULL,
-    stopped_at      TEXT
-);
+```mermaid
+graph LR
+    subgraph "bcd process"
+        W[Write Pool<br/>MaxOpenConns=1]
+        R[Read Pool<br/>MaxOpenConns=4]
+    end
+    W -->|single writer| DB["~/.bc/bc.db<br/>SQLite WAL"]
+    R -->|concurrent reads| DB
 ```
 
-### channels, channel_members, messages, mentions, reactions
-```sql
-CREATE TABLE channels (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    name        TEXT NOT NULL UNIQUE,
-    type        TEXT NOT NULL DEFAULT 'group' CHECK (type IN ('group', 'direct')),
-    description TEXT,
-    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-    updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-);
--- Indexes: name, type
+### Connection Settings
 
-CREATE TABLE messages (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    channel_id  INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
-    sender      TEXT NOT NULL,
-    content     TEXT NOT NULL,
-    type        TEXT NOT NULL DEFAULT 'text' CHECK (type IN ('text','task','review','approval','merge','status')),
-    metadata    TEXT,
-    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-);
--- Indexes: (channel_id, created_at DESC), sender, type, (channel_id, id)
--- FTS5: messages_fts on (content, sender)
+| Setting | Value | Rationale |
+|---------|-------|-----------|
+| Journal mode | WAL | Concurrent reads + single writer |
+| Foreign keys | ON (per-connection) | Referential integrity |
+| Busy timeout | 30,000ms | Handle concurrent agent access |
+| Synchronous | NORMAL | Safe with WAL; avoids unnecessary fsync |
+| Cache size | -2000 (2MB) | Reasonable for local workload |
+| Temp store | MEMORY | Faster temp table operations |
+| mmap_size | 268435456 (256MB) | Memory-mapped reads |
+
+### Rules
+
+1. One shared DB opened at bcd startup, passed to all stores
+2. All stores accept `*db.DB` — no store opens its own connection
+3. Write pool (MaxOpenConns=1): all mutations
+4. Read pool (MaxOpenConns=4, read-only): all queries
+5. Never open the same file from multiple sql.Open calls
+
+## Entity Relationship Diagram
+
+```mermaid
+erDiagram
+    teams ||--o{ teams : "parent_id (tree)"
+    teams ||--o{ team_members : has
+    agents ||--o{ team_members : "member of"
+    agents }o--o| roles : "has role"
+    roles ||--o{ role_mcp_servers : uses
+    roles ||--o{ role_secrets : needs
+    channels ||--o{ channel_members : has
+    agents ||--o{ channel_members : "member of"
+    channels ||--o{ messages : contains
+    messages ||--o{ mentions : has
+    messages ||--o{ reactions : has
+    agents ||--o{ cost_records : generates
+    agents ||--o{ events : logs
+    agents ||--o{ agent_sessions : "session history"
+    cron_jobs ||--o{ cron_logs : executions
+    mcp_servers ||--o{ role_mcp_servers : "used by"
+    secrets ||--o{ role_secrets : "used by"
+
+    teams {
+        text id PK
+        text name "NOT NULL"
+        text parent_id FK "NULL for root"
+        text workspace "git repo path"
+        integer created_at "unix millis"
+    }
+    team_members {
+        text team_id FK "PK"
+        text agent_id FK "PK"
+        integer joined_at "unix millis"
+    }
+    agents {
+        text name PK
+        text role_id FK
+        text state "idle|working|stuck|starting|stopped|error"
+        text tool "claude|gemini|cursor|aider|codex"
+        text workspace "git repo path"
+        text session_id "Claude UUID"
+        text runtime "tmux|docker"
+        integer created_at "unix millis"
+    }
+    roles {
+        text id PK
+        text name "UNIQUE"
+        blob prompt "CLAUDE.md content"
+        blob settings "JSON"
+        blob commands "JSON map"
+        integer created_at "unix millis"
+    }
+    channels {
+        integer id PK
+        text name "UNIQUE"
+        text type "group|direct"
+        integer created_at "unix millis"
+    }
+    messages {
+        integer id PK
+        integer channel_id FK
+        text sender
+        text content
+        text type "text|task|review|..."
+        integer created_at "unix millis"
+    }
+    cost_records {
+        integer id PK
+        text agent_name FK
+        text model
+        real cost_usd
+        integer timestamp "unix millis"
+    }
+    secrets {
+        text name PK
+        blob value "AES-256-GCM"
+        integer created_at "unix millis"
+    }
+    mcp_servers {
+        text name PK
+        text transport "stdio|sse"
+        integer enabled "0|1"
+    }
+    events {
+        integer id PK
+        text type
+        text agent
+        integer timestamp "unix millis"
+    }
+    cron_jobs {
+        text name PK
+        text schedule "5-field cron"
+        integer enabled "0|1"
+    }
+    cron_logs {
+        integer id PK
+        text job_name FK
+        text status
+        integer run_at "unix millis"
+    }
 ```
 
-### cost_records, cost_budgets, cost_imports
-```sql
-CREATE TABLE cost_records (
-    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
-    agent_id             TEXT,
-    team_id              TEXT,
-    model                TEXT,
-    session_id           TEXT,
-    input_tokens         INTEGER DEFAULT 0,
-    output_tokens        INTEGER DEFAULT 0,
-    total_tokens         INTEGER DEFAULT 0,
-    cache_creation_tokens INTEGER DEFAULT 0,
-    cache_read_tokens    INTEGER DEFAULT 0,
-    cost_usd             REAL DEFAULT 0,
-    timestamp            TEXT NOT NULL
-);
--- Indexes: agent_id, model, timestamp DESC, team_id
--- Missing: composite (agent_id, timestamp) for budget queries — see #2110
-```
+## Timestamp Convention
 
-### events
-```sql
-CREATE TABLE events (
-    id        INTEGER PRIMARY KEY AUTOINCREMENT,
-    type      TEXT NOT NULL,
-    agent     TEXT,
-    message   TEXT,
-    data      TEXT, -- JSON
-    timestamp TEXT NOT NULL
-);
--- Indexes: agent, timestamp DESC
-```
+All timestamps: `INTEGER` storing Unix milliseconds (`time.Now().UnixMilli()` in Go).
 
-### secrets, secret_meta
-```sql
-CREATE TABLE secrets (
-    name        TEXT PRIMARY KEY,
-    value       TEXT NOT NULL, -- AES-256-GCM encrypted, base64
-    description TEXT,
-    created_at  TEXT NOT NULL,
-    updated_at  TEXT NOT NULL
-);
-```
+| Benefit | Detail |
+|---------|--------|
+| Storage | 8 bytes vs 20-24 for TEXT |
+| Range queries | Integer compare vs string compare |
+| Go marshaling | `time.UnixMilli(ts)` — trivial |
+| Human queries | `datetime(ts/1000, 'unixepoch')` in SQLite |
 
-### cron_jobs, cron_logs
-### mcp_servers
-### tools
-### daemons
+## Index Strategy
 
-## Database Evolution
+Composite indexes on hot paths, following SQLite left-to-right rule:
+
+| Index | Query Pattern |
+|-------|---------------|
+| `idx_cost_agent_time(agent_name, timestamp DESC)` | Budget checks per agent |
+| `idx_cost_team_time(team_id, timestamp DESC)` | Team cost queries |
+| `idx_messages_channel_time(channel_id, created_at DESC)` | Channel history |
+| `idx_agent_sessions_agent(agent_name, created_at DESC)` | Session resume |
+| `idx_events_timestamp(timestamp DESC)` | Recent events |
+| `idx_cron_logs_job(job_name, run_at DESC)` | Job execution logs |
+
+## Migration Strategy
+
+[goose](https://github.com/pressly/goose) with embedded SQL files:
 
 ```
-Feb 7-10:  agents.json, channels.json (flat files)
-Mar 6:     state.db for agents + events (#1934)
-Mar 18:    bc.db consolidation — all 9 stores into one (#2017)
-Mar 19:    Agent store fixed to use bc.db (#2039)
-Current:   bc.db is primary, but 5 stores still open own connections
+pkg/db/migrations/
+  001_create_settings.sql
+  002_create_teams.sql
+  003_create_roles.sql
+  004_create_agents.sql
+  005_create_channels.sql
+  006_create_costs.sql
+  ...
 ```
 
-## Postgres Support
+Run `goose.Up()` at bcd startup. No `CREATE TABLE IF NOT EXISTS` in application code.
 
-Config: `[database] driver = "postgres"` with connection URL. Channel store has a full Postgres backend (`pkg/channel/store_postgres.go`). Other stores have not been ported. The `bcdb` Docker image (postgres:17) exists but nothing connects to it in production.
+## Future: Server-Based SQL
+
+When needed for multi-user deployment:
+- Add driver for target DB (Postgres, SQL Server)
+- Dialect abstraction for placeholder differences (`?` vs `$1`)
+- goose handles multi-DB migrations natively
+- Split read/write at connection string level
