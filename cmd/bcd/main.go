@@ -32,6 +32,7 @@ import (
 	bcmcp "github.com/rpuneet/bc/pkg/mcp"
 	"github.com/rpuneet/bc/pkg/provider"
 	bcsecret "github.com/rpuneet/bc/pkg/secret"
+	bcteam "github.com/rpuneet/bc/pkg/team"
 	bctool "github.com/rpuneet/bc/pkg/tool"
 	bcworkspace "github.com/rpuneet/bc/pkg/workspace"
 	"github.com/rpuneet/bc/server"
@@ -186,6 +187,8 @@ func run(addr, wsRoot, corsOrigin string) error {
 		defer el.Close() //nolint:errcheck // best-effort
 	}
 
+	teamStore := bcteam.NewStore(ws.RootDir)
+
 	svc := server.Services{
 		Agents:       agentSvc,
 		Channels:     channelSvc,
@@ -197,6 +200,7 @@ func run(addr, wsRoot, corsOrigin string) error {
 		MCP:          mcpStore,
 		Tools:        toolStore,
 		EventLog:     eventLog,
+		Teams:        teamStore,
 		WS:           ws,
 	}
 
