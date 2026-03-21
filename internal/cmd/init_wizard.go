@@ -259,7 +259,7 @@ func printWizardSuccess(state *WizardState) {
 	fmt.Println("    .bc/agents/         # Agent state directory")
 	fmt.Println("    .bc/roles/          # Role definitions")
 	fmt.Println("    .bc/roles/root.md   # Root agent role")
-	fmt.Println("    .bc/channels.db     # Channel database")
+	fmt.Println("    .bc/bc.db            # Workspace database")
 	fmt.Println()
 	fmt.Println("  Next steps:")
 	fmt.Println("    bc          # Open the dashboard")

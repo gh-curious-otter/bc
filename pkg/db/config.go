@@ -27,7 +27,7 @@ type DatabaseConfig struct {
 }
 
 // OpenFromConfig opens a database using the provided configuration.
-// For sqlite, dbName is appended to the workspace .bc/ directory (e.g. "channels.db").
+// For sqlite, dbName is appended to the workspace .bc/ directory (e.g. "bc.db").
 // For postgres, the URL from config is used directly and dbName is ignored.
 func OpenFromConfig(cfg DatabaseConfig, workspacePath, dbName string) (*DB, error) {
 	switch cfg.Driver {

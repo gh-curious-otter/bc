@@ -4,7 +4,7 @@
 // running in either a tmux bash session or a Docker container, scoped
 // to the current workspace.
 //
-// State is persisted in .bc/daemons.db (SQLite) so daemons survive
+// State is persisted in .bc/bc.db (SQLite) so daemons survive
 // bc invocations. Each daemon runs under a unique name and can be
 // stopped, restarted, and removed independently.
 package daemon
@@ -88,7 +88,7 @@ type Manager struct {
 }
 
 // NewManager creates a daemon manager for the given workspace.
-// The db is at workspaceDir/.bc/daemons.db.
+// The db is at workspaceDir/.bc/bc.db.
 func NewManager(workspaceDir string) (*Manager, error) {
 	dbPath := filepath.Join(workspaceDir, ".bc", "daemons.db")
 	database, err := db.Open(dbPath)

@@ -10,7 +10,7 @@ import (
 
 // SQLiteStore provides SQLite-backed persistence for agent state.
 // It replaces the JSON file-based storage (agents.json, root.json, per-agent JSONs)
-// with a single state.db using WAL mode for safe concurrent access.
+// with a single bc.db using WAL mode for safe concurrent access.
 type SQLiteStore struct {
 	db *db.DB
 }
