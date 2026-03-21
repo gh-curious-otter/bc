@@ -133,7 +133,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 
 	// Resource handlers (only registered when service is available)
 	if svc.Agents != nil {
-		handlers.NewAgentHandler(svc.Agents).Register(mux)
+		handlers.NewAgentHandler(svc.Agents, svc.Costs, svc.WS).Register(mux)
 	}
 	if svc.Channels != nil {
 		svc.Channels.OnMessage = func(ch, sender, content string) {
