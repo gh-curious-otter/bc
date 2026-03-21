@@ -249,6 +249,23 @@ func TestParseSessionReader_BadMessageJSON(t *testing.T) {
 	}
 }
 
+func TestParseSessionReader_LongLines(t *testing.T) {
+	// Simulate a JSONL line with a very large message field (>1MB) to verify
+	// the scanner buffer can handle large tool results or base64 content.
+	padding := strings.Repeat("x", 2*1024*1024) // 2 MiB of padding
+	line := `{"type":"assistant","sessionId":"s1","timestamp":"2026-03-01T10:00:00Z","cwd":"/ws","message":{"model":"claude-opus-4-6","usage":{"input_tokens":42,"output_tokens":7},"content":"` + padding + `"}}` + "\n"
+	entries, err := parseSessionReader(strings.NewReader(line))
+	if err != nil {
+		t.Fatalf("expected no error for long line, got: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("want 1 entry, got %d", len(entries))
+	}
+	if entries[0].InputTokens != 42 {
+		t.Errorf("want 42 input tokens, got %d", entries[0].InputTokens)
+	}
+}
+
 func TestPricingFor_Prefixes(t *testing.T) {
 	cases := []struct {
 		model     string

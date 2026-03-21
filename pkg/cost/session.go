@@ -58,7 +58,7 @@ func ParseSessionFile(path string) ([]SessionEntry, error) {
 func parseSessionReader(r io.Reader) ([]SessionEntry, error) {
 	var entries []SessionEntry
 	scanner := bufio.NewScanner(r)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1 MiB line buffer
+	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024) // 10 MiB max line length
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
