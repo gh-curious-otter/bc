@@ -39,13 +39,14 @@ const defaultAddr = "127.0.0.1:9374"
 
 // Config holds server configuration.
 type Config struct {
-	Addr string // default "127.0.0.1:9374"
-	CORS bool   // enable permissive CORS headers (safe for loopback)
+	Addr       string // default "127.0.0.1:9374"
+	CORS       bool   // enable CORS headers
+	CORSOrigin string // allowed origin ("*" for permissive, or specific origin)
 }
 
 // DefaultConfig returns the default server configuration.
 func DefaultConfig() Config {
-	return Config{Addr: defaultAddr, CORS: true}
+	return Config{Addr: defaultAddr, CORS: true, CORSOrigin: "*"}
 }
 
 // Services bundles all service/store dependencies for the handlers.
@@ -188,7 +189,6 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	if staticFiles != nil {
 		fileServer := http.FileServer(http.FS(staticFiles))
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			// Try serving the exact file first
 			path := r.URL.Path
 			if path != "/" {
 				if f, err := staticFiles.Open(path[1:]); err == nil {
@@ -197,22 +197,27 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 					return
 				}
 			}
-			// Fallback: serve index.html for SPA client-side routes
 			r.URL.Path = "/"
 			fileServer.ServeHTTP(w, r)
 		})
 	}
 
 	// Middleware chain (outermost runs first):
-	// RequestID → RequestLogger → Recovery → CORS → mux
+	// RateLimit → RequestID → RequestLogger → Recovery → MaxBodySize → CORS → mux
 	var handler http.Handler = mux
 	if cfg.CORS {
-		handler = handlers.CORS(mux)
+		origin := cfg.CORSOrigin
+		if origin == "" {
+			origin = "*"
+		}
+		handler = handlers.CORSWithOrigin(origin, mux)
 	}
-	handler = handlers.MaxBodySize(1 << 20)(handler) // 1MB request body limit
+	handler = handlers.MaxBodySize(1 << 20)(handler)
 	handler = handlers.Recovery(handler)
 	handler = handlers.RequestLogger(handler)
 	handler = handlers.RequestID(handler)
+	limiter := handlers.NewRateLimiter(100, 200)
+	handler = handlers.RateLimit(limiter)(handler)
 
 	return &Server{
 		addr:    cfg.Addr,
@@ -221,8 +226,6 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 			Addr:        cfg.Addr,
 			Handler:     handler,
 			ReadTimeout: 30 * time.Second,
-			// WriteTimeout must be 0 for SSE connections (/api/events) which are long-lived.
-			// Per-handler timeouts are used instead where needed.
 			WriteTimeout: 0,
 			IdleTimeout:  120 * time.Second,
 		},

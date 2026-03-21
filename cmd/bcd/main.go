@@ -4,7 +4,7 @@
 //
 // Usage:
 //
-//	bcd [--addr ADDR] [--workspace DIR] [--verbose] [--log-format text|json]
+//	bcd [--addr ADDR] [--workspace DIR] [--verbose] [--log-format text|json] [--cors-origin ORIGIN]
 //
 // The server binds to 127.0.0.1:9374 by default.
 // A PID file is written to <workspace>/.bc/bcd.pid on startup.
@@ -43,6 +43,7 @@ func main() {
 	wsRoot := flag.String("workspace", ".", "workspace root directory")
 	verbose := flag.Bool("verbose", false, "enable verbose logging")
 	logFormat := flag.String("log-format", "text", "log output format (text|json)")
+	corsOrigin := flag.String("cors-origin", "*", "CORS allowed origin (* for permissive, or specific origin)")
 	flag.Parse()
 
 	if *logFormat == "json" {
@@ -52,15 +53,13 @@ func main() {
 		log.SetVerbose(true)
 	}
 
-	if err := run(*addr, *wsRoot); err != nil {
+	if err := run(*addr, *wsRoot, *corsOrigin); err != nil {
 		fmt.Fprintf(os.Stderr, "bcd: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(addr, wsRoot string) error {
-	// Try to load existing workspace; if none exists, initialize a minimal one.
-	// This allows bcd to run in a fresh Docker container without a pre-existing workspace.
+func run(addr, wsRoot, corsOrigin string) error {
 	ws, err := bcworkspace.Load(wsRoot)
 	if err != nil {
 		ws, err = bcworkspace.Init(wsRoot)
@@ -69,34 +68,28 @@ func run(addr, wsRoot string) error {
 		}
 	}
 
-	// Write PID file
 	pidPath := filepath.Join(ws.RootDir, ".bc", "bcd.pid")
 	if err := writePID(pidPath); err != nil {
 		log.Warn("failed to write PID file", "path", pidPath, "error", err)
 	}
 	defer os.Remove(pidPath) //nolint:errcheck // best-effort cleanup
 
-	// Context — create early so goroutines can use it.
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	// SSE hub
 	hub := bcws.NewHub()
 	go hub.Run()
 	defer hub.Stop()
 
-	// Agent service
 	agentMgr := newAgentManager(ws)
 	if err := agentMgr.LoadState(); err != nil {
 		log.Warn("failed to load agent state", "error", err)
 	}
 	agentSvc := bcagent.NewAgentService(agentMgr, hub, nil)
 
-	// Stats collector: polls Docker stats + consumes hook event files every 30s.
 	statsCollector := bcagent.NewStatsCollector(agentMgr)
 	go statsCollector.Run(ctx)
 
-	// Channel service
 	var channelSvc *bcchannel.ChannelService
 	if chStore, err := bcchannel.OpenStore(ws.RootDir); err != nil {
 		log.Warn("channel store unavailable", "error", err)
@@ -105,7 +98,6 @@ func run(addr, wsRoot string) error {
 		defer chStore.Close() //nolint:errcheck // best-effort
 	}
 
-	// Daemon manager
 	var daemonMgr *bcdaemon.Manager
 	if mgr, err := bcdaemon.NewManager(ws.RootDir); err != nil {
 		log.Warn("daemon manager unavailable", "error", err)
@@ -114,7 +106,6 @@ func run(addr, wsRoot string) error {
 		defer mgr.Close() //nolint:errcheck // best-effort
 	}
 
-	// Cost store + importer
 	var costStore *bccost.Store
 	var costImporter *bccost.Importer
 	cs := bccost.NewStore(ws.RootDir)
@@ -125,7 +116,6 @@ func run(addr, wsRoot string) error {
 		defer cs.Close() //nolint:errcheck // best-effort
 
 		costImporter = bccost.NewImporter(cs, ws.RootDir)
-		// Run initial import and schedule periodic refresh every 5 minutes.
 		go func() {
 			if n, err := costImporter.ImportAll(ctx); err != nil {
 				log.Warn("cost import failed", "error", err)
@@ -149,7 +139,6 @@ func run(addr, wsRoot string) error {
 		}()
 	}
 
-	// Cron store
 	var cronStore *bccron.Store
 	if cr, err := bccron.Open(ws.RootDir); err != nil {
 		log.Warn("cron store unavailable", "error", err)
@@ -158,11 +147,10 @@ func run(addr, wsRoot string) error {
 		defer cr.Close() //nolint:errcheck // best-effort
 	}
 
-	// Secret store
 	var secretStore *bcsecret.Store
 	passphrase, passphraseErr := bcsecret.Passphrase()
 	if passphraseErr != nil {
-		log.Warn("secret passphrase unavailable — secret store disabled", "error", passphraseErr)
+		log.Warn("secret passphrase unavailable \u2014 secret store disabled", "error", passphraseErr)
 	}
 	if passphraseErr == nil {
 		if ss, err := bcsecret.NewStore(ws.RootDir, passphrase); err != nil {
@@ -173,7 +161,6 @@ func run(addr, wsRoot string) error {
 		}
 	}
 
-	// MCP store
 	var mcpStore *bcmcp.Store
 	if ms, err := bcmcp.NewStore(ws.RootDir); err != nil {
 		log.Warn("mcp store unavailable", "error", err)
@@ -182,7 +169,6 @@ func run(addr, wsRoot string) error {
 		defer ms.Close() //nolint:errcheck // best-effort
 	}
 
-	// Tool store
 	var toolStore *bctool.Store
 	ts := bctool.NewStore(ws.StateDir())
 	if err := ts.Open(); err != nil {
@@ -192,7 +178,6 @@ func run(addr, wsRoot string) error {
 		defer ts.Close() //nolint:errcheck // best-effort
 	}
 
-	// Event log
 	var eventLog bcevents.EventStore
 	if el, err := bcevents.NewSQLiteLog(filepath.Join(ws.StateDir(), "state.db")); err != nil {
 		log.Warn("event log unavailable", "error", err)
@@ -219,14 +204,12 @@ func run(addr, wsRoot string) error {
 	if addr != "" {
 		cfg.Addr = addr
 	}
+	cfg.CORSOrigin = corsOrigin
 
 	srv := server.New(cfg, svc, hub, server.WebDist())
 	return srv.Start(ctx)
 }
 
-// newAgentManager creates an agent manager with Docker support if available.
-// bcd gets access to the host Docker socket via volume mount so it can
-// manage agent containers.
 func newAgentManager(ws *bcworkspace.Workspace) *bcagent.Manager {
 	var wsCfg bcworkspace.DockerRuntimeConfig
 	if ws.Config != nil {
