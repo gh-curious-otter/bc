@@ -236,31 +236,3 @@ func (imp *Importer) lastImportedTimestamp(ctx context.Context, path string) (ti
 	return t, err
 }
 
-func (imp *Importer) insertRecord(ctx context.Context, e SessionEntry, agentID string, costUSD float64) error {
-	total := e.InputTokens + e.OutputTokens + e.CacheCreationTokens + e.CacheReadTokens
-	_, err := imp.store.db.ExecContext(ctx,
-		`INSERT INTO cost_records
-		 (agent_id, model, session_id, input_tokens, output_tokens, total_tokens,
-		  cache_creation_tokens, cache_read_tokens, cost_usd, timestamp)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		agentID, e.Model, e.SessionID,
-		e.InputTokens, e.OutputTokens, total,
-		e.CacheCreationTokens, e.CacheReadTokens,
-		costUSD,
-		e.Timestamp.UTC().Format(time.RFC3339Nano),
-	)
-	return err
-}
-
-func (imp *Importer) recordImport(ctx context.Context, path string, watermark time.Time, count int) error {
-	_, err := imp.store.db.ExecContext(ctx,
-		`INSERT INTO cost_imports (source_path, watermark, record_count, imported_at)
-		 VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-		 ON CONFLICT(source_path) DO UPDATE SET
-		   watermark    = excluded.watermark,
-		   record_count = cost_imports.record_count + excluded.record_count,
-		   imported_at  = excluded.imported_at`,
-		path, watermark.UTC().Format(time.RFC3339Nano), count,
-	)
-	return err
-}
