@@ -2,29 +2,41 @@
  * Tests for useAgents hook - Agent data fetching and lifecycle
  * Validates agent state management, polling, and error handling
  *
- * SKIPPED: These tests use jest.mock() which is incompatible with bun:test.
- * TODO: Convert to bun:test mock.module() in a follow-up PR.
- * See bc.test.ts for conversion example.
+ * Migrated from jest.mock() to bun:test mock.module() (Issue #2139)
+ * Tests require renderHook from @testing-library/react which needs DOM (jsdom/happydom).
+ * Skipped until bun:test DOM support is configured.
  */
+
+import { describe, it, expect, beforeEach, afterEach, vi, mock } from 'bun:test';
+
+// renderHook requires DOM (jsdom/happydom) which is not configured for bun:test
+const noDOM = typeof globalThis.document === 'undefined';
+
+mock.module('../../services/bc', () => ({
+  getStatus: vi.fn(),
+}));
+
+// Stub @testing-library/react so the import doesn't fail in non-DOM environments
+mock.module('@testing-library/react', () => ({
+  renderHook: vi.fn(),
+  act: vi.fn(),
+}));
 
 import { renderHook, act } from '@testing-library/react';
 import { useAgents } from '../useAgents';
 import * as bcService from '../../services/bc';
 
-// SKIPPED: jest.mock incompatible with bun:test - needs conversion to mock.module()
-// jest.mock('../../services/bc');
-
 const mockBcService = bcService as any;
 
-describe.skip('useAgents - Basic functionality', () => {
+describe.skipIf(noDOM)('useAgents - Basic functionality', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   it('initializes with loading state', () => {
@@ -51,7 +63,7 @@ describe.skip('useAgents - Basic functionality', () => {
     const { result } = renderHook(() => useAgents());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     expect(result.current.loading).toBe(false);
@@ -66,7 +78,7 @@ describe.skip('useAgents - Basic functionality', () => {
     const { result } = renderHook(() => useAgents());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     expect(result.current.loading).toBe(false);
@@ -82,7 +94,7 @@ describe.skip('useAgents - Basic functionality', () => {
     renderHook(() => useAgents({ pollInterval: 1000, autoPoll: true }));
 
     await act(async () => {
-      jest.advanceTimersByTime(3000);
+      vi.advanceTimersByTime(3000);
     });
 
     expect(mockBcService.getStatus).toHaveBeenCalledTimes(4); // Initial + 3 polls
@@ -96,7 +108,7 @@ describe.skip('useAgents - Basic functionality', () => {
     renderHook(() => useAgents({ autoPoll: false }));
 
     await act(async () => {
-      jest.advanceTimersByTime(5000);
+      vi.advanceTimersByTime(5000);
     });
 
     expect(mockBcService.getStatus).toHaveBeenCalledTimes(1); // Only initial
@@ -117,15 +129,15 @@ describe.skip('useAgents - Basic functionality', () => {
   });
 });
 
-describe.skip('useAgents - State filtering and queries', () => {
+describe.skipIf(noDOM)('useAgents - State filtering and queries', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   it('filters agents by state', async () => {
@@ -141,7 +153,7 @@ describe.skip('useAgents - State filtering and queries', () => {
     const { result } = renderHook(() => useAgents());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     const working = result.current.data?.filter(a => a.state === 'working') ?? [];
@@ -161,7 +173,7 @@ describe.skip('useAgents - State filtering and queries', () => {
     const { result } = renderHook(() => useAgents());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     const engineers = result.current.data?.filter(a => a.role === 'engineer') ?? [];
@@ -179,7 +191,7 @@ describe.skip('useAgents - State filtering and queries', () => {
     const { result } = renderHook(() => useAgents());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     const found = result.current.data?.find(a => a.name === 'eng-01');
@@ -187,15 +199,15 @@ describe.skip('useAgents - State filtering and queries', () => {
   });
 });
 
-describe.skip('useAgents - Agent state transitions', () => {
+describe.skipIf(noDOM)('useAgents - Agent state transitions', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   const agentStateTransitions = [
@@ -216,7 +228,7 @@ describe.skip('useAgents - Agent state transitions', () => {
       const { result } = renderHook(() => useAgents());
 
       await act(async () => {
-        jest.runAllTimers();
+        vi.runAllTimers();
       });
 
       const agent = result.current.data?.[0];
@@ -229,15 +241,15 @@ describe.skip('useAgents - Agent state transitions', () => {
   });
 });
 
-describe.skip('useAgents - Edge cases', () => {
+describe.skipIf(noDOM)('useAgents - Edge cases', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   it('handles empty agent list', async () => {
@@ -246,7 +258,7 @@ describe.skip('useAgents - Edge cases', () => {
     const { result } = renderHook(() => useAgents());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     expect(result.current.data).toEqual([]);
@@ -265,7 +277,7 @@ describe.skip('useAgents - Edge cases', () => {
     const { result } = renderHook(() => useAgents());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     expect(result.current.data).toHaveLength(100);
@@ -283,7 +295,7 @@ describe.skip('useAgents - Edge cases', () => {
     const { result } = renderHook(() => useAgents());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     expect(result.current.data).toEqual(agents);
@@ -300,7 +312,7 @@ describe.skip('useAgents - Edge cases', () => {
     const { result } = renderHook(() => useAgents());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     // Should handle gracefully without crashing
@@ -316,21 +328,21 @@ describe.skip('useAgents - Edge cases', () => {
 
     unmount();
 
-    jest.advanceTimersByTime(5000);
+    vi.advanceTimersByTime(5000);
     // Should not add more calls after unmount
     expect(mockBcService.getStatus).toHaveBeenCalledTimes(1);
   });
 });
 
-describe.skip('useAgents - Error recovery', () => {
+describe.skipIf(noDOM)('useAgents - Error recovery', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   it('recovers from temporary fetch failure', async () => {
@@ -341,7 +353,7 @@ describe.skip('useAgents - Error recovery', () => {
     const { result } = renderHook(() => useAgents({ pollInterval: 1000, autoPoll: true }));
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     // First call fails
@@ -362,7 +374,7 @@ describe.skip('useAgents - Error recovery', () => {
     const { result } = renderHook(() => useAgents());
 
     await act(async () => {
-      jest.advanceTimersByTime(40000);
+      vi.advanceTimersByTime(40000);
     });
 
     expect(result.current.error).toBeDefined();

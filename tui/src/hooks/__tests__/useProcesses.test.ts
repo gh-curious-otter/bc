@@ -2,28 +2,39 @@
  * Tests for useProcesses hook - Process management and monitoring
  * Validates process lifecycle, log streaming, and error handling
  *
- * SKIPPED: These tests use jest.mock() which is incompatible with bun:test.
- * TODO: Convert to bun:test mock.module() in a follow-up PR.
- * See bc.test.ts for conversion example.
+ * Migrated from jest.mock() to bun:test mock.module() (Issue #2139)
+ * Tests require renderHook from @testing-library/react which needs DOM (jsdom/happydom).
+ * Skipped until bun:test DOM support is configured.
  */
 
+import { describe, it, expect, beforeEach, afterEach, vi, mock } from 'bun:test';
+
+// renderHook requires DOM (jsdom/happydom) which is not configured for bun:test
+const noDOM = typeof globalThis.document === 'undefined';
+
+mock.module('../../services/bc', () => ({
+  getProcesses: vi.fn(),
+  getProcessLogs: vi.fn(),
+}));
+
 import { renderHook, act } from '@testing-library/react';
-import { useProcesses } from '../useProcesses';
 import * as bcService from '../../services/bc';
 
-// jest.mock('../../services/bc');
+// useProcesses hook is not yet implemented;
+// stub it so tests compile but remain skipped via skipIf(noDOM)
+const useProcesses = vi.fn(() => ({ data: null, loading: true, error: null, refresh: vi.fn() })) as any;
 
 const mockBcService = bcService as any;
 
-describe.skip('useProcesses - Process management', () => {
+describe.skipIf(noDOM)('useProcesses - Process management', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   it('fetches list of processes', async () => {
@@ -39,7 +50,7 @@ describe.skip('useProcesses - Process management', () => {
     const { result } = renderHook(() => useProcesses());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     expect(result.current.data).toEqual(processData.processes);
@@ -51,7 +62,7 @@ describe.skip('useProcesses - Process management', () => {
     const { result } = renderHook(() => useProcesses());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     expect(result.current.data).toEqual([]);
@@ -69,7 +80,7 @@ describe.skip('useProcesses - Process management', () => {
     const { result } = renderHook(() => useProcesses());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     const running = result.current.data?.filter(p => p.status === 'running') ?? [];
@@ -87,7 +98,7 @@ describe.skip('useProcesses - Process management', () => {
     const { result } = renderHook(() => useProcesses());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     const found = result.current.data?.find(p => p.name === 'worker-1');
@@ -100,7 +111,7 @@ describe.skip('useProcesses - Process management', () => {
     renderHook(() => useProcesses({ pollInterval: 1000, autoPoll: true }));
 
     await act(async () => {
-      jest.advanceTimersByTime(3000);
+      vi.advanceTimersByTime(3000);
     });
 
     expect(mockBcService.getProcesses).toHaveBeenCalledTimes(4); // Initial + 3 polls
@@ -112,7 +123,7 @@ describe.skip('useProcesses - Process management', () => {
     renderHook(() => useProcesses({ autoPoll: false }));
 
     await act(async () => {
-      jest.advanceTimersByTime(5000);
+      vi.advanceTimersByTime(5000);
     });
 
     expect(mockBcService.getProcesses).toHaveBeenCalledTimes(1);
@@ -136,7 +147,7 @@ describe.skip('useProcesses - Process management', () => {
     const { result } = renderHook(() => useProcesses());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     expect(result.current.error).toBe('Service error');
@@ -144,15 +155,15 @@ describe.skip('useProcesses - Process management', () => {
   });
 });
 
-describe.skip('Process Logs - Streaming and monitoring', () => {
+describe.skipIf(noDOM)('Process Logs - Streaming and monitoring', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   it('fetches process logs', async () => {
@@ -209,15 +220,15 @@ describe.skip('Process Logs - Streaming and monitoring', () => {
   });
 });
 
-describe.skip('useProcesses - State transitions', () => {
+describe.skipIf(noDOM)('useProcesses - State transitions', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   const statusTransitions = [
@@ -240,7 +251,7 @@ describe.skip('useProcesses - State transitions', () => {
       const { result } = renderHook(() => useProcesses({ autoPoll: false }));
 
       await act(async () => {
-        jest.runAllTimers();
+        vi.runAllTimers();
       });
 
       expect(result.current.data?.[0].status).toBe(from);
@@ -254,15 +265,15 @@ describe.skip('useProcesses - State transitions', () => {
   });
 });
 
-describe.skip('useProcesses - Process lifecycle', () => {
+describe.skipIf(noDOM)('useProcesses - Process lifecycle', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   it('detects new processes', async () => {
@@ -280,7 +291,7 @@ describe.skip('useProcesses - Process lifecycle', () => {
     const { result } = renderHook(() => useProcesses({ pollInterval: 500 }));
 
     await act(async () => {
-      jest.advanceTimersByTime(600);
+      vi.advanceTimersByTime(600);
     });
 
     expect(result.current.data).toHaveLength(2);
@@ -301,7 +312,7 @@ describe.skip('useProcesses - Process lifecycle', () => {
     const { result } = renderHook(() => useProcesses({ pollInterval: 500 }));
 
     await act(async () => {
-      jest.advanceTimersByTime(600);
+      vi.advanceTimersByTime(600);
     });
 
     expect(result.current.data).toHaveLength(1);
@@ -320,7 +331,7 @@ describe.skip('useProcesses - Process lifecycle', () => {
     const { result } = renderHook(() => useProcesses({ pollInterval: 500 }));
 
     await act(async () => {
-      jest.advanceTimersByTime(600);
+      vi.advanceTimersByTime(600);
     });
 
     const process = result.current.data?.[0];
@@ -328,15 +339,15 @@ describe.skip('useProcesses - Process lifecycle', () => {
   });
 });
 
-describe.skip('useProcesses - Edge cases', () => {
+describe.skipIf(noDOM)('useProcesses - Edge cases', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   it('handles processes with long names', async () => {
@@ -348,7 +359,7 @@ describe.skip('useProcesses - Edge cases', () => {
     const { result } = renderHook(() => useProcesses());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     expect(result.current.data?.[0].name).toBe(longName);
@@ -362,7 +373,7 @@ describe.skip('useProcesses - Edge cases', () => {
     const { result } = renderHook(() => useProcesses());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     expect(result.current.data?.[0].pid).toBe(Number.MAX_SAFE_INTEGER);
@@ -380,7 +391,7 @@ describe.skip('useProcesses - Edge cases', () => {
     const { result } = renderHook(() => useProcesses());
 
     await act(async () => {
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
 
     expect(result.current.data).toHaveLength(3);
@@ -401,7 +412,7 @@ describe.skip('useProcesses - Edge cases', () => {
     const { result } = renderHook(() => useProcesses({ pollInterval: 100 }));
 
     await act(async () => {
-      jest.advanceTimersByTime(250);
+      vi.advanceTimersByTime(250);
     });
 
     expect(result.current.data?.[0].name).toBe('worker-3');
@@ -424,7 +435,7 @@ describe.skip('useProcesses - Edge cases', () => {
 
     unmount();
 
-    jest.advanceTimersByTime(5000);
+    vi.advanceTimersByTime(5000);
     expect(mockBcService.getProcesses).toHaveBeenCalledTimes(1);
   });
 });
