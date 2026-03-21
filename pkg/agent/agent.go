@@ -1425,33 +1425,98 @@ func (m *Manager) DeleteAgentWithOptions(name string, opts DeleteOptions) error 
 
 // RenameAgent renames an agent from oldName to newName.
 func (m *Manager) RenameAgent(oldName, newName string) error {
+	if !IsValidAgentName(newName) {
+		return fmt.Errorf("agent name %q contains invalid characters", newName)
+	}
+
+	// Phase 1: validate under global lock, snapshot agent
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	agent, exists := m.agents[oldName]
+	if !exists {
+		m.mu.Unlock()
+		return fmt.Errorf("agent %s not found", oldName)
+	}
+	if _, newExists := m.agents[newName]; newExists {
+		m.mu.Unlock()
+		return fmt.Errorf("agent %s already exists", newName)
+	}
+	// Agent must be stopped — rename while running is unsafe
+	if agent.State != StateStopped && agent.State != StateError {
+		m.mu.Unlock()
+		return fmt.Errorf("agent %q must be stopped before renaming (state: %s)", oldName, agent.State)
+	}
+	rt := m.runtimeForAgent(oldName)
+	m.mu.Unlock()
+
+	// Phase 2: slow I/O under per-agent lock
+	agentLock := m.getAgentLock(oldName)
+	agentLock.Lock()
 
 	log.Debug("renaming agent", "oldName", oldName, "newName", newName)
 
-	agent, exists := m.agents[oldName]
-	if !exists {
-		return fmt.Errorf("agent %s not found", oldName)
+	// Rename runtime session (tmux rename-session / docker rename)
+	if err := rt.RenameSession(context.TODO(), oldName, newName); err != nil {
+		log.Warn("rename: failed to rename runtime session", "error", err)
+		// Non-fatal — session may already be dead (agent is stopped)
 	}
 
-	// Check if new name already exists
-	if _, newExists := m.agents[newName]; newExists {
-		return fmt.Errorf("agent %s already exists", newName)
+	// Rename git worktree directory and branch
+	oldWorktreeName := "bc-" + filepath.Base(m.workspacePath) + "-" + oldName
+	newWorktreeName := "bc-" + filepath.Base(m.workspacePath) + "-" + newName
+	oldWorktreeDir := filepath.Join(m.workspacePath, ".claude", "worktrees", oldWorktreeName)
+	newWorktreeDir := filepath.Join(m.workspacePath, ".claude", "worktrees", newWorktreeName)
+	oldBranch := "worktree-" + oldWorktreeName
+	newBranch := "worktree-" + newWorktreeName
+
+	if err := os.Rename(oldWorktreeDir, newWorktreeDir); err != nil && !os.IsNotExist(err) {
+		log.Warn("rename: failed to move worktree dir", "error", err)
+	}
+	//nolint:gosec // trusted paths
+	_ = exec.CommandContext(context.TODO(), "git", "-C", m.workspacePath, "branch", "-m", oldBranch, newBranch).Run()
+
+	// Rename log file
+	oldLogDir := filepath.Join(m.workspacePath, ".bc", "logs")
+	oldLogFile := filepath.Join(oldLogDir, oldName+".log")
+	newLogFile := filepath.Join(oldLogDir, newName+".log")
+	if err := os.Rename(oldLogFile, newLogFile); err != nil && !os.IsNotExist(err) {
+		log.Warn("rename: failed to rename log file", "error", err)
 	}
 
-	// Update agent name
+	// Rename agent state directory
+	oldStateDir := filepath.Join(m.stateDir, "agents", oldName)
+	newStateDir := filepath.Join(m.stateDir, "agents", newName)
+	if err := os.Rename(oldStateDir, newStateDir); err != nil && !os.IsNotExist(err) {
+		log.Warn("rename: failed to rename state dir", "error", err)
+	}
+
+	agentLock.Unlock()
+
+	// Phase 3: update maps + persist under global lock
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	now := time.Now()
+	agent.ID = newName
 	agent.Name = newName
-	agent.UpdatedAt = time.Now()
+	agent.Session = newName
+	agent.UpdatedAt = now
+	if agent.WorktreeDir == oldWorktreeDir {
+		agent.WorktreeDir = newWorktreeDir
+	}
+	if agent.LogFile == oldLogFile {
+		agent.LogFile = newLogFile
+	}
 
-	// Update in agents map
+	// Update maps
 	delete(m.agents, oldName)
 	m.agents[newName] = agent
 
-	// Update parent's children list if applicable
+	// Move per-agent lock entry
+	delete(m.agentLocks, oldName)
+
+	// Update parent's children list
 	if agent.ParentID != "" {
-		parent, parentExists := m.agents[agent.ParentID]
-		if parentExists {
+		if parent, ok := m.agents[agent.ParentID]; ok {
 			for i, child := range parent.Children {
 				if child == oldName {
 					parent.Children[i] = newName
@@ -1461,13 +1526,21 @@ func (m *Manager) RenameAgent(oldName, newName string) error {
 		}
 	}
 
-	// Update children's parent reference (parent ID is unchanged, just log)
-	log.Debug("agent renamed", "oldName", oldName, "newName", newName)
-
-	if err := m.saveState(); err != nil {
-		return fmt.Errorf("failed to save state: %w", err)
+	// Update children's ParentID (it's still the old name)
+	for _, childName := range agent.Children {
+		if child, ok := m.agents[childName]; ok {
+			if child.ParentID == oldName {
+				child.ParentID = newName
+				child.UpdatedAt = now
+			}
+		}
 	}
 
+	if err := m.saveState(); err != nil {
+		return fmt.Errorf("rename: failed to save state: %w", err)
+	}
+
+	log.Debug("agent renamed", "oldName", oldName, "newName", newName)
 	return nil
 }
 
