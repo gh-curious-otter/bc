@@ -1,3 +1,5 @@
+import { EmptyState } from './EmptyState';
+
 interface Column<T> {
   key: string;
   label: string;
@@ -11,11 +13,13 @@ interface TableProps<T> {
   keyFn: (row: T) => string;
   onRowClick?: (row: T) => void;
   emptyMessage?: string;
+  emptyIcon?: string;
+  emptyDescription?: string;
 }
 
-export function Table<T>({ columns, data, keyFn, onRowClick, emptyMessage = 'No data' }: TableProps<T>) {
+export function Table<T>({ columns, data, keyFn, onRowClick, emptyMessage = 'No data', emptyIcon, emptyDescription }: TableProps<T>) {
   if (!data || data.length === 0) {
-    return <p className="p-4 text-bc-muted text-sm">{emptyMessage}</p>;
+    return <EmptyState icon={emptyIcon} title={emptyMessage} description={emptyDescription} />;
   }
 
   return (

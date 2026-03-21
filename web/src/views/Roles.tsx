@@ -2,19 +2,49 @@ import { useCallback, useState } from 'react';
 import { api } from '../api/client';
 import type { Role } from '../api/client';
 import { usePolling } from '../hooks/usePolling';
+import { LoadingSkeleton } from '../components/LoadingSkeleton';
+import { EmptyState } from '../components/EmptyState';
 
 export function Roles() {
   const fetcher = useCallback(async () => {
     const res = await api.listRoles();
     return Object.entries(res).map(([key, role]) => ({ key, ...role }));
   }, []);
-  const { data: roles, loading, error } = usePolling(fetcher, 30000);
+  const { data: roles, loading, error, refresh, timedOut } = usePolling(fetcher, 30000);
 
   if (loading && !roles) {
-    return <div className="p-6 text-bc-muted">Loading roles...</div>;
+    return (
+      <div className="p-6 space-y-4">
+        <div className="h-6 w-20 animate-pulse rounded bg-bc-border/50" />
+        <LoadingSkeleton variant="text" rows={6} />
+      </div>
+    );
+  }
+  if (timedOut && !roles) {
+    return (
+      <div className="p-6">
+        <EmptyState
+          icon="!"
+          title="Roles took too long to load"
+          description="The server may be unavailable. Check your connection and try again."
+          actionLabel="Retry"
+          onAction={refresh}
+        />
+      </div>
+    );
   }
   if (error && !roles) {
-    return <div className="p-6 text-bc-error">Error: {error}</div>;
+    return (
+      <div className="p-6">
+        <EmptyState
+          icon="!"
+          title="Failed to load roles"
+          description={error}
+          actionLabel="Retry"
+          onAction={refresh}
+        />
+      </div>
+    );
   }
 
   return (
@@ -23,11 +53,19 @@ export function Roles() {
         <h1 className="text-xl font-bold">Roles</h1>
         <span className="text-sm text-bc-muted">{roles?.length ?? 0} roles</span>
       </div>
-      <div className="grid gap-4">
-        {(roles ?? []).map((r) => (
-          <RoleCard key={r.key} role={r} />
-        ))}
-      </div>
+      {(roles ?? []).length === 0 ? (
+        <EmptyState
+          icon="@"
+          title="No roles defined"
+          description="Define roles in .bc/roles/ to assign capabilities and prompts to agents."
+        />
+      ) : (
+        <div className="grid gap-4">
+          {(roles ?? []).map((r) => (
+            <RoleCard key={r.key} role={r} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -86,7 +124,7 @@ function RoleCard({ role }: { role: Role & { key: string } }) {
           {hasPrompts && <span className="text-xs px-2 py-0.5 rounded bg-purple-500/20 text-purple-400">lifecycle</span>}
           {hasCommands && <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400">commands</span>}
           {hasRules && <span className="text-xs px-2 py-0.5 rounded bg-orange-500/20 text-orange-400">rules</span>}
-          <span className="text-xs text-bc-muted">{expanded ? '▼' : '▶'}</span>
+          <span className="text-xs text-bc-muted">{expanded ? '\u25BC' : '\u25B6'}</span>
         </div>
       </div>
 
