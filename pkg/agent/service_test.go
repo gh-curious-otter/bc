@@ -103,15 +103,19 @@ func TestAgentService_StopNonexistent(t *testing.T) {
 	}
 }
 
-func TestAgentService_DeleteRequiresStopped(t *testing.T) {
+func TestAgentService_DeleteReconcilesDead(t *testing.T) {
+	// An agent with StateIdle but no actual session should be reconciled
+	// to StateStopped and deleted successfully (not stuck in catch-22).
 	mgr := newTestManager(t)
 	mgr.agents["eng-1"] = &Agent{Name: "eng-1", Role: Role("engineer"), State: StateIdle, Children: []string{}}
 
-	svc := NewAgentService(mgr, nil, nil)
+	pub := &mockEventPublisher{}
+	svc := NewAgentService(mgr, pub, nil)
 
+	// Delete should succeed because no session exists (container dead)
 	err := svc.Delete(context.Background(), "eng-1", false)
-	if err == nil {
-		t.Error("expected error when deleting running agent")
+	if err != nil {
+		t.Fatalf("Delete of dead agent should succeed after reconciliation: %v", err)
 	}
 }
 
