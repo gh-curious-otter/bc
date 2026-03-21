@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import type { ChannelMessage } from '../api/client';
 import { usePolling } from '../hooks/usePolling';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { AgentPeekPanel } from '../components/AgentPeekPanel';
 
 export function Channels() {
   const fetcher = useCallback(async () => {
@@ -11,6 +12,7 @@ export function Channels() {
   }, []);
   const { data: channels, loading, error } = usePolling(fetcher, 10000);
   const [selected, setSelected] = useState<string | null>(null);
+  const [peekAgent, setPeekAgent] = useState<string | null>(null);
 
   if (loading && !channels) {
     return <div className="p-6 text-bc-muted">Loading channels...</div>;
@@ -40,20 +42,23 @@ export function Channels() {
           </button>
         ))}
       </div>
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         {selected ? (
-          <ChatRoom channelName={selected} />
+          <ChatRoom channelName={selected} onPeekAgent={setPeekAgent} />
         ) : (
           <div className="flex-1 flex items-center justify-center text-bc-muted text-sm">
             Select a channel
           </div>
         )}
       </div>
+      {peekAgent && (
+        <AgentPeekPanel agentName={peekAgent} onClose={() => setPeekAgent(null)} />
+      )}
     </div>
   );
 }
 
-function ChatRoom({ channelName }: { channelName: string }) {
+function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAgent: (name: string) => void }) {
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -116,7 +121,13 @@ function ChatRoom({ channelName }: { channelName: string }) {
       <div ref={scrollContainerRef} className="flex-1 overflow-auto p-4 space-y-2">
         {messages.map((msg) => (
           <div key={msg.id} className="text-sm">
-            <span className="font-medium text-bc-accent">{msg.sender}</span>
+            <button
+              onClick={() => onPeekAgent(msg.sender)}
+              className="font-medium text-bc-accent hover:underline cursor-pointer"
+              title={`Peek at ${msg.sender}'s terminal`}
+            >
+              {msg.sender}
+            </button>
             <span className="ml-2 text-xs text-bc-muted">
               {new Date(msg.created_at).toLocaleTimeString()}
             </span>
