@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -133,16 +134,6 @@ func newTestManager(prefix string, mock func(string, ...string) *exec.Cmd) *Mana
 		SessionPrefix: prefix,
 		execCommand:   mock,
 	}
-}
-
-// sliceContains checks if a string slice contains a target value.
-func sliceContains(strs []string, target string) bool {
-	for _, s := range strs {
-		if s == target {
-			return true
-		}
-	}
-	return false
 }
 
 // ---------------------------------------------------------------------------
@@ -475,13 +466,13 @@ func TestCreateSession_Success(t *testing.T) {
 	if rec.name != "tmux" {
 		t.Errorf("expected tmux command, got %s", rec.name)
 	}
-	if !sliceContains(rec.args, "new-session") {
+	if !slices.Contains(rec.args, "new-session") {
 		t.Error("expected new-session in args")
 	}
-	if !sliceContains(rec.args, "bc-agent1") {
+	if !slices.Contains(rec.args, "bc-agent1") {
 		t.Error("expected session name in args")
 	}
-	if !sliceContains(rec.args, "/workspace") {
+	if !slices.Contains(rec.args, "/workspace") {
 		t.Error("expected directory in args")
 	}
 }
@@ -494,7 +485,7 @@ func TestCreateSession_NoDir(t *testing.T) {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
 
-	if sliceContains((*records)[0].args, "-c") {
+	if slices.Contains((*records)[0].args, "-c") {
 		t.Error("should not include -c flag when dir is empty")
 	}
 }
@@ -546,7 +537,7 @@ func TestCreateSessionWithEnv_Success(t *testing.T) {
 	if len(*records) != 1 {
 		t.Fatalf("expected 1 call, got %d", len(*records))
 	}
-	if !sliceContains((*records)[0].args, "bash") {
+	if !slices.Contains((*records)[0].args, "bash") {
 		t.Error("expected bash in args")
 	}
 }
@@ -602,7 +593,7 @@ func TestKillSession_Success(t *testing.T) {
 	if len(*records) != 1 {
 		t.Fatalf("expected 1 call, got %d", len(*records))
 	}
-	if !sliceContains((*records)[0].args, "kill-session") {
+	if !slices.Contains((*records)[0].args, "kill-session") {
 		t.Error("expected kill-session in args")
 	}
 }
@@ -653,11 +644,11 @@ func TestSendKeysWithSubmit_ShortMessage(t *testing.T) {
 		t.Fatalf("expected 2 calls, got %d", len(*records))
 	}
 
-	if !sliceContains((*records)[0].args, "-l") {
+	if !slices.Contains((*records)[0].args, "-l") {
 		t.Error("first call should include -l flag for literal mode")
 	}
 	// Enter is sent as -H 0D (raw hex CR byte) for tmux 3.5+ compatibility
-	if !sliceContains((*records)[1].args, "-H") || !sliceContains((*records)[1].args, "0D") {
+	if !slices.Contains((*records)[1].args, "-H") || !slices.Contains((*records)[1].args, "0D") {
 		t.Errorf("second call should use -H 0D for Enter, got args: %v", (*records)[1].args)
 	}
 }
@@ -708,13 +699,13 @@ func TestSendKeysWithSubmit_LongMessage(t *testing.T) {
 		t.Fatalf("expected 3 calls, got %d", len(*records))
 	}
 
-	if !sliceContains((*records)[0].args, "load-buffer") {
+	if !slices.Contains((*records)[0].args, "load-buffer") {
 		t.Error("first call should be load-buffer")
 	}
-	if !sliceContains((*records)[1].args, "paste-buffer") {
+	if !slices.Contains((*records)[1].args, "paste-buffer") {
 		t.Error("second call should be paste-buffer")
 	}
-	if !sliceContains((*records)[2].args, "-H") || !sliceContains((*records)[2].args, "0D") {
+	if !slices.Contains((*records)[2].args, "-H") || !slices.Contains((*records)[2].args, "0D") {
 		t.Errorf("third call should use -H 0D for Enter, got args: %v", (*records)[2].args)
 	}
 }
@@ -799,7 +790,7 @@ func TestSendKeysWithSubmit_CustomSubmitKey(t *testing.T) {
 	if len(*records) != 2 {
 		t.Fatalf("expected 2 calls, got %d", len(*records))
 	}
-	if !sliceContains((*records)[1].args, "C-m") {
+	if !slices.Contains((*records)[1].args, "C-m") {
 		t.Error("second call should use custom submit key C-m")
 	}
 }
@@ -827,10 +818,10 @@ func TestCapture_WithLines(t *testing.T) {
 		t.Fatalf("Capture failed: %v", err)
 	}
 
-	if !sliceContains((*records)[0].args, "-S") {
+	if !slices.Contains((*records)[0].args, "-S") {
 		t.Error("should include -S flag when lines > 0")
 	}
-	if !sliceContains((*records)[0].args, "-100") {
+	if !slices.Contains((*records)[0].args, "-100") {
 		t.Error("should include negative line count")
 	}
 }
@@ -843,7 +834,7 @@ func TestCapture_NoLines(t *testing.T) {
 		t.Fatalf("Capture failed: %v", err)
 	}
 
-	if sliceContains((*records)[0].args, "-S") {
+	if slices.Contains((*records)[0].args, "-S") {
 		t.Error("should not include -S flag when lines = 0")
 	}
 }
@@ -999,7 +990,7 @@ func TestAttachCmd_WorkspaceManager(t *testing.T) {
 	m.execCommand = exec.Command
 	cmd := m.AttachCmd(testCtx(), "agent1")
 	expectedName := m.SessionName("agent1")
-	if !sliceContains(cmd.Args, expectedName) {
+	if !slices.Contains(cmd.Args, expectedName) {
 		t.Errorf("args should contain full session name %q: %v", expectedName, cmd.Args)
 	}
 }
@@ -1062,13 +1053,13 @@ func TestSetEnvironment_Success(t *testing.T) {
 	if len(*records) != 1 {
 		t.Fatalf("expected 1 call, got %d", len(*records))
 	}
-	if !sliceContains((*records)[0].args, "set-environment") {
+	if !slices.Contains((*records)[0].args, "set-environment") {
 		t.Error("expected set-environment in args")
 	}
-	if !sliceContains((*records)[0].args, "MY_VAR") {
+	if !slices.Contains((*records)[0].args, "MY_VAR") {
 		t.Error("expected env var name in args")
 	}
-	if !sliceContains((*records)[0].args, "my_value") {
+	if !slices.Contains((*records)[0].args, "my_value") {
 		t.Error("expected env var value in args")
 	}
 }

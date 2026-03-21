@@ -3,6 +3,7 @@ package demon
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 )
@@ -963,22 +964,22 @@ func TestRangeSliceSingleValue(t *testing.T) {
 	}
 }
 
-// --- contains helper test ---
+// --- slices.Contains helper test ---
 
 func TestContainsHelper(t *testing.T) {
 	slice := []int{1, 2, 3, 4, 5}
 
-	if !contains(slice, 3) {
-		t.Error("contains should return true for existing value")
+	if !slices.Contains(slice, 3) {
+		t.Error("slices.Contains should return true for existing value")
 	}
 
-	if contains(slice, 10) {
-		t.Error("contains should return false for non-existing value")
+	if slices.Contains(slice, 10) {
+		t.Error("slices.Contains should return false for non-existing value")
 	}
 
 	// Empty slice
-	if contains([]int{}, 1) {
-		t.Error("contains should return false for empty slice")
+	if slices.Contains([]int{}, 1) {
+		t.Error("slices.Contains should return false for empty slice")
 	}
 }
 
