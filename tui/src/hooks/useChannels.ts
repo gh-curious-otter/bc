@@ -6,7 +6,7 @@
  * Poll interval is configurable via workspace config [performance] section.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { Channel, ChannelMessage, BcResult } from '../types';
 import { getChannels, getChannelHistory, sendChannelMessage } from '../services/bc';
 import { usePerformanceConfig } from '../config';
@@ -176,9 +176,6 @@ export function useChannelsWithUnread(options?: UseChannelsOptions): {
 } {
   const { data: channels, loading: channelsLoading, error, refresh: refreshChannels } = useChannels(options);
   const { getUnread } = useUnread();
-  const [channelsWithUnread, setChannelsWithUnread] = useState<
-    (Channel & { unread: number; messageCount: number })[] | null
-  >(null);
   const [messageCounts, setMessageCounts] = useState<Record<string, number>>({});
   const [countsLoading, setCountsLoading] = useState(true);
 
@@ -236,13 +233,12 @@ export function useChannelsWithUnread(options?: UseChannelsOptions): {
     };
   }, [channels]);
 
-  // Calculate unread for each channel using UnreadContext
-  useEffect(() => {
-    if (!channels) return;
+  // Derive unread counts — pure computation, no state needed
+  const channelsWithUnread = useMemo(() => {
+    if (!channels) return null;
 
-    const withUnread = channels.map((ch) => {
+    return channels.map((ch) => {
       const currentCount = messageCounts[ch.name] ?? 0;
-      // Use UnreadContext to calculate unread based on stored lastMessageCount
       const unread = getUnread(ch.name, currentCount);
 
       return {
@@ -251,7 +247,6 @@ export function useChannelsWithUnread(options?: UseChannelsOptions): {
         unread,
       };
     });
-    setChannelsWithUnread(withUnread);
   }, [channels, messageCounts, getUnread]);
 
   const refresh = useCallback(async () => {
