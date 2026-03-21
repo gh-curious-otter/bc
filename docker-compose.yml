@@ -1,0 +1,45 @@
+# Local development stack: bcd server + bcdb Postgres
+# Usage: docker-compose up
+#
+# Prerequisites: build images first
+#   make build-server-images
+
+services:
+  bcdb:
+    image: bc-bcdb:latest
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bc}
+      POSTGRES_DB: ${POSTGRES_DB:-bc}
+    ports:
+      - "5432:5432"
+    volumes:
+      - bcdb-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bc -d bc"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
+  bcd:
+    image: bc-bcd:latest
+    ports:
+      - "9374:9374"
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-bc}:${POSTGRES_PASSWORD:-bc}@bcdb:5432/${POSTGRES_DB:-bc}?sslmode=disable
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/workspace
+    depends_on:
+      bcdb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9374/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  bcdb-data:
