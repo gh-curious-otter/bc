@@ -186,3 +186,62 @@ When needed for multi-user deployment:
 - Dialect abstraction for placeholder differences (`?` vs `$1`)
 - goose handles multi-DB migrations natively
 - Split read/write at connection string level
+
+## Filesystem Layout
+
+```
+~/.bc/
+  bc.db                     # Main SQLite database (all tables)
+  settings.toml             # Global settings
+  secret-key                # AES-256 encryption key (0600 perms)
+  agents/
+    <agent-name>/
+      .claude/              # Provider config (mounted into containers)
+        CLAUDE.md           # Role prompt
+        settings.json       # Claude Code settings + hooks
+        .mcp.json           # MCP server configs
+      worktree/             # Git worktree checkout
+  logs/
+    <agent-name>.log        # Session logs (tmux pipe-pane output)
+```
+
+## Secret Encryption
+
+```mermaid
+graph LR
+    PASS[Passphrase<br/>BC_SECRET_PASSPHRASE<br/>or ~/.bc/secret-key] --> PBKDF2[PBKDF2-SHA256<br/>600k iterations]
+    SALT[Random 16-byte salt] --> PBKDF2
+    PBKDF2 --> KEY[256-bit AES key]
+    KEY --> GCM[AES-256-GCM]
+    NONCE[Random nonce] --> GCM
+    PLAIN[Secret value] --> GCM
+    GCM --> CIPHER[base64 ciphertext<br/>stored in DB]
+```
+
+Key file (`~/.bc/secret-key`) auto-generated with `0600` on first use.
+
+## Cost Data Pipeline
+
+```mermaid
+graph LR
+    CLAUDE[Claude Code<br/>JSONL sessions] --> IMPORT[Cost Importer<br/>every 5 min]
+    IMPORT --> PARSE[Parse tokens<br/>+ model pricing]
+    PARSE --> DB[(cost_records)]
+    DB --> API[/api/costs/*]
+    API --> WEB[Web/TUI dashboards]
+```
+
+Importer scans `~/.bc/agents/*/auth/.claude/` for session JSONL files, extracts token usage, applies model pricing, inserts with watermark dedup.
+
+## Migration Path (old -> new)
+
+```
+OLD (per-project):                NEW (global):
+  project/.bc/bc.db        ->     ~/.bc/bc.db
+  project/.bc/config.toml  ->     ~/.bc/settings.toml
+  project/.bc/agents/      ->     ~/.bc/agents/
+  project/.bc/roles/*.md   ->     roles table in bc.db
+  project/.bc/logs/        ->     ~/.bc/logs/
+```
+
+`bc migrate` copies data from per-project `.bc/` to `~/.bc/`, converts role files to DB records.
