@@ -51,7 +51,7 @@ func NewStore(workspacePath string) *Store {
 }
 
 // OpenStore opens the channel store for the workspace.
-// Priority: DATABASE_URL (Postgres) > .bc/channels.db (SQLite) > JSON fallback.
+// Priority: DATABASE_URL (Postgres) > .bc/bc.db (SQLite) > JSON fallback.
 func OpenStore(workspacePath string) (*Store, error) {
 	// Try Postgres first when DATABASE_URL is set
 	if db.IsPostgresEnabled() {
@@ -74,7 +74,7 @@ func OpenStore(workspacePath string) (*Store, error) {
 		}
 	}
 
-	// Fall back to SQLite if .bc/channels.db exists
+	// Fall back to SQLite if .bc/bc.db exists
 	dbPath := filepath.Join(workspacePath, ".bc", "bc.db")
 	if _, err := os.Stat(dbPath); err == nil {
 		s := NewSQLiteStore(workspacePath)

@@ -177,7 +177,7 @@ func initV2Workspace(rootDir string) error {
 	if created {
 		fmt.Printf("    .bc/roles/root.md   # Root agent role\n")
 	}
-	fmt.Printf("    .bc/channels.db     # Channel database\n")
+	fmt.Printf("    .bc/bc.db            # Workspace database\n")
 	fmt.Printf("\n")
 	fmt.Printf("  Default provider: %s\n", cfg.Providers.Default)
 	fmt.Printf("\n")
@@ -422,7 +422,7 @@ func initV2WorkspaceWithNickname(rootDir string, nickname string) error {
 	if created {
 		fmt.Println("    .bc/roles/root.md   # Root agent role")
 	}
-	fmt.Println("    .bc/channels.db     # Channel database")
+	fmt.Println("    .bc/bc.db            # Workspace database")
 	fmt.Println()
 
 	// Bootstrap server daemons (non-fatal; warns if Docker unavailable)

@@ -1,7 +1,7 @@
 // Package cost provides cost tracking and reporting for bc agents.
 //
 // The package uses SQLite for persistent storage of cost records and budgets.
-// Each workspace maintains its own cost database in .bc/costs.db.
+// Each workspace maintains its own cost database in .bc/bc.db.
 //
 // # Basic Usage
 //
