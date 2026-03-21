@@ -6,7 +6,10 @@
 import React from 'react';
 import { render } from 'ink-testing-library';
 import { describe, it, expect, vi, beforeEach } from 'bun:test';
+import { ThemeProvider } from '../../theme/ThemeContext';
 import { ActivityFeed } from '../../components/ActivityFeed';
+
+const renderWithTheme = (ui: React.ReactElement) => render(<ThemeProvider>{ui}</ThemeProvider>);
 
 // Mock useLogs hook with correct getSeverityColor implementation
 // IMPORTANT: Must match the real implementation's case-insensitivity
@@ -53,7 +56,7 @@ describe('ActivityFeed', () => {
   });
 
   it('renders activity entries', () => {
-    const { lastFrame } = render(<ActivityFeed />);
+    const { lastFrame } = renderWithTheme(<ActivityFeed />);
     const output = lastFrame();
 
     expect(output).toContain('Activity');
@@ -62,7 +65,7 @@ describe('ActivityFeed', () => {
   });
 
   it('renders in compact mode without timestamps', () => {
-    const { lastFrame } = render(<ActivityFeed compact />);
+    const { lastFrame } = renderWithTheme(<ActivityFeed compact />);
     const output = lastFrame();
 
     expect(output).toContain('eng-01');
@@ -70,7 +73,7 @@ describe('ActivityFeed', () => {
   });
 
   it('shows error entries with error styling', () => {
-    const { lastFrame } = render(<ActivityFeed />);
+    const { lastFrame } = renderWithTheme(<ActivityFeed />);
     const output = lastFrame();
 
     expect(output).toContain('eng-02');
@@ -78,7 +81,7 @@ describe('ActivityFeed', () => {
   });
 
   it('shows warning entries', () => {
-    const { lastFrame } = render(<ActivityFeed />);
+    const { lastFrame } = renderWithTheme(<ActivityFeed />);
     const output = lastFrame();
 
     expect(output).toContain('eng-03');
@@ -86,7 +89,7 @@ describe('ActivityFeed', () => {
   });
 
   it('respects maxEntries limit', () => {
-    const { lastFrame } = render(<ActivityFeed maxEntries={2} />);
+    const { lastFrame } = renderWithTheme(<ActivityFeed maxEntries={2} />);
     const output = lastFrame();
 
     // Should show limited entries
@@ -94,14 +97,14 @@ describe('ActivityFeed', () => {
   });
 
   it('hides filter hints when showFilterHints is false', () => {
-    const { lastFrame } = render(<ActivityFeed showFilterHints={false} />);
+    const { lastFrame } = renderWithTheme(<ActivityFeed showFilterHints={false} />);
     const output = lastFrame();
 
     expect(output).not.toContain('(i/w/e/*)');
   });
 
   it('shows filter hints by default', () => {
-    const { lastFrame } = render(<ActivityFeed showFilterHints />);
+    const { lastFrame } = renderWithTheme(<ActivityFeed showFilterHints />);
     const output = lastFrame();
 
     expect(output).toContain('(i/w/e/*)');
@@ -125,7 +128,7 @@ describe('ActivityFeed', () => {
       refresh: vi.fn(),
     });
 
-    const { lastFrame } = render(<ActivityFeed />);
+    const { lastFrame } = renderWithTheme(<ActivityFeed />);
     const output = lastFrame();
 
     expect(output).toContain('eng-04');
@@ -149,7 +152,7 @@ describe('ActivityFeed', () => {
       refresh: vi.fn(),
     });
 
-    const { lastFrame } = render(<ActivityFeed />);
+    const { lastFrame } = renderWithTheme(<ActivityFeed />);
     const output = lastFrame();
 
     expect(output).toContain('Activity');

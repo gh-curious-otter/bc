@@ -16,6 +16,7 @@
 import { describe, it, expect } from 'bun:test';
 import { render } from 'ink-testing-library';
 import React from 'react';
+import { ThemeProvider } from '../theme/ThemeContext';
 import { TabBar } from '../navigation/TabBar';
 import { NavigationProvider } from '../navigation/NavigationContext';
 /** Layout mode type (previously from useResponsiveLayout) */
@@ -74,9 +75,11 @@ describe('80x24 Terminal - Breakpoints', () => {
 describe('80x24 Terminal - TabBar', () => {
   function renderTabBar(terminalWidth: number) {
     return render(
-      <NavigationProvider>
-        <TabBar terminalWidth={terminalWidth} />
-      </NavigationProvider>
+      <ThemeProvider>
+        <NavigationProvider>
+          <TabBar terminalWidth={terminalWidth} />
+        </NavigationProvider>
+      </ThemeProvider>
     );
   }
 

@@ -6,7 +6,10 @@
 import React from 'react';
 import { render } from 'ink-testing-library';
 import { describe, it, expect } from 'bun:test';
+import { ThemeProvider } from '../../theme/ThemeContext';
 import { Table } from '../../components/Table';
+
+const renderWithTheme = (ui: React.ReactElement) => render(<ThemeProvider>{ui}</ThemeProvider>);
 import type { Column } from '../../components/Table';
 
 interface TestData {
@@ -37,7 +40,7 @@ describe('Table', () => {
     });
 
     it('renders column headers', () => {
-      const { lastFrame } = render(<Table columns={testColumns} data={testData} />);
+      const { lastFrame } = renderWithTheme(<Table columns={testColumns} data={testData} />);
       const output = lastFrame() ?? '';
       expect(output).toContain('ID');
       expect(output).toContain('Name');
@@ -45,14 +48,14 @@ describe('Table', () => {
     });
 
     it('renders row data', () => {
-      const { lastFrame } = render(<Table columns={testColumns} data={testData} />);
+      const { lastFrame } = renderWithTheme(<Table columns={testColumns} data={testData} />);
       const output = lastFrame() ?? '';
       expect(output).toContain('Alice');
       expect(output).toContain('Engineer');
     });
 
     it('renders all rows', () => {
-      const { lastFrame } = render(<Table columns={testColumns} data={testData} />);
+      const { lastFrame } = renderWithTheme(<Table columns={testColumns} data={testData} />);
       const output = lastFrame() ?? '';
       expect(output).toContain('Alice');
       expect(output).toContain('Bob');
@@ -62,13 +65,13 @@ describe('Table', () => {
 
   describe('empty state', () => {
     it('renders empty message when no data', () => {
-      const { lastFrame } = render(<Table columns={testColumns} data={[]} />);
+      const { lastFrame } = renderWithTheme(<Table columns={testColumns} data={[]} />);
       const output = lastFrame() ?? '';
       expect(output).toContain('No data');
     });
 
     it('shows headers even with no data', () => {
-      const { lastFrame } = render(<Table columns={testColumns} data={[]} />);
+      const { lastFrame } = renderWithTheme(<Table columns={testColumns} data={[]} />);
       const output = lastFrame() ?? '';
       expect(output).toContain('ID');
       expect(output).toContain('Name');
@@ -77,7 +80,7 @@ describe('Table', () => {
 
   describe('column configuration', () => {
     it('respects column width', () => {
-      const { lastFrame } = render(<Table columns={testColumns} data={testData} />);
+      const { lastFrame } = renderWithTheme(<Table columns={testColumns} data={testData} />);
       expect(lastFrame()).toBeDefined();
     });
 
@@ -86,13 +89,13 @@ describe('Table', () => {
         { key: 'name', header: 'Name' },
         { key: 'role', header: 'Role' },
       ];
-      const { lastFrame } = render(<Table columns={columnsNoWidth} data={testData} />);
+      const { lastFrame } = renderWithTheme(<Table columns={columnsNoWidth} data={testData} />);
       expect(lastFrame()).toBeDefined();
     });
 
     it('handles single column', () => {
       const singleColumn: Column<TestData>[] = [{ key: 'name', header: 'Name' }];
-      const { lastFrame } = render(<Table columns={singleColumn} data={testData} />);
+      const { lastFrame } = renderWithTheme(<Table columns={singleColumn} data={testData} />);
       const output = lastFrame() ?? '';
       expect(output).toContain('Name');
       expect(output).toContain('Alice');
@@ -105,33 +108,33 @@ describe('Table', () => {
         { key: 'role', header: 'Role' },
         { key: 'active', header: 'Active' },
       ];
-      const { lastFrame } = render(<Table columns={manyColumns} data={testData} />);
+      const { lastFrame } = renderWithTheme(<Table columns={manyColumns} data={testData} />);
       expect(lastFrame()).toBeDefined();
     });
   });
 
   describe('row selection', () => {
     it('highlights selected row', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Table columns={testColumns} data={testData} selectedRow={1} />
       );
       expect(lastFrame()).toBeDefined();
     });
 
     it('handles no selection', () => {
-      const { lastFrame } = render(<Table columns={testColumns} data={testData} />);
+      const { lastFrame } = renderWithTheme(<Table columns={testColumns} data={testData} />);
       expect(lastFrame()).toBeDefined();
     });
 
     it('handles out-of-bounds selection', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Table columns={testColumns} data={testData} selectedRow={999} />
       );
       expect(lastFrame()).toBeDefined();
     });
 
     it('handles negative selection', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Table columns={testColumns} data={testData} selectedRow={-1} />
       );
       expect(lastFrame()).toBeDefined();
@@ -140,7 +143,7 @@ describe('Table', () => {
 
   describe('data types', () => {
     it('handles numeric values', () => {
-      const { lastFrame } = render(<Table columns={testColumns} data={testData} />);
+      const { lastFrame } = renderWithTheme(<Table columns={testColumns} data={testData} />);
       const output = lastFrame() ?? '';
       expect(output).toContain('1');
     });
@@ -150,39 +153,39 @@ describe('Table', () => {
         { key: 'name', header: 'Name' },
         { key: 'active', header: 'Active' },
       ];
-      const { lastFrame } = render(<Table columns={columnsWithBool} data={testData} />);
+      const { lastFrame } = renderWithTheme(<Table columns={columnsWithBool} data={testData} />);
       expect(lastFrame()).toBeDefined();
     });
 
     it('handles empty strings', () => {
       const dataWithEmpty = [{ id: 1, name: '', role: '', active: true }];
-      const { lastFrame } = render(<Table columns={testColumns} data={dataWithEmpty} />);
+      const { lastFrame } = renderWithTheme(<Table columns={testColumns} data={dataWithEmpty} />);
       expect(lastFrame()).toBeDefined();
     });
   });
 
   describe('edge cases', () => {
     it('handles single row', () => {
-      const { lastFrame } = render(<Table columns={testColumns} data={[testData[0]]} />);
+      const { lastFrame } = renderWithTheme(<Table columns={testColumns} data={[testData[0]]} />);
       const output = lastFrame() ?? '';
       expect(output).toContain('Alice');
     });
 
     it('handles very long strings', () => {
       const dataWithLong = [{ id: 1, name: 'A'.repeat(100), role: 'B'.repeat(50), active: true }];
-      const { lastFrame } = render(<Table columns={testColumns} data={dataWithLong} />);
+      const { lastFrame } = renderWithTheme(<Table columns={testColumns} data={dataWithLong} />);
       expect(lastFrame()).toBeDefined();
     });
 
     it('handles special characters', () => {
       const dataWithSpecial = [{ id: 1, name: '<script>alert(1)</script>', role: 'Test', active: true }];
-      const { lastFrame } = render(<Table columns={testColumns} data={dataWithSpecial} />);
+      const { lastFrame } = renderWithTheme(<Table columns={testColumns} data={dataWithSpecial} />);
       expect(lastFrame()).toBeDefined();
     });
 
     it('handles unicode characters', () => {
       const dataWithUnicode = [{ id: 1, name: '你好世界 🌍', role: 'Engineer', active: true }];
-      const { lastFrame } = render(<Table columns={testColumns} data={dataWithUnicode} />);
+      const { lastFrame } = renderWithTheme(<Table columns={testColumns} data={dataWithUnicode} />);
       const output = lastFrame() ?? '';
       expect(output).toContain('你好世界');
     });
@@ -190,8 +193,8 @@ describe('Table', () => {
 
   describe('consistency', () => {
     it('produces consistent output on re-render', () => {
-      const { lastFrame: frame1 } = render(<Table columns={testColumns} data={testData} />);
-      const { lastFrame: frame2 } = render(<Table columns={testColumns} data={testData} />);
+      const { lastFrame: frame1 } = renderWithTheme(<Table columns={testColumns} data={testData} />);
+      const { lastFrame: frame2 } = renderWithTheme(<Table columns={testColumns} data={testData} />);
       expect(frame1()).toBe(frame2());
     });
   });

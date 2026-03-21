@@ -1,13 +1,16 @@
 import React from 'react';
 import { render } from 'ink-testing-library';
 import { describe, it, expect } from 'bun:test';
+import { ThemeProvider } from '../theme/ThemeContext';
 import { Panel } from '../components/Panel';
 import { Text } from 'ink';
+
+const renderWithTheme = (ui: React.ReactElement) => render(<ThemeProvider>{ui}</ThemeProvider>);
 
 describe('Panel', () => {
   describe('basic rendering', () => {
     it('renders children content', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel>
           <Text>Panel content</Text>
         </Panel>
@@ -16,7 +19,7 @@ describe('Panel', () => {
     });
 
     it('renders title when provided', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title="My Panel">
           <Text>Content</Text>
         </Panel>
@@ -27,7 +30,7 @@ describe('Panel', () => {
     });
 
     it('renders without title when not provided', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel>
           <Text>Content</Text>
         </Panel>
@@ -38,7 +41,7 @@ describe('Panel', () => {
 
   describe('focus state', () => {
     it('renders with default border color when not focused', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel>
           <Text>Content</Text>
         </Panel>
@@ -47,7 +50,7 @@ describe('Panel', () => {
     });
 
     it('renders with focused styling', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel focused={true}>
           <Text>Content</Text>
         </Panel>
@@ -56,7 +59,7 @@ describe('Panel', () => {
     });
 
     it('renders with custom border color', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel borderColor="red">
           <Text>Content</Text>
         </Panel>
@@ -67,7 +70,7 @@ describe('Panel', () => {
 
   describe('dimensions', () => {
     it('renders with width constraint', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel width={40}>
           <Text>Content</Text>
         </Panel>
@@ -76,7 +79,7 @@ describe('Panel', () => {
     });
 
     it('renders with height constraint', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel height={10}>
           <Text>Content</Text>
         </Panel>
@@ -85,7 +88,7 @@ describe('Panel', () => {
     });
 
     it('renders with both width and height', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel width={50} height={15}>
           <Text>Content</Text>
         </Panel>
@@ -96,7 +99,7 @@ describe('Panel', () => {
 
   describe('title styling', () => {
     it('renders title in bold', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title="Bold Title">
           <Text>Content</Text>
         </Panel>
@@ -106,7 +109,7 @@ describe('Panel', () => {
 
     it('renders title with long text', () => {
       const longTitle = 'A'.repeat(50);
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title={longTitle}>
           <Text>Content</Text>
         </Panel>
@@ -115,7 +118,7 @@ describe('Panel', () => {
     });
 
     it('renders title with special characters', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title="Title [#123] - Status">
           <Text>Content</Text>
         </Panel>
@@ -126,7 +129,7 @@ describe('Panel', () => {
 
   describe('multiple children', () => {
     it('renders multiple child components', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel>
           <Text>Child 1</Text>
           <Text>Child 2</Text>
@@ -140,7 +143,7 @@ describe('Panel', () => {
     });
 
     it('renders empty panel when no children', () => {
-      const { lastFrame } = render(<Panel></Panel>);
+      const { lastFrame } = renderWithTheme(<Panel></Panel>);
       // Should still render the border
       expect(lastFrame()).toBeDefined();
     });

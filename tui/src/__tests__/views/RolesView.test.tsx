@@ -7,6 +7,7 @@
 import React from 'react';
 import { render } from 'ink-testing-library';
 import { describe, it, expect, vi, beforeEach, mock } from 'bun:test';
+import { ThemeProvider } from '../../theme/ThemeContext';
 import { RolesView } from '../../views/RolesView';
 import { FocusProvider } from '../../navigation/FocusContext';
 import { NavigationProvider } from '../../navigation/NavigationContext';
@@ -17,13 +18,15 @@ import { DisableInputProvider } from '../../hooks';
 // #1604: Add NavigationProvider for breadcrumb context
 const renderWithProviders = (ui: React.ReactElement) => {
   return render(
-    <ConfigProvider>
-      <NavigationProvider>
-        <FocusProvider>
-          <DisableInputProvider disabled>{ui}</DisableInputProvider>
-        </FocusProvider>
-      </NavigationProvider>
-    </ConfigProvider>
+    <ThemeProvider>
+      <ConfigProvider>
+        <NavigationProvider>
+          <FocusProvider>
+            <DisableInputProvider disabled>{ui}</DisableInputProvider>
+          </FocusProvider>
+        </NavigationProvider>
+      </ConfigProvider>
+    </ThemeProvider>
   );
 };
 
