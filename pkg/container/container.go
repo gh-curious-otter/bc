@@ -9,7 +9,6 @@
 package container
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"fmt"
@@ -536,12 +535,21 @@ func (b *Backend) PipePane(ctx context.Context, name, logPath string) error {
 
 	go func() {
 		defer cancel()
+
+		// Stream directly to file — no in-memory buffering.
+		// The old approach used bytes.Buffer which grew unboundedly.
+		//nolint:gosec // logPath is from trusted internal sources
+		f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+		if err != nil {
+			log.Warn("failed to open log file", "path", logPath, "error", err)
+			return
+		}
+		defer func() { _ = f.Close() }() //nolint:errcheck // best-effort
+
 		//nolint:gosec // trusted
 		cmd := exec.CommandContext(logCtx, "docker", "logs", "-f", cn)
-
-		var buf bytes.Buffer
-		cmd.Stdout = &buf
-		cmd.Stderr = &buf
+		cmd.Stdout = f
+		cmd.Stderr = f
 
 		if err := cmd.Start(); err != nil {
 			log.Warn("failed to start log streaming", "container", cn, "error", err)
@@ -549,17 +557,6 @@ func (b *Backend) PipePane(ctx context.Context, name, logPath string) error {
 		}
 
 		_ = cmd.Wait() //nolint:errcheck // expected when context canceled
-
-		if buf.Len() > 0 {
-			//nolint:gosec // logPath is from trusted internal sources
-			f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
-			if err != nil {
-				log.Warn("failed to open log file", "path", logPath, "error", err)
-				return
-			}
-			_, _ = f.Write(buf.Bytes()) //nolint:errcheck // best-effort
-			_ = f.Close()               //nolint:errcheck // best-effort
-		}
 	}()
 
 	return nil
