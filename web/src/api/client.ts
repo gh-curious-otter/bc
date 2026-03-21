@@ -124,17 +124,17 @@ export interface Secret {
 
 export const api = {
   listAgents: () => request<Agent[]>('/agents'),
-  getAgent: (name: string) => request<Agent>(`/agents/${name}`),
-  startAgent: (name: string) => request<Agent>(`/agents/${name}/start`, { method: 'POST' }),
-  stopAgent: (name: string) => request<void>(`/agents/${name}/stop`, { method: 'POST' }),
+  getAgent: (name: string) => request<Agent>(`/agents/${encodeURIComponent(name)}`),
+  startAgent: (name: string) => request<Agent>(`/agents/${encodeURIComponent(name)}/start`, { method: 'POST' }),
+  stopAgent: (name: string) => request<void>(`/agents/${encodeURIComponent(name)}/stop`, { method: 'POST' }),
   sendToAgent: (name: string, message: string) =>
-    request<void>(`/agents/${name}/send`, { method: 'POST', body: JSON.stringify({ message }) }),
+    request<void>(`/agents/${encodeURIComponent(name)}/send`, { method: 'POST', body: JSON.stringify({ message }) }),
 
   listChannels: () => request<Channel[]>('/channels'),
   getChannelHistory: (name: string, limit = 50) =>
-    request<ChannelMessage[]>(`/channels/${name}/history?limit=${limit}`),
+    request<ChannelMessage[]>(`/channels/${encodeURIComponent(name)}/history?${new URLSearchParams({ limit: String(limit) })}`),
   sendToChannel: (name: string, message: string, sender = 'web') =>
-    request<ChannelMessage>(`/channels/${name}/messages`, { method: 'POST', body: JSON.stringify({ sender, content: message }) }),
+    request<ChannelMessage>(`/channels/${encodeURIComponent(name)}/messages`, { method: 'POST', body: JSON.stringify({ sender, content: message }) }),
 
   getCostSummary: () => request<CostSummary>('/costs'),
   getCostByAgent: () => request<AgentCostSummary[]>('/costs/agents'),
@@ -142,7 +142,7 @@ export const api = {
   listRoles: () => request<Record<string, Role>>('/workspace/roles'),
   listTools: () => request<Tool[]>('/tools'),
   listMCP: () => request<MCPServer[]>('/mcp'),
-  getLogs: (tail = 50) => request<EventLogEntry[]>(`/logs?tail=${tail}`),
+  getLogs: (tail = 50) => request<EventLogEntry[]>(`/logs?${new URLSearchParams({ tail: String(tail) })}`),
   getDoctor: () => request<DoctorReport>('/doctor'),
 
   listCron: () => request<CronJob[]>('/cron'),
