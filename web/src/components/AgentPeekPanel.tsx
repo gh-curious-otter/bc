@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { StatusBadge } from './StatusBadge';
 import type { Agent } from '../api/client';
 import { api } from '../api/client';
 import { usePolling } from '../hooks/usePolling';
-import { useCallback } from 'react';
 
 /** Strip ANSI escape codes from terminal output. */
 function stripAnsi(text: string): string {
@@ -21,7 +20,8 @@ interface AgentPeekPanelProps {
 }
 
 export function AgentPeekPanel({ agentName, onClose }: AgentPeekPanelProps) {
-  const [output, setOutput] = useState('');
+  const [outputLines, setOutputLines] = useState<string[]>([]);
+  const [sseError, setSseError] = useState(false);
   const outputRef = useRef<HTMLPreElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -31,38 +31,50 @@ export function AgentPeekPanel({ agentName, onClose }: AgentPeekPanelProps) {
   }, [agentName]);
   const { data: agent } = usePolling<Agent>(agentFetcher, 5000);
 
+  // Fetch initial output via peek endpoint
+  useEffect(() => {
+    setOutputLines([]);
+    setSseError(false);
+
+    api.getAgentPeek(agentName, 100).then(({ output }) => {
+      if (output) {
+        setOutputLines(stripAnsi(output).split('\n'));
+      }
+    }).catch(() => {
+      // Peek may fail for stopped agents — ignore
+    });
+  }, [agentName]);
+
   // Connect to SSE stream for live terminal output
   useEffect(() => {
-    setOutput('');
-
     const es = new EventSource(`/api/agents/${encodeURIComponent(agentName)}/output`);
+    let errorCount = 0;
 
-    // Initial snapshot comes as a plain "message" event (no event: field)
-    es.onmessage = (e: MessageEvent) => {
+    const handleOutputEvent = (e: MessageEvent) => {
       try {
         const parsed = JSON.parse(e.data as string) as { output?: string };
         if (parsed.output) {
-          setOutput((prev) => prev + stripAnsi(parsed.output!));
+          const newLines = stripAnsi(parsed.output).split('\n');
+          setOutputLines((prev) => [...prev, ...newLines].slice(-500));
         }
       } catch {
         // ignore malformed data
       }
     };
 
+    // Initial snapshot comes as a plain "message" event (no event: field)
+    es.onmessage = handleOutputEvent;
+
     // Incremental updates arrive as named "agent.output" events
-    es.addEventListener('agent.output', ((e: MessageEvent) => {
-      try {
-        const parsed = JSON.parse(e.data as string) as { output?: string };
-        if (parsed.output) {
-          setOutput((prev) => prev + stripAnsi(parsed.output!));
-        }
-      } catch {
-        // ignore
-      }
-    }) as EventListener);
+    es.addEventListener('agent.output', handleOutputEvent as EventListener);
 
     es.onerror = () => {
-      // EventSource auto-reconnects; nothing to do
+      errorCount++;
+      // After several failed reconnects, assume agent is not running
+      if (errorCount > 3) {
+        setSseError(true);
+        es.close();
+      }
     };
 
     return () => {
@@ -78,7 +90,7 @@ export function AgentPeekPanel({ agentName, onClose }: AgentPeekPanelProps) {
     if (isNearBottom) {
       container.scrollTop = container.scrollHeight;
     }
-  }, [output]);
+  }, [outputLines]);
 
   return (
     <div className="w-[420px] shrink-0 border-l border-bc-border flex flex-col bg-bc-bg">
@@ -112,7 +124,11 @@ export function AgentPeekPanel({ agentName, onClose }: AgentPeekPanelProps) {
           ref={outputRef}
           className="p-3 text-xs font-mono whitespace-pre-wrap break-words leading-relaxed text-bc-text/80"
         >
-          {output || 'Connecting...'}
+          {outputLines.length > 0
+            ? outputLines.join('\n')
+            : sseError
+              ? 'Agent not running.'
+              : 'Connecting...'}
         </pre>
       </div>
     </div>
