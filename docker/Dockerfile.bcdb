@@ -1,7 +1,8 @@
 # bcdb image — Postgres database for bc workspaces
 # Usage: docker build -t bc-bcdb:latest -f docker/Dockerfile.bcdb .
+# Base images pinned — update versions in Dependabot PRs or manually.
 
-FROM postgres:17
+FROM postgres:17.4
 
 ENV POSTGRES_USER=bc
 ENV POSTGRES_PASSWORD=bc

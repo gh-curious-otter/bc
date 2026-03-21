@@ -1,7 +1,8 @@
 # OpenAI Codex agent image
 # Requires: bc-agent-base:latest
+# Base images pinned — update versions in Dependabot PRs or manually.
 
-FROM oven/bun:latest AS builder
+FROM oven/bun:1.2 AS builder
 RUN bun install -g @openai/codex
 
 FROM bc-agent-base:latest
