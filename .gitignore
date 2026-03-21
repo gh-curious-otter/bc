@@ -56,5 +56,4 @@ bcd
 server/web/dist/*.html
 server/web/dist/assets/
 
-CLAUDE.md
 .mcp.json
