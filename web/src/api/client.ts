@@ -17,6 +17,10 @@ export interface Agent {
   tool: string;
   state: string;
   cost_usd: number;
+  total_cost_usd: number;
+  total_tokens: number;
+  input_tokens?: number;
+  output_tokens?: number;
   started_at: string;
   created_at: string;
   updated_at: string;
@@ -27,6 +31,19 @@ export interface Agent {
   session_id?: string;
   parent_id?: string;
   children?: string[];
+  runtime_backend?: string;
+}
+
+export interface AgentStatsRecord {
+  collected_at: string;
+  agent_name: string;
+  cpu_pct: number;
+  mem_used_mb: number;
+  mem_limit_mb: number;
+  net_rx_mb: number;
+  net_tx_mb: number;
+  block_read_mb: number;
+  block_write_mb: number;
 }
 
 export interface Channel {
@@ -218,6 +235,8 @@ export const api = {
   stopAgent: (name: string) => request<void>(`/agents/${encodeURIComponent(name)}/stop`, { method: 'POST' }),
   sendToAgent: (name: string, message: string) =>
     request<void>(`/agents/${encodeURIComponent(name)}/send`, { method: 'POST', body: JSON.stringify({ message }) }),
+  getAgentStats: (name: string, limit = 20) =>
+    request<AgentStatsRecord[]>(`/agents/${encodeURIComponent(name)}/stats?limit=${limit}`),
 
   listChannels: () => request<Channel[]>('/channels'),
   getChannelHistory: (name: string, limit = 50) =>
