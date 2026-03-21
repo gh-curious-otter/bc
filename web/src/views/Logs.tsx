@@ -1,11 +1,25 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api/client';
+import type { Agent } from '../api/client';
 import { usePolling } from '../hooks/usePolling';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { EmptyState } from '../components/EmptyState';
 
 export function Logs() {
-  const fetcher = useCallback(() => api.getLogs(100), []);
+  const [agentFilter, setAgentFilter] = useState('');
+  const [agents, setAgents] = useState<Agent[]>([]);
+
+  useEffect(() => {
+    api.listAgents().then(setAgents).catch(() => {});
+  }, []);
+
+  const fetcher = useCallback(() => {
+    if (agentFilter) {
+      return api.getAgentLogs(agentFilter, 100);
+    }
+    return api.getLogs(100);
+  }, [agentFilter]);
+
   const { data: logs, loading, error, refresh, timedOut } = usePolling(fetcher, 5000);
 
   if (loading && !logs) {
@@ -46,7 +60,19 @@ export function Logs() {
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Event Log</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-xl font-bold">Event Log</h1>
+          <select
+            value={agentFilter}
+            onChange={(e) => setAgentFilter(e.target.value)}
+            className="text-sm rounded border border-bc-border bg-bc-surface px-2 py-1 text-bc-fg focus:outline-none focus:ring-1 focus:ring-bc-accent"
+          >
+            <option value="">All agents</option>
+            {agents.map((a) => (
+              <option key={a.name} value={a.name}>{a.name}</option>
+            ))}
+          </select>
+        </div>
         <span className="text-sm text-bc-muted">{logs?.length ?? 0} events</span>
       </div>
 
