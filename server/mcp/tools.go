@@ -190,7 +190,7 @@ func (s *Server) toolSendMessage(raw json.RawMessage) (*toolsCallResult, error) 
 				if member == sender {
 					continue
 				}
-				_ = s.agents.SendToAgent(member, formatted) //nolint:errcheck // best-effort
+				_ = s.agents.SendToAgent(context.Background(), member, formatted) //nolint:errcheck // best-effort
 			}
 		}
 	}

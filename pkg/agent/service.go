@@ -137,7 +137,7 @@ func matchesStatus(state State, status string) bool {
 
 // Create creates a new agent.
 func (s *AgentService) Create(ctx context.Context, opts CreateOptions) (*Agent, error) {
-	a, err := s.manager.SpawnAgentWithOptions(SpawnOptions{
+	a, err := s.manager.SpawnAgentWithOptions(ctx, SpawnOptions{
 		Name:      opts.Name,
 		Role:      opts.Role,
 		Workspace: s.manager.workspacePath,
@@ -171,7 +171,7 @@ func (s *AgentService) Start(ctx context.Context, name string, opts StartOptions
 		return nil, fmt.Errorf("agent %q is already running (state: %s)", name, existing.State)
 	}
 
-	a, err := s.manager.SpawnAgentWithOptions(SpawnOptions{
+	a, err := s.manager.SpawnAgentWithOptions(ctx, SpawnOptions{
 		Name:      name,
 		Role:      existing.Role,
 		Workspace: s.manager.workspacePath,
@@ -196,7 +196,7 @@ func (s *AgentService) Start(ctx context.Context, name string, opts StartOptions
 
 // Stop stops a running agent.
 func (s *AgentService) Stop(ctx context.Context, name string) error {
-	if err := s.manager.StopAgent(name); err != nil {
+	if err := s.manager.StopAgent(ctx, name); err != nil {
 		return err
 	}
 
@@ -220,12 +220,12 @@ func (s *AgentService) Delete(ctx context.Context, name string, force bool) erro
 
 	// Force: stop first if still running
 	if force && a.State != StateStopped {
-		if err := s.manager.StopAgent(name); err != nil {
+		if err := s.manager.StopAgent(ctx, name); err != nil {
 			log.Warn("force delete: failed to stop agent", "agent", name, "error", err)
 		}
 	}
 
-	if err := s.manager.DeleteAgent(name); err != nil {
+	if err := s.manager.DeleteAgent(ctx, name); err != nil {
 		return err
 	}
 
@@ -250,7 +250,7 @@ func (s *AgentService) Send(ctx context.Context, name, message string) error {
 			return fmt.Errorf("agent %q is stopped", name)
 		}
 	}
-	return s.manager.SendToAgent(name, message)
+	return s.manager.SendToAgent(ctx, name, message)
 }
 
 // Peek returns recent output from an agent.
@@ -259,7 +259,7 @@ func (s *AgentService) Peek(ctx context.Context, name string, lines int) (string
 	if a == nil {
 		return "", fmt.Errorf("agent %q not found", name)
 	}
-	return s.manager.CaptureOutput(name, lines)
+	return s.manager.CaptureOutput(ctx, name, lines)
 }
 
 // Cost returns the cost summary for an agent.
@@ -279,7 +279,7 @@ func (s *AgentService) Broadcast(ctx context.Context, message string) (int, erro
 		if a.State == StateStopped || a.State == StateError {
 			continue
 		}
-		if err := s.manager.SendToAgent(a.Name, message); err != nil {
+		if err := s.manager.SendToAgent(ctx, a.Name, message); err != nil {
 			log.Warn("broadcast: failed to send to agent", "agent", a.Name, "error", err)
 			continue
 		}
@@ -289,8 +289,8 @@ func (s *AgentService) Broadcast(ctx context.Context, message string) (int, erro
 }
 
 // Refresh refreshes agent states from runtime backends.
-func (s *AgentService) Refresh() error {
-	return s.manager.RefreshState()
+func (s *AgentService) Refresh(ctx context.Context) error {
+	return s.manager.RefreshState(ctx)
 }
 
 // Get returns a single agent by name.
@@ -317,7 +317,7 @@ func (s *AgentService) StopAll(ctx context.Context) (int, error) {
 			count++
 		}
 	}
-	if err := s.manager.StopAll(); err != nil {
+	if err := s.manager.StopAll(ctx); err != nil {
 		return 0, err
 	}
 	s.publishEvent("agents.stopped_all", map[string]any{"count": count})
@@ -326,7 +326,7 @@ func (s *AgentService) StopAll(ctx context.Context) (int, error) {
 
 // Rename renames an agent.
 func (s *AgentService) Rename(ctx context.Context, oldName, newName string) error {
-	if err := s.manager.RenameAgent(oldName, newName); err != nil {
+	if err := s.manager.RenameAgent(ctx, oldName, newName); err != nil {
 		return err
 	}
 	s.publishEvent("agent.renamed", map[string]any{
@@ -393,7 +393,7 @@ func (s *AgentService) SendToRole(ctx context.Context, role, message string) (Se
 			result.Skipped++
 			continue
 		}
-		if err := s.manager.SendToAgent(a.Name, message); err != nil {
+		if err := s.manager.SendToAgent(ctx, a.Name, message); err != nil {
 			log.Warn("send-role: failed to send", "agent", a.Name, "error", err)
 			result.Failed++
 			continue
@@ -420,7 +420,7 @@ func (s *AgentService) SendToPattern(ctx context.Context, pattern, message strin
 			result.Skipped++
 			continue
 		}
-		if err := s.manager.SendToAgent(a.Name, message); err != nil {
+		if err := s.manager.SendToAgent(ctx, a.Name, message); err != nil {
 			log.Warn("send-pattern: failed to send", "agent", a.Name, "error", err)
 			result.Failed++
 			continue
