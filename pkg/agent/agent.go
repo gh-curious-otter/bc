@@ -1001,7 +1001,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	if agent.WorktreeDir != "" {
 		roleTarget = agent.WorktreeDir
 	}
-	if setupErr := SetupAgentFromRole(wsPath, name, string(role), roleTarget); setupErr != nil {
+	if setupErr := SetupAgentFromRoleWithRuntime(wsPath, name, string(role), roleTarget, agentRuntime); setupErr != nil {
 		log.Warn("role setup failed", "agent", name, "error", setupErr)
 	}
 

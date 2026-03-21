@@ -25,7 +25,19 @@ import (
 //   - .claude/agents/*.md    ← subagent definitions
 //   - .claude/rules/*.md     ← topic-specific rules
 //   - REVIEW.md              ← code review checklist
+// SetupAgentFromRoleWithRuntime sets up agent workspace files for the given role
+// and runtime backend. Docker agents skip stdio-transport MCP servers (unreachable).
+func SetupAgentFromRoleWithRuntime(workspacePath, agentName, roleName, targetDir, runtimeBackend string) error {
+	return setupAgentFromRole(workspacePath, agentName, roleName, targetDir, runtimeBackend)
+}
+
+// SetupAgentFromRole sets up agent workspace files for the given role.
+// Defaults to tmux runtime (all MCP transports available).
 func SetupAgentFromRole(workspacePath, agentName, roleName, targetDir string) error {
+	return setupAgentFromRole(workspacePath, agentName, roleName, targetDir, "tmux")
+}
+
+func setupAgentFromRole(workspacePath, agentName, roleName, targetDir, runtimeBackend string) error {
 	stateDir := filepath.Join(workspacePath, ".bc")
 	rm := workspace.NewRoleManager(stateDir)
 
@@ -46,7 +58,7 @@ func SetupAgentFromRole(workspacePath, agentName, roleName, targetDir string) er
 	}
 
 	// .mcp.json (project-level MCP config)
-	if e := writeMCPJSON(workspacePath, agentName, resolved, secrets, targetDir); e != nil {
+	if e := writeMCPJSON(workspacePath, agentName, resolved, secrets, targetDir, runtimeBackend); e != nil {
 		errs = append(errs, e.Error())
 	}
 
@@ -172,7 +184,8 @@ type mcpServerEntry struct {
 
 var secretRefPattern = regexp.MustCompile(`\$\{secret:([^}]+)\}`)
 
-func writeMCPJSON(workspacePath, agentName string, resolved *workspace.ResolvedRole, secrets map[string]string, targetDir string) error {
+func writeMCPJSON(workspacePath, agentName string, resolved *workspace.ResolvedRole, secrets map[string]string, targetDir, runtimeBackend string) error {
+	isDocker := runtimeBackend == "docker"
 	cfg := mcpConfig{MCPServers: make(map[string]mcpServerEntry)}
 
 	mcpStore, mcpErr := pkgmcp.NewStore(workspacePath)
@@ -185,6 +198,14 @@ func writeMCPJSON(workspacePath, agentName string, resolved *workspace.ResolvedR
 	for _, name := range resolved.MCPServers {
 		def, getErr := mcpStore.Get(name)
 		if getErr != nil || def == nil || !def.Enabled {
+			continue
+		}
+		// Docker agents can't use stdio-transport MCP servers (no access to
+		// host processes). Skip with warning — use tmux runtime for full MCP.
+		if isDocker && def.Transport != "sse" {
+			log.Warn("skipping stdio MCP server for Docker agent (unreachable)",
+				"agent", agentName, "mcp", name,
+				"hint", "use tmux runtime for stdio MCP servers")
 			continue
 		}
 		entry := mcpServerEntry{Command: def.Command, Args: def.Args, URL: def.URL}
