@@ -1,0 +1,116 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+labels: [enhancement]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the feature you'd like to see in bc.
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What problem does this solve? What should the end state look like?
+      placeholder: "e.g. 'Agents should be able to communicate via shared channels without polling'"
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: Any technical constraints, compatibility requirements, or non-goals.
+      placeholder: "e.g. 'Must work with both tmux and Docker runtimes'"
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Related files, packages, prior art, documentation, or linked issues.
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: Estimated Size
+      description: How large is this change?
+      options:
+        - "Small (< 1000 LOC, single PR)"
+        - "Medium (2-5 PRs)"
+        - "Large (needs design doc first)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: done-when
+    attributes:
+      label: Done When
+      description: Acceptance criteria for this feature.
+      value: |
+        - [ ] Feature implemented
+        - [ ] Tests pass
+        - [ ] `make check` passes
+        - [ ] PR reviewed and approved
+
+  - type: textarea
+    id: agent-instructions
+    attributes:
+      label: Agent Instructions
+      description: |
+        Workflow guidance for agents picking up this issue. Expand the block below to see instructions.
+        You may leave this section as-is.
+      value: |
+        <details>
+        <summary>Agent Workflow (click to expand)</summary>
+
+        ### 1. Assess Size
+
+        | Size   | Criteria                           | Workflow        |
+        |--------|------------------------------------|-----------------|
+        | SMALL  | < 1000 LOC changed, single PR      | Implement + PR  |
+        | MEDIUM | 2-5 PRs needed                     | Sub-issues + PRs|
+        | LARGE  | Needs design / research first      | Design doc first|
+
+        ### 2. Execute by Size
+
+        **SMALL (< 1000 LOC, single PR)**
+        - Launch a subagent to implement and create PR
+        - Create branch `feat/<short-description>` from main
+        - Implement the feature
+        - Run `make check` -- fix any failures
+        - Open PR linking this issue
+        - Review with `/code-review` skill
+        - Merge after clean review + CI green
+
+        **MEDIUM (2-5 PRs)**
+        - Break into 4-5 sub-issues with explicit dependency order
+        - Assign each sub-issue to a subagent for its own PR
+        - Review each PR with `/code-review` skill
+        - Merge PRs in dependency order
+        - Keep this issue open until all sub-issues are done
+
+        **LARGE (needs design first)**
+        - DO NOT write code immediately
+        - Research the problem thoroughly (search internet, read codebase)
+        - Write a design doc as a GitHub comment on this issue:
+          - Architecture and approach
+          - Alternatives considered
+          - Component breakdown
+          - Linked sub-issues in priority order
+        - Get approval on design doc before implementing
+        - Then execute sub-issues using the MEDIUM workflow
+
+        ### 3. Review Process (every PR)
+        - Use `/code-review` skill on every PR
+        - Check for: correctness, security, test coverage, lint compliance
+        - Request changes if issues found
+        - Only merge after clean review
+
+        ### 4. Conventions
+        - Branch naming: `feat/<description>` for features, `test/<description>` for test-only
+        - Conventional commits: `feat: <description>`, `test: <description>`
+        - Run `make check` before opening PR
+        - Add appropriate labels: `enhancement` + domain (`frontend`, `backend`, `infrastructure`)
+
+        </details>

@@ -1,0 +1,124 @@
+name: Bug Report
+description: Something isn't working as expected
+labels: [bug]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill in the details below.
+
+  - type: textarea
+    id: symptoms
+    attributes:
+      label: Symptoms
+      description: What happened? Be specific about the error or unexpected behavior.
+      placeholder: "e.g. 'bc agent start' exits with panic when no tmux session exists"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What should have happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Minimal steps to trigger the bug.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Related files, log output, config snippets, screenshots, or linked issues.
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Low (cosmetic, workaround exists)
+        - Medium (broken feature, workaround exists)
+        - High (broken feature, no workaround)
+        - Critical (data loss, security, crash)
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: "OS, Go version, bc version, runtime (tmux/Docker), provider"
+      placeholder: "macOS 14, Go 1.25.4, bc 0.8.0, tmux, claude"
+
+  - type: textarea
+    id: agent-instructions
+    attributes:
+      label: Agent Instructions
+      description: |
+        Workflow guidance for agents picking up this issue. Expand the block below to see instructions.
+        You may leave this section as-is.
+      value: |
+        <details>
+        <summary>Agent Workflow (click to expand)</summary>
+
+        ### 1. Assess Size
+
+        | Size   | Criteria                           | Workflow        |
+        |--------|------------------------------------|-----------------|
+        | SMALL  | < 1000 LOC changed, single PR      | Implement + PR  |
+        | MEDIUM | 2-5 PRs needed                     | Sub-issues + PRs|
+        | LARGE  | Needs design / research first      | Design doc first|
+
+        ### 2. Execute by Size
+
+        **SMALL (< 1000 LOC, single PR)**
+        - Create branch `fix/<short-description>` from main
+        - Implement the fix
+        - Run `make check` -- fix any failures
+        - Open PR linking this issue
+        - Review with `/code-review` skill
+        - Merge after clean review + CI green
+
+        **MEDIUM (2-5 PRs)**
+        - Break into 4-5 sub-issues with explicit dependency order
+        - Assign each sub-issue to a subagent for its own PR
+        - Review each PR with `/code-review` skill
+        - Merge PRs in dependency order
+        - Keep this issue open until all sub-issues are done
+
+        **LARGE (needs design first)**
+        - DO NOT write code immediately
+        - Research the problem thoroughly (search internet, read codebase)
+        - Write a design doc as a GitHub comment on this issue:
+          - Architecture and approach
+          - Alternatives considered
+          - Component breakdown
+          - Linked sub-issues in priority order
+        - Get approval on design doc before implementing
+        - Then execute sub-issues using the MEDIUM workflow
+
+        ### 3. Review Process (every PR)
+        - Use `/code-review` skill on every PR
+        - Check for: correctness, security, test coverage, lint compliance
+        - Request changes if issues found
+        - Only merge after clean review
+
+        ### 4. Conventions
+        - Branch naming: `fix/<description>` for bugs
+        - Conventional commits: `fix: <description>`
+        - Run `make check` before opening PR
+        - Add appropriate labels: `bug` + domain (`frontend`, `backend`, `infrastructure`)
+
+        </details>

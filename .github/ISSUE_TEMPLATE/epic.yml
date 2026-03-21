@@ -1,0 +1,97 @@
+name: Epic
+description: Tracking issue for a large initiative with multiple sub-issues
+labels: [epic]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for tracking issues that span multiple PRs or sub-issues.
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: High-level objective of this epic. What does success look like?
+    validations:
+      required: true
+
+  - type: textarea
+    id: sub-issues
+    attributes:
+      label: Sub-Issues
+      description: Checklist of sub-issues in dependency/priority order. Link issues as they are created.
+      value: |
+        - [ ] #000 — Description (dependency: none)
+        - [ ] #000 — Description (dependency: #000)
+        - [ ] #000 — Description (dependency: #000)
+    validations:
+      required: true
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Design docs, related issues, external links, relevant code paths.
+
+  - type: textarea
+    id: done-when
+    attributes:
+      label: Done When
+      description: Criteria for closing this epic.
+      value: |
+        - [ ] All sub-issues completed and merged
+        - [ ] Integration tested end-to-end
+        - [ ] `make check` passes on main after all merges
+        - [ ] Documentation updated if applicable
+    validations:
+      required: true
+
+  - type: textarea
+    id: agent-instructions
+    attributes:
+      label: Agent Instructions
+      description: |
+        Workflow guidance for agents picking up this issue. Expand the block below to see instructions.
+        You may leave this section as-is.
+      value: |
+        <details>
+        <summary>Agent Workflow (click to expand)</summary>
+
+        ### Epics follow the LARGE workflow by default
+
+        **Phase 1: Design**
+        - DO NOT write code immediately
+        - Research the problem thoroughly (search internet, read codebase)
+        - Write a design doc as a GitHub comment on this issue:
+          - Architecture and approach
+          - Alternatives considered
+          - Component breakdown
+          - Linked sub-issues in priority order
+        - Get approval on design doc before implementing
+
+        **Phase 2: Break Down**
+        - Create sub-issues in dependency order (list them above)
+        - Each sub-issue should be SMALL (< 1000 LOC, single PR) or MEDIUM (2-5 PRs)
+        - Add explicit dependency comments between sub-issues
+
+        **Phase 3: Execute**
+        - Assign each sub-issue to a subagent for its own PR
+        - Merge PRs in dependency order
+        - Comment on this epic with progress updates
+        - Do NOT close this epic until all sub-issues are done
+
+        ### Review Process (every PR)
+        - Use `/code-review` skill on every PR
+        - Check for: correctness, security, test coverage, lint compliance
+        - Request changes if issues found
+        - Only merge after clean review
+
+        ### Conventions
+        - Branch naming: `feat/`, `fix/`, `test/` prefixes
+        - Conventional commits format
+        - Run `make check` before opening any PR
+        - Add appropriate labels: `epic` + domain (`frontend`, `backend`, `infrastructure`)
+        - Keep sub-issue checklist above updated as work progresses
+
+        </details>
