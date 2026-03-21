@@ -1,6 +1,8 @@
 package cost
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -92,6 +94,158 @@ func TestCalcCost_UnknownModelFallsBack(t *testing.T) {
 	cost := CalcCost("claude-unknown-99", 1_000_000, 0, 0, 0)
 	if cost <= 0 {
 		t.Errorf("expected positive cost for unknown model, got %f", cost)
+	}
+}
+
+func TestFindSessionFiles_ReturnsJSONLFiles(t *testing.T) {
+	root := t.TempDir()
+
+	// Create nested dirs with .jsonl files and non-.jsonl files.
+	sub := filepath.Join(root, "project-a")
+	if err := os.MkdirAll(sub, 0750); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"sess1.jsonl", "sess2.jsonl", "readme.txt"} {
+		if err := os.WriteFile(filepath.Join(sub, name), []byte("{}"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Deeper nesting.
+	deep := filepath.Join(root, "project-b", "nested")
+	if err := os.MkdirAll(deep, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(deep, "sess3.jsonl"), []byte("{}"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	files, err := FindSessionFiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 3 {
+		t.Fatalf("want 3 .jsonl files, got %d: %v", len(files), files)
+	}
+	for _, f := range files {
+		if filepath.Ext(f) != ".jsonl" {
+			t.Errorf("unexpected non-.jsonl file: %s", f)
+		}
+	}
+}
+
+func TestFindSessionFiles_EmptyDir(t *testing.T) {
+	root := t.TempDir()
+	files, err := FindSessionFiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 0 {
+		t.Errorf("want 0 files in empty dir, got %d", len(files))
+	}
+}
+
+func TestFindSessionFiles_NonExistentDir(t *testing.T) {
+	files, err := FindSessionFiles("/nonexistent/path/abc123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 0 {
+		t.Errorf("want 0 files for nonexistent dir, got %d", len(files))
+	}
+}
+
+func TestParseSessionFile_ValidFile(t *testing.T) {
+	dir := t.TempDir()
+	content := `{"type":"assistant","sessionId":"s1","timestamp":"2026-03-01T10:00:00Z","cwd":"/ws","message":{"model":"claude-opus-4-6","usage":{"input_tokens":100,"output_tokens":50}}}
+`
+	path := filepath.Join(dir, "test.jsonl")
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := ParseSessionFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("want 1 entry, got %d", len(entries))
+	}
+	if entries[0].InputTokens != 100 {
+		t.Errorf("want 100 input tokens, got %d", entries[0].InputTokens)
+	}
+}
+
+func TestParseSessionFile_NonExistentFile(t *testing.T) {
+	_, err := ParseSessionFile("/nonexistent/test.jsonl")
+	if err == nil {
+		t.Error("expected error for nonexistent file")
+	}
+}
+
+func TestParseSessionReader_EmptyInput(t *testing.T) {
+	entries, err := parseSessionReader(strings.NewReader(""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("want 0 entries for empty input, got %d", len(entries))
+	}
+}
+
+func TestParseSessionReader_SkipsNonAssistantTypes(t *testing.T) {
+	jsonl := strings.NewReader(`{"type":"user","sessionId":"s1","timestamp":"2026-03-01T10:00:00Z","cwd":"/ws","message":{"role":"user"}}
+{"type":"system","sessionId":"s1","timestamp":"2026-03-01T10:00:00Z","cwd":"/ws","message":{"role":"system"}}
+`)
+	entries, err := parseSessionReader(jsonl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("want 0 entries for non-assistant types, got %d", len(entries))
+	}
+}
+
+func TestParseSessionReader_SkipsEmptyMessage(t *testing.T) {
+	jsonl := strings.NewReader(`{"type":"assistant","sessionId":"s1","timestamp":"2026-03-01T10:00:00Z","cwd":"/ws"}
+`)
+	entries, err := parseSessionReader(jsonl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("want 0 entries when message is empty, got %d", len(entries))
+	}
+}
+
+func TestParseSessionReader_InvalidTimestampFallback(t *testing.T) {
+	jsonl := strings.NewReader(`{"type":"assistant","sessionId":"s1","timestamp":"not-a-timestamp","cwd":"/ws","message":{"model":"claude-opus-4-6","usage":{"input_tokens":10,"output_tokens":5}}}
+`)
+	entries, err := parseSessionReader(jsonl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("want 1 entry, got %d", len(entries))
+	}
+	// When timestamp parsing fails, it falls back to time.Now().
+	if entries[0].Timestamp.IsZero() {
+		t.Error("expected non-zero timestamp fallback")
+	}
+	// Should be close to now (within a few seconds).
+	if time.Since(entries[0].Timestamp) > 10*time.Second {
+		t.Errorf("timestamp too far from now: %v", entries[0].Timestamp)
+	}
+}
+
+func TestParseSessionReader_BadMessageJSON(t *testing.T) {
+	jsonl := strings.NewReader(`{"type":"assistant","sessionId":"s1","timestamp":"2026-03-01T10:00:00Z","cwd":"/ws","message":"not an object"}
+`)
+	entries, err := parseSessionReader(jsonl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("want 0 entries when message is not valid JSON object, got %d", len(entries))
 	}
 }
 
