@@ -1,210 +1,168 @@
 # Frontend Engineering Review
 
-**Date:** 2026-03-20
+**Date:** 2026-03-21 (rev 2 — re-audit after PR #2153 merged)
 **Repo:** gh-curious-otter/bc
-**Stack:**
-- **TUI**: React 18 + Ink 4 (terminal UI), TypeScript, Bun
-- **Web**: React 18 + Vite 6 + Tailwind 3 + react-router-dom 6
-- **Landing**: Next.js 16 + React 19 + Tailwind v4 + framer-motion + lucide-react
+**Maturity Score: 6/10**
 
-**Frontend Maturity Score: 6/10**
+## Context
 
-## Executive Summary
+bc is a CLI-first AI agent orchestrator. Three React frontends:
+- **TUI** (`tui/`) — Ink 4 terminal UI, ~100 source files, 111 test files, Bun runtime. The primary interface.
+- **Web** (`web/`) — Vite + Tailwind + react-router-dom SPA, ~24 source files, zero tests. Dashboard served by bcd.
+- **Landing** (`landing/`) — Next.js 16 static export, React 19, framer-motion, Playwright tests. Marketing site.
 
-The bc project contains **three frontend surfaces**: a terminal UI (TUI), a web dashboard, and a marketing landing page. The TUI is the most mature — well-tested (111 test files), strict TypeScript, proper error boundaries, and solid architecture. However, all three frontends share common issues: **unmemoized context values causing cascade re-renders**, **hardcoded colors bypassing the theme system**, **missing accessibility features**, and **no code splitting**. The web dashboard has **zero tests** and **XSS-adjacent API parameter injection**. The landing page renders entirely client-side despite being a static export, killing First Contentful Paint. Security-wise, the TUI's spawn function injection is exported and the web API client lacks AbortController support.
+The project is pre-release and partially built by its own AI agents. The TUI is the most mature surface. The web dashboard is early-stage. The landing page is polished but has performance concerns.
 
----
+## What Changed Since v1 Review
 
-## Component Architecture Map
+PR #2153 fixed 5 issues:
+- ~~ConfigContext/UnreadContext memoization~~ -> FIXED (useMemo applied)
+- ~~RootProvider inline object~~ -> FIXED (useMemo applied)
+- ~~`@bc/tui` self-reference~~ -> FIXED (removed from package.json)
+- ~~HOME regex escape~~ -> FIXED (special chars escaped)
+- ~~`text-bc-fg` undefined class~~ -> FIXED (changed to `text-bc-text`)
 
-```
-bc/
-+-- tui/src/                    # Terminal UI (Ink/React)
-|   +-- app.tsx                 # Root: RootProvider > NavigationProvider > FocusProvider > ...
-|   +-- views/                  # 12 views (Dashboard, Agents, Channels, Costs, Logs, Roles, ...)
-|   |   +-- agents/             # Decomposed: AgentCard, AgentList, AgentPeekPanel, ...
-|   |   +-- AgentDetailView.tsx # 595-line god component
-|   |   +-- CostsView.tsx       # 613-line god component
-|   +-- components/             # Shared: Table, Panel, ErrorBoundary, CommandBar, FilterBar, ...
-|   +-- hooks/                  # useAgents, useChannels, usePolling, useFocusStateMachine, ...
-|   +-- services/bc.ts          # CLI wrapper with caching (903 lines)
-|   +-- theme/                  # ThemeContext, dark/light themes
-|   +-- navigation/             # NavigationContext, FocusContext, TabBar
-|   +-- config/                 # ConfigContext (performance tuning)
-|
-+-- web/src/                    # Web Dashboard (Vite/React)
-|   +-- App.tsx                 # BrowserRouter with 12 routes, no lazy loading
-|   +-- views/                  # Dashboard, Agents, Channels, Costs, Roles, Tools, MCP, ...
-|   +-- components/             # Layout, ErrorBoundary, StatusBadge, Table
-|   +-- hooks/                  # usePolling, useWebSocket
-|   +-- api/client.ts           # REST client with type assertions
-|   +-- theme/tokens.css        # CSS custom properties
-|
-+-- landing/src/app/            # Marketing Site (Next.js 16)
-    +-- page.tsx                # 621-line "use client" landing page
-    +-- _components/            # Nav, Footer, AnimatedBackground, TerminalComponents, ...
-    +-- _contexts/              # ThemeContext (duplicated with _components/ThemeProvider)
-    +-- docs/, waitlist/, product/, privacy/, terms/
-```
+Issue #2121 (ThemeToggle crash) was **not a bug** — `ThemeToggle` imports from the correct `_contexts/ThemeContext.tsx` which has `resolvedTheme`. The old `_components/ThemeProvider.tsx` is unused dead code.
 
 ---
 
-## Critical Issues (user-facing impact)
+## Open Bugs (functional, user-facing)
 
-| # | Issue | Location | Category | Impact |
-|---|-------|----------|----------|--------|
-| 1 | Landing page entirely client-rendered | `landing/src/app/page.tsx:1` | performance | FCP delayed 3-5s on slow connections; poor SEO crawl efficiency |
-| 2 | AnimatedBackground O(n^2) particle loop | `landing/src/app/_components/AnimatedBackground.tsx` | performance | 80 particles x 80 checks = 6400 calcs/frame; battery drain on mobile |
-| 3 | ThemeToggle uses undefined `resolvedTheme` | `landing/src/app/_components/ThemeToggle.tsx:7` | bug | Runtime crash — theme toggle button broken |
-| 4 | ConfigContext value not memoized | `tui/src/config/ConfigContext.tsx:102` | performance | All config consumers re-render on every provider render |
-| 5 | UnreadContext value not memoized | `tui/src/hooks/UnreadContext.tsx:115` | performance | All unread consumers re-render unnecessarily |
-| 6 | Web API parameter injection | `web/src/api/client.ts:135` | security | URL path injection via unsanitized channel names |
-| 7 | Web dashboard has zero tests | `web/` | testing | No regression detection for web dashboard |
-| 8 | TUI spawn function exported | `tui/src/services/bc.ts:75` | security | `_setSpawnForTesting` can intercept all CLI commands |
-| 9 | Waitlist form silently fails | `landing/src/app/waitlist/page.tsx:59` | ux | `no-cors` fetch swallows errors; users think submission worked |
-| 10 | Web missing 404 route | `web/src/App.tsx` | ux | Invalid URLs render blank page |
+| # | Issue | Location | Status |
+|---|-------|----------|--------|
+| #2122 | Web API path injection — no `encodeURIComponent` | `web/src/api/client.ts:135` | OPEN |
+| #2126 | Web missing 404 route — blank page on bad URL | `web/src/App.tsx` | OPEN |
+| #2140 | Waitlist form `no-cors` swallows errors silently | `landing/src/app/waitlist/page.tsx:59` | OPEN |
+| #2171 | Web Channels message duplication — WebSocket + fetch race | `web/src/views/Channels.tsx:67-104` | NEW |
+| #2172 | Web Channels auto-scroll interrupts reading | `web/src/views/Channels.tsx:86-88` | NEW |
+| NEW | TUI stale closure in AgentDetailView live mode | `tui/src/views/AgentDetailView.tsx:119` | NEW |
+| NEW | TUI useListNavigation itemCount race on group collapse | `tui/src/hooks/useListNavigation.ts:103` | NEW |
+| #2173 | TUI AgentsView setTimeout leak on unmount | `tui/src/views/AgentsView.tsx:195` | NEW |
+| NEW | Web Layout "? help" hint is non-functional | `web/src/components/Layout.tsx:47` | NEW |
 
-## Major Issues (quality & maintainability)
+## Open Security Issues
 
-| # | Issue | Location | Category | Impact |
-|---|-------|----------|----------|--------|
-| 11 | AgentDetailView god component (595 lines) | `tui/src/views/AgentDetailView.tsx` | components | 9 useState, tabs, scroll, input, keyboard all in one |
-| 12 | CostsView god component (613 lines) | `tui/src/views/CostsView.tsx` | components | Data fetching + sorting + 2 layout variants + detail view |
-| 13 | 40+ hardcoded colors bypass theme | Multiple TUI files | styling | Views don't respect dark/light theme switching |
-| 14 | Web: no code splitting | `web/src/App.tsx:1-16` | bundle | All 12 views eagerly imported |
-| 15 | Web: no AbortController | `web/src/api/client.ts` | data-fetching | Memory leaks on rapid view switching |
-| 16 | Web: usePolling race condition | `web/src/hooks/usePolling.ts:22` | data-fetching | Fetcher changes trigger constant polling |
-| 17 | TUI ESLint version mismatch | `tui/package.json:31-38` | dx | typescript-eslint v7 mixed with @typescript-eslint v6 |
-| 18 | TUI self-reference in deps | `tui/package.json:20` | bundle | `"@bc/tui": "."` circular dependency |
-| 19 | Missing PageUp/PageDown navigation | `tui/src/hooks/useListNavigation.ts` | a11y | No fast navigation in long lists |
-| 20 | Focus trap incomplete for overlays | `tui/navigation/FocusContext.tsx` | a11y | Keys leak through CommandBar/FilterBar |
-| 21 | Light theme contrast insufficient | `tui/src/theme/themes.ts` | a11y | Gray on white < 4.5:1 ratio |
-| 22 | useAgents debounce refs never cleaned | `tui/src/hooks/useAgents.ts:74` | state-mgmt | Memory leak as agents churn |
-| 23 | Stale closure in useChannelsWithUnread | `tui/src/hooks/useChannels.ts:255` | state-mgmt | Expensive unread recalculation every render |
-| 24 | 44 skipped tests (Jest mock migration) | Multiple TUI test files | testing | 15-20% of planned tests not executing |
-| 25 | framer-motion adds ~35KB gzipped | `landing/package.json` | bundle | Heavy for a marketing site |
-| 26 | Duplicate ThemeProvider implementations | `landing/src/app/_components/` vs `_contexts/` | components | Two theme systems, one broken |
+| # | Issue | Location | Status |
+|---|-------|----------|--------|
+| #2122 | API parameter injection (no URL encoding) | `web/src/api/client.ts:135` | OPEN — **fix first** |
+| #2125 | `_setSpawnForTesting` exported | `tui/src/services/bc.ts:75` | OPEN — superseded by #2155 (TUI->API) |
 
-## Minor Issues & Polish
+## Architecture Issues (still present)
 
-| # | Issue | Location | Category | Impact |
-|---|-------|----------|----------|--------|
-| 27 | Duplicate ESLint config files | `tui/.eslintrc.cjs` + `tui/eslint.config.js` | dx | Conflicting lint rules |
-| 28 | Namespace re-exports in barrel files | `tui/src/constants/index.ts` | bundle | Prevents tree-shaking |
-| 29 | WebVitals only logs in development | `landing/src/app/_components/WebVitals.tsx` | performance | No production CWV monitoring |
-| 30 | Web: hardcoded polling intervals | Multiple web views | data-fetching | Inconsistent refresh rates |
-| 31 | Web: missing dynamic page titles | `web/index.html` | seo | All tabs show same title |
-| 32 | Web: `text-bc-fg/80` undefined class | `web/src/views/Roles.tsx:65` | styling | Falls back to browser default |
-| 33 | Web: no focus ring on nav links | `web/src/components/Layout.tsx` | a11y | Keyboard users can't see focus |
-| 34 | Landing: redundant aria-labels | `landing/src/app/page.tsx` | a11y | Screen readers hear duplicate |
-| 35 | Table.tsx array index as key | `tui/src/components/Table.tsx:66` | performance | Reconciliation issues on reorder |
-| 36 | HOME env var used in regex unescaped | `tui/src/components/ActivityFeed.tsx:66` | security | Regex injection if HOME has special chars |
-| 37 | RootProvider creates inline object | `tui/src/providers/RootProvider.tsx:35` | performance | ThemeProvider config recreated each render |
-| 38 | FilterBar double state update | `tui/src/components/FilterBar.tsx:35` | performance | Two renders per keystroke |
+| # | Issue | Location | Status |
+|---|-------|----------|--------|
+| #2124 | Landing page `"use client"` — entire page CSR | `landing/src/app/page.tsx:1` | OPEN |
+| #2133 | AgentDetailView 595 lines | `tui/src/views/AgentDetailView.tsx` | OPEN |
+| #2134 | CostsView 613 lines | `tui/src/views/CostsView.tsx` | OPEN |
+| #2127 | Web: no code splitting (12 views eagerly imported) | `web/src/App.tsx:1-16` | OPEN |
+| #2128 | Web: no AbortController on fetch | `web/src/api/client.ts` | OPEN |
+| #2136 | TUI: useAgents debounce refs memory leak | `tui/src/hooks/useAgents.ts:74` | OPEN |
+| #2135 | TUI: stale closure in useChannelsWithUnread | `tui/src/hooks/useChannels.ts:255` | OPEN |
+| #2174 | TUI: bc.ts command cache unbounded (no LRU/max) | `tui/src/services/bc.ts:47` | NEW |
+| NEW | Web: usePolling fetcher dep causes cascade re-renders | `web/src/hooks/usePolling.ts:22` | OPEN |
+| NEW | Web: no request timeout or retry | `web/src/api/client.ts` | NEW |
 
----
+## Design System Gap
 
-## What's Done Well
+Three disconnected color systems. Strategic direction: unify on **Solar Flare** palette from landing page.
 
-**TUI:**
-- Excellent test coverage (111 test files, 10,311 lines of test code, no snapshot tests)
-- Strict TypeScript (`strict: true`, zero `any` in production code)
-- Proper error boundaries wrapping every view
-- Sophisticated polling with configurable intervals, debounce, change detection
-- Command result caching with TTLs (stale-while-revalidate)
-- Good focus management architecture (FocusContext + useFocusStateMachine)
-- Proper process timeout handling with SIGTERM/SIGKILL escalation
-- Adaptive polling that backs off when idle
-- Well-organized constants (dimensions, timings, cache, limits)
+| Token | Landing (Solar Flare) | Web (tokens.css) | TUI (themes.ts) |
+|-------|----------------------|-------------------|------------------|
+| Primary | `#EA580C` tangerine | `#60a5fa` blue | `'cyan'` |
+| Background | `#0C0A08` warm black | `#0f1117` cool gray | terminal default |
+| Surface | `#1E1A16` umber | `#1a1d27` cool slate | N/A |
+| Border | `#2A2420` bark | `#2a2d3a` cool | `'gray'` |
+| Accent | `#FB923C` amber | `#60a5fa` blue | `'magenta'` |
 
-**Web:**
-- Clean API client with centralized fetch
-- Proper ErrorBoundary on every route
-- Design tokens via CSS custom properties
-- WebSocket hook for real-time updates
-- Consistent Tailwind usage with custom theme
+Tracked by: #2154 (design system epic), #2157 (shared tokens), #2158 (web migration), #2159 (TUI alignment)
 
-**Landing:**
-- Excellent SEO metadata (OG, Twitter, structured data)
-- Proper `prefers-reduced-motion` handling for animations
-- Responsive design with mobile-first breakpoints
-- Playwright E2E tests configured
-- Good aria-hidden usage on decorative icons
-- Static export for CDN hosting
+## TUI->API Migration
+
+The TUI spawns `bc` CLI subprocesses for data. The bcd server already has REST endpoints for everything. Migration tracked by #2155/#2160.
+
+| Current | Target |
+|---------|--------|
+| `spawn('bc', ['status', '--json'])` | `fetch('/api/agents')` |
+| ~100ms process startup per call | ~1ms fetch |
+| In-memory cache in bc.ts | HTTP caching or SWR |
+| Polling with setInterval | SSE via `/api/events` |
+| `_setSpawnForTesting` attack surface | Standard fetch mocking |
 
 ---
 
-## Bundle Analysis
+## What's Solid
 
-| App | Estimated Size | Issues |
-|-----|---------------|--------|
-| TUI | ~3,200 source lines + 3 deps | Self-reference dep, ESLint version mismatch |
-| Web | ~2,400 source lines, no code splitting | All 12 views in initial bundle |
-| Landing | ~4,000 source lines + framer-motion (~35KB gz) | Client-rendered page, heavy particle animation |
+**TUI:** 111 test files, strict TS (zero `any`), error boundaries on every view, adaptive polling with backoff, command caching with TTLs, k9s-style navigation, configurable poll intervals via workspace config.
 
----
+**Web:** Clean API client, ErrorBoundary per route, SSE via EventSource, design tokens via CSS vars, proper loading/error states in most views.
 
-## Accessibility Assessment
-
-**TUI (6/10):** Keyboard navigation works via j/k/arrows but missing PageUp/PageDown. Focus trapping incomplete for overlays. Light theme has poor contrast. No terminal size warning for small screens.
-
-**Web (3/10):** No focus indicators on navigation. No skip-to-content. No ARIA landmarks. No keyboard shortcuts. Missing loading states for async operations.
-
-**Landing (7/10):** Good aria-hidden on icons, proper aria-labels on CTAs, prefers-reduced-motion honored. Minor redundant labels. Form accessibility could improve.
+**Landing:** Excellent SEO (OG, Twitter, structured data, canonical), `prefers-reduced-motion` honored, Playwright E2E tests, responsive mobile-first, proper aria-hidden on decorative icons.
 
 ---
 
-## Performance Assessment
+## Accessibility
 
-**TUI:** Context providers without memoized values cause cascade re-renders. FilterBar double-updates on each keystroke. Table uses array index keys. Agent debounce refs leak memory. Overall solid polling architecture.
+**TUI (6/10):** j/k/g/G navigation works. Missing PageUp/PageDown (#2130). Focus trap incomplete for overlays (#2131). Light theme gray-on-white fails 4.5:1 contrast (#2132).
 
-**Web:** No code splitting means full bundle on first load. No AbortController causes memory leaks. usePolling can race-condition on fetcher change.
+**Web (3/10):** No focus ring on nav (#2144). No skip-to-content. Table rows clickable without keyboard/ARIA support. Input fields missing labels. No a11y lint plugin.
 
-**Landing:** The biggest concern — entire page client-rendered with "use client". 80-particle O(n^2) animation on every frame. framer-motion adds ~35KB. Fonts loaded as render-blocking stylesheet.
+**Landing (7/10):** Good aria usage, proper reduced-motion. Mobile menu doesn't trap focus. Form could improve.
 
 ---
 
-## Action Plan
+## Prioritized Action Plan
 
-### Phase 1: Critical UX, Security & Bugs (immediate)
-- Fix ThemeToggle `resolvedTheme` crash (landing)
-- Fix API parameter injection (web)
-- Guard `_setSpawnForTesting` export (TUI)
-- Fix waitlist form error handling (landing)
-- Add 404 route (web)
-- Memoize ConfigContext and UnreadContext values (TUI)
+### Immediate — functional bugs
+1. **#2122** URL-encode web API path segments (security, 30 min)
+2. **#2126** Add 404 route to web dashboard (10 min)
+3. **#2171** Fix web Channels message deduplication (WebSocket + fetch race)
+4. **#2172** Fix web Channels auto-scroll (only when at bottom)
+5. **#2140** Fix waitlist form error handling
 
-### Phase 2: Performance (week 1)
-- Convert landing page to Server Components
-- Reduce AnimatedBackground particle count / optimize
-- Add React.lazy code splitting to web routes
-- Add AbortController to web API client
-- Memoize RootProvider config object (TUI)
-- Fix FilterBar double-update (TUI)
+### Week 1 — architecture
+6. **#2160** Create TUI API client (replace spawn with fetch) — biggest win
+7. **#2157** Create shared design tokens package (Solar Flare)
+8. **#2127** Add React.lazy to web routes
+9. **#2128** Add AbortController to web API client
+10. Fix TUI stale closure in AgentDetailView live mode
 
-### Phase 3: Accessibility (week 2)
-- Add PageUp/PageDown to TUI list navigation
-- Fix focus trapping for TUI overlays
-- Fix light theme contrast
-- Add focus indicators to web navigation
-- Add skip-to-content link (web)
+### Week 2 — polish
+11. **#2158** Migrate web to Solar Flare palette
+12. **#2159** Align TUI theme with Solar Flare
+13. **#2137** Migrate 40+ hardcoded TUI colors (do with #2159)
+14. **#2130** Add PageUp/PageDown to TUI lists
+15. **#2144** Add focus indicators to web nav
 
-### Phase 4: Component Architecture (week 3)
-- Split AgentDetailView into sub-components
-- Split CostsView into sub-components
-- Resolve duplicate ThemeProvider (landing)
-- Migrate hardcoded colors to theme system (TUI)
+### Week 3 — testing & cleanup
+16. **#2138** Set up web test framework (Vitest)
+17. **#2139** Migrate TUI skipped Jest tests to bun:test
+18. **#2133/#2134** Split god components
+19. **#2142** Fix ESLint version mismatch
+20. **#2148** Delete unused `_components/ThemeProvider.tsx`
 
-### Phase 5: State Management & Data Fetching (week 4)
-- Fix useChannelsWithUnread stale closure
-- Clean up useAgents debounce refs
-- Fix usePolling race condition (web)
-- Add proper error recovery/backoff to polling
+---
 
-### Phase 6: Testing & DX (week 5)
-- Add tests for web dashboard
-- Migrate TUI Jest mocks to bun:test
-- Fix ESLint version mismatch
-- Remove duplicate ESLint config
-- Remove self-reference dep
-- Add production Web Vitals reporting (landing)
+## Issue Tracker
+
+### Closed (fixed)
+- ~~#2121~~ ThemeToggle crash — not a bug (correct context used)
+- ~~#2123~~ Context memoization — fixed in PR #2153
+- ~~#2141~~ Self-reference dep — fixed in PR #2153
+- ~~#2143~~ RootProvider inline object — fixed in PR #2153
+- ~~#2145~~ HOME regex escape — fixed in PR #2153
+- ~~#2149~~ text-bc-fg class — fixed in PR #2153
+
+### Open epics
+- #2154 Unified Design System (Solar Flare)
+- #2155 TUI->API migration
+- #2156 CLI->bcd routing
+- #2111 Performance
+- #2112 Security
+- #2113 Accessibility
+- #2114 Component architecture
+- #2115 State management
+- #2117 Testing
+- #2118 Bundle optimization
+- #2119 Error handling
+
+### Master tracker: #2151
