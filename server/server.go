@@ -217,6 +217,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewRolesHandler(svc.WS).Register(mux)
 		handlers.NewWorkspaceHandler(svc.Agents, svc.WS).Register(mux)
 		handlers.NewDoctorHandler(svc.WS).Register(mux)
+		handlers.NewSettingsHandler(svc.WS).Register(mux)
 	}
 
 	// Stats endpoints (always registered; nil-safe internally)
