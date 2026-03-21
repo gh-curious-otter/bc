@@ -84,7 +84,8 @@ func (imp *Importer) claudeProjectsDirs() []string {
 }
 
 // importFile imports all new entries from a single JSONL file into the store.
-// Returns the number of records inserted.
+// Returns the number of records inserted. All inserts + watermark update are
+// wrapped in a transaction to prevent duplicates on crash recovery.
 func (imp *Importer) importFile(ctx context.Context, path string) (int, error) {
 	// Determine which entries in this file have already been imported.
 	lastImport, err := imp.lastImportedTimestamp(ctx, path)
@@ -97,21 +98,52 @@ func (imp *Importer) importFile(ctx context.Context, path string) (int, error) {
 		return 0, fmt.Errorf("parse session file %s: %w", path, err)
 	}
 
-	var inserted int
+	// Filter to new entries only
+	type importEntry struct {
+		entry   SessionEntry
+		agentID string
+		costUSD float64
+	}
+	var toInsert []importEntry
 	var latest time.Time
 	for _, e := range entries {
-		// Skip entries already imported (using timestamp watermark per file).
 		if !lastImport.IsZero() && !e.Timestamp.After(lastImport) {
 			continue
 		}
 		if e.Timestamp.After(latest) {
 			latest = e.Timestamp
 		}
-
 		agentID := imp.resolveAgent(e.CWD, path)
 		costUSD := CalcCost(e.Model, e.InputTokens, e.OutputTokens, e.CacheCreationTokens, e.CacheReadTokens)
+		toInsert = append(toInsert, importEntry{entry: e, agentID: agentID, costUSD: costUSD})
+	}
 
-		if err := imp.insertRecord(ctx, e, agentID, costUSD); err != nil {
+	if len(toInsert) == 0 {
+		return 0, nil
+	}
+
+	// Wrap all inserts + watermark update in a transaction
+	tx, err := imp.store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }() //nolint:errcheck // no-op after commit
+
+	var inserted int
+	for _, ie := range toInsert {
+		e := ie.entry
+		total := e.InputTokens + e.OutputTokens + e.CacheCreationTokens + e.CacheReadTokens
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO cost_records
+			 (agent_id, model, session_id, input_tokens, output_tokens, total_tokens,
+			  cache_creation_tokens, cache_read_tokens, cost_usd, timestamp)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			ie.agentID, e.Model, e.SessionID,
+			e.InputTokens, e.OutputTokens, total,
+			e.CacheCreationTokens, e.CacheReadTokens,
+			ie.costUSD,
+			e.Timestamp.UTC().Format(time.RFC3339Nano),
+		); err != nil {
 			log.Warn("cost importer: failed to insert record", "session", e.SessionID, "error", err)
 			continue
 		}
@@ -119,9 +151,21 @@ func (imp *Importer) importFile(ctx context.Context, path string) (int, error) {
 	}
 
 	if inserted > 0 {
-		if err := imp.recordImport(ctx, path, latest, inserted); err != nil {
-			log.Warn("cost importer: failed to record import state", "file", path, "error", err)
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO cost_imports (source_path, watermark, record_count, imported_at)
+			 VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+			 ON CONFLICT(source_path) DO UPDATE SET
+			   watermark    = excluded.watermark,
+			   record_count = cost_imports.record_count + excluded.record_count,
+			   imported_at  = excluded.imported_at`,
+			path, latest.UTC().Format(time.RFC3339Nano), inserted,
+		); err != nil {
+			return 0, fmt.Errorf("record import state: %w", err)
 		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit transaction: %w", err)
 	}
 	return inserted, nil
 }
