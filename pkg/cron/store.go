@@ -4,40 +4,31 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3" // SQLite driver
-
+	"github.com/rpuneet/bc/pkg/db"
 	"github.com/rpuneet/bc/pkg/log"
 )
 
 // Store is a SQLite-backed cron job store.
 type Store struct {
-	db   *sql.DB
+	db   *db.DB
 	path string
 }
 
 // Open opens (or creates) the cron database for the given workspace.
 func Open(workspacePath string) (*Store, error) {
 	path := filepath.Join(workspacePath, ".bc", "cron.db")
-	if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
-		return nil, fmt.Errorf("create cron db directory: %w", err)
-	}
 
-	db, err := sql.Open("sqlite3", path+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000")
+	database, err := db.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open cron database: %w", err)
 	}
 
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	db.SetConnMaxLifetime(time.Hour)
-
-	s := &Store{db: db, path: path}
+	s := &Store{db: database, path: path}
 	if err := s.initSchema(); err != nil {
-		_ = db.Close()
+		_ = database.Close()
 		return nil, fmt.Errorf("init cron schema: %w", err)
 	}
 	return s, nil
