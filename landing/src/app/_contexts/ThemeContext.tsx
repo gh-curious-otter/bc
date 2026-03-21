@@ -20,6 +20,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
   const [mounted, setMounted] = useState(false);
 
+  const applyTheme = (themeName: "light" | "dark") => {
+    const html = document.documentElement;
+    if (themeName === "dark") {
+      html.classList.add("dark");
+    } else {
+      html.classList.remove("dark");
+    }
+  };
+
   // Initialize theme
   useEffect(() => {
     const initializeTheme = () => {
@@ -60,15 +69,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     mediaQuery.addEventListener("change", handleChange);
     return () => mediaQuery.removeEventListener("change", handleChange);
   }, [mounted, theme]);
-
-  const applyTheme = (themeName: "light" | "dark") => {
-    const html = document.documentElement;
-    if (themeName === "dark") {
-      html.classList.add("dark");
-    } else {
-      html.classList.remove("dark");
-    }
-  };
 
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);

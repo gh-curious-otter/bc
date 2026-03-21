@@ -23,7 +23,7 @@ export function AnimatedBackground() {
     let scrollVelocity = 0;
     let mouseX = -1;
     let mouseY = -1;
-    let needsRedraw = true;
+
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
     // Particle configuration
@@ -60,7 +60,7 @@ export function AnimatedBackground() {
       canvas!.style.width = `${width}px`;
       canvas!.style.height = `${height}px`;
       ctx!.scale(dpr, dpr);
-      needsRedraw = true;
+
     }
 
     function initParticles() {
@@ -224,7 +224,7 @@ export function AnimatedBackground() {
 
     function handleScroll() {
       scrollY = window.scrollY;
-      needsRedraw = true;
+
     }
 
     function handleMouseMove(e: MouseEvent) {

@@ -7,7 +7,6 @@ import { HeroSection } from "./_components/HeroSection";
 import {
   TerminalWindow,
   CommandOutput,
-  StatusTable,
   ChannelView,
   CostTable,
   TreeDiagram,
@@ -19,7 +18,7 @@ import {
   CheckCircle2,
   XCircle,
 } from "lucide-react";
-import { ArrowRight, Terminal } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 /* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */
 
