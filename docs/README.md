@@ -1,56 +1,60 @@
 # bc Documentation
 
-Welcome to the bc documentation. bc is a CLI-first orchestration system for coordinating teams of AI agents in software development.
+bc is a CLI-first orchestration system for coordinating teams of AI coding agents across multiple repositories.
 
-## Getting Started
-
-| Document | Description |
-|----------|-------------|
-| [Quick Start](QUICKSTART.md) | 5-minute setup guide |
-| [Commands Reference](COMMANDS.md) | Complete CLI reference |
-
-## Core Concepts
+## Backend
 
 | Document | Description |
 |----------|-------------|
-| [Architecture](ARCHITECTURE.md) | System design and data flow |
-| [Roles & Responsibilities](roles-responsibilities.md) | Agent role hierarchy |
-| [Hierarchical Agents](hierarchical-agents.md) | Team structure patterns |
-| [Memory System](memory-system.md) | Persistent agent memory |
-| [Channel Conventions](channel-conventions.md) | Team communication |
+| [System Overview](overview.md) | Architecture layers, components, data flow diagrams |
+| [Agents](backend/agents.md) | Lifecycle state machine, runtimes, worktrees, roles |
+| [MCP Server](backend/mcp.md) | Resources, tools, transports, notifications |
 
-## Extensions
+## Database
 
 | Document | Description |
 |----------|-------------|
-| [Plugins](PLUGINS.md) | Plugin development guide |
-| [MCP Integration](MCP.md) | Model Context Protocol |
+| [Schema & Storage](database/database.md) | Complete DDL, ER diagram, indexes, migrations, filesystem layout |
 
-## Reference
+## Frontend
 
 | Document | Description |
 |----------|-------------|
-| [Troubleshooting](TROUBLESHOOTING.md) | Common issues and solutions |
-| [TUI Design](tui-design-proposal.md) | Terminal UI specification |
-| [TUI Technical](tui-technical-design.md) | TUI implementation details |
+| [Web UI](frontend/web-ui.md) | React SPA, component tree, routing, state management |
+| [TUI](frontend/tui.md) | React Ink terminal UI, navigation, hooks |
+| [Design System](frontend/design-system.md) | Solar Flare palette, tokens, shared component library |
+| [Networking](frontend/networking.md) | Client-server communication, SSE events, protocols |
 
-## Quick Links
+## Infrastructure
 
-- **Initialize workspace**: `bc init`
-- **Start agents**: `bc up`
-- **View dashboard**: `bc home`
-- **Check status**: `bc status`
-- **Get help**: `bc --help`
+| Document | Description |
+|----------|-------------|
+| [CI/CD](infrastructure/ci-cd.md) | GitHub Actions, test pipeline, release workflow |
+| [Deployment](infrastructure/deployment.md) | Docker containers, runtime configuration |
 
-## Philosophy
+## API Reference
 
-- **CLI-First**: Every feature is scriptable via the command line
-- **Agent Agnostic**: Works with Claude Code, Cursor, Codex, Gemini, or any terminal AI
-- **Organic Growth**: Start with one agent, grow conversationally
-- **Persistent Memory**: Agents learn and accumulate knowledge
-- **Isolated Workspaces**: Each agent gets its own git worktree
+| Document | Description |
+|----------|-------------|
+| [REST API](api/rest.md) | All HTTP endpoints with params, body, response schemas |
 
-## Support
+## Guides
 
-- GitHub Issues: [github.com/rpuneet/bc/issues](https://github.com/rpuneet/bc/issues)
-- Documentation: [github.com/rpuneet/bc/docs](https://github.com/rpuneet/bc/docs)
+| Document | Description |
+|----------|-------------|
+| [Quick Start](guides/quickstart.md) | 5-minute setup |
+| [Channels](guides/channels.md) | Message types, conventions, PR workflow |
+| [Troubleshooting](guides/troubleshooting.md) | Common errors and fixes |
+| CLI Reference | Run `bc --help` for complete command listing |
+
+## Engineering Reviews
+
+| Document | Description |
+|----------|-------------|
+| [Backend](reviews/backend.md) | Architecture, API, data layer, performance |
+| [Frontend](reviews/frontend.md) | Web UI, TUI, landing page |
+| [Infrastructure](reviews/infrastructure.md) | CI/CD, Docker, deployment |
+
+## Archive
+
+Old v1 docs in [bak/](bak/).

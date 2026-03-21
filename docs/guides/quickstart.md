@@ -4,7 +4,7 @@ Get bc running in 5 minutes.
 
 ## Prerequisites
 
-- **Go 1.22+** for building from source
+- **Go 1.25.1+** for building from source
 - **tmux** for agent session management
 - **An AI agent tool** (Claude Code, Cursor, or similar)
 
@@ -43,7 +43,7 @@ bc init --quick
 ```
 
 This creates a `.bc/` directory with:
-- `config.toml` - Workspace configuration
+- `settings.toml` - Workspace configuration
 - `agents/` - Agent state storage
 - `roles/` - Role definitions
 

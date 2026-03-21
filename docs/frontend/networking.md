@@ -1,0 +1,205 @@
+# Networking & Communication Architecture
+
+## Component Communication
+
+```mermaid
+graph TB
+    CLI[bc CLI] -->|HTTP REST| BCD[bcd :9374]
+    WEB[Web UI] -->|HTTP + SSE| BCD
+    TUI[TUI] -->|bc CLI| CLI
+    AGENT_MCP[AI Agents] -->|MCP stdio/SSE| BCD
+
+    BCD -->|SQL| DB[(~/.bc/bc.db)]
+    BCD -->|docker exec<br/>tmux send-keys| AGENTS[Agent Containers]
+    BCD -->|SSE broadcast| WEB
+    BCD -->|SSE broadcast| TUI
+
+    AGENTS -->|hook POST| BCD
+```
+
+All communication flows through **bcd** as the central hub. No component talks directly to another.
+
+## Protocol Reference
+
+| Interface | Protocol | Endpoint | Purpose |
+|-----------|----------|----------|---------|
+| REST API | HTTP/JSON | `/api/*` (68 endpoints) | CRUD for all resources |
+| SSE Events | HTTP SSE | `/api/events` | Real-time state updates |
+| MCP (stdio) | JSON-RPC 2.0 | stdin/stdout | Agent -> bcd integration |
+| MCP (SSE) | JSON-RPC 2.0 | `/mcp/sse` + `/mcp/message` | Remote MCP clients |
+| Health | HTTP | `/health` | Liveness probe |
+
+## Message Delivery Flow
+
+When a message is sent to a channel, it's delivered to all members:
+
+```mermaid
+sequenceDiagram
+    participant Sender as Agent/CLI
+    participant API as bcd API
+    participant DB as SQLite
+    participant Hub as SSE Hub
+    participant Agent as Member Agents
+    participant Web as Web UI
+
+    Sender->>API: POST /api/channels/{name}/messages
+    API->>DB: INSERT message
+    API->>Hub: Publish channel.message event
+    Hub->>Web: SSE: channel.message
+    
+    loop Each channel member (except sender)
+        API->>Agent: tmux send-keys / docker exec
+    end
+    
+    API->>Sender: 201 Created
+```
+
+## Agent Hook Event Flow
+
+Claude Code hooks fire on tool use start/stop, updating agent state:
+
+```mermaid
+sequenceDiagram
+    participant Claude as Claude Code
+    participant Hook as Hook Script
+    participant API as bcd API
+    participant Hub as SSE Hub
+    participant Web as Web UI
+
+    Claude->>Hook: tool_use_start event
+    Hook->>API: POST /api/agents/{name}/hook
+    API->>API: UpdateAgentState(working)
+    API->>Hub: Publish agent.state event
+    Hub->>Web: SSE: agent state = working
+
+    Claude->>Hook: tool_use_end event
+    Hook->>API: POST /api/agents/{name}/hook
+    API->>API: UpdateAgentState(idle)
+    API->>Hub: Publish agent.state event
+    Hub->>Web: SSE: agent state = idle
+```
+
+## MCP Integration
+
+AI agents connect to bcd's MCP server to read workspace state and take actions:
+
+```mermaid
+sequenceDiagram
+    participant Agent as Claude Code
+    participant MCP as bcd MCP Server
+    participant Svc as Services
+
+    Agent->>MCP: initialize (protocol handshake)
+    MCP->>Agent: capabilities (resources + tools)
+
+    Agent->>MCP: resources/read bc://agents
+    MCP->>Svc: List agents
+    Svc->>MCP: Agent data
+    MCP->>Agent: JSON response
+
+    Agent->>MCP: tools/call create_agent
+    MCP->>Svc: Create + start agent
+    Svc->>MCP: Result
+    MCP->>Agent: Tool result
+```
+
+### MCP Transports
+
+| Transport | Connection | Use Case |
+|-----------|-----------|----------|
+| **stdio** | `bc mcp serve` via `.mcp.json` | Claude Code agents (local) |
+| **SSE** | `GET /mcp/sse` + `POST /mcp/message` | Remote/browser MCP clients |
+
+Both have a 4MB message size limit.
+
+## SSE Event System
+
+bcd maintains an in-memory SSE hub. All connected clients (web UI, TUI) receive real-time events.
+
+```mermaid
+graph LR
+    subgraph Sources
+        AGENT_SVC[Agent Service]
+        CHAN_SVC[Channel Service]
+        COST_SVC[Cost Importer]
+    end
+
+    HUB[SSE Hub<br/>in-memory]
+
+    subgraph Subscribers
+        WEB1[Web UI Client 1]
+        WEB2[Web UI Client 2]
+        TUI1[TUI via CLI]
+    end
+
+    AGENT_SVC -->|agent.created<br/>agent.stopped<br/>agent.state| HUB
+    CHAN_SVC -->|channel.message| HUB
+    HUB --> WEB1
+    HUB --> WEB2
+    HUB --> TUI1
+```
+
+### Event Types
+
+| Event | Trigger | Payload |
+|-------|---------|---------|
+| `connected` | Client connects to SSE | `{"status":"connected"}` |
+| `agent.created` | Agent created | `{"name","role","tool"}` |
+| `agent.started` | Agent started/restarted | `{"name"}` |
+| `agent.stopped` | Agent stopped | `{"name","reason"}` |
+| `agent.deleted` | Agent deleted | `{"name"}` |
+| `agent.renamed` | Agent renamed | `{"old_name","new_name"}` |
+| `agents.stopped_all` | All agents stopped | `{"count"}` |
+| `channel.message` | New message posted | `{"channel","message"}` |
+
+## Request/Response Format
+
+### Success Response
+```json
+{
+  "name": "eng-01",
+  "role": "engineer",
+  "state": "idle"
+}
+```
+
+### Error Response
+```json
+{
+  "error": "agent not found: eng-01"
+}
+```
+
+All responses use `Content-Type: application/json`.
+
+## CORS Policy
+
+- **Default**: `Access-Control-Allow-Origin: *` (safe on loopback)
+- **Methods**: GET, POST, PUT, PATCH, DELETE, OPTIONS
+- **Headers**: Content-Type, Authorization
+
+Wildcard CORS is acceptable because bcd binds to `127.0.0.1` by default. When exposed beyond loopback (Docker `0.0.0.0`), CORS should be restricted.
+
+## Connection Lifecycle
+
+### SSE Connections
+- Server sends `data: {"type":"connected"}` immediately on connect
+- No keepalive pings (relies on TCP keepalive)
+- Client reconnects on disconnect (EventSource auto-reconnect)
+- WriteTimeout disabled on server for long-lived SSE connections
+- IdleTimeout: 120 seconds
+
+### MCP SSE Connections
+- Server sends `event: endpoint` with message POST URL on connect
+- Client POSTs JSON-RPC to the message endpoint
+- Server sends responses via SSE stream
+- ReadHeaderTimeout: 10 seconds (Slowloris protection)
+
+## Port Allocation
+
+| Port | Service | Binding |
+|------|---------|---------|
+| 9374 | bcd (REST + SSE + MCP + Web UI) | `127.0.0.1` (default) |
+| 5432 | bcdb (PostgreSQL) | `127.0.0.1` |
+
+Single port for bcd serves everything: REST API, SSE events, MCP protocol, and embedded web UI (SPA with client-side routing).

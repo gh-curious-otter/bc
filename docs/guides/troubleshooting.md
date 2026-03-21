@@ -46,7 +46,7 @@ sudo dnf install tmux
 go version
 
 # Update dependencies
-make deps
+make build
 
 # Clean build
 make clean build
@@ -83,7 +83,7 @@ bc init
 
 ### Config File Errors
 
-**Cause**: Invalid TOML syntax in config.toml.
+**Cause**: Invalid TOML syntax in settings.toml.
 
 **Solution**:
 ```bash
@@ -91,7 +91,7 @@ bc init
 bc config show
 
 # Check for syntax errors
-cat .bc/config.toml
+cat .bc/settings.toml
 
 # Regenerate default config
 bc config reset
@@ -173,7 +173,7 @@ bc status
 bc channel list
 
 # Verify database
-sqlite3 .bc/channels.db "SELECT * FROM messages ORDER BY timestamp DESC LIMIT 5;"
+sqlite3 .bc/bc.db "SELECT * FROM messages ORDER BY timestamp DESC LIMIT 5;"
 ```
 
 ### "channel not found"
@@ -312,7 +312,7 @@ bc config show | grep cost
 bc cost add --agent eng-01 --amount 0.05
 
 # Check database
-sqlite3 .bc/cost.db "SELECT * FROM costs LIMIT 5;"
+sqlite3 .bc/bc.db "SELECT * FROM costs LIMIT 5;"
 ```
 
 ## Memory Issues
@@ -331,7 +331,7 @@ ls -la .bc/memory/
 
 # Test recording
 bc memory record "Test entry"
-bc memory show
+# memory system not yet implemented
 ```
 
 ### Search Not Finding Results
@@ -341,13 +341,13 @@ bc memory show
 **Solution**:
 ```bash
 # Rebuild index
-bc memory rebuild-index
+# memory system not yet implemented
 
 # Use simple search terms
 bc memory search testing
 
 # Check memory contents
-bc memory show
+# memory system not yet implemented
 ```
 
 ## Performance Issues
@@ -362,7 +362,7 @@ bc memory show
 du -sh .bc/*.db
 
 # Vacuum database
-sqlite3 .bc/channels.db "VACUUM;"
+sqlite3 .bc/bc.db "VACUUM;"
 
 # Prune old data
 bc logs prune --older-than 7d
@@ -408,10 +408,10 @@ sudo chown -R $USER:$USER .bc/
 **Solution**:
 ```bash
 # Check MCP server status
-bc mcp server status
+bc mcp list
 
 # Restart servers
-bc mcp server restart all
+bc mcp remove all
 ```
 
 ### "timeout waiting for response"
