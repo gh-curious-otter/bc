@@ -109,7 +109,7 @@ cpus = 2.0
 # Memory limit per container in MB
 memory_mb = 2048
 # Docker network mode
-network = "host"
+network = "bridge"
 # Extra volume mounts (host:container:mode)
 # extra_mounts = ["/data:/data:ro"]
 
