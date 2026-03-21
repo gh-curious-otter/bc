@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,16 +10,21 @@ import (
 	"time"
 
 	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // AgentHandler handles /api/agents routes.
 type AgentHandler struct {
-	svc *agent.AgentService
+	svc   *agent.AgentService
+	costs *cost.Store
+	ws    *workspace.Workspace
 }
 
 // NewAgentHandler creates an AgentHandler.
-func NewAgentHandler(svc *agent.AgentService) *AgentHandler {
-	return &AgentHandler{svc: svc}
+// costs and ws may be nil; enrichment fields will be omitted when unavailable.
+func NewAgentHandler(svc *agent.AgentService, costs *cost.Store, ws *workspace.Workspace) *AgentHandler {
+	return &AgentHandler{svc: svc, costs: costs, ws: ws}
 }
 
 // Register mounts agent routes on mux.
@@ -35,21 +41,24 @@ func (h *AgentHandler) Register(mux *http.ServeMux) {
 }
 
 type agentDTO struct {
-	CreatedAt time.Time  `json:"created_at"`
-	StartedAt time.Time  `json:"started_at,omitempty"`
-	UpdatedAt time.Time  `json:"updated_at"`
-	StoppedAt *time.Time `json:"stopped_at,omitempty"`
-	ID        string     `json:"id,omitempty"`
-	Name      string     `json:"name"`
-	Role      string     `json:"role"`
-	State     string     `json:"state"`
-	Task      string     `json:"task,omitempty"`
-	Team      string     `json:"team,omitempty"`
-	Tool      string     `json:"tool,omitempty"`
-	Session   string     `json:"session,omitempty"`
-	SessionID string     `json:"session_id,omitempty"`
-	ParentID  string     `json:"parent_id,omitempty"`
-	Children  []string   `json:"children,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	StartedAt    time.Time  `json:"started_at,omitempty"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+	StoppedAt    *time.Time `json:"stopped_at,omitempty"`
+	ID           string     `json:"id,omitempty"`
+	Name         string     `json:"name"`
+	Role         string     `json:"role"`
+	State        string     `json:"state"`
+	Task         string     `json:"task,omitempty"`
+	Team         string     `json:"team,omitempty"`
+	Tool         string     `json:"tool,omitempty"`
+	Session      string     `json:"session,omitempty"`
+	SessionID    string     `json:"session_id,omitempty"`
+	ParentID     string     `json:"parent_id,omitempty"`
+	Children     []string   `json:"children,omitempty"`
+	MCPServers   []string   `json:"mcp_servers,omitempty"`
+	TotalCostUSD float64    `json:"total_cost_usd"`
+	TotalTokens  int64      `json:"total_tokens"`
 }
 
 func toDTO(a *agent.Agent) agentDTO {
@@ -72,6 +81,19 @@ func toDTO(a *agent.Agent) agentDTO {
 	}
 }
 
+// buildCostMap queries per-agent cost summaries and returns them keyed by agent ID.
+func buildCostMap(ctx context.Context, store *cost.Store) map[string]*cost.Summary {
+	summaries, err := store.SummaryByAgent(ctx)
+	if err != nil {
+		return nil
+	}
+	m := make(map[string]*cost.Summary, len(summaries))
+	for _, s := range summaries {
+		m[s.AgentID] = s
+	}
+	return m
+}
+
 func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -85,6 +107,30 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		for _, a := range agents {
 			dtos = append(dtos, toDTO(a))
 		}
+
+		// Enrich with per-agent cost summaries.
+		if h.costs != nil {
+			costMap := buildCostMap(r.Context(), h.costs)
+			for i := range dtos {
+				if summary, ok := costMap[dtos[i].Name]; ok {
+					dtos[i].TotalCostUSD = summary.TotalCostUSD
+					dtos[i].TotalTokens = summary.TotalTokens
+				}
+			}
+		}
+
+		// Enrich with resolved MCP servers from the agent's role.
+		if h.ws != nil && h.ws.RoleManager != nil {
+			for i := range dtos {
+				if dtos[i].Role != "" {
+					resolved, resolveErr := h.ws.RoleManager.ResolveRole(dtos[i].Role)
+					if resolveErr == nil && len(resolved.MCPServers) > 0 {
+						dtos[i].MCPServers = resolved.MCPServers
+					}
+				}
+			}
+		}
+
 		limit, offset := parsePagination(r, 50)
 		if offset >= len(dtos) {
 			dtos = []agentDTO{}
