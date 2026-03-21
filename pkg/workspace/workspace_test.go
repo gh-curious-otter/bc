@@ -406,8 +406,8 @@ func TestEnsureDirs(t *testing.T) {
 func TestEnsureDirsV2(t *testing.T) {
 	dir := t.TempDir()
 
-	// InitV2 creates a v2 workspace
-	ws, err := InitV2(dir)
+	// Init creates a v2 workspace
+	ws, err := Init(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -774,12 +774,12 @@ func TestRegistrySaveCreatesDirectory(t *testing.T) {
 // V2 Workspace Tests
 // =====================
 
-func TestInitV2(t *testing.T) {
+func TestInitV2Format(t *testing.T) {
 	dir := t.TempDir()
 
-	ws, err := InitV2(dir)
+	ws, err := Init(dir)
 	if err != nil {
-		t.Fatalf("InitV2: %v", err)
+		t.Fatalf("Init: %v", err)
 	}
 
 	// Check Config is set
@@ -816,7 +816,7 @@ func TestLoadV2Workspace(t *testing.T) {
 	dir := t.TempDir()
 
 	// Initialize v2 workspace
-	_, err := InitV2(dir)
+	_, err := Init(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -886,7 +886,7 @@ func TestLoadPrefersTOMLOverJSON(t *testing.T) {
 func TestWorkspaceV2Directories(t *testing.T) {
 	dir := t.TempDir()
 
-	ws, err := InitV2(dir)
+	ws, err := Init(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -907,7 +907,7 @@ func TestWorkspaceV2Directories(t *testing.T) {
 func TestWorkspaceGetRole(t *testing.T) {
 	dir := t.TempDir()
 
-	ws, err := InitV2(dir)
+	ws, err := Init(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -931,7 +931,7 @@ func TestWorkspaceGetRole(t *testing.T) {
 func TestWorkspaceGetRolePrompt(t *testing.T) {
 	dir := t.TempDir()
 
-	ws, err := InitV2(dir)
+	ws, err := Init(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -952,7 +952,7 @@ func TestWorkspaceDefaultProvider(t *testing.T) {
 	dir := t.TempDir()
 
 	// v2 workspace - default provider is gemini (minimal root-only startup)
-	ws, err := InitV2(dir)
+	ws, err := Init(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -970,7 +970,7 @@ func TestWorkspaceDefaultProvider(t *testing.T) {
 func TestWorkspaceSaveV2(t *testing.T) {
 	dir := t.TempDir()
 
-	ws, err := InitV2(dir)
+	ws, err := Init(dir)
 	if err != nil {
 		t.Fatal(err)
 	}

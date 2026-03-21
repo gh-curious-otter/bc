@@ -92,11 +92,6 @@ func Init(rootDir string) (*Workspace, error) {
 	}, nil
 }
 
-// InitV2 is an alias for Init (kept for backward compatibility).
-func InitV2(rootDir string) (*Workspace, error) {
-	return Init(rootDir)
-}
-
 // Load loads a workspace from a directory.
 // If only a v1 config.json exists (no config.toml), Load returns an error
 // wrapping ErrNotV1Workspace so callers can suggest migration.

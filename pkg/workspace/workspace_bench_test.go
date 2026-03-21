@@ -19,7 +19,7 @@ func newBenchDir(b *testing.B) string {
 func setupV2Workspace(b *testing.B) *Workspace {
 	b.Helper()
 	dir := newBenchDir(b)
-	ws, err := InitV2(dir)
+	ws, err := Init(dir)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -40,13 +40,13 @@ func BenchmarkInit(b *testing.B) {
 	}
 }
 
-func BenchmarkInitV2(b *testing.B) {
+func BenchmarkInitV2Format(b *testing.B) {
 	baseDir := newBenchDir(b)
 
 	b.ResetTimer()
 	for i := range b.N {
 		dir := filepath.Join(baseDir, fmt.Sprintf("ws-%d", i))
-		if _, err := InitV2(dir); err != nil {
+		if _, err := Init(dir); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -70,7 +70,7 @@ func BenchmarkLoad_V1(b *testing.B) {
 
 func BenchmarkLoad_V2(b *testing.B) {
 	dir := newBenchDir(b)
-	if _, err := InitV2(dir); err != nil {
+	if _, err := Init(dir); err != nil {
 		b.Fatal(err)
 	}
 
@@ -84,7 +84,7 @@ func BenchmarkLoad_V2(b *testing.B) {
 
 func BenchmarkLoad_V2_WithRoles(b *testing.B) {
 	dir := newBenchDir(b)
-	ws, err := InitV2(dir)
+	ws, err := Init(dir)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func BenchmarkLoad_V2_WithRoles(b *testing.B) {
 
 func BenchmarkFind_Immediate(b *testing.B) {
 	dir := newBenchDir(b)
-	if _, err := InitV2(dir); err != nil {
+	if _, err := Init(dir); err != nil {
 		b.Fatal(err)
 	}
 
@@ -123,7 +123,7 @@ func BenchmarkFind_Immediate(b *testing.B) {
 
 func BenchmarkFind_OneLevel(b *testing.B) {
 	dir := newBenchDir(b)
-	if _, err := InitV2(dir); err != nil {
+	if _, err := Init(dir); err != nil {
 		b.Fatal(err)
 	}
 	subdir := filepath.Join(dir, "subdir")
@@ -141,7 +141,7 @@ func BenchmarkFind_OneLevel(b *testing.B) {
 
 func BenchmarkFind_ThreeLevels(b *testing.B) {
 	dir := newBenchDir(b)
-	if _, err := InitV2(dir); err != nil {
+	if _, err := Init(dir); err != nil {
 		b.Fatal(err)
 	}
 	subdir := filepath.Join(dir, "a", "b", "c")
@@ -189,7 +189,7 @@ func BenchmarkSave_V2(b *testing.B) {
 
 func BenchmarkIsWorkspace_True(b *testing.B) {
 	dir := newBenchDir(b)
-	if _, err := InitV2(dir); err != nil {
+	if _, err := Init(dir); err != nil {
 		b.Fatal(err)
 	}
 
