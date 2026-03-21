@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -282,6 +283,63 @@ func (s *ChannelService) React(_ context.Context, ch string, msgID int, emoji, u
 	}
 
 	return added, nil
+}
+
+// SenderCount represents a sender and their message count.
+type SenderCount struct {
+	Sender string `json:"sender"`
+	Count  int    `json:"count"`
+}
+
+// ChannelStatsDTO is the API representation of per-channel activity statistics.
+type ChannelStatsDTO struct {
+	LastActivity *time.Time    `json:"last_activity"`
+	Name         string        `json:"name"`
+	TopSenders   []SenderCount `json:"top_senders"`
+	MessageCount int           `json:"message_count"`
+	MemberCount  int           `json:"member_count"`
+}
+
+// Stats returns per-channel activity statistics for all channels.
+func (s *ChannelService) Stats(_ context.Context) ([]ChannelStatsDTO, error) {
+	channels := s.store.List()
+	stats := make([]ChannelStatsDTO, 0, len(channels))
+	for _, ch := range channels {
+		dto := ChannelStatsDTO{
+			Name:         ch.Name,
+			MessageCount: len(ch.History),
+			MemberCount:  len(ch.Members),
+			TopSenders:   computeTopSenders(ch.History, 5),
+		}
+		if len(ch.History) > 0 {
+			last := ch.History[len(ch.History)-1].Time
+			dto.LastActivity = &last
+		}
+		stats = append(stats, dto)
+	}
+	return stats, nil
+}
+
+// computeTopSenders returns the top N senders by message count from history.
+func computeTopSenders(history []HistoryEntry, n int) []SenderCount {
+	counts := make(map[string]int)
+	for _, entry := range history {
+		counts[entry.Sender]++
+	}
+	senders := make([]SenderCount, 0, len(counts))
+	for sender, count := range counts {
+		senders = append(senders, SenderCount{Sender: sender, Count: count})
+	}
+	sort.Slice(senders, func(i, j int) bool {
+		if senders[i].Count != senders[j].Count {
+			return senders[i].Count > senders[j].Count
+		}
+		return senders[i].Sender < senders[j].Sender
+	})
+	if len(senders) > n {
+		senders = senders[:n]
+	}
+	return senders
 }
 
 // channelToDTO converts a Channel to a ChannelDTO.

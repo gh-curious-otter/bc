@@ -176,6 +176,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 			}
 		}
 		handlers.NewChannelHandler(svc.Channels).Register(mux)
+		handlers.NewChannelStatsHandler(svc.Channels).Register(mux)
 	}
 	if svc.Daemons != nil {
 		handlers.NewDaemonHandler(svc.Daemons).Register(mux)
