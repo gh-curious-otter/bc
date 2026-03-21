@@ -9,7 +9,7 @@ import { StatusBadge } from '../components/StatusBadge';
 /** Strip ANSI escape sequences from a string. */
 function stripAnsi(s: string): string {
   // eslint-disable-next-line no-control-regex
-  return s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '');
+  return s.replace(/\x1b(?:\[[0-9;]*[A-Za-z]|\].*?(?:\x07|\x1b\\)|\([A-B0-2])/g, '');
 }
 
 function RoleBadge({ role }: { role: string }) {
@@ -167,11 +167,12 @@ export function AgentDetail() {
         <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">Live Output</h2>
         <pre
           ref={outputRef}
-          className="rounded border border-bc-border bg-bc-bg p-4 text-xs font-mono overflow-auto max-h-96 whitespace-pre-wrap"
+          className="rounded-lg border border-bc-border/50 bg-[#0a0a0f] p-4 text-xs leading-relaxed overflow-y-auto max-h-[32rem] whitespace-pre-wrap text-bc-text/90 shadow-inner"
+          style={{ fontFamily: "'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
         >
           {outputLines.length > 0
             ? outputLines.join('\n')
-            : <span className="text-bc-muted">No output yet. Agent may be idle or stopped.</span>}
+            : <span className="text-bc-muted italic">No output yet. Agent may be idle or stopped.</span>}
         </pre>
       </div>
 
