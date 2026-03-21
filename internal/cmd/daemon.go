@@ -17,6 +17,7 @@ import (
 	"github.com/rpuneet/bc/pkg/daemon"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/shutdown"
+	"github.com/rpuneet/bc/pkg/team"
 	bcdserver "github.com/rpuneet/bc/server"
 	bcws "github.com/rpuneet/bc/server/ws"
 )
@@ -223,11 +224,14 @@ func runDaemonStart(cmd *cobra.Command, _ []string) error {
 	hub := bcws.NewHub()
 	go hub.Run()
 
+	teamStore := team.NewStore(ws.RootDir)
+
 	cfg := bcdserver.DefaultConfig()
 	svc := bcdserver.Services{
 		Agents:   agentSvc,
 		Channels: channelSvc,
 		Daemons:  daemonMgr,
+		Teams:    teamStore,
 		WS:       ws,
 	}
 	srv := bcdserver.New(cfg, svc, hub, bcdserver.WebDist())
