@@ -152,6 +152,9 @@ func run(addr, wsRoot, corsOrigin string) error {
 	} else {
 		cronStore = cr
 		defer cr.Close() //nolint:errcheck // best-effort
+
+		cronSched := bccron.NewScheduler(cr)
+		go cronSched.Run(ctx)
 	}
 
 	var secretStore *bcsecret.Store
