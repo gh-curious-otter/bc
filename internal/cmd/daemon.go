@@ -207,7 +207,10 @@ func runDaemonStart(cmd *cobra.Command, _ []string) error {
 	if loadErr := agentMgr.LoadState(); loadErr != nil {
 		log.Warn("failed to load agent state", "error", loadErr)
 	}
-	agentSvc := agent.NewAgentService(agentMgr, nil, nil)
+	hub := bcws.NewHub()
+	go hub.Run()
+
+	agentSvc := agent.NewAgentService(agentMgr, hub, nil)
 
 	chStore, chErr := channel.OpenStore(ws.RootDir)
 	if chErr != nil {
@@ -220,9 +223,6 @@ func runDaemonStart(cmd *cobra.Command, _ []string) error {
 	if daemonErr != nil {
 		log.Warn("failed to open daemon manager", "error", daemonErr)
 	}
-
-	hub := bcws.NewHub()
-	go hub.Run()
 
 	teamStore := team.NewStore(ws.RootDir)
 
