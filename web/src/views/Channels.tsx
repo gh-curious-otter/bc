@@ -162,9 +162,22 @@ function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAge
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [isNearBottom, setIsNearBottom] = useState(true);
+  const [senderName, setSenderName] = useState('web');
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { subscribe } = useWebSocket();
+
+  // Fetch workspace nickname once to use as sender identity
+  useEffect(() => {
+    void (async () => {
+      try {
+        const ws = await api.getWorkspace();
+        setSenderName(ws.nickname || ws.name || 'web');
+      } catch {
+        // keep default 'web'
+      }
+    })();
+  }, []);
   // Track whether the initial fetch for the current channel has completed
   // so we can force-scroll to bottom on channel switch.
   const channelLoadedRef = useRef<string | null>(null);
@@ -236,12 +249,12 @@ function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAge
     setSending(true);
     setInput('');
     try {
-      await api.sendToChannel(channelName, content);
+      await api.sendToChannel(channelName, content, senderName);
       // Optimistically add the message to local state so it appears immediately
       // without waiting for SSE delivery
       setMessages((prev) => [
         ...prev,
-        { id: Date.now(), sender: 'you', content, created_at: new Date().toISOString(), channel: channelName, type: 'text' } as ChannelMessage,
+        { id: Date.now(), sender: senderName, content, created_at: new Date().toISOString(), channel: channelName, type: 'text' } as ChannelMessage,
       ]);
     } catch {
       // Restore input on failure
