@@ -89,17 +89,31 @@ download_and_install() {
         BINARY_SUFFIX=".exe"
     fi
 
-    DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/bc-${PLATFORM}${BINARY_SUFFIX}"
+    # GoReleaser produces archives: bc_VERSION_OS_ARCH.tar.gz (or .zip for Windows)
+    if [ "$OS" = "windows" ]; then
+        ARCHIVE_EXT="zip"
+    else
+        ARCHIVE_EXT="tar.gz"
+    fi
+    ARCHIVE_NAME="bc_${VERSION#v}_${OS}_${ARCH}.${ARCHIVE_EXT}"
+    DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${ARCHIVE_NAME}"
     TMP_DIR=$(mktemp -d)
-    TMP_FILE="${TMP_DIR}/bc${BINARY_SUFFIX}"
 
     info "Downloading bc ${VERSION}..."
 
-    if ! curl -fsSL "$DOWNLOAD_URL" -o "$TMP_FILE"; then
+    if ! curl -fsSL "$DOWNLOAD_URL" -o "${TMP_DIR}/${ARCHIVE_NAME}"; then
         rm -rf "$TMP_DIR"
-        error "Failed to download bc. Check if release exists for ${PLATFORM}."
+        error "Failed to download bc. Check if release exists for ${OS}/${ARCH}."
     fi
 
+    # Extract binary from archive
+    if [ "$ARCHIVE_EXT" = "zip" ]; then
+        unzip -q "${TMP_DIR}/${ARCHIVE_NAME}" -d "$TMP_DIR"
+    else
+        tar -xzf "${TMP_DIR}/${ARCHIVE_NAME}" -C "$TMP_DIR"
+    fi
+
+    TMP_FILE="${TMP_DIR}/bc${BINARY_SUFFIX}"
     chmod +x "$TMP_FILE"
 
     info "Installing to ${INSTALL_DIR}..."
