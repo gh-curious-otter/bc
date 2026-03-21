@@ -1,13 +1,19 @@
 # Backend Engineering Review
 
-**Date:** 2026-03-20
+**Date:** 2026-03-21 (updated)
 **Repo:** gh-curious-otter/bc
 **Stack:** Go 1.25.1, SQLite (mattn/go-sqlite3), PostgreSQL (pgx/v5), Cobra CLI, net/http stdlib, SSE, Docker, tmux
 **Backend Maturity Score:** 5/10
+**Deployment Model:** Local-only (single user, localhost). Auth is explicitly out of scope for now.
+**Project Status:** Pre-release — no semver tags yet, all changes in `[Unreleased]` changelog.
 
 ## Executive Summary
 
-bc is a well-structured Go CLI and daemon for AI agent orchestration. The codebase demonstrates strong Go conventions (proper error handling, clean package layout, comprehensive test suite at the pkg level). However, the HTTP daemon (`bcd`) has **zero authentication**, **no rate limiting**, **no request body size limits**, and **no handler-level tests** — making it unsuitable for any deployment beyond a trusted localhost. The data layer uses multiple separate SQLite databases with duplicated connection setup, missing indexes on hot query paths, and an unbounded `Read()` call that could return the entire event log. The RBAC permission system exists in code but is **never enforced** at the API layer.
+bc is a well-structured Go CLI and daemon for AI agent orchestration, designed to run locally on a developer's machine. The codebase demonstrates strong Go conventions (proper error handling, clean package layout, 90+ test files at the pkg level with benchmarks). The project was itself partially built using its own agent system (dogfooding).
+
+The biggest **functional bugs** are in channel message delivery (#2164 — messages from web UI don't reach agents, MCP polling breaks after 100 messages) and agent lifecycle management (#2165 — create/start/stop/delete code is fragmented, delete doesn't clean up Docker containers or worktrees). The HTTP daemon lacks **request body size limits** (DoS vector), **panic recovery** (one nil deref crashes everything), and **handler-level tests** (0 files in server/handlers/). The data layer uses 5+ separate SQLite databases with duplicated connection setup.
+
+Since the tool is local-only, API authentication is not a current priority. The CORS `*` + localhost binding is acceptable for the intended use case.
 
 ## API Surface Map
 
@@ -135,18 +141,24 @@ erDiagram
     }
 ```
 
-## Critical Issues (production risks)
+## Critical Issues — Functional Bugs
 
 | # | Issue | File/Location | Category | Impact |
 |---|-------|--------------|----------|--------|
-| 1 | **Zero authentication on entire HTTP API** | `server/server.go:196` | security | Anyone on the network can control agents, read secrets, run commands |
-| 2 | **No request body size limits** | All POST/PUT handlers | security | DoS via memory exhaustion with large payloads |
-| 3 | **Daemon endpoint allows arbitrary command execution** | `server/handlers/daemons.go:54` | security | POST /api/daemons with any cmd= runs it |
-| 4 | **Secret API has no auth — plaintext metadata accessible** | `server/handlers/secrets.go` | security | Anyone can list/create/delete secrets |
-| 5 | **RBAC permissions defined but never enforced at API layer** | `pkg/agent/agent.go:182` vs handlers | security | Permission system is dead code for HTTP API |
-| 6 | **Unbounded event log read** | `pkg/events/store_sqlite.go:72` | performance | `Read()` returns ALL events, no LIMIT |
-| 7 | **CORS Access-Control-Allow-Origin: * with no auth** | `server/handlers/helpers.go:48` | security | CSRF from any origin if port exposed |
-| 8 | **`--dangerously-skip-permissions` in default provider config** | `config.toml:27` | security | Claude runs without permission checks by default |
+| 1 | **Channel messages not delivered to agents** | `server/server.go:101`, `server/mcp/tools.go:169` | channels | #2164 — MCP standalone bypasses delivery, poll breaks after 100 msgs, no auto-enrollment |
+| 2 | **Agent lifecycle fragmented** | `pkg/agent/agent.go` (1900+ lines) | agent | #2165 — delete doesn't clean up Docker/worktree, create/start overloaded, RefreshState blocks all ops |
+| 3 | **SessionID overloaded** | `pkg/agent/agent.go:705` | agent | #2169 — tmux names stored as session IDs cause `--continue` crash on fresh start |
+| 4 | **No request body size limits** | All POST/PUT handlers | resilience | DoS via memory exhaustion with large payloads |
+| 5 | **Unbounded event log read** | `pkg/events/store_sqlite.go:72` | performance | `Read()` returns ALL events, no LIMIT |
+| 6 | **No panic recovery middleware** | `server/server.go` | resilience | Unhandled panic crashes entire daemon |
+
+## Security Notes (localhost-only context)
+
+The following were initially flagged as critical but are **acceptable for the local-only deployment model**:
+- No API authentication — bcd binds to 127.0.0.1, intended for single-user local use
+- CORS `*` — safe on loopback for the current use case
+- RBAC unenforced at API layer — will matter if/when multi-user or remote access is added
+- `--dangerously-skip-permissions` in default config — by design for agent orchestration
 
 ## Major Issues (quality & scalability)
 
@@ -242,42 +254,46 @@ graph TB
 3. Add pagination to all list endpoints
 4. Cap query parameters (limit, days, lines)
 
+## Known Documentation Issues
+
+Several docs are stale (from the Mar 1 / Mar 18 batches):
+- `QUICKSTART.md`, `TROUBLESHOOTING.md` — Go version listed as 1.22+ (should be 1.25.1+)
+- `index.md`, `README.md`, `COMMANDS.md` — reference missing `PLUGINS.md` and `MCP.md`
+- `COMMANDS.md` — `bc queue`/`bc issue` commands tied to deprecated `bd`/beads system
+- `TROUBLESHOOTING.md` — references commands not in `COMMANDS.md` (`bc config reset`, `bc memory rebuild-index`)
+- `CHANGELOG.md` — all changes in `[Unreleased]`, no versioned releases
+- `AGENTS.md` — references `bd` (beads) which is deprecated
+
 ## Action Plan
 
-### Phase 1: Security & Data Integrity (immediate)
-- Add API authentication (API key or localhost-only enforcement)
+### Phase 1: Fix Functional Bugs (immediate)
+- Fix channel message delivery end-to-end (#2164)
+- Fix agent delete cleanup — Docker containers, worktrees, branches (#2038, #2165)
+- Fix SessionID overload with proper UUID check (#2169 — in review)
 - Add request body size limits (http.MaxBytesReader)
-- Enforce RBAC permissions at handler level
-- Remove `--dangerously-skip-permissions` from default config
-- Add rate limiting on state-changing endpoints
+- Add panic recovery middleware
 
 ### Phase 2: Error Handling & Resilience (week 1)
-- Add panic recovery middleware
 - Add request ID middleware
 - Make health check verify downstream dependencies
 - Cap all query parameters (limit, days, lines)
 - Fix ToggleReaction atomicity
+- Replace context.TODO() with proper context propagation (#2105)
 
 ### Phase 3: Performance & Query Optimization (week 2)
 - Add pagination to all list endpoints
 - Cap unbounded queries (events Read, history limit)
-- Add response compression
+- Fix Manager lock held during slow Docker/tmux I/O (#2106)
+- Fix PipePane unbounded memory growth (#2107)
 - Consolidate SQLite databases
-- Add agent state caching
 
 ### Phase 4: Testing & CI (week 3)
 - Add handler integration tests (httptest)
 - Add API contract tests
+- Add security scanning to CI (govulncheck)
 - Measure and improve coverage on server/ package
 
-### Phase 5: Observability & Operational Readiness (week 4)
+### Phase 5: Observability & Documentation (week 4)
 - Add structured logging with request context
-- Add request duration metrics
-- Add deep health check with dependency verification
-- Add request/response logging middleware
-
-### Phase 6: Documentation & API Standards (week 5)
-- Add OpenAPI spec
-- Standardize error envelope
-- Add API versioning strategy
-- Document deployment security requirements
+- Fix stale docs (Go version, missing pages, deprecated commands)
+- Cut v1.0 release with proper semver
