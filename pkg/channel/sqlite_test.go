@@ -35,20 +35,13 @@ func TestSQLiteStore_Open(t *testing.T) {
 		t.Errorf("database file not created: %v", err)
 	}
 
+	// No default channels seeded — list should be empty on open
 	channels, err := store.ListChannels()
 	if err != nil {
 		t.Fatalf("failed to list channels: %v", err)
 	}
-
-	names := make(map[string]bool)
-	for _, ch := range channels {
-		names[ch.Name] = true
-	}
-
-	for _, expected := range []string{"general", "engineering", "all"} {
-		if !names[expected] {
-			t.Errorf("expected default channel %q not found", expected)
-		}
+	if len(channels) != 0 {
+		t.Errorf("expected 0 channels on fresh open, got %d", len(channels))
 	}
 }
 
