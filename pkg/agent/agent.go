@@ -420,7 +420,24 @@ type Manager struct {
 	// If zero, DefaultBootstrapDelay is used.
 	BootstrapDelay time.Duration
 
-	mu sync.RWMutex
+	agentLocks map[string]*sync.Mutex // per-agent locks for slow I/O operations
+	mu         sync.RWMutex           // protects maps (agents, agentLocks) only
+}
+
+// getAgentLock returns the per-agent mutex, creating it if needed.
+// Must be called while NOT holding mu (to avoid deadlock).
+func (m *Manager) getAgentLock(name string) *sync.Mutex {
+	m.mu.Lock()
+	if m.agentLocks == nil {
+		m.agentLocks = make(map[string]*sync.Mutex)
+	}
+	lock, ok := m.agentLocks[name]
+	if !ok {
+		lock = &sync.Mutex{}
+		m.agentLocks[name] = lock
+	}
+	m.mu.Unlock()
+	return lock
 }
 
 // runtime returns the default runtime backend.
@@ -445,6 +462,7 @@ func NewManager(stateDir string) *Manager {
 	tmuxBe := runtime.NewTmuxBackend(tmux.NewManager(config.Tmux.SessionPrefix))
 	return &Manager{
 		agents:           make(map[string]*Agent),
+		agentLocks:       make(map[string]*sync.Mutex),
 		backends:         map[string]runtime.Backend{"tmux": tmuxBe},
 		defaultBackend:   "tmux",
 		providerRegistry: provider.DefaultRegistry,
@@ -461,6 +479,7 @@ func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 	tmuxBe := runtime.NewTmuxBackend(tmux.NewWorkspaceManager(config.Tmux.SessionPrefix, workspacePath))
 	return &Manager{
 		agents:           make(map[string]*Agent),
+		agentLocks:       make(map[string]*sync.Mutex),
 		backends:         map[string]runtime.Backend{"tmux": tmuxBe},
 		defaultBackend:   "tmux",
 		providerRegistry: provider.DefaultRegistry,
@@ -482,6 +501,7 @@ func NewWorkspaceManagerWithRuntime(stateDir, workspacePath string, rt runtime.B
 	}
 	return &Manager{
 		agents:           make(map[string]*Agent),
+		agentLocks:       make(map[string]*sync.Mutex),
 		backends:         bes,
 		defaultBackend:   rtName,
 		providerRegistry: provider.DefaultRegistry,
@@ -646,23 +666,25 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 	parentID := opts.ParentID
 
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	log.Debug("spawning agent", "name", name, "role", role, "workspace", wsPath, "parentID", parentID, "tool", opts.Tool)
 
 	// Validate agent name format
 	if !IsValidAgentName(name) {
+		m.mu.Unlock()
 		return nil, fmt.Errorf("agent name %q contains invalid characters (use letters, numbers, dash, underscore)", name)
 	}
 
 	// Validate role is not empty or null-like
 	if role == "" || role == "null" || role == "<nil>" {
+		m.mu.Unlock()
 		return nil, fmt.Errorf("role is required and cannot be empty or null")
 	}
 
 	// Enforce root singleton constraint
 	if role == RoleRoot {
 		if err := m.enforceRootSingleton(wsPath); err != nil {
+			m.mu.Unlock()
 			return nil, err
 		}
 	}
@@ -671,9 +693,11 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 	if parentID != "" {
 		parent, exists := m.agents[parentID]
 		if !exists {
+			m.mu.Unlock()
 			return nil, fmt.Errorf("parent agent %s not found", parentID)
 		}
 		if !CanCreateRole(parent.Role, role) {
+			m.mu.Unlock()
 			return nil, fmt.Errorf("agent %s (role %s) cannot create child with role %s", parentID, parent.Role, role)
 		}
 	}
@@ -691,19 +715,25 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 			if err := m.saveState(); err != nil {
 				log.Warn("failed to save agent state", "error", err)
 			}
+			m.mu.Unlock()
 			return existing, nil
 		}
 		// Agent exists but session is dead — restart it.
-		return m.startAgentLocked(name, opts)
+		// Release global lock; startAgent handles its own locking.
+		m.mu.Unlock()
+		return m.startAgent(name, opts)
 	}
 
-	// Fresh create
-	return m.createAgentLocked(opts)
+	// Fresh create — release global lock; createAgent handles its own locking.
+	m.mu.Unlock()
+	return m.createAgent(opts)
 }
 
-// startAgentLocked restarts an existing agent whose session has died.
-// Caller must hold m.mu.Lock.
-func (m *Manager) startAgentLocked(name string, opts SpawnOptions) (*Agent, error) {
+// startAgent restarts an existing agent whose session has died.
+// Acquires per-agent lock internally for slow I/O; does NOT require caller to hold mu.
+func (m *Manager) startAgent(name string, opts SpawnOptions) (*Agent, error) {
+	// Phase 1: global lock — read agent state and build command config
+	m.mu.Lock()
 	existing := m.agents[name]
 	wsPath := opts.Workspace
 
@@ -770,18 +800,26 @@ func (m *Manager) startAgentLocked(name string, opts SpawnOptions) (*Agent, erro
 		}
 	}
 
+	rt := m.runtimeForAgent(name)
+	m.mu.Unlock()
+
+	// Phase 2: per-agent lock — slow I/O (create session, pipe-pane)
+	agentLock := m.getAgentLock(name)
+	agentLock.Lock()
+
 	// Clean stale worktree from previous container run to prevent
 	// "fatal: '<dir>' already exists" on restart.
 	cleanStaleWorktree(wsPath, name)
 
-	if err := m.runtimeForAgent(name).CreateSessionWithEnv(context.TODO(), name, wsPath, agentCmd, env); err != nil {
+	if err := rt.CreateSessionWithEnv(context.TODO(), name, wsPath, agentCmd, env); err != nil {
+		agentLock.Unlock()
 		return nil, fmt.Errorf("failed to recreate session: %w", err)
 	}
 
 	// Resume log streaming
 	if existing.LogFile != "" {
 		truncateLogFile(existing.LogFile, config.Logs.MaxBytes)
-		if pipeErr := m.runtimeForAgent(name).PipePane(context.TODO(), name, existing.LogFile); pipeErr != nil {
+		if pipeErr := rt.PipePane(context.TODO(), name, existing.LogFile); pipeErr != nil {
 			log.Warn("failed to resume pipe-pane", "agent", name, "error", pipeErr)
 		}
 	} else {
@@ -792,20 +830,30 @@ func (m *Manager) startAgentLocked(name string, opts SpawnOptions) (*Agent, erro
 		existing.State = StateStarting
 	}
 	existing.UpdatedAt = time.Now()
+
+	agentLock.Unlock()
+
+	// Phase 3: global lock — persist state
+	m.mu.Lock()
 	if err := m.saveState(); err != nil {
 		log.Warn("failed to save agent state", "error", err)
 	}
+	m.mu.Unlock()
+
 	return existing, nil
 }
 
-// createAgentLocked creates a brand-new agent and its runtime session.
-// Caller must hold m.mu.Lock.
-func (m *Manager) createAgentLocked(opts SpawnOptions) (*Agent, error) {
+// createAgent creates a brand-new agent and its runtime session.
+// Acquires per-agent lock internally for slow I/O; does NOT require caller to hold mu.
+func (m *Manager) createAgent(opts SpawnOptions) (*Agent, error) {
 	name := opts.Name
 	role := opts.Role
 	wsPath := opts.Workspace
 	parentID := opts.ParentID
 	tool := opts.Tool
+
+	// Phase 1: global lock — build command config, register agent in map
+	m.mu.Lock()
 
 	// If a session exists from a previous crash, kill it in all backends
 	for beName, be := range m.backends {
@@ -823,6 +871,7 @@ func (m *Manager) createAgentLocked(opts SpawnOptions) (*Agent, error) {
 		if cmd, ok := m.getAgentCommand(tool, name, false, ""); ok {
 			agentCmd = cmd
 		} else {
+			m.mu.Unlock()
 			return nil, fmt.Errorf("unknown tool %q, available tools: %v", tool, m.listAvailableTools())
 		}
 	} else if m.defaultTool != "" {
@@ -862,6 +911,7 @@ func (m *Manager) createAgentLocked(opts SpawnOptions) (*Agent, error) {
 		if p, ok := m.providerRegistry.Get(tool); ok {
 			ctx := context.TODO()
 			if !p.IsInstalled(ctx) {
+				m.mu.Unlock()
 				return nil, fmt.Errorf("tool %q is not installed. Install %s or configure a different tool in config.toml", tool, p.Name())
 			}
 			if v := p.Version(ctx); v != "" {
@@ -875,6 +925,7 @@ func (m *Manager) createAgentLocked(opts SpawnOptions) (*Agent, error) {
 		parts := strings.Fields(agentCmd)
 		if len(parts) > 0 {
 			if _, err := exec.LookPath(parts[0]); err != nil {
+				m.mu.Unlock()
 				return nil, fmt.Errorf("tool %q command %q not found in PATH. Install it or configure a different tool in config.toml", tool, parts[0])
 			}
 		}
@@ -923,12 +974,23 @@ func (m *Manager) createAgentLocked(opts SpawnOptions) (*Agent, error) {
 	}
 	injectEnv(env, wsPath, effectiveTool, opts.EnvFile)
 
+	rt := m.runtimeForAgent(name)
+	m.mu.Unlock()
+
+	// Phase 2: per-agent lock — slow I/O (create session, role setup, log pipe)
+	agentLock := m.getAgentLock(name)
+	agentLock.Lock()
+
 	// Clean stale worktree from previous container run (crash recovery).
 	cleanStaleWorktree(wsPath, name)
 
 	// Create session in the workspace directory using the agent's runtime backend
-	if err := m.runtimeForAgent(name).CreateSessionWithEnv(context.TODO(), name, wsPath, agentCmd, env); err != nil {
-		delete(m.agents, name) // clean up early registration
+	if err := rt.CreateSessionWithEnv(context.TODO(), name, wsPath, agentCmd, env); err != nil {
+		agentLock.Unlock()
+		// Clean up early registration
+		m.mu.Lock()
+		delete(m.agents, name)
+		m.mu.Unlock()
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
@@ -955,7 +1017,10 @@ func (m *Manager) createAgentLocked(opts SpawnOptions) (*Agent, error) {
 	agent.State = StateIdle
 	agent.UpdatedAt = time.Now()
 
-	// Update parent's children list
+	agentLock.Unlock()
+
+	// Phase 3: global lock — update parent, persist
+	m.mu.Lock()
 	if parentID != "" {
 		if parent, exists := m.agents[parentID]; exists {
 			parent.Children = append(parent.Children, name)
@@ -967,6 +1032,7 @@ func (m *Manager) createAgentLocked(opts SpawnOptions) (*Agent, error) {
 	if err := m.saveState(); err != nil {
 		log.Warn("failed to save agent state", "error", err)
 	}
+	m.mu.Unlock()
 
 	return agent, nil
 }
@@ -1072,7 +1138,12 @@ func (m *Manager) captureSessionIDLocked(name string) string {
 	if !exists {
 		return ""
 	}
+	return m.captureSessionIDForAgent(ag, m.runtimeForAgent(name))
+}
 
+// captureSessionIDForAgent extracts a session ID from the agent's output.
+// Does NOT require holding mu — caller provides the agent and runtime directly.
+func (m *Manager) captureSessionIDForAgent(ag *Agent, rt runtime.Backend) string {
 	toolName := ag.Tool
 	if toolName == "" {
 		toolName = m.defaultTool
@@ -1089,7 +1160,6 @@ func (m *Manager) captureSessionIDLocked(name string) string {
 		return ""
 	}
 
-	// Capture pane output without acquiring the lock (already held).
 	// Read from log file first; fall back to runtime capture.
 	var output string
 	if ag.LogFile != "" {
@@ -1100,9 +1170,9 @@ func (m *Manager) captureSessionIDLocked(name string) string {
 	}
 	if output == "" {
 		var captureErr error
-		output, captureErr = m.runtimeForAgent(name).Capture(context.TODO(), name, 100)
+		output, captureErr = rt.Capture(context.TODO(), ag.Name, 100)
 		if captureErr != nil {
-			log.Debug("failed to capture pane for session ID", "agent", name, "error", captureErr)
+			log.Debug("failed to capture pane for session ID", "agent", ag.Name, "error", captureErr)
 			return ""
 		}
 	}
@@ -1138,38 +1208,48 @@ func writeSessionIDFile(stateDir, agentName, sessionID string) {
 
 // StopAgent stops an agent.
 func (m *Manager) StopAgent(name string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	log.Debug("stopping agent", "name", name)
 
+	// Phase 1: global lock — validate agent exists, get references
+	m.mu.RLock()
 	agent, exists := m.agents[name]
 	if !exists {
+		m.mu.RUnlock()
 		log.Warn("agent not found", "name", name)
 		return fmt.Errorf("agent %s not found", name)
 	}
+	rt := m.runtimeForAgent(name)
+	stateDir := m.stateDir
+	m.mu.RUnlock()
+
+	// Phase 2: per-agent lock — slow I/O (capture session ID, kill session)
+	agentLock := m.getAgentLock(name)
+	agentLock.Lock()
 
 	// Capture session ID from output before killing the session.
-	if sessionID := m.captureSessionIDLocked(name); sessionID != "" {
+	if sessionID := m.captureSessionIDForAgent(agent, rt); sessionID != "" {
 		agent.SessionID = sessionID
-		writeSessionIDFile(m.stateDir, name, sessionID)
+		writeSessionIDFile(stateDir, name, sessionID)
 		log.Debug("captured session ID on stop", "agent", name, "session_id", sessionID)
 	}
 
 	// Kill tmux session (ignore error - session might already be dead)
-	_ = m.runtimeForAgent(name).KillSession(context.TODO(), name)
+	_ = rt.KillSession(context.TODO(), name)
 
 	now := time.Now()
 	agent.State = StateStopped
 	agent.StoppedAt = &now
 	agent.UpdatedAt = now
 
-	// Remove from parent's children list
-	m.removeFromParent(name)
+	agentLock.Unlock()
 
+	// Phase 3: global lock — update parent, persist
+	m.mu.Lock()
+	m.removeFromParent(name)
 	if err := m.saveState(); err != nil {
 		log.Warn("failed to save agent state", "error", err)
 	}
+	m.mu.Unlock()
 
 	return nil
 }
@@ -1255,17 +1335,24 @@ func (m *Manager) DeleteAgent(name string) error {
 // agent state directory, channel memberships, and child agent references.
 // Partial failures are logged but do not abort the deletion.
 func (m *Manager) DeleteAgentWithOptions(name string, opts DeleteOptions) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	log.Debug("deleting agent", "name", name)
 
+	// Phase 1: global lock — validate agent exists, snapshot references
+	m.mu.RLock()
 	agent, exists := m.agents[name]
 	if !exists {
+		m.mu.RUnlock()
 		return fmt.Errorf("agent %s not found", name)
 	}
-
 	rt := m.runtimeForAgent(name)
+	workspacePath := m.workspacePath
+	stateDir := m.stateDir
+	logFile := agent.LogFile
+	m.mu.RUnlock()
+
+	// Phase 2: per-agent lock — slow I/O (kill session, remove container, git cleanup)
+	agentLock := m.getAgentLock(name)
+	agentLock.Lock()
 
 	// 1. Stop the container/session
 	_ = rt.KillSession(context.TODO(), name) //nolint:errcheck // may already be stopped
@@ -1276,36 +1363,41 @@ func (m *Manager) DeleteAgentWithOptions(name string, opts DeleteOptions) error 
 	}
 
 	// 3. Remove persistent volume (.bc/volumes/<name>/)
-	volumeDir := filepath.Join(m.workspacePath, ".bc", "volumes", name)
+	volumeDir := filepath.Join(workspacePath, ".bc", "volumes", name)
 	if err := os.RemoveAll(volumeDir); err != nil {
 		log.Warn("delete: failed to remove agent volume", "agent", name, "error", err)
 	}
 
 	// 4. Remove git worktree and branch
-	worktreeName := "bc-" + filepath.Base(m.workspacePath) + "-" + name
-	worktreeDir := filepath.Join(m.workspacePath, ".claude", "worktrees", worktreeName)
+	worktreeName := "bc-" + filepath.Base(workspacePath) + "-" + name
+	worktreeDir := filepath.Join(workspacePath, ".claude", "worktrees", worktreeName)
 	branchName := "worktree-" + worktreeName
 
 	//nolint:gosec // trusted paths
-	_ = exec.CommandContext(context.TODO(), "git", "-C", m.workspacePath, "worktree", "prune").Run()
+	_ = exec.CommandContext(context.TODO(), "git", "-C", workspacePath, "worktree", "prune").Run()
 	//nolint:gosec // trusted paths
-	_ = exec.CommandContext(context.TODO(), "git", "-C", m.workspacePath, "worktree", "remove", "--force", worktreeDir).Run()
+	_ = exec.CommandContext(context.TODO(), "git", "-C", workspacePath, "worktree", "remove", "--force", worktreeDir).Run()
 	//nolint:gosec // trusted paths
-	_ = exec.CommandContext(context.TODO(), "git", "-C", m.workspacePath, "branch", "-D", branchName).Run()
+	_ = exec.CommandContext(context.TODO(), "git", "-C", workspacePath, "branch", "-D", branchName).Run()
 	_ = os.RemoveAll(worktreeDir)
 
 	// 5. Remove log file
-	if agent.LogFile != "" {
-		if err := os.Remove(agent.LogFile); err != nil && !os.IsNotExist(err) {
-			log.Warn("delete: failed to remove log file", "agent", name, "path", agent.LogFile, "error", err)
+	if logFile != "" {
+		if err := os.Remove(logFile); err != nil && !os.IsNotExist(err) {
+			log.Warn("delete: failed to remove log file", "agent", name, "path", logFile, "error", err)
 		}
 	}
 
 	// 6. Remove agent state directory (.bc/agents/<name>/ — auth, session history, etc.)
-	agentStateDir := filepath.Join(m.stateDir, "agents", name)
+	agentStateDir := filepath.Join(stateDir, "agents", name)
 	if err := os.RemoveAll(agentStateDir); err != nil {
 		log.Warn("delete: failed to remove agent state dir", "agent", name, "path", agentStateDir, "error", err)
 	}
+
+	agentLock.Unlock()
+
+	// Phase 3: global lock — update maps, orphan children, persist
+	m.mu.Lock()
 
 	// 7. Update children's ParentID to "" (orphan them cleanly)
 	for _, childName := range agent.Children {
@@ -1318,12 +1410,14 @@ func (m *Manager) DeleteAgentWithOptions(name string, opts DeleteOptions) error 
 	// 8. Remove from parent's children list
 	m.removeFromParent(name)
 
-	// 9. Delete from state map
+	// 9. Delete from state map and clean up per-agent lock
 	delete(m.agents, name)
+	delete(m.agentLocks, name)
 
 	if err := m.saveState(); err != nil {
 		log.Warn("delete: failed to save state", "agent", name, "error", err)
 	}
+	m.mu.Unlock()
 
 	log.Debug("agent fully deleted", "agent", name, "volume", volumeDir, "worktree", worktreeDir)
 	return nil
@@ -1557,12 +1651,21 @@ func (m *Manager) RunReconciler(ctx context.Context, interval time.Duration) {
 // RefreshState updates agent states from tmux.
 // Also captures a live task summary from each agent's tmux pane.
 func (m *Manager) RefreshState() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	// List sessions from all backends to support mixed runtimes
-	active := make(map[string]bool)
+	// Phase 1: global lock — snapshot backend list and agent names
+	m.mu.RLock()
+	backends := make([]runtime.Backend, 0, len(m.backends))
 	for _, be := range m.backends {
+		backends = append(backends, be)
+	}
+	agentNames := make([]string, 0, len(m.agents))
+	for name := range m.agents {
+		agentNames = append(agentNames, name)
+	}
+	m.mu.RUnlock()
+
+	// Phase 2: slow I/O without holding lock — list sessions from all backends
+	active := make(map[string]bool)
+	for _, be := range backends {
 		sessions, err := be.ListSessions(context.TODO())
 		if err != nil {
 			continue // backend may be unavailable
@@ -1572,7 +1675,20 @@ func (m *Manager) RefreshState() error {
 		}
 	}
 
-	// Update agent states and capture live tasks
+	// Capture live tasks without holding lock
+	liveTasks := make(map[string]string, len(agentNames))
+	for _, name := range agentNames {
+		if active[name] {
+			if live := m.captureLiveTask(name); live != "" {
+				liveTasks[name] = live
+			}
+		}
+	}
+
+	// Phase 3: global lock — apply state updates
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	for name, a := range m.agents {
 		if !active[name] && a.State != StateStopped {
 			a.State = StateStopped
@@ -1590,8 +1706,8 @@ func (m *Manager) RefreshState() error {
 			a.UpdatedAt = time.Now()
 		}
 
-		// Capture live task from tmux pane
-		if live := m.captureLiveTask(name); live != "" {
+		// Apply captured live task
+		if live, ok := liveTasks[name]; ok {
 			a.Task = live
 
 			// Use provider-based state detection if available for richer state inference
