@@ -99,6 +99,10 @@ func (h *DaemonHandler) byName(w http.ResponseWriter, r *http.Request) {
 			httpError(w, err.Error(), http.StatusNotFound)
 			return
 		}
+		if d == nil {
+			httpError(w, "daemon not found", http.StatusNotFound)
+			return
+		}
 		writeJSON(w, http.StatusOK, d)
 
 	case r.Method == http.MethodPost && action == "stop":

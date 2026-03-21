@@ -80,6 +80,10 @@ func (h *ToolHandler) tool(w http.ResponseWriter, r *http.Request, name string) 
 			httpError(w, err.Error(), http.StatusNotFound)
 			return
 		}
+		if t == nil {
+			httpError(w, "tool not found", http.StatusNotFound)
+			return
+		}
 		writeJSON(w, http.StatusOK, t)
 
 	case http.MethodPut:
