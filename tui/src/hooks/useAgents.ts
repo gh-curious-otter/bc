@@ -104,16 +104,21 @@ export function useAgents(options: UseAgentsOptions = {}): UseAgentsResult {
 
     // Prune refs for agents no longer in the response to prevent memory leak
     const currentNames = new Set(agents.map((a) => a.name));
-    for (const name of Object.keys(lastWorkingTimeRef.current)) {
-      if (!currentNames.has(name)) {
-        delete lastWorkingTimeRef.current[name];
+    const prunedWorking: Record<string, number> = {};
+    for (const name of currentNames) {
+      if (name in lastWorkingTimeRef.current) {
+        prunedWorking[name] = lastWorkingTimeRef.current[name];
       }
     }
-    for (const name of Object.keys(prevStateRef.current)) {
-      if (!currentNames.has(name)) {
-        delete prevStateRef.current[name];
+    lastWorkingTimeRef.current = prunedWorking;
+
+    const prunedState: Record<string, AgentState> = {};
+    for (const name of currentNames) {
+      if (name in prevStateRef.current) {
+        prunedState[name] = prevStateRef.current[name];
       }
     }
+    prevStateRef.current = prunedState;
 
     return result;
   }, []);
