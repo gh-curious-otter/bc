@@ -35,6 +35,15 @@ func (h *DaemonHandler) list(w http.ResponseWriter, r *http.Request) {
 		if daemons == nil {
 			daemons = []*daemon.Daemon{}
 		}
+		limit, offset := parsePagination(r, 50)
+		if offset >= len(daemons) {
+			daemons = []*daemon.Daemon{}
+		} else {
+			daemons = daemons[offset:]
+			if len(daemons) > limit {
+				daemons = daemons[:limit]
+			}
+		}
 		writeJSON(w, http.StatusOK, daemons)
 
 	case http.MethodPost:

@@ -33,6 +33,15 @@ func (h *SecretHandler) list(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "list secrets: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
+		limit, offset := parsePagination(r, 50)
+		if offset >= len(secrets) {
+			secrets = []*secret.SecretMeta{}
+		} else {
+			secrets = secrets[offset:]
+			if len(secrets) > limit {
+				secrets = secrets[:limit]
+			}
+		}
 		writeJSON(w, http.StatusOK, secrets)
 
 	case http.MethodPost:

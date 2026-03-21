@@ -52,6 +52,15 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 			httpError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		limit, offset := parsePagination(r, 50)
+		if offset >= len(summaries) {
+			summaries = []*cost.Summary{}
+		} else {
+			summaries = summaries[offset:]
+			if len(summaries) > limit {
+				summaries = summaries[:limit]
+			}
+		}
 		writeJSON(w, http.StatusOK, summaries)
 
 	case "teams":
@@ -60,6 +69,15 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 			httpError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		limit, offset := parsePagination(r, 50)
+		if offset >= len(summaries) {
+			summaries = []*cost.Summary{}
+		} else {
+			summaries = summaries[offset:]
+			if len(summaries) > limit {
+				summaries = summaries[:limit]
+			}
+		}
 		writeJSON(w, http.StatusOK, summaries)
 
 	case "models":
@@ -67,6 +85,15 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			httpError(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+		limit, offset := parsePagination(r, 50)
+		if offset >= len(summaries) {
+			summaries = []*cost.Summary{}
+		} else {
+			summaries = summaries[offset:]
+			if len(summaries) > limit {
+				summaries = summaries[:limit]
+			}
 		}
 		writeJSON(w, http.StatusOK, summaries)
 

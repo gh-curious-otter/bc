@@ -33,6 +33,15 @@ func (h *ChannelHandler) list(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "list channels: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
+		limit, offset := parsePagination(r, 50)
+		if offset >= len(channels) {
+			channels = channels[:0]
+		} else {
+			channels = channels[offset:]
+			if len(channels) > limit {
+				channels = channels[:limit]
+			}
+		}
 		writeJSON(w, http.StatusOK, channels)
 
 	case http.MethodPost:

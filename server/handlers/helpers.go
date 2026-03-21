@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/rpuneet/bc/pkg/log"
@@ -80,6 +81,22 @@ func generateRequestID() string {
 	b := make([]byte, 8)
 	_, _ = rand.Read(b) //nolint:errcheck // crypto/rand never fails on supported platforms
 	return hex.EncodeToString(b)
+}
+
+// parsePagination extracts limit and offset from query params with defaults and clamping.
+func parsePagination(r *http.Request, defaultLimit int) (limit, offset int) {
+	limit = defaultLimit
+	if s := r.URL.Query().Get("limit"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			limit = clampInt(n, 1, 1000)
+		}
+	}
+	if s := r.URL.Query().Get("offset"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+	return
 }
 
 // clampInt clamps n to the range [min, max].
