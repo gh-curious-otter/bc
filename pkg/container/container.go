@@ -264,6 +264,13 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		args = append(args, "-v", mount)
 	}
 
+	// Pre-seed Claude settings to skip interactive theme selection prompt.
+	// Claude Code shows an interactive theme picker on first run when no
+	// settings exist, which blocks headless Docker agents indefinitely.
+	if err := SeedClaudeSettings(volumeDir); err != nil {
+		log.Warn("failed to seed claude settings", "agent", name, "error", err)
+	}
+
 	// Environment variables — only from the env map.
 	// The env map contains BC_* identity vars and role secrets resolved
 	// from bc env by the agent manager's injectEnv().
