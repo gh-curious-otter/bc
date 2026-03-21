@@ -18,8 +18,8 @@ LDFLAGS_RELEASE = -s -w $(LDFLAGS_VERSION)
 # Go binary — use system default
 GO ?= go
 
-# Coverage threshold (matches CI)
-COVERAGE_THRESHOLD ?= 66.6
+# Coverage threshold (matches CI ci.yml "Check coverage threshold" step)
+COVERAGE_THRESHOLD ?= 60
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-24s\033[0m %s\n", $$1, $$2}'
