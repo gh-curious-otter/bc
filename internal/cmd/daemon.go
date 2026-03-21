@@ -233,6 +233,9 @@ func runDaemonStart(cmd *cobra.Command, _ []string) error {
 	}
 
 	cfg := bcdserver.DefaultConfig()
+	if addr := os.Getenv("BCD_ADDR"); addr != "" {
+		cfg.Addr = addr
+	}
 	svc := bcdserver.Services{
 		Agents:   agentSvc,
 		Channels: channelSvc,
