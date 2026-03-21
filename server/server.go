@@ -234,7 +234,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 
 	// Middleware chain (outermost runs first):
-	// RateLimit → RequestID → RequestLogger → Recovery → MaxBodySize → CORS → mux
+	// RateLimit → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize → CORS → mux
 	var handler http.Handler = mux
 	if cfg.CORS {
 		origin := cfg.CORSOrigin
@@ -244,6 +244,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handler = handlers.CORSWithOrigin(origin, mux)
 	}
 	handler = handlers.MaxBodySize(1 << 20)(handler)
+	handler = handlers.Gzip(handler)
 	handler = handlers.Recovery(handler)
 	handler = handlers.RequestLogger(handler)
 	handler = handlers.RequestID(handler)
