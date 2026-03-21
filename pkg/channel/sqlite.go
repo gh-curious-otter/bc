@@ -143,11 +143,6 @@ func (s *SQLiteStore) initSchema(db *sql.DB) error {
 		);
 		CREATE INDEX IF NOT EXISTS idx_reactions_message ON reactions(message_id);
 		CREATE INDEX IF NOT EXISTS idx_reactions_user ON reactions(user_id);
-
-		INSERT OR IGNORE INTO channels (name, type, description) VALUES
-			('general', 'group', 'General discussion for all agents'),
-			('engineering', 'group', 'Engineering team coordination'),
-			('all', 'group', 'Broadcast channel for announcements');
 	`
 
 	if _, err := db.ExecContext(ctx, coreSchema); err != nil {

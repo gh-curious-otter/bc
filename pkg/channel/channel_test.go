@@ -58,9 +58,8 @@ func TestCreateMultiple(t *testing.T) {
 			t.Fatalf("Create(%q): %v", n, err)
 		}
 	}
-	// 3 seeded + 3 created = 6
-	if got := len(s.List()); got != 6 {
-		t.Fatalf("List len = %d, want 6", got)
+	if got := len(s.List()); got != 3 {
+		t.Fatalf("List len = %d, want 3", got)
 	}
 }
 
@@ -96,10 +95,10 @@ func TestGetNotFound(t *testing.T) {
 func TestListDefaultChannels(t *testing.T) {
 	s := newTestStore(t)
 
-	// SQLite schema seeds 3 default channels: all, engineering, general
+	// No default channels seeded — starts empty
 	channels := s.List()
-	if len(channels) != 3 {
-		t.Fatalf("List default store: got %d channels, want 3", len(channels))
+	if len(channels) != 0 {
+		t.Fatalf("List default store: got %d channels, want 0", len(channels))
 	}
 }
 
@@ -113,10 +112,9 @@ func TestList(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// 3 seeded + 2 created = 5
 	channels := s.List()
-	if len(channels) != 5 {
-		t.Fatalf("List: got %d channels, want 5", len(channels))
+	if len(channels) != 2 {
+		t.Fatalf("List: got %d channels, want 2", len(channels))
 	}
 
 	names := map[string]bool{}
@@ -468,7 +466,13 @@ func TestPersistenceRoundTrip(t *testing.T) {
 
 	// Populate via first store instance
 	s1 := NewStore(dir)
-	// "general" and "engineering" are seeded by SQLite schema
+	// Create channels explicitly (no defaults are seeded)
+	if _, err := s1.Create("general"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s1.Create("engineering"); err != nil {
+		t.Fatal(err)
+	}
 	if err := s1.AddMember("general", "alice"); err != nil {
 		t.Fatal(err)
 	}
@@ -519,9 +523,9 @@ func TestLoadNoOp(t *testing.T) {
 	if err := s.Load(); err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	// Default seeded channels should be present
-	if len(s.List()) != 3 {
-		t.Errorf("List after Load = %d, want 3 (seeded defaults)", len(s.List()))
+	// No default channels — starts empty
+	if len(s.List()) != 0 {
+		t.Errorf("List after Load = %d, want 0", len(s.List()))
 	}
 }
 
@@ -542,9 +546,8 @@ func TestConcurrentCreateAndList(t *testing.T) {
 	}
 	wg.Wait()
 
-	// 3 seeded + 20 created = 23
-	if got := len(s.List()); got != 23 {
-		t.Errorf("List after concurrent creates = %d, want 23", got)
+	if got := len(s.List()); got != 20 {
+		t.Errorf("List after concurrent creates = %d, want 20", got)
 	}
 }
 
@@ -616,13 +619,13 @@ func TestListStableOrdering(t *testing.T) {
 	}
 
 	// List should return channels sorted alphabetically
-	// 3 seeded (all, engineering, general) + 4 created = 7
+	// 4 created, no defaults
 	channels := s.List()
-	if len(channels) != 7 {
-		t.Fatalf("List() returned %d channels, want 7", len(channels))
+	if len(channels) != 4 {
+		t.Fatalf("List() returned %d channels, want 4", len(channels))
 	}
 
-	expected := []string{"all", "alpha", "beta", "engineering", "general", "middle", "zebra"}
+	expected := []string{"alpha", "beta", "middle", "zebra"}
 	for i, ch := range channels {
 		if ch.Name != expected[i] {
 			t.Errorf("List()[%d].Name = %q, want %q", i, ch.Name, expected[i])
@@ -872,14 +875,14 @@ func TestStorePersistence(t *testing.T) {
 	}
 }
 
-// TestStoreListDefault tests List returns seeded channels
+// TestStoreListDefault tests List returns empty on fresh store
 func TestStoreListDefault(t *testing.T) {
 	store := newTestStore(t)
 
 	list := store.List()
-	// SQLite schema seeds 3 default channels
-	if len(list) != 3 {
-		t.Errorf("List default store: expected 3, got %d", len(list))
+	// No default channels seeded
+	if len(list) != 0 {
+		t.Errorf("List default store: expected 0, got %d", len(list))
 	}
 }
 
@@ -906,7 +909,10 @@ func newSQLiteTestStore(t *testing.T) *Store {
 func TestGetSQLiteBackend(t *testing.T) {
 	store := newSQLiteTestStore(t)
 
-	// Default channels exist (general, engineering, all)
+	// Create a channel and verify Get works
+	if _, err := store.Create("general"); err != nil {
+		t.Fatalf("Create general: %v", err)
+	}
 	ch, exists := store.Get("general")
 	if !exists {
 		t.Fatal("Get general: expected to exist")
@@ -933,19 +939,29 @@ func TestGetSQLiteBackendNotFound(t *testing.T) {
 func TestListSQLiteBackend(t *testing.T) {
 	store := newSQLiteTestStore(t)
 
+	// Fresh store has no channels
 	channels := store.List()
-	if len(channels) < 3 {
-		t.Errorf("List: expected at least 3 default channels, got %d", len(channels))
+	if len(channels) != 0 {
+		t.Errorf("List: expected 0 channels on fresh store, got %d", len(channels))
 	}
 
-	// Check for default channels
+	// Create some channels and verify they appear
+	for _, name := range []string{"general", "engineering", "all"} {
+		if _, err := store.Create(name); err != nil {
+			t.Fatalf("Create %q: %v", name, err)
+		}
+	}
+	channels = store.List()
+	if len(channels) != 3 {
+		t.Errorf("List: expected 3 channels after creation, got %d", len(channels))
+	}
 	names := make(map[string]bool)
 	for _, ch := range channels {
 		names[ch.Name] = true
 	}
 	for _, name := range []string{"general", "engineering", "all"} {
 		if !names[name] {
-			t.Errorf("List: missing default channel %q", name)
+			t.Errorf("List: missing channel %q", name)
 		}
 	}
 }
@@ -976,7 +992,10 @@ func TestCreateSQLiteBackend(t *testing.T) {
 func TestCreateDuplicateSQLiteBackend(t *testing.T) {
 	store := newSQLiteTestStore(t)
 
-	_, err := store.Create("general") // Already exists
+	if _, err := store.Create("general"); err != nil {
+		t.Fatalf("Create first: %v", err)
+	}
+	_, err := store.Create("general") // Duplicate
 	if err == nil {
 		t.Error("Create duplicate: expected error")
 	}

@@ -265,8 +265,8 @@ func TestResourceRead_Channels_EmptyWorkspace(t *testing.T) {
 		t.Fatalf("bc://channels: invalid JSON: %v", err)
 	}
 	// Fresh workspace creates 3 default channels: general, engineering, all
-	if len(channels) != 3 {
-		t.Errorf("expected 3 default channels in fresh workspace, got %d", len(channels))
+	if len(channels) != 0 {
+		t.Errorf("expected 0 channels in fresh workspace (no defaults), got %d", len(channels))
 	}
 }
 

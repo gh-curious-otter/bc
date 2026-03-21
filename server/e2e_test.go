@@ -289,9 +289,9 @@ func TestE2E_Channels_ListDefault(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("want 200, got %d", code)
 	}
-	// Schema init creates 3 default channels: general, engineering, all
-	if len(channels) != 3 {
-		t.Fatalf("want 3 default channels, got %d", len(channels))
+	// No default channels — starts empty
+	if len(channels) != 0 {
+		t.Fatalf("want 0 channels (no defaults), got %d", len(channels))
 	}
 }
 
@@ -320,7 +320,10 @@ func TestE2E_Channels_CreateAndGet(t *testing.T) {
 func TestE2E_Channels_SendMessage(t *testing.T) {
 	s := newE2EServer(t)
 
-	// Send to default channel
+	// Create channel first (no defaults exist)
+	s.postJSON(t, "/api/channels", map[string]string{"name": "general"})
+
+	// Send to channel
 	code, _ := s.postJSON(t, "/api/channels/general/messages", map[string]string{
 		"sender":  "test-agent",
 		"content": "hello from e2e",
