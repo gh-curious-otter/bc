@@ -62,8 +62,8 @@ build-all: build build-tui build-bcd build-landing ## Build everything (bc, bcd,
 install: build ## Install bc to $GOPATH/bin
 	cp $(BUILD_DIR)/bc $(shell $(GO) env GOPATH)/bin/
 
-gen: ## Generate config code from config.toml
-	$(GO) generate ./...
+gen: ## No-op (cfgx config generation removed)
+	@true
 
 deps: ## Download and tidy dependencies
 	$(GO) mod download
