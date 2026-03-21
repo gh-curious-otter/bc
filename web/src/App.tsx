@@ -19,6 +19,7 @@ const Cron = lazy(() => import('./views/Cron').then(m => ({ default: m.Cron })))
 const Secrets = lazy(() => import('./views/Secrets').then(m => ({ default: m.Secrets })));
 const Stats = lazy(() => import('./views/Stats').then(m => ({ default: m.Stats })));
 const Workspace = lazy(() => import('./views/Workspace').then(m => ({ default: m.Workspace })));
+const Settings = lazy(() => import('./views/Settings').then(m => ({ default: m.Settings })));
 
 function Loading() {
   return <div className="p-6 text-bc-muted">Loading...</div>;
@@ -55,6 +56,7 @@ export function App() {
             <Route path="secrets" element={<Suspense fallback={<Loading />}><ErrorBoundary><Secrets /></ErrorBoundary></Suspense>} />
             <Route path="stats" element={<Suspense fallback={<Loading />}><ErrorBoundary><Stats /></ErrorBoundary></Suspense>} />
             <Route path="workspace" element={<Suspense fallback={<Loading />}><ErrorBoundary><Workspace /></ErrorBoundary></Suspense>} />
+            <Route path="settings" element={<Suspense fallback={<Loading />}><ErrorBoundary><Settings /></ErrorBoundary></Suspense>} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
