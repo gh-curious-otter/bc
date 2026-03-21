@@ -4,7 +4,7 @@
 //
 // Usage:
 //
-//	bcd [--addr ADDR] [--workspace DIR] [--verbose]
+//	bcd [--addr ADDR] [--workspace DIR] [--verbose] [--log-format text|json]
 //
 // The server binds to 127.0.0.1:9374 by default.
 // A PID file is written to <workspace>/.bc/bcd.pid on startup.
@@ -42,8 +42,12 @@ func main() {
 	addr := flag.String("addr", server.DefaultConfig().Addr, "listen address")
 	wsRoot := flag.String("workspace", ".", "workspace root directory")
 	verbose := flag.Bool("verbose", false, "enable verbose logging")
+	logFormat := flag.String("log-format", "text", "log output format (text|json)")
 	flag.Parse()
 
+	if *logFormat == "json" {
+		log.SetFormat("json")
+	}
 	if *verbose {
 		log.SetVerbose(true)
 	}
@@ -91,10 +95,6 @@ func run(addr, wsRoot string) error {
 	// Stats collector: polls Docker stats + consumes hook event files every 30s.
 	statsCollector := bcagent.NewStatsCollector(agentMgr)
 	go statsCollector.Run(ctx)
-
-	// Background state reconciler: refreshes agent states every 5s.
-	// Replaces the synchronous RefreshState call on GET /api/agents.
-	go agentMgr.RunReconciler(ctx, 5*time.Second)
 
 	// Channel service
 	var channelSvc *bcchannel.ChannelService

@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	// mu protects logger and verbose
+	// mu protects logger, verbose, and format
 	mu sync.RWMutex
 
 	// logger is the global logger instance
@@ -17,6 +17,9 @@ var (
 
 	// verbose controls whether debug-level logs are shown
 	verbose bool
+
+	// format is the current log format ("text" or "json")
+	format string = "text"
 )
 
 func init() {
@@ -31,26 +34,42 @@ func SetVerbose(v bool) {
 	mu.Lock()
 	defer mu.Unlock()
 	verbose = v
-	level := slog.LevelInfo
-	if v {
-		level = slog.LevelDebug
+	rebuildLogger(os.Stderr)
+}
+
+// SetFormat sets the log output format ("text" or "json").
+// Default is "text". JSON format is useful for log aggregation tools.
+func SetFormat(f string) {
+	mu.Lock()
+	defer mu.Unlock()
+	if f == "json" || f == "text" {
+		format = f
 	}
-	logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: level,
-	}))
+	rebuildLogger(os.Stderr)
 }
 
 // SetOutput sets the output writer for the logger.
 func SetOutput(w io.Writer) {
 	mu.Lock()
 	defer mu.Unlock()
+	rebuildLogger(w)
+}
+
+// rebuildLogger creates a new logger with current settings.
+// Must be called with mu held.
+func rebuildLogger(w io.Writer) {
 	level := slog.LevelInfo
 	if verbose {
 		level = slog.LevelDebug
 	}
-	logger = slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{
-		Level: level,
-	}))
+	opts := &slog.HandlerOptions{Level: level}
+	var handler slog.Handler
+	if format == "json" {
+		handler = slog.NewJSONHandler(w, opts)
+	} else {
+		handler = slog.NewTextHandler(w, opts)
+	}
+	logger = slog.New(handler)
 }
 
 // Debug logs a debug message. Only shown when verbose is enabled.
