@@ -41,6 +41,33 @@ func requireMethod(w http.ResponseWriter, r *http.Request, methods ...string) bo
 	return false
 }
 
+// Recovery returns a middleware that recovers from panics, logs the error,
+// and returns a 500 JSON response instead of crashing the server.
+func Recovery(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				log.Error("panic recovered", "error", err, "method", r.Method, "path", r.URL.Path)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": "internal server error"}) //nolint:errcheck
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
+// clampInt clamps n to the range [min, max].
+func clampInt(n, min, max int) int {
+	if n < min {
+		return min
+	}
+	if n > max {
+		return max
+	}
+	return n
+}
+
 // CORS returns a middleware that adds permissive CORS headers.
 // This is safe because bcd only binds to loopback by default.
 func CORS(next http.Handler) http.Handler {

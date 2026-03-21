@@ -150,6 +150,7 @@ func (h *CronHandler) logs(w http.ResponseWriter, r *http.Request, name string) 
 			last = n
 		}
 	}
+	last = clampInt(last, 1, 1000)
 	logs, err := h.store.GetLogs(r.Context(), name, last)
 	if err != nil {
 		httpError(w, err.Error(), http.StatusInternalServerError)

@@ -203,6 +203,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 				limit = n
 			}
 		}
+		limit = clampInt(limit, 1, 1000)
 		records, err := h.svc.Manager().QueryAgentStats(name, limit)
 		if err != nil {
 			httpError(w, "stats unavailable: "+err.Error(), http.StatusInternalServerError)
@@ -234,6 +235,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 				lines = n
 			}
 		}
+		lines = clampInt(lines, 1, 10000)
 		output, err := h.svc.Peek(r.Context(), name, lines)
 		if err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
