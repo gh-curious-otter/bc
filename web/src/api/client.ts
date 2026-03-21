@@ -249,6 +249,23 @@ export interface SettingsConfig {
   Roster: { Agents: { Name: string; Role: string; Tool: string; Runtime: string }[] };
 }
 
+export interface Daemon {
+  name: string;
+  runtime: string;
+  cmd: string;
+  image: string;
+  container_id: string;
+  restart: string;
+  status: string;
+  ports: string[];
+  volumes: string[];
+  env: string[];
+  pid: number;
+  created_at: string;
+  started_at: string;
+  stopped_at: string | null;
+}
+
 export const api = {
   listAgents: () => request<Agent[]>('/agents'),
   getAgent: (name: string) => request<Agent>(`/agents/${encodeURIComponent(name)}`),
@@ -291,4 +308,9 @@ export const api = {
   getSettings: () => request<SettingsConfig>('/settings'),
   updateSettings: (patch: Record<string, unknown>) =>
     request<SettingsConfig>('/settings', { method: 'PUT', body: JSON.stringify(patch) }),
+
+  listDaemons: () => request<Daemon[]>('/daemons'),
+  stopDaemon: (name: string) => request<{ status: string }>(`/daemons/${encodeURIComponent(name)}/stop`, { method: 'POST' }),
+  restartDaemon: (name: string) => request<Daemon>(`/daemons/${encodeURIComponent(name)}/restart`, { method: 'POST' }),
+  removeDaemon: (name: string) => request<void>(`/daemons/${encodeURIComponent(name)}`, { method: 'DELETE' }),
 };
