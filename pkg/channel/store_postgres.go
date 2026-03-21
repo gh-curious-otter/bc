@@ -271,17 +271,34 @@ func (s *PostgresStore) GetHistory(channelName string, limit int) ([]*Message, e
 
 // --- Reaction operations ---
 
+func (s *PostgresStore) AddReaction(messageID int64, emoji, userID string) error {
+	ctx := context.Background()
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO reactions (message_id, emoji, user_id) VALUES ($1, $2, $3)
+		 ON CONFLICT (message_id, emoji, user_id) DO NOTHING`,
+		messageID, emoji, userID)
+	if err != nil {
+		return fmt.Errorf("add reaction: %w", err)
+	}
+	return nil
+}
+
+func (s *PostgresStore) RemoveReaction(messageID int64, emoji, userID string) error {
+	ctx := context.Background()
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM reactions WHERE message_id = $1 AND emoji = $2 AND user_id = $3`,
+		messageID, emoji, userID)
+	if err != nil {
+		return fmt.Errorf("remove reaction: %w", err)
+	}
+	return nil
+}
+
 func (s *PostgresStore) ToggleReaction(messageID int64, emoji, userID string) (bool, error) {
 	ctx := context.Background()
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return false, fmt.Errorf("toggle reaction: begin tx: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
 	// Try insert first
-	result, err := tx.ExecContext(ctx,
+	result, err := s.db.ExecContext(ctx,
 		`INSERT INTO reactions (message_id, emoji, user_id)
 		 VALUES ($1, $2, $3)
 		 ON CONFLICT (message_id, emoji, user_id) DO NOTHING`,
@@ -292,24 +309,14 @@ func (s *PostgresStore) ToggleReaction(messageID int64, emoji, userID string) (b
 
 	rows, _ := result.RowsAffected()
 	if rows > 0 {
-		if err := tx.Commit(); err != nil {
-			return false, fmt.Errorf("toggle reaction: commit: %w", err)
-		}
 		return true, nil // added
 	}
 
 	// Already existed — remove it
-	_, err = tx.ExecContext(ctx,
+	_, err = s.db.ExecContext(ctx,
 		`DELETE FROM reactions WHERE message_id = $1 AND emoji = $2 AND user_id = $3`,
 		messageID, emoji, userID)
-	if err != nil {
-		return false, fmt.Errorf("toggle reaction: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return false, fmt.Errorf("toggle reaction: commit: %w", err)
-	}
-	return false, nil
+	return false, err
 }
 
 func (s *PostgresStore) GetReactions(messageID int64) (map[string][]string, error) {

@@ -210,11 +210,8 @@ func runDaemonStart(cmd *cobra.Command, _ []string) error {
 
 	chStore, chErr := channel.OpenStore(ws.RootDir)
 	if chErr != nil {
-		log.Warn("failed to open channel store", "error", chErr)
+		log.Warn("failed to open channel store, using default", "error", chErr)
 		chStore = channel.NewStore(ws.RootDir)
-	}
-	if loadErr := chStore.Load(); loadErr != nil {
-		log.Warn("failed to load channel state", "error", loadErr)
 	}
 	channelSvc := channel.NewChannelService(chStore)
 

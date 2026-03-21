@@ -99,9 +99,10 @@ func TestQueryByTime(t *testing.T) {
 	}
 
 	_ = s.AddHistory("test", "user", "old")
-	time.Sleep(10 * time.Millisecond)
+	// SQLite stores timestamps with second precision, so sleep >1s to get different timestamps
+	time.Sleep(1100 * time.Millisecond)
 	midpoint := time.Now()
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(1100 * time.Millisecond)
 	_ = s.AddHistory("test", "user", "new")
 
 	// Messages after midpoint
@@ -126,18 +127,18 @@ func TestQueryChannelNotFound(t *testing.T) {
 
 func TestSearch(t *testing.T) {
 	s := newTestStore(t)
-	if _, err := s.Create("general"); err != nil {
+	if _, err := s.Create("search-ch1"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Create("dev"); err != nil {
+	if _, err := s.Create("search-ch2"); err != nil {
 		t.Fatal(err)
 	}
 
-	_ = s.AddHistory("general", "alice", "hello world")
-	_ = s.AddHistory("general", "bob", "goodbye world")
-	_ = s.AddHistory("dev", "charlie", "hello dev")
+	_ = s.AddHistory("search-ch1", "alice", "hello world")
+	_ = s.AddHistory("search-ch1", "bob", "goodbye world")
+	_ = s.AddHistory("search-ch2", "charlie", "hello dev")
 
-	results, err := s.Search("hello", SearchOptions{})
+	results, err := s.Search("hello", SearchOptions{Channels: []string{"search-ch1", "search-ch2"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,26 +150,26 @@ func TestSearch(t *testing.T) {
 
 func TestSearchByChannel(t *testing.T) {
 	s := newTestStore(t)
-	if _, err := s.Create("general"); err != nil {
+	if _, err := s.Create("search-a"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Create("dev"); err != nil {
+	if _, err := s.Create("search-b"); err != nil {
 		t.Fatal(err)
 	}
 
-	_ = s.AddHistory("general", "alice", "test message")
-	_ = s.AddHistory("dev", "bob", "test message")
+	_ = s.AddHistory("search-a", "alice", "test message")
+	_ = s.AddHistory("search-b", "bob", "test message")
 
-	results, err := s.Search("test", SearchOptions{Channels: []string{"general"}})
+	results, err := s.Search("test", SearchOptions{Channels: []string{"search-a"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if len(results) != 1 {
-		t.Errorf("expected 1 result in general, got %d", len(results))
+		t.Errorf("expected 1 result in search-a, got %d", len(results))
 	}
-	if results[0].Channel != "general" {
-		t.Errorf("expected channel 'general', got %q", results[0].Channel)
+	if len(results) > 0 && results[0].Channel != "search-a" {
+		t.Errorf("expected channel 'search-a', got %q", results[0].Channel)
 	}
 }
 

@@ -1,13 +1,13 @@
 package channel
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
 
 func TestAddReaction(t *testing.T) {
-	dir := t.TempDir()
-	store := NewStore(dir)
+	store := newTestStore(t)
 
 	// Create a channel with a message
 	_, err := store.Create("test")
@@ -42,8 +42,7 @@ func TestAddReaction(t *testing.T) {
 }
 
 func TestAddReactionDuplicate(t *testing.T) {
-	dir := t.TempDir()
-	store := NewStore(dir)
+	store := newTestStore(t)
 
 	_, err := store.Create("test")
 	if err != nil {
@@ -66,8 +65,7 @@ func TestAddReactionDuplicate(t *testing.T) {
 }
 
 func TestRemoveReaction(t *testing.T) {
-	dir := t.TempDir()
-	store := NewStore(dir)
+	store := newTestStore(t)
 
 	_, err := store.Create("test")
 	if err != nil {
@@ -92,8 +90,7 @@ func TestRemoveReaction(t *testing.T) {
 }
 
 func TestToggleReaction(t *testing.T) {
-	dir := t.TempDir()
-	store := NewStore(dir)
+	store := newTestStore(t)
 
 	_, err := store.Create("test")
 	if err != nil {
@@ -134,8 +131,7 @@ func TestToggleReaction(t *testing.T) {
 }
 
 func TestMultipleReactions(t *testing.T) {
-	dir := t.TempDir()
-	store := NewStore(dir)
+	store := newTestStore(t)
 
 	_, err := store.Create("test")
 	if err != nil {
@@ -169,8 +165,7 @@ func TestMultipleReactions(t *testing.T) {
 }
 
 func TestReactionInvalidChannel(t *testing.T) {
-	dir := t.TempDir()
-	store := NewStore(dir)
+	store := newTestStore(t)
 
 	err := store.AddReaction("nonexistent", 0, "👍", "bob")
 	if err == nil {
@@ -179,8 +174,7 @@ func TestReactionInvalidChannel(t *testing.T) {
 }
 
 func TestReactionInvalidMessageIndex(t *testing.T) {
-	dir := t.TempDir()
-	store := NewStore(dir)
+	store := newTestStore(t)
 
 	_, err := store.Create("test")
 	if err != nil {
@@ -200,8 +194,11 @@ func TestReactionInvalidMessageIndex(t *testing.T) {
 
 func TestReactionsPersistence(t *testing.T) {
 	dir := t.TempDir()
-	store := NewStore(dir)
+	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0750); err != nil {
+		t.Fatal(err)
+	}
 
+	store := NewStore(dir)
 	_, err := store.Create("test")
 	if err != nil {
 		t.Fatalf("failed to create channel: %v", err)
@@ -212,14 +209,11 @@ func TestReactionsPersistence(t *testing.T) {
 	}
 
 	_ = store.AddReaction("test", 0, "👍", "bob")
-	_ = store.Save()
+	_ = store.Close()
 
-	// Create a new store and load
+	// Reopen store and verify persistence
 	store2 := NewStore(dir)
-	err = store2.Load()
-	if err != nil {
-		t.Fatalf("failed to load store: %v", err)
-	}
+	defer func() { _ = store2.Close() }()
 
 	reactions, err := store2.GetReactions("test", 0)
 	if err != nil {
@@ -244,9 +238,8 @@ func TestCommonReactions(t *testing.T) {
 	}
 }
 
-func TestGetReactionsReturnsNilForNoReactions(t *testing.T) {
-	dir := t.TempDir()
-	store := NewStore(dir)
+func TestGetReactionsReturnsEmptyForNoReactions(t *testing.T) {
+	store := newTestStore(t)
 
 	_, err := store.Create("test")
 	if err != nil {
@@ -262,15 +255,15 @@ func TestGetReactionsReturnsNilForNoReactions(t *testing.T) {
 		t.Fatalf("failed to get reactions: %v", err)
 	}
 
-	if reactions != nil {
-		t.Errorf("expected nil for no reactions, got %v", reactions)
+	if len(reactions) != 0 {
+		t.Errorf("expected empty reactions, got %v", reactions)
 	}
 }
 
-func TestStorePathCorrect(t *testing.T) {
-	store := NewStore("/workspace")
-	expected := filepath.Join("/workspace", ".bc", "channels.json")
-	if store.path != expected {
-		t.Errorf("expected path %s, got %s", expected, store.path)
+// TestStoreBackendNotNil verifies NewStore always creates a backend.
+func TestStoreBackendNotNil(t *testing.T) {
+	store := newTestStore(t)
+	if store.backend == nil {
+		t.Error("expected non-nil backend")
 	}
 }

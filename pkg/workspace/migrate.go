@@ -160,11 +160,6 @@ func MigrateV1ToV2(rootDir string) (*MigrateResult, error) {
 	// Agent JSON files (auto-migrated by pkg/agent on next LoadState)
 	result.AgentFiles = countJSONAgentFiles(stateDir)
 
-	// channels.json (auto-migrated by pkg/channel on Open)
-	if _, statErr := os.Stat(filepath.Join(stateDir, "channels.json")); statErr == nil {
-		result.ChannelJSON = true
-	}
-
 	// Ensure required sub-directories exist
 	for _, sub := range []string{"agents", "roles", "channels", "prompts"} {
 		_ = os.MkdirAll(filepath.Join(stateDir, sub), 0750)

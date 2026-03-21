@@ -8,15 +8,16 @@ import (
 	"testing"
 )
 
-// newTestStore creates a Store backed by a temp directory, returning the store
-// and a cleanup function.
+// newTestStore creates a Store backed by SQLite in a temp directory.
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0750); err != nil {
 		t.Fatal(err)
 	}
-	return NewStore(dir)
+	s := NewStore(dir)
+	t.Cleanup(func() { _ = s.Close() })
+	return s
 }
 
 // --- Create ---
@@ -24,12 +25,12 @@ func newTestStore(t *testing.T) *Store {
 func TestCreate(t *testing.T) {
 	s := newTestStore(t)
 
-	ch, err := s.Create("general")
+	ch, err := s.Create("test-create")
 	if err != nil {
 		t.Fatalf("Create: unexpected error: %v", err)
 	}
-	if ch.Name != "general" {
-		t.Errorf("Name = %q, want %q", ch.Name, "general")
+	if ch.Name != "test-create" {
+		t.Errorf("Name = %q, want %q", ch.Name, "test-create")
 	}
 	if len(ch.Members) != 0 {
 		t.Errorf("Members = %v, want empty slice", ch.Members)
@@ -39,10 +40,10 @@ func TestCreate(t *testing.T) {
 func TestCreateDuplicate(t *testing.T) {
 	s := newTestStore(t)
 
-	if _, err := s.Create("general"); err != nil {
+	if _, err := s.Create("dup-ch"); err != nil {
 		t.Fatal(err)
 	}
-	_, err := s.Create("general")
+	_, err := s.Create("dup-ch")
 	if err == nil {
 		t.Fatal("Create duplicate: expected error, got nil")
 	}
@@ -51,14 +52,15 @@ func TestCreateDuplicate(t *testing.T) {
 func TestCreateMultiple(t *testing.T) {
 	s := newTestStore(t)
 
-	names := []string{"general", "engineering", "qa"}
+	names := []string{"proj-a", "proj-b", "proj-c"}
 	for _, n := range names {
 		if _, err := s.Create(n); err != nil {
 			t.Fatalf("Create(%q): %v", n, err)
 		}
 	}
-	if got := len(s.List()); got != 3 {
-		t.Fatalf("List len = %d, want 3", got)
+	// 3 seeded + 3 created = 6
+	if got := len(s.List()); got != 6 {
+		t.Fatalf("List len = %d, want 6", got)
 	}
 }
 
@@ -67,16 +69,16 @@ func TestCreateMultiple(t *testing.T) {
 func TestGet(t *testing.T) {
 	s := newTestStore(t)
 
-	if _, err := s.Create("general"); err != nil {
+	if _, err := s.Create("test-get"); err != nil {
 		t.Fatal(err)
 	}
 
-	ch, ok := s.Get("general")
+	ch, ok := s.Get("test-get")
 	if !ok {
 		t.Fatal("Get: expected channel to exist")
 	}
-	if ch.Name != "general" {
-		t.Errorf("Name = %q, want %q", ch.Name, "general")
+	if ch.Name != "test-get" {
+		t.Errorf("Name = %q, want %q", ch.Name, "test-get")
 	}
 }
 
@@ -91,12 +93,13 @@ func TestGetNotFound(t *testing.T) {
 
 // --- List ---
 
-func TestListEmpty(t *testing.T) {
+func TestListDefaultChannels(t *testing.T) {
 	s := newTestStore(t)
 
+	// SQLite schema seeds 3 default channels: all, engineering, general
 	channels := s.List()
-	if len(channels) != 0 {
-		t.Fatalf("List empty store: got %d channels, want 0", len(channels))
+	if len(channels) != 3 {
+		t.Fatalf("List default store: got %d channels, want 3", len(channels))
 	}
 }
 
@@ -110,9 +113,10 @@ func TestList(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// 3 seeded + 2 created = 5
 	channels := s.List()
-	if len(channels) != 2 {
-		t.Fatalf("List: got %d channels, want 2", len(channels))
+	if len(channels) != 5 {
+		t.Fatalf("List: got %d channels, want 5", len(channels))
 	}
 
 	names := map[string]bool{}
@@ -129,14 +133,14 @@ func TestList(t *testing.T) {
 func TestDelete(t *testing.T) {
 	s := newTestStore(t)
 
-	if _, err := s.Create("general"); err != nil {
+	if _, err := s.Create("to-delete"); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := s.Delete("general"); err != nil {
+	if err := s.Delete("to-delete"); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
-	if _, ok := s.Get("general"); ok {
+	if _, ok := s.Get("to-delete"); ok {
 		t.Fatal("Get after Delete: expected channel to be gone")
 	}
 }
@@ -196,9 +200,18 @@ func TestAddMemberDuplicate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := s.AddMember("ch", "alice")
-	if err == nil {
-		t.Fatal("AddMember duplicate: expected error, got nil")
+	// SQLite uses INSERT OR IGNORE — duplicate adds are idempotent (no error)
+	if err := s.AddMember("ch", "alice"); err != nil {
+		t.Fatalf("AddMember duplicate: unexpected error: %v", err)
+	}
+
+	// Verify only one member exists
+	members, err := s.GetMembers("ch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(members) != 1 {
+		t.Errorf("members len = %d, want 1 (should be idempotent)", len(members))
 	}
 }
 
@@ -445,19 +458,17 @@ func TestGetHistoryIncludesReactions(t *testing.T) {
 	}
 }
 
-// --- Load / Save round-trip ---
+// --- Persistence round-trip ---
 
-func TestSaveAndLoad(t *testing.T) {
+func TestPersistenceRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
-	// Populate and save
+	// Populate via first store instance
 	s1 := NewStore(dir)
-	if _, err := s1.Create("general"); err != nil {
-		t.Fatal(err)
-	}
+	// "general" and "engineering" are seeded by SQLite schema
 	if err := s1.AddMember("general", "alice"); err != nil {
 		t.Fatal(err)
 	}
@@ -467,27 +478,19 @@ func TestSaveAndLoad(t *testing.T) {
 	if err := s1.AddHistory("general", "alice", "hello"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s1.Create("engineering"); err != nil {
-		t.Fatal(err)
-	}
 	if err := s1.AddMember("engineering", "charlie"); err != nil {
 		t.Fatal(err)
 	}
+	_ = s1.Close()
 
-	if err := s1.Save(); err != nil {
-		t.Fatalf("Save: %v", err)
-	}
-
-	// Load into a fresh store
+	// Open a fresh store on the same directory — data should persist
 	s2 := NewStore(dir)
-	if err := s2.Load(); err != nil {
-		t.Fatalf("Load: %v", err)
-	}
+	defer func() { _ = s2.Close() }()
 
 	// Verify general channel
 	ch, ok := s2.Get("general")
 	if !ok {
-		t.Fatal("Load: general channel not found")
+		t.Fatal("general channel not found after reopen")
 	}
 	if len(ch.Members) != 2 {
 		t.Errorf("general members = %d, want 2", len(ch.Members))
@@ -502,40 +505,23 @@ func TestSaveAndLoad(t *testing.T) {
 	// Verify engineering channel
 	ch2, ok := s2.Get("engineering")
 	if !ok {
-		t.Fatal("Load: engineering channel not found")
+		t.Fatal("engineering channel not found after reopen")
 	}
 	if len(ch2.Members) != 1 || ch2.Members[0] != "charlie" {
 		t.Errorf("engineering members = %v, want [charlie]", ch2.Members)
 	}
 }
 
-func TestLoadNonexistentFile(t *testing.T) {
-	dir := t.TempDir()
-	s := NewStore(dir)
+func TestLoadNoOp(t *testing.T) {
+	s := newTestStore(t)
 
-	// Load with no file on disk should succeed with empty state
+	// Load is a no-op, should always succeed
 	if err := s.Load(); err != nil {
-		t.Fatalf("Load nonexistent: %v", err)
+		t.Fatalf("Load: %v", err)
 	}
-	if len(s.List()) != 0 {
-		t.Errorf("List after load nonexistent = %d, want 0", len(s.List()))
-	}
-}
-
-func TestLoadInvalidJSON(t *testing.T) {
-	dir := t.TempDir()
-	bcDir := filepath.Join(dir, ".bc")
-	if err := os.MkdirAll(bcDir, 0750); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(bcDir, "channels.json"), []byte("{bad json"), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	s := NewStore(dir)
-	err := s.Load()
-	if err == nil {
-		t.Fatal("Load invalid JSON: expected error, got nil")
+	// Default seeded channels should be present
+	if len(s.List()) != 3 {
+		t.Errorf("List after Load = %d, want 3 (seeded defaults)", len(s.List()))
 	}
 }
 
@@ -556,8 +542,9 @@ func TestConcurrentCreateAndList(t *testing.T) {
 	}
 	wg.Wait()
 
-	if got := len(s.List()); got != 20 {
-		t.Errorf("List after concurrent creates = %d, want 20", got)
+	// 3 seeded + 20 created = 23
+	if got := len(s.List()); got != 23 {
+		t.Errorf("List after concurrent creates = %d, want 23", got)
 	}
 }
 
@@ -629,12 +616,13 @@ func TestListStableOrdering(t *testing.T) {
 	}
 
 	// List should return channels sorted alphabetically
+	// 3 seeded (all, engineering, general) + 4 created = 7
 	channels := s.List()
-	if len(channels) != 4 {
-		t.Fatalf("List() returned %d channels, want 4", len(channels))
+	if len(channels) != 7 {
+		t.Fatalf("List() returned %d channels, want 7", len(channels))
 	}
 
-	expected := []string{"alpha", "beta", "middle", "zebra"}
+	expected := []string{"all", "alpha", "beta", "engineering", "general", "middle", "zebra"}
 	for i, ch := range channels {
 		if ch.Name != expected[i] {
 			t.Errorf("List()[%d].Name = %q, want %q", i, ch.Name, expected[i])
@@ -657,15 +645,15 @@ func TestListStableOrdering(t *testing.T) {
 func TestSetDescription(t *testing.T) {
 	s := newTestStore(t)
 
-	if _, err := s.Create("general"); err != nil {
+	if _, err := s.Create("desc-ch"); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := s.SetDescription("general", "Main discussion channel"); err != nil {
+	if err := s.SetDescription("desc-ch", "Main discussion channel"); err != nil {
 		t.Fatalf("SetDescription: unexpected error: %v", err)
 	}
 
-	ch, ok := s.Get("general")
+	ch, ok := s.Get("desc-ch")
 	if !ok {
 		t.Fatal("Get: channel not found")
 	}
@@ -686,14 +674,14 @@ func TestSetDescriptionNotFound(t *testing.T) {
 func TestGetDescription(t *testing.T) {
 	s := newTestStore(t)
 
-	if _, err := s.Create("general"); err != nil {
+	if _, err := s.Create("getdesc-ch"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SetDescription("general", "Team channel"); err != nil {
+	if err := s.SetDescription("getdesc-ch", "Team channel"); err != nil {
 		t.Fatal(err)
 	}
 
-	desc, err := s.GetDescription("general")
+	desc, err := s.GetDescription("getdesc-ch")
 	if err != nil {
 		t.Fatalf("GetDescription: unexpected error: %v", err)
 	}
@@ -717,24 +705,20 @@ func TestDescriptionPersistence(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create store, set description, save
+	// Create store, set description, close
 	s1 := NewStore(dir)
-	if _, err := s1.Create("general"); err != nil {
+	if _, err := s1.Create("persist-desc"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s1.SetDescription("general", "Persisted description"); err != nil {
+	if err := s1.SetDescription("persist-desc", "Persisted description"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s1.Save(); err != nil {
-		t.Fatal(err)
-	}
+	_ = s1.Close()
 
-	// Create new store, load, verify description persisted
+	// Reopen store, verify description persisted
 	s2 := NewStore(dir)
-	if err := s2.Load(); err != nil {
-		t.Fatal(err)
-	}
-	ch, ok := s2.Get("general")
+	defer func() { _ = s2.Close() }()
+	ch, ok := s2.Get("persist-desc")
 	if !ok {
 		t.Fatal("Get: channel not found after reload")
 	}
@@ -796,13 +780,7 @@ func TestOpenStoreUsesSQLiteWhenDbExists(t *testing.T) {
 
 // TestStoreClose tests the Close function
 func TestStoreClose(t *testing.T) {
-	tmpDir := t.TempDir()
-	path := filepath.Join(tmpDir, "channels.json")
-
-	store := NewStore(path)
-	if err := store.Load(); err != nil {
-		t.Fatalf("Load: %v", err)
-	}
+	store := newTestStore(t)
 
 	// Create a channel first
 	_, err := store.Create("test-close")
@@ -810,27 +788,15 @@ func TestStoreClose(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	// Close should be no-op for JSON backend (no error)
+	// Close should succeed
 	if err := store.Close(); err != nil {
 		t.Errorf("Close: %v", err)
-	}
-
-	// Store should still be usable after close (JSON backend)
-	list := store.List()
-	if len(list) != 1 {
-		t.Errorf("List after close: expected 1, got %d", len(list))
 	}
 }
 
 // TestStoreGetNotFound tests Get for non-existent channel
 func TestStoreGetNotFound(t *testing.T) {
-	tmpDir := t.TempDir()
-	path := filepath.Join(tmpDir, "channels.json")
-
-	store := NewStore(path)
-	if err := store.Load(); err != nil {
-		t.Fatalf("Load: %v", err)
-	}
+	store := newTestStore(t)
 
 	ch, found := store.Get("nonexistent")
 	if found {
@@ -843,22 +809,16 @@ func TestStoreGetNotFound(t *testing.T) {
 
 // TestStoreGetExisting tests Get for existing channel
 func TestStoreGetExisting(t *testing.T) {
-	tmpDir := t.TempDir()
-	path := filepath.Join(tmpDir, "channels.json")
-
-	store := NewStore(path)
-	if err := store.Load(); err != nil {
-		t.Fatalf("Load: %v", err)
-	}
+	store := newTestStore(t)
 
 	// Create channel
-	created, err := store.Create("test-get")
+	created, err := store.Create("test-get-existing")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
 	// Get should find it
-	ch, found := store.Get("test-get")
+	ch, found := store.Get("test-get-existing")
 	if !found {
 		t.Fatal("Get: expected to find channel")
 	}
@@ -869,52 +829,39 @@ func TestStoreGetExisting(t *testing.T) {
 
 // TestStoreCreateDuplicate tests Create with duplicate name
 func TestStoreCreateDuplicate(t *testing.T) {
-	tmpDir := t.TempDir()
-	path := filepath.Join(tmpDir, "channels.json")
-
-	store := NewStore(path)
-	if err := store.Load(); err != nil {
-		t.Fatalf("Load: %v", err)
-	}
+	store := newTestStore(t)
 
 	// Create first channel
-	_, err := store.Create("dup-test")
+	_, err := store.Create("dup-test-2")
 	if err != nil {
 		t.Fatalf("Create first: %v", err)
 	}
 
 	// Create duplicate should fail
-	_, err = store.Create("dup-test")
+	_, err = store.Create("dup-test-2")
 	if err == nil {
 		t.Error("Create duplicate: expected error")
 	}
 }
 
-// TestStoreSaveAndLoad tests Save persists to disk
-func TestStoreSaveAndLoad(t *testing.T) {
-	tmpDir := t.TempDir()
-	path := filepath.Join(tmpDir, "channels.json")
-
-	// Create and save
-	store1 := NewStore(path)
-	if err := store1.Load(); err != nil {
-		t.Fatalf("Load: %v", err)
+// TestStorePersistence tests that data persists across store instances
+func TestStorePersistence(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0750); err != nil {
+		t.Fatal(err)
 	}
 
+	// Create and close
+	store1 := NewStore(dir)
 	_, err := store1.Create("persist-test")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
+	_ = store1.Close()
 
-	if err := store1.Save(); err != nil {
-		t.Fatalf("Save: %v", err)
-	}
-
-	// Load in new store
-	store2 := NewStore(path)
-	if err := store2.Load(); err != nil {
-		t.Fatalf("Load store2: %v", err)
-	}
+	// Reopen and verify
+	store2 := NewStore(dir)
+	defer func() { _ = store2.Close() }()
 
 	ch, found := store2.Get("persist-test")
 	if !found {
@@ -925,57 +872,20 @@ func TestStoreSaveAndLoad(t *testing.T) {
 	}
 }
 
-// TestStoreSaveCreatesDirectory tests Save creates parent directory
-func TestStoreSaveCreatesDirectory(t *testing.T) {
-	tmpDir := t.TempDir()
-	path := filepath.Join(tmpDir, "subdir", "nested", "channels.json")
-
-	store := NewStore(path)
-	if err := store.Load(); err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-
-	_, err := store.Create("nested-test")
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	// Save should create nested directories
-	if err := store.Save(); err != nil {
-		t.Fatalf("Save: %v", err)
-	}
-
-	// Verify file exists
-	if _, statErr := os.Stat(path); os.IsNotExist(statErr) {
-		t.Error("Save did not create file in nested directory")
-	}
-}
-
-// TestStoreListEmpty tests List on empty store
-func TestStoreListEmpty(t *testing.T) {
-	tmpDir := t.TempDir()
-	path := filepath.Join(tmpDir, "channels.json")
-
-	store := NewStore(path)
-	if err := store.Load(); err != nil {
-		t.Fatalf("Load: %v", err)
-	}
+// TestStoreListDefault tests List returns seeded channels
+func TestStoreListDefault(t *testing.T) {
+	store := newTestStore(t)
 
 	list := store.List()
-	if len(list) != 0 {
-		t.Errorf("List empty store: expected 0, got %d", len(list))
+	// SQLite schema seeds 3 default channels
+	if len(list) != 3 {
+		t.Errorf("List default store: expected 3, got %d", len(list))
 	}
 }
 
 // TestStoreDeleteNonExistent tests Delete for non-existent channel
 func TestStoreDeleteNonExistent(t *testing.T) {
-	tmpDir := t.TempDir()
-	path := filepath.Join(tmpDir, "channels.json")
-
-	store := NewStore(path)
-	if err := store.Load(); err != nil {
-		t.Fatalf("Load: %v", err)
-	}
+	store := newTestStore(t)
 
 	err := store.Delete("nonexistent")
 	if err == nil {
@@ -985,29 +895,11 @@ func TestStoreDeleteNonExistent(t *testing.T) {
 
 // --- SQLite-backed Store tests (#1309) ---
 
-// newSQLiteTestStore creates a Store backed by SQLite for testing
+// newSQLiteTestStore creates a Store backed by SQLite for testing.
+// This is now identical to newTestStore since all stores use SQLite.
 func newSQLiteTestStore(t *testing.T) *Store {
 	t.Helper()
-	tmpDir := t.TempDir()
-	bcDir := filepath.Join(tmpDir, ".bc")
-	if err := os.MkdirAll(bcDir, 0750); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create SQLite store and open it
-	sqlite := NewSQLiteStore(tmpDir)
-	if err := sqlite.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Return a Store with SQLite backend
-	store := &Store{
-		path:     filepath.Join(bcDir, "channels.json"),
-		channels: make(map[string]*Channel),
-		backend:  sqlite,
-	}
-	t.Cleanup(func() { _ = sqlite.Close() })
-	return store
+	return newTestStore(t)
 }
 
 // TestGetSQLiteBackend tests Get with SQLite backend

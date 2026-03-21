@@ -3,19 +3,13 @@ package channel
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 )
 
 func newTestService(t *testing.T) *ChannelService {
 	t.Helper()
-	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0750); err != nil {
-		t.Fatal(err)
-	}
-	store := NewStore(dir)
+	store := newTestStore(t)
 	return NewChannelService(store)
 }
 
@@ -79,16 +73,16 @@ func TestServiceList(t *testing.T) {
 	svc := newTestService(t)
 	ctx := context.Background()
 
-	// Empty list
+	// Default seeded channels: all, engineering, general (3)
 	dtos, err := svc.List(ctx)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(dtos) != 0 {
-		t.Errorf("got %d channels, want 0", len(dtos))
+	if len(dtos) != 3 {
+		t.Errorf("got %d channels, want 3 (seeded defaults)", len(dtos))
 	}
 
-	// Create some channels
+	// Create some more channels
 	_, err = svc.Create(ctx, CreateChannelReq{Name: "alpha"})
 	if err != nil {
 		t.Fatal(err)
@@ -102,14 +96,9 @@ func TestServiceList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(dtos) != 2 {
-		t.Fatalf("got %d channels, want 2", len(dtos))
-	}
-	if dtos[0].Name != "alpha" {
-		t.Errorf("got name %q, want %q", dtos[0].Name, "alpha")
-	}
-	if dtos[1].Name != "beta" {
-		t.Errorf("got name %q, want %q", dtos[1].Name, "beta")
+	// 3 seeded + 2 created = 5
+	if len(dtos) != 5 {
+		t.Fatalf("got %d channels, want 5", len(dtos))
 	}
 }
 

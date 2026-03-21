@@ -122,8 +122,8 @@ bc v2 uses a TOML-based config format. The migration:
   - Writes .bc/config.json.bak (backup of original)
   - Writes .bc/config.toml  (v2 format, best-effort field mapping)
 
-Agent state (JSON files) and channel history (channels.json) are migrated
-automatically the next time they are opened — no manual step needed.
+Agent state (JSON files) are migrated automatically the next time they
+are opened — no manual step needed.
 
 Examples:
   bc workspace migrate          # Check and prompt for migration
@@ -837,10 +837,6 @@ func doV1Migration(absDir string, yes, dryRun bool) error {
 	if agentFiles > 0 {
 		fmt.Printf("    • %d agent JSON file(s) will auto-migrate on next load\n", agentFiles)
 	}
-	if _, statErr := os.Stat(filepath.Join(stateDir, "channels.json")); statErr == nil {
-		fmt.Printf("    • channels.json will auto-migrate on next channel open\n")
-	}
-
 	if dryRun {
 		fmt.Println()
 		fmt.Printf("%s Dry run — no changes made.\n", ui.YellowText("ℹ"))
@@ -871,10 +867,6 @@ func doV1Migration(absDir string, yes, dryRun bool) error {
 		fmt.Printf("  %s %d agent file(s) will auto-migrate on next run\n",
 			ui.GreenText("✓"), result.AgentFiles)
 	}
-	if result.ChannelJSON {
-		fmt.Printf("  %s channels.json will auto-migrate on next channel open\n", ui.GreenText("✓"))
-	}
-
 	fmt.Println()
 	fmt.Printf("%s Migration complete. Run 'bc workspace info' to verify.\n", ui.GreenText("✓"))
 	return nil
