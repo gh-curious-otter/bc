@@ -3,8 +3,9 @@
 #
 # Build with: make build-agent-images
 # Or individually: docker build -t bc-agent-claude:latest -f docker/Dockerfile.claude .
+# Base images pinned — update versions in Dependabot PRs or manually.
 
-FROM oven/bun:latest AS builder
+FROM oven/bun:1.2 AS builder
 RUN bun install -g @anthropic-ai/claude-code
 
 FROM ubuntu:24.04
