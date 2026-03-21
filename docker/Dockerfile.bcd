@@ -24,10 +24,17 @@ RUN apt-get update && \
         ca-certificates tmux git docker.io curl && \
     rm -rf /var/lib/apt/lists/*
 COPY --from=go-builder /bcd /usr/local/bin/bcd
+
+# Run as non-root. Docker socket access via docker group membership.
+# The host Docker socket GID must match — use --group-add on docker run if needed.
+RUN useradd -m -s /bin/bash bcd && usermod -aG docker bcd
+
 # Mount host Docker socket at runtime: -v /var/run/docker.sock:/var/run/docker.sock
 EXPOSE 9374
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:9374/health || exit 1
+
+USER bcd
 WORKDIR /workspace
 ENTRYPOINT ["bcd"]
 CMD ["--addr", "0.0.0.0:9374", "--workspace", "/workspace"]
