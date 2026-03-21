@@ -64,24 +64,78 @@ export default function Waitlist() {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-      const formData = new FormData();
-      formData.append(GOOGLE_FORM_EMAIL_FIELD, email);
-      await fetch(GOOGLE_FORM_ACTION, {
-        method: "POST",
-        body: formData,
-        mode: "no-cors",
+      // Submit via hidden iframe to bypass CORS. Google Forms does not
+      // support CORS, so fetch with no-cors gives opaque responses where
+      // success and failure are indistinguishable. An iframe form post
+      // works reliably and lets us detect network failures via onerror.
+      await new Promise<void>((resolve, reject) => {
+        const iframe = document.createElement("iframe");
+        iframe.name = "bc-waitlist-frame";
+        iframe.style.display = "none";
+        document.body.appendChild(iframe);
+
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = GOOGLE_FORM_ACTION;
+        form.target = "bc-waitlist-frame";
+
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = GOOGLE_FORM_EMAIL_FIELD;
+        input.value = email;
+        form.appendChild(input);
+
+        const cleanup = () => {
+          try { document.body.removeChild(iframe); } catch { /* already removed */ }
+          try { document.body.removeChild(form); } catch { /* already removed */ }
+        };
+
+        const timeout = setTimeout(() => {
+          cleanup();
+          resolve();
+        }, 5000);
+
+        iframe.onload = () => {
+          clearTimeout(timeout);
+          cleanup();
+          resolve();
+        };
+
+        iframe.onerror = () => {
+          clearTimeout(timeout);
+          cleanup();
+          reject(new Error("Network error \u2014 please check your connection and try again."));
+        };
+
+        document.body.appendChild(form);
+        form.submit();
       });
-    } catch {
-      // no-cors mode may throw, but the submission still goes through
+
+      setSubmitted(true);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong. Please try again."
+      );
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
-    setSubmitted(true);
   };
 
   return (
@@ -199,7 +253,7 @@ export default function Waitlist() {
                               type="email"
                               required
                               value={email}
-                              onChange={(e) => setEmail(e.target.value)}
+                              onChange={(e) => { setEmail(e.target.value); setError(null); }}
                               placeholder="you@company.com"
                               pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
                               maxLength={254}
@@ -226,6 +280,12 @@ export default function Waitlist() {
                             </>
                           )}
                         </button>
+
+                        {error && (
+                          <p className="text-center text-sm font-mono text-red-400" role="alert">
+                            ✗ {error}
+                          </p>
+                        )}
 
                         <p className="text-center text-[11px] text-white/25 font-mono">
                           no spam. unsubscribe anytime. we respect your inbox.
