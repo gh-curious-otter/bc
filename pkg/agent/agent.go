@@ -704,7 +704,7 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 		// The SessionID field may contain the tmux session name (e.g. "frontend")
 		// which is not a valid Claude conversation ID.
 		sessionID := existing.SessionID
-		isRealSessionID := len(sessionID) > 8 && strings.Contains(sessionID, "-")
+		isRealSessionID := len(sessionID) == 36 && sessionID[8] == '-'
 		resume := !opts.Fresh && isRealSessionID
 		if opts.Fresh {
 			existing.SessionID = ""
