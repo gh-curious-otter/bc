@@ -189,9 +189,10 @@ function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAge
     return subscribe('channel.message', (event) => {
       const data = event.data as { channel?: string; message?: ChannelMessage };
       if (data.channel === channelName && data.message) {
+        const msg = { ...data.message, created_at: data.message.created_at || new Date().toISOString() };
         setMessages((prev) => {
-          if (prev.some((m) => m.id === data.message!.id)) return prev;
-          return [...prev, data.message!];
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return [...prev, msg];
         });
       }
     });
