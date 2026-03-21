@@ -12,3 +12,5 @@ ENV POSTGRES_DB=bc
 COPY docker/bcdb/init.sql /docker-entrypoint-initdb.d/01-init.sql
 
 EXPOSE 5432
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
+    CMD pg_isready -U bc -d bc || exit 1
