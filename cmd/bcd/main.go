@@ -92,6 +92,10 @@ func run(addr, wsRoot string) error {
 	statsCollector := bcagent.NewStatsCollector(agentMgr)
 	go statsCollector.Run(ctx)
 
+	// Background state reconciler: refreshes agent states every 5s.
+	// Replaces the synchronous RefreshState call on GET /api/agents.
+	go agentMgr.RunReconciler(ctx, 5*time.Second)
+
 	// Channel service
 	var channelSvc *bcchannel.ChannelService
 	if chStore, err := bcchannel.OpenStore(ws.RootDir); err != nil {
