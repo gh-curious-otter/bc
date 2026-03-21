@@ -165,6 +165,7 @@ function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAge
   const [senderName, setSenderName] = useState('web');
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { subscribe } = useWebSocket();
 
   // Fetch workspace nickname once to use as sender identity
@@ -243,11 +244,23 @@ function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAge
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const autoGrow = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    // Cap at ~4 rows (6rem = 96px)
+    ta.style.height = Math.min(ta.scrollHeight, 96) + 'px';
+  }, []);
+
   const handleSend = async () => {
     if (!input.trim()) return;
     const content = input;
     setSending(true);
     setInput('');
+    // Reset textarea height after clearing
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
     try {
       await api.sendToChannel(channelName, content, senderName);
       // Optimistically add the message to local state so it appears immediately
@@ -318,14 +331,27 @@ function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAge
           </button>
         )}
       </div>
-      <div className="p-3 border-t border-bc-border flex gap-2">
-        <input
-          type="text"
+      <div className="p-3 border-t border-bc-border flex gap-2 items-end">
+        <textarea
+          ref={textareaRef}
+          rows={1}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') void handleSend(); }}
+          onChange={(e) => { setInput(e.target.value); autoGrow(); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              void handleSend();
+            }
+            if (e.key === 'Escape') {
+              setInput('');
+              if (textareaRef.current) {
+                textareaRef.current.style.height = 'auto';
+                textareaRef.current.blur();
+              }
+            }
+          }}
           placeholder={`Message #${channelName}...`}
-          className="flex-1 bg-bc-bg border border-bc-border rounded px-3 py-1.5 text-sm focus:outline-none focus:border-bc-accent"
+          className="flex-1 bg-bc-bg border border-bc-border rounded px-3 py-1.5 text-sm focus:outline-none focus:border-bc-accent resize-none"
         />
         <button
           onClick={() => void handleSend()}
