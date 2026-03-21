@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -52,6 +53,10 @@ func (h *ChannelHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 		ch, err := h.svc.Create(r.Context(), req)
 		if err != nil {
+			if errors.Is(err, channel.ErrChannelExists) {
+				httpError(w, err.Error(), http.StatusConflict)
+				return
+			}
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
