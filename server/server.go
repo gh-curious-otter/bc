@@ -137,13 +137,28 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	if svc.Channels != nil {
 		svc.Channels.OnMessage = func(ch, sender, content string) {
-			// Deliver to agent tmux/docker sessions with formatted context
+			// Publish SSE event for web UI (non-blocking)
+			if hub != nil {
+				hub.Publish("channel.message", map[string]any{
+					"channel": ch,
+					"message": map[string]any{
+						"sender":  sender,
+						"content": content,
+						"type":    "text",
+					},
+				})
+			}
+			// Deliver to agent tmux/docker sessions asynchronously.
+			// Messages are already persisted to SQLite before OnMessage fires,
+			// so delivery is best-effort — agents can read history on reconnect.
 			if svc.Agents != nil {
-				formatted := fmt.Sprintf("[bc-mcp][%s][#%s] %s: %s", time.Now().UTC().Format(time.RFC3339), ch, sender, content)
-				chDTO, err := svc.Channels.Get(context.Background(), ch)
-				if err != nil {
-					log.Debug("channel send: failed to get channel", "channel", ch, "error", err)
-				} else {
+				go func() {
+					formatted := fmt.Sprintf("[bc-mcp][%s][#%s] %s: %s", time.Now().UTC().Format(time.RFC3339), ch, sender, content)
+					chDTO, err := svc.Channels.Get(context.Background(), ch)
+					if err != nil {
+						log.Debug("channel send: failed to get channel", "channel", ch, "error", err)
+						return
+					}
 					for _, member := range chDTO.Members {
 						if member == sender {
 							continue
@@ -161,18 +176,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 							log.Warn("channel send: delivery failed after retries", "channel", ch, "agent", member, "error", sendErr)
 						}
 					}
-				}
-			}
-			// Publish SSE event for web UI
-			if hub != nil {
-				hub.Publish("channel.message", map[string]any{
-					"channel": ch,
-					"message": map[string]any{
-						"sender":  sender,
-						"content": content,
-						"type":    "text",
-					},
-				})
+				}()
 			}
 		}
 		handlers.NewChannelHandler(svc.Channels).Register(mux)
