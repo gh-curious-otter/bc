@@ -2,6 +2,7 @@ package channel
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -41,6 +42,26 @@ func TestServiceCreate(t *testing.T) {
 			name:    "duplicate name",
 			req:     CreateChannelReq{Name: "eng"},
 			wantErr: true,
+		},
+		{
+			name:    "special chars in name",
+			req:     CreateChannelReq{Name: "test/channel@#$"},
+			wantErr: true,
+		},
+		{
+			name:    "name starting with hyphen",
+			req:     CreateChannelReq{Name: "-invalid"},
+			wantErr: true,
+		},
+		{
+			name:    "name with spaces",
+			req:     CreateChannelReq{Name: "has space"},
+			wantErr: true,
+		},
+		{
+			name:    "valid name with hyphens and underscores",
+			req:     CreateChannelReq{Name: "my-channel_2"},
+			wantErr: false,
 		},
 	}
 
@@ -439,5 +460,103 @@ func TestServiceChannelToDTONilMembers(t *testing.T) {
 	}
 	if len(dto.Members) != 0 {
 		t.Errorf("got %d members, want 0", len(dto.Members))
+	}
+}
+
+func TestIsValidChannelName(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{"simple", "general", true},
+		{"with hyphens", "my-channel", true},
+		{"with underscores", "my_channel", true},
+		{"with digits", "channel123", true},
+		{"starts with digit", "1channel", true},
+		{"uppercase", "Engineering", true},
+		{"mixed", "Dev-Team_01", true},
+		{"empty", "", false},
+		{"starts with hyphen", "-invalid", false},
+		{"starts with underscore", "_invalid", false},
+		{"special chars", "test/channel@#$", false},
+		{"spaces", "has space", false},
+		{"dots", "has.dot", false},
+		{"slash", "a/b", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsValidChannelName(tt.input)
+			if got != tt.want {
+				t.Errorf("IsValidChannelName(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestServiceCreateDuplicateReturnsErrChannelExists(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	_, err := svc.Create(ctx, CreateChannelReq{Name: "all"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = svc.Create(ctx, CreateChannelReq{Name: "all"})
+	if err == nil {
+		t.Fatal("expected error for duplicate channel name")
+	}
+	if !errors.Is(err, ErrChannelExists) {
+		t.Errorf("expected ErrChannelExists, got: %v", err)
+	}
+}
+
+func TestServiceSendEmptyContent(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	_, err := svc.Create(ctx, CreateChannelReq{Name: "eng"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Empty content should fail
+	_, err = svc.Send(ctx, "eng", "agent-1", "")
+	if err == nil {
+		t.Error("expected error for empty content")
+	}
+
+	// Whitespace-only content should fail
+	_, err = svc.Send(ctx, "eng", "agent-1", "   ")
+	if err == nil {
+		t.Error("expected error for whitespace-only content")
+	}
+}
+
+func TestServiceSendEmptySenderDefaultsToAnonymous(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	_, err := svc.Create(ctx, CreateChannelReq{Name: "eng"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dto, err := svc.Send(ctx, "eng", "", "hello")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if dto.Sender != "anonymous" {
+		t.Errorf("got sender %q, want %q", dto.Sender, "anonymous")
+	}
+
+	// Whitespace-only sender should also default
+	dto, err = svc.Send(ctx, "eng", "  ", "hello again")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if dto.Sender != "anonymous" {
+		t.Errorf("got sender %q, want %q", dto.Sender, "anonymous")
 	}
 }

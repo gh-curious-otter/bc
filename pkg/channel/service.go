@@ -2,9 +2,27 @@ package channel
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 )
+
+// channelNameRegex matches valid channel names: alphanumeric, hyphens, underscores,
+// must start with an alphanumeric character.
+var channelNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
+
+// ErrChannelExists is returned when attempting to create a channel that already exists.
+var ErrChannelExists = errors.New("channel already exists")
+
+// ErrInvalidChannelName is returned when a channel name contains invalid characters.
+var ErrInvalidChannelName = errors.New("invalid channel name: must start with alphanumeric and contain only alphanumeric, hyphens, or underscores")
+
+// IsValidChannelName validates that a channel name contains only allowed characters.
+func IsValidChannelName(name string) bool {
+	return channelNameRegex.MatchString(name)
+}
 
 // ChannelDTO is the API representation of a channel.
 type ChannelDTO struct {
@@ -82,6 +100,15 @@ func (s *ChannelService) List(_ context.Context) ([]ChannelDTO, error) {
 func (s *ChannelService) Create(_ context.Context, req CreateChannelReq) (*ChannelDTO, error) {
 	if req.Name == "" {
 		return nil, fmt.Errorf("channel name is required")
+	}
+
+	if !IsValidChannelName(req.Name) {
+		return nil, ErrInvalidChannelName
+	}
+
+	// Check for duplicate channel name
+	if _, exists := s.store.Get(req.Name); exists {
+		return nil, fmt.Errorf("%w: %q", ErrChannelExists, req.Name)
 	}
 
 	ch, err := s.store.Create(req.Name)
@@ -162,6 +189,13 @@ func (s *ChannelService) RemoveMember(_ context.Context, ch, agentID string) err
 
 // Send adds a message to a channel and returns the message DTO.
 func (s *ChannelService) Send(_ context.Context, ch, sender, content string) (*MessageDTO, error) {
+	if strings.TrimSpace(content) == "" {
+		return nil, fmt.Errorf("message content is required")
+	}
+	if strings.TrimSpace(sender) == "" {
+		sender = "anonymous"
+	}
+
 	if err := s.store.AddHistory(ch, sender, content); err != nil {
 		return nil, fmt.Errorf("send message: %w", err)
 	}
