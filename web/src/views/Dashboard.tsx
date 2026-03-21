@@ -4,6 +4,8 @@ import { api } from '../api/client';
 import type { Agent, CostSummary, Channel } from '../api/client';
 import { usePolling } from '../hooks/usePolling';
 import { StatusBadge } from '../components/StatusBadge';
+import { LoadingSkeleton } from '../components/LoadingSkeleton';
+import { EmptyState } from '../components/EmptyState';
 
 interface DashData {
   agents: Agent[];
@@ -31,13 +33,42 @@ export function Dashboard() {
     return { agents: agentsRes, channels: channelsRes, costs };
   }, []);
 
-  const { data, loading, error } = usePolling(fetcher, 5000);
+  const { data, loading, error, refresh, timedOut } = usePolling(fetcher, 5000);
 
   if (loading && !data) {
-    return <div className="p-6 text-bc-muted">Loading dashboard...</div>;
+    return (
+      <div className="p-6 space-y-6">
+        <div className="h-6 w-32 animate-pulse rounded bg-bc-border/50" />
+        <LoadingSkeleton variant="cards" rows={4} />
+        <LoadingSkeleton variant="table" rows={3} />
+      </div>
+    );
+  }
+  if (timedOut && !data) {
+    return (
+      <div className="p-6">
+        <EmptyState
+          icon="!"
+          title="Dashboard took too long to load"
+          description="The server may be unavailable. Check your connection and try again."
+          actionLabel="Retry"
+          onAction={refresh}
+        />
+      </div>
+    );
   }
   if (error && !data) {
-    return <div className="p-6 text-bc-error">Error: {error}</div>;
+    return (
+      <div className="p-6">
+        <EmptyState
+          icon="!"
+          title="Failed to load dashboard"
+          description={error}
+          actionLabel="Retry"
+          onAction={refresh}
+        />
+      </div>
+    );
   }
   if (!data) return null;
 
@@ -60,7 +91,11 @@ export function Dashboard() {
           <Link to="/agents" className="text-xs text-bc-accent hover:underline">View all</Link>
         </div>
         {data.agents.length === 0 ? (
-          <p className="text-sm text-bc-muted">No agents yet.</p>
+          <EmptyState
+            icon=">"
+            title="No agents running"
+            description="Create your first agent with 'bc agent create <name> --role <role>' to get started."
+          />
         ) : (
           <div className="rounded border border-bc-border overflow-hidden">
             <table className="w-full text-sm">

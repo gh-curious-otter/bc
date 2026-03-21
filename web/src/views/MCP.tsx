@@ -3,16 +3,46 @@ import { api } from '../api/client';
 import type { MCPServer } from '../api/client';
 import { usePolling } from '../hooks/usePolling';
 import { Table } from '../components/Table';
+import { LoadingSkeleton } from '../components/LoadingSkeleton';
+import { EmptyState } from '../components/EmptyState';
 
 export function MCP() {
   const fetcher = useCallback(() => api.listMCP(), []);
-  const { data: servers, loading, error } = usePolling(fetcher, 30000);
+  const { data: servers, loading, error, refresh, timedOut } = usePolling(fetcher, 30000);
 
   if (loading && !servers) {
-    return <div className="p-6 text-bc-muted">Loading MCP servers...</div>;
+    return (
+      <div className="p-6 space-y-4">
+        <div className="h-6 w-32 animate-pulse rounded bg-bc-border/50" />
+        <LoadingSkeleton variant="table" rows={3} />
+      </div>
+    );
+  }
+  if (timedOut && !servers) {
+    return (
+      <div className="p-6">
+        <EmptyState
+          icon="!"
+          title="MCP servers took too long to load"
+          description="The server may be unavailable. Check your connection and try again."
+          actionLabel="Retry"
+          onAction={refresh}
+        />
+      </div>
+    );
   }
   if (error && !servers) {
-    return <div className="p-6 text-bc-error">Error: {error}</div>;
+    return (
+      <div className="p-6">
+        <EmptyState
+          icon="!"
+          title="Failed to load MCP servers"
+          description={error}
+          actionLabel="Retry"
+          onAction={refresh}
+        />
+      </div>
+    );
   }
 
   const columns = [
@@ -24,7 +54,7 @@ export function MCP() {
     },
     {
       key: 'endpoint', label: 'Endpoint', render: (s: MCPServer) => (
-        <code className="text-xs text-bc-muted">{s.url || s.command || '—'}</code>
+        <code className="text-xs text-bc-muted">{s.url || s.command || '\u2014'}</code>
       ),
     },
     {
@@ -48,7 +78,9 @@ export function MCP() {
           columns={columns}
           data={servers ?? []}
           keyFn={(s) => s.name}
-          emptyMessage="No MCP servers configured. Use 'bc mcp add' to add one."
+          emptyMessage="No MCP servers configured"
+          emptyIcon="~"
+          emptyDescription="Use 'bc mcp add <name>' to connect an MCP server."
         />
       </div>
     </div>

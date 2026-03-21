@@ -22,6 +22,7 @@ describe('usePolling', () => {
     expect(result.current.data).toEqual(['a', 'b']);
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeNull();
+    expect(result.current.timedOut).toBe(false);
   });
 
   it('sets error on fetch failure', async () => {
@@ -70,5 +71,38 @@ describe('usePolling', () => {
     });
 
     expect(fetcher.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('sets timedOut after 10 seconds without data', async () => {
+    const fetcher = vi.fn().mockImplementation(() => new Promise(() => {})); // never resolves
+    const { result } = renderHook(() => usePolling(fetcher, 5000));
+
+    expect(result.current.timedOut).toBe(false);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+
+    expect(result.current.timedOut).toBe(true);
+  });
+
+  it('clears timedOut when data arrives', async () => {
+    let resolve: (v: string) => void;
+    const fetcher = vi.fn().mockImplementation(() => new Promise<string>((r) => { resolve = r; }));
+    const { result } = renderHook(() => usePolling(fetcher, 5000));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+
+    expect(result.current.timedOut).toBe(true);
+
+    await act(async () => {
+      resolve!('data');
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(result.current.timedOut).toBe(false);
+    expect(result.current.data).toBe('data');
   });
 });

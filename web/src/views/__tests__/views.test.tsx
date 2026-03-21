@@ -33,29 +33,47 @@ beforeEach(() => {
   fetchMock.mockReset();
 });
 
+function expectSkeletonLoading(container: HTMLElement) {
+  const pulseElements = container.querySelectorAll('.animate-pulse');
+  expect(pulseElements.length).toBeGreaterThan(0);
+}
+
 describe('Dashboard', () => {
-  it('renders loading then data', async () => {
+  it('renders skeleton loading then data', async () => {
     fetchMock.mockImplementation((url: string) => {
       if (url.includes('/agents')) return jsonResponse([]);
       if (url.includes('/channels')) return jsonResponse([]);
       if (url.includes('/costs')) return jsonResponse({ input_tokens: 0, output_tokens: 0, total_tokens: 100, total_cost_usd: 1.5, record_count: 2 });
       return jsonResponse({});
     });
-    wrap(<Dashboard />);
-    expect(screen.getByText('Loading dashboard...')).toBeInTheDocument();
+    const { container } = wrap(<Dashboard />);
+    expectSkeletonLoading(container);
     await waitFor(() => {
       expect(screen.getByText('Dashboard')).toBeInTheDocument();
+    });
+  });
+
+  it('renders empty state for no agents', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes('/agents')) return jsonResponse([]);
+      if (url.includes('/channels')) return jsonResponse([]);
+      if (url.includes('/costs')) return jsonResponse({ input_tokens: 0, output_tokens: 0, total_tokens: 0, total_cost_usd: 0, record_count: 0 });
+      return jsonResponse({});
+    });
+    wrap(<Dashboard />);
+    await waitFor(() => {
+      expect(screen.getByText('No agents running')).toBeInTheDocument();
     });
   });
 });
 
 describe('Agents', () => {
-  it('renders loading then agent list', async () => {
+  it('renders skeleton loading then agent list', async () => {
     fetchMock.mockReturnValue(jsonResponse([
       { name: 'bot-1', role: 'engineer', tool: 'claude', state: 'running', cost_usd: 0.01, started_at: '' },
     ]));
-    wrap(<Agents />);
-    expect(screen.getByText('Loading agents...')).toBeInTheDocument();
+    const { container } = wrap(<Agents />);
+    expectSkeletonLoading(container);
     await waitFor(() => {
       expect(screen.getByText('bot-1')).toBeInTheDocument();
     });
@@ -63,12 +81,12 @@ describe('Agents', () => {
 });
 
 describe('Channels', () => {
-  it('renders loading then channel list', async () => {
+  it('renders skeleton loading then channel list', async () => {
     fetchMock.mockReturnValue(jsonResponse([
       { name: 'general', description: '', members: [], member_count: 3 },
     ]));
-    wrap(<Channels />);
-    expect(screen.getByText('Loading channels...')).toBeInTheDocument();
+    const { container } = wrap(<Channels />);
+    expectSkeletonLoading(container);
     await waitFor(() => {
       expect(screen.getByText('#general')).toBeInTheDocument();
     });
@@ -76,14 +94,14 @@ describe('Channels', () => {
 });
 
 describe('Costs', () => {
-  it('renders loading then cost data', async () => {
+  it('renders skeleton loading then cost data', async () => {
     fetchMock.mockImplementation((url: string) => {
       if (url.includes('/costs/agents')) return jsonResponse([]);
       if (url.includes('/costs')) return jsonResponse({ input_tokens: 0, output_tokens: 0, total_tokens: 0, total_cost_usd: 0, record_count: 0 });
       return jsonResponse({});
     });
-    wrap(<Costs />);
-    expect(screen.getByText('Loading costs...')).toBeInTheDocument();
+    const { container } = wrap(<Costs />);
+    expectSkeletonLoading(container);
     await waitFor(() => {
       expect(screen.getByText('Costs')).toBeInTheDocument();
     });
@@ -91,12 +109,12 @@ describe('Costs', () => {
 });
 
 describe('Roles', () => {
-  it('renders loading then role cards', async () => {
+  it('renders skeleton loading then role cards', async () => {
     fetchMock.mockReturnValue(jsonResponse({
       eng: { Name: 'engineer', Prompt: '', MCPServers: [], Secrets: [], Plugins: [], PromptCreate: '', PromptStart: '', PromptStop: '', PromptDelete: '', Commands: {}, Skills: {}, Agents: {}, Rules: {}, Settings: {}, Review: '' },
     }));
-    wrap(<Roles />);
-    expect(screen.getByText('Loading roles...')).toBeInTheDocument();
+    const { container } = wrap(<Roles />);
+    expectSkeletonLoading(container);
     await waitFor(() => {
       expect(screen.getByText('engineer')).toBeInTheDocument();
     });
@@ -104,12 +122,12 @@ describe('Roles', () => {
 });
 
 describe('Tools', () => {
-  it('renders loading then tool table', async () => {
+  it('renders skeleton loading then tool table', async () => {
     fetchMock.mockReturnValue(jsonResponse([
       { name: 'my-tool', command: '/usr/bin/tool', install_cmd: '', builtin: true, enabled: true },
     ]));
-    wrap(<Tools />);
-    expect(screen.getByText('Loading tools...')).toBeInTheDocument();
+    const { container } = wrap(<Tools />);
+    expectSkeletonLoading(container);
     await waitFor(() => {
       expect(screen.getByText('my-tool')).toBeInTheDocument();
     });
@@ -117,12 +135,12 @@ describe('Tools', () => {
 });
 
 describe('MCP', () => {
-  it('renders loading then server list', async () => {
+  it('renders skeleton loading then server list', async () => {
     fetchMock.mockReturnValue(jsonResponse([
       { name: 'test-server', transport: 'stdio', command: 'node', url: '', enabled: true },
     ]));
-    wrap(<MCP />);
-    expect(screen.getByText('Loading MCP servers...')).toBeInTheDocument();
+    const { container } = wrap(<MCP />);
+    expectSkeletonLoading(container);
     await waitFor(() => {
       expect(screen.getByText('test-server')).toBeInTheDocument();
     });
@@ -130,25 +148,33 @@ describe('MCP', () => {
 });
 
 describe('Logs', () => {
-  it('renders loading then event log', async () => {
+  it('renders skeleton loading then event log', async () => {
     fetchMock.mockReturnValue(jsonResponse([
       { id: 1, type: 'agent.start', agent: 'bot', message: 'started', created_at: '2025-01-01T00:00:00Z' },
     ]));
-    wrap(<Logs />);
-    expect(screen.getByText('Loading logs...')).toBeInTheDocument();
+    const { container } = wrap(<Logs />);
+    expectSkeletonLoading(container);
     await waitFor(() => {
       expect(screen.getByText('Event Log')).toBeInTheDocument();
+    });
+  });
+
+  it('renders empty state when no logs', async () => {
+    fetchMock.mockReturnValue(jsonResponse([]));
+    wrap(<Logs />);
+    await waitFor(() => {
+      expect(screen.getByText('No events recorded yet')).toBeInTheDocument();
     });
   });
 });
 
 describe('Doctor', () => {
-  it('renders loading then report', async () => {
+  it('renders skeleton loading then report', async () => {
     fetchMock.mockReturnValue(jsonResponse({
       Categories: [{ Name: 'System', Items: [{ Name: 'go', Message: 'installed', Fix: '', Severity: 0 }] }],
     }));
-    wrap(<Doctor />);
-    expect(screen.getByText('Running diagnostics...')).toBeInTheDocument();
+    const { container } = wrap(<Doctor />);
+    expectSkeletonLoading(container);
     await waitFor(() => {
       expect(screen.getByText('Doctor')).toBeInTheDocument();
     });
@@ -156,12 +182,12 @@ describe('Doctor', () => {
 });
 
 describe('Cron', () => {
-  it('renders loading then cron table', async () => {
+  it('renders skeleton loading then cron table', async () => {
     fetchMock.mockReturnValue(jsonResponse([
       { name: 'nightly', schedule: '0 0 * * *', agent_name: 'bot', prompt: '', command: '', enabled: true, run_count: 5, last_run: null, next_run: null, created_at: '' },
     ]));
-    wrap(<Cron />);
-    expect(screen.getByText('Loading cron jobs...')).toBeInTheDocument();
+    const { container } = wrap(<Cron />);
+    expectSkeletonLoading(container);
     await waitFor(() => {
       expect(screen.getByText('nightly')).toBeInTheDocument();
     });
@@ -169,12 +195,12 @@ describe('Cron', () => {
 });
 
 describe('Secrets', () => {
-  it('renders loading then secrets table', async () => {
+  it('renders skeleton loading then secrets table', async () => {
     fetchMock.mockReturnValue(jsonResponse([
       { name: 'API_KEY', description: 'key', backend: 'env', created_at: '2025-01-01' },
     ]));
-    wrap(<Secrets />);
-    expect(screen.getByText('Loading secrets...')).toBeInTheDocument();
+    const { container } = wrap(<Secrets />);
+    expectSkeletonLoading(container);
     await waitFor(() => {
       expect(screen.getByText('API_KEY')).toBeInTheDocument();
     });
@@ -182,10 +208,10 @@ describe('Secrets', () => {
 });
 
 describe('Workspace', () => {
-  it('renders loading then workspace status', async () => {
+  it('renders skeleton loading then workspace status', async () => {
     fetchMock.mockReturnValue(jsonResponse({ root_dir: '/home/project', version: '2' }));
-    wrap(<Workspace />);
-    expect(screen.getByText('Loading workspace...')).toBeInTheDocument();
+    const { container } = wrap(<Workspace />);
+    expectSkeletonLoading(container);
     await waitFor(() => {
       expect(screen.getByText('Workspace')).toBeInTheDocument();
     });
