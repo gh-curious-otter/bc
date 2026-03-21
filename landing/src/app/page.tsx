@@ -1,10 +1,9 @@
-"use client";
-
 import Link from "next/link";
 import { Nav } from "./_components/Nav";
 import { BcHomeDemo } from "./_components/BcHomeDemo";
 import { Footer } from "./_components/Footer";
 import { AnimatedBackground } from "./_components/AnimatedBackground";
+import { HeroSection } from "./_components/HeroSection";
 import {
   TerminalWindow,
   CommandOutput,
@@ -16,32 +15,13 @@ import {
   RevealSection,
 } from "./_components/TerminalComponents";
 import { ToolMarquee } from "./_components/ToolLogos";
-import { motion } from "framer-motion";
 import {
-  ArrowRight,
-  Terminal,
   CheckCircle2,
   XCircle,
-  Layers,
-  Monitor,
 } from "lucide-react";
+import { ArrowRight, Terminal } from "lucide-react";
 
-/* ── Animation helpers ── */
-const fadeUp = {
-  hidden: { opacity: 0, y: 30 },
-  visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: { delay: i * 0.1, duration: 0.6, ease: "easeOut" as const },
-  }),
-};
-
-const stagger = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.08 } },
-};
-
-/* ═══════════════════════════════════════════════════════════════════ */
+/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */
 
 export default function Home() {
   return (
@@ -54,124 +34,23 @@ export default function Home() {
       <div className="relative z-[2]">
       <Nav />
 
-      {/* ═══════════════════ HERO ═══════════════════ */}
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 pb-0 pt-8 lg:pt-20">
-        <motion.section
-          initial="hidden"
-          animate="visible"
-          variants={stagger}
-          className="grid items-center gap-8 lg:grid-cols-[1.1fr_1fr] lg:gap-16"
-        >
-          <div className="flex flex-col items-start">
-            <motion.div
-              variants={fadeUp}
-              custom={0}
-              className="mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-accent/10 px-4 py-1.5 font-mono text-xs text-muted-foreground backdrop-blur-sm"
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-              CLI-first · Agent-agnostic · Private beta
-            </motion.div>
+      {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 HERO \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
+      <HeroSection />
 
-            <motion.h1
-              variants={fadeUp}
-              custom={1}
-              className="text-balance text-[2.25rem] font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-7xl"
-            >
-              Multi-agent
-              <br />
-              orchestration
-              <br />
-              <span className="text-muted-foreground/40">from your terminal.</span>
-            </motion.h1>
-
-            <motion.p
-              variants={fadeUp}
-              custom={2}
-              className="mt-4 max-w-[520px] text-base leading-relaxed text-muted-foreground sm:text-lg"
-            >
-              Coordinate teams of AI coding agents from your terminal — with
-              isolated git worktrees, structured channels, persistent memory,
-              and cost controls.
-            </motion.p>
-
-            <motion.div variants={fadeUp} custom={3} className="mt-6 flex flex-wrap items-center gap-3">
-              <Link
-                href="/waitlist"
-                className="group inline-flex h-10 sm:h-11 items-center gap-2 rounded-lg bg-primary px-6 sm:px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-xl hover:shadow-primary/20 active:scale-[0.97]"
-                aria-label="Join the bc waitlist"
-              >
-                Request Early Access
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-              </Link>
-              <Link
-                href="/docs"
-                className="inline-flex h-10 sm:h-11 items-center gap-2 rounded-lg border border-border px-6 sm:px-8 text-sm font-medium transition-colors hover:bg-accent/20 active:scale-[0.97]"
-                aria-label="Read the bc documentation"
-              >
-                <Terminal className="h-4 w-4" aria-hidden="true" />
-                View Docs
-              </Link>
-            </motion.div>
-
-            <motion.div
-              variants={fadeUp}
-              custom={4}
-              className="mt-8 flex flex-wrap items-center gap-6 font-mono text-xs text-muted-foreground"
-            >
-              <span className="flex items-center gap-1.5">
-                <CheckCircle2 className="h-3.5 w-3.5 text-success" aria-hidden="true" />
-                Open source
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Layers className="h-3.5 w-3.5" aria-hidden="true" />
-                8 AI tools supported
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Monitor className="h-3.5 w-3.5" aria-hidden="true" />
-                Web UI dashboard
-              </span>
-            </motion.div>
-          </div>
-
-          {/* Hero terminal — shows `bc up` booting agents */}
-          <motion.div variants={fadeUp} custom={2} className="relative">
-            <div className="absolute -inset-8 rounded-3xl bg-gradient-to-tr from-primary/5 via-transparent to-secondary/10 blur-3xl hero-glow" />
-            <div className="relative">
-              <TerminalWindow title="bc up" ariaLabel="Terminal running bc up command, starting 5 AI coding agents in parallel">
-                <CommandOutput
-                  command="bc up"
-                  lines={[
-                    { text: "Starting 5 agents...", color: "text-terminal-muted" },
-                    { text: "" },
-                    { text: "  ✓ pm-01       product-manager   working   \"Planning sprint\"", color: "text-terminal-success" },
-                    { text: "  ✓ mgr-01      manager           working   \"Reviewing PRs\"", color: "text-terminal-success" },
-                    { text: "  ✓ eng-01      engineer          working   \"Building auth\"", color: "text-terminal-success" },
-                    { text: "  ✓ eng-02      engineer          working   \"Fixing bugs\"", color: "text-terminal-success" },
-                    { text: "  ✓ eng-03      engineer          working   \"Writing tests\"", color: "text-terminal-success" },
-                    { text: "" },
-                    { text: "All agents active. Dashboard: bc home", color: "text-terminal-muted" },
-                  ]}
-                />
-              </TerminalWindow>
-            </div>
-          </motion.div>
-        </motion.section>
-      </div>
-
-      {/* ═══════════════════ COMPATIBLE AI TOOLS ═══════════════════ */}
+      {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 COMPATIBLE AI TOOLS \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
       <div className="mt-8 sm:mt-12 lg:mt-16 mx-auto max-w-6xl px-4 sm:px-6">
         <ToolMarquee />
       </div>
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        {/* ═══════════════════ PROBLEM → SOLUTION ═══════════════════ */}
+        {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 PROBLEM \u2192 SOLUTION \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
         <RevealSection className="py-16 sm:py-24 lg:py-32" id="problem">
           <div className="mb-16">
             <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
               The problem
             </span>
             <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-5xl">
-              AI agents are powerful alone —
+              AI agents are powerful alone &mdash;
               <br />
               <span className="text-muted-foreground/50">but chaotic when they work together.</span>
             </h2>
@@ -192,7 +71,7 @@ export default function Home() {
                   "Without budget controls, you discover surprise cost overruns at the end of the month",
                 ].map((t) => (
                   <li key={t} className="flex gap-3 text-muted-foreground">
-                    <span className="text-destructive/60 shrink-0">✕</span>
+                    <span className="text-destructive/60 shrink-0">\u2715</span>
                     {t}
                   </li>
                 ))}
@@ -213,7 +92,7 @@ export default function Home() {
                   "Per-agent token tracking with budgets and automatic hard stops protect your spending",
                 ].map((t) => (
                   <li key={t} className="flex gap-3 text-muted-foreground">
-                    <span className="text-success/60 shrink-0">✓</span>
+                    <span className="text-success/60 shrink-0">\u2713</span>
                     {t}
                   </li>
                 ))}
@@ -222,7 +101,7 @@ export default function Home() {
           </div>
         </RevealSection>
 
-        {/* ═══════════════════ HOW IT WORKS ═══════════════════ */}
+        {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 HOW IT WORKS \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
         <RevealSection className="py-16 sm:py-24 lg:py-32" id="how-it-works">
           <div className="mb-16 text-center">
             <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
@@ -255,9 +134,9 @@ export default function Home() {
                 desc: "Spawns agents in isolated git worktrees. Each gets a role, memory context, and channel access.",
                 lines: [
                   { text: "Starting orchestration engine...", color: "text-terminal-muted" },
-                  { text: "✓ pm-01      product-manager  working", color: "text-terminal-success" },
-                  { text: "✓ mgr-01     manager          working", color: "text-terminal-success" },
-                  { text: "✓ eng-01     engineer         working", color: "text-terminal-success" },
+                  { text: "\u2713 pm-01      product-manager  working", color: "text-terminal-success" },
+                  { text: "\u2713 mgr-01     manager          working", color: "text-terminal-success" },
+                  { text: "\u2713 eng-01     engineer         working", color: "text-terminal-success" },
                   { text: "3 agents active.", color: "text-terminal-muted" },
                 ],
               },
@@ -265,7 +144,7 @@ export default function Home() {
                 step: "03",
                 cmd: "bc home",
                 title: "Monitor everything",
-                desc: "Real-time Web UI dashboard: agents, channels, costs, memory, cron jobs — all in your browser.",
+                desc: "Real-time Web UI dashboard: agents, channels, costs, memory, cron jobs \u2014 all in your browser.",
                 lines: [
                   { text: "Opening dashboard at localhost:9374...", color: "text-terminal-muted" },
                   { text: "WebSocket connected.", color: "text-terminal-muted" },
@@ -287,7 +166,7 @@ export default function Home() {
           </div>
         </RevealSection>
 
-        {/* ═══════════════════ FEATURE: ORCHESTRATION ═══════════════════ */}
+        {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 FEATURE: ORCHESTRATION \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
         <RevealSection className="py-16 sm:py-24 lg:py-32" id="orchestration">
           <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-20">
             <div>
@@ -342,7 +221,7 @@ export default function Home() {
           </div>
         </RevealSection>
 
-        {/* ═══════════════════ FEATURE: CHANNELS ═══════════════════ */}
+        {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 FEATURE: CHANNELS \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
         <RevealSection className="py-16 sm:py-24 lg:py-32" id="channels">
           <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-20">
             <div className="order-2 lg:order-1">
@@ -352,9 +231,9 @@ export default function Home() {
                   members={3}
                   messages={[
                     { time: "10:15", agent: "eng-01", role: "engineer", message: "PR #42 ready for review @mgr-01" },
-                    { time: "10:16", agent: "mgr-01", role: "manager", message: "Looking at it now 👀" },
-                    { time: "10:18", agent: "mgr-01", role: "manager", message: "LGTM, approved ✓" },
-                    { time: "10:19", agent: "eng-01", role: "engineer", message: "Merged to main 🚀" },
+                    { time: "10:16", agent: "mgr-01", role: "manager", message: "Looking at it now \ud83d\udc40" },
+                    { time: "10:18", agent: "mgr-01", role: "manager", message: "LGTM, approved \u2713" },
+                    { time: "10:19", agent: "eng-01", role: "engineer", message: "Merged to main \ud83d\ude80" },
                     { time: "10:22", agent: "eng-02", role: "engineer", message: "Starting on the auth module" },
                   ]}
                 />
@@ -381,7 +260,7 @@ export default function Home() {
           </div>
         </RevealSection>
 
-        {/* ═══════════════════ FEATURE: WORKTREES ═══════════════════ */}
+        {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 FEATURE: WORKTREES \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
         <RevealSection className="py-16 sm:py-24 lg:py-32" id="worktrees">
           <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-20">
             <div>
@@ -399,34 +278,34 @@ export default function Home() {
             </div>
             <TerminalWindow title="git worktrees" ariaLabel="Git branch diagram showing three agents working on isolated worktree branches merged cleanly to main">
               <div className="space-y-1 text-[13px]">
-                <div className="text-terminal-muted mb-3">main ────────────────────────────────&gt;</div>
+                <div className="text-terminal-muted mb-3">main \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500&gt;</div>
                 <div className="flex items-center gap-2">
                   <span className="text-terminal-comment">{"     \\                    /"}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-terminal-command">{"      eng-01/auth ───────"}</span>
-                  <span className="text-terminal-success text-[11px]">(merged clean ✓)</span>
+                  <span className="text-terminal-command">{"      eng-01/auth \u2500\u2500\u2500\u2500\u2500\u2500\u2500"}</span>
+                  <span className="text-terminal-success text-[11px]">(merged clean \u2713)</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-terminal-comment">{"     \\                  /"}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-terminal-prompt">{"      eng-02/api ──────"}</span>
-                  <span className="text-terminal-success text-[11px]">(merged clean ✓)</span>
+                  <span className="text-terminal-prompt">{"      eng-02/api \u2500\u2500\u2500\u2500\u2500\u2500"}</span>
+                  <span className="text-terminal-success text-[11px]">(merged clean \u2713)</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-terminal-comment">{"     \\                /"}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-terminal-prompt">{"      eng-03/ui ─────"}</span>
-                  <span className="text-terminal-success text-[11px]">(merged clean ✓)</span>
+                  <span className="text-terminal-prompt">{"      eng-03/ui \u2500\u2500\u2500\u2500\u2500"}</span>
+                  <span className="text-terminal-success text-[11px]">(merged clean \u2713)</span>
                 </div>
               </div>
             </TerminalWindow>
           </div>
         </RevealSection>
 
-        {/* ═══════════════════ FEATURE: COSTS ═══════════════════ */}
+        {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 FEATURE: COSTS \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
         <RevealSection className="py-16 sm:py-24 lg:py-32" id="costs">
           <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-20">
             <div className="order-2 lg:order-1">
@@ -462,7 +341,7 @@ export default function Home() {
           </div>
         </RevealSection>
 
-        {/* ═══════════════════ FEATURE: MEMORY ═══════════════════ */}
+        {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 FEATURE: MEMORY \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
         <RevealSection className="py-16 sm:py-24 lg:py-32" id="memory">
           <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-20">
             <div>
@@ -486,9 +365,9 @@ export default function Home() {
                     Learnings (permanent)
                   </div>
                   <ul className="space-y-1.5 text-[12px] text-terminal-muted">
-                    <li className="flex gap-2"><span className="text-terminal-success shrink-0">•</span> Always run tests before submitting PR</li>
-                    <li className="flex gap-2"><span className="text-terminal-success shrink-0">•</span> Use --preview flag for destructive operations</li>
-                    <li className="flex gap-2"><span className="text-terminal-success shrink-0">•</span> The auth module requires the JWT_SECRET env var</li>
+                    <li className="flex gap-2"><span className="text-terminal-success shrink-0">\u2022</span> Always run tests before submitting PR</li>
+                    <li className="flex gap-2"><span className="text-terminal-success shrink-0">\u2022</span> Use --preview flag for destructive operations</li>
+                    <li className="flex gap-2"><span className="text-terminal-success shrink-0">\u2022</span> The auth module requires the JWT_SECRET env var</li>
                   </ul>
                 </div>
                 <div>
@@ -498,15 +377,15 @@ export default function Home() {
                   <div className="space-y-2 text-[12px]">
                     <div className="text-terminal-muted">
                       <span className="text-terminal-comment">[Mar 15 14:30]</span>{" "}
-                      <span className="text-terminal-success">✓</span> Fixed auth token refresh — added retry with backoff
+                      <span className="text-terminal-success">\u2713</span> Fixed auth token refresh \u2014 added retry with backoff
                     </div>
                     <div className="text-terminal-muted">
                       <span className="text-terminal-comment">[Mar 15 12:15]</span>{" "}
-                      <span className="text-terminal-error">✗</span> Build failed — missing env var, added to .env.example
+                      <span className="text-terminal-error">\u2717</span> Build failed \u2014 missing env var, added to .env.example
                     </div>
                     <div className="text-terminal-muted">
                       <span className="text-terminal-comment">[Mar 14 16:45]</span>{" "}
-                      <span className="text-terminal-success">✓</span> Refactored user service — reduced API calls by 40%
+                      <span className="text-terminal-success">\u2713</span> Refactored user service \u2014 reduced API calls by 40%
                     </div>
                   </div>
                 </div>
@@ -515,16 +394,16 @@ export default function Home() {
           </div>
         </RevealSection>
 
-        {/* ═══════════════════ FEATURE: CRON ═══════════════════ */}
+        {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 FEATURE: CRON \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
         <RevealSection className="py-16 sm:py-24 lg:py-32" id="cron">
           <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-20">
             <div className="order-2 lg:order-1">
               <TerminalWindow title="bc cron list" ariaLabel="Scheduled tasks table showing cron-powered test, deploy, and reporting jobs">
                 <CronTable
                   jobs={[
-                    { name: "test-suite", schedule: "*/30 * * * *", nextRun: "in 14 min", lastRun: "12:00 ✓", status: "enabled" },
-                    { name: "deploy-staging", schedule: "0 */2 * * *", nextRun: "in 1h 22m", lastRun: "10:00 ✓", status: "enabled" },
-                    { name: "cost-report", schedule: "0 9 * * *", nextRun: "tomorrow", lastRun: "today 9am ✓", status: "enabled" },
+                    { name: "test-suite", schedule: "*/30 * * * *", nextRun: "in 14 min", lastRun: "12:00 \u2713", status: "enabled" },
+                    { name: "deploy-staging", schedule: "0 */2 * * *", nextRun: "in 1h 22m", lastRun: "10:00 \u2713", status: "enabled" },
+                    { name: "cost-report", schedule: "0 9 * * *", nextRun: "tomorrow", lastRun: "today 9am \u2713", status: "enabled" },
                   ]}
                 />
               </TerminalWindow>
@@ -550,7 +429,7 @@ export default function Home() {
           </div>
         </RevealSection>
 
-        {/* ═══════════════════ INTERACTIVE DEMO ═══════════════════ */}
+        {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 INTERACTIVE DEMO \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
         <RevealSection className="py-16 sm:py-24 lg:py-32" id="demo">
           <div className="mb-12 text-center">
             <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
@@ -568,7 +447,7 @@ export default function Home() {
           </div>
         </RevealSection>
 
-        {/* ═══════════════════ FINAL CTA ═══════════════════ */}
+        {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 FINAL CTA \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
         <RevealSection className="pb-16 sm:pb-24 lg:pb-32">
           <div className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--card-shadow)]">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(234,88,12,0.04),transparent)] dark:bg-[radial-gradient(circle_at_30%_50%,rgba(234,88,12,0.06),transparent)] pointer-events-none" />
