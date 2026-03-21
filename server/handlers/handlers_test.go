@@ -370,6 +370,54 @@ func TestGzipMiddleware(t *testing.T) {
 	assertStatus(t, resp, http.StatusOK)
 }
 
+func TestGzipMiddlewareSkipsSSE(t *testing.T) {
+	ts := buildTestServer(t)
+	defer ts.Close()
+
+	tests := []struct {
+		name   string
+		path   string
+		accept string // Accept header (empty = omit)
+		wantGz bool
+	}{
+		{"health is gzipped", "/health", "", true},
+		{"events endpoint skipped", "/api/events", "", false},
+		{"mcp sse skipped", "/mcp/sse", "", false},
+		{"agent output skipped", "/api/agents/alice/output", "", false},
+		{"accept event-stream skipped", "/health", "text/event-stream", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, ts.URL+tt.path, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("Accept-Encoding", "gzip")
+			if tt.accept != "" {
+				req.Header.Set("Accept", tt.accept)
+			}
+
+			client := &http.Client{
+				// Don't follow redirects, don't auto-decompress
+				Transport: &http.Transport{
+					DisableCompression: true,
+				},
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			gotGz := resp.Header.Get("Content-Encoding") == "gzip"
+			if gotGz != tt.wantGz {
+				t.Errorf("Content-Encoding gzip: got %v, want %v", gotGz, tt.wantGz)
+			}
+		})
+	}
+}
+
 func TestMultipleHealthCallsConsistent(t *testing.T) {
 	ts := buildTestServer(t)
 	defer ts.Close()

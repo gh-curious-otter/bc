@@ -125,15 +125,35 @@ func MaxBodySize(maxBytes int64) func(http.Handler) http.Handler {
 	}
 }
 
+// isSSERequest returns true if the request targets a Server-Sent Events or
+// other streaming endpoint that must not be buffered/compressed. Checked by
+// path (known SSE routes) and by Accept header (generic text/event-stream).
+func isSSERequest(r *http.Request) bool {
+	// Known SSE/streaming paths
+	if r.URL.Path == "/api/events" || strings.HasPrefix(r.URL.Path, "/mcp/") {
+		return true
+	}
+	// /api/agents/{name}/output is an SSE stream
+	if strings.HasPrefix(r.URL.Path, "/api/agents/") && strings.HasSuffix(r.URL.Path, "/output") {
+		return true
+	}
+	// Generic: any request explicitly asking for event-stream
+	if strings.Contains(r.Header.Get("Accept"), "text/event-stream") {
+		return true
+	}
+	return false
+}
+
 // Gzip returns a middleware that compresses responses with gzip when the
-// client sends Accept-Encoding: gzip. Skips SSE and MCP streaming endpoints.
+// client sends Accept-Encoding: gzip. Skips SSE and MCP streaming endpoints
+// because gzip buffering breaks chunked encoding required by EventSource.
 func Gzip(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if r.URL.Path == "/api/events" || strings.HasPrefix(r.URL.Path, "/mcp/") {
+		if isSSERequest(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
