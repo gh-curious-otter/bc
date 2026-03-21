@@ -32,6 +32,7 @@ func newAgentManager(ws *workspace.Workspace) *agent.Manager {
 		backend = ws.Config.Runtime.Backend
 	}
 
+	var mgr *agent.Manager
 	if backend == "docker" {
 		var wsCfg workspace.DockerRuntimeConfig
 		if ws.Config != nil {
@@ -42,10 +43,16 @@ func newAgentManager(ws *workspace.Workspace) *agent.Manager {
 		if err != nil {
 			log.Warn("Docker unavailable, falling back to tmux", "error", err)
 		} else {
-			return agent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, be, "docker")
+			mgr = agent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, be, "docker")
 		}
 	}
-	return agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	if mgr == nil {
+		mgr = agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	}
+	if ws.Config != nil {
+		mgr.ApplyWorkspaceConfig(ws.Config)
+	}
+	return mgr
 }
 
 // agentCmd is the parent command for all agent operations
