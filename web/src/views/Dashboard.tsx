@@ -1,8 +1,9 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { Agent, CostSummary, Channel } from '../api/client';
 import { usePolling } from '../hooks/usePolling';
+import { useWebSocket } from '../hooks/useWebSocket';
 import { StatusBadge } from '../components/StatusBadge';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { EmptyState } from '../components/EmptyState';
@@ -34,6 +35,19 @@ export function Dashboard() {
   }, []);
 
   const { data, loading, error, refresh, timedOut } = usePolling(fetcher, 5000);
+  const { subscribe } = useWebSocket();
+
+  // Refresh dashboard on agent or cost changes via SSE
+  useEffect(() => {
+    const unsubs = [
+      subscribe('agent.state_changed', () => void refresh()),
+      subscribe('agent.created', () => void refresh()),
+      subscribe('agent.stopped', () => void refresh()),
+      subscribe('agent.deleted', () => void refresh()),
+      subscribe('cost.updated', () => void refresh()),
+    ];
+    return () => unsubs.forEach((fn) => fn());
+  }, [subscribe, refresh]);
 
   if (loading && !data) {
     return (
