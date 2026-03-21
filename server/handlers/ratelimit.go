@@ -8,11 +8,11 @@ import (
 
 // RateLimiter implements a simple token bucket rate limiter.
 type RateLimiter struct {
+	lastTime time.Time
+	mu       sync.Mutex
 	tokens   float64
 	max      float64
 	refill   float64 // tokens per second
-	lastTime time.Time
-	mu       sync.Mutex
 }
 
 // NewRateLimiter creates a rate limiter with the given requests-per-second
@@ -57,7 +57,7 @@ func RateLimit(limiter *RateLimiter) func(http.Handler) http.Handler {
 				w.Header().Set("Content-Type", "application/json")
 				w.Header().Set("Retry-After", "1")
 				w.WriteHeader(http.StatusTooManyRequests)
-				w.Write([]byte(`{"error":"rate limit exceeded"}`)) //nolint:errcheck
+				_, _ = w.Write([]byte(`{"error":"rate limit exceeded"}`))
 				return
 			}
 			next.ServeHTTP(w, r)
