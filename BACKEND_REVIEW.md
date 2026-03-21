@@ -9,11 +9,58 @@
 
 ## Executive Summary
 
-bc is a well-structured Go CLI and daemon for AI agent orchestration, designed to run locally on a developer's machine. The codebase demonstrates strong Go conventions (proper error handling, clean package layout, 90+ test files at the pkg level with benchmarks). The project was itself partially built using its own agent system (dogfooding).
+bc is a Go CLI and daemon for AI agent orchestration, built in ~6 weeks (Feb 7 – Mar 21, 2026), largely by its own AI agents (dogfooding). The project went through two major architecture phases: v1 (CLI directly accessing SQLite/filesystem) and v2 (bcd server-first with HTTP API, web UI, MCP). The v2 pivot happened Mar 16-18 and is partially complete.
 
-The biggest **functional bugs** are in channel message delivery (#2164 — messages from web UI don't reach agents, MCP polling breaks after 100 messages) and agent lifecycle management (#2165 — create/start/stop/delete code is fragmented, delete doesn't clean up Docker containers or worktrees). The HTTP daemon lacks **request body size limits** (DoS vector), **panic recovery** (one nil deref crashes everything), and **handler-level tests** (0 files in server/handlers/). The data layer uses 5+ separate SQLite databases with duplicated connection setup.
+The biggest **functional bugs** are in channel message delivery (#2164 — messages from web UI don't reach agents, MCP polling breaks after 100 messages) and agent lifecycle management (#2165 — create/start/stop/delete code is fragmented, delete doesn't clean up Docker containers or worktrees). The HTTP daemon lacks **request body size limits**, **panic recovery**, and **handler-level tests** (0 files in server/handlers/). The data layer went through 3 migrations (JSON → state.db → bc.db) and still has 5 stores bypassing pkg/db.
 
-Since the tool is local-only, API authentication is not a current priority. The CORS `*` + localhost binding is acceptable for the intended use case.
+19 of 21 backend PRs were merged without review comments. Only #2041 (channel delivery) and #1967 (cron) received feedback. This explains why integration bugs compound.
+
+Since the tool is local-only, API authentication is not a current priority.
+
+## Development History
+
+### Timeline (from 1026 GitHub issues + 21 backend PRs)
+
+| Phase | When | Key PRs | What happened |
+|-------|------|---------|---------------|
+| v2 kickoff | Feb 7-8 | — | 170 issues filed. Beads + queue designed then deprecated within days — channels replaced both |
+| Channels + agents | Feb 8-10 | — | SQLite channel backend, agent lifecycle, memory system |
+| Channel crisis | Feb 11-13 | — | Channels completely broken — JSON/SQLite split-brain, messages stored but never delivered |
+| Ink TUI | Feb 13-18 | — | 5-phase TUI built. Channel UI rewritten 5 times. 29 separate 80x24 layout bugs |
+| Feature expansion | Feb 18-22 | — | 14 TUI views, multi-provider, cost budgets, OSS prep |
+| v0.0.1 tracker | Mar 5-6 | #1933, #1934 | 15 EPICs filed. Concurrent agent crash fix. Agent state migrated from JSON to SQLite (state.db) |
+| Agent reliability | Mar 6-9 | #1954, #1956 | Runtime abstraction solidified. 62-file cleanup PR removed 1800 lines. Agent service layer added |
+| v2 architecture | Mar 16-18 | #1953, #1974, #1988, #1991 | bcd daemon, MCP server, encrypted secrets, cron, tools, roles — all shipped in 2 days |
+| Thin client + DB | Mar 18 | #2010, #2017, #2020, #2022 | CLI migrated to HTTP client (partial — 17 files still direct). 9 DBs consolidated to bc.db |
+| Integration fixes | Mar 18-19 | #2039, #2041 | Agent store fixed to use bc.db. Channel delivery partially fixed with OnMessage callback |
+| Reviews | Mar 20-21 | — | Backend/frontend/infra reviews. 80+ issues filed. Lint cleanup (115 issues fixed) |
+
+### Database Evolution
+
+```
+agents.json ──→ state.db (#1934) ──→ bc.db (#2017, #2039)
+                                      ↑
+channels.json ──→ channels.db ────────┘ (partially — channel store still opens own connection)
+                                      ↑
+costs.db, cron.db, secrets.db, ───────┘ (consolidated in #2017, but 5 stores still bypass pkg/db)
+mcp.db, tools.db, daemons.db
+```
+
+No migration tool exists for workspaces with old separate DB files.
+
+### Architecture Evolution
+
+```
+v1 (Feb 7 – Mar 15):
+  User → CLI (Cobra) → pkg/ (direct store access) → SQLite + filesystem + tmux
+
+v2 (Mar 16 – present):
+  User → CLI (thin client) → bcd daemon (HTTP API) → stores → SQLite/Postgres
+  User → Web UI (React)   → bcd daemon (HTTP + SSE)
+  AI   → MCP (stdio/SSE)  → bcd daemon (JSON-RPC 2.0)
+```
+
+v2 migration is ~30% complete: bcd serves API, but 17 CLI files still import pkg/ directly (#2023). Postgres backend built but nothing connects to it.
 
 ## API Surface Map
 
@@ -254,6 +301,19 @@ graph TB
 3. Add pagination to all list endpoints
 4. Cap query parameters (limit, days, lines)
 
+## PR Review Patterns
+
+19 of 21 backend PRs merged without review comments. Key observations:
+
+- **Only 2 PRs received feedback:** #2041 (channel delivery — rpuneet caught silently swallowed error) and #1967 (cron — author self-fixed 4 issues including a deadlock)
+- **Large PRs merged unreviewed:** #1956 (62 files, -4261 lines), #1991 (bcd server + web UI + Docker), #2017 (25 files, DB consolidation)
+- **Regressions introduced silently:**
+  - #2017 consolidated DBs but left no migration for existing workspaces
+  - #2022 changed default port from 4880 to 9374
+  - #2010 made CLI commands dependent on bcd running (was previously standalone)
+  - #1934 introduced `state.db` name immediately replaced by `bc.db` in #2017
+- **Incomplete migrations shipped:** #2010/#2020 migrated some CLI commands to thin client but left 17 files using direct pkg/ access (#2023)
+
 ## Known Documentation Issues
 
 Several docs are stale (from the Mar 1 / Mar 18 batches):
@@ -273,27 +333,28 @@ Several docs are stale (from the Mar 1 / Mar 18 batches):
 - Add request body size limits (http.MaxBytesReader)
 - Add panic recovery middleware
 
-### Phase 2: Error Handling & Resilience (week 1)
+### Phase 2: Complete v2 Migration (week 1)
+- Finish CLI thin client migration — 17 files still use direct pkg/ (#2023)
+- Finish DB consolidation — 5 stores still bypass pkg/db (#2026)
+- Remove duplicate server package — server/ vs pkg/server/ (#2029)
+- Remove legacy JSON file storage code (#2031)
+- Add DB migration tool for existing workspaces
+
+### Phase 3: Error Handling & Resilience (week 2)
 - Add request ID middleware
 - Make health check verify downstream dependencies
 - Cap all query parameters (limit, days, lines)
 - Fix ToggleReaction atomicity
 - Replace context.TODO() with proper context propagation (#2105)
 
-### Phase 3: Performance & Query Optimization (week 2)
+### Phase 4: Performance (week 3)
 - Add pagination to all list endpoints
-- Cap unbounded queries (events Read, history limit)
 - Fix Manager lock held during slow Docker/tmux I/O (#2106)
 - Fix PipePane unbounded memory growth (#2107)
-- Consolidate SQLite databases
+- Cap unbounded queries (events Read, history limit)
 
-### Phase 4: Testing & CI (week 3)
-- Add handler integration tests (httptest)
-- Add API contract tests
+### Phase 5: Testing & Release (week 4)
+- Add handler integration tests (0 files in server/handlers/)
 - Add security scanning to CI (govulncheck)
-- Measure and improve coverage on server/ package
-
-### Phase 5: Observability & Documentation (week 4)
-- Add structured logging with request context
 - Fix stale docs (Go version, missing pages, deprecated commands)
-- Cut v1.0 release with proper semver
+- Cut v0.1.0 release with proper semver
