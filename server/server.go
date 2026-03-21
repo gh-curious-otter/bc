@@ -204,13 +204,14 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 
 	// Middleware chain (outermost runs first):
-	// RequestLogger → Recovery → CORS → mux
+	// RequestID → RequestLogger → Recovery → CORS → mux
 	var handler http.Handler = mux
 	if cfg.CORS {
 		handler = handlers.CORS(mux)
 	}
 	handler = handlers.Recovery(handler)
 	handler = handlers.RequestLogger(handler)
+	handler = handlers.RequestID(handler)
 
 	return &Server{
 		addr:    cfg.Addr,

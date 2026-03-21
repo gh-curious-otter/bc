@@ -3,6 +3,8 @@
 package handlers
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 
@@ -55,6 +57,26 @@ func Recovery(next http.Handler) http.Handler {
 		}()
 		next.ServeHTTP(w, r)
 	})
+}
+
+// RequestID returns a middleware that generates a unique request ID for each request.
+// If the incoming request has an X-Request-ID header, it is reused.
+// The ID is set on the response header and available via the request context.
+func RequestID(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.Header.Get("X-Request-ID")
+		if id == "" {
+			id = generateRequestID()
+		}
+		w.Header().Set("X-Request-ID", id)
+		next.ServeHTTP(w, r)
+	})
+}
+
+func generateRequestID() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b) //nolint:errcheck // crypto/rand never fails on supported platforms
+	return hex.EncodeToString(b)
 }
 
 // clampInt clamps n to the range [min, max].
