@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { usePolling } from '../hooks/usePolling';
@@ -6,17 +6,7 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import { StatusBadge } from '../components/StatusBadge';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { EmptyState } from '../components/EmptyState';
-
-/** Strip ANSI escape sequences from a string. */
-function stripAnsi(s: string): string {
-  // eslint-disable-next-line no-control-regex
-  return s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '');
-}
-
-function truncate(s: string, max: number): string {
-  if (s.length <= max) return s;
-  return s.slice(0, max) + '\u2026';
-}
+import { stripAnsi, truncate } from '../utils/text';
 
 export function Agents() {
   const fetcher = useCallback(async () => {
@@ -62,7 +52,7 @@ export function Agents() {
     }
   };
 
-  const columnCount = 7;
+  const columns = ['Name', 'Role', 'Tool', 'Status', 'Task', 'Cost', ''] as const;
 
   if (loading && !agents) {
     return (
@@ -130,9 +120,8 @@ export function Agents() {
             </thead>
             <tbody>
               {agentList.map((a) => (
-                <>
+                <Fragment key={a.name}>
                   <tr
-                    key={a.name}
                     onClick={() => navigate(`/agents/${encodeURIComponent(a.name)}`)}
                     className="border-b border-bc-border/50 cursor-pointer hover:bg-bc-surface"
                   >
@@ -175,7 +164,7 @@ export function Agents() {
                   </tr>
                   {peekAgent === a.name && (
                     <tr key={`${a.name}-peek`} className="border-b border-bc-border/50">
-                      <td colSpan={columnCount} className="p-0">
+                      <td colSpan={columns.length} className="p-0">
                         <div className="bg-bc-bg border-t border-bc-border/30 px-4 py-3">
                           <div className="rounded bg-[#0d1117] border border-bc-border/40 p-3 font-mono text-xs leading-relaxed text-[#c9d1d9] max-h-48 overflow-auto whitespace-pre-wrap">
                             {peekLoading ? (
@@ -199,7 +188,7 @@ export function Agents() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>
