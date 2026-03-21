@@ -53,6 +53,10 @@ func (h *CronHandler) list(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
+		if job.Command == "" && job.Prompt == "" {
+			httpError(w, "command or prompt is required", http.StatusBadRequest)
+			return
+		}
 		if err := h.store.AddJob(r.Context(), &job); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
@@ -98,6 +102,10 @@ func (h *CronHandler) job(w http.ResponseWriter, r *http.Request, name string) {
 		job, err := h.store.GetJob(r.Context(), name)
 		if err != nil {
 			httpError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		if job == nil {
+			httpError(w, "cron job not found", http.StatusNotFound)
 			return
 		}
 		writeJSON(w, http.StatusOK, job)

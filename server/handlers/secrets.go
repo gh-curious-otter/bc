@@ -84,6 +84,10 @@ func (h *SecretHandler) byName(w http.ResponseWriter, r *http.Request) {
 			httpError(w, err.Error(), http.StatusNotFound)
 			return
 		}
+		if meta == nil {
+			httpError(w, "secret not found", http.StatusNotFound)
+			return
+		}
 		writeJSON(w, http.StatusOK, meta)
 
 	case http.MethodPut:
