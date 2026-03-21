@@ -98,7 +98,7 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 		log.Warn("failed to load agent state", "error", loadErr)
 	}
 
-	if refreshErr := mgr.RefreshState(); refreshErr != nil {
+	if refreshErr := mgr.RefreshState(ctx); refreshErr != nil {
 		log.Warn("failed to refresh agent state", "error", refreshErr)
 	}
 
@@ -166,7 +166,7 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 
 	// Send alert to channel if --alert is set and there are stuck agents
 	if agentHealthAlert != "" {
-		if alertErr := sendStuckAlert(ws.RootDir, agentHealthAlert, healthResults, mgr); alertErr != nil {
+		if alertErr := sendStuckAlert(ctx, ws.RootDir, agentHealthAlert, healthResults, mgr); alertErr != nil {
 			log.Warn("failed to send stuck alert", "error", alertErr)
 		}
 	}
@@ -282,7 +282,7 @@ func computeAgentHealth(ctx context.Context, a *agent.Agent, mgr *agent.Manager,
 }
 
 // sendStuckAlert sends an alert to the specified channel when stuck agents are detected.
-func sendStuckAlert(rootDir, channelName string, healthResults []AgentHealth, mgr *agent.Manager) error {
+func sendStuckAlert(ctx context.Context, rootDir, channelName string, healthResults []AgentHealth, mgr *agent.Manager) error {
 	// Collect stuck agents
 	var stuckAgents []AgentHealth
 	for _, h := range healthResults {
@@ -351,7 +351,7 @@ func sendStuckAlert(rootDir, channelName string, healthResults []AgentHealth, mg
 			continue
 		}
 		formattedMsg := fmt.Sprintf("[#%s] bc-health: %s", channelName, message)
-		if sendErr := mgr.SendToAgent(member, formattedMsg); sendErr != nil {
+		if sendErr := mgr.SendToAgent(ctx, member, formattedMsg); sendErr != nil {
 			log.Warn("failed to send alert to agent", "agent", member, "error", sendErr)
 			continue
 		}

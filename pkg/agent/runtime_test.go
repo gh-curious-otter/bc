@@ -440,10 +440,10 @@ func TestSendToAgent_UsesCorrectBackend(t *testing.T) {
 	mgr.agents["root"] = &Agent{Name: "root", RuntimeBackend: "tmux"}
 	mgr.agents["eng-01"] = &Agent{Name: "eng-01", RuntimeBackend: "docker"}
 
-	if err := mgr.SendToAgent("root", "hello root"); err != nil {
+	if err := mgr.SendToAgent(context.Background(), "root", "hello root"); err != nil {
 		t.Fatalf("SendToAgent root: %v", err)
 	}
-	if err := mgr.SendToAgent("eng-01", "hello eng"); err != nil {
+	if err := mgr.SendToAgent(context.Background(), "eng-01", "hello eng"); err != nil {
 		t.Fatalf("SendToAgent eng-01: %v", err)
 	}
 
@@ -483,7 +483,7 @@ func TestRefreshState_MixedBackends(t *testing.T) {
 	mgr.agents["eng-01"] = &Agent{Name: "eng-01", State: StateWorking, RuntimeBackend: "docker"}
 	mgr.agents["eng-02"] = &Agent{Name: "eng-02", State: StateWorking, RuntimeBackend: "docker"}
 
-	if err := mgr.RefreshState(); err != nil {
+	if err := mgr.RefreshState(context.Background()); err != nil {
 		t.Fatalf("RefreshState: %v", err)
 	}
 
@@ -517,7 +517,7 @@ func TestStopAgent_UsesCorrectBackend(t *testing.T) {
 	mgr.agents["eng-01"] = &Agent{Name: "eng-01", State: StateWorking, RuntimeBackend: "docker", Children: []string{}}
 
 	// Stop root — should kill tmux session
-	if err := mgr.StopAgent("root"); err != nil {
+	if err := mgr.StopAgent(context.Background(), "root"); err != nil {
 		t.Fatalf("StopAgent root: %v", err)
 	}
 	if tmuxBe.sessions["root"] {
@@ -528,7 +528,7 @@ func TestStopAgent_UsesCorrectBackend(t *testing.T) {
 	}
 
 	// Stop eng-01 — should kill docker session
-	if err := mgr.StopAgent("eng-01"); err != nil {
+	if err := mgr.StopAgent(context.Background(), "eng-01"); err != nil {
 		t.Fatalf("StopAgent eng-01: %v", err)
 	}
 	if dockerBe.sessions["eng-01"] {
@@ -585,7 +585,7 @@ func TestRuntimeForAgent_ConcurrentReadWrite(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_ = mgr.SendToAgent("root", "ping")
+			_ = mgr.SendToAgent(context.Background(), "root", "ping")
 		}()
 	}
 

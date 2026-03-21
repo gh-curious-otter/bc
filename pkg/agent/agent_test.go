@@ -902,7 +902,7 @@ func TestStopAgent(t *testing.T) {
 	}
 
 	// Stop eng-1
-	if err := m.StopAgent("eng-1"); err != nil {
+	if err := m.StopAgent(context.Background(), "eng-1"); err != nil {
 		t.Fatalf("StopAgent failed: %v", err)
 	}
 
@@ -931,7 +931,7 @@ func TestStopAgent(t *testing.T) {
 
 func TestStopAgent_NotFound(t *testing.T) {
 	m := newTestManager(t)
-	if err := m.StopAgent("nonexistent"); err == nil {
+	if err := m.StopAgent(context.Background(), "nonexistent"); err == nil {
 		t.Error("expected error for nonexistent agent")
 	}
 }
@@ -948,7 +948,7 @@ func TestStopAgent_WithWorktree(t *testing.T) {
 	}
 
 	// Stop should succeed and preserve worktree for later restart
-	if err := m.StopAgent("eng-1"); err != nil {
+	if err := m.StopAgent(context.Background(), "eng-1"); err != nil {
 		t.Fatalf("StopAgent with worktree failed: %v", err)
 	}
 	if m.agents["eng-1"].State != StateStopped {
@@ -971,7 +971,7 @@ func TestStopAgent_WorktreeSameAsWorkspace(t *testing.T) {
 		Children:    []string{},
 	}
 
-	if err := m.StopAgent("eng-1"); err != nil {
+	if err := m.StopAgent(context.Background(), "eng-1"); err != nil {
 		t.Fatalf("StopAgent failed: %v", err)
 	}
 	// WorktreeDir should NOT be cleared when it equals Workspace
@@ -986,7 +986,7 @@ func TestStopAll(t *testing.T) {
 	m.agents["eng-2"] = &Agent{Name: "eng-2", Role: Role("engineer"), State: StateIdle, Children: []string{}}
 	m.agents["qa-1"] = &Agent{Name: "qa-1", Role: Role("qa"), State: StateDone, Children: []string{}}
 
-	if err := m.StopAll(); err != nil {
+	if err := m.StopAll(context.Background()); err != nil {
 		t.Fatalf("StopAll failed: %v", err)
 	}
 
@@ -1020,7 +1020,7 @@ func TestStopAgentTree(t *testing.T) {
 		Children: []string{},
 	}
 
-	if err := m.StopAgentTree("mgr"); err != nil {
+	if err := m.StopAgentTree(context.Background(), "mgr"); err != nil {
 		t.Fatalf("StopAgentTree failed: %v", err)
 	}
 
@@ -1039,7 +1039,7 @@ func TestStopAgentTree(t *testing.T) {
 
 func TestStopAgentTree_NotFound(t *testing.T) {
 	m := newTestManager(t)
-	if err := m.StopAgentTree("nonexistent"); err == nil {
+	if err := m.StopAgentTree(context.Background(), "nonexistent"); err == nil {
 		t.Error("expected error for nonexistent agent")
 	}
 }
@@ -1050,7 +1050,7 @@ func TestRenameAgent(t *testing.T) {
 	m := newTestManager(t)
 	m.agents["eng-01"] = &Agent{Name: "eng-01", Role: Role("engineer"), State: StateStopped, Children: []string{}}
 
-	if err := m.RenameAgent("eng-01", "engineer-01"); err != nil {
+	if err := m.RenameAgent(context.Background(), "eng-01", "engineer-01"); err != nil {
 		t.Fatalf("RenameAgent failed: %v", err)
 	}
 
@@ -1073,7 +1073,7 @@ func TestRenameAgent(t *testing.T) {
 
 func TestRenameAgent_NotFound(t *testing.T) {
 	m := newTestManager(t)
-	if err := m.RenameAgent("nonexistent", "new-name"); err == nil {
+	if err := m.RenameAgent(context.Background(), "nonexistent", "new-name"); err == nil {
 		t.Error("expected error for nonexistent agent")
 	}
 }
@@ -1083,7 +1083,7 @@ func TestRenameAgent_NameExists(t *testing.T) {
 	m.agents["eng-01"] = &Agent{Name: "eng-01", State: StateStopped, Children: []string{}}
 	m.agents["eng-02"] = &Agent{Name: "eng-02", State: StateStopped, Children: []string{}}
 
-	if err := m.RenameAgent("eng-01", "eng-02"); err == nil {
+	if err := m.RenameAgent(context.Background(), "eng-01", "eng-02"); err == nil {
 		t.Error("expected error when renaming to existing name")
 	}
 }
@@ -1094,7 +1094,7 @@ func TestRenameAgent_UpdatesParentChildren(t *testing.T) {
 	m.agents["eng-01"] = &Agent{Name: "eng-01", ParentID: "mgr", State: StateStopped, Children: []string{}}
 	m.agents["eng-02"] = &Agent{Name: "eng-02", ParentID: "mgr", State: StateStopped, Children: []string{}}
 
-	if err := m.RenameAgent("eng-01", "engineer-01"); err != nil {
+	if err := m.RenameAgent(context.Background(), "eng-01", "engineer-01"); err != nil {
 		t.Fatalf("RenameAgent failed: %v", err)
 	}
 
@@ -1122,7 +1122,7 @@ func TestRefreshState(t *testing.T) {
 	m.agents["eng-2"] = &Agent{Name: "eng-2", State: StateStopped, Children: []string{}}
 
 	// RefreshState should succeed - no matching tmux sessions exist
-	err := m.RefreshState()
+	err := m.RefreshState(context.Background())
 	if err != nil {
 		t.Fatalf("RefreshState failed: %v", err)
 	}
@@ -1142,7 +1142,7 @@ func TestRefreshState(t *testing.T) {
 
 func TestSpawnAgentWithOptions_ParentNotFound(t *testing.T) {
 	m := newTestManager(t)
-	_, err := m.SpawnAgentWithOptions(SpawnOptions{Name: "eng-1", Role: Role("engineer"), Workspace: "/tmp", ParentID: "nonexistent-parent"})
+	_, err := m.SpawnAgentWithOptions(context.Background(), SpawnOptions{Name: "eng-1", Role: Role("engineer"), Workspace: "/tmp", ParentID: "nonexistent-parent"})
 	if err == nil {
 		t.Error("expected error when parent not found")
 	}
@@ -1158,7 +1158,7 @@ func TestSpawnAgentWithOptions_ParentCantCreate(t *testing.T) {
 	}
 
 	// Engineer cannot create other engineers
-	_, err := m.SpawnAgentWithOptions(SpawnOptions{Name: "eng-2", Role: Role("engineer"), Workspace: "/tmp", ParentID: "eng-1"})
+	_, err := m.SpawnAgentWithOptions(context.Background(), SpawnOptions{Name: "eng-2", Role: Role("engineer"), Workspace: "/tmp", ParentID: "eng-1"})
 	if err == nil {
 		t.Error("expected error when parent can't create child role")
 	}
@@ -1178,7 +1178,7 @@ func TestSpawnAgentWithOptions_NullRole(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := m.SpawnAgentWithOptions(SpawnOptions{Name: "test-agent", Role: tt.role, Workspace: "/tmp"})
+			_, err := m.SpawnAgentWithOptions(context.Background(), SpawnOptions{Name: "test-agent", Role: tt.role, Workspace: "/tmp"})
 			if err == nil {
 				t.Errorf("expected error for %s, got nil", tt.name)
 			}
@@ -1191,7 +1191,7 @@ func TestSpawnAgentWithOptions_NullRole(t *testing.T) {
 
 func TestSpawnAgentWithOptions_UnknownTool(t *testing.T) {
 	m := newTestManager(t)
-	_, err := m.SpawnAgentWithOptions(SpawnOptions{Name: "eng-1", Role: Role("engineer"), Workspace: "/tmp", Tool: "nonexistent-tool"})
+	_, err := m.SpawnAgentWithOptions(context.Background(), SpawnOptions{Name: "eng-1", Role: Role("engineer"), Workspace: "/tmp", Tool: "nonexistent-tool"})
 	if err == nil {
 		t.Error("expected error for unknown tool")
 	}
@@ -1404,7 +1404,7 @@ func TestCaptureLiveTask_SkipsEmptyLines(t *testing.T) {
 	// can't easily mock tmux.Capture, we verify the function returns ""
 	// when Capture fails (no real tmux session).
 	m := newTestManager(t)
-	result := m.captureLiveTask("nonexistent")
+	result := m.captureLiveTask(context.Background(), "nonexistent")
 	if result != "" {
 		t.Errorf("expected empty string for non-existent session, got %q", result)
 	}
@@ -1955,7 +1955,7 @@ func TestSpawnAgent_PreservesWorkingState(t *testing.T) {
 
 	// Spawn again
 	// We expect it to restart the session but KEEP StateWorking
-	agent, err := m.SpawnAgent("worker-1", Role("worker"), t.TempDir())
+	agent, err := m.SpawnAgent(context.Background(), "worker-1", Role("worker"), t.TempDir())
 	if err != nil {
 		t.Fatalf("SpawnAgent failed: %v", err)
 	}
@@ -2347,13 +2347,13 @@ func TestSpawnAgentWithTool(t *testing.T) {
 	m := newTestManager(t)
 
 	// Invalid name should fail
-	_, err := m.SpawnAgentWithTool("invalid name!", Role("engineer"), "/tmp", "claude")
+	_, err := m.SpawnAgentWithTool(context.Background(), "invalid name!", Role("engineer"), "/tmp", "claude")
 	if err == nil {
 		t.Error("expected error for invalid agent name")
 	}
 
 	// Empty role should fail
-	_, err = m.SpawnAgentWithTool("test-agent", Role(""), "/tmp", "claude")
+	_, err = m.SpawnAgentWithTool(context.Background(), "test-agent", Role(""), "/tmp", "claude")
 	if err == nil {
 		t.Error("expected error for empty role")
 	}
@@ -2365,13 +2365,13 @@ func TestSpawnAgentWithParent(t *testing.T) {
 	m := newTestManager(t)
 
 	// Invalid name should fail
-	_, err := m.SpawnAgentWithParent("bad name!", Role("engineer"), "/tmp", "parent")
+	_, err := m.SpawnAgentWithParent(context.Background(), "bad name!", Role("engineer"), "/tmp", "parent")
 	if err == nil {
 		t.Error("expected error for invalid agent name")
 	}
 
 	// Null role should fail
-	_, err = m.SpawnAgentWithParent("test-agent", Role("null"), "/tmp", "parent")
+	_, err = m.SpawnAgentWithParent(context.Background(), "test-agent", Role("null"), "/tmp", "parent")
 	if err == nil {
 		t.Error("expected error for null role")
 	}
@@ -2392,7 +2392,7 @@ func TestDeleteAgent(t *testing.T) {
 	}
 
 	// Delete should succeed
-	if err := m.DeleteAgent("doomed"); err != nil {
+	if err := m.DeleteAgent(context.Background(), "doomed"); err != nil {
 		t.Errorf("DeleteAgent failed: %v", err)
 	}
 
@@ -2405,7 +2405,7 @@ func TestDeleteAgent(t *testing.T) {
 func TestDeleteAgent_NotFound(t *testing.T) {
 	m := newTestManager(t)
 
-	err := m.DeleteAgent("nonexistent")
+	err := m.DeleteAgent(context.Background(), "nonexistent")
 	if err == nil {
 		t.Error("expected error for nonexistent agent")
 	}
@@ -2428,7 +2428,7 @@ func TestDeleteAgentWithOptions_Default(t *testing.T) {
 	}
 
 	// Delete with default options
-	err := m.DeleteAgentWithOptions("preserve", DeleteOptions{})
+	err := m.DeleteAgentWithOptions(context.Background(), "preserve", DeleteOptions{})
 	if err != nil {
 		t.Errorf("DeleteAgentWithOptions failed: %v", err)
 	}
@@ -2452,7 +2452,7 @@ func TestDeleteAgentWithOptions_WithWorktree(t *testing.T) {
 	}
 
 	// Delete should succeed (worktree removal is best-effort)
-	err := m.DeleteAgentWithOptions("with-worktree", DeleteOptions{Force: true})
+	err := m.DeleteAgentWithOptions(context.Background(), "with-worktree", DeleteOptions{Force: true})
 	if err != nil {
 		t.Errorf("DeleteAgentWithOptions failed: %v", err)
 	}
@@ -2481,7 +2481,7 @@ func TestDeleteAgentWithOptions_RemovesFromParent(t *testing.T) {
 	}
 
 	// Delete child
-	err := m.DeleteAgentWithOptions("child-eng", DeleteOptions{})
+	err := m.DeleteAgentWithOptions(context.Background(), "child-eng", DeleteOptions{})
 	if err != nil {
 		t.Errorf("DeleteAgentWithOptions failed: %v", err)
 	}
@@ -2883,7 +2883,7 @@ func TestSpawnChildAgent_ParentNotFound(t *testing.T) {
 	m := newTestManager(t)
 
 	// Try to spawn child with non-existent parent
-	_, err := m.SpawnChildAgent("nonexistent-parent", "child", Role("engineer"), "/workspace")
+	_, err := m.SpawnChildAgent(context.Background(), "nonexistent-parent", "child", Role("engineer"), "/workspace")
 	if err == nil {
 		t.Error("expected error when parent does not exist")
 	}
@@ -2893,7 +2893,7 @@ func TestSpawnChildAgentWithTool_ParentNotFound(t *testing.T) {
 	m := newTestManager(t)
 
 	// Try to spawn child with non-existent parent
-	_, err := m.SpawnChildAgentWithTool("nonexistent-parent", "child", Role("engineer"), "/workspace", "claude")
+	_, err := m.SpawnChildAgentWithTool(context.Background(), "nonexistent-parent", "child", Role("engineer"), "/workspace", "claude")
 	if err == nil {
 		t.Error("expected error when parent does not exist")
 	}
@@ -2912,7 +2912,7 @@ func TestRefreshState_UpdatesStopped(t *testing.T) {
 	}
 
 	// RefreshState should mark them as stopped
-	err := m.RefreshState()
+	err := m.RefreshState(context.Background())
 	if err != nil {
 		t.Fatalf("RefreshState failed: %v", err)
 	}
@@ -2932,7 +2932,7 @@ func TestRefreshState_PreservesStopped(t *testing.T) {
 		State: StateStopped,
 	}
 
-	err := m.RefreshState()
+	err := m.RefreshState(context.Background())
 	if err != nil {
 		t.Fatalf("RefreshState failed: %v", err)
 	}
@@ -3151,7 +3151,7 @@ func TestCaptureOutputFromLogFile(t *testing.T) {
 		State:   StateIdle,
 	}
 
-	output, err := m.CaptureOutput("test-agent", 10)
+	output, err := m.CaptureOutput(context.Background(), "test-agent", 10)
 	if err != nil {
 		t.Fatalf("CaptureOutput failed: %v", err)
 	}
@@ -3172,7 +3172,7 @@ func TestCaptureOutputFallback(t *testing.T) {
 
 	// This will call tmux.Capture which will fail since there's no real session,
 	// but we're testing the fallback path
-	_, err := m.CaptureOutput("test-agent", 10)
+	_, err := m.CaptureOutput(context.Background(), "test-agent", 10)
 	// Error is expected since the mock tmux won't have the session
 	_ = err
 }
@@ -3323,7 +3323,7 @@ func TestSpawnWithProvider_Installed(t *testing.T) {
 	mp := mockProvider{name: "testcli", installed: true, version: "1.2.3"}
 	m := newTestManagerWithProvider(t, mp)
 
-	ag, err := m.SpawnAgentWithTool("test-agent", Role("engineer"), t.TempDir(), "testcli")
+	ag, err := m.SpawnAgentWithTool(context.Background(), "test-agent", Role("engineer"), t.TempDir(), "testcli")
 	if err != nil {
 		t.Fatalf("expected spawn to succeed with installed provider, got: %v", err)
 	}
@@ -3343,7 +3343,7 @@ func TestSpawnWithProvider_NotInstalled(t *testing.T) {
 	mp := mockProvider{name: "missingtool", installed: false}
 	m := newTestManagerWithProvider(t, mp)
 
-	_, err := m.SpawnAgentWithTool("test-agent", Role("engineer"), t.TempDir(), "missingtool")
+	_, err := m.SpawnAgentWithTool(context.Background(), "test-agent", Role("engineer"), t.TempDir(), "missingtool")
 	if err == nil {
 		t.Fatal("expected error for uninstalled provider")
 	}
@@ -3368,7 +3368,7 @@ func TestSpawnWithProvider_CustomToolFallback(t *testing.T) {
 	}
 
 	// "customtool" is unknown to the registry, so SpawnAgentWithTool should fail
-	_, err := m.SpawnAgentWithTool("test-agent", Role("engineer"), t.TempDir(), "customtool")
+	_, err := m.SpawnAgentWithTool(context.Background(), "test-agent", Role("engineer"), t.TempDir(), "customtool")
 	if err == nil {
 		t.Fatal("expected error for unknown tool not in registry")
 	}

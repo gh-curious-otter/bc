@@ -322,7 +322,7 @@ func runWorkspaceUp(cmd *cobra.Command, _ []string) error {
 		role := agent.Role(strings.ToLower(entry.Role))
 		fmt.Printf("  %-20s starting...", entry.Name)
 
-		_, spawnErr := mgr.SpawnAgentWithOptions(agent.SpawnOptions{
+		_, spawnErr := mgr.SpawnAgentWithOptions(cmd.Context(), agent.SpawnOptions{
 			Name:      entry.Name,
 			Role:      role,
 			Workspace: ws.RootDir,
