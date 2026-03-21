@@ -43,6 +43,22 @@ func newTestManager(t *testing.T) *Manager {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 	be := runtime.NewTmuxBackend(tmux.NewManager(fmt.Sprintf("bctest-%d-", time.Now().UnixNano())))
+
+	// Create role files for test roles so role existence validation passes.
+	rm := workspace.NewRoleManager(dir)
+	if mkErr := rm.EnsureRolesDir(); mkErr != nil {
+		t.Fatalf("EnsureRolesDir: %v", mkErr)
+	}
+	for _, roleName := range []string{"engineer", "manager", "qa", "worker", "product-manager"} {
+		if writeErr := os.WriteFile(
+			filepath.Join(rm.RolesDir(), roleName+".md"),
+			[]byte("---\nname: "+roleName+"\n---\n"),
+			0600,
+		); writeErr != nil {
+			t.Fatalf("write role %s: %v", roleName, writeErr)
+		}
+	}
+
 	return &Manager{
 		agents:         make(map[string]*Agent),
 		backends:       map[string]runtime.Backend{"tmux": be},
@@ -1186,6 +1202,29 @@ func TestSpawnAgentWithOptions_NullRole(t *testing.T) {
 				t.Errorf("expected 'role is required' error, got: %v", err)
 			}
 		})
+	}
+}
+
+func TestSpawnAgentWithOptions_NameTooLong(t *testing.T) {
+	m := newTestManager(t)
+	longName := strings.Repeat("a", MaxAgentNameLength+1)
+	_, err := m.SpawnAgentWithOptions(context.Background(), SpawnOptions{Name: longName, Role: Role("engineer"), Workspace: "/tmp"})
+	if err == nil {
+		t.Error("expected error for name exceeding max length")
+	}
+	if !strings.Contains(err.Error(), "invalid") {
+		t.Errorf("expected 'invalid' in error, got: %v", err)
+	}
+}
+
+func TestSpawnAgentWithOptions_NonexistentRole(t *testing.T) {
+	m := newTestManager(t)
+	_, err := m.SpawnAgentWithOptions(context.Background(), SpawnOptions{Name: "test-agent", Role: Role("nonexistent-role"), Workspace: "/tmp"})
+	if err == nil {
+		t.Error("expected error for nonexistent role")
+	}
+	if !strings.Contains(err.Error(), "does not exist") {
+		t.Errorf("expected 'does not exist' in error, got: %v", err)
 	}
 }
 
@@ -2558,6 +2597,9 @@ func TestIsValidAgentName(t *testing.T) {
 		{"contains slash", "agent/path", false},
 		{"contains dot", "agent.test", false},
 		{"contains newline", "agent\ntest", false},
+		{"exactly 64 chars", strings.Repeat("a", MaxAgentNameLength), true},
+		{"65 chars exceeds max", strings.Repeat("a", MaxAgentNameLength+1), false},
+		{"500 chars exceeds max", strings.Repeat("a", 500), false},
 	}
 
 	for _, tc := range tests {
@@ -3307,13 +3349,30 @@ func newTestManagerWithProvider(t *testing.T, p provider.Provider) *Manager {
 	t.Helper()
 	reg := provider.NewRegistry()
 	reg.Register(p)
+	dir := t.TempDir()
 	be := runtime.NewTmuxBackend(tmux.NewManager(fmt.Sprintf("bctest-%d-", time.Now().UnixNano())))
+
+	// Create role files for test roles so role existence validation passes.
+	rm := workspace.NewRoleManager(dir)
+	if mkErr := rm.EnsureRolesDir(); mkErr != nil {
+		t.Fatalf("EnsureRolesDir: %v", mkErr)
+	}
+	for _, roleName := range []string{"engineer", "manager", "qa", "worker"} {
+		if writeErr := os.WriteFile(
+			filepath.Join(rm.RolesDir(), roleName+".md"),
+			[]byte("---\nname: "+roleName+"\n---\n"),
+			0600,
+		); writeErr != nil {
+			t.Fatalf("write role %s: %v", roleName, writeErr)
+		}
+	}
+
 	return &Manager{
 		agents:           make(map[string]*Agent),
 		backends:         map[string]runtime.Backend{"tmux": be},
 		defaultBackend:   "tmux",
 		providerRegistry: reg,
-		stateDir:         t.TempDir(),
+		stateDir:         dir,
 		agentCmd:         "/bin/true",
 	}
 }
