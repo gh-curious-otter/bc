@@ -50,14 +50,14 @@ When you pick up this issue, follow this workflow:
    - Address review feedback
    - Merge after approval + CI green
 
-   **MEDIUM** (sub-issues):
-   - Create 4-5 sub-issues linking back to this one
-   - Each sub-issue should be small scope with clear dependencies noted
-   - Add dependency comments between sub-issues (e.g. "Depends on #X")
-   - Pick the first sub-issue (no blockers) and implement it
-   - Each gets its own PR with the correct domain label
-   - Comment on this issue as sub-issues complete
-   - This issue stays open until all sub-issues are done
+   **MEDIUM (5-10 sub-issues)**
+   - Create a TODO list tracking all sub-issues for the epic
+   - Break into 5-10 sub-issues with explicit dependency order
+   - Launch 5-10 subagents in parallel (or batches of 3-4), each assigned one sub-issue
+   - Review each PR with `/code-review` skill as subagents complete
+   - Merge PRs in dependency order
+   - Update TODO as each sub-issue is closed
+   - Keep this issue open until all sub-issues are done
 
    **LARGE** (design first):
    - Research: read codebase, explore relevant packages
