@@ -163,6 +163,13 @@ func (s *Server) toolSendMessage(raw json.RawMessage) (*toolsCallResult, error) 
 	sender := args.Sender
 	if sender == "" {
 		sender = "mcp"
+		if s.ws != nil {
+			nick := s.ws.Config.User.Nickname
+			nick = strings.TrimPrefix(nick, "@")
+			if nick != "" {
+				sender = nick
+			}
+		}
 	}
 
 	// Use ChannelService when available — its OnMessage hook handles agent
