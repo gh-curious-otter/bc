@@ -10,9 +10,8 @@ type DatabaseConfig struct {
 }
 
 type LogsConfig struct {
-	MaxBytes     int64
-	Path         string
-	PreserveAnsi bool
+	MaxBytes int64
+	Path     string
 }
 
 type PerformanceConfig struct {
@@ -145,9 +144,8 @@ var (
 		Url:          "",
 	}
 	Logs = LogsConfig{
-		MaxBytes:     1048576,
-		Path:         ".bc/logs",
-		PreserveAnsi: true,
+		MaxBytes: 1048576,
+		Path:     ".bc/logs",
 	}
 	Performance = PerformanceConfig{
 		AdaptiveFastInterval:   1000,

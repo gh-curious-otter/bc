@@ -216,17 +216,17 @@ type mockProvider struct {
 	dockerImage string
 }
 
-func (m *mockProvider) Name() string                            { return m.name }
-func (m *mockProvider) Description() string                     { return "mock provider" }
-func (m *mockProvider) Command() string                         { return "mock" }
-func (m *mockProvider) Binary() string                          { return "mock" }
-func (m *mockProvider) InstallHint() string                     { return "install mock" }
+func (m *mockProvider) Name() string                               { return m.name }
+func (m *mockProvider) Description() string                        { return "mock provider" }
+func (m *mockProvider) Command() string                            { return "mock" }
+func (m *mockProvider) Binary() string                             { return "mock" }
+func (m *mockProvider) InstallHint() string                        { return "install mock" }
 func (m *mockProvider) BuildCommand(_ provider.CommandOpts) string { return "mock" }
-func (m *mockProvider) IsInstalled(_ context.Context) bool      { return true }
-func (m *mockProvider) Version(_ context.Context) string        { return "1.0.0" }
-func (m *mockProvider) DetectState(_ string) provider.State     { return provider.StateUnknown }
-func (m *mockProvider) DockerImage() string                     { return m.dockerImage }
-func (m *mockProvider) AdjustContainerCommand(cmd string) string { return cmd }
+func (m *mockProvider) IsInstalled(_ context.Context) bool         { return true }
+func (m *mockProvider) Version(_ context.Context) string           { return "1.0.0" }
+func (m *mockProvider) DetectState(_ string) provider.State        { return provider.StateUnknown }
+func (m *mockProvider) DockerImage() string                        { return m.dockerImage }
+func (m *mockProvider) AdjustContainerCommand(cmd string) string   { return cmd }
 
 func TestImageForTool_WithContainerCustomizer(t *testing.T) {
 	registry := provider.NewRegistry()

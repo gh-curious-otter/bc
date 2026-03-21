@@ -10,9 +10,9 @@ import (
 
 func TestClampInt(t *testing.T) {
 	tests := []struct {
-		name       string
+		name        string
 		n, min, max int
-		want       int
+		want        int
 	}{
 		{"within range", 5, 1, 10, 5},
 		{"below min", -1, 0, 10, 0},

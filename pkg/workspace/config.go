@@ -60,9 +60,8 @@ type DockerRuntimeConfig struct {
 
 // LogsConfig configures persistent session log streaming.
 type LogsConfig struct {
-	Path         string `toml:"path"`
-	MaxBytes     int64  `toml:"max_bytes"`
-	PreserveAnsi bool   `toml:"preserve_ansi"`
+	Path     string `toml:"path"`
+	MaxBytes int64  `toml:"max_bytes"`
 }
 
 // UserConfig holds user identity settings.
@@ -92,10 +91,9 @@ type ProvidersConfig struct {
 
 // ProviderConfig defines an AI provider's configuration.
 type ProviderConfig struct {
-	Env     map[string]string `toml:"env"`             // Per-provider env vars
-	Command string            `toml:"command"`         // Command to launch the provider
-	Model   string            `toml:"model,omitempty"` // Default model (for API providers)
-	Enabled bool              `toml:"enabled"`         // Whether the provider is enabled
+	Env     map[string]string `toml:"env"`     // Per-provider env vars
+	Command string            `toml:"command"` // Command to launch the provider
+	Enabled bool              `toml:"enabled"` // Whether the provider is enabled
 }
 
 // ServicesConfig configures external service integrations (GitHub, GitLab, etc.).
@@ -107,10 +105,8 @@ type ServicesConfig struct {
 
 // ServiceConfig defines an external service integration.
 type ServiceConfig struct {
-	Command   string `toml:"command"`              // Command to execute (e.g., "gh")
-	TokenEnv  string `toml:"token_env,omitempty"`  // Environment variable for auth token
-	RateLimit int    `toml:"rate_limit,omitempty"` // Requests per hour (0 = unlimited)
-	Enabled   bool   `toml:"enabled"`              // Whether the service is enabled
+	Command string `toml:"command"` // Command to execute (e.g., "gh")
+	Enabled bool   `toml:"enabled"` // Whether the service is enabled
 }
 
 // PerformanceConfig configures TUI polling intervals and cache TTLs.
@@ -196,10 +192,10 @@ func DefaultConfig(name string) Config {
 				Enabled: true,
 			},
 		},
+		Env: map[string]string{},
 		Logs: LogsConfig{
-			Path:         ".bc/logs",
-			MaxBytes:     1048576, // 1MB
-			PreserveAnsi: true,
+			Path:     ".bc/logs",
+			MaxBytes: 1048576, // 1MB
 		},
 		User: UserConfig{
 			Nickname: DefaultNickname,

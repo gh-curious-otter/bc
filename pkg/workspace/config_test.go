@@ -32,9 +32,6 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Logs.MaxBytes != 1048576 {
 		t.Errorf("expected logs.max_bytes 1048576, got %d", cfg.Logs.MaxBytes)
 	}
-	if !cfg.Logs.PreserveAnsi {
-		t.Error("expected logs.preserve_ansi true")
-	}
 }
 
 func TestParseConfigWithLogs(t *testing.T) {
@@ -53,7 +50,6 @@ enabled = true
 [logs]
 path = ".bc/custom-logs"
 max_bytes = 2097152
-preserve_ansi = false
 `)
 	cfg, err := ParseConfig(tomlData)
 	if err != nil {
@@ -65,9 +61,6 @@ preserve_ansi = false
 	if cfg.Logs.MaxBytes != 2097152 {
 		t.Errorf("expected logs.max_bytes 2097152, got %d", cfg.Logs.MaxBytes)
 	}
-	if cfg.Logs.PreserveAnsi {
-		t.Error("expected logs.preserve_ansi false")
-	}
 }
 
 func TestLogsConfigSaveAndLoad(t *testing.T) {
@@ -77,7 +70,6 @@ func TestLogsConfigSaveAndLoad(t *testing.T) {
 	cfg := DefaultConfig("test")
 	cfg.Logs.Path = ".bc/my-logs"
 	cfg.Logs.MaxBytes = 512000
-	cfg.Logs.PreserveAnsi = false
 
 	if err := cfg.Save(path); err != nil {
 		t.Fatalf("failed to save: %v", err)
@@ -93,9 +85,6 @@ func TestLogsConfigSaveAndLoad(t *testing.T) {
 	}
 	if loaded.Logs.MaxBytes != 512000 {
 		t.Errorf("expected max_bytes 512000, got %d", loaded.Logs.MaxBytes)
-	}
-	if loaded.Logs.PreserveAnsi {
-		t.Error("expected preserve_ansi false")
 	}
 }
 
