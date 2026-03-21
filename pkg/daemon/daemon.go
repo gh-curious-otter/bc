@@ -40,7 +40,7 @@ const (
 
 // Runtime selects the execution backend.
 const (
-	RuntimeBash   = "bash"   // tmux session on the host
+	RuntimeTmux   = "tmux"   // tmux session on the host
 	RuntimeDocker = "docker" // Docker container
 )
 
@@ -175,11 +175,15 @@ func (m *Manager) Run(ctx context.Context, opts RunOptions) (*Daemon, error) {
 	if !isValidDaemonName(opts.Name) {
 		return nil, fmt.Errorf("invalid daemon name %q: use only letters, digits, hyphens, underscores (max 63 chars)", opts.Name)
 	}
-	if opts.Runtime != RuntimeBash && opts.Runtime != RuntimeDocker {
-		return nil, fmt.Errorf("runtime must be %q or %q", RuntimeBash, RuntimeDocker)
+	// Accept "bash" as alias for backward compatibility
+	if opts.Runtime == "bash" {
+		opts.Runtime = RuntimeTmux
 	}
-	if opts.Runtime == RuntimeBash && opts.Cmd == "" {
-		return nil, fmt.Errorf("--cmd is required for bash runtime")
+	if opts.Runtime != RuntimeTmux && opts.Runtime != RuntimeDocker {
+		return nil, fmt.Errorf("runtime must be %q or %q", RuntimeTmux, RuntimeDocker)
+	}
+	if opts.Runtime == RuntimeTmux && opts.Cmd == "" {
+		return nil, fmt.Errorf("--cmd is required for tmux runtime")
 	}
 	if opts.Runtime == RuntimeDocker && opts.Image == "" {
 		return nil, fmt.Errorf("--image is required for docker runtime")
@@ -221,8 +225,8 @@ func (m *Manager) Run(ctx context.Context, opts RunOptions) (*Daemon, error) {
 		StartedAt: now,
 	}
 
-	if opts.Runtime == RuntimeBash {
-		if err := m.startBash(ctx, d); err != nil {
+	if opts.Runtime == RuntimeTmux {
+		if err := m.startTmux(ctx, d); err != nil {
 			d.Status = StatusFailed
 			_ = m.save(ctx, d) //nolint:errcheck // best-effort on failure path
 			return nil, fmt.Errorf("start bash daemon: %w", err)
@@ -242,8 +246,8 @@ func (m *Manager) Run(ctx context.Context, opts RunOptions) (*Daemon, error) {
 	return d, nil
 }
 
-// startBash launches the daemon command in a named tmux session.
-func (m *Manager) startBash(ctx context.Context, d *Daemon) error {
+// startTmux launches the daemon command in a named tmux session.
+func (m *Manager) startTmux(ctx context.Context, d *Daemon) error {
 	logFile := m.logFile(d.Name)
 
 	env := map[string]string{}
@@ -323,7 +327,7 @@ func (m *Manager) Stop(ctx context.Context, name string) error {
 		return fmt.Errorf("daemon %q is not running (status: %s)", name, d.Status)
 	}
 
-	if d.Runtime == RuntimeBash {
+	if d.Runtime == RuntimeTmux {
 		if err := m.tmuxMgr.KillSession(ctx, name); err != nil {
 			log.Debug("failed to kill daemon tmux session", "daemon", name, "error", err)
 		}
@@ -489,7 +493,7 @@ func (m *Manager) syncStatus(ctx context.Context, d *Daemon) {
 		return
 	}
 	var alive bool
-	if d.Runtime == RuntimeBash {
+	if d.Runtime == RuntimeTmux {
 		alive = m.tmuxMgr.HasSession(ctx, d.Name)
 	} else {
 		cn := m.containerName(d.Name)
@@ -569,6 +573,10 @@ func scanDaemon(row rowScanner) (*Daemon, error) {
 		return nil, err
 	}
 
+	// Normalize legacy "bash" runtime to "tmux"
+	if d.Runtime == "bash" {
+		d.Runtime = RuntimeTmux
+	}
 	d.Cmd = cmd.String
 	d.Image = image.String
 	d.ContainerID = containerID.String

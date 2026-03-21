@@ -58,7 +58,7 @@ func TestRunValidation(t *testing.T) {
 	}{
 		{
 			name:    "missing name",
-			opts:    RunOptions{Runtime: RuntimeBash, Cmd: "echo hi"},
+			opts:    RunOptions{Runtime: RuntimeTmux, Cmd: "echo hi"},
 			wantErr: "name is required",
 		},
 		{
@@ -68,7 +68,7 @@ func TestRunValidation(t *testing.T) {
 		},
 		{
 			name:    "bash without cmd",
-			opts:    RunOptions{Name: "test", Runtime: RuntimeBash},
+			opts:    RunOptions{Name: "test", Runtime: RuntimeTmux},
 			wantErr: "--cmd is required",
 		},
 		{
@@ -166,7 +166,7 @@ func TestRunRejectsInvalidName(t *testing.T) {
 
 	_, err = mgr.Run(context.Background(), RunOptions{
 		Name:    "bad name!",
-		Runtime: RuntimeBash,
+		Runtime: RuntimeTmux,
 		Cmd:     "echo hi",
 	})
 	if err == nil {

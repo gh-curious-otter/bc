@@ -10,10 +10,9 @@ import (
 	"github.com/rpuneet/bc/pkg/ui"
 )
 
-// bootstrapServerDaemons starts bcd (bc-bcd:latest) as a Docker-managed
-// workspace daemon. bcd uses SQLite (bc.db) by default — no Postgres needed.
-// Failures are non-fatal — a warning is printed if Docker is unavailable or
-// the bc-bcd:latest image has not been built yet.
+// bootstrapServerDaemons starts bcd in a tmux session.
+// bcd uses SQLite (bc.db) by default — no Postgres needed.
+// Failures are non-fatal — a warning is printed if the binary is unavailable.
 func bootstrapServerDaemons(rootDir string) {
 	mgr, err := daemon.NewManager(rootDir)
 	if err != nil {
@@ -25,22 +24,17 @@ func bootstrapServerDaemons(rootDir string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	// Start bcd with workspace mounted — uses SQLite (bc.db) by default
+	// Start bcd in a tmux session using the local binary
 	fmt.Print("  Starting bcd server... ")
 	_, bcdErr := mgr.Run(ctx, daemon.RunOptions{
 		Name:    "bcd",
-		Runtime: daemon.RuntimeDocker,
-		Image:   "bc-bcd:latest",
-		Ports:   []string{"9374:9374"},
-		Volumes: []string{
-			rootDir + ":/workspace",
-			"/var/run/docker.sock:/var/run/docker.sock",
-		},
-		Restart: "always",
+		Runtime: daemon.RuntimeTmux,
+		Cmd:     "bc daemon start",
+		Restart: "on-failure",
 		Detach:  true,
 	})
 	if bcdErr != nil {
-		fmt.Println(ui.YellowText("✗ (image not found — run: make build-bcd-image)"))
+		fmt.Println(ui.YellowText("✗ (failed to start bcd)"))
 		log.Debug("bcd start failed", "error", bcdErr)
 		return
 	}

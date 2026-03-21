@@ -14,6 +14,7 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/client"
+	"github.com/rpuneet/bc/pkg/cron"
 	"github.com/rpuneet/bc/pkg/daemon"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/shutdown"
@@ -96,12 +97,12 @@ Examples:
 // --- workspace process commands ---
 
 var daemonRunCmd = &cobra.Command{
-	Use:   "run --name <name> --runtime <bash|docker> [options]",
+	Use:   "run --name <name> --runtime <tmux|docker> [options]",
 	Short: "Run a named workspace process",
-	Long: `Run a long-lived workspace process in a tmux session (bash) or Docker container.
+	Long: `Run a long-lived workspace process in a tmux session or Docker container.
 
 Examples:
-  bc daemon run --name api --runtime bash --cmd "go run ./cmd/api"
+  bc daemon run --name api --runtime tmux --cmd "go run ./cmd/api"
   bc daemon run --name db --runtime docker --image postgres:17 --port 5432:5432`,
 	RunE: runDaemonRun,
 }
@@ -165,8 +166,8 @@ func init() {
 
 	// run flags
 	daemonRunCmd.Flags().StringVar(&daemonRunName, "name", "", "Process name (required)")
-	daemonRunCmd.Flags().StringVar(&daemonRunRuntime, "runtime", "", "Runtime: bash or docker (required)")
-	daemonRunCmd.Flags().StringVar(&daemonRunCmd_, "cmd", "", "Command to run (bash runtime)")
+	daemonRunCmd.Flags().StringVar(&daemonRunRuntime, "runtime", "", "Runtime: tmux or docker (required)")
+	daemonRunCmd.Flags().StringVar(&daemonRunCmd_, "cmd", "", "Command to run (tmux runtime)")
 	daemonRunCmd.Flags().StringVar(&daemonRunImage, "image", "", "Docker image (docker runtime)")
 	daemonRunCmd.Flags().StringArrayVar(&daemonRunPorts, "port", nil, "Port mapping, e.g. 5432:5432 (repeatable)")
 	daemonRunCmd.Flags().StringArrayVar(&daemonRunVolumes, "volume", nil, "Volume mount, e.g. /var/run/docker.sock:/var/run/docker.sock (repeatable)")
@@ -226,10 +227,16 @@ func runDaemonStart(cmd *cobra.Command, _ []string) error {
 
 	teamStore := team.NewStore(ws.RootDir)
 
+	cronStore, cronErr := cron.Open(ws.RootDir)
+	if cronErr != nil {
+		log.Warn("failed to open cron store", "error", cronErr)
+	}
+
 	cfg := bcdserver.DefaultConfig()
 	svc := bcdserver.Services{
 		Agents:   agentSvc,
 		Channels: channelSvc,
+		Cron:     cronStore,
 		Daemons:  daemonMgr,
 		Teams:    teamStore,
 		WS:       ws,
@@ -244,6 +251,11 @@ func runDaemonStart(cmd *cobra.Command, _ []string) error {
 	if daemonMgr != nil {
 		shutdown.OnShutdownNamed(shutdown.PriorityLow, "bcd-daemon-db", func(_ context.Context) error {
 			return daemonMgr.Close()
+		})
+	}
+	if cronStore != nil {
+		shutdown.OnShutdownNamed(shutdown.PriorityLow, "bcd-cron-db", func(_ context.Context) error {
+			return cronStore.Close()
 		})
 	}
 
@@ -385,7 +397,7 @@ func runDaemonRun(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("--name is required")
 	}
 	if daemonRunRuntime == "" {
-		return fmt.Errorf("--runtime is required (bash or docker)")
+		return fmt.Errorf("--runtime is required (tmux or docker)")
 	}
 
 	ws, err := getWorkspace()
@@ -442,7 +454,7 @@ func runDaemonList(cmd *cobra.Command, _ []string) error {
 
 	if len(daemons) == 0 {
 		fmt.Println("No workspace processes running.")
-		fmt.Println("Start one with: bc daemon run --name <name> --runtime bash --cmd <cmd>")
+		fmt.Println("Start one with: bc daemon run --name <name> --runtime tmux --cmd <cmd>")
 		return nil
 	}
 
@@ -505,7 +517,7 @@ func printDaemon(d *daemon.Daemon) {
 	fmt.Printf("  Name:    %s\n", d.Name)
 	fmt.Printf("  Runtime: %s\n", d.Runtime)
 	fmt.Printf("  Status:  %s\n", d.Status)
-	if d.Runtime == daemon.RuntimeBash {
+	if d.Runtime == daemon.RuntimeTmux {
 		fmt.Printf("  Cmd:     %s\n", d.Cmd)
 	} else {
 		fmt.Printf("  Image:   %s\n", d.Image)
