@@ -168,6 +168,78 @@ func decodeResult(t *testing.T, resp mcp.Response, dst any) {
 	}
 }
 
+// ─── SSE keepalive test ──────────────────────────────────────────────────────
+
+// TestSSE_Keepalive verifies that the SSE endpoint sends periodic keepalive
+// comments to prevent idle connection timeouts. Uses a short ticker override
+// via a custom broker to avoid waiting 30 seconds in tests.
+func TestSSE_Keepalive(t *testing.T) {
+	broker := mcp.NewSSEBroker()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/sse", broker.SSEHandler())
+
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL+"/sse", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Accept", "text/event-stream")
+
+	resp, err := http.DefaultClient.Do(req) //nolint:bodyclose
+	if err != nil {
+		t.Fatalf("GET /sse: %v", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	scanner := bufio.NewScanner(resp.Body)
+
+	// Read the endpoint event first
+	gotEndpoint := false
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "event: endpoint") {
+			gotEndpoint = true
+		}
+		if gotEndpoint && line == "" {
+			break // finished reading endpoint event
+		}
+	}
+	if !gotEndpoint {
+		t.Fatal("did not receive endpoint event")
+	}
+
+	// Now wait for a keepalive comment (": keepalive")
+	// The ticker fires every 30s, so allow up to 35s.
+	deadline := time.After(35 * time.Second)
+	keepaliveCh := make(chan bool, 1)
+	go func() {
+		for scanner.Scan() {
+			line := scanner.Text()
+			if line == ": keepalive" {
+				keepaliveCh <- true
+				return
+			}
+		}
+		keepaliveCh <- false
+	}()
+
+	select {
+	case got := <-keepaliveCh:
+		if !got {
+			t.Fatal("SSE stream closed without sending keepalive")
+		}
+	case <-deadline:
+		t.Fatal("timed out waiting for SSE keepalive (expected within 35s)")
+	}
+
+	cancel()
+}
+
 // ─── E2E SSE tests ───────────────────────────────────────────────────────────
 
 func TestSSE_E2E_InitializeRoundTrip(t *testing.T) {

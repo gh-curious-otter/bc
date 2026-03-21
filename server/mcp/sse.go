@@ -162,6 +162,9 @@ func (b *SSEBroker) handleSSE(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", b.messageEndpoint) //nolint:errcheck // writing to response
 	flusher.Flush()
 
+	keepalive := time.NewTicker(30 * time.Second)
+	defer keepalive.Stop()
+
 	for {
 		select {
 		case <-r.Context().Done():
@@ -171,6 +174,10 @@ func (b *SSEBroker) handleSSE(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			w.Write(msg) //nolint:errcheck
+			flusher.Flush()
+		case <-keepalive.C:
+			// SSE comment line — prevents idle timeout, ignored by clients
+			fmt.Fprint(w, ": keepalive\n\n") //nolint:errcheck // writing to response
 			flusher.Flush()
 		}
 	}

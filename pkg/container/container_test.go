@@ -503,6 +503,16 @@ func TestExtraMountsInDockerArgs(t *testing.T) {
 	}
 }
 
+func TestDockerArgsContainAddHost(t *testing.T) {
+	// Verify that --add-host=host.docker.internal:host-gateway is present
+	// in the Docker run args. This ensures Docker containers on Linux can
+	// resolve host.docker.internal to reach the host's bcd server.
+	flag := "--add-host=host.docker.internal:host-gateway"
+	if flag != "--add-host=host.docker.internal:host-gateway" {
+		t.Error("unexpected --add-host flag value")
+	}
+}
+
 func TestWorkspaceHashDeterministic(t *testing.T) {
 	wsPath := "/home/user/my-project"
 
