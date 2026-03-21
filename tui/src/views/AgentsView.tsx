@@ -119,6 +119,7 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
 
   // Action feedback state - kept separate as it's timer-managed
   const [actionState, setActionState] = useState<ActionState | null>(null);
+  const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
   // #1743: Custom key handlers for agent actions
   const customKeys = useMemo(() => ({
@@ -191,8 +192,14 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
 
   // Clear action feedback after delay
   const showActionFeedback = useCallback((action: AgentAction, target: string, status: 'success' | 'error', message: string) => {
+    if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
     setActionState({ action, target, status, message });
-    setTimeout(() => { setActionState(null); }, ACTION_FEEDBACK_DURATION);
+    feedbackTimeoutRef.current = setTimeout(() => { setActionState(null); }, ACTION_FEEDBACK_DURATION);
+  }, []);
+
+  // Cleanup action feedback timeout on unmount
+  useEffect(() => {
+    return () => { if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current); };
   }, []);
 
   // Execute agent action
