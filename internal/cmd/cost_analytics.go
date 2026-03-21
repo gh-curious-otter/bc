@@ -402,12 +402,12 @@ func runCostDashboard(cmd *cobra.Command, args []string) error {
 	jsonOutput, _ := cmd.Flags().GetBool("json")
 	if jsonOutput {
 		response := struct {
-			ByAgent     []*costAgentSummary      `json:"by_agent"`
-			ByModel     []*client.CostSummary    `json:"by_model"`
-			TodayCost   float64                  `json:"today_cost"`
-			MonthCost   float64                  `json:"month_cost"`
-			AllTime     float64                  `json:"all_time_cost"`
-			BudgetCount int                      `json:"budget_count"`
+			ByAgent     []*costAgentSummary   `json:"by_agent"`
+			ByModel     []*client.CostSummary `json:"by_model"`
+			TodayCost   float64               `json:"today_cost"`
+			MonthCost   float64               `json:"month_cost"`
+			AllTime     float64               `json:"all_time_cost"`
+			BudgetCount int                   `json:"budget_count"`
 		}{
 			TodayCost:   todayCost,
 			MonthCost:   monthCost,

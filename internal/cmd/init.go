@@ -13,8 +13,6 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/client"
-	"github.com/rpuneet/bc/pkg/db"
-	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/ui"
 	"github.com/rpuneet/bc/pkg/workspace"
@@ -224,35 +222,6 @@ func getWorkspace() (*workspace.Workspace, error) {
 		return nil, err
 	}
 	return workspace.Find(cwd)
-}
-
-// stateDBPath returns the path to the workspace's unified bc.db for events and agents.
-func stateDBPath(ws *workspace.Workspace) string {
-	return db.BCDBPath(ws.RootDir)
-}
-
-// openEventLog opens the SQLite event log for the given workspace.
-// Returns nil (with a warning) on error so callers can proceed without events.
-func openEventLog(ws *workspace.Workspace) events.EventStore {
-	el, err := events.NewSQLiteLog(stateDBPath(ws))
-	if err != nil {
-		log.Warn("failed to open event log", "error", err)
-		return nil
-	}
-	return el
-}
-
-// logEvent is a convenience wrapper that opens the event log, appends one event,
-// and closes. Failures are logged as warnings and never block the caller.
-func logEvent(ws *workspace.Workspace, event events.Event) {
-	el := openEventLog(ws)
-	if el == nil {
-		return
-	}
-	defer func() { _ = el.Close() }()
-	if err := el.Append(event); err != nil {
-		log.Warn("failed to log event", "type", string(event.Type), "error", err)
-	}
 }
 
 // errorAgentNotRunning returns an error message for commands that require BC_AGENT_ID.

@@ -132,9 +132,9 @@ func TestAgentCreate_CustomRoles(t *testing.T) {
 		input    string
 		wantRole string
 	}{
-		{"pm", "pm"},             // No expansion
-		{"coord", "coord"},       // No expansion
-		{"tl", "tl"},             // No expansion
+		{"pm", "pm"},       // No expansion
+		{"coord", "coord"}, // No expansion
+		{"tl", "tl"},       // No expansion
 		{"custom-role", "custom-role"},
 		{"admin", "admin"},
 	}
