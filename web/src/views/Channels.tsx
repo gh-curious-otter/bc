@@ -1,4 +1,5 @@
 import { useCallback, useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import type { ChannelMessage } from '../api/client';
 import { usePolling } from '../hooks/usePolling';
@@ -9,13 +10,24 @@ import { EmptyState } from '../components/EmptyState';
 import { MessageContent } from '../components/MessageContent';
 
 export function Channels() {
+  const { channelName: paramChannel } = useParams<{ channelName: string }>();
+  const navigate = useNavigate();
   const fetcher = useCallback(async () => {
     const res = await api.listChannels();
     return res;
   }, []);
   const { data: channels, loading, error, refresh, timedOut } = usePolling(fetcher, 10000);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(paramChannel ?? null);
   const [peekAgent, setPeekAgent] = useState<string | null>(null);
+
+  // Sync selected state when URL param changes
+  useEffect(() => {
+    setSelected(paramChannel ?? null);
+  }, [paramChannel]);
+
+  const selectChannel = (name: string) => {
+    navigate('/channels/' + name);
+  };
 
   if (loading && !channels) {
     return (
@@ -70,7 +82,7 @@ export function Channels() {
           (channels ?? []).map((ch) => (
             <button
               key={ch.name}
-              onClick={() => setSelected(ch.name)}
+              onClick={() => selectChannel(ch.name)}
               className={`w-full text-left px-3 py-2 text-sm border-b border-bc-border/30 ${
                 selected === ch.name
                   ? 'bg-bc-accent/10 text-bc-accent'
