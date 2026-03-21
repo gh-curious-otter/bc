@@ -47,7 +47,7 @@ func TestImporter_ImportAll_IngestsRecords(t *testing.T) {
 		t.Fatalf("want 2 records imported, got %d", n)
 	}
 
-	summary, err := s.WorkspaceSummary()
+	summary, err := s.WorkspaceSummary(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}

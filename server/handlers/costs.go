@@ -30,7 +30,7 @@ func (h *CostHandler) summary(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	s, err := h.store.WorkspaceSummary()
+	s, err := h.store.WorkspaceSummary(r.Context())
 	if err != nil {
 		httpError(w, "workspace summary: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -47,7 +47,7 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 
 	switch resource {
 	case "agents":
-		summaries, err := h.store.SummaryByAgent()
+		summaries, err := h.store.SummaryByAgent(r.Context())
 		if err != nil {
 			httpError(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -55,7 +55,7 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, summaries)
 
 	case "teams":
-		summaries, err := h.store.SummaryByTeam()
+		summaries, err := h.store.SummaryByTeam(r.Context())
 		if err != nil {
 			httpError(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -63,7 +63,7 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, summaries)
 
 	case "models":
-		summaries, err := h.store.SummaryByModel()
+		summaries, err := h.store.SummaryByModel(r.Context())
 		if err != nil {
 			httpError(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -90,7 +90,7 @@ func (h *CostHandler) daily(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	since := time.Now().AddDate(0, 0, -days)
-	costs, err := h.store.GetDailyCosts(since)
+	costs, err := h.store.GetDailyCosts(r.Context(), since)
 	if err != nil {
 		httpError(w, err.Error(), http.StatusInternalServerError)
 		return

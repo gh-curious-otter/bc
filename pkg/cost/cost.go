@@ -173,8 +173,8 @@ func (s *Store) Open() error {
 
 // initSchema creates the database tables.
 func (s *Store) initSchema(db *sql.DB) error {
-	ctx := context.Background()
 
+	ctx := context.Background()
 	schema := `
 		CREATE TABLE IF NOT EXISTS cost_records (
 			id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -224,8 +224,7 @@ func (s *Store) DB() *sql.DB {
 }
 
 // Record adds a new cost record.
-func (s *Store) Record(agentID, teamID, model string, inputTokens, outputTokens int64, costUSD float64) (*Record, error) {
-	ctx := context.Background()
+func (s *Store) Record(ctx context.Context, agentID, teamID, model string, inputTokens, outputTokens int64, costUSD float64) (*Record, error) {
 	totalTokens := inputTokens + outputTokens
 
 	var teamPtr *string
@@ -243,12 +242,11 @@ func (s *Store) Record(agentID, teamID, model string, inputTokens, outputTokens 
 	}
 
 	id, _ := result.LastInsertId()
-	return s.GetByID(id)
+	return s.GetByID(ctx, id)
 }
 
 // GetByID returns a cost record by ID.
-func (s *Store) GetByID(id int64) (*Record, error) {
-	ctx := context.Background()
+func (s *Store) GetByID(ctx context.Context, id int64) (*Record, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT id, agent_id, team_id, model, input_tokens, output_tokens, total_tokens, cost_usd, timestamp
 		 FROM cost_records WHERE id = ?`,
@@ -280,12 +278,12 @@ func (s *Store) scanRecord(row *sql.Row) (*Record, error) {
 }
 
 // GetByAgent returns all cost records for an agent.
-func (s *Store) GetByAgent(agentID string, limit int) ([]*Record, error) {
-	return s.GetByAgentWithOffset(agentID, limit, 0)
+func (s *Store) GetByAgent(ctx context.Context, agentID string, limit int) ([]*Record, error) {
+	return s.GetByAgentWithOffset(ctx, agentID, limit, 0)
 }
 
 // GetByAgentWithOffset returns cost records for an agent with pagination support.
-func (s *Store) GetByAgentWithOffset(agentID string, limit, offset int) ([]*Record, error) {
+func (s *Store) GetByAgentWithOffset(ctx context.Context, agentID string, limit, offset int) ([]*Record, error) {
 	if limit <= 0 {
 		limit = 100
 	}
@@ -293,7 +291,6 @@ func (s *Store) GetByAgentWithOffset(agentID string, limit, offset int) ([]*Reco
 		offset = 0
 	}
 
-	ctx := context.Background()
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, agent_id, team_id, model, input_tokens, output_tokens, total_tokens, cost_usd, timestamp
 		 FROM cost_records WHERE agent_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?`,
@@ -308,12 +305,11 @@ func (s *Store) GetByAgentWithOffset(agentID string, limit, offset int) ([]*Reco
 }
 
 // GetByTeam returns all cost records for a team.
-func (s *Store) GetByTeam(teamID string, limit int) ([]*Record, error) {
+func (s *Store) GetByTeam(ctx context.Context, teamID string, limit int) ([]*Record, error) {
 	if limit <= 0 {
 		limit = 100
 	}
 
-	ctx := context.Background()
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, agent_id, team_id, model, input_tokens, output_tokens, total_tokens, cost_usd, timestamp
 		 FROM cost_records WHERE team_id = ? ORDER BY timestamp DESC LIMIT ?`,
@@ -328,12 +324,12 @@ func (s *Store) GetByTeam(teamID string, limit int) ([]*Record, error) {
 }
 
 // GetAll returns all cost records.
-func (s *Store) GetAll(limit int) ([]*Record, error) {
-	return s.GetAllWithOffset(limit, 0)
+func (s *Store) GetAll(ctx context.Context, limit int) ([]*Record, error) {
+	return s.GetAllWithOffset(ctx, limit, 0)
 }
 
 // GetAllWithOffset returns cost records with pagination support.
-func (s *Store) GetAllWithOffset(limit, offset int) ([]*Record, error) {
+func (s *Store) GetAllWithOffset(ctx context.Context, limit, offset int) ([]*Record, error) {
 	if limit <= 0 {
 		limit = 100
 	}
@@ -341,7 +337,6 @@ func (s *Store) GetAllWithOffset(limit, offset int) ([]*Record, error) {
 		offset = 0
 	}
 
-	ctx := context.Background()
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, agent_id, team_id, model, input_tokens, output_tokens, total_tokens, cost_usd, timestamp
 		 FROM cost_records ORDER BY timestamp DESC LIMIT ? OFFSET ?`,
@@ -378,8 +373,7 @@ func (s *Store) scanRecords(rows *sql.Rows) ([]*Record, error) {
 }
 
 // SummaryByAgent returns aggregated costs per agent.
-func (s *Store) SummaryByAgent() ([]*Summary, error) {
-	ctx := context.Background()
+func (s *Store) SummaryByAgent(ctx context.Context) ([]*Summary, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT agent_id, SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
 		 FROM cost_records GROUP BY agent_id ORDER BY SUM(cost_usd) DESC`,
@@ -401,8 +395,7 @@ func (s *Store) SummaryByAgent() ([]*Summary, error) {
 }
 
 // SummaryByTeam returns aggregated costs per team.
-func (s *Store) SummaryByTeam() ([]*Summary, error) {
-	ctx := context.Background()
+func (s *Store) SummaryByTeam(ctx context.Context) ([]*Summary, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT team_id, SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
 		 FROM cost_records WHERE team_id IS NOT NULL GROUP BY team_id ORDER BY SUM(cost_usd) DESC`,
@@ -426,8 +419,7 @@ func (s *Store) SummaryByTeam() ([]*Summary, error) {
 }
 
 // SummaryByModel returns aggregated costs per model.
-func (s *Store) SummaryByModel() ([]*Summary, error) {
-	ctx := context.Background()
+func (s *Store) SummaryByModel(ctx context.Context) ([]*Summary, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT model, SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
 		 FROM cost_records GROUP BY model ORDER BY SUM(cost_usd) DESC`,
@@ -449,8 +441,7 @@ func (s *Store) SummaryByModel() ([]*Summary, error) {
 }
 
 // WorkspaceSummary returns the total cost summary for the entire workspace.
-func (s *Store) WorkspaceSummary() (*Summary, error) {
-	ctx := context.Background()
+func (s *Store) WorkspaceSummary(ctx context.Context) (*Summary, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
 		 FROM cost_records`,
@@ -475,8 +466,7 @@ func (s *Store) WorkspaceSummary() (*Summary, error) {
 }
 
 // AgentSummary returns the cost summary for a specific agent.
-func (s *Store) AgentSummary(agentID string) (*Summary, error) {
-	ctx := context.Background()
+func (s *Store) AgentSummary(ctx context.Context, agentID string) (*Summary, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
 		 FROM cost_records WHERE agent_id = ?`,
@@ -503,8 +493,7 @@ func (s *Store) AgentSummary(agentID string) (*Summary, error) {
 }
 
 // TeamSummary returns the cost summary for a specific team.
-func (s *Store) TeamSummary(teamID string) (*Summary, error) {
-	ctx := context.Background()
+func (s *Store) TeamSummary(ctx context.Context, teamID string) (*Summary, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
 		 FROM cost_records WHERE team_id = ?`,
@@ -531,8 +520,7 @@ func (s *Store) TeamSummary(teamID string) (*Summary, error) {
 }
 
 // SetBudget creates or updates a budget for the given scope.
-func (s *Store) SetBudget(scope string, period BudgetPeriod, limitUSD, alertAt float64, hardStop bool) (*Budget, error) {
-	ctx := context.Background()
+func (s *Store) SetBudget(ctx context.Context, scope string, period BudgetPeriod, limitUSD, alertAt float64, hardStop bool) (*Budget, error) {
 
 	hardStopInt := 0
 	if hardStop {
@@ -554,12 +542,11 @@ func (s *Store) SetBudget(scope string, period BudgetPeriod, limitUSD, alertAt f
 		return nil, fmt.Errorf("failed to set budget: %w", err)
 	}
 
-	return s.GetBudget(scope)
+	return s.GetBudget(ctx, scope)
 }
 
 // GetBudget returns the budget for a given scope.
-func (s *Store) GetBudget(scope string) (*Budget, error) {
-	ctx := context.Background()
+func (s *Store) GetBudget(ctx context.Context, scope string) (*Budget, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT id, scope, period, limit_usd, alert_at, hard_stop, updated_at
 		 FROM cost_budgets WHERE scope = ?`,
@@ -588,8 +575,7 @@ func (s *Store) GetBudget(scope string) (*Budget, error) {
 }
 
 // GetAllBudgets returns all configured budgets.
-func (s *Store) GetAllBudgets() ([]*Budget, error) {
-	ctx := context.Background()
+func (s *Store) GetAllBudgets(ctx context.Context) ([]*Budget, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, scope, period, limit_usd, alert_at, hard_stop, updated_at
 		 FROM cost_budgets ORDER BY scope`,
@@ -621,8 +607,7 @@ func (s *Store) GetAllBudgets() ([]*Budget, error) {
 }
 
 // DeleteBudget removes a budget for the given scope.
-func (s *Store) DeleteBudget(scope string) error {
-	ctx := context.Background()
+func (s *Store) DeleteBudget(ctx context.Context, scope string) error {
 	result, err := s.db.ExecContext(ctx, "DELETE FROM cost_budgets WHERE scope = ?", scope)
 	if err != nil {
 		return fmt.Errorf("failed to delete budget: %w", err)
@@ -635,8 +620,8 @@ func (s *Store) DeleteBudget(scope string) error {
 }
 
 // CheckBudget returns the current status against a budget.
-func (s *Store) CheckBudget(scope string) (*BudgetStatus, error) {
-	budget, err := s.GetBudget(scope)
+func (s *Store) CheckBudget(ctx context.Context, scope string) (*BudgetStatus, error) {
+	budget, err := s.GetBudget(ctx, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -662,7 +647,6 @@ func (s *Store) CheckBudget(scope string) (*BudgetStatus, error) {
 
 	// Get spend for the period
 	var currentSpend float64
-	ctx := context.Background()
 
 	query := `SELECT COALESCE(SUM(cost_usd), 0) FROM cost_records WHERE timestamp >= ?`
 	args := []any{periodStart.Format(time.RFC3339)}
@@ -703,8 +687,7 @@ func (s *Store) CheckBudget(scope string) (*BudgetStatus, error) {
 }
 
 // Clear removes all cost records.
-func (s *Store) Clear() error {
-	ctx := context.Background()
+func (s *Store) Clear(ctx context.Context) error {
 	_, err := s.db.ExecContext(ctx, "DELETE FROM cost_records")
 	if err != nil {
 		return fmt.Errorf("failed to clear cost records: %w", err)
@@ -743,8 +726,7 @@ type Projection struct {
 }
 
 // GetDailyCosts returns daily cost totals since the given time.
-func (s *Store) GetDailyCosts(since time.Time) ([]*DailyCost, error) {
-	ctx := context.Background()
+func (s *Store) GetDailyCosts(ctx context.Context, since time.Time) ([]*DailyCost, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT
 			date(timestamp) as day,
@@ -776,8 +758,7 @@ func (s *Store) GetDailyCosts(since time.Time) ([]*DailyCost, error) {
 }
 
 // GetAgentDailyCosts returns daily cost totals per agent since the given time.
-func (s *Store) GetAgentDailyCosts(since time.Time) ([]*AgentDailyCost, error) {
-	ctx := context.Background()
+func (s *Store) GetAgentDailyCosts(ctx context.Context, since time.Time) ([]*AgentDailyCost, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT
 			agent_id,
@@ -810,8 +791,7 @@ func (s *Store) GetAgentDailyCosts(since time.Time) ([]*AgentDailyCost, error) {
 }
 
 // GetSummarySince returns a summary of costs since the given time.
-func (s *Store) GetSummarySince(since time.Time) (*Summary, error) {
-	ctx := context.Background()
+func (s *Store) GetSummarySince(ctx context.Context, since time.Time) (*Summary, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT
 			COALESCE(SUM(input_tokens), 0),
@@ -832,8 +812,7 @@ func (s *Store) GetSummarySince(since time.Time) (*Summary, error) {
 }
 
 // GetAgentSummarySince returns per-agent summaries since the given time.
-func (s *Store) GetAgentSummarySince(since time.Time) ([]*Summary, error) {
-	ctx := context.Background()
+func (s *Store) GetAgentSummarySince(ctx context.Context, since time.Time) ([]*Summary, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT
 			agent_id,
@@ -865,9 +844,9 @@ func (s *Store) GetAgentSummarySince(since time.Time) ([]*Summary, error) {
 }
 
 // ProjectCost calculates a projected cost based on historical daily average.
-func (s *Store) ProjectCost(lookbackDays int, projectDuration time.Duration) (*Projection, error) {
+func (s *Store) ProjectCost(ctx context.Context, lookbackDays int, projectDuration time.Duration) (*Projection, error) {
 	since := time.Now().AddDate(0, 0, -lookbackDays)
-	dailyCosts, err := s.GetDailyCosts(since)
+	dailyCosts, err := s.GetDailyCosts(ctx, since)
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,7 @@
 package cost
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -44,7 +45,7 @@ func seedBenchmarkData(b *testing.B, store *Store, numAgents, recordsPerAgent in
 		agentID := fmt.Sprintf("agent-%d", i)
 		teamID := fmt.Sprintf("team-%d", i%5)
 		for j := 0; j < recordsPerAgent; j++ {
-			_, err := store.Record(agentID, teamID, "claude-3-opus", 1000, 500, 0.05)
+			_, err := store.Record(context.Background(), agentID, teamID, "claude-3-opus", 1000, 500, 0.05)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -58,7 +59,7 @@ func BenchmarkRecord(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := store.Record("agent-01", "team-01", "claude-3-opus", 1000, 500, 0.05)
+		_, err := store.Record(context.Background(), "agent-01", "team-01", "claude-3-opus", 1000, 500, 0.05)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -74,7 +75,7 @@ func BenchmarkRecordParallel(b *testing.B) {
 		i := 0
 		for pb.Next() {
 			agentID := fmt.Sprintf("agent-%d", i%10)
-			_, err := store.Record(agentID, "team-01", "claude-3-opus", 1000, 500, 0.05)
+			_, err := store.Record(context.Background(), agentID, "team-01", "claude-3-opus", 1000, 500, 0.05)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -91,7 +92,7 @@ func BenchmarkGetByAgent_100Records(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := store.GetByAgent("agent-0", 100)
+		_, err := store.GetByAgent(context.Background(), "agent-0", 100)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -106,7 +107,7 @@ func BenchmarkGetByAgent_1000Records(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := store.GetByAgent("agent-0", 1000)
+		_, err := store.GetByAgent(context.Background(), "agent-0", 1000)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -121,7 +122,7 @@ func BenchmarkGetAll_100Records(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := store.GetAll(100)
+		_, err := store.GetAll(context.Background(), 100)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -136,7 +137,7 @@ func BenchmarkGetAll_1000Records(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := store.GetAll(1000)
+		_, err := store.GetAll(context.Background(), 1000)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -151,7 +152,7 @@ func BenchmarkSummaryByAgent(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := store.SummaryByAgent()
+		_, err := store.SummaryByAgent(context.Background())
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -166,7 +167,7 @@ func BenchmarkSummaryByTeam(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := store.SummaryByTeam()
+		_, err := store.SummaryByTeam(context.Background())
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -181,7 +182,7 @@ func BenchmarkWorkspaceSummary(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := store.WorkspaceSummary()
+		_, err := store.WorkspaceSummary(context.Background())
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -196,7 +197,7 @@ func BenchmarkAgentSummary(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := store.AgentSummary("agent-0")
+		_, err := store.AgentSummary(context.Background(), "agent-0")
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -210,7 +211,7 @@ func BenchmarkSetBudget(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		scope := fmt.Sprintf("agent:agent-%d", i)
-		_, err := store.SetBudget(scope, BudgetPeriodMonthly, 100.0, 0.8, false)
+		_, err := store.SetBudget(context.Background(), scope, BudgetPeriodMonthly, 100.0, 0.8, false)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -222,11 +223,11 @@ func BenchmarkCheckBudget(b *testing.B) {
 	defer cleanup()
 
 	seedBenchmarkData(b, store, 1, 100)
-	_, _ = store.SetBudget("agent:agent-0", BudgetPeriodMonthly, 100.0, 0.8, false)
+	_, _ = store.SetBudget(context.Background(), "agent:agent-0", BudgetPeriodMonthly, 100.0, 0.8, false)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := store.CheckBudget("agent:agent-0")
+		_, err := store.CheckBudget(context.Background(), "agent:agent-0")
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -243,7 +244,7 @@ func BenchmarkGetDailyCosts(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := store.GetDailyCosts(since)
+		_, err := store.GetDailyCosts(context.Background(), since)
 		if err != nil {
 			b.Fatal(err)
 		}

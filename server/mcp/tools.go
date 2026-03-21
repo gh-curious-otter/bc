@@ -248,7 +248,7 @@ func (s *Server) toolQueryCosts(raw json.RawMessage) (*toolsCallResult, error) {
 	}
 
 	if args.Agent != "" {
-		summaries, err := s.costs.SummaryByAgent()
+		summaries, err := s.costs.SummaryByAgent(context.Background())
 		if err != nil {
 			return &toolsCallResult{
 				Content: []ToolContent{textContent(fmt.Sprintf("failed to query costs: %s", err))},
@@ -268,7 +268,7 @@ func (s *Server) toolQueryCosts(raw json.RawMessage) (*toolsCallResult, error) {
 		}, nil
 	}
 
-	ws, err := s.costs.WorkspaceSummary()
+	ws, err := s.costs.WorkspaceSummary(context.Background())
 	if err != nil {
 		return &toolsCallResult{
 			Content: []ToolContent{textContent(fmt.Sprintf("failed to query costs: %s", err))},
