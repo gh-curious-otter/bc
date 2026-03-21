@@ -159,6 +159,48 @@ export interface Secret {
   created_at: string;
 }
 
+export interface SystemStats {
+  hostname: string;
+  os: string;
+  arch: string;
+  cpus: number;
+  cpu_usage_percent: number;
+  memory_total_bytes: number;
+  memory_used_bytes: number;
+  memory_usage_percent: number;
+  disk_total_bytes: number;
+  disk_used_bytes: number;
+  disk_usage_percent: number;
+  go_version: string;
+  uptime_seconds: number;
+  goroutines: number;
+}
+
+export interface StatsSummary {
+  agents_total: number;
+  agents_running: number;
+  agents_stopped: number;
+  channels_total: number;
+  messages_total: number;
+  total_cost_usd: number;
+  roles_total: number;
+  tools_total: number;
+  uptime_seconds: number;
+}
+
+export interface ChannelTopSender {
+  sender: string;
+  count: number;
+}
+
+export interface ChannelStats {
+  name: string;
+  message_count: number;
+  member_count: number;
+  last_activity: string;
+  top_senders: ChannelTopSender[];
+}
+
 export const api = {
   listAgents: () => request<Agent[]>('/agents'),
   getAgent: (name: string) => request<Agent>(`/agents/${encodeURIComponent(name)}`),
@@ -190,4 +232,8 @@ export const api = {
   listCron: () => request<CronJob[]>('/cron'),
   listSecrets: () => request<Secret[]>('/secrets'),
   getWorkspaceStatus: () => request<Record<string, unknown>>('/workspace/status'),
+
+  getStatsSystem: () => request<SystemStats>('/stats/system'),
+  getStatsSummary: () => request<StatsSummary>('/stats/summary'),
+  getStatsChannels: () => request<ChannelStats[]>('/stats/channels'),
 };

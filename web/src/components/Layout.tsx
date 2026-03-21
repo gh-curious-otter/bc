@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: '/mcp', label: 'MCP', icon: 'M' },
   { to: '/cron', label: 'Cron', icon: '@' },
   { to: '/secrets', label: 'Secrets', icon: '#' },
+  { to: '/stats', label: 'Stats', icon: 'S' },
   { to: '/logs', label: 'Logs', icon: 'L' },
   { to: '/workspace', label: 'Workspace', icon: 'W' },
   { to: '/doctor', label: 'Doctor', icon: '+' },

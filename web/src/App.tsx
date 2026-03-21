@@ -17,6 +17,7 @@ const Logs = lazy(() => import('./views/Logs').then(m => ({ default: m.Logs })))
 const Doctor = lazy(() => import('./views/Doctor').then(m => ({ default: m.Doctor })));
 const Cron = lazy(() => import('./views/Cron').then(m => ({ default: m.Cron })));
 const Secrets = lazy(() => import('./views/Secrets').then(m => ({ default: m.Secrets })));
+const Stats = lazy(() => import('./views/Stats').then(m => ({ default: m.Stats })));
 const Workspace = lazy(() => import('./views/Workspace').then(m => ({ default: m.Workspace })));
 
 function Loading() {
@@ -52,6 +53,7 @@ export function App() {
             <Route path="doctor" element={<Suspense fallback={<Loading />}><ErrorBoundary><Doctor /></ErrorBoundary></Suspense>} />
             <Route path="cron" element={<Suspense fallback={<Loading />}><ErrorBoundary><Cron /></ErrorBoundary></Suspense>} />
             <Route path="secrets" element={<Suspense fallback={<Loading />}><ErrorBoundary><Secrets /></ErrorBoundary></Suspense>} />
+            <Route path="stats" element={<Suspense fallback={<Loading />}><ErrorBoundary><Stats /></ErrorBoundary></Suspense>} />
             <Route path="workspace" element={<Suspense fallback={<Loading />}><ErrorBoundary><Workspace /></ErrorBoundary></Suspense>} />
             <Route path="*" element={<NotFound />} />
           </Route>
