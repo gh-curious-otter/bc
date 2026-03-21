@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/rpuneet/bc/pkg/provider"
@@ -289,6 +290,122 @@ func TestSetEnvironment(t *testing.T) {
 	err := b.SetEnvironment(context.Background(), "agent1", "FOO", "bar")
 	if err != nil {
 		t.Errorf("SetEnvironment returned error: %v, want nil (no-op)", err)
+	}
+}
+
+func TestCreateSessionWithEnv_InvalidEnvVar(t *testing.T) {
+	tests := []struct {
+		env     map[string]string
+		name    string
+		wantErr bool
+	}{
+		{
+			name:    "valid env var",
+			env:     map[string]string{"BC_AGENT_ID": "alice"},
+			wantErr: false,
+		},
+		{
+			name:    "valid underscore prefix",
+			env:     map[string]string{"_FOO": "bar"},
+			wantErr: false,
+		},
+		{
+			name:    "invalid starts with digit",
+			env:     map[string]string{"1BAD": "val"},
+			wantErr: true,
+		},
+		{
+			name:    "invalid contains dash",
+			env:     map[string]string{"BAD-KEY": "val"},
+			wantErr: true,
+		},
+		{
+			name:    "invalid contains space",
+			env:     map[string]string{"BAD KEY": "val"},
+			wantErr: true,
+		},
+		{
+			name:    "injection attempt",
+			env:     map[string]string{"FOO;rm -rf /": "val"},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := &Backend{
+				prefix:        "bc-",
+				workspaceHash: "aabbcc",
+				workspacePath: t.TempDir(),
+				cfg:           Config{Image: "test:latest", Network: "none"},
+				logCancels:    make(map[string]context.CancelFunc),
+			}
+
+			err := b.CreateSessionWithEnv(context.Background(), "test-agent", "", "bash", tt.env)
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error for invalid env var name, got nil")
+				} else if !strings.Contains(err.Error(), "invalid environment variable name") {
+					t.Errorf("expected 'invalid environment variable name' error, got: %v", err)
+				}
+			}
+			// For valid env vars, we expect a docker error (daemon not running in tests), not an env var error
+			if !tt.wantErr && err != nil && strings.Contains(err.Error(), "invalid environment variable name") {
+				t.Errorf("unexpected env var validation error: %v", err)
+			}
+		})
+	}
+}
+
+func TestValidEnvVarNameRegex(t *testing.T) {
+	valid := []string{"FOO", "BAR_BAZ", "_PRIVATE", "a", "A1B2", "BC_AGENT_ID"}
+	for _, name := range valid {
+		if !validEnvVarName.MatchString(name) {
+			t.Errorf("validEnvVarName rejected valid name %q", name)
+		}
+	}
+
+	invalid := []string{"1BAD", "BAD-KEY", "BAD KEY", "", "FOO=BAR", "a.b"}
+	for _, name := range invalid {
+		if validEnvVarName.MatchString(name) {
+			t.Errorf("validEnvVarName accepted invalid name %q", name)
+		}
+	}
+}
+
+func TestExtraMountsInDockerArgs(t *testing.T) {
+	mounts := []string{"/data:/data:ro", "/cache:/cache"}
+	cfg := Config{
+		Image:       "test:latest",
+		Network:     "none",
+		ExtraMounts: mounts,
+	}
+
+	b := &Backend{
+		prefix:        "bc-",
+		workspaceHash: "aabbcc",
+		workspacePath: t.TempDir(),
+		cfg:           cfg,
+		logCancels:    make(map[string]context.CancelFunc),
+	}
+
+	// We can't easily inspect the args passed to docker without running it,
+	// but we can verify the config is properly stored and would be used.
+	if len(b.cfg.ExtraMounts) != 2 {
+		t.Fatalf("ExtraMounts len = %d, want 2", len(b.cfg.ExtraMounts))
+	}
+	if b.cfg.ExtraMounts[0] != "/data:/data:ro" {
+		t.Errorf("ExtraMounts[0] = %q, want /data:/data:ro", b.cfg.ExtraMounts[0])
+	}
+	if b.cfg.ExtraMounts[1] != "/cache:/cache" {
+		t.Errorf("ExtraMounts[1] = %q, want /cache:/cache", b.cfg.ExtraMounts[1])
+	}
+
+	// Call CreateSessionWithEnv — it will fail because docker isn't running in tests,
+	// but it should NOT fail due to mount configuration issues.
+	err := b.CreateSessionWithEnv(context.Background(), "mount-test", "", "bash", nil)
+	if err != nil && strings.Contains(err.Error(), "ExtraMounts") {
+		t.Errorf("unexpected ExtraMounts error: %v", err)
 	}
 }
 
