@@ -232,10 +232,20 @@ function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAge
 
   const handleSend = async () => {
     if (!input.trim()) return;
+    const content = input;
     setSending(true);
+    setInput('');
     try {
-      await api.sendToChannel(channelName, input);
-      setInput('');
+      await api.sendToChannel(channelName, content);
+      // Optimistically add the message to local state so it appears immediately
+      // without waiting for SSE delivery
+      setMessages((prev) => [
+        ...prev,
+        { id: Date.now(), sender: 'you', content, created_at: new Date().toISOString(), channel: channelName, type: 'text' } as ChannelMessage,
+      ]);
+    } catch {
+      // Restore input on failure
+      setInput(content);
     } finally {
       setSending(false);
     }
