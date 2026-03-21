@@ -208,6 +208,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewDoctorHandler(svc.WS).Register(mux)
 	}
 
+	// Stats endpoints (always registered; nil-safe internally)
+	handlers.NewStatsHandler(svc.Agents, svc.Channels, svc.Costs, svc.Tools, svc.WS).Register(mux)
+
 	// MCP protocol server (SSE transport) at /mcp/
 	if svc.WS != nil {
 		mcpCfg := servermcp.Config{Workspace: svc.WS, Costs: svc.Costs}
