@@ -142,14 +142,16 @@ type channelMessagePayload struct {
 func (s *Server) pollChannelMessages(ctx context.Context) {
 	defer s.pollWg.Done()
 
-	// Track the latest message count per channel to detect new messages.
-	lastCounts := make(map[string]int)
+	// Track the latest message timestamp per channel to detect new messages.
+	// Using timestamps instead of array length avoids breaking when history
+	// is capped (e.g., GetHistory returns last 100 messages).
+	lastSeen := make(map[string]time.Time)
 
-	// Seed initial counts so we don't replay old history on startup.
+	// Seed with current latest timestamp so we don't replay old history.
 	for _, ch := range s.chans.List() {
 		history, err := s.chans.GetHistory(ch.Name)
-		if err == nil {
-			lastCounts[ch.Name] = len(history)
+		if err == nil && len(history) > 0 {
+			lastSeen[ch.Name] = history[len(history)-1].Time
 		}
 	}
 
@@ -161,29 +163,31 @@ func (s *Server) pollChannelMessages(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			s.checkNewMessages(lastCounts)
+			s.checkNewMessages(lastSeen)
 		}
 	}
 }
 
-// checkNewMessages checks each channel for messages beyond lastCounts and pushes them.
-func (s *Server) checkNewMessages(lastCounts map[string]int) {
+// checkNewMessages checks each channel for messages newer than lastSeen and pushes them.
+func (s *Server) checkNewMessages(lastSeen map[string]time.Time) {
 	for _, ch := range s.chans.List() {
 		history, err := s.chans.GetHistory(ch.Name)
-		if err != nil {
+		if err != nil || len(history) == 0 {
 			continue
 		}
 
-		prev := lastCounts[ch.Name]
-		if len(history) <= prev {
-			continue
-		}
+		cutoff := lastSeen[ch.Name]
 
-		// Push each new message as a notification
-		for _, entry := range history[prev:] {
+		// Find new messages (those with timestamp after cutoff)
+		for _, entry := range history {
+			if !entry.Time.After(cutoff) {
+				continue
+			}
 			s.pushMessageNotification(ch.Name, entry.Sender, entry.Message, entry.Time)
 		}
-		lastCounts[ch.Name] = len(history)
+
+		// Update watermark to latest message
+		lastSeen[ch.Name] = history[len(history)-1].Time
 	}
 }
 
