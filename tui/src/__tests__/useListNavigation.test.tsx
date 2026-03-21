@@ -2,7 +2,13 @@ import { describe, expect, test } from 'bun:test';
 import { render } from 'ink-testing-library';
 import React from 'react';
 import { Text, Box } from 'ink';
+import { ThemeProvider } from '../theme/ThemeContext';
+import { FocusProvider } from '../navigation/FocusContext';
 import { useListNavigation } from '../hooks/useListNavigation';
+
+const renderWithProviders = (ui: React.ReactElement) => render(
+  <ThemeProvider><FocusProvider>{ui}</FocusProvider></ThemeProvider>
+);
 
 // Test component that uses the hook
 function TestList({
@@ -32,7 +38,7 @@ function TestList({
 
 describe('useListNavigation', () => {
   test('renders list with first item selected by default', () => {
-    const { lastFrame } = render(<TestList items={['Item 1', 'Item 2', 'Item 3']} />);
+    const { lastFrame } = renderWithProviders(<TestList items={['Item 1', 'Item 2', 'Item 3']} />);
     const output = lastFrame() ?? '';
 
     expect(output).toContain('> Item 1');
@@ -40,14 +46,14 @@ describe('useListNavigation', () => {
   });
 
   test('handles empty list gracefully', () => {
-    const { lastFrame } = render(<TestList items={[]} />);
+    const { lastFrame } = renderWithProviders(<TestList items={[]} />);
     const output = lastFrame() ?? '';
 
     expect(output).toContain('Selected: 0');
   });
 
   test('shows selection indicator', () => {
-    const { lastFrame } = render(<TestList items={['A', 'B', 'C']} />);
+    const { lastFrame } = renderWithProviders(<TestList items={['A', 'B', 'C']} />);
     const output = lastFrame() ?? '';
 
     // First item should have selection indicator

@@ -8,8 +8,11 @@ import { describe, expect, test } from 'bun:test';
 import { render } from 'ink-testing-library';
 import React from 'react';
 import { Text, Box } from 'ink';
+import { ThemeProvider } from '../theme/ThemeContext';
 import { ViewWrapper } from '../components/ViewWrapper';
 import { HintsProvider, useHintsContext } from '../hooks/useHintsContext';
+
+const renderWithTheme = (ui: React.ReactElement) => render(<ThemeProvider>{ui}</ThemeProvider>);
 
 // Helper to render with HintsProvider and display hints
 function HintsDisplay(): React.ReactElement {
@@ -25,7 +28,7 @@ function HintsDisplay(): React.ReactElement {
 
 describe('ViewWrapper', () => {
   test('renders children', () => {
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <ViewWrapper>
         <Text>Test Content</Text>
       </ViewWrapper>
@@ -34,7 +37,7 @@ describe('ViewWrapper', () => {
   });
 
   test('renders title when provided', () => {
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <ViewWrapper title="Test Title">
         <Text>Content</Text>
       </ViewWrapper>
@@ -43,7 +46,7 @@ describe('ViewWrapper', () => {
   });
 
   test('shows loading indicator when loading with no children', () => {
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <ViewWrapper loading loadingMessage="Loading data...">
         {null}
       </ViewWrapper>
@@ -52,7 +55,7 @@ describe('ViewWrapper', () => {
   });
 
   test('shows error display when error is set', () => {
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <ViewWrapper error="Something went wrong">
         <Text>Content</Text>
       </ViewWrapper>
@@ -62,7 +65,7 @@ describe('ViewWrapper', () => {
 
   test('renders footer with hints', async () => {
     // Issue #1497: Hints now go to global footer via HintsContext
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <HintsProvider>
         <ViewWrapper
           hints={[
@@ -84,7 +87,7 @@ describe('ViewWrapper', () => {
   });
 
   test('hides footer when hideFooter is true', () => {
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <ViewWrapper
         hideFooter
         hints={[{ key: 'q', label: 'quit' }]}
@@ -96,7 +99,7 @@ describe('ViewWrapper', () => {
   });
 
   test('shows refreshing indicator when loading with content', () => {
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <ViewWrapper title="Test" loading>
         <Text>Existing Content</Text>
       </ViewWrapper>
@@ -107,7 +110,7 @@ describe('ViewWrapper', () => {
   });
 
   test('error state takes precedence over loading', () => {
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <ViewWrapper loading error="Error occurred">
         <Text>Content</Text>
       </ViewWrapper>
@@ -118,7 +121,7 @@ describe('ViewWrapper', () => {
   });
 
   test('renders custom footer when provided', () => {
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <ViewWrapper footer={<Text>Custom Footer</Text>}>
         <Text>Content</Text>
       </ViewWrapper>
@@ -127,7 +130,7 @@ describe('ViewWrapper', () => {
   });
 
   test('renders with renderWithLayout prop', () => {
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <ViewWrapper
         renderWithLayout={(layout) => (
           <Text>Width: {layout.width}</Text>
@@ -141,7 +144,7 @@ describe('ViewWrapper', () => {
 
 describe('ViewWrapper with Panel', () => {
   test('wraps content in Panel when usePanel is true', () => {
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <ViewWrapper usePanel title="Panel Title">
         <Text>Panel Content</Text>
       </ViewWrapper>
@@ -155,7 +158,7 @@ describe('ViewWrapper with Panel', () => {
   });
 
   test('Panel respects borderColor prop', () => {
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <ViewWrapper usePanel borderColor="cyan" title="Colored">
         <Text>Content</Text>
       </ViewWrapper>

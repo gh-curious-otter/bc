@@ -7,12 +7,15 @@ import React from 'react';
 import { render } from 'ink-testing-library';
 import { Text } from 'ink';
 import { describe, it, expect } from 'bun:test';
+import { ThemeProvider } from '../../theme/ThemeContext';
 import { Panel } from '../../components/Panel';
+
+const renderWithTheme = (ui: React.ReactElement) => render(<ThemeProvider>{ui}</ThemeProvider>);
 
 describe('Panel - Extended Tests', () => {
   describe('title variations', () => {
     it('renders without title', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel>
           <Text>Content</Text>
         </Panel>
@@ -21,7 +24,7 @@ describe('Panel - Extended Tests', () => {
     });
 
     it('renders with short title', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title="Hi">
           <Text>Content</Text>
         </Panel>
@@ -31,7 +34,7 @@ describe('Panel - Extended Tests', () => {
 
     it('renders with long title', () => {
       const longTitle = 'A'.repeat(50);
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title={longTitle}>
           <Text>Content</Text>
         </Panel>
@@ -40,7 +43,7 @@ describe('Panel - Extended Tests', () => {
     });
 
     it('renders with special characters in title', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title="Test: Special!@#$%">
           <Text>Content</Text>
         </Panel>
@@ -49,7 +52,7 @@ describe('Panel - Extended Tests', () => {
     });
 
     it('renders with unicode title', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title="测试 🎉">
           <Text>Content</Text>
         </Panel>
@@ -58,7 +61,7 @@ describe('Panel - Extended Tests', () => {
     });
 
     it('renders with empty string title', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title="">
           <Text>Content</Text>
         </Panel>
@@ -69,7 +72,7 @@ describe('Panel - Extended Tests', () => {
 
   describe('border styles', () => {
     it('renders with default border color', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title="Test">
           <Text>Content</Text>
         </Panel>
@@ -78,7 +81,7 @@ describe('Panel - Extended Tests', () => {
     });
 
     it('renders with custom border color', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title="Test" borderColor="red">
           <Text>Content</Text>
         </Panel>
@@ -87,7 +90,7 @@ describe('Panel - Extended Tests', () => {
     });
 
     it('renders when focused', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title="Test" focused>
           <Text>Content</Text>
         </Panel>
@@ -96,7 +99,7 @@ describe('Panel - Extended Tests', () => {
     });
 
     it('renders when not focused', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title="Test" focused={false}>
           <Text>Content</Text>
         </Panel>
@@ -107,7 +110,7 @@ describe('Panel - Extended Tests', () => {
 
   describe('dimensions', () => {
     it('renders with fixed width', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title="Test" width={50}>
           <Text>Content</Text>
         </Panel>
@@ -116,7 +119,7 @@ describe('Panel - Extended Tests', () => {
     });
 
     it('renders with fixed height', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title="Test" height={10}>
           <Text>Content</Text>
         </Panel>
@@ -125,7 +128,7 @@ describe('Panel - Extended Tests', () => {
     });
 
     it('renders with both fixed dimensions', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title="Test" width={50} height={10}>
           <Text>Content</Text>
         </Panel>
@@ -134,7 +137,7 @@ describe('Panel - Extended Tests', () => {
     });
 
     it('renders with percentage width', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title="Test" width="50%">
           <Text>Content</Text>
         </Panel>
@@ -143,7 +146,7 @@ describe('Panel - Extended Tests', () => {
     });
 
     it('renders with small width', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title="Test" width={10}>
           <Text>Content</Text>
         </Panel>
@@ -154,7 +157,7 @@ describe('Panel - Extended Tests', () => {
 
   describe('children content', () => {
     it('renders single child', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title="Test">
           <Text>Single child</Text>
         </Panel>
@@ -163,7 +166,7 @@ describe('Panel - Extended Tests', () => {
     });
 
     it('renders multiple children', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title="Test">
           <Text>Child 1</Text>
           <Text>Child 2</Text>
@@ -176,7 +179,7 @@ describe('Panel - Extended Tests', () => {
     });
 
     it('renders nested panels', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title="Outer">
           <Panel title="Inner">
             <Text>Nested content</Text>
@@ -188,12 +191,12 @@ describe('Panel - Extended Tests', () => {
     });
 
     it('renders with no children', () => {
-      const { lastFrame } = render(<Panel title="Empty">{null}</Panel>);
+      const { lastFrame } = renderWithTheme(<Panel title="Empty">{null}</Panel>);
       expect(lastFrame()).toContain('Empty');
     });
 
     it('renders with complex children', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Panel title="Complex">
           <Text bold>Bold text</Text>
           <Text color="red">Red text</Text>
@@ -206,12 +209,12 @@ describe('Panel - Extended Tests', () => {
 
   describe('consistency', () => {
     it('produces consistent output', () => {
-      const { lastFrame: frame1 } = render(
+      const { lastFrame: frame1 } = renderWithTheme(
         <Panel title="Test">
           <Text>Content</Text>
         </Panel>
       );
-      const { lastFrame: frame2 } = render(
+      const { lastFrame: frame2 } = renderWithTheme(
         <Panel title="Test">
           <Text>Content</Text>
         </Panel>

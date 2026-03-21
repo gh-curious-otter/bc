@@ -15,6 +15,7 @@ import React from 'react';
 import { render } from 'ink-testing-library';
 import { describe, test, expect } from 'bun:test';
 import { ThemeProvider } from '../../theme';
+import { FocusProvider } from '../../navigation/FocusContext';
 import { DisableInputProvider } from '../../hooks';
 import { HelpView } from '../HelpView';
 
@@ -23,9 +24,11 @@ import { HelpView } from '../HelpView';
 function renderWithProviders(component: React.ReactElement) {
   return render(
     <ThemeProvider>
-      <DisableInputProvider disabled>
-        {component}
-      </DisableInputProvider>
+      <FocusProvider>
+        <DisableInputProvider disabled>
+          {component}
+        </DisableInputProvider>
+      </FocusProvider>
     </ThemeProvider>
   );
 }

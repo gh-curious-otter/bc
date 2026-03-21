@@ -3,8 +3,11 @@
 import React from 'react';
 import { render } from 'ink-testing-library';
 import { describe, it, expect } from 'bun:test';
+import { ThemeProvider } from '../theme/ThemeContext';
 import { StatusBadge } from '../components/StatusBadge';
 import { Table } from '../components/Table';
+
+const renderWithTheme = (ui: React.ReactElement) => render(<ThemeProvider>{ui}</ThemeProvider>);
 
 // Test StatusBadge component (no useInput dependency)
 describe('StatusBadge', () => {
@@ -47,7 +50,7 @@ describe('Table', () => {
   ];
 
   it('renders column headers', () => {
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <Table data={mockData} columns={columns} />
     );
     expect(lastFrame()).toContain('Name');
@@ -56,7 +59,7 @@ describe('Table', () => {
   });
 
   it('renders data rows', () => {
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <Table data={mockData} columns={columns} />
     );
     expect(lastFrame()).toContain('eng-01');
@@ -65,7 +68,7 @@ describe('Table', () => {
   });
 
   it('renders empty state when no data', () => {
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <Table data={[]} columns={columns} />
     );
     expect(lastFrame()).toContain('No data');

@@ -1,7 +1,10 @@
 import React from 'react';
 import { render } from 'ink-testing-library';
 import { describe, it, expect } from 'bun:test';
+import { ThemeProvider } from '../theme/ThemeContext';
 import { ChatMessage } from '../components/ChatMessage';
+
+const renderWithTheme = (ui: React.ReactElement) => render(<ThemeProvider>{ui}</ThemeProvider>);
 
 describe('ChatMessage', () => {
   const baseProps = {
@@ -12,17 +15,17 @@ describe('ChatMessage', () => {
 
   describe('basic rendering', () => {
     it('renders sender name', () => {
-      const { lastFrame } = render(<ChatMessage {...baseProps} />);
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} />);
       expect(lastFrame()).toContain('eng-01');
     });
 
     it('renders message text', () => {
-      const { lastFrame } = render(<ChatMessage {...baseProps} />);
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} />);
       expect(lastFrame()).toContain('Hello world');
     });
 
     it('renders timestamp in relative format', () => {
-      const { lastFrame } = render(<ChatMessage {...baseProps} />);
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} />);
       const frame = lastFrame();
       // Should contain time indicator like "now", "1m ago", etc or gray colored text
       expect(frame).toContain('now');
@@ -31,21 +34,21 @@ describe('ChatMessage', () => {
 
   describe('role-based colors', () => {
     it('renders root sender with special color', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} sender="root" />
       );
       expect(lastFrame()).toContain('root');
     });
 
     it('renders tech-lead sender', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} sender="tech-lead-01" />
       );
       expect(lastFrame()).toContain('tech-lead-01');
     });
 
     it('renders engineer sender', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} sender="eng-02" />
       );
       expect(lastFrame()).toContain('eng-02');
@@ -54,7 +57,7 @@ describe('ChatMessage', () => {
 
   describe('read status', () => {
     it('does not show read indicator when isRead is true', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} isRead={true} />
       );
       // Should not have unread indicator
@@ -62,7 +65,7 @@ describe('ChatMessage', () => {
     });
 
     it('shows read indicator when isRead is false', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} isRead={false} />
       );
       expect(lastFrame()).toContain('●');
@@ -71,7 +74,7 @@ describe('ChatMessage', () => {
 
   describe('selection state', () => {
     it('renders without border when not selected', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} isSelected={false} />
       );
       const frame = lastFrame();
@@ -80,7 +83,7 @@ describe('ChatMessage', () => {
     });
 
     it('renders with border when selected', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} isSelected={true} />
       );
       const frame = lastFrame();
@@ -90,7 +93,7 @@ describe('ChatMessage', () => {
 
   describe('reactions', () => {
     it('does not render reaction bar when no reactions', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} reactions={[]} />
       );
       // Should only have message content, no reaction area
@@ -101,7 +104,7 @@ describe('ChatMessage', () => {
       const reactions = [
         { type: 'thumbsup' as const, count: 2, isOwn: false },
       ];
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} reactions={reactions} />
       );
       const frame = lastFrame();
@@ -114,7 +117,7 @@ describe('ChatMessage', () => {
         { type: 'thumbsup' as const, count: 2 },
         { type: 'heart' as const, count: 1 },
       ];
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} reactions={reactions} />
       );
       expect(lastFrame()).toContain('Hello world');
@@ -124,7 +127,7 @@ describe('ChatMessage', () => {
   describe('timestamp formatting', () => {
     it('shows "now" for very recent messages', () => {
       const recent = new Date().toISOString();
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} timestamp={recent} />
       );
       expect(lastFrame()).toContain('now');
@@ -132,14 +135,14 @@ describe('ChatMessage', () => {
 
     it('handles old timestamps gracefully', () => {
       const oldDate = new Date('2025-01-01').toISOString();
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} timestamp={oldDate} />
       );
       expect(lastFrame()).toContain('Jan');
     });
 
     it('handles invalid timestamp gracefully', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} timestamp="invalid" />
       );
       // When given an invalid timestamp, component catches error and displays fallback
@@ -151,21 +154,21 @@ describe('ChatMessage', () => {
 
   describe('special characters', () => {
     it('renders messages with @mentions', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} message="@eng-02 please review this" />
       );
       expect(lastFrame()).toContain('eng-02');
     });
 
     it('renders messages with special characters', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} message="Message with !@#$% chars" />
       );
       expect(lastFrame()).toContain('!@#$%');
     });
 
     it('renders multiline messages', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} message="Line 1\nLine 2\nLine 3" />
       );
       expect(lastFrame()).toContain('Line 1');
@@ -174,28 +177,28 @@ describe('ChatMessage', () => {
 
   describe('bubble styling and alignment', () => {
     it('shows "(you)" indicator for own messages', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} sender="eng-01" currentUser="eng-01" />
       );
       expect(lastFrame()).toContain('(you)');
     });
 
     it('does not show "(you)" for other users messages', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} sender="eng-02" currentUser="eng-01" />
       );
       expect(lastFrame()).not.toContain('(you)');
     });
 
     it('renders message without "(you)" when no currentUser provided', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} sender="eng-01" />
       );
       expect(lastFrame()).not.toContain('(you)');
     });
 
     it('renders own message with bubble border', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} sender="eng-01" currentUser="eng-01" />
       );
       // Should render with round border (indicated by border characters)
@@ -204,7 +207,7 @@ describe('ChatMessage', () => {
     });
 
     it('renders other user message with bubble border', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} sender="eng-02" currentUser="eng-01" />
       );
       // Should render with round border (gray for others)
@@ -213,7 +216,7 @@ describe('ChatMessage', () => {
     });
 
     it('applies custom maxBubbleWidth', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} maxBubbleWidth={40} />
       );
       // Should render without errors with custom width
@@ -223,28 +226,28 @@ describe('ChatMessage', () => {
 
   describe('role colors for additional roles', () => {
     it('renders tl- prefix sender (tech lead)', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} sender="tl-01" />
       );
       expect(lastFrame()).toContain('tl-01');
     });
 
     it('renders mgr- prefix sender (manager)', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} sender="mgr-01" />
       );
       expect(lastFrame()).toContain('mgr-01');
     });
 
     it('renders pm- prefix sender (product manager)', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} sender="pm-01" />
       );
       expect(lastFrame()).toContain('pm-01');
     });
 
     it('renders ux- prefix sender', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <ChatMessage {...baseProps} sender="ux-01" />
       );
       expect(lastFrame()).toContain('ux-01');

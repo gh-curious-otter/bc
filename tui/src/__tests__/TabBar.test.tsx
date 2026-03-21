@@ -12,6 +12,7 @@
 import { describe, expect, test } from 'bun:test';
 import { render } from 'ink-testing-library';
 import React from 'react';
+import { ThemeProvider } from '../theme/ThemeContext';
 import { TabBar } from '../navigation/TabBar';
 import { NavigationProvider } from '../navigation/NavigationContext';
 
@@ -21,9 +22,11 @@ const ALL_TAB_KEYS = ['[dash]', '[ag]', '[ch]', '[co]', '[log]', '[ro]', '[wt]',
 /** Wrapper to provide navigation context */
 function renderTabBar(terminalWidth: number) {
   return render(
-    <NavigationProvider>
-      <TabBar terminalWidth={terminalWidth} />
-    </NavigationProvider>
+    <ThemeProvider>
+      <NavigationProvider>
+        <TabBar terminalWidth={terminalWidth} />
+      </NavigationProvider>
+    </ThemeProvider>
   );
 }
 

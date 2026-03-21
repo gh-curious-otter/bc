@@ -135,7 +135,7 @@ describe('applyOverrides', () => {
 
   it('preserves original theme', () => {
     applyOverrides(darkTheme, { primary: 'magenta' });
-    expect(darkTheme.colors.primary).toBe('cyan');
+    expect(darkTheme.colors.primary).toBe('#EA580C');
   });
 });
 

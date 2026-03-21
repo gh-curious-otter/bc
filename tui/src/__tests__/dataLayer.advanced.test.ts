@@ -38,6 +38,7 @@ describe('Advanced: BC Service - Timeout and Retry Edge Cases', () => {
 
     mockBcService.execBc.mockReturnValue(timeoutPromise);
 
+    // eslint-disable-next-line @typescript-eslint/await-thenable
     await expect(
       Promise.race([
         bcService.execBc(['status']),
@@ -55,6 +56,7 @@ describe('Advanced: BC Service - Timeout and Retry Edge Cases', () => {
         )
     );
 
+    // eslint-disable-next-line @typescript-eslint/await-thenable
     await expect(bcService.execBc(['status'])).rejects.toThrow();
   });
 
@@ -64,6 +66,7 @@ describe('Advanced: BC Service - Timeout and Retry Edge Cases', () => {
       .mockResolvedValueOnce('{"agents":[]}');
 
     // First call fails
+    // eslint-disable-next-line @typescript-eslint/await-thenable
     await expect(bcService.execBc(['status'])).rejects.toThrow('Failed to spawn');
 
     // Retry succeeds

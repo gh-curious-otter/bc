@@ -1,7 +1,10 @@
 import React from 'react';
 import { render } from 'ink-testing-library';
 import { describe, it, expect } from 'bun:test';
+import { ThemeProvider } from '../theme/ThemeContext';
 import { MentionAutocomplete, type MentionSuggestion } from '../components/MentionAutocomplete';
+
+const renderWithTheme = (ui: React.ReactElement) => render(<ThemeProvider>{ui}</ThemeProvider>);
 
 describe('MentionAutocomplete', () => {
   const baseSuggestions: MentionSuggestion[] = [
@@ -12,7 +15,7 @@ describe('MentionAutocomplete', () => {
 
   describe('visibility', () => {
     it('does not render when not visible', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <MentionAutocomplete
           suggestions={baseSuggestions}
           selectedIndex={0}
@@ -25,7 +28,7 @@ describe('MentionAutocomplete', () => {
     });
 
     it('renders when visible', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <MentionAutocomplete
           suggestions={baseSuggestions}
           selectedIndex={0}
@@ -42,7 +45,7 @@ describe('MentionAutocomplete', () => {
       const suggestions: MentionSuggestion[] = [
         { name: 'eng-01', state: 'working' },
       ];
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <MentionAutocomplete
           suggestions={suggestions}
           selectedIndex={0}
@@ -53,7 +56,7 @@ describe('MentionAutocomplete', () => {
     });
 
     it('renders multiple suggestions', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <MentionAutocomplete
           suggestions={baseSuggestions}
           selectedIndex={0}
@@ -67,7 +70,7 @@ describe('MentionAutocomplete', () => {
     });
 
     it('renders no suggestions', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <MentionAutocomplete
           suggestions={[]}
           selectedIndex={-1}
@@ -80,7 +83,7 @@ describe('MentionAutocomplete', () => {
 
   describe('selection state', () => {
     it('highlights first suggestion when selectedIndex is 0', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <MentionAutocomplete
           suggestions={baseSuggestions}
           selectedIndex={0}
@@ -91,7 +94,7 @@ describe('MentionAutocomplete', () => {
     });
 
     it('handles middle selection', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <MentionAutocomplete
           suggestions={baseSuggestions}
           selectedIndex={1}
@@ -102,7 +105,7 @@ describe('MentionAutocomplete', () => {
     });
 
     it('handles last selection', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <MentionAutocomplete
           suggestions={baseSuggestions}
           selectedIndex={2}
@@ -113,7 +116,7 @@ describe('MentionAutocomplete', () => {
     });
 
     it('handles invalid selection index', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <MentionAutocomplete
           suggestions={baseSuggestions}
           selectedIndex={-1}
@@ -129,7 +132,7 @@ describe('MentionAutocomplete', () => {
       const suggestions: MentionSuggestion[] = [
         { name: 'eng-01', state: 'working' },
       ];
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <MentionAutocomplete
           suggestions={suggestions}
           selectedIndex={0}
@@ -143,7 +146,7 @@ describe('MentionAutocomplete', () => {
       const suggestions: MentionSuggestion[] = [
         { name: 'eng-02', state: 'idle' },
       ];
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <MentionAutocomplete
           suggestions={suggestions}
           selectedIndex={0}
@@ -157,7 +160,7 @@ describe('MentionAutocomplete', () => {
       const suggestions: MentionSuggestion[] = [
         { name: 'eng-03', state: 'stuck' },
       ];
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <MentionAutocomplete
           suggestions={suggestions}
           selectedIndex={0}
@@ -173,7 +176,7 @@ describe('MentionAutocomplete', () => {
         { name: 'eng-02', state: 'idle' },
         { name: 'eng-03', state: 'stuck' },
       ];
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <MentionAutocomplete
           suggestions={suggestions}
           selectedIndex={0}
@@ -189,7 +192,7 @@ describe('MentionAutocomplete', () => {
 
   describe('query highlighting', () => {
     it('renders with query parameter', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <MentionAutocomplete
           suggestions={baseSuggestions}
           selectedIndex={0}
@@ -201,7 +204,7 @@ describe('MentionAutocomplete', () => {
     });
 
     it('renders with partial match query', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <MentionAutocomplete
           suggestions={baseSuggestions}
           selectedIndex={0}
@@ -219,7 +222,7 @@ describe('MentionAutocomplete', () => {
       const suggestions: MentionSuggestion[] = [
         { name: longName, state: 'working' },
       ];
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <MentionAutocomplete
           suggestions={suggestions}
           selectedIndex={0}
@@ -233,7 +236,7 @@ describe('MentionAutocomplete', () => {
       const suggestions: MentionSuggestion[] = [
         { name: 'eng_01-special', state: 'working' },
       ];
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <MentionAutocomplete
           suggestions={suggestions}
           selectedIndex={0}
@@ -251,7 +254,7 @@ describe('MentionAutocomplete', () => {
           state: i % 2 === 0 ? 'working' : 'idle',
         })
       );
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <MentionAutocomplete
           suggestions={suggestions}
           selectedIndex={50}
