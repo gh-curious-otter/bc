@@ -235,4 +235,3 @@ func (imp *Importer) lastImportedTimestamp(ctx context.Context, path string) (ti
 	t, err := time.Parse(time.RFC3339Nano, watermark)
 	return t, err
 }
-

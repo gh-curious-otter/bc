@@ -36,6 +36,11 @@ const (
 	DefaultMaxFileSize int64 = 10 * 1024 * 1024 // 10 MB
 	// DefaultMaxRotatedFiles is the number of rotated files to keep.
 	DefaultMaxRotatedFiles = 5
+	// DefaultReadLimit caps the number of events returned by Read and ReadByAgent
+	// to prevent unbounded memory usage. Matches the SQLite store limit.
+	DefaultReadLimit = 1000
+	// MaxReadLastLimit caps the value of n in ReadLast to prevent abuse.
+	MaxReadLastLimit = 10000
 )
 
 // Event is a single log entry.
@@ -121,8 +126,21 @@ func (l *Log) rotate() {
 	_ = os.Rename(l.path, fmt.Sprintf("%s.1", l.path)) //nolint:errcheck // best-effort rotation
 }
 
-// Read returns all events from the log.
+// Read returns events from the log, capped at DefaultReadLimit to prevent
+// unbounded memory usage.
 func (l *Log) Read() ([]Event, error) {
+	return l.readWithLimit(DefaultReadLimit)
+}
+
+// readAll returns all events without a cap. Used internally by ReadLast
+// which applies its own limit.
+func (l *Log) readAll() ([]Event, error) {
+	return l.readWithLimit(0)
+}
+
+// readWithLimit reads events from the log file. If limit > 0, at most limit
+// events are returned. If limit <= 0, all events are returned.
+func (l *Log) readWithLimit(limit int) ([]Event, error) {
 	f, err := os.Open(l.path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -140,13 +158,23 @@ func (l *Log) Read() ([]Event, error) {
 			continue // skip malformed lines
 		}
 		events = append(events, ev)
+		if limit > 0 && len(events) >= limit {
+			break
+		}
 	}
 	return events, scanner.Err()
 }
 
-// ReadLast returns the last n events.
+// ReadLast returns the last n events. The value of n is capped at
+// MaxReadLastLimit to prevent excessive memory usage.
 func (l *Log) ReadLast(n int) ([]Event, error) {
-	all, err := l.Read()
+	if n <= 0 {
+		return nil, nil
+	}
+	if n > MaxReadLastLimit {
+		n = MaxReadLastLimit
+	}
+	all, err := l.readAll()
 	if err != nil {
 		return nil, err
 	}
@@ -161,17 +189,33 @@ func (l *Log) Close() error {
 	return nil
 }
 
-// ReadByAgent returns events for a specific agent.
+// ReadByAgent returns events for a specific agent, capped at DefaultReadLimit.
 func (l *Log) ReadByAgent(name string) ([]Event, error) {
-	all, err := l.Read()
+	f, err := os.Open(l.path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
+	defer func() { _ = f.Close() }() //nolint:errcheck // deferred close
+
 	var filtered []Event
-	for _, ev := range all {
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		var ev Event
+		if err := json.Unmarshal(scanner.Bytes(), &ev); err != nil {
+			continue // skip malformed lines
+		}
 		if ev.Agent == name {
 			filtered = append(filtered, ev)
+			if len(filtered) >= DefaultReadLimit {
+				break
+			}
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
 	}
 	return filtered, nil
 }
