@@ -223,6 +223,32 @@ export interface AgentStatsRecord {
   block_write_mb: number;
 }
 
+export interface SettingsConfig {
+  User: { Nickname: string };
+  TUI: { Theme: string; Mode: string };
+  Runtime: { Backend: string; Docker?: { Image: string; Network: string; ExtraMounts: string[]; CPUs: number; MemoryMB: number } };
+  Providers: {
+    Default: string;
+    Claude?: { Command: string; Enabled: boolean; Env?: Record<string, string> };
+    Gemini?: { Command: string; Enabled: boolean; Env?: Record<string, string> };
+    Cursor?: { Command: string; Enabled: boolean; Env?: Record<string, string> };
+    Codex?: { Command: string; Enabled: boolean; Env?: Record<string, string> };
+    OpenCode?: { Command: string; Enabled: boolean; Env?: Record<string, string> };
+    OpenClaw?: { Command: string; Enabled: boolean; Env?: Record<string, string> };
+    Aider?: { Command: string; Enabled: boolean; Env?: Record<string, string> };
+  };
+  Workspace: { Name: string; Path: string; Version: number };
+  Logs: { Path: string; MaxBytes: number };
+  Env: Record<string, string>;
+  Performance: Record<string, number>;
+  Services: {
+    GitHub?: { Command: string; Enabled: boolean };
+    GitLab?: { Command: string; Enabled: boolean };
+    Jira?: { Command: string; Enabled: boolean };
+  };
+  Roster: { Agents: { Name: string; Role: string; Tool: string; Runtime: string }[] };
+}
+
 export const api = {
   listAgents: () => request<Agent[]>('/agents'),
   getAgent: (name: string) => request<Agent>(`/agents/${encodeURIComponent(name)}`),
@@ -261,4 +287,8 @@ export const api = {
   getStatsSystem: () => request<SystemStats>('/stats/system'),
   getStatsSummary: () => request<StatsSummary>('/stats/summary'),
   getStatsChannels: () => request<ChannelStats[]>('/stats/channels'),
+
+  getSettings: () => request<SettingsConfig>('/settings'),
+  updateSettings: (patch: Record<string, unknown>) =>
+    request<SettingsConfig>('/settings', { method: 'PUT', body: JSON.stringify(patch) }),
 };

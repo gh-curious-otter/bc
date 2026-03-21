@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { to: '/logs', label: 'Logs', icon: 'L' },
   { to: '/workspace', label: 'Workspace', icon: 'W' },
   { to: '/doctor', label: 'Doctor', icon: '+' },
+  { to: '/settings', label: 'Settings', icon: '\u2699' },
 ] as const;
 
 const THEME_LABELS = { dark: 'Dark', light: 'Light', system: 'System' } as const;
