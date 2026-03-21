@@ -8,9 +8,9 @@ export const darkTheme: Theme = {
   name: 'dark',
   mode: 'dark',
   colors: {
-    primary: 'cyan',
+    primary: '#EA580C',
     secondary: 'blue',
-    accent: 'magenta',
+    accent: '#FB923C',
     text: 'white',
     textMuted: 'gray',
     textInverse: 'black',
@@ -24,12 +24,12 @@ export const darkTheme: Theme = {
     agentStuck: 'yellow',
     agentError: 'red',
     border: 'gray',
-    borderFocused: 'cyan',
-    selection: 'cyan',
-    highlight: 'yellow',
-    headerTitle: 'cyan',
+    borderFocused: '#EA580C',
+    selection: '#EA580C',
+    highlight: '#FDBA74',
+    headerTitle: '#EA580C',
     footerText: 'gray',
-    badge: 'magenta',
+    badge: '#FB923C',
   },
 };
 
@@ -37,9 +37,9 @@ export const lightTheme: Theme = {
   name: 'light',
   mode: 'light',
   colors: {
-    primary: 'blue',
+    primary: '#C2410C',
     secondary: 'cyan',
-    accent: 'magenta',
+    accent: '#EA580C',
     text: 'black',
     textMuted: '#666666', // 5.7:1 on white — WCAG AA compliant
     textInverse: 'white',
@@ -53,12 +53,12 @@ export const lightTheme: Theme = {
     agentStuck: 'yellow',
     agentError: 'red',
     border: '#767676', // 4.5:1 on white — exceeds 3:1 AA for UI elements
-    borderFocused: 'blue',
-    selection: 'blue',
-    highlight: 'yellow',
-    headerTitle: 'blue',
+    borderFocused: '#C2410C',
+    selection: '#C2410C',
+    highlight: '#FB923C',
+    headerTitle: '#C2410C',
     footerText: '#666666', // 5.7:1 on white — WCAG AA compliant
-    badge: 'magenta',
+    badge: '#EA580C',
   },
 };
 
