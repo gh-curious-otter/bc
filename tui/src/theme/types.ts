@@ -25,7 +25,8 @@ export type TerminalColor =
   | 'blueBright'
   | 'magentaBright'
   | 'cyanBright'
-  | 'whiteBright';
+  | 'whiteBright'
+  | `#${string}`;
 
 /**
  * Semantic color definitions for UI elements

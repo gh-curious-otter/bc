@@ -41,23 +41,23 @@ export const lightTheme: Theme = {
     secondary: 'cyan',
     accent: 'magenta',
     text: 'black',
-    textMuted: 'gray',
+    textMuted: '#666666', // 5.7:1 on white — WCAG AA compliant
     textInverse: 'white',
     success: 'green',
     warning: 'yellow',
     error: 'red',
     info: 'blue',
-    agentIdle: 'gray',
+    agentIdle: '#767676', // 4.5:1 on white — WCAG AA compliant
     agentWorking: 'blue',
     agentDone: 'green',
     agentStuck: 'yellow',
     agentError: 'red',
-    border: 'gray',
+    border: '#767676', // 4.5:1 on white — exceeds 3:1 AA for UI elements
     borderFocused: 'blue',
     selection: 'blue',
     highlight: 'yellow',
     headerTitle: 'blue',
-    footerText: 'gray',
+    footerText: '#666666', // 5.7:1 on white — WCAG AA compliant
     badge: 'magenta',
   },
 };
