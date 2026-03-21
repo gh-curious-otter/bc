@@ -39,6 +39,8 @@ export interface UseListNavigationOptions<T> {
   disabled?: boolean;
   /** Wrap around when reaching start/end of list */
   wrap?: boolean;
+  /** Number of items to jump on PageUp/PageDown (defaults to 10) */
+  pageSize?: number;
   /** Enable search mode with / key */
   enableSearch?: boolean;
   /** Callback when search query changes */
@@ -89,6 +91,7 @@ export function useListNavigation<T>(
     initialIndex = 0,
     disabled = false,
     wrap = false,
+    pageSize = 10,
     enableSearch = false,
     onSearchChange,
     customKeys = {},
@@ -222,6 +225,18 @@ export function useListNavigation<T>(
       // G (shift+g): jump to last
       if (input === 'G') {
         jumpToLast();
+        return;
+      }
+
+      // PageDown: move down by pageSize
+      if (key.pageDown) {
+        moveDown(pageSize);
+        return;
+      }
+
+      // PageUp: move up by pageSize
+      if (key.pageUp) {
+        moveUp(pageSize);
         return;
       }
 
