@@ -176,6 +176,14 @@ export interface SystemStats {
   goroutines: number;
 }
 
+export interface WorkspaceInfo {
+  name: string;
+  nickname: string;
+  agent_count: number;
+  running_count: number;
+  is_healthy: boolean;
+}
+
 export interface StatsSummary {
   agents_total: number;
   agents_running: number;
@@ -231,6 +239,7 @@ export const api = {
 
   listCron: () => request<CronJob[]>('/cron'),
   listSecrets: () => request<Secret[]>('/secrets'),
+  getWorkspace: () => request<WorkspaceInfo>('/workspace'),
   getWorkspaceStatus: () => request<Record<string, unknown>>('/workspace/status'),
 
   getStatsSystem: () => request<SystemStats>('/stats/system'),
