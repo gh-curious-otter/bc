@@ -13,8 +13,8 @@ import (
 
 // Event is the payload broadcast to SSE subscribers.
 type Event struct {
-	Payload any    `json:"payload"`
-	Type    string `json:"type"`
+	Data any    `json:"data"`
+	Type string `json:"type"`
 }
 
 type subscriber struct {
@@ -60,7 +60,7 @@ func (h *Hub) Stop() {
 
 // Publish implements agent.EventPublisher.
 func (h *Hub) Publish(eventType string, data map[string]any) {
-	evt := Event{Type: eventType, Payload: data}
+	evt := Event{Type: eventType, Data: data}
 	msg, err := json.Marshal(evt)
 	if err != nil {
 		return
@@ -107,7 +107,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// Send initial connected event.
-	connected, _ := json.Marshal(Event{Type: "connected", Payload: map[string]any{}})
+	connected, _ := json.Marshal(Event{Type: "connected", Data: map[string]any{}})
 	fmt.Fprintf(w, "data: %s\n\n", connected) //nolint:errcheck // writing to response
 	flusher.Flush()
 
