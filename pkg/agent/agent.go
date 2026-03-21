@@ -699,10 +699,13 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 			existing.RuntimeBackend = opts.Runtime
 		}
 
-		// Only resume if we have a stored session ID — avoids
+		// Only resume if we have a real Claude session ID (UUID format) — avoids
 		// "No conversation found to continue" on first stop/start.
+		// The SessionID field may contain the tmux session name (e.g. "frontend")
+		// which is not a valid Claude conversation ID.
 		sessionID := existing.SessionID
-		resume := !opts.Fresh && sessionID != ""
+		isRealSessionID := len(sessionID) == 36 && sessionID[8] == '-'
+		resume := !opts.Fresh && isRealSessionID
 		if opts.Fresh {
 			existing.SessionID = ""
 			sessionID = ""
