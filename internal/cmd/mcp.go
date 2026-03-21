@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/client"
+	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/ui"
 	srvmcp "github.com/rpuneet/bc/server/mcp"
 )
@@ -347,6 +348,27 @@ func runMCPRemove(cmd *cobra.Command, args []string) error {
 
 	if removeErr := c.MCP.Remove(cmd.Context(), name); removeErr != nil {
 		return fmt.Errorf("remove mcp server: %w", removeErr)
+	}
+
+	// Clean stale references from role files
+	ws, wsErr := getWorkspace()
+	if wsErr == nil && ws != nil {
+		rm := ws.RoleManager
+		roles, loadErr := rm.LoadAllRoles()
+		if loadErr == nil {
+			for roleName, role := range roles {
+				for _, srv := range role.Metadata.MCPServers {
+					if srv == name {
+						if cleanErr := rm.RemoveMCPServer(roleName, name); cleanErr != nil {
+							log.Warn("failed to clean MCP ref from role", "role", roleName, "server", name, "error", cleanErr)
+						} else {
+							fmt.Printf("  Removed %q reference from role %q\n", name, roleName)
+						}
+						break
+					}
+				}
+			}
+		}
 	}
 
 	fmt.Printf("Removed MCP server %q\n", name)
