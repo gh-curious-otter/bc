@@ -74,10 +74,17 @@ import (
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
-// IsValidAgentName validates that agent names contain only alphanumeric characters, hyphens, and underscores.
+// MaxAgentNameLength is the maximum allowed length for an agent name.
+const MaxAgentNameLength = 64
+
+// IsValidAgentName validates that agent names contain only alphanumeric characters, hyphens, and underscores,
+// and are at most MaxAgentNameLength characters long.
 // This ensures agent names are safe for use in file paths, shell environments, and tmux sessions.
 func IsValidAgentName(name string) bool {
 	if name == "" {
+		return false
+	}
+	if len(name) > MaxAgentNameLength {
 		return false
 	}
 	for _, c := range name {
@@ -667,13 +674,22 @@ func (m *Manager) SpawnAgentWithOptions(ctx context.Context, opts SpawnOptions) 
 	// Validate agent name format
 	if !IsValidAgentName(name) {
 		m.mu.Unlock()
-		return nil, fmt.Errorf("agent name %q contains invalid characters (use letters, numbers, dash, underscore)", name)
+		return nil, fmt.Errorf("agent name %q is invalid: use letters, numbers, dash, underscore (max %d chars)", name, MaxAgentNameLength)
 	}
 
 	// Validate role is not empty or null-like
 	if role == "" || role == "null" || role == "<nil>" {
 		m.mu.Unlock()
 		return nil, fmt.Errorf("role is required and cannot be empty or null")
+	}
+
+	// Validate role exists on disk (built-in roles like "root" are always valid)
+	if role != RoleRoot {
+		rm := workspace.NewRoleManager(m.stateDir)
+		if !rm.HasRole(string(role)) {
+			m.mu.Unlock()
+			return nil, fmt.Errorf("role %q does not exist; create it in .bc/roles/%s.md first", role, role)
+		}
 	}
 
 	// Enforce root singleton constraint
@@ -1416,7 +1432,7 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 // RenameAgent renames an agent from oldName to newName.
 func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) error {
 	if !IsValidAgentName(newName) {
-		return fmt.Errorf("agent name %q contains invalid characters", newName)
+		return fmt.Errorf("agent name %q is invalid: use letters, numbers, dash, underscore (max %d chars)", newName, MaxAgentNameLength)
 	}
 
 	// Phase 1: validate under global lock, snapshot agent
