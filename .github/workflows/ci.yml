@@ -32,7 +32,7 @@ jobs:
           version: v2.8.0
           only-new-issues: true
 
-  # ── Go: Test + Coverage ──────────────────────────────────────────────
+  # ── Go: Fast Tests + Coverage (blocking) ─────────────────────────────
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -46,9 +46,10 @@ jobs:
       - name: Create web dist stub for embed
         run: mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html
 
-      - name: Run tests with race detector and coverage
+      - name: Run fast tests with race detector and coverage
         run: |
-          PACKAGES=$(go list ./... | grep -v /internal/cmd$)
+          SLOW="github.com/rpuneet/bc/pkg/tmux github.com/rpuneet/bc/pkg/secret github.com/rpuneet/bc/pkg/doctor github.com/rpuneet/bc/internal/cmd"
+          PACKAGES=$(go list ./... | grep -v -F "$(echo $SLOW | tr ' ' '\n')")
           go test -race -coverprofile=coverage.out $PACKAGES
 
       - name: Check coverage threshold (60%)
@@ -67,6 +68,28 @@ jobs:
         with:
           files: coverage.out
           fail_ci_if_error: false
+
+  # ── Go: Slow Tests (non-blocking) ───────────────────────────────────
+  test-slow:
+    name: Test (slow)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Create web dist stub for embed
+        run: mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html
+
+      - name: Run slow tests (tmux, secret, doctor)
+        run: |
+          go test -race -timeout 5m \
+            ./pkg/tmux/... \
+            ./pkg/secret/... \
+            ./pkg/doctor/...
 
   # ── Go: Security (non-blocking) ───────────────────────────────────────
   security:
@@ -110,7 +133,7 @@ jobs:
         run: cd tui && bun test
         continue-on-error: true
 
-  # ── Build gate ───────────────────────────────────────────────────────
+  # ── Build gate (only needs fast tests + lint + tui) ─────────────────
   build:
     name: Build
     runs-on: ubuntu-latest
