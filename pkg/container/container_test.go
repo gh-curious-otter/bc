@@ -1,8 +1,13 @@
 package container
 
 import (
+	"context"
+	"crypto/sha256"
+	"fmt"
+	"path/filepath"
 	"testing"
 
+	"github.com/rpuneet/bc/pkg/provider"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
@@ -151,5 +156,182 @@ func TestImageForTool_FallbackToConfig(t *testing.T) {
 	want := "bc-agent-unknown-tool:latest"
 	if got != want {
 		t.Errorf("imageForTool(\"unknown-tool\") = %q, want %q", got, want)
+	}
+}
+
+// --- New tests for coverage ---
+
+func TestAgentVolumeDir(t *testing.T) {
+	tests := []struct {
+		name      string
+		wsDir     string
+		agentName string
+		want      string
+	}{
+		{
+			name:      "normal path",
+			wsDir:     "/home/user/project",
+			agentName: "alice",
+			want:      filepath.Join("/home/user/project", ".bc", "volumes", "alice", ".claude"),
+		},
+		{
+			name:      "root workspace",
+			wsDir:     "/",
+			agentName: "root-agent",
+			want:      filepath.Join("/", ".bc", "volumes", "root-agent", ".claude"),
+		},
+		{
+			name:      "empty agent name",
+			wsDir:     "/workspace",
+			agentName: "",
+			want:      filepath.Join("/workspace", ".bc", "volumes", "", ".claude"),
+		},
+		{
+			name:      "agent with special chars",
+			wsDir:     "/tmp/ws",
+			agentName: "eng_01-dev",
+			want:      filepath.Join("/tmp/ws", ".bc", "volumes", "eng_01-dev", ".claude"),
+		},
+		{
+			name:      "deeply nested workspace",
+			wsDir:     "/a/b/c/d/e",
+			agentName: "worker",
+			want:      filepath.Join("/a/b/c/d/e", ".bc", "volumes", "worker", ".claude"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := AgentVolumeDir(tt.wsDir, tt.agentName)
+			if got != tt.want {
+				t.Errorf("AgentVolumeDir(%q, %q) = %q, want %q", tt.wsDir, tt.agentName, got, tt.want)
+			}
+		})
+	}
+}
+
+// mockProvider implements provider.Provider and provider.ContainerCustomizer.
+type mockProvider struct {
+	name        string
+	dockerImage string
+}
+
+func (m *mockProvider) Name() string                            { return m.name }
+func (m *mockProvider) Description() string                     { return "mock provider" }
+func (m *mockProvider) Command() string                         { return "mock" }
+func (m *mockProvider) Binary() string                          { return "mock" }
+func (m *mockProvider) InstallHint() string                     { return "install mock" }
+func (m *mockProvider) BuildCommand(_ provider.CommandOpts) string { return "mock" }
+func (m *mockProvider) IsInstalled(_ context.Context) bool      { return true }
+func (m *mockProvider) Version(_ context.Context) string        { return "1.0.0" }
+func (m *mockProvider) DetectState(_ string) provider.State     { return provider.StateUnknown }
+func (m *mockProvider) DockerImage() string                     { return m.dockerImage }
+func (m *mockProvider) AdjustContainerCommand(cmd string) string { return cmd }
+
+func TestImageForTool_WithContainerCustomizer(t *testing.T) {
+	registry := provider.NewRegistry()
+	mp := &mockProvider{name: "custom-tool", dockerImage: "my-custom-image:v3"}
+	registry.Register(mp)
+
+	b := &Backend{
+		cfg:              Config{Image: "bc-agent-claude:latest"},
+		providerRegistry: registry,
+	}
+
+	got := b.imageForTool("custom-tool")
+	want := "my-custom-image:v3"
+	if got != want {
+		t.Errorf("imageForTool(\"custom-tool\") = %q, want %q", got, want)
+	}
+}
+
+func TestImageForTool_CustomizerReturnsEmpty(t *testing.T) {
+	registry := provider.NewRegistry()
+	mp := &mockProvider{name: "empty-img", dockerImage: ""}
+	registry.Register(mp)
+
+	b := &Backend{
+		cfg:              Config{Image: "bc-agent-claude:latest"},
+		providerRegistry: registry,
+	}
+
+	got := b.imageForTool("empty-img")
+	want := "bc-agent-empty-img:latest"
+	if got != want {
+		t.Errorf("imageForTool(\"empty-img\") = %q, want %q (should fall through to convention)", got, want)
+	}
+}
+
+func TestImageForTool_RegistryMiss(t *testing.T) {
+	registry := provider.NewRegistry()
+	// Register a different provider, not the one we look up
+	mp := &mockProvider{name: "other-tool", dockerImage: "other:latest"}
+	registry.Register(mp)
+
+	b := &Backend{
+		cfg:              Config{Image: "bc-agent-claude:latest"},
+		providerRegistry: registry,
+	}
+
+	got := b.imageForTool("missing-tool")
+	want := "bc-agent-missing-tool:latest"
+	if got != want {
+		t.Errorf("imageForTool(\"missing-tool\") = %q, want %q", got, want)
+	}
+}
+
+func TestSetEnvironment(t *testing.T) {
+	b := &Backend{
+		prefix:        "bc-",
+		workspaceHash: "aabbcc",
+	}
+
+	err := b.SetEnvironment(context.Background(), "agent1", "FOO", "bar")
+	if err != nil {
+		t.Errorf("SetEnvironment returned error: %v, want nil (no-op)", err)
+	}
+}
+
+func TestWorkspaceHashDeterministic(t *testing.T) {
+	wsPath := "/home/user/my-project"
+
+	// Compute expected hash the same way NewBackend does
+	h := sha256.Sum256([]byte(wsPath))
+	expectedHash := fmt.Sprintf("%x", h[:3])
+
+	b1 := &Backend{
+		prefix:        "bc-",
+		workspaceHash: expectedHash,
+		workspacePath: wsPath,
+	}
+	b2 := &Backend{
+		prefix:        "bc-",
+		workspaceHash: expectedHash,
+		workspacePath: wsPath,
+	}
+
+	cn1 := b1.containerName("agent-x")
+	cn2 := b2.containerName("agent-x")
+
+	if cn1 != cn2 {
+		t.Errorf("containerName not deterministic: %q != %q", cn1, cn2)
+	}
+
+	// Verify the hash is 6 hex chars (3 bytes)
+	if len(expectedHash) != 6 {
+		t.Errorf("workspace hash length = %d, want 6 hex chars", len(expectedHash))
+	}
+
+	// Verify the full container name format
+	want := "bc-" + expectedHash + "-agent-x"
+	if cn1 != want {
+		t.Errorf("containerName = %q, want %q", cn1, want)
+	}
+
+	// Different workspace path produces different hash
+	h2 := sha256.Sum256([]byte("/other/path"))
+	otherHash := fmt.Sprintf("%x", h2[:3])
+	if expectedHash == otherHash {
+		t.Error("different workspace paths should produce different hashes")
 	}
 }
