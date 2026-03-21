@@ -83,11 +83,13 @@ body:
         - Review with `/code-review` skill
         - Merge after clean review + CI green
 
-        **MEDIUM (2-5 PRs)**
-        - Break into 4-5 sub-issues with explicit dependency order
-        - Assign each sub-issue to a subagent for its own PR
-        - Review each PR with `/code-review` skill
+        **MEDIUM (5-10 sub-issues)**
+        - Create a TODO list tracking all sub-issues for the epic
+        - Break into 5-10 sub-issues with explicit dependency order
+        - Launch 5-10 subagents in parallel (or batches of 3-4), each assigned one sub-issue
+        - Review each PR with `/code-review` skill as subagents complete
         - Merge PRs in dependency order
+        - Update TODO as each sub-issue is closed
         - Keep this issue open until all sub-issues are done
 
         **LARGE (needs design first)**

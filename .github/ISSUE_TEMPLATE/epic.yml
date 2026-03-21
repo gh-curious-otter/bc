@@ -72,12 +72,15 @@ body:
 
         **Phase 2: Break Down**
         - Create sub-issues in dependency order (list them above)
-        - Each sub-issue should be SMALL (< 1000 LOC, single PR) or MEDIUM (2-5 PRs)
+        - Each sub-issue should be SMALL (< 1000 LOC, single PR) or MEDIUM (5-10 sub-issues)
         - Add explicit dependency comments between sub-issues
 
         **Phase 3: Execute**
-        - Assign each sub-issue to a subagent for its own PR
+        - Create a TODO list tracking all sub-issues for the epic
+        - Launch 5-10 subagents in parallel (or batches of 3-4), each assigned one sub-issue
+        - Review each PR with `/code-review` skill as subagents complete
         - Merge PRs in dependency order
+        - Update TODO as each sub-issue is closed
         - Comment on this epic with progress updates
         - Do NOT close this epic until all sub-issues are done
 
