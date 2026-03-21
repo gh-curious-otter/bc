@@ -6,11 +6,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/rpuneet/bc/pkg/db"
 )
 
 // Tool represents a configured AI tool provider stored in the workspace.
@@ -91,7 +90,7 @@ var builtinTools = []Tool{
 
 // Store provides SQLite-backed tool management.
 type Store struct {
-	db   *sql.DB
+	db   *db.DB
 	path string
 }
 
@@ -104,29 +103,20 @@ func NewStore(stateDir string) *Store {
 
 // Open initializes the SQLite database and seeds built-in tools.
 func (s *Store) Open() error {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0750); err != nil {
-		return fmt.Errorf("failed to create database directory: %w", err)
-	}
-
-	db, err := sql.Open("sqlite3", s.path+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000")
+	database, err := db.Open(s.path)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	db.SetConnMaxLifetime(time.Hour)
-	db.SetConnMaxIdleTime(10 * time.Minute)
-
-	if err := initSchema(db); err != nil {
-		_ = db.Close()
+	if err := initSchema(database.DB); err != nil {
+		_ = database.Close()
 		return fmt.Errorf("failed to initialize schema: %w", err)
 	}
 
-	s.db = db
+	s.db = database
 
 	if err := s.seedBuiltins(context.Background()); err != nil {
-		_ = db.Close()
+		_ = database.Close()
 		return fmt.Errorf("failed to seed built-in tools: %w", err)
 	}
 
