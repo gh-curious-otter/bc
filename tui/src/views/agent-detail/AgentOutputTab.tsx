@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { Box, Text } from 'ink';
+import { useTheme } from '../../theme';
 import { LoadingIndicator } from '../../components/LoadingIndicator';
 import { colorizeOutputLine } from '../../utils';
 
@@ -27,6 +28,7 @@ export function AgentOutputTab({
   sendStatus,
   outputHeight,
 }: AgentOutputTabProps): React.ReactElement {
+  const { theme } = useTheme();
   return (
     <>
       {/* #1161: Output box with bottom-aligned content and preserved colors */}
@@ -36,14 +38,14 @@ export function AgentOutputTab({
         marginBottom={1}
         paddingX={1}
         borderStyle="single"
-        borderColor="gray"
+        borderColor={theme.colors.textMuted}
         height={outputHeight}
         justifyContent="flex-end"
       >
         {loading && outputLines.length === 0 ? (
           <LoadingIndicator message="Loading agent output..." />
         ) : error ? (
-          <Text color="red">Error: {error}</Text>
+          <Text color={theme.colors.error}>Error: {error}</Text>
         ) : outputLines.length === 0 ? (
           <Text dimColor>No output yet. Agent may be idle.</Text>
         ) : (
@@ -61,20 +63,20 @@ export function AgentOutputTab({
         marginBottom={1}
         paddingX={1}
         borderStyle="single"
-        borderColor={inputMode ? 'cyan' : 'gray'}
+        borderColor={inputMode ? theme.colors.primary : theme.colors.textMuted}
       >
         {inputMode ? (
           <Box>
-            <Text color="cyan">{"> "}</Text>
+            <Text color={theme.colors.primary}>{"> "}</Text>
             <Text>{messageBuffer}</Text>
-            <Text color="cyan">|</Text>
+            <Text color={theme.colors.primary}>|</Text>
           </Box>
         ) : (
           <Text dimColor>Press i or m to send message</Text>
         )}
         {sendStatus && (
           <Box marginTop={1}>
-            <Text color="green">
+            <Text color={theme.colors.success}>
               {sendStatus}
             </Text>
           </Box>

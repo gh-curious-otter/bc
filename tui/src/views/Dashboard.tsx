@@ -1,5 +1,6 @@
 import { memo, useCallback } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
+import { useTheme } from '../theme';
 import { useIsOverlayActive } from '../navigation/FocusContext';
 import { Panel } from '../components/Panel.js';
 import { MetricCard } from '../components/MetricCard.js';
@@ -143,20 +144,21 @@ interface HeaderProps {
  * Memoized header - only re-renders when props change
  */
 const Header = memo(function Header({ workspaceName, isLoading, lastRefresh }: HeaderProps) {
+  const { theme } = useTheme();
   const refreshText = lastRefresh
     ? `Updated ${formatRelativeTime(lastRefresh)}`
     : '';
 
   return (
     <Box marginBottom={1}>
-      <Text bold color="blue">
+      <Text bold color={theme.colors.primary}>
         bc
       </Text>
       <Text> · </Text>
       <Text>{workspaceName}</Text>
       <Box flexGrow={1} />
       {isLoading ? (
-        <Text color="yellow">↻ refreshing...</Text>
+        <Text color={theme.colors.warning}>↻ refreshing...</Text>
       ) : (
         <Text dimColor>{refreshText}</Text>
       )}
@@ -187,43 +189,41 @@ const SummaryCards = memo(function SummaryCards({
   errorCount,
   isNarrow,
 }: SummaryCardsProps) {
+  const { theme } = useTheme();
 
-  // #1352: Inline text summary for narrow terminals to avoid border overlap
-  // #1591: Added symbols alongside colors for accessibility
   if (isNarrow) {
     return (
       <Box marginBottom={1}>
         <Text>{total} agents</Text>
         <Text> · </Text>
-        <Text color="cyan">{STATUS_SYMBOLS.working} {working} working</Text>
+        <Text color={theme.colors.info}>{STATUS_SYMBOLS.working} {working} working</Text>
         <Text> · </Text>
-        <Text color="gray">{STATUS_SYMBOLS.idle} {idle} idle</Text>
+        <Text color={theme.colors.textMuted}>{STATUS_SYMBOLS.idle} {idle} idle</Text>
         {stuck > 0 && (
           <>
             <Text> · </Text>
-            <Text color="yellow">{STATUS_SYMBOLS.warning} {stuck} stuck</Text>
+            <Text color={theme.colors.warning}>{STATUS_SYMBOLS.warning} {stuck} stuck</Text>
           </>
         )}
         {errorCount > 0 && (
           <>
             <Text> · </Text>
-            <Text color="red">{STATUS_SYMBOLS.error} {errorCount} error</Text>
+            <Text color={theme.colors.error}>{STATUS_SYMBOLS.error} {errorCount} error</Text>
           </>
         )}
       </Box>
     );
   }
 
-  // Standard bordered MetricCards for wider terminals
   return (
     <Box flexWrap="wrap" marginBottom={1}>
       <MetricCard value={total} label="Total" />
-      <MetricCard value={active} label="Active" color="green" />
-      <MetricCard value={working} label="Working" color="cyan" />
-      <MetricCard value={idle} label="Idle" color="gray" />
-      {stuck > 0 && <MetricCard value={stuck} label="Stuck" color="yellow" />}
+      <MetricCard value={active} label="Active" color={theme.colors.success} />
+      <MetricCard value={working} label="Working" color={theme.colors.info} />
+      <MetricCard value={idle} label="Idle" color={theme.colors.textMuted} />
+      {stuck > 0 && <MetricCard value={stuck} label="Stuck" color={theme.colors.warning} />}
       {errorCount > 0 && (
-        <MetricCard value={errorCount} label="Error" color="red" />
+        <MetricCard value={errorCount} label="Error" color={theme.colors.error} />
       )}
     </Box>
   );
@@ -314,7 +314,7 @@ const SystemHealthPanel = memo(function SystemHealthPanel({
           )}
         </Box>
         {unhealthyCount > 0 && (
-          <Text color="yellow" dimColor>
+          <Text color={STATUS_COLORS.warning} dimColor>
             ⚠ {unhealthyCount} agent{unhealthyCount > 1 ? 's' : ''} need attention
           </Text>
         )}
@@ -363,7 +363,7 @@ const CostPanel = memo(function CostPanel({
     return (
       <Box marginBottom={1}>
         <Text bold dimColor>Cost: </Text>
-        <Text bold color="yellow">${totalCostUSD.toFixed(2)}</Text>
+        <Text bold color={barColor}>${totalCostUSD.toFixed(2)}</Text>
         <Text dimColor>/${budgetUSD.toFixed(2)} </Text>
         <Text color={barColor}>{'█'.repeat(filledWidth)}</Text>
         <Text dimColor>{'░'.repeat(emptyWidth)}</Text>
@@ -379,7 +379,7 @@ const CostPanel = memo(function CostPanel({
       <Box flexDirection="column">
         {/* Line 1: Total + burn rate (show placeholder when no data yet) */}
         <Box>
-          <Text bold color="yellow">{totalCostUSD > 0 ? `$${totalCostUSD.toFixed(2)}` : '$—'}</Text>
+          <Text bold color={barColor}>{totalCostUSD > 0 ? `$${totalCostUSD.toFixed(2)}` : '$—'}</Text>
           {burnRate > 0 && (
             <Text dimColor>  {costSymbol} ${burnRate.toFixed(2)}/hr</Text>
           )}

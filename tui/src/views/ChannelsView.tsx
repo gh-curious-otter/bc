@@ -9,6 +9,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Text } from 'ink';
+import { useTheme } from '../theme';
 import { useChannelsWithUnread, useDisableInput, useListNavigation } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
@@ -36,7 +37,7 @@ interface ChannelsViewProps {}
  * - Press 'm' to jump to compose
  */
 export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement {
-  // #1594: Use context instead of prop drilling
+  const { theme } = useTheme();
   const { isDisabled: disableInput } = useDisableInput();
   // #1129: Use useChannelsWithUnread for proper unread message tracking
   const { channels, loading: channelsLoading, error: channelsError, refresh } = useChannelsWithUnread();
@@ -121,7 +122,7 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
         title="Channels"
         count={channelList.length}
         loading={channelsLoading}
-        color="cyan"
+        color={theme.colors.primary}
       />
 
       {/* Channel table */}

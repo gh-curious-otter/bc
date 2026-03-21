@@ -17,7 +17,7 @@ export interface HeaderBarProps {
   /** Optional count badge (e.g., number of items) */
   count?: number;
   /** Title color (default: cyan) */
-  color?: 'cyan' | 'blue' | 'magenta' | 'yellow' | 'green' | 'red';
+  color?: string;
   /** Keyboard hints to show below header */
   hints?: string;
 }

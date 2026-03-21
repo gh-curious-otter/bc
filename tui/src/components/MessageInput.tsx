@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
+import { useTheme } from '../theme';
 
 interface MessageInputProps {
   /** Placeholder text when input is empty */
@@ -34,6 +35,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   disabled = false,
   channelName,
 }) => {
+  const { theme } = useTheme();
   const [value, setValue] = useState('');
   const [isInputMode, setIsInputMode] = useState(false);
 
@@ -74,8 +76,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   if (disabled) {
     return (
-      <Box borderStyle="single" borderColor="gray" paddingX={1}>
-        <Text color="gray">Input disabled</Text>
+      <Box borderStyle="single" borderColor={theme.colors.textMuted} paddingX={1}>
+        <Text color={theme.colors.textMuted}>Input disabled</Text>
       </Box>
     );
   }
@@ -83,10 +85,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   return (
     <Box flexDirection="column">
       {/* Input area */}
-      <Box borderStyle="single" borderColor={isInputMode ? 'green' : 'gray'} paddingX={1}>
+      <Box borderStyle="single" borderColor={isInputMode ? theme.colors.success : theme.colors.textMuted} paddingX={1}>
         {isInputMode ? (
           <Box>
-            <Text color="green">&gt; </Text>
+            <Text color={theme.colors.success}>&gt; </Text>
             <TextInput
               value={value}
               onChange={setValue}
@@ -97,7 +99,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             />
           </Box>
         ) : (
-          <Text color="gray">
+          <Text color={theme.colors.textMuted}>
             Press &apos;i&apos; to type a message
             {channelName && <Text> to #{channelName}</Text>}
           </Text>
@@ -106,7 +108,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
       {/* Mode indicator */}
       <Box>
-        <Text color="gray" dimColor>
+        <Text color={theme.colors.textMuted} dimColor>
           {isInputMode
             ? '←/→: move cursor | Enter: send | Esc: exit'
             : 'i: input mode | j/k: scroll'}

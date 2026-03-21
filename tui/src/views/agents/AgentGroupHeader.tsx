@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
+import { useTheme } from '../../theme';
 import type { RoleGroup } from '../../hooks/useAgentGroups';
 
 export interface AgentGroupHeaderProps {
@@ -18,20 +19,21 @@ export function AgentGroupHeader({
   isSelected,
   isCollapsed,
 }: AgentGroupHeaderProps): React.ReactElement {
+  const { theme } = useTheme();
   return (
     <Box>
-      <Text color={isSelected ? 'cyan' : 'white'} bold>
+      <Text color={isSelected ? theme.colors.primary : theme.colors.text} bold>
         {isSelected ? '▸ ' : '  '}
         {isCollapsed ? '▶' : '▼'}{' '}
       </Text>
-      <Text bold color={isSelected ? 'cyan' : 'white'}>
+      <Text bold color={isSelected ? theme.colors.primary : theme.colors.text}>
         {group.role.toUpperCase()} ({group.agents.length})
       </Text>
       {group.working > 0 && (
-        <Text color="blue"> ● {group.working}</Text>
+        <Text color={theme.colors.secondary}> ● {group.working}</Text>
       )}
       {group.stuck > 0 && (
-        <Text color="yellow"> ⚠ {group.stuck}</Text>
+        <Text color={theme.colors.warning}> ⚠ {group.stuck}</Text>
       )}
     </Box>
   );

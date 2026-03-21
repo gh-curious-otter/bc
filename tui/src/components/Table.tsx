@@ -1,5 +1,6 @@
 import React, { memo, useMemo } from 'react';
 import { Box, Text } from 'ink';
+import { useTheme } from '../theme';
 
 export interface Column<T> {
   key: keyof T | string;
@@ -28,7 +29,7 @@ export function Table<T>({
   maxVisibleRows,
   scrollOffset = 0,
 }: TableProps<T>) {
-  // Apply virtualization if maxVisibleRows is specified
+  const { theme } = useTheme();
   const visibleData = useMemo(() => {
     if (maxVisibleRows && data.length > maxVisibleRows) {
       return data.slice(scrollOffset, scrollOffset + maxVisibleRows);
@@ -53,7 +54,7 @@ export function Table<T>({
         <Text>{'  '}</Text>
         {columns.map((col, i) => (
           <Box key={i} width={col.width ?? 15} paddingRight={1}>
-            <Text bold color="cyan">
+            <Text bold color={theme.colors.primary}>
               {col.header}
             </Text>
           </Box>
@@ -74,7 +75,7 @@ export function Table<T>({
       {/* Empty State */}
       {data.length === 0 && (
         <Box padding={1}>
-          <Text color="gray">No data</Text>
+          <Text color={theme.colors.textMuted}>No data</Text>
         </Box>
       )}
     </Box>
@@ -97,19 +98,19 @@ const TableRow = memo(function TableRow<T>({
   rowIndex,
   isSelected,
 }: TableRowProps<T>) {
-  // #985 fix: Use color highlighting instead of borderStyle="double" which causes
+  const { theme } = useTheme();
   // garbled text on some terminals at 80 columns. Selection indicator uses arrow
   // prefix and cyan color for visibility without adding border width.
   return (
     <Box>
       {/* Selection indicator - fixed width arrow */}
-      <Text color={isSelected ? 'cyan' : undefined}>{isSelected ? '▸ ' : '  '}</Text>
+      <Text color={isSelected ? theme.colors.primary : undefined}>{isSelected ? '▸ ' : '  '}</Text>
       {columns.map((col, colIndex) => (
         <Box key={colIndex} width={col.width ?? 15} paddingRight={1}>
           {col.render ? (
             col.render(item, rowIndex)
           ) : (
-            <Text color={isSelected ? 'cyan' : undefined}>
+            <Text color={isSelected ? theme.colors.primary : undefined}>
               {String((item as Record<string, unknown>)[col.key as string] ?? '')}
             </Text>
           )}

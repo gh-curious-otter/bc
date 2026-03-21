@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Text } from 'ink';
+import { useTheme } from '../theme';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { HeaderBar } from '../components/HeaderBar';
 import { Footer } from '../components/Footer';
@@ -13,6 +14,7 @@ import { truncate } from '../utils';
 import { getMCPList, type MCPServer } from '../services/bc';
 
 export function MCPView(): React.ReactElement {
+  const { theme } = useTheme();
   const { isDisabled: disableInput } = useDisableInput();
   const [servers, setServers] = useState<MCPServer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,7 +71,7 @@ export function MCPView(): React.ReactElement {
     return (
       <Box flexDirection="column">
         <HeaderBar title="MCP Servers" />
-        <Box paddingLeft={1}><Text color="red">{error}</Text></Box>
+        <Box paddingLeft={1}><Text color={theme.colors.error}>{error}</Text></Box>
         <Footer hints={viewHints} />
       </Box>
     );
@@ -98,7 +100,7 @@ export function MCPView(): React.ReactElement {
             return (
               <Box key={server.name} paddingLeft={1}>
                 <Box width={20}>
-                  <Text inverse={isSelected} color={isSelected ? 'blue' : undefined}>
+                  <Text inverse={isSelected} color={isSelected ? theme.colors.primary : undefined}>
                     {truncate(server.name, 18)}
                   </Text>
                 </Box>
@@ -109,7 +111,7 @@ export function MCPView(): React.ReactElement {
                   <Text inverse={isSelected}>{truncate(target, 38)}</Text>
                 </Box>
                 <Box width={10}>
-                  <Text inverse={isSelected} color={server.enabled ? 'green' : 'red'}>
+                  <Text inverse={isSelected} color={server.enabled ? theme.colors.success : theme.colors.error}>
                     {server.enabled ? 'yes' : 'no'}
                   </Text>
                 </Box>

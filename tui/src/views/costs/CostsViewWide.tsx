@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { Box, Text } from 'ink';
+import { useTheme } from '../../theme';
 import { InlineProgressBar } from '../../components/ProgressBar';
 import { Panel } from '../../components/Panel';
 import { Footer } from '../../components/Footer';
@@ -27,6 +28,7 @@ const CostsViewWide = memo(function CostsViewWide({
   hints,
   terminalWidth,
 }: CostsViewWideProps) {
+  const { theme } = useTheme();
   const agentCount = agentEntries.length;
   const maxCost = agentEntries.length > 0 ? agentEntries[0].cost : 1;
 
@@ -61,7 +63,7 @@ const CostsViewWide = memo(function CostsViewWide({
         <Text bold>Costs</Text>
         <Text dimColor> ({agentCount})</Text>
         <Text>  </Text>
-        <Text color="yellow" bold>${costs.total_cost.toFixed(2)}</Text>
+        <Text color={theme.colors.warning} bold>${costs.total_cost.toFixed(2)}</Text>
         <Text dimColor> total</Text>
         <Box flexGrow={1} />
         {burnRate > 0 && (
@@ -83,14 +85,14 @@ const CostsViewWide = memo(function CostsViewWide({
 
           return (
             <Box key={agent.name}>
-              <Text color={selected ? 'cyan' : undefined} bold={selected}>
+              <Text color={selected ? theme.colors.primary : undefined} bold={selected}>
                 {selected ? '▸ ' : '  '}
               </Text>
-              <Text color={selected ? 'cyan' : nameColor} bold={selected} wrap="truncate">
+              <Text color={selected ? theme.colors.primary : nameColor} bold={selected} wrap="truncate">
                 {displayName}
               </Text>
               <Text> </Text>
-              <Text color={selected ? 'cyan' : 'yellow'}>{costStr}</Text>
+              <Text color={selected ? theme.colors.primary : theme.colors.warning}>{costStr}</Text>
               <Text> </Text>
               <InlineProgressBar
                 value={agent.cost}
@@ -114,7 +116,7 @@ const CostsViewWide = memo(function CostsViewWide({
             const maxModelCost = modelEntries.length > 0 ? modelEntries[0][1] : 1;
             return (
               <Box key={model}>
-                <Text color="magenta" wrap="truncate">{model.padEnd(10)}</Text>
+                <Text color={theme.colors.accent} wrap="truncate">{model.padEnd(10)}</Text>
                 <Text> ${cost.toFixed(2).padStart(7)}</Text>
                 <Text> </Text>
                 <InlineProgressBar value={cost} max={maxModelCost} width={13} />
@@ -127,7 +129,7 @@ const CostsViewWide = memo(function CostsViewWide({
         <Panel title="Billing" width="50%">
           <Box>
             <Text>Spent     </Text>
-            <Text color="yellow">${billingSpent.toFixed(2)}</Text>
+            <Text color={theme.colors.warning}>${billingSpent.toFixed(2)}</Text>
           </Box>
           {burnRate > 0 && (
             <Box>
@@ -144,7 +146,7 @@ const CostsViewWide = memo(function CostsViewWide({
           {cacheHit > 0 && (
             <Box>
               <Text>Cache     </Text>
-              <Text color="green">{cacheHit.toFixed(1)}% hit</Text>
+              <Text color={theme.colors.success}>{cacheHit.toFixed(1)}% hit</Text>
             </Box>
           )}
         </Panel>

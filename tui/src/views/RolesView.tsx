@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
+import { useTheme } from '../theme';
 import { Panel } from '../components/Panel';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { HeaderBar } from '../components/HeaderBar';
@@ -26,7 +27,7 @@ interface RolesViewProps {}
  * RolesView - Display and manage workspace roles
  */
 export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
-  // #1594: Use context instead of prop drilling
+  const { theme } = useTheme();
   const { isDisabled: disableInput } = useDisableInput();
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -209,7 +210,7 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
   if (error && roles.length === 0) {
     return (
       <Box flexDirection="column" padding={1}>
-        <Text color="red">Error: {error}</Text>
+        <Text color={theme.colors.error}>Error: {error}</Text>
         <Text dimColor>Press r to retry, q to go back</Text>
       </Box>
     );
@@ -219,13 +220,13 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
   if (confirmDelete && currentRole) {
     return (
       <Box flexDirection="column" padding={1}>
-        <Panel title="Confirm Delete" borderColor="red">
+        <Panel title="Confirm Delete" borderColor={theme.colors.error}>
           <Box flexDirection="column">
-            <Text color="red">Delete role &quot;{currentRole.name}&quot;?</Text>
+            <Text color={theme.colors.error}>Delete role &quot;{currentRole.name}&quot;?</Text>
             <Text dimColor>This action cannot be undone.</Text>
             <Box marginTop={1}>
               <Text>Press </Text>
-              <Text color="red" bold>y</Text>
+              <Text color={theme.colors.error} bold>y</Text>
               <Text> to confirm, any other key to cancel</Text>
             </Box>
           </Box>
@@ -257,7 +258,7 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
         title="Roles"
         count={filteredRoles.length}
         loading={loading}
-        color="cyan"
+        color={theme.colors.primary}
       />
 
       {/* Search bar */}
@@ -265,13 +266,13 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
         marginBottom={1}
         paddingX={1}
         borderStyle="single"
-        borderColor={searchMode ? 'cyan' : 'gray'}
+        borderColor={searchMode ? theme.colors.primary : theme.colors.textMuted}
       >
         {searchMode ? (
           <Box>
-            <Text color="cyan">{'/ '}</Text>
+            <Text color={theme.colors.primary}>{'/ '}</Text>
             <Text>{searchQuery}</Text>
-            <Text color="cyan">▌</Text>
+            <Text color={theme.colors.primary}>▌</Text>
           </Box>
         ) : (
           <Text dimColor>Press / to search, j/k to navigate, Enter for details</Text>
@@ -324,7 +325,7 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
       {/* Error display */}
       {error && (
         <Box marginBottom={1} paddingX={1}>
-          <Text color="red">Error: {error}</Text>
+          <Text color={theme.colors.error}>Error: {error}</Text>
         </Box>
       )}
 
@@ -358,6 +359,7 @@ interface RoleRowProps {
 }
 
 function RoleRow({ role, selected, agentCount, nameWidth }: RoleRowProps): React.ReactElement {
+  const { theme } = useTheme();
   const capabilitiesStr =
     role.capabilities.length > 0
       ? role.capabilities.slice(0, DISPLAY_LIMITS.CAPABILITIES_PREVIEW).join(', ') +
@@ -370,7 +372,7 @@ function RoleRow({ role, selected, agentCount, nameWidth }: RoleRowProps): React
   return (
     <Box paddingX={1}>
       <Box width={nameWidth}>
-        <Text color={selected ? 'cyan' : undefined} bold={selected}>
+        <Text color={selected ? theme.colors.primary : undefined} bold={selected}>
           {selected ? '▸ ' : '  '}
           {truncate(role.name, truncateLen)}
         </Text>
@@ -395,8 +397,9 @@ interface RoleDetailsProps {
 }
 
 function RoleDetails({ role, agentCount }: RoleDetailsProps): React.ReactElement {
+  const { theme } = useTheme();
   return (
-    <Panel title={`Role: ${role.name}`} borderColor="cyan">
+    <Panel title={`Role: ${role.name}`} borderColor={theme.colors.primary}>
       <Box flexDirection="column">
         {/* Basic info */}
         <Box marginBottom={1}>
@@ -411,7 +414,7 @@ function RoleDetails({ role, agentCount }: RoleDetailsProps): React.ReactElement
             <Box width={15}>
               <Text dimColor>Parent:</Text>
             </Box>
-            <Text color="cyan">{role.parent}</Text>
+            <Text color={theme.colors.primary}>{role.parent}</Text>
           </Box>
         )}
 
@@ -430,7 +433,7 @@ function RoleDetails({ role, agentCount }: RoleDetailsProps): React.ReactElement
               <Text dimColor>None</Text>
             ) : (
               role.capabilities.map((cap) => (
-                <Text key={cap} color="green">
+                <Text key={cap} color={theme.colors.success}>
                   • {cap}
                 </Text>
               ))
@@ -445,7 +448,7 @@ function RoleDetails({ role, agentCount }: RoleDetailsProps): React.ReactElement
             <Box
               marginLeft={2}
               borderStyle="single"
-              borderColor="gray"
+              borderColor={theme.colors.textMuted}
               paddingX={1}
             >
               <Text dimColor wrap="wrap">

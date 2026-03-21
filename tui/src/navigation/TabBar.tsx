@@ -11,6 +11,7 @@
 
 import React, { useMemo } from 'react';
 import { Box, Text, useStdout } from 'ink';
+import { useTheme } from '../theme';
 import { useNavigation } from './NavigationContext';
 
 /** Terminal width thresholds for display modes - aligned with BREAKPOINTS in useResponsiveLayout
@@ -47,6 +48,7 @@ export function TabBar({
   title = 'bc',
   terminalWidth: overrideWidth,
 }: TabBarProps): React.ReactElement {
+  const { theme } = useTheme();
   const { currentView, tabs, canGoBack } = useNavigation();
   const { stdout } = useStdout();
 
@@ -72,7 +74,7 @@ export function TabBar({
     <Box flexShrink={0}>
       {showTitle && (
         <>
-          <Text bold color="cyan">
+          <Text bold color={theme.colors.primary}>
             {title}
           </Text>
           <Text dimColor> |</Text>
@@ -87,7 +89,7 @@ export function TabBar({
             <Text> </Text>
             <Text
               bold={isActive}
-              color={isActive ? 'green' : undefined}
+              color={isActive ? theme.colors.success : undefined}
               dimColor={!isActive}
             >
               [{tab.key}]{label ? ` ${label}` : ''}

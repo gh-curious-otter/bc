@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Text } from 'ink';
+import { useTheme } from '../theme';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { HeaderBar } from '../components/HeaderBar';
 import { Footer } from '../components/Footer';
@@ -13,6 +14,7 @@ import { truncate } from '../utils';
 import { getSecretList, type SecretMeta } from '../services/bc';
 
 export function SecretsView(): React.ReactElement {
+  const { theme } = useTheme();
   const { isDisabled: disableInput } = useDisableInput();
   const [secrets, setSecrets] = useState<SecretMeta[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,7 +71,7 @@ export function SecretsView(): React.ReactElement {
     return (
       <Box flexDirection="column">
         <HeaderBar title="Secrets" />
-        <Box paddingLeft={1}><Text color="red">{error}</Text></Box>
+        <Box paddingLeft={1}><Text color={theme.colors.error}>{error}</Text></Box>
         <Footer hints={viewHints} />
       </Box>
     );
@@ -97,7 +99,7 @@ export function SecretsView(): React.ReactElement {
             return (
               <Box key={secret.name} paddingLeft={1}>
                 <Box width={25}>
-                  <Text inverse={isSelected} color={isSelected ? 'blue' : undefined}>
+                  <Text inverse={isSelected} color={isSelected ? theme.colors.primary : undefined}>
                     {truncate(secret.name, 23)}
                   </Text>
                 </Box>

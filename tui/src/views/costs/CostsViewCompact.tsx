@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { Box, Text } from 'ink';
+import { useTheme } from '../../theme';
 import { InlineProgressBar } from '../../components/ProgressBar';
 import { Footer } from '../../components/Footer';
 import { getCostIndicator, type CostStatus } from '../../theme/StatusColors';
@@ -26,6 +27,7 @@ const CostsViewCompact = memo(function CostsViewCompact({
   hints,
   terminalWidth,
 }: CostsViewCompactProps) {
+  const { theme } = useTheme();
   const agentCount = agentEntries.length;
   const maxCost = agentEntries.length > 0 ? agentEntries[0].cost : 1;
 
@@ -66,7 +68,7 @@ const CostsViewCompact = memo(function CostsViewCompact({
         <Text bold>Costs</Text>
         <Text dimColor> ({agentCount})</Text>
         <Text>  </Text>
-        <Text color="yellow" bold>${costs.total_cost.toFixed(2)}</Text>
+        <Text color={theme.colors.warning} bold>${costs.total_cost.toFixed(2)}</Text>
         <Text dimColor> total</Text>
         <Box flexGrow={1} />
         {burnRate > 0 && (
@@ -88,14 +90,14 @@ const CostsViewCompact = memo(function CostsViewCompact({
 
           return (
             <Box key={agent.name}>
-              <Text color={selected ? 'cyan' : undefined} bold={selected}>
+              <Text color={selected ? theme.colors.primary : undefined} bold={selected}>
                 {selected ? '▸ ' : '  '}
               </Text>
-              <Text color={selected ? 'cyan' : nameColor} bold={selected} wrap="truncate">
+              <Text color={selected ? theme.colors.primary : nameColor} bold={selected} wrap="truncate">
                 {displayName}
               </Text>
               <Text> </Text>
-              <Text color={selected ? 'cyan' : 'yellow'}>{costStr}</Text>
+              <Text color={selected ? theme.colors.primary : theme.colors.warning}>{costStr}</Text>
               <Text> </Text>
               <InlineProgressBar
                 value={agent.cost}
@@ -119,7 +121,7 @@ const CostsViewCompact = memo(function CostsViewCompact({
             const shortName = model.length > 10 ? model.slice(0, 9) + '…' : model;
             return (
               <Box key={model} marginRight={2}>
-                <Text color="magenta">{shortName}</Text>
+                <Text color={theme.colors.accent}>{shortName}</Text>
                 <Text> ${cost.toFixed(2)}</Text>
                 <Text dimColor> ({pct}%)</Text>
               </Box>

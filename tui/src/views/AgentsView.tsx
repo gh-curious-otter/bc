@@ -14,6 +14,7 @@
 import React, { useState, useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { spawnSync } from 'child_process';
 import { Box, Text, useInput } from 'ink';
+import { useTheme } from '../theme';
 import { isPeekHeader } from '../utils';
 import { useAgents, useDebounce, useListNavigation } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
@@ -106,6 +107,7 @@ function uiReducer(state: UIState, action: UIAction): UIState {
 }
 
 export const AgentsView: React.FC<AgentsViewProps> = () => {
+  const { theme } = useTheme();
   const { data: agents, loading, error, refresh } = useAgents();
   const isNarrow = false;
 
@@ -333,7 +335,7 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
   if (loading && agentList.length === 0) {
     return (
       <Box padding={1}>
-        <Text color="cyan">Loading agents...</Text>
+        <Text color={theme.colors.primary}>Loading agents...</Text>
       </Box>
     );
   }
@@ -346,26 +348,26 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
     <Box flexDirection="column" overflow="hidden">
       {/* Header with state summary */}
       <Box marginBottom={1}>
-        <Text bold color="green">Agents ({agentList.length})</Text>
+        <Text bold color={theme.colors.success}>Agents ({agentList.length})</Text>
         {stateCounts.working > 0 && (
-          <Text color="blue"> ● {stateCounts.working} working</Text>
+          <Text color={theme.colors.secondary}> ● {stateCounts.working} working</Text>
         )}
         {stateCounts.stuck > 0 && (
-          <Text color="yellow"> ⚠ {stateCounts.stuck} stuck</Text>
+          <Text color={theme.colors.warning}> ⚠ {stateCounts.stuck} stuck</Text>
         )}
         {stateCounts.error > 0 && (
-          <Text color="red"> ✗ {stateCounts.error} error</Text>
+          <Text color={theme.colors.error}> ✗ {stateCounts.error} error</Text>
         )}
         {search.query && (
-          <Text color="cyan"> [/] &quot;{search.query}&quot;</Text>
+          <Text color={theme.colors.primary}> [/] &quot;{search.query}&quot;</Text>
         )}
-        {loading && <Text color="gray"> (refreshing...)</Text>}
+        {loading && <Text color={theme.colors.textMuted}> (refreshing...)</Text>}
       </Box>
 
       {/* Action feedback */}
       {actionState && (
         <Box marginBottom={1}>
-          <Text color={actionState.status === 'success' ? 'green' : 'red'}>
+          <Text color={actionState.status === 'success' ? theme.colors.success : theme.colors.error}>
             {actionState.status === 'success' ? '✓' : '✗'} {actionState.message}
           </Text>
         </Box>

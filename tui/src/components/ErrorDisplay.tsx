@@ -1,4 +1,5 @@
 import { Box, Text } from 'ink';
+import { useTheme } from '../theme';
 
 export interface ErrorDisplayProps {
   error: Error | string;
@@ -10,19 +11,20 @@ export interface ErrorDisplayProps {
  * Shared component
  */
 export function ErrorDisplay({ error, onRetry }: ErrorDisplayProps) {
+  const { theme } = useTheme();
   const message = typeof error === 'string' ? error : error.message;
 
   return (
     <Box
       flexDirection="column"
       borderStyle="single"
-      borderColor="red"
+      borderColor={theme.colors.error}
       padding={1}
     >
-      <Text color="red" bold>
+      <Text color={theme.colors.error} bold>
         Error
       </Text>
-      <Text color="red">{message}</Text>
+      <Text color={theme.colors.error}>{message}</Text>
       {onRetry && (
         <Box marginTop={1}>
           <Text dimColor>Press &apos;r&apos; to retry</Text>

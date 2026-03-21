@@ -140,7 +140,7 @@ export function HelpView(): React.ReactElement {
     if (section.type === 'header') {
       if (currentLine >= scrollOffset && currentLine < scrollOffset + availableHeight) {
         visibleContent.push(
-          <Text key="title" bold color="cyan">KEYBOARD SHORTCUTS</Text>,
+          <Text key="title" bold color={theme.colors.primary}>KEYBOARD SHORTCUTS</Text>,
           <Text key="divider" dimColor>{'─'.repeat(UI_ELEMENTS.DIVIDER_WIDTH)}</Text>
         );
       }
@@ -210,9 +210,10 @@ export function HelpView(): React.ReactElement {
 
 /** Helper component for shortcut rows - memoized for performance */
 const ShortcutRow = memo(function ShortcutRow({ keys, desc }: { keys: string; desc: string }): React.ReactElement {
+  const { theme } = useTheme();
   return (
     <Text>
-      <Text color="yellow">{keys.padEnd(12)}</Text>
+      <Text color={theme.colors.warning}>{keys.padEnd(12)}</Text>
       <Text>{desc}</Text>
     </Text>
   );

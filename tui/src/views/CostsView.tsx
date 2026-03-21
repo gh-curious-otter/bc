@@ -7,6 +7,7 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
+import { useTheme } from '../theme';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { Footer } from '../components/Footer';
 import { Spinner } from '../components/LoadingIndicator';
@@ -19,6 +20,7 @@ import { CostsViewCompact, CostsViewWide, AgentCostDetail, type SortMode, type A
 interface CostsViewProps {}
 
 export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
+  const { theme } = useTheme();
   const { isDisabled: disableInput } = useDisableInput();
   const { setFocus } = useFocus();
   const overlayActive = useIsOverlayActive();
@@ -127,7 +129,7 @@ export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
           <Box>
             <Text bold>Costs</Text>
             <Text>  </Text>
-            <Text color="yellow">⚠ Data unavailable</Text>
+            <Text color={theme.colors.warning}>⚠ Data unavailable</Text>
           </Box>
           <Box flexDirection="column" marginTop={1}>
             <Text dimColor>Cost data could not be loaded.</Text>

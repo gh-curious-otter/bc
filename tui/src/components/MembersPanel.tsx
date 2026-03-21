@@ -5,6 +5,7 @@
 
 import React, { memo, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
+import { useTheme } from '../theme';
 import { Panel } from './Panel';
 
 export interface MemberInfo {
@@ -55,6 +56,7 @@ export const MembersPanel = memo(function MembersPanel({
   maxVisible = 10,
   focused = false,
 }: MembersPanelProps): React.ReactElement {
+  const { theme } = useTheme();
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
   // Handle keyboard input for collapse toggle
@@ -94,7 +96,7 @@ export const MembersPanel = memo(function MembersPanel({
           const { name, detail } = formatMember(member);
           return (
             <Box key={`${name}-${String(idx)}`}>
-              <Text color="cyan">{name}</Text>
+              <Text color={theme.colors.primary}>{name}</Text>
               {detail && <Text dimColor> ({detail})</Text>}
             </Box>
           );

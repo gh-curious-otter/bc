@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
+import { useTheme } from '../../theme';
 import type { Agent } from '../../types';
 
 /** Available agent actions */
@@ -34,9 +35,9 @@ export function AgentConfirmDialog({
     }
   };
 
-  // #1847 P2b: destructive actions (kill) use red, caution actions (stop/start) use yellow
+  const { theme } = useTheme();
   const isDestructive = action === 'kill';
-  const borderColor = isDestructive ? 'red' : 'yellow';
+  const borderColor = isDestructive ? theme.colors.error : theme.colors.warning;
 
   return (
     <Box
@@ -46,9 +47,9 @@ export function AgentConfirmDialog({
       borderColor={borderColor}
     >
       <Text color={borderColor}>{getMessage()} </Text>
-      <Text color="green">[y]es</Text>
-      <Text color="gray"> / </Text>
-      <Text color="red">[n]o</Text>
+      <Text color={theme.colors.success}>[y]es</Text>
+      <Text color={theme.colors.textMuted}> / </Text>
+      <Text color={theme.colors.error}>[n]o</Text>
     </Box>
   );
 }
