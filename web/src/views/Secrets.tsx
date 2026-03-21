@@ -6,104 +6,84 @@ import { Table } from "../components/Table";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 
-function CreateSecretForm({ onCreated }: { onCreated: () => void }) {
-  const [open, setOpen] = useState(false);
+type FormStatus =
+  | { type: "idle" }
+  | { type: "saving" }
+  | { type: "success" }
+  | { type: "error"; message: string };
+
+function AddSecretForm({ onCreated }: { onCreated: () => void }) {
   const [name, setName] = useState("");
   const [value, setValue] = useState("");
-  const [description, setDescription] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const reset = () => {
-    setName("");
-    setValue("");
-    setDescription("");
-    setError(null);
-  };
+  const [status, setStatus] = useState<FormStatus>({ type: "idle" });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !value.trim()) {
-      setError("Name and value are required.");
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
+    const trimmedName = name.trim();
+    const trimmedValue = value.trim();
+    if (!trimmedName || !trimmedValue) return;
+
+    setStatus({ type: "saving" });
     try {
-      await api.createSecret(name.trim(), value.trim(), description.trim());
-      reset();
-      setOpen(false);
+      await api.createSecret(trimmedName, trimmedValue);
+      setName("");
+      setValue("");
+      setStatus({ type: "success" });
       onCreated();
+      setTimeout(() => setStatus({ type: "idle" }), 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create secret");
-    } finally {
-      setSubmitting(false);
+      setStatus({
+        type: "error",
+        message: err instanceof Error ? err.message : "Failed to create secret",
+      });
+      setTimeout(() => setStatus({ type: "idle" }), 4000);
     }
   };
-
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="px-3 py-1.5 text-sm font-medium rounded bg-bc-accent text-white hover:bg-bc-accent/80 transition-colors"
-      >
-        + New Secret
-      </button>
-    );
-  }
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded border border-bc-border p-4 space-y-3 bg-bc-bg-secondary"
+      className="rounded border border-bc-border bg-bc-surface p-4 space-y-3"
     >
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">Create Secret</span>
-        <button
-          type="button"
-          onClick={() => {
-            reset();
-            setOpen(false);
-          }}
-          className="text-xs text-bc-muted hover:text-bc-fg transition-colors"
-        >
-          Cancel
-        </button>
-      </div>
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
+        Add Secret
+      </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <input
-          type="text"
-          placeholder="Secret name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          className="px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-fg placeholder:text-bc-muted focus:outline-none focus:border-bc-accent"
-        />
-        <input
-          type="password"
-          placeholder="Secret value"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          required
-          className="px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-fg placeholder:text-bc-muted focus:outline-none focus:border-bc-accent"
-        />
+        <div className="space-y-1">
+          <label className="block text-sm text-bc-text">Name</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="SECRET_NAME"
+            className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="block text-sm text-bc-text">Value</label>
+          <input
+            type="password"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="secret value"
+            className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+          />
+        </div>
       </div>
-      <input
-        type="text"
-        placeholder="Description (optional)"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-fg placeholder:text-bc-muted focus:outline-none focus:border-bc-accent"
-      />
-      <div className="flex justify-end">
+      <div className="flex items-center gap-3">
         <button
           type="submit"
-          disabled={submitting}
-          className="px-3 py-1.5 text-sm font-medium rounded bg-bc-accent text-white hover:bg-bc-accent/80 disabled:opacity-50 transition-colors"
+          disabled={status.type === "saving" || !name.trim() || !value.trim()}
+          className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
         >
-          {submitting ? "Creating..." : "Create Secret"}
+          {status.type === "saving" ? "Adding..." : "Add Secret"}
         </button>
+        {status.type === "success" && (
+          <span className="text-xs text-green-400">Secret added</span>
+        )}
+        {status.type === "error" && (
+          <span className="text-xs text-red-400">{status.message}</span>
+        )}
       </div>
     </form>
   );
@@ -125,7 +105,6 @@ function DeleteButton({
       await api.deleteSecret(name);
       onDeleted();
     } catch {
-      // Reset state on error so user can retry
       setDeleting(false);
       setConfirming(false);
     }
@@ -133,29 +112,32 @@ function DeleteButton({
 
   if (confirming) {
     return (
-      <span className="inline-flex gap-1 items-center">
-        <span className="text-xs text-bc-muted">Delete?</span>
+      <div className="flex items-center gap-2">
         <button
+          type="button"
           onClick={handleDelete}
           disabled={deleting}
-          className="px-2 py-0.5 text-xs rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+          className="px-2 py-1 rounded bg-red-600 text-white text-xs font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
         >
-          {deleting ? "..." : "Yes"}
+          {deleting ? "Deleting..." : "Confirm"}
         </button>
         <button
+          type="button"
           onClick={() => setConfirming(false)}
-          className="px-2 py-0.5 text-xs rounded border border-bc-border text-bc-muted hover:text-bc-fg transition-colors"
+          disabled={deleting}
+          className="px-2 py-1 rounded border border-bc-border text-bc-muted text-xs hover:text-bc-text transition-colors"
         >
-          No
+          Cancel
         </button>
-      </span>
+      </div>
     );
   }
 
   return (
     <button
+      type="button"
       onClick={() => setConfirming(true)}
-      className="px-2 py-0.5 text-xs rounded border border-bc-border text-red-500 hover:bg-red-600 hover:text-white transition-colors"
+      className="px-2 py-1 rounded border border-bc-border text-bc-muted text-xs hover:text-red-400 hover:border-red-400/50 transition-colors"
     >
       Delete
     </button>
@@ -254,11 +236,11 @@ export function Secrets() {
         </span>
       </div>
 
-      <CreateSecretForm onCreated={refresh} />
-
       <p className="text-xs text-bc-muted">
         Secret values are never shown. Only metadata is displayed.
       </p>
+
+      <AddSecretForm onCreated={refresh} />
 
       <div className="rounded border border-bc-border overflow-hidden">
         <Table
@@ -267,7 +249,7 @@ export function Secrets() {
           keyFn={(s) => s.name}
           emptyMessage="No secrets stored"
           emptyIcon="*"
-          emptyDescription="Click '+ New Secret' above to store a secret."
+          emptyDescription="Add a secret using the form above or run 'bc secret set <name> --value <value>'."
         />
       </div>
     </div>
