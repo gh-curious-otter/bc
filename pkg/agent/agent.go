@@ -407,8 +407,13 @@ type Manager struct {
 	backends         map[string]runtime.Backend // keyed by "tmux", "docker"
 	agentLocks       map[string]*sync.Mutex     // per-agent locks for slow I/O operations
 	providerRegistry *provider.Registry
-	defaultBackend   string // "tmux" or "docker"
-	stateDir         string
+
+	// onStateChange is called when an agent's state changes.
+	// Set by AgentService to publish SSE events.
+	onStateChange func(name string, state State, task string)
+
+	defaultBackend string // "tmux" or "docker"
+	stateDir       string
 
 	// Agent command (e.g., "claude" or "claude --dangerously-skip-permissions")
 	agentCmd string
@@ -424,6 +429,19 @@ type Manager struct {
 	BootstrapDelay time.Duration
 
 	mu sync.RWMutex // protects maps (agents, agentLocks) only
+}
+
+// SetOnStateChange registers a callback invoked whenever an agent's state
+// changes through the reconciler or hook-event processing.
+func (m *Manager) SetOnStateChange(fn func(name string, state State, task string)) {
+	m.onStateChange = fn
+}
+
+// notifyStateChange calls the onStateChange callback if set.
+func (m *Manager) notifyStateChange(name string, state State, task string) {
+	if m.onStateChange != nil {
+		m.onStateChange(name, state, task)
+	}
 }
 
 // getAgentLock returns the per-agent mutex, creating it if needed.
@@ -1765,13 +1783,22 @@ func (m *Manager) RefreshState(ctx context.Context) error {
 	}
 
 	// Phase 3: global lock — apply state updates
+	type stateChange struct {
+		name  string
+		state State
+		task  string
+	}
+	var changes []stateChange
+
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	for name, a := range m.agents {
+		prevState := a.State
+
 		if !active[name] && a.State != StateStopped {
 			a.State = StateStopped
 			a.UpdatedAt = time.Now()
+			changes = append(changes, stateChange{name, a.State, a.Task})
 			continue
 		}
 		if !active[name] {
@@ -1808,6 +1835,17 @@ func (m *Manager) RefreshState(ctx context.Context) error {
 				}
 			}
 		}
+
+		if a.State != prevState {
+			changes = append(changes, stateChange{name, a.State, a.Task})
+		}
+	}
+
+	m.mu.Unlock()
+
+	// Notify outside the lock to avoid potential deadlocks.
+	for _, c := range changes {
+		m.notifyStateChange(c.name, c.state, c.task)
 	}
 
 	return nil
@@ -1932,12 +1970,17 @@ func (m *Manager) UpdateAgentState(name string, state State, task string) error 
 		return fmt.Errorf("agent %s: %w", name, err)
 	}
 
+	prevState := agent.State
 	agent.State = state
 	agent.Task = task
 	agent.UpdatedAt = time.Now()
 
 	if err := m.saveState(); err != nil {
 		log.Warn("failed to save agent state", "error", err)
+	}
+
+	if prevState != state {
+		m.notifyStateChange(name, state, task)
 	}
 	return nil
 }

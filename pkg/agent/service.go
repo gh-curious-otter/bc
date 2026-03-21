@@ -82,12 +82,25 @@ type AgentService struct {
 }
 
 // NewAgentService creates a new agent service wrapping the given manager.
+// It registers a state-change callback on the manager so that ongoing
+// state transitions (reconciler, hook events) are published as SSE events.
 func NewAgentService(mgr *Manager, events EventPublisher, costs CostQuerier) *AgentService {
-	return &AgentService{
+	svc := &AgentService{
 		manager: mgr,
 		events:  events,
 		costs:   costs,
 	}
+
+	// Wire the manager's state-change callback to publish SSE events.
+	mgr.SetOnStateChange(func(name string, state State, task string) {
+		svc.publishEvent("agent.state_changed", map[string]any{
+			"name":  name,
+			"state": string(state),
+			"task":  task,
+		})
+	})
+
+	return svc
 }
 
 // Manager returns the underlying agent manager.
