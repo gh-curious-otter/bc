@@ -39,6 +39,12 @@ import (
 	bcws "github.com/rpuneet/bc/server/ws"
 )
 
+// Build information set by ldflags during build.
+var (
+	commit = "unknown"
+	date   = "unknown"
+)
+
 func main() {
 	addr := flag.String("addr", server.DefaultConfig().Addr, "listen address")
 	wsRoot := flag.String("workspace", ".", "workspace root directory")
@@ -209,6 +215,10 @@ func run(addr, wsRoot, corsOrigin string) error {
 		cfg.Addr = addr
 	}
 	cfg.CORSOrigin = corsOrigin
+	cfg.Build = server.BuildInfo{
+		Commit:  commit,
+		BuiltAt: date,
+	}
 
 	srv := server.New(cfg, svc, hub, server.WebDist())
 	return srv.Start(ctx)
