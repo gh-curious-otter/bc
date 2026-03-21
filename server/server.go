@@ -13,6 +13,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net"
@@ -40,8 +41,8 @@ const defaultAddr = "127.0.0.1:9374"
 // Config holds server configuration.
 type Config struct {
 	Addr       string // default "127.0.0.1:9374"
-	CORS       bool   // enable CORS headers
 	CORSOrigin string // allowed origin ("*" for permissive, or specific origin)
+	CORS       bool   // enable CORS headers
 }
 
 // DefaultConfig returns the default server configuration.
@@ -79,7 +80,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 
 	mux := http.NewServeMux()
 
-	// Health probe
+	// Health probes
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
@@ -87,6 +88,40 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"status":"ok","addr":%q}`, cfg.Addr) //nolint:errcheck // writing to response
+	})
+
+	// Readiness probe — verifies downstream dependencies
+	mux.HandleFunc("/health/ready", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			return
+		}
+		checks := map[string]string{}
+		status := "ok"
+
+		// Check database connectivity
+		if svc.Costs != nil {
+			if _, err := svc.Costs.WorkspaceSummary(r.Context()); err != nil {
+				checks["db"] = "error: " + err.Error()
+				status = "degraded"
+			} else {
+				checks["db"] = "ok"
+			}
+		}
+
+		// Check agent runtime
+		if svc.Agents != nil {
+			checks["agents"] = fmt.Sprintf("%d total", len(svc.Agents.Manager().ListAgents()))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if status != "ok" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+		writeJSON := func(v any) {
+			_ = json.NewEncoder(w).Encode(v) //nolint:errcheck
+		}
+		writeJSON(map[string]any{"status": status, "checks": checks})
 	})
 
 	// SSE event stream
@@ -100,7 +135,6 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	if svc.Channels != nil {
 		svc.Channels.OnMessage = func(ch, sender, content string) {
-			// Deliver to agent tmux/docker sessions with formatted context
 			if svc.Agents != nil {
 				formatted := fmt.Sprintf("[bc-mcp][%s] %s: %s", time.Now().UTC().Format(time.RFC3339), sender, content)
 				chDTO, err := svc.Channels.Get(context.Background(), ch)
@@ -111,7 +145,6 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 						if member == sender {
 							continue
 						}
-						// Retry delivery up to 3 times
 						var sendErr error
 						for attempt := 0; attempt < 3; attempt++ {
 							sendErr = svc.Agents.Send(context.Background(), member, formatted)
@@ -126,7 +159,6 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 					}
 				}
 			}
-			// Publish SSE event for web UI
 			if hub != nil {
 				hub.Publish("channel.message", map[string]any{
 					"channel": ch,
@@ -184,8 +216,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		}
 	}
 
-	// Static web UI with SPA fallback — serves files if they exist,
-	// otherwise falls back to index.html for client-side routing.
+	// Static web UI with SPA fallback
 	if staticFiles != nil {
 		fileServer := http.FileServer(http.FS(staticFiles))
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -223,9 +254,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		addr:    cfg.Addr,
 		handler: handler,
 		httpServer: &http.Server{
-			Addr:        cfg.Addr,
-			Handler:     handler,
-			ReadTimeout: 30 * time.Second,
+			Addr:         cfg.Addr,
+			Handler:      handler,
+			ReadTimeout:  30 * time.Second,
 			WriteTimeout: 0,
 			IdleTimeout:  120 * time.Second,
 		},
