@@ -1,0 +1,417 @@
+// Package server_test — web UI smoke tests for bcd HTTP API (Phase 3).
+//
+// These tests verify that the bcd server correctly serves the embedded web UI
+// (SPA fallback, static files) and that all API endpoints the web UI depends on
+// return valid responses. Uses httptest with real server infrastructure.
+package server_test
+
+import (
+	"context"
+	"io"
+	"io/fs"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"testing/fstest"
+
+	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/cron"
+	"github.com/rpuneet/bc/pkg/events"
+	pkgmcp "github.com/rpuneet/bc/pkg/mcp"
+	"github.com/rpuneet/bc/pkg/tool"
+	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/bc/server"
+)
+
+// newE2EServerWithWebUI creates a bcd server with a synthetic web UI filesystem
+// for testing SPA serving behavior. The filesystem contains a minimal
+// index.html and a static asset.
+func newE2EServerWithWebUI(t *testing.T) *e2eServer {
+	t.Helper()
+
+	dir := t.TempDir()
+	bcDir := filepath.Join(dir, ".bc")
+	if err := os.MkdirAll(filepath.Join(bcDir, "roles"), 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := `[workspace]
+name = "e2e-web-test"
+version = 2
+
+[providers]
+default = "gemini"
+
+[providers.gemini]
+command = "echo test"
+enabled = true
+`
+	if err := os.WriteFile(filepath.Join(bcDir, "config.toml"), []byte(cfg), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	ws, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("workspace load: %v", err)
+	}
+
+	hub := ws_hub(t)
+	mgr := agent.NewWorkspaceManager(ws.StateDir(), ws.RootDir)
+	_ = mgr.LoadState()
+	agentSvc := agent.NewAgentService(mgr, hub, nil)
+
+	var channelSvc *channel.ChannelService
+	if chStore, err := channel.OpenStore(ws.RootDir); err == nil {
+		channelSvc = channel.NewChannelService(chStore)
+		t.Cleanup(func() { _ = chStore.Close() })
+	}
+
+	var costStore *cost.Store
+	cs := cost.NewStore(ws.RootDir)
+	if err := cs.Open(); err == nil {
+		costStore = cs
+		t.Cleanup(func() { _ = cs.Close() })
+	}
+
+	var cronStore *cron.Store
+	if cr, err := cron.Open(ws.RootDir); err == nil {
+		cronStore = cr
+		t.Cleanup(func() { _ = cr.Close() })
+	}
+
+	var mcpStore *pkgmcp.Store
+	if ms, err := pkgmcp.NewStore(ws.RootDir); err == nil {
+		mcpStore = ms
+		t.Cleanup(func() { _ = ms.Close() })
+	}
+
+	var toolStore *tool.Store
+	ts := tool.NewStore(ws.StateDir())
+	if err := ts.Open(); err == nil {
+		toolStore = ts
+		t.Cleanup(func() { _ = ts.Close() })
+	}
+
+	var eventLog events.EventStore
+	if el, err := events.NewSQLiteLog(filepath.Join(ws.StateDir(), "state.db")); err == nil {
+		eventLog = el
+		t.Cleanup(func() { _ = el.Close() })
+	}
+
+	svc := server.Services{
+		Agents:   agentSvc,
+		Channels: channelSvc,
+		Costs:    costStore,
+		Cron:     cronStore,
+		MCP:      mcpStore,
+		Tools:    toolStore,
+		EventLog: eventLog,
+		WS:       ws,
+	}
+
+	// Synthetic web UI filesystem for SPA testing
+	staticFiles := syntheticWebUI()
+
+	srvCfg := server.Config{Addr: "127.0.0.1:0", CORS: true}
+	srv := server.New(srvCfg, svc, hub, staticFiles)
+	ts2 := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts2.Close)
+
+	return &e2eServer{Server: ts2, ws: ws}
+}
+
+// syntheticWebUI returns an in-memory filesystem that mimics a built web UI.
+func syntheticWebUI() fs.FS {
+	return fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte("<!DOCTYPE html><html><head><title>bc</title></head><body><div id=\"root\"></div></body></html>"),
+		},
+		"assets/app.js": &fstest.MapFile{
+			Data: []byte("console.log('bc')"),
+		},
+		"assets/style.css": &fstest.MapFile{
+			Data: []byte("body { margin: 0; }"),
+		},
+	}
+}
+
+// getRaw performs a GET request and returns the raw response (caller must close body).
+func (s *e2eServer) getRaw(t *testing.T, path string, headers map[string]string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, s.URL+path, nil)
+	if err != nil {
+		t.Fatalf("create request GET %s: %v", path, err)
+	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET %s: %v", path, err)
+	}
+	return resp
+}
+
+// ─── Web UI Serving ──────────────────────────────────────────────────────────
+
+// TestE2E_WebUI_ServesIndex verifies GET / returns 200 with HTML content
+// when a web UI filesystem is provided.
+func TestE2E_WebUI_ServesIndex(t *testing.T) {
+	s := newE2EServerWithWebUI(t)
+
+	resp := s.getRaw(t, "/", nil)
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /: want 200, got %d", resp.StatusCode)
+	}
+
+	ct := resp.Header.Get("Content-Type")
+	if !strings.Contains(ct, "text/html") {
+		t.Fatalf("GET /: want Content-Type containing text/html, got %q", ct)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "<div id=\"root\">") {
+		t.Fatal("GET /: response body does not contain expected HTML content")
+	}
+}
+
+// TestE2E_WebUI_SPAFallback verifies that non-API routes that don't match
+// static files return HTML (SPA client-side routing) instead of 404.
+func TestE2E_WebUI_SPAFallback(t *testing.T) {
+	s := newE2EServerWithWebUI(t)
+
+	routes := []string{"/dashboard", "/agents", "/settings", "/channels/general"}
+
+	for _, route := range routes {
+		t.Run(route, func(t *testing.T) {
+			resp := s.getRaw(t, route, nil)
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("GET %s: want 200, got %d", route, resp.StatusCode)
+			}
+
+			ct := resp.Header.Get("Content-Type")
+			if !strings.Contains(ct, "text/html") {
+				t.Fatalf("GET %s: want Content-Type containing text/html, got %q", route, ct)
+			}
+
+			body, _ := io.ReadAll(resp.Body)
+			if !strings.Contains(string(body), "<div id=\"root\">") {
+				t.Fatalf("GET %s: SPA fallback did not serve index.html", route)
+			}
+		})
+	}
+}
+
+// TestE2E_WebUI_StaticAssets verifies that static assets are served with
+// correct content types.
+func TestE2E_WebUI_StaticAssets(t *testing.T) {
+	s := newE2EServerWithWebUI(t)
+
+	tests := []struct {
+		path        string
+		wantCT      string
+		wantContain string
+	}{
+		{"/index.html", "text/html", "<div id=\"root\">"},
+		{"/assets/app.js", "javascript", "console.log"},
+		{"/assets/style.css", "css", "body"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			resp := s.getRaw(t, tt.path, nil)
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("GET %s: want 200, got %d", tt.path, resp.StatusCode)
+			}
+
+			ct := resp.Header.Get("Content-Type")
+			if !strings.Contains(ct, tt.wantCT) {
+				t.Fatalf("GET %s: want Content-Type containing %q, got %q", tt.path, tt.wantCT, ct)
+			}
+
+			body, _ := io.ReadAll(resp.Body)
+			if !strings.Contains(string(body), tt.wantContain) {
+				t.Fatalf("GET %s: response body does not contain %q", tt.path, tt.wantContain)
+			}
+		})
+	}
+}
+
+// ─── API Surface for Web UI ──────────────────────────────────────────────────
+
+// TestE2E_WebUI_APIEndpointsReturnJSON verifies all major API endpoints the
+// web UI depends on return 200 with JSON content type.
+func TestE2E_WebUI_APIEndpointsReturnJSON(t *testing.T) {
+	s := newE2EServer(t)
+
+	tests := []struct {
+		path   string
+		wantCT string
+	}{
+		{"/api/agents", "application/json"},
+		{"/api/channels", "application/json"},
+		{"/api/costs", "application/json"},
+		{"/api/workspace", "application/json"},
+		{"/api/doctor", "application/json"},
+		{"/health", "application/json"},
+		{"/health/ready", "application/json"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			resp := s.getRaw(t, tt.path, nil)
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("GET %s: want 200, got %d", tt.path, resp.StatusCode)
+			}
+
+			ct := resp.Header.Get("Content-Type")
+			if !strings.Contains(ct, tt.wantCT) {
+				t.Fatalf("GET %s: want Content-Type containing %q, got %q", tt.path, tt.wantCT, ct)
+			}
+		})
+	}
+}
+
+// ─── SSE Endpoint ────────────────────────────────────────────────────────────
+
+// TestE2E_WebUI_SSEEndpoint verifies the SSE event stream endpoint accepts
+// connections and returns the correct content type.
+func TestE2E_WebUI_SSEEndpoint(t *testing.T) {
+	s := newE2EServer(t)
+
+	resp := s.getRaw(t, "/api/events", map[string]string{
+		"Accept": "text/event-stream",
+	})
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /api/events: want 200, got %d", resp.StatusCode)
+	}
+
+	ct := resp.Header.Get("Content-Type")
+	if !strings.Contains(ct, "text/event-stream") {
+		t.Fatalf("GET /api/events: want Content-Type containing text/event-stream, got %q", ct)
+	}
+}
+
+// ─── CORS (web-specific) ────────────────────────────────────────────────────
+
+// TestE2E_WebUI_CORSHeaders verifies CORS headers are present on API
+// responses (not just OPTIONS preflight, which is tested in e2e_test.go).
+func TestE2E_WebUI_CORSHeaders(t *testing.T) {
+	s := newE2EServer(t)
+
+	// Verify CORS headers on a regular GET (not just OPTIONS preflight).
+	// The e2e_test.go TestE2E_CORS_Headers covers OPTIONS; this covers
+	// actual API responses that the web UI will receive.
+	paths := []string{"/api/agents", "/api/workspace", "/health"}
+
+	for _, path := range paths {
+		t.Run(path, func(t *testing.T) {
+			resp := s.getRaw(t, path, map[string]string{
+				"Origin": "http://localhost:3000",
+			})
+			defer func() { _ = resp.Body.Close() }()
+
+			origin := resp.Header.Get("Access-Control-Allow-Origin")
+			if origin != "*" {
+				t.Fatalf("GET %s: want Access-Control-Allow-Origin=*, got %q", path, origin)
+			}
+		})
+	}
+}
+
+// ─── Full Web Workflow ───────────────────────────────────────────────────────
+
+// TestE2E_WebUI_FullWorkflow exercises a complete web UI workflow:
+// workspace status → create channel → send message → read history → verify list.
+func TestE2E_WebUI_FullWorkflow(t *testing.T) {
+	s := newE2EServer(t)
+
+	// 1. GET /api/workspace → verify workspace name
+	code, wsBody := s.get(t, "/api/workspace")
+	if code != http.StatusOK {
+		t.Fatalf("workspace status: want 200, got %d", code)
+	}
+	if wsBody["name"] != "e2e-test" {
+		t.Fatalf("workspace name: want e2e-test, got %v", wsBody["name"])
+	}
+
+	// 2. POST /api/channels → create "web-test" channel
+	code, chBody := s.postJSON(t, "/api/channels", map[string]string{
+		"name":        "web-test",
+		"description": "Web UI smoke test channel",
+	})
+	if code != http.StatusCreated {
+		t.Fatalf("create channel: want 201, got %d: %v", code, chBody)
+	}
+
+	// 3. POST /api/channels/web-test/messages → send a message
+	code, msgBody := s.postJSON(t, "/api/channels/web-test/messages", map[string]string{
+		"sender":  "web-ui",
+		"content": "smoke test message",
+	})
+	if code != http.StatusCreated {
+		t.Fatalf("send message: want 201, got %d: %v", code, msgBody)
+	}
+
+	// 4. GET /api/channels/web-test/history → verify message appears
+	code, history := s.getList(t, "/api/channels/web-test/history")
+	if code != http.StatusOK {
+		t.Fatalf("get history: want 200, got %d", code)
+	}
+	if len(history) == 0 {
+		t.Fatal("expected at least 1 message in history")
+	}
+	lastMsg, ok := history[len(history)-1].(map[string]any)
+	if !ok {
+		t.Fatalf("history entry: expected object, got %T", history[len(history)-1])
+	}
+	if lastMsg["content"] != "smoke test message" {
+		t.Fatalf("message content: want %q, got %v", "smoke test message", lastMsg["content"])
+	}
+	if lastMsg["sender"] != "web-ui" {
+		t.Fatalf("message sender: want %q, got %v", "web-ui", lastMsg["sender"])
+	}
+
+	// 5. GET /api/channels → verify "web-test" in list
+	code, channels := s.getList(t, "/api/channels")
+	if code != http.StatusOK {
+		t.Fatalf("list channels: want 200, got %d", code)
+	}
+	found := false
+	for _, ch := range channels {
+		if chMap, ok := ch.(map[string]any); ok && chMap["name"] == "web-test" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("channel 'web-test' not found in channel list")
+	}
+
+	// 6. GET /api/workspace → verify workspace still healthy
+	code, wsBody = s.get(t, "/api/workspace")
+	if code != http.StatusOK {
+		t.Fatalf("workspace status (final): want 200, got %d", code)
+	}
+	if wsBody["is_healthy"] != true {
+		t.Fatalf("workspace should be healthy, got is_healthy=%v", wsBody["is_healthy"])
+	}
+}
