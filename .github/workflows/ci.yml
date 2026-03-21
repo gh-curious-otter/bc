@@ -32,7 +32,7 @@ jobs:
           version: v2.8.0
           only-new-issues: true
 
-  # ── Go: Fast Tests + Coverage (blocking) ─────────────────────────────
+  # ── Go: Fast Tests + Coverage ───────────────────────────────────────
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -69,11 +69,11 @@ jobs:
           files: coverage.out
           fail_ci_if_error: false
 
-  # ── Go: Slow Tests (non-blocking) ───────────────────────────────────
-  test-slow:
-    name: Test (slow)
+  # ── Go: Full Tests (main only) ─────────────────────────────────────
+  test-full:
+    name: Test (full)
     runs-on: ubuntu-latest
-    continue-on-error: true
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -84,17 +84,15 @@ jobs:
       - name: Create web dist stub for embed
         run: mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html
 
-      - name: Run slow tests (tmux, secret, doctor)
+      - name: Run all tests including slow packages
         run: |
-          go test -race -timeout 5m \
-            ./pkg/tmux/... \
-            ./pkg/secret/... \
-            ./pkg/doctor/...
+          go test -race -timeout 5m $(go list ./... | grep -v /internal/cmd$)
 
-  # ── Go: Security (non-blocking) ───────────────────────────────────────
+  # ── Go: Security (main only) ─────────────────────────────────────────
   security:
     name: Security
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -133,7 +131,7 @@ jobs:
         run: cd tui && bun test
         continue-on-error: true
 
-  # ── Build gate (only needs fast tests + lint + tui) ─────────────────
+  # ── Build gate (fast tests + lint + tui) ─────────────────────────────
   build:
     name: Build
     runs-on: ubuntu-latest
