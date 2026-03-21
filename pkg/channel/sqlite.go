@@ -824,27 +824,45 @@ func (s *SQLiteStore) RemoveReaction(messageID int64, emoji, userID string) erro
 // ToggleReaction toggles a reaction on a message. Returns true if added, false if removed.
 func (s *SQLiteStore) ToggleReaction(messageID int64, emoji, userID string) (added bool, err error) {
 	ctx := context.Background()
-	// Check if reaction exists
+
+	tx, txErr := s.db.BeginTx(ctx, nil)
+	if txErr != nil {
+		return false, fmt.Errorf("failed to begin transaction: %w", txErr)
+	}
+	defer func() { _ = tx.Rollback() }() //nolint:errcheck // no-op after commit
+
+	// Check if reaction exists (within transaction to prevent TOCTOU race)
 	var count int
-	err = s.db.QueryRowContext(ctx,
+	if scanErr := tx.QueryRowContext(ctx,
 		"SELECT COUNT(*) FROM reactions WHERE message_id = ? AND emoji = ? AND user_id = ?",
 		messageID, emoji, userID,
-	).Scan(&count)
-	if err != nil {
-		return false, fmt.Errorf("failed to check reaction: %w", err)
+	).Scan(&count); scanErr != nil {
+		return false, fmt.Errorf("failed to check reaction: %w", scanErr)
 	}
 
 	if count > 0 {
 		// Remove existing reaction
-		if err := s.RemoveReaction(messageID, emoji, userID); err != nil {
-			return false, err
+		if _, delErr := tx.ExecContext(ctx,
+			"DELETE FROM reactions WHERE message_id = ? AND emoji = ? AND user_id = ?",
+			messageID, emoji, userID,
+		); delErr != nil {
+			return false, fmt.Errorf("failed to remove reaction: %w", delErr)
+		}
+		if commitErr := tx.Commit(); commitErr != nil {
+			return false, fmt.Errorf("failed to commit: %w", commitErr)
 		}
 		return false, nil
 	}
 
 	// Add new reaction
-	if err := s.AddReaction(messageID, emoji, userID); err != nil {
-		return false, err
+	if _, addErr := tx.ExecContext(ctx,
+		"INSERT OR IGNORE INTO reactions (message_id, emoji, user_id) VALUES (?, ?, ?)",
+		messageID, emoji, userID,
+	); addErr != nil {
+		return false, fmt.Errorf("failed to add reaction: %w", addErr)
+	}
+	if commitErr := tx.Commit(); commitErr != nil {
+		return false, fmt.Errorf("failed to commit: %w", commitErr)
 	}
 	return true, nil
 }
