@@ -130,8 +130,8 @@ function extractAgentCost(summary: CostSummary, agentName: string): AgentCostDet
 function transformLogsToActivity(logs: LogEntry[]): AgentActivity[] {
   return logs.map(log => ({
     timestamp: log.ts, // LogEntry uses 'ts' not 'timestamp'
-    type: log.type || 'event',
-    message: log.message || '',
+    type: log.type ?? 'event',
+    message: log.message ?? '',
   }));
 }
 

@@ -42,10 +42,10 @@ func (h *DaemonHandler) list(w http.ResponseWriter, r *http.Request) {
 			Name    string   `json:"name"`
 			Cmd     string   `json:"cmd"`
 			Image   string   `json:"image"`
-			Env     []string `json:"env"`
 			Runtime string   `json:"runtime"`
-			Ports   []string `json:"ports"`
 			Restart string   `json:"restart"`
+			Env     []string `json:"env"`
+			Ports   []string `json:"ports"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httpError(w, "invalid request body", http.StatusBadRequest)

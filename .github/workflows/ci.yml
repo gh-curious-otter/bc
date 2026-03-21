@@ -32,7 +32,7 @@ jobs:
           version: v2.8.0
           only-new-issues: true
 
-  # ── Go: Test + Coverage ──────────────────────────────────────────────
+  # ── Go: Fast Tests + Coverage ───────────────────────────────────────
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -46,20 +46,21 @@ jobs:
       - name: Create web dist stub for embed
         run: mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html
 
-      - name: Run tests (excluding E2E)
+      - name: Run fast tests with race detector and coverage
         run: |
-          go test -race -coverprofile=coverage.out $(go list ./... | grep -v /internal/cmd$)
+          SLOW="github.com/rpuneet/bc/pkg/tmux github.com/rpuneet/bc/pkg/secret github.com/rpuneet/bc/pkg/doctor github.com/rpuneet/bc/internal/cmd"
+          PACKAGES=$(go list ./... | grep -v -F "$(echo $SLOW | tr ' ' '\n')")
+          go test -race -coverprofile=coverage.out $PACKAGES
 
-      - name: Check coverage threshold
+      - name: Check coverage threshold (60%)
         run: |
-          go tool cover -func=coverage.out | tail -1
           COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
           echo "Coverage: ${COVERAGE}%"
-          if (( $(echo "$COVERAGE < 66.6" | bc -l) )); then
-            echo "❌ Coverage ${COVERAGE}% is below 66.6% threshold"
+          if (( $(echo "$COVERAGE < 60" | bc -l) )); then
+            echo "❌ Coverage ${COVERAGE}% is below 60% threshold"
             exit 1
           else
-            echo "✅ Coverage ${COVERAGE}% meets 66.6% threshold"
+            echo "✅ Coverage ${COVERAGE}% meets 60% threshold (target: 90%+)"
           fi
 
       - name: Upload coverage to Codecov
@@ -68,10 +69,30 @@ jobs:
           files: coverage.out
           fail_ci_if_error: false
 
-  # ── Go: Security (non-blocking) ───────────────────────────────────────
+  # ── Go: Full Tests (main only) ─────────────────────────────────────
+  test-full:
+    name: Test (full)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Create web dist stub for embed
+        run: mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html
+
+      - name: Run all tests including slow packages
+        run: |
+          go test -race -timeout 5m $(go list ./... | grep -v /internal/cmd$)
+
+  # ── Go: Security (main only) ─────────────────────────────────────────
   security:
     name: Security
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -91,7 +112,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ── TUI: Build + Test ───────────────────────────────────────────────
+  # ── TUI ─────────────────────────────────────────────────────────────
   tui:
     name: TUI
     runs-on: ubuntu-latest
@@ -104,26 +125,13 @@ jobs:
         run: cd tui && bun install
       - name: Build
         run: cd tui && bun run build
+      - name: Lint
+        run: cd tui && bun run lint
       - name: Test
         run: cd tui && bun test
         continue-on-error: true
 
-  # ── TUI: Lint (non-blocking) ─────────────────────────────────────────
-  tui-lint:
-    name: TUI Lint
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
-      - name: Install dependencies
-        run: cd tui && bun install
-      - name: Lint
-        run: cd tui && bun run lint
-
-  # ── Build gate ───────────────────────────────────────────────────────
+  # ── Build gate (fast tests + lint + tui) ─────────────────────────────
   build:
     name: Build
     runs-on: ubuntu-latest

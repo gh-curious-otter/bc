@@ -611,9 +611,7 @@ func runWorkspaceInfo(cmd *cobra.Command, _ []string) error {
 	}
 
 	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		// Non-fatal: continue without agent counts
-	}
+	_ = mgr.LoadState() // Non-fatal: continue without agent counts
 	agents := mgr.ListAgents()
 
 	// Count roles
@@ -693,9 +691,7 @@ func runWorkspaceStatus(cmd *cobra.Command, _ []string) error {
 	}
 
 	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		// Non-fatal warning
-	}
+	_ = mgr.LoadState() // Non-fatal warning
 	agents := mgr.ListAgents()
 
 	var running, idle, working, stopped int
@@ -856,7 +852,7 @@ func doV1Migration(absDir string, yes, dryRun bool) error {
 		fmt.Print("  Proceed with migration? [y/N] ")
 		var answer string
 		if _, scanErr := fmt.Scanln(&answer); scanErr != nil || (answer != "y" && answer != "Y") {
-			fmt.Println("  Migration cancelled.")
+			fmt.Println("  Migration canceled.")
 			return nil
 		}
 	}

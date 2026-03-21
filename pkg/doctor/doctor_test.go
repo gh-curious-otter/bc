@@ -15,14 +15,14 @@ import (
 // ─── Severity ────────────────────────────────────────────────────────────────
 
 func TestSeverity_String(t *testing.T) {
-	tests := []struct {
-		sev  Severity
+	tests := []struct { //nolint:govet // test struct, field order matches literal values
 		want string
+		sev  Severity
 	}{
-		{SeverityOK, "ok"},
-		{SeverityWarn, "warn"},
-		{SeverityFail, "fail"},
-		{Severity(99), "fail"}, // unknown → fail
+		{"ok", SeverityOK},
+		{"warn", SeverityWarn},
+		{"fail", SeverityFail},
+		{"fail", Severity(99)}, // unknown → fail
 	}
 	for _, tt := range tests {
 		if got := tt.sev.String(); got != tt.want {
@@ -390,11 +390,11 @@ func createTestDB(t *testing.T, path string, tables ...string) error {
 		}
 	}()
 	// Force SQLite to create the file by running a lightweight pragma.
-	if _, err := db.Exec("PRAGMA user_version = 1"); err != nil {
+	if _, err := db.ExecContext(context.Background(), "PRAGMA user_version = 1"); err != nil {
 		return err
 	}
 	for _, table := range tables {
-		if _, err := db.Exec("CREATE TABLE IF NOT EXISTS " + table + " (id INTEGER PRIMARY KEY)"); err != nil { //nolint:gosec // test helper, table names are test-controlled
+		if _, err := db.ExecContext(context.Background(), "CREATE TABLE IF NOT EXISTS "+table+" (id INTEGER PRIMARY KEY)"); err != nil { //nolint:gosec // test helper, table names are test-controlled
 			return err
 		}
 	}

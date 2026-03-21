@@ -559,8 +559,8 @@ func runToolAdd(cmd *cobra.Command, args []string) error {
 		Enabled:    true,
 	}
 
-	if err := s.Add(ctx, t); err != nil {
-		return fmt.Errorf("failed to add tool: %w", err)
+	if addErr := s.Add(ctx, t); addErr != nil {
+		return fmt.Errorf("failed to add tool: %w", addErr)
 	}
 
 	added, err := s.Get(ctx, name)

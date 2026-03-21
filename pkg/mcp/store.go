@@ -26,12 +26,12 @@ const (
 // pkg/secret) rather than storing sensitive values directly.
 type ServerConfig struct {
 	CreatedAt time.Time         `json:"created_at"`
+	Env       map[string]string `json:"env,omitempty"`
 	Name      string            `json:"name"`
 	Transport Transport         `json:"transport"`
 	Command   string            `json:"command,omitempty"`
-	Args      []string          `json:"args,omitempty"`
 	URL       string            `json:"url,omitempty"`
-	Env       map[string]string `json:"env,omitempty"`
+	Args      []string          `json:"args,omitempty"`
 	Enabled   bool              `json:"enabled"`
 }
 

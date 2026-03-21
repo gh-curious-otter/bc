@@ -306,26 +306,6 @@ func withWorkspace(fn func(ws *workspace.Workspace) error) error { //nolint:unus
 	return fn(ws)
 }
 
-// withAgentManager executes fn with workspace and initialized agent manager.
-// The agent manager state is loaded before fn is called.
-// Any state loading errors are logged as warnings (non-fatal).
-func withAgentManager(fn func(ctx *WorkspaceContext) error) error {
-	ws, err := requireWorkspace()
-	if err != nil {
-		return err
-	}
-
-	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
-	}
-
-	return fn(&WorkspaceContext{
-		Workspace: ws,
-		Manager:   mgr,
-	})
-}
-
 // runInitInteractive runs an interactive workspace initialization with nickname prompt.
 func runInitInteractive(_ *cobra.Command, dir string) error {
 	log.Debug("interactive init started", "dir", dir)

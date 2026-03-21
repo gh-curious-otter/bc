@@ -188,7 +188,7 @@ func runSecretGet(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprint(cmd.OutOrStdout(), value)
+	fmt.Fprint(cmd.OutOrStdout(), value) //nolint:errcheck // writing to stdout
 	return nil
 }
 

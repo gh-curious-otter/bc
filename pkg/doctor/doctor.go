@@ -61,7 +61,7 @@ func (s Severity) String() string {
 }
 
 // Item is the result of a single health check.
-// Field order optimised by fieldalignment.
+// Field order optimized by fieldalignment.
 type Item struct {
 	Name     string
 	Message  string
@@ -310,7 +310,7 @@ func checkSQLiteFile(path, label string, requiredTables []string) []Item {
 
 	// PRAGMA integrity_check
 	var result string
-	if err := db.QueryRow("PRAGMA integrity_check").Scan(&result); err != nil {
+	if err := db.QueryRowContext(context.TODO(), "PRAGMA integrity_check").Scan(&result); err != nil {
 		items = append(items, Item{
 			Name:     label + " integrity",
 			Message:  fmt.Sprintf("check failed: %v", err),
@@ -333,7 +333,7 @@ func checkSQLiteFile(path, label string, requiredTables []string) []Item {
 	// Check required tables
 	for _, table := range requiredTables {
 		var name string
-		err := db.QueryRow(
+		err := db.QueryRowContext(context.TODO(),
 			"SELECT name FROM sqlite_master WHERE type='table' AND name=?", table,
 		).Scan(&name)
 		if err == sql.ErrNoRows {
@@ -541,7 +541,7 @@ func binaryVersion(ctx context.Context, name string) string {
 		return ""
 	}
 
-	out, err := exec.CommandContext(ctx, name, args...).Output()
+	out, err := exec.CommandContext(ctx, name, args...).Output() //nolint:gosec // command name validated by caller
 	if err != nil {
 		return ""
 	}
@@ -632,14 +632,14 @@ func parseWorktrees(output, rootDir string) (valid int, orphaned []string) {
 // FixResult describes one auto-fix action taken (or that would be taken).
 type FixResult struct {
 	Action  string
-	Success bool
 	Message string
+	Success bool
 }
 
 // Fix runs auto-fix actions for all fixable issues found in report.
 // If dryRun is true no changes are made; actions are described instead.
 func Fix(ctx context.Context, ws *workspace.Workspace, report *Report, dryRun bool) []FixResult {
-	var results []FixResult
+	results := make([]FixResult, 0, len(report.Categories))
 	for i := range report.Categories {
 		results = append(results, fixCategory(ctx, ws, &report.Categories[i], dryRun)...)
 	}

@@ -889,12 +889,12 @@ func TestLoadUserDefaults(t *testing.T) {
 
 // TestMergeUserDefaults tests merging user defaults with workspace config (#1160)
 func TestMergeUserDefaults(t *testing.T) {
-	tests := []struct { //nolint:govet // test struct field alignment not critical
+	tests := []struct {
+		defaults            *UserDefaultsConfig
 		name                string
 		wantNickname        string
 		wantDefaultProvider string
 		cfg                 Config
-		defaults            *UserDefaultsConfig
 	}{
 		{
 			name:                "nil defaults - no change",
@@ -1028,20 +1028,20 @@ func TestUserDefaultsPath(t *testing.T) {
 }
 
 func TestValidateNickname(t *testing.T) {
-	tests := []struct { //nolint:govet // test struct alignment not critical
+	tests := []struct { //nolint:govet // test struct, field order matches literal values
+		wantErr  error
 		name     string
 		nickname string
-		wantErr  error
 	}{
-		{"valid nickname", "@user123", nil},
-		{"valid with underscore", "@test_user", nil},
-		{"valid uppercase", "@TestUser", nil},
-		{"missing prefix", "user123", ErrNicknameMissingPrefix},
-		{"empty after @", "@", ErrNicknameInvalidChars},
-		{"too long", "@" + strings.Repeat("a", NicknameMaxLength), ErrNicknameTooLong},
-		{"invalid chars with dash", "@user-name", ErrNicknameInvalidChars},
-		{"invalid chars with dot", "@user.name", ErrNicknameInvalidChars},
-		{"invalid chars with space", "@user name", ErrNicknameInvalidChars},
+		{nil, "valid nickname", "@user123"},
+		{nil, "valid with underscore", "@test_user"},
+		{nil, "valid uppercase", "@TestUser"},
+		{ErrNicknameMissingPrefix, "missing prefix", "user123"},
+		{ErrNicknameInvalidChars, "empty after @", "@"},
+		{ErrNicknameTooLong, "too long", "@" + strings.Repeat("a", NicknameMaxLength)},
+		{ErrNicknameInvalidChars, "invalid chars with dash", "@user-name"},
+		{ErrNicknameInvalidChars, "invalid chars with dot", "@user.name"},
+		{ErrNicknameInvalidChars, "invalid chars with space", "@user name"},
 	}
 
 	for _, tt := range tests {
@@ -1172,11 +1172,11 @@ func TestUserDefaultsPathEmpty(t *testing.T) {
 
 // TestGetProvider tests the new GetProvider method (Issue #1771)
 func TestGetProvider(t *testing.T) {
-	tests := []struct { //nolint:govet // test struct alignment not critical
-		cfg          Config
+	tests := []struct {
 		name         string
 		providerName string
 		wantCommand  string
+		cfg          Config
 		wantNil      bool
 	}{
 		{
@@ -1298,11 +1298,11 @@ func TestGetProvider(t *testing.T) {
 
 // TestGetService tests the new GetService method (Issue #1771)
 func TestGetService(t *testing.T) {
-	tests := []struct { //nolint:govet // test struct alignment not critical
-		cfg         Config
+	tests := []struct {
 		name        string
 		serviceName string
 		wantCommand string
+		cfg         Config
 		wantNil     bool
 	}{
 		{
@@ -1367,10 +1367,10 @@ func TestGetService(t *testing.T) {
 
 // TestGetDefaultProvider tests the GetDefaultProvider method (Issue #1771)
 func TestGetDefaultProvider(t *testing.T) {
-	tests := []struct { //nolint:govet // test struct alignment not critical
-		cfg  Config
+	tests := []struct {
 		name string
 		want string
+		cfg  Config
 	}{
 		{
 			name: "default from config",

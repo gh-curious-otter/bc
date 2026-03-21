@@ -251,11 +251,11 @@ func TestUserRCExists(t *testing.T) {
 }
 
 func TestGetPreferredTool(t *testing.T) {
-	tests := []struct { //nolint:govet // test struct alignment not critical
-		name     string
-		cfg      Config
+	tests := []struct {
 		rc       *UserRCConfig
+		name     string
 		expected string
+		cfg      Config
 	}{
 		{
 			name: "nil rc returns default",

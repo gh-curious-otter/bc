@@ -175,8 +175,8 @@ func TestStore_WrongPassphrase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s1.Set("SECRET", "my-value", ""); err != nil {
-		t.Fatal(err)
+	if setErr := s1.Set("SECRET", "my-value", ""); setErr != nil {
+		t.Fatal(setErr)
 	}
 	_ = s1.Close()
 

@@ -32,23 +32,23 @@ type Request struct {
 
 // Response is an outgoing JSON-RPC 2.0 response.
 type Response struct {
-	JSONRPC string           `json:"jsonrpc"`
-	ID      *json.RawMessage `json:"id"`
 	Result  any              `json:"result,omitempty"`
+	ID      *json.RawMessage `json:"id"`
 	Error   *RPCError        `json:"error,omitempty"`
+	JSONRPC string           `json:"jsonrpc"`
 }
 
 // Notification is an outgoing JSON-RPC 2.0 notification (no ID).
 type Notification struct {
+	Params  any    `json:"params,omitempty"`
 	JSONRPC string `json:"jsonrpc"`
 	Method  string `json:"method"`
-	Params  any    `json:"params,omitempty"`
 }
 
 // RPCError is a JSON-RPC 2.0 error object.
 type RPCError struct {
-	Code    int    `json:"code"`
 	Message string `json:"message"`
+	Code    int    `json:"code"`
 }
 
 func (e *RPCError) Error() string { return e.Message }
@@ -66,17 +66,6 @@ func okResponse(id *json.RawMessage, result any) Response {
 }
 
 // ─── MCP initialize ───────────────────────────────────────────────────────────
-
-type initializeParams struct {
-	ProtocolVersion string         `json:"protocolVersion"`
-	Capabilities    map[string]any `json:"capabilities"`
-	ClientInfo      *clientInfo    `json:"clientInfo,omitempty"`
-}
-
-type clientInfo struct {
-	Name    string `json:"name"`
-	Version string `json:"version,omitempty"`
-}
 
 type initializeResult struct {
 	ProtocolVersion string             `json:"protocolVersion"`
@@ -140,9 +129,9 @@ type toolsListResult struct {
 
 // Tool describes a callable MCP tool.
 type Tool struct {
+	InputSchema map[string]any `json:"inputSchema"`
 	Name        string         `json:"name"`
 	Description string         `json:"description,omitempty"`
-	InputSchema map[string]any `json:"inputSchema"`
 }
 
 type toolsCallParams struct {

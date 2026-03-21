@@ -308,7 +308,7 @@ const CostsViewCompact = memo(function CostsViewCompact({
           const nameColor = getColorForName(agent.name);
           const displayName = agent.name.length > 10 ? agent.name.slice(0, 9) + '…' : agent.name.padEnd(10);
           const costStr = `$${agent.cost.toFixed(2)}`.padStart(7);
-          const pctStr = `${agent.percent}%`.padStart(4);
+          const pctStr = `${String(agent.percent)}%`.padStart(4);
 
           return (
             <Box key={agent.name}>
@@ -445,7 +445,7 @@ const CostsViewWide = memo(function CostsViewWide({
           const nameColor = getColorForName(agent.name);
           const displayName = agent.name.length > 12 ? agent.name.slice(0, 11) + '…' : agent.name.padEnd(12);
           const costStr = `$${agent.cost.toFixed(2)}`.padStart(8);
-          const pctStr = `${agent.percent}%`.padStart(4);
+          const pctStr = `${String(agent.percent)}%`.padStart(4);
 
           return (
             <Box key={agent.name}>

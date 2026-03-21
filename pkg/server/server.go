@@ -149,7 +149,7 @@ func (s *Server) Addr() string {
 // Start begins listening on the configured address.
 // It blocks until the server is shut down.
 func (s *Server) Start(ctx context.Context) error {
-	ln, err := net.Listen("tcp", s.addr)
+	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", s.addr)
 	if err != nil {
 		return fmt.Errorf("listen %s: %w", s.addr, err)
 	}

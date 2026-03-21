@@ -33,6 +33,20 @@ export function AgentList({
   groupedView,
   collapsedRoles,
 }: AgentListProps): React.ReactElement {
+  // Hooks must be called unconditionally before any early returns
+  const { stdout } = useStdout();
+  const terminalRows = stdout.rows;
+  const maxVisibleRows = Math.max(4, terminalRows - RESERVED_ROWS);
+
+  const { visibleSlice, scrollOffset } = useMemo(() => {
+    if (items.length <= maxVisibleRows) {
+      return { visibleSlice: items, scrollOffset: 0 };
+    }
+    let offset = Math.max(0, selectedIndex - Math.floor(maxVisibleRows / 2));
+    offset = Math.min(offset, items.length - maxVisibleRows);
+    return { visibleSlice: items.slice(offset, offset + maxVisibleRows), scrollOffset: offset };
+  }, [items, selectedIndex, maxVisibleRows]);
+
   // Table columns for flat view
   const columns: Column<Agent>[] = [
     {
@@ -97,21 +111,6 @@ export function AgentList({
       </Box>
     );
   }
-
-  // #1842: Scroll viewport for grouped mode — compute visible window around selectedIndex
-  const { stdout } = useStdout();
-  const terminalRows = stdout.rows || 24;
-  const maxVisibleRows = Math.max(4, terminalRows - RESERVED_ROWS);
-
-  const { visibleSlice, scrollOffset } = useMemo(() => {
-    if (items.length <= maxVisibleRows) {
-      return { visibleSlice: items, scrollOffset: 0 };
-    }
-    // Keep selection centered, clamped to list bounds
-    let offset = Math.max(0, selectedIndex - Math.floor(maxVisibleRows / 2));
-    offset = Math.min(offset, items.length - maxVisibleRows);
-    return { visibleSlice: items.slice(offset, offset + maxVisibleRows), scrollOffset: offset };
-  }, [items, selectedIndex, maxVisibleRows]);
 
   return (
     <Box flexDirection="column">

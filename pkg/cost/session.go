@@ -47,7 +47,7 @@ type jsonlUsage struct {
 // ParseSessionFile reads a Claude Code JSONL session file and returns all
 // assistant message entries that contain token usage.
 func ParseSessionFile(path string) ([]SessionEntry, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // path constructed from workspace dir
 	if err != nil {
 		return nil, err
 	}

@@ -784,7 +784,7 @@ func TestProviderBinaryAndInstallHint(t *testing.T) {
 		{"cursor", NewCursorProvider(), "cursor-agent", "https://cursor.sh"},
 		{"codex", NewCodexProvider(), "codex", "npm install -g @openai/codex"},
 		{"opencode", NewOpenCodeProvider(), "crush", "go install github.com/opencode-ai/opencode@latest"},
-		{"openclaw", NewOpenClawProvider(), "openclaw", "pip install openclaw"},
+		{"openclaw", NewOpenClawProvider(), "openclaw", "bun install -g openclaw"},
 		{"aider", NewAiderProvider(), "aider", "pip install aider-chat"},
 	}
 
@@ -961,10 +961,10 @@ Some more output`,
 func TestClaudeBuildCommandSessionID(t *testing.T) {
 	p := NewClaudeProvider()
 
-	tests := []struct {
+	tests := []struct { //nolint:govet // test struct, field order matches literal values
 		name string
-		opts CommandOpts
 		want string
+		opts CommandOpts
 	}{
 		{
 			name: "session ID takes priority over resume flag",

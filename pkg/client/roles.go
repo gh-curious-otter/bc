@@ -12,21 +12,21 @@ type RolesClient struct {
 
 // RoleInfo represents a resolved role from the API.
 type RoleInfo struct {
-	Name         string            `json:"Name"`
-	Prompt       string            `json:"Prompt"`
-	MCPServers   []string          `json:"MCPServers"`
-	Secrets      []string          `json:"Secrets"`
-	Plugins      []string          `json:"Plugins"`
-	PromptCreate string            `json:"PromptCreate"`
-	PromptStart  string            `json:"PromptStart"`
-	PromptStop   string            `json:"PromptStop"`
-	PromptDelete string            `json:"PromptDelete"`
 	Commands     map[string]string `json:"Commands"`
 	Skills       map[string]string `json:"Skills"`
 	Agents       map[string]string `json:"Agents"`
 	Rules        map[string]string `json:"Rules"`
 	Settings     map[string]any    `json:"Settings"`
+	Name         string            `json:"Name"`
+	Prompt       string            `json:"Prompt"`
+	PromptCreate string            `json:"PromptCreate"`
+	PromptStart  string            `json:"PromptStart"`
+	PromptStop   string            `json:"PromptStop"`
+	PromptDelete string            `json:"PromptDelete"`
 	Review       string            `json:"Review"`
+	MCPServers   []string          `json:"MCPServers"`
+	Secrets      []string          `json:"Secrets"`
+	Plugins      []string          `json:"Plugins"`
 }
 
 // List returns all resolved roles.

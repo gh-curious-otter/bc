@@ -244,6 +244,7 @@ describe('Viewport CI - 80x24 Compliance', () => {
       );
 
       const output = lastFrame() ?? '';
+      // eslint-disable-next-line no-control-regex
       const stripped = output.replace(/\x1b\[[0-9;]*m/g, '');
       const lines = stripped.split('\n');
 

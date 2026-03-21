@@ -16,7 +16,7 @@ import (
 )
 
 // PassphraseEnvVar is the environment variable for the master passphrase.
-const PassphraseEnvVar = "BC_SECRET_PASSPHRASE"
+const PassphraseEnvVar = "BC_SECRET_PASSPHRASE" //nolint:gosec // not a credential, env var name constant
 
 // SecretMeta holds secret metadata (never includes the value).
 type SecretMeta struct {
@@ -137,10 +137,10 @@ func (s *Store) initKey(passphrase string) error {
 			return genErr
 		}
 		saltB64 = base64.StdEncoding.EncodeToString(salt)
-		if _, err := s.db.ExecContext(ctx,
+		if _, execErr := s.db.ExecContext(ctx,
 			"INSERT INTO secret_meta (key, value) VALUES ('salt', ?)", saltB64,
-		); err != nil {
-			return fmt.Errorf("store salt: %w", err)
+		); execErr != nil {
+			return fmt.Errorf("store salt: %w", execErr)
 		}
 		s.key = DeriveKey(passphrase, salt)
 		return nil

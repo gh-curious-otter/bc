@@ -69,13 +69,13 @@ func SetupAgentFromRole(workspacePath, agentName, roleName, targetDir string) er
 	// .claude/commands/*.md, skills/*.md, agents/*.md, rules/*.md
 	claudeDir := filepath.Join(targetDir, ".claude")
 	for _, pair := range []struct {
-		dir   string
 		files map[string]string
+		dir   string
 	}{
-		{"commands", resolved.Commands},
-		{"skills", resolved.Skills},
-		{"agents", resolved.Agents},
-		{"rules", resolved.Rules},
+		{resolved.Commands, "commands"},
+		{resolved.Skills, "skills"},
+		{resolved.Agents, "agents"},
+		{resolved.Rules, "rules"},
 	} {
 		if e := writeMDFiles(filepath.Join(claudeDir, pair.dir), pair.files); e != nil {
 			errs = append(errs, e.Error())
@@ -165,9 +165,9 @@ type mcpConfig struct {
 type mcpServerEntry struct {
 	Env     map[string]string `json:"env,omitempty"`
 	Command string            `json:"command,omitempty"`
-	Args    []string          `json:"args,omitempty"`
 	URL     string            `json:"url,omitempty"`
 	Type    string            `json:"type,omitempty"`
+	Args    []string          `json:"args,omitempty"`
 }
 
 var secretRefPattern = regexp.MustCompile(`\$\{secret:([^}]+)\}`)

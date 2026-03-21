@@ -50,8 +50,8 @@ func TestNextRun(t *testing.T) {
 	base := time.Date(2026, 3, 18, 8, 0, 0, 0, time.UTC)
 
 	tests := []struct {
-		expr string
 		want time.Time
+		expr string
 	}{
 		{
 			// Every minute → next is 08:01

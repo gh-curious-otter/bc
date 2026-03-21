@@ -63,7 +63,7 @@ func TestHub_ServeHTTP_ConnectedEvent(t *testing.T) {
 
 	go func() {
 		resp := sseGet(t, srv.URL)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		scanner := bufio.NewScanner(resp.Body)
 		for scanner.Scan() {
@@ -101,7 +101,7 @@ func TestHub_EventDelivery(t *testing.T) {
 
 	go func() {
 		resp := sseGet(t, srv.URL)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		scanner := bufio.NewScanner(resp.Body)
 		firstSeen := false

@@ -17,31 +17,29 @@ import (
 // Server is a bc MCP server. It owns handles to workspace state and dispatches
 // JSON-RPC 2.0 requests from either stdio or SSE transports.
 type Server struct {
-	ws       *workspace.Workspace
-	agents   *agent.Manager
-	chans    *channel.Store
-	chanSvc  *channel.ChannelService // when set, toolSendMessage uses this for delivery hooks
-	costs    *cost.Store
-	version  string
-	ownChans bool // true if we created the channel store (so Close cleans it up)
-	ownCosts bool // true if we created the cost store
-
-	// SSE notification support
+	ws         *workspace.Workspace
+	agents     *agent.Manager
+	chans      *channel.Store
+	chanSvc    *channel.ChannelService
+	costs      *cost.Store
 	broker     *SSEBroker
 	cancelPoll context.CancelFunc
+	version    string
 	pollWg     sync.WaitGroup
+	ownChans   bool
+	ownCosts   bool
 }
 
 // Config holds the dependencies needed to build a Server.
 // When Channels or Costs are provided, the server reuses them (e.g. from bcd)
 // instead of opening its own connections.
 type Config struct {
-	Workspace *workspace.Workspace
-	Agents    *agent.Manager // optional: pre-built agent manager
+	Workspace      *workspace.Workspace
+	Agents         *agent.Manager          // optional: pre-built agent manager
 	Channels       *channel.Store          // optional: pre-built channel store (SQLite/Postgres)
 	ChannelService *channel.ChannelService // optional: service with OnMessage hook for delivery
 	Costs          *cost.Store             // optional: pre-built cost store
-	Version   string         // bc binary version, e.g. "1.2.3"
+	Version        string                  // bc binary version, e.g. "1.2.3"
 }
 
 // New creates a Server. Call Close when done.
@@ -133,10 +131,10 @@ func (s *Server) SetBroker(broker *SSEBroker) {
 
 // channelMessagePayload is the notification payload for new channel messages.
 type channelMessagePayload struct {
+	Time    time.Time `json:"time"`
 	Channel string    `json:"channel"`
 	Sender  string    `json:"sender"`
 	Message string    `json:"message"`
-	Time    time.Time `json:"time"`
 }
 
 // pollChannelMessages watches all channels for new messages and pushes them
@@ -379,7 +377,7 @@ func (s *Server) handleToolsCall(ctx context.Context, req Request) Response {
 	return okResponse(req.ID, result)
 }
 
-// ─── JSON marshalling helper ──────────────────────────────────────────────────
+// ─── JSON marshaling helper ──────────────────────────────────────────────────
 
 func marshalJSON(v any) (string, error) {
 	b, err := json.MarshalIndent(v, "", "  ")

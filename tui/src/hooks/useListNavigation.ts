@@ -100,7 +100,7 @@ export function useListNavigation<T>(
   const isOverlayActive = focusedArea === 'command' || focusedArea === 'filter' || focusedArea === 'modal';
 
   // Use itemCount override when provided (e.g., visibleItems.length in grouped view)
-  const navLength = itemCount !== undefined ? itemCount : items.length;
+  const navLength = itemCount ?? items.length;
 
   const [selectedIndex, setSelectedIndex] = useState(() =>
     Math.min(Math.max(0, initialIndex), Math.max(0, navLength - 1))
