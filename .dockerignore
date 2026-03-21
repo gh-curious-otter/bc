@@ -1,8 +1,17 @@
 bin/
 dist/
 .bc/
+.git/
+.github/
+.claude/
 node_modules/
 web/node_modules/
 web/dist/
 tui/node_modules/
 tui/dist/
+landing/node_modules/
+landing/.next/
+landing/out/
+coverage.out
+*.md
+!README.md
