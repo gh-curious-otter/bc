@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
  * - **bold** text
  * - `code` backticks
  * - GitHub issue/PR references (#1234) become links
+ * - @mentions link to agent detail page
  */
 export function MessageContent({ content }: { content: string }) {
   return <>{parseContent(content)}</>;
@@ -18,7 +19,7 @@ function parseContent(text: string): ReactNode[] {
   // Split on patterns we want to handle, preserving delimiters
   // Order matters: URLs first (greedy), then bold, then code, then issue refs
   const pattern =
-    /(https?:\/\/[^\s<>)"']+)|(\*\*(?:[^*]|\*(?!\*))+\*\*)|(`[^`]+`)|(\B#\d+\b)/g;
+    /(https?:\/\/[^\s<>)"']+)|(\*\*(?:[^*]|\*(?!\*))+\*\*)|(`[^`]+`)|(\B#\d+\b)|(@[a-zA-Z0-9_-]+)/g;
 
   const nodes: ReactNode[] = [];
   let lastIndex = 0;
@@ -71,6 +72,18 @@ function parseContent(text: string): ReactNode[] {
           target="_blank"
           rel="noopener noreferrer"
           className="text-bc-accent underline-offset-2 hover:underline"
+        >
+          {full}
+        </a>,
+      );
+    } else if (match[5]) {
+      // @mention → link to agent detail page
+      const name = full.slice(1);
+      nodes.push(
+        <a
+          key={key}
+          href={`/agents/${name}`}
+          className="text-bc-accent font-medium hover:underline"
         >
           {full}
         </a>,
