@@ -27,6 +27,8 @@ export interface Agent {
   session_id?: string;
   parent_id?: string;
   children?: string[];
+  total_tokens?: number;
+  mcp_servers?: string[];
 }
 
 export interface Channel {
