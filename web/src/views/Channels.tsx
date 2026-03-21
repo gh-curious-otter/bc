@@ -58,27 +58,76 @@ export function Channels() {
   );
 }
 
+/** Group consecutive messages from the same sender. */
+interface MessageGroup {
+  sender: string;
+  timestamp: string;
+  messages: ChannelMessage[];
+}
+
+function groupMessages(msgs: ChannelMessage[]): MessageGroup[] {
+  const groups: MessageGroup[] = [];
+  for (const msg of msgs) {
+    const last = groups[groups.length - 1];
+    if (last && last.sender === msg.sender) {
+      last.messages.push(msg);
+    } else {
+      groups.push({
+        sender: msg.sender,
+        timestamp: msg.created_at,
+        messages: [msg],
+      });
+    }
+  }
+  return groups;
+}
+
+function formatTimestamp(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const isToday =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  if (isToday) {
+    return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  }
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAgent: (name: string) => void }) {
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [isNearBottom, setIsNearBottom] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { subscribe } = useWebSocket();
+  // Track whether the initial fetch for the current channel has completed
+  // so we can force-scroll to bottom on channel switch.
+  const channelLoadedRef = useRef<string | null>(null);
 
-  // Fetch history on channel change
+  // Fetch full history on channel change
   useEffect(() => {
+    channelLoadedRef.current = null;
+    setMessages([]);
     void (async () => {
       try {
-        const msgs = await api.getChannelHistory(channelName, 100);
+        const msgs = await api.getChannelHistory(channelName, 500);
         setMessages(msgs ?? []);
       } catch {
         setMessages([]);
       }
+      channelLoadedRef.current = channelName;
     })();
   }, [channelName]);
 
-  // Live messages via SSE — deduplicate by ID to prevent doubles
+  // Live messages via SSE -- deduplicate by ID
   useEffect(() => {
     return subscribe('channel.message', (event) => {
       const data = event.data as { channel?: string; message?: ChannelMessage };
@@ -91,15 +140,37 @@ function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAge
     });
   }, [subscribe, channelName]);
 
-  // Auto-scroll only when user is near the bottom
+  // Track scroll position
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
-    if (isNearBottom) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const handleScroll = () => {
+      const nearBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      setIsNearBottom(nearBottom);
+    };
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Auto-scroll: always on channel switch load, otherwise only when near bottom
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const justLoaded = channelLoadedRef.current === channelName;
+    if (justLoaded || isNearBottom) {
+      bottomRef.current?.scrollIntoView({ behavior: justLoaded ? 'auto' : 'smooth' });
     }
+    // After the initial load scroll, clear the flag so subsequent messages
+    // use the near-bottom heuristic only.
+    if (justLoaded) {
+      channelLoadedRef.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
+
+  const scrollToBottom = () => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -107,34 +178,60 @@ function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAge
     try {
       await api.sendToChannel(channelName, input);
       setInput('');
-      // SSE listener will deliver the message — no refetch needed
     } finally {
       setSending(false);
     }
   };
 
+  const groups = groupMessages(messages);
+
   return (
     <>
       <div className="px-4 py-2 border-b border-bc-border bg-bc-surface">
         <span className="font-medium">#{channelName}</span>
+        <span className="ml-2 text-xs text-bc-muted">
+          {messages.length} message{messages.length !== 1 ? 's' : ''}
+        </span>
       </div>
-      <div ref={scrollContainerRef} className="flex-1 overflow-auto p-4 space-y-2">
-        {messages.map((msg) => (
-          <div key={msg.id} className="text-sm">
-            <button
-              onClick={() => onPeekAgent(msg.sender)}
-              className="font-medium text-bc-accent hover:underline cursor-pointer"
-              title={`Peek at ${msg.sender}'s terminal`}
-            >
-              {msg.sender}
-            </button>
-            <span className="ml-2 text-xs text-bc-muted">
-              {new Date(msg.created_at).toLocaleTimeString()}
-            </span>
-            <p className="mt-0.5">{msg.content}</p>
-          </div>
-        ))}
-        <div ref={bottomRef} />
+      <div className="relative flex-1">
+        <div ref={scrollContainerRef} className="absolute inset-0 overflow-auto p-4 space-y-3">
+          {messages.length === 0 && (
+            <div className="text-sm text-bc-muted text-center py-8">
+              No messages yet. Start the conversation!
+            </div>
+          )}
+          {groups.map((group) => {
+            const firstMsg = group.messages[0]!;
+            return (
+            <div key={firstMsg.id} className="text-sm">
+              <div className="flex items-baseline gap-2">
+                <button
+                  onClick={() => onPeekAgent(group.sender)}
+                  className="font-medium text-bc-accent hover:underline cursor-pointer"
+                  title={`Peek at ${group.sender}'s terminal`}
+                >
+                  {group.sender}
+                </button>
+                <span className="text-xs text-bc-muted">{formatTimestamp(group.timestamp)}</span>
+              </div>
+              {group.messages.map((msg) => (
+                <p key={msg.id} className="mt-0.5 pl-0 whitespace-pre-wrap break-words">
+                  {msg.content}
+                </p>
+              ))}
+            </div>
+            );
+          })}
+          <div ref={bottomRef} />
+        </div>
+        {!isNearBottom && messages.length > 0 && (
+          <button
+            onClick={scrollToBottom}
+            className="absolute bottom-4 right-4 bg-bc-accent text-bc-bg rounded-full px-3 py-1.5 text-xs font-medium shadow-lg hover:opacity-90 transition-opacity"
+          >
+            Jump to bottom
+          </button>
+        )}
       </div>
       <div className="p-3 border-t border-bc-border flex gap-2">
         <input
