@@ -209,6 +209,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	if cfg.CORS {
 		handler = handlers.CORS(mux)
 	}
+	handler = handlers.MaxBodySize(1 << 20)(handler) // 1MB request body limit
 	handler = handlers.Recovery(handler)
 	handler = handlers.RequestLogger(handler)
 
