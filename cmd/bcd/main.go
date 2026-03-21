@@ -4,7 +4,7 @@
 //
 // Usage:
 //
-//	bcd [--addr ADDR] [--workspace DIR] [--verbose] [--log-format text|json]
+//	bcd [--addr ADDR] [--workspace DIR] [--verbose] [--log-format text|json] [--cors-origin ORIGIN]
 //
 // The server binds to 127.0.0.1:9374 by default.
 // A PID file is written to <workspace>/.bc/bcd.pid on startup.
@@ -43,6 +43,7 @@ func main() {
 	wsRoot := flag.String("workspace", ".", "workspace root directory")
 	verbose := flag.Bool("verbose", false, "enable verbose logging")
 	logFormat := flag.String("log-format", "text", "log output format (text|json)")
+	corsOrigin := flag.String("cors-origin", "*", "CORS allowed origin (* for permissive, or specific origin)")
 	flag.Parse()
 
 	if *logFormat == "json" {
@@ -52,13 +53,13 @@ func main() {
 		log.SetVerbose(true)
 	}
 
-	if err := run(*addr, *wsRoot); err != nil {
+	if err := run(*addr, *wsRoot, *corsOrigin); err != nil {
 		fmt.Fprintf(os.Stderr, "bcd: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(addr, wsRoot string) error {
+func run(addr, wsRoot, corsOrigin string) error {
 	// Try to load existing workspace; if none exists, initialize a minimal one.
 	// This allows bcd to run in a fresh Docker container without a pre-existing workspace.
 	ws, err := bcworkspace.Load(wsRoot)
@@ -219,6 +220,7 @@ func run(addr, wsRoot string) error {
 	if addr != "" {
 		cfg.Addr = addr
 	}
+	cfg.CORSOrigin = corsOrigin
 
 	srv := server.New(cfg, svc, hub, server.WebDist())
 	return srv.Start(ctx)
