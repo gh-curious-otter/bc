@@ -133,7 +133,7 @@ func (imp *Importer) importFile(ctx context.Context, path string) (int, error) {
 	for _, ie := range toInsert {
 		e := ie.entry
 		total := e.InputTokens + e.OutputTokens + e.CacheCreationTokens + e.CacheReadTokens
-		if _, err := tx.ExecContext(ctx,
+		if _, insertErr := tx.ExecContext(ctx,
 			`INSERT INTO cost_records
 			 (agent_id, model, session_id, input_tokens, output_tokens, total_tokens,
 			  cache_creation_tokens, cache_read_tokens, cost_usd, timestamp)
@@ -143,15 +143,15 @@ func (imp *Importer) importFile(ctx context.Context, path string) (int, error) {
 			e.CacheCreationTokens, e.CacheReadTokens,
 			ie.costUSD,
 			e.Timestamp.UTC().Format(time.RFC3339Nano),
-		); err != nil {
-			log.Warn("cost importer: failed to insert record", "session", e.SessionID, "error", err)
+		); insertErr != nil {
+			log.Warn("cost importer: failed to insert record", "session", e.SessionID, "error", insertErr)
 			continue
 		}
 		inserted++
 	}
 
 	if inserted > 0 {
-		if _, err := tx.ExecContext(ctx,
+		if _, wmErr := tx.ExecContext(ctx,
 			`INSERT INTO cost_imports (source_path, watermark, record_count, imported_at)
 			 VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 			 ON CONFLICT(source_path) DO UPDATE SET
@@ -159,13 +159,13 @@ func (imp *Importer) importFile(ctx context.Context, path string) (int, error) {
 			   record_count = cost_imports.record_count + excluded.record_count,
 			   imported_at  = excluded.imported_at`,
 			path, latest.UTC().Format(time.RFC3339Nano), inserted,
-		); err != nil {
-			return 0, fmt.Errorf("record import state: %w", err)
+		); wmErr != nil {
+			return 0, fmt.Errorf("record import state: %w", wmErr)
 		}
 	}
 
-	if err := tx.Commit(); err != nil {
-		return 0, fmt.Errorf("commit transaction: %w", err)
+	if commitErr := tx.Commit(); commitErr != nil {
+		return 0, fmt.Errorf("commit transaction: %w", commitErr)
 	}
 	return inserted, nil
 }
