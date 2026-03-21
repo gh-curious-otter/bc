@@ -11,7 +11,7 @@ import { ErrorDisplay } from '../components/ErrorDisplay';
 import { Footer } from '../components/Footer';
 import { Spinner } from '../components/LoadingIndicator';
 import { useCosts, useDisableInput, useListNavigation, useLoadingTimeout } from '../hooks';
-import { useFocus } from '../navigation/FocusContext';
+import { useFocus, useIsOverlayActive } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { CostsViewCompact, CostsViewWide, AgentCostDetail, type SortMode, type AgentEntry } from './costs';
 
@@ -21,6 +21,7 @@ interface CostsViewProps {}
 export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
   const { isDisabled: disableInput } = useDisableInput();
   const { setFocus } = useFocus();
+  const overlayActive = useIsOverlayActive();
   const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
   const { stdout } = useStdout();
   const terminalWidth = stdout.columns;
@@ -99,7 +100,7 @@ export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
         handleRefresh();
       }
     }
-  }, { isActive: showDetail && !disableInput });
+  }, { isActive: showDetail && !disableInput && !overlayActive });
 
   // Keybinding hints
   const mainHints = [

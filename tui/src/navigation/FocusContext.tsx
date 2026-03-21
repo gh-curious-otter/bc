@@ -96,4 +96,13 @@ export function useIsFocused(area: FocusArea): boolean {
   return isFocused(area);
 }
 
+/**
+ * Returns true when an overlay (CommandBar, FilterBar, or modal) is active.
+ * Views should use this to suppress their useInput handlers.
+ */
+export function useIsOverlayActive(): boolean {
+  const { focusedArea } = useFocus();
+  return focusedArea === 'command' || focusedArea === 'filter' || focusedArea === 'modal';
+}
+
 export default FocusContext;

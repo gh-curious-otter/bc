@@ -4,7 +4,7 @@ import { spawnSync } from 'child_process';
 import type { Agent } from '../types';
 import { execBc } from '../services/bc';
 import { StatusBadge } from '../components/StatusBadge';
-import { useFocus } from '../navigation/FocusContext';
+import { useFocus, useIsOverlayActive } from '../navigation/FocusContext';
 import { useAgentDetails } from '../hooks/useAgentDetails';
 import { Footer } from '../components/Footer';
 import { isPeekHeader } from '../utils';
@@ -20,9 +20,9 @@ import {
 } from './agent-detail';
 
 // Safe wrapper for useInput that handles test environments
-const useSafeInput = (handler: Parameters<typeof inkUseInput>[0]) => {
+const useSafeInput = (handler: Parameters<typeof inkUseInput>[0], options?: Parameters<typeof inkUseInput>[1]) => {
   try {
-    inkUseInput(handler);
+    inkUseInput(handler, options);
   } catch {
     // Silently fail in test environments
   }
@@ -39,6 +39,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
 }) => {
   const [state, dispatch] = useReducer(agentDetailReducer, initialState);
   const { setFocus } = useFocus();
+  const overlayActive = useIsOverlayActive();
 
   // Fetch agent-specific details (costs, activity)
   const { cost, activity } = useAgentDetails(agent.name);
@@ -189,7 +190,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
         }
       }
     }
-  });
+  }, { isActive: !overlayActive });
 
   // #1161: Use full available height, don't cap artificially
   const outputHeight = 20;

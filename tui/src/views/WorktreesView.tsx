@@ -10,7 +10,7 @@ import { LoadingIndicator } from '../components/LoadingIndicator';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { HeaderBar } from '../components/HeaderBar';
 import { Footer } from '../components/Footer';
-import { useFocus } from '../navigation/FocusContext';
+import { useFocus, useIsOverlayActive } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { useListNavigation } from '../hooks';
 import { DISPLAY_LIMITS } from '../constants';
@@ -37,6 +37,7 @@ export const WorktreesView: React.FC = () => {
   const [pruneResult, setPruneResult] = useState<string | null>(null);
   const [showOrphanedOnly, setShowOrphanedOnly] = useState(false);
   const { setFocus } = useFocus();
+  const overlayActive = useIsOverlayActive();
   const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
 
   const fetchWorktrees = useCallback(async () => {
@@ -133,7 +134,7 @@ export const WorktreesView: React.FC = () => {
         setShowDetail(false);
       }
     }
-  }, { isActive: showPruneConfirm || showDetail });
+  }, { isActive: (showPruneConfirm || showDetail) && !overlayActive });
 
   // Prune confirmation dialog
   if (showPruneConfirm) {
