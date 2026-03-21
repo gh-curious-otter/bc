@@ -1,7 +1,7 @@
 .PHONY: dev build build-bcd build-release build-bcd-release build-all clean clean-deps gen test coverage bench fmt vet lint check check-all deps install help version
 .PHONY: build-tui test-tui lint-tui build-web lint-web dev-web build-landing dev-landing lint-landing test-landing
 .PHONY: build-server-images build-bcd-image build-bcdb-image build-agent-base build-agent-image build-agent-images
-.PHONY: security vuln
+.PHONY: security vuln deploy-dogfood
 
 # Version information
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -208,3 +208,22 @@ build-agent-images: build-agent-base ## Build all agent images
 		docker build -t bc-agent-$$p:latest -f docker/Dockerfile.$$p . || exit 1; \
 	done
 	@echo "All agent images built."
+
+# =============================================================================
+# Deploy targets
+# =============================================================================
+
+deploy-dogfood: build-bcd ## Deploy dogfood: pull main, rebuild bcd, restart
+	@echo "--- Deploying dogfood ---"
+	@if [ -f .bc/bcd.pid ]; then \
+		PID=$$(cat .bc/bcd.pid); \
+		if kill -0 $$PID 2>/dev/null; then \
+			echo "Stopping bcd (PID $$PID)..."; \
+			kill $$PID; \
+			sleep 2; \
+		fi; \
+	fi
+	@echo "Starting bcd..."
+	@nohup ./bin/bcd --addr 127.0.0.1:9000 > /tmp/bcd-dogfood.log 2>&1 &
+	@sleep 1
+	@echo "Dogfood deployed at :9000 (PID $$(cat .bc/bcd.pid 2>/dev/null || echo unknown))"
