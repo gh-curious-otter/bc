@@ -644,12 +644,11 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 	role := opts.Role
 	wsPath := opts.Workspace
 	parentID := opts.ParentID
-	tool := opts.Tool
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	log.Debug("spawning agent", "name", name, "role", role, "workspace", wsPath, "parentID", parentID, "tool", tool)
+	log.Debug("spawning agent", "name", name, "role", role, "workspace", wsPath, "parentID", parentID, "tool", opts.Tool)
 
 	// Validate agent name format
 	if !IsValidAgentName(name) {
@@ -695,96 +694,118 @@ func (m *Manager) SpawnAgentWithOptions(opts SpawnOptions) (*Agent, error) {
 			return existing, nil
 		}
 		// Agent exists but session is dead — restart it.
-		if opts.Runtime != "" {
-			existing.RuntimeBackend = opts.Runtime
-		}
+		return m.startAgentLocked(name, opts)
+	}
 
-		// Only resume if we have a real Claude session ID (UUID format) — avoids
-		// "No conversation found to continue" on first stop/start.
-		// The SessionID field may contain the tmux session name (e.g. "frontend")
-		// which is not a valid Claude conversation ID.
-		sessionID := existing.SessionID
-		isRealSessionID := len(sessionID) == 36 && sessionID[8] == '-'
-		resume := !opts.Fresh && isRealSessionID
-		if opts.Fresh {
-			existing.SessionID = ""
-			sessionID = ""
-		}
-		if opts.SessionID != "" {
-			sessionID = opts.SessionID
-			existing.SessionID = sessionID
-		}
-		toolName := existing.Tool
-		if toolName == "" {
-			toolName = m.defaultTool
-		}
-		agentCmd := m.agentCmd
-		if toolName != "" {
-			if cmd, ok := m.getAgentCommand(toolName, name, resume, sessionID); ok {
-				agentCmd = cmd
-			}
-		}
+	// Fresh create
+	return m.createAgentLocked(opts)
+}
 
-		// Apply provider session customization for container backends only.
-		if existing.RuntimeBackend != "tmux" {
-			if toolName != "" && m.providerRegistry != nil {
-				if p, ok := m.providerRegistry.Get(toolName); ok {
-					if sc, ok := p.(provider.SessionCustomizer); ok {
-						agentCmd = sc.AdjustSessionCommand(agentCmd)
-					}
+// startAgentLocked restarts an existing agent whose session has died.
+// Caller must hold m.mu.Lock.
+func (m *Manager) startAgentLocked(name string, opts SpawnOptions) (*Agent, error) {
+	existing := m.agents[name]
+	wsPath := opts.Workspace
+
+	if opts.Runtime != "" {
+		existing.RuntimeBackend = opts.Runtime
+	}
+
+	// Only resume if we have a real Claude session ID (UUID format) — avoids
+	// "No conversation found to continue" on first stop/start.
+	// The SessionID field may contain the tmux session name (e.g. "frontend")
+	// which is not a valid Claude conversation ID.
+	sessionID := existing.SessionID
+	isRealSessionID := len(sessionID) == 36 && sessionID[8] == '-'
+	resume := !opts.Fresh && isRealSessionID
+	if opts.Fresh {
+		existing.SessionID = ""
+		sessionID = ""
+	}
+	if opts.SessionID != "" {
+		sessionID = opts.SessionID
+		existing.SessionID = sessionID
+	}
+	toolName := existing.Tool
+	if toolName == "" {
+		toolName = m.defaultTool
+	}
+	agentCmd := m.agentCmd
+	if toolName != "" {
+		if cmd, ok := m.getAgentCommand(toolName, name, resume, sessionID); ok {
+			agentCmd = cmd
+		}
+	}
+
+	// Apply provider session customization for container backends only.
+	if existing.RuntimeBackend != "tmux" {
+		if toolName != "" && m.providerRegistry != nil {
+			if p, ok := m.providerRegistry.Get(toolName); ok {
+				if sc, ok := p.(provider.SessionCustomizer); ok {
+					agentCmd = sc.AdjustSessionCommand(agentCmd)
 				}
 			}
 		}
-
-		env := map[string]string{
-			"BC_AGENT_ID":   name,
-			"BC_AGENT_ROLE": string(existing.Role),
-			"BC_WORKSPACE":  wsPath,
-		}
-		if toolName != "" {
-			env["BC_AGENT_TOOL"] = toolName
-		}
-		if existing.ParentID != "" {
-			env["BC_PARENT_ID"] = existing.ParentID
-		}
-		injectEnv(env, wsPath, toolName, existing.EnvFile)
-
-		// On restart (not fresh create), prepend role setup commands
-		// (mcp add, plugin install) so the agent has everything configured
-		// before Claude starts. First create is bare — user logs in first.
-		if existing.RuntimeBackend != "tmux" {
-			if setupCmd := BuildSetupCommand(wsPath, string(existing.Role)); setupCmd != "" {
-				agentCmd = setupCmd + " && " + agentCmd
-			}
-		}
-
-		// Clean stale worktree from previous container run to prevent
-		// "fatal: '<dir>' already exists" on restart.
-		cleanStaleWorktree(wsPath, name)
-
-		if err := m.runtimeForAgent(name).CreateSessionWithEnv(context.TODO(), name, wsPath, agentCmd, env); err != nil {
-			return nil, fmt.Errorf("failed to recreate session: %w", err)
-		}
-
-		// Resume log streaming
-		if existing.LogFile != "" {
-			truncateLogFile(existing.LogFile, config.Logs.MaxBytes)
-			if pipeErr := m.runtimeForAgent(name).PipePane(context.TODO(), name, existing.LogFile); pipeErr != nil {
-				log.Warn("failed to resume pipe-pane", "agent", name, "error", pipeErr)
-			}
-		} else {
-			existing.LogFile = m.setupLogPipe(name, wsPath)
-		}
-
-		if existing.State == StateStopped || existing.State == StateError {
-			existing.State = StateStarting
-		}
-		existing.UpdatedAt = time.Now()
-		if err := m.saveState(); err != nil {
-			log.Warn("failed to save agent state", "error", err)
-		}
-		return existing, nil
 	}
+
+	env := map[string]string{
+		"BC_AGENT_ID":   name,
+		"BC_AGENT_ROLE": string(existing.Role),
+		"BC_WORKSPACE":  wsPath,
+	}
+	if toolName != "" {
+		env["BC_AGENT_TOOL"] = toolName
+	}
+	if existing.ParentID != "" {
+		env["BC_PARENT_ID"] = existing.ParentID
+	}
+	injectEnv(env, wsPath, toolName, existing.EnvFile)
+
+	// On restart (not fresh create), prepend role setup commands
+	// (mcp add, plugin install) so the agent has everything configured
+	// before Claude starts. First create is bare — user logs in first.
+	if existing.RuntimeBackend != "tmux" {
+		if setupCmd := BuildSetupCommand(wsPath, string(existing.Role)); setupCmd != "" {
+			agentCmd = setupCmd + " && " + agentCmd
+		}
+	}
+
+	// Clean stale worktree from previous container run to prevent
+	// "fatal: '<dir>' already exists" on restart.
+	cleanStaleWorktree(wsPath, name)
+
+	if err := m.runtimeForAgent(name).CreateSessionWithEnv(context.TODO(), name, wsPath, agentCmd, env); err != nil {
+		return nil, fmt.Errorf("failed to recreate session: %w", err)
+	}
+
+	// Resume log streaming
+	if existing.LogFile != "" {
+		truncateLogFile(existing.LogFile, config.Logs.MaxBytes)
+		if pipeErr := m.runtimeForAgent(name).PipePane(context.TODO(), name, existing.LogFile); pipeErr != nil {
+			log.Warn("failed to resume pipe-pane", "agent", name, "error", pipeErr)
+		}
+	} else {
+		existing.LogFile = m.setupLogPipe(name, wsPath)
+	}
+
+	if existing.State == StateStopped || existing.State == StateError {
+		existing.State = StateStarting
+	}
+	existing.UpdatedAt = time.Now()
+	if err := m.saveState(); err != nil {
+		log.Warn("failed to save agent state", "error", err)
+	}
+	return existing, nil
+}
+
+// createAgentLocked creates a brand-new agent and its runtime session.
+// Caller must hold m.mu.Lock.
+func (m *Manager) createAgentLocked(opts SpawnOptions) (*Agent, error) {
+	name := opts.Name
+	role := opts.Role
+	wsPath := opts.Workspace
+	parentID := opts.ParentID
+	tool := opts.Tool
 
 	// If a session exists from a previous crash, kill it in all backends
 	for beName, be := range m.backends {
