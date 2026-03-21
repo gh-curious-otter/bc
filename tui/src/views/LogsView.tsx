@@ -6,6 +6,7 @@
 
 import React, { useMemo, useCallback, useEffect, useReducer, useState } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
+import { useTheme } from '../theme';
 import { useLogs, getSeverityColor, getSeverityIcon, useDebounce, useListNavigation } from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { ErrorDisplay } from '../components/ErrorDisplay';
@@ -136,6 +137,7 @@ function abbreviateType(type: string | undefined): string {
 }
 
 export const LogsView: React.FC<LogsViewProps> = () => {
+  const { theme } = useTheme();
   const { stdout } = useStdout();
   const terminalWidth = stdout.columns;
 
@@ -295,15 +297,15 @@ export const LogsView: React.FC<LogsViewProps> = () => {
   if (showDetail && selectedLog) {
     return (
       <Box flexDirection="column" padding={1}>
-        <Text bold color="cyan">Log Details</Text>
-        <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor="gray" padding={1}>
+        <Text bold color={theme.colors.primary}>Log Details</Text>
+        <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor={theme.colors.textMuted} padding={1}>
           <Box>
             <Text bold>Timestamp: </Text>
             <Text>{selectedLog.ts}</Text>
           </Box>
           <Box>
             <Text bold>Agent: </Text>
-            <Text color="cyan">{selectedLog.agent ?? 'unknown'}</Text>
+            <Text color={theme.colors.primary}>{selectedLog.agent ?? 'unknown'}</Text>
           </Box>
           <Box>
             <Text bold>Type: </Text>
@@ -328,10 +330,10 @@ export const LogsView: React.FC<LogsViewProps> = () => {
     return (
       <Box flexDirection="column" padding={1}>
         <Text bold>Search Logs</Text>
-        <Box marginTop={1} borderStyle="single" borderColor="cyan" paddingX={1}>
-          <Text color="cyan">{'> '}</Text>
+        <Box marginTop={1} borderStyle="single" borderColor={theme.colors.primary} paddingX={1}>
+          <Text color={theme.colors.primary}>{'> '}</Text>
           <Text>{searchQuery}</Text>
-          <Text color="cyan">|</Text>
+          <Text color={theme.colors.primary}>|</Text>
         </Box>
         <Box marginTop={1}>
           <Text dimColor>Enter to confirm, Esc to cancel</Text>
@@ -343,7 +345,7 @@ export const LogsView: React.FC<LogsViewProps> = () => {
   if (loading && !logs) {
     return (
       <Box padding={1}>
-        <Text color="cyan">Loading logs...</Text>
+        <Text color={theme.colors.primary}>Loading logs...</Text>
       </Box>
     );
   }
@@ -372,39 +374,39 @@ export const LogsView: React.FC<LogsViewProps> = () => {
     <Box flexDirection="column" overflow="hidden">
       {/* Header */}
       <Box marginBottom={1}>
-        <Text bold color="magenta">Logs</Text>
+        <Text bold color={theme.colors.accent}>Logs</Text>
         <Text dimColor> ({filteredLogs.length} entries)</Text>
-        {loading && <Text color="gray"> (refreshing...)</Text>}
+        {loading && <Text color={theme.colors.textMuted}> (refreshing...)</Text>}
       </Box>
 
       {/* Filters */}
       <Box marginBottom={1}>
         <Text dimColor>Filters: </Text>
-        <Text color={severityFilter ? 'cyan' : 'gray'}>
+        <Text color={severityFilter ? theme.colors.primary : theme.colors.textMuted}>
           [s] {severityFilter ?? 'All'}
         </Text>
         <Text> </Text>
-        <Text color={agentFilter ? 'cyan' : 'gray'}>
+        <Text color={agentFilter ? theme.colors.primary : theme.colors.textMuted}>
           [a] {agentFilter ?? 'All agents'}
         </Text>
         <Text> </Text>
-        <Text color={timeFilter !== 'all' ? 'cyan' : 'gray'}>
+        <Text color={timeFilter !== 'all' ? theme.colors.primary : theme.colors.textMuted}>
           [t] {timeFilter === 'all' ? 'All time' : `Last ${timeFilter}`}
         </Text>
         {searchQuery && (
           <>
             <Text> </Text>
-            <Text color="cyan">[/] &quot;{searchQuery}&quot;</Text>
+            <Text color={theme.colors.primary}>[/] &quot;{searchQuery}&quot;</Text>
           </>
         )}
       </Box>
 
       {/* Log table */}
-      <Box flexDirection="column" borderStyle="single" borderColor="gray">
+      <Box flexDirection="column" borderStyle="single" borderColor={theme.colors.textMuted}>
         {/* Table header */}
         <Box>
           <Text>{'  '}</Text>
-          <Text bold color="gray">
+          <Text bold color={theme.colors.textMuted}>
             {'TIME'.padEnd(timeWidth)}
             {'AGENT'.padEnd(agentWidth)}
             {'TYPE'.padEnd(typeWidth)}
@@ -422,20 +424,20 @@ export const LogsView: React.FC<LogsViewProps> = () => {
 
           return (
             <Box key={`${log.ts}-${String(idx)}`}>
-              <Text color={isSelected ? 'cyan' : undefined}>
+              <Text color={isSelected ? theme.colors.primary : undefined}>
                 {isSelected ? '▸ ' : '  '}
               </Text>
-              <Text color={isSelected ? 'cyan' : undefined}>
+              <Text color={isSelected ? theme.colors.primary : undefined}>
                 {formatTime(log.ts).padEnd(timeWidth)}
               </Text>
-              <Text color={isSelected ? 'cyan' : 'cyan'}>
+              <Text color={isSelected ? theme.colors.primary : theme.colors.primary}>
                 {(log.agent ?? '').slice(0, agentWidth - 1).padEnd(agentWidth)}
               </Text>
-              <Text color={isSelected ? 'cyan' : severityColor}>
+              <Text color={isSelected ? theme.colors.primary : severityColor}>
                 {severityIcon} {abbreviateType(logType).slice(0, typeWidth - 3).padEnd(typeWidth - 2)}
               </Text>
               <Text
-                color={isSelected ? 'cyan' : undefined}
+                color={isSelected ? theme.colors.primary : undefined}
                 wrap="truncate"
               >
                 {(log.message ?? '').slice(0, messageWidth)}

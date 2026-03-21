@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
+import { useTheme } from '../theme';
 import { getWorktrees, pruneWorktrees } from '../services/bc';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { ErrorDisplay } from '../components/ErrorDisplay';
@@ -26,6 +27,7 @@ function formatPath(fullPath: string): string {
 }
 
 export const WorktreesView: React.FC = () => {
+  const { theme } = useTheme();
   const { stdout } = useStdout();
   const terminalWidth = stdout.columns;
 
@@ -140,12 +142,12 @@ export const WorktreesView: React.FC = () => {
   if (showPruneConfirm) {
     return (
       <Box flexDirection="column" padding={1}>
-        <Text bold color="yellow">Confirm Prune</Text>
-        <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor="yellow" padding={1}>
+        <Text bold color={theme.colors.warning}>Confirm Prune</Text>
+        <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor={theme.colors.warning} padding={1}>
           <Text>This will remove {orphanedWorktrees.length} orphaned worktree(s):</Text>
           <Box marginTop={1} flexDirection="column">
             {orphanedWorktrees.slice(0, DISPLAY_LIMITS.ORPHANED_WORKTREES).map((wt) => (
-              <Text key={wt.path} color="red">- {wt.agent}: {formatPath(wt.path)}</Text>
+              <Text key={wt.path} color={theme.colors.error}>- {wt.agent}: {formatPath(wt.path)}</Text>
             ))}
             {orphanedWorktrees.length > DISPLAY_LIMITS.ORPHANED_WORKTREES && (
               <Text dimColor>... and {orphanedWorktrees.length - DISPLAY_LIMITS.ORPHANED_WORKTREES} more</Text>
@@ -163,11 +165,11 @@ export const WorktreesView: React.FC = () => {
   if (showDetail && selectedWorktree) {
     return (
       <Box flexDirection="column" padding={1}>
-        <Text bold color="cyan">Worktree Details</Text>
-        <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor="gray" padding={1}>
+        <Text bold color={theme.colors.primary}>Worktree Details</Text>
+        <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor={theme.colors.textMuted} padding={1}>
           <Box>
             <Text bold>Agent: </Text>
-            <Text color="cyan">{selectedWorktree.agent}</Text>
+            <Text color={theme.colors.primary}>{selectedWorktree.agent}</Text>
           </Box>
           <Box>
             <Text bold>Path: </Text>
@@ -175,14 +177,14 @@ export const WorktreesView: React.FC = () => {
           </Box>
           <Box>
             <Text bold>Status: </Text>
-            <Text color={selectedWorktree.status === 'OK' ? 'green' : 'red'}>
+            <Text color={selectedWorktree.status === 'OK' ? theme.colors.success : theme.colors.error}>
               {selectedWorktree.status}
             </Text>
           </Box>
           {selectedWorktree.branch && (
             <Box>
               <Text bold>Branch: </Text>
-              <Text color="magenta">{selectedWorktree.branch}</Text>
+              <Text color={theme.colors.accent}>{selectedWorktree.branch}</Text>
             </Box>
           )}
         </Box>
@@ -218,32 +220,32 @@ export const WorktreesView: React.FC = () => {
         title="Worktrees"
         count={activeWorktrees.length}
         loading={loading}
-        color="blue"
+        color={theme.colors.secondary}
         subtitle={worktreeSubtitle}
       />
 
       {/* Filter indicator */}
       {showOrphanedOnly && (
         <Box marginBottom={1}>
-          <Text color="yellow">[Showing orphaned only]</Text>
+          <Text color={theme.colors.warning}>[Showing orphaned only]</Text>
         </Box>
       )}
 
       {/* Prune result */}
       {pruneResult && (
         <Box marginBottom={1}>
-          <Text color={pruneResult.startsWith('Error') ? 'red' : 'green'}>
+          <Text color={pruneResult.startsWith('Error') ? theme.colors.error : theme.colors.success}>
             {pruneResult}
           </Text>
         </Box>
       )}
 
       {/* Worktree table */}
-      <Box flexDirection="column" borderStyle="single" borderColor="gray">
+      <Box flexDirection="column" borderStyle="single" borderColor={theme.colors.textMuted}>
         {/* Header */}
         <Box>
           <Text>{'  '}</Text>
-          <Text bold color="gray">
+          <Text bold color={theme.colors.textMuted}>
             {'AGENT'.padEnd(agentWidth - 2)}
             {'STATUS'.padEnd(statusWidth)}
             {'PATH'}
@@ -257,16 +259,16 @@ export const WorktreesView: React.FC = () => {
 
           return (
             <Box key={wt.path}>
-              <Text color={isSelected ? 'cyan' : undefined}>
+              <Text color={isSelected ? theme.colors.primary : undefined}>
                 {isSelected ? '▸ ' : '  '}
               </Text>
-              <Text color={isSelected ? 'cyan' : 'cyan'}>
+              <Text color={isSelected ? theme.colors.primary : theme.colors.primary}>
                 {wt.agent.slice(0, agentWidth - 3).padEnd(agentWidth - 2)}
               </Text>
-              <Text color={isSelected ? 'cyan' : 'green'}>
+              <Text color={isSelected ? theme.colors.primary : theme.colors.success}>
                 {wt.status.padEnd(statusWidth)}
               </Text>
-              <Text color={isSelected ? 'cyan' : undefined} wrap="truncate">
+              <Text color={isSelected ? theme.colors.primary : undefined} wrap="truncate">
                 {formatPath(wt.path).slice(0, pathWidth)}
               </Text>
             </Box>
@@ -287,16 +289,16 @@ export const WorktreesView: React.FC = () => {
 
           return (
             <Box key={wt.path}>
-              <Text color={isSelected ? 'cyan' : undefined}>
+              <Text color={isSelected ? theme.colors.primary : undefined}>
                 {isSelected ? '▸ ' : '  '}
               </Text>
-              <Text color={isSelected ? 'cyan' : 'yellow'}>
+              <Text color={isSelected ? theme.colors.primary : theme.colors.warning}>
                 {(wt.agent || '(orphan)').slice(0, agentWidth - 3).padEnd(agentWidth - 2)}
               </Text>
-              <Text color={isSelected ? 'cyan' : 'red'}>
+              <Text color={isSelected ? theme.colors.primary : theme.colors.error}>
                 {wt.status.padEnd(statusWidth)}
               </Text>
-              <Text color={isSelected ? 'cyan' : undefined} wrap="truncate">
+              <Text color={isSelected ? theme.colors.primary : undefined} wrap="truncate">
                 {formatPath(wt.path).slice(0, pathWidth)}
               </Text>
             </Box>

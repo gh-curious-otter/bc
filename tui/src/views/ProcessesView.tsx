@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Text } from 'ink';
+import { useTheme } from '../theme';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { HeaderBar } from '../components/HeaderBar';
 import { Footer } from '../components/Footer';
@@ -13,6 +14,7 @@ import { truncate } from '../utils';
 import { getProcessList, type ProcessInfo } from '../services/bc';
 
 export function ProcessesView(): React.ReactElement {
+  const { theme } = useTheme();
   const { isDisabled: disableInput } = useDisableInput();
   const [processes, setProcesses] = useState<ProcessInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,7 +71,7 @@ export function ProcessesView(): React.ReactElement {
     return (
       <Box flexDirection="column">
         <HeaderBar title="Processes" />
-        <Box paddingLeft={1}><Text color="red">{error}</Text></Box>
+        <Box paddingLeft={1}><Text color={theme.colors.error}>{error}</Text></Box>
         <Footer hints={viewHints} />
       </Box>
     );
@@ -94,11 +96,11 @@ export function ProcessesView(): React.ReactElement {
 
           {processes.map((proc, index) => {
             const isSelected = index === selectedIndex;
-            const statusColor = proc.status === 'running' ? 'green' : proc.status === 'stopped' ? 'red' : 'yellow';
+            const statusColor = proc.status === 'running' ? theme.colors.success : proc.status === 'stopped' ? theme.colors.error : theme.colors.warning;
             return (
               <Box key={proc.name} paddingLeft={1}>
                 <Box width={20}>
-                  <Text inverse={isSelected} color={isSelected ? 'blue' : undefined}>
+                  <Text inverse={isSelected} color={isSelected ? theme.colors.primary : undefined}>
                     {truncate(proc.name, 18)}
                   </Text>
                 </Box>

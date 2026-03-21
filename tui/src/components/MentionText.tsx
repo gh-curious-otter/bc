@@ -1,5 +1,6 @@
 import React from 'react';
 import { Text } from 'ink';
+import { useTheme } from '../theme';
 
 export interface MentionTextProps {
   text: string;
@@ -110,7 +111,8 @@ export const MentionText: React.FC<MentionTextProps> = ({
   text,
   currentUser,
 }) => {
-  // Handle empty, missing, or whitespace-only text
+  const { theme } = useTheme();
+
   if (!text || text.trim().length === 0) {
     return <Text dimColor>(empty)</Text>;
   }
@@ -138,28 +140,28 @@ export const MentionText: React.FC<MentionTextProps> = ({
         break;
       case 'code':
         parts.push(
-          <Text key={key} color="magenta">
+          <Text key={key} color={theme.colors.accent}>
             {token.content}
           </Text>
         );
         break;
       case 'broadcast':
         parts.push(
-          <Text key={key} color="yellow" bold>
+          <Text key={key} color={theme.colors.warning} bold>
             {token.content}
           </Text>
         );
         break;
       case 'self-mention':
         parts.push(
-          <Text key={key} color="cyan" bold inverse>
+          <Text key={key} color={theme.colors.primary} bold inverse>
             {token.content}
           </Text>
         );
         break;
       case 'mention':
         parts.push(
-          <Text key={key} color="cyan">
+          <Text key={key} color={theme.colors.primary}>
             {token.content}
           </Text>
         );

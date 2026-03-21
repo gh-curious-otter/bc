@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Text } from 'ink';
+import { useTheme } from '../theme';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 import { HeaderBar } from '../components/HeaderBar';
 import { Footer } from '../components/Footer';
@@ -17,6 +18,7 @@ import { getToolList } from '../services/bc';
 interface ToolsViewProps {}
 
 export function ToolsView(_props: ToolsViewProps = {}): React.ReactElement {
+  const { theme } = useTheme();
   const { isDisabled: disableInput } = useDisableInput();
   const [tools, setTools] = useState<ToolInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,9 +69,9 @@ export function ToolsView(_props: ToolsViewProps = {}): React.ReactElement {
     if (loadingElapsed >= 10) {
       return (
         <Box flexDirection="column" width="100%" overflow="hidden">
-          <HeaderBar title="Tools" count={0} loading={false} color="cyan" />
+          <HeaderBar title="Tools" count={0} loading={false} color={theme.colors.primary} />
           <Box paddingX={1} marginTop={1} flexDirection="column">
-            <Text color="yellow">Some tools could not be checked — press [r] to retry</Text>
+            <Text color={theme.colors.warning}>Some tools could not be checked — press [r] to retry</Text>
           </Box>
           <Footer hints={[{ key: 'r', label: 'refresh' }]} />
         </Box>
@@ -83,7 +85,7 @@ export function ToolsView(_props: ToolsViewProps = {}): React.ReactElement {
 
     return (
       <Box flexDirection="column" width="100%" overflow="hidden">
-        <HeaderBar title="Tools" count={0} loading={true} color="cyan" />
+        <HeaderBar title="Tools" count={0} loading={true} color={theme.colors.primary} />
         <Box paddingX={1} marginTop={1}>
           <LoadingIndicator message={loadingMsg} />
         </Box>
@@ -95,9 +97,9 @@ export function ToolsView(_props: ToolsViewProps = {}): React.ReactElement {
   if (error && tools.length === 0) {
     return (
       <Box flexDirection="column" width="100%" overflow="hidden">
-        <HeaderBar title="Tools" count={0} loading={false} color="cyan" />
+        <HeaderBar title="Tools" count={0} loading={false} color={theme.colors.primary} />
         <Box paddingX={1} marginTop={1}>
-          <Text color="red">Error: {error}</Text>
+          <Text color={theme.colors.error}>Error: {error}</Text>
           <Text dimColor> — Press r to retry</Text>
         </Box>
         <Footer hints={[{ key: 'r', label: 'refresh' }]} />
@@ -111,7 +113,7 @@ export function ToolsView(_props: ToolsViewProps = {}): React.ReactElement {
         title="Tools"
         count={tools.length}
         loading={loading}
-        color="cyan"
+        color={theme.colors.primary}
       />
 
       {/* Table header */}
@@ -149,7 +151,7 @@ export function ToolsView(_props: ToolsViewProps = {}): React.ReactElement {
 
       {error && (
         <Box marginBottom={1} paddingX={1}>
-          <Text color="red">Error: {error}</Text>
+          <Text color={theme.colors.error}>Error: {error}</Text>
         </Box>
       )}
 
@@ -169,15 +171,16 @@ interface ToolRowProps {
 }
 
 function ToolRow({ tool, selected, nameWidth }: ToolRowProps): React.ReactElement {
+  const { theme } = useTheme();
   const isInstalled = tool.status === 'installed';
-  const statusColor = isInstalled ? 'green' : 'red';
+  const statusColor = isInstalled ? theme.colors.success : theme.colors.error;
   const statusIcon = isInstalled ? '✓' : '✗';
   const truncateLen = nameWidth - 3;
 
   return (
     <Box paddingX={1}>
       <Box width={nameWidth}>
-        <Text color={selected ? 'cyan' : undefined} bold={selected}>
+        <Text color={selected ? theme.colors.primary : undefined} bold={selected}>
           {selected ? '▸ ' : '  '}
           {truncate(tool.name, truncateLen)}
         </Text>

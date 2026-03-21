@@ -7,6 +7,7 @@
 
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
+import { useTheme } from '../theme';
 import type { View } from '../navigation/NavigationContext';
 import { searchCommands, resolveCommand, resolveAction, type MatchedCommand } from '../navigation/viewCommands';
 
@@ -22,6 +23,7 @@ interface CommandBarProps {
 const MAX_SUGGESTIONS = 10;
 
 export function CommandBar({ onSelect, onClose, recentCommands = [], onCommandUsed }: CommandBarProps): React.ReactElement {
+  const { theme } = useTheme();
   const [input, setInput] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -89,10 +91,10 @@ export function CommandBar({ onSelect, onClose, recentCommands = [], onCommandUs
       {/* Suggestions dropdown */}
       {matches.map((match: MatchedCommand, idx: number) => (
         <Box key={match.command.command}>
-          <Text color={idx === selectedIndex ? 'cyan' : undefined}>
+          <Text color={idx === selectedIndex ? theme.colors.primary : undefined}>
             {idx === selectedIndex ? '> ' : '  '}
           </Text>
-          <Text color={idx === selectedIndex ? 'cyan' : 'white'} bold={idx === selectedIndex}>
+          <Text color={idx === selectedIndex ? theme.colors.primary : theme.colors.text} bold={idx === selectedIndex}>
             {match.command.aliases[0] ?? match.command.command}
           </Text>
           <Text>{'  '}</Text>
@@ -100,7 +102,7 @@ export function CommandBar({ onSelect, onClose, recentCommands = [], onCommandUs
             {match.command.command}
           </Text>
           <Text>{'  '}</Text>
-          <Text dimColor color="gray">
+          <Text dimColor color={theme.colors.textMuted}>
             {match.command.section}
           </Text>
         </Box>
@@ -108,9 +110,9 @@ export function CommandBar({ onSelect, onClose, recentCommands = [], onCommandUs
 
       {/* Input line */}
       <Box>
-        <Text color="cyan" bold>: </Text>
+        <Text color={theme.colors.primary} bold>: </Text>
         <Text>{input}</Text>
-        <Text color="gray">|</Text>
+        <Text color={theme.colors.textMuted}>|</Text>
         <Text dimColor>{'  [Tab] complete  [Esc] cancel'}</Text>
       </Box>
     </Box>

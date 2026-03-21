@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { Box, Text } from 'ink';
+import { useTheme } from '../../theme';
 import { colorizeOutputLine } from '../../utils';
 
 interface AgentLiveTabProps {
@@ -20,6 +21,7 @@ export function AgentLiveTab({
   outputHeight,
   isFollowing,
 }: AgentLiveTabProps): React.ReactElement {
+  const { theme } = useTheme();
   return (
     <Box
       flexDirection="column"
@@ -27,15 +29,15 @@ export function AgentLiveTab({
       marginBottom={1}
       paddingX={1}
       borderStyle="single"
-      borderColor="cyan"
+      borderColor={theme.colors.primary}
     >
       <Box marginBottom={1}>
-        <Text color="cyan" bold>LIVE OUTPUT</Text>
+        <Text color={theme.colors.primary} bold>LIVE OUTPUT</Text>
         <Text dimColor> | </Text>
         {isFollowing ? (
-          <><Text color="green">FOLLOWING</Text><Text dimColor> (2.5s)</Text></>
+          <><Text color={theme.colors.success}>FOLLOWING</Text><Text dimColor> (2.5s)</Text></>
         ) : (
-          <><Text color="yellow">PAUSED</Text><Text dimColor> (r: refresh)</Text></>
+          <><Text color={theme.colors.warning}>PAUSED</Text><Text dimColor> (r: refresh)</Text></>
         )}
         <Text dimColor> | f: toggle</Text>
       </Box>

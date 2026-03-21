@@ -7,6 +7,7 @@
 
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
+import { useTheme } from '../theme';
 import { useFilter } from '../hooks/useFilter';
 
 interface FilterBarProps {
@@ -14,6 +15,7 @@ interface FilterBarProps {
 }
 
 export function FilterBar({ onClose }: FilterBarProps): React.ReactElement {
+  const { theme } = useTheme();
   const { query, setFilter, clearFilter } = useFilter();
   const [input, setInput] = useState(query);
 
@@ -50,9 +52,9 @@ export function FilterBar({ onClose }: FilterBarProps): React.ReactElement {
 
   return (
     <Box>
-      <Text color="yellow" bold>/ </Text>
+      <Text color={theme.colors.warning} bold>/ </Text>
       <Text>{input}</Text>
-      <Text color="gray">|</Text>
+      <Text color={theme.colors.textMuted}>|</Text>
       <Text dimColor>{'  [Enter] apply  [Esc] clear'}</Text>
     </Box>
   );

@@ -1,6 +1,6 @@
-import React, { memo, useContext } from 'react';
+import React, { memo } from 'react';
 import { Box, Text } from 'ink';
-import ThemeContext from '../theme/ThemeContext';
+import { useTheme } from '../theme';
 
 export interface PanelProps {
   title?: string;
@@ -32,9 +32,8 @@ export const Panel = memo(function Panel({
   // Default minHeight ensures title + at least 1 line of content is visible
   const effectiveMinHeight = minHeight ?? (title ? 4 : 3);
 
-  // #1847 P1b: Use theme's borderFocused color instead of hardcoded 'blue'
-  const themeContext = useContext(ThemeContext);
-  const focusedColor = themeContext ? themeContext.theme.colors.borderFocused : 'cyan';
+  const { theme } = useTheme();
+  const focusedColor = theme.colors.borderFocused;
 
   return (
     <Box

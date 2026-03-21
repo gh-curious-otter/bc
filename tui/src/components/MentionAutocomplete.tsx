@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { Box, Text } from 'ink';
+import { useTheme } from '../theme';
 
 /** Suggestion item for @mention autocomplete */
 export interface MentionSuggestion {
@@ -69,6 +70,8 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
   visible,
   query = '',
 }) => {
+  const { theme } = useTheme();
+
   if (!visible || suggestions.length === 0) {
     return null;
   }
@@ -77,15 +80,15 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
     <Box
       flexDirection="column"
       borderStyle="single"
-      borderColor="cyan"
+      borderColor={theme.colors.primary}
       paddingX={1}
       marginBottom={1}
     >
       <Box marginBottom={1}>
-        <Text color="cyan" bold>
+        <Text color={theme.colors.primary} bold>
           @{query}
         </Text>
-        <Text color="gray"> - Tab to complete</Text>
+        <Text color={theme.colors.textMuted}> - Tab to complete</Text>
       </Box>
 
       {suggestions.map((suggestion, index) => {
@@ -96,7 +99,7 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
         return (
           <Box key={suggestion.name}>
             <Text
-              color={isSelected ? 'cyan' : undefined}
+              color={isSelected ? theme.colors.primary : undefined}
               bold={isSelected}
               inverse={isSelected}
             >
@@ -104,7 +107,7 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
               <Text>{icon} </Text>
               <Text bold={isSelected}>@{suggestion.name}</Text>
               {suggestion.role && suggestion.role !== 'broadcast' && (
-                <Text color="gray"> ({suggestion.role})</Text>
+                <Text color={theme.colors.textMuted}> ({suggestion.role})</Text>
               )}
               {suggestion.state && (
                 <Text color={stateColor}> [{suggestion.state}]</Text>
@@ -115,7 +118,7 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
       })}
 
       <Box marginTop={1}>
-        <Text color="gray" dimColor>
+        <Text color={theme.colors.textMuted} dimColor>
           ↑/↓: select | Tab: complete | Esc: close
         </Text>
       </Box>

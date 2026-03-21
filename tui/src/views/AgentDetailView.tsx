@@ -1,6 +1,7 @@
 import React, { useReducer, useEffect, useCallback } from 'react';
 import { Box, Text, useInput as inkUseInput } from 'ink';
 import { spawnSync } from 'child_process';
+import { useTheme } from '../theme';
 import type { Agent } from '../types';
 import { execBc } from '../services/bc';
 import { StatusBadge } from '../components/StatusBadge';
@@ -37,6 +38,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
   agent,
   onBack,
 }) => {
+  const { theme } = useTheme();
   const [state, dispatch] = useReducer(agentDetailReducer, initialState);
   const { setFocus } = useFocus();
   const overlayActive = useIsOverlayActive();
@@ -201,7 +203,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
       <Box flexDirection="row" marginBottom={1} paddingX={1}>
         <Box flexDirection="column" flexGrow={1}>
           <Box>
-            <Text bold color="cyan">
+            <Text bold color={theme.colors.primary}>
               {agent.name}
             </Text>
             <Text dimColor> | Role: {agent.role}</Text>

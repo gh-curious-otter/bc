@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
+import { useTheme } from '../../theme';
 import { useChannelHistory, useUnread } from '../../hooks';
 import { useFocus } from '../../navigation/FocusContext';
 import { ChatMessage } from '../ChatMessage';
@@ -51,6 +52,7 @@ export function ChannelHistoryView({
   onBack,
   startInComposeMode = false,
 }: ChannelHistoryViewProps): React.ReactElement {
+  const { theme } = useTheme();
   const { data: messages, loading, error, send } = useChannelHistory(channel.name, {
     limit: 50,
   });
@@ -202,7 +204,7 @@ export function ChannelHistoryView({
         title={`#${channel.name}`}
         subtitle={`${String(channel.members.length)} members`}
         loading={loading}
-        color="cyan"
+        color={theme.colors.primary}
       />
       {channel.description && (
         <Box paddingX={1} marginBottom={1}>
@@ -221,7 +223,7 @@ export function ChannelHistoryView({
         overflow="hidden"
       >
         {loading && <Text dimColor>Loading messages...</Text>}
-        {error && <Text color="red">Error: {error}</Text>}
+        {error && <Text color={theme.colors.error}>Error: {error}</Text>}
         {!loading && !error && (
           <>
             {hasMoreAbove && <Text dimColor>↑ more messages above</Text>}
@@ -245,21 +247,21 @@ export function ChannelHistoryView({
       {/* Send error feedback */}
       {sendError && (
         <Box marginBottom={1}>
-          <Text color="red">{sendError}</Text>
+          <Text color={theme.colors.error}>{sendError}</Text>
         </Box>
       )}
 
       {/* Input area - auto-expands based on message length (3-10 lines) */}
-      <Box height={inputHeight} flexDirection="column" marginBottom={1} borderStyle="single" borderColor={inputMode ? 'cyan' : (messageBuffer ? 'yellow' : 'gray')} paddingX={1}>
+      <Box height={inputHeight} flexDirection="column" marginBottom={1} borderStyle="single" borderColor={inputMode ? theme.colors.primary : (messageBuffer ? theme.colors.warning : theme.colors.textMuted)} paddingX={1}>
         {inputMode ? (
           <Text>
-            <Text color="cyan">{'> '}</Text>
+            <Text color={theme.colors.primary}>{'> '}</Text>
             {messageBuffer}
-            <Text color="cyan">▌</Text>
+            <Text color={theme.colors.primary}>▌</Text>
           </Text>
         ) : messageBuffer ? (
           <Text>
-            <Text color="yellow">[Draft] </Text>
+            <Text color={theme.colors.warning}>[Draft] </Text>
             <Text dimColor>{messageBuffer.length > 40 ? messageBuffer.slice(0, 40) + '...' : messageBuffer}</Text>
             <Text dimColor> (press m to edit)</Text>
           </Text>

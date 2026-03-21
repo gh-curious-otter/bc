@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { Box, Text } from 'ink';
+import { useTheme } from '../theme';
 
 export interface KeyHintProps {
   keyChar: string;
@@ -12,10 +13,11 @@ export interface KeyHintProps {
  * Memoized for performance - Issue #1003 Phase 3 optimization.
  */
 export const KeyHint = memo(function KeyHint({ keyChar, label }: KeyHintProps) {
+  const { theme } = useTheme();
   return (
     <Box marginRight={2}>
       <Text>[</Text>
-      <Text bold color="blue">{keyChar}</Text>
+      <Text bold color={theme.colors.primary}>{keyChar}</Text>
       <Text>] {label}</Text>
     </Box>
   );

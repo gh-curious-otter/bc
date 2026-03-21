@@ -5,6 +5,7 @@
 
 import React, { memo, useMemo } from 'react';
 import { Box, Text, useStdout } from 'ink';
+import { useTheme } from '../theme';
 import { Panel } from './Panel';
 import { useLogs, getSeverityColor, getSeverityIcon } from '../hooks';
 import { truncate } from '../utils';
@@ -204,6 +205,7 @@ const ActivityEntry = memo(function ActivityEntry({
   compact = false,
   terminalWidth = 80,
 }: ActivityEntryProps): React.ReactElement {
+  const { theme } = useTheme();
   const entryType = entry.type ?? '';
   const severityColor = getSeverityColor(entryType);
   const severityIcon = getSeverityIcon(entryType);
@@ -225,7 +227,7 @@ const ActivityEntry = memo(function ActivityEntry({
         <Text dimColor>{formatTime(entry.ts)} </Text>
       )}
       {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- #1835: Go omitempty */}
-      <Text color="cyan">{(entry.agent ?? '').padEnd(10)} </Text>
+      <Text color={theme.colors.primary}>{(entry.agent ?? '').padEnd(10)} </Text>
       <Text color={severityColor}>{severityIcon} </Text>
       <Text color={severityColor}>{eventLabel.padEnd(12)} </Text>
       <Text>{truncate(displayMessage, maxMsgLen)}</Text>

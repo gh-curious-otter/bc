@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Text, useStdout } from 'ink';
+import { useTheme } from '../../theme';
 import type { Agent } from '../../types';
 import { colorizeOutputLine } from '../../utils';
 
@@ -25,6 +26,7 @@ export function AgentPeekPanel({
   loading,
   isNarrow,
 }: AgentPeekPanelProps): React.ReactElement {
+  const { theme } = useTheme();
   const { stdout } = useStdout();
   // Use full terminal width, accounting for padding and borders
   const terminalWidth = stdout.columns || 80;
@@ -36,12 +38,12 @@ export function AgentPeekPanel({
       marginBottom={1}
       paddingX={isNarrow ? 0 : 1}
       borderStyle={isNarrow ? undefined : 'single'}
-      borderColor="cyan"
+      borderColor={theme.colors.primary}
       flexDirection="column"
       width={terminalWidth}
     >
       <Box marginBottom={1}>
-        <Text bold color="cyan">Peek: {agent.name}</Text>
+        <Text bold color={theme.colors.primary}>Peek: {agent.name}</Text>
         <Text dimColor> (press p to close)</Text>
       </Box>
       {loading ? (

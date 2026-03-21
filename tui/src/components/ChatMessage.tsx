@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { Box, Text } from 'ink';
+import { useTheme } from '../theme';
 import { MentionText } from './MentionText';
 import { ReactionBar } from './Reaction';
 import type { ReactionType } from './Reaction';
@@ -72,6 +73,7 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
   maxLines = 0, // #1718: Default to no truncation for full message visibility
   compact = false, // #1899: Flat layout for narrow terminals
 }) {
+  const { theme } = useTheme();
   const time = formatRelativeTime(timestamp);
   const senderColor = getColorForName(sender);
   const rolePrefix = getEmojiForName(sender);
@@ -92,9 +94,9 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
       <Box flexDirection="column" width="100%" paddingX={1} marginBottom={1}>
         <Box>
           <Text color={senderColor} bold>{rolePrefix}{sender}</Text>
-          {isOwnMessage && <Text color="cyan" dimColor> (you)</Text>}
+          {isOwnMessage && <Text color={theme.colors.primary} dimColor> (you)</Text>}
           <Text dimColor>  {time}</Text>
-          {!isRead && <Text color="blue"> ●</Text>}
+          {!isRead && <Text color={theme.colors.secondary}> ●</Text>}
         </Box>
         <Box paddingLeft={2} flexDirection="column">
           <MentionText text={displayMessage} currentUser={currentUser} />
@@ -112,7 +114,7 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
   }
 
   // Bubble styling based on ownership
-  const bubbleBorderColor = isOwnMessage ? 'cyan' : 'gray';
+  const bubbleBorderColor = isOwnMessage ? theme.colors.primary : theme.colors.textMuted;
   const bubbleAlignment = isOwnMessage ? 'flex-end' : 'flex-start';
 
   return (
@@ -130,7 +132,7 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
         <Box
           flexDirection="column"
           borderStyle={isSelected ? 'double' : 'round'}
-          borderColor={isSelected ? 'yellow' : bubbleBorderColor}
+          borderColor={isSelected ? theme.colors.warning : bubbleBorderColor}
           paddingX={1}
           width={maxBubbleWidth}
           overflow="hidden"
@@ -142,15 +144,15 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
                 {rolePrefix}{sender}
               </Text>
               {isOwnMessage && (
-                <Text color="cyan" dimColor> (you)</Text>
+                <Text color={theme.colors.primary} dimColor> (you)</Text>
               )}
             </Box>
             <Box>
-              <Text color="gray" dimColor>
+              <Text color={theme.colors.textMuted} dimColor>
                 {time}
               </Text>
               {!isRead && (
-                <Text color="blue"> ●</Text>
+                <Text color={theme.colors.secondary}> ●</Text>
               )}
             </Box>
           </Box>

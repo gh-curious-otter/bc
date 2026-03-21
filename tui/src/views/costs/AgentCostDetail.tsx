@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { Box, Text } from 'ink';
+import { useTheme } from '../../theme';
 import { InlineProgressBar } from '../../components/ProgressBar';
 import { Footer } from '../../components/Footer';
 import { getColorForName } from '../../constants/colors';
@@ -17,6 +18,7 @@ const AgentCostDetail = memo(function AgentCostDetail({
   costs,
   hints,
 }: AgentCostDetailProps) {
+  const { theme } = useTheme();
   const totalTokensIn = costs.total_input_tokens;
   const totalTokensOut = costs.total_output_tokens;
 
@@ -41,7 +43,7 @@ const AgentCostDetail = memo(function AgentCostDetail({
         <Text dimColor>◀ </Text>
         <Text bold color={getColorForName(agent.name)}>{agent.name}</Text>
         <Box flexGrow={1} />
-        <Text color="yellow" bold>${agent.cost.toFixed(2)}</Text>
+        <Text color={theme.colors.warning} bold>${agent.cost.toFixed(2)}</Text>
       </Box>
 
       {/* Stats */}
@@ -68,7 +70,7 @@ const AgentCostDetail = memo(function AgentCostDetail({
             const displayModel = model.length > 10 ? model.slice(0, 9) + '…' : model.padEnd(10);
             return (
               <Box key={model}>
-                <Text color="magenta">{displayModel}</Text>
+                <Text color={theme.colors.accent}>{displayModel}</Text>
                 <Text> ${cost.toFixed(2).padStart(7)}</Text>
                 <Text> </Text>
                 <InlineProgressBar value={cost} max={maxModelCost} width={34} />

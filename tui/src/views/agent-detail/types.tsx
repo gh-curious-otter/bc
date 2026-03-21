@@ -4,6 +4,7 @@
 
 import React from 'react';
 import { Box, Text } from 'ink';
+import { useTheme } from '../../theme';
 
 // Tab type for agent detail view
 export type AgentTab = 'output' | 'live' | 'details' | 'metrics';
@@ -128,11 +129,11 @@ interface DetailRowProps {
 }
 
 export function DetailRow({ label, value, labelWidth = LABEL_WIDTH }: DetailRowProps): React.ReactElement {
-  // Pad label to fixed width for alignment
+  const { theme } = useTheme();
   const paddedLabel = label.padEnd(labelWidth);
   return (
     <Box>
-      <Text bold color="gray">{paddedLabel}</Text>
+      <Text bold color={theme.colors.textMuted}>{paddedLabel}</Text>
       <Box marginLeft={1} flexShrink={1}>
         {typeof value === 'string' ? (
           <Text wrap="truncate">{value}</Text>
@@ -152,9 +153,10 @@ interface TabButtonProps {
 }
 
 export function TabButton({ label, tabKey, active }: TabButtonProps): React.ReactElement {
+  const { theme } = useTheme();
   return (
     <Box>
-      <Text color={active ? 'cyan' : 'gray'} bold={active}>
+      <Text color={active ? theme.colors.primary : theme.colors.textMuted} bold={active}>
         [{tabKey}]{label}
       </Text>
     </Box>

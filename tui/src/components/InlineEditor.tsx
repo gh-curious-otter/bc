@@ -5,6 +5,7 @@
 
 import React, { useState, useCallback, useEffect, memo } from 'react';
 import { Box, Text, useInput } from 'ink';
+import { useTheme } from '../theme';
 
 export interface InlineEditorProps {
   /** Initial value */
@@ -47,6 +48,7 @@ export const InlineEditor = memo(function InlineEditor({
   onCancel,
   disableInput = false,
 }: InlineEditorProps): React.ReactElement {
+  const { theme } = useTheme();
   const [value, setValue] = useState(initialValue);
   const [cursorPos, setCursorPos] = useState(initialValue.length);
   const [cursorLine, setCursorLine] = useState(0);
@@ -181,12 +183,12 @@ export const InlineEditor = memo(function InlineEditor({
       <Box flexDirection="column">
         {label && (
           <Box marginBottom={1}>
-            <Text bold color="cyan">{label}</Text>
+            <Text bold color={theme.colors.primary}>{label}</Text>
           </Box>
         )}
         <Box
           borderStyle="single"
-          borderColor={focused ? 'cyan' : 'gray'}
+          borderColor={focused ? theme.colors.primary : theme.colors.textMuted}
           paddingX={1}
         >
           {value.length === 0 ? (
@@ -222,7 +224,7 @@ export const InlineEditor = memo(function InlineEditor({
       <Box
         flexDirection="column"
         borderStyle="single"
-        borderColor={focused ? 'cyan' : 'gray'}
+        borderColor={focused ? theme.colors.primary : theme.colors.textMuted}
         paddingX={1}
         minHeight={3}
       >
@@ -275,6 +277,8 @@ export const EditorModal = memo(function EditorModal({
   title = 'Edit',
   ...editorProps
 }: EditorModalProps): React.ReactElement | null {
+  const { theme } = useTheme();
+
   if (!visible) return null;
 
   return (
@@ -287,12 +291,12 @@ export const EditorModal = memo(function EditorModal({
       <Box
         flexDirection="column"
         borderStyle="double"
-        borderColor="cyan"
+        borderColor={theme.colors.primary}
         padding={1}
         minWidth={50}
       >
         <Box marginBottom={1}>
-          <Text bold color="cyan">{title}</Text>
+          <Text bold color={theme.colors.primary}>{title}</Text>
         </Box>
         <InlineEditor {...editorProps} />
       </Box>
