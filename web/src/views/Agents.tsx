@@ -6,7 +6,8 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import { StatusBadge } from '../components/StatusBadge';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { EmptyState } from '../components/EmptyState';
-import { stripAnsi, truncate } from '../utils/text';
+import { InlineTerminal } from '../components/InlineTerminal';
+import { truncate } from '../utils/text';
 
 export function Agents() {
   const fetcher = useCallback(async () => {
@@ -18,8 +19,6 @@ export function Agents() {
   const navigate = useNavigate();
 
   const [peekAgent, setPeekAgent] = useState<string | null>(null);
-  const [peekOutput, setPeekOutput] = useState<string>('');
-  const [peekLoading, setPeekLoading] = useState(false);
 
   // Refresh on agent lifecycle events via SSE
   useEffect(() => {
@@ -32,24 +31,9 @@ export function Agents() {
     return () => unsubs.forEach((fn) => fn());
   }, [subscribe, refresh]);
 
-  const handlePeekToggle = async (agentName: string, e: React.MouseEvent) => {
+  const handlePeekToggle = (agentName: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (peekAgent === agentName) {
-      setPeekAgent(null);
-      setPeekOutput('');
-      return;
-    }
-    setPeekAgent(agentName);
-    setPeekLoading(true);
-    setPeekOutput('');
-    try {
-      const data = await api.getAgentPeek(agentName, 10);
-      setPeekOutput(stripAnsi(data.output));
-    } catch {
-      setPeekOutput('Failed to load output.');
-    } finally {
-      setPeekLoading(false);
-    }
+    setPeekAgent((prev) => (prev === agentName ? null : agentName));
   };
 
   const columns = ['Name', 'Role', 'Tool', 'Status', 'Task', 'Tokens', 'Cost', 'CPU %', 'Mem %', 'MCP', ''] as const;
@@ -185,26 +169,7 @@ export function Agents() {
                   {peekAgent === a.name && (
                     <tr key={`${a.name}-peek`} className="border-b border-bc-border/50">
                       <td colSpan={columns.length} className="p-0">
-                        <div className="bg-bc-bg border-t border-bc-border/30 px-4 py-3">
-                          <div className="rounded bg-[#0d1117] border border-bc-border/40 p-3 font-mono text-xs leading-relaxed text-[#c9d1d9] max-h-48 overflow-auto whitespace-pre-wrap">
-                            {peekLoading ? (
-                              <span className="text-bc-muted animate-pulse">Loading output...</span>
-                            ) : (
-                              peekOutput || <span className="text-bc-muted">No output available.</span>
-                            )}
-                          </div>
-                          <div className="mt-2 text-right">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/agents/${encodeURIComponent(a.name)}`);
-                              }}
-                              className="text-xs text-bc-accent hover:underline"
-                            >
-                              View Detail &rarr;
-                            </button>
-                          </div>
-                        </div>
+                        <InlineTerminal agentName={a.name} lines={10} />
                       </td>
                     </tr>
                   )}
