@@ -1,6 +1,8 @@
 module github.com/rpuneet/bc
 
-go 1.25.1
+go 1.25.4
+
+toolchain go1.25.8
 
 tool github.com/gomantics/cfgx/cmd/cfgx
 
