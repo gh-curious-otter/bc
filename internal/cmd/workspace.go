@@ -10,7 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/ui"
 	"github.com/rpuneet/bc/pkg/workspace"
@@ -292,15 +292,24 @@ func runWorkspaceUp(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to ensure default roles: %w", err)
 	}
 
-	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
+	c, clientErr := newDaemonClient(cmd.Context())
+	if clientErr != nil {
+		return clientErr
+	}
+
+	// Get existing agents to check which are already running
+	existingAgents, listErr := c.Agents.List(cmd.Context())
+	if listErr != nil {
+		return fmt.Errorf("list agents: %w", listErr)
+	}
+	existingMap := make(map[string]client.AgentInfo, len(existingAgents))
+	for _, a := range existingAgents {
+		existingMap[a.Name] = a
 	}
 
 	var started, skipped, failed int
 	for _, entry := range roster {
-		existing := mgr.GetAgent(entry.Name)
-		if existing != nil && existing.State != agent.StateStopped && existing.State != agent.StateError {
+		if existing, ok := existingMap[entry.Name]; ok && existing.State != "stopped" && existing.State != "error" {
 			fmt.Printf("  %-20s %s\n", entry.Name, ui.DimText("already running"))
 			skipped++
 			continue
@@ -319,21 +328,31 @@ func runWorkspaceUp(cmd *cobra.Command, _ []string) error {
 			tool = ws.DefaultProvider()
 		}
 
-		role := agent.Role(strings.ToLower(entry.Role))
+		role := strings.ToLower(entry.Role)
 		fmt.Printf("  %-20s starting...", entry.Name)
 
-		_, spawnErr := mgr.SpawnAgentWithOptions(cmd.Context(), agent.SpawnOptions{
-			Name:      entry.Name,
-			Role:      role,
-			Workspace: ws.RootDir,
-			Tool:      tool,
-			Runtime:   entry.Runtime,
-		})
-		if spawnErr != nil {
-			fmt.Printf(" %s\n", ui.RedText("✗"))
-			log.Warn("failed to start agent", "name", entry.Name, "error", spawnErr)
-			failed++
-			continue
+		// Check if agent exists but is stopped — start it. Otherwise create.
+		if _, exists := existingMap[entry.Name]; exists {
+			_, startErr := c.Agents.Start(cmd.Context(), entry.Name, entry.Runtime, "", false)
+			if startErr != nil {
+				fmt.Printf(" %s\n", ui.RedText("✗"))
+				log.Warn("failed to start agent", "name", entry.Name, "error", startErr)
+				failed++
+				continue
+			}
+		} else {
+			_, createErr := c.Agents.Create(cmd.Context(), client.CreateAgentReq{
+				Name:    entry.Name,
+				Role:    role,
+				Tool:    tool,
+				Runtime: entry.Runtime,
+			})
+			if createErr != nil {
+				fmt.Printf(" %s\n", ui.RedText("✗"))
+				log.Warn("failed to create agent", "name", entry.Name, "error", createErr)
+				failed++
+				continue
+			}
 		}
 
 		fmt.Printf(" %s\n", ui.GreenText("✓"))
@@ -610,9 +629,13 @@ func runWorkspaceInfo(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
-	_ = mgr.LoadState() // Non-fatal: continue without agent counts
-	agents := mgr.ListAgents()
+	// Get agent count via daemon client
+	agentCount := 0
+	if c, clientErr := newDaemonClient(cmd.Context()); clientErr == nil {
+		if agents, listErr := c.Agents.List(cmd.Context()); listErr == nil {
+			agentCount = len(agents)
+		}
+	}
 
 	// Count roles
 	roleCount := 0
@@ -646,7 +669,7 @@ func runWorkspaceInfo(cmd *cobra.Command, _ []string) error {
 			Version:    workspace.ConfigVersion,
 			Backend:    backend,
 			RoleCount:  roleCount,
-			AgentCount: len(agents),
+			AgentCount: agentCount,
 		}
 		if ws.Config != nil {
 			info.ConfigValid = ws.Config.Validate() == nil
@@ -664,7 +687,7 @@ func runWorkspaceInfo(cmd *cobra.Command, _ []string) error {
 	fmt.Printf("  %-18s v%d\n", "Version:", workspace.ConfigVersion)
 	fmt.Printf("  %-18s %s\n", "Runtime:", backend)
 	fmt.Printf("  %-18s %d\n", "Roles:", roleCount)
-	fmt.Printf("  %-18s %d\n", "Agents:", len(agents))
+	fmt.Printf("  %-18s %d\n", "Agents:", agentCount)
 
 	if ws.Config != nil {
 		if err := ws.Config.Validate(); err != nil {
@@ -690,20 +713,26 @@ func runWorkspaceStatus(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	mgr := newAgentManager(ws)
-	_ = mgr.LoadState() // Non-fatal warning
-	agents := mgr.ListAgents()
+	c, clientErr := newDaemonClient(cmd.Context())
+	if clientErr != nil {
+		return clientErr
+	}
+
+	agents, listErr := c.Agents.List(cmd.Context())
+	if listErr != nil {
+		return fmt.Errorf("list agents: %w", listErr)
+	}
 
 	var running, idle, working, stopped int
 	for _, a := range agents {
 		switch a.State {
-		case agent.StateWorking:
+		case "working":
 			working++
 			running++
-		case agent.StateIdle, agent.StateStarting:
+		case "idle", "starting":
 			idle++
 			running++
-		case agent.StateStopped, agent.StateError, agent.StateDone:
+		case "stopped", "error", "done":
 			stopped++
 		default:
 			stopped++
@@ -757,11 +786,11 @@ func runWorkspaceStatus(cmd *cobra.Command, _ []string) error {
 		fmt.Printf("  %-16s %-12s %-10s %s\n", "AGENT", "ROLE", "STATE", "UPTIME")
 		for _, a := range agents {
 			uptime := "-"
-			if a.State != agent.StateStopped && a.State != agent.StateError {
+			if a.State != "stopped" && a.State != "error" {
 				uptime = formatDuration(time.Since(a.StartedAt))
 			}
 			fmt.Printf("  %-16s %-12s %-10s %s\n",
-				a.Name, string(a.Role), string(a.State), uptime)
+				a.Name, a.Role, a.State, uptime)
 		}
 	}
 

@@ -10,8 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/ui"
@@ -70,12 +69,7 @@ type AgentHealth struct {
 }
 
 func runAgentHealth(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
-	}
-
-	// Parse timeout duration
+	// Parse timeout duration (for validation and stuck detection)
 	timeout, parseErr := time.ParseDuration(agentHealthTimeout)
 	if parseErr != nil {
 		return fmt.Errorf("invalid timeout format: %w", parseErr)
@@ -93,80 +87,88 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := cmd.Context()
-	mgr := newAgentManager(ws)
-	if loadErr := mgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
+	c, err := newDaemonClient(ctx)
+	if err != nil {
+		return err
 	}
 
-	if refreshErr := mgr.RefreshState(ctx); refreshErr != nil {
-		log.Warn("failed to refresh agent state", "error", refreshErr)
-	}
-
-	// Get agents to check
-	var agents []*agent.Agent
+	// Get health data from daemon
+	agentFilter := ""
 	if len(args) > 0 {
-		// Check specific agent
-		a := mgr.GetAgent(args[0])
-		if a == nil {
-			return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", args[0])
-		}
-		agents = []*agent.Agent{a}
-	} else {
-		// Check all agents
-		agents = mgr.ListAgents()
+		agentFilter = args[0]
+	}
+	healthData, healthErr := c.Agents.Health(ctx, agentHealthTimeout, agentFilter)
+	if healthErr != nil {
+		return fmt.Errorf("health check failed: %w", healthErr)
 	}
 
-	if len(agents) == 0 {
+	if agentFilter != "" && len(healthData) == 0 {
+		return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentFilter)
+	}
+
+	if len(healthData) == 0 {
 		fmt.Println("No agents found")
 		return nil
 	}
 
-	// Prepare stuck detection if enabled
-	var eventLog events.EventStore
-	var stuckConfig events.StuckConfig
+	// Convert to AgentHealth structs
+	healthResults := make([]AgentHealth, 0, len(healthData))
+	for _, h := range healthData {
+		healthResults = append(healthResults, AgentHealth{
+			Name:          h.Name,
+			Role:          h.Role,
+			Status:        h.Status,
+			LastUpdated:   h.LastUpdated,
+			StaleDuration: h.StaleDuration,
+			ErrorMessage:  h.ErrorMessage,
+			TmuxAlive:     h.TmuxAlive,
+			StateFresh:    h.StateFresh,
+		})
+	}
+
+	// Stuck detection via daemon event log
 	if agentHealthDetect {
-		eventLog = openEventLog(ws)
-		if eventLog != nil {
-			defer func() { _ = eventLog.Close() }()
-		}
-		stuckConfig = events.StuckConfig{
+		stuckConfig := events.StuckConfig{
 			ActivityTimeout: timeout,
 			WorkTimeout:     workTimeout,
 			MaxFailures:     agentHealthMaxFail,
 		}
-	}
 
-	// Compute health for each agent
-	healthResults := make([]AgentHealth, 0, len(agents))
-	for _, a := range agents {
-		health := computeAgentHealth(ctx, a, mgr, timeout)
-
-		// Add stuck detection if enabled
-		if agentHealthDetect && eventLog != nil {
-			agentEvents, readErr := eventLog.ReadByAgent(a.Name)
+		for i := range healthResults {
+			agentEvents, readErr := c.Events.ListByAgent(ctx, healthResults[i].Name)
 			if readErr != nil {
-				log.Warn("failed to read agent events", "agent", a.Name, "error", readErr)
-			} else {
-				stuck := events.DetectStuck(agentEvents, stuckConfig)
-				if stuck.IsStuck {
-					health.IsStuck = true
-					health.StuckReason = string(stuck.Reason)
-					health.StuckDetails = stuck.Details
-					// Override status if stuck
-					if health.Status == "healthy" || health.Status == "degraded" {
-						health.Status = "stuck"
-						health.ErrorMessage = stuck.Details
-					}
+				log.Warn("failed to read agent events", "agent", healthResults[i].Name, "error", readErr)
+				continue
+			}
+
+			// Convert client EventInfo to events.Event for stuck detection
+			evts := make([]events.Event, 0, len(agentEvents))
+			for _, e := range agentEvents {
+				evts = append(evts, events.Event{
+					Timestamp: e.Timestamp,
+					Type:      events.EventType(e.Type),
+					Agent:     e.Agent,
+					Message:   e.Message,
+					Data:      e.Data,
+				})
+			}
+
+			stuck := events.DetectStuck(evts, stuckConfig)
+			if stuck.IsStuck {
+				healthResults[i].IsStuck = true
+				healthResults[i].StuckReason = string(stuck.Reason)
+				healthResults[i].StuckDetails = stuck.Details
+				if healthResults[i].Status == "healthy" || healthResults[i].Status == "degraded" {
+					healthResults[i].Status = "stuck"
+					healthResults[i].ErrorMessage = stuck.Details
 				}
 			}
 		}
-
-		healthResults = append(healthResults, health)
 	}
 
 	// Send alert to channel if --alert is set and there are stuck agents
 	if agentHealthAlert != "" {
-		if alertErr := sendStuckAlert(ctx, ws.RootDir, agentHealthAlert, healthResults, mgr); alertErr != nil {
+		if alertErr := sendStuckAlertViaClient(ctx, c, agentHealthAlert, healthResults); alertErr != nil {
 			log.Warn("failed to send stuck alert", "error", alertErr)
 		}
 	}
@@ -243,46 +245,8 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func computeAgentHealth(ctx context.Context, a *agent.Agent, mgr *agent.Manager, timeout time.Duration) AgentHealth {
-	health := AgentHealth{
-		Name:        a.Name,
-		Role:        string(a.Role),
-		LastUpdated: a.UpdatedAt.Format(time.RFC3339),
-	}
-
-	// Check tmux session
-	health.TmuxAlive = mgr.RuntimeForAgent(a.Name).HasSession(ctx, a.Name)
-
-	// Check state freshness
-	staleDuration := time.Since(a.UpdatedAt)
-	health.StateFresh = staleDuration < timeout
-	if !health.StateFresh {
-		health.StaleDuration = staleDuration.Round(time.Second).String()
-	}
-
-	// Determine overall status
-	switch {
-	case a.State == agent.StateStopped:
-		health.Status = "unhealthy"
-		health.ErrorMessage = "agent stopped"
-	case a.State == agent.StateError:
-		health.Status = "unhealthy"
-		health.ErrorMessage = "agent in error state"
-	case !health.TmuxAlive:
-		health.Status = "unhealthy"
-		health.ErrorMessage = "tmux session not found"
-	case !health.StateFresh:
-		health.Status = "degraded"
-		health.ErrorMessage = fmt.Sprintf("state stale (%s since last update)", health.StaleDuration)
-	default:
-		health.Status = "healthy"
-	}
-
-	return health
-}
-
-// sendStuckAlert sends an alert to the specified channel when stuck agents are detected.
-func sendStuckAlert(ctx context.Context, rootDir, channelName string, healthResults []AgentHealth, mgr *agent.Manager) error {
+// sendStuckAlertViaClient sends an alert to the specified channel via daemon client.
+func sendStuckAlertViaClient(ctx context.Context, c *client.Client, channelName string, healthResults []AgentHealth) error {
 	// Collect stuck agents
 	var stuckAgents []AgentHealth
 	for _, h := range healthResults {
@@ -292,7 +256,6 @@ func sendStuckAlert(ctx context.Context, rootDir, channelName string, healthResu
 	}
 
 	if len(stuckAgents) == 0 {
-		// No stuck agents, no alert needed
 		return nil
 	}
 
@@ -313,51 +276,12 @@ func sendStuckAlert(ctx context.Context, rootDir, channelName string, healthResu
 
 	message := sb.String()
 
-	// Load channel store
-	store, err := channel.OpenStore(rootDir)
-	if err != nil {
-		return fmt.Errorf("failed to open channel store: %w", err)
-	}
-	defer func() { _ = store.Close() }()
-
-	if loadErr := store.Load(); loadErr != nil {
-		return fmt.Errorf("failed to load channel store: %w", loadErr)
+	// Send via daemon channel API
+	_, sendErr := c.Channels.Send(ctx, channelName, "bc-health", message)
+	if sendErr != nil {
+		return fmt.Errorf("failed to send alert to channel %q: %w", channelName, sendErr)
 	}
 
-	// Get channel members
-	members, membersErr := store.GetMembers(channelName)
-	if membersErr != nil {
-		return fmt.Errorf("channel %q not found: %w", channelName, membersErr)
-	}
-
-	if len(members) == 0 {
-		fmt.Printf("Alert: channel %q has no members, alert not sent\n", channelName)
-		return nil
-	}
-
-	// Record in channel history
-	if err := store.AddHistory(channelName, "bc-health", message); err != nil {
-		log.Warn("failed to record alert history", "error", err)
-	}
-	if err := store.Save(); err != nil {
-		log.Warn("failed to save alert history", "error", err)
-	}
-
-	// Send to all members
-	sent := 0
-	for _, member := range members {
-		a := mgr.GetAgent(member)
-		if a == nil || a.State == agent.StateStopped {
-			continue
-		}
-		formattedMsg := fmt.Sprintf("[#%s] bc-health: %s", channelName, message)
-		if sendErr := mgr.SendToAgent(ctx, member, formattedMsg); sendErr != nil {
-			log.Warn("failed to send alert to agent", "agent", member, "error", sendErr)
-			continue
-		}
-		sent++
-	}
-
-	fmt.Printf("Alert sent to %d member(s) in channel %q\n", sent, channelName)
+	fmt.Printf("Alert sent to channel %q\n", channelName)
 	return nil
 }

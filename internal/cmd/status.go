@@ -11,7 +11,6 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/ui"
@@ -76,11 +75,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	activeCount := 0
 	workingCount := 0
 	for _, a := range agentList {
-		st := agent.State(a.State)
-		if st != agent.StateStopped && st != agent.StateError {
+		if a.State != "stopped" && a.State != "error" {
 			activeCount++
 		}
-		if st == agent.StateWorking {
+		if a.State == "working" {
 			workingCount++
 		}
 	}
@@ -138,7 +136,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	for _, a := range agentList {
 		uptime := "-"
-		if agent.State(a.State) != agent.StateStopped && !a.StartedAt.IsZero() {
+		if a.State != "stopped" && !a.StartedAt.IsZero() {
 			uptime = formatDuration(time.Since(a.StartedAt))
 		}
 
@@ -150,7 +148,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			task = task[:taskWidth-3] + "..."
 		}
 
-		stateStr := colorState(agent.State(a.State))
+		stateStr := colorStateStr(a.State)
 		fmt.Printf("%-15s %-12s %s %-20s %s\n", a.Name, a.Role, stateStr, uptime, task)
 	}
 
@@ -251,21 +249,22 @@ func normalizeTask(task string) string {
 	return task
 }
 
-func colorState(s agent.State) string {
+// colorStateStr colors a state string for terminal output.
+func colorStateStr(s string) string {
 	padded := fmt.Sprintf("%-10s", s)
 
 	switch s {
-	case agent.StateIdle:
+	case "idle":
 		return ui.CyanText(padded)
-	case agent.StateWorking:
+	case "working":
 		return ui.GreenText(padded)
-	case agent.StateDone:
+	case "done":
 		return ui.GreenText(padded)
-	case agent.StateStuck:
+	case "stuck":
 		return ui.RedText(padded)
-	case agent.StateError:
+	case "error":
 		return ui.RedText(padded)
-	case agent.StateStopped:
+	case "stopped":
 		return ui.YellowText(padded)
 	default:
 		return padded

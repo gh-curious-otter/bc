@@ -79,26 +79,26 @@ func TestAgentCreate_ValidRole(t *testing.T) {
 	tests := []struct {
 		name     string
 		role     string
-		wantRole agent.Role
+		wantRole string
 	}{
-		{"null role (default)", "null", agent.Role("null")},
-		{"worker role", "worker", agent.Role("worker")},
-		{"engineer role", "engineer", agent.Role("engineer")},
-		{"manager role", "manager", agent.Role("manager")},
-		{"qa role", "qa", agent.Role("qa")},
-		{"tech-lead role", "tech-lead", agent.Role("tech-lead")},
-		{"product-manager role", "product-manager", agent.Role("product-manager")},
+		{"null role (default)", "null", "null"},
+		{"worker role", "worker", "worker"},
+		{"engineer role", "engineer", "engineer"},
+		{"manager role", "manager", "manager"},
+		{"qa role", "qa", "qa"},
+		{"tech-lead role", "tech-lead", "tech-lead"},
+		{"product-manager role", "product-manager", "product-manager"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			role, err := parseRole(tt.role)
+			role, err := parseRoleStr(tt.role)
 			if err != nil {
-				t.Errorf("parseRole(%q) error = %v", tt.role, err)
+				t.Errorf("parseRoleStr(%q) error = %v", tt.role, err)
 				return
 			}
 			if role != tt.wantRole {
-				t.Errorf("parseRole(%q) = %v, want %v", tt.role, role, tt.wantRole)
+				t.Errorf("parseRoleStr(%q) = %v, want %v", tt.role, role, tt.wantRole)
 			}
 		})
 	}
@@ -117,9 +117,9 @@ func TestAgentCreate_InvalidRole(t *testing.T) {
 
 	for _, tt := range invalidRoles {
 		t.Run(tt.desc, func(t *testing.T) {
-			_, err := parseRole(tt.role)
+			_, err := parseRoleStr(tt.role)
 			if err == nil {
-				t.Errorf("parseRole(%q) expected error, got nil", tt.role)
+				t.Errorf("parseRoleStr(%q) expected error, got nil", tt.role)
 			}
 		})
 	}
@@ -130,24 +130,24 @@ func TestAgentCreate_CustomRoles(t *testing.T) {
 	// Legacy aliases ('pm', 'coord', 'tl') are returned as-is
 	tests := []struct {
 		input    string
-		wantRole agent.Role
+		wantRole string
 	}{
-		{"pm", agent.Role("pm")},       // No expansion
-		{"coord", agent.Role("coord")}, // No expansion
-		{"tl", agent.Role("tl")},       // No expansion
-		{"custom-role", agent.Role("custom-role")},
-		{"admin", agent.Role("admin")},
+		{"pm", "pm"},             // No expansion
+		{"coord", "coord"},       // No expansion
+		{"tl", "tl"},             // No expansion
+		{"custom-role", "custom-role"},
+		{"admin", "admin"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			role, err := parseRole(tt.input)
+			role, err := parseRoleStr(tt.input)
 			if err != nil {
-				t.Errorf("parseRole(%q) error = %v", tt.input, err)
+				t.Errorf("parseRoleStr(%q) error = %v", tt.input, err)
 				return
 			}
 			if role != tt.wantRole {
-				t.Errorf("parseRole(%q) = %v, want %v", tt.input, role, tt.wantRole)
+				t.Errorf("parseRoleStr(%q) = %v, want %v", tt.input, role, tt.wantRole)
 			}
 		})
 	}
@@ -231,9 +231,9 @@ func TestAgentList_FilterByRole(t *testing.T) {
 
 	for _, role := range validRoles {
 		t.Run(role, func(t *testing.T) {
-			_, err := parseRole(role)
+			_, err := parseRoleStr(role)
 			if err != nil {
-				t.Errorf("parseRole(%q) should be valid for filtering", role)
+				t.Errorf("parseRoleStr(%q) should be valid for filtering", role)
 			}
 		})
 	}

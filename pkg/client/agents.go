@@ -234,6 +234,37 @@ func (a *AgentsClient) Cost(ctx context.Context, name string) (*AgentCostSummary
 	return &summary, nil
 }
 
+// Report updates an agent's state via the daemon.
+func (a *AgentsClient) Report(ctx context.Context, name, state, message string) error {
+	body := map[string]string{"state": state, "message": message}
+	return a.client.post(ctx, "/api/agents/"+name+"/report", body, nil)
+}
+
+// AgentHealthInfo represents health status of an agent.
+type AgentHealthInfo struct {
+	Name          string `json:"name"`
+	Role          string `json:"role"`
+	Status        string `json:"status"`
+	LastUpdated   string `json:"last_updated"`
+	StaleDuration string `json:"stale_duration,omitempty"`
+	ErrorMessage  string `json:"error_message,omitempty"`
+	TmuxAlive     bool   `json:"tmux_alive"`
+	StateFresh    bool   `json:"state_fresh"`
+}
+
+// Health returns health status for agents. If agentName is non-empty, filters to that agent.
+func (a *AgentsClient) Health(ctx context.Context, timeout string, agentName string) ([]AgentHealthInfo, error) {
+	path := "/api/agents/health?timeout=" + timeout
+	if agentName != "" {
+		path += "&agent=" + agentName
+	}
+	var results []AgentHealthInfo
+	if err := a.client.get(ctx, path, &results); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
 // StopAll stops all running agents. Returns the number of agents stopped.
 func (a *AgentsClient) StopAll(ctx context.Context) (int, error) {
 	var result map[string]int

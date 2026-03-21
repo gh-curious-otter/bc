@@ -437,13 +437,13 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Parse role
-	role, roleErr := parseRole(agentCreateRole)
+	role, roleErr := parseRoleStr(agentCreateRole)
 	if roleErr != nil {
 		return roleErr
 	}
 
 	// Prevent root agent creation via this command
-	if role == agent.RoleRoot {
+	if role == "root" {
 		return fmt.Errorf("cannot create root agent via 'bc agent create'. Use 'bc up' to initialize the root agent")
 	}
 
@@ -466,10 +466,10 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 	toolName := agentCreateTool
 
 	// Create via client
-	fmt.Printf("Creating %s (%s)... ", agentName, role)
+	fmt.Printf("Creating %s (%s)... ", agentName, agentCreateRole)
 	info, createErr := c.Agents.Create(cmd.Context(), client.CreateAgentReq{
 		Name:    agentName,
-		Role:    string(role),
+		Role:    role,
 		Tool:    toolName,
 		Runtime: agentCreateRuntime,
 		Parent:  agentCreateParent,
@@ -508,13 +508,13 @@ func runAgentList(cmd *cobra.Command, args []string) error {
 
 	// Filter by role if specified
 	if agentListRole != "" {
-		filterRole, roleErr := parseRole(agentListRole)
+		filterRole, roleErr := parseRoleStr(agentListRole)
 		if roleErr != nil {
 			return roleErr
 		}
 		filtered := make([]client.AgentInfo, 0, len(agentList))
 		for _, a := range agentList {
-			if a.Role == string(filterRole) {
+			if a.Role == filterRole {
 				filtered = append(filtered, a)
 			}
 		}
@@ -525,7 +525,7 @@ func runAgentList(cmd *cobra.Command, args []string) error {
 	if agentListStatus != "" {
 		filtered := make([]client.AgentInfo, 0, len(agentList))
 		for _, a := range agentList {
-			if matchesAgentStatus(agent.State(a.State), agentListStatus) {
+			if matchesAgentStatusStr(a.State, agentListStatus) {
 				filtered = append(filtered, a)
 			}
 		}
@@ -563,7 +563,7 @@ func runAgentList(cmd *cobra.Command, args []string) error {
 
 	for _, a := range agentList {
 		uptime := "-"
-		if agent.State(a.State) != agent.StateStopped {
+		if a.State != "stopped" {
 			uptime = formatDuration(time.Since(a.StartedAt))
 		}
 
@@ -575,7 +575,7 @@ func runAgentList(cmd *cobra.Command, args []string) error {
 			task = task[:taskWidth-3] + "..."
 		}
 
-		stateStr := colorState(agent.State(a.State))
+		stateStr := colorStateStr(a.State)
 
 		table.AddRow(a.Name, a.Role, stateStr, uptime, task)
 	}
@@ -625,7 +625,7 @@ func runAgentPeek(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentName)
 		}
 
-		if a.State == agent.StateStopped {
+		if a.State == "stopped" {
 			return fmt.Errorf("agent %q is stopped (use 'bc agent start %s' to start it)", agentName, agentName)
 		}
 
@@ -987,22 +987,22 @@ func runAgentSendPattern(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// parseRole parses and validates a role string.
-func parseRole(roleStr string) (agent.Role, error) {
+// parseRoleStr parses and validates a role string, returning a plain string.
+func parseRoleStr(roleStr string) (string, error) {
 	roleStr = strings.ToLower(strings.TrimSpace(roleStr))
 	if roleStr == "" {
-		return agent.RoleRoot, nil // Default to root if not specified
+		return "root", nil // Default to root if not specified
 	}
 	// "null" role is a special case - represents an agent with no system prompt
 	if roleStr == "null" {
-		return agent.Role("null"), nil
+		return "null", nil
 	}
 	// All roles are now custom - loaded from .bc/roles/<role>.md files
 	// Just validate that the role name is sensible
 	if !isValidRoleName(roleStr) {
 		return "", fmt.Errorf("invalid role name %q (must be alphanumeric with hyphens)", roleStr)
 	}
-	return agent.Role(roleStr), nil
+	return roleStr, nil
 }
 
 // isValidTeamName validates that a team name is alphanumeric with optional hyphens/underscores.
@@ -1027,21 +1027,21 @@ func isValidAgentName(name string) bool {
 	return isValidTeamName(name)
 }
 
-// matchesAgentStatus checks if an agent state matches a status filter.
+// matchesAgentStatusStr checks if an agent state string matches a status filter.
 // Maps detailed internal states to the simplified 4-state model from #1918.
-func matchesAgentStatus(state agent.State, status string) bool {
+func matchesAgentStatusStr(state, status string) bool {
 	switch status {
 	case "running":
-		return state == agent.StateIdle || state == agent.StateWorking || state == agent.StateStarting
+		return state == "idle" || state == "working" || state == "starting"
 	case "stopped":
-		return state == agent.StateStopped
+		return state == "stopped"
 	case "error":
-		return state == agent.StateError
+		return state == "error"
 	case "starting":
-		return state == agent.StateStarting
+		return state == "starting"
 	default:
 		// Allow matching by exact internal state name
-		return string(state) == status
+		return state == status
 	}
 }
 
