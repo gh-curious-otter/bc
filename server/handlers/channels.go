@@ -141,6 +141,7 @@ func (h *ChannelHandler) history(w http.ResponseWriter, r *http.Request, name st
 			opts.Offset = n
 		}
 	}
+	opts.Offset = clampInt(opts.Offset, 0, 100000)
 	msgs, err := h.svc.History(r.Context(), name, opts)
 	if err != nil {
 		httpError(w, err.Error(), http.StatusInternalServerError)
