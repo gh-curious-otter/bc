@@ -6,6 +6,204 @@ import { Table } from "../components/Table";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 
+type FormStatus =
+  | { type: "idle" }
+  | { type: "submitting" }
+  | { type: "error"; message: string };
+
+function RegisterForm({ onRegistered }: { onRegistered: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [transport, setTransport] = useState<"stdio" | "sse">("stdio");
+  const [command, setCommand] = useState("");
+  const [url, setUrl] = useState("");
+  const [envText, setEnvText] = useState("");
+  const [status, setStatus] = useState<FormStatus>({ type: "idle" });
+
+  const reset = () => {
+    setName("");
+    setTransport("stdio");
+    setCommand("");
+    setUrl("");
+    setEnvText("");
+    setStatus({ type: "idle" });
+  };
+
+  const handleSubmit = async () => {
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+    if (transport === "stdio" && !command.trim()) return;
+    if (transport === "sse" && !url.trim()) return;
+
+    setStatus({ type: "submitting" });
+
+    // Parse env vars from KEY=VALUE lines
+    const env: Record<string, string> = {};
+    for (const line of envText.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eqIdx = trimmed.indexOf("=");
+      if (eqIdx > 0) {
+        env[trimmed.slice(0, eqIdx).trim()] = trimmed.slice(eqIdx + 1).trim();
+      }
+    }
+
+    try {
+      await api.registerMCP({
+        name: trimmedName,
+        transport,
+        command: transport === "stdio" ? command.trim() : "",
+        url: transport === "sse" ? url.trim() : "",
+        ...(Object.keys(env).length > 0 ? { env } : {}),
+      });
+      reset();
+      setOpen(false);
+      onRegistered();
+    } catch (err) {
+      setStatus({
+        type: "error",
+        message: err instanceof Error ? err.message : "Registration failed",
+      });
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 transition-opacity"
+      >
+        + Register Server
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded border border-bc-border bg-bc-surface p-5 space-y-4">
+      <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
+        Register MCP Server
+      </h2>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <label className="block text-sm text-bc-text">Name</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="my-server"
+            className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="block text-sm text-bc-text">Transport</label>
+          <select
+            value={transport}
+            onChange={(e) => setTransport(e.target.value as "stdio" | "sse")}
+            className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+          >
+            <option value="stdio">stdio</option>
+            <option value="sse">sse</option>
+          </select>
+        </div>
+      </div>
+
+      {transport === "stdio" ? (
+        <div className="space-y-2">
+          <label className="block text-sm text-bc-text">Command</label>
+          <input
+            type="text"
+            value={command}
+            onChange={(e) => setCommand(e.target.value)}
+            placeholder="npx -y @modelcontextprotocol/server-github"
+            className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+          />
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <label className="block text-sm text-bc-text">URL</label>
+          <input
+            type="text"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="http://localhost:8080/sse"
+            className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+          />
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <label className="block text-sm text-bc-text">
+          Environment Variables{" "}
+          <span className="text-bc-muted">(optional, KEY=VALUE per line)</span>
+        </label>
+        <textarea
+          value={envText}
+          onChange={(e) => setEnvText(e.target.value)}
+          rows={3}
+          placeholder={"GITHUB_TOKEN=ghp_xxx\nANOTHER_VAR=value"}
+          className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm font-mono focus:outline-none focus:ring-2 focus:ring-bc-accent resize-y"
+        />
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={status.type === "submitting"}
+          className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+        >
+          {status.type === "submitting" ? "Registering..." : "Register"}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            reset();
+            setOpen(false);
+          }}
+          className="px-4 py-2 rounded border border-bc-border text-bc-text text-sm hover:bg-bc-surface transition-colors"
+        >
+          Cancel
+        </button>
+        {status.type === "error" && (
+          <span className="text-xs text-red-400">{status.message}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ToggleSwitch({
+  enabled,
+  onToggle,
+  disabled,
+}: {
+  enabled: boolean;
+  onToggle: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={enabled}
+      onClick={onToggle}
+      disabled={disabled}
+      className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-bc-accent disabled:opacity-50 ${
+        enabled ? "bg-green-500" : "bg-bc-border"
+      }`}
+    >
+      <span
+        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+          enabled ? "translate-x-4" : "translate-x-0"
+        }`}
+      />
+    </button>
+  );
+}
+
 export function MCP() {
   const fetcher = useCallback(() => api.listMCP(), []);
   const {
@@ -15,43 +213,38 @@ export function MCP() {
     refresh,
     timedOut,
   } = usePolling(fetcher, 30000);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
-
-  const handleToggle = useCallback(
-    async (name: string, currentlyEnabled: boolean) => {
-      setActionLoading(`toggle:${name}`);
-      try {
-        if (currentlyEnabled) {
-          await api.disableMCP(name);
-        } else {
-          await api.enableMCP(name);
-        }
-        refresh();
-      } catch {
-        // Error will show on next poll
-      } finally {
-        setActionLoading(null);
-      }
-    },
-    [refresh],
+  const [actionLoading, setActionLoading] = useState<Record<string, boolean>>(
+    {},
   );
 
-  const handleRemove = useCallback(
-    async (name: string) => {
-      setActionLoading(`remove:${name}`);
-      try {
-        await api.removeMCP(name);
-        refresh();
-      } catch {
-        // Error will show on next poll
-      } finally {
-        setActionLoading(null);
-        setConfirmRemove(null);
+  const handleToggle = async (server: MCPServer) => {
+    setActionLoading((prev) => ({ ...prev, [server.name]: true }));
+    try {
+      if (server.enabled) {
+        await api.disableMCP(server.name);
+      } else {
+        await api.enableMCP(server.name);
       }
-    },
-    [refresh],
-  );
+      refresh();
+    } catch {
+      // silently fail — next poll will show correct state
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [server.name]: false }));
+    }
+  };
+
+  const handleRemove = async (server: MCPServer) => {
+    if (!window.confirm(`Remove MCP server "${server.name}"?`)) return;
+    setActionLoading((prev) => ({ ...prev, [server.name]: true }));
+    try {
+      await api.removeMCP(server.name);
+      refresh();
+    } catch {
+      // silently fail
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [server.name]: false }));
+    }
+  };
 
   if (loading && !servers) {
     return (
@@ -114,30 +307,13 @@ export function MCP() {
     },
     {
       key: "enabled",
-      label: "Status",
+      label: "Enabled",
       render: (s: MCPServer) => (
-        <button
-          type="button"
-          disabled={actionLoading !== null}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleToggle(s.name, s.enabled);
-          }}
-          className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border transition-colors disabled:opacity-50 ${
-            s.enabled
-              ? "text-green-400 border-green-400/30 hover:bg-green-400/10"
-              : "text-bc-muted border-bc-border hover:text-bc-text hover:border-bc-text/30"
-          }`}
-        >
-          <span
-            className={`inline-block w-1.5 h-1.5 rounded-full ${s.enabled ? "bg-green-400" : "bg-bc-muted"}`}
-          />
-          {actionLoading === `toggle:${s.name}`
-            ? "Updating..."
-            : s.enabled
-              ? "Enabled"
-              : "Disabled"}
-        </button>
+        <ToggleSwitch
+          enabled={s.enabled}
+          onToggle={() => handleToggle(s)}
+          disabled={!!actionLoading[s.name]}
+        />
       ),
     },
     {
@@ -146,16 +322,14 @@ export function MCP() {
       render: (s: MCPServer) => (
         <button
           type="button"
-          disabled={actionLoading !== null}
-          onClick={(e) => {
-            e.stopPropagation();
-            setConfirmRemove(s.name);
-          }}
-          className="px-2 py-1 text-xs rounded border border-bc-border text-bc-muted hover:text-red-400 hover:border-red-400/50 transition-colors disabled:opacity-50"
+          onClick={() => handleRemove(s)}
+          disabled={!!actionLoading[s.name]}
+          className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50 transition-colors"
         >
           Remove
         </button>
       ),
+      className: "text-right",
     },
   ];
 
@@ -168,6 +342,8 @@ export function MCP() {
         </span>
       </div>
 
+      <RegisterForm onRegistered={refresh} />
+
       <div className="rounded border border-bc-border overflow-hidden">
         <Table
           columns={columns}
@@ -175,40 +351,9 @@ export function MCP() {
           keyFn={(s) => s.name}
           emptyMessage="No MCP servers configured"
           emptyIcon="~"
-          emptyDescription="Use 'bc mcp add <name>' to connect an MCP server."
+          emptyDescription="Click 'Register Server' above to connect an MCP server."
         />
       </div>
-
-      {/* Confirmation dialog for removal */}
-      {confirmRemove && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-bc-surface border border-bc-border rounded-lg p-6 max-w-sm w-full mx-4 space-y-4">
-            <h2 className="text-lg font-bold">Remove MCP server</h2>
-            <p className="text-sm text-bc-muted">
-              Are you sure you want to remove{" "}
-              <span className="font-medium text-bc-text">{confirmRemove}</span>?{" "}
-              This cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmRemove(null)}
-                className="px-3 py-1.5 text-sm rounded border border-bc-border text-bc-muted hover:text-bc-text transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={actionLoading !== null}
-                onClick={() => handleRemove(confirmRemove)}
-                className="px-3 py-1.5 text-sm rounded border border-red-400/50 text-red-400 hover:bg-red-400/10 font-medium transition-colors disabled:opacity-50"
-              >
-                {actionLoading ? "Removing..." : "Remove"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
