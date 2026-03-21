@@ -44,7 +44,7 @@ export function App() {
             <Route index element={<Suspense fallback={<Loading />}><ErrorBoundary><Dashboard /></ErrorBoundary></Suspense>} />
             <Route path="agents" element={<Suspense fallback={<Loading />}><ErrorBoundary><Agents /></ErrorBoundary></Suspense>} />
             <Route path="agents/:name" element={<Suspense fallback={<Loading />}><ErrorBoundary><AgentDetail /></ErrorBoundary></Suspense>} />
-            <Route path="channels" element={<Suspense fallback={<Loading />}><ErrorBoundary><Channels /></ErrorBoundary></Suspense>} />
+            <Route path="channels/:channelName?" element={<Suspense fallback={<Loading />}><ErrorBoundary><Channels /></ErrorBoundary></Suspense>} />
             <Route path="costs" element={<Suspense fallback={<Loading />}><ErrorBoundary><Costs /></ErrorBoundary></Suspense>} />
             <Route path="roles" element={<Suspense fallback={<Loading />}><ErrorBoundary><Roles /></ErrorBoundary></Suspense>} />
             <Route path="tools" element={<Suspense fallback={<Loading />}><ErrorBoundary><Tools /></ErrorBoundary></Suspense>} />
