@@ -979,6 +979,14 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	// Clean stale worktree from previous container run (crash recovery).
 	cleanStaleWorktree(ctx, wsPath, name)
 
+	// For Docker agents on first create, prepend role setup commands
+	// (mcp add, plugin install) so the agent is fully configured.
+	if agentRuntime != "tmux" {
+		if setupCmd := BuildSetupCommand(wsPath, string(role)); setupCmd != "" {
+			agentCmd = setupCmd + " && " + agentCmd
+		}
+	}
+
 	// Create session in the workspace directory using the agent's runtime backend
 	if err := rt.CreateSessionWithEnv(ctx, name, wsPath, agentCmd, env); err != nil {
 		agentLock.Unlock()

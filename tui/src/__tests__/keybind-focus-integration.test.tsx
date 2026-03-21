@@ -12,6 +12,9 @@
 import React from 'react';
 import { render } from 'ink-testing-library';
 import { describe, test, expect, mock } from 'bun:test';
+
+// useInput from Ink requires TTY stdin which is not available in test environments
+const noTTY = !process.stdin.isTTY;
 import { FocusProvider, useFocus } from '../navigation/FocusContext';
 import { useKeyboardNavigation } from '../navigation/useKeyboardNavigation';
 import { useInput } from 'ink';
@@ -78,7 +81,7 @@ const TestChannelsComponent = ({
 };
 
 describe('Keybind Focus State Fix (Issue #653 EPIC 2)', () => {
-  test.skip('Global keybinds should be disabled while in input mode', () => {
+  test.skipIf(noTTY)('Global keybinds should be disabled while in input mode', () => {
     const onGlobalKeyPress = mock();
     const { lastFrame } = render(
       <FocusProvider>
@@ -98,7 +101,7 @@ describe('Keybind Focus State Fix (Issue #653 EPIC 2)', () => {
     // expect(onGlobalKeyPress).not.toHaveBeenCalled();
   });
 
-  test.skip('Global keybinds should be re-enabled after exiting input mode', () => {
+  test.skipIf(noTTY)('Global keybinds should be re-enabled after exiting input mode', () => {
     // TODO: Implement test for exiting input mode
     // Similar pattern to above test, but verify keybinds work after ESC/Enter
     expect(true).toBe(true);

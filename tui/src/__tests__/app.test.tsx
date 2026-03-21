@@ -1,4 +1,7 @@
 import { describe, expect, test } from 'bun:test';
+
+// useInput from Ink requires TTY stdin which is not available in test environments
+const noTTY = !process.stdin.isTTY;
 import { render } from 'ink-testing-library';
 import React from 'react';
 import { App } from '../app.js';
@@ -14,13 +17,13 @@ describe('App', () => {
   // They validate that the App component renders correctly, but useInput hook initialization
   // requires proper stdin configuration. Manual testing with bc home verifies functionality.
 
-  test.skip('shows bc header', () => {
+  test.skipIf(noTTY)('shows bc header', () => {
     const { lastFrame } = render(<App disableInput />);
     const output = lastFrame() ?? '';
     expect(output).toContain('bc');
   });
 
-  test.skip('shows navigation tabs', () => {
+  test.skipIf(noTTY)('shows navigation tabs', () => {
     const { lastFrame } = render(<App disableInput />);
     const output = lastFrame() ?? '';
     expect(output).toContain('Dashboard');
@@ -29,14 +32,14 @@ describe('App', () => {
     expect(output).toContain('Costs');
   });
 
-  test.skip('shows help hint in footer', () => {
+  test.skipIf(noTTY)('shows help hint in footer', () => {
     const { lastFrame } = render(<App disableInput />);
     const output = lastFrame() ?? '';
     expect(output).toContain('[?] for help');
     expect(output).toContain('[q] to quit');
   });
 
-  test.skip('starts on dashboard view', () => {
+  test.skipIf(noTTY)('starts on dashboard view', () => {
     const { lastFrame } = render(<App disableInput />);
     const output = lastFrame() ?? '';
     expect(output).toContain('Dashboard');
