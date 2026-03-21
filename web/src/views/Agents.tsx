@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
+import type { Agent } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { StatusBadge } from "../components/StatusBadge";
@@ -8,6 +9,268 @@ import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { InlineTerminal } from "../components/InlineTerminal";
 import { truncate } from "../utils/text";
+
+// --- Create Agent Form ---
+
+interface CreateFormState {
+  name: string;
+  role: string;
+  tool: string;
+  runtime: string;
+}
+
+function CreateAgentForm({ onCreated }: { onCreated: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [roles, setRoles] = useState<string[]>([]);
+  const [form, setForm] = useState<CreateFormState>({
+    name: "",
+    role: "",
+    tool: "",
+    runtime: "",
+  });
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch roles when form opens
+  useEffect(() => {
+    if (!open) return;
+    api
+      .listRoles()
+      .then((r) => {
+        setRoles(Object.keys(r));
+      })
+      .catch(() => {
+        /* ignore */
+      });
+  }, [open]);
+
+  const handleCreate = async () => {
+    if (!form.role) {
+      setError("Role is required");
+      return;
+    }
+    setCreating(true);
+    setError(null);
+    try {
+      await api.createAgent({
+        name: form.name || undefined,
+        role: form.role,
+        tool: form.tool || undefined,
+        runtime: form.runtime || undefined,
+      });
+      setForm({ name: "", role: "", tool: "", runtime: "" });
+      setOpen(false);
+      onCreated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create agent");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="px-3 py-1.5 text-sm rounded bg-bc-accent text-white hover:bg-bc-accent/80 transition-colors focus:outline-none focus:ring-2 focus:ring-bc-accent"
+      >
+        + Create Agent
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded border border-bc-border bg-bc-surface p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-medium">Create Agent</h2>
+        <button
+          onClick={() => {
+            setOpen(false);
+            setError(null);
+          }}
+          className="text-bc-muted hover:text-bc-fg text-sm"
+        >
+          Cancel
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div>
+          <label className="block text-xs text-bc-muted mb-1">
+            Name (optional)
+          </label>
+          <input
+            type="text"
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            placeholder="auto-generated"
+            className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-fg placeholder:text-bc-muted/50 focus:outline-none focus:ring-1 focus:ring-bc-accent"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-bc-muted mb-1">Role *</label>
+          <select
+            value={form.role}
+            onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
+            className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-fg focus:outline-none focus:ring-1 focus:ring-bc-accent"
+          >
+            <option value="">Select role...</option>
+            {roles.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs text-bc-muted mb-1">Tool</label>
+          <select
+            value={form.tool}
+            onChange={(e) => setForm((f) => ({ ...f, tool: e.target.value }))}
+            className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-fg focus:outline-none focus:ring-1 focus:ring-bc-accent"
+          >
+            <option value="">Default</option>
+            <option value="claude">claude</option>
+            <option value="gemini">gemini</option>
+            <option value="codex">codex</option>
+            <option value="cursor">cursor</option>
+            <option value="aider">aider</option>
+            <option value="opencode">opencode</option>
+            <option value="openclaw">openclaw</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs text-bc-muted mb-1">Runtime</label>
+          <select
+            value={form.runtime}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, runtime: e.target.value }))
+            }
+            className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-fg focus:outline-none focus:ring-1 focus:ring-bc-accent"
+          >
+            <option value="">Default</option>
+            <option value="tmux">tmux</option>
+            <option value="docker">docker</option>
+          </select>
+        </div>
+      </div>
+
+      {error && <p className="text-xs text-red-400">{error}</p>}
+
+      <div className="flex justify-end">
+        <button
+          onClick={handleCreate}
+          disabled={creating}
+          className="px-3 py-1.5 text-sm rounded bg-bc-accent text-white hover:bg-bc-accent/80 transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-bc-accent"
+        >
+          {creating ? "Creating..." : "Create"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// --- Agent Action Buttons ---
+
+function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
+  const [confirming, setConfirming] = useState<"delete" | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const act = async (action: () => Promise<unknown>) => {
+    setBusy(true);
+    try {
+      await action();
+      onDone();
+    } catch {
+      // errors are transient; the list will refresh
+    } finally {
+      setBusy(false);
+      setConfirming(null);
+    }
+  };
+
+  const isStopped = agent.state === "stopped" || agent.state === "error";
+  const isRunning = !isStopped;
+
+  if (confirming === "delete") {
+    return (
+      <span
+        className="inline-flex items-center gap-1"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className="text-xs text-red-400 mr-1">Delete?</span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            act(() => api.deleteAgent(agent.name));
+          }}
+          disabled={busy}
+          className="px-1.5 py-0.5 text-xs rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 disabled:opacity-50"
+        >
+          {busy ? "..." : "Yes"}
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setConfirming(null);
+          }}
+          className="px-1.5 py-0.5 text-xs rounded bg-bc-border/50 text-bc-muted hover:text-bc-fg"
+        >
+          No
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className="inline-flex items-center gap-1"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {isStopped && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            act(() => api.startAgent(agent.name));
+          }}
+          disabled={busy}
+          title="Start agent"
+          className="px-1.5 py-0.5 text-xs rounded bg-bc-success/20 text-bc-success hover:bg-bc-success/30 disabled:opacity-50"
+        >
+          {busy ? "..." : "Start"}
+        </button>
+      )}
+      {isRunning && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            act(() => api.stopAgent(agent.name));
+          }}
+          disabled={busy}
+          title="Stop agent"
+          className="px-1.5 py-0.5 text-xs rounded bg-bc-warning/20 text-bc-warning hover:bg-bc-warning/30 disabled:opacity-50"
+        >
+          {busy ? "..." : "Stop"}
+        </button>
+      )}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setConfirming("delete");
+        }}
+        title="Delete agent"
+        className="px-1.5 py-0.5 text-xs rounded bg-red-500/10 text-red-400/70 hover:bg-red-500/20 hover:text-red-400"
+      >
+        Del
+      </button>
+    </span>
+  );
+}
+
+// --- Main Agents View ---
 
 export function Agents() {
   const fetcher = useCallback(async () => {
@@ -25,8 +288,6 @@ export function Agents() {
   const navigate = useNavigate();
 
   const [peekAgent, setPeekAgent] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Refresh on agent lifecycle events via SSE
   useEffect(() => {
@@ -44,55 +305,6 @@ export function Agents() {
     setPeekAgent((prev) => (prev === agentName ? null : agentName));
   };
 
-  const handleStart = async (name: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setActionLoading(name);
-    try {
-      await api.startAgent(name);
-      await refresh();
-    } catch {
-      // SSE will refresh on state change
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleStop = async (name: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setActionLoading(name);
-    try {
-      await api.stopAgent(name);
-      await refresh();
-    } catch {
-      // SSE will refresh on state change
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleDelete = async (name: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (confirmDelete !== name) {
-      setConfirmDelete(name);
-      return;
-    }
-    setConfirmDelete(null);
-    setActionLoading(name);
-    try {
-      await api.deleteAgent(name);
-      await refresh();
-    } catch {
-      // SSE will refresh on state change
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleCancelDelete = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setConfirmDelete(null);
-  };
-
   const columns = [
     "Name",
     "Role",
@@ -104,6 +316,7 @@ export function Agents() {
     "CPU %",
     "Mem %",
     "MCP",
+    "",
     "",
   ] as const;
 
@@ -151,12 +364,14 @@ export function Agents() {
         <span className="text-sm text-bc-muted">{agentList.length} agents</span>
       </div>
 
+      <CreateAgentForm onCreated={refresh} />
+
       <div className="rounded border border-bc-border overflow-hidden">
         {agentList.length === 0 ? (
           <EmptyState
             icon=">"
             title="No agents yet"
-            description="Create your first agent with 'bc agent create <name> --role <role>'."
+            description="Create your first agent using the form above."
           />
         ) : (
           <table className="w-full text-sm">
@@ -182,9 +397,8 @@ export function Agents() {
                 <th className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell">
                   MCP
                 </th>
-                <th className="px-4 py-2 font-medium text-bc-muted text-right">
-                  Actions
-                </th>
+                <th className="px-4 py-2 font-medium text-bc-muted">Actions</th>
+                <th className="px-4 py-2 font-medium text-bc-muted w-10"></th>
               </tr>
             </thead>
             <tbody>
@@ -243,81 +457,25 @@ export function Agents() {
                       </span>
                     </td>
                     <td className="px-4 py-2">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={(e) => handlePeekToggle(a.name, e)}
-                          className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors focus:ring-2 focus:ring-bc-accent focus:outline-none ${
-                            peekAgent === a.name
-                              ? "bg-bc-accent/20 text-bc-accent"
-                              : "text-bc-muted hover:text-bc-fg hover:bg-bc-surface"
-                          }`}
-                          title={
-                            peekAgent === a.name ? "Hide output" : "Peek output"
-                          }
-                          aria-label={
-                            peekAgent === a.name ? "Hide output" : "Peek output"
-                          }
-                        >
-                          {peekAgent === a.name ? "\u2296" : "\u2295"}
-                        </button>
-                        {(a.state === "idle" ||
-                          a.state === "working" ||
-                          a.state === "running") && (
-                          <button
-                            onClick={(e) => handleStop(a.name, e)}
-                            disabled={actionLoading === a.name}
-                            className="inline-flex items-center justify-center w-7 h-7 rounded text-bc-muted hover:text-red-400 hover:bg-red-400/10 transition-colors focus:ring-2 focus:ring-red-400 focus:outline-none disabled:opacity-50"
-                            title="Stop agent"
-                            aria-label="Stop agent"
-                          >
-                            {actionLoading === a.name ? "\u22EF" : "\u25A0"}
-                          </button>
-                        )}
-                        {a.state === "stopped" && (
-                          <>
-                            <button
-                              onClick={(e) => handleStart(a.name, e)}
-                              disabled={actionLoading === a.name}
-                              className="inline-flex items-center justify-center w-7 h-7 rounded text-bc-muted hover:text-green-400 hover:bg-green-400/10 transition-colors focus:ring-2 focus:ring-green-400 focus:outline-none disabled:opacity-50"
-                              title="Start agent"
-                              aria-label="Start agent"
-                            >
-                              {actionLoading === a.name ? "\u22EF" : "\u25B6"}
-                            </button>
-                            {confirmDelete === a.name ? (
-                              <>
-                                <button
-                                  onClick={(e) => handleDelete(a.name, e)}
-                                  disabled={actionLoading === a.name}
-                                  className="inline-flex items-center justify-center px-2 h-7 rounded text-xs font-medium text-red-400 bg-red-400/10 hover:bg-red-400/20 transition-colors focus:ring-2 focus:ring-red-400 focus:outline-none disabled:opacity-50"
-                                  title="Confirm delete"
-                                  aria-label="Confirm delete"
-                                >
-                                  Confirm
-                                </button>
-                                <button
-                                  onClick={handleCancelDelete}
-                                  className="inline-flex items-center justify-center px-2 h-7 rounded text-xs font-medium text-bc-muted hover:text-bc-fg hover:bg-bc-surface transition-colors focus:ring-2 focus:ring-bc-accent focus:outline-none"
-                                  title="Cancel delete"
-                                  aria-label="Cancel delete"
-                                >
-                                  Cancel
-                                </button>
-                              </>
-                            ) : (
-                              <button
-                                onClick={(e) => handleDelete(a.name, e)}
-                                disabled={actionLoading === a.name}
-                                className="inline-flex items-center justify-center w-7 h-7 rounded text-bc-muted hover:text-red-400 hover:bg-red-400/10 transition-colors focus:ring-2 focus:ring-red-400 focus:outline-none disabled:opacity-50"
-                                title="Delete agent"
-                                aria-label="Delete agent"
-                              >
-                                {actionLoading === a.name ? "\u22EF" : "\u2715"}
-                              </button>
-                            )}
-                          </>
-                        )}
-                      </div>
+                      <AgentActions agent={a} onDone={refresh} />
+                    </td>
+                    <td className="px-4 py-2 text-center">
+                      <button
+                        onClick={(e) => handlePeekToggle(a.name, e)}
+                        className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors focus:ring-2 focus:ring-bc-accent focus:outline-none ${
+                          peekAgent === a.name
+                            ? "bg-bc-accent/20 text-bc-accent"
+                            : "text-bc-muted hover:text-bc-fg hover:bg-bc-surface"
+                        }`}
+                        title={
+                          peekAgent === a.name ? "Hide output" : "Peek output"
+                        }
+                        aria-label={
+                          peekAgent === a.name ? "Hide output" : "Peek output"
+                        }
+                      >
+                        {peekAgent === a.name ? "\u2296" : "\u2295"}
+                      </button>
                     </td>
                   </tr>
                   {peekAgent === a.name && (
