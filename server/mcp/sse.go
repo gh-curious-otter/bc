@@ -136,6 +136,12 @@ func (b *SSEBroker) send(v any) {
 	}
 }
 
+// SSEHandler returns an http.HandlerFunc for the SSE endpoint.
+// Exported so tests in mcp_test can mount it on their own ServeMux.
+func (b *SSEBroker) SSEHandler() http.HandlerFunc {
+	return b.handleSSE
+}
+
 // handleSSE streams server→client events over SSE.
 func (b *SSEBroker) handleSSE(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
