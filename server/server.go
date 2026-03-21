@@ -41,13 +41,13 @@ const defaultAddr = "127.0.0.1:9374"
 // Config holds server configuration.
 type Config struct {
 	Addr       string // default "127.0.0.1:9374"
-	CORSOrigin string // allowed origin ("*" for permissive, or specific origin)
-	CORS       bool   // enable CORS headers
+	CORS       bool   // enable permissive CORS headers (safe for loopback)
+	CORSOrigin string // allowed origin (default "*")
 }
 
 // DefaultConfig returns the default server configuration.
 func DefaultConfig() Config {
-	return Config{Addr: defaultAddr, CORS: true, CORSOrigin: "*"}
+	return Config{Addr: defaultAddr, CORS: true}
 }
 
 // Services bundles all service/store dependencies for the handlers.
@@ -135,8 +135,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	if svc.Channels != nil {
 		svc.Channels.OnMessage = func(ch, sender, content string) {
+			// Deliver to agent tmux/docker sessions with formatted context
 			if svc.Agents != nil {
-				formatted := fmt.Sprintf("[bc-mcp][%s] %s: %s", time.Now().UTC().Format(time.RFC3339), sender, content)
+				formatted := fmt.Sprintf("[bc-mcp][%s][#%s] %s: %s", time.Now().UTC().Format(time.RFC3339), ch, sender, content)
 				chDTO, err := svc.Channels.Get(context.Background(), ch)
 				if err != nil {
 					log.Debug("channel send: failed to get channel", "channel", ch, "error", err)
@@ -145,6 +146,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 						if member == sender {
 							continue
 						}
+						// Retry delivery up to 3 times
 						var sendErr error
 						for attempt := 0; attempt < 3; attempt++ {
 							sendErr = svc.Agents.Send(context.Background(), member, formatted)
@@ -159,6 +161,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 					}
 				}
 			}
+			// Publish SSE event for web UI
 			if hub != nil {
 				hub.Publish("channel.message", map[string]any{
 					"channel": ch,
@@ -216,10 +219,12 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		}
 	}
 
-	// Static web UI with SPA fallback
+	// Static web UI with SPA fallback — serves files if they exist,
+	// otherwise falls back to index.html for client-side routing.
 	if staticFiles != nil {
 		fileServer := http.FileServer(http.FS(staticFiles))
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			// Try serving the exact file first
 			path := r.URL.Path
 			if path != "/" {
 				if f, err := staticFiles.Open(path[1:]); err == nil {
@@ -228,6 +233,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 					return
 				}
 			}
+			// Fallback: serve index.html for SPA client-side routes
 			r.URL.Path = "/"
 			fileServer.ServeHTTP(w, r)
 		})
@@ -243,7 +249,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		}
 		handler = handlers.CORSWithOrigin(origin, mux)
 	}
-	handler = handlers.MaxBodySize(1 << 20)(handler)
+	handler = handlers.MaxBodySize(1 << 20)(handler) // 1MB request body limit
 	handler = handlers.Gzip(handler)
 	handler = handlers.Recovery(handler)
 	handler = handlers.RequestLogger(handler)
@@ -255,9 +261,11 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		addr:    cfg.Addr,
 		handler: handler,
 		httpServer: &http.Server{
-			Addr:         cfg.Addr,
-			Handler:      handler,
-			ReadTimeout:  30 * time.Second,
+			Addr:        cfg.Addr,
+			Handler:     handler,
+			ReadTimeout: 30 * time.Second,
+			// WriteTimeout must be 0 for SSE connections (/api/events) which are long-lived.
+			// Per-handler timeouts are used instead where needed.
 			WriteTimeout: 0,
 			IdleTimeout:  120 * time.Second,
 		},
