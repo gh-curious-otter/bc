@@ -166,8 +166,18 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 						log.Debug("channel send: failed to get channel", "channel", ch, "error", err)
 						return
 					}
+					// Parse @mentions to filter delivery targets.
+					// If mentions exist, only deliver to mentioned agents.
+					// If no mentions, deliver to all members (backward compat).
+					mentionedAgents, hasAll := channel.ExtractMentionedAgents(content)
+					hasMentions := hasAll || len(mentionedAgents) > 0
+
 					for _, member := range chDTO.Members {
 						if member == sender {
+							continue
+						}
+						// If mentions are present, only deliver to mentioned agents
+						if hasMentions && !channel.ContainsMention(content, member) {
 							continue
 						}
 						// Retry delivery up to 3 times
