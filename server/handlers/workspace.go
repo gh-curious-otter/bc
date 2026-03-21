@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/workspace"
@@ -117,18 +118,5 @@ func isAlreadyRunning(err error) bool {
 		return false
 	}
 	msg := err.Error()
-	return len(msg) > 0 && (contains(msg, "already running") || contains(msg, "session is alive"))
-}
-
-func contains(s, sub string) bool {
-	return len(s) >= len(sub) && (s == sub || len(s) > 0 && indexBytes(s, sub) >= 0)
-}
-
-func indexBytes(s, sub string) int {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return i
-		}
-	}
-	return -1
+	return len(msg) > 0 && (strings.Contains(msg, "already running") || strings.Contains(msg, "session is alive"))
 }

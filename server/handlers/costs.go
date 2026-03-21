@@ -89,6 +89,7 @@ func (h *CostHandler) daily(w http.ResponseWriter, r *http.Request) {
 			days = n
 		}
 	}
+	days = clampInt(days, 1, 365)
 	since := time.Now().AddDate(0, 0, -days)
 	costs, err := h.store.GetDailyCosts(r.Context(), since)
 	if err != nil {

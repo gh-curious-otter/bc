@@ -126,6 +126,7 @@ func (h *ChannelHandler) history(w http.ResponseWriter, r *http.Request, name st
 			opts.Limit = n
 		}
 	}
+	opts.Limit = clampInt(opts.Limit, 1, 1000)
 	if s := q.Get("offset"); s != "" {
 		if n, err := strconv.Atoi(s); err == nil && n >= 0 {
 			opts.Offset = n

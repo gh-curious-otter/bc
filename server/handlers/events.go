@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/rpuneet/bc/pkg/events"
 )
@@ -27,21 +28,14 @@ func (h *EventHandler) list(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	tail := 0
+	tail := 100
 	if s := r.URL.Query().Get("tail"); s != "" {
 		if n, err := strconv.Atoi(s); err == nil && n > 0 {
 			tail = n
 		}
 	}
-	var (
-		evts []events.Event
-		err  error
-	)
-	if tail > 0 {
-		evts, err = h.store.ReadLast(tail)
-	} else {
-		evts, err = h.store.Read()
-	}
+	tail = clampInt(tail, 1, 10000)
+	evts, err := h.store.ReadLast(tail)
 	if err != nil {
 		httpError(w, "read events: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -56,7 +50,7 @@ func (h *EventHandler) byAgent(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	name := trimPrefix(r.URL.Path, "/api/logs/")
+	name := strings.TrimPrefix(r.URL.Path, "/api/logs/")
 	if name == "" {
 		httpError(w, "agent name required", http.StatusBadRequest)
 		return
@@ -72,9 +66,3 @@ func (h *EventHandler) byAgent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, evts)
 }
 
-func trimPrefix(s, prefix string) string {
-	if len(s) >= len(prefix) && s[:len(prefix)] == prefix {
-		return s[len(prefix):]
-	}
-	return s
-}

@@ -71,7 +71,7 @@ func (l *SQLiteLog) Append(event Event) error {
 // Read returns all events ordered by timestamp.
 func (l *SQLiteLog) Read() ([]Event, error) {
 	rows, err := l.db.Query(
-		"SELECT type, agent, message, data, timestamp FROM events ORDER BY id ASC",
+		"SELECT type, agent, message, data, timestamp FROM events ORDER BY id ASC LIMIT 1000",
 	)
 	if err != nil {
 		return nil, err
@@ -106,7 +106,7 @@ func (l *SQLiteLog) ReadLast(n int) ([]Event, error) {
 // ReadByAgent returns events for a specific agent.
 func (l *SQLiteLog) ReadByAgent(name string) ([]Event, error) {
 	rows, err := l.db.Query(
-		"SELECT type, agent, message, data, timestamp FROM events WHERE agent = ? ORDER BY id ASC", name,
+		"SELECT type, agent, message, data, timestamp FROM events WHERE agent = ? ORDER BY id ASC LIMIT 1000", name,
 	)
 	if err != nil {
 		return nil, err
