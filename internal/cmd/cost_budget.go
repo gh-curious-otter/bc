@@ -1,12 +1,11 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/client"
 )
 
 // Issue #1648: Extracted from cost.go for better code organization
@@ -100,11 +99,10 @@ func getBudgetScope() string {
 }
 
 func runCostBudgetSet(cmd *cobra.Command, args []string) error {
-	store, err := getCostStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = store.Close() }()
 
 	// Parse amount
 	var limitUSD float64
@@ -116,9 +114,8 @@ func runCostBudgetSet(cmd *cobra.Command, args []string) error {
 	}
 
 	// Validate period
-	period := cost.BudgetPeriod(budgetPeriodFlag)
-	switch period {
-	case cost.BudgetPeriodDaily, cost.BudgetPeriodWeekly, cost.BudgetPeriodMonthly:
+	switch budgetPeriodFlag {
+	case "daily", "weekly", "monthly":
 		// Valid
 	default:
 		return fmt.Errorf("invalid period: %s (must be daily, weekly, or monthly)", budgetPeriodFlag)
@@ -130,7 +127,13 @@ func runCostBudgetSet(cmd *cobra.Command, args []string) error {
 	}
 
 	scope := getBudgetScope()
-	budget, err := store.SetBudget(context.Background(), scope, period, limitUSD, budgetAlertAtFlag, budgetHardStop)
+	budget, err := c.Costs.SetBudget(cmd.Context(), &client.SetBudgetReq{
+		Scope:    scope,
+		Period:   budgetPeriodFlag,
+		LimitUSD: limitUSD,
+		AlertAt:  budgetAlertAtFlag,
+		HardStop: budgetHardStop,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to set budget: %w", err)
 	}
@@ -144,17 +147,16 @@ func runCostBudgetSet(cmd *cobra.Command, args []string) error {
 }
 
 func runCostBudgetShow(cmd *cobra.Command, args []string) error {
-	store, err := getCostStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = store.Close() }()
 
 	scope := getBudgetScope()
 
 	// If showing specific scope
 	if budgetAgentFlag != "" || budgetTeamFlag != "" || scope == "workspace" {
-		status, checkErr := store.CheckBudget(context.Background(), scope)
+		status, checkErr := c.Costs.CheckBudget(cmd.Context(), scope)
 		if checkErr != nil {
 			return fmt.Errorf("failed to check budget: %w", checkErr)
 		}
@@ -169,7 +171,7 @@ func runCostBudgetShow(cmd *cobra.Command, args []string) error {
 	}
 
 	// Show all budgets
-	budgets, err := store.GetAllBudgets(context.Background())
+	budgets, err := c.Costs.ListBudgets(cmd.Context())
 	if err != nil {
 		return fmt.Errorf("failed to get budgets: %w", err)
 	}
@@ -184,7 +186,7 @@ func runCostBudgetShow(cmd *cobra.Command, args []string) error {
 	fmt.Println("==================")
 
 	for _, b := range budgets {
-		status, _ := store.CheckBudget(context.Background(), b.Scope)
+		status, _ := c.Costs.CheckBudget(cmd.Context(), b.Scope)
 		if status != nil {
 			printBudgetStatus(b.Scope, status)
 			fmt.Println()
@@ -194,7 +196,7 @@ func runCostBudgetShow(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func printBudgetStatus(scope string, status *cost.BudgetStatus) {
+func printBudgetStatus(scope string, status *client.CostBudgetStatus) {
 	fmt.Printf("Budget: %s\n", scope)
 	fmt.Printf("  Period:    %s\n", status.Budget.Period)
 	fmt.Printf("  Limit:     $%.2f\n", status.Budget.LimitUSD)
@@ -215,15 +217,14 @@ func printBudgetStatus(scope string, status *cost.BudgetStatus) {
 }
 
 func runCostBudgetDelete(cmd *cobra.Command, args []string) error {
-	store, err := getCostStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = store.Close() }()
 
 	scope := getBudgetScope()
 
-	if deleteErr := store.DeleteBudget(context.Background(), scope); deleteErr != nil {
+	if deleteErr := c.Costs.DeleteBudget(cmd.Context(), scope); deleteErr != nil {
 		return fmt.Errorf("failed to delete budget: %w", deleteErr)
 	}
 

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -39,14 +40,14 @@ func (h *CostHandler) summary(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
-	if !requireMethod(w, r, http.MethodGet) {
-		return
-	}
-	parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/api/costs/"), "/", 2)
+	parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/api/costs/"), "/", 3)
 	resource := parts[0]
 
 	switch resource {
 	case "agents":
+		if !requireMethod(w, r, http.MethodGet) {
+			return
+		}
 		summaries, err := h.store.SummaryByAgent(r.Context())
 		if err != nil {
 			httpError(w, err.Error(), http.StatusInternalServerError)
@@ -64,6 +65,9 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, summaries)
 
 	case "teams":
+		if !requireMethod(w, r, http.MethodGet) {
+			return
+		}
 		summaries, err := h.store.SummaryByTeam(r.Context())
 		if err != nil {
 			httpError(w, err.Error(), http.StatusInternalServerError)
@@ -81,6 +85,9 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, summaries)
 
 	case "models":
+		if !requireMethod(w, r, http.MethodGet) {
+			return
+		}
 		summaries, err := h.store.SummaryByModel(r.Context())
 		if err != nil {
 			httpError(w, err.Error(), http.StatusInternalServerError)
@@ -103,6 +110,15 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 	case "sync":
 		h.sync(w, r)
 
+	case "budgets":
+		h.budgets(w, r, parts)
+
+	case "project":
+		h.project(w, r)
+
+	case "agent":
+		h.agentDetail(w, r, parts)
+
 	default:
 		httpError(w, "not found", http.StatusNotFound)
 	}
@@ -110,6 +126,9 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 
 // daily handles GET /api/costs/daily?days=30
 func (h *CostHandler) daily(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
 	days := 30
 	if s := r.URL.Query().Get("days"); s != "" {
 		if n, err := strconv.Atoi(s); err == nil && n > 0 {
@@ -141,4 +160,160 @@ func (h *CostHandler) sync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]int{"imported": n})
+}
+
+// budgets handles /api/costs/budgets and /api/costs/budgets/{scope}.
+func (h *CostHandler) budgets(w http.ResponseWriter, r *http.Request, parts []string) {
+	// Determine scope from path: /api/costs/budgets or /api/costs/budgets/{scope}
+	scope := ""
+	if len(parts) >= 2 && parts[1] != "" {
+		scope = parts[1]
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		if scope == "" {
+			// GET /api/costs/budgets — list all budgets
+			budgets, err := h.store.GetAllBudgets(r.Context())
+			if err != nil {
+				httpError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if budgets == nil {
+				budgets = []*cost.Budget{}
+			}
+			writeJSON(w, http.StatusOK, budgets)
+		} else {
+			// GET /api/costs/budgets/{scope} — get budget + check status
+			status, err := h.store.CheckBudget(r.Context(), scope)
+			if err != nil {
+				httpError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if status == nil {
+				httpError(w, "no budget configured for "+scope, http.StatusNotFound)
+				return
+			}
+			writeJSON(w, http.StatusOK, status)
+		}
+
+	case http.MethodPost:
+		// POST /api/costs/budgets — set budget
+		var req struct {
+			Scope    string  `json:"scope"`
+			Period   string  `json:"period"`
+			LimitUSD float64 `json:"limit_usd"`
+			AlertAt  float64 `json:"alert_at"`
+			HardStop bool    `json:"hard_stop"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if req.Scope == "" {
+			httpError(w, "scope is required", http.StatusBadRequest)
+			return
+		}
+		if req.LimitUSD <= 0 {
+			httpError(w, "limit_usd must be positive", http.StatusBadRequest)
+			return
+		}
+		period := cost.BudgetPeriod(req.Period)
+		switch period {
+		case cost.BudgetPeriodDaily, cost.BudgetPeriodWeekly, cost.BudgetPeriodMonthly:
+			// valid
+		default:
+			httpError(w, "invalid period: must be daily, weekly, or monthly", http.StatusBadRequest)
+			return
+		}
+		budget, err := h.store.SetBudget(r.Context(), req.Scope, period, req.LimitUSD, req.AlertAt, req.HardStop)
+		if err != nil {
+			httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, budget)
+
+	case http.MethodDelete:
+		// DELETE /api/costs/budgets/{scope}
+		if scope == "" {
+			httpError(w, "scope is required in path", http.StatusBadRequest)
+			return
+		}
+		if err := h.store.DeleteBudget(r.Context(), scope); err != nil {
+			httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+
+	default:
+		methodNotAllowed(w)
+	}
+}
+
+// project handles GET /api/costs/project?lookback_days=30&project_days=30
+func (h *CostHandler) project(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	lookbackDays := 30
+	if s := r.URL.Query().Get("lookback_days"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			lookbackDays = n
+		}
+	}
+	projectDays := 30
+	if s := r.URL.Query().Get("project_days"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			projectDays = n
+		}
+	}
+	proj, err := h.store.ProjectCost(r.Context(), lookbackDays, time.Duration(projectDays)*24*time.Hour)
+	if err != nil {
+		httpError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, proj)
+}
+
+// agentDetail handles GET /api/costs/agent/{name}
+func (h *CostHandler) agentDetail(w http.ResponseWriter, r *http.Request, parts []string) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	if len(parts) < 2 || parts[1] == "" {
+		httpError(w, "agent name required", http.StatusBadRequest)
+		return
+	}
+	agentName := parts[1]
+
+	summary, err := h.store.AgentSummary(r.Context(), agentName)
+	if err != nil {
+		httpError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Get daily breakdown for the last 30 days
+	since := time.Now().AddDate(0, 0, -30)
+	allAgentDaily, err := h.store.GetAgentDailyCosts(r.Context(), since)
+	if err != nil {
+		httpError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Filter to the requested agent
+	var daily []*cost.AgentDailyCost
+	for _, d := range allAgentDaily {
+		if d.AgentID == agentName {
+			daily = append(daily, d)
+		}
+	}
+
+	response := struct {
+		Summary *cost.Summary          `json:"summary"`
+		Daily   []*cost.AgentDailyCost `json:"daily"`
+	}{
+		Summary: summary,
+		Daily:   daily,
+	}
+	writeJSON(w, http.StatusOK, response)
 }

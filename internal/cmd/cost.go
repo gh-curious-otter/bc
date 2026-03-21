@@ -11,7 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/client"
 )
 
 var costCmd = &cobra.Command{
@@ -75,20 +75,6 @@ func init() {
 	costCmd.AddCommand(costBudgetCmd)
 	costCmd.AddCommand(costUsageCmd)
 	rootCmd.AddCommand(costCmd)
-}
-
-func getCostStore() (*cost.Store, error) {
-	ws, err := getWorkspace()
-	if err != nil {
-		return nil, fmt.Errorf("not in a bc workspace: %w", err)
-	}
-
-	store := cost.NewStore(ws.RootDir)
-	if err := store.Open(); err != nil {
-		return nil, fmt.Errorf("failed to open cost store: %w", err)
-	}
-
-	return store, nil
 }
 
 // ccusageRunner runs ccusage and returns raw JSON output. Overridable for testing.
@@ -195,11 +181,10 @@ func runCostShow(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("offset must be non-negative")
 	}
 
-	store, err := getCostStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = store.Close() }()
 
 	// Determine agent filter: --agent flag takes precedence, then positional arg
 	agentID := costShowAgentFlag
@@ -207,84 +192,94 @@ func runCostShow(cmd *cobra.Command, args []string) error {
 		agentID = args[0]
 	}
 
-	// Get total count for pagination hint
-	var totalCount int64
-	if agentID != "" {
-		summary, summaryErr := store.AgentSummary(context.Background(), agentID)
-		if summaryErr == nil && summary != nil {
-			totalCount = summary.RecordCount
-		}
-	} else {
-		summary, summaryErr := store.WorkspaceSummary(context.Background())
-		if summaryErr == nil && summary != nil {
-			totalCount = summary.RecordCount
-		}
-	}
-
-	var records []*cost.Record
-	if agentID != "" {
-		records, err = store.GetByAgentWithOffset(context.Background(), agentID, costLimitFlag, costOffsetFlag)
-	} else {
-		records, err = store.GetAllWithOffset(context.Background(), costLimitFlag, costOffsetFlag)
-	}
-
-	if err != nil {
-		return fmt.Errorf("failed to get cost records: %w", err)
-	}
-
-	// Check for JSON output
+	// Check for JSON output — build summary from daemon API
 	jsonOutput, _ := cmd.Flags().GetBool("json")
 	if jsonOutput {
-		// Build a summary for TUI compatibility
-		var totalCost, totalInput, totalOutput float64
-		byAgent := make(map[string]float64)
-		byTeam := make(map[string]float64)
-		byModel := make(map[string]float64)
-
-		for _, r := range records {
-			totalCost += r.CostUSD
-			totalInput += float64(r.InputTokens)
-			totalOutput += float64(r.OutputTokens)
-			byAgent[r.AgentID] += r.CostUSD
-			byTeam[r.TeamID] += r.CostUSD
-			byModel[r.Model] += r.CostUSD
-		}
-
-		response := &costShowResponse{
-			ByAgent:           byAgent,
-			ByTeam:            byTeam,
-			ByModel:           byModel,
-			TotalInputTokens:  int64(totalInput),
-			TotalOutputTokens: int64(totalOutput),
-			TotalCost:         totalCost,
-		}
-
-		// Enrich with ccusage data (graceful — nil if unavailable)
-		ccReport := fetchCCUsageDailyReport(cmd.Context())
-		enrichWithCCUsage(response, ccReport)
-
-		enc := json.NewEncoder(cmd.OutOrStdout())
-		enc.SetIndent("", "  ")
-		return enc.Encode(response)
+		return runCostShowJSON(cmd, c, agentID)
 	}
 
-	if len(records) == 0 {
+	// For table output, use the agent or workspace summary
+	if agentID != "" {
+		return runCostShowAgent(cmd, c, agentID)
+	}
+
+	return runCostShowAll(cmd, c)
+}
+
+func runCostShowJSON(cmd *cobra.Command, c *client.Client, agentID string) error {
+	byAgent := make(map[string]float64)
+	byTeam := make(map[string]float64)
+	byModel := make(map[string]float64)
+
+	agentSummaries, err := c.Costs.SummaryByAgent(cmd.Context())
+	if err != nil {
+		return fmt.Errorf("failed to get agent summaries: %w", err)
+	}
+	for _, s := range agentSummaries {
+		byAgent[s.AgentID] = s.TotalCostUSD
+	}
+
+	teamSummaries, err := c.Costs.SummaryByTeam(cmd.Context())
+	if err != nil {
+		return fmt.Errorf("failed to get team summaries: %w", err)
+	}
+	for _, s := range teamSummaries {
+		byTeam[s.TeamID] = s.TotalCostUSD
+	}
+
+	modelSummaries, err := c.Costs.SummaryByModel(cmd.Context())
+	if err != nil {
+		return fmt.Errorf("failed to get model summaries: %w", err)
+	}
+	for _, s := range modelSummaries {
+		byModel[s.Model] = s.TotalCostUSD
+	}
+
+	ws, err := c.Costs.WorkspaceSummary(cmd.Context())
+	if err != nil {
+		return fmt.Errorf("failed to get workspace summary: %w", err)
+	}
+
+	response := &costShowResponse{
+		ByAgent:           byAgent,
+		ByTeam:            byTeam,
+		ByModel:           byModel,
+		TotalInputTokens:  ws.InputTokens,
+		TotalOutputTokens: ws.OutputTokens,
+		TotalCost:         ws.TotalCostUSD,
+	}
+
+	// Enrich with ccusage data (graceful — nil if unavailable)
+	ccReport := fetchCCUsageDailyReport(cmd.Context())
+	enrichWithCCUsage(response, ccReport)
+
+	enc := json.NewEncoder(cmd.OutOrStdout())
+	enc.SetIndent("", "  ")
+	return enc.Encode(response)
+}
+
+func runCostShowAgent(cmd *cobra.Command, c *client.Client, agentID string) error {
+	detail, err := c.Costs.AgentSummary(cmd.Context(), agentID)
+	if err != nil {
+		return fmt.Errorf("failed to get agent cost detail: %w", err)
+	}
+
+	if detail.Summary.RecordCount == 0 {
 		fmt.Println("No cost records found")
 		return nil
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, "TIMESTAMP\tAGENT\tMODEL\tINPUT\tOUTPUT\tTOTAL\tCOST")
+	_, _ = fmt.Fprintln(w, "DATE\tCOST\tINPUT\tOUTPUT\tTOTAL\tRECORDS")
 
-	for _, r := range records {
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%d\t%d\t$%.4f\n",
-			r.Timestamp.Format("2006-01-02 15:04"),
-			r.AgentID,
-			r.Model,
-			r.InputTokens,
-			r.OutputTokens,
-			r.TotalTokens,
-			r.CostUSD,
+	for _, d := range detail.Daily {
+		_, _ = fmt.Fprintf(w, "%s\t$%.4f\t%d\t%d\t%d\t%d\n",
+			d.Date,
+			d.CostUSD,
+			d.InputTokens,
+			d.OutputTokens,
+			d.TotalTokens,
+			d.RecordCount,
 		)
 	}
 
@@ -292,17 +287,34 @@ func runCostShow(cmd *cobra.Command, args []string) error {
 		return flushErr
 	}
 
-	// Show pagination hint if there are more records than displayed
-	if totalCount > 0 {
-		startIdx := costOffsetFlag + 1
-		endIdx := costOffsetFlag + len(records)
-		if int64(endIdx) < totalCount {
-			fmt.Printf("\nShowing %d-%d of %d entries. Use --limit and --offset for more.\n", startIdx, endIdx, totalCount)
-		} else if costOffsetFlag > 0 {
-			// Show count when using offset even if we've reached the end
-			fmt.Printf("\nShowing %d-%d of %d entries.\n", startIdx, endIdx, totalCount)
-		}
+	fmt.Printf("\nTotal: $%.4f (%d records)\n", detail.Summary.TotalCostUSD, detail.Summary.RecordCount)
+	return nil
+}
+
+func runCostShowAll(cmd *cobra.Command, c *client.Client) error {
+	summaries, err := c.Costs.SummaryByAgent(cmd.Context())
+	if err != nil {
+		return fmt.Errorf("failed to get cost summaries: %w", err)
 	}
 
-	return nil
+	if len(summaries) == 0 {
+		fmt.Println("No cost records found")
+		return nil
+	}
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintln(w, "AGENT\tCOST\tINPUT\tOUTPUT\tTOTAL\tRECORDS")
+
+	for _, s := range summaries {
+		_, _ = fmt.Fprintf(w, "%s\t$%.4f\t%d\t%d\t%d\t%d\n",
+			s.AgentID,
+			s.TotalCostUSD,
+			s.InputTokens,
+			s.OutputTokens,
+			s.TotalTokens,
+			s.RecordCount,
+		)
+	}
+
+	return w.Flush()
 }
