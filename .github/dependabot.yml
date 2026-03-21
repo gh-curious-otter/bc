@@ -1,0 +1,79 @@
+# Dependabot configuration — keeps dependencies current automatically.
+# Creates PRs grouped by ecosystem on a weekly schedule.
+# Security updates are created immediately regardless of schedule.
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+
+version: 2
+
+updates:
+  # Go modules
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - infrastructure
+    commit-message:
+      prefix: "deps(go):"
+    groups:
+      go-minor:
+        update-types: [minor, patch]
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - ci/cd
+    commit-message:
+      prefix: "deps(actions):"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # npm — TUI
+  - package-ecosystem: npm
+    directory: /tui
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+    commit-message:
+      prefix: "deps(tui):"
+    groups:
+      tui-deps:
+        update-types: [minor, patch]
+
+  # npm — Web UI
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+    commit-message:
+      prefix: "deps(web):"
+    groups:
+      web-deps:
+        update-types: [minor, patch]
+
+  # npm — Landing page
+  - package-ecosystem: npm
+    directory: /landing
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+    commit-message:
+      prefix: "deps(landing):"
+    groups:
+      landing-deps:
+        update-types: [minor, patch]
