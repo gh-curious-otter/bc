@@ -18,7 +18,6 @@ const ConfigVersion = 2
 // Config represents the TOML-based workspace configuration for bc v2.
 // Field order is optimized by fieldalignment for minimal struct padding.
 type Config struct {
-	Channels    ChannelsConfig    `toml:"channels"`
 	Services    ServicesConfig    `toml:"services"`
 	Env         map[string]string `toml:"env"`
 	Providers   ProvidersConfig   `toml:"providers"`
@@ -113,9 +112,6 @@ type ServiceConfig struct {
 	RateLimit int    `toml:"rate_limit,omitempty"` // Requests per hour (0 = unlimited)
 	Enabled   bool   `toml:"enabled"`              // Whether the service is enabled
 }
-
-// ChannelsConfig configures communication channels.
-type ChannelsConfig struct{}
 
 // PerformanceConfig configures TUI polling intervals and cache TTLs.
 // All values are in milliseconds. Minimum poll interval is 500ms.

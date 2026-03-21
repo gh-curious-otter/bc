@@ -2,9 +2,6 @@
 
 package config
 
-type ChannelsConfig struct {
-}
-
 type DatabaseConfig struct {
 	Driver       string
 	MaxIdleConns int64
@@ -141,7 +138,6 @@ type WorkspaceConfig struct {
 }
 
 var (
-	Channels = ChannelsConfig{}
 	Database = DatabaseConfig{
 		Driver:       "sqlite",
 		MaxIdleConns: 5,
@@ -174,7 +170,7 @@ var (
 			Enabled: false,
 		},
 		Claude: ProvidersClaudeConfig{
-			Command: "claude --dangerously-skip-permissions",
+			Command: "claude",
 			Enabled: true,
 		},
 		Codex: ProvidersCodexConfig{
@@ -205,7 +201,7 @@ var (
 			Cpus:     2,
 			Image:    "bc-agent:latest",
 			MemoryMb: 2048,
-			Network:  "host",
+			Network:  "bridge",
 		},
 	}
 	Services = ServicesConfig{
