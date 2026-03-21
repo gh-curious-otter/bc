@@ -18,6 +18,15 @@ export interface Agent {
   state: string;
   cost_usd: number;
   started_at: string;
+  created_at: string;
+  updated_at: string;
+  stopped_at?: string;
+  task?: string;
+  team?: string;
+  session?: string;
+  session_id?: string;
+  parent_id?: string;
+  children?: string[];
 }
 
 export interface Channel {
@@ -125,6 +134,8 @@ export interface Secret {
 export const api = {
   listAgents: () => request<Agent[]>('/agents'),
   getAgent: (name: string) => request<Agent>(`/agents/${encodeURIComponent(name)}`),
+  getAgentPeek: (name: string, lines = 50) =>
+    request<{ output: string }>(`/agents/${encodeURIComponent(name)}/peek?${new URLSearchParams({ lines: String(lines) })}`),
   startAgent: (name: string) => request<Agent>(`/agents/${encodeURIComponent(name)}/start`, { method: 'POST' }),
   stopAgent: (name: string) => request<void>(`/agents/${encodeURIComponent(name)}/stop`, { method: 'POST' }),
   sendToAgent: (name: string, message: string) =>

@@ -6,6 +6,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 // Lazy-loaded views — each gets its own chunk
 const Dashboard = lazy(() => import('./views/Dashboard').then(m => ({ default: m.Dashboard })));
 const Agents = lazy(() => import('./views/Agents').then(m => ({ default: m.Agents })));
+const AgentDetail = lazy(() => import('./views/AgentDetail').then(m => ({ default: m.AgentDetail })));
 const Channels = lazy(() => import('./views/Channels').then(m => ({ default: m.Channels })));
 const Costs = lazy(() => import('./views/Costs').then(m => ({ default: m.Costs })));
 const Roles = lazy(() => import('./views/Roles').then(m => ({ default: m.Roles })));
@@ -39,6 +40,7 @@ export function App() {
           <Route element={<Layout />}>
             <Route index element={<Suspense fallback={<Loading />}><ErrorBoundary><Dashboard /></ErrorBoundary></Suspense>} />
             <Route path="agents" element={<Suspense fallback={<Loading />}><ErrorBoundary><Agents /></ErrorBoundary></Suspense>} />
+            <Route path="agents/:name" element={<Suspense fallback={<Loading />}><ErrorBoundary><AgentDetail /></ErrorBoundary></Suspense>} />
             <Route path="channels" element={<Suspense fallback={<Loading />}><ErrorBoundary><Channels /></ErrorBoundary></Suspense>} />
             <Route path="costs" element={<Suspense fallback={<Loading />}><ErrorBoundary><Costs /></ErrorBoundary></Suspense>} />
             <Route path="roles" element={<Suspense fallback={<Loading />}><ErrorBoundary><Roles /></ErrorBoundary></Suspense>} />
