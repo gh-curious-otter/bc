@@ -16,8 +16,9 @@ import (
 	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/daemon"
 	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/server"
 	"github.com/rpuneet/bc/pkg/shutdown"
+	bcdserver "github.com/rpuneet/bc/server"
+	bcws "github.com/rpuneet/bc/server/ws"
 )
 
 // daemonCmd is the parent for bc daemon subcommands.
@@ -222,12 +223,22 @@ func runDaemonStart(cmd *cobra.Command, _ []string) error {
 		log.Warn("failed to open daemon manager", "error", daemonErr)
 	}
 
-	cfg := server.DefaultConfig()
-	srv := server.New(cfg, agentSvc, channelSvc, daemonMgr, ws)
+	hub := bcws.NewHub()
+	go hub.Run()
+
+	cfg := bcdserver.DefaultConfig()
+	svc := bcdserver.Services{
+		Agents:   agentSvc,
+		Channels: channelSvc,
+		Daemons:  daemonMgr,
+		WS:       ws,
+	}
+	srv := bcdserver.New(cfg, svc, hub, bcdserver.WebDist())
 
 	// Register cleanup
-	shutdown.OnShutdownNamed(shutdown.PriorityHigh, "bcd-server", func(ctx context.Context) error {
-		return srv.Shutdown(ctx)
+	shutdown.OnShutdownNamed(shutdown.PriorityHigh, "bcd-server", func(_ context.Context) error {
+		hub.Stop()
+		return nil
 	})
 	if daemonMgr != nil {
 		shutdown.OnShutdownNamed(shutdown.PriorityLow, "bcd-daemon-db", func(_ context.Context) error {
