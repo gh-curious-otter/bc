@@ -1,7 +1,8 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { api } from '../api/client';
 import type { CostSummary, AgentCostSummary, ModelCostSummary, DailyCost } from '../api/client';
 import { usePolling } from '../hooks/usePolling';
+import { useWebSocket } from '../hooks/useWebSocket';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { EmptyState } from '../components/EmptyState';
 
@@ -178,6 +179,12 @@ export function Costs() {
   }, []);
 
   const { data, loading, error, refresh, timedOut } = usePolling(fetcher, 10000);
+  const { subscribe } = useWebSocket();
+
+  // Refresh cost data in real-time via SSE
+  useEffect(() => {
+    return subscribe('cost.updated', () => void refresh());
+  }, [subscribe, refresh]);
 
   if (loading && !data) {
     return (

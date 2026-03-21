@@ -18,9 +18,15 @@ export function Agents() {
   const { subscribe } = useWebSocket();
   const navigate = useNavigate();
 
-  // Refresh on agent state changes — cleanup prevents listener leak
+  // Refresh on agent lifecycle events via SSE
   useEffect(() => {
-    return subscribe('agent.state_changed', () => void refresh());
+    const unsubs = [
+      subscribe('agent.state_changed', () => void refresh()),
+      subscribe('agent.created', () => void refresh()),
+      subscribe('agent.stopped', () => void refresh()),
+      subscribe('agent.deleted', () => void refresh()),
+    ];
+    return () => unsubs.forEach((fn) => fn());
   }, [subscribe, refresh]);
 
   const columns = [
