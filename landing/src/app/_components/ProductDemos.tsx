@@ -80,14 +80,6 @@ function CmdLine({ text }: { text: string }) {
  *  Layout & Behavior Components
  *  ============================================================ */
 
-function StickyBackground() {
-  return (
-    <div className="sticky top-0 h-screen pointer-events-none overflow-hidden -z-10">
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:64px_64px]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(0,0,0,0),var(--background))]" />
-    </div>
-  );
-}
 
 function NarrativeBox({
   eyebrow,
@@ -277,8 +269,8 @@ function AgentsFrame({ step }: { step: number }) {
             <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-terminal-command/10 text-terminal-command font-bold border border-terminal-command/20">PX</div>
           </div>
           <div className="space-y-3">
-            <div className="text-[11px] text-terminal-muted border-l-2 border-terminal-success pl-4 bg-terminal-success/5 py-2">Loading project memory: search "Zod patterns in api-v1"</div>
-            <div className="text-[11px] text-terminal-muted border-l-2 border-terminal-command pl-4 bg-terminal-command/5 py-2">Applying learnings from experience-42: "Prefer strict schema validation"</div>
+            <div className="text-[11px] text-terminal-muted border-l-2 border-terminal-success pl-4 bg-terminal-success/5 py-2">Loading project memory: search &quot;Zod patterns in api-v1&quot;</div>
+            <div className="text-[11px] text-terminal-muted border-l-2 border-terminal-command pl-4 bg-terminal-command/5 py-2">Applying learnings from experience-42: &quot;Prefer strict schema validation&quot;</div>
             <div className="text-[11px] text-white border-l-2 border-primary pl-4 bg-primary/10 py-2 font-bold animate-pulse">⏺ Writing tests/zod_validation_test.go</div>
           </div>
         </div>
@@ -384,6 +376,6 @@ export function CronSection() {
   return (
     <FeatureSection id="cron" eyebrow="Cron" headline="Reliable background work." points={points} tab="Cron"
       cmdForStep={(i) => i === 0 ? "bc cron list" : i === 1 ? "bc cron run build-sync" : "bc cron add audit"}
-      renderFrame={(i) => <CronFrame />} />
+      renderFrame={() => <CronFrame />} />
   );
 }

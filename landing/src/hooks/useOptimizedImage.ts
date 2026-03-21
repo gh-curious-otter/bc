@@ -7,7 +7,6 @@
 
 import { useMemo } from "react";
 import {
-  RESPONSIVE_SIZES,
   generateSrcSet,
   loadingStrategies,
 } from "@/lib/image-optimization";

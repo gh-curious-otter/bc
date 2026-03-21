@@ -153,7 +153,7 @@ test.describe("Homepage Content", () => {
   test("stats bar has at least 4 counter items", async ({ page }) => {
     // Test structure: stats section should have multiple stat items,
     // without asserting specific label text that may change.
-    const statsSection = page.locator("section").filter({ has: page.locator('[class*="stat"], [class*="counter"], [class*="metric"], dl, [data-stat]') });
+    const _statsSection = page.locator("section").filter({ has: page.locator('[class*="stat"], [class*="counter"], [class*="metric"], dl, [data-stat]') });
     // Fallback: look for a section with multiple heading+number pairs
     // by counting dt elements or small headings within a stats-like area.
     const statItems = page.locator("dl dt, [data-stat], [class*='stats'] > *");
@@ -942,7 +942,7 @@ test.describe("Docs Search & Filter", () => {
 
   test("installation section has multiple methods", async ({ page }) => {
     // Should have at least 2 installation methods (Homebrew, Go, Binary)
-    const installSection = page.locator("text=brew install, text=go install, text=curl").first();
+    const _installSection = page.locator("text=brew install, text=go install, text=curl").first();
     // Just check code blocks exist in the installation area
     const codeInInstall = page.locator("pre");
     const count = await codeInInstall.count();
@@ -1393,7 +1393,7 @@ test.describe("Keyboard Navigation", () => {
     }
     const tag = await page.evaluate(() => document.activeElement?.tagName);
     if (tag === "A") {
-      const href = await page.evaluate(() => (document.activeElement as HTMLAnchorElement)?.href);
+      const _href = await page.evaluate(() => (document.activeElement as HTMLAnchorElement)?.href);
       await page.keyboard.press("Enter");
       // Should navigate somewhere
       await page.waitForTimeout(500);

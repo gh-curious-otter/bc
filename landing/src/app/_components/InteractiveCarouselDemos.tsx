@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 
@@ -215,7 +215,7 @@ const AGENTS_STEPS: CarouselStep[] = [
               transition={{ delay: 0.1 }}
               className="text-xs text-muted-foreground border-l-2 border-primary pl-2"
             >
-              📍 Loading project memory: "Zod patterns"
+              📍 Loading project memory: &quot;Zod patterns&quot;
             </motion.div>
             <motion.div
               initial={{ opacity: 0 }}
@@ -244,7 +244,7 @@ const AGENTS_STEPS: CarouselStep[] = [
     render: () => (
       <div className="space-y-4 font-mono text-sm">
         <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          bc agent send engineer-01 "status"
+          bc agent send engineer-01 &quot;status&quot;
         </div>
         <div className="space-y-3">
           <div className="p-4 rounded-lg bg-primary/10 border border-primary/30">
@@ -362,7 +362,7 @@ const CHANNELS_STEPS: CarouselStep[] = [
     render: () => (
       <div className="space-y-4 font-mono text-sm">
         <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          bc channel history #general --search "PR #347"
+          bc channel history #general --search &quot;PR #347&quot;
         </div>
         <div className="space-y-2 p-4 rounded-lg bg-background/50 border border-border/50">
           <div className="text-xs text-muted-foreground">5 results found</div>
@@ -495,15 +495,15 @@ const CRON_STEPS: CarouselStep[] = [
             <span className="text-[var(--terminal-command)]">audit-codebase</span> <br />
             <span className="ml-4">
               <span className="text-accent">--schedule</span>{" "}
-              <span className="text-green-400">"0 2 * * *"</span> <br />
+              <span className="text-green-400">&quot;0 2 * * *&quot;</span> <br />
             </span>
             <span className="ml-4">
               <span className="text-accent">--role</span>{" "}
-              <span className="text-green-400">"qa"</span> <br />
+              <span className="text-green-400">&quot;qa&quot;</span> <br />
             </span>
             <span className="ml-4">
               <span className="text-accent">--task</span>{" "}
-              <span className="text-green-400">"Nightly audit + drift detection"</span>
+              <span className="text-green-400">&quot;Nightly audit + drift detection&quot;</span>
             </span>
           </div>
         </div>
