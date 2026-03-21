@@ -1,12 +1,17 @@
 # bcdb image — Postgres database for bc workspaces
 # Usage: docker build -t bc-bcdb:latest -f docker/Dockerfile.bcdb .
 # Base images pinned — update versions in Dependabot PRs or manually.
+#
+# POSTGRES_PASSWORD must be set at runtime:
+#   docker run -e POSTGRES_PASSWORD=secret bc-bcdb:latest
+#   Or via docker-compose.yml / .env file
 
 FROM postgres:17.4
 
 ENV POSTGRES_USER=bc
-ENV POSTGRES_PASSWORD=bc
 ENV POSTGRES_DB=bc
+# POSTGRES_PASSWORD intentionally not set — must be provided at runtime.
+# See .env.example for documentation.
 
 # Init scripts run on first start (alphabetical order)
 COPY docker/bcdb/init.sql /docker-entrypoint-initdb.d/01-init.sql
