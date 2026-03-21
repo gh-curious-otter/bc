@@ -602,7 +602,7 @@ func runAgentAttach(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Attaching to %s (use Ctrl+b d to detach)...\n", agentName)
-	return mgr.AttachToAgent(agentName)
+	return mgr.AttachToAgent(cmd.Context(), agentName)
 }
 
 func runAgentPeek(cmd *cobra.Command, args []string) error {

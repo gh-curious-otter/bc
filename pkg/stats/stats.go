@@ -2,6 +2,7 @@
 package stats
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -90,7 +91,7 @@ func (s *Stats) refresh(stateDir string) error {
 			return fmt.Errorf("failed to load agents: %w", err)
 		}
 	}
-	_ = mgr.RefreshState() //nolint:errcheck // best-effort refresh
+	_ = mgr.RefreshState(context.Background()) //nolint:errcheck // best-effort refresh
 	s.collectAgentMetrics(mgr)
 
 	return nil
