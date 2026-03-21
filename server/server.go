@@ -204,7 +204,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 
 	// Middleware chain (outermost runs first):
-	// RequestLogger → Recovery → CORS → mux
+	// RateLimit -> RequestLogger -> Recovery -> MaxBodySize -> CORS -> mux
 	var handler http.Handler = mux
 	if cfg.CORS {
 		handler = handlers.CORS(mux)
@@ -212,6 +212,8 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	handler = handlers.MaxBodySize(1 << 20)(handler) // 1MB request body limit
 	handler = handlers.Recovery(handler)
 	handler = handlers.RequestLogger(handler)
+	limiter := handlers.NewRateLimiter(100, 200) // 100 req/s, burst 200
+	handler = handlers.RateLimit(limiter)(handler)
 
 	return &Server{
 		addr:    cfg.Addr,
