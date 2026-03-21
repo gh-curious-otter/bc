@@ -281,6 +281,22 @@ const (
 	StateStopped  State = "stopped"
 )
 
+// validStates is the set of known agent states.
+var validStates = map[State]bool{
+	StateIdle:     true,
+	StateStarting: true,
+	StateWorking:  true,
+	StateDone:     true,
+	StateStuck:    true,
+	StateError:    true,
+	StateStopped:  true,
+}
+
+// IsValidState reports whether s is a known agent state.
+func IsValidState(s string) bool {
+	return validStates[State(s)]
+}
+
 // validTransitions defines allowed state transitions. Internal transitions
 // (e.g. spawn setting starting→idle, stop setting →stopped) bypass this
 // validation and set state directly. This map governs transitions through
@@ -1307,36 +1323,70 @@ func (m *Manager) StopAgent(ctx context.Context, name string) error {
 	return nil
 }
 
-// StopAgentTree stops an agent and all its children recursively.
-func (m *Manager) StopAgentTree(ctx context.Context, name string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	return m.stopAgentTreeLocked(ctx, name)
+// agentTreeEntry holds pre-collected data for stopping an agent in a tree.
+type agentTreeEntry struct {
+	agent *Agent
+	rt    runtime.Backend
+	name  string
 }
 
-// stopAgentTreeLocked stops an agent tree while holding the lock.
-func (m *Manager) stopAgentTreeLocked(ctx context.Context, name string) error {
-	agent, exists := m.agents[name]
-	if !exists {
-		return fmt.Errorf("agent %s not found", name)
+// StopAgentTree stops an agent and all its children recursively.
+func (m *Manager) StopAgentTree(ctx context.Context, name string) error {
+	log.Debug("stopping agent tree", "name", name)
+
+	// Phase 1: global read-lock — collect all agents in the tree and their backends
+	m.mu.RLock()
+	entries, err := m.collectAgentTree(name)
+	m.mu.RUnlock()
+	if err != nil {
+		return err
 	}
 
-	// Stop all children first (depth-first, continue on errors)
-	for _, childID := range agent.Children {
-		_ = m.stopAgentTreeLocked(ctx, childID)
+	// Phase 2: no lock — slow I/O (kill sessions for all agents in the tree)
+	for _, e := range entries {
+		_ = e.rt.KillSession(ctx, e.name) //nolint:errcheck // session might already be dead
 	}
 
-	// Kill this agent's tmux session (ignore error - session might already be dead)
-	_ = m.runtimeForAgent(name).KillSession(ctx, name)
-
+	// Phase 3: global lock — update state for all agents, persist
+	m.mu.Lock()
 	now := time.Now()
-	agent.State = StateStopped
-	agent.StoppedAt = &now
-	agent.UpdatedAt = now
-	agent.Children = []string{} // Clear children since they're stopped
+	for _, e := range entries {
+		e.agent.State = StateStopped
+		e.agent.StoppedAt = &now
+		e.agent.UpdatedAt = now
+		e.agent.Children = []string{} // Clear children since they're stopped
+	}
+	if err := m.saveState(); err != nil {
+		log.Warn("failed to save agent state after tree stop", "error", err)
+	}
+	m.mu.Unlock()
 
 	return nil
+}
+
+// collectAgentTree collects all agents in a tree depth-first. Must be called with m.mu held.
+func (m *Manager) collectAgentTree(name string) ([]agentTreeEntry, error) {
+	agent, exists := m.agents[name]
+	if !exists {
+		return nil, fmt.Errorf("agent %s not found", name)
+	}
+
+	var entries []agentTreeEntry
+	// Collect children first (depth-first)
+	for _, childID := range agent.Children {
+		childEntries, err := m.collectAgentTree(childID)
+		if err != nil {
+			continue // skip missing children
+		}
+		entries = append(entries, childEntries...)
+	}
+	// Then the agent itself
+	entries = append(entries, agentTreeEntry{
+		name:  name,
+		agent: agent,
+		rt:    m.runtimeForAgent(name),
+	})
+	return entries, nil
 }
 
 // cleanStaleWorktree removes a pre-existing git worktree directory that may

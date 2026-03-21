@@ -320,6 +320,10 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
+		if !agent.IsValidState(req.State) {
+			httpError(w, fmt.Sprintf("invalid agent state: %q", req.State), http.StatusBadRequest)
+			return
+		}
 		state := agent.State(req.State)
 		if err := h.svc.Manager().UpdateAgentState(name, state, req.Message); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
