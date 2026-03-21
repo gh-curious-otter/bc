@@ -13,6 +13,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net"
@@ -78,7 +79,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 
 	mux := http.NewServeMux()
 
-	// Health probe
+	// Health probes
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
@@ -86,6 +87,40 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"status":"ok","addr":%q}`, cfg.Addr) //nolint:errcheck // writing to response
+	})
+
+	// Readiness probe — verifies downstream dependencies
+	mux.HandleFunc("/health/ready", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			return
+		}
+		checks := map[string]string{}
+		status := "ok"
+
+		// Check database connectivity
+		if svc.Costs != nil {
+			if _, err := svc.Costs.WorkspaceSummary(r.Context()); err != nil {
+				checks["db"] = "error: " + err.Error()
+				status = "degraded"
+			} else {
+				checks["db"] = "ok"
+			}
+		}
+
+		// Check agent runtime
+		if svc.Agents != nil {
+			checks["agents"] = fmt.Sprintf("%d total", len(svc.Agents.Manager().ListAgents()))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if status != "ok" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+		writeJSON := func(v any) {
+			_ = json.NewEncoder(w).Encode(v) //nolint:errcheck
+		}
+		writeJSON(map[string]any{"status": status, "checks": checks})
 	})
 
 	// SSE event stream
