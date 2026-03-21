@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Dashboard } from './views/Dashboard';
@@ -13,6 +13,16 @@ import { Doctor } from './views/Doctor';
 import { Cron } from './views/Cron';
 import { Secrets } from './views/Secrets';
 import { Workspace } from './views/Workspace';
+
+function NotFound() {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-6">
+      <p className="text-6xl font-bold font-mono text-bc-muted">404</p>
+      <p className="mt-2 text-bc-muted">Page not found</p>
+      <Link to="/" className="mt-4 text-sm text-bc-accent hover:underline">Back to Dashboard</Link>
+    </div>
+  );
+}
 
 export function App() {
   return (
@@ -32,6 +42,7 @@ export function App() {
             <Route path="cron" element={<ErrorBoundary><Cron /></ErrorBoundary>} />
             <Route path="secrets" element={<ErrorBoundary><Secrets /></ErrorBoundary>} />
             <Route path="workspace" element={<ErrorBoundary><Workspace /></ErrorBoundary>} />
+            <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
       </BrowserRouter>

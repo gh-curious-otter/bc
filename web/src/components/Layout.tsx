@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { useEffect } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: '~' },
@@ -16,6 +17,16 @@ const NAV_ITEMS = [
 ] as const;
 
 export function Layout() {
+  const location = useLocation();
+
+  // Dynamic page title (#2150)
+  useEffect(() => {
+    const match = NAV_ITEMS.find((item) =>
+      item.to === '/' ? location.pathname === '/' : location.pathname.startsWith(item.to)
+    );
+    document.title = match ? `${match.label} \u2014 bc` : 'bc';
+  }, [location.pathname]);
+
   return (
     <div className="flex h-screen">
       <nav className="w-48 shrink-0 border-r border-bc-border bg-bc-surface flex flex-col">
@@ -30,7 +41,7 @@ export function Layout() {
                 to={to}
                 end={to === '/'}
                 className={({ isActive }) =>
-                  `flex items-center gap-2 px-4 py-2 text-sm ${
+                  `flex items-center gap-2 px-4 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-inset ${
                     isActive
                       ? 'text-bc-accent bg-bc-bg font-medium'
                       : 'text-bc-muted hover:text-bc-text hover:bg-bc-bg/50'
