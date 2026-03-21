@@ -217,6 +217,41 @@ func (b *Backend) CreateSessionWithCommand(ctx context.Context, name, dir, comma
 // Everything else (auth, plugins, MCP, settings) is managed by Claude inside
 // the container and persists in the .claude volume across restarts.
 func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command string, env map[string]string) error {
+	// Validate workspace path — containers without a workspace mount will fail
+	// with "--worktree requires a git repository" inside the container.
+	if dir == "" {
+		return fmt.Errorf("workspace path is required for container %q: empty dir would leave container with no git state", name)
+	}
+
+	// Verify dir contains a git repository (regular .git dir or worktree .git file)
+	gitPath := filepath.Join(dir, ".git")
+	if _, err := os.Stat(gitPath); err != nil {
+		return fmt.Errorf("workspace %q is not a git repository (no .git found): %w", dir, err)
+	}
+
+	// Validate tool/image consistency — catch mismatches like running "gemini"
+	// command inside a "bc-agent-claude" image (Exit 127).
+	if toolName, ok := env["BC_AGENT_TOOL"]; ok && toolName != "" {
+		image := b.imageForTool(toolName)
+		cmdBin := strings.Fields(command)
+		if len(cmdBin) > 0 {
+			bin := cmdBin[0]
+			// If image is tool-specific (bc-agent-<X>) but command binary doesn't match,
+			// the binary likely doesn't exist in the image.
+			if strings.HasPrefix(image, "bc-agent-") {
+				imageTool := strings.TrimSuffix(strings.TrimPrefix(image, "bc-agent-"), ":latest")
+				if bin != imageTool && bin != "bash" && bin != "sh" {
+					// Only warn if the binary name looks like a different tool
+					for _, knownTool := range []string{"claude", "gemini", "cursor", "aider", "codex", "opencode", "openclaw"} {
+						if bin == knownTool && bin != imageTool {
+							return fmt.Errorf("tool/image mismatch: command %q will not be found in image %q (expected %q binary)", bin, image, imageTool)
+						}
+					}
+				}
+			}
+		}
+	}
+
 	cn := b.containerName(name)
 
 	// Remove any stale container with the same name.

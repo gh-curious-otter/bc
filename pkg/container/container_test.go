@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -278,6 +279,94 @@ func TestImageForTool_RegistryMiss(t *testing.T) {
 	want := "bc-agent-missing-tool:latest"
 	if got != want {
 		t.Errorf("imageForTool(\"missing-tool\") = %q, want %q", got, want)
+	}
+}
+
+func TestCreateSessionWithEnv_EmptyDir(t *testing.T) {
+	b := &Backend{
+		prefix:        "bc-",
+		workspaceHash: "aabbcc",
+		workspacePath: t.TempDir(),
+		cfg:           Config{Image: "bc-agent-claude:latest", Network: "bridge", CPUs: 2.0, MemoryMB: 2048},
+		logCancels:    make(map[string]context.CancelFunc),
+	}
+
+	err := b.CreateSessionWithEnv(context.Background(), "test-agent", "", "bash", nil)
+	if err == nil {
+		t.Fatal("expected error for empty workspace dir")
+	}
+	if !strings.Contains(err.Error(), "workspace path is required") {
+		t.Errorf("error = %q, want to contain 'workspace path is required'", err.Error())
+	}
+}
+
+func TestCreateSessionWithEnv_NoGitDir(t *testing.T) {
+	dir := t.TempDir() // temp dir with no .git
+	b := &Backend{
+		prefix:        "bc-",
+		workspaceHash: "aabbcc",
+		workspacePath: dir,
+		cfg:           Config{Image: "bc-agent-claude:latest", Network: "bridge", CPUs: 2.0, MemoryMB: 2048},
+		logCancels:    make(map[string]context.CancelFunc),
+	}
+
+	err := b.CreateSessionWithEnv(context.Background(), "test-agent", dir, "bash", nil)
+	if err == nil {
+		t.Fatal("expected error for non-git workspace dir")
+	}
+	if !strings.Contains(err.Error(), "not a git repository") {
+		t.Errorf("error = %q, want to contain 'not a git repository'", err.Error())
+	}
+}
+
+func TestCreateSessionWithEnv_ToolImageMismatch(t *testing.T) {
+	// Create a dir with .git so workspace validation passes
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	b := &Backend{
+		prefix:        "bc-",
+		workspaceHash: "aabbcc",
+		workspacePath: dir,
+		cfg:           Config{Image: "bc-agent-claude:latest", Network: "bridge", CPUs: 2.0, MemoryMB: 2048},
+		logCancels:    make(map[string]context.CancelFunc),
+	}
+
+	// Command starts with "gemini" but tool resolves to claude image
+	env := map[string]string{"BC_AGENT_TOOL": "claude"}
+	err := b.CreateSessionWithEnv(context.Background(), "test-agent", dir, "gemini --some-flag", env)
+	if err == nil {
+		t.Fatal("expected error for tool/image mismatch")
+	}
+	if !strings.Contains(err.Error(), "tool/image mismatch") {
+		t.Errorf("error = %q, want to contain 'tool/image mismatch'", err.Error())
+	}
+}
+
+func TestCreateSessionWithEnv_ToolImageMatch(t *testing.T) {
+	// Create a dir with .git
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	b := &Backend{
+		prefix:        "bc-",
+		workspaceHash: "aabbcc",
+		workspacePath: dir,
+		cfg:           Config{Image: "bc-agent-claude:latest", Network: "bridge", CPUs: 2.0, MemoryMB: 2048},
+		logCancels:    make(map[string]context.CancelFunc),
+	}
+
+	// Command starts with "claude" matching the claude image — should pass validation
+	// (will fail at docker run since docker isn't available, but that's expected)
+	env := map[string]string{"BC_AGENT_TOOL": "claude"}
+	err := b.CreateSessionWithEnv(context.Background(), "test-agent", dir, "claude --tmux", env)
+	// Should NOT fail with tool/image mismatch — may fail with docker error
+	if err != nil && strings.Contains(err.Error(), "tool/image mismatch") {
+		t.Errorf("should not get tool/image mismatch for matching tool/image, got: %v", err)
 	}
 }
 
