@@ -398,10 +398,10 @@ type Manager struct {
 	agents           map[string]*Agent
 	store            *SQLiteStore               // SQLite-backed agent persistence
 	backends         map[string]runtime.Backend // keyed by "tmux", "docker"
-	defaultBackend   string                     // "tmux" or "docker"
+	agentLocks       map[string]*sync.Mutex     // per-agent locks for slow I/O operations
 	providerRegistry *provider.Registry
-
-	stateDir string
+	defaultBackend   string // "tmux" or "docker"
+	stateDir         string
 
 	// Agent command (e.g., "claude" or "claude --dangerously-skip-permissions")
 	agentCmd string
@@ -416,8 +416,7 @@ type Manager struct {
 	// If zero, DefaultBootstrapDelay is used.
 	BootstrapDelay time.Duration
 
-	agentLocks map[string]*sync.Mutex // per-agent locks for slow I/O operations
-	mu         sync.RWMutex           // protects maps (agents, agentLocks) only
+	mu sync.RWMutex // protects maps (agents, agentLocks) only
 }
 
 // getAgentLock returns the per-agent mutex, creating it if needed.
@@ -1130,18 +1129,6 @@ func (m *Manager) removeFromParent(name string) {
 	}
 	parent.Children = newChildren
 	parent.UpdatedAt = time.Now()
-}
-
-// captureSessionIDLocked reads the agent's pane output and extracts the provider
-// session ID (e.g. Claude's "claude --resume <uuid>" line).
-// Must be called while holding m.mu (any variant).
-// Returns "" if the tool does not support resume or no session ID is found.
-func (m *Manager) captureSessionIDLocked(ctx context.Context, name string) string {
-	ag, exists := m.agents[name]
-	if !exists {
-		return ""
-	}
-	return m.captureSessionIDForAgent(ctx, ag, m.runtimeForAgent(name))
 }
 
 // captureSessionIDForAgent extracts a session ID from the agent's output.

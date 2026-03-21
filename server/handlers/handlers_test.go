@@ -88,6 +88,7 @@ func TestHealthEndpoint(t *testing.T) {
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/health")
+	defer func() { _ = resp.Body.Close() }()
 	assertStatus(t, resp, http.StatusOK)
 	assertContentType(t, resp, "application/json")
 
@@ -105,6 +106,7 @@ func TestHealthReadyEndpoint(t *testing.T) {
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/health/ready")
+	defer func() { _ = resp.Body.Close() }()
 	assertStatus(t, resp, http.StatusOK)
 	assertContentType(t, resp, "application/json")
 
@@ -140,6 +142,7 @@ func TestHealthMethodNotAllowed(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			resp := doRequest(t, tt.method, ts.URL+tt.path, "application/json", "")
+			defer func() { _ = resp.Body.Close() }()
 			assertStatus(t, resp, http.StatusMethodNotAllowed)
 			body := readJSON(t, resp)
 			if _, ok := body["error"]; !ok {
@@ -297,6 +300,7 @@ func TestHealthResponseFields(t *testing.T) {
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/health")
+	defer func() { _ = resp.Body.Close() }()
 	body := readJSON(t, resp)
 
 	if _, ok := body["status"]; !ok {
@@ -312,6 +316,7 @@ func TestHealthReadyResponseStructure(t *testing.T) {
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/health/ready")
+	defer func() { _ = resp.Body.Close() }()
 	body := readJSON(t, resp)
 
 	if _, ok := body["status"]; !ok {
@@ -337,6 +342,7 @@ func TestMiddlewareHelpers(t *testing.T) {
 		defer ts.Close()
 
 		resp := post(t, ts.URL+"/health", "application/json", "")
+		defer func() { _ = resp.Body.Close() }()
 		assertStatus(t, resp, http.StatusMethodNotAllowed)
 		body := readJSON(t, resp)
 		errMsg, ok := body["error"].(string)
@@ -370,6 +376,7 @@ func TestMultipleHealthCallsConsistent(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		resp := get(t, ts.URL+"/health")
+		defer func() { _ = resp.Body.Close() }()
 		assertStatus(t, resp, http.StatusOK)
 		body := readJSON(t, resp)
 		if body["status"] != "ok" {

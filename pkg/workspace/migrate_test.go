@@ -255,7 +255,7 @@ func TestMigrateV1ToV2_AgentFilesCount(t *testing.T) {
 	}
 }
 
-func TestMigrateV1ToV2_ChannelJSONDetected(t *testing.T) {
+func TestMigrateV1ToV2_ChannelJSONNotMigrated(t *testing.T) {
 	dir := makeV1Workspace(t, workspace.V1Config{Name: "proj", Provider: "claude"})
 	stateDir := filepath.Join(dir, ".bc")
 	if err := os.WriteFile(filepath.Join(stateDir, "channels.json"), []byte(`[]`), 0600); err != nil {
@@ -266,8 +266,9 @@ func TestMigrateV1ToV2_ChannelJSONDetected(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MigrateV1ToV2: %v", err)
 	}
-	if !result.ChannelJSON {
-		t.Error("ChannelJSON should be true when channels.json is present")
+	// Channel JSON migration was removed; the flag should be false.
+	if result.ChannelJSON {
+		t.Error("ChannelJSON should be false — channel JSON migration is no longer performed during v1→v2 migration")
 	}
 }
 

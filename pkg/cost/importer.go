@@ -100,8 +100,8 @@ func (imp *Importer) importFile(ctx context.Context, path string) (int, error) {
 
 	// Filter to new entries only
 	type importEntry struct {
-		entry   SessionEntry
 		agentID string
+		entry   SessionEntry
 		costUSD float64
 	}
 	var toInsert []importEntry

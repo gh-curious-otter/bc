@@ -41,8 +41,8 @@ const defaultAddr = "127.0.0.1:9374"
 // Config holds server configuration.
 type Config struct {
 	Addr       string // default "127.0.0.1:9374"
-	CORS       bool   // enable permissive CORS headers (safe for loopback)
 	CORSOrigin string // allowed origin (default "*")
+	CORS       bool   // enable permissive CORS headers (safe for loopback)
 }
 
 // DefaultConfig returns the default server configuration.

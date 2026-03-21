@@ -142,7 +142,7 @@ func Gzip(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		defer gz.Close()
+		defer func() { _ = gz.Close() }()
 		w.Header().Set("Content-Encoding", "gzip")
 		w.Header().Set("Vary", "Accept-Encoding")
 		w.Header().Del("Content-Length")

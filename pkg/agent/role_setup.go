@@ -25,6 +25,7 @@ import (
 //   - .claude/agents/*.md    ← subagent definitions
 //   - .claude/rules/*.md     ← topic-specific rules
 //   - REVIEW.md              ← code review checklist
+//
 // SetupAgentFromRoleWithRuntime sets up agent workspace files for the given role
 // and runtime backend. Docker agents skip stdio-transport MCP servers (unreachable).
 func SetupAgentFromRoleWithRuntime(workspacePath, agentName, roleName, targetDir, runtimeBackend string) error {
