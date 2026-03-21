@@ -63,7 +63,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rpuneet/bc/config"
 	"github.com/rpuneet/bc/pkg/container"
 	"github.com/rpuneet/bc/pkg/db"
 	"github.com/rpuneet/bc/pkg/log"
@@ -76,6 +75,17 @@ import (
 
 // MaxAgentNameLength is the maximum allowed length for an agent name.
 const MaxAgentNameLength = 64
+
+// DefaultSessionPrefix is the default tmux session prefix when no workspace
+// config overrides it.
+const DefaultSessionPrefix = "bc-"
+
+// DefaultProvider is the default AI provider when no workspace config overrides it.
+const DefaultProvider = "claude"
+
+// DefaultMaxLogBytes is the default max log file size (1 MB) when no workspace
+// config overrides it.
+const DefaultMaxLogBytes int64 = 1048576
 
 // IsValidAgentName validates that agent names contain only alphanumeric characters, hyphens, and underscores,
 // and are at most MaxAgentNameLength characters long.
@@ -424,11 +434,33 @@ type Manager struct {
 	// Workspace path for env vars
 	workspacePath string
 
+	// maxLogBytes is the maximum log file size before truncation.
+	// Sourced from workspace config (ws.Config.Logs.MaxBytes).
+	maxLogBytes int64
+
 	// BootstrapDelay is the time to wait before sending bootstrap prompts.
 	// If zero, DefaultBootstrapDelay is used.
 	BootstrapDelay time.Duration
 
 	mu sync.RWMutex // protects maps (agents, agentLocks) only
+}
+
+// ApplyWorkspaceConfig applies workspace configuration overrides to the manager.
+// This should be called after construction when workspace config is available.
+func (m *Manager) ApplyWorkspaceConfig(cfg *workspace.Config) {
+	if cfg == nil {
+		return
+	}
+	if cfg.Logs.MaxBytes > 0 {
+		m.maxLogBytes = cfg.Logs.MaxBytes
+	}
+	if cfg.Providers.Default != "" {
+		cmd, tool := defaultAgentCmd(cfg.Providers.Default)
+		if cmd != "" {
+			m.agentCmd = cmd
+			m.defaultTool = tool
+		}
+	}
 }
 
 // SetOnStateChange registers a callback invoked whenever an agent's state
@@ -478,8 +510,8 @@ func (m *Manager) runtimeForAgent(name string) runtime.Backend {
 
 // NewManager creates a new agent manager with workspace-scoped tmux sessions.
 func NewManager(stateDir string) *Manager {
-	cmd, tool := defaultAgentCmd()
-	tmuxBe := runtime.NewTmuxBackend(tmux.NewManager(config.Tmux.SessionPrefix))
+	cmd, tool := defaultAgentCmd(DefaultProvider)
+	tmuxBe := runtime.NewTmuxBackend(tmux.NewManager(DefaultSessionPrefix))
 	return &Manager{
 		agents:           make(map[string]*Agent),
 		agentLocks:       make(map[string]*sync.Mutex),
@@ -489,14 +521,15 @@ func NewManager(stateDir string) *Manager {
 		stateDir:         stateDir,
 		agentCmd:         cmd,
 		defaultTool:      tool,
+		maxLogBytes:      DefaultMaxLogBytes,
 	}
 }
 
 // NewWorkspaceManager creates an agent manager scoped to a workspace.
 // Session names will be unique per workspace to avoid collisions.
 func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
-	cmd, tool := defaultAgentCmd()
-	tmuxBe := runtime.NewTmuxBackend(tmux.NewWorkspaceManager(config.Tmux.SessionPrefix, workspacePath))
+	cmd, tool := defaultAgentCmd(DefaultProvider)
+	tmuxBe := runtime.NewTmuxBackend(tmux.NewWorkspaceManager(DefaultSessionPrefix, workspacePath))
 	return &Manager{
 		agents:           make(map[string]*Agent),
 		agentLocks:       make(map[string]*sync.Mutex),
@@ -507,17 +540,18 @@ func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 		agentCmd:         cmd,
 		defaultTool:      tool,
 		workspacePath:    workspacePath,
+		maxLogBytes:      DefaultMaxLogBytes,
 	}
 }
 
 // NewWorkspaceManagerWithRuntime creates an agent manager with a specific runtime backend.
 // rtName should be "docker" or "tmux".
 func NewWorkspaceManagerWithRuntime(stateDir, workspacePath string, rt runtime.Backend, rtName string) *Manager {
-	cmd, tool := defaultAgentCmd()
+	cmd, tool := defaultAgentCmd(DefaultProvider)
 	bes := map[string]runtime.Backend{rtName: rt}
 	// Always register a tmux backend so agents with RuntimeBackend="tmux" work
 	if rtName != "tmux" {
-		bes["tmux"] = runtime.NewTmuxBackend(tmux.NewWorkspaceManager(config.Tmux.SessionPrefix, workspacePath))
+		bes["tmux"] = runtime.NewTmuxBackend(tmux.NewWorkspaceManager(DefaultSessionPrefix, workspacePath))
 	}
 	return &Manager{
 		agents:           make(map[string]*Agent),
@@ -529,20 +563,20 @@ func NewWorkspaceManagerWithRuntime(stateDir, workspacePath string, rt runtime.B
 		agentCmd:         cmd,
 		defaultTool:      tool,
 		workspacePath:    workspacePath,
+		maxLogBytes:      DefaultMaxLogBytes,
 	}
 }
 
 // defaultAgentCmd returns the command and tool name for the default provider.
-func defaultAgentCmd() (string, string) {
-	name := config.Providers.Default
-	if name == "" {
+func defaultAgentCmd(defaultProvider string) (string, string) {
+	if defaultProvider == "" {
 		return "", ""
 	}
-	p, ok := provider.DefaultRegistry.Get(name)
+	p, ok := provider.DefaultRegistry.Get(defaultProvider)
 	if !ok {
 		return "", ""
 	}
-	return p.Command(), name
+	return p.Command(), defaultProvider
 }
 
 // getAgentCommand looks up the command for a tool from the manager's provider registry.
@@ -847,7 +881,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 
 	// Resume log streaming
 	if existing.LogFile != "" {
-		truncateLogFile(existing.LogFile, config.Logs.MaxBytes)
+		truncateLogFile(existing.LogFile, m.maxLogBytes)
 		if pipeErr := rt.PipePane(ctx, name, existing.LogFile); pipeErr != nil {
 			log.Warn("failed to resume pipe-pane", "agent", name, "error", pipeErr)
 		}
@@ -1085,7 +1119,7 @@ func (m *Manager) setupLogPipe(ctx context.Context, name, workspace string) stri
 	logPath := filepath.Join(logsDir, name+".log")
 
 	// Truncate if over max size
-	truncateLogFile(logPath, config.Logs.MaxBytes)
+	truncateLogFile(logPath, m.maxLogBytes)
 
 	if err := m.runtimeForAgent(name).PipePane(ctx, name, logPath); err != nil {
 		log.Warn("failed to start pipe-pane", "agent", name, "error", err)

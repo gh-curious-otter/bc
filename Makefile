@@ -62,8 +62,8 @@ build-all: build build-tui build-bcd build-landing ## Build everything (bc, bcd,
 install: build ## Install bc to $GOPATH/bin
 	cp $(BUILD_DIR)/bc $(shell $(GO) env GOPATH)/bin/
 
-gen: ## Generate config code from config.toml
-	$(GO) generate ./...
+gen: ## Run go generate (no-op, kept for compatibility)
+	@true
 
 deps: ## Download and tidy dependencies
 	$(GO) mod download
@@ -114,7 +114,7 @@ check-all: check lint-tui test-tui lint-web ## Run all checks (Go + TUI + web)
 
 ci-local: ## Run full CI pipeline locally (replaces GitHub Actions when billing exhausted)
 	@echo "=== CI Local Pipeline ==="
-	@echo "--- Step 1: Generate ---" && $(GO) generate ./...
+	@echo "--- Step 1: Generate ---" && echo "skipped (no generators)"
 	@echo "--- Step 2: Format ---" && gofmt -s -l $$(find . -name '*.go' -not -path './.bc/*' -not -path './vendor/*') | (grep . && echo "FAIL: files need formatting" && exit 1 || echo "PASS")
 	@echo "--- Step 3: Vet ---" && $(GO) vet ./...
 	@echo "--- Step 4: Lint ---" && golangci-lint run ./...
