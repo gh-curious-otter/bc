@@ -173,6 +173,76 @@ function CreateAgentForm({ onCreated }: { onCreated: () => void }) {
   );
 }
 
+// --- Inline Rename ---
+
+function InlineAgentName({
+  agent,
+  onRenamed,
+}: {
+  agent: Agent;
+  onRenamed: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [newName, setNewName] = useState(agent.name);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === agent.name) {
+      setEditing(false);
+      setNewName(agent.name);
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.renameAgent(agent.name, trimmed);
+      setEditing(false);
+      onRenamed();
+    } catch {
+      setNewName(agent.name);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <input
+        type="text"
+        value={newName}
+        onChange={(e) => setNewName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleSave();
+          if (e.key === "Escape") {
+            setEditing(false);
+            setNewName(agent.name);
+          }
+        }}
+        onBlur={handleSave}
+        disabled={saving}
+        autoFocus
+        onClick={(e) => e.stopPropagation()}
+        className="px-1 py-0.5 text-sm font-medium rounded border border-bc-accent bg-bc-bg text-bc-fg focus:outline-none focus:ring-1 focus:ring-bc-accent w-32"
+        aria-label="Rename agent"
+      />
+    );
+  }
+
+  return (
+    <span
+      className="font-medium cursor-pointer hover:text-bc-accent transition-colors"
+      onClick={(e) => {
+        e.stopPropagation();
+        setEditing(true);
+      }}
+      title="Click to rename"
+    >
+      {agent.name}
+    </span>
+  );
+}
+
 // --- Agent Action Buttons ---
 
 function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
@@ -288,6 +358,19 @@ export function Agents() {
   const navigate = useNavigate();
 
   const [peekAgent, setPeekAgent] = useState<string | null>(null);
+  const [stoppingAll, setStoppingAll] = useState(false);
+
+  const handleStopAll = async () => {
+    setStoppingAll(true);
+    try {
+      await api.stopAllAgents();
+      refresh();
+    } catch {
+      // transient error; list will refresh
+    } finally {
+      setStoppingAll(false);
+    }
+  };
 
   // Refresh on agent lifecycle events via SSE
   useEffect(() => {
@@ -361,7 +444,23 @@ export function Agents() {
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Agents</h1>
-        <span className="text-sm text-bc-muted">{agentList.length} agents</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-bc-muted">
+            {agentList.length} agents
+          </span>
+          {agentList.some(
+            (a) => a.state !== "stopped" && a.state !== "error",
+          ) && (
+            <button
+              onClick={handleStopAll}
+              disabled={stoppingAll}
+              className="px-3 py-1.5 text-sm rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 disabled:opacity-50 transition-colors focus:outline-none focus:ring-2 focus:ring-red-400"
+              aria-label="Stop all agents"
+            >
+              {stoppingAll ? "Stopping..." : "Stop All"}
+            </button>
+          )}
+        </div>
       </div>
 
       <CreateAgentForm onCreated={refresh} />
@@ -411,7 +510,7 @@ export function Agents() {
                     className="border-b border-bc-border/50 cursor-pointer hover:bg-bc-surface transition-colors duration-150"
                   >
                     <td className="px-4 py-2">
-                      <span className="font-medium">{a.name}</span>
+                      <InlineAgentName agent={a} onRenamed={refresh} />
                     </td>
                     <td className="px-4 py-2">
                       <span className="text-bc-muted">{a.role}</span>
