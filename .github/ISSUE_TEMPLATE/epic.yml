@@ -68,21 +68,22 @@ body:
           - Sub-issues in priority order
         - Get approval before implementing
 
-        **Phase 2: Break Down**
-        - Create sub-issues in dependency order
-        - Tag each sub-issue as Small/Medium/Large
-        - Each sub-issue should be Small (single PR) when possible
+        **Phase 2: Break Down (recursive decomposition)**
+        - Break into sub-issues, tag each with size (quick/small/medium/large)
+        - Each sub-issue follows the workflow for its size
+        - LARGE sub-issues get their own design doc → MEDIUM → SMALL
+        - Target: every leaf task is SMALL (single PR)
 
         **Phase 3: Execute**
-        - Work sub-issues in dependency order
-        - Each sub-issue: branch → implement → `make ci-local` → PR → `/code-review` → merge
+        - Assign sub-issues to subagents (each follows SMALL workflow)
+        - `make ci-local` as background task per PR
+        - Open PR → `/code-review` → wait for ci-local: pass → merge, fail → repeat
         - Update this epic's checklist as sub-issues close
 
         ### Quality Gates
 
         ```bash
         make ci-local       # Full CI pipeline (go + ts)
-        make ci-local          # Quality gate (go + ts)
         make ci-docker      # Build all Docker images
         ```
 

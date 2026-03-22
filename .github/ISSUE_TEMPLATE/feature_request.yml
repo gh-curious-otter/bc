@@ -77,29 +77,36 @@ body:
         make ci-local       # Full CI pipeline locally
         ```
 
-        ### Workflow by Size
+        ### Workflow by Size (recursive — each level decomposes into the next)
 
         **QUICK** — < 100 LOC, trivial change
-        - Branch, implement, `make ci-local`, PR, merge. No subagents needed.
+        - Branch, implement, `make ci-local` (MUST PASS), PR, review (using plugins), merge.
+        - No subagents needed.
 
         **SMALL** — < 1000 LOC, single PR
         - Branch: `feat/<issue-number>-<short-desc>`
-        - Implement with tests
-        - `make ci-local` must pass
-        - Open PR → `/code-review` → merge
+        - Implement and test
+        - `make ci-local` as background task
+        - Open PR → `/code-review` → wait for ci-local: pass → merge, fail → fix and repeat
 
-        **MEDIUM** — 2-5 PRs
-        - Break into sub-issues with dependency order
-        - Each sub-issue follows SMALL workflow
-        - Merge in dependency order
+        **MEDIUM** — 2-5 PRs, decomposes into SMALL
+        - Break into todos with dependency order
+        - Assign each todo to a subagent (each follows SMALL workflow)
+        - Merge subagent branches to `feat/<issue-number>-<short-desc>`
+        - Open PR → `/code-review` → wait for ci-local: pass → merge, fail → repeat
 
-        **LARGE** — needs design doc
-        - Write design doc as GitHub comment first
-        - Get approval before implementing
-        - Then follow MEDIUM workflow
+        **LARGE** — needs design doc, decomposes into MEDIUM
+        - Use 5 subagents to thoroughly review codebase, related PRs, issues
+        - Use 5 subagents to research the internet for related information
+        - Write crisp, detailed design doc as GitHub comment
+        - Get approval (STUCK until approved)
+        - Break into MEDIUM sub-issues → follow MEDIUM workflow
 
-        **XLARGE** — needs scoping
-        - Do NOT implement. Add concrete sub-issues with acceptance criteria first.
+        **XLARGE** — needs scoping, decomposes into LARGE
+        - Do not implement directly
+        - Use 10 agents to research codebase and internet, add comment with findings
+        - Break into LARGE sub-issues with clear scope
+        - Each LARGE sub-issue follows LARGE workflow (design doc → MEDIUM → SMALL)
 
         ### Key Commands
 
