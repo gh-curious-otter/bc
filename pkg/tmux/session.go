@@ -159,6 +159,13 @@ func NewDefaultManager() *Manager {
 	}
 }
 
+// WithExecCommand returns a copy of the Manager with a custom command executor.
+// This is primarily used for testing to mock subprocess calls.
+func (m *Manager) WithExecCommand(fn func(string, ...string) *exec.Cmd) *Manager {
+	m.execCommand = fn
+	return m
+}
+
 // SessionName returns the full session name with prefix (and workspace hash if set).
 func (m *Manager) SessionName(name string) string {
 	if m.workspaceHash != "" {
