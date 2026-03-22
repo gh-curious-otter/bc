@@ -1,10 +1,11 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
 import type {
   CostSummary,
   AgentCostSummary,
   ModelCostSummary,
   DailyCost,
+  BudgetStatus,
 } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
@@ -16,6 +17,7 @@ interface CostData {
   byAgent: AgentCostSummary[];
   byModel: ModelCostSummary[];
   daily: DailyCost[];
+  budgets: BudgetStatus[];
 }
 
 function CostCard({
@@ -186,6 +188,279 @@ function DailyChart({ daily }: { daily: DailyCost[] }) {
   );
 }
 
+type FormStatus =
+  | { type: "idle" }
+  | { type: "saving" }
+  | { type: "success" }
+  | { type: "error"; message: string };
+
+function AddBudgetForm({ onCreated }: { onCreated: () => void }) {
+  const [scope, setScope] = useState("workspace");
+  const [period, setPeriod] = useState("monthly");
+  const [limitUsd, setLimitUsd] = useState("");
+  const [alertAt, setAlertAt] = useState("");
+  const [hardStop, setHardStop] = useState(false);
+  const [status, setStatus] = useState<FormStatus>({ type: "idle" });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const limit = parseFloat(limitUsd);
+    if (!scope.trim() || isNaN(limit) || limit <= 0) return;
+
+    setStatus({ type: "saving" });
+    try {
+      const budget: {
+        scope: string;
+        period: string;
+        limit_usd: number;
+        alert_at?: number;
+        hard_stop?: boolean;
+      } = {
+        scope: scope.trim(),
+        period,
+        limit_usd: limit,
+        hard_stop: hardStop,
+      };
+      const alert = parseFloat(alertAt);
+      if (!isNaN(alert) && alert > 0) {
+        budget.alert_at = alert;
+      }
+      await api.createCostBudget(budget);
+      setScope("workspace");
+      setPeriod("monthly");
+      setLimitUsd("");
+      setAlertAt("");
+      setHardStop(false);
+      setStatus({ type: "success" });
+      onCreated();
+      setTimeout(() => setStatus({ type: "idle" }), 2000);
+    } catch (err) {
+      setStatus({
+        type: "error",
+        message: err instanceof Error ? err.message : "Failed to create budget",
+      });
+      setTimeout(() => setStatus({ type: "idle" }), 4000);
+    }
+  };
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="rounded border border-bc-border bg-bc-surface p-4 space-y-3"
+    >
+      <h3 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
+        Add Budget
+      </h3>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="space-y-1">
+          <label className="block text-sm text-bc-text">Scope</label>
+          <select
+            value={scope}
+            onChange={(e) => setScope(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+          >
+            <option value="workspace">Workspace</option>
+            <option value="agent">Agent</option>
+            <option value="team">Team</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="block text-sm text-bc-text">Period</label>
+          <select
+            value={period}
+            onChange={(e) => setPeriod(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+          >
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="block text-sm text-bc-text">Limit (USD)</label>
+          <input
+            type="number"
+            step="0.01"
+            min="0.01"
+            value={limitUsd}
+            onChange={(e) => setLimitUsd(e.target.value)}
+            placeholder="10.00"
+            className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="space-y-1">
+          <label className="block text-sm text-bc-text">Alert At (USD)</label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={alertAt}
+            onChange={(e) => setAlertAt(e.target.value)}
+            placeholder="8.00"
+            className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+          />
+        </div>
+        <div className="flex items-end pb-1">
+          <label className="flex items-center gap-2 text-sm text-bc-text cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hardStop}
+              onChange={(e) => setHardStop(e.target.checked)}
+              className="rounded border-bc-border"
+            />
+            Hard stop at limit
+          </label>
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          type="submit"
+          disabled={
+            status.type === "saving" ||
+            !scope.trim() ||
+            !limitUsd ||
+            parseFloat(limitUsd) <= 0
+          }
+          className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+        >
+          {status.type === "saving" ? "Adding..." : "Add Budget"}
+        </button>
+        {status.type === "success" && (
+          <span className="text-xs text-green-400">Budget added</span>
+        )}
+        {status.type === "error" && (
+          <span className="text-xs text-red-400">{status.message}</span>
+        )}
+      </div>
+    </form>
+  );
+}
+
+function BudgetDeleteButton({
+  scope,
+  onDeleted,
+}: {
+  scope: string;
+  onDeleted: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await api.deleteCostBudget(scope);
+      onDeleted();
+    } catch {
+      setDeleting(false);
+      setConfirming(false);
+    }
+  };
+
+  if (confirming) {
+    return (
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={deleting}
+          className="px-2 py-1 rounded bg-red-600 text-white text-xs font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
+        >
+          {deleting ? "Deleting..." : "Confirm"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setConfirming(false)}
+          disabled={deleting}
+          className="px-2 py-1 rounded border border-bc-border text-bc-muted text-xs hover:text-bc-text transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setConfirming(true)}
+      className="px-2 py-1 rounded border border-bc-border text-bc-muted text-xs hover:text-red-400 hover:border-red-400/50 transition-colors"
+    >
+      Delete
+    </button>
+  );
+}
+
+function BudgetList({
+  budgets,
+  onDeleted,
+}: {
+  budgets: BudgetStatus[];
+  onDeleted: () => void;
+}) {
+  if (budgets.length === 0) {
+    return (
+      <div className="text-sm text-bc-muted py-4 text-center">
+        No budgets configured. Add one using the form above.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {budgets.map((b) => {
+        const usedPct =
+          b.limit_usd > 0 ? Math.min((b.alert_at / b.limit_usd) * 100, 100) : 0;
+        return (
+          <div
+            key={b.scope}
+            className="rounded border border-bc-border bg-bc-surface p-4"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-3">
+                <span className="font-medium text-sm">{b.scope}</span>
+                <span className="text-xs px-2 py-0.5 rounded bg-bc-border/40 text-bc-muted">
+                  {b.period}
+                </span>
+                {b.hard_stop && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400">
+                    Hard Stop
+                  </span>
+                )}
+              </div>
+              <BudgetDeleteButton scope={b.scope} onDeleted={onDeleted} />
+            </div>
+            <div className="flex items-center gap-3 text-sm mb-2">
+              <span className="text-bc-muted">
+                Limit:{" "}
+                <span className="text-bc-text">${b.limit_usd.toFixed(2)}</span>
+              </span>
+              {b.alert_at > 0 && (
+                <span className="text-bc-muted">
+                  Alert at:{" "}
+                  <span className="text-bc-text">${b.alert_at.toFixed(2)}</span>
+                </span>
+              )}
+            </div>
+            <div className="h-2 w-full rounded-full bg-bc-border/40 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${progressColor(usedPct)}`}
+                style={{ width: `${Math.max(usedPct, 1)}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-xs text-bc-muted mt-1">
+              <span>Alert threshold: {usedPct.toFixed(0)}% of limit</span>
+              <span>${b.limit_usd.toFixed(2)}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function Costs() {
   const fetcher = useCallback(async (): Promise<CostData> => {
     let summary: CostSummary = {
@@ -198,20 +473,23 @@ export function Costs() {
     let byAgent: AgentCostSummary[] = [];
     let byModel: ModelCostSummary[] = [];
     let daily: DailyCost[] = [];
+    let budgets: BudgetStatus[] = [];
 
     const results = await Promise.allSettled([
       api.getCostSummary(),
       api.getCostByAgent(),
       api.getCostByModel(),
       api.getCostDaily(14),
+      api.getCostBudgets(),
     ]);
 
     if (results[0].status === "fulfilled") summary = results[0].value;
     if (results[1].status === "fulfilled") byAgent = results[1].value;
     if (results[2].status === "fulfilled") byModel = results[2].value;
     if (results[3].status === "fulfilled") daily = results[3].value;
+    if (results[4].status === "fulfilled") budgets = results[4].value;
 
-    return { summary, byAgent, byModel, daily };
+    return { summary, byAgent, byModel, daily, budgets };
   }, []);
 
   const { data, loading, error, refresh, timedOut } = usePolling(
@@ -317,6 +595,17 @@ export function Costs() {
         </h2>
         <div className="rounded border border-bc-border bg-bc-surface p-4">
           <ModelBreakdown models={data.byModel} />
+        </div>
+      </section>
+
+      {/* Budgets */}
+      <section>
+        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide mb-3">
+          Budgets
+        </h2>
+        <AddBudgetForm onCreated={refresh} />
+        <div className="mt-4">
+          <BudgetList budgets={data.budgets ?? []} onDeleted={refresh} />
         </div>
       </section>
     </div>

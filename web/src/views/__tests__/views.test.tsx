@@ -121,6 +121,7 @@ describe("Channels", () => {
 describe("Costs", () => {
   it("renders skeleton loading then cost data", async () => {
     fetchMock.mockImplementation((url: string) => {
+      if (url.includes("/costs/budgets")) return jsonResponse([]);
       if (url.includes("/costs/models")) return jsonResponse([]);
       if (url.includes("/costs/daily")) return jsonResponse([]);
       if (url.includes("/costs/agents")) return jsonResponse([]);
