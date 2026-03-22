@@ -42,6 +42,12 @@ type Client struct {
 	MCP        *MCPClient
 	Tools      *ToolsClient
 	Roles      *RolesClient
+	Secrets    *SecretsClient
+	Teams      *TeamsClient
+	Daemons    *DaemonsClient
+	Doctor     *DoctorClient
+	Settings   *SettingsClient
+	Stats      *StatsClient
 	BaseURL    string
 }
 
@@ -68,6 +74,12 @@ func New(addr string) *Client {
 	c.MCP = &MCPClient{client: c}
 	c.Tools = &ToolsClient{client: c}
 	c.Roles = &RolesClient{client: c}
+	c.Secrets = &SecretsClient{client: c}
+	c.Teams = &TeamsClient{client: c}
+	c.Daemons = &DaemonsClient{client: c}
+	c.Doctor = &DoctorClient{client: c}
+	c.Settings = &SettingsClient{client: c}
+	c.Stats = &StatsClient{client: c}
 
 	return c
 }
