@@ -11,14 +11,21 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"path/filepath"
+
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/client"
+	"github.com/rpuneet/bc/pkg/cost"
 	"github.com/rpuneet/bc/pkg/cron"
 	"github.com/rpuneet/bc/pkg/daemon"
+	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/mcp"
+	"github.com/rpuneet/bc/pkg/secret"
 	"github.com/rpuneet/bc/pkg/shutdown"
 	"github.com/rpuneet/bc/pkg/team"
+	"github.com/rpuneet/bc/pkg/tool"
 	bcdserver "github.com/rpuneet/bc/server"
 	bcws "github.com/rpuneet/bc/server/ws"
 )
@@ -233,17 +240,80 @@ func runDaemonStart(cmd *cobra.Command, _ []string) error {
 		fmt.Printf("WARNING: cron store unavailable (%v) — cron API will be disabled\n", cronErr)
 	}
 
+	// Cost tracking
+	var costStore *cost.Store
+	cs := cost.NewStore(ws.RootDir)
+	if costErr := cs.Open(); costErr != nil {
+		log.Warn("cost store unavailable", "error", costErr)
+	} else {
+		costStore = cs
+	}
+
+	var costImporter *cost.Importer
+	if costStore != nil {
+		costImporter = cost.NewImporter(costStore, ws.RootDir)
+		go func() {
+			ctx := context.Background()
+			if n, err := costImporter.ImportAll(ctx); err != nil {
+				log.Warn("initial cost import failed", "error", err)
+			} else if n > 0 {
+				log.Info("cost import: imported records", "count", n)
+			}
+		}()
+	}
+
+	// Secret store
+	var secretStore *secret.Store
+	if passphrase, passErr := secret.Passphrase(); passErr != nil {
+		log.Warn("secret passphrase unavailable", "error", passErr)
+	} else if ss, ssErr := secret.NewStore(ws.RootDir, passphrase); ssErr != nil {
+		log.Warn("secret store unavailable", "error", ssErr)
+	} else {
+		secretStore = ss
+	}
+
+	// MCP store
+	var mcpStore *mcp.Store
+	if ms, msErr := mcp.NewStore(ws.RootDir); msErr != nil {
+		log.Warn("mcp store unavailable", "error", msErr)
+	} else {
+		mcpStore = ms
+	}
+
+	// Tool store
+	var toolStore *tool.Store
+	ts := tool.NewStore(ws.StateDir())
+	if tsErr := ts.Open(); tsErr != nil {
+		log.Warn("tool store unavailable", "error", tsErr)
+	} else {
+		toolStore = ts
+	}
+
+	// Event log
+	var eventLog events.EventStore
+	if el, elErr := events.NewSQLiteLog(filepath.Join(ws.StateDir(), "state.db")); elErr != nil {
+		log.Warn("event log unavailable", "error", elErr)
+	} else {
+		eventLog = el
+	}
+
 	cfg := bcdserver.DefaultConfig()
 	if addr := os.Getenv("BCD_ADDR"); addr != "" {
 		cfg.Addr = addr
 	}
 	svc := bcdserver.Services{
-		Agents:   agentSvc,
-		Channels: channelSvc,
-		Cron:     cronStore,
-		Daemons:  daemonMgr,
-		Teams:    teamStore,
-		WS:       ws,
+		Agents:       agentSvc,
+		Channels:     channelSvc,
+		Costs:        costStore,
+		CostImporter: costImporter,
+		Cron:         cronStore,
+		Daemons:      daemonMgr,
+		Secrets:      secretStore,
+		MCP:          mcpStore,
+		Tools:        toolStore,
+		EventLog:     eventLog,
+		Teams:        teamStore,
+		WS:           ws,
 	}
 	srv := bcdserver.New(cfg, svc, hub, bcdserver.WebDist())
 
@@ -265,6 +335,26 @@ func runDaemonStart(cmd *cobra.Command, _ []string) error {
 	if chStore != nil {
 		shutdown.OnShutdownNamed(shutdown.PriorityLow, "bcd-channel-db", func(_ context.Context) error {
 			return chStore.Close()
+		})
+	}
+	if costStore != nil {
+		shutdown.OnShutdownNamed(shutdown.PriorityLow, "bcd-cost-db", func(_ context.Context) error {
+			return costStore.Close()
+		})
+	}
+	if secretStore != nil {
+		shutdown.OnShutdownNamed(shutdown.PriorityLow, "bcd-secret-db", func(_ context.Context) error {
+			return secretStore.Close()
+		})
+	}
+	if mcpStore != nil {
+		shutdown.OnShutdownNamed(shutdown.PriorityLow, "bcd-mcp-db", func(_ context.Context) error {
+			return mcpStore.Close()
+		})
+	}
+	if toolStore != nil {
+		shutdown.OnShutdownNamed(shutdown.PriorityLow, "bcd-tool-db", func(_ context.Context) error {
+			return toolStore.Close()
 		})
 	}
 
