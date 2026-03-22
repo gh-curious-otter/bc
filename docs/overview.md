@@ -7,7 +7,7 @@ bc is a CLI-first orchestration system for coordinating teams of AI coding agent
 Key numbers:
 - **41 REST API endpoints** across 14 resource groups
 - **SQLite WAL** database with goose migrations
-- **15 web dashboard views** with Cmd+K command palette
+- **16 web dashboard views** with Cmd+K command palette
 - **13 TUI views** with k9s-style keyboard navigation
 - **MCP server** with JSON-RPC 2.0 over SSE + stdio transports
 - **7 supported AI providers**: Claude, Gemini, Cursor, Aider, Codex, OpenCode, OpenClaw
@@ -38,7 +38,7 @@ There is no per-project config. `bc init` initializes `~/.bc/` and starts bcd.
 graph TB
     subgraph Clients
         CLI[bc CLI<br/>thin HTTP client]
-        WebUI[Web Dashboard<br/>15 views + Cmd+K]
+        WebUI[Web Dashboard<br/>16 views + Cmd+K]
         TUI[TUI<br/>13 views, k9s-style]
         AI[AI Agents<br/>Claude, Gemini, etc.]
     end
@@ -100,14 +100,14 @@ Long-running HTTP server on `127.0.0.1:9374`. Single process managing all state.
 | REST API | `/api/*` | CRUD for all resources (41 endpoints) |
 | SSE Hub | `/api/events` | Real-time event stream |
 | MCP Server | `/mcp/*` | AI agent integration (JSON-RPC 2.0 over SSE + stdio) |
-| Web UI | `/` | Embedded React dashboard (15 views) |
+| Web UI | `/` | Embedded React dashboard (16 views) |
 | Health | `/health`, `/health/ready` | Liveness + readiness probes |
 
 Middleware chain: Recovery, RequestID, CORS, Gzip, MaxBody, Routes.
 
 ### Web Dashboard
 
-React SPA with 15 views, embedded in the bcd binary via `server/web/dist/`:
+React SPA with 16 views, embedded in the bcd binary via `server/web/dist/`:
 
 - **Dashboard** -- workspace overview with agent/channel/cost summary
 - **Agents** -- list, create, start/stop, send messages, peek output

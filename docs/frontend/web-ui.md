@@ -58,7 +58,7 @@ graph TD
     Root --> StrictMode["React.StrictMode"]
     StrictMode --> TP["ThemeProvider<br/>light/dark mode, Solar Flare tokens"]
     TP --> SSEP["SSEProvider<br/>singleton EventSource"]
-    SSEP --> Router["BrowserRouter / Next.js App Router"]
+    SSEP --> Router["BrowserRouter (react-router-dom)"]
     Router --> Layout["Layout Shell"]
 
     subgraph Layout ["Layout Shell (AppShell)"]
@@ -257,49 +257,6 @@ graph LR
 
 Navigation is a static `NAV_ITEMS` array in `Layout.tsx`. Each entry has a `to` path, `label`, and single-character `icon`. `NavLink` provides active styling. The index route (`/`) uses the `end` prop.
 
-### 4.2 Next.js File-Based Routing Structure
-
-```
-web/src/app/
-  layout.tsx              # Root layout: ThemeProvider, SSEProvider, AppShell
-  page.tsx                # / — Dashboard
-  agents/
-    page.tsx              # /agents — Agent list
-    [name]/
-      page.tsx            # /agents/:name — Agent detail
-  channels/
-    page.tsx              # /channels — Channel list
-    [name]/
-      page.tsx            # /channels/:name — Chat room
-  costs/
-    page.tsx              # /costs — Cost overview
-  teams/
-    page.tsx              # /teams — Team list
-    [name]/
-      page.tsx            # /teams/:name — Team detail
-  roles/
-    page.tsx              # /roles — Role list
-    new/
-      page.tsx            # /roles/new — Create role
-    [name]/
-      page.tsx            # /roles/:name — Role detail
-      edit/
-        page.tsx          # /roles/:name/edit — Edit role
-  tools/
-    page.tsx              # /tools
-  mcp/
-    page.tsx              # /mcp
-  cron/
-    page.tsx              # /cron
-  secrets/
-    page.tsx              # /secrets
-  logs/
-    page.tsx              # /logs
-  doctor/
-    page.tsx              # /doctor
-  not-found.tsx           # 404 catch-all
-```
-
 ---
 
 ## 5. Data Layer
@@ -450,7 +407,7 @@ graph TD
 | **SSE connection** | Singleton `SSEProvider` context | Single `EventSource` shared across all views |
 | **Selected row** | Local `useState` | Ephemeral, resets on navigation |
 | **Form state** | Local `useState` (or `useActionState` in React 19) | Ephemeral, tied to form lifecycle |
-| **Route params** | `react-router-dom` / Next.js `useParams` | Framework-managed |
+| **Route params** | `react-router-dom` `useParams` | Framework-managed |
 
 ### 6.3 Polling and SSE by View
 
@@ -526,63 +483,22 @@ All hardcoded colors must migrate to semantic token classes (e.g., `bg-bc-accent
 
 ---
 
-## 8. Next.js Considerations
+## 8. Future Considerations
 
-### 8.1 Stack Comparison
+The web dashboard currently uses **Vite 6 + react-router-dom 6** as its build and routing stack. This section captures potential future directions.
 
-| Aspect | Vite | Next.js |
-|---|---|---|
-| Framework | Vite 6 + react-router-dom 6 | Next.js 15 (App Router) |
-| Rendering | Client-side SPA only | SPA initially, progressive SSR later |
-| Routing | Declarative `<Routes>` in App.tsx | File-based `app/` directory |
-| Build output | Static `dist/` embedded in bcd | Static `out/` via `next export`, embedded in bcd |
-| Shared framework | None (landing is Next.js, web is Vite) | Same framework as landing page |
-| Code splitting | Manual `React.lazy` | Automatic per-route |
+### 8.1 Framework Evolution
 
-### 8.2 Benefits
+The current stack (Vite + react-router) serves well for a localhost SPA embedded in bcd. If future requirements demand server-side rendering (e.g., shareable report pages, print-friendly cost summaries), a framework migration could be evaluated. Key trade-offs to consider:
 
-1. **Consistency with landing page.** The landing site (`landing/`) already uses Next.js + Tailwind. Sharing the same framework means shared tooling, shared config patterns, and easier knowledge transfer.
+- **Automatic code splitting** vs. current manual `React.lazy` per route
+- **File-based routing** vs. declarative `<Route>` registration in `App.tsx`
+- **Build complexity** -- the current Vite build produces a flat `dist/` that bcd embeds via `//go:embed`; alternative frameworks may require different embedding strategies
+- **Dev server performance** -- Vite's cold start is significantly faster than heavier frameworks
 
-2. **Automatic code splitting.** Next.js splits by route automatically. The current Vite setup eagerly imports all 12 views, so the initial bundle includes every view regardless of which route is visited.
+### 8.2 Shared Component Library
 
-3. **File-based routing.** Route definitions become the filesystem structure. No manual `<Route>` registration in `App.tsx`. Adding a new view means adding a directory and `page.tsx`.
-
-4. **Future SSR capability.** If the dashboard ever needs to serve pre-rendered HTML (e.g., shareable report pages, print-friendly cost summaries), Next.js supports this without architectural changes.
-
-5. **API routes.** Next.js API routes could serve as a BFF (backend for frontend) layer if the web dashboard ever needs to aggregate or transform bcd API responses before rendering.
-
-### 8.3 Risks
-
-1. **Added complexity for localhost.** The web dashboard runs on `localhost:9374`. SSR adds a Node.js server requirement, which is unnecessary when bcd (a Go binary) already serves static files. This is mitigated by starting as a fully client-side SPA (`'use client'` on all pages) with `output: 'export'` for static generation.
-
-2. **Build size.** Next.js adds ~80-100KB to the client bundle (React Server Components runtime, router). For a localhost dashboard, this is negligible but worth noting.
-
-3. **Embedding complexity.** The current Vite build produces a flat `dist/` directory that bcd embeds via `//go:embed`. Next.js static export produces a similar flat structure, but the output directory layout differs slightly. The `server/embed.go` file needs updating.
-
-4. **Development experience.** Next.js dev server is slower to start than Vite. Hot module replacement is comparable, but cold start is noticeably slower.
-
-### 8.4 Incremental Approach
-
-**Phase 1 -- SPA in Next.js shell.** All pages use `'use client'` directive. `next.config.ts` sets `output: 'export'` for static generation. The result is functionally identical to the current Vite SPA but with file-based routing.
-
-```typescript
-// web/next.config.ts
-import type { NextConfig } from 'next';
-
-const config: NextConfig = {
-  output: 'export',        // Static export, no Node.js server needed
-  distDir: 'dist',         // Match current output dir for bcd embedding
-  trailingSlash: false,
-};
-
-export default config;
-```
-
-**Phase 2 -- Extract shared components.** Move reusable components to `@bc/ui-web`. Both the web dashboard and landing page import from the same package.
-
-**Phase 3 -- Progressive server rendering.** For pages that benefit from SSR (if any), remove `'use client'` and fetch data server-side. This requires running the Next.js server alongside bcd, or using bcd as a reverse proxy. This phase is optional and should only be pursued if there is a concrete SSR use case.
-
-**Phase 4 -- Landing page convergence.** If both the landing site and web dashboard use Next.js, they could become a single Next.js app with route groups: `(marketing)` for the landing pages and `(dashboard)` for the web UI. This is a long-term consideration, not a near-term goal.
+Extracting shared UI primitives into a `packages/ui/` monorepo package would allow the web dashboard, TUI, and landing page to share types, tokens, and component interfaces. See section 3 for the proposed architecture.
 
 ---
 

@@ -56,7 +56,7 @@ Returns the full workspace configuration.
     "poll_interval_status": 2000,
     "poll_interval_logs": 3000,
     "poll_interval_teams": 10000,
-    "poll_interval_demons": 5000,
+    "poll_interval_daemons": 5000,
     "cache_ttl_tmux": 2000,
     "cache_ttl_commands": 5000,
     "adaptive_fast_interval": 1000,

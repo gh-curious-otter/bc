@@ -128,7 +128,7 @@ TUI polling intervals and cache TTLs. All values are in milliseconds. Minimum po
 | `poll_interval_status`   | int64 | `2000`  | Dashboard status refresh interval  |
 | `poll_interval_logs`     | int64 | `3000`  | Log viewer refresh interval        |
 | `poll_interval_teams`    | int64 | `10000` | Team data refresh interval         |
-| `poll_interval_demons`   | int64 | `5000`  | Scheduled tasks refresh interval   |
+| `poll_interval_daemons`  | int64 | `5000`  | Scheduled tasks refresh interval   |
 
 **Cache TTLs:**
 

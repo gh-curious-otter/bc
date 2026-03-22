@@ -763,7 +763,7 @@ The TUI centralizes magic numbers into `tui/src/constants/`:
 | `poll_interval_status` | 2000ms | Workspace status polling |
 | `poll_interval_logs` | 3000ms | Event log polling |
 | `poll_interval_teams` | 10000ms | Team list polling |
-| `poll_interval_demons` | 5000ms | Scheduled task polling |
+| `poll_interval_daemons` | 5000ms | Scheduled task polling |
 | `poll_interval_dashboard` | 30000ms | Dashboard aggregate refresh |
 | `adaptive_fast_interval` | 1000ms | Polling when agents are actively working |
 | `adaptive_normal_interval` | 2000ms | Default polling interval |
