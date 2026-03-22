@@ -1728,3 +1728,110 @@ func TestRosterConfig_SaveAndLoad(t *testing.T) {
 		t.Errorf("Agents[0].Name = %q, want dev1", loaded.Roster.Agents[0].Name)
 	}
 }
+
+func TestDefaultConfigServerSchedulerStorage(t *testing.T) {
+	cfg := DefaultConfig("test-project")
+
+	// Server defaults
+	if cfg.Server.Addr != "127.0.0.1:9374" {
+		t.Errorf("expected server.addr '127.0.0.1:9374', got %q", cfg.Server.Addr)
+	}
+	if cfg.Server.CORSOrigin != "*" {
+		t.Errorf("expected server.cors_origin '*', got %q", cfg.Server.CORSOrigin)
+	}
+
+	// Scheduler defaults
+	if cfg.Scheduler.TickInterval != 60 {
+		t.Errorf("expected scheduler.tick_interval 60, got %d", cfg.Scheduler.TickInterval)
+	}
+	if cfg.Scheduler.JobTimeout != 300 {
+		t.Errorf("expected scheduler.job_timeout 300, got %d", cfg.Scheduler.JobTimeout)
+	}
+
+	// Storage defaults
+	if cfg.Storage.SQLitePath != ".bc/bc.db" {
+		t.Errorf("expected storage.sqlite_path '.bc/bc.db', got %q", cfg.Storage.SQLitePath)
+	}
+}
+
+func TestParseConfigServerSchedulerStorage(t *testing.T) {
+	tomlData := []byte(`
+[workspace]
+name = "test"
+version = 2
+
+[providers]
+default = "claude"
+
+[providers.claude]
+command = "claude"
+enabled = true
+
+[server]
+addr = "0.0.0.0:8080"
+cors_origin = "https://example.com"
+
+[scheduler]
+tick_interval = 30
+job_timeout = 600
+
+[storage]
+sqlite_path = "/var/data/bc.db"
+`)
+	cfg, err := ParseConfig(tomlData)
+	if err != nil {
+		t.Fatalf("failed to parse: %v", err)
+	}
+	if cfg.Server.Addr != "0.0.0.0:8080" {
+		t.Errorf("expected server.addr '0.0.0.0:8080', got %q", cfg.Server.Addr)
+	}
+	if cfg.Server.CORSOrigin != "https://example.com" {
+		t.Errorf("expected server.cors_origin 'https://example.com', got %q", cfg.Server.CORSOrigin)
+	}
+	if cfg.Scheduler.TickInterval != 30 {
+		t.Errorf("expected scheduler.tick_interval 30, got %d", cfg.Scheduler.TickInterval)
+	}
+	if cfg.Scheduler.JobTimeout != 600 {
+		t.Errorf("expected scheduler.job_timeout 600, got %d", cfg.Scheduler.JobTimeout)
+	}
+	if cfg.Storage.SQLitePath != "/var/data/bc.db" {
+		t.Errorf("expected storage.sqlite_path '/var/data/bc.db', got %q", cfg.Storage.SQLitePath)
+	}
+}
+
+func TestServerSchedulerStorageSaveAndLoad(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+
+	cfg := DefaultConfig("test")
+	cfg.Server.Addr = "0.0.0.0:9000"
+	cfg.Server.CORSOrigin = "https://myapp.com"
+	cfg.Scheduler.TickInterval = 120
+	cfg.Scheduler.JobTimeout = 900
+	cfg.Storage.SQLitePath = ".bc/custom.db"
+
+	if err := cfg.Save(path); err != nil {
+		t.Fatalf("failed to save: %v", err)
+	}
+
+	loaded, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("failed to load: %v", err)
+	}
+
+	if loaded.Server.Addr != "0.0.0.0:9000" {
+		t.Errorf("expected server.addr '0.0.0.0:9000', got %q", loaded.Server.Addr)
+	}
+	if loaded.Server.CORSOrigin != "https://myapp.com" {
+		t.Errorf("expected server.cors_origin 'https://myapp.com', got %q", loaded.Server.CORSOrigin)
+	}
+	if loaded.Scheduler.TickInterval != 120 {
+		t.Errorf("expected scheduler.tick_interval 120, got %d", loaded.Scheduler.TickInterval)
+	}
+	if loaded.Scheduler.JobTimeout != 900 {
+		t.Errorf("expected scheduler.job_timeout 900, got %d", loaded.Scheduler.JobTimeout)
+	}
+	if loaded.Storage.SQLitePath != ".bc/custom.db" {
+		t.Errorf("expected storage.sqlite_path '.bc/custom.db', got %q", loaded.Storage.SQLitePath)
+	}
+}
