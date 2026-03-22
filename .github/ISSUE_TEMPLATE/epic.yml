@@ -6,13 +6,13 @@ body:
   - type: markdown
     attributes:
       value: |
-        Use this template for tracking issues that span multiple PRs or sub-issues.
+        Use this template for initiatives spanning multiple PRs or sub-issues.
 
   - type: textarea
     id: goal
     attributes:
       label: Goal
-      description: High-level objective of this epic. What does success look like?
+      description: High-level objective. What does success look like?
     validations:
       required: true
 
@@ -22,9 +22,9 @@ body:
       label: Sub-Issues
       description: Checklist of sub-issues in dependency/priority order. Link issues as they are created.
       value: |
-        - [ ] #000 — Description (dependency: none)
-        - [ ] #000 — Description (dependency: #000)
-        - [ ] #000 — Description (dependency: #000)
+        - [ ] #000 -- Description (dependency: none)
+        - [ ] #000 -- Description (dependency: #000)
+        - [ ] #000 -- Description (dependency: #000)
     validations:
       required: true
 
@@ -42,7 +42,7 @@ body:
       value: |
         - [ ] All sub-issues completed and merged
         - [ ] Integration tested end-to-end
-        - [ ] `make check` passes on main after all merges
+        - [ ] `make ci-local` passes on main after all merges
         - [ ] Documentation updated if applicable
     validations:
       required: true
@@ -52,49 +52,61 @@ body:
     attributes:
       label: Agent Instructions
       description: |
-        Workflow guidance for agents picking up this issue. Expand the block below to see instructions.
-        You may leave this section as-is.
+        Workflow for agents picking up this epic. You may leave this as-is.
       value: |
         <details>
         <summary>Agent Workflow (click to expand)</summary>
 
-        ### Epics follow the LARGE workflow by default
+        ### Epics always start with design
 
         **Phase 1: Design**
-        - DO NOT write code immediately
-        - Research the problem thoroughly (search internet, read codebase)
-        - Write a design doc as a GitHub comment on this issue:
+        - Research the problem (search codebase, read docs)
+        - Write a design doc as a GitHub comment:
           - Architecture and approach
           - Alternatives considered
           - Component breakdown
-          - Linked sub-issues in priority order
-        - Get approval on design doc before implementing
+          - Sub-issues in priority order
+        - Get approval before implementing
 
         **Phase 2: Break Down**
-        - Create sub-issues in dependency order (list them above)
-        - Each sub-issue should be SMALL (< 1000 LOC, single PR) or MEDIUM (5-10 sub-issues)
-        - Add explicit dependency comments between sub-issues
+        - Create sub-issues in dependency order
+        - Tag each sub-issue as Small/Medium/Large
+        - Each sub-issue should be Small (single PR) when possible
 
         **Phase 3: Execute**
-        - Create a TODO list tracking all sub-issues for the epic
-        - Launch 5-10 subagents in parallel (or batches of 3-4), each assigned one sub-issue
-        - Review each PR with `/code-review` skill as subagents complete
-        - Merge PRs in dependency order
-        - Update TODO as each sub-issue is closed
-        - Comment on this epic with progress updates
-        - Do NOT close this epic until all sub-issues are done
+        - Work sub-issues in dependency order
+        - Each sub-issue: branch → implement → `make check` → PR → `/code-review` → merge
+        - Update this epic's checklist as sub-issues close
 
-        ### Review Process (every PR)
-        - Use `/code-review` skill on every PR
-        - Check for: correctness, security, test coverage, lint compliance
-        - Request changes if issues found
-        - Only merge after clean review
+        ### Quality Gates
+
+        ```bash
+        make ci-local       # Full CI pipeline (go + ts)
+        make check          # Quality gate (go + ts)
+        make ci-docker      # Build all Docker images
+        ```
+
+        ### Key Commands
+
+        ```bash
+        # Go
+        make build-go-local                 # Build all Go binaries
+        make test-go                        # Run Go tests
+        make lint-go                        # golangci-lint
+
+        # TypeScript
+        make build-ts-local                 # Build all TS packages
+        make test-ts                        # Run all TS tests
+        make vet-ts                         # Typecheck all TS
+
+        # Deploy & verify
+        make deploy-bcd-local               # Local on :9374
+        make deploy-bcd-local ENV=dogfood   # Dogfood on :9000
+        ```
 
         ### Conventions
-        - Branch naming: `feat/`, `fix/`, `test/` prefixes
+        - Branch: `feat/` or `fix/` prefix
         - Conventional commits format
-        - Run `make check` before opening any PR
-        - Add appropriate labels: `epic` + domain (`frontend`, `backend`, `infrastructure`)
-        - Keep sub-issue checklist above updated as work progresses
+        - `make ci-local` must pass before merge
 
         </details>

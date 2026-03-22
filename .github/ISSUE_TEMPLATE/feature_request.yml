@@ -48,71 +48,82 @@ body:
       label: Done When
       description: Acceptance criteria for this feature.
       value: |
-        - [ ] Feature implemented
-        - [ ] Tests pass
+        - [ ] Feature implemented with tests
         - [ ] `make check` passes
-        - [ ] PR reviewed and approved
+        - [ ] PR reviewed and merged
+    validations:
+      required: true
 
   - type: textarea
     id: agent-instructions
     attributes:
       label: Agent Instructions
       description: |
-        Workflow guidance for agents picking up this issue. Expand the block below to see instructions.
-        You may leave this section as-is.
+        Workflow for agents picking up this issue. You may leave this as-is.
       value: |
         <details>
         <summary>Agent Workflow (click to expand)</summary>
 
-        ### 1. Assess Size
+        ### Test Plan
 
-        | Size   | Criteria                           | Workflow        |
-        |--------|------------------------------------|-----------------|
-        | SMALL  | < 1000 LOC changed, single PR      | Implement + PR  |
-        | MEDIUM | 2-5 PRs needed                     | Sub-issues + PRs|
-        | LARGE  | Needs design / research first      | Design doc first|
+        Every feature PR must include:
+        1. Unit tests for new logic
+        2. Integration test if touching API/CLI
+        3. Verification all existing tests still pass
 
-        ### 2. Execute by Size
+        ```bash
+        make check          # Full quality gate (go + ts)
+        make ci-local       # Full CI pipeline locally
+        ```
 
-        **SMALL (< 1000 LOC, single PR)**
-        - Launch a subagent to implement and create PR
-        - Create branch `feat/<short-description>` from main
-        - Implement the feature
-        - Run `make check` -- fix any failures
-        - Open PR linking this issue
-        - Review with `/code-review` skill
-        - Merge after clean review + CI green
+        ### Workflow by Size
 
-        **MEDIUM (5-10 sub-issues)**
-        - Create a TODO list tracking all sub-issues for the epic
-        - Break into 5-10 sub-issues with explicit dependency order
-        - Launch 5-10 subagents in parallel (or batches of 3-4), each assigned one sub-issue
-        - Review each PR with `/code-review` skill as subagents complete
-        - Merge PRs in dependency order
-        - Update TODO as each sub-issue is closed
-        - Keep this issue open until all sub-issues are done
+        **SMALL** — single PR, < 1000 LOC
+        - Branch: `feat/<issue-number>-<short-desc>`
+        - Implement with tests
+        - `make check` must pass
+        - Open PR → `/code-review` → merge
 
-        **LARGE (needs design first)**
-        - DO NOT write code immediately
-        - Research the problem thoroughly (search internet, read codebase)
-        - Write a design doc as a GitHub comment on this issue:
-          - Architecture and approach
-          - Alternatives considered
-          - Component breakdown
-          - Linked sub-issues in priority order
-        - Get approval on design doc before implementing
-        - Then execute sub-issues using the MEDIUM workflow
+        **MEDIUM** — 2-5 PRs
+        - Break into sub-issues with dependency order
+        - Each sub-issue follows SMALL workflow
+        - Merge in dependency order
 
-        ### 3. Review Process (every PR)
-        - Use `/code-review` skill on every PR
-        - Check for: correctness, security, test coverage, lint compliance
-        - Request changes if issues found
-        - Only merge after clean review
+        **LARGE** — needs design doc
+        - Write design doc as GitHub comment first
+        - Get approval before implementing
+        - Then follow MEDIUM workflow
 
-        ### 4. Conventions
-        - Branch naming: `feat/<description>` for features, `test/<description>` for test-only
-        - Conventional commits: `feat: <description>`, `test: <description>`
-        - Run `make check` before opening PR
-        - Add appropriate labels: `enhancement` + domain (`frontend`, `backend`, `infrastructure`)
+        ### Key Commands
+
+        **Go (backend)**
+        ```bash
+        make build-bc-local                 # Build bc CLI
+        make build-bcd-local                # Build bcd server (embeds web UI)
+        make test-go                        # Run Go tests
+        make lint-go                        # golangci-lint
+        go test -race -run TestName ./pkg/  # Run specific test
+        ```
+
+        **TypeScript (frontend)**
+        ```bash
+        make build-web-local                # Build web UI
+        make build-tui-local                # Build TUI
+        make test-web                       # Run web tests (vitest)
+        make test-tui                       # Run TUI tests
+        make lint-ts                        # Lint all TS
+        make vet-ts                         # Typecheck all TS
+        ```
+
+        **Deploy & verify**
+        ```bash
+        make deploy-bcd-local               # Deploy locally on :9374
+        make deploy-bcd-local ENV=dogfood   # Deploy dogfood on :9000
+        ```
+
+        ### Conventions
+        - Conventional commits: `feat: <description>`
+        - Branch: `feat/<issue-number>-<short-desc>`
+        - Makefile naming: `<verb>-<component>[-<runtime>]`
 
         </details>

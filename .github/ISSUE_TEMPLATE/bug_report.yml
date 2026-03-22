@@ -55,6 +55,17 @@ body:
     validations:
       required: true
 
+  - type: dropdown
+    id: size
+    attributes:
+      label: Estimated Size
+      options:
+        - "Small (< 1000 LOC, single PR)"
+        - "Medium (2-5 PRs)"
+        - "Large (needs design doc first)"
+    validations:
+      required: true
+
   - type: input
     id: environment
     attributes:
@@ -67,60 +78,58 @@ body:
     attributes:
       label: Agent Instructions
       description: |
-        Workflow guidance for agents picking up this issue. Expand the block below to see instructions.
-        You may leave this section as-is.
+        Workflow for agents picking up this issue. You may leave this as-is.
       value: |
         <details>
         <summary>Agent Workflow (click to expand)</summary>
 
-        ### 1. Assess Size
+        ### Test Plan
 
-        | Size   | Criteria                           | Workflow        |
-        |--------|------------------------------------|-----------------|
-        | SMALL  | < 1000 LOC changed, single PR      | Implement + PR  |
-        | MEDIUM | 2-5 PRs needed                     | Sub-issues + PRs|
-        | LARGE  | Needs design / research first      | Design doc first|
+        Every bug fix PR must include:
+        1. A failing test that reproduces the bug
+        2. The fix
+        3. Verification the test now passes
 
-        ### 2. Execute by Size
+        ```bash
+        # Verify before opening PR
+        make check          # Full quality gate (go + ts)
+        make ci-local       # Full CI pipeline locally
+        ```
 
-        **SMALL (< 1000 LOC, single PR)**
-        - Create branch `fix/<short-description>` from main
-        - Implement the fix
-        - Run `make check` -- fix any failures
-        - Open PR linking this issue
-        - Review with `/code-review` skill
-        - Merge after clean review + CI green
+        ### Workflow by Size
 
-        **MEDIUM (5-10 sub-issues)**
-        - Create a TODO list tracking all sub-issues for the epic
-        - Break into 5-10 sub-issues with explicit dependency order
-        - Launch 5-10 subagents in parallel (or batches of 3-4), each assigned one sub-issue
-        - Review each PR with `/code-review` skill as subagents complete
-        - Merge PRs in dependency order
-        - Update TODO as each sub-issue is closed
-        - Keep this issue open until all sub-issues are done
+        **SMALL** — single PR, < 1000 LOC
+        - Branch: `fix/<issue-number>-<short-desc>`
+        - Implement fix with test
+        - `make check` must pass
+        - Open PR → `/code-review` → merge
 
-        **LARGE (needs design first)**
-        - DO NOT write code immediately
-        - Research the problem thoroughly (search internet, read codebase)
-        - Write a design doc as a GitHub comment on this issue:
-          - Architecture and approach
-          - Alternatives considered
-          - Component breakdown
-          - Linked sub-issues in priority order
-        - Get approval on design doc before implementing
-        - Then execute sub-issues using the MEDIUM workflow
+        **MEDIUM** — 2-5 PRs
+        - Break into sub-issues with dependency order
+        - Each sub-issue follows SMALL workflow
+        - Merge in dependency order
 
-        ### 3. Review Process (every PR)
-        - Use `/code-review` skill on every PR
-        - Check for: correctness, security, test coverage, lint compliance
-        - Request changes if issues found
-        - Only merge after clean review
+        **LARGE** — needs design doc
+        - Write design doc as GitHub comment first
+        - Get approval before implementing
+        - Then follow MEDIUM workflow
 
-        ### 4. Conventions
-        - Branch naming: `fix/<description>` for bugs
+        ### Key Commands
+
+        ```bash
+        make test-go                        # Go tests with race detector
+        make test-go-fast                   # Go tests excluding E2E (matches CI)
+        make lint-go                        # golangci-lint
+        make vet-go                         # go vet
+        make build-bc-local                 # Build bc binary
+        make build-bcd-local                # Build bcd server
+        go test -race -run TestName ./pkg/  # Run specific test
+        ```
+
+        ### Conventions
         - Conventional commits: `fix: <description>`
-        - Run `make check` before opening PR
-        - Add appropriate labels: `bug` + domain (`frontend`, `backend`, `infrastructure`)
+        - Branch: `fix/<issue-number>-<short-desc>`
+        - All errors handled (errcheck linter enforced)
+        - Context propagation (noctx linter enforced)
 
         </details>
