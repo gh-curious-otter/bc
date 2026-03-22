@@ -273,6 +273,7 @@ export const api = {
     request<{ output: string }>(`/agents/${encodeURIComponent(name)}/peek?${new URLSearchParams({ lines: String(lines) })}`),
   startAgent: (name: string) => request<Agent>(`/agents/${encodeURIComponent(name)}/start`, { method: 'POST' }),
   stopAgent: (name: string) => request<void>(`/agents/${encodeURIComponent(name)}/stop`, { method: 'POST' }),
+  deleteAgent: (name: string) => request<void>(`/agents/${encodeURIComponent(name)}?force=true`, { method: 'DELETE' }),
   sendToAgent: (name: string, message: string) =>
     request<void>(`/agents/${encodeURIComponent(name)}/send`, { method: 'POST', body: JSON.stringify({ message }) }),
   getAgentStats: (name: string, limit = 20) =>
