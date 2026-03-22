@@ -292,6 +292,12 @@ export const api = {
 
   listRoles: () => request<Record<string, Role>>('/workspace/roles'),
   listTools: () => request<Tool[]>('/tools'),
+  enableTool: (name: string) =>
+    request<{ enabled: boolean }>(`/tools/${encodeURIComponent(name)}/enable`, { method: 'POST' }),
+  disableTool: (name: string) =>
+    request<{ enabled: boolean }>(`/tools/${encodeURIComponent(name)}/disable`, { method: 'POST' }),
+  deleteTool: (name: string) =>
+    request<void>(`/tools/${encodeURIComponent(name)}`, { method: 'DELETE' }),
   listMCP: () => request<MCPServer[]>('/mcp'),
   removeMCP: (name: string) => request<void>(`/mcp/${encodeURIComponent(name)}`, { method: 'DELETE' }),
   enableMCP: (name: string) => request<void>(`/mcp/${encodeURIComponent(name)}/enable`, { method: 'POST' }),
