@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: "~" },
   { to: "/agents", label: "Agents", icon: "A" },
   { to: "/channels", label: "Channels", icon: "C" },
+  { to: "/teams", label: "Teams", icon: "G" },
   { to: "/costs", label: "Costs", icon: "$" },
   { to: "/roles", label: "Roles", icon: "R" },
   { to: "/tools", label: "Tools", icon: "T" },

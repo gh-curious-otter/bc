@@ -1,7 +1,7 @@
 import { useCallback, useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { ChannelMessage } from "../api/client";
+import type { Channel, ChannelMessage } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { AgentPeekPanel } from "../components/AgentPeekPanel";
@@ -107,7 +107,12 @@ export function Channels() {
       </div>
       <div className="flex-1 flex flex-col min-w-0">
         {selected ? (
-          <ChatRoom channelName={selected} onPeekAgent={setPeekAgent} />
+          <ChatRoom
+            channelName={selected}
+            channel={(channels ?? []).find((c) => c.name === selected)}
+            onPeekAgent={setPeekAgent}
+            onChannelUpdated={refresh}
+          />
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <EmptyState
@@ -175,20 +180,66 @@ function formatTimestamp(iso: string): string {
 
 function ChatRoom({
   channelName,
+  channel,
   onPeekAgent,
+  onChannelUpdated,
 }: {
   channelName: string;
+  channel?: Channel;
   onPeekAgent: (name: string) => void;
+  onChannelUpdated: () => void;
 }) {
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [senderName, setSenderName] = useState("web");
+  const [showMembers, setShowMembers] = useState(false);
+  const [addingMember, setAddingMember] = useState(false);
+  const [agents, setAgents] = useState<string[]>([]);
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [descDraft, setDescDraft] = useState("");
+  const [savingDesc, setSavingDesc] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { subscribe } = useWebSocket();
+
+  // Fetch agents list for the add-member dropdown
+  useEffect(() => {
+    if (!addingMember) return;
+    void (async () => {
+      try {
+        const list = await api.listAgents();
+        setAgents(list.map((a) => a.name));
+      } catch {
+        setAgents([]);
+      }
+    })();
+  }, [addingMember]);
+
+  const handleAddMember = async (agentName: string) => {
+    try {
+      await api.addChannelMember(channelName, agentName);
+      onChannelUpdated();
+    } catch {
+      // silently fail
+    }
+    setAddingMember(false);
+  };
+
+  const handleSaveDescription = async () => {
+    setSavingDesc(true);
+    try {
+      await api.updateChannel(channelName, { description: descDraft });
+      onChannelUpdated();
+      setEditingDesc(false);
+    } catch {
+      // keep editing open
+    } finally {
+      setSavingDesc(false);
+    }
+  };
 
   // Fetch workspace nickname once to use as sender identity
   useEffect(() => {
@@ -316,11 +367,112 @@ function ChatRoom({
 
   return (
     <>
-      <div className="px-4 py-2 border-b border-bc-border bg-bc-surface">
-        <span className="font-medium">#{channelName}</span>
-        <span className="ml-2 text-xs text-bc-muted">
-          {messages.length} message{messages.length !== 1 ? "s" : ""}
-        </span>
+      <div className="px-4 py-2 border-b border-bc-border bg-bc-surface space-y-1">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-medium">#{channelName}</span>
+            <span className="text-xs text-bc-muted">
+              {messages.length} message{messages.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowMembers((p) => !p)}
+              className="px-2 py-1 rounded border border-bc-border text-xs text-bc-muted hover:text-bc-text transition-colors"
+              aria-label="Toggle members panel"
+            >
+              Members ({channel?.member_count ?? 0})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDescDraft(channel?.description ?? "");
+                setEditingDesc(true);
+              }}
+              className="px-2 py-1 rounded border border-bc-border text-xs text-bc-muted hover:text-bc-text transition-colors"
+              aria-label="Edit channel description"
+            >
+              Edit
+            </button>
+          </div>
+        </div>
+        {editingDesc && (
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={descDraft}
+              onChange={(e) => setDescDraft(e.target.value)}
+              placeholder="Channel description"
+              className="flex-1 px-2 py-1 rounded border border-bc-border bg-bc-bg text-sm text-bc-text focus:outline-none focus:border-bc-accent"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleSaveDescription();
+                if (e.key === "Escape") setEditingDesc(false);
+              }}
+              aria-label="Channel description"
+            />
+            <button
+              type="button"
+              onClick={() => void handleSaveDescription()}
+              disabled={savingDesc}
+              className="px-2 py-1 rounded bg-bc-accent text-bc-bg text-xs font-medium disabled:opacity-50"
+            >
+              {savingDesc ? "Saving..." : "Save"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditingDesc(false)}
+              className="px-2 py-1 rounded border border-bc-border text-xs text-bc-muted hover:text-bc-text"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+        {!editingDesc && channel?.description && (
+          <p className="text-xs text-bc-muted">{channel.description}</p>
+        )}
+        {showMembers && (
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            {(channel?.members ?? []).map((m) => (
+              <span
+                key={m}
+                className="text-xs px-2 py-0.5 rounded bg-bc-accent/10 text-bc-accent"
+              >
+                {m}
+              </span>
+            ))}
+            {addingMember ? (
+              <select
+                className="text-xs px-2 py-1 rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none"
+                onChange={(e) => {
+                  if (e.target.value) void handleAddMember(e.target.value);
+                }}
+                defaultValue=""
+                aria-label="Select agent to add"
+              >
+                <option value="" disabled>
+                  Select agent...
+                </option>
+                {agents
+                  .filter((a) => !(channel?.members ?? []).includes(a))
+                  .map((a) => (
+                    <option key={a} value={a}>
+                      {a}
+                    </option>
+                  ))}
+              </select>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAddingMember(true)}
+                className="text-xs px-2 py-0.5 rounded border border-dashed border-bc-border text-bc-muted hover:text-bc-accent hover:border-bc-accent transition-colors"
+                aria-label="Add member to channel"
+              >
+                + Add Member
+              </button>
+            )}
+          </div>
+        )}
       </div>
       <div className="relative flex-1">
         <div
