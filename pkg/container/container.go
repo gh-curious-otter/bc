@@ -47,8 +47,14 @@ func validateMount(mount, workspaceRoot string) error {
 	if !filepath.IsAbs(cleaned) {
 		return fmt.Errorf("mount source %q must be an absolute path", src)
 	}
-	if !strings.HasPrefix(cleaned, workspaceRoot+string(filepath.Separator)) && cleaned != workspaceRoot {
-		return fmt.Errorf("mount source %q is outside workspace root %q", src, workspaceRoot)
+	// Resolve symlinks to prevent bypass (e.g., workspace/escape -> /etc)
+	resolved, err := filepath.EvalSymlinks(cleaned)
+	if err != nil {
+		// Path may not exist yet — fall back to cleaned path check
+		resolved = cleaned
+	}
+	if !strings.HasPrefix(resolved, workspaceRoot+string(filepath.Separator)) && resolved != workspaceRoot {
+		return fmt.Errorf("mount source %q resolves outside workspace root %q", src, workspaceRoot)
 	}
 	return nil
 }
