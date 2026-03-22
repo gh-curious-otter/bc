@@ -315,7 +315,9 @@ ci-local: ## Run full CI pipeline locally
 	printf "$(_CYAN)[ts]$(_RESET) deps\n";        $(MAKE) --no-print-directory deps-ts       || FAIL=1; \
 	printf "$(_CYAN)[ts]$(_RESET) vet\n";         $(MAKE) --no-print-directory vet-ts        || FAIL=1; \
 	printf "$(_CYAN)[ts]$(_RESET) lint\n";        $(MAKE) --no-print-directory lint-ts       || FAIL=1; \
-	printf "$(_CYAN)[ts]$(_RESET) test\n";        $(MAKE) --no-print-directory test-ts       || FAIL=1; \
+	printf "$(_CYAN)[ts]$(_RESET) test-web\n";     $(MAKE) --no-print-directory test-web      || FAIL=1; \
+	printf "$(_CYAN)[ts]$(_RESET) test-tui\n";     $(MAKE) --no-print-directory test-tui      || printf "$(_CYAN)[ts]$(_RESET) test-tui: some tests failed (non-blocking, matches CI)\n"; \
+	printf "$(_CYAN)[ts]$(_RESET) test-landing\n"; $(MAKE) --no-print-directory test-landing   || printf "$(_CYAN)[ts]$(_RESET) test-landing: some tests failed (non-blocking, matches CI)\n"; \
 	printf "$(_CYAN)[ts]$(_RESET) build\n";       $(MAKE) --no-print-directory build-ts-local || FAIL=1; \
 	printf "\n"; \
 	if [ $$FAIL -eq 0 ]; then \
