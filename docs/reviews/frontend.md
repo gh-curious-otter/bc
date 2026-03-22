@@ -1,3 +1,7 @@
+*Last Updated: March 2026*
+
+> **Staleness Notice:** All issues referenced in this review (#2122, #2124, #2125, #2126, #2127, #2128, #2129, #2130, #2131, #2132, #2133, #2134, #2135, #2136, #2137, #2138, #2139, #2140, #2142, #2148, #2150, #2151, #2153, #2154, #2155, #2156, #2160, #2171, #2172, #2173, #2174) have been closed as of March 2026. The action plan items may no longer reflect current project state. Treat this document as a historical snapshot.
+
 # Frontend Engineering Review
 
 **Date:** 2026-03-20 (updated 2026-03-21)
