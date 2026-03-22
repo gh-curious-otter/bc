@@ -137,6 +137,7 @@ build-go-local: build-bc-local build-bcd-local ## Build all Go binaries locally
 
 build-bc-local: gen-go ## Build bc CLI binary (local)
 	@mkdir -p $(BUILD_DIR)
+	@if [ ! -d server/web/dist ]; then mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html; fi
 	$(GO) build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bc ./cmd/bc
 
 build-bcd-local: gen-go build-web-local ## Build bcd server binary (local, embeds web UI)
