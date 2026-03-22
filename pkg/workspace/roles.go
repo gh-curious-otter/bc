@@ -735,6 +735,35 @@ func mergeAnyMaps(dst, src map[string]any) map[string]any {
 	return dst
 }
 
+// DeleteRole removes a role by name.
+// Uses SQLite store if available, otherwise removes the filesystem .md file.
+func (rm *RoleManager) DeleteRole(name string) error {
+	if name == "" {
+		return fmt.Errorf("role name is required")
+	}
+
+	// Delete from SQLite store if available
+	if rm.store != nil {
+		if err := rm.store.Delete(name); err != nil {
+			return fmt.Errorf("failed to delete role from store: %w", err)
+		}
+		delete(rm.roles, name)
+		return nil
+	}
+
+	// Filesystem fallback
+	filePath := filepath.Join(rm.rolesDir, name+".md")
+	if err := os.Remove(filePath); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("role %q not found", name)
+		}
+		return fmt.Errorf("failed to delete role file: %w", err)
+	}
+
+	delete(rm.roles, name)
+	return nil
+}
+
 // GetMCPServers returns the MCP server associations for a role.
 func (rm *RoleManager) GetMCPServers(roleName string) ([]string, error) {
 	role, err := rm.LoadRole(roleName)
