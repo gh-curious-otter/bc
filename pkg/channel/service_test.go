@@ -483,6 +483,8 @@ func TestIsValidChannelName(t *testing.T) {
 		{"spaces", "has space", false},
 		{"dots", "has.dot", false},
 		{"slash", "a/b", false},
+		{"exactly 64 chars", "a234567890b234567890c234567890d234567890e234567890f234567890g234", true},
+		{"65 chars too long", "a234567890b234567890c234567890d234567890e234567890f234567890g2345", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
