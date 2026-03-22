@@ -231,7 +231,12 @@ func errorAgentNotRunning(commandUsage string) error {
 
 // newDaemonClient creates a client connected to the bcd daemon.
 // Returns an error if the daemon is not running.
+// Checks for a valid workspace first to provide clear error messages.
 func newDaemonClient(ctx context.Context) (*client.Client, error) {
+	// Verify we're in a workspace before trying to connect to daemon
+	if _, err := getWorkspace(); err != nil {
+		return nil, errNotInWorkspace(err)
+	}
 	c := client.New("")
 	if err := c.Ping(ctx); err != nil {
 		return nil, fmt.Errorf("bcd is not running — start it with 'bcd' or 'bc up' first\n(%w)", err)
