@@ -1,16 +1,41 @@
-.PHONY: help version dev
-.PHONY: build build-bc build-bcd build-all build-release build-bcd-release install
-.PHONY: build-tui build-web build-landing
+# bc — Agent Orchestration System
+# Makefile for building, testing, linting, and deploying all components.
+#
+# Components:
+#   bc       Go CLI binary (cmd/bc)
+#   bcd      Go server daemon with embedded web UI (cmd/bcd)
+#   tui      React/Ink terminal UI (tui/)
+#   web      React web dashboard (web/) — embedded into bcd
+#   landing  Next.js marketing site (landing/)
+#
+# Usage:
+#   make help              Show all targets
+#   make build             Build bc + bcd + tui + web + landing
+#   make test              Run all tests
+#   make lint              Run all linters
+#   make check             Full quality gate (fmt + vet + lint + test)
+#   make deploy ENV=local  Deploy bcd to environment
+#   make integrate         check + build (CI equivalent)
+
+# =============================================================================
+# .PHONY declarations (grouped by category)
+# =============================================================================
+
+.PHONY: help version
+.PHONY: build build-bc build-bcd build-tui build-web build-landing
+.PHONY: test test-bcd test-bc test-tui test-web test-landing test-ui
+.PHONY: lint lint-bcd lint-bc lint-tui lint-web lint-landing lint-ui
+.PHONY: fmt vet check coverage bench
+.PHONY: deploy deploy-bcd deploy-landing
+.PHONY: release release-bcd release-bc
 .PHONY: gen deps clean clean-deps
-.PHONY: test test-go test-tui test-web test-landing test-ui
-.PHONY: lint lint-go lint-tui lint-web lint-landing lint-ui
-.PHONY: fmt vet check check-all coverage bench
 .PHONY: ci-local integrate
 .PHONY: security vuln
-.PHONY: deploy-dogfood
-.PHONY: build-server-images build-bcd-image build-bcdb-image
-.PHONY: build-agent-base build-agent-image build-agent-images
-.PHONY: dev-web dev-landing
+.PHONY: docker docker-bcd docker-bcdb docker-agent-base docker-agent docker-agents
+.PHONY: dev dev-bcd dev-web dev-landing
+.PHONY: install
+
+.DEFAULT_GOAL := help
 
 # =============================================================================
 # Variables
@@ -23,22 +48,50 @@ BUILD_DIR ?= bin
 GO ?= go
 COVERAGE_THRESHOLD ?= 60
 
+# Deploy environment: local, dogfood, production
+ENV ?= local
+
+# Docker registry and image tag
+REGISTRY ?= bc
+IMAGE_TAG ?= latest
+
+# Agent providers for Docker images
+AGENT_PROVIDERS := claude gemini codex aider opencode openclaw cursor
+
+# ldflags
 LDFLAGS_VERSION = -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
 LDFLAGS_RELEASE = -s -w $(LDFLAGS_VERSION)
+
+# Environment-specific addresses
+ADDR_local      := 127.0.0.1:9374
+ADDR_dogfood    := 127.0.0.1:9374
+ADDR_production := 0.0.0.0:9374
+
+DEPLOY_ADDR = $(ADDR_$(ENV))
 
 # =============================================================================
 # Help
 # =============================================================================
 
-help: ## Show this help
+help: ## Show all targets
+	@echo "bc — Agent Orchestration System ($(VERSION))"
+	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-24s\033[0m %s\n", $$1, $$2}'
 	@echo ""
-	@echo "Docker targets:"
-	@echo "  build-agent-image-NAME  Build specific agent image (claude, gemini, codex, aider, opencode, openclaw, cursor)"
+	@echo "  \033[36mdocker-agent-NAME       \033[0m Build agent image for provider ($(AGENT_PROVIDERS))"
 	@echo ""
-	@echo "Version: $(VERSION)  Commit: $(COMMIT)"
+	@echo "Environment (ENV):"
+	@echo "  local       127.0.0.1:9374 (default)"
+	@echo "  dogfood     127.0.0.1:9374"
+	@echo "  production  0.0.0.0:9374"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make build                    Build everything"
+	@echo "  make test-bcd                 Run Go tests only"
+	@echo "  make deploy ENV=dogfood       Deploy bcd to dogfood"
+	@echo "  make docker-agent-gemini      Build Gemini agent image"
 
-version: ## Show version info that will be embedded
+version: ## Show version info
 	@echo "Version: $(VERSION)"
 	@echo "Commit:  $(COMMIT)"
 	@echo "Date:    $(DATE)"
@@ -47,12 +100,9 @@ version: ## Show version info that will be embedded
 # Build
 # =============================================================================
 
-dev: ## Run bc in development mode
-	$(GO) run ./cmd/bc
+build: build-bc build-bcd build-tui build-landing ## Build everything
 
-build: build-bc ## Build bc CLI binary
-
-build-bc: gen ## Build bc binary
+build-bc: gen ## Build bc CLI binary
 	@mkdir -p $(BUILD_DIR)
 	$(GO) build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bc ./cmd/bc
 
@@ -60,64 +110,41 @@ build-bcd: gen build-web ## Build bcd server binary (embeds web UI)
 	@mkdir -p $(BUILD_DIR)
 	$(GO) build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bcd ./cmd/bcd
 
-build-release: gen ## Build optimized bc + bcd release binaries
-	@mkdir -p $(BUILD_DIR)
-	$(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/bc ./cmd/bc
-
-build-bcd-release: gen build-web ## Build optimized bcd release binary
-	@mkdir -p $(BUILD_DIR)
-	$(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/bcd ./cmd/bcd
-
 build-tui: ## Build TUI package
 	cd tui && bun install && bun run build
 
-build-web: ## Build React web UI and copy to server/web/dist/
+build-web: ## Build React web UI → server/web/dist/
 	cd web && bun install && bun run build
 	@rm -rf server/web/dist
 	@cp -r web/dist server/web/dist
 
-build-landing: ## Build landing page
+build-landing: ## Build Next.js landing page
 	cd landing && bun install && bun run build
-
-build-all: build-bc build-tui build-bcd build-landing ## Build everything (bc, bcd, TUI, web, landing)
 
 install: build-bc ## Install bc to $GOPATH/bin
 	cp $(BUILD_DIR)/bc $(shell $(GO) env GOPATH)/bin/
-
-gen: ## No-op (cfgx config generation removed)
-	@true
-
-deps: ## Download and tidy dependencies
-	$(GO) mod download
-	$(GO) mod tidy
-
-clean: ## Remove build artifacts
-	rm -rf $(BUILD_DIR)/ dist/
-	rm -rf tui/dist web/dist server/web/dist landing/.next landing/out
-	rm -f coverage.out coverage.html
-
-clean-deps: clean ## Remove build artifacts AND node_modules
-	rm -rf tui/node_modules web/node_modules landing/node_modules
 
 # =============================================================================
 # Test
 # =============================================================================
 
-test: test-go test-ui ## Run all tests (Go + UI)
+test: test-bcd test-ui ## Run all tests
 
-test-go: ## Run Go tests with race detector
+test-bcd: ## Run Go tests with race detector
 	$(GO) test -race ./...
+
+test-bc: test-bcd ## Alias for test-bcd (shared Go codebase)
 
 test-tui: ## Run TUI tests
 	cd tui && bun install && bun test
 
-test-web: ## Run web UI tests
+test-web: ## Run web UI tests (vitest)
 	cd web && bun install && bun run test
 
-test-landing: ## Run landing page Playwright tests
+test-landing: ## Run landing page tests (Playwright)
 	cd landing && bun run test
 
-test-ui: test-tui test-web test-landing ## Run all UI tests (TUI + web + landing)
+test-ui: test-tui test-web test-landing ## Run all UI tests
 
 coverage: ## Run Go tests with coverage report
 	$(GO) test -race -coverprofile=coverage.out ./...
@@ -131,7 +158,7 @@ coverage: ## Run Go tests with coverage report
 		echo "✅ Coverage $${COVERAGE}% meets $(COVERAGE_THRESHOLD)% threshold"; \
 	fi
 
-bench: ## Run benchmarks
+bench: ## Run Go benchmarks
 	$(GO) test -bench=. -benchmem -count=1 ./...
 
 # =============================================================================
@@ -144,10 +171,12 @@ fmt: ## Format Go code
 vet: ## Run go vet
 	$(GO) vet ./...
 
-lint: lint-go lint-ui ## Run all linters (Go + UI)
+lint: lint-bcd lint-ui ## Run all linters
 
-lint-go: ## Run golangci-lint
+lint-bcd: ## Run golangci-lint on Go code
 	golangci-lint run ./...
+
+lint-bc: lint-bcd ## Alias for lint-bcd (shared Go codebase)
 
 lint-tui: ## Lint TUI code
 	cd tui && bun run lint
@@ -158,15 +187,13 @@ lint-web: ## Lint web UI code
 lint-landing: ## Lint landing page code
 	cd landing && bun run lint
 
-lint-ui: lint-tui lint-web lint-landing ## Run all UI linters (TUI + web + landing)
+lint-ui: lint-tui lint-web lint-landing ## Run all UI linters
 
 # =============================================================================
 # Check & CI
 # =============================================================================
 
-check: gen fmt vet lint-go test-go ## Run all Go checks (gen + fmt + vet + lint + test)
-
-check-all: check lint-ui test-ui ## Run all checks (Go + UI)
+check: gen fmt vet lint-bcd test-bcd ## Go quality gate (gen + fmt + vet + lint + test)
 
 ci-local: ## Run full CI pipeline locally
 	@echo "=== CI Local Pipeline ==="
@@ -180,7 +207,91 @@ ci-local: ## Run full CI pipeline locally
 	@echo ""
 	@echo "=== CI Local: ALL PASS ==="
 
-integrate: check-all build-all ## Full integration: check + lint + test + build everything
+integrate: check lint-ui test-ui build ## Full integration: check + lint + test + build
+
+# =============================================================================
+# Release
+# =============================================================================
+
+release: release-bc release-bcd ## Build release binaries (stripped, optimized)
+
+release-bc: gen ## Build optimized bc binary
+	@mkdir -p $(BUILD_DIR)
+	$(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/bc ./cmd/bc
+
+release-bcd: gen build-web ## Build optimized bcd binary
+	@mkdir -p $(BUILD_DIR)
+	$(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/bcd ./cmd/bcd
+
+# =============================================================================
+# Deploy
+# =============================================================================
+
+deploy: deploy-bcd ## Deploy bcd (ENV=local|dogfood|production)
+
+deploy-bcd: build-bcd ## Deploy bcd server to $(ENV) at $(DEPLOY_ADDR)
+	@if [ -z "$(DEPLOY_ADDR)" ]; then \
+		echo "❌ Unknown ENV=$(ENV). Use: local, dogfood, production"; \
+		exit 1; \
+	fi
+	@echo "--- Deploying bcd ($(ENV)) to $(DEPLOY_ADDR) ---"
+	@lsof -ti :$(lastword $(subst :, ,$(DEPLOY_ADDR))) | xargs kill 2>/dev/null || true
+	@sleep 2
+	@nohup ./$(BUILD_DIR)/bcd --addr $(DEPLOY_ADDR) >> .bc/bcd-$(ENV).log 2>&1 &
+	@sleep 2
+	@if curl -sf http://$(DEPLOY_ADDR)/health > /dev/null 2>&1; then \
+		echo "✅ bcd ($(ENV)) deployed at http://$(DEPLOY_ADDR)"; \
+	else \
+		echo "❌ Deploy failed — check .bc/bcd-$(ENV).log"; \
+		exit 1; \
+	fi
+
+deploy-landing: build-landing ## Deploy landing page (placeholder)
+	@echo "Landing page built. Deploy via your hosting provider."
+
+# =============================================================================
+# Dev servers
+# =============================================================================
+
+dev: dev-bcd ## Run bcd in development mode
+
+dev-bcd: ## Run bc CLI in dev mode
+	$(GO) run ./cmd/bc
+
+dev-web: ## Run web UI dev server (hot reload)
+	cd web && bun run dev
+
+dev-landing: ## Run landing dev server (hot reload)
+	cd landing && bun run dev
+
+# =============================================================================
+# Docker — Images
+# =============================================================================
+
+docker: docker-bcd docker-bcdb ## Build all server Docker images
+
+docker-bcd: ## Build bcd server Docker image
+	docker build -t $(REGISTRY)-bcd:$(IMAGE_TAG) -f docker/Dockerfile.bcd .
+
+docker-bcdb: ## Build bcdb Postgres Docker image
+	docker build -t $(REGISTRY)-bcdb:$(IMAGE_TAG) -f docker/Dockerfile.bcdb .
+
+# --- Agent images ---
+
+docker-agent-base: ## Build agent base image
+	docker build -t $(REGISTRY)-agent-base:$(IMAGE_TAG) -f docker/Dockerfile.base .
+
+docker-agent: docker-agent-base docker-agent-claude ## Build default agent image (claude)
+
+docker-agent-%: docker-agent-base ## Build agent image for provider (e.g., docker-agent-gemini)
+	docker build -t $(REGISTRY)-agent-$*:$(IMAGE_TAG) -f docker/Dockerfile.$* .
+
+docker-agents: docker-agent-base ## Build all agent images
+	@for p in $(AGENT_PROVIDERS); do \
+		echo "Building $(REGISTRY)-agent-$$p..."; \
+		docker build -t $(REGISTRY)-agent-$$p:$(IMAGE_TAG) -f docker/Dockerfile.$$p . || exit 1; \
+	done
+	@echo "All agent images built."
 
 # =============================================================================
 # Security
@@ -193,59 +304,20 @@ security: vuln ## Run all security checks
 	@echo "Security checks passed."
 
 # =============================================================================
-# Deploy
+# Utilities
 # =============================================================================
 
-deploy-dogfood: build-bcd ## Deploy dogfood bcd on localhost:9374
-	@echo "--- Deploying dogfood ---"
-	@lsof -ti :9374 | xargs kill 2>/dev/null || true
-	@sleep 2
-	@nohup ./$(BUILD_DIR)/bcd --addr 127.0.0.1:9374 >> .bc/bcd.log 2>&1 &
-	@sleep 2
-	@if curl -sf http://127.0.0.1:9374/health > /dev/null 2>&1; then \
-		echo "✅ Dogfood deployed at http://localhost:9374"; \
-	else \
-		echo "❌ Deploy failed — check .bc/bcd.log"; \
-		exit 1; \
-	fi
+gen: ## Generate code (currently no-op)
+	@true
 
-# =============================================================================
-# Dev servers
-# =============================================================================
+deps: ## Download and tidy Go dependencies
+	$(GO) mod download
+	$(GO) mod tidy
 
-dev-web: ## Run web UI dev server (hot reload)
-	cd web && bun run dev
+clean: ## Remove build artifacts
+	rm -rf $(BUILD_DIR)/ dist/
+	rm -rf tui/dist web/dist server/web/dist landing/.next landing/out
+	rm -f coverage.out coverage.html
 
-dev-landing: ## Run landing dev server (hot reload)
-	cd landing && bun run dev
-
-# =============================================================================
-# Docker targets
-# =============================================================================
-
-# Server images
-build-bcd-image: ## Build bcd server Docker image
-	docker build -t bc-bcd:latest -f docker/Dockerfile.bcd .
-
-build-bcdb-image: ## Build bcdb Postgres Docker image
-	docker build -t bc-bcdb:latest -f docker/Dockerfile.bcdb .
-
-build-server-images: build-bcd-image build-bcdb-image ## Build all server images
-
-# Agent images
-AGENT_PROVIDERS := claude gemini codex aider opencode openclaw cursor
-
-build-agent-base: ## Build agent base image
-	docker build -t bc-agent-base:latest -f docker/Dockerfile.base .
-
-build-agent-image: build-agent-base build-agent-image-claude ## Build default (claude) agent image
-
-build-agent-image-%: build-agent-base
-	docker build -t bc-agent-$*:latest -f docker/Dockerfile.$* .
-
-build-agent-images: build-agent-base ## Build all agent images
-	@for p in $(AGENT_PROVIDERS); do \
-		echo "Building bc-agent-$$p..."; \
-		docker build -t bc-agent-$$p:latest -f docker/Dockerfile.$$p . || exit 1; \
-	done
-	@echo "All agent images built."
+clean-deps: clean ## Remove build artifacts AND node_modules
+	rm -rf tui/node_modules web/node_modules landing/node_modules
