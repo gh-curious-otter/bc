@@ -57,7 +57,7 @@ Command Groups (with short aliases):
   cost (co)                    Cost tracking and budgets
   workspace (ws)               Workspace management
   doctor (dr)                  Health checks
-  demon (cr/cron)              Scheduled tasks
+  cron (cr)                    Scheduled tasks
 
 Key Features:
   • Coordinate multiple AI coding agents in parallel
