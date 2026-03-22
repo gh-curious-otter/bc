@@ -368,7 +368,51 @@ export const api = {
     request<DailyCost[]>(`/costs/daily?days=${days}`),
   getCostBudgets: () => request<BudgetStatus[]>("/costs/budgets"),
 
-  listRoles: () => request<Record<string, Role>>("/workspace/roles"),
+  listRoles: () => request<Record<string, Role>>("/roles"),
+  createRole: (role: {
+    name: string;
+    description?: string;
+    prompt?: string;
+    parent_roles?: string[];
+    mcp_servers?: string[];
+    secrets?: string[];
+    plugins?: string[];
+    rules?: Record<string, string>;
+    commands?: Record<string, string>;
+    skills?: Record<string, string>;
+    agents?: Record<string, string>;
+    prompt_start?: string;
+    prompt_stop?: string;
+    prompt_create?: string;
+    prompt_delete?: string;
+    review?: string;
+  }) => request<Role>("/roles", { method: "POST", body: JSON.stringify(role) }),
+  updateRole: (
+    name: string,
+    role: {
+      description?: string;
+      prompt?: string;
+      parent_roles?: string[];
+      mcp_servers?: string[];
+      secrets?: string[];
+      plugins?: string[];
+      rules?: Record<string, string>;
+      commands?: Record<string, string>;
+      skills?: Record<string, string>;
+      agents?: Record<string, string>;
+      prompt_start?: string;
+      prompt_stop?: string;
+      prompt_create?: string;
+      prompt_delete?: string;
+      review?: string;
+    },
+  ) =>
+    request<Role>(`/roles/${encodeURIComponent(name)}`, {
+      method: "PUT",
+      body: JSON.stringify(role),
+    }),
+  deleteRole: (name: string) =>
+    request<void>(`/roles/${encodeURIComponent(name)}`, { method: "DELETE" }),
   listTools: () => request<Tool[]>("/tools"),
   enableTool: (name: string) =>
     request<{ enabled: boolean }>(`/tools/${encodeURIComponent(name)}/enable`, {

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -23,41 +24,147 @@ func (h *RolesHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/roles/", h.byName)
 }
 
-// list handles GET /api/roles — returns all resolved roles.
-func (h *RolesHandler) list(w http.ResponseWriter, r *http.Request) {
-	if !requireMethod(w, r, http.MethodGet) {
-		return
-	}
-	roles, err := h.ws.RoleManager.LoadAllRoles()
-	if err != nil {
-		httpError(w, "list roles: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	resolved := make(map[string]*workspace.ResolvedRole, len(roles))
-	for name := range roles {
-		if res, resolveErr := h.ws.RoleManager.ResolveRole(name); resolveErr == nil {
-			resolved[name] = res
-		}
-	}
-	writeJSON(w, http.StatusOK, resolved)
+// roleRequest is the JSON body for creating/updating a role.
+type roleRequest struct {
+	Rules        map[string]string `json:"rules"`
+	Commands     map[string]string `json:"commands"`
+	Skills       map[string]string `json:"skills"`
+	Agents       map[string]string `json:"agents"`
+	Name         string            `json:"name"`
+	Description  string            `json:"description"`
+	Prompt       string            `json:"prompt"`
+	PromptStart  string            `json:"prompt_start"`
+	PromptStop   string            `json:"prompt_stop"`
+	PromptCreate string            `json:"prompt_create"`
+	PromptDelete string            `json:"prompt_delete"`
+	Review       string            `json:"review"`
+	ParentRoles  []string          `json:"parent_roles"`
+	MCPServers   []string          `json:"mcp_servers"`
+	Secrets      []string          `json:"secrets"`
+	Plugins      []string          `json:"plugins"`
 }
 
-// byName handles GET /api/roles/{name} — returns a single resolved role.
-func (h *RolesHandler) byName(w http.ResponseWriter, r *http.Request) {
-	if !requireMethod(w, r, http.MethodGet) {
-		return
+func (req *roleRequest) toRole() *workspace.Role {
+	return &workspace.Role{
+		Prompt: req.Prompt,
+		Metadata: workspace.RoleMetadata{
+			Name:         req.Name,
+			Description:  req.Description,
+			ParentRoles:  req.ParentRoles,
+			MCPServers:   req.MCPServers,
+			Secrets:      req.Secrets,
+			Plugins:      req.Plugins,
+			Rules:        req.Rules,
+			Commands:     req.Commands,
+			Skills:       req.Skills,
+			Agents:       req.Agents,
+			PromptStart:  req.PromptStart,
+			PromptStop:   req.PromptStop,
+			PromptCreate: req.PromptCreate,
+			PromptDelete: req.PromptDelete,
+			Review:       req.Review,
+		},
 	}
+}
+
+// list handles GET /api/roles and POST /api/roles.
+func (h *RolesHandler) list(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		roles, err := h.ws.RoleManager.LoadAllRoles()
+		if err != nil {
+			httpError(w, "list roles: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		resolved := make(map[string]*workspace.ResolvedRole, len(roles))
+		for name := range roles {
+			if res, resolveErr := h.ws.RoleManager.ResolveRole(name); resolveErr == nil {
+				resolved[name] = res
+			}
+		}
+		writeJSON(w, http.StatusOK, resolved)
+
+	case http.MethodPost:
+		var req roleRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if req.Name == "" {
+			httpError(w, "role name is required", http.StatusBadRequest)
+			return
+		}
+		if h.ws.RoleManager.HasRole(req.Name) {
+			httpError(w, "role already exists: "+req.Name, http.StatusConflict)
+			return
+		}
+
+		role := req.toRole()
+		if err := h.ws.RoleManager.WriteRole(role); err != nil {
+			httpError(w, "create role: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		resolved, err := h.ws.RoleManager.ResolveRole(req.Name)
+		if err != nil {
+			httpError(w, "resolve role: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusCreated, resolved)
+
+	default:
+		methodNotAllowed(w)
+	}
+}
+
+// byName handles GET/PUT/DELETE /api/roles/{name}.
+func (h *RolesHandler) byName(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimPrefix(r.URL.Path, "/api/roles/")
 	if name == "" {
 		httpError(w, "role name required", http.StatusBadRequest)
 		return
 	}
 
-	resolved, err := h.ws.RoleManager.ResolveRole(name)
-	if err != nil {
-		httpError(w, "role not found: "+err.Error(), http.StatusNotFound)
-		return
+	switch r.Method {
+	case http.MethodGet:
+		resolved, err := h.ws.RoleManager.ResolveRole(name)
+		if err != nil {
+			httpError(w, "role not found: "+err.Error(), http.StatusNotFound)
+			return
+		}
+		writeJSON(w, http.StatusOK, resolved)
+
+	case http.MethodPut:
+		var req roleRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		// Use the URL name, ignore body name
+		req.Name = name
+
+		role := req.toRole()
+		if err := h.ws.RoleManager.WriteRole(role); err != nil {
+			httpError(w, "update role: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		resolved, err := h.ws.RoleManager.ResolveRole(name)
+		if err != nil {
+			httpError(w, "resolve role: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, resolved)
+
+	case http.MethodDelete:
+		if err := h.ws.RoleManager.DeleteRole(name); err != nil {
+			httpError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+
+	default:
+		methodNotAllowed(w)
 	}
-	writeJSON(w, http.StatusOK, resolved)
 }

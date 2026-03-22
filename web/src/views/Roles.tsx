@@ -5,6 +5,239 @@ import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 
+type FormStatus =
+  | { type: "idle" }
+  | { type: "saving" }
+  | { type: "success" }
+  | { type: "error"; message: string };
+
+function CreateRoleForm({ onCreated }: { onCreated: () => void }) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [parentRoles, setParentRoles] = useState("");
+  const [mcpServers, setMcpServers] = useState("");
+  const [status, setStatus] = useState<FormStatus>({ type: "idle" });
+  const [expanded, setExpanded] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+
+    setStatus({ type: "saving" });
+    try {
+      await api.createRole({
+        name: trimmedName,
+        description: description.trim() || undefined,
+        prompt: prompt.trim() || undefined,
+        parent_roles: parentRoles
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+        mcp_servers: mcpServers
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      });
+      setName("");
+      setDescription("");
+      setPrompt("");
+      setParentRoles("");
+      setMcpServers("");
+      setStatus({ type: "success" });
+      setExpanded(false);
+      onCreated();
+      setTimeout(() => setStatus({ type: "idle" }), 2000);
+    } catch (err) {
+      setStatus({
+        type: "error",
+        message: err instanceof Error ? err.message : "Failed to create role",
+      });
+      setTimeout(() => setStatus({ type: "idle" }), 4000);
+    }
+  };
+
+  if (!expanded) {
+    return (
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 transition-opacity"
+          aria-label="Create new role"
+        >
+          + New Role
+        </button>
+        {status.type === "success" && (
+          <span className="text-xs text-green-400">Role created</span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="rounded border border-bc-border bg-bc-surface p-4 space-y-3"
+    >
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
+          Create Role
+        </h2>
+        <button
+          type="button"
+          onClick={() => setExpanded(false)}
+          className="text-xs text-bc-muted hover:text-bc-text transition-colors"
+          aria-label="Cancel creating role"
+        >
+          Cancel
+        </button>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="block text-sm text-bc-text" htmlFor="role-name">
+            Name
+          </label>
+          <input
+            id="role-name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="my-role"
+            className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="block text-sm text-bc-text" htmlFor="role-desc">
+            Description
+          </label>
+          <input
+            id="role-desc"
+            type="text"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Short description"
+            className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="block text-sm text-bc-text" htmlFor="role-parents">
+            Parent Roles
+          </label>
+          <input
+            id="role-parents"
+            type="text"
+            value={parentRoles}
+            onChange={(e) => setParentRoles(e.target.value)}
+            placeholder="base, feature-dev"
+            className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="block text-sm text-bc-text" htmlFor="role-mcp">
+            MCP Servers
+          </label>
+          <input
+            id="role-mcp"
+            type="text"
+            value={mcpServers}
+            onChange={(e) => setMcpServers(e.target.value)}
+            placeholder="bc, github"
+            className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+          />
+        </div>
+      </div>
+      <div className="space-y-1">
+        <label className="block text-sm text-bc-text" htmlFor="role-prompt">
+          Prompt
+        </label>
+        <textarea
+          id="role-prompt"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="# Role Name&#10;&#10;Role instructions in Markdown..."
+          rows={4}
+          className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm font-mono focus:outline-none focus:ring-2 focus:ring-bc-accent resize-y"
+        />
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          type="submit"
+          disabled={status.type === "saving" || !name.trim()}
+          className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+        >
+          {status.type === "saving" ? "Creating..." : "Create Role"}
+        </button>
+        {status.type === "success" && (
+          <span className="text-xs text-green-400">Role created</span>
+        )}
+        {status.type === "error" && (
+          <span className="text-xs text-red-400">{status.message}</span>
+        )}
+      </div>
+    </form>
+  );
+}
+
+function DeleteButton({
+  name,
+  onDeleted,
+}: {
+  name: string;
+  onDeleted: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await api.deleteRole(name);
+      onDeleted();
+    } catch {
+      setDeleting(false);
+      setConfirming(false);
+    }
+  };
+
+  if (confirming) {
+    return (
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={deleting}
+          className="px-2 py-1 rounded bg-red-600 text-white text-xs font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
+          aria-label={`Confirm delete role ${name}`}
+        >
+          {deleting ? "Deleting..." : "Confirm"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setConfirming(false)}
+          disabled={deleting}
+          className="px-2 py-1 rounded border border-bc-border text-bc-muted text-xs hover:text-bc-text transition-colors"
+          aria-label="Cancel delete"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setConfirming(true)}
+      className="px-2 py-1 rounded border border-bc-border text-bc-muted text-xs hover:text-red-400 hover:border-red-400/50 transition-colors"
+      aria-label={`Delete role ${name}`}
+    >
+      Delete
+    </button>
+  );
+}
+
 export function Roles() {
   const fetcher = useCallback(async () => {
     const res = await api.listRoles();
@@ -61,6 +294,9 @@ export function Roles() {
           {roles?.length ?? 0} roles
         </span>
       </div>
+
+      <CreateRoleForm onCreated={refresh} />
+
       {(roles ?? []).length === 0 ? (
         <EmptyState
           icon="@"
@@ -70,7 +306,7 @@ export function Roles() {
       ) : (
         <div className="grid gap-4">
           {(roles ?? []).map((r) => (
-            <RoleCard key={r.key} role={r} />
+            <RoleCard key={r.key} role={r} onDeleted={refresh} />
           ))}
         </div>
       )}
@@ -135,7 +371,13 @@ function Pre({ label, text }: { label: string; text: string }) {
   );
 }
 
-function RoleCard({ role }: { role: Role & { key: string } }) {
+function RoleCard({
+  role,
+  onDeleted,
+}: {
+  role: Role & { key: string };
+  onDeleted: () => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const hasPrompts =
     role.PromptCreate ||
@@ -151,6 +393,16 @@ function RoleCard({ role }: { role: Role & { key: string } }) {
       <div
         className="flex items-center justify-between cursor-pointer"
         onClick={() => setExpanded(!expanded)}
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+        aria-label={`Toggle details for role ${role.Name}`}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setExpanded(!expanded);
+          }
+        }}
       >
         <div className="flex items-center gap-3">
           <h3 className="font-medium text-lg">{role.Name}</h3>
@@ -244,6 +496,9 @@ function RoleCard({ role }: { role: Role & { key: string } }) {
             </div>
           )}
           {role.Review && <Pre label="REVIEW.md" text={role.Review} />}
+          <div className="pt-2">
+            <DeleteButton name={role.key} onDeleted={onDeleted} />
+          </div>
         </div>
       )}
     </div>
