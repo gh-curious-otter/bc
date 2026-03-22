@@ -353,7 +353,7 @@ export const api = {
   renameAgent: (name: string, newName: string) =>
     request<Agent>(`/agents/${encodeURIComponent(name)}/rename`, {
       method: "POST",
-      body: JSON.stringify({ name: newName }),
+      body: JSON.stringify({ new_name: newName }),
     }),
   stopAllAgents: () => request<void>("/agents/stop-all", { method: "POST" }),
   sendToAgent: (name: string, message: string) =>
