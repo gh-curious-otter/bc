@@ -6,8 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Prerequisites**: Go 1.25.4+, tmux, golangci-lint, make. For TUI: Bun.
 
-**Naming convention**: `make <verb>-<thing>[-<runtime>]`
-- **thing** = `go` | `ts` (aggregates) or `bc` | `bcd` | `tui` | `web` | `landing` (specific)
+**Naming convention**: `make <verb>-<lang|component>[-<runtime>]`
+- **lang** = `go` | `ts` (language aggregates)
+- **component** = `bc` | `bcd` | `tui` | `web` | `landing`
 - **runtime** = `-local` (host machine) | `-docker` (container)
 
 **Build**

@@ -34,7 +34,7 @@ cp bin/bc $(go env GOPATH)/bin/
 
 ## Build Commands
 
-Naming convention: `make <verb>-<component>-<runtime>` where `-local` = host machine, `-docker` = Docker image.
+Naming convention: `make <verb>-<lang|component>[-<runtime>]` where `lang` = `go` | `ts` (language aggregates), `component` = `bc` | `bcd` | `tui` | `web` | `landing`, `runtime` = `-local` (host) | `-docker` (container).
 
 ### Build (local)
 

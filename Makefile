@@ -5,9 +5,10 @@
 #   go   → bc (CLI binary), bcd (server daemon with embedded web UI)
 #   ts   → tui (React/Ink terminal UI), web (React dashboard), landing (Next.js site)
 #
-# Naming convention: <verb>-<thing>[-<runtime>]
-#   thing   = go, ts (aggregates) or bc, bcd, tui, web, landing (specific)
-#   runtime = -local (host machine), -docker (Docker image/container)
+# Naming convention: <verb>-<lang|component>[-<runtime>]
+#   lang      = go, ts (language aggregates)
+#   component = bc, bcd, tui, web, landing (specific)
+#   runtime   = -local (host machine), -docker (Docker image/container)
 #
 # Usage:
 #   make help                          Show all targets
@@ -24,17 +25,17 @@
 .PHONY: help version
 # Aggregates
 .PHONY: build test lint fmt vet coverage bench deps check scan gen clean release run deploy
-# Go aggregates
+# Go language aggregates
 .PHONY: build-go-local test-go lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go gen-go
-# Go sub-components — local
+# Go components — local
 .PHONY: build-bc-local build-bcd-local release-bc-local release-bcd-local
 .PHONY: run-bc-local install-bc-local deploy-bcd-local
-# Go sub-components — docker
+# Go components — docker
 .PHONY: build-bcd-docker build-bcdb-docker
 .PHONY: build-agent-base-docker build-agent-docker build-agents-docker
-# TS aggregates
+# TS language aggregates
 .PHONY: build-ts-local test-ts lint-ts fmt-ts vet-ts coverage-ts bench-ts deps-ts check-ts scan-ts gen-ts
-# TS sub-components
+# TS components
 .PHONY: build-tui-local build-web-local build-landing-local
 .PHONY: test-tui test-web test-landing
 .PHONY: lint-tui lint-web lint-landing
@@ -84,9 +85,10 @@ DEPLOY_ADDR = $(ADDR_$(ENV))
 help: ## Show all targets
 	@echo "bc — Agent Orchestration System ($(VERSION))"
 	@echo ""
-	@echo "Naming: make <verb>-<thing>[-<runtime>]"
-	@echo "  thing   = go | ts | bc | bcd | tui | web | landing"
-	@echo "  runtime = -local (host) | -docker (container)"
+	@echo "Naming: make <verb>-<lang|component>[-<runtime>]"
+	@echo "  lang      = go | ts (language aggregates)"
+	@echo "  component = bc | bcd | tui | web | landing"
+	@echo "  runtime   = -local (host) | -docker (container)"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-34s\033[0m %s\n", $$1, $$2}'
 	@echo ""
