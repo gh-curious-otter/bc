@@ -26,7 +26,7 @@
 # Aggregates
 .PHONY: build test lint fmt vet coverage bench deps check scan gen clean release run deploy
 # Go language aggregates
-.PHONY: build-go-local test-go lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go gen-go
+.PHONY: build-go-local test-go test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go gen-go
 # Go components — local
 .PHONY: build-bc-local build-bcd-local release-bc-local release-bcd-local
 .PHONY: run-bc-local install-bc-local deploy-bcd-local
@@ -202,6 +202,10 @@ build-landing-local: ## Build Next.js landing page (local)
 test-go: ## Run Go tests with race detector
 	$(GO) test -race ./...
 
+SLOW_PACKAGES := github.com/rpuneet/bc/internal/cmd
+test-go-fast: ## Run Go tests excluding slow/E2E packages (matches CI)
+	$(GO) test -race $$($(GO) list ./... | grep -v -F "$(SLOW_PACKAGES)")
+
 coverage-go: ## Run Go tests with coverage report
 	$(GO) test -race -coverprofile=coverage.out ./...
 	@$(GO) tool cover -func=coverage.out | tail -1
@@ -304,7 +308,7 @@ ci-local: ## Run full CI pipeline locally
 	printf "$(_CYAN)[go]$(_RESET) gen\n";         $(MAKE) --no-print-directory gen-go        || FAIL=1; \
 	printf "$(_CYAN)[go]$(_RESET) vet\n";         $(MAKE) --no-print-directory vet-go        || FAIL=1; \
 	printf "$(_CYAN)[go]$(_RESET) lint\n";        $(MAKE) --no-print-directory lint-go       || FAIL=1; \
-	printf "$(_CYAN)[go]$(_RESET) test\n";        $(MAKE) --no-print-directory test-go       || FAIL=1; \
+	printf "$(_CYAN)[go]$(_RESET) test\n";        $(MAKE) --no-print-directory test-go-fast  || FAIL=1; \
 	printf "$(_CYAN)[go]$(_RESET) build\n";       $(MAKE) --no-print-directory build-go-local || FAIL=1; \
 	printf "$(_CYAN)[go]$(_RESET) verify\n";      $(BUILD_DIR)/bc version                    || FAIL=1; \
 	printf "\n"; \

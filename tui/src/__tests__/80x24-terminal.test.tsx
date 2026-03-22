@@ -50,8 +50,8 @@ describe('80x24 Terminal - Breakpoints', () => {
     expect(getLayoutMode(80)).toBe('sm');
   });
 
-  it('79 cols is xs mode (no drawer)', () => {
-    expect(getLayoutMode(79)).toBe('xs');
+  it('59 cols is xs mode (no drawer)', () => {
+    expect(getLayoutMode(59)).toBe('xs');
   });
 
   it('100 cols is md mode (10-char drawer, single column)', () => {
