@@ -4,7 +4,7 @@ Get bc running in 5 minutes.
 
 ## Prerequisites
 
-- **Go 1.25.1+** for building from source
+- **Go 1.25.4+** for building from source
 - **tmux** for agent session management
 - **An AI agent tool** (Claude Code, Cursor, or similar)
 
@@ -121,9 +121,9 @@ bc channel history eng
 Agents report their status:
 
 ```bash
-bc agent reportworking "Implementing login API"
-bc agent reportdone "Feature complete"
-bc agent reportstuck "Need database access"
+bc agent report working "Implementing login API"
+bc agent report done "Feature complete"
+bc agent report stuck "Need database access"
 ```
 
 ### Cost Tracking

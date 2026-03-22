@@ -19,7 +19,7 @@ Welcome to bc! This guide will walk you through installation, setup, and your fi
 Before installing bc, ensure you have:
 
 ### Required
-- **Go 1.25.1+** - [Download Go](https://go.dev/dl)
+- **Go 1.25.4+** - [Download Go](https://go.dev/dl)
 - **tmux** - Terminal multiplexer for session management
 - **Claude Code** (or compatible AI agent like Cursor)
 - **git** - Version control system

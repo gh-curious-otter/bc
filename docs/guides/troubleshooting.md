@@ -42,7 +42,7 @@ sudo dnf install tmux
 
 **Solution**:
 ```bash
-# Check Go version (need 1.22+)
+# Check Go version (need 1.25.4+)
 go version
 
 # Update dependencies
@@ -151,11 +151,11 @@ bc agent start agent-name
 **Solution**:
 ```bash
 # These commands only work inside agent sessions:
-bc agent reportworking "..."
+bc agent report working "..."
 bc channel join eng
 
 # Use agent send instead:
-bc agent send eng-01 "bc agent reportworking '...'"
+bc agent send eng-01 "bc agent report working '...'"
 ```
 
 ## Channel Issues
@@ -305,49 +305,14 @@ git merge --abort  # or resolve manually
 
 **Solution**:
 ```bash
-# Check if enabled in config
-bc config show | grep cost
+# Check cost data
+bc cost show
 
-# Manually add entry
-bc cost add --agent eng-01 --amount 0.05
+# View per-agent breakdown
+bc cost agent
 
 # Check database
 sqlite3 .bc/bc.db "SELECT * FROM costs LIMIT 5;"
-```
-
-## Memory Issues
-
-### Memory Not Persisting
-
-**Cause**: Memory backend misconfigured.
-
-**Solution**:
-```bash
-# Check memory config
-bc config show | grep memory
-
-# Verify memory directory
-ls -la .bc/memory/
-
-# Test recording
-bc memory record "Test entry"
-# memory system not yet implemented
-```
-
-### Search Not Finding Results
-
-**Cause**: FTS index not built or search syntax.
-
-**Solution**:
-```bash
-# Rebuild index
-# memory system not yet implemented
-
-# Use simple search terms
-bc memory search testing
-
-# Check memory contents
-# memory system not yet implemented
 ```
 
 ## Performance Issues
@@ -363,10 +328,6 @@ du -sh .bc/*.db
 
 # Vacuum database
 sqlite3 .bc/bc.db "VACUUM;"
-
-# Prune old data
-bc logs prune --older-than 7d
-bc memory prune --older-than 30d
 ```
 
 ### High CPU Usage
@@ -439,7 +400,7 @@ bc logs
 bc logs --agent eng-01
 
 # Filter by type
-bc logs --type error
+bc logs --type agent.report
 ```
 
 ### Debug Mode
