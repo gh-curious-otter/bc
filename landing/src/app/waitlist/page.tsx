@@ -10,8 +10,8 @@ import {
   Shield,
   Users,
   Terminal,
-  Clock,
   GitBranch,
+  Eye,
 } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -20,21 +20,21 @@ import { RevealSection } from "../_components/TerminalComponents";
 const BENEFITS = [
   {
     icon: Terminal,
-    title: "Full CLI Access",
+    title: "Full CLI + Web Dashboard",
     description:
-      "Complete CLI access to every feature — agents, channels, cost controls, roles, cron jobs, secrets, MCP integrations, and a real-time Web UI dashboard.",
+      "Complete CLI access to every feature — agents, channels, cost controls, roles, cron jobs, secrets, and MCP integrations. Plus a real-time Web UI dashboard for visual monitoring.",
   },
   {
     icon: Users,
     title: "Multi-Agent Orchestration",
     description:
-      "Run 5+ AI coding agents simultaneously with zero conflicts. Git worktree isolation keeps every agent in its own lane.",
+      "Run 5+ AI coding agents simultaneously with zero conflicts. Git worktree isolation keeps every agent in its own lane while channels enable coordination.",
   },
   {
     icon: Shield,
     title: "Cost Control Built In",
     description:
-      "Real-time token tracking, per-agent budgets, and automatic kill switches. Never get a surprise bill again.",
+      "Real-time token tracking, per-agent budgets, and automatic kill switches. See exactly what each agent costs with daily trend charts and per-agent breakdowns.",
   },
   {
     icon: GitBranch,
@@ -43,16 +43,34 @@ const BENEFITS = [
       "Works with Claude Code, Cursor, Codex, Gemini, Aider, OpenCode, OpenClaw, and any CLI-based coding assistant. No vendor lock-in.",
   },
   {
-    icon: Zap,
-    title: "Priority Support",
+    icon: Eye,
+    title: "Real-Time Visibility",
     description:
-      "Beta users get direct access to the bc team for feedback, bug reports, and feature requests.",
+      "Watch agents communicate in shared channels, monitor live status, and track progress across your entire team from a single dashboard.",
   },
   {
-    icon: Clock,
-    title: "Early Access to Features",
+    icon: Zap,
+    title: "Cron, Secrets & MCP",
     description:
-      "Be the first to try new capabilities as they ship — cron automation, MCP integrations, encrypted secrets, and more.",
+      "Schedule recurring agent tasks with cron, manage encrypted secrets, and extend capabilities with MCP server integrations — all from the CLI.",
+  },
+];
+
+const SCREENSHOTS = [
+  {
+    src: "/screenshots/dashboard-01-home.png",
+    alt: "bc dashboard showing active agents, channels, total cost, and token usage with agent status table",
+    label: "Dashboard Overview",
+  },
+  {
+    src: "/screenshots/dashboard-03-channels.png",
+    alt: "bc channels view showing real-time agent-to-agent communication in shared channels",
+    label: "Agent Channels",
+  },
+  {
+    src: "/screenshots/dashboard-04-costs.png",
+    alt: "bc costs view showing daily cost trends, per-agent cost breakdown, and total token usage",
+    label: "Cost Tracking",
   },
 ];
 
@@ -65,6 +83,7 @@ export default function Waitlist() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeScreenshot, setActiveScreenshot] = useState(0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -183,7 +202,7 @@ export default function Waitlist() {
             >
               <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-xs font-mono font-bold text-primary">
                 <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                PRIVATE BETA
+                EARLY ACCESS
               </span>
             </motion.div>
             <motion.h1
@@ -192,9 +211,9 @@ export default function Waitlist() {
               transition={{ duration: 0.5, delay: 0.1 }}
               className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight"
             >
-              Join the future of
+              Orchestrate AI agents
               <br />
-              <span className="text-primary">AI coordination.</span>
+              <span className="text-primary">from your terminal.</span>
             </motion.h1>
             <motion.p
               initial={{ opacity: 0, y: 20 }}
@@ -202,9 +221,9 @@ export default function Waitlist() {
               transition={{ duration: 0.5, delay: 0.2 }}
               className="text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed"
             >
-              bc coordinates teams of AI coding agents from your terminal. Join
-              the private beta and get early access to the CLI-first platform
-              that ships features faster with zero conflicts.
+              bc coordinates teams of AI coding agents with isolated worktrees,
+              shared channels, and cost controls. Open source and local-first.
+              Get notified when we launch.
             </motion.p>
           </div>
 
@@ -272,7 +291,7 @@ export default function Waitlist() {
                             <div className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
                           ) : (
                             <>
-                              Request Early Access{" "}
+                              Get Early Access{" "}
                               <ArrowRight
                                 size={16}
                                 className="transition-transform group-hover:translate-x-1"
@@ -286,7 +305,7 @@ export default function Waitlist() {
                             className="text-center text-sm font-mono text-red-400"
                             role="alert"
                           >
-                            ✗ {error}
+                            {error}
                           </p>
                         )}
                         <p className="text-center text-[11px] text-white/25 font-mono">
@@ -328,11 +347,20 @@ export default function Waitlist() {
                     </motion.div>
                     <div className="space-y-2">
                       <pre className="text-sm font-mono text-success">
-                        ✓ Added to waitlist
+                        You&apos;re on the list
                       </pre>
                       <p className="text-white/50 font-mono text-sm">
-                        You&apos;ll be the first to know when we start accepting
-                        new teams into the bc private beta.
+                        We&apos;ll notify you when bc is ready for early access.
+                        In the meantime, check out the{" "}
+                        <a
+                          href="https://github.com/bcinfra1/bc"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          GitHub repo
+                        </a>{" "}
+                        — bc is open source.
                       </p>
                     </div>
                     <div className="pt-2">
@@ -344,7 +372,7 @@ export default function Waitlist() {
                         className="text-xs font-mono text-primary hover:underline"
                         aria-label="Go back and use a different email address"
                       >
-                        ← use a different email
+                        use a different email
                       </button>
                     </div>
                   </div>
@@ -370,34 +398,101 @@ export default function Waitlist() {
             <div className="h-8 w-px bg-border" />
             <div>
               <div className="text-2xl font-bold font-mono tracking-tighter text-foreground">
-                MIT
+                Open Source
               </div>
               <div className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground/50">
-                Licensed
+                MIT Licensed
               </div>
             </div>
             <div className="h-8 w-px bg-border" />
             <div>
               <div className="text-2xl font-bold font-mono tracking-tighter text-primary">
-                Private Beta
+                Local-First
               </div>
               <div className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground/50">
-                Status
+                Your Machine
               </div>
             </div>
           </motion.div>
         </div>
       </section>
 
+      {/* Dashboard Preview Section */}
+      <section className="py-24 border-t border-border">
+        <div className="mx-auto max-w-5xl px-6">
+          <RevealSection className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
+              See what you&apos;ll get
+            </h2>
+            <p className="text-muted-foreground max-w-lg mx-auto">
+              A real-time Web UI dashboard ships with bc. Monitor agents,
+              channels, and costs from your browser.
+            </p>
+          </RevealSection>
+          <RevealSection delay={0.2}>
+            <div className="rounded-xl border border-border bg-terminal-bg overflow-hidden shadow-2xl shadow-black/20">
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
+                <div className="flex gap-1.5">
+                  <div className="h-3 w-3 rounded-full bg-[var(--traffic-red)]" />
+                  <div className="h-3 w-3 rounded-full bg-[var(--traffic-yellow)]" />
+                  <div className="h-3 w-3 rounded-full bg-[var(--traffic-green)]" />
+                </div>
+                <span className="text-xs font-mono text-white/30 ml-2">
+                  localhost:9374
+                </span>
+              </div>
+              <div className="relative">
+                <AnimatePresence mode="wait">
+                  <motion.img
+                    key={activeScreenshot}
+                    src={SCREENSHOTS[activeScreenshot].src}
+                    alt={SCREENSHOTS[activeScreenshot].alt}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-auto"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                  />
+                </AnimatePresence>
+              </div>
+            </div>
+            <div
+              className="flex justify-center gap-3 mt-6"
+              role="tablist"
+              aria-label="Dashboard screenshots"
+            >
+              {SCREENSHOTS.map((screenshot, i) => (
+                <button
+                  key={screenshot.label}
+                  onClick={() => setActiveScreenshot(i)}
+                  role="tab"
+                  aria-selected={activeScreenshot === i}
+                  aria-label={screenshot.label}
+                  className={`px-4 py-2 rounded-lg text-xs font-mono font-bold transition-all ${
+                    activeScreenshot === i
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-accent/50 text-muted-foreground hover:bg-accent"
+                  }`}
+                >
+                  {screenshot.label}
+                </button>
+              ))}
+            </div>
+          </RevealSection>
+        </div>
+      </section>
+
+      {/* Benefits Section */}
       <section className="py-24 border-t border-border">
         <div className="mx-auto max-w-5xl px-6">
           <RevealSection className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
-              What you&apos;ll get with early access
+              What you get with early access
             </h2>
             <p className="text-muted-foreground max-w-lg mx-auto">
-              Beta members get full access to the bc platform plus direct
-              influence on the roadmap.
+              Full access to every feature plus direct influence on the roadmap.
             </p>
           </RevealSection>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -418,38 +513,39 @@ export default function Waitlist() {
         </div>
       </section>
 
+      {/* How It Works Section */}
       <section className="py-24 border-t border-border bg-accent/20">
         <div className="mx-auto max-w-3xl px-6">
           <RevealSection className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
-              How the beta works
+              How it works
             </h2>
           </RevealSection>
           <div className="space-y-8">
             {[
               {
                 step: "01",
-                title: "Sign up",
+                title: "Sign up for early access",
                 description:
-                  "Drop your email above. We'll add you to the waitlist and send a confirmation.",
+                  "Drop your email above. We'll notify you as soon as bc is ready for you to install.",
               },
               {
                 step: "02",
-                title: "Get invited",
+                title: "Install locally",
                 description:
-                  "We're onboarding teams in batches. You'll receive an invite with setup instructions when it's your turn.",
+                  "bc runs on your machine. One command to install, one command to start: `bc up`. No cloud accounts, no containers required.",
               },
               {
                 step: "03",
-                title: "Install & orchestrate",
+                title: "Orchestrate your agents",
                 description:
-                  "Run `bc up` and start orchestrating multiple AI agents from day one. Full CLI access from your terminal, Web UI dashboard in your browser.",
+                  "Point bc at your project, assign roles to agents, and let them work in parallel. Each agent gets its own git worktree — zero merge conflicts.",
               },
               {
                 step: "04",
                 title: "Shape the product",
                 description:
-                  "Give feedback directly to the team. Your input drives the roadmap. Beta users get priority support.",
+                  "Early access users get direct input on the roadmap. Your feedback drives what we build next.",
               },
             ].map((item, i) => (
               <RevealSection key={item.step} delay={i * 0.1}>
@@ -470,6 +566,7 @@ export default function Waitlist() {
         </div>
       </section>
 
+      {/* FAQ Section */}
       <section className="py-24 border-t border-border">
         <div className="mx-auto max-w-3xl px-6">
           <RevealSection className="text-center mb-16">
@@ -481,7 +578,7 @@ export default function Waitlist() {
             {[
               {
                 q: "What is bc?",
-                a: "bc is a CLI-first multi-agent orchestration platform. It coordinates multiple AI coding agents — like Claude Code, Cursor, Codex, and others — so they can work in parallel on isolated git worktrees without merge conflicts or context loss.",
+                a: "bc is a CLI-first multi-agent orchestration tool. It coordinates multiple AI coding agents — like Claude Code, Cursor, Codex, and others — so they can work in parallel on isolated git worktrees without merge conflicts or context loss.",
               },
               {
                 q: "How is this different from using a single AI agent?",
@@ -497,11 +594,15 @@ export default function Waitlist() {
               },
               {
                 q: "Is bc open source?",
-                a: "Yes. bc is MIT licensed and open source. You can inspect the code, contribute, and self-host. The beta gives you access to the full platform — CLI, Web UI dashboard, and all features.",
+                a: "Yes. bc is open source and runs entirely on your local machine. You can inspect the code, contribute, and self-host. Early access gives you the full platform — CLI, Web UI dashboard, and all features.",
               },
               {
-                q: "How does the beta work?",
-                a: "Sign up with your email above and we will onboard you into the private beta. You will get full CLI access, priority support, and direct input on the product roadmap. Beta users help shape the future of AI coordination.",
+                q: "Does bc require a cloud account?",
+                a: "No. bc is local-first. It runs on your machine using tmux sessions and local git worktrees. No data leaves your machine unless you configure external AI providers (which you control).",
+              },
+              {
+                q: "How does early access work?",
+                a: "Sign up with your email and we'll notify you when bc is ready. You'll get installation instructions, full access to all features, and a direct line to the team for feedback and support.",
               },
             ].map((faq) => (
               <RevealSection key={faq.q}>
