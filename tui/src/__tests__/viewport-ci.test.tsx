@@ -31,11 +31,8 @@ import { CostsView } from '../views/CostsView';
 import { RolesView } from '../views/RolesView';
 import { LogsView } from '../views/LogsView';
 import { WorktreesView } from '../views/WorktreesView';
-import { DemonsView } from '../views/DemonsView';
 import { ProcessesView } from '../views/ProcessesView';
 import { HelpView } from '../views/HelpView';
-import { IssuesView } from '../views/IssuesView';
-import { FilesView } from '../views/FilesView';
 
 // Import components that need viewport validation
 import { TabBar } from '../navigation/TabBar';
@@ -179,11 +176,8 @@ describe('Viewport CI - 80x24 Compliance', () => {
       { name: 'RolesView', component: <RolesView /> },
       { name: 'LogsView', component: <LogsView /> },
       { name: 'WorktreesView', component: <WorktreesView /> },
-      { name: 'DemonsView', component: <DemonsView /> },
       { name: 'ProcessesView', component: <ProcessesView /> },
       { name: 'HelpView', component: <HelpView /> },
-      { name: 'IssuesView', component: <IssuesView /> },
-      { name: 'FilesView', component: <FilesView /> },
     ];
 
     for (const { name, component } of views) {

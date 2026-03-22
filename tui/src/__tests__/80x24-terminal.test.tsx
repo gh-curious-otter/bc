@@ -46,15 +46,19 @@ describe('80x24 Terminal - Breakpoints', () => {
     return 'xs';
   }
 
-  it('80 cols is sm mode (minimal drawer, single column)', () => {
-    expect(getLayoutMode(80)).toBe('sm');
+  it('80 cols is md mode (at SM breakpoint)', () => {
+    expect(getLayoutMode(80)).toBe('md');
   });
 
-  it('59 cols is xs mode (no drawer)', () => {
+  it('79 cols is sm mode (between XS and SM)', () => {
+    expect(getLayoutMode(79)).toBe('sm');
+  });
+
+  it('59 cols is xs mode (below XS breakpoint)', () => {
     expect(getLayoutMode(59)).toBe('xs');
   });
 
-  it('100 cols is md mode (10-char drawer, single column)', () => {
+  it('100 cols is md mode (between SM and MD)', () => {
     expect(getLayoutMode(100)).toBe('md');
   });
 
@@ -311,11 +315,11 @@ describe('80x24 Terminal - Layout Flags', () => {
     };
   }
 
-  it('at 80 cols: sm mode with minimal drawer', () => {
+  it('at 80 cols: md mode (at SM breakpoint)', () => {
     const flags = getLayoutFlags(80);
 
-    expect(flags.isSM).toBe(true);
-    expect(flags.isCompact).toBe(true);
+    expect(flags.isMedium).toBe(true);
+    expect(flags.isCompact).toBe(false);
     expect(flags.isXS).toBe(false);
     expect(flags.canMultiColumn).toBe(false); // 80 < MD(120)
     expect(flags.canTripleColumn).toBe(false);
