@@ -294,6 +294,13 @@ export interface SettingsConfig {
   Storage: { SQLitePath: string };
 }
 
+export interface Team {
+  name: string;
+  description: string;
+  lead: string;
+  members: string[];
+}
+
 export interface Daemon {
   name: string;
   runtime: string;
@@ -533,4 +540,20 @@ export const api = {
     }),
   removeDaemon: (name: string) =>
     request<void>(`/daemons/${encodeURIComponent(name)}`, { method: "DELETE" }),
+
+  listTeams: () => request<Team[]>("/teams"),
+  getTeam: (name: string) =>
+    request<Team>(`/teams/${encodeURIComponent(name)}`),
+
+  addChannelMember: (channelName: string, agentName: string) =>
+    request<void>(`/channels/${encodeURIComponent(channelName)}/members`, {
+      method: "POST",
+      body: JSON.stringify({ agent: agentName }),
+    }),
+
+  updateChannel: (name: string, patch: { description?: string }) =>
+    request<Channel>(`/channels/${encodeURIComponent(name)}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
 };
