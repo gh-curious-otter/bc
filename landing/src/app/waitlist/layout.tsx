@@ -2,16 +2,16 @@ import { Metadata } from "next";
 import { BreadcrumbSchema, FAQSchema } from "../_components/StructuredData";
 
 export const metadata: Metadata = {
-  title: "Waitlist — bc | Early Access to Multi-Agent Orchestration",
+  title: "Early Access — bc | Multi-Agent Orchestration for AI Coding Agents",
   description:
-    "Join the bc waitlist and get early access to the CLI-first multi-agent orchestration platform. Run 5+ AI coding agents simultaneously with zero conflicts.",
+    "Get early access to bc, the open-source CLI-first multi-agent orchestration tool. Run 5+ AI coding agents simultaneously with zero conflicts.",
   alternates: {
     canonical: "/waitlist",
   },
   openGraph: {
-    title: "bc Waitlist — Early Access to Multi-Agent Orchestration",
+    title: "bc Early Access — Multi-Agent Orchestration",
     description:
-      "Get early access to bc's CLI-first multi-agent orchestration platform. Run 5+ AI coding agents with zero conflicts.",
+      "Get early access to bc, the open-source tool for orchestrating AI coding agents with zero conflicts.",
     url: "https://bc-infra.com/waitlist",
     siteName: "bc",
     type: "website",
@@ -26,9 +26,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "bc Waitlist — Early Access to Multi-Agent Orchestration",
+    title: "bc Early Access — Multi-Agent Orchestration",
     description:
-      "Get early access to bc's CLI-first multi-agent orchestration platform. Run 5+ AI coding agents with zero conflicts.",
+      "Get early access to bc, the open-source tool for orchestrating AI coding agents with zero conflicts.",
     images: ["https://bc-infra.com/og-image.png"],
     creator: "@bcinfra",
   },
@@ -43,13 +43,13 @@ export default function WaitlistLayout({
     <>
       {BreadcrumbSchema([
         { name: "Home", url: "https://bc-infra.com" },
-        { name: "Waitlist", url: "https://bc-infra.com/waitlist" },
+        { name: "Early Access", url: "https://bc-infra.com/waitlist" },
       ])}
       {FAQSchema([
         {
           question: "What is bc?",
           answer:
-            "bc is a CLI-first multi-agent orchestration platform. It coordinates multiple AI coding agents — like Claude Code, Cursor, Codex, Gemini, and others — so they can work in parallel on isolated git worktrees without merge conflicts or context loss.",
+            "bc is a CLI-first multi-agent orchestration tool. It coordinates multiple AI coding agents — like Claude Code, Cursor, Codex, Gemini, and others — so they can work in parallel on isolated git worktrees without merge conflicts or context loss.",
         },
         {
           question: "How is this different from using a single AI agent?",
@@ -69,12 +69,17 @@ export default function WaitlistLayout({
         {
           question: "Is bc open source?",
           answer:
-            "Yes. bc is MIT licensed and open source. You can inspect the code, contribute, and self-host. The beta gives you access to the full platform — CLI, Web UI dashboard, and all features.",
+            "Yes. bc is open source and runs entirely on your local machine. You can inspect the code, contribute, and self-host. Early access gives you the full platform — CLI, Web UI dashboard, and all features.",
         },
         {
-          question: "How does the beta work?",
+          question: "Does bc require a cloud account?",
           answer:
-            "Sign up with your email and we will onboard you into the private beta. You will get full CLI access, priority support, and direct input on the product roadmap. Beta users help shape the future of AI coordination.",
+            "No. bc is local-first. It runs on your machine using tmux sessions and local git worktrees. No data leaves your machine unless you configure external AI providers (which you control).",
+        },
+        {
+          question: "How does early access work?",
+          answer:
+            "Sign up with your email and we'll notify you when bc is ready. You'll get installation instructions, full access to all features, and a direct line to the team for feedback and support.",
         },
       ])}
       {children}
