@@ -57,7 +57,7 @@ COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 DATE    ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 BUILD_DIR ?= bin
 GO ?= go
-COVERAGE_THRESHOLD ?= 60
+COVERAGE_THRESHOLD ?= 75
 
 # Deploy environment: local, dogfood, production
 ENV ?= local
