@@ -154,6 +154,17 @@ export interface CronJob {
   created_at: string;
 }
 
+export interface CronLogEntry {
+  id: number;
+  job_name: string;
+  status: string;
+  output: string;
+  error: string;
+  started_at: string;
+  finished_at: string;
+  duration_ms: number;
+}
+
 export interface Secret {
   name: string;
   description: string;
@@ -249,6 +260,23 @@ export interface SettingsConfig {
   Roster: { Agents: { Name: string; Role: string; Tool: string; Runtime: string }[] };
 }
 
+export interface Daemon {
+  name: string;
+  runtime: string;
+  cmd: string;
+  image: string;
+  container_id: string;
+  restart: string;
+  status: string;
+  ports: string[];
+  volumes: string[];
+  env: string[];
+  pid: number;
+  created_at: string;
+  started_at: string;
+  stopped_at: string | null;
+}
+
 export const api = {
   listAgents: () => request<Agent[]>('/agents'),
   getAgent: (name: string) => request<Agent>(`/agents/${encodeURIComponent(name)}`),
@@ -256,6 +284,7 @@ export const api = {
     request<{ output: string }>(`/agents/${encodeURIComponent(name)}/peek?${new URLSearchParams({ lines: String(lines) })}`),
   startAgent: (name: string) => request<Agent>(`/agents/${encodeURIComponent(name)}/start`, { method: 'POST' }),
   stopAgent: (name: string) => request<void>(`/agents/${encodeURIComponent(name)}/stop`, { method: 'POST' }),
+  deleteAgent: (name: string) => request<void>(`/agents/${encodeURIComponent(name)}?force=true`, { method: 'DELETE' }),
   sendToAgent: (name: string, message: string) =>
     request<void>(`/agents/${encodeURIComponent(name)}/send`, { method: 'POST', body: JSON.stringify({ message }) }),
   getAgentStats: (name: string, limit = 20) =>
@@ -275,12 +304,37 @@ export const api = {
 
   listRoles: () => request<Record<string, Role>>('/workspace/roles'),
   listTools: () => request<Tool[]>('/tools'),
+  enableTool: (name: string) =>
+    request<{ enabled: boolean }>(`/tools/${encodeURIComponent(name)}/enable`, { method: 'POST' }),
+  disableTool: (name: string) =>
+    request<{ enabled: boolean }>(`/tools/${encodeURIComponent(name)}/disable`, { method: 'POST' }),
+  deleteTool: (name: string) =>
+    request<void>(`/tools/${encodeURIComponent(name)}`, { method: 'DELETE' }),
   listMCP: () => request<MCPServer[]>('/mcp'),
+  removeMCP: (name: string) => request<void>(`/mcp/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+  enableMCP: (name: string) => request<void>(`/mcp/${encodeURIComponent(name)}/enable`, { method: 'POST' }),
+  disableMCP: (name: string) => request<void>(`/mcp/${encodeURIComponent(name)}/disable`, { method: 'POST' }),
   getLogs: (tail = 50) => request<EventLogEntry[]>(`/logs?${new URLSearchParams({ tail: String(tail) })}`),
   getDoctor: () => request<DoctorReport>('/doctor'),
 
   listCron: () => request<CronJob[]>('/cron'),
+  createCron: (job: { name: string; schedule: string; command: string }) =>
+    request<CronJob>('/cron', { method: 'POST', body: JSON.stringify(job) }),
+  runCron: (name: string) =>
+    request<void>(`/cron/${encodeURIComponent(name)}/run`, { method: 'POST' }),
+  enableCron: (name: string) =>
+    request<void>(`/cron/${encodeURIComponent(name)}/enable`, { method: 'POST' }),
+  disableCron: (name: string) =>
+    request<void>(`/cron/${encodeURIComponent(name)}/disable`, { method: 'POST' }),
+  deleteCron: (name: string) =>
+    request<void>(`/cron/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+  getCronLogs: (name: string) =>
+    request<CronLogEntry[]>(`/cron/${encodeURIComponent(name)}/logs`),
   listSecrets: () => request<Secret[]>('/secrets'),
+  createSecret: (name: string, value: string, description?: string) =>
+    request<Secret>('/secrets', { method: 'POST', body: JSON.stringify({ name, value, description: description ?? '' }) }),
+  deleteSecret: (name: string) =>
+    request<void>(`/secrets/${encodeURIComponent(name)}`, { method: 'DELETE' }),
   getWorkspace: () => request<WorkspaceInfo>('/workspace'),
   getWorkspaceStatus: () => request<Record<string, unknown>>('/workspace/status'),
 
@@ -291,4 +345,9 @@ export const api = {
   getSettings: () => request<SettingsConfig>('/settings'),
   updateSettings: (patch: Record<string, unknown>) =>
     request<SettingsConfig>('/settings', { method: 'PUT', body: JSON.stringify(patch) }),
+
+  listDaemons: () => request<Daemon[]>('/daemons'),
+  stopDaemon: (name: string) => request<{ status: string }>(`/daemons/${encodeURIComponent(name)}/stop`, { method: 'POST' }),
+  restartDaemon: (name: string) => request<Daemon>(`/daemons/${encodeURIComponent(name)}/restart`, { method: 'POST' }),
+  removeDaemon: (name: string) => request<void>(`/daemons/${encodeURIComponent(name)}`, { method: 'DELETE' }),
 };

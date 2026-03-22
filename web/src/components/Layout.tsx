@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { to: '/stats', label: 'Stats', icon: 'S' },
   { to: '/logs', label: 'Logs', icon: 'L' },
   { to: '/workspace', label: 'Workspace', icon: 'W' },
+  { to: '/daemons', label: 'Daemons', icon: 'D' },
   { to: '/doctor', label: 'Doctor', icon: '+' },
   { to: '/settings', label: 'Settings', icon: '\u2699' },
 ] as const;

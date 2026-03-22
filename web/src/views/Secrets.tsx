@@ -1,10 +1,154 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { api } from '../api/client';
 import type { Secret } from '../api/client';
 import { usePolling } from '../hooks/usePolling';
 import { Table } from '../components/Table';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { EmptyState } from '../components/EmptyState';
+
+function CreateSecretForm({ onCreated }: { onCreated: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [value, setValue] = useState('');
+  const [description, setDescription] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const reset = () => {
+    setName('');
+    setValue('');
+    setDescription('');
+    setError(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !value.trim()) {
+      setError('Name and value are required.');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.createSecret(name.trim(), value.trim(), description.trim());
+      reset();
+      setOpen(false);
+      onCreated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create secret');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="px-3 py-1.5 text-sm font-medium rounded bg-bc-accent text-white hover:bg-bc-accent/80 transition-colors"
+      >
+        + New Secret
+      </button>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="rounded border border-bc-border p-4 space-y-3 bg-bc-bg-secondary">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">Create Secret</span>
+        <button
+          type="button"
+          onClick={() => { reset(); setOpen(false); }}
+          className="text-xs text-bc-muted hover:text-bc-fg transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <input
+          type="text"
+          placeholder="Secret name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          className="px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-fg placeholder:text-bc-muted focus:outline-none focus:border-bc-accent"
+        />
+        <input
+          type="password"
+          placeholder="Secret value"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          required
+          className="px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-fg placeholder:text-bc-muted focus:outline-none focus:border-bc-accent"
+        />
+      </div>
+      <input
+        type="text"
+        placeholder="Description (optional)"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-fg placeholder:text-bc-muted focus:outline-none focus:border-bc-accent"
+      />
+      <div className="flex justify-end">
+        <button
+          type="submit"
+          disabled={submitting}
+          className="px-3 py-1.5 text-sm font-medium rounded bg-bc-accent text-white hover:bg-bc-accent/80 disabled:opacity-50 transition-colors"
+        >
+          {submitting ? 'Creating...' : 'Create Secret'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function DeleteButton({ name, onDeleted }: { name: string; onDeleted: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await api.deleteSecret(name);
+      onDeleted();
+    } catch {
+      // Reset state on error so user can retry
+      setDeleting(false);
+      setConfirming(false);
+    }
+  };
+
+  if (confirming) {
+    return (
+      <span className="inline-flex gap-1 items-center">
+        <span className="text-xs text-bc-muted">Delete?</span>
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="px-2 py-0.5 text-xs rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+        >
+          {deleting ? '...' : 'Yes'}
+        </button>
+        <button
+          onClick={() => setConfirming(false)}
+          className="px-2 py-0.5 text-xs rounded border border-bc-border text-bc-muted hover:text-bc-fg transition-colors"
+        >
+          No
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setConfirming(true)}
+      className="px-2 py-0.5 text-xs rounded border border-bc-border text-red-500 hover:bg-red-600 hover:text-white transition-colors"
+    >
+      Delete
+    </button>
+  );
+}
 
 export function Secrets() {
   const fetcher = useCallback(() => api.listSecrets(), []);
@@ -56,6 +200,11 @@ export function Secrets() {
         </span>
       ),
     },
+    {
+      key: 'actions', label: '', render: (s: Secret) => (
+        <DeleteButton name={s.name} onDeleted={refresh} />
+      ),
+    },
   ];
 
   return (
@@ -64,6 +213,8 @@ export function Secrets() {
         <h1 className="text-xl font-bold">Secrets</h1>
         <span className="text-sm text-bc-muted">{secrets?.length ?? 0} secrets</span>
       </div>
+
+      <CreateSecretForm onCreated={refresh} />
 
       <p className="text-xs text-bc-muted">Secret values are never shown. Only metadata is displayed.</p>
 
@@ -74,7 +225,7 @@ export function Secrets() {
           keyFn={(s) => s.name}
           emptyMessage="No secrets stored"
           emptyIcon="*"
-          emptyDescription="Use 'bc secret set <name> --value <value>' to store a secret."
+          emptyDescription="Click '+ New Secret' above to store a secret."
         />
       </div>
     </div>
