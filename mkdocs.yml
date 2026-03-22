@@ -66,6 +66,7 @@ nav:
   - Architecture:
     - Overview: overview.md
     - System Design: architecture/README.md
+    - Design Decisions: architecture/design-decisions.md
     - Agent Lifecycle: backend/agents.md
     - Database Schema: database/database.md
   - API Reference:
@@ -97,6 +98,9 @@ nav:
   - Infrastructure:
     - CI/CD: infrastructure/ci-cd.md
     - Deployment: infrastructure/deployment.md
+    - Security: infrastructure/security.md
+  - Contributing:
+    - Testing Guide: contributing/testing.md
 
 extra:
   social:
