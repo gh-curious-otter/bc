@@ -292,6 +292,12 @@ export const api = {
 
   listRoles: () => request<Record<string, Role>>('/workspace/roles'),
   listTools: () => request<Tool[]>('/tools'),
+  enableTool: (name: string) =>
+    request<{ enabled: boolean }>(`/tools/${encodeURIComponent(name)}/enable`, { method: 'POST' }),
+  disableTool: (name: string) =>
+    request<{ enabled: boolean }>(`/tools/${encodeURIComponent(name)}/disable`, { method: 'POST' }),
+  deleteTool: (name: string) =>
+    request<void>(`/tools/${encodeURIComponent(name)}`, { method: 'DELETE' }),
   listMCP: () => request<MCPServer[]>('/mcp'),
   getLogs: (tail = 50) => request<EventLogEntry[]>(`/logs?${new URLSearchParams({ tail: String(tail) })}`),
   getDoctor: () => request<DoctorReport>('/doctor'),
