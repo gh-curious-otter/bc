@@ -5,29 +5,17 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"syscall"
 	"text/tabwriter"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	"path/filepath"
-
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/client"
-	"github.com/rpuneet/bc/pkg/cost"
-	"github.com/rpuneet/bc/pkg/cron"
 	"github.com/rpuneet/bc/pkg/daemon"
-	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/mcp"
-	"github.com/rpuneet/bc/pkg/secret"
-	"github.com/rpuneet/bc/pkg/shutdown"
-	"github.com/rpuneet/bc/pkg/team"
-	"github.com/rpuneet/bc/pkg/tool"
-	bcdserver "github.com/rpuneet/bc/server"
-	bcws "github.com/rpuneet/bc/server/ws"
 )
 
 // daemonCmd is the parent for bc daemon subcommands.
@@ -200,7 +188,7 @@ func init() {
 
 // --- bcd server handlers ---
 
-func runDaemonStart(cmd *cobra.Command, _ []string) error {
+func runDaemonStart(_ *cobra.Command, _ []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
 		return errNotInWorkspace(err)
@@ -210,173 +198,25 @@ func runDaemonStart(cmd *cobra.Command, _ []string) error {
 		return daemonizeStart(ws.RootDir)
 	}
 
-	// Set up services
-	agentMgr := newAgentManager(ws)
-	if loadErr := agentMgr.LoadState(); loadErr != nil {
-		log.Warn("failed to load agent state", "error", loadErr)
-	}
-	hub := bcws.NewHub()
-	go hub.Run()
-
-	agentSvc := agent.NewAgentService(agentMgr, hub, nil)
-
-	chStore, chErr := channel.OpenStore(ws.RootDir)
-	if chErr != nil {
-		log.Warn("failed to open channel store, using default", "error", chErr)
-		chStore = channel.NewStore(ws.RootDir)
-	}
-	channelSvc := channel.NewChannelService(chStore)
-
-	daemonMgr, daemonErr := daemon.NewManager(ws.RootDir)
-	if daemonErr != nil {
-		log.Warn("failed to open daemon manager", "error", daemonErr)
+	// Delegate to the bcd binary which owns all service wiring.
+	bcdBin, err := findBCD()
+	if err != nil {
+		return fmt.Errorf("bcd binary not found: %w\nInstall with: make build-bcd-local", err)
 	}
 
-	teamStore := team.NewStore(ws.RootDir)
-
-	cronStore, cronErr := cron.Open(ws.RootDir)
-	if cronErr != nil {
-		log.Warn("failed to open cron store", "error", cronErr)
-		fmt.Printf("WARNING: cron store unavailable (%v) — cron API will be disabled\n", cronErr)
-	}
-
-	// Cost tracking
-	var costStore *cost.Store
-	cs := cost.NewStore(ws.RootDir)
-	if costErr := cs.Open(); costErr != nil {
-		log.Warn("cost store unavailable", "error", costErr)
-	} else {
-		costStore = cs
-	}
-
-	var costImporter *cost.Importer
-	if costStore != nil {
-		costImporter = cost.NewImporter(costStore, ws.RootDir)
-		go func() {
-			ctx := context.Background()
-			if n, err := costImporter.ImportAll(ctx); err != nil {
-				log.Warn("initial cost import failed", "error", err)
-			} else if n > 0 {
-				log.Info("cost import: imported records", "count", n)
-			}
-		}()
-	}
-
-	// Secret store
-	var secretStore *secret.Store
-	if passphrase, passErr := secret.Passphrase(); passErr != nil {
-		log.Warn("secret passphrase unavailable", "error", passErr)
-	} else if ss, ssErr := secret.NewStore(ws.RootDir, passphrase); ssErr != nil {
-		log.Warn("secret store unavailable", "error", ssErr)
-	} else {
-		secretStore = ss
-	}
-
-	// MCP store
-	var mcpStore *mcp.Store
-	if ms, msErr := mcp.NewStore(ws.RootDir); msErr != nil {
-		log.Warn("mcp store unavailable", "error", msErr)
-	} else {
-		mcpStore = ms
-	}
-
-	// Tool store
-	var toolStore *tool.Store
-	ts := tool.NewStore(ws.StateDir())
-	if tsErr := ts.Open(); tsErr != nil {
-		log.Warn("tool store unavailable", "error", tsErr)
-	} else {
-		toolStore = ts
-	}
-
-	// Event log
-	var eventLog events.EventStore
-	if el, elErr := events.NewSQLiteLog(filepath.Join(ws.StateDir(), "state.db")); elErr != nil {
-		log.Warn("event log unavailable", "error", elErr)
-	} else {
-		eventLog = el
-	}
-
-	cfg := bcdserver.DefaultConfig()
+	args := []string{"bcd", "--workspace", ws.RootDir}
 	if addr := os.Getenv("BCD_ADDR"); addr != "" {
-		cfg.Addr = addr
-	}
-	svc := bcdserver.Services{
-		Agents:       agentSvc,
-		Channels:     channelSvc,
-		Costs:        costStore,
-		CostImporter: costImporter,
-		Cron:         cronStore,
-		Daemons:      daemonMgr,
-		Secrets:      secretStore,
-		MCP:          mcpStore,
-		Tools:        toolStore,
-		EventLog:     eventLog,
-		Teams:        teamStore,
-		WS:           ws,
-	}
-	srv := bcdserver.New(cfg, svc, hub, bcdserver.WebDist())
-
-	// Register cleanup
-	shutdown.OnShutdownNamed(shutdown.PriorityHigh, "bcd-server", func(_ context.Context) error {
-		hub.Stop()
-		return nil
-	})
-	if daemonMgr != nil {
-		shutdown.OnShutdownNamed(shutdown.PriorityLow, "bcd-daemon-db", func(_ context.Context) error {
-			return daemonMgr.Close()
-		})
-	}
-	if cronStore != nil {
-		shutdown.OnShutdownNamed(shutdown.PriorityLow, "bcd-cron-db", func(_ context.Context) error {
-			return cronStore.Close()
-		})
-	}
-	if chStore != nil {
-		shutdown.OnShutdownNamed(shutdown.PriorityLow, "bcd-channel-db", func(_ context.Context) error {
-			return chStore.Close()
-		})
-	}
-	if costStore != nil {
-		shutdown.OnShutdownNamed(shutdown.PriorityLow, "bcd-cost-db", func(_ context.Context) error {
-			return costStore.Close()
-		})
-	}
-	if secretStore != nil {
-		shutdown.OnShutdownNamed(shutdown.PriorityLow, "bcd-secret-db", func(_ context.Context) error {
-			return secretStore.Close()
-		})
-	}
-	if mcpStore != nil {
-		shutdown.OnShutdownNamed(shutdown.PriorityLow, "bcd-mcp-db", func(_ context.Context) error {
-			return mcpStore.Close()
-		})
-	}
-	if toolStore != nil {
-		shutdown.OnShutdownNamed(shutdown.PriorityLow, "bcd-tool-db", func(_ context.Context) error {
-			return toolStore.Close()
-		})
+		args = append(args, "--addr", addr)
 	}
 
-	fmt.Printf("bcd listening on %s (workspace: %s)\n", cfg.Addr, ws.RootDir)
-	fmt.Println("Press Ctrl+C to stop")
-
-	ctx, cancel := context.WithCancel(cmd.Context())
-	defer cancel()
-	shutdown.OnShutdown(shutdown.PriorityCritical, func(_ context.Context) error {
-		cancel()
-		return nil
-	})
-	shutdown.Start()
-
-	return srv.Start(ctx)
+	return syscall.Exec(bcdBin, args, os.Environ()) //nolint:gosec // trusted self-exec
 }
 
-// daemonizeStart re-executes bc in the background to daemonize.
+// daemonizeStart launches the bcd binary in the background.
 func daemonizeStart(workspaceDir string) error {
-	exe, err := os.Executable()
+	bcdBin, err := findBCD()
 	if err != nil {
-		return fmt.Errorf("find executable: %w", err)
+		return fmt.Errorf("bcd binary not found: %w\nInstall with: make build-bcd-local", err)
 	}
 
 	logFile := workspaceDir + "/.bc/bcd.log"
@@ -386,14 +226,19 @@ func daemonizeStart(workspaceDir string) error {
 	}
 	defer func() { _ = f.Close() }()
 
-	//nolint:gosec // trusted self-exec
-	proc := exec.CommandContext(context.Background(), exe, "daemon", "start")
+	args := []string{"--workspace", workspaceDir}
+	if addr := os.Getenv("BCD_ADDR"); addr != "" {
+		args = append(args, "--addr", addr)
+	}
+
+	//nolint:gosec // trusted bcd binary; background process must outlive parent
+	proc := exec.CommandContext(context.Background(), bcdBin, args...)
 	proc.Stdout = f
 	proc.Stderr = f
-	proc.Env = append(os.Environ(), "BC_DAEMON_BG=1")
+	proc.Env = os.Environ()
 
 	if err := proc.Start(); err != nil {
-		return fmt.Errorf("start daemon: %w", err)
+		return fmt.Errorf("start bcd: %w", err)
 	}
 	if err := proc.Process.Release(); err != nil {
 		log.Debug("failed to release daemon process", "error", err)
@@ -402,6 +247,32 @@ func daemonizeStart(workspaceDir string) error {
 	fmt.Printf("bcd started in background (PID %d)\n", proc.Process.Pid)
 	fmt.Printf("Logs: %s\n", logFile)
 	return nil
+}
+
+// findBCD locates the bcd binary. It checks $PATH first, then falls back
+// to $GOPATH/bin and the bc binary's own directory.
+func findBCD() (string, error) {
+	if p, err := exec.LookPath("bcd"); err == nil {
+		return p, nil
+	}
+
+	// Try $GOPATH/bin
+	if gopath := os.Getenv("GOPATH"); gopath != "" {
+		p := filepath.Join(gopath, "bin", "bcd")
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+	}
+
+	// Try next to the current bc binary
+	if exe, err := os.Executable(); err == nil {
+		p := filepath.Join(filepath.Dir(exe), "bcd")
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+	}
+
+	return "", fmt.Errorf("bcd not in PATH, $GOPATH/bin, or alongside bc binary")
 }
 
 func runDaemonStop(cmd *cobra.Command, args []string) error {
