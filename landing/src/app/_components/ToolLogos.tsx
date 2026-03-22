@@ -30,7 +30,7 @@ const TOOLS: Tool[] = [
   {
     name: "Aider",
     url: "https://aider.chat",
-    logo: "https://www.google.com/s2/favicons?domain=aider.chat&sz=128",
+    logo: "https://aider.chat/assets/icons/apple-touch-icon.png",
   },
   {
     name: "OpenCode",
@@ -42,14 +42,9 @@ const TOOLS: Tool[] = [
     url: "https://github.com/openclaw/openclaw",
     logo: "https://openclaw.ai/favicon.svg",
   },
-  {
-    name: "Custom",
-    url: "/docs#tools",
-    logo: "",
-  },
 ];
 
-const Y_OFFSETS = [0, 14, -8, 18, -4, 12, -10, 16];
+const Y_OFFSETS = [0, 14, -8, 18, -4, 12, -10];
 
 function ToolChip({ tool, index }: { tool: Tool; index: number }) {
   const isExternal = tool.url.startsWith("http");

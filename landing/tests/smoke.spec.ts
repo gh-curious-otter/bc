@@ -143,8 +143,8 @@ test.describe("Homepage Content", () => {
     await expect(page.locator("text=Step 03").first()).toBeAttached();
   });
 
-  test("supported tools grid shows 8 tools", async ({ page }) => {
-    const toolNames = ["Claude Code", "Cursor", "Codex", "Gemini", "Aider", "OpenCode", "OpenClaw", "Custom"];
+  test("supported tools grid shows 7 tools", async ({ page }) => {
+    const toolNames = ["Claude Code", "Cursor", "Codex", "Gemini", "Aider", "OpenCode", "OpenClaw"];
     for (const name of toolNames) {
       await expect(page.locator(`text=${name}`).first()).toBeAttached();
     }
@@ -1232,9 +1232,9 @@ test.describe("Tool Marquee", () => {
     await expect(toolSection).toBeAttached();
   });
 
-  test("all 8 tools are listed", async ({ page }) => {
+  test("all 7 tools are listed", async ({ page }) => {
     await page.goto("/");
-    const tools = ["Claude Code", "Cursor", "Codex", "Gemini", "Aider", "OpenCode", "OpenClaw", "Custom"];
+    const tools = ["Claude Code", "Cursor", "Codex", "Gemini", "Aider", "OpenCode", "OpenClaw"];
     for (const tool of tools) {
       await expect(page.locator(`text=${tool}`).first()).toBeAttached();
     }
