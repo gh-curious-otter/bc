@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/ui"
-	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 var channelCmd = &cobra.Command{
@@ -427,7 +427,7 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	sender := getUserSender()
+	sender := getUserSenderCtx(cmd.Context())
 	if _, err := c.Channels.Send(cmd.Context(), channelName, sender, message); err != nil {
 		return err
 	}
@@ -643,7 +643,7 @@ func runChannelReact(cmd *cobra.Command, args []string) error {
 	}
 	msgID := int(msgs[msgIndex-1].ID)
 
-	added, err := c.Channels.React(cmd.Context(), channelName, msgID, emoji, getUserSender())
+	added, err := c.Channels.React(cmd.Context(), channelName, msgID, emoji, getUserSenderCtx(cmd.Context()))
 	if err != nil {
 		return err
 	}
@@ -879,23 +879,34 @@ func parseTimestamp(s string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("expected RFC3339 (2006-01-02T15:04:05Z) or date (2006-01-02), got %q", s)
 }
 
-// getUserSender returns the sender identity for channel messages.
+// defaultNickname is the fallback sender name when no user nickname is configured.
+const defaultNickname = "@bc"
+
+// getUserSenderCtx returns the sender identity for channel messages.
 // If running as an agent, returns BC_AGENT_ID.
-// Otherwise, returns the user's configured nickname from workspace config.
-func getUserSender() string {
+// Otherwise, queries the daemon settings API for user.nickname.
+func getUserSenderCtx(ctx context.Context) string {
 	// Check if running as an agent
 	if agentID := os.Getenv("BC_AGENT_ID"); agentID != "" {
 		return agentID
 	}
 
-	// Try to get nickname from workspace config (v2)
-	ws, err := getWorkspace()
-	if err == nil && ws != nil && ws.Config != nil {
-		if ws.Config.User.Nickname != "" {
-			return ws.Config.User.Nickname
+	// Try to get nickname from daemon settings API
+	c, err := newDaemonClient(ctx)
+	if err == nil {
+		raw, settingsErr := c.Settings.Get(ctx)
+		if settingsErr == nil {
+			var settings struct {
+				User struct {
+					Nickname string `json:"nickname"`
+				} `json:"user"`
+			}
+			if jsonErr := json.Unmarshal(raw, &settings); jsonErr == nil && settings.User.Nickname != "" {
+				return settings.User.Nickname
+			}
 		}
 	}
 
 	// Fallback to default nickname
-	return workspace.DefaultNickname
+	return defaultNickname
 }
