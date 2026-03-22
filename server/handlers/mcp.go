@@ -29,7 +29,7 @@ func (h *MCPHandler) list(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		servers, err := h.store.List()
 		if err != nil {
-			httpError(w, "list mcp servers: "+err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "list mcp servers", err)
 			return
 		}
 		if servers == nil {
@@ -58,7 +58,7 @@ func (h *MCPHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 		added, err := h.store.Get(cfg.Name)
 		if err != nil {
-			httpError(w, err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "operation failed", err)
 			return
 		}
 		writeJSON(w, http.StatusCreated, added)

@@ -468,7 +468,16 @@ func TestValidEnvVarNameRegex(t *testing.T) {
 }
 
 func TestExtraMountsInDockerArgs(t *testing.T) {
-	mounts := []string{"/data:/data:ro", "/cache:/cache"}
+	wsDir := t.TempDir()
+	dataDir := filepath.Join(wsDir, "data")
+	cacheDir := filepath.Join(wsDir, "cache")
+	if err := os.MkdirAll(dataDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(cacheDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	mounts := []string{dataDir + ":/data:ro", cacheDir + ":/cache"}
 	cfg := Config{
 		Image:       "test:latest",
 		Network:     "none",
@@ -478,28 +487,55 @@ func TestExtraMountsInDockerArgs(t *testing.T) {
 	b := &Backend{
 		prefix:        "bc-",
 		workspaceHash: "aabbcc",
-		workspacePath: t.TempDir(),
+		workspacePath: wsDir,
 		cfg:           cfg,
 		logCancels:    make(map[string]context.CancelFunc),
 	}
 
-	// We can't easily inspect the args passed to docker without running it,
-	// but we can verify the config is properly stored and would be used.
 	if len(b.cfg.ExtraMounts) != 2 {
 		t.Fatalf("ExtraMounts len = %d, want 2", len(b.cfg.ExtraMounts))
 	}
-	if b.cfg.ExtraMounts[0] != "/data:/data:ro" {
-		t.Errorf("ExtraMounts[0] = %q, want /data:/data:ro", b.cfg.ExtraMounts[0])
+	if b.cfg.ExtraMounts[0] != dataDir+":/data:ro" {
+		t.Errorf("ExtraMounts[0] = %q, want %s:/data:ro", b.cfg.ExtraMounts[0], dataDir)
 	}
-	if b.cfg.ExtraMounts[1] != "/cache:/cache" {
-		t.Errorf("ExtraMounts[1] = %q, want /cache:/cache", b.cfg.ExtraMounts[1])
+	if b.cfg.ExtraMounts[1] != cacheDir+":/cache" {
+		t.Errorf("ExtraMounts[1] = %q, want %s:/cache", b.cfg.ExtraMounts[1], cacheDir)
 	}
 
 	// Call CreateSessionWithEnv — it will fail because docker isn't running in tests,
-	// but it should NOT fail due to mount configuration issues.
+	// but it should NOT fail due to mount validation issues.
 	err := b.CreateSessionWithEnv(context.Background(), "mount-test", "", "bash", nil)
-	if err != nil && strings.Contains(err.Error(), "ExtraMounts") {
-		t.Errorf("unexpected ExtraMounts error: %v", err)
+	if err != nil && strings.Contains(err.Error(), "extra mount rejected") {
+		t.Errorf("unexpected mount validation error: %v", err)
+	}
+}
+
+func TestExtraMountsRejectsOutsideWorkspace(t *testing.T) {
+	wsDir := t.TempDir()
+
+	tests := []struct {
+		name  string
+		mount string
+	}{
+		{"absolute outside workspace", "/etc:/hostfs:rw"},
+		{"path traversal", wsDir + "/../etc:/hostfs:rw"},
+		{"relative path", "data:/data:ro"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := validateMount(tt.mount, wsDir); err == nil {
+				t.Errorf("validateMount(%q, %q) = nil, want error", tt.mount, wsDir)
+			}
+		})
+	}
+}
+
+func TestExtraMountsAcceptsInsideWorkspace(t *testing.T) {
+	wsDir := t.TempDir()
+	mount := wsDir + "/data:/container/data:ro"
+	if err := validateMount(mount, wsDir); err != nil {
+		t.Errorf("validateMount(%q, %q) = %v, want nil", mount, wsDir, err)
 	}
 }
 

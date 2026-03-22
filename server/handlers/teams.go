@@ -30,7 +30,7 @@ func (h *TeamHandler) list(w http.ResponseWriter, r *http.Request) {
 	}
 	teams, err := h.store.List()
 	if err != nil {
-		httpError(w, "list teams: "+err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "list teams", err)
 		return
 	}
 	if teams == nil {
@@ -52,7 +52,7 @@ func (h *TeamHandler) byName(w http.ResponseWriter, r *http.Request) {
 
 	t, err := h.store.Get(name)
 	if err != nil {
-		httpError(w, "get team: "+err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "get team", err)
 		return
 	}
 	if t == nil {

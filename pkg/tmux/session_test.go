@@ -1734,8 +1734,8 @@ func TestPipePane(t *testing.T) {
 	for _, r := range *records {
 		if r.name == "tmux" && len(r.args) >= 4 && r.args[0] == "pipe-pane" {
 			found = true
-			if r.args[3] != "cat >> /tmp/test.log" {
-				t.Errorf("expected pipe command 'cat >> /tmp/test.log', got %q", r.args[3])
+			if r.args[3] != "cat >> '/tmp/test.log'" {
+				t.Errorf("expected pipe command %q, got %q", "cat >> '/tmp/test.log'", r.args[3])
 			}
 		}
 	}

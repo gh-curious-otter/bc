@@ -31,6 +31,14 @@ func httpError(w http.ResponseWriter, msg string, code int) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg}) //nolint:errcheck // best-effort
 }
 
+// httpInternalError logs the detailed error server-side and returns a generic
+// "internal server error" message to the client, preventing leakage of internal
+// paths, database details, or stack traces.
+func httpInternalError(w http.ResponseWriter, context string, err error) {
+	log.Error(context, "error", err)
+	httpError(w, "internal server error", http.StatusInternalServerError)
+}
+
 // methodNotAllowed writes a 405 response.
 func methodNotAllowed(w http.ResponseWriter) {
 	httpError(w, "method not allowed", http.StatusMethodNotAllowed)

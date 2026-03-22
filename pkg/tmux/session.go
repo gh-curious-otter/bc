@@ -590,8 +590,10 @@ func (m *Manager) PipePane(ctx context.Context, name, logPath string) error {
 		return nil
 	}
 
-	// Start pipe: stream output to log file with append
-	pipeCmd := fmt.Sprintf("cat >> %s", logPath)
+	// Start pipe: stream output to log file with append.
+	// Shell-quote logPath to prevent injection via metacharacters.
+	quoted := "'" + strings.ReplaceAll(logPath, "'", "'\\''") + "'"
+	pipeCmd := fmt.Sprintf("cat >> %s", quoted)
 	cmd := m.command(ctx, "tmux", "pipe-pane", "-t", fullName, pipeCmd)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

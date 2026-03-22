@@ -27,7 +27,7 @@ func (h *ChannelStatsHandler) stats(w http.ResponseWriter, r *http.Request) {
 	}
 	stats, err := h.svc.Stats(r.Context())
 	if err != nil {
-		httpError(w, "channel stats: "+err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "channel stats", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, stats)

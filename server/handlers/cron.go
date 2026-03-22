@@ -30,7 +30,7 @@ func (h *CronHandler) list(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		jobs, err := h.store.ListJobs(r.Context())
 		if err != nil {
-			httpError(w, "list jobs: "+err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "list jobs", err)
 			return
 		}
 		if jobs == nil {
@@ -151,7 +151,7 @@ func (h *CronHandler) run(w http.ResponseWriter, r *http.Request, name string) {
 		return
 	}
 	if err := h.store.RecordManualTrigger(r.Context(), name); err != nil {
-		httpError(w, err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "operation failed", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "triggered"})
@@ -170,7 +170,7 @@ func (h *CronHandler) logs(w http.ResponseWriter, r *http.Request, name string) 
 	last = clampInt(last, 1, 1000)
 	logs, err := h.store.GetLogs(r.Context(), name, last)
 	if err != nil {
-		httpError(w, err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "operation failed", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, logs)

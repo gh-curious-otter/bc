@@ -30,7 +30,7 @@ func (h *SecretHandler) list(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		secrets, err := h.store.List()
 		if err != nil {
-			httpError(w, "list secrets: "+err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "list secrets", err)
 			return
 		}
 		limit, offset := parsePagination(r, 50)
@@ -60,7 +60,7 @@ func (h *SecretHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 		meta, err := h.store.GetMeta(req.Name)
 		if err != nil {
-			httpError(w, err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "operation failed", err)
 			return
 		}
 		writeJSON(w, http.StatusCreated, meta)
@@ -105,7 +105,7 @@ func (h *SecretHandler) byName(w http.ResponseWriter, r *http.Request) {
 		}
 		meta, err := h.store.GetMeta(name)
 		if err != nil {
-			httpError(w, err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "operation failed", err)
 			return
 		}
 		writeJSON(w, http.StatusOK, meta)

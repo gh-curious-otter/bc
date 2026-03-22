@@ -30,7 +30,7 @@ func (h *ToolHandler) list(w http.ResponseWriter, r *http.Request) {
 	}
 	tools, err := h.store.List(r.Context())
 	if err != nil {
-		httpError(w, "list tools: "+err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "list tools", err)
 		return
 	}
 	if tools == nil {
@@ -99,7 +99,7 @@ func (h *ToolHandler) tool(w http.ResponseWriter, r *http.Request, name string) 
 		}
 		updated, err := h.store.Get(r.Context(), name)
 		if err != nil {
-			httpError(w, err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "operation failed", err)
 			return
 		}
 		writeJSON(w, http.StatusOK, updated)

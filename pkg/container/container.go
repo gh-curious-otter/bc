@@ -31,6 +31,28 @@ import (
 // This prevents injection through malicious key names passed to docker run -e.
 var validEnvVarName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
+// validateMount checks that a Docker mount spec (src:dst[:opts]) has a safe
+// source path. It rejects path traversal (../) and absolute paths outside
+// the workspace root. workspaceRoot must be an absolute, cleaned path.
+func validateMount(mount, workspaceRoot string) error {
+	parts := strings.SplitN(mount, ":", 2)
+	if len(parts) < 2 {
+		return fmt.Errorf("invalid mount format %q: expected src:dst", mount)
+	}
+	src := parts[0]
+	if strings.Contains(src, "..") {
+		return fmt.Errorf("mount source %q contains path traversal", src)
+	}
+	cleaned := filepath.Clean(src)
+	if !filepath.IsAbs(cleaned) {
+		return fmt.Errorf("mount source %q must be an absolute path", src)
+	}
+	if !strings.HasPrefix(cleaned, workspaceRoot+string(filepath.Separator)) && cleaned != workspaceRoot {
+		return fmt.Errorf("mount source %q is outside workspace root %q", src, workspaceRoot)
+	}
+	return nil
+}
+
 // Ensure Backend implements runtime.Backend.
 var _ runtime.Backend = (*Backend)(nil)
 
@@ -298,7 +320,11 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	}
 
 	// Extra mounts from workspace config (e.g., shared caches, tool binaries).
+	// Validate each mount source to prevent arbitrary host filesystem access.
 	for _, mount := range b.cfg.ExtraMounts {
+		if err := validateMount(mount, b.workspacePath); err != nil {
+			return fmt.Errorf("extra mount rejected: %w", err)
+		}
 		args = append(args, "-v", mount)
 	}
 
