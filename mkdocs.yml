@@ -60,27 +60,28 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Getting Started:
-    - Quick Start: QUICKSTART.md
-    - Commands: COMMANDS.md
-    - Troubleshooting: TROUBLESHOOTING.md
-  - Concepts:
-    - Architecture: ARCHITECTURE.md
-    - Diagrams: architecture/README.md
-    - Roles & Responsibilities: roles-responsibilities.md
-    - Memory System: memory-system.md
-    - Channel Conventions: channel-conventions.md
-    - Hierarchical Agents: hierarchical-agents.md
-  - Integrations:
-    - MCP Integration: MCP.md
-    - Plugins: PLUGINS.md
-  - RFCs:
-    - RFC 001 - Plugin Ecosystem: rfcs/001-plugin-ecosystem.md
-    - RFC 002a - File Explorer: rfcs/002-file-explorer.md
-    - RFC 002b - LSP Integration: rfcs/002-lsp-integration.md
-    - RFC 003 - Message Passing: rfcs/003-message-passing-orchestration.md
-  - Development:
-    - Competitive Analysis: COMPETITIVE.md
-    - Enhancements: ENHANCEMENTS.md
+    - Quick Start: guides/quickstart.md
+    - Configuration: guides/configuration.md
+    - Troubleshooting: guides/troubleshooting.md
+  - Architecture:
+    - Overview: overview.md
+    - System Design: architecture/README.md
+    - Agent Lifecycle: backend/agents.md
+    - Database Schema: database/database.md
+  - API Reference:
+    - REST API: api/rest.md
+    - Settings API: api/settings.md
+    - MCP Protocol: backend/mcp.md
+  - Frontend:
+    - Web Dashboard: frontend/web-ui.md
+    - Terminal UI: frontend/tui.md
+    - Design System: frontend/design-system.md
+    - Networking: frontend/networking.md
+  - Guides:
+    - Channels: guides/channels.md
+  - Infrastructure:
+    - CI/CD: infrastructure/ci-cd.md
+    - Deployment: infrastructure/deployment.md
 
 extra:
   social:

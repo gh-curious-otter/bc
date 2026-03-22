@@ -136,10 +136,10 @@ bc cost dashboard      # Full view
 
 ## Next Steps
 
-- Read the [Commands Reference](COMMANDS.md) for all available commands
-- Learn about [Architecture](ARCHITECTURE.md) to understand the system
-- Set up [Plugins](PLUGINS.md) for custom functionality
-- Configure [MCP Integration](MCP.md) for enhanced tooling
+- Learn about the [Architecture](../overview.md) to understand the system
+- Configure [Settings](../guides/configuration.md) for your workspace
+- Set up [Channels](../guides/channels.md) for agent communication
+- Explore the [REST API](../api/rest.md) for programmatic access
 
 ## Troubleshooting
 
@@ -148,4 +148,4 @@ If you encounter issues:
 1. Check `bc logs` for recent events
 2. Verify tmux is installed: `tmux -V`
 3. Ensure your AI tool is configured correctly
-4. See [Troubleshooting Guide](TROUBLESHOOTING.md) for common issues
+4. See [Troubleshooting Guide](../guides/troubleshooting.md) for common issues
