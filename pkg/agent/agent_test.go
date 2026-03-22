@@ -3377,6 +3377,13 @@ func newTestManagerWithProvider(t *testing.T, p provider.Provider) *Manager {
 	}
 }
 
+func newTestManagerWithDefaultTool(t *testing.T, p provider.Provider, defaultTool string) *Manager {
+	t.Helper()
+	m := newTestManagerWithProvider(t, p)
+	m.defaultTool = defaultTool
+	return m
+}
+
 func TestSpawnWithProvider_Installed(t *testing.T) {
 	// Register a mock provider that reports as installed
 	mp := mockProvider{name: "testcli", installed: true, version: "1.2.3"}
@@ -3552,5 +3559,50 @@ func TestGetAgentCommandFromConfig(t *testing.T) {
 				t.Errorf("GetAgentCommandFromConfig() cmd = %q, want %q", cmd, tt.wantCmd)
 			}
 		})
+	}
+}
+
+// TestEffectiveToolPersisted verifies that when no explicit tool is provided,
+// the defaultTool is resolved and persisted on the Agent struct so restarts
+// use the same tool consistently (fix for Exit 127 crashes).
+func TestEffectiveToolPersisted(t *testing.T) {
+	mp := mockProvider{name: "testcli", installed: true, version: "1.0", command: "/bin/true"}
+	m := newTestManagerWithDefaultTool(t, mp, "testcli")
+
+	// Spawn with empty Tool — should resolve to defaultTool "testcli"
+	ag, err := m.SpawnAgentWithOptions(context.Background(), SpawnOptions{
+		Name:      "tool-test",
+		Role:      Role("engineer"),
+		Workspace: t.TempDir(),
+		Tool:      "", // intentionally empty
+	})
+	if err != nil {
+		t.Fatalf("SpawnAgentWithOptions failed: %v", err)
+	}
+	defer func() { _ = m.runtime().KillSession(context.Background(), "tool-test") }()
+
+	if ag.Tool != "testcli" {
+		t.Errorf("Agent.Tool = %q, want %q (defaultTool should be persisted)", ag.Tool, "testcli")
+	}
+}
+
+// TestEffectiveToolExplicit verifies that an explicitly provided tool is persisted as-is.
+func TestEffectiveToolExplicit(t *testing.T) {
+	mp := mockProvider{name: "testcli", installed: true, version: "1.0", command: "/bin/true"}
+	m := newTestManagerWithDefaultTool(t, mp, "other-default")
+
+	ag, err := m.SpawnAgentWithOptions(context.Background(), SpawnOptions{
+		Name:      "tool-explicit",
+		Role:      Role("engineer"),
+		Workspace: t.TempDir(),
+		Tool:      "testcli",
+	})
+	if err != nil {
+		t.Fatalf("SpawnAgentWithOptions failed: %v", err)
+	}
+	defer func() { _ = m.runtime().KillSession(context.Background(), "tool-explicit") }()
+
+	if ag.Tool != "testcli" {
+		t.Errorf("Agent.Tool = %q, want %q", ag.Tool, "testcli")
 	}
 }

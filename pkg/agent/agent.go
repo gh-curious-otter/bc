@@ -946,18 +946,23 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		}
 	}
 
+	// Resolve effective tool: use explicit tool or fall back to default.
+	// Persist the resolved value so restarts use the same tool.
+	effectiveTool := tool
+	if effectiveTool == "" {
+		effectiveTool = m.defaultTool
+	}
+
 	// Determine the command to use (fresh create — no resume, no session ID)
 	agentCmd := m.agentCmd
-	if tool != "" {
-		if cmd, ok := m.getAgentCommand(tool, name, false, ""); ok {
+	if effectiveTool != "" {
+		if cmd, ok := m.getAgentCommand(effectiveTool, name, false, ""); ok {
 			agentCmd = cmd
-		} else {
+		} else if tool != "" {
+			// Only error if the user explicitly requested a tool that doesn't exist.
+			// If it's the default tool, fall through to the base agentCmd.
 			m.mu.Unlock()
 			return nil, fmt.Errorf("unknown tool %q, available tools: %v", tool, m.listAvailableTools())
-		}
-	} else if m.defaultTool != "" {
-		if cmd, ok := m.getAgentCommand(m.defaultTool, name, false, ""); ok {
-			agentCmd = cmd
 		}
 	}
 
@@ -971,12 +976,8 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	// Claude's --tmux flag is needed inside Docker (tmux runs inside the container)
 	// but NOT for native tmux sessions (claude detects tmux automatically).
 	if agentRuntime != "tmux" {
-		sessionTool := tool
-		if sessionTool == "" {
-			sessionTool = m.defaultTool
-		}
-		if sessionTool != "" && m.providerRegistry != nil {
-			if p, ok := m.providerRegistry.Get(sessionTool); ok {
+		if effectiveTool != "" && m.providerRegistry != nil {
+			if p, ok := m.providerRegistry.Get(effectiveTool); ok {
 				if sc, ok := p.(provider.SessionCustomizer); ok {
 					agentCmd = sc.AdjustSessionCommand(agentCmd)
 				}
@@ -988,14 +989,14 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	// Use provider registry for known tools (richer validation + version logging),
 	// fall back to PATH check for custom/unknown tools.
 	providerValidated := false
-	if tool != "" && m.providerRegistry != nil {
-		if p, ok := m.providerRegistry.Get(tool); ok {
+	if effectiveTool != "" && m.providerRegistry != nil {
+		if p, ok := m.providerRegistry.Get(effectiveTool); ok {
 			if !p.IsInstalled(ctx) {
 				m.mu.Unlock()
-				return nil, fmt.Errorf("tool %q is not installed. Install %s or configure a different tool in config.toml", tool, p.Name())
+				return nil, fmt.Errorf("tool %q is not installed. Install %s or configure a different tool in config.toml", effectiveTool, p.Name())
 			}
 			if v := p.Version(ctx); v != "" {
-				log.Debug("provider validated", "tool", tool, "version", v)
+				log.Debug("provider validated", "tool", effectiveTool, "version", v)
 			}
 			providerValidated = true
 		}
@@ -1006,7 +1007,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		if len(parts) > 0 {
 			if _, err := exec.LookPath(parts[0]); err != nil {
 				m.mu.Unlock()
-				return nil, fmt.Errorf("tool %q command %q not found in PATH. Install it or configure a different tool in config.toml", tool, parts[0])
+				return nil, fmt.Errorf("tool %q command %q not found in PATH. Install it or configure a different tool in config.toml", effectiveTool, parts[0])
 			}
 		}
 	}
@@ -1021,7 +1022,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		State:          StateStarting,
 		Workspace:      wsPath,
 		Session:        name,
-		Tool:           tool,
+		Tool:           effectiveTool,
 		ParentID:       parentID,
 		Team:           opts.Team,
 		EnvFile:        opts.EnvFile,
@@ -1041,10 +1042,6 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		"BC_AGENT_ID":   name,
 		"BC_AGENT_ROLE": string(role),
 		"BC_WORKSPACE":  wsPath,
-	}
-	effectiveTool := tool
-	if effectiveTool == "" {
-		effectiveTool = m.defaultTool
 	}
 	if effectiveTool != "" {
 		env["BC_AGENT_TOOL"] = effectiveTool
