@@ -28,7 +28,6 @@ import { Dashboard } from '../views/Dashboard';
 import { AgentsView } from '../views/AgentsView';
 import { ChannelsView } from '../views/ChannelsView';
 import { CostsView } from '../views/CostsView';
-import { CommandsView } from '../views/CommandsView';
 import { RolesView } from '../views/RolesView';
 import { LogsView } from '../views/LogsView';
 import { WorktreesView } from '../views/WorktreesView';
@@ -177,7 +176,6 @@ describe('Viewport CI - 80x24 Compliance', () => {
       { name: 'AgentsView', component: <AgentsView /> },
       { name: 'ChannelsView', component: <ChannelsView /> },
       { name: 'CostsView', component: <CostsView /> },
-      { name: 'CommandsView', component: <CommandsView /> },
       { name: 'RolesView', component: <RolesView /> },
       { name: 'LogsView', component: <LogsView /> },
       { name: 'WorktreesView', component: <WorktreesView /> },

@@ -9,8 +9,8 @@ import { StatsTab as StatsTabComponent } from "../components/StatsTab";
 
 /** Strip ANSI escape sequences from a string. */
 function stripAnsi(s: string): string {
-  // eslint-disable-next-line no-control-regex
   return s.replace(
+    // eslint-disable-next-line no-control-regex
     /\x1b(?:\[[0-9;]*[A-Za-z]|\].*?(?:\x07|\x1b\\)|\([A-B0-2])/g,
     "",
   );

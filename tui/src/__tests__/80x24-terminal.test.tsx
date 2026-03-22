@@ -22,9 +22,9 @@ import { NavigationProvider } from '../navigation/NavigationContext';
 /** Layout mode type (previously from useResponsiveLayout) */
 type LayoutMode = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 
-/** Breakpoints (previously from useResponsiveLayout) */
+/** Breakpoints matching constants/dimensions.ts */
 const BREAKPOINTS = {
-  XS: 80,
+  XS: 60,
   SM: 80,
   MD: 120,
   LG: 140,

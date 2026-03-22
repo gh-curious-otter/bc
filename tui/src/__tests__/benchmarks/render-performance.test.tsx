@@ -351,7 +351,7 @@ describe('TUI Render Performance Benchmarks', () => {
       expect(stats.p95).toBeLessThan(150);
 
       // Log benchmark results for analysis
-      console.log('Table (50 rows) benchmark:', {
+      console.log('Table (50 rows) benchmark:', { // eslint-disable-line no-console
         firstRender: `${first.time.toFixed(2)}ms`,
         avgRender: `${stats.avg.toFixed(2)}ms`,
         minRender: `${stats.min.toFixed(2)}ms`,
@@ -431,14 +431,14 @@ describe('Performance Summary', () => {
     results['Table (50 rows)'] = { time, target: 75, pass: time < 75 };
 
     // Print summary
-    console.log('\n=== TUI Render Performance Report ===\n');
+    console.log('\n=== TUI Render Performance Report ===\n'); // eslint-disable-line no-console
     for (const [name, result] of Object.entries(results)) {
       const status = result.pass ? '✅' : '❌';
-      console.log(
-        `${status} ${name.padEnd(25)} ${result.time.toFixed(2).padStart(8)}ms / ${String(result.target).padStart(5)}ms target`
+      console.log( // eslint-disable-line no-console
+        `${status} ${name.padEnd(25)} ${result.time.toFixed(2).padStart(8)}ms / ${String(result.target).padStart(5)}ms target`,
       );
     }
-    console.log('');
+    console.log(''); // eslint-disable-line no-console
 
     // All should pass
     const allPass = Object.values(results).every((r) => r.pass);

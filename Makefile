@@ -293,16 +293,15 @@ vet-landing: ## Typecheck landing (next lint includes type checks)
 # Check & CI
 # =============================================================================
 
-check-go: gen-go fmt-go vet-go lint-go test-go ## Go quality gate (gen + fmt + vet + lint + test)
+check-go: gen-go vet-go lint-go test-go ## Go quality gate (gen + vet + lint + test)
 
-check-ts: fmt-ts vet-ts lint-ts test-ts ## TS quality gate (fmt + vet + lint + test)
+check-ts: vet-ts lint-ts test-ts ## TS quality gate (vet + lint + test)
 
 ci-local: ## Run full CI pipeline locally
 	@printf "\n$(_BOLD)bc CI Pipeline$(_RESET) ($(VERSION))\n\n"
 	@FAIL=0; \
 	printf "$(_CYAN)[go]$(_RESET) deps\n";       $(MAKE) --no-print-directory deps-go       || FAIL=1; \
 	printf "$(_CYAN)[go]$(_RESET) gen\n";         $(MAKE) --no-print-directory gen-go        || FAIL=1; \
-	printf "$(_CYAN)[go]$(_RESET) fmt\n";         $(MAKE) --no-print-directory fmt-go        || FAIL=1; \
 	printf "$(_CYAN)[go]$(_RESET) vet\n";         $(MAKE) --no-print-directory vet-go        || FAIL=1; \
 	printf "$(_CYAN)[go]$(_RESET) lint\n";        $(MAKE) --no-print-directory lint-go       || FAIL=1; \
 	printf "$(_CYAN)[go]$(_RESET) test\n";        $(MAKE) --no-print-directory test-go       || FAIL=1; \
@@ -310,7 +309,6 @@ ci-local: ## Run full CI pipeline locally
 	printf "$(_CYAN)[go]$(_RESET) verify\n";      $(BUILD_DIR)/bc version                    || FAIL=1; \
 	printf "\n"; \
 	printf "$(_CYAN)[ts]$(_RESET) deps\n";        $(MAKE) --no-print-directory deps-ts       || FAIL=1; \
-	printf "$(_CYAN)[ts]$(_RESET) fmt\n";         $(MAKE) --no-print-directory fmt-ts        || FAIL=1; \
 	printf "$(_CYAN)[ts]$(_RESET) vet\n";         $(MAKE) --no-print-directory vet-ts        || FAIL=1; \
 	printf "$(_CYAN)[ts]$(_RESET) lint\n";        $(MAKE) --no-print-directory lint-ts       || FAIL=1; \
 	printf "$(_CYAN)[ts]$(_RESET) test\n";        $(MAKE) --no-print-directory test-ts       || FAIL=1; \

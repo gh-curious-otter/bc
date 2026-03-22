@@ -101,7 +101,7 @@ export function ConfigProvider({ children }: ConfigProviderProps): React.ReactEl
   // Fetch config on mount
   useEffect(() => {
     void fetchConfig();
-  }, []);
+  }, [fetchConfig]);
 
   const value = useMemo<ConfigContextValue>(
     () => ({
