@@ -16,7 +16,7 @@
 #   make test                          Run all tests
 #   make lint                          Run all linters
 #   make check                         Full quality gate
-#   make integrate                     Full CI equivalent
+#   make ci-local                      Full CI pipeline locally
 
 # =============================================================================
 # .PHONY declarations
@@ -39,10 +39,12 @@
 .PHONY: build-tui-local build-web-local build-landing-local
 .PHONY: test-tui test-web test-landing
 .PHONY: lint-tui lint-web lint-landing
+.PHONY: fmt-tui fmt-web fmt-landing
+.PHONY: vet-tui vet-web vet-landing
 .PHONY: run-tui-local run-web-local run-landing-local
 .PHONY: deploy-landing-local
 # Misc
-.PHONY: ci-local integrate clean-artifacts clean-deps install
+.PHONY: ci-local ci-docker  clean-artifacts clean-deps install
 
 .DEFAULT_GOAL := help
 
@@ -77,6 +79,13 @@ ADDR_dogfood    := 127.0.0.1:9374
 ADDR_production := 0.0.0.0:9374
 
 DEPLOY_ADDR = $(ADDR_$(ENV))
+
+# Colors for CI output
+_CYAN  := \033[36m
+_GREEN := \033[32m
+_RED   := \033[31m
+_RESET := \033[0m
+_BOLD  := \033[1m
 
 # =============================================================================
 # Help
@@ -223,11 +232,12 @@ test-web: ## Run web UI tests (vitest)
 test-landing: ## Run landing page tests (Playwright)
 	cd landing && bun run test
 
-coverage-ts: ## Run TS coverage (NOT IMPLEMENTED)
-	@echo "NOT IMPLEMENTED: coverage-ts"
+coverage-ts: ## Run TS test coverage (tui via bun)
+	cd tui && bun test --coverage || true
+	cd web && bun run test -- --coverage 2>/dev/null || echo "web: install @vitest/coverage-v8 for coverage"
 
-bench-ts: ## Run TS benchmarks (NOT IMPLEMENTED)
-	@echo "NOT IMPLEMENTED: bench-ts"
+bench-ts: ## Run TS benchmarks (no-op, no bench framework)
+	@echo "bench-ts: no TS benchmark framework configured"
 
 # =============================================================================
 # Lint & Format — Go
@@ -257,11 +267,27 @@ lint-web: ## Lint web UI code
 lint-landing: ## Lint landing page code
 	cd landing && bun run lint
 
-fmt-ts: ## Format TS code (NOT IMPLEMENTED)
-	@echo "NOT IMPLEMENTED: fmt-ts"
+fmt-ts: fmt-tui fmt-web fmt-landing ## Format all TS code with prettier
 
-vet-ts: ## Vet TS code (NOT IMPLEMENTED)
-	@echo "NOT IMPLEMENTED: vet-ts"
+fmt-tui: ## Format TUI code with prettier
+	cd tui && bunx prettier --write "src/**/*.{ts,tsx}"
+
+fmt-web: ## Format web code with prettier
+	cd web && bunx prettier --write "src/**/*.{ts,tsx,css}"
+
+fmt-landing: ## Format landing code with prettier
+	cd landing && bunx prettier --write "src/**/*.{ts,tsx,css}"
+
+vet-ts: vet-tui vet-web vet-landing ## Typecheck all TS code
+
+vet-tui: ## Typecheck TUI (tsc --noEmit)
+	cd tui && bun run typecheck
+
+vet-web: ## Typecheck web (tsc -b --noEmit)
+	cd web && bunx tsc -b --noEmit
+
+vet-landing: ## Typecheck landing (next lint includes type checks)
+	cd landing && bunx tsc --noEmit
 
 # =============================================================================
 # Check & CI
@@ -269,36 +295,49 @@ vet-ts: ## Vet TS code (NOT IMPLEMENTED)
 
 check-go: gen-go fmt-go vet-go lint-go test-go ## Go quality gate (gen + fmt + vet + lint + test)
 
-check-ts: lint-ts test-ts ## TS quality gate (lint + test)
+check-ts: fmt-ts vet-ts lint-ts test-ts ## TS quality gate (fmt + vet + lint + test)
 
 ci-local: ## Run full CI pipeline locally
-	@echo "=== CI Local Pipeline ==="
-	@echo ""
-	@echo "--- Go: gen ---"
-	@$(MAKE) gen-go
-	@echo "--- Go: fmt ---"
-	@$(MAKE) fmt-go
-	@echo "--- Go: vet ---"
-	@$(MAKE) vet-go
-	@echo "--- Go: lint ---"
-	@$(MAKE) lint-go
-	@echo "--- Go: test ---"
-	@$(MAKE) test-go
-	@echo "--- Go: release ---"
-	@$(MAKE) release-bc-local
-	@echo "--- Go: verify ---"
-	@$(BUILD_DIR)/bc version
-	@echo ""
-	@echo "--- TS: lint ---"
-	@$(MAKE) lint-ts
-	@echo "--- TS: test ---"
-	@$(MAKE) test-ts
-	@echo "--- TS: build ---"
-	@$(MAKE) build-ts-local
-	@echo ""
-	@echo "=== CI Local: ALL PASS ==="
+	@printf "\n$(_BOLD)bc CI Pipeline$(_RESET) ($(VERSION))\n\n"
+	@FAIL=0; \
+	printf "$(_CYAN)[go]$(_RESET) deps\n";       $(MAKE) --no-print-directory deps-go       || FAIL=1; \
+	printf "$(_CYAN)[go]$(_RESET) gen\n";         $(MAKE) --no-print-directory gen-go        || FAIL=1; \
+	printf "$(_CYAN)[go]$(_RESET) fmt\n";         $(MAKE) --no-print-directory fmt-go        || FAIL=1; \
+	printf "$(_CYAN)[go]$(_RESET) vet\n";         $(MAKE) --no-print-directory vet-go        || FAIL=1; \
+	printf "$(_CYAN)[go]$(_RESET) lint\n";        $(MAKE) --no-print-directory lint-go       || FAIL=1; \
+	printf "$(_CYAN)[go]$(_RESET) test\n";        $(MAKE) --no-print-directory test-go       || FAIL=1; \
+	printf "$(_CYAN)[go]$(_RESET) build\n";       $(MAKE) --no-print-directory build-go-local || FAIL=1; \
+	printf "$(_CYAN)[go]$(_RESET) verify\n";      $(BUILD_DIR)/bc version                    || FAIL=1; \
+	printf "\n"; \
+	printf "$(_CYAN)[ts]$(_RESET) deps\n";        $(MAKE) --no-print-directory deps-ts       || FAIL=1; \
+	printf "$(_CYAN)[ts]$(_RESET) fmt\n";         $(MAKE) --no-print-directory fmt-ts        || FAIL=1; \
+	printf "$(_CYAN)[ts]$(_RESET) vet\n";         $(MAKE) --no-print-directory vet-ts        || FAIL=1; \
+	printf "$(_CYAN)[ts]$(_RESET) lint\n";        $(MAKE) --no-print-directory lint-ts       || FAIL=1; \
+	printf "$(_CYAN)[ts]$(_RESET) test\n";        $(MAKE) --no-print-directory test-ts       || FAIL=1; \
+	printf "$(_CYAN)[ts]$(_RESET) build\n";       $(MAKE) --no-print-directory build-ts-local || FAIL=1; \
+	printf "\n"; \
+	if [ $$FAIL -eq 0 ]; then \
+		printf "$(_GREEN)$(_BOLD)CI PASSED$(_RESET)\n\n"; \
+	else \
+		printf "$(_RED)$(_BOLD)CI FAILED$(_RESET)\n\n"; \
+		exit 1; \
+	fi
 
-integrate: check build ## Full integration: check + build
+ci-docker: ## Build and verify all Docker images
+	@printf "\n$(_BOLD)bc Docker CI$(_RESET)\n\n"
+	@FAIL=0; \
+	printf "$(_CYAN)[docker]$(_RESET) bcd\n";          $(MAKE) --no-print-directory build-bcd-docker        || FAIL=1; \
+	printf "$(_CYAN)[docker]$(_RESET) bcdb\n";         $(MAKE) --no-print-directory build-bcdb-docker       || FAIL=1; \
+	printf "$(_CYAN)[docker]$(_RESET) agent-base\n";   $(MAKE) --no-print-directory build-agent-base-docker || FAIL=1; \
+	printf "$(_CYAN)[docker]$(_RESET) agents\n";       $(MAKE) --no-print-directory build-agents-docker     || FAIL=1; \
+	printf "\n"; \
+	if [ $$FAIL -eq 0 ]; then \
+		printf "$(_GREEN)$(_BOLD)Docker CI PASSED$(_RESET)\n\n"; \
+	else \
+		printf "$(_RED)$(_BOLD)Docker CI FAILED$(_RESET)\n\n"; \
+		exit 1; \
+	fi
+
 
 # =============================================================================
 # Release
@@ -306,6 +345,7 @@ integrate: check build ## Full integration: check + build
 
 release-bc-local: gen-go ## Build optimized bc binary (local)
 	@mkdir -p $(BUILD_DIR)
+	@if [ ! -d server/web/dist ]; then mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html; fi
 	$(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/bc ./cmd/bc
 
 release-bcd-local: gen-go build-web-local ## Build optimized bcd binary (local)
@@ -319,8 +359,8 @@ release-bcd-local: gen-go build-web-local ## Build optimized bcd binary (local)
 run-bc-local: ## Run bc CLI from source (local)
 	$(GO) run ./cmd/bc
 
-run-tui-local: ## Run TUI in dev mode (NOT IMPLEMENTED)
-	@echo "NOT IMPLEMENTED: run-tui-local"
+run-tui-local: build-tui-local ## Run TUI in dev/watch mode (local)
+	cd tui && bun run dev
 
 run-web-local: ## Run web UI dev server with hot reload (local)
 	cd web && bun run dev
@@ -379,8 +419,10 @@ deps-ts: ## Install all TS dependencies
 scan-go: ## Run Go vulnerability scan (govulncheck)
 	$(GO) run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
-scan-ts: ## Run TS security scan (NOT IMPLEMENTED)
-	@echo "NOT IMPLEMENTED: scan-ts"
+scan-ts: ## Run TS dependency audit (bun audit, non-blocking)
+	cd tui && bun audit || true
+	cd web && bun audit || true
+	cd landing && bun audit || true
 
 # =============================================================================
 # Code generation
@@ -389,8 +431,8 @@ scan-ts: ## Run TS security scan (NOT IMPLEMENTED)
 gen-go: ## Generate Go code (currently no-op)
 	@true
 
-gen-ts: ## Generate TS code (NOT IMPLEMENTED)
-	@echo "NOT IMPLEMENTED: gen-ts"
+gen-ts: ## Generate TS code (currently no-op)
+	@true
 
 # =============================================================================
 # Clean
