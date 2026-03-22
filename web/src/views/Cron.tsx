@@ -11,37 +11,28 @@ type FormStatus =
   | { type: "success" }
   | { type: "error"; message: string };
 
-function CreateJobForm({
-  agents,
-  onCreated,
-}: {
-  agents: string[];
-  onCreated: () => void;
-}) {
+function CreateJobForm({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [schedule, setSchedule] = useState("");
-  const [agentName, setAgentName] = useState("");
-  const [prompt, setPrompt] = useState("");
+  const [command, setCommand] = useState("");
   const [status, setStatus] = useState<FormStatus>({ type: "idle" });
 
   const reset = () => {
     setName("");
     setSchedule("");
-    setAgentName("");
-    setPrompt("");
+    setCommand("");
     setStatus({ type: "idle" });
   };
 
   const handleSubmit = async () => {
-    if (!name.trim() || !schedule.trim()) return;
+    if (!name.trim() || !schedule.trim() || !command.trim()) return;
     setStatus({ type: "saving" });
     try {
       await api.createCron({
         name: name.trim(),
         schedule: schedule.trim(),
-        agent_name: agentName,
-        prompt: prompt.trim(),
+        command: command.trim(),
       });
       setStatus({ type: "success" });
       reset();
@@ -98,37 +89,25 @@ function CreateJobForm({
           />
         </div>
         <div className="space-y-1">
-          <label className="block text-sm text-bc-text">Agent</label>
-          <select
-            value={agentName}
-            onChange={(e) => setAgentName(e.target.value)}
+          <label className="block text-sm text-bc-text">Command</label>
+          <input
+            type="text"
+            value={command}
+            onChange={(e) => setCommand(e.target.value)}
+            placeholder="make check"
             className={inputCls}
-          >
-            <option value="">-- none --</option>
-            {agents.map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
-            ))}
-          </select>
+          />
         </div>
-      </div>
-      <div className="space-y-1">
-        <label className="block text-sm text-bc-text">Prompt</label>
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          rows={3}
-          placeholder="Describe what this cron job should do..."
-          className={inputCls + " resize-y"}
-        />
       </div>
       <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={handleSubmit}
           disabled={
-            status.type === "saving" || !name.trim() || !schedule.trim()
+            status.type === "saving" ||
+            !name.trim() ||
+            !schedule.trim() ||
+            !command.trim()
           }
           className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
         >
@@ -153,7 +132,7 @@ function CreateJobForm({
 }
 
 function JobLogs({ name }: { name: string }) {
-  const fetcher = useCallback(() => api.getCronLogs(name, 20), [name]);
+  const fetcher = useCallback(() => api.getCronLogs(name), [name]);
   const { data: logs, loading } = usePolling(fetcher, 15000);
 
   if (loading && !logs) {
@@ -182,7 +161,7 @@ function JobLogs({ name }: { name: string }) {
             className="flex items-start gap-3 text-xs border-b border-bc-border/30 pb-1"
           >
             <span className="text-bc-muted whitespace-nowrap">
-              {new Date(log.run_at).toLocaleString()}
+              {new Date(log.started_at).toLocaleString()}
             </span>
             <span
               className={`font-medium ${log.status === "success" ? "text-green-400" : log.status === "failed" ? "text-red-400" : "text-yellow-400"}`}
@@ -282,9 +261,6 @@ export function Cron() {
     timedOut,
   } = usePolling(fetcher, 10000);
 
-  const agentFetcher = useCallback(() => api.listAgents(), []);
-  const { data: agents } = usePolling(agentFetcher, 30000);
-
   const [expandedJob, setExpandedJob] = useState<string | null>(null);
 
   if (loading && !jobs) {
@@ -322,7 +298,6 @@ export function Cron() {
     );
   }
 
-  const agentNames = (agents ?? []).map((a) => a.name);
   const jobList = jobs ?? [];
 
   return (
@@ -332,7 +307,7 @@ export function Cron() {
         <span className="text-sm text-bc-muted">{jobList.length} jobs</span>
       </div>
 
-      <CreateJobForm agents={agentNames} onCreated={refresh} />
+      <CreateJobForm onCreated={refresh} />
 
       <div className="rounded border border-bc-border overflow-hidden">
         {jobList.length === 0 ? (
