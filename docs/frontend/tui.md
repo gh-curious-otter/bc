@@ -218,7 +218,7 @@ Today, these layers do not exist as separate packages. The TUI contains all logi
 - Platform rendering: directly in `tui/src/components/*.tsx`
 - Shared logic: `tui/src/utils/formatting.ts`, `tui/src/navigation/viewCommands.ts`
 
-The extraction to `@bc/ui` is tracked in the design system epic (#2154).
+The extraction to `@bc/ui` is tracked in the design system epic.
 
 ---
 
@@ -299,7 +299,7 @@ Activated by pressing `/`. Sets the global `FilterContext` query which views can
 
 - Live preview: filter updates on each keystroke via `setFilter()`.
 - Enter applies and closes. Esc clears and closes.
-- Filter state persists across the FilterBar open/close cycle but resets on view change (known issue #2131).
+- Filter state persists across the FilterBar open/close cycle but resets on view change (known issue).
 
 ### Tab Cycling
 
@@ -628,7 +628,7 @@ Two built-in themes mapping semantic slots to ANSI names:
 
 ### Solar Flare Design System
 
-The Solar Flare migration (#2154) changes the TUI's color system from ANSI-only names to a unified design token set shared across all three bc frontends. The full palette is defined in `docs/architecture/design-system.md`.
+The Solar Flare migration changes the TUI's color system from ANSI-only names to a unified design token set shared across all three bc frontends. The full palette is defined in `docs/architecture/design-system.md`.
 
 **How terminal color mapping works:**
 
@@ -774,13 +774,13 @@ The TUI centralizes magic numbers into `tui/src/constants/`:
 
 ## 11. Known Issues
 
-| Issue | Summary |
-|-------|---------|
-| #2130 | TUI performance degradation with >50 agents |
-| #2131 | Filter bar does not persist across view changes |
-| #2133 | Channel unread counts can desync when messages arrive during view switch |
-| #2134 | Theme toggle does not update TabBar highlight color immediately |
-| #2135 | CommandBar fuzzy matching ranks short aliases too high for partial inputs |
-| #2136 | 80x24 terminal: footer hints overlap with view content on small screens |
-| #2173 | Adaptive polling backoff does not resume fast mode on user interaction |
-| #2174 | ErrorBoundary does not provide retry mechanism for transient API failures |
+| Summary |
+|---------|
+| TUI performance degradation with >50 agents |
+| Filter bar does not persist across view changes |
+| Channel unread counts can desync when messages arrive during view switch |
+| Theme toggle does not update TabBar highlight color immediately |
+| CommandBar fuzzy matching ranks short aliases too high for partial inputs |
+| 80x24 terminal: footer hints overlap with view content on small screens |
+| Adaptive polling backoff does not resume fast mode on user interaction |
+| ErrorBoundary does not provide retry mechanism for transient API failures |

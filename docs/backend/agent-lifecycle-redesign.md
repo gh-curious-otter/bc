@@ -1,8 +1,7 @@
-> **Status: Draft Proposal** — This document describes a proposed refactoring (#2165). It has not been fully implemented. See docs/backend/agents.md for current architecture.
+> **Status: Draft Proposal** — This document describes a proposed refactoring. It has not been fully implemented. See docs/backend/agents.md for current architecture.
 
 # Design: Agent Lifecycle Consolidation
 
-**Issue:** #2165
 **Status:** Draft — awaiting review
 **Author:** backend-agent
 
@@ -150,7 +149,6 @@ func (m *Manager) renameAgent(oldName, newName string) error {
 
 ### Phase 2: Comprehensive Delete
 - Add cleanup for: log files, agent state dir, channel memberships, children's ParentID
-- Subsumes #2038
 - **~50 lines changed in agent.go**
 
 ### Phase 3: Background RefreshState
