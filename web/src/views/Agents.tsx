@@ -19,6 +19,8 @@ export function Agents() {
   const navigate = useNavigate();
 
   const [peekAgent, setPeekAgent] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Refresh on agent lifecycle events via SSE
   useEffect(() => {
@@ -34,6 +36,55 @@ export function Agents() {
   const handlePeekToggle = (agentName: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setPeekAgent((prev) => (prev === agentName ? null : agentName));
+  };
+
+  const handleStart = async (name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActionLoading(name);
+    try {
+      await api.startAgent(name);
+      await refresh();
+    } catch {
+      // SSE will refresh on state change
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleStop = async (name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActionLoading(name);
+    try {
+      await api.stopAgent(name);
+      await refresh();
+    } catch {
+      // SSE will refresh on state change
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDelete = async (name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirmDelete !== name) {
+      setConfirmDelete(name);
+      return;
+    }
+    setConfirmDelete(null);
+    setActionLoading(name);
+    try {
+      await api.deleteAgent(name);
+      await refresh();
+    } catch {
+      // SSE will refresh on state change
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleCancelDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setConfirmDelete(null);
   };
 
   const columns = ['Name', 'Role', 'Tool', 'Status', 'Task', 'Tokens', 'Cost', 'CPU %', 'Mem %', 'MCP', ''] as const;
@@ -103,7 +154,7 @@ export function Agents() {
                 <th className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell">CPU %</th>
                 <th className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell">Mem %</th>
                 <th className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell">MCP</th>
-                <th className="px-4 py-2 font-medium text-bc-muted w-10"></th>
+                <th className="px-4 py-2 font-medium text-bc-muted text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -151,19 +202,76 @@ export function Agents() {
                     <td className="px-4 py-2 hidden md:table-cell">
                       <span className="text-bc-muted">{a.mcp_servers?.length || 0}</span>
                     </td>
-                    <td className="px-4 py-2 text-center">
-                      <button
-                        onClick={(e) => handlePeekToggle(a.name, e)}
-                        className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors focus:ring-2 focus:ring-bc-accent focus:outline-none ${
-                          peekAgent === a.name
-                            ? 'bg-bc-accent/20 text-bc-accent'
-                            : 'text-bc-muted hover:text-bc-fg hover:bg-bc-surface'
-                        }`}
-                        title={peekAgent === a.name ? 'Hide output' : 'Peek output'}
-                        aria-label={peekAgent === a.name ? 'Hide output' : 'Peek output'}
-                      >
-                        {peekAgent === a.name ? '\u2296' : '\u2295'}
-                      </button>
+                    <td className="px-4 py-2">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={(e) => handlePeekToggle(a.name, e)}
+                          className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors focus:ring-2 focus:ring-bc-accent focus:outline-none ${
+                            peekAgent === a.name
+                              ? 'bg-bc-accent/20 text-bc-accent'
+                              : 'text-bc-muted hover:text-bc-fg hover:bg-bc-surface'
+                          }`}
+                          title={peekAgent === a.name ? 'Hide output' : 'Peek output'}
+                          aria-label={peekAgent === a.name ? 'Hide output' : 'Peek output'}
+                        >
+                          {peekAgent === a.name ? '\u2296' : '\u2295'}
+                        </button>
+                        {(a.state === 'idle' || a.state === 'working' || a.state === 'running') && (
+                          <button
+                            onClick={(e) => handleStop(a.name, e)}
+                            disabled={actionLoading === a.name}
+                            className="inline-flex items-center justify-center w-7 h-7 rounded text-bc-muted hover:text-red-400 hover:bg-red-400/10 transition-colors focus:ring-2 focus:ring-red-400 focus:outline-none disabled:opacity-50"
+                            title="Stop agent"
+                            aria-label="Stop agent"
+                          >
+                            {actionLoading === a.name ? '\u22EF' : '\u25A0'}
+                          </button>
+                        )}
+                        {a.state === 'stopped' && (
+                          <>
+                            <button
+                              onClick={(e) => handleStart(a.name, e)}
+                              disabled={actionLoading === a.name}
+                              className="inline-flex items-center justify-center w-7 h-7 rounded text-bc-muted hover:text-green-400 hover:bg-green-400/10 transition-colors focus:ring-2 focus:ring-green-400 focus:outline-none disabled:opacity-50"
+                              title="Start agent"
+                              aria-label="Start agent"
+                            >
+                              {actionLoading === a.name ? '\u22EF' : '\u25B6'}
+                            </button>
+                            {confirmDelete === a.name ? (
+                              <>
+                                <button
+                                  onClick={(e) => handleDelete(a.name, e)}
+                                  disabled={actionLoading === a.name}
+                                  className="inline-flex items-center justify-center px-2 h-7 rounded text-xs font-medium text-red-400 bg-red-400/10 hover:bg-red-400/20 transition-colors focus:ring-2 focus:ring-red-400 focus:outline-none disabled:opacity-50"
+                                  title="Confirm delete"
+                                  aria-label="Confirm delete"
+                                >
+                                  Confirm
+                                </button>
+                                <button
+                                  onClick={handleCancelDelete}
+                                  className="inline-flex items-center justify-center px-2 h-7 rounded text-xs font-medium text-bc-muted hover:text-bc-fg hover:bg-bc-surface transition-colors focus:ring-2 focus:ring-bc-accent focus:outline-none"
+                                  title="Cancel delete"
+                                  aria-label="Cancel delete"
+                                >
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={(e) => handleDelete(a.name, e)}
+                                disabled={actionLoading === a.name}
+                                className="inline-flex items-center justify-center w-7 h-7 rounded text-bc-muted hover:text-red-400 hover:bg-red-400/10 transition-colors focus:ring-2 focus:ring-red-400 focus:outline-none disabled:opacity-50"
+                                title="Delete agent"
+                                aria-label="Delete agent"
+                              >
+                                {actionLoading === a.name ? '\u22EF' : '\u2715'}
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                   {peekAgent === a.name && (
