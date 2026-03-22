@@ -301,6 +301,10 @@ export const api = {
 
   listCron: () => request<CronJob[]>('/cron'),
   listSecrets: () => request<Secret[]>('/secrets'),
+  createSecret: (name: string, value: string, description?: string) =>
+    request<Secret>('/secrets', { method: 'POST', body: JSON.stringify({ name, value, description: description ?? '' }) }),
+  deleteSecret: (name: string) =>
+    request<void>(`/secrets/${encodeURIComponent(name)}`, { method: 'DELETE' }),
   getWorkspace: () => request<WorkspaceInfo>('/workspace'),
   getWorkspaceStatus: () => request<Record<string, unknown>>('/workspace/status'),
 
