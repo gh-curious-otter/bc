@@ -75,7 +75,7 @@ LDFLAGS_RELEASE = -s -w $(LDFLAGS_VERSION)
 
 # Environment-specific addresses
 ADDR_local      := 127.0.0.1:9374
-ADDR_dogfood    := 127.0.0.1:9374
+ADDR_dogfood    := 127.0.0.1:9000
 ADDR_production := 0.0.0.0:9374
 
 DEPLOY_ADDR = $(ADDR_$(ENV))
