@@ -11,7 +11,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/client"
-	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/ui"
 )
@@ -128,7 +127,7 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 
 	// Stuck detection via daemon event log
 	if agentHealthDetect {
-		stuckConfig := events.StuckConfig{
+		stuckConfig := client.StuckConfig{
 			ActivityTimeout: timeout,
 			WorkTimeout:     workTimeout,
 			MaxFailures:     agentHealthMaxFail,
@@ -141,19 +140,7 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 				continue
 			}
 
-			// Convert client EventInfo to events.Event for stuck detection
-			evts := make([]events.Event, 0, len(agentEvents))
-			for _, e := range agentEvents {
-				evts = append(evts, events.Event{
-					Timestamp: e.Timestamp,
-					Type:      events.EventType(e.Type),
-					Agent:     e.Agent,
-					Message:   e.Message,
-					Data:      e.Data,
-				})
-			}
-
-			stuck := events.DetectStuck(evts, stuckConfig)
+			stuck := client.DetectStuck(agentEvents, stuckConfig)
 			if stuck.IsStuck {
 				healthResults[i].IsStuck = true
 				healthResults[i].StuckReason = string(stuck.Reason)
