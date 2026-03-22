@@ -41,7 +41,7 @@ export function HeroSection() {
             className="mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-accent/10 px-4 py-1.5 font-mono text-xs text-muted-foreground backdrop-blur-sm"
           >
             <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-            CLI-first &middot; Agent-agnostic &middot; Private beta
+            CLI-first &middot; Agent-agnostic &middot; Open source
           </motion.div>
 
           <motion.h1
@@ -74,11 +74,11 @@ export function HeroSection() {
             className="mt-6 flex flex-wrap items-center gap-3"
           >
             <Link
-              href="/waitlist"
+              href="https://github.com/gh-curious-otter/bc"
               className="group inline-flex h-10 sm:h-11 items-center gap-2 rounded-lg bg-primary px-6 sm:px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-xl hover:shadow-primary/20 active:scale-[0.97]"
-              aria-label="Join the bc waitlist"
+              aria-label="Get started with bc on GitHub"
             >
-              Request Early Access
+              Get Started
               <ArrowRight
                 className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
                 aria-hidden="true"
@@ -122,44 +122,58 @@ export function HeroSection() {
           <div className="absolute -inset-8 rounded-3xl bg-gradient-to-tr from-primary/5 via-transparent to-secondary/10 blur-3xl hero-glow" />
           <div className="relative">
             <TerminalWindow
-              title="bc up"
-              ariaLabel="Terminal running bc up command, starting 5 AI coding agents in parallel"
+              title="bc agent create"
+              ariaLabel="Terminal showing bc agent creation and listing commands"
             >
-              <CommandOutput
-                command="bc up"
-                lines={[
-                  {
-                    text: "Starting 5 agents...",
-                    color: "text-terminal-muted",
-                  },
-                  { text: "" },
-                  {
-                    text: '  \u2713 pm-01       product-manager   working   "Planning sprint"',
-                    color: "text-terminal-success",
-                  },
-                  {
-                    text: '  \u2713 mgr-01      manager           working   "Reviewing PRs"',
-                    color: "text-terminal-success",
-                  },
-                  {
-                    text: '  \u2713 eng-01      engineer          working   "Building auth"',
-                    color: "text-terminal-success",
-                  },
-                  {
-                    text: '  \u2713 eng-02      engineer          working   "Fixing bugs"',
-                    color: "text-terminal-success",
-                  },
-                  {
-                    text: '  \u2713 eng-03      engineer          working   "Writing tests"',
-                    color: "text-terminal-success",
-                  },
-                  { text: "" },
-                  {
-                    text: "All agents active. Dashboard: bc home",
-                    color: "text-terminal-muted",
-                  },
-                ]}
-              />
+              <div className="space-y-3">
+                <CommandOutput
+                  command="bc agent create eng-01 --role engineer --tool claude"
+                  lines={[
+                    {
+                      text: "Created agent eng-01 (engineer, claude)",
+                      color: "text-terminal-success",
+                    },
+                  ]}
+                />
+                <CommandOutput
+                  command="bc agent create eng-02 --role engineer --tool gemini"
+                  lines={[
+                    {
+                      text: "Created agent eng-02 (engineer, gemini)",
+                      color: "text-terminal-success",
+                    },
+                  ]}
+                  delay={0.15}
+                />
+                <CommandOutput
+                  command="bc agent list"
+                  lines={[
+                    { text: "" },
+                    {
+                      text: "  NAME     ROLE       TOOL     STATUS",
+                      color: "text-terminal-muted",
+                    },
+                    {
+                      text: "  eng-01   engineer   claude   working",
+                      color: "text-terminal-success",
+                    },
+                    {
+                      text: "  eng-02   engineer   gemini   working",
+                      color: "text-terminal-success",
+                    },
+                    {
+                      text: "  mgr-01   manager    claude   idle",
+                      color: "text-terminal-muted",
+                    },
+                    { text: "" },
+                    {
+                      text: "3 agents  \u00b7  2 working  \u00b7  1 idle",
+                      color: "text-terminal-muted",
+                    },
+                  ]}
+                  delay={0.3}
+                />
+              </div>
             </TerminalWindow>
           </div>
         </motion.div>

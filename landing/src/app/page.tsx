@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Nav } from "./_components/Nav";
-import { BcHomeDemo } from "./_components/BcHomeDemo";
+import { DashboardScreenshots } from "./_components/DashboardScreenshots";
 import { Footer } from "./_components/Footer";
 import { AnimatedBackground } from "./_components/AnimatedBackground";
 import { HeroSection } from "./_components/HeroSection";
@@ -40,7 +40,7 @@ export default function Home() {
 
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 PROBLEM \u2192 SOLUTION \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
-          <RevealSection className="py-16 sm:py-24 lg:py-32" id="problem">
+          <RevealSection className="py-12 sm:py-16 lg:py-24" id="problem">
             <div className="mb-16">
               <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 The problem
@@ -102,7 +102,7 @@ export default function Home() {
           </RevealSection>
 
           {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 HOW IT WORKS \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
-          <RevealSection className="py-16 sm:py-24 lg:py-32" id="how-it-works">
+          <RevealSection className="py-12 sm:py-16 lg:py-24" id="how-it-works">
             <div className="mb-16 text-center">
               <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 How it works
@@ -129,11 +129,11 @@ export default function Home() {
                       color: "text-terminal-muted",
                     },
                     {
-                      text: "Created roles: pm, manager, engineer",
+                      text: "Created roles: manager, engineer",
                       color: "text-terminal-muted",
                     },
                     {
-                      text: "Channels: #eng, #pr, #standup, #leads",
+                      text: "Channels: #eng, #merge, #ops",
                       color: "text-terminal-muted",
                     },
                     { text: "Ready.", color: "text-terminal-success" },
@@ -141,45 +141,44 @@ export default function Home() {
                 },
                 {
                   step: "02",
-                  cmd: "bc up",
-                  title: "Start your agent team",
-                  desc: "Spawns agents in isolated git worktrees. Each gets a role, memory context, and channel access.",
+                  cmd: "bc daemon start",
+                  title: "Start the daemon",
+                  desc: "Launches the bcd server with the Web UI dashboard, WebSocket events, and MCP integration.",
                   lines: [
                     {
-                      text: "Starting orchestration engine...",
+                      text: "Starting bcd server on :9374...",
                       color: "text-terminal-muted",
                     },
                     {
-                      text: "\u2713 pm-01      product-manager  working",
+                      text: "\u2713 Web UI ready at localhost:9374",
                       color: "text-terminal-success",
                     },
                     {
-                      text: "\u2713 mgr-01     manager          working",
+                      text: "\u2713 MCP server connected",
                       color: "text-terminal-success",
                     },
                     {
-                      text: "\u2713 eng-01     engineer         working",
+                      text: "\u2713 WebSocket events streaming",
                       color: "text-terminal-success",
                     },
-                    { text: "3 agents active.", color: "text-terminal-muted" },
                   ],
                 },
                 {
                   step: "03",
-                  cmd: "bc home",
-                  title: "Monitor everything",
-                  desc: "Real-time Web UI dashboard: agents, channels, costs, memory, cron jobs \u2014 all in your browser.",
+                  cmd: "bc agent create eng-01 --role engineer --tool claude",
+                  title: "Create agents",
+                  desc: "Spawn agents in isolated git worktrees. Each gets a role, tool provider, memory context, and channel access.",
                   lines: [
                     {
-                      text: "Opening dashboard at localhost:9374...",
+                      text: "Created agent eng-01 (engineer, claude)",
+                      color: "text-terminal-success",
+                    },
+                    {
+                      text: "Worktree: .bc/worktrees/eng-01",
                       color: "text-terminal-muted",
                     },
                     {
-                      text: "WebSocket connected.",
-                      color: "text-terminal-muted",
-                    },
-                    {
-                      text: "Live mode active.",
+                      text: "Agent started and working.",
                       color: "text-terminal-success",
                     },
                   ],
@@ -208,7 +207,7 @@ export default function Home() {
           </RevealSection>
 
           {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 FEATURE: ORCHESTRATION \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
-          <RevealSection className="py-16 sm:py-24 lg:py-32" id="orchestration">
+          <RevealSection className="py-12 sm:py-16 lg:py-24" id="orchestration">
             <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-20">
               <div>
                 <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
@@ -279,7 +278,7 @@ export default function Home() {
           </RevealSection>
 
           {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 FEATURE: CHANNELS \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
-          <RevealSection className="py-16 sm:py-24 lg:py-32" id="channels">
+          <RevealSection className="py-12 sm:py-16 lg:py-24" id="channels">
             <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-20">
               <div className="order-2 lg:order-1">
                 <TerminalWindow
@@ -347,7 +346,7 @@ export default function Home() {
           </RevealSection>
 
           {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 FEATURE: WORKTREES \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
-          <RevealSection className="py-16 sm:py-24 lg:py-32" id="worktrees">
+          <RevealSection className="py-12 sm:py-16 lg:py-24" id="worktrees">
             <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-20">
               <div>
                 <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
@@ -419,7 +418,7 @@ export default function Home() {
           </RevealSection>
 
           {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 FEATURE: COSTS \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
-          <RevealSection className="py-16 sm:py-24 lg:py-32" id="costs">
+          <RevealSection className="py-12 sm:py-16 lg:py-24" id="costs">
             <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-20">
               <div className="order-2 lg:order-1">
                 <TerminalWindow
@@ -479,7 +478,7 @@ export default function Home() {
           </RevealSection>
 
           {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 FEATURE: MEMORY \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
-          <RevealSection className="py-16 sm:py-24 lg:py-32" id="memory">
+          <RevealSection className="py-12 sm:py-16 lg:py-24" id="memory">
             <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-20">
               <div>
                 <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
@@ -561,7 +560,7 @@ export default function Home() {
           </RevealSection>
 
           {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 FEATURE: CRON \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
-          <RevealSection className="py-16 sm:py-24 lg:py-32" id="cron">
+          <RevealSection className="py-12 sm:py-16 lg:py-24" id="cron">
             <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-20">
               <div className="order-2 lg:order-1">
                 <TerminalWindow
@@ -618,26 +617,26 @@ export default function Home() {
           </RevealSection>
 
           {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 INTERACTIVE DEMO \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
-          <RevealSection className="py-16 sm:py-24 lg:py-32" id="demo">
+          <RevealSection className="py-12 sm:py-16 lg:py-24" id="demo">
             <div className="mb-12 text-center">
               <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                Live preview
+                Web UI Dashboard
               </span>
               <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
-                See bc in action.
+                See the real dashboard.
               </h2>
               <p className="mt-4 text-muted-foreground text-lg max-w-xl mx-auto">
-                Click through the dashboard, channels, memory, and cost
-                tracking.
+                Monitor agents, channels, costs, and more from
+                localhost:9374.
               </p>
             </div>
-            <div className="mx-auto max-w-3xl">
-              <BcHomeDemo />
+            <div className="mx-auto max-w-5xl">
+              <DashboardScreenshots />
             </div>
           </RevealSection>
 
           {/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 FINAL CTA \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */}
-          <RevealSection className="pb-16 sm:pb-24 lg:pb-32">
+          <RevealSection className="pb-12 sm:pb-16 lg:pb-24">
             <div className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--card-shadow)]">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(234,88,12,0.04),transparent)] dark:bg-[radial-gradient(circle_at_30%_50%,rgba(234,88,12,0.06),transparent)] pointer-events-none" />
               <div className="relative grid items-center gap-8 p-8 sm:p-12 lg:grid-cols-[1fr_auto] lg:gap-16 lg:p-16">
@@ -651,11 +650,11 @@ export default function Home() {
                   </p>
                   <div className="mt-8 flex flex-wrap items-center gap-4">
                     <Link
-                      href="/waitlist"
+                      href="https://github.com/gh-curious-otter/bc"
                       className="group inline-flex h-12 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-xl active:scale-[0.97]"
-                      aria-label="Request early access to bc"
+                      aria-label="Get started with bc on GitHub"
                     >
-                      Request Early Access
+                      Get Started
                       <ArrowRight
                         className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
                         aria-hidden="true"
@@ -673,18 +672,19 @@ export default function Home() {
                 <TerminalWindow
                   title="quickstart"
                   className="min-w-[280px]"
-                  ariaLabel="Quick start commands: bc init, bc up, bc home"
+                  ariaLabel="Quick start commands: bc init, bc daemon start, bc agent create"
                 >
                   <div className="space-y-1.5 text-[13px]">
                     <div>
                       <span className="text-terminal-prompt">$ </span>bc init
-                      --preset small-team
                     </div>
                     <div>
-                      <span className="text-terminal-prompt">$ </span>bc up
+                      <span className="text-terminal-prompt">$ </span>bc daemon
+                      start
                     </div>
                     <div>
-                      <span className="text-terminal-prompt">$ </span>bc home
+                      <span className="text-terminal-prompt">$ </span>bc agent
+                      create eng-01 --role engineer --tool claude
                     </div>
                     <div className="text-terminal-comment mt-3 text-[12px]">
                       # That&apos;s it. Your agent team is running.
