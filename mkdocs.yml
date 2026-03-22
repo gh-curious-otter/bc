@@ -79,6 +79,21 @@ nav:
     - Networking: frontend/networking.md
   - Guides:
     - Channels: guides/channels.md
+  - CLI Reference:
+    - Overview: reference/cli/bc.md
+    - bc agent: reference/cli/bc_agent.md
+    - bc channel: reference/cli/bc_channel.md
+    - bc config: reference/cli/bc_config.md
+    - bc cost: reference/cli/bc_cost.md
+    - bc cron: reference/cli/bc_cron.md
+    - bc daemon: reference/cli/bc_daemon.md
+    - bc doctor: reference/cli/bc_doctor.md
+    - bc env: reference/cli/bc_env.md
+    - bc mcp: reference/cli/bc_mcp.md
+    - bc role: reference/cli/bc_role.md
+    - bc secret: reference/cli/bc_secret.md
+    - bc tool: reference/cli/bc_tool.md
+    - bc workspace: reference/cli/bc_workspace.md
   - Infrastructure:
     - CI/CD: infrastructure/ci-cd.md
     - Deployment: infrastructure/deployment.md
