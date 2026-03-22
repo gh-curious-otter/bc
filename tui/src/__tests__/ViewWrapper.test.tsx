@@ -20,7 +20,9 @@ function HintsDisplay(): React.ReactElement {
   return (
     <Box>
       {viewHints.map((h) => (
-        <Text key={h.key}>[{h.key}] {h.label}</Text>
+        <Text key={h.key}>
+          [{h.key}] {h.label}
+        </Text>
       ))}
     </Box>
   );
@@ -88,10 +90,7 @@ describe('ViewWrapper', () => {
 
   test('hides footer when hideFooter is true', () => {
     const { lastFrame } = renderWithTheme(
-      <ViewWrapper
-        hideFooter
-        hints={[{ key: 'q', label: 'quit' }]}
-      >
+      <ViewWrapper hideFooter hints={[{ key: 'q', label: 'quit' }]}>
         <Text>Content</Text>
       </ViewWrapper>
     );
@@ -131,11 +130,7 @@ describe('ViewWrapper', () => {
 
   test('renders with renderWithLayout prop', () => {
     const { lastFrame } = renderWithTheme(
-      <ViewWrapper
-        renderWithLayout={(layout) => (
-          <Text>Width: {layout.width}</Text>
-        )}
-      />
+      <ViewWrapper renderWithLayout={(layout) => <Text>Width: {layout.width}</Text>} />
     );
     // Default ink test width is 80
     expect(lastFrame()).toContain('Width:');

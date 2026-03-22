@@ -44,9 +44,9 @@ describe('Adaptive Polling Constants', () => {
     const backoff1 = SLOW_INTERVAL * Math.pow(BACKOFF_FACTOR, 1);
     const backoff2 = SLOW_INTERVAL * Math.pow(BACKOFF_FACTOR, 2);
 
-    expect(backoff0).toBe(4000);  // 4s
-    expect(backoff1).toBe(6000);  // 6s
-    expect(backoff2).toBe(9000);  // 9s (but capped at MAX_INTERVAL)
+    expect(backoff0).toBe(4000); // 4s
+    expect(backoff1).toBe(6000); // 6s
+    expect(backoff2).toBe(9000); // 9s (but capped at MAX_INTERVAL)
 
     // Verify capping
     expect(Math.min(MAX_INTERVAL, backoff2)).toBe(MAX_INTERVAL);
@@ -198,17 +198,11 @@ describe('Activity Reporting', () => {
 
 describe('Agent Working Count Integration', () => {
   // Simulate the useAdaptiveAgentPolling logic
-  const shouldReportActivity = (
-    currentWorking: number,
-    prevWorking: number
-  ): boolean => {
+  const shouldReportActivity = (currentWorking: number, prevWorking: number): boolean => {
     return currentWorking > prevWorking;
   };
 
-  const shouldReportIdle = (
-    currentWorking: number,
-    prevWorking: number
-  ): boolean => {
+  const shouldReportIdle = (currentWorking: number, prevWorking: number): boolean => {
     return currentWorking === 0 && prevWorking === 0;
   };
 
@@ -240,7 +234,7 @@ describe('Agent Working Count Integration', () => {
 });
 
 describe('Interval Bounds', () => {
-  const MIN_INTERVAL = 1000;  // FAST_INTERVAL
+  const MIN_INTERVAL = 1000; // FAST_INTERVAL
   const MAX_INTERVAL = 8000;
 
   test('interval never goes below minimum', () => {

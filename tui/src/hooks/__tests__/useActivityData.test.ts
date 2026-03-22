@@ -66,10 +66,10 @@ describe('useActivityData - Type Exports', () => {
         agent: 'eng-01',
         action: 'working',
         duration: 600,
-        cost: 0.10,
+        cost: 0.1,
       };
       expect(event.duration).toBe(600);
-      expect(event.cost).toBe(0.10);
+      expect(event.cost).toBe(0.1);
     });
 
     it('allows minimal required fields only', () => {
@@ -140,7 +140,7 @@ describe('useActivityData - Type Exports', () => {
         agents: ['eng-01'],
         action: 'working',
         duration: 30,
-        totalCost: 0.10,
+        totalCost: 0.1,
       };
       expect(period.duration).toBe(30);
     });

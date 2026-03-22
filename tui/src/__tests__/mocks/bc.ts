@@ -13,11 +13,7 @@ import type {
   ChannelsResponse,
   ChannelHistory,
 } from '../../types';
-import {
-  createMockAgents,
-  createMockChannels,
-  createMockMessages,
-} from '../fixtures';
+import { createMockAgents, createMockChannels, createMockMessages } from '../fixtures';
 
 export interface MockBcServiceOptions {
   agents?: Agent[];
@@ -38,7 +34,7 @@ export class MockBcService {
   private messages: Map<string, ChannelMessage[]>;
   private callHistory: { command: string; args: string[] }[] = [];
   private shouldFail: boolean;
-  private failureMessage: string
+  private failureMessage: string;
 
   constructor(options: MockBcServiceOptions = {}) {
     this.agents = options.agents ?? createMockAgents(3);
@@ -46,7 +42,7 @@ export class MockBcService {
     this.messages = new Map();
 
     // Initialize message histories for each channel
-    this.channels.forEach(channel => {
+    this.channels.forEach((channel) => {
       this.messages.set(channel.name, options.messages ?? createMockMessages(5));
     });
 
@@ -96,8 +92,8 @@ export class MockBcService {
    * Get workspace status
    */
   private getStatus(): StatusResponse {
-    const working = this.agents.filter(a => a.state === 'working').length;
-    const active = this.agents.filter(a => a.state !== 'stopped').length;
+    const working = this.agents.filter((a) => a.state === 'working').length;
+    const active = this.agents.filter((a) => a.state !== 'stopped').length;
 
     return {
       workspace: 'test-workspace',
@@ -161,7 +157,7 @@ export class MockBcService {
    */
   assertCalled(command: string, args?: string[]) {
     const found = this.callHistory.find(
-      call => call.command === command && (!args || this.argsMatch(call.args, args))
+      (call) => call.command === command && (!args || this.argsMatch(call.args, args))
     );
 
     if (!found) {
@@ -175,7 +171,7 @@ export class MockBcService {
    */
   assertNotCalled(command: string, args?: string[]) {
     const found = this.callHistory.find(
-      call => call.command === command && (!args || this.argsMatch(call.args, args))
+      (call) => call.command === command && (!args || this.argsMatch(call.args, args))
     );
 
     if (found) {
@@ -188,7 +184,7 @@ export class MockBcService {
    * Get call count
    */
   getCallCount(command: string): number {
-    return this.callHistory.filter(call => call.command === command).length;
+    return this.callHistory.filter((call) => call.command === command).length;
   }
 
   /**
@@ -210,14 +206,14 @@ export class MockBcService {
    * Remove agent by name
    */
   removeAgent(name: string) {
-    this.agents = this.agents.filter(a => a.name !== name);
+    this.agents = this.agents.filter((a) => a.name !== name);
   }
 
   /**
    * Get agent
    */
   getAgent(name: string): Agent | undefined {
-    return this.agents.find(a => a.name === name);
+    return this.agents.find((a) => a.name === name);
   }
 
   /**
@@ -260,9 +256,7 @@ export class MockBcService {
 /**
  * Create mock bc service with defaults
  */
-export function createMockBcService(
-  options: MockBcServiceOptions = {}
-): MockBcService {
+export function createMockBcService(options: MockBcServiceOptions = {}): MockBcService {
   return new MockBcService(options);
 }
 

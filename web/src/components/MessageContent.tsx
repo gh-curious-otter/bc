@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode } from "react";
 
 /**
  * Renders message content with basic markdown-like formatting:
@@ -12,7 +12,7 @@ export function MessageContent({ content }: { content: string }) {
   return <>{parseContent(content)}</>;
 }
 
-const REPO_URL = 'https://github.com/gh-curious-otter/bc';
+const REPO_URL = "https://github.com/gh-curious-otter/bc";
 
 /** Tokenize and render inline formatting. */
 function parseContent(text: string): ReactNode[] {

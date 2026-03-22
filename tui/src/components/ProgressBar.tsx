@@ -68,15 +68,16 @@ export const ProgressBar = memo(function ProgressBar({
       <Text color={color}>{filled}</Text>
       <Text dimColor>{empty}</Text>
       <Text>]</Text>
-      {showPercent && (
-        <Text color={color}> {percent.toFixed(0)}%</Text>
-      )}
+      {showPercent && <Text color={color}> {percent.toFixed(0)}%</Text>}
       {showValue && (
-        <Text dimColor> ({valuePrefix}{value.toFixed(2)}/{valuePrefix}{max.toFixed(2)})</Text>
+        <Text dimColor>
+          {' '}
+          ({valuePrefix}
+          {value.toFixed(2)}/{valuePrefix}
+          {max.toFixed(2)})
+        </Text>
       )}
-      {label && (
-        <Text dimColor> {label}</Text>
-      )}
+      {label && <Text dimColor> {label}</Text>}
     </Box>
   );
 });

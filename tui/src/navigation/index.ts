@@ -17,14 +17,6 @@ export {
 
 export { Breadcrumb } from './Breadcrumb';
 
-export {
-  useKeyboardNavigation,
-  type UseKeyboardNavigationOptions,
-} from './useKeyboardNavigation';
+export { useKeyboardNavigation, type UseKeyboardNavigationOptions } from './useKeyboardNavigation';
 
-export {
-  FocusProvider,
-  useFocus,
-  useIsFocused,
-  type FocusArea,
-} from './FocusContext';
+export { FocusProvider, useFocus, useIsFocused, type FocusArea } from './FocusContext';

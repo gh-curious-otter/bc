@@ -1,54 +1,83 @@
-import { useCallback, useEffect, useState } from 'react';
-import { api } from '../api/client';
-import type { SettingsConfig } from '../api/client';
-import { usePolling } from '../hooks/usePolling';
-import { LoadingSkeleton } from '../components/LoadingSkeleton';
-import { EmptyState } from '../components/EmptyState';
+import { useCallback, useEffect, useState } from "react";
+import { api } from "../api/client";
+import type { SettingsConfig } from "../api/client";
+import { usePolling } from "../hooks/usePolling";
+import { LoadingSkeleton } from "../components/LoadingSkeleton";
+import { EmptyState } from "../components/EmptyState";
 
-type SaveStatus = { type: 'idle' } | { type: 'saving' } | { type: 'success' } | { type: 'error'; message: string };
+type SaveStatus =
+  | { type: "idle" }
+  | { type: "saving" }
+  | { type: "success" }
+  | { type: "error"; message: string };
 
 function StatusMessage({ status }: { status: SaveStatus }) {
-  if (status.type === 'saving') return <span className="text-xs text-bc-muted">Saving...</span>;
-  if (status.type === 'success') return <span className="text-xs text-green-400">Saved</span>;
-  if (status.type === 'error') return <span className="text-xs text-red-400">{status.message}</span>;
+  if (status.type === "saving")
+    return <span className="text-xs text-bc-muted">Saving...</span>;
+  if (status.type === "success")
+    return <span className="text-xs text-green-400">Saved</span>;
+  if (status.type === "error")
+    return <span className="text-xs text-red-400">{status.message}</span>;
   return null;
 }
 
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+function SectionCard({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="rounded border border-bc-border bg-bc-surface p-5 space-y-4">
-      <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">{title}</h2>
+      <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
+        {title}
+      </h2>
       {children}
     </div>
   );
 }
 
 function useSectionSave(refresh: () => void) {
-  const [status, setStatus] = useState<SaveStatus>({ type: 'idle' });
+  const [status, setStatus] = useState<SaveStatus>({ type: "idle" });
 
-  const save = useCallback(async (patch: Record<string, unknown>) => {
-    setStatus({ type: 'saving' });
-    try {
-      await api.updateSettings(patch);
-      setStatus({ type: 'success' });
-      refresh();
-      setTimeout(() => setStatus({ type: 'idle' }), 2000);
-    } catch (err) {
-      setStatus({ type: 'error', message: err instanceof Error ? err.message : 'Save failed' });
-      setTimeout(() => setStatus({ type: 'idle' }), 4000);
-    }
-  }, [refresh]);
+  const save = useCallback(
+    async (patch: Record<string, unknown>) => {
+      setStatus({ type: "saving" });
+      try {
+        await api.updateSettings(patch);
+        setStatus({ type: "success" });
+        refresh();
+        setTimeout(() => setStatus({ type: "idle" }), 2000);
+      } catch (err) {
+        setStatus({
+          type: "error",
+          message: err instanceof Error ? err.message : "Save failed",
+        });
+        setTimeout(() => setStatus({ type: "idle" }), 4000);
+      }
+    },
+    [refresh],
+  );
 
   return { status, save };
 }
 
 // --- Section components ---
 
-function UserSection({ config, refresh }: { config: SettingsConfig; refresh: () => void }) {
+function UserSection({
+  config,
+  refresh,
+}: {
+  config: SettingsConfig;
+  refresh: () => void;
+}) {
   const [nickname, setNickname] = useState(config.User.Nickname);
   const { status, save } = useSectionSave(refresh);
 
-  useEffect(() => { setNickname(config.User.Nickname); }, [config.User.Nickname]);
+  useEffect(() => {
+    setNickname(config.User.Nickname);
+  }, [config.User.Nickname]);
 
   return (
     <SectionCard title="User">
@@ -62,13 +91,15 @@ function UserSection({ config, refresh }: { config: SettingsConfig; refresh: () 
           maxLength={15}
           className="w-full max-w-xs px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
         />
-        <p className="text-xs text-bc-muted">Must start with @ and be 15 characters or less</p>
+        <p className="text-xs text-bc-muted">
+          Must start with @ and be 15 characters or less
+        </p>
       </div>
       <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={() => save({ user: { Nickname: nickname } })}
-          disabled={status.type === 'saving'}
+          disabled={status.type === "saving"}
           className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
         >
           Save
@@ -79,7 +110,13 @@ function UserSection({ config, refresh }: { config: SettingsConfig; refresh: () 
   );
 }
 
-function UISection({ config, refresh }: { config: SettingsConfig; refresh: () => void }) {
+function UISection({
+  config,
+  refresh,
+}: {
+  config: SettingsConfig;
+  refresh: () => void;
+}) {
   const [theme, setTheme] = useState(config.TUI.Theme);
   const [mode, setMode] = useState(config.TUI.Mode);
   const { status, save } = useSectionSave(refresh);
@@ -123,7 +160,7 @@ function UISection({ config, refresh }: { config: SettingsConfig; refresh: () =>
         <button
           type="button"
           onClick={() => save({ tui: { Theme: theme, Mode: mode } })}
-          disabled={status.type === 'saving'}
+          disabled={status.type === "saving"}
           className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
         >
           Save
@@ -134,11 +171,19 @@ function UISection({ config, refresh }: { config: SettingsConfig; refresh: () =>
   );
 }
 
-function RuntimeSection({ config, refresh }: { config: SettingsConfig; refresh: () => void }) {
+function RuntimeSection({
+  config,
+  refresh,
+}: {
+  config: SettingsConfig;
+  refresh: () => void;
+}) {
   const [backend, setBackend] = useState(config.Runtime.Backend);
   const { status, save } = useSectionSave(refresh);
 
-  useEffect(() => { setBackend(config.Runtime.Backend); }, [config.Runtime.Backend]);
+  useEffect(() => {
+    setBackend(config.Runtime.Backend);
+  }, [config.Runtime.Backend]);
 
   return (
     <SectionCard title="Runtime">
@@ -157,7 +202,7 @@ function RuntimeSection({ config, refresh }: { config: SettingsConfig; refresh: 
         <button
           type="button"
           onClick={() => save({ runtime: { Backend: backend } })}
-          disabled={status.type === 'saving'}
+          disabled={status.type === "saving"}
           className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
         >
           Save
@@ -168,24 +213,54 @@ function RuntimeSection({ config, refresh }: { config: SettingsConfig; refresh: 
   );
 }
 
-const PROVIDER_NAMES = ['claude', 'gemini', 'cursor', 'codex', 'opencode', 'openclaw', 'aider'] as const;
-type ProviderName = typeof PROVIDER_NAMES[number];
+const PROVIDER_NAMES = [
+  "claude",
+  "gemini",
+  "cursor",
+  "codex",
+  "opencode",
+  "openclaw",
+  "aider",
+] as const;
+type ProviderName = (typeof PROVIDER_NAMES)[number];
 
-type ProviderKey = 'Claude' | 'Gemini' | 'Cursor' | 'Codex' | 'OpenCode' | 'OpenClaw' | 'Aider';
+type ProviderKey =
+  | "Claude"
+  | "Gemini"
+  | "Cursor"
+  | "Codex"
+  | "OpenCode"
+  | "OpenClaw"
+  | "Aider";
 
 function providerKey(name: ProviderName): ProviderKey {
   const map: Record<ProviderName, ProviderKey> = {
-    claude: 'Claude', gemini: 'Gemini', cursor: 'Cursor',
-    codex: 'Codex', opencode: 'OpenCode', openclaw: 'OpenClaw', aider: 'Aider',
+    claude: "Claude",
+    gemini: "Gemini",
+    cursor: "Cursor",
+    codex: "Codex",
+    opencode: "OpenCode",
+    openclaw: "OpenClaw",
+    aider: "Aider",
   };
   return map[name];
 }
 
-function ProvidersSection({ config, refresh }: { config: SettingsConfig; refresh: () => void }) {
-  const [defaultProvider, setDefaultProvider] = useState(config.Providers.Default);
+function ProvidersSection({
+  config,
+  refresh,
+}: {
+  config: SettingsConfig;
+  refresh: () => void;
+}) {
+  const [defaultProvider, setDefaultProvider] = useState(
+    config.Providers.Default,
+  );
   const { status, save } = useSectionSave(refresh);
 
-  useEffect(() => { setDefaultProvider(config.Providers.Default); }, [config.Providers.Default]);
+  useEffect(() => {
+    setDefaultProvider(config.Providers.Default);
+  }, [config.Providers.Default]);
 
   const enabledProviders = PROVIDER_NAMES.filter((name) => {
     const cfg = config.Providers[providerKey(name)];
@@ -206,7 +281,9 @@ function ProvidersSection({ config, refresh }: { config: SettingsConfig; refresh
           className="w-full max-w-xs px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
         >
           {allDefined.map((name) => (
-            <option key={name} value={name}>{name}</option>
+            <option key={name} value={name}>
+              {name}
+            </option>
           ))}
         </select>
       </div>
@@ -231,7 +308,7 @@ function ProvidersSection({ config, refresh }: { config: SettingsConfig; refresh
         <button
           type="button"
           onClick={() => save({ providers: { Default: defaultProvider } })}
-          disabled={status.type === 'saving'}
+          disabled={status.type === "saving"}
           className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
         >
           Save
@@ -263,22 +340,26 @@ function MCPSection(_props: { refresh: () => void }) {
             className="flex items-center justify-between px-4 py-2 rounded border border-bc-border bg-bc-bg"
           >
             <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-bc-text">{server.name}</span>
+              <span className="text-sm font-medium text-bc-text">
+                {server.name}
+              </span>
               <span className="text-xs text-bc-muted">{server.transport}</span>
             </div>
             <span
               className={`text-xs px-2 py-0.5 rounded-full ${
                 server.enabled
-                  ? 'bg-green-400/10 text-green-400'
-                  : 'bg-red-400/10 text-red-400'
+                  ? "bg-green-400/10 text-green-400"
+                  : "bg-red-400/10 text-red-400"
               }`}
             >
-              {server.enabled ? 'Enabled' : 'Disabled'}
+              {server.enabled ? "Enabled" : "Disabled"}
             </span>
           </div>
         ))}
       </div>
-      <p className="text-xs text-bc-muted">MCP server configuration is managed via config.toml</p>
+      <p className="text-xs text-bc-muted">
+        MCP server configuration is managed via config.toml
+      </p>
     </SectionCard>
   );
 }
@@ -287,7 +368,13 @@ function MCPSection(_props: { refresh: () => void }) {
 
 export function Settings() {
   const fetcher = useCallback(() => api.getSettings(), []);
-  const { data: config, loading, error, refresh, timedOut } = usePolling(fetcher, 30000);
+  const {
+    data: config,
+    loading,
+    error,
+    refresh,
+    timedOut,
+  } = usePolling(fetcher, 30000);
 
   if (loading && !config) {
     return (

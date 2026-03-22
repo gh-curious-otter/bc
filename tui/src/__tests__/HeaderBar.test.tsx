@@ -20,17 +20,13 @@ describe('HeaderBar', () => {
   });
 
   it('renders subtitle', () => {
-    const { lastFrame } = render(
-      <HeaderBar title="Main" subtitle="Description here" />
-    );
+    const { lastFrame } = render(<HeaderBar title="Main" subtitle="Description here" />);
     expect(lastFrame()).toContain('Main');
     expect(lastFrame()).toContain('Description here');
   });
 
   it('renders keyboard hints', () => {
-    const { lastFrame } = render(
-      <HeaderBar title="View" hints="Press q to quit" />
-    );
+    const { lastFrame } = render(<HeaderBar title="View" hints="Press q to quit" />);
     expect(lastFrame()).toContain('Press q to quit');
   });
 

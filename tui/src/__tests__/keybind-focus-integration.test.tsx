@@ -124,9 +124,7 @@ describe('FocusContext behavior for keybind management', () => {
 
       return (
         <div>
-          <button onClick={() => setFocus('input')}>
-            Enable Input Mode
-          </button>
+          <button onClick={() => setFocus('input')}>Enable Input Mode</button>
         </div>
       );
     };
@@ -154,12 +152,8 @@ describe('FocusContext behavior for keybind management', () => {
 
       return (
         <div>
-          <button onClick={() => setFocus('input')}>
-            Enter Input Mode
-          </button>
-          <button onClick={() => returnFocus()}>
-            Return Focus
-          </button>
+          <button onClick={() => setFocus('input')}>Enter Input Mode</button>
+          <button onClick={() => returnFocus()}>Return Focus</button>
         </div>
       );
     };

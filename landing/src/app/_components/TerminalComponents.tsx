@@ -181,14 +181,20 @@ export function StatusTable({ agents }: { agents: AgentRow[] }) {
           className="grid grid-cols-[1fr_100px_90px_1fr] gap-3 border-b border-[rgba(210,180,140,0.04)] px-4 py-2.5 text-[12px] last:border-0"
         >
           <div className="flex items-center gap-2 text-terminal-text font-medium">
-            <span className={`h-1.5 w-1.5 rounded-full ${stateDots[a.state] || "bg-terminal-comment"}`} />
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${stateDots[a.state] || "bg-terminal-comment"}`}
+            />
             {a.name}
           </div>
           <div className="text-terminal-muted capitalize">{a.role}</div>
-          <div className={`font-medium ${stateColors[a.state] || "text-terminal-muted"}`}>
+          <div
+            className={`font-medium ${stateColors[a.state] || "text-terminal-muted"}`}
+          >
             {a.state}
           </div>
-          <div className="text-terminal-comment truncate">{a.detail || "—"}</div>
+          <div className="text-terminal-comment truncate">
+            {a.detail || "—"}
+          </div>
         </motion.div>
       ))}
     </div>
@@ -231,7 +237,9 @@ export function ChannelView({
           #{name}
         </span>
         {members && (
-          <span className="text-[10px] text-terminal-comment">{members} members</span>
+          <span className="text-[10px] text-terminal-comment">
+            {members} members
+          </span>
         )}
       </div>
       <div className="space-y-3">
@@ -243,14 +251,18 @@ export function ChannelView({
             transition={{ delay: i * 0.06, duration: 0.3 }}
             className="flex gap-3"
           >
-            <span className="mt-0.5 shrink-0 text-[11px] text-terminal-comment">{m.time}</span>
+            <span className="mt-0.5 shrink-0 text-[11px] text-terminal-comment">
+              {m.time}
+            </span>
             <div>
               <span
                 className={`inline-flex rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-tight ${roleBadge[m.role || "engineer"]}`}
               >
                 {m.agent}
               </span>
-              <p className="mt-1 text-[12px] leading-relaxed text-[#D4C4B0]">{m.message}</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-[#D4C4B0]">
+                {m.message}
+              </p>
             </div>
           </motion.div>
         ))}
@@ -306,7 +318,9 @@ export function CostTable({
           <div className="text-terminal-text font-medium">{r.agent}</div>
           <div className="text-right text-terminal-muted">{r.tokensIn}</div>
           <div className="text-right text-terminal-muted">{r.tokensOut}</div>
-          <div className="text-right text-terminal-text font-medium">{r.cost}</div>
+          <div className="text-right text-terminal-text font-medium">
+            {r.cost}
+          </div>
           <div className="text-right text-terminal-muted">{r.budget}</div>
           <div className="flex items-center gap-2">
             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#1A1209]">
@@ -315,7 +329,9 @@ export function CostTable({
                 style={{ width: `${r.percent}%` }}
               />
             </div>
-            <span className="text-[10px] text-terminal-comment w-7 text-right">{r.percent}%</span>
+            <span className="text-[10px] text-terminal-comment w-7 text-right">
+              {r.percent}%
+            </span>
           </div>
         </motion.div>
       ))}
@@ -354,8 +370,10 @@ function TreeNodeItem({
   index?: number;
 }) {
   const roleColors: Record<string, string> = {
-    "product-manager": "bg-[rgba(232,223,212,0.1)] text-terminal-text border-[rgba(232,223,212,0.2)]",
-    manager: "bg-terminal-command/10 text-terminal-command border-terminal-command/20",
+    "product-manager":
+      "bg-[rgba(232,223,212,0.1)] text-terminal-text border-[rgba(232,223,212,0.2)]",
+    manager:
+      "bg-terminal-command/10 text-terminal-command border-terminal-command/20",
     engineer: "bg-[#1A1209] text-[#D4C4B0] border-terminal-comment",
     qa: "bg-terminal-prompt/10 text-terminal-prompt border-terminal-prompt/20",
     ux: "bg-terminal-prompt/10 text-terminal-prompt border-terminal-prompt/20",
@@ -381,15 +399,24 @@ function TreeNodeItem({
             roleColors[node.role] || roleColors.engineer
           }`}
         >
-          <span className={`h-1.5 w-1.5 rounded-full ${stateDots[node.state || "idle"]}`} />
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${stateDots[node.state || "idle"]}`}
+          />
           <span>{node.label}</span>
-          <span className="text-[9px] uppercase tracking-wider opacity-50">{node.role}</span>
+          <span className="text-[9px] uppercase tracking-wider opacity-50">
+            {node.role}
+          </span>
         </div>
       </div>
       {node.children && (
         <div className="ml-4 mt-2 space-y-2 border-l border-terminal-comment pl-2">
           {node.children.map((child, i) => (
-            <TreeNodeItem key={child.label} node={child} depth={depth + 1} index={i} />
+            <TreeNodeItem
+              key={child.label}
+              node={child}
+              depth={depth + 1}
+              index={i}
+            />
           ))}
         </div>
       )}
@@ -515,10 +542,14 @@ export function CronTable({ jobs }: { jobs: CronRow[] }) {
           className="grid grid-cols-[1fr_120px_100px_100px_70px] gap-2 border-b border-[rgba(210,180,140,0.04)] px-4 py-2.5 text-[12px] last:border-0"
         >
           <div className="text-terminal-text font-medium">{d.name}</div>
-          <div className="text-terminal-muted font-mono text-[11px]">{d.schedule}</div>
+          <div className="text-terminal-muted font-mono text-[11px]">
+            {d.schedule}
+          </div>
           <div className="text-terminal-muted">{d.nextRun}</div>
           <div className="text-terminal-muted">{d.lastRun}</div>
-          <div className={`font-medium ${statusStyle[d.status]}`}>{d.status}</div>
+          <div className={`font-medium ${statusStyle[d.status]}`}>
+            {d.status}
+          </div>
         </motion.div>
       ))}
     </div>

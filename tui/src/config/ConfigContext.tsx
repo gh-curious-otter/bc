@@ -66,7 +66,11 @@ export function ConfigProvider({ children }: ConfigProviderProps): React.ReactEl
   const fetchConfig = useCallback(async () => {
     try {
       // Fetch performance section from workspace config
-      const performanceResponse = await execBcJson<PerformanceConfig>(['config', 'show', 'performance']);
+      const performanceResponse = await execBcJson<PerformanceConfig>([
+        'config',
+        'show',
+        'performance',
+      ]);
 
       // Merge with defaults to handle missing values
       setPerformance({
@@ -99,19 +103,18 @@ export function ConfigProvider({ children }: ConfigProviderProps): React.ReactEl
     void fetchConfig();
   }, []);
 
-  const value = useMemo<ConfigContextValue>(() => ({
-    performance,
-    tui,
-    loading,
-    error,
-    refresh: fetchConfig,
-  }), [performance, tui, loading, error, fetchConfig]);
-
-  return (
-    <ConfigContext.Provider value={value}>
-      {children}
-    </ConfigContext.Provider>
+  const value = useMemo<ConfigContextValue>(
+    () => ({
+      performance,
+      tui,
+      loading,
+      error,
+      refresh: fetchConfig,
+    }),
+    [performance, tui, loading, error, fetchConfig]
   );
+
+  return <ConfigContext.Provider value={value}>{children}</ConfigContext.Provider>;
 }
 
 /**

@@ -112,7 +112,11 @@ export function ActivityFeed({
   const { stdout } = useStdout();
   const terminalWidth = stdout.columns || 80;
 
-  const { data: logs, loading, severityFilter: currentFilter } = useLogs({
+  const {
+    data: logs,
+    loading,
+    severityFilter: currentFilter,
+  } = useLogs({
     tail: DATA_LIMITS.ACTIVITY_TAIL,
     pollInterval: POLL_INTERVALS.DEFAULT,
   });
@@ -133,7 +137,12 @@ export function ActivityFeed({
           case 'warn':
             return type.includes('warn') || type.includes('stuck');
           default:
-            return !type.includes('error') && !type.includes('fail') && !type.includes('warn') && !type.includes('stuck');
+            return (
+              !type.includes('error') &&
+              !type.includes('fail') &&
+              !type.includes('warn') &&
+              !type.includes('stuck')
+            );
         }
       });
     }
@@ -169,7 +178,13 @@ export function ActivityFeed({
       ) : (
         <Box flexDirection="column">
           {displayLogs.map(({ entry, count }, idx) => (
-            <ActivityEntry key={`${entry.ts}-${String(idx)}`} entry={entry} count={count} compact={compact} terminalWidth={terminalWidth} />
+            <ActivityEntry
+              key={`${entry.ts}-${String(idx)}`}
+              entry={entry}
+              count={count}
+              compact={compact}
+              terminalWidth={terminalWidth}
+            />
           ))}
         </Box>
       )}
@@ -193,11 +208,11 @@ interface ActivityEntryProps {
 
 // Layout constants for message width calculation
 const TIMESTAMP_WIDTH = 9; // HH:MM:SS + space
-const AGENT_WIDTH = 11;    // 10 chars + space
-const ICON_WIDTH = 2;      // icon + space (colorblind accessibility)
-const EVENT_WIDTH = 13;    // 12 chars + space
-const COUNT_WIDTH = 6;     // (x99) + space
-const MIN_MSG_WIDTH = 20;  // Minimum message width
+const AGENT_WIDTH = 11; // 10 chars + space
+const ICON_WIDTH = 2; // icon + space (colorblind accessibility)
+const EVENT_WIDTH = 13; // 12 chars + space
+const COUNT_WIDTH = 6; // (x99) + space
+const MIN_MSG_WIDTH = 20; // Minimum message width
 
 const ActivityEntry = memo(function ActivityEntry({
   entry,
@@ -214,7 +229,8 @@ const ActivityEntry = memo(function ActivityEntry({
   // Calculate dynamic message width based on terminal size
   // Layout: [timestamp] agent icon event message [count]
   const countSpace = count > 1 ? COUNT_WIDTH : 0;
-  const fixedWidth = (compact ? 0 : TIMESTAMP_WIDTH) + AGENT_WIDTH + ICON_WIDTH + EVENT_WIDTH + countSpace;
+  const fixedWidth =
+    (compact ? 0 : TIMESTAMP_WIDTH) + AGENT_WIDTH + ICON_WIDTH + EVENT_WIDTH + countSpace;
   const availableWidth = terminalWidth - fixedWidth - 4; // 4 for panel borders/padding
   const maxMsgLen = Math.max(MIN_MSG_WIDTH, availableWidth);
 
@@ -223,17 +239,13 @@ const ActivityEntry = memo(function ActivityEntry({
 
   return (
     <Box>
-      {!compact && (
-        <Text dimColor>{formatTime(entry.ts)} </Text>
-      )}
+      {!compact && <Text dimColor>{formatTime(entry.ts)} </Text>}
       {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- #1835: Go omitempty */}
       <Text color={theme.colors.primary}>{(entry.agent ?? '').padEnd(10)} </Text>
       <Text color={severityColor}>{severityIcon} </Text>
       <Text color={severityColor}>{eventLabel.padEnd(12)} </Text>
       <Text>{truncate(displayMessage, maxMsgLen)}</Text>
-      {count > 1 && (
-        <Text dimColor> (x{count})</Text>
-      )}
+      {count > 1 && <Text dimColor> (x{count})</Text>}
     </Box>
   );
 });

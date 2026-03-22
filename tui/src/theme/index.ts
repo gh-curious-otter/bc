@@ -9,35 +9,14 @@
  */
 
 // Types
-export type {
-  Theme,
-  ThemeColors,
-  ThemeMode,
-  ThemeConfig,
-  TerminalColor,
-} from './types';
+export type { Theme, ThemeColors, ThemeMode, ThemeConfig, TerminalColor } from './types';
 
 // Context and hooks
-export {
-  ThemeProvider,
-  useTheme,
-  useThemeColor,
-  useThemeColors,
-} from './ThemeContext';
+export { ThemeProvider, useTheme, useThemeColor, useThemeColors } from './ThemeContext';
 
 // Themes
-export {
-  darkTheme,
-  lightTheme,
-  themes,
-  getTheme,
-  applyOverrides,
-} from './themes';
+export { darkTheme, lightTheme, themes, getTheme, applyOverrides } from './themes';
 export type { ThemeName } from './themes';
 
 // Detection utilities
-export {
-  detectColorScheme,
-  supportsExtendedColors,
-  supportsColors,
-} from './detectColorScheme';
+export { detectColorScheme, supportsExtendedColors, supportsColors } from './detectColorScheme';

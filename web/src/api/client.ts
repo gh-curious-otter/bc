@@ -1,8 +1,8 @@
-const BASE = '/api';
+const BASE = "/api";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { "Content-Type": "application/json" },
     ...init,
   });
   if (!res.ok) {
@@ -237,15 +237,44 @@ export interface AgentStatsRecord {
 export interface SettingsConfig {
   User: { Nickname: string };
   TUI: { Theme: string; Mode: string };
-  Runtime: { Backend: string; Docker?: { Image: string; Network: string; ExtraMounts: string[]; CPUs: number; MemoryMB: number } };
+  Runtime: {
+    Backend: string;
+    Docker?: {
+      Image: string;
+      Network: string;
+      ExtraMounts: string[];
+      CPUs: number;
+      MemoryMB: number;
+    };
+  };
   Providers: {
     Default: string;
-    Claude?: { Command: string; Enabled: boolean; Env?: Record<string, string> };
-    Gemini?: { Command: string; Enabled: boolean; Env?: Record<string, string> };
-    Cursor?: { Command: string; Enabled: boolean; Env?: Record<string, string> };
+    Claude?: {
+      Command: string;
+      Enabled: boolean;
+      Env?: Record<string, string>;
+    };
+    Gemini?: {
+      Command: string;
+      Enabled: boolean;
+      Env?: Record<string, string>;
+    };
+    Cursor?: {
+      Command: string;
+      Enabled: boolean;
+      Env?: Record<string, string>;
+    };
     Codex?: { Command: string; Enabled: boolean; Env?: Record<string, string> };
-    OpenCode?: { Command: string; Enabled: boolean; Env?: Record<string, string> };
-    OpenClaw?: { Command: string; Enabled: boolean; Env?: Record<string, string> };
+    OpenCode?: {
+      Command: string;
+      Enabled: boolean;
+      Env?: Record<string, string>;
+    };
+    OpenClaw?: {
+      Command: string;
+      Enabled: boolean;
+      Env?: Record<string, string>;
+    };
     Aider?: { Command: string; Enabled: boolean; Env?: Record<string, string> };
   };
   Workspace: { Name: string; Path: string; Version: number };
@@ -257,7 +286,9 @@ export interface SettingsConfig {
     GitLab?: { Command: string; Enabled: boolean };
     Jira?: { Command: string; Enabled: boolean };
   };
-  Roster: { Agents: { Name: string; Role: string; Tool: string; Runtime: string }[] };
+  Roster: {
+    Agents: { Name: string; Role: string; Tool: string; Runtime: string }[];
+  };
 }
 
 export interface Daemon {
@@ -278,76 +309,132 @@ export interface Daemon {
 }
 
 export const api = {
-  listAgents: () => request<Agent[]>('/agents'),
-  getAgent: (name: string) => request<Agent>(`/agents/${encodeURIComponent(name)}`),
+  listAgents: () => request<Agent[]>("/agents"),
+  getAgent: (name: string) =>
+    request<Agent>(`/agents/${encodeURIComponent(name)}`),
   getAgentPeek: (name: string, lines = 50) =>
-    request<{ output: string }>(`/agents/${encodeURIComponent(name)}/peek?${new URLSearchParams({ lines: String(lines) })}`),
-  startAgent: (name: string) => request<Agent>(`/agents/${encodeURIComponent(name)}/start`, { method: 'POST' }),
-  stopAgent: (name: string) => request<void>(`/agents/${encodeURIComponent(name)}/stop`, { method: 'POST' }),
-  deleteAgent: (name: string) => request<void>(`/agents/${encodeURIComponent(name)}?force=true`, { method: 'DELETE' }),
+    request<{ output: string }>(
+      `/agents/${encodeURIComponent(name)}/peek?${new URLSearchParams({ lines: String(lines) })}`,
+    ),
+  startAgent: (name: string) =>
+    request<Agent>(`/agents/${encodeURIComponent(name)}/start`, {
+      method: "POST",
+    }),
+  stopAgent: (name: string) =>
+    request<void>(`/agents/${encodeURIComponent(name)}/stop`, {
+      method: "POST",
+    }),
+  deleteAgent: (name: string) =>
+    request<void>(`/agents/${encodeURIComponent(name)}?force=true`, {
+      method: "DELETE",
+    }),
   sendToAgent: (name: string, message: string) =>
-    request<void>(`/agents/${encodeURIComponent(name)}/send`, { method: 'POST', body: JSON.stringify({ message }) }),
+    request<void>(`/agents/${encodeURIComponent(name)}/send`, {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    }),
   getAgentStats: (name: string, limit = 20) =>
-    request<AgentStatsRecord[]>(`/agents/${encodeURIComponent(name)}/stats?${new URLSearchParams({ limit: String(limit) })}`),
+    request<AgentStatsRecord[]>(
+      `/agents/${encodeURIComponent(name)}/stats?${new URLSearchParams({ limit: String(limit) })}`,
+    ),
 
-  listChannels: () => request<Channel[]>('/channels'),
+  listChannels: () => request<Channel[]>("/channels"),
   getChannelHistory: (name: string, limit = 50) =>
-    request<ChannelMessage[]>(`/channels/${encodeURIComponent(name)}/history?${new URLSearchParams({ limit: String(limit) })}`),
-  sendToChannel: (name: string, message: string, sender = 'web') =>
-    request<ChannelMessage>(`/channels/${encodeURIComponent(name)}/messages`, { method: 'POST', body: JSON.stringify({ sender, content: message }) }),
+    request<ChannelMessage[]>(
+      `/channels/${encodeURIComponent(name)}/history?${new URLSearchParams({ limit: String(limit) })}`,
+    ),
+  sendToChannel: (name: string, message: string, sender = "web") =>
+    request<ChannelMessage>(`/channels/${encodeURIComponent(name)}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ sender, content: message }),
+    }),
 
-  getCostSummary: () => request<CostSummary>('/costs'),
-  getCostByAgent: () => request<AgentCostSummary[]>('/costs/agents'),
-  getCostByModel: () => request<ModelCostSummary[]>('/costs/models'),
-  getCostDaily: (days = 14) => request<DailyCost[]>(`/costs/daily?days=${days}`),
-  getCostBudgets: () => request<BudgetStatus[]>('/costs/budgets'),
+  getCostSummary: () => request<CostSummary>("/costs"),
+  getCostByAgent: () => request<AgentCostSummary[]>("/costs/agents"),
+  getCostByModel: () => request<ModelCostSummary[]>("/costs/models"),
+  getCostDaily: (days = 14) =>
+    request<DailyCost[]>(`/costs/daily?days=${days}`),
+  getCostBudgets: () => request<BudgetStatus[]>("/costs/budgets"),
 
-  listRoles: () => request<Record<string, Role>>('/workspace/roles'),
-  listTools: () => request<Tool[]>('/tools'),
+  listRoles: () => request<Record<string, Role>>("/workspace/roles"),
+  listTools: () => request<Tool[]>("/tools"),
   enableTool: (name: string) =>
-    request<{ enabled: boolean }>(`/tools/${encodeURIComponent(name)}/enable`, { method: 'POST' }),
+    request<{ enabled: boolean }>(`/tools/${encodeURIComponent(name)}/enable`, {
+      method: "POST",
+    }),
   disableTool: (name: string) =>
-    request<{ enabled: boolean }>(`/tools/${encodeURIComponent(name)}/disable`, { method: 'POST' }),
+    request<{ enabled: boolean }>(
+      `/tools/${encodeURIComponent(name)}/disable`,
+      { method: "POST" },
+    ),
   deleteTool: (name: string) =>
-    request<void>(`/tools/${encodeURIComponent(name)}`, { method: 'DELETE' }),
-  listMCP: () => request<MCPServer[]>('/mcp'),
-  removeMCP: (name: string) => request<void>(`/mcp/${encodeURIComponent(name)}`, { method: 'DELETE' }),
-  enableMCP: (name: string) => request<void>(`/mcp/${encodeURIComponent(name)}/enable`, { method: 'POST' }),
-  disableMCP: (name: string) => request<void>(`/mcp/${encodeURIComponent(name)}/disable`, { method: 'POST' }),
-  getLogs: (tail = 50) => request<EventLogEntry[]>(`/logs?${new URLSearchParams({ tail: String(tail) })}`),
-  getDoctor: () => request<DoctorReport>('/doctor'),
+    request<void>(`/tools/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  listMCP: () => request<MCPServer[]>("/mcp"),
+  removeMCP: (name: string) =>
+    request<void>(`/mcp/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  enableMCP: (name: string) =>
+    request<void>(`/mcp/${encodeURIComponent(name)}/enable`, {
+      method: "POST",
+    }),
+  disableMCP: (name: string) =>
+    request<void>(`/mcp/${encodeURIComponent(name)}/disable`, {
+      method: "POST",
+    }),
+  getLogs: (tail = 50) =>
+    request<EventLogEntry[]>(
+      `/logs?${new URLSearchParams({ tail: String(tail) })}`,
+    ),
+  getDoctor: () => request<DoctorReport>("/doctor"),
 
-  listCron: () => request<CronJob[]>('/cron'),
+  listCron: () => request<CronJob[]>("/cron"),
   createCron: (job: { name: string; schedule: string; command: string }) =>
-    request<CronJob>('/cron', { method: 'POST', body: JSON.stringify(job) }),
+    request<CronJob>("/cron", { method: "POST", body: JSON.stringify(job) }),
   runCron: (name: string) =>
-    request<void>(`/cron/${encodeURIComponent(name)}/run`, { method: 'POST' }),
+    request<void>(`/cron/${encodeURIComponent(name)}/run`, { method: "POST" }),
   enableCron: (name: string) =>
-    request<void>(`/cron/${encodeURIComponent(name)}/enable`, { method: 'POST' }),
+    request<void>(`/cron/${encodeURIComponent(name)}/enable`, {
+      method: "POST",
+    }),
   disableCron: (name: string) =>
-    request<void>(`/cron/${encodeURIComponent(name)}/disable`, { method: 'POST' }),
+    request<void>(`/cron/${encodeURIComponent(name)}/disable`, {
+      method: "POST",
+    }),
   deleteCron: (name: string) =>
-    request<void>(`/cron/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+    request<void>(`/cron/${encodeURIComponent(name)}`, { method: "DELETE" }),
   getCronLogs: (name: string) =>
     request<CronLogEntry[]>(`/cron/${encodeURIComponent(name)}/logs`),
-  listSecrets: () => request<Secret[]>('/secrets'),
+  listSecrets: () => request<Secret[]>("/secrets"),
   createSecret: (name: string, value: string, description?: string) =>
-    request<Secret>('/secrets', { method: 'POST', body: JSON.stringify({ name, value, description: description ?? '' }) }),
+    request<Secret>("/secrets", {
+      method: "POST",
+      body: JSON.stringify({ name, value, description: description ?? "" }),
+    }),
   deleteSecret: (name: string) =>
-    request<void>(`/secrets/${encodeURIComponent(name)}`, { method: 'DELETE' }),
-  getWorkspace: () => request<WorkspaceInfo>('/workspace'),
-  getWorkspaceStatus: () => request<Record<string, unknown>>('/workspace/status'),
+    request<void>(`/secrets/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  getWorkspace: () => request<WorkspaceInfo>("/workspace"),
+  getWorkspaceStatus: () =>
+    request<Record<string, unknown>>("/workspace/status"),
 
-  getStatsSystem: () => request<SystemStats>('/stats/system'),
-  getStatsSummary: () => request<StatsSummary>('/stats/summary'),
-  getStatsChannels: () => request<ChannelStats[]>('/stats/channels'),
+  getStatsSystem: () => request<SystemStats>("/stats/system"),
+  getStatsSummary: () => request<StatsSummary>("/stats/summary"),
+  getStatsChannels: () => request<ChannelStats[]>("/stats/channels"),
 
-  getSettings: () => request<SettingsConfig>('/settings'),
+  getSettings: () => request<SettingsConfig>("/settings"),
   updateSettings: (patch: Record<string, unknown>) =>
-    request<SettingsConfig>('/settings', { method: 'PUT', body: JSON.stringify(patch) }),
+    request<SettingsConfig>("/settings", {
+      method: "PUT",
+      body: JSON.stringify(patch),
+    }),
 
-  listDaemons: () => request<Daemon[]>('/daemons'),
-  stopDaemon: (name: string) => request<{ status: string }>(`/daemons/${encodeURIComponent(name)}/stop`, { method: 'POST' }),
-  restartDaemon: (name: string) => request<Daemon>(`/daemons/${encodeURIComponent(name)}/restart`, { method: 'POST' }),
-  removeDaemon: (name: string) => request<void>(`/daemons/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+  listDaemons: () => request<Daemon[]>("/daemons"),
+  stopDaemon: (name: string) =>
+    request<{ status: string }>(`/daemons/${encodeURIComponent(name)}/stop`, {
+      method: "POST",
+    }),
+  restartDaemon: (name: string) =>
+    request<Daemon>(`/daemons/${encodeURIComponent(name)}/restart`, {
+      method: "POST",
+    }),
+  removeDaemon: (name: string) =>
+    request<void>(`/daemons/${encodeURIComponent(name)}`, { method: "DELETE" }),
 };

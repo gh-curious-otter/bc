@@ -98,7 +98,7 @@ describe('AgentDetailView - peek header stripping (#1844)', () => {
 
   test('filters headers from output', () => {
     const raw = '=== eng-01 (last 50 lines) ===\nline 1\nline 2\n';
-    const lines = raw.split('\n').filter(line => line.trim() && !isPeekHeader(line));
+    const lines = raw.split('\n').filter((line) => line.trim() && !isPeekHeader(line));
     expect(lines).toEqual(['line 1', 'line 2']);
   });
 });
@@ -107,7 +107,9 @@ describe('AgentDetailView - colorizeOutputLine patterns', () => {
   // eslint-disable-next-line no-control-regex
   const ANSI_REGEX = /\x1b\[[0-9;]*m/;
 
-  function getLineType(line: string): 'error' | 'warning' | 'success' | 'command' | 'ansi' | 'default' {
+  function getLineType(
+    line: string
+  ): 'error' | 'warning' | 'success' | 'command' | 'ansi' | 'default' {
     // #1844: Lines with ANSI codes pass through without semantic coloring
     if (ANSI_REGEX.test(line)) {
       return 'ansi';

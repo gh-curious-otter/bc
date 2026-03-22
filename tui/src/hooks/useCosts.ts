@@ -59,8 +59,12 @@ export function useCosts(options: UseCostsOptions = {}): UseCostsResult {
   // Polling
   useEffect(() => {
     if (!autoPoll) return;
-    const interval = setInterval(() => { void fetchCosts(); }, pollInterval);
-    return () => { clearInterval(interval); };
+    const interval = setInterval(() => {
+      void fetchCosts();
+    }, pollInterval);
+    return () => {
+      clearInterval(interval);
+    };
   }, [autoPoll, pollInterval, fetchCosts]);
 
   return {

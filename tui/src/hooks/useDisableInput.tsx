@@ -30,15 +30,14 @@ export function DisableInputProvider({
   disabled = false,
   children,
 }: DisableInputProviderProps): React.ReactElement {
-  const value = useMemo(() => ({
-    isDisabled: disabled,
-  }), [disabled]);
-
-  return (
-    <DisableInputContext.Provider value={value}>
-      {children}
-    </DisableInputContext.Provider>
+  const value = useMemo(
+    () => ({
+      isDisabled: disabled,
+    }),
+    [disabled]
   );
+
+  return <DisableInputContext.Provider value={value}>{children}</DisableInputContext.Provider>;
 }
 
 /**

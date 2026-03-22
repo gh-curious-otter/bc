@@ -125,21 +125,33 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
   // Custom key handlers for view-specific actions (#1734)
   const customKeys = useMemo(
     () => ({
-      '/': () => { setSearchMode(true); },
-      'c': () => { setSearchQuery(''); },
-      'd': () => {
+      '/': () => {
+        setSearchMode(true);
+      },
+      c: () => {
+        setSearchQuery('');
+      },
+      d: () => {
         // Only allow delete for non-builtin roles (checked in modal)
         setConfirmDelete(true);
       },
-      'r': () => { void fetchRoles(); },
+      r: () => {
+        void fetchRoles();
+      },
     }),
     [fetchRoles]
   );
 
   // #1734: useListNavigation for consolidated keyboard patterns
-  const { selectedIndex, selectedItem: currentRole, setSelectedIndex } = useListNavigation({
+  const {
+    selectedIndex,
+    selectedItem: currentRole,
+    setSelectedIndex,
+  } = useListNavigation({
     items: filteredRoles,
-    onSelect: (role) => { void fetchRoleDetails(role.name); },
+    onSelect: (role) => {
+      void fetchRoleDetails(role.name);
+    },
     disabled: disableInput || showDetails || searchMode || confirmDelete,
     customKeys,
   });
@@ -226,7 +238,9 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
             <Text dimColor>This action cannot be undone.</Text>
             <Box marginTop={1}>
               <Text>Press </Text>
-              <Text color={theme.colors.error} bold>y</Text>
+              <Text color={theme.colors.error} bold>
+                y
+              </Text>
               <Text> to confirm, any other key to cancel</Text>
             </Box>
           </Box>
@@ -239,10 +253,7 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
   if (showDetails && selectedRole) {
     return (
       <Box flexDirection="column" padding={1}>
-        <RoleDetails
-          role={selectedRole}
-          agentCount={agentCountByRole[selectedRole.name] ?? 0}
-        />
+        <RoleDetails role={selectedRole} agentCount={agentCountByRole[selectedRole.name] ?? 0} />
         <Box marginTop={1}>
           <Text dimColor>[Esc/q] back to list</Text>
         </Box>
@@ -284,16 +295,24 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
         {/* Header row - #971 fix: dynamic name column width */}
         <Box paddingX={1}>
           <Box width={nameColumnWidth}>
-            <Text bold dimColor>NAME</Text>
+            <Text bold dimColor>
+              NAME
+            </Text>
           </Box>
           <Box width={30}>
-            <Text bold dimColor>CAPABILITIES</Text>
+            <Text bold dimColor>
+              CAPABILITIES
+            </Text>
           </Box>
           <Box width={8}>
-            <Text bold dimColor>AGENTS</Text>
+            <Text bold dimColor>
+              AGENTS
+            </Text>
           </Box>
           <Box flexGrow={1}>
-            <Text bold dimColor>DESCRIPTION</Text>
+            <Text bold dimColor>
+              DESCRIPTION
+            </Text>
           </Box>
         </Box>
 
@@ -301,9 +320,7 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
         {filteredRoles.length === 0 ? (
           <Box paddingX={1} marginTop={1} flexDirection="column">
             <Text dimColor>
-              {searchQuery.length > 0
-                ? `No roles match "${searchQuery}"`
-                : 'No roles defined.'}
+              {searchQuery.length > 0 ? `No roles match "${searchQuery}"` : 'No roles defined.'}
             </Text>
             {searchQuery.length === 0 && (
               <Text dimColor>Create one at: .bc/roles/&lt;name&gt;.md</Text>
@@ -331,19 +348,19 @@ export function RolesView(_props: RolesViewProps = {}): React.ReactElement {
 
       {/* Footer */}
       {searchMode ? (
-        <Footer hints={[
-          { key: 'Enter/Esc', label: 'exit search' },
-        ]} />
+        <Footer hints={[{ key: 'Enter/Esc', label: 'exit search' }]} />
       ) : (
-        <Footer hints={[
-          { key: 'j/k', label: 'nav' },
-          { key: 'g/G', label: 'top/bottom' },
-          { key: '/', label: 'search' },
-          ...(searchQuery ? [{ key: 'c', label: 'clear' }] : []),
-          { key: 'Enter', label: 'details' },
-          { key: 'd', label: 'delete' },
-          { key: 'r', label: 'refresh' },
-        ]} />
+        <Footer
+          hints={[
+            { key: 'j/k', label: 'nav' },
+            { key: 'g/G', label: 'top/bottom' },
+            { key: '/', label: 'search' },
+            ...(searchQuery ? [{ key: 'c', label: 'clear' }] : []),
+            { key: 'Enter', label: 'details' },
+            { key: 'd', label: 'delete' },
+            { key: 'r', label: 'refresh' },
+          ]}
+        />
       )}
     </Box>
   );

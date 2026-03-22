@@ -69,17 +69,17 @@ describe('viewCommands', () => {
 
     test('finds commands by prefix', () => {
       const results = searchCommands('dash');
-      expect(results.some(r => r.command.command === 'dashboard')).toBe(true);
+      expect(results.some((r) => r.command.command === 'dashboard')).toBe(true);
     });
 
     test('finds commands by alias', () => {
       const results = searchCommands('ag');
-      expect(results.some(r => r.command.command === 'agents')).toBe(true);
+      expect(results.some((r) => r.command.command === 'agents')).toBe(true);
     });
 
     test('includes action commands in search results (#1836)', () => {
       const results = searchCommands('q');
-      expect(results.some(r => r.command.command === 'quit')).toBe(true);
+      expect(results.some((r) => r.command.command === 'quit')).toBe(true);
     });
 
     test('ranks exact matches higher', () => {
@@ -99,8 +99,8 @@ describe('viewCommands', () => {
 
     test('recent commands have higher score than non-recent when empty', () => {
       const results = searchCommands('', ['costs']);
-      const recent = results.find(r => r.command.command === 'costs');
-      const nonRecent = results.find(r => r.command.command === 'dashboard');
+      const recent = results.find((r) => r.command.command === 'costs');
+      const nonRecent = results.find((r) => r.command.command === 'dashboard');
       expect(recent).toBeDefined();
       expect(nonRecent).toBeDefined();
       expect(recent!.score).toBeGreaterThan(nonRecent!.score);
@@ -113,19 +113,19 @@ describe('viewCommands', () => {
       // Rest are all non-recent view commands
       const rest = results.slice(1);
       expect(rest.length).toBeGreaterThan(0);
-      expect(rest.every(r => r.command.section !== 'RECENT')).toBe(true);
+      expect(rest.every((r) => r.command.section !== 'RECENT')).toBe(true);
     });
 
     test('LRU boost gives tiebreak advantage when query has text', () => {
       // Both 'logs' and 'roles' contain 'lo' — with LRU boost, 'logs' should rank first
       const withLru = searchCommands('lo', ['logs']);
-      const logsIdx = withLru.findIndex(r => r.command.command === 'logs');
+      const logsIdx = withLru.findIndex((r) => r.command.command === 'logs');
       expect(logsIdx).toBe(0);
     });
 
     test('works without LRU parameter (backward compatible)', () => {
       const results = searchCommands('dash');
-      expect(results.some(r => r.command.command === 'dashboard')).toBe(true);
+      expect(results.some((r) => r.command.command === 'dashboard')).toBe(true);
     });
 
     test('ignores invalid LRU entries', () => {

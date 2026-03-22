@@ -19,7 +19,7 @@ import { useNavigation } from './NavigationContext';
  * 12 tabs with short labels need ~105 cols
  * 12 tabs minimal (just numbers) need ~55 cols
  */
-const FULL_WIDTH_THRESHOLD = 120;  // BREAKPOINTS.MEDIUM - full labels
+const FULL_WIDTH_THRESHOLD = 120; // BREAKPOINTS.MEDIUM - full labels
 const SHORT_WIDTH_THRESHOLD = 100; // BREAKPOINTS.COMPACT - short labels (at 80 cols, use minimal)
 
 /** Display mode for tab labels */

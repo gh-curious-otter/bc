@@ -1,22 +1,32 @@
-import { useCallback } from 'react';
-import { api } from '../api/client';
-import type { DoctorCategory } from '../api/client';
-import { usePolling } from '../hooks/usePolling';
-import { LoadingSkeleton } from '../components/LoadingSkeleton';
-import { EmptyState } from '../components/EmptyState';
+import { useCallback } from "react";
+import { api } from "../api/client";
+import type { DoctorCategory } from "../api/client";
+import { usePolling } from "../hooks/usePolling";
+import { LoadingSkeleton } from "../components/LoadingSkeleton";
+import { EmptyState } from "../components/EmptyState";
 
 const severityIcon = (s: number) => {
   switch (s) {
-    case 0: return <span className="text-green-400">&#10003;</span>;
-    case 1: return <span className="text-yellow-400">&#9888;</span>;
-    case 2: return <span className="text-red-400">&#10007;</span>;
-    default: return <span className="text-bc-muted">?</span>;
+    case 0:
+      return <span className="text-green-400">&#10003;</span>;
+    case 1:
+      return <span className="text-yellow-400">&#9888;</span>;
+    case 2:
+      return <span className="text-red-400">&#10007;</span>;
+    default:
+      return <span className="text-bc-muted">?</span>;
   }
 };
 
 export function Doctor() {
   const fetcher = useCallback(() => api.getDoctor(), []);
-  const { data: report, loading, error, refresh, timedOut } = usePolling(fetcher, 30000);
+  const {
+    data: report,
+    loading,
+    error,
+    refresh,
+    timedOut,
+  } = usePolling(fetcher, 30000);
 
   if (loading && !report) {
     return (
@@ -55,9 +65,21 @@ export function Doctor() {
   }
   if (!report) return null;
 
-  const totalPassed = report.Categories.reduce((n: number, c: DoctorCategory) => n + c.Items.filter(i => i.Severity === 0).length, 0);
-  const totalFailed = report.Categories.reduce((n: number, c: DoctorCategory) => n + c.Items.filter(i => i.Severity === 2).length, 0);
-  const totalWarnings = report.Categories.reduce((n: number, c: DoctorCategory) => n + c.Items.filter(i => i.Severity === 1).length, 0);
+  const totalPassed = report.Categories.reduce(
+    (n: number, c: DoctorCategory) =>
+      n + c.Items.filter((i) => i.Severity === 0).length,
+    0,
+  );
+  const totalFailed = report.Categories.reduce(
+    (n: number, c: DoctorCategory) =>
+      n + c.Items.filter((i) => i.Severity === 2).length,
+    0,
+  );
+  const totalWarnings = report.Categories.reduce(
+    (n: number, c: DoctorCategory) =>
+      n + c.Items.filter((i) => i.Severity === 1).length,
+    0,
+  );
 
   return (
     <div className="p-6 space-y-6">
@@ -65,8 +87,12 @@ export function Doctor() {
         <h1 className="text-xl font-bold">Doctor</h1>
         <div className="flex gap-4 text-sm">
           <span className="text-green-400">{totalPassed} passed</span>
-          {totalFailed > 0 && <span className="text-red-400">{totalFailed} failed</span>}
-          {totalWarnings > 0 && <span className="text-yellow-400">{totalWarnings} warnings</span>}
+          {totalFailed > 0 && (
+            <span className="text-red-400">{totalFailed} failed</span>
+          )}
+          {totalWarnings > 0 && (
+            <span className="text-yellow-400">{totalWarnings} warnings</span>
+          )}
         </div>
       </div>
 
@@ -80,7 +106,9 @@ export function Doctor() {
 function CategorySection({ category }: { category: DoctorCategory }) {
   return (
     <div className="space-y-2">
-      <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">{category.Name}</h2>
+      <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
+        {category.Name}
+      </h2>
       <div className="rounded border border-bc-border overflow-hidden">
         {category.Items.map((item, i) => (
           <div
@@ -91,10 +119,14 @@ function CategorySection({ category }: { category: DoctorCategory }) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-medium text-sm">{item.Name}</span>
-                <span className="text-xs text-bc-muted truncate">{item.Message}</span>
+                <span className="text-xs text-bc-muted truncate">
+                  {item.Message}
+                </span>
               </div>
               {item.Fix && (
-                <code className="text-xs text-bc-accent mt-0.5 block">{item.Fix}</code>
+                <code className="text-xs text-bc-accent mt-0.5 block">
+                  {item.Fix}
+                </code>
               )}
             </div>
           </div>

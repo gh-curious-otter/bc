@@ -33,11 +33,7 @@ function RootProviderInner({ children }: RootProviderProps): React.ReactElement 
 
   const themeProviderConfig = useMemo(() => ({ mode: effectiveMode }), [effectiveMode]);
 
-  return (
-    <ThemeProvider config={themeProviderConfig}>
-      {children}
-    </ThemeProvider>
-  );
+  return <ThemeProvider config={themeProviderConfig}>{children}</ThemeProvider>;
 }
 
 /**
@@ -55,9 +51,7 @@ function RootProviderInner({ children }: RootProviderProps): React.ReactElement 
 export function RootProvider({ children }: RootProviderProps): React.ReactElement {
   return (
     <ConfigProvider>
-      <RootProviderInner>
-        {children}
-      </RootProviderInner>
+      <RootProviderInner>{children}</RootProviderInner>
     </ConfigProvider>
   );
 }

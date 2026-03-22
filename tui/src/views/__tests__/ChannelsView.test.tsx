@@ -88,7 +88,9 @@ describe('ChannelsView', () => {
 
     test('switches to history mode on select', () => {
       let viewMode: ViewMode = 'list';
-      const handleSelect = () => { viewMode = 'history'; };
+      const handleSelect = () => {
+        viewMode = 'history';
+      };
 
       handleSelect();
       expect(viewMode).toBe('history');
@@ -96,7 +98,9 @@ describe('ChannelsView', () => {
 
     test('switches back to list on back', () => {
       let viewMode: ViewMode = 'history';
-      const handleBack = () => { viewMode = 'list'; };
+      const handleBack = () => {
+        viewMode = 'list';
+      };
 
       handleBack();
       expect(viewMode).toBe('list');
@@ -255,7 +259,9 @@ describe('ChannelsView', () => {
 
     test('g jumps to first', () => {
       let selectedIndex = 2;
-      const jumpFirst = () => { selectedIndex = 0; };
+      const jumpFirst = () => {
+        selectedIndex = 0;
+      };
 
       jumpFirst();
       expect(selectedIndex).toBe(0);
@@ -263,7 +269,9 @@ describe('ChannelsView', () => {
 
     test('G jumps to last', () => {
       let selectedIndex = 0;
-      const jumpLast = () => { selectedIndex = channels.length - 1; };
+      const jumpLast = () => {
+        selectedIndex = channels.length - 1;
+      };
 
       jumpLast();
       expect(selectedIndex).toBe(2);

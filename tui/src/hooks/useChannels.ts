@@ -59,8 +59,12 @@ export function useChannels(options: UseChannelsOptions = {}): UseChannelsResult
 
   useEffect(() => {
     if (!autoPoll) return;
-    const interval = setInterval(() => { void fetchChannels(); }, pollInterval);
-    return () => { clearInterval(interval); };
+    const interval = setInterval(() => {
+      void fetchChannels();
+    }, pollInterval);
+    return () => {
+      clearInterval(interval);
+    };
   }, [autoPoll, pollInterval, fetchChannels]);
 
   return { data, error, loading, refresh: fetchChannels };
@@ -126,8 +130,12 @@ export function useChannelHistory(
 
   useEffect(() => {
     if (!autoPoll) return;
-    const interval = setInterval(() => { void fetchHistory(); }, pollInterval);
-    return () => { clearInterval(interval); };
+    const interval = setInterval(() => {
+      void fetchHistory();
+    }, pollInterval);
+    return () => {
+      clearInterval(interval);
+    };
   }, [autoPoll, pollInterval, fetchHistory]);
 
   return {
@@ -151,8 +159,7 @@ export function useUnreadCount(
   const { data: messages, loading } = useChannelHistory(channelName, options);
   const [lastReadTime, setLastReadTime] = useState<Date>(new Date());
 
-  const unread =
-    messages?.filter((msg) => new Date(msg.time) > lastReadTime).length ?? 0;
+  const unread = messages?.filter((msg) => new Date(msg.time) > lastReadTime).length ?? 0;
 
   const markRead = useCallback(() => {
     setLastReadTime(new Date());
@@ -174,7 +181,12 @@ export function useChannelsWithUnread(options?: UseChannelsOptions): {
   error: string | null;
   refresh: () => Promise<void>;
 } {
-  const { data: channels, loading: channelsLoading, error, refresh: refreshChannels } = useChannels(options);
+  const {
+    data: channels,
+    loading: channelsLoading,
+    error,
+    refresh: refreshChannels,
+  } = useChannels(options);
   const { getUnread } = useUnread();
   const [messageCounts, setMessageCounts] = useState<Record<string, number>>({});
   const [countsLoading, setCountsLoading] = useState(true);
@@ -191,7 +203,10 @@ export function useChannelsWithUnread(options?: UseChannelsOptions): {
     }
 
     // Check if channel list changed
-    const newChannelNames = channels.map(c => c.name).sort().join(',');
+    const newChannelNames = channels
+      .map((c) => c.name)
+      .sort()
+      .join(',');
     if (newChannelNames === channelNamesRef.current) {
       // Channel list unchanged, skip refetch
       return;

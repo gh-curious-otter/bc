@@ -15,8 +15,12 @@ function mockState<T>(initial: T): { get: () => T; set: (newState: T) => void; r
   let state = initial;
   return {
     get: () => state,
-    set: (newState: T) => { state = newState; },
-    reset: () => { state = initial; },
+    set: (newState: T) => {
+      state = newState;
+    },
+    reset: () => {
+      state = initial;
+    },
   };
 }
 
@@ -124,7 +128,7 @@ describe('Selection State Management', () => {
     const selectedIndex = mockState(0);
 
     // User navigates through items
-    [3, 7, 2, 5].forEach(index => {
+    [3, 7, 2, 5].forEach((index) => {
       selectionHistory.push(selectedIndex.get());
       selectedIndex.set(index);
     });
@@ -231,7 +235,7 @@ describe('Error State Management', () => {
     expect(error.get()).toBe('Transient error');
 
     // Simulate auto-clear
-    await new Promise(resolve => setTimeout(resolve, AUTO_CLEAR_MS));
+    await new Promise((resolve) => setTimeout(resolve, AUTO_CLEAR_MS));
     error.set(null);
 
     expect(error.get()).toBeNull();
@@ -502,7 +506,7 @@ describe('Tab Navigation State', () => {
     const currentTab = mockState(0);
 
     // Navigate through tabs
-    [2, 4, 1, 3].forEach(tab => {
+    [2, 4, 1, 3].forEach((tab) => {
       tabHistory.push(currentTab.get());
       currentTab.set(tab);
     });

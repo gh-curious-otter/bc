@@ -59,13 +59,15 @@ describe('ProcessesView Data Model', () => {
   });
 
   test('running processes have positive PID', () => {
-    mockProcesses.filter(p => p.running).forEach(process => {
-      expect(process.pid).toBeGreaterThan(0);
-    });
+    mockProcesses
+      .filter((p) => p.running)
+      .forEach((process) => {
+        expect(process.pid).toBeGreaterThan(0);
+      });
   });
 
   test('stopped processes have zero PID', () => {
-    const stoppedProcess = mockProcesses.find(p => !p.running);
+    const stoppedProcess = mockProcesses.find((p) => !p.running);
     expect(stoppedProcess?.pid).toBe(0);
   });
 });
@@ -73,8 +75,7 @@ describe('ProcessesView Data Model', () => {
 describe('ProcessesView Navigation Logic', () => {
   test('selection index clamping works correctly', () => {
     const listLength = mockProcesses.length;
-    const clampIndex = (index: number) =>
-      Math.max(0, Math.min(index, listLength - 1));
+    const clampIndex = (index: number) => Math.max(0, Math.min(index, listLength - 1));
 
     expect(clampIndex(-1)).toBe(0);
     expect(clampIndex(0)).toBe(0);
@@ -86,8 +87,7 @@ describe('ProcessesView Navigation Logic', () => {
 
   test('navigate down increments index', () => {
     const listLength = mockProcesses.length;
-    const navigateDown = (current: number) =>
-      Math.min(listLength - 1, current + 1);
+    const navigateDown = (current: number) => Math.min(listLength - 1, current + 1);
 
     expect(navigateDown(0)).toBe(1);
     expect(navigateDown(1)).toBe(2);
@@ -171,7 +171,7 @@ describe('ProcessesView Column Configuration', () => {
   ];
 
   test('all columns have required properties', () => {
-    columns.forEach(col => {
+    columns.forEach((col) => {
       expect(col.key).toBeTruthy();
       expect(col.header).toBeTruthy();
       expect(typeof col.width).toBe('number');
@@ -179,13 +179,13 @@ describe('ProcessesView Column Configuration', () => {
   });
 
   test('column widths are positive', () => {
-    columns.forEach(col => {
+    columns.forEach((col) => {
       expect(col.width).toBeGreaterThan(0);
     });
   });
 
   test('column headers are descriptive', () => {
-    columns.forEach(col => {
+    columns.forEach((col) => {
       expect(col.header.length).toBeGreaterThan(0);
     });
   });
@@ -216,10 +216,7 @@ describe('ProcessesView Log Viewer Logic', () => {
     const maxVisibleLines = 15;
     let scrollOffset = 0;
     const scrollDown = () => {
-      scrollOffset = Math.min(
-        Math.max(0, mockLogs.length - maxVisibleLines),
-        scrollOffset + 1
-      );
+      scrollOffset = Math.min(Math.max(0, mockLogs.length - maxVisibleLines), scrollOffset + 1);
     };
 
     scrollDown();

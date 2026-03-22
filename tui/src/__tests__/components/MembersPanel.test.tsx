@@ -88,9 +88,7 @@ describe('MembersPanel', () => {
     });
 
     it('shows collapse hint when collapsible', () => {
-      const { lastFrame } = renderWithTheme(
-        <MembersPanel members={mockMembers} collapsible />
-      );
+      const { lastFrame } = renderWithTheme(<MembersPanel members={mockMembers} collapsible />);
       const output = lastFrame();
       expect(output).toContain('collapse');
     });
@@ -108,9 +106,7 @@ describe('MembersPanel', () => {
     const manyMembers = Array.from({ length: 20 }, (_, i) => `member-${String(i + 1)}`);
 
     it('limits visible members', () => {
-      const { lastFrame } = renderWithTheme(
-        <MembersPanel members={manyMembers} maxVisible={5} />
-      );
+      const { lastFrame } = renderWithTheme(<MembersPanel members={manyMembers} maxVisible={5} />);
       const output = lastFrame();
       expect(output).toContain('member-1');
       expect(output).toContain('member-5');
@@ -118,17 +114,13 @@ describe('MembersPanel', () => {
     });
 
     it('shows all members when under limit', () => {
-      const { lastFrame } = renderWithTheme(
-        <MembersPanel members={mockMembers} maxVisible={10} />
-      );
+      const { lastFrame } = renderWithTheme(<MembersPanel members={mockMembers} maxVisible={10} />);
       const output = lastFrame();
       expect(output).not.toContain('more');
     });
 
     it('handles exact limit', () => {
-      const { lastFrame } = renderWithTheme(
-        <MembersPanel members={mockMembers} maxVisible={4} />
-      );
+      const { lastFrame } = renderWithTheme(<MembersPanel members={mockMembers} maxVisible={4} />);
       const output = lastFrame();
       expect(output).not.toContain('more');
     });
@@ -136,16 +128,12 @@ describe('MembersPanel', () => {
 
   describe('focus state', () => {
     it('renders without focus', () => {
-      const { lastFrame } = renderWithTheme(
-        <MembersPanel members={mockMembers} focused={false} />
-      );
+      const { lastFrame } = renderWithTheme(<MembersPanel members={mockMembers} focused={false} />);
       expect(lastFrame()).toBeDefined();
     });
 
     it('renders with focus', () => {
-      const { lastFrame } = renderWithTheme(
-        <MembersPanel members={mockMembers} focused />
-      );
+      const { lastFrame } = renderWithTheme(<MembersPanel members={mockMembers} focused />);
       expect(lastFrame()).toBeDefined();
     });
   });

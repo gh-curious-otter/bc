@@ -19,7 +19,9 @@ const mockGetChannels = mock(() => Promise.resolve({ channels: [] }));
 const mockGetChannelHistory = mock(() => Promise.resolve({ messages: [] }));
 const mockSendChannelMessage = mock(() => Promise.resolve());
 const mockReportState = mock(() => Promise.resolve());
-const mockGetCostSummary = mock(() => Promise.resolve({ total_cost: 0, by_agent: {}, by_team: {}, by_model: {} }));
+const mockGetCostSummary = mock(() =>
+  Promise.resolve({ total_cost: 0, by_agent: {}, by_team: {}, by_model: {} })
+);
 const mockGetTeams = mock(() => Promise.resolve({ teams: [] }));
 const mockGetProcesses = mock(() => Promise.resolve({ processes: [] }));
 const mockGetDemons = mock(() => Promise.resolve([]));
@@ -145,15 +147,10 @@ describe('E2E Workflow: Channel Communication', () => {
   it('handles message batching (multiple rapid messages)', async () => {
     mockSendChannelMessage.mockResolvedValue(undefined);
 
-    const messages = [
-      'Phase 1 complete',
-      'Moving to Phase 2',
-      'Tests passing',
-      'Ready for review',
-    ];
+    const messages = ['Phase 1 complete', 'Moving to Phase 2', 'Tests passing', 'Ready for review'];
 
     // Send messages in parallel
-    await Promise.all(messages.map(msg => mockSendChannelMessage('eng', msg)));
+    await Promise.all(messages.map((msg) => mockSendChannelMessage('eng', msg)));
 
     expect(mockSendChannelMessage).toHaveBeenCalledTimes(4);
   });
@@ -198,57 +195,57 @@ describe('E2E Workflow: Cost Tracking', () => {
 
     // After work: costs accumulated
     mockGetCostSummary.mockResolvedValueOnce({
-      total_cost: 125.50,
+      total_cost: 125.5,
       total_input_tokens: 50000,
       total_output_tokens: 12500,
-      by_agent: { 'eng-01': 50.00, 'eng-02': 45.50, 'eng-03': 30.00 },
-      by_team: { 'eng-team': 125.50 },
-      by_model: { 'claude-3-sonnet': 100.50, 'claude-3-haiku': 25.00 },
+      by_agent: { 'eng-01': 50.0, 'eng-02': 45.5, 'eng-03': 30.0 },
+      by_team: { 'eng-team': 125.5 },
+      by_model: { 'claude-3-sonnet': 100.5, 'claude-3-haiku': 25.0 },
     });
 
     costs = await mockGetCostSummary();
-    expect(costs.total_cost).toBe(125.50);
-    expect(costs.by_agent['eng-01']).toBe(50.00);
+    expect(costs.total_cost).toBe(125.5);
+    expect(costs.by_agent['eng-01']).toBe(50.0);
   });
 
   it('cost breakdown by agent and team', async () => {
     mockGetCostSummary.mockResolvedValue({
-      total_cost: 500.00,
+      total_cost: 500.0,
       total_input_tokens: 200000,
       total_output_tokens: 50000,
       by_agent: {
-        'eng-01': 150.00,
-        'eng-02': 120.00,
-        'eng-03': 80.00,
-        'tl-01': 100.00,
-        'mgr-01': 50.00,
+        'eng-01': 150.0,
+        'eng-02': 120.0,
+        'eng-03': 80.0,
+        'tl-01': 100.0,
+        'mgr-01': 50.0,
       },
       by_team: {
-        'eng-team': 350.00,
-        'leads': 100.00,
-        'management': 50.00,
+        'eng-team': 350.0,
+        leads: 100.0,
+        management: 50.0,
       },
       by_model: {
-        'claude-3-opus': 200.00,
-        'claude-3-sonnet': 250.00,
-        'claude-3-haiku': 50.00,
+        'claude-3-opus': 200.0,
+        'claude-3-sonnet': 250.0,
+        'claude-3-haiku': 50.0,
       },
     });
 
     const costs = await mockGetCostSummary();
 
     // Verify totals
-    expect(costs.total_cost).toBe(500.00);
+    expect(costs.total_cost).toBe(500.0);
 
     // Verify agent breakdown
     const agentCosts = Object.values(costs.by_agent as Record<string, number>);
     const agentTotal = agentCosts.reduce((a, b) => a + b, 0);
-    expect(agentTotal).toBe(500.00);
+    expect(agentTotal).toBe(500.0);
 
     // Verify team breakdown
     const teamCosts = Object.values(costs.by_team as Record<string, number>);
     const teamTotal = teamCosts.reduce((a, b) => a + b, 0);
-    expect(teamTotal).toBe(500.00);
+    expect(teamTotal).toBe(500.0);
   });
 });
 
@@ -351,9 +348,27 @@ describe('E2E Workflow: Demon (Scheduled Tasks)', () => {
 
   it('demon list and status monitoring', async () => {
     mockGetDemons.mockResolvedValue([
-      { name: 'hourly-sync', enabled: true, schedule: '0 * * * *', run_count: 24, next_run: '2025-01-15T11:00:00Z' },
-      { name: 'daily-cleanup', enabled: true, schedule: '0 0 * * *', run_count: 7, next_run: '2025-01-16T00:00:00Z' },
-      { name: 'weekly-report', enabled: false, schedule: '0 0 * * 0', run_count: 2, next_run: null },
+      {
+        name: 'hourly-sync',
+        enabled: true,
+        schedule: '0 * * * *',
+        run_count: 24,
+        next_run: '2025-01-15T11:00:00Z',
+      },
+      {
+        name: 'daily-cleanup',
+        enabled: true,
+        schedule: '0 0 * * *',
+        run_count: 7,
+        next_run: '2025-01-16T00:00:00Z',
+      },
+      {
+        name: 'weekly-report',
+        enabled: false,
+        schedule: '0 0 * * 0',
+        run_count: 2,
+        next_run: null,
+      },
     ]);
 
     const demons = await mockGetDemons();
@@ -438,9 +453,7 @@ describe('Concurrent Operations', () => {
     });
 
     // Simulate 10 rapid polls
-    const results = await Promise.all(
-      Array.from({ length: 10 }, () => mockGetStatus())
-    );
+    const results = await Promise.all(Array.from({ length: 10 }, () => mockGetStatus()));
 
     expect(results.length).toBe(10);
     expect(mockGetStatus).toHaveBeenCalledTimes(10);
@@ -485,11 +498,7 @@ describe('Error Recovery Workflows', () => {
       teams: [{ name: 'eng-team', members: ['eng-01'] }],
     });
 
-    const results = await Promise.allSettled([
-      mockGetStatus(),
-      mockGetChannels(),
-      mockGetTeams(),
-    ]);
+    const results = await Promise.allSettled([mockGetStatus(), mockGetChannels(), mockGetTeams()]);
 
     expect(results[0].status).toBe('fulfilled');
     expect(results[1].status).toBe('rejected');
@@ -502,14 +511,10 @@ describe('Error Recovery Workflows', () => {
     mockGetChannels.mockRejectedValue(new Error('Service down'));
     mockGetTeams.mockRejectedValue(new Error('Service down'));
 
-    const results = await Promise.allSettled([
-      mockGetStatus(),
-      mockGetChannels(),
-      mockGetTeams(),
-    ]);
+    const results = await Promise.allSettled([mockGetStatus(), mockGetChannels(), mockGetTeams()]);
 
     // All should be rejected but not throw
-    expect(results.every(r => r.status === 'rejected')).toBe(true);
+    expect(results.every((r) => r.status === 'rejected')).toBe(true);
   });
 });
 

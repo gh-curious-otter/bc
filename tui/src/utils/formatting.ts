@@ -53,7 +53,9 @@ export function formatDuration(ms: number): string {
   }
   if (minutes > 0) {
     const remainingSecs = seconds % 60;
-    return remainingSecs > 0 ? `${String(minutes)}m ${String(remainingSecs)}s` : `${String(minutes)}m`;
+    return remainingSecs > 0
+      ? `${String(minutes)}m ${String(remainingSecs)}s`
+      : `${String(minutes)}m`;
   }
   return `${String(seconds)}s`;
 }

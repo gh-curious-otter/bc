@@ -16,7 +16,7 @@ import { describe, test, expect } from 'bun:test';
 import { FocusProvider, useFocus, useIsFocused, type FocusArea } from '../FocusContext';
 
 // Helper to wait for render updates
-const waitForRender = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 50));
+const waitForRender = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 50));
 
 describe('FocusContext', () => {
   describe('FocusProvider', () => {

@@ -2,13 +2,7 @@
  * ThemeContext - Provides theming support for bc TUI
  */
 
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useCallback,
-  useMemo,
-} from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import type { Theme, ThemeMode, ThemeColors, ThemeConfig } from './types';
 import { darkTheme, lightTheme, applyOverrides, getTheme } from './themes';
 import type { ThemeName } from './themes';
@@ -37,10 +31,7 @@ interface ThemeProviderProps {
 
 const availableThemes: ThemeName[] = ['dark', 'light'];
 
-export function ThemeProvider({
-  children,
-  config,
-}: ThemeProviderProps): React.ReactElement {
+export function ThemeProvider({ children, config }: ThemeProviderProps): React.ReactElement {
   const [mode, setModeState] = useState<ThemeMode>(config?.mode ?? 'auto');
   const [themeName, setThemeNameState] = useState<ThemeName>('dark');
   const [detectedScheme] = useState<'dark' | 'light'>(() => detectColorScheme());
@@ -120,9 +111,7 @@ export function ThemeProvider({
     [theme, mode, themeName, detectedScheme, setMode, setThemeName, cycleTheme, toggleTheme, color]
   );
 
-  return (
-    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme(): ThemeContextValue {
@@ -133,16 +122,12 @@ export function useTheme(): ThemeContextValue {
   return context;
 }
 
-export function useThemeColor<K extends keyof ThemeColors>(
-  key: K
-): ThemeColors[K] {
+export function useThemeColor<K extends keyof ThemeColors>(key: K): ThemeColors[K] {
   const { color } = useTheme();
   return color(key);
 }
 
-export function useThemeColors<K extends keyof ThemeColors>(
-  keys: K[]
-): Pick<ThemeColors, K> {
+export function useThemeColors<K extends keyof ThemeColors>(keys: K[]): Pick<ThemeColors, K> {
   const { theme } = useTheme();
   return useMemo(() => {
     const result = {} as Pick<ThemeColors, K>;

@@ -1,13 +1,13 @@
-import { useCallback, useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { api } from '../api/client';
-import type { ChannelMessage } from '../api/client';
-import { usePolling } from '../hooks/usePolling';
-import { useWebSocket } from '../hooks/useWebSocket';
-import { AgentPeekPanel } from '../components/AgentPeekPanel';
-import { LoadingSkeleton } from '../components/LoadingSkeleton';
-import { EmptyState } from '../components/EmptyState';
-import { MessageContent } from '../components/MessageContent';
+import { useCallback, useState, useEffect, useRef } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { api } from "../api/client";
+import type { ChannelMessage } from "../api/client";
+import { usePolling } from "../hooks/usePolling";
+import { useWebSocket } from "../hooks/useWebSocket";
+import { AgentPeekPanel } from "../components/AgentPeekPanel";
+import { LoadingSkeleton } from "../components/LoadingSkeleton";
+import { EmptyState } from "../components/EmptyState";
+import { MessageContent } from "../components/MessageContent";
 
 export function Channels() {
   const { channelName: paramChannel } = useParams<{ channelName: string }>();
@@ -16,7 +16,13 @@ export function Channels() {
     const res = await api.listChannels();
     return res;
   }, []);
-  const { data: channels, loading, error, refresh, timedOut } = usePolling(fetcher, 10000);
+  const {
+    data: channels,
+    loading,
+    error,
+    refresh,
+    timedOut,
+  } = usePolling(fetcher, 10000);
   const [selected, setSelected] = useState<string | null>(paramChannel ?? null);
   const [peekAgent, setPeekAgent] = useState<string | null>(null);
 
@@ -26,7 +32,7 @@ export function Channels() {
   }, [paramChannel]);
 
   const selectChannel = (name: string) => {
-    navigate('/channels/' + name);
+    navigate("/channels/" + name);
   };
 
   if (loading && !channels) {
@@ -68,7 +74,9 @@ export function Channels() {
     <div className="flex h-full">
       <div className="w-56 shrink-0 border-r border-bc-border overflow-auto">
         <div className="p-3 border-b border-bc-border">
-          <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">Channels</h2>
+          <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
+            Channels
+          </h2>
         </div>
         {(channels ?? []).length === 0 ? (
           <div className="p-4">
@@ -85,12 +93,14 @@ export function Channels() {
               onClick={() => selectChannel(ch.name)}
               className={`w-full text-left px-3 py-2 text-sm border-b border-bc-border/30 ${
                 selected === ch.name
-                  ? 'bg-bc-accent/10 text-bc-accent'
-                  : 'text-bc-text hover:bg-bc-surface'
+                  ? "bg-bc-accent/10 text-bc-accent"
+                  : "text-bc-text hover:bg-bc-surface"
               }`}
             >
               <span className="font-medium">#{ch.name}</span>
-              <span className="ml-2 text-xs text-bc-muted">({ch.member_count})</span>
+              <span className="ml-2 text-xs text-bc-muted">
+                ({ch.member_count})
+              </span>
             </button>
           ))
         )}
@@ -109,7 +119,10 @@ export function Channels() {
         )}
       </div>
       {peekAgent && (
-        <AgentPeekPanel agentName={peekAgent} onClose={() => setPeekAgent(null)} />
+        <AgentPeekPanel
+          agentName={peekAgent}
+          onClose={() => setPeekAgent(null)}
+        />
       )}
     </div>
   );
@@ -147,22 +160,31 @@ function formatTimestamp(iso: string): string {
     d.getMonth() === now.getMonth() &&
     d.getDate() === now.getDate();
   if (isToday) {
-    return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   }
   return d.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
-function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAgent: (name: string) => void }) {
+function ChatRoom({
+  channelName,
+  onPeekAgent,
+}: {
+  channelName: string;
+  onPeekAgent: (name: string) => void;
+}) {
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [isNearBottom, setIsNearBottom] = useState(true);
-  const [senderName, setSenderName] = useState('web');
+  const [senderName, setSenderName] = useState("web");
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -173,7 +195,7 @@ function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAge
     void (async () => {
       try {
         const ws = await api.getWorkspace();
-        setSenderName(ws.nickname || ws.name || 'web');
+        setSenderName(ws.nickname || ws.name || "web");
       } catch {
         // keep default 'web'
       }
@@ -200,10 +222,13 @@ function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAge
 
   // Live messages via SSE -- deduplicate by ID
   useEffect(() => {
-    return subscribe('channel.message', (event) => {
+    return subscribe("channel.message", (event) => {
       const data = event.data as { channel?: string; message?: ChannelMessage };
       if (data.channel === channelName && data.message) {
-        const msg = { ...data.message, created_at: data.message.created_at || new Date().toISOString() };
+        const msg = {
+          ...data.message,
+          created_at: data.message.created_at || new Date().toISOString(),
+        };
         setMessages((prev) => {
           if (prev.some((m) => m.id === msg.id)) return prev;
           return [...prev, msg];
@@ -218,11 +243,12 @@ function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAge
     if (!container) return;
     const handleScroll = () => {
       const nearBottom =
-        container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+        container.scrollHeight - container.scrollTop - container.clientHeight <
+        100;
       setIsNearBottom(nearBottom);
     };
-    container.addEventListener('scroll', handleScroll, { passive: true });
-    return () => container.removeEventListener('scroll', handleScroll);
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
   }, []);
 
   // Auto-scroll: always on channel switch load, otherwise only when near bottom
@@ -230,7 +256,9 @@ function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAge
     if (messages.length === 0) return;
     const justLoaded = channelLoadedRef.current === channelName;
     if (justLoaded || isNearBottom) {
-      bottomRef.current?.scrollIntoView({ behavior: justLoaded ? 'auto' : 'smooth' });
+      bottomRef.current?.scrollIntoView({
+        behavior: justLoaded ? "auto" : "smooth",
+      });
     }
     // After the initial load scroll, clear the flag so subsequent messages
     // use the near-bottom heuristic only.
@@ -241,25 +269,25 @@ function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAge
   }, [messages]);
 
   const scrollToBottom = () => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   const autoGrow = useCallback(() => {
     const ta = textareaRef.current;
     if (!ta) return;
-    ta.style.height = 'auto';
+    ta.style.height = "auto";
     // Cap at ~4 rows (6rem = 96px)
-    ta.style.height = Math.min(ta.scrollHeight, 96) + 'px';
+    ta.style.height = Math.min(ta.scrollHeight, 96) + "px";
   }, []);
 
   const handleSend = async () => {
     if (!input.trim()) return;
     const content = input;
     setSending(true);
-    setInput('');
+    setInput("");
     // Reset textarea height after clearing
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = "auto";
     }
     try {
       await api.sendToChannel(channelName, content, senderName);
@@ -267,7 +295,14 @@ function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAge
       // without waiting for SSE delivery
       setMessages((prev) => [
         ...prev,
-        { id: Date.now(), sender: senderName, content, created_at: new Date().toISOString(), channel: channelName, type: 'text' } as ChannelMessage,
+        {
+          id: Date.now(),
+          sender: senderName,
+          content,
+          created_at: new Date().toISOString(),
+          channel: channelName,
+          type: "text",
+        } as ChannelMessage,
       ]);
     } catch {
       // Restore input on failure
@@ -284,11 +319,14 @@ function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAge
       <div className="px-4 py-2 border-b border-bc-border bg-bc-surface">
         <span className="font-medium">#{channelName}</span>
         <span className="ml-2 text-xs text-bc-muted">
-          {messages.length} message{messages.length !== 1 ? 's' : ''}
+          {messages.length} message{messages.length !== 1 ? "s" : ""}
         </span>
       </div>
       <div className="relative flex-1">
-        <div ref={scrollContainerRef} className="absolute inset-0 overflow-auto p-4 space-y-3">
+        <div
+          ref={scrollContainerRef}
+          className="absolute inset-0 overflow-auto p-4 space-y-3"
+        >
           {messages.length === 0 && (
             <div className="flex-1 flex items-center justify-center py-8">
               <EmptyState
@@ -301,23 +339,28 @@ function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAge
           {groups.map((group) => {
             const firstMsg = group.messages[0]!;
             return (
-            <div key={firstMsg.id} className="text-sm">
-              <div className="flex items-baseline gap-2">
-                <button
-                  onClick={() => onPeekAgent(group.sender)}
-                  className="font-medium text-bc-accent hover:underline cursor-pointer"
-                  title={`Peek at ${group.sender}'s terminal`}
-                >
-                  {group.sender}
-                </button>
-                <span className="text-xs text-bc-muted">{formatTimestamp(group.timestamp)}</span>
+              <div key={firstMsg.id} className="text-sm">
+                <div className="flex items-baseline gap-2">
+                  <button
+                    onClick={() => onPeekAgent(group.sender)}
+                    className="font-medium text-bc-accent hover:underline cursor-pointer"
+                    title={`Peek at ${group.sender}'s terminal`}
+                  >
+                    {group.sender}
+                  </button>
+                  <span className="text-xs text-bc-muted">
+                    {formatTimestamp(group.timestamp)}
+                  </span>
+                </div>
+                {group.messages.map((msg) => (
+                  <p
+                    key={msg.id}
+                    className="mt-0.5 pl-0 whitespace-pre-wrap break-words"
+                  >
+                    <MessageContent content={msg.content} />
+                  </p>
+                ))}
               </div>
-              {group.messages.map((msg) => (
-                <p key={msg.id} className="mt-0.5 pl-0 whitespace-pre-wrap break-words">
-                  <MessageContent content={msg.content} />
-                </p>
-              ))}
-            </div>
             );
           })}
           <div ref={bottomRef} />
@@ -336,16 +379,19 @@ function ChatRoom({ channelName, onPeekAgent }: { channelName: string; onPeekAge
           ref={textareaRef}
           rows={1}
           value={input}
-          onChange={(e) => { setInput(e.target.value); autoGrow(); }}
+          onChange={(e) => {
+            setInput(e.target.value);
+            autoGrow();
+          }}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               void handleSend();
             }
-            if (e.key === 'Escape') {
-              setInput('');
+            if (e.key === "Escape") {
+              setInput("");
               if (textareaRef.current) {
-                textareaRef.current.style.height = 'auto';
+                textareaRef.current.style.height = "auto";
                 textareaRef.current.blur();
               }
             }

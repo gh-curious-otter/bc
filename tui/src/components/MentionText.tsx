@@ -61,8 +61,10 @@ function parseFormattedText(text: string, currentUser?: string): Token[] {
     } else if (matched.startsWith('`') && matched.endsWith('`')) {
       type = 'code';
       content = matched.slice(1, -1);
-    } else if ((matched.startsWith('*') && matched.endsWith('*')) ||
-               (matched.startsWith('_') && matched.endsWith('_'))) {
+    } else if (
+      (matched.startsWith('*') && matched.endsWith('*')) ||
+      (matched.startsWith('_') && matched.endsWith('_'))
+    ) {
       type = 'italic';
       content = matched.slice(1, -1);
     } else if (matched.startsWith('@')) {
@@ -107,10 +109,7 @@ function parseFormattedText(text: string, currentUser?: string): Token[] {
  * - @currentUser: Bold cyan inverse (self-mention)
  * - @all/@everyone: Yellow (broadcast)
  */
-export const MentionText: React.FC<MentionTextProps> = ({
-  text,
-  currentUser,
-}) => {
+export const MentionText: React.FC<MentionTextProps> = ({ text, currentUser }) => {
   const { theme } = useTheme();
 
   if (!text || text.trim().length === 0) {

@@ -102,11 +102,7 @@ describe('TUI Render Performance Benchmarks', () => {
   describe('ChatMessage Performance', () => {
     it('renders single message under 20ms', () => {
       const { time } = measureRenderTime(
-        <ChatMessage
-          sender="eng-01"
-          message="Test message"
-          timestamp={new Date().toISOString()}
-        />
+        <ChatMessage sender="eng-01" message="Test message" timestamp={new Date().toISOString()} />
       );
       // Note: First render is slower, subsequent renders benefit from memoization
       expect(time).toBeLessThan(20);
@@ -344,15 +340,10 @@ describe('TUI Render Performance Benchmarks', () => {
       ];
 
       // First render (cold)
-      const first = measureRenderTime(
-        <Table data={agents} columns={columns} />
-      );
+      const first = measureRenderTime(<Table data={agents} columns={columns} />);
 
       // Benchmark multiple renders
-      const stats = benchmarkRender(
-        <Table data={agents} columns={columns} />,
-        10
-      );
+      const stats = benchmarkRender(<Table data={agents} columns={columns} />, 10);
 
       // Average should be reasonable
       expect(stats.avg).toBeLessThan(100);
@@ -380,9 +371,7 @@ describe('TUI Render Performance Benchmarks', () => {
       ];
 
       const start = performance.now();
-      const { lastFrame } = render(
-        <Table data={agents} columns={columns} maxVisibleRows={20} />
-      );
+      const { lastFrame } = render(<Table data={agents} columns={columns} maxVisibleRows={20} />);
       const elapsed = performance.now() - start;
 
       expect(lastFrame()).toBeTruthy();
@@ -400,12 +389,7 @@ describe('TUI Render Performance Benchmarks', () => {
         const { time } = measureRenderTime(
           <Box flexDirection="column">
             {batch.map((m, j) => (
-              <ChatMessage
-                key={j}
-                sender={m.sender}
-                message={m.message}
-                timestamp={m.timestamp}
-              />
+              <ChatMessage key={j} sender={m.sender} message={m.message} timestamp={m.timestamp} />
             ))}
           </Box>
         );

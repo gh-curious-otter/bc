@@ -10,12 +10,12 @@ import type { CostSummary, AgentCost } from '../../types';
 // Mock cost data
 const mockAgentCosts: AgentCost[] = [
   { agent: 'eng-01', input_tokens: 10000, output_tokens: 5000, total_cost: 0.25 },
-  { agent: 'eng-02', input_tokens: 8000, output_tokens: 4000, total_cost: 0.20 },
+  { agent: 'eng-02', input_tokens: 8000, output_tokens: 4000, total_cost: 0.2 },
   { agent: 'eng-03', input_tokens: 15000, output_tokens: 7500, total_cost: 0.35 },
 ];
 
 const mockCostSummary: CostSummary = {
-  total_cost: 0.80,
+  total_cost: 0.8,
   total_input_tokens: 33000,
   total_output_tokens: 16500,
   agent_costs: mockAgentCosts,
@@ -50,7 +50,7 @@ describe('useCosts Hook Logic', () => {
   describe('Cost Data Processing', () => {
     test('cost summary is processed correctly', () => {
       const data: CostSummary | null = mockCostSummary;
-      expect(data?.total_cost).toBe(0.80);
+      expect(data?.total_cost).toBe(0.8);
     });
 
     test('null data is handled', () => {
@@ -139,13 +139,13 @@ describe('Cost Data Validation', () => {
 
 describe('Agent Cost Validation', () => {
   test('agent name is non-empty', () => {
-    mockAgentCosts.forEach(ac => {
+    mockAgentCosts.forEach((ac) => {
       expect(ac.agent.length).toBeGreaterThan(0);
     });
   });
 
   test('agent cost has required properties', () => {
-    mockAgentCosts.forEach(ac => {
+    mockAgentCosts.forEach((ac) => {
       expect(ac).toHaveProperty('agent');
       expect(ac).toHaveProperty('input_tokens');
       expect(ac).toHaveProperty('output_tokens');
@@ -154,14 +154,14 @@ describe('Agent Cost Validation', () => {
   });
 
   test('tokens are integers', () => {
-    mockAgentCosts.forEach(ac => {
+    mockAgentCosts.forEach((ac) => {
       expect(Number.isInteger(ac.input_tokens)).toBe(true);
       expect(Number.isInteger(ac.output_tokens)).toBe(true);
     });
   });
 
   test('cost is a number', () => {
-    mockAgentCosts.forEach(ac => {
+    mockAgentCosts.forEach((ac) => {
       expect(typeof ac.total_cost).toBe('number');
     });
   });
@@ -172,7 +172,8 @@ describe('Cost Calculations', () => {
     const inputRate = 0.01; // $0.01 per 1K input
     const outputRate = 0.03; // $0.03 per 1K output
     const agent = mockAgentCosts[0];
-    const calculated = (agent.input_tokens / 1000) * inputRate + (agent.output_tokens / 1000) * outputRate;
+    const calculated =
+      (agent.input_tokens / 1000) * inputRate + (agent.output_tokens / 1000) * outputRate;
     expect(typeof calculated).toBe('number');
     expect(calculated).toBeGreaterThan(0);
   });

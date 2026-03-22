@@ -51,28 +51,34 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     onModeChange?.(false);
   }, [onModeChange]);
 
-  const handleSubmit = useCallback((text: string) => {
-    if (text.trim()) {
-      onSubmit?.(text.trim());
-      setValue('');
-    }
-    // Stay in input mode after submit for quick follow-up messages
-  }, [onSubmit]);
+  const handleSubmit = useCallback(
+    (text: string) => {
+      if (text.trim()) {
+        onSubmit?.(text.trim());
+        setValue('');
+      }
+      // Stay in input mode after submit for quick follow-up messages
+    },
+    [onSubmit]
+  );
 
   // Handle keyboard input based on mode
-  useInput((input, key) => {
-    if (isInputMode) {
-      // In input mode, Escape exits
-      if (key.escape) {
-        exitInputMode();
+  useInput(
+    (input, key) => {
+      if (isInputMode) {
+        // In input mode, Escape exits
+        if (key.escape) {
+          exitInputMode();
+        }
+      } else {
+        // In navigation mode, 'i' or Enter enters input mode
+        if (input === 'i' || key.return) {
+          enterInputMode();
+        }
       }
-    } else {
-      // In navigation mode, 'i' or Enter enters input mode
-      if (input === 'i' || key.return) {
-        enterInputMode();
-      }
-    }
-  }, { isActive: !disabled });
+    },
+    { isActive: !disabled }
+  );
 
   if (disabled) {
     return (
@@ -85,7 +91,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   return (
     <Box flexDirection="column">
       {/* Input area */}
-      <Box borderStyle="single" borderColor={isInputMode ? theme.colors.success : theme.colors.textMuted} paddingX={1}>
+      <Box
+        borderStyle="single"
+        borderColor={isInputMode ? theme.colors.success : theme.colors.textMuted}
+        paddingX={1}
+      >
         {isInputMode ? (
           <Box>
             <Text color={theme.colors.success}>&gt; </Text>

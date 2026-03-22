@@ -8,47 +8,47 @@
 
 :root {
   /* ── Core palette (light mode) ── */
-  --background: #FBF7F2;
-  --foreground: #1E1A16;
-  --primary: #EA580C;
-  --primary-foreground: #FFFFFF;
-  --secondary: #FB923C;
-  --secondary-foreground: #1E1A16;
-  --muted: #F0EBE5;
-  --muted-foreground: #78706A;
-  --accent: #FDBA74;
-  --accent-foreground: #1E1A16;
-  --border: #E5DDD4;
-  --input: #E5DDD4;
-  --ring: #EA580C;
-  --card: #FFFFFF;
-  --card-foreground: #1E1A16;
-  --popover: #FFFFFF;
-  --popover-foreground: #1E1A16;
-  --destructive: #DC2626;
-  --destructive-foreground: #FFFFFF;
+  --background: #fbf7f2;
+  --foreground: #1e1a16;
+  --primary: #ea580c;
+  --primary-foreground: #ffffff;
+  --secondary: #fb923c;
+  --secondary-foreground: #1e1a16;
+  --muted: #f0ebe5;
+  --muted-foreground: #78706a;
+  --accent: #fdba74;
+  --accent-foreground: #1e1a16;
+  --border: #e5ddd4;
+  --input: #e5ddd4;
+  --ring: #ea580c;
+  --card: #ffffff;
+  --card-foreground: #1e1a16;
+  --popover: #ffffff;
+  --popover-foreground: #1e1a16;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
   --radius: 0.75rem;
 
   /* ── Semantic colors ── */
-  --success: #16A34A;
-  --warning: #EA580C;
-  --error: #DC2626;
-  --info: #0EA5E9;
+  --success: #16a34a;
+  --warning: #ea580c;
+  --error: #dc2626;
+  --info: #0ea5e9;
 
   /* ── Terminal palette (fixed both modes — always dark) ── */
-  --terminal-bg: #0C0A08;
+  --terminal-bg: #0c0a08;
   --terminal-header-bg: #151210;
   --terminal-header-border: rgba(234, 88, 12, 0.1);
-  --terminal-text: #F5F0EB;
-  --terminal-muted: #8C7E72;
-  --terminal-prompt: #EA580C;
-  --terminal-success: #22C55E;
-  --terminal-error: #EF4444;
-  --terminal-command: #FB923C;
-  --terminal-comment: #5C524A;
-  --traffic-red: #FF5F56;
-  --traffic-yellow: #FFBD2E;
-  --traffic-green: #27C93F;
+  --terminal-text: #f5f0eb;
+  --terminal-muted: #8c7e72;
+  --terminal-prompt: #ea580c;
+  --terminal-success: #22c55e;
+  --terminal-error: #ef4444;
+  --terminal-command: #fb923c;
+  --terminal-comment: #5c524a;
+  --traffic-red: #ff5f56;
+  --traffic-yellow: #ffbd2e;
+  --traffic-green: #27c93f;
 
   /* ── Navigation ── */
   --nav-bg: rgba(251, 247, 242, 0.85);
@@ -67,31 +67,31 @@
 
 .dark {
   /* ── Core palette (dark mode — Solar Flare primary) ── */
-  --background: #0C0A08;            /* Obsidian Warm */
-  --foreground: #F5F0EB;            /* Warm White */
-  --primary: #EA580C;               /* Tangerine */
-  --primary-foreground: #F5F0EB;    /* Warm White */
-  --secondary: #FB923C;             /* Amber Glow */
-  --secondary-foreground: #0C0A08;
-  --muted: #151210;                 /* Ember Dark */
-  --muted-foreground: #8C7E72;      /* Sandstone */
-  --accent: #FDBA74;                /* Peach */
-  --accent-foreground: #0C0A08;
-  --border: #2A2420;                /* Bark */
-  --input: #2A2420;
-  --ring: #EA580C;
-  --card: #1E1A16;                  /* Umber */
-  --card-foreground: #F5F0EB;
-  --popover: #1E1A16;
-  --popover-foreground: #F5F0EB;
-  --destructive: #EF4444;
-  --destructive-foreground: #F5F0EB;
+  --background: #0c0a08; /* Obsidian Warm */
+  --foreground: #f5f0eb; /* Warm White */
+  --primary: #ea580c; /* Tangerine */
+  --primary-foreground: #f5f0eb; /* Warm White */
+  --secondary: #fb923c; /* Amber Glow */
+  --secondary-foreground: #0c0a08;
+  --muted: #151210; /* Ember Dark */
+  --muted-foreground: #8c7e72; /* Sandstone */
+  --accent: #fdba74; /* Peach */
+  --accent-foreground: #0c0a08;
+  --border: #2a2420; /* Bark */
+  --input: #2a2420;
+  --ring: #ea580c;
+  --card: #1e1a16; /* Umber */
+  --card-foreground: #f5f0eb;
+  --popover: #1e1a16;
+  --popover-foreground: #f5f0eb;
+  --destructive: #ef4444;
+  --destructive-foreground: #f5f0eb;
 
   /* ── Semantic colors ── */
-  --success: #22C55E;
-  --warning: #FB923C;
-  --error: #EF4444;
-  --info: #38BDF8;                  /* Sky Blue */
+  --success: #22c55e;
+  --warning: #fb923c;
+  --error: #ef4444;
+  --info: #38bdf8; /* Sky Blue */
 
   /* ── Navigation ── */
   --nav-bg: rgba(12, 10, 8, 0.85);
@@ -168,11 +168,18 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  transition: background-color 300ms ease, color 300ms ease;
+  transition:
+    background-color 300ms ease,
+    color 300ms ease;
 }
 
 /* ── Typography: headings use Space Grotesk ── */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-family: var(--font-heading);
 }
 
@@ -206,7 +213,9 @@ h1, h2, h3, h4, h5, h6 {
 
 /* ── Dark mode buttons ── */
 .dark button {
-  transition: background-color 200ms ease, border-color 200ms ease;
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease;
 }
 
 /* ── Selection highlighting ── */
@@ -270,7 +279,8 @@ input:focus-visible,
 
 /* Hero glow pulse animation */
 @keyframes glow-pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.4;
     transform: scale(1);
   }
@@ -286,7 +296,8 @@ input:focus-visible,
 
 /* Floating animation for cards */
 @keyframes float {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0px);
   }
   50% {
@@ -310,6 +321,11 @@ input:focus-visible,
 
 /* Blinking cursor for logo */
 @keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
 }

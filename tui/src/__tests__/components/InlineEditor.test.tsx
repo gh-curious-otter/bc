@@ -19,33 +19,25 @@ describe('InlineEditor', () => {
     });
 
     it('renders with initial value', () => {
-      const { lastFrame } = renderWithTheme(
-        <InlineEditor initialValue="Hello" disableInput />
-      );
+      const { lastFrame } = renderWithTheme(<InlineEditor initialValue="Hello" disableInput />);
       const output = lastFrame();
       expect(output).toContain('Hello');
     });
 
     it('renders placeholder when empty', () => {
-      const { lastFrame } = renderWithTheme(
-        <InlineEditor placeholder="Type here" disableInput />
-      );
+      const { lastFrame } = renderWithTheme(<InlineEditor placeholder="Type here" disableInput />);
       const output = lastFrame();
       expect(output).toContain('Type here');
     });
 
     it('renders with custom placeholder', () => {
-      const { lastFrame } = renderWithTheme(
-        <InlineEditor placeholder="Enter name" disableInput />
-      );
+      const { lastFrame } = renderWithTheme(<InlineEditor placeholder="Enter name" disableInput />);
       const output = lastFrame();
       expect(output).toContain('Enter name');
     });
 
     it('renders with label', () => {
-      const { lastFrame } = renderWithTheme(
-        <InlineEditor label="Name" disableInput />
-      );
+      const { lastFrame } = renderWithTheme(<InlineEditor label="Name" disableInput />);
       const output = lastFrame();
       expect(output).toContain('Name');
     });
@@ -87,11 +79,7 @@ describe('InlineEditor', () => {
 
     it('renders multi-line content', () => {
       const { lastFrame } = renderWithTheme(
-        <InlineEditor
-          initialValue={'Line 1\nLine 2\nLine 3'}
-          multiline
-          disableInput
-        />
+        <InlineEditor initialValue={'Line 1\nLine 2\nLine 3'} multiline disableInput />
       );
       const output = lastFrame();
       expect(output).toContain('Line 1');
@@ -101,12 +89,7 @@ describe('InlineEditor', () => {
     it('respects maxHeight', () => {
       const longContent = Array(20).fill('Line').join('\n');
       const { lastFrame } = renderWithTheme(
-        <InlineEditor
-          initialValue={longContent}
-          multiline
-          maxHeight={5}
-          disableInput
-        />
+        <InlineEditor initialValue={longContent} multiline maxHeight={5} disableInput />
       );
       const output = lastFrame();
       expect(output).toContain('more lines');
@@ -128,25 +111,19 @@ describe('InlineEditor', () => {
   describe('callbacks', () => {
     it('accepts onChange callback', () => {
       const onChange = vi.fn();
-      const { lastFrame } = renderWithTheme(
-        <InlineEditor onChange={onChange} disableInput />
-      );
+      const { lastFrame } = renderWithTheme(<InlineEditor onChange={onChange} disableInput />);
       expect(lastFrame()).toBeDefined();
     });
 
     it('accepts onSave callback', () => {
       const onSave = vi.fn();
-      const { lastFrame } = renderWithTheme(
-        <InlineEditor onSave={onSave} disableInput />
-      );
+      const { lastFrame } = renderWithTheme(<InlineEditor onSave={onSave} disableInput />);
       expect(lastFrame()).toBeDefined();
     });
 
     it('accepts onCancel callback', () => {
       const onCancel = vi.fn();
-      const { lastFrame } = renderWithTheme(
-        <InlineEditor onCancel={onCancel} disableInput />
-      );
+      const { lastFrame } = renderWithTheme(<InlineEditor onCancel={onCancel} disableInput />);
       expect(lastFrame()).toBeDefined();
     });
   });
@@ -155,9 +132,7 @@ describe('InlineEditor', () => {
 describe('EditorModal', () => {
   describe('visibility', () => {
     it('renders nothing when not visible', () => {
-      const { lastFrame } = renderWithTheme(
-        <EditorModal visible={false} disableInput />
-      );
+      const { lastFrame } = renderWithTheme(<EditorModal visible={false} disableInput />);
       expect(lastFrame()).toBe('');
     });
 
@@ -175,9 +150,7 @@ describe('EditorModal', () => {
     });
 
     it('renders with custom title', () => {
-      const { lastFrame } = renderWithTheme(
-        <EditorModal visible title="Edit Role" disableInput />
-      );
+      const { lastFrame } = renderWithTheme(<EditorModal visible title="Edit Role" disableInput />);
       const output = lastFrame();
       expect(output).toContain('Edit Role');
     });
@@ -193,17 +166,13 @@ describe('EditorModal', () => {
     });
 
     it('passes label to editor', () => {
-      const { lastFrame } = renderWithTheme(
-        <EditorModal visible label="Field" disableInput />
-      );
+      const { lastFrame } = renderWithTheme(<EditorModal visible label="Field" disableInput />);
       const output = lastFrame();
       expect(output).toContain('Field');
     });
 
     it('supports multiline in modal', () => {
-      const { lastFrame } = renderWithTheme(
-        <EditorModal visible multiline disableInput />
-      );
+      const { lastFrame } = renderWithTheme(<EditorModal visible multiline disableInput />);
       const output = lastFrame();
       expect(output).toContain('Ctrl+S');
     });

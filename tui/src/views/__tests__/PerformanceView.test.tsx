@@ -268,14 +268,16 @@ describe('PerformanceView', () => {
     });
 
     test('metrics can be sliced to top N', () => {
-      const metrics: PerformanceMetric[] = Array(15).fill(null).map((_, i) => ({
-        name: `metric-${String(i).padStart(2, '0')}`,
-        value: 10,
-        average: 10,
-        min: 5,
-        max: 15,
-        count: 10,
-      }));
+      const metrics: PerformanceMetric[] = Array(15)
+        .fill(null)
+        .map((_, i) => ({
+          name: `metric-${String(i).padStart(2, '0')}`,
+          value: 10,
+          average: 10,
+          min: 5,
+          max: 15,
+          count: 10,
+        }));
 
       const top10 = metrics.slice(0, 10);
       expect(top10).toHaveLength(10);
@@ -354,17 +356,19 @@ describe('PerformanceView', () => {
 
     test('attention message when unhealthy', () => {
       const unhealthyCount = 3;
-      const message = unhealthyCount > 0
-        ? `⚠ ${unhealthyCount} agent${unhealthyCount > 1 ? 's' : ''} need attention`
-        : '';
+      const message =
+        unhealthyCount > 0
+          ? `⚠ ${unhealthyCount} agent${unhealthyCount > 1 ? 's' : ''} need attention`
+          : '';
       expect(message).toBe('⚠ 3 agents need attention');
     });
 
     test('singular message for one agent', () => {
       const unhealthyCount = 1;
-      const message = unhealthyCount > 0
-        ? `⚠ ${unhealthyCount} agent${unhealthyCount > 1 ? 's' : ''} need attention`
-        : '';
+      const message =
+        unhealthyCount > 0
+          ? `⚠ ${unhealthyCount} agent${unhealthyCount > 1 ? 's' : ''} need attention`
+          : '';
       expect(message).toBe('⚠ 1 agent need attention');
     });
   });

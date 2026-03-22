@@ -103,7 +103,7 @@ describe('WorkspaceSelectorView', () => {
     test('returns only v2 workspaces when filter enabled', () => {
       const filtered = filterV2Only(workspaces, true);
       expect(filtered).toHaveLength(2);
-      expect(filtered.every(ws => ws.is_v2)).toBe(true);
+      expect(filtered.every((ws) => ws.is_v2)).toBe(true);
     });
 
     test('handles empty array', () => {
@@ -122,13 +122,13 @@ describe('WorkspaceSelectorView', () => {
     test('extracts registered workspaces', () => {
       const registered = getRegisteredWorkspaces(workspaces);
       expect(registered).toHaveLength(2);
-      expect(registered.every(ws => ws.from_cache)).toBe(true);
+      expect(registered.every((ws) => ws.from_cache)).toBe(true);
     });
 
     test('extracts discovered workspaces', () => {
       const discovered = getDiscoveredWorkspaces(workspaces);
       expect(discovered).toHaveLength(1);
-      expect(discovered.every(ws => !ws.from_cache)).toBe(true);
+      expect(discovered.every((ws) => !ws.from_cache)).toBe(true);
     });
 
     test('handles all registered', () => {
@@ -363,9 +363,10 @@ describe('WorkspaceSelectorView', () => {
     test('shows only registered when no discovered', () => {
       const registered = 5;
       const discovered = 0;
-      const header = discovered > 0
-        ? `(${registered} registered, ${discovered} discovered)`
-        : `(${registered} registered)`;
+      const header =
+        discovered > 0
+          ? `(${registered} registered, ${discovered} discovered)`
+          : `(${registered} registered)`;
       expect(header).toBe('(5 registered)');
     });
   });

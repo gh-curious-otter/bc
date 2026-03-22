@@ -73,10 +73,7 @@ export function getTheme(name: ThemeName): Theme {
   return themes[name];
 }
 
-export function applyOverrides(
-  theme: Theme,
-  overrides: Partial<ThemeColors>
-): Theme {
+export function applyOverrides(theme: Theme, overrides: Partial<ThemeColors>): Theme {
   return {
     ...theme,
     colors: {

@@ -146,11 +146,7 @@ export const ViewWrapper = memo(function ViewWrapper({
 
   // Wrap in Panel if requested
   const wrappedContent = usePanel ? (
-    <Panel
-      title={title}
-      borderColor={borderColor}
-      focused={focused}
-    >
+    <Panel title={title} borderColor={borderColor} focused={focused}>
       {content}
     </Panel>
   ) : (

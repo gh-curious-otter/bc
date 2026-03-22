@@ -43,7 +43,9 @@ export function ToolsView(_props: ToolsViewProps = {}): React.ReactElement {
 
   const customKeys = useMemo(
     () => ({
-      'r': () => { void fetchTools(); },
+      r: () => {
+        void fetchTools();
+      },
     }),
     [fetchTools]
   );
@@ -71,7 +73,9 @@ export function ToolsView(_props: ToolsViewProps = {}): React.ReactElement {
         <Box flexDirection="column" width="100%" overflow="hidden">
           <HeaderBar title="Tools" count={0} loading={false} color={theme.colors.primary} />
           <Box paddingX={1} marginTop={1} flexDirection="column">
-            <Text color={theme.colors.warning}>Some tools could not be checked — press [r] to retry</Text>
+            <Text color={theme.colors.warning}>
+              Some tools could not be checked — press [r] to retry
+            </Text>
           </Box>
           <Footer hints={[{ key: 'r', label: 'refresh' }]} />
         </Box>
@@ -79,9 +83,8 @@ export function ToolsView(_props: ToolsViewProps = {}): React.ReactElement {
     }
 
     // Loading with progressive message
-    const loadingMsg = loadingElapsed >= 5
-      ? 'Tools check taking longer than expected...'
-      : 'Loading tools...';
+    const loadingMsg =
+      loadingElapsed >= 5 ? 'Tools check taking longer than expected...' : 'Loading tools...';
 
     return (
       <Box flexDirection="column" width="100%" overflow="hidden">
@@ -120,16 +123,24 @@ export function ToolsView(_props: ToolsViewProps = {}): React.ReactElement {
       <Box flexDirection="column" marginBottom={1}>
         <Box paddingX={1}>
           <Box width={nameWidth}>
-            <Text bold dimColor>NAME</Text>
+            <Text bold dimColor>
+              NAME
+            </Text>
           </Box>
           <Box width={14}>
-            <Text bold dimColor>STATUS</Text>
+            <Text bold dimColor>
+              STATUS
+            </Text>
           </Box>
           <Box width={16}>
-            <Text bold dimColor>VERSION</Text>
+            <Text bold dimColor>
+              VERSION
+            </Text>
           </Box>
           <Box flexGrow={1}>
-            <Text bold dimColor>COMMAND</Text>
+            <Text bold dimColor>
+              COMMAND
+            </Text>
           </Box>
         </Box>
 
@@ -155,11 +166,13 @@ export function ToolsView(_props: ToolsViewProps = {}): React.ReactElement {
         </Box>
       )}
 
-      <Footer hints={[
-        { key: 'j/k', label: 'nav' },
-        { key: 'g/G', label: 'top/bottom' },
-        { key: 'r', label: 'refresh' },
-      ]} />
+      <Footer
+        hints={[
+          { key: 'j/k', label: 'nav' },
+          { key: 'g/G', label: 'top/bottom' },
+          { key: 'r', label: 'refresh' },
+        ]}
+      />
     </Box>
   );
 }

@@ -38,10 +38,10 @@ export interface ImageAsset {
  * Matches Tailwind breakpoints for consistency
  */
 export const RESPONSIVE_SIZES = {
-  sm: 320,   // Mobile
-  md: 480,   // Small mobile
-  lg: 768,   // Tablet
-  xl: 1024,  // iPad/Small laptop
+  sm: 320, // Mobile
+  md: 480, // Small mobile
+  lg: 768, // Tablet
+  xl: 1024, // iPad/Small laptop
   "2xl": 1280, // Desktop
   "3xl": 1920, // Large desktop
 } as const;
@@ -108,7 +108,7 @@ export function getAspectRatioPadding(width: number, height: number): string {
 export function generateSrcSet(
   basePath: string,
   format: string,
-  sizes: number[] = Object.values(RESPONSIVE_SIZES)
+  sizes: number[] = Object.values(RESPONSIVE_SIZES),
 ): string {
   return sizes
     .filter((size) => size <= 1920) // Don't exceed max desktop size
@@ -119,10 +119,7 @@ export function generateSrcSet(
 /**
  * Generate picture element sources for WebP with fallback
  */
-export function generatePictureSources(
-  basePath: string,
-  sizes?: number[]
-) {
+export function generatePictureSources(basePath: string, sizes?: number[]) {
   const sizesConfig = sizes || Object.values(RESPONSIVE_SIZES);
   return {
     webp: generateSrcSet(basePath, ".webp", sizesConfig),
@@ -186,9 +183,9 @@ export function validateImageAsset(asset: Partial<ImageAsset>): {
  */
 export const coreWebVitalsTargets = {
   lcp: 2500, // 2.5 seconds - Largest Contentful Paint
-  fid: 100,  // 100ms - First Input Delay (deprecated, use INP instead)
-  inp: 200,  // 200ms - Interaction to Next Paint
-  cls: 0.1,  // 0.1 - Cumulative Layout Shift
+  fid: 100, // 100ms - First Input Delay (deprecated, use INP instead)
+  inp: 200, // 200ms - Interaction to Next Paint
+  cls: 0.1, // 0.1 - Cumulative Layout Shift
 } as const;
 
 /**

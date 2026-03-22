@@ -37,9 +37,14 @@ const CostsViewWide = memo(function CostsViewWide({
   const needsScroll = agentCount > maxVisible;
   let startIdx = 0;
   if (needsScroll) {
-    startIdx = Math.max(0, Math.min(selectedIndex - Math.floor(maxVisible / 2), agentCount - maxVisible));
+    startIdx = Math.max(
+      0,
+      Math.min(selectedIndex - Math.floor(maxVisible / 2), agentCount - maxVisible)
+    );
   }
-  const visibleAgents = needsScroll ? agentEntries.slice(startIdx, startIdx + maxVisible) : agentEntries;
+  const visibleAgents = needsScroll
+    ? agentEntries.slice(startIdx, startIdx + maxVisible)
+    : agentEntries;
   const hiddenBelow = needsScroll ? agentCount - (startIdx + maxVisible) : 0;
 
   const barWidth = Math.max(20, terminalWidth - 35);
@@ -62,8 +67,10 @@ const CostsViewWide = memo(function CostsViewWide({
       <Box>
         <Text bold>Costs</Text>
         <Text dimColor> ({agentCount})</Text>
-        <Text>  </Text>
-        <Text color={theme.colors.warning} bold>${costs.total_cost.toFixed(2)}</Text>
+        <Text> </Text>
+        <Text color={theme.colors.warning} bold>
+          ${costs.total_cost.toFixed(2)}
+        </Text>
         <Text dimColor> total</Text>
         <Box flexGrow={1} />
         {burnRate > 0 && (
@@ -79,7 +86,8 @@ const CostsViewWide = memo(function CostsViewWide({
           const actualIdx = startIdx + visIdx;
           const selected = isSelected(actualIdx);
           const nameColor = getColorForName(agent.name);
-          const displayName = agent.name.length > 12 ? agent.name.slice(0, 11) + '…' : agent.name.padEnd(12);
+          const displayName =
+            agent.name.length > 12 ? agent.name.slice(0, 11) + '…' : agent.name.padEnd(12);
           const costStr = `$${agent.cost.toFixed(2)}`.padStart(8);
           const pctStr = `${String(agent.percent)}%`.padStart(4);
 
@@ -88,24 +96,22 @@ const CostsViewWide = memo(function CostsViewWide({
               <Text color={selected ? theme.colors.primary : undefined} bold={selected}>
                 {selected ? '▸ ' : '  '}
               </Text>
-              <Text color={selected ? theme.colors.primary : nameColor} bold={selected} wrap="truncate">
+              <Text
+                color={selected ? theme.colors.primary : nameColor}
+                bold={selected}
+                wrap="truncate"
+              >
                 {displayName}
               </Text>
               <Text> </Text>
               <Text color={selected ? theme.colors.primary : theme.colors.warning}>{costStr}</Text>
               <Text> </Text>
-              <InlineProgressBar
-                value={agent.cost}
-                max={maxCost}
-                width={barWidth}
-              />
+              <InlineProgressBar value={agent.cost} max={maxCost} width={barWidth} />
               <Text dimColor>{pctStr}</Text>
             </Box>
           );
         })}
-        {hiddenBelow > 0 && (
-          <Text dimColor>  ↓ {hiddenBelow} more</Text>
-        )}
+        {hiddenBelow > 0 && <Text dimColor> ↓ {hiddenBelow} more</Text>}
       </Box>
 
       {/* Side-by-side Models + Billing panels */}
@@ -116,7 +122,9 @@ const CostsViewWide = memo(function CostsViewWide({
             const maxModelCost = modelEntries.length > 0 ? modelEntries[0][1] : 1;
             return (
               <Box key={model}>
-                <Text color={theme.colors.accent} wrap="truncate">{model.padEnd(10)}</Text>
+                <Text color={theme.colors.accent} wrap="truncate">
+                  {model.padEnd(10)}
+                </Text>
                 <Text> ${cost.toFixed(2).padStart(7)}</Text>
                 <Text> </Text>
                 <InlineProgressBar value={cost} max={maxModelCost} width={13} />
@@ -128,12 +136,12 @@ const CostsViewWide = memo(function CostsViewWide({
         </Panel>
         <Panel title="Billing" width="50%">
           <Box>
-            <Text>Spent     </Text>
+            <Text>Spent </Text>
             <Text color={theme.colors.warning}>${billingSpent.toFixed(2)}</Text>
           </Box>
           {burnRate > 0 && (
             <Box>
-              <Text>Rate      </Text>
+              <Text>Rate </Text>
               <Text>${burnRate.toFixed(2)}/hr</Text>
             </Box>
           )}
@@ -145,7 +153,7 @@ const CostsViewWide = memo(function CostsViewWide({
           )}
           {cacheHit > 0 && (
             <Box>
-              <Text>Cache     </Text>
+              <Text>Cache </Text>
               <Text color={theme.colors.success}>{cacheHit.toFixed(1)}% hit</Text>
             </Box>
           )}

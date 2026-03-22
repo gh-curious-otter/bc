@@ -46,7 +46,11 @@ function PerformanceConsumer() {
 // Test component that uses theme config
 function ThemeConsumer() {
   const config = useThemeConfig();
-  return <Text>Theme: {config.theme}, Mode: {config.mode}</Text>;
+  return (
+    <Text>
+      Theme: {config.theme}, Mode: {config.mode}
+    </Text>
+  );
 }
 
 describe('ConfigProvider', () => {

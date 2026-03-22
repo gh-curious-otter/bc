@@ -19,7 +19,9 @@ function HintsDisplay(): React.ReactElement {
     <Box flexDirection="column">
       <Text>Hints: {viewHints.length}</Text>
       {viewHints.map((hint) => (
-        <Text key={hint.key}>[{hint.key}] {hint.label}</Text>
+        <Text key={hint.key}>
+          [{hint.key}] {hint.label}
+        </Text>
       ))}
     </Box>
   );
@@ -112,9 +114,7 @@ describe('HintsContext', () => {
 
 describe('useViewHints', () => {
   test('sets hints on mount', async () => {
-    const hints: HintItem[] = [
-      { key: 'q', label: 'quit' },
-    ];
+    const hints: HintItem[] = [{ key: 'q', label: 'quit' }];
 
     const { lastFrame } = render(
       <HintsProvider>
@@ -131,9 +131,7 @@ describe('useViewHints', () => {
   });
 
   test('clears hints on unmount', async () => {
-    const hints: HintItem[] = [
-      { key: 'x', label: 'delete' },
-    ];
+    const hints: HintItem[] = [{ key: 'x', label: 'delete' }];
 
     const { lastFrame, rerender } = render(
       <HintsProvider>

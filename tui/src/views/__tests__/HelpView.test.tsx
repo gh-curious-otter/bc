@@ -25,9 +25,7 @@ function renderWithProviders(component: React.ReactElement) {
   return render(
     <ThemeProvider>
       <FocusProvider>
-        <DisableInputProvider disabled>
-          {component}
-        </DisableInputProvider>
+        <DisableInputProvider disabled>{component}</DisableInputProvider>
       </FocusProvider>
     </ThemeProvider>
   );
@@ -53,50 +51,78 @@ type HelpSection = ShortcutSection | HeaderSection | FooterSection;
 // Recreate help sections for testing
 const helpSections: HelpSection[] = [
   { type: 'header' },
-  { type: 'section', title: 'Global', shortcuts: [
-    { keys: 'Tab', desc: 'Next view' },
-    { keys: 'Shift+Tab', desc: 'Previous view' },
-    { keys: 'R', desc: 'Routing view' },
-    { keys: '?', desc: 'Toggle help' },
-    { keys: 'ESC', desc: 'Go back / Home' },
-    { keys: 'Ctrl+R', desc: 'Refresh current view' },
-    { keys: 'q', desc: 'Quit' },
-  ]},
-  { type: 'section', title: 'Navigation (Drawer & Lists)', shortcuts: [
-    { keys: 'j / ↓', desc: 'Move down in drawer/list' },
-    { keys: 'k / ↑', desc: 'Move up in drawer/list' },
-    { keys: 'g', desc: 'Jump to top' },
-    { keys: 'G', desc: 'Jump to bottom' },
-    { keys: 'Enter', desc: 'Select / Drill down' },
-  ]},
-  { type: 'section', title: 'Agents', shortcuts: [
-    { keys: 'Enter', desc: 'Attach to agent session' },
-    { keys: 'p', desc: 'Peek agent output' },
-    { keys: 'x', desc: 'Stop agent' },
-    { keys: 'X', desc: 'Kill agent (force)' },
-    { keys: 'R', desc: 'Start agent' },
-  ]},
-  { type: 'section', title: 'Channels', shortcuts: [
-    { keys: 'Enter', desc: 'View channel history' },
-    { keys: 'm', desc: 'Compose message' },
-    { keys: 'j/k', desc: 'Scroll messages' },
-    { keys: 'c', desc: 'Clear draft' },
-  ]},
-  { type: 'section', title: 'Costs', shortcuts: [
-    { keys: '1/2/3', desc: 'Switch agent/model/team tabs' },
-    { keys: 'b', desc: 'Set budget' },
-    { keys: 'e', desc: 'Export to CSV' },
-    { keys: 'r', desc: 'Refresh data' },
-  ]},
-  { type: 'section', title: 'Commands', shortcuts: [
-    { keys: '/', desc: 'Search commands' },
-    { keys: 'f', desc: 'Toggle favorite' },
-    { keys: 'Enter', desc: 'Copy command' },
-  ]},
-  { type: 'section', title: 'Routing', shortcuts: [
-    { keys: 'j/k', desc: 'Navigate rules' },
-    { keys: 'Enter', desc: 'View details' },
-  ]},
+  {
+    type: 'section',
+    title: 'Global',
+    shortcuts: [
+      { keys: 'Tab', desc: 'Next view' },
+      { keys: 'Shift+Tab', desc: 'Previous view' },
+      { keys: 'R', desc: 'Routing view' },
+      { keys: '?', desc: 'Toggle help' },
+      { keys: 'ESC', desc: 'Go back / Home' },
+      { keys: 'Ctrl+R', desc: 'Refresh current view' },
+      { keys: 'q', desc: 'Quit' },
+    ],
+  },
+  {
+    type: 'section',
+    title: 'Navigation (Drawer & Lists)',
+    shortcuts: [
+      { keys: 'j / ↓', desc: 'Move down in drawer/list' },
+      { keys: 'k / ↑', desc: 'Move up in drawer/list' },
+      { keys: 'g', desc: 'Jump to top' },
+      { keys: 'G', desc: 'Jump to bottom' },
+      { keys: 'Enter', desc: 'Select / Drill down' },
+    ],
+  },
+  {
+    type: 'section',
+    title: 'Agents',
+    shortcuts: [
+      { keys: 'Enter', desc: 'Attach to agent session' },
+      { keys: 'p', desc: 'Peek agent output' },
+      { keys: 'x', desc: 'Stop agent' },
+      { keys: 'X', desc: 'Kill agent (force)' },
+      { keys: 'R', desc: 'Start agent' },
+    ],
+  },
+  {
+    type: 'section',
+    title: 'Channels',
+    shortcuts: [
+      { keys: 'Enter', desc: 'View channel history' },
+      { keys: 'm', desc: 'Compose message' },
+      { keys: 'j/k', desc: 'Scroll messages' },
+      { keys: 'c', desc: 'Clear draft' },
+    ],
+  },
+  {
+    type: 'section',
+    title: 'Costs',
+    shortcuts: [
+      { keys: '1/2/3', desc: 'Switch agent/model/team tabs' },
+      { keys: 'b', desc: 'Set budget' },
+      { keys: 'e', desc: 'Export to CSV' },
+      { keys: 'r', desc: 'Refresh data' },
+    ],
+  },
+  {
+    type: 'section',
+    title: 'Commands',
+    shortcuts: [
+      { keys: '/', desc: 'Search commands' },
+      { keys: 'f', desc: 'Toggle favorite' },
+      { keys: 'Enter', desc: 'Copy command' },
+    ],
+  },
+  {
+    type: 'section',
+    title: 'Routing',
+    shortcuts: [
+      { keys: 'j/k', desc: 'Navigate rules' },
+      { keys: 'Enter', desc: 'View details' },
+    ],
+  },
   { type: 'footer' },
 ];
 
@@ -160,22 +186,30 @@ describe('HelpView', () => {
     });
 
     test('Global section has 7 shortcuts', () => {
-      const globalSection = helpSections.find(s => s.type === 'section' && s.title === 'Global') as ShortcutSection;
+      const globalSection = helpSections.find(
+        (s) => s.type === 'section' && s.title === 'Global'
+      ) as ShortcutSection;
       expect(globalSection.shortcuts.length).toBe(7);
     });
 
     test('Navigation section has 5 shortcuts', () => {
-      const navSection = helpSections.find(s => s.type === 'section' && s.title === 'Navigation (Drawer & Lists)') as ShortcutSection;
+      const navSection = helpSections.find(
+        (s) => s.type === 'section' && s.title === 'Navigation (Drawer & Lists)'
+      ) as ShortcutSection;
       expect(navSection.shortcuts.length).toBe(5);
     });
 
     test('Agents section has 5 shortcuts', () => {
-      const agentsSection = helpSections.find(s => s.type === 'section' && s.title === 'Agents') as ShortcutSection;
+      const agentsSection = helpSections.find(
+        (s) => s.type === 'section' && s.title === 'Agents'
+      ) as ShortcutSection;
       expect(agentsSection.shortcuts.length).toBe(5);
     });
 
     test('Channels section has 4 shortcuts', () => {
-      const channelsSection = helpSections.find(s => s.type === 'section' && s.title === 'Channels') as ShortcutSection;
+      const channelsSection = helpSections.find(
+        (s) => s.type === 'section' && s.title === 'Channels'
+      ) as ShortcutSection;
       expect(channelsSection.shortcuts.length).toBe(4);
     });
 
@@ -221,15 +255,17 @@ describe('HelpView', () => {
     });
 
     test('section with 3 shortcuts contributes 5 lines', () => {
-      const sectionOnly: HelpSection[] = [{
-        type: 'section',
-        title: 'Test',
-        shortcuts: [
-          { keys: 'a', desc: 'Action A' },
-          { keys: 'b', desc: 'Action B' },
-          { keys: 'c', desc: 'Action C' },
-        ]
-      }];
+      const sectionOnly: HelpSection[] = [
+        {
+          type: 'section',
+          title: 'Test',
+          shortcuts: [
+            { keys: 'a', desc: 'Action A' },
+            { keys: 'b', desc: 'Action B' },
+            { keys: 'c', desc: 'Action C' },
+          ],
+        },
+      ];
       // 1 (title) + 3 (shortcuts) + 1 (margin) = 5
       expect(calculateTotalLines(sectionOnly)).toBe(5);
     });
@@ -250,7 +286,7 @@ describe('HelpView', () => {
       const smallSections: HelpSection[] = [
         { type: 'header' },
         { type: 'section', title: 'Test', shortcuts: [{ keys: 'a', desc: 'Action' }] },
-        { type: 'footer' }
+        { type: 'footer' },
       ];
       const totalLines = calculateTotalLines(smallSections);
       // 2 + (1 + 1 + 1) + 3 = 8 lines

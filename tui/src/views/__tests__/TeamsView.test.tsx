@@ -52,13 +52,13 @@ describe('TeamsView Data Model', () => {
   });
 
   test('members is always an array', () => {
-    mockTeams.forEach(team => {
+    mockTeams.forEach((team) => {
       expect(Array.isArray(team.members)).toBe(true);
     });
   });
 
   test('teams can have varying member counts', () => {
-    const memberCounts = mockTeams.map(t => t.members.length);
+    const memberCounts = mockTeams.map((t) => t.members.length);
     expect(memberCounts).toContain(4);
     expect(memberCounts).toContain(2);
     expect(memberCounts).toContain(1);
@@ -68,8 +68,7 @@ describe('TeamsView Data Model', () => {
 describe('TeamsView Navigation Logic', () => {
   test('selection index clamping works correctly', () => {
     const listLength = mockTeams.length;
-    const clampIndex = (index: number) =>
-      Math.max(0, Math.min(index, listLength - 1));
+    const clampIndex = (index: number) => Math.max(0, Math.min(index, listLength - 1));
 
     expect(clampIndex(-1)).toBe(0);
     expect(clampIndex(0)).toBe(0);
@@ -81,8 +80,7 @@ describe('TeamsView Navigation Logic', () => {
 
   test('navigate down increments index', () => {
     const listLength = mockTeams.length;
-    const navigateDown = (current: number) =>
-      Math.min(listLength - 1, current + 1);
+    const navigateDown = (current: number) => Math.min(listLength - 1, current + 1);
 
     expect(navigateDown(0)).toBe(1);
     expect(navigateDown(1)).toBe(2);
@@ -144,7 +142,7 @@ describe('TeamsView Expanded State', () => {
 
   test('find expanded team in list', () => {
     const expandedTeam = 'platform';
-    const team = mockTeams.find(t => t.name === expandedTeam);
+    const team = mockTeams.find((t) => t.name === expandedTeam);
     expect(team).toBeTruthy();
     expect(team?.name).toBe('platform');
   });
@@ -219,19 +217,19 @@ describe('TeamsView Column Configuration', () => {
   ];
 
   test('all columns have required properties', () => {
-    columns.forEach(col => {
+    columns.forEach((col) => {
       expect(col.key).toBeTruthy();
       expect(col.header).toBeTruthy();
     });
   });
 
   test('most columns have explicit width', () => {
-    const colsWithWidth = columns.filter(c => c.width !== undefined);
+    const colsWithWidth = columns.filter((c) => c.width !== undefined);
     expect(colsWithWidth.length).toBeGreaterThan(0);
   });
 
   test('description column expands to fill', () => {
-    const descCol = columns.find(c => c.key === 'description');
+    const descCol = columns.find((c) => c.key === 'description');
     expect(descCol?.width).toBeUndefined();
   });
 });
@@ -351,7 +349,7 @@ describe('TeamsView TeamDetails Component Logic', () => {
     const members = team.members;
     const lead = team.lead;
 
-    members.forEach(member => {
+    members.forEach((member) => {
       const isLead = member === lead;
       const icon = isLead ? '★ ' : '• ';
       expect(icon).toBeTruthy();
@@ -412,7 +410,7 @@ describe('TeamsView Large Data Handling', () => {
 
   test('varying member counts in large list', () => {
     const teams = generateLargeTeamList(100);
-    const memberCounts = teams.map(t => t.members.length);
+    const memberCounts = teams.map((t) => t.members.length);
     const uniqueCounts = [...new Set(memberCounts)];
     expect(uniqueCounts.length).toBeGreaterThan(1);
   });
@@ -442,14 +440,14 @@ describe('TeamsView Footer Hints', () => {
   ];
 
   test('all hints have key and label', () => {
-    footerHints.forEach(hint => {
+    footerHints.forEach((hint) => {
       expect(hint.key).toBeTruthy();
       expect(hint.label).toBeTruthy();
     });
   });
 
   test('navigate hint uses j/k format', () => {
-    const navHint = footerHints.find(h => h.label === 'navigate');
+    const navHint = footerHints.find((h) => h.label === 'navigate');
     expect(navHint?.key).toBe('j/k');
   });
 });

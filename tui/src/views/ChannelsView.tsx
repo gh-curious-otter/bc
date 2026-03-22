@@ -40,7 +40,12 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
   const { theme } = useTheme();
   const { isDisabled: disableInput } = useDisableInput();
   // #1129: Use useChannelsWithUnread for proper unread message tracking
-  const { channels, loading: channelsLoading, error: channelsError, refresh } = useChannelsWithUnread();
+  const {
+    channels,
+    loading: channelsLoading,
+    error: channelsError,
+    refresh,
+  } = useChannelsWithUnread();
   const [viewMode, setViewMode] = useState<'list' | 'history'>('list');
   const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
   const { setFocus } = useFocus();
@@ -52,29 +57,34 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
   const channelList = useMemo(() => channels ?? [], [channels]);
 
   // #1737: Handle channel selection (Enter key)
-  const handleSelect = useCallback((_channel: ChannelWithUnread) => {
-    setFocus('view');
-    setViewMode('history');
-  }, [setFocus]);
+  const handleSelect = useCallback(
+    (_channel: ChannelWithUnread) => {
+      setFocus('view');
+      setViewMode('history');
+    },
+    [setFocus]
+  );
 
   // #1737: Custom key handlers
-  const customKeys = useMemo(() => ({
-    // 'm' to compose - enter channel and start compose mode (#1316)
-    m: () => {
-      if (channelList.length > 0) {
-        setStartCompose(true);
-        setFocus('view');
-        setViewMode('history');
-      }
-    },
-    r: () => { void refresh(); },
-  }), [channelList.length, setFocus, refresh]);
+  const customKeys = useMemo(
+    () => ({
+      // 'm' to compose - enter channel and start compose mode (#1316)
+      m: () => {
+        if (channelList.length > 0) {
+          setStartCompose(true);
+          setFocus('view');
+          setViewMode('history');
+        }
+      },
+      r: () => {
+        void refresh();
+      },
+    }),
+    [channelList.length, setFocus, refresh]
+  );
 
   // #1737: Use useListNavigation for keyboard handling
-  const {
-    selectedIndex,
-    selectedItem: selectedChannel,
-  } = useListNavigation({
+  const { selectedIndex, selectedItem: selectedChannel } = useListNavigation({
     items: channelList,
     onSelect: handleSelect,
     disabled: disableInput || viewMode !== 'list',
@@ -98,7 +108,14 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
   }
 
   if (channelsError) {
-    return <ErrorDisplay error={channelsError} onRetry={() => { void refresh(); }} />;
+    return (
+      <ErrorDisplay
+        error={channelsError}
+        onRetry={() => {
+          void refresh();
+        }}
+      />
+    );
   }
 
   if (viewMode === 'history' && selectedChannel) {
@@ -130,16 +147,24 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
         {/* Column headers */}
         <Box paddingX={1}>
           <Box width={24}>
-            <Text bold dimColor>CHANNEL</Text>
+            <Text bold dimColor>
+              CHANNEL
+            </Text>
           </Box>
           <Box width={12}>
-            <Text bold dimColor>UNREAD</Text>
+            <Text bold dimColor>
+              UNREAD
+            </Text>
           </Box>
           <Box width={10}>
-            <Text bold dimColor>MEMBERS</Text>
+            <Text bold dimColor>
+              MEMBERS
+            </Text>
           </Box>
           <Box flexGrow={1}>
-            <Text bold dimColor>DESCRIPTION</Text>
+            <Text bold dimColor>
+              DESCRIPTION
+            </Text>
           </Box>
         </Box>
 
@@ -162,13 +187,15 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
       </Box>
 
       {/* Footer */}
-      <Footer hints={[
-        { key: 'j/k', label: 'nav' },
-        { key: 'g/G', label: 'top/bottom' },
-        { key: 'Enter', label: 'open' },
-        { key: 'm', label: 'compose' },
-        { key: 'r', label: 'refresh' },
-      ]} />
+      <Footer
+        hints={[
+          { key: 'j/k', label: 'nav' },
+          { key: 'g/G', label: 'top/bottom' },
+          { key: 'Enter', label: 'open' },
+          { key: 'm', label: 'compose' },
+          { key: 'r', label: 'refresh' },
+        ]}
+      />
     </Box>
   );
 }

@@ -323,7 +323,7 @@ describe('globalPerformanceTracker', () => {
   });
 
   test('records metrics correctly', () => {
-    const id = tracker => {
+    const id = (tracker) => {
       const timerId = globalPerformanceTracker.startTimer('global:test');
       globalPerformanceTracker.endTimer(timerId, 'global:test');
     };
@@ -462,8 +462,7 @@ describe('Calculation Helpers', () => {
     const tracker = createPerformanceTracker();
 
     // We can't directly control timing, but we can test the concept
-    const computeAverage = (nums: number[]) =>
-      nums.reduce((sum, n) => sum + n, 0) / nums.length;
+    const computeAverage = (nums: number[]) => nums.reduce((sum, n) => sum + n, 0) / nums.length;
 
     expect(computeAverage(values)).toBe(expectedAverage);
   });

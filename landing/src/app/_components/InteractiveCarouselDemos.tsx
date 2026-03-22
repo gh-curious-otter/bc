@@ -138,7 +138,9 @@ function Carousel({
               key={index}
               onClick={() => goToStep(index)}
               className={`h-1.5 md:h-2 rounded-full transition-all duration-300 touch-target-44 ${
-                index === currentStep ? "bg-primary w-6 md:w-8" : "bg-muted-foreground/30 w-1.5 md:w-2 hover:bg-muted-foreground/50"
+                index === currentStep
+                  ? "bg-primary w-6 md:w-8"
+                  : "bg-muted-foreground/30 w-1.5 md:w-2 hover:bg-muted-foreground/50"
               }`}
               aria-label={`Go to step ${index + 1}`}
               aria-current={index === currentStep ? "step" : undefined}
@@ -170,8 +172,18 @@ const AGENTS_STEPS: CarouselStep[] = [
         </div>
         <div className="space-y-3">
           {[
-            { name: "engineer-01", role: "engineer", state: "working", symbol: "✽" },
-            { name: "tech-lead-01", role: "tech-lead", state: "tool", symbol: "⏺" },
+            {
+              name: "engineer-01",
+              role: "engineer",
+              state: "working",
+              symbol: "✽",
+            },
+            {
+              name: "tech-lead-01",
+              role: "tech-lead",
+              state: "tool",
+              symbol: "⏺",
+            },
             { name: "qa-nova", role: "qa", state: "working", symbol: "✻" },
           ].map((agent) => (
             <motion.div
@@ -187,7 +199,13 @@ const AGENTS_STEPS: CarouselStep[] = [
               </div>
               <div className="flex items-center gap-4 text-xs text-muted-foreground">
                 <span>{agent.role}</span>
-                <span className={agent.state === "working" ? "text-success" : "text-[var(--terminal-command)]"}>
+                <span
+                  className={
+                    agent.state === "working"
+                      ? "text-success"
+                      : "text-[var(--terminal-command)]"
+                  }
+                >
                   {agent.state}
                 </span>
               </div>
@@ -207,7 +225,12 @@ const AGENTS_STEPS: CarouselStep[] = [
         </div>
         <div className="space-y-3 p-4 rounded-lg bg-background/50 border border-border/50">
           <div className="font-semibold text-foreground">engineer-01</div>
-          <div className="text-xs text-muted-foreground">State: <span className="text-[var(--terminal-command)]">tool activity</span></div>
+          <div className="text-xs text-muted-foreground">
+            State:{" "}
+            <span className="text-[var(--terminal-command)]">
+              tool activity
+            </span>
+          </div>
           <div className="space-y-2 mt-3">
             <motion.div
               initial={{ opacity: 0 }}
@@ -248,13 +271,17 @@ const AGENTS_STEPS: CarouselStep[] = [
         </div>
         <div className="space-y-3">
           <div className="p-4 rounded-lg bg-primary/10 border border-primary/30">
-            <div className="text-xs font-semibold text-primary uppercase">YOU</div>
+            <div className="text-xs font-semibold text-primary uppercase">
+              YOU
+            </div>
             <div className="text-sm text-foreground mt-2">
               @engineer-01 implement validation and report back.
             </div>
           </div>
           <div className="p-4 rounded-lg bg-success/10 border border-success/30">
-            <div className="text-xs font-semibold text-success uppercase">engineer-01</div>
+            <div className="text-xs font-semibold text-success uppercase">
+              engineer-01
+            </div>
             <div className="text-sm text-foreground mt-2">
               Done! PR #347 ready for review. Tests passing locally.
             </div>
@@ -273,7 +300,9 @@ const AGENTS_STEPS: CarouselStep[] = [
         </div>
         <div className="space-y-3">
           <div className="p-4 rounded-lg bg-background/50 border border-border/50">
-            <div className="text-xs font-semibold text-foreground">Project Context</div>
+            <div className="text-xs font-semibold text-foreground">
+              Project Context
+            </div>
             <ul className="text-xs text-muted-foreground list-disc list-inside mt-2 space-y-1">
               <li>Architecture: Modular microservices</li>
               <li>Stack: Next.js, React, TypeScript</li>
@@ -281,7 +310,9 @@ const AGENTS_STEPS: CarouselStep[] = [
             </ul>
           </div>
           <div className="p-4 rounded-lg bg-background/50 border border-border/50">
-            <div className="text-xs font-semibold text-foreground">Recent Experience</div>
+            <div className="text-xs font-semibold text-foreground">
+              Recent Experience
+            </div>
             <ul className="text-xs text-muted-foreground list-disc list-inside mt-2 space-y-1">
               <li>Fixed 3 similar bugs this week</li>
               <li>Pattern: Zod schema validation</li>
@@ -310,9 +341,21 @@ const CHANNELS_STEPS: CarouselStep[] = [
         </div>
         <div className="space-y-2">
           {[
-            { user: "root", msg: "3 agents active. QA standup at 11am.", tag: "system" },
-            { user: "manager-atlas", msg: "Assigning tasks for auth epic to #engineering.", tag: "manager" },
-            { user: "qa-nova", msg: "Edge-case matrix ready. Ping when merged.", tag: "qa" },
+            {
+              user: "root",
+              msg: "3 agents active. QA standup at 11am.",
+              tag: "system",
+            },
+            {
+              user: "manager-atlas",
+              msg: "Assigning tasks for auth epic to #engineering.",
+              tag: "manager",
+            },
+            {
+              user: "qa-nova",
+              msg: "Edge-case matrix ready. Ping when merged.",
+              tag: "qa",
+            },
           ].map((msg, i) => (
             <motion.div
               key={i}
@@ -321,7 +364,9 @@ const CHANNELS_STEPS: CarouselStep[] = [
               transition={{ delay: i * 0.1 }}
               className="p-3 rounded-lg bg-background/50 border border-border/50"
             >
-              <div className={`text-xs font-semibold uppercase tracking-wider ${msg.tag === "system" ? "text-primary" : msg.tag === "manager" ? "text-accent" : "text-[var(--terminal-command)]"}`}>
+              <div
+                className={`text-xs font-semibold uppercase tracking-wider ${msg.tag === "system" ? "text-primary" : msg.tag === "manager" ? "text-accent" : "text-[var(--terminal-command)]"}`}
+              >
                 {msg.user}
               </div>
               <div className="text-sm text-foreground mt-1">{msg.msg}</div>
@@ -341,16 +386,28 @@ const CHANNELS_STEPS: CarouselStep[] = [
         </div>
         <div className="space-y-2">
           <div className="p-3 rounded-lg bg-background/50 border border-border/50">
-            <div className="text-xs font-semibold text-muted-foreground uppercase">qa-nova</div>
-            <div className="text-sm text-foreground mt-1">Smoke tests passed on #347 🎉</div>
+            <div className="text-xs font-semibold text-muted-foreground uppercase">
+              qa-nova
+            </div>
+            <div className="text-sm text-foreground mt-1">
+              Smoke tests passed on #347 🎉
+            </div>
           </div>
           <div className="p-3 rounded-lg bg-primary/10 border border-primary/30">
-            <div className="text-xs font-semibold text-primary uppercase">YOU</div>
-            <div className="text-sm text-foreground mt-1">@tech-lead-01 can we merge #347 now?</div>
+            <div className="text-xs font-semibold text-primary uppercase">
+              YOU
+            </div>
+            <div className="text-sm text-foreground mt-1">
+              @tech-lead-01 can we merge #347 now?
+            </div>
           </div>
           <div className="p-3 rounded-lg bg-success/10 border border-success/30">
-            <div className="text-xs font-semibold text-success uppercase">tech-lead-01</div>
-            <div className="text-sm text-foreground mt-1">LGTM! Merging now. Great work team.</div>
+            <div className="text-xs font-semibold text-success uppercase">
+              tech-lead-01
+            </div>
+            <div className="text-sm text-foreground mt-1">
+              LGTM! Merging now. Great work team.
+            </div>
           </div>
         </div>
       </div>
@@ -408,9 +465,24 @@ const CRON_STEPS: CarouselStep[] = [
         </div>
         <div className="space-y-2">
           {[
-            { name: "cron-nightly", schedule: "01:00 (7h 32m)", state: "scheduled", icon: "📅" },
-            { name: "cron-health", schedule: "* * * * * (hourly)", state: "running", icon: "⚙️" },
-            { name: "cron-deps", schedule: "09:00 (Mon)", state: "idle", icon: "📦" },
+            {
+              name: "cron-nightly",
+              schedule: "01:00 (7h 32m)",
+              state: "scheduled",
+              icon: "📅",
+            },
+            {
+              name: "cron-health",
+              schedule: "* * * * * (hourly)",
+              state: "running",
+              icon: "⚙️",
+            },
+            {
+              name: "cron-deps",
+              schedule: "09:00 (Mon)",
+              state: "idle",
+              icon: "📦",
+            },
           ].map((job) => (
             <motion.div
               key={job.name}
@@ -424,11 +496,15 @@ const CRON_STEPS: CarouselStep[] = [
                   <span>{job.icon}</span>
                   <span className="font-semibold">{job.name}</span>
                 </div>
-                <span className={`text-xs font-semibold ${job.state === "running" ? "text-success" : "text-accent"}`}>
+                <span
+                  className={`text-xs font-semibold ${job.state === "running" ? "text-success" : "text-accent"}`}
+                >
                   {job.state}
                 </span>
               </div>
-              <div className="text-xs text-muted-foreground mt-1">{job.schedule}</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {job.schedule}
+              </div>
             </motion.div>
           ))}
         </div>
@@ -444,7 +520,9 @@ const CRON_STEPS: CarouselStep[] = [
           bc cron run cron-health [logs]
         </div>
         <div className="space-y-2 p-4 rounded-lg bg-background/50 border border-border/50">
-          <div className="text-xs text-success font-semibold">Status: RUNNING</div>
+          <div className="text-xs text-success font-semibold">
+            Status: RUNNING
+          </div>
           <div className="space-y-1 text-xs text-foreground mt-3">
             <motion.div
               initial={{ opacity: 0 }}
@@ -492,10 +570,14 @@ const CRON_STEPS: CarouselStep[] = [
           <div className="text-foreground text-xs leading-relaxed">
             <span className="text-success">$</span>{" "}
             <span className="text-muted-foreground">bc cron add</span>{" "}
-            <span className="text-[var(--terminal-command)]">audit-codebase</span> <br />
+            <span className="text-[var(--terminal-command)]">
+              audit-codebase
+            </span>{" "}
+            <br />
             <span className="ml-4">
               <span className="text-accent">--schedule</span>{" "}
-              <span className="text-green-400">&quot;0 2 * * *&quot;</span> <br />
+              <span className="text-green-400">&quot;0 2 * * *&quot;</span>{" "}
+              <br />
             </span>
             <span className="ml-4">
               <span className="text-accent">--role</span>{" "}
@@ -503,11 +585,15 @@ const CRON_STEPS: CarouselStep[] = [
             </span>
             <span className="ml-4">
               <span className="text-accent">--task</span>{" "}
-              <span className="text-green-400">&quot;Nightly audit + drift detection&quot;</span>
+              <span className="text-green-400">
+                &quot;Nightly audit + drift detection&quot;
+              </span>
             </span>
           </div>
         </div>
-        <div className="text-xs text-success">✓ Cron job scheduled successfully</div>
+        <div className="text-xs text-success">
+          ✓ Cron job scheduled successfully
+        </div>
       </div>
     ),
   },
@@ -530,7 +616,9 @@ export default function InteractiveCarouselDemos() {
             Product in Motion
           </h2>
           <p className="mt-4 text-lg text-muted-foreground max-w-2xl">
-            Explore interactive demos of Agents, Channels, and Cron Jobs. Each carousel showcases core capabilities with smooth transitions and real-time examples.
+            Explore interactive demos of Agents, Channels, and Cron Jobs. Each
+            carousel showcases core capabilities with smooth transitions and
+            real-time examples.
           </p>
         </div>
 

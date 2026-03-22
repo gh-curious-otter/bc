@@ -87,20 +87,29 @@ describe('ChannelHistoryView Message Display', () => {
 
     it('calculates bubble width at 80 columns', () => {
       const terminalWidth = 80;
-      const maxBubbleWidth = Math.min(140, Math.max(40, Math.floor((terminalWidth - containerOverhead) * 0.8)));
+      const maxBubbleWidth = Math.min(
+        140,
+        Math.max(40, Math.floor((terminalWidth - containerOverhead) * 0.8))
+      );
       // (80 - 8) * 0.8 = 57.6 = 57
       expect(maxBubbleWidth).toBe(57);
     });
 
     it('caps bubble width at 140', () => {
       const terminalWidth = 200;
-      const maxBubbleWidth = Math.min(140, Math.max(40, Math.floor((terminalWidth - containerOverhead) * 0.8)));
+      const maxBubbleWidth = Math.min(
+        140,
+        Math.max(40, Math.floor((terminalWidth - containerOverhead) * 0.8))
+      );
       expect(maxBubbleWidth).toBe(140);
     });
 
     it('ensures minimum bubble width of 40', () => {
       const terminalWidth = 40;
-      const maxBubbleWidth = Math.min(140, Math.max(40, Math.floor((terminalWidth - containerOverhead) * 0.8)));
+      const maxBubbleWidth = Math.min(
+        140,
+        Math.max(40, Math.floor((terminalWidth - containerOverhead) * 0.8))
+      );
       // (40 - 8) * 0.8 = 25.6 = 25, but min is 40
       expect(maxBubbleWidth).toBe(40);
     });
@@ -126,14 +135,16 @@ describe('ChannelHistoryView Scroll Indicators', () => {
   it('shows "more below" when not at bottom', () => {
     const messages = Array(10).fill({});
     const scrollOffset = 2;
-    const hasMoreBelow = messages.length > maxMessages && scrollOffset < messages.length - maxMessages;
+    const hasMoreBelow =
+      messages.length > maxMessages && scrollOffset < messages.length - maxMessages;
     expect(hasMoreBelow).toBe(true);
   });
 
   it('hides "more below" at bottom', () => {
     const messages = Array(10).fill({});
     const scrollOffset = 0; // At bottom (showing newest)
-    const hasMoreBelow = messages.length > maxMessages && scrollOffset < messages.length - maxMessages;
+    const hasMoreBelow =
+      messages.length > maxMessages && scrollOffset < messages.length - maxMessages;
     expect(hasMoreBelow).toBe(true); // Still has more below because we show oldest first
   });
 
@@ -141,7 +152,8 @@ describe('ChannelHistoryView Scroll Indicators', () => {
     const messages = Array(3).fill({});
     const scrollOffset = 0;
     const hasMoreAbove = scrollOffset > 0;
-    const hasMoreBelow = messages.length > maxMessages && scrollOffset < messages.length - maxMessages;
+    const hasMoreBelow =
+      messages.length > maxMessages && scrollOffset < messages.length - maxMessages;
     expect(hasMoreAbove).toBe(false);
     expect(hasMoreBelow).toBe(false);
   });

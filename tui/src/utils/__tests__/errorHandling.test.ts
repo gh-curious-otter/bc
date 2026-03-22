@@ -111,21 +111,15 @@ describe('withErrorHandling', () => {
 
 describe('withFallback', () => {
   it('returns data on success', async () => {
-    const result = await withFallback(
-      async () => 'success',
-      'fallback'
-    );
+    const result = await withFallback(async () => 'success', 'fallback');
 
     expect(result).toBe('success');
   });
 
   it('returns fallback on error', async () => {
-    const result = await withFallback(
-      async () => {
-        throw new Error('Test error');
-      },
-      'fallback'
-    );
+    const result = await withFallback(async () => {
+      throw new Error('Test error');
+    }, 'fallback');
 
     expect(result).toBe('fallback');
   });
@@ -179,15 +173,11 @@ describe('isRecoverable', () => {
   });
 
   it('returns true for recoverable error', () => {
-    expect(
-      isRecoverable(err({ message: 'Error', recoverable: true }))
-    ).toBe(true);
+    expect(isRecoverable(err({ message: 'Error', recoverable: true }))).toBe(true);
   });
 
   it('returns false for non-recoverable error', () => {
-    expect(
-      isRecoverable(err({ message: 'Error', recoverable: false }))
-    ).toBe(false);
+    expect(isRecoverable(err({ message: 'Error', recoverable: false }))).toBe(false);
   });
 });
 
@@ -197,8 +187,6 @@ describe('getErrorMessage', () => {
   });
 
   it('returns error message for error result', () => {
-    expect(
-      getErrorMessage(err({ message: 'Test error', recoverable: false }))
-    ).toBe('Test error');
+    expect(getErrorMessage(err({ message: 'Test error', recoverable: false }))).toBe('Test error');
   });
 });

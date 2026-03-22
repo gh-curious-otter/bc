@@ -9,11 +9,7 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import type {
-  UseStatusOptions,
-  WorkspaceStatus,
-  UseStatusResult,
-} from '../useStatus';
+import type { UseStatusOptions, WorkspaceStatus, UseStatusResult } from '../useStatus';
 
 describe('useStatus - Type Exports', () => {
   describe('UseStatusOptions', () => {

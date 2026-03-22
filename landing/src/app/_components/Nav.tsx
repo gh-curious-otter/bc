@@ -16,13 +16,23 @@ const links = [
 function Logo() {
   return (
     <div className="flex items-center group">
-      <span className="font-mono text-lg font-normal text-secondary/70">&gt;</span>
-      <span className="font-heading text-xl font-bold tracking-tight text-primary ml-1">bc</span>
+      <span className="font-mono text-lg font-normal text-secondary/70">
+        &gt;
+      </span>
+      <span className="font-heading text-xl font-bold tracking-tight text-primary ml-1">
+        bc
+      </span>
     </div>
   );
 }
 
-function HamburgerButton({ isOpen, onClick }: { isOpen: boolean; onClick: () => void }) {
+function HamburgerButton({
+  isOpen,
+  onClick,
+}: {
+  isOpen: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       onClick={onClick}
@@ -39,7 +49,11 @@ function HamburgerButton({ isOpen, onClick }: { isOpen: boolean; onClick: () => 
         }}
         transition={{ duration: 0.2 }}
       >
-        {isOpen ? <X size={20} aria-hidden="true" /> : <Menu size={20} aria-hidden="true" />}
+        {isOpen ? (
+          <X size={20} aria-hidden="true" />
+        ) : (
+          <Menu size={20} aria-hidden="true" />
+        )}
       </motion.div>
     </button>
   );
@@ -58,7 +72,8 @@ function InstallDropdown() {
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
     }
     if (open) document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
@@ -89,13 +104,22 @@ function InstallDropdown() {
             className="absolute right-0 top-full mt-2 w-80 rounded-lg border border-border bg-card shadow-xl overflow-hidden z-50"
           >
             <div className="px-3 py-2 border-b border-border/60">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">Quick install</span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                Quick install
+              </span>
             </div>
             {commands.map((c) => (
-              <div key={c.label} className="px-3 py-2.5 flex items-center gap-2 hover:bg-accent/30 transition-colors group">
+              <div
+                key={c.label}
+                className="px-3 py-2.5 flex items-center gap-2 hover:bg-accent/30 transition-colors group"
+              >
                 <div className="flex-1 min-w-0">
-                  <div className="text-[10px] font-medium text-muted-foreground mb-0.5">{c.label}</div>
-                  <code className="text-xs font-mono text-foreground block truncate">{c.cmd}</code>
+                  <div className="text-[10px] font-medium text-muted-foreground mb-0.5">
+                    {c.label}
+                  </div>
+                  <code className="text-xs font-mono text-foreground block truncate">
+                    {c.cmd}
+                  </code>
                 </div>
                 <button
                   onClick={() => copy(c.cmd)}
@@ -171,11 +195,18 @@ export function Nav() {
       <div className="mx-auto flex max-w-6xl items-center px-4 py-3 sm:px-6">
         {/* Left: Logo + Nav links */}
         <div className="flex items-center gap-1">
-          <Link href="/" className="rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label="bc home page">
+          <Link
+            href="/"
+            className="rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            aria-label="bc home page"
+          >
             <Logo />
           </Link>
           <div className="hidden md:block w-[2px] h-4 bg-primary/60 mx-2 animate-[blink_1s_step-end_infinite]" />
-          <nav aria-label="Main navigation" className="hidden items-center md:flex">
+          <nav
+            aria-label="Main navigation"
+            className="hidden items-center md:flex"
+          >
             {links.map((l) => (
               <Link
                 key={l.href}
@@ -212,7 +243,10 @@ export function Nav() {
             transition={{ duration: 0.2, ease: "easeInOut" }}
             className="md:hidden border-t border-border/50 bg-background/95 backdrop-blur-sm"
           >
-            <nav aria-label="Mobile navigation" className="flex flex-col px-4 py-2 space-y-0.5">
+            <nav
+              aria-label="Mobile navigation"
+              className="flex flex-col px-4 py-2 space-y-0.5"
+            >
               {links.map((l) => (
                 <Link
                   key={l.href}
@@ -225,7 +259,9 @@ export function Nav() {
               ))}
               <div className="h-px bg-border/40 my-1" />
               <div className="px-3 py-2">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground mb-2">Install</div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground mb-2">
+                  Install
+                </div>
                 <code className="block text-xs font-mono text-foreground bg-muted/50 rounded px-2.5 py-2 mb-1.5">
                   brew install bcinfra1/tap/bc
                 </code>
@@ -239,7 +275,9 @@ export function Nav() {
               </div>
               <div className="h-px bg-border/40 my-1" />
               <div className="px-3 py-2 flex items-center justify-between">
-                <span className="text-sm font-medium text-muted-foreground">Theme</span>
+                <span className="text-sm font-medium text-muted-foreground">
+                  Theme
+                </span>
                 <ThemeToggle />
               </div>
             </nav>

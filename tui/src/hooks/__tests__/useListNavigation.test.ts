@@ -267,9 +267,15 @@ describe('useListNavigation', () => {
   describe('Custom Keys (#1586)', () => {
     test('custom keys object can hold multiple handlers', () => {
       const customKeys: Record<string, () => void> = {
-        'r': () => {/* refresh */},
-        'x': () => {/* delete */},
-        'v': () => {/* toggle view */},
+        r: () => {
+          /* refresh */
+        },
+        x: () => {
+          /* delete */
+        },
+        v: () => {
+          /* toggle view */
+        },
       };
       expect(Object.keys(customKeys)).toHaveLength(3);
       expect(typeof customKeys.r).toBe('function');
@@ -278,8 +284,8 @@ describe('useListNavigation', () => {
     test('custom keys are looked up by input character', () => {
       const called: string[] = [];
       const customKeys: Record<string, () => void> = {
-        'r': () => called.push('r'),
-        'x': () => called.push('x'),
+        r: () => called.push('r'),
+        x: () => called.push('x'),
       };
 
       // Simulate key press
@@ -296,7 +302,7 @@ describe('useListNavigation', () => {
     test('clampIndex uses itemCount when provided instead of items.length', () => {
       // Simulates grouped view: 4 agents + 3 headers = 7 visible items
       const itemsLength = 4; // raw agents
-      const itemCount = 7;   // visible items with headers
+      const itemCount = 7; // visible items with headers
       const navLength = itemCount; // itemCount overrides items.length
 
       // Can navigate to index 6 (last visible item)

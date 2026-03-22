@@ -21,18 +21,13 @@ export function AgentCard({
   isSelected,
   indent = false,
 }: AgentCardProps): React.ReactElement {
-  const displayName = agent.name.length > 12
-    ? agent.name.slice(0, 11) + '…'
-    : agent.name.padEnd(12);
+  const displayName =
+    agent.name.length > 12 ? agent.name.slice(0, 11) + '…' : agent.name.padEnd(12);
 
   return (
     <Box marginLeft={indent ? 2 : 0}>
-      <Text color={isSelected ? 'cyan' : undefined}>
-        {isSelected ? '▸ ' : '  '}
-      </Text>
-      <Text color={isSelected ? 'cyan' : undefined}>
-        {displayName}
-      </Text>
+      <Text color={isSelected ? 'cyan' : undefined}>{isSelected ? '▸ ' : '  '}</Text>
+      <Text color={isSelected ? 'cyan' : undefined}>{displayName}</Text>
       <Text> </Text>
       <StatusBadge state={agent.state} />
       <Text> </Text>

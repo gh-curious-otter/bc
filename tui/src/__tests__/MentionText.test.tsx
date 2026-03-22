@@ -21,9 +21,7 @@ describe('MentionText', () => {
   });
 
   test('highlights multiple mentions', () => {
-    const { lastFrame } = renderWithTheme(
-      <MentionText text="@eng-01 and @eng-02 are working" />
-    );
+    const { lastFrame } = renderWithTheme(<MentionText text="@eng-01 and @eng-02 are working" />);
     const output = lastFrame() ?? '';
     expect(output).toContain('@eng-01');
     expect(output).toContain('@eng-02');
@@ -67,13 +65,13 @@ describe('MentionText', () => {
   });
 
   test('handles newline-only text with placeholder', () => {
-    const newlineText = "\n\n";
+    const newlineText = '\n\n';
     const { lastFrame } = renderWithTheme(<MentionText text={newlineText} />);
     expect(lastFrame()).toContain('(empty)');
   });
 
   test('handles tab-only text with placeholder', () => {
-    const tabText = "\t\t";
+    const tabText = '\t\t';
     const { lastFrame } = renderWithTheme(<MentionText text={tabText} />);
     expect(lastFrame()).toContain('(empty)');
   });
@@ -106,7 +104,7 @@ describe('MentionText', () => {
   });
 
   test('handles mixed whitespace text with placeholder', () => {
-    const mixedWhitespace = "  \n\t  \n  ";
+    const mixedWhitespace = '  \n\t  \n  ';
     const { lastFrame } = renderWithTheme(<MentionText text={mixedWhitespace} />);
     expect(lastFrame()).toContain('(empty)');
   });
@@ -120,7 +118,9 @@ describe('MentionText', () => {
   });
 
   test('handles text with special characters', () => {
-    const { lastFrame } = renderWithTheme(<MentionText text="Hello <script>alert('xss')</script> world" />);
+    const { lastFrame } = renderWithTheme(
+      <MentionText text="Hello <script>alert('xss')</script> world" />
+    );
     const output = lastFrame() ?? '';
     expect(output).toContain('Hello');
     expect(output).toContain('world');

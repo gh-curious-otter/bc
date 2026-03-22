@@ -9,10 +9,7 @@ import {
   Layers,
   Monitor,
 } from "lucide-react";
-import {
-  TerminalWindow,
-  CommandOutput,
-} from "./TerminalComponents";
+import { TerminalWindow, CommandOutput } from "./TerminalComponents";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -56,7 +53,9 @@ export function HeroSection() {
             <br />
             orchestration
             <br />
-            <span className="text-muted-foreground/40">from your terminal.</span>
+            <span className="text-muted-foreground/40">
+              from your terminal.
+            </span>
           </motion.h1>
 
           <motion.p
@@ -65,18 +64,25 @@ export function HeroSection() {
             className="mt-4 max-w-[520px] text-base leading-relaxed text-muted-foreground sm:text-lg"
           >
             Coordinate teams of AI coding agents from your terminal &mdash; with
-            isolated git worktrees, structured channels, persistent memory,
-            and cost controls.
+            isolated git worktrees, structured channels, persistent memory, and
+            cost controls.
           </motion.p>
 
-          <motion.div variants={fadeUp} custom={3} className="mt-6 flex flex-wrap items-center gap-3">
+          <motion.div
+            variants={fadeUp}
+            custom={3}
+            className="mt-6 flex flex-wrap items-center gap-3"
+          >
             <Link
               href="/waitlist"
               className="group inline-flex h-10 sm:h-11 items-center gap-2 rounded-lg bg-primary px-6 sm:px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-xl hover:shadow-primary/20 active:scale-[0.97]"
               aria-label="Join the bc waitlist"
             >
               Request Early Access
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+              <ArrowRight
+                className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                aria-hidden="true"
+              />
             </Link>
             <Link
               href="/docs"
@@ -94,12 +100,15 @@ export function HeroSection() {
             className="mt-8 flex flex-wrap items-center gap-6 font-mono text-xs text-muted-foreground"
           >
             <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5 text-success" aria-hidden="true" />
+              <CheckCircle2
+                className="h-3.5 w-3.5 text-success"
+                aria-hidden="true"
+              />
               Open source
             </span>
             <span className="flex items-center gap-1.5">
-              <Layers className="h-3.5 w-3.5" aria-hidden="true" />
-              8 AI tools supported
+              <Layers className="h-3.5 w-3.5" aria-hidden="true" />8 AI tools
+              supported
             </span>
             <span className="flex items-center gap-1.5">
               <Monitor className="h-3.5 w-3.5" aria-hidden="true" />
@@ -112,19 +121,43 @@ export function HeroSection() {
         <motion.div variants={fadeUp} custom={2} className="relative">
           <div className="absolute -inset-8 rounded-3xl bg-gradient-to-tr from-primary/5 via-transparent to-secondary/10 blur-3xl hero-glow" />
           <div className="relative">
-            <TerminalWindow title="bc up" ariaLabel="Terminal running bc up command, starting 5 AI coding agents in parallel">
+            <TerminalWindow
+              title="bc up"
+              ariaLabel="Terminal running bc up command, starting 5 AI coding agents in parallel"
+            >
               <CommandOutput
                 command="bc up"
                 lines={[
-                  { text: "Starting 5 agents...", color: "text-terminal-muted" },
+                  {
+                    text: "Starting 5 agents...",
+                    color: "text-terminal-muted",
+                  },
                   { text: "" },
-                  { text: "  \u2713 pm-01       product-manager   working   \"Planning sprint\"", color: "text-terminal-success" },
-                  { text: "  \u2713 mgr-01      manager           working   \"Reviewing PRs\"", color: "text-terminal-success" },
-                  { text: "  \u2713 eng-01      engineer          working   \"Building auth\"", color: "text-terminal-success" },
-                  { text: "  \u2713 eng-02      engineer          working   \"Fixing bugs\"", color: "text-terminal-success" },
-                  { text: "  \u2713 eng-03      engineer          working   \"Writing tests\"", color: "text-terminal-success" },
+                  {
+                    text: '  \u2713 pm-01       product-manager   working   "Planning sprint"',
+                    color: "text-terminal-success",
+                  },
+                  {
+                    text: '  \u2713 mgr-01      manager           working   "Reviewing PRs"',
+                    color: "text-terminal-success",
+                  },
+                  {
+                    text: '  \u2713 eng-01      engineer          working   "Building auth"',
+                    color: "text-terminal-success",
+                  },
+                  {
+                    text: '  \u2713 eng-02      engineer          working   "Fixing bugs"',
+                    color: "text-terminal-success",
+                  },
+                  {
+                    text: '  \u2713 eng-03      engineer          working   "Writing tests"',
+                    color: "text-terminal-success",
+                  },
                   { text: "" },
-                  { text: "All agents active. Dashboard: bc home", color: "text-terminal-muted" },
+                  {
+                    text: "All agents active. Dashboard: bc home",
+                    color: "text-terminal-muted",
+                  },
                 ]}
               />
             </TerminalWindow>

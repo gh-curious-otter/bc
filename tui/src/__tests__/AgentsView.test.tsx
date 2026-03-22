@@ -50,27 +50,21 @@ describe('Table', () => {
   ];
 
   it('renders column headers', () => {
-    const { lastFrame } = renderWithTheme(
-      <Table data={mockData} columns={columns} />
-    );
+    const { lastFrame } = renderWithTheme(<Table data={mockData} columns={columns} />);
     expect(lastFrame()).toContain('Name');
     expect(lastFrame()).toContain('Role');
     expect(lastFrame()).toContain('State');
   });
 
   it('renders data rows', () => {
-    const { lastFrame } = renderWithTheme(
-      <Table data={mockData} columns={columns} />
-    );
+    const { lastFrame } = renderWithTheme(<Table data={mockData} columns={columns} />);
     expect(lastFrame()).toContain('eng-01');
     expect(lastFrame()).toContain('eng-02');
     expect(lastFrame()).toContain('engineer');
   });
 
   it('renders empty state when no data', () => {
-    const { lastFrame } = renderWithTheme(
-      <Table data={[]} columns={columns} />
-    );
+    const { lastFrame } = renderWithTheme(<Table data={[]} columns={columns} />);
     expect(lastFrame()).toContain('No data');
   });
 });

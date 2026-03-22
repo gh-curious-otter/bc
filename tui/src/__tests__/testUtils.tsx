@@ -16,9 +16,7 @@ export function TestProviders({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider config={{ mode: 'dark' }}>
       <ConfigProvider>
-        <FocusProvider>
-          {children}
-        </FocusProvider>
+        <FocusProvider>{children}</FocusProvider>
       </ConfigProvider>
     </ThemeProvider>
   );

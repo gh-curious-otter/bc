@@ -50,7 +50,9 @@ export const LoadingIndicator = memo(function LoadingIndicator({
     const timer = setInterval(() => {
       setFrameIndex((i) => (i + 1) % frames.length);
     }, interval);
-    return () => { clearInterval(timer); };
+    return () => {
+      clearInterval(timer);
+    };
   }, [interval, frames.length]);
 
   return (
@@ -77,7 +79,9 @@ export const Spinner = memo(function Spinner({
     const timer = setInterval(() => {
       setFrameIndex((i) => (i + 1) % frames.length);
     }, interval);
-    return () => { clearInterval(timer); };
+    return () => {
+      clearInterval(timer);
+    };
   }, [interval, frames.length]);
 
   return <Text color={color}>{frames[frameIndex]}</Text>;

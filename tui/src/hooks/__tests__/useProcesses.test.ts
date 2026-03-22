@@ -22,7 +22,12 @@ import * as bcService from '../../services/bc';
 
 // useProcesses hook is not yet implemented;
 // stub it so tests compile but remain skipped via skipIf(noDOM)
-const useProcesses = vi.fn(() => ({ data: null, loading: true, error: null, refresh: vi.fn() })) as any;
+const useProcesses = vi.fn(() => ({
+  data: null,
+  loading: true,
+  error: null,
+  refresh: vi.fn(),
+})) as any;
 
 const mockBcService = bcService as any;
 
@@ -83,7 +88,7 @@ describe.skipIf(noDOM)('useProcesses - Process management', () => {
       vi.runAllTimers();
     });
 
-    const running = result.current.data?.filter(p => p.status === 'running') ?? [];
+    const running = result.current.data?.filter((p) => p.status === 'running') ?? [];
     expect(running).toHaveLength(2);
   });
 
@@ -101,7 +106,7 @@ describe.skipIf(noDOM)('useProcesses - Process management', () => {
       vi.runAllTimers();
     });
 
-    const found = result.current.data?.find(p => p.name === 'worker-1');
+    const found = result.current.data?.find((p) => p.name === 'worker-1');
     expect(found?.pid).toBe(1234);
   });
 
@@ -206,7 +211,7 @@ describe.skipIf(noDOM)('Process Logs - Streaming and monitoring', () => {
     mockBcService.getProcessLogs.mockResolvedValue(logsData);
 
     const logs = await bcService.getProcessLogs('worker-1', 100);
-    const errors = logs.filter(l => l.includes('ERROR'));
+    const errors = logs.filter((l) => l.includes('ERROR'));
     expect(errors).toHaveLength(2);
   });
 

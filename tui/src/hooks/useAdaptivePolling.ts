@@ -12,7 +12,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { usePerformanceConfig } from '../config';
 
-const BACKOFF_FACTOR = 1.5;    // Exponential backoff multiplier
+const BACKOFF_FACTOR = 1.5; // Exponential backoff multiplier
 const IDLE_THRESHOLD_MS = 10000; // 10s without changes = idle state
 
 export type PollingMode = 'fast' | 'normal' | 'slow' | 'backoff';
@@ -192,30 +192,36 @@ export function useAdaptivePolling(
     backoffCountRef.current = 0;
   }, [NORMAL_INTERVAL]);
 
-  const setModeManual = useCallback((newMode: PollingMode) => {
-    setMode(newMode);
-    switch (newMode) {
-      case 'fast':
-        setIntervalMs(FAST_INTERVAL);
-        break;
-      case 'normal':
-        setIntervalMs(NORMAL_INTERVAL);
-        break;
-      case 'slow':
-        setIntervalMs(SLOW_INTERVAL);
-        break;
-      case 'backoff':
-        setIntervalMs(MAX_INTERVAL);
-        break;
-    }
-  }, [FAST_INTERVAL, MAX_INTERVAL, NORMAL_INTERVAL, SLOW_INTERVAL]);
+  const setModeManual = useCallback(
+    (newMode: PollingMode) => {
+      setMode(newMode);
+      switch (newMode) {
+        case 'fast':
+          setIntervalMs(FAST_INTERVAL);
+          break;
+        case 'normal':
+          setIntervalMs(NORMAL_INTERVAL);
+          break;
+        case 'slow':
+          setIntervalMs(SLOW_INTERVAL);
+          break;
+        case 'backoff':
+          setIntervalMs(MAX_INTERVAL);
+          break;
+      }
+    },
+    [FAST_INTERVAL, MAX_INTERVAL, NORMAL_INTERVAL, SLOW_INTERVAL]
+  );
 
-  const state = useMemo<AdaptivePollingState>(() => ({
-    mode,
-    interval,
-    idleTime,
-    isIdle,
-  }), [mode, interval, idleTime, isIdle]);
+  const state = useMemo<AdaptivePollingState>(
+    () => ({
+      mode,
+      interval,
+      idleTime,
+      isIdle,
+    }),
+    [mode, interval, idleTime, isIdle]
+  );
 
   return {
     tick,

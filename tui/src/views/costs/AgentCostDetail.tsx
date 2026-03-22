@@ -41,16 +41,22 @@ const AgentCostDetail = memo(function AgentCostDetail({
       {/* Header */}
       <Box>
         <Text dimColor>◀ </Text>
-        <Text bold color={getColorForName(agent.name)}>{agent.name}</Text>
+        <Text bold color={getColorForName(agent.name)}>
+          {agent.name}
+        </Text>
         <Box flexGrow={1} />
-        <Text color={theme.colors.warning} bold>${agent.cost.toFixed(2)}</Text>
+        <Text color={theme.colors.warning} bold>
+          ${agent.cost.toFixed(2)}
+        </Text>
       </Box>
 
       {/* Stats */}
       <Box flexDirection="column" marginTop={1} marginLeft={2}>
         <Box>
           <Text dimColor>{'Tokens     '.padEnd(12)}</Text>
-          <Text>{estTokensIn.toLocaleString()} in / {estTokensOut.toLocaleString()} out</Text>
+          <Text>
+            {estTokensIn.toLocaleString()} in / {estTokensOut.toLocaleString()} out
+          </Text>
         </Box>
         <Box>
           <Text dimColor>{'API calls  '.padEnd(12)}</Text>
@@ -65,7 +71,9 @@ const AgentCostDetail = memo(function AgentCostDetail({
       {/* Model Breakdown */}
       {agentModelCosts.length > 0 && (
         <Box flexDirection="column" marginTop={1} marginLeft={2}>
-          <Text bold dimColor>Model Breakdown</Text>
+          <Text bold dimColor>
+            Model Breakdown
+          </Text>
           {agentModelCosts.map(({ model, cost, percent }) => {
             const displayModel = model.length > 10 ? model.slice(0, 9) + '…' : model.padEnd(10);
             return (

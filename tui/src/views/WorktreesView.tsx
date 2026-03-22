@@ -86,7 +86,9 @@ export const WorktreesView: React.FC = () => {
       // Refresh after prune
       await fetchWorktrees();
       // Clear result after delay
-      setTimeout(() => { setPruneResult(null); }, 3000);
+      setTimeout(() => {
+        setPruneResult(null);
+      }, 3000);
     } catch (err) {
       setPruneResult(`Error: ${err instanceof Error ? err.message : 'Failed to prune'}`);
     }
@@ -99,14 +101,20 @@ export const WorktreesView: React.FC = () => {
     setSelectedIndex,
   } = useListNavigation({
     items: filteredWorktrees,
-    onSelect: () => { setShowDetail(true); },
+    onSelect: () => {
+      setShowDetail(true);
+    },
     customKeys: {
-      'o': () => {
+      o: () => {
         setShowOrphanedOnly(!showOrphanedOnly);
         setSelectedIndex(0);
       },
-      'p': () => { if (hasOrphans) setShowPruneConfirm(true); },
-      'r': () => { void fetchWorktrees(); },
+      p: () => {
+        if (hasOrphans) setShowPruneConfirm(true);
+      },
+      r: () => {
+        void fetchWorktrees();
+      },
     },
     // Disable navigation when in modal states
     isActive: !showDetail && !showPruneConfirm,
@@ -124,33 +132,50 @@ export const WorktreesView: React.FC = () => {
   }, [showDetail, selectedWorktree, setFocus, setBreadcrumbs, clearBreadcrumbs]);
 
   // Handle prune confirmation dialog input
-  useInput((input, key) => {
-    if (showPruneConfirm) {
-      if (input === 'y' || input === 'Y') {
-        void handlePrune().catch(() => { /* error handled in handlePrune */ });
-      } else if (input === 'n' || input === 'N' || key.escape) {
-        setShowPruneConfirm(false);
+  useInput(
+    (input, key) => {
+      if (showPruneConfirm) {
+        if (input === 'y' || input === 'Y') {
+          void handlePrune().catch(() => {
+            /* error handled in handlePrune */
+          });
+        } else if (input === 'n' || input === 'N' || key.escape) {
+          setShowPruneConfirm(false);
+        }
+      } else if (showDetail) {
+        if (key.escape || input === 'q' || key.return) {
+          setShowDetail(false);
+        }
       }
-    } else if (showDetail) {
-      if (key.escape || input === 'q' || key.return) {
-        setShowDetail(false);
-      }
-    }
-  }, { isActive: (showPruneConfirm || showDetail) && !overlayActive });
+    },
+    { isActive: (showPruneConfirm || showDetail) && !overlayActive }
+  );
 
   // Prune confirmation dialog
   if (showPruneConfirm) {
     return (
       <Box flexDirection="column" padding={1}>
-        <Text bold color={theme.colors.warning}>Confirm Prune</Text>
-        <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor={theme.colors.warning} padding={1}>
+        <Text bold color={theme.colors.warning}>
+          Confirm Prune
+        </Text>
+        <Box
+          marginTop={1}
+          flexDirection="column"
+          borderStyle="single"
+          borderColor={theme.colors.warning}
+          padding={1}
+        >
           <Text>This will remove {orphanedWorktrees.length} orphaned worktree(s):</Text>
           <Box marginTop={1} flexDirection="column">
             {orphanedWorktrees.slice(0, DISPLAY_LIMITS.ORPHANED_WORKTREES).map((wt) => (
-              <Text key={wt.path} color={theme.colors.error}>- {wt.agent}: {formatPath(wt.path)}</Text>
+              <Text key={wt.path} color={theme.colors.error}>
+                - {wt.agent}: {formatPath(wt.path)}
+              </Text>
             ))}
             {orphanedWorktrees.length > DISPLAY_LIMITS.ORPHANED_WORKTREES && (
-              <Text dimColor>... and {orphanedWorktrees.length - DISPLAY_LIMITS.ORPHANED_WORKTREES} more</Text>
+              <Text dimColor>
+                ... and {orphanedWorktrees.length - DISPLAY_LIMITS.ORPHANED_WORKTREES} more
+              </Text>
             )}
           </Box>
           <Box marginTop={1}>
@@ -165,8 +190,16 @@ export const WorktreesView: React.FC = () => {
   if (showDetail && selectedWorktree) {
     return (
       <Box flexDirection="column" padding={1}>
-        <Text bold color={theme.colors.primary}>Worktree Details</Text>
-        <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor={theme.colors.textMuted} padding={1}>
+        <Text bold color={theme.colors.primary}>
+          Worktree Details
+        </Text>
+        <Box
+          marginTop={1}
+          flexDirection="column"
+          borderStyle="single"
+          borderColor={theme.colors.textMuted}
+          padding={1}
+        >
           <Box>
             <Text bold>Agent: </Text>
             <Text color={theme.colors.primary}>{selectedWorktree.agent}</Text>
@@ -177,7 +210,9 @@ export const WorktreesView: React.FC = () => {
           </Box>
           <Box>
             <Text bold>Status: </Text>
-            <Text color={selectedWorktree.status === 'OK' ? theme.colors.success : theme.colors.error}>
+            <Text
+              color={selectedWorktree.status === 'OK' ? theme.colors.success : theme.colors.error}
+            >
               {selectedWorktree.status}
             </Text>
           </Box>
@@ -200,7 +235,14 @@ export const WorktreesView: React.FC = () => {
   }
 
   if (error) {
-    return <ErrorDisplay error={error} onRetry={() => { void fetchWorktrees(); }} />;
+    return (
+      <ErrorDisplay
+        error={error}
+        onRetry={() => {
+          void fetchWorktrees();
+        }}
+      />
+    );
   }
 
   // Calculate column widths
@@ -209,9 +251,8 @@ export const WorktreesView: React.FC = () => {
   const pathWidth = Math.min(50, terminalWidth - agentWidth - statusWidth - 10);
 
   // Build subtitle with stats
-  const worktreeSubtitle = orphanedWorktrees.length > 0
-    ? `${String(orphanedWorktrees.length)} orphaned`
-    : undefined;
+  const worktreeSubtitle =
+    orphanedWorktrees.length > 0 ? `${String(orphanedWorktrees.length)} orphaned` : undefined;
 
   return (
     <Box flexDirection="column" overflow="hidden">
@@ -314,14 +355,16 @@ export const WorktreesView: React.FC = () => {
       </Box>
 
       {/* Footer */}
-      <Footer hints={[
-        { key: 'j/k', label: 'nav' },
-        { key: 'g/G', label: 'top/bottom' },
-        { key: 'Enter', label: 'details' },
-        { key: 'o', label: showOrphanedOnly ? 'show all' : 'orphans only' },
-        ...(hasOrphans ? [{ key: 'p', label: 'prune' }] : []),
-        { key: 'r', label: 'refresh' },
-      ]} />
+      <Footer
+        hints={[
+          { key: 'j/k', label: 'nav' },
+          { key: 'g/G', label: 'top/bottom' },
+          { key: 'Enter', label: 'details' },
+          { key: 'o', label: showOrphanedOnly ? 'show all' : 'orphans only' },
+          ...(hasOrphans ? [{ key: 'p', label: 'prune' }] : []),
+          { key: 'r', label: 'refresh' },
+        ]}
+      />
     </Box>
   );
 };

@@ -22,13 +22,16 @@ export interface ChannelRowProps {
  * - Unread badge with yellow highlight
  * - Column layout: CHANNEL (24) | UNREAD (12) | MEMBERS (10) | DESCRIPTION (flex)
  */
-export function ChannelRow({ channel, selected, unreadCount }: ChannelRowProps): React.ReactElement {
+export function ChannelRow({
+  channel,
+  selected,
+  unreadCount,
+}: ChannelRowProps): React.ReactElement {
   const textColor = selected ? 'cyan' : unreadCount > 0 ? 'yellow' : undefined;
 
   // Unread display: "● N new" or "-"
-  const unreadDisplay = unreadCount > 0
-    ? `● ${unreadCount > 99 ? '99+' : String(unreadCount)} new`
-    : '-';
+  const unreadDisplay =
+    unreadCount > 0 ? `● ${unreadCount > 99 ? '99+' : String(unreadCount)} new` : '-';
 
   return (
     <Box paddingX={1}>
@@ -46,7 +49,9 @@ export function ChannelRow({ channel, selected, unreadCount }: ChannelRowProps):
         <Text dimColor>{String(channel.members.length)}</Text>
       </Box>
       <Box flexGrow={1}>
-        <Text dimColor wrap="truncate">{channel.description ?? '-'}</Text>
+        <Text dimColor wrap="truncate">
+          {channel.description ?? '-'}
+        </Text>
       </Box>
     </Box>
   );

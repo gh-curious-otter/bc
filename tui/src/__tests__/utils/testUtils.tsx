@@ -100,7 +100,7 @@ export function mockBcService(responses?: Record<string, unknown>) {
      * Assert command was called
      */
     assertCalled: (command: string) => {
-      const called = callHistory.some(call => call.command === command);
+      const called = callHistory.some((call) => call.command === command);
       if (!called) {
         throw new Error(`Expected command "${command}" to be called, but it wasn't`);
       }
@@ -110,7 +110,7 @@ export function mockBcService(responses?: Record<string, unknown>) {
      * Assert command was NOT called
      */
     assertNotCalled: (command: string) => {
-      const called = callHistory.some(call => call.command === command);
+      const called = callHistory.some((call) => call.command === command);
       if (called) {
         throw new Error(`Expected command "${command}" not to be called, but it was`);
       }
@@ -128,14 +128,14 @@ export function mockBcService(responses?: Record<string, unknown>) {
  */
 export function simulateKeypress(key: string) {
   const keyMap: Record<string, any> = {
-    'enter': { return: true },
-    'escape': { escape: true },
-    'backspace': { backspace: true },
-    'tab': { tab: true },
-    'arrowup': { upArrow: true },
-    'arrowdown': { downArrow: true },
-    'arrowleft': { leftArrow: true },
-    'arrowright': { rightArrow: true },
+    enter: { return: true },
+    escape: { escape: true },
+    backspace: { backspace: true },
+    tab: { tab: true },
+    arrowup: { upArrow: true },
+    arrowdown: { downArrow: true },
+    arrowleft: { leftArrow: true },
+    arrowright: { rightArrow: true },
   };
 
   // Single character key
@@ -168,7 +168,7 @@ export async function waitForElement(
     if (predicate()) {
       return;
     }
-    await new Promise(resolve => setTimeout(resolve, interval));
+    await new Promise((resolve) => setTimeout(resolve, interval));
   }
 
   throw new Error(`Element not found within ${timeout}ms`);
@@ -198,10 +198,7 @@ export async function waitForText(
  * @param initialProps Initial props for hook
  * @returns Test component
  */
-export function createHookTestComponent<T, P>(
-  hook: (props: P) => T,
-  initialProps: P
-) {
+export function createHookTestComponent<T, P>(hook: (props: P) => T, initialProps: P) {
   let result: T;
 
   const TestComponent = () => {

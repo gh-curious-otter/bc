@@ -81,8 +81,7 @@ describe('useTeams Helper Functions', () => {
     });
 
     test('finds team by name', () => {
-      const findByName = (teams: Team[], name: string) =>
-        teams.find((t) => t.name === name);
+      const findByName = (teams: Team[], name: string) => teams.find((t) => t.name === name);
 
       const result = findByName(teams, 'frontend');
       expect(result?.name).toBe('frontend');
@@ -90,8 +89,7 @@ describe('useTeams Helper Functions', () => {
     });
 
     test('counts total members across teams', () => {
-      const countMembers = (teams: Team[]) =>
-        teams.reduce((sum, t) => sum + t.members.length, 0);
+      const countMembers = (teams: Team[]) => teams.reduce((sum, t) => sum + t.members.length, 0);
 
       expect(countMembers(teams)).toBe(6);
     });

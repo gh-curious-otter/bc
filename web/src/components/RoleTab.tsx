@@ -1,7 +1,7 @@
-import { useCallback, useState } from 'react';
-import { api } from '../api/client';
-import type { Role } from '../api/client';
-import { usePolling } from '../hooks/usePolling';
+import { useCallback, useState } from "react";
+import { api } from "../api/client";
+import type { Role } from "../api/client";
+import { usePolling } from "../hooks/usePolling";
 
 const PROMPT_COLLAPSE_THRESHOLD = 200;
 
@@ -21,24 +21,34 @@ function ExpandableText({ text, label }: { text: string; label?: string }) {
     <div className="space-y-1">
       {label && <span className="text-xs text-bc-muted">{label}</span>}
       <pre className="text-xs bg-bc-bg rounded p-2 whitespace-pre-wrap text-bc-fg/80 border border-bc-border">
-        {expanded ? text.trim() : text.slice(0, PROMPT_COLLAPSE_THRESHOLD).trim() + '...'}
+        {expanded
+          ? text.trim()
+          : text.slice(0, PROMPT_COLLAPSE_THRESHOLD).trim() + "..."}
       </pre>
       {long && (
         <button
           onClick={() => setExpanded(!expanded)}
           className="text-xs text-bc-accent hover:underline"
         >
-          {expanded ? 'Collapse' : 'Show full prompt'}
+          {expanded ? "Collapse" : "Show full prompt"}
         </button>
       )}
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-2">
-      <h3 className="text-sm font-medium text-bc-muted uppercase tracking-wide">{title}</h3>
+      <h3 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
+        {title}
+      </h3>
       {children}
     </div>
   );
@@ -53,7 +63,9 @@ function RuleItem({ name, content }: { name: string; content: string }) {
         onClick={() => setExpanded(!expanded)}
       >
         <span className="text-xs font-medium">{name}</span>
-        <span className="text-xs text-bc-muted">{expanded ? '\u25BC' : '\u25B6'}</span>
+        <span className="text-xs text-bc-muted">
+          {expanded ? "\u25BC" : "\u25B6"}
+        </span>
       </div>
       {expanded && (
         <pre className="text-xs whitespace-pre-wrap text-bc-fg/80 pt-1 border-t border-bc-border">
@@ -70,20 +82,27 @@ export function RoleTab({ roleName }: { roleName: string }) {
     return roles[roleName] ?? null;
   }, [roleName]);
 
-  const { data: role, loading, error } = usePolling<Role | null>(fetcher, 30000);
+  const {
+    data: role,
+    loading,
+    error,
+  } = usePolling<Role | null>(fetcher, 30000);
 
   if (loading && role === undefined) {
     return <div className="text-sm text-bc-muted">Loading role...</div>;
   }
 
   if (error) {
-    return <div className="text-sm text-bc-error">Failed to load role: {error}</div>;
+    return (
+      <div className="text-sm text-bc-error">Failed to load role: {error}</div>
+    );
   }
 
   if (!role) {
     return (
       <div className="rounded border border-bc-border bg-bc-surface p-4 text-sm text-bc-muted">
-        Role not found: <span className="font-medium text-bc-text">{roleName}</span>
+        Role not found:{" "}
+        <span className="font-medium text-bc-text">{roleName}</span>
       </div>
     );
   }
@@ -122,7 +141,11 @@ export function RoleTab({ roleName }: { roleName: string }) {
         <Section title="Secrets">
           <div className="flex flex-wrap gap-2">
             {secrets.map((s) => (
-              <Badge key={s} text={s} color="bg-yellow-500/20 text-yellow-400" />
+              <Badge
+                key={s}
+                text={s}
+                color="bg-yellow-500/20 text-yellow-400"
+              />
             ))}
           </div>
         </Section>
@@ -135,15 +158,26 @@ export function RoleTab({ roleName }: { roleName: string }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-bc-border bg-bc-bg">
-                  <th className="text-left px-3 py-1.5 text-xs text-bc-muted font-medium">Name</th>
-                  <th className="text-left px-3 py-1.5 text-xs text-bc-muted font-medium">Description</th>
+                  <th className="text-left px-3 py-1.5 text-xs text-bc-muted font-medium">
+                    Name
+                  </th>
+                  <th className="text-left px-3 py-1.5 text-xs text-bc-muted font-medium">
+                    Description
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {commandEntries.map(([name, desc]) => (
-                  <tr key={name} className="border-b border-bc-border/30 last:border-0">
-                    <td className="px-3 py-1.5 font-mono text-xs text-bc-accent">/{name}</td>
-                    <td className="px-3 py-1.5 text-xs text-bc-fg/80 whitespace-pre-wrap">{desc || '—'}</td>
+                  <tr
+                    key={name}
+                    className="border-b border-bc-border/30 last:border-0"
+                  >
+                    <td className="px-3 py-1.5 font-mono text-xs text-bc-accent">
+                      /{name}
+                    </td>
+                    <td className="px-3 py-1.5 text-xs text-bc-fg/80 whitespace-pre-wrap">
+                      {desc || "—"}
+                    </td>
                   </tr>
                 ))}
               </tbody>

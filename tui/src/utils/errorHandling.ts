@@ -22,9 +22,7 @@ export interface ApiErrorResult {
  * Result type for operations that can fail
  * Use this instead of throwing or returning null
  */
-export type Result<T> =
-  | { success: true; data: T }
-  | { success: false; error: ApiErrorResult };
+export type Result<T> = { success: true; data: T } | { success: false; error: ApiErrorResult };
 
 /**
  * Create a successful result
@@ -158,9 +156,7 @@ export function handleApiError(error: unknown): ApiErrorResult {
  * @param fn - Async function to wrap
  * @returns Result with either data or structured error
  */
-export async function withErrorHandling<T>(
-  fn: () => Promise<T>
-): Promise<Result<T>> {
+export async function withErrorHandling<T>(fn: () => Promise<T>): Promise<Result<T>> {
   try {
     const data = await fn();
     return ok(data);

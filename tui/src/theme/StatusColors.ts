@@ -10,14 +10,14 @@
  * Status color definitions with semantic meaning
  */
 export const STATUS_COLORS = {
-  working: 'cyan',      // Active/Working agents
-  idle: 'gray',         // Inactive/Idle agents
-  done: 'green',        // Completed/Done state
-  error: 'red',         // Error/Failed state
-  warning: 'yellow',    // Warning/Attention needed
-  info: 'blue',         // Information/General
-  pending: 'gray',      // Pending/Not started
-  success: 'green',     // Success/OK state
+  working: 'cyan', // Active/Working agents
+  idle: 'gray', // Inactive/Idle agents
+  done: 'green', // Completed/Done state
+  error: 'red', // Error/Failed state
+  warning: 'yellow', // Warning/Attention needed
+  info: 'blue', // Information/General
+  pending: 'gray', // Pending/Not started
+  success: 'green', // Success/OK state
 } as const;
 
 export type StatusColor = keyof typeof STATUS_COLORS;
@@ -26,14 +26,14 @@ export type StatusColor = keyof typeof STATUS_COLORS;
  * Status symbols (for accessibility - symbol + color combination)
  */
 export const STATUS_SYMBOLS = {
-  working: '●',  // Filled circle - actively working
-  idle: '○',     // Empty circle - not working
-  done: '✓',     // Checkmark - completed
-  error: '✗',    // X mark - failed
-  warning: '⚠',  // Warning sign
-  info: 'ℹ',     // Info symbol
-  pending: '−',  // Dash - not started
-  success: '✓',  // Checkmark - OK
+  working: '●', // Filled circle - actively working
+  idle: '○', // Empty circle - not working
+  done: '✓', // Checkmark - completed
+  error: '✗', // X mark - failed
+  warning: '⚠', // Warning sign
+  info: 'ℹ', // Info symbol
+  pending: '−', // Dash - not started
+  success: '✓', // Checkmark - OK
 } as const;
 
 /**
@@ -64,18 +64,18 @@ export function getStatusIndicator(status: StatusColor): { color: string; symbol
  * Health status colors (for progress/health indicators)
  */
 export const HEALTH_COLORS = {
-  healthy: 'green',      // 80-100% healthy
-  warning: 'yellow',     // 50-79% healthy
-  critical: 'red',       // <50% healthy
+  healthy: 'green', // 80-100% healthy
+  warning: 'yellow', // 50-79% healthy
+  critical: 'red', // <50% healthy
 } as const;
 
 /**
  * Health status symbols (for accessibility - colorblind support #1220)
  */
 export const HEALTH_SYMBOLS = {
-  healthy: '●',    // Filled circle - all good
-  warning: '◐',    // Half circle - needs attention
-  critical: '○',   // Empty circle - critical
+  healthy: '●', // Filled circle - all good
+  warning: '◐', // Half circle - needs attention
+  critical: '○', // Empty circle - critical
 } as const;
 
 export type HealthStatus = keyof typeof HEALTH_COLORS;
@@ -83,7 +83,11 @@ export type HealthStatus = keyof typeof HEALTH_COLORS;
 /**
  * Get health indicator with color and symbol
  */
-export function getHealthIndicator(status: HealthStatus): { color: string; symbol: string; label: string } {
+export function getHealthIndicator(status: HealthStatus): {
+  color: string;
+  symbol: string;
+  label: string;
+} {
   const labels: Record<HealthStatus, string> = {
     healthy: 'Healthy',
     warning: 'Warning',
@@ -100,18 +104,18 @@ export function getHealthIndicator(status: HealthStatus): { color: string; symbo
  * Cost/budget colors
  */
 export const COST_COLORS = {
-  normal: 'green',       // <75% of budget used
-  warning: 'yellow',     // 75-90% of budget used
-  critical: 'red',       // >90% of budget used
+  normal: 'green', // <75% of budget used
+  warning: 'yellow', // 75-90% of budget used
+  critical: 'red', // >90% of budget used
 } as const;
 
 /**
  * Cost/budget symbols (for accessibility - colorblind support #1220)
  */
 export const COST_SYMBOLS = {
-  normal: '✓',     // Checkmark - within budget
-  warning: '⚠',    // Warning - approaching limit
-  critical: '!',   // Exclamation - over/at budget
+  normal: '✓', // Checkmark - within budget
+  warning: '⚠', // Warning - approaching limit
+  critical: '!', // Exclamation - over/at budget
 } as const;
 
 export type CostStatus = keyof typeof COST_COLORS;
@@ -119,7 +123,11 @@ export type CostStatus = keyof typeof COST_COLORS;
 /**
  * Get cost indicator with color and symbol
  */
-export function getCostIndicator(status: CostStatus): { color: string; symbol: string; label: string } {
+export function getCostIndicator(status: CostStatus): {
+  color: string;
+  symbol: string;
+  label: string;
+} {
   const labels: Record<CostStatus, string> = {
     normal: 'OK',
     warning: 'Near Limit',

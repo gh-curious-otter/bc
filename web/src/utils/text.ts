@@ -7,10 +7,10 @@ const OSC = /\x1b\][^\x07]*\x07/g;
 const CHARSET = /\x1b\(B/g;
 
 export function stripAnsi(str: string): string {
-  return str.replace(CSI, '').replace(OSC, '').replace(CHARSET, '');
+  return str.replace(CSI, "").replace(OSC, "").replace(CHARSET, "");
 }
 
 /** Truncate string to maxLen characters with ellipsis. */
 export function truncate(str: string, maxLen: number): string {
-  return str.length > maxLen ? str.slice(0, maxLen) + '…' : str;
+  return str.length > maxLen ? str.slice(0, maxLen) + "…" : str;
 }

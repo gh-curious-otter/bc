@@ -21,7 +21,10 @@ import {
 } from './agent-detail';
 
 // Safe wrapper for useInput that handles test environments
-const useSafeInput = (handler: Parameters<typeof inkUseInput>[0], options?: Parameters<typeof inkUseInput>[1]) => {
+const useSafeInput = (
+  handler: Parameters<typeof inkUseInput>[0],
+  options?: Parameters<typeof inkUseInput>[1]
+) => {
   try {
     inkUseInput(handler, options);
   } catch {
@@ -34,10 +37,7 @@ interface AgentDetailViewProps {
   onBack?: () => void;
 }
 
-export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
-  agent,
-  onBack,
-}) => {
+export const AgentDetailView: React.FC<AgentDetailViewProps> = ({ agent, onBack }) => {
   const { theme } = useTheme();
   const [state, dispatch] = useReducer(agentDetailReducer, initialState);
   const { setFocus } = useFocus();
@@ -61,7 +61,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
     try {
       const output = await execBc(['agent', 'peek', agent.name, '--lines', '50']);
       // #1844: Strip peek headers and empty lines from output
-      const lines = output.split('\n').filter(line => line.trim() && !isPeekHeader(line));
+      const lines = output.split('\n').filter((line) => line.trim() && !isPeekHeader(line));
       dispatch({ type: 'SET_OUTPUT', lines });
       dispatch({ type: 'SET_ERROR', error: null });
     } catch (err) {
@@ -75,11 +75,12 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
     try {
       const output = await execBc(['agent', 'peek', agent.name, '--lines', '200']);
       // #1844: Strip peek headers and empty lines from output
-      const lines = output.split('\n').filter(line => line.trim() && !isPeekHeader(line));
+      const lines = output.split('\n').filter((line) => line.trim() && !isPeekHeader(line));
       // Auto-scroll to bottom if following and new content arrived
-      const newOffset = state.isFollowing && lines.length > state.liveLines.length
-        ? Math.max(0, lines.length - 20)
-        : undefined;
+      const newOffset =
+        state.isFollowing && lines.length > state.liveLines.length
+          ? Math.max(0, lines.length - 20)
+          : undefined;
       dispatch({ type: 'SET_LIVE_LINES', lines, scrollOffset: newOffset });
       dispatch({ type: 'SET_ERROR', error: null });
     } catch {
@@ -89,14 +90,18 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
 
   useEffect(() => {
     dispatch({ type: 'SET_LOADING', loading: true });
-    void fetchAgentOutput().finally(() => { dispatch({ type: 'SET_LOADING', loading: false }); });
+    void fetchAgentOutput().finally(() => {
+      dispatch({ type: 'SET_LOADING', loading: false });
+    });
   }, [fetchAgentOutput]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       void fetchAgentOutput();
     }, 2000);
-    return () => { clearInterval(interval); };
+    return () => {
+      clearInterval(interval);
+    };
   }, [fetchAgentOutput]);
 
   // #1855: Live mode polls at 2.5s only when following; stops when paused.
@@ -110,89 +115,104 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
     const interval = setInterval(() => {
       void fetchLiveOutput();
     }, 2500);
-    return () => { clearInterval(interval); };
+    return () => {
+      clearInterval(interval);
+    };
   }, [state.activeTab, state.isFollowing, fetchLiveOutput]);
 
-  const sendMessage = useCallback(async (message: string) => {
-    if (!message.trim()) return;
-    try {
-      dispatch({ type: 'SET_SEND_STATUS', status: `Sending to ${agent.name}...` });
-      await execBc(['agent', 'send', agent.name, message]);
-      dispatch({ type: 'SET_SEND_STATUS', status: `Sent to ${agent.name}` });
-      dispatch({ type: 'SET_MESSAGE_BUFFER', buffer: '' });
-      setTimeout(() => { dispatch({ type: 'SET_SEND_STATUS', status: null }); }, 2000);
-      await fetchAgentOutput();
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to send';
-      dispatch({ type: 'SET_SEND_STATUS', status: `Error: ${errorMsg}` });
-      setTimeout(() => { dispatch({ type: 'SET_SEND_STATUS', status: null }); }, 3000);
-    }
-  }, [agent.name, fetchAgentOutput]);
+  const sendMessage = useCallback(
+    async (message: string) => {
+      if (!message.trim()) return;
+      try {
+        dispatch({ type: 'SET_SEND_STATUS', status: `Sending to ${agent.name}...` });
+        await execBc(['agent', 'send', agent.name, message]);
+        dispatch({ type: 'SET_SEND_STATUS', status: `Sent to ${agent.name}` });
+        dispatch({ type: 'SET_MESSAGE_BUFFER', buffer: '' });
+        setTimeout(() => {
+          dispatch({ type: 'SET_SEND_STATUS', status: null });
+        }, 2000);
+        await fetchAgentOutput();
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Failed to send';
+        dispatch({ type: 'SET_SEND_STATUS', status: `Error: ${errorMsg}` });
+        setTimeout(() => {
+          dispatch({ type: 'SET_SEND_STATUS', status: null });
+        }, 3000);
+      }
+    },
+    [agent.name, fetchAgentOutput]
+  );
 
-  useSafeInput((input, key) => {
-    if (state.inputMode) {
-      if (key.return) {
-        void sendMessage(state.messageBuffer);
-        dispatch({ type: 'TOGGLE_INPUT_MODE', enabled: false });
-      } else if (key.escape) {
-        dispatch({ type: 'RESET_INPUT' });
-      } else if (key.backspace || key.delete) {
-        dispatch({ type: 'SET_MESSAGE_BUFFER', buffer: state.messageBuffer.slice(0, -1) });
-      } else if (input && !key.ctrl && !key.meta) {
-        dispatch({ type: 'SET_MESSAGE_BUFFER', buffer: state.messageBuffer + input });
-      }
-    } else {
-      if (input === 'i' || input === 'm') {
-        dispatch({ type: 'TOGGLE_INPUT_MODE', enabled: true });
-      } else if (input === 'a') {
-        // #1691: Attach to agent's tmux session directly
-        const bcBin = process.env.BC_BIN ?? 'bc';
-        spawnSync(bcBin, ['agent', 'attach', agent.name], {
-          stdio: 'inherit',
-        });
-        void fetchAgentOutput();
-      } else if (input === 'q' || key.escape) {
-        onBack?.();
-      } else if (input === 'r') {
-        if (state.activeTab === 'live') {
-          void fetchLiveOutput();
-        } else {
+  useSafeInput(
+    (input, key) => {
+      if (state.inputMode) {
+        if (key.return) {
+          void sendMessage(state.messageBuffer);
+          dispatch({ type: 'TOGGLE_INPUT_MODE', enabled: false });
+        } else if (key.escape) {
+          dispatch({ type: 'RESET_INPUT' });
+        } else if (key.backspace || key.delete) {
+          dispatch({ type: 'SET_MESSAGE_BUFFER', buffer: state.messageBuffer.slice(0, -1) });
+        } else if (input && !key.ctrl && !key.meta) {
+          dispatch({ type: 'SET_MESSAGE_BUFFER', buffer: state.messageBuffer + input });
+        }
+      } else {
+        if (input === 'i' || input === 'm') {
+          dispatch({ type: 'TOGGLE_INPUT_MODE', enabled: true });
+        } else if (input === 'a') {
+          // #1691: Attach to agent's tmux session directly
+          const bcBin = process.env.BC_BIN ?? 'bc';
+          spawnSync(bcBin, ['agent', 'attach', agent.name], {
+            stdio: 'inherit',
+          });
           void fetchAgentOutput();
-        }
-      } else if (input === '1') {
-        dispatch({ type: 'SET_TAB', tab: 'output' });
-      } else if (input === '2') {
-        dispatch({ type: 'SET_TAB', tab: 'live' });
-        dispatch({ type: 'SET_SCROLL_OFFSET', offset: 0 });
-      } else if (input === '3') {
-        dispatch({ type: 'SET_TAB', tab: 'details' });
-      } else if (input === '4') {
-        dispatch({ type: 'SET_TAB', tab: 'metrics' });
-      } else if (state.activeTab === 'live' && (input === 'j' || key.downArrow)) {
-        const maxOffset = Math.max(0, state.liveLines.length - 20);
-        const newOffset = Math.min(state.scrollOffset + 1, maxOffset);
-        dispatch({ type: 'SET_SCROLL_OFFSET', offset: newOffset });
-        if (newOffset >= maxOffset) {
+        } else if (input === 'q' || key.escape) {
+          onBack?.();
+        } else if (input === 'r') {
+          if (state.activeTab === 'live') {
+            void fetchLiveOutput();
+          } else {
+            void fetchAgentOutput();
+          }
+        } else if (input === '1') {
+          dispatch({ type: 'SET_TAB', tab: 'output' });
+        } else if (input === '2') {
+          dispatch({ type: 'SET_TAB', tab: 'live' });
+          dispatch({ type: 'SET_SCROLL_OFFSET', offset: 0 });
+        } else if (input === '3') {
+          dispatch({ type: 'SET_TAB', tab: 'details' });
+        } else if (input === '4') {
+          dispatch({ type: 'SET_TAB', tab: 'metrics' });
+        } else if (state.activeTab === 'live' && (input === 'j' || key.downArrow)) {
+          const maxOffset = Math.max(0, state.liveLines.length - 20);
+          const newOffset = Math.min(state.scrollOffset + 1, maxOffset);
+          dispatch({ type: 'SET_SCROLL_OFFSET', offset: newOffset });
+          if (newOffset >= maxOffset) {
+            dispatch({ type: 'SET_IS_FOLLOWING', following: true });
+          }
+        } else if (state.activeTab === 'live' && (input === 'k' || key.upArrow)) {
+          dispatch({ type: 'SET_IS_FOLLOWING', following: false });
+          dispatch({ type: 'SET_SCROLL_OFFSET', offset: Math.max(0, state.scrollOffset - 1) });
+        } else if (state.activeTab === 'live' && input === 'g') {
+          dispatch({ type: 'SET_IS_FOLLOWING', following: false });
+          dispatch({ type: 'SET_SCROLL_OFFSET', offset: 0 });
+        } else if (state.activeTab === 'live' && input === 'G') {
           dispatch({ type: 'SET_IS_FOLLOWING', following: true });
-        }
-      } else if (state.activeTab === 'live' && (input === 'k' || key.upArrow)) {
-        dispatch({ type: 'SET_IS_FOLLOWING', following: false });
-        dispatch({ type: 'SET_SCROLL_OFFSET', offset: Math.max(0, state.scrollOffset - 1) });
-      } else if (state.activeTab === 'live' && input === 'g') {
-        dispatch({ type: 'SET_IS_FOLLOWING', following: false });
-        dispatch({ type: 'SET_SCROLL_OFFSET', offset: 0 });
-      } else if (state.activeTab === 'live' && input === 'G') {
-        dispatch({ type: 'SET_IS_FOLLOWING', following: true });
-        dispatch({ type: 'SET_SCROLL_OFFSET', offset: Math.max(0, state.liveLines.length - 20) });
-      } else if (state.activeTab === 'live' && input === 'f') {
-        const nowFollowing = !state.isFollowing;
-        dispatch({ type: 'SET_IS_FOLLOWING', following: nowFollowing });
-        if (nowFollowing) {
           dispatch({ type: 'SET_SCROLL_OFFSET', offset: Math.max(0, state.liveLines.length - 20) });
+        } else if (state.activeTab === 'live' && input === 'f') {
+          const nowFollowing = !state.isFollowing;
+          dispatch({ type: 'SET_IS_FOLLOWING', following: nowFollowing });
+          if (nowFollowing) {
+            dispatch({
+              type: 'SET_SCROLL_OFFSET',
+              offset: Math.max(0, state.liveLines.length - 20),
+            });
+          }
         }
       }
-    }
-  }, { isActive: !overlayActive });
+    },
+    { isActive: !overlayActive }
+  );
 
   // #1161: Use full available height, don't cap artificially
   const outputHeight = 20;
@@ -211,7 +231,10 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
           <Box>
             <Text>State: </Text>
             <StatusBadge state={agent.state} />
-            <Text dimColor wrap="truncate"> | Task: {normalizeTask(agent.task)}</Text>
+            <Text dimColor wrap="truncate">
+              {' '}
+              | Task: {normalizeTask(agent.task)}
+            </Text>
           </Box>
         </Box>
       </Box>
@@ -248,9 +271,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
             isFollowing={state.isFollowing}
           />
         )}
-        {state.activeTab === 'details' && (
-          <AgentDetailsTab agent={agent} />
-        )}
+        {state.activeTab === 'details' && <AgentDetailsTab agent={agent} />}
         {state.activeTab === 'metrics' && (
           <AgentMetricsTab agent={agent} cost={cost} activity={activity} />
         )}
@@ -258,27 +279,33 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({
 
       {/* Footer with keybindings */}
       {state.inputMode ? (
-        <Footer hints={[
-          { key: 'Enter', label: 'send' },
-          { key: 'Esc', label: 'cancel' },
-        ]} />
+        <Footer
+          hints={[
+            { key: 'Enter', label: 'send' },
+            { key: 'Esc', label: 'cancel' },
+          ]}
+        />
       ) : state.activeTab === 'live' ? (
-        <Footer hints={[
-          { key: '1-4', label: 'tabs' },
-          { key: 'j/k', label: 'scroll' },
-          { key: 'g/G', label: 'top/bottom' },
-          { key: 'f', label: 'follow' },
-          { key: 'a', label: 'attach' },
-          { key: 'q/Esc', label: 'back' },
-        ]} />
+        <Footer
+          hints={[
+            { key: '1-4', label: 'tabs' },
+            { key: 'j/k', label: 'scroll' },
+            { key: 'g/G', label: 'top/bottom' },
+            { key: 'f', label: 'follow' },
+            { key: 'a', label: 'attach' },
+            { key: 'q/Esc', label: 'back' },
+          ]}
+        />
       ) : (
-        <Footer hints={[
-          { key: '1-4', label: 'tabs' },
-          { key: 'i', label: 'message' },
-          { key: 'a', label: 'attach' },
-          { key: 'r', label: 'refresh' },
-          { key: 'q/Esc', label: 'back' },
-        ]} />
+        <Footer
+          hints={[
+            { key: '1-4', label: 'tabs' },
+            { key: 'i', label: 'message' },
+            { key: 'a', label: 'attach' },
+            { key: 'r', label: 'refresh' },
+            { key: 'q/Esc', label: 'back' },
+          ]}
+        />
       )}
     </Box>
   );

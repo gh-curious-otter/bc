@@ -61,12 +61,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
       // Default error UI
       return (
-        <Box
-          flexDirection="column"
-          padding={1}
-          borderStyle="single"
-          borderColor="red"
-        >
+        <Box flexDirection="column" padding={1} borderStyle="single" borderColor="red">
           <Text color="red" bold>
             Error in {this.props.viewName ?? 'view'}
           </Text>
@@ -76,9 +71,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             </Text>
           </Box>
           <Box marginTop={1}>
-            <Text dimColor>
-              Press Tab to switch to another view, or q to quit.
-            </Text>
+            <Text dimColor>Press Tab to switch to another view, or q to quit.</Text>
           </Box>
         </Box>
       );

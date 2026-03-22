@@ -65,13 +65,13 @@ describe('WorktreesView - worktree filtering', () => {
   test('filters active worktrees', () => {
     const active = mockWorktrees.filter((wt) => wt.status === 'OK');
     expect(active).toHaveLength(3);
-    expect(active.map(w => w.agent)).toEqual(['eng-01', 'eng-02', 'eng-03']);
+    expect(active.map((w) => w.agent)).toEqual(['eng-01', 'eng-02', 'eng-03']);
   });
 
   test('filters orphaned worktrees', () => {
     const orphaned = mockWorktrees.filter((wt) => wt.status !== 'OK');
     expect(orphaned).toHaveLength(2);
-    expect(orphaned.map(w => w.agent)).toEqual(['old-agent', 'deleted-agent']);
+    expect(orphaned.map((w) => w.agent)).toEqual(['old-agent', 'deleted-agent']);
   });
 
   test('filters to show orphaned only', () => {
@@ -196,11 +196,7 @@ describe('WorktreesView - prune confirmation', () => {
   });
 
   test('shows all when 5 or fewer', () => {
-    const orphaned = [
-      { agent: 'agent-1' },
-      { agent: 'agent-2' },
-      { agent: 'agent-3' },
-    ];
+    const orphaned = [{ agent: 'agent-1' }, { agent: 'agent-2' }, { agent: 'agent-3' }];
 
     const displayed = orphaned.slice(0, 5);
     const remaining = orphaned.length - 5;

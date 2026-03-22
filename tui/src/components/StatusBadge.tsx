@@ -95,7 +95,8 @@ export const StatusBadge = memo(function StatusBadge({ state, showIcon = true }:
 
   return (
     <Text color={color}>
-      {showIcon ? `${symbol} ` : ''}{state}
+      {showIcon ? `${symbol} ` : ''}
+      {state}
     </Text>
   );
 });

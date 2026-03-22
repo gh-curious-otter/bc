@@ -77,13 +77,13 @@ export interface KeybindingConfig {
 
 /** Default global view shortcuts (uppercase = view navigation) */
 export const DEFAULT_VIEW_SHORTCUTS: Record<string, View> = {
-  'D': 'dashboard',
-  'A': 'agents',
-  'C': 'channels',
-  'L': 'logs',
-  'M': 'mcp',
-  'S': 'secrets',
-  'P': 'processes',
+  D: 'dashboard',
+  A: 'agents',
+  C: 'channels',
+  L: 'logs',
+  M: 'mcp',
+  S: 'secrets',
+  P: 'processes',
 };
 
 /** Default number key mappings */
@@ -125,13 +125,13 @@ export function getStatusBarHints(
     // Input mode hints
     hints.push(
       { key: 'Enter', label: 'send', priority: 1 },
-      { key: 'Esc', label: 'cancel', priority: 2 },
+      { key: 'Esc', label: 'cancel', priority: 2 }
     );
   } else if (context === 'modal') {
     // Modal hints
     hints.push(
       { key: 'Enter', label: 'confirm', priority: 1 },
-      { key: 'Esc', label: 'close', priority: 2 },
+      { key: 'Esc', label: 'close', priority: 2 }
     );
   } else {
     // Issue #1461: Only show universal hints in global footer
@@ -139,7 +139,7 @@ export function getStatusBarHints(
     hints.push(
       { key: 'Tab', label: 'views', priority: 1 },
       { key: '?', label: 'help', priority: 2 },
-      { key: 'q', label: view === 'dashboard' ? 'quit' : 'back', priority: 3 },
+      { key: 'q', label: view === 'dashboard' ? 'quit' : 'back', priority: 3 }
     );
   }
 
@@ -183,10 +183,7 @@ export function useKeybindingHints(
     [view, context, customHints]
   );
 
-  const formatted = useMemo(
-    () => formatHintsForStatusBar(hints),
-    [hints]
-  );
+  const formatted = useMemo(() => formatHintsForStatusBar(hints), [hints]);
 
   return { hints, formatted };
 }

@@ -55,9 +55,7 @@ export function HeaderBar({
         <Text bold color={color}>
           {title}
         </Text>
-        {count !== undefined && (
-          <Text dimColor> ({count})</Text>
-        )}
+        {count !== undefined && <Text dimColor> ({count})</Text>}
         {loading && (
           <Box marginLeft={1}>
             <LoadingIndicator />
@@ -66,14 +64,10 @@ export function HeaderBar({
       </Box>
 
       {/* Subtitle if provided */}
-      {subtitle && (
-        <Text dimColor>{subtitle}</Text>
-      )}
+      {subtitle && <Text dimColor>{subtitle}</Text>}
 
       {/* Keyboard hints if provided */}
-      {hints && (
-        <Text dimColor>{hints}</Text>
-      )}
+      {hints && <Text dimColor>{hints}</Text>}
     </Box>
   );
 }

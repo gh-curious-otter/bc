@@ -25,16 +25,28 @@ export function Footer() {
               aria-label="Product links"
               className="flex flex-col gap-2 text-sm text-muted-foreground"
             >
-              <Link href="/" className="hover:text-foreground transition-colors">
+              <Link
+                href="/"
+                className="hover:text-foreground transition-colors"
+              >
                 Home
               </Link>
-              <Link href="/product" className="hover:text-foreground transition-colors">
+              <Link
+                href="/product"
+                className="hover:text-foreground transition-colors"
+              >
                 Features
               </Link>
-              <Link href="/docs" className="hover:text-foreground transition-colors">
+              <Link
+                href="/docs"
+                className="hover:text-foreground transition-colors"
+              >
                 Documentation
               </Link>
-              <Link href="/waitlist" className="hover:text-foreground transition-colors">
+              <Link
+                href="/waitlist"
+                className="hover:text-foreground transition-colors"
+              >
                 Waitlist
               </Link>
             </nav>
@@ -95,10 +107,16 @@ export function Footer() {
               >
                 Contact
               </Link>
-              <Link href="/privacy" className="hover:text-foreground transition-colors">
+              <Link
+                href="/privacy"
+                className="hover:text-foreground transition-colors"
+              >
                 Privacy
               </Link>
-              <Link href="/terms" className="hover:text-foreground transition-colors">
+              <Link
+                href="/terms"
+                className="hover:text-foreground transition-colors"
+              >
                 Terms
               </Link>
             </nav>
@@ -107,10 +125,16 @@ export function Footer() {
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-8 border-t border-border text-xs text-muted-foreground/60">
           <p>&copy; 2026 bc-infra. All rights reserved.</p>
           <div className="flex items-center gap-6">
-            <Link href="/privacy" className="hover:text-foreground transition-colors">
+            <Link
+              href="/privacy"
+              className="hover:text-foreground transition-colors"
+            >
               Privacy Policy
             </Link>
-            <Link href="/terms" className="hover:text-foreground transition-colors">
+            <Link
+              href="/terms"
+              className="hover:text-foreground transition-colors"
+            >
               Terms of Service
             </Link>
           </div>

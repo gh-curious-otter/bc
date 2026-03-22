@@ -26,8 +26,4 @@ export {
   toTitleCase,
 } from './formatting';
 
-export {
-  hasAnsiCodes,
-  isPeekHeader,
-  colorizeOutputLine,
-} from './outputColors';
+export { hasAnsiCodes, isPeekHeader, colorizeOutputLine } from './outputColors';

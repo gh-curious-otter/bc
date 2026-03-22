@@ -9,9 +9,7 @@ const renderWithTheme = (ui: React.ReactElement) => render(<ThemeProvider>{ui}</
 describe('ErrorDisplay', () => {
   describe('error message rendering', () => {
     it('renders string error message', () => {
-      const { lastFrame } = renderWithTheme(
-        <ErrorDisplay error="Something went wrong" />
-      );
+      const { lastFrame } = renderWithTheme(<ErrorDisplay error="Something went wrong" />);
       expect(lastFrame()).toContain('Error');
       expect(lastFrame()).toContain('Something went wrong');
     });
@@ -34,9 +32,7 @@ describe('ErrorDisplay', () => {
 
   describe('retry option', () => {
     it('does not show retry message when onRetry is not provided', () => {
-      const { lastFrame } = renderWithTheme(
-        <ErrorDisplay error="Network error" />
-      );
+      const { lastFrame } = renderWithTheme(<ErrorDisplay error="Network error" />);
       const frame = lastFrame();
       expect(frame).toContain('Network error');
       expect(frame).not.toContain('retry');
@@ -52,24 +48,18 @@ describe('ErrorDisplay', () => {
 
   describe('edge cases', () => {
     it('handles empty error message', () => {
-      const { lastFrame } = renderWithTheme(
-        <ErrorDisplay error="" />
-      );
+      const { lastFrame } = renderWithTheme(<ErrorDisplay error="" />);
       expect(lastFrame()).toContain('Error');
     });
 
     it('handles long error messages', () => {
       const longError = 'A'.repeat(200);
-      const { lastFrame } = renderWithTheme(
-        <ErrorDisplay error={longError} />
-      );
+      const { lastFrame } = renderWithTheme(<ErrorDisplay error={longError} />);
       expect(lastFrame()).toContain('A');
     });
 
     it('handles multiline error messages', () => {
-      const { lastFrame } = renderWithTheme(
-        <ErrorDisplay error="Line 1\nLine 2\nLine 3" />
-      );
+      const { lastFrame } = renderWithTheme(<ErrorDisplay error="Line 1\nLine 2\nLine 3" />);
       const frame = lastFrame();
       expect(frame).toContain('Line 1');
     });
@@ -77,9 +67,7 @@ describe('ErrorDisplay', () => {
     it('handles errors with custom properties', () => {
       const error = new Error('Custom error');
       (error as any).code = 'ERR_CUSTOM';
-      const { lastFrame } = renderWithTheme(
-        <ErrorDisplay error={error} />
-      );
+      const { lastFrame } = renderWithTheme(<ErrorDisplay error={error} />);
       expect(lastFrame()).toContain('Custom error');
     });
   });

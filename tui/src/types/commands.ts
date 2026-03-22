@@ -4,13 +4,13 @@
  */
 
 export interface BcCommand {
-  name: string;           // Full command name (e.g., 'agent list')
-  category: string;       // Category for organization
-  description: string;    // User-friendly description
-  usage: string;          // Command usage (e.g., 'bc agent list')
-  readOnly: boolean;      // Safe to execute in TUI
-  flags?: string[];       // Common flags
-  shortcut?: string;      // #1603: Keyboard shortcut (e.g., 'a' for agents view)
+  name: string; // Full command name (e.g., 'agent list')
+  category: string; // Category for organization
+  description: string; // User-friendly description
+  usage: string; // Command usage (e.g., 'bc agent list')
+  readOnly: boolean; // Safe to execute in TUI
+  flags?: string[]; // Common flags
+  shortcut?: string; // #1603: Keyboard shortcut (e.g., 'a' for agents view)
 }
 
 export interface CommandCategory {
@@ -303,7 +303,7 @@ export const COMMAND_REGISTRY: CommandCategory[] = [
  * Get all commands (flattened)
  */
 export function getAllCommands(): BcCommand[] {
-  return COMMAND_REGISTRY.flatMap(cat => cat.commands);
+  return COMMAND_REGISTRY.flatMap((cat) => cat.commands);
 }
 
 /**
@@ -353,7 +353,7 @@ export function searchCommands(query: string): BcCommand[] {
   if (!lowerQuery) return getAllCommands();
 
   const scored = getAllCommands()
-    .map(cmd => {
+    .map((cmd) => {
       // Score multiple fields, take best match
       const nameScore = fuzzyMatchScore(cmd.name, lowerQuery);
       const descScore = fuzzyMatchScore(cmd.description, lowerQuery);
@@ -371,14 +371,14 @@ export function searchCommands(query: string): BcCommand[] {
  * Get commands by category
  */
 export function getCommandsByCategory(category: string): BcCommand[] {
-  return COMMAND_REGISTRY.find(cat => cat.name === category)?.commands ?? [];
+  return COMMAND_REGISTRY.find((cat) => cat.name === category)?.commands ?? [];
 }
 
 /**
  * #1603: Get all category names
  */
 export function getCategoryNames(): string[] {
-  return COMMAND_REGISTRY.map(cat => cat.name);
+  return COMMAND_REGISTRY.map((cat) => cat.name);
 }
 
 /**

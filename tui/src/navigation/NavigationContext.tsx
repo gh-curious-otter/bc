@@ -6,7 +6,19 @@ import React, { createContext, useContext, useState, useCallback, useMemo } from
 import type { ReactNode } from 'react';
 
 // View types for navigation - trimmed to 8 core views
-export type View = 'dashboard' | 'agents' | 'channels' | 'costs' | 'logs' | 'roles' | 'worktrees' | 'tools' | 'mcp' | 'secrets' | 'processes' | 'help';
+export type View =
+  | 'dashboard'
+  | 'agents'
+  | 'channels'
+  | 'costs'
+  | 'logs'
+  | 'roles'
+  | 'worktrees'
+  | 'tools'
+  | 'mcp'
+  | 'secrets'
+  | 'processes'
+  | 'help';
 
 // Tab configuration
 export interface TabConfig {
@@ -139,10 +151,10 @@ export function NavigationProvider({
     navigate('dashboard');
   }, [navigate]);
 
-  const mainTabs = useMemo(() => tabs.filter(t => t.key !== '?'), [tabs]);
+  const mainTabs = useMemo(() => tabs.filter((t) => t.key !== '?'), [tabs]);
 
   const nextTab = useCallback(() => {
-    const currentIndex = mainTabs.findIndex(t => t.view === state.currentView);
+    const currentIndex = mainTabs.findIndex((t) => t.view === state.currentView);
     if (currentIndex === -1) {
       navigate(mainTabs[0]?.view ?? 'dashboard');
     } else {
@@ -152,7 +164,7 @@ export function NavigationProvider({
   }, [mainTabs, state.currentView, navigate]);
 
   const prevTab = useCallback(() => {
-    const currentIndex = mainTabs.findIndex(t => t.view === state.currentView);
+    const currentIndex = mainTabs.findIndex((t) => t.view === state.currentView);
     if (currentIndex === -1) {
       navigate(mainTabs[mainTabs.length - 1]?.view ?? 'dashboard');
     } else {
@@ -169,20 +181,11 @@ export function NavigationProvider({
     setState((prev) => ({ ...prev, breadcrumbs: [] }));
   }, []);
 
-  const isActive = useCallback(
-    (view: View) => state.currentView === view,
-    [state.currentView]
-  );
+  const isActive = useCallback((view: View) => state.currentView === view, [state.currentView]);
 
-  const getTabByKey = useCallback(
-    (key: string) => tabs.find((t) => t.key === key),
-    [tabs]
-  );
+  const getTabByKey = useCallback((key: string) => tabs.find((t) => t.key === key), [tabs]);
 
-  const getTabByView = useCallback(
-    (view: View) => tabs.find((t) => t.view === view),
-    [tabs]
-  );
+  const getTabByView = useCallback((view: View) => tabs.find((t) => t.view === view), [tabs]);
 
   const value = useMemo<NavigationContextValue>(
     () => ({
@@ -204,12 +207,24 @@ export function NavigationProvider({
       getTabByKey,
       getTabByView,
     }),
-    [state, tabs, navigate, goBack, goForward, goHome, nextTab, prevTab, setBreadcrumbs, clearBreadcrumbs, isActive, getTabByKey, getTabByView]
+    [
+      state,
+      tabs,
+      navigate,
+      goBack,
+      goForward,
+      goHome,
+      nextTab,
+      prevTab,
+      setBreadcrumbs,
+      clearBreadcrumbs,
+      isActive,
+      getTabByKey,
+      getTabByView,
+    ]
   );
 
-  return (
-    <NavigationContext.Provider value={value}>{children}</NavigationContext.Provider>
-  );
+  return <NavigationContext.Provider value={value}>{children}</NavigationContext.Provider>;
 }
 
 export function useNavigation(): NavigationContextValue {

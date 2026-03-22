@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { api } from '../api/client';
-import { stripAnsi } from '../utils/text';
+import { useEffect, useState, useCallback, useRef } from "react";
+import { api } from "../api/client";
+import { stripAnsi } from "../utils/text";
 
 const MAX_LINES = 500;
 
@@ -57,7 +57,7 @@ export function useAgentOutput(agentName: string): UseAgentOutputResult {
       .getAgentPeek(agentName, 100)
       .then(({ output }) => {
         if (output) {
-          const initial = stripAnsi(output).split('\n');
+          const initial = stripAnsi(output).split("\n");
           bufferRef.current = initial.slice(-MAX_LINES);
           setLines(bufferRef.current);
         }
@@ -78,7 +78,7 @@ export function useAgentOutput(agentName: string): UseAgentOutputResult {
       try {
         const parsed = JSON.parse(e.data as string) as { output?: string };
         if (parsed.output) {
-          const incoming = stripAnsi(parsed.output).split('\n');
+          const incoming = stripAnsi(parsed.output).split("\n");
           appendLines(incoming);
         }
       } catch {
@@ -92,7 +92,7 @@ export function useAgentOutput(agentName: string): UseAgentOutputResult {
     };
 
     es.onmessage = handleOutput;
-    es.addEventListener('agent.output', handleOutput as EventListener);
+    es.addEventListener("agent.output", handleOutput as EventListener);
 
     es.onerror = () => {
       errorCount++;

@@ -128,18 +128,20 @@ interface DetailRowProps {
   labelWidth?: number;
 }
 
-export function DetailRow({ label, value, labelWidth = LABEL_WIDTH }: DetailRowProps): React.ReactElement {
+export function DetailRow({
+  label,
+  value,
+  labelWidth = LABEL_WIDTH,
+}: DetailRowProps): React.ReactElement {
   const { theme } = useTheme();
   const paddedLabel = label.padEnd(labelWidth);
   return (
     <Box>
-      <Text bold color={theme.colors.textMuted}>{paddedLabel}</Text>
+      <Text bold color={theme.colors.textMuted}>
+        {paddedLabel}
+      </Text>
       <Box marginLeft={1} flexShrink={1}>
-        {typeof value === 'string' ? (
-          <Text wrap="truncate">{value}</Text>
-        ) : (
-          value
-        )}
+        {typeof value === 'string' ? <Text wrap="truncate">{value}</Text> : value}
       </Box>
     </Box>
   );

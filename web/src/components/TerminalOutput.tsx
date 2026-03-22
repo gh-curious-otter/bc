@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback } from "react";
 
 interface TerminalOutputProps {
   lines: string[];
@@ -14,7 +14,7 @@ interface TerminalOutputProps {
  */
 export function TerminalOutput({
   lines,
-  maxHeight = '32rem',
+  maxHeight = "32rem",
   autoScroll = true,
   onScrollChange,
 }: TerminalOutputProps) {
@@ -57,7 +57,7 @@ export function TerminalOutput({
         }}
       >
         {lines.length > 0 ? (
-          lines.join('\n')
+          lines.join("\n")
         ) : (
           <span className="text-bc-muted italic">No output yet.</span>
         )}

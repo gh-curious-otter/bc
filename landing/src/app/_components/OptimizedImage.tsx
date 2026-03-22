@@ -2,7 +2,10 @@
 
 import { CSSProperties, ImgHTMLAttributes } from "react";
 
-interface OptimizedImageProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> {
+interface OptimizedImageProps extends Omit<
+  ImgHTMLAttributes<HTMLImageElement>,
+  "src"
+> {
   src: string;
   alt: string;
   webpSrc?: string;
@@ -54,11 +57,7 @@ export function OptimizedImage({
     <picture style={containerStyle} className={containerClassName}>
       {/* WebP source with responsive sizes */}
       {webpSrc && (
-        <source
-          srcSet={webpSrc}
-          type="image/webp"
-          sizes={rest.sizes}
-        />
+        <source srcSet={webpSrc} type="image/webp" sizes={rest.sizes} />
       )}
 
       {/* Additional responsive sources */}
@@ -93,10 +92,13 @@ export function OptimizedImage({
 export function createResponsiveSrcSet(
   basePath: string,
   format: string = "jpg",
-  sizes: number[] = [320, 640, 960, 1280, 1920]
+  sizes: number[] = [320, 640, 960, 1280, 1920],
 ): string {
   return sizes
-    .map((size) => `${basePath.replace(/\.[^.]+$/, "")}-${size}w.${format} ${size}w`)
+    .map(
+      (size) =>
+        `${basePath.replace(/\.[^.]+$/, "")}-${size}w.${format} ${size}w`,
+    )
     .join(", ");
 }
 

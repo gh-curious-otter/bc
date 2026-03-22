@@ -7,7 +7,13 @@
 import React, { useMemo, useCallback, useEffect, useReducer, useState } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import { useTheme } from '../theme';
-import { useLogs, getSeverityColor, getSeverityIcon, useDebounce, useListNavigation } from '../hooks';
+import {
+  useLogs,
+  getSeverityColor,
+  getSeverityIcon,
+  useDebounce,
+  useListNavigation,
+} from '../hooks';
 import { useFocus } from '../navigation/FocusContext';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { Footer } from '../components/Footer';
@@ -121,16 +127,16 @@ function abbreviateType(type: string | undefined): string {
 
   // Common abbreviations
   const abbreviations: Record<string, string> = {
-    'message': 'msg',
-    'report': 'report',
-    'working': 'work',
-    'error': 'error',
-    'warning': 'warn',
-    'stuck': 'stuck',
-    'done': 'done',
-    'idle': 'idle',
-    'starting': 'start',
-    'stopping': 'stop',
+    message: 'msg',
+    report: 'report',
+    working: 'work',
+    error: 'error',
+    warning: 'warn',
+    stuck: 'stuck',
+    done: 'done',
+    idle: 'idle',
+    starting: 'start',
+    stopping: 'stop',
   };
 
   return abbreviations[action] ?? action;
@@ -141,7 +147,14 @@ export const LogsView: React.FC<LogsViewProps> = () => {
   const { stdout } = useStdout();
   const terminalWidth = stdout.columns;
 
-  const { data: logs, loading, error, refresh, filterBySeverity, severityFilter } = useLogs({
+  const {
+    data: logs,
+    loading,
+    error,
+    refresh,
+    filterBySeverity,
+    severityFilter,
+  } = useLogs({
     tail: DATA_LIMITS.LOG_TAIL,
     autoPoll: true,
     pollInterval: POLL_INTERVALS.LOGS,
@@ -240,16 +253,26 @@ export const LogsView: React.FC<LogsViewProps> = () => {
       a: cycleAgentFilter,
       t: cycleTimeFilter,
       c: clearAllFilters,
-      r: () => { void refresh(); },
-      '/': () => { setSearchMode(true); },
+      r: () => {
+        void refresh();
+      },
+      '/': () => {
+        setSearchMode(true);
+      },
     }),
     [cycleSeverity, cycleAgentFilter, cycleTimeFilter, clearAllFilters, refresh]
   );
 
   // #1720: useListNavigation for consolidated keyboard patterns
-  const { selectedIndex, selectedItem: selectedLog, setSelectedIndex } = useListNavigation({
+  const {
+    selectedIndex,
+    selectedItem: selectedLog,
+    setSelectedIndex,
+  } = useListNavigation({
     items: filteredLogs,
-    onSelect: () => { dispatch({ type: 'SHOW_DETAIL' }); },
+    onSelect: () => {
+      dispatch({ type: 'SHOW_DETAIL' });
+    },
     disabled: showDetail || searchMode,
     customKeys,
   });
@@ -272,33 +295,44 @@ export const LogsView: React.FC<LogsViewProps> = () => {
   }, [timeFilter, agentFilter, debouncedSearchQuery, setSelectedIndex]);
 
   // Keyboard handling for search mode and detail view
-  useInput((input, key) => {
-    if (searchMode) {
-      // Search mode input
-      if (key.return || key.escape) {
-        setSearchMode(false);
-      } else if (key.backspace || key.delete) {
-        setSearchQuery((prev) => prev.slice(0, -1));
-      } else if (input && !key.ctrl && !key.meta) {
-        setSearchQuery((prev) => prev + input);
+  useInput(
+    (input, key) => {
+      if (searchMode) {
+        // Search mode input
+        if (key.return || key.escape) {
+          setSearchMode(false);
+        } else if (key.backspace || key.delete) {
+          setSearchQuery((prev) => prev.slice(0, -1));
+        } else if (input && !key.ctrl && !key.meta) {
+          setSearchQuery((prev) => prev + input);
+        }
+        return;
       }
-      return;
-    }
 
-    if (showDetail) {
-      // Detail view - any key returns to list
-      if (key.escape || input === 'q' || key.return) {
-        dispatch({ type: 'HIDE_DETAIL' });
+      if (showDetail) {
+        // Detail view - any key returns to list
+        if (key.escape || input === 'q' || key.return) {
+          dispatch({ type: 'HIDE_DETAIL' });
+        }
       }
-    }
-  }, { isActive: searchMode || showDetail });
+    },
+    { isActive: searchMode || showDetail }
+  );
 
   // Show detail view
   if (showDetail && selectedLog) {
     return (
       <Box flexDirection="column" padding={1}>
-        <Text bold color={theme.colors.primary}>Log Details</Text>
-        <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor={theme.colors.textMuted} padding={1}>
+        <Text bold color={theme.colors.primary}>
+          Log Details
+        </Text>
+        <Box
+          marginTop={1}
+          flexDirection="column"
+          borderStyle="single"
+          borderColor={theme.colors.textMuted}
+          padding={1}
+        >
           <Box>
             <Text bold>Timestamp: </Text>
             <Text>{selectedLog.ts}</Text>
@@ -309,7 +343,9 @@ export const LogsView: React.FC<LogsViewProps> = () => {
           </Box>
           <Box>
             <Text bold>Type: </Text>
-            <Text color={getSeverityColor(selectedLog.type ?? '')}>{getSeverityIcon(selectedLog.type ?? '')} {selectedLog.type ?? 'unknown'}</Text>
+            <Text color={getSeverityColor(selectedLog.type ?? '')}>
+              {getSeverityIcon(selectedLog.type ?? '')} {selectedLog.type ?? 'unknown'}
+            </Text>
           </Box>
           <Box marginTop={1} flexDirection="column">
             <Text bold>Message:</Text>
@@ -351,7 +387,14 @@ export const LogsView: React.FC<LogsViewProps> = () => {
   }
 
   if (error) {
-    return <ErrorDisplay error={error} onRetry={() => { void refresh(); }} />;
+    return (
+      <ErrorDisplay
+        error={error}
+        onRetry={() => {
+          void refresh();
+        }}
+      />
+    );
   }
 
   // Calculate column widths based on terminal width
@@ -374,7 +417,9 @@ export const LogsView: React.FC<LogsViewProps> = () => {
     <Box flexDirection="column" overflow="hidden">
       {/* Header */}
       <Box marginBottom={1}>
-        <Text bold color={theme.colors.accent}>Logs</Text>
+        <Text bold color={theme.colors.accent}>
+          Logs
+        </Text>
         <Text dimColor> ({filteredLogs.length} entries)</Text>
         {loading && <Text color={theme.colors.textMuted}> (refreshing...)</Text>}
       </Box>
@@ -434,12 +479,12 @@ export const LogsView: React.FC<LogsViewProps> = () => {
                 {(log.agent ?? '').slice(0, agentWidth - 1).padEnd(agentWidth)}
               </Text>
               <Text color={isSelected ? theme.colors.primary : severityColor}>
-                {severityIcon} {abbreviateType(logType).slice(0, typeWidth - 3).padEnd(typeWidth - 2)}
+                {severityIcon}{' '}
+                {abbreviateType(logType)
+                  .slice(0, typeWidth - 3)
+                  .padEnd(typeWidth - 2)}
               </Text>
-              <Text
-                color={isSelected ? theme.colors.primary : undefined}
-                wrap="truncate"
-              >
+              <Text color={isSelected ? theme.colors.primary : undefined} wrap="truncate">
                 {(log.message ?? '').slice(0, messageWidth)}
               </Text>
             </Box>
@@ -454,17 +499,19 @@ export const LogsView: React.FC<LogsViewProps> = () => {
       </Box>
 
       {/* Footer - view-specific hints only, global hints (Tab/q/?) in app footer */}
-      <Footer hints={[
-        { key: 'j/k', label: 'nav' },
-        { key: 'g/G', label: 'top/bottom' },
-        { key: 'Enter', label: 'details' },
-        { key: '/', label: 'search' },
-        { key: 's', label: 'severity' },
-        { key: 'a', label: 'agent' },
-        { key: 't', label: 'time' },
-        { key: 'c', label: 'clear' },
-        { key: 'r', label: 'refresh' },
-      ]} />
+      <Footer
+        hints={[
+          { key: 'j/k', label: 'nav' },
+          { key: 'g/G', label: 'top/bottom' },
+          { key: 'Enter', label: 'details' },
+          { key: '/', label: 'search' },
+          { key: 's', label: 'severity' },
+          { key: 'a', label: 'agent' },
+          { key: 't', label: 'time' },
+          { key: 'c', label: 'clear' },
+          { key: 'r', label: 'refresh' },
+        ]}
+      />
     </Box>
   );
 };

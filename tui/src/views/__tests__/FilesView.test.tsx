@@ -67,16 +67,22 @@ function uiReducer(state: UIState, action: UIAction): UIState {
     case 'CYCLE_FOCUS_FORWARD':
       return {
         ...state,
-        focusArea: state.focusArea === 'worktree' ? 'tree'
-          : state.focusArea === 'tree' ? 'preview'
-          : 'worktree',
+        focusArea:
+          state.focusArea === 'worktree'
+            ? 'tree'
+            : state.focusArea === 'tree'
+              ? 'preview'
+              : 'worktree',
       };
     case 'CYCLE_FOCUS_BACKWARD':
       return {
         ...state,
-        focusArea: state.focusArea === 'worktree' ? 'preview'
-          : state.focusArea === 'tree' ? 'worktree'
-          : 'tree',
+        focusArea:
+          state.focusArea === 'worktree'
+            ? 'preview'
+            : state.focusArea === 'tree'
+              ? 'worktree'
+              : 'tree',
       };
     default:
       return state;
@@ -116,7 +122,10 @@ interface FileTreeEntry {
 }
 
 // Tree flattening helper
-function flattenTree(entries: FileTreeEntry[], depth = 0): { entry: FileTreeEntry; depth: number }[] {
+function flattenTree(
+  entries: FileTreeEntry[],
+  depth = 0
+): { entry: FileTreeEntry; depth: number }[] {
   const result: { entry: FileTreeEntry; depth: number }[] = [];
   for (const entry of entries) {
     result.push({ entry, depth });
@@ -128,7 +137,11 @@ function flattenTree(entries: FileTreeEntry[], depth = 0): { entry: FileTreeEntr
 }
 
 // Path breadcrumb truncation
-function truncatePath(segments: string[], maxWidth: number, separator = ' › '): { segments: string[]; truncated: boolean } {
+function truncatePath(
+  segments: string[],
+  maxWidth: number,
+  separator = ' › '
+): { segments: string[]; truncated: boolean } {
   const fullDisplay = segments.join(separator);
   if (fullDisplay.length <= maxWidth - 4) {
     return { segments, truncated: false };
@@ -230,34 +243,52 @@ describe('FilesView', () => {
   describe('Focus Cycling', () => {
     describe('CYCLE_FOCUS_FORWARD', () => {
       test('worktree → tree', () => {
-        const state = uiReducer({ ...initialUIState, focusArea: 'worktree' }, { type: 'CYCLE_FOCUS_FORWARD' });
+        const state = uiReducer(
+          { ...initialUIState, focusArea: 'worktree' },
+          { type: 'CYCLE_FOCUS_FORWARD' }
+        );
         expect(state.focusArea).toBe('tree');
       });
 
       test('tree → preview', () => {
-        const state = uiReducer({ ...initialUIState, focusArea: 'tree' }, { type: 'CYCLE_FOCUS_FORWARD' });
+        const state = uiReducer(
+          { ...initialUIState, focusArea: 'tree' },
+          { type: 'CYCLE_FOCUS_FORWARD' }
+        );
         expect(state.focusArea).toBe('preview');
       });
 
       test('preview → worktree', () => {
-        const state = uiReducer({ ...initialUIState, focusArea: 'preview' }, { type: 'CYCLE_FOCUS_FORWARD' });
+        const state = uiReducer(
+          { ...initialUIState, focusArea: 'preview' },
+          { type: 'CYCLE_FOCUS_FORWARD' }
+        );
         expect(state.focusArea).toBe('worktree');
       });
     });
 
     describe('CYCLE_FOCUS_BACKWARD', () => {
       test('worktree → preview', () => {
-        const state = uiReducer({ ...initialUIState, focusArea: 'worktree' }, { type: 'CYCLE_FOCUS_BACKWARD' });
+        const state = uiReducer(
+          { ...initialUIState, focusArea: 'worktree' },
+          { type: 'CYCLE_FOCUS_BACKWARD' }
+        );
         expect(state.focusArea).toBe('preview');
       });
 
       test('tree → worktree', () => {
-        const state = uiReducer({ ...initialUIState, focusArea: 'tree' }, { type: 'CYCLE_FOCUS_BACKWARD' });
+        const state = uiReducer(
+          { ...initialUIState, focusArea: 'tree' },
+          { type: 'CYCLE_FOCUS_BACKWARD' }
+        );
         expect(state.focusArea).toBe('worktree');
       });
 
       test('preview → tree', () => {
-        const state = uiReducer({ ...initialUIState, focusArea: 'preview' }, { type: 'CYCLE_FOCUS_BACKWARD' });
+        const state = uiReducer(
+          { ...initialUIState, focusArea: 'preview' },
+          { type: 'CYCLE_FOCUS_BACKWARD' }
+        );
         expect(state.focusArea).toBe('tree');
       });
     });
@@ -330,9 +361,7 @@ describe('FilesView', () => {
           path: '/src',
           isDirectory: true,
           expanded: false,
-          children: [
-            { name: 'index.ts', path: '/src/index.ts', isDirectory: false, children: [] },
-          ],
+          children: [{ name: 'index.ts', path: '/src/index.ts', isDirectory: false, children: [] }],
         },
       ];
       const result = flattenTree(tree);
@@ -347,9 +376,7 @@ describe('FilesView', () => {
           path: '/src',
           isDirectory: true,
           expanded: true,
-          children: [
-            { name: 'index.ts', path: '/src/index.ts', isDirectory: false, children: [] },
-          ],
+          children: [{ name: 'index.ts', path: '/src/index.ts', isDirectory: false, children: [] }],
         },
       ];
       const result = flattenTree(tree);
@@ -374,7 +401,12 @@ describe('FilesView', () => {
               isDirectory: true,
               expanded: true,
               children: [
-                { name: 'Button.tsx', path: '/src/components/Button.tsx', isDirectory: false, children: [] },
+                {
+                  name: 'Button.tsx',
+                  path: '/src/components/Button.tsx',
+                  isDirectory: false,
+                  children: [],
+                },
               ],
             },
           ],
@@ -489,9 +521,9 @@ describe('FilesView', () => {
         { agent: 'eng-03', path: '/path/3', branch: 'feature', status: 'OK' },
       ];
 
-      const activeWorktrees = worktrees.filter(w => w.status === 'OK');
+      const activeWorktrees = worktrees.filter((w) => w.status === 'OK');
       expect(activeWorktrees).toHaveLength(2);
-      expect(activeWorktrees.map(w => w.agent)).toEqual(['eng-01', 'eng-03']);
+      expect(activeWorktrees.map((w) => w.agent)).toEqual(['eng-01', 'eng-03']);
     });
   });
 
@@ -502,7 +534,10 @@ describe('FilesView', () => {
       const visibleCount = Math.max(1, maxHeight - 2);
       const selectedIndex = 50;
 
-      const start = Math.max(0, Math.min(selectedIndex - Math.floor(visibleCount / 2), totalItems - visibleCount));
+      const start = Math.max(
+        0,
+        Math.min(selectedIndex - Math.floor(visibleCount / 2), totalItems - visibleCount)
+      );
 
       expect(visibleCount).toBe(18);
       expect(start).toBe(41); // 50 - 9
@@ -513,7 +548,10 @@ describe('FilesView', () => {
       const visibleCount = 18;
       const selectedIndex = 0;
 
-      const start = Math.max(0, Math.min(selectedIndex - Math.floor(visibleCount / 2), totalItems - visibleCount));
+      const start = Math.max(
+        0,
+        Math.min(selectedIndex - Math.floor(visibleCount / 2), totalItems - visibleCount)
+      );
       expect(start).toBe(0);
     });
 
@@ -522,7 +560,10 @@ describe('FilesView', () => {
       const visibleCount = 18;
       const selectedIndex = 99;
 
-      const start = Math.max(0, Math.min(selectedIndex - Math.floor(visibleCount / 2), totalItems - visibleCount));
+      const start = Math.max(
+        0,
+        Math.min(selectedIndex - Math.floor(visibleCount / 2), totalItems - visibleCount)
+      );
       expect(start).toBe(82); // 100 - 18
     });
   });

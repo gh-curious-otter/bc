@@ -19,7 +19,9 @@ export function Breadcrumb(): React.ReactElement {
   return (
     <Box>
       <Text dimColor>{'> '}</Text>
-      <Text color={theme.colors.primary} bold>{basePath}</Text>
+      <Text color={theme.colors.primary} bold>
+        {basePath}
+      </Text>
       {breadcrumbs.map((item, index) => (
         <React.Fragment key={index}>
           <Text dimColor> {'>'} </Text>

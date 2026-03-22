@@ -75,7 +75,13 @@ function ToolChip({ tool, index }: { tool: Tool; index: number }) {
           />
         ) : (
           <div className="h-10 w-10 rounded-xl bg-border/40 flex items-center justify-center">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5 text-muted-foreground/60">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              className="h-5 w-5 text-muted-foreground/60"
+            >
               <path d="M12 5v14M5 12h14" />
             </svg>
           </div>

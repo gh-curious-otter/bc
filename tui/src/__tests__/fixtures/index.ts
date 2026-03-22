@@ -10,15 +10,7 @@
  * - Teams (team data)
  */
 
-import type {
-  Agent,
-  Channel,
-  ChannelMessage,
-  Demon,
-  Process,
-  Team,
-  CostRecord,
-} from '../../types';
+import type { Agent, Channel, ChannelMessage, Demon, Process, Team, CostRecord } from '../../types';
 
 // ============================================================================
 // Agents

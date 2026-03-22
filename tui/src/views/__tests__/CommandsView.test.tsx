@@ -1,5 +1,10 @@
 import { describe, test, expect } from 'bun:test';
-import { COMMAND_REGISTRY, searchCommands, getAllCommands, getCommandsByCategory } from '../../types/commands';
+import {
+  COMMAND_REGISTRY,
+  searchCommands,
+  getAllCommands,
+  getCommandsByCategory,
+} from '../../types/commands';
 // BcCommand type used indirectly via COMMAND_REGISTRY
 
 // NOTE: useInput tests require TTY stdin, so they're skipped in non-TTY test environments
@@ -13,7 +18,7 @@ describe('Command Registry', () => {
   });
 
   test('COMMAND_REGISTRY has expected categories', () => {
-    const categoryNames = COMMAND_REGISTRY.map(cat => cat.name);
+    const categoryNames = COMMAND_REGISTRY.map((cat) => cat.name);
     expect(categoryNames).toContain('Agent Management');
     expect(categoryNames).toContain('Communication');
     expect(categoryNames).toContain('Tracking & Monitoring');
@@ -24,7 +29,7 @@ describe('Command Registry', () => {
 
   test('all commands have required properties', () => {
     const allCommands = getAllCommands();
-    allCommands.forEach(cmd => {
+    allCommands.forEach((cmd) => {
       expect(cmd.name).toBeTruthy();
       expect(cmd.category).toBeTruthy();
       expect(cmd.description).toBeTruthy();
@@ -35,7 +40,7 @@ describe('Command Registry', () => {
 
   test('all commands start with bc prefix in usage', () => {
     const allCommands = getAllCommands();
-    allCommands.forEach(cmd => {
+    allCommands.forEach((cmd) => {
       expect(cmd.usage.startsWith('bc ')).toBe(true);
     });
   });
@@ -55,17 +60,17 @@ describe('getAllCommands()', () => {
 
   test('includes agent status command', () => {
     const commands = getAllCommands();
-    expect(commands.some(cmd => cmd.name === 'agent status')).toBe(true);
+    expect(commands.some((cmd) => cmd.name === 'agent status')).toBe(true);
   });
 
   test('includes channel send command', () => {
     const commands = getAllCommands();
-    expect(commands.some(cmd => cmd.name === 'channel send')).toBe(true);
+    expect(commands.some((cmd) => cmd.name === 'channel send')).toBe(true);
   });
 
   test('includes config show command', () => {
     const commands = getAllCommands();
-    expect(commands.some(cmd => cmd.name === 'config show')).toBe(true);
+    expect(commands.some((cmd) => cmd.name === 'config show')).toBe(true);
   });
 });
 
@@ -79,7 +84,7 @@ describe('searchCommands()', () => {
   test('finds commands by name', () => {
     const results = searchCommands('agent');
     expect(results.length).toBeGreaterThan(0);
-    expect(results.some(cmd => cmd.name.includes('agent'))).toBe(true);
+    expect(results.some((cmd) => cmd.name.includes('agent'))).toBe(true);
   });
 
   test('search is case insensitive', () => {
@@ -93,15 +98,13 @@ describe('searchCommands()', () => {
   test('finds commands by description', () => {
     const results = searchCommands('list');
     expect(results.length).toBeGreaterThan(0);
-    expect(
-      results.some(cmd => cmd.description.toLowerCase().includes('list'))
-    ).toBe(true);
+    expect(results.some((cmd) => cmd.description.toLowerCase().includes('list'))).toBe(true);
   });
 
   test('finds commands by category', () => {
     const results = searchCommands('tracking');
     expect(results.length).toBeGreaterThan(0);
-    expect(results.some(cmd => cmd.category === 'Tracking & Monitoring')).toBe(true);
+    expect(results.some((cmd) => cmd.category === 'Tracking & Monitoring')).toBe(true);
   });
 
   test('supports partial matches', () => {
@@ -124,7 +127,7 @@ describe('getCommandsByCategory()', () => {
 
   test('all returned commands belong to requested category', () => {
     const commands = getCommandsByCategory('Communication');
-    commands.forEach(cmd => {
+    commands.forEach((cmd) => {
       expect(cmd.category).toBe('Communication');
     });
   });
@@ -145,7 +148,7 @@ describe('getCommandsByCategory()', () => {
       'Utilities',
     ];
 
-    categories.forEach(category => {
+    categories.forEach((category) => {
       const commands = getCommandsByCategory(category);
       expect(commands.length).toBeGreaterThan(0);
     });
@@ -153,8 +156,8 @@ describe('getCommandsByCategory()', () => {
 });
 
 describe('Command Properties', () => {
-  const agentStatusCmd = getAllCommands().find(cmd => cmd.name === 'agent status');
-  const channelSendCmd = getAllCommands().find(cmd => cmd.name === 'channel send');
+  const agentStatusCmd = getAllCommands().find((cmd) => cmd.name === 'agent status');
+  const channelSendCmd = getAllCommands().find((cmd) => cmd.name === 'channel send');
 
   test('read-only commands are marked correctly', () => {
     expect(agentStatusCmd?.readOnly).toBe(true);
@@ -165,14 +168,14 @@ describe('Command Properties', () => {
   });
 
   test('read-only commands have appropriate flags', () => {
-    const readOnlyCmd = getAllCommands().find(cmd => cmd.readOnly && cmd.flags);
+    const readOnlyCmd = getAllCommands().find((cmd) => cmd.readOnly && cmd.flags);
     expect(readOnlyCmd).toBeTruthy();
     expect(readOnlyCmd?.flags?.length).toBeGreaterThan(0);
   });
 
   test('command names are descriptive', () => {
     const allCommands = getAllCommands();
-    allCommands.forEach(cmd => {
+    allCommands.forEach((cmd) => {
       expect(cmd.name.length).toBeGreaterThan(0);
       expect(cmd.name.includes(' ') || cmd.name.length > 1).toBe(true);
     });
@@ -180,7 +183,7 @@ describe('Command Properties', () => {
 
   test('command descriptions are clear and helpful', () => {
     const allCommands = getAllCommands();
-    allCommands.forEach(cmd => {
+    allCommands.forEach((cmd) => {
       expect(cmd.description.length).toBeGreaterThan(5);
     });
   });
@@ -192,8 +195,7 @@ describe('CommandsView Keyboard Navigation Logic', () => {
     const listLength = commands.length;
 
     // Simulate: validatedIndex = Math.min(selectedIndex, Math.max(0, listLength - 1))
-    const clampIndex = (index: number) =>
-      Math.max(0, Math.min(index, listLength - 1));
+    const clampIndex = (index: number) => Math.max(0, Math.min(index, listLength - 1));
 
     expect(clampIndex(-5)).toBe(0);
     expect(clampIndex(0)).toBe(0);
@@ -206,8 +208,7 @@ describe('CommandsView Keyboard Navigation Logic', () => {
     const listLength = commands.length;
 
     // Simulate: j key behavior with validated bounds
-    const navigateDown = (currentIndex: number) =>
-      Math.min(listLength - 1, currentIndex + 1);
+    const navigateDown = (currentIndex: number) => Math.min(listLength - 1, currentIndex + 1);
 
     expect(navigateDown(0)).toBe(1);
     expect(navigateDown(listLength - 2)).toBe(listLength - 1);
@@ -232,7 +233,7 @@ describe('CommandsView Keyboard Navigation Logic', () => {
     expect(searchResults.length).toBeGreaterThan(0);
 
     // All results should have required properties
-    searchResults.forEach(cmd => {
+    searchResults.forEach((cmd) => {
       expect(cmd.name).toBeTruthy();
       expect(cmd.category).toBeTruthy();
     });
@@ -277,17 +278,17 @@ describe('BcCommand Interface', () => {
   });
 
   test('BcCommand flags property is optional', () => {
-    const cmdWithFlags = getAllCommands().find(cmd => cmd.flags);
-    const cmdWithoutFlags = getAllCommands().find(cmd => !cmd.flags);
+    const cmdWithFlags = getAllCommands().find((cmd) => cmd.flags);
+    const cmdWithoutFlags = getAllCommands().find((cmd) => !cmd.flags);
 
     expect(cmdWithFlags).toBeTruthy();
     expect(cmdWithoutFlags).toBeTruthy();
   });
 
   test('flags are string array when present', () => {
-    const cmdWithFlags = getAllCommands().find(cmd => cmd.flags);
+    const cmdWithFlags = getAllCommands().find((cmd) => cmd.flags);
     expect(Array.isArray(cmdWithFlags?.flags)).toBe(true);
-    cmdWithFlags?.flags?.forEach(flag => {
+    cmdWithFlags?.flags?.forEach((flag) => {
       expect(typeof flag).toBe('string');
     });
   });
@@ -325,25 +326,25 @@ describe('Search Edge Cases', () => {
 describe('Category Distribution', () => {
   test('commands are distributed across categories', () => {
     const categoryCommands: Record<string, number> = {};
-    getAllCommands().forEach(cmd => {
+    getAllCommands().forEach((cmd) => {
       categoryCommands[cmd.category] = (categoryCommands[cmd.category] || 0) + 1;
     });
 
     // Each category should have at least some commands
-    Object.values(categoryCommands).forEach(count => {
+    Object.values(categoryCommands).forEach((count) => {
       expect(count).toBeGreaterThan(0);
     });
   });
 
   test('no category has zero commands', () => {
-    COMMAND_REGISTRY.forEach(category => {
+    COMMAND_REGISTRY.forEach((category) => {
       expect(category.commands.length).toBeGreaterThan(0);
     });
   });
 
   test('command categories are consistent', () => {
-    getAllCommands().forEach(cmd => {
-      const categoryExists = COMMAND_REGISTRY.some(cat => cat.name === cmd.category);
+    getAllCommands().forEach((cmd) => {
+      const categoryExists = COMMAND_REGISTRY.some((cat) => cat.name === cmd.category);
       expect(categoryExists).toBe(true);
     });
   });
@@ -388,11 +389,7 @@ describe('Favorites Sorting Logic', () => {
   });
 
   test('favorites sorting places favorites first', () => {
-    const commands = [
-      { name: 'b-command' },
-      { name: 'a-command' },
-      { name: 'c-command' },
-    ];
+    const commands = [{ name: 'b-command' }, { name: 'a-command' }, { name: 'c-command' }];
     const favorites = new Set(['c-command']);
 
     const sorted = [...commands].sort((a, b) => {
@@ -430,14 +427,14 @@ describe('Favorites Sorting Logic', () => {
 
 describe('Category Filter Logic', () => {
   // Category names include 'All' plus all registry categories
-  const CATEGORY_NAMES = ['All', ...COMMAND_REGISTRY.map(cat => cat.name)];
+  const CATEGORY_NAMES = ['All', ...COMMAND_REGISTRY.map((cat) => cat.name)];
 
   test('category names includes All option', () => {
     expect(CATEGORY_NAMES[0]).toBe('All');
   });
 
   test('category names includes all registry categories', () => {
-    COMMAND_REGISTRY.forEach(cat => {
+    COMMAND_REGISTRY.forEach((cat) => {
       expect(CATEGORY_NAMES).toContain(cat.name);
     });
   });
@@ -450,20 +447,22 @@ describe('Category Filter Logic', () => {
 
   test('category filter returns correct commands', () => {
     const categoryFilter = 'Agent Management';
-    const filteredCommands = categoryFilter === 'All'
-      ? COMMAND_REGISTRY.flatMap(cat => cat.commands)
-      : COMMAND_REGISTRY.find(cat => cat.name === categoryFilter)?.commands ?? [];
+    const filteredCommands =
+      categoryFilter === 'All'
+        ? COMMAND_REGISTRY.flatMap((cat) => cat.commands)
+        : (COMMAND_REGISTRY.find((cat) => cat.name === categoryFilter)?.commands ?? []);
 
-    filteredCommands.forEach(cmd => {
+    filteredCommands.forEach((cmd) => {
       expect(cmd.category).toBe(categoryFilter);
     });
   });
 
   test('All filter returns all commands', () => {
     const categoryFilter = 'All';
-    const filteredCommands = categoryFilter === 'All'
-      ? COMMAND_REGISTRY.flatMap(cat => cat.commands)
-      : COMMAND_REGISTRY.find(cat => cat.name === categoryFilter)?.commands ?? [];
+    const filteredCommands =
+      categoryFilter === 'All'
+        ? COMMAND_REGISTRY.flatMap((cat) => cat.commands)
+        : (COMMAND_REGISTRY.find((cat) => cat.name === categoryFilter)?.commands ?? []);
 
     expect(filteredCommands.length).toBe(getAllCommands().length);
   });
@@ -475,13 +474,14 @@ describe('Search Mode State', () => {
     const commands = getAllCommands();
 
     const lowerQuery = searchQuery.toLowerCase();
-    const filtered = commands.filter(cmd =>
-      cmd.name.toLowerCase().includes(lowerQuery) ||
-      cmd.description.toLowerCase().includes(lowerQuery)
+    const filtered = commands.filter(
+      (cmd) =>
+        cmd.name.toLowerCase().includes(lowerQuery) ||
+        cmd.description.toLowerCase().includes(lowerQuery)
     );
 
     expect(filtered.length).toBeGreaterThan(0);
-    filtered.forEach(cmd => {
+    filtered.forEach((cmd) => {
       const matchesName = cmd.name.toLowerCase().includes(lowerQuery);
       const matchesDesc = cmd.description.toLowerCase().includes(lowerQuery);
       expect(matchesName || matchesDesc).toBe(true);
@@ -492,12 +492,14 @@ describe('Search Mode State', () => {
     const searchQuery = '';
     const commands = getAllCommands();
 
-    const filtered = searchQuery.length > 0
-      ? commands.filter(cmd =>
-          cmd.name.toLowerCase().includes(searchQuery) ||
-          cmd.description.toLowerCase().includes(searchQuery)
-        )
-      : commands;
+    const filtered =
+      searchQuery.length > 0
+        ? commands.filter(
+            (cmd) =>
+              cmd.name.toLowerCase().includes(searchQuery) ||
+              cmd.description.toLowerCase().includes(searchQuery)
+          )
+        : commands;
 
     expect(filtered.length).toBe(commands.length);
   });
@@ -506,17 +508,19 @@ describe('Search Mode State', () => {
     const searchQuery = 'list';
     const categoryFilter = 'Agent Management';
 
-    let commands = categoryFilter === 'All'
-      ? COMMAND_REGISTRY.flatMap(cat => cat.commands)
-      : COMMAND_REGISTRY.find(cat => cat.name === categoryFilter)?.commands ?? [];
+    let commands =
+      categoryFilter === 'All'
+        ? COMMAND_REGISTRY.flatMap((cat) => cat.commands)
+        : (COMMAND_REGISTRY.find((cat) => cat.name === categoryFilter)?.commands ?? []);
 
     const lowerQuery = searchQuery.toLowerCase();
-    commands = commands.filter(cmd =>
-      cmd.name.toLowerCase().includes(lowerQuery) ||
-      cmd.description.toLowerCase().includes(lowerQuery)
+    commands = commands.filter(
+      (cmd) =>
+        cmd.name.toLowerCase().includes(lowerQuery) ||
+        cmd.description.toLowerCase().includes(lowerQuery)
     );
 
-    commands.forEach(cmd => {
+    commands.forEach((cmd) => {
       expect(cmd.category).toBe(categoryFilter);
       const matchesName = cmd.name.toLowerCase().includes(lowerQuery);
       const matchesDesc = cmd.description.toLowerCase().includes(lowerQuery);
@@ -527,30 +531,30 @@ describe('Search Mode State', () => {
 
 describe('Command Execution Safety', () => {
   test('read-only commands can be identified', () => {
-    const readOnlyCommands = getAllCommands().filter(cmd => cmd.readOnly);
+    const readOnlyCommands = getAllCommands().filter((cmd) => cmd.readOnly);
     expect(readOnlyCommands.length).toBeGreaterThan(0);
 
     // These common commands should be read-only
-    const statusCmd = readOnlyCommands.find(cmd => cmd.name === 'agent status');
-    const listCmd = readOnlyCommands.find(cmd => cmd.name === 'agent list');
+    const statusCmd = readOnlyCommands.find((cmd) => cmd.name === 'agent status');
+    const listCmd = readOnlyCommands.find((cmd) => cmd.name === 'agent list');
     expect(statusCmd).toBeTruthy();
     expect(listCmd).toBeTruthy();
   });
 
   test('modifying commands can be identified', () => {
-    const modifyingCommands = getAllCommands().filter(cmd => !cmd.readOnly);
+    const modifyingCommands = getAllCommands().filter((cmd) => !cmd.readOnly);
     expect(modifyingCommands.length).toBeGreaterThan(0);
 
     // These commands modify state
-    const sendCmd = modifyingCommands.find(cmd => cmd.name === 'channel send');
+    const sendCmd = modifyingCommands.find((cmd) => cmd.name === 'channel send');
     expect(sendCmd).toBeTruthy();
   });
 
   test('command flags are arrays when present', () => {
-    const commandsWithFlags = getAllCommands().filter(cmd => cmd.flags);
-    commandsWithFlags.forEach(cmd => {
+    const commandsWithFlags = getAllCommands().filter((cmd) => cmd.flags);
+    commandsWithFlags.forEach((cmd) => {
       expect(Array.isArray(cmd.flags)).toBe(true);
-      cmd.flags!.forEach(flag => {
+      cmd.flags!.forEach((flag) => {
         expect(typeof flag).toBe('string');
         // Flags typically start with - or --
         expect(flag.startsWith('-')).toBe(true);

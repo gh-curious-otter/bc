@@ -74,17 +74,13 @@ function DataConsistencyDisplay({
 describe('Data Consistency: Agent List Matches Status', () => {
   it('all agents have valid states', () => {
     const validStates = ['idle', 'starting', 'working', 'done', 'stuck', 'error', 'stopped'];
-    const allStatesValid = mockWorkspace.agents.every((agent) =>
-      validStates.includes(agent.state)
-    );
+    const allStatesValid = mockWorkspace.agents.every((agent) => validStates.includes(agent.state));
     expect(allStatesValid).toBe(true);
   });
 
   it('all agents have valid roles', () => {
     const validRoles = ['root', 'product-manager', 'manager', 'tech-lead', 'engineer'];
-    const allRolesValid = mockWorkspace.agents.every((agent) =>
-      validRoles.includes(agent.role)
-    );
+    const allRolesValid = mockWorkspace.agents.every((agent) => validRoles.includes(agent.role));
     expect(allRolesValid).toBe(true);
   });
 
@@ -140,9 +136,7 @@ describe('Data Consistency: Team Members in Agent List', () => {
 
   it('team leads exist as agents', () => {
     const agentNames = mockWorkspace.agents.map((a) => a.name);
-    const allLeadsExist = mockWorkspace.teams.every((team) =>
-      agentNames.includes(team.lead)
-    );
+    const allLeadsExist = mockWorkspace.teams.every((team) => agentNames.includes(team.lead));
     expect(allLeadsExist).toBe(true);
   });
 

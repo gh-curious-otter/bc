@@ -42,7 +42,7 @@ describe('HelpView - totalLines calculation', () => {
 
   test('section adds title + shortcuts + margin', () => {
     const sections: HelpSection[] = [
-      { type: 'section', title: 'Global', shortcuts: [{ keys: 'q', desc: 'Quit' }] }
+      { type: 'section', title: 'Global', shortcuts: [{ keys: 'q', desc: 'Quit' }] },
     ];
     // 1 (title) + 1 (shortcuts) + 1 (margin) = 3
     expect(calculateTotalLines(sections)).toBe(3);
@@ -57,8 +57,8 @@ describe('HelpView - totalLines calculation', () => {
           { keys: 'q', desc: 'Quit' },
           { keys: 'Tab', desc: 'Next view' },
           { keys: 'ESC', desc: 'Go back' },
-        ]
-      }
+        ],
+      },
     ];
     // 1 (title) + 3 (shortcuts) + 1 (margin) = 5
     expect(calculateTotalLines(sections)).toBe(5);
@@ -68,7 +68,14 @@ describe('HelpView - totalLines calculation', () => {
     const sections: HelpSection[] = [
       { type: 'header' },
       { type: 'section', title: 'Global', shortcuts: [{ keys: 'q', desc: 'Quit' }] },
-      { type: 'section', title: 'Nav', shortcuts: [{ keys: 'j', desc: 'Down' }, { keys: 'k', desc: 'Up' }] },
+      {
+        type: 'section',
+        title: 'Nav',
+        shortcuts: [
+          { keys: 'j', desc: 'Down' },
+          { keys: 'k', desc: 'Up' },
+        ],
+      },
       { type: 'footer' },
     ];
     // 2 (header) + 3 (section 1) + 4 (section 2) + 3 (footer) = 12
@@ -304,21 +311,21 @@ describe('HelpView - shortcut data structure', () => {
   ];
 
   test('shortcuts have required keys field', () => {
-    shortcuts.forEach(s => {
+    shortcuts.forEach((s) => {
       expect(s.keys).toBeDefined();
       expect(s.keys.length).toBeGreaterThan(0);
     });
   });
 
   test('shortcuts have required desc field', () => {
-    shortcuts.forEach(s => {
+    shortcuts.forEach((s) => {
       expect(s.desc).toBeDefined();
       expect(s.desc.length).toBeGreaterThan(0);
     });
   });
 
   test('common shortcut exists', () => {
-    const quitShortcut = shortcuts.find(s => s.keys === 'q');
+    const quitShortcut = shortcuts.find((s) => s.keys === 'q');
     expect(quitShortcut).toBeDefined();
     expect(quitShortcut?.desc).toBe('Quit');
   });

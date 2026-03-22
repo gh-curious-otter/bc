@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { api } from '../api/client';
-import { stripAnsi } from '../utils/text';
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { api } from "../api/client";
+import { stripAnsi } from "../utils/text";
 
 interface InlineTerminalProps {
   agentName: string;
@@ -24,7 +24,7 @@ export function InlineTerminal({ agentName, lines = 10 }: InlineTerminalProps) {
       .getAgentPeek(agentName, lines)
       .then(({ output }) => {
         if (output) {
-          setOutputLines(stripAnsi(output).split('\n'));
+          setOutputLines(stripAnsi(output).split("\n"));
         }
       })
       .catch(() => {
@@ -46,7 +46,7 @@ export function InlineTerminal({ agentName, lines = 10 }: InlineTerminalProps) {
       try {
         const parsed = JSON.parse(e.data as string) as { output?: string };
         if (parsed.output) {
-          const newLines = stripAnsi(parsed.output).split('\n');
+          const newLines = stripAnsi(parsed.output).split("\n");
           setOutputLines((prev) => [...prev, ...newLines].slice(-500));
         }
       } catch {
@@ -55,7 +55,7 @@ export function InlineTerminal({ agentName, lines = 10 }: InlineTerminalProps) {
     };
 
     es.onmessage = handleOutputEvent;
-    es.addEventListener('agent.output', handleOutputEvent as EventListener);
+    es.addEventListener("agent.output", handleOutputEvent as EventListener);
 
     es.onerror = () => {
       errorCount++;
@@ -89,11 +89,9 @@ export function InlineTerminal({ agentName, lines = 10 }: InlineTerminalProps) {
         className="rounded bg-[#0a0a0f] border border-bc-border/40 p-3 font-mono text-xs leading-relaxed text-[#c9d1d9] max-h-48 overflow-auto whitespace-pre-wrap"
       >
         {loading ? (
-          <span className="text-bc-muted animate-pulse">
-            Loading output...
-          </span>
+          <span className="text-bc-muted animate-pulse">Loading output...</span>
         ) : outputLines.length > 0 ? (
-          outputLines.join('\n')
+          outputLines.join("\n")
         ) : sseError ? (
           <span className="text-bc-muted">Agent not running.</span>
         ) : (

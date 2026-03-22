@@ -68,7 +68,22 @@ export const InlineEditor = memo(function InlineEditor({
   const cursorPosInLine = cursorPos - currentLineStart;
 
   const handleInput = useCallback(
-    (input: string, key: { ctrl: boolean; return: boolean; escape: boolean; backspace: boolean; delete: boolean; upArrow: boolean; downArrow: boolean; leftArrow: boolean; rightArrow: boolean; meta: boolean; tab: boolean }) => {
+    (
+      input: string,
+      key: {
+        ctrl: boolean;
+        return: boolean;
+        escape: boolean;
+        backspace: boolean;
+        delete: boolean;
+        upArrow: boolean;
+        downArrow: boolean;
+        leftArrow: boolean;
+        rightArrow: boolean;
+        meta: boolean;
+        tab: boolean;
+      }
+    ) => {
       // Save: Ctrl+S (multi-line) or Enter (single-line)
       if ((key.ctrl && input === 's') || (!multiline && key.return)) {
         onSave?.(value);
@@ -83,8 +98,7 @@ export const InlineEditor = memo(function InlineEditor({
 
       // Newline (multi-line only)
       if (multiline && key.return) {
-        const newValue =
-          value.slice(0, cursorPos) + '\n' + value.slice(cursorPos);
+        const newValue = value.slice(0, cursorPos) + '\n' + value.slice(cursorPos);
         setValue(newValue);
         setCursorPos(cursorPos + 1);
         setCursorLine(cursorLine + 1);
@@ -95,8 +109,7 @@ export const InlineEditor = memo(function InlineEditor({
       // Backspace
       if (key.backspace || key.delete) {
         if (cursorPos > 0) {
-          const newValue =
-            value.slice(0, cursorPos - 1) + value.slice(cursorPos);
+          const newValue = value.slice(0, cursorPos - 1) + value.slice(cursorPos);
           setValue(newValue);
           setCursorPos(cursorPos - 1);
           // Handle line change for multi-line
@@ -144,8 +157,7 @@ export const InlineEditor = memo(function InlineEditor({
 
       if (multiline && key.downArrow) {
         if (cursorLine < lines.length - 1) {
-          const nextLineStart =
-            currentLineStart + currentLineLength + 1;
+          const nextLineStart = currentLineStart + currentLineLength + 1;
           const nextLineLength = lines[cursorLine + 1]?.length ?? 0;
           const newPosInLine = Math.min(cursorPosInLine, nextLineLength);
           setCursorPos(nextLineStart + newPosInLine);
@@ -161,14 +173,25 @@ export const InlineEditor = memo(function InlineEditor({
 
       // Regular character input
       if (input && !key.ctrl && !key.meta) {
-        const newValue =
-          value.slice(0, cursorPos) + input + value.slice(cursorPos);
+        const newValue = value.slice(0, cursorPos) + input + value.slice(cursorPos);
         setValue(newValue);
         setCursorPos(cursorPos + input.length);
         onChange?.(newValue);
       }
     },
-    [value, cursorPos, cursorLine, lines, currentLineStart, currentLineLength, cursorPosInLine, multiline, onChange, onSave, onCancel]
+    [
+      value,
+      cursorPos,
+      cursorLine,
+      lines,
+      currentLineStart,
+      currentLineLength,
+      cursorPosInLine,
+      multiline,
+      onChange,
+      onSave,
+      onCancel,
+    ]
   );
 
   useInput(handleInput, { isActive: focused && !disableInput });
@@ -183,7 +206,9 @@ export const InlineEditor = memo(function InlineEditor({
       <Box flexDirection="column">
         {label && (
           <Box marginBottom={1}>
-            <Text bold color={theme.colors.primary}>{label}</Text>
+            <Text bold color={theme.colors.primary}>
+              {label}
+            </Text>
           </Box>
         )}
         <Box
@@ -202,9 +227,7 @@ export const InlineEditor = memo(function InlineEditor({
           )}
         </Box>
         <Box marginTop={1}>
-          <Text dimColor>
-            [Enter] save | [Esc] cancel
-          </Text>
+          <Text dimColor>[Enter] save | [Esc] cancel</Text>
         </Box>
       </Box>
     );
@@ -218,7 +241,9 @@ export const InlineEditor = memo(function InlineEditor({
     <Box flexDirection="column">
       {label && (
         <Box marginBottom={1}>
-          <Text bold color="cyan">{label}</Text>
+          <Text bold color="cyan">
+            {label}
+          </Text>
         </Box>
       )}
       <Box
@@ -248,14 +273,10 @@ export const InlineEditor = memo(function InlineEditor({
             return <Text key={lineIdx}>{line || ' '}</Text>;
           })
         )}
-        {hasMore && (
-          <Text dimColor>... {lines.length - maxHeight} more lines</Text>
-        )}
+        {hasMore && <Text dimColor>... {lines.length - maxHeight} more lines</Text>}
       </Box>
       <Box marginTop={1}>
-        <Text dimColor>
-          [Ctrl+S] save | [Esc] cancel | [Enter] newline
-        </Text>
+        <Text dimColor>[Ctrl+S] save | [Esc] cancel | [Enter] newline</Text>
       </Box>
     </Box>
   );
@@ -282,12 +303,7 @@ export const EditorModal = memo(function EditorModal({
   if (!visible) return null;
 
   return (
-    <Box
-      flexDirection="column"
-      alignItems="center"
-      justifyContent="center"
-      width="100%"
-    >
+    <Box flexDirection="column" alignItems="center" justifyContent="center" width="100%">
       <Box
         flexDirection="column"
         borderStyle="double"
@@ -296,7 +312,9 @@ export const EditorModal = memo(function EditorModal({
         minWidth={50}
       >
         <Box marginBottom={1}>
-          <Text bold color={theme.colors.primary}>{title}</Text>
+          <Text bold color={theme.colors.primary}>
+            {title}
+          </Text>
         </Box>
         <InlineEditor {...editorProps} />
       </Box>

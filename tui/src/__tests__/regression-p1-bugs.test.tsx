@@ -19,7 +19,7 @@ import { FocusProvider, useFocus, type FocusArea } from '../navigation/FocusCont
 import { NavigationProvider, useNavigation } from '../navigation/NavigationContext';
 
 // Helper to wait for render updates
-const waitForRender = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 50));
+const waitForRender = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 50));
 
 /**
  * Test provider wrapper with both FocusProvider and NavigationProvider
@@ -33,9 +33,7 @@ function TestProviders({
 }): React.ReactElement {
   return (
     <FocusProvider initialFocus={initialFocus}>
-      <NavigationProvider>
-        {children}
-      </NavigationProvider>
+      <NavigationProvider>{children}</NavigationProvider>
     </FocusProvider>
   );
 }

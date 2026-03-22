@@ -32,12 +32,20 @@ export function AgentLiveTab({
       borderColor={theme.colors.primary}
     >
       <Box marginBottom={1}>
-        <Text color={theme.colors.primary} bold>LIVE OUTPUT</Text>
+        <Text color={theme.colors.primary} bold>
+          LIVE OUTPUT
+        </Text>
         <Text dimColor> | </Text>
         {isFollowing ? (
-          <><Text color={theme.colors.success}>FOLLOWING</Text><Text dimColor> (2.5s)</Text></>
+          <>
+            <Text color={theme.colors.success}>FOLLOWING</Text>
+            <Text dimColor> (2.5s)</Text>
+          </>
         ) : (
-          <><Text color={theme.colors.warning}>PAUSED</Text><Text dimColor> (r: refresh)</Text></>
+          <>
+            <Text color={theme.colors.warning}>PAUSED</Text>
+            <Text dimColor> (r: refresh)</Text>
+          </>
         )}
         <Text dimColor> | f: toggle</Text>
       </Box>
@@ -55,7 +63,8 @@ export function AgentLiveTab({
       {liveLines.length > outputHeight && (
         <Box marginTop={1}>
           <Text dimColor>
-            Lines {scrollOffset + 1}-{Math.min(scrollOffset + outputHeight, liveLines.length)} of {liveLines.length}
+            Lines {scrollOffset + 1}-{Math.min(scrollOffset + outputHeight, liveLines.length)} of{' '}
+            {liveLines.length}
             {isFollowing && ' (following)'}
           </Text>
         </Box>

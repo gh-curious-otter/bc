@@ -88,7 +88,6 @@ describe('RolesView', () => {
       const { lastFrame } = renderWithFocus(<RolesView />);
       expect(lastFrame()).toBeDefined();
     });
-
   });
 
   describe('role list display', () => {

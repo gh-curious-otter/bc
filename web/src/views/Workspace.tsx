@@ -1,12 +1,18 @@
-import { useCallback } from 'react';
-import { api } from '../api/client';
-import { usePolling } from '../hooks/usePolling';
-import { LoadingSkeleton } from '../components/LoadingSkeleton';
-import { EmptyState } from '../components/EmptyState';
+import { useCallback } from "react";
+import { api } from "../api/client";
+import { usePolling } from "../hooks/usePolling";
+import { LoadingSkeleton } from "../components/LoadingSkeleton";
+import { EmptyState } from "../components/EmptyState";
 
 export function Workspace() {
   const fetcher = useCallback(() => api.getWorkspaceStatus(), []);
-  const { data: status, loading, error, refresh, timedOut } = usePolling(fetcher, 10000);
+  const {
+    data: status,
+    loading,
+    error,
+    refresh,
+    timedOut,
+  } = usePolling(fetcher, 10000);
 
   if (loading && !status) {
     return (
@@ -50,8 +56,13 @@ export function Workspace() {
 
       <div className="grid grid-cols-2 gap-4">
         {Object.entries(status).map(([key, value]) => (
-          <div key={key} className="rounded border border-bc-border bg-bc-surface p-4">
-            <p className="text-xs text-bc-muted uppercase tracking-wide">{key.replace(/_/g, ' ')}</p>
+          <div
+            key={key}
+            className="rounded border border-bc-border bg-bc-surface p-4"
+          >
+            <p className="text-xs text-bc-muted uppercase tracking-wide">
+              {key.replace(/_/g, " ")}
+            </p>
             <p className="mt-1 text-lg font-bold">{String(value)}</p>
           </div>
         ))}

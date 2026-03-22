@@ -6,22 +6,10 @@
 import type { ThemeName, ThemeMode } from '../theme';
 
 // Agent states matching pkg/agent/agent.go
-export type AgentState =
-  | 'idle'
-  | 'starting'
-  | 'working'
-  | 'done'
-  | 'stuck'
-  | 'error'
-  | 'stopped';
+export type AgentState = 'idle' | 'starting' | 'working' | 'done' | 'stuck' | 'error' | 'stopped';
 
 // Agent roles matching pkg/agent/agent.go
-export type AgentRole =
-  | 'root'
-  | 'product-manager'
-  | 'manager'
-  | 'tech-lead'
-  | 'engineer';
+export type AgentRole = 'root' | 'product-manager' | 'manager' | 'tech-lead' | 'engineer';
 
 // Agent memory info
 export interface AgentMemory {

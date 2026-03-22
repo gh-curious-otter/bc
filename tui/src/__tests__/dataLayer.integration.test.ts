@@ -117,11 +117,17 @@ describe('Data Layer - Channel communication workflow', () => {
     // Step 3: Send message to channel
     mockBcService.sendChannelMessage.mockResolvedValue(undefined);
     await bcService.sendChannelMessage('eng', 'Just finished implementation');
-    expect(mockBcService.sendChannelMessage).toHaveBeenCalledWith('eng', 'Just finished implementation');
+    expect(mockBcService.sendChannelMessage).toHaveBeenCalledWith(
+      'eng',
+      'Just finished implementation'
+    );
 
     // Step 4: Refresh history
     mockBcService.getChannelHistory.mockResolvedValue({
-      messages: [...historyData.messages, { sender: 'eng-01', text: 'Just finished implementation', timestamp: 1200 }],
+      messages: [
+        ...historyData.messages,
+        { sender: 'eng-01', text: 'Just finished implementation', timestamp: 1200 },
+      ],
     });
 
     const updatedHistory = await bcService.getChannelHistory('eng');
@@ -266,17 +272,17 @@ describe('Data Layer - Cost tracking workflow', () => {
 
     // After some work
     const updatedCosts = {
-      total_cost: 150.50,
+      total_cost: 150.5,
       total_input_tokens: 50000,
       total_output_tokens: 10000,
       by_agent: { 'eng-01': 75.25, 'eng-02': 75.25 },
-      by_team: { 'eng-team': 150.50 },
-      by_model: { 'claude-3-sonnet': 150.50 },
+      by_team: { 'eng-team': 150.5 },
+      by_model: { 'claude-3-sonnet': 150.5 },
     };
     mockBcService.getCostSummary.mockResolvedValueOnce(updatedCosts);
 
     costs = await bcService.getCostSummary();
-    expect(costs.total_cost).toBe(150.50);
+    expect(costs.total_cost).toBe(150.5);
     expect(costs.by_agent['eng-01']).toBe(75.25);
   });
 });
@@ -298,7 +304,7 @@ describe('Data Layer - Process management workflow', () => {
     mockBcService.getProcesses.mockResolvedValue(processesData);
 
     const processes = await bcService.getProcesses();
-    const running = processes.processes.filter(p => p.status === 'running');
+    const running = processes.processes.filter((p) => p.status === 'running');
     expect(running).toHaveLength(2);
 
     // Step 2: Get logs for specific process
@@ -360,7 +366,7 @@ describe('Data Layer - Complex concurrent operations', () => {
     mockBcService.sendChannelMessage.mockResolvedValue(undefined);
 
     const channels = ['eng', 'leads', 'design'];
-    const messages = channels.flatMap(ch =>
+    const messages = channels.flatMap((ch) =>
       Array.from({ length: 5 }, (_, i) => bcService.sendChannelMessage(ch, `Message ${i}`))
     );
 
@@ -405,7 +411,7 @@ describe('Data Layer - Error recovery workflows', () => {
     ]);
 
     expect(results).toHaveLength(3);
-    results.forEach(result => {
+    results.forEach((result) => {
       expect(result.status).toBe('rejected');
     });
   });

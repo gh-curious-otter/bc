@@ -46,7 +46,6 @@ const formatRelativeTime = (timestamp: string): string => {
   }
 };
 
-
 /**
  * Chat message component with bubble styling
  *
@@ -83,9 +82,7 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
   // #1718: Changed default to 0 (no limit) to show full message content
   const lines = message.split('\n');
   const isTruncated = maxLines > 0 && lines.length > maxLines;
-  const displayMessage = isTruncated
-    ? lines.slice(0, maxLines).join('\n')
-    : message;
+  const displayMessage = isTruncated ? lines.slice(0, maxLines).join('\n') : message;
 
   // #1899: Compact mode — no bubble borders, sender + time on one line, message below
   // Used at narrow terminals (<100 cols) to avoid border corruption and wasted space
@@ -93,16 +90,22 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
     return (
       <Box flexDirection="column" width="100%" paddingX={1} marginBottom={1}>
         <Box>
-          <Text color={senderColor} bold>{rolePrefix}{sender}</Text>
-          {isOwnMessage && <Text color={theme.colors.primary} dimColor> (you)</Text>}
-          <Text dimColor>  {time}</Text>
+          <Text color={senderColor} bold>
+            {rolePrefix}
+            {sender}
+          </Text>
+          {isOwnMessage && (
+            <Text color={theme.colors.primary} dimColor>
+              {' '}
+              (you)
+            </Text>
+          )}
+          <Text dimColor> {time}</Text>
           {!isRead && <Text color={theme.colors.secondary}> ●</Text>}
         </Box>
         <Box paddingLeft={2} flexDirection="column">
           <MentionText text={displayMessage} currentUser={currentUser} />
-          {isTruncated && (
-            <Text dimColor>... ({lines.length - maxLines} more lines)</Text>
-          )}
+          {isTruncated && <Text dimColor>... ({lines.length - maxLines} more lines)</Text>}
         </Box>
         {reactions.length > 0 && (
           <Box paddingLeft={2}>
@@ -118,16 +121,9 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
   const bubbleAlignment = isOwnMessage ? 'flex-end' : 'flex-start';
 
   return (
-    <Box
-      flexDirection="column"
-      width="100%"
-      marginY={0}
-    >
+    <Box flexDirection="column" width="100%" marginY={0}>
       {/* Message container with alignment */}
-      <Box
-        justifyContent={bubbleAlignment}
-        width="100%"
-      >
+      <Box justifyContent={bubbleAlignment} width="100%">
         {/* Message bubble - #1589 fix: Add overflow="hidden" to prevent text bleeding */}
         <Box
           flexDirection="column"
@@ -141,19 +137,21 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
           <Box justifyContent="space-between" overflow="hidden">
             <Box>
               <Text color={senderColor} bold>
-                {rolePrefix}{sender}
+                {rolePrefix}
+                {sender}
               </Text>
               {isOwnMessage && (
-                <Text color={theme.colors.primary} dimColor> (you)</Text>
+                <Text color={theme.colors.primary} dimColor>
+                  {' '}
+                  (you)
+                </Text>
               )}
             </Box>
             <Box>
               <Text color={theme.colors.textMuted} dimColor>
                 {time}
               </Text>
-              {!isRead && (
-                <Text color={theme.colors.secondary}> ●</Text>
-              )}
+              {!isRead && <Text color={theme.colors.secondary}> ●</Text>}
             </Box>
           </Box>
 
@@ -161,12 +159,16 @@ export const ChatMessage = memo<ChatMessageProps>(function ChatMessage({
               CLI directive: Fix long message rendering - ensure text wraps properly
               Use width constraint to force text wrapping within bubble
               #1589 fix: Add overflow="hidden" to prevent text bleeding artifacts */}
-          <Box flexDirection="column" flexGrow={1} minHeight={1} width={maxBubbleWidth - 4} overflow="hidden">
+          <Box
+            flexDirection="column"
+            flexGrow={1}
+            minHeight={1}
+            width={maxBubbleWidth - 4}
+            overflow="hidden"
+          >
             <MentionText text={displayMessage} currentUser={currentUser} />
             {/* #1463: Show truncation indicator for long messages */}
-            {isTruncated && (
-              <Text dimColor>... ({lines.length - maxLines} more lines)</Text>
-            )}
+            {isTruncated && <Text dimColor>... ({lines.length - maxLines} more lines)</Text>}
           </Box>
 
           {/* Reactions */}

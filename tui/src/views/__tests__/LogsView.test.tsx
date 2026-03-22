@@ -94,10 +94,30 @@ describe('LogsView', () => {
   describe('Time Filtering', () => {
     const now = Date.now();
     const mockLogs: LogEntry[] = [
-      { ts: new Date(now - 30 * 60 * 1000).toISOString(), agent: 'eng-01', type: 'info', message: '30 min ago' },
-      { ts: new Date(now - 2 * 60 * 60 * 1000).toISOString(), agent: 'eng-01', type: 'info', message: '2 hours ago' },
-      { ts: new Date(now - 12 * 60 * 60 * 1000).toISOString(), agent: 'eng-01', type: 'info', message: '12 hours ago' },
-      { ts: new Date(now - 48 * 60 * 60 * 1000).toISOString(), agent: 'eng-01', type: 'info', message: '2 days ago' },
+      {
+        ts: new Date(now - 30 * 60 * 1000).toISOString(),
+        agent: 'eng-01',
+        type: 'info',
+        message: '30 min ago',
+      },
+      {
+        ts: new Date(now - 2 * 60 * 60 * 1000).toISOString(),
+        agent: 'eng-01',
+        type: 'info',
+        message: '2 hours ago',
+      },
+      {
+        ts: new Date(now - 12 * 60 * 60 * 1000).toISOString(),
+        agent: 'eng-01',
+        type: 'info',
+        message: '12 hours ago',
+      },
+      {
+        ts: new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+        agent: 'eng-01',
+        type: 'info',
+        message: '2 days ago',
+      },
     ];
 
     test('all filter returns all logs', () => {
@@ -149,9 +169,24 @@ describe('LogsView', () => {
 
   describe('Search Filtering', () => {
     const mockLogs: LogEntry[] = [
-      { ts: '2024-01-01T10:00:00Z', agent: 'eng-01', type: 'agent.started', message: 'Agent started successfully' },
-      { ts: '2024-01-01T10:01:00Z', agent: 'eng-02', type: 'state.working', message: 'Starting implementation' },
-      { ts: '2024-01-01T10:02:00Z', agent: 'eng-01', type: 'agent.report', message: 'Completed feature X' },
+      {
+        ts: '2024-01-01T10:00:00Z',
+        agent: 'eng-01',
+        type: 'agent.started',
+        message: 'Agent started successfully',
+      },
+      {
+        ts: '2024-01-01T10:01:00Z',
+        agent: 'eng-02',
+        type: 'state.working',
+        message: 'Starting implementation',
+      },
+      {
+        ts: '2024-01-01T10:02:00Z',
+        agent: 'eng-01',
+        type: 'agent.report',
+        message: 'Completed feature X',
+      },
     ];
 
     test('filters by message content', () => {

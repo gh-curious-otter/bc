@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback } from "react";
 
 interface MessageInputBarProps {
   onSend: (message: string) => Promise<void>;
@@ -13,10 +13,10 @@ interface MessageInputBarProps {
  */
 export function MessageInputBar({
   onSend,
-  placeholder = 'Send a message...',
+  placeholder = "Send a message...",
   disabled = false,
 }: MessageInputBarProps) {
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
 
   const handleSend = useCallback(async () => {
@@ -25,7 +25,7 @@ export function MessageInputBar({
     setSending(true);
     try {
       await onSend(trimmed);
-      setMessage('');
+      setMessage("");
     } finally {
       setSending(false);
     }
@@ -33,10 +33,10 @@ export function MessageInputBar({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Enter') {
+      if (e.key === "Enter") {
         void handleSend();
-      } else if (e.key === 'Escape') {
-        setMessage('');
+      } else if (e.key === "Escape") {
+        setMessage("");
       }
     },
     [handleSend],
@@ -60,7 +60,7 @@ export function MessageInputBar({
         disabled={isDisabled || !message.trim()}
         className="px-3 py-1.5 bg-bc-accent text-bc-bg rounded text-sm font-medium disabled:opacity-50"
       >
-        {sending ? 'Sending...' : 'Send'}
+        {sending ? "Sending..." : "Send"}
       </button>
     </div>
   );

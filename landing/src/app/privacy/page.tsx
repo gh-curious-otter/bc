@@ -27,8 +27,8 @@ export default function PrivacyPolicy() {
                 bc (&ldquo;we,&rdquo; &ldquo;us,&rdquo; &ldquo;our,&rdquo; or
                 &ldquo;Company&rdquo;) is committed to protecting your privacy.
                 This Privacy Policy explains how we collect, use, disclose, and
-                safeguard your information when you visit our website and use our
-                services.
+                safeguard your information when you visit our website and use
+                our services.
               </p>
             </div>
 
@@ -76,25 +76,22 @@ export default function PrivacyPolicy() {
                 <li>To provide and maintain our services</li>
                 <li>To notify you about changes to our services</li>
                 <li>
-                  To allow you to participate in interactive features of our site
+                  To allow you to participate in interactive features of our
+                  site
                 </li>
                 <li>To provide customer support and respond to inquiries</li>
-                <li>
-                  To gather analysis and feedback to improve our services
-                </li>
-                <li>
-                  To send promotional communications (with your consent)
-                </li>
+                <li>To gather analysis and feedback to improve our services</li>
+                <li>To send promotional communications (with your consent)</li>
               </ul>
             </div>
 
             <div>
               <h2 className="text-xl font-bold mb-3">3. Data Security</h2>
               <p className="text-muted-foreground">
-                We implement appropriate technical and organizational measures to
-                protect your personal information against unauthorized access,
-                alteration, disclosure, or destruction. However, no method of
-                transmission over the Internet is 100% secure.
+                We implement appropriate technical and organizational measures
+                to protect your personal information against unauthorized
+                access, alteration, disclosure, or destruction. However, no
+                method of transmission over the Internet is 100% secure.
               </p>
             </div>
 
@@ -105,8 +102,8 @@ export default function PrivacyPolicy() {
               <p className="text-muted-foreground">
                 Our website may contain links to third-party websites and
                 services that are not operated by us. This Privacy Policy does
-                not apply to third-party websites, and we are not responsible for
-                their privacy practices.
+                not apply to third-party websites, and we are not responsible
+                for their privacy practices.
               </p>
             </div>
 

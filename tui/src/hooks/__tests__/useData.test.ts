@@ -27,7 +27,12 @@ import * as bcService from '../../services/bc';
 // useTeams and useProcesses hooks are not yet implemented;
 // stub them so tests compile but remain skipped via skipIf(noDOM)
 const useTeams = vi.fn(() => ({ data: null, loading: true, error: null, refresh: vi.fn() })) as any;
-const useProcesses = vi.fn(() => ({ data: null, loading: true, error: null, refresh: vi.fn() })) as any;
+const useProcesses = vi.fn(() => ({
+  data: null,
+  loading: true,
+  error: null,
+  refresh: vi.fn(),
+})) as any;
 
 const mockBcService = bcService as any;
 
@@ -77,7 +82,7 @@ describe.skipIf(noDOM)('useStatus - Workspace status', () => {
       vi.runAllTimers();
     });
 
-    const working = result.current.data?.agents.filter(a => a.state === 'working').length || 0;
+    const working = result.current.data?.agents.filter((a) => a.state === 'working').length || 0;
     expect(working).toBe(2);
   });
 
@@ -109,12 +114,12 @@ describe.skipIf(noDOM)('useCosts - Cost tracking', () => {
 
   it('fetches cost summary', async () => {
     const costData = {
-      total_cost: 150.50,
+      total_cost: 150.5,
       total_input_tokens: 50000,
       total_output_tokens: 10000,
       by_agent: { 'eng-01': 75.25, 'eng-02': 75.25 },
       by_team: {},
-      by_model: { 'claude-3-sonnet': 150.50 },
+      by_model: { 'claude-3-sonnet': 150.5 },
     };
     mockBcService.getCostSummary.mockResolvedValue(costData);
 
@@ -125,7 +130,7 @@ describe.skipIf(noDOM)('useCosts - Cost tracking', () => {
     });
 
     expect(result.current.data).toEqual(costData);
-    expect(result.current.data?.total_cost).toBe(150.50);
+    expect(result.current.data?.total_cost).toBe(150.5);
   });
 
   it('returns zero costs when none exist', async () => {
@@ -267,7 +272,7 @@ describe.skipIf(noDOM)('useTeams - Team management', () => {
       vi.runAllTimers();
     });
 
-    const teamsWithEng01 = result.current.data?.filter(t => t.members.includes('eng-01')) ?? [];
+    const teamsWithEng01 = result.current.data?.filter((t) => t.members.includes('eng-01')) ?? [];
     expect(teamsWithEng01).toHaveLength(2);
   });
 
@@ -355,7 +360,7 @@ describe.skipIf(noDOM)('useProcesses - Process management', () => {
       vi.runAllTimers();
     });
 
-    const running = result.current.data?.filter(p => p.status === 'running') ?? [];
+    const running = result.current.data?.filter((p) => p.status === 'running') ?? [];
     expect(running).toHaveLength(2);
   });
 
@@ -453,8 +458,7 @@ describe.skipIf(noDOM)('Data hooks - Error handling', () => {
       name: 'useCosts handles missing data',
       // eslint-disable-next-line react-hooks/rules-of-hooks -- Test wrapper
       useHook: () => useCosts(),
-      setupMock: () =>
-        mockBcService.getCostSummary.mockRejectedValue(new Error('No cost records')),
+      setupMock: () => mockBcService.getCostSummary.mockRejectedValue(new Error('No cost records')),
     },
     {
       name: 'useTeams handles missing teams',

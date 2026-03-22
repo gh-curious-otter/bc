@@ -62,9 +62,7 @@ function renderWithProviders(view: React.ReactNode) {
     <HintsProvider>
       <NavigationProvider>
         <FocusProvider>
-          <DisableInputProvider disabled>
-            {view}
-          </DisableInputProvider>
+          <DisableInputProvider disabled>{view}</DisableInputProvider>
         </FocusProvider>
       </NavigationProvider>
     </HintsProvider>
@@ -82,7 +80,7 @@ function analyzeOutput(output: string): {
   issues: string[];
 } {
   const lines = output.split('\n');
-  const maxLineLength = Math.max(...lines.map(line => line.length));
+  const maxLineLength = Math.max(...lines.map((line) => line.length));
   const overflowLines = lines
     .map((line, i) => ({ line, index: i }))
     .filter(({ line }) => line.length > VIEWPORT.width)
@@ -123,7 +121,9 @@ function expectViewportCompliance(output: string, viewName: string) {
     ];
 
     if (analysis.overflowLines.length > 0) {
-      details.push(`Overflow at lines: ${analysis.overflowLines.slice(0, 5).join(', ')}${analysis.overflowLines.length > 5 ? '...' : ''}`);
+      details.push(
+        `Overflow at lines: ${analysis.overflowLines.slice(0, 5).join(', ')}${analysis.overflowLines.length > 5 ? '...' : ''}`
+      );
     }
 
     // Log for debugging but don't fail yet - some views may legitimately
@@ -193,7 +193,7 @@ describe('Viewport CI - 80x24 Compliance', () => {
         const { lastFrame } = renderWithProviders(component);
 
         // Wait for initial render
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise((resolve) => setTimeout(resolve, 50));
 
         const output = lastFrame() ?? '';
 
@@ -209,7 +209,7 @@ describe('Viewport CI - 80x24 Compliance', () => {
   describe('Views - Empty State', () => {
     it('Dashboard shows summary cards at 80 columns', async () => {
       const { lastFrame } = renderWithProviders(<Dashboard />);
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       const output = lastFrame() ?? '';
       // Dashboard should show status info
@@ -218,7 +218,7 @@ describe('Viewport CI - 80x24 Compliance', () => {
 
     it('AgentsView shows empty message at 80 columns', async () => {
       const { lastFrame } = renderWithProviders(<AgentsView />);
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       const output = lastFrame() ?? '';
       // Should show loading or empty state
@@ -227,7 +227,7 @@ describe('Viewport CI - 80x24 Compliance', () => {
 
     it('HelpView shows keybindings at 80 columns', async () => {
       const { lastFrame } = renderWithProviders(<HelpView />);
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       const output = lastFrame() ?? '';
       // Help should mention navigation keys
@@ -296,10 +296,10 @@ describe('Viewport CI - Responsive Breakpoints', () => {
 describe('Viewport CI - Text Truncation', () => {
   it('long text truncates with ellipsis', () => {
     const maxLength = 40;
-    const longText = 'This is a very long text that should be truncated because it exceeds the maximum allowed length';
-    const truncated = longText.length > maxLength
-      ? longText.slice(0, maxLength - 1) + '…'
-      : longText;
+    const longText =
+      'This is a very long text that should be truncated because it exceeds the maximum allowed length';
+    const truncated =
+      longText.length > maxLength ? longText.slice(0, maxLength - 1) + '…' : longText;
 
     expect(truncated.length).toBeLessThanOrEqual(maxLength);
     expect(truncated).toContain('…');
@@ -308,9 +308,8 @@ describe('Viewport CI - Text Truncation', () => {
   it('agent names truncate to 12 characters', () => {
     const maxNameLength = 12;
     const longName = 'engineer-production-01';
-    const truncated = longName.length > maxNameLength
-      ? longName.slice(0, maxNameLength - 1) + '…'
-      : longName;
+    const truncated =
+      longName.length > maxNameLength ? longName.slice(0, maxNameLength - 1) + '…' : longName;
 
     expect(truncated.length).toBeLessThanOrEqual(maxNameLength);
   });
@@ -318,9 +317,10 @@ describe('Viewport CI - Text Truncation', () => {
   it('channel names truncate appropriately', () => {
     const maxChannelLength = 20;
     const longChannel = 'team-engineering-announcements';
-    const truncated = longChannel.length > maxChannelLength
-      ? longChannel.slice(0, maxChannelLength - 1) + '…'
-      : longChannel;
+    const truncated =
+      longChannel.length > maxChannelLength
+        ? longChannel.slice(0, maxChannelLength - 1) + '…'
+        : longChannel;
 
     expect(truncated.length).toBeLessThanOrEqual(maxChannelLength);
   });

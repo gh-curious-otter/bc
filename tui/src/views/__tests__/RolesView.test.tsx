@@ -174,7 +174,11 @@ describe('RolesView', () => {
   describe('Search Filtering', () => {
     const roles: Role[] = [
       { name: 'engineer', description: 'Implements features', capabilities: ['implement_tasks'] },
-      { name: 'manager', description: 'Coordinates team', capabilities: ['assign_work', 'create_agents'] },
+      {
+        name: 'manager',
+        description: 'Coordinates team',
+        capabilities: ['assign_work', 'create_agents'],
+      },
       { name: 'tech-lead', description: 'Technical guidance', capabilities: ['review_code'] },
     ];
 

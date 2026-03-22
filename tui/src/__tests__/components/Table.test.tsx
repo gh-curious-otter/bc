@@ -178,7 +178,9 @@ describe('Table', () => {
     });
 
     it('handles special characters', () => {
-      const dataWithSpecial = [{ id: 1, name: '<script>alert(1)</script>', role: 'Test', active: true }];
+      const dataWithSpecial = [
+        { id: 1, name: '<script>alert(1)</script>', role: 'Test', active: true },
+      ];
       const { lastFrame } = renderWithTheme(<Table columns={testColumns} data={dataWithSpecial} />);
       expect(lastFrame()).toBeDefined();
     });
@@ -193,8 +195,12 @@ describe('Table', () => {
 
   describe('consistency', () => {
     it('produces consistent output on re-render', () => {
-      const { lastFrame: frame1 } = renderWithTheme(<Table columns={testColumns} data={testData} />);
-      const { lastFrame: frame2 } = renderWithTheme(<Table columns={testColumns} data={testData} />);
+      const { lastFrame: frame1 } = renderWithTheme(
+        <Table columns={testColumns} data={testData} />
+      );
+      const { lastFrame: frame2 } = renderWithTheme(
+        <Table columns={testColumns} data={testData} />
+      );
       expect(frame1()).toBe(frame2());
     });
   });

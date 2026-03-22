@@ -10,11 +10,7 @@
 
 import { describe, it, expect } from 'bun:test';
 import { calculateTrend } from '../useCostTrends';
-import type {
-  CostData,
-  CostTrend,
-  CostBudgetStatus,
-} from '../useCostTrends';
+import type { CostData, CostTrend, CostBudgetStatus } from '../useCostTrends';
 
 describe('useCostTrends - calculateTrend Helper', () => {
   describe('trend direction', () => {
@@ -94,7 +90,7 @@ describe('useCostTrends - Type Exports', () => {
     it('has timestamp property', () => {
       const data: CostData = {
         timestamp: new Date(),
-        totalCostUSD: 5.50,
+        totalCostUSD: 5.5,
         inputTokens: 10000,
         outputTokens: 5000,
       };
@@ -114,7 +110,7 @@ describe('useCostTrends - Type Exports', () => {
     it('has token counts', () => {
       const data: CostData = {
         timestamp: new Date(),
-        totalCostUSD: 8.00,
+        totalCostUSD: 8.0,
         inputTokens: 15000,
         outputTokens: 8000,
       };
@@ -142,12 +138,12 @@ describe('useCostTrends - Type Exports', () => {
 
     it('has cost comparison properties', () => {
       const trend: Partial<CostTrend> = {
-        totalCost: 50.00,
-        previousPeriodCost: 40.00,
+        totalCost: 50.0,
+        previousPeriodCost: 40.0,
         percentChange: 25,
       };
-      expect(trend.totalCost).toBe(50.00);
-      expect(trend.previousPeriodCost).toBe(40.00);
+      expect(trend.totalCost).toBe(50.0);
+      expect(trend.previousPeriodCost).toBe(40.0);
       expect(trend.percentChange).toBe(25);
     });
 
@@ -165,8 +161,8 @@ describe('useCostTrends - Type Exports', () => {
         period: 'week',
         startDate: new Date('2024-02-12'),
         endDate: new Date('2024-02-18'),
-        totalCost: 25.00,
-        previousPeriodCost: 20.00,
+        totalCost: 25.0,
+        previousPeriodCost: 20.0,
         percentChange: 25,
         trend: 'up',
         trendSymbol: '↗',
@@ -179,16 +175,16 @@ describe('useCostTrends - Type Exports', () => {
   describe('CostBudgetStatus', () => {
     it('has spent property', () => {
       const status: Partial<CostBudgetStatus> = {
-        spent: 25.50,
+        spent: 25.5,
       };
-      expect(status.spent).toBe(25.50);
+      expect(status.spent).toBe(25.5);
     });
 
     it('has budget property', () => {
       const status: Partial<CostBudgetStatus> = {
-        budget: 100.00,
+        budget: 100.0,
       };
-      expect(status.budget).toBe(100.00);
+      expect(status.budget).toBe(100.0);
     });
 
     it('has percentUsed property', () => {
@@ -207,16 +203,16 @@ describe('useCostTrends - Type Exports', () => {
 
     it('has burnRate property', () => {
       const status: Partial<CostBudgetStatus> = {
-        burnRate: 2.50,
+        burnRate: 2.5,
       };
-      expect(status.burnRate).toBe(2.50);
+      expect(status.burnRate).toBe(2.5);
     });
 
     it('has projectedTotal property', () => {
       const status: Partial<CostBudgetStatus> = {
-        projectedTotal: 85.00,
+        projectedTotal: 85.0,
       };
-      expect(status.projectedTotal).toBe(85.00);
+      expect(status.projectedTotal).toBe(85.0);
     });
 
     it('has status property', () => {
@@ -234,12 +230,12 @@ describe('useCostTrends - Type Exports', () => {
 describe('useCostTrends - Budget Status Scenarios', () => {
   it('models normal budget status', () => {
     const status: CostBudgetStatus = {
-      spent: 30.00,
-      budget: 100.00,
+      spent: 30.0,
+      budget: 100.0,
       percentUsed: 30,
       daysRemaining: 20,
-      burnRate: 1.50,
-      projectedTotal: 45.00,
+      burnRate: 1.5,
+      projectedTotal: 45.0,
       status: 'normal',
     };
     expect(status.status).toBe('normal');
@@ -248,12 +244,12 @@ describe('useCostTrends - Budget Status Scenarios', () => {
 
   it('models warning budget status (70-90% used)', () => {
     const status: CostBudgetStatus = {
-      spent: 75.00,
-      budget: 100.00,
+      spent: 75.0,
+      budget: 100.0,
       percentUsed: 75,
       daysRemaining: 10,
       burnRate: 3.75,
-      projectedTotal: 112.50,
+      projectedTotal: 112.5,
       status: 'warning',
     };
     expect(status.status).toBe('warning');
@@ -263,8 +259,8 @@ describe('useCostTrends - Budget Status Scenarios', () => {
 
   it('models critical budget status (>90% used)', () => {
     const status: CostBudgetStatus = {
-      spent: 95.00,
-      budget: 100.00,
+      spent: 95.0,
+      budget: 100.0,
       percentUsed: 95,
       daysRemaining: 5,
       burnRate: 4.75,
@@ -390,7 +386,7 @@ describe('useCostTrends - Common Patterns', () => {
   it('token counts are integers', () => {
     const data: CostData = {
       timestamp: new Date(),
-      totalCostUSD: 1.00,
+      totalCostUSD: 1.0,
       inputTokens: 5000,
       outputTokens: 2500,
     };

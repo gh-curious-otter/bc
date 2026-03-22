@@ -66,7 +66,13 @@ const mockTeams = [
 ];
 
 const mockProcesses = [
-  { name: 'server', command: 'npm run dev', running: true, pid: 1234, started_at: '2026-02-16T09:00:00Z' },
+  {
+    name: 'server',
+    command: 'npm run dev',
+    running: true,
+    pid: 1234,
+    started_at: '2026-02-16T09:00:00Z',
+  },
 ];
 
 // Test component that simulates a complete workflow
@@ -133,9 +139,7 @@ describe('E2E Workflow: Agent Lifecycle', () => {
       costs: mockCosts,
     };
 
-    const { lastFrame } = render(
-      <WorkflowTestComponent initialState={initialState} />
-    );
+    const { lastFrame } = render(<WorkflowTestComponent initialState={initialState} />);
 
     // First agent should be in 'working' state
     expect(initialState.agents[0].state).toBe('working');
@@ -195,8 +199,8 @@ describe('E2E Workflow: Channel Communication', () => {
 
   it('verifies message sender is in channel members', () => {
     const engChannel = mockChannels.find((c) => c.name === 'eng');
-    const allSendersAreMembers = mockMessages.every(
-      (msg) => engChannel?.members.includes(msg.sender)
+    const allSendersAreMembers = mockMessages.every((msg) =>
+      engChannel?.members.includes(msg.sender)
     );
     expect(allSendersAreMembers).toBe(true);
   });

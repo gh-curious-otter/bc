@@ -20,7 +20,9 @@ export function useLoadingTimeout(loading: boolean): number {
     const timer = setInterval(() => {
       setElapsed(Math.floor((Date.now() - start) / 1000));
     }, 1000);
-    return () => { clearInterval(timer); };
+    return () => {
+      clearInterval(timer);
+    };
   }, [loading]);
 
   return elapsed;

@@ -249,27 +249,29 @@ describe('Dashboard - footer hints', () => {
       { key: 'j/k', label: 'drawer' },
       { key: 'Enter', label: 'select' },
       { key: 'r', label: 'refresh' },
-      ...(showDebugPanel ? [{ key: 'Ctrl+P', label: 'hide perf' }] : [{ key: 'Ctrl+P', label: 'perf' }]),
+      ...(showDebugPanel
+        ? [{ key: 'Ctrl+P', label: 'hide perf' }]
+        : [{ key: 'Ctrl+P', label: 'perf' }]),
       { key: 'q', label: 'quit' },
     ];
   }
 
   test('shows perf when debug panel hidden', () => {
     const hints = getFooterHints(false);
-    const perfHint = hints.find(h => h.key === 'Ctrl+P');
+    const perfHint = hints.find((h) => h.key === 'Ctrl+P');
     expect(perfHint?.label).toBe('perf');
   });
 
   test('shows hide perf when debug panel shown', () => {
     const hints = getFooterHints(true);
-    const perfHint = hints.find(h => h.key === 'Ctrl+P');
+    const perfHint = hints.find((h) => h.key === 'Ctrl+P');
     expect(perfHint?.label).toBe('hide perf');
   });
 
   test('always includes standard hints', () => {
     const hints = getFooterHints(false);
-    expect(hints.some(h => h.key === 'Tab')).toBe(true);
-    expect(hints.some(h => h.key === 'r')).toBe(true);
-    expect(hints.some(h => h.key === 'q')).toBe(true);
+    expect(hints.some((h) => h.key === 'Tab')).toBe(true);
+    expect(hints.some((h) => h.key === 'r')).toBe(true);
+    expect(hints.some((h) => h.key === 'q')).toBe(true);
   });
 });

@@ -101,7 +101,20 @@ describe('80x24 Terminal - TabBar', () => {
     const output = lastFrame() ?? '';
 
     // All tab keys must be visible
-    const keys = ['[dash]', '[ag]', '[ch]', '[co]', '[log]', '[ro]', '[wt]', '[tl]', '[mcp]', '[sec]', '[ps]', '[?]'];
+    const keys = [
+      '[dash]',
+      '[ag]',
+      '[ch]',
+      '[co]',
+      '[log]',
+      '[ro]',
+      '[wt]',
+      '[tl]',
+      '[mcp]',
+      '[sec]',
+      '[ps]',
+      '[?]',
+    ];
     for (const key of keys) {
       expect(output).toContain(key);
     }
@@ -422,11 +435,15 @@ describe('80x24 Terminal - ActivityFeed Truncation', () => {
 describe('80x24 Terminal - Drawer Config', () => {
   function getDrawerWidth(mode: LayoutMode): number {
     switch (mode) {
-      case 'xs': return 0;
-      case 'sm': return 6;
-      case 'md': return 10;
+      case 'xs':
+        return 0;
+      case 'sm':
+        return 6;
+      case 'md':
+        return 10;
       case 'lg':
-      case 'xl': return 14;
+      case 'xl':
+        return 14;
     }
   }
 

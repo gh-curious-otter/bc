@@ -21,22 +21,23 @@ export function AgentDetailsTab({ agent }: AgentDetailsTabProps): React.ReactEle
       <DetailRow label="ID" value={agent.id} />
       <DetailRow label="Name" value={agent.name} />
       <DetailRow label="Role" value={<Text color={theme.colors.primary}>{agent.role}</Text>} />
-      <DetailRow
-        label="State"
-        value={<StatusBadge state={agent.state} />}
-      />
+      <DetailRow label="State" value={<StatusBadge state={agent.state} />} />
       <DetailRow label="Session" value={agent.session} />
       {agent.tool && <DetailRow label="Tool" value={agent.tool} />}
 
       <Box marginY={1}>
-        <Text bold color={theme.colors.text}>Task</Text>
+        <Text bold color={theme.colors.text}>
+          Task
+        </Text>
       </Box>
       <Box paddingLeft={2}>
         <Text wrap="wrap">{normalizeTask(agent.task)}</Text>
       </Box>
 
       <Box marginY={1}>
-        <Text bold color={theme.colors.text}>Paths</Text>
+        <Text bold color={theme.colors.text}>
+          Paths
+        </Text>
       </Box>
       <DetailRow label="Workspace" value={agent.workspace} />
       <DetailRow label="Worktree" value={agent.worktree_dir} />
@@ -44,7 +45,9 @@ export function AgentDetailsTab({ agent }: AgentDetailsTabProps): React.ReactEle
       {agent.log_file && <DetailRow label="Log File" value={agent.log_file} />}
 
       <Box marginY={1}>
-        <Text bold color={theme.colors.text}>Timestamps</Text>
+        <Text bold color={theme.colors.text}>
+          Timestamps
+        </Text>
       </Box>
       <DetailRow label="Started" value={formatDate(agent.started_at)} />
       <DetailRow label="Updated" value={formatDate(agent.updated_at)} />

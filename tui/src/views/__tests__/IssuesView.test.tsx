@@ -69,9 +69,7 @@ interface GHIssue {
 
 function filterByLabel(issues: GHIssue[], labelFilter: string | null): GHIssue[] {
   if (!labelFilter) return issues;
-  return issues.filter(issue =>
-    issue.labels.some(l => l.name === labelFilter)
-  );
+  return issues.filter((issue) => issue.labels.some((l) => l.name === labelFilter));
 }
 
 function extractUniqueLabels(issues: GHIssue[]): string[] {
@@ -216,7 +214,10 @@ describe('IssuesView', () => {
         title: 'Both labels',
         state: 'CLOSED',
         createdAt: '2024-02-03T00:00:00Z',
-        labels: [{ name: 'bug', color: 'd73a4a' }, { name: 'tui', color: '1d76db' }],
+        labels: [
+          { name: 'bug', color: 'd73a4a' },
+          { name: 'tui', color: '1d76db' },
+        ],
         assignees: [],
       },
     ];
@@ -228,7 +229,7 @@ describe('IssuesView', () => {
     test('filter by bug returns bug issues', () => {
       const filtered = filterByLabel(mockIssues, 'bug');
       expect(filtered).toHaveLength(2);
-      expect(filtered.map(i => i.number)).toEqual([1, 3]);
+      expect(filtered.map((i) => i.number)).toEqual([1, 3]);
     });
 
     test('filter by enhancement returns one issue', () => {
@@ -256,7 +257,10 @@ describe('IssuesView', () => {
         title: 'Issue 1',
         state: 'OPEN',
         createdAt: '2024-02-01T00:00:00Z',
-        labels: [{ name: 'bug', color: 'd73a4a' }, { name: 'tui', color: '1d76db' }],
+        labels: [
+          { name: 'bug', color: 'd73a4a' },
+          { name: 'tui', color: '1d76db' },
+        ],
         assignees: [],
       },
       {
@@ -264,7 +268,10 @@ describe('IssuesView', () => {
         title: 'Issue 2',
         state: 'OPEN',
         createdAt: '2024-02-02T00:00:00Z',
-        labels: [{ name: 'bug', color: 'd73a4a' }, { name: 'P1-high', color: 'd93f0b' }],
+        labels: [
+          { name: 'bug', color: 'd73a4a' },
+          { name: 'P1-high', color: 'd93f0b' },
+        ],
         assignees: [],
       },
       {
@@ -293,14 +300,16 @@ describe('IssuesView', () => {
     });
 
     test('issue with no labels is handled', () => {
-      const issues: GHIssue[] = [{
-        number: 1,
-        title: 'No labels',
-        state: 'OPEN',
-        createdAt: '2024-02-01T00:00:00Z',
-        labels: [],
-        assignees: [],
-      }];
+      const issues: GHIssue[] = [
+        {
+          number: 1,
+          title: 'No labels',
+          state: 'OPEN',
+          createdAt: '2024-02-01T00:00:00Z',
+          labels: [],
+          assignees: [],
+        },
+      ];
       const labels = extractUniqueLabels(issues);
       expect(labels).toHaveLength(0);
     });
@@ -347,7 +356,8 @@ describe('IssuesView', () => {
     });
 
     test('long title is truncated with ellipsis', () => {
-      const longTitle = 'This is a very long issue title that exceeds the maximum allowed length for display';
+      const longTitle =
+        'This is a very long issue title that exceeds the maximum allowed length for display';
       const truncated = truncate(longTitle, 48);
       expect(truncated.length).toBe(48);
       expect(truncated.endsWith('…')).toBe(true);
@@ -415,7 +425,7 @@ describe('IssuesView', () => {
         body: 'This is the issue body',
         author: { login: 'creator' },
         comments: [
-          { body: 'Comment 1', author: { login: 'commenter' }, createdAt: '2024-02-10T00:00:00Z' }
+          { body: 'Comment 1', author: { login: 'commenter' }, createdAt: '2024-02-10T00:00:00Z' },
         ],
       };
 
@@ -448,8 +458,8 @@ describe('IssuesView', () => {
         { number: 3, title: 'Closed 1', state: 'CLOSED', createdAt: '', labels: [], assignees: [] },
       ];
 
-      const openCount = issues.filter(i => i.state === 'OPEN').length;
-      const closedCount = issues.filter(i => i.state === 'CLOSED').length;
+      const openCount = issues.filter((i) => i.state === 'OPEN').length;
+      const closedCount = issues.filter((i) => i.state === 'CLOSED').length;
       const totalCount = issues.length;
 
       expect(openCount).toBe(2);

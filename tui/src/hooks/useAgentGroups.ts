@@ -104,9 +104,9 @@ export function abbreviateRole(role: string): string {
   const abbreviations: Record<string, string> = {
     'product-manager': 'PM',
     'tech-lead': 'TL',
-    'engineer': 'Eng',
-    'manager': 'Mgr',
-    'root': 'Root',
+    engineer: 'Eng',
+    manager: 'Mgr',
+    root: 'Root',
   };
   return abbreviations[role] ?? role;
 }

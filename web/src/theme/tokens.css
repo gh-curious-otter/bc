@@ -3,30 +3,30 @@
 @tailwind utilities;
 
 :root {
-  --bc-bg: #0C0A08;
-  --bc-surface: #1E1A16;
-  --bc-border: #2A2420;
-  --bc-text: #F5F0EB;
-  --bc-muted: #8C7E72;
-  --bc-accent: #EA580C;
-  --bc-success: #22C55E;
-  --bc-warning: #FB923C;
-  --bc-error: #EF4444;
+  --bc-bg: #0c0a08;
+  --bc-surface: #1e1a16;
+  --bc-border: #2a2420;
+  --bc-text: #f5f0eb;
+  --bc-muted: #8c7e72;
+  --bc-accent: #ea580c;
+  --bc-success: #22c55e;
+  --bc-warning: #fb923c;
+  --bc-error: #ef4444;
 
-  font-family: Inter, 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  font-family: Inter, "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   color-scheme: dark;
 }
 
 html.light {
-  --bc-bg: #FBF7F2;
-  --bc-surface: #FFFFFF;
-  --bc-border: #E5DDD4;
-  --bc-text: #1E1A16;
-  --bc-muted: #78706A;
-  --bc-accent: #EA580C;
-  --bc-success: #16A34A;
-  --bc-warning: #EA580C;
-  --bc-error: #DC2626;
+  --bc-bg: #fbf7f2;
+  --bc-surface: #ffffff;
+  --bc-border: #e5ddd4;
+  --bc-text: #1e1a16;
+  --bc-muted: #78706a;
+  --bc-accent: #ea580c;
+  --bc-success: #16a34a;
+  --bc-warning: #ea580c;
+  --bc-error: #dc2626;
 
   color-scheme: light;
 }

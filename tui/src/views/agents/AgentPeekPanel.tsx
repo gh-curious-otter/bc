@@ -43,7 +43,9 @@ export function AgentPeekPanel({
       width={terminalWidth}
     >
       <Box marginBottom={1}>
-        <Text bold color={theme.colors.primary}>Peek: {agent.name}</Text>
+        <Text bold color={theme.colors.primary}>
+          Peek: {agent.name}
+        </Text>
         <Text dimColor> (press p to close)</Text>
       </Box>
       {loading ? (

@@ -88,8 +88,8 @@ describe('Polling Behavior', () => {
     }
 
     // 4 successes, 2 failures (calls 3 and 6 fail)
-    expect(results.filter(r => r.success).length).toBe(4);
-    expect(results.filter(r => !r.success).length).toBe(2);
+    expect(results.filter((r) => r.success).length).toBe(4);
+    expect(results.filter((r) => !r.success).length).toBe(2);
   });
 
   it('respects polling interval timing', async () => {
@@ -152,7 +152,7 @@ describe('Concurrent Updates', () => {
       messageCount += 3; // 3 new messages each poll
       return Promise.resolve({
         messages: Array.from({ length: messageCount }, (_, i) => ({
-          sender: `eng-${String(i % 5 + 1).padStart(2, '0')}`,
+          sender: `eng-${String((i % 5) + 1).padStart(2, '0')}`,
           message: `Message ${i + 1}`,
           time: new Date(Date.now() - (messageCount - i) * 1000).toISOString(),
         })),
@@ -202,10 +202,7 @@ describe('Concurrent Updates', () => {
     });
 
     // Fetch both simultaneously
-    const [status, costs] = await Promise.all([
-      mockGetStatus(),
-      mockGetCostSummary(),
-    ]);
+    const [status, costs] = await Promise.all([mockGetStatus(), mockGetCostSummary()]);
 
     expect(status.agents[0].name).toBe('eng-01');
     expect(costs.total_cost).toBe(100);
@@ -260,10 +257,14 @@ describe('Data Freshness', () => {
     let fetchCount = 0;
     mockGetStatus.mockImplementation(() => {
       fetchCount++;
-      return new Promise(resolve =>
-        setTimeout(() => resolve({
-          agents: [{ name: 'eng-01', version: fetchCount }],
-        }), 50)
+      return new Promise((resolve) =>
+        setTimeout(
+          () =>
+            resolve({
+              agents: [{ name: 'eng-01', version: fetchCount }],
+            }),
+          50
+        )
       );
     });
 
@@ -300,7 +301,7 @@ describe('UI Update Patterns', () => {
     mockGetStatus.mockResolvedValueOnce({
       agents: [
         { name: 'eng-01', state: 'working' }, // State changed
-        { name: 'eng-02', state: 'done' },     // State changed
+        { name: 'eng-02', state: 'done' }, // State changed
         { name: 'eng-03', state: 'working' }, // State changed
       ],
     });
@@ -477,10 +478,8 @@ describe('Network Resilience', () => {
   });
 
   it('handles timeout scenarios', async () => {
-    mockGetStatus.mockImplementation(() =>
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Request timeout')), 100)
-      )
+    mockGetStatus.mockImplementation(
+      () => new Promise((_, reject) => setTimeout(() => reject(new Error('Request timeout')), 100))
     );
 
     // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test requires await for rejects
@@ -502,7 +501,7 @@ describe('Debouncing and Throttling', () => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     const debouncedFetch = () =>
-      new Promise<void>(resolve => {
+      new Promise<void>((resolve) => {
         if (timeoutId) clearTimeout(timeoutId);
         timeoutId = setTimeout(async () => {
           await mockGetStatus();
@@ -517,7 +516,7 @@ describe('Debouncing and Throttling', () => {
     await debouncedFetch();
 
     // Wait for debounce to complete
-    await new Promise(resolve => setTimeout(resolve, debounceDelay + 10));
+    await new Promise((resolve) => setTimeout(resolve, debounceDelay + 10));
 
     // Only 1 fetch should have occurred (last one)
     expect(fetchCount).toBe(1);

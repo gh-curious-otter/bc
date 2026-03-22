@@ -53,7 +53,12 @@ export function ChannelHistoryView({
   startInComposeMode = false,
 }: ChannelHistoryViewProps): React.ReactElement {
   const { theme } = useTheme();
-  const { data: messages, loading, error, send } = useChannelHistory(channel.name, {
+  const {
+    data: messages,
+    loading,
+    error,
+    send,
+  } = useChannelHistory(channel.name, {
     limit: 50,
   });
   const [inputMode, setInputMode] = useState(startInComposeMode);
@@ -67,8 +72,12 @@ export function ChannelHistoryView({
   // Auto-clear send errors after a delay
   useEffect(() => {
     if (!sendError) return;
-    const timer = setTimeout(() => { setSendError(null); }, SEND_ERROR_DISPLAY_DURATION);
-    return () => { clearTimeout(timer); };
+    const timer = setTimeout(() => {
+      setSendError(null);
+    }, SEND_ERROR_DISPLAY_DURATION);
+    return () => {
+      clearTimeout(timer);
+    };
   }, [sendError]);
   const { stdout } = useStdout();
   const { markViewed } = useUnread();
@@ -103,7 +112,10 @@ export function ChannelHistoryView({
   // At wide widths, use 80% with bubble border overhead
   const containerOverhead = isNarrow ? 4 : 8; // narrow: just message area border/padding; wide: + bubble border/padding
   const bubblePercent = isNarrow ? 1.0 : 0.8;
-  const maxBubbleWidth = Math.min(140, Math.max(40, Math.floor((terminalWidth - containerOverhead) * bubblePercent)));
+  const maxBubbleWidth = Math.min(
+    140,
+    Math.max(40, Math.floor((terminalWidth - containerOverhead) * bubblePercent))
+  );
 
   // Dynamic message count: compact messages are ~3 lines, bubbles ~4 lines
   const linesPerMessage = isNarrow ? 3 : 4;
@@ -192,9 +204,15 @@ export function ChannelHistoryView({
 
   // #976 fix: Dynamic message display based on terminal height
   // maxMessages is calculated above based on available messageAreaHeight
-  const displayMessages = messages ? messages.slice(Math.max(0, messages.length - maxMessages - scrollOffset), messages.length - scrollOffset) : [];
+  const displayMessages = messages
+    ? messages.slice(
+        Math.max(0, messages.length - maxMessages - scrollOffset),
+        messages.length - scrollOffset
+      )
+    : [];
   const hasMoreAbove = scrollOffset > 0;
-  const hasMoreBelow = messages && messages.length > maxMessages && scrollOffset < messages.length - maxMessages;
+  const hasMoreBelow =
+    messages && messages.length > maxMessages && scrollOffset < messages.length - maxMessages;
 
   return (
     // #1425 fix: Use flexGrow instead of height="100%" to prevent layout overflow
@@ -208,7 +226,9 @@ export function ChannelHistoryView({
       />
       {channel.description && (
         <Box paddingX={1} marginBottom={1}>
-          <Text dimColor wrap="truncate">{channel.description}</Text>
+          <Text dimColor wrap="truncate">
+            {channel.description}
+          </Text>
         </Box>
       )}
 
@@ -252,7 +272,20 @@ export function ChannelHistoryView({
       )}
 
       {/* Input area - auto-expands based on message length (3-10 lines) */}
-      <Box height={inputHeight} flexDirection="column" marginBottom={1} borderStyle="single" borderColor={inputMode ? theme.colors.primary : (messageBuffer ? theme.colors.warning : theme.colors.textMuted)} paddingX={1}>
+      <Box
+        height={inputHeight}
+        flexDirection="column"
+        marginBottom={1}
+        borderStyle="single"
+        borderColor={
+          inputMode
+            ? theme.colors.primary
+            : messageBuffer
+              ? theme.colors.warning
+              : theme.colors.textMuted
+        }
+        paddingX={1}
+      >
         {inputMode ? (
           <Text>
             <Text color={theme.colors.primary}>{'> '}</Text>
@@ -262,7 +295,9 @@ export function ChannelHistoryView({
         ) : messageBuffer ? (
           <Text>
             <Text color={theme.colors.warning}>[Draft] </Text>
-            <Text dimColor>{messageBuffer.length > 40 ? messageBuffer.slice(0, 40) + '...' : messageBuffer}</Text>
+            <Text dimColor>
+              {messageBuffer.length > 40 ? messageBuffer.slice(0, 40) + '...' : messageBuffer}
+            </Text>
             <Text dimColor> (press m to edit)</Text>
           </Text>
         ) : (
@@ -272,17 +307,21 @@ export function ChannelHistoryView({
 
       {/* Footer with context-aware hints */}
       {inputMode ? (
-        <Footer hints={[
-          { key: 'Enter', label: 'send' },
-          { key: 'Esc', label: 'save draft' },
-        ]} />
+        <Footer
+          hints={[
+            { key: 'Enter', label: 'send' },
+            { key: 'Esc', label: 'save draft' },
+          ]}
+        />
       ) : (
-        <Footer hints={[
-          { key: 'j/k', label: 'scroll' },
-          { key: 'm', label: 'compose' },
-          ...(messageBuffer ? [{ key: 'c', label: 'clear draft' }] : []),
-          { key: 'Esc', label: 'back' },
-        ]} />
+        <Footer
+          hints={[
+            { key: 'j/k', label: 'scroll' },
+            { key: 'm', label: 'compose' },
+            ...(messageBuffer ? [{ key: 'c', label: 'clear draft' }] : []),
+            { key: 'Esc', label: 'back' },
+          ]}
+        />
       )}
     </Box>
   );

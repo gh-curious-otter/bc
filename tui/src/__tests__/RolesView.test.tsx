@@ -90,9 +90,21 @@ describe('RolesView - role filtering', () => {
   }
 
   const mockRoles: MockRole[] = [
-    { name: 'engineer', description: 'Implements features', capabilities: ['implement_tasks', 'write_code'] },
-    { name: 'manager', description: 'Manages team', capabilities: ['create_agents', 'assign_work'] },
-    { name: 'tech-lead', description: 'Technical leadership', capabilities: ['code_review', 'architect'] },
+    {
+      name: 'engineer',
+      description: 'Implements features',
+      capabilities: ['implement_tasks', 'write_code'],
+    },
+    {
+      name: 'manager',
+      description: 'Manages team',
+      capabilities: ['create_agents', 'assign_work'],
+    },
+    {
+      name: 'tech-lead',
+      description: 'Technical leadership',
+      capabilities: ['code_review', 'architect'],
+    },
     { name: 'qa', description: null, capabilities: ['test_code'] },
   ];
 
@@ -155,8 +167,7 @@ describe('RolesView - role filtering', () => {
 describe('RolesView - capabilities string formatting', () => {
   function formatCapabilities(capabilities: string[]): string {
     if (capabilities.length === 0) return '-';
-    return capabilities.slice(0, 3).join(', ') +
-      (capabilities.length > 3 ? '...' : '');
+    return capabilities.slice(0, 3).join(', ') + (capabilities.length > 3 ? '...' : '');
   }
 
   test('returns dash for empty capabilities', () => {
@@ -275,37 +286,79 @@ describe('RolesView - role details display', () => {
   }
 
   test('hasParent returns true when parent exists', () => {
-    const role: Role = { name: 'engineer', description: null, parent: 'root', capabilities: [], prompt: null };
+    const role: Role = {
+      name: 'engineer',
+      description: null,
+      parent: 'root',
+      capabilities: [],
+      prompt: null,
+    };
     expect(hasParent(role)).toBe(true);
   });
 
   test('hasParent returns false when no parent', () => {
-    const role: Role = { name: 'root', description: null, parent: null, capabilities: [], prompt: null };
+    const role: Role = {
+      name: 'root',
+      description: null,
+      parent: null,
+      capabilities: [],
+      prompt: null,
+    };
     expect(hasParent(role)).toBe(false);
   });
 
   test('hasParent returns false for empty string', () => {
-    const role: Role = { name: 'root', description: null, parent: '', capabilities: [], prompt: null };
+    const role: Role = {
+      name: 'root',
+      description: null,
+      parent: '',
+      capabilities: [],
+      prompt: null,
+    };
     expect(hasParent(role)).toBe(false);
   });
 
   test('hasPrompt returns true when prompt exists', () => {
-    const role: Role = { name: 'engineer', description: null, parent: null, capabilities: [], prompt: 'Build features' };
+    const role: Role = {
+      name: 'engineer',
+      description: null,
+      parent: null,
+      capabilities: [],
+      prompt: 'Build features',
+    };
     expect(hasPrompt(role)).toBe(true);
   });
 
   test('hasPrompt returns false when no prompt', () => {
-    const role: Role = { name: 'engineer', description: null, parent: null, capabilities: [], prompt: null };
+    const role: Role = {
+      name: 'engineer',
+      description: null,
+      parent: null,
+      capabilities: [],
+      prompt: null,
+    };
     expect(hasPrompt(role)).toBe(false);
   });
 
   test('getDescription returns description when exists', () => {
-    const role: Role = { name: 'engineer', description: 'Implements code', parent: null, capabilities: [], prompt: null };
+    const role: Role = {
+      name: 'engineer',
+      description: 'Implements code',
+      parent: null,
+      capabilities: [],
+      prompt: null,
+    };
     expect(getDescription(role)).toBe('Implements code');
   });
 
   test('getDescription returns fallback when null', () => {
-    const role: Role = { name: 'engineer', description: null, parent: null, capabilities: [], prompt: null };
+    const role: Role = {
+      name: 'engineer',
+      description: null,
+      parent: null,
+      capabilities: [],
+      prompt: null,
+    };
     expect(getDescription(role)).toBe('No description');
   });
 });
@@ -331,9 +384,7 @@ describe('RolesView - search mode hints', () => {
 
 describe('RolesView - empty state messages', () => {
   function getEmptyMessage(searchQuery: string): string {
-    return searchQuery.length > 0
-      ? `No roles match "${searchQuery}"`
-      : 'No roles defined.';
+    return searchQuery.length > 0 ? `No roles match "${searchQuery}"` : 'No roles defined.';
   }
 
   test('shows search message when searching', () => {

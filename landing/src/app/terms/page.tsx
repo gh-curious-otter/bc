@@ -26,9 +26,9 @@ export default function TermsOfService() {
               <p className="text-muted-foreground">
                 By accessing and using this website and the bc services
                 (&ldquo;Service&rdquo;), you accept and agree to be bound by and
-                comply with these Terms and Conditions and our Privacy Policy. If
-                you do not agree to abide by the above, please do not use this
-                service.
+                comply with these Terms and Conditions and our Privacy Policy.
+                If you do not agree to abide by the above, please do not use
+                this service.
               </p>
             </div>
 
@@ -48,16 +48,16 @@ export default function TermsOfService() {
                   display
                 </li>
                 <li>
-                  Attempt to decompile or reverse engineer any software contained
-                  on the website
+                  Attempt to decompile or reverse engineer any software
+                  contained on the website
                 </li>
                 <li>
                   Remove any copyright or other proprietary notations from the
                   materials
                 </li>
                 <li>
-                  Transfer the materials to another person or &ldquo;mirror&rdquo; the
-                  materials on any other server
+                  Transfer the materials to another person or
+                  &ldquo;mirror&rdquo; the materials on any other server
                 </li>
                 <li>
                   Violate any applicable laws or regulations in connection with
@@ -86,8 +86,8 @@ export default function TermsOfService() {
                 (including, without limitation, damages for loss of data or
                 profit, or due to business interruption) arising out of the use
                 or inability to use the materials on bc&apos;s website, even if
-                bc or an authorized representative has been notified orally or in
-                writing of the possibility of such damage.
+                bc or an authorized representative has been notified orally or
+                in writing of the possibility of such damage.
               </p>
             </div>
 
@@ -107,8 +107,8 @@ export default function TermsOfService() {
             <div>
               <h2 className="text-xl font-bold mb-3">6. Links</h2>
               <p className="text-muted-foreground">
-                bc has not reviewed all of the sites linked to its website and is
-                not responsible for the contents of any such linked site. The
+                bc has not reviewed all of the sites linked to its website and
+                is not responsible for the contents of any such linked site. The
                 inclusion of any link does not imply endorsement by bc of the
                 site. Use of any such linked website is at the user&apos;s own
                 risk.
@@ -129,8 +129,8 @@ export default function TermsOfService() {
               <p className="text-muted-foreground">
                 These terms and conditions are governed by and construed in
                 accordance with the laws of the United States, and you
-                irrevocably submit to the exclusive jurisdiction of the courts in
-                that location.
+                irrevocably submit to the exclusive jurisdiction of the courts
+                in that location.
               </p>
             </div>
 

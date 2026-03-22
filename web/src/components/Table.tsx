@@ -1,5 +1,5 @@
-import React from 'react';
-import { EmptyState } from './EmptyState';
+import React from "react";
+import { EmptyState } from "./EmptyState";
 
 interface Column<T> {
   key: string;
@@ -19,9 +19,24 @@ interface TableProps<T> {
   renderRowExpansion?: (row: T) => React.ReactNode | null;
 }
 
-export function Table<T>({ columns, data, keyFn, onRowClick, emptyMessage = 'No data', emptyIcon, emptyDescription, renderRowExpansion }: TableProps<T>) {
+export function Table<T>({
+  columns,
+  data,
+  keyFn,
+  onRowClick,
+  emptyMessage = "No data",
+  emptyIcon,
+  emptyDescription,
+  renderRowExpansion,
+}: TableProps<T>) {
   if (!data || data.length === 0) {
-    return <EmptyState icon={emptyIcon} title={emptyMessage} description={emptyDescription} />;
+    return (
+      <EmptyState
+        icon={emptyIcon}
+        title={emptyMessage}
+        description={emptyDescription}
+      />
+    );
   }
 
   return (
@@ -29,7 +44,10 @@ export function Table<T>({ columns, data, keyFn, onRowClick, emptyMessage = 'No 
       <thead>
         <tr className="border-b border-bc-border text-left">
           {columns.map((col) => (
-            <th key={col.key} className={`px-4 py-2 font-medium text-bc-muted ${col.className ?? ''}`}>
+            <th
+              key={col.key}
+              className={`px-4 py-2 font-medium text-bc-muted ${col.className ?? ""}`}
+            >
               {col.label}
             </th>
           ))}
@@ -43,11 +61,14 @@ export function Table<T>({ columns, data, keyFn, onRowClick, emptyMessage = 'No 
               <tr
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
                 className={`border-b border-bc-border/50 ${
-                  onRowClick ? 'cursor-pointer hover:bg-bc-surface' : ''
+                  onRowClick ? "cursor-pointer hover:bg-bc-surface" : ""
                 }`}
               >
                 {columns.map((col) => (
-                  <td key={col.key} className={`px-4 py-2 ${col.className ?? ''}`}>
+                  <td
+                    key={col.key}
+                    className={`px-4 py-2 ${col.className ?? ""}`}
+                  >
                     {col.render(row)}
                   </td>
                 ))}

@@ -38,9 +38,7 @@ export function FilterProvider({ children }: FilterProviderProps): React.ReactEl
     [query, setFilter, clearFilter]
   );
 
-  return (
-    <FilterContext.Provider value={value}>{children}</FilterContext.Provider>
-  );
+  return <FilterContext.Provider value={value}>{children}</FilterContext.Provider>;
 }
 
 export function useFilter(): FilterContextValue {

@@ -83,19 +83,19 @@ describe('AgentsView Data Model', () => {
 
   test('Agent states are valid AgentState values', () => {
     const validStates: AgentState[] = ['running', 'idle', 'working', 'stopped'];
-    mockAgents.forEach(agent => {
+    mockAgents.forEach((agent) => {
       expect(validStates).toContain(agent.state);
     });
   });
 
   test('Agent task can be empty string', () => {
-    const idleAgent = mockAgents.find(a => a.state === 'idle');
+    const idleAgent = mockAgents.find((a) => a.state === 'idle');
     expect(idleAgent?.task).toBe('');
   });
 
   test('Agent task contains text for working agents', () => {
-    const workingAgents = mockAgents.filter(a => a.state === 'working');
-    workingAgents.forEach(agent => {
+    const workingAgents = mockAgents.filter((a) => a.state === 'working');
+    workingAgents.forEach((agent) => {
       expect(agent.task).toBeTruthy();
       expect(agent.task.length).toBeGreaterThan(0);
     });
@@ -122,8 +122,7 @@ describe('AgentsView Data Model', () => {
 describe('AgentsView Navigation Logic', () => {
   test('selection index clamping works correctly', () => {
     const listLength = mockAgents.length;
-    const clampIndex = (index: number) =>
-      Math.max(0, Math.min(index, listLength - 1));
+    const clampIndex = (index: number) => Math.max(0, Math.min(index, listLength - 1));
 
     expect(clampIndex(-1)).toBe(0);
     expect(clampIndex(0)).toBe(0);
@@ -178,14 +177,14 @@ describe('AgentsView Column Definitions', () => {
   });
 
   test('role column displays agent role', () => {
-    const roles = mockAgents.map(a => a.role);
+    const roles = mockAgents.map((a) => a.role);
     expect(roles).toContain('engineer');
     expect(roles).toContain('tech-lead');
     expect(roles).toContain('qa');
   });
 
   test('state column values are valid', () => {
-    const states = mockAgents.map(a => a.state);
+    const states = mockAgents.map((a) => a.state);
     expect(states).toContain('working');
     expect(states).toContain('idle');
     expect(states).toContain('stopped');
@@ -193,7 +192,7 @@ describe('AgentsView Column Definitions', () => {
 
   test('task column truncates long tasks', () => {
     const maxTaskDisplay = 38;
-    mockAgents.forEach(agent => {
+    mockAgents.forEach((agent) => {
       if (agent.task) {
         const displayedTask = agent.task.slice(0, maxTaskDisplay);
         expect(displayedTask.length).toBeLessThanOrEqual(maxTaskDisplay);
@@ -202,7 +201,7 @@ describe('AgentsView Column Definitions', () => {
   });
 
   test('task column shows dash for empty tasks', () => {
-    const agentWithoutTask = mockAgents.find(a => !a.task || a.task === '');
+    const agentWithoutTask = mockAgents.find((a) => !a.task || a.task === '');
     expect(agentWithoutTask).toBeTruthy();
     // Component renders '-' for empty tasks
     const displayValue = agentWithoutTask?.task ? agentWithoutTask.task.slice(0, 38) : '-';
@@ -212,26 +211,26 @@ describe('AgentsView Column Definitions', () => {
 
 describe('AgentsView State Filtering', () => {
   test('can filter agents by state', () => {
-    const workingAgents = mockAgents.filter(a => a.state === 'working');
+    const workingAgents = mockAgents.filter((a) => a.state === 'working');
     expect(workingAgents.length).toBe(2);
-    expect(workingAgents.every(a => a.state === 'working')).toBe(true);
+    expect(workingAgents.every((a) => a.state === 'working')).toBe(true);
   });
 
   test('can filter agents by role', () => {
-    const engineers = mockAgents.filter(a => a.role === 'engineer');
+    const engineers = mockAgents.filter((a) => a.role === 'engineer');
     expect(engineers.length).toBe(2);
-    expect(engineers.every(a => a.role === 'engineer')).toBe(true);
+    expect(engineers.every((a) => a.role === 'engineer')).toBe(true);
   });
 
   test('can find agent by name', () => {
-    const agent = mockAgents.find(a => a.name === 'tl-01');
+    const agent = mockAgents.find((a) => a.name === 'tl-01');
     expect(agent).toBeTruthy();
     expect(agent?.role).toBe('tech-lead');
     expect(agent?.state).toBe('working');
   });
 
   test('returns undefined for non-existent agent', () => {
-    const agent = mockAgents.find(a => a.name === 'non-existent');
+    const agent = mockAgents.find((a) => a.name === 'non-existent');
     expect(agent).toBeUndefined();
   });
 });
@@ -286,7 +285,9 @@ describe('AgentsView Detail View Toggle', () => {
 
   test('closing detail view returns to list', () => {
     let showDetail = true;
-    const closeDetail = () => { showDetail = false; };
+    const closeDetail = () => {
+      showDetail = false;
+    };
     closeDetail();
     expect(showDetail).toBe(false);
   });
@@ -341,21 +342,25 @@ describe('AgentsView Keyboard Shortcuts', () => {
 
   test('Enter key opens detail when agent selected', () => {
     const hasSelectedAgent = true;
-    const enterAction = (selected: boolean) => selected ? 'openDetail' : 'noop';
+    const enterAction = (selected: boolean) => (selected ? 'openDetail' : 'noop');
     expect(enterAction(hasSelectedAgent)).toBe('openDetail');
     expect(enterAction(false)).toBe('noop');
   });
 
   test('r key triggers refresh', () => {
     let refreshCalled = false;
-    const rKeyAction = () => { refreshCalled = true; };
+    const rKeyAction = () => {
+      refreshCalled = true;
+    };
     rKeyAction();
     expect(refreshCalled).toBe(true);
   });
 
   test('q/Escape key triggers onBack', () => {
     let backCalled = false;
-    const qKeyAction = () => { backCalled = true; };
+    const qKeyAction = () => {
+      backCalled = true;
+    };
     qKeyAction();
     expect(backCalled).toBe(true);
   });
@@ -367,22 +372,22 @@ describe('AgentsView Agent Counts', () => {
   });
 
   test('working agent count is correct', () => {
-    const workingCount = mockAgents.filter(a => a.state === 'working').length;
+    const workingCount = mockAgents.filter((a) => a.state === 'working').length;
     expect(workingCount).toBe(2);
   });
 
   test('idle agent count is correct', () => {
-    const idleCount = mockAgents.filter(a => a.state === 'idle').length;
+    const idleCount = mockAgents.filter((a) => a.state === 'idle').length;
     expect(idleCount).toBe(1);
   });
 
   test('stopped agent count is correct', () => {
-    const stoppedCount = mockAgents.filter(a => a.state === 'stopped').length;
+    const stoppedCount = mockAgents.filter((a) => a.state === 'stopped').length;
     expect(stoppedCount).toBe(1);
   });
 
   test('engineer role count is correct', () => {
-    const engineerCount = mockAgents.filter(a => a.role === 'engineer').length;
+    const engineerCount = mockAgents.filter((a) => a.role === 'engineer').length;
     expect(engineerCount).toBe(2);
   });
 });

@@ -6,9 +6,12 @@ import { ThemeProvider } from '../theme/ThemeContext';
 import { FocusProvider } from '../navigation/FocusContext';
 import { useListNavigation } from '../hooks/useListNavigation';
 
-const renderWithProviders = (ui: React.ReactElement) => render(
-  <ThemeProvider><FocusProvider>{ui}</FocusProvider></ThemeProvider>
-);
+const renderWithProviders = (ui: React.ReactElement) =>
+  render(
+    <ThemeProvider>
+      <FocusProvider>{ui}</FocusProvider>
+    </ThemeProvider>
+  );
 
 // Test component that uses the hook
 function TestList({

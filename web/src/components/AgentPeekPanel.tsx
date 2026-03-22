@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { StatusBadge } from './StatusBadge';
-import type { Agent } from '../api/client';
-import { api } from '../api/client';
-import { usePolling } from '../hooks/usePolling';
+import { useEffect, useRef, useState, useCallback } from "react";
+import { StatusBadge } from "./StatusBadge";
+import type { Agent } from "../api/client";
+import { api } from "../api/client";
+import { usePolling } from "../hooks/usePolling";
 
 /** Strip ANSI escape codes from terminal output. */
 function stripAnsi(text: string): string {
@@ -10,7 +10,7 @@ function stripAnsi(text: string): string {
   return text.replace(
     // eslint-disable-next-line no-control-regex
     /\x1b\[[0-9;]*[A-Za-z]|\x1b\][^\x07]*\x07|\x1b[()][AB012]|\x1b[=>]|\x1b\[[?]?[0-9;]*[hlm]/g,
-    '',
+    "",
   );
 }
 
@@ -36,25 +36,30 @@ export function AgentPeekPanel({ agentName, onClose }: AgentPeekPanelProps) {
     setOutputLines([]);
     setSseError(false);
 
-    api.getAgentPeek(agentName, 100).then(({ output }) => {
-      if (output) {
-        setOutputLines(stripAnsi(output).split('\n'));
-      }
-    }).catch(() => {
-      // Peek may fail for stopped agents — ignore
-    });
+    api
+      .getAgentPeek(agentName, 100)
+      .then(({ output }) => {
+        if (output) {
+          setOutputLines(stripAnsi(output).split("\n"));
+        }
+      })
+      .catch(() => {
+        // Peek may fail for stopped agents — ignore
+      });
   }, [agentName]);
 
   // Connect to SSE stream for live terminal output
   useEffect(() => {
-    const es = new EventSource(`/api/agents/${encodeURIComponent(agentName)}/output`);
+    const es = new EventSource(
+      `/api/agents/${encodeURIComponent(agentName)}/output`,
+    );
     let errorCount = 0;
 
     const handleOutputEvent = (e: MessageEvent) => {
       try {
         const parsed = JSON.parse(e.data as string) as { output?: string };
         if (parsed.output) {
-          const newLines = stripAnsi(parsed.output).split('\n');
+          const newLines = stripAnsi(parsed.output).split("\n");
           setOutputLines((prev) => [...prev, ...newLines].slice(-500));
         }
       } catch {
@@ -66,7 +71,7 @@ export function AgentPeekPanel({ agentName, onClose }: AgentPeekPanelProps) {
     es.onmessage = handleOutputEvent;
 
     // Incremental updates arrive as named "agent.output" events
-    es.addEventListener('agent.output', handleOutputEvent as EventListener);
+    es.addEventListener("agent.output", handleOutputEvent as EventListener);
 
     es.onerror = () => {
       errorCount++;
@@ -86,7 +91,9 @@ export function AgentPeekPanel({ agentName, onClose }: AgentPeekPanelProps) {
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+    const isNearBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight <
+      120;
     if (isNearBottom) {
       container.scrollTop = container.scrollHeight;
     }
@@ -113,8 +120,10 @@ export function AgentPeekPanel({ agentName, onClose }: AgentPeekPanelProps) {
       {agent && (
         <div className="px-4 py-1.5 border-b border-bc-border/50 text-xs text-bc-muted flex gap-3">
           <span>Role: {agent.role}</span>
-          <span>Tool: {agent.tool || '\u2014'}</span>
-          {agent.cost_usd != null && <span>Cost: ${agent.cost_usd.toFixed(4)}</span>}
+          <span>Tool: {agent.tool || "\u2014"}</span>
+          {agent.cost_usd != null && (
+            <span>Cost: ${agent.cost_usd.toFixed(4)}</span>
+          )}
         </div>
       )}
 
@@ -125,10 +134,10 @@ export function AgentPeekPanel({ agentName, onClose }: AgentPeekPanelProps) {
           className="p-3 text-xs font-mono whitespace-pre-wrap break-words leading-relaxed text-bc-text/80"
         >
           {outputLines.length > 0
-            ? outputLines.join('\n')
+            ? outputLines.join("\n")
             : sseError
-              ? 'Agent not running.'
-              : 'Connecting...'}
+              ? "Agent not running."
+              : "Connecting..."}
         </pre>
       </div>
     </div>

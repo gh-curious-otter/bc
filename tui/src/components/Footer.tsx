@@ -17,14 +17,19 @@ export const KeyHint = memo(function KeyHint({ keyChar, label }: KeyHintProps) {
   return (
     <Box marginRight={2}>
       <Text>[</Text>
-      <Text bold color={theme.colors.primary}>{keyChar}</Text>
+      <Text bold color={theme.colors.primary}>
+        {keyChar}
+      </Text>
       <Text>] {label}</Text>
     </Box>
   );
 });
 
 /** Type for keybinding hint items */
-export interface HintItem { key: string; label: string }
+export interface HintItem {
+  key: string;
+  label: string;
+}
 
 export interface FooterProps {
   hints: HintItem[];

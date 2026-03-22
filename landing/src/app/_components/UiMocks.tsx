@@ -155,7 +155,9 @@ function Row({
       transition={{ duration: 0.15 }}
       className="flex items-center justify-between rounded-lg border border-border bg-white px-3 py-2"
     >
-      <span className="font-mono text-[12px] text-terminal-comment">{left}</span>
+      <span className="font-mono text-[12px] text-terminal-comment">
+        {left}
+      </span>
       <span
         className={
           bad

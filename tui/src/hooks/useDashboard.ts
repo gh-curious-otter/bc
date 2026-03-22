@@ -149,7 +149,10 @@ export function useDashboard() {
       setCost({
         data: null,
         isLoading: false,
-        error: costResult.reason instanceof Error ? costResult.reason : new Error('Failed to fetch costs'),
+        error:
+          costResult.reason instanceof Error
+            ? costResult.reason
+            : new Error('Failed to fetch costs'),
       });
     }
 
@@ -164,8 +167,12 @@ export function useDashboard() {
   // Auto-refresh using centralized config interval (#1606)
   // Users can manually refresh with 'r' key for immediate updates
   useEffect(() => {
-    const interval = setInterval(() => { void fetchData(); }, pollInterval);
-    return () => { clearInterval(interval); };
+    const interval = setInterval(() => {
+      void fetchData();
+    }, pollInterval);
+    return () => {
+      clearInterval(interval);
+    };
   }, [fetchData, pollInterval]);
 
   // Compute agent stats breakdown

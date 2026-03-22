@@ -69,16 +69,12 @@ describe('Reaction', () => {
     });
 
     it('renders as own reaction', () => {
-      const { lastFrame } = render(
-        <Reaction type="thumbsup" isOwn={true} />
-      );
+      const { lastFrame } = render(<Reaction type="thumbsup" isOwn={true} />);
       expect(lastFrame()).toContain('👍');
     });
 
     it('renders as not own reaction', () => {
-      const { lastFrame } = render(
-        <Reaction type="ack" isOwn={false} />
-      );
+      const { lastFrame } = render(<Reaction type="ack" isOwn={false} />);
       expect(lastFrame()).toContain('✓');
     });
   });
@@ -95,9 +91,7 @@ describe('Reaction', () => {
     });
 
     it('own reaction has cyan color', () => {
-      const { lastFrame } = render(
-        <Reaction type="check" isOwn={true} />
-      );
+      const { lastFrame } = render(<Reaction type="check" isOwn={true} />);
       expect(lastFrame()).toContain('✅');
     });
   });

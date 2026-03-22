@@ -8,7 +8,14 @@
  * This eliminates the need for ViewWrapper to render its own footer.
  */
 
-import React, { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useMemo,
+  type ReactNode,
+} from 'react';
 import type { HintItem } from '../components/Footer';
 
 interface HintsContextValue {
@@ -45,11 +52,7 @@ export function HintsProvider({ children }: HintsProviderProps): React.ReactElem
     [viewHints, setViewHints, clearViewHints]
   );
 
-  return (
-    <HintsContext.Provider value={value}>
-      {children}
-    </HintsContext.Provider>
-  );
+  return <HintsContext.Provider value={value}>{children}</HintsContext.Provider>;
 }
 
 /** Default noop context for when provider is not available (e.g., tests) */

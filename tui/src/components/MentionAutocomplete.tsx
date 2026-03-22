@@ -109,9 +109,7 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
               {suggestion.role && suggestion.role !== 'broadcast' && (
                 <Text color={theme.colors.textMuted}> ({suggestion.role})</Text>
               )}
-              {suggestion.state && (
-                <Text color={stateColor}> [{suggestion.state}]</Text>
-              )}
+              {suggestion.state && <Text color={stateColor}> [{suggestion.state}]</Text>}
             </Text>
           </Box>
         );

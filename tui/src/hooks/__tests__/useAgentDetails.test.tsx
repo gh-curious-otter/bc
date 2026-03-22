@@ -9,11 +9,7 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import type {
-  AgentCostDetails,
-  AgentActivity,
-  AgentDetailsResult,
-} from '../useAgentDetails';
+import type { AgentCostDetails, AgentActivity, AgentDetailsResult } from '../useAgentDetails';
 
 describe('useAgentDetails - Type Exports', () => {
   describe('AgentCostDetails', () => {
@@ -46,11 +42,11 @@ describe('useAgentDetails - Type Exports', () => {
 
     it('models complete cost breakdown', () => {
       const cost: AgentCostDetails = {
-        totalCost: 2.50,
+        totalCost: 2.5,
         inputTokens: 15000,
         outputTokens: 10000,
       };
-      expect(cost.totalCost).toBe(2.50);
+      expect(cost.totalCost).toBe(2.5);
       expect(cost.inputTokens).toBe(15000);
       expect(cost.outputTokens).toBe(10000);
     });
@@ -96,19 +92,17 @@ describe('useAgentDetails - Type Exports', () => {
     it('has cost property with data', () => {
       const result: Partial<AgentDetailsResult> = {
         cost: {
-          totalCost: 1.00,
+          totalCost: 1.0,
           inputTokens: 5000,
           outputTokens: 3000,
         },
       };
-      expect(result.cost?.totalCost).toBe(1.00);
+      expect(result.cost?.totalCost).toBe(1.0);
     });
 
     it('has activity array', () => {
       const result: Partial<AgentDetailsResult> = {
-        activity: [
-          { timestamp: '2024-02-20T10:00:00Z', type: 'start', message: 'Started' },
-        ],
+        activity: [{ timestamp: '2024-02-20T10:00:00Z', type: 'start', message: 'Started' }],
       };
       expect(result.activity?.length).toBe(1);
     });
@@ -148,7 +142,7 @@ describe('useAgentDetails - Cost Scenarios', () => {
 
   it('models high token usage', () => {
     const cost: AgentCostDetails = {
-      totalCost: 10.50,
+      totalCost: 10.5,
       inputTokens: 100000,
       outputTokens: 50000,
     };
@@ -158,7 +152,7 @@ describe('useAgentDetails - Cost Scenarios', () => {
 
   it('calculates input/output ratio', () => {
     const cost: AgentCostDetails = {
-      totalCost: 5.00,
+      totalCost: 5.0,
       inputTokens: 20000,
       outputTokens: 10000,
     };
@@ -229,9 +223,7 @@ describe('useAgentDetails - Activity Scenarios', () => {
       { timestamp: '2024-02-20T10:00:00Z', type: 'middle', message: 'Working' },
     ];
 
-    const sorted = [...activities].sort((a, b) =>
-      a.timestamp.localeCompare(b.timestamp)
-    );
+    const sorted = [...activities].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 
     expect(sorted[0].type).toBe('start');
     expect(sorted[1].type).toBe('middle');
@@ -269,7 +261,7 @@ describe('useAgentDetails - Result State Combinations', () => {
 
   it('models successful load state', () => {
     const result: AgentDetailsResult = {
-      cost: { totalCost: 1.50, inputTokens: 10000, outputTokens: 5000 },
+      cost: { totalCost: 1.5, inputTokens: 10000, outputTokens: 5000 },
       activity: [{ timestamp: '2024-02-20T10:00:00Z', type: 'start', message: 'OK' }],
       loading: false,
       error: null,
@@ -294,7 +286,7 @@ describe('useAgentDetails - Result State Combinations', () => {
 
   it('models partial data state (cost but no activity)', () => {
     const result: AgentDetailsResult = {
-      cost: { totalCost: 0.50, inputTokens: 2000, outputTokens: 1000 },
+      cost: { totalCost: 0.5, inputTokens: 2000, outputTokens: 1000 },
       activity: [],
       loading: false,
       error: null,

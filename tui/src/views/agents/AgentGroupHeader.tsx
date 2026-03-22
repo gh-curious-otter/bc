@@ -29,12 +29,8 @@ export function AgentGroupHeader({
       <Text bold color={isSelected ? theme.colors.primary : theme.colors.text}>
         {group.role.toUpperCase()} ({group.agents.length})
       </Text>
-      {group.working > 0 && (
-        <Text color={theme.colors.secondary}> ● {group.working}</Text>
-      )}
-      {group.stuck > 0 && (
-        <Text color={theme.colors.warning}> ⚠ {group.stuck}</Text>
-      )}
+      {group.working > 0 && <Text color={theme.colors.secondary}> ● {group.working}</Text>}
+      {group.stuck > 0 && <Text color={theme.colors.warning}> ⚠ {group.stuck}</Text>}
     </Box>
   );
 }

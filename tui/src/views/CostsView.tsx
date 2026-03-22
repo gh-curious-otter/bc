@@ -14,7 +14,13 @@ import { Spinner } from '../components/LoadingIndicator';
 import { useCosts, useDisableInput, useListNavigation, useLoadingTimeout } from '../hooks';
 import { useFocus, useIsOverlayActive } from '../navigation/FocusContext';
 import { useNavigation } from '../navigation/NavigationContext';
-import { CostsViewCompact, CostsViewWide, AgentCostDetail, type SortMode, type AgentEntry } from './costs';
+import {
+  CostsViewCompact,
+  CostsViewWide,
+  AgentCostDetail,
+  type SortMode,
+  type AgentEntry,
+} from './costs';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface CostsViewProps {}
@@ -93,16 +99,19 @@ export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
   }, [showDetail, selectedIndex, agentEntries, setFocus, setBreadcrumbs, clearBreadcrumbs]);
 
   // Detail view input handling
-  useInput((input, key) => {
-    if (showDetail) {
-      if (key.escape || input === 'q') {
-        setShowDetail(false);
+  useInput(
+    (input, key) => {
+      if (showDetail) {
+        if (key.escape || input === 'q') {
+          setShowDetail(false);
+        }
+        if (input === 'r') {
+          handleRefresh();
+        }
       }
-      if (input === 'r') {
-        handleRefresh();
-      }
-    }
-  }, { isActive: showDetail && !disableInput && !overlayActive });
+    },
+    { isActive: showDetail && !disableInput && !overlayActive }
+  );
 
   // Keybinding hints
   const mainHints = [
@@ -128,7 +137,7 @@ export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
         <Box flexDirection="column" paddingX={1}>
           <Box>
             <Text bold>Costs</Text>
-            <Text>  </Text>
+            <Text> </Text>
             <Text color={theme.colors.warning}>⚠ Data unavailable</Text>
           </Box>
           <Box flexDirection="column" marginTop={1}>
@@ -142,9 +151,8 @@ export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
     }
 
     // Skeleton with spinner and placeholder rows
-    const loadingMsg = loadingElapsed >= 5
-      ? 'Taking longer than expected...'
-      : 'Fetching cost analytics...';
+    const loadingMsg =
+      loadingElapsed >= 5 ? 'Taking longer than expected...' : 'Fetching cost analytics...';
 
     return (
       <Box flexDirection="column" paddingX={1}>
@@ -156,9 +164,9 @@ export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
           <Text> {loadingMsg}</Text>
         </Box>
         <Box flexDirection="column" marginTop={1}>
-          <Text dimColor>  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─</Text>
-          <Text dimColor>  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─</Text>
-          <Text dimColor>  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─</Text>
+          <Text dimColor> ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─</Text>
+          <Text dimColor> ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─</Text>
+          <Text dimColor> ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─</Text>
         </Box>
         <Footer hints={mainHints} />
       </Box>
@@ -182,13 +190,7 @@ export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
   // Detail sub-view
   if (showDetail && agentEntries[selectedIndex]) {
     const agent = agentEntries[selectedIndex];
-    return (
-      <AgentCostDetail
-        agent={agent}
-        costs={costs}
-        hints={detailHints}
-      />
-    );
+    return <AgentCostDetail agent={agent} costs={costs} hints={detailHints} />;
   }
 
   // Main view

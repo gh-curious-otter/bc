@@ -5,7 +5,15 @@
  * Persists data to ~/.bc/tui-unread.json for cross-session tracking.
  */
 
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  useMemo,
+} from 'react';
 import type { ReactNode } from 'react';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
@@ -112,15 +120,16 @@ export function UnreadProvider({ children }: UnreadProviderProps): React.ReactEl
     return timestamp ? new Date(timestamp) : null;
   }, []);
 
-  const value = useMemo<UnreadContextValue>(() => ({
-    getUnread,
-    markViewed,
-    getLastViewed,
-  }), [getUnread, markViewed, getLastViewed]);
-
-  return (
-    <UnreadContext.Provider value={value}>{children}</UnreadContext.Provider>
+  const value = useMemo<UnreadContextValue>(
+    () => ({
+      getUnread,
+      markViewed,
+      getLastViewed,
+    }),
+    [getUnread, markViewed, getLastViewed]
   );
+
+  return <UnreadContext.Provider value={value}>{children}</UnreadContext.Provider>;
 }
 
 /**

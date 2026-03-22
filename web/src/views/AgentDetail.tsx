@@ -1,16 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { api } from '../api/client';
-import type { Agent } from '../api/client';
-import { usePolling } from '../hooks/usePolling';
-import { useWebSocket } from '../hooks/useWebSocket';
-import { StatusBadge } from '../components/StatusBadge';
-import { StatsTab as StatsTabComponent } from '../components/StatsTab';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useParams, Link } from "react-router-dom";
+import { api } from "../api/client";
+import type { Agent } from "../api/client";
+import { usePolling } from "../hooks/usePolling";
+import { useWebSocket } from "../hooks/useWebSocket";
+import { StatusBadge } from "../components/StatusBadge";
+import { StatsTab as StatsTabComponent } from "../components/StatsTab";
 
 /** Strip ANSI escape sequences from a string. */
 function stripAnsi(s: string): string {
   // eslint-disable-next-line no-control-regex
-  return s.replace(/\x1b(?:\[[0-9;]*[A-Za-z]|\].*?(?:\x07|\x1b\\)|\([A-B0-2])/g, '');
+  return s.replace(
+    /\x1b(?:\[[0-9;]*[A-Za-z]|\].*?(?:\x07|\x1b\\)|\([A-B0-2])/g,
+    "",
+  );
 }
 
 function RoleBadge({ role }: { role: string }) {
@@ -21,35 +24,41 @@ function RoleBadge({ role }: { role: string }) {
   );
 }
 
-function MetadataRow({ label, value }: { label: string; value: React.ReactNode }) {
+function MetadataRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
   return (
     <div className="flex items-start gap-2 py-1.5 border-b border-bc-border/30 last:border-0">
       <span className="text-bc-muted text-sm w-32 shrink-0">{label}</span>
-      <span className="text-sm break-all">{value ?? '\u2014'}</span>
+      <span className="text-sm break-all">{value ?? "\u2014"}</span>
     </div>
   );
 }
 
 function formatTime(t?: string): string {
-  if (!t) return '\u2014';
+  if (!t) return "\u2014";
   try {
     const d = new Date(t);
-    if (isNaN(d.getTime())) return '\u2014';
+    if (isNaN(d.getTime())) return "\u2014";
     return d.toLocaleString();
   } catch {
-    return '\u2014';
+    return "\u2014";
   }
 }
 
 /* ───────────────────────── Tab types ───────────────────────── */
 
-type Tab = 'logs' | 'overview' | 'stats' | 'role';
+type Tab = "logs" | "overview" | "stats" | "role";
 
 const TABS: { key: Tab; label: string; shortcut: string }[] = [
-  { key: 'logs', label: 'Logs', shortcut: '1' },
-  { key: 'overview', label: 'Overview', shortcut: '2' },
-  { key: 'stats', label: 'Stats', shortcut: '3' },
-  { key: 'role', label: 'Role', shortcut: '4' },
+  { key: "logs", label: "Logs", shortcut: "1" },
+  { key: "overview", label: "Overview", shortcut: "2" },
+  { key: "stats", label: "Stats", shortcut: "3" },
+  { key: "role", label: "Role", shortcut: "4" },
 ];
 
 /* ───────────────────────── Tab content ───────────────────────── */
@@ -63,15 +72,24 @@ function LogsTab({
 }) {
   return (
     <div className="space-y-2">
-      <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">Live Output</h2>
+      <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
+        Live Output
+      </h2>
       <pre
         ref={outputRef}
         className="rounded-lg border border-bc-border/50 bg-[#0a0a0f] p-4 text-xs leading-relaxed overflow-y-auto max-h-[50vh] md:max-h-[70vh] whitespace-pre-wrap text-bc-text/90 shadow-inner"
-        style={{ fontFamily: "'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
+        style={{
+          fontFamily:
+            "'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+        }}
       >
-        {outputLines.length > 0
-          ? outputLines.join('\n')
-          : <span className="text-bc-muted italic">No output yet. Agent may be idle or stopped.</span>}
+        {outputLines.length > 0 ? (
+          outputLines.join("\n")
+        ) : (
+          <span className="text-bc-muted italic">
+            No output yet. Agent may be idle or stopped.
+          </span>
+        )}
       </pre>
     </div>
   );
@@ -83,46 +101,63 @@ function OverviewTab({ agent }: { agent: Agent }) {
       {/* Task */}
       {agent.task && (
         <div className="rounded border border-bc-border bg-bc-surface p-3">
-          <span className="text-xs text-bc-muted uppercase tracking-wide">Current Task</span>
+          <span className="text-xs text-bc-muted uppercase tracking-wide">
+            Current Task
+          </span>
           <p className="mt-1 text-sm">{agent.task}</p>
         </div>
       )}
 
       {/* Identity */}
       <div className="space-y-2">
-        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">Identity</h2>
+        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
+          Identity
+        </h2>
         <div className="rounded border border-bc-border bg-bc-surface p-4">
           <MetadataRow label="Name" value={agent.name} />
           <MetadataRow label="Role" value={agent.role} />
-          <MetadataRow label="State" value={<StatusBadge status={agent.state} />} />
-          <MetadataRow label="Tool" value={agent.tool || '\u2014'} />
-          <MetadataRow label="Team" value={agent.team || '\u2014'} />
+          <MetadataRow
+            label="State"
+            value={<StatusBadge status={agent.state} />}
+          />
+          <MetadataRow label="Tool" value={agent.tool || "\u2014"} />
+          <MetadataRow label="Team" value={agent.team || "\u2014"} />
         </div>
       </div>
 
       {/* Hierarchy */}
       <div className="space-y-2">
-        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">Hierarchy</h2>
+        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
+          Hierarchy
+        </h2>
         <div className="rounded border border-bc-border bg-bc-surface p-4">
-          <MetadataRow label="Parent" value={agent.parent_id || '\u2014'} />
+          <MetadataRow label="Parent" value={agent.parent_id || "\u2014"} />
           <MetadataRow
             label="Children"
-            value={agent.children && agent.children.length > 0 ? agent.children.join(', ') : '\u2014'}
+            value={
+              agent.children && agent.children.length > 0
+                ? agent.children.join(", ")
+                : "\u2014"
+            }
           />
         </div>
       </div>
 
       {/* Paths */}
       <div className="space-y-2">
-        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">Paths</h2>
+        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
+          Paths
+        </h2>
         <div className="rounded border border-bc-border bg-bc-surface p-4">
-          <MetadataRow label="Session" value={agent.session || '\u2014'} />
+          <MetadataRow label="Session" value={agent.session || "\u2014"} />
         </div>
       </div>
 
       {/* Timestamps */}
       <div className="space-y-2">
-        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">Timestamps</h2>
+        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
+          Timestamps
+        </h2>
         <div className="rounded border border-bc-border bg-bc-surface p-4">
           <MetadataRow label="Created" value={formatTime(agent.created_at)} />
           <MetadataRow label="Started" value={formatTime(agent.started_at)} />
@@ -141,15 +176,21 @@ function StatsTab({ agent }: { agent: Agent }) {
 function RoleTab({ agent }: { agent: Agent }) {
   return (
     <div className="space-y-2">
-      <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">Role</h2>
+      <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
+        Role
+      </h2>
       <div className="rounded border border-bc-border bg-bc-surface p-4">
         <MetadataRow label="Role" value={<RoleBadge role={agent.role} />} />
-        <MetadataRow label="Tool" value={agent.tool || '\u2014'} />
-        <MetadataRow label="Team" value={agent.team || '\u2014'} />
-        <MetadataRow label="Parent" value={agent.parent_id || '\u2014'} />
+        <MetadataRow label="Tool" value={agent.tool || "\u2014"} />
+        <MetadataRow label="Team" value={agent.team || "\u2014"} />
+        <MetadataRow label="Parent" value={agent.parent_id || "\u2014"} />
         <MetadataRow
           label="Children"
-          value={agent.children && agent.children.length > 0 ? agent.children.join(', ') : '\u2014'}
+          value={
+            agent.children && agent.children.length > 0
+              ? agent.children.join(", ")
+              : "\u2014"
+          }
         />
       </div>
     </div>
@@ -160,43 +201,53 @@ function RoleTab({ agent }: { agent: Agent }) {
 
 export function AgentDetail() {
   const { name } = useParams<{ name: string }>();
-  const [activeTab, setActiveTab] = useState<Tab>('logs');
+  const [activeTab, setActiveTab] = useState<Tab>("logs");
   const [outputLines, setOutputLines] = useState<string[]>([]);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const outputRef = useRef<HTMLPreElement>(null);
   const { subscribe } = useWebSocket();
 
   const agentFetcher = useCallback(async () => {
-    if (!name) throw new Error('No agent name');
+    if (!name) throw new Error("No agent name");
     return api.getAgent(name);
   }, [name]);
 
-  const { data: agent, loading, error, refresh } = usePolling<Agent>(agentFetcher, 3000);
+  const {
+    data: agent,
+    loading,
+    error,
+    refresh,
+  } = usePolling<Agent>(agentFetcher, 3000);
 
   // Fetch initial output via peek, then stream via SSE
   useEffect(() => {
     if (!name) return;
-    api.getAgentPeek(name, 100).then(({ output }) => {
-      if (output) {
-        setOutputLines(stripAnsi(output).split('\n'));
-      }
-    }).catch(() => {
-      // Peek may fail for stopped agents -- ignore
-    });
+    api
+      .getAgentPeek(name, 100)
+      .then(({ output }) => {
+        if (output) {
+          setOutputLines(stripAnsi(output).split("\n"));
+        }
+      })
+      .catch(() => {
+        // Peek may fail for stopped agents -- ignore
+      });
   }, [name]);
 
   // Stream live output via SSE
   useEffect(() => {
     if (!name) return;
 
-    const es = new EventSource(`/api/agents/${encodeURIComponent(name)}/output`);
+    const es = new EventSource(
+      `/api/agents/${encodeURIComponent(name)}/output`,
+    );
 
     es.onmessage = (e: MessageEvent) => {
       try {
         const parsed = JSON.parse(e.data as string) as { output: string };
         if (parsed.output) {
-          const newLines = stripAnsi(parsed.output).split('\n');
+          const newLines = stripAnsi(parsed.output).split("\n");
           setOutputLines((prev) => [...prev, ...newLines].slice(-500));
         }
       } catch {
@@ -204,11 +255,11 @@ export function AgentDetail() {
       }
     };
 
-    es.addEventListener('agent.output', ((e: MessageEvent) => {
+    es.addEventListener("agent.output", ((e: MessageEvent) => {
       try {
         const parsed = JSON.parse(e.data as string) as { output: string };
         if (parsed.output) {
-          const newLines = stripAnsi(parsed.output).split('\n');
+          const newLines = stripAnsi(parsed.output).split("\n");
           setOutputLines((prev) => [...prev, ...newLines].slice(-500));
         }
       } catch {
@@ -234,7 +285,7 @@ export function AgentDetail() {
 
   // Refresh on agent state changes
   useEffect(() => {
-    return subscribe('agent.state_changed', () => void refresh());
+    return subscribe("agent.state_changed", () => void refresh());
   }, [subscribe, refresh]);
 
   // Keyboard shortcuts: 1-4 to switch tabs
@@ -242,7 +293,7 @@ export function AgentDetail() {
     const handler = (e: KeyboardEvent) => {
       // Don't intercept when typing in an input
       const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
 
       const idx = parseInt(e.key, 10);
       const tab = TABS[idx - 1];
@@ -250,8 +301,8 @@ export function AgentDetail() {
         setActiveTab(tab.key);
       }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, []);
 
   const handleSend = async () => {
@@ -259,7 +310,7 @@ export function AgentDetail() {
     setSending(true);
     try {
       await api.sendToAgent(name, message);
-      setMessage('');
+      setMessage("");
     } finally {
       setSending(false);
     }
@@ -272,7 +323,9 @@ export function AgentDetail() {
     return (
       <div className="p-6 space-y-2">
         <div className="text-bc-error">Error: {error}</div>
-        <Link to="/agents" className="text-sm text-bc-accent hover:underline">Back to agents</Link>
+        <Link to="/agents" className="text-sm text-bc-accent hover:underline">
+          Back to agents
+        </Link>
       </div>
     );
   }
@@ -283,7 +336,10 @@ export function AgentDetail() {
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
         {/* Breadcrumb + Header */}
         <div className="flex items-center gap-4">
-          <Link to="/agents" className="text-bc-muted hover:text-bc-text text-sm">
+          <Link
+            to="/agents"
+            className="text-bc-muted hover:text-bc-text text-sm"
+          >
             &larr; Agents
           </Link>
           <h1 className="text-xl font-bold">{agent.name}</h1>
@@ -299,12 +355,14 @@ export function AgentDetail() {
               onClick={() => setActiveTab(tab.key)}
               className={`px-4 py-2 text-sm font-medium transition-colors relative ${
                 activeTab === tab.key
-                  ? 'text-bc-accent'
-                  : 'text-bc-muted hover:text-bc-text'
+                  ? "text-bc-accent"
+                  : "text-bc-muted hover:text-bc-text"
               }`}
             >
               {tab.label}
-              <span className="ml-1.5 text-[10px] text-bc-muted/60">{tab.shortcut}</span>
+              <span className="ml-1.5 text-[10px] text-bc-muted/60">
+                {tab.shortcut}
+              </span>
               {activeTab === tab.key && (
                 <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-bc-accent" />
               )}
@@ -313,10 +371,12 @@ export function AgentDetail() {
         </div>
 
         {/* Tab content */}
-        {activeTab === 'logs' && <LogsTab outputLines={outputLines} outputRef={outputRef} />}
-        {activeTab === 'overview' && <OverviewTab agent={agent} />}
-        {activeTab === 'stats' && <StatsTab agent={agent} />}
-        {activeTab === 'role' && <RoleTab agent={agent} />}
+        {activeTab === "logs" && (
+          <LogsTab outputLines={outputLines} outputRef={outputRef} />
+        )}
+        {activeTab === "overview" && <OverviewTab agent={agent} />}
+        {activeTab === "stats" && <StatsTab agent={agent} />}
+        {activeTab === "role" && <RoleTab agent={agent} />}
       </div>
 
       {/* Message input bar -- always visible at bottom */}
@@ -326,7 +386,9 @@ export function AgentDetail() {
             type="text"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') void handleSend(); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void handleSend();
+            }}
             placeholder="Send message to agent..."
             className="flex-1 bg-bc-bg border border-bc-border rounded px-3 py-1.5 text-sm focus:outline-none focus:border-bc-accent"
           />

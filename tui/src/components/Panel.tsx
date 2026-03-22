@@ -48,7 +48,9 @@ export const Panel = memo(function Panel({
       overflow="hidden"
     >
       {title && (
-        <Text bold wrap="truncate">{title}</Text>
+        <Text bold wrap="truncate">
+          {title}
+        </Text>
       )}
       {children}
     </Box>

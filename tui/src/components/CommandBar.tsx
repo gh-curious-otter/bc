@@ -9,7 +9,12 @@ import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useTheme } from '../theme';
 import type { View } from '../navigation/NavigationContext';
-import { searchCommands, resolveCommand, resolveAction, type MatchedCommand } from '../navigation/viewCommands';
+import {
+  searchCommands,
+  resolveCommand,
+  resolveAction,
+  type MatchedCommand,
+} from '../navigation/viewCommands';
 
 interface CommandBarProps {
   onSelect: (view: View) => void;
@@ -22,7 +27,12 @@ interface CommandBarProps {
 
 const MAX_SUGGESTIONS = 10;
 
-export function CommandBar({ onSelect, onClose, recentCommands = [], onCommandUsed }: CommandBarProps): React.ReactElement {
+export function CommandBar({
+  onSelect,
+  onClose,
+  recentCommands = [],
+  onCommandUsed,
+}: CommandBarProps): React.ReactElement {
   const { theme } = useTheme();
   const [input, setInput] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -64,24 +74,24 @@ export function CommandBar({ onSelect, onClose, recentCommands = [], onCommandUs
     }
 
     if (key.upArrow) {
-      setSelectedIndex(prev => Math.max(0, prev - 1));
+      setSelectedIndex((prev) => Math.max(0, prev - 1));
       return;
     }
 
     if (key.downArrow) {
-      setSelectedIndex(prev => Math.min(matches.length - 1, prev + 1));
+      setSelectedIndex((prev) => Math.min(matches.length - 1, prev + 1));
       return;
     }
 
     if (key.backspace || key.delete) {
-      setInput(prev => prev.slice(0, -1));
+      setInput((prev) => prev.slice(0, -1));
       setSelectedIndex(0);
       return;
     }
 
     // Regular character input
     if (char && !key.ctrl && !key.meta) {
-      setInput(prev => prev + char);
+      setInput((prev) => prev + char);
       setSelectedIndex(0);
     }
   });
@@ -94,13 +104,14 @@ export function CommandBar({ onSelect, onClose, recentCommands = [], onCommandUs
           <Text color={idx === selectedIndex ? theme.colors.primary : undefined}>
             {idx === selectedIndex ? '> ' : '  '}
           </Text>
-          <Text color={idx === selectedIndex ? theme.colors.primary : theme.colors.text} bold={idx === selectedIndex}>
+          <Text
+            color={idx === selectedIndex ? theme.colors.primary : theme.colors.text}
+            bold={idx === selectedIndex}
+          >
             {match.command.aliases[0] ?? match.command.command}
           </Text>
           <Text>{'  '}</Text>
-          <Text dimColor={idx !== selectedIndex}>
-            {match.command.command}
-          </Text>
+          <Text dimColor={idx !== selectedIndex}>{match.command.command}</Text>
           <Text>{'  '}</Text>
           <Text dimColor color={theme.colors.textMuted}>
             {match.command.section}
@@ -110,7 +121,9 @@ export function CommandBar({ onSelect, onClose, recentCommands = [], onCommandUs
 
       {/* Input line */}
       <Box>
-        <Text color={theme.colors.primary} bold>: </Text>
+        <Text color={theme.colors.primary} bold>
+          :{' '}
+        </Text>
         <Text>{input}</Text>
         <Text color={theme.colors.textMuted}>|</Text>
         <Text dimColor>{'  [Tab] complete  [Esc] cancel'}</Text>

@@ -91,10 +91,12 @@ describe('useDebouncedCallback', () => {
 
   it('accepts options with maxWait', () => {
     const TestComponent = (): React.ReactElement => {
-      const { callback } = useDebouncedCallback(
-        () => {},
-        { delay: 100, maxWait: 500, leading: false, trailing: true }
-      );
+      const { callback } = useDebouncedCallback(() => {}, {
+        delay: 100,
+        maxWait: 500,
+        leading: false,
+        trailing: true,
+      });
       return <Text>callback:{typeof callback}</Text>;
     };
 

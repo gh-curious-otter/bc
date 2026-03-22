@@ -96,7 +96,7 @@ function AppContent({ themeConfig }: AppContentProps): React.ReactElement {
   const MAX_LRU = 10;
   const recentCommandsRef = useRef<string[]>([]);
   const handleCommandUsed = useCallback((command: string) => {
-    const lru = recentCommandsRef.current.filter(c => c !== command);
+    const lru = recentCommandsRef.current.filter((c) => c !== command);
     lru.unshift(command);
     if (lru.length > MAX_LRU) lru.pop();
     recentCommandsRef.current = lru;
@@ -118,11 +118,14 @@ function AppContent({ themeConfig }: AppContentProps): React.ReactElement {
     returnFocus();
   }, [returnFocus]);
 
-  const handleCommandSelect = useCallback((view: View) => {
-    navigate(view);
-    setShowCommandBar(false);
-    returnFocus();
-  }, [navigate, returnFocus]);
+  const handleCommandSelect = useCallback(
+    (view: View) => {
+      navigate(view);
+      setShowCommandBar(false);
+      returnFocus();
+    },
+    [navigate, returnFocus]
+  );
 
   const openFilterBar = useCallback(() => {
     setShowFilterBar(true);
@@ -145,7 +148,13 @@ function AppContent({ themeConfig }: AppContentProps): React.ReactElement {
   const terminalWidth = stdout.columns;
 
   return (
-    <Box flexDirection="column" padding={1} width={terminalWidth} height={terminalHeight} overflow="hidden">
+    <Box
+      flexDirection="column"
+      padding={1}
+      width={terminalWidth}
+      height={terminalHeight}
+      overflow="hidden"
+    >
       {/* Breadcrumb - always shows current view */}
       <Breadcrumb />
 
@@ -167,11 +176,7 @@ function AppContent({ themeConfig }: AppContentProps): React.ReactElement {
       )}
 
       {/* Filter bar overlay (k9s-style /filter) */}
-      {showFilterBar && (
-        <FilterBar
-          onClose={closeFilterBar}
-        />
-      )}
+      {showFilterBar && <FilterBar onClose={closeFilterBar} />}
 
       {/* Footer with static hints - only when no overlay is active */}
       {!showCommandBar && !showFilterBar && <Footer />}
@@ -221,7 +226,8 @@ const Footer = memo(function Footer(): React.ReactElement {
   return (
     <Box marginTop={1}>
       <Text dimColor>
-        [<Text bold>:</Text>] command  [<Text bold>/</Text>] filter  [<Text bold>1-0</Text>] views  [<Text bold>?</Text>] help  [<Text bold>Tab</Text>] next  [<Text bold>q</Text>] quit
+        [<Text bold>:</Text>] command [<Text bold>/</Text>] filter [<Text bold>1-0</Text>] views [
+        <Text bold>?</Text>] help [<Text bold>Tab</Text>] next [<Text bold>q</Text>] quit
       </Text>
     </Box>
   );

@@ -226,21 +226,45 @@ describe('StatusBadge', () => {
 
   describe('Agent State Types', () => {
     test('all agent states have symbols', () => {
-      const agentStates: AgentState[] = ['idle', 'starting', 'working', 'done', 'stuck', 'error', 'stopped'];
+      const agentStates: AgentState[] = [
+        'idle',
+        'starting',
+        'working',
+        'done',
+        'stuck',
+        'error',
+        'stopped',
+      ];
       for (const state of agentStates) {
         expect(stateSymbols[state]).toBeDefined();
       }
     });
 
     test('all agent states have fallback colors', () => {
-      const agentStates: AgentState[] = ['idle', 'starting', 'working', 'done', 'stuck', 'error', 'stopped'];
+      const agentStates: AgentState[] = [
+        'idle',
+        'starting',
+        'working',
+        'done',
+        'stuck',
+        'error',
+        'stopped',
+      ];
       for (const state of agentStates) {
         expect(fallbackColors[state]).toBeDefined();
       }
     });
 
     test('all agent states have theme mappings', () => {
-      const agentStates: AgentState[] = ['idle', 'starting', 'working', 'done', 'stuck', 'error', 'stopped'];
+      const agentStates: AgentState[] = [
+        'idle',
+        'starting',
+        'working',
+        'done',
+        'stuck',
+        'error',
+        'stopped',
+      ];
       for (const state of agentStates) {
         expect(getThemeColorKey(state)).not.toBeNull();
       }

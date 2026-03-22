@@ -20,7 +20,9 @@ function TerminalShell({ children }: { children: React.ReactNode }) {
           <Dot className="bg-[var(--traffic-yellow)]" />
           <Dot className="bg-[var(--traffic-green)]" />
         </div>
-        <span className="ml-2 font-mono text-xs text-muted-foreground uppercase tracking-widest">bc terminal</span>
+        <span className="ml-2 font-mono text-xs text-muted-foreground uppercase tracking-widest">
+          bc terminal
+        </span>
       </div>
       <div className="p-5 min-h-[320px]">{children}</div>
     </div>
@@ -46,22 +48,32 @@ function DashboardView() {
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="rounded-xl border border-border bg-muted/40 p-3">
-          <div className="text-muted-foreground uppercase text-xs sm:text-[10px] tracking-widest mb-2 font-bold">Health</div>
+          <div className="text-muted-foreground uppercase text-xs sm:text-[10px] tracking-widest mb-2 font-bold">
+            Health
+          </div>
           <div className="flex items-end gap-2">
             <span className="text-2xl font-bold">98%</span>
-            <span className="text-success text-xs sm:text-[10px] mb-1">↑ 2%</span>
+            <span className="text-success text-xs sm:text-[10px] mb-1">
+              ↑ 2%
+            </span>
           </div>
         </div>
         <div className="rounded-xl border border-border bg-muted/40 p-3">
-          <div className="text-muted-foreground uppercase text-xs sm:text-[10px] tracking-widest mb-2 font-bold">Costs</div>
+          <div className="text-muted-foreground uppercase text-xs sm:text-[10px] tracking-widest mb-2 font-bold">
+            Costs
+          </div>
           <div className="flex items-end gap-2">
             <span className="text-2xl font-bold">$4.21</span>
-            <span className="text-muted-foreground text-xs sm:text-[10px] mb-1">Today</span>
+            <span className="text-muted-foreground text-xs sm:text-[10px] mb-1">
+              Today
+            </span>
           </div>
         </div>
       </div>
       <div className="mt-4 rounded-xl border border-border bg-muted/40 p-3">
-        <div className="text-muted-foreground uppercase text-xs sm:text-[10px] tracking-widest mb-2 font-bold">Active Agents</div>
+        <div className="text-muted-foreground uppercase text-xs sm:text-[10px] tracking-widest mb-2 font-bold">
+          Active Agents
+        </div>
         <div className="space-y-1.5">
           <div className="flex justify-between items-center">
             <span>root-prime</span>
@@ -73,7 +85,9 @@ function DashboardView() {
           </div>
           <div className="flex justify-between items-center">
             <span>engineer-pixel</span>
-            <span className="text-[var(--terminal-command)]">task (ui-refactor)</span>
+            <span className="text-[var(--terminal-command)]">
+              task (ui-refactor)
+            </span>
           </div>
         </div>
       </div>
@@ -90,7 +104,9 @@ function CostView() {
       </div>
       <div className="grid gap-4">
         <div className="rounded-xl border border-border bg-muted/40 p-3">
-          <div className="text-muted-foreground mb-2 border-b border-border pb-1">Per-Agent Usage</div>
+          <div className="text-muted-foreground mb-2 border-b border-border pb-1">
+            Per-Agent Usage
+          </div>
           <div className="space-y-1.5">
             <div className="flex justify-between">
               <span>engineer-pixel</span>
@@ -98,7 +114,9 @@ function CostView() {
             </div>
             <div className="flex justify-between">
               <span>engineer-nova</span>
-              <span className="text-[var(--terminal-command)]">$3.42 / $5.00</span>
+              <span className="text-[var(--terminal-command)]">
+                $3.42 / $5.00
+              </span>
             </div>
             <div className="flex justify-between">
               <span>manager-atlas</span>
@@ -107,7 +125,9 @@ function CostView() {
           </div>
         </div>
         <div className="rounded-xl border border-border bg-muted/40 p-3">
-          <div className="text-muted-foreground mb-2 border-b border-border pb-1">Budget Summary</div>
+          <div className="text-muted-foreground mb-2 border-b border-border pb-1">
+            Budget Summary
+          </div>
           <div className="space-y-1">
             <div className="flex justify-between">
               <span>Daily spend</span>
@@ -132,7 +152,9 @@ function MemoryView() {
       </div>
       <div className="space-y-4">
         <div className="rounded-xl border border-border bg-muted/40 p-3">
-          <div className="text-muted-foreground uppercase text-[10px] tracking-widest mb-2 font-bold">Learnings</div>
+          <div className="text-muted-foreground uppercase text-[10px] tracking-widest mb-2 font-bold">
+            Learnings
+          </div>
           <ul className="space-y-1 text-muted-foreground">
             <li>• Use `bc ag send` to assign work to agents</li>
             <li>• Framework v4 requires specific lint flags</li>
@@ -140,13 +162,16 @@ function MemoryView() {
           </ul>
         </div>
         <div className="rounded-xl border border-border bg-muted/40 p-3">
-          <div className="text-muted-foreground uppercase text-[10px] tracking-widest mb-2 font-bold">Recent Experience</div>
+          <div className="text-muted-foreground uppercase text-[10px] tracking-widest mb-2 font-bold">
+            Recent Experience
+          </div>
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-success"></span>
             <span>Task work-042 completed succesfully</span>
           </div>
           <p className="mt-1 text-muted-foreground italic text-[11px]">
-            &quot;Implemented Zod validation - learned this project prefers strict schema over ad-hoc checks.&quot;
+            &quot;Implemented Zod validation - learned this project prefers
+            strict schema over ad-hoc checks.&quot;
           </p>
         </div>
       </div>
@@ -156,11 +181,36 @@ function MemoryView() {
 
 function ChatRoom() {
   const msgs = [
-    { t: "10:23", who: "root", tag: "root", msg: "Morning. Standup in #standup. 3 agents active." },
-    { t: "10:24", who: "atlas", tag: "mgr", msg: "Auth breakdown ready. Assigning steps to #eng." },
-    { t: "10:25", who: "pixel", tag: "eng", msg: "I'll take the token logic. Loading project context now." },
-    { t: "10:28", who: "scheduler", tag: "cron", msg: "Cron: test-suite passed ✅ All green." },
-    { t: "10:31", who: "root", tag: "root", msg: "Costs at $4.21 today. Well within budget." },
+    {
+      t: "10:23",
+      who: "root",
+      tag: "root",
+      msg: "Morning. Standup in #standup. 3 agents active.",
+    },
+    {
+      t: "10:24",
+      who: "atlas",
+      tag: "mgr",
+      msg: "Auth breakdown ready. Assigning steps to #eng.",
+    },
+    {
+      t: "10:25",
+      who: "pixel",
+      tag: "eng",
+      msg: "I'll take the token logic. Loading project context now.",
+    },
+    {
+      t: "10:28",
+      who: "scheduler",
+      tag: "cron",
+      msg: "Cron: test-suite passed ✅ All green.",
+    },
+    {
+      t: "10:31",
+      who: "root",
+      tag: "root",
+      msg: "Costs at $4.21 today. Well within budget.",
+    },
   ];
 
   const badge = (tag: string) => {
@@ -194,7 +244,9 @@ function ChatRoom() {
           >
             <span className="text-muted-foreground mt-1">{m.t}</span>
             <div className="flex flex-col gap-1">
-              <span className={`inline-flex self-start items-center rounded px-1.5 text-[9px] font-bold uppercase tracking-tighter ${badge(m.tag)}`}>
+              <span
+                className={`inline-flex self-start items-center rounded px-1.5 text-[9px] font-bold uppercase tracking-tighter ${badge(m.tag)}`}
+              >
                 {m.who}
               </span>
               <span className="text-foreground leading-relaxed">{m.msg}</span>
@@ -206,7 +258,9 @@ function ChatRoom() {
       <div className="mt-4 flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
         <span className="text-muted-foreground">&gt;</span>
         <span className="text-muted-foreground italic">Type message...</span>
-        <span className="ml-auto text-muted-foreground text-[10px]">#channel</span>
+        <span className="ml-auto text-muted-foreground text-[10px]">
+          #channel
+        </span>
       </div>
     </div>
   );
@@ -221,7 +275,7 @@ export function BcHomeDemo() {
       { kind: "screen", title: "memory", body: <MemoryView /> },
       { kind: "screen", title: "chat", body: <ChatRoom /> },
     ],
-    []
+    [],
   );
 
   const [idx, setIdx] = useState(0);
@@ -253,10 +307,14 @@ export function BcHomeDemo() {
               >
                 <div>[bc] Starting orchestration engine...</div>
                 <div>[bc] Initializing Root Agent (root-prime)</div>
-                <div className="text-success">[bc] Environment ready. Workspace active.</div>
+                <div className="text-success">
+                  [bc] Environment ready. Workspace active.
+                </div>
               </motion.div>
             </div>
-          ) : f.body}
+          ) : (
+            f.body
+          )}
         </motion.div>
       </TerminalShell>
 
@@ -266,8 +324,9 @@ export function BcHomeDemo() {
             <button
               key={i}
               onClick={() => setIdx(i)}
-              className={`h-1 rounded-full transition-all ${i === idx ? "w-8 bg-primary" : "w-4 bg-muted hover:bg-muted/80"
-                }`}
+              className={`h-1 rounded-full transition-all ${
+                i === idx ? "w-8 bg-primary" : "w-4 bg-muted hover:bg-muted/80"
+              }`}
               aria-label={`View demo step ${i + 1}: ${frames[i].title || "init"}`}
             />
           ))}

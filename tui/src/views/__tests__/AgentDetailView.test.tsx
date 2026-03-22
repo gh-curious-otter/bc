@@ -58,7 +58,9 @@ describe('AgentDetailView Component', () => {
   // Full rendering tests are skipped due to useInput requiring TTY stdin
   test.skipIf(noTTY)('renders agent name in header', () => {
     const { lastFrame } = renderWithTheme(
-      <FocusProvider><AgentDetailView agent={mockAgent} onBack={() => {}} /></FocusProvider>
+      <FocusProvider>
+        <AgentDetailView agent={mockAgent} onBack={() => {}} />
+      </FocusProvider>
     );
     const output = lastFrame() ?? '';
     expect(output).toContain('test-agent');
@@ -66,7 +68,9 @@ describe('AgentDetailView Component', () => {
 
   test.skipIf(noTTY)('renders agent role in header', () => {
     const { lastFrame } = renderWithTheme(
-      <FocusProvider><AgentDetailView agent={mockAgent} onBack={() => {}} /></FocusProvider>
+      <FocusProvider>
+        <AgentDetailView agent={mockAgent} onBack={() => {}} />
+      </FocusProvider>
     );
     const output = lastFrame() ?? '';
     expect(output).toContain('engineer');
@@ -87,7 +91,9 @@ describe('AgentDetailView Component', () => {
 
   test.skipIf(noTTY)('renders agent task', () => {
     const { lastFrame } = renderWithTheme(
-      <FocusProvider><AgentDetailView agent={mockAgent} onBack={() => {}} /></FocusProvider>
+      <FocusProvider>
+        <AgentDetailView agent={mockAgent} onBack={() => {}} />
+      </FocusProvider>
     );
     const output = lastFrame() ?? '';
     expect(output).toContain('Implementing feature #662');
@@ -95,7 +101,9 @@ describe('AgentDetailView Component', () => {
 
   test.skipIf(noTTY)('shows input prompt when not in input mode', () => {
     const { lastFrame } = renderWithTheme(
-      <FocusProvider><AgentDetailView agent={mockAgent} onBack={() => {}} /></FocusProvider>
+      <FocusProvider>
+        <AgentDetailView agent={mockAgent} onBack={() => {}} />
+      </FocusProvider>
     );
     const output = lastFrame() ?? '';
     expect(output).toContain('Press i or m');
@@ -103,7 +111,9 @@ describe('AgentDetailView Component', () => {
 
   test.skipIf(noTTY)('shows navigation hints in footer', () => {
     const { lastFrame } = renderWithTheme(
-      <FocusProvider><AgentDetailView agent={mockAgent} onBack={() => {}} /></FocusProvider>
+      <FocusProvider>
+        <AgentDetailView agent={mockAgent} onBack={() => {}} />
+      </FocusProvider>
     );
     const output = lastFrame() ?? '';
     expect(output).toContain('i/m: message');
@@ -112,7 +122,9 @@ describe('AgentDetailView Component', () => {
 
   test.skipIf(noTTY)('displays agent state (running)', () => {
     const { lastFrame } = renderWithTheme(
-      <FocusProvider><AgentDetailView agent={mockAgent} onBack={() => {}} /></FocusProvider>
+      <FocusProvider>
+        <AgentDetailView agent={mockAgent} onBack={() => {}} />
+      </FocusProvider>
     );
     const output = lastFrame() ?? '';
     expect(output).toContain('State');
@@ -140,11 +152,9 @@ describe('AgentDetailView Component', () => {
 
   test.skipIf(noTTY)('renders with different agent states', () => {
     const states: Agent['state'][] = ['running', 'idle', 'working', 'stopped'];
-    states.forEach(state => {
+    states.forEach((state) => {
       const agent = { ...mockAgent, state };
-      const { lastFrame } = renderWithTheme(
-        <AgentDetailView agent={agent} onBack={() => {}} />
-      );
+      const { lastFrame } = renderWithTheme(<AgentDetailView agent={agent} onBack={() => {}} />);
       const output = lastFrame() ?? '';
       expect(output).toBeTruthy();
     });
@@ -152,7 +162,9 @@ describe('AgentDetailView Component', () => {
 
   test('renders output area with border', () => {
     const { lastFrame } = renderWithTheme(
-      <FocusProvider><AgentDetailView agent={mockAgent} onBack={() => {}} /></FocusProvider>
+      <FocusProvider>
+        <AgentDetailView agent={mockAgent} onBack={() => {}} />
+      </FocusProvider>
     );
     const output = lastFrame() ?? '';
     // Output area is rendered
@@ -161,7 +173,9 @@ describe('AgentDetailView Component', () => {
 
   test('renders message input area with border', () => {
     const { lastFrame } = renderWithTheme(
-      <FocusProvider><AgentDetailView agent={mockAgent} onBack={() => {}} /></FocusProvider>
+      <FocusProvider>
+        <AgentDetailView agent={mockAgent} onBack={() => {}} />
+      </FocusProvider>
     );
     const output = lastFrame() ?? '';
     // Message input area is rendered
@@ -174,7 +188,9 @@ describe('AgentDetailView Component', () => {
       <FocusProvider>
         <AgentDetailView
           agent={mockAgent}
-          onBack={() => { callbackCalled = true; }}
+          onBack={() => {
+            callbackCalled = true;
+          }}
         />
       </FocusProvider>
     );
@@ -184,7 +200,9 @@ describe('AgentDetailView Component', () => {
 
   test('displays loading state when fetching output', () => {
     const { lastFrame } = renderWithTheme(
-      <FocusProvider><AgentDetailView agent={mockAgent} onBack={() => {}} /></FocusProvider>
+      <FocusProvider>
+        <AgentDetailView agent={mockAgent} onBack={() => {}} />
+      </FocusProvider>
     );
     const output = lastFrame() ?? '';
     // Component renders initial state
@@ -192,9 +210,14 @@ describe('AgentDetailView Component', () => {
   });
 
   test('handles agent with long name', () => {
-    const agentLongName = { ...mockAgent, name: 'very-long-agent-name-that-might-cause-layout-issues' };
+    const agentLongName = {
+      ...mockAgent,
+      name: 'very-long-agent-name-that-might-cause-layout-issues',
+    };
     const { lastFrame } = renderWithTheme(
-      <FocusProvider><AgentDetailView agent={agentLongName} onBack={() => {}} /></FocusProvider>
+      <FocusProvider>
+        <AgentDetailView agent={agentLongName} onBack={() => {}} />
+      </FocusProvider>
     );
     const output = lastFrame() ?? '';
     expect(output).toContain('very-long-agent-name');
@@ -203,10 +226,12 @@ describe('AgentDetailView Component', () => {
   test('handles agent with long task description', () => {
     const agentLongTask = {
       ...mockAgent,
-      task: 'This is a very long task description that spans many words and might cause layout wrapping issues in the TUI component'
+      task: 'This is a very long task description that spans many words and might cause layout wrapping issues in the TUI component',
     };
     const { lastFrame } = renderWithTheme(
-      <FocusProvider><AgentDetailView agent={agentLongTask} onBack={() => {}} /></FocusProvider>
+      <FocusProvider>
+        <AgentDetailView agent={agentLongTask} onBack={() => {}} />
+      </FocusProvider>
     );
     const output = lastFrame() ?? '';
     expect(output).toBeTruthy();
@@ -214,7 +239,9 @@ describe('AgentDetailView Component', () => {
 
   test('renders all required UI sections', () => {
     const { lastFrame } = renderWithTheme(
-      <FocusProvider><AgentDetailView agent={mockAgent} onBack={() => {}} /></FocusProvider>
+      <FocusProvider>
+        <AgentDetailView agent={mockAgent} onBack={() => {}} />
+      </FocusProvider>
     );
     const output = lastFrame() ?? '';
     // Header section present
@@ -234,9 +261,7 @@ describe('AgentDetailView Integration Patterns', () => {
   };
 
   test.skipIf(noTTY)('component receives agent prop correctly', () => {
-    const { lastFrame } = renderWithTheme(
-      <AgentDetailView agent={agent} onBack={() => {}} />
-    );
+    const { lastFrame } = renderWithTheme(<AgentDetailView agent={agent} onBack={() => {}} />);
     const output = lastFrame() ?? '';
     expect(output).toContain('integration-test-agent');
   });
@@ -244,7 +269,9 @@ describe('AgentDetailView Integration Patterns', () => {
   test('component receives onBack callback correctly', () => {
     const mockCallback = () => {};
     const { lastFrame } = renderWithTheme(
-      <FocusProvider><AgentDetailView agent={agent} onBack={mockCallback} /></FocusProvider>
+      <FocusProvider>
+        <AgentDetailView agent={agent} onBack={mockCallback} />
+      </FocusProvider>
     );
     const output = lastFrame() ?? '';
     expect(output).toBeTruthy();
@@ -252,7 +279,9 @@ describe('AgentDetailView Integration Patterns', () => {
 
   test('component handles missing onBack callback gracefully', () => {
     const { lastFrame } = renderWithTheme(
-      <FocusProvider><AgentDetailView agent={agent} /></FocusProvider>
+      <FocusProvider>
+        <AgentDetailView agent={agent} />
+      </FocusProvider>
     );
     const output = lastFrame() ?? '';
     expect(output).toBeTruthy();

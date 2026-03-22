@@ -6,9 +6,7 @@ import { DisableInputProvider } from '../hooks';
 
 // #1594: Helper to wrap with DisableInputProvider
 const renderWithProvider = (ui: React.ReactElement) => {
-  return render(
-    <DisableInputProvider disabled>{ui}</DisableInputProvider>
-  );
+  return render(<DisableInputProvider disabled>{ui}</DisableInputProvider>);
 };
 
 /**
@@ -110,9 +108,7 @@ describe('ChannelsView', () => {
 
   describe('accessibility', () => {
     it('renders with keyboard navigation support', () => {
-      const { lastFrame } = render(
-        <ChannelsView disableInput={false} />
-      );
+      const { lastFrame } = render(<ChannelsView disableInput={false} />);
       expect(lastFrame()).toBeDefined();
     });
 
@@ -122,16 +118,12 @@ describe('ChannelsView', () => {
     });
 
     it('supports arrow key navigation', () => {
-      const { lastFrame } = render(
-        <ChannelsView disableInput={false} />
-      );
+      const { lastFrame } = render(<ChannelsView disableInput={false} />);
       expect(lastFrame()).toBeDefined();
     });
 
     it('supports vim keybindings (j/k)', () => {
-      const { lastFrame } = render(
-        <ChannelsView disableInput={false} />
-      );
+      const { lastFrame } = render(<ChannelsView disableInput={false} />);
       expect(lastFrame()).toBeDefined();
     });
   });

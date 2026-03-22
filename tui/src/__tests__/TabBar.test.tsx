@@ -17,7 +17,20 @@ import { TabBar } from '../navigation/TabBar';
 import { NavigationProvider } from '../navigation/NavigationContext';
 
 /** All expected tab keys from DEFAULT_TABS */
-const ALL_TAB_KEYS = ['[dash]', '[ag]', '[ch]', '[co]', '[log]', '[ro]', '[wt]', '[tl]', '[mcp]', '[sec]', '[ps]', '[?]'];
+const ALL_TAB_KEYS = [
+  '[dash]',
+  '[ag]',
+  '[ch]',
+  '[co]',
+  '[log]',
+  '[ro]',
+  '[wt]',
+  '[tl]',
+  '[mcp]',
+  '[sec]',
+  '[ps]',
+  '[?]',
+];
 
 /** Wrapper to provide navigation context */
 function renderTabBar(terminalWidth: number) {

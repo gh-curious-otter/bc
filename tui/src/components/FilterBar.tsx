@@ -33,7 +33,7 @@ export function FilterBar({ onClose }: FilterBarProps): React.ReactElement {
     }
 
     if (key.backspace || key.delete) {
-      setInput(prev => {
+      setInput((prev) => {
         const next = prev.slice(0, -1);
         setFilter(next);
         return next;
@@ -42,7 +42,7 @@ export function FilterBar({ onClose }: FilterBarProps): React.ReactElement {
     }
 
     if (char && !key.ctrl && !key.meta) {
-      setInput(prev => {
+      setInput((prev) => {
         const next = prev + char;
         setFilter(next);
         return next;
@@ -52,7 +52,9 @@ export function FilterBar({ onClose }: FilterBarProps): React.ReactElement {
 
   return (
     <Box>
-      <Text color={theme.colors.warning} bold>/ </Text>
+      <Text color={theme.colors.warning} bold>
+        /{' '}
+      </Text>
       <Text>{input}</Text>
       <Text color={theme.colors.textMuted}>|</Text>
       <Text dimColor>{'  [Enter] apply  [Esc] clear'}</Text>

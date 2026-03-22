@@ -18,7 +18,10 @@ export const initialState: AgentDetailState = {
   isFollowing: true,
 };
 
-export function agentDetailReducer(state: AgentDetailState, action: AgentDetailAction): AgentDetailState {
+export function agentDetailReducer(
+  state: AgentDetailState,
+  action: AgentDetailAction
+): AgentDetailState {
   switch (action.type) {
     case 'SET_OUTPUT':
       return { ...state, outputLines: action.lines };

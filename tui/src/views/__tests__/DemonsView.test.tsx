@@ -89,13 +89,13 @@ describe('DemonsView Data Model', () => {
   });
 
   test('enabled is boolean', () => {
-    mockDemons.forEach(demon => {
+    mockDemons.forEach((demon) => {
       expect(typeof demon.enabled).toBe('boolean');
     });
   });
 
   test('run_count is a number', () => {
-    mockDemons.forEach(demon => {
+    mockDemons.forEach((demon) => {
       expect(typeof demon.run_count).toBe('number');
       expect(demon.run_count).toBeGreaterThanOrEqual(0);
     });
@@ -216,8 +216,7 @@ describe('DemonsView Relative Time Formatting', () => {
 describe('DemonsView Navigation Logic', () => {
   test('selection index clamping works correctly', () => {
     const listLength = mockDemons.length;
-    const clampIndex = (index: number) =>
-      Math.max(0, Math.min(index, listLength - 1));
+    const clampIndex = (index: number) => Math.max(0, Math.min(index, listLength - 1));
 
     expect(clampIndex(-1)).toBe(0);
     expect(clampIndex(0)).toBe(0);
@@ -254,25 +253,25 @@ describe('DemonsView Navigation Logic', () => {
 
 describe('DemonsView Filtering', () => {
   test('can filter enabled demons', () => {
-    const enabledDemons = mockDemons.filter(d => d.enabled);
+    const enabledDemons = mockDemons.filter((d) => d.enabled);
     expect(enabledDemons.length).toBe(3);
-    expect(enabledDemons.every(d => d.enabled)).toBe(true);
+    expect(enabledDemons.every((d) => d.enabled)).toBe(true);
   });
 
   test('can filter disabled demons', () => {
-    const disabledDemons = mockDemons.filter(d => !d.enabled);
+    const disabledDemons = mockDemons.filter((d) => !d.enabled);
     expect(disabledDemons.length).toBe(1);
     expect(disabledDemons[0].name).toBe('weekly-cleanup');
   });
 
   test('can find demon by name', () => {
-    const demon = mockDemons.find(d => d.name === 'health-check');
+    const demon = mockDemons.find((d) => d.name === 'health-check');
     expect(demon).toBeTruthy();
     expect(demon?.schedule).toBe('*/5 * * * *');
   });
 
   test('returns undefined for non-existent demon', () => {
-    const demon = mockDemons.find(d => d.name === 'non-existent');
+    const demon = mockDemons.find((d) => d.name === 'non-existent');
     expect(demon).toBeUndefined();
   });
 });
@@ -283,22 +282,22 @@ describe('DemonsView Counts', () => {
   });
 
   test('enabled count is correct', () => {
-    const enabledCount = mockDemons.filter(d => d.enabled).length;
+    const enabledCount = mockDemons.filter((d) => d.enabled).length;
     expect(enabledCount).toBe(3);
   });
 
   test('demons with run history', () => {
-    const demonsWithRuns = mockDemons.filter(d => d.run_count > 0);
+    const demonsWithRuns = mockDemons.filter((d) => d.run_count > 0);
     expect(demonsWithRuns.length).toBe(3);
   });
 
   test('demons with last_run timestamp', () => {
-    const demonsWithLastRun = mockDemons.filter(d => d.last_run);
+    const demonsWithLastRun = mockDemons.filter((d) => d.last_run);
     expect(demonsWithLastRun.length).toBe(3);
   });
 
   test('demons with next_run timestamp', () => {
-    const demonsWithNextRun = mockDemons.filter(d => d.next_run);
+    const demonsWithNextRun = mockDemons.filter((d) => d.next_run);
     expect(demonsWithNextRun.length).toBe(2);
   });
 });
@@ -331,7 +330,7 @@ describe('DemonsView Rendering States', () => {
 
 describe('DemonsView Actions', () => {
   test('enable action for disabled demon', () => {
-    const disabledDemon = mockDemons.find(d => !d.enabled);
+    const disabledDemon = mockDemons.find((d) => !d.enabled);
     expect(disabledDemon).toBeTruthy();
     expect(disabledDemon?.name).toBe('weekly-cleanup');
     // Enable would change enabled to true
@@ -340,7 +339,7 @@ describe('DemonsView Actions', () => {
   });
 
   test('disable action for enabled demon', () => {
-    const enabledDemon = mockDemons.find(d => d.enabled);
+    const enabledDemon = mockDemons.find((d) => d.enabled);
     expect(enabledDemon).toBeTruthy();
     // Disable would change enabled to false
     const disabledDemon = { ...enabledDemon, enabled: false };
@@ -371,32 +370,39 @@ describe('DemonsView Keyboard Shortcuts', () => {
 
   test('e key enables selected demon', () => {
     const actions: string[] = [];
-    const eKeyAction = (demonName: string) => { actions.push(`enable:${demonName}`); };
+    const eKeyAction = (demonName: string) => {
+      actions.push(`enable:${demonName}`);
+    };
     eKeyAction('weekly-cleanup');
     expect(actions).toContain('enable:weekly-cleanup');
   });
 
   test('d key disables selected demon', () => {
     const actions: string[] = [];
-    const dKeyAction = (demonName: string) => { actions.push(`disable:${demonName}`); };
+    const dKeyAction = (demonName: string) => {
+      actions.push(`disable:${demonName}`);
+    };
     dKeyAction('health-check');
     expect(actions).toContain('disable:health-check');
   });
 
   test('x key runs selected demon', () => {
     const actions: string[] = [];
-    const xKeyAction = (demonName: string) => { actions.push(`run:${demonName}`); };
+    const xKeyAction = (demonName: string) => {
+      actions.push(`run:${demonName}`);
+    };
     xKeyAction('daily-backup');
     expect(actions).toContain('run:daily-backup');
   });
 
   test('r key refreshes list', () => {
     let refreshed = false;
-    const rKeyAction = () => { refreshed = true; };
+    const rKeyAction = () => {
+      refreshed = true;
+    };
     rKeyAction();
     expect(refreshed).toBe(true);
   });
-
 });
 
 describe('DemonRow Component Logic', () => {
@@ -414,13 +420,13 @@ describe('DemonRow Component Logic', () => {
   });
 
   test('status text based on enabled state', () => {
-    const getStatusText = (enabled: boolean) => enabled ? 'enabled' : 'disabled';
+    const getStatusText = (enabled: boolean) => (enabled ? 'enabled' : 'disabled');
     expect(getStatusText(true)).toBe('enabled');
     expect(getStatusText(false)).toBe('disabled');
   });
 
   test('selected row has highlight indicator', () => {
-    const getSelectionIndicator = (selected: boolean) => selected ? '▸ ' : '  ';
+    const getSelectionIndicator = (selected: boolean) => (selected ? '▸ ' : '  ');
     expect(getSelectionIndicator(true)).toBe('▸ ');
     expect(getSelectionIndicator(false)).toBe('  ');
   });

@@ -109,8 +109,12 @@ export function useStatus(options: UseStatusOptions = {}): UseStatusResult {
   useEffect(() => {
     if (!autoPoll) return;
 
-    const interval = setInterval(() => { void fetchStatus(); }, pollInterval);
-    return () => { clearInterval(interval); };
+    const interval = setInterval(() => {
+      void fetchStatus();
+    }, pollInterval);
+    return () => {
+      clearInterval(interval);
+    };
   }, [autoPoll, pollInterval, fetchStatus]);
 
   return {
@@ -151,8 +155,7 @@ export function useUtilization(options?: UseStatusOptions): {
 } {
   const { data, loading } = useStatus(options);
 
-  const utilization =
-    data && data.active > 0 ? (data.working / data.active) * 100 : 0;
+  const utilization = data && data.active > 0 ? (data.working / data.active) * 100 : 0;
 
   return {
     utilization: Math.round(utilization),

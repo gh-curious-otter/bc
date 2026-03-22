@@ -9,7 +9,13 @@ import { LoadingIndicator } from '../components/LoadingIndicator.js';
 import { ErrorDisplay } from '../components/ErrorDisplay.js';
 import { ActivityFeed } from '../components/ActivityFeed.js';
 import { useDashboard } from '../hooks/useDashboard.js';
-import { STATUS_COLORS, STATUS_SYMBOLS, HEALTH_COLORS, getCostIndicator, type CostStatus } from '../theme/StatusColors.js';
+import {
+  STATUS_COLORS,
+  STATUS_SYMBOLS,
+  HEALTH_COLORS,
+  getCostIndicator,
+  type CostStatus,
+} from '../theme/StatusColors.js';
 
 interface DashboardProps {
   /** @deprecated Use navigation context instead */
@@ -40,13 +46,16 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
   } = useDashboard();
 
   // #1596: Memoize keyboard input handler
-  const handleDashboardInput = useCallback((input: string, _key: { ctrl: boolean }) => {
-    // Refresh is Dashboard-specific (global Ctrl+R handled elsewhere)
-    if (input === 'r') {
-      void refresh();
-    }
-    // Note: q and ESC are handled by global useKeyboardNavigation
-  }, [refresh]);
+  const handleDashboardInput = useCallback(
+    (input: string, _key: { ctrl: boolean }) => {
+      // Refresh is Dashboard-specific (global Ctrl+R handled elsewhere)
+      if (input === 'r') {
+        void refresh();
+      }
+      // Note: q and ESC are handled by global useKeyboardNavigation
+    },
+    [refresh]
+  );
 
   // Keyboard navigation - Dashboard-specific shortcuts
   // Global shortcuts (1-9, Tab, ESC, q) are handled by useKeyboardNavigation
@@ -56,7 +65,14 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
   useInput(handleDashboardInput, { isActive: !overlayActive });
 
   if (error) {
-    return <ErrorDisplay error={error.message} onRetry={() => { void refresh(); }} />;
+    return (
+      <ErrorDisplay
+        error={error.message}
+        onRetry={() => {
+          void refresh();
+        }}
+      />
+    );
   }
 
   // Progressive loading: show content structure while data loads (#1614)
@@ -103,13 +119,20 @@ export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
           {showInitialLoading ? (
             <LoadingIndicator message="Loading activity..." />
           ) : (
-            <ActivityFeed maxEntries={isMedium || isWide ? 15 : 8} compact={!isWide} showFilterHints={canMultiColumn} />
+            <ActivityFeed
+              maxEntries={isMedium || isWide ? 15 : 8}
+              compact={!isWide}
+              showFilterHints={canMultiColumn}
+            />
           )}
         </Box>
 
         {/* Stats & Health panels - side column when space allows (medium+) */}
         {canMultiColumn && (
-          <Box flexDirection="column" width={Math.min(32, Math.max(26, Math.floor((terminalWidth - 4) * 0.28)))}>
+          <Box
+            flexDirection="column"
+            width={Math.min(32, Math.max(26, Math.floor((terminalWidth - 4) * 0.28)))}
+          >
             <StatsPanels
               summary={summary}
               agentStats={agentStats}
@@ -145,9 +168,7 @@ interface HeaderProps {
  */
 const Header = memo(function Header({ workspaceName, isLoading, lastRefresh }: HeaderProps) {
   const { theme } = useTheme();
-  const refreshText = lastRefresh
-    ? `Updated ${formatRelativeTime(lastRefresh)}`
-    : '';
+  const refreshText = lastRefresh ? `Updated ${formatRelativeTime(lastRefresh)}` : '';
 
   return (
     <Box marginBottom={1}>
@@ -196,19 +217,27 @@ const SummaryCards = memo(function SummaryCards({
       <Box marginBottom={1}>
         <Text>{total} agents</Text>
         <Text> · </Text>
-        <Text color={theme.colors.info}>{STATUS_SYMBOLS.working} {working} working</Text>
+        <Text color={theme.colors.info}>
+          {STATUS_SYMBOLS.working} {working} working
+        </Text>
         <Text> · </Text>
-        <Text color={theme.colors.textMuted}>{STATUS_SYMBOLS.idle} {idle} idle</Text>
+        <Text color={theme.colors.textMuted}>
+          {STATUS_SYMBOLS.idle} {idle} idle
+        </Text>
         {stuck > 0 && (
           <>
             <Text> · </Text>
-            <Text color={theme.colors.warning}>{STATUS_SYMBOLS.warning} {stuck} stuck</Text>
+            <Text color={theme.colors.warning}>
+              {STATUS_SYMBOLS.warning} {stuck} stuck
+            </Text>
           </>
         )}
         {errorCount > 0 && (
           <>
             <Text> · </Text>
-            <Text color={theme.colors.error}>{STATUS_SYMBOLS.error} {errorCount} error</Text>
+            <Text color={theme.colors.error}>
+              {STATUS_SYMBOLS.error} {errorCount} error
+            </Text>
           </>
         )}
       </Box>
@@ -222,9 +251,7 @@ const SummaryCards = memo(function SummaryCards({
       <MetricCard value={working} label="Working" color={theme.colors.info} />
       <MetricCard value={idle} label="Idle" color={theme.colors.textMuted} />
       {stuck > 0 && <MetricCard value={stuck} label="Stuck" color={theme.colors.warning} />}
-      {errorCount > 0 && (
-        <MetricCard value={errorCount} label="Error" color={theme.colors.error} />
-      )}
+      {errorCount > 0 && <MetricCard value={errorCount} label="Error" color={theme.colors.error} />}
     </Box>
   );
 });
@@ -253,7 +280,12 @@ const SystemHealthPanel = memo(function SystemHealthPanel({
   const healthyCount = working + idle;
   const unhealthyCount = stuck + errorCount;
   const healthPercent = total > 0 ? Math.round((healthyCount / total) * 100) : 100;
-  const healthColor = healthPercent >= 80 ? HEALTH_COLORS.healthy : healthPercent >= 50 ? HEALTH_COLORS.warning : HEALTH_COLORS.critical;
+  const healthColor =
+    healthPercent >= 80
+      ? HEALTH_COLORS.healthy
+      : healthPercent >= 50
+        ? HEALTH_COLORS.warning
+        : HEALTH_COLORS.critical;
 
   // #1352: Compact borderless layout for narrow terminals
   // #1779: Use full text labels for accessibility (screen reader support)
@@ -261,8 +293,12 @@ const SystemHealthPanel = memo(function SystemHealthPanel({
     return (
       <Box flexDirection="column" marginBottom={1}>
         <Box>
-          <Text bold dimColor>Health: </Text>
-          <Text color={healthColor} bold>{healthPercent}%</Text>
+          <Text bold dimColor>
+            Health:{' '}
+          </Text>
+          <Text color={healthColor} bold>
+            {healthPercent}%
+          </Text>
           <Text> · </Text>
           <Text color={STATUS_COLORS.working}>●</Text>
           <Text> {working} working</Text>
@@ -287,7 +323,9 @@ const SystemHealthPanel = memo(function SystemHealthPanel({
       <Box flexDirection="column">
         {/* Health percentage - Box layout to prevent truncation garbling */}
         <Box>
-          <Text color={healthColor} bold>{healthPercent}%</Text>
+          <Text color={healthColor} bold>
+            {healthPercent}%
+          </Text>
           <Text dimColor> healthy</Text>
         </Box>
         <Box marginTop={1} flexDirection="column">
@@ -355,15 +393,20 @@ const CostPanel = memo(function CostPanel({
   const emptyWidth = barWidth - filledWidth;
 
   // Determine cost status for symbol and label (#1220 colorblind support)
-  const costStatus: CostStatus = budgetPercent >= 90 ? 'critical' : budgetPercent >= 75 ? 'warning' : 'normal';
+  const costStatus: CostStatus =
+    budgetPercent >= 90 ? 'critical' : budgetPercent >= 75 ? 'warning' : 'normal';
   const { color: barColor, symbol: costSymbol } = getCostIndicator(costStatus);
 
   // #1352: Compact inline layout for narrow terminals
   if (isNarrow) {
     return (
       <Box marginBottom={1}>
-        <Text bold dimColor>Cost: </Text>
-        <Text bold color={barColor}>${totalCostUSD.toFixed(2)}</Text>
+        <Text bold dimColor>
+          Cost:{' '}
+        </Text>
+        <Text bold color={barColor}>
+          ${totalCostUSD.toFixed(2)}
+        </Text>
         <Text dimColor>/${budgetUSD.toFixed(2)} </Text>
         <Text color={barColor}>{'█'.repeat(filledWidth)}</Text>
         <Text dimColor>{'░'.repeat(emptyWidth)}</Text>
@@ -379,9 +422,14 @@ const CostPanel = memo(function CostPanel({
       <Box flexDirection="column">
         {/* Line 1: Total + burn rate (show placeholder when no data yet) */}
         <Box>
-          <Text bold color={barColor}>{totalCostUSD > 0 ? `$${totalCostUSD.toFixed(2)}` : '$—'}</Text>
+          <Text bold color={barColor}>
+            {totalCostUSD > 0 ? `$${totalCostUSD.toFixed(2)}` : '$—'}
+          </Text>
           {burnRate > 0 && (
-            <Text dimColor>  {costSymbol} ${burnRate.toFixed(2)}/hr</Text>
+            <Text dimColor>
+              {' '}
+              {costSymbol} ${burnRate.toFixed(2)}/hr
+            </Text>
           )}
         </Box>
         {/* Line 2: Budget bar */}
@@ -397,7 +445,8 @@ const CostPanel = memo(function CostPanel({
             <Box>
               {topAgents.slice(0, 2).map((a, i) => (
                 <Text key={a.name} dimColor>
-                  {i > 0 ? '  ' : ''}{a.name} ${Math.round(a.cost)}
+                  {i > 0 ? '  ' : ''}
+                  {a.name} ${Math.round(a.cost)}
                 </Text>
               ))}
             </Box>
@@ -405,12 +454,11 @@ const CostPanel = memo(function CostPanel({
               <Box>
                 {topAgents.slice(2, 4).map((a, i) => (
                   <Text key={a.name} dimColor>
-                    {i > 0 ? '  ' : ''}{a.name} ${Math.round(a.cost)}
+                    {i > 0 ? '  ' : ''}
+                    {a.name} ${Math.round(a.cost)}
                   </Text>
                 ))}
-                {topAgents.length > 4 && (
-                  <Text dimColor>  +{topAgents.length - 4} more</Text>
-                )}
+                {topAgents.length > 4 && <Text dimColor> +{topAgents.length - 4} more</Text>}
               </Box>
             )}
           </Box>
@@ -450,11 +498,12 @@ const AgentStatsPanel = memo(function AgentStatsPanel({ stats, isNarrow }: Agent
     const topRoles = roleEntries.slice(0, 3);
     return (
       <Box marginBottom={1}>
-        <Text bold dimColor>Roles: </Text>
+        <Text bold dimColor>
+          Roles:{' '}
+        </Text>
         {topRoles.map(([role, count], idx) => {
-          const displayRole = role.length > MAX_ROLE_LEN
-            ? role.slice(0, MAX_ROLE_LEN - 1) + '…'
-            : role;
+          const displayRole =
+            role.length > MAX_ROLE_LEN ? role.slice(0, MAX_ROLE_LEN - 1) + '…' : role;
           return (
             <Text key={role}>
               {idx > 0 && ' · '}
@@ -462,9 +511,7 @@ const AgentStatsPanel = memo(function AgentStatsPanel({ stats, isNarrow }: Agent
             </Text>
           );
         })}
-        {roleEntries.length > 3 && (
-          <Text dimColor> +{roleEntries.length - 3}</Text>
-        )}
+        {roleEntries.length > 3 && <Text dimColor> +{roleEntries.length - 3}</Text>}
       </Box>
     );
   }
@@ -475,9 +522,8 @@ const AgentStatsPanel = memo(function AgentStatsPanel({ stats, isNarrow }: Agent
       <Box flexDirection="column">
         {roleEntries.map(([role, count]) => {
           // Truncate long role names to prevent overflow at narrow widths
-          const displayRole = role.length > MAX_ROLE_LEN
-            ? role.slice(0, MAX_ROLE_LEN - 1) + '…'
-            : role;
+          const displayRole =
+            role.length > MAX_ROLE_LEN ? role.slice(0, MAX_ROLE_LEN - 1) + '…' : role;
           return (
             <Text key={role} wrap="truncate">
               {displayRole}: {count}

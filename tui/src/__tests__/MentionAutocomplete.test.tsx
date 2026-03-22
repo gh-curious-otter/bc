@@ -16,11 +16,7 @@ describe('MentionAutocomplete', () => {
   describe('visibility', () => {
     it('does not render when not visible', () => {
       const { lastFrame } = renderWithTheme(
-        <MentionAutocomplete
-          suggestions={baseSuggestions}
-          selectedIndex={0}
-          visible={false}
-        />
+        <MentionAutocomplete suggestions={baseSuggestions} selectedIndex={0} visible={false} />
       );
       const frame = lastFrame();
       // Component should not render suggestions when invisible
@@ -29,11 +25,7 @@ describe('MentionAutocomplete', () => {
 
     it('renders when visible', () => {
       const { lastFrame } = renderWithTheme(
-        <MentionAutocomplete
-          suggestions={baseSuggestions}
-          selectedIndex={0}
-          visible={true}
-        />
+        <MentionAutocomplete suggestions={baseSuggestions} selectedIndex={0} visible={true} />
       );
       const frame = lastFrame();
       expect(frame).toBeDefined();
@@ -42,26 +34,16 @@ describe('MentionAutocomplete', () => {
 
   describe('suggestion rendering', () => {
     it('renders single suggestion', () => {
-      const suggestions: MentionSuggestion[] = [
-        { name: 'eng-01', state: 'working' },
-      ];
+      const suggestions: MentionSuggestion[] = [{ name: 'eng-01', state: 'working' }];
       const { lastFrame } = renderWithTheme(
-        <MentionAutocomplete
-          suggestions={suggestions}
-          selectedIndex={0}
-          visible={true}
-        />
+        <MentionAutocomplete suggestions={suggestions} selectedIndex={0} visible={true} />
       );
       expect(lastFrame()).toContain('eng-01');
     });
 
     it('renders multiple suggestions', () => {
       const { lastFrame } = renderWithTheme(
-        <MentionAutocomplete
-          suggestions={baseSuggestions}
-          selectedIndex={0}
-          visible={true}
-        />
+        <MentionAutocomplete suggestions={baseSuggestions} selectedIndex={0} visible={true} />
       );
       const frame = lastFrame();
       expect(frame).toContain('eng-01');
@@ -71,11 +53,7 @@ describe('MentionAutocomplete', () => {
 
     it('renders no suggestions', () => {
       const { lastFrame } = renderWithTheme(
-        <MentionAutocomplete
-          suggestions={[]}
-          selectedIndex={-1}
-          visible={true}
-        />
+        <MentionAutocomplete suggestions={[]} selectedIndex={-1} visible={true} />
       );
       expect(lastFrame()).toBeDefined();
     });
@@ -84,44 +62,28 @@ describe('MentionAutocomplete', () => {
   describe('selection state', () => {
     it('highlights first suggestion when selectedIndex is 0', () => {
       const { lastFrame } = renderWithTheme(
-        <MentionAutocomplete
-          suggestions={baseSuggestions}
-          selectedIndex={0}
-          visible={true}
-        />
+        <MentionAutocomplete suggestions={baseSuggestions} selectedIndex={0} visible={true} />
       );
       expect(lastFrame()).toContain('eng-01');
     });
 
     it('handles middle selection', () => {
       const { lastFrame } = renderWithTheme(
-        <MentionAutocomplete
-          suggestions={baseSuggestions}
-          selectedIndex={1}
-          visible={true}
-        />
+        <MentionAutocomplete suggestions={baseSuggestions} selectedIndex={1} visible={true} />
       );
       expect(lastFrame()).toContain('eng-02');
     });
 
     it('handles last selection', () => {
       const { lastFrame } = renderWithTheme(
-        <MentionAutocomplete
-          suggestions={baseSuggestions}
-          selectedIndex={2}
-          visible={true}
-        />
+        <MentionAutocomplete suggestions={baseSuggestions} selectedIndex={2} visible={true} />
       );
       expect(lastFrame()).toContain('tech-lead-01');
     });
 
     it('handles invalid selection index', () => {
       const { lastFrame } = renderWithTheme(
-        <MentionAutocomplete
-          suggestions={baseSuggestions}
-          selectedIndex={-1}
-          visible={true}
-        />
+        <MentionAutocomplete suggestions={baseSuggestions} selectedIndex={-1} visible={true} />
       );
       expect(lastFrame()).toBeDefined();
     });
@@ -129,43 +91,25 @@ describe('MentionAutocomplete', () => {
 
   describe('agent states', () => {
     it('renders working state agents', () => {
-      const suggestions: MentionSuggestion[] = [
-        { name: 'eng-01', state: 'working' },
-      ];
+      const suggestions: MentionSuggestion[] = [{ name: 'eng-01', state: 'working' }];
       const { lastFrame } = renderWithTheme(
-        <MentionAutocomplete
-          suggestions={suggestions}
-          selectedIndex={0}
-          visible={true}
-        />
+        <MentionAutocomplete suggestions={suggestions} selectedIndex={0} visible={true} />
       );
       expect(lastFrame()).toContain('eng-01');
     });
 
     it('renders idle state agents', () => {
-      const suggestions: MentionSuggestion[] = [
-        { name: 'eng-02', state: 'idle' },
-      ];
+      const suggestions: MentionSuggestion[] = [{ name: 'eng-02', state: 'idle' }];
       const { lastFrame } = renderWithTheme(
-        <MentionAutocomplete
-          suggestions={suggestions}
-          selectedIndex={0}
-          visible={true}
-        />
+        <MentionAutocomplete suggestions={suggestions} selectedIndex={0} visible={true} />
       );
       expect(lastFrame()).toContain('eng-02');
     });
 
     it('renders stuck state agents', () => {
-      const suggestions: MentionSuggestion[] = [
-        { name: 'eng-03', state: 'stuck' },
-      ];
+      const suggestions: MentionSuggestion[] = [{ name: 'eng-03', state: 'stuck' }];
       const { lastFrame } = renderWithTheme(
-        <MentionAutocomplete
-          suggestions={suggestions}
-          selectedIndex={0}
-          visible={true}
-        />
+        <MentionAutocomplete suggestions={suggestions} selectedIndex={0} visible={true} />
       );
       expect(lastFrame()).toContain('eng-03');
     });
@@ -177,11 +121,7 @@ describe('MentionAutocomplete', () => {
         { name: 'eng-03', state: 'stuck' },
       ];
       const { lastFrame } = renderWithTheme(
-        <MentionAutocomplete
-          suggestions={suggestions}
-          selectedIndex={0}
-          visible={true}
-        />
+        <MentionAutocomplete suggestions={suggestions} selectedIndex={0} visible={true} />
       );
       const frame = lastFrame();
       expect(frame).toContain('eng-01');
@@ -219,47 +159,28 @@ describe('MentionAutocomplete', () => {
   describe('edge cases', () => {
     it('handles agents with long names', () => {
       const longName = 'engineering-team-member-'.padEnd(50, 'x');
-      const suggestions: MentionSuggestion[] = [
-        { name: longName, state: 'working' },
-      ];
+      const suggestions: MentionSuggestion[] = [{ name: longName, state: 'working' }];
       const { lastFrame } = renderWithTheme(
-        <MentionAutocomplete
-          suggestions={suggestions}
-          selectedIndex={0}
-          visible={true}
-        />
+        <MentionAutocomplete suggestions={suggestions} selectedIndex={0} visible={true} />
       );
       expect(lastFrame()).toBeDefined();
     });
 
     it('handles agents with special characters in names', () => {
-      const suggestions: MentionSuggestion[] = [
-        { name: 'eng_01-special', state: 'working' },
-      ];
+      const suggestions: MentionSuggestion[] = [{ name: 'eng_01-special', state: 'working' }];
       const { lastFrame } = renderWithTheme(
-        <MentionAutocomplete
-          suggestions={suggestions}
-          selectedIndex={0}
-          visible={true}
-        />
+        <MentionAutocomplete suggestions={suggestions} selectedIndex={0} visible={true} />
       );
       expect(lastFrame()).toContain('eng_01-special');
     });
 
     it('handles large suggestion list', () => {
-      const suggestions: MentionSuggestion[] = Array.from(
-        { length: 100 },
-        (_, i) => ({
-          name: `agent-${i}`,
-          state: i % 2 === 0 ? 'working' : 'idle',
-        })
-      );
+      const suggestions: MentionSuggestion[] = Array.from({ length: 100 }, (_, i) => ({
+        name: `agent-${i}`,
+        state: i % 2 === 0 ? 'working' : 'idle',
+      }));
       const { lastFrame } = renderWithTheme(
-        <MentionAutocomplete
-          suggestions={suggestions}
-          selectedIndex={50}
-          visible={true}
-        />
+        <MentionAutocomplete suggestions={suggestions} selectedIndex={50} visible={true} />
       );
       expect(lastFrame()).toBeDefined();
     });

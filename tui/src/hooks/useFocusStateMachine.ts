@@ -23,23 +23,23 @@ export type FocusState = 'main' | 'input' | 'detail' | 'modal';
 
 /** State transition event */
 export type FocusTransition =
-  | 'ENTER_INPUT'    // User starts typing (search, compose)
-  | 'EXIT_INPUT'     // User finishes typing (Enter, ESC)
-  | 'OPEN_DETAIL'    // User drills into detail view
-  | 'CLOSE_DETAIL'   // User exits detail view (ESC)
-  | 'OPEN_MODAL'     // Modal opens
-  | 'CLOSE_MODAL'    // Modal closes (ESC, action)
-  | 'GO_HOME';       // Return to main (e.g., breadcrumb home)
+  | 'ENTER_INPUT' // User starts typing (search, compose)
+  | 'EXIT_INPUT' // User finishes typing (Enter, ESC)
+  | 'OPEN_DETAIL' // User drills into detail view
+  | 'CLOSE_DETAIL' // User exits detail view (ESC)
+  | 'OPEN_MODAL' // Modal opens
+  | 'CLOSE_MODAL' // Modal closes (ESC, action)
+  | 'GO_HOME'; // Return to main (e.g., breadcrumb home)
 
 /** Key categories for canHandle checks */
 export type KeyCategory =
-  | 'global_nav'     // Tab, ?, M, I (view switching)
-  | 'global_quit'    // q (quit application)
-  | 'list_nav'       // j, k, g, G (list navigation)
-  | 'selection'      // Enter (select/confirm)
-  | 'escape'         // ESC (back/cancel/close)
-  | 'text_input'     // Any text character
-  | 'refresh';       // r, Ctrl+R (refresh)
+  | 'global_nav' // Tab, ?, M, I (view switching)
+  | 'global_quit' // q (quit application)
+  | 'list_nav' // j, k, g, G (list navigation)
+  | 'selection' // Enter (select/confirm)
+  | 'escape' // ESC (back/cancel/close)
+  | 'text_input' // Any text character
+  | 'refresh'; // r, Ctrl+R (refresh)
 
 /** Valid state transitions */
 const TRANSITIONS: Record<FocusState, Partial<Record<FocusTransition, FocusState>>> = {
@@ -49,35 +49,28 @@ const TRANSITIONS: Record<FocusState, Partial<Record<FocusTransition, FocusState
     OPEN_MODAL: 'modal',
   },
   input: {
-    EXIT_INPUT: 'main',    // Goes back to previous (could be main or detail)
+    EXIT_INPUT: 'main', // Goes back to previous (could be main or detail)
   },
   detail: {
     ENTER_INPUT: 'input',
-    CLOSE_DETAIL: 'main',  // Goes back to parent
+    CLOSE_DETAIL: 'main', // Goes back to parent
     OPEN_DETAIL: 'detail', // Nested detail (stays in detail, updates stack)
     OPEN_MODAL: 'modal',
     GO_HOME: 'main',
   },
   modal: {
-    CLOSE_MODAL: 'main',   // Goes back to previous (could be main or detail)
-    ENTER_INPUT: 'input',  // Modal with input field
+    CLOSE_MODAL: 'main', // Goes back to previous (could be main or detail)
+    ENTER_INPUT: 'input', // Modal with input field
   },
 };
 
 /** Which keys are allowed in each state */
 const KEY_PERMISSIONS: Record<FocusState, Set<KeyCategory>> = {
-  main: new Set([
-    'global_nav',
-    'global_quit',
-    'list_nav',
-    'selection',
-    'escape',
-    'refresh',
-  ]),
+  main: new Set(['global_nav', 'global_quit', 'list_nav', 'selection', 'escape', 'refresh']),
   input: new Set([
     'text_input',
-    'escape',      // To exit input mode
-    'selection',   // Enter to submit
+    'escape', // To exit input mode
+    'selection', // Enter to submit
   ]),
   detail: new Set([
     'global_nav',
@@ -88,9 +81,9 @@ const KEY_PERMISSIONS: Record<FocusState, Set<KeyCategory>> = {
     // Note: no 'global_quit' - q doesn't quit from detail view
   ]),
   modal: new Set([
-    'selection',   // Confirm action
-    'escape',      // Close modal
-    'list_nav',    // Navigate options
+    'selection', // Confirm action
+    'escape', // Close modal
+    'list_nav', // Navigate options
   ]),
 };
 
@@ -131,9 +124,7 @@ export interface FocusStateMachineResult {
  *   process.exit(0);
  * }
  */
-export function useFocusStateMachine(
-  initialState: FocusState = 'main'
-): FocusStateMachineResult {
+export function useFocusStateMachine(initialState: FocusState = 'main'): FocusStateMachineResult {
   const [state, setState] = useState<FocusState>(initialState);
   const [history, setHistory] = useState<FocusState[]>([initialState]);
 
@@ -150,9 +141,7 @@ export function useFocusStateMachine(
       if (nextState === undefined) {
         // Invalid transition - log for debugging but don't change state
         if (process.env.NODE_ENV === 'development') {
-          console.warn(
-            `[FocusStateMachine] Invalid transition: ${currentState} + ${event}`
-          );
+          console.warn(`[FocusStateMachine] Invalid transition: ${currentState} + ${event}`);
         }
         return currentState;
       }
@@ -186,10 +175,7 @@ export function useFocusStateMachine(
     [state]
   );
 
-  const isState = useCallback(
-    (s: FocusState): boolean => state === s,
-    [state]
-  );
+  const isState = useCallback((s: FocusState): boolean => state === s, [state]);
 
   return {
     state,

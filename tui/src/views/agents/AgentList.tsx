@@ -61,9 +61,7 @@ export function AgentList({
       key: 'role',
       header: 'Role',
       width: 10,
-      render: (agent) => (
-        <Text>{abbreviateRole(agent.role)}</Text>
-      ),
+      render: (agent) => <Text>{abbreviateRole(agent.role)}</Text>,
     },
     {
       key: 'state',
@@ -75,11 +73,7 @@ export function AgentList({
       key: 'task',
       header: 'Task',
       width: 32,
-      render: (agent) => (
-        <Text wrap="truncate">
-          {normalizeTask(agent.task).slice(0, 30)}
-        </Text>
-      ),
+      render: (agent) => <Text wrap="truncate">{normalizeTask(agent.task).slice(0, 30)}</Text>,
     },
   ];
 
@@ -93,13 +87,7 @@ export function AgentList({
         </Box>
       );
     }
-    return (
-      <Table
-        data={agents}
-        columns={columns}
-        selectedIndex={selectedIndex}
-      />
-    );
+    return <Table data={agents} columns={columns} selectedIndex={selectedIndex} />;
   }
 
   // Show helpful empty state for grouped view (#1607)
@@ -114,9 +102,7 @@ export function AgentList({
 
   return (
     <Box flexDirection="column">
-      {scrollOffset > 0 && (
-        <Text dimColor>  ↑ {scrollOffset} more above</Text>
-      )}
+      {scrollOffset > 0 && <Text dimColor> ↑ {scrollOffset} more above</Text>}
       {visibleSlice.map((item, sliceIdx) => {
         const realIdx = sliceIdx + scrollOffset;
         const isSelected = realIdx === selectedIndex;
@@ -142,7 +128,7 @@ export function AgentList({
         );
       })}
       {scrollOffset + maxVisibleRows < items.length && (
-        <Text dimColor>  ↓ {items.length - scrollOffset - maxVisibleRows} more below</Text>
+        <Text dimColor> ↓ {items.length - scrollOffset - maxVisibleRows} more below</Text>
       )}
     </Box>
   );

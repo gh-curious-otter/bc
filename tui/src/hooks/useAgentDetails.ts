@@ -79,7 +79,9 @@ export function useAgentDetails(agentName: string): AgentDetailsResult {
     const interval = setInterval(() => {
       void fetchDetails();
     }, 10000);
-    return () => { clearInterval(interval); };
+    return () => {
+      clearInterval(interval);
+    };
   }, [fetchDetails]);
 
   return {
@@ -98,7 +100,7 @@ function extractAgentCost(summary: CostSummary, agentName: string): AgentCostDet
   // Try agent_costs array first (preferred format)
   const agentCosts = summary.agent_costs;
   if (agentCosts && Array.isArray(agentCosts)) {
-    const agentData = agentCosts.find(c => c.agent === agentName);
+    const agentData = agentCosts.find((c) => c.agent === agentName);
     if (agentData) {
       return {
         totalCost: agentData.total_cost || 0,
@@ -128,7 +130,7 @@ function extractAgentCost(summary: CostSummary, agentName: string): AgentCostDet
  * Transform log entries to activity events
  */
 function transformLogsToActivity(logs: LogEntry[]): AgentActivity[] {
-  return logs.map(log => ({
+  return logs.map((log) => ({
     timestamp: log.ts, // LogEntry uses 'ts' not 'timestamp'
     type: log.type ?? 'event',
     message: log.message ?? '',

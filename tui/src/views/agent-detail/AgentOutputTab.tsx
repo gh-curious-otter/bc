@@ -67,7 +67,7 @@ export function AgentOutputTab({
       >
         {inputMode ? (
           <Box>
-            <Text color={theme.colors.primary}>{"> "}</Text>
+            <Text color={theme.colors.primary}>{'> '}</Text>
             <Text>{messageBuffer}</Text>
             <Text color={theme.colors.primary}>|</Text>
           </Box>
@@ -76,9 +76,7 @@ export function AgentOutputTab({
         )}
         {sendStatus && (
           <Box marginTop={1}>
-            <Text color={theme.colors.success}>
-              {sendStatus}
-            </Text>
+            <Text color={theme.colors.success}>{sendStatus}</Text>
           </Box>
         )}
       </Box>

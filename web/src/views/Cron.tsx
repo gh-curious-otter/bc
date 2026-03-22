@@ -1,15 +1,21 @@
-import { useCallback, useState } from 'react';
-import { api } from '../api/client';
-import type { CronJob, CronLogEntry } from '../api/client';
-import { usePolling } from '../hooks/usePolling';
-import { Table } from '../components/Table';
-import { LoadingSkeleton } from '../components/LoadingSkeleton';
-import { EmptyState } from '../components/EmptyState';
+import { useCallback, useState } from "react";
+import { api } from "../api/client";
+import type { CronJob, CronLogEntry } from "../api/client";
+import { usePolling } from "../hooks/usePolling";
+import { Table } from "../components/Table";
+import { LoadingSkeleton } from "../components/LoadingSkeleton";
+import { EmptyState } from "../components/EmptyState";
 
-function CreateCronForm({ onSave, onCancel }: { onSave: () => void; onCancel: () => void }) {
-  const [name, setName] = useState('');
-  const [schedule, setSchedule] = useState('');
-  const [command, setCommand] = useState('');
+function CreateCronForm({
+  onSave,
+  onCancel,
+}: {
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [schedule, setSchedule] = useState("");
+  const [command, setCommand] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,17 +25,26 @@ function CreateCronForm({ onSave, onCancel }: { onSave: () => void; onCancel: ()
     setSaving(true);
     setError(null);
     try {
-      await api.createCron({ name: name.trim(), schedule: schedule.trim(), command: command.trim() });
+      await api.createCron({
+        name: name.trim(),
+        schedule: schedule.trim(),
+        command: command.trim(),
+      });
       onSave();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create cron job');
+      setError(
+        err instanceof Error ? err.message : "Failed to create cron job",
+      );
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="rounded border border-bc-border bg-bc-bg-secondary p-4 space-y-3">
+    <form
+      onSubmit={handleSubmit}
+      className="rounded border border-bc-border bg-bc-bg-secondary p-4 space-y-3"
+    >
       <div className="flex items-center gap-3">
         <input
           type="text"
@@ -58,10 +73,12 @@ function CreateCronForm({ onSave, onCancel }: { onSave: () => void; onCancel: ()
       <div className="flex items-center gap-2">
         <button
           type="submit"
-          disabled={saving || !name.trim() || !schedule.trim() || !command.trim()}
+          disabled={
+            saving || !name.trim() || !schedule.trim() || !command.trim()
+          }
           className="rounded bg-bc-accent px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
         >
-          {saving ? 'Saving...' : 'Save'}
+          {saving ? "Saving..." : "Save"}
         </button>
         <button
           type="button"
@@ -80,13 +97,23 @@ function CronLogs({ jobName }: { jobName: string }) {
   const { data: logs, loading, error } = usePolling(fetcher, 15000);
 
   if (loading && !logs) {
-    return <div className="px-4 py-2 text-sm text-bc-muted">Loading logs...</div>;
+    return (
+      <div className="px-4 py-2 text-sm text-bc-muted">Loading logs...</div>
+    );
   }
   if (error) {
-    return <div className="px-4 py-2 text-sm text-red-400">Failed to load logs: {error}</div>;
+    return (
+      <div className="px-4 py-2 text-sm text-red-400">
+        Failed to load logs: {error}
+      </div>
+    );
   }
   if (!logs || logs.length === 0) {
-    return <div className="px-4 py-2 text-sm text-bc-muted">No execution logs yet.</div>;
+    return (
+      <div className="px-4 py-2 text-sm text-bc-muted">
+        No execution logs yet.
+      </div>
+    );
   }
 
   return (
@@ -102,16 +129,29 @@ function CronLogs({ jobName }: { jobName: string }) {
         </thead>
         <tbody>
           {logs.map((log: CronLogEntry) => (
-            <tr key={log.id} className="border-b border-bc-border/50 last:border-0">
+            <tr
+              key={log.id}
+              className="border-b border-bc-border/50 last:border-0"
+            >
               <td className="px-4 py-1.5">
-                <span className={log.status === 'success' ? 'text-green-400' : log.status === 'running' ? 'text-yellow-400' : 'text-red-400'}>
+                <span
+                  className={
+                    log.status === "success"
+                      ? "text-green-400"
+                      : log.status === "running"
+                        ? "text-yellow-400"
+                        : "text-red-400"
+                  }
+                >
                   {log.status}
                 </span>
               </td>
-              <td className="px-4 py-1.5 text-bc-muted">{new Date(log.started_at).toLocaleString()}</td>
+              <td className="px-4 py-1.5 text-bc-muted">
+                {new Date(log.started_at).toLocaleString()}
+              </td>
               <td className="px-4 py-1.5 text-bc-muted">{log.duration_ms}ms</td>
               <td className="px-4 py-1.5 text-bc-muted truncate max-w-xs">
-                {log.error || log.output || '\u2014'}
+                {log.error || log.output || "\u2014"}
               </td>
             </tr>
           ))}
@@ -123,7 +163,13 @@ function CronLogs({ jobName }: { jobName: string }) {
 
 export function Cron() {
   const fetcher = useCallback(() => api.listCron(), []);
-  const { data: jobs, loading, error, refresh, timedOut } = usePolling(fetcher, 10000);
+  const {
+    data: jobs,
+    loading,
+    error,
+    refresh,
+    timedOut,
+  } = usePolling(fetcher, 10000);
   const [showCreate, setShowCreate] = useState(false);
   const [expandedJob, setExpandedJob] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -178,62 +224,98 @@ export function Cron() {
 
   const columns = [
     {
-      key: 'name', label: 'Name', render: (j: CronJob) => (
+      key: "name",
+      label: "Name",
+      render: (j: CronJob) => (
         <button
           type="button"
           onClick={() => setExpandedJob(expandedJob === j.name ? null : j.name)}
           className="font-medium text-bc-accent hover:underline cursor-pointer bg-transparent border-none p-0"
         >
-          {expandedJob === j.name ? '\u25BC' : '\u25B6'} {j.name}
+          {expandedJob === j.name ? "\u25BC" : "\u25B6"} {j.name}
         </button>
       ),
     },
-    { key: 'schedule', label: 'Schedule', render: (j: CronJob) => <code className="text-xs text-bc-muted">{j.schedule}</code> },
-    { key: 'agent', label: 'Agent', render: (j: CronJob) => <span>{j.agent_name || '\u2014'}</span> },
     {
-      key: 'enabled', label: 'Status', render: (j: CronJob) => (
-        <span className={j.enabled ? 'text-green-400' : 'text-bc-muted'}>
-          {j.enabled ? 'enabled' : 'disabled'}
+      key: "schedule",
+      label: "Schedule",
+      render: (j: CronJob) => (
+        <code className="text-xs text-bc-muted">{j.schedule}</code>
+      ),
+    },
+    {
+      key: "agent",
+      label: "Agent",
+      render: (j: CronJob) => <span>{j.agent_name || "\u2014"}</span>,
+    },
+    {
+      key: "enabled",
+      label: "Status",
+      render: (j: CronJob) => (
+        <span className={j.enabled ? "text-green-400" : "text-bc-muted"}>
+          {j.enabled ? "enabled" : "disabled"}
         </span>
       ),
     },
-    { key: 'runs', label: 'Runs', render: (j: CronJob) => <span className="text-bc-muted">{j.run_count}</span> },
     {
-      key: 'last_run', label: 'Last Run', render: (j: CronJob) => (
+      key: "runs",
+      label: "Runs",
+      render: (j: CronJob) => (
+        <span className="text-bc-muted">{j.run_count}</span>
+      ),
+    },
+    {
+      key: "last_run",
+      label: "Last Run",
+      render: (j: CronJob) => (
         <span className="text-xs text-bc-muted">
-          {j.last_run ? new Date(j.last_run).toLocaleString() : 'never'}
+          {j.last_run ? new Date(j.last_run).toLocaleString() : "never"}
         </span>
       ),
     },
     {
-      key: 'actions', label: 'Actions', render: (j: CronJob) => (
+      key: "actions",
+      label: "Actions",
+      render: (j: CronJob) => (
         <div className="flex items-center gap-1">
           <button
             type="button"
             title="Run now"
             disabled={actionLoading === `run-${j.name}`}
-            onClick={() => handleAction(() => api.runCron(j.name), `run-${j.name}`)}
+            onClick={() =>
+              handleAction(() => api.runCron(j.name), `run-${j.name}`)
+            }
             className="rounded border border-bc-border px-2 py-0.5 text-xs text-bc-muted hover:text-bc-text hover:border-bc-accent disabled:opacity-50"
           >
-            {actionLoading === `run-${j.name}` ? '...' : 'Run'}
+            {actionLoading === `run-${j.name}` ? "..." : "Run"}
           </button>
           <button
             type="button"
-            title={j.enabled ? 'Disable' : 'Enable'}
+            title={j.enabled ? "Disable" : "Enable"}
             disabled={actionLoading === `toggle-${j.name}`}
-            onClick={() => handleAction(
-              () => j.enabled ? api.disableCron(j.name) : api.enableCron(j.name),
-              `toggle-${j.name}`,
-            )}
+            onClick={() =>
+              handleAction(
+                () =>
+                  j.enabled ? api.disableCron(j.name) : api.enableCron(j.name),
+                `toggle-${j.name}`,
+              )
+            }
             className="rounded border border-bc-border px-2 py-0.5 text-xs text-bc-muted hover:text-bc-text hover:border-bc-accent disabled:opacity-50"
           >
-            {actionLoading === `toggle-${j.name}` ? '...' : j.enabled ? 'Disable' : 'Enable'}
+            {actionLoading === `toggle-${j.name}`
+              ? "..."
+              : j.enabled
+                ? "Disable"
+                : "Enable"}
           </button>
           {deleteConfirm === j.name ? (
             <>
               <button
                 type="button"
-                onClick={() => { handleAction(() => api.deleteCron(j.name), `del-${j.name}`); setDeleteConfirm(null); }}
+                onClick={() => {
+                  handleAction(() => api.deleteCron(j.name), `del-${j.name}`);
+                  setDeleteConfirm(null);
+                }}
                 className="rounded border border-red-500 px-2 py-0.5 text-xs text-red-400 hover:bg-red-500/10"
               >
                 Confirm
@@ -266,20 +348,25 @@ export function Cron() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Cron Jobs</h1>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-bc-muted">{jobs?.length ?? 0} jobs</span>
+          <span className="text-sm text-bc-muted">
+            {jobs?.length ?? 0} jobs
+          </span>
           <button
             type="button"
             onClick={() => setShowCreate(!showCreate)}
             className="rounded bg-bc-accent px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
           >
-            {showCreate ? 'Cancel' : '+ Create'}
+            {showCreate ? "Cancel" : "+ Create"}
           </button>
         </div>
       </div>
 
       {showCreate && (
         <CreateCronForm
-          onSave={() => { setShowCreate(false); refresh(); }}
+          onSave={() => {
+            setShowCreate(false);
+            refresh();
+          }}
           onCancel={() => setShowCreate(false)}
         />
       )}

@@ -50,7 +50,12 @@ function getBarColor(index: number, itemColor: string | undefined, defaultColor:
   return itemColor ?? DEFAULT_COLORS[index % DEFAULT_COLORS.length] ?? defaultColor;
 }
 
-function createBar(filledWidth: number, emptyWidth: number, barChar = '█', emptyChar = '░'): string {
+function createBar(
+  filledWidth: number,
+  emptyWidth: number,
+  barChar = '█',
+  emptyChar = '░'
+): string {
   return barChar.repeat(filledWidth) + emptyChar.repeat(emptyWidth);
 }
 
@@ -388,7 +393,7 @@ describe('Integration', () => {
   describe('Cost Breakdown', () => {
     test('visualizes budget distribution', () => {
       const data: BarChartItem[] = [
-        { label: 'Input', value: 45.50 },
+        { label: 'Input', value: 45.5 },
         { label: 'Output', value: 32.25 },
         { label: 'Other', value: 22.25 },
       ];
@@ -396,7 +401,7 @@ describe('Integration', () => {
       const total = calculateTotal(data);
       expect(total).toBe(100);
 
-      expect(calculatePercent(45.50, total)).toBe('46');
+      expect(calculatePercent(45.5, total)).toBe('46');
       expect(calculatePercent(32.25, total)).toBe('32');
       expect(calculatePercent(22.25, total)).toBe('22');
     });

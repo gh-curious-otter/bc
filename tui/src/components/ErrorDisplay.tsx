@@ -15,12 +15,7 @@ export function ErrorDisplay({ error, onRetry }: ErrorDisplayProps) {
   const message = typeof error === 'string' ? error : error.message;
 
   return (
-    <Box
-      flexDirection="column"
-      borderStyle="single"
-      borderColor={theme.colors.error}
-      padding={1}
-    >
+    <Box flexDirection="column" borderStyle="single" borderColor={theme.colors.error} padding={1}>
       <Text color={theme.colors.error} bold>
         Error
       </Text>

@@ -122,9 +122,7 @@ describe('Animation Easing Functions', () => {
 
     test('are monotonically increasing (except bounce)', () => {
       // Exclude bounce since it has intentional non-monotonic behavior
-      const monotonicEasings = Object.entries(easings).filter(
-        ([name]) => name !== 'bounce'
-      );
+      const monotonicEasings = Object.entries(easings).filter(([name]) => name !== 'bounce');
       for (const [name, fn] of monotonicEasings) {
         let prev = 0;
         for (let t = 0; t <= 1; t += 0.1) {
@@ -162,8 +160,7 @@ describe('Animation State Logic', () => {
 
   test('progress calculation from elapsed time', () => {
     const duration = 300;
-    const calculateProgress = (elapsed: number) =>
-      Math.min(elapsed / duration, 1);
+    const calculateProgress = (elapsed: number) => Math.min(elapsed / duration, 1);
 
     expect(calculateProgress(0)).toBe(0);
     expect(calculateProgress(150)).toBe(0.5);
@@ -288,9 +285,9 @@ describe('Typewriter Animation Logic', () => {
     // interval = ms between characters
     const calculateInterval = (speed: number) => Math.floor(1000 / speed);
 
-    expect(calculateInterval(30)).toBe(33);  // ~33ms per char at 30 cps
+    expect(calculateInterval(30)).toBe(33); // ~33ms per char at 30 cps
     expect(calculateInterval(10)).toBe(100); // 100ms per char at 10 cps
-    expect(calculateInterval(60)).toBe(16);  // ~16ms per char at 60 cps
+    expect(calculateInterval(60)).toBe(16); // ~16ms per char at 60 cps
   });
 });
 
@@ -299,8 +296,7 @@ describe('Fade Animation Logic', () => {
 
   test('fade in goes from 0 to 1', () => {
     const direction: FadeDirection = 'in';
-    const calculateOpacity = (progress: number) =>
-      direction === 'in' ? progress : 1 - progress;
+    const calculateOpacity = (progress: number) => (direction === 'in' ? progress : 1 - progress);
 
     expect(calculateOpacity(0)).toBe(0);
     expect(calculateOpacity(0.5)).toBe(0.5);
@@ -309,8 +305,7 @@ describe('Fade Animation Logic', () => {
 
   test('fade out goes from 1 to 0', () => {
     const direction: FadeDirection = 'out';
-    const calculateOpacity = (progress: number) =>
-      direction === 'in' ? progress : 1 - progress;
+    const calculateOpacity = (progress: number) => (direction === 'in' ? progress : 1 - progress);
 
     expect(calculateOpacity(0)).toBe(1);
     expect(calculateOpacity(0.5)).toBe(0.5);
@@ -332,9 +327,9 @@ describe('Frame Rate Calculation', () => {
   test('calculates frame interval from fps', () => {
     const calculateFrameInterval = (fps: number) => Math.floor(1000 / fps);
 
-    expect(calculateFrameInterval(30)).toBe(33);  // ~33ms per frame
-    expect(calculateFrameInterval(60)).toBe(16);  // ~16ms per frame
-    expect(calculateFrameInterval(24)).toBe(41);  // ~41ms per frame
+    expect(calculateFrameInterval(30)).toBe(33); // ~33ms per frame
+    expect(calculateFrameInterval(60)).toBe(16); // ~16ms per frame
+    expect(calculateFrameInterval(24)).toBe(41); // ~41ms per frame
   });
 
   test('reasonable fps values produce valid intervals', () => {
@@ -431,8 +426,7 @@ describe('Status Transition Logic', () => {
 
 describe('Animation Bounds', () => {
   test('progress never exceeds 1', () => {
-    const clampProgress = (elapsed: number, duration: number) =>
-      Math.min(elapsed / duration, 1);
+    const clampProgress = (elapsed: number, duration: number) => Math.min(elapsed / duration, 1);
 
     expect(clampProgress(0, 100)).toBe(0);
     expect(clampProgress(50, 100)).toBe(0.5);

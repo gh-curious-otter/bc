@@ -39,7 +39,9 @@ export function ProcessesView(): React.ReactElement {
 
   const customKeys = useMemo(
     () => ({
-      'r': () => { void fetchProcesses(); },
+      r: () => {
+        void fetchProcesses();
+      },
     }),
     [fetchProcesses]
   );
@@ -71,7 +73,9 @@ export function ProcessesView(): React.ReactElement {
     return (
       <Box flexDirection="column">
         <HeaderBar title="Processes" />
-        <Box paddingLeft={1}><Text color={theme.colors.error}>{error}</Text></Box>
+        <Box paddingLeft={1}>
+          <Text color={theme.colors.error}>{error}</Text>
+        </Box>
         <Footer hints={viewHints} />
       </Box>
     );
@@ -83,20 +87,35 @@ export function ProcessesView(): React.ReactElement {
 
       {processes.length === 0 ? (
         <Box paddingLeft={1} paddingTop={1}>
-          <Text dimColor>No background processes. Use &apos;bc process start&apos; to start one.</Text>
+          <Text dimColor>
+            No background processes. Use &apos;bc process start&apos; to start one.
+          </Text>
         </Box>
       ) : (
         <Box flexDirection="column" paddingTop={1}>
           <Box paddingLeft={1}>
-            <Box width={20}><Text bold>NAME</Text></Box>
-            <Box width={35}><Text bold>COMMAND</Text></Box>
-            <Box width={12}><Text bold>STATUS</Text></Box>
-            <Box width={10}><Text bold>PID</Text></Box>
+            <Box width={20}>
+              <Text bold>NAME</Text>
+            </Box>
+            <Box width={35}>
+              <Text bold>COMMAND</Text>
+            </Box>
+            <Box width={12}>
+              <Text bold>STATUS</Text>
+            </Box>
+            <Box width={10}>
+              <Text bold>PID</Text>
+            </Box>
           </Box>
 
           {processes.map((proc, index) => {
             const isSelected = index === selectedIndex;
-            const statusColor = proc.status === 'running' ? theme.colors.success : proc.status === 'stopped' ? theme.colors.error : theme.colors.warning;
+            const statusColor =
+              proc.status === 'running'
+                ? theme.colors.success
+                : proc.status === 'stopped'
+                  ? theme.colors.error
+                  : theme.colors.warning;
             return (
               <Box key={proc.name} paddingLeft={1}>
                 <Box width={20}>
@@ -108,10 +127,14 @@ export function ProcessesView(): React.ReactElement {
                   <Text inverse={isSelected}>{truncate(proc.command, 33)}</Text>
                 </Box>
                 <Box width={12}>
-                  <Text inverse={isSelected} color={statusColor}>{proc.status}</Text>
+                  <Text inverse={isSelected} color={statusColor}>
+                    {proc.status}
+                  </Text>
                 </Box>
                 <Box width={10}>
-                  <Text inverse={isSelected} dimColor>{proc.pid ?? '-'}</Text>
+                  <Text inverse={isSelected} dimColor>
+                    {proc.pid ?? '-'}
+                  </Text>
                 </Box>
               </Box>
             );

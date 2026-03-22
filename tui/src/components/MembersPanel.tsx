@@ -101,9 +101,7 @@ export const MembersPanel = memo(function MembersPanel({
             </Box>
           );
         })}
-        {hiddenCount > 0 && (
-          <Text dimColor>... and {String(hiddenCount)} more</Text>
-        )}
+        {hiddenCount > 0 && <Text dimColor>... and {String(hiddenCount)} more</Text>}
         {collapsible && (
           <Text dimColor italic>
             {'\n'}Press space to collapse
@@ -126,11 +124,7 @@ export const MemberCountBadge = memo(function MemberCountBadge({
   count,
   color = 'gray',
 }: MemberCountBadgeProps): React.ReactElement {
-  return (
-    <Text color={color}>
-      [{String(count)}]
-    </Text>
-  );
+  return <Text color={color}>[{String(count)}]</Text>;
 });
 
 export default MembersPanel;

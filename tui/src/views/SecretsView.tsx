@@ -39,7 +39,9 @@ export function SecretsView(): React.ReactElement {
 
   const customKeys = useMemo(
     () => ({
-      'r': () => { void fetchSecrets(); },
+      r: () => {
+        void fetchSecrets();
+      },
     }),
     [fetchSecrets]
   );
@@ -71,7 +73,9 @@ export function SecretsView(): React.ReactElement {
     return (
       <Box flexDirection="column">
         <HeaderBar title="Secrets" />
-        <Box paddingLeft={1}><Text color={theme.colors.error}>{error}</Text></Box>
+        <Box paddingLeft={1}>
+          <Text color={theme.colors.error}>{error}</Text>
+        </Box>
         <Footer hints={viewHints} />
       </Box>
     );
@@ -88,14 +92,22 @@ export function SecretsView(): React.ReactElement {
       ) : (
         <Box flexDirection="column" paddingTop={1}>
           <Box paddingLeft={1}>
-            <Box width={25}><Text bold>NAME</Text></Box>
-            <Box width={35}><Text bold>DESCRIPTION</Text></Box>
-            <Box width={20}><Text bold>UPDATED</Text></Box>
+            <Box width={25}>
+              <Text bold>NAME</Text>
+            </Box>
+            <Box width={35}>
+              <Text bold>DESCRIPTION</Text>
+            </Box>
+            <Box width={20}>
+              <Text bold>UPDATED</Text>
+            </Box>
           </Box>
 
           {secrets.map((secret, index) => {
             const isSelected = index === selectedIndex;
-            const updated = secret.updated_at ? new Date(secret.updated_at).toLocaleDateString() : '';
+            const updated = secret.updated_at
+              ? new Date(secret.updated_at).toLocaleDateString()
+              : '';
             return (
               <Box key={secret.name} paddingLeft={1}>
                 <Box width={25}>
@@ -107,7 +119,9 @@ export function SecretsView(): React.ReactElement {
                   <Text inverse={isSelected}>{truncate(secret.description || '', 33)}</Text>
                 </Box>
                 <Box width={20}>
-                  <Text inverse={isSelected} dimColor>{updated}</Text>
+                  <Text inverse={isSelected} dimColor>
+                    {updated}
+                  </Text>
                 </Box>
               </Box>
             );

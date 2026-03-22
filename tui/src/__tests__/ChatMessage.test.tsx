@@ -34,58 +34,44 @@ describe('ChatMessage', () => {
 
   describe('role-based colors', () => {
     it('renders root sender with special color', () => {
-      const { lastFrame } = renderWithTheme(
-        <ChatMessage {...baseProps} sender="root" />
-      );
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} sender="root" />);
       expect(lastFrame()).toContain('root');
     });
 
     it('renders tech-lead sender', () => {
-      const { lastFrame } = renderWithTheme(
-        <ChatMessage {...baseProps} sender="tech-lead-01" />
-      );
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} sender="tech-lead-01" />);
       expect(lastFrame()).toContain('tech-lead-01');
     });
 
     it('renders engineer sender', () => {
-      const { lastFrame } = renderWithTheme(
-        <ChatMessage {...baseProps} sender="eng-02" />
-      );
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} sender="eng-02" />);
       expect(lastFrame()).toContain('eng-02');
     });
   });
 
   describe('read status', () => {
     it('does not show read indicator when isRead is true', () => {
-      const { lastFrame } = renderWithTheme(
-        <ChatMessage {...baseProps} isRead={true} />
-      );
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} isRead={true} />);
       // Should not have unread indicator
       expect(lastFrame()).not.toContain('●');
     });
 
     it('shows read indicator when isRead is false', () => {
-      const { lastFrame } = renderWithTheme(
-        <ChatMessage {...baseProps} isRead={false} />
-      );
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} isRead={false} />);
       expect(lastFrame()).toContain('●');
     });
   });
 
   describe('selection state', () => {
     it('renders without border when not selected', () => {
-      const { lastFrame } = renderWithTheme(
-        <ChatMessage {...baseProps} isSelected={false} />
-      );
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} isSelected={false} />);
       const frame = lastFrame();
       // Should render normally without selection border
       expect(frame).toContain('eng-01');
     });
 
     it('renders with border when selected', () => {
-      const { lastFrame } = renderWithTheme(
-        <ChatMessage {...baseProps} isSelected={true} />
-      );
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} isSelected={true} />);
       const frame = lastFrame();
       expect(frame).toContain('eng-01');
     });
@@ -93,20 +79,14 @@ describe('ChatMessage', () => {
 
   describe('reactions', () => {
     it('does not render reaction bar when no reactions', () => {
-      const { lastFrame } = renderWithTheme(
-        <ChatMessage {...baseProps} reactions={[]} />
-      );
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} reactions={[]} />);
       // Should only have message content, no reaction area
       expect(lastFrame()).toContain('Hello world');
     });
 
     it('renders reactions when provided', () => {
-      const reactions = [
-        { type: 'thumbsup' as const, count: 2, isOwn: false },
-      ];
-      const { lastFrame } = renderWithTheme(
-        <ChatMessage {...baseProps} reactions={reactions} />
-      );
+      const reactions = [{ type: 'thumbsup' as const, count: 2, isOwn: false }];
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} reactions={reactions} />);
       const frame = lastFrame();
       expect(frame).toContain('Hello world');
       // Reactions should be rendered
@@ -117,9 +97,7 @@ describe('ChatMessage', () => {
         { type: 'thumbsup' as const, count: 2 },
         { type: 'heart' as const, count: 1 },
       ];
-      const { lastFrame } = renderWithTheme(
-        <ChatMessage {...baseProps} reactions={reactions} />
-      );
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} reactions={reactions} />);
       expect(lastFrame()).toContain('Hello world');
     });
   });
@@ -127,24 +105,18 @@ describe('ChatMessage', () => {
   describe('timestamp formatting', () => {
     it('shows "now" for very recent messages', () => {
       const recent = new Date().toISOString();
-      const { lastFrame } = renderWithTheme(
-        <ChatMessage {...baseProps} timestamp={recent} />
-      );
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} timestamp={recent} />);
       expect(lastFrame()).toContain('now');
     });
 
     it('handles old timestamps gracefully', () => {
       const oldDate = new Date('2025-01-01').toISOString();
-      const { lastFrame } = renderWithTheme(
-        <ChatMessage {...baseProps} timestamp={oldDate} />
-      );
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} timestamp={oldDate} />);
       expect(lastFrame()).toContain('Jan');
     });
 
     it('handles invalid timestamp gracefully', () => {
-      const { lastFrame } = renderWithTheme(
-        <ChatMessage {...baseProps} timestamp="invalid" />
-      );
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} timestamp="invalid" />);
       // When given an invalid timestamp, component catches error and displays fallback
       const frame = lastFrame();
       expect(frame).toContain('eng-01');
@@ -191,9 +163,7 @@ describe('ChatMessage', () => {
     });
 
     it('renders message without "(you)" when no currentUser provided', () => {
-      const { lastFrame } = renderWithTheme(
-        <ChatMessage {...baseProps} sender="eng-01" />
-      );
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} sender="eng-01" />);
       expect(lastFrame()).not.toContain('(you)');
     });
 
@@ -216,9 +186,7 @@ describe('ChatMessage', () => {
     });
 
     it('applies custom maxBubbleWidth', () => {
-      const { lastFrame } = renderWithTheme(
-        <ChatMessage {...baseProps} maxBubbleWidth={40} />
-      );
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} maxBubbleWidth={40} />);
       // Should render without errors with custom width
       expect(lastFrame()).toContain('eng-01');
     });
@@ -226,30 +194,22 @@ describe('ChatMessage', () => {
 
   describe('role colors for additional roles', () => {
     it('renders tl- prefix sender (tech lead)', () => {
-      const { lastFrame } = renderWithTheme(
-        <ChatMessage {...baseProps} sender="tl-01" />
-      );
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} sender="tl-01" />);
       expect(lastFrame()).toContain('tl-01');
     });
 
     it('renders mgr- prefix sender (manager)', () => {
-      const { lastFrame } = renderWithTheme(
-        <ChatMessage {...baseProps} sender="mgr-01" />
-      );
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} sender="mgr-01" />);
       expect(lastFrame()).toContain('mgr-01');
     });
 
     it('renders pm- prefix sender (product manager)', () => {
-      const { lastFrame } = renderWithTheme(
-        <ChatMessage {...baseProps} sender="pm-01" />
-      );
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} sender="pm-01" />);
       expect(lastFrame()).toContain('pm-01');
     });
 
     it('renders ux- prefix sender', () => {
-      const { lastFrame } = renderWithTheme(
-        <ChatMessage {...baseProps} sender="ux-01" />
-      );
+      const { lastFrame } = renderWithTheme(<ChatMessage {...baseProps} sender="ux-01" />);
       expect(lastFrame()).toContain('ux-01');
     });
   });

@@ -206,11 +206,13 @@ describe('ActivityView', () => {
 
   describe('Activity Slicing', () => {
     test('wide layout shows 15 activities', () => {
-      const activities: Activity[] = Array(20).fill(null).map((_, i) => ({
-        startTime: new Date(),
-        agents: [`eng-0${i}`],
-        duration: 30,
-      }));
+      const activities: Activity[] = Array(20)
+        .fill(null)
+        .map((_, i) => ({
+          startTime: new Date(),
+          agents: [`eng-0${i}`],
+          duration: 30,
+        }));
 
       const isWide = true;
       const visibleCount = isWide ? 15 : 8;
@@ -220,11 +222,13 @@ describe('ActivityView', () => {
     });
 
     test('narrow layout shows 8 activities', () => {
-      const activities: Activity[] = Array(20).fill(null).map((_, i) => ({
-        startTime: new Date(),
-        agents: [`eng-0${i}`],
-        duration: 30,
-      }));
+      const activities: Activity[] = Array(20)
+        .fill(null)
+        .map((_, i) => ({
+          startTime: new Date(),
+          agents: [`eng-0${i}`],
+          duration: 30,
+        }));
 
       const isWide = false;
       const visibleCount = isWide ? 15 : 8;

@@ -53,11 +53,7 @@ const commandCache = new Map<string, CacheEntry<unknown>>();
 /**
  * Type for spawn function signature
  */
-type SpawnFn = (
-  command: string,
-  args: string[],
-  options?: SpawnOptions
-) => ChildProcess;
+type SpawnFn = (command: string, args: string[], options?: SpawnOptions) => ChildProcess;
 
 /**
  * Injectable spawn function - defaults to node's spawn
@@ -85,15 +81,15 @@ export function _setSpawnForTesting(mockSpawn: SpawnFn): () => void {
  * Shorter TTLs for frequently-changing data, longer for stable data
  */
 const DEFAULT_TTLS: Record<string, number> = {
-  status: 1000,      // 1s - agent status changes frequently
-  'channel:list': 5000,   // 5s - channel list rarely changes
+  status: 1000, // 1s - agent status changes frequently
+  'channel:list': 5000, // 5s - channel list rarely changes
   'channel:history': 2000, // 2s - messages may arrive
-  'cost:show': 10000,     // 10s - aggregated data
-  'role:list': 30000,     // 30s - roles rarely change
-  'team:list': 10000,     // 10s - team membership stable
-  'process:list': 5000,   // 5s - processes may change
-  'demon:list': 10000,    // 10s - demons stable
-  'logs': 2000,           // 2s - logs update frequently
+  'cost:show': 10000, // 10s - aggregated data
+  'role:list': 30000, // 30s - roles rarely change
+  'team:list': 10000, // 10s - team membership stable
+  'process:list': 5000, // 5s - processes may change
+  'demon:list': 10000, // 10s - demons stable
+  logs: 2000, // 2s - logs update frequently
   'worktree:list': 30000, // 30s - worktrees stable
   'workspace:list': 60000, // 60s - workspaces very stable
 };
@@ -230,7 +226,20 @@ function getTtlForCommand(args: string[]): number {
 export async function execBc(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     // Always add --json flag if not present and command supports it
-    const jsonCommands = ['status', 'stats', 'channel', 'cost', 'logs', 'agent', 'process', 'demon', 'team', 'role', 'worktree', 'tool'];
+    const jsonCommands = [
+      'status',
+      'stats',
+      'channel',
+      'cost',
+      'logs',
+      'agent',
+      'process',
+      'demon',
+      'team',
+      'role',
+      'worktree',
+      'tool',
+    ];
     const hasJsonFlag = args.includes('--json');
     const command = args[0];
 
@@ -392,10 +401,7 @@ export async function getChannelHistory(
  * @param channelName - Name of channel
  * @param message - Message to send
  */
-export async function sendChannelMessage(
-  channelName: string,
-  message: string
-): Promise<void> {
+export async function sendChannelMessage(channelName: string, message: string): Promise<void> {
   await execBc(['channel', 'send', channelName, message]);
   // #1595: Granular cache invalidation - only invalidate this channel's history
   invalidateCacheKey(`channel:history:${channelName}`);
@@ -430,7 +436,9 @@ export async function getCostSummary(): Promise<CostSummary> {
  * Get cost usage data from ccusage integration (#1882)
  * @param period - 'daily' | 'monthly' | 'session'
  */
-export async function getCostUsage(period: 'daily' | 'monthly' | 'session' = 'daily'): Promise<CostUsageDailyResponse | CostUsageMonthlyResponse | CostUsageSessionResponse> {
+export async function getCostUsage(
+  period: 'daily' | 'monthly' | 'session' = 'daily'
+): Promise<CostUsageDailyResponse | CostUsageMonthlyResponse | CostUsageSessionResponse> {
   return await execBcJsonCached(['cost', 'usage', '--period', period], 60000);
 }
 
@@ -439,10 +447,7 @@ export async function getCostUsage(period: 'daily' | 'monthly' | 'session' = 'da
  * @param state - New state (working, done, stuck, idle, error)
  * @param message - Status message
  */
-export async function reportState(
-  state: string,
-  message: string
-): Promise<void> {
+export async function reportState(state: string, message: string): Promise<void> {
   await execBc(['report', state, message]);
   // #1005: Invalidate status cache after state change
   invalidateCache('status');
@@ -477,10 +482,7 @@ export async function getDemon(name: string): Promise<Demon | null> {
  * @param name - Demon name
  * @param tail - Number of recent entries (optional)
  */
-export async function getDemonLogs(
-  name: string,
-  tail?: number
-): Promise<DemonRunLog[]> {
+export async function getDemonLogs(name: string, tail?: number): Promise<DemonRunLog[]> {
   try {
     const args = ['demon', 'logs', name];
     if (tail) {
@@ -534,10 +536,7 @@ export async function getProcesses(): Promise<ProcessListResponse> {
  * @param name - Process name
  * @param lines - Number of lines to return (optional)
  */
-export async function getProcessLogs(
-  name: string,
-  lines?: number
-): Promise<string[]> {
+export async function getProcessLogs(name: string, lines?: number): Promise<string[]> {
   const args = ['process', 'logs', name];
   if (lines) {
     args.push('--lines', String(lines));
@@ -564,10 +563,7 @@ export async function getTeams(): Promise<TeamsResponse> {
  * @param teamName - Name of team
  * @param agentName - Name of agent to add
  */
-export async function addTeamMember(
-  teamName: string,
-  agentName: string
-): Promise<void> {
+export async function addTeamMember(teamName: string, agentName: string): Promise<void> {
   await execBc(['team', 'add', teamName, agentName]);
   // #1595: Invalidate team list cache after modification
   // Team list includes all teams, so we need to clear it
@@ -579,10 +575,7 @@ export async function addTeamMember(
  * @param teamName - Name of team
  * @param agentName - Name of agent to remove
  */
-export async function removeTeamMember(
-  teamName: string,
-  agentName: string
-): Promise<void> {
+export async function removeTeamMember(teamName: string, agentName: string): Promise<void> {
   await execBc(['team', 'remove', teamName, agentName]);
   // #1595: Invalidate team list cache after modification
   invalidateCacheKey('team:list');
@@ -798,7 +791,10 @@ export interface ProcessInfo {
  */
 export async function getProcessList(): Promise<ProcessInfo[]> {
   try {
-    const result = await execBcJsonCached<{ processes?: ProcessInfo[] }>(['process', 'list'], 30000);
+    const result = await execBcJsonCached<{ processes?: ProcessInfo[] }>(
+      ['process', 'list'],
+      30000
+    );
     return result.processes ?? [];
   } catch {
     return [];
@@ -894,9 +890,6 @@ export async function closeIssue(
  * @param issueNumber - Issue number
  * @param assignee - User to assign (or --unassign to remove)
  */
-export async function assignIssue(
-  issueNumber: number,
-  assignee: string
-): Promise<void> {
+export async function assignIssue(issueNumber: number, assignee: string): Promise<void> {
   await execBc(['issue', 'assign', String(issueNumber), assignee]);
 }

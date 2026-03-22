@@ -48,31 +48,10 @@ class FocusStateMachine {
 
   /** Key permissions per state */
   private static KEY_PERMISSIONS: Record<FocusState, Set<KeyCategory>> = {
-    main: new Set([
-      'global_nav',
-      'global_quit',
-      'list_nav',
-      'selection',
-      'escape',
-      'refresh',
-    ]),
-    input: new Set([
-      'text_input',
-      'escape',
-      'selection',
-    ]),
-    detail: new Set([
-      'global_nav',
-      'list_nav',
-      'selection',
-      'escape',
-      'refresh',
-    ]),
-    modal: new Set([
-      'selection',
-      'escape',
-      'list_nav',
-    ]),
+    main: new Set(['global_nav', 'global_quit', 'list_nav', 'selection', 'escape', 'refresh']),
+    input: new Set(['text_input', 'escape', 'selection']),
+    detail: new Set(['global_nav', 'list_nav', 'selection', 'escape', 'refresh']),
+    modal: new Set(['selection', 'escape', 'list_nav']),
   };
 
   constructor(initialState: FocusState = 'main') {

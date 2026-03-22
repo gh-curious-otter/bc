@@ -53,11 +53,7 @@ describe('Error Scenarios: Network Failures', () => {
 
   it('shows retry count', () => {
     const { lastFrame } = render(
-      <ErrorDisplayComponent
-        error="Connection timeout"
-        retryCount={3}
-        isRetrying={false}
-      />
+      <ErrorDisplayComponent error="Connection timeout" retryCount={3} isRetrying={false} />
     );
 
     expect(lastFrame()).toContain('Retry count: 3');
@@ -65,11 +61,7 @@ describe('Error Scenarios: Network Failures', () => {
 
   it('shows retrying indicator', () => {
     const { lastFrame } = render(
-      <ErrorDisplayComponent
-        error="Network error"
-        retryCount={1}
-        isRetrying={true}
-      />
+      <ErrorDisplayComponent error="Network error" retryCount={1} isRetrying={true} />
     );
 
     expect(lastFrame()).toContain('Retrying...');
@@ -98,7 +90,11 @@ describe('Error Scenarios: Invalid Operations', () => {
     return { success: true };
   }
 
-  function validateTeamAdd(teamName: string, agentName: string, existingAgents: string[]): OperationResult {
+  function validateTeamAdd(
+    teamName: string,
+    agentName: string,
+    existingAgents: string[]
+  ): OperationResult {
     const teams = ['engineering', 'leadership'];
     if (!teams.includes(teamName)) {
       return { success: false, error: `Team '${teamName}' not found` };
@@ -185,7 +181,11 @@ describe('Error Scenarios: Edge Cases - Empty Data', () => {
     hasMessages: boolean;
   }
 
-  function EmptyStateComponent({ hasAgents, hasChannels, hasMessages }: EmptyStateProps): React.ReactElement {
+  function EmptyStateComponent({
+    hasAgents,
+    hasChannels,
+    hasMessages,
+  }: EmptyStateProps): React.ReactElement {
     return (
       <Box flexDirection="column">
         {!hasAgents && <Text dimColor>No agents running</Text>}

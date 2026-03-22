@@ -31,11 +31,7 @@ const reactionColors: Record<ReactionType, string> = {
  *
  * Memoized for performance - Issue #1003 Phase 3 optimization.
  */
-export const Reaction = memo(function Reaction({
-  type,
-  count = 1,
-  isOwn = false,
-}: ReactionProps) {
+export const Reaction = memo(function Reaction({ type, count = 1, isOwn = false }: ReactionProps) {
   const emoji = reactionEmoji[type] || '❓';
   const color = isOwn ? 'cyan' : reactionColors[type] || 'white';
 

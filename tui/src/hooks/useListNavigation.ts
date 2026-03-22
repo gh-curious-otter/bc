@@ -100,7 +100,8 @@ export function useListNavigation<T>(
 
   // #1870: Check focus state to disable input when CommandBar/FilterBar is open
   const { focusedArea } = useFocus();
-  const isOverlayActive = focusedArea === 'command' || focusedArea === 'filter' || focusedArea === 'modal';
+  const isOverlayActive =
+    focusedArea === 'command' || focusedArea === 'filter' || focusedArea === 'modal';
 
   // Use itemCount override when provided (e.g., visibleItems.length in grouped view)
   const navLength = itemCount ?? items.length;

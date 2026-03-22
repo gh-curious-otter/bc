@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import type { WSEvent, WSEventType } from '../api/types';
+import { useEffect, useRef, useState, useCallback } from "react";
+import type { WSEvent, WSEventType } from "../api/types";
 
 type Listener = (event: WSEvent) => void;
 
@@ -12,7 +12,7 @@ export function useWebSocket() {
   const connect = useCallback(() => {
     let es: EventSource;
     try {
-      es = new EventSource('/api/events');
+      es = new EventSource("/api/events");
     } catch {
       // EventSource not available — degrade gracefully
       return;

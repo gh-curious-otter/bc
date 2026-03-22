@@ -33,7 +33,9 @@ describe('Advanced: BC Service - Timeout and Retry Edge Cases', () => {
   it('handles command execution timeout gracefully', async () => {
     // Simulate timeout with short delay for test speed
     const timeoutPromise = new Promise<string>((_, reject) =>
-      setTimeout(() => { reject(new Error('bc command timed out after 30s')); }, 50)
+      setTimeout(() => {
+        reject(new Error('bc command timed out after 30s'));
+      }, 50)
     );
 
     mockBcService.execBc.mockReturnValue(timeoutPromise);
@@ -42,7 +44,11 @@ describe('Advanced: BC Service - Timeout and Retry Edge Cases', () => {
     await expect(
       Promise.race([
         bcService.execBc(['status']),
-        new Promise((_, reject) => setTimeout(() => { reject(new Error('Test timeout')); }, 100)),
+        new Promise((_, reject) =>
+          setTimeout(() => {
+            reject(new Error('Test timeout'));
+          }, 100)
+        ),
       ])
     ).rejects.toThrow();
   });
@@ -52,7 +58,9 @@ describe('Advanced: BC Service - Timeout and Retry Edge Cases', () => {
     mockBcService.execBc.mockImplementation(
       () =>
         new Promise((_, reject) =>
-          setTimeout(() => { reject(new Error('Process hung: no close event')); }, 50)
+          setTimeout(() => {
+            reject(new Error('Process hung: no close event'));
+          }, 50)
         )
     );
 
@@ -170,7 +178,7 @@ describe.skipIf(noDOM)('Advanced: Concurrent Operations and Race Conditions', ()
       return Promise.resolve();
     });
 
-    const promises = states.map(s => bcService.reportState(s, 'status'));
+    const promises = states.map((s) => bcService.reportState(s, 'status'));
     await Promise.all(promises);
 
     expect(callOrder).toEqual(states);
@@ -250,11 +258,7 @@ describe('Advanced: State Consistency Verification', () => {
     await bcService.getChannels();
 
     // Verify order
-    expect(operations).toEqual([
-      'getStatus',
-      'reportState:working',
-      'getChannels',
-    ]);
+    expect(operations).toEqual(['getStatus', 'reportState:working', 'getChannels']);
   });
 
   it('detects state inconsistencies', async () => {

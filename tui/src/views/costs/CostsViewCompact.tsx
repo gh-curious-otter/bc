@@ -38,9 +38,14 @@ const CostsViewCompact = memo(function CostsViewCompact({
   const needsScroll = agentCount > maxVisible;
   let startIdx = 0;
   if (needsScroll) {
-    startIdx = Math.max(0, Math.min(selectedIndex - Math.floor(maxVisible / 2), agentCount - maxVisible));
+    startIdx = Math.max(
+      0,
+      Math.min(selectedIndex - Math.floor(maxVisible / 2), agentCount - maxVisible)
+    );
   }
-  const visibleAgents = needsScroll ? agentEntries.slice(startIdx, startIdx + maxVisible) : agentEntries;
+  const visibleAgents = needsScroll
+    ? agentEntries.slice(startIdx, startIdx + maxVisible)
+    : agentEntries;
   const hiddenBelow = needsScroll ? agentCount - (startIdx + maxVisible) : 0;
 
   // Bar width: name(12) + cost(8) + space(1) + bar + space(1) + pct(4) = 26 + bar
@@ -67,8 +72,10 @@ const CostsViewCompact = memo(function CostsViewCompact({
       <Box>
         <Text bold>Costs</Text>
         <Text dimColor> ({agentCount})</Text>
-        <Text>  </Text>
-        <Text color={theme.colors.warning} bold>${costs.total_cost.toFixed(2)}</Text>
+        <Text> </Text>
+        <Text color={theme.colors.warning} bold>
+          ${costs.total_cost.toFixed(2)}
+        </Text>
         <Text dimColor> total</Text>
         <Box flexGrow={1} />
         {burnRate > 0 && (
@@ -84,7 +91,8 @@ const CostsViewCompact = memo(function CostsViewCompact({
           const actualIdx = startIdx + visIdx;
           const selected = isSelected(actualIdx);
           const nameColor = getColorForName(agent.name);
-          const displayName = agent.name.length > 10 ? agent.name.slice(0, 9) + '…' : agent.name.padEnd(10);
+          const displayName =
+            agent.name.length > 10 ? agent.name.slice(0, 9) + '…' : agent.name.padEnd(10);
           const costStr = `$${agent.cost.toFixed(2)}`.padStart(7);
           const pctStr = `${String(agent.percent)}%`.padStart(4);
 
@@ -93,24 +101,22 @@ const CostsViewCompact = memo(function CostsViewCompact({
               <Text color={selected ? theme.colors.primary : undefined} bold={selected}>
                 {selected ? '▸ ' : '  '}
               </Text>
-              <Text color={selected ? theme.colors.primary : nameColor} bold={selected} wrap="truncate">
+              <Text
+                color={selected ? theme.colors.primary : nameColor}
+                bold={selected}
+                wrap="truncate"
+              >
                 {displayName}
               </Text>
               <Text> </Text>
               <Text color={selected ? theme.colors.primary : theme.colors.warning}>{costStr}</Text>
               <Text> </Text>
-              <InlineProgressBar
-                value={agent.cost}
-                max={maxCost}
-                width={barWidth}
-              />
+              <InlineProgressBar value={agent.cost} max={maxCost} width={barWidth} />
               <Text dimColor>{pctStr}</Text>
             </Box>
           );
         })}
-        {hiddenBelow > 0 && (
-          <Text dimColor>  ↓ {hiddenBelow} more</Text>
-        )}
+        {hiddenBelow > 0 && <Text dimColor> ↓ {hiddenBelow} more</Text>}
       </Box>
 
       {/* Model summary */}

@@ -4,7 +4,6 @@ import { describe, it, expect } from 'bun:test';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 
 describe('LoadingIndicator', () => {
-
   describe('initial render', () => {
     it('renders with default message', () => {
       const { lastFrame } = render(<LoadingIndicator />);
@@ -12,9 +11,7 @@ describe('LoadingIndicator', () => {
     });
 
     it('renders with custom message', () => {
-      const { lastFrame } = render(
-        <LoadingIndicator message="Processing..." />
-      );
+      const { lastFrame } = render(<LoadingIndicator message="Processing..." />);
       expect(lastFrame()).toContain('Processing');
     });
 
@@ -34,9 +31,7 @@ describe('LoadingIndicator', () => {
     });
 
     it('renders message with animation', () => {
-      const { lastFrame } = render(
-        <LoadingIndicator message="Loading" />
-      );
+      const { lastFrame } = render(<LoadingIndicator message="Loading" />);
       const frame = lastFrame();
       expect(frame).toContain('Loading');
     });
@@ -44,40 +39,30 @@ describe('LoadingIndicator', () => {
 
   describe('customization', () => {
     it('accepts custom color prop', () => {
-      const { lastFrame } = render(
-        <LoadingIndicator message="Loading" color="green" />
-      );
+      const { lastFrame } = render(<LoadingIndicator message="Loading" color="green" />);
       expect(lastFrame()).toContain('Loading');
     });
 
     it('accepts custom interval prop', () => {
-      const { lastFrame } = render(
-        <LoadingIndicator message="Loading" interval={100} />
-      );
+      const { lastFrame } = render(<LoadingIndicator message="Loading" interval={100} />);
       expect(lastFrame()).toContain('Loading');
     });
   });
 
   describe('edge cases', () => {
     it('handles empty message', () => {
-      const { lastFrame } = render(
-        <LoadingIndicator message="" />
-      );
+      const { lastFrame } = render(<LoadingIndicator message="" />);
       expect(lastFrame()).toContain('⠋');
     });
 
     it('handles very long message', () => {
       const longMessage = 'L'.repeat(100);
-      const { lastFrame } = render(
-        <LoadingIndicator message={longMessage} />
-      );
+      const { lastFrame } = render(<LoadingIndicator message={longMessage} />);
       expect(lastFrame()).toContain('L');
     });
 
     it('handles special characters in message', () => {
-      const { lastFrame } = render(
-        <LoadingIndicator message="Loading... (50%)" />
-      );
+      const { lastFrame } = render(<LoadingIndicator message="Loading... (50%)" />);
       expect(lastFrame()).toContain('50%');
     });
   });
@@ -86,7 +71,9 @@ describe('LoadingIndicator', () => {
     it('cleans up interval on unmount', () => {
       const { unmount } = render(<LoadingIndicator message="Loading" />);
       // Component should not crash on unmount
-      expect(() => { unmount(); }).not.toThrow();
+      expect(() => {
+        unmount();
+      }).not.toThrow();
     });
   });
 });

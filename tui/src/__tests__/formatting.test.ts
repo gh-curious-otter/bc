@@ -247,8 +247,8 @@ describe('formatting - formatCost', () => {
   });
 
   test('formats dollars', () => {
-    expect(formatCost(1.00)).toBe('$1.00');
-    expect(formatCost(1.50)).toBe('$1.50');
+    expect(formatCost(1.0)).toBe('$1.00');
+    expect(formatCost(1.5)).toBe('$1.50');
   });
 
   test('formats cents with precision', () => {

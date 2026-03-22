@@ -103,12 +103,7 @@ export function useDebouncedCallback<T extends (...args: unknown[]) => unknown>(
   callback: T,
   options: UseDebouncedCallbackOptions = {}
 ): UseDebouncedCallbackResult<T> {
-  const {
-    delay = DEFAULT_DEBOUNCE_MS,
-    maxWait,
-    leading = false,
-    trailing = true,
-  } = options;
+  const { delay = DEFAULT_DEBOUNCE_MS, maxWait, leading = false, trailing = true } = options;
 
   const callbackRef = useRef(callback);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -256,12 +251,7 @@ export interface UseDebouncedSearchResult {
 export function useDebouncedSearch(
   options: UseDebouncedSearchOptions = {}
 ): UseDebouncedSearchResult {
-  const {
-    initialQuery = '',
-    delay = DEFAULT_DEBOUNCE_MS,
-    minLength = 0,
-    onSearch,
-  } = options;
+  const { initialQuery = '', delay = DEFAULT_DEBOUNCE_MS, minLength = 0, onSearch } = options;
 
   const [query, setQueryState] = useState(initialQuery);
   const debouncedQuery = useDebounce(query, delay);

@@ -83,7 +83,13 @@ export function DataTable<T extends Record<string, unknown>>({
   }
 
   return (
-    <Box flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1} width={tableWidth}>
+    <Box
+      flexDirection="column"
+      borderStyle="single"
+      borderColor="gray"
+      paddingX={1}
+      width={tableWidth}
+    >
       {/* Header row */}
       {showHeader && (
         <Box>
@@ -129,9 +135,7 @@ const DataTableRow = memo(function DataTableRow<T extends Record<string, unknown
       <Text color={isSelected ? 'cyan' : undefined}>{isSelected ? '▸ ' : '  '}</Text>
       {columns.map((col) => {
         const value = row[col.key];
-        const content = col.render
-          ? col.render(value, row)
-          : String(value ?? '-');
+        const content = col.render ? col.render(value, row) : String(value ?? '-');
 
         return (
           <Box key={String(col.key)} width={col.width}>

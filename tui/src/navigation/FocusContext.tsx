@@ -2,13 +2,7 @@
  * FocusContext - Manages focus state across the TUI
  */
 
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useCallback,
-  useMemo,
-} from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 
 export type FocusArea = 'main' | 'detail' | 'input' | 'modal' | 'view' | 'command' | 'filter';
 
@@ -45,10 +39,7 @@ export function FocusProvider({
     [focusedArea]
   );
 
-  const isFocused = useCallback(
-    (area: FocusArea): boolean => focusedArea === area,
-    [focusedArea]
-  );
+  const isFocused = useCallback((area: FocusArea): boolean => focusedArea === area, [focusedArea]);
 
   const returnFocus = useCallback(() => {
     setPreviousArea((prev) => {
@@ -78,9 +69,7 @@ export function FocusProvider({
     [focusedArea, setFocus, isFocused, previousArea, returnFocus, cycleFocus]
   );
 
-  return (
-    <FocusContext.Provider value={value}>{children}</FocusContext.Provider>
-  );
+  return <FocusContext.Provider value={value}>{children}</FocusContext.Provider>;
 }
 
 export function useFocus(): FocusContextValue {

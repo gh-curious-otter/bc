@@ -39,7 +39,9 @@ export function MCPView(): React.ReactElement {
 
   const customKeys = useMemo(
     () => ({
-      'r': () => { void fetchServers(); },
+      r: () => {
+        void fetchServers();
+      },
     }),
     [fetchServers]
   );
@@ -71,7 +73,9 @@ export function MCPView(): React.ReactElement {
     return (
       <Box flexDirection="column">
         <HeaderBar title="MCP Servers" />
-        <Box paddingLeft={1}><Text color={theme.colors.error}>{error}</Text></Box>
+        <Box paddingLeft={1}>
+          <Text color={theme.colors.error}>{error}</Text>
+        </Box>
         <Footer hints={viewHints} />
       </Box>
     );
@@ -88,10 +92,18 @@ export function MCPView(): React.ReactElement {
       ) : (
         <Box flexDirection="column" paddingTop={1}>
           <Box paddingLeft={1}>
-            <Box width={20}><Text bold>NAME</Text></Box>
-            <Box width={10}><Text bold>TRANSPORT</Text></Box>
-            <Box width={40}><Text bold>COMMAND/URL</Text></Box>
-            <Box width={10}><Text bold>ENABLED</Text></Box>
+            <Box width={20}>
+              <Text bold>NAME</Text>
+            </Box>
+            <Box width={10}>
+              <Text bold>TRANSPORT</Text>
+            </Box>
+            <Box width={40}>
+              <Text bold>COMMAND/URL</Text>
+            </Box>
+            <Box width={10}>
+              <Text bold>ENABLED</Text>
+            </Box>
           </Box>
 
           {servers.map((server, index) => {
@@ -111,7 +123,10 @@ export function MCPView(): React.ReactElement {
                   <Text inverse={isSelected}>{truncate(target, 38)}</Text>
                 </Box>
                 <Box width={10}>
-                  <Text inverse={isSelected} color={server.enabled ? theme.colors.success : theme.colors.error}>
+                  <Text
+                    inverse={isSelected}
+                    color={server.enabled ? theme.colors.success : theme.colors.error}
+                  >
                     {server.enabled ? 'yes' : 'no'}
                   </Text>
                 </Box>

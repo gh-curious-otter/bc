@@ -1,11 +1,17 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from "react";
 
 const TIMEOUT_MS = 10000;
 
 export function usePolling<T>(
   fetcher: () => Promise<T>,
   intervalMs: number = 5000,
-): { data: T | null; loading: boolean; error: string | null; refresh: () => void; timedOut: boolean } {
+): {
+  data: T | null;
+  loading: boolean;
+  error: string | null;
+  refresh: () => void;
+  timedOut: boolean;
+} {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +36,7 @@ export function usePolling<T>(
       }
     } catch (err) {
       if (controller.signal.aborted) return; // Silently ignore aborted requests
-      setError(err instanceof Error ? err.message : 'Fetch failed');
+      setError(err instanceof Error ? err.message : "Fetch failed");
     } finally {
       if (!controller.signal.aborted) {
         setLoading(false);

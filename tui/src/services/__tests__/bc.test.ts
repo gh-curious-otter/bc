@@ -41,7 +41,9 @@ describe('execBc - Basic command execution', () => {
     clearCache(); // #1005: Clear command cache between tests
     mockSpawnImpl = mock(() => mockProcessorFactory());
     // Inject mock spawn before each test
-    restoreSpawn = _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    restoreSpawn = _setSpawnForTesting(
+      mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]
+    );
   });
 
   afterEach(() => {
@@ -140,7 +142,9 @@ describe('execBcJson - JSON parsing', () => {
   beforeEach(() => {
     clearCache();
     mockSpawnImpl = mock(() => mockProcessorFactory());
-    restoreSpawn = _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    restoreSpawn = _setSpawnForTesting(
+      mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]
+    );
   });
 
   afterEach(() => {
@@ -211,7 +215,9 @@ describe('Command wrapper functions - Status and channels', () => {
   beforeEach(() => {
     clearCache();
     mockSpawnImpl = mock(() => mockProcessorFactory());
-    restoreSpawn = _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    restoreSpawn = _setSpawnForTesting(
+      mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]
+    );
   });
 
   afterEach(() => {
@@ -292,7 +298,9 @@ describe('Command wrapper functions - Cost and teams', () => {
   beforeEach(() => {
     clearCache();
     mockSpawnImpl = mock(() => mockProcessorFactory());
-    restoreSpawn = _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    restoreSpawn = _setSpawnForTesting(
+      mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]
+    );
   });
 
   afterEach(() => {
@@ -390,7 +398,9 @@ describe('Demon operations', () => {
   beforeEach(() => {
     clearCache();
     mockSpawnImpl = mock(() => mockProcessorFactory());
-    restoreSpawn = _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    restoreSpawn = _setSpawnForTesting(
+      mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]
+    );
   });
 
   afterEach(() => {
@@ -447,7 +457,9 @@ describe('Command cache stress testing (#1016)', () => {
   beforeEach(() => {
     clearCache();
     mockSpawnImpl = mock(() => mockProcessorFactory());
-    restoreSpawn = _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    restoreSpawn = _setSpawnForTesting(
+      mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]
+    );
   });
 
   afterEach(() => {

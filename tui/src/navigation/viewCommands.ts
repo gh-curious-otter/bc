@@ -80,12 +80,13 @@ export function searchCommands(query: string, recentCommands: string[] = []): Ma
     // #1871: Show recent commands first, then remaining in default order
     const recentSet = new Set(recentCommands);
     const recent = recentCommands
-      .map(name => VIEW_COMMANDS.find(cmd => cmd.command === name))
+      .map((name) => VIEW_COMMANDS.find((cmd) => cmd.command === name))
       .filter((cmd): cmd is ViewCommand => cmd !== undefined)
-      .map(cmd => ({ command: { ...cmd, section: 'RECENT' }, score: 90 }));
-    const rest = VIEW_COMMANDS
-      .filter(cmd => !recentSet.has(cmd.command))
-      .map(cmd => ({ command: cmd, score: 50 }));
+      .map((cmd) => ({ command: { ...cmd, section: 'RECENT' }, score: 90 }));
+    const rest = VIEW_COMMANDS.filter((cmd) => !recentSet.has(cmd.command)).map((cmd) => ({
+      command: cmd,
+      score: 50,
+    }));
     return [...recent, ...rest];
   }
 
@@ -120,7 +121,12 @@ export function searchCommands(query: string, recentCommands: string[] = []): Ma
     if (bestScore > 0) {
       // Wrap action as MatchedCommand with a placeholder view for display
       results.push({
-        command: { command: cmd.command, aliases: cmd.aliases, view: '' as View, section: cmd.section },
+        command: {
+          command: cmd.command,
+          aliases: cmd.aliases,
+          view: '' as View,
+          section: cmd.section,
+        },
         score: bestScore,
       });
     }

@@ -84,9 +84,7 @@ function runTuiInSession(name: string): ChildProcess {
  */
 function sendKeys(name: string, keys: string): void {
   // Escape special characters for tmux
-  const escaped = keys
-    .replace(/'/g, "'\"'\"'")
-    .replace(/\\/g, '\\\\');
+  const escaped = keys.replace(/'/g, "'\"'\"'").replace(/\\/g, '\\\\');
   execSync(`tmux send-keys -t ${name} '${escaped}'`, { stdio: 'pipe' });
 }
 
@@ -111,15 +109,11 @@ function captureScreen(name: string): string {
 /**
  * Wait for a condition to be true
  */
-async function waitFor(
-  condition: () => boolean,
-  timeout = 5000,
-  interval = 100
-): Promise<boolean> {
+async function waitFor(condition: () => boolean, timeout = 5000, interval = 100): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < timeout) {
     if (condition()) return true;
-    await new Promise(r => setTimeout(r, interval));
+    await new Promise((r) => setTimeout(r, interval));
   }
   return false;
 }
@@ -127,11 +121,7 @@ async function waitFor(
 /**
  * Wait for screen to contain text
  */
-async function waitForText(
-  sessionName: string,
-  text: string,
-  timeout = 5000
-): Promise<boolean> {
+async function waitForText(sessionName: string, text: string, timeout = 5000): Promise<boolean> {
   return waitFor(() => {
     const screen = captureScreen(sessionName);
     return screen.includes(text);
@@ -155,9 +145,12 @@ describe.skipIf(shouldSkip)('TUI tmux Integration', () => {
 
   describe('Session Setup', () => {
     it('creates tmux session with correct dimensions', () => {
-      const info = execSync(`tmux display-message -t ${sessionName} -p '#{window_width}x#{window_height}'`, {
-        encoding: 'utf-8',
-      }).trim();
+      const info = execSync(
+        `tmux display-message -t ${sessionName} -p '#{window_width}x#{window_height}'`,
+        {
+          encoding: 'utf-8',
+        }
+      ).trim();
       expect(info).toBe(`${DEFAULT_WIDTH}x${DEFAULT_HEIGHT}`);
     });
   });
@@ -166,11 +159,11 @@ describe.skipIf(shouldSkip)('TUI tmux Integration', () => {
     it('q key sends quit signal', async () => {
       // Start a simple shell process
       execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       // Send Ctrl+C to stop cat
       execSync(`tmux send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       const screen = captureScreen(sessionName);
       // Cat should have exited
@@ -180,11 +173,11 @@ describe.skipIf(shouldSkip)('TUI tmux Integration', () => {
     it('number keys are captured correctly', async () => {
       // Use cat to capture keystrokes
       execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       // Send number keys
       sendKeys(sessionName, '12345');
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       const screen = captureScreen(sessionName);
       expect(screen).toContain('12345');
@@ -196,10 +189,10 @@ describe.skipIf(shouldSkip)('TUI tmux Integration', () => {
     it('j and k keys are captured correctly', async () => {
       // Use cat to capture keystrokes
       execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       sendKeys(sessionName, 'jjkkjk');
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       const screen = captureScreen(sessionName);
       expect(screen).toContain('jjkkjk');
@@ -215,9 +208,12 @@ describe.skipIf(shouldSkip)('TUI tmux Integration', () => {
       createSession(compactSession, 80, 24);
 
       try {
-        const info = execSync(`tmux display-message -t ${compactSession} -p '#{window_width}x#{window_height}'`, {
-          encoding: 'utf-8',
-        }).trim();
+        const info = execSync(
+          `tmux display-message -t ${compactSession} -p '#{window_width}x#{window_height}'`,
+          {
+            encoding: 'utf-8',
+          }
+        ).trim();
         expect(info).toBe('80x24');
       } finally {
         killSession(compactSession);
@@ -229,9 +225,12 @@ describe.skipIf(shouldSkip)('TUI tmux Integration', () => {
       createSession(wideSession, 160, 40);
 
       try {
-        const info = execSync(`tmux display-message -t ${wideSession} -p '#{window_width}x#{window_height}'`, {
-          encoding: 'utf-8',
-        }).trim();
+        const info = execSync(
+          `tmux display-message -t ${wideSession} -p '#{window_width}x#{window_height}'`,
+          {
+            encoding: 'utf-8',
+          }
+        ).trim();
         expect(info).toBe('160x40');
       } finally {
         killSession(wideSession);
@@ -242,11 +241,11 @@ describe.skipIf(shouldSkip)('TUI tmux Integration', () => {
   describe('Paste Buffer', () => {
     it('handles short text via send-keys', async () => {
       execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       const shortText = 'Hello, World!';
       sendKeys(sessionName, shortText);
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       const screen = captureScreen(sessionName);
       expect(screen).toContain(shortText);
@@ -272,11 +271,11 @@ describe.skipIf(shouldSkip)('TUI Navigation Integration', () => {
     it('j key moves highlight down (verified via keystroke capture)', async () => {
       // This test verifies the keystrokes are properly sent to tmux
       execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       // Simulate drawer navigation
       sendKeys(sessionName, 'jjj'); // Move down 3 times
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       const screen = captureScreen(sessionName);
       expect(screen).toContain('jjj');
@@ -286,10 +285,10 @@ describe.skipIf(shouldSkip)('TUI Navigation Integration', () => {
 
     it('k key moves highlight up (verified via keystroke capture)', async () => {
       execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       sendKeys(sessionName, 'kkk');
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       const screen = captureScreen(sessionName);
       expect(screen).toContain('kkk');
@@ -299,10 +298,10 @@ describe.skipIf(shouldSkip)('TUI Navigation Integration', () => {
 
     it('g key jumps to top (verified via keystroke capture)', async () => {
       execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       sendKeys(sessionName, 'jjjg'); // Move down then jump to top
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       const screen = captureScreen(sessionName);
       expect(screen).toContain('jjjg');
@@ -312,10 +311,10 @@ describe.skipIf(shouldSkip)('TUI Navigation Integration', () => {
 
     it('G key jumps to bottom (verified via keystroke capture)', async () => {
       execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       sendKeys(sessionName, 'G');
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       const screen = captureScreen(sessionName);
       expect(screen).toContain('G');
@@ -327,13 +326,13 @@ describe.skipIf(shouldSkip)('TUI Navigation Integration', () => {
   describe('View Switching', () => {
     it('number keys 1-9 are properly sent', async () => {
       execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       // Test each number key
       for (let i = 1; i <= 9; i++) {
         sendKeys(sessionName, String(i));
       }
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       const screen = captureScreen(sessionName);
       expect(screen).toContain('123456789');
@@ -343,10 +342,10 @@ describe.skipIf(shouldSkip)('TUI Navigation Integration', () => {
 
     it('M key (shift+m) is properly sent', async () => {
       execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       sendKeys(sessionName, 'M');
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       const screen = captureScreen(sessionName);
       expect(screen).toContain('M');
@@ -358,12 +357,12 @@ describe.skipIf(shouldSkip)('TUI Navigation Integration', () => {
   describe('Detail Pane Toggle', () => {
     it('i key toggles detail pane (verified via keystroke capture)', async () => {
       execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       sendKeys(sessionName, 'i'); // Toggle on
-      await new Promise(r => setTimeout(r, 50));
+      await new Promise((r) => setTimeout(r, 50));
       sendKeys(sessionName, 'i'); // Toggle off
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
 
       const screen = captureScreen(sessionName);
       expect(screen).toContain('ii');
@@ -388,17 +387,23 @@ describe.skipIf(shouldSkip)('TUI Resize Handling', () => {
     // Start with wide terminal
     createSession(sessionName, 160, 40);
 
-    let info = execSync(`tmux display-message -t ${sessionName} -p '#{window_width}x#{window_height}'`, {
-      encoding: 'utf-8',
-    }).trim();
+    let info = execSync(
+      `tmux display-message -t ${sessionName} -p '#{window_width}x#{window_height}'`,
+      {
+        encoding: 'utf-8',
+      }
+    ).trim();
     expect(info).toBe('160x40');
 
     // Resize to compact
     execSync(`tmux resize-window -t ${sessionName} -x 80 -y 24`, { stdio: 'pipe' });
 
-    info = execSync(`tmux display-message -t ${sessionName} -p '#{window_width}x#{window_height}'`, {
-      encoding: 'utf-8',
-    }).trim();
+    info = execSync(
+      `tmux display-message -t ${sessionName} -p '#{window_width}x#{window_height}'`,
+      {
+        encoding: 'utf-8',
+      }
+    ).trim();
     expect(info).toBe('80x24');
   });
 
@@ -406,17 +411,23 @@ describe.skipIf(shouldSkip)('TUI Resize Handling', () => {
     // Start with compact terminal
     createSession(sessionName, 80, 24);
 
-    let info = execSync(`tmux display-message -t ${sessionName} -p '#{window_width}x#{window_height}'`, {
-      encoding: 'utf-8',
-    }).trim();
+    let info = execSync(
+      `tmux display-message -t ${sessionName} -p '#{window_width}x#{window_height}'`,
+      {
+        encoding: 'utf-8',
+      }
+    ).trim();
     expect(info).toBe('80x24');
 
     // Resize to wide
     execSync(`tmux resize-window -t ${sessionName} -x 160 -y 40`, { stdio: 'pipe' });
 
-    info = execSync(`tmux display-message -t ${sessionName} -p '#{window_width}x#{window_height}'`, {
-      encoding: 'utf-8',
-    }).trim();
+    info = execSync(
+      `tmux display-message -t ${sessionName} -p '#{window_width}x#{window_height}'`,
+      {
+        encoding: 'utf-8',
+      }
+    ).trim();
     expect(info).toBe('160x40');
   });
 });

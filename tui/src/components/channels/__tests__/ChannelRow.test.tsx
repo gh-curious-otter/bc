@@ -75,61 +75,67 @@ describe('ChannelRow Display Logic', () => {
   describe('Unread badge formatting', () => {
     it('shows no badge when no unread messages', () => {
       const unreadCount = 0;
-      const unreadBadge = unreadCount > 0
-        ? unreadCount === 1
-          ? ' ●'
-          : ` ${unreadCount > 99 ? '99+' : String(unreadCount)} new`
-        : '';
+      const unreadBadge =
+        unreadCount > 0
+          ? unreadCount === 1
+            ? ' ●'
+            : ` ${unreadCount > 99 ? '99+' : String(unreadCount)} new`
+          : '';
       expect(unreadBadge).toBe('');
     });
 
     it('shows dot for single unread', () => {
       const unreadCount = 1;
-      const unreadBadge = unreadCount > 0
-        ? unreadCount === 1
-          ? ' ●'
-          : ` ${unreadCount > 99 ? '99+' : String(unreadCount)} new`
-        : '';
+      const unreadBadge =
+        unreadCount > 0
+          ? unreadCount === 1
+            ? ' ●'
+            : ` ${unreadCount > 99 ? '99+' : String(unreadCount)} new`
+          : '';
       expect(unreadBadge).toBe(' ●');
     });
 
     it('shows count with "new" for multiple unread', () => {
       const unreadCount = 5;
-      const unreadBadge = unreadCount > 0
-        ? unreadCount === 1
-          ? ' ●'
-          : ` ${unreadCount > 99 ? '99+' : String(unreadCount)} new`
-        : '';
+      const unreadBadge =
+        unreadCount > 0
+          ? unreadCount === 1
+            ? ' ●'
+            : ` ${unreadCount > 99 ? '99+' : String(unreadCount)} new`
+          : '';
       expect(unreadBadge).toBe(' 5 new');
     });
 
     it('caps unread at 99+', () => {
       const unreadCount = 150;
-      const unreadBadge = unreadCount > 0
-        ? unreadCount === 1
-          ? ' ●'
-          : ` ${unreadCount > 99 ? '99+' : String(unreadCount)} new`
-        : '';
+      const unreadBadge =
+        unreadCount > 0
+          ? unreadCount === 1
+            ? ' ●'
+            : ` ${unreadCount > 99 ? '99+' : String(unreadCount)} new`
+          : '';
       expect(unreadBadge).toBe(' 99+ new');
     });
 
     it('shows exact count at boundary (99)', () => {
       const unreadCount = 99;
-      const unreadBadge = unreadCount > 0
-        ? unreadCount === 1
-          ? ' ●'
-          : ` ${unreadCount > 99 ? '99+' : String(unreadCount)} new`
-        : '';
+      const unreadBadge =
+        unreadCount > 0
+          ? unreadCount === 1
+            ? ' ●'
+            : ` ${unreadCount > 99 ? '99+' : String(unreadCount)} new`
+          : '';
       expect(unreadBadge).toBe(' 99 new');
     });
 
     it('shows 99+ at 100', () => {
       const unreadCount = 100;
-      const unreadBadge = unreadCount > 0
-        ? unreadCount === 1
-          ? ' ●'
-          : ` ${unreadCount > 99 ? '99+' : String(unreadCount)} new`
-        : '';
+      const unreadBadge =
+        unreadCount > 0
+          ? unreadCount === 1
+            ? ' ●'
+            : ` ${unreadCount > 99 ? '99+' : String(unreadCount)} new`
+          : '';
       expect(unreadBadge).toBe(' 99+ new');
     });
   });

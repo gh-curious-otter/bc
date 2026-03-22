@@ -114,20 +114,24 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
   // #1601: UI state consolidated with useReducer
   // #1743: Navigation and search state moved to useListNavigation
   const [ui, dispatch] = useReducer(uiReducer, initialUIState);
-  const {
-    showDetail, confirmAction,
-    peekOutput, peekLoading, groupedView, collapsedRoles,
-  } = ui;
+  const { showDetail, confirmAction, peekOutput, peekLoading, groupedView, collapsedRoles } = ui;
 
   // Action feedback state - kept separate as it's timer-managed
   const [actionState, setActionState] = useState<ActionState | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
   // #1743: Custom key handlers for agent actions
-  const customKeys = useMemo(() => ({
-    v: () => { dispatch({ type: 'TOGGLE_GROUPED_VIEW' }); },
-    r: () => { void refresh(); },
-  }), [refresh]);
+  const customKeys = useMemo(
+    () => ({
+      v: () => {
+        dispatch({ type: 'TOGGLE_GROUPED_VIEW' });
+      },
+      r: () => {
+        void refresh();
+      },
+    }),
+    [refresh]
+  );
 
   // #1842: Track visibleItems count via ref to break circular dependency
   // (useListNavigation → search.query → useAgentGroups → visibleItems.length → useListNavigation)
@@ -193,44 +197,54 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
   }, [showDetail, selectedAgent, search.isActive, setFocus, setBreadcrumbs, clearBreadcrumbs]);
 
   // Clear action feedback after delay
-  const showActionFeedback = useCallback((action: AgentAction, target: string, status: 'success' | 'error', message: string) => {
-    if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
-    setActionState({ action, target, status, message });
-    feedbackTimeoutRef.current = setTimeout(() => { setActionState(null); }, ACTION_FEEDBACK_DURATION);
-  }, []);
+  const showActionFeedback = useCallback(
+    (action: AgentAction, target: string, status: 'success' | 'error', message: string) => {
+      if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
+      setActionState({ action, target, status, message });
+      feedbackTimeoutRef.current = setTimeout(() => {
+        setActionState(null);
+      }, ACTION_FEEDBACK_DURATION);
+    },
+    []
+  );
 
   // Cleanup action feedback timeout on unmount
   useEffect(() => {
-    return () => { if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current); };
+    return () => {
+      if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
+    };
   }, []);
 
   // Execute agent action
-  const executeAction = useCallback(async (action: AgentAction, agentName: string, role?: string) => {
-    try {
-      switch (action) {
-        case 'start':
-          await execBc(['agent', 'start', agentName, '--role', role ?? 'engineer']);
-          showActionFeedback(action, agentName, 'success', `Started ${agentName}`);
-          break;
-        case 'stop':
-          await execBc(['agent', 'stop', agentName]);
-          showActionFeedback(action, agentName, 'success', `Stopped ${agentName}`);
-          break;
-        case 'kill':
-          await execBc(['agent', 'kill', agentName]);
-          showActionFeedback(action, agentName, 'success', `Killed ${agentName}`);
-          break;
-        case 'attach':
-          await execBc(['agent', 'attach', agentName]);
-          showActionFeedback(action, agentName, 'success', `Attached to ${agentName}`);
-          break;
+  const executeAction = useCallback(
+    async (action: AgentAction, agentName: string, role?: string) => {
+      try {
+        switch (action) {
+          case 'start':
+            await execBc(['agent', 'start', agentName, '--role', role ?? 'engineer']);
+            showActionFeedback(action, agentName, 'success', `Started ${agentName}`);
+            break;
+          case 'stop':
+            await execBc(['agent', 'stop', agentName]);
+            showActionFeedback(action, agentName, 'success', `Stopped ${agentName}`);
+            break;
+          case 'kill':
+            await execBc(['agent', 'kill', agentName]);
+            showActionFeedback(action, agentName, 'success', `Killed ${agentName}`);
+            break;
+          case 'attach':
+            await execBc(['agent', 'attach', agentName]);
+            showActionFeedback(action, agentName, 'success', `Attached to ${agentName}`);
+            break;
+        }
+        void refresh();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : `Failed to ${action} ${agentName}`;
+        showActionFeedback(action, agentName, 'error', message);
       }
-      void refresh();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : `Failed to ${action} ${agentName}`;
-      showActionFeedback(action, agentName, 'error', message);
-    }
-  }, [refresh, showActionFeedback]);
+    },
+    [refresh, showActionFeedback]
+  );
 
   // Peek agent output
   const peekAgent = useCallback(async (agentName: string) => {
@@ -238,9 +252,7 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
     try {
       const output = await execBc(['agent', 'peek', agentName, '--lines', '8']);
       // #1844: Strip peek headers and empty lines using shared util
-      const lines = output.split('\n').filter((line: string) =>
-        line.trim() && !isPeekHeader(line)
-      );
+      const lines = output.split('\n').filter((line: string) => line.trim() && !isPeekHeader(line));
       dispatch({ type: 'SET_PEEK_OUTPUT', output: lines.slice(-6) });
     } catch {
       dispatch({ type: 'SET_PEEK_OUTPUT', output: ['(No output available)'] });
@@ -255,7 +267,9 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
     const interval = setInterval(() => {
       void peekAgent(selectedAgent.name);
     }, 2000);
-    return () => { clearInterval(interval); };
+    return () => {
+      clearInterval(interval);
+    };
   }, [peekOutput, selectedAgent, peekAgent]);
 
   // #1743: Keyboard handling for special keys not covered by useListNavigation
@@ -289,7 +303,12 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
       }
       if (selectedAgent) {
         if (selectedAgent.state === 'stopped') {
-          showActionFeedback('attach' as AgentAction, selectedAgent.name, 'error', `Agent ${selectedAgent.name} is not running`);
+          showActionFeedback(
+            'attach' as AgentAction,
+            selectedAgent.name,
+            'error',
+            `Agent ${selectedAgent.name} is not running`
+          );
         } else {
           const bcBin = process.env.BC_BIN ?? 'bc';
           spawnSync(bcBin, ['agent', 'attach', selectedAgent.name], {
@@ -298,7 +317,7 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
           void refresh();
         }
       }
-    // d = open detail view (previously Enter behavior)
+      // d = open detail view (previously Enter behavior)
     } else if (input === 'd' && selectedAgent) {
       dispatch({ type: 'SHOW_DETAIL' });
     } else if (input === 'x' && selectedAgent && selectedAgent.state !== 'stopped') {
@@ -322,7 +341,9 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
     return (
       <AgentDetailView
         agent={selectedAgent}
-        onBack={() => { dispatch({ type: 'HIDE_DETAIL' }); }}
+        onBack={() => {
+          dispatch({ type: 'HIDE_DETAIL' });
+        }}
       />
     );
   }
@@ -341,14 +362,23 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
   }
 
   if (error) {
-    return <ErrorDisplay error={error} onRetry={() => { void refresh(); }} />;
+    return (
+      <ErrorDisplay
+        error={error}
+        onRetry={() => {
+          void refresh();
+        }}
+      />
+    );
   }
 
   return (
     <Box flexDirection="column" overflow="hidden">
       {/* Header with state summary */}
       <Box marginBottom={1}>
-        <Text bold color={theme.colors.success}>Agents ({agentList.length})</Text>
+        <Text bold color={theme.colors.success}>
+          Agents ({agentList.length})
+        </Text>
         {stateCounts.working > 0 && (
           <Text color={theme.colors.secondary}> ● {stateCounts.working} working</Text>
         )}
@@ -358,16 +388,16 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
         {stateCounts.error > 0 && (
           <Text color={theme.colors.error}> ✗ {stateCounts.error} error</Text>
         )}
-        {search.query && (
-          <Text color={theme.colors.primary}> [/] &quot;{search.query}&quot;</Text>
-        )}
+        {search.query && <Text color={theme.colors.primary}> [/] &quot;{search.query}&quot;</Text>}
         {loading && <Text color={theme.colors.textMuted}> (refreshing...)</Text>}
       </Box>
 
       {/* Action feedback */}
       {actionState && (
         <Box marginBottom={1}>
-          <Text color={actionState.status === 'success' ? theme.colors.success : theme.colors.error}>
+          <Text
+            color={actionState.status === 'success' ? theme.colors.success : theme.colors.error}
+          >
             {actionState.status === 'success' ? '✓' : '✗'} {actionState.message}
           </Text>
         </Box>
@@ -385,11 +415,7 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
 
       {/* Confirmation dialog */}
       {confirmAction && selectedAgent && (
-        <AgentConfirmDialog
-          action={confirmAction}
-          agent={selectedAgent}
-          isNarrow={isNarrow}
-        />
+        <AgentConfirmDialog action={confirmAction} agent={selectedAgent} isNarrow={isNarrow} />
       )}
 
       {/* Agent list */}
@@ -402,21 +428,21 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
       />
 
       {/* Actions bar */}
-      {selectedAgent && !confirmAction && (
-        <AgentActions agent={selectedAgent} />
-      )}
+      {selectedAgent && !confirmAction && <AgentActions agent={selectedAgent} />}
 
       {/* Footer */}
-      <Footer hints={[
-        { key: 'j/k', label: 'nav' },
-        { key: 'Enter', label: 'attach' },
-        { key: 'd', label: 'detail' },
-        { key: 'v', label: groupedView ? 'flat' : 'grouped' },
-        { key: '/', label: 'search' },
-        ...(search.query ? [{ key: 'c', label: 'clear' }] : []),
-        { key: 'p', label: 'peek' },
-        { key: 'r', label: 'refresh' },
-      ]} />
+      <Footer
+        hints={[
+          { key: 'j/k', label: 'nav' },
+          { key: 'Enter', label: 'attach' },
+          { key: 'd', label: 'detail' },
+          { key: 'v', label: groupedView ? 'flat' : 'grouped' },
+          { key: '/', label: 'search' },
+          ...(search.query ? [{ key: 'c', label: 'clear' }] : []),
+          { key: 'p', label: 'peek' },
+          { key: 'r', label: 'refresh' },
+        ]}
+      />
     </Box>
   );
 };

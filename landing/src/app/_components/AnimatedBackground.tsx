@@ -60,7 +60,6 @@ export function AnimatedBackground() {
       canvas!.style.width = `${width}px`;
       canvas!.style.height = `${height}px`;
       ctx!.scale(dpr, dpr);
-
     }
 
     function initParticles() {
@@ -147,7 +146,11 @@ export function AnimatedBackground() {
         const cellY = Math.floor(projected[i].y / GRID_CELL_SIZE);
         const key = `${cellX},${cellY}`;
         const cell = grid.get(key);
-        if (cell) { cell.push(i); } else { grid.set(key, [i]); }
+        if (cell) {
+          cell.push(i);
+        } else {
+          grid.set(key, [i]);
+        }
       }
 
       for (const [key, indices] of grid) {
@@ -172,7 +175,10 @@ export function AnimatedBackground() {
               const dy = a.y - b.y;
               const dist = Math.sqrt(dx * dx + dy * dy);
               if (dist < CONNECTION_DISTANCE) {
-                const opacity = (1 - dist / CONNECTION_DISTANCE) * 0.12 * Math.min(a.scale, b.scale);
+                const opacity =
+                  (1 - dist / CONNECTION_DISTANCE) *
+                  0.12 *
+                  Math.min(a.scale, b.scale);
                 ctx!.strokeStyle = `${lineColor}${opacity})`;
                 ctx!.lineWidth = 0.5;
                 ctx!.beginPath();
@@ -215,7 +221,10 @@ export function AnimatedBackground() {
         idleFrames++;
         const delay = idleFrames > IDLE_THRESHOLD ? 66 : 0; // ~15fps idle, 60fps active
         if (delay > 0) {
-          animationId = setTimeout(() => requestAnimationFrame(draw), delay) as unknown as number;
+          animationId = setTimeout(
+            () => requestAnimationFrame(draw),
+            delay,
+          ) as unknown as number;
         } else {
           animationId = requestAnimationFrame(draw);
         }
@@ -224,7 +233,6 @@ export function AnimatedBackground() {
 
     function handleScroll() {
       scrollY = window.scrollY;
-
     }
 
     function handleMouseMove(e: MouseEvent) {
@@ -238,7 +246,9 @@ export function AnimatedBackground() {
     }
 
     // Check for reduced motion preference
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
     if (prefersReducedMotion) return;
 
     resize();

@@ -6,10 +6,7 @@
  */
 
 import { useMemo } from "react";
-import {
-  generateSrcSet,
-  loadingStrategies,
-} from "@/lib/image-optimization";
+import { generateSrcSet, loadingStrategies } from "@/lib/image-optimization";
 
 interface UseOptimizedImageProps {
   basePath: string; // e.g. "/images/hero"
@@ -95,7 +92,7 @@ export function useOptimizedImage({
  * ```
  */
 export function useImageAssets(
-  assets: Record<string, UseOptimizedImageProps>
+  assets: Record<string, UseOptimizedImageProps>,
 ): Record<string, OptimizedImageData> {
   return useMemo(() => {
     const result: Record<string, OptimizedImageData> = {};

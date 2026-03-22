@@ -49,7 +49,7 @@ describe('LoadingIndicator', () => {
         // Braille characters are in Unicode range U+2800-U+28FF
         const code = frame.charCodeAt(0);
         expect(code).toBeGreaterThanOrEqual(0x2800);
-        expect(code).toBeLessThanOrEqual(0x28FF);
+        expect(code).toBeLessThanOrEqual(0x28ff);
       }
     });
 

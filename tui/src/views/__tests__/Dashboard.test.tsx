@@ -180,11 +180,13 @@ describe('Dashboard Phase 3 Integration', () => {
         { key: 'j/k', label: 'drawer' },
         { key: 'Enter', label: 'select' },
         { key: 'r', label: 'refresh' },
-        ...(showDebugPanel ? [{ key: 'Ctrl+P', label: 'hide perf' }] : [{ key: 'Ctrl+P', label: 'perf' }]),
+        ...(showDebugPanel
+          ? [{ key: 'Ctrl+P', label: 'hide perf' }]
+          : [{ key: 'Ctrl+P', label: 'perf' }]),
         { key: 'q', label: 'quit' },
       ];
 
-      const perfHint = hints.find(h => h.key === 'Ctrl+P');
+      const perfHint = hints.find((h) => h.key === 'Ctrl+P');
       expect(perfHint).toBeDefined();
       expect(perfHint?.label).toBe('hide perf');
     });
@@ -196,11 +198,13 @@ describe('Dashboard Phase 3 Integration', () => {
         { key: 'j/k', label: 'drawer' },
         { key: 'Enter', label: 'select' },
         { key: 'r', label: 'refresh' },
-        ...(showDebugPanel ? [{ key: 'Ctrl+P', label: 'hide perf' }] : [{ key: 'Ctrl+P', label: 'perf' }]),
+        ...(showDebugPanel
+          ? [{ key: 'Ctrl+P', label: 'hide perf' }]
+          : [{ key: 'Ctrl+P', label: 'perf' }]),
         { key: 'q', label: 'quit' },
       ];
 
-      const perfHint = hints.find(h => h.key === 'Ctrl+P');
+      const perfHint = hints.find((h) => h.key === 'Ctrl+P');
       expect(perfHint).toBeDefined();
       expect(perfHint?.label).toBe('perf');
     });
@@ -212,13 +216,15 @@ describe('Dashboard Phase 3 Integration', () => {
         { key: 'j/k', label: 'drawer' },
         { key: 'Enter', label: 'select' },
         { key: 'r', label: 'refresh' },
-        ...(showDebugPanel ? [{ key: 'Ctrl+P', label: 'hide perf' }] : [{ key: 'Ctrl+P', label: 'perf' }]),
+        ...(showDebugPanel
+          ? [{ key: 'Ctrl+P', label: 'hide perf' }]
+          : [{ key: 'Ctrl+P', label: 'perf' }]),
         { key: 'q', label: 'quit' },
       ];
 
       expect(hints.length).toBeGreaterThan(5);
 
-      const keys = hints.map(h => h.key);
+      const keys = hints.map((h) => h.key);
       expect(keys).toContain('Tab');
       expect(keys).toContain('j/k');
       expect(keys).toContain('Enter');

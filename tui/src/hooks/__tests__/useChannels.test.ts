@@ -12,12 +12,7 @@
  */
 
 import { describe, test, expect } from 'bun:test';
-import type {
-  Channel,
-  ChannelMessage,
-  ChannelHistory,
-  ChannelsResponse,
-} from '../../types';
+import type { Channel, ChannelMessage, ChannelHistory, ChannelsResponse } from '../../types';
 
 // Test Channel interface structure
 describe('useChannels Types', () => {
@@ -147,8 +142,7 @@ describe('useChannels Helper Functions', () => {
     });
 
     test('finds channel by name', () => {
-      const findByName = (chans: Channel[], name: string) =>
-        chans.find((c) => c.name === name);
+      const findByName = (chans: Channel[], name: string) => chans.find((c) => c.name === name);
 
       const result = findByName(channels, 'engineering');
       expect(result?.name).toBe('engineering');
@@ -156,8 +150,7 @@ describe('useChannels Helper Functions', () => {
     });
 
     test('returns undefined for non-existent channel', () => {
-      const findByName = (chans: Channel[], name: string) =>
-        chans.find((c) => c.name === name);
+      const findByName = (chans: Channel[], name: string) => chans.find((c) => c.name === name);
 
       const result = findByName(channels, 'nonexistent');
       expect(result).toBeUndefined();
@@ -174,10 +167,7 @@ describe('useChannels Helper Functions', () => {
 
     test('finds channels with most members', () => {
       const findLargest = (chans: Channel[]) =>
-        chans.reduce(
-          (max, c) => (c.members.length > max.members.length ? c : max),
-          chans[0]
-        );
+        chans.reduce((max, c) => (c.members.length > max.members.length ? c : max), chans[0]);
 
       const largest = findLargest(channels);
       expect(largest.name).toBe('general');
@@ -222,9 +212,7 @@ describe('useChannels Helper Functions', () => {
 
     test('gets latest message', () => {
       const getLatest = (msgs: ChannelMessage[]) =>
-        msgs.reduce((latest, m) =>
-          new Date(m.time) > new Date(latest.time) ? m : latest
-        );
+        msgs.reduce((latest, m) => (new Date(m.time) > new Date(latest.time) ? m : latest));
 
       const latest = getLatest(messages);
       expect(latest.message).toBe('Fourth message');
@@ -233,8 +221,7 @@ describe('useChannels Helper Functions', () => {
 
   describe('Channel validation', () => {
     test('validates channel name format', () => {
-      const isValidChannelName = (name: string) =>
-        /^[a-zA-Z0-9_-]+$/.test(name) && name.length > 0;
+      const isValidChannelName = (name: string) => /^[a-zA-Z0-9_-]+$/.test(name) && name.length > 0;
 
       expect(isValidChannelName('engineering')).toBe(true);
       expect(isValidChannelName('team-alpha')).toBe(true);

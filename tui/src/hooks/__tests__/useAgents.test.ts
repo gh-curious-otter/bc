@@ -156,7 +156,7 @@ describe.skipIf(noDOM)('useAgents - State filtering and queries', () => {
       vi.runAllTimers();
     });
 
-    const working = result.current.data?.filter(a => a.state === 'working') ?? [];
+    const working = result.current.data?.filter((a) => a.state === 'working') ?? [];
     expect(working).toHaveLength(3);
     expect(working[0].name).toBe('eng-01');
   });
@@ -176,7 +176,7 @@ describe.skipIf(noDOM)('useAgents - State filtering and queries', () => {
       vi.runAllTimers();
     });
 
-    const engineers = result.current.data?.filter(a => a.role === 'engineer') ?? [];
+    const engineers = result.current.data?.filter((a) => a.role === 'engineer') ?? [];
     expect(engineers).toHaveLength(2);
   });
 
@@ -194,7 +194,7 @@ describe.skipIf(noDOM)('useAgents - State filtering and queries', () => {
       vi.runAllTimers();
     });
 
-    const found = result.current.data?.find(a => a.name === 'eng-01');
+    const found = result.current.data?.find((a) => a.name === 'eng-01');
     expect(found?.state).toBe('working');
   });
 });
@@ -367,7 +367,9 @@ describe.skipIf(noDOM)('useAgents - Error recovery', () => {
     mockBcService.getStatus.mockImplementation(
       () =>
         new Promise((_, reject) =>
-          setTimeout(() => { reject(new Error('Request timeout')); }, 35000)
+          setTimeout(() => {
+            reject(new Error('Request timeout'));
+          }, 35000)
         )
     );
 

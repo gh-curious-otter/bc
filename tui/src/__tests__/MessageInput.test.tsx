@@ -11,16 +11,12 @@ describe('MessageInput', () => {
     });
 
     it('renders with custom placeholder', () => {
-      const { lastFrame } = render(
-        <MessageInput placeholder="Say something..." />
-      );
+      const { lastFrame } = render(<MessageInput placeholder="Say something..." />);
       expect(lastFrame()).toBeDefined();
     });
 
     it('renders with channel name', () => {
-      const { lastFrame } = render(
-        <MessageInput channelName="engineering" />
-      );
+      const { lastFrame } = render(<MessageInput channelName="engineering" />);
       expect(lastFrame()).toBeDefined();
     });
   });
@@ -40,17 +36,13 @@ describe('MessageInput', () => {
   describe('callbacks', () => {
     it('accepts onSubmit callback', () => {
       const onSubmit = () => {};
-      const { lastFrame } = render(
-        <MessageInput onSubmit={onSubmit} />
-      );
+      const { lastFrame } = render(<MessageInput onSubmit={onSubmit} />);
       expect(lastFrame()).toBeDefined();
     });
 
     it('accepts onModeChange callback', () => {
       const onModeChange = () => {};
-      const { lastFrame } = render(
-        <MessageInput onModeChange={onModeChange} />
-      );
+      const { lastFrame } = render(<MessageInput onModeChange={onModeChange} />);
       expect(lastFrame()).toBeDefined();
     });
 
@@ -76,9 +68,7 @@ describe('MessageInput', () => {
       const onModeChange = (isInputMode: boolean) => {
         modeChanged = true;
       };
-      const { lastFrame } = render(
-        <MessageInput onModeChange={onModeChange} />
-      );
+      const { lastFrame } = render(<MessageInput onModeChange={onModeChange} />);
       expect(lastFrame()).toBeDefined();
     });
   });
@@ -89,9 +79,7 @@ describe('MessageInput', () => {
       const onSubmit = (message: string) => {
         submitted = message;
       };
-      const { lastFrame } = render(
-        <MessageInput onSubmit={onSubmit} />
-      );
+      const { lastFrame } = render(<MessageInput onSubmit={onSubmit} />);
       expect(lastFrame()).toBeDefined();
     });
 
@@ -110,9 +98,7 @@ describe('MessageInput', () => {
     });
 
     it('renders with autocomplete hook integration', () => {
-      const { lastFrame } = render(
-        <MessageInput channelName="test" />
-      );
+      const { lastFrame } = render(<MessageInput channelName="test" />);
       expect(lastFrame()).toBeDefined();
     });
   });
@@ -132,9 +118,7 @@ describe('MessageInput', () => {
     });
 
     it('renders with all options disabled', () => {
-      const { lastFrame } = render(
-        <MessageInput disabled={true} />
-      );
+      const { lastFrame } = render(<MessageInput disabled={true} />);
       expect(lastFrame()).toBeDefined();
     });
   });
@@ -142,23 +126,17 @@ describe('MessageInput', () => {
   describe('edge cases', () => {
     it('handles very long placeholder text', () => {
       const longPlaceholder = 'A'.repeat(100);
-      const { lastFrame } = render(
-        <MessageInput placeholder={longPlaceholder} />
-      );
+      const { lastFrame } = render(<MessageInput placeholder={longPlaceholder} />);
       expect(lastFrame()).toBeDefined();
     });
 
     it('handles special characters in placeholder', () => {
-      const { lastFrame } = render(
-        <MessageInput placeholder="Say @something or :command" />
-      );
+      const { lastFrame } = render(<MessageInput placeholder="Say @something or :command" />);
       expect(lastFrame()).toBeDefined();
     });
 
     it('handles channel name with special characters', () => {
-      const { lastFrame } = render(
-        <MessageInput channelName="eng-02-dev" />
-      );
+      const { lastFrame } = render(<MessageInput channelName="eng-02-dev" />);
       expect(lastFrame()).toBeDefined();
     });
 
@@ -167,9 +145,7 @@ describe('MessageInput', () => {
       const onModeChange = () => {
         callCount++;
       };
-      const { lastFrame } = render(
-        <MessageInput onModeChange={onModeChange} />
-      );
+      const { lastFrame } = render(<MessageInput onModeChange={onModeChange} />);
       expect(lastFrame()).toBeDefined();
     });
   });
