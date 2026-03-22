@@ -1915,8 +1915,8 @@ func TestDoctorHandler_RunAll(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	assertStatus(t, resp, http.StatusOK)
 	body := readJSON(t, resp)
-	if _, ok := body["Categories"]; !ok {
-		t.Fatal("expected Categories field in doctor response")
+	if _, ok := body["categories"]; !ok {
+		t.Fatal("expected categories field in doctor response")
 	}
 }
 
