@@ -18,7 +18,7 @@ import (
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manage workspace configuration",
-	Long: `Commands for managing workspace configuration (.bc/config.toml).
+	Long: `Commands for managing workspace configuration (.bc/settings.toml).
 
 Configuration uses a hierarchical key structure with dot notation:
   workspace.name
@@ -146,7 +146,7 @@ User configuration provides defaults that apply across all bc workspaces:
   - Default role for new agents
   - Preferred AI tools
 
-Workspace config (.bc/config.toml) takes precedence over user config.
+Workspace config (.bc/settings.toml) takes precedence over user config.
 
 Examples:
   bc config user init   # Create ~/.bcrc with guided prompts

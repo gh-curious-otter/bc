@@ -255,7 +255,7 @@ func printWizardSuccess(state *WizardState) {
 	fmt.Println("  " + ui.GreenText("✓") + " Workspace initialized!")
 	fmt.Println()
 	fmt.Println("  Created:")
-	fmt.Println("    .bc/config.toml     # Workspace configuration")
+	fmt.Println("    .bc/settings.toml     # Workspace configuration")
 	fmt.Println("    .bc/agents/         # Agent state directory")
 	fmt.Println("    .bc/roles/          # Role definitions")
 	fmt.Println("    .bc/roles/root.md   # Root agent role")

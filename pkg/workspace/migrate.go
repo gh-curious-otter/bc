@@ -28,7 +28,7 @@ type V1Config struct {
 type MigrateResult struct {
 	BackupPath     string // Path to backup of old .bc directory
 	AgentFiles     int    // Number of agent state files migrated
-	ConfigMigrated bool   // Whether config.json → config.toml migration ran
+	ConfigMigrated bool   // Whether config.json → settings.toml migration ran
 	ChannelJSON    bool   // Whether channels.json was migrated to SQLite
 }
 
@@ -61,7 +61,7 @@ func LoadV1Config(rootDir string) (*V1Config, error) {
 // Steps performed:
 //  1. Read .bc/config.json
 //  2. Write .bc/config.json.bak (backup)
-//  3. Convert and write .bc/config.toml (v2 format)
+//  3. Convert and write .bc/settings.toml (v2 format)
 //
 // Agent JSON→SQLite and channel JSON→SQLite migrations happen automatically
 // the next time those stores are opened (existing auto-migration in pkg/agent
@@ -147,11 +147,11 @@ func MigrateV1ToV2(rootDir string) (*MigrateResult, error) {
 		}
 	}
 
-	// ── 3. Write config.toml ─────────────────────────────────────────────────
+	// ── 3. Write settings.toml ─────────────────────────────────────────────────
 
-	tomlPath := filepath.Join(stateDir, "config.toml")
+	tomlPath := filepath.Join(stateDir, "settings.toml")
 	if err := v2cfg.Save(tomlPath); err != nil {
-		return nil, fmt.Errorf("write config.toml: %w", err)
+		return nil, fmt.Errorf("write settings.toml: %w", err)
 	}
 	result.ConfigMigrated = true
 

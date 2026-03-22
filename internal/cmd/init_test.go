@@ -44,12 +44,12 @@ func TestIsV2Workspace(t *testing.T) {
 	if err := os.MkdirAll(bcDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(bcDir, "config.toml"), []byte("[workspace]\nname = \"test\"\nversion = 2\n"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(bcDir, "settings.toml"), []byte("[workspace]\nname = \"test\"\nversion = 2\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 
 	if !isV2Workspace(tmpDir) {
-		t.Error("dir with .bc/config.toml should be v2 workspace")
+		t.Error("dir with .bc/settings.toml should be v2 workspace")
 	}
 }
 
@@ -71,8 +71,8 @@ func TestInitV2Workspace(t *testing.T) {
 		t.Errorf(".bc directory not created: %v", err)
 	}
 
-	// Verify config.toml exists and is valid
-	configPath := filepath.Join(bcDir, "config.toml")
+	// Verify settings.toml exists and is valid
+	configPath := filepath.Join(bcDir, "settings.toml")
 	cfg, err := workspace.LoadConfig(configPath)
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)

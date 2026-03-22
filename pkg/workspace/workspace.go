@@ -1,7 +1,7 @@
 // Package workspace provides workspace and project management for bc.
 //
 // A workspace represents a project directory containing bc configuration
-// and agent state in .bc/config.toml.
+// and agent state in .bc/settings.toml.
 //
 // # Basic Usage
 //
@@ -72,7 +72,7 @@ func Init(rootDir string) (*Workspace, error) {
 
 	cfg := DefaultConfig(filepath.Base(absRoot))
 
-	configPath := filepath.Join(stateDir, "config.toml")
+	configPath := filepath.Join(stateDir, "settings.toml")
 	if saveErr := cfg.Save(configPath); saveErr != nil {
 		return nil, fmt.Errorf("failed to save config: %w", saveErr)
 	}
@@ -91,7 +91,7 @@ func Init(rootDir string) (*Workspace, error) {
 }
 
 // Load loads a workspace from a directory.
-// If only a v1 config.json exists (no config.toml), Load returns an error
+// If only a v1 config.json exists (no settings.toml), Load returns an error
 // wrapping ErrNotV1Workspace so callers can suggest migration.
 func Load(rootDir string) (*Workspace, error) {
 	absRoot, err := filepath.Abs(rootDir)
@@ -101,21 +101,31 @@ func Load(rootDir string) (*Workspace, error) {
 
 	stateDir := filepath.Join(absRoot, ".bc")
 
-	tomlPath := filepath.Join(stateDir, "config.toml")
+	// Check for settings.toml first, fall back to config.toml for migration.
+	tomlPath := filepath.Join(stateDir, "settings.toml")
 	if _, statErr := os.Stat(tomlPath); statErr != nil {
-		// No config.toml — check for v1 workspace to give an actionable error.
-		if _, v1Err := os.Stat(filepath.Join(stateDir, "config.json")); v1Err == nil {
-			return nil, fmt.Errorf("%w: run 'bc workspace migrate' to upgrade", ErrNotV1Workspace)
+		// No settings.toml — check for config.toml and auto-migrate.
+		oldPath := filepath.Join(stateDir, "config.toml")
+		if _, oldErr := os.Stat(oldPath); oldErr == nil {
+			if renameErr := os.Rename(oldPath, tomlPath); renameErr != nil {
+				return nil, fmt.Errorf("failed to rename config.toml to settings.toml: %w", renameErr)
+			}
+			log.Info("migrated config.toml → settings.toml", "path", tomlPath)
+		} else {
+			// No settings.toml or config.toml — check for v1 workspace.
+			if _, v1Err := os.Stat(filepath.Join(stateDir, "config.json")); v1Err == nil {
+				return nil, fmt.Errorf("%w: run 'bc workspace migrate' to upgrade", ErrNotV1Workspace)
+			}
+			return nil, fmt.Errorf("not a bc workspace (no .bc/settings.toml found in %s)", absRoot)
 		}
-		return nil, fmt.Errorf("not a bc workspace (no .bc/config.toml found in %s)", absRoot)
 	}
 
 	cfg, loadErr := LoadConfig(tomlPath)
 	if loadErr != nil {
-		return nil, fmt.Errorf("failed to load config.toml: %w", loadErr)
+		return nil, fmt.Errorf("failed to load settings.toml: %w", loadErr)
 	}
 
-	// Backward-compatible version handling: if a config.toml has version < 2
+	// Backward-compatible version handling: if a settings.toml has version < 2
 	// (written by an older bc release), bump and rewrite it automatically.
 	if cfg.Workspace.Version > 0 && cfg.Workspace.Version < ConfigVersion {
 		cfg.Workspace.Version = ConfigVersion
@@ -123,7 +133,7 @@ func Load(rootDir string) (*Workspace, error) {
 	}
 
 	if valErr := cfg.Validate(); valErr != nil {
-		return nil, fmt.Errorf("invalid config.toml: %w", valErr)
+		return nil, fmt.Errorf("invalid settings.toml: %w", valErr)
 	}
 
 	rm, closeStore, err := loadRoleManager(stateDir)
@@ -163,7 +173,7 @@ func Find(dir string) (*Workspace, error) {
 
 // Save saves the workspace configuration.
 func (w *Workspace) Save() error {
-	configPath := filepath.Join(w.StateDir(), "config.toml")
+	configPath := filepath.Join(w.StateDir(), "settings.toml")
 	return w.Config.Save(configPath)
 }
 

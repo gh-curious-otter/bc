@@ -36,10 +36,10 @@ func TestInit(t *testing.T) {
 		t.Errorf(".bc directory not created: %v", statErr)
 	}
 
-	// config.toml was written
-	configPath := filepath.Join(stateDir, "config.toml")
+	// settings.toml was written
+	configPath := filepath.Join(stateDir, "settings.toml")
 	if _, statErr := os.Stat(configPath); statErr != nil {
-		t.Fatalf("config.toml not written: %v", statErr)
+		t.Fatalf("settings.toml not written: %v", statErr)
 	}
 }
 
@@ -92,7 +92,7 @@ func TestLoadInvalidTOML(t *testing.T) {
 	if err := os.MkdirAll(bcDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(bcDir, "config.toml"), []byte("{{bad"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(bcDir, "settings.toml"), []byte("{{bad"), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -111,7 +111,7 @@ func TestLoadUpdatesPathsIfMoved(t *testing.T) {
 
 	moved := t.TempDir()
 	// Copy .bc directory
-	srcCfg := filepath.Join(orig, ".bc", "config.toml")
+	srcCfg := filepath.Join(orig, ".bc", "settings.toml")
 	dstDir := filepath.Join(moved, ".bc")
 	if err := os.MkdirAll(dstDir, 0750); err != nil {
 		t.Fatal(err)
@@ -120,7 +120,7 @@ func TestLoadUpdatesPathsIfMoved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if writeErr := os.WriteFile(filepath.Join(dstDir, "config.toml"), data, 0600); writeErr != nil {
+	if writeErr := os.WriteFile(filepath.Join(dstDir, "settings.toml"), data, 0600); writeErr != nil {
 		t.Fatal(writeErr)
 	}
 	// Also create roles dir (needed for TOML workspace loading)
@@ -790,10 +790,10 @@ func TestInitV2Format(t *testing.T) {
 		t.Errorf("Config.Workspace.Name = %q, want %q", ws.Config.Workspace.Name, filepath.Base(dir))
 	}
 
-	// Check config.toml was created
-	tomlPath := filepath.Join(dir, ".bc", "config.toml")
+	// Check settings.toml was created
+	tomlPath := filepath.Join(dir, ".bc", "settings.toml")
 	if _, err := os.Stat(tomlPath); err != nil {
-		t.Errorf("config.toml not created: %v", err)
+		t.Errorf("settings.toml not created: %v", err)
 	}
 
 	// Check roles directory and default root.md
@@ -854,9 +854,9 @@ func TestLoadPrefersTOMLOverJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create both config.json (v1) and config.toml (v2)
+	// Create both config.json (v1) and settings.toml (v2)
 	tomlCfg := DefaultConfig("v2-name")
-	if err := tomlCfg.Save(filepath.Join(stateDir, "config.toml")); err != nil {
+	if err := tomlCfg.Save(filepath.Join(stateDir, "settings.toml")); err != nil {
 		t.Fatal(err)
 	}
 

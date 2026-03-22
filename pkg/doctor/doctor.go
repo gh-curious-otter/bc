@@ -171,11 +171,11 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 		Severity: SeverityOK,
 	})
 
-	// config.toml
-	configPath := filepath.Join(stateDir, "config.toml")
+	// settings.toml
+	configPath := filepath.Join(stateDir, "settings.toml")
 	if _, err := os.Stat(configPath); err != nil {
 		cat.Items = append(cat.Items, Item{
-			Name:     "config.toml",
+			Name:     "settings.toml",
 			Message:  "missing",
 			Severity: SeverityFail,
 			Fix:      "run 'bc init' to initialize the workspace",
@@ -184,21 +184,21 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 		if ws.Config != nil {
 			if err := ws.Config.Validate(); err != nil {
 				cat.Items = append(cat.Items, Item{
-					Name:     "config.toml",
+					Name:     "settings.toml",
 					Message:  fmt.Sprintf("invalid: %v", err),
 					Severity: SeverityFail,
-					Fix:      "edit .bc/config.toml to correct the error",
+					Fix:      "edit .bc/settings.toml to correct the error",
 				})
 			} else {
 				cat.Items = append(cat.Items, Item{
-					Name:     "config.toml",
+					Name:     "settings.toml",
 					Message:  fmt.Sprintf("valid (workspace: %s)", ws.Config.Workspace.Name),
 					Severity: SeverityOK,
 				})
 			}
 		} else {
 			cat.Items = append(cat.Items, Item{
-				Name:     "config.toml",
+				Name:     "settings.toml",
 				Message:  "present",
 				Severity: SeverityOK,
 			})
