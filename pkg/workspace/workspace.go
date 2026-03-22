@@ -66,24 +66,22 @@ func Init(rootDir string) (*Workspace, error) {
 		}
 	}
 
-	if err := copyDefaultPrompts(absRoot, stateDir); err != nil {
-		log.Warn("failed to copy default prompts", "error", err)
+	if cpErr := copyDefaultPrompts(absRoot, stateDir); cpErr != nil {
+		log.Warn("failed to copy default prompts", "error", cpErr)
 	}
 
 	cfg := DefaultConfig(filepath.Base(absRoot))
 
 	configPath := filepath.Join(stateDir, "config.toml")
-	if err := cfg.Save(configPath); err != nil {
-		return nil, fmt.Errorf("failed to save config: %w", err)
+	if saveErr := cfg.Save(configPath); saveErr != nil {
+		return nil, fmt.Errorf("failed to save config: %w", saveErr)
 	}
 
-	rm := NewRoleManager(stateDir)
-	if _, err := rm.EnsureDefaultRoot(); err != nil {
-		return nil, fmt.Errorf("failed to create default role: %w", err)
+	rm, closeStore, err := initRoleManager(stateDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init role manager: %w", err)
 	}
-	if _, err := rm.EnsureDefaultRoles(); err != nil {
-		log.Warn("failed to create default roles", "error", err)
-	}
+	_ = closeStore // store stays open for workspace lifetime
 
 	return &Workspace{
 		RootDir:     absRoot,
@@ -104,7 +102,7 @@ func Load(rootDir string) (*Workspace, error) {
 	stateDir := filepath.Join(absRoot, ".bc")
 
 	tomlPath := filepath.Join(stateDir, "config.toml")
-	if _, err := os.Stat(tomlPath); err != nil {
+	if _, statErr := os.Stat(tomlPath); statErr != nil {
 		// No config.toml — check for v1 workspace to give an actionable error.
 		if _, v1Err := os.Stat(filepath.Join(stateDir, "config.json")); v1Err == nil {
 			return nil, fmt.Errorf("%w: run 'bc workspace migrate' to upgrade", ErrNotV1Workspace)
@@ -124,14 +122,15 @@ func Load(rootDir string) (*Workspace, error) {
 		_ = cfg.Save(tomlPath) // best-effort; don't block Load on write error
 	}
 
-	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid config.toml: %w", err)
+	if valErr := cfg.Validate(); valErr != nil {
+		return nil, fmt.Errorf("invalid config.toml: %w", valErr)
 	}
 
-	rm := NewRoleManager(stateDir)
-	if _, err := rm.LoadAllRoles(); err != nil {
+	rm, closeStore, err := loadRoleManager(stateDir)
+	if err != nil {
 		return nil, fmt.Errorf("failed to load roles: %w", err)
 	}
+	_ = closeStore // store stays open for workspace lifetime
 
 	return &Workspace{
 		RootDir:     absRoot,
@@ -242,6 +241,79 @@ func (w *Workspace) GetRolePrompt(name string) string {
 		return ""
 	}
 	return role.Prompt
+}
+
+// initRoleManager creates a role manager with SQLite store for workspace Init.
+// It creates the store, migrates defaults, and ensures filesystem defaults for
+// backward compatibility. Returns the manager plus a close function for the store.
+func initRoleManager(stateDir string) (*RoleManager, func() error, error) {
+	dbPath := filepath.Join(stateDir, "bc.db")
+	store, err := NewRoleStore(dbPath)
+	if err != nil {
+		// Fall back to filesystem-only if SQLite fails
+		log.Warn("failed to open role store, using filesystem", "error", err)
+		rm := NewRoleManager(stateDir)
+		if _, ensureErr := rm.EnsureDefaultRoot(); ensureErr != nil {
+			return nil, nil, ensureErr
+		}
+		if _, ensureErr := rm.EnsureDefaultRoles(); ensureErr != nil {
+			log.Warn("failed to create default roles", "error", ensureErr)
+		}
+		return rm, func() error { return nil }, nil
+	}
+
+	// Migrate defaults into SQLite
+	if migrateErr := store.MigrateDefaults(); migrateErr != nil {
+		log.Warn("failed to migrate default roles to store", "error", migrateErr)
+	}
+
+	// Also migrate any existing files
+	rolesDir := filepath.Join(stateDir, "roles")
+	if _, migrateErr := store.MigrateFromFiles(rolesDir); migrateErr != nil {
+		log.Warn("failed to migrate role files to store", "error", migrateErr)
+	}
+
+	rm := NewRoleManagerWithStore(stateDir, store)
+
+	// Still ensure filesystem defaults for backward compatibility
+	if _, ensureErr := rm.EnsureDefaultRoot(); ensureErr != nil {
+		log.Warn("failed to create default root role file", "error", ensureErr)
+	}
+	if _, ensureErr := rm.EnsureDefaultRoles(); ensureErr != nil {
+		log.Warn("failed to create default role files", "error", ensureErr)
+	}
+
+	return rm, store.Close, nil
+}
+
+// loadRoleManager creates a role manager with SQLite store for workspace Load.
+// It opens the store, migrates any new files, and loads all roles into the cache.
+func loadRoleManager(stateDir string) (*RoleManager, func() error, error) {
+	dbPath := filepath.Join(stateDir, "bc.db")
+	store, err := NewRoleStore(dbPath)
+	if err != nil {
+		// Fall back to filesystem-only if SQLite fails
+		log.Warn("failed to open role store, using filesystem", "error", err)
+		rm := NewRoleManager(stateDir)
+		if _, loadErr := rm.LoadAllRoles(); loadErr != nil {
+			return nil, nil, loadErr
+		}
+		return rm, func() error { return nil }, nil
+	}
+
+	// Migrate any filesystem roles that aren't in SQLite yet
+	rolesDir := filepath.Join(stateDir, "roles")
+	if _, migrateErr := store.MigrateFromFiles(rolesDir); migrateErr != nil {
+		log.Warn("failed to migrate role files to store", "error", migrateErr)
+	}
+
+	rm := NewRoleManagerWithStore(stateDir, store)
+	if _, loadErr := rm.LoadAllRoles(); loadErr != nil {
+		_ = store.Close()
+		return nil, nil, loadErr
+	}
+
+	return rm, store.Close, nil
 }
 
 // DefaultProvider returns the default provider name for this workspace.
