@@ -24,9 +24,12 @@ type Config struct {
 	TUI         TUIConfig         `toml:"tui"`
 	User        UserConfig        `toml:"user"`
 	Workspace   WorkspaceConfig   `toml:"workspace"`
+	Server      ServerConfig      `toml:"server"`
 	Roster      RosterConfig      `toml:"roster"`
 	Logs        LogsConfig        `toml:"logs"`
+	Storage     StorageConfig     `toml:"storage"`
 	Runtime     RuntimeConfig     `toml:"runtime"`
+	Scheduler   SchedulerConfig   `toml:"scheduler"`
 	Performance PerformanceConfig `toml:"performance"`
 }
 
@@ -62,6 +65,23 @@ type DockerRuntimeConfig struct {
 type LogsConfig struct {
 	Path     string `toml:"path"`
 	MaxBytes int64  `toml:"max_bytes"`
+}
+
+// ServerConfig configures the bcd HTTP server.
+type ServerConfig struct {
+	Addr       string `toml:"addr"`
+	CORSOrigin string `toml:"cors_origin"`
+}
+
+// SchedulerConfig configures the cron/job scheduler.
+type SchedulerConfig struct {
+	TickInterval int `toml:"tick_interval"` // seconds between scheduler ticks
+	JobTimeout   int `toml:"job_timeout"`   // seconds before a job is considered timed out
+}
+
+// StorageConfig configures persistent storage paths.
+type StorageConfig struct {
+	SQLitePath string `toml:"sqlite_path"`
 }
 
 // UserConfig holds user identity settings.
@@ -193,6 +213,17 @@ func DefaultConfig(name string) Config {
 			},
 		},
 		Env: map[string]string{},
+		Server: ServerConfig{
+			Addr:       "127.0.0.1:9374",
+			CORSOrigin: "*",
+		},
+		Scheduler: SchedulerConfig{
+			TickInterval: 60,
+			JobTimeout:   300,
+		},
+		Storage: StorageConfig{
+			SQLitePath: ".bc/bc.db",
+		},
 		Logs: LogsConfig{
 			Path:     ".bc/logs",
 			MaxBytes: 1048576, // 1MB

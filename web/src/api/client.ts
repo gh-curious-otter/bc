@@ -289,6 +289,9 @@ export interface SettingsConfig {
   Roster: {
     Agents: { Name: string; Role: string; Tool: string; Runtime: string }[];
   };
+  Server: { Addr: string; CORSOrigin: string };
+  Scheduler: { TickInterval: number; JobTimeout: number };
+  Storage: { SQLitePath: string };
 }
 
 export interface Daemon {
