@@ -262,6 +262,11 @@ func runDaemonStart(cmd *cobra.Command, _ []string) error {
 			return cronStore.Close()
 		})
 	}
+	if chStore != nil {
+		shutdown.OnShutdownNamed(shutdown.PriorityLow, "bcd-channel-db", func(_ context.Context) error {
+			return chStore.Close()
+		})
+	}
 
 	fmt.Printf("bcd listening on %s (workspace: %s)\n", cfg.Addr, ws.RootDir)
 	fmt.Println("Press Ctrl+C to stop")
