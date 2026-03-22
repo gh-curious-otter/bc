@@ -36,9 +36,11 @@ body:
       label: Estimated Size
       description: How large is this change?
       options:
+        - "Quick (< 100 LOC, trivial change, no subagents)"
         - "Small (< 1000 LOC, single PR)"
         - "Medium (2-5 PRs)"
         - "Large (needs design doc first)"
+        - "XLarge (needs scoping, skip implementation)"
     validations:
       required: true
 
@@ -78,7 +80,10 @@ body:
 
         ### Workflow by Size
 
-        **SMALL** — single PR, < 1000 LOC
+        **QUICK** — < 100 LOC, trivial change
+        - Branch, implement, `make check`, PR, merge. No subagents needed.
+
+        **SMALL** — < 1000 LOC, single PR
         - Branch: `feat/<issue-number>-<short-desc>`
         - Implement with tests
         - `make check` must pass
@@ -93,6 +98,9 @@ body:
         - Write design doc as GitHub comment first
         - Get approval before implementing
         - Then follow MEDIUM workflow
+
+        **XLARGE** — needs scoping
+        - Do NOT implement. Add concrete sub-issues with acceptance criteria first.
 
         ### Key Commands
 
