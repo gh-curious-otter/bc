@@ -422,15 +422,20 @@ func TestCreateSessionWithEnv_InvalidEnvVar(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			// Create .git so workspace validation passes
+			if err := os.MkdirAll(filepath.Join(dir, ".git"), 0750); err != nil {
+				t.Fatal(err)
+			}
 			b := &Backend{
 				prefix:        "bc-",
 				workspaceHash: "aabbcc",
-				workspacePath: t.TempDir(),
+				workspacePath: dir,
 				cfg:           Config{Image: "test:latest", Network: "none"},
 				logCancels:    make(map[string]context.CancelFunc),
 			}
 
-			err := b.CreateSessionWithEnv(context.Background(), "test-agent", "", "bash", tt.env)
+			err := b.CreateSessionWithEnv(context.Background(), "test-agent", dir, "bash", tt.env)
 			if tt.wantErr {
 				if err == nil {
 					t.Error("expected error for invalid env var name, got nil")
