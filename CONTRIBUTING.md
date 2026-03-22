@@ -34,7 +34,7 @@ cp bin/bc $(go env GOPATH)/bin/
 
 ## Build Commands
 
-Naming convention: `make <verb>-<lang|component>[-<runtime>]` where `lang` = `go` | `ts` (language aggregates), `component` = `bc` | `bcd` | `tui` | `web` | `landing`, `runtime` = `-local` (host) | `-docker` (container).
+Naming convention: `make <verb>-<component>[-<runtime>]` where `component` = `bc` | `bcd` | `tui` | `web` | `landing`, `runtime` = `-local` (host) | `-docker` (container). `go` and `ts` are language aggregates for CI/CD convenience.
 
 ### Build (local)
 

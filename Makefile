@@ -5,10 +5,10 @@
 #   go   → bc (CLI binary), bcd (server daemon with embedded web UI)
 #   ts   → tui (React/Ink terminal UI), web (React dashboard), landing (Next.js site)
 #
-# Naming convention: <verb>-<lang|component>[-<runtime>]
-#   lang      = go, ts (language aggregates)
-#   component = bc, bcd, tui, web, landing (specific)
+# Naming convention: <verb>-<component>[-<runtime>]
+#   component = bc, bcd, tui, web, landing
 #   runtime   = -local (host machine), -docker (Docker image/container)
+#   go, ts    = language aggregates for CI/CD convenience
 #
 # Usage:
 #   make help                          Show all targets
@@ -85,10 +85,10 @@ DEPLOY_ADDR = $(ADDR_$(ENV))
 help: ## Show all targets
 	@echo "bc — Agent Orchestration System ($(VERSION))"
 	@echo ""
-	@echo "Naming: make <verb>-<lang|component>[-<runtime>]"
-	@echo "  lang      = go | ts (language aggregates)"
+	@echo "Naming: make <verb>-<component>[-<runtime>]"
 	@echo "  component = bc | bcd | tui | web | landing"
 	@echo "  runtime   = -local (host) | -docker (container)"
+	@echo "  go | ts   = language aggregates for CI/CD"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-34s\033[0m %s\n", $$1, $$2}'
 	@echo ""
