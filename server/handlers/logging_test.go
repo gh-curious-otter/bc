@@ -17,8 +17,7 @@ func TestStatusRecorder(t *testing.T) {
 	})
 
 	t.Run("defaults to 200", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		rec := &statusRecorder{ResponseWriter: w, status: 200}
+		rec := &statusRecorder{status: 200}
 		if rec.status != 200 {
 			t.Errorf("expected default 200, got %d", rec.status)
 		}

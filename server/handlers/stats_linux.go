@@ -2,10 +2,13 @@
 
 package handlers
 
-import "syscall"
+import (
+	"context"
+	"syscall"
+)
 
 // getSystemMetrics returns system resource metrics using Linux-specific syscalls.
-func getSystemMetrics(rootDir string) systemMetrics {
+func getSystemMetrics(_ context.Context, rootDir string) systemMetrics {
 	var m systemMetrics
 
 	// System memory via Sysinfo

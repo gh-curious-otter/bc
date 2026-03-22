@@ -4,6 +4,7 @@ package handlers
 
 import (
 	"bufio"
+	"context"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -11,17 +12,17 @@ import (
 
 // getSystemMetrics returns system resource metrics using macOS CLI tools.
 // Falls back to zero values if any command fails.
-func getSystemMetrics(rootDir string) systemMetrics {
+func getSystemMetrics(ctx context.Context, rootDir string) systemMetrics {
 	var m systemMetrics
 
-	m.MemoryTotalBytes, m.MemoryUsedBytes = macMemory()
+	m.MemoryTotalBytes, m.MemoryUsedBytes = macMemory(ctx)
 	if m.MemoryTotalBytes > 0 {
 		m.MemoryPercent = roundTo(float64(m.MemoryUsedBytes)/float64(m.MemoryTotalBytes)*100, 1)
 	}
 
-	m.CPUUsagePercent = macCPU()
+	m.CPUUsagePercent = macCPU(ctx)
 
-	m.DiskTotalBytes, m.DiskUsedBytes = diskUsage(rootDir)
+	m.DiskTotalBytes, m.DiskUsedBytes = diskUsage(ctx, rootDir)
 	if m.DiskTotalBytes > 0 {
 		m.DiskPercent = roundTo(float64(m.DiskUsedBytes)/float64(m.DiskTotalBytes)*100, 1)
 	}
@@ -30,9 +31,9 @@ func getSystemMetrics(rootDir string) systemMetrics {
 }
 
 // macMemory returns total and used physical RAM on macOS via sysctl and vm_stat.
-func macMemory() (total, used uint64) {
+func macMemory(ctx context.Context) (total, used uint64) {
 	// Total RAM from sysctl
-	out, err := exec.Command("sysctl", "-n", "hw.memsize").Output() //nolint:gosec // trusted fixed command
+	out, err := exec.CommandContext(ctx, "sysctl", "-n", "hw.memsize").Output() //nolint:gosec // trusted fixed command
 	if err != nil {
 		return 0, 0
 	}
@@ -42,7 +43,7 @@ func macMemory() (total, used uint64) {
 	}
 
 	// Page size from sysctl
-	out, err = exec.Command("sysctl", "-n", "hw.pagesize").Output() //nolint:gosec // trusted fixed command
+	out, err = exec.CommandContext(ctx, "sysctl", "-n", "hw.pagesize").Output() //nolint:gosec // trusted fixed command
 	if err != nil {
 		return total, 0
 	}
@@ -52,7 +53,7 @@ func macMemory() (total, used uint64) {
 	}
 
 	// Parse vm_stat for active + wired pages
-	out, err = exec.Command("vm_stat").Output() //nolint:gosec // trusted fixed command
+	out, err = exec.CommandContext(ctx, "vm_stat").Output() //nolint:gosec // trusted fixed command
 	if err != nil {
 		return total, 0
 	}
@@ -88,8 +89,8 @@ func parseVMStatLine(line, prefix string) (uint64, bool) {
 }
 
 // macCPU returns current CPU usage percentage on macOS via top.
-func macCPU() float64 {
-	out, err := exec.Command("top", "-l", "1", "-n", "0", "-s", "0").Output() //nolint:gosec // trusted fixed command
+func macCPU(ctx context.Context) float64 {
+	out, err := exec.CommandContext(ctx, "top", "-l", "1", "-n", "0", "-s", "0").Output() //nolint:gosec // trusted fixed command
 	if err != nil {
 		return 0
 	}
@@ -132,8 +133,8 @@ func parsePercentField(s string) float64 {
 }
 
 // diskUsage returns total and used disk bytes for the filesystem containing path, via df.
-func diskUsage(path string) (total, used uint64) {
-	out, err := exec.Command("df", "-k", path).Output() //nolint:gosec // path is workspace root dir
+func diskUsage(ctx context.Context, path string) (total, used uint64) {
+	out, err := exec.CommandContext(ctx, "df", "-k", path).Output() //nolint:gosec // path is workspace root dir
 	if err != nil {
 		return 0, 0
 	}

@@ -273,20 +273,28 @@ check-ts: lint-ts test-ts ## TS quality gate (lint + test)
 
 ci-local: ## Run full CI pipeline locally
 	@echo "=== CI Local Pipeline ==="
-	@echo "--- Step 1: gen-go ---"
+	@echo ""
+	@echo "--- Go: gen ---"
 	@$(MAKE) gen-go
-	@echo "--- Step 2: fmt-go ---"
+	@echo "--- Go: fmt ---"
 	@$(MAKE) fmt-go
-	@echo "--- Step 3: vet-go ---"
+	@echo "--- Go: vet ---"
 	@$(MAKE) vet-go
-	@echo "--- Step 4: lint-go ---"
+	@echo "--- Go: lint ---"
 	@$(MAKE) lint-go
-	@echo "--- Step 5: test-go ---"
+	@echo "--- Go: test ---"
 	@$(MAKE) test-go
-	@echo "--- Step 6: release-bc-local ---"
+	@echo "--- Go: release ---"
 	@$(MAKE) release-bc-local
-	@echo "--- Step 7: Verify ---"
+	@echo "--- Go: verify ---"
 	@$(BUILD_DIR)/bc version
+	@echo ""
+	@echo "--- TS: lint ---"
+	@$(MAKE) lint-ts
+	@echo "--- TS: test ---"
+	@$(MAKE) test-ts
+	@echo "--- TS: build ---"
+	@$(MAKE) build-ts-local
 	@echo ""
 	@echo "=== CI Local: ALL PASS ==="
 

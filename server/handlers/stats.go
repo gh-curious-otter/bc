@@ -72,7 +72,7 @@ func (h *StatsHandler) system(w http.ResponseWriter, r *http.Request) {
 		rootDir = h.ws.RootDir
 	}
 
-	metrics := getSystemMetrics(rootDir)
+	metrics := getSystemMetrics(r.Context(), rootDir)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"hostname":             hostname,
