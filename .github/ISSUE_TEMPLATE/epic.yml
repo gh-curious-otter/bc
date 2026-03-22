@@ -57,24 +57,26 @@ body:
         <details>
         <summary>Agent Workflow (click to expand)</summary>
 
-        ### Epics always start with design
+        ### Epics use recursive decomposition (XLARGE → LARGE → MEDIUM → SMALL)
 
-        **Phase 1: Design**
-        - Research the problem (search codebase, read docs)
-        - Write a design doc as a GitHub comment:
-          - Architecture and approach
-          - Alternatives considered
-          - Component breakdown
-          - Sub-issues in priority order
-        - Get approval before implementing
+        **Phase 1: Research**
+        - Use 5 subagents to thoroughly review codebase, related PRs, issues
+        - Use 5 subagents to research the internet for related information
+        - Synthesize findings
 
-        **Phase 2: Break Down (recursive decomposition)**
+        **Phase 2: Design**
+        - Write crisp, detailed design doc as GitHub comment
+        - Get approval (STUCK until approved)
+
+        **Phase 3: Break Down (recursive)**
         - Break into sub-issues, tag each with size (quick/small/medium/large)
-        - Each sub-issue follows the workflow for its size
-        - LARGE sub-issues get their own design doc → MEDIUM → SMALL
-        - Target: every leaf task is SMALL (single PR)
+        - Each sub-issue follows the workflow for its size:
+          - LARGE → design doc → MEDIUM → SMALL
+          - MEDIUM → break into SMALL todos → assign to subagents
+          - SMALL → implement → ci-local → PR → review → merge
+        - Target: every leaf task is SMALL (single PR, < 200 LOC ideal)
 
-        **Phase 3: Execute**
+        **Phase 4: Execute**
         - Assign sub-issues to subagents (each follows SMALL workflow)
         - `make ci-local` as background task per PR
         - Open PR → `/code-review` → wait for ci-local: pass → merge, fail → repeat
