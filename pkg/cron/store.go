@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/rpuneet/bc/pkg/db"
@@ -71,7 +72,12 @@ CREATE INDEX IF NOT EXISTS idx_cron_logs_job ON cron_logs(job_name, run_at DESC)
 }
 
 // AddJob inserts a new cron job. Returns an error if the name already exists.
+// Note: commands that kill the bcd process will terminate the cron scheduler itself.
+// Use an external supervisor (systemd, launchd) for bcd restarts.
 func (s *Store) AddJob(ctx context.Context, job *Job) error {
+	if strings.Contains(job.Command, "kill") && (strings.Contains(job.Command, "9374") || strings.Contains(job.Command, "bcd")) {
+		log.Warn("cron job command may kill bcd (the cron host) — use an external supervisor for restarts", "job", job.Name)
+	}
 	nextRun, err := NextRun(job.Schedule, time.Now())
 	if err != nil {
 		return fmt.Errorf("compute next_run: %w", err)
