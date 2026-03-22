@@ -37,7 +37,7 @@
 .PHONY: build-ts-local test-ts lint-ts fmt-ts vet-ts coverage-ts bench-ts deps-ts check-ts scan-ts gen-ts
 # TS components
 .PHONY: build-tui-local build-web-local build-landing-local
-.PHONY: test-tui test-web test-landing
+.PHONY: test-tui test-web test-web-e2e test-landing
 .PHONY: lint-tui lint-web lint-landing
 .PHONY: fmt-tui fmt-web fmt-landing
 .PHONY: vet-tui vet-web vet-landing
@@ -232,6 +232,9 @@ test-tui: ## Run TUI tests
 
 test-web: ## Run web UI tests (vitest)
 	cd web && bun install && bun run test
+
+test-web-e2e: ## Run web UI e2e tests (Playwright, requires running bcd)
+	cd web && bunx playwright test --config=e2e/playwright.config.ts
 
 test-landing: ## Run landing page tests (Playwright)
 	cd landing && bun run test
