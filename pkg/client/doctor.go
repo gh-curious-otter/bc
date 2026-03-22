@@ -26,6 +26,7 @@ type DoctorItem struct {
 	Name     string `json:"name"`
 	Severity string `json:"severity"`
 	Message  string `json:"message"`
+	Fix      string `json:"fix,omitempty"`
 }
 
 // RunAll runs all doctor checks and returns the full report.

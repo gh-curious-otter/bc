@@ -36,3 +36,27 @@ func (t *ToolsClient) Get(ctx context.Context, name string) (*ToolInfo, error) {
 	}
 	return &tool, nil
 }
+
+// Update updates an existing tool's configuration.
+func (t *ToolsClient) Update(ctx context.Context, tool *ToolInfo) (*ToolInfo, error) {
+	var updated ToolInfo
+	if err := t.client.put(ctx, "/api/tools/"+tool.Name, tool, &updated); err != nil {
+		return nil, err
+	}
+	return &updated, nil
+}
+
+// Delete removes a tool by name.
+func (t *ToolsClient) Delete(ctx context.Context, name string) error {
+	return t.client.delete(ctx, "/api/tools/"+name)
+}
+
+// Enable enables a tool by name.
+func (t *ToolsClient) Enable(ctx context.Context, name string) error {
+	return t.client.post(ctx, "/api/tools/"+name+"/enable", nil, nil)
+}
+
+// Disable disables a tool by name.
+func (t *ToolsClient) Disable(ctx context.Context, name string) error {
+	return t.client.post(ctx, "/api/tools/"+name+"/disable", nil, nil)
+}
