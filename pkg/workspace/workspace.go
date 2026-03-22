@@ -66,15 +66,15 @@ func Init(rootDir string) (*Workspace, error) {
 		}
 	}
 
-	if err := copyDefaultPrompts(absRoot, stateDir); err != nil {
-		log.Warn("failed to copy default prompts", "error", err)
+	if cpErr := copyDefaultPrompts(absRoot, stateDir); cpErr != nil {
+		log.Warn("failed to copy default prompts", "error", cpErr)
 	}
 
 	cfg := DefaultConfig(filepath.Base(absRoot))
 
 	configPath := filepath.Join(stateDir, "config.toml")
-	if err := cfg.Save(configPath); err != nil {
-		return nil, fmt.Errorf("failed to save config: %w", err)
+	if saveErr := cfg.Save(configPath); saveErr != nil {
+		return nil, fmt.Errorf("failed to save config: %w", saveErr)
 	}
 
 	rm, closeStore, err := initRoleManager(stateDir)
@@ -102,7 +102,7 @@ func Load(rootDir string) (*Workspace, error) {
 	stateDir := filepath.Join(absRoot, ".bc")
 
 	tomlPath := filepath.Join(stateDir, "config.toml")
-	if _, err := os.Stat(tomlPath); err != nil {
+	if _, statErr := os.Stat(tomlPath); statErr != nil {
 		// No config.toml — check for v1 workspace to give an actionable error.
 		if _, v1Err := os.Stat(filepath.Join(stateDir, "config.json")); v1Err == nil {
 			return nil, fmt.Errorf("%w: run 'bc workspace migrate' to upgrade", ErrNotV1Workspace)
@@ -122,8 +122,8 @@ func Load(rootDir string) (*Workspace, error) {
 		_ = cfg.Save(tomlPath) // best-effort; don't block Load on write error
 	}
 
-	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid config.toml: %w", err)
+	if valErr := cfg.Validate(); valErr != nil {
+		return nil, fmt.Errorf("invalid config.toml: %w", valErr)
 	}
 
 	rm, closeStore, err := loadRoleManager(stateDir)
