@@ -73,7 +73,7 @@ func (h *RolesHandler) list(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		roles, err := h.ws.RoleManager.LoadAllRoles()
 		if err != nil {
-			httpError(w, "list roles: "+err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "list roles", err)
 			return
 		}
 
@@ -102,13 +102,13 @@ func (h *RolesHandler) list(w http.ResponseWriter, r *http.Request) {
 
 		role := req.toRole()
 		if err := h.ws.RoleManager.WriteRole(role); err != nil {
-			httpError(w, "create role: "+err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "create role", err)
 			return
 		}
 
 		resolved, err := h.ws.RoleManager.ResolveRole(req.Name)
 		if err != nil {
-			httpError(w, "resolve role: "+err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "resolve role", err)
 			return
 		}
 		writeJSON(w, http.StatusCreated, resolved)
@@ -146,13 +146,13 @@ func (h *RolesHandler) byName(w http.ResponseWriter, r *http.Request) {
 
 		role := req.toRole()
 		if err := h.ws.RoleManager.WriteRole(role); err != nil {
-			httpError(w, "update role: "+err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "update role", err)
 			return
 		}
 
 		resolved, err := h.ws.RoleManager.ResolveRole(name)
 		if err != nil {
-			httpError(w, "resolve role: "+err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "resolve role", err)
 			return
 		}
 		writeJSON(w, http.StatusOK, resolved)

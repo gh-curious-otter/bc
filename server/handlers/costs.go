@@ -33,7 +33,7 @@ func (h *CostHandler) summary(w http.ResponseWriter, r *http.Request) {
 	}
 	s, err := h.store.WorkspaceSummary(r.Context())
 	if err != nil {
-		httpError(w, "workspace summary: "+err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "workspace summary", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, s)
@@ -50,7 +50,7 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 		}
 		summaries, err := h.store.SummaryByAgent(r.Context())
 		if err != nil {
-			httpError(w, err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "operation failed", err)
 			return
 		}
 		limit, offset := parsePagination(r, 50)
@@ -70,7 +70,7 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 		}
 		summaries, err := h.store.SummaryByTeam(r.Context())
 		if err != nil {
-			httpError(w, err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "operation failed", err)
 			return
 		}
 		limit, offset := parsePagination(r, 50)
@@ -90,7 +90,7 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 		}
 		summaries, err := h.store.SummaryByModel(r.Context())
 		if err != nil {
-			httpError(w, err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "operation failed", err)
 			return
 		}
 		limit, offset := parsePagination(r, 50)
@@ -139,7 +139,7 @@ func (h *CostHandler) daily(w http.ResponseWriter, r *http.Request) {
 	since := time.Now().AddDate(0, 0, -days)
 	costs, err := h.store.GetDailyCosts(r.Context(), since)
 	if err != nil {
-		httpError(w, err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "operation failed", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, costs)
@@ -156,7 +156,7 @@ func (h *CostHandler) sync(w http.ResponseWriter, r *http.Request) {
 	}
 	n, err := h.importer.ImportAll(r.Context())
 	if err != nil {
-		httpError(w, "import failed: "+err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "import failed", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]int{"imported": n})
@@ -176,7 +176,7 @@ func (h *CostHandler) budgets(w http.ResponseWriter, r *http.Request, parts []st
 			// GET /api/costs/budgets — list all budgets
 			budgets, err := h.store.GetAllBudgets(r.Context())
 			if err != nil {
-				httpError(w, err.Error(), http.StatusInternalServerError)
+				httpInternalError(w, "operation failed", err)
 				return
 			}
 			if budgets == nil {
@@ -187,7 +187,7 @@ func (h *CostHandler) budgets(w http.ResponseWriter, r *http.Request, parts []st
 			// GET /api/costs/budgets/{scope} — get budget + check status
 			status, err := h.store.CheckBudget(r.Context(), scope)
 			if err != nil {
-				httpError(w, err.Error(), http.StatusInternalServerError)
+				httpInternalError(w, "operation failed", err)
 				return
 			}
 			if status == nil {
@@ -228,7 +228,7 @@ func (h *CostHandler) budgets(w http.ResponseWriter, r *http.Request, parts []st
 		}
 		budget, err := h.store.SetBudget(r.Context(), req.Scope, period, req.LimitUSD, req.AlertAt, req.HardStop)
 		if err != nil {
-			httpError(w, err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "operation failed", err)
 			return
 		}
 		writeJSON(w, http.StatusOK, budget)
@@ -240,7 +240,7 @@ func (h *CostHandler) budgets(w http.ResponseWriter, r *http.Request, parts []st
 			return
 		}
 		if err := h.store.DeleteBudget(r.Context(), scope); err != nil {
-			httpError(w, err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "operation failed", err)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -269,7 +269,7 @@ func (h *CostHandler) project(w http.ResponseWriter, r *http.Request) {
 	}
 	proj, err := h.store.ProjectCost(r.Context(), lookbackDays, time.Duration(projectDays)*24*time.Hour)
 	if err != nil {
-		httpError(w, err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "operation failed", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, proj)
@@ -288,7 +288,7 @@ func (h *CostHandler) agentDetail(w http.ResponseWriter, r *http.Request, parts 
 
 	summary, err := h.store.AgentSummary(r.Context(), agentName)
 	if err != nil {
-		httpError(w, err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "operation failed", err)
 		return
 	}
 
@@ -296,7 +296,7 @@ func (h *CostHandler) agentDetail(w http.ResponseWriter, r *http.Request, parts 
 	since := time.Now().AddDate(0, 0, -30)
 	allAgentDaily, err := h.store.GetAgentDailyCosts(r.Context(), since)
 	if err != nil {
-		httpError(w, err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "operation failed", err)
 		return
 	}
 

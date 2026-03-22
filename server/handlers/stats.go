@@ -103,7 +103,7 @@ func (h *StatsHandler) summary(w http.ResponseWriter, r *http.Request) {
 	if h.agents != nil {
 		agents, err := h.agents.List(ctx, agent.ListOptions{})
 		if err != nil {
-			httpError(w, "list agents: "+err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "list agents", err)
 			return
 		}
 		agentsTotal = len(agents)
@@ -120,7 +120,7 @@ func (h *StatsHandler) summary(w http.ResponseWriter, r *http.Request) {
 	if h.channels != nil {
 		channels, err := h.channels.List(ctx)
 		if err != nil {
-			httpError(w, "list channels: "+err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "list channels", err)
 			return
 		}
 		channelsTotal = len(channels)
@@ -133,7 +133,7 @@ func (h *StatsHandler) summary(w http.ResponseWriter, r *http.Request) {
 	if h.costs != nil {
 		summary, err := h.costs.WorkspaceSummary(ctx)
 		if err != nil {
-			httpError(w, "cost summary: "+err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "cost summary", err)
 			return
 		}
 		if summary != nil {

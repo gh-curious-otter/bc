@@ -784,31 +784,24 @@ func (m *Manager) SpawnAgentWithOptions(ctx context.Context, opts SpawnOptions) 
 	}
 
 	// Check if already exists in our state
-	if _, exists := m.agents[name]; exists {
-		// Snapshot the runtime backend before releasing the lock so we can
-		// call HasSession (a potentially blocking subprocess) outside the lock (#2544).
-		rt := m.runtimeForAgent(name)
-		m.mu.Unlock()
-
-		// HasSession may shell out to tmux/docker — run without any lock.
-		if rt.HasSession(ctx, name) {
-			m.mu.Lock()
-			if existing, ok := m.agents[name]; ok {
-				// Correct stale stopped/error state when session is actually alive
-				if existing.State == StateStopped || existing.State == StateError {
-					existing.State = StateIdle
-					existing.StartedAt = time.Now()
-				}
-				existing.UpdatedAt = time.Now()
-				if err := m.saveState(); err != nil {
-					log.Warn("failed to save agent state", "error", err)
-				}
+	if existing, exists := m.agents[name]; exists {
+		// If its tmux session is still alive, reuse it
+		if m.runtimeForAgent(name).HasSession(ctx, name) {
+			// Correct stale stopped/error state when session is actually alive
+			if existing.State == StateStopped || existing.State == StateError {
+				existing.State = StateIdle
+				existing.StartedAt = time.Now()
+			}
+			existing.UpdatedAt = time.Now()
+			if err := m.saveState(); err != nil {
+				log.Warn("failed to save agent state", "error", err)
 			}
 			m.mu.Unlock()
-			return m.GetAgent(name), nil
+			return existing, nil
 		}
 		// Agent exists but session is dead — restart it.
-		// startAgent handles its own locking.
+		// Release global lock; startAgent handles its own locking.
+		m.mu.Unlock()
 		return m.startAgent(ctx, name, opts)
 	}
 
@@ -820,16 +813,13 @@ func (m *Manager) SpawnAgentWithOptions(ctx context.Context, opts SpawnOptions) 
 // startAgent restarts an existing agent whose session has died.
 // Acquires per-agent lock internally for slow I/O; does NOT require caller to hold mu.
 func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions) (*Agent, error) {
-	// Phase 1: global lock — snapshot agent state for building the command config.
-	// We read fields into local variables so we don't mutate the shared Agent
-	// struct while readers may be copying it under RLock (#2541).
+	// Phase 1: global lock — read agent state and build command config
 	m.mu.Lock()
 	existing := m.agents[name]
 	wsPath := opts.Workspace
 
-	runtimeBackend := existing.RuntimeBackend
 	if opts.Runtime != "" {
-		runtimeBackend = opts.Runtime
+		existing.RuntimeBackend = opts.Runtime
 	}
 
 	// Only resume if we have a real Claude session ID (UUID format) — avoids
@@ -840,10 +830,12 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	isRealSessionID := len(sessionID) == 36 && sessionID[8] == '-'
 	resume := !opts.Fresh && isRealSessionID
 	if opts.Fresh {
+		existing.SessionID = ""
 		sessionID = ""
 	}
 	if opts.SessionID != "" {
 		sessionID = opts.SessionID
+		existing.SessionID = sessionID
 	}
 	toolName := existing.Tool
 	if toolName == "" {
@@ -857,7 +849,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	}
 
 	// Apply provider session customization for container backends only.
-	if runtimeBackend != "tmux" {
+	if existing.RuntimeBackend != "tmux" {
 		if toolName != "" && m.providerRegistry != nil {
 			if p, ok := m.providerRegistry.Get(toolName); ok {
 				if sc, ok := p.(provider.SessionCustomizer); ok {
@@ -867,24 +859,18 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		}
 	}
 
-	agentRole := existing.Role
-	parentID := existing.ParentID
-	envFile := existing.EnvFile
-	logFile := existing.LogFile
-	prevState := existing.State
-
 	env := map[string]string{
 		"BC_AGENT_ID":   name,
-		"BC_AGENT_ROLE": string(agentRole),
+		"BC_AGENT_ROLE": string(existing.Role),
 		"BC_WORKSPACE":  wsPath,
 	}
 	if toolName != "" {
 		env["BC_AGENT_TOOL"] = toolName
 	}
-	if parentID != "" {
-		env["BC_PARENT_ID"] = parentID
+	if existing.ParentID != "" {
+		env["BC_PARENT_ID"] = existing.ParentID
 	}
-	injectEnv(env, wsPath, toolName, envFile)
+	injectEnv(env, wsPath, toolName, existing.EnvFile)
 
 	// MCP servers and plugins are configured via file-based config
 	// (.mcp.json and .claude.json) written by SetupAgentFromRole.
@@ -903,49 +889,34 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 
 	if err := rt.CreateSessionWithEnv(ctx, name, wsPath, agentCmd, env); err != nil {
 		agentLock.Unlock()
-		// Reset state so the agent isn't permanently stuck in StateStarting (#2543).
-		m.mu.Lock()
-		if a, ok := m.agents[name]; ok && a.State == StateStarting {
-			a.State = StateStopped
-			a.UpdatedAt = time.Now()
-			if saveErr := m.saveState(); saveErr != nil {
-				log.Warn("failed to save agent state after start failure", "error", saveErr)
-			}
-		}
-		m.mu.Unlock()
 		return nil, fmt.Errorf("failed to recreate session: %w", err)
 	}
 
 	// Resume log streaming
-	newLogFile := logFile
-	if logFile != "" {
-		truncateLogFile(logFile, m.maxLogBytes)
-		if pipeErr := rt.PipePane(ctx, name, logFile); pipeErr != nil {
+	if existing.LogFile != "" {
+		truncateLogFile(existing.LogFile, m.maxLogBytes)
+		if pipeErr := rt.PipePane(ctx, name, existing.LogFile); pipeErr != nil {
 			log.Warn("failed to resume pipe-pane", "agent", name, "error", pipeErr)
 		}
 	} else {
-		newLogFile = m.setupLogPipe(ctx, name, wsPath)
+		existing.LogFile = m.setupLogPipe(ctx, name, wsPath)
 	}
+
+	if existing.State == StateStopped || existing.State == StateError {
+		existing.State = StateStarting
+	}
+	existing.UpdatedAt = time.Now()
 
 	agentLock.Unlock()
 
-	// Phase 3: global lock — apply all mutations atomically to the shared struct (#2541).
+	// Phase 3: global lock — persist state
 	m.mu.Lock()
-	if a, ok := m.agents[name]; ok {
-		a.RuntimeBackend = runtimeBackend
-		a.SessionID = sessionID
-		a.LogFile = newLogFile
-		if prevState == StateStopped || prevState == StateError {
-			a.State = StateStarting
-		}
-		a.UpdatedAt = time.Now()
-		if err := m.saveState(); err != nil {
-			log.Warn("failed to save agent state", "error", err)
-		}
+	if err := m.saveState(); err != nil {
+		log.Warn("failed to save agent state", "error", err)
 	}
 	m.mu.Unlock()
 
-	return m.GetAgent(name), nil
+	return existing, nil
 }
 
 // createAgent creates a brand-new agent and its runtime session.
@@ -957,17 +928,11 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	parentID := opts.ParentID
 	tool := opts.Tool
 
-	// Snapshot backends under lock, then release before blocking subprocess calls (#2544).
-	m.mu.RLock()
-	backends := make(map[string]runtime.Backend, len(m.backends))
-	for k, v := range m.backends {
-		backends[k] = v
-	}
-	m.mu.RUnlock()
+	// Phase 1: global lock — build command config, register agent in map
+	m.mu.Lock()
 
-	// If a session exists from a previous crash, kill it in all backends.
-	// HasSession / KillSession may shell out — run without holding any lock.
-	for beName, be := range backends {
+	// If a session exists from a previous crash, kill it in all backends
+	for beName, be := range m.backends {
 		if be.HasSession(ctx, name) {
 			log.Debug("killing stale session", "session", name, "backend", beName)
 			if err := be.KillSession(ctx, name); err != nil {
@@ -975,9 +940,6 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 			}
 		}
 	}
-
-	// Phase 1: global lock — build command config, register agent in map
-	m.mu.Lock()
 
 	// Resolve effective tool: use explicit tool or fall back to default.
 	// Persist the resolved value so restarts use the same tool.
@@ -1698,30 +1660,12 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 
 // StopAll stops all agents.
 func (m *Manager) StopAll(ctx context.Context) error {
-	// Snapshot agent names and their runtimes under lock, then release
-	// before calling KillSession which may block on subprocess I/O (#2544).
-	m.mu.RLock()
-	type agentRT struct {
-		rt   runtime.Backend
-		name string
-	}
-	targets := make([]agentRT, 0, len(m.agents))
-	for name := range m.agents {
-		targets = append(targets, agentRT{rt: m.runtimeForAgent(name), name: name})
-	}
-	m.mu.RUnlock()
-
-	// Kill sessions without holding any lock.
-	for _, t := range targets {
-		_ = t.rt.KillSession(ctx, t.name) //nolint:errcheck // best-effort cleanup
-	}
-
-	// Re-acquire lock to update state.
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	now := time.Now()
-	for _, agent := range m.agents {
+	for name, agent := range m.agents {
+		_ = m.runtimeForAgent(name).KillSession(ctx, name) //nolint:errcheck // best-effort cleanup
 		agent.State = StateStopped
 		agent.StoppedAt = &now
 		agent.UpdatedAt = now

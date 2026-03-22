@@ -145,7 +145,7 @@ func (h *SettingsHandler) put(w http.ResponseWriter, r *http.Request) {
 	// Update in-memory config and persist to disk.
 	*h.ws.Config = merged
 	if err := h.ws.Save(); err != nil {
-		httpError(w, "failed to save config: "+err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "failed to save config", err)
 		return
 	}
 
@@ -227,7 +227,7 @@ func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request, section 
 	// Update in-memory config and persist to disk.
 	*h.ws.Config = merged
 	if err := h.ws.Save(); err != nil {
-		httpError(w, "failed to save config: "+err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "failed to save config", err)
 		return
 	}
 

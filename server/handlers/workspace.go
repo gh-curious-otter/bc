@@ -35,7 +35,7 @@ func (h *WorkspaceHandler) status(w http.ResponseWriter, r *http.Request) {
 	}
 	agents, err := h.svc.List(r.Context(), agent.ListOptions{})
 	if err != nil {
-		httpError(w, "list agents: "+err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "list agents", err)
 		return
 	}
 	runningCount := 0
@@ -63,7 +63,7 @@ func (h *WorkspaceHandler) roles(w http.ResponseWriter, r *http.Request) {
 	}
 	roles, err := h.ws.RoleManager.LoadAllRoles()
 	if err != nil {
-		httpError(w, "list roles: "+err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "list roles", err)
 		return
 	}
 
@@ -115,7 +115,7 @@ func (h *WorkspaceHandler) down(w http.ResponseWriter, r *http.Request) {
 	}
 	stopped, err := h.svc.StopAll(r.Context())
 	if err != nil {
-		httpError(w, err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "operation failed", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]int{"stopped": stopped})

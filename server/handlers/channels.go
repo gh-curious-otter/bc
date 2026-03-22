@@ -31,7 +31,7 @@ func (h *ChannelHandler) list(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		channels, err := h.svc.List(r.Context())
 		if err != nil {
-			httpError(w, "list channels: "+err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "list channels", err)
 			return
 		}
 		limit, offset := parsePagination(r, 50)
@@ -152,7 +152,7 @@ func (h *ChannelHandler) history(w http.ResponseWriter, r *http.Request, name st
 	opts.Offset = clampInt(opts.Offset, 0, 100000)
 	msgs, err := h.svc.History(r.Context(), name, opts)
 	if err != nil {
-		httpError(w, err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "operation failed", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, msgs)

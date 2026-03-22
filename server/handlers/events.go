@@ -46,7 +46,7 @@ func (h *EventHandler) list(w http.ResponseWriter, r *http.Request) {
 	tail = clampInt(tail, 1, 10000)
 	evts, err := h.store.ReadLast(tail)
 	if err != nil {
-		httpError(w, "read events: "+err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "read events", err)
 		return
 	}
 	if evts == nil {
@@ -66,7 +66,7 @@ func (h *EventHandler) byAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	evts, err := h.store.ReadByAgent(name)
 	if err != nil {
-		httpError(w, "read events: "+err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "read events", err)
 		return
 	}
 	if evts == nil {
@@ -89,7 +89,7 @@ func (h *EventHandler) appendEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.store.Append(ev); err != nil {
-		httpError(w, "append event: "+err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "append event", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})

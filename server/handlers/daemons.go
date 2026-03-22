@@ -29,7 +29,7 @@ func (h *DaemonHandler) list(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		daemons, err := h.mgr.List(r.Context())
 		if err != nil {
-			httpError(w, "list daemons: "+err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "list daemons", err)
 			return
 		}
 		if daemons == nil {

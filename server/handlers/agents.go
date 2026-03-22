@@ -100,7 +100,7 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		// State is refreshed by background reconciler (RunReconciler) — no sync call here.
 		agents, err := h.svc.List(r.Context(), agent.ListOptions{})
 		if err != nil {
-			httpError(w, "list agents: "+err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "list agents", err)
 			return
 		}
 		dtos := make([]agentDTO, 0, len(agents))
@@ -263,7 +263,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		limit = clampInt(limit, 1, 1000)
 		records, err := h.svc.Manager().QueryAgentStats(name, limit)
 		if err != nil {
-			httpError(w, "stats unavailable: "+err.Error(), http.StatusInternalServerError)
+			httpInternalError(w, "stats unavailable", err)
 			return
 		}
 		if records == nil {
@@ -345,7 +345,7 @@ func (h *AgentHandler) generateName(w http.ResponseWriter, r *http.Request) {
 	}
 	name, err := h.svc.GenerateName(r.Context())
 	if err != nil {
-		httpError(w, err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "operation failed", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"name": name})
@@ -364,7 +364,7 @@ func (h *AgentHandler) broadcast(w http.ResponseWriter, r *http.Request) {
 	}
 	sent, err := h.svc.Broadcast(r.Context(), req.Message)
 	if err != nil {
-		httpError(w, err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "operation failed", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]int{"sent": sent})
@@ -384,7 +384,7 @@ func (h *AgentHandler) sendRole(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.svc.SendToRole(r.Context(), req.Role, req.Message)
 	if err != nil {
-		httpError(w, err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "operation failed", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
@@ -404,7 +404,7 @@ func (h *AgentHandler) sendPattern(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.svc.SendToPattern(r.Context(), req.Pattern, req.Message)
 	if err != nil {
-		httpError(w, err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "operation failed", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
@@ -416,7 +416,7 @@ func (h *AgentHandler) stopAll(w http.ResponseWriter, r *http.Request) {
 	}
 	stopped, err := h.svc.StopAll(r.Context())
 	if err != nil {
-		httpError(w, err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "operation failed", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]int{"stopped": stopped})
@@ -448,7 +448,7 @@ func (h *AgentHandler) health(w http.ResponseWriter, r *http.Request) {
 
 	agents, err := h.svc.List(r.Context(), agent.ListOptions{})
 	if err != nil {
-		httpError(w, "list agents: "+err.Error(), http.StatusInternalServerError)
+		httpInternalError(w, "list agents", err)
 		return
 	}
 
