@@ -367,6 +367,21 @@ export const api = {
   getCostDaily: (days = 14) =>
     request<DailyCost[]>(`/costs/daily?days=${days}`),
   getCostBudgets: () => request<BudgetStatus[]>("/costs/budgets"),
+  createCostBudget: (budget: {
+    scope: string;
+    period: string;
+    limit_usd: number;
+    alert_at?: number;
+    hard_stop?: boolean;
+  }) =>
+    request<BudgetStatus>("/costs/budgets", {
+      method: "POST",
+      body: JSON.stringify(budget),
+    }),
+  deleteCostBudget: (scope: string) =>
+    request<void>(`/costs/budgets/${encodeURIComponent(scope)}`, {
+      method: "DELETE",
+    }),
 
   listRoles: () => request<Record<string, Role>>("/roles"),
   createRole: (role: {
