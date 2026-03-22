@@ -70,6 +70,7 @@ func createAgentsTable(d *db.DB) error {
 	_, _ = d.Exec(`ALTER TABLE agents ADD COLUMN ttl INTEGER NOT NULL DEFAULT 0`) //nolint:errcheck // ignore if already exists
 	_, _ = d.Exec(`ALTER TABLE agents ADD COLUMN created_at TEXT`)                //nolint:errcheck // ignore if already exists
 	_, _ = d.Exec(`ALTER TABLE agents ADD COLUMN stopped_at TEXT`)                //nolint:errcheck // ignore if already exists
+	_, _ = d.Exec(`ALTER TABLE agents ADD COLUMN deleted_at TEXT`)                //nolint:errcheck // ignore if already exists
 
 	// agent_stats: time-series Docker resource samples.
 	statsSchema := `
@@ -112,9 +113,9 @@ func (s *SQLiteStore) Save(a *Agent) error {
 		(name, role, state, tool, parent_id, team, task, session, workspace,
 		 worktree_dir, log_file, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
-		 runtime_backend, session_id, created_at, stopped_at,
+		 runtime_backend, session_id, created_at, stopped_at, deleted_at,
 		 started_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.Name, string(a.Role), string(a.State),
 		nullStr(a.Tool), nullStr(a.ParentID), nullStr(a.Team), nullStr(a.Task),
 		nullStr(a.Session), a.Workspace,
@@ -123,7 +124,7 @@ func (s *SQLiteStore) Save(a *Agent) error {
 		boolToInt(a.IsRoot), a.CrashCount,
 		nullTime(a.LastCrashTime), nullStr(a.RecoveredFrom),
 		nullStr(a.RuntimeBackend), nullStr(a.SessionID),
-		formatTime(createdAt), nullTime(a.StoppedAt),
+		formatTime(createdAt), nullTime(a.StoppedAt), nullTime(a.DeletedAt),
 		formatTime(a.StartedAt), formatTime(now),
 	)
 	return err
@@ -157,15 +158,26 @@ func (s *SQLiteStore) LoadRoot() (*Agent, error) {
 	return a, nil
 }
 
+// SoftDelete marks an agent as deleted by setting deleted_at.
+// The agent row remains in the database but is excluded from LoadAll.
+func (s *SQLiteStore) SoftDelete(name string) error {
+	_, err := s.db.Exec(
+		"UPDATE agents SET deleted_at = ?, updated_at = ? WHERE name = ?",
+		formatTime(time.Now()), formatTime(time.Now()), name,
+	)
+	return err
+}
+
 // Delete removes a single agent by name.
 func (s *SQLiteStore) Delete(name string) error {
 	_, err := s.db.Exec("DELETE FROM agents WHERE name = ?", name)
 	return err
 }
 
-// LoadAll reads every agent into a map keyed by name.
+// LoadAll reads every non-deleted agent into a map keyed by name.
+// Agents with a non-null deleted_at are skipped to prevent resurrection after restart.
 func (s *SQLiteStore) LoadAll() (map[string]*Agent, error) {
-	rows, err := s.db.Query(agentSelectCols + ` FROM agents`)
+	rows, err := s.db.Query(agentSelectCols + ` FROM agents WHERE deleted_at IS NULL`)
 	if err != nil {
 		return nil, err
 	}
@@ -195,9 +207,9 @@ func (s *SQLiteStore) SaveAll(agents map[string]*Agent) error {
 		(name, role, state, tool, parent_id, team, task, session, workspace,
 		 worktree_dir, log_file, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
-		 runtime_backend, session_id, created_at, stopped_at,
+		 runtime_backend, session_id, created_at, stopped_at, deleted_at,
 		 started_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -222,7 +234,7 @@ func (s *SQLiteStore) SaveAll(agents map[string]*Agent) error {
 			boolToInt(a.IsRoot), a.CrashCount,
 			nullTime(a.LastCrashTime), nullStr(a.RecoveredFrom),
 			nullStr(a.RuntimeBackend), nullStr(a.SessionID),
-			formatTime(createdAt), nullTime(a.StoppedAt),
+			formatTime(createdAt), nullTime(a.StoppedAt), nullTime(a.DeletedAt),
 			formatTime(a.StartedAt), formatTime(now),
 		)
 		if err != nil {
@@ -284,7 +296,7 @@ func (s *SQLiteStore) Close() error {
 const agentSelectCols = `SELECT name, role, state, tool, parent_id, team, task, session, workspace,
 	       worktree_dir, log_file, hooked_work, children,
 	       is_root, crash_count, last_crash_time, recovered_from,
-	       runtime_backend, session_id, created_at, stopped_at,
+	       runtime_backend, session_id, created_at, stopped_at, deleted_at,
 	       started_at, updated_at`
 
 func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
@@ -292,7 +304,7 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	var role, state string
 	var tool, parentID, team, task, session, worktreeDir, logFile, hookedWork, childrenJSON *string
 	var lastCrashTime, recoveredFrom, runtimeBackend, sessionID *string
-	var createdAt, stoppedAt *string
+	var createdAt, stoppedAt, deletedAt *string
 	var startedAt, updatedAt string
 	var isRoot, crashCount int
 
@@ -301,7 +313,7 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 		&tool, &parentID, &team, &task, &session, &a.Workspace,
 		&worktreeDir, &logFile, &hookedWork, &childrenJSON,
 		&isRoot, &crashCount, &lastCrashTime, &recoveredFrom,
-		&runtimeBackend, &sessionID, &createdAt, &stoppedAt,
+		&runtimeBackend, &sessionID, &createdAt, &stoppedAt, &deletedAt,
 		&startedAt, &updatedAt,
 	)
 	if err != nil {
@@ -341,6 +353,11 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	if stoppedAt != nil && *stoppedAt != "" {
 		if t, err := time.Parse(time.RFC3339, *stoppedAt); err == nil {
 			a.StoppedAt = &t
+		}
+	}
+	if deletedAt != nil && *deletedAt != "" {
+		if t, err := time.Parse(time.RFC3339, *deletedAt); err == nil {
+			a.DeletedAt = &t
 		}
 	}
 	a.StartedAt, _ = time.Parse(time.RFC3339, startedAt)

@@ -342,6 +342,7 @@ type Agent struct {
 	StartedAt      time.Time    `json:"started_at"`
 	CreatedAt      time.Time    `json:"created_at"`
 	StoppedAt      *time.Time   `json:"stopped_at,omitempty"`
+	DeletedAt      *time.Time   `json:"deleted_at,omitempty"`
 	RolePrompt     *AgentMemory `json:"memory,omitempty"`
 	Workspace      string       `json:"workspace"`
 	ID             string       `json:"id"`
@@ -1519,12 +1520,28 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 	// 8. Remove from parent's children list
 	m.removeFromParent(name)
 
-	// 9. Delete from state map and clean up per-agent lock
+	// 9. Soft-delete in SQLite first (set deleted_at) so the agent won't be
+	// resurrected by LoadAll even if bcd crashes before the hard delete.
+	if m.store != nil {
+		if err := m.store.SoftDelete(name); err != nil {
+			log.Warn("delete: failed to soft-delete agent in store", "agent", name, "error", err)
+		}
+	}
+
+	// 10. Delete from state map and clean up per-agent lock
 	delete(m.agents, name)
 	delete(m.agentLocks, name)
 
 	if err := m.saveState(); err != nil {
 		log.Warn("delete: failed to save state", "agent", name, "error", err)
+	}
+
+	// 11. Hard-delete the row from SQLite. The soft-delete above already
+	// prevents resurrection; this removes the row entirely for cleanliness.
+	if m.store != nil {
+		if err := m.store.Delete(name); err != nil {
+			log.Warn("delete: failed to remove agent from store", "agent", name, "error", err)
+		}
 	}
 	m.mu.Unlock()
 

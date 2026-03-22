@@ -253,3 +253,101 @@ func TestSQLiteStore_ConcurrentAccess(t *testing.T) {
 		t.Errorf("s2 sees %d agents, want 2", len(all2))
 	}
 }
+
+func TestSQLiteStore_SoftDelete(t *testing.T) {
+	dir := t.TempDir()
+	store, err := NewSQLiteStore(filepath.Join(dir, "state.db"))
+	if err != nil {
+		t.Fatalf("NewSQLiteStore: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// Save two agents
+	for _, name := range []string{"keep", "remove"} {
+		_ = store.Save(&Agent{
+			Name:      name,
+			Role:      Role("worker"),
+			State:     StateIdle,
+			Workspace: "/tmp/ws",
+			StartedAt: time.Now(),
+		})
+	}
+
+	// Soft-delete one agent
+	if softErr := store.SoftDelete("remove"); softErr != nil {
+		t.Fatalf("SoftDelete: %v", softErr)
+	}
+
+	// LoadAll should exclude the soft-deleted agent
+	all, err := store.LoadAll()
+	if err != nil {
+		t.Fatalf("LoadAll: %v", err)
+	}
+	if len(all) != 1 {
+		t.Fatalf("LoadAll returned %d agents, want 1", len(all))
+	}
+	if _, ok := all["keep"]; !ok {
+		t.Error("expected 'keep' agent to be present")
+	}
+	if _, ok := all["remove"]; ok {
+		t.Error("soft-deleted 'remove' agent should not appear in LoadAll")
+	}
+
+	// Direct Load should still find the soft-deleted agent (row exists)
+	removed, err := store.Load("remove")
+	if err != nil {
+		t.Fatalf("Load soft-deleted: %v", err)
+	}
+	if removed == nil {
+		t.Fatal("Load should still return the soft-deleted agent row")
+	}
+	if removed.DeletedAt == nil {
+		t.Error("DeletedAt should be set on soft-deleted agent")
+	}
+
+	// Hard-delete should remove the row entirely
+	if err := store.Delete("remove"); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	after, _ := store.Load("remove")
+	if after != nil {
+		t.Error("expected nil after hard delete")
+	}
+}
+
+func TestSQLiteStore_DeletedAtPersistence(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "state.db")
+
+	// First session: create and soft-delete an agent
+	store1, err := NewSQLiteStore(dbPath)
+	if err != nil {
+		t.Fatalf("NewSQLiteStore: %v", err)
+	}
+	_ = store1.Save(&Agent{
+		Name:      "zombie",
+		Role:      Role("worker"),
+		State:     StateIdle,
+		Workspace: "/tmp/ws",
+		StartedAt: time.Now(),
+	})
+	if softErr := store1.SoftDelete("zombie"); softErr != nil {
+		t.Fatalf("SoftDelete: %v", softErr)
+	}
+	_ = store1.Close()
+
+	// Second session: simulate bcd restart
+	store2, err := NewSQLiteStore(dbPath)
+	if err != nil {
+		t.Fatalf("NewSQLiteStore after restart: %v", err)
+	}
+	defer func() { _ = store2.Close() }()
+
+	all, err := store2.LoadAll()
+	if err != nil {
+		t.Fatalf("LoadAll after restart: %v", err)
+	}
+	if len(all) != 0 {
+		t.Fatalf("expected 0 agents after restart, got %d (soft-deleted agent resurrected)", len(all))
+	}
+}
