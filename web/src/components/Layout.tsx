@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
+import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
+import { KeyboardHelp } from "./KeyboardHelp";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: "~" },
@@ -30,6 +32,7 @@ export function Layout() {
   const location = useLocation();
   const { mode, toggle } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { helpOpen, closeHelp } = useKeyboardShortcuts();
 
   // Dynamic page title (#2150)
   useEffect(() => {
@@ -143,6 +146,7 @@ export function Layout() {
       <main className="flex-1 overflow-auto bg-bc-bg">
         <Outlet />
       </main>
+      <KeyboardHelp open={helpOpen} onClose={closeHelp} />
     </div>
   );
 }
