@@ -466,6 +466,7 @@ func (m *Manager) ApplyWorkspaceConfig(cfg *workspace.Config) {
 }
 
 // notifyStateChange calls the onStateChange callback if set.
+// Caller must NOT hold m.mu — this method acquires RLock internally.
 func (m *Manager) notifyStateChange(name string, state State, task string) {
 	m.mu.RLock()
 	fn := m.onStateChange
@@ -1992,15 +1993,17 @@ func (m *Manager) RunningCount() int {
 // UpdateAgentState updates an agent's state and task.
 // Returns an error if the transition is invalid per the state machine.
 func (m *Manager) UpdateAgentState(name string, state State, task string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	var changed bool
 
+	m.mu.Lock()
 	agent, exists := m.agents[name]
 	if !exists {
+		m.mu.Unlock()
 		return fmt.Errorf("agent %s not found", name)
 	}
 
 	if err := ValidateTransition(agent.State, state); err != nil {
+		m.mu.Unlock()
 		return fmt.Errorf("agent %s: %w", name, err)
 	}
 
@@ -2008,12 +2011,15 @@ func (m *Manager) UpdateAgentState(name string, state State, task string) error 
 	agent.State = state
 	agent.Task = task
 	agent.UpdatedAt = time.Now()
+	changed = prevState != state
 
 	if err := m.saveState(); err != nil {
 		log.Warn("failed to save agent state", "error", err)
 	}
+	m.mu.Unlock()
 
-	if prevState != state {
+	// Notify outside the lock to avoid deadlocks with RLock in notifyStateChange.
+	if changed {
 		m.notifyStateChange(name, state, task)
 	}
 	return nil
