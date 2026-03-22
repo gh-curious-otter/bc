@@ -92,6 +92,8 @@ func run(addr, wsRoot, corsOrigin string) error {
 	if err := agentMgr.LoadState(); err != nil {
 		log.Warn("failed to load agent state", "error", err)
 	}
+	defer agentMgr.Close() //nolint:errcheck // best-effort
+	go agentMgr.RunReconciler(ctx, 10*time.Second)
 	agentSvc := bcagent.NewAgentService(agentMgr, hub, nil)
 
 	statsCollector := bcagent.NewStatsCollector(agentMgr)
