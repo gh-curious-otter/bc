@@ -22,7 +22,7 @@
 # .PHONY declarations
 # =============================================================================
 
-.PHONY: help version
+.PHONY: help version gen-docs
 # Aggregates
 .PHONY: build test lint fmt vet coverage bench deps check scan gen clean release run deploy
 # Go language aggregates
@@ -437,6 +437,9 @@ scan-ts: ## Run TS dependency audit (bun audit, non-blocking)
 
 gen-go: ## Generate Go code (currently no-op)
 	@true
+
+gen-docs: ## Generate CLI reference docs from Cobra commands
+	$(GO) run ./cmd/gendocs docs/reference/cli
 
 gen-ts: ## Generate TS code (currently no-op)
 	@true
