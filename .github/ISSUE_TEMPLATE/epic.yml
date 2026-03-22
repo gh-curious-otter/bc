@@ -75,14 +75,14 @@ body:
 
         **Phase 3: Execute**
         - Work sub-issues in dependency order
-        - Each sub-issue: branch → implement → `make check` → PR → `/code-review` → merge
+        - Each sub-issue: branch → implement → `make ci-local` → PR → `/code-review` → merge
         - Update this epic's checklist as sub-issues close
 
         ### Quality Gates
 
         ```bash
         make ci-local       # Full CI pipeline (go + ts)
-        make check          # Quality gate (go + ts)
+        make ci-local          # Quality gate (go + ts)
         make ci-docker      # Build all Docker images
         ```
 

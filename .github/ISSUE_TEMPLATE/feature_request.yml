@@ -51,7 +51,7 @@ body:
       description: Acceptance criteria for this feature.
       value: |
         - [ ] Feature implemented with tests
-        - [ ] `make check` passes
+        - [ ] `make ci-local` passes
         - [ ] PR reviewed and merged
     validations:
       required: true
@@ -74,19 +74,19 @@ body:
         3. Verification all existing tests still pass
 
         ```bash
-        make check          # Full quality gate (go + ts)
+        make ci-local          # Full quality gate (go + ts)
         make ci-local       # Full CI pipeline locally
         ```
 
         ### Workflow by Size
 
         **QUICK** — < 100 LOC, trivial change
-        - Branch, implement, `make check`, PR, merge. No subagents needed.
+        - Branch, implement, `make ci-local`, PR, merge. No subagents needed.
 
         **SMALL** — < 1000 LOC, single PR
         - Branch: `feat/<issue-number>-<short-desc>`
         - Implement with tests
-        - `make check` must pass
+        - `make ci-local` must pass
         - Open PR → `/code-review` → merge
 
         **MEDIUM** — 2-5 PRs

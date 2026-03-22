@@ -94,19 +94,19 @@ body:
 
         ```bash
         # Verify before opening PR
-        make check          # Full quality gate (go + ts)
+        make ci-local          # Full quality gate (go + ts)
         make ci-local       # Full CI pipeline locally
         ```
 
         ### Workflow by Size
 
         **QUICK** — < 100 LOC, trivial fix
-        - Branch, fix, `make check`, PR, merge. No subagents needed.
+        - Branch, fix, `make ci-local`, PR, merge. No subagents needed.
 
         **SMALL** — < 1000 LOC, single PR
         - Branch: `fix/<issue-number>-<short-desc>`
         - Implement fix with test
-        - `make check` must pass
+        - `make ci-local` must pass
         - Open PR → `/code-review` → merge
 
         **MEDIUM** — 2-5 PRs
