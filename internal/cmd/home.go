@@ -24,7 +24,7 @@ costs, and other bc features using keyboard navigation.
 
 Requirements:
   - bun (or node) must be installed
-  - TUI must be built (run 'make build-tui' if needed)
+  - TUI must be built (run 'make build-tui-local' if needed)
 
 Navigation:
   [1-4]  Switch tabs (Dashboard, Agents, Channels, Costs)
@@ -79,7 +79,7 @@ func runHome(cmd *cobra.Command, args []string) error {
 		buildCmd.Stdout = os.Stdout
 		buildCmd.Stderr = os.Stderr
 		if buildErr := buildCmd.Run(); buildErr != nil {
-			return fmt.Errorf("failed to build TUI: %w\nRun 'make build-tui' manually", buildErr)
+			return fmt.Errorf("failed to build TUI: %w\nRun 'make build-tui-local' manually", buildErr)
 		}
 	}
 

@@ -34,34 +34,84 @@ cp bin/bc $(go env GOPATH)/bin/
 
 ## Build Commands
 
-### Go (CLI)
+Naming convention: `make <verb>-<component>-<runtime>` where `-local` = host machine, `-docker` = Docker image.
+
+### Build (local)
 
 | Command | Description |
 |---------|-------------|
-| `make build` | Build binary to `bin/bc` with version info |
-| `make build-release` | Build optimized release binary (stripped symbols) |
-| `make build-all` | Cross-compile for all platforms to `dist/` |
-| `make dev` | Run CLI in development mode (`go run`) |
-| `make test` | Run tests with race detector |
-| `make coverage` | Run tests with coverage report |
-| `make bench` | Run benchmarks |
-| `make gen` | Generate config code from config.toml |
-| `make fmt` | Format code with gofmt |
-| `make vet` | Run go vet |
-| `make lint` | Run golangci-lint |
-| `make check` | Run all checks (gen + fmt + vet + lint + test) |
-| `make deps` | Download and tidy dependencies |
-| `make clean` | Remove build artifacts |
+| `make build` | Build all components locally (bc, bcd, tui, web, landing) |
+| `make build-bc-local` | Build bc CLI binary to `bin/bc` |
+| `make build-bcd-local` | Build bcd server binary (embeds web UI) |
+| `make build-tui-local` | Build TUI package |
+| `make build-web-local` | Build React web UI → `server/web/dist/` |
+| `make build-landing-local` | Build Next.js landing page |
+| `make release` | Build optimized release binaries (stripped symbols) |
+| `make install-bc-local` | Install bc to `$GOPATH/bin` |
 
-### TUI (TypeScript/React)
+### Build (Docker)
 
 | Command | Description |
 |---------|-------------|
-| `make build-tui` | Build TUI package |
+| `make build-bcd-docker` | Build bcd server Docker image |
+| `make build-bcdb-docker` | Build bcdb Postgres Docker image |
+| `make build-agent-docker` | Build default agent Docker image (claude) |
+| `make build-agent-NAME-docker` | Build agent Docker image for provider (claude, gemini, codex, etc.) |
+| `make build-agents-docker` | Build all agent Docker images |
+
+### Test
+
+| Command | Description |
+|---------|-------------|
+| `make test` | Run all tests (go + ts) |
+| `make test-go` | Run Go tests with race detector |
+| `make test-ts` | Run all TS tests (tui + web + landing) |
 | `make test-tui` | Run TUI tests |
-| `make lint-tui` | Lint TUI code |
+| `make test-web` | Run web UI tests (vitest) |
+| `make test-landing` | Run landing page tests (Playwright) |
+| `make coverage-go` | Run Go tests with coverage report (60% threshold) |
+| `make bench-go` | Run Go benchmarks |
 
-Or directly with Bun:
+### Lint & Quality
+
+| Command | Description |
+|---------|-------------|
+| `make lint` | Run all linters (go + ts) |
+| `make lint-go` | Run golangci-lint on Go code |
+| `make lint-ts` | Run all TS linters (tui + web + landing) |
+| `make lint-tui` | Lint TUI code |
+| `make lint-web` | Lint web UI code |
+| `make lint-landing` | Lint landing page code |
+| `make fmt-go` | Format Go code with gofmt |
+| `make vet-go` | Run go vet |
+| `make check` | Full quality gate (go + ts) |
+| `make check-go` | Go quality gate (gen + fmt + vet + lint + test) |
+| `make check-ts` | TS quality gate (lint + test) |
+| `make integrate` | Full CI equivalent: check + build |
+
+### Run & Deploy
+
+| Command | Description |
+|---------|-------------|
+| `make run-bc-local` | Run bc CLI from source (`go run`) |
+| `make run-web-local` | Run web UI dev server (hot reload) |
+| `make run-landing-local` | Run landing dev server (hot reload) |
+| `make deploy-bcd-local` | Deploy bcd server locally (ENV=local\|dogfood\|production) |
+| `make deploy-landing-local` | Deploy landing page locally (placeholder) |
+
+### Utilities
+
+| Command | Description |
+|---------|-------------|
+| `make gen-go` | Generate Go code from config.toml |
+| `make deps-go` | Download and tidy Go dependencies |
+| `make deps-ts` | Install all TS dependencies (bun install) |
+| `make scan-go` | Run govulncheck for Go vulnerabilities |
+| `make install-bc-local` | Install bc to `$GOPATH/bin` |
+| `make clean` | Remove all build artifacts |
+| `make clean-deps` | Remove build artifacts + node_modules |
+
+Or directly with Bun (from `tui/`, `web/`, or `landing/`):
 
 ```bash
 cd tui

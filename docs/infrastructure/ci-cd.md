@@ -44,7 +44,7 @@ graph TD
 | Lint | ~35s | `golangci-lint` (new issues only) | Yes |
 | Test | ~90s | Fast packages + race + 60% coverage | Yes |
 | TUI | ~45s | `bun build + lint + test` | Yes |
-| Build | ~15s | `make build-release` + verify | Yes |
+| Build | ~15s | `make release` + verify | Yes |
 | PR Quality | ~5s | Title/description/issue checks | No |
 
 ### Excluded from PR (speed optimization)

@@ -32,7 +32,7 @@ All pull requests must maintain or improve overall code coverage to **60% or hig
 
 ```bash
 # Run coverage locally
-make coverage
+make coverage-go
 
 # View by function
 go tool cover -func=coverage.out

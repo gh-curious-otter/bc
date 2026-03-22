@@ -2,7 +2,7 @@
 # Usage: docker-compose up
 #
 # Prerequisites: build images first
-#   make build-server-images
+#   make build-bcd-docker build-bcdb-docker
 
 services:
   bcdb:
