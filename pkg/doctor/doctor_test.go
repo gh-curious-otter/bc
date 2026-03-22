@@ -185,9 +185,9 @@ func TestCheckWorkspace_ValidStructure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create a valid config.toml
+	// Create a valid settings.toml
 	cfg := workspace.DefaultConfig("test-ws")
-	configPath := filepath.Join(stateDir, "config.toml")
+	configPath := filepath.Join(stateDir, "settings.toml")
 	if err := cfg.Save(configPath); err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +223,7 @@ func TestCheckWorkspace_MissingRoles(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := workspace.DefaultConfig("test-ws")
-	configPath := filepath.Join(stateDir, "config.toml")
+	configPath := filepath.Join(stateDir, "settings.toml")
 	if err := cfg.Save(configPath); err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +254,7 @@ func TestCheckWorkspace_EmptyRoles(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := workspace.DefaultConfig("test-ws")
-	configPath := filepath.Join(stateDir, "config.toml")
+	configPath := filepath.Join(stateDir, "settings.toml")
 	if err := cfg.Save(configPath); err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +282,7 @@ func TestCheckWorkspace_InvalidConfig(t *testing.T) {
 	}
 
 	// Write an invalid config (missing required workspace.name)
-	configPath := filepath.Join(stateDir, "config.toml")
+	configPath := filepath.Join(stateDir, "settings.toml")
 	if err := os.WriteFile(configPath, []byte(`[workspace]
 version = 2
 `), 0600); err != nil {
@@ -296,12 +296,12 @@ version = 2
 
 	var foundConfigFail bool
 	for _, item := range cat.Items {
-		if item.Name == "config.toml" && item.Severity == SeverityFail {
+		if item.Name == "settings.toml" && item.Severity == SeverityFail {
 			foundConfigFail = true
 		}
 	}
 	if !foundConfigFail {
-		t.Error("expected a fail item for invalid config.toml")
+		t.Error("expected a fail item for invalid settings.toml")
 	}
 }
 
@@ -585,7 +585,7 @@ func TestFix_DryRun_NoChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := workspace.DefaultConfig("test-ws")
-	configPath := filepath.Join(stateDir, "config.toml")
+	configPath := filepath.Join(stateDir, "settings.toml")
 	if err := cfg.Save(configPath); err != nil {
 		t.Fatal(err)
 	}
@@ -627,7 +627,7 @@ func TestFix_WorkspaceDir_Creates(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := workspace.DefaultConfig("test-ws")
-	configPath := filepath.Join(stateDir, "config.toml")
+	configPath := filepath.Join(stateDir, "settings.toml")
 	if err := cfg.Save(configPath); err != nil {
 		t.Fatal(err)
 	}

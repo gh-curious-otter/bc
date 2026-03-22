@@ -17,7 +17,7 @@ var envCmd = &cobra.Command{
 	Short: "Manage workspace environment variables",
 	Long: `Configure environment variables for agent sessions.
 
-Environment variables are stored in config.toml and injected into agent
+Environment variables are stored in settings.toml and injected into agent
 sessions at startup. Use --provider to set per-provider env vars.
 
 Priority (highest wins): agent --env file > provider env > workspace env.

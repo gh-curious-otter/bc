@@ -105,10 +105,10 @@ func TestMigrateV1ToV2_Basic(t *testing.T) {
 		t.Errorf("backup file not found: %v", statErr)
 	}
 
-	// config.toml must exist and be loadable
-	tomlPath := filepath.Join(dir, ".bc", "config.toml")
+	// settings.toml must exist and be loadable
+	tomlPath := filepath.Join(dir, ".bc", "settings.toml")
 	if _, statErr := os.Stat(tomlPath); statErr != nil {
-		t.Fatalf("config.toml not written: %v", statErr)
+		t.Fatalf("settings.toml not written: %v", statErr)
 	}
 }
 
@@ -123,7 +123,7 @@ func TestMigrateV1ToV2_ProducesValidConfig(t *testing.T) {
 		t.Fatalf("MigrateV1ToV2: %v", err)
 	}
 
-	// The written config.toml must be loadable by workspace.Load.
+	// The written settings.toml must be loadable by workspace.Load.
 	ws, err := workspace.Load(dir)
 	if err != nil {
 		t.Fatalf("Load after migration: %v", err)
@@ -143,7 +143,7 @@ func TestMigrateV1ToV2_DefaultProvider_Claude(t *testing.T) {
 		t.Fatalf("MigrateV1ToV2: %v", err)
 	}
 
-	cfg, err := workspace.LoadConfig(filepath.Join(dir, ".bc", "config.toml"))
+	cfg, err := workspace.LoadConfig(filepath.Join(dir, ".bc", "settings.toml"))
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
@@ -166,7 +166,7 @@ func TestMigrateV1ToV2_ProvidersMap(t *testing.T) {
 		t.Fatalf("MigrateV1ToV2: %v", err)
 	}
 
-	cfg, err := workspace.LoadConfig(filepath.Join(dir, ".bc", "config.toml"))
+	cfg, err := workspace.LoadConfig(filepath.Join(dir, ".bc", "settings.toml"))
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
@@ -189,7 +189,7 @@ func TestMigrateV1ToV2_NicknamePreserved(t *testing.T) {
 		t.Fatalf("MigrateV1ToV2: %v", err)
 	}
 
-	cfg, err := workspace.LoadConfig(filepath.Join(dir, ".bc", "config.toml"))
+	cfg, err := workspace.LoadConfig(filepath.Join(dir, ".bc", "settings.toml"))
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestMigrateV1ToV2_RuntimePreserved(t *testing.T) {
 		t.Fatalf("MigrateV1ToV2: %v", err)
 	}
 
-	cfg, err := workspace.LoadConfig(filepath.Join(dir, ".bc", "config.toml"))
+	cfg, err := workspace.LoadConfig(filepath.Join(dir, ".bc", "settings.toml"))
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
@@ -279,7 +279,7 @@ func TestLoad_V1WorkspaceReturnsErrNotV1Workspace(t *testing.T) {
 
 	_, err := workspace.Load(dir)
 	if err == nil {
-		t.Fatal("expected error loading v1 workspace without config.toml")
+		t.Fatal("expected error loading v1 workspace without settings.toml")
 	}
 	if !errors.Is(err, workspace.ErrNotV1Workspace) {
 		t.Errorf("want error wrapping ErrNotV1Workspace, got: %v", err)

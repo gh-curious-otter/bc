@@ -65,7 +65,7 @@ max_bytes = 2097152
 
 func TestLogsConfigSaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "config.toml")
+	path := filepath.Join(dir, "settings.toml")
 
 	cfg := DefaultConfig("test")
 	cfg.Logs.Path = ".bc/my-logs"
@@ -581,7 +581,7 @@ func TestConfigGetProvider_Default(t *testing.T) {
 
 func TestConfigSaveAndLoad(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, ".bc", "config.toml")
+	configPath := filepath.Join(tmpDir, ".bc", "settings.toml")
 
 	// Create and save config
 	cfg := DefaultConfig("save-test")
@@ -612,7 +612,7 @@ func TestConfigSaveAndLoad(t *testing.T) {
 // TestConfigSaveAndLoadPerformance tests save/load round-trip for performance config (#1013)
 func TestConfigSaveAndLoadPerformance(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, ".bc", "config.toml")
+	configPath := filepath.Join(tmpDir, ".bc", "settings.toml")
 
 	// Create config with custom performance values
 	cfg := DefaultConfig("perf-save-test")
@@ -672,14 +672,14 @@ func TestConfigSaveAndLoadPerformance(t *testing.T) {
 
 func TestConfigPath(t *testing.T) {
 	path := ConfigPath("/home/user/project")
-	expected := "/home/user/project/.bc/config.toml"
+	expected := "/home/user/project/.bc/settings.toml"
 	if path != expected {
 		t.Errorf("expected %q, got %q", expected, path)
 	}
 }
 
 func TestLoadConfigNotFound(t *testing.T) {
-	_, err := LoadConfig("/nonexistent/path/config.toml")
+	_, err := LoadConfig("/nonexistent/path/settings.toml")
 	if err == nil {
 		t.Error("expected error for nonexistent file")
 	}
@@ -1541,7 +1541,7 @@ func TestConfigSaveErrorPath(t *testing.T) {
 	cfg := DefaultConfig("test")
 
 	// Try to save to a path where the parent can't be created
-	err := cfg.Save("/dev/null/impossible/config.toml")
+	err := cfg.Save("/dev/null/impossible/settings.toml")
 	if err == nil {
 		t.Error("Save should fail for impossible path")
 	}
@@ -1704,7 +1704,7 @@ func TestRosterConfig_EmptyByDefault(t *testing.T) {
 
 func TestRosterConfig_SaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "config.toml")
+	path := filepath.Join(dir, "settings.toml")
 
 	cfg := DefaultConfig("myws")
 	cfg.Roster.Agents = []RosterEntry{

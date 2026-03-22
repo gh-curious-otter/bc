@@ -67,7 +67,7 @@ Examples:
 var workspaceConfigCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manage workspace configuration",
-	Long: `Manage workspace configuration (.bc/config.toml).
+	Long: `Manage workspace configuration (.bc/settings.toml).
 
 Examples:
   bc workspace config show                    # Show full config
@@ -115,12 +115,12 @@ var workspaceConfigEditCmd = &cobra.Command{
 var workspaceMigrateCmd = &cobra.Command{
 	Use:   "migrate [directory]",
 	Short: "Migrate a v1 workspace to v2",
-	Long: `Migrate a bc v1 workspace (.bc/config.json) to v2 (.bc/config.toml).
+	Long: `Migrate a bc v1 workspace (.bc/config.json) to v2 (.bc/settings.toml).
 
 bc v2 uses a TOML-based config format. The migration:
   - Reads .bc/config.json (v1 format)
   - Writes .bc/config.json.bak (backup of original)
-  - Writes .bc/config.toml  (v2 format, best-effort field mapping)
+  - Writes .bc/settings.toml  (v2 format, best-effort field mapping)
 
 Agent state (JSON files) are migrated automatically the next time they
 are opened — no manual step needed.
@@ -215,7 +215,7 @@ Examples:
 var workspaceUpCmd = &cobra.Command{
 	Use:   "up",
 	Short: "Start all roster agents",
-	Long: `Start all agents defined in [roster] of .bc/config.toml.
+	Long: `Start all agents defined in [roster] of .bc/settings.toml.
 
 Agents that are already running are skipped. Missing role files are
 created from built-in defaults automatically.
@@ -277,7 +277,7 @@ func runWorkspaceUp(cmd *cobra.Command, _ []string) error {
 
 	roster := ws.Config.Roster.Agents
 	if len(roster) == 0 {
-		fmt.Println("No agents in roster. Add agents under [roster] in .bc/config.toml.")
+		fmt.Println("No agents in roster. Add agents under [roster] in .bc/settings.toml.")
 		fmt.Println()
 		fmt.Println("Example:")
 		fmt.Println("  [[roster.agents]]")
@@ -820,7 +820,7 @@ func runWorkspaceMigrate(cmd *cobra.Command, args []string) error {
 	case hasV2 && !hasV1:
 		// Already fully migrated.
 		fmt.Printf("%s Already v2 — %s\n", ui.GreenText("✓"), absDir)
-		fmt.Printf("  Config: %s\n", filepath.Join(absDir, ".bc", "config.toml"))
+		fmt.Printf("  Config: %s\n", filepath.Join(absDir, ".bc", "settings.toml"))
 		return nil
 
 	case hasV2 && hasV1:
@@ -860,7 +860,7 @@ func doV1Migration(absDir string, yes, dryRun bool) error {
 	fmt.Println("  Migration plan:")
 	fmt.Printf("    • Read   %s\n", filepath.Join(stateDir, "config.json"))
 	fmt.Printf("    • Write  %s  (backup)\n", filepath.Join(stateDir, "config.json.bak"))
-	fmt.Printf("    • Write  %s  (v2 format)\n", filepath.Join(stateDir, "config.toml"))
+	fmt.Printf("    • Write  %s  (v2 format)\n", filepath.Join(stateDir, "settings.toml"))
 
 	agentFiles := workspace.CountLegacyAgentFiles(stateDir)
 	if agentFiles > 0 {
@@ -889,7 +889,7 @@ func doV1Migration(absDir string, yes, dryRun bool) error {
 	}
 
 	if result.ConfigMigrated {
-		fmt.Printf("  %s Written %s\n", ui.GreenText("✓"), filepath.Join(stateDir, "config.toml"))
+		fmt.Printf("  %s Written %s\n", ui.GreenText("✓"), filepath.Join(stateDir, "settings.toml"))
 		fmt.Printf("  %s Backed up to %s\n", ui.GreenText("✓"), result.BackupPath)
 	}
 	if result.AgentFiles > 0 {

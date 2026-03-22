@@ -32,7 +32,7 @@ This creates a .bc directory with v2 configuration for managing agents.
 
 v2 workspace structure:
   .bc/
-    config.toml    # Workspace configuration
+    settings.toml  # Workspace configuration
     roles/         # Agent role definitions
       root.md      # Root agent role
     agents/        # Per-agent state files
@@ -61,8 +61,11 @@ func isV1Workspace(dir string) bool {
 	return err == nil
 }
 
-// isV2Workspace checks if a directory has a v2 workspace (config.toml).
+// isV2Workspace checks if a directory has a v2 workspace (settings.toml or config.toml).
 func isV2Workspace(dir string) bool {
+	if _, err := os.Stat(filepath.Join(dir, ".bc", "settings.toml")); err == nil {
+		return true
+	}
 	configPath := filepath.Join(dir, ".bc", "config.toml")
 	_, err := os.Stat(configPath)
 	return err == nil
@@ -169,7 +172,7 @@ func initV2Workspace(rootDir string) error {
 	fmt.Printf("Initialized bc v2 workspace in %s\n", rootDir)
 	fmt.Printf("\n")
 	fmt.Printf("  Created:\n")
-	fmt.Printf("    .bc/config.toml     # Workspace configuration\n")
+	fmt.Printf("    .bc/settings.toml   # Workspace configuration\n")
 	fmt.Printf("    .bc/agents/         # Agent state directory\n")
 	fmt.Printf("    .bc/roles/          # Role definitions\n")
 	if created {
@@ -209,7 +212,7 @@ func createDefaultChannels(rootDir string, agentNames []string) {
 }
 
 // getWorkspace finds the current workspace.
-// Supports both v1 (config.json) and v2 (config.toml) workspaces.
+// Supports both v1 (config.json) and v2 (settings.toml) workspaces.
 // Checks BC_WORKSPACE env var first (for agents in worktrees), then walks up directory tree.
 func getWorkspace() (*workspace.Workspace, error) {
 	// Check BC_WORKSPACE first (agents set this to point to main workspace)
@@ -390,7 +393,7 @@ func initV2WorkspaceWithNickname(rootDir string, nickname string) error {
 	fmt.Printf("  %s Nickname set to %s\n", ui.GreenText("✓"), nickname)
 	fmt.Println()
 	fmt.Println("  Created:")
-	fmt.Println("    .bc/config.toml     # Workspace configuration")
+	fmt.Println("    .bc/settings.toml   # Workspace configuration")
 	fmt.Println("    .bc/agents/         # Agent state directory")
 	fmt.Println("    .bc/roles/          # Role definitions")
 	if created {

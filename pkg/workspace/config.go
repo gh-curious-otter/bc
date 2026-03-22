@@ -542,7 +542,7 @@ func (c *Config) Save(path string) error {
 
 // ConfigPath returns the standard config file path for a workspace root.
 func ConfigPath(rootDir string) string {
-	return filepath.Join(rootDir, ".bc", "config.toml")
+	return filepath.Join(rootDir, ".bc", "settings.toml")
 }
 
 // UserDefaultsConfig represents user-level defaults from ~/.bcrc.
