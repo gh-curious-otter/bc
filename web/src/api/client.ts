@@ -343,6 +343,12 @@ export const api = {
       `/agents/${encodeURIComponent(name)}${force ? "?force=true" : ""}`,
       { method: "DELETE" },
     ),
+  renameAgent: (name: string, newName: string) =>
+    request<Agent>(`/agents/${encodeURIComponent(name)}/rename`, {
+      method: "POST",
+      body: JSON.stringify({ name: newName }),
+    }),
+  stopAllAgents: () => request<void>("/agents/stop-all", { method: "POST" }),
   sendToAgent: (name: string, message: string) =>
     request<void>(`/agents/${encodeURIComponent(name)}/send`, {
       method: "POST",
@@ -492,11 +498,18 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ name, value, description: description ?? "" }),
     }),
+  updateSecret: (name: string, value: string) =>
+    request<Secret>(`/secrets/${encodeURIComponent(name)}`, {
+      method: "PUT",
+      body: JSON.stringify({ value }),
+    }),
   deleteSecret: (name: string) =>
     request<void>(`/secrets/${encodeURIComponent(name)}`, { method: "DELETE" }),
   getWorkspace: () => request<WorkspaceInfo>("/workspace"),
   getWorkspaceStatus: () =>
     request<Record<string, unknown>>("/workspace/status"),
+  workspaceUp: () => request<void>("/workspace/up", { method: "POST" }),
+  workspaceDown: () => request<void>("/workspace/down", { method: "POST" }),
 
   getStatsSystem: () => request<SystemStats>("/stats/system"),
   getStatsSummary: () => request<StatsSummary>("/stats/summary"),

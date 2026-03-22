@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { api } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
@@ -13,6 +13,39 @@ export function Workspace() {
     refresh,
     timedOut,
   } = usePolling(fetcher, 10000);
+
+  const [actionBusy, setActionBusy] = useState<"up" | "down" | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const handleUp = async () => {
+    setActionBusy("up");
+    setActionError(null);
+    try {
+      await api.workspaceUp();
+      refresh();
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Failed to start workspace",
+      );
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  const handleDown = async () => {
+    setActionBusy("down");
+    setActionError(null);
+    try {
+      await api.workspaceDown();
+      refresh();
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Failed to stop workspace",
+      );
+    } finally {
+      setActionBusy(null);
+    }
+  };
 
   if (loading && !status) {
     return (
@@ -52,7 +85,29 @@ export function Workspace() {
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-xl font-bold">Workspace</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold">Workspace</h1>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleUp}
+            disabled={actionBusy !== null}
+            className="px-3 py-1.5 text-sm rounded bg-bc-success/20 text-bc-success hover:bg-bc-success/30 disabled:opacity-50 transition-colors focus:outline-none focus:ring-2 focus:ring-bc-success"
+            aria-label="Start workspace"
+          >
+            {actionBusy === "up" ? "Starting..." : "Start Workspace"}
+          </button>
+          <button
+            onClick={handleDown}
+            disabled={actionBusy !== null}
+            className="px-3 py-1.5 text-sm rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 disabled:opacity-50 transition-colors focus:outline-none focus:ring-2 focus:ring-red-400"
+            aria-label="Stop all agents"
+          >
+            {actionBusy === "down" ? "Stopping..." : "Stop All Agents"}
+          </button>
+        </div>
+      </div>
+
+      {actionError && <p className="text-xs text-red-400">{actionError}</p>}
 
       <div className="grid grid-cols-2 gap-4">
         {Object.entries(status).map(([key, value]) => (

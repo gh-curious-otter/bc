@@ -89,6 +89,90 @@ function AddSecretForm({ onCreated }: { onCreated: () => void }) {
   );
 }
 
+function EditSecretButton({
+  name,
+  onUpdated,
+}: {
+  name: string;
+  onUpdated: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSave = async () => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await api.updateSecret(name, trimmed);
+      setValue("");
+      setEditing(false);
+      onUpdated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update secret");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-2">
+        <input
+          type="password"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleSave();
+            if (e.key === "Escape") {
+              setEditing(false);
+              setValue("");
+              setError(null);
+            }
+          }}
+          placeholder="new value"
+          autoFocus
+          className="px-2 py-1 text-xs rounded border border-bc-border bg-bc-bg text-bc-fg focus:outline-none focus:ring-1 focus:ring-bc-accent w-36"
+          aria-label={`New value for ${name}`}
+        />
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving || !value.trim()}
+          className="px-2 py-1 rounded bg-bc-accent text-white text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+        >
+          {saving ? "..." : "Save"}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setEditing(false);
+            setValue("");
+            setError(null);
+          }}
+          className="px-2 py-1 rounded border border-bc-border text-bc-muted text-xs hover:text-bc-text transition-colors"
+        >
+          Cancel
+        </button>
+        {error && <span className="text-xs text-red-400">{error}</span>}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      className="px-2 py-1 rounded border border-bc-border text-bc-muted text-xs hover:text-bc-accent hover:border-bc-accent/50 transition-colors"
+    >
+      Edit
+    </button>
+  );
+}
+
 function DeleteButton({
   name,
   onDeleted,
@@ -218,6 +302,13 @@ export function Secrets() {
             ? new Date(s.created_at).toLocaleDateString()
             : "\u2014"}
         </span>
+      ),
+    },
+    {
+      key: "edit",
+      label: "",
+      render: (s: Secret) => (
+        <EditSecretButton name={s.name} onUpdated={refresh} />
       ),
     },
     {
