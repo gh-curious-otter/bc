@@ -872,14 +872,9 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	}
 	injectEnv(env, wsPath, toolName, existing.EnvFile)
 
-	// On restart (not fresh create), prepend role setup commands
-	// (mcp add, plugin install) so the agent has everything configured
-	// before Claude starts. First create is bare — user logs in first.
-	if existing.RuntimeBackend != "tmux" {
-		if setupCmd := BuildSetupCommand(wsPath, string(existing.Role)); setupCmd != "" {
-			agentCmd = setupCmd + " && " + agentCmd
-		}
-	}
+	// MCP servers and plugins are configured via file-based config
+	// (.mcp.json and .claude.json) written by SetupAgentFromRole.
+	// No need for runtime `claude mcp add` commands.
 
 	rt := m.runtimeForAgent(name)
 	m.mu.Unlock()
@@ -1061,13 +1056,9 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	// Clean stale worktree from previous container run (crash recovery).
 	cleanStaleWorktree(ctx, wsPath, name)
 
-	// For Docker agents on first create, prepend role setup commands
-	// (mcp add, plugin install) so the agent is fully configured.
-	if agentRuntime != "tmux" {
-		if setupCmd := BuildSetupCommand(wsPath, string(role)); setupCmd != "" {
-			agentCmd = setupCmd + " && " + agentCmd
-		}
-	}
+	// MCP servers and plugins are configured via file-based config
+	// (.mcp.json and .claude.json) written by SetupAgentFromRole above.
+	// No runtime `claude mcp add` commands — they kill running Claude instances.
 
 	// Create session in the workspace directory using the agent's runtime backend
 	if err := rt.CreateSessionWithEnv(ctx, name, wsPath, agentCmd, env); err != nil {
