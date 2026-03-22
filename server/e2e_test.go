@@ -20,6 +20,7 @@ import (
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/cost"
 	"github.com/rpuneet/bc/pkg/cron"
+	"github.com/rpuneet/bc/pkg/daemon"
 	"github.com/rpuneet/bc/pkg/events"
 	pkgmcp "github.com/rpuneet/bc/pkg/mcp"
 	"github.com/rpuneet/bc/pkg/tool"
@@ -122,9 +123,17 @@ enabled = true
 		t.Cleanup(func() { _ = el.Close() })
 	}
 
+	// Daemon manager
+	var daemonMgr *daemon.Manager
+	if dm, err := daemon.NewManager(dir); err == nil {
+		daemonMgr = dm
+		t.Cleanup(func() { _ = dm.Close() })
+	}
+
 	svc := server.Services{
 		Agents:   agentSvc,
 		Channels: channelSvc,
+		Daemons:  daemonMgr,
 		Costs:    costStore,
 		Cron:     cronStore,
 		MCP:      mcpStore,
@@ -187,6 +196,22 @@ func (s *e2eServer) postJSON(t *testing.T, path string, payload any) (int, map[s
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("POST %s: %v", path, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, _ := io.ReadAll(resp.Body)
+	var result map[string]any
+	_ = json.Unmarshal(body, &result)
+	return resp.StatusCode, result
+}
+
+func (s *e2eServer) patchJSON(t *testing.T, path string, payload any) (int, map[string]any) {
+	t.Helper()
+	b, _ := json.Marshal(payload)
+	req, _ := http.NewRequestWithContext(context.Background(), "PATCH", s.URL+path, bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PATCH %s: %v", path, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
@@ -483,6 +508,119 @@ func TestE2E_MethodNotAllowed(t *testing.T) {
 	code, body := s.postJSON(t, "/health", nil)
 	if code != 405 {
 		t.Fatalf("want 405, got %d: %v", code, body)
+	}
+}
+
+// ─── MCP SSE ─────────────────────────────────────────────────────────────────
+
+func TestE2E_MCP_SSE_ContentType(t *testing.T) {
+	s := newE2EServer(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req, _ := http.NewRequestWithContext(ctx, "GET", s.URL+"/mcp/sse", nil)
+	req.Header.Set("Accept", "text/event-stream")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET /mcp/sse: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("want 200, got %d", resp.StatusCode)
+	}
+
+	ct := resp.Header.Get("Content-Type")
+	if ct != "text/event-stream" {
+		t.Fatalf("want Content-Type text/event-stream, got %q", ct)
+	}
+
+	// Read the first event — should be the endpoint event
+	buf := make([]byte, 512)
+	n, readErr := resp.Body.Read(buf)
+	if readErr != nil {
+		t.Fatalf("reading SSE body: %v", readErr)
+	}
+	data := string(buf[:n])
+	if !bytes.Contains(buf[:n], []byte("event: endpoint")) {
+		t.Fatalf("expected endpoint event, got: %s", data)
+	}
+}
+
+// ─── Daemons ─────────────────────────────────────────────────────────────────
+
+func TestE2E_Daemons_ListEmpty(t *testing.T) {
+	s := newE2EServer(t)
+
+	code, daemons := s.getList(t, "/api/daemons")
+	if code != 200 {
+		t.Fatalf("want 200, got %d", code)
+	}
+	if len(daemons) != 0 {
+		t.Fatalf("want 0 daemons, got %d", len(daemons))
+	}
+}
+
+func TestE2E_Daemons_CreateError(t *testing.T) {
+	s := newE2EServer(t)
+
+	// POST with empty name — should fail validation
+	code, body := s.postJSON(t, "/api/daemons", map[string]string{
+		"name": "",
+		"cmd":  "",
+	})
+	if code != 400 {
+		t.Fatalf("want 400, got %d: %v", code, body)
+	}
+	if body["error"] == nil {
+		t.Fatal("expected error message")
+	}
+}
+
+func TestE2E_Daemons_GetNotFound(t *testing.T) {
+	s := newE2EServer(t)
+
+	code, body := s.get(t, "/api/daemons/nonexistent")
+	if code != 404 {
+		t.Fatalf("want 404, got %d: %v", code, body)
+	}
+}
+
+// ─── Settings PATCH ──────────────────────────────────────────────────────────
+
+func TestE2E_Settings_PatchUser(t *testing.T) {
+	s := newE2EServer(t)
+
+	code, body := s.patchJSON(t, "/api/settings/user", map[string]string{
+		"Nickname": "@test",
+	})
+	if code != 200 {
+		t.Fatalf("want 200, got %d: %v", code, body)
+	}
+
+	// The response is the full config — check user section
+	userRaw, ok := body["User"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected User section in response, got %v", body)
+	}
+	if userRaw["Nickname"] != "@test" {
+		t.Fatalf("want Nickname=@test, got %v", userRaw["Nickname"])
+	}
+}
+
+func TestE2E_Settings_PatchUnknownSection(t *testing.T) {
+	s := newE2EServer(t)
+
+	code, body := s.patchJSON(t, "/api/settings/nonexistent", map[string]string{
+		"foo": "bar",
+	})
+	if code != 400 {
+		t.Fatalf("want 400, got %d: %v", code, body)
+	}
+	if body["error"] == nil {
+		t.Fatal("expected error message")
 	}
 }
 
