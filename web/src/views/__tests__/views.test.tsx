@@ -191,7 +191,8 @@ describe('Cron', () => {
     const { container } = wrap(<Cron />);
     expectSkeletonLoading(container);
     await waitFor(() => {
-      expect(screen.getByText('nightly')).toBeInTheDocument();
+      expect(screen.getByText('Cron Jobs')).toBeInTheDocument();
+      expect(screen.getByText(/nightly/)).toBeInTheDocument();
     });
   });
 });
