@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
@@ -226,8 +227,33 @@ func loadWorkspaceConfig() (*workspace.Config, string, error) {
 	return ws.Config, configPath, nil
 }
 
+// loadConfigViaAPI tries to load workspace config through the daemon API,
+// falling back to direct file read when the daemon is not running.
+func loadConfigViaAPI(ctx context.Context) (*workspace.Config, error) {
+	c, err := newDaemonClient(ctx)
+	if err != nil && client.IsDaemonNotRunning(err) {
+		// Offline fallback
+		cfg, _, loadErr := loadWorkspaceConfig()
+		return cfg, loadErr
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	raw, err := c.Settings.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg workspace.Config
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return nil, fmt.Errorf("decode settings: %w", err)
+	}
+	return &cfg, nil
+}
+
 func runConfigShow(cmd *cobra.Command, args []string) error {
-	cfg, _, err := loadWorkspaceConfig()
+	cfg, err := loadConfigViaAPI(cmd.Context())
 	if err != nil {
 		return err
 	}
@@ -240,9 +266,9 @@ func runConfigShow(cmd *cobra.Command, args []string) error {
 	// If a key is specified, show only that section
 	if len(args) > 0 {
 		key := args[0]
-		value, err := getConfigValue(cfg, key)
-		if err != nil {
-			return err
+		value, valErr := getConfigValue(cfg, key)
+		if valErr != nil {
+			return valErr
 		}
 
 		if jsonOutput {
@@ -266,7 +292,7 @@ func runConfigShow(cmd *cobra.Command, args []string) error {
 }
 
 func runConfigGet(cmd *cobra.Command, args []string) error {
-	cfg, _, err := loadWorkspaceConfig()
+	cfg, err := loadConfigViaAPI(cmd.Context())
 	if err != nil {
 		return err
 	}
@@ -283,19 +309,54 @@ func runConfigGet(cmd *cobra.Command, args []string) error {
 }
 
 func runConfigSet(cmd *cobra.Command, args []string) error {
+	key := args[0]
+	valueStr := args[1]
+
+	// Try API first for live config updates
+	c, clientErr := newDaemonClient(cmd.Context())
+	if clientErr == nil {
+		// Load current config via API, apply change, push update
+		raw, getErr := c.Settings.Get(cmd.Context())
+		if getErr != nil {
+			return getErr
+		}
+		var cfg workspace.Config
+		if err := json.Unmarshal(raw, &cfg); err != nil {
+			return fmt.Errorf("decode settings: %w", err)
+		}
+		if err := setConfigValue(&cfg, key, valueStr); err != nil {
+			return err
+		}
+		// Build patch from the modified config
+		data, err := json.Marshal(&cfg)
+		if err != nil {
+			return fmt.Errorf("marshal config: %w", err)
+		}
+		var patch map[string]any
+		if err := json.Unmarshal(data, &patch); err != nil {
+			return fmt.Errorf("build patch: %w", err)
+		}
+		if _, err := c.Settings.Update(cmd.Context(), patch); err != nil {
+			return err
+		}
+		fmt.Printf("Set %s = %s\n", key, valueStr)
+		return nil
+	}
+
+	if !client.IsDaemonNotRunning(clientErr) {
+		return clientErr
+	}
+
+	// Offline fallback: direct file modification
 	cfg, configPath, err := loadWorkspaceConfig()
 	if err != nil {
 		return err
 	}
 
-	key := args[0]
-	valueStr := args[1]
-
 	if err := setConfigValue(cfg, key, valueStr); err != nil {
 		return err
 	}
 
-	// Save the config
 	if err := cfg.Save(configPath); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
@@ -304,8 +365,8 @@ func runConfigSet(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runConfigList(cmd *cobra.Command, args []string) error {
-	cfg, _, err := loadWorkspaceConfig()
+func runConfigList(cmd *cobra.Command, _ []string) error {
+	cfg, err := loadConfigViaAPI(cmd.Context())
 	if err != nil {
 		return err
 	}
@@ -349,19 +410,19 @@ func runConfigEdit(cmd *cobra.Command, args []string) error {
 	return editorCmd.Run()
 }
 
-func runConfigValidate(cmd *cobra.Command, args []string) error {
+func runConfigValidate(cmd *cobra.Command, _ []string) error {
 	cfg, configPath, err := loadWorkspaceConfig()
 	if err != nil {
 		return err
 	}
 
 	if err := cfg.Validate(); err != nil {
-		fmt.Printf("❌ Config validation failed: %v\n", err)
+		fmt.Printf("Config validation failed: %v\n", err)
 		fmt.Printf("   File: %s\n", configPath)
 		return err
 	}
 
-	fmt.Printf("✓ Config is valid\n")
+	fmt.Printf("Config is valid\n")
 	fmt.Printf("  File: %s\n", configPath)
 	return nil
 }

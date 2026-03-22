@@ -1,12 +1,14 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
@@ -84,13 +86,83 @@ func getProviderEnv(cfg *workspace.Config, name string) (*workspace.ProviderConf
 	return p, nil
 }
 
-func runEnvSet(_ *cobra.Command, args []string) error {
-	cfg, configPath, err := loadWorkspaceConfig()
+// envSetViaAPI sets an env var through the daemon API. Returns true if successful.
+func envSetViaAPI(cmd *cobra.Command, key, value string) (bool, error) {
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
+		if client.IsDaemonNotRunning(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	// Load current config to merge with
+	raw, err := c.Settings.Get(cmd.Context())
+	if err != nil {
+		return false, err
+	}
+
+	var cfg workspace.Config
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return false, fmt.Errorf("decode settings: %w", err)
+	}
+
+	if envProvider != "" {
+		p, pErr := getProviderEnv(&cfg, envProvider)
+		if pErr != nil {
+			return false, pErr
+		}
+		p.Env[key] = value
+		// Patch providers section
+		data, mErr := json.Marshal(cfg.Providers)
+		if mErr != nil {
+			return false, mErr
+		}
+		var provPatch map[string]any
+		if err := json.Unmarshal(data, &provPatch); err != nil {
+			return false, err
+		}
+		if _, err := c.Settings.Patch(cmd.Context(), "providers", provPatch); err != nil {
+			return false, err
+		}
+	} else {
+		if cfg.Env == nil {
+			cfg.Env = make(map[string]string)
+		}
+		cfg.Env[key] = value
+		envAny := make(map[string]any, len(cfg.Env))
+		for k, v := range cfg.Env {
+			envAny[k] = v
+		}
+		if _, err := c.Settings.Patch(cmd.Context(), "env", envAny); err != nil {
+			return false, err
+		}
+	}
+
+	return true, nil
+}
+
+func runEnvSet(cmd *cobra.Command, args []string) error {
+	key, value := args[0], args[1]
+
+	ok, err := envSetViaAPI(cmd, key, value)
 	if err != nil {
 		return err
 	}
+	if ok {
+		if envProvider != "" {
+			fmt.Printf("Set %s=%s (provider: %s)\n", key, value, envProvider)
+		} else {
+			fmt.Printf("Set %s=%s\n", key, value)
+		}
+		return nil
+	}
 
-	key, value := args[0], args[1]
+	// Offline fallback: direct file modification
+	cfg, configPath, loadErr := loadWorkspaceConfig()
+	if loadErr != nil {
+		return loadErr
+	}
 
 	if envProvider != "" {
 		p, pErr := getProviderEnv(cfg, envProvider)
@@ -117,13 +189,13 @@ func runEnvSet(_ *cobra.Command, args []string) error {
 	return nil
 }
 
-func runEnvGet(_ *cobra.Command, args []string) error {
-	cfg, _, err := loadWorkspaceConfig()
+func runEnvGet(cmd *cobra.Command, args []string) error {
+	key := args[0]
+
+	cfg, err := loadConfigViaAPI(cmd.Context())
 	if err != nil {
 		return err
 	}
-
-	key := args[0]
 
 	if envProvider != "" {
 		p := cfg.GetProvider(envProvider)
@@ -147,8 +219,8 @@ func runEnvGet(_ *cobra.Command, args []string) error {
 	return nil
 }
 
-func runEnvList(_ *cobra.Command, _ []string) error {
-	cfg, _, err := loadWorkspaceConfig()
+func runEnvList(cmd *cobra.Command, _ []string) error {
+	cfg, err := loadConfigViaAPI(cmd.Context())
 	if err != nil {
 		return err
 	}
@@ -214,13 +286,80 @@ func printEnvMap(env map[string]string, provider string) {
 	}
 }
 
-func runEnvUnset(_ *cobra.Command, args []string) error {
+func runEnvUnset(cmd *cobra.Command, args []string) error {
+	key := args[0]
+
+	// Try API first
+	c, clientErr := newDaemonClient(cmd.Context())
+	if clientErr == nil {
+		raw, getErr := c.Settings.Get(cmd.Context())
+		if getErr != nil {
+			return getErr
+		}
+		var cfg workspace.Config
+		if err := json.Unmarshal(raw, &cfg); err != nil {
+			return fmt.Errorf("decode settings: %w", err)
+		}
+
+		if envProvider != "" {
+			p, pErr := getProviderEnv(&cfg, envProvider)
+			if pErr != nil {
+				return pErr
+			}
+			if _, ok := p.Env[key]; !ok {
+				return fmt.Errorf("environment variable %s is not set for provider %s", key, envProvider)
+			}
+			delete(p.Env, key)
+			if len(p.Env) == 0 {
+				p.Env = nil
+			}
+			data, mErr := json.Marshal(cfg.Providers)
+			if mErr != nil {
+				return mErr
+			}
+			var provPatch map[string]any
+			if err := json.Unmarshal(data, &provPatch); err != nil {
+				return err
+			}
+			if _, err := c.Settings.Patch(cmd.Context(), "providers", provPatch); err != nil {
+				return err
+			}
+		} else {
+			if _, ok := cfg.Env[key]; !ok {
+				return fmt.Errorf("environment variable %s is not set", key)
+			}
+			delete(cfg.Env, key)
+			if len(cfg.Env) == 0 {
+				cfg.Env = nil
+			}
+			envAny := make(map[string]any)
+			if cfg.Env != nil {
+				for k, v := range cfg.Env {
+					envAny[k] = v
+				}
+			}
+			if _, err := c.Settings.Patch(cmd.Context(), "env", envAny); err != nil {
+				return err
+			}
+		}
+
+		if envProvider != "" {
+			fmt.Printf("Unset %s (provider: %s)\n", key, envProvider)
+		} else {
+			fmt.Printf("Unset %s\n", key)
+		}
+		return nil
+	}
+
+	if !client.IsDaemonNotRunning(clientErr) {
+		return clientErr
+	}
+
+	// Offline fallback: direct file modification
 	cfg, configPath, err := loadWorkspaceConfig()
 	if err != nil {
 		return err
 	}
-
-	key := args[0]
 
 	if envProvider != "" {
 		p, pErr := getProviderEnv(cfg, envProvider)

@@ -28,9 +28,9 @@ func (s *SecretsClient) List(ctx context.Context) ([]SecretInfo, error) {
 	return secrets, nil
 }
 
-// Create creates a new secret.
-func (s *SecretsClient) Create(ctx context.Context, name, value string) (*SecretInfo, error) {
-	body := map[string]string{"name": name, "value": value}
+// Create creates or updates a secret with an optional description.
+func (s *SecretsClient) Create(ctx context.Context, name, value, description string) (*SecretInfo, error) {
+	body := map[string]string{"name": name, "value": value, "description": description}
 	var info SecretInfo
 	if err := s.client.post(ctx, "/api/secrets", body, &info); err != nil {
 		return nil, err

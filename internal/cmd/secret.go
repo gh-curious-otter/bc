@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/secret"
 	"github.com/rpuneet/bc/pkg/ui"
 )
@@ -122,48 +123,54 @@ func openSecretStore() (*secret.Store, error) {
 	return secret.NewStore(ws.RootDir, passphrase)
 }
 
+// resolveSecretValue extracts the secret value from flags or stdin.
+func resolveSecretValue() (string, error) {
+	switch {
+	case secretSetValue != "":
+		return secretSetValue, nil
+	case secretSetFromEnv != "":
+		value := os.Getenv(secretSetFromEnv)
+		if value == "" {
+			return "", fmt.Errorf("environment variable %q is empty or not set", secretSetFromEnv)
+		}
+		return value, nil
+	case secretSetFromFile != "":
+		data, err := os.ReadFile(secretSetFromFile) //nolint:gosec // user-provided path
+		if err != nil {
+			return "", fmt.Errorf("read secret file: %w", err)
+		}
+		return strings.TrimRight(string(data), "\n\r"), nil
+	default:
+		// Read from stdin
+		stat, _ := os.Stdin.Stat()
+		if (stat.Mode() & os.ModeCharDevice) != 0 {
+			return "", fmt.Errorf("no value provided (use --value, --from-env, --from-file, or pipe to stdin)")
+		}
+		data, err := io.ReadAll(io.LimitReader(os.Stdin, 1024*1024)) // 1MB max
+		if err != nil {
+			return "", fmt.Errorf("read stdin: %w", err)
+		}
+		return strings.TrimRight(string(data), "\n\r"), nil
+	}
+}
+
 func runSecretSet(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	if !validIdentifier(name) {
 		return fmt.Errorf("secret name %q contains invalid characters (use letters, numbers, dash, underscore)", name)
 	}
 
-	// Resolve value from flags
-	var value string
-	switch {
-	case secretSetValue != "":
-		value = secretSetValue
-	case secretSetFromEnv != "":
-		value = os.Getenv(secretSetFromEnv)
-		if value == "" {
-			return fmt.Errorf("environment variable %q is empty or not set", secretSetFromEnv)
-		}
-	case secretSetFromFile != "":
-		data, err := os.ReadFile(secretSetFromFile) //nolint:gosec // user-provided path
-		if err != nil {
-			return fmt.Errorf("read secret file: %w", err)
-		}
-		value = strings.TrimRight(string(data), "\n\r")
-	default:
-		// Read from stdin
-		stat, _ := os.Stdin.Stat()
-		if (stat.Mode() & os.ModeCharDevice) != 0 {
-			return fmt.Errorf("no value provided (use --value, --from-env, --from-file, or pipe to stdin)")
-		}
-		data, err := io.ReadAll(io.LimitReader(os.Stdin, 1024*1024)) // 1MB max
-		if err != nil {
-			return fmt.Errorf("read stdin: %w", err)
-		}
-		value = strings.TrimRight(string(data), "\n\r")
-	}
-
-	store, err := openSecretStore()
+	value, err := resolveSecretValue()
 	if err != nil {
 		return err
 	}
-	defer func() { _ = store.Close() }()
 
-	if err := store.Set(name, value, secretSetDesc); err != nil {
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
+		return err
+	}
+
+	if _, err := c.Secrets.Create(cmd.Context(), name, value, secretSetDesc); err != nil {
 		return err
 	}
 
@@ -177,6 +184,7 @@ func runSecretGet(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("secret name %q contains invalid characters", name)
 	}
 
+	// secret get requires direct store access — the API never returns values
 	store, err := openSecretStore()
 	if err != nil {
 		return err
@@ -192,14 +200,13 @@ func runSecretGet(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runSecretList(cmd *cobra.Command, args []string) error {
-	store, err := openSecretStore()
+func runSecretList(cmd *cobra.Command, _ []string) error {
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = store.Close() }()
 
-	secrets, err := store.List()
+	secrets, err := c.Secrets.List(cmd.Context())
 	if err != nil {
 		return err
 	}
@@ -210,7 +217,7 @@ func runSecretList(cmd *cobra.Command, args []string) error {
 	}
 	if jsonOutput {
 		response := struct {
-			Secrets []*secret.SecretMeta `json:"secrets"`
+			Secrets []client.SecretInfo `json:"secrets"`
 		}{Secrets: secrets}
 		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")
@@ -243,18 +250,14 @@ func runSecretShow(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("secret name %q contains invalid characters", name)
 	}
 
-	store, err := openSecretStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = store.Close() }()
 
-	meta, err := store.GetMeta(name)
+	meta, err := c.Secrets.Get(cmd.Context(), name)
 	if err != nil {
 		return err
-	}
-	if meta == nil {
-		return fmt.Errorf("secret %q not found (use 'bc secret list' to see available secrets)", name)
 	}
 
 	jsonOutput, err := cmd.Flags().GetBool("json")
@@ -276,9 +279,16 @@ func runSecretShow(cmd *cobra.Command, args []string) error {
 	)
 
 	if secretShowReveal {
-		value, err := store.GetValue(name)
-		if err != nil {
-			return fmt.Errorf("reveal secret: %w", err)
+		// --reveal requires direct store access — API never returns values
+		store, storeErr := openSecretStore()
+		if storeErr != nil {
+			return fmt.Errorf("reveal secret: %w", storeErr)
+		}
+		defer func() { _ = store.Close() }()
+
+		value, valErr := store.GetValue(name)
+		if valErr != nil {
+			return fmt.Errorf("reveal secret: %w", valErr)
 		}
 		fmt.Printf("\nValue: %s\n", value)
 	}
@@ -292,13 +302,12 @@ func runSecretDelete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("secret name %q contains invalid characters", name)
 	}
 
-	store, err := openSecretStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	defer func() { _ = store.Close() }()
 
-	if err := store.Delete(name); err != nil {
+	if err := c.Secrets.Delete(cmd.Context(), name); err != nil {
 		return err
 	}
 
