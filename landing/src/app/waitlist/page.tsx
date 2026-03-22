@@ -57,8 +57,8 @@ const BENEFITS = [
 ];
 
 const GOOGLE_FORM_ACTION =
-  "https://docs.google.com/forms/d/e/1FAIpQLSfsvT50v1zhEjn7jdvQvH3j8Kpq_iuCbfvs9ifVnkvNAX2zeQ/formResponse";
-const GOOGLE_FORM_EMAIL_FIELD = "entry.646454775";
+  "https://docs.google.com/forms/d/e/1FAIpQLSc_aJ3S3nV5EizpkzTZnN7H5UykoANpC8jet2M7J0Qo3rhG8Q/formResponse";
+const GOOGLE_FORM_EMAIL_FIELD = "entry.843755864";
 
 export default function Waitlist() {
   const [email, setEmail] = useState("");
