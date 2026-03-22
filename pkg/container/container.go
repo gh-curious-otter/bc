@@ -279,6 +279,9 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		args = append(args, "--network", b.cfg.Network)
 	}
 
+	// Ensure host.docker.internal resolves on Linux (macOS/Windows get this automatically)
+	args = append(args, "--add-host=host.docker.internal:host-gateway")
+
 	// Mount 1: Project workspace
 	if dir != "" {
 		args = append(args, "-v", dir+":/workspace")

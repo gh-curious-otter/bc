@@ -210,6 +210,9 @@ func writeMCPJSON(workspacePath, agentName string, resolved *workspace.ResolvedR
 			continue
 		}
 		entry := mcpServerEntry{Command: def.Command, Args: def.Args, URL: def.URL}
+		if isDocker && entry.URL != "" {
+			entry.URL = rewriteDockerURL(entry.URL)
+		}
 		if def.Transport == "sse" {
 			entry.Type = "sse"
 		}
@@ -231,6 +234,15 @@ func writeMCPJSON(workspacePath, agentName string, resolved *workspace.ResolvedR
 	}
 
 	return writeJSONFile(targetDir, ".mcp.json", cfg)
+}
+
+// rewriteDockerURL rewrites localhost URLs to host.docker.internal so Docker
+// containers can reach services on the host. Works on macOS and Windows;
+// on Linux, host.docker.internal requires --add-host in docker run.
+func rewriteDockerURL(u string) string {
+	u = strings.Replace(u, "localhost", "host.docker.internal", 1)
+	u = strings.Replace(u, "127.0.0.1", "host.docker.internal", 1)
+	return u
 }
 
 // ── Secrets ─────────────────────────────────────────────────────────────────
