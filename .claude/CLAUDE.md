@@ -6,33 +6,67 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Prerequisites**: Go 1.25.4+, tmux, golangci-lint, make. For TUI: Bun.
 
+**Naming convention**: `make <verb>-<component>[-<runtime>]`
+- **component** = `bc` | `bcd` | `tui` | `web` | `landing`
+- **runtime** = `-local` (host machine) | `-docker` (container)
+- `go` | `ts` = language aggregates for CI/CD convenience
+
 **Build**
 ```bash
-make build              # Build binary to bin/bc (runs go generate first)
-make build-release      # Optimized release build (stripped symbols)
+make build                         # Build everything locally (go + ts)
+make build-go-local                # Build all Go binaries (bc + bcd)
+make build-bc-local                # Build bc CLI binary
+make build-bcd-local               # Build bcd server (embeds web UI)
+make build-ts-local                # Build all TS packages (tui + web + landing)
+make build-bcd-docker              # Build bcd server Docker image
+make build-agent-gemini-docker     # Build Gemini agent Docker image
+make build-agents-docker           # Build all agent Docker images
+make release                       # Optimized release binaries (stripped)
 ```
 
 **Test**
 ```bash
-make test                                    # Run all tests with race detector
-go test -race -run TestAgentStart ./pkg/agent/  # Run a specific test
-make coverage                                # Generate coverage report
-make bench                                   # Run benchmarks
+make test                                       # Run all tests (go + ts)
+make test-go                                    # Run Go tests with race detector
+go test -race -run TestAgentStart ./pkg/agent/  # Run a specific Go test
+make test-ts                                    # Run all TS tests (tui + web + landing)
+make test-tui                                   # Run TUI tests
+make test-web                                   # Run web UI tests (vitest)
+make coverage-go                                # Go coverage report (60% threshold)
+make bench-go                                   # Run Go benchmarks
 ```
 
 **Lint & Check**
 ```bash
-make fmt                # Format code with gofmt
-make lint               # Run golangci-lint (strict)
-make check              # Full check suite: gen + fmt + vet + lint + test
+make lint                  # Run all linters (go + ts)
+make lint-go               # Run golangci-lint
+make lint-ts               # Run all TS linters (tui + web + landing)
+make fmt-go                # Format Go code with gofmt
+make vet-go                # Run go vet
+make check                 # Full quality gate (go + ts)
+make check-go              # Go quality gate: gen + fmt + vet + lint + test
+make check-ts              # TS quality gate: lint + test
+make integrate             # Full CI equivalent: check + build
 ```
 
-**TUI**
+**Run & Deploy**
 ```bash
-make build-tui          # Build TUI (cd tui && bun install && bun run build)
-make test-tui           # Run TUI tests
-make lint-tui           # Lint TUI code
-bun test src/hooks/__tests__/useStatus.test.tsx  # Run specific TUI test (from tui/)
+make run-bc-local                  # Run bc CLI from source (go run)
+make run-web-local                 # Run web UI dev server (hot reload)
+make run-landing-local             # Run landing dev server (hot reload)
+make deploy-bcd-local              # Deploy bcd server locally
+make deploy-bcd-local ENV=dogfood  # Deploy to dogfood environment
+```
+
+**Utilities**
+```bash
+make deps-go               # Download and tidy Go dependencies
+make deps-ts               # Install all TS dependencies (bun install)
+make scan-go               # Run govulncheck
+make gen-go                # Generate Go code (currently no-op)
+make install-bc-local      # Install bc to $GOPATH/bin
+make clean                 # Remove all build artifacts
+make clean-deps            # Remove artifacts + node_modules
 ```
 
 ## Architecture
@@ -60,7 +94,7 @@ bun test src/hooks/__tests__/useStatus.test.tsx  # Run specific TUI test (from t
 
 ### Config Generation
 
-Config code is generated from `config.toml` using the `cfgx` tool (`go generate ./...`). The `make build` target runs `make gen` as a prerequisite. After modifying config.toml, always run `make gen`.
+Config code is generated from `config.toml` using the `cfgx` tool (`go generate ./...`). The `make build` target runs `make gen-go` as a prerequisite. After modifying config.toml, always run `make gen-go`.
 
 ## Implementation Details
 
@@ -114,9 +148,9 @@ Exclusions: deprecated queue/beads migration, test file magic numbers, main.go g
 ## Docker Agent Images
 
 ```bash
-make build-agent-image          # Build default (claude) agent image
-make build-agent-image-gemini   # Build specific provider image
-make build-agent-images         # Build all provider images
+make build-agent-docker                # Build default agent Docker image (claude)
+make build-agent-gemini-docker         # Build specific provider Docker image
+make build-agents-docker               # Build all agent Docker images
 ```
 
 ## Architecture Patterns
