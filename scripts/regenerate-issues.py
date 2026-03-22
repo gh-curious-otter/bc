@@ -30,8 +30,6 @@ def load_agent_instructions(template_name: str) -> str:
 
 def classify_issue(labels: list[str]) -> str:
     """Determine which template an issue should use."""
-    if "epic" in labels:
-        return "epic"
     if "bug" in labels:
         return "bug_report"
     return "feature_request"
