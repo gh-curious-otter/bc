@@ -370,6 +370,11 @@ export const api = {
   deleteTool: (name: string) =>
     request<void>(`/tools/${encodeURIComponent(name)}`, { method: "DELETE" }),
   listMCP: () => request<MCPServer[]>("/mcp"),
+  registerMCP: (server: Omit<MCPServer, "enabled"> & { enabled?: boolean }) =>
+    request<MCPServer>("/mcp", {
+      method: "POST",
+      body: JSON.stringify(server),
+    }),
   removeMCP: (name: string) =>
     request<void>(`/mcp/${encodeURIComponent(name)}`, { method: "DELETE" }),
   enableMCP: (name: string) =>
