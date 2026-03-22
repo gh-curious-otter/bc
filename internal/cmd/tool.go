@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/provider"
 	"github.com/rpuneet/bc/pkg/tool"
 	"github.com/rpuneet/bc/pkg/ui"
@@ -246,6 +247,20 @@ func getToolOrProvider(ctx context.Context, s *tool.Store, name string) (*tool.T
 	}, nil
 }
 
+// clientToolToLocal converts a client ToolInfo to a local tool.Tool.
+func clientToolToLocal(t *client.ToolInfo) *tool.Tool {
+	return &tool.Tool{
+		Name:       t.Name,
+		Command:    t.Command,
+		InstallCmd: t.InstallCmd,
+		UpgradeCmd: t.UpgradeCmd,
+		MCPServers: t.MCPServers,
+		SlashCmds:  t.SlashCmds,
+		Enabled:    t.Enabled,
+		Builtin:    t.Builtin,
+	}
+}
+
 type toolInfo struct {
 	Name    string `json:"name"`
 	Status  string `json:"status"`
@@ -302,16 +317,10 @@ func checkBinaryInstalled(ctx context.Context, name string) (installed bool, ver
 func runToolList(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 
-	// Try workspace store first; fall back to provider registry only
-	s, storeErr := openToolStore()
-	if storeErr == nil {
-		defer s.Close() //nolint:errcheck // best-effort close
-
-		tools, err := s.List(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to list tools: %w", err)
-		}
-
+	// Try bcd API first
+	c := getClient()
+	tools, apiErr := c.Tools.List(ctx)
+	if apiErr == nil {
 		if toolListJSON {
 			enc := json.NewEncoder(os.Stdout)
 			enc.SetIndent("", "  ")
@@ -320,6 +329,39 @@ func runToolList(cmd *cobra.Command, _ []string) error {
 
 		tbl := ui.NewTable("TOOL", "STATUS", "ENABLED", "COMMAND")
 		for _, t := range tools {
+			installed, _, _ := checkBinaryInstalled(ctx, toolBinaryName(clientToolToLocal(t)))
+			status := ui.DimText("not found")
+			if installed {
+				status = ui.GreenText("installed")
+			}
+			enabled := ui.GreenText("yes")
+			if !t.Enabled {
+				enabled = ui.DimText("no")
+			}
+			tbl.AddRow(t.Name, status, enabled, truncateToolCmd(t.Command))
+		}
+		tbl.Print()
+		return nil
+	}
+
+	// Fallback: try workspace store, then provider registry
+	s, storeErr := openToolStore()
+	if storeErr == nil {
+		defer s.Close() //nolint:errcheck // best-effort close
+
+		storeTools, err := s.List(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to list tools: %w", err)
+		}
+
+		if toolListJSON {
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(storeTools)
+		}
+
+		tbl := ui.NewTable("TOOL", "STATUS", "ENABLED", "COMMAND")
+		for _, t := range storeTools {
 			installed, _, _ := checkBinaryInstalled(ctx, toolBinaryName(t))
 			status := ui.DimText("not found")
 			if installed {
@@ -421,6 +463,15 @@ func runToolShow(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 	name := args[0]
 
+	// Try bcd API first
+	c := getClient()
+	apiTool, apiErr := c.Tools.Get(ctx, name)
+	if apiErr == nil && apiTool != nil {
+		t := clientToolToLocal(apiTool)
+		return showToolDetail(ctx, t)
+	}
+
+	// Fallback: direct store access
 	s, err := openToolStore()
 	if err != nil {
 		return err
@@ -432,6 +483,10 @@ func runToolShow(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	return showToolDetail(ctx, t)
+}
+
+func showToolDetail(ctx context.Context, t *tool.Tool) error {
 	installed, version, path := checkBinaryInstalled(ctx, toolBinaryName(t))
 	statusStr := ui.RedText("not found")
 	if installed {
@@ -490,15 +545,24 @@ func runToolStatus(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 	name := args[0]
 
-	s, err := openToolStore()
-	if err != nil {
-		return err
-	}
-	defer s.Close() //nolint:errcheck // best-effort close
+	// Try bcd API first for tool info
+	var t *tool.Tool
+	c := getClient()
+	apiTool, apiErr := c.Tools.Get(ctx, name)
+	if apiErr == nil && apiTool != nil {
+		t = clientToolToLocal(apiTool)
+	} else {
+		// Fallback: direct store access
+		s, err := openToolStore()
+		if err != nil {
+			return err
+		}
+		defer s.Close() //nolint:errcheck // best-effort close
 
-	t, err := getToolOrProvider(ctx, s, name)
-	if err != nil {
-		return err
+		t, err = getToolOrProvider(ctx, s, name)
+		if err != nil {
+			return err
+		}
 	}
 
 	binName := toolBinaryName(t)
@@ -534,12 +598,6 @@ func runToolAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--command is required (e.g. --command %q)", name+" --yes")
 	}
 
-	s, err := openToolStore()
-	if err != nil {
-		return err
-	}
-	defer s.Close() //nolint:errcheck // best-effort close
-
 	var slashCmds []string
 	if toolAddSlashCmds != "" {
 		for _, sc := range strings.Split(toolAddSlashCmds, ",") {
@@ -549,6 +607,38 @@ func runToolAdd(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
+
+	// Try bcd API first
+	c := getClient()
+	apiTool := &client.ToolInfo{
+		Name:       name,
+		Command:    toolAddCommand,
+		InstallCmd: toolAddInstall,
+		UpgradeCmd: toolAddUpgrade,
+		SlashCmds:  slashCmds,
+		Enabled:    true,
+	}
+
+	added, apiErr := c.Tools.Update(ctx, apiTool)
+	if apiErr == nil {
+		if toolAddJSON {
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(added)
+		}
+		fmt.Printf("Added tool %s\n", ui.GreenText(name))
+		if apiTool.InstallCmd != "" {
+			fmt.Printf("Run 'bc tool setup %s' to install it.\n", name)
+		}
+		return nil
+	}
+
+	// Fallback: direct store access
+	s, err := openToolStore()
+	if err != nil {
+		return err
+	}
+	defer s.Close() //nolint:errcheck // best-effort close
 
 	t := &tool.Tool{
 		Name:       name,
@@ -563,7 +653,7 @@ func runToolAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to add tool: %w", addErr)
 	}
 
-	added, err := s.Get(ctx, name)
+	addedTool, err := s.Get(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -571,7 +661,7 @@ func runToolAdd(cmd *cobra.Command, args []string) error {
 	if toolAddJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(added)
+		return enc.Encode(addedTool)
 	}
 
 	fmt.Printf("Added tool %s\n", ui.GreenText(name))
@@ -587,15 +677,23 @@ func runToolSetup(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 	name := args[0]
 
-	s, err := openToolStore()
-	if err != nil {
-		return err
-	}
-	defer s.Close() //nolint:errcheck // best-effort close
+	// Get tool info (try API, fallback to store)
+	var t *tool.Tool
+	c := getClient()
+	apiTool, apiErr := c.Tools.Get(ctx, name)
+	if apiErr == nil && apiTool != nil {
+		t = clientToolToLocal(apiTool)
+	} else {
+		s, err := openToolStore()
+		if err != nil {
+			return err
+		}
+		defer s.Close() //nolint:errcheck // best-effort close
 
-	t, err := getToolOrProvider(ctx, s, name)
-	if err != nil {
-		return err
+		t, err = getToolOrProvider(ctx, s, name)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Step 1: check if already installed
@@ -603,7 +701,17 @@ func runToolSetup(cmd *cobra.Command, args []string) error {
 	if installed, version, _ := checkBinaryInstalled(ctx, binName); installed {
 		fmt.Printf("%s %s is already installed (%s)\n", ui.GreenText("✓"), name, version)
 		if !t.Enabled {
-			if enErr := s.SetEnabled(ctx, name, true); enErr == nil {
+			// Try to enable via API
+			if enErr := c.Tools.Enable(ctx, name); enErr != nil {
+				// Fallback to direct store
+				s, sErr := openToolStore()
+				if sErr == nil {
+					defer s.Close() //nolint:errcheck // best-effort close
+					if enErr := s.SetEnabled(ctx, name, true); enErr == nil {
+						fmt.Printf("Enabled %s in workspace.\n", name)
+					}
+				}
+			} else {
 				fmt.Printf("Enabled %s in workspace.\n", name)
 			}
 		}
@@ -628,8 +736,13 @@ func runToolSetup(cmd *cobra.Command, args []string) error {
 	// Step 3: verify
 	if installed, version, _ := checkBinaryInstalled(ctx, binName); installed {
 		fmt.Printf("\n%s %s installed successfully (%s)\n", ui.GreenText("✓"), name, version)
-		if storeErr := s.SetEnabled(ctx, name, true); storeErr != nil {
-			return storeErr
+		// Enable via API or fallback
+		if enErr := c.Tools.Enable(ctx, name); enErr != nil {
+			s, sErr := openToolStore()
+			if sErr == nil {
+				defer s.Close()                   //nolint:errcheck // best-effort close
+				_ = s.SetEnabled(ctx, name, true) //nolint:errcheck // best-effort enable
+			}
 		}
 	} else {
 		fmt.Printf("\n%s %s binary not found after install — check the install command\n", ui.RedText("✗"), name)
@@ -644,15 +757,23 @@ func runToolUpgrade(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 	name := args[0]
 
-	s, err := openToolStore()
-	if err != nil {
-		return err
-	}
-	defer s.Close() //nolint:errcheck // best-effort close
+	// Get tool info (try API, fallback to store)
+	var t *tool.Tool
+	c := getClient()
+	apiTool, apiErr := c.Tools.Get(ctx, name)
+	if apiErr == nil && apiTool != nil {
+		t = clientToolToLocal(apiTool)
+	} else {
+		s, err := openToolStore()
+		if err != nil {
+			return err
+		}
+		defer s.Close() //nolint:errcheck // best-effort close
 
-	t, err := getToolOrProvider(ctx, s, name)
-	if err != nil {
-		return err
+		t, err = getToolOrProvider(ctx, s, name)
+		if err != nil {
+			return err
+		}
 	}
 
 	if t.UpgradeCmd == "" {
@@ -687,6 +808,60 @@ func runToolEdit(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 	name := args[0]
 
+	// Try bcd API first
+	c := getClient()
+	apiTool, apiErr := c.Tools.Get(ctx, name)
+	if apiErr == nil && apiTool != nil {
+		changed := false
+
+		if toolEditCommand != "" {
+			apiTool.Command = toolEditCommand
+			changed = true
+		}
+		if toolEditInstall != "" {
+			apiTool.InstallCmd = toolEditInstall
+			changed = true
+		}
+		if toolEditUpgrade != "" {
+			apiTool.UpgradeCmd = toolEditUpgrade
+			changed = true
+		}
+		if toolEditSlashCmds != "" {
+			var cmds []string
+			for _, sc := range strings.Split(toolEditSlashCmds, ",") {
+				sc = strings.TrimSpace(sc)
+				if sc != "" {
+					cmds = append(cmds, sc)
+				}
+			}
+			apiTool.SlashCmds = cmds
+			changed = true
+		}
+		if toolEditEnabled != "" {
+			switch strings.ToLower(toolEditEnabled) {
+			case "true", "yes", "1":
+				apiTool.Enabled = true
+			case "false", "no", "0":
+				apiTool.Enabled = false
+			default:
+				return fmt.Errorf("--enabled must be true or false")
+			}
+			changed = true
+		}
+
+		if !changed {
+			return fmt.Errorf("no changes specified — use flags like --command, --install, --enabled")
+		}
+
+		if _, updateErr := c.Tools.Update(ctx, apiTool); updateErr != nil {
+			return fmt.Errorf("failed to update tool: %w", updateErr)
+		}
+
+		fmt.Printf("Updated tool %s\n", ui.GreenText(name))
+		return nil
+	}
+
+	// Fallback: direct store access
 	s, err := openToolStore()
 	if err != nil {
 		return err
@@ -756,6 +931,21 @@ func runToolDelete(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 	name := args[0]
 
+	// Try bcd API first
+	c := getClient()
+	apiTool, apiErr := c.Tools.Get(ctx, name)
+	if apiErr == nil && apiTool != nil {
+		if apiTool.Builtin {
+			return fmt.Errorf("cannot delete built-in tool %q — disable it instead: bc tool edit %s --enabled false", name, name)
+		}
+		if delErr := c.Tools.Delete(ctx, name); delErr != nil {
+			return fmt.Errorf("failed to delete tool: %w", delErr)
+		}
+		fmt.Printf("Deleted tool %s\n", name)
+		return nil
+	}
+
+	// Fallback: direct store access
 	s, err := openToolStore()
 	if err != nil {
 		return err
@@ -791,26 +981,34 @@ func runToolRun(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	extraArgs := args[1:]
 
-	s, storeErr := openToolStore()
-	var t *tool.Tool
-	if storeErr == nil {
-		defer s.Close() //nolint:errcheck // best-effort close
-		var getErr error
-		t, getErr = s.Get(ctx, name)
-		if getErr != nil {
-			return getErr
-		}
-	}
-
+	// Try bcd API first for tool info
 	var cmdStr string
-	if t != nil {
-		cmdStr = t.Command
+	c := getClient()
+	apiTool, apiErr := c.Tools.Get(ctx, name)
+	if apiErr == nil && apiTool != nil {
+		cmdStr = apiTool.Command
 	} else {
-		p, err := provider.GetProvider(name)
-		if err != nil {
-			return fmt.Errorf("unknown tool %q", name)
+		// Fallback: direct store or provider
+		s, storeErr := openToolStore()
+		var t *tool.Tool
+		if storeErr == nil {
+			defer s.Close() //nolint:errcheck // best-effort close
+			var getErr error
+			t, getErr = s.Get(ctx, name)
+			if getErr != nil {
+				return getErr
+			}
 		}
-		cmdStr = p.Command()
+
+		if t != nil {
+			cmdStr = t.Command
+		} else {
+			p, err := provider.GetProvider(name)
+			if err != nil {
+				return fmt.Errorf("unknown tool %q", name)
+			}
+			cmdStr = p.Command()
+		}
 	}
 
 	// Build final command: expand stored command + any extra args

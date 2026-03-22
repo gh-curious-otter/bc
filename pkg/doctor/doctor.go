@@ -22,6 +22,7 @@ package doctor
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -60,19 +61,43 @@ func (s Severity) String() string {
 	}
 }
 
+// MarshalJSON encodes a Severity as its string representation.
+func (s Severity) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.String())
+}
+
+// UnmarshalJSON decodes a Severity from its string representation.
+func (s *Severity) UnmarshalJSON(data []byte) error {
+	var str string
+	if err := json.Unmarshal(data, &str); err != nil {
+		return err
+	}
+	switch str {
+	case "ok":
+		*s = SeverityOK
+	case "warn":
+		*s = SeverityWarn
+	case "fail":
+		*s = SeverityFail
+	default:
+		return fmt.Errorf("unknown severity: %s", str)
+	}
+	return nil
+}
+
 // Item is the result of a single health check.
 // Field order optimized by fieldalignment.
 type Item struct {
-	Name     string
-	Message  string
-	Fix      string
-	Severity Severity
+	Name     string   `json:"name"`
+	Message  string   `json:"message"`
+	Fix      string   `json:"fix,omitempty"`
+	Severity Severity `json:"severity"`
 }
 
 // CategoryReport is the result of checking one category.
 type CategoryReport struct {
-	Name  string
-	Items []Item
+	Name  string `json:"name"`
+	Items []Item `json:"items"`
 }
 
 // Counts tallies ok/warn/fail across Items.
@@ -92,7 +117,7 @@ func (c *CategoryReport) Counts() (ok, warn, fail int) {
 
 // Report contains all category results from a full health check.
 type Report struct {
-	Categories []CategoryReport
+	Categories []CategoryReport `json:"categories"`
 }
 
 // Summary returns aggregate ok/warn/fail totals across all categories.

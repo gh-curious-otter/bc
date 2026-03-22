@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/doctor"
 	"github.com/rpuneet/bc/pkg/ui"
 )
@@ -77,6 +78,19 @@ func init() {
 func runDoctor(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 
+	// Try bcd API first
+	c := getClient()
+	apiReport, apiErr := c.Doctor.RunAll(ctx)
+	if apiErr == nil && apiReport != nil {
+		printClientReport(apiReport)
+		fail := countClientFails(apiReport)
+		if fail > 0 {
+			return fmt.Errorf("health check failed")
+		}
+		return nil
+	}
+
+	// Offline fallback: use direct pkg/doctor
 	ws, err := getWorkspace()
 	if err != nil {
 		// No workspace: run tools-only check
@@ -110,6 +124,20 @@ func runDoctorCheck(cmd *cobra.Command, args []string) error {
 
 	name := args[0]
 
+	// Try bcd API first
+	c := getClient()
+	apiCat, apiErr := c.Doctor.ByCategory(ctx, name)
+	if apiErr == nil && apiCat != nil {
+		printClientCategory(apiCat)
+		fmt.Println()
+		fail := countClientCategoryFails(apiCat)
+		if fail > 0 {
+			return fmt.Errorf("check failed")
+		}
+		return nil
+	}
+
+	// Offline fallback
 	ws, wsErr := getWorkspace()
 
 	// Tools check works without a workspace
@@ -151,6 +179,7 @@ func runDoctorFix(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
+	// Fix always uses direct pkg/doctor (requires local workspace access)
 	ws, wsErr := requireWorkspace()
 	if wsErr != nil {
 		return wsErr
@@ -248,4 +277,90 @@ func printCategory(cat doctor.CategoryReport) {
 			fmt.Printf("    %s %s\n", ui.DimText("→"), ui.DimText(item.Fix))
 		}
 	}
+}
+
+// ─── Client report helpers (for API-based output) ─────────────────────────────
+
+func printClientReport(report *client.DoctorReport) {
+	fmt.Println("bc doctor")
+	fmt.Println(strings.Repeat("─", 40))
+	fmt.Println()
+
+	for i := range report.Categories {
+		printClientCategory(&report.Categories[i])
+		fmt.Println()
+	}
+
+	ok, warn, fail := countClientSummary(report)
+	summary := fmt.Sprintf("Summary: %d passed, %d failed, %d warnings",
+		ok, fail, warn)
+
+	if fail > 0 {
+		fmt.Println(ui.RedText(summary))
+		fmt.Println()
+		fmt.Println("Run 'bc doctor fix' to auto-repair fixable issues.")
+	} else if warn > 0 {
+		fmt.Println(ui.YellowText(summary))
+	} else {
+		fmt.Println(ui.GreenText(summary))
+	}
+}
+
+func printClientCategory(cat *client.DoctorCategory) {
+	fmt.Println(ui.BoldText(cat.Name))
+	for _, item := range cat.Items {
+		var icon string
+		switch item.Severity {
+		case "ok":
+			icon = ui.GreenText("✓")
+		case "warn":
+			icon = ui.YellowText("⚠")
+		default:
+			icon = ui.RedText("✗")
+		}
+
+		name := item.Name
+		switch item.Severity {
+		case "fail":
+			name = ui.RedText(name)
+		case "warn":
+			name = ui.YellowText(name)
+		}
+
+		fmt.Printf("  %s %-35s %s\n", icon, name, item.Message)
+		if item.Fix != "" && (item.Severity == "fail" || item.Severity == "warn") {
+			fmt.Printf("    %s %s\n", ui.DimText("→"), ui.DimText(item.Fix))
+		}
+	}
+}
+
+func countClientFails(report *client.DoctorReport) int {
+	_, _, fail := countClientSummary(report)
+	return fail
+}
+
+func countClientCategoryFails(cat *client.DoctorCategory) int {
+	fail := 0
+	for _, item := range cat.Items {
+		if item.Severity == "fail" {
+			fail++
+		}
+	}
+	return fail
+}
+
+func countClientSummary(report *client.DoctorReport) (ok, warn, fail int) {
+	for _, cat := range report.Categories {
+		for _, item := range cat.Items {
+			switch item.Severity {
+			case "ok":
+				ok++
+			case "warn":
+				warn++
+			case "fail":
+				fail++
+			}
+		}
+	}
+	return
 }
