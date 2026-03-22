@@ -3,6 +3,7 @@
 **Base URL:** `http://127.0.0.1:9374`
 **Content-Type:** `application/json`
 **Authentication:** None (localhost-only)
+**Total endpoints:** 41 across 14 resource groups
 
 ---
 
@@ -331,17 +332,51 @@ Manual trigger.
 
 ## Daemons
 
-Long-running processes managed by bcd.
+Long-running processes managed by bcd. Support tmux and Docker runtimes with restart policies.
 
 ### `GET /api/daemons`
+List all daemons with pagination.
+
+**Query params:** `limit` (int, default 50), `offset` (int, default 0)
+
+**Response:** `200 OK` -- `Daemon[]`
+
 ### `POST /api/daemons`
-**Body:** `{"name": "db", "cmd": "postgres", "runtime": "docker", "image": "postgres:17", "ports": ["5432:5432"]}`
+Create and start a daemon.
+
+**Body:**
+```json
+{
+  "name": "db",
+  "cmd": "postgres -D /data",
+  "image": "postgres:17",
+  "runtime": "docker",
+  "restart": "always",
+  "env": ["POSTGRES_PASSWORD=secret"],
+  "ports": ["5432:5432"]
+}
+```
+- `name` -- required, unique identifier
+- `cmd` -- required, command to run
+- `image` -- Docker image (required if runtime is docker)
+- `runtime` -- "tmux" or "docker"
+- `restart` -- restart policy: "no", "always", "on-failure"
+- `env` -- environment variables as `KEY=VALUE` strings
+- `ports` -- port mappings as `HOST:CONTAINER` strings
+
+**Response:** `201 Created` -- `Daemon`
 
 ### `GET /api/daemons/{name}`
-### `POST /api/daemons/{name}/start`
+**Response:** `200 OK` -- `Daemon` | `404`
+
 ### `POST /api/daemons/{name}/stop`
+**Response:** `200 OK` -- `{"status": "stopped"}`
+
 ### `POST /api/daemons/{name}/restart`
+**Response:** `200 OK` -- `Daemon`
+
 ### `DELETE /api/daemons/{name}`
+**Response:** `204 No Content`
 
 ---
 
@@ -424,12 +459,125 @@ Server-Sent Events stream.
 
 ---
 
+## Settings
+
+Workspace configuration management. See [settings.md](settings.md) for full details.
+
+### `GET /api/settings`
+Returns the full workspace configuration.
+
+**Response:** `200 OK` -- full config object
+
+### `PUT /api/settings`
+Partial update of the full configuration. Send only the sections you want to change.
+
+**Body:** JSON object with one or more config sections.
+
+**Supported sections:** `user`, `providers`, `env`, `logs`, `runtime`, `performance`, `tui`, `workspace`, `roster`, `services`
+
+**Response:** `200 OK` -- full updated config
+
+### `PATCH /api/settings/{section}`
+Update a single config section. The request body is the section object directly (not wrapped in a parent key).
+
+**Supported sections:** `user`, `tui`, `runtime`, `providers`, `services`, `logs`, `performance`, `env`, `roster`
+
+**Example:**
+```bash
+curl -X PATCH http://localhost:9374/api/settings/tui \
+  -H "Content-Type: application/json" \
+  -d '{ "theme": "matrix", "mode": "dark" }'
+```
+
+**Response:** `200 OK` -- full updated config
+
+---
+
+## Stats
+
+System metrics and workspace summary.
+
+### `GET /api/stats/system`
+System-level resource metrics.
+
+**Response:** `200 OK`
+```json
+{
+  "hostname": "macbook",
+  "os": "darwin",
+  "arch": "arm64",
+  "cpus": 10,
+  "cpu_usage_percent": 23.5,
+  "memory_total_bytes": 17179869184,
+  "memory_used_bytes": 12884901888,
+  "memory_usage_percent": 75.0,
+  "disk_total_bytes": 500000000000,
+  "disk_used_bytes": 250000000000,
+  "disk_usage_percent": 50.0,
+  "go_version": "go1.25.4",
+  "uptime_seconds": 3600,
+  "goroutines": 42
+}
+```
+
+### `GET /api/stats/summary`
+Workspace-level summary counts.
+
+**Response:** `200 OK`
+```json
+{
+  "agents_total": 5,
+  "agents_running": 3,
+  "agents_stopped": 2,
+  "channels_total": 4,
+  "messages_total": 120,
+  "total_cost_usd": 12.50,
+  "roles_total": 3,
+  "tools_total": 2,
+  "uptime_seconds": 3600
+}
+```
+
+### `GET /api/stats/channels`
+Channel-level statistics.
+
+**Response:** `200 OK`
+
+---
+
+## Workspace
+
+Workspace lifecycle management.
+
+### `GET /api/workspace`
+### `GET /api/workspace/status`
+Workspace status including agent counts, runtime info, and config.
+
+**Response:** `200 OK`
+
+### `GET /api/workspace/roles`
+List all available roles.
+
+**Response:** `200 OK`
+
+### `POST /api/workspace/up`
+Start the workspace (equivalent to `bc up`).
+
+**Response:** `200 OK`
+
+### `POST /api/workspace/down`
+Stop the workspace and all agents (equivalent to `bc down`).
+
+**Response:** `200 OK`
+
+---
+
 ## MCP Protocol
 
 ### `GET /mcp/sse`
-MCP SSE transport — server-to-client events.
+MCP SSE transport -- server-to-client events.
 
 ### `POST /mcp/message`
-MCP JSON-RPC 2.0 — client-to-server. 4MB body limit.
+MCP JSON-RPC 2.0 -- client-to-server. 4MB body limit.
 
-See [architecture/mcp.md](../mcp.md) for resources, tools, and notifications.
+See [backend/mcp.md](../backend/mcp.md) for resources, tools, and notifications.
