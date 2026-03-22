@@ -324,10 +324,22 @@ export const api = {
     request<void>(`/agents/${encodeURIComponent(name)}/stop`, {
       method: "POST",
     }),
-  deleteAgent: (name: string) =>
-    request<void>(`/agents/${encodeURIComponent(name)}?force=true`, {
-      method: "DELETE",
+  createAgent: (opts: {
+    name?: string;
+    role: string;
+    tool?: string;
+    runtime?: string;
+  }) =>
+    request<Agent>("/agents", {
+      method: "POST",
+      body: JSON.stringify(opts),
     }),
+  generateAgentName: () => request<{ name: string }>("/agents/generate-name"),
+  deleteAgent: (name: string, force = false) =>
+    request<void>(
+      `/agents/${encodeURIComponent(name)}${force ? "?force=true" : ""}`,
+      { method: "DELETE" },
+    ),
   sendToAgent: (name: string, message: string) =>
     request<void>(`/agents/${encodeURIComponent(name)}/send`, {
       method: "POST",
