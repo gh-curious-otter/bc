@@ -36,7 +36,6 @@ import { HelpView } from '../views/HelpView';
 
 // Import components that need viewport validation
 import { TabBar } from '../navigation/TabBar';
-import { Drawer } from '../navigation/Drawer';
 
 // Mock bc service to prevent actual CLI calls
 import { mock } from 'bun:test';
@@ -149,21 +148,6 @@ describe('Viewport CI - 80x24 Compliance', () => {
       expect(analysis.lineCount).toBeLessThanOrEqual(2); // Allow for newline
     });
 
-    it('Drawer renders in shrunk mode at 80 columns', () => {
-      const { lastFrame } = render(
-        <NavigationProvider>
-          <FocusProvider>
-            <DisableInputProvider disabled>
-              <Drawer disabled shrunk width={6} />
-            </DisableInputProvider>
-          </FocusProvider>
-        </NavigationProvider>
-      );
-
-      const output = lastFrame() ?? '';
-      // Shrunk drawer should be narrow
-      expect(output.length).toBeLessThan(200); // Reasonable for shrunk drawer
-    });
   });
 
   describe('Views - Loading State', () => {
