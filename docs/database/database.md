@@ -244,4 +244,4 @@ OLD (per-project):                NEW (global):
   project/.bc/logs/        ->     ~/.bc/logs/
 ```
 
-`bc migrate` copies data from per-project `.bc/` to `~/.bc/`, converts role files to DB records.
+`bc workspace migrate` migrates workspace config format from v1 (`.bc/config.json`) to v2 (`.bc/settings.toml`). It does not migrate database schema or copy data between directories. Agent JSON state files auto-migrate on next load.

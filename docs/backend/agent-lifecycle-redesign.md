@@ -1,3 +1,5 @@
+> **Status: Draft Proposal** — This document describes a proposed refactoring (#2165). It has not been fully implemented. See docs/backend/agents.md for current architecture.
+
 # Design: Agent Lifecycle Consolidation
 
 **Issue:** #2165

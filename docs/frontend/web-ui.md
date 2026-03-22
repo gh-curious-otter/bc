@@ -120,6 +120,8 @@ graph TD
 
 ## 3. Shared Component Library Design
 
+> **Note:** The @bc/ui shared component library is a Phase 1 roadmap item. The current implementation uses local components in each package.
+
 ### 3.1 Problem Statement
 
 The web dashboard and TUI duplicate every UI primitive. Both have a `StatusBadge`, both have a `Table`, both have a `Panel` -- but with incompatible interfaces and no code sharing. When the Solar Flare design system rolls out, every component must be updated in two places. When a new component is needed, it is built twice.

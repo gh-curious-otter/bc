@@ -5,7 +5,7 @@
 bc is a CLI-first orchestration system for coordinating teams of AI coding agents. The system is split into two binaries: `bc` (thin CLI client) and `bcd` (long-running daemon). The daemon manages agents across multiple git repositories from a single global installation at `~/.bc/`.
 
 Key numbers:
-- **41 REST API endpoints** across 14 resource groups
+- **44 REST API endpoints** across 14 resource groups
 - **SQLite WAL** database with goose migrations
 - **16 web dashboard views** with Cmd+K command palette
 - **13 TUI views** with k9s-style keyboard navigation
@@ -14,23 +14,25 @@ Key numbers:
 
 ### Global Installation
 
-All bc state lives in `~/.bc/`:
+bc creates a per-project `.bc/` directory inside the workspace root:
 
 ```
-~/.bc/
-  bc.db                  # Primary SQLite database (WAL mode)
-  settings.toml          # Global config (providers, runtime, defaults)
-  secret-key             # Auto-generated AES-256 encryption key (0600)
-  agents/
-    <name>/
-      .claude/            # Claude config (mounted into containers)
-        CLAUDE.md         # Role prompt
-        settings.json     # Claude Code settings + hooks
-        .mcp.json         # MCP server configs
-      worktree/           # Git worktree checkout
+project/
+  .bc/
+    settings.toml          # Workspace config (providers, runtime, defaults)
+    agents/
+      <name>/
+        .claude/            # Claude config (mounted into containers)
+          CLAUDE.md         # Role prompt
+          settings.json     # Claude Code settings + hooks
+          .mcp.json         # MCP server configs
+        worktree/           # Git worktree checkout
+    roles/                 # Role definitions
+    channels/              # Channel data
+    prompts/               # Default prompt templates
 ```
 
-There is no per-project config. `bc init` initializes `~/.bc/` and starts bcd.
+`bc init` initializes the per-project `.bc/` directory and starts bcd.
 
 ## Architecture Layers
 
@@ -44,7 +46,7 @@ graph TB
     end
 
     subgraph "bcd Daemon :9374"
-        REST[REST API<br/>41 endpoints]
+        REST[REST API<br/>44 endpoints]
         SSE[SSE Hub<br/>real-time events]
         MCP[MCP Server<br/>JSON-RPC 2.0]
     end
@@ -97,7 +99,7 @@ Long-running HTTP server on `127.0.0.1:9374`. Single process managing all state.
 
 | Component | Path | Purpose |
 |-----------|------|---------|
-| REST API | `/api/*` | CRUD for all resources (41 endpoints) |
+| REST API | `/api/*` | CRUD for all resources (44 endpoints) |
 | SSE Hub | `/api/events` | Real-time event stream |
 | MCP Server | `/mcp/*` | AI agent integration (JSON-RPC 2.0 over SSE + stdio) |
 | Web UI | `/` | Embedded React dashboard (16 views) |
@@ -265,7 +267,7 @@ sequenceDiagram
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Global `~/.bc/` | Not per-project | One daemon manages agents across all repos |
+| Per-project `.bc/` | Per-project directory | Each workspace has its own `.bc/` directory for config, agents, and state |
 | bc/bcd split | Thin CLI + daemon | CLI stays fast; daemon holds state and connections |
 | SQLite WAL | Single database file | Zero-config, local-first, WAL for concurrent reads |
 | Embedded web UI | Single binary | No separate web server; version-locked to API |
