@@ -82,15 +82,15 @@ body:
         - Branch, implement, `make ci-local` (MUST PASS), PR, review, merge.
         - No subagents needed.
 
-        **SMALL** — < 200 LOC, single PR
+        **SMALL** — < 500 LOC, single PR
         - Branch: `feat/<issue-number>-<short-desc>`
-        - Implement and test (target: 1-5 files, < 200 LOC)
+        - Implement and test (target: < 500 LOC)
         - `make ci-local` as background task
         - Open PR → review → ci-local pass → merge, fail → fix and repeat
-        - **Escalation**: if scope exceeds 200 LOC or 5 files, STOP and re-classify as Medium
+        - **Escalation**: if scope exceeds 500 LOC, STOP and re-classify as Medium
 
         **MEDIUM** — 2-5 PRs, decomposes into Small
-        - Break into max 5 todos with dependency order
+        - Break into ~5 todos with dependency order
         - Assign each todo to a subagent (each follows Small workflow)
         - Serialize dependent work, parallelize independent work
         - Merge in dependency order
