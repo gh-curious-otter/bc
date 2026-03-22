@@ -12,6 +12,7 @@ const SHORTCUTS = [
   { key: "/", description: "Focus search input" },
   { key: "1-9", description: "Switch sidebar navigation tabs" },
   { key: "Esc", description: "Close overlay / unfocus" },
+  { key: "⌘K", description: "Open command palette" },
 ] as const;
 
 export function KeyboardHelp({ open, onClose }: KeyboardHelpProps) {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { CommandPalette } from "./CommandPalette";
 
 const SIDEBAR_KEY = "bc-sidebar-collapsed";
 
@@ -228,6 +229,7 @@ export function Layout() {
       <main className="flex-1 overflow-auto bg-bc-bg">
         <Outlet />
       </main>
+      <CommandPalette />
     </div>
   );
 }
