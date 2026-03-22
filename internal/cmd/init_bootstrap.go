@@ -34,8 +34,8 @@ func bootstrapServerDaemons(rootDir string) {
 		Detach:  true,
 	})
 	if bcdErr != nil {
-		fmt.Println(ui.YellowText("✗ (failed to start bcd)"))
-		log.Debug("bcd start failed", "error", bcdErr)
+		fmt.Println(ui.YellowText(fmt.Sprintf("✗ (failed to start bcd: %v)", bcdErr)))
+		fmt.Println("    Ensure 'bc' is in your PATH and tmux is installed.")
 		return
 	}
 	fmt.Println(ui.GreenText("✓"))

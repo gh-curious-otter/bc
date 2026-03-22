@@ -229,7 +229,7 @@ func (m *Manager) Run(ctx context.Context, opts RunOptions) (*Daemon, error) {
 		if err := m.startTmux(ctx, d); err != nil {
 			d.Status = StatusFailed
 			_ = m.save(ctx, d) //nolint:errcheck // best-effort on failure path
-			return nil, fmt.Errorf("start bash daemon: %w", err)
+			return nil, fmt.Errorf("start tmux daemon: %w", err)
 		}
 	} else {
 		if err := m.startDocker(ctx, d); err != nil {

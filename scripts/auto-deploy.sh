@@ -19,7 +19,7 @@ deploy_if_needed() {
 
     echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] New commits detected: $LOCAL -> $REMOTE"
     git pull origin main --quiet
-    make deploy-dogfood
+    make deploy-bcd-local ENV=dogfood
     echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Deployed commit $(git rev-parse --short HEAD)"
 }
 

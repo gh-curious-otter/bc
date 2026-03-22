@@ -230,6 +230,7 @@ func runDaemonStart(cmd *cobra.Command, _ []string) error {
 	cronStore, cronErr := cron.Open(ws.RootDir)
 	if cronErr != nil {
 		log.Warn("failed to open cron store", "error", cronErr)
+		fmt.Printf("WARNING: cron store unavailable (%v) — cron API will be disabled\n", cronErr)
 	}
 
 	cfg := bcdserver.DefaultConfig()
