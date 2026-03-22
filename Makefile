@@ -192,7 +192,7 @@ build-web-local: ## Build React web UI → server/web/dist/ (local)
 	@rm -rf server/web/dist
 	@cp -r web/dist server/web/dist
 
-build-landing-local: ## Build Next.js landing page (local)
+build-landing-local: gen-docs ## Build Next.js landing page (local, generates CLI docs first)
 	cd landing && bun install && bun run build
 
 # =============================================================================
@@ -439,7 +439,9 @@ gen-go: ## Generate Go code (currently no-op)
 	@true
 
 gen-docs: ## Generate CLI reference docs from Cobra commands
-	$(GO) run ./cmd/gendocs docs/reference/cli
+	@mkdir -p $(BUILD_DIR)
+	$(GO) build -o $(BUILD_DIR)/gendocs ./cmd/gendocs
+	./$(BUILD_DIR)/gendocs docs/reference/cli
 
 gen-ts: ## Generate TS code (currently no-op)
 	@true
