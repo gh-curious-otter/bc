@@ -134,6 +134,11 @@ body:
         go test -race -run TestName ./pkg/  # Run specific test
         ```
 
+        ### Labels (apply before starting work)
+        - **Team**: `team:api`, `team:ui`, or `team:infra`
+        - **Size**: `size:quick`, `size:small`, `size:medium`, `size:large`, or `size:xlarge`
+        - **Priority** (if urgent): `priority:critical`, `priority:high`, `priority:medium`
+
         ### Conventions
         - Conventional commits: `fix: <description>`
         - Branch: `fix/<issue-number>-<short-desc>`

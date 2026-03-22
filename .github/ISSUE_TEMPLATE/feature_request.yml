@@ -129,6 +129,11 @@ body:
         make deploy-bcd-local ENV=dogfood   # Deploy dogfood on :9000
         ```
 
+        ### Labels (apply before starting work)
+        - **Team**: `team:api`, `team:ui`, or `team:infra`
+        - **Size**: `size:quick`, `size:small`, `size:medium`, `size:large`, or `size:xlarge`
+        - **Priority** (if urgent): `priority:critical`, `priority:high`, `priority:medium`
+
         ### Conventions
         - Conventional commits: `feat: <description>`
         - Branch: `feat/<issue-number>-<short-desc>`
