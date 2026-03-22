@@ -1,3 +1,4 @@
+import React from 'react';
 import { EmptyState } from './EmptyState';
 
 interface Column<T> {
@@ -15,9 +16,10 @@ interface TableProps<T> {
   emptyMessage?: string;
   emptyIcon?: string;
   emptyDescription?: string;
+  renderRowExpansion?: (row: T) => React.ReactNode | null;
 }
 
-export function Table<T>({ columns, data, keyFn, onRowClick, emptyMessage = 'No data', emptyIcon, emptyDescription }: TableProps<T>) {
+export function Table<T>({ columns, data, keyFn, onRowClick, emptyMessage = 'No data', emptyIcon, emptyDescription, renderRowExpansion }: TableProps<T>) {
   if (!data || data.length === 0) {
     return <EmptyState icon={emptyIcon} title={emptyMessage} description={emptyDescription} />;
   }
@@ -34,21 +36,32 @@ export function Table<T>({ columns, data, keyFn, onRowClick, emptyMessage = 'No 
         </tr>
       </thead>
       <tbody>
-        {data.map((row) => (
-          <tr
-            key={keyFn(row)}
-            onClick={onRowClick ? () => onRowClick(row) : undefined}
-            className={`border-b border-bc-border/50 ${
-              onRowClick ? 'cursor-pointer hover:bg-bc-surface' : ''
-            }`}
-          >
-            {columns.map((col) => (
-              <td key={col.key} className={`px-4 py-2 ${col.className ?? ''}`}>
-                {col.render(row)}
-              </td>
-            ))}
-          </tr>
-        ))}
+        {data.map((row) => {
+          const expansion = renderRowExpansion ? renderRowExpansion(row) : null;
+          return (
+            <React.Fragment key={keyFn(row)}>
+              <tr
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                className={`border-b border-bc-border/50 ${
+                  onRowClick ? 'cursor-pointer hover:bg-bc-surface' : ''
+                }`}
+              >
+                {columns.map((col) => (
+                  <td key={col.key} className={`px-4 py-2 ${col.className ?? ''}`}>
+                    {col.render(row)}
+                  </td>
+                ))}
+              </tr>
+              {expansion && (
+                <tr>
+                  <td colSpan={columns.length} className="p-0">
+                    {expansion}
+                  </td>
+                </tr>
+              )}
+            </React.Fragment>
+          );
+        })}
       </tbody>
     </table>
   );
