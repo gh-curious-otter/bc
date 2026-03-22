@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -24,6 +25,11 @@ import (
 	"github.com/rpuneet/bc/pkg/runtime"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
+
+// validEnvVarName matches valid POSIX environment variable names:
+// Must start with letter or underscore, followed by letters, digits, or underscores.
+// This prevents injection through malicious key names passed to docker run -e.
+var validEnvVarName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // Ensure Backend implements runtime.Backend.
 var _ runtime.Backend = (*Backend)(nil)
@@ -253,10 +259,18 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		args = append(args, "-v", volumeDir+":/home/agent/.claude")
 	}
 
+	// Extra mounts from workspace config (e.g., shared caches, tool binaries).
+	for _, mount := range b.cfg.ExtraMounts {
+		args = append(args, "-v", mount)
+	}
+
 	// Environment variables — only from the env map.
 	// The env map contains BC_* identity vars and role secrets resolved
 	// from bc env by the agent manager's injectEnv().
 	for k, v := range env {
+		if !validEnvVarName.MatchString(k) {
+			return fmt.Errorf("invalid environment variable name %q: must match [A-Za-z_][A-Za-z0-9_]*", k)
+		}
 		args = append(args, "-e", k+"="+v)
 	}
 
