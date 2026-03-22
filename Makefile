@@ -236,7 +236,7 @@ lint-go: ## Run golangci-lint on Go code
 	golangci-lint run ./...
 
 fmt-go: ## Format Go code with gofmt
-	gofmt -s -w $$(find . -name '*.go' -not -path './.bc/*' -not -path './vendor/*')
+	find . -name '*.go' -not -path './.bc/*' -not -path './vendor/*' | xargs gofmt -s -w
 
 vet-go: ## Run go vet
 	$(GO) vet ./...
@@ -272,13 +272,20 @@ check-ts: lint-ts test-ts ## TS quality gate (lint + test)
 
 ci-local: ## Run full CI pipeline locally
 	@echo "=== CI Local Pipeline ==="
-	@echo "--- Step 1: Generate ---" && $(GO) generate ./...
-	@echo "--- Step 2: Format ---" && gofmt -s -l $$(find . -name '*.go' -not -path './.bc/*' -not -path './vendor/*') | (grep . && echo "FAIL: files need formatting" && exit 1 || echo "PASS")
-	@echo "--- Step 3: Vet ---" && $(GO) vet ./...
-	@echo "--- Step 4: Lint ---" && golangci-lint run ./...
-	@echo "--- Step 5: Test (fast) ---" && mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html && $(GO) test -race $$($(GO) list ./... | grep -v /internal/cmd$$)
-	@echo "--- Step 6: Build ---" && $(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/bc ./cmd/bc
-	@echo "--- Step 7: Verify ---" && $(BUILD_DIR)/bc version
+	@echo "--- Step 1: gen-go ---"
+	@$(MAKE) gen-go
+	@echo "--- Step 2: fmt-go ---"
+	@$(MAKE) fmt-go
+	@echo "--- Step 3: vet-go ---"
+	@$(MAKE) vet-go
+	@echo "--- Step 4: lint-go ---"
+	@$(MAKE) lint-go
+	@echo "--- Step 5: test-go ---"
+	@$(MAKE) test-go
+	@echo "--- Step 6: release-bc-local ---"
+	@$(MAKE) release-bc-local
+	@echo "--- Step 7: Verify ---"
+	@$(BUILD_DIR)/bc version
 	@echo ""
 	@echo "=== CI Local: ALL PASS ==="
 
