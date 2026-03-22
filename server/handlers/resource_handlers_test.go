@@ -1,0 +1,3885 @@
+package handlers_test
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/cron"
+	"github.com/rpuneet/bc/pkg/daemon"
+	"github.com/rpuneet/bc/pkg/events"
+	"github.com/rpuneet/bc/pkg/mcp"
+	"github.com/rpuneet/bc/pkg/secret"
+	"github.com/rpuneet/bc/pkg/team"
+	"github.com/rpuneet/bc/pkg/tool"
+	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/bc/server"
+	"github.com/rpuneet/bc/server/ws"
+)
+
+// --- helpers for building test servers with real services ---
+
+func setupWorkspace(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	wks, err := workspace.Init(dir)
+	if err != nil {
+		t.Fatalf("init workspace: %v", err)
+	}
+	_ = wks
+	return dir
+}
+
+func buildTestServerWithServices(t *testing.T, svc server.Services) *httptest.Server {
+	t.Helper()
+	hub := ws.NewHub()
+	go hub.Run()
+	t.Cleanup(hub.Stop)
+
+	cfg := server.Config{Addr: "127.0.0.1:0", CORS: true, CORSOrigin: "*"}
+	srv := server.New(cfg, svc, hub, nil)
+	return httptest.NewServer(srv.Handler())
+}
+
+func readJSONArray(t *testing.T, resp *http.Response) []any {
+	t.Helper()
+	defer func() { _ = resp.Body.Close() }()
+	var arr []any
+	if err := json.NewDecoder(resp.Body).Decode(&arr); err != nil {
+		t.Fatalf("decode json array: %v", err)
+	}
+	return arr
+}
+
+// --- Channel handler tests ---
+
+func TestChannelHandler_ListEmpty(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/channels")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	arr := readJSONArray(t, resp)
+	if len(arr) != 0 {
+		t.Fatalf("expected empty channels, got %d", len(arr))
+	}
+}
+
+func TestChannelHandler_CreateAndGet(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	// Create a channel
+	resp := post(t, ts.URL+"/api/channels", "application/json", `{"name":"test-chan","description":"a test channel"}`)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusCreated)
+	body := readJSON(t, resp)
+	if body["name"] != "test-chan" {
+		t.Fatalf("expected name test-chan, got %v", body["name"])
+	}
+
+	// Get the channel
+	resp = get(t, ts.URL+"/api/channels/test-chan")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body = readJSON(t, resp)
+	if body["name"] != "test-chan" {
+		t.Fatalf("expected name test-chan, got %v", body["name"])
+	}
+
+	// List channels
+	resp = get(t, ts.URL+"/api/channels")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	arr := readJSONArray(t, resp)
+	if len(arr) != 1 {
+		t.Fatalf("expected 1 channel, got %d", len(arr))
+	}
+}
+
+func TestChannelHandler_GetNotFound(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/channels/nonexistent")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusNotFound)
+}
+
+func TestChannelHandler_PostMessage(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	// Create channel first
+	resp := post(t, ts.URL+"/api/channels", "application/json", `{"name":"msg-chan"}`)
+	assertStatus(t, resp, http.StatusCreated)
+	_ = resp.Body.Close()
+
+	// Post a message
+	resp = post(t, ts.URL+"/api/channels/msg-chan/messages", "application/json", `{"sender":"alice","content":"hello"}`)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusCreated)
+	body := readJSON(t, resp)
+	if body["sender"] != "alice" {
+		t.Fatalf("expected sender alice, got %v", body["sender"])
+	}
+}
+
+func TestChannelHandler_History(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	// Create channel and post messages
+	resp := post(t, ts.URL+"/api/channels", "application/json", `{"name":"hist-chan"}`)
+	_ = resp.Body.Close()
+
+	resp = post(t, ts.URL+"/api/channels/hist-chan/messages", "application/json", `{"sender":"bob","content":"msg1"}`)
+	_ = resp.Body.Close()
+
+	// Get history
+	resp = get(t, ts.URL+"/api/channels/hist-chan/history")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	arr := readJSONArray(t, resp)
+	if len(arr) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(arr))
+	}
+}
+
+func TestChannelHandler_HistoryPagination(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/channels", "application/json", `{"name":"page-chan"}`)
+	_ = resp.Body.Close()
+
+	resp = get(t, ts.URL+"/api/channels/page-chan/history?limit=5&offset=0")
+	assertStatus(t, resp, http.StatusOK)
+	_ = resp.Body.Close()
+}
+
+func TestChannelHandler_Members(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	// Create channel
+	resp := post(t, ts.URL+"/api/channels", "application/json", `{"name":"member-chan"}`)
+	_ = resp.Body.Close()
+
+	// Add member
+	resp = post(t, ts.URL+"/api/channels/member-chan/members", "application/json", `{"agent_id":"alice"}`)
+	assertStatus(t, resp, http.StatusNoContent)
+	_ = resp.Body.Close()
+
+	// Remove member by path
+	resp = doRequest(t, http.MethodDelete, ts.URL+"/api/channels/member-chan/members/alice", "", "")
+	assertStatus(t, resp, http.StatusNoContent)
+	_ = resp.Body.Close()
+}
+
+func TestChannelHandler_DeleteChannel(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/channels", "application/json", `{"name":"del-chan"}`)
+	_ = resp.Body.Close()
+
+	resp = doRequest(t, http.MethodDelete, ts.URL+"/api/channels/del-chan", "", "")
+	assertStatus(t, resp, http.StatusNoContent)
+	_ = resp.Body.Close()
+}
+
+func TestChannelHandler_MethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPut, ts.URL+"/api/channels", "application/json", "")
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestChannelHandler_CreateInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/channels", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestChannelHandler_EmptyName(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	// Trailing slash with no name
+	resp := get(t, ts.URL+"/api/channels/")
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestChannelHandler_UnknownSubresource(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/channels", "application/json", `{"name":"sub-chan"}`)
+	_ = resp.Body.Close()
+
+	resp = get(t, ts.URL+"/api/channels/sub-chan/unknown")
+	assertStatus(t, resp, http.StatusNotFound)
+	_ = resp.Body.Close()
+}
+
+func TestChannelHandler_PatchChannel(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	// Create channel
+	resp := post(t, ts.URL+"/api/channels", "application/json", `{"name":"patch-chan","description":"original"}`)
+	_ = resp.Body.Close()
+
+	// Patch it
+	resp = doRequest(t, http.MethodPatch, ts.URL+"/api/channels/patch-chan", "application/json", `{"description":"updated"}`)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	if body["description"] != "updated" {
+		t.Fatalf("expected updated description, got %v", body["description"])
+	}
+}
+
+func TestChannelHandler_MembersRemoveByQuery(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/channels", "application/json", `{"name":"rm-chan"}`)
+	_ = resp.Body.Close()
+
+	resp = post(t, ts.URL+"/api/channels/rm-chan/members", "application/json", `{"agent_id":"bob"}`)
+	_ = resp.Body.Close()
+
+	// Remove via query parameter
+	resp = doRequest(t, http.MethodDelete, ts.URL+"/api/channels/rm-chan/members?agent_id=bob", "", "")
+	assertStatus(t, resp, http.StatusNoContent)
+	_ = resp.Body.Close()
+}
+
+func TestChannelHandler_MembersDeleteNoAgent(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/channels", "application/json", `{"name":"noagent-chan"}`)
+	_ = resp.Body.Close()
+
+	// DELETE /api/channels/noagent-chan/members without agent_id
+	resp = doRequest(t, http.MethodDelete, ts.URL+"/api/channels/noagent-chan/members", "", "")
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestChannelHandler_MembersMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/channels", "application/json", `{"name":"mna-chan"}`)
+	_ = resp.Body.Close()
+
+	resp = get(t, ts.URL+"/api/channels/mna-chan/members")
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestChannelHandler_PostMessageInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/channels", "application/json", `{"name":"inv-chan"}`)
+	_ = resp.Body.Close()
+
+	resp = post(t, ts.URL+"/api/channels/inv-chan/messages", "application/json", `{invalid`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestChannelHandler_PostMessageMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/channels", "application/json", `{"name":"mna2-chan"}`)
+	_ = resp.Body.Close()
+
+	resp = get(t, ts.URL+"/api/channels/mna2-chan/messages")
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestChannelHandler_HistoryMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/channels", "application/json", `{"name":"hmna-chan"}`)
+	_ = resp.Body.Close()
+
+	resp = post(t, ts.URL+"/api/channels/hmna-chan/history", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestChannelHandler_ChannelMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/channels", "application/json", `{"name":"cmna-chan"}`)
+	_ = resp.Body.Close()
+
+	resp = post(t, ts.URL+"/api/channels/cmna-chan", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestChannelHandler_PatchInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/channels", "application/json", `{"name":"pinv-chan"}`)
+	_ = resp.Body.Close()
+
+	resp = doRequest(t, http.MethodPatch, ts.URL+"/api/channels/pinv-chan", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestChannelHandler_MemberByPathMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/channels", "application/json", `{"name":"mbp-chan"}`)
+	_ = resp.Body.Close()
+
+	resp = get(t, ts.URL+"/api/channels/mbp-chan/members/alice")
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestChannelHandler_MemberAddInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/channels", "application/json", `{"name":"minv-chan"}`)
+	_ = resp.Body.Close()
+
+	resp = post(t, ts.URL+"/api/channels/minv-chan/members", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+// --- Channel Stats handler tests ---
+
+func TestChannelStatsHandler(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/stats/channels")
+	assertStatus(t, resp, http.StatusOK)
+	_ = resp.Body.Close()
+}
+
+func TestChannelStatsHandler_MethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/stats/channels", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+// --- Cost handler tests ---
+
+func TestCostHandler_Summary(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := cost.NewStore(dir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open cost store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/costs")
+	assertStatus(t, resp, http.StatusOK)
+	_ = resp.Body.Close()
+}
+
+func TestCostHandler_SummaryMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := cost.NewStore(dir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open cost store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/costs", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestCostHandler_ByResource(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := cost.NewStore(dir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open cost store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	defer ts.Close()
+
+	tests := []struct {
+		name string
+		path string
+		want int
+	}{
+		{"agents", "/api/costs/agents", http.StatusOK},
+		{"teams", "/api/costs/teams", http.StatusOK},
+		{"models", "/api/costs/models", http.StatusOK},
+		{"daily", "/api/costs/daily", http.StatusOK},
+		{"daily with days", "/api/costs/daily?days=7", http.StatusOK},
+		{"project", "/api/costs/project", http.StatusOK},
+		{"project with params", "/api/costs/project?lookback_days=7&project_days=14", http.StatusOK},
+		{"budgets list", "/api/costs/budgets", http.StatusOK},
+		{"agent detail missing name", "/api/costs/agent", http.StatusBadRequest},
+		{"unknown resource", "/api/costs/unknown", http.StatusNotFound},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := get(t, ts.URL+tt.path)
+			assertStatus(t, resp, tt.want)
+			_ = resp.Body.Close()
+		})
+	}
+}
+
+func TestCostHandler_AgentDetail(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := cost.NewStore(dir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open cost store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/costs/agent/test-agent")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	if _, ok := body["summary"]; !ok {
+		t.Fatal("expected summary field in agent detail response")
+	}
+	if _, ok := body["daily"]; !ok {
+		t.Fatal("expected daily field in agent detail response")
+	}
+}
+
+func TestCostHandler_Budgets_Create(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := cost.NewStore(dir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open cost store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	defer ts.Close()
+
+	// Create budget
+	resp := post(t, ts.URL+"/api/costs/budgets", "application/json",
+		`{"scope":"workspace","period":"monthly","limit_usd":100.0}`)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	if body["scope"] != "workspace" {
+		t.Fatalf("expected scope workspace, got %v", body["scope"])
+	}
+
+	// Check budget by scope
+	resp = get(t, ts.URL+"/api/costs/budgets/workspace")
+	assertStatus(t, resp, http.StatusOK)
+	_ = resp.Body.Close()
+
+	// Delete budget
+	resp = doRequest(t, http.MethodDelete, ts.URL+"/api/costs/budgets/workspace", "", "")
+	assertStatus(t, resp, http.StatusNoContent)
+	_ = resp.Body.Close()
+}
+
+func TestCostHandler_Budgets_Validation(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := cost.NewStore(dir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open cost store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	defer ts.Close()
+
+	tests := []struct {
+		name string
+		body string
+		want int
+	}{
+		{"missing scope", `{"period":"monthly","limit_usd":100}`, http.StatusBadRequest},
+		{"zero limit", `{"scope":"ws","period":"monthly","limit_usd":0}`, http.StatusBadRequest},
+		{"invalid period", `{"scope":"ws","period":"yearly","limit_usd":100}`, http.StatusBadRequest},
+		{"invalid JSON", `{invalid}`, http.StatusBadRequest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := post(t, ts.URL+"/api/costs/budgets", "application/json", tt.body)
+			assertStatus(t, resp, tt.want)
+			_ = resp.Body.Close()
+		})
+	}
+}
+
+func TestCostHandler_Budgets_DeleteNoScope(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := cost.NewStore(dir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open cost store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodDelete, ts.URL+"/api/costs/budgets", "", "")
+	// budgets route with empty scope and DELETE
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestCostHandler_Budgets_MethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := cost.NewStore(dir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open cost store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/costs/budgets", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestCostHandler_SyncNoImporter(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := cost.NewStore(dir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open cost store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/costs/sync", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusServiceUnavailable)
+	_ = resp.Body.Close()
+}
+
+func TestCostHandler_SyncMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := cost.NewStore(dir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open cost store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/costs/sync")
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestCostHandler_AgentsMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := cost.NewStore(dir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open cost store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/costs/agents", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestCostHandler_BudgetNotFound(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := cost.NewStore(dir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open cost store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/costs/budgets/nonexistent")
+	assertStatus(t, resp, http.StatusNotFound)
+	_ = resp.Body.Close()
+}
+
+// --- Cron handler tests ---
+
+func TestCronHandler_ListEmpty(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := cron.Open(dir)
+	if err != nil {
+		t.Fatalf("open cron store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Cron: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/cron")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	arr := readJSONArray(t, resp)
+	if len(arr) != 0 {
+		t.Fatalf("expected empty jobs, got %d", len(arr))
+	}
+}
+
+func TestCronHandler_CreateAndGet(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := cron.Open(dir)
+	if err != nil {
+		t.Fatalf("open cron store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Cron: store})
+	defer ts.Close()
+
+	// Create a job
+	resp := post(t, ts.URL+"/api/cron", "application/json",
+		`{"name":"test-job","schedule":"*/5 * * * *","command":"echo hello","enabled":true}`)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusCreated)
+	body := readJSON(t, resp)
+	if body["name"] != "test-job" {
+		t.Fatalf("expected name test-job, got %v", body["name"])
+	}
+
+	// Get the job
+	resp = get(t, ts.URL+"/api/cron/test-job")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body = readJSON(t, resp)
+	if body["name"] != "test-job" {
+		t.Fatalf("expected name test-job, got %v", body["name"])
+	}
+}
+
+func TestCronHandler_CreateMissingCommandAndPrompt(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := cron.Open(dir)
+	if err != nil {
+		t.Fatalf("open cron store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Cron: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/cron", "application/json",
+		`{"name":"bad-job","schedule":"*/5 * * * *"}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestCronHandler_CreateInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := cron.Open(dir)
+	if err != nil {
+		t.Fatalf("open cron store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Cron: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/cron", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestCronHandler_Delete(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := cron.Open(dir)
+	if err != nil {
+		t.Fatalf("open cron store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Cron: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/cron", "application/json",
+		`{"name":"del-job","schedule":"*/5 * * * *","command":"echo hello"}`)
+	_ = resp.Body.Close()
+
+	resp = doRequest(t, http.MethodDelete, ts.URL+"/api/cron/del-job", "", "")
+	assertStatus(t, resp, http.StatusNoContent)
+	_ = resp.Body.Close()
+}
+
+func TestCronHandler_EnableDisable(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := cron.Open(dir)
+	if err != nil {
+		t.Fatalf("open cron store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Cron: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/cron", "application/json",
+		`{"name":"toggle-job","schedule":"*/5 * * * *","command":"echo hello","enabled":true}`)
+	_ = resp.Body.Close()
+
+	// Disable
+	resp = post(t, ts.URL+"/api/cron/toggle-job/disable", "application/json", ``)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	if body["enabled"] != false {
+		t.Fatalf("expected enabled=false, got %v", body["enabled"])
+	}
+
+	// Enable
+	resp = post(t, ts.URL+"/api/cron/toggle-job/enable", "application/json", ``)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body = readJSON(t, resp)
+	if body["enabled"] != true {
+		t.Fatalf("expected enabled=true, got %v", body["enabled"])
+	}
+}
+
+func TestCronHandler_RunDisabledJob(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := cron.Open(dir)
+	if err != nil {
+		t.Fatalf("open cron store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Cron: store})
+	defer ts.Close()
+
+	// Create a disabled job
+	resp := post(t, ts.URL+"/api/cron", "application/json",
+		`{"name":"disabled-job","schedule":"*/5 * * * *","command":"echo hello","enabled":false}`)
+	_ = resp.Body.Close()
+
+	// Try to run it
+	resp = post(t, ts.URL+"/api/cron/disabled-job/run", "application/json", ``)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestCronHandler_RunEnabledJob(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := cron.Open(dir)
+	if err != nil {
+		t.Fatalf("open cron store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Cron: store})
+	defer ts.Close()
+
+	// Create an enabled job
+	resp := post(t, ts.URL+"/api/cron", "application/json",
+		`{"name":"enabled-job","schedule":"*/5 * * * *","command":"echo hello","enabled":true}`)
+	_ = resp.Body.Close()
+
+	// Run it
+	resp = post(t, ts.URL+"/api/cron/enabled-job/run", "application/json", ``)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	if body["status"] != "triggered" {
+		t.Fatalf("expected status triggered, got %v", body["status"])
+	}
+}
+
+func TestCronHandler_RunNonexistent(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := cron.Open(dir)
+	if err != nil {
+		t.Fatalf("open cron store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Cron: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/cron/nonexistent/run", "application/json", ``)
+	assertStatus(t, resp, http.StatusNotFound)
+	_ = resp.Body.Close()
+}
+
+func TestCronHandler_Logs(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := cron.Open(dir)
+	if err != nil {
+		t.Fatalf("open cron store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Cron: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/cron", "application/json",
+		`{"name":"log-job","schedule":"*/5 * * * *","command":"echo hello"}`)
+	_ = resp.Body.Close()
+
+	resp = get(t, ts.URL+"/api/cron/log-job/logs")
+	assertStatus(t, resp, http.StatusOK)
+	_ = resp.Body.Close()
+
+	// With last param
+	resp = get(t, ts.URL+"/api/cron/log-job/logs?last=5")
+	assertStatus(t, resp, http.StatusOK)
+	_ = resp.Body.Close()
+}
+
+func TestCronHandler_MethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := cron.Open(dir)
+	if err != nil {
+		t.Fatalf("open cron store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Cron: store})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPut, ts.URL+"/api/cron", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestCronHandler_EmptyName(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := cron.Open(dir)
+	if err != nil {
+		t.Fatalf("open cron store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Cron: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/cron/")
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestCronHandler_UnknownSub(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := cron.Open(dir)
+	if err != nil {
+		t.Fatalf("open cron store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Cron: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/cron", "application/json",
+		`{"name":"sub-job","schedule":"*/5 * * * *","command":"echo hello"}`)
+	_ = resp.Body.Close()
+
+	resp = get(t, ts.URL+"/api/cron/sub-job/unknown")
+	assertStatus(t, resp, http.StatusNotFound)
+	_ = resp.Body.Close()
+}
+
+func TestCronHandler_JobMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := cron.Open(dir)
+	if err != nil {
+		t.Fatalf("open cron store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Cron: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/cron", "application/json",
+		`{"name":"mna-job","schedule":"*/5 * * * *","command":"echo hello"}`)
+	_ = resp.Body.Close()
+
+	resp = doRequest(t, http.MethodPatch, ts.URL+"/api/cron/mna-job", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestCronHandler_EnableMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := cron.Open(dir)
+	if err != nil {
+		t.Fatalf("open cron store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Cron: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/cron", "application/json",
+		`{"name":"emna-job","schedule":"*/5 * * * *","command":"echo hello"}`)
+	_ = resp.Body.Close()
+
+	resp = get(t, ts.URL+"/api/cron/emna-job/enable")
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestCronHandler_RunMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := cron.Open(dir)
+	if err != nil {
+		t.Fatalf("open cron store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Cron: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/cron/some-job/run")
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestCronHandler_LogsMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := cron.Open(dir)
+	if err != nil {
+		t.Fatalf("open cron store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Cron: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/cron/some-job/logs", "application/json", ``)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+// --- Secret handler tests ---
+
+func TestSecretHandler_ListEmpty(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := secret.NewStore(dir, "test-passphrase")
+	if err != nil {
+		t.Fatalf("create secret store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Secrets: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/secrets")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	arr := readJSONArray(t, resp)
+	if len(arr) != 0 {
+		t.Fatalf("expected empty secrets, got %d", len(arr))
+	}
+}
+
+func TestSecretHandler_CRUD(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := secret.NewStore(dir, "test-passphrase")
+	if err != nil {
+		t.Fatalf("create secret store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Secrets: store})
+	defer ts.Close()
+
+	// Create
+	resp := post(t, ts.URL+"/api/secrets", "application/json",
+		`{"name":"MY_KEY","value":"secret123","description":"test key"}`)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusCreated)
+	body := readJSON(t, resp)
+	if body["name"] != "MY_KEY" {
+		t.Fatalf("expected name MY_KEY, got %v", body["name"])
+	}
+
+	// Get metadata (should not contain value)
+	resp = get(t, ts.URL+"/api/secrets/MY_KEY")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body = readJSON(t, resp)
+	if body["name"] != "MY_KEY" {
+		t.Fatalf("expected name MY_KEY, got %v", body["name"])
+	}
+
+	// Update
+	resp = doRequest(t, http.MethodPut, ts.URL+"/api/secrets/MY_KEY", "application/json",
+		`{"value":"updated","description":"updated key"}`)
+	assertStatus(t, resp, http.StatusOK)
+	_ = resp.Body.Close()
+
+	// Delete
+	resp = doRequest(t, http.MethodDelete, ts.URL+"/api/secrets/MY_KEY", "", "")
+	assertStatus(t, resp, http.StatusNoContent)
+	_ = resp.Body.Close()
+
+	// Verify deleted
+	resp = get(t, ts.URL+"/api/secrets/MY_KEY")
+	assertStatus(t, resp, http.StatusNotFound)
+	_ = resp.Body.Close()
+}
+
+func TestSecretHandler_GetNotFound(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := secret.NewStore(dir, "test-passphrase")
+	if err != nil {
+		t.Fatalf("create secret store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Secrets: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/secrets/nonexistent")
+	assertStatus(t, resp, http.StatusNotFound)
+	_ = resp.Body.Close()
+}
+
+func TestSecretHandler_MethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := secret.NewStore(dir, "test-passphrase")
+	if err != nil {
+		t.Fatalf("create secret store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Secrets: store})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/secrets", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestSecretHandler_EmptyName(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := secret.NewStore(dir, "test-passphrase")
+	if err != nil {
+		t.Fatalf("create secret store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Secrets: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/secrets/")
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestSecretHandler_CreateInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := secret.NewStore(dir, "test-passphrase")
+	if err != nil {
+		t.Fatalf("create secret store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Secrets: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/secrets", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestSecretHandler_UpdateInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := secret.NewStore(dir, "test-passphrase")
+	if err != nil {
+		t.Fatalf("create secret store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Secrets: store})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPut, ts.URL+"/api/secrets/test", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestSecretHandler_ByNameMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := secret.NewStore(dir, "test-passphrase")
+	if err != nil {
+		t.Fatalf("create secret store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Secrets: store})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/secrets/test", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+// --- MCP handler tests ---
+
+func TestMCPHandler_ListEmpty(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := mcp.NewStore(dir)
+	if err != nil {
+		t.Fatalf("create mcp store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{MCP: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/mcp")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	arr := readJSONArray(t, resp)
+	if len(arr) != 0 {
+		t.Fatalf("expected empty mcp servers, got %d", len(arr))
+	}
+}
+
+func TestMCPHandler_CRUD(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := mcp.NewStore(dir)
+	if err != nil {
+		t.Fatalf("create mcp store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{MCP: store})
+	defer ts.Close()
+
+	// Create (transport must be "stdio" or "sse")
+	resp := post(t, ts.URL+"/api/mcp", "application/json",
+		`{"name":"test-server","transport":"stdio","command":"npx test-server","enabled":true}`)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusCreated)
+	body := readJSON(t, resp)
+	if body["name"] != "test-server" {
+		t.Fatalf("expected name test-server, got %v", body["name"])
+	}
+
+	// Get
+	resp = get(t, ts.URL+"/api/mcp/test-server")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body = readJSON(t, resp)
+	if body["name"] != "test-server" {
+		t.Fatalf("expected name test-server, got %v", body["name"])
+	}
+
+	// Enable/Disable
+	resp = post(t, ts.URL+"/api/mcp/test-server/disable", "application/json", ``)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body = readJSON(t, resp)
+	if body["enabled"] != false {
+		t.Fatalf("expected enabled=false, got %v", body["enabled"])
+	}
+
+	resp = post(t, ts.URL+"/api/mcp/test-server/enable", "application/json", ``)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body = readJSON(t, resp)
+	if body["enabled"] != true {
+		t.Fatalf("expected enabled=true, got %v", body["enabled"])
+	}
+
+	// Delete
+	resp = doRequest(t, http.MethodDelete, ts.URL+"/api/mcp/test-server", "", "")
+	assertStatus(t, resp, http.StatusNoContent)
+	_ = resp.Body.Close()
+}
+
+func TestMCPHandler_GetNotFound(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := mcp.NewStore(dir)
+	if err != nil {
+		t.Fatalf("create mcp store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{MCP: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/mcp/nonexistent")
+	assertStatus(t, resp, http.StatusNotFound)
+	_ = resp.Body.Close()
+}
+
+func TestMCPHandler_MethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := mcp.NewStore(dir)
+	if err != nil {
+		t.Fatalf("create mcp store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{MCP: store})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/mcp", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestMCPHandler_EmptyName(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := mcp.NewStore(dir)
+	if err != nil {
+		t.Fatalf("create mcp store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{MCP: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/mcp/")
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestMCPHandler_UnknownSub(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := mcp.NewStore(dir)
+	if err != nil {
+		t.Fatalf("create mcp store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{MCP: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/mcp", "application/json",
+		`{"name":"sub-srv","transport":"stdio","command":"echo test"}`)
+	_ = resp.Body.Close()
+
+	resp = get(t, ts.URL+"/api/mcp/sub-srv/unknown")
+	assertStatus(t, resp, http.StatusNotFound)
+	_ = resp.Body.Close()
+}
+
+func TestMCPHandler_CreateInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := mcp.NewStore(dir)
+	if err != nil {
+		t.Fatalf("create mcp store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{MCP: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/mcp", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestMCPHandler_ServerMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := mcp.NewStore(dir)
+	if err != nil {
+		t.Fatalf("create mcp store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{MCP: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/mcp", "application/json",
+		`{"name":"mna-srv","transport":"stdio","command":"echo test"}`)
+	_ = resp.Body.Close()
+
+	resp = doRequest(t, http.MethodPatch, ts.URL+"/api/mcp/mna-srv", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestMCPHandler_EnableMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := mcp.NewStore(dir)
+	if err != nil {
+		t.Fatalf("create mcp store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{MCP: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/mcp/test/enable")
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+// --- Tool handler tests ---
+
+func TestToolHandler_List(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	store := tool.NewStore(stateDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open tool store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Tools: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/tools")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	// Tool store may pre-populate with default tools, so just check array format
+	_ = readJSONArray(t, resp)
+}
+
+func TestToolHandler_GetNotFound(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	store := tool.NewStore(stateDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open tool store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Tools: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/tools/nonexistent")
+	assertStatus(t, resp, http.StatusNotFound)
+	_ = resp.Body.Close()
+}
+
+func TestToolHandler_MethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	store := tool.NewStore(stateDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open tool store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Tools: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/tools", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestToolHandler_EmptyName(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	store := tool.NewStore(stateDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open tool store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Tools: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/tools/")
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestToolHandler_UnknownSub(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	store := tool.NewStore(stateDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open tool store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Tools: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/tools/test/unknown")
+	assertStatus(t, resp, http.StatusNotFound)
+	_ = resp.Body.Close()
+}
+
+func TestToolHandler_EnableDisableMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	store := tool.NewStore(stateDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open tool store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Tools: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/tools/test/enable")
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestToolHandler_PutInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	store := tool.NewStore(stateDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open tool store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Tools: store})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPut, ts.URL+"/api/tools/test", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestToolHandler_ToolMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	store := tool.NewStore(stateDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open tool store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Tools: store})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/tools/test", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+// --- Team handler tests ---
+
+func TestTeamHandler_ListEmpty(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := team.NewStore(dir)
+
+	ts := buildTestServerWithServices(t, server.Services{Teams: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/teams")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	arr := readJSONArray(t, resp)
+	if len(arr) != 0 {
+		t.Fatalf("expected empty teams, got %d", len(arr))
+	}
+}
+
+func TestTeamHandler_GetNotFound(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := team.NewStore(dir)
+
+	ts := buildTestServerWithServices(t, server.Services{Teams: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/teams/nonexistent")
+	assertStatus(t, resp, http.StatusNotFound)
+	_ = resp.Body.Close()
+}
+
+func TestTeamHandler_MethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := team.NewStore(dir)
+
+	ts := buildTestServerWithServices(t, server.Services{Teams: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/teams", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestTeamHandler_EmptyName(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := team.NewStore(dir)
+
+	ts := buildTestServerWithServices(t, server.Services{Teams: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/teams/")
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestTeamHandler_ByNameMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := team.NewStore(dir)
+
+	ts := buildTestServerWithServices(t, server.Services{Teams: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/teams/test", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+// --- Event handler tests ---
+
+func TestEventHandler_ListEmpty(t *testing.T) {
+	dir := setupWorkspace(t)
+	logPath := filepath.Join(dir, ".bc", "events.log")
+	store := events.NewLog(logPath)
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{EventLog: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/logs")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	arr := readJSONArray(t, resp)
+	if len(arr) != 0 {
+		t.Fatalf("expected empty events, got %d", len(arr))
+	}
+}
+
+func TestEventHandler_AppendAndList(t *testing.T) {
+	dir := setupWorkspace(t)
+	logPath := filepath.Join(dir, ".bc", "events.log")
+	store := events.NewLog(logPath)
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{EventLog: store})
+	defer ts.Close()
+
+	// Append event
+	resp := post(t, ts.URL+"/api/logs", "application/json",
+		`{"agent":"alice","type":"started","message":"agent started"}`)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	if body["status"] != "ok" {
+		t.Fatalf("expected status ok, got %v", body["status"])
+	}
+
+	// List events with tail
+	resp = get(t, ts.URL+"/api/logs?tail=10")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	arr := readJSONArray(t, resp)
+	if len(arr) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(arr))
+	}
+}
+
+func TestEventHandler_ByAgent(t *testing.T) {
+	dir := setupWorkspace(t)
+	logPath := filepath.Join(dir, ".bc", "events.log")
+	store := events.NewLog(logPath)
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{EventLog: store})
+	defer ts.Close()
+
+	// Append events for different agents
+	resp := post(t, ts.URL+"/api/logs", "application/json",
+		`{"agent":"alice","type":"started","message":"alice started"}`)
+	_ = resp.Body.Close()
+
+	resp = post(t, ts.URL+"/api/logs", "application/json",
+		`{"agent":"bob","type":"started","message":"bob started"}`)
+	_ = resp.Body.Close()
+
+	// Filter by agent
+	resp = get(t, ts.URL+"/api/logs/alice")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	arr := readJSONArray(t, resp)
+	if len(arr) != 1 {
+		t.Fatalf("expected 1 event for alice, got %d", len(arr))
+	}
+}
+
+func TestEventHandler_MethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	logPath := filepath.Join(dir, ".bc", "events.log")
+	store := events.NewLog(logPath)
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{EventLog: store})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPut, ts.URL+"/api/logs", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestEventHandler_AppendInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	logPath := filepath.Join(dir, ".bc", "events.log")
+	store := events.NewLog(logPath)
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{EventLog: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/logs", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestEventHandler_EmptyAgentName(t *testing.T) {
+	dir := setupWorkspace(t)
+	logPath := filepath.Join(dir, ".bc", "events.log")
+	store := events.NewLog(logPath)
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{EventLog: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/logs/")
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestEventHandler_ByAgentMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	logPath := filepath.Join(dir, ".bc", "events.log")
+	store := events.NewLog(logPath)
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{EventLog: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/logs/alice", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+// --- Daemon handler tests ---
+
+func TestDaemonHandler_ListEmpty(t *testing.T) {
+	dir := setupWorkspace(t)
+	mgr, err := daemon.NewManager(dir)
+	if err != nil {
+		t.Fatalf("create daemon manager: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{Daemons: mgr})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/daemons")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	arr := readJSONArray(t, resp)
+	if len(arr) != 0 {
+		t.Fatalf("expected empty daemons, got %d", len(arr))
+	}
+}
+
+func TestDaemonHandler_GetNotFound(t *testing.T) {
+	dir := setupWorkspace(t)
+	mgr, err := daemon.NewManager(dir)
+	if err != nil {
+		t.Fatalf("create daemon manager: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{Daemons: mgr})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/daemons/nonexistent")
+	assertStatus(t, resp, http.StatusNotFound)
+	_ = resp.Body.Close()
+}
+
+func TestDaemonHandler_MethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	mgr, err := daemon.NewManager(dir)
+	if err != nil {
+		t.Fatalf("create daemon manager: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{Daemons: mgr})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPut, ts.URL+"/api/daemons", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestDaemonHandler_EmptyName(t *testing.T) {
+	dir := setupWorkspace(t)
+	mgr, err := daemon.NewManager(dir)
+	if err != nil {
+		t.Fatalf("create daemon manager: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{Daemons: mgr})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/daemons/")
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestDaemonHandler_CreateInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	mgr, err := daemon.NewManager(dir)
+	if err != nil {
+		t.Fatalf("create daemon manager: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{Daemons: mgr})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/daemons", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestDaemonHandler_UnknownAction(t *testing.T) {
+	dir := setupWorkspace(t)
+	mgr, err := daemon.NewManager(dir)
+	if err != nil {
+		t.Fatalf("create daemon manager: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{Daemons: mgr})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/daemons/test/unknown")
+	assertStatus(t, resp, http.StatusNotFound)
+	_ = resp.Body.Close()
+}
+
+// --- Doctor handler tests ---
+
+func TestDoctorHandler_RunAll(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/doctor")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	if _, ok := body["Categories"]; !ok {
+		t.Fatal("expected Categories field in doctor response")
+	}
+}
+
+func TestDoctorHandler_ByCategory(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/doctor/workspace")
+	assertStatus(t, resp, http.StatusOK)
+	_ = resp.Body.Close()
+}
+
+func TestDoctorHandler_UnknownCategory(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/doctor/nonexistent")
+	assertStatus(t, resp, http.StatusNotFound)
+	_ = resp.Body.Close()
+}
+
+func TestDoctorHandler_EmptyCategory(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/doctor/")
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestDoctorHandler_MethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/doctor", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestDoctorHandler_ByCategoryMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/doctor/workspace", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+// --- Roles handler tests ---
+
+func TestRolesHandler_ListRoles(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/roles")
+	assertStatus(t, resp, http.StatusOK)
+	_ = resp.Body.Close()
+}
+
+func TestRolesHandler_CreateAndGetRole(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	// Create
+	resp := post(t, ts.URL+"/api/roles", "application/json",
+		`{"name":"test-role","description":"a test role","prompt":"Be helpful"}`)
+	assertStatus(t, resp, http.StatusCreated)
+	_ = resp.Body.Close()
+
+	// Get
+	resp = get(t, ts.URL+"/api/roles/test-role")
+	assertStatus(t, resp, http.StatusOK)
+	_ = resp.Body.Close()
+
+	// Update
+	resp = doRequest(t, http.MethodPut, ts.URL+"/api/roles/test-role", "application/json",
+		`{"description":"updated role","prompt":"Be very helpful"}`)
+	assertStatus(t, resp, http.StatusOK)
+	_ = resp.Body.Close()
+
+	// Delete
+	resp = doRequest(t, http.MethodDelete, ts.URL+"/api/roles/test-role", "", "")
+	assertStatus(t, resp, http.StatusNoContent)
+	_ = resp.Body.Close()
+}
+
+func TestRolesHandler_CreateDuplicate(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/roles", "application/json",
+		`{"name":"dup-role","prompt":"test"}`)
+	assertStatus(t, resp, http.StatusCreated)
+	_ = resp.Body.Close()
+
+	resp = post(t, ts.URL+"/api/roles", "application/json",
+		`{"name":"dup-role","prompt":"test"}`)
+	assertStatus(t, resp, http.StatusConflict)
+	_ = resp.Body.Close()
+}
+
+func TestRolesHandler_CreateMissingName(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/roles", "application/json",
+		`{"prompt":"test"}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestRolesHandler_GetNotFound(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/roles/nonexistent")
+	assertStatus(t, resp, http.StatusNotFound)
+	_ = resp.Body.Close()
+}
+
+func TestRolesHandler_MethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/roles", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestRolesHandler_EmptyName(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/roles/")
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestRolesHandler_CreateInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/roles", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestRolesHandler_PutInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	// Create the role first
+	resp := post(t, ts.URL+"/api/roles", "application/json",
+		`{"name":"put-inv-role","prompt":"test"}`)
+	_ = resp.Body.Close()
+
+	resp = doRequest(t, http.MethodPut, ts.URL+"/api/roles/put-inv-role", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestRolesHandler_ByNameMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/roles/test", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+// --- Settings handler tests ---
+
+func TestSettingsHandler_Get(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/settings")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	if body["Workspace"] == nil {
+		t.Fatal("expected Workspace section in settings")
+	}
+}
+
+func TestSettingsHandler_MethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodDelete, ts.URL+"/api/settings", "", "")
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestSettingsHandler_PatchSection(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/settings/user", "application/json",
+		`{"nickname":"@test_nick"}`)
+	assertStatus(t, resp, http.StatusOK)
+	_ = resp.Body.Close()
+}
+
+func TestSettingsHandler_PatchUnknownSection(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/settings/unknown", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestSettingsHandler_PatchEmptySection(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/settings/", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestSettingsHandler_SectionMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/settings/user")
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestSettingsHandler_PatchAllSections(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	sections := []struct {
+		name string
+		body string
+	}{
+		{"tui", `{"theme":"dark"}`},
+		{"runtime", `{}`},
+		{"providers", `{"default":"claude","claude":{"api_key":"test"}}`},
+		{"services", `{}`},
+		{"logs", `{}`},
+		{"performance", `{}`},
+		{"env", `{}`},
+		{"roster", `{}`},
+	}
+	for _, sec := range sections {
+		t.Run(sec.name, func(t *testing.T) {
+			resp := doRequest(t, http.MethodPatch, ts.URL+"/api/settings/"+sec.name, "application/json", sec.body)
+			assertStatus(t, resp, http.StatusOK)
+			_ = resp.Body.Close()
+		})
+	}
+}
+
+func TestSettingsHandler_PatchInvalidJSON(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/settings/user", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestSettingsHandler_PutInvalidJSON(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPut, ts.URL+"/api/settings", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestSettingsHandler_PutPartialUpdate(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPut, ts.URL+"/api/settings", "application/json",
+		`{"user":{"nickname":"@updated_nick"}}`)
+	assertStatus(t, resp, http.StatusOK)
+	_ = resp.Body.Close()
+}
+
+func TestSettingsHandler_GetNilConfig(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+	wks.Config = nil
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/settings")
+	assertStatus(t, resp, http.StatusInternalServerError)
+	_ = resp.Body.Close()
+}
+
+func TestSettingsHandler_PutNilConfig(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+	wks.Config = nil
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPut, ts.URL+"/api/settings", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusInternalServerError)
+	_ = resp.Body.Close()
+}
+
+func TestSettingsHandler_PatchNilConfig(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+	wks.Config = nil
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/settings/user", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusInternalServerError)
+	_ = resp.Body.Close()
+}
+
+// --- Stats handler tests ---
+
+func TestStatsHandler_System(t *testing.T) {
+	ts := buildTestServerWithServices(t, server.Services{})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/stats/system")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+
+	expectedFields := []string{"hostname", "os", "arch", "cpus", "go_version", "uptime_seconds", "goroutines"}
+	for _, field := range expectedFields {
+		if _, ok := body[field]; !ok {
+			t.Fatalf("missing field %q in system stats", field)
+		}
+	}
+}
+
+func TestStatsHandler_SystemMethodNotAllowed(t *testing.T) {
+	ts := buildTestServerWithServices(t, server.Services{})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/stats/system", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestStatsHandler_SummaryEmpty(t *testing.T) {
+	ts := buildTestServerWithServices(t, server.Services{})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/stats/summary")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+
+	expectedFields := []string{
+		"agents_total", "agents_running", "agents_stopped",
+		"channels_total", "messages_total", "total_cost_usd",
+		"roles_total", "tools_total", "uptime_seconds",
+	}
+	for _, field := range expectedFields {
+		if _, ok := body[field]; !ok {
+			t.Fatalf("missing field %q in summary stats", field)
+		}
+	}
+}
+
+func TestStatsHandler_SummaryMethodNotAllowed(t *testing.T) {
+	ts := buildTestServerWithServices(t, server.Services{})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/stats/summary", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestStatsHandler_SummaryWithServices(t *testing.T) {
+	dir := setupWorkspace(t)
+
+	// Set up channels
+	chStore := channel.NewStore(dir)
+	chSvc := channel.NewChannelService(chStore)
+
+	// Set up costs
+	costStore := cost.NewStore(dir)
+	if err := costStore.Open(); err != nil {
+		t.Fatalf("open cost store: %v", err)
+	}
+	t.Cleanup(func() { _ = costStore.Close() })
+
+	// Set up tools
+	stateDir := filepath.Join(dir, ".bc")
+	toolStore := tool.NewStore(stateDir)
+	if err := toolStore.Open(); err != nil {
+		t.Fatalf("open tool store: %v", err)
+	}
+	t.Cleanup(func() { _ = toolStore.Close() })
+
+	// Set up workspace
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{
+		Channels: chSvc,
+		Costs:    costStore,
+		Tools:    toolStore,
+		WS:       wks,
+	})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/stats/summary")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	// All counts should be 0 for fresh workspace
+	if body["agents_total"] != float64(0) {
+		t.Fatalf("expected agents_total=0, got %v", body["agents_total"])
+	}
+}
+
+func TestStatsHandler_SystemWithWorkspace(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/stats/system")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	if _, ok := body["hostname"]; !ok {
+		t.Fatal("missing hostname in system stats")
+	}
+}
+
+// --- Agent handler tests (limited, since AgentService needs real tmux) ---
+
+func TestAgentHandler_ListEmpty(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/agents")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	arr := readJSONArray(t, resp)
+	if len(arr) != 0 {
+		t.Fatalf("expected empty agents, got %d", len(arr))
+	}
+}
+
+func TestAgentHandler_MethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodPut, ts.URL+"/api/agents", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_CreateInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/agents", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_GetNotFound(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/agents/nonexistent")
+	assertStatus(t, resp, http.StatusNotFound)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_EmptyName(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/agents/")
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_UnknownAction(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/agents/test/unknown-action")
+	assertStatus(t, resp, http.StatusNotFound)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_GenerateName(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/agents/generate-name")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	if _, ok := body["name"]; !ok {
+		t.Fatal("expected name field in generate-name response")
+	}
+}
+
+func TestAgentHandler_GenerateNameMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/agents/generate-name", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_BroadcastMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/agents/broadcast")
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_BroadcastInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/agents/broadcast", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_SendRoleMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/agents/send-role")
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_SendRoleInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/agents/send-role", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_SendPatternMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/agents/send-pattern")
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_SendPatternInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/agents/send-pattern", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_StopAllMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/agents/stop-all")
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_StopAll(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/agents/stop-all", "application/json", ``)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	if _, ok := body["stopped"]; !ok {
+		t.Fatal("expected stopped field")
+	}
+}
+
+func TestAgentHandler_Broadcast(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/agents/broadcast", "application/json", `{"message":"hello all"}`)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	if _, ok := body["sent"]; !ok {
+		t.Fatal("expected sent field")
+	}
+}
+
+func TestAgentHandler_SendOnNonexistent(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/agents/nonexist/send", "application/json", `{"message":"hello"}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_SendInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/agents/test/send", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_HealthMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/agents/health", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_HealthEmpty(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/agents/health")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	arr := readJSONArray(t, resp)
+	if len(arr) != 0 {
+		t.Fatalf("expected empty health, got %d", len(arr))
+	}
+}
+
+func TestAgentHandler_HealthWithTimeout(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/agents/health?timeout=30s")
+	assertStatus(t, resp, http.StatusOK)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_StartNonexistent(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/agents/nonexist/start", "application/json", ``)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_StopNonexistent(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/agents/nonexist/stop", "application/json", ``)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_DeleteNonexistent(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodDelete, ts.URL+"/api/agents/nonexist", "", "")
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_PeekNonexistent(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/agents/nonexist/peek")
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_SessionsNonexistent(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/agents/nonexist/sessions")
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_RenameInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/agents/test/rename", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_HookInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/agents/test/hook", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_HookUnknownEvent(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/agents/test/hook", "application/json", `{"event":"unknown_event_xyz"}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_ReportInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/agents/test/report", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_ReportInvalidState(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/agents/test/report", "application/json", `{"state":"invalid_state_xyz"}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+// --- Workspace handler tests ---
+
+func TestWorkspaceHandler_Status(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc, WS: wks})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/workspace")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	if _, ok := body["name"]; !ok {
+		t.Fatal("expected name field in workspace status")
+	}
+	if _, ok := body["agent_count"]; !ok {
+		t.Fatal("expected agent_count field in workspace status")
+	}
+}
+
+func TestWorkspaceHandler_StatusAlias(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc, WS: wks})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/workspace/status")
+	assertStatus(t, resp, http.StatusOK)
+	_ = resp.Body.Close()
+}
+
+func TestWorkspaceHandler_Roles(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc, WS: wks})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/workspace/roles")
+	assertStatus(t, resp, http.StatusOK)
+	_ = resp.Body.Close()
+}
+
+func TestWorkspaceHandler_StatusMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc, WS: wks})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/workspace", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestWorkspaceHandler_RolesMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc, WS: wks})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/workspace/roles", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestWorkspaceHandler_DownMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc, WS: wks})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/workspace/down")
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestWorkspaceHandler_UpMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc, WS: wks})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/workspace/up")
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestWorkspaceHandler_Down(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc, WS: wks})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/workspace/down", "application/json", ``)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	if _, ok := body["stopped"]; !ok {
+		t.Fatal("expected stopped field")
+	}
+}
+
+// --- Pagination tests ---
+
+func TestChannelHandler_Pagination(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	// Create multiple channels
+	for i := 0; i < 5; i++ {
+		name := "chan-" + string(rune('a'+i))
+		resp := post(t, ts.URL+"/api/channels", "application/json", `{"name":"`+name+`"}`)
+		_ = resp.Body.Close()
+	}
+
+	// Test pagination
+	resp := get(t, ts.URL+"/api/channels?limit=2&offset=0")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	arr := readJSONArray(t, resp)
+	if len(arr) != 2 {
+		t.Fatalf("expected 2 channels with limit=2, got %d", len(arr))
+	}
+
+	// Offset beyond count
+	resp = get(t, ts.URL+"/api/channels?limit=10&offset=100")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	arr = readJSONArray(t, resp)
+	if len(arr) != 0 {
+		t.Fatalf("expected 0 channels with large offset, got %d", len(arr))
+	}
+}
+
+// --- CreateDuplicate channel test ---
+
+func TestChannelHandler_CreateDuplicate(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := channel.NewStore(dir)
+	svc := channel.NewChannelService(store)
+
+	ts := buildTestServerWithServices(t, server.Services{Channels: svc})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/channels", "application/json", `{"name":"dup-chan"}`)
+	assertStatus(t, resp, http.StatusCreated)
+	_ = resp.Body.Close()
+
+	resp = post(t, ts.URL+"/api/channels", "application/json", `{"name":"dup-chan"}`)
+	assertStatus(t, resp, http.StatusConflict)
+	_ = resp.Body.Close()
+}
+
+// --- Settings PUT with sections ---
+
+func TestSettingsHandler_PutWithSections(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	// PUT with various section updates
+	resp := doRequest(t, http.MethodPut, ts.URL+"/api/settings", "application/json",
+		`{"env":{"MY_VAR":"value"}}`)
+	assertStatus(t, resp, http.StatusOK)
+	_ = resp.Body.Close()
+}
+
+// --- Settings PUT covering all section branches ---
+
+func TestSettingsHandler_PutAllSections(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	sections := []struct {
+		name string
+		body string
+	}{
+		{"providers", `{"providers":{"default":"claude","claude":{"command":"claude","enabled":true}}}`},
+		{"env", `{"env":{"KEY":"val"}}`},
+		{"logs", `{"logs":{}}`},
+		{"runtime", `{"runtime":{}}`},
+		{"performance", `{"performance":{}}`},
+		{"tui", `{"tui":{}}`},
+		{"workspace", `{"workspace":{"name":"test","version":2}}`},
+		{"roster", `{"roster":{}}`},
+		{"services", `{"services":{}}`},
+	}
+	for _, sec := range sections {
+		t.Run("put_"+sec.name, func(t *testing.T) {
+			resp := doRequest(t, http.MethodPut, ts.URL+"/api/settings", "application/json", sec.body)
+			assertStatus(t, resp, http.StatusOK)
+			_ = resp.Body.Close()
+		})
+	}
+}
+
+func TestSettingsHandler_PutInvalidSections(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"bad user", `{"user":"not_an_object"}`},
+		{"bad providers", `{"providers":"not_an_object"}`},
+		{"bad env", `{"env":"not_an_object"}`},
+		{"bad logs", `{"logs":"not_an_object"}`},
+		{"bad runtime", `{"runtime":"not_an_object"}`},
+		{"bad performance", `{"performance":"not_an_object"}`},
+		{"bad tui", `{"tui":"not_an_object"}`},
+		{"bad workspace", `{"workspace":"not_an_object"}`},
+		{"bad roster", `{"roster":"not_an_object"}`},
+		{"bad services", `{"services":"not_an_object"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := doRequest(t, http.MethodPut, ts.URL+"/api/settings", "application/json", tt.body)
+			assertStatus(t, resp, http.StatusBadRequest)
+			_ = resp.Body.Close()
+		})
+	}
+}
+
+// --- Agent handler with cost enrichment ---
+
+func TestAgentHandler_ListWithCosts(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	costStore := cost.NewStore(dir)
+	if err := costStore.Open(); err != nil {
+		t.Fatalf("open cost store: %v", err)
+	}
+	t.Cleanup(func() { _ = costStore.Close() })
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc, Costs: costStore})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/agents")
+	assertStatus(t, resp, http.StatusOK)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_ListWithWorkspace(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc, WS: wks})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/agents")
+	assertStatus(t, resp, http.StatusOK)
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_ListPagination(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/agents?limit=10&offset=100")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	arr := readJSONArray(t, resp)
+	if len(arr) != 0 {
+		t.Fatalf("expected empty result with large offset, got %d", len(arr))
+	}
+}
+
+// --- Workspace up handler ---
+
+func TestWorkspaceHandler_UpInvalidBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc, WS: wks})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/workspace/up", "application/json", `{invalid}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+// --- Tool CRUD via API ---
+
+func TestToolHandler_CRUD(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	store := tool.NewStore(stateDir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open tool store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Tools: store})
+	defer ts.Close()
+
+	// PUT to update/create a tool
+	resp := doRequest(t, http.MethodPut, ts.URL+"/api/tools/claude", "application/json",
+		`{"name":"claude","command":"claude --skip-permissions","enabled":true}`)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	if body["name"] != "claude" {
+		t.Fatalf("expected name claude, got %v", body["name"])
+	}
+
+	// GET tool
+	resp = get(t, ts.URL+"/api/tools/claude")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body = readJSON(t, resp)
+	if body["name"] != "claude" {
+		t.Fatalf("expected name claude, got %v", body["name"])
+	}
+
+	// Enable
+	resp = post(t, ts.URL+"/api/tools/claude/enable", "application/json", ``)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body = readJSON(t, resp)
+	if body["enabled"] != true {
+		t.Fatalf("expected enabled=true, got %v", body["enabled"])
+	}
+
+	// Disable
+	resp = post(t, ts.URL+"/api/tools/claude/disable", "application/json", ``)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body = readJSON(t, resp)
+	if body["enabled"] != false {
+		t.Fatalf("expected enabled=false, got %v", body["enabled"])
+	}
+
+	// Delete
+	resp = doRequest(t, http.MethodDelete, ts.URL+"/api/tools/claude", "", "")
+	assertStatus(t, resp, http.StatusNoContent)
+	_ = resp.Body.Close()
+}
+
+// --- Daemon handler: stop and restart on nonexistent ---
+
+func TestDaemonHandler_StopNonexistent(t *testing.T) {
+	dir := setupWorkspace(t)
+	mgr, err := daemon.NewManager(dir)
+	if err != nil {
+		t.Fatalf("create daemon manager: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{Daemons: mgr})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/daemons/nonexist/stop", "application/json", ``)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestDaemonHandler_RestartNonexistent(t *testing.T) {
+	dir := setupWorkspace(t)
+	mgr, err := daemon.NewManager(dir)
+	if err != nil {
+		t.Fatalf("create daemon manager: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{Daemons: mgr})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/daemons/nonexist/restart", "application/json", ``)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestDaemonHandler_DeleteNonexistent(t *testing.T) {
+	dir := setupWorkspace(t)
+	mgr, err := daemon.NewManager(dir)
+	if err != nil {
+		t.Fatalf("create daemon manager: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{Daemons: mgr})
+	defer ts.Close()
+
+	resp := doRequest(t, http.MethodDelete, ts.URL+"/api/daemons/nonexist", "", "")
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+// --- Cost handler: budget valid periods ---
+
+func TestCostHandler_Budgets_AllPeriods(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := cost.NewStore(dir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open cost store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	defer ts.Close()
+
+	for _, period := range []string{"daily", "weekly", "monthly"} {
+		t.Run(period, func(t *testing.T) {
+			resp := post(t, ts.URL+"/api/costs/budgets", "application/json",
+				`{"scope":"test-`+period+`","period":"`+period+`","limit_usd":50.0}`)
+			assertStatus(t, resp, http.StatusOK)
+			_ = resp.Body.Close()
+		})
+	}
+}
+
+// --- Agent handler: stats endpoint ---
+
+func TestAgentHandler_StatsNonexistent(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/agents/nonexist/stats")
+	// stats returns empty array or error for nonexistent agent
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("expected 200 or 500, got %d", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+}
+
+func TestAgentHandler_StatsWithLimit(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/agents/test/stats?limit=5")
+	// OK to get error or empty result for nonexistent agent
+	_ = resp.Body.Close()
+}
+
+// --- Workspace handler: status with nil config ---
+
+func TestWorkspaceHandler_StatusNilConfig(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+	wks.Config = nil
+
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc, WS: wks})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/workspace/status")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	// nickname should be empty string when config is nil
+	if body["nickname"] != "" {
+		t.Fatalf("expected empty nickname, got %v", body["nickname"])
+	}
+}
+
+// --- isAlreadyRunning coverage ---
+
+func TestWorkspaceHandler_UpEmptyBody(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc, WS: wks})
+	defer ts.Close()
+
+	// POST with empty body (content-length 0)
+	resp := doRequest(t, http.MethodPost, ts.URL+"/api/workspace/up", "application/json", "")
+	// Expect either success or error (depending on tmux availability)
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 200 or 400, got %d", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+}
+
+// --- Agent health with agent filter ---
+
+func TestAgentHandler_HealthWithFilter(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/agents/health?agent=nonexist")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	arr := readJSONArray(t, resp)
+	if len(arr) != 0 {
+		t.Fatalf("expected empty health with filter, got %d", len(arr))
+	}
+}
+
+// --- Additional coverage for CORS helper ---
+
+func TestCORSMiddlewareDefault(t *testing.T) {
+	hub := ws.NewHub()
+	go hub.Run()
+	t.Cleanup(hub.Stop)
+
+	// Build server without CORSOrigin set to exercise CORS default
+	cfg := server.Config{Addr: "127.0.0.1:0", CORS: true}
+	srv := server.New(cfg, server.Services{}, hub, nil)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/health")
+	assertStatus(t, resp, http.StatusOK)
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("want CORS origin *, got %q", got)
+	}
+	_ = resp.Body.Close()
+}
+
+// --- Agent handler: create agent (exercises success paths) ---
+
+func TestAgentHandler_CreateAgent(t *testing.T) {
+	dir := setupWorkspace(t)
+	stateDir := filepath.Join(dir, ".bc")
+	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	// Create agent - may fail without tmux/real runtime, but exercises the handler path
+	resp := post(t, ts.URL+"/api/agents", "application/json",
+		`{"name":"test-agent","role":"engineer","tool":"claude"}`)
+	// Accept 201 (created) or 400 (if runtime not available)
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 201 or 400, got %d", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+}
+
+// --- Daemon handler: create daemon (exercises success paths) ---
+
+func TestDaemonHandler_CreateDaemon(t *testing.T) {
+	dir := setupWorkspace(t)
+	mgr, err := daemon.NewManager(dir)
+	if err != nil {
+		t.Fatalf("create daemon manager: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{Daemons: mgr})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/daemons", "application/json",
+		`{"name":"test-daemon","cmd":"echo hello","runtime":"tmux"}`)
+	// Accept 201 (created) or 400 (if tmux not available)
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 201 or 400, got %d", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+}
+
+// --- Settings PUT with invalid section content triggers specific validation ---
+
+func TestSettingsHandler_PutInvalidUser(t *testing.T) {
+	dir := setupWorkspace(t)
+	wks, err := workspace.Load(dir)
+	if err != nil {
+		t.Fatalf("load workspace: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	defer ts.Close()
+
+	// Invalid nickname (missing @ prefix)
+	resp := doRequest(t, http.MethodPut, ts.URL+"/api/settings", "application/json",
+		`{"user":{"nickname":"no_at_prefix"}}`)
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+// --- Cron handler: get nonexistent job ---
+
+func TestCronHandler_GetNotFound(t *testing.T) {
+	dir := setupWorkspace(t)
+	store, err := cron.Open(dir)
+	if err != nil {
+		t.Fatalf("open cron store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Cron: store})
+	defer ts.Close()
+
+	resp := get(t, ts.URL+"/api/cron/nonexistent")
+	assertStatus(t, resp, http.StatusNotFound)
+	_ = resp.Body.Close()
+}
+
+// --- Cost handler: by-resource method not allowed on various sub-resources ---
+
+func TestCostHandler_DailyMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := cost.NewStore(dir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open cost store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/costs/daily", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestCostHandler_ProjectMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := cost.NewStore(dir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open cost store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/costs/project", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestCostHandler_AgentDetailMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := cost.NewStore(dir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open cost store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/costs/agent/test", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestCostHandler_TeamsMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := cost.NewStore(dir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open cost store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/costs/teams", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
+
+func TestCostHandler_ModelsMethodNotAllowed(t *testing.T) {
+	dir := setupWorkspace(t)
+	store := cost.NewStore(dir)
+	if err := store.Open(); err != nil {
+		t.Fatalf("open cost store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	defer ts.Close()
+
+	resp := post(t, ts.URL+"/api/costs/models", "application/json", `{}`)
+	assertStatus(t, resp, http.StatusMethodNotAllowed)
+	_ = resp.Body.Close()
+}
