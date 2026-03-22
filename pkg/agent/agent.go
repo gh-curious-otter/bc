@@ -449,7 +449,9 @@ type Manager struct {
 // SetOnStateChange registers a callback invoked whenever an agent's state
 // changes through the reconciler or hook-event processing.
 func (m *Manager) SetOnStateChange(fn func(name string, state State, task string)) {
+	m.mu.Lock()
 	m.onStateChange = fn
+	m.mu.Unlock()
 }
 
 // ApplyWorkspaceConfig applies workspace-level configuration overrides to the manager.
@@ -465,8 +467,11 @@ func (m *Manager) ApplyWorkspaceConfig(cfg *workspace.Config) {
 
 // notifyStateChange calls the onStateChange callback if set.
 func (m *Manager) notifyStateChange(name string, state State, task string) {
-	if m.onStateChange != nil {
-		m.onStateChange(name, state, task)
+	m.mu.RLock()
+	fn := m.onStateChange
+	m.mu.RUnlock()
+	if fn != nil {
+		fn(name, state, task)
 	}
 }
 
@@ -2064,25 +2069,45 @@ func (m *Manager) CaptureOutput(ctx context.Context, name string, lines int) (st
 }
 
 // tailFile reads the last N lines from a file.
+// It reads only the last 64KB instead of the entire file to avoid large allocations.
 func tailFile(path string, lines int) (string, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // path from trusted agent state
+	f, err := os.Open(path) //nolint:gosec // path from trusted agent state
 	if err != nil {
 		return "", err
 	}
+	defer f.Close() //nolint:errcheck // best-effort close on read-only file
 
-	if len(data) == 0 {
+	fi, err := f.Stat()
+	if err != nil {
+		return "", err
+	}
+	size := fi.Size()
+	if size == 0 {
 		return "", nil
+	}
+
+	// Read at most the last 64KB — enough for typical tail operations.
+	const maxRead = 64 * 1024
+	readSize := size
+	if readSize > maxRead {
+		readSize = maxRead
+	}
+
+	buf := make([]byte, readSize)
+	_, err = f.ReadAt(buf, size-readSize)
+	if err != nil && err != io.EOF {
+		return "", err
 	}
 
 	// Find last N lines by scanning backward
 	count := 0
-	pos := len(data) - 1
+	pos := len(buf) - 1
 	// Skip trailing newline
-	if pos >= 0 && data[pos] == '\n' {
+	if pos >= 0 && buf[pos] == '\n' {
 		pos--
 	}
 	for pos >= 0 {
-		if data[pos] == '\n' {
+		if buf[pos] == '\n' {
 			count++
 			if count >= lines {
 				pos++
@@ -2095,7 +2120,7 @@ func tailFile(path string, lines int) (string, error) {
 		pos = 0
 	}
 
-	return string(data[pos:]), nil
+	return string(buf[pos:]), nil
 }
 
 // FollowOutput streams new log lines in real-time, like tail -f.
