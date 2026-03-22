@@ -85,7 +85,7 @@ func (ch *ChannelsClient) Delete(ctx context.Context, name string) error {
 
 // AddMember adds an agent to a channel.
 func (ch *ChannelsClient) AddMember(ctx context.Context, chanName, agentName string) error {
-	body := map[string]string{"agent": agentName}
+	body := map[string]string{"agent_id": agentName}
 	return ch.client.post(ctx, "/api/channels/"+chanName+"/members", body, nil)
 }
 

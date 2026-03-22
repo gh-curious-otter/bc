@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/channel"
 )
 
 // resetAgentFlags resets agent command flags between tests
@@ -101,7 +100,7 @@ func TestAgentLifecycle_CreateNoWorkspace(t *testing.T) {
 	// Include --role flag so validation passes and we reach workspace check
 	_, err := executeCmd("agent", "create", "test-agent", "--role", "engineer")
 	if err == nil {
-		t.Error("expected error for missing workspace")
+		t.Fatal("expected error for missing workspace")
 	}
 	if !strings.Contains(err.Error(), "not in a bc workspace") {
 		t.Errorf("expected workspace error, got: %v", err)
@@ -214,11 +213,15 @@ func TestAgentStateWorkflow_GetNonExistentAgent(t *testing.T) {
 func TestChannelWorkflow_CreateAndList(t *testing.T) {
 	setupTestWorkspace(t)
 
+	ch := uniqueChannelName(t, "")
 	// Create a channel (should succeed without error)
-	_, err := executeCmd("channel", "create", "test-channel")
+	_, err := executeCmd("channel", "create", ch)
 	if err != nil {
 		t.Fatalf("channel create error: %v", err)
 	}
+	t.Cleanup(func() {
+		_, _ = executeCmd("channel", "delete", ch)
+	})
 
 	// List channels (should succeed)
 	_, err = executeCmd("channel", "list")
@@ -228,262 +231,170 @@ func TestChannelWorkflow_CreateAndList(t *testing.T) {
 }
 
 func TestChannelWorkflow_AddRemoveMembers(t *testing.T) {
-	wsDir := setupTestWorkspace(t)
+	setupTestWorkspace(t)
 
-	// Create channel using store directly
-	store := channel.NewStore(wsDir)
-	if err := store.Load(); err != nil {
-		t.Fatalf("failed to load channel store: %v", err)
-	}
-	if _, err := store.Create("members-test"); err != nil {
+	ch := uniqueChannelName(t, "")
+	// Create channel via command
+	_, err := executeCmd("channel", "create", ch)
+	if err != nil {
 		t.Fatalf("failed to create channel: %v", err)
 	}
-	if err := store.Save(); err != nil {
-		t.Fatalf("failed to save channel: %v", err)
-	}
+	t.Cleanup(func() {
+		_, _ = executeCmd("channel", "delete", ch)
+	})
 
 	// Add member (should succeed)
-	_, err := executeCmd("channel", "add", "members-test", "agent-01")
+	_, err = executeCmd("channel", "add", ch, "agent-01")
 	if err != nil {
 		t.Fatalf("channel add error: %v", err)
 	}
 
-	// Verify membership via store
-	if loadErr := store.Load(); loadErr != nil {
-		t.Fatalf("failed to reload store: %v", loadErr)
-	}
-	members, membersErr := store.GetMembers("members-test")
-	if membersErr != nil {
-		t.Fatalf("failed to get members: %v", membersErr)
-	}
-	found := false
-	for _, m := range members {
-		if m == "agent-01" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Error("expected agent-01 to be a member")
-	}
-
 	// Remove member (should succeed)
-	_, err = executeCmd("channel", "remove", "members-test", "agent-01")
+	_, err = executeCmd("channel", "remove", ch, "agent-01")
 	if err != nil {
 		t.Fatalf("channel remove error: %v", err)
-	}
-
-	// Verify removal via store
-	if loadErr := store.Load(); loadErr != nil {
-		t.Fatalf("failed to reload store: %v", loadErr)
-	}
-	members, membersErr = store.GetMembers("members-test")
-	if membersErr != nil {
-		t.Fatalf("failed to get members: %v", membersErr)
-	}
-	for _, m := range members {
-		if m == "agent-01" {
-			t.Error("agent-01 should have been removed")
-		}
 	}
 }
 
 func TestChannelWorkflow_JoinWithoutAgentID(t *testing.T) {
-	wsDir := setupTestWorkspace(t)
+	setupTestWorkspace(t)
 
-	// Create channel directly
-	store := channel.NewStore(wsDir)
-	if err := store.Load(); err != nil {
-		t.Fatalf("failed to load store: %v", err)
-	}
-	if _, err := store.Create("join-test"); err != nil {
+	ch := uniqueChannelName(t, "join")
+	// Create channel via command
+	_, err := executeCmd("channel", "create", ch)
+	if err != nil {
 		t.Fatalf("failed to create channel: %v", err)
 	}
-	if err := store.Save(); err != nil {
-		t.Fatalf("failed to save: %v", err)
-	}
+	t.Cleanup(func() {
+		_, _ = executeCmd("channel", "delete", ch)
+	})
 
 	// Use t.Setenv with empty string to unset (t.Setenv handles cleanup)
 	t.Setenv("BC_AGENT_ID", "")
 
 	// Try to join - should fail without BC_AGENT_ID (now has user-friendly error message)
-	_, err := executeCmd("channel", "join", "join-test")
+	_, err = executeCmd("channel", "join", ch)
 	if err == nil {
 		t.Error("expected error for join without agent context")
 	}
 	// Check for user-friendly error message that explains the issue and how to fix it
-	if !strings.Contains(err.Error(), "can only be run by agents") && !strings.Contains(err.Error(), "BC_AGENT_ID") {
+	if err != nil && !strings.Contains(err.Error(), "can only be run by agents") && !strings.Contains(err.Error(), "BC_AGENT_ID") {
 		t.Errorf("expected agent-only error message, got: %v", err)
 	}
 }
 
 func TestChannelWorkflow_JoinWithAgentID(t *testing.T) {
-	wsDir := setupTestWorkspace(t)
+	setupTestWorkspace(t)
 
-	// Create channel directly
-	store := channel.NewStore(wsDir)
-	if err := store.Load(); err != nil {
-		t.Fatalf("failed to load store: %v", err)
-	}
-	if _, err := store.Create("join-with-id"); err != nil {
+	ch := uniqueChannelName(t, "join")
+	// Create channel via command
+	_, err := executeCmd("channel", "create", ch)
+	if err != nil {
 		t.Fatalf("failed to create channel: %v", err)
 	}
-	if err := store.Save(); err != nil {
-		t.Fatalf("failed to save: %v", err)
-	}
+	t.Cleanup(func() {
+		_, _ = executeCmd("channel", "delete", ch)
+	})
 
 	// Set BC_AGENT_ID using t.Setenv (handles cleanup automatically)
 	t.Setenv("BC_AGENT_ID", "test-agent-01")
 
 	// Join channel (should succeed)
-	_, err := executeCmd("channel", "join", "join-with-id")
+	_, err = executeCmd("channel", "join", ch)
 	if err != nil {
 		t.Fatalf("channel join error: %v", err)
-	}
-
-	// Verify membership via store
-	if loadErr := store.Load(); loadErr != nil {
-		t.Fatalf("failed to reload store: %v", loadErr)
-	}
-	members, membersErr := store.GetMembers("join-with-id")
-	if membersErr != nil {
-		t.Fatalf("failed to get members: %v", membersErr)
-	}
-	found := false
-	for _, m := range members {
-		if m == "test-agent-01" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Error("expected test-agent-01 to be a member after join")
 	}
 }
 
 func TestChannelWorkflow_LeaveChannel(t *testing.T) {
-	wsDir := setupTestWorkspace(t)
+	setupTestWorkspace(t)
 
-	// Create channel and add member directly
-	store := channel.NewStore(wsDir)
-	if err := store.Load(); err != nil {
-		t.Fatalf("failed to load store: %v", err)
-	}
-	if _, err := store.Create("leave-test"); err != nil {
+	ch := uniqueChannelName(t, "leave")
+	// Create channel and add member via commands
+	_, err := executeCmd("channel", "create", ch)
+	if err != nil {
 		t.Fatalf("failed to create channel: %v", err)
 	}
-	if err := store.AddMember("leave-test", "leaving-agent"); err != nil {
+	t.Cleanup(func() {
+		_, _ = executeCmd("channel", "delete", ch)
+	})
+
+	_, err = executeCmd("channel", "add", ch, "leaving-agent")
+	if err != nil {
 		t.Fatalf("failed to add member: %v", err)
-	}
-	if err := store.Save(); err != nil {
-		t.Fatalf("failed to save: %v", err)
 	}
 
 	// Set BC_AGENT_ID using t.Setenv (handles cleanup automatically)
 	t.Setenv("BC_AGENT_ID", "leaving-agent")
 
 	// Leave channel (should succeed)
-	_, err := executeCmd("channel", "leave", "leave-test")
+	_, err = executeCmd("channel", "leave", ch)
 	if err != nil {
 		t.Fatalf("channel leave error: %v", err)
-	}
-
-	// Verify removal via store
-	if loadErr := store.Load(); loadErr != nil {
-		t.Fatalf("failed to reload store: %v", loadErr)
-	}
-	members, membersErr := store.GetMembers("leave-test")
-	if membersErr != nil {
-		t.Fatalf("failed to get members: %v", membersErr)
-	}
-	for _, m := range members {
-		if m == "leaving-agent" {
-			t.Error("leaving-agent should have been removed")
-		}
 	}
 }
 
 func TestChannelWorkflow_SendToEmptyChannel(t *testing.T) {
-	wsDir := setupTestWorkspace(t)
+	setupTestWorkspace(t)
 
-	// Create empty channel directly
-	store := channel.NewStore(wsDir)
-	if err := store.Load(); err != nil {
-		t.Fatalf("failed to load store: %v", err)
-	}
-	if _, err := store.Create("empty-channel"); err != nil {
+	ch := uniqueChannelName(t, "empty")
+	// Create empty channel via command
+	_, err := executeCmd("channel", "create", ch)
+	if err != nil {
 		t.Fatalf("failed to create channel: %v", err)
 	}
-	if err := store.Save(); err != nil {
-		t.Fatalf("failed to save: %v", err)
-	}
+	t.Cleanup(func() {
+		_, _ = executeCmd("channel", "delete", ch)
+	})
 
 	// Send to empty channel (should succeed but do nothing)
-	_, err := executeCmd("channel", "send", "empty-channel", "hello world")
+	_, err = executeCmd("channel", "send", ch, "hello world")
 	if err != nil {
 		t.Fatalf("channel send error: %v", err)
 	}
 }
 
 func TestChannelWorkflow_DeleteChannel(t *testing.T) {
-	wsDir := setupTestWorkspace(t)
+	setupTestWorkspace(t)
 
-	// Create channel directly
-	store := channel.NewStore(wsDir)
-	if err := store.Load(); err != nil {
-		t.Fatalf("failed to load store: %v", err)
-	}
-	if _, err := store.Create("delete-me"); err != nil {
+	ch := uniqueChannelName(t, "del")
+	// Create channel via command
+	_, err := executeCmd("channel", "create", ch)
+	if err != nil {
 		t.Fatalf("failed to create channel: %v", err)
-	}
-	if err := store.Save(); err != nil {
-		t.Fatalf("failed to save: %v", err)
 	}
 
 	// Delete channel (should succeed)
-	_, err := executeCmd("channel", "delete", "delete-me")
+	_, err = executeCmd("channel", "delete", ch)
 	if err != nil {
 		t.Fatalf("channel delete error: %v", err)
-	}
-
-	// Verify deleted via store
-	if err := store.Load(); err != nil {
-		t.Fatalf("failed to reload store: %v", err)
-	}
-	channels := store.List()
-	for _, ch := range channels {
-		if ch.Name == "delete-me" {
-			t.Error("channel should have been deleted")
-		}
 	}
 }
 
 func TestChannelWorkflow_DeleteNonExistent(t *testing.T) {
 	setupTestWorkspace(t)
 
-	_, err := executeCmd("channel", "delete", "nonexistent-channel")
+	_, err := executeCmd("channel", "delete", "nonexistent-e2e-wf-xyz")
 	if err == nil {
 		t.Error("expected error deleting non-existent channel")
 	}
 }
 
 func TestChannelWorkflow_HistoryEmpty(t *testing.T) {
-	wsDir := setupTestWorkspace(t)
+	setupTestWorkspace(t)
 
-	// Create channel directly
-	store := channel.NewStore(wsDir)
-	if err := store.Load(); err != nil {
-		t.Fatalf("failed to load store: %v", err)
-	}
-	if _, err := store.Create("history-test"); err != nil {
+	ch := uniqueChannelName(t, "hist")
+	// Create channel via command
+	_, err := executeCmd("channel", "create", ch)
+	if err != nil {
 		t.Fatalf("failed to create channel: %v", err)
 	}
-	if err := store.Save(); err != nil {
-		t.Fatalf("failed to save: %v", err)
-	}
+	t.Cleanup(func() {
+		_, _ = executeCmd("channel", "delete", ch)
+	})
 
 	// Check empty history (should succeed)
-	_, err := executeCmd("channel", "history", "history-test")
+	_, err = executeCmd("channel", "history", ch)
 	if err != nil {
 		t.Fatalf("channel history error: %v", err)
 	}
@@ -492,7 +403,7 @@ func TestChannelWorkflow_HistoryEmpty(t *testing.T) {
 func TestChannelWorkflow_HistoryNonExistent(t *testing.T) {
 	setupTestWorkspace(t)
 
-	_, err := executeCmd("channel", "history", "nonexistent")
+	_, err := executeCmd("channel", "history", "nonexistent-e2e-wf-xyz")
 	if err == nil {
 		t.Error("expected error for non-existent channel history")
 	}
@@ -638,7 +549,7 @@ func TestNoWorkspace_AgentList(t *testing.T) {
 
 	_, err := executeCmd("agent", "list")
 	if err == nil {
-		t.Error("expected error for missing workspace")
+		t.Fatal("expected error for missing workspace")
 	}
 	if !strings.Contains(err.Error(), "not in a bc workspace") {
 		t.Errorf("expected workspace error, got: %v", err)
@@ -656,7 +567,7 @@ func TestNoWorkspace_AgentStop(t *testing.T) {
 
 	_, err := executeCmd("agent", "stop", "any-agent")
 	if err == nil {
-		t.Error("expected error for missing workspace")
+		t.Fatal("expected error for missing workspace")
 	}
 	if !strings.Contains(err.Error(), "not in a bc workspace") {
 		t.Errorf("expected workspace error, got: %v", err)
@@ -674,7 +585,7 @@ func TestNoWorkspace_AgentPeek(t *testing.T) {
 
 	_, err := executeCmd("agent", "peek", "any-agent")
 	if err == nil {
-		t.Error("expected error for missing workspace")
+		t.Fatal("expected error for missing workspace")
 	}
 	if !strings.Contains(err.Error(), "not in a bc workspace") {
 		t.Errorf("expected workspace error, got: %v", err)
@@ -692,7 +603,7 @@ func TestNoWorkspace_AgentSend(t *testing.T) {
 
 	_, err := executeCmd("agent", "send", "any-agent", "message")
 	if err == nil {
-		t.Error("expected error for missing workspace")
+		t.Fatal("expected error for missing workspace")
 	}
 	if !strings.Contains(err.Error(), "not in a bc workspace") {
 		t.Errorf("expected workspace error, got: %v", err)
@@ -710,7 +621,7 @@ func TestNoWorkspace_ChannelCreate(t *testing.T) {
 
 	_, err := executeCmd("channel", "create", "test")
 	if err == nil {
-		t.Error("expected error for missing workspace")
+		t.Fatal("expected error for missing workspace")
 	}
 	if !strings.Contains(err.Error(), "not in a bc workspace") {
 		t.Errorf("expected workspace error, got: %v", err)

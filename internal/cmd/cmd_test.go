@@ -209,8 +209,11 @@ func TestChannelCommand_NoWorkspace(t *testing.T) {
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
 
+	restoreEnv := clearWorkspaceEnv(t)
+	defer restoreEnv()
+
 	_, err := executeCmd("channel", "list")
 	if err == nil {
-		t.Error("expected error for missing workspace")
+		t.Fatal("expected error for missing workspace")
 	}
 }
