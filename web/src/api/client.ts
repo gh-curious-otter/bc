@@ -401,6 +401,10 @@ export const api = {
     request<EventLogEntry[]>(
       `/logs?${new URLSearchParams({ tail: String(tail) })}`,
     ),
+  getAgentLogs: (agent: string, tail = 50) =>
+    request<EventLogEntry[]>(
+      `/logs?${new URLSearchParams({ tail: String(tail), agent })}`,
+    ),
   getDoctor: () => request<DoctorReport>("/doctor"),
 
   listCron: () => request<CronJob[]>("/cron"),

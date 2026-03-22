@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { api } from "../api/client";
 import type { DoctorCategory } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
@@ -103,6 +103,30 @@ export function Doctor() {
   );
 }
 
+function FixButton({ fix }: { fix: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(fix).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div className="flex items-center gap-2 mt-1">
+      <code className="text-xs text-bc-accent">{fix}</code>
+      <button
+        onClick={handleCopy}
+        className="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-colors shrink-0"
+        title="Copy fix command to clipboard"
+      >
+        {copied ? "Copied!" : "Fix"}
+      </button>
+    </div>
+  );
+}
+
 function CategorySection({ category }: { category: DoctorCategory }) {
   return (
     <div className="space-y-2">
@@ -123,11 +147,13 @@ function CategorySection({ category }: { category: DoctorCategory }) {
                   {item.Message}
                 </span>
               </div>
-              {item.Fix && (
+              {item.Severity === 2 && item.Fix ? (
+                <FixButton fix={item.Fix} />
+              ) : item.Fix ? (
                 <code className="text-xs text-bc-accent mt-0.5 block">
                   {item.Fix}
                 </code>
-              )}
+              ) : null}
             </div>
           </div>
         ))}
