@@ -107,7 +107,7 @@ export function HeroSection() {
               Open source
             </span>
             <span className="flex items-center gap-1.5">
-              <Layers className="h-3.5 w-3.5" aria-hidden="true" />8 AI tools
+              <Layers className="h-3.5 w-3.5" aria-hidden="true" />7 AI tools
               supported
             </span>
             <span className="flex items-center gap-1.5">

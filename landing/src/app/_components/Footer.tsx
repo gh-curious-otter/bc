@@ -6,11 +6,13 @@ export function Footer() {
       <div className="mx-auto max-w-7xl px-6 py-16">
         <div className="grid grid-cols-1 gap-12 md:grid-cols-5 mb-12">
           <div className="col-span-1 md:col-span-2 space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-xl font-bold tracking-tighter text-foreground">
-                bc/&gt;
+            <div className="flex items-center group">
+              <span className="font-mono text-lg font-normal text-secondary/70">
+                &gt;
               </span>
-              <div className="h-4 w-2 bg-accent animate-[pulse_1.5s_infinite]" />
+              <span className="font-heading text-xl font-bold tracking-tight text-primary ml-1">
+                bc
+              </span>
             </div>
             <p className="text-sm text-muted-foreground max-w-xs">
               Multi-agent orchestration for AI coding assistants. CLI-first.
@@ -60,37 +62,21 @@ export function Footer() {
               className="flex flex-col gap-2 text-sm text-muted-foreground"
             >
               <Link
-                href="https://github.com/bcinfra1"
+                href="https://github.com/bcinfra1/bc"
                 className="hover:text-foreground transition-colors"
                 target="_blank"
                 rel="noopener noreferrer"
               >
                 GitHub
               </Link>
-              <Link
-                href="https://twitter.com/bc_infra"
-                className="hover:text-foreground transition-colors"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
+              <span className="text-muted-foreground/50 cursor-default">
                 Twitter / X
-              </Link>
-              <Link
-                href="https://linkedin.com/company/bc-infra"
-                className="hover:text-foreground transition-colors"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                LinkedIn
-              </Link>
-              <Link
-                href="https://discord.gg/bc-infra"
-                className="hover:text-foreground transition-colors"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
+                <span className="text-[10px] ml-1 italic">(coming soon)</span>
+              </span>
+              <span className="text-muted-foreground/50 cursor-default">
                 Discord
-              </Link>
+                <span className="text-[10px] ml-1 italic">(coming soon)</span>
+              </span>
             </nav>
           </div>
           <div className="space-y-4">
