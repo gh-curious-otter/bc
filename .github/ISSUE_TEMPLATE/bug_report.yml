@@ -60,11 +60,11 @@ body:
     attributes:
       label: Estimated Size
       options:
-        - "Quick (< 100 LOC, trivial fix, no subagents)"
-        - "Small (< 1000 LOC, single PR)"
-        - "Medium (2-5 PRs)"
-        - "Large (needs design doc first)"
-        - "XLarge (needs scoping, skip implementation)"
+        - "Quick (< 100 LOC, trivial fix)"
+        - "Small (< 200 LOC, single PR)"
+        - "Medium (2-5 PRs, decomposes into Small)"
+        - "Large (needs design doc, decomposes into Medium)"
+        - "XLarge (needs scoping, decomposes into Large)"
     validations:
       required: true
 
@@ -80,62 +80,59 @@ body:
     attributes:
       label: Agent Instructions
       description: |
-        Workflow for agents picking up this issue. You may leave this as-is.
+        Recursive workflow for agents. You may leave this as-is.
       value: |
         <details>
         <summary>Agent Workflow (click to expand)</summary>
 
-        ### Test Plan
+        ### Test Plan (bugs require a failing test first)
 
-        Every bug fix PR must include:
-        1. A failing test that reproduces the bug
-        2. The fix
-        3. Verification the test now passes
+        1. Write a failing test that reproduces the bug
+        2. Implement the fix
+        3. Verify the test passes
+        4. `make ci-local` must pass
 
-        ```bash
-        # Verify before opening PR
-        make ci-local       # Full CI pipeline locally
-        ```
-
-        ### Workflow by Size (recursive — each level decomposes into the next)
+        ### Recursive Decomposition (each level → next level down)
 
         **QUICK** — < 100 LOC, trivial fix
-        - Branch, fix, `make ci-local` (MUST PASS), PR, review (using plugins), merge.
+        - Branch, fix, `make ci-local` (MUST PASS), PR, review, merge.
         - No subagents needed.
 
-        **SMALL** — < 1000 LOC, single PR
+        **SMALL** — < 200 LOC, single PR
         - Branch: `fix/<issue-number>-<short-desc>`
-        - Implement fix with test
+        - Implement fix with failing test first
         - `make ci-local` as background task
-        - Open PR → `/code-review` → wait for ci-local: pass → merge, fail → fix and repeat
+        - Open PR → review → ci-local pass → merge, fail → fix and repeat
+        - **Escalation**: if scope exceeds 200 LOC or 5 files, STOP and re-classify
 
-        **MEDIUM** — 2-5 PRs, decomposes into SMALL
-        - Break into todos with dependency order
-        - Assign each todo to a subagent (each follows SMALL workflow)
-        - Merge subagent branches to `fix/<issue-number>-<short-desc>`
-        - Open PR → `/code-review` → wait for ci-local: pass → merge, fail → repeat
+        **MEDIUM** — 2-5 PRs, decomposes into Small
+        - Break into max 5 todos with dependency order
+        - Assign each todo to a subagent (each follows Small workflow)
+        - Merge in dependency order
 
-        **LARGE** — needs design doc, decomposes into MEDIUM
-        - Use 5 subagents to thoroughly review codebase, related PRs, issues
-        - Use 5 subagents to research the internet for related information
-        - Write crisp, detailed design doc as GitHub comment
-        - Get approval (STUCK until approved)
-        - Break into MEDIUM sub-issues → follow MEDIUM workflow
+        **LARGE** — needs design doc, decomposes into Medium
+        - Use 5 subagents to review codebase + 5 to research internet
+        - Write design doc as GitHub comment, get approval (STUCK until approved)
+        - Break into max 5 Medium sub-issues
 
-        **XLARGE** — needs scoping, decomposes into LARGE
-        - Do not implement directly
-        - Use 10 agents to research codebase and internet, add comment with findings
-        - Break into LARGE sub-issues with clear scope
-        - Each LARGE sub-issue follows LARGE workflow (design doc → MEDIUM → SMALL)
+        **XLARGE** — needs scoping, decomposes into Large
+        - Use 10 agents to research, post findings, break into max 5 Large sub-issues
+
+        ### Guardrails
+
+        - **Max fan-out**: 5 sub-issues per level
+        - **Max depth**: 3 levels
+        - **Max retries**: 3 CI fix attempts, then escalate
+        - **Escalation**: any agent can promote task size if scope exceeds expectations
+        - **Cross-cutting**: shared interface changes must be serialized
+        - **Timeouts**: Research 30min, Design 1hr, Small implementation 2hr
 
         ### Key Commands
 
         ```bash
+        make ci-local                       # Full CI pipeline (MUST PASS)
         make test-go                        # Go tests with race detector
-        make test-go-fast                   # Go tests excluding E2E (matches CI)
         make lint-go                        # golangci-lint
-        make vet-go                         # go vet
-        make build-bc-local                 # Build bc binary
         make build-bcd-local                # Build bcd server
         go test -race -run TestName ./pkg/  # Run specific test
         ```
@@ -143,12 +140,10 @@ body:
         ### Labels (apply before starting work)
         - **Team**: `team:api`, `team:ui`, or `team:infra`
         - **Size**: `size:quick`, `size:small`, `size:medium`, `size:large`, or `size:xlarge`
-        - **Priority** (if urgent): `priority:critical`, `priority:high`, `priority:medium`
+        - **Priority**: `priority:critical`, `priority:high`, `priority:medium`
 
         ### Conventions
         - Conventional commits: `fix: <description>`
         - Branch: `fix/<issue-number>-<short-desc>`
-        - All errors handled (errcheck linter enforced)
-        - Context propagation (noctx linter enforced)
 
         </details>

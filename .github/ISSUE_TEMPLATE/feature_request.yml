@@ -1,12 +1,12 @@
 name: Feature Request
-description: Suggest a new feature or improvement
+description: Suggest a new feature, improvement, or epic
 labels: [enhancement]
 
 body:
   - type: markdown
     attributes:
       value: |
-        Describe the feature you'd like to see in bc.
+        Describe the feature you'd like to see in bc. Use size to indicate scope — large features automatically become epics.
 
   - type: textarea
     id: goal
@@ -25,6 +25,16 @@ body:
       placeholder: "e.g. 'Must work with both tmux and Docker runtimes'"
 
   - type: textarea
+    id: sub-issues
+    attributes:
+      label: Sub-Issues (for medium/large/xlarge)
+      description: Break down into sub-issues if this is larger than a single PR. Link issues as created.
+      value: |
+        <!-- Delete this section for quick/small issues -->
+        - [ ] #000 -- Description
+        - [ ] #000 -- Description
+
+  - type: textarea
     id: references
     attributes:
       label: References
@@ -34,13 +44,13 @@ body:
     id: size
     attributes:
       label: Estimated Size
-      description: How large is this change?
+      description: Determines the workflow. Each size decomposes into the next.
       options:
-        - "Quick (< 100 LOC, trivial change, no subagents)"
-        - "Small (< 1000 LOC, single PR)"
-        - "Medium (2-5 PRs)"
-        - "Large (needs design doc first)"
-        - "XLarge (needs scoping, skip implementation)"
+        - "Quick (< 100 LOC, trivial change)"
+        - "Small (< 200 LOC, single PR)"
+        - "Medium (2-5 PRs, decomposes into Small)"
+        - "Large (needs design doc, decomposes into Medium)"
+        - "XLarge (needs scoping, decomposes into Large)"
     validations:
       required: true
 
@@ -48,7 +58,7 @@ body:
     id: done-when
     attributes:
       label: Done When
-      description: Acceptance criteria for this feature.
+      description: Acceptance criteria.
       value: |
         - [ ] Feature implemented with tests
         - [ ] `make ci-local` passes
@@ -61,78 +71,66 @@ body:
     attributes:
       label: Agent Instructions
       description: |
-        Workflow for agents picking up this issue. You may leave this as-is.
+        Recursive workflow for agents. You may leave this as-is.
       value: |
         <details>
         <summary>Agent Workflow (click to expand)</summary>
 
-        ### Test Plan
-
-        Every feature PR must include:
-        1. Unit tests for new logic
-        2. Integration test if touching API/CLI
-        3. Verification all existing tests still pass
-
-        ```bash
-        make ci-local       # Full CI pipeline locally
-        ```
-
-        ### Workflow by Size (recursive — each level decomposes into the next)
+        ### Recursive Decomposition (each level → next level down)
 
         **QUICK** — < 100 LOC, trivial change
-        - Branch, implement, `make ci-local` (MUST PASS), PR, review (using plugins), merge.
+        - Branch, implement, `make ci-local` (MUST PASS), PR, review, merge.
         - No subagents needed.
 
-        **SMALL** — < 1000 LOC, single PR
+        **SMALL** — < 200 LOC, single PR
         - Branch: `feat/<issue-number>-<short-desc>`
-        - Implement and test
+        - Implement and test (target: 1-5 files, < 200 LOC)
         - `make ci-local` as background task
-        - Open PR → `/code-review` → wait for ci-local: pass → merge, fail → fix and repeat
+        - Open PR → review → ci-local pass → merge, fail → fix and repeat
+        - **Escalation**: if scope exceeds 200 LOC or 5 files, STOP and re-classify as Medium
 
-        **MEDIUM** — 2-5 PRs, decomposes into SMALL
-        - Break into todos with dependency order
-        - Assign each todo to a subagent (each follows SMALL workflow)
-        - Merge subagent branches to `feat/<issue-number>-<short-desc>`
-        - Open PR → `/code-review` → wait for ci-local: pass → merge, fail → repeat
+        **MEDIUM** — 2-5 PRs, decomposes into Small
+        - Break into max 5 todos with dependency order
+        - Assign each todo to a subagent (each follows Small workflow)
+        - Serialize dependent work, parallelize independent work
+        - Merge in dependency order
+        - **Reconciliation**: after all merges, verify integrated state
 
-        **LARGE** — needs design doc, decomposes into MEDIUM
-        - Use 5 subagents to thoroughly review codebase, related PRs, issues
-        - Use 5 subagents to research the internet for related information
-        - Write crisp, detailed design doc as GitHub comment
-        - Get approval (STUCK until approved)
-        - Break into MEDIUM sub-issues → follow MEDIUM workflow
+        **LARGE** — needs design doc, decomposes into Medium
+        - Phase 1: Use 5 subagents to review codebase, related PRs, issues
+        - Phase 2: Use 5 subagents to research internet for related information
+        - Phase 3: Write crisp design doc as GitHub comment
+        - Phase 4: Get approval (STUCK until approved)
+        - Phase 5: Break into max 5 Medium sub-issues → each follows Medium workflow
+        - **Context chain**: every sub-issue carries parent's design reasoning
 
-        **XLARGE** — needs scoping, decomposes into LARGE
+        **XLARGE** — needs scoping, decomposes into Large
         - Do not implement directly
-        - Use 10 agents to research codebase and internet, add comment with findings
-        - Break into LARGE sub-issues with clear scope
-        - Each LARGE sub-issue follows LARGE workflow (design doc → MEDIUM → SMALL)
+        - Use 10 agents to research codebase and internet
+        - Post findings as GitHub comment
+        - Break into max 5 Large sub-issues with clear scope
+        - Each Large sub-issue follows Large workflow
+
+        ### Guardrails
+
+        - **Max fan-out**: 5 sub-issues per decomposition level
+        - **Max depth**: 3 levels (XLARGE → Large → Medium → Small)
+        - **Max retries**: 3 fix attempts per CI failure, then escalate
+        - **Escalation**: any agent can promote a task (Small→Medium, Medium→Large) if scope exceeds expectations. STOP and notify parent.
+        - **Cross-cutting**: changes touching shared interfaces (API types, config structs) must be serialized, not parallelized
+        - **Timeouts**: Research 30min, Design 1hr, Small implementation 2hr
 
         ### Key Commands
 
-        **Go (backend)**
         ```bash
+        make ci-local                       # Full CI pipeline (MUST PASS before merge)
         make build-bc-local                 # Build bc CLI
-        make build-bcd-local                # Build bcd server (embeds web UI)
-        make test-go                        # Run Go tests
+        make build-bcd-local                # Build bcd server
+        make test-go                        # Go tests
+        make test-ts                        # All TS tests
         make lint-go                        # golangci-lint
-        go test -race -run TestName ./pkg/  # Run specific test
-        ```
-
-        **TypeScript (frontend)**
-        ```bash
-        make build-web-local                # Build web UI
-        make build-tui-local                # Build TUI
-        make test-web                       # Run web tests (vitest)
-        make test-tui                       # Run TUI tests
-        make lint-ts                        # Lint all TS
         make vet-ts                         # Typecheck all TS
-        ```
-
-        **Deploy & verify**
-        ```bash
         make deploy-bcd-local               # Deploy locally on :9374
-        make deploy-bcd-local ENV=dogfood   # Deploy dogfood on :9000
         ```
 
         ### Labels (apply before starting work)
@@ -143,6 +141,5 @@ body:
         ### Conventions
         - Conventional commits: `feat: <description>`
         - Branch: `feat/<issue-number>-<short-desc>`
-        - Makefile naming: `<verb>-<component>[-<runtime>]`
 
         </details>
