@@ -17,12 +17,15 @@ var channelNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
 // ErrChannelExists is returned when attempting to create a channel that already exists.
 var ErrChannelExists = errors.New("channel already exists")
 
-// ErrInvalidChannelName is returned when a channel name contains invalid characters.
-var ErrInvalidChannelName = errors.New("invalid channel name: must start with alphanumeric and contain only alphanumeric, hyphens, or underscores")
+// MaxChannelNameLength is the maximum allowed length for a channel name.
+const MaxChannelNameLength = 64
 
-// IsValidChannelName validates that a channel name contains only allowed characters.
+// ErrInvalidChannelName is returned when a channel name is invalid.
+var ErrInvalidChannelName = errors.New("invalid channel name: must be 1-64 chars, start with alphanumeric, contain only alphanumeric, hyphens, or underscores")
+
+// IsValidChannelName validates channel name format and length.
 func IsValidChannelName(name string) bool {
-	return channelNameRegex.MatchString(name)
+	return len(name) > 0 && len(name) <= MaxChannelNameLength && channelNameRegex.MatchString(name)
 }
 
 // ChannelDTO is the API representation of a channel.
