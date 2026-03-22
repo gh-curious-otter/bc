@@ -74,7 +74,6 @@ body:
         3. Verification all existing tests still pass
 
         ```bash
-        make ci-local          # Full quality gate (go + ts)
         make ci-local       # Full CI pipeline locally
         ```
 

@@ -94,7 +94,6 @@ body:
 
         ```bash
         # Verify before opening PR
-        make ci-local          # Full quality gate (go + ts)
         make ci-local       # Full CI pipeline locally
         ```
 
