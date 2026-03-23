@@ -19,13 +19,16 @@ func TestSeedClaudeSettings_CreatesFile(t *testing.T) {
 		t.Fatalf("failed to read settings.json: %v", err)
 	}
 
-	var settings map[string]string
+	var settings map[string]any
 	if err := json.Unmarshal(data, &settings); err != nil {
 		t.Fatalf("failed to parse settings.json: %v", err)
 	}
 
 	if settings["theme"] != "dark" {
-		t.Errorf("theme = %q, want %q", settings["theme"], "dark")
+		t.Errorf("theme = %v, want %q", settings["theme"], "dark")
+	}
+	if settings["skipDangerousModePermissionPrompt"] != true {
+		t.Errorf("skipDangerousModePermissionPrompt = %v, want true", settings["skipDangerousModePermissionPrompt"])
 	}
 }
 
@@ -47,7 +50,16 @@ func TestSeedClaudeSettings_PreservesExisting(t *testing.T) {
 		t.Fatalf("failed to read settings.json: %v", err)
 	}
 
-	if string(data) != string(existing) {
-		t.Errorf("settings.json was modified: got %q, want %q", string(data), string(existing))
+	var settings map[string]any
+	if err := json.Unmarshal(data, &settings); err != nil {
+		t.Fatalf("failed to parse settings.json: %v", err)
+	}
+
+	// Existing user values must be preserved
+	if settings["theme"] != "light" {
+		t.Errorf("theme = %v, want %q (should preserve user value)", settings["theme"], "light")
+	}
+	if settings["custom"] != "value" {
+		t.Errorf("custom = %v, want %q (should preserve user value)", settings["custom"], "value")
 	}
 }
