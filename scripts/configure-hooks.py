@@ -140,6 +140,32 @@ HOOKS = {
     },
 }
 
+# ── bc-internal events (not Claude Code hooks, triggered by bcd itself) ──
+# These are POSTed to /api/agents/{name}/hook by bcd's Go code, not by the
+# Python script. Defined here for documentation and endpoint validation.
+BC_INTERNAL_EVENTS = {
+    "ChannelMessage": {
+        "state": "",  # no state change
+        "fields": ["channel", "sender", "message", "mentions"],
+        "description": "Agent received a channel message",
+    },
+    "ChannelSent": {
+        "state": "",  # no state change
+        "fields": ["channel", "message"],
+        "description": "Agent sent a message to a channel",
+    },
+    "AgentMessage": {
+        "state": "",  # no state change
+        "fields": ["from_agent", "message"],
+        "description": "Agent received a direct message from another agent",
+    },
+    "CostUpdate": {
+        "state": "",  # no state change
+        "fields": ["input_tokens", "output_tokens", "cost_usd", "model"],
+        "description": "Cost data imported for this agent",
+    },
+}
+
 
 def build_hook_command(event_name: str, hook_config: dict, bcd_addr: str) -> str:
     """
