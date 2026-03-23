@@ -28,14 +28,12 @@ COPY --from=web /app/web/dist /app/server/web/dist
 
 RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /bcd ./cmd/bcd
 
-# Stage 3: Runtime — minimal image
+# Stage 3: Runtime
 FROM ubuntu:24.04
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        ca-certificates tmux git docker.io curl && \
-    rm -rf /var/lib/apt/lists/* && \
-    useradd -m -s /bin/bash bcd && \
-    usermod -aG docker bcd
+        ca-certificates tmux git docker.io curl sqlite3 && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY --from=go /bcd /usr/local/bin/bcd
 
@@ -43,7 +41,6 @@ EXPOSE 9374
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
     CMD curl -sf http://localhost:9374/health
 
-USER bcd
 WORKDIR /workspace
 ENTRYPOINT ["bcd"]
 CMD ["--addr", "0.0.0.0:9374", "--workspace", "/workspace"]

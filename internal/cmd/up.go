@@ -74,8 +74,9 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		"-v", "/var/run/docker.sock:/var/run/docker.sock",
 		"-e", "DATABASE_URL=postgres://bc:bc@host.docker.internal:5432/bc",
 		"-e", "STATS_DATABASE_URL=postgres://bc:bc@host.docker.internal:5433/bcstats",
+		"-e", "BC_HOST_WORKSPACE=" + ws.RootDir,
 		"--restart", "always",
-		"bc-bcd:latest",
+		"bc-daemon:latest",
 		"--addr", "0.0.0.0:9374",
 		"--workspace", "/workspace",
 	})

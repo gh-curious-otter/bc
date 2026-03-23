@@ -28,7 +28,7 @@
 .PHONY: build-local-bc build-local-bcd test-go test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go gen-go
 .PHONY: release-local-bc release-local-bcd install-local-bc
 # Docker
-.PHONY: build-docker-bcd build-docker-sql build-docker-stats
+.PHONY: build-docker-daemon build-docker-sql build-docker-stats
 .PHONY: build-docker-agent-base build-docker-agent build-docker-agents
 # TS
 .PHONY: build-local-tui build-local-web build-local-landing
@@ -89,7 +89,7 @@ version: ## Show version info
 
 build: build-local build-docker ## Build everything (local + docker)
 build-local: build-local-go build-local-ts ## Build local binaries (go + ts)
-build-docker: build-docker-sql build-docker-stats build-docker-bcd ## Build Docker images (sql, stats, bcd)
+build-docker: build-docker-sql build-docker-stats build-docker-daemon ## Build Docker images (sql, stats, bcd)
 
 test: test-go test-ts ## Run all tests
 lint: lint-go lint-ts ## Run all linters
@@ -138,8 +138,8 @@ build-local-landing: ## Build landing page
 # Build — Docker
 # =============================================================================
 
-build-docker-bcd: ## Build bcd Docker image
-	docker build -t $(REGISTRY)-bcd:$(IMAGE_TAG) -f docker/Dockerfile.bcd .
+build-docker-daemon: ## Build bcd Docker image
+	docker build -t $(REGISTRY)-daemon:$(IMAGE_TAG) -f docker/Dockerfile.bcd .
 
 build-docker-sql: ## Build bc-sql (Postgres) Docker image
 	docker build -t $(REGISTRY)-bcsql:$(IMAGE_TAG) -f docker/Dockerfile.bcsql .
@@ -254,7 +254,7 @@ ci-docker: ## Build all Docker images
 	@FAIL=0; \
 	printf "$(_CYAN)[docker]$(_RESET) sql\n";      $(MAKE) --no-print-directory build-docker-sql       || FAIL=1; \
 	printf "$(_CYAN)[docker]$(_RESET) stats\n";    $(MAKE) --no-print-directory build-docker-stats     || FAIL=1; \
-	printf "$(_CYAN)[docker]$(_RESET) bcd\n";      $(MAKE) --no-print-directory build-docker-bcd       || FAIL=1; \
+	printf "$(_CYAN)[docker]$(_RESET) bcd\n";      $(MAKE) --no-print-directory build-docker-daemon       || FAIL=1; \
 	printf "$(_CYAN)[docker]$(_RESET) agents\n";   $(MAKE) --no-print-directory build-docker-agents    || FAIL=1; \
 	printf "\n"; \
 	if [ $$FAIL -eq 0 ]; then printf "$(_GREEN)$(_BOLD)Docker CI PASSED$(_RESET)\n\n"; \

@@ -88,7 +88,10 @@ func run(addr, wsRoot, corsOrigin string) error {
 	go hub.Run()
 	defer hub.Stop()
 
-	agentMgr := newAgentManager(ws)
+	agentMgr, agentErr := newAgentManager(ws)
+	if agentErr != nil {
+		return fmt.Errorf("agent manager: %w", agentErr)
+	}
 	if err := agentMgr.LoadState(); err != nil {
 		log.Warn("failed to load agent state", "error", err)
 	}
@@ -235,7 +238,7 @@ func run(addr, wsRoot, corsOrigin string) error {
 	return srv.Start(ctx)
 }
 
-func newAgentManager(ws *bcworkspace.Workspace) *bcagent.Manager {
+func newAgentManager(ws *bcworkspace.Workspace) (*bcagent.Manager, error) {
 	var wsCfg bcworkspace.DockerRuntimeConfig
 	if ws.Config != nil {
 		wsCfg = ws.Config.Runtime.Docker
@@ -243,10 +246,9 @@ func newAgentManager(ws *bcworkspace.Workspace) *bcagent.Manager {
 	dockerCfg := bccontainer.ConfigFromWorkspace(wsCfg)
 	be, err := bccontainer.NewBackend(dockerCfg, "bc-", ws.RootDir, provider.DefaultRegistry)
 	if err != nil {
-		log.Warn("Docker not available — agents will use tmux runtime only", "error", err)
-		return bcagent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+		return nil, fmt.Errorf("docker runtime required but not available: %w", err)
 	}
-	return bcagent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, be, "docker")
+	return bcagent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, be, "docker"), nil
 }
 
 func writePID(path string) error {
