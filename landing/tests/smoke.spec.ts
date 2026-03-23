@@ -191,6 +191,7 @@ test.describe("Navigation", () => {
     const nav = page.locator("nav").first();
     await expect(nav.locator('a[href="/product"]')).toBeAttached();
     await expect(nav.locator('a[href="/docs"]')).toBeAttached();
+    await expect(nav.locator('a[href="/changelog"]')).toBeAttached();
     await expect(nav.locator('a[href="/waitlist"]')).toBeAttached();
   });
 
@@ -258,6 +259,7 @@ test.describe("Mobile Navigation", () => {
     await expect(menu.locator('a[href="/"]')).toBeAttached();
     await expect(menu.locator('a[href="/product"]')).toBeAttached();
     await expect(menu.locator('a[href="/docs"]')).toBeAttached();
+    await expect(menu.locator('a[href="/changelog"]')).toBeAttached();
     await expect(menu.locator('a[href="/waitlist"]')).toBeAttached();
   });
 
