@@ -5,7 +5,7 @@ export function OrganizationSchema() {
     name: "bc",
     url: "https://bc-infra.com",
     description:
-      "bc is a multi-agent orchestration system for coordinating AI coding agents. Build with persistent memory, zero conflicts, and cost-aware scaling.",
+      "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
     sameAs: [
       "https://github.com/bcinfra1",
       "https://twitter.com/bc_infra",

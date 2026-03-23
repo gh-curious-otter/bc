@@ -17,9 +17,9 @@ export const viewport = {
 };
 
 export const metadata = {
-  title: "bc — Multi-Agent Orchestration for AI Coding Agents",
+  title: "bc — AI Agent Orchestration",
   description:
-    "Orchestrate teams of AI coding agents from your terminal. Persistent memory, git worktree isolation, cost controls, and real-time coordination.",
+    "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
   keywords:
     "AI agents, agent orchestration, Claude Code, multi-agent development, git worktrees, persistent memory, cost-aware AI, software development",
   metadataBase: new URL("https://bc-infra.com"),
@@ -41,24 +41,24 @@ export const metadata = {
     type: "website",
     locale: "en_US",
     url: "https://bc-infra.com",
-    title: "bc — Multi-Agent Orchestration for AI Coding Agents",
+    title: "bc — AI Agent Orchestration",
     description:
-      "Coordinate multiple AI agents with persistent memory, zero conflicts, and cost-aware scaling.",
+      "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
     siteName: "bc",
     images: [
       {
         url: "https://bc-infra.com/og-image.png",
         width: 1200,
         height: 630,
-        alt: "bc - Multi-Agent Orchestration Platform",
+        alt: "bc — AI Agent Orchestration",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "bc — Multi-Agent Orchestration for AI Coding Agents",
+    title: "bc — AI Agent Orchestration",
     description:
-      "Coordinate multiple AI agents with persistent memory, zero conflicts, and cost-aware scaling.",
+      "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
     images: ["https://bc-infra.com/og-image.png"],
     creator: "@bcinfra",
   },
