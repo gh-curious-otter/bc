@@ -50,7 +50,7 @@ Every system a developer touches should be reachable by an agent. The surface ex
     number: "06",
     title: "Openness",
     subtitle: "Knowledge shared compounds. Knowledge hoarded decays.",
-    content: `We are not building for Mars. We are aiming for Andromeda. The distance ahead is so vast that keeping solutions behind walls is not just slow — it is self-defeating. Every team building with AI agents faces the same hard problems. Progress compounds when solutions are shared.
+    content: `We are not building for Mars. We are aiming for Andromeda. The distance ahead is so vast that keeping solutions behind walls is not just slow — it is self-defeating. The hard problems are universal. Progress compounds when solutions are shared.
 
 Open source is not generosity. It is the only rational approach when the challenge exceeds what any one team can solve alone. The code is open. The ideas are open. The method is open. That is how you build something that outlasts you.`,
   },
