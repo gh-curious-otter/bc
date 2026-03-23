@@ -834,12 +834,14 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		existing.SessionID = sessionID
 	}
 
-	// Check if worktree exists — if so, use --continue to resume conversation.
-	// If an active session is already using it, reject the start.
+	// Worktree handling depends on runtime:
+	// - tmux: keep existing worktree and use --continue to resume conversation
+	// - docker: clean stale worktree in phase 2 (container is ephemeral)
+	agentRuntime := existing.RuntimeBackend
 	wsName := filepath.Base(wsPath)
 	worktreeName := "bc-" + wsName + "-" + name
 	worktreeDir := filepath.Join(wsPath, ".claude", "worktrees", worktreeName)
-	if _, err := os.Stat(worktreeDir); err == nil {
+	if _, err := os.Stat(worktreeDir); err == nil && agentRuntime == "tmux" {
 		// Worktree exists — check for active session conflict
 		for beName, be := range m.backends {
 			if be.HasSession(ctx, name) {
@@ -865,7 +867,6 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		}
 	}
 
-	agentRuntime := existing.RuntimeBackend
 	env := map[string]string{
 		"BC_AGENT_ID":      name,
 		"BC_AGENT_ROLE":    string(existing.Role),
@@ -887,6 +888,11 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	// Phase 2: per-agent lock — slow I/O (create session, pipe-pane)
 	agentLock := m.getAgentLock(name)
 	agentLock.Lock()
+
+	// Docker: clean stale worktree — container is ephemeral, can't resume.
+	if agentRuntime != "tmux" {
+		cleanStaleWorktree(ctx, wsPath, name)
+	}
 
 	if err := rt.CreateSessionWithEnv(ctx, name, wsPath, agentCmd, env); err != nil {
 		agentLock.Unlock()
@@ -955,25 +961,29 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		agentRuntime = opts.Runtime
 	}
 
-	// Check if worktree already exists — if so, use --continue to resume.
-	// If the worktree is in use by an active session, reject the create.
+	// Worktree handling depends on runtime:
+	// - tmux: keep existing worktree and use --continue to resume conversation
+	// - docker: clean stale worktree (container is ephemeral, can't resume)
 	wsName := filepath.Base(wsPath)
 	worktreeName := "bc-" + wsName + "-" + name
 	worktreeDir := filepath.Join(wsPath, ".claude", "worktrees", worktreeName)
 	worktreeExists := false
 	if _, err := os.Stat(worktreeDir); err == nil {
-		worktreeExists = true
-		// Check if another session is actively using this worktree
-		for beName, be := range m.backends {
-			if be.HasSession(ctx, name) {
-				m.mu.Unlock()
-				return nil, fmt.Errorf("worktree %s is already in use by active session on %s backend", worktreeName, beName)
+		if agentRuntime == "tmux" {
+			// Check if another session is actively using this worktree
+			for beName, be := range m.backends {
+				if be.HasSession(ctx, name) {
+					m.mu.Unlock()
+					return nil, fmt.Errorf("worktree %s is already in use by active session on %s backend", worktreeName, beName)
+				}
 			}
+			worktreeExists = true
+			log.Debug("worktree exists, will use --continue", "agent", name, "dir", worktreeDir)
 		}
-		log.Debug("worktree exists, will use --continue", "agent", name, "dir", worktreeDir)
+		// Docker: worktree will be cleaned in phase 2 before session creation
 	}
 
-	// Determine the command to use — resume if worktree exists
+	// Determine the command to use — resume if worktree exists (tmux only)
 	agentCmd := m.agentCmd
 	if effectiveTool != "" {
 		if cmd, ok := m.getAgentCommand(effectiveTool, name, worktreeExists, ""); ok {
@@ -1059,8 +1069,14 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	agentLock := m.getAgentLock(name)
 	agentLock.Lock()
 
+	// Docker: clean stale worktree from previous container run.
+	// Container is ephemeral so conversation can't be resumed — start fresh.
+	if agentRuntime != "tmux" {
+		cleanStaleWorktree(ctx, wsPath, name)
+	}
+
 	// Create session in the workspace directory using the agent's runtime backend.
-	// If worktree exists, claude is invoked with --continue to resume the conversation.
+	// tmux + existing worktree: claude is invoked with --continue to resume conversation.
 	if err := rt.CreateSessionWithEnv(ctx, name, wsPath, agentCmd, env); err != nil {
 		agentLock.Unlock()
 		// Clean up early registration
