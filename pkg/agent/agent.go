@@ -867,6 +867,17 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		}
 	}
 
+	// Docker: inject --tmux so claude creates a tmux session inside the container.
+	if agentRuntime != "tmux" {
+		if toolName != "" && m.providerRegistry != nil {
+			if p, ok := m.providerRegistry.Get(toolName); ok {
+				if sc, ok := p.(provider.SessionCustomizer); ok {
+					agentCmd = sc.AdjustSessionCommand(agentCmd)
+				}
+			}
+		}
+	}
+
 	env := map[string]string{
 		"BC_AGENT_ID":      name,
 		"BC_AGENT_ROLE":    string(existing.Role),
@@ -991,6 +1002,18 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		} else if tool != "" {
 			m.mu.Unlock()
 			return nil, fmt.Errorf("unknown tool %q, available tools: %v", tool, m.listAvailableTools())
+		}
+	}
+
+	// Docker: inject --tmux so claude creates a tmux session inside the container.
+	// Native tmux: claude auto-detects tmux, no flag needed.
+	if agentRuntime != "tmux" {
+		if effectiveTool != "" && m.providerRegistry != nil {
+			if p, ok := m.providerRegistry.Get(effectiveTool); ok {
+				if sc, ok := p.(provider.SessionCustomizer); ok {
+					agentCmd = sc.AdjustSessionCommand(agentCmd)
+				}
+			}
 		}
 	}
 
