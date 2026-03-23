@@ -109,7 +109,8 @@ func TestWriteWorkspaceHookSettings_MergesExisting(t *testing.T) {
 	if err := os.MkdirAll(claudeDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	existing := `{"hooks":{"Notification":[{"hooks":[{"type":"command","command":"echo hi"}]}]}}`
+	// Use a non-bc-managed custom hook key — bc hooks overwrite, custom hooks are preserved.
+	existing := `{"hooks":{"CustomHook":[{"hooks":[{"type":"command","command":"echo hi"}]}]}}`
 	if err := os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(existing), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -121,12 +122,40 @@ func TestWriteWorkspaceHookSettings_MergesExisting(t *testing.T) {
 		t.Fatalf("settings.json not found: %v", err)
 	}
 	content := string(data)
-	// Existing user hook preserved (not overwritten)
+	// Custom user hook preserved
 	if !strings.Contains(content, "echo hi") {
-		t.Error("existing Notification hook was removed during merge")
+		t.Error("existing CustomHook was removed during merge")
 	}
 	if !strings.Contains(content, "PreToolUse") {
 		t.Error("PreToolUse hook not added during merge")
+	}
+}
+
+func TestWriteWorkspaceHookSettings_RemovesInvalidKeys(t *testing.T) {
+	dir := t.TempDir()
+	claudeDir := filepath.Join(dir, ".claude")
+	if err := os.MkdirAll(claudeDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate old settings with StopFailure (invalid Claude Code hook key)
+	existing := `{"hooks":{"StopFailure":[{"hooks":[{"type":"command","command":"old"}]}],"PreToolUse":[{"hooks":[{"type":"command","command":"old"}]}]}}`
+	if err := os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(existing), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteWorkspaceHookSettings(dir); err != nil {
+		t.Fatalf("WriteWorkspaceHookSettings: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(claudeDir, "settings.json")) //nolint:gosec // test file
+	if err != nil {
+		t.Fatalf("settings.json not found: %v", err)
+	}
+	content := string(data)
+	if strings.Contains(content, "StopFailure") {
+		t.Error("StopFailure should have been removed from settings")
+	}
+	// PreToolUse should be overwritten with new bc hook, not preserved as "old"
+	if strings.Contains(content, `"old"`) {
+		t.Error("old hook commands should have been overwritten")
 	}
 }
 
