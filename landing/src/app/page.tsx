@@ -104,7 +104,7 @@ export default function Home() {
                 How it works
               </span>
               <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-5xl">
-                Three commands to start.
+                How it actually works.
               </h2>
             </div>
 
@@ -112,43 +112,42 @@ export default function Home() {
               {[
                 {
                   step: "01",
-                  cmd: "bc init",
-                  title: "Initialize workspace",
-                  desc: "Creates .bc/ with config, roles, and channels.",
+                  cmd: "# agents run locally in Docker",
+                  title: "Isolated by design",
+                  desc: "Each agent gets its own Docker container and git worktree. They can't step on each other's work.",
                   lines: [
-                    { text: "Initializing bc workspace...", color: "text-terminal-muted" },
-                    { text: "Created .bc/settings.toml", color: "text-terminal-muted" },
-                    { text: "Created roles: manager, engineer", color: "text-terminal-muted" },
-                    { text: "Ready.", color: "text-terminal-success" },
+                    { text: "eng-01  docker  worktree/eng-01  working", color: "text-terminal-success" },
+                    { text: "eng-02  docker  worktree/eng-02  working", color: "text-terminal-success" },
+                    { text: "mgr-01  docker  worktree/mgr-01  idle", color: "text-terminal-muted" },
+                    { text: "3 agents · 0 conflicts", color: "text-terminal-success" },
                   ],
                 },
                 {
                   step: "02",
-                  cmd: "bc daemon start",
-                  title: "Start the daemon",
-                  desc: "Launches the bcd server with dashboard and MCP.",
+                  cmd: "# agents coordinate through channels",
+                  title: "Structured communication",
+                  desc: "Agents talk through persistent channels — mentions, reviews, handoffs. Not through you.",
                   lines: [
-                    { text: "Starting bcd on :9374...", color: "text-terminal-muted" },
-                    { text: "\u2713 Web UI ready", color: "text-terminal-success" },
-                    { text: "\u2713 MCP server connected", color: "text-terminal-success" },
-                    { text: "\u2713 WebSocket streaming", color: "text-terminal-success" },
+                    { text: "[#eng @eng-01] PR ready for review", color: "text-terminal-success" },
+                    { text: "[#eng @mgr-01] LGTM. Merged.", color: "text-terminal-success" },
+                    { text: "[#eng @eng-02] Starting next task.", color: "text-terminal-muted" },
                   ],
                 },
                 {
                   step: "03",
-                  cmd: "bc agent create eng-01 --role engineer --tool claude",
-                  title: "Create agents",
-                  desc: "Spawn agents in isolated git worktrees with roles and memory.",
+                  cmd: "# you see everything",
+                  title: "Full visibility",
+                  desc: "Costs, activity, resource usage, channel messages — all in real time. Trust through transparency.",
                   lines: [
-                    { text: "Created agent eng-01 (engineer, claude)", color: "text-terminal-success" },
-                    { text: "Worktree: .bc/worktrees/eng-01", color: "text-terminal-muted" },
-                    { text: "Agent started and working.", color: "text-terminal-success" },
+                    { text: "eng-01  $2.14  245k tokens  43% budget", color: "text-terminal-success" },
+                    { text: "eng-02  $1.67  189k tokens  33% budget", color: "text-terminal-success" },
+                    { text: "total   $3.81  434k tokens", color: "text-terminal-muted" },
                   ],
                 },
               ].map((s, i) => (
                 <div key={s.step}>
                   <div className="mb-4 font-mono text-xs font-bold uppercase tracking-[0.3em] text-muted-foreground/40">
-                    Step {s.step}
+                    {s.step}
                   </div>
                   <TerminalWindow title={`step ${s.step}`}>
                     <CommandOutput
