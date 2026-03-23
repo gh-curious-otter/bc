@@ -5,21 +5,19 @@ import type { ReactNode } from "react";
  * - URLs become clickable links
  * - **bold** text
  * - `code` backticks
- * - GitHub issue/PR references (#1234) become links
+ * - #channel references link to /channels/<name>
  * - @mentions link to agent detail page
  */
 export function MessageContent({ content }: { content: string }) {
   return <>{parseContent(content)}</>;
 }
 
-const REPO_URL = "https://github.com/gh-curious-otter/bc";
-
 /** Tokenize and render inline formatting. */
 function parseContent(text: string): ReactNode[] {
   // Split on patterns we want to handle, preserving delimiters
-  // Order matters: URLs first (greedy), then bold, then code, then issue refs
+  // Order matters: URLs first (greedy), then bold, then code, then #channel, then @mention
   const pattern =
-    /(https?:\/\/[^\s<>)"']+)|(\*\*(?:[^*]|\*(?!\*))+\*\*)|(`[^`]+`)|(\B#\d+\b)|(@[a-zA-Z0-9_-]+)/g;
+    /(https?:\/\/[^\s<>)"']+)|(\*\*(?:[^*]|\*(?!\*))+\*\*)|(`[^`]+`)|(\B#[a-zA-Z0-9_-]+\b)|(@[a-zA-Z0-9_-]+)/g;
 
   const nodes: ReactNode[] = [];
   let lastIndex = 0;
@@ -63,15 +61,13 @@ function parseContent(text: string): ReactNode[] {
         </code>,
       );
     } else if (match[4]) {
-      // GitHub issue/PR reference #1234
-      const num = full.slice(1);
+      // #channel reference → link to /channels/<name>
+      const channelName = full.slice(1);
       nodes.push(
         <a
           key={key}
-          href={`${REPO_URL}/issues/${num}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-bc-accent underline-offset-2 hover:underline"
+          href={`/channels/${channelName}`}
+          className="text-bc-accent font-medium hover:underline"
         >
           {full}
         </a>,
