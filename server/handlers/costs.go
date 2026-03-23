@@ -142,6 +142,9 @@ func (h *CostHandler) daily(w http.ResponseWriter, r *http.Request) {
 		httpInternalError(w, "operation failed", err)
 		return
 	}
+	if costs == nil {
+		costs = []*cost.DailyCost{}
+	}
 	writeJSON(w, http.StatusOK, costs)
 }
 

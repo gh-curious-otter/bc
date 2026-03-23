@@ -51,6 +51,9 @@ func (h *StatsHandler) systemMetricsTimeseries(w http.ResponseWriter, r *http.Re
 			httpInternalError(w, "query system metrics", err)
 			return
 		}
+		if metrics == nil {
+			metrics = []stats.SystemMetric{}
+		}
 		writeJSON(w, http.StatusOK, metrics)
 		return
 	}
@@ -106,6 +109,9 @@ func (h *StatsHandler) agentMetricsTimeseries(w http.ResponseWriter, r *http.Req
 			httpInternalError(w, "query agent metrics", err)
 			return
 		}
+		if metrics == nil {
+			metrics = []stats.AgentMetric{}
+		}
 		writeJSON(w, http.StatusOK, metrics)
 		return
 	}
@@ -156,6 +162,9 @@ func (h *StatsHandler) tokenMetricsTimeseries(w http.ResponseWriter, r *http.Req
 			httpInternalError(w, "query token metrics", err)
 			return
 		}
+		if metrics == nil {
+			metrics = []stats.TokenMetric{}
+		}
 		writeJSON(w, http.StatusOK, metrics)
 		return
 	}
@@ -202,6 +211,9 @@ func (h *StatsHandler) channelMetricsTimeseries(w http.ResponseWriter, r *http.R
 			httpInternalError(w, "query channel metrics", err)
 			return
 		}
+		if metrics == nil {
+			metrics = []stats.ChannelMetric{}
+		}
 		writeJSON(w, http.StatusOK, metrics)
 		return
 	}
@@ -246,6 +258,9 @@ func (h *StatsHandler) daemonMetricsTimeseries(w http.ResponseWriter, r *http.Re
 		if err != nil {
 			httpInternalError(w, "query daemon metrics", err)
 			return
+		}
+		if metrics == nil {
+			metrics = []stats.DaemonMetric{}
 		}
 		writeJSON(w, http.StatusOK, metrics)
 		return
