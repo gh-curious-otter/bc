@@ -42,10 +42,10 @@ export default function Home() {
                 The problem
               </span>
               <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-5xl">
-                One agent is useful.
+                AI agents are powerful alone —
                 <br />
                 <span className="text-muted-foreground/50">
-                  A single agent is not enough.
+                  but chaotic when they work together.
                 </span>
               </h2>
             </div>
