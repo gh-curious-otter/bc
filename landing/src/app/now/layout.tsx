@@ -2,17 +2,17 @@ import { Metadata } from "next";
 import { BreadcrumbSchema } from "../_components/StructuredData";
 
 export const metadata: Metadata = {
-  title: "Changelog — bc | Release Notes & Updates",
+  title: "Now — bc | What We're Working On",
   description:
-    "What's new in bc. Release notes, features, and improvements for the CLI-first multi-agent orchestration platform.",
+    "What's happening with bc right now. Current focus, recent updates, and what's next.",
   alternates: {
-    canonical: "/changelog",
+    canonical: "/now",
   },
   openGraph: {
-    title: "Changelog — bc | Release Notes & Updates",
+    title: "Now — bc | What We're Working On",
     description:
-      "What's new in bc. Release notes, features, and improvements for the CLI-first multi-agent orchestration platform.",
-    url: "https://bc-infra.com/changelog",
+      "What's happening with bc right now. Current focus, recent updates, and what's next.",
+    url: "https://bc-infra.com/now",
     siteName: "bc",
     type: "website",
     images: [
@@ -26,15 +26,15 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Changelog — bc | Release Notes & Updates",
+    title: "Now — bc | What We're Working On",
     description:
-      "What's new in bc. Release notes, features, and improvements for the CLI-first multi-agent orchestration platform.",
+      "What's happening with bc right now. Current focus, recent updates, and what's next.",
     images: ["https://bc-infra.com/og-image.png"],
     creator: "@bcinfra",
   },
 };
 
-export default function ChangelogLayout({
+export default function NowLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -43,7 +43,7 @@ export default function ChangelogLayout({
     <>
       {BreadcrumbSchema([
         { name: "Home", url: "https://bc-infra.com" },
-        { name: "Changelog", url: "https://bc-infra.com/changelog" },
+        { name: "Now", url: "https://bc-infra.com/now" },
       ])}
       {children}
     </>

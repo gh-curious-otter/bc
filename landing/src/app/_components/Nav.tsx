@@ -12,7 +12,7 @@ const links = [
   { href: "/method", label: "Method" },
   { href: "/docs", label: "Docs" },
   { href: "/pricing", label: "Pricing" },
-  { href: "/changelog", label: "Changelog" },
+  { href: "/now", label: "Now" },
 ];
 
 function Logo() {

@@ -52,10 +52,10 @@ export function Footer() {
                 Method
               </Link>
               <Link
-                href="/changelog"
+                href="/now"
                 className="hover:text-foreground transition-colors"
               >
-                Changelog
+                Now
               </Link>
             </nav>
           </div>

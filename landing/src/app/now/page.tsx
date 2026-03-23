@@ -3,6 +3,16 @@ import { Footer } from "../_components/Footer";
 
 const ENTRIES = [
   {
+    date: "Now",
+    title: "What we're working on",
+    items: [
+      "Release infrastructure — automated versioning and distribution",
+      "Homebrew tap for macOS installation",
+      "Docker agent runtime improvements",
+      "Thin CLI client migration — all commands via HTTP to bcd",
+    ],
+  },
+  {
     date: "March 2026",
     title: "Landing page revamp",
     items: [
@@ -60,20 +70,20 @@ const ENTRIES = [
   },
 ];
 
-export default function Changelog() {
+export default function Now() {
   return (
     <main className="min-h-screen bg-background">
       <Nav />
       <section className="mx-auto max-w-3xl px-6 pt-24 pb-16 lg:pt-32">
         <div className="mb-16">
           <p className="text-xs font-mono font-bold text-primary uppercase tracking-widest mb-4">
-            Changelog
+            Now
           </p>
           <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mb-4">
-            What&apos;s new in bc.
+            What&apos;s happening with bc.
           </h1>
           <p className="text-muted-foreground text-lg">
-            Features, improvements, and fixes shipped to bc.
+            Current focus, recent updates, and what&apos;s next.
           </p>
         </div>
 
