@@ -119,7 +119,7 @@ export default function Home() {
                   desc: "Creates .bc/ with config, roles, channels, and agent definitions.",
                   lines: [
                     { text: "Initializing bc workspace...", color: "text-terminal-muted" },
-                    { text: "Created .bc/config.toml", color: "text-terminal-muted" },
+                    { text: "Created .bc/settings.toml", color: "text-terminal-muted" },
                     { text: "Created roles: manager, engineer", color: "text-terminal-muted" },
                     { text: "Ready.", color: "text-terminal-success" },
                   ],

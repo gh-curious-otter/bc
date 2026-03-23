@@ -338,7 +338,7 @@ export default function Docs() {
                       color: "text-terminal-muted",
                     },
                     {
-                      text: "Created .bc/config.toml",
+                      text: "Created .bc/settings.toml",
                       color: "text-terminal-muted",
                     },
                     { text: "Ready.", color: "text-terminal-success" },
@@ -847,12 +847,12 @@ bc version`}
                 </code>{" "}
                 or edit{" "}
                 <code className="rounded bg-muted px-1.5 py-0.5 text-sm font-mono">
-                  .bc/config.toml
+                  .bc/settings.toml
                 </code>{" "}
                 directly.
               </p>
               <CodeBlock
-                title=".bc/config.toml"
+                title=".bc/settings.toml"
                 code={`[workspace]
 name = "my-project"
 version = 2
