@@ -404,3 +404,14 @@ input:focus-visible,
 .method-page .method-principle-label {
   letter-spacing: 0.3em;
 }
+
+/* Blinking terminal cursor */
+@keyframes terminal-blink { 0%,100% { opacity:1 } 50% { opacity:0 } }
+.terminal-cursor::after { content: '▋'; animation: terminal-blink 1s step-end infinite; color: var(--primary); }
+
+/* Bento card hover glow */
+.bento-card { transition: all 0.2s ease; }
+.bento-card:hover { border-color: rgba(234,88,12,0.3); transform: translateY(-2px); box-shadow: 0 8px 30px rgba(234,88,12,0.08); }
+
+/* CTA button glow on hover */
+.cta-glow:hover { box-shadow: 0 0 20px rgba(234,88,12,0.3); }
