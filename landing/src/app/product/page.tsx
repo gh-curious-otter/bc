@@ -5,8 +5,9 @@ import Link from "next/link";
 import { Nav } from "../_components/Nav";
 import { Footer } from "../_components/Footer";
 import { RevealSection } from "../_components/TerminalComponents";
-import { motion } from "framer-motion";
+import { motion, useInView } from "framer-motion";
 import { ArrowRight } from "lucide-react";
+import { useRef } from "react";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -22,17 +23,57 @@ const stagger = {
   visible: { transition: { staggerChildren: 0.08 } },
 };
 
+/* ── Slide-in variants for alternating sections ─────────────────── */
+
+const slideFromLeft = {
+  hidden: { opacity: 0, x: -60 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0.7, ease: "easeOut" as const },
+  },
+};
+
+const slideFromRight = {
+  hidden: { opacity: 0, x: 60 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0.7, ease: "easeOut" as const },
+  },
+};
+
 /* ── Reusable screenshot frame ─────────────────────────────────────── */
 
 function ScreenshotFrame({
   src,
   alt,
+  className = "",
 }: {
   src: string;
   alt: string;
+  className?: string;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-border shadow-2xl dark:border-[rgba(210,180,140,0.06)]">
+    <div
+      className={`group relative overflow-hidden rounded-xl border border-border/60 shadow-2xl dark:border-[rgba(210,180,140,0.08)] transition-transform duration-500 ease-out hover:scale-[1.02] ${className}`}
+      style={{
+        boxShadow:
+          "0 0 60px rgba(234, 88, 12, 0.06), 0 25px 50px -12px rgba(0, 0, 0, 0.4)",
+      }}
+    >
+      {/* Browser chrome bar */}
+      <div className="flex items-center gap-2 border-b border-border/40 bg-[var(--terminal-header-bg)] px-4 py-2 dark:border-[rgba(210,180,140,0.06)]">
+        <div className="flex gap-1.5" aria-hidden="true">
+          <span className="h-2.5 w-2.5 rounded-full bg-[var(--traffic-red)]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[var(--traffic-yellow)]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[var(--traffic-green)]" />
+        </div>
+        <div className="mx-auto rounded-md bg-[rgba(255,255,255,0.04)] px-8 py-1 text-[10px] font-mono text-[var(--terminal-muted)] tracking-wide">
+          localhost:9374
+        </div>
+        <div className="w-[52px]" />
+      </div>
       <Image
         src={src}
         alt={alt}
@@ -49,18 +90,34 @@ function ScreenshotFrame({
 
 function CLICommands({ commands }: { commands: string[] }) {
   return (
-    <div className="mt-8 space-y-2 font-mono text-[13px] text-muted-foreground">
-      {commands.map((cmd) => (
-        <div key={cmd}>
-          <span className="text-[var(--terminal-prompt)]">$ </span>
-          {cmd}
+    <div className="mt-8 overflow-hidden rounded-lg border border-border/40 bg-[var(--terminal-bg)] dark:border-[rgba(210,180,140,0.06)]">
+      <div className="flex items-center gap-2 border-b border-[rgba(210,180,140,0.06)] px-4 py-2">
+        <div className="flex gap-1.5" aria-hidden="true">
+          <span className="h-2 w-2 rounded-full bg-[var(--traffic-red)]" />
+          <span className="h-2 w-2 rounded-full bg-[var(--traffic-yellow)]" />
+          <span className="h-2 w-2 rounded-full bg-[var(--traffic-green)]" />
         </div>
-      ))}
+        <span className="ml-2 font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--terminal-muted)]">
+          terminal
+        </span>
+      </div>
+      <div className="p-4 space-y-1.5 font-mono text-[13px] leading-relaxed text-[var(--terminal-text)]">
+        {commands.map((cmd) => (
+          <div key={cmd}>
+            <span className="text-[var(--terminal-prompt)]">$ </span>
+            <span className="text-[var(--terminal-command)]">{cmd}</span>
+          </div>
+        ))}
+        <div className="mt-1">
+          <span className="text-[var(--terminal-prompt)]">$ </span>
+          <span className="inline-block h-4 w-[7px] bg-[var(--terminal-prompt)] animate-[blink_1s_step-end_infinite] align-middle" />
+        </div>
+      </div>
     </div>
   );
 }
 
-/* ── Feature section wrapper (alternating layout) ──────────────────── */
+/* ── Feature section wrapper (alternating layout with scroll animations) */
 
 function FeatureSection({
   id,
@@ -83,15 +140,26 @@ function FeatureSection({
   docsLink?: string;
   imageFirst?: boolean;
 }) {
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: "-100px" });
+
+  const textVariant = imageFirst ? slideFromRight : slideFromLeft;
+  const imageVariant = imageFirst ? slideFromLeft : slideFromRight;
+
   const textContent = (
-    <div className={imageFirst ? "order-1 lg:order-2" : ""}>
-      <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+    <motion.div
+      variants={textVariant}
+      initial="hidden"
+      animate={inView ? "visible" : "hidden"}
+      className={imageFirst ? "order-1 lg:order-2" : ""}
+    >
+      <span className="inline-block font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-primary/80 border-b border-primary/20 pb-1">
         {label}
       </span>
-      <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+      <h2 className="mt-5 text-3xl font-bold tracking-tight sm:text-4xl leading-[1.15]">
         {title}
       </h2>
-      <p className="mt-4 text-muted-foreground leading-relaxed">
+      <p className="mt-5 text-muted-foreground leading-[1.8] text-[15px]">
         {description}
         {docsLink && (
           <>
@@ -106,21 +174,31 @@ function FeatureSection({
         )}
       </p>
       <CLICommands commands={commands} />
-    </div>
+    </motion.div>
   );
 
   const imageContent = (
-    <div className={imageFirst ? "order-2 lg:order-1" : ""}>
-      <ScreenshotFrame src={screenshot} alt={screenshotAlt} />
-    </div>
+    <motion.div
+      variants={imageVariant}
+      initial="hidden"
+      animate={inView ? "visible" : "hidden"}
+      className={imageFirst ? "order-2 lg:order-1" : ""}
+    >
+      <ScreenshotFrame
+        src={screenshot}
+        alt={screenshotAlt}
+        className="rotate-[0.5deg] hover:rotate-0 transition-transform duration-500"
+      />
+    </motion.div>
   );
 
   return (
-    <RevealSection
-      className="py-24 lg:py-32 border-t border-border/50"
+    <section
+      ref={ref}
+      className="py-28 lg:py-36 border-t border-border/30"
       id={id}
     >
-      <div className="grid items-start gap-10 lg:grid-cols-2 lg:gap-20">
+      <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
         {imageFirst ? (
           <>
             {imageContent}
@@ -133,9 +211,17 @@ function FeatureSection({
           </>
         )}
       </div>
-    </RevealSection>
+    </section>
   );
 }
+
+/* ── Comparison card colors ─────────────────────────────────────── */
+
+const cardAccents = [
+  { border: "hover:border-primary/40", glow: "hover:shadow-[0_0_30px_rgba(234,88,12,0.08)]" },
+  { border: "hover:border-[var(--info)]/30", glow: "hover:shadow-[0_0_30px_rgba(56,189,248,0.06)]" },
+  { border: "hover:border-[var(--success)]/30", glow: "hover:shadow-[0_0_30px_rgba(34,197,94,0.06)]" },
+];
 
 export default function Product() {
   return (
@@ -149,20 +235,23 @@ export default function Product() {
         initial="hidden"
         animate="visible"
         variants={stagger}
-        className="relative px-6 py-20 lg:py-28 text-center"
+        className="relative px-6 py-24 lg:py-36 text-center"
       >
-        <motion.div variants={fadeUp} custom={0} className="mx-auto max-w-4xl">
-          <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+        {/* Hero glow */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[600px] bg-[radial-gradient(ellipse_60%_40%_at_50%_20%,rgba(234,88,12,0.1),transparent)]" />
+
+        <motion.div variants={fadeUp} custom={0} className="relative mx-auto max-w-4xl">
+          <span className="inline-block font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-primary border border-primary/20 rounded-full px-4 py-1.5 mb-6">
             Product
           </span>
-          <h1 className="mt-4 text-4xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
+          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl lg:text-7xl leading-[1.05]">
             The complete platform for
             <br />
             <span className="text-muted-foreground/40">
               multi-agent orchestration.
             </span>
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
+          <p className="mx-auto mt-8 max-w-2xl text-lg text-muted-foreground leading-relaxed">
             Agents, channels, roles, cost tracking, secrets, and cron jobs.
             Everything you need to run parallel AI agents.
           </p>
@@ -172,7 +261,7 @@ export default function Product() {
         <motion.div
           variants={fadeUp}
           custom={1}
-          className="mx-auto mt-16 max-w-5xl"
+          className="relative mx-auto mt-20 max-w-5xl"
         >
           <ScreenshotFrame
             src="/screenshots/dashboard-01-home.png"
@@ -371,17 +460,17 @@ export default function Product() {
 
         {/* ═══════════════════ WHY BC ═══════════════════ */}
         <RevealSection
-          className="py-24 lg:py-32 border-t border-border/50"
+          className="py-28 lg:py-36 border-t border-border/30"
           id="why-bc"
         >
-          <div className="mb-12">
-            <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          <div className="mb-14">
+            <span className="inline-block font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-primary/80 border-b border-primary/20 pb-1">
               Why bc?
             </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+            <h2 className="mt-5 text-3xl font-bold tracking-tight sm:text-4xl leading-[1.15]">
               Not a new IDE. Not a framework. An orchestration layer.
             </h2>
-            <p className="mt-4 max-w-2xl text-muted-foreground leading-relaxed">
+            <p className="mt-5 max-w-2xl text-muted-foreground leading-[1.8] text-[15px]">
               bc coordinates your existing tools. Keep using Claude Code,
               Cursor, Codex, or any CLI agent. bc handles the multi-agent
               complexity.
@@ -401,13 +490,13 @@ export default function Product() {
                 title: "vs. Custom scripts",
                 desc: "Shell scripts break at scale. bc gives you structured channels, persistent memory, and cost tracking out of the box.",
               },
-            ].map((item) => (
+            ].map((item, i) => (
               <div
                 key={item.title}
-                className="rounded-xl border border-border bg-card p-6"
+                className={`rounded-xl border border-border bg-card p-7 transition-all duration-300 cursor-default ${cardAccents[i].border} ${cardAccents[i].glow}`}
               >
-                <h3 className="font-semibold text-sm mb-2">{item.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
+                <h3 className="font-semibold text-sm mb-3">{item.title}</h3>
+                <p className="text-sm text-muted-foreground leading-[1.8]">
                   {item.desc}
                 </p>
               </div>
@@ -416,32 +505,73 @@ export default function Product() {
         </RevealSection>
 
         {/* ═══════════════════ CTA ═══════════════════ */}
-        <RevealSection className="py-24 lg:py-32">
-          <div className="rounded-2xl border border-border bg-card p-8 sm:p-12 text-center">
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              Start orchestrating in 60 seconds.
-            </h2>
-            <p className="mx-auto mt-4 max-w-xl text-lg text-muted-foreground">
-              Install bc, run three commands, and your agent team is live.
-            </p>
-            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link
-                href="/waitlist"
-                className="group inline-flex h-12 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-lg transition-all hover:shadow-xl active:scale-[0.97]"
-              >
-                Request Early Access
-                <ArrowRight
-                  className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
-                  aria-hidden="true"
-                />
-              </Link>
-              <Link
-                href="/docs"
-                className="inline-flex h-12 items-center gap-2 rounded-lg border border-border px-8 text-sm font-medium transition-colors hover:bg-accent active:scale-[0.97]"
-                aria-label="Browse the bc CLI reference documentation"
-              >
-                Browse CLI Reference
-              </Link>
+        <RevealSection className="py-28 lg:py-36">
+          <div
+            className="relative overflow-hidden rounded-2xl border border-border bg-card p-10 sm:p-14 text-center"
+            style={{
+              boxShadow:
+                "0 0 80px rgba(234, 88, 12, 0.06), 0 25px 50px -12px rgba(0, 0, 0, 0.3)",
+            }}
+          >
+            {/* CTA glow */}
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_50%_50%_at_50%_0%,rgba(234,88,12,0.08),transparent)]" />
+
+            <div className="relative">
+              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+                Start orchestrating in 60 seconds.
+              </h2>
+              <p className="mx-auto mt-5 max-w-xl text-lg text-muted-foreground leading-relaxed">
+                Install bc, run three commands, and your agent team is live.
+              </p>
+
+              {/* Terminal quickstart */}
+              <div className="mx-auto mt-10 max-w-md overflow-hidden rounded-lg border border-border/40 bg-[var(--terminal-bg)] text-left dark:border-[rgba(210,180,140,0.06)]">
+                <div className="flex items-center gap-2 border-b border-[rgba(210,180,140,0.06)] px-4 py-2">
+                  <div className="flex gap-1.5" aria-hidden="true">
+                    <span className="h-2 w-2 rounded-full bg-[var(--traffic-red)]" />
+                    <span className="h-2 w-2 rounded-full bg-[var(--traffic-yellow)]" />
+                    <span className="h-2 w-2 rounded-full bg-[var(--traffic-green)]" />
+                  </div>
+                </div>
+                <div className="p-4 font-mono text-[13px] leading-relaxed text-[var(--terminal-text)]">
+                  <div>
+                    <span className="text-[var(--terminal-prompt)]">$ </span>
+                    <span className="text-[var(--terminal-command)]">brew install bc-cli</span>
+                  </div>
+                  <div>
+                    <span className="text-[var(--terminal-prompt)]">$ </span>
+                    <span className="text-[var(--terminal-command)]">bc init</span>
+                  </div>
+                  <div>
+                    <span className="text-[var(--terminal-prompt)]">$ </span>
+                    <span className="text-[var(--terminal-command)]">bc up</span>
+                  </div>
+                  <div className="mt-1">
+                    <span className="text-[var(--terminal-prompt)]">$ </span>
+                    <span className="inline-block h-4 w-[7px] bg-[var(--terminal-prompt)] animate-[blink_1s_step-end_infinite] align-middle" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+                <Link
+                  href="/waitlist"
+                  className="group inline-flex h-12 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-lg transition-all hover:shadow-xl hover:shadow-primary/20 active:scale-[0.97]"
+                >
+                  Request Early Access
+                  <ArrowRight
+                    className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                    aria-hidden="true"
+                  />
+                </Link>
+                <Link
+                  href="/docs"
+                  className="inline-flex h-12 items-center gap-2 rounded-lg border border-border px-8 text-sm font-medium transition-colors hover:bg-accent active:scale-[0.97]"
+                  aria-label="Browse the bc CLI reference documentation"
+                >
+                  Browse CLI Reference
+                </Link>
+              </div>
             </div>
           </div>
         </RevealSection>
