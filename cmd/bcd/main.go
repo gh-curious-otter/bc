@@ -422,22 +422,22 @@ func isSystemContainer(name string) bool {
 	return strings.Contains(name, "-daemon")
 }
 
-// isAgentContainer returns true for containers matching bc-*-agent-* pattern.
+// isAgentContainer returns true for bc-<hash>-<name> containers that are NOT system containers.
 func isAgentContainer(name string) bool {
 	if !strings.HasPrefix(name, "bc-") {
 		return false
 	}
-	return strings.Contains(name, "-agent-")
+	return !isSystemContainer(name)
 }
 
-// extractAgentName extracts the agent name from a container name like bc-<hash>-agent-<name>.
-// The agent name is everything after "agent-".
+// extractAgentName extracts the agent name from a container name like bc-<hash>-<name>.
+// The hash is always 6 hex chars, so prefix is "bc-XXXXXX-" (10 chars).
 func extractAgentName(containerName string) string {
-	idx := strings.Index(containerName, "-agent-")
-	if idx < 0 {
-		return containerName
+	// bc-a08b6d-agent-01 → agent-01
+	if len(containerName) > 10 && strings.HasPrefix(containerName, "bc-") {
+		return containerName[10:]
 	}
-	return containerName[idx+len("-agent-"):]
+	return containerName
 }
 
 // parsePercent parses a percentage string like "5.00%" into a float64.

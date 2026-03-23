@@ -44,18 +44,20 @@ func runUp(cmd *cobra.Command, _ []string) error {
 
 	fmt.Printf("Starting bc in %s\n\n", ws.RootDir)
 
-	// 1. bc-sql
+	// 1. bc-sql — persistent volume for Postgres data
 	dockerRun(ctx, "bc-sql", []string{
 		"-p", "5432:5432",
 		"-e", "POSTGRES_PASSWORD=bc",
+		"-v", "bc-sql-data:/var/lib/postgresql/data",
 		"--restart", "always",
 		"bc-bcsql:latest",
 	})
 
-	// 2. bc-stats
+	// 2. bc-stats — persistent volume for TimescaleDB data
 	dockerRun(ctx, "bc-stats", []string{
 		"-p", "5433:5432",
 		"-e", "POSTGRES_PASSWORD=bc",
+		"-v", "bc-stats-data:/var/lib/postgresql/data",
 		"--restart", "always",
 		"bc-bcstats:latest",
 	})

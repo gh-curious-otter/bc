@@ -16,6 +16,7 @@ func bootstrapServerDaemons(_ string) {
 	dockerRun(ctx, "bc-sql", []string{
 		"-p", "5432:5432",
 		"-e", "POSTGRES_PASSWORD=bc",
+		"-v", "bc-sql-data:/var/lib/postgresql/data",
 		"--restart", "always",
 		"bc-bcsql:latest",
 	})
@@ -23,6 +24,7 @@ func bootstrapServerDaemons(_ string) {
 	dockerRun(ctx, "bc-stats", []string{
 		"-p", "5433:5432",
 		"-e", "POSTGRES_PASSWORD=bc",
+		"-v", "bc-stats-data:/var/lib/postgresql/data",
 		"--restart", "always",
 		"bc-bcstats:latest",
 	})
