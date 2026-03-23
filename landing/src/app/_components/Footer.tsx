@@ -16,7 +16,7 @@ export function Footer() {
             </div>
             <p className="text-sm text-muted-foreground max-w-xs">
               Multi-agent orchestration for AI coding assistants. CLI-first.
-              Agent-agnostic. Built for teams that ship.
+              Agent-agnostic. Open source.
             </p>
           </div>
           <div className="space-y-4">
@@ -40,27 +40,39 @@ export function Footer() {
                 Features
               </Link>
               <Link
+                href="/pricing"
+                className="hover:text-foreground transition-colors"
+              >
+                Pricing
+              </Link>
+              <Link
+                href="/method"
+                className="hover:text-foreground transition-colors"
+              >
+                Method
+              </Link>
+            </nav>
+          </div>
+          <div className="space-y-4">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-primary/40">
+              Resources
+            </h2>
+            <nav
+              aria-label="Resources links"
+              className="flex flex-col gap-2 text-sm text-muted-foreground"
+            >
+              <Link
                 href="/docs"
                 className="hover:text-foreground transition-colors"
               >
                 Documentation
               </Link>
               <Link
-                href="/waitlist"
+                href="/docs#installation"
                 className="hover:text-foreground transition-colors"
               >
-                Waitlist
+                Getting Started
               </Link>
-            </nav>
-          </div>
-          <div className="space-y-4">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-primary/40">
-              Community
-            </h2>
-            <nav
-              aria-label="Community links"
-              className="flex flex-col gap-2 text-sm text-muted-foreground"
-            >
               <Link
                 href="https://github.com/bcinfra1/bc"
                 className="hover:text-foreground transition-colors"
@@ -69,14 +81,6 @@ export function Footer() {
               >
                 GitHub
               </Link>
-              <span className="text-muted-foreground/50 cursor-default">
-                Twitter / X
-                <span className="text-[10px] ml-1 italic">(coming soon)</span>
-              </span>
-              <span className="text-muted-foreground/50 cursor-default">
-                Discord
-                <span className="text-[10px] ml-1 italic">(coming soon)</span>
-              </span>
             </nav>
           </div>
           <div className="space-y-4">
@@ -105,6 +109,14 @@ export function Footer() {
               >
                 Terms
               </Link>
+              <span className="text-muted-foreground/50 cursor-default">
+                Discord
+                <span className="text-[10px] ml-1 italic">(coming soon)</span>
+              </span>
+              <span className="text-muted-foreground/50 cursor-default">
+                Twitter / X
+                <span className="text-[10px] ml-1 italic">(coming soon)</span>
+              </span>
             </nav>
           </div>
         </div>

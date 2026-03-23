@@ -28,6 +28,12 @@ const TABS = [
     src: "/screenshots/dashboard-04-costs.png",
     alt: "bc cost tracking with daily trend chart and per-agent cost breakdown",
   },
+  {
+    id: "stats",
+    label: "Stats",
+    src: "/screenshots/dashboard-10-stats-loaded.png",
+    alt: "bc stats overview showing system metrics and agent performance",
+  },
 ] as const;
 
 export function DashboardScreenshots() {

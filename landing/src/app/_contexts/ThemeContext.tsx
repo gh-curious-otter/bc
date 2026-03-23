@@ -22,8 +22,8 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const STORAGE_KEY = "bc-theme";
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("system");
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
+  const [theme, setThemeState] = useState<Theme>("dark");
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
   const [mounted, setMounted] = useState(false);
 
   const applyTheme = (themeName: "light" | "dark") => {
@@ -40,7 +40,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const initializeTheme = () => {
       // Get stored preference
       const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
-      const preferredTheme = stored || "system";
+      const preferredTheme = stored || "dark";
 
       setThemeState(preferredTheme);
 

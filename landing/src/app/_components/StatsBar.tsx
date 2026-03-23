@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { GitPullRequest, CheckCircle2, Users, Clock } from "lucide-react";
+import { Layers, Code2, Monitor, Github } from "lucide-react";
 
 interface StatItemProps {
   icon: React.ComponentType<{ size?: number; className?: string }>;
@@ -34,20 +34,20 @@ export function StatsBar() {
     <div className="w-full py-8 border-y border-border/50 bg-accent/20">
       <div className="mx-auto max-w-4xl px-6">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <StatItem icon={Layers} value="7" label="AI Tools" delay={0} />
+          <StatItem icon={Github} value="OSS" label="Open Source" delay={0.1} />
           <StatItem
-            icon={GitPullRequest}
-            value="1.2k+"
-            label="PRs Merged"
-            delay={0}
+            icon={Monitor}
+            value="15"
+            label="Dashboard Views"
+            delay={0.2}
           />
           <StatItem
-            icon={CheckCircle2}
-            value="340+"
-            label="Issues Closed"
-            delay={0.1}
+            icon={Code2}
+            value="3"
+            label="Interfaces"
+            delay={0.3}
           />
-          <StatItem icon={Users} value="48" label="Active Teams" delay={0.2} />
-          <StatItem icon={Clock} value="10k+" label="Agent Hours" delay={0.3} />
         </div>
       </div>
     </div>

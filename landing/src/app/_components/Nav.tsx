@@ -9,8 +9,9 @@ import { ThemeToggle } from "./ThemeToggle";
 const links = [
   { href: "/", label: "Home" },
   { href: "/product", label: "Product" },
+  { href: "/method", label: "Method" },
   { href: "/docs", label: "Docs" },
-  { href: "/waitlist", label: "Waitlist" },
+  { href: "/pricing", label: "Pricing" },
 ];
 
 function Logo() {
