@@ -399,6 +399,9 @@ deploy-bcd-local: build-bcd-local ## Deploy bcd server locally (ENV=local|dogfoo
 deploy-landing-local: build-landing-local ## Deploy landing page locally (placeholder)
 	@echo "Landing page built. Deploy via your hosting provider."
 
+build-landing-prod: gen-docs ## Production build for landing page (Cloudflare Pages)
+	cd landing && bun install && bun run build
+
 # =============================================================================
 # Install
 # =============================================================================
