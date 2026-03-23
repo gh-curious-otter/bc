@@ -36,9 +36,9 @@ Agents left unchecked burn through budgets silently. Visibility is not a conveni
     number: "04",
     title: "Persistence",
     subtitle: "A tool runs once. A teammate finishes the job.",
-    content: `Most agents hit an error and stop. Complex work requires iteration: read state, implement, verify, commit, loop. Each cycle self-corrects from the last.
+    content: `Most agents quit at the first obstacle. They produce a partial answer and call it done. That is not how hard problems get solved. Hard problems yield to repetition — try, fail, learn, try again. Each attempt sharper than the last.
 
-Hard problems decompose recursively — large into medium, medium into small, small into single commits. The loop runs until the whole is verified. Persistence is not stubbornness. It is structured determination.`,
+The difference between an assistant and a collaborator is what happens after the first failure. An assistant stops. A collaborator adapts and continues. Persistence is not about running longer. It is about getting closer with every iteration.`,
   },
   {
     number: "05",
