@@ -808,8 +808,8 @@ func TestProviderBuildCommand(t *testing.T) {
 		opts     CommandOpts
 	}{
 		{"claude no opts", "claude --dangerously-skip-permissions", NewClaudeProvider(), CommandOpts{}},
-		{"claude with agent", "claude -w bc-eng-01  --dangerously-skip-permissions", NewClaudeProvider(), CommandOpts{AgentName: "eng-01"}},
-		{"claude with workspace", "claude -w bc-myproject-eng-01  --dangerously-skip-permissions", NewClaudeProvider(), CommandOpts{AgentName: "eng-01", WorkspaceName: "myproject"}},
+		{"claude with agent", "claude --dangerously-skip-permissions -w bc-eng-01 --tmux", NewClaudeProvider(), CommandOpts{AgentName: "eng-01"}},
+		{"claude with workspace", "claude --dangerously-skip-permissions -w bc-myproject-eng-01 --tmux", NewClaudeProvider(), CommandOpts{AgentName: "eng-01", WorkspaceName: "myproject"}},
 		{"gemini no opts", "gemini --yolo", NewGeminiProvider(), CommandOpts{}},
 		{"gemini with agent", "gemini --yolo", NewGeminiProvider(), CommandOpts{AgentName: "eng-01"}},
 		{"codex no opts", "codex --full-auto", NewCodexProvider(), CommandOpts{}},
@@ -973,7 +973,7 @@ func TestClaudeBuildCommandSessionID(t *testing.T) {
 				SessionID: "cc78cadf-89ce-4820-ab6e-950afd2b6838",
 				Resume:    true,
 			},
-			want: "claude -w bc-eng-01  --dangerously-skip-permissions --resume cc78cadf-89ce-4820-ab6e-950afd2b6838",
+			want: "claude --dangerously-skip-permissions -w bc-eng-01 --tmux --resume cc78cadf-89ce-4820-ab6e-950afd2b6838",
 		},
 		{
 			name: "session ID alone",
@@ -981,7 +981,7 @@ func TestClaudeBuildCommandSessionID(t *testing.T) {
 				AgentName: "eng-01",
 				SessionID: "cc78cadf-89ce-4820-ab6e-950afd2b6838",
 			},
-			want: "claude -w bc-eng-01  --dangerously-skip-permissions --resume cc78cadf-89ce-4820-ab6e-950afd2b6838",
+			want: "claude --dangerously-skip-permissions -w bc-eng-01 --tmux --resume cc78cadf-89ce-4820-ab6e-950afd2b6838",
 		},
 		{
 			name: "resume flag without session ID uses --continue",
@@ -989,12 +989,12 @@ func TestClaudeBuildCommandSessionID(t *testing.T) {
 				AgentName: "eng-01",
 				Resume:    true,
 			},
-			want: "claude -w bc-eng-01  --dangerously-skip-permissions --continue",
+			want: "claude --dangerously-skip-permissions -w bc-eng-01 --tmux --continue",
 		},
 		{
 			name: "no resume flags — fresh session",
 			opts: CommandOpts{AgentName: "eng-01"},
-			want: "claude -w bc-eng-01  --dangerously-skip-permissions",
+			want: "claude --dangerously-skip-permissions -w bc-eng-01 --tmux",
 		},
 	}
 

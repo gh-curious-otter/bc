@@ -2602,9 +2602,9 @@ func TestClaudeBuildCommand(t *testing.T) {
 		opts     provider.CommandOpts
 	}{
 		{"no agent", "claude --dangerously-skip-permissions", provider.CommandOpts{}},
-		{"with agent", "claude -w bc-eng-01  --dangerously-skip-permissions", provider.CommandOpts{AgentName: "eng-01"}},
-		{"root agent", "claude -w bc-root  --dangerously-skip-permissions", provider.CommandOpts{AgentName: "root"}},
-		{"with workspace", "claude -w bc-myws-eng-01  --dangerously-skip-permissions", provider.CommandOpts{AgentName: "eng-01", WorkspaceName: "myws"}},
+		{"with agent", "claude --dangerously-skip-permissions -w bc-eng-01 --tmux", provider.CommandOpts{AgentName: "eng-01"}},
+		{"root agent", "claude --dangerously-skip-permissions -w bc-root --tmux", provider.CommandOpts{AgentName: "root"}},
+		{"with workspace", "claude --dangerously-skip-permissions -w bc-myws-eng-01 --tmux", provider.CommandOpts{AgentName: "eng-01", WorkspaceName: "myws"}},
 	}
 
 	for _, tc := range tests {

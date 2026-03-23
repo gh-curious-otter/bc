@@ -822,10 +822,6 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		existing.RuntimeBackend = opts.Runtime
 	}
 
-	// Only resume if we have a real Claude session ID (UUID format) — avoids
-	// "No conversation found to continue" on first stop/start.
-	// The SessionID field may contain the tmux session name (e.g. "frontend")
-	// which is not a valid Claude conversation ID.
 	sessionID := existing.SessionID
 	isRealSessionID := len(sessionID) == 36 && sessionID[8] == '-'
 	resume := !opts.Fresh && isRealSessionID
@@ -837,6 +833,27 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		sessionID = opts.SessionID
 		existing.SessionID = sessionID
 	}
+
+	// Check if worktree exists — if so, use --continue to resume conversation.
+	// If an active session is already using it, reject the start.
+	wsName := filepath.Base(wsPath)
+	worktreeName := "bc-" + wsName + "-" + name
+	worktreeDir := filepath.Join(wsPath, ".claude", "worktrees", worktreeName)
+	if _, err := os.Stat(worktreeDir); err == nil {
+		// Worktree exists — check for active session conflict
+		for beName, be := range m.backends {
+			if be.HasSession(ctx, name) {
+				m.mu.Unlock()
+				return nil, fmt.Errorf("worktree %s is already in use by active session on %s backend", worktreeName, beName)
+			}
+		}
+		// Worktree exists with no active session — enable resume
+		if !resume && sessionID == "" {
+			resume = true
+			log.Debug("worktree exists, will use --continue", "agent", name, "dir", worktreeDir)
+		}
+	}
+
 	toolName := existing.Tool
 	if toolName == "" {
 		toolName = m.defaultTool
@@ -848,21 +865,13 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		}
 	}
 
-	// Apply provider session customization for container backends only.
-	if existing.RuntimeBackend != "tmux" {
-		if toolName != "" && m.providerRegistry != nil {
-			if p, ok := m.providerRegistry.Get(toolName); ok {
-				if sc, ok := p.(provider.SessionCustomizer); ok {
-					agentCmd = sc.AdjustSessionCommand(agentCmd)
-				}
-			}
-		}
-	}
-
+	agentRuntime := existing.RuntimeBackend
 	env := map[string]string{
-		"BC_AGENT_ID":   name,
-		"BC_AGENT_ROLE": string(existing.Role),
-		"BC_WORKSPACE":  wsPath,
+		"BC_AGENT_ID":      name,
+		"BC_AGENT_ROLE":    string(existing.Role),
+		"BC_WORKSPACE":     wsPath,
+		"BC_AGENT_RUNTIME": agentRuntime,
+		"BC_BCD_ADDR":      bcdAddrForRuntime(agentRuntime),
 	}
 	if toolName != "" {
 		env["BC_AGENT_TOOL"] = toolName
@@ -872,20 +881,12 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	}
 	injectEnv(env, wsPath, toolName, existing.EnvFile)
 
-	// MCP servers and plugins are configured via file-based config
-	// (.mcp.json and .claude.json) written by SetupAgentFromRole.
-	// No need for runtime `claude mcp add` commands.
-
 	rt := m.runtimeForAgent(name)
 	m.mu.Unlock()
 
 	// Phase 2: per-agent lock — slow I/O (create session, pipe-pane)
 	agentLock := m.getAgentLock(name)
 	agentLock.Lock()
-
-	// Clean stale worktree from previous container run to prevent
-	// "fatal: '<dir>' already exists" on restart.
-	cleanStaleWorktree(ctx, wsPath, name)
 
 	if err := rt.CreateSessionWithEnv(ctx, name, wsPath, agentCmd, env); err != nil {
 		agentLock.Unlock()
@@ -948,35 +949,38 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		effectiveTool = m.defaultTool
 	}
 
-	// Determine the command to use (fresh create — no resume, no session ID)
-	agentCmd := m.agentCmd
-	if effectiveTool != "" {
-		if cmd, ok := m.getAgentCommand(effectiveTool, name, false, ""); ok {
-			agentCmd = cmd
-		} else if tool != "" {
-			// Only error if the user explicitly requested a tool that doesn't exist.
-			// If it's the default tool, fall through to the base agentCmd.
-			m.mu.Unlock()
-			return nil, fmt.Errorf("unknown tool %q, available tools: %v", tool, m.listAvailableTools())
-		}
-	}
-
 	// Determine runtime backend for this agent
 	agentRuntime := m.defaultBackend
 	if opts.Runtime != "" {
 		agentRuntime = opts.Runtime
 	}
 
-	// Apply provider session customization for container backends only.
-	// Claude's --tmux flag is needed inside Docker (tmux runs inside the container)
-	// but NOT for native tmux sessions (claude detects tmux automatically).
-	if agentRuntime != "tmux" {
-		if effectiveTool != "" && m.providerRegistry != nil {
-			if p, ok := m.providerRegistry.Get(effectiveTool); ok {
-				if sc, ok := p.(provider.SessionCustomizer); ok {
-					agentCmd = sc.AdjustSessionCommand(agentCmd)
-				}
+	// Check if worktree already exists — if so, use --continue to resume.
+	// If the worktree is in use by an active session, reject the create.
+	wsName := filepath.Base(wsPath)
+	worktreeName := "bc-" + wsName + "-" + name
+	worktreeDir := filepath.Join(wsPath, ".claude", "worktrees", worktreeName)
+	worktreeExists := false
+	if _, err := os.Stat(worktreeDir); err == nil {
+		worktreeExists = true
+		// Check if another session is actively using this worktree
+		for beName, be := range m.backends {
+			if be.HasSession(ctx, name) {
+				m.mu.Unlock()
+				return nil, fmt.Errorf("worktree %s is already in use by active session on %s backend", worktreeName, beName)
 			}
+		}
+		log.Debug("worktree exists, will use --continue", "agent", name, "dir", worktreeDir)
+	}
+
+	// Determine the command to use — resume if worktree exists
+	agentCmd := m.agentCmd
+	if effectiveTool != "" {
+		if cmd, ok := m.getAgentCommand(effectiveTool, name, worktreeExists, ""); ok {
+			agentCmd = cmd
+		} else if tool != "" {
+			m.mu.Unlock()
+			return nil, fmt.Errorf("unknown tool %q, available tools: %v", tool, m.listAvailableTools())
 		}
 	}
 
@@ -1034,9 +1038,11 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 
 	// Build env vars so the spawned process sees them immediately
 	env := map[string]string{
-		"BC_AGENT_ID":   name,
-		"BC_AGENT_ROLE": string(role),
-		"BC_WORKSPACE":  wsPath,
+		"BC_AGENT_ID":      name,
+		"BC_AGENT_ROLE":    string(role),
+		"BC_WORKSPACE":     wsPath,
+		"BC_AGENT_RUNTIME": agentRuntime,
+		"BC_BCD_ADDR":      bcdAddrForRuntime(agentRuntime),
 	}
 	if effectiveTool != "" {
 		env["BC_AGENT_TOOL"] = effectiveTool
@@ -1053,14 +1059,8 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	agentLock := m.getAgentLock(name)
 	agentLock.Lock()
 
-	// Clean stale worktree from previous container run (crash recovery).
-	cleanStaleWorktree(ctx, wsPath, name)
-
-	// MCP servers and plugins are configured via file-based config
-	// (.mcp.json and .claude.json) written by SetupAgentFromRole above.
-	// No runtime `claude mcp add` commands — they kill running Claude instances.
-
-	// Create session in the workspace directory using the agent's runtime backend
+	// Create session in the workspace directory using the agent's runtime backend.
+	// If worktree exists, claude is invoked with --continue to resume the conversation.
 	if err := rt.CreateSessionWithEnv(ctx, name, wsPath, agentCmd, env); err != nil {
 		agentLock.Unlock()
 		// Clean up early registration
@@ -2166,6 +2166,15 @@ func (m *Manager) enforceRootSingleton(_ string) error {
 		}
 	}
 	return nil
+}
+
+// bcdAddrForRuntime returns the bcd server address for the given runtime.
+// Docker containers reach the host via host.docker.internal.
+func bcdAddrForRuntime(runtime string) string {
+	if runtime == "docker" {
+		return "http://host.docker.internal:9374"
+	}
+	return "http://127.0.0.1:9374"
 }
 
 // injectEnv merges layered environment variables into the env map.

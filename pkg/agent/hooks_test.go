@@ -65,11 +65,11 @@ func TestWriteWorkspaceHookSettings_CreatesFile(t *testing.T) {
 		t.Fatalf("settings.json not created: %v", err)
 	}
 	content := string(data)
-	// Should have all 22 Claude Code hook events
+	// Should have all 21 valid Claude Code hook events (StopFailure excluded)
 	for _, event := range []string{
 		"SessionStart", "SessionEnd", "UserPromptSubmit",
 		"PreToolUse", "PostToolUse", "PostToolUseFailure",
-		"PermissionRequest", "Stop", "StopFailure",
+		"PermissionRequest", "Stop",
 		"SubagentStart", "SubagentStop", "TaskCompleted",
 		"WorktreeCreate", "WorktreeRemove",
 		"PreCompact", "PostCompact",

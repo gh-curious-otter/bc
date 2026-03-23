@@ -187,7 +187,9 @@ func WriteWorkspaceHookSettings(workspaceRoot string) error {
 		return fmt.Errorf("create .claude dir: %w", err)
 	}
 
-	bcdAddr := "http://127.0.0.1:9374"
+	// Hook commands use $BC_BCD_ADDR env var (set per-agent based on runtime).
+	// Falls back to localhost for backward compat.
+	bcdAddr := "${BC_BCD_ADDR:-http://127.0.0.1:9374}"
 
 	// Simple hook command (no stdin parsing)
 	hookCmd := func(event HookEvent, stateTarget State, taskDesc string) string {
@@ -216,10 +218,9 @@ func WriteWorkspaceHookSettings(workspaceRoot string) error {
 			"PostToolUseFailure": {{Hooks: []claudeHook{{Type: "command", Command: toolHookCmd(HookPostToolUseFailure, StateWorking, "Failed")}}}},
 			"PermissionRequest":  {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookPermissionRequest, StateStuck, "Waiting for permission")}}}},
 			"Stop":               {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookStop, StateIdle, "Turn complete")}}}},
-			"StopFailure":        {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookStopFailure, StateError, "API error")}}}},
 			"Notification":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("Notification", "", "")}}}},
 			"SubagentStart": {{Hooks: []claudeHook{{Type: "command", Command: fmt.Sprintf(
-				`bash -c 'HOOK_INPUT=$(cat); PAYLOAD=$(echo "$HOOK_INPUT" | jq -c "{event:\"SubagentStart\",state:\"working\",task:(\"Subagent: \"+(.agent_type // \"unknown\")),subagent_id:.agent_id,subagent_type:.agent_type}"); curl -sX POST %s/api/agents/${BC_AGENT_ID}/hook -H "Content-Type: application/json" -d "$PAYLOAD" 2>/dev/null || true'`,
+				`bash -c 'BCD=%s; HOOK_INPUT=$(cat); PAYLOAD=$(echo "$HOOK_INPUT" | jq -c "{event:\"SubagentStart\",state:\"working\",task:(\"Subagent: \"+(.agent_type // \"unknown\")),subagent_id:.agent_id,subagent_type:.agent_type}"); curl -sX POST $BCD/api/agents/${BC_AGENT_ID}/hook -H "Content-Type: application/json" -d "$PAYLOAD" 2>/dev/null || true'`,
 				bcdAddr,
 			)}}}},
 			"SubagentStop":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookSubagentStop, StateWorking, "Subagent completed")}}}},
