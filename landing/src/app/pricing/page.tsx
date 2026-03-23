@@ -165,7 +165,7 @@ export default function PricingPage() {
               custom={1}
               className="text-4xl font-bold tracking-tight sm:text-6xl"
             >
-              Pricing
+              Agent In a Box
             </motion.h1>
             <motion.p
               variants={fadeUp}
@@ -189,17 +189,8 @@ export default function PricingPage() {
               custom={0}
               className="rounded-xl border-2 border-primary bg-card p-8 relative shadow-lg shadow-primary/5"
             >
-              <div className="absolute -top-3 left-6 px-3 py-0.5 rounded-full bg-primary text-primary-foreground text-xs font-semibold">
-                Recommended
-              </div>
-
               <div className="mb-6">
-                <h2 className="text-xl font-bold">Free</h2>
-                <div className="mt-4">
-                  <span className="text-5xl font-bold tracking-tight">
-                    Free
-                  </span>
-                </div>
+                <h2 className="text-3xl font-bold">Free</h2>
                 <p className="mt-3 text-sm text-muted-foreground">
                   Runs locally on your machine
                 </p>
