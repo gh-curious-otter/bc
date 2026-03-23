@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { motion, AnimatePresence } from "framer-motion";
 
 const TABS = [
   {
@@ -59,16 +60,41 @@ export function DashboardScreenshots() {
         ))}
       </div>
 
-      {/* Screenshot */}
+      {/* Browser chrome + Screenshot */}
       <div className="overflow-hidden rounded-xl border border-border shadow-2xl bg-card">
-        <Image
-          src={TABS[active].src}
-          alt={TABS[active].alt}
-          width={1200}
-          height={750}
-          className="w-full h-auto"
-          priority={active === 0}
-        />
+        {/* Browser chrome header */}
+        <div className="flex items-center gap-3 border-b border-border bg-muted/50 px-4 py-2.5">
+          <div className="flex gap-1.5" aria-hidden="true">
+            <span className="h-2.5 w-2.5 rounded-full bg-[var(--traffic-red)]" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[var(--traffic-yellow)]" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[var(--traffic-green)]" />
+          </div>
+          <div className="flex-1 rounded-md bg-background/60 border border-border px-3 py-1 text-xs text-muted-foreground font-mono">
+            localhost:9374
+          </div>
+        </div>
+
+        {/* Screenshot with crossfade */}
+        <div className="relative">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={TABS[active].id}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <Image
+                src={TABS[active].src}
+                alt={TABS[active].alt}
+                width={1200}
+                height={750}
+                className="w-full h-auto"
+                priority={active === 0}
+              />
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );

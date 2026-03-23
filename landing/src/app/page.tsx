@@ -36,7 +36,7 @@ export default function Home() {
 
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           {/* Problem / Solution */}
-          <RevealSection className="py-12 sm:py-16 lg:py-24" id="problem">
+          <RevealSection className="py-12 sm:py-16 lg:py-28" id="problem">
             <div className="mb-16">
               <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 The problem
@@ -98,7 +98,7 @@ export default function Home() {
           </RevealSection>
 
           {/* How It Works */}
-          <RevealSection className="py-12 sm:py-16 lg:py-24" id="how-it-works">
+          <RevealSection className="py-12 sm:py-16 lg:py-28" id="how-it-works">
             <div className="mb-16 text-center">
               <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 How it works
@@ -169,7 +169,7 @@ export default function Home() {
           </RevealSection>
 
           {/* Feature Bento Grid */}
-          <RevealSection className="py-12 sm:py-16 lg:py-24" id="features">
+          <RevealSection className="py-12 sm:py-16 lg:py-28" id="features">
             <div className="mb-16 text-center">
               <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 Features
@@ -182,7 +182,7 @@ export default function Home() {
           </RevealSection>
 
           {/* Dashboard Preview */}
-          <RevealSection className="py-12 sm:py-16 lg:py-24" id="demo">
+          <RevealSection className="py-12 sm:py-16 lg:py-28" id="demo">
             <div className="mb-12 text-center">
               <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 Dashboard
@@ -214,7 +214,7 @@ export default function Home() {
                   <div className="mt-8 flex flex-wrap items-center gap-4">
                     <Link
                       href="https://github.com/gh-curious-otter/bc"
-                      className="group inline-flex h-12 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-xl active:scale-[0.97]"
+                      className="cta-glow group inline-flex h-12 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-xl active:scale-[0.97]"
                       aria-label="Get started with bc on GitHub"
                     >
                       Get Started
@@ -249,7 +249,7 @@ export default function Home() {
                       <span className="text-terminal-prompt">$ </span>bc agent
                       create eng-01 --role engineer --tool claude
                     </div>
-                    <div className="text-terminal-comment mt-3 text-[12px]">
+                    <div className="terminal-cursor text-terminal-comment mt-3 text-[12px]">
                       # That&apos;s it. Your agent team is running.
                     </div>
                   </div>
