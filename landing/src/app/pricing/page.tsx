@@ -157,10 +157,9 @@ export default function PricingPage() {
             <motion.h1
               variants={fadeUp}
               custom={1}
-              className="text-4xl font-bold tracking-tight sm:text-6xl italic"
-              style={{ fontFamily: "'Instrument Serif', Georgia, serif" }}
+              className="text-4xl font-bold tracking-tight sm:text-6xl"
             >
-              Agent In a Box
+              Pricing
             </motion.h1>
             <motion.p
               variants={fadeUp}
