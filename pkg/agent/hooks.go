@@ -46,18 +46,9 @@ const (
 	HookCostUpdate     HookEvent = "CostUpdate"
 )
 
-// ── Legacy event names (backward compat with old file-based hooks) ──
-
-const (
-	HookEventPreToolUse  HookEvent = "pre_tool_use"
-	HookEventPostToolUse HookEvent = "post_tool_use"
-	HookEventStop        HookEvent = "stop"
-)
-
 // hookEventStateMap maps hook events to the target agent state.
 // Events not in this map don't change agent state (they're informational).
 var hookEventStateMap = map[HookEvent]State{
-	// New HTTP-based hooks
 	HookSessionStart:       StateIdle,
 	HookSessionEnd:         StateStopped,
 	HookUserPromptSubmit:   StateWorking,
@@ -76,10 +67,6 @@ var hookEventStateMap = map[HookEvent]State{
 	HookElicitation:        StateStuck,
 	HookElicitationResult:  StateWorking,
 
-	// Legacy file-based hooks (backward compat)
-	HookEventPreToolUse:  StateWorking,
-	HookEventPostToolUse: StateIdle,
-	HookEventStop:        StateStopped,
 }
 
 // StateForHookEvent returns the target agent State for a hook event.
@@ -136,28 +123,6 @@ type HookPayload struct {
 	OutputTokens int64   `json:"output_tokens,omitempty"`
 	CostUSD      float64 `json:"cost_usd,omitempty"`
 	Model        string  `json:"model,omitempty"`
-}
-
-// ── File-based hook infrastructure (legacy fallback) ──
-
-const hookEventFile = "hook_event"
-
-func hookEventPath(stateDir, agentName string) string {
-	return filepath.Join(stateDir, agentName, hookEventFile)
-}
-
-// ConsumeHookEvent reads and removes the hook event file for an agent.
-// Legacy fallback for file-based hooks. Returns "" if no event pending.
-func ConsumeHookEvent(stateDir, agentName string) (HookEvent, bool) {
-	path := hookEventPath(stateDir, agentName)
-	data, err := os.ReadFile(path) //nolint:gosec // internal state dir
-	if err != nil {
-		return "", false
-	}
-	_ = os.Remove(path) //nolint:errcheck // best-effort
-	ev := HookEvent(data)
-	_, ok := hookEventStateMap[ev]
-	return ev, ok
 }
 
 // ── Settings.json writer (generates HTTP-based hooks) ──

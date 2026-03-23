@@ -13,9 +13,6 @@ func TestStateForHookEvent(t *testing.T) {
 		want  State
 		ok    bool
 	}{
-		{HookEventPreToolUse, StateWorking, true},
-		{HookEventPostToolUse, StateIdle, true},
-		{HookEventStop, StateStopped, true},
 		{HookPreToolUse, StateWorking, true},
 		{HookPostToolUse, StateIdle, true},
 		{HookSessionStart, StateIdle, true},
@@ -156,49 +153,5 @@ func TestWriteWorkspaceHookSettings_RemovesInvalidKeys(t *testing.T) {
 	// PreToolUse should be overwritten with new bc hook, not preserved as "old"
 	if strings.Contains(content, `"old"`) {
 		t.Error("old hook commands should have been overwritten")
-	}
-}
-
-func TestConsumeHookEvent_NoFile(t *testing.T) {
-	dir := t.TempDir()
-	ev, ok := ConsumeHookEvent(dir, "alice")
-	if ok {
-		t.Errorf("expected ok=false, got event=%q", ev)
-	}
-}
-
-func TestConsumeHookEvent_Valid(t *testing.T) {
-	dir := t.TempDir()
-	agentDir := filepath.Join(dir, "alice")
-	if err := os.MkdirAll(agentDir, 0750); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(agentDir, hookEventFile), []byte("pre_tool_use"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	ev, ok := ConsumeHookEvent(dir, "alice")
-	if !ok {
-		t.Fatal("expected ok=true")
-	}
-	if ev != HookEventPreToolUse {
-		t.Errorf("event = %q, want %q", ev, HookEventPreToolUse)
-	}
-	if _, err := os.Stat(filepath.Join(agentDir, hookEventFile)); err == nil {
-		t.Error("hook event file should be deleted after consumption")
-	}
-}
-
-func TestConsumeHookEvent_Unknown(t *testing.T) {
-	dir := t.TempDir()
-	agentDir := filepath.Join(dir, "bob")
-	if err := os.MkdirAll(agentDir, 0750); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(agentDir, hookEventFile), []byte("bogus_event"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	_, ok := ConsumeHookEvent(dir, "bob")
-	if ok {
-		t.Error("expected ok=false for unknown event")
 	}
 }
