@@ -1,0 +1,271 @@
+import fs from "fs";
+import path from "path";
+
+export interface CliCommand {
+  name: string;
+  description: string;
+  synopsis: string;
+  usage: string;
+  options: string;
+  inheritedOptions: string;
+  subcommands: { name: string; description: string }[];
+}
+
+export interface CommandGroup {
+  id: string;
+  name: string;
+  description: string;
+  alias: string;
+  commands: CliCommand[];
+}
+
+/**
+ * Parse a single CLI markdown file into a CliCommand.
+ */
+function parseCliDoc(content: string): CliCommand {
+  const lines = content.split("\n");
+
+  // First line: ## bc <command>
+  const nameLine = lines.find((l) => l.startsWith("## "));
+  const name = nameLine ? nameLine.replace("## ", "").trim() : "";
+
+  // Second non-empty line after ## is the description
+  const nameIdx = lines.indexOf(nameLine || "");
+  let description = "";
+  for (let i = nameIdx + 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line && !line.startsWith("#")) {
+      description = line;
+      break;
+    }
+  }
+
+  // Extract synopsis section
+  const synopsisIdx = lines.findIndex((l) => l.trim() === "### Synopsis");
+  let synopsis = "";
+  if (synopsisIdx !== -1) {
+    const nextSection = lines.findIndex(
+      (l, i) => i > synopsisIdx && l.startsWith("### "),
+    );
+    const end = nextSection === -1 ? lines.length : nextSection;
+    // Get text before the first code block in synopsis
+    const synopsisLines: string[] = [];
+    let inCodeBlock = false;
+    for (let i = synopsisIdx + 1; i < end; i++) {
+      if (lines[i].startsWith("```")) {
+        inCodeBlock = !inCodeBlock;
+        continue;
+      }
+      if (!inCodeBlock) {
+        synopsisLines.push(lines[i]);
+      }
+    }
+    synopsis = synopsisLines.join("\n").trim();
+  }
+
+  // Extract usage (the code block right before ### Options)
+  let usage = "";
+  const optionsIdx = lines.findIndex((l) => l.trim() === "### Options");
+  // Find the code block just before options (or after synopsis)
+  const searchStart = synopsisIdx !== -1 ? synopsisIdx : nameIdx;
+  const searchEnd = optionsIdx !== -1 ? optionsIdx : lines.length;
+  let lastCodeBlock = "";
+  let inCode = false;
+  const codeLines: string[] = [];
+  for (let i = searchStart; i < searchEnd; i++) {
+    if (lines[i].startsWith("```")) {
+      if (inCode) {
+        lastCodeBlock = codeLines.join("\n").trim();
+        codeLines.length = 0;
+      }
+      inCode = !inCode;
+      continue;
+    }
+    if (inCode) {
+      codeLines.push(lines[i]);
+    }
+  }
+  usage = lastCodeBlock;
+
+  // Extract options
+  let options = "";
+  if (optionsIdx !== -1) {
+    const nextSection = lines.findIndex(
+      (l, i) => i > optionsIdx && l.startsWith("### "),
+    );
+    const end = nextSection === -1 ? lines.length : nextSection;
+    inCode = false;
+    const optLines: string[] = [];
+    for (let i = optionsIdx + 1; i < end; i++) {
+      if (lines[i].startsWith("```")) {
+        inCode = !inCode;
+        continue;
+      }
+      if (inCode) {
+        optLines.push(lines[i]);
+      }
+    }
+    options = optLines.join("\n").trim();
+  }
+
+  // Extract inherited options
+  let inheritedOptions = "";
+  const inheritedIdx = lines.findIndex((l) =>
+    l.trim().startsWith("### Options inherited"),
+  );
+  if (inheritedIdx !== -1) {
+    const nextSection = lines.findIndex(
+      (l, i) => i > inheritedIdx && l.startsWith("### "),
+    );
+    const end = nextSection === -1 ? lines.length : nextSection;
+    inCode = false;
+    const inhLines: string[] = [];
+    for (let i = inheritedIdx + 1; i < end; i++) {
+      if (lines[i].startsWith("```")) {
+        inCode = !inCode;
+        continue;
+      }
+      if (inCode) {
+        inhLines.push(lines[i]);
+      }
+    }
+    inheritedOptions = inhLines.join("\n").trim();
+  }
+
+  // Extract SEE ALSO subcommands
+  const seeAlsoIdx = lines.findIndex((l) => l.trim() === "### SEE ALSO");
+  const subcommands: { name: string; description: string }[] = [];
+  if (seeAlsoIdx !== -1) {
+    for (let i = seeAlsoIdx + 1; i < lines.length; i++) {
+      const match = lines[i].match(
+        /\*\s+\[(.+?)\]\(.+?\)\s+[-–—]\s+(.+)/,
+      );
+      if (match) {
+        subcommands.push({
+          name: match[1].trim(),
+          description: match[2].trim(),
+        });
+      }
+    }
+  }
+
+  return {
+    name,
+    description,
+    synopsis,
+    usage,
+    options,
+    inheritedOptions,
+    subcommands,
+  };
+}
+
+/** Map of top-level command to display info */
+const GROUP_META: Record<string, { alias: string; order: number }> = {
+  agent: { alias: "bc ag", order: 1 },
+  workspace: { alias: "bc ws", order: 2 },
+  channel: { alias: "bc ch", order: 3 },
+  tool: { alias: "bc tl", order: 4 },
+  secret: { alias: "bc sec", order: 5 },
+  cost: { alias: "bc co", order: 6 },
+  cron: { alias: "bc cr", order: 7 },
+  role: { alias: "bc rl", order: 8 },
+  mcp: { alias: "bc mcp", order: 9 },
+  doctor: { alias: "bc dr", order: 10 },
+  daemon: { alias: "bcd", order: 11 },
+  config: { alias: "bc cfg", order: 12 },
+  env: { alias: "bc env", order: 13 },
+};
+
+// Top-level commands that are standalone (not groups)
+const STANDALONE_COMMANDS = [
+  "bc init",
+  "bc up",
+  "bc down",
+  "bc status",
+  "bc home",
+  "bc logs",
+  "bc version",
+  "bc completion",
+];
+
+/**
+ * Read all CLI docs from the docs/reference/cli/ directory and return
+ * structured command groups for the docs page.
+ */
+export function loadCliDocs(): {
+  groups: CommandGroup[];
+  standalone: CliCommand[];
+} {
+  const docsDir = path.join(process.cwd(), "..", "docs", "reference", "cli");
+
+  if (!fs.existsSync(docsDir)) {
+    return { groups: [], standalone: [] };
+  }
+
+  const files = fs.readdirSync(docsDir).filter((f) => f.endsWith(".md"));
+
+  // Parse all files
+  const allDocs = new Map<string, CliCommand>();
+  for (const file of files) {
+    const content = fs.readFileSync(path.join(docsDir, file), "utf-8");
+    const doc = parseCliDoc(content);
+    allDocs.set(file.replace(".md", ""), doc);
+  }
+
+  // Build command groups from parent commands
+  const groups: CommandGroup[] = [];
+  const usedFiles = new Set<string>();
+
+  for (const [groupName, meta] of Object.entries(GROUP_META)) {
+    const parentKey = `bc_${groupName}`;
+    const parentDoc = allDocs.get(parentKey);
+    if (!parentDoc) continue;
+
+    usedFiles.add(parentKey);
+
+    // Find all subcommand files
+    const subFiles = files
+      .map((f) => f.replace(".md", ""))
+      .filter((f) => f.startsWith(`${parentKey}_`) && f !== parentKey);
+
+    const commands: CliCommand[] = [];
+    for (const subFile of subFiles) {
+      const doc = allDocs.get(subFile);
+      if (doc) {
+        commands.push(doc);
+        usedFiles.add(subFile);
+      }
+    }
+
+    groups.push({
+      id: `cmd-${groupName}`,
+      name: parentDoc.name.replace("bc ", ""),
+      description: parentDoc.description,
+      alias: meta.alias,
+      commands,
+    });
+  }
+
+  // Sort groups by order
+  groups.sort((a, b) => {
+    const orderA =
+      GROUP_META[a.name.toLowerCase()]?.order ?? 999;
+    const orderB =
+      GROUP_META[b.name.toLowerCase()]?.order ?? 999;
+    return orderA - orderB;
+  });
+
+  // Standalone commands
+  const standalone: CliCommand[] = [];
+  for (const cmdName of STANDALONE_COMMANDS) {
+    const key = cmdName.replace(/ /g, "_");
+    const doc = allDocs.get(key);
+    if (doc) {
+      standalone.push(doc);
+      usedFiles.add(key);
+    }
+  }
+
+  return { groups, standalone };
+}
