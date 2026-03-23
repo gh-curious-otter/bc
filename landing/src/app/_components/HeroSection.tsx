@@ -46,7 +46,7 @@ export function HeroSection() {
             AI In a Box.
             <br />
             <span className="text-muted-foreground/40">
-              Run. Coordinate. Ship.
+              Let them cook.
             </span>
           </motion.h1>
 
