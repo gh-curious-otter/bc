@@ -11,62 +11,50 @@ const PRINCIPLES = [
   {
     number: "01",
     title: "Isolation",
-    subtitle: "Every agent needs its own workspace.",
-    content: `When multiple AI agents work on the same codebase, conflicts are inevitable unless each agent operates in complete isolation. bc gives every agent its own git worktree — a full copy of the repository on its own branch. No shared state. No merge conflicts from parallel edits. Clean pull requests that merge the first time, every time.
+    subtitle: "One workspace per agent. Always.",
+    content: `Multiple agents on one branch means force pushes, broken builds, and hours lost to conflict resolution. We learned this the hard way. bc gives every agent its own git worktree — a full copy of the repository on its own branch. No shared state. No conflicts. Pull requests that merge clean, every time.
 
-This principle was born from failure. An earlier system we built let agents share branches. The result was force pushes overwriting each other's work, broken builds from conflicting changes, and hours spent on manual conflict resolution. The founding lesson was simple: one workspace per agent, always.
-
-Isolation is not just about preventing conflicts. It gives each agent the freedom to experiment, refactor, and iterate without fear of breaking someone else's work. It is the foundation that makes everything else possible.`,
+Isolation is the foundation. Without it, nothing else works.`,
   },
   {
     number: "02",
     title: "Communication",
-    subtitle: "Agents coordinate through structure, not chaos.",
-    content: `Isolated agents working in silence produce fragmented results. Coordination requires structure. bc provides persistent channels where agents post updates, request reviews, hand off work, and mention each other by name. Every message is logged, searchable, and delivered reliably.
+    subtitle: "Structure turns agents into a team.",
+    content: `Isolated agents working in silence produce fragmented results. bc provides persistent channels where agents post updates, request reviews, hand off work, and mention each other by name. Every message is logged, searchable, and delivered reliably.
 
-Without structured communication, agents duplicate effort, miss context, and make contradictory decisions. With it, they become a team — passing context forward, building on each other's work, and converging toward a shared goal. The difference between five agents and a five-agent team is communication.
-
-This mirrors how real engineering organizations work. People do not coordinate by reading each other's code diffs. They coordinate through conversation, review, and explicit handoffs. AI agents need the same structure.`,
+The difference between five agents and a five-agent team is communication. Without it, agents duplicate effort and make contradictory decisions. With it, they converge.`,
   },
   {
     number: "03",
     title: "Visibility",
-    subtitle: "Trust requires transparency.",
-    content: `Running five AI agents in parallel is only useful if you can see what they are doing. Not just their output — their costs, their resource usage, their activity patterns, their tool invocations. Visibility is the mechanism that builds trust between you and your agents.
+    subtitle: "Trust is built through transparency.",
+    content: `You cannot trust what you cannot see. bc tracks every token, every cost, every resource spike, every tool invocation, every channel message. All attributed. All in real time. When you see the complete picture, you intervene early — not after the damage is done.
 
-Every token is tracked. Every cost is attributed to the agent that incurred it. Resource usage — CPU, memory, disk — is monitored in real time. Channel activity shows who is talking to whom. Event logs capture the full timeline. When you can see the complete picture, you can intervene early when something drifts instead of discovering problems after the damage is done.
-
-This principle was born from a concrete problem: agents running unchecked for hours, burning through hundreds of dollars in API tokens before anyone noticed. The teams that scale AI agent usage successfully are the ones that treat visibility as a first-class requirement, not an afterthought.`,
+We built this because agents burned through hundreds of dollars before anyone noticed. Visibility is not a dashboard feature. It is a safety mechanism.`,
   },
   {
     number: "04",
     title: "Persistence",
-    subtitle: "Agents iterate toward goals. They do not give up.",
-    content: `Most AI agents run once and stop. They hit an error, they halt. They encounter a complex task, they produce a partial solution and declare it done. This is not how real work gets accomplished.
+    subtitle: "A tool runs once. A teammate finishes the job.",
+    content: `Most agents hit an error and stop. They encounter complexity and produce a half-solution. The bc method is different: define a goal, and the agent iterates. Read state. Implement one piece. Verify. Commit. Loop. Each cycle starts fresh, self-corrects from failures, and moves closer to the objective.
 
-The bc method is different. Instead of running an agent once and hoping for the best, you define a goal and the agent iterates — reading the current state, implementing one piece, verifying the result, committing if it passes, and looping again. Each iteration starts with fresh context, reads external state rather than relying on stale memory, and self-corrects from previous failures.
-
-This is what separates a tool from a teammate. A tool runs once. A teammate persists until the job is done. Complex tasks decompose recursively — large goals break into medium goals, medium into small, small into single commits. The loop continues until every piece is complete and the whole is verified. Persistence is not stubbornness. It is structured determination.`,
+Complex goals decompose recursively — large into medium, medium into small, small into single commits. The loop runs until every piece is done and the whole is verified. Persistence is not stubbornness. It is structured determination.`,
   },
   {
     number: "05",
     title: "Surface",
-    subtitle: "The boundary of what agents can do should always expand.",
-    content: `An AI agent that can only edit files is fundamentally limited. Real development involves filing issues, reviewing pull requests, testing in browsers, querying databases, deploying services, and communicating across tools. The surface area of what an agent can interact with determines how useful it can be.
+    subtitle: "An agent that can only edit files is not enough.",
+    content: `Real development means filing issues, reviewing pull requests, testing in browsers, querying databases, deploying services. The surface area of what an agent can touch determines how useful it becomes. bc expands that surface through standardized, role-scoped tool integrations.
 
-bc treats tool integration as a core architectural concern, not a plugin afterthought. Agents connect to external systems through standardized protocols, gaining typed and permissioned access to capabilities that match their role. An engineer agent gets different tools than a manager agent. The surface expands, but within boundaries.
-
-The long-term trajectory is clear: every system a developer touches should be reachable by an agent. Not through raw API keys and ad-hoc scripts, but through curated, role-appropriate integrations that make agents full participants in the development process.`,
+Every system a developer touches should be reachable by an agent — not through raw API keys, but through curated capabilities that match the agent's role. The surface expands. The boundaries hold.`,
   },
   {
     number: "06",
     title: "Openness",
     subtitle: "Knowledge should be free and accessible to all.",
-    content: `Gating tools behind company walls only slows progress. The problems of multi-agent orchestration — isolation, coordination, cost control, goal persistence — are universal. Every team running AI agents faces them. Solutions to universal problems should be universally available.
+    content: `The problems of multi-agent orchestration are universal. Every team running AI agents faces them. Gating solutions behind company walls only slows everyone down.
 
-bc is open source not as a marketing strategy, but as a conviction. The orchestration layer should be transparent, auditable, and improvable by anyone who uses it. When the tool that coordinates your AI agents is a black box, you cannot trust it. When it is open, you can verify every decision it makes.
-
-This extends beyond code. Documentation, design decisions, architecture trade-offs, and even the failures that shaped these principles — all of it is public. The best tools are built in the open, shaped by the people who use them, and owned by no one.`,
+bc is open source as a conviction, not a strategy. The orchestration layer should be transparent, auditable, and improvable by anyone. When the tool coordinating your agents is a black box, you cannot trust it. When it is open, you can verify every decision it makes. The best tools are built in the open and owned by no one.`,
   },
 ];
 
