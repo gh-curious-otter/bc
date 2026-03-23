@@ -160,17 +160,10 @@ export default function PricingPage() {
             animate="visible"
             className="text-center mb-16"
           >
-            <motion.span
-              variants={fadeUp}
-              custom={0}
-              className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground"
-            >
-              Pricing
-            </motion.span>
             <motion.h1
               variants={fadeUp}
               custom={1}
-              className="mt-3 text-4xl font-bold tracking-tight sm:text-6xl"
+              className="text-4xl font-bold tracking-tight sm:text-6xl"
             >
               Pricing
             </motion.h1>
@@ -202,12 +195,9 @@ export default function PricingPage() {
 
               <div className="mb-6">
                 <h2 className="text-xl font-bold">Free</h2>
-                <div className="mt-4 flex items-baseline gap-1">
+                <div className="mt-4">
                   <span className="text-5xl font-bold tracking-tight">
-                    &#8377;0
-                  </span>
-                  <span className="text-muted-foreground text-sm">
-                    / forever
+                    Free
                   </span>
                 </div>
                 <p className="mt-3 text-sm text-muted-foreground">
@@ -215,20 +205,13 @@ export default function PricingPage() {
                 </p>
               </div>
 
-              {/* Tech icons */}
-              <div className="flex items-center gap-3 mb-6 text-muted-foreground">
-                <span title="Docker" className="flex items-center gap-1 text-xs">
-                  <Container className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <span title="tmux" className="flex items-center gap-1 text-xs">
-                  <Terminal className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <span title="PostgreSQL" className="flex items-center gap-1 text-xs">
-                  <Database className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <span title="SQLite" className="flex items-center gap-1 text-xs">
-                  <Server className="h-4 w-4" aria-hidden="true" />
-                </span>
+              {/* Tech stack */}
+              <div className="flex flex-wrap items-center gap-2 mb-6">
+                {["Docker", "tmux", "PostgreSQL", "SQLite"].map((t) => (
+                  <span key={t} className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider bg-muted/30 text-muted-foreground border border-border/50">
+                    {t}
+                  </span>
+                ))}
               </div>
 
               {/* Install cards */}
@@ -299,20 +282,13 @@ export default function PricingPage() {
                 ))}
               </ul>
 
-              {/* Tech icons */}
-              <div className="flex items-center gap-3 mb-6 text-muted-foreground">
-                <span title="Kubernetes" className="flex items-center">
-                  <Cpu className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <span title="Cloud" className="flex items-center">
-                  <Cloud className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <span title="Terminal" className="flex items-center">
-                  <Terminal className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <span title="API Keys" className="flex items-center">
-                  <Key className="h-4 w-4" aria-hidden="true" />
-                </span>
+              {/* Tech stack */}
+              <div className="flex flex-wrap items-center gap-2 mb-6">
+                {["Kubernetes", "AWS", "GCP", "SSH", "MCP"].map((t) => (
+                  <span key={t} className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider bg-muted/30 text-muted-foreground border border-border/50">
+                    {t}
+                  </span>
+                ))}
               </div>
 
               <Link
