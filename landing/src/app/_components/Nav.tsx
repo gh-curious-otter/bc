@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useRef, useEffect } from "react";
-import { Menu, X, ExternalLink, Copy, Check } from "lucide-react";
+import { Menu, X, Copy, Check, Apple, Monitor, Container } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 
 const links = [
@@ -60,14 +60,89 @@ function HamburgerButton({
   );
 }
 
+function InstallRow({
+  icon: Icon,
+  label,
+  cmd,
+  copied,
+  onCopy,
+}: {
+  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+  label: string;
+  cmd: string;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <div
+      className="px-3 py-2.5 hover:bg-accent/30 transition-colors cursor-default"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <div className="flex items-center gap-2.5">
+        <Icon
+          className="h-4 w-4 text-muted-foreground shrink-0"
+          aria-hidden={true}
+        />
+        <span className="text-sm font-medium text-foreground">{label}</span>
+      </div>
+      <motion.div
+        initial={false}
+        animate={{
+          height: hovered ? "auto" : 0,
+          opacity: hovered ? 1 : 0,
+          marginTop: hovered ? 8 : 0,
+        }}
+        transition={{ duration: 0.2, ease: "easeInOut" }}
+        className="overflow-hidden"
+      >
+        <div className="flex items-center gap-1.5 bg-muted/50 rounded px-2 py-1.5">
+          <code className="text-xs font-mono text-foreground flex-1 min-w-0 truncate">
+            {cmd}
+          </code>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onCopy();
+            }}
+            className="shrink-0 p-1 rounded hover:bg-accent transition-colors"
+            aria-label={`Copy ${label} install command`}
+          >
+            {copied ? (
+              <Check className="h-3.5 w-3.5 text-green-500" />
+            ) : (
+              <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+            )}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 function GetStartedDropdown() {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
-  const commands = [
-    { label: "Homebrew", cmd: "brew install bcinfra1/tap/bc" },
-    { label: "Go Install", cmd: "go install github.com/bcinfra1/bc@latest" },
+  const platforms = [
+    {
+      icon: Apple,
+      label: "macOS / Linux",
+      cmd: "go install github.com/rpuneet/bc/cmd/bc@latest",
+    },
+    {
+      icon: Monitor,
+      label: "Windows",
+      cmd: "go install github.com/rpuneet/bc/cmd/bc@latest",
+    },
+    {
+      icon: Container,
+      label: "Docker",
+      cmd: "docker pull bcinfra/bc:latest",
+    },
   ];
 
   useEffect(() => {
@@ -78,12 +153,6 @@ function GetStartedDropdown() {
     if (open) document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
-
-  function copy(cmd: string) {
-    navigator.clipboard.writeText(cmd);
-    setCopied(cmd);
-    setTimeout(() => setCopied(null), 2000);
-  }
 
   return (
     <div className="relative" ref={ref}>
@@ -102,63 +171,24 @@ function GetStartedDropdown() {
             transition={{ duration: 0.15 }}
             className="absolute right-0 top-full mt-2 w-80 rounded-lg border border-border bg-card shadow-xl overflow-hidden z-50"
           >
-            <a
-              href="https://github.com/bcinfra1/bc"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3 py-3 flex items-center gap-3 hover:bg-accent/30 transition-colors border-b border-border/60"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                className="h-5 w-5 text-foreground shrink-0"
-                aria-hidden="true"
-              >
-                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-              </svg>
-              <div>
-                <div className="text-sm font-medium text-foreground">
-                  View on GitHub
-                </div>
-                <div className="text-[11px] text-muted-foreground">
-                  Source code, issues &amp; releases
-                </div>
-              </div>
-              <ExternalLink
-                className="h-3.5 w-3.5 text-muted-foreground ml-auto shrink-0"
-                aria-hidden="true"
-              />
-            </a>
             <div className="px-3 py-2 border-b border-border/60">
               <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-                Install via CLI
+                Install
               </span>
             </div>
-            {commands.map((c) => (
-              <div
-                key={c.label}
-                className="px-3 py-2.5 flex items-center gap-2 hover:bg-accent/30 transition-colors group"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="text-[10px] font-medium text-muted-foreground mb-0.5">
-                    {c.label}
-                  </div>
-                  <code className="text-xs font-mono text-foreground block truncate">
-                    {c.cmd}
-                  </code>
-                </div>
-                <button
-                  onClick={() => copy(c.cmd)}
-                  className="shrink-0 p-1 rounded hover:bg-accent transition-colors"
-                  aria-label={`Copy ${c.label} command`}
-                >
-                  {copied === c.cmd ? (
-                    <Check className="h-3.5 w-3.5 text-success" />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                  )}
-                </button>
-              </div>
+            {platforms.map((p) => (
+              <InstallRow
+                key={p.label}
+                icon={p.icon}
+                label={p.label}
+                cmd={p.cmd}
+                copied={copied === p.label}
+                onCopy={() => {
+                  navigator.clipboard.writeText(p.cmd);
+                  setCopied(p.label);
+                  setTimeout(() => setCopied(null), 2000);
+                }}
+              />
             ))}
             <div className="px-3 py-2 border-t border-border/60 bg-muted/30">
               <Link
@@ -285,32 +315,21 @@ export function Nav() {
               ))}
               <div className="h-px bg-border/40 my-1" />
               <div className="px-3 py-2">
-                <a
-                  href="https://github.com/bcinfra1/bc"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={handleLinkClick}
-                  className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors mb-2"
-                >
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    className="h-4 w-4"
-                    aria-hidden="true"
-                  >
-                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-                  </svg>
-                  View on GitHub
-                </a>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground mb-2">
+                  Install
+                </div>
                 <code className="block text-xs font-mono text-foreground bg-muted/50 rounded px-2.5 py-2 mb-1.5">
-                  brew install bcinfra1/tap/bc
+                  go install github.com/rpuneet/bc/cmd/bc@latest
+                </code>
+                <code className="block text-xs font-mono text-foreground bg-muted/50 rounded px-2.5 py-2 mb-1.5">
+                  docker pull bcinfra/bc:latest
                 </code>
                 <Link
                   href="/docs#installation"
                   onClick={handleLinkClick}
                   className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  More install options →
+                  Full installation guide →
                 </Link>
               </div>
               <div className="h-px bg-border/40 my-1" />
