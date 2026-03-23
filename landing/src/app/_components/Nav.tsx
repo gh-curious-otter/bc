@@ -11,7 +11,7 @@ const links = [
   { href: "/product", label: "Product" },
   { href: "/method", label: "Method" },
   { href: "/docs", label: "Docs" },
-  { href: "/pricing", label: "Pricing" },
+  { href: "/install", label: "Install" },
 ];
 
 function Logo() {

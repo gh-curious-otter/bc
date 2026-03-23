@@ -50,7 +50,7 @@ function BentoCard({
       animate={inView ? "visible" : "hidden"}
       variants={fadeUp}
       transition={{ delay }}
-      className={`group rounded-xl border border-border bg-card/80 backdrop-blur-sm overflow-hidden transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 ${className}`}
+      className={`bento-card group rounded-xl border border-border bg-card/80 backdrop-blur-sm overflow-hidden ${className}`}
     >
       {screenshot && (
         <div className="overflow-hidden">

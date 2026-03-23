@@ -40,10 +40,10 @@ export function Footer() {
                 Features
               </Link>
               <Link
-                href="/pricing"
+                href="/install"
                 className="hover:text-foreground transition-colors"
               >
-                Pricing
+                Install
               </Link>
               <Link
                 href="/method"

@@ -399,6 +399,34 @@ input:focus-visible,
 
 .docs-sidebar-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(234, 88, 12, 0.3);
+}
+
 .method-page .method-principle-label {
   letter-spacing: 0.3em;
+}
+
+/* ── Terminal blinking cursor ── */
+.terminal-cursor {
+  animation: blink 1s step-end infinite;
+}
+
+/* ── Card hover glow for bento grid ── */
+.bento-card {
+  transition:
+    border-color 200ms ease,
+    box-shadow 200ms ease,
+    transform 200ms ease;
+}
+
+.bento-card:hover {
+  border-color: rgba(234, 88, 12, 0.3);
+  box-shadow: 0 0 20px rgba(234, 88, 12, 0.08);
+  transform: scale(1.01);
+}
+
+/* ── CTA button hover glow ── */
+.cta-glow:hover {
+  box-shadow:
+    0 1px 4px rgba(234, 88, 12, 0.3),
+    0 4px 16px rgba(234, 88, 12, 0.15);
 }

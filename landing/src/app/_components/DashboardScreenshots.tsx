@@ -61,14 +61,21 @@ export function DashboardScreenshots() {
 
       {/* Screenshot */}
       <div className="overflow-hidden rounded-xl border border-border shadow-2xl bg-card">
-        <Image
-          src={TABS[active].src}
-          alt={TABS[active].alt}
-          width={1200}
-          height={750}
-          className="w-full h-auto"
-          priority={active === 0}
-        />
+        <div className="relative">
+          {TABS.map((tab, i) => (
+            <Image
+              key={tab.id}
+              src={tab.src}
+              alt={tab.alt}
+              width={1200}
+              height={750}
+              className={`w-full h-auto transition-opacity duration-300 ease-in-out ${
+                i === active ? "opacity-100 relative" : "opacity-0 absolute inset-0"
+              }`}
+              priority={i === 0}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

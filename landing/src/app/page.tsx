@@ -4,7 +4,6 @@ import { DashboardScreenshots } from "./_components/DashboardScreenshots";
 import { Footer } from "./_components/Footer";
 import { HeroSection } from "./_components/HeroSection";
 import { BentoGrid } from "./_components/BentoGrid";
-import { StatsBar } from "./_components/StatsBar";
 import {
   TerminalWindow,
   CommandOutput,
@@ -19,6 +18,8 @@ export default function Home() {
     <main className="min-h-screen selection:bg-primary/20 selection:text-foreground overflow-x-hidden">
       {/* Gradient overlay */}
       <div className="pointer-events-none fixed inset-0 z-[1] bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(234,88,12,0.04),transparent)] dark:bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(234,88,12,0.08),transparent)]" />
+      {/* Noise texture overlay */}
+      <div className="pointer-events-none fixed inset-0 z-[1] opacity-[0.025] dark:opacity-[0.03] bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIj48ZmlsdGVyIGlkPSJhIj48ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iLjc1IiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsdGVyPSJ1cmwoI2EpIi8+PC9zdmc+')]" />
 
       <div className="relative z-[2]">
         <Nav />
@@ -26,19 +27,14 @@ export default function Home() {
         {/* Hero */}
         <HeroSection />
 
-        {/* Stats Bar */}
-        <div className="mt-12 sm:mt-16">
-          <StatsBar />
-        </div>
-
         {/* Tool Carousel */}
-        <div className="mt-8 sm:mt-12 lg:mt-16 mx-auto max-w-6xl px-4 sm:px-6">
+        <div className="mt-12 sm:mt-16 lg:mt-20 mx-auto max-w-6xl px-4 sm:px-6">
           <ToolMarquee />
         </div>
 
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           {/* Problem / Solution */}
-          <RevealSection className="py-12 sm:py-16 lg:py-24" id="problem">
+          <RevealSection className="py-16 sm:py-20 lg:py-28" id="problem">
             <div className="mb-16">
               <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 The problem
@@ -100,7 +96,7 @@ export default function Home() {
           </RevealSection>
 
           {/* How It Works */}
-          <RevealSection className="py-12 sm:py-16 lg:py-24" id="how-it-works">
+          <RevealSection className="py-16 sm:py-20 lg:py-28" id="how-it-works">
             <div className="mb-16 text-center">
               <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 How it works
@@ -171,7 +167,7 @@ export default function Home() {
           </RevealSection>
 
           {/* Feature Bento Grid */}
-          <RevealSection className="py-12 sm:py-16 lg:py-24" id="features">
+          <RevealSection className="py-16 sm:py-20 lg:py-28" id="features">
             <div className="mb-16 text-center">
               <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 Features
@@ -184,7 +180,7 @@ export default function Home() {
           </RevealSection>
 
           {/* Dashboard Preview */}
-          <RevealSection className="py-12 sm:py-16 lg:py-24" id="demo">
+          <RevealSection className="py-16 sm:py-20 lg:py-28" id="demo">
             <div className="mb-12 text-center">
               <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 Dashboard
@@ -202,7 +198,7 @@ export default function Home() {
           </RevealSection>
 
           {/* Final CTA */}
-          <RevealSection className="pb-12 sm:pb-16 lg:pb-24">
+          <RevealSection className="pb-16 sm:pb-20 lg:pb-28">
             <div className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--card-shadow)]">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(234,88,12,0.04),transparent)] dark:bg-[radial-gradient(circle_at_30%_50%,rgba(234,88,12,0.06),transparent)] pointer-events-none" />
               <div className="relative grid items-center gap-8 p-8 sm:p-12 lg:grid-cols-[1fr_auto] lg:gap-16 lg:p-16">
@@ -216,7 +212,7 @@ export default function Home() {
                   <div className="mt-8 flex flex-wrap items-center gap-4">
                     <Link
                       href="https://github.com/gh-curious-otter/bc"
-                      className="group inline-flex h-12 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-xl active:scale-[0.97]"
+                      className="cta-glow group inline-flex h-12 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-xl active:scale-[0.97]"
                       aria-label="Get started with bc on GitHub"
                     >
                       Get Started
@@ -253,6 +249,7 @@ export default function Home() {
                     </div>
                     <div className="text-terminal-comment mt-3 text-[12px]">
                       # That&apos;s it. Your agent team is running.
+                      <span className="inline-block w-[7px] h-[14px] bg-terminal-prompt ml-1 align-middle animate-[blink_1s_step-end_infinite]" />
                     </div>
                   </div>
                 </TerminalWindow>

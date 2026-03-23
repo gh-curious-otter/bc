@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { ArrowRight, CheckCircle2, Layers } from "lucide-react";
+import { ArrowRight, Circle } from "lucide-react";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -66,7 +66,7 @@ export function HeroSection() {
           >
             <Link
               href="https://github.com/gh-curious-otter/bc"
-              className="group inline-flex h-10 sm:h-11 items-center gap-2 rounded-lg bg-primary px-6 sm:px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-xl hover:shadow-primary/20 active:scale-[0.97]"
+              className="cta-glow group inline-flex h-10 sm:h-11 items-center gap-2 rounded-lg bg-primary px-6 sm:px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-xl hover:shadow-primary/20 active:scale-[0.97]"
               aria-label="Get started with bc on GitHub"
             >
               Get Started
@@ -87,17 +87,28 @@ export function HeroSection() {
           <motion.div
             variants={fadeUp}
             custom={4}
-            className="mt-8 flex flex-wrap items-center gap-6 font-mono text-xs text-muted-foreground"
+            className="mt-6 flex flex-wrap items-center gap-4 font-mono text-xs text-muted-foreground"
           >
             <span className="flex items-center gap-1.5">
-              <CheckCircle2
-                className="h-3.5 w-3.5 text-success"
+              <Circle
+                className="h-2.5 w-2.5 text-primary/50"
                 aria-hidden="true"
               />
               Open source
             </span>
             <span className="flex items-center gap-1.5">
-              <Layers className="h-3.5 w-3.5" aria-hidden="true" />7 AI tools
+              <Circle
+                className="h-2.5 w-2.5 text-primary/50"
+                aria-hidden="true"
+              />
+              CLI-first
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Circle
+                className="h-2.5 w-2.5 text-primary/50"
+                aria-hidden="true"
+              />
+              Local
             </span>
           </motion.div>
         </div>
