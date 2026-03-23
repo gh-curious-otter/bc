@@ -14,6 +14,7 @@ import {
   GitBranch,
   ExternalLink,
 } from "lucide-react";
+import { TechTags } from "../_components/TechIcon";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -99,20 +100,6 @@ function InstallRow({ icon: Icon, title, command }: InstallRowProps) {
   );
 }
 
-function TechTags({ tags }: { tags: string[] }) {
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {tags.map((t) => (
-        <span
-          key={t}
-          className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-muted/40 text-muted-foreground"
-        >
-          {t.toLowerCase()}
-        </span>
-      ))}
-    </div>
-  );
-}
 
 interface FAQItemProps {
   question: string;
