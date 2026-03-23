@@ -12,7 +12,7 @@ const PRINCIPLES = [
     number: "01",
     title: "Isolation",
     subtitle: "One workspace per agent. Always.",
-    content: `Multiple agents on one branch means force pushes, broken builds, and hours lost to conflict resolution. We learned this the hard way. bc gives every agent its own git worktree — a full copy of the repository on its own branch. No shared state. No conflicts. Pull requests that merge clean, every time.
+    content: `Multiple agents on one branch means force pushes, broken builds, and hours lost to conflict resolution. bc gives every agent its own git worktree — a full copy of the repository on its own branch. No shared state. No conflicts. Pull requests that merge clean, every time.
 
 Isolation is the foundation. Without it, nothing else works.`,
   },
@@ -30,7 +30,7 @@ The difference between five agents and a five-agent team is communication. Witho
     subtitle: "Trust is built through transparency.",
     content: `You cannot trust what you cannot see. bc tracks every token, every cost, every resource spike, every tool invocation, every channel message. All attributed. All in real time. When you see the complete picture, you intervene early — not after the damage is done.
 
-We built this because agents burned through hundreds of dollars before anyone noticed. Visibility is not a dashboard feature. It is a safety mechanism.`,
+Agents left unchecked burn through budgets silently. Visibility is not a dashboard feature. It is a safety mechanism.`,
   },
   {
     number: "04",
@@ -83,18 +83,15 @@ export default function MethodPage() {
         {/* Introduction */}
         <div className="prose-section mb-20">
           <p className="text-lg leading-relaxed text-muted-foreground">
-            Running a single AI coding agent is straightforward. Running five or
-            ten agents on the same codebase, in parallel, without chaos — that
-            requires a method.
+            There is a growing art to coordinating AI coding agents effectively.
+            Running a single agent is straightforward. Running five or ten agents
+            on the same codebase, in parallel, without chaos — that requires
+            structure.
           </p>
           <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
-            We learned this the hard way. Before bc, we built an orchestrator
-            where agents shared branches, had no communication structure, and ran
-            with unlimited budgets. The result was expensive chaos. These six
-            principles emerged from that failure and from every iteration since.
-          </p>
-          <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
-            They are not features. They are design convictions that shape
+            We built bc around six principles that we believe are essential for
+            any team that wants to scale AI agent usage beyond one agent at a
+            time. These are not features. They are design convictions that shape
             everything bc does.
           </p>
         </div>
