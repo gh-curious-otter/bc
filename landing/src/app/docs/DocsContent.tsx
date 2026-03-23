@@ -10,6 +10,7 @@ import {
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import type { CommandGroup, CliCommand } from "@/lib/cli-docs";
+import type { DocsSection } from "@/lib/docs-loader";
 import {
   GitBranch,
   MessageSquare,
@@ -31,6 +32,10 @@ import {
   Hash,
   Settings,
   FolderTree,
+  BookOpen,
+  Lightbulb,
+  FileText,
+  Compass,
 } from "lucide-react";
 
 /* ── Copy button ── */
@@ -97,8 +102,19 @@ const GROUP_ICONS: Record<
   env: FolderTree,
 };
 
-/* ── Collapsible command section ── */
-function CommandSection({
+/* ── Section icons ── */
+const SECTION_ICONS: Record<
+  string,
+  React.ComponentType<{ className?: string }>
+> = {
+  tutorials: BookOpen,
+  "how-to": Compass,
+  reference: FileText,
+  explanation: Lightbulb,
+};
+
+/* ── Collapsible section ── */
+function CollapsibleSection({
   id,
   title,
   alias,
@@ -175,7 +191,6 @@ function ConceptCard({
 
 /* ── Render a command group's subcommands ── */
 function CommandGroupContent({ group }: { group: CommandGroup }) {
-  // Build a usage summary from subcommands
   const lines = group.commands.map((cmd) => {
     const shortName = cmd.name;
     const paddedName = shortName.padEnd(40);
@@ -203,7 +218,6 @@ function CommandGroupContent({ group }: { group: CommandGroup }) {
 }
 
 function SubcommandDetail({ cmd }: { cmd: CliCommand }) {
-  // Filter out just the -h/--help line
   const meaningfulOptions = cmd.options
     .split("\n")
     .filter((l) => !l.match(/^\s*-h,\s+--help/) && l.trim())
@@ -242,18 +256,319 @@ function StandaloneCommandsContent({
   return <CodeBlock code={lines.join("\n")} />;
 }
 
+/* ── Markdown renderer ── */
+function MarkdownContent({ content }: { content: string }) {
+  const lines = content.split("\n");
+  const elements: React.ReactNode[] = [];
+  let i = 0;
+  let key = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // Skip the first H1 (already shown as section title)
+    if (line.startsWith("# ") && key === 0) {
+      i++;
+      // Skip blank line after title
+      if (i < lines.length && lines[i].trim() === "") i++;
+      // Skip the description line (already shown)
+      if (
+        i < lines.length &&
+        lines[i].trim() &&
+        !lines[i].startsWith("#") &&
+        !lines[i].startsWith("```")
+      ) {
+        i++;
+      }
+      continue;
+    }
+
+    // Code blocks
+    if (line.startsWith("```")) {
+      const codeLines: string[] = [];
+      i++;
+      while (i < lines.length && !lines[i].startsWith("```")) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      i++; // skip closing ```
+      const code = codeLines.join("\n");
+      if (code.trim()) {
+        elements.push(
+          <div key={key++} className="my-3">
+            <CodeBlock code={code} />
+          </div>,
+        );
+      }
+      continue;
+    }
+
+    // Headings
+    if (line.startsWith("## ")) {
+      elements.push(
+        <h3
+          key={key++}
+          className="text-lg font-bold tracking-tight mt-8 mb-3 text-foreground"
+        >
+          {line.replace("## ", "")}
+        </h3>,
+      );
+      i++;
+      continue;
+    }
+    if (line.startsWith("### ")) {
+      elements.push(
+        <h4
+          key={key++}
+          className="text-sm font-bold tracking-tight mt-6 mb-2 text-foreground"
+        >
+          {line.replace("### ", "")}
+        </h4>,
+      );
+      i++;
+      continue;
+    }
+
+    // Blockquotes
+    if (line.startsWith("> ")) {
+      elements.push(
+        <blockquote
+          key={key++}
+          className="border-l-2 border-primary/30 pl-4 my-3 text-sm text-muted-foreground italic"
+        >
+          {line.replace(/^>\s*/, "")}
+        </blockquote>,
+      );
+      i++;
+      continue;
+    }
+
+    // Unordered list items
+    if (line.match(/^[-*]\s/)) {
+      const listItems: string[] = [];
+      while (i < lines.length && lines[i].match(/^[-*]\s/)) {
+        listItems.push(lines[i].replace(/^[-*]\s/, ""));
+        i++;
+      }
+      elements.push(
+        <ul key={key++} className="list-disc pl-5 my-3 space-y-1">
+          {listItems.map((item, idx) => (
+            <li
+              key={idx}
+              className="text-sm text-muted-foreground leading-relaxed"
+            >
+              <InlineMarkdown text={item} />
+            </li>
+          ))}
+        </ul>,
+      );
+      continue;
+    }
+
+    // Ordered list items
+    if (line.match(/^\d+\.\s/)) {
+      const listItems: string[] = [];
+      while (i < lines.length && lines[i].match(/^\d+\.\s/)) {
+        listItems.push(lines[i].replace(/^\d+\.\s/, ""));
+        i++;
+      }
+      elements.push(
+        <ol key={key++} className="list-decimal pl-5 my-3 space-y-1">
+          {listItems.map((item, idx) => (
+            <li
+              key={idx}
+              className="text-sm text-muted-foreground leading-relaxed"
+            >
+              <InlineMarkdown text={item} />
+            </li>
+          ))}
+        </ol>,
+      );
+      continue;
+    }
+
+    // Blank lines
+    if (!line.trim()) {
+      i++;
+      continue;
+    }
+
+    // ASCII art / diagrams (lines with lots of special chars like +, |, -)
+    if (line.match(/^[\s+\-|/\\><=*#`]+$/) && line.trim().length > 3) {
+      // Collect the whole diagram block
+      const diagramLines: string[] = [line];
+      i++;
+      while (
+        i < lines.length &&
+        (lines[i].match(/^[\s+\-|/\\><=*#`]+$/) ||
+          lines[i].match(/^\s*[|+]/) ||
+          lines[i].match(/^\s{2,}\S/))
+      ) {
+        diagramLines.push(lines[i]);
+        i++;
+      }
+      elements.push(
+        <pre
+          key={key++}
+          className="my-3 text-[11px] font-mono text-muted-foreground bg-muted/50 rounded-lg px-4 py-3 overflow-x-auto"
+        >
+          <code>{diagramLines.join("\n")}</code>
+        </pre>,
+      );
+      continue;
+    }
+
+    // Regular paragraph
+    elements.push(
+      <p
+        key={key++}
+        className="text-sm text-muted-foreground leading-relaxed my-2"
+      >
+        <InlineMarkdown text={line} />
+      </p>,
+    );
+    i++;
+  }
+
+  return <div>{elements}</div>;
+}
+
+/* ── Inline markdown (bold, code, links) ── */
+function InlineMarkdown({ text }: { text: string }) {
+  // Split on inline code, bold, and links
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let partKey = 0;
+
+  while (remaining.length > 0) {
+    // Inline code
+    const codeMatch = remaining.match(/^(.*?)`([^`]+)`(.*)$/);
+    // Bold
+    const boldMatch = remaining.match(/^(.*?)\*\*([^*]+)\*\*(.*)$/);
+    // Links
+    const linkMatch = remaining.match(/^(.*?)\[([^\]]+)\]\(([^)]+)\)(.*)$/);
+
+    // Find the earliest match
+    let earliest: {
+      type: string;
+      pre: string;
+      content: string;
+      post: string;
+      href?: string;
+    } | null = null;
+    let earliestIdx = Infinity;
+
+    if (codeMatch && codeMatch[1].length < earliestIdx) {
+      earliestIdx = codeMatch[1].length;
+      earliest = {
+        type: "code",
+        pre: codeMatch[1],
+        content: codeMatch[2],
+        post: codeMatch[3],
+      };
+    }
+    if (boldMatch && boldMatch[1].length < earliestIdx) {
+      earliestIdx = boldMatch[1].length;
+      earliest = {
+        type: "bold",
+        pre: boldMatch[1],
+        content: boldMatch[2],
+        post: boldMatch[3],
+      };
+    }
+    if (linkMatch && linkMatch[1].length < earliestIdx) {
+      earliestIdx = linkMatch[1].length;
+      earliest = {
+        type: "link",
+        pre: linkMatch[1],
+        content: linkMatch[2],
+        post: linkMatch[4],
+        href: linkMatch[3],
+      };
+    }
+
+    if (!earliest) {
+      parts.push(<span key={partKey++}>{remaining}</span>);
+      break;
+    }
+
+    if (earliest.pre) {
+      parts.push(<span key={partKey++}>{earliest.pre}</span>);
+    }
+
+    if (earliest.type === "code") {
+      parts.push(
+        <code
+          key={partKey++}
+          className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono text-primary"
+        >
+          {earliest.content}
+        </code>,
+      );
+    } else if (earliest.type === "bold") {
+      parts.push(
+        <strong key={partKey++} className="font-semibold text-foreground">
+          {earliest.content}
+        </strong>,
+      );
+    } else if (earliest.type === "link") {
+      parts.push(
+        <span
+          key={partKey++}
+          className="text-primary/80"
+        >
+          {earliest.content}
+        </span>,
+      );
+    }
+
+    remaining = earliest.post;
+  }
+
+  return <>{parts}</>;
+}
+
+/* ── Article card for doc sections ── */
+function ArticleCard({
+  title,
+  description,
+  onClick,
+}: {
+  title: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/20 hover:bg-accent/30"
+    >
+      <h4 className="font-semibold text-sm mb-1">{title}</h4>
+      {description && (
+        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+          {description}
+        </p>
+      )}
+    </button>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════════ */
 
 export default function DocsContent({
   groups,
   standalone,
+  sections,
 }: {
   groups: CommandGroup[];
   standalone: CliCommand[];
+  sections: DocsSection[];
 }) {
   const [search, setSearch] = useState("");
+  const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [activeArticle, setActiveArticle] = useState<string | null>(null);
 
-  // Build searchable index
+  // Build searchable index for CLI commands
   const searchableGroups = useMemo(() => {
     return groups.map((g) => ({
       ...g,
@@ -278,6 +593,22 @@ export default function DocsContent({
   }, [search, searchableGroups]);
 
   const isVisible = (id: string) => filteredGroupIds.includes(id);
+
+  // Find active article content
+  const activeArticleData = useMemo(() => {
+    if (!activeSection || !activeArticle) return null;
+    const section = sections.find((s) => s.id === activeSection);
+    if (!section) return null;
+    return section.articles.find((a) => a.slug === activeArticle) ?? null;
+  }, [sections, activeSection, activeArticle]);
+
+  // Section navigation items
+  const sectionNav = [
+    { id: "tutorials", label: "Tutorials" },
+    { id: "how-to", label: "How-To" },
+    { id: "reference", label: "Reference" },
+    { id: "explanation", label: "Explanation" },
+  ];
 
   return (
     <main className="min-h-screen selection:bg-primary/20 selection:text-foreground overflow-x-hidden">
@@ -332,12 +663,43 @@ export default function DocsContent({
           )}
         </div>
 
+        {/* ═══════════════════ SECTION NAV ═══════════════════ */}
+        {!search && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-12">
+            {sectionNav.map((nav) => {
+              const Icon = SECTION_ICONS[nav.id] || FileText;
+              const section = sections.find((s) => s.id === nav.id);
+              const count = section?.articles.length ?? 0;
+              return (
+                <a
+                  key={nav.id}
+                  href={`#section-${nav.id}`}
+                  className="group rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30 hover:bg-accent/30"
+                >
+                  <Icon
+                    className="h-5 w-5 text-primary/60 mb-2 group-hover:text-primary transition-colors"
+                    aria-hidden="true"
+                  />
+                  <div className="font-semibold text-sm">{nav.label}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {count} {count === 1 ? "article" : "articles"}
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+        )}
+
         {/* ═══════════════════ NAV PILLS ═══════════════════ */}
         {!search && (
           <div className="flex flex-wrap gap-2 mb-12">
             {[
               { href: "#quickstart", label: "Quick Start" },
-              { href: "#commands", label: "Commands" },
+              { href: "#section-tutorials", label: "Tutorials" },
+              { href: "#section-how-to", label: "How-To Guides" },
+              { href: "#section-reference", label: "Reference" },
+              { href: "#section-explanation", label: "Explanation" },
+              { href: "#commands", label: "CLI Commands" },
               { href: "#aliases", label: "Aliases" },
               { href: "#config", label: "Configuration" },
               { href: "#env", label: "Env Vars" },
@@ -457,6 +819,76 @@ cd bc && make build`}
             </RevealSection>
           )}
 
+          {/* ═══════════════════ DIATAXIS SECTIONS ═══════════════════ */}
+          {!search &&
+            sections.map((section) => {
+              const Icon = SECTION_ICONS[section.id] || FileText;
+              return (
+                <RevealSection key={section.id} id={`section-${section.id}`}>
+                  <div className="flex items-center gap-3 mb-2">
+                    <Icon
+                      className="h-5 w-5 text-primary/60"
+                      aria-hidden="true"
+                    />
+                    <h2 className="text-2xl font-bold tracking-tight">
+                      {section.label}
+                    </h2>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-6">
+                    {section.description}
+                  </p>
+
+                  {/* Article list or expanded article */}
+                  {activeSection === section.id && activeArticleData ? (
+                    <div>
+                      <button
+                        onClick={() => {
+                          setActiveSection(null);
+                          setActiveArticle(null);
+                        }}
+                        className="mb-4 text-xs text-primary hover:underline font-medium"
+                      >
+                        Back to {section.label}
+                      </button>
+                      <div className="rounded-xl border border-border bg-card p-6">
+                        <h3 className="text-xl font-bold tracking-tight mb-1">
+                          {activeArticleData.title}
+                        </h3>
+                        {activeArticleData.description && (
+                          <p className="text-sm text-muted-foreground mb-4">
+                            {activeArticleData.description}
+                          </p>
+                        )}
+                        <div className="border-t border-border pt-4">
+                          <MarkdownContent
+                            content={activeArticleData.content}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {section.articles.map((article) => (
+                        <ArticleCard
+                          key={article.slug}
+                          title={article.title}
+                          description={article.description}
+                          onClick={() => {
+                            setActiveSection(section.id);
+                            setActiveArticle(article.slug);
+                            // Scroll to section
+                            document
+                              .getElementById(`section-${section.id}`)
+                              ?.scrollIntoView({ behavior: "smooth" });
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </RevealSection>
+              );
+            })}
+
           {/* ═══════════════════ CORE CONCEPTS ═══════════════════ */}
           {!search && (
             <RevealSection id="concepts">
@@ -517,14 +949,14 @@ cd bc && make build`}
           <RevealSection id="commands">
             {!search && (
               <h2 className="text-2xl font-bold tracking-tight mb-6">
-                Command Reference
+                CLI Command Reference
               </h2>
             )}
             <div className="space-y-3">
               {groups.map((group) => {
                 const Icon = GROUP_ICONS[group.name.toLowerCase()] || Terminal;
                 return (
-                  <CommandSection
+                  <CollapsibleSection
                     key={group.id}
                     id={group.id}
                     title={group.name.charAt(0).toUpperCase() + group.name.slice(1)}
@@ -535,13 +967,13 @@ cd bc && make build`}
                     defaultOpen={!!search}
                   >
                     <CommandGroupContent group={group} />
-                  </CommandSection>
+                  </CollapsibleSection>
                 );
               })}
 
               {/* Standalone commands */}
               {standalone.length > 0 && (
-                <CommandSection
+                <CollapsibleSection
                   id="cmd-misc"
                   title="Other Commands"
                   count={standalone.length}
@@ -550,7 +982,7 @@ cd bc && make build`}
                   defaultOpen={!!search}
                 >
                   <StandaloneCommandsContent commands={standalone} />
-                </CommandSection>
+                </CollapsibleSection>
               )}
 
               {search && filteredGroupIds.length === 0 && (
@@ -717,7 +1149,7 @@ backend = "tmux"     # or "docker"`}
             <RevealSection>
               <div className="text-center pt-8 border-t border-border">
                 <p className="text-muted-foreground mb-6">
-                  Explore the full CLI reference above, or get started on
+                  Explore the full documentation above, or get started on
                   GitHub.
                 </p>
                 <Link
