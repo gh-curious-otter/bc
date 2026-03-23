@@ -111,16 +111,6 @@ func setupAgentFromRole(workspacePath, agentName, roleName, targetDir, runtimeBa
 	return nil
 }
 
-// BuildSetupCommand is deprecated — MCP servers and plugins are now configured
-// via file-based config (.mcp.json and .claude.json) written by SetupAgentFromRole.
-// Running `claude mcp add` at startup kills running Claude instances and causes
-// restart loops in Docker containers.
-//
-// Kept as a no-op for backward compatibility. Will be removed in a future release.
-func BuildSetupCommand(_, _ string) string {
-	return ""
-}
-
 // ── MCP config ──────────────────────────────────────────────────────────────
 
 type mcpConfig struct {

@@ -506,8 +506,6 @@ func (b *Backend) Capture(ctx context.Context, name string, lines int) (string, 
 }
 
 // ListSessions lists RUNNING BC-managed containers for this workspace.
-// Stopped containers are excluded so RefreshState correctly marks
-// stopped agents as stopped (not idle).
 func (b *Backend) ListSessions(ctx context.Context) ([]runtime.Session, error) {
 	//nolint:gosec // all args are trusted internal values
 	cmd := exec.CommandContext(ctx, "docker", "ps",
