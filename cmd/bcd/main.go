@@ -11,13 +11,18 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -258,51 +263,121 @@ func writePID(path string) error {
 	return os.WriteFile(path, []byte(strconv.Itoa(os.Getpid())+"\n"), 0600)
 }
 
+// dockerStatsEntry represents one line of `docker stats --no-stream --format '{{json .}}'`.
+type dockerStatsEntry struct {
+	Container string `json:"Container"` // container ID
+	Name      string `json:"Name"`      // container name
+	CPUPerc   string `json:"CPUPerc"`
+	MemUsage  string `json:"MemUsage"`
+	MemPerc   string `json:"MemPerc"`
+	NetIO     string `json:"NetIO"`
+	BlockIO   string `json:"BlockIO"`
+}
+
 // runStatsCollector periodically samples system and agent metrics into TimescaleDB.
+// It shells out to `docker stats --no-stream` every 30s, classifies containers as
+// system (bc-sql, bc-stats, *-daemon) or agent (bc-*-agent-*), and records resource
+// usage. Channel metrics come from the channel service.
 func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.AgentService, channels *bcchannel.ChannelService, ws *bcworkspace.Workspace) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
-	hostname, _ := os.Hostname() //nolint:errcheck // best-effort
+	// Build an agent lookup by name for enriching agent metrics.
+	agentLookup := func() map[string]*bcagent.Agent {
+		if agents == nil {
+			return nil
+		}
+		list, err := agents.List(ctx, bcagent.ListOptions{})
+		if err != nil {
+			log.Debug("stats: agent list failed", "error", err)
+			return nil
+		}
+		m := make(map[string]*bcagent.Agent, len(list))
+		for _, a := range list {
+			m[a.Name] = a
+		}
+		return m
+	}
 
 	for {
 		select {
 		case <-ticker.C:
 			now := time.Now()
 
-			// System metrics
-			_ = ss.RecordSystem(ctx, bcstats.SystemMetric{
-				Time:     now,
-				Hostname: hostname,
-			})
+			// ── docker stats ────────────────────────────────────────
+			entries := collectDockerStats(ctx)
+			agentsByName := agentLookup()
 
-			// Agent metrics
-			if agents != nil {
-				agentList, err := agents.List(ctx, bcagent.ListOptions{})
-				if err == nil {
-					for _, a := range agentList {
-						_ = ss.RecordAgent(ctx, bcstats.AgentMetric{
-							Time:      now,
-							AgentName: a.Name,
-							AgentID:   a.ID,
-							Role:      string(a.Role),
-							State:     string(a.State),
-						})
+			for _, e := range entries {
+				cpu := parsePercent(e.CPUPerc)
+				memUsed, memLimit := parseMemUsage(e.MemUsage)
+				memPct := parsePercent(e.MemPerc)
+				netRx, netTx := parseIOPair(e.NetIO)
+				diskR, diskW := parseIOPair(e.BlockIO)
+
+				name := e.Name
+
+				switch {
+				case isSystemContainer(name):
+					if err := ss.RecordSystem(ctx, bcstats.SystemMetric{
+						Time:           now,
+						SystemName:     name,
+						CPUPercent:     cpu,
+						MemUsedBytes:   memUsed,
+						MemLimitBytes:  memLimit,
+						MemPercent:     memPct,
+						NetRxBytes:     netRx,
+						NetTxBytes:     netTx,
+						DiskReadBytes:  diskR,
+						DiskWriteBytes: diskW,
+					}); err != nil {
+						log.Debug("stats: record system metric", "name", name, "error", err)
+					}
+
+				case isAgentContainer(name):
+					agentName := extractAgentName(name)
+					var role, tool, state string
+					if a, ok := agentsByName[agentName]; ok {
+						role = string(a.Role)
+						tool = a.Tool
+						state = string(a.State)
+					}
+					if err := ss.RecordAgent(ctx, bcstats.AgentMetric{
+						Time:           now,
+						AgentName:      agentName,
+						Role:           role,
+						Tool:           tool,
+						Runtime:        "docker",
+						State:          state,
+						CPUPercent:     cpu,
+						MemUsedBytes:   memUsed,
+						MemLimitBytes:  memLimit,
+						MemPercent:     memPct,
+						NetRxBytes:     netRx,
+						NetTxBytes:     netTx,
+						DiskReadBytes:  diskR,
+						DiskWriteBytes: diskW,
+					}); err != nil {
+						log.Debug("stats: record agent metric", "agent", agentName, "error", err)
 					}
 				}
 			}
 
-			// Channel metrics
+			// ── channel metrics ─────────────────────────────────────
 			if channels != nil {
 				chList, err := channels.List(ctx)
-				if err == nil {
+				if err != nil {
+					log.Debug("stats: channel list failed", "error", err)
+				} else {
 					for _, ch := range chList {
-						_ = ss.RecordChannel(ctx, bcstats.ChannelMetric{
+						if err := ss.RecordChannel(ctx, bcstats.ChannelMetric{
 							Time:         now,
 							ChannelName:  ch.Name,
-							MessagesSent: int64(ch.MessageCount),
-							Participants: len(ch.Members),
-						})
+							MessageCount: int64(ch.MessageCount),
+							MemberCount:  ch.MemberCount,
+						}); err != nil {
+							log.Debug("stats: record channel metric", "channel", ch.Name, "error", err)
+						}
 					}
 				}
 			}
@@ -310,5 +385,132 @@ func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.A
 		case <-ctx.Done():
 			return
 		}
+	}
+}
+
+// collectDockerStats runs `docker stats --no-stream` and returns parsed entries.
+func collectDockerStats(ctx context.Context) []dockerStatsEntry {
+	cmd := exec.CommandContext(ctx, "docker", "stats", "--no-stream", "--format", "{{json .}}")
+	out, err := cmd.Output()
+	if err != nil {
+		log.Debug("stats: docker stats failed", "error", err)
+		return nil
+	}
+
+	var entries []dockerStatsEntry
+	scanner := bufio.NewScanner(bytes.NewReader(out))
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		var e dockerStatsEntry
+		if err := json.Unmarshal(line, &e); err != nil {
+			log.Debug("stats: parse docker stats line", "error", err)
+			continue
+		}
+		entries = append(entries, e)
+	}
+	return entries
+}
+
+// isSystemContainer returns true for bc-sql, bc-stats, or *-daemon containers.
+func isSystemContainer(name string) bool {
+	if name == "bc-sql" || name == "bc-stats" {
+		return true
+	}
+	return strings.Contains(name, "-daemon")
+}
+
+// isAgentContainer returns true for containers matching bc-*-agent-* pattern.
+func isAgentContainer(name string) bool {
+	if !strings.HasPrefix(name, "bc-") {
+		return false
+	}
+	return strings.Contains(name, "-agent-")
+}
+
+// extractAgentName extracts the agent name from a container name like bc-<hash>-agent-<name>.
+// The agent name is everything after "agent-".
+func extractAgentName(containerName string) string {
+	idx := strings.Index(containerName, "-agent-")
+	if idx < 0 {
+		return containerName
+	}
+	return containerName[idx+len("-agent-"):]
+}
+
+// parsePercent parses a percentage string like "5.00%" into a float64.
+func parsePercent(s string) float64 {
+	s = strings.TrimSpace(s)
+	s = strings.TrimSuffix(s, "%")
+	v, _ := strconv.ParseFloat(s, 64) //nolint:errcheck // returns 0 on failure
+	return v
+}
+
+// parseMemUsage splits "100MiB / 2GiB" into (used bytes, limit bytes).
+func parseMemUsage(s string) (int64, int64) {
+	parts := strings.SplitN(s, "/", 2)
+	if len(parts) != 2 {
+		return 0, 0
+	}
+	return parseBytes(strings.TrimSpace(parts[0])), parseBytes(strings.TrimSpace(parts[1]))
+}
+
+// parseIOPair splits an IO string like "1.5kB / 2.3kB" into (in, out) bytes.
+func parseIOPair(s string) (int64, int64) {
+	parts := strings.SplitN(s, "/", 2)
+	if len(parts) != 2 {
+		return 0, 0
+	}
+	return parseBytes(strings.TrimSpace(parts[0])), parseBytes(strings.TrimSpace(parts[1]))
+}
+
+// parseBytes converts a human-readable byte string (e.g. "100MiB", "1.5kB", "0B")
+// into an int64 byte count.
+func parseBytes(s string) int64 {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0
+	}
+
+	// Find where the numeric part ends and the unit begins.
+	unitIdx := len(s)
+	for i, c := range s {
+		if c != '.' && (c < '0' || c > '9') {
+			unitIdx = i
+			break
+		}
+	}
+
+	numStr := s[:unitIdx]
+	unit := strings.ToLower(s[unitIdx:])
+
+	val, err := strconv.ParseFloat(numStr, 64)
+	if err != nil {
+		return 0
+	}
+
+	switch unit {
+	case "b":
+		return int64(val)
+	case "kb":
+		return int64(val * 1000)
+	case "mb":
+		return int64(val * 1000 * 1000)
+	case "gb":
+		return int64(val * 1000 * 1000 * 1000)
+	case "tb":
+		return int64(val * 1000 * 1000 * 1000 * 1000)
+	case "kib":
+		return int64(val * 1024)
+	case "mib":
+		return int64(val * 1024 * 1024)
+	case "gib":
+		return int64(val * 1024 * 1024 * 1024)
+	case "tib":
+		return int64(val * 1024 * 1024 * 1024 * 1024)
+	default:
+		return int64(val)
 	}
 }

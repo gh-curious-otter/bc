@@ -60,14 +60,14 @@ func NewStatsHandler(
 
 // Register mounts stats routes on mux.
 func (h *StatsHandler) Register(mux *http.ServeMux) {
+	// Legacy summary endpoints
 	mux.HandleFunc("/api/stats/system", h.system)
 	mux.HandleFunc("/api/stats/summary", h.summary)
-	mux.HandleFunc("/api/stats/metrics", h.systemMetricsTimeseries)
-	mux.HandleFunc("/api/stats/agents/", h.agentMetricsTimeseries)
-	mux.HandleFunc("/api/stats/tokens", h.tokenMetricsTimeseries)
-	mux.HandleFunc("/api/stats/channels/metrics", h.channelMetricsTimeseries)
-	mux.HandleFunc("/api/stats/daemons", h.daemonMetricsTimeseries)
-	mux.HandleFunc("/api/stats/overview", h.overview)
+
+	// New per-resource timeseries endpoints
+	h.RegisterSystemStats(mux)
+	h.RegisterAgentStats(mux)
+	h.RegisterChannelStats(mux)
 }
 
 func (h *StatsHandler) system(w http.ResponseWriter, r *http.Request) {

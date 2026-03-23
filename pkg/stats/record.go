@@ -5,12 +5,12 @@ import (
 	"fmt"
 )
 
-// RecordSystem inserts a system metric sample.
+// RecordSystem inserts a system container metric sample.
 func (s *Store) RecordSystem(ctx context.Context, m SystemMetric) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO system_metrics (time, cpu_percent, mem_bytes, mem_percent, disk_bytes, goroutines, hostname)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		m.Time, m.CPUPercent, m.MemBytes, m.MemPercent, m.DiskBytes, m.Goroutines, m.Hostname,
+		`INSERT INTO system_metrics (time, system_name, cpu_percent, mem_used_bytes, mem_limit_bytes, mem_percent, net_rx_bytes, net_tx_bytes, disk_read_bytes, disk_write_bytes)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		m.Time, m.SystemName, m.CPUPercent, m.MemUsedBytes, m.MemLimitBytes, m.MemPercent, m.NetRxBytes, m.NetTxBytes, m.DiskReadBytes, m.DiskWriteBytes,
 	)
 	if err != nil {
 		return fmt.Errorf("record system metric: %w", err)
@@ -18,12 +18,12 @@ func (s *Store) RecordSystem(ctx context.Context, m SystemMetric) error {
 	return nil
 }
 
-// RecordAgent inserts an agent metric sample.
+// RecordAgent inserts an agent container metric sample.
 func (s *Store) RecordAgent(ctx context.Context, m AgentMetric) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO agent_metrics (time, agent_name, agent_id, role, state, cpu_pct, mem_bytes, uptime_sec)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		m.Time, m.AgentName, m.AgentID, m.Role, m.State, m.CPUPct, m.MemBytes, m.UptimeSec,
+		`INSERT INTO agent_metrics (time, agent_name, role, tool, runtime, state, cpu_percent, mem_used_bytes, mem_limit_bytes, mem_percent, net_rx_bytes, net_tx_bytes, disk_read_bytes, disk_write_bytes)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+		m.Time, m.AgentName, m.Role, m.Tool, m.Runtime, m.State, m.CPUPercent, m.MemUsedBytes, m.MemLimitBytes, m.MemPercent, m.NetRxBytes, m.NetTxBytes, m.DiskReadBytes, m.DiskWriteBytes,
 	)
 	if err != nil {
 		return fmt.Errorf("record agent metric: %w", err)
@@ -34,9 +34,9 @@ func (s *Store) RecordAgent(ctx context.Context, m AgentMetric) error {
 // RecordToken inserts a token usage sample.
 func (s *Store) RecordToken(ctx context.Context, m TokenMetric) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO token_metrics (time, agent_id, agent_name, provider, model, input_tokens, output_tokens, cost_usd)
+		`INSERT INTO token_metrics (time, agent_name, model, input_tokens, output_tokens, cache_read, cache_create, cost_usd)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		m.Time, m.AgentID, m.AgentName, m.Provider, m.Model, m.InputTokens, m.OutputTokens, m.CostUSD,
+		m.Time, m.AgentName, m.Model, m.InputTokens, m.OutputTokens, m.CacheRead, m.CacheCreate, m.CostUSD,
 	)
 	if err != nil {
 		return fmt.Errorf("record token metric: %w", err)
@@ -47,25 +47,12 @@ func (s *Store) RecordToken(ctx context.Context, m TokenMetric) error {
 // RecordChannel inserts a channel activity sample.
 func (s *Store) RecordChannel(ctx context.Context, m ChannelMetric) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO channel_metrics (time, channel_name, messages_sent, messages_read, participants)
+		`INSERT INTO channel_metrics (time, channel_name, message_count, member_count, reaction_count)
 		 VALUES ($1, $2, $3, $4, $5)`,
-		m.Time, m.ChannelName, m.MessagesSent, m.MessagesRead, m.Participants,
+		m.Time, m.ChannelName, m.MessageCount, m.MemberCount, m.ReactionCount,
 	)
 	if err != nil {
 		return fmt.Errorf("record channel metric: %w", err)
-	}
-	return nil
-}
-
-// RecordDaemon inserts a daemon process sample.
-func (s *Store) RecordDaemon(ctx context.Context, m DaemonMetric) error {
-	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO daemon_metrics (time, daemon_name, state, pid, cpu_pct, mem_bytes, restarts)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		m.Time, m.DaemonName, m.State, m.PID, m.CPUPct, m.MemBytes, m.Restarts,
-	)
-	if err != nil {
-		return fmt.Errorf("record daemon metric: %w", err)
 	}
 	return nil
 }
