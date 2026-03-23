@@ -17,7 +17,7 @@ export const viewport = {
 };
 
 export const metadata = {
-  title: "bc — AI Agent Orchestration",
+  title: "bc — AI In a Box",
   description:
     "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
   keywords:
@@ -41,7 +41,7 @@ export const metadata = {
     type: "website",
     locale: "en_US",
     url: "https://bc-infra.com",
-    title: "bc — AI Agent Orchestration",
+    title: "bc — AI In a Box",
     description:
       "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
     siteName: "bc",
@@ -50,13 +50,13 @@ export const metadata = {
         url: "https://bc-infra.com/og-image.png",
         width: 1200,
         height: 630,
-        alt: "bc — AI Agent Orchestration",
+        alt: "bc — AI In a Box",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "bc — AI Agent Orchestration",
+    title: "bc — AI In a Box",
     description:
       "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
     images: ["https://bc-infra.com/og-image.png"],

@@ -43,10 +43,10 @@ export function HeroSection() {
             custom={1}
             className="text-balance text-[2.25rem] font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl"
           >
-            Orchestrate AI agents
+            AI In a Box.
             <br />
             <span className="text-muted-foreground/40">
-              from your terminal.
+              Run. Coordinate. Ship.
             </span>
           </motion.h1>
 
