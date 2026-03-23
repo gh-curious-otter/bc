@@ -329,3 +329,30 @@ input:focus-visible,
     opacity: 0;
   }
 }
+
+/* ── Method page — editorial typography & warm tones ── */
+:root {
+  --method-muted: #6b635b;
+}
+.dark {
+  --method-muted: #a89e94;
+}
+
+.method-page .method-body-text {
+  line-height: 1.85;
+  letter-spacing: 0.005em;
+}
+
+.method-divider-gradient {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--border) 20%,
+    var(--border) 80%,
+    transparent 100%
+  );
+}
+
+.method-page .method-principle-label {
+  letter-spacing: 0.3em;
+}
