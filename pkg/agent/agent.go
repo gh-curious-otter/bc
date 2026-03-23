@@ -464,7 +464,7 @@ type Manager struct {
 }
 
 // SetOnStateChange registers a callback invoked whenever an agent's state
-// changes through the reconciler or hook-event processing.
+// changes through hook-event processing.
 func (m *Manager) SetOnStateChange(fn func(name string, state State, task string)) {
 	m.mu.Lock()
 	m.onStateChange = fn
@@ -1813,217 +1813,7 @@ func (m *Manager) ListByRole(role Role) []*Agent {
 	return agents
 }
 
-// RunReconciler runs RefreshState on a background ticker until ctx is canceled.
-// This replaces the synchronous RefreshState call on every GET /api/agents.
-func (m *Manager) RunReconciler(ctx context.Context, interval time.Duration) {
-	// Run once immediately on startup
-	if err := m.RefreshState(ctx); err != nil {
-		log.Warn("initial state refresh failed", "error", err)
-	}
 
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			if err := m.RefreshState(ctx); err != nil {
-				log.Warn("state refresh failed", "error", err)
-			}
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-// RefreshState updates agent states from tmux.
-// Also captures a live task summary from each agent's tmux pane.
-func (m *Manager) RefreshState(ctx context.Context) error {
-	// Phase 1: global lock — snapshot backend list and agent names
-	m.mu.RLock()
-	backends := make([]runtime.Backend, 0, len(m.backends))
-	for _, be := range m.backends {
-		backends = append(backends, be)
-	}
-	agentNames := make([]string, 0, len(m.agents))
-	for name := range m.agents {
-		agentNames = append(agentNames, name)
-	}
-	m.mu.RUnlock()
-
-	// Phase 2: slow I/O without holding lock — list sessions from all backends
-	active := make(map[string]bool)
-	for _, be := range backends {
-		sessions, err := be.ListSessions(ctx)
-		if err != nil {
-			continue // backend may be unavailable
-		}
-		for _, s := range sessions {
-			active[s.Name] = true
-		}
-	}
-
-	// Capture live tasks without holding lock
-	liveTasks := make(map[string]string, len(agentNames))
-	for _, name := range agentNames {
-		if active[name] {
-			if live := m.captureLiveTask(ctx, name); live != "" {
-				liveTasks[name] = live
-			}
-		}
-	}
-
-	// Phase 3: global lock — apply state updates
-	type stateChange struct {
-		name  string
-		state State
-		task  string
-	}
-	var changes []stateChange
-
-	m.mu.Lock()
-
-	for name, a := range m.agents {
-		prevState := a.State
-
-		if !active[name] && a.State != StateStopped {
-			a.State = StateStopped
-			a.UpdatedAt = time.Now()
-			changes = append(changes, stateChange{name, a.State, a.Task})
-			continue
-		}
-		if !active[name] {
-			continue
-		}
-
-		// Correct stale stopped/error state when session is actually alive
-		if a.State == StateStopped || a.State == StateError {
-			a.State = StateIdle
-			a.StartedAt = time.Now()
-			a.UpdatedAt = time.Now()
-		}
-
-		// Apply captured live task
-		if live, ok := liveTasks[name]; ok {
-			a.Task = live
-
-			// Use provider-based state detection if available for richer state inference
-			newState := m.detectAgentState(a.Tool, live)
-
-			// IMPORTANT: Preserve error, stuck, and done states - these are explicitly
-			// reported by agents and should not be overwritten by activity detection.
-			// Only toggle between working and idle for agents in "normal" states.
-			switch newState {
-			case StateWorking:
-				if a.State == StateIdle || a.State == StateStarting {
-					a.State = StateWorking
-					a.UpdatedAt = time.Now()
-				}
-			case StateIdle:
-				if a.State == StateWorking {
-					a.State = StateIdle
-					a.UpdatedAt = time.Now()
-				}
-			}
-		}
-
-		if a.State != prevState {
-			changes = append(changes, stateChange{name, a.State, a.Task})
-		}
-	}
-
-	m.mu.Unlock()
-
-	// Notify outside the lock to avoid potential deadlocks.
-	for _, c := range changes {
-		m.notifyStateChange(c.name, c.state, c.task)
-	}
-
-	return nil
-}
-
-// captureLiveTask extracts a one-line activity summary from an agent's tmux pane.
-// detectAgentState determines agent state from output, using provider-based
-// detection when available or falling back to symbol-based heuristics.
-func (m *Manager) detectAgentState(tool, output string) State {
-	// Try provider-based detection if tool is known
-	if tool != "" && m.providerRegistry != nil {
-		if p, ok := m.providerRegistry.Get(tool); ok {
-			ps := p.DetectState(output)
-			switch ps {
-			case provider.StateWorking:
-				return StateWorking
-			case provider.StateIdle:
-				return StateIdle
-			case provider.StateDone:
-				return StateDone
-			case provider.StateError:
-				return StateError
-			case provider.StateStuck:
-				return StateStuck
-			}
-			// provider.StateUnknown — fall through to symbol detection
-		}
-	}
-
-	// Fall back to symbol-based detection (works for all tools)
-	if strings.HasPrefix(output, "✻") ||
-		strings.HasPrefix(output, "✳") ||
-		strings.HasPrefix(output, "✽") ||
-		strings.HasPrefix(output, "·") {
-		return StateWorking
-	}
-	if strings.HasPrefix(output, "❯") ||
-		strings.HasPrefix(output, "⏺") {
-		return StateIdle
-	}
-
-	return ""
-}
-
-func (m *Manager) captureLiveTask(ctx context.Context, name string) string {
-	output, err := m.runtimeForAgent(name).Capture(ctx, name, 15)
-	if err != nil {
-		return ""
-	}
-
-	lines := strings.Split(strings.TrimSpace(output), "\n")
-	for i := len(lines) - 1; i >= 0; i-- {
-		line := strings.TrimSpace(lines[i])
-		if line == "" || line == "❯" {
-			continue
-		}
-
-		// Skip status bar
-		if strings.Contains(line, "bypass permissions") ||
-			strings.Contains(line, "shift+Tab to cycle") ||
-			strings.Contains(line, "Update available") {
-			continue
-		}
-
-		// Spinner lines: active work
-		if strings.HasPrefix(line, "✻") ||
-			strings.HasPrefix(line, "✳") ||
-			strings.HasPrefix(line, "✽") ||
-			strings.HasPrefix(line, "·") {
-			if idx := strings.LastIndex(line, "("); idx > 20 {
-				line = strings.TrimSpace(line[:idx])
-			}
-			return line
-		}
-
-		// Tool call lines
-		if strings.HasPrefix(line, "⏺") {
-			return line
-		}
-
-		// Prompt line — agent waiting for input
-		if strings.HasPrefix(line, "❯") && len(line) > 2 {
-			return line
-		}
-	}
-
-	return ""
-}
 
 // AgentCount returns the number of agents.
 func (m *Manager) AgentCount() int {
@@ -2340,13 +2130,6 @@ func (m *Manager) Tmux() *tmux.Manager {
 	return nil
 }
 
-// saveAgentStats persists a Docker stats sample via the SQLite store.
-func (m *Manager) saveAgentStats(rec *AgentStatsRecord) error {
-	if m.store == nil {
-		return fmt.Errorf("no store available")
-	}
-	return m.store.SaveStats(rec)
-}
 
 // QueryAgentStats returns up to limit recent stats records for the named agent.
 func (m *Manager) QueryAgentStats(agentName string, limit int) ([]*AgentStatsRecord, error) {
@@ -2364,7 +2147,6 @@ func (m *Manager) Close() error {
 	return nil
 }
 
-// writeRoleCLAUDEMD writes the role prompt to the agent's auth CLAUDE.md.
 // enforceRootSingleton checks if a root agent can be spawned.
 // Returns an error if a root already exists and is running.
 // Allows respawn if root is stopped or in error state.

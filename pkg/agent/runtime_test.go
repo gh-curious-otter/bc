@@ -464,41 +464,6 @@ func TestSendToAgent_UsesCorrectBackend(t *testing.T) {
 	}
 }
 
-// --- RefreshState with mixed backends ---
-
-func TestRefreshState_MixedBackends(t *testing.T) {
-	tmuxBe := newMockBackend("tmux")
-	dockerBe := newMockBackend("docker")
-
-	mgr := newMockManager(t, "docker", map[string]*mockBackend{
-		"tmux":   tmuxBe,
-		"docker": dockerBe,
-	})
-
-	// root in tmux (alive), eng-01 in docker (alive), eng-02 in docker (dead)
-	tmuxBe.sessions["root"] = true
-	dockerBe.sessions["eng-01"] = true
-
-	mgr.agents["root"] = &Agent{Name: "root", State: StateIdle, RuntimeBackend: "tmux"}
-	mgr.agents["eng-01"] = &Agent{Name: "eng-01", State: StateWorking, RuntimeBackend: "docker"}
-	mgr.agents["eng-02"] = &Agent{Name: "eng-02", State: StateWorking, RuntimeBackend: "docker"}
-
-	if err := mgr.RefreshState(context.Background()); err != nil {
-		t.Fatalf("RefreshState: %v", err)
-	}
-
-	// root and eng-01 should keep their states, eng-02 should be stopped
-	if mgr.agents["root"].State == StateStopped {
-		t.Error("root should not be stopped (tmux session alive)")
-	}
-	if mgr.agents["eng-01"].State == StateStopped {
-		t.Error("eng-01 should not be stopped (docker session alive)")
-	}
-	if mgr.agents["eng-02"].State != StateStopped {
-		t.Errorf("eng-02 State = %q, want stopped (no session)", mgr.agents["eng-02"].State)
-	}
-}
-
 // --- StopAgent uses correct backend ---
 
 func TestStopAgent_UsesCorrectBackend(t *testing.T) {

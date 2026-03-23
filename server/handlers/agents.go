@@ -99,7 +99,7 @@ func buildCostMap(ctx context.Context, store *cost.Store) map[string]*cost.Summa
 func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		// State is refreshed by background reconciler (RunReconciler) — no sync call here.
+		// State is driven by hooks — no polling or reconciler needed.
 		agents, err := h.svc.List(r.Context(), agent.ListOptions{})
 		if err != nil {
 			httpInternalError(w, "list agents", err)
