@@ -2,7 +2,14 @@
 
 import { Nav } from "../_components/Nav";
 import { Footer } from "../_components/Footer";
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import {
+  useState,
+  useMemo,
+  useEffect,
+  useCallback,
+  useRef,
+  useTransition,
+} from "react";
 import type { CommandGroup, CliCommand } from "@/lib/cli-docs";
 import type { DocsSection } from "@/lib/docs-loader";
 import {
@@ -19,6 +26,7 @@ import {
   Menu,
   X,
   Construction,
+  Hash,
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -62,7 +70,7 @@ function CopyButton({ text }: { text: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className="absolute right-3 top-3 rounded-md border border-white/10 bg-white/5 p-1.5 text-terminal-muted hover:text-terminal-text transition-colors"
+      className="absolute right-3 top-3 rounded-md border border-white/10 bg-white/5 p-1.5 text-terminal-muted hover:text-terminal-text transition-all duration-200 opacity-0 group-hover:opacity-100 hover:bg-white/10"
       aria-label="Copy to clipboard"
     >
       {copied ? (
@@ -75,6 +83,168 @@ function CopyButton({ text }: { text: string }) {
       )}
     </button>
   );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SYNTAX HIGHLIGHTING (lightweight, no external dep)
+   ═══════════════════════════════════════════════════════════════════ */
+
+function highlightSyntax(code: string, language?: string): React.ReactNode[] {
+  if (!language) {
+    return [<span key="plain">{code}</span>];
+  }
+
+  const lines = code.split("\n");
+  const result: React.ReactNode[] = [];
+
+  for (let li = 0; li < lines.length; li++) {
+    if (li > 0) result.push("\n");
+    const line = lines[li];
+
+    // Comment lines
+    if (line.trimStart().startsWith("#") || line.trimStart().startsWith("//")) {
+      result.push(
+        <span key={`l${li}`} className="text-[#5c524a] italic">
+          {line}
+        </span>,
+      );
+      continue;
+    }
+
+    // Tokenize the line
+    const tokens: React.ReactNode[] = [];
+    let remaining = line;
+    let tk = 0;
+
+    while (remaining.length > 0) {
+      // Strings (double-quoted)
+      const dqMatch = remaining.match(/^(.*?)("(?:[^"\\]|\\.)*")(.*)/);
+      // Strings (single-quoted)
+      const sqMatch = remaining.match(/^(.*?)('(?:[^'\\]|\\.)*')(.*)/);
+      // Flags (--flag or -f)
+      const flagMatch = remaining.match(/^(.*?)(--?[a-zA-Z][\w-]*)(.*)/);
+
+      interface TokenCandidate {
+        type: string;
+        pre: string;
+        match: string;
+        post: string;
+        idx: number;
+      }
+
+      const candidates: TokenCandidate[] = [];
+      if (dqMatch)
+        candidates.push({
+          type: "string",
+          pre: dqMatch[1],
+          match: dqMatch[2],
+          post: dqMatch[3],
+          idx: dqMatch[1].length,
+        });
+      if (sqMatch)
+        candidates.push({
+          type: "string",
+          pre: sqMatch[1],
+          match: sqMatch[2],
+          post: sqMatch[3],
+          idx: sqMatch[1].length,
+        });
+      if (flagMatch)
+        candidates.push({
+          type: "flag",
+          pre: flagMatch[1],
+          match: flagMatch[2],
+          post: flagMatch[3],
+          idx: flagMatch[1].length,
+        });
+
+      candidates.sort((a, b) => a.idx - b.idx);
+      const best = candidates[0];
+
+      if (!best) {
+        // Highlight keywords in remaining text
+        tokens.push(
+          <span key={`t${li}-${tk++}`}>
+            {highlightKeywords(remaining, language)}
+          </span>,
+        );
+        break;
+      }
+
+      if (best.pre) {
+        tokens.push(
+          <span key={`t${li}-${tk++}`}>
+            {highlightKeywords(best.pre, language)}
+          </span>,
+        );
+      }
+
+      if (best.type === "string") {
+        tokens.push(
+          <span key={`t${li}-${tk++}`} className="text-[#22c55e]">
+            {best.match}
+          </span>,
+        );
+      } else if (best.type === "flag") {
+        tokens.push(
+          <span key={`t${li}-${tk++}`} className="text-[#fdba74]">
+            {best.match}
+          </span>,
+        );
+      }
+
+      remaining = best.post;
+    }
+
+    result.push(...tokens);
+  }
+
+  return result;
+}
+
+function highlightKeywords(
+  text: string,
+  language: string,
+): React.ReactNode[] {
+  const shellKeywords =
+    /\b(if|then|else|fi|for|do|done|while|case|esac|function|return|export|source|cd|mkdir|rm|cp|mv|echo|cat|grep|sed|awk|sudo|make|go|git|docker|npm|bun|curl|wget)\b/g;
+  const goKeywords =
+    /\b(func|return|if|else|for|range|switch|case|default|var|const|type|struct|interface|package|import|defer|go|chan|select|break|continue|map|nil|true|false|err)\b/g;
+  const tomlKeywords = /\b(true|false)\b/g;
+
+  let keywords: RegExp;
+  if (language === "go" || language === "golang") {
+    keywords = goKeywords;
+  } else if (language === "toml" || language === "yaml" || language === "json") {
+    keywords = tomlKeywords;
+  } else {
+    keywords = shellKeywords;
+  }
+
+  const parts: React.ReactNode[] = [];
+  let lastIdx = 0;
+  let match: RegExpExecArray | null;
+  let pk = 0;
+
+  while ((match = keywords.exec(text)) !== null) {
+    if (match.index > lastIdx) {
+      parts.push(
+        <span key={`kw-${pk++}`}>{text.slice(lastIdx, match.index)}</span>,
+      );
+    }
+    parts.push(
+      <span key={`kw-${pk++}`} className="text-[#38bdf8]">
+        {match[0]}
+      </span>,
+    );
+    lastIdx = match.index + match[0].length;
+  }
+
+  if (lastIdx < text.length) {
+    parts.push(<span key={`kw-${pk++}`}>{text.slice(lastIdx)}</span>);
+  }
+
+  return parts.length > 0 ? parts : [<span key="rest">{text}</span>];
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -91,7 +261,7 @@ function CodeBlock({
   title?: string;
 }) {
   return (
-    <div className="group relative overflow-hidden rounded-lg border border-border bg-[#0C0A08] my-4">
+    <div className="group relative overflow-hidden rounded-lg border border-border/60 bg-[#0C0A08] my-4 shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
       {title && (
         <div className="border-b border-white/[0.06] bg-[#151210] px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-terminal-muted flex items-center justify-between">
           <span>{title}</span>
@@ -100,10 +270,10 @@ function CodeBlock({
           )}
         </div>
       )}
-      <div className="relative p-4 font-mono text-[13px] leading-relaxed text-terminal-text overflow-x-auto">
+      <div className="relative p-4 font-mono text-[13px] leading-[1.7] text-terminal-text overflow-x-auto">
         <CopyButton text={code} />
         <pre>
-          <code>{code}</code>
+          <code>{highlightSyntax(code, language)}</code>
         </pre>
       </div>
     </div>
@@ -213,7 +383,7 @@ function InlineMarkdown({ text }: { text: string }) {
         <a
           key={partKey++}
           href={earliest.href}
-          className="text-primary hover:underline"
+          className="text-primary underline decoration-primary/30 underline-offset-2 hover:decoration-primary transition-all duration-200"
           target={earliest.href?.startsWith("http") ? "_blank" : undefined}
           rel={
             earliest.href?.startsWith("http")
@@ -318,14 +488,14 @@ function MarkdownContent({
         // Skip separator row (row[1])
         const bodyRows = tableRows.slice(2).map(parseRow);
         elements.push(
-          <div key={key++} className="my-4 overflow-x-auto">
+          <div key={key++} className="my-4 overflow-x-auto rounded-lg border border-border/60">
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="border-b border-border">
+                <tr className="border-b border-border bg-muted/50">
                   {headerCells.map((cell, ci) => (
                     <th
                       key={ci}
-                      className="text-left px-3 py-2 font-semibold text-foreground text-xs uppercase tracking-wider"
+                      className="text-left px-4 py-2.5 font-semibold text-foreground text-xs uppercase tracking-wider"
                     >
                       {cell}
                     </th>
@@ -334,11 +504,14 @@ function MarkdownContent({
               </thead>
               <tbody>
                 {bodyRows.map((row, ri) => (
-                  <tr key={ri} className="border-b border-border/50">
+                  <tr
+                    key={ri}
+                    className={`border-b border-border/30 ${ri % 2 === 1 ? "bg-muted/20" : ""}`}
+                  >
                     {row.map((cell, ci) => (
                       <td
                         key={ci}
-                        className="px-3 py-2 text-muted-foreground"
+                        className="px-4 py-2.5 text-muted-foreground"
                       >
                         <InlineMarkdown text={cell} />
                       </td>
@@ -362,9 +535,15 @@ function MarkdownContent({
         <h2
           key={key++}
           id={id}
-          className="text-xl font-bold tracking-tight mt-10 mb-4 text-foreground scroll-mt-20"
+          className="group/heading text-xl font-bold tracking-tight mt-10 mb-4 text-foreground scroll-mt-20"
         >
-          {text}
+          <a href={`#${id}`} className="flex items-center gap-2">
+            {text}
+            <Hash
+              className="h-4 w-4 text-muted-foreground/0 group-hover/heading:text-muted-foreground/50 transition-colors duration-200"
+              aria-hidden="true"
+            />
+          </a>
         </h2>,
       );
       i++;
@@ -380,9 +559,15 @@ function MarkdownContent({
         <h3
           key={key++}
           id={id}
-          className="text-base font-bold tracking-tight mt-8 mb-3 text-foreground scroll-mt-20"
+          className="group/heading text-base font-bold tracking-tight mt-8 mb-3 text-foreground scroll-mt-20"
         >
-          {text}
+          <a href={`#${id}`} className="flex items-center gap-1.5">
+            {text}
+            <Hash
+              className="h-3.5 w-3.5 text-muted-foreground/0 group-hover/heading:text-muted-foreground/50 transition-colors duration-200"
+              aria-hidden="true"
+            />
+          </a>
         </h3>,
       );
       i++;
@@ -398,9 +583,15 @@ function MarkdownContent({
         <h4
           key={key++}
           id={id}
-          className="text-sm font-bold tracking-tight mt-6 mb-2 text-foreground scroll-mt-20"
+          className="group/heading text-sm font-bold tracking-tight mt-6 mb-2 text-foreground scroll-mt-20"
         >
-          {text}
+          <a href={`#${id}`} className="flex items-center gap-1.5">
+            {text}
+            <Hash
+              className="h-3 w-3 text-muted-foreground/0 group-hover/heading:text-muted-foreground/50 transition-colors duration-200"
+              aria-hidden="true"
+            />
+          </a>
         </h4>,
       );
       i++;
@@ -508,7 +699,7 @@ function MarkdownContent({
     elements.push(
       <p
         key={key++}
-        className="text-sm text-muted-foreground leading-relaxed my-2"
+        className="text-[14px] text-muted-foreground leading-[1.8] my-3"
       >
         <InlineMarkdown text={line} />
       </p>,
@@ -741,8 +932,18 @@ function PlaceholderContent({ label }: { label: string }) {
 
 function TableOfContents({ headings }: { headings: TocHeading[] }) {
   const [activeId, setActiveId] = useState<string | null>(null);
+  const tocRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
+    // Fade in via CSS animation on headings change
+    const el = tocRef.current;
+    if (el) {
+      el.style.animation = "none";
+      // Force reflow
+      void el.offsetHeight;
+      el.style.animation = "fadeIn 300ms ease forwards";
+    }
+
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -759,22 +960,35 @@ function TableOfContents({ headings }: { headings: TocHeading[] }) {
       if (el) observer.observe(el);
     }
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+    };
   }, [headings]);
 
   if (headings.length === 0) return null;
 
   return (
-    <nav aria-label="Table of contents" className="text-xs">
+    <nav
+      ref={tocRef}
+      aria-label="Table of contents"
+      className="text-xs"
+    >
       <div className="font-semibold text-foreground mb-3 text-xs uppercase tracking-wider">
         On this page
       </div>
-      <ul className="space-y-1.5">
+      <ul className="space-y-1 border-l border-border/50">
         {headings.map((h) => (
-          <li key={h.id} style={{ paddingLeft: `${(h.level - 2) * 12}px` }}>
+          <li
+            key={h.id}
+            style={{ paddingLeft: `${(h.level - 2) * 12 + 12}px` }}
+            className="relative"
+          >
+            {activeId === h.id && (
+              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 bg-primary rounded-full transition-all duration-200" />
+            )}
             <a
               href={`#${h.id}`}
-              className={`block py-0.5 transition-colors ${
+              className={`block py-1 transition-colors duration-200 ${
                 activeId === h.id
                   ? "text-primary font-medium"
                   : "text-muted-foreground hover:text-foreground"
@@ -812,38 +1026,39 @@ function SidebarSection({
     <div className="mb-1">
       <button
         onClick={() => setOpen(!open)}
-        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md transition-colors ${
+        className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-[11px] uppercase tracking-[0.08em] rounded-md transition-colors duration-200 ${
           isActive
-            ? "text-foreground font-medium"
-            : "text-muted-foreground hover:text-foreground"
+            ? "text-foreground font-semibold"
+            : "text-muted-foreground hover:text-foreground font-semibold"
         }`}
         aria-expanded={open}
       >
-        {open ? (
-          <ChevronDown className="h-3 w-3 shrink-0" aria-hidden="true" />
-        ) : (
-          <ChevronRight className="h-3 w-3 shrink-0" aria-hidden="true" />
-        )}
+        <ChevronRight
+          className={`h-3 w-3 shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`}
+          aria-hidden="true"
+        />
         <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        <span className="font-medium">{section.label}</span>
+        <span>{section.label}</span>
       </button>
-      {open && (
-        <div className="ml-4 pl-3 border-l border-border/50 mt-0.5">
-          {section.items.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => onItemClick(item)}
-              className={`block w-full text-left px-3 py-1.5 text-[13px] rounded-md transition-colors ${
-                activeItemId === item.id
-                  ? "text-primary bg-primary/5 border-l-2 border-primary -ml-[1px] font-medium"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent/30"
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <div
+        className={`ml-4 pl-3 border-l border-border/50 mt-0.5 overflow-hidden transition-all duration-200 ${
+          open ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"
+        }`}
+      >
+        {section.items.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => onItemClick(item)}
+            className={`block w-full text-left px-3 py-1.5 text-[13px] rounded-md transition-all duration-150 ${
+              activeItemId === item.id
+                ? "text-primary bg-primary/8 border-l-2 border-primary -ml-px pl-[11px] font-medium"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/20"
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -873,17 +1088,19 @@ function PrevNextNav({
       {prev ? (
         <button
           onClick={() => onNavigate(prev)}
-          className="group flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="group flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-all duration-200 rounded-lg border border-transparent hover:border-border/60 hover:bg-muted/30 px-4 py-3 -ml-4"
         >
           <ChevronRight
-            className="h-4 w-4 rotate-180 group-hover:-translate-x-0.5 transition-transform"
+            className="h-4 w-4 rotate-180 group-hover:-translate-x-0.5 transition-transform duration-200"
             aria-hidden="true"
           />
           <div className="text-left">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
               Previous
             </div>
-            <div className="font-medium">{prev.label}</div>
+            <div className="font-medium group-hover:text-primary transition-colors duration-200">
+              {prev.label}
+            </div>
           </div>
         </button>
       ) : (
@@ -892,16 +1109,18 @@ function PrevNextNav({
       {next ? (
         <button
           onClick={() => onNavigate(next)}
-          className="group flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors text-right"
+          className="group flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-all duration-200 text-right rounded-lg border border-transparent hover:border-border/60 hover:bg-muted/30 px-4 py-3 -mr-4"
         >
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
               Next
             </div>
-            <div className="font-medium">{next.label}</div>
+            <div className="font-medium group-hover:text-primary transition-colors duration-200">
+              {next.label}
+            </div>
           </div>
           <ChevronRight
-            className="h-4 w-4 group-hover:translate-x-0.5 transition-transform"
+            className="h-4 w-4 group-hover:translate-x-0.5 transition-transform duration-200"
             aria-hidden="true"
           />
         </button>
@@ -929,6 +1148,8 @@ export default function DocsContent({
   const [search, setSearch] = useState("");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const initializedRef = useRef(false);
+  const [isPending, startTransition] = useTransition();
+  const [contentKey, setContentKey] = useState(0);
 
   // Build navigation structure
   const navSections: NavSection[] = useMemo(() => {
@@ -1143,7 +1364,10 @@ export default function DocsContent({
 
   const handleItemClick = useCallback(
     (item: NavItem) => {
-      setActiveItemId(item.id);
+      startTransition(() => {
+        setActiveItemId(item.id);
+        setContentKey((k) => k + 1);
+      });
       setMobileNavOpen(false);
       // Scroll content to top
       const contentEl = document.getElementById("docs-content-area");
@@ -1233,7 +1457,7 @@ export default function DocsContent({
       <div className="lg:hidden sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-sm px-4 py-3 flex items-center gap-3">
         <button
           onClick={() => setMobileNavOpen(!mobileNavOpen)}
-          className="p-2 rounded-md hover:bg-accent/30 transition-colors"
+          className="p-2 rounded-md hover:bg-accent/30 transition-colors duration-200"
           aria-label="Toggle navigation"
         >
           {mobileNavOpen ? (
@@ -1248,19 +1472,28 @@ export default function DocsContent({
       </div>
 
       <div className="flex min-h-[calc(100vh-64px)]">
+        {/* Mobile overlay */}
+        {mobileNavOpen && (
+          <div
+            className="fixed inset-0 top-[105px] z-20 bg-black/40 lg:hidden animate-[fadeIn_200ms_ease]"
+            onClick={() => setMobileNavOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
         {/* ═══ LEFT SIDEBAR ═══ */}
         <aside
           className={`${
             mobileNavOpen
-              ? "fixed inset-0 top-[105px] z-30 bg-background"
-              : "hidden"
-          } lg:block lg:sticky lg:top-0 lg:h-screen w-full lg:w-[260px] xl:w-[280px] shrink-0 border-r border-border overflow-y-auto`}
+              ? "fixed inset-y-0 left-0 top-[105px] z-30 w-[280px] bg-[#1E1A16] shadow-2xl translate-x-0"
+              : "fixed -translate-x-full lg:translate-x-0"
+          } lg:relative lg:block lg:sticky lg:top-0 lg:h-screen lg:w-[260px] xl:w-[280px] shrink-0 border-r border-border overflow-y-auto transition-transform duration-300 ease-out lg:bg-[#1E1A16]/50 docs-sidebar-scroll`}
         >
           <div className="p-4 pt-20 lg:pt-6">
             {/* Search */}
-            <div className="relative mb-5">
+            <div className="relative mb-5 group/search">
               <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground"
+                className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground transition-colors duration-200 group-focus-within/search:text-primary"
                 aria-hidden="true"
               />
               <input
@@ -1268,7 +1501,7 @@ export default function DocsContent({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search docs..."
-                className="h-9 w-full rounded-lg border border-border bg-card pl-9 pr-3 text-sm outline-none transition-all placeholder:text-muted-foreground/50 focus:border-primary/50 focus:ring-1 focus:ring-primary/10"
+                className="h-9 w-full rounded-lg border border-border bg-card pl-9 pr-3 text-sm outline-none transition-all duration-200 placeholder:text-muted-foreground/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/15 focus:w-full"
               />
             </div>
 
@@ -1310,19 +1543,21 @@ export default function DocsContent({
           id="docs-content-area"
           className="flex-1 min-w-0 overflow-y-auto"
         >
-          <div className="max-w-3xl mx-auto px-6 lg:px-10 py-8 lg:py-12">
+          <div className="max-w-[720px] mx-auto px-6 lg:px-10 py-8 lg:py-12">
             {/* Breadcrumb */}
             {activeItem && (
-              <div className="text-xs text-muted-foreground mb-4 flex items-center gap-1.5">
-                <span>Docs</span>
-                <ChevronRight className="h-3 w-3" aria-hidden="true" />
-                <span>
+              <div className="text-xs text-muted-foreground/70 mb-4 flex items-center gap-1.5">
+                <span className="hover:text-muted-foreground cursor-default transition-colors duration-150">
+                  Docs
+                </span>
+                <ChevronRight className="h-3 w-3 opacity-40" aria-hidden="true" />
+                <span className="hover:text-muted-foreground cursor-default transition-colors duration-150">
                   {navSections.find((s) =>
                     s.items.some((i) => i.id === activeItemId),
                   )?.label || ""}
                 </span>
-                <ChevronRight className="h-3 w-3" aria-hidden="true" />
-                <span className="text-foreground">{getTitle()}</span>
+                <ChevronRight className="h-3 w-3 opacity-40" aria-hidden="true" />
+                <span className="text-foreground/70">{getTitle()}</span>
               </div>
             )}
 
@@ -1336,7 +1571,10 @@ export default function DocsContent({
               </p>
             )}
 
-            <div className="border-t border-border pt-6">
+            <div
+              key={contentKey}
+              className={`border-t border-border pt-6 animate-[fadeIn_200ms_ease] ${isPending ? "opacity-60" : "opacity-100"} transition-opacity duration-150`}
+            >
               {renderContent()}
             </div>
 
