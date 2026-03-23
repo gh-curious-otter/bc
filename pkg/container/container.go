@@ -328,15 +328,21 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		args = append(args, "-v", hostDir+":/workspace")
 	}
 
-	// Mount 2: Persistent Claude state volume
-	// Starts empty on first create. Claude populates it with auth, plugins,
-	// settings, sessions, etc. Persists across container restarts.
+	// Mount 2: Persistent Claude state — both ~/.claude/ dir and ~/.claude.json file
 	volumeDir := filepath.Join(b.hostWorkspacePath, ".bc", "volumes", name, ".claude")
 	if err := os.MkdirAll(volumeDir, 0750); err != nil {
 		log.Warn("failed to create agent volume dir", "agent", name, "error", err)
 	} else {
 		args = append(args, "-v", volumeDir+":/home/agent/.claude")
 	}
+
+	// Mount ~/.claude.json (main config/auth file) — persists across restarts
+	claudeJSON := filepath.Join(b.hostWorkspacePath, ".bc", "volumes", name, ".claude.json")
+	// Create empty file if it doesn't exist (Docker needs the file to exist for bind mount)
+	if _, statErr := os.Stat(claudeJSON); os.IsNotExist(statErr) {
+		_ = os.WriteFile(claudeJSON, []byte("{}"), 0600)
+	}
+	args = append(args, "-v", claudeJSON+":/home/agent/.claude.json")
 
 	// Extra mounts from workspace config (e.g., shared caches, tool binaries).
 	// Validate each mount source to prevent arbitrary host filesystem access.
