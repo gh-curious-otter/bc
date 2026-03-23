@@ -329,3 +329,51 @@ input:focus-visible,
     opacity: 0;
   }
 }
+
+/* ── Docs page animations ── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Docs sidebar scroll shadows */
+.docs-sidebar-scroll {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0px,
+    black 16px,
+    black calc(100% - 16px),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0px,
+    black 16px,
+    black calc(100% - 16px),
+    transparent 100%
+  );
+}
+
+/* Docs sidebar scrollbar styling */
+.docs-sidebar-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.docs-sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.docs-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(234, 88, 12, 0.15);
+  border-radius: 4px;
+}
+
+.docs-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(234, 88, 12, 0.3);
+}
