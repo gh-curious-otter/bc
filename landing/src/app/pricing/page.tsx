@@ -6,20 +6,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Nav } from "../_components/Nav";
 import { Footer } from "../_components/Footer";
 import {
-  Server,
-  Cloud,
-  Terminal,
-  Key,
-  Lock,
-  Shield,
-  Database,
-  Container,
   Copy,
   Check,
   ChevronDown,
   Apple,
+  Container,
   GitBranch,
-  Cpu,
   ExternalLink,
 } from "lucide-react";
 
@@ -56,18 +48,18 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-interface InstallCardProps {
+interface InstallRowProps {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
   command: string;
 }
 
-function InstallCard({ icon: Icon, title, command }: InstallCardProps) {
+function InstallRow({ icon: Icon, title, command }: InstallRowProps) {
   const [expanded, setExpanded] = useState(false);
 
   return (
     <div
-      className="group rounded-lg border border-border/60 bg-accent/5 hover:bg-accent/15 transition-all cursor-pointer"
+      className="group rounded-md border border-border/40 hover:border-border/70 transition-all cursor-pointer"
       onClick={() => setExpanded(!expanded)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") setExpanded(!expanded);
@@ -76,11 +68,11 @@ function InstallCard({ icon: Icon, title, command }: InstallCardProps) {
       tabIndex={0}
       aria-expanded={expanded}
     >
-      <div className="flex items-center gap-3 px-4 py-3">
-        <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-        <span className="text-sm font-medium">{title}</span>
+      <div className="flex items-center gap-2.5 px-3 py-2">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <span className="text-sm">{title}</span>
         <ChevronDown
-          className={`h-3.5 w-3.5 text-muted-foreground/50 ml-auto transition-transform ${expanded ? "rotate-180" : ""}`}
+          className={`h-3 w-3 text-muted-foreground/40 ml-auto transition-transform ${expanded ? "rotate-180" : ""}`}
         />
       </div>
       <AnimatePresence>
@@ -92,8 +84,8 @@ function InstallCard({ icon: Icon, title, command }: InstallCardProps) {
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="px-4 pb-3">
-              <div className="flex items-center gap-2 rounded-md bg-background/80 border border-border/40 px-3 py-2 font-mono text-xs">
+            <div className="px-3 pb-2">
+              <div className="flex items-center gap-2 rounded bg-background/60 border border-border/30 px-2.5 py-1.5 font-mono text-xs">
                 <code className="text-muted-foreground flex-1 overflow-x-auto whitespace-nowrap">
                   {command}
                 </code>
@@ -103,6 +95,21 @@ function InstallCard({ icon: Icon, title, command }: InstallCardProps) {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function TechTags({ tags }: { tags: string[] }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {tags.map((t) => (
+        <span
+          key={t}
+          className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-muted/40 text-muted-foreground"
+        >
+          {t.toLowerCase()}
+        </span>
+      ))}
     </div>
   );
 }
@@ -119,7 +126,7 @@ function FAQItem({ question, answer }: FAQItemProps) {
     <div className="border-b border-border/40">
       <button
         onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between py-5 text-left"
+        className="flex w-full items-center justify-between py-4 text-left"
         aria-expanded={open}
       >
         <span className="font-semibold text-sm">{question}</span>
@@ -136,7 +143,7 @@ function FAQItem({ question, answer }: FAQItemProps) {
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <p className="pb-5 text-sm text-muted-foreground leading-relaxed">
+            <p className="pb-4 text-sm text-muted-foreground leading-relaxed">
               {answer}
             </p>
           </motion.div>
@@ -181,164 +188,148 @@ export default function PricingPage() {
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, margin: "-50px" }}
-            className="grid gap-8 lg:grid-cols-3"
+            className="grid gap-6 lg:grid-cols-3 items-stretch"
           >
             {/* Free Tier */}
             <motion.div
               variants={fadeUp}
               custom={0}
-              className="rounded-xl border-2 border-primary bg-card p-8 relative shadow-lg shadow-primary/5"
+              className="rounded-xl border border-border/60 border-l-2 border-l-primary bg-[#1A1714] dark:bg-[#1A1714] p-8 flex flex-col"
             >
-              <div className="mb-6">
-                <h2 className="text-3xl font-bold">Free</h2>
-                <p className="mt-3 text-sm text-muted-foreground">
+              <div className="mb-1">
+                <h2 className="text-2xl font-bold">Free</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
                   Runs locally on your machine
                 </p>
               </div>
 
-              {/* Tech stack */}
-              <div className="flex flex-wrap items-center gap-2 mb-6">
-                {["Docker", "tmux", "PostgreSQL", "SQLite"].map((t) => (
-                  <span key={t} className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider bg-muted/30 text-muted-foreground border border-border/50">
-                    {t}
-                  </span>
-                ))}
-              </div>
+              <div className="h-px bg-border/40 my-6" />
 
-              {/* Install cards */}
-              <div className="space-y-2 mb-6">
-                <InstallCard
+              <div className="space-y-2 mb-6 flex-1">
+                <InstallRow
                   icon={Apple}
                   title="macOS / Linux"
                   command="go install github.com/rpuneet/bc/cmd/bc@latest"
                 />
-                <InstallCard
+                <InstallRow
                   icon={Container}
                   title="Docker"
                   command="docker pull bcinfra/bc:latest"
                 />
-                <InstallCard
+                <InstallRow
                   icon={GitBranch}
                   title="Build from source"
                   command="git clone https://github.com/rpuneet/bc.git && cd bc && make build"
                 />
               </div>
 
-              <Link
-                href="https://github.com/gh-curious-otter/bc"
-                className="flex items-center justify-center gap-2 w-full rounded-lg bg-primary py-2.5 text-center text-sm font-semibold text-primary-foreground transition-all hover:opacity-90 active:scale-[0.98]"
-              >
-                Get Started
-                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-              </Link>
+              <TechTags tags={["docker", "tmux", "postgresql", "sqlite"]} />
+
+              <div className="mt-6">
+                <Link
+                  href="https://github.com/gh-curious-otter/bc"
+                  className="flex items-center justify-center gap-2 w-full rounded-lg bg-primary py-2.5 text-center text-sm font-semibold text-primary-foreground transition-all hover:opacity-90 active:scale-[0.98]"
+                >
+                  Get Started
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                </Link>
+              </div>
             </motion.div>
 
             {/* Cloud Tier */}
             <motion.div
               variants={fadeUp}
               custom={1}
-              className="rounded-xl border border-border bg-card p-8 relative"
+              className="rounded-xl border border-border/60 bg-[#1A1714] dark:bg-[#1A1714] p-8 flex flex-col"
             >
-              <div className="mb-6">
-                <h2 className="text-xl font-bold">Cloud</h2>
-                <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-5xl font-bold tracking-tight">
+              <div className="mb-1">
+                <h2 className="text-2xl font-bold">Cloud</h2>
+                <div className="mt-1 flex items-baseline gap-1">
+                  <span className="text-2xl font-bold tracking-tight">
                     &#8377;1,000
                   </span>
                   <span className="text-muted-foreground text-sm">
                     / month
                   </span>
                 </div>
-                <p className="mt-3 text-sm text-muted-foreground">
+                <p className="mt-1 text-sm text-muted-foreground">
                   Access your workspace from anywhere
                 </p>
               </div>
 
-              <ul className="space-y-3 mb-6">
+              <div className="h-px bg-border/40 my-6" />
+
+              <ul className="space-y-3 mb-6 flex-1">
                 {[
-                  "SSH into your workspace",
-                  "Chat with agents remotely",
-                  "Everything in Free, plus:",
+                  "SSH access to your workspace",
+                  "Remote agent management",
+                  "Everything in Free",
                 ].map((f) => (
                   <li
                     key={f}
-                    className="flex items-start gap-2.5 text-sm text-muted-foreground"
+                    className="flex items-center gap-2.5 text-sm text-muted-foreground"
                   >
-                    <Check
-                      className="h-4 w-4 text-success shrink-0 mt-0.5"
-                      aria-hidden="true"
-                    />
+                    <span className="h-1 w-1 rounded-full bg-muted-foreground/50 shrink-0" />
                     {f}
                   </li>
                 ))}
               </ul>
 
-              {/* Tech stack */}
-              <div className="flex flex-wrap items-center gap-2 mb-6">
-                {["Kubernetes", "AWS", "GCP", "SSH", "MCP"].map((t) => (
-                  <span key={t} className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider bg-muted/30 text-muted-foreground border border-border/50">
-                    {t}
-                  </span>
-                ))}
-              </div>
+              <TechTags
+                tags={["kubernetes", "aws", "gcp", "ssh", "mcp"]}
+              />
 
-              <Link
-                href="/waitlist"
-                className="block w-full rounded-lg border border-border py-2.5 text-center text-sm font-semibold transition-colors hover:bg-accent/20 active:scale-[0.98]"
-              >
-                Join Waitlist
-              </Link>
+              <div className="mt-6">
+                <Link
+                  href="/waitlist"
+                  className="block w-full rounded-lg border border-border/60 py-2.5 text-center text-sm font-semibold transition-colors hover:bg-accent/20 active:scale-[0.98]"
+                >
+                  Join Waitlist
+                </Link>
+              </div>
             </motion.div>
 
-            {/* Enterprise Tier - Blurred */}
+            {/* Enterprise Tier */}
             <motion.div
               variants={fadeUp}
               custom={2}
-              className="rounded-xl border border-border/30 bg-card p-8 relative overflow-hidden"
+              className="rounded-xl border border-border/60 bg-[#1A1714] dark:bg-[#1A1714] p-8 flex flex-col relative overflow-hidden"
             >
-              {/* Content behind blur */}
-              <div className="blur-[6px] select-none pointer-events-none">
-                <div className="mb-6">
-                  <h2 className="text-xl font-bold">Enterprise</h2>
-                  <div className="mt-4 flex items-baseline gap-1">
-                    <span className="text-5xl font-bold tracking-tight">
-                      Custom
-                    </span>
-                  </div>
-                  <p className="mt-3 text-sm text-muted-foreground">
+              <div className="opacity-40 flex flex-col flex-1">
+                <div className="mb-1">
+                  <h2 className="text-2xl font-bold">Enterprise</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
                     For teams at scale
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3 mb-6 text-muted-foreground">
-                  <Lock className="h-4 w-4" />
-                  <Shield className="h-4 w-4" />
-                  <Server className="h-4 w-4" />
-                  <Key className="h-4 w-4" />
-                </div>
+                <div className="h-px bg-border/40 my-6" />
 
-                <ul className="space-y-3 mb-6">
-                  {["SSO / SAML", "Audit logs", "Dedicated support", "Custom SLA"].map(
-                    (f) => (
-                      <li
-                        key={f}
-                        className="flex items-start gap-2.5 text-sm text-muted-foreground"
-                      >
-                        <Check className="h-4 w-4 shrink-0 mt-0.5" />
-                        {f}
-                      </li>
-                    )
-                  )}
+                <ul className="space-y-3 mb-6 flex-1">
+                  {[
+                    "SSO / SAML authentication",
+                    "Audit logs and compliance",
+                    "Dedicated support",
+                    "Custom SLA",
+                  ].map((f) => (
+                    <li
+                      key={f}
+                      className="flex items-center gap-2.5 text-sm text-muted-foreground"
+                    >
+                      <span className="h-1 w-1 rounded-full bg-muted-foreground/50 shrink-0" />
+                      {f}
+                    </li>
+                  ))}
                 </ul>
 
-                <div className="w-full rounded-lg border border-border py-2.5 text-center text-sm font-semibold">
-                  Contact Sales
-                </div>
+                <TechTags
+                  tags={["sso", "saml", "audit", "sla"]}
+                />
               </div>
 
-              {/* Frosted overlay */}
-              <div className="absolute inset-0 bg-background/40 backdrop-blur-sm z-10 flex flex-col items-center justify-center gap-4">
-                <span className="px-5 py-2 rounded-full border border-border/60 bg-card/80 text-sm font-semibold text-muted-foreground backdrop-blur-sm">
+              {/* Coming soon overlay */}
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3">
+                <span className="px-4 py-1.5 rounded-full border border-border/60 bg-card/90 text-sm font-semibold text-muted-foreground">
                   Coming soon
                 </span>
                 <a
@@ -356,12 +347,12 @@ export default function PricingPage() {
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, margin: "-50px" }}
-            className="mt-24 max-w-2xl mx-auto"
+            className="mt-16 max-w-2xl mx-auto"
           >
             <motion.h2
               variants={fadeUp}
               custom={0}
-              className="text-2xl font-bold tracking-tight text-center mb-8"
+              className="text-2xl font-bold tracking-tight text-center mb-6"
             >
               Frequently asked questions
             </motion.h2>
