@@ -6,25 +6,40 @@ import (
 	"path/filepath"
 )
 
-// defaultClaudeSettings is the minimal settings file that prevents the
-// interactive theme selection prompt on first run of Claude Code.
-var defaultClaudeSettings = map[string]string{
-	"theme": "dark",
+// requiredClaudeSettings are fields that MUST be present to prevent
+// Claude Code from showing interactive prompts that block Docker agents.
+var requiredClaudeSettings = map[string]any{
+	"theme":                            "dark",
+	"skipDangerousModePermissionPrompt": true,
+	"autoUpdaterStatus":                "disabled",
 }
 
-// SeedClaudeSettings writes a default settings.json into the given Claude
-// volume directory if one does not already exist. This prevents Docker agents
-// from getting stuck on the interactive theme picker that Claude Code shows
-// on first run.
+// SeedClaudeSettings ensures required settings exist in settings.json.
+// If the file doesn't exist, creates it. If it exists, merges in any
+// missing required fields without overwriting user customizations.
 func SeedClaudeSettings(volumeDir string) error {
 	settingsPath := filepath.Join(volumeDir, "settings.json")
 
-	// Don't overwrite existing settings — the agent may have customized them.
-	if _, err := os.Stat(settingsPath); err == nil {
-		return nil
+	// Load existing settings if present
+	existing := map[string]any{}
+	if data, err := os.ReadFile(settingsPath); err == nil { //nolint:gosec // trusted path
+		_ = json.Unmarshal(data, &existing)
 	}
 
-	data, err := json.Marshal(defaultClaudeSettings)
+	// Merge required fields — only set if missing
+	changed := false
+	for k, v := range requiredClaudeSettings {
+		if _, ok := existing[k]; !ok {
+			existing[k] = v
+			changed = true
+		}
+	}
+
+	if !changed && len(existing) > 0 {
+		return nil // all required fields already present
+	}
+
+	data, err := json.MarshalIndent(existing, "", "  ")
 	if err != nil {
 		return err
 	}
