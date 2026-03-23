@@ -628,7 +628,7 @@ Two built-in themes mapping semantic slots to ANSI names:
 
 ### Solar Flare Design System
 
-The Solar Flare migration changes the TUI's color system from ANSI-only names to a unified design token set shared across all three bc frontends. The full palette is defined in `docs/architecture/design-system.md`.
+The Solar Flare migration changes the TUI's color system from ANSI-only names to a unified design token set shared across all three bc frontends. The full palette is defined in `docs/explanation/design-system.md`.
 
 **How terminal color mapping works:**
 

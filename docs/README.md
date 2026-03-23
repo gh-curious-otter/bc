@@ -2,65 +2,49 @@
 
 bc is a CLI-first orchestration system for coordinating teams of AI coding agents across multiple repositories.
 
-## Architecture
+This documentation is organized following the [Diataxis framework](https://diataxis.fr) into four categories:
 
-| Document | Description |
-|----------|-------------|
-| [System Overview](overview.md) | Architecture layers, components, data flow diagrams |
-| [Architecture Deep Dive](architecture/README.md) | Component diagram, data flow, design decisions, package dependencies |
+## [Tutorials](tutorials/index.md) -- Learning-oriented
 
-## Backend
+Step-by-step guides for getting started with bc.
 
-| Document | Description |
-|----------|-------------|
-| [Agents](backend/agents.md) | Lifecycle state machine, runtimes, worktrees, roles |
-| [MCP Server](backend/mcp.md) | Resources, tools, transports, notifications |
+- [Getting Started](tutorials/getting-started.md) -- Install and run your first workspace
+- [Your First Agent](tutorials/first-agent.md) -- Create, monitor, and communicate with an agent
 
-## Database
+## [How-To Guides](how-to/index.md) -- Task-oriented
 
-| Document | Description |
-|----------|-------------|
-| [Schema & Storage](database/database.md) | Complete DDL, ER diagram, indexes, migrations, filesystem layout |
+Practical guides for accomplishing specific tasks.
 
-## Frontend
+- [Configure your workspace](how-to/configure-workspace.md) -- Settings, providers, and runtime backends
+- [Set up channels](how-to/set-up-channels.md) -- Inter-agent communication and PR workflows
+- [Troubleshoot issues](how-to/troubleshoot.md) -- Common errors and fixes
 
-| Document | Description |
-|----------|-------------|
-| [Web UI](frontend/web-ui.md) | React SPA, component tree, routing, state management |
-| [TUI](frontend/tui.md) | React Ink terminal UI, navigation, hooks |
-| [Design System](frontend/design-system.md) | Solar Flare palette, tokens, shared component library |
-| [Networking](frontend/networking.md) | Client-server communication, SSE events, protocols |
+## [Reference](reference/index.md) -- Information-oriented
 
-## Infrastructure
+Technical reference material for APIs, CLI commands, and configuration.
 
-| Document | Description |
-|----------|-------------|
-| [CI/CD](infrastructure/ci-cd.md) | GitHub Actions, test pipeline, release workflow |
-| [Deployment](infrastructure/deployment.md) | Docker containers, runtime configuration |
+- [REST API](reference/api-rest.md) -- All HTTP endpoints
+- [Settings API](reference/api-settings.md) -- Configuration endpoints
+- [CLI Reference](reference/cli/bc.md) -- Auto-generated command documentation
 
-## API Reference
+## [Explanation](explanation/index.md) -- Understanding-oriented
 
-| Document | Description |
-|----------|-------------|
-| [REST API](api/rest.md) | All HTTP endpoints with params, body, response schemas |
+Deep dives into architecture, design decisions, and subsystem internals.
 
-## Guides
+- [Architecture](explanation/architecture.md) -- Component diagram, data flow, package dependencies
+- [Design Decisions](explanation/design-decisions.md) -- ADRs for key technical choices
+- [Agents](explanation/agents.md) -- State machine, runtimes, worktrees, roles
+- [MCP Server](explanation/mcp.md) -- Resources, tools, transports, notifications
+- [Database](explanation/database.md) -- Schema, ER diagram, migrations
+- [Web Dashboard](explanation/web-ui.md) -- React SPA architecture
+- [TUI](explanation/tui.md) -- Terminal UI architecture
+- [Design System](explanation/design-system.md) -- Solar Flare palette and tokens
+- [Networking](explanation/networking.md) -- Protocols, SSE, CORS
+- [CI/CD](explanation/ci-cd.md) -- Pipelines and release workflow
+- [Deployment](explanation/deployment.md) -- Docker, networking, volumes
+- [Security](explanation/security.md) -- Threat model, encryption, isolation
 
-| Document | Description |
-|----------|-------------|
-| [Quick Start](guides/quickstart.md) | 5-minute setup |
-| [Channels](guides/channels.md) | Message types, conventions, PR workflow |
-| [Troubleshooting](guides/troubleshooting.md) | Common errors and fixes |
-| CLI Reference | Run `bc --help` for complete command listing |
+## Other
 
-## Engineering Reviews
-
-| Document | Description |
-|----------|-------------|
-| [Backend](reviews/backend.md) | Architecture, API, data layer, performance |
-| [Frontend](reviews/frontend.md) | Web UI, TUI, landing page |
-| [Infrastructure](reviews/infrastructure.md) | CI/CD, Docker, deployment |
-
-## Archive
-
-Legacy v1 documentation has been removed.
+- [Contributing: Testing](contributing/testing.md) -- How to run and write tests
+- [Screenshots](screenshots/) -- Dashboard and landing page screenshots

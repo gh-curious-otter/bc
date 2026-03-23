@@ -147,7 +147,7 @@ AI coding assistants running in isolated sessions. Each agent has:
 - An associated workspace (git repo path)
 - Optional team membership for organizational grouping
 
-See [backend/agents.md](backend/agents.md) for lifecycle, state machine, and runtime details.
+See [explanation/agents.md](explanation/agents.md) for lifecycle, state machine, and runtime details.
 
 ### Teams
 
