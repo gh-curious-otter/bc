@@ -4,7 +4,6 @@ import { DashboardScreenshots } from "./_components/DashboardScreenshots";
 import { Footer } from "./_components/Footer";
 import { HeroSection } from "./_components/HeroSection";
 import { BentoGrid } from "./_components/BentoGrid";
-import { StatsBar } from "./_components/StatsBar";
 import {
   TerminalWindow,
   CommandOutput,
@@ -25,11 +24,6 @@ export default function Home() {
 
         {/* Hero */}
         <HeroSection />
-
-        {/* Stats Bar */}
-        <div className="mt-12 sm:mt-16">
-          <StatsBar />
-        </div>
 
         {/* Tool Carousel */}
         <div className="mt-8 sm:mt-12 lg:mt-16 mx-auto max-w-6xl px-4 sm:px-6">

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { ArrowRight, CheckCircle2, Layers } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -87,17 +87,19 @@ export function HeroSection() {
           <motion.div
             variants={fadeUp}
             custom={4}
-            className="mt-8 flex flex-wrap items-center gap-6 font-mono text-xs text-muted-foreground"
+            className="mt-8 flex flex-wrap items-center gap-5 font-mono text-xs text-muted-foreground"
           >
             <span className="flex items-center gap-1.5">
-              <CheckCircle2
-                className="h-3.5 w-3.5 text-success"
-                aria-hidden="true"
-              />
+              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" aria-hidden="true" />
               Open source
             </span>
             <span className="flex items-center gap-1.5">
-              <Layers className="h-3.5 w-3.5" aria-hidden="true" />7 AI tools
+              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" aria-hidden="true" />
+              CLI-first
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" aria-hidden="true" />
+              Local
             </span>
           </motion.div>
         </div>
