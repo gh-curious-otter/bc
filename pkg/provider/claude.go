@@ -51,7 +51,9 @@ func (p *ClaudeProvider) InstallHint() string {
 }
 
 // BuildCommand returns the full command for a given runtime context.
-// Always includes --dangerously-skip-permissions, -w <worktree>, and --tmux.
+// Includes --dangerously-skip-permissions and -w <worktree>.
+// --tmux is NOT included here — it's added by AdjustSessionCommand for Docker only.
+// For native tmux, claude auto-detects the tmux environment.
 // Resume priority: SessionID (--resume <id>) > Resume flag (--continue).
 func (p *ClaudeProvider) BuildCommand(opts CommandOpts) string {
 	cmd := "claude --dangerously-skip-permissions"
@@ -60,7 +62,7 @@ func (p *ClaudeProvider) BuildCommand(opts CommandOpts) string {
 		if opts.WorkspaceName != "" {
 			worktreeName = "bc-" + opts.WorkspaceName + "-" + opts.AgentName
 		}
-		cmd = "claude --dangerously-skip-permissions -w " + worktreeName + " --tmux"
+		cmd = "claude --dangerously-skip-permissions -w " + worktreeName
 	}
 	switch {
 	case opts.SessionID != "":
