@@ -57,12 +57,12 @@ func (r *Role) Description() string {
 }
 
 // RoleManager handles role operations for a workspace.
-// When a RoleStore is attached, it uses SQLite as the primary backend.
-// Otherwise, it falls back to filesystem-based .md files.
+// All role data is stored in SQL (SQLite or Postgres) via the RoleStore.
+// The rolesDir field is retained only for migration from legacy file-based storage.
 type RoleManager struct {
-	store    *RoleStore // SQLite store (nil = filesystem-only mode)
+	store    *RoleStore // SQL store (required for all operations)
 	roles    map[string]*Role
-	rolesDir string
+	rolesDir string // kept for migration only
 }
 
 // DefaultBaseRole is the foundational role all other roles inherit from.
@@ -261,11 +261,25 @@ Update docs in the same PR as the feature. Use concrete examples.
 }
 
 // NewRoleManager creates a new role manager for the given workspace state directory.
+// It opens a SQLite-backed RoleStore at stateDir/bc.db automatically and performs
+// a best-effort migration of any .md files in the roles directory.
+// If the store cannot be opened, operations that require the store will return errors.
 func NewRoleManager(stateDir string) *RoleManager {
-	return &RoleManager{
-		rolesDir: filepath.Join(stateDir, "roles"),
+	rolesDir := filepath.Join(stateDir, "roles")
+	rm := &RoleManager{
+		rolesDir: rolesDir,
 		roles:    make(map[string]*Role),
 	}
+
+	dbPath := filepath.Join(stateDir, "bc.db")
+	store, err := NewRoleStore(dbPath)
+	if err == nil {
+		rm.store = store
+		// Best-effort migration of legacy filesystem roles
+		_, _ = store.MigrateFromFiles(rolesDir) //nolint:errcheck // best-effort
+	}
+
+	return rm
 }
 
 // NewRoleManagerWithStore creates a role manager backed by a SQLite store.
@@ -293,150 +307,102 @@ func (rm *RoleManager) EnsureRolesDir() error {
 	return os.MkdirAll(rm.rolesDir, 0750)
 }
 
-// EnsureDefaultRoles creates built-in role files that don't already exist.
+// EnsureDefaultRoles writes built-in default roles to the store if they don't already exist.
 // Returns the names of any roles that were created.
 func (rm *RoleManager) EnsureDefaultRoles() ([]string, error) {
-	if err := rm.EnsureRolesDir(); err != nil {
-		return nil, err
+	if rm.store == nil {
+		return nil, fmt.Errorf("role store is required")
 	}
 
 	var created []string
 	for name, content := range DefaultRoles {
-		rolePath := filepath.Join(rm.rolesDir, name+".md")
-		if _, err := os.Stat(rolePath); err == nil {
-			continue // already exists
-		} else if !os.IsNotExist(err) {
-			return nil, fmt.Errorf("failed to check %s.md: %w", name, err)
+		if rm.store.Has(name) {
+			continue
 		}
-		if err := os.WriteFile(rolePath, []byte(content), 0600); err != nil {
-			return nil, fmt.Errorf("failed to create %s.md: %w", name, err)
+		role, err := ParseRoleFile([]byte(content))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse default role %s: %w", name, err)
 		}
+		if role.Metadata.Name == "" {
+			role.Metadata.Name = name
+		}
+		if err := rm.store.Save(role); err != nil {
+			return nil, fmt.Errorf("failed to save default role %s: %w", name, err)
+		}
+		rm.roles[name] = role
 		created = append(created, name)
 	}
 	return created, nil
 }
 
-// EnsureDefaultRoot creates the default root.md and base.md if they don't exist.
-// Returns true if root.md was created, false if it already existed.
+// EnsureDefaultRoot ensures the base and root roles exist in the store.
+// Returns true if the root role was created, false if it already existed.
 func (rm *RoleManager) EnsureDefaultRoot() (bool, error) {
-	if err := rm.EnsureRolesDir(); err != nil {
-		return false, err
+	if rm.store == nil {
+		return false, fmt.Errorf("role store is required")
 	}
 
-	// Always ensure base.md exists (root and all roles inherit from it)
-	basePath := filepath.Join(rm.rolesDir, "base.md")
-	if _, err := os.Stat(basePath); os.IsNotExist(err) {
-		if writeErr := os.WriteFile(basePath, []byte(DefaultBaseRole), 0600); writeErr != nil {
-			return false, fmt.Errorf("failed to create base.md: %w", writeErr)
+	// Always ensure base role exists (root and all roles inherit from it)
+	if !rm.store.Has("base") {
+		role, err := ParseRoleFile([]byte(DefaultBaseRole))
+		if err != nil {
+			return false, fmt.Errorf("failed to parse default base role: %w", err)
 		}
+		if saveErr := rm.store.Save(role); saveErr != nil {
+			return false, fmt.Errorf("failed to save default base role: %w", saveErr)
+		}
+		rm.roles["base"] = role
 	}
 
-	rootPath := filepath.Join(rm.rolesDir, "root.md")
-	if _, err := os.Stat(rootPath); err == nil {
-		return false, nil // Already exists
-	} else if !os.IsNotExist(err) {
-		return false, fmt.Errorf("failed to check root.md: %w", err)
+	if rm.store.Has("root") {
+		return false, nil
 	}
 
-	if err := os.WriteFile(rootPath, []byte(DefaultRootRole), 0600); err != nil {
-		return false, fmt.Errorf("failed to create root.md: %w", err)
+	role, err := ParseRoleFile([]byte(DefaultRootRole))
+	if err != nil {
+		return false, fmt.Errorf("failed to parse default root role: %w", err)
 	}
+	if saveErr := rm.store.Save(role); saveErr != nil {
+		return false, fmt.Errorf("failed to save default root role: %w", saveErr)
+	}
+	rm.roles["root"] = role
 
 	return true, nil
 }
 
-// LoadRole loads and parses a single role.
-// Uses SQLite store if available, otherwise reads from filesystem.
+// LoadRole loads and parses a single role from the SQL store.
 func (rm *RoleManager) LoadRole(name string) (*Role, error) {
 	// Check cache first
 	if role, ok := rm.roles[name]; ok {
 		return role, nil
 	}
 
-	// Try SQLite store first
-	if rm.store != nil {
-		role, err := rm.store.Load(name)
-		if err == nil {
-			rm.roles[name] = role
-			return role, nil
-		}
-		// Fall through to filesystem if not found in store
+	if rm.store == nil {
+		return nil, fmt.Errorf("role store is required")
 	}
 
-	filePath := filepath.Join(rm.rolesDir, name+".md")
-	return rm.loadRoleFromPath(filePath)
-}
-
-// loadRoleFromPath loads a role from a specific file path.
-func (rm *RoleManager) loadRoleFromPath(filePath string) (*Role, error) {
-	data, err := os.ReadFile(filePath) //nolint:gosec // path constructed from known roles dir
+	role, err := rm.store.Load(name)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read role file: %w", err)
+		return nil, fmt.Errorf("failed to load role %q: %w", name, err)
 	}
 
-	role, err := ParseRoleFile(data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse role file %s: %w", filePath, err)
-	}
-
-	role.FilePath = filePath
-
-	// If role name is empty (no frontmatter or missing name field),
-	// derive it from the filename as a fallback
-	if role.Metadata.Name == "" {
-		role.Metadata.Name = strings.TrimSuffix(filepath.Base(filePath), ".md")
-	}
-
-	// Cache the role
-	rm.roles[role.Metadata.Name] = role
-
+	rm.roles[name] = role
 	return role, nil
 }
 
-// LoadAllRoles loads all roles.
-// Uses SQLite store if available, otherwise reads from the roles directory.
+// LoadAllRoles loads all roles from the SQL store.
 func (rm *RoleManager) LoadAllRoles() (map[string]*Role, error) {
-	// If we have a store, load from SQLite
-	if rm.store != nil {
-		all, err := rm.store.LoadAll()
-		if err != nil {
-			return nil, fmt.Errorf("failed to load roles from store: %w", err)
-		}
-		for name, role := range all {
-			rm.roles[name] = role
-		}
-		return rm.roles, nil
+	if rm.store == nil {
+		return nil, fmt.Errorf("role store is required")
 	}
 
-	// Filesystem fallback: ensure default root exists
-	if _, err := rm.EnsureDefaultRoot(); err != nil {
-		return nil, err
-	}
-
-	entries, err := os.ReadDir(rm.rolesDir)
+	all, err := rm.store.LoadAll()
 	if err != nil {
-		if os.IsNotExist(err) {
-			return rm.roles, nil // Empty roles directory
-		}
-		return nil, fmt.Errorf("failed to read roles directory: %w", err)
+		return nil, fmt.Errorf("failed to load roles from store: %w", err)
 	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-
-		name := entry.Name()
-		if !strings.HasSuffix(name, ".md") {
-			continue
-		}
-
-		filePath := filepath.Join(rm.rolesDir, name)
-		if _, err := rm.loadRoleFromPath(filePath); err != nil {
-			return nil, err
-		}
+	for name, role := range all {
+		rm.roles[name] = role
 	}
-
 	return rm.roles, nil
 }
 
@@ -446,7 +412,7 @@ func (rm *RoleManager) GetRole(name string) (*Role, bool) {
 	return role, ok
 }
 
-// HasRole checks if a role exists (cached, in store, or on disk).
+// HasRole checks if a role exists (cached or in store).
 func (rm *RoleManager) HasRole(name string) bool {
 	// Check cache
 	if _, ok := rm.roles[name]; ok {
@@ -454,14 +420,11 @@ func (rm *RoleManager) HasRole(name string) bool {
 	}
 
 	// Check store
-	if rm.store != nil && rm.store.Has(name) {
-		return true
+	if rm.store != nil {
+		return rm.store.Has(name)
 	}
 
-	// Check disk
-	filePath := filepath.Join(rm.rolesDir, name+".md")
-	_, err := os.Stat(filePath)
-	return err == nil
+	return false
 }
 
 // ParseRoleFile parses a role file with YAML frontmatter and markdown body.
@@ -514,44 +477,21 @@ func ParseRoleFile(data []byte) (*Role, error) {
 	}, nil
 }
 
-// WriteRole writes a role.
-// Uses SQLite store if available, otherwise writes to the filesystem.
+// WriteRole writes a role to the SQL store.
 func (rm *RoleManager) WriteRole(role *Role) error {
 	name := role.Metadata.Name
 	if name == "" {
 		return fmt.Errorf("role name is required")
 	}
 
-	// Write to SQLite store if available
-	if rm.store != nil {
-		if err := rm.store.Save(role); err != nil {
-			return fmt.Errorf("failed to save role to store: %w", err)
-		}
-		rm.roles[name] = role
-		return nil
+	if rm.store == nil {
+		return fmt.Errorf("role store is required")
 	}
 
-	// Filesystem fallback
-	if err := rm.EnsureRolesDir(); err != nil {
-		return err
+	if err := rm.store.Save(role); err != nil {
+		return fmt.Errorf("failed to save role to store: %w", err)
 	}
-
-	filePath := filepath.Join(rm.rolesDir, name+".md")
-
-	// Generate file content
-	content, err := FormatRoleFile(role)
-	if err != nil {
-		return err
-	}
-
-	if err := os.WriteFile(filePath, []byte(content), 0600); err != nil {
-		return fmt.Errorf("failed to write role file: %w", err)
-	}
-
-	// Update cache
-	role.FilePath = filePath
 	rm.roles[name] = role
-
 	return nil
 }
 
@@ -735,31 +675,19 @@ func mergeAnyMaps(dst, src map[string]any) map[string]any {
 	return dst
 }
 
-// DeleteRole removes a role by name.
-// Uses SQLite store if available, otherwise removes the filesystem .md file.
+// DeleteRole removes a role by name from the SQL store.
 func (rm *RoleManager) DeleteRole(name string) error {
 	if name == "" {
 		return fmt.Errorf("role name is required")
 	}
 
-	// Delete from SQLite store if available
-	if rm.store != nil {
-		if err := rm.store.Delete(name); err != nil {
-			return fmt.Errorf("failed to delete role from store: %w", err)
-		}
-		delete(rm.roles, name)
-		return nil
+	if rm.store == nil {
+		return fmt.Errorf("role store is required")
 	}
 
-	// Filesystem fallback
-	filePath := filepath.Join(rm.rolesDir, name+".md")
-	if err := os.Remove(filePath); err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("role %q not found", name)
-		}
-		return fmt.Errorf("failed to delete role file: %w", err)
+	if err := rm.store.Delete(name); err != nil {
+		return fmt.Errorf("failed to delete role from store: %w", err)
 	}
-
 	delete(rm.roles, name)
 	return nil
 }

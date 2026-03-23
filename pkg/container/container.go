@@ -98,13 +98,14 @@ func ConfigFromWorkspace(dcfg workspace.DockerRuntimeConfig) Config {
 // Backend manages Docker containers as agent sessions.
 // Each container runs tmux internally for interactive session management.
 type Backend struct {
-	logCancels       map[string]context.CancelFunc
-	providerRegistry *provider.Registry
-	prefix           string
-	workspaceHash    string
-	workspacePath    string
-	cfg              Config
-	mu               sync.RWMutex
+	logCancels        map[string]context.CancelFunc
+	providerRegistry  *provider.Registry
+	prefix            string
+	workspaceHash     string
+	workspacePath     string
+	hostWorkspacePath string // host path for Docker-in-Docker mounts (from BC_HOST_WORKSPACE)
+	cfg               Config
+	mu                sync.RWMutex
 }
 
 // NewBackend creates a Docker runtime backend.
@@ -118,14 +119,22 @@ func NewBackend(cfg Config, prefix, workspacePath string, registry *provider.Reg
 		return nil, fmt.Errorf("docker daemon not available: %w", err)
 	}
 
-	h := sha256.Sum256([]byte(workspacePath))
+	// Use host workspace path for volume mounts in Docker-in-Docker setups.
+	// BC_HOST_WORKSPACE is set by `bc up` when the daemon runs in Docker.
+	hostPath := workspacePath
+	if hp := os.Getenv("BC_HOST_WORKSPACE"); hp != "" {
+		hostPath = hp
+	}
+
+	h := sha256.Sum256([]byte(hostPath))
 	return &Backend{
-		cfg:              cfg,
-		prefix:           prefix,
-		workspaceHash:    fmt.Sprintf("%x", h[:3]),
-		workspacePath:    workspacePath,
-		providerRegistry: registry,
-		logCancels:       make(map[string]context.CancelFunc),
+		cfg:               cfg,
+		prefix:            prefix,
+		workspaceHash:     fmt.Sprintf("%x", h[:3]),
+		workspacePath:     workspacePath,
+		hostWorkspacePath: hostPath,
+		providerRegistry:  registry,
+		logCancels:        make(map[string]context.CancelFunc),
 	}, nil
 }
 
@@ -310,20 +319,30 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	// Ensure host.docker.internal resolves on Linux (macOS/Windows get this automatically)
 	args = append(args, "--add-host=host.docker.internal:host-gateway")
 
-	// Mount 1: Project workspace
-	if dir != "" {
-		args = append(args, "-v", dir+":/workspace")
+	// Mount 1: Project workspace — use host path for Docker-in-Docker
+	hostDir := dir
+	if b.hostWorkspacePath != "" && b.hostWorkspacePath != b.workspacePath {
+		hostDir = b.hostWorkspacePath
+	}
+	if hostDir != "" {
+		args = append(args, "-v", hostDir+":/workspace")
 	}
 
-	// Mount 2: Persistent Claude state volume
-	// Starts empty on first create. Claude populates it with auth, plugins,
-	// settings, sessions, etc. Persists across container restarts.
-	volumeDir := filepath.Join(b.workspacePath, ".bc", "volumes", name, ".claude")
+	// Mount 2: Persistent Claude state — both ~/.claude/ dir and ~/.claude.json file
+	volumeDir := filepath.Join(b.hostWorkspacePath, ".bc", "volumes", name, ".claude")
 	if err := os.MkdirAll(volumeDir, 0750); err != nil {
 		log.Warn("failed to create agent volume dir", "agent", name, "error", err)
 	} else {
 		args = append(args, "-v", volumeDir+":/home/agent/.claude")
 	}
+
+	// Mount ~/.claude.json (main config/auth file) — persists across restarts
+	claudeJSON := filepath.Join(b.hostWorkspacePath, ".bc", "volumes", name, ".claude.json")
+	// Create empty file if it doesn't exist (Docker needs the file to exist for bind mount)
+	if _, statErr := os.Stat(claudeJSON); os.IsNotExist(statErr) {
+		_ = os.WriteFile(claudeJSON, []byte("{}"), 0600)
+	}
+	args = append(args, "-v", claudeJSON+":/home/agent/.claude.json")
 
 	// Extra mounts from workspace config (e.g., shared caches, tool binaries).
 	// Validate each mount source to prevent arbitrary host filesystem access.

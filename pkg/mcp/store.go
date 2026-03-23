@@ -35,9 +35,10 @@ type ServerConfig struct {
 	Enabled   bool              `json:"enabled"`
 }
 
-// Store provides SQLite-backed MCP server config storage.
+// Store provides MCP server config storage backed by SQLite or Postgres.
 type Store struct {
 	db *db.DB
+	pg *PostgresStore // non-nil when using Postgres via OpenStore
 }
 
 // NewStore creates a new MCP store for the given workspace path.
@@ -78,6 +79,9 @@ func (s *Store) initSchema() error {
 
 // Close closes the database connection.
 func (s *Store) Close() error {
+	if s.pg != nil {
+		return s.pg.Close()
+	}
 	if s.db != nil {
 		return s.db.Close()
 	}
@@ -86,6 +90,9 @@ func (s *Store) Close() error {
 
 // Add inserts a new MCP server configuration.
 func (s *Store) Add(cfg *ServerConfig) error {
+	if s.pg != nil {
+		return s.pg.Add(cfg)
+	}
 	if err := validateConfig(cfg); err != nil {
 		return err
 	}
@@ -117,6 +124,9 @@ func (s *Store) Add(cfg *ServerConfig) error {
 
 // Get returns an MCP server config by name.
 func (s *Store) Get(name string) (*ServerConfig, error) {
+	if s.pg != nil {
+		return s.pg.Get(name)
+	}
 	ctx := context.Background()
 	row := s.db.QueryRowContext(ctx,
 		`SELECT name, transport, command, args, url, env, enabled, created_at
@@ -127,6 +137,9 @@ func (s *Store) Get(name string) (*ServerConfig, error) {
 
 // List returns all MCP server configurations.
 func (s *Store) List() ([]*ServerConfig, error) {
+	if s.pg != nil {
+		return s.pg.List()
+	}
 	ctx := context.Background()
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT name, transport, command, args, url, env, enabled, created_at
@@ -150,6 +163,9 @@ func (s *Store) List() ([]*ServerConfig, error) {
 
 // Remove deletes an MCP server config by name.
 func (s *Store) Remove(name string) error {
+	if s.pg != nil {
+		return s.pg.Remove(name)
+	}
 	ctx := context.Background()
 	result, err := s.db.ExecContext(ctx, "DELETE FROM mcp_servers WHERE name = ?", name)
 	if err != nil {
@@ -164,6 +180,9 @@ func (s *Store) Remove(name string) error {
 
 // SetEnabled enables or disables an MCP server config.
 func (s *Store) SetEnabled(name string, enabled bool) error {
+	if s.pg != nil {
+		return s.pg.SetEnabled(name, enabled)
+	}
 	ctx := context.Background()
 	result, err := s.db.ExecContext(ctx,
 		"UPDATE mcp_servers SET enabled = ? WHERE name = ?",

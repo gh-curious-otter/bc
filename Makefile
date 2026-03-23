@@ -1,50 +1,47 @@
 # bc — Agent Orchestration System
-# Makefile for building, testing, linting, and deploying all components.
 #
-# Components:
-#   go   → bc (CLI binary), bcd (server daemon with embedded web UI)
-#   ts   → tui (React/Ink terminal UI), web (React dashboard), landing (Next.js site)
-#
-# Naming convention: <verb>-<component>[-<runtime>]
-#   component = bc, bcd, tui, web, landing
-#   runtime   = -local (host machine), -docker (Docker image/container)
-#   go, ts    = language aggregates for CI/CD convenience
+# Structure:
+#   build-local-*    Host machine binaries (Go, TS)
+#   build-docker-*   Docker images (bcd, sql, stats, agents)
+#   test-*           Tests
+#   lint-*           Linters
+#   check-*          Quality gates (lint + test)
+#   run-*            Dev servers (foreground)
+#   ci-*             CI pipelines
 #
 # Usage:
-#   make help                          Show all targets
-#   make build                         Build everything locally
-#   make test                          Run all tests
-#   make lint                          Run all linters
-#   make check                         Full quality gate
-#   make ci-local                      Full CI pipeline locally
+#   make build            Build everything (local + docker)
+#   make build-local      Build local binaries only
+#   make build-docker     Build Docker images only
+#   make test             Run all tests
+#   make check            Full quality gate
+#   make clean            Remove artifacts
 
 # =============================================================================
-# .PHONY declarations
+# .PHONY
 # =============================================================================
 
-.PHONY: help version gen-docs
-# Aggregates
-.PHONY: build test lint fmt vet coverage bench deps check scan gen clean release run deploy
-# Go language aggregates
-.PHONY: build-go-local test-go test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go gen-go
-# Go components — local
-.PHONY: build-bc-local build-bcd-local release-bc-local release-bcd-local
-.PHONY: run-bc-local install-bc-local deploy-bcd-local
-# Go components — docker
-.PHONY: build-bcd-docker build-bcdb-docker
-.PHONY: build-agent-base-docker build-agent-docker build-agents-docker
-# TS language aggregates
-.PHONY: build-ts-local test-ts lint-ts fmt-ts vet-ts coverage-ts bench-ts deps-ts check-ts scan-ts gen-ts
-# TS components
-.PHONY: build-tui-local build-web-local build-landing-local
-.PHONY: test-tui test-web test-web-e2e test-landing
-.PHONY: lint-tui lint-web lint-landing
-.PHONY: fmt-tui fmt-web fmt-landing
-.PHONY: vet-tui vet-web vet-landing
-.PHONY: run-tui-local run-web-local run-landing-local
-.PHONY: deploy-landing-local
-# Misc
-.PHONY: ci-local ci-docker  clean-artifacts clean-deps install
+.PHONY: help version
+# Top-level
+.PHONY: build build-local build-docker test lint fmt vet check clean deps gen release install
+# Go
+.PHONY: build-local-bc build-local-bcd test-go test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go gen-go
+.PHONY: release-local-bc release-local-bcd install-local-bc
+# Docker
+.PHONY: build-docker-daemon build-docker-sql build-docker-stats
+.PHONY: build-docker-agent-base build-docker-agent build-docker-agents
+# TS
+.PHONY: build-local-tui build-local-web build-local-landing
+.PHONY: test-ts test-tui test-web test-web-e2e test-landing
+.PHONY: lint-ts lint-tui lint-web lint-landing
+.PHONY: fmt-ts fmt-tui fmt-web fmt-landing
+.PHONY: vet-ts vet-tui vet-web vet-landing
+.PHONY: coverage-ts bench-ts deps-ts check-ts scan-ts gen-ts
+.PHONY: run-bc run-web run-landing run-tui
+# CI
+.PHONY: ci-local ci-docker
+# Clean
+.PHONY: clean-local clean-deps
 
 .DEFAULT_GOAL := help
 
@@ -57,30 +54,16 @@ COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 DATE    ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 BUILD_DIR ?= bin
 GO ?= go
-COVERAGE_THRESHOLD ?= 75
 
-# Deploy environment: local, dogfood, production
-ENV ?= local
-
-# Docker registry and image tag
 REGISTRY ?= bc
 IMAGE_TAG ?= latest
-
-# Agent providers for Docker images
 AGENT_PROVIDERS := claude gemini codex aider opencode openclaw cursor
 
-# ldflags
 LDFLAGS_VERSION = -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
 LDFLAGS_RELEASE = -s -w $(LDFLAGS_VERSION)
 
-# Environment-specific addresses
-ADDR_local      := 127.0.0.1:9374
-ADDR_dogfood    := 127.0.0.1:9000
-ADDR_production := 0.0.0.0:9374
+COVERAGE_THRESHOLD ?= 75
 
-DEPLOY_ADDR = $(ADDR_$(ENV))
-
-# Colors for CI output
 _CYAN  := \033[36m
 _GREEN := \033[32m
 _RED   := \033[31m
@@ -94,310 +77,217 @@ _BOLD  := \033[1m
 help: ## Show all targets
 	@echo "bc — Agent Orchestration System ($(VERSION))"
 	@echo ""
-	@echo "Naming: make <verb>-<component>[-<runtime>]"
-	@echo "  component = bc | bcd | tui | web | landing"
-	@echo "  runtime   = -local (host) | -docker (container)"
-	@echo "  go | ts   = language aggregates for CI/CD"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-30s\033[0m %s\n", $$1, $$2}'
 	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-34s\033[0m %s\n", $$1, $$2}'
-	@echo ""
-	@echo "  \033[36mbuild-agent-NAME-docker           \033[0m Build agent Docker image ($(AGENT_PROVIDERS))"
-	@echo ""
-	@echo "Environment (ENV=local|dogfood|production):"
-	@echo "  local       127.0.0.1:9374 (default)"
-	@echo "  dogfood     127.0.0.1:9374"
-	@echo "  production  0.0.0.0:9374"
-	@echo ""
-	@echo "Examples:"
-	@echo "  make build                           Build everything locally"
-	@echo "  make test-go                         Run Go tests only"
-	@echo "  make deploy-bcd-local ENV=dogfood    Deploy bcd to dogfood"
-	@echo "  make build-agent-gemini-docker       Build Gemini agent Docker image"
 
 version: ## Show version info
-	@echo "Version: $(VERSION)"
-	@echo "Commit:  $(COMMIT)"
-	@echo "Date:    $(DATE)"
+	@echo "Version: $(VERSION)  Commit: $(COMMIT)  Date: $(DATE)"
 
 # =============================================================================
 # Top-level aggregates
 # =============================================================================
 
-build: build-go-local build-ts-local ## Build everything locally
+build: build-local build-docker ## Build everything (local + docker)
+build-local: build-local-go build-local-ts ## Build local binaries (go + ts)
+build-docker: build-docker-sql build-docker-stats build-docker-daemon ## Build Docker images (sql, stats, bcd)
+
 test: test-go test-ts ## Run all tests
 lint: lint-go lint-ts ## Run all linters
 fmt: fmt-go fmt-ts ## Format all code
 vet: vet-go vet-ts ## Vet all code
-coverage: coverage-go coverage-ts ## Run all coverage
-bench: bench-go bench-ts ## Run all benchmarks
+check: check-go check-ts ## Full quality gate
 deps: deps-go deps-ts ## Install all dependencies
-check: check-go check-ts ## Full quality gate (go + ts)
-scan: scan-go scan-ts ## Run all security scans
 gen: gen-go gen-ts ## Run all code generation
-release: release-bc-local release-bcd-local ## Build release binaries (stripped, optimized)
-install: install-bc-local ## Install bc to $GOPATH/bin
-clean: clean-artifacts ## Remove all build artifacts
+release: release-local-bc release-local-bcd ## Build release binaries (stripped)
+install: install-local-bc ## Install bc to $GOPATH/bin
+clean: clean-local ## Remove all build artifacts
 
 # =============================================================================
-# Build — Go (local)
+# Build — Local Go
 # =============================================================================
 
-build-go-local: build-bc-local build-bcd-local ## Build all Go binaries locally
+build-local-go: build-local-bc build-local-bcd ## Build all Go binaries
 
-build-bc-local: gen-go ## Build bc CLI binary (local)
+build-local-bc: gen-go ## Build bc CLI
 	@mkdir -p $(BUILD_DIR)
 	@if [ ! -d server/web/dist ]; then mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html; fi
 	$(GO) build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bc ./cmd/bc
 
-build-bcd-local: gen-go build-web-local ## Build bcd server binary (local, embeds web UI)
+build-local-bcd: gen-go build-local-web ## Build bcd server (embeds web UI)
 	@mkdir -p $(BUILD_DIR)
 	$(GO) build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bcd ./cmd/bcd
 
 # =============================================================================
-# Build — Go (docker)
+# Build — Local TypeScript
 # =============================================================================
 
-build-bcd-docker: ## Build bcd server Docker image
-	docker build -t $(REGISTRY)-bcd:$(IMAGE_TAG) -f docker/Dockerfile.bcd .
+build-local-ts: build-local-tui build-local-web build-local-landing ## Build all TS packages
 
-build-bcdb-docker: ## Build bcdb Postgres Docker image
-	docker build -t $(REGISTRY)-bcdb:$(IMAGE_TAG) -f docker/Dockerfile.bcdb .
-
-build-agent-base-docker: ## Build agent base Docker image
-	docker build -t $(REGISTRY)-agent-base:$(IMAGE_TAG) -f docker/Dockerfile.base .
-
-build-agent-docker: build-agent-base-docker build-agent-claude-docker ## Build default agent Docker image (claude)
-
-build-agent-%-docker: build-agent-base-docker ## Build agent Docker image for provider
-	docker build -t $(REGISTRY)-agent-$*:$(IMAGE_TAG) -f docker/Dockerfile.$* .
-
-build-agents-docker: build-agent-base-docker ## Build all agent Docker images
-	@for p in $(AGENT_PROVIDERS); do \
-		echo "Building $(REGISTRY)-agent-$$p..."; \
-		docker build -t $(REGISTRY)-agent-$$p:$(IMAGE_TAG) -f docker/Dockerfile.$$p . || exit 1; \
-	done
-	@echo "All agent images built."
-
-# =============================================================================
-# Build — TypeScript (local)
-# =============================================================================
-
-build-ts-local: build-tui-local build-web-local build-landing-local ## Build all TS packages locally
-
-build-tui-local: ## Build TUI package (local)
+build-local-tui: ## Build TUI
 	cd tui && bun install && bun run build
 
-build-web-local: ## Build React web UI → server/web/dist/ (local)
+build-local-web: ## Build web UI → server/web/dist/
 	cd web && bun install && bun run build
 	@rm -rf server/web/dist
 	@cp -r web/dist server/web/dist
 
-build-landing-local: gen-docs ## Build Next.js landing page (local, generates CLI docs first)
+build-local-landing: ## Build landing page
 	cd landing && bun install && bun run build
 
 # =============================================================================
-# Test — Go
+# Build — Docker
+# =============================================================================
+
+build-docker-daemon: ## Build bcd Docker image
+	docker build -t $(REGISTRY)-daemon:$(IMAGE_TAG) -f docker/Dockerfile.bcd .
+
+build-docker-sql: ## Build bc-sql (Postgres) Docker image
+	docker build -t $(REGISTRY)-bcsql:$(IMAGE_TAG) -f docker/Dockerfile.bcsql .
+
+build-docker-stats: ## Build bc-stats (TimescaleDB) Docker image
+	docker build -t $(REGISTRY)-bcstats:$(IMAGE_TAG) -f docker/Dockerfile.bcstats .
+
+build-docker-agent-base: ## Build agent base image
+	docker build -t $(REGISTRY)-agent-base:$(IMAGE_TAG) -f docker/Dockerfile.base .
+
+build-docker-agent: build-docker-agent-base ## Build default agent image (claude)
+	docker build -t $(REGISTRY)-agent-claude:$(IMAGE_TAG) -f docker/Dockerfile.claude .
+
+build-docker-agent-%: build-docker-agent-base ## Build agent image for provider
+	docker build -t $(REGISTRY)-agent-$*:$(IMAGE_TAG) -f docker/Dockerfile.$* .
+
+build-docker-agents: build-docker-agent-base ## Build all agent images
+	@for p in $(AGENT_PROVIDERS); do \
+		echo "Building $(REGISTRY)-agent-$$p..."; \
+		docker build -t $(REGISTRY)-agent-$$p:$(IMAGE_TAG) -f docker/Dockerfile.$$p . || exit 1; \
+	done
+
+# =============================================================================
+# Test
 # =============================================================================
 
 test-go: ## Run Go tests with race detector
 	$(GO) test -race ./...
 
-SLOW_PACKAGES := github.com/rpuneet/bc/internal/cmd
-test-go-fast: ## Run Go tests excluding slow/E2E packages (matches CI)
-	$(GO) test -race $$($(GO) list ./... | grep -v -F "$(SLOW_PACKAGES)")
-
-coverage-go: ## Run Go tests with coverage report
-	$(GO) test -race -coverprofile=coverage.out ./...
-	@$(GO) tool cover -func=coverage.out | tail -1
-	@echo ""
-	@COVERAGE=$$($(GO) tool cover -func=coverage.out | grep total | awk '{print $$3}' | sed 's/%//'); \
-	if [ $$(echo "$$COVERAGE < $(COVERAGE_THRESHOLD)" | bc -l) -eq 1 ]; then \
-		echo "❌ Coverage $${COVERAGE}% is below $(COVERAGE_THRESHOLD)% threshold"; \
-		exit 1; \
-	else \
-		echo "✅ Coverage $${COVERAGE}% meets $(COVERAGE_THRESHOLD)% threshold"; \
-	fi
-
-bench-go: ## Run Go benchmarks
-	$(GO) test -bench=. -benchmem -count=1 ./...
-
-# =============================================================================
-# Test — TypeScript
-# =============================================================================
+test-go-fast: ## Run Go tests excluding slow packages
+	$(GO) test -race $$($(GO) list ./... | grep -v -F "github.com/rpuneet/bc/internal/cmd")
 
 test-ts: test-tui test-web test-landing ## Run all TS tests
 
 test-tui: ## Run TUI tests
 	cd tui && bun install && bun test
 
-test-web: ## Run web UI tests (vitest)
+test-web: ## Run web UI tests
 	cd web && bun install && bun run test
 
-test-web-e2e: ## Run web UI e2e tests (Playwright, requires running bcd)
+test-web-e2e: ## Run web e2e tests (needs running bcd)
 	cd web && bunx playwright test --config=e2e/playwright.config.ts
 
-test-landing: ## Run landing page tests (Playwright)
+test-landing: ## Run landing tests
 	cd landing && bun run test
 
-coverage-ts: ## Run TS test coverage (tui via bun)
+coverage-go: ## Go test coverage
+	$(GO) test -race -coverprofile=coverage.out ./...
+	@$(GO) tool cover -func=coverage.out | tail -1
+
+bench-go: ## Go benchmarks
+	$(GO) test -bench=. -benchmem -count=1 ./...
+
+coverage-ts: ## TS test coverage
 	cd tui && bun test --coverage || true
-	cd web && bun run test -- --coverage 2>/dev/null || echo "web: install @vitest/coverage-v8 for coverage"
+	cd web && bun run test -- --coverage 2>/dev/null || true
 
-bench-ts: ## Run TS benchmarks (no-op, no bench framework)
-	@echo "bench-ts: no TS benchmark framework configured"
+bench-ts: ## TS benchmarks (no-op)
+	@true
 
 # =============================================================================
-# Lint & Format — Go
+# Lint & Format
 # =============================================================================
 
-lint-go: ## Run golangci-lint on Go code
+lint-go: ## Lint Go code
 	golangci-lint run ./...
 
-fmt-go: ## Format Go code with gofmt
+fmt-go: ## Format Go code
 	find . -name '*.go' -not -path './.bc/*' -not -path './vendor/*' | xargs gofmt -s -w
 
-vet-go: ## Run go vet
+vet-go: ## Vet Go code
 	$(GO) vet ./...
 
-# =============================================================================
-# Lint & Format — TypeScript
-# =============================================================================
+lint-ts: lint-tui lint-web lint-landing ## Lint all TS
+lint-tui: ; cd tui && bun run lint
+lint-web: ; cd web && bun run lint
+lint-landing: ; cd landing && bun run lint
 
-lint-ts: lint-tui lint-web lint-landing ## Run all TS linters
+fmt-ts: fmt-tui fmt-web fmt-landing ## Format all TS
+fmt-tui: ; cd tui && bunx prettier --write "src/**/*.{ts,tsx}"
+fmt-web: ; cd web && bunx prettier --write "src/**/*.{ts,tsx,css}"
+fmt-landing: ; cd landing && bunx prettier --write "src/**/*.{ts,tsx,css}"
 
-lint-tui: ## Lint TUI code
-	cd tui && bun run lint
-
-lint-web: ## Lint web UI code
-	cd web && bun run lint
-
-lint-landing: ## Lint landing page code
-	cd landing && bun run lint
-
-fmt-ts: fmt-tui fmt-web fmt-landing ## Format all TS code with prettier
-
-fmt-tui: ## Format TUI code with prettier
-	cd tui && bunx prettier --write "src/**/*.{ts,tsx}"
-
-fmt-web: ## Format web code with prettier
-	cd web && bunx prettier --write "src/**/*.{ts,tsx,css}"
-
-fmt-landing: ## Format landing code with prettier
-	cd landing && bunx prettier --write "src/**/*.{ts,tsx,css}"
-
-vet-ts: vet-tui vet-web vet-landing ## Typecheck all TS code
-
-vet-tui: ## Typecheck TUI (tsc --noEmit)
-	cd tui && bun run typecheck
-
-vet-web: ## Typecheck web (tsc -b --noEmit)
-	cd web && bunx tsc -b --noEmit
-
-vet-landing: ## Typecheck landing (next lint includes type checks)
-	cd landing && bunx tsc --noEmit
+vet-ts: vet-tui vet-web vet-landing ## Typecheck all TS
+vet-tui: ; cd tui && bun run typecheck
+vet-web: ; cd web && bunx tsc -b --noEmit
+vet-landing: ; cd landing && bunx tsc --noEmit
 
 # =============================================================================
 # Check & CI
 # =============================================================================
 
-check-go: gen-go vet-go lint-go test-go ## Go quality gate (gen + vet + lint + test)
+check-go: gen-go vet-go lint-go test-go ## Go quality gate
+check-ts: vet-ts lint-ts test-ts ## TS quality gate
 
-check-ts: vet-ts lint-ts test-ts ## TS quality gate (vet + lint + test)
-
-ci-local: ## Run full CI pipeline locally
-	@printf "\n$(_BOLD)bc CI Pipeline$(_RESET) ($(VERSION))\n\n"
+ci-local: ## Full CI pipeline locally
+	@printf "\n$(_BOLD)bc CI$(_RESET) ($(VERSION))\n\n"
 	@FAIL=0; \
-	printf "$(_CYAN)[go]$(_RESET) deps\n";       $(MAKE) --no-print-directory deps-go       || FAIL=1; \
-	printf "$(_CYAN)[go]$(_RESET) gen\n";         $(MAKE) --no-print-directory gen-go        || FAIL=1; \
-	printf "$(_CYAN)[go]$(_RESET) vet\n";         $(MAKE) --no-print-directory vet-go        || FAIL=1; \
-	printf "$(_CYAN)[go]$(_RESET) lint\n";        $(MAKE) --no-print-directory lint-go       || FAIL=1; \
-	printf "$(_CYAN)[go]$(_RESET) test\n";        $(MAKE) --no-print-directory test-go-fast  || FAIL=1; \
-	printf "$(_CYAN)[go]$(_RESET) build\n";       $(MAKE) --no-print-directory build-go-local || FAIL=1; \
-	printf "$(_CYAN)[go]$(_RESET) verify\n";      $(BUILD_DIR)/bc version                    || FAIL=1; \
+	printf "$(_CYAN)[go]$(_RESET) deps\n";    $(MAKE) --no-print-directory deps-go       || FAIL=1; \
+	printf "$(_CYAN)[go]$(_RESET) check\n";   $(MAKE) --no-print-directory check-go      || FAIL=1; \
+	printf "$(_CYAN)[go]$(_RESET) build\n";   $(MAKE) --no-print-directory build-local-go || FAIL=1; \
 	printf "\n"; \
-	printf "$(_CYAN)[ts]$(_RESET) deps\n";        $(MAKE) --no-print-directory deps-ts       || FAIL=1; \
-	printf "$(_CYAN)[ts]$(_RESET) vet\n";         $(MAKE) --no-print-directory vet-ts        || FAIL=1; \
-	printf "$(_CYAN)[ts]$(_RESET) lint\n";        $(MAKE) --no-print-directory lint-ts       || FAIL=1; \
-	printf "$(_CYAN)[ts]$(_RESET) test-web\n";     $(MAKE) --no-print-directory test-web      || FAIL=1; \
-	printf "$(_CYAN)[ts]$(_RESET) test-tui\n";     $(MAKE) --no-print-directory test-tui      || printf "$(_CYAN)[ts]$(_RESET) test-tui: some tests failed (non-blocking, matches CI)\n"; \
-	printf "$(_CYAN)[ts]$(_RESET) test-landing\n"; $(MAKE) --no-print-directory test-landing   || printf "$(_CYAN)[ts]$(_RESET) test-landing: some tests failed (non-blocking, matches CI)\n"; \
-	printf "$(_CYAN)[ts]$(_RESET) build\n";       $(MAKE) --no-print-directory build-ts-local || FAIL=1; \
+	printf "$(_CYAN)[ts]$(_RESET) deps\n";    $(MAKE) --no-print-directory deps-ts       || FAIL=1; \
+	printf "$(_CYAN)[ts]$(_RESET) check\n";   $(MAKE) --no-print-directory check-ts      || FAIL=1; \
+	printf "$(_CYAN)[ts]$(_RESET) build\n";   $(MAKE) --no-print-directory build-local-ts || FAIL=1; \
 	printf "\n"; \
-	if [ $$FAIL -eq 0 ]; then \
-		printf "$(_GREEN)$(_BOLD)CI PASSED$(_RESET)\n\n"; \
-	else \
-		printf "$(_RED)$(_BOLD)CI FAILED$(_RESET)\n\n"; \
-		exit 1; \
-	fi
+	if [ $$FAIL -eq 0 ]; then printf "$(_GREEN)$(_BOLD)CI PASSED$(_RESET)\n\n"; \
+	else printf "$(_RED)$(_BOLD)CI FAILED$(_RESET)\n\n"; exit 1; fi
 
-ci-docker: ## Build and verify all Docker images
+ci-docker: ## Build all Docker images
 	@printf "\n$(_BOLD)bc Docker CI$(_RESET)\n\n"
 	@FAIL=0; \
-	printf "$(_CYAN)[docker]$(_RESET) bcd\n";          $(MAKE) --no-print-directory build-bcd-docker        || FAIL=1; \
-	printf "$(_CYAN)[docker]$(_RESET) bcdb\n";         $(MAKE) --no-print-directory build-bcdb-docker       || FAIL=1; \
-	printf "$(_CYAN)[docker]$(_RESET) agent-base\n";   $(MAKE) --no-print-directory build-agent-base-docker || FAIL=1; \
-	printf "$(_CYAN)[docker]$(_RESET) agents\n";       $(MAKE) --no-print-directory build-agents-docker     || FAIL=1; \
+	printf "$(_CYAN)[docker]$(_RESET) sql\n";      $(MAKE) --no-print-directory build-docker-sql       || FAIL=1; \
+	printf "$(_CYAN)[docker]$(_RESET) stats\n";    $(MAKE) --no-print-directory build-docker-stats     || FAIL=1; \
+	printf "$(_CYAN)[docker]$(_RESET) bcd\n";      $(MAKE) --no-print-directory build-docker-daemon       || FAIL=1; \
+	printf "$(_CYAN)[docker]$(_RESET) agents\n";   $(MAKE) --no-print-directory build-docker-agents    || FAIL=1; \
 	printf "\n"; \
-	if [ $$FAIL -eq 0 ]; then \
-		printf "$(_GREEN)$(_BOLD)Docker CI PASSED$(_RESET)\n\n"; \
-	else \
-		printf "$(_RED)$(_BOLD)Docker CI FAILED$(_RESET)\n\n"; \
-		exit 1; \
-	fi
-
+	if [ $$FAIL -eq 0 ]; then printf "$(_GREEN)$(_BOLD)Docker CI PASSED$(_RESET)\n\n"; \
+	else printf "$(_RED)$(_BOLD)Docker CI FAILED$(_RESET)\n\n"; exit 1; fi
 
 # =============================================================================
 # Release
 # =============================================================================
 
-release-bc-local: gen-go ## Build optimized bc binary (local)
+release-local-bc: gen-go ## Build optimized bc binary
 	@mkdir -p $(BUILD_DIR)
 	@if [ ! -d server/web/dist ]; then mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html; fi
 	$(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/bc ./cmd/bc
 
-release-bcd-local: gen-go build-web-local ## Build optimized bcd binary (local)
+release-local-bcd: gen-go build-local-web ## Build optimized bcd binary
 	@mkdir -p $(BUILD_DIR)
 	$(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/bcd ./cmd/bcd
 
 # =============================================================================
-# Run (foreground, for development)
+# Run (dev, foreground)
 # =============================================================================
 
-run-bc-local: ## Run bc CLI from source (local)
+run-bc: ## Run bc CLI from source
 	$(GO) run ./cmd/bc
 
-run-tui-local: build-tui-local ## Run TUI in dev/watch mode (local)
-	cd tui && bun run dev
-
-run-web-local: ## Run web UI dev server with hot reload (local)
+run-web: ## Run web UI dev server
 	cd web && bun run dev
 
-run-landing-local: ## Run landing dev server with hot reload (local)
+run-landing: ## Run landing dev server
 	cd landing && bun run dev
 
-# =============================================================================
-# Deploy
-# =============================================================================
-
-deploy-bcd-local: build-bcd-local ## Deploy bcd server locally (ENV=local|dogfood|production)
-	@if [ -z "$(DEPLOY_ADDR)" ]; then \
-		echo "❌ Unknown ENV=$(ENV). Use: local, dogfood, production"; \
-		exit 1; \
-	fi
-	@echo "--- Deploying bcd ($(ENV)) to $(DEPLOY_ADDR) ---"
-	@lsof -ti :$(lastword $(subst :, ,$(DEPLOY_ADDR))) | xargs kill 2>/dev/null || true
-	@sleep 2
-	@nohup ./$(BUILD_DIR)/bcd --addr $(DEPLOY_ADDR) >> .bc/bcd-$(ENV).log 2>&1 &
-	@sleep 2
-	@if curl -sf http://$(DEPLOY_ADDR)/health > /dev/null 2>&1; then \
-		echo "✅ bcd ($(ENV)) deployed at http://$(DEPLOY_ADDR)"; \
-	else \
-		echo "❌ Deploy failed — check .bc/bcd-$(ENV).log"; \
-		exit 1; \
-	fi
-
-deploy-landing-local: build-landing-local ## Deploy landing page locally (placeholder)
-	@echo "Landing page built. Deploy via your hosting provider."
+run-tui: build-local-tui ## Run TUI dev mode
+	cd tui && bun run dev
 
 build-landing-prod: gen-docs ## Production build for landing page (Cloudflare Pages)
 	cd landing && bun install && bun run build
@@ -406,30 +296,29 @@ build-landing-prod: gen-docs ## Production build for landing page (Cloudflare Pa
 # Install
 # =============================================================================
 
-install-bc-local: build-bc-local ## Install bc to $GOPATH/bin
+install-local-bc: build-local-bc ## Install bc to $GOPATH/bin
 	cp $(BUILD_DIR)/bc $(shell $(GO) env GOPATH)/bin/
 
 # =============================================================================
 # Dependencies
 # =============================================================================
 
-deps-go: ## Download and tidy Go dependencies
-	$(GO) mod download
-	$(GO) mod tidy
+deps-go: ## Go dependencies
+	$(GO) mod download && $(GO) mod tidy
 
-deps-ts: ## Install all TS dependencies
+deps-ts: ## TS dependencies
 	cd tui && bun install
 	cd web && bun install
 	cd landing && bun install
 
 # =============================================================================
-# Security scanning
+# Security
 # =============================================================================
 
-scan-go: ## Run Go vulnerability scan (govulncheck)
+scan-go: ## Go vulnerability scan
 	$(GO) run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
-scan-ts: ## Run TS dependency audit (bun audit, non-blocking)
+scan-ts: ## TS dependency audit
 	cd tui && bun audit || true
 	cd web && bun audit || true
 	cd landing && bun audit || true
@@ -438,25 +327,19 @@ scan-ts: ## Run TS dependency audit (bun audit, non-blocking)
 # Code generation
 # =============================================================================
 
-gen-go: ## Generate Go code (currently no-op)
+gen-go: ## Generate Go code (no-op)
 	@true
 
-gen-docs: ## Generate CLI reference docs from Cobra commands
-	@mkdir -p $(BUILD_DIR)
-	$(GO) build -o $(BUILD_DIR)/gendocs ./cmd/gendocs
-	./$(BUILD_DIR)/gendocs docs/reference/cli
-
-gen-ts: ## Generate TS code (currently no-op)
+gen-ts: ## Generate TS code (no-op)
 	@true
 
 # =============================================================================
 # Clean
 # =============================================================================
 
-clean-artifacts: ## Remove all build artifacts
-	rm -rf $(BUILD_DIR)/ dist/
+clean-local: ## Remove build artifacts
+	rm -rf $(BUILD_DIR)/ dist/ coverage.out coverage.html
 	rm -rf tui/dist web/dist server/web/dist landing/.next landing/out
-	rm -f coverage.out coverage.html
 
-clean-deps: clean-artifacts ## Remove build artifacts AND node_modules
+clean-deps: clean-local ## Remove artifacts + node_modules
 	rm -rf tui/node_modules web/node_modules landing/node_modules

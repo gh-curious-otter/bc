@@ -981,10 +981,11 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	}
 
 	// Validate tool binary exists before spawning.
-	// Use provider registry for known tools (richer validation + version logging),
-	// fall back to PATH check for custom/unknown tools.
+	// Skip for Docker runtime — the tool is inside the agent image, not on the daemon host.
 	providerValidated := false
-	if effectiveTool != "" && m.providerRegistry != nil {
+	if agentRuntime == "docker" {
+		providerValidated = true // tool lives in the agent container image
+	} else if effectiveTool != "" && m.providerRegistry != nil {
 		if p, ok := m.providerRegistry.Get(effectiveTool); ok {
 			if !p.IsInstalled(ctx) {
 				m.mu.Unlock()

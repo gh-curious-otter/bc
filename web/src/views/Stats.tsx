@@ -1,430 +1,456 @@
 import { useCallback } from "react";
+import {
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+} from "recharts";
 import { api } from "../api/client";
 import type {
-  SystemStats,
-  StatsSummary,
-  ChannelStats,
-  ModelCostSummary,
-  CostSummary,
+  SystemStats, StatsSummary, CostSummary, ModelCostSummary,
+  SystemMetricTS, AgentMetricTS, TokenMetricTS, ChannelMetricTS,
 } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 
+// ── Theme ──────────────────────────────────────────────────────────────────────
+
+const C = {
+  bg: "#1a1714", surface: "#1e1a16", border: "#2a2420", muted: "#8c7e72", text: "#f5f0eb",
+  emerald: "#10b981", blue: "#3b82f6", amber: "#f59e0b", purple: "#a855f7",
+  orange: "#ea580c", cyan: "#06b6d4", pink: "#ec4899", lime: "#84cc16", red: "#ef4444",
+};
+
+const PIE_COLORS = [C.emerald, C.blue, C.amber, C.purple, C.orange, C.cyan, C.pink, C.lime];
+const TT: React.CSSProperties = { backgroundColor: C.surface, border: `1px solid ${C.border}`, borderRadius: "6px", color: C.text, fontSize: "12px" };
+const TICK = { axisLine: false as const, tickLine: false as const };
+
+// ── Data ───────────────────────────────────────────────────────────────────────
+
 interface StatsData {
   system: SystemStats | null;
   summary: StatsSummary | null;
-  channels: ChannelStats[];
   costSummary: CostSummary | null;
   costByModel: ModelCostSummary[];
+  systemMetrics: SystemMetricTS[];
+  agentMetrics: AgentMetricTS[];
+  tokenMetrics: TokenMetricTS[];
+  channelMetrics: ChannelMetricTS[];
 }
 
-function formatUptime(seconds: number): string {
-  const d = Math.floor(seconds / 86400);
-  const h = Math.floor((seconds % 86400) / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const parts: string[] = [];
-  if (d > 0) parts.push(`${d}d`);
-  if (h > 0) parts.push(`${h}h`);
-  parts.push(`${m}m`);
-  return parts.join(" ");
-}
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
-}
+const fmtTime = (iso: string) => { try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); } catch { return iso; } };
+const fmtBytes = (b: number) => { if (!b) return "0 B"; const u = ["B","KB","MB","GB","TB"]; const i = Math.floor(Math.log(b)/Math.log(1024)); return `${(b/Math.pow(1024,i)).toFixed(1)} ${u[i]}`; };
+const fmtUptime = (s: number) => { const d=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60); return [d&&`${d}d`,h&&`${h}h`,`${m}m`].filter(Boolean).join(" "); };
+const pctColor = (p: number) => p >= 80 ? C.red : p >= 60 ? C.amber : C.emerald;
+const trunc = (s: string, n: number) => s.length > n ? s.slice(0, n) + "\u2026" : s;
 
-function progressBarColor(pct: number): string {
-  if (pct >= 80) return "bg-red-500";
-  if (pct >= 60) return "bg-yellow-500";
-  return "bg-emerald-500";
-}
+// ── Primitives ─────────────────────────────────────────────────────────────────
 
-function Card({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-}) {
+function Stat({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
   return (
     <div className="rounded border border-bc-border bg-bc-surface p-4">
       <p className="text-xs text-bc-muted uppercase tracking-wide">{label}</p>
-      <p className="mt-1 text-2xl font-bold">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-bc-muted">{sub}</p>}
+      <p className="mt-1 text-2xl font-bold truncate" style={accent ? { color: accent } : undefined}>{value}</p>
+      {sub && <p className="mt-0.5 text-xs text-bc-muted truncate" title={sub}>{sub}</p>}
     </div>
   );
 }
 
-function ResourceBar({
-  label,
-  percent,
-  used,
-  total,
-}: {
-  label: string;
-  percent: number;
-  used: string;
-  total: string;
-}) {
+function Chart({ title, children, wide }: { title: string; children: React.ReactNode; wide?: boolean }) {
   return (
-    <div>
-      <div className="flex items-center justify-between text-sm mb-1">
-        <span className="font-medium">{label}</span>
-        <span className="text-bc-muted">
-          {percent.toFixed(1)}% ({used} / {total})
-        </span>
-      </div>
-      <div className="h-3 w-full rounded-full bg-bc-border/40 overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all ${progressBarColor(percent)}`}
-          style={{ width: `${Math.max(percent, 1)}%` }}
-        />
-      </div>
+    <div className={`rounded border border-bc-border bg-bc-surface p-4 ${wide ? "md:col-span-2" : ""}`}>
+      <p className="text-xs text-bc-muted uppercase tracking-wide mb-4">{title}</p>
+      {children}
     </div>
   );
 }
 
-function SystemOverview({ system }: { system: SystemStats }) {
-  return (
-    <div className="grid grid-cols-3 gap-4">
-      <div className="rounded border border-bc-border bg-bc-surface p-4">
-        <p className="text-xs text-bc-muted uppercase tracking-wide">
-          Hostname
-        </p>
-        <p
-          className="mt-1 text-sm font-mono font-medium truncate"
-          title={system.hostname}
-        >
-          {system.hostname}
-        </p>
-      </div>
-      <div className="rounded border border-bc-border bg-bc-surface p-4">
-        <p className="text-xs text-bc-muted uppercase tracking-wide">
-          Platform
-        </p>
-        <p className="mt-1 text-sm font-mono font-medium">
-          {system.os}/{system.arch}
-        </p>
-      </div>
-      <div className="rounded border border-bc-border bg-bc-surface p-4">
-        <p className="text-xs text-bc-muted uppercase tracking-wide">
-          Go Version
-        </p>
-        <p className="mt-1 text-sm font-mono font-medium">
-          {system.go_version}
-        </p>
-      </div>
-    </div>
-  );
+function Empty({ msg = "No data yet" }: { msg?: string }) {
+  return <div className="flex items-center justify-center h-32 text-sm text-bc-muted">{msg}</div>;
 }
 
-function ResourceUsage({ system }: { system: SystemStats }) {
-  return (
-    <div className="rounded border border-bc-border bg-bc-surface p-4 space-y-4">
-      <ResourceBar
-        label="CPU"
-        percent={system.cpu_usage_percent}
-        used={`${system.cpu_usage_percent.toFixed(1)}%`}
-        total={`${system.cpus} cores`}
-      />
-      <ResourceBar
-        label="Memory"
-        percent={system.memory_usage_percent}
-        used={formatBytes(system.memory_used_bytes)}
-        total={formatBytes(system.memory_total_bytes)}
-      />
-      <ResourceBar
-        label="Disk"
-        percent={system.disk_usage_percent}
-        used={formatBytes(system.disk_used_bytes)}
-        total={formatBytes(system.disk_total_bytes)}
-      />
-    </div>
-  );
-}
+// ── System Charts ──────────────────────────────────────────────────────────────
 
-function ChannelActivity({ channels }: { channels: ChannelStats[] }) {
-  if (channels.length === 0) {
-    return (
-      <div className="text-sm text-bc-muted py-4 text-center">
-        No channel activity data available.
-      </div>
-    );
+function SystemCharts({ metrics, system }: { metrics: SystemMetricTS[]; system: SystemStats | null }) {
+  // Group by system_name for multi-line charts
+  const names = [...new Set(metrics.map(m => m.system_name))];
+  const colors: Record<string, string> = {};
+  names.forEach((n, i) => { colors[n] = PIE_COLORS[i % PIE_COLORS.length]!; });
+
+  // Pivot data for recharts: { time, "bc-sql_cpu": 0.5, "bc-stats_cpu": 0.7, ... }
+  type Pt = Record<string, string | number>;
+  const buckets = new Map<string, Pt>();
+  for (const m of metrics) {
+    const t = fmtTime(m.time);
+    const b = buckets.get(t) ?? { time: t };
+    b[`${m.system_name}_cpu`] = parseFloat(m.cpu_percent.toFixed(2));
+    b[`${m.system_name}_mem`] = parseFloat((m.mem_used_bytes / 1024 / 1024).toFixed(1));
+    b[`${m.system_name}_netrx`] = parseFloat((m.net_rx_bytes / 1024).toFixed(1));
+    b[`${m.system_name}_nettx`] = parseFloat((m.net_tx_bytes / 1024).toFixed(1));
+    buckets.set(t, b);
   }
+  const data = Array.from(buckets.values());
+
+  if (data.length === 0 && !system) return null;
 
   return (
-    <div className="rounded border border-bc-border overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="bg-bc-surface text-bc-muted text-left">
-            <th className="px-4 py-2">Channel</th>
-            <th className="px-4 py-2">Messages</th>
-            <th className="px-4 py-2">Members</th>
-            <th className="px-4 py-2">Top Senders</th>
-            <th className="px-4 py-2">Last Activity</th>
-          </tr>
-        </thead>
-        <tbody>
-          {channels.map((ch) => (
-            <tr
-              key={ch.name}
-              className="border-t border-bc-border/50 hover:bg-bc-surface/50"
-            >
-              <td className="px-4 py-2 font-medium font-mono">#{ch.name}</td>
-              <td className="px-4 py-2 text-bc-muted">
-                {ch.message_count.toLocaleString()}
-              </td>
-              <td className="px-4 py-2 text-bc-muted">{ch.member_count}</td>
-              <td className="px-4 py-2 text-bc-muted text-xs">
-                {ch.top_senders && ch.top_senders.length > 0
-                  ? ch.top_senders
-                      .slice(0, 3)
-                      .map((s) => `${s.sender} (${s.count})`)
-                      .join(", ")
-                  : "-"}
-              </td>
-              <td className="px-4 py-2 text-bc-muted text-xs">
-                {ch.last_activity
-                  ? new Date(ch.last_activity).toLocaleString()
-                  : "-"}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+    <section>
+      <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">System Resources</h2>
 
-function CostOverview({
-  summary,
-  models,
-}: {
-  summary: CostSummary;
-  models: ModelCostSummary[];
-}) {
-  const sorted = [...models].sort(
-    (a, b) => b.total_cost_usd - a.total_cost_usd,
-  );
-  const totalCost = sorted.reduce((sum, m) => sum + m.total_cost_usd, 0);
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-4">
-        <Card
-          label="Total Cost"
-          value={`$${summary.total_cost_usd.toFixed(2)}`}
-          sub={`${summary.record_count} records`}
-        />
-        <Card
-          label="Input Tokens"
-          value={summary.input_tokens.toLocaleString()}
-        />
-        <Card
-          label="Output Tokens"
-          value={summary.output_tokens.toLocaleString()}
-        />
-      </div>
-      {sorted.length > 0 && (
-        <div className="rounded border border-bc-border bg-bc-surface p-4 space-y-2">
-          <p className="text-xs text-bc-muted uppercase tracking-wide mb-3">
-            Cost by Model
-          </p>
-          {sorted.map((model) => {
-            const pct =
-              totalCost > 0 ? (model.total_cost_usd / totalCost) * 100 : 0;
-            return (
-              <div
-                key={model.model}
-                className="flex items-center gap-3 text-sm"
-              >
-                <span className="w-40 truncate font-medium" title={model.model}>
-                  {model.model || "unknown"}
-                </span>
-                <div className="flex-1 h-2 rounded-full bg-bc-border/40 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-blue-500 transition-all"
-                    style={{ width: `${Math.max(pct, 1)}%` }}
-                  />
-                </div>
-                <span className="w-20 text-right text-bc-muted whitespace-nowrap">
-                  ${model.total_cost_usd.toFixed(4)}
-                </span>
-                <span className="w-14 text-right text-xs text-bc-muted">
-                  {pct.toFixed(1)}%
-                </span>
-              </div>
-            );
-          })}
+      {/* Current snapshot cards */}
+      {system && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <Stat label="CPU" value={`${system.cpu_usage_percent.toFixed(1)}%`} sub={`${system.cpus} cores`} accent={pctColor(system.cpu_usage_percent)} />
+          <Stat label="Memory" value={`${system.memory_usage_percent.toFixed(1)}%`} sub={`${fmtBytes(system.memory_used_bytes)} / ${fmtBytes(system.memory_total_bytes)}`} accent={pctColor(system.memory_usage_percent)} />
+          <Stat label="Disk" value={`${system.disk_usage_percent.toFixed(1)}%`} sub={`${fmtBytes(system.disk_used_bytes)} / ${fmtBytes(system.disk_total_bytes)}`} accent={pctColor(system.disk_usage_percent)} />
+          <Stat label="Goroutines" value={String(system.goroutines)} sub={`${system.os}/${system.arch}`} />
         </div>
       )}
-    </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* CPU per container */}
+        <Chart title="CPU by Container (%)">
+          {data.length === 0 ? <Empty /> : (
+            <ResponsiveContainer width="100%" height={180}>
+              <AreaChart data={data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
+                <XAxis dataKey="time" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} />
+                <YAxis tick={{ fill: C.muted, fontSize: 10 }} {...TICK} tickFormatter={(v: number) => `${v}%`} />
+                <Tooltip contentStyle={TT} />
+                <Legend wrapperStyle={{ fontSize: "11px" }} />
+                {names.map(n => (
+                  <Area key={n} type="monotone" dataKey={`${n}_cpu`} name={n} stroke={colors[n]} fill={colors[n]} fillOpacity={0.15} strokeWidth={2} dot={false} />
+                ))}
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </Chart>
+
+        {/* Memory per container */}
+        <Chart title="Memory by Container (MB)">
+          {data.length === 0 ? <Empty /> : (
+            <ResponsiveContainer width="100%" height={180}>
+              <AreaChart data={data} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
+                <XAxis dataKey="time" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} />
+                <YAxis tick={{ fill: C.muted, fontSize: 10 }} {...TICK} tickFormatter={(v: number) => `${v}`} />
+                <Tooltip contentStyle={TT} formatter={(v: any) => [`${Number(v)} MB`]} />
+                <Legend wrapperStyle={{ fontSize: "11px" }} />
+                {names.map(n => (
+                  <Area key={n} type="monotone" dataKey={`${n}_mem`} name={n} stroke={colors[n]} fill={colors[n]} fillOpacity={0.15} strokeWidth={2} dot={false} />
+                ))}
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </Chart>
+
+        {/* Network */}
+        <Chart title="Network I/O (KB)" wide>
+          {data.length === 0 ? <Empty /> : (
+            <ResponsiveContainer width="100%" height={160}>
+              <AreaChart data={data} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
+                <XAxis dataKey="time" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} />
+                <YAxis tick={{ fill: C.muted, fontSize: 10 }} {...TICK} />
+                <Tooltip contentStyle={TT} formatter={(v: any) => [`${Number(v)} KB`]} />
+                <Legend wrapperStyle={{ fontSize: "11px" }} />
+                {names.map(n => (
+                  <Area key={`${n}_rx`} type="monotone" dataKey={`${n}_netrx`} name={`${n} rx`} stroke={colors[n]} fill="none" strokeWidth={2} dot={false} />
+                ))}
+                {names.map(n => (
+                  <Area key={`${n}_tx`} type="monotone" dataKey={`${n}_nettx`} name={`${n} tx`} stroke={colors[n]} fill="none" strokeWidth={1} strokeDasharray="4 2" dot={false} />
+                ))}
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </Chart>
+      </div>
+    </section>
   );
 }
+
+// ── Agent Charts ───────────────────────────────────────────────────────────────
+
+function AgentCharts({ metrics, summary }: { metrics: AgentMetricTS[]; summary: StatsSummary | null }) {
+  const latest = new Map<string, AgentMetricTS>();
+  for (const m of metrics) latest.set(m.agent_name, m);
+  const agents = Array.from(latest.values()).sort((a, b) => b.cpu_percent - a.cpu_percent).slice(0, 10);
+
+  const barData = agents.map(a => ({
+    name: trunc(a.agent_name, 14),
+    cpu: parseFloat(a.cpu_percent.toFixed(2)),
+    mem: parseFloat((a.mem_used_bytes / 1024 / 1024).toFixed(1)),
+    state: a.state,
+  }));
+
+  const pie = summary ? [
+    { name: "Running", value: summary.agents_running, color: C.emerald },
+    { name: "Stopped", value: summary.agents_stopped, color: C.muted },
+  ].filter(d => d.value > 0) : [];
+
+  return (
+    <section>
+      <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">Agent Metrics</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Chart title="Agent CPU (%)">
+          {barData.length === 0 ? <Empty msg="No agents running" /> : (
+            <ResponsiveContainer width="100%" height={Math.max(120, barData.length * 32)}>
+              <BarChart layout="vertical" data={barData} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} horizontal={false} />
+                <XAxis type="number" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} tickFormatter={(v: number) => `${v}%`} />
+                <YAxis type="category" dataKey="name" tick={{ fill: C.text, fontSize: 10 }} {...TICK} width={90} />
+                <Tooltip contentStyle={TT} formatter={(v: any) => [`${Number(v)}%`, "CPU"]} />
+                <Bar dataKey="cpu" fill={C.emerald} radius={[0, 3, 3, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Chart>
+
+        <Chart title="Agent Memory (MB)">
+          {barData.length === 0 ? <Empty msg="No agents running" /> : (
+            <ResponsiveContainer width="100%" height={Math.max(120, barData.length * 32)}>
+              <BarChart layout="vertical" data={barData} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} horizontal={false} />
+                <XAxis type="number" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} tickFormatter={(v: number) => `${v}MB`} />
+                <YAxis type="category" dataKey="name" tick={{ fill: C.text, fontSize: 10 }} {...TICK} width={90} />
+                <Tooltip contentStyle={TT} formatter={(v: any) => [`${Number(v)} MB`, "Memory"]} />
+                <Bar dataKey="mem" fill={C.blue} radius={[0, 3, 3, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Chart>
+
+        {pie.length > 0 && (
+          <Chart title="Agent States">
+            <div className="flex items-center gap-6">
+              <ResponsiveContainer width={140} height={140}>
+                <PieChart>
+                  <Pie data={pie} cx="50%" cy="50%" innerRadius={38} outerRadius={58} paddingAngle={3} dataKey="value">
+                    {pie.map((e, i) => <Cell key={i} fill={e.color} stroke="none" />)}
+                  </Pie>
+                  <Tooltip contentStyle={TT} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-2">
+                {pie.map(e => (
+                  <div key={e.name} className="flex items-center gap-2 text-sm">
+                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: e.color }} />
+                    <span>{e.name}</span>
+                    <span className="text-bc-muted font-mono">{e.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Chart>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ── Token Charts ───────────────────────────────────────────────────────────────
+
+function TokenCharts({ tokens, costSummary }: { tokens: TokenMetricTS[]; costSummary: CostSummary | null }) {
+  const buckets = new Map<string, { time: string; input: number; output: number; cost: number }>();
+  for (const t of tokens) {
+    const k = fmtTime(t.time);
+    const b = buckets.get(k) ?? { time: k, input: 0, output: 0, cost: 0 };
+    b.input += t.input_tokens;
+    b.output += t.output_tokens;
+    b.cost += t.cost_usd;
+    buckets.set(k, b);
+  }
+  const data = Array.from(buckets.values());
+
+  return (
+    <section>
+      <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">Token Usage</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Chart title="Input vs Output Tokens" wide>
+          {data.length === 0 ? <Empty msg="No token usage yet — start agents to see data" /> : (
+            <ResponsiveContainer width="100%" height={180}>
+              <AreaChart data={data} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="g-in" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={C.amber} stopOpacity={0.4} /><stop offset="95%" stopColor={C.amber} stopOpacity={0} /></linearGradient>
+                  <linearGradient id="g-out" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={C.purple} stopOpacity={0.4} /><stop offset="95%" stopColor={C.purple} stopOpacity={0} /></linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
+                <XAxis dataKey="time" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} />
+                <YAxis tick={{ fill: C.muted, fontSize: 10 }} {...TICK} tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
+                <Tooltip contentStyle={TT} formatter={(v: any, n: any) => [Number(v).toLocaleString(), n === "input" ? "Input" : "Output"]} />
+                <Legend wrapperStyle={{ fontSize: "11px" }} formatter={(v: string) => v === "input" ? "Input Tokens" : "Output Tokens"} />
+                <Area type="monotone" dataKey="input" stroke={C.amber} strokeWidth={2} fill="url(#g-in)" stackId="1" dot={false} />
+                <Area type="monotone" dataKey="output" stroke={C.purple} strokeWidth={2} fill="url(#g-out)" stackId="1" dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </Chart>
+
+        {costSummary && (
+          <>
+            <Stat label="Input Tokens" value={costSummary.input_tokens.toLocaleString()} accent={C.amber} />
+            <Stat label="Output Tokens" value={costSummary.output_tokens.toLocaleString()} accent={C.purple} />
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ── Channel Charts ─────────────────────────────────────────────────────────────
+
+function ChannelCharts({ metrics }: { metrics: ChannelMetricTS[] }) {
+  const latest = new Map<string, ChannelMetricTS>();
+  for (const m of metrics) {
+    const prev = latest.get(m.channel_name);
+    if (!prev || m.message_count > prev.message_count) latest.set(m.channel_name, m);
+  }
+  const data = Array.from(latest.values())
+    .sort((a, b) => b.message_count - a.message_count)
+    .map(m => ({ name: trunc(m.channel_name, 16), messages: Number(m.message_count), members: m.member_count }));
+
+  return (
+    <section>
+      <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">Channel Activity</h2>
+      <Chart title="Messages &amp; Members">
+        {data.length === 0 ? <Empty msg="No channel data" /> : (
+          <ResponsiveContainer width="100%" height={Math.max(140, data.length * 34)}>
+            <BarChart layout="vertical" data={data} margin={{ top: 0, right: 8, left: 8, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} horizontal={false} />
+              <XAxis type="number" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} />
+              <YAxis type="category" dataKey="name" tick={{ fill: C.text, fontSize: 10 }} {...TICK} width={100} />
+              <Tooltip contentStyle={TT} />
+              <Legend wrapperStyle={{ fontSize: "11px" }} />
+              <Bar dataKey="messages" name="Messages" fill={C.blue} radius={[0, 3, 3, 0]} />
+              <Bar dataKey="members" name="Members" fill={C.emerald} radius={[0, 3, 3, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </Chart>
+    </section>
+  );
+}
+
+// ── Cost Charts ────────────────────────────────────────────────────────────────
+
+function CostCharts({ costSummary, costByModel }: { costSummary: CostSummary | null; costByModel: ModelCostSummary[] }) {
+  const sorted = [...costByModel].sort((a, b) => b.total_cost_usd - a.total_cost_usd);
+  const pieData = sorted.filter(m => m.total_cost_usd > 0).map((m, i) => ({
+    name: m.model || "unknown", value: parseFloat(m.total_cost_usd.toFixed(6)), color: PIE_COLORS[i % PIE_COLORS.length],
+  }));
+
+  return (
+    <section>
+      <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">Cost Breakdown</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {costSummary && (
+          <>
+            <Stat label="Total Cost" value={`$${costSummary.total_cost_usd.toFixed(2)}`} sub={`${costSummary.record_count.toLocaleString()} records`} accent={C.orange} />
+            <Stat label="Total Tokens" value={costSummary.total_tokens.toLocaleString()} sub={`In: ${costSummary.input_tokens.toLocaleString()} / Out: ${costSummary.output_tokens.toLocaleString()}`} />
+          </>
+        )}
+
+        <Chart title="Cost by Model">
+          {pieData.length === 0 ? <Empty msg="No cost data" /> : (
+            <div className="flex items-center gap-4">
+              <ResponsiveContainer width={140} height={140}>
+                <PieChart>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={38} outerRadius={58} paddingAngle={2} dataKey="value">
+                    {pieData.map((e, i) => <Cell key={i} fill={e.color} stroke="none" />)}
+                  </Pie>
+                  <Tooltip contentStyle={TT} formatter={(v: any) => [`$${Number(v).toFixed(4)}`]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-1 flex-1 max-h-36 overflow-y-auto">
+                {pieData.map(e => (
+                  <div key={e.name} className="flex items-center gap-2 text-xs">
+                    <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: e.color }} />
+                    <span className="truncate flex-1" title={e.name}>{e.name}</span>
+                    <span className="text-bc-muted font-mono">${e.value.toFixed(4)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Chart>
+
+        <Chart title="Cost per Model (USD)">
+          {sorted.length === 0 ? <Empty msg="No cost data" /> : (
+            <ResponsiveContainer width="100%" height={Math.max(120, sorted.slice(0, 8).length * 28)}>
+              <BarChart layout="vertical" data={sorted.slice(0, 8).map(m => ({ name: trunc(m.model || "unknown", 20), cost: parseFloat(m.total_cost_usd.toFixed(4)) }))} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} horizontal={false} />
+                <XAxis type="number" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} tickFormatter={(v: number) => `$${v}`} />
+                <YAxis type="category" dataKey="name" tick={{ fill: C.text, fontSize: 9 }} {...TICK} width={120} />
+                <Tooltip contentStyle={TT} formatter={(v: any) => [`$${Number(v).toFixed(6)}`]} />
+                <Bar dataKey="cost" fill={C.purple} radius={[0, 3, 3, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Chart>
+      </div>
+    </section>
+  );
+}
+
+// ── Main ───────────────────────────────────────────────────────────────────────
 
 export function Stats() {
   const fetcher = useCallback(async (): Promise<StatsData> => {
-    let system: SystemStats | null = null;
-    let summary: StatsSummary | null = null;
-    let channels: ChannelStats[] = [];
-    let costSummary: CostSummary | null = null;
-    let costByModel: ModelCostSummary[] = [];
-
-    const results = await Promise.allSettled([
+    const [r0, r1, r2, r3, r4, r5, r6, r7] = await Promise.allSettled([
       api.getStatsSystem(),
       api.getStatsSummary(),
-      api.getStatsChannels(),
       api.getCostSummary(),
       api.getCostByModel(),
+      api.getSystemStats("cpu"),
+      api.getAgentStats("cpu"),
+      api.getAgentTokenStats(),
+      api.getChannelStats("messages"),
     ]);
 
-    if (results[0].status === "fulfilled") system = results[0].value;
-    if (results[1].status === "fulfilled") summary = results[1].value;
-    if (results[2].status === "fulfilled") channels = results[2].value;
-    if (results[3].status === "fulfilled") costSummary = results[3].value;
-    if (results[4].status === "fulfilled") costByModel = results[4].value;
-
-    return { system, summary, channels, costSummary, costByModel };
+    return {
+      system: r0.status === "fulfilled" ? r0.value : null,
+      summary: r1.status === "fulfilled" ? r1.value : null,
+      costSummary: r2.status === "fulfilled" ? r2.value : null,
+      costByModel: r3.status === "fulfilled" ? r3.value : [],
+      systemMetrics: r4.status === "fulfilled" ? (r4.value ?? []) : [],
+      agentMetrics: r5.status === "fulfilled" ? (r5.value ?? []) : [],
+      tokenMetrics: r6.status === "fulfilled" ? (r6.value ?? []) : [],
+      channelMetrics: r7.status === "fulfilled" ? (r7.value ?? []) : [],
+    };
   }, []);
 
-  const { data, loading, error, refresh, timedOut } = usePolling(fetcher, 5000);
+  const { data, loading, error, refresh, timedOut } = usePolling(fetcher, 10000);
 
-  if (loading && !data) {
-    return (
-      <div className="p-6 space-y-6">
-        <div className="h-6 w-20 animate-pulse rounded bg-bc-border/50" />
-        <LoadingSkeleton variant="cards" rows={3} />
-        <LoadingSkeleton variant="table" rows={4} />
-      </div>
-    );
-  }
-  if (timedOut && !data) {
-    return (
-      <div className="p-6">
-        <EmptyState
-          icon="!"
-          title="Stats took too long to load"
-          description="The server may be unavailable. Check your connection and try again."
-          actionLabel="Retry"
-          onAction={refresh}
-        />
-      </div>
-    );
-  }
-  if (error && !data) {
-    return (
-      <div className="p-6">
-        <EmptyState
-          icon="!"
-          title="Failed to load stats"
-          description={error}
-          actionLabel="Retry"
-          onAction={refresh}
-        />
-      </div>
-    );
-  }
+  if (loading && !data) return <div className="p-6 space-y-6"><LoadingSkeleton variant="cards" rows={4} /></div>;
+  if (timedOut && !data) return <div className="p-6"><EmptyState icon="!" title="Stats timed out" actionLabel="Retry" onAction={refresh} /></div>;
+  if (error && !data) return <div className="p-6"><EmptyState icon="!" title="Failed to load stats" description={error} actionLabel="Retry" onAction={refresh} /></div>;
   if (!data) return null;
 
-  const uptime =
-    data.system?.uptime_seconds ?? data.summary?.uptime_seconds ?? 0;
+  const uptime = data.system?.uptime_seconds ?? data.summary?.uptime_seconds ?? 0;
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-xl font-bold">Stats</h1>
+    <div className="p-6 space-y-8">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold">Stats</h1>
+        <span className="text-xs text-bc-muted">Live &middot; 10s</span>
+      </div>
 
-      {/* Agent Summary */}
-      {data.summary && (
-        <section>
-          <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide mb-3">
-            Agent Summary
-          </h2>
-          <div className="grid grid-cols-4 gap-4">
-            <Card
-              label="Total Agents"
-              value={String(data.summary.agents_total)}
-            />
-            <Card
-              label="Running"
-              value={String(data.summary.agents_running)}
-              sub={
-                data.summary.agents_total > 0
-                  ? `${((data.summary.agents_running / data.summary.agents_total) * 100).toFixed(0)}% active`
-                  : undefined
-              }
-            />
-            <Card label="Stopped" value={String(data.summary.agents_stopped)} />
-            <Card
-              label="Total Cost"
-              value={`$${data.summary.total_cost_usd.toFixed(2)}`}
-            />
-          </div>
-        </section>
-      )}
-
-      {/* System Overview */}
-      {data.system && (
-        <section>
-          <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide mb-3">
-            System Overview
-          </h2>
-          <SystemOverview system={data.system} />
-        </section>
-      )}
-
-      {/* Resource Usage */}
-      {data.system && (
-        <section>
-          <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide mb-3">
-            Resource Usage
-          </h2>
-          <ResourceUsage system={data.system} />
-        </section>
-      )}
-
-      {/* Runtime */}
+      {/* Overview */}
       <section>
-        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide mb-3">
-          Runtime
-        </h2>
-        <div className="grid grid-cols-3 gap-4">
-          <Card label="Uptime" value={formatUptime(uptime)} />
-          {data.system && (
-            <Card label="Goroutines" value={String(data.system.goroutines)} />
-          )}
-          {data.summary && (
-            <Card
-              label="Channels / Messages"
-              value={String(data.summary.channels_total)}
-              sub={`${data.summary.messages_total.toLocaleString()} messages`}
-            />
-          )}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Stat label="Agents" value={String(data.summary?.agents_total ?? 0)} sub={`${data.summary?.agents_running ?? 0} running`} accent={C.emerald} />
+          <Stat label="Cost" value={`$${(data.summary?.total_cost_usd ?? 0).toFixed(2)}`} accent={C.orange} />
+          <Stat label="Channels" value={String(data.summary?.channels_total ?? 0)} sub={`${(data.summary?.messages_total ?? 0).toLocaleString()} messages`} />
+          <Stat label="Uptime" value={fmtUptime(uptime)} sub={data.system?.hostname ?? ""} />
         </div>
       </section>
 
-      {/* Channel Activity */}
-      <section>
-        <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide mb-3">
-          Channel Activity
-        </h2>
-        <ChannelActivity channels={data.channels} />
-      </section>
-
-      {/* Cost Overview */}
-      {data.costSummary && (
-        <section>
-          <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide mb-3">
-            Cost Overview
-          </h2>
-          <CostOverview summary={data.costSummary} models={data.costByModel} />
-        </section>
-      )}
+      <SystemCharts metrics={data.systemMetrics} system={data.system} />
+      <AgentCharts metrics={data.agentMetrics} summary={data.summary} />
+      <TokenCharts tokens={data.tokenMetrics} costSummary={data.costSummary} />
+      <ChannelCharts metrics={data.channelMetrics} />
+      <CostCharts costSummary={data.costSummary} costByModel={data.costByModel} />
     </div>
   );
 }

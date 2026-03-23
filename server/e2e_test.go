@@ -20,7 +20,7 @@ import (
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/cost"
 	"github.com/rpuneet/bc/pkg/cron"
-	"github.com/rpuneet/bc/pkg/daemon"
+
 	"github.com/rpuneet/bc/pkg/events"
 	pkgmcp "github.com/rpuneet/bc/pkg/mcp"
 	"github.com/rpuneet/bc/pkg/tool"
@@ -123,17 +123,9 @@ enabled = true
 		t.Cleanup(func() { _ = el.Close() })
 	}
 
-	// Daemon manager
-	var daemonMgr *daemon.Manager
-	if dm, err := daemon.NewManager(dir); err == nil {
-		daemonMgr = dm
-		t.Cleanup(func() { _ = dm.Close() })
-	}
-
 	svc := server.Services{
 		Agents:   agentSvc,
 		Channels: channelSvc,
-		Daemons:  daemonMgr,
 		Costs:    costStore,
 		Cron:     cronStore,
 		MCP:      mcpStore,
@@ -546,45 +538,6 @@ func TestE2E_MCP_SSE_ContentType(t *testing.T) {
 	data := string(buf[:n])
 	if !bytes.Contains(buf[:n], []byte("event: endpoint")) {
 		t.Fatalf("expected endpoint event, got: %s", data)
-	}
-}
-
-// ─── Daemons ─────────────────────────────────────────────────────────────────
-
-func TestE2E_Daemons_ListEmpty(t *testing.T) {
-	s := newE2EServer(t)
-
-	code, daemons := s.getList(t, "/api/daemons")
-	if code != 200 {
-		t.Fatalf("want 200, got %d", code)
-	}
-	if len(daemons) != 0 {
-		t.Fatalf("want 0 daemons, got %d", len(daemons))
-	}
-}
-
-func TestE2E_Daemons_CreateError(t *testing.T) {
-	s := newE2EServer(t)
-
-	// POST with empty name — should fail validation
-	code, body := s.postJSON(t, "/api/daemons", map[string]string{
-		"name": "",
-		"cmd":  "",
-	})
-	if code != 400 {
-		t.Fatalf("want 400, got %d: %v", code, body)
-	}
-	if body["error"] == nil {
-		t.Fatal("expected error message")
-	}
-}
-
-func TestE2E_Daemons_GetNotFound(t *testing.T) {
-	s := newE2EServer(t)
-
-	code, body := s.get(t, "/api/daemons/nonexistent")
-	if code != 404 {
-		t.Fatalf("want 404, got %d: %v", code, body)
 	}
 }
 
