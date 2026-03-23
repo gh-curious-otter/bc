@@ -34,7 +34,7 @@ export function TerminalWindow({
           {title}
         </span>
       </div>
-      <div className="p-5 font-mono text-[13px] leading-relaxed text-terminal-text">
+      <div className="p-5 font-mono text-[13px] leading-[1.7] text-terminal-text">
         {children}
       </div>
     </div>

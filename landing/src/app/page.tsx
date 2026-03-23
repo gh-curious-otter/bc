@@ -16,7 +16,7 @@ import { ArrowRight } from "lucide-react";
 
 export default function Home() {
   return (
-    <main className="min-h-screen selection:bg-primary/20 selection:text-foreground overflow-x-hidden">
+    <main className="min-h-screen selection:bg-primary/20 selection:text-foreground overflow-x-hidden noise-bg relative">
       {/* Gradient overlay */}
       <div className="pointer-events-none fixed inset-0 z-[1] bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(234,88,12,0.04),transparent)] dark:bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(234,88,12,0.08),transparent)]" />
 
@@ -27,18 +27,18 @@ export default function Home() {
         <HeroSection />
 
         {/* Stats Bar */}
-        <div className="mt-12 sm:mt-16">
+        <div className="mt-16 sm:mt-20">
           <StatsBar />
         </div>
 
         {/* Tool Carousel */}
-        <div className="mt-8 sm:mt-12 lg:mt-16 mx-auto max-w-6xl px-4 sm:px-6">
+        <div className="mt-10 sm:mt-14 lg:mt-16 mx-auto max-w-6xl px-4 sm:px-6">
           <ToolMarquee />
         </div>
 
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           {/* Problem / Solution */}
-          <RevealSection className="py-12 sm:py-16 lg:py-24" id="problem">
+          <RevealSection className="py-16 sm:py-24 lg:py-32" id="problem">
             <div className="mb-16">
               <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 The problem
@@ -53,9 +53,9 @@ export default function Home() {
             </div>
 
             <div className="grid gap-8 lg:grid-cols-2 lg:gap-16">
-              <div className="rounded-xl border border-destructive/20 bg-card/90 backdrop-blur-sm p-6">
-                <h3 className="mb-5 flex items-center gap-2 font-mono text-sm font-bold uppercase tracking-wider text-destructive">
-                  <XCircle className="h-4 w-4" aria-hidden="true" />
+              <div className="rounded-xl border border-destructive/30 bg-destructive/[0.03] dark:bg-destructive/[0.04] backdrop-blur-sm p-7">
+                <h3 className="mb-6 flex items-center gap-2.5 font-mono text-sm font-bold uppercase tracking-wider text-destructive">
+                  <XCircle className="h-5 w-5" aria-hidden="true" />
                   Without bc
                 </h3>
                 <ul className="space-y-4 text-sm">
@@ -67,7 +67,7 @@ export default function Home() {
                     "Surprise cost overruns at end of month",
                   ].map((t) => (
                     <li key={t} className="flex gap-3 text-muted-foreground">
-                      <span className="text-destructive/60 shrink-0">
+                      <span className="text-destructive shrink-0">
                         &#x2715;
                       </span>
                       {t}
@@ -76,9 +76,9 @@ export default function Home() {
                 </ul>
               </div>
 
-              <div className="rounded-xl border border-success/20 bg-card/90 backdrop-blur-sm p-6">
-                <h3 className="mb-5 flex items-center gap-2 font-mono text-sm font-bold uppercase tracking-wider text-success">
-                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              <div className="rounded-xl border border-success/30 bg-success/[0.03] dark:bg-success/[0.04] backdrop-blur-sm p-7">
+                <h3 className="mb-6 flex items-center gap-2.5 font-mono text-sm font-bold uppercase tracking-wider text-success">
+                  <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
                   With bc
                 </h3>
                 <ul className="space-y-4 text-sm">
@@ -90,7 +90,7 @@ export default function Home() {
                     "Per-agent budgets with automatic hard stops",
                   ].map((t) => (
                     <li key={t} className="flex gap-3 text-muted-foreground">
-                      <span className="text-success/60 shrink-0">&#x2713;</span>
+                      <span className="text-success shrink-0">&#x2713;</span>
                       {t}
                     </li>
                   ))}
@@ -100,7 +100,7 @@ export default function Home() {
           </RevealSection>
 
           {/* How It Works */}
-          <RevealSection className="py-12 sm:py-16 lg:py-24" id="how-it-works">
+          <RevealSection className="py-16 sm:py-24 lg:py-32" id="how-it-works">
             <div className="mb-16 text-center">
               <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 How it works
@@ -171,7 +171,7 @@ export default function Home() {
           </RevealSection>
 
           {/* Feature Bento Grid */}
-          <RevealSection className="py-12 sm:py-16 lg:py-24" id="features">
+          <RevealSection className="py-16 sm:py-24 lg:py-32" id="features">
             <div className="mb-16 text-center">
               <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 Features
@@ -184,7 +184,7 @@ export default function Home() {
           </RevealSection>
 
           {/* Dashboard Preview */}
-          <RevealSection className="py-12 sm:py-16 lg:py-24" id="demo">
+          <RevealSection className="py-16 sm:py-24 lg:py-32" id="demo">
             <div className="mb-12 text-center">
               <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                 Dashboard
@@ -202,7 +202,7 @@ export default function Home() {
           </RevealSection>
 
           {/* Final CTA */}
-          <RevealSection className="pb-12 sm:pb-16 lg:pb-24">
+          <RevealSection className="pb-16 sm:pb-24 lg:pb-32">
             <div className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--card-shadow)]">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(234,88,12,0.04),transparent)] dark:bg-[radial-gradient(circle_at_30%_50%,rgba(234,88,12,0.06),transparent)] pointer-events-none" />
               <div className="relative grid items-center gap-8 p-8 sm:p-12 lg:grid-cols-[1fr_auto] lg:gap-16 lg:p-16">
@@ -216,18 +216,18 @@ export default function Home() {
                   <div className="mt-8 flex flex-wrap items-center gap-4">
                     <Link
                       href="https://github.com/gh-curious-otter/bc"
-                      className="group inline-flex h-12 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-xl active:scale-[0.97]"
+                      className="btn-glow group inline-flex h-12 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)]"
                       aria-label="Get started with bc on GitHub"
                     >
                       Get Started
                       <ArrowRight
-                        className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                        className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1"
                         aria-hidden="true"
                       />
                     </Link>
                     <Link
                       href="/docs"
-                      className="inline-flex h-12 items-center gap-2 rounded-lg border border-border px-8 text-sm font-medium transition-colors hover:bg-accent/20 active:scale-[0.97]"
+                      className="btn-outline-glow inline-flex h-12 items-center gap-2 rounded-lg border border-border px-8 text-sm font-medium"
                       aria-label="Explore the bc CLI documentation"
                     >
                       Explore the Docs
@@ -253,6 +253,10 @@ export default function Home() {
                     </div>
                     <div className="text-terminal-comment mt-3 text-[12px]">
                       # That&apos;s it. Your agent team is running.
+                    </div>
+                    <div className="mt-2">
+                      <span className="text-terminal-prompt">$ </span>
+                      <span className="terminal-cursor" />
                     </div>
                   </div>
                 </TerminalWindow>

@@ -16,13 +16,13 @@ function StatItem({ icon: Icon, value, label, delay = 0 }: StatItemProps) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.5, ease: "easeOut" }}
-      className="flex flex-col items-center gap-2 p-4"
+      className="flex flex-col items-center gap-2.5 p-5 rounded-xl border border-border/50 bg-card/40 backdrop-blur-sm transition-all duration-300 hover:border-primary/20 hover:bg-card/60"
     >
       <div className="flex items-center gap-2 text-primary/60">
-        <Icon size={16} aria-hidden="true" />
+        <Icon size={18} aria-hidden="true" />
       </div>
-      <span className="text-2xl font-bold tracking-tight">{value}</span>
-      <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
+      <span className="text-3xl font-bold tracking-tight font-heading">{value}</span>
+      <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-bold">
         {label}
       </span>
     </motion.div>
@@ -31,7 +31,7 @@ function StatItem({ icon: Icon, value, label, delay = 0 }: StatItemProps) {
 
 export function StatsBar() {
   return (
-    <div className="w-full py-8 border-y border-border/50 bg-accent/20">
+    <div className="w-full py-10 border-y border-border/40">
       <div className="mx-auto max-w-4xl px-6">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <StatItem icon={Layers} value="7" label="AI Tools" delay={0} />

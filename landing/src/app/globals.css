@@ -329,3 +329,111 @@ input:focus-visible,
     opacity: 0;
   }
 }
+
+/* Blinking terminal cursor */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.terminal-cursor::after {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 16px;
+  margin-left: 2px;
+  background: var(--terminal-prompt);
+  vertical-align: middle;
+  animation: cursor-blink 1s step-end infinite;
+}
+
+/* Subtle noise texture overlay */
+.noise-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+.dark .noise-bg::before {
+  opacity: 0.03;
+}
+
+/* Screenshot vignette for bento cards */
+.screenshot-vignette {
+  position: relative;
+}
+
+.screenshot-vignette::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    transparent 60%,
+    rgba(12, 10, 8, 0.3) 100%
+  );
+  pointer-events: none;
+}
+
+/* Card border glow on hover */
+.card-glow {
+  transition: box-shadow 0.3s ease, border-color 0.3s ease, transform 0.3s ease;
+}
+
+.card-glow:hover {
+  box-shadow: 0 0 20px rgba(234, 88, 12, 0.08), 0 8px 32px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+.dark .card-glow:hover {
+  box-shadow: 0 0 24px rgba(234, 88, 12, 0.1), 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* CTA button glow */
+.btn-glow {
+  transition: transform 0.2s ease, box-shadow 0.3s ease;
+}
+
+.btn-glow:hover {
+  transform: scale(1.03);
+  box-shadow: 0 0 24px rgba(234, 88, 12, 0.3), 0 4px 16px rgba(234, 88, 12, 0.15);
+}
+
+.btn-glow:active {
+  transform: scale(0.97);
+}
+
+/* Secondary button hover */
+.btn-outline-glow {
+  transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.btn-outline-glow:hover {
+  border-color: var(--primary);
+  background-color: rgba(234, 88, 12, 0.06);
+}
+
+.btn-outline-glow:active {
+  transform: scale(0.97);
+}
+
+/* Dashboard tab active indicator */
+.tab-active {
+  position: relative;
+}
+
+.tab-active::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 16px;
+  height: 2px;
+  background: var(--primary);
+  border-radius: 1px;
+}

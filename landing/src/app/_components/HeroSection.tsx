@@ -62,22 +62,22 @@ export function HeroSection() {
           <motion.div
             variants={fadeUp}
             custom={3}
-            className="mt-6 flex flex-wrap items-center gap-3"
+            className="mt-8 flex flex-wrap items-center gap-4"
           >
             <Link
               href="https://github.com/gh-curious-otter/bc"
-              className="group inline-flex h-10 sm:h-11 items-center gap-2 rounded-lg bg-primary px-6 sm:px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-xl hover:shadow-primary/20 active:scale-[0.97]"
+              className="btn-glow group inline-flex h-11 sm:h-12 items-center gap-2 rounded-lg bg-primary px-7 sm:px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)]"
               aria-label="Get started with bc on GitHub"
             >
               Get Started
               <ArrowRight
-                className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1"
                 aria-hidden="true"
               />
             </Link>
             <Link
               href="/docs"
-              className="inline-flex h-10 sm:h-11 items-center gap-2 rounded-lg border border-border px-6 sm:px-8 text-sm font-medium transition-colors hover:bg-accent/20 active:scale-[0.97]"
+              className="btn-outline-glow inline-flex h-11 sm:h-12 items-center gap-2 rounded-lg border border-border px-7 sm:px-8 text-sm font-medium"
               aria-label="Read the bc documentation"
             >
               View Docs
@@ -87,7 +87,7 @@ export function HeroSection() {
           <motion.div
             variants={fadeUp}
             custom={4}
-            className="mt-8 flex flex-wrap items-center gap-6 font-mono text-xs text-muted-foreground"
+            className="mt-10 flex flex-wrap items-center gap-8 font-mono text-xs text-muted-foreground"
           >
             <span className="flex items-center gap-1.5">
               <CheckCircle2
@@ -104,8 +104,9 @@ export function HeroSection() {
 
         {/* Hero dashboard screenshot */}
         <motion.div variants={fadeUp} custom={2} className="relative">
-          <div className="absolute -inset-8 rounded-3xl bg-gradient-to-tr from-primary/5 via-transparent to-secondary/10 blur-3xl hero-glow" />
-          <div className="relative overflow-hidden rounded-xl border border-border shadow-2xl">
+          <div className="absolute -inset-12 rounded-3xl bg-gradient-to-tr from-primary/8 via-transparent to-secondary/12 blur-3xl hero-glow" />
+          <div className="absolute -inset-4 rounded-2xl bg-gradient-to-b from-primary/4 to-transparent blur-2xl opacity-60" />
+          <div className="relative overflow-hidden rounded-xl border border-border/80 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)]">
             <Image
               src="/screenshots/dashboard-01-home.png"
               alt="bc dashboard showing active agents, channels, cost tracking, and system overview"

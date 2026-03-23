@@ -50,22 +50,24 @@ function BentoCard({
       animate={inView ? "visible" : "hidden"}
       variants={fadeUp}
       transition={{ delay }}
-      className={`group rounded-xl border border-border bg-card/80 backdrop-blur-sm overflow-hidden transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 ${className}`}
+      className={`card-glow group rounded-xl border border-border bg-card/80 backdrop-blur-sm overflow-hidden ${className}`}
     >
       {screenshot && (
-        <div className="overflow-hidden">
+        <div className="overflow-hidden screenshot-vignette">
           <Image
             src={screenshot}
             alt={screenshotAlt || title}
             width={600}
             height={375}
-            className="w-full h-auto transition-transform duration-300 group-hover:scale-[1.02]"
+            className="w-full h-auto transition-transform duration-500 ease-out group-hover:scale-[1.03]"
           />
         </div>
       )}
       <div className="p-5">
-        <div className="flex items-center gap-2 mb-2">
-          <Icon className="h-4 w-4 text-primary/70" />
+        <div className="flex items-center gap-2.5 mb-2">
+          <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-primary/10 transition-colors duration-300 group-hover:bg-primary/15">
+            <Icon className="h-3.5 w-3.5 text-primary" />
+          </div>
           <h3 className="font-semibold text-sm tracking-tight">{title}</h3>
         </div>
         <p className="text-xs text-muted-foreground leading-relaxed">
