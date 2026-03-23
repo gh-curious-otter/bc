@@ -1,3 +1,9 @@
+export const metadata = {
+  title: "Pricing - bc",
+  description:
+    "bc is free and open source. Run it locally with all features. No login required.",
+};
+
 export default function PricingLayout({
   children,
 }: {

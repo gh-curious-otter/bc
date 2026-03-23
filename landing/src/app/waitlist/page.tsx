@@ -12,6 +12,7 @@ import {
   Terminal,
   GitBranch,
   Eye,
+  ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -77,6 +78,42 @@ const SCREENSHOTS = [
 const GOOGLE_FORM_ACTION =
   "https://docs.google.com/forms/d/e/1FAIpQLSc_aJ3S3nV5EizpkzTZnN7H5UykoANpC8jet2M7J0Qo3rhG8Q/formResponse";
 const GOOGLE_FORM_EMAIL_FIELD = "entry.843755864";
+
+function FaqItem({ question, answer }: { question: string; answer: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="border-b border-border">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between py-5 text-left"
+        aria-expanded={open}
+      >
+        <span className="font-bold text-sm">{question}</span>
+        <motion.span
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+          className="ml-4 text-muted-foreground shrink-0"
+        >
+          <ChevronDown size={18} aria-hidden="true" />
+        </motion.span>
+      </button>
+      <motion.div
+        initial={false}
+        animate={{
+          height: open ? "auto" : 0,
+          opacity: open ? 1 : 0,
+        }}
+        transition={{ duration: 0.25, ease: "easeInOut" }}
+        className="overflow-hidden"
+      >
+        <p className="pb-5 text-sm text-muted-foreground leading-relaxed">
+          {answer}
+        </p>
+      </motion.div>
+    </div>
+  );
+}
 
 export default function Waitlist() {
   const [email, setEmail] = useState("");
@@ -200,8 +237,11 @@ export default function Waitlist() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
             >
-              <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-xs font-mono font-bold text-primary">
-                <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+              <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-xs font-mono font-bold text-primary shadow-[0_0_15px_rgba(234,88,12,0.1)]">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+                </span>
                 EARLY ACCESS
               </span>
             </motion.div>
@@ -209,11 +249,13 @@ export default function Waitlist() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight"
+              className="text-4xl sm:text-5xl lg:text-7xl font-extrabold tracking-tight leading-[1.1]"
             >
               Orchestrate AI agents
               <br />
-              <span className="text-primary">from your terminal.</span>
+              <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                from your terminal.
+              </span>
             </motion.h1>
             <motion.p
               initial={{ opacity: 0, y: 20 }}
@@ -240,7 +282,7 @@ export default function Waitlist() {
                   exit={{ opacity: 0, scale: 0.95 }}
                   className="relative"
                 >
-                  <div className="rounded-xl border border-border bg-terminal-bg overflow-hidden shadow-2xl shadow-black/20">
+                  <div className="rounded-xl border border-border bg-terminal-bg overflow-hidden shadow-2xl shadow-black/20 terminal-glow">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
                       <div className="flex gap-1.5">
                         <div className="h-3 w-3 rounded-full bg-[var(--traffic-red)]" />
@@ -278,14 +320,14 @@ export default function Waitlist() {
                               placeholder="you@company.com"
                               pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
                               maxLength={254}
-                              className="h-12 w-full rounded-lg border border-white/10 bg-white/5 pl-12 pr-4 text-sm text-white font-mono outline-none transition-all placeholder:text-white/20 focus:border-primary/50 focus:ring-2 focus:ring-primary/10"
+                              className="h-12 w-full rounded-lg border border-white/10 bg-white/5 pl-12 pr-4 text-sm text-white font-mono outline-none transition-all duration-300 placeholder:text-white/20 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:shadow-[0_0_20px_rgba(234,88,12,0.1)]"
                             />
                           </div>
                         </div>
                         <button
                           type="submit"
                           disabled={submitting}
-                          className="group h-12 w-full rounded-lg bg-primary px-6 text-sm font-bold font-mono text-primary-foreground transition-all hover:opacity-90 active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50"
+                          className="group h-12 w-full rounded-lg bg-primary px-6 text-sm font-bold font-mono text-primary-foreground transition-all duration-200 hover:opacity-90 hover:shadow-[0_4px_20px_rgba(234,88,12,0.3)] active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 disabled:hover:shadow-none"
                         >
                           {submitting ? (
                             <div className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
@@ -320,7 +362,7 @@ export default function Waitlist() {
                   key="success"
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="rounded-xl border border-success/20 bg-terminal-bg overflow-hidden shadow-2xl shadow-black/20"
+                  className="rounded-xl border border-success/20 bg-terminal-bg overflow-hidden shadow-2xl shadow-black/20 success-glow"
                 >
                   <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
                     <div className="flex gap-1.5">
@@ -341,7 +383,7 @@ export default function Waitlist() {
                         stiffness: 200,
                         delay: 0.2,
                       }}
-                      className="mx-auto h-16 w-16 rounded-full bg-success/10 border border-success/20 text-success flex items-center justify-center"
+                      className="mx-auto h-16 w-16 rounded-full bg-success/10 border border-success/20 text-success flex items-center justify-center shadow-[0_0_30px_rgba(34,197,94,0.15)]"
                     >
                       <CheckCircle2 size={32} aria-hidden="true" />
                     </motion.div>
@@ -417,8 +459,14 @@ export default function Waitlist() {
         </div>
       </section>
 
+      {/* Visual separator */}
+      <div className="relative h-24">
+        <div className="absolute inset-x-0 top-0 h-full bg-gradient-to-b from-transparent via-primary/[0.03] to-transparent" />
+        <div className="absolute inset-x-0 top-1/2 h-px bg-border" />
+      </div>
+
       {/* Dashboard Preview Section */}
-      <section className="py-24 border-t border-border">
+      <section className="py-24">
         <div className="mx-auto max-w-5xl px-6">
           <RevealSection className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
@@ -430,7 +478,7 @@ export default function Waitlist() {
             </p>
           </RevealSection>
           <RevealSection delay={0.2}>
-            <div className="rounded-xl border border-border bg-terminal-bg overflow-hidden shadow-2xl shadow-black/20">
+            <div className="rounded-xl border border-border bg-terminal-bg overflow-hidden shadow-2xl shadow-black/20 terminal-glow">
               <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
                 <div className="flex gap-1.5">
                   <div className="h-3 w-3 rounded-full bg-[var(--traffic-red)]" />
@@ -453,13 +501,13 @@ export default function Waitlist() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    transition={{ duration: 0.3 }}
+                    transition={{ duration: 0.4, ease: "easeInOut" }}
                   />
                 </AnimatePresence>
               </div>
             </div>
             <div
-              className="flex justify-center gap-3 mt-6"
+              className="flex justify-center gap-2 mt-6"
               role="tablist"
               aria-label="Dashboard screenshots"
             >
@@ -470,13 +518,20 @@ export default function Waitlist() {
                   role="tab"
                   aria-selected={activeScreenshot === i}
                   aria-label={screenshot.label}
-                  className={`px-4 py-2 rounded-lg text-xs font-mono font-bold transition-all ${
+                  className={`relative px-4 py-2 rounded-lg text-xs font-mono font-bold transition-all duration-200 ${
                     activeScreenshot === i
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-accent/50 text-muted-foreground hover:bg-accent"
+                      ? "text-primary"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {screenshot.label}
+                  {activeScreenshot === i && (
+                    <motion.div
+                      layoutId="activeTab"
+                      className="absolute inset-x-0 -bottom-px h-0.5 bg-primary rounded-full"
+                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    />
+                  )}
                 </button>
               ))}
             </div>
@@ -484,8 +539,14 @@ export default function Waitlist() {
         </div>
       </section>
 
+      {/* Visual separator */}
+      <div className="relative h-24">
+        <div className="absolute inset-x-0 top-0 h-full bg-gradient-to-b from-transparent via-primary/[0.03] to-transparent" />
+        <div className="absolute inset-x-0 top-1/2 h-px bg-border" />
+      </div>
+
       {/* Benefits Section */}
-      <section className="py-24 border-t border-border">
+      <section className="py-24">
         <div className="mx-auto max-w-5xl px-6">
           <RevealSection className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
@@ -498,8 +559,8 @@ export default function Waitlist() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {BENEFITS.map((benefit, i) => (
               <RevealSection key={benefit.title} delay={i * 0.1}>
-                <div className="group rounded-xl border border-border bg-card p-6 hover:border-primary/20 hover:bg-primary/[0.02] transition-all h-full">
-                  <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-4">
+                <div className="group rounded-xl border border-border bg-card p-6 transition-all duration-300 h-full hover:-translate-y-1 hover:border-primary/30 hover:shadow-[0_4px_20px_rgba(234,88,12,0.08)]">
+                  <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-4 transition-colors duration-300 group-hover:bg-primary/20">
                     <benefit.icon size={20} aria-hidden="true" />
                   </div>
                   <h3 className="font-bold mb-2">{benefit.title}</h3>
@@ -574,7 +635,7 @@ export default function Waitlist() {
               Frequently asked questions
             </h2>
           </RevealSection>
-          <div className="space-y-6">
+          <div>
             {[
               {
                 q: "What is bc?",
@@ -606,17 +667,7 @@ export default function Waitlist() {
               },
             ].map((faq) => (
               <RevealSection key={faq.q}>
-                <details className="group rounded-xl border border-border bg-card">
-                  <summary className="flex cursor-pointer items-center justify-between p-6 font-semibold text-sm">
-                    {faq.q}
-                    <span className="ml-4 text-muted-foreground transition-transform group-open:rotate-45">
-                      +
-                    </span>
-                  </summary>
-                  <p className="px-6 pb-6 text-sm text-muted-foreground leading-relaxed">
-                    {faq.a}
-                  </p>
-                </details>
+                <FaqItem question={faq.q} answer={faq.a} />
               </RevealSection>
             ))}
           </div>
