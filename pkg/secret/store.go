@@ -26,12 +26,13 @@ type SecretMeta struct {
 	Description string    `json:"description,omitempty"`
 }
 
-// Store provides SQLite-backed encrypted secrets storage.
+// Store provides encrypted secrets storage backed by SQLite or Postgres.
 // Values are encrypted with AES-256-GCM; the encryption key is derived
 // from a master passphrase via PBKDF2.
 type Store struct {
 	db  *db.DB
-	key []byte // derived AES-256 key
+	pg  *PostgresStore // non-nil when using Postgres via OpenStore
+	key []byte         // derived AES-256 key
 }
 
 // Passphrase returns the passphrase for secret encryption.
@@ -159,6 +160,9 @@ func (s *Store) initKey(passphrase string) error {
 
 // Close closes the database connection.
 func (s *Store) Close() error {
+	if s.pg != nil {
+		return s.pg.Close()
+	}
 	if s.db != nil {
 		return s.db.Close()
 	}
@@ -167,6 +171,9 @@ func (s *Store) Close() error {
 
 // Set creates or updates a secret with an encrypted value.
 func (s *Store) Set(name, value, description string) error {
+	if s.pg != nil {
+		return s.pg.Set(name, value, description)
+	}
 	if name == "" {
 		return fmt.Errorf("secret name is required")
 	}
@@ -193,6 +200,9 @@ func (s *Store) Set(name, value, description string) error {
 
 // GetValue retrieves and decrypts a secret value.
 func (s *Store) GetValue(name string) (string, error) {
+	if s.pg != nil {
+		return s.pg.GetValue(name)
+	}
 	ctx := context.Background()
 	var encrypted string
 	err := s.db.QueryRowContext(ctx,
@@ -214,6 +224,9 @@ func (s *Store) GetValue(name string) (string, error) {
 
 // GetMeta returns metadata for a secret (no value).
 func (s *Store) GetMeta(name string) (*SecretMeta, error) {
+	if s.pg != nil {
+		return s.pg.GetMeta(name)
+	}
 	ctx := context.Background()
 	row := s.db.QueryRowContext(ctx,
 		`SELECT name, description, created_at, updated_at
@@ -224,6 +237,9 @@ func (s *Store) GetMeta(name string) (*SecretMeta, error) {
 
 // List returns metadata for all secrets (no values).
 func (s *Store) List() ([]*SecretMeta, error) {
+	if s.pg != nil {
+		return s.pg.List()
+	}
 	ctx := context.Background()
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT name, description, created_at, updated_at
@@ -256,6 +272,9 @@ func (s *Store) List() ([]*SecretMeta, error) {
 
 // Delete removes a secret.
 func (s *Store) Delete(name string) error {
+	if s.pg != nil {
+		return s.pg.Delete(name)
+	}
 	ctx := context.Background()
 	result, err := s.db.ExecContext(ctx, "DELETE FROM secrets WHERE name = ?", name)
 	if err != nil {
@@ -271,6 +290,9 @@ func (s *Store) Delete(name string) error {
 // ResolveEnv resolves ${secret:NAME} references in env vars, returning
 // a new map with secret values substituted. Unresolvable refs are left as-is.
 func (s *Store) ResolveEnv(env map[string]string) map[string]string {
+	if s.pg != nil {
+		return s.pg.ResolveEnv(env)
+	}
 	resolved := make(map[string]string, len(env))
 	for k, v := range env {
 		resolved[k] = s.resolveValue(v)

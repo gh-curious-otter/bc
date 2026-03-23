@@ -1,6 +1,38 @@
 package cmd
 
-import "regexp"
+import (
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+
+	"github.com/rpuneet/bc/pkg/client"
+)
+
+// getClient returns an HTTP client for the bcd server.
+func getClient() *client.Client {
+	return client.New("")
+}
+
+// findBCD locates the bcd binary in PATH, GOPATH/bin, or next to bc.
+func findBCD() (string, error) {
+	if p, err := exec.LookPath("bcd"); err == nil {
+		return p, nil
+	}
+	if gopath := os.Getenv("GOPATH"); gopath != "" {
+		p := filepath.Join(gopath, "bin", "bcd")
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+	}
+	if exe, err := os.Executable(); err == nil {
+		p := filepath.Join(filepath.Dir(exe), "bcd")
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+	}
+	return "", os.ErrNotExist
+}
 
 // identifierPattern matches valid identifiers: starts with a letter or underscore,
 // followed by letters, numbers, dashes, or underscores.

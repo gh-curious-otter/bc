@@ -10,6 +10,7 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/stats"
 	"github.com/rpuneet/bc/pkg/tool"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -30,11 +31,12 @@ var serverStartTime = time.Now() //nolint:gochecknoglobals // intentional: track
 
 // StatsHandler handles /api/stats routes.
 type StatsHandler struct {
-	agents   *agent.AgentService
-	channels *channel.ChannelService
-	costs    *cost.Store
-	tools    *tool.Store
-	ws       *workspace.Workspace
+	agents     *agent.AgentService
+	channels   *channel.ChannelService
+	costs      *cost.Store
+	tools      *tool.Store
+	ws         *workspace.Workspace
+	statsStore *stats.Store
 }
 
 // NewStatsHandler creates a StatsHandler.
@@ -44,13 +46,15 @@ func NewStatsHandler(
 	costs *cost.Store,
 	tools *tool.Store,
 	ws *workspace.Workspace,
+	statsStore *stats.Store,
 ) *StatsHandler {
 	return &StatsHandler{
-		agents:   agents,
-		channels: channels,
-		costs:    costs,
-		tools:    tools,
-		ws:       ws,
+		agents:     agents,
+		channels:   channels,
+		costs:      costs,
+		tools:      tools,
+		ws:         ws,
+		statsStore: statsStore,
 	}
 }
 
@@ -58,6 +62,12 @@ func NewStatsHandler(
 func (h *StatsHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/stats/system", h.system)
 	mux.HandleFunc("/api/stats/summary", h.summary)
+	mux.HandleFunc("/api/stats/metrics", h.systemMetricsTimeseries)
+	mux.HandleFunc("/api/stats/agents/", h.agentMetricsTimeseries)
+	mux.HandleFunc("/api/stats/tokens", h.tokenMetricsTimeseries)
+	mux.HandleFunc("/api/stats/channels/metrics", h.channelMetricsTimeseries)
+	mux.HandleFunc("/api/stats/daemons", h.daemonMetricsTimeseries)
+	mux.HandleFunc("/api/stats/overview", h.overview)
 }
 
 func (h *StatsHandler) system(w http.ResponseWriter, r *http.Request) {

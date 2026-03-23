@@ -26,12 +26,12 @@ import (
 	bccontainer "github.com/rpuneet/bc/pkg/container"
 	bccost "github.com/rpuneet/bc/pkg/cost"
 	bccron "github.com/rpuneet/bc/pkg/cron"
-	bcdaemon "github.com/rpuneet/bc/pkg/daemon"
 	bcevents "github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	bcmcp "github.com/rpuneet/bc/pkg/mcp"
 	"github.com/rpuneet/bc/pkg/provider"
 	bcsecret "github.com/rpuneet/bc/pkg/secret"
+	bcstats "github.com/rpuneet/bc/pkg/stats"
 	bcteam "github.com/rpuneet/bc/pkg/team"
 	bctool "github.com/rpuneet/bc/pkg/tool"
 	bcworkspace "github.com/rpuneet/bc/pkg/workspace"
@@ -107,18 +107,9 @@ func run(addr, wsRoot, corsOrigin string) error {
 		defer chStore.Close() //nolint:errcheck // best-effort
 	}
 
-	var daemonMgr *bcdaemon.Manager
-	if mgr, err := bcdaemon.NewManager(ws.RootDir); err != nil {
-		log.Warn("daemon manager unavailable", "error", err)
-	} else {
-		daemonMgr = mgr
-		defer mgr.Close() //nolint:errcheck // best-effort
-	}
-
 	var costStore *bccost.Store
 	var costImporter *bccost.Importer
-	cs := bccost.NewStore(ws.RootDir)
-	if err := cs.Open(); err != nil {
+	if cs, err := bccost.OpenStore(ws.RootDir); err != nil {
 		log.Warn("cost store unavailable", "error", err)
 	} else {
 		costStore = cs
@@ -191,11 +182,26 @@ func run(addr, wsRoot, corsOrigin string) error {
 	}
 
 	var eventLog bcevents.EventStore
-	if el, err := bcevents.NewSQLiteLog(filepath.Join(ws.StateDir(), "state.db")); err != nil {
+	if el, err := bcevents.OpenLog(ws.RootDir, filepath.Join(ws.StateDir(), "state.db")); err != nil {
 		log.Warn("event log unavailable", "error", err)
 	} else {
 		eventLog = el
 		defer el.Close() //nolint:errcheck // best-effort
+	}
+
+	// TimescaleDB stats store (optional — nil when STATS_DATABASE_URL is not set)
+	var statsStore *bcstats.Store
+	if dsn := bcstats.StatsDSN(); dsn != bcstats.DefaultStatsDSN || os.Getenv("STATS_DATABASE_URL") != "" {
+		if ss, err := bcstats.NewStore(dsn); err != nil {
+			log.Warn("stats store unavailable (TimescaleDB)", "error", err)
+		} else {
+			statsStore = ss
+			defer ss.Close() //nolint:errcheck // best-effort
+			log.Info("stats store: using TimescaleDB", "dsn", dsn)
+
+			// Background system metrics collector
+			go runStatsCollector(ctx, ss, agentSvc, channelSvc, ws)
+		}
 	}
 
 	teamStore := bcteam.NewStore(ws.RootDir)
@@ -203,13 +209,13 @@ func run(addr, wsRoot, corsOrigin string) error {
 	svc := server.Services{
 		Agents:       agentSvc,
 		Channels:     channelSvc,
-		Daemons:      daemonMgr,
 		Costs:        costStore,
 		CostImporter: costImporter,
 		Cron:         cronStore,
 		Secrets:      secretStore,
 		MCP:          mcpStore,
 		Tools:        toolStore,
+		Stats:        statsStore,
 		EventLog:     eventLog,
 		Teams:        teamStore,
 		WS:           ws,
@@ -248,4 +254,59 @@ func writePID(path string) error {
 		return fmt.Errorf("create pid dir: %w", err)
 	}
 	return os.WriteFile(path, []byte(strconv.Itoa(os.Getpid())+"\n"), 0600)
+}
+
+// runStatsCollector periodically samples system and agent metrics into TimescaleDB.
+func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.AgentService, channels *bcchannel.ChannelService, ws *bcworkspace.Workspace) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	hostname, _ := os.Hostname() //nolint:errcheck // best-effort
+
+	for {
+		select {
+		case <-ticker.C:
+			now := time.Now()
+
+			// System metrics
+			_ = ss.RecordSystem(ctx, bcstats.SystemMetric{
+				Time:     now,
+				Hostname: hostname,
+			})
+
+			// Agent metrics
+			if agents != nil {
+				agentList, err := agents.List(ctx, bcagent.ListOptions{})
+				if err == nil {
+					for _, a := range agentList {
+						_ = ss.RecordAgent(ctx, bcstats.AgentMetric{
+							Time:      now,
+							AgentName: a.Name,
+							AgentID:   a.ID,
+							Role:      string(a.Role),
+							State:     string(a.State),
+						})
+					}
+				}
+			}
+
+			// Channel metrics
+			if channels != nil {
+				chList, err := channels.List(ctx)
+				if err == nil {
+					for _, ch := range chList {
+						_ = ss.RecordChannel(ctx, bcstats.ChannelMetric{
+							Time:         now,
+							ChannelName:  ch.Name,
+							MessagesSent: int64(ch.MessageCount),
+							Participants: len(ch.Members),
+						})
+					}
+				}
+			}
+
+		case <-ctx.Done():
+			return
+		}
+	}
 }

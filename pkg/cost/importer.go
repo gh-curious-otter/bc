@@ -123,7 +123,10 @@ func (imp *Importer) importFile(ctx context.Context, path string) (int, error) {
 	}
 
 	// Wrap all inserts + watermark update in a transaction
-	tx, err := imp.store.db.BeginTx(ctx, nil)
+	db := imp.store.DB()
+	usePostgres := imp.store.backend != nil
+
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf("begin transaction: %w", err)
 	}
@@ -133,17 +136,34 @@ func (imp *Importer) importFile(ctx context.Context, path string) (int, error) {
 	for _, ie := range toInsert {
 		e := ie.entry
 		total := e.InputTokens + e.OutputTokens + e.CacheCreationTokens + e.CacheReadTokens
-		if _, insertErr := tx.ExecContext(ctx,
-			`INSERT INTO cost_records
-			 (agent_id, model, session_id, input_tokens, output_tokens, total_tokens,
-			  cache_creation_tokens, cache_read_tokens, cost_usd, timestamp)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			ie.agentID, e.Model, e.SessionID,
-			e.InputTokens, e.OutputTokens, total,
-			e.CacheCreationTokens, e.CacheReadTokens,
-			ie.costUSD,
-			e.Timestamp.UTC().Format(time.RFC3339Nano),
-		); insertErr != nil {
+
+		var insertErr error
+		if usePostgres {
+			_, insertErr = tx.ExecContext(ctx,
+				`INSERT INTO cost_records
+				 (agent_id, model, session_id, input_tokens, output_tokens, total_tokens,
+				  cache_creation_tokens, cache_read_tokens, cost_usd, timestamp)
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+				ie.agentID, e.Model, e.SessionID,
+				e.InputTokens, e.OutputTokens, total,
+				e.CacheCreationTokens, e.CacheReadTokens,
+				ie.costUSD,
+				e.Timestamp.UTC(),
+			)
+		} else {
+			_, insertErr = tx.ExecContext(ctx,
+				`INSERT INTO cost_records
+				 (agent_id, model, session_id, input_tokens, output_tokens, total_tokens,
+				  cache_creation_tokens, cache_read_tokens, cost_usd, timestamp)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				ie.agentID, e.Model, e.SessionID,
+				e.InputTokens, e.OutputTokens, total,
+				e.CacheCreationTokens, e.CacheReadTokens,
+				ie.costUSD,
+				e.Timestamp.UTC().Format(time.RFC3339Nano),
+			)
+		}
+		if insertErr != nil {
 			log.Warn("cost importer: failed to insert record", "session", e.SessionID, "error", insertErr)
 			continue
 		}
@@ -151,15 +171,29 @@ func (imp *Importer) importFile(ctx context.Context, path string) (int, error) {
 	}
 
 	if inserted > 0 {
-		if _, wmErr := tx.ExecContext(ctx,
-			`INSERT INTO cost_imports (source_path, watermark, record_count, imported_at)
-			 VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-			 ON CONFLICT(source_path) DO UPDATE SET
-			   watermark    = excluded.watermark,
-			   record_count = cost_imports.record_count + excluded.record_count,
-			   imported_at  = excluded.imported_at`,
-			path, latest.UTC().Format(time.RFC3339Nano), inserted,
-		); wmErr != nil {
+		var wmErr error
+		if usePostgres {
+			_, wmErr = tx.ExecContext(ctx,
+				`INSERT INTO cost_imports (source_path, watermark, record_count, imported_at)
+				 VALUES ($1, $2, $3, NOW())
+				 ON CONFLICT(source_path) DO UPDATE SET
+				   watermark    = excluded.watermark,
+				   record_count = cost_imports.record_count + excluded.record_count,
+				   imported_at  = excluded.imported_at`,
+				path, latest.UTC().Format(time.RFC3339Nano), inserted,
+			)
+		} else {
+			_, wmErr = tx.ExecContext(ctx,
+				`INSERT INTO cost_imports (source_path, watermark, record_count, imported_at)
+				 VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+				 ON CONFLICT(source_path) DO UPDATE SET
+				   watermark    = excluded.watermark,
+				   record_count = cost_imports.record_count + excluded.record_count,
+				   imported_at  = excluded.imported_at`,
+				path, latest.UTC().Format(time.RFC3339Nano), inserted,
+			)
+		}
+		if wmErr != nil {
 			return 0, fmt.Errorf("record import state: %w", wmErr)
 		}
 	}
@@ -224,8 +258,13 @@ func initImporterSchema(db *sql.DB) error {
 }
 
 func (imp *Importer) lastImportedTimestamp(ctx context.Context, path string) (time.Time, error) {
-	row := imp.store.db.QueryRowContext(ctx,
-		`SELECT watermark FROM cost_imports WHERE source_path = ?`, path)
+	db := imp.store.DB()
+	placeholder := "?"
+	if imp.store.backend != nil {
+		placeholder = "$1"
+	}
+	row := db.QueryRowContext(ctx,
+		`SELECT watermark FROM cost_imports WHERE source_path = `+placeholder, path)
 	var watermark string
 	if err := row.Scan(&watermark); err == sql.ErrNoRows {
 		return time.Time{}, nil

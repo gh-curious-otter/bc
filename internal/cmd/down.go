@@ -2,58 +2,64 @@ package cmd
 
 import (
 	"fmt"
+	"os/exec"
+	"strings"
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/ui"
 )
 
 var downCmd = &cobra.Command{
 	Use:   "down",
-	Short: "Stop bc agents",
-	Long: `Stop all running bc agents.
-
-This will gracefully stop all agent tmux sessions.
+	Short: "Stop bc services",
+	Long: `Stop bc-<id>-daemon, bc-stats, and bc-sql Docker containers.
 
 Examples:
-  bc down          # Stop all agents
-  bc down --force  # Force kill without cleanup`,
+  bc down`,
 	RunE: runDown,
 }
 
-var downForce bool
-
 func init() {
-	downCmd.Flags().BoolVar(&downForce, "force", false, "Force kill without cleanup")
 	rootCmd.AddCommand(downCmd)
 }
 
-func runDown(cmd *cobra.Command, args []string) error {
-	log.Debug("down command started", "force", downForce)
-
+func runDown(cmd *cobra.Command, _ []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
 		return errNotInWorkspace(err)
 	}
 
-	c := client.New("")
-	if pingErr := c.Ping(cmd.Context()); pingErr != nil {
-		return fmt.Errorf("bcd is not running — start it with 'bc up' first\n(%w)", pingErr)
-	}
+	ctx := cmd.Context()
+	id := wsID(ws.RootDir)
+	daemonName := fmt.Sprintf("bc-%s-daemon", id)
 
-	fmt.Printf("Stopping bc agents in %s\n\n", ws.RootDir)
+	fmt.Printf("Stopping bc in %s\n\n", ws.RootDir)
 
-	stopped, stopErr := c.Workspaces.Down(cmd.Context())
-	if stopErr != nil {
-		return fmt.Errorf("failed to stop agents: %w", stopErr)
+	var stopped int
+	for _, name := range []string{daemonName, "bc-stats", "bc-sql"} {
+		//nolint:gosec // trusted
+		out, _ := exec.CommandContext(ctx, "docker", "inspect", "-f", "{{.State.Running}}", name).Output()
+		if strings.TrimSpace(string(out)) != "true" {
+			continue
+		}
+		fmt.Printf("  Stopping %s... ", name)
+		//nolint:gosec // trusted
+		if output, stopErr := exec.CommandContext(ctx, "docker", "stop", name).CombinedOutput(); stopErr != nil {
+			fmt.Println(ui.YellowText(fmt.Sprintf("failed (%v)", stopErr)))
+			log.Debug("docker stop failed", "name", name, "output", string(output))
+			continue
+		}
+		fmt.Println(ui.GreenText("stopped"))
+		stopped++
 	}
 
 	if stopped == 0 {
-		fmt.Println("No agents running")
-		return nil
+		fmt.Println("  No services running")
+	} else {
+		fmt.Println()
+		fmt.Printf("  %s Stopped %d service(s)\n", ui.GreenText("ok"), stopped)
 	}
-
-	fmt.Printf("Stopped %d agent(s)\n", stopped)
 	return nil
 }

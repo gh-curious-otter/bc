@@ -66,16 +66,17 @@ type Daemon struct {
 
 // RunOptions configures how a daemon is started.
 type RunOptions struct {
-	Name    string
-	Runtime string
-	Cmd     string
-	Image   string
-	EnvFile string
-	Restart string
-	Ports   []string
-	Volumes []string
-	Env     []string
-	Detach  bool
+	Name          string
+	Runtime       string
+	Cmd           string
+	Image         string
+	EnvFile       string
+	Restart       string
+	ContainerName string // Override auto-generated container name (for stable system daemons)
+	Ports         []string
+	Volumes       []string
+	Env           []string
+	Detach        bool
 }
 
 // Manager manages workspace daemons using SQLite state and tmux/Docker.
@@ -212,17 +213,18 @@ func (m *Manager) Run(ctx context.Context, opts RunOptions) (*Daemon, error) {
 
 	now := time.Now()
 	d := &Daemon{
-		Name:      opts.Name,
-		Runtime:   opts.Runtime,
-		Cmd:       opts.Cmd,
-		Image:     opts.Image,
-		Ports:     opts.Ports,
-		Volumes:   opts.Volumes,
-		EnvVars:   env,
-		Restart:   opts.Restart,
-		Status:    StatusRunning,
-		CreatedAt: now,
-		StartedAt: now,
+		Name:        opts.Name,
+		Runtime:     opts.Runtime,
+		Cmd:         opts.Cmd,
+		Image:       opts.Image,
+		ContainerID: opts.ContainerName, // custom container name (empty = auto-generate)
+		Ports:       opts.Ports,
+		Volumes:     opts.Volumes,
+		EnvVars:     env,
+		Restart:     opts.Restart,
+		Status:      StatusRunning,
+		CreatedAt:   now,
+		StartedAt:   now,
 	}
 
 	if opts.Runtime == RuntimeTmux {
@@ -273,6 +275,9 @@ func (m *Manager) startTmux(ctx context.Context, d *Daemon) error {
 // startDocker launches the daemon in a Docker container.
 func (m *Manager) startDocker(ctx context.Context, d *Daemon) error {
 	cn := m.containerName(d.Name)
+	if d.ContainerID != "" {
+		cn = d.ContainerID // use custom container name
+	}
 
 	// Remove stale container if present
 	//nolint:gosec // trusted binary
@@ -309,7 +314,10 @@ func (m *Manager) startDocker(ctx context.Context, d *Daemon) error {
 	if err != nil {
 		return fmt.Errorf("docker run: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
-	d.ContainerID = strings.TrimSpace(string(out))
+	// Preserve custom container name; only set hash if no custom name
+	if d.ContainerID == "" || isContainerHash(d.ContainerID) {
+		d.ContainerID = strings.TrimSpace(string(out))
+	}
 
 	return nil
 }
@@ -332,7 +340,7 @@ func (m *Manager) Stop(ctx context.Context, name string) error {
 			log.Debug("failed to kill daemon tmux session", "daemon", name, "error", err)
 		}
 	} else {
-		cn := m.containerName(name)
+		cn := m.resolveDockerName(d)
 		//nolint:gosec // trusted binary + container name from internal state
 		if out, stopErr := exec.CommandContext(ctx, "docker", "stop", cn).CombinedOutput(); stopErr != nil {
 			log.Debug("failed to stop docker daemon", "daemon", name, "output", string(out), "error", stopErr)
@@ -458,7 +466,7 @@ func (m *Manager) Logs(ctx context.Context, name string, lines int) (string, err
 	}
 
 	if d.Runtime == RuntimeDocker {
-		cn := m.containerName(name)
+		cn := m.resolveDockerName(d)
 		linesStr := fmt.Sprintf("%d", lines)
 		//nolint:gosec // trusted binary
 		out, cmdErr := exec.CommandContext(ctx, "docker", "logs", "--tail", linesStr, cn).CombinedOutput()
@@ -496,7 +504,7 @@ func (m *Manager) syncStatus(ctx context.Context, d *Daemon) {
 	if d.Runtime == RuntimeTmux {
 		alive = m.tmuxMgr.HasSession(ctx, d.Name)
 	} else {
-		cn := m.containerName(d.Name)
+		cn := m.resolveDockerName(d)
 		//nolint:gosec // trusted binary
 		out, err := exec.CommandContext(ctx, "docker", "inspect", "-f", "{{.State.Running}}", cn).Output()
 		alive = err == nil && strings.TrimSpace(string(out)) == "true"
@@ -609,8 +617,41 @@ func scanDaemon(row rowScanner) (*Daemon, error) {
 }
 
 // containerName returns the Docker container name for a daemon.
+// If the daemon has a ContainerID that was set as a custom name, use that.
 func (m *Manager) containerName(name string) string {
 	return "bc-" + m.workspaceHash + "-" + name
+}
+
+// ContainerNameFor returns the container name for a given daemon name.
+func (m *Manager) ContainerNameFor(name string) string {
+	return m.containerName(name)
+}
+
+// resolveDockerName returns the container name for a daemon,
+// using the custom ContainerID if set, otherwise the auto-generated name.
+func (m *Manager) resolveDockerName(d *Daemon) string {
+	if d.ContainerID != "" && !isContainerHash(d.ContainerID) {
+		return d.ContainerID
+	}
+	return m.containerName(d.Name)
+}
+
+// isContainerHash returns true if s looks like a Docker container hash (64 hex chars).
+func isContainerHash(s string) bool {
+	if len(s) < 12 {
+		return false
+	}
+	for _, c := range s {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			return false
+		}
+	}
+	return true
+}
+
+// WorkspaceHash returns the workspace hash used in container names.
+func (m *Manager) WorkspaceHash() string {
+	return m.workspaceHash
 }
 
 // logFile returns the log file path for a bash daemon.

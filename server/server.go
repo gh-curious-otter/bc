@@ -24,11 +24,11 @@ import (
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/cost"
 	"github.com/rpuneet/bc/pkg/cron"
-	"github.com/rpuneet/bc/pkg/daemon"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/mcp"
 	"github.com/rpuneet/bc/pkg/secret"
+	"github.com/rpuneet/bc/pkg/stats"
 	"github.com/rpuneet/bc/pkg/team"
 	"github.com/rpuneet/bc/pkg/tool"
 	"github.com/rpuneet/bc/pkg/workspace"
@@ -62,7 +62,6 @@ func DefaultConfig() Config {
 type Services struct {
 	Agents       *agent.AgentService
 	Channels     *channel.ChannelService
-	Daemons      *daemon.Manager
 	Costs        *cost.Store
 	CostImporter *cost.Importer
 	Cron         *cron.Store
@@ -70,6 +69,7 @@ type Services struct {
 	MCP          *mcp.Store
 	Teams        *team.Store
 	Tools        *tool.Store
+	Stats        *stats.Store
 	EventLog     events.EventStore
 	WS           *workspace.Workspace
 }
@@ -199,9 +199,6 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewChannelHandler(svc.Channels).Register(mux)
 		handlers.NewChannelStatsHandler(svc.Channels).Register(mux)
 	}
-	if svc.Daemons != nil {
-		handlers.NewDaemonHandler(svc.Daemons).Register(mux)
-	}
 	if svc.Costs != nil {
 		handlers.NewCostHandler(svc.Costs, svc.CostImporter).Register(mux)
 	}
@@ -231,7 +228,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 
 	// Stats endpoints (always registered; nil-safe internally)
-	handlers.NewStatsHandler(svc.Agents, svc.Channels, svc.Costs, svc.Tools, svc.WS).Register(mux)
+	handlers.NewStatsHandler(svc.Agents, svc.Channels, svc.Costs, svc.Tools, svc.WS, svc.Stats).Register(mux)
 
 	// MCP protocol server (SSE transport) at /mcp/
 	if svc.WS != nil {
