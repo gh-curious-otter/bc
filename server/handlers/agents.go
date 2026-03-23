@@ -12,6 +12,7 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/cost"
 	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/bc/server/ws"
 )
 
 // AgentHandler handles /api/agents routes.
@@ -19,12 +20,13 @@ type AgentHandler struct {
 	svc   *agent.AgentService
 	costs *cost.Store
 	ws    *workspace.Workspace
+	hub   *ws.Hub
 }
 
 // NewAgentHandler creates an AgentHandler.
-// costs and ws may be nil; enrichment fields will be omitted when unavailable.
-func NewAgentHandler(svc *agent.AgentService, costs *cost.Store, ws *workspace.Workspace) *AgentHandler {
-	return &AgentHandler{svc: svc, costs: costs, ws: ws}
+// costs, ws, and hub may be nil; enrichment fields will be omitted when unavailable.
+func NewAgentHandler(svc *agent.AgentService, costs *cost.Store, ws *workspace.Workspace, hub *ws.Hub) *AgentHandler {
+	return &AgentHandler{svc: svc, costs: costs, ws: ws, hub: hub}
 }
 
 // Register mounts agent routes on mux.
@@ -231,25 +233,52 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 
 	case r.Method == http.MethodPost && action == "hook":
-		// Receive a Claude Code hook event and update agent state.
-		var req struct {
-			Event string `json:"event"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		// Receive a hook event with rich metadata and update agent state + task.
+		var payload agent.HookPayload
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			httpError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		ev := agent.HookEvent(req.Event)
-		targetState, ok := agent.StateForHookEvent(ev)
-		if !ok {
-			httpError(w, "unknown event: "+req.Event, http.StatusBadRequest)
+		if !agent.IsKnownEvent(payload.Event) {
+			httpError(w, "unknown event: "+string(payload.Event), http.StatusBadRequest)
 			return
 		}
-		if err := h.svc.Manager().UpdateAgentState(name, targetState, ""); err != nil {
-			// Transition may be invalid (agent stopped, etc.) — treat as no-op.
-			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skipped": true})
-			return
+
+		// Determine target state: explicit in payload > mapped from event > no change
+		task := payload.Task
+		targetState, hasState := agent.StateForHookEvent(payload.Event)
+		if payload.State != "" {
+			if agent.IsValidState(payload.State) {
+				targetState = agent.State(payload.State)
+				hasState = true
+			}
 		}
+
+		if hasState {
+			if err := h.svc.Manager().UpdateAgentState(name, targetState, task); err != nil {
+				writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skipped": true})
+				return
+			}
+		}
+
+		// Publish the full hook event via SSE for web UI
+		if h.hub != nil {
+			h.hub.Publish("agent.hook", map[string]any{
+				"agent":          name,
+				"event":          string(payload.Event),
+				"state":          string(targetState),
+				"task":           task,
+				"tool_name":      payload.ToolName,
+				"command":        payload.Command,
+				"error":          payload.Error,
+				"subagent_id":    payload.SubagentID,
+				"subagent_type":  payload.SubagentType,
+				"channel":        payload.Channel,
+				"sender":         payload.Sender,
+				"message":        payload.Message,
+			})
+		}
+
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 
 	case r.Method == http.MethodGet && action == "stats":
