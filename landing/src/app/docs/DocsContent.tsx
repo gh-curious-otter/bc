@@ -70,7 +70,7 @@ function CopyButton({ text }: { text: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className="absolute right-3 top-3 rounded-md border border-white/10 bg-white/5 p-1.5 text-terminal-muted hover:text-terminal-text transition-all duration-200 opacity-0 group-hover:opacity-100 hover:bg-white/10"
+      className="absolute right-3 top-3 rounded-md border border-foreground/10 bg-foreground/5 p-1.5 text-terminal-muted hover:text-terminal-text transition-all duration-200 opacity-0 group-hover:opacity-100 hover:bg-foreground/10"
       aria-label="Copy to clipboard"
     >
       {copied ? (
@@ -261,9 +261,9 @@ function CodeBlock({
   title?: string;
 }) {
   return (
-    <div className="group relative overflow-hidden rounded-lg border border-border/60 bg-[#0C0A08] my-4 shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
+    <div className="group relative overflow-hidden rounded-lg border border-border/60 bg-card dark:bg-[#0C0A08] my-4 shadow-[0_2px_8px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
       {title && (
-        <div className="border-b border-white/[0.06] bg-[#151210] px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-terminal-muted flex items-center justify-between">
+        <div className="border-b border-border/30 bg-muted dark:bg-[#151210] px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-terminal-muted flex items-center justify-between">
           <span>{title}</span>
           {language && (
             <span className="text-terminal-muted/50">{language}</span>
@@ -887,7 +887,7 @@ function CliCommandCard({ cmd }: { cmd: CliCommand }) {
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                 Options
               </div>
-              <pre className="text-[12px] font-mono text-muted-foreground bg-[#0C0A08] rounded-lg px-3 py-2 overflow-x-auto">
+              <pre className="text-[12px] font-mono text-muted-foreground bg-card dark:bg-[#0C0A08] rounded-lg px-3 py-2 overflow-x-auto">
                 <code>{meaningfulOptions}</code>
               </pre>
             </div>
@@ -1485,9 +1485,9 @@ export default function DocsContent({
         <aside
           className={`${
             mobileNavOpen
-              ? "fixed inset-y-0 left-0 top-[105px] z-30 w-[280px] bg-[#1E1A16] shadow-2xl translate-x-0"
+              ? "fixed inset-y-0 left-0 top-[105px] z-30 w-[280px] bg-card dark:bg-[#1E1A16] shadow-2xl translate-x-0"
               : "fixed -translate-x-full lg:translate-x-0"
-          } lg:relative lg:block lg:sticky lg:top-0 lg:h-screen lg:w-[260px] xl:w-[280px] shrink-0 border-r border-border overflow-y-auto transition-transform duration-300 ease-out lg:bg-[#1E1A16]/50 docs-sidebar-scroll`}
+          } lg:relative lg:block lg:sticky lg:top-0 lg:h-screen lg:w-[260px] xl:w-[280px] shrink-0 border-r border-border overflow-y-auto transition-transform duration-300 ease-out lg:bg-muted/50 docs-sidebar-scroll`}
         >
           <div className="p-4 pt-20 lg:pt-6">
             {/* Search */}
