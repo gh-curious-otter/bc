@@ -51,12 +51,6 @@ export function Footer() {
               >
                 Method
               </Link>
-              <Link
-                href="/now"
-                className="hover:text-foreground transition-colors"
-              >
-                Now
-              </Link>
             </nav>
           </div>
           <div className="space-y-4">

@@ -70,7 +70,7 @@ export default function PricingPage() {
             <div className="mb-6">
               <h2 className="text-xl font-bold">Open Source</h2>
               <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-5xl font-bold tracking-tight">$0</span>
+                <span className="text-5xl font-bold tracking-tight">₹0</span>
                 <span className="text-muted-foreground text-sm">/forever</span>
               </div>
               <p className="mt-3 text-sm text-muted-foreground">
@@ -109,8 +109,7 @@ export default function PricingPage() {
             <div className="mb-6 opacity-40">
               <h2 className="text-xl font-bold">Cloud</h2>
               <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-5xl font-bold tracking-tight">$29</span>
-                <span className="text-muted-foreground text-sm">/month</span>
+                <span className="text-5xl font-bold tracking-tight">—</span>
               </div>
               <p className="mt-3 text-sm text-muted-foreground">
                 For teams that want hosted infrastructure.
@@ -150,9 +149,7 @@ export default function PricingPage() {
             <div className="mb-6 opacity-40">
               <h2 className="text-xl font-bold">Enterprise</h2>
               <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-5xl font-bold tracking-tight">
-                  Custom
-                </span>
+                <span className="text-5xl font-bold tracking-tight">—</span>
               </div>
               <p className="mt-3 text-sm text-muted-foreground">
                 For organizations with compliance requirements.
@@ -219,7 +216,10 @@ export default function PricingPage() {
               <p className="text-sm text-muted-foreground leading-relaxed">
                 We are working on hosted versions for teams who want managed
                 infrastructure. Join the waitlist to be notified when they
-                launch.
+                launch, or email us at{" "}
+                <a href="mailto:skitzo@bc-infra.com" className="text-primary hover:underline">
+                  skitzo@bc-infra.com
+                </a>.
               </p>
             </div>
             <div>
