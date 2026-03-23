@@ -25,7 +25,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
 	bcagent "github.com/rpuneet/bc/pkg/agent"
 	bcchannel "github.com/rpuneet/bc/pkg/channel"
 	bccontainer "github.com/rpuneet/bc/pkg/container"
@@ -101,11 +100,7 @@ func run(addr, wsRoot, corsOrigin string) error {
 		log.Warn("failed to load agent state", "error", err)
 	}
 	defer agentMgr.Close() //nolint:errcheck // best-effort
-	go agentMgr.RunReconciler(ctx, 10*time.Second)
 	agentSvc := bcagent.NewAgentService(agentMgr, hub, nil)
-
-	statsCollector := bcagent.NewStatsCollector(agentMgr)
-	go statsCollector.Run(ctx)
 
 	var channelSvc *bcchannel.ChannelService
 	if chStore, err := bcchannel.OpenStore(ws.RootDir); err != nil {

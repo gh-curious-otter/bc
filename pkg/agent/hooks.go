@@ -160,7 +160,7 @@ func ConsumeHookEvent(stateDir, agentName string) (HookEvent, bool) {
 	return ev, ok
 }
 
-// ── Settings.json writer (generates HTTP-based hooks via Python script) ──
+// ── Settings.json writer (generates HTTP-based hooks) ──
 
 type claudeSettings struct {
 	Hooks map[string][]claudeHookMatcher `json:"hooks,omitempty"`
@@ -179,18 +179,17 @@ type claudeHook struct {
 // WriteWorkspaceHookSettings writes .claude/settings.json with HTTP-based hooks
 // that POST to bcd's /api/agents/{name}/hook endpoint for instant status updates.
 //
-// Uses the Python script at scripts/configure-hooks.py to generate all 22 hooks.
-// Falls back to file-based hooks if Python is not available.
+// Uses curl to POST JSON payloads. Tool-aware hooks read stdin JSON via jq.
+// This is idempotent: if settings.json already exists the hooks section is merged.
 func WriteWorkspaceHookSettings(workspaceRoot string) error {
 	claudeDir := filepath.Join(workspaceRoot, ".claude")
 	if err := os.MkdirAll(claudeDir, 0750); err != nil {
 		return fmt.Errorf("create .claude dir: %w", err)
 	}
 
-	// Determine bcd address based on runtime
 	bcdAddr := "http://127.0.0.1:9374"
 
-	// Build HTTP-based hook commands for all events
+	// Simple hook command (no stdin parsing)
 	hookCmd := func(event HookEvent, stateTarget State, taskDesc string) string {
 		payload := fmt.Sprintf(`{"event":"%s","state":"%s","task":"%s"}`, event, stateTarget, taskDesc)
 		return fmt.Sprintf(
@@ -223,7 +222,7 @@ func WriteWorkspaceHookSettings(workspaceRoot string) error {
 				`bash -c 'HOOK_INPUT=$(cat); PAYLOAD=$(echo "$HOOK_INPUT" | jq -c "{event:\"SubagentStart\",state:\"working\",task:(\"Subagent: \"+(.agent_type // \"unknown\")),subagent_id:.agent_id,subagent_type:.agent_type}"); curl -sX POST %s/api/agents/${BC_AGENT_ID}/hook -H "Content-Type: application/json" -d "$PAYLOAD" 2>/dev/null || true'`,
 				bcdAddr,
 			)}}}},
-			"SubagentStop": {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookSubagentStop, StateWorking, "Subagent completed")}}}},
+			"SubagentStop":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookSubagentStop, StateWorking, "Subagent completed")}}}},
 			"TaskCompleted":      {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookTaskCompleted, StateDone, "Task completed")}}}},
 			"TeammateIdle":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("TeammateIdle", "", "")}}}},
 			"InstructionsLoaded": {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("InstructionsLoaded", "", "")}}}},

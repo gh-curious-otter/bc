@@ -1130,22 +1130,19 @@ func TestRenameAgent_UpdatesParentChildren(t *testing.T) {
 	}
 }
 
-// --- RefreshState tests ---
+// --- State transition tests ---
 
-func TestRefreshState(t *testing.T) {
+func TestRefreshState_Legacy(t *testing.T) {
+	// Hooks are now the single source of truth for agent state.
+	// This test verifies that agents stay in their persisted state
+	// when no hook events are received.
 	m := newTestManager(t)
 	m.agents["eng-1"] = &Agent{Name: "eng-1", State: StateWorking, Children: []string{}}
 	m.agents["eng-2"] = &Agent{Name: "eng-2", State: StateStopped, Children: []string{}}
 
-	// RefreshState should succeed - no matching tmux sessions exist
-	err := m.RefreshState(context.Background())
-	if err != nil {
-		t.Fatalf("RefreshState failed: %v", err)
-	}
-
-	// eng-1 was working but no tmux session → should be marked stopped
-	if m.agents["eng-1"].State != StateStopped {
-		t.Errorf("eng-1 state = %s, want stopped (no tmux session)", m.agents["eng-1"].State)
+	// eng-1 should remain working (hooks drive state, not polling)
+	if m.agents["eng-1"].State != StateWorking {
+		t.Errorf("eng-1 state = %s, want working", m.agents["eng-1"].State)
 	}
 
 	// eng-2 was already stopped → should remain stopped
@@ -1430,22 +1427,6 @@ func TestSaveLoadState_ComplexHierarchy(t *testing.T) {
 	}
 	if mgr.HookedWork != "work-001" {
 		t.Errorf("mgr HookedWork = %q, want %q", mgr.HookedWork, "work-001")
-	}
-}
-
-// --- captureLiveTask parsing tests (via direct string inspection) ---
-// captureLiveTask requires tmux.Capture to work, so we test the capture logic
-// indirectly via the public RefreshState path when possible. Additional coverage
-// for the parsing patterns is ensured below.
-
-func TestCaptureLiveTask_SkipsEmptyLines(t *testing.T) {
-	// captureLiveTask is called internally by RefreshState, but since we
-	// can't easily mock tmux.Capture, we verify the function returns ""
-	// when Capture fails (no real tmux session).
-	m := newTestManager(t)
-	result := m.captureLiveTask(context.Background(), "nonexistent")
-	if result != "" {
-		t.Errorf("expected empty string for non-existent session, got %q", result)
 	}
 }
 
@@ -2941,50 +2922,6 @@ func TestSpawnChildAgentWithTool_ParentNotFound(t *testing.T) {
 	}
 }
 
-// --- RefreshState tests ---
-
-func TestRefreshState_UpdatesStopped(t *testing.T) {
-	m := newTestManager(t)
-
-	// Add agents that aren't actually running in tmux
-	m.agents["fake-agent"] = &Agent{
-		Name:  "fake-agent",
-		Role:  Role("engineer"),
-		State: StateIdle,
-	}
-
-	// RefreshState should mark them as stopped
-	err := m.RefreshState(context.Background())
-	if err != nil {
-		t.Fatalf("RefreshState failed: %v", err)
-	}
-
-	if m.agents["fake-agent"].State != StateStopped {
-		t.Errorf("State = %s, want %s", m.agents["fake-agent"].State, StateStopped)
-	}
-}
-
-func TestRefreshState_PreservesStopped(t *testing.T) {
-	m := newTestManager(t)
-
-	// Add agent already marked as stopped
-	m.agents["stopped-agent"] = &Agent{
-		Name:  "stopped-agent",
-		Role:  Role("engineer"),
-		State: StateStopped,
-	}
-
-	err := m.RefreshState(context.Background())
-	if err != nil {
-		t.Fatalf("RefreshState failed: %v", err)
-	}
-
-	// Should still be stopped
-	if m.agents["stopped-agent"].State != StateStopped {
-		t.Errorf("State = %s, want %s", m.agents["stopped-agent"].State, StateStopped)
-	}
-}
-
 // --- removeFromParent tests ---
 
 func TestRemoveFromParent_NoParent(t *testing.T) {
@@ -3437,73 +3374,6 @@ func TestSpawnWithProvider_CustomToolFallback(t *testing.T) {
 	_, err := m.SpawnAgentWithTool(context.Background(), "test-agent", Role("engineer"), t.TempDir(), "customtool")
 	if err == nil {
 		t.Fatal("expected error for unknown tool not in registry")
-	}
-}
-
-func TestDetectAgentState_WithProvider(t *testing.T) {
-	tests := []struct {
-		name          string
-		providerState provider.State
-		output        string
-		expected      State
-	}{
-		{"provider detects working", provider.StateWorking, "thinking...", StateWorking},
-		{"provider detects idle", provider.StateIdle, "> ready", StateIdle},
-		{"provider detects done", provider.StateDone, "✓ complete", StateDone},
-		{"provider detects error", provider.StateError, "error: failed", StateError},
-		{"provider detects stuck", provider.StateStuck, "rate limit exceeded", StateStuck},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			mp := mockProvider{name: "testtool", detectState: tc.providerState}
-			m := newTestManagerWithProvider(t, mp)
-
-			got := m.detectAgentState("testtool", tc.output)
-			if got != tc.expected {
-				t.Errorf("detectAgentState(%q, %q) = %q, want %q", "testtool", tc.output, got, tc.expected)
-			}
-		})
-	}
-}
-
-func TestDetectAgentState_FallbackSymbols(t *testing.T) {
-	// Manager with empty registry — no providers match
-	m := &Manager{
-		providerRegistry: provider.NewRegistry(),
-	}
-
-	tests := []struct {
-		name     string
-		output   string
-		expected State
-	}{
-		{"spinner working", "✻ Reading file...", StateWorking},
-		{"dot working", "· Processing...", StateWorking},
-		{"prompt idle", "❯ ", StateIdle},
-		{"pause idle", "⏺ Bash", StateIdle},
-		{"unknown output", "some random text", ""},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := m.detectAgentState("unknowntool", tc.output)
-			if got != tc.expected {
-				t.Errorf("detectAgentState(%q, %q) = %q, want %q", "unknowntool", tc.output, got, tc.expected)
-			}
-		})
-	}
-}
-
-func TestDetectAgentState_ProviderUnknownFallsThrough(t *testing.T) {
-	// Provider returns StateUnknown — should fall through to symbol detection
-	mp := mockProvider{name: "testtool", detectState: provider.StateUnknown}
-	m := newTestManagerWithProvider(t, mp)
-
-	// Symbol-based: spinner should detect as working even when provider returns unknown
-	got := m.detectAgentState("testtool", "✻ Working on task")
-	if got != StateWorking {
-		t.Errorf("expected StateWorking from symbol fallback, got %q", got)
 	}
 }
 
