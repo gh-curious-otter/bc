@@ -51,24 +51,21 @@ func (p *ClaudeProvider) InstallHint() string {
 }
 
 // BuildCommand returns the full command for a given runtime context.
-// Uses -w bc-<workspace>-<agent> for unique worktree names across workspaces
-// to avoid branch collisions with other Claude Code sessions.
+// Always includes --dangerously-skip-permissions, -w <worktree>, and --tmux.
 // Resume priority: SessionID (--resume <id>) > Resume flag (--continue).
 func (p *ClaudeProvider) BuildCommand(opts CommandOpts) string {
-	cmd := p.command
+	cmd := "claude --dangerously-skip-permissions"
 	if opts.AgentName != "" {
 		worktreeName := "bc-" + opts.AgentName
 		if opts.WorkspaceName != "" {
 			worktreeName = "bc-" + opts.WorkspaceName + "-" + opts.AgentName
 		}
-		cmd = "claude -w " + worktreeName + " " + strings.TrimPrefix(cmd, "claude")
+		cmd = "claude --dangerously-skip-permissions -w " + worktreeName + " --tmux"
 	}
 	switch {
 	case opts.SessionID != "":
-		// Explicit session ID — resume that exact conversation.
 		cmd += " --resume " + opts.SessionID
 	case opts.Resume:
-		// Generic resume — pick up the most recent conversation.
 		cmd += " --continue"
 	}
 	return cmd
