@@ -356,6 +356,10 @@ input:focus-visible,
     transparent 0px,
     black 16px,
     black calc(100% - 16px),
+    transparent 100%
+  );
+}
+
 /* ── Method page — editorial typography & warm tones ── */
 :root {
   --method-muted: #6b635b;
