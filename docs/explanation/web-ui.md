@@ -611,6 +611,5 @@ The config directory lives at `~/.bc/` as a global location. The web dashboard r
 | `server/embed.go` | `//go:embed web/dist` for production serving |
 | `server/ws/hub.go` | SSE hub: subscriber management, event broadcast |
 | `server/handlers/*.go` | REST endpoint handlers (one file per resource) |
-| `docs/architecture/design-system.md` | Solar Flare design system specification |
-| `docs/architecture/tui.md` | TUI architecture (parallel reference) |
-| `docs/architecture/frontend-data-flow.md` | Cross-frontend data flow documentation |
+| `docs/explanation/design-system.md` | Solar Flare design system specification |
+| `docs/explanation/tui.md` | TUI architecture (parallel reference) |

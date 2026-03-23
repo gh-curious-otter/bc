@@ -1,4 +1,4 @@
-> **Status: Draft Proposal** — This document describes a proposed refactoring. It has not been fully implemented. See docs/backend/agents.md for current architecture.
+> **Status: Draft Proposal** — This document describes a proposed refactoring. It has not been fully implemented. See [agents.md](agents.md) for current architecture.
 
 # Design: Agent Lifecycle Consolidation
 

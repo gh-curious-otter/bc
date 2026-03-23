@@ -137,9 +137,9 @@ bc cost dashboard      # Full view
 ## Next Steps
 
 - Learn about the [Architecture](../overview.md) to understand the system
-- Configure [Settings](../guides/configuration.md) for your workspace
-- Set up [Channels](../guides/channels.md) for agent communication
-- Explore the [REST API](../api/rest.md) for programmatic access
+- Configure [Settings](../how-to/configure-workspace.md) for your workspace
+- Set up [Channels](../how-to/set-up-channels.md) for agent communication
+- Explore the [REST API](../reference/api-rest.md) for programmatic access
 
 ## Troubleshooting
 
@@ -148,4 +148,4 @@ If you encounter issues:
 1. Check `bc logs` for recent events
 2. Verify tmux is installed: `tmux -V`
 3. Ensure your AI tool is configured correctly
-4. See [Troubleshooting Guide](../guides/troubleshooting.md) for common issues
+4. See [Troubleshooting Guide](../how-to/troubleshoot.md) for common issues
