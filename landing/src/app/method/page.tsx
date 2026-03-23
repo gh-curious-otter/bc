@@ -11,50 +11,51 @@ const PRINCIPLES = [
   {
     number: "01",
     title: "Isolation",
-    subtitle: "One workspace per agent. Always.",
-    content: `Multiple agents on one branch means force pushes, broken builds, and hours lost to conflict resolution. bc gives every agent its own git worktree — a full copy of the repository on its own branch. No shared state. No conflicts. Pull requests that merge clean, every time.
+    subtitle: "Shared state is the enemy of parallel work.",
+    content: `Concurrent agents sharing a branch will destroy each other's work. This is not a tooling problem. It is a physics problem. Parallel writers need separate spaces.
 
-Isolation is the foundation. Without it, nothing else works.`,
+Isolation is the foundation. Without it, every other principle collapses under merge conflicts and broken builds.`,
   },
   {
     number: "02",
     title: "Communication",
-    subtitle: "Structure turns agents into a team.",
-    content: `Isolated agents working in silence produce fragmented results. bc provides persistent channels where agents post updates, request reviews, hand off work, and mention each other by name. Every message is logged, searchable, and delivered reliably.
+    subtitle: "Coordination without structure is noise.",
+    content: `Isolated agents working in silence produce fragmented results. Agents need persistent, structured channels — not ad-hoc messages lost to scrollback.
 
-The difference between five agents and a five-agent team is communication. Without it, agents duplicate effort and make contradictory decisions. With it, they converge.`,
+The difference between five agents and a five-agent team is structured coordination. Without it, they duplicate effort and contradict each other. With it, they converge.`,
   },
   {
     number: "03",
     title: "Visibility",
-    subtitle: "Trust is built through transparency.",
-    content: `You cannot trust what you cannot see. bc tracks every token, every cost, every resource spike, every tool invocation, every channel message. All attributed. All in real time. When you see the complete picture, you intervene early — not after the damage is done.
+    subtitle: "What you cannot see, you cannot trust.",
+    content: `Every token, every cost, every tool call, every decision — attributed and observable in real time. When you see the complete picture, you intervene early. Not after the damage.
 
-Agents left unchecked burn through budgets silently. Visibility is not a dashboard feature. It is a safety mechanism.`,
+Agents left unchecked burn through budgets silently. Visibility is not a convenience. It is a safety mechanism.`,
   },
   {
     number: "04",
     title: "Persistence",
     subtitle: "A tool runs once. A teammate finishes the job.",
-    content: `Most agents hit an error and stop. They encounter complexity and produce a half-solution. The bc method is different: define a goal, and the agent iterates. Read state. Implement one piece. Verify. Commit. Loop. Each cycle starts fresh, self-corrects from failures, and moves closer to the objective.
+    content: `Most agents hit an error and stop. Complex work requires iteration: read state, implement, verify, commit, loop. Each cycle self-corrects from the last.
 
-Complex goals decompose recursively — large into medium, medium into small, small into single commits. The loop runs until every piece is done and the whole is verified. Persistence is not stubbornness. It is structured determination.`,
+Hard problems decompose recursively — large into medium, medium into small, small into single commits. The loop runs until the whole is verified. Persistence is not stubbornness. It is structured determination.`,
   },
   {
     number: "05",
     title: "Surface",
-    subtitle: "An agent that can only edit files is not enough.",
-    content: `Real development means filing issues, reviewing pull requests, testing in browsers, querying databases, deploying services. The surface area of what an agent can touch determines how useful it becomes. bc expands that surface through standardized, role-scoped tool integrations.
+    subtitle:
+      "An agent's usefulness is bounded by what it can reach.",
+    content: `Real development is not just editing files. It is filing issues, reviewing pull requests, testing in browsers, querying databases, deploying services. An agent confined to a text editor solves text-editor problems.
 
-Every system a developer touches should be reachable by an agent — not through raw API keys, but through curated capabilities that match the agent's role. The surface expands. The boundaries hold.`,
+Every system a developer touches should be reachable by an agent. The surface expands. The boundaries hold.`,
   },
   {
     number: "06",
     title: "Openness",
-    subtitle: "Knowledge should be free and accessible to all.",
-    content: `The problems of multi-agent orchestration are universal. Every team running AI agents faces them. Gating solutions behind company walls only slows everyone down.
+    subtitle: "Universal problems deserve universal solutions.",
+    content: `The problems of multi-agent orchestration are universal. Every team running AI agents faces them. Gating solutions behind company walls slows everyone down.
 
-bc is open source as a conviction, not a strategy. The orchestration layer should be transparent, auditable, and improvable by anyone. When the tool coordinating your agents is a black box, you cannot trust it. When it is open, you can verify every decision it makes. The best tools are built in the open and owned by no one.`,
+When the tool coordinating your agents is a black box, you cannot trust it. When it is open, you can verify every decision it makes. Open source is a conviction, not a strategy.`,
   },
 ];
 
@@ -83,16 +84,14 @@ export default function MethodPage() {
         {/* Introduction */}
         <div className="prose-section mb-20">
           <p className="text-lg leading-relaxed text-muted-foreground">
-            There is a growing art to coordinating AI coding agents effectively.
-            Running a single agent is straightforward. Running five or ten agents
-            on the same codebase, in parallel, without chaos — that requires
-            structure.
+            There is a growing art to coordinating AI coding agents
+            effectively. Running a single agent is straightforward. Running
+            five or ten agents on the same codebase, in parallel, without
+            chaos — that requires structure.
           </p>
           <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
-            We built bc around six principles that we believe are essential for
-            any team that wants to scale AI agent usage beyond one agent at a
-            time. These are not features. They are design convictions that shape
-            everything bc does.
+            These are not features. They are design convictions that shape
+            everything we build.
           </p>
         </div>
 
@@ -134,13 +133,9 @@ export default function MethodPage() {
         {/* Closing */}
         <div className="mt-24 pt-16 border-t border-border">
           <p className="text-lg leading-relaxed text-muted-foreground">
-            These six principles are not aspirational. They are implemented in bc
-            today. Every command, every view, every architectural decision exists
-            because it serves one of these principles.
-          </p>
-          <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
-            If you are orchestrating AI agents at scale, we believe this is the
-            way to do it.
+            These are not features. They are design convictions. Every
+            command, every view, every architectural decision exists because
+            it serves one of these principles.
           </p>
         </div>
       </article>
