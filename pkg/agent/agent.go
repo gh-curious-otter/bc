@@ -1090,7 +1090,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	// Write workspace-level Claude Code hook settings so agents emit state events.
 	if wsPath != "" {
 		if err := WriteWorkspaceHookSettings(wsPath); err != nil {
-			log.Debug("failed to write hook settings", "workspace", wsPath, "error", err)
+			log.Warn("failed to write hook settings", "workspace", wsPath, "error", err)
 		}
 	}
 

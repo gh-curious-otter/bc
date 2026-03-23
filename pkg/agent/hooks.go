@@ -268,13 +268,21 @@ func loadClaudeSettings(path string) (*claudeSettings, error) {
 	return &s, nil
 }
 
+// invalidHookKeys are Claude Code hook event names that bc has generated in the
+// past but are not actually valid. They must be actively removed from existing
+// settings files to prevent Claude from rejecting the entire settings file.
+var invalidHookKeys = []string{"StopFailure"}
+
 func mergeHooks(dst *claudeSettings, src map[string][]claudeHookMatcher) {
 	if dst.Hooks == nil {
 		dst.Hooks = make(map[string][]claudeHookMatcher)
 	}
+	// Remove known-invalid keys that may exist from prior bc versions.
+	for _, bad := range invalidHookKeys {
+		delete(dst.Hooks, bad)
+	}
+	// Overwrite all bc-managed hooks so URL/env changes propagate.
 	for event, matchers := range src {
-		if _, exists := dst.Hooks[event]; !exists {
-			dst.Hooks[event] = matchers
-		}
+		dst.Hooks[event] = matchers
 	}
 }
