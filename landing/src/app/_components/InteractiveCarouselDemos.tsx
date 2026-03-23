@@ -419,7 +419,7 @@ const CHANNELS_STEPS: CarouselStep[] = [
     render: () => (
       <div className="space-y-4 font-mono text-sm">
         <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          bc channel history #general --search &quot;PR #347&quot;
+          bc channel history general --since 1h
         </div>
         <div className="space-y-2 p-4 rounded-lg bg-background/50 border border-border/50">
           <div className="text-xs text-muted-foreground">5 results found</div>

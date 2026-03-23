@@ -587,9 +587,9 @@ bc tl run <tool>`}
                 defaultOpen={!!search}
               >
                 <CodeBlock
-                  code={`bc sec create <name> [--from-env] [--from-file]
+                  code={`bc sec set <name> [--from-env VAR] [--from-file PATH]
 bc sec list
-bc sec show|edit|delete <name>`}
+bc sec show|get|delete <name>`}
                 />
                 <p className="mt-3 text-sm text-muted-foreground">
                   Encrypted at rest (macOS Keychain / Linux libsecret /
@@ -627,11 +627,11 @@ bc co budget show|set|delete [--agent X] [--period daily|weekly|monthly] [--aler
                 defaultOpen={!!search}
               >
                 <CodeBlock
-                  code={`bc cr add <name> --schedule '<cron>' --cmd '<command>' [--prompt "..."]
+                  code={`bc cr add <name> --schedule '<cron>' --command '<command>' [--prompt "..."]
 bc cr list
 bc cr show <name>
 bc cr run <name>                   # Manual trigger
-bc cr edit|delete|enable|disable <name>
+bc cr enable|disable|remove <name>
 bc cr logs <name>`}
                 />
               </CommandSection>
@@ -681,7 +681,7 @@ bc rl permissions show|list|set|add|remove <role> [<perm>...]`}
                 <CodeBlock
                   code={`bc mcp add <name>
 bc mcp list
-bc mcp show|edit|delete|status <name>`}
+bc mcp show|enable|disable|remove <name>`}
                 />
                 <p className="mt-3 text-sm text-muted-foreground">
                   MCP server configs referenced by roles. Supports stdio and SSE
@@ -799,7 +799,7 @@ bc version`}
                   {
                     cmd: "bc secret",
                     alias: "bc sec",
-                    example: "bc sec create API_KEY",
+                    example: "bc sec set API_KEY",
                   },
                   {
                     cmd: "bc cost",

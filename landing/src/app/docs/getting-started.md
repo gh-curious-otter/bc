@@ -132,25 +132,7 @@ AGENTS (3):
 
 ### Scenario: Build a Feature with bc
 
-**Step 1: Create a Work Queue Task**
-
-```bash
-# Add task to work queue
-bc queue add "Implement user authentication feature" \
-  --priority high \
-  --epic "auth-v2"
-
-# View queue
-bc queue work
-```
-
-**Output:**
-```
-WORK QUEUE:
-  1. Implement user authentication (priority: high, epic: auth-v2)
-```
-
-**Step 2: Assign Work via Channels**
+**Step 1: Assign Work via Channels**
 
 ```bash
 # Send task assignment to #engineering channel
@@ -160,7 +142,7 @@ bc channel send engineering "@engineer-pixel: Take task #1 - user auth implement
 bc channel history engineering --limit 5
 ```
 
-**Step 3: Engineer Works on Task**
+**Step 2: Engineer Works on Task**
 
 ```bash
 # Simulate engineer picking up work
@@ -176,20 +158,7 @@ AGENT: engineer-pixel (state: tool)
   ✻ running tests
 ```
 
-**Step 4: Manager Reviews & Merges**
-
-```bash
-# Check manager's queue
-bc queue merge
-
-# Merge PR #42
-bc merge feature/user-auth --branch main
-
-# Verify merge
-bc queue merge
-```
-
-**Step 5: Celebrate!**
+**Step 3: Review & Announce**
 
 ```bash
 # Post status to channel
@@ -216,20 +185,17 @@ bc agent send engineer-pixel "Status update please?"
 bc agent attach engineer-pixel
 ```
 
-### Work Queue
+### Cost Tracking
 
 ```bash
-# View incoming work
-bc queue work
+# View cost summary
+bc cost show
 
-# View merge queue
-bc queue merge
+# View token usage
+bc cost usage
 
-# Add task to queue
-bc queue add "Task description" --priority high
-
-# Complete task
-bc queue complete 42
+# Set budget for an agent
+bc cost budget set 50.00 --agent engineer-pixel
 ```
 
 ### Channels (Team Communication)
@@ -245,36 +211,23 @@ bc channel send #general "Update: Feature X shipped 🚀"
 bc channel history #engineering --limit 10
 
 # Create new channel
-bc channel create #product-team
+bc channel create product-team
 ```
 
-### Memory & Learning
-
-```bash
-# View agent memory
-bc memory show --agent engineer-pixel
-
-# Record learning
-bc memory record "Pattern: Always validate user input before processing"
-
-# Search past experiences
-bc memory search "authentication patterns"
-```
-
-### Automation (Demons)
+### Scheduled Tasks (Cron)
 
 ```bash
 # List scheduled tasks
-bc demon list
+bc cron list
 
-# Run a demon manually
-bc demon run nightly-tests
+# Run a cron job manually
+bc cron run nightly-tests
 
-# Create new demon
-bc demon create test-suite --schedule "0 2 * * *" --role qa --task "Nightly test run"
+# Create new cron job
+bc cron add test-suite --schedule "0 2 * * *" --command "make test"
 
-# View demon logs
-bc demon logs test-suite
+# View cron logs
+bc cron logs test-suite
 ```
 
 ---
@@ -302,25 +255,26 @@ bc status
 # Check agent status
 bc agent list
 
-# Restart agent
-bc agent restart engineer-pixel
+# Restart agent (stop then start)
+bc agent stop engineer-pixel
+bc agent start engineer-pixel
 
 # View agent logs
-bc agent logs engineer-pixel --tail 20
+bc agent logs engineer-pixel --since 1h
 ```
 
 ### Issue: Merge conflict preventing PR merge
 
 **Solution:**
 ```bash
-# Check merge queue for conflicts
-bc queue merge
+# Check agent status to see if it's stuck
+bc status
 
-# Agent should resolve automatically, if not:
-# Contact tech lead for manual resolution
+# Send the agent instructions to resolve conflicts
+bc agent send engineer-pixel "Resolve merge conflicts on your branch and push"
 
-# Once resolved, retry merge
-bc merge feature/branch-name --branch main
+# Monitor progress
+bc agent peek engineer-pixel
 ```
 
 ### Issue: Channel messages not appearing
@@ -342,12 +296,12 @@ bc channel send #general "Test message"
 **Solution:**
 ```bash
 # Check system resources
-bc status --verbose
+bc doctor
 
-# Clear cache
-bc cache clear
+# Run auto-fix for common issues
+bc doctor fix
 
-# Restart root agent
+# Restart agents
 bc down && bc up
 ```
 
@@ -391,29 +345,22 @@ Here's a realistic end-to-end workflow:
 bc init && bc up
 
 # 2. Create team
-bc agent create pm-alex --role product-manager --tool notion
-bc agent create eng-sam --role engineer --tool cursor
-bc agent create qa-jamie --role qa --tool chrome
+bc agent create pm-alex --role manager --tool cursor
+bc agent create eng-sam --role engineer --tool claude
+bc agent create qa-jamie --role engineer --tool gemini
 
-# 3. Define work
-bc queue add "Build user profile page" --priority high --epic "user-feature"
+# 3. Assign work via channel
+bc channel send engineering "@eng-sam: Build user profile page. UI design in #product. Ship within 2 hours?"
 
-# 4. Assign via channel
-bc channel send #engineering "@eng-sam: Pick up user profile task. UI design in #product. Ship within 2 hours?"
-
-# 5. Monitor progress
+# 4. Monitor progress
 bc agent peek eng-sam
-bc channel history #engineering
+bc channel history engineering
 
-# 6. Approve & merge
-bc queue merge
-bc merge feature/user-profile --branch main
+# 5. Check costs
+bc cost show
 
-# 7. Announce
-bc channel send #general "🎉 User profile feature live! Thanks team!"
-
-# 8. Record learning
-bc memory record "User profile workflow successful. Took 1.5 hours end-to-end"
+# 6. Announce
+bc channel send general "User profile feature live! Thanks team!"
 ```
 
 ---
@@ -424,13 +371,12 @@ bc memory record "User profile workflow successful. Took 1.5 hours end-to-end"
 |------|---------|
 | Check status | `bc status` |
 | List agents | `bc agent list` |
-| View work queue | `bc queue work` |
-| Send message | `bc channel send #channel "message"` |
+| Send message | `bc channel send engineering "message"` |
 | View agent work | `bc agent peek engineer-name` |
-| Merge PR | `bc merge branch-name --branch main` |
-| Schedule task | `bc demon create name --schedule "0 2 * * *"` |
-| Search memory | `bc memory search "pattern"` |
-| View logs | `bc agent logs agent-name --tail 20` |
+| Schedule task | `bc cron add name --schedule "0 2 * * *" --command "make test"` |
+| View costs | `bc cost show` |
+| View logs | `bc agent logs agent-name --since 1h` |
+| Health check | `bc doctor` |
 | Get help | `bc --help` |
 
 ---

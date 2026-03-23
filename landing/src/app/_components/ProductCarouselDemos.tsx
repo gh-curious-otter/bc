@@ -521,7 +521,7 @@ function CronScheduleFrame() {
         <div className="text-foreground">Add a cron job</div>
         <div className="mt-3 rounded-xl border border-border bg-card p-4">
           <div className="text-muted-foreground">
-            $ bc cron add cron-health --schedule &quot;0 * * * *&quot; --cmd
+            $ bc cron add cron-health --schedule &quot;0 * * * *&quot; --command
             &quot;npm test&quot;
           </div>
         </div>

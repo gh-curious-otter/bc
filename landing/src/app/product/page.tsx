@@ -271,9 +271,9 @@ export default function Product() {
           title="Connect tools natively via MCP."
           description="Configure Model Context Protocol servers that your agents connect to automatically. Supports stdio and SSE transport. Attach MCP servers to roles so every agent of that type gets the same capabilities."
           commands={[
-            'bc mcp add github-server',
+            'bc mcp add github --command npx --args "@modelcontextprotocol/server-github"',
             'bc mcp list',
-            'bc mcp enable github-server',
+            'bc mcp enable github',
           ]}
           screenshot="/screenshots/dashboard-07-mcp.png"
           screenshotAlt="bc MCP view showing configured MCP servers with transport type and connection status"
