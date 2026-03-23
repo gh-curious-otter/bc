@@ -1,15 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "framer-motion";
-import {
-  ArrowRight,
-  Terminal,
-  CheckCircle2,
-  Layers,
-  Monitor,
-} from "lucide-react";
-import { TerminalWindow, CommandOutput } from "./TerminalComponents";
+import { ArrowRight, CheckCircle2, Layers, Monitor } from "lucide-react";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -32,7 +26,7 @@ export function HeroSection() {
         initial="hidden"
         animate="visible"
         variants={stagger}
-        className="grid items-center gap-8 lg:grid-cols-[1.1fr_1fr] lg:gap-16"
+        className="grid items-center gap-8 lg:grid-cols-[1fr_1.1fr] lg:gap-12"
       >
         <div className="flex flex-col items-start">
           <motion.div
@@ -47,11 +41,9 @@ export function HeroSection() {
           <motion.h1
             variants={fadeUp}
             custom={1}
-            className="text-balance text-[2.25rem] font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-7xl"
+            className="text-balance text-[2.25rem] font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl"
           >
-            Multi-agent
-            <br />
-            orchestration
+            Orchestrate AI agents
             <br />
             <span className="text-muted-foreground/40">
               from your terminal.
@@ -63,9 +55,8 @@ export function HeroSection() {
             custom={2}
             className="mt-4 max-w-[520px] text-base leading-relaxed text-muted-foreground sm:text-lg"
           >
-            Coordinate teams of AI coding agents from your terminal &mdash; with
-            isolated git worktrees, structured channels, persistent memory, and
-            cost controls.
+            Coordinate teams of Claude, Gemini, Cursor, and other AI agents
+            with isolated worktrees, shared channels, and cost controls.
           </motion.p>
 
           <motion.div
@@ -89,7 +80,6 @@ export function HeroSection() {
               className="inline-flex h-10 sm:h-11 items-center gap-2 rounded-lg border border-border px-6 sm:px-8 text-sm font-medium transition-colors hover:bg-accent/20 active:scale-[0.97]"
               aria-label="Read the bc documentation"
             >
-              <Terminal className="h-4 w-4" aria-hidden="true" />
               View Docs
             </Link>
           </motion.div>
@@ -108,73 +98,26 @@ export function HeroSection() {
             </span>
             <span className="flex items-center gap-1.5">
               <Layers className="h-3.5 w-3.5" aria-hidden="true" />7 AI tools
-              supported
             </span>
             <span className="flex items-center gap-1.5">
               <Monitor className="h-3.5 w-3.5" aria-hidden="true" />
-              Web UI dashboard
+              CLI + TUI + Web
             </span>
           </motion.div>
         </div>
 
-        {/* Hero terminal */}
+        {/* Hero dashboard screenshot */}
         <motion.div variants={fadeUp} custom={2} className="relative">
           <div className="absolute -inset-8 rounded-3xl bg-gradient-to-tr from-primary/5 via-transparent to-secondary/10 blur-3xl hero-glow" />
-          <div className="relative">
-            <TerminalWindow
-              title="bc agent create"
-              ariaLabel="Terminal showing bc agent creation and listing commands"
-            >
-              <div className="space-y-3">
-                <CommandOutput
-                  command="bc agent create eng-01 --role engineer --tool claude"
-                  lines={[
-                    {
-                      text: "Created agent eng-01 (engineer, claude)",
-                      color: "text-terminal-success",
-                    },
-                  ]}
-                />
-                <CommandOutput
-                  command="bc agent create eng-02 --role engineer --tool gemini"
-                  lines={[
-                    {
-                      text: "Created agent eng-02 (engineer, gemini)",
-                      color: "text-terminal-success",
-                    },
-                  ]}
-                  delay={0.15}
-                />
-                <CommandOutput
-                  command="bc agent list"
-                  lines={[
-                    { text: "" },
-                    {
-                      text: "  NAME     ROLE       TOOL     STATUS",
-                      color: "text-terminal-muted",
-                    },
-                    {
-                      text: "  eng-01   engineer   claude   working",
-                      color: "text-terminal-success",
-                    },
-                    {
-                      text: "  eng-02   engineer   gemini   working",
-                      color: "text-terminal-success",
-                    },
-                    {
-                      text: "  mgr-01   manager    claude   idle",
-                      color: "text-terminal-muted",
-                    },
-                    { text: "" },
-                    {
-                      text: "3 agents  \u00b7  2 working  \u00b7  1 idle",
-                      color: "text-terminal-muted",
-                    },
-                  ]}
-                  delay={0.3}
-                />
-              </div>
-            </TerminalWindow>
+          <div className="relative overflow-hidden rounded-xl border border-border shadow-2xl">
+            <Image
+              src="/screenshots/dashboard-01-home.png"
+              alt="bc dashboard showing active agents, channels, cost tracking, and system overview"
+              width={1200}
+              height={750}
+              className="w-full h-auto"
+              priority
+            />
           </div>
         </motion.div>
       </motion.section>

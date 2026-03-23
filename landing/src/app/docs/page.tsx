@@ -986,14 +986,14 @@ backend = "tmux"     # or "docker"`}
             <RevealSection>
               <div className="text-center pt-8 border-t border-border">
                 <p className="text-muted-foreground mb-6">
-                  Explore the full CLI reference above, or join the beta to get
-                  hands-on.
+                  Explore the full CLI reference above, or get started on
+                  GitHub.
                 </p>
                 <Link
-                  href="/waitlist"
+                  href="https://github.com/bcinfra1/bc"
                   className="inline-flex h-12 items-center justify-center rounded-lg bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-lg transition-all hover:shadow-xl active:scale-[0.97]"
                 >
-                  Request Early Access
+                  Get Started
                 </Link>
               </div>
             </RevealSection>
