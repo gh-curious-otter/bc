@@ -37,15 +37,15 @@ export function StatsBar() {
           <StatItem icon={Layers} value="7" label="AI Tools" delay={0} />
           <StatItem icon={Github} value="OSS" label="Open Source" delay={0.1} />
           <StatItem
-            icon={Monitor}
-            value="15"
-            label="Dashboard Views"
+            icon={Code2}
+            value="Local"
+            label="Runs on your machine"
             delay={0.2}
           />
           <StatItem
-            icon={Code2}
-            value="3"
-            label="Interfaces"
+            icon={Monitor}
+            value="Free"
+            label="No login required"
             delay={0.3}
           />
         </div>

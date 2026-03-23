@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { ArrowRight, CheckCircle2, Layers, Monitor } from "lucide-react";
+import { ArrowRight, CheckCircle2, Layers } from "lucide-react";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -98,10 +98,6 @@ export function HeroSection() {
             </span>
             <span className="flex items-center gap-1.5">
               <Layers className="h-3.5 w-3.5" aria-hidden="true" />7 AI tools
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Monitor className="h-3.5 w-3.5" aria-hidden="true" />
-              CLI + TUI + Web
             </span>
           </motion.div>
         </div>

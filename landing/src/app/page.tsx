@@ -44,10 +44,10 @@ export default function Home() {
                 The problem
               </span>
               <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-5xl">
-                AI agents are powerful alone &mdash;
+                One agent is useful.
                 <br />
                 <span className="text-muted-foreground/50">
-                  but chaotic when they work together.
+                  Five agents without structure is chaos.
                 </span>
               </h2>
             </div>
@@ -86,7 +86,7 @@ export default function Home() {
                     "5-10 agents working in parallel",
                     "Persistent memory injected on spawn",
                     "Git worktrees — zero merge conflicts",
-                    "Real-time dashboard, channels, and monitoring",
+                    "Real-time visibility into every agent",
                     "Per-agent budgets with automatic hard stops",
                   ].map((t) => (
                     <li key={t} className="flex gap-3 text-muted-foreground">
@@ -116,7 +116,7 @@ export default function Home() {
                   step: "01",
                   cmd: "bc init",
                   title: "Initialize workspace",
-                  desc: "Creates .bc/ with config, roles, channels, and agent definitions.",
+                  desc: "Creates .bc/ with config, roles, and channels.",
                   lines: [
                     { text: "Initializing bc workspace...", color: "text-terminal-muted" },
                     { text: "Created .bc/settings.toml", color: "text-terminal-muted" },
@@ -128,7 +128,7 @@ export default function Home() {
                   step: "02",
                   cmd: "bc daemon start",
                   title: "Start the daemon",
-                  desc: "Launches the bcd server with Web UI, WebSocket events, and MCP.",
+                  desc: "Launches the bcd server with dashboard and MCP.",
                   lines: [
                     { text: "Starting bcd on :9374...", color: "text-terminal-muted" },
                     { text: "\u2713 Web UI ready", color: "text-terminal-success" },
@@ -187,13 +187,13 @@ export default function Home() {
           <RevealSection className="py-12 sm:py-16 lg:py-24" id="demo">
             <div className="mb-12 text-center">
               <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                Web UI Dashboard
+                Dashboard
               </span>
               <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
                 See the real dashboard.
               </h2>
               <p className="mt-4 text-muted-foreground text-lg max-w-xl mx-auto">
-                Monitor agents, channels, costs, and more from localhost:9374.
+                Monitor agents, channels, and costs from localhost:9374.
               </p>
             </div>
             <div className="mx-auto max-w-5xl">
