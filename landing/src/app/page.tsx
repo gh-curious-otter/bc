@@ -10,12 +10,16 @@ import {
   RevealSection,
 } from "./_components/TerminalComponents";
 import { ToolMarquee } from "./_components/ToolLogos";
+import { AnimatedBackground } from "./_components/AnimatedBackground";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { ArrowRight } from "lucide-react";
 
 export default function Home() {
   return (
     <main className="min-h-screen selection:bg-primary/20 selection:text-foreground overflow-x-hidden">
+      {/* Animated particle background */}
+      <AnimatedBackground />
+
       {/* Gradient overlay */}
       <div className="pointer-events-none fixed inset-0 z-[1] bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(234,88,12,0.04),transparent)] dark:bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(234,88,12,0.08),transparent)]" />
 

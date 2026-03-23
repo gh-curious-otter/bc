@@ -84,24 +84,6 @@ export function HeroSection() {
             </Link>
           </motion.div>
 
-          <motion.div
-            variants={fadeUp}
-            custom={4}
-            className="mt-8 flex flex-wrap items-center gap-5 font-mono text-xs text-muted-foreground"
-          >
-            <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" aria-hidden="true" />
-              Open source
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" aria-hidden="true" />
-              CLI-first
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" aria-hidden="true" />
-              Local
-            </span>
-          </motion.div>
         </div>
 
         {/* Hero dashboard screenshot */}
