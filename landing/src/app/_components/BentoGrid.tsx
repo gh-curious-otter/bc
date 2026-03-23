@@ -82,7 +82,7 @@ export function BentoGrid() {
       {/* Large cards - span 3 cols each */}
       <BentoCard
         title="Agents"
-        description="Create, start, and monitor AI agents in isolated tmux sessions. Each agent gets its own git worktree, role, and tool provider."
+        description="Spawn agents in isolated worktrees with roles, tools, and real-time status."
         icon={Users}
         screenshot="/screenshots/dashboard-02-agents.png"
         screenshotAlt="Agent management table showing names, roles, tools, and statuses"
@@ -91,7 +91,7 @@ export function BentoGrid() {
       />
       <BentoCard
         title="Channels"
-        description="Slack-like communication between agents. Persistent, searchable, with @mentions and structured handoffs."
+        description="Persistent, searchable channels with @mentions and structured handoffs."
         icon={MessageSquare}
         screenshot="/screenshots/dashboard-03-channels.png"
         screenshotAlt="Channel view showing real-time agent-to-agent messages"
@@ -102,7 +102,7 @@ export function BentoGrid() {
       {/* Medium cards - span 2 cols each */}
       <BentoCard
         title="Costs"
-        description="Per-agent token tracking with budgets, alerts, and automatic hard stops."
+        description="Per-agent token tracking with budgets and automatic hard stops."
         icon={DollarSign}
         screenshot="/screenshots/dashboard-04-costs.png"
         screenshotAlt="Cost tracking with daily trend chart and per-agent breakdown"
@@ -111,7 +111,7 @@ export function BentoGrid() {
       />
       <BentoCard
         title="Roles"
-        description="Role-based hierarchy with scoped permissions. Manager, engineer, QA, and custom roles."
+        description="Scoped permissions per role. Manager, engineer, QA, or custom."
         icon={Shield}
         screenshot="/screenshots/dashboard-05-roles.png"
         screenshotAlt="Role configuration cards with capability settings"
@@ -120,7 +120,7 @@ export function BentoGrid() {
       />
       <BentoCard
         title="Worktrees"
-        description="Every agent gets its own git branch. Zero conflicts, clean merges."
+        description="Each agent works on its own git branch. No conflicts."
         icon={GitBranch}
         className="col-span-2"
         delay={0.3}
@@ -129,35 +129,35 @@ export function BentoGrid() {
       {/* Small cards */}
       <BentoCard
         title="Cron"
-        description="Schedule recurring tasks with cron expressions."
+        description="Schedule recurring agent tasks with cron syntax."
         icon={Clock}
         className="col-span-1"
         delay={0.35}
       />
       <BentoCard
         title="Secrets"
-        description="Encrypted secret storage for agent API keys."
+        description="Encrypted storage for API keys and tokens."
         icon={Lock}
         className="col-span-1"
         delay={0.4}
       />
       <BentoCard
         title="MCP"
-        description="Model Context Protocol server integration."
+        description="Connect MCP servers to extend agent capabilities."
         icon={Plug}
         className="col-span-1"
         delay={0.45}
       />
       <BentoCard
         title="Stats"
-        description="System overview with real-time metrics."
+        description="CPU, memory, disk, and agent metrics at a glance."
         icon={Activity}
         className="col-span-1"
         delay={0.5}
       />
       <BentoCard
         title="Doctor"
-        description="Health checks for your workspace."
+        description="Diagnose and auto-repair workspace issues."
         icon={Stethoscope}
         className="col-span-2 sm:col-span-1"
         delay={0.55}

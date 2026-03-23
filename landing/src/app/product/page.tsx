@@ -163,9 +163,8 @@ export default function Product() {
             </span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-            Agents, channels, roles, cost tracking, secrets, cron jobs, and a
-            real-time Web UI dashboard — everything you need to run parallel AI
-            agents from your terminal.
+            Agents, channels, roles, cost tracking, secrets, and cron jobs.
+            Everything you need to run parallel AI agents.
           </p>
         </motion.div>
 
@@ -188,7 +187,7 @@ export default function Product() {
           id="agents"
           label="Agent Lifecycle"
           title="Create, command, observe, stop."
-          description="Create agents with roles and tools, send them work, peek at their output in real-time, and manage the full lifecycle from spawn to cleanup. Each agent runs in its own tmux session with an isolated git worktree."
+          description="Spawn agents with roles and tools. Send work, peek at output, manage the full lifecycle. Each agent runs in its own tmux session with an isolated git worktree."
           commands={[
             'bc agent create eng-01 --role engineer --tool claude',
             'bc agent send eng-01 "Build the auth module"',
@@ -205,7 +204,7 @@ export default function Product() {
           id="channels"
           label="Communication"
           title="Structured coordination via channels."
-          description="Channels like #engineering, #merge, and #ops keep your agents organized. Agents @mention each other, hand off work, and coordinate autonomously. Every message is logged and searchable."
+          description="Structured channels keep agents coordinated. Agents @mention each other, hand off work, and converge. Every message is logged and searchable."
           commands={[
             'bc channel create deploys',
             'bc channel send engineering "@eng-01 review PR #42"',
@@ -222,7 +221,7 @@ export default function Product() {
           id="costs"
           label="Cost Tracking"
           title="Track spending across every agent."
-          description="See total cost, token usage, and per-agent breakdowns in real-time. Set budgets with alerts at configurable thresholds, and enable hard stops to automatically pause agents that exceed their budget."
+          description="Total cost, token usage, and per-agent breakdowns in real time. Set budgets with thresholds. Hard stops pause agents that exceed their limit."
           commands={[
             'bc cost show',
             'bc cost budget set 50.00 --agent eng-01 --alert-at 0.8',
@@ -238,7 +237,7 @@ export default function Product() {
           id="roles"
           label="Roles & Permissions"
           title="RBAC for your agent team."
-          description="Define roles with custom prompts and scoped capabilities. Engineers can implement tasks but can't create agents. Managers can assign work but can't modify config. Roles are defined as markdown files in .bc/roles/."
+          description="Define roles with scoped capabilities. Engineers implement tasks. Managers assign work. Roles live as markdown files in .bc/roles/."
           commands={[
             'bc role list',
             'bc role show engineer',
@@ -253,7 +252,7 @@ export default function Product() {
           id="tools"
           label="Tool Management"
           title="Add any AI tool. Mix and match."
-          description="Register AI coding tools and assign different tools to different agents — Claude Code for complex features, Cursor for UI work, Aider for quick fixes. bc manages the tool lifecycle including install, upgrade, and status checks."
+          description="Register AI tools and assign them to agents. Claude Code for complex features, Cursor for UI, Aider for quick fixes. bc manages install, upgrade, and status."
           commands={[
             'bc tool list',
             'bc tool add mytool --command "mytool --yes"',
@@ -269,7 +268,7 @@ export default function Product() {
           id="mcp"
           label="MCP Integration"
           title="Connect tools natively via MCP."
-          description="Configure Model Context Protocol servers that your agents connect to automatically. Supports stdio and SSE transport. Attach MCP servers to roles so every agent of that type gets the same capabilities."
+          description="Configure MCP servers that agents connect to on spawn. Supports stdio and SSE transport. Attach servers to roles for consistent capabilities."
           commands={[
             'bc mcp add github-server',
             'bc mcp list',
@@ -285,7 +284,7 @@ export default function Product() {
           id="cron"
           label="Scheduled Tasks"
           title="Cron-powered automation."
-          description="Schedule recurring tasks with familiar cron syntax. Send prompts to agents on a schedule, run shell commands, and view execution history with full log retention."
+          description="Schedule recurring tasks with cron syntax. Send prompts to agents on a schedule and view execution history."
           commands={[
             'bc cron add daily-lint --schedule "0 9 * * *" --agent qa-01 --prompt "Run make lint"',
             'bc cron list',
@@ -300,7 +299,7 @@ export default function Product() {
           id="secrets"
           label="Secrets Management"
           title="Encrypted credentials, zero plaintext."
-          description="Store API keys, tokens, and credentials encrypted at rest using macOS Keychain, Linux libsecret, or AES-256-GCM fallback. Reference secrets in configs — no plaintext in your repo, ever."
+          description="API keys and credentials encrypted at rest via macOS Keychain, Linux libsecret, or AES-256-GCM. No plaintext in your repo."
           commands={[
             'bc secret set OPENAI_KEY',
             'bc secret list',
@@ -316,7 +315,7 @@ export default function Product() {
           id="stats"
           label="System Stats"
           title="Full visibility into your workspace."
-          description="See agent counts, total cost, CPU/memory/disk usage, uptime, goroutines, and channel activity at a glance. The stats dashboard gives you a real-time system overview of your entire workspace."
+          description="Agent counts, total cost, CPU/memory/disk usage, uptime, and channel activity at a glance."
           commands={[
             'bc stats',
             'bc status',
@@ -330,7 +329,7 @@ export default function Product() {
           id="logs"
           label="Centralized Logs"
           title="Every event, searchable and filterable."
-          description="All agent activity, channel messages, cost events, and system events stream into a unified log. Filter by agent, level, or time range. Debug issues across your entire agent team from one place."
+          description="All agent activity, channel messages, and system events in one log. Filter by agent, level, or time range."
           commands={[
             'bc logs',
             'bc agent logs eng-01',
@@ -345,7 +344,7 @@ export default function Product() {
           id="daemons"
           label="Daemon Processes"
           title="Long-running services, managed."
-          description="Run background processes alongside your agents — databases, dev servers, watchers. bc manages their lifecycle, restarts them on failure, and shows their status in the dashboard."
+          description="Run background processes alongside your agents. bc manages their lifecycle and restarts them on failure."
           commands={[
             'bc status',
             'bc doctor',
@@ -359,7 +358,7 @@ export default function Product() {
           id="doctor"
           label="System Health"
           title="One command to check everything."
-          description="bc doctor checks 8 categories — workspace, database, agents, tools, MCP, secrets, git, and daemon. Found an issue? bc doctor fix auto-repairs what it can."
+          description="Checks workspace, database, agents, tools, MCP, secrets, git, and daemon. bc doctor fix auto-repairs what it can."
           commands={[
             'bc doctor',
             'bc doctor check tools',
@@ -383,24 +382,24 @@ export default function Product() {
               Not a new IDE. Not a framework. An orchestration layer.
             </h2>
             <p className="mt-4 max-w-2xl text-muted-foreground leading-relaxed">
-              bc doesn&apos;t replace your tools — it coordinates them. Keep
-              using Claude Code, Cursor, Codex, or any CLI-based agent. bc
-              handles the multi-agent complexity so you don&apos;t have to.
+              bc coordinates your existing tools. Keep using Claude Code,
+              Cursor, Codex, or any CLI agent. bc handles the multi-agent
+              complexity.
             </p>
           </div>
           <div className="grid gap-6 sm:grid-cols-3">
             {[
               {
                 title: "vs. Single-agent tools",
-                desc: "Claude Code, Cursor, and Codex are powerful — but limited to one agent at a time. bc runs many in parallel on isolated branches.",
+                desc: "Claude Code, Cursor, and Codex run one agent at a time. bc runs many in parallel on isolated branches.",
               },
               {
                 title: "vs. Agent frameworks",
-                desc: "CrewAI and LangGraph require you to build agents from scratch. bc orchestrates the agents you already use, with zero code changes.",
+                desc: "CrewAI and LangGraph require building agents from scratch. bc orchestrates agents you already use. No code changes.",
               },
               {
                 title: "vs. Custom scripts",
-                desc: "Shell scripts break at scale. bc gives you structured communication, persistent memory, cost tracking, and a Web UI dashboard out of the box.",
+                desc: "Shell scripts break at scale. bc gives you structured channels, persistent memory, and cost tracking out of the box.",
               },
             ].map((item) => (
               <div

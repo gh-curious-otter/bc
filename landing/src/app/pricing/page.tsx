@@ -12,7 +12,6 @@ export const metadata = {
 const FREE_FEATURES = [
   "Unlimited agents",
   "All 7 AI tool providers",
-  "CLI, TUI, and Web UI",
   "Git worktree isolation",
   "Channel communication",
   "Cost tracking and budgets",
@@ -191,10 +190,8 @@ export default function PricingPage() {
                 Is bc really free?
               </h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Yes. bc is open source and runs entirely on your local machine.
-                All features are included with no restrictions. You only pay for
-                the AI API tokens from your chosen providers (Claude, Gemini,
-                etc.).
+                Yes. bc is open source. All features included, no restrictions.
+                You only pay for AI API tokens from your providers.
               </p>
             </div>
             <div>
@@ -214,9 +211,8 @@ export default function PricingPage() {
                 What about Cloud and Enterprise?
               </h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                We are working on hosted versions for teams who want managed
-                infrastructure. Join the waitlist to be notified when they
-                launch, or email us at{" "}
+                Hosted versions for teams are in development. Join the
+                waitlist or email{" "}
                 <a href="mailto:skitzo@bc-infra.com" className="text-primary hover:underline">
                   skitzo@bc-infra.com
                 </a>.
