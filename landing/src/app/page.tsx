@@ -47,7 +47,7 @@ export default function Home() {
                 One agent is useful.
                 <br />
                 <span className="text-muted-foreground/50">
-                  Five agents without structure is chaos.
+                  A single agent is not enough.
                 </span>
               </h2>
             </div>
@@ -83,7 +83,7 @@ export default function Home() {
                 </h3>
                 <ul className="space-y-4 text-sm">
                   {[
-                    "5-10 agents working in parallel",
+                    "Multiple agents working in parallel",
                     "Persistent memory injected on spawn",
                     "Git worktrees — zero merge conflicts",
                     "Real-time visibility into every agent",

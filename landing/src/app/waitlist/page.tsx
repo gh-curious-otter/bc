@@ -28,7 +28,7 @@ const BENEFITS = [
     icon: Users,
     title: "Multi-Agent Orchestration",
     description:
-      "Run 5+ agents in parallel. Git worktree isolation prevents conflicts. Channels enable coordination.",
+      "Run multiple agents in parallel. Git worktree isolation prevents conflicts. Channels enable coordination.",
   },
   {
     icon: Shield,
@@ -582,7 +582,7 @@ export default function Waitlist() {
               },
               {
                 q: "How is this different from using a single AI agent?",
-                a: "A single agent works on one task at a time. bc runs 5-10 agents in parallel, each on its own branch, communicating through structured channels. Cost controls and real-time visibility included.",
+                a: "A single agent works on one task at a time. bc runs multiple agents in parallel, each on its own branch, communicating through structured channels. Cost controls and real-time visibility included.",
               },
               {
                 q: "Which AI tools does bc support?",

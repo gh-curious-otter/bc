@@ -4,7 +4,7 @@ import { BreadcrumbSchema, FAQSchema } from "../_components/StructuredData";
 export const metadata: Metadata = {
   title: "Early Access — bc | Multi-Agent Orchestration for AI Coding Agents",
   description:
-    "Get early access to bc, the open-source CLI-first multi-agent orchestration tool. Run 5+ AI coding agents simultaneously with zero conflicts.",
+    "Get early access to bc, the open-source CLI-first multi-agent orchestration tool. Run multiple AI coding agents simultaneously with zero conflicts.",
   alternates: {
     canonical: "/waitlist",
   },
@@ -54,7 +54,7 @@ export default function WaitlistLayout({
         {
           question: "How is this different from using a single AI agent?",
           answer:
-            "A single agent works serially on one task at a time. bc lets you run 5-10 agents simultaneously, each on its own branch, communicating through structured channels. Think of it as going from one developer to a full engineering team — with cost controls and real-time visibility.",
+            "A single agent works on one task at a time. bc runs multiple agents simultaneously, each on its own branch, communicating through structured channels — with cost controls and real-time visibility.",
         },
         {
           question: "Which AI tools does bc support?",

@@ -22,7 +22,7 @@ Isolation is the foundation. Without it, every other principle collapses under m
     subtitle: "Agents coordinate through structure, not chaos.",
     content: `Isolated agents working in silence produce fragmented results. Agents need persistent, structured channels — not ad-hoc messages lost to scrollback.
 
-The difference between five agents and a five-agent team is structured coordination. Without it, they duplicate effort and contradict each other. With it, they converge.`,
+The difference between agents and a team of agents is structured coordination. Without it, they duplicate effort and contradict each other. With it, they converge.`,
   },
   {
     number: "03",
@@ -86,7 +86,7 @@ export default function MethodPage() {
           <p className="text-lg leading-relaxed text-muted-foreground">
             There is a growing art to coordinating AI coding agents
             effectively. Running a single agent is straightforward. Running
-            five or ten agents on the same codebase, in parallel, without
+            multiple agents on the same codebase, in parallel, without
             chaos — that requires structure.
           </p>
           <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
