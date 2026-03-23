@@ -19,7 +19,7 @@ Isolation is the foundation. Without it, every other principle collapses under m
   {
     number: "02",
     title: "Communication",
-    subtitle: "Coordination without structure is noise.",
+    subtitle: "Agents coordinate through structure, not chaos.",
     content: `Isolated agents working in silence produce fragmented results. Agents need persistent, structured channels — not ad-hoc messages lost to scrollback.
 
 The difference between five agents and a five-agent team is structured coordination. Without it, they duplicate effort and contradict each other. With it, they converge.`,
