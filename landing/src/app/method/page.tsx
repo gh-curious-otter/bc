@@ -4,7 +4,7 @@ import { Footer } from "../_components/Footer";
 export const metadata = {
   title: "The bc Method - bc",
   description:
-    "Practices for orchestrating AI agent teams. Isolation, communication, visibility, cost awareness, and role hierarchy.",
+    "Six principles for orchestrating AI agent teams. Isolation, communication, visibility, persistence, surface, and openness.",
 };
 
 const PRINCIPLES = [
@@ -12,41 +12,61 @@ const PRINCIPLES = [
     number: "01",
     title: "Isolation",
     subtitle: "Every agent needs its own workspace.",
-    content: `When multiple AI agents work on the same codebase, conflicts are inevitable unless each agent operates in complete isolation. bc gives every agent its own git worktree — a full copy of the repository on its own branch. No agent can accidentally overwrite another's work. No merge conflicts from parallel edits. Clean pull requests that merge the first time, every time.
+    content: `When multiple AI agents work on the same codebase, conflicts are inevitable unless each agent operates in complete isolation. bc gives every agent its own git worktree — a full copy of the repository on its own branch. No shared state. No merge conflicts from parallel edits. Clean pull requests that merge the first time, every time.
 
-This is not just a convenience. It is a fundamental requirement for multi-agent development. Without isolation, you spend more time resolving conflicts than building features.`,
+This principle was born from failure. An earlier system we built let agents share branches. The result was force pushes overwriting each other's work, broken builds from conflicting changes, and hours spent on manual conflict resolution. The founding lesson was simple: one workspace per agent, always.
+
+Isolation is not just about preventing conflicts. It gives each agent the freedom to experiment, refactor, and iterate without fear of breaking someone else's work. It is the foundation that makes everything else possible.`,
   },
   {
     number: "02",
     title: "Communication",
-    subtitle: "Agents must coordinate through structure, not chaos.",
-    content: `In a real engineering team, people communicate through Slack channels, standups, and code reviews. AI agents need the same structure. bc provides persistent, Slack-like channels where agents post updates, request reviews, and hand off work.
+    subtitle: "Agents coordinate through structure, not chaos.",
+    content: `Isolated agents working in silence produce fragmented results. Coordination requires structure. bc provides persistent channels where agents post updates, request reviews, hand off work, and mention each other by name. Every message is logged, searchable, and delivered reliably.
 
-Channels are not just a nice-to-have. They are the mechanism that transforms a collection of independent agents into a coordinated team. Without structured communication, agents duplicate work, miss context, and make conflicting decisions.`,
+Without structured communication, agents duplicate effort, miss context, and make contradictory decisions. With it, they become a team — passing context forward, building on each other's work, and converging toward a shared goal. The difference between five agents and a five-agent team is communication.
+
+This mirrors how real engineering organizations work. People do not coordinate by reading each other's code diffs. They coordinate through conversation, review, and explicit handoffs. AI agents need the same structure.`,
   },
   {
     number: "03",
     title: "Visibility",
-    subtitle: "You need to see what every agent is doing.",
-    content: `Running five AI agents in parallel is only useful if you can observe them. bc provides a real-time Web UI dashboard, a terminal TUI, and a CLI — three interfaces into the same workspace. You can see which agents are working, what they are working on, which channels are active, and how the overall project is progressing.
+    subtitle: "Trust requires transparency.",
+    content: `Running five AI agents in parallel is only useful if you can see what they are doing. Not just their output — their costs, their resource usage, their activity patterns, their tool invocations. Visibility is the mechanism that builds trust between you and your agents.
 
-Visibility is not about micromanagement. It is about trust. When you can see the full picture, you can intervene early when something goes wrong instead of discovering problems after the damage is done.`,
+Every token is tracked. Every cost is attributed to the agent that incurred it. Resource usage — CPU, memory, disk — is monitored in real time. Channel activity shows who is talking to whom. Event logs capture the full timeline. When you can see the complete picture, you can intervene early when something drifts instead of discovering problems after the damage is done.
+
+This principle was born from a concrete problem: agents running unchecked for hours, burning through hundreds of dollars in API tokens before anyone noticed. The teams that scale AI agent usage successfully are the ones that treat visibility as a first-class requirement, not an afterthought.`,
   },
   {
     number: "04",
-    title: "Cost awareness",
-    subtitle: "AI agents can burn through budgets fast.",
-    content: `A single AI agent running unchecked for an hour can consume hundreds of dollars in API tokens. Multiply that by five agents and you have a serious financial risk. bc tracks every token — input and output — for every agent in real time. You set budgets, receive alerts at configurable thresholds, and define hard stops that automatically pause agents before they exceed limits.
+    title: "Persistence",
+    subtitle: "Agents iterate toward goals. They do not give up.",
+    content: `Most AI agents run once and stop. They hit an error, they halt. They encounter a complex task, they produce a partial solution and declare it done. This is not how real work gets accomplished.
 
-Cost awareness is not optional. It is a safety mechanism. The teams that scale AI agent usage successfully are the ones that treat cost tracking as a first-class feature, not an afterthought.`,
+The bc method is different. Instead of running an agent once and hoping for the best, you define a goal and the agent iterates — reading the current state, implementing one piece, verifying the result, committing if it passes, and looping again. Each iteration starts with fresh context, reads external state rather than relying on stale memory, and self-corrects from previous failures.
+
+This is what separates a tool from a teammate. A tool runs once. A teammate persists until the job is done. Complex tasks decompose recursively — large goals break into medium goals, medium into small, small into single commits. The loop continues until every piece is complete and the whole is verified. Persistence is not stubbornness. It is structured determination.`,
   },
   {
     number: "05",
-    title: "Role hierarchy",
-    subtitle: "Not every agent should have the same power.",
-    content: `In a real organization, interns do not have the same permissions as senior engineers. The same principle applies to AI agents. bc defines roles — root, manager, engineer, QA — each with scoped capabilities. Managers can create agents and assign work. Engineers can implement code and submit PRs. QA agents can validate and approve.
+    title: "Surface",
+    subtitle: "The boundary of what agents can do should always expand.",
+    content: `An AI agent that can only edit files is fundamentally limited. Real development involves filing issues, reviewing pull requests, testing in browsers, querying databases, deploying services, and communicating across tools. The surface area of what an agent can interact with determines how useful it can be.
 
-This hierarchy prevents agents from stepping outside their responsibilities. A code-writing agent should not be deleting other agents. A manager agent should not be editing files. Clear boundaries lead to predictable behavior.`,
+bc treats tool integration as a core architectural concern, not a plugin afterthought. Agents connect to external systems through standardized protocols, gaining typed and permissioned access to capabilities that match their role. An engineer agent gets different tools than a manager agent. The surface expands, but within boundaries.
+
+The long-term trajectory is clear: every system a developer touches should be reachable by an agent. Not through raw API keys and ad-hoc scripts, but through curated, role-appropriate integrations that make agents full participants in the development process.`,
+  },
+  {
+    number: "06",
+    title: "Openness",
+    subtitle: "Knowledge should be free and accessible to all.",
+    content: `Gating tools behind company walls only slows progress. The problems of multi-agent orchestration — isolation, coordination, cost control, goal persistence — are universal. Every team running AI agents faces them. Solutions to universal problems should be universally available.
+
+bc is open source not as a marketing strategy, but as a conviction. The orchestration layer should be transparent, auditable, and improvable by anyone who uses it. When the tool that coordinates your AI agents is a black box, you cannot trust it. When it is open, you can verify every decision it makes.
+
+This extends beyond code. Documentation, design decisions, architecture trade-offs, and even the failures that shaped these principles — all of it is public. The best tools are built in the open, shaped by the people who use them, and owned by no one.`,
   },
 ];
 
@@ -75,16 +95,19 @@ export default function MethodPage() {
         {/* Introduction */}
         <div className="prose-section mb-20">
           <p className="text-lg leading-relaxed text-muted-foreground">
-            There is a growing art to coordinating AI coding agents
-            effectively. Running a single agent is straightforward. Running
-            five or ten agents on the same codebase, in parallel, without
-            chaos — that requires structure.
+            Running a single AI coding agent is straightforward. Running five or
+            ten agents on the same codebase, in parallel, without chaos — that
+            requires a method.
           </p>
           <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
-            We built bc around five principles that we believe are essential
-            for any team that wants to scale AI agent usage beyond one agent
-            at a time. These are not features. They are design decisions that
-            shape everything bc does.
+            We learned this the hard way. Before bc, we built an orchestrator
+            where agents shared branches, had no communication structure, and ran
+            with unlimited budgets. The result was expensive chaos. These six
+            principles emerged from that failure and from every iteration since.
+          </p>
+          <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
+            They are not features. They are design convictions that shape
+            everything bc does.
           </p>
         </div>
 
@@ -126,13 +149,13 @@ export default function MethodPage() {
         {/* Closing */}
         <div className="mt-24 pt-16 border-t border-border">
           <p className="text-lg leading-relaxed text-muted-foreground">
-            These five principles are not aspirational. They are implemented
-            in bc today. Every feature, every CLI command, every dashboard
-            view exists because it serves one of these principles.
+            These six principles are not aspirational. They are implemented in bc
+            today. Every command, every view, every architectural decision exists
+            because it serves one of these principles.
           </p>
           <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
-            If you are running AI agents at scale, we believe this is the way
-            to do it.
+            If you are orchestrating AI agents at scale, we believe this is the
+            way to do it.
           </p>
         </div>
       </article>
