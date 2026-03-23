@@ -52,10 +52,10 @@ Every system a developer touches should be reachable by an agent. The surface ex
   {
     number: "06",
     title: "Openness",
-    subtitle: "Universal problems deserve universal solutions.",
-    content: `The problems of multi-agent orchestration are universal. Every team running AI agents faces them. Gating solutions behind company walls slows everyone down.
+    subtitle: "Knowledge shared compounds. Knowledge hoarded decays.",
+    content: `We are not building for Mars. We are aiming for Andromeda. The distance ahead is so vast that keeping solutions behind walls is not just slow — it is self-defeating. Every team building with AI agents faces the same hard problems. Progress compounds when solutions are shared.
 
-When the tool coordinating your agents is a black box, you cannot trust it. When it is open, you can verify every decision it makes. Open source is a conviction, not a strategy.`,
+Open source is not generosity. It is the only rational approach when the challenge exceeds what any one team can solve alone. The code is open. The ideas are open. The method is open. That is how you build something that outlasts you.`,
   },
 ];
 
