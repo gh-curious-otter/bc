@@ -51,6 +51,12 @@ export function Footer() {
               >
                 Method
               </Link>
+              <Link
+                href="/changelog"
+                className="hover:text-foreground transition-colors"
+              >
+                Changelog
+              </Link>
             </nav>
           </div>
           <div className="space-y-4">

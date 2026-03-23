@@ -1,12 +1,6 @@
 import { Nav } from "../_components/Nav";
 import { Footer } from "../_components/Footer";
 
-export const metadata = {
-  title: "Changelog — bc",
-  description:
-    "What's new in bc. Release notes, features, and improvements.",
-};
-
 const ENTRIES = [
   {
     date: "March 2026",
