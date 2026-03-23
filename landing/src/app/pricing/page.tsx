@@ -172,7 +172,7 @@ export default function PricingPage() {
               custom={1}
               className="mt-3 text-4xl font-bold tracking-tight sm:text-6xl"
             >
-              Open source. Free forever.
+              Pricing
             </motion.h1>
             <motion.p
               variants={fadeUp}
