@@ -68,11 +68,11 @@ function InstallRow({ icon: Icon, title, command }: InstallRowProps) {
       tabIndex={0}
       aria-expanded={expanded}
     >
-      <div className="flex items-center gap-2.5 px-3 py-2">
-        <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+      <div className="flex items-center gap-2.5 px-3 py-1.5">
+        <Icon className="h-3 w-3 text-muted-foreground shrink-0" />
         <span className="text-sm">{title}</span>
         <ChevronDown
-          className={`h-3 w-3 text-muted-foreground/40 ml-auto transition-transform ${expanded ? "rotate-180" : ""}`}
+          className={`h-2.5 w-2.5 text-muted-foreground/40 ml-auto transition-transform ${expanded ? "rotate-180" : ""}`}
         />
       </div>
       <AnimatePresence>
@@ -85,7 +85,7 @@ function InstallRow({ icon: Icon, title, command }: InstallRowProps) {
             className="overflow-hidden"
           >
             <div className="px-3 pb-2">
-              <div className="flex items-center gap-2 rounded bg-background/60 border border-border/30 px-2.5 py-1.5 font-mono text-xs">
+              <div className="flex items-center gap-2 rounded bg-background/60 border border-border/30 px-2.5 py-1.5 font-mono text-[11px]">
                 <code className="text-muted-foreground flex-1 overflow-x-auto whitespace-nowrap">
                   {command}
                 </code>
@@ -126,7 +126,7 @@ function FAQItem({ question, answer }: FAQItemProps) {
     <div className="border-b border-border/40">
       <button
         onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between py-4 text-left"
+        className="flex w-full items-center justify-between py-3 text-left"
         aria-expanded={open}
       >
         <span className="font-semibold text-sm">{question}</span>
@@ -143,7 +143,7 @@ function FAQItem({ question, answer }: FAQItemProps) {
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <p className="pb-4 text-sm text-muted-foreground leading-relaxed">
+            <p className="pb-3 text-sm text-muted-foreground leading-relaxed">
               {answer}
             </p>
           </motion.div>
@@ -170,7 +170,8 @@ export default function PricingPage() {
             <motion.h1
               variants={fadeUp}
               custom={1}
-              className="text-4xl font-bold tracking-tight sm:text-6xl"
+              className="text-4xl font-bold tracking-tight sm:text-6xl italic"
+              style={{ fontFamily: "'Instrument Serif', Georgia, serif" }}
             >
               Agent In a Box
             </motion.h1>
@@ -179,8 +180,7 @@ export default function PricingPage() {
               custom={2}
               className="mt-4 text-lg text-muted-foreground max-w-xl mx-auto"
             >
-              bc runs on your machine. No login, no signup, no cloud dependency.
-              You only pay for your AI API tokens.
+              No login. No signup. You pay only for AI tokens.
             </motion.p>
           </motion.div>
 
@@ -194,7 +194,7 @@ export default function PricingPage() {
             <motion.div
               variants={fadeUp}
               custom={0}
-              className="rounded-xl border border-border/60 border-l-2 border-l-primary bg-[#1A1714] dark:bg-[#1A1714] p-8 flex flex-col"
+              className="rounded-2xl border border-border/60 border-l-2 border-l-primary bg-gradient-to-b from-[#1A1714] to-[#1C1916] p-8 flex flex-col shadow-[0_0_30px_rgba(234,88,12,0.06)] transition-transform duration-300 hover:-translate-y-1"
             >
               <div className="mb-1">
                 <h2 className="text-2xl font-bold">Free</h2>
@@ -240,7 +240,7 @@ export default function PricingPage() {
             <motion.div
               variants={fadeUp}
               custom={1}
-              className="rounded-xl border border-border/60 bg-[#1A1714] dark:bg-[#1A1714] p-8 flex flex-col"
+              className="rounded-2xl border border-border/60 hover:border-blue-500/20 bg-gradient-to-b from-[#1A1714] to-[#1C1916] p-8 flex flex-col transition-all duration-300 hover:-translate-y-1"
             >
               <div className="mb-1">
                 <h2 className="text-2xl font-bold">Cloud</h2>
@@ -293,9 +293,9 @@ export default function PricingPage() {
             <motion.div
               variants={fadeUp}
               custom={2}
-              className="rounded-xl border border-border/60 bg-[#1A1714] dark:bg-[#1A1714] p-8 flex flex-col relative overflow-hidden"
+              className="rounded-2xl border border-border/60 bg-gradient-to-b from-[#1A1714] to-[#1C1916] p-8 flex flex-col relative overflow-hidden transition-transform duration-300 hover:-translate-y-1"
             >
-              <div className="opacity-40 flex flex-col flex-1">
+              <div className="flex flex-col flex-1">
                 <div className="mb-1">
                   <h2 className="text-2xl font-bold">Enterprise</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -328,8 +328,9 @@ export default function PricingPage() {
               </div>
 
               {/* Coming soon overlay */}
-              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3">
-                <span className="px-4 py-1.5 rounded-full border border-border/60 bg-card/90 text-sm font-semibold text-muted-foreground">
+              <div className="absolute inset-0 z-10 bg-gradient-to-b from-transparent via-[#1A1714]/60 to-[#1A1714]/95" />
+              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3">
+                <span className="px-4 py-1.5 rounded-full border border-border/80 bg-card/90 text-sm font-semibold text-muted-foreground shadow-[0_0_20px_rgba(255,255,255,0.04)]">
                   Coming soon
                 </span>
                 <a
@@ -347,7 +348,7 @@ export default function PricingPage() {
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, margin: "-50px" }}
-            className="mt-16 max-w-2xl mx-auto"
+            className="mt-10 max-w-2xl mx-auto"
           >
             <motion.h2
               variants={fadeUp}
