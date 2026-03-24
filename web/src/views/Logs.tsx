@@ -1,13 +1,26 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { Agent } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
+import { useWebSocket } from "../hooks/useWebSocket";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
+
+interface LogEntry {
+  id?: number;
+  type: string;
+  agent?: string;
+  message?: string;
+  created_at?: string;
+}
 
 export function Logs() {
   const [agentFilter, setAgentFilter] = useState("");
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [streamedLogs, setStreamedLogs] = useState<LogEntry[]>([]);
+  const { subscribe } = useWebSocket();
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const [autoScroll, setAutoScroll] = useState(true);
 
   useEffect(() => {
     api
@@ -15,6 +28,34 @@ export function Logs() {
       .then(setAgents)
       .catch(() => {});
   }, []);
+
+  // Subscribe to real-time hook events via SSE
+  useEffect(() => {
+    return subscribe("agent.hook", (event) => {
+      const d = event.data;
+      const entry: LogEntry = {
+        type: `hook.${(d.event as string) || "unknown"}`,
+        agent: d.agent as string,
+        message: JSON.stringify(d),
+        created_at: event.timestamp || new Date().toISOString(),
+      };
+      // Filter if agent filter is active
+      if (agentFilter && entry.agent !== agentFilter) return;
+      setStreamedLogs((prev) => [...prev.slice(-499), entry]);
+    });
+  }, [subscribe, agentFilter]);
+
+  // Auto-scroll to bottom when new events arrive
+  useEffect(() => {
+    if (autoScroll) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [streamedLogs, autoScroll]);
+
+  // Clear streamed logs when filter changes
+  useEffect(() => {
+    setStreamedLogs([]);
+  }, [agentFilter]);
 
   const fetcher = useCallback(() => {
     if (agentFilter) {
@@ -24,14 +65,17 @@ export function Logs() {
   }, [agentFilter]);
 
   const {
-    data: logs,
+    data: polledLogs,
     loading,
     error,
     refresh,
     timedOut,
-  } = usePolling(fetcher, 5000);
+  } = usePolling(fetcher, 10000); // Slower polling since we have SSE
 
-  if (loading && !logs) {
+  // Merge polled logs with streamed logs, dedup by timestamp+type+agent
+  const allLogs = [...(polledLogs || []), ...streamedLogs];
+
+  if (loading && !polledLogs && streamedLogs.length === 0) {
     return (
       <div className="p-6 space-y-4">
         <div className="h-6 w-28 animate-pulse rounded bg-bc-border/50" />
@@ -39,7 +83,7 @@ export function Logs() {
       </div>
     );
   }
-  if (timedOut && !logs) {
+  if (timedOut && !polledLogs) {
     return (
       <div className="p-6">
         <EmptyState
@@ -52,7 +96,7 @@ export function Logs() {
       </div>
     );
   }
-  if (error && !logs) {
+  if (error && !polledLogs) {
     return (
       <div className="p-6">
         <EmptyState
@@ -83,17 +127,31 @@ export function Logs() {
               </option>
             ))}
           </select>
+          <label className="flex items-center gap-1.5 text-xs text-bc-muted cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={autoScroll}
+              onChange={(e) => setAutoScroll(e.target.checked)}
+              className="rounded"
+            />
+            Auto-scroll
+          </label>
         </div>
         <span className="text-sm text-bc-muted">
-          {logs?.length ?? 0} events
+          {allLogs.length} events
+          {streamedLogs.length > 0 && (
+            <span className="ml-2 text-green-500">
+              +{streamedLogs.length} live
+            </span>
+          )}
         </span>
       </div>
 
-      {!logs || logs.length === 0 ? (
+      {allLogs.length === 0 ? (
         <EmptyState
           icon="[]"
           title="No events recorded yet"
-          description="Events will appear here as agents start, stop, and communicate."
+          description="Events will appear here in real-time as agents work."
         />
       ) : (
         <div className="rounded border border-bc-border overflow-hidden">
@@ -110,14 +168,14 @@ export function Logs() {
                 </tr>
               </thead>
               <tbody>
-                {logs.map((entry, i) => (
+                {allLogs.map((entry, i) => (
                   <tr
-                    key={entry.id || i}
+                    key={entry.id || `stream-${i}`}
                     className="border-b border-bc-border/50"
                   >
                     <td className="px-4 py-2 text-bc-muted whitespace-nowrap">
                       {entry.created_at
-                        ? new Date(entry.created_at).toLocaleString()
+                        ? new Date(entry.created_at).toLocaleTimeString()
                         : "\u2014"}
                     </td>
                     <td className="px-4 py-2">
@@ -128,13 +186,14 @@ export function Logs() {
                     <td className="px-4 py-2 font-medium">
                       {entry.agent || "\u2014"}
                     </td>
-                    <td className="px-4 py-2 text-bc-muted">
+                    <td className="px-4 py-2 text-bc-muted font-mono text-xs max-w-lg truncate" title={entry.message || ""}>
                       {entry.message || "\u2014"}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <div ref={bottomRef} />
           </div>
         </div>
       )}

@@ -6,6 +6,7 @@ export type WSEventType =
   | "agent.deleted"
   | "agent.state_changed"
   | "agent.output"
+  | "agent.hook"
   | "channel.message"
   | "cost.updated"
   | "cost.budget_alert"
