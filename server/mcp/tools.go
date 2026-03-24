@@ -50,10 +50,6 @@ func definedTools() []Tool {
 						"type":        "string",
 						"description": "Message content",
 					},
-					"sender": map[string]any{
-						"type":        "string",
-						"description": "Sender name (defaults to 'mcp')",
-					},
 				},
 				"required": []string{"channel", "message"},
 			},
@@ -144,7 +140,6 @@ func (s *Server) toolCreateAgent(ctx context.Context, raw json.RawMessage) (*too
 type sendMessageArgs struct {
 	Channel string `json:"channel"`
 	Message string `json:"message"`
-	Sender  string `json:"sender,omitempty"`
 }
 
 func (s *Server) toolSendMessage(ctx context.Context, raw json.RawMessage) (*toolsCallResult, error) {
@@ -160,12 +155,9 @@ func (s *Server) toolSendMessage(ctx context.Context, raw json.RawMessage) (*too
 		return nil, fmt.Errorf("message is required")
 	}
 
-	// Use the authenticated agent identity from the SSE connection.
-	// Falls back to the caller-provided sender, then workspace nickname, then "mcp".
+	// Sender is determined from the authenticated SSE connection identity.
+	// Falls back to workspace nickname, then "mcp".
 	sender := AgentFromContext(ctx)
-	if sender == "" {
-		sender = args.Sender
-	}
 	if sender == "" {
 		if s.ws != nil {
 			nick := s.ws.Config.User.Nickname
