@@ -147,7 +147,7 @@ type sendMessageArgs struct {
 	Sender  string `json:"sender,omitempty"`
 }
 
-func (s *Server) toolSendMessage(raw json.RawMessage) (*toolsCallResult, error) {
+func (s *Server) toolSendMessage(ctx context.Context, raw json.RawMessage) (*toolsCallResult, error) {
 	var args sendMessageArgs
 	if err := json.Unmarshal(raw, &args); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
@@ -160,9 +160,13 @@ func (s *Server) toolSendMessage(raw json.RawMessage) (*toolsCallResult, error) 
 		return nil, fmt.Errorf("message is required")
 	}
 
-	sender := args.Sender
+	// Use the authenticated agent identity from the SSE connection.
+	// Falls back to the caller-provided sender, then workspace nickname, then "mcp".
+	sender := AgentFromContext(ctx)
 	if sender == "" {
-		sender = "mcp"
+		sender = args.Sender
+	}
+	if sender == "" {
 		if s.ws != nil {
 			nick := s.ws.Config.User.Nickname
 			nick = strings.TrimPrefix(nick, "@")
@@ -170,6 +174,9 @@ func (s *Server) toolSendMessage(raw json.RawMessage) (*toolsCallResult, error) 
 				sender = nick
 			}
 		}
+	}
+	if sender == "" {
+		sender = "mcp"
 	}
 
 	// Use ChannelService when available — its OnMessage hook handles agent

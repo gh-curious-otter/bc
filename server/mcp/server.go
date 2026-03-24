@@ -14,6 +14,19 @@ import (
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
+// ctxKeyAgent is the context key for the agent ID extracted from the SSE connection.
+type contextKey string
+
+const ctxKeyAgent contextKey = "agent"
+
+// AgentFromContext returns the agent ID from the context, if set.
+func AgentFromContext(ctx context.Context) string {
+	if v, ok := ctx.Value(ctxKeyAgent).(string); ok {
+		return v
+	}
+	return ""
+}
+
 // Server is a bc MCP server. It owns handles to workspace state and dispatches
 // JSON-RPC 2.0 requests from either stdio or SSE transports.
 type Server struct {
@@ -361,7 +374,7 @@ func (s *Server) handleToolsCall(ctx context.Context, req Request) Response {
 	case "create_agent":
 		result, err = s.toolCreateAgent(ctx, p.Arguments)
 	case "send_message":
-		result, err = s.toolSendMessage(p.Arguments)
+		result, err = s.toolSendMessage(ctx, p.Arguments)
 	case "report_status":
 		result, err = s.toolReportStatus(p.Arguments)
 	case "query_costs":
