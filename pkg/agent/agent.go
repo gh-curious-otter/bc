@@ -866,12 +866,12 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		}
 	}
 
-	// Docker: inject --tmux so claude creates a tmux session inside the container.
+	// Docker: wrap command in tmux session inside the container so SendKeys works.
 	if agentRuntime != "tmux" {
 		if toolName != "" && m.providerRegistry != nil {
 			if p, ok := m.providerRegistry.Get(toolName); ok {
 				if sc, ok := p.(provider.SessionCustomizer); ok {
-					agentCmd = sc.AdjustSessionCommand(agentCmd)
+					agentCmd = sc.AdjustContainerCommand(agentCmd)
 				}
 			}
 		}
@@ -996,13 +996,12 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		}
 	}
 
-	// Docker: inject --tmux so claude creates a tmux session inside the container.
-	// Native tmux: claude auto-detects tmux, no flag needed.
+	// Docker: wrap command in tmux session inside the container so SendKeys works.
 	if agentRuntime != "tmux" {
 		if effectiveTool != "" && m.providerRegistry != nil {
 			if p, ok := m.providerRegistry.Get(effectiveTool); ok {
 				if sc, ok := p.(provider.SessionCustomizer); ok {
-					agentCmd = sc.AdjustSessionCommand(agentCmd)
+					agentCmd = sc.AdjustContainerCommand(agentCmd)
 				}
 			}
 		}

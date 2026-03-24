@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -67,18 +68,20 @@ func (p *ClaudeProvider) BuildCommand(opts CommandOpts) string {
 	return cmd
 }
 
-// AdjustSessionCommand injects --tmux for headless session execution (tmux or Docker).
+// AdjustSessionCommand is a no-op for native tmux sessions.
+// Claude auto-detects the tmux environment when running inside a bc-managed tmux session.
 func (p *ClaudeProvider) AdjustSessionCommand(command string) string {
-	if !strings.Contains(command, "--tmux") {
-		return strings.Replace(command, "claude", "claude --tmux", 1)
-	}
 	return command
 }
 
-// AdjustContainerCommand injects --tmux for Docker execution.
-// Delegates to AdjustSessionCommand since the adjustment is the same.
+// AdjustContainerCommand wraps the command in an explicit tmux session for Docker.
+// bc's container.SendKeys uses `docker exec tmux send-keys` which requires a tmux
+// session inside the container. We create it ourselves instead of using Claude's
+// --tmux flag (which requires --worktree).
 func (p *ClaudeProvider) AdjustContainerCommand(command string) string {
-	return p.AdjustSessionCommand(command)
+	// Create a named tmux session and run claude inside it.
+	// The session name "main" is used by container.Backend.tmuxTarget().
+	return fmt.Sprintf("tmux new-session -d -s main %q && sleep infinity", command)
 }
 
 // DockerImage returns empty to use default convention.

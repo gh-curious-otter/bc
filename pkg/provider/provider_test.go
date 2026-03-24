@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -834,16 +835,13 @@ func TestContainerCustomizer(t *testing.T) {
 		t.Fatal("ClaudeProvider should implement ContainerCustomizer")
 	}
 
-	// Test AdjustContainerCommand
+	// Test AdjustContainerCommand — wraps in explicit tmux session
 	adjusted := cc.AdjustContainerCommand("claude --dangerously-skip-permissions")
-	if adjusted != "claude --tmux --dangerously-skip-permissions" {
-		t.Errorf("AdjustContainerCommand() = %q, want %q", adjusted, "claude --tmux --dangerously-skip-permissions")
+	if !strings.Contains(adjusted, "tmux new-session") {
+		t.Errorf("AdjustContainerCommand() should wrap in tmux, got %q", adjusted)
 	}
-
-	// Already has --tmux
-	alreadyTmux := cc.AdjustContainerCommand("claude --tmux --dangerously-skip-permissions")
-	if alreadyTmux != "claude --tmux --dangerously-skip-permissions" {
-		t.Errorf("AdjustContainerCommand() should not modify if --tmux present, got %q", alreadyTmux)
+	if !strings.Contains(adjusted, "claude --dangerously-skip-permissions") {
+		t.Errorf("AdjustContainerCommand() should preserve original command, got %q", adjusted)
 	}
 
 	// DockerImage returns empty
