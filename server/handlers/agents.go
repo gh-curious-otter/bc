@@ -11,22 +11,29 @@ import (
 
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/workspace"
 	"github.com/rpuneet/bc/server/ws"
 )
 
 // AgentHandler handles /api/agents routes.
 type AgentHandler struct {
-	svc   *agent.AgentService
-	costs *cost.Store
-	ws    *workspace.Workspace
-	hub   *ws.Hub
+	svc    *agent.AgentService
+	costs  *cost.Store
+	ws     *workspace.Workspace
+	hub    *ws.Hub
+	events events.EventStore
 }
 
 // NewAgentHandler creates an AgentHandler.
-// costs, ws, and hub may be nil; enrichment fields will be omitted when unavailable.
+// costs, ws, hub, and eventStore may be nil; enrichment fields will be omitted when unavailable.
 func NewAgentHandler(svc *agent.AgentService, costs *cost.Store, ws *workspace.Workspace, hub *ws.Hub) *AgentHandler {
 	return &AgentHandler{svc: svc, costs: costs, ws: ws, hub: hub}
+}
+
+// SetEventStore sets the event store for persisting hook events.
+func (h *AgentHandler) SetEventStore(es events.EventStore) {
+	h.events = es
 }
 
 // Register mounts agent routes on mux.
@@ -259,6 +266,25 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skipped": true})
 				return
 			}
+		}
+
+		// Persist hook event to event log
+		if h.events != nil {
+			_ = h.events.Append(events.Event{ //nolint:errcheck // best-effort logging
+				Timestamp: time.Now(),
+				Type:      events.EventType("hook." + string(payload.Event)),
+				Agent:     name,
+				Message:   task,
+				Data: map[string]any{
+					"event":         string(payload.Event),
+					"state":         string(targetState),
+					"tool_name":     payload.ToolName,
+					"command":       payload.Command,
+					"error":         payload.Error,
+					"subagent_id":   payload.SubagentID,
+					"subagent_type": payload.SubagentType,
+				},
+			})
 		}
 
 		// Publish the full hook event via SSE for web UI
