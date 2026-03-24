@@ -65,6 +65,8 @@ func runDown(cmd *cobra.Command, _ []string) error {
 			log.Debug("docker stop failed", "name", name, "output", string(output))
 			continue
 		}
+		//nolint:gosec // trusted
+		_ = exec.CommandContext(ctx, "docker", "rm", name).Run() //nolint:errcheck // best-effort cleanup
 		fmt.Println(ui.GreenText("stopped"))
 		stopped++
 	}
