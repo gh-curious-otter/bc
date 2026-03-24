@@ -1,6 +1,8 @@
 package workspace
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,31 +13,70 @@ import (
 	"github.com/rpuneet/bc/pkg/db"
 )
 
-// RoleStore provides SQLite-backed persistence for roles.
-// It replaces the filesystem-based .bc/roles/*.md storage with a single
-// bc.db table, enabling CRUD from the web UI and transactional updates.
+// RoleStore provides SQL-backed persistence for roles.
+// It supports both SQLite and Postgres via the driver field.
 type RoleStore struct {
-	db *db.DB
+	sqlDB  *sql.DB
+	driver string // "sqlite" or "postgres"
+	owned  bool   // true if we opened the connection (and should close it)
 }
 
-// NewRoleStore opens (or creates) the database at dbPath and ensures
-// the roles table exists.
+// NewRoleStore opens (or creates) a SQLite database at dbPath and ensures
+// the roles table exists. The caller must call Close when done.
 func NewRoleStore(dbPath string) (*RoleStore, error) {
 	d, err := db.Open(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open roles db: %w", err)
 	}
 
-	if err := createRolesTable(d); err != nil {
+	s := &RoleStore{sqlDB: d.DB, driver: "sqlite", owned: true}
+	if err := s.InitSchema(); err != nil {
 		_ = d.Close()
 		return nil, err
 	}
 
-	return &RoleStore{db: d}, nil
+	return s, nil
 }
 
-func createRolesTable(d *db.DB) error {
-	schema := `
+// NewRoleStoreFromDB creates a RoleStore from an existing *sql.DB connection.
+// The caller retains ownership of the connection — Close on this store is a no-op.
+func NewRoleStoreFromDB(sqlDB *sql.DB, driver string) (*RoleStore, error) {
+	s := &RoleStore{sqlDB: sqlDB, driver: driver, owned: false}
+	if err := s.InitSchema(); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+// InitSchema creates the roles table if it does not exist.
+// Uses driver-appropriate column types.
+func (s *RoleStore) InitSchema() error {
+	var schema string
+	if s.driver == "postgres" {
+		schema = `
+		CREATE TABLE IF NOT EXISTS roles (
+			name          TEXT PRIMARY KEY,
+			description   TEXT NOT NULL DEFAULT '',
+			prompt        TEXT NOT NULL DEFAULT '',
+			mcp_servers   TEXT NOT NULL DEFAULT '[]',
+			parent_roles  TEXT NOT NULL DEFAULT '[]',
+			secrets       TEXT NOT NULL DEFAULT '[]',
+			plugins       TEXT NOT NULL DEFAULT '[]',
+			settings      TEXT NOT NULL DEFAULT '{}',
+			rules         TEXT NOT NULL DEFAULT '{}',
+			agents        TEXT NOT NULL DEFAULT '{}',
+			skills        TEXT NOT NULL DEFAULT '{}',
+			commands      TEXT NOT NULL DEFAULT '{}',
+			prompt_create TEXT NOT NULL DEFAULT '',
+			prompt_start  TEXT NOT NULL DEFAULT '',
+			prompt_stop   TEXT NOT NULL DEFAULT '',
+			prompt_delete TEXT NOT NULL DEFAULT '',
+			review        TEXT NOT NULL DEFAULT '',
+			created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);`
+	} else {
+		schema = `
 		CREATE TABLE IF NOT EXISTS roles (
 			name          TEXT PRIMARY KEY,
 			description   TEXT NOT NULL DEFAULT '',
@@ -56,16 +97,25 @@ func createRolesTable(d *db.DB) error {
 			review        TEXT NOT NULL DEFAULT '',
 			created_at    TEXT NOT NULL,
 			updated_at    TEXT NOT NULL
-		);
-	`
-	_, err := d.Exec(schema)
+		);`
+	}
+
+	_, err := s.sqlDB.ExecContext(context.Background(), schema)
 	if err != nil {
 		return fmt.Errorf("create roles table: %w", err)
 	}
 	return nil
 }
 
-// Save persists a single role (INSERT OR REPLACE).
+// placeholder returns the appropriate placeholder for the given 1-based index.
+func (s *RoleStore) placeholder(n int) string {
+	if s.driver == "postgres" {
+		return fmt.Sprintf("$%d", n)
+	}
+	return "?"
+}
+
+// Save persists a single role (upsert).
 func (s *RoleStore) Save(role *Role) error {
 	if role.Metadata.Name == "" {
 		return fmt.Errorf("role name is required")
@@ -118,7 +168,28 @@ func (s *RoleStore) Save(role *Role) error {
 
 	now := time.Now().Format(time.RFC3339)
 
-	_, err = s.db.Exec(`
+	ctx := context.Background()
+	if s.driver == "postgres" {
+		_, err = s.sqlDB.ExecContext(ctx, `
+		INSERT INTO roles
+		(name, description, prompt, mcp_servers, parent_roles, secrets, plugins,
+		 settings, rules, agents, skills, commands,
+		 prompt_create, prompt_start, prompt_stop, prompt_delete, review,
+		 created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(), NOW())
+		ON CONFLICT(name) DO UPDATE SET
+		 description=$2, prompt=$3, mcp_servers=$4, parent_roles=$5, secrets=$6, plugins=$7,
+		 settings=$8, rules=$9, agents=$10, skills=$11, commands=$12,
+		 prompt_create=$13, prompt_start=$14, prompt_stop=$15, prompt_delete=$16, review=$17,
+		 updated_at=NOW()`,
+			role.Metadata.Name, role.Metadata.Description, role.Prompt,
+			string(mcpServers), string(parentRoles), string(secretsJSON), string(pluginsJSON),
+			string(settingsJSON), string(rulesJSON), string(agentsJSON), string(skillsJSON), string(commandsJSON),
+			role.Metadata.PromptCreate, role.Metadata.PromptStart,
+			role.Metadata.PromptStop, role.Metadata.PromptDelete, role.Metadata.Review,
+		)
+	} else {
+		_, err = s.sqlDB.ExecContext(ctx, `
 		INSERT OR REPLACE INTO roles
 		(name, description, prompt, mcp_servers, parent_roles, secrets, plugins,
 		 settings, rules, agents, skills, commands,
@@ -126,31 +197,32 @@ func (s *RoleStore) Save(role *Role) error {
 		 created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
 		 COALESCE((SELECT created_at FROM roles WHERE name = ?), ?), ?)`,
-		role.Metadata.Name, role.Metadata.Description, role.Prompt,
-		string(mcpServers), string(parentRoles), string(secretsJSON), string(pluginsJSON),
-		string(settingsJSON), string(rulesJSON), string(agentsJSON), string(skillsJSON), string(commandsJSON),
-		role.Metadata.PromptCreate, role.Metadata.PromptStart,
-		role.Metadata.PromptStop, role.Metadata.PromptDelete, role.Metadata.Review,
-		role.Metadata.Name, now, now,
-	)
+			role.Metadata.Name, role.Metadata.Description, role.Prompt,
+			string(mcpServers), string(parentRoles), string(secretsJSON), string(pluginsJSON),
+			string(settingsJSON), string(rulesJSON), string(agentsJSON), string(skillsJSON), string(commandsJSON),
+			role.Metadata.PromptCreate, role.Metadata.PromptStart,
+			role.Metadata.PromptStop, role.Metadata.PromptDelete, role.Metadata.Review,
+			role.Metadata.Name, now, now,
+		)
+	}
 	return err
 }
 
 // Load reads a single role by name. Returns an error if not found.
 func (s *RoleStore) Load(name string) (*Role, error) {
-	row := s.db.QueryRow(`
-		SELECT name, description, prompt, mcp_servers, parent_roles, secrets, plugins,
-		       settings, rules, agents, skills, commands,
+	q := `SELECT name, description, prompt, mcp_servers, parent_roles, secrets, plugins,` + //nolint:gosec // G202: placeholder is "?" or "$1", not user input
+		`       settings, rules, agents, skills, commands,
 		       prompt_create, prompt_start, prompt_stop, prompt_delete, review,
 		       created_at, updated_at
-		FROM roles WHERE name = ?`, name)
+		FROM roles WHERE name = ` + s.placeholder(1)
 
+	row := s.sqlDB.QueryRowContext(context.Background(), q, name)
 	return scanRoleRow(row)
 }
 
 // LoadAll reads every role into a map keyed by name.
 func (s *RoleStore) LoadAll() (map[string]*Role, error) {
-	rows, err := s.db.Query(`
+	rows, err := s.sqlDB.QueryContext(context.Background(), `
 		SELECT name, description, prompt, mcp_servers, parent_roles, secrets, plugins,
 		       settings, rules, agents, skills, commands,
 		       prompt_create, prompt_start, prompt_stop, prompt_delete, review,
@@ -163,9 +235,9 @@ func (s *RoleStore) LoadAll() (map[string]*Role, error) {
 
 	roles := make(map[string]*Role)
 	for rows.Next() {
-		role, err := scanRoleRow(rows)
-		if err != nil {
-			return nil, err
+		role, scanErr := scanRoleRow(rows)
+		if scanErr != nil {
+			return nil, scanErr
 		}
 		roles[role.Metadata.Name] = role
 	}
@@ -174,7 +246,8 @@ func (s *RoleStore) LoadAll() (map[string]*Role, error) {
 
 // Delete removes a single role by name.
 func (s *RoleStore) Delete(name string) error {
-	res, err := s.db.Exec("DELETE FROM roles WHERE name = ?", name)
+	q := "DELETE FROM roles WHERE name = " + s.placeholder(1) //nolint:gosec // G202: placeholder is either "?" or "$1", not user input
+	res, err := s.sqlDB.ExecContext(context.Background(), q, name)
 	if err != nil {
 		return err
 	}
@@ -188,13 +261,17 @@ func (s *RoleStore) Delete(name string) error {
 // Has checks if a role exists in the database.
 func (s *RoleStore) Has(name string) bool {
 	var count int
-	err := s.db.QueryRow("SELECT COUNT(*) FROM roles WHERE name = ?", name).Scan(&count)
+	q := "SELECT COUNT(*) FROM roles WHERE name = " + s.placeholder(1)
+	err := s.sqlDB.QueryRowContext(context.Background(), q, name).Scan(&count)
 	return err == nil && count > 0
 }
 
-// Close closes the database.
+// Close closes the database if this store owns the connection.
 func (s *RoleStore) Close() error {
-	return s.db.Close()
+	if s.owned {
+		return s.sqlDB.Close()
+	}
+	return nil
 }
 
 // MigrateFromFiles scans a roles directory for .md files and inserts
@@ -294,7 +371,7 @@ func (s *RoleStore) MigrateDefaults() error {
 }
 
 // scanRoleRow scans a role from a database row/rows scanner.
-func scanRoleRow(s interface{ Scan(...any) error }) (*Role, error) {
+func scanRoleRow(scanner interface{ Scan(...any) error }) (*Role, error) {
 	var (
 		name, description, prompt                           string
 		mcpServersJSON, parentRolesJSON                     string
@@ -303,10 +380,10 @@ func scanRoleRow(s interface{ Scan(...any) error }) (*Role, error) {
 		skillsJSON, commandsJSON                            string
 		promptCreate, promptStart, promptStop, promptDelete string
 		review                                              string
-		createdAt, updatedAt                                string //nolint:unused // reserved for future use
+		createdAt, updatedAt                                any // any to handle both TEXT (SQLite) and TIMESTAMPTZ (Postgres)
 	)
 
-	err := s.Scan(
+	err := scanner.Scan(
 		&name, &description, &prompt,
 		&mcpServersJSON, &parentRolesJSON, &secretsJSON, &pluginsJSON,
 		&settingsJSON, &rulesJSON, &agentsJSON, &skillsJSON, &commandsJSON,

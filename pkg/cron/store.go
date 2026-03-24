@@ -12,9 +12,10 @@ import (
 	"github.com/rpuneet/bc/pkg/log"
 )
 
-// Store is a SQLite-backed cron job store.
+// Store is a cron job store backed by SQLite or Postgres.
 type Store struct {
 	db   *db.DB
+	pg   *PostgresStore // non-nil when using Postgres via OpenStore
 	path string
 }
 
@@ -37,6 +38,9 @@ func Open(workspacePath string) (*Store, error) {
 
 // Close closes the database connection.
 func (s *Store) Close() error {
+	if s.pg != nil {
+		return s.pg.Close()
+	}
 	return s.db.Close()
 }
 
@@ -75,6 +79,9 @@ CREATE INDEX IF NOT EXISTS idx_cron_logs_job ON cron_logs(job_name, run_at DESC)
 // Note: commands that kill the bcd process will terminate the cron scheduler itself.
 // Use an external supervisor (systemd, launchd) for bcd restarts.
 func (s *Store) AddJob(ctx context.Context, job *Job) error {
+	if s.pg != nil {
+		return s.pg.AddJob(ctx, job)
+	}
 	if strings.Contains(job.Command, "kill") && (strings.Contains(job.Command, "9374") || strings.Contains(job.Command, "bcd")) {
 		log.Warn("cron job command may kill bcd (the cron host) — use an external supervisor for restarts", "job", job.Name)
 	}
@@ -105,6 +112,9 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 
 // GetJob returns a job by name. Returns nil, nil if not found.
 func (s *Store) GetJob(ctx context.Context, name string) (*Job, error) {
+	if s.pg != nil {
+		return s.pg.GetJob(ctx, name)
+	}
 	const q = `
 SELECT name, schedule, agent_name, prompt, command, enabled, last_run, next_run, run_count, created_at
 FROM cron_jobs WHERE name = ?`
@@ -119,6 +129,9 @@ FROM cron_jobs WHERE name = ?`
 
 // ListJobs returns all cron jobs ordered by name.
 func (s *Store) ListJobs(ctx context.Context) ([]*Job, error) {
+	if s.pg != nil {
+		return s.pg.ListJobs(ctx)
+	}
 	const q = `
 SELECT name, schedule, agent_name, prompt, command, enabled, last_run, next_run, run_count, created_at
 FROM cron_jobs ORDER BY name`
@@ -142,6 +155,9 @@ FROM cron_jobs ORDER BY name`
 
 // DeleteJob removes a cron job and its logs by name.
 func (s *Store) DeleteJob(ctx context.Context, name string) error {
+	if s.pg != nil {
+		return s.pg.DeleteJob(ctx, name)
+	}
 	res, err := s.db.ExecContext(ctx, `DELETE FROM cron_jobs WHERE name = ?`, name)
 	if err != nil {
 		return fmt.Errorf("delete cron job: %w", err)
@@ -155,6 +171,9 @@ func (s *Store) DeleteJob(ctx context.Context, name string) error {
 
 // SetEnabled enables or disables a job. Recomputes next_run when enabling.
 func (s *Store) SetEnabled(ctx context.Context, name string, enabled bool) error {
+	if s.pg != nil {
+		return s.pg.SetEnabled(ctx, name, enabled)
+	}
 	job, err := s.GetJob(ctx, name)
 	if err != nil {
 		return err
@@ -183,6 +202,9 @@ func (s *Store) SetEnabled(ctx context.Context, name string, enabled bool) error
 
 // RecordRun records a job execution result and updates run stats.
 func (s *Store) RecordRun(ctx context.Context, entry *LogEntry) error {
+	if s.pg != nil {
+		return s.pg.RecordRun(ctx, entry)
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
@@ -227,6 +249,9 @@ func (s *Store) RecordRun(ctx context.Context, entry *LogEntry) error {
 
 // RecordManualTrigger marks a job as manually triggered (updates last_run + next_run).
 func (s *Store) RecordManualTrigger(ctx context.Context, name string) error {
+	if s.pg != nil {
+		return s.pg.RecordManualTrigger(ctx, name)
+	}
 	job, err := s.GetJob(ctx, name)
 	if err != nil {
 		return err
@@ -252,6 +277,9 @@ func (s *Store) RecordManualTrigger(ctx context.Context, name string) error {
 
 // GetLogs returns execution history for a job. If last > 0, limits to that many entries.
 func (s *Store) GetLogs(ctx context.Context, jobName string, last int) ([]*LogEntry, error) {
+	if s.pg != nil {
+		return s.pg.GetLogs(ctx, jobName, last)
+	}
 	// Use a parameterized LIMIT to avoid string-building in SQL queries.
 	// SQLite accepts -1 as "no limit" in the LIMIT clause.
 	limit := -1

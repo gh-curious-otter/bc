@@ -94,28 +94,11 @@ func TestInitV2Workspace(t *testing.T) {
 		t.Errorf("agents directory not created: %v", statErr)
 	}
 
-	// Verify roles directory exists
-	rolesDir := filepath.Join(bcDir, "roles")
-	if _, statErr := os.Stat(rolesDir); statErr != nil {
-		t.Errorf("roles directory not created: %v", statErr)
-	}
-
-	// Verify root.md exists
-	rootPath := filepath.Join(rolesDir, "root.md")
-	if _, statErr := os.Stat(rootPath); statErr != nil {
-		t.Errorf("root.md not created: %v", statErr)
-	}
-
-	// Verify root.md content
-	rootContent, err := os.ReadFile(rootPath) //nolint:gosec // test file path
-	if err != nil {
-		t.Fatalf("failed to read root.md: %v", err)
-	}
-	if !strings.Contains(string(rootContent), "name: root") {
-		t.Error("root.md missing 'name: root' in frontmatter")
-	}
-	if !strings.Contains(string(rootContent), "is_singleton: true") {
-		t.Error("root.md missing 'is_singleton: true' in frontmatter")
+	// Roles are now stored in SQL (bc.db), not as .bc/roles/*.md files.
+	// Verify the database file exists.
+	dbPath := filepath.Join(bcDir, "bc.db")
+	if _, statErr := os.Stat(dbPath); statErr != nil {
+		t.Errorf("bc.db not created: %v", statErr)
 	}
 }
 

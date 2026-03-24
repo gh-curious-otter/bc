@@ -66,7 +66,6 @@ var hookEventStateMap = map[HookEvent]State{
 	HookPostCompact:        StateWorking,
 	HookElicitation:        StateStuck,
 	HookElicitationResult:  StateWorking,
-
 }
 
 // StateForHookEvent returns the target agent State for a hook event.
@@ -93,36 +92,42 @@ func IsKnownEvent(ev HookEvent) bool {
 
 // HookPayload is the JSON payload received by the /hook endpoint.
 // Different events populate different fields.
-type HookPayload struct {
+type HookPayload struct { //nolint:govet // fieldalignment: optimized for readability over 8 bytes
+	// Tool events (PreToolUse, PostToolUse, PostToolUseFailure)
+	ToolInput any `json:"tool_input,omitempty"` // full tool input object
+
+	// Channel events (bc-internal)
+	Mentions []string `json:"mentions,omitempty"`
+
 	// Common fields
 	Event HookEvent `json:"event"`
 	State string    `json:"state,omitempty"` // override state (optional)
 	Task  string    `json:"task,omitempty"`  // task description for UI
 
-	// Tool events (PreToolUse, PostToolUse, PostToolUseFailure)
-	ToolName  string `json:"tool_name,omitempty"`
-	Command   string `json:"command,omitempty"`    // bash command being run
-	ToolInput any    `json:"tool_input,omitempty"` // full tool input object
-	Error     string `json:"error,omitempty"`      // error message (failures)
+	// Tool events
+	ToolName string `json:"tool_name,omitempty"`
+	Command  string `json:"command,omitempty"` // bash command being run
+	Error    string `json:"error,omitempty"`   // error message (failures)
 
 	// Subagent events
 	SubagentID   string `json:"subagent_id,omitempty"`
 	SubagentType string `json:"subagent_type,omitempty"`
 
 	// Channel events (bc-internal)
-	Channel  string   `json:"channel,omitempty"`
-	Sender   string   `json:"sender,omitempty"`
-	Message  string   `json:"message,omitempty"`
-	Mentions []string `json:"mentions,omitempty"`
+	Channel string `json:"channel,omitempty"`
+	Sender  string `json:"sender,omitempty"`
+	Message string `json:"message,omitempty"`
 
 	// Config/Instructions events
 	File string `json:"file,omitempty"`
 
 	// Cost events (bc-internal)
+	Model string `json:"model,omitempty"`
+
+	// Non-pointer fields last to minimize GC scan area
+	CostUSD      float64 `json:"cost_usd,omitempty"`
 	InputTokens  int64   `json:"input_tokens,omitempty"`
 	OutputTokens int64   `json:"output_tokens,omitempty"`
-	CostUSD      float64 `json:"cost_usd,omitempty"`
-	Model        string  `json:"model,omitempty"`
 }
 
 // ── Settings.json writer (generates HTTP-based hooks) ──

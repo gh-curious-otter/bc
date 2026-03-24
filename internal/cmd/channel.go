@@ -241,6 +241,8 @@ func init() {
 	channelDescCmd.ValidArgsFunction = CompleteChannelNames
 	channelEditCmd.ValidArgsFunction = CompleteChannelNames
 
+	channelListCmd.Flags().Bool("json", false, "Output as JSON")
+
 	channelCmd.AddCommand(channelCreateCmd)
 	channelCmd.AddCommand(channelAddCmd)
 	channelCmd.AddCommand(channelRemoveCmd)

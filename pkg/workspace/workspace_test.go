@@ -796,19 +796,20 @@ func TestInitV2Format(t *testing.T) {
 		t.Errorf("settings.toml not created: %v", err)
 	}
 
-	// Check roles directory and default root.md
-	rolesDir := filepath.Join(dir, ".bc", "roles")
-	if _, err := os.Stat(rolesDir); err != nil {
-		t.Errorf("roles directory not created: %v", err)
+	// Check RoleManager is initialized with a store
+	if ws.RoleManager == nil {
+		t.Fatal("RoleManager is nil")
 	}
-	rootRole := filepath.Join(rolesDir, "root.md")
-	if _, err := os.Stat(rootRole); err != nil {
-		t.Errorf("root.md not created: %v", err)
+	if ws.RoleManager.Store() == nil {
+		t.Fatal("RoleManager.Store() is nil")
 	}
 
-	// Check RoleManager is initialized
-	if ws.RoleManager == nil {
-		t.Error("RoleManager is nil")
+	// Check default roles exist in the store
+	if !ws.RoleManager.HasRole("root") {
+		t.Error("root role not found in store")
+	}
+	if !ws.RoleManager.HasRole("base") {
+		t.Error("base role not found in store")
 	}
 }
 

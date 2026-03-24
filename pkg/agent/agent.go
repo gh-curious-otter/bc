@@ -1018,10 +1018,11 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	}
 
 	// Validate tool binary exists before spawning.
-	// Use provider registry for known tools (richer validation + version logging),
-	// fall back to PATH check for custom/unknown tools.
+	// Skip for Docker runtime — the tool is inside the agent image, not on the daemon host.
 	providerValidated := false
-	if effectiveTool != "" && m.providerRegistry != nil {
+	if agentRuntime == "docker" {
+		providerValidated = true // tool lives in the agent container image
+	} else if effectiveTool != "" && m.providerRegistry != nil {
 		if p, ok := m.providerRegistry.Get(effectiveTool); ok {
 			if !p.IsInstalled(ctx) {
 				m.mu.Unlock()
@@ -1852,8 +1853,6 @@ func (m *Manager) ListByRole(role Role) []*Agent {
 	return agents
 }
 
-
-
 // AgentCount returns the number of agents.
 func (m *Manager) AgentCount() int {
 	m.mu.RLock()
@@ -2168,7 +2167,6 @@ func (m *Manager) Tmux() *tmux.Manager {
 	}
 	return nil
 }
-
 
 // QueryAgentStats returns up to limit recent stats records for the named agent.
 func (m *Manager) QueryAgentStats(agentName string, limit int) ([]*AgentStatsRecord, error) {

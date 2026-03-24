@@ -1,6 +1,15 @@
 package cmd
 
-import "regexp"
+import (
+	"regexp"
+
+	"github.com/rpuneet/bc/pkg/client"
+)
+
+// getClient returns an HTTP client for the bcd server.
+func getClient() *client.Client {
+	return client.New("")
+}
 
 // identifierPattern matches valid identifiers: starts with a letter or underscore,
 // followed by letters, numbers, dashes, or underscores.

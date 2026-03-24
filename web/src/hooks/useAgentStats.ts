@@ -5,7 +5,7 @@ import { usePolling } from "./usePolling";
 
 export function useAgentStats(agentName: string) {
   const fetcher = useCallback(async () => {
-    return api.getAgentStats(agentName);
+    return api.getAgentDockerStats(agentName);
   }, [agentName]);
 
   const {

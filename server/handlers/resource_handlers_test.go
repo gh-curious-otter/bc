@@ -12,7 +12,7 @@ import (
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/cost"
 	"github.com/rpuneet/bc/pkg/cron"
-	"github.com/rpuneet/bc/pkg/daemon"
+
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/mcp"
 	"github.com/rpuneet/bc/pkg/secret"
@@ -1803,102 +1803,6 @@ func TestEventHandler_ByAgentMethodNotAllowed(t *testing.T) {
 	_ = resp.Body.Close()
 }
 
-// --- Daemon handler tests ---
-
-func TestDaemonHandler_ListEmpty(t *testing.T) {
-	dir := setupWorkspace(t)
-	mgr, err := daemon.NewManager(dir)
-	if err != nil {
-		t.Fatalf("create daemon manager: %v", err)
-	}
-
-	ts := buildTestServerWithServices(t, server.Services{Daemons: mgr})
-	defer ts.Close()
-
-	resp := get(t, ts.URL+"/api/daemons")
-	defer func() { _ = resp.Body.Close() }()
-	assertStatus(t, resp, http.StatusOK)
-	arr := readJSONArray(t, resp)
-	if len(arr) != 0 {
-		t.Fatalf("expected empty daemons, got %d", len(arr))
-	}
-}
-
-func TestDaemonHandler_GetNotFound(t *testing.T) {
-	dir := setupWorkspace(t)
-	mgr, err := daemon.NewManager(dir)
-	if err != nil {
-		t.Fatalf("create daemon manager: %v", err)
-	}
-
-	ts := buildTestServerWithServices(t, server.Services{Daemons: mgr})
-	defer ts.Close()
-
-	resp := get(t, ts.URL+"/api/daemons/nonexistent")
-	assertStatus(t, resp, http.StatusNotFound)
-	_ = resp.Body.Close()
-}
-
-func TestDaemonHandler_MethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	mgr, err := daemon.NewManager(dir)
-	if err != nil {
-		t.Fatalf("create daemon manager: %v", err)
-	}
-
-	ts := buildTestServerWithServices(t, server.Services{Daemons: mgr})
-	defer ts.Close()
-
-	resp := doRequest(t, http.MethodPut, ts.URL+"/api/daemons", "application/json", `{}`)
-	assertStatus(t, resp, http.StatusMethodNotAllowed)
-	_ = resp.Body.Close()
-}
-
-func TestDaemonHandler_EmptyName(t *testing.T) {
-	dir := setupWorkspace(t)
-	mgr, err := daemon.NewManager(dir)
-	if err != nil {
-		t.Fatalf("create daemon manager: %v", err)
-	}
-
-	ts := buildTestServerWithServices(t, server.Services{Daemons: mgr})
-	defer ts.Close()
-
-	resp := get(t, ts.URL+"/api/daemons/")
-	assertStatus(t, resp, http.StatusBadRequest)
-	_ = resp.Body.Close()
-}
-
-func TestDaemonHandler_CreateInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
-	mgr, err := daemon.NewManager(dir)
-	if err != nil {
-		t.Fatalf("create daemon manager: %v", err)
-	}
-
-	ts := buildTestServerWithServices(t, server.Services{Daemons: mgr})
-	defer ts.Close()
-
-	resp := post(t, ts.URL+"/api/daemons", "application/json", `{invalid}`)
-	assertStatus(t, resp, http.StatusBadRequest)
-	_ = resp.Body.Close()
-}
-
-func TestDaemonHandler_UnknownAction(t *testing.T) {
-	dir := setupWorkspace(t)
-	mgr, err := daemon.NewManager(dir)
-	if err != nil {
-		t.Fatalf("create daemon manager: %v", err)
-	}
-
-	ts := buildTestServerWithServices(t, server.Services{Daemons: mgr})
-	defer ts.Close()
-
-	resp := get(t, ts.URL+"/api/daemons/test/unknown")
-	assertStatus(t, resp, http.StatusNotFound)
-	_ = resp.Body.Close()
-}
-
 // --- Doctor handler tests ---
 
 func TestDoctorHandler_RunAll(t *testing.T) {
@@ -3517,53 +3421,6 @@ func TestToolHandler_CRUD(t *testing.T) {
 	_ = resp.Body.Close()
 }
 
-// --- Daemon handler: stop and restart on nonexistent ---
-
-func TestDaemonHandler_StopNonexistent(t *testing.T) {
-	dir := setupWorkspace(t)
-	mgr, err := daemon.NewManager(dir)
-	if err != nil {
-		t.Fatalf("create daemon manager: %v", err)
-	}
-
-	ts := buildTestServerWithServices(t, server.Services{Daemons: mgr})
-	defer ts.Close()
-
-	resp := post(t, ts.URL+"/api/daemons/nonexist/stop", "application/json", ``)
-	assertStatus(t, resp, http.StatusBadRequest)
-	_ = resp.Body.Close()
-}
-
-func TestDaemonHandler_RestartNonexistent(t *testing.T) {
-	dir := setupWorkspace(t)
-	mgr, err := daemon.NewManager(dir)
-	if err != nil {
-		t.Fatalf("create daemon manager: %v", err)
-	}
-
-	ts := buildTestServerWithServices(t, server.Services{Daemons: mgr})
-	defer ts.Close()
-
-	resp := post(t, ts.URL+"/api/daemons/nonexist/restart", "application/json", ``)
-	assertStatus(t, resp, http.StatusBadRequest)
-	_ = resp.Body.Close()
-}
-
-func TestDaemonHandler_DeleteNonexistent(t *testing.T) {
-	dir := setupWorkspace(t)
-	mgr, err := daemon.NewManager(dir)
-	if err != nil {
-		t.Fatalf("create daemon manager: %v", err)
-	}
-
-	ts := buildTestServerWithServices(t, server.Services{Daemons: mgr})
-	defer ts.Close()
-
-	resp := doRequest(t, http.MethodDelete, ts.URL+"/api/daemons/nonexist", "", "")
-	assertStatus(t, resp, http.StatusBadRequest)
-	_ = resp.Body.Close()
-}
-
 // --- Cost handler: budget valid periods ---
 
 func TestCostHandler_Budgets_AllPeriods(t *testing.T) {
@@ -3738,27 +3595,6 @@ func TestAgentHandler_CreateAgent(t *testing.T) {
 	resp := post(t, ts.URL+"/api/agents", "application/json",
 		`{"name":"test-agent","role":"engineer","tool":"claude"}`)
 	// Accept 201 (created) or 400 (if runtime not available)
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("expected 201 or 400, got %d", resp.StatusCode)
-	}
-	_ = resp.Body.Close()
-}
-
-// --- Daemon handler: create daemon (exercises success paths) ---
-
-func TestDaemonHandler_CreateDaemon(t *testing.T) {
-	dir := setupWorkspace(t)
-	mgr, err := daemon.NewManager(dir)
-	if err != nil {
-		t.Fatalf("create daemon manager: %v", err)
-	}
-
-	ts := buildTestServerWithServices(t, server.Services{Daemons: mgr})
-	defer ts.Close()
-
-	resp := post(t, ts.URL+"/api/daemons", "application/json",
-		`{"name":"test-daemon","cmd":"echo hello","runtime":"tmux"}`)
-	// Accept 201 (created) or 400 (if tmux not available)
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("expected 201 or 400, got %d", resp.StatusCode)
 	}

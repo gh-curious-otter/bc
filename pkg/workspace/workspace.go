@@ -34,6 +34,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/rpuneet/bc/pkg/db"
 	"github.com/rpuneet/bc/pkg/log"
 )
 
@@ -253,31 +254,36 @@ func (w *Workspace) GetRolePrompt(name string) string {
 	return role.Prompt
 }
 
-// initRoleManager creates a role manager with SQLite store for workspace Init.
-// It creates the store, migrates defaults, and ensures filesystem defaults for
-// backward compatibility. Returns the manager plus a close function for the store.
-func initRoleManager(stateDir string) (*RoleManager, func() error, error) {
-	dbPath := filepath.Join(stateDir, "bc.db")
-	store, err := NewRoleStore(dbPath)
-	if err != nil {
-		// Fall back to filesystem-only if SQLite fails
-		log.Warn("failed to open role store, using filesystem", "error", err)
-		rm := NewRoleManager(stateDir)
-		if _, ensureErr := rm.EnsureDefaultRoot(); ensureErr != nil {
-			return nil, nil, ensureErr
+// openRoleStore creates a RoleStore using the shared Postgres connection if
+// DATABASE_URL is set, otherwise falls back to SQLite at .bc/bc.db.
+func openRoleStore(stateDir string) (*RoleStore, error) {
+	if db.IsPostgresEnabled() {
+		pgDB, pgErr := db.TryOpenPostgres()
+		if pgErr != nil {
+			return nil, fmt.Errorf("open postgres for roles: %w", pgErr)
 		}
-		if _, ensureErr := rm.EnsureDefaultRoles(); ensureErr != nil {
-			log.Warn("failed to create default roles", "error", ensureErr)
-		}
-		return rm, func() error { return nil }, nil
+		return NewRoleStoreFromDB(pgDB, "postgres")
 	}
 
-	// Migrate defaults into SQLite
+	dbPath := filepath.Join(stateDir, "bc.db")
+	return NewRoleStore(dbPath)
+}
+
+// initRoleManager creates a role manager with SQL store for workspace Init.
+// It creates the store, migrates defaults, and migrates any legacy filesystem
+// roles. Returns the manager plus a close function for the store.
+func initRoleManager(stateDir string) (*RoleManager, func() error, error) {
+	store, err := openRoleStore(stateDir)
+	if err != nil {
+		return nil, nil, fmt.Errorf("open role store: %w", err)
+	}
+
+	// Migrate defaults into store
 	if migrateErr := store.MigrateDefaults(); migrateErr != nil {
 		log.Warn("failed to migrate default roles to store", "error", migrateErr)
 	}
 
-	// Also migrate any existing files
+	// Also migrate any existing filesystem files
 	rolesDir := filepath.Join(stateDir, "roles")
 	if _, migrateErr := store.MigrateFromFiles(rolesDir); migrateErr != nil {
 		log.Warn("failed to migrate role files to store", "error", migrateErr)
@@ -285,33 +291,32 @@ func initRoleManager(stateDir string) (*RoleManager, func() error, error) {
 
 	rm := NewRoleManagerWithStore(stateDir, store)
 
-	// Still ensure filesystem defaults for backward compatibility
+	// Ensure base and root roles exist in the store
 	if _, ensureErr := rm.EnsureDefaultRoot(); ensureErr != nil {
-		log.Warn("failed to create default root role file", "error", ensureErr)
+		log.Warn("failed to ensure default root role", "error", ensureErr)
 	}
 	if _, ensureErr := rm.EnsureDefaultRoles(); ensureErr != nil {
-		log.Warn("failed to create default role files", "error", ensureErr)
+		log.Warn("failed to ensure default roles", "error", ensureErr)
 	}
 
 	return rm, store.Close, nil
 }
 
-// loadRoleManager creates a role manager with SQLite store for workspace Load.
-// It opens the store, migrates any new files, and loads all roles into the cache.
+// loadRoleManager creates a role manager with SQL store for workspace Load.
+// It opens the store, migrates any new filesystem files, and loads all roles
+// into the cache.
 func loadRoleManager(stateDir string) (*RoleManager, func() error, error) {
-	dbPath := filepath.Join(stateDir, "bc.db")
-	store, err := NewRoleStore(dbPath)
+	store, err := openRoleStore(stateDir)
 	if err != nil {
-		// Fall back to filesystem-only if SQLite fails
-		log.Warn("failed to open role store, using filesystem", "error", err)
-		rm := NewRoleManager(stateDir)
-		if _, loadErr := rm.LoadAllRoles(); loadErr != nil {
-			return nil, nil, loadErr
-		}
-		return rm, func() error { return nil }, nil
+		return nil, nil, fmt.Errorf("open role store: %w", err)
 	}
 
-	// Migrate any filesystem roles that aren't in SQLite yet
+	// Seed defaults if store is empty (e.g. fresh Postgres)
+	if migrateErr := store.MigrateDefaults(); migrateErr != nil {
+		log.Warn("failed to seed default roles", "error", migrateErr)
+	}
+
+	// Migrate any filesystem roles that aren't in the store yet
 	rolesDir := filepath.Join(stateDir, "roles")
 	if _, migrateErr := store.MigrateFromFiles(rolesDir); migrateErr != nil {
 		log.Warn("failed to migrate role files to store", "error", migrateErr)

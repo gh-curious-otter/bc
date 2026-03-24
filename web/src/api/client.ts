@@ -234,6 +234,64 @@ export interface AgentStatsRecord {
   block_write_mb: number;
 }
 
+// TimescaleDB timeseries types
+export interface SystemMetricTS {
+  time: string;
+  system_name: string;
+  cpu_percent: number;
+  mem_used_bytes: number;
+  mem_limit_bytes: number;
+  mem_percent: number;
+  net_rx_bytes: number;
+  net_tx_bytes: number;
+  disk_read_bytes: number;
+  disk_write_bytes: number;
+}
+
+export interface AgentMetricTS {
+  time: string;
+  agent_name: string;
+  role: string;
+  tool: string;
+  runtime: string;
+  state: string;
+  cpu_percent: number;
+  mem_used_bytes: number;
+  mem_limit_bytes: number;
+  mem_percent: number;
+  net_rx_bytes: number;
+  net_tx_bytes: number;
+  disk_read_bytes: number;
+  disk_write_bytes: number;
+}
+
+export interface TokenMetricTS {
+  time: string;
+  agent_name: string;
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read: number;
+  cache_create: number;
+  cost_usd: number;
+}
+
+export interface ChannelMetricTS {
+  time: string;
+  channel_name: string;
+  message_count: number;
+  member_count: number;
+  reaction_count: number;
+}
+
+function qs(params?: Record<string, string>): string {
+  if (!params) return "";
+  const s = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== ""),
+  ).toString();
+  return s ? `?${s}` : "";
+}
+
 export interface SettingsConfig {
   User: { Nickname: string };
   TUI: { Theme: string; Mode: string };
@@ -361,7 +419,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ message }),
     }),
-  getAgentStats: (name: string, limit = 20) =>
+  getAgentDockerStats: (name: string, limit = 20) =>
     request<AgentStatsRecord[]>(
       `/agents/${encodeURIComponent(name)}/stats?${new URLSearchParams({ limit: String(limit) })}`,
     ),
@@ -521,6 +579,18 @@ export const api = {
   getStatsSystem: () => request<SystemStats>("/stats/system"),
   getStatsSummary: () => request<StatsSummary>("/stats/summary"),
   getStatsChannels: () => request<ChannelStats[]>("/stats/channels"),
+
+  // Resource-scoped stats (TimescaleDB timeseries)
+  getSystemStats: (metric: string, params?: Record<string, string>) =>
+    request<SystemMetricTS[]>(`/system/stats/${metric}${qs(params)}`),
+  getAgentStats: (metric: string, params?: Record<string, string>) =>
+    request<AgentMetricTS[]>(`/agents/stats/${metric}${qs(params)}`),
+  getAgentTokenStats: (params?: Record<string, string>) =>
+    request<TokenMetricTS[]>(`/agents/stats/tokens${qs(params)}`),
+  getAgentCostStats: (params?: Record<string, string>) =>
+    request<TokenMetricTS[]>(`/agents/stats/cost${qs(params)}`),
+  getChannelStats: (metric: string, params?: Record<string, string>) =>
+    request<ChannelMetricTS[]>(`/channels/stats/${metric}${qs(params)}`),
 
   getSettings: () => request<SettingsConfig>("/settings"),
   updateSettings: (patch: Record<string, unknown>) =>

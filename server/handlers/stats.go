@@ -10,6 +10,7 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/channel"
 	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/stats"
 	"github.com/rpuneet/bc/pkg/tool"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -30,11 +31,12 @@ var serverStartTime = time.Now() //nolint:gochecknoglobals // intentional: track
 
 // StatsHandler handles /api/stats routes.
 type StatsHandler struct {
-	agents   *agent.AgentService
-	channels *channel.ChannelService
-	costs    *cost.Store
-	tools    *tool.Store
-	ws       *workspace.Workspace
+	agents     *agent.AgentService
+	channels   *channel.ChannelService
+	costs      *cost.Store
+	tools      *tool.Store
+	ws         *workspace.Workspace
+	statsStore *stats.Store
 }
 
 // NewStatsHandler creates a StatsHandler.
@@ -44,20 +46,28 @@ func NewStatsHandler(
 	costs *cost.Store,
 	tools *tool.Store,
 	ws *workspace.Workspace,
+	statsStore *stats.Store,
 ) *StatsHandler {
 	return &StatsHandler{
-		agents:   agents,
-		channels: channels,
-		costs:    costs,
-		tools:    tools,
-		ws:       ws,
+		agents:     agents,
+		channels:   channels,
+		costs:      costs,
+		tools:      tools,
+		ws:         ws,
+		statsStore: statsStore,
 	}
 }
 
 // Register mounts stats routes on mux.
 func (h *StatsHandler) Register(mux *http.ServeMux) {
+	// Legacy summary endpoints
 	mux.HandleFunc("/api/stats/system", h.system)
 	mux.HandleFunc("/api/stats/summary", h.summary)
+
+	// New per-resource timeseries endpoints
+	h.RegisterSystemStats(mux)
+	h.RegisterAgentStats(mux)
+	h.RegisterChannelStats(mux)
 }
 
 func (h *StatsHandler) system(w http.ResponseWriter, r *http.Request) {

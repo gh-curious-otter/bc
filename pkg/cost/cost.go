@@ -1,7 +1,8 @@
 // Package cost provides cost tracking and reporting for bc agents.
 //
-// The package uses SQLite for persistent storage of cost records and budgets.
-// Each workspace maintains its own cost database in .bc/bc.db.
+// The package supports both SQLite and PostgreSQL backends for persistent
+// storage of cost records and budgets. Use OpenStore to automatically select
+// the backend (Postgres via DATABASE_URL, falling back to SQLite).
 //
 // # Basic Usage
 //
@@ -112,10 +113,14 @@ type Summary struct {
 	RecordCount  int64   `json:"record_count"`
 }
 
-// Store provides SQLite-backed cost tracking.
+// Store provides cost tracking backed by SQLite or Postgres.
+// When created via OpenStore, the backend field is set and all operations
+// are delegated to it. When created via NewStore/Open (legacy), the store
+// uses its embedded SQLite connection directly.
 type Store struct {
-	db   *bcdb.DB
-	path string
+	db      *bcdb.DB
+	backend CostBackend // non-nil when using Postgres via OpenStore
+	path    string
 }
 
 // NewStore creates a new cost store for the given workspace.
@@ -186,8 +191,39 @@ func (s *Store) initSchema(db *sql.DB) error {
 	return nil
 }
 
+// OpenStore opens the cost store for the workspace.
+// Priority: DATABASE_URL (Postgres) > SQLite (.bc/costs.db).
+func OpenStore(workspacePath string) (*Store, error) {
+	// Try Postgres first when DATABASE_URL is set
+	if bcdb.IsPostgresEnabled() {
+		pgDB, err := bcdb.TryOpenPostgres()
+		if err != nil {
+			log.Warn("failed to connect to Postgres for cost store, falling back to SQLite", "error", err)
+		} else if pgDB != nil {
+			pg := NewPostgresStore(pgDB)
+			if schemaErr := pg.InitSchema(); schemaErr != nil {
+				_ = pg.Close()
+				log.Warn("failed to init Postgres cost schema, falling back to SQLite", "error", schemaErr)
+			} else {
+				log.Debug("cost store: using Postgres backend")
+				return &Store{backend: pg}, nil
+			}
+		}
+	}
+
+	// SQLite fallback
+	store := NewStore(workspacePath)
+	if err := store.Open(); err != nil {
+		return nil, fmt.Errorf("open cost store: %w", err)
+	}
+	return store, nil
+}
+
 // Close closes the database connection.
 func (s *Store) Close() error {
+	if s.backend != nil {
+		return s.backend.Close()
+	}
 	if s.db != nil {
 		return s.db.Close()
 	}
@@ -196,11 +232,18 @@ func (s *Store) Close() error {
 
 // DB returns the underlying database connection.
 func (s *Store) DB() *sql.DB {
+	if s.backend != nil {
+		return s.backend.DB()
+	}
 	return s.db.DB
 }
 
 // Record adds a new cost record.
 func (s *Store) Record(ctx context.Context, agentID, teamID, model string, inputTokens, outputTokens int64, costUSD float64) (*Record, error) {
+	if s.backend != nil {
+		return s.backend.Record(ctx, agentID, teamID, model, inputTokens, outputTokens, costUSD)
+	}
+
 	totalTokens := inputTokens + outputTokens
 
 	var teamPtr *string
@@ -223,6 +266,10 @@ func (s *Store) Record(ctx context.Context, agentID, teamID, model string, input
 
 // GetByID returns a cost record by ID.
 func (s *Store) GetByID(ctx context.Context, id int64) (*Record, error) {
+	if s.backend != nil {
+		return s.backend.GetByID(ctx, id)
+	}
+
 	row := s.db.QueryRowContext(ctx,
 		`SELECT id, agent_id, team_id, model, input_tokens, output_tokens, total_tokens, cost_usd, timestamp
 		 FROM cost_records WHERE id = ?`,
@@ -255,11 +302,18 @@ func (s *Store) scanRecord(row *sql.Row) (*Record, error) {
 
 // GetByAgent returns all cost records for an agent.
 func (s *Store) GetByAgent(ctx context.Context, agentID string, limit int) ([]*Record, error) {
+	if s.backend != nil {
+		return s.backend.GetByAgent(ctx, agentID, limit)
+	}
 	return s.GetByAgentWithOffset(ctx, agentID, limit, 0)
 }
 
 // GetByAgentWithOffset returns cost records for an agent with pagination support.
 func (s *Store) GetByAgentWithOffset(ctx context.Context, agentID string, limit, offset int) ([]*Record, error) {
+	if s.backend != nil {
+		return s.backend.GetByAgentWithOffset(ctx, agentID, limit, offset)
+	}
+
 	if limit <= 0 {
 		limit = 100
 	}
@@ -282,6 +336,10 @@ func (s *Store) GetByAgentWithOffset(ctx context.Context, agentID string, limit,
 
 // GetByTeam returns all cost records for a team.
 func (s *Store) GetByTeam(ctx context.Context, teamID string, limit int) ([]*Record, error) {
+	if s.backend != nil {
+		return s.backend.GetByTeam(ctx, teamID, limit)
+	}
+
 	if limit <= 0 {
 		limit = 100
 	}
@@ -301,11 +359,18 @@ func (s *Store) GetByTeam(ctx context.Context, teamID string, limit int) ([]*Rec
 
 // GetAll returns all cost records.
 func (s *Store) GetAll(ctx context.Context, limit int) ([]*Record, error) {
+	if s.backend != nil {
+		return s.backend.GetAll(ctx, limit)
+	}
 	return s.GetAllWithOffset(ctx, limit, 0)
 }
 
 // GetAllWithOffset returns cost records with pagination support.
 func (s *Store) GetAllWithOffset(ctx context.Context, limit, offset int) ([]*Record, error) {
+	if s.backend != nil {
+		return s.backend.GetAllWithOffset(ctx, limit, offset)
+	}
+
 	if limit <= 0 {
 		limit = 100
 	}
@@ -350,6 +415,10 @@ func (s *Store) scanRecords(rows *sql.Rows) ([]*Record, error) {
 
 // SummaryByAgent returns aggregated costs per agent.
 func (s *Store) SummaryByAgent(ctx context.Context) ([]*Summary, error) {
+	if s.backend != nil {
+		return s.backend.SummaryByAgent(ctx)
+	}
+
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT agent_id, SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
 		 FROM cost_records GROUP BY agent_id ORDER BY SUM(cost_usd) DESC`,
@@ -372,6 +441,10 @@ func (s *Store) SummaryByAgent(ctx context.Context) ([]*Summary, error) {
 
 // SummaryByTeam returns aggregated costs per team.
 func (s *Store) SummaryByTeam(ctx context.Context) ([]*Summary, error) {
+	if s.backend != nil {
+		return s.backend.SummaryByTeam(ctx)
+	}
+
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT team_id, SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
 		 FROM cost_records WHERE team_id IS NOT NULL GROUP BY team_id ORDER BY SUM(cost_usd) DESC`,
@@ -396,6 +469,10 @@ func (s *Store) SummaryByTeam(ctx context.Context) ([]*Summary, error) {
 
 // SummaryByModel returns aggregated costs per model.
 func (s *Store) SummaryByModel(ctx context.Context) ([]*Summary, error) {
+	if s.backend != nil {
+		return s.backend.SummaryByModel(ctx)
+	}
+
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT model, SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
 		 FROM cost_records GROUP BY model ORDER BY SUM(cost_usd) DESC`,
@@ -418,6 +495,10 @@ func (s *Store) SummaryByModel(ctx context.Context) ([]*Summary, error) {
 
 // WorkspaceSummary returns the total cost summary for the entire workspace.
 func (s *Store) WorkspaceSummary(ctx context.Context) (*Summary, error) {
+	if s.backend != nil {
+		return s.backend.WorkspaceSummary(ctx)
+	}
+
 	row := s.db.QueryRowContext(ctx,
 		`SELECT SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
 		 FROM cost_records`,
@@ -443,6 +524,10 @@ func (s *Store) WorkspaceSummary(ctx context.Context) (*Summary, error) {
 
 // AgentSummary returns the cost summary for a specific agent.
 func (s *Store) AgentSummary(ctx context.Context, agentID string) (*Summary, error) {
+	if s.backend != nil {
+		return s.backend.AgentSummary(ctx, agentID)
+	}
+
 	row := s.db.QueryRowContext(ctx,
 		`SELECT SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
 		 FROM cost_records WHERE agent_id = ?`,
@@ -470,6 +555,10 @@ func (s *Store) AgentSummary(ctx context.Context, agentID string) (*Summary, err
 
 // TeamSummary returns the cost summary for a specific team.
 func (s *Store) TeamSummary(ctx context.Context, teamID string) (*Summary, error) {
+	if s.backend != nil {
+		return s.backend.TeamSummary(ctx, teamID)
+	}
+
 	row := s.db.QueryRowContext(ctx,
 		`SELECT SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
 		 FROM cost_records WHERE team_id = ?`,
@@ -497,6 +586,9 @@ func (s *Store) TeamSummary(ctx context.Context, teamID string) (*Summary, error
 
 // SetBudget creates or updates a budget for the given scope.
 func (s *Store) SetBudget(ctx context.Context, scope string, period BudgetPeriod, limitUSD, alertAt float64, hardStop bool) (*Budget, error) {
+	if s.backend != nil {
+		return s.backend.SetBudget(ctx, scope, period, limitUSD, alertAt, hardStop)
+	}
 
 	hardStopInt := 0
 	if hardStop {
@@ -523,6 +615,10 @@ func (s *Store) SetBudget(ctx context.Context, scope string, period BudgetPeriod
 
 // GetBudget returns the budget for a given scope.
 func (s *Store) GetBudget(ctx context.Context, scope string) (*Budget, error) {
+	if s.backend != nil {
+		return s.backend.GetBudget(ctx, scope)
+	}
+
 	row := s.db.QueryRowContext(ctx,
 		`SELECT id, scope, period, limit_usd, alert_at, hard_stop, updated_at
 		 FROM cost_budgets WHERE scope = ?`,
@@ -552,6 +648,10 @@ func (s *Store) GetBudget(ctx context.Context, scope string) (*Budget, error) {
 
 // GetAllBudgets returns all configured budgets.
 func (s *Store) GetAllBudgets(ctx context.Context) ([]*Budget, error) {
+	if s.backend != nil {
+		return s.backend.GetAllBudgets(ctx)
+	}
+
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, scope, period, limit_usd, alert_at, hard_stop, updated_at
 		 FROM cost_budgets ORDER BY scope`,
@@ -584,6 +684,10 @@ func (s *Store) GetAllBudgets(ctx context.Context) ([]*Budget, error) {
 
 // DeleteBudget removes a budget for the given scope.
 func (s *Store) DeleteBudget(ctx context.Context, scope string) error {
+	if s.backend != nil {
+		return s.backend.DeleteBudget(ctx, scope)
+	}
+
 	result, err := s.db.ExecContext(ctx, "DELETE FROM cost_budgets WHERE scope = ?", scope)
 	if err != nil {
 		return fmt.Errorf("failed to delete budget: %w", err)
@@ -597,6 +701,10 @@ func (s *Store) DeleteBudget(ctx context.Context, scope string) error {
 
 // CheckBudget returns the current status against a budget.
 func (s *Store) CheckBudget(ctx context.Context, scope string) (*BudgetStatus, error) {
+	if s.backend != nil {
+		return s.backend.CheckBudget(ctx, scope)
+	}
+
 	budget, err := s.GetBudget(ctx, scope)
 	if err != nil {
 		return nil, err
@@ -664,6 +772,10 @@ func (s *Store) CheckBudget(ctx context.Context, scope string) (*BudgetStatus, e
 
 // Clear removes all cost records.
 func (s *Store) Clear(ctx context.Context) error {
+	if s.backend != nil {
+		return s.backend.Clear(ctx)
+	}
+
 	_, err := s.db.ExecContext(ctx, "DELETE FROM cost_records")
 	if err != nil {
 		return fmt.Errorf("failed to clear cost records: %w", err)
@@ -703,6 +815,10 @@ type Projection struct {
 
 // GetDailyCosts returns daily cost totals since the given time.
 func (s *Store) GetDailyCosts(ctx context.Context, since time.Time) ([]*DailyCost, error) {
+	if s.backend != nil {
+		return s.backend.GetDailyCosts(ctx, since)
+	}
+
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT
 			date(timestamp) as day,
@@ -735,6 +851,10 @@ func (s *Store) GetDailyCosts(ctx context.Context, since time.Time) ([]*DailyCos
 
 // GetAgentDailyCosts returns daily cost totals per agent since the given time.
 func (s *Store) GetAgentDailyCosts(ctx context.Context, since time.Time) ([]*AgentDailyCost, error) {
+	if s.backend != nil {
+		return s.backend.GetAgentDailyCosts(ctx, since)
+	}
+
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT
 			agent_id,
@@ -768,6 +888,10 @@ func (s *Store) GetAgentDailyCosts(ctx context.Context, since time.Time) ([]*Age
 
 // GetSummarySince returns a summary of costs since the given time.
 func (s *Store) GetSummarySince(ctx context.Context, since time.Time) (*Summary, error) {
+	if s.backend != nil {
+		return s.backend.GetSummarySince(ctx, since)
+	}
+
 	row := s.db.QueryRowContext(ctx,
 		`SELECT
 			COALESCE(SUM(input_tokens), 0),
@@ -789,6 +913,10 @@ func (s *Store) GetSummarySince(ctx context.Context, since time.Time) (*Summary,
 
 // GetAgentSummarySince returns per-agent summaries since the given time.
 func (s *Store) GetAgentSummarySince(ctx context.Context, since time.Time) ([]*Summary, error) {
+	if s.backend != nil {
+		return s.backend.GetAgentSummarySince(ctx, since)
+	}
+
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT
 			agent_id,
@@ -821,6 +949,10 @@ func (s *Store) GetAgentSummarySince(ctx context.Context, since time.Time) ([]*S
 
 // ProjectCost calculates a projected cost based on historical daily average.
 func (s *Store) ProjectCost(ctx context.Context, lookbackDays int, projectDuration time.Duration) (*Projection, error) {
+	if s.backend != nil {
+		return s.backend.ProjectCost(ctx, lookbackDays, projectDuration)
+	}
+
 	since := time.Now().AddDate(0, 0, -lookbackDays)
 	dailyCosts, err := s.GetDailyCosts(ctx, since)
 	if err != nil {

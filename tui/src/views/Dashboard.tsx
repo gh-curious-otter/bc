@@ -17,16 +17,11 @@ import {
   type CostStatus,
 } from '../theme/StatusColors.js';
 
-interface DashboardProps {
-  /** @deprecated Use navigation context instead */
-  onNavigate?: (view: string) => void;
-}
-
 /**
  * Dashboard view - main overview of bc workspace
  * Issues #543 (layout), #544 (stats components), #931 (shortcuts fix)
  */
-export function Dashboard({ onNavigate: _onNavigate }: DashboardProps) {
+export function Dashboard() {
   const { stdout } = useStdout();
   const terminalWidth = stdout.columns;
   const isNarrow = terminalWidth < 100;

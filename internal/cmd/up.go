@@ -1,125 +1,188 @@
 package cmd
 
 import (
+	"context"
+	"crypto/sha256"
 	"fmt"
+	"net/http"
+	"os/exec"
+	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/ui"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 var upCmd = &cobra.Command{
 	Use:   "up",
-	Short: "Start bc agents",
-	Long: `Start the bc agent system via the bcd daemon.
-
-Starts the root agent through the running bcd daemon.
+	Short: "Start bc services",
+	Long: `Start bc-sql, bc-stats, and bc-<id>-daemon in Docker.
 
 Examples:
-  bc up                      # Start root agent
-  bc up --agent cursor       # Use Cursor AI for agents
-  bc up --runtime docker     # Use Docker runtime`,
+  bc up
+  bc up --port 9000
+  bc up --port 8080 --workspace /path/to/workspace`,
 	RunE: runUp,
 }
 
 var (
-	upAgent   string
-	upRuntime string
+	upPort      string
+	upWorkspace string
 )
 
 func init() {
-	upCmd.Flags().StringVar(&upAgent, "agent", "", "Agent type from config (e.g. claude, cursor, cursor-agent, codex)")
-	upCmd.Flags().StringVar(&upRuntime, "runtime", "", "Runtime backend override: tmux or docker")
+	upCmd.Flags().StringVar(&upPort, "port", "9374", "Host port for bcd")
+	upCmd.Flags().StringVar(&upWorkspace, "workspace", "", "Workspace directory (defaults to current workspace)")
 	rootCmd.AddCommand(upCmd)
 }
 
-func buildBootstrapPrompt(rootDir string) string {
-	return fmt.Sprintf(`- ROOT: ORCHESTRATOR & SYSTEM AGENT
-
-=== CORE IDENTITY ===
-Role: Root orchestrator - system-level agent ensuring workspace health
-Purpose: Monitor all agents, detect issues, maintain smooth operation
-Authority: System-level oversight - NEVER assign work, only maintain health
-Tools: ONLY bc commands - no direct file manipulation or other tools
-Workspace: %s
-
-=== ROOT RESPONSIBILITIES ===
-1. System Health: Monitor all agents via bc status, bc dashboard
-2. Agent Health: Detect stuck agents via bc agent peek, send nudges when needed
-4. Worktree Health: Monitor via bc worktree list, prune orphaned worktrees
-5. Event Monitoring: Track activity via bc logs
-6. Cost Monitoring: Track resource usage via bc cost show
-
-=== BC COMMAND REFERENCE ===
-
-** Agent Operations **
-bc agent list                       # List all agents
-bc agent peek NAME                  # View agent output (detect if stuck)
-bc agent send NAME "message"        # Send health nudge
-bc agent stop NAME                  # Stop agent (use sparingly)
-bc agent create NAME --role ROLE    # Create new agent
-
-** System Status **
-bc status                           # All agents overview
-bc logs                             # Show all events
-bc logs --agent NAME                # Filter by agent
-
-** Configuration **
-bc config show                      # Show all config
-bc config get KEY                   # Get config value
-bc config set KEY VALUE             # Set config value
-
-** Role Management **
-bc role list                        # List all roles
-bc role show ROLE                   # Show role details
-bc role create --name NAME          # Create new role
-
-=== MONITORING WORKFLOW ===
-1. Check system: bc status
-2. Review activity: bc logs --since 1h
-3. If agent stuck: bc agent peek NAME → bc agent send NAME "nudge message"
-`, rootDir)
-}
-
-func runUp(cmd *cobra.Command, args []string) error {
-	log.Debug("up command started", "agent", upAgent, "runtime", upRuntime)
-
-	c, err := newDaemonClient(cmd.Context())
-	if err != nil {
-		return err
+func runUp(cmd *cobra.Command, _ []string) error {
+	var ws *workspace.Workspace
+	var err error
+	if upWorkspace != "" {
+		ws, err = workspace.Load(upWorkspace)
+		if err != nil {
+			return fmt.Errorf("cannot load workspace at %s: %w", upWorkspace, err)
+		}
+	} else {
+		ws, err = getWorkspace()
+		if err != nil {
+			return errNotInWorkspace(err)
+		}
 	}
 
-	ws, wsErr := getWorkspace()
-	if wsErr != nil {
-		return errNotInWorkspace(wsErr)
-	}
+	ctx := cmd.Context()
+	id := wsID(ws.RootDir)
 
 	fmt.Printf("Starting bc in %s\n\n", ws.RootDir)
-	fmt.Print("Starting root... ")
 
-	result, upErr := c.Workspaces.Up(cmd.Context(), upAgent, upRuntime)
-	if upErr != nil {
-		fmt.Println("✗")
-		return fmt.Errorf("failed to start: %w", upErr)
+	// 1. bc-sql — persistent volume for Postgres data
+	dockerRun(ctx, "bc-sql", []string{
+		"-p", "5432:5432",
+		"-e", "POSTGRES_PASSWORD=bc",
+		"-v", "bc-sql-data:/var/lib/postgresql/data",
+		"--restart", "always",
+		"bc-bcsql:latest",
+	})
+
+	// 2. bc-stats — persistent volume for TimescaleDB data
+	dockerRun(ctx, "bc-stats", []string{
+		"-p", "5433:5432",
+		"-e", "POSTGRES_PASSWORD=bc",
+		"-v", "bc-stats-data:/var/lib/postgresql/data",
+		"--restart", "always",
+		"bc-bcstats:latest",
+	})
+
+	// 3. Wait for databases
+	fmt.Print("  Waiting for databases... ")
+	waitPG(ctx, "bc-sql", 30*time.Second)
+	waitPG(ctx, "bc-stats", 30*time.Second)
+	fmt.Println(ui.GreenText("ready"))
+
+	// 4. bc-<id>-daemon with docker.sock + workspace mount
+	daemonName := fmt.Sprintf("bc-%s-daemon", id)
+	dockerRun(ctx, daemonName, []string{
+		"-p", upPort + ":9374",
+		"-v", ws.RootDir + ":/workspace",
+		"-v", "/var/run/docker.sock:/var/run/docker.sock",
+		"-e", "DATABASE_URL=postgres://bc:bc@host.docker.internal:5432/bc",
+		"-e", "STATS_DATABASE_URL=postgres://bc:bc@host.docker.internal:5433/bcstats",
+		"-e", "BC_HOST_WORKSPACE=" + ws.RootDir,
+		"--restart", "always",
+		"bc-daemon:latest",
+		"--addr", "0.0.0.0:9374",
+		"--workspace", "/workspace",
+	})
+
+	// 5. Wait for bcd
+	addr := fmt.Sprintf("127.0.0.1:%s", upPort)
+	fmt.Print("  Waiting for bcd... ")
+	if waitHTTP(ctx, addr, 30*time.Second) != nil {
+		fmt.Println(ui.YellowText("slow"))
+	} else {
+		fmt.Println(ui.GreenText("ready"))
 	}
 
-	status, _ := result["status"].(string)
-	if status == "already_running" {
-		fmt.Println("already running")
-		fmt.Println()
-		fmt.Println("Root agent is already running.")
-		fmt.Println("Use 'bc agent attach root' to attach or 'bc down' first to restart.")
-		return nil
-	}
-
-	fmt.Println("✓")
 	fmt.Println()
-	fmt.Println("Root agent started!")
+	fmt.Printf("  %s bc workspace ready\n", ui.GreenText("ok"))
+	fmt.Printf("  bcd:      http://%s\n", addr)
+	fmt.Println("  bc-sql:   localhost:5432")
+	fmt.Println("  bc-stats: localhost:5433")
 	fmt.Println()
-	fmt.Println("Commands:")
-	fmt.Println("  bc status             # View agent status")
-	fmt.Println("  bc agent attach root  # Attach to root session")
-	fmt.Println("  bc down               # Stop all agents")
 
 	return nil
+}
+
+// dockerRun starts a container if not already running.
+func dockerRun(ctx context.Context, name string, args []string) {
+	// Check if already running
+	//nolint:gosec // trusted
+	out, _ := exec.CommandContext(ctx, "docker", "inspect", "-f", "{{.State.Running}}", name).Output()
+	if strings.TrimSpace(string(out)) == "true" {
+		fmt.Printf("  %s %s (already running)\n", ui.GreenText("ok"), name)
+		return
+	}
+
+	// Remove stale container
+	//nolint:gosec // trusted
+	_ = exec.CommandContext(ctx, "docker", "rm", "-f", name).Run()
+
+	// Start
+	fmt.Printf("  Starting %s... ", name)
+	cmdArgs := append([]string{"run", "-d", "--name", name}, args...)
+	//nolint:gosec // trusted
+	cmd := exec.CommandContext(ctx, "docker", cmdArgs...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		fmt.Println(ui.YellowText(fmt.Sprintf("failed (%v)", err)))
+		log.Debug("docker run failed", "name", name, "output", string(output))
+		return
+	}
+	fmt.Println(ui.GreenText("started"))
+}
+
+// waitPG polls pg_isready inside a container.
+func waitPG(ctx context.Context, name string, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		//nolint:gosec // trusted
+		if exec.CommandContext(ctx, "docker", "exec", name, "pg_isready", "-U", "bc").Run() == nil {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Second):
+		}
+	}
+}
+
+// waitHTTP polls a health endpoint.
+func waitHTTP(ctx context.Context, addr string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	url := fmt.Sprintf("http://%s/health", addr)
+	for time.Now().Before(deadline) {
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if resp, err := http.DefaultClient.Do(req); err == nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode == 200 {
+				return nil
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
+	return fmt.Errorf("timeout")
+}
+
+// wsID returns a short workspace hash for container naming.
+func wsID(path string) string {
+	h := sha256.Sum256([]byte(path))
+	return fmt.Sprintf("%x", h[:3])
 }

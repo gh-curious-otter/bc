@@ -133,7 +133,7 @@ function getCachedResult<T>(key: string): CacheLookupResult<T> {
 /**
  * Store result in cache with TTL
  */
-function setCachedResult<T>(key: string, data: T, ttl: number): void {
+function setCachedResult(key: string, data: unknown, ttl: number): void {
   commandCache.set(key, {
     data,
     timestamp: Date.now(),

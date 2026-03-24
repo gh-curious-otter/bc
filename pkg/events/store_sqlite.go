@@ -1,6 +1,7 @@
 package events
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -33,7 +34,7 @@ func NewSQLiteLog(dbPath string) (*SQLiteLog, error) {
 		CREATE INDEX IF NOT EXISTS idx_events_agent ON events(agent);
 		CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp DESC);
 	`
-	if _, err := d.Exec(schema); err != nil {
+	if _, err := d.ExecContext(context.Background(), schema); err != nil {
 		_ = d.Close()
 		return nil, fmt.Errorf("create events table: %w", err)
 	}
@@ -57,7 +58,7 @@ func (l *SQLiteLog) Append(event Event) error {
 		dataJSON = &s
 	}
 
-	_, err := l.db.Exec(
+	_, err := l.db.ExecContext(context.Background(),
 		"INSERT INTO events (type, agent, message, data, timestamp) VALUES (?, ?, ?, ?, ?)",
 		string(event.Type),
 		nilStr(event.Agent),
@@ -70,7 +71,7 @@ func (l *SQLiteLog) Append(event Event) error {
 
 // Read returns all events ordered by timestamp.
 func (l *SQLiteLog) Read() ([]Event, error) {
-	rows, err := l.db.Query(
+	rows, err := l.db.QueryContext(context.Background(),
 		"SELECT type, agent, message, data, timestamp FROM events ORDER BY id ASC LIMIT 1000",
 	)
 	if err != nil {
@@ -83,7 +84,7 @@ func (l *SQLiteLog) Read() ([]Event, error) {
 
 // ReadLast returns the last n events.
 func (l *SQLiteLog) ReadLast(n int) ([]Event, error) {
-	rows, err := l.db.Query(
+	rows, err := l.db.QueryContext(context.Background(),
 		"SELECT type, agent, message, data, timestamp FROM events ORDER BY id DESC LIMIT ?", n,
 	)
 	if err != nil {
@@ -105,7 +106,7 @@ func (l *SQLiteLog) ReadLast(n int) ([]Event, error) {
 
 // ReadByAgent returns events for a specific agent.
 func (l *SQLiteLog) ReadByAgent(name string) ([]Event, error) {
-	rows, err := l.db.Query(
+	rows, err := l.db.QueryContext(context.Background(),
 		"SELECT type, agent, message, data, timestamp FROM events WHERE agent = ? ORDER BY id ASC LIMIT 1000", name,
 	)
 	if err != nil {

@@ -109,10 +109,10 @@ describe('DemonsView Schedule Formatting', () => {
     if (schedule === '* * * * *') return 'every minute';
     if (schedule === '0 * * * *') return 'every hour';
     if (schedule.startsWith('*/')) {
-      const match = schedule.match(/^\*\/(\d+) \* \* \* \*$/);
+      const match = /^\*\/(\d+) \* \* \* \*$/.exec(schedule);
       if (match) return `every ${match[1]} min`;
     }
-    if (schedule.match(/^0 \d+ \* \* \*$/)) {
+    if (/^0 \d+ \* \* \*$/.exec(schedule)) {
       const hour = schedule.split(' ')[1];
       return `daily at ${hour}:00`;
     }

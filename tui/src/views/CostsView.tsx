@@ -22,8 +22,7 @@ import {
   type AgentEntry,
 } from './costs';
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-interface CostsViewProps {}
+type CostsViewProps = Record<string, never>;
 
 export function CostsView(_props: CostsViewProps = {}): React.ReactElement {
   const { theme } = useTheme();

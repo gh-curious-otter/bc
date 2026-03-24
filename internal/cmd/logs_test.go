@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,14 @@ import (
 // and returns the root dir plus a cleanup function.
 func setupLogsWorkspace(t *testing.T) (string, func()) {
 	t.Helper()
+
+	// Skip if a real bcd daemon is running — these tests use the global rootCmd
+	// and will connect to the live daemon instead of the temp workspace.
+	resp, err := http.Get("http://127.0.0.1:9374/healthz") //nolint:gosec,noctx // test probe
+	if err == nil {
+		_ = resp.Body.Close() //nolint:errcheck // test probe
+		t.Skip("skipping: bcd daemon is running — tests would hit the live instance")
+	}
 
 	origDir, err := os.Getwd()
 	if err != nil {

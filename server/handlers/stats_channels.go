@@ -1,0 +1,89 @@
+package handlers
+
+import (
+	"net/http"
+
+	"github.com/rpuneet/bc/pkg/stats"
+)
+
+// RegisterChannelStats mounts channel stats routes on the mux.
+func (h *StatsHandler) RegisterChannelStats(mux *http.ServeMux) {
+	mux.HandleFunc("/api/channels/stats/messages", h.channelMessages)
+	mux.HandleFunc("/api/channels/stats/members", h.channelMembers)
+	mux.HandleFunc("/api/channels/stats/reactions", h.channelReactions)
+}
+
+func (h *StatsHandler) channelMessages(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	sq := parseStatsQuery(r, "channel")
+	f := stats.ChannelFilter{
+		Channel: sq.Filters["channel"],
+	}
+
+	if h.statsStore == nil {
+		writeJSON(w, http.StatusOK, []stats.ChannelMetric{})
+		return
+	}
+
+	metrics, err := h.statsStore.QueryChannelMessages(r.Context(), f, sq.TimeRange)
+	if err != nil {
+		httpInternalError(w, "query channel messages", err)
+		return
+	}
+	if metrics == nil {
+		metrics = []stats.ChannelMetric{}
+	}
+	writeJSON(w, http.StatusOK, metrics)
+}
+
+func (h *StatsHandler) channelMembers(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	sq := parseStatsQuery(r, "channel")
+	f := stats.ChannelFilter{
+		Channel: sq.Filters["channel"],
+	}
+
+	if h.statsStore == nil {
+		writeJSON(w, http.StatusOK, []stats.ChannelMetric{})
+		return
+	}
+
+	metrics, err := h.statsStore.QueryChannelMembers(r.Context(), f, sq.TimeRange)
+	if err != nil {
+		httpInternalError(w, "query channel members", err)
+		return
+	}
+	if metrics == nil {
+		metrics = []stats.ChannelMetric{}
+	}
+	writeJSON(w, http.StatusOK, metrics)
+}
+
+func (h *StatsHandler) channelReactions(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	sq := parseStatsQuery(r, "channel")
+	f := stats.ChannelFilter{
+		Channel: sq.Filters["channel"],
+	}
+
+	if h.statsStore == nil {
+		writeJSON(w, http.StatusOK, []stats.ChannelMetric{})
+		return
+	}
+
+	metrics, err := h.statsStore.QueryChannelReactions(r.Context(), f, sq.TimeRange)
+	if err != nil {
+		httpInternalError(w, "query channel reactions", err)
+		return
+	}
+	if metrics == nil {
+		metrics = []stats.ChannelMetric{}
+	}
+	writeJSON(w, http.StatusOK, metrics)
+}

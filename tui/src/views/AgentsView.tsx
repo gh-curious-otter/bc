@@ -36,8 +36,7 @@ import {
   type AgentAction,
 } from './agents';
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface -- AgentsView has no props currently
-interface AgentsViewProps {}
+type AgentsViewProps = Record<string, never>;
 
 /** Action feedback display duration in ms */
 const ACTION_FEEDBACK_DURATION = 2500;

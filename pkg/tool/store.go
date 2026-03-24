@@ -88,9 +88,10 @@ var builtinTools = []Tool{
 	},
 }
 
-// Store provides SQLite-backed tool management.
+// Store provides tool management backed by SQLite or Postgres.
 type Store struct {
 	db   *db.DB
+	pg   *PostgresStore // non-nil when using Postgres via OpenStore
 	path string
 }
 
@@ -125,6 +126,9 @@ func (s *Store) Open() error {
 
 // Close closes the database connection.
 func (s *Store) Close() error {
+	if s.pg != nil {
+		return s.pg.Close()
+	}
 	if s.db != nil {
 		return s.db.Close()
 	}
@@ -224,6 +228,9 @@ func (s *Store) add(ctx context.Context, t *Tool) error {
 
 // Add inserts a new tool. Returns an error if a tool with that name already exists.
 func (s *Store) Add(ctx context.Context, t *Tool) error {
+	if s.pg != nil {
+		return s.pg.Add(ctx, t)
+	}
 	if t.Name == "" {
 		return fmt.Errorf("tool name is required")
 	}
@@ -239,6 +246,9 @@ func (s *Store) Add(ctx context.Context, t *Tool) error {
 
 // Get returns a tool by name. Returns nil, nil if not found.
 func (s *Store) Get(ctx context.Context, name string) (*Tool, error) {
+	if s.pg != nil {
+		return s.pg.Get(ctx, name)
+	}
 	row := s.db.QueryRowContext(ctx,
 		`SELECT name, command, install_cmd, upgrade_cmd, slash_cmds, mcp_servers, config, builtin, enabled, created_at
 		 FROM tools WHERE name = ?`, name)
@@ -269,6 +279,9 @@ func scanTool(row *sql.Row) (*Tool, error) {
 
 // List returns all tools.
 func (s *Store) List(ctx context.Context) ([]*Tool, error) {
+	if s.pg != nil {
+		return s.pg.List(ctx)
+	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT name, command, install_cmd, upgrade_cmd, slash_cmds, mcp_servers, config, builtin, enabled, created_at
 		 FROM tools ORDER BY builtin DESC, name ASC`)
@@ -301,6 +314,9 @@ func (s *Store) List(ctx context.Context) ([]*Tool, error) {
 
 // Update replaces a tool's mutable fields (command, install_cmd, upgrade_cmd, slash_cmds, mcp_servers, config, enabled).
 func (s *Store) Update(ctx context.Context, t *Tool) error {
+	if s.pg != nil {
+		return s.pg.Update(ctx, t)
+	}
 	slashCmds, err := marshalJSON(t.SlashCmds)
 	if err != nil {
 		return err
@@ -336,6 +352,9 @@ func (s *Store) Update(ctx context.Context, t *Tool) error {
 
 // Delete removes a tool by name.
 func (s *Store) Delete(ctx context.Context, name string) error {
+	if s.pg != nil {
+		return s.pg.Delete(ctx, name)
+	}
 	res, err := s.db.ExecContext(ctx, `DELETE FROM tools WHERE name = ?`, name)
 	if err != nil {
 		return err
@@ -352,6 +371,9 @@ func (s *Store) Delete(ctx context.Context, name string) error {
 
 // SetEnabled enables or disables a tool.
 func (s *Store) SetEnabled(ctx context.Context, name string, enabled bool) error {
+	if s.pg != nil {
+		return s.pg.SetEnabled(ctx, name, enabled)
+	}
 	res, err := s.db.ExecContext(ctx, `UPDATE tools SET enabled=? WHERE name=?`, enabled, name)
 	if err != nil {
 		return err

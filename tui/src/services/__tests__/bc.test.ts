@@ -3,25 +3,30 @@
  * Validates that service properly executes bc commands and parses responses
  *
  * #1066: Uses dependency injection via _setSpawnForTesting() for proper test isolation.
- * This avoids mock.module() conflicts when running full test suite in parallel.
+ *
+ * IMPORTANT: Other test files use mock.module() to mock the bc service module globally.
+ * To ensure these tests use the REAL implementation, we use dynamic import with a
+ * cache-busting query string to bypass Bun's mock.module resolution.
  */
 
 import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
-import type { ChildProcess } from 'child_process';
-import {
+
+// Import the real bc module bypassing any mock.module() contamination from other test files.
+// Bun's mock.module replaces module resolution globally, but a query string on the .ts
+// extension creates a separate module identity that isn't affected by the mock.
+const bc = await import('../bc.ts?test-real=1');
+const {
   execBc,
   execBcJson,
   getStatus,
   getChannels,
   getChannelHistory,
-  sendChannelMessage,
   getCostSummary,
-  reportState,
   getDemons,
   getTeams,
   clearCache,
   _setSpawnForTesting,
-} from '../bc';
+} = bc;
 
 // Mock process factory - creates a mock ChildProcess-like object
 const mockFn = () => mock(() => {});
@@ -42,7 +47,7 @@ describe('execBc - Basic command execution', () => {
     mockSpawnImpl = mock(() => mockProcessorFactory());
     // Inject mock spawn before each test
     restoreSpawn = _setSpawnForTesting(
-      mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]
+      mockSpawnImpl as unknown
     );
   });
 
@@ -82,7 +87,7 @@ describe('execBc - Basic command execution', () => {
     it(name, async () => {
       const mockProc = mockProcessorFactory();
       mockSpawnImpl = mock(() => mockProc);
-      _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+      _setSpawnForTesting(mockSpawnImpl as unknown);
 
       setTimeout(() => {
         // Simulate stdout data
@@ -105,7 +110,7 @@ describe('execBc - Basic command execution', () => {
   it('automatically adds --json flag for supported commands', async () => {
     const mockProc = mockProcessorFactory();
     mockSpawnImpl = mock(() => mockProc);
-    _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    _setSpawnForTesting(mockSpawnImpl as unknown);
 
     setTimeout(() => {
       const onCalls = (mockProc.on as ReturnType<typeof mock>).mock.calls;
@@ -122,7 +127,7 @@ describe('execBc - Basic command execution', () => {
   it('does not duplicate --json flag if already present', async () => {
     const mockProc = mockProcessorFactory();
     mockSpawnImpl = mock(() => mockProc);
-    _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    _setSpawnForTesting(mockSpawnImpl as unknown);
 
     setTimeout(() => {
       const onCalls = (mockProc.on as ReturnType<typeof mock>).mock.calls;
@@ -143,7 +148,7 @@ describe('execBcJson - JSON parsing', () => {
     clearCache();
     mockSpawnImpl = mock(() => mockProcessorFactory());
     restoreSpawn = _setSpawnForTesting(
-      mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]
+      mockSpawnImpl as unknown
     );
   });
 
@@ -157,7 +162,7 @@ describe('execBcJson - JSON parsing', () => {
   it('parses valid JSON response', async () => {
     const mockProc = mockProcessorFactory();
     mockSpawnImpl = mock(() => mockProc);
-    _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    _setSpawnForTesting(mockSpawnImpl as unknown);
 
     const testData = { foo: 'bar', num: 123 };
 
@@ -179,7 +184,7 @@ describe('execBcJson - JSON parsing', () => {
   it('throws on malformed JSON', async () => {
     const mockProc = mockProcessorFactory();
     mockSpawnImpl = mock(() => mockProc);
-    _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    _setSpawnForTesting(mockSpawnImpl as unknown);
 
     setTimeout(() => {
       const stdoutCalls = (mockProc.stdout.on as ReturnType<typeof mock>).mock.calls;
@@ -198,7 +203,7 @@ describe('execBcJson - JSON parsing', () => {
   it('throws on empty response', async () => {
     const mockProc = mockProcessorFactory();
     mockSpawnImpl = mock(() => mockProc);
-    _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    _setSpawnForTesting(mockSpawnImpl as unknown);
 
     setTimeout(() => {
       const onCalls = (mockProc.on as ReturnType<typeof mock>).mock.calls;
@@ -216,7 +221,7 @@ describe('Command wrapper functions - Status and channels', () => {
     clearCache();
     mockSpawnImpl = mock(() => mockProcessorFactory());
     restoreSpawn = _setSpawnForTesting(
-      mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]
+      mockSpawnImpl as unknown
     );
   });
 
@@ -230,7 +235,7 @@ describe('Command wrapper functions - Status and channels', () => {
   it('getStatus fetches agent status', async () => {
     const mockProc = mockProcessorFactory();
     mockSpawnImpl = mock(() => mockProc);
-    _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    _setSpawnForTesting(mockSpawnImpl as unknown);
 
     const statusData = { agents: [{ name: 'eng-01', state: 'working' }] };
 
@@ -252,7 +257,7 @@ describe('Command wrapper functions - Status and channels', () => {
   it('getChannels fetches channel list', async () => {
     const mockProc = mockProcessorFactory();
     mockSpawnImpl = mock(() => mockProc);
-    _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    _setSpawnForTesting(mockSpawnImpl as unknown);
 
     const channelsData = { channels: [{ name: 'eng', members: ['eng-01'] }] };
 
@@ -274,7 +279,7 @@ describe('Command wrapper functions - Status and channels', () => {
   it('getChannelHistory fetches message history', async () => {
     const mockProc = mockProcessorFactory();
     mockSpawnImpl = mock(() => mockProc);
-    _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    _setSpawnForTesting(mockSpawnImpl as unknown);
 
     const historyData = { messages: [{ sender: 'eng-01', text: 'Hello', timestamp: 123456 }] };
 
@@ -299,7 +304,7 @@ describe('Command wrapper functions - Cost and teams', () => {
     clearCache();
     mockSpawnImpl = mock(() => mockProcessorFactory());
     restoreSpawn = _setSpawnForTesting(
-      mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]
+      mockSpawnImpl as unknown
     );
   });
 
@@ -313,7 +318,7 @@ describe('Command wrapper functions - Cost and teams', () => {
   it('getCostSummary returns cost data', async () => {
     const mockProc = mockProcessorFactory();
     mockSpawnImpl = mock(() => mockProc);
-    _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    _setSpawnForTesting(mockSpawnImpl as unknown);
 
     const costData = {
       total_cost: 1.23,
@@ -342,7 +347,7 @@ describe('Command wrapper functions - Cost and teams', () => {
   it('getCostSummary returns empty object on failure', async () => {
     const mockProc = mockProcessorFactory();
     mockSpawnImpl = mock(() => mockProc);
-    _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    _setSpawnForTesting(mockSpawnImpl as unknown);
 
     setTimeout(() => {
       const onCalls = (mockProc.on as ReturnType<typeof mock>).mock.calls;
@@ -358,7 +363,7 @@ describe('Command wrapper functions - Cost and teams', () => {
   it('getTeams fetches team list', async () => {
     const mockProc = mockProcessorFactory();
     mockSpawnImpl = mock(() => mockProc);
-    _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    _setSpawnForTesting(mockSpawnImpl as unknown);
 
     const teamsData = { teams: [{ name: 'frontend', members: ['eng-01', 'eng-02'] }] };
 
@@ -380,7 +385,7 @@ describe('Command wrapper functions - Cost and teams', () => {
   it('getTeams returns empty array on failure', async () => {
     const mockProc = mockProcessorFactory();
     mockSpawnImpl = mock(() => mockProc);
-    _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    _setSpawnForTesting(mockSpawnImpl as unknown);
 
     setTimeout(() => {
       const onCalls = (mockProc.on as ReturnType<typeof mock>).mock.calls;
@@ -399,7 +404,7 @@ describe('Demon operations', () => {
     clearCache();
     mockSpawnImpl = mock(() => mockProcessorFactory());
     restoreSpawn = _setSpawnForTesting(
-      mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]
+      mockSpawnImpl as unknown
     );
   });
 
@@ -413,7 +418,7 @@ describe('Demon operations', () => {
   it('getDemons returns demon list', async () => {
     const mockProc = mockProcessorFactory();
     mockSpawnImpl = mock(() => mockProc);
-    _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    _setSpawnForTesting(mockSpawnImpl as unknown);
 
     const demonData = [{ name: 'daily-backup', schedule: '0 0 * * *' }];
 
@@ -435,7 +440,7 @@ describe('Demon operations', () => {
   it('getDemons returns empty array on failure', async () => {
     const mockProc = mockProcessorFactory();
     mockSpawnImpl = mock(() => mockProc);
-    _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    _setSpawnForTesting(mockSpawnImpl as unknown);
 
     setTimeout(() => {
       const onCalls = (mockProc.on as ReturnType<typeof mock>).mock.calls;
@@ -458,7 +463,7 @@ describe('Command cache stress testing (#1016)', () => {
     clearCache();
     mockSpawnImpl = mock(() => mockProcessorFactory());
     restoreSpawn = _setSpawnForTesting(
-      mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]
+      mockSpawnImpl as unknown
     );
   });
 
@@ -488,7 +493,7 @@ describe('Command cache stress testing (#1016)', () => {
       }, 5);
       return newProc;
     });
-    _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    _setSpawnForTesting(mockSpawnImpl as unknown);
 
     // First call should spawn
     const result1 = await getStatus();
@@ -521,7 +526,7 @@ describe('Command cache stress testing (#1016)', () => {
       }, 5);
       return newProc;
     });
-    _setSpawnForTesting(mockSpawnImpl as unknown as Parameters<typeof _setSpawnForTesting>[0]);
+    _setSpawnForTesting(mockSpawnImpl as unknown);
 
     // First call
     await getStatus();

@@ -1,40 +1,46 @@
-# bcd server image — bc coordination daemon
-# Multi-stage build: Go binary + embedded React web UI
+# bcd — bc coordination daemon
+# Multi-stage build optimized for Docker layer caching.
 # Usage: docker build -t bc-bcd:latest -f docker/Dockerfile.bcd .
-# Base images pinned — update versions in Dependabot PRs or manually.
 
-FROM oven/bun:1.2 AS web-builder
+# Stage 1: Build web UI
+FROM oven/bun:1.2 AS web
 WORKDIR /app/web
 COPY web/package.json web/bun.lock ./
 RUN bun install --frozen-lockfile
 COPY web/ .
 RUN bun run build
 
-FROM golang:1.25.8 AS go-builder
+# Stage 2: Build Go binary
+FROM golang:1.25.8 AS go
 WORKDIR /app
+
+# Cache Go modules (changes rarely)
 COPY go.mod go.sum ./
 RUN go mod download
-COPY . .
-COPY --from=web-builder /app/web/dist /app/server/web/dist
+
+# Copy source (changes often, but after module cache)
+COPY cmd/ cmd/
+COPY pkg/ pkg/
+COPY server/ server/
+COPY internal/ internal/
+COPY prompts/ prompts/
+COPY --from=web /app/web/dist /app/server/web/dist
+
 RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /bcd ./cmd/bcd
 
+# Stage 3: Runtime
 FROM ubuntu:24.04
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        ca-certificates tmux git docker.io curl && \
+        ca-certificates tmux git docker.io curl sqlite3 && \
     rm -rf /var/lib/apt/lists/*
-COPY --from=go-builder /bcd /usr/local/bin/bcd
 
-# Run as non-root. Docker socket access via docker group membership.
-# The host Docker socket GID must match — use --group-add on docker run if needed.
-RUN useradd -m -s /bin/bash bcd && usermod -aG docker bcd
+COPY --from=go /bcd /usr/local/bin/bcd
 
-# Mount host Docker socket at runtime: -v /var/run/docker.sock:/var/run/docker.sock
 EXPOSE 9374
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:9374/health || exit 1
+HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
+    CMD curl -sf http://localhost:9374/health
 
-USER bcd
 WORKDIR /workspace
 ENTRYPOINT ["bcd"]
 CMD ["--addr", "0.0.0.0:9374", "--workspace", "/workspace"]

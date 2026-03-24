@@ -181,11 +181,11 @@ describe('RolesView', () => {
       expect(output).toContain('refresh');
     });
 
-    it('shows back hint', async () => {
+    it('shows delete hint', async () => {
       const { lastFrame } = renderWithFocus(<RolesView />);
       await new Promise((r) => setTimeout(r, 150));
       const output = lastFrame();
-      expect(output).toContain('back');
+      expect(output).toContain('delete');
     });
   });
 
