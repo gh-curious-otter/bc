@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/gh-curious-otter/bc/pkg/agent"
+	"github.com/gh-curious-otter/bc/pkg/workspace"
 )
 
 // WorkspaceHandler handles /api/workspace routes.

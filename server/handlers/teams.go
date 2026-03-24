@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/team"
+	"github.com/gh-curious-otter/bc/pkg/team"
 )
 
 // TeamHandler handles /api/teams routes.

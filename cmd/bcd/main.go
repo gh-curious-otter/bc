@@ -26,22 +26,22 @@ import (
 	"syscall"
 	"time"
 
-	bcagent "github.com/rpuneet/bc/pkg/agent"
-	bcchannel "github.com/rpuneet/bc/pkg/channel"
-	bccontainer "github.com/rpuneet/bc/pkg/container"
-	bccost "github.com/rpuneet/bc/pkg/cost"
-	bccron "github.com/rpuneet/bc/pkg/cron"
-	bcevents "github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/log"
-	bcmcp "github.com/rpuneet/bc/pkg/mcp"
-	"github.com/rpuneet/bc/pkg/provider"
-	bcsecret "github.com/rpuneet/bc/pkg/secret"
-	bcstats "github.com/rpuneet/bc/pkg/stats"
-	bcteam "github.com/rpuneet/bc/pkg/team"
-	bctool "github.com/rpuneet/bc/pkg/tool"
-	bcworkspace "github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/server"
-	bcws "github.com/rpuneet/bc/server/ws"
+	bcagent "github.com/gh-curious-otter/bc/pkg/agent"
+	bcchannel "github.com/gh-curious-otter/bc/pkg/channel"
+	bccontainer "github.com/gh-curious-otter/bc/pkg/container"
+	bccost "github.com/gh-curious-otter/bc/pkg/cost"
+	bccron "github.com/gh-curious-otter/bc/pkg/cron"
+	bcevents "github.com/gh-curious-otter/bc/pkg/events"
+	"github.com/gh-curious-otter/bc/pkg/log"
+	bcmcp "github.com/gh-curious-otter/bc/pkg/mcp"
+	"github.com/gh-curious-otter/bc/pkg/provider"
+	bcsecret "github.com/gh-curious-otter/bc/pkg/secret"
+	bcstats "github.com/gh-curious-otter/bc/pkg/stats"
+	bcteam "github.com/gh-curious-otter/bc/pkg/team"
+	bctool "github.com/gh-curious-otter/bc/pkg/tool"
+	bcworkspace "github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/gh-curious-otter/bc/server"
+	bcws "github.com/gh-curious-otter/bc/server/ws"
 )
 
 // Build information set by ldflags during build.
@@ -101,11 +101,7 @@ func run(addr, wsRoot, corsOrigin string) error {
 		log.Warn("failed to load agent state", "error", err)
 	}
 	defer agentMgr.Close() //nolint:errcheck // best-effort
-	go agentMgr.RunReconciler(ctx, 10*time.Second)
 	agentSvc := bcagent.NewAgentService(agentMgr, hub, nil)
-
-	statsCollector := bcagent.NewStatsCollector(agentMgr)
-	go statsCollector.Run(ctx)
 
 	var channelSvc *bcchannel.ChannelService
 	if chStore, err := bcchannel.OpenStore(ws.RootDir); err != nil {
@@ -251,7 +247,8 @@ func newAgentManager(ws *bcworkspace.Workspace) (*bcagent.Manager, error) {
 	dockerCfg := bccontainer.ConfigFromWorkspace(wsCfg)
 	be, err := bccontainer.NewBackend(dockerCfg, "bc-", ws.RootDir, provider.DefaultRegistry)
 	if err != nil {
-		return nil, fmt.Errorf("docker runtime required but not available: %w", err)
+		log.Warn("Docker not available — agents will use tmux runtime only", "error", err)
+		return bcagent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir), nil
 	}
 	return bcagent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, be, "docker"), nil
 }

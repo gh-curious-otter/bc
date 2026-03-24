@@ -12,11 +12,11 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/channel"
-	"github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/ui"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/gh-curious-otter/bc/pkg/agent"
+	"github.com/gh-curious-otter/bc/pkg/channel"
+	"github.com/gh-curious-otter/bc/pkg/events"
+	"github.com/gh-curious-otter/bc/pkg/ui"
+	"github.com/gh-curious-otter/bc/pkg/workspace"
 )
 
 func durationFromSeconds(s int) time.Duration {
@@ -40,6 +40,10 @@ func resetFlags(cmd *cobra.Command) {
 // the original working directory and BC_WORKSPACE env var.
 func setupIntegrationWorkspace(t *testing.T) (string, func()) {
 	t.Helper()
+
+	if os.Getenv("BC_TEST_DAEMON") == "" {
+		t.Skip("skipping: requires BC_TEST_DAEMON=1 (dedicated test bcd instance)")
+	}
 
 	origDir, err := os.Getwd()
 	if err != nil {

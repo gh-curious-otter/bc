@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // HookEvent is a lifecycle event type — either a Claude Code hook or a bc-internal event.
@@ -21,7 +22,6 @@ const (
 	HookPostToolUseFailure HookEvent = "PostToolUseFailure"
 	HookPermissionRequest  HookEvent = "PermissionRequest"
 	HookStop               HookEvent = "Stop"
-	HookStopFailure        HookEvent = "StopFailure"
 	HookNotification       HookEvent = "Notification"
 	HookSubagentStart      HookEvent = "SubagentStart"
 	HookSubagentStop       HookEvent = "SubagentStop"
@@ -46,18 +46,9 @@ const (
 	HookCostUpdate     HookEvent = "CostUpdate"
 )
 
-// ── Legacy event names (backward compat with old file-based hooks) ──
-
-const (
-	HookEventPreToolUse  HookEvent = "pre_tool_use"
-	HookEventPostToolUse HookEvent = "post_tool_use"
-	HookEventStop        HookEvent = "stop"
-)
-
 // hookEventStateMap maps hook events to the target agent state.
 // Events not in this map don't change agent state (they're informational).
 var hookEventStateMap = map[HookEvent]State{
-	// New HTTP-based hooks
 	HookSessionStart:       StateIdle,
 	HookSessionEnd:         StateStopped,
 	HookUserPromptSubmit:   StateWorking,
@@ -66,7 +57,6 @@ var hookEventStateMap = map[HookEvent]State{
 	HookPostToolUseFailure: StateWorking,
 	HookPermissionRequest:  StateStuck,
 	HookStop:               StateIdle, // turn complete, not session end
-	HookStopFailure:        StateError,
 	HookSubagentStart:      StateWorking,
 	HookSubagentStop:       StateWorking,
 	HookTaskCompleted:      StateDone,
@@ -75,11 +65,6 @@ var hookEventStateMap = map[HookEvent]State{
 	HookPostCompact:        StateWorking,
 	HookElicitation:        StateStuck,
 	HookElicitationResult:  StateWorking,
-
-	// Legacy file-based hooks (backward compat)
-	HookEventPreToolUse:  StateWorking,
-	HookEventPostToolUse: StateIdle,
-	HookEventStop:        StateStopped,
 }
 
 // StateForHookEvent returns the target agent State for a hook event.
@@ -106,61 +91,45 @@ func IsKnownEvent(ev HookEvent) bool {
 
 // HookPayload is the JSON payload received by the /hook endpoint.
 // Different events populate different fields.
-type HookPayload struct {
+type HookPayload struct { //nolint:govet // fieldalignment: optimized for readability over 8 bytes
+	// Tool events (PreToolUse, PostToolUse, PostToolUseFailure)
+	ToolInput any `json:"tool_input,omitempty"` // full tool input object
+
+	// Channel events (bc-internal)
+	Mentions []string `json:"mentions,omitempty"`
+
 	// Common fields
 	Event HookEvent `json:"event"`
 	State string    `json:"state,omitempty"` // override state (optional)
 	Task  string    `json:"task,omitempty"`  // task description for UI
 
-	// Tool events (PreToolUse, PostToolUse, PostToolUseFailure)
-	ToolName  string `json:"tool_name,omitempty"`
-	Command   string `json:"command,omitempty"`    // bash command being run
-	ToolInput any    `json:"tool_input,omitempty"` // full tool input object
-	Error     string `json:"error,omitempty"`      // error message (failures)
+	// Tool events
+	ToolName string `json:"tool_name,omitempty"`
+	Command  string `json:"command,omitempty"` // bash command being run
+	Error    string `json:"error,omitempty"`   // error message (failures)
 
 	// Subagent events
 	SubagentID   string `json:"subagent_id,omitempty"`
 	SubagentType string `json:"subagent_type,omitempty"`
 
 	// Channel events (bc-internal)
-	Channel  string   `json:"channel,omitempty"`
-	Sender   string   `json:"sender,omitempty"`
-	Message  string   `json:"message,omitempty"`
-	Mentions []string `json:"mentions,omitempty"`
+	Channel string `json:"channel,omitempty"`
+	Sender  string `json:"sender,omitempty"`
+	Message string `json:"message,omitempty"`
 
 	// Config/Instructions events
 	File string `json:"file,omitempty"`
 
 	// Cost events (bc-internal)
+	Model string `json:"model,omitempty"`
+
+	// Non-pointer fields last to minimize GC scan area
+	CostUSD      float64 `json:"cost_usd,omitempty"`
 	InputTokens  int64   `json:"input_tokens,omitempty"`
 	OutputTokens int64   `json:"output_tokens,omitempty"`
-	CostUSD      float64 `json:"cost_usd,omitempty"`
-	Model        string  `json:"model,omitempty"`
 }
 
-// ── File-based hook infrastructure (legacy fallback) ──
-
-const hookEventFile = "hook_event"
-
-func hookEventPath(stateDir, agentName string) string {
-	return filepath.Join(stateDir, agentName, hookEventFile)
-}
-
-// ConsumeHookEvent reads and removes the hook event file for an agent.
-// Legacy fallback for file-based hooks. Returns "" if no event pending.
-func ConsumeHookEvent(stateDir, agentName string) (HookEvent, bool) {
-	path := hookEventPath(stateDir, agentName)
-	data, err := os.ReadFile(path) //nolint:gosec // internal state dir
-	if err != nil {
-		return "", false
-	}
-	_ = os.Remove(path) //nolint:errcheck // best-effort
-	ev := HookEvent(data)
-	_, ok := hookEventStateMap[ev]
-	return ev, ok
-}
-
-// ── Settings.json writer (generates HTTP-based hooks via Python script) ──
+// ── Settings.json writer (generates HTTP-based hooks) ──
 
 type claudeSettings struct {
 	Hooks map[string][]claudeHookMatcher `json:"hooks,omitempty"`
@@ -179,31 +148,25 @@ type claudeHook struct {
 // WriteWorkspaceHookSettings writes .claude/settings.json with HTTP-based hooks
 // that POST to bcd's /api/agents/{name}/hook endpoint for instant status updates.
 //
-// Uses the Python script at scripts/configure-hooks.py to generate all 22 hooks.
-// Falls back to file-based hooks if Python is not available.
+// Uses curl to POST JSON payloads. Tool-aware hooks read stdin JSON via jq.
+// This is idempotent: if settings.json already exists the hooks section is merged.
 func WriteWorkspaceHookSettings(workspaceRoot string) error {
 	claudeDir := filepath.Join(workspaceRoot, ".claude")
 	if err := os.MkdirAll(claudeDir, 0750); err != nil {
 		return fmt.Errorf("create .claude dir: %w", err)
 	}
 
-	// Determine bcd address based on runtime
-	bcdAddr := "http://127.0.0.1:9374"
+	// Hook commands use $BC_BCD_ADDR env var (set per-agent based on runtime).
+	// Falls back to localhost for backward compat.
+	bcdAddr := "${BC_BCD_ADDR:-http://127.0.0.1:9374}"
 
-	// Build HTTP-based hook commands for all events
+	// hookCmd reads the full raw JSON from Claude Code's stdin, merges in
+	// our event/state fields, and POSTs the complete payload to bcd.
+	// This preserves all fields Claude sends (tool_name, tool_input, session_id, etc.)
 	hookCmd := func(event HookEvent, stateTarget State, taskDesc string) string {
-		payload := fmt.Sprintf(`{"event":"%s","state":"%s","task":"%s"}`, event, stateTarget, taskDesc)
 		return fmt.Sprintf(
-			`curl -sX POST %s/api/agents/${BC_AGENT_ID}/hook -H 'Content-Type: application/json' -d '%s' 2>/dev/null || true`,
-			bcdAddr, payload,
-		)
-	}
-
-	// Tool-aware hook command (reads tool_name from stdin via jq)
-	toolHookCmd := func(event HookEvent, stateTarget State, taskPrefix string) string {
-		return fmt.Sprintf(
-			`bash -c 'HOOK_INPUT=$(cat); PAYLOAD=$(echo "$HOOK_INPUT" | jq -c "{event:\"%s\",state:\"%s\",tool_name:.tool_name,task:(\"%s: \"+.tool_name),command:.tool_input.command}"); curl -sX POST %s/api/agents/${BC_AGENT_ID}/hook -H "Content-Type: application/json" -d "$PAYLOAD" 2>/dev/null || true'`,
-			event, stateTarget, taskPrefix, bcdAddr,
+			`bash -c 'RAW=$(cat); PAYLOAD=$(echo "$RAW" | jq -c ". + {event:\"%s\",state:\"%s\",task:\"%s\"}" 2>/dev/null || echo "{\"event\":\"%s\",\"state\":\"%s\",\"task\":\"%s\"}"); curl -sX POST %s/api/agents/${BC_AGENT_ID}/hook -H "Content-Type: application/json" -d "$PAYLOAD" 2>/dev/null || true'`,
+			event, stateTarget, taskDesc, event, stateTarget, taskDesc, bcdAddr,
 		)
 	}
 
@@ -212,18 +175,14 @@ func WriteWorkspaceHookSettings(workspaceRoot string) error {
 			"SessionStart":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookSessionStart, StateIdle, "Session started")}}}},
 			"SessionEnd":         {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookSessionEnd, StateStopped, "Session ended")}}}},
 			"UserPromptSubmit":   {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookUserPromptSubmit, StateWorking, "Processing prompt...")}}}},
-			"PreToolUse":         {{Hooks: []claudeHook{{Type: "command", Command: toolHookCmd(HookPreToolUse, StateWorking, "Running")}}}},
-			"PostToolUse":        {{Hooks: []claudeHook{{Type: "command", Command: toolHookCmd(HookPostToolUse, StateIdle, "Done")}}}},
-			"PostToolUseFailure": {{Hooks: []claudeHook{{Type: "command", Command: toolHookCmd(HookPostToolUseFailure, StateWorking, "Failed")}}}},
+			"PreToolUse":         {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookPreToolUse, StateWorking, "Running tool")}}}},
+			"PostToolUse":        {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookPostToolUse, StateIdle, "Tool completed")}}}},
+			"PostToolUseFailure": {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookPostToolUseFailure, StateWorking, "Tool failed")}}}},
 			"PermissionRequest":  {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookPermissionRequest, StateStuck, "Waiting for permission")}}}},
 			"Stop":               {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookStop, StateIdle, "Turn complete")}}}},
-			"StopFailure":        {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookStopFailure, StateError, "API error")}}}},
 			"Notification":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("Notification", "", "")}}}},
-			"SubagentStart": {{Hooks: []claudeHook{{Type: "command", Command: fmt.Sprintf(
-				`bash -c 'HOOK_INPUT=$(cat); PAYLOAD=$(echo "$HOOK_INPUT" | jq -c "{event:\"SubagentStart\",state:\"working\",task:(\"Subagent: \"+(.agent_type // \"unknown\")),subagent_id:.agent_id,subagent_type:.agent_type}"); curl -sX POST %s/api/agents/${BC_AGENT_ID}/hook -H "Content-Type: application/json" -d "$PAYLOAD" 2>/dev/null || true'`,
-				bcdAddr,
-			)}}}},
-			"SubagentStop": {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookSubagentStop, StateWorking, "Subagent completed")}}}},
+			"SubagentStart":      {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookSubagentStart, StateWorking, "Subagent started")}}}},
+			"SubagentStop":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookSubagentStop, StateWorking, "Subagent completed")}}}},
 			"TaskCompleted":      {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookTaskCompleted, StateDone, "Task completed")}}}},
 			"TeammateIdle":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("TeammateIdle", "", "")}}}},
 			"InstructionsLoaded": {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("InstructionsLoaded", "", "")}}}},
@@ -268,12 +227,37 @@ func loadClaudeSettings(path string) (*claudeSettings, error) {
 	return &s, nil
 }
 
+// invalidHookKeys are Claude Code hook event names that bc has generated in the
+// past but are not actually valid. They must be actively removed from existing
+// settings files to prevent Claude from rejecting the entire settings file.
+var invalidHookKeys = []string{"StopFailure"}
+
+// isBcManagedHook returns true if the hook matchers were generated by bc
+// (contain the bcd hook endpoint URL).
+func isBcManagedHook(matchers []claudeHookMatcher) bool {
+	for _, m := range matchers {
+		for _, h := range m.Hooks {
+			if strings.Contains(h.Command, "/api/agents/") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func mergeHooks(dst *claudeSettings, src map[string][]claudeHookMatcher) {
 	if dst.Hooks == nil {
 		dst.Hooks = make(map[string][]claudeHookMatcher)
 	}
+	// Remove known-invalid keys that may exist from prior bc versions.
+	for _, bad := range invalidHookKeys {
+		delete(dst.Hooks, bad)
+	}
+	// Overwrite bc-managed hooks so URL/env changes propagate.
+	// Preserve user-customized hooks (those not generated by bc).
 	for event, matchers := range src {
-		if _, exists := dst.Hooks[event]; !exists {
+		existing, exists := dst.Hooks[event]
+		if !exists || isBcManagedHook(existing) {
 			dst.Hooks[event] = matchers
 		}
 	}

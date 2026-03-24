@@ -72,8 +72,8 @@ export function DataTable<T extends Record<string, unknown>>({
       return String(row[rowKey]);
     }
     // Try common id fields
-    if ('id' in row && row.id !== undefined) return String(row.id);
-    if ('name' in row && row.name !== undefined) return String(row.name);
+    if ('id' in row && row.id !== undefined) return String(row.id as string | number);
+    if ('name' in row && row.name !== undefined) return String(row.name as string | number);
     // Fall back to index as last resort
     return `row-${String(index)}`;
   };

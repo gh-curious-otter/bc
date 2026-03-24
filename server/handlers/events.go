@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/events"
+	"github.com/gh-curious-otter/bc/pkg/events"
 )
 
 // EventHandler handles /api/logs (historical event log).

@@ -67,10 +67,10 @@ func (s *Store) querySystem(ctx context.Context, systems []string, tr TimeRange)
 
 // AgentFilter specifies which agents to query.
 type AgentFilter struct {
-	Agent   []string
 	Role    string
 	Tool    string
 	Runtime string
+	Agent   []string
 }
 
 // QueryAgentCPU returns CPU metrics for agents.

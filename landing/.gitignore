@@ -12,11 +12,6 @@
 
 # testing
 /coverage
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
-tests/*.spec.ts-snapshots/
 
 # next.js
 /.next/

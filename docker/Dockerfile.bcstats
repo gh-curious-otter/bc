@@ -1,7 +1,7 @@
 # bcstats — TimescaleDB for bc workspace time-series metrics
 # Usage: docker build -t bc-bcstats:latest -f docker/Dockerfile.bcstats .
 
-FROM timescale/timescaledb:latest-pg17
+FROM timescale/timescaledb:2.19.1-pg17
 
 ENV POSTGRES_USER=bc \
     POSTGRES_DB=bcstats

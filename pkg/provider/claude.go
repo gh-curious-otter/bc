@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -51,41 +52,32 @@ func (p *ClaudeProvider) InstallHint() string {
 }
 
 // BuildCommand returns the full command for a given runtime context.
-// Uses -w bc-<workspace>-<agent> for unique worktree names across workspaces
-// to avoid branch collisions with other Claude Code sessions.
+// Includes --dangerously-skip-permissions. bc manages worktrees itself and starts
+// agents directly in the worktree directory, so no -w flag is needed.
+// --tmux is NOT included here — it's added by AdjustSessionCommand for Docker only.
+// For native tmux, claude auto-detects the tmux environment.
 // Resume priority: SessionID (--resume <id>) > Resume flag (--continue).
 func (p *ClaudeProvider) BuildCommand(opts CommandOpts) string {
-	cmd := p.command
-	if opts.AgentName != "" {
-		worktreeName := "bc-" + opts.AgentName
-		if opts.WorkspaceName != "" {
-			worktreeName = "bc-" + opts.WorkspaceName + "-" + opts.AgentName
-		}
-		cmd = "claude -w " + worktreeName + " " + strings.TrimPrefix(cmd, "claude")
-	}
+	cmd := "claude --dangerously-skip-permissions"
 	switch {
 	case opts.SessionID != "":
-		// Explicit session ID — resume that exact conversation.
 		cmd += " --resume " + opts.SessionID
 	case opts.Resume:
-		// Generic resume — pick up the most recent conversation.
 		cmd += " --continue"
 	}
 	return cmd
 }
 
-// AdjustSessionCommand injects --tmux for headless session execution (tmux or Docker).
+// AdjustSessionCommand is a no-op for native tmux sessions.
+// Claude auto-detects the tmux environment when running inside a bc-managed tmux session.
 func (p *ClaudeProvider) AdjustSessionCommand(command string) string {
-	if !strings.Contains(command, "--tmux") {
-		return strings.Replace(command, "claude", "claude --tmux", 1)
-	}
 	return command
 }
 
-// AdjustContainerCommand injects --tmux for Docker execution.
-// Delegates to AdjustSessionCommand since the adjustment is the same.
+// AdjustContainerCommand wraps in a tmux session for Docker.
+// Uses double quotes so bash expands $BC_WORKTREE_NAME for the session name.
 func (p *ClaudeProvider) AdjustContainerCommand(command string) string {
-	return p.AdjustSessionCommand(command)
+	return fmt.Sprintf(`tmux new-session -s "$BC_WORKTREE_NAME" "%s"`, command)
 }
 
 // DockerImage returns empty to use default convention.

@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -808,8 +809,7 @@ func TestProviderBuildCommand(t *testing.T) {
 		opts     CommandOpts
 	}{
 		{"claude no opts", "claude --dangerously-skip-permissions", NewClaudeProvider(), CommandOpts{}},
-		{"claude with agent", "claude -w bc-eng-01  --dangerously-skip-permissions", NewClaudeProvider(), CommandOpts{AgentName: "eng-01"}},
-		{"claude with workspace", "claude -w bc-myproject-eng-01  --dangerously-skip-permissions", NewClaudeProvider(), CommandOpts{AgentName: "eng-01", WorkspaceName: "myproject"}},
+		{"claude with agent", "claude --dangerously-skip-permissions", NewClaudeProvider(), CommandOpts{AgentName: "eng-01"}},
 		{"gemini no opts", "gemini --yolo", NewGeminiProvider(), CommandOpts{}},
 		{"gemini with agent", "gemini --yolo", NewGeminiProvider(), CommandOpts{AgentName: "eng-01"}},
 		{"codex no opts", "codex --full-auto", NewCodexProvider(), CommandOpts{}},
@@ -835,16 +835,13 @@ func TestContainerCustomizer(t *testing.T) {
 		t.Fatal("ClaudeProvider should implement ContainerCustomizer")
 	}
 
-	// Test AdjustContainerCommand
+	// Test AdjustContainerCommand — wraps in explicit tmux session
 	adjusted := cc.AdjustContainerCommand("claude --dangerously-skip-permissions")
-	if adjusted != "claude --tmux --dangerously-skip-permissions" {
-		t.Errorf("AdjustContainerCommand() = %q, want %q", adjusted, "claude --tmux --dangerously-skip-permissions")
+	if !strings.Contains(adjusted, "tmux new-session") {
+		t.Errorf("AdjustContainerCommand() should wrap in tmux, got %q", adjusted)
 	}
-
-	// Already has --tmux
-	alreadyTmux := cc.AdjustContainerCommand("claude --tmux --dangerously-skip-permissions")
-	if alreadyTmux != "claude --tmux --dangerously-skip-permissions" {
-		t.Errorf("AdjustContainerCommand() should not modify if --tmux present, got %q", alreadyTmux)
+	if !strings.Contains(adjusted, "claude --dangerously-skip-permissions") {
+		t.Errorf("AdjustContainerCommand() should preserve original command, got %q", adjusted)
 	}
 
 	// DockerImage returns empty
@@ -973,7 +970,7 @@ func TestClaudeBuildCommandSessionID(t *testing.T) {
 				SessionID: "cc78cadf-89ce-4820-ab6e-950afd2b6838",
 				Resume:    true,
 			},
-			want: "claude -w bc-eng-01  --dangerously-skip-permissions --resume cc78cadf-89ce-4820-ab6e-950afd2b6838",
+			want: "claude --dangerously-skip-permissions --resume cc78cadf-89ce-4820-ab6e-950afd2b6838",
 		},
 		{
 			name: "session ID alone",
@@ -981,7 +978,7 @@ func TestClaudeBuildCommandSessionID(t *testing.T) {
 				AgentName: "eng-01",
 				SessionID: "cc78cadf-89ce-4820-ab6e-950afd2b6838",
 			},
-			want: "claude -w bc-eng-01  --dangerously-skip-permissions --resume cc78cadf-89ce-4820-ab6e-950afd2b6838",
+			want: "claude --dangerously-skip-permissions --resume cc78cadf-89ce-4820-ab6e-950afd2b6838",
 		},
 		{
 			name: "resume flag without session ID uses --continue",
@@ -989,12 +986,12 @@ func TestClaudeBuildCommandSessionID(t *testing.T) {
 				AgentName: "eng-01",
 				Resume:    true,
 			},
-			want: "claude -w bc-eng-01  --dangerously-skip-permissions --continue",
+			want: "claude --dangerously-skip-permissions --continue",
 		},
 		{
 			name: "no resume flags — fresh session",
 			opts: CommandOpts{AgentName: "eng-01"},
-			want: "claude -w bc-eng-01  --dangerously-skip-permissions",
+			want: "claude --dangerously-skip-permissions",
 		},
 	}
 

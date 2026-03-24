@@ -4,29 +4,38 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/cost"
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/server/ws"
+	"github.com/gh-curious-otter/bc/pkg/agent"
+	"github.com/gh-curious-otter/bc/pkg/cost"
+	"github.com/gh-curious-otter/bc/pkg/events"
+	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/gh-curious-otter/bc/server/ws"
 )
 
 // AgentHandler handles /api/agents routes.
 type AgentHandler struct {
-	svc   *agent.AgentService
-	costs *cost.Store
-	ws    *workspace.Workspace
-	hub   *ws.Hub
+	svc    *agent.AgentService
+	costs  *cost.Store
+	ws     *workspace.Workspace
+	hub    *ws.Hub
+	events events.EventStore
 }
 
 // NewAgentHandler creates an AgentHandler.
-// costs, ws, and hub may be nil; enrichment fields will be omitted when unavailable.
+// costs, ws, hub, and eventStore may be nil; enrichment fields will be omitted when unavailable.
 func NewAgentHandler(svc *agent.AgentService, costs *cost.Store, ws *workspace.Workspace, hub *ws.Hub) *AgentHandler {
 	return &AgentHandler{svc: svc, costs: costs, ws: ws, hub: hub}
+}
+
+// SetEventStore sets the event store for persisting hook events.
+func (h *AgentHandler) SetEventStore(es events.EventStore) {
+	h.events = es
 }
 
 // Register mounts agent routes on mux.
@@ -99,7 +108,7 @@ func buildCostMap(ctx context.Context, store *cost.Store) map[string]*cost.Summa
 func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		// State is refreshed by background reconciler (RunReconciler) — no sync call here.
+		// State is driven by hooks — no polling or reconciler needed.
 		agents, err := h.svc.List(r.Context(), agent.ListOptions{})
 		if err != nil {
 			httpInternalError(w, "list agents", err)
@@ -233,9 +242,16 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 
 	case r.Method == http.MethodPost && action == "hook":
-		// Receive a hook event with rich metadata and update agent state + task.
+		// Read raw body — stored as-is in event log for full observability.
+		rawBody, readErr := io.ReadAll(io.LimitReader(r.Body, 1024*1024))
+		if readErr != nil {
+			httpError(w, "read error", http.StatusBadRequest)
+			return
+		}
+
+		// Decode just enough to route state updates.
 		var payload agent.HookPayload
-		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		if err := json.Unmarshal(rawBody, &payload); err != nil {
 			httpError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
@@ -256,26 +272,37 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 
 		if hasState {
 			if err := h.svc.Manager().UpdateAgentState(name, targetState, task); err != nil {
-				writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skipped": true})
+				log.Debug("hook state update skipped", "agent", name, "error", err)
+				writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skipped": true, "reason": err.Error()})
 				return
 			}
+		}
+
+		// Persist raw JSON body to event log — no re-serialization, no field loss.
+		if h.events != nil {
+			_ = h.events.Append(events.Event{ //nolint:errcheck // best-effort logging
+				Timestamp: time.Now(),
+				Type:      events.EventType("hook." + string(payload.Event)),
+				Agent:     name,
+				Message:   string(rawBody),
+			})
 		}
 
 		// Publish the full hook event via SSE for web UI
 		if h.hub != nil {
 			h.hub.Publish("agent.hook", map[string]any{
-				"agent":          name,
-				"event":          string(payload.Event),
-				"state":          string(targetState),
-				"task":           task,
-				"tool_name":      payload.ToolName,
-				"command":        payload.Command,
-				"error":          payload.Error,
-				"subagent_id":    payload.SubagentID,
-				"subagent_type":  payload.SubagentType,
-				"channel":        payload.Channel,
-				"sender":         payload.Sender,
-				"message":        payload.Message,
+				"agent":         name,
+				"event":         string(payload.Event),
+				"state":         string(targetState),
+				"task":          task,
+				"tool_name":     payload.ToolName,
+				"command":       payload.Command,
+				"error":         payload.Error,
+				"subagent_id":   payload.SubagentID,
+				"subagent_type": payload.SubagentType,
+				"channel":       payload.Channel,
+				"sender":        payload.Sender,
+				"message":       payload.Message,
 			})
 		}
 

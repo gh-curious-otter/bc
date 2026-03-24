@@ -6,8 +6,40 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/gh-curious-otter/bc/pkg/log"
 )
+
+// AgentState is the legacy per-agent JSON state format (v1).
+// Only used during migration from JSON files to SQLite.
+type AgentState struct {
+	StartedAt time.Time `json:"started_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Name      string    `json:"name"`
+	Tool      string    `json:"tool,omitempty"`
+	Team      string    `json:"team,omitempty"`
+	Parent    string    `json:"parent,omitempty"`
+	Worktree  string    `json:"worktree,omitempty"`
+	Session   string    `json:"session,omitempty"`
+	Role      Role      `json:"role"`
+	State     State     `json:"state"`
+}
+
+// ToAgent converts a legacy AgentState to the current Agent struct.
+func (s *AgentState) ToAgent(workspace string) *Agent {
+	return &Agent{
+		Name:        s.Name,
+		ID:          s.Name,
+		Role:        s.Role,
+		Tool:        s.Tool,
+		ParentID:    s.Parent,
+		State:       s.State,
+		WorktreeDir: s.Worktree,
+		Session:     s.Session,
+		Workspace:   workspace,
+		StartedAt:   s.StartedAt,
+		UpdatedAt:   s.UpdatedAt,
+	}
+}
 
 const rootFileName = "root.json"
 

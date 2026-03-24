@@ -5,65 +5,6 @@ import (
 	"time"
 )
 
-func TestParseDockerPct(t *testing.T) {
-	tests := []struct {
-		in   string
-		want float64
-	}{
-		{"0.50%", 0.50},
-		{"100.00%", 100.0},
-		{"--", 0},
-		{"", 0},
-	}
-	for _, tc := range tests {
-		got := parseDockerPct(tc.in)
-		if got != tc.want {
-			t.Errorf("parseDockerPct(%q) = %v, want %v", tc.in, got, tc.want)
-		}
-	}
-}
-
-func TestParseDockerBytes(t *testing.T) {
-	tests := []struct {
-		in   string
-		want float64 // MB
-	}{
-		{"1MB", 1},
-		{"1MiB", 1},
-		{"1024kB", 1.024},
-		{"1GiB", 1024},
-		{"512B", 512.0 / (1024 * 1024)},
-		{"--", 0},
-		{"", 0},
-	}
-	for _, tc := range tests {
-		got := parseDockerBytes(tc.in)
-		if got < tc.want*0.99 || got > tc.want*1.01 {
-			t.Errorf("parseDockerBytes(%q) = %v, want ~%v", tc.in, got, tc.want)
-		}
-	}
-}
-
-func TestParseDockerMemory(t *testing.T) {
-	used, limit := parseDockerMemory("150MiB / 7.77GiB")
-	if used < 149 || used > 151 {
-		t.Errorf("used = %v, want ~150 MB", used)
-	}
-	if limit < 7000 || limit > 8000 {
-		t.Errorf("limit = %v, want ~7.77 GiB in MB", limit)
-	}
-}
-
-func TestParseDockerIO(t *testing.T) {
-	rx, tx := parseDockerIO("1.5MB / 500kB")
-	if rx < 1.4 || rx > 1.6 {
-		t.Errorf("rx = %v, want ~1.5 MB", rx)
-	}
-	if tx < 0.4 || tx > 0.6 {
-		t.Errorf("tx = %v, want ~0.5 MB", tx)
-	}
-}
-
 func TestSaveAndQueryStats(t *testing.T) {
 	store, err := NewSQLiteStore(t.TempDir() + "/state.db")
 	if err != nil {

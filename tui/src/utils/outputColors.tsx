@@ -88,7 +88,7 @@ export function colorizeOutputLine(line: string): React.ReactElement {
   }
 
   // File paths (dim white)
-  if (trimmed.match(/^[./~].*\.(tsx?|jsx?|go|py|md|json)$/)) {
+  if (/^[./~].*\.(tsx?|jsx?|go|py|md|json)$/.exec(trimmed)) {
     return <Text color="white">{line}</Text>;
   }
 

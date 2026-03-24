@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/names"
+	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/gh-curious-otter/bc/pkg/names"
 )
 
 // EventPublisher is the interface for publishing agent lifecycle events.
@@ -83,7 +83,7 @@ type AgentService struct {
 
 // NewAgentService creates a new agent service wrapping the given manager.
 // It registers a state-change callback on the manager so that ongoing
-// state transitions (reconciler, hook events) are published as SSE events.
+// state transitions (hook events) are published as SSE events.
 func NewAgentService(mgr *Manager, events EventPublisher, costs CostQuerier) *AgentService {
 	svc := &AgentService{
 		manager: mgr,
@@ -314,11 +314,6 @@ func (s *AgentService) Broadcast(ctx context.Context, message string) (int, erro
 		sent++
 	}
 	return sent, nil
-}
-
-// Refresh refreshes agent states from runtime backends.
-func (s *AgentService) Refresh(ctx context.Context) error {
-	return s.manager.RefreshState(ctx)
 }
 
 // Get returns a single agent by name.

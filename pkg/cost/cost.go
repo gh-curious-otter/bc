@@ -54,8 +54,8 @@ import (
 	"path/filepath"
 	"time"
 
-	bcdb "github.com/rpuneet/bc/pkg/db"
-	"github.com/rpuneet/bc/pkg/log"
+	bcdb "github.com/gh-curious-otter/bc/pkg/db"
+	"github.com/gh-curious-otter/bc/pkg/log"
 )
 
 // BudgetPeriod represents the time period for a budget.

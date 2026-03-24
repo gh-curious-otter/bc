@@ -21,9 +21,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/db"
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/tmux"
+	"github.com/gh-curious-otter/bc/pkg/db"
+	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/gh-curious-otter/bc/pkg/tmux"
 )
 
 // Status represents the runtime status of a daemon.
@@ -642,7 +642,7 @@ func isContainerHash(s string) bool {
 		return false
 	}
 	for _, c := range s {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 			return false
 		}
 	}

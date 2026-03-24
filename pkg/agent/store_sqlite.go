@@ -1,11 +1,12 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/db"
+	"github.com/gh-curious-otter/bc/pkg/db"
 )
 
 // SQLiteStore provides SQLite-backed persistence for agent state.
@@ -32,6 +33,7 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 }
 
 func createAgentsTable(d *db.DB) error {
+	ctx := context.Background()
 	schema := `
 		CREATE TABLE IF NOT EXISTS agents (
 			name          TEXT PRIMARY KEY,
@@ -59,18 +61,18 @@ func createAgentsTable(d *db.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_agents_role ON agents(role);
 		CREATE INDEX IF NOT EXISTS idx_agents_parent ON agents(parent_id);
 	`
-	_, err := d.Exec(schema)
+	_, err := d.ExecContext(ctx, schema)
 	if err != nil {
 		return fmt.Errorf("create agents table: %w", err)
 	}
 
 	// Migrations: add columns for existing databases
-	_, _ = d.Exec(`ALTER TABLE agents ADD COLUMN runtime_backend TEXT`)           //nolint:errcheck // ignore if already exists
-	_, _ = d.Exec(`ALTER TABLE agents ADD COLUMN session_id TEXT`)                //nolint:errcheck // ignore if already exists
-	_, _ = d.Exec(`ALTER TABLE agents ADD COLUMN ttl INTEGER NOT NULL DEFAULT 0`) //nolint:errcheck // ignore if already exists
-	_, _ = d.Exec(`ALTER TABLE agents ADD COLUMN created_at TEXT`)                //nolint:errcheck // ignore if already exists
-	_, _ = d.Exec(`ALTER TABLE agents ADD COLUMN stopped_at TEXT`)                //nolint:errcheck // ignore if already exists
-	_, _ = d.Exec(`ALTER TABLE agents ADD COLUMN deleted_at TEXT`)                //nolint:errcheck // ignore if already exists
+	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN runtime_backend TEXT`)           //nolint:errcheck // ignore if already exists
+	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN session_id TEXT`)                //nolint:errcheck // ignore if already exists
+	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN ttl INTEGER NOT NULL DEFAULT 0`) //nolint:errcheck // ignore if already exists
+	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN created_at TEXT`)                //nolint:errcheck // ignore if already exists
+	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN stopped_at TEXT`)                //nolint:errcheck // ignore if already exists
+	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN deleted_at TEXT`)                //nolint:errcheck // ignore if already exists
 
 	// agent_stats: time-series Docker resource samples.
 	statsSchema := `
@@ -89,7 +91,7 @@ func createAgentsTable(d *db.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_agent_stats_agent ON agent_stats(agent_name);
 		CREATE INDEX IF NOT EXISTS idx_agent_stats_time  ON agent_stats(collected_at);
 	`
-	if _, err := d.Exec(statsSchema); err != nil {
+	if _, err := d.ExecContext(ctx, statsSchema); err != nil {
 		return fmt.Errorf("create agent_stats table: %w", err)
 	}
 
@@ -108,7 +110,7 @@ func (s *SQLiteStore) Save(a *Agent) error {
 	if createdAt.IsZero() {
 		createdAt = a.StartedAt // backward compat: use started_at if created_at not set
 	}
-	_, err = s.db.Exec(`
+	_, err = s.db.ExecContext(context.Background(), `
 		INSERT OR REPLACE INTO agents
 		(name, role, state, tool, parent_id, team, task, session, workspace,
 		 worktree_dir, log_file, hooked_work, children,
@@ -132,7 +134,7 @@ func (s *SQLiteStore) Save(a *Agent) error {
 
 // Load reads a single agent by name. Returns nil, nil if not found.
 func (s *SQLiteStore) Load(name string) (*Agent, error) {
-	row := s.db.QueryRow(agentSelectCols+` FROM agents WHERE name = ?`, name)
+	row := s.db.QueryRowContext(context.Background(), agentSelectCols+` FROM agents WHERE name = ?`, name)
 
 	a, err := scanAgentRow(row)
 	if err != nil {
@@ -146,7 +148,7 @@ func (s *SQLiteStore) Load(name string) (*Agent, error) {
 
 // LoadRoot reads the root agent (is_root=1). Returns nil, nil if not found.
 func (s *SQLiteStore) LoadRoot() (*Agent, error) {
-	row := s.db.QueryRow(agentSelectCols + ` FROM agents WHERE is_root = 1 LIMIT 1`)
+	row := s.db.QueryRowContext(context.Background(), agentSelectCols+` FROM agents WHERE is_root = 1 LIMIT 1`)
 
 	a, err := scanAgentRow(row)
 	if err != nil {
@@ -161,7 +163,7 @@ func (s *SQLiteStore) LoadRoot() (*Agent, error) {
 // SoftDelete marks an agent as deleted by setting deleted_at.
 // The agent row remains in the database but is excluded from LoadAll.
 func (s *SQLiteStore) SoftDelete(name string) error {
-	_, err := s.db.Exec(
+	_, err := s.db.ExecContext(context.Background(),
 		"UPDATE agents SET deleted_at = ?, updated_at = ? WHERE name = ?",
 		formatTime(time.Now()), formatTime(time.Now()), name,
 	)
@@ -170,14 +172,14 @@ func (s *SQLiteStore) SoftDelete(name string) error {
 
 // Delete removes a single agent by name.
 func (s *SQLiteStore) Delete(name string) error {
-	_, err := s.db.Exec("DELETE FROM agents WHERE name = ?", name)
+	_, err := s.db.ExecContext(context.Background(), "DELETE FROM agents WHERE name = ?", name)
 	return err
 }
 
 // LoadAll reads every non-deleted agent into a map keyed by name.
 // Agents with a non-null deleted_at are skipped to prevent resurrection after restart.
 func (s *SQLiteStore) LoadAll() (map[string]*Agent, error) {
-	rows, err := s.db.Query(agentSelectCols + ` FROM agents WHERE deleted_at IS NULL`)
+	rows, err := s.db.QueryContext(context.Background(), agentSelectCols+` FROM agents WHERE deleted_at IS NULL`)
 	if err != nil {
 		return nil, err
 	}
@@ -196,13 +198,14 @@ func (s *SQLiteStore) LoadAll() (map[string]*Agent, error) {
 
 // SaveAll persists every agent in the map inside a single transaction.
 func (s *SQLiteStore) SaveAll(agents map[string]*Agent) error {
-	tx, err := s.db.Begin()
+	ctx := context.Background()
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }() //nolint:errcheck // rollback after commit is no-op
 
-	stmt, err := tx.Prepare(`
+	stmt, err := tx.PrepareContext(ctx, `
 		INSERT OR REPLACE INTO agents
 		(name, role, state, tool, parent_id, team, task, session, workspace,
 		 worktree_dir, log_file, hooked_work, children,
@@ -225,7 +228,7 @@ func (s *SQLiteStore) SaveAll(agents map[string]*Agent) error {
 		if createdAt.IsZero() {
 			createdAt = a.StartedAt
 		}
-		_, err = stmt.Exec(
+		_, err = stmt.ExecContext(ctx,
 			a.Name, string(a.Role), string(a.State),
 			nullStr(a.Tool), nullStr(a.ParentID), nullStr(a.Team), nullStr(a.Task),
 			nullStr(a.Session), a.Workspace,
@@ -246,7 +249,7 @@ func (s *SQLiteStore) SaveAll(agents map[string]*Agent) error {
 
 // UpdateState updates only the state column for a given agent.
 func (s *SQLiteStore) UpdateState(name string, state State) error {
-	res, err := s.db.Exec(
+	res, err := s.db.ExecContext(context.Background(),
 		"UPDATE agents SET state = ?, updated_at = ? WHERE name = ?",
 		string(state), formatTime(time.Now()), name,
 	)
@@ -274,7 +277,7 @@ func (s *SQLiteStore) UpdateField(name, field, value string) error {
 	}
 
 	query := fmt.Sprintf("UPDATE agents SET %s = ?, updated_at = ? WHERE name = ?", field) //nolint:gosec // field validated above
-	res, err := s.db.Exec(query, value, formatTime(time.Now()), name)
+	res, err := s.db.ExecContext(context.Background(), query, value, formatTime(time.Now()), name)
 	if err != nil {
 		return err
 	}
@@ -411,7 +414,7 @@ func deref(s *string) string {
 
 // SaveStats inserts a single AgentStatsRecord into the agent_stats table.
 func (s *SQLiteStore) SaveStats(rec *AgentStatsRecord) error {
-	_, err := s.db.Exec(`
+	_, err := s.db.ExecContext(context.Background(), `
 		INSERT INTO agent_stats
 		(agent_name, collected_at, cpu_pct, mem_used_mb, mem_limit_mb,
 		 net_rx_mb, net_tx_mb, block_read_mb, block_write_mb)
@@ -428,7 +431,7 @@ func (s *SQLiteStore) QueryStats(agentName string, limit int) ([]*AgentStatsReco
 	if limit <= 0 {
 		limit = 20
 	}
-	rows, err := s.db.Query(`
+	rows, err := s.db.QueryContext(context.Background(), `
 		SELECT agent_name, collected_at, cpu_pct, mem_used_mb, mem_limit_mb,
 		       net_rx_mb, net_tx_mb, block_read_mb, block_write_mb
 		FROM agent_stats

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/db"
+	"github.com/gh-curious-otter/bc/pkg/agent"
+	"github.com/gh-curious-otter/bc/pkg/db"
 )
 
 func TestNew(t *testing.T) {
@@ -351,7 +351,7 @@ func TestLoadWithAgentsData(t *testing.T) {
 	wsRoot := t.TempDir()
 	stateDir := filepath.Join(wsRoot, ".bc")
 
-	// Seed agents as already stopped so RefreshState won't change their state
+	// Seed agents as already stopped
 	agents := map[string]*agent.Agent{
 		"coord": {Name: "coord", Role: agent.RoleRoot, State: agent.StateStopped},
 		"eng-1": {Name: "eng-1", Role: agent.Role("worker"), State: agent.StateStopped},

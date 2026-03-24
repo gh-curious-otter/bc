@@ -239,7 +239,7 @@ export function categorizeKey(
   }
 
   // Any other printable character is text input
-  if (input && input.length === 1 && !key.ctrl) {
+  if (input.length === 1 && !key.ctrl) {
     return 'text_input';
   }
 

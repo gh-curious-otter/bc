@@ -32,15 +32,26 @@ RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /bcd ./cmd/bcd
 FROM ubuntu:24.04
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        ca-certificates tmux git docker.io curl sqlite3 && \
+        ca-certificates tmux git docker.io curl sqlite3 jq && \
     rm -rf /var/lib/apt/lists/*
+
+# Install Claude Code so bcd can run tmux agents inside this container
+SHELL ["/bin/bash", "-c"]
+RUN curl -fsSL https://claude.ai/install.sh | bash && \
+    cp /root/.local/share/claude/versions/* /usr/local/bin/claude && \
+    chmod +x /usr/local/bin/claude && \
+    rm -rf /root/.local/share/claude /root/.claude
 
 COPY --from=go /bcd /usr/local/bin/bcd
 
+# Runs as root because bcd needs access to the Docker socket
+# (/var/run/docker.sock) to manage agent containers.
 EXPOSE 9374
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
     CMD curl -sf http://localhost:9374/health
 
+RUN git config --global --add safe.directory /workspace
+
 WORKDIR /workspace
-ENTRYPOINT ["bcd"]
+ENTRYPOINT ["bash", "-c", "tmux new-session -d -s _bc_init 'sleep infinity' && exec bcd \"$@\"", "--"]
 CMD ["--addr", "0.0.0.0:9374", "--workspace", "/workspace"]

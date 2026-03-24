@@ -23,9 +23,8 @@ import type { Channel } from '../types';
 // #1737: Type for channel with unread info from useChannelsWithUnread
 type ChannelWithUnread = Channel & { unread: number; messageCount: number };
 
-// #1594: Using empty interface for future extensibility, props removed
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-interface ChannelsViewProps {}
+// #1594: Using type alias for future extensibility, props removed
+type ChannelsViewProps = Record<string, never>;
 
 /**
  * ChannelsView - Main channel list component

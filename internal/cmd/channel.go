@@ -11,8 +11,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/client"
-	"github.com/rpuneet/bc/pkg/ui"
+	"github.com/gh-curious-otter/bc/pkg/client"
+	"github.com/gh-curious-otter/bc/pkg/ui"
 )
 
 var channelCmd = &cobra.Command{
@@ -240,6 +240,8 @@ func init() {
 	channelShowCmd.ValidArgsFunction = CompleteChannelNames
 	channelDescCmd.ValidArgsFunction = CompleteChannelNames
 	channelEditCmd.ValidArgsFunction = CompleteChannelNames
+
+	channelListCmd.Flags().Bool("json", false, "Output as JSON")
 
 	channelCmd.AddCommand(channelCreateCmd)
 	channelCmd.AddCommand(channelAddCmd)

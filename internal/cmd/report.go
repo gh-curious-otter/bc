@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/client"
+	"github.com/gh-curious-otter/bc/pkg/client"
 )
 
 // Flags for report command (enhanced for stuck reports - #675)

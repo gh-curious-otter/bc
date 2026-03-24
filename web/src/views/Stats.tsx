@@ -135,7 +135,7 @@ function SystemCharts({ metrics, system }: { metrics: SystemMetricTS[]; system: 
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
                 <XAxis dataKey="time" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} />
                 <YAxis tick={{ fill: C.muted, fontSize: 10 }} {...TICK} tickFormatter={(v: number) => `${v}`} />
-                <Tooltip contentStyle={TT} formatter={(v: any) => [`${Number(v)} MB`]} />
+                <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0)} MB`]} />
                 <Legend wrapperStyle={{ fontSize: "11px" }} />
                 {names.map(n => (
                   <Area key={n} type="monotone" dataKey={`${n}_mem`} name={n} stroke={colors[n]} fill={colors[n]} fillOpacity={0.15} strokeWidth={2} dot={false} />
@@ -153,7 +153,7 @@ function SystemCharts({ metrics, system }: { metrics: SystemMetricTS[]; system: 
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
                 <XAxis dataKey="time" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} />
                 <YAxis tick={{ fill: C.muted, fontSize: 10 }} {...TICK} />
-                <Tooltip contentStyle={TT} formatter={(v: any) => [`${Number(v)} KB`]} />
+                <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0)} KB`]} />
                 <Legend wrapperStyle={{ fontSize: "11px" }} />
                 {names.map(n => (
                   <Area key={`${n}_rx`} type="monotone" dataKey={`${n}_netrx`} name={`${n} rx`} stroke={colors[n]} fill="none" strokeWidth={2} dot={false} />
@@ -200,7 +200,7 @@ function AgentCharts({ metrics, summary }: { metrics: AgentMetricTS[]; summary: 
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} horizontal={false} />
                 <XAxis type="number" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} tickFormatter={(v: number) => `${v}%`} />
                 <YAxis type="category" dataKey="name" tick={{ fill: C.text, fontSize: 10 }} {...TICK} width={90} />
-                <Tooltip contentStyle={TT} formatter={(v: any) => [`${Number(v)}%`, "CPU"]} />
+                <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0)}%`, "CPU"]} />
                 <Bar dataKey="cpu" fill={C.emerald} radius={[0, 3, 3, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -214,7 +214,7 @@ function AgentCharts({ metrics, summary }: { metrics: AgentMetricTS[]; summary: 
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} horizontal={false} />
                 <XAxis type="number" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} tickFormatter={(v: number) => `${v}MB`} />
                 <YAxis type="category" dataKey="name" tick={{ fill: C.text, fontSize: 10 }} {...TICK} width={90} />
-                <Tooltip contentStyle={TT} formatter={(v: any) => [`${Number(v)} MB`, "Memory"]} />
+                <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0)} MB`, "Memory"]} />
                 <Bar dataKey="mem" fill={C.blue} radius={[0, 3, 3, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -278,7 +278,7 @@ function TokenCharts({ tokens, costSummary }: { tokens: TokenMetricTS[]; costSum
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
                 <XAxis dataKey="time" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} />
                 <YAxis tick={{ fill: C.muted, fontSize: 10 }} {...TICK} tickFormatter={(v: number) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
-                <Tooltip contentStyle={TT} formatter={(v: any, n: any) => [Number(v).toLocaleString(), n === "input" ? "Input" : "Output"]} />
+                <Tooltip contentStyle={TT} formatter={(v, n) => [Number(v ?? 0).toLocaleString(), n === "input" ? "Input" : "Output"]} />
                 <Legend wrapperStyle={{ fontSize: "11px" }} formatter={(v: string) => v === "input" ? "Input Tokens" : "Output Tokens"} />
                 <Area type="monotone" dataKey="input" stroke={C.amber} strokeWidth={2} fill="url(#g-in)" stackId="1" dot={false} />
                 <Area type="monotone" dataKey="output" stroke={C.purple} strokeWidth={2} fill="url(#g-out)" stackId="1" dot={false} />
@@ -359,7 +359,7 @@ function CostCharts({ costSummary, costByModel }: { costSummary: CostSummary | n
                   <Pie data={pieData} cx="50%" cy="50%" innerRadius={38} outerRadius={58} paddingAngle={2} dataKey="value">
                     {pieData.map((e, i) => <Cell key={i} fill={e.color} stroke="none" />)}
                   </Pie>
-                  <Tooltip contentStyle={TT} formatter={(v: any) => [`$${Number(v).toFixed(4)}`]} />
+                  <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="space-y-1 flex-1 max-h-36 overflow-y-auto">
@@ -382,7 +382,7 @@ function CostCharts({ costSummary, costByModel }: { costSummary: CostSummary | n
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} horizontal={false} />
                 <XAxis type="number" tick={{ fill: C.muted, fontSize: 10 }} {...TICK} tickFormatter={(v: number) => `$${v}`} />
                 <YAxis type="category" dataKey="name" tick={{ fill: C.text, fontSize: 9 }} {...TICK} width={120} />
-                <Tooltip contentStyle={TT} formatter={(v: any) => [`$${Number(v).toFixed(6)}`]} />
+                <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(6)}`]} />
                 <Bar dataKey="cost" fill={C.purple} radius={[0, 3, 3, 0]} />
               </BarChart>
             </ResponsiveContainer>

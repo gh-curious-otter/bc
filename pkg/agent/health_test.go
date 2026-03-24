@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/events"
+	"github.com/gh-curious-otter/bc/pkg/events"
 )
 
 // testTmuxChecker implements TmuxChecker for health tests.
@@ -121,7 +121,7 @@ func TestHealthChecker_Check_DegradedStaleState(t *testing.T) {
 		t.Fatalf("failed to save root: %v", saveErr)
 	}
 	// Override UpdatedAt to make it stale
-	_, _ = store.db.Exec("UPDATE agents SET updated_at = ? WHERE name = 'root'", formatTime(staleTime))
+	_, _ = store.db.ExecContext(context.Background(), "UPDATE agents SET updated_at = ? WHERE name = 'root'", formatTime(staleTime))
 
 	tmux := newTestTmuxChecker()
 	tmux.SetSession("root-session", true)

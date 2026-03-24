@@ -9,9 +9,9 @@ import (
 // requiredClaudeSettings are fields that MUST be present to prevent
 // Claude Code from showing interactive prompts that block Docker agents.
 var requiredClaudeSettings = map[string]any{
-	"theme":                            "dark",
+	"theme":                             "dark",
 	"skipDangerousModePermissionPrompt": true,
-	"autoUpdaterStatus":                "disabled",
+	"autoUpdaterStatus":                 "disabled",
 }
 
 // SeedClaudeSettings ensures required settings exist in settings.json.

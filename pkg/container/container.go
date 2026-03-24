@@ -20,10 +20,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/provider"
-	"github.com/rpuneet/bc/pkg/runtime"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/gh-curious-otter/bc/pkg/provider"
+	"github.com/gh-curious-otter/bc/pkg/runtime"
+	"github.com/gh-curious-otter/bc/pkg/workspace"
 )
 
 // validEnvVarName matches valid POSIX environment variable names:
@@ -184,32 +184,6 @@ func (b *Backend) tmuxTarget(ctx context.Context, name string) string {
 	return name
 }
 
-// HasStoppedContainer checks if a container exists but is stopped.
-// Used to determine if we can docker start instead of docker run.
-func (b *Backend) HasStoppedContainer(ctx context.Context, name string) bool {
-	cn := b.containerName(name)
-	//nolint:gosec // trusted
-	inspect := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{.State.Status}}", cn)
-	out, err := inspect.Output()
-	if err != nil {
-		return false
-	}
-	status := strings.TrimSpace(string(out))
-	return status == "exited" || status == "created"
-}
-
-// RestartContainer starts a previously stopped container.
-func (b *Backend) RestartContainer(ctx context.Context, name string) error {
-	cn := b.containerName(name)
-	//nolint:gosec // trusted
-	cmd := exec.CommandContext(ctx, "docker", "start", cn)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to start container %s: %w (%s)", cn, err, strings.TrimSpace(string(output)))
-	}
-	return nil
-}
-
 // HasSession checks if a container exists, is running, AND has a live tmux
 // session inside. A container with only zombie processes is treated as dead
 // so the caller will respawn it rather than reusing a broken session.
@@ -319,30 +293,39 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	// Ensure host.docker.internal resolves on Linux (macOS/Windows get this automatically)
 	args = append(args, "--add-host=host.docker.internal:host-gateway")
 
-	// Mount 1: Project workspace — use host path for Docker-in-Docker
-	hostDir := dir
-	if b.hostWorkspacePath != "" && b.hostWorkspacePath != b.workspacePath {
-		hostDir = b.hostWorkspacePath
+	// Mount 1: Project workspace — mount the full workspace root so git
+	// worktrees can access the shared .git directory. Set the container's
+	// working directory to the worktree subdirectory if dir is a subpath.
+	hostRoot := b.hostWorkspacePath
+	if hostRoot == "" {
+		hostRoot = b.workspacePath
 	}
-	if hostDir != "" {
-		args = append(args, "-v", hostDir+":/workspace")
+	containerWorkdir := "/workspace"
+	if dir != b.workspacePath {
+		// dir is a worktree subpath — compute the container-relative path
+		rel, relErr := filepath.Rel(b.workspacePath, dir)
+		if relErr == nil && !strings.HasPrefix(rel, "..") {
+			containerWorkdir = "/workspace/" + rel
+		}
 	}
+	args = append(args, "-v", hostRoot+":/workspace", "-w", containerWorkdir)
 
-	// Mount 2: Persistent Claude state — both ~/.claude/ dir and ~/.claude.json file
-	volumeDir := filepath.Join(b.hostWorkspacePath, ".bc", "volumes", name, ".claude")
-	if err := os.MkdirAll(volumeDir, 0750); err != nil {
+	// Mount 2: Persistent Claude state (~/.claude/ dir)
+	// Use local (container) path for mkdir, host path for -v mount.
+	localAgentDir := filepath.Join(b.workspacePath, ".bc", "agents", name)
+	hostAgentDir := filepath.Join(hostRoot, ".bc", "agents", name)
+	if err := os.MkdirAll(filepath.Join(localAgentDir, "claude"), 0750); err != nil {
 		log.Warn("failed to create agent volume dir", "agent", name, "error", err)
 	} else {
-		args = append(args, "-v", volumeDir+":/home/agent/.claude")
+		args = append(args, "-v", filepath.Join(hostAgentDir, "claude")+":/home/agent/.claude")
 	}
 
-	// Mount ~/.claude.json (main config/auth file) — persists across restarts
-	claudeJSON := filepath.Join(b.hostWorkspacePath, ".bc", "volumes", name, ".claude.json")
-	// Create empty file if it doesn't exist (Docker needs the file to exist for bind mount)
-	if _, statErr := os.Stat(claudeJSON); os.IsNotExist(statErr) {
-		_ = os.WriteFile(claudeJSON, []byte("{}"), 0600)
+	// Mount 3: ~/.claude.json (app config with oauthAccount — needed for auth persistence)
+	localClaudeJSON := filepath.Join(localAgentDir, "claude.json")
+	if _, statErr := os.Stat(localClaudeJSON); os.IsNotExist(statErr) {
+		_ = os.WriteFile(localClaudeJSON, []byte("{}"), 0600) //nolint:errcheck // best-effort
 	}
-	args = append(args, "-v", claudeJSON+":/home/agent/.claude.json")
+	args = append(args, "-v", filepath.Join(hostAgentDir, "claude.json")+":/home/agent/.claude.json")
 
 	// Extra mounts from workspace config (e.g., shared caches, tool binaries).
 	// Validate each mount source to prevent arbitrary host filesystem access.
@@ -356,7 +339,7 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	// Pre-seed Claude settings to skip interactive theme selection prompt.
 	// Claude Code shows an interactive theme picker on first run when no
 	// settings exist, which blocks headless Docker agents indefinitely.
-	if err := SeedClaudeSettings(volumeDir); err != nil {
+	if err := SeedClaudeSettings(filepath.Join(localAgentDir, "claude")); err != nil {
 		log.Warn("failed to seed claude settings", "agent", name, "error", err)
 	}
 
@@ -525,8 +508,6 @@ func (b *Backend) Capture(ctx context.Context, name string, lines int) (string, 
 }
 
 // ListSessions lists RUNNING BC-managed containers for this workspace.
-// Stopped containers are excluded so RefreshState correctly marks
-// stopped agents as stopped (not idle).
 func (b *Backend) ListSessions(ctx context.Context) ([]runtime.Session, error) {
 	//nolint:gosec // all args are trusted internal values
 	cmd := exec.CommandContext(ctx, "docker", "ps",

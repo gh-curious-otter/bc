@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/gh-curious-otter/bc/pkg/agent"
 )
 
 // --- isValidAgentName Tests ---

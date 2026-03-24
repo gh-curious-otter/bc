@@ -63,14 +63,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/container"
-	"github.com/rpuneet/bc/pkg/db"
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/provider"
-	"github.com/rpuneet/bc/pkg/runtime"
-	"github.com/rpuneet/bc/pkg/secret"
-	"github.com/rpuneet/bc/pkg/tmux"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/gh-curious-otter/bc/pkg/container"
+	"github.com/gh-curious-otter/bc/pkg/db"
+	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/gh-curious-otter/bc/pkg/provider"
+	"github.com/gh-curious-otter/bc/pkg/runtime"
+	"github.com/gh-curious-otter/bc/pkg/secret"
+	"github.com/gh-curious-otter/bc/pkg/tmux"
+	"github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/gh-curious-otter/bc/pkg/worktree"
 )
 
 // MaxAgentNameLength is the maximum allowed length for an agent name.
@@ -436,6 +437,9 @@ type Manager struct {
 	agentLocks       map[string]*sync.Mutex     // per-agent locks for slow I/O operations
 	providerRegistry *provider.Registry
 
+	// worktreeMgr manages per-agent git worktrees for isolation.
+	worktreeMgr *worktree.Manager
+
 	// onStateChange is called when an agent's state changes.
 	// Set by AgentService to publish SSE events.
 	onStateChange func(name string, state State, task string)
@@ -464,7 +468,7 @@ type Manager struct {
 }
 
 // SetOnStateChange registers a callback invoked whenever an agent's state
-// changes through the reconciler or hook-event processing.
+// changes through hook-event processing.
 func (m *Manager) SetOnStateChange(fn func(name string, state State, task string)) {
 	m.mu.Lock()
 	m.onStateChange = fn
@@ -558,6 +562,7 @@ func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 		defaultTool:      tool,
 		workspacePath:    workspacePath,
 		maxLogBytes:      DefaultMaxLogBytes,
+		worktreeMgr:      worktree.NewManager(workspacePath),
 	}
 }
 
@@ -581,6 +586,7 @@ func NewWorkspaceManagerWithRuntime(stateDir, workspacePath string, rt runtime.B
 		defaultTool:      tool,
 		workspacePath:    workspacePath,
 		maxLogBytes:      DefaultMaxLogBytes,
+		worktreeMgr:      worktree.NewManager(workspacePath),
 	}
 }
 
@@ -602,12 +608,10 @@ func defaultAgentCmd() (string, string) {
 func (m *Manager) getAgentCommand(toolName, agentName string, resume bool, sessionID string) (string, bool) {
 	if m.providerRegistry != nil {
 		if p, ok := m.providerRegistry.Get(toolName); ok {
-			wsName := filepath.Base(m.workspacePath)
 			return p.BuildCommand(provider.CommandOpts{
-				AgentName:     agentName,
-				WorkspaceName: wsName,
-				Resume:        resume,
-				SessionID:     sessionID,
+				AgentName: agentName,
+				Resume:    resume,
+				SessionID: sessionID,
 			}), true
 		}
 	}
@@ -822,10 +826,6 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		existing.RuntimeBackend = opts.Runtime
 	}
 
-	// Only resume if we have a real Claude session ID (UUID format) — avoids
-	// "No conversation found to continue" on first stop/start.
-	// The SessionID field may contain the tmux session name (e.g. "frontend")
-	// which is not a valid Claude conversation ID.
 	sessionID := existing.SessionID
 	isRealSessionID := len(sessionID) == 36 && sessionID[8] == '-'
 	resume := !opts.Fresh && isRealSessionID
@@ -837,6 +837,24 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		sessionID = opts.SessionID
 		existing.SessionID = sessionID
 	}
+
+	// Check if existing worktree can be reused for resume (tmux only)
+	agentRuntime := existing.RuntimeBackend
+	if m.worktreeMgr.Exists(name) && agentRuntime == "tmux" {
+		// Worktree exists — check for active session conflict
+		for beName, be := range m.backends {
+			if be.HasSession(ctx, name) {
+				m.mu.Unlock()
+				return nil, fmt.Errorf("worktree for %s is already in use by active session on %s backend", name, beName)
+			}
+		}
+		// Worktree exists with no active session — enable resume
+		if !resume && sessionID == "" {
+			resume = true
+			log.Debug("worktree exists, will use --continue", "agent", name)
+		}
+	}
+
 	toolName := existing.Tool
 	if toolName == "" {
 		toolName = m.defaultTool
@@ -848,21 +866,24 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		}
 	}
 
-	// Apply provider session customization for container backends only.
-	if existing.RuntimeBackend != "tmux" {
+	// Docker: wrap command in tmux session inside the container so SendKeys works.
+	if agentRuntime != "tmux" {
 		if toolName != "" && m.providerRegistry != nil {
 			if p, ok := m.providerRegistry.Get(toolName); ok {
 				if sc, ok := p.(provider.SessionCustomizer); ok {
-					agentCmd = sc.AdjustSessionCommand(agentCmd)
+					agentCmd = sc.AdjustContainerCommand(agentCmd)
 				}
 			}
 		}
 	}
 
 	env := map[string]string{
-		"BC_AGENT_ID":   name,
-		"BC_AGENT_ROLE": string(existing.Role),
-		"BC_WORKSPACE":  wsPath,
+		"BC_AGENT_ID":      name,
+		"BC_AGENT_ROLE":    string(existing.Role),
+		"BC_WORKSPACE":     wsPath,
+		"BC_AGENT_RUNTIME": agentRuntime,
+		"BC_BCD_ADDR":      bcdAddrForRuntime(agentRuntime),
+		"BC_WORKTREE_NAME": m.worktreeMgr.Name(name),
 	}
 	if toolName != "" {
 		env["BC_AGENT_TOOL"] = toolName
@@ -872,10 +893,6 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	}
 	injectEnv(env, wsPath, toolName, existing.EnvFile)
 
-	// MCP servers and plugins are configured via file-based config
-	// (.mcp.json and .claude.json) written by SetupAgentFromRole.
-	// No need for runtime `claude mcp add` commands.
-
 	rt := m.runtimeForAgent(name)
 	m.mu.Unlock()
 
@@ -883,11 +900,29 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	agentLock := m.getAgentLock(name)
 	agentLock.Lock()
 
-	// Clean stale worktree from previous container run to prevent
-	// "fatal: '<dir>' already exists" on restart.
-	cleanStaleWorktree(ctx, wsPath, name)
+	// Ensure worktree exists (may have been cleaned up)
+	wtDir := existing.WorktreeDir
+	if wtDir == "" || !m.worktreeMgr.Exists(name) {
+		var wtErr error
+		wtDir, wtErr = m.worktreeMgr.Create(ctx, name)
+		if wtErr != nil {
+			agentLock.Unlock()
+			return nil, fmt.Errorf("failed to create worktree for agent %s: %w", name, wtErr)
+		} else {
+			existing.WorktreeDir = wtDir
+		}
+	}
 
-	if err := rt.CreateSessionWithEnv(ctx, name, wsPath, agentCmd, env); err != nil {
+	// Write hook settings and role files to worktree (regenerate on every start
+	// so config changes like MCP URLs take effect without manual intervention).
+	if err := WriteWorkspaceHookSettings(wtDir); err != nil {
+		log.Error("failed to write hook settings", "dir", wtDir, "error", err)
+	}
+	if setupErr := SetupAgentFromRoleWithRuntime(wsPath, name, string(existing.Role), wtDir, agentRuntime); setupErr != nil {
+		log.Warn("role setup failed on restart", "agent", name, "error", setupErr)
+	}
+
+	if err := rt.CreateSessionWithEnv(ctx, name, wtDir, agentCmd, env); err != nil {
 		agentLock.Unlock()
 		return nil, fmt.Errorf("failed to recreate session: %w", err)
 	}
@@ -948,33 +983,29 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		effectiveTool = m.defaultTool
 	}
 
-	// Determine the command to use (fresh create — no resume, no session ID)
-	agentCmd := m.agentCmd
-	if effectiveTool != "" {
-		if cmd, ok := m.getAgentCommand(effectiveTool, name, false, ""); ok {
-			agentCmd = cmd
-		} else if tool != "" {
-			// Only error if the user explicitly requested a tool that doesn't exist.
-			// If it's the default tool, fall through to the base agentCmd.
-			m.mu.Unlock()
-			return nil, fmt.Errorf("unknown tool %q, available tools: %v", tool, m.listAvailableTools())
-		}
-	}
-
 	// Determine runtime backend for this agent
 	agentRuntime := m.defaultBackend
 	if opts.Runtime != "" {
 		agentRuntime = opts.Runtime
 	}
 
-	// Apply provider session customization for container backends only.
-	// Claude's --tmux flag is needed inside Docker (tmux runs inside the container)
-	// but NOT for native tmux sessions (claude detects tmux automatically).
+	// Determine the command to use
+	agentCmd := m.agentCmd
+	if effectiveTool != "" {
+		if cmd, ok := m.getAgentCommand(effectiveTool, name, false, ""); ok {
+			agentCmd = cmd
+		} else if tool != "" {
+			m.mu.Unlock()
+			return nil, fmt.Errorf("unknown tool %q, available tools: %v", tool, m.listAvailableTools())
+		}
+	}
+
+	// Docker: wrap command in tmux session inside the container so SendKeys works.
 	if agentRuntime != "tmux" {
 		if effectiveTool != "" && m.providerRegistry != nil {
 			if p, ok := m.providerRegistry.Get(effectiveTool); ok {
 				if sc, ok := p.(provider.SessionCustomizer); ok {
-					agentCmd = sc.AdjustSessionCommand(agentCmd)
+					agentCmd = sc.AdjustContainerCommand(agentCmd)
 				}
 			}
 		}
@@ -1035,9 +1066,12 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 
 	// Build env vars so the spawned process sees them immediately
 	env := map[string]string{
-		"BC_AGENT_ID":   name,
-		"BC_AGENT_ROLE": string(role),
-		"BC_WORKSPACE":  wsPath,
+		"BC_AGENT_ID":      name,
+		"BC_AGENT_ROLE":    string(role),
+		"BC_WORKSPACE":     wsPath,
+		"BC_AGENT_RUNTIME": agentRuntime,
+		"BC_BCD_ADDR":      bcdAddrForRuntime(agentRuntime),
+		"BC_WORKTREE_NAME": m.worktreeMgr.Name(name),
 	}
 	if effectiveTool != "" {
 		env["BC_AGENT_TOOL"] = effectiveTool
@@ -1054,37 +1088,40 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	agentLock := m.getAgentLock(name)
 	agentLock.Lock()
 
-	// Clean stale worktree from previous container run (crash recovery).
-	cleanStaleWorktree(ctx, wsPath, name)
-
-	// MCP servers and plugins are configured via file-based config
-	// (.mcp.json and .claude.json) written by SetupAgentFromRole above.
-	// No runtime `claude mcp add` commands — they kill running Claude instances.
-
-	// Create session in the workspace directory using the agent's runtime backend
-	if err := rt.CreateSessionWithEnv(ctx, name, wsPath, agentCmd, env); err != nil {
+	// Create worktree for this agent
+	wtDir, wtErr := m.worktreeMgr.Create(ctx, name)
+	if wtErr != nil {
 		agentLock.Unlock()
-		// Clean up early registration
+		m.mu.Lock()
+		delete(m.agents, name)
+		m.mu.Unlock()
+		return nil, fmt.Errorf("create worktree: %w", wtErr)
+	}
+	agent.WorktreeDir = wtDir
+
+	// Ensure Claude home dir exists
+	if claudeErr := m.worktreeMgr.EnsureClaudeDir(name); claudeErr != nil {
+		log.Warn("failed to ensure Claude dir", "agent", name, "error", claudeErr)
+	}
+
+	// Write hook settings to the worktree
+	if err := WriteWorkspaceHookSettings(wtDir); err != nil {
+		log.Warn("failed to write hook settings", "dir", wtDir, "error", err)
+	}
+
+	// Write role files (CLAUDE.md, .mcp.json, etc.) to the worktree
+	if setupErr := SetupAgentFromRoleWithRuntime(wsPath, name, string(role), wtDir, agentRuntime); setupErr != nil {
+		log.Warn("role setup failed", "agent", name, "error", setupErr)
+		agent.Task = fmt.Sprintf("role setup failed: %v", setupErr)
+	}
+
+	// Create session IN the worktree directory
+	if err := rt.CreateSessionWithEnv(ctx, name, wtDir, agentCmd, env); err != nil {
+		agentLock.Unlock()
 		m.mu.Lock()
 		delete(m.agents, name)
 		m.mu.Unlock()
 		return nil, fmt.Errorf("failed to create session: %w", err)
-	}
-
-	// Write workspace-level Claude Code hook settings so agents emit state events.
-	if wsPath != "" {
-		if err := WriteWorkspaceHookSettings(wsPath); err != nil {
-			log.Debug("failed to write hook settings", "workspace", wsPath, "error", err)
-		}
-	}
-
-	// Set up agent workspace from role (CLAUDE.md, .mcp.json, settings, commands, etc.)
-	roleTarget := wsPath
-	if agent.WorktreeDir != "" {
-		roleTarget = agent.WorktreeDir
-	}
-	if setupErr := SetupAgentFromRoleWithRuntime(wsPath, name, string(role), roleTarget, agentRuntime); setupErr != nil {
-		log.Warn("role setup failed", "agent", name, "error", setupErr)
 	}
 
 	// Start log streaming via pipe-pane
@@ -1385,39 +1422,6 @@ func (m *Manager) collectAgentTree(name string) ([]agentTreeEntry, error) {
 	return entries, nil
 }
 
-// cleanStaleWorktree removes a pre-existing git worktree directory that may
-// persist from a previous Docker container run. Without this, `claude -w`
-// fails with "fatal: '<dir>' already exists" on restart.
-func cleanStaleWorktree(ctx context.Context, workspacePath, agentName string) {
-	if workspacePath == "" {
-		return
-	}
-	worktreeName := "bc-" + filepath.Base(workspacePath) + "-" + agentName
-	worktreeDir := filepath.Join(workspacePath, ".claude", "worktrees", worktreeName)
-
-	// Check if directory exists before doing any work
-	if _, err := os.Stat(worktreeDir); os.IsNotExist(err) {
-		return
-	}
-
-	log.Debug("cleaning stale worktree", "agent", agentName, "dir", worktreeDir)
-
-	// Prune stale worktree refs (handles /workspace/... Docker paths that
-	// no longer exist on the host)
-	//nolint:gosec // trusted paths from workspace config
-	_ = exec.CommandContext(ctx, "git", "-C", workspacePath, "worktree", "prune").Run()
-
-	// Try git worktree remove first (cleanest approach)
-	//nolint:gosec // trusted paths
-	if err := exec.CommandContext(ctx, "git", "-C", workspacePath, "worktree", "remove", "--force", worktreeDir).Run(); err != nil {
-		// If git worktree remove fails, fall back to removing the directory
-		// This handles cases where the worktree is not tracked by git
-		// (e.g., created inside a Docker container with a different /workspace path)
-		log.Debug("git worktree remove failed, removing directory directly", "error", err)
-		_ = os.RemoveAll(worktreeDir)
-	}
-}
-
 // DeleteOptions configures agent deletion behavior.
 type DeleteOptions struct {
 	// Placeholder for future options.
@@ -1467,18 +1471,10 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 		log.Warn("delete: failed to remove agent volume", "agent", name, "error", err)
 	}
 
-	// 4. Remove git worktree and branch
-	worktreeName := "bc-" + filepath.Base(workspacePath) + "-" + name
-	worktreeDir := filepath.Join(workspacePath, ".claude", "worktrees", worktreeName)
-	branchName := "worktree-" + worktreeName
-
-	//nolint:gosec // trusted paths
-	_ = exec.CommandContext(ctx, "git", "-C", workspacePath, "worktree", "prune").Run()
-	//nolint:gosec // trusted paths
-	_ = exec.CommandContext(ctx, "git", "-C", workspacePath, "worktree", "remove", "--force", worktreeDir).Run()
-	//nolint:gosec // trusted paths
-	_ = exec.CommandContext(ctx, "git", "-C", workspacePath, "branch", "-D", branchName).Run()
-	_ = os.RemoveAll(worktreeDir)
+	// 4. Remove git worktree
+	if err := m.worktreeMgr.Remove(ctx, name); err != nil {
+		log.Warn("failed to remove worktree", "agent", name, "error", err)
+	}
 
 	// 5. Remove log file
 	if logFile != "" {
@@ -1534,7 +1530,7 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 	}
 	m.mu.Unlock()
 
-	log.Debug("agent fully deleted", "agent", name, "volume", volumeDir, "worktree", worktreeDir)
+	log.Debug("agent fully deleted", "agent", name, "volume", volumeDir)
 	return nil
 }
 
@@ -1575,19 +1571,27 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 		// Non-fatal — session may already be dead (agent is stopped)
 	}
 
-	// Rename git worktree directory and branch
-	oldWorktreeName := "bc-" + filepath.Base(m.workspacePath) + "-" + oldName
-	newWorktreeName := "bc-" + filepath.Base(m.workspacePath) + "-" + newName
-	oldWorktreeDir := filepath.Join(m.workspacePath, ".claude", "worktrees", oldWorktreeName)
-	newWorktreeDir := filepath.Join(m.workspacePath, ".claude", "worktrees", newWorktreeName)
-	oldBranch := "worktree-" + oldWorktreeName
-	newBranch := "worktree-" + newWorktreeName
-
-	if err := os.Rename(oldWorktreeDir, newWorktreeDir); err != nil && !os.IsNotExist(err) {
-		log.Warn("rename: failed to move worktree dir", "error", err)
+	// Move worktree directory to preserve content instead of Remove+Create
+	oldPath := m.worktreeMgr.Path(oldName)
+	newPath := m.worktreeMgr.Path(newName)
+	var newWorktreeDir string
+	if err := os.MkdirAll(filepath.Dir(newPath), 0750); err != nil {
+		log.Warn("rename: failed to create new agent dir", "error", err)
 	}
-	//nolint:gosec // trusted paths
-	_ = exec.CommandContext(ctx, "git", "-C", m.workspacePath, "branch", "-m", oldBranch, newBranch).Run()
+	if err := os.Rename(oldPath, newPath); err != nil {
+		log.Warn("rename: failed to move worktree", "error", err)
+		// Fall back to create new
+		_ = m.worktreeMgr.Remove(ctx, oldName)
+		newPath2, wtErr := m.worktreeMgr.Create(ctx, newName)
+		if wtErr != nil {
+			log.Warn("rename: failed to create worktree for new name", "error", wtErr)
+		}
+		if newPath2 != "" {
+			newWorktreeDir = newPath2
+		}
+	} else {
+		newWorktreeDir = newPath
+	}
 
 	// Rename log file
 	oldLogDir := filepath.Join(m.workspacePath, ".bc", "logs")
@@ -1615,7 +1619,7 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 	agent.Name = newName
 	agent.Session = newName
 	agent.UpdatedAt = now
-	if agent.WorktreeDir == oldWorktreeDir {
+	if newWorktreeDir != "" {
 		agent.WorktreeDir = newWorktreeDir
 	}
 	if agent.LogFile == oldLogFile {
@@ -1812,218 +1816,6 @@ func (m *Manager) ListByRole(role Role) []*Agent {
 	})
 
 	return agents
-}
-
-// RunReconciler runs RefreshState on a background ticker until ctx is canceled.
-// This replaces the synchronous RefreshState call on every GET /api/agents.
-func (m *Manager) RunReconciler(ctx context.Context, interval time.Duration) {
-	// Run once immediately on startup
-	if err := m.RefreshState(ctx); err != nil {
-		log.Warn("initial state refresh failed", "error", err)
-	}
-
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			if err := m.RefreshState(ctx); err != nil {
-				log.Warn("state refresh failed", "error", err)
-			}
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-// RefreshState updates agent states from tmux.
-// Also captures a live task summary from each agent's tmux pane.
-func (m *Manager) RefreshState(ctx context.Context) error {
-	// Phase 1: global lock — snapshot backend list and agent names
-	m.mu.RLock()
-	backends := make([]runtime.Backend, 0, len(m.backends))
-	for _, be := range m.backends {
-		backends = append(backends, be)
-	}
-	agentNames := make([]string, 0, len(m.agents))
-	for name := range m.agents {
-		agentNames = append(agentNames, name)
-	}
-	m.mu.RUnlock()
-
-	// Phase 2: slow I/O without holding lock — list sessions from all backends
-	active := make(map[string]bool)
-	for _, be := range backends {
-		sessions, err := be.ListSessions(ctx)
-		if err != nil {
-			continue // backend may be unavailable
-		}
-		for _, s := range sessions {
-			active[s.Name] = true
-		}
-	}
-
-	// Capture live tasks without holding lock
-	liveTasks := make(map[string]string, len(agentNames))
-	for _, name := range agentNames {
-		if active[name] {
-			if live := m.captureLiveTask(ctx, name); live != "" {
-				liveTasks[name] = live
-			}
-		}
-	}
-
-	// Phase 3: global lock — apply state updates
-	type stateChange struct {
-		name  string
-		state State
-		task  string
-	}
-	var changes []stateChange
-
-	m.mu.Lock()
-
-	for name, a := range m.agents {
-		prevState := a.State
-
-		if !active[name] && a.State != StateStopped {
-			a.State = StateStopped
-			a.UpdatedAt = time.Now()
-			changes = append(changes, stateChange{name, a.State, a.Task})
-			continue
-		}
-		if !active[name] {
-			continue
-		}
-
-		// Correct stale stopped/error state when session is actually alive
-		if a.State == StateStopped || a.State == StateError {
-			a.State = StateIdle
-			a.StartedAt = time.Now()
-			a.UpdatedAt = time.Now()
-		}
-
-		// Apply captured live task
-		if live, ok := liveTasks[name]; ok {
-			a.Task = live
-
-			// Use provider-based state detection if available for richer state inference
-			newState := m.detectAgentState(a.Tool, live)
-
-			// IMPORTANT: Preserve error, stuck, and done states - these are explicitly
-			// reported by agents and should not be overwritten by activity detection.
-			// Only toggle between working and idle for agents in "normal" states.
-			switch newState {
-			case StateWorking:
-				if a.State == StateIdle || a.State == StateStarting {
-					a.State = StateWorking
-					a.UpdatedAt = time.Now()
-				}
-			case StateIdle:
-				if a.State == StateWorking {
-					a.State = StateIdle
-					a.UpdatedAt = time.Now()
-				}
-			}
-		}
-
-		if a.State != prevState {
-			changes = append(changes, stateChange{name, a.State, a.Task})
-		}
-	}
-
-	m.mu.Unlock()
-
-	// Notify outside the lock to avoid potential deadlocks.
-	for _, c := range changes {
-		m.notifyStateChange(c.name, c.state, c.task)
-	}
-
-	return nil
-}
-
-// captureLiveTask extracts a one-line activity summary from an agent's tmux pane.
-// detectAgentState determines agent state from output, using provider-based
-// detection when available or falling back to symbol-based heuristics.
-func (m *Manager) detectAgentState(tool, output string) State {
-	// Try provider-based detection if tool is known
-	if tool != "" && m.providerRegistry != nil {
-		if p, ok := m.providerRegistry.Get(tool); ok {
-			ps := p.DetectState(output)
-			switch ps {
-			case provider.StateWorking:
-				return StateWorking
-			case provider.StateIdle:
-				return StateIdle
-			case provider.StateDone:
-				return StateDone
-			case provider.StateError:
-				return StateError
-			case provider.StateStuck:
-				return StateStuck
-			}
-			// provider.StateUnknown — fall through to symbol detection
-		}
-	}
-
-	// Fall back to symbol-based detection (works for all tools)
-	if strings.HasPrefix(output, "✻") ||
-		strings.HasPrefix(output, "✳") ||
-		strings.HasPrefix(output, "✽") ||
-		strings.HasPrefix(output, "·") {
-		return StateWorking
-	}
-	if strings.HasPrefix(output, "❯") ||
-		strings.HasPrefix(output, "⏺") {
-		return StateIdle
-	}
-
-	return ""
-}
-
-func (m *Manager) captureLiveTask(ctx context.Context, name string) string {
-	output, err := m.runtimeForAgent(name).Capture(ctx, name, 15)
-	if err != nil {
-		return ""
-	}
-
-	lines := strings.Split(strings.TrimSpace(output), "\n")
-	for i := len(lines) - 1; i >= 0; i-- {
-		line := strings.TrimSpace(lines[i])
-		if line == "" || line == "❯" {
-			continue
-		}
-
-		// Skip status bar
-		if strings.Contains(line, "bypass permissions") ||
-			strings.Contains(line, "shift+Tab to cycle") ||
-			strings.Contains(line, "Update available") {
-			continue
-		}
-
-		// Spinner lines: active work
-		if strings.HasPrefix(line, "✻") ||
-			strings.HasPrefix(line, "✳") ||
-			strings.HasPrefix(line, "✽") ||
-			strings.HasPrefix(line, "·") {
-			if idx := strings.LastIndex(line, "("); idx > 20 {
-				line = strings.TrimSpace(line[:idx])
-			}
-			return line
-		}
-
-		// Tool call lines
-		if strings.HasPrefix(line, "⏺") {
-			return line
-		}
-
-		// Prompt line — agent waiting for input
-		if strings.HasPrefix(line, "❯") && len(line) > 2 {
-			return line
-		}
-	}
-
-	return ""
 }
 
 // AgentCount returns the number of agents.
@@ -2341,14 +2133,6 @@ func (m *Manager) Tmux() *tmux.Manager {
 	return nil
 }
 
-// saveAgentStats persists a Docker stats sample via the SQLite store.
-func (m *Manager) saveAgentStats(rec *AgentStatsRecord) error {
-	if m.store == nil {
-		return fmt.Errorf("no store available")
-	}
-	return m.store.SaveStats(rec)
-}
-
 // QueryAgentStats returns up to limit recent stats records for the named agent.
 func (m *Manager) QueryAgentStats(agentName string, limit int) ([]*AgentStatsRecord, error) {
 	if m.store == nil {
@@ -2365,7 +2149,6 @@ func (m *Manager) Close() error {
 	return nil
 }
 
-// writeRoleCLAUDEMD writes the role prompt to the agent's auth CLAUDE.md.
 // enforceRootSingleton checks if a root agent can be spawned.
 // Returns an error if a root already exists and is running.
 // Allows respawn if root is stopped or in error state.
@@ -2385,6 +2168,25 @@ func (m *Manager) enforceRootSingleton(_ string) error {
 		}
 	}
 	return nil
+}
+
+// bcdAddrForRuntime returns the bcd server address for the given runtime.
+// Docker containers reach the host via host.docker.internal.
+// If BC_BCD_ADDR is set in the environment, it is used as the base address
+// (with host.docker.internal substituted for Docker runtimes).
+func bcdAddrForRuntime(rt string) string {
+	if addr := os.Getenv("BC_BCD_ADDR"); addr != "" {
+		if rt == "docker" {
+			// Replace localhost/127.0.0.1 with host.docker.internal for Docker
+			addr = strings.ReplaceAll(addr, "127.0.0.1", "host.docker.internal")
+			addr = strings.ReplaceAll(addr, "localhost", "host.docker.internal")
+		}
+		return addr
+	}
+	if rt == "docker" {
+		return "http://host.docker.internal:9374"
+	}
+	return "http://127.0.0.1:9374"
 }
 
 // injectEnv merges layered environment variables into the env map.

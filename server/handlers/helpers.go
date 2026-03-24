@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/gh-curious-otter/bc/pkg/log"
 )
 
 // writeJSON encodes v as JSON and writes it with the given status code.

@@ -7,7 +7,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/rpuneet/bc/pkg/tmux"
+	"github.com/gh-curious-otter/bc/pkg/tmux"
 )
 
 // FileSystem abstracts file system operations for testability.

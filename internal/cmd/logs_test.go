@@ -10,15 +10,19 @@ import (
 
 	"github.com/spf13/pflag"
 
-	"github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/ui"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/gh-curious-otter/bc/pkg/events"
+	"github.com/gh-curious-otter/bc/pkg/ui"
+	"github.com/gh-curious-otter/bc/pkg/workspace"
 )
 
 // setupLogsWorkspace creates a temporary bc workspace, changes into it,
 // and returns the root dir plus a cleanup function.
 func setupLogsWorkspace(t *testing.T) (string, func()) {
 	t.Helper()
+
+	if os.Getenv("BC_TEST_DAEMON") == "" {
+		t.Skip("skipping: requires BC_TEST_DAEMON=1 (dedicated test bcd instance)")
+	}
 
 	origDir, err := os.Getwd()
 	if err != nil {

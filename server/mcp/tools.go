@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/gh-curious-otter/bc/pkg/agent"
 )
 
 // definedTools returns the static list of tools this server exposes.
@@ -49,10 +49,6 @@ func definedTools() []Tool {
 					"message": map[string]any{
 						"type":        "string",
 						"description": "Message content",
-					},
-					"sender": map[string]any{
-						"type":        "string",
-						"description": "Sender name (defaults to 'mcp')",
 					},
 				},
 				"required": []string{"channel", "message"},
@@ -144,10 +140,9 @@ func (s *Server) toolCreateAgent(ctx context.Context, raw json.RawMessage) (*too
 type sendMessageArgs struct {
 	Channel string `json:"channel"`
 	Message string `json:"message"`
-	Sender  string `json:"sender,omitempty"`
 }
 
-func (s *Server) toolSendMessage(raw json.RawMessage) (*toolsCallResult, error) {
+func (s *Server) toolSendMessage(ctx context.Context, raw json.RawMessage) (*toolsCallResult, error) {
 	var args sendMessageArgs
 	if err := json.Unmarshal(raw, &args); err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
@@ -160,9 +155,10 @@ func (s *Server) toolSendMessage(raw json.RawMessage) (*toolsCallResult, error) 
 		return nil, fmt.Errorf("message is required")
 	}
 
-	sender := args.Sender
+	// Sender is determined from the authenticated SSE connection identity.
+	// Falls back to workspace nickname, then "mcp".
+	sender := AgentFromContext(ctx)
 	if sender == "" {
-		sender = "mcp"
 		if s.ws != nil {
 			nick := s.ws.Config.User.Nickname
 			nick = strings.TrimPrefix(nick, "@")
@@ -170,6 +166,9 @@ func (s *Server) toolSendMessage(raw json.RawMessage) (*toolsCallResult, error) 
 				sender = nick
 			}
 		}
+	}
+	if sender == "" {
+		sender = "mcp"
 	}
 
 	// Use ChannelService when available — its OnMessage hook handles agent

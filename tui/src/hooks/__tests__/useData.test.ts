@@ -12,14 +12,17 @@ import { describe, it, expect, beforeEach, afterEach, vi, mock } from 'bun:test'
 // renderHook requires DOM (jsdom/happydom) which is not configured for bun:test
 const noDOM = typeof globalThis.document === 'undefined';
 
-mock.module('../../services/bc', () => ({
-  getStatus: vi.fn(),
-  getCostSummary: vi.fn(),
-  getTeams: vi.fn(),
-  getProcesses: vi.fn(),
-}));
+if (!noDOM) {
+  mock.module('../../services/bc', () => ({
+    getStatus: vi.fn(),
+    getCostSummary: vi.fn(),
+    getTeams: vi.fn(),
+    getProcesses: vi.fn(),
+  }));
+}
 
-import { renderHook, act } from '@testing-library/react';
+import { act } from 'react';
+import { renderHook } from '@testing-library/react';
 import { useStatus } from '../useStatus';
 import { useCosts } from '../useCosts';
 import * as bcService from '../../services/bc';
@@ -82,7 +85,7 @@ describe.skipIf(noDOM)('useStatus - Workspace status', () => {
       vi.runAllTimers();
     });
 
-    const working = result.current.data?.agents.filter((a) => a.state === 'working').length || 0;
+    const working = result.current.data?.agents.filter((a) => a.state === 'working').length ?? 0;
     expect(working).toBe(2);
   });
 

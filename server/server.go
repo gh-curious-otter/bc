@@ -20,21 +20,21 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/channel"
-	"github.com/rpuneet/bc/pkg/cost"
-	"github.com/rpuneet/bc/pkg/cron"
-	"github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/mcp"
-	"github.com/rpuneet/bc/pkg/secret"
-	"github.com/rpuneet/bc/pkg/stats"
-	"github.com/rpuneet/bc/pkg/team"
-	"github.com/rpuneet/bc/pkg/tool"
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/server/handlers"
-	servermcp "github.com/rpuneet/bc/server/mcp"
-	"github.com/rpuneet/bc/server/ws"
+	"github.com/gh-curious-otter/bc/pkg/agent"
+	"github.com/gh-curious-otter/bc/pkg/channel"
+	"github.com/gh-curious-otter/bc/pkg/cost"
+	"github.com/gh-curious-otter/bc/pkg/cron"
+	"github.com/gh-curious-otter/bc/pkg/events"
+	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/gh-curious-otter/bc/pkg/mcp"
+	"github.com/gh-curious-otter/bc/pkg/secret"
+	"github.com/gh-curious-otter/bc/pkg/stats"
+	"github.com/gh-curious-otter/bc/pkg/team"
+	"github.com/gh-curious-otter/bc/pkg/tool"
+	"github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/gh-curious-otter/bc/server/handlers"
+	servermcp "github.com/gh-curious-otter/bc/server/mcp"
+	"github.com/gh-curious-otter/bc/server/ws"
 )
 
 const defaultAddr = "127.0.0.1:9374"
@@ -140,7 +140,11 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 
 	// Resource handlers (only registered when service is available)
 	if svc.Agents != nil {
-		handlers.NewAgentHandler(svc.Agents, svc.Costs, svc.WS, hub).Register(mux)
+		ah := handlers.NewAgentHandler(svc.Agents, svc.Costs, svc.WS, hub)
+		if svc.EventLog != nil {
+			ah.SetEventStore(svc.EventLog)
+		}
+		ah.Register(mux)
 	}
 	if svc.Channels != nil {
 		svc.Channels.OnMessage = func(ch, sender, content string) {

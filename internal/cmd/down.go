@@ -7,8 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/ui"
+	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/gh-curious-otter/bc/pkg/ui"
+	"github.com/gh-curious-otter/bc/pkg/workspace"
 )
 
 var downCmd = &cobra.Command{
@@ -17,18 +18,31 @@ var downCmd = &cobra.Command{
 	Long: `Stop bc-<id>-daemon, bc-stats, and bc-sql Docker containers.
 
 Examples:
-  bc down`,
+  bc down
+  bc down --workspace /path/to/workspace`,
 	RunE: runDown,
 }
 
+var downWorkspace string
+
 func init() {
+	downCmd.Flags().StringVar(&downWorkspace, "workspace", "", "Workspace directory (defaults to current workspace)")
 	rootCmd.AddCommand(downCmd)
 }
 
 func runDown(cmd *cobra.Command, _ []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
+	var ws *workspace.Workspace
+	var err error
+	if downWorkspace != "" {
+		ws, err = workspace.Load(downWorkspace)
+		if err != nil {
+			return fmt.Errorf("cannot load workspace at %s: %w", downWorkspace, err)
+		}
+	} else {
+		ws, err = getWorkspace()
+		if err != nil {
+			return errNotInWorkspace(err)
+		}
 	}
 
 	ctx := cmd.Context()

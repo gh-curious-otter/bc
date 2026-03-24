@@ -143,27 +143,20 @@ type TimeRange struct {
 	Interval string // e.g. "5m", "1h" — converted to Postgres interval via PGInterval()
 }
 
-// PGInterval converts short notation (5m, 1h) to Postgres format (5 minutes, 1 hours).
+// PGInterval converts short notation to Postgres interval format.
+// Uses an allowlist to prevent SQL injection via the interval query parameter.
 func (tr TimeRange) PGInterval() string {
-	s := tr.Interval
-	if s == "" {
-		return "5 minutes"
-	}
-	if len(s) < 2 {
-		return s
-	}
-	val := s[:len(s)-1]
-	switch s[len(s)-1] {
-	case 's':
-		return val + " seconds"
-	case 'm':
-		return val + " minutes"
-	case 'h':
-		return val + " hours"
-	case 'd':
-		return val + " days"
+	switch tr.Interval {
+	case "1s", "5s", "10s", "30s":
+		return tr.Interval[:len(tr.Interval)-1] + " seconds"
+	case "1m", "5m", "10m", "15m", "30m":
+		return tr.Interval[:len(tr.Interval)-1] + " minutes"
+	case "1h", "6h", "12h":
+		return tr.Interval[:len(tr.Interval)-1] + " hours"
+	case "1d", "7d", "30d":
+		return tr.Interval[:len(tr.Interval)-1] + " days"
 	default:
-		return s
+		return "5 minutes"
 	}
 }
 

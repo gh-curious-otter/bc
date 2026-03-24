@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	bcdb "github.com/rpuneet/bc/pkg/db"
-	"github.com/rpuneet/bc/pkg/log"
+	bcdb "github.com/gh-curious-otter/bc/pkg/db"
+	"github.com/gh-curious-otter/bc/pkg/log"
 )
 
 // PostgresStore provides Postgres-backed persistence for agent state.
@@ -133,7 +133,7 @@ func (p *PostgresStore) Save(a *Agent) error {
 
 // Load reads a single agent by name. Returns nil, nil if not found.
 func (p *PostgresStore) Load(name string) (*Agent, error) {
-	row := p.db.QueryRow(pgAgentSelectCols+` FROM agents WHERE name = $1`, name)
+	row := p.db.QueryRowContext(context.Background(), pgAgentSelectCols+` FROM agents WHERE name = $1`, name)
 
 	a, err := pgScanAgentRow(row)
 	if err != nil {
@@ -147,7 +147,7 @@ func (p *PostgresStore) Load(name string) (*Agent, error) {
 
 // LoadRoot reads the root agent (is_root=true). Returns nil, nil if not found.
 func (p *PostgresStore) LoadRoot() (*Agent, error) {
-	row := p.db.QueryRow(pgAgentSelectCols + ` FROM agents WHERE is_root = TRUE LIMIT 1`)
+	row := p.db.QueryRowContext(context.Background(), pgAgentSelectCols+` FROM agents WHERE is_root = TRUE LIMIT 1`)
 
 	a, err := pgScanAgentRow(row)
 	if err != nil {
@@ -162,7 +162,7 @@ func (p *PostgresStore) LoadRoot() (*Agent, error) {
 // SoftDelete marks an agent as deleted by setting deleted_at.
 func (p *PostgresStore) SoftDelete(name string) error {
 	now := time.Now()
-	_, err := p.db.Exec(
+	_, err := p.db.ExecContext(context.Background(),
 		"UPDATE agents SET deleted_at = $1, updated_at = $2 WHERE name = $3",
 		now, now, name,
 	)
@@ -171,13 +171,13 @@ func (p *PostgresStore) SoftDelete(name string) error {
 
 // Delete removes a single agent by name.
 func (p *PostgresStore) Delete(name string) error {
-	_, err := p.db.Exec("DELETE FROM agents WHERE name = $1", name)
+	_, err := p.db.ExecContext(context.Background(), "DELETE FROM agents WHERE name = $1", name)
 	return err
 }
 
 // LoadAll reads every non-deleted agent into a map keyed by name.
 func (p *PostgresStore) LoadAll() (map[string]*Agent, error) {
-	rows, err := p.db.Query(pgAgentSelectCols + ` FROM agents WHERE deleted_at IS NULL`)
+	rows, err := p.db.QueryContext(context.Background(), pgAgentSelectCols+` FROM agents WHERE deleted_at IS NULL`)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +196,8 @@ func (p *PostgresStore) LoadAll() (map[string]*Agent, error) {
 
 // SaveAll persists every agent in the map inside a single transaction.
 func (p *PostgresStore) SaveAll(agents map[string]*Agent) error {
-	tx, err := p.db.Begin()
+	ctx := context.Background()
+	tx, err := p.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -212,7 +213,7 @@ func (p *PostgresStore) SaveAll(agents map[string]*Agent) error {
 		if createdAt.IsZero() {
 			createdAt = a.StartedAt
 		}
-		_, execErr := tx.Exec(`
+		_, execErr := tx.ExecContext(ctx, `
 			INSERT INTO agents
 			(name, role, state, tool, parent_id, team, task, session, workspace,
 			 worktree_dir, log_file, hooked_work, children,
@@ -247,7 +248,7 @@ func (p *PostgresStore) SaveAll(agents map[string]*Agent) error {
 
 // UpdateState updates only the state column for a given agent.
 func (p *PostgresStore) UpdateState(name string, state State) error {
-	res, err := p.db.Exec(
+	res, err := p.db.ExecContext(context.Background(),
 		"UPDATE agents SET state = $1, updated_at = $2 WHERE name = $3",
 		string(state), time.Now(), name,
 	)
@@ -274,7 +275,7 @@ func (p *PostgresStore) UpdateField(name, field, value string) error {
 	}
 
 	query := fmt.Sprintf("UPDATE agents SET %s = $1, updated_at = $2 WHERE name = $3", field) //nolint:gosec // field validated above
-	res, err := p.db.Exec(query, value, time.Now(), name)
+	res, err := p.db.ExecContext(context.Background(), query, value, time.Now(), name)
 	if err != nil {
 		return err
 	}
@@ -287,7 +288,7 @@ func (p *PostgresStore) UpdateField(name, field, value string) error {
 
 // SaveStats inserts a single AgentStatsRecord.
 func (p *PostgresStore) SaveStats(rec *AgentStatsRecord) error {
-	_, err := p.db.Exec(`
+	_, err := p.db.ExecContext(context.Background(), `
 		INSERT INTO agent_stats
 		(agent_name, collected_at, cpu_pct, mem_used_mb, mem_limit_mb,
 		 net_rx_mb, net_tx_mb, block_read_mb, block_write_mb)
@@ -304,7 +305,7 @@ func (p *PostgresStore) QueryStats(agentName string, limit int) ([]*AgentStatsRe
 	if limit <= 0 {
 		limit = 20
 	}
-	rows, err := p.db.Query(`
+	rows, err := p.db.QueryContext(context.Background(), `
 		SELECT agent_name, collected_at, cpu_pct, mem_used_mb, mem_limit_mb,
 		       net_rx_mb, net_tx_mb, block_read_mb, block_write_mb
 		FROM agent_stats

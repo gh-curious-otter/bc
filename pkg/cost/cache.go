@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/db"
+	"github.com/gh-curious-otter/bc/pkg/db"
 )
 
 // Cache provides SQLite-backed caching for expensive cost queries (e.g. ccusage).

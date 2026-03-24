@@ -111,7 +111,7 @@ const TableRow = memo(function TableRow<T>({
             col.render(item, rowIndex)
           ) : (
             <Text color={isSelected ? theme.colors.primary : undefined}>
-              {String((item as Record<string, unknown>)[col.key as string] ?? '')}
+              {String((item as Record<string, string | number | boolean | null | undefined>)[col.key as string] ?? '')}
             </Text>
           )}
         </Box>

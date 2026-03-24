@@ -11,7 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/gh-curious-otter/bc/pkg/log"
 )
 
 var homeCmd = &cobra.Command{

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -75,6 +76,11 @@ func (s *Server) HandleSSEMessage(ctx context.Context, broker *SSEBroker) http.H
 			broker.send(resp)
 			w.WriteHeader(http.StatusAccepted)
 			return
+		}
+
+		// Pass agent identity from query param into context for tool handlers.
+		if agentID := r.URL.Query().Get("agent"); agentID != "" {
+			ctx = context.WithValue(ctx, ctxKeyAgent, agentID) //nolint:staticcheck // string key is fine for internal use
 		}
 
 		resp := s.Handle(ctx, req)
@@ -158,8 +164,14 @@ func (b *SSEBroker) handleSSE(w http.ResponseWriter, r *http.Request) {
 	ch := b.subscribe()
 	defer b.unsubscribe(ch)
 
+	// Include agent identity in the message endpoint URL so tool calls
+	// know which agent is the caller (used by send_message for sender).
+	endpoint := b.messageEndpoint
+	if agentID := r.URL.Query().Get("agent"); agentID != "" {
+		endpoint += "?agent=" + url.QueryEscape(agentID)
+	}
 	// Send endpoint event so client knows where to POST
-	fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", b.messageEndpoint) //nolint:errcheck // writing to response
+	fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", endpoint) //nolint:errcheck // writing to response
 	flusher.Flush()
 
 	keepalive := time.NewTicker(30 * time.Second)

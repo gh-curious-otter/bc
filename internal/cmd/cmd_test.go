@@ -56,6 +56,14 @@ func executeCmd(args ...string) (string, error) {
 func setupTestWorkspace(t *testing.T) string {
 	t.Helper()
 
+	// These tests use the global rootCmd which connects to bcd at :9374.
+	// They can't work reliably: if bcd is running they hit the live instance,
+	// if not they fail with "daemon not running". Skip unless a test-specific
+	// daemon is available (indicated by BC_TEST_DAEMON=1).
+	if os.Getenv("BC_TEST_DAEMON") == "" {
+		t.Skip("skipping: requires BC_TEST_DAEMON=1 (dedicated test bcd instance)")
+	}
+
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)

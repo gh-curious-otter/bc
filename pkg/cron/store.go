@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/db"
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/gh-curious-otter/bc/pkg/db"
+	"github.com/gh-curious-otter/bc/pkg/log"
 )
 
 // Store is a cron job store backed by SQLite or Postgres.

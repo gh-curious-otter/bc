@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/gh-curious-otter/bc/pkg/agent"
 )
 
 // Agent command integration tests that don't require actual tmux sessions.

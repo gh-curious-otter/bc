@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/gh-curious-otter/bc/pkg/log"
 )
 
 // statusRecorder wraps http.ResponseWriter to capture the status code.

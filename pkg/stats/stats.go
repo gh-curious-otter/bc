@@ -2,7 +2,6 @@
 package stats
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/gh-curious-otter/bc/pkg/agent"
 )
 
 // AgentMetrics tracks agent statistics.
@@ -91,7 +90,6 @@ func (s *Stats) refresh(stateDir string) error {
 			return fmt.Errorf("failed to load agents: %w", err)
 		}
 	}
-	_ = mgr.RefreshState(context.Background()) //nolint:errcheck // best-effort refresh
 	s.collectAgentMetrics(mgr)
 
 	return nil

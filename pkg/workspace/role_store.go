@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -9,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/db"
+	"github.com/gh-curious-otter/bc/pkg/db"
 )
 
 // RoleStore provides SQL-backed persistence for roles.
@@ -99,7 +100,7 @@ func (s *RoleStore) InitSchema() error {
 		);`
 	}
 
-	_, err := s.sqlDB.Exec(schema)
+	_, err := s.sqlDB.ExecContext(context.Background(), schema)
 	if err != nil {
 		return fmt.Errorf("create roles table: %w", err)
 	}
@@ -167,8 +168,9 @@ func (s *RoleStore) Save(role *Role) error {
 
 	now := time.Now().Format(time.RFC3339)
 
+	ctx := context.Background()
 	if s.driver == "postgres" {
-		_, err = s.sqlDB.Exec(`
+		_, err = s.sqlDB.ExecContext(ctx, `
 		INSERT INTO roles
 		(name, description, prompt, mcp_servers, parent_roles, secrets, plugins,
 		 settings, rules, agents, skills, commands,
@@ -187,7 +189,7 @@ func (s *RoleStore) Save(role *Role) error {
 			role.Metadata.PromptStop, role.Metadata.PromptDelete, role.Metadata.Review,
 		)
 	} else {
-		_, err = s.sqlDB.Exec(`
+		_, err = s.sqlDB.ExecContext(ctx, `
 		INSERT OR REPLACE INTO roles
 		(name, description, prompt, mcp_servers, parent_roles, secrets, plugins,
 		 settings, rules, agents, skills, commands,
@@ -208,20 +210,19 @@ func (s *RoleStore) Save(role *Role) error {
 
 // Load reads a single role by name. Returns an error if not found.
 func (s *RoleStore) Load(name string) (*Role, error) {
-	q := `
-		SELECT name, description, prompt, mcp_servers, parent_roles, secrets, plugins,
-		       settings, rules, agents, skills, commands,
+	q := `SELECT name, description, prompt, mcp_servers, parent_roles, secrets, plugins,` + //nolint:gosec // G202: placeholder is "?" or "$1", not user input
+		`       settings, rules, agents, skills, commands,
 		       prompt_create, prompt_start, prompt_stop, prompt_delete, review,
 		       created_at, updated_at
 		FROM roles WHERE name = ` + s.placeholder(1)
 
-	row := s.sqlDB.QueryRow(q, name)
+	row := s.sqlDB.QueryRowContext(context.Background(), q, name)
 	return scanRoleRow(row)
 }
 
 // LoadAll reads every role into a map keyed by name.
 func (s *RoleStore) LoadAll() (map[string]*Role, error) {
-	rows, err := s.sqlDB.Query(`
+	rows, err := s.sqlDB.QueryContext(context.Background(), `
 		SELECT name, description, prompt, mcp_servers, parent_roles, secrets, plugins,
 		       settings, rules, agents, skills, commands,
 		       prompt_create, prompt_start, prompt_stop, prompt_delete, review,
@@ -245,8 +246,8 @@ func (s *RoleStore) LoadAll() (map[string]*Role, error) {
 
 // Delete removes a single role by name.
 func (s *RoleStore) Delete(name string) error {
-	q := "DELETE FROM roles WHERE name = " + s.placeholder(1)
-	res, err := s.sqlDB.Exec(q, name)
+	q := "DELETE FROM roles WHERE name = " + s.placeholder(1) //nolint:gosec // G202: placeholder is either "?" or "$1", not user input
+	res, err := s.sqlDB.ExecContext(context.Background(), q, name)
 	if err != nil {
 		return err
 	}
@@ -261,7 +262,7 @@ func (s *RoleStore) Delete(name string) error {
 func (s *RoleStore) Has(name string) bool {
 	var count int
 	q := "SELECT COUNT(*) FROM roles WHERE name = " + s.placeholder(1)
-	err := s.sqlDB.QueryRow(q, name).Scan(&count)
+	err := s.sqlDB.QueryRowContext(context.Background(), q, name).Scan(&count)
 	return err == nil && count > 0
 }
 

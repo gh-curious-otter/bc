@@ -5,13 +5,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/stats"
+	"github.com/gh-curious-otter/bc/pkg/stats"
 )
 
 // statsQuery holds parsed query parameters common to all stats endpoints.
 type statsQuery struct {
-	TimeRange stats.TimeRange
 	Filters   map[string][]string // param name → comma-split values
+	TimeRange stats.TimeRange
 }
 
 // parseStatsQuery extracts from/to as time.Time (default: last 1 hour),

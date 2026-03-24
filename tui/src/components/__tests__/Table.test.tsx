@@ -57,8 +57,8 @@ function getSelectionIndicator(isSelected: boolean): string {
   return isSelected ? '▸ ' : '  ';
 }
 
-function getCellValue<T>(item: T, key: string): string {
-  return String((item as Record<string, unknown>)[key] ?? '');
+function getCellValue(item: Record<string, string | number | boolean | null | undefined>, key: string): string {
+  return String(item[key] ?? '');
 }
 
 describe('Table', () => {

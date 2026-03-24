@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/gh-curious-otter/bc/pkg/log"
 )
 
 // Importer scans Claude Code JSONL session files and imports token usage into
@@ -264,7 +264,7 @@ func (imp *Importer) lastImportedTimestamp(ctx context.Context, path string) (ti
 		placeholder = "$1"
 	}
 	row := db.QueryRowContext(ctx,
-		`SELECT watermark FROM cost_imports WHERE source_path = `+placeholder, path)
+		`SELECT watermark FROM cost_imports WHERE source_path = `+placeholder, path) //nolint:gosec // G202: placeholder is either "?" or "$1", not user input
 	var watermark string
 	if err := row.Scan(&watermark); err == sql.ErrNoRows {
 		return time.Time{}, nil

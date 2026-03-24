@@ -8,10 +8,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/log"
-	pkgmcp "github.com/rpuneet/bc/pkg/mcp"
-	"github.com/rpuneet/bc/pkg/secret"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/gh-curious-otter/bc/pkg/log"
+	pkgmcp "github.com/gh-curious-otter/bc/pkg/mcp"
+	"github.com/gh-curious-otter/bc/pkg/secret"
+	"github.com/gh-curious-otter/bc/pkg/workspace"
 )
 
 // SetupAgentFromRole resolves a role via BFS inheritance and writes all
@@ -111,16 +111,6 @@ func setupAgentFromRole(workspacePath, agentName, roleName, targetDir, runtimeBa
 	return nil
 }
 
-// BuildSetupCommand is deprecated — MCP servers and plugins are now configured
-// via file-based config (.mcp.json and .claude.json) written by SetupAgentFromRole.
-// Running `claude mcp add` at startup kills running Claude instances and causes
-// restart loops in Docker containers.
-//
-// Kept as a no-op for backward compatibility. Will be removed in a future release.
-func BuildSetupCommand(_, _ string) string {
-	return ""
-}
-
 // ── MCP config ──────────────────────────────────────────────────────────────
 
 type mcpConfig struct {
@@ -164,6 +154,15 @@ func writeMCPJSON(workspacePath, agentName string, resolved *workspace.ResolvedR
 		entry := mcpServerEntry{Command: def.Command, Args: def.Args, URL: def.URL}
 		if isDocker && entry.URL != "" {
 			entry.URL = rewriteDockerURL(entry.URL)
+		}
+		// Append agent identity to SSE URLs so the MCP server knows the caller.
+		// This is used by send_message to set the correct sender automatically.
+		if entry.URL != "" && strings.Contains(entry.URL, "/mcp/sse") {
+			sep := "?"
+			if strings.Contains(entry.URL, "?") {
+				sep = "&"
+			}
+			entry.URL += sep + "agent=" + agentName
 		}
 		if def.Transport == "sse" {
 			entry.Type = "sse"

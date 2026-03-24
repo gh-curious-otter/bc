@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/secret"
+	"github.com/gh-curious-otter/bc/pkg/secret"
 )
 
 // SecretHandler handles /api/secrets routes.

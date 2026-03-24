@@ -11,9 +11,9 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/client"
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/ui"
+	"github.com/gh-curious-otter/bc/pkg/client"
+	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/gh-curious-otter/bc/pkg/ui"
 )
 
 var statusActivity bool
