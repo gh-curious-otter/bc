@@ -24,9 +24,9 @@ type Manager struct {
 // NewManager creates a new worktree manager rooted at the given repository path.
 // It reads BC_HOST_WORKSPACE to determine the host base name for worktree naming.
 func NewManager(repoRoot string) *Manager {
-	hostBase := os.Getenv("BC_HOST_WORKSPACE")
-	if hostBase == "" {
-		hostBase = filepath.Base(repoRoot)
+	hostBase := filepath.Base(repoRoot)
+	if hp := os.Getenv("BC_HOST_WORKSPACE"); hp != "" {
+		hostBase = filepath.Base(hp)
 	}
 
 	return &Manager{
