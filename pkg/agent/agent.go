@@ -913,9 +913,13 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		}
 	}
 
-	// Write hook settings to worktree
+	// Write hook settings and role files to worktree (regenerate on every start
+	// so config changes like MCP URLs take effect without manual intervention).
 	if err := WriteWorkspaceHookSettings(wtDir); err != nil {
 		log.Debug("failed to write hook settings", "dir", wtDir, "error", err)
+	}
+	if setupErr := SetupAgentFromRoleWithRuntime(wsPath, name, string(existing.Role), wtDir, agentRuntime); setupErr != nil {
+		log.Warn("role setup failed on restart", "agent", name, "error", setupErr)
 	}
 
 	if err := rt.CreateSessionWithEnv(ctx, name, wtDir, agentCmd, env); err != nil {
