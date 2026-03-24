@@ -63,15 +63,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/container"
-	"github.com/rpuneet/bc/pkg/db"
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/provider"
-	"github.com/rpuneet/bc/pkg/runtime"
-	"github.com/rpuneet/bc/pkg/secret"
-	"github.com/rpuneet/bc/pkg/tmux"
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/pkg/worktree"
+	"github.com/gh-curious-otter/bc/pkg/container"
+	"github.com/gh-curious-otter/bc/pkg/db"
+	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/gh-curious-otter/bc/pkg/provider"
+	"github.com/gh-curious-otter/bc/pkg/runtime"
+	"github.com/gh-curious-otter/bc/pkg/secret"
+	"github.com/gh-curious-otter/bc/pkg/tmux"
+	"github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/gh-curious-otter/bc/pkg/worktree"
 )
 
 // MaxAgentNameLength is the maximum allowed length for an agent name.

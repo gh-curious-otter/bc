@@ -92,13 +92,13 @@ func TestParseGitHubLinks(t *testing.T) {
 		},
 		{
 			name:     "github URL",
-			message:  "Check https://github.com/rpuneet/bc/issues/123",
-			expected: []string{"https://github.com/rpuneet/bc/issues/123"},
+			message:  "Check https://github.com/gh-curious-otter/bc/issues/123",
+			expected: []string{"https://github.com/gh-curious-otter/bc/issues/123"},
 		},
 		{
 			name:     "github PR URL",
-			message:  "See https://github.com/rpuneet/bc/pull/456",
-			expected: []string{"https://github.com/rpuneet/bc/pull/456"},
+			message:  "See https://github.com/gh-curious-otter/bc/pull/456",
+			expected: []string{"https://github.com/gh-curious-otter/bc/pull/456"},
 		},
 		{
 			name:     "no github links",

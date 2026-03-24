@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/db"
+	"github.com/gh-curious-otter/bc/pkg/db"
 )
 
 // Transport represents an MCP server transport type.

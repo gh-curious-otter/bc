@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/ui"
+	"github.com/gh-curious-otter/bc/pkg/ui"
 )
 
 // bootstrapServerDaemons starts bc-sql and bc-stats during bc init.

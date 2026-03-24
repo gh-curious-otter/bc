@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/provider"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/gh-curious-otter/bc/pkg/provider"
+	"github.com/gh-curious-otter/bc/pkg/workspace"
 )
 
 func TestConfigFromWorkspace_Defaults(t *testing.T) {

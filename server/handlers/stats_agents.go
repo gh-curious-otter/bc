@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/rpuneet/bc/pkg/stats"
+	"github.com/gh-curious-otter/bc/pkg/stats"
 )
 
 // RegisterAgentStats mounts agent stats routes on the mux.

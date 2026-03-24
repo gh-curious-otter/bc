@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/doctor"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/gh-curious-otter/bc/pkg/doctor"
+	"github.com/gh-curious-otter/bc/pkg/workspace"
 )
 
 // DoctorHandler handles /api/doctor routes.

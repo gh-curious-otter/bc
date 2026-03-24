@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/gh-curious-otter/bc/pkg/agent"
 )
 
 func TestMain(m *testing.M) {

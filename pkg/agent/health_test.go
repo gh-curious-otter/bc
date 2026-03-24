@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/events"
+	"github.com/gh-curious-otter/bc/pkg/events"
 )
 
 // testTmuxChecker implements TmuxChecker for health tests.

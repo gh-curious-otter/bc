@@ -8,10 +8,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/log"
-	pkgmcp "github.com/rpuneet/bc/pkg/mcp"
-	"github.com/rpuneet/bc/pkg/secret"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/gh-curious-otter/bc/pkg/log"
+	pkgmcp "github.com/gh-curious-otter/bc/pkg/mcp"
+	"github.com/gh-curious-otter/bc/pkg/secret"
+	"github.com/gh-curious-otter/bc/pkg/workspace"
 )
 
 // SetupAgentFromRole resolves a role via BFS inheritance and writes all

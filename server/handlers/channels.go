@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/gh-curious-otter/bc/pkg/channel"
 )
 
 // ChannelHandler handles /api/channels routes.

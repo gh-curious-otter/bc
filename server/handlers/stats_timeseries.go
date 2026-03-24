@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/stats"
+	"github.com/gh-curious-otter/bc/pkg/stats"
 )
 
 // statsQuery holds parsed query parameters common to all stats endpoints.

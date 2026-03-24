@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/gh-curious-otter/bc/pkg/cost"
 )
 
 // CostHandler handles /api/costs routes.

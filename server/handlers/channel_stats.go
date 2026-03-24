@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/rpuneet/bc/pkg/channel"
+	"github.com/gh-curious-otter/bc/pkg/channel"
 )
 
 // ChannelStatsHandler handles /api/stats/channels routes.

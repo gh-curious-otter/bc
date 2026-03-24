@@ -10,9 +10,9 @@ import (
 
 	"github.com/spf13/pflag"
 
-	"github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/ui"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/gh-curious-otter/bc/pkg/events"
+	"github.com/gh-curious-otter/bc/pkg/ui"
+	"github.com/gh-curious-otter/bc/pkg/workspace"
 )
 
 // setupLogsWorkspace creates a temporary bc workspace, changes into it,

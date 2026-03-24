@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/cron"
+	"github.com/gh-curious-otter/bc/pkg/cron"
 )
 
 // CronHandler handles /api/cron routes.

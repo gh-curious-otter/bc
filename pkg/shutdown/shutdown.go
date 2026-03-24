@@ -32,7 +32,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/gh-curious-otter/bc/pkg/log"
 )
 
 // Priority determines the order of cleanup execution.

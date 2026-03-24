@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra/doc"
 
-	cmd "github.com/rpuneet/bc/internal/cmd"
+	cmd "github.com/gh-curious-otter/bc/internal/cmd"
 )
 
 func main() {

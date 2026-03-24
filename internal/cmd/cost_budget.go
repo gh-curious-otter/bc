@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/client"
+	"github.com/gh-curious-otter/bc/pkg/client"
 )
 
 // Issue #1648: Extracted from cost.go for better code organization

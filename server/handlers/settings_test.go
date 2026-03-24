@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/gh-curious-otter/bc/pkg/workspace"
 )
 
 // newTestWorkspace creates a minimal workspace in a temp directory with a valid config.

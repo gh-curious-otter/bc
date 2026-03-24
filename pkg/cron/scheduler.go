@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/gh-curious-otter/bc/pkg/log"
 )
 
 const (

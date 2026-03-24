@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/tool"
+	"github.com/gh-curious-otter/bc/pkg/tool"
 )
 
 // ToolHandler handles /api/tools routes.

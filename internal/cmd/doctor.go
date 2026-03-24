@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/client"
-	"github.com/rpuneet/bc/pkg/doctor"
-	"github.com/rpuneet/bc/pkg/ui"
+	"github.com/gh-curious-otter/bc/pkg/client"
+	"github.com/gh-curious-otter/bc/pkg/doctor"
+	"github.com/gh-curious-otter/bc/pkg/ui"
 )
 
 var doctorCmd = &cobra.Command{

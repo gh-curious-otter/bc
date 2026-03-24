@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/runtime"
+	"github.com/gh-curious-otter/bc/pkg/runtime"
 )
 
 // mockBackend implements runtime.Backend for testing runtime routing.
