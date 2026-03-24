@@ -35,8 +35,11 @@ RUN apt-get update && \
         ca-certificates tmux git docker.io curl sqlite3 && \
     rm -rf /var/lib/apt/lists/*
 
+RUN useradd -m -s /bin/bash bcd && usermod -aG docker bcd
+
 COPY --from=go /bcd /usr/local/bin/bcd
 
+USER bcd
 EXPOSE 9374
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
     CMD curl -sf http://localhost:9374/health

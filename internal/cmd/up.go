@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -85,7 +86,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 
 	// 4. bc-<id>-daemon with docker.sock + workspace mount
 	daemonName := fmt.Sprintf("bc-%s-daemon", id)
-	dockerRun(ctx, daemonName, []string{
+	daemonArgs := []string{
 		"-p", upPort + ":9374",
 		"-v", ws.RootDir + ":/workspace",
 		"-v", "/var/run/docker.sock:/var/run/docker.sock",
@@ -93,10 +94,17 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		"-e", "STATS_DATABASE_URL=postgres://bc:bc@host.docker.internal:5433/bcstats",
 		"-e", "BC_HOST_WORKSPACE=" + ws.RootDir,
 		"--restart", "always",
+	}
+	// Linux needs explicit host.docker.internal mapping (macOS/Windows have it built in).
+	if runtime.GOOS == "linux" {
+		daemonArgs = append(daemonArgs, "--add-host=host.docker.internal:host-gateway")
+	}
+	daemonArgs = append(daemonArgs,
 		"bc-daemon:latest",
 		"--addr", "0.0.0.0:9374",
 		"--workspace", "/workspace",
-	})
+	)
+	dockerRun(ctx, daemonName, daemonArgs)
 
 	// 5. Wait for bcd
 	addr := fmt.Sprintf("127.0.0.1:%s", upPort)
