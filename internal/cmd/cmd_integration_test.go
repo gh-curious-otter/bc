@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,12 +41,8 @@ func resetFlags(cmd *cobra.Command) {
 func setupIntegrationWorkspace(t *testing.T) (string, func()) {
 	t.Helper()
 
-	// Skip if a real bcd daemon is running — these tests use the global rootCmd
-	// and will connect to the live daemon instead of the temp workspace.
-	resp, err := http.Get("http://127.0.0.1:9374/healthz") //nolint:gosec,noctx // test probe
-	if err == nil {
-		_ = resp.Body.Close() //nolint:errcheck // test probe
-		t.Skip("skipping: bcd daemon is running — integration tests would hit the live instance")
+	if os.Getenv("BC_TEST_DAEMON") == "" {
+		t.Skip("skipping: requires BC_TEST_DAEMON=1 (dedicated test bcd instance)")
 	}
 
 	origDir, err := os.Getwd()
