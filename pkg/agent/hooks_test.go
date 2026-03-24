@@ -128,6 +128,31 @@ func TestWriteWorkspaceHookSettings_MergesExisting(t *testing.T) {
 	}
 }
 
+func TestWriteWorkspaceHookSettings_PreservesUserCustomizedHooks(t *testing.T) {
+	dir := t.TempDir()
+	claudeDir := filepath.Join(dir, ".claude")
+	if err := os.MkdirAll(claudeDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	// User has customized PreToolUse with their own command (not bc-managed).
+	existing := `{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"echo my-custom-hook"}]}]}}`
+	if err := os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(existing), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteWorkspaceHookSettings(dir); err != nil {
+		t.Fatalf("WriteWorkspaceHookSettings: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(claudeDir, "settings.json")) //nolint:gosec // test file
+	if err != nil {
+		t.Fatalf("settings.json not found: %v", err)
+	}
+	content := string(data)
+	// User's custom hook should be preserved, not overwritten by bc
+	if !strings.Contains(content, "my-custom-hook") {
+		t.Error("user-customized PreToolUse hook was overwritten by bc")
+	}
+}
+
 func TestWriteWorkspaceHookSettings_RemovesInvalidKeys(t *testing.T) {
 	dir := t.TempDir()
 	claudeDir := filepath.Join(dir, ".claude")
@@ -135,7 +160,8 @@ func TestWriteWorkspaceHookSettings_RemovesInvalidKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Simulate old settings with StopFailure (invalid Claude Code hook key)
-	existing := `{"hooks":{"StopFailure":[{"hooks":[{"type":"command","command":"old"}]}],"PreToolUse":[{"hooks":[{"type":"command","command":"old"}]}]}}`
+	// PreToolUse has a bc-managed hook (contains /api/agents/) that should be overwritten.
+	existing := `{"hooks":{"StopFailure":[{"hooks":[{"type":"command","command":"old"}]}],"PreToolUse":[{"hooks":[{"type":"command","command":"curl /api/agents/old/hook"}]}]}}`
 	if err := os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(existing), 0600); err != nil {
 		t.Fatal(err)
 	}
