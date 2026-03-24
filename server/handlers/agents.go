@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -240,9 +241,16 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 
 	case r.Method == http.MethodPost && action == "hook":
-		// Receive a hook event with rich metadata and update agent state + task.
+		// Read raw body — stored as-is in event log for full observability.
+		rawBody, readErr := io.ReadAll(io.LimitReader(r.Body, 1024*1024))
+		if readErr != nil {
+			httpError(w, "read error", http.StatusBadRequest)
+			return
+		}
+
+		// Decode just enough to route state updates.
 		var payload agent.HookPayload
-		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		if err := json.Unmarshal(rawBody, &payload); err != nil {
 			httpError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
@@ -268,14 +276,13 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// Persist hook event to event log with full payload as message JSON
+		// Persist raw JSON body to event log — no re-serialization, no field loss.
 		if h.events != nil {
-			payloadJSON, _ := json.Marshal(payload) //nolint:errcheck // best-effort
-			_ = h.events.Append(events.Event{       //nolint:errcheck // best-effort logging
+			_ = h.events.Append(events.Event{ //nolint:errcheck // best-effort logging
 				Timestamp: time.Now(),
 				Type:      events.EventType("hook." + string(payload.Event)),
 				Agent:     name,
-				Message:   string(payloadJSON),
+				Message:   string(rawBody),
 			})
 		}
 
