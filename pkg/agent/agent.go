@@ -883,6 +883,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		"BC_WORKSPACE":     wsPath,
 		"BC_AGENT_RUNTIME": agentRuntime,
 		"BC_BCD_ADDR":      bcdAddrForRuntime(agentRuntime),
+		"BC_WORKTREE_NAME": m.worktreeMgr.Name(name),
 	}
 	if toolName != "" {
 		env["BC_AGENT_TOOL"] = toolName
@@ -1071,6 +1072,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		"BC_WORKSPACE":     wsPath,
 		"BC_AGENT_RUNTIME": agentRuntime,
 		"BC_BCD_ADDR":      bcdAddrForRuntime(agentRuntime),
+		"BC_WORKTREE_NAME": m.worktreeMgr.Name(name),
 	}
 	if effectiveTool != "" {
 		env["BC_AGENT_TOOL"] = effectiveTool
