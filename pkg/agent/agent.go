@@ -602,7 +602,7 @@ func defaultAgentCmd() (string, string) {
 func (m *Manager) getAgentCommand(toolName, agentName string, resume bool, sessionID string) (string, bool) {
 	if m.providerRegistry != nil {
 		if p, ok := m.providerRegistry.Get(toolName); ok {
-			wsName := filepath.Base(m.workspacePath)
+			wsName := hostWorkspaceName(m.workspacePath)
 			return p.BuildCommand(provider.CommandOpts{
 				AgentName:     agentName,
 				WorkspaceName: wsName,
@@ -838,7 +838,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	// - tmux: keep existing worktree and use --continue to resume conversation
 	// - docker: clean stale worktree in phase 2 (container is ephemeral)
 	agentRuntime := existing.RuntimeBackend
-	wsName := filepath.Base(wsPath)
+	wsName := hostWorkspaceName(wsPath)
 	worktreeName := "bc-" + wsName + "-" + name
 	worktreeDir := filepath.Join(wsPath, ".claude", "worktrees", worktreeName)
 	if _, err := os.Stat(worktreeDir); err == nil && agentRuntime == "tmux" {
@@ -975,7 +975,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	// Worktree handling depends on runtime:
 	// - tmux: keep existing worktree and use --continue to resume conversation
 	// - docker: clean stale worktree (container is ephemeral, can't resume)
-	wsName := filepath.Base(wsPath)
+	wsName := hostWorkspaceName(wsPath)
 	worktreeName := "bc-" + wsName + "-" + name
 	worktreeDir := filepath.Join(wsPath, ".claude", "worktrees", worktreeName)
 	worktreeExists := false
@@ -1093,11 +1093,9 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	agentLock := m.getAgentLock(name)
 	agentLock.Lock()
 
-	// Docker: clean stale worktree from previous container run.
-	// Container is ephemeral so conversation can't be resumed — start fresh.
-	if agentRuntime != "tmux" {
-		cleanStaleWorktree(ctx, wsPath, name)
-	}
+	// Clean stale worktree from previous run to prevent
+	// "fatal: '<dir>' already exists" on restart.
+	cleanStaleWorktree(ctx, wsPath, name)
 
 	// Create session in the workspace directory using the agent's runtime backend.
 	// tmux + existing worktree: claude is invoked with --continue to resume conversation.
@@ -1122,7 +1120,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	// Claude Code creates it, but we pre-populate .claude/settings.json).
 	wtDir := agent.WorktreeDir
 	if wtDir == "" {
-		wtDir = filepath.Join(wsPath, ".claude", "worktrees", "bc-"+filepath.Base(wsPath)+"-"+name)
+		wtDir = filepath.Join(wsPath, ".claude", "worktrees", "bc-"+hostWorkspaceName(wsPath)+"-"+name)
 	}
 	if wtDir != wsPath {
 		if err := WriteWorkspaceHookSettings(wtDir); err != nil {
@@ -1444,7 +1442,7 @@ func cleanStaleWorktree(ctx context.Context, workspacePath, agentName string) {
 	if workspacePath == "" {
 		return
 	}
-	worktreeName := "bc-" + filepath.Base(workspacePath) + "-" + agentName
+	worktreeName := "bc-" + hostWorkspaceName(workspacePath) + "-" + agentName
 	worktreeDir := filepath.Join(workspacePath, ".claude", "worktrees", worktreeName)
 
 	// Check if directory exists before doing any work
@@ -1520,7 +1518,7 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 	}
 
 	// 4. Remove git worktree and branch
-	worktreeName := "bc-" + filepath.Base(workspacePath) + "-" + name
+	worktreeName := "bc-" + hostWorkspaceName(workspacePath) + "-" + name
 	worktreeDir := filepath.Join(workspacePath, ".claude", "worktrees", worktreeName)
 	branchName := "worktree-" + worktreeName
 
@@ -1628,8 +1626,8 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 	}
 
 	// Rename git worktree directory and branch
-	oldWorktreeName := "bc-" + filepath.Base(m.workspacePath) + "-" + oldName
-	newWorktreeName := "bc-" + filepath.Base(m.workspacePath) + "-" + newName
+	oldWorktreeName := "bc-" + hostWorkspaceName(m.workspacePath) + "-" + oldName
+	newWorktreeName := "bc-" + hostWorkspaceName(m.workspacePath) + "-" + newName
 	oldWorktreeDir := filepath.Join(m.workspacePath, ".claude", "worktrees", oldWorktreeName)
 	newWorktreeDir := filepath.Join(m.workspacePath, ".claude", "worktrees", newWorktreeName)
 	oldBranch := "worktree-" + oldWorktreeName
@@ -2216,6 +2214,16 @@ func (m *Manager) enforceRootSingleton(_ string) error {
 		}
 	}
 	return nil
+}
+
+// hostWorkspaceName returns the workspace directory basename for worktree naming.
+// Inside Docker (bc up), the workspace is mounted at /workspace but worktrees
+// must use the HOST path basename so names are consistent between host and container.
+func hostWorkspaceName(workspacePath string) string {
+	if hp := os.Getenv("BC_HOST_WORKSPACE"); hp != "" {
+		return filepath.Base(hp)
+	}
+	return filepath.Base(workspacePath)
 }
 
 // bcdAddrForRuntime returns the bcd server address for the given runtime.
