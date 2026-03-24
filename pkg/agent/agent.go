@@ -1110,10 +1110,23 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
-	// Write workspace-level Claude Code hook settings so agents emit state events.
+	// Write Claude Code hook settings so agents emit state events.
+	// Write to both the main workspace and the agent's worktree,
+	// because Claude Code reads settings from the project directory it runs in.
 	if wsPath != "" {
 		if err := WriteWorkspaceHookSettings(wsPath); err != nil {
 			log.Warn("failed to write hook settings", "workspace", wsPath, "error", err)
+		}
+	}
+	// Also write to the expected worktree directory (may not exist yet —
+	// Claude Code creates it, but we pre-populate .claude/settings.json).
+	wtDir := agent.WorktreeDir
+	if wtDir == "" {
+		wtDir = filepath.Join(wsPath, ".claude", "worktrees", "bc-"+filepath.Base(wsPath)+"-"+name)
+	}
+	if wtDir != wsPath {
+		if err := WriteWorkspaceHookSettings(wtDir); err != nil {
+			log.Debug("failed to write hook settings to worktree", "worktree", wtDir, "error", err)
 		}
 	}
 
