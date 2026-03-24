@@ -268,22 +268,14 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// Persist hook event to event log
+		// Persist hook event to event log with full payload as message JSON
 		if h.events != nil {
-			_ = h.events.Append(events.Event{ //nolint:errcheck // best-effort logging
+			payloadJSON, _ := json.Marshal(payload) //nolint:errcheck // best-effort
+			_ = h.events.Append(events.Event{       //nolint:errcheck // best-effort logging
 				Timestamp: time.Now(),
 				Type:      events.EventType("hook." + string(payload.Event)),
 				Agent:     name,
-				Message:   task,
-				Data: map[string]any{
-					"event":         string(payload.Event),
-					"state":         string(targetState),
-					"tool_name":     payload.ToolName,
-					"command":       payload.Command,
-					"error":         payload.Error,
-					"subagent_id":   payload.SubagentID,
-					"subagent_type": payload.SubagentType,
-				},
+				Message:   string(payloadJSON),
 			})
 		}
 
