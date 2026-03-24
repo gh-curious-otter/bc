@@ -42,8 +42,10 @@ func (m *Manager) Name(agentName string) string {
 }
 
 // Path returns the filesystem path for an agent's worktree.
+// The directory is named bc-<workspace>-<agent> so git's internal
+// worktree name matches the naming convention.
 func (m *Manager) Path(agentName string) string {
-	return filepath.Join(m.agentsDir, agentName, "worktree")
+	return filepath.Join(m.agentsDir, agentName, m.Name(agentName))
 }
 
 // Create creates a git worktree for the given agent.
