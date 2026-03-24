@@ -10,8 +10,8 @@ import (
 
 // statsQuery holds parsed query parameters common to all stats endpoints.
 type statsQuery struct {
-	TimeRange stats.TimeRange
 	Filters   map[string][]string // param name → comma-split values
+	TimeRange stats.TimeRange
 }
 
 // parseStatsQuery extracts from/to as time.Time (default: last 1 hour),

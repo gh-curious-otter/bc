@@ -14,8 +14,7 @@ import { truncate } from '../utils';
 import type { ToolInfo } from '../types';
 import { getToolList } from '../services/bc';
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-interface ToolsViewProps {}
+type ToolsViewProps = Record<string, never>;
 
 export function ToolsView(_props: ToolsViewProps = {}): React.ReactElement {
   const { theme } = useTheme();

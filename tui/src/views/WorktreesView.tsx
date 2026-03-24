@@ -22,7 +22,7 @@ import type { Worktree } from '../types';
  */
 function formatPath(fullPath: string): string {
   // Extract .bc/worktrees/... portion
-  const match = fullPath.match(/\.bc\/worktrees\/.+$/);
+  const match = /\.bc\/worktrees\/.+$/.exec(fullPath);
   return match ? match[0] : fullPath;
 }
 

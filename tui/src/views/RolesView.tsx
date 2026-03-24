@@ -19,9 +19,8 @@ import { DISPLAY_LIMITS, TRUNCATION } from '../constants';
 import type { Role } from '../types';
 import { getRoles, getRole, deleteRole } from '../services/bc';
 
-// #1594: Using empty interface for future extensibility, props removed
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-interface RolesViewProps {}
+// #1594: Using type alias for future extensibility, props removed
+type RolesViewProps = Record<string, never>;
 
 /**
  * RolesView - Display and manage workspace roles

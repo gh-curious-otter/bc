@@ -1853,8 +1853,6 @@ func (m *Manager) ListByRole(role Role) []*Agent {
 	return agents
 }
 
-
-
 // AgentCount returns the number of agents.
 func (m *Manager) AgentCount() int {
 	m.mu.RLock()
@@ -2169,7 +2167,6 @@ func (m *Manager) Tmux() *tmux.Manager {
 	}
 	return nil
 }
-
 
 // QueryAgentStats returns up to limit recent stats records for the named agent.
 func (m *Manager) QueryAgentStats(agentName string, limit int) ([]*AgentStatsRecord, error) {

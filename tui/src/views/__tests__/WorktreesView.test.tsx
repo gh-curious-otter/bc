@@ -13,7 +13,7 @@ import { describe, test, expect } from 'bun:test';
 
 // Helper function extracted from WorktreesView for testing
 function formatPath(fullPath: string): string {
-  const match = fullPath.match(/\.bc\/worktrees\/.+$/);
+  const match = /\.bc\/worktrees\/.+$/.exec(fullPath);
   return match ? match[0] : fullPath;
 }
 

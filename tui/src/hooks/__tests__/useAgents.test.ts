@@ -12,17 +12,20 @@ import { describe, it, expect, beforeEach, afterEach, vi, mock } from 'bun:test'
 // renderHook requires DOM (jsdom/happydom) which is not configured for bun:test
 const noDOM = typeof globalThis.document === 'undefined';
 
-mock.module('../../services/bc', () => ({
-  getStatus: vi.fn(),
-}));
+// Only mock modules when DOM is available (tests are skipped without DOM anyway)
+// Prevents mock.module from polluting the global module cache when tests are skipped
+if (!noDOM) {
+  mock.module('../../services/bc', () => ({
+    getStatus: vi.fn(),
+  }));
 
-// Stub @testing-library/react so the import doesn't fail in non-DOM environments
-mock.module('@testing-library/react', () => ({
-  renderHook: vi.fn(),
-  act: vi.fn(),
-}));
+  mock.module('@testing-library/react', () => ({
+    renderHook: vi.fn(),
+  }));
+}
 
-import { renderHook, act } from '@testing-library/react';
+import { act } from 'react';
+import { renderHook } from '@testing-library/react';
 import { useAgents } from '../useAgents';
 import * as bcService from '../../services/bc';
 

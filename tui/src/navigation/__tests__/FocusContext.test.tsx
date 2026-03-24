@@ -256,7 +256,7 @@ describe('FocusContext', () => {
       expect(lastFrame()).toContain('focus:detail');
     });
 
-    test('wraps around from detail back to sidebar', async () => {
+    test('wraps around from detail back to main', async () => {
       const TestComponent = (): React.ReactElement => {
         const { cycleFocus, focusedArea } = useFocus();
         const didCycle = useRef(false);
@@ -278,8 +278,8 @@ describe('FocusContext', () => {
       );
 
       await waitForRender();
-      // detail is last in FOCUS_ORDER, wraps to sidebar
-      expect(lastFrame()).toContain('focus:sidebar');
+      // FOCUS_ORDER is ['main', 'detail'], detail wraps to main
+      expect(lastFrame()).toContain('focus:main');
     });
 
     test('tracks previous area during cycling', async () => {

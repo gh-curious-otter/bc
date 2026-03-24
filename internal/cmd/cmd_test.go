@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,6 +56,14 @@ func executeCmd(args ...string) (string, error) {
 // Returns the workspace root directory path (for use with demon.NewStore, etc.).
 func setupTestWorkspace(t *testing.T) string {
 	t.Helper()
+
+	// Skip if a real bcd daemon is running — these tests use the global rootCmd
+	// and will connect to the live daemon instead of the temp workspace.
+	resp, err := http.Get("http://127.0.0.1:9374/healthz") //nolint:gosec,noctx // test probe
+	if err == nil {
+		_ = resp.Body.Close() //nolint:errcheck // test probe
+		t.Skip("skipping: bcd daemon is running — tests would hit the live instance")
+	}
 
 	origDir, err := os.Getwd()
 	if err != nil {

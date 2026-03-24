@@ -249,7 +249,7 @@ describe('ChannelHistoryView Send Error', () => {
 
   it('handles non-Error objects', () => {
     const err = 'Something went wrong';
-    const message = err instanceof Error ? err.message : String(err);
+    const message = err instanceof Error ? err.message : err;
     const sendError = `Send failed: ${message}`;
     expect(sendError).toBe('Send failed: Something went wrong');
   });

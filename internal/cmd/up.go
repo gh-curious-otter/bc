@@ -13,6 +13,7 @@ import (
 
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/ui"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 var upCmd = &cobra.Command{
@@ -22,21 +23,35 @@ var upCmd = &cobra.Command{
 
 Examples:
   bc up
-  bc up --port 9000`,
+  bc up --port 9000
+  bc up --port 8080 --workspace /path/to/workspace`,
 	RunE: runUp,
 }
 
-var upPort string
+var (
+	upPort      string
+	upWorkspace string
+)
 
 func init() {
 	upCmd.Flags().StringVar(&upPort, "port", "9374", "Host port for bcd")
+	upCmd.Flags().StringVar(&upWorkspace, "workspace", "", "Workspace directory (defaults to current workspace)")
 	rootCmd.AddCommand(upCmd)
 }
 
 func runUp(cmd *cobra.Command, _ []string) error {
-	ws, err := getWorkspace()
-	if err != nil {
-		return errNotInWorkspace(err)
+	var ws *workspace.Workspace
+	var err error
+	if upWorkspace != "" {
+		ws, err = workspace.Load(upWorkspace)
+		if err != nil {
+			return fmt.Errorf("cannot load workspace at %s: %w", upWorkspace, err)
+		}
+	} else {
+		ws, err = getWorkspace()
+		if err != nil {
+			return errNotInWorkspace(err)
+		}
 	}
 
 	ctx := cmd.Context()

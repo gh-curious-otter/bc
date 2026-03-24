@@ -12,12 +12,15 @@ import { describe, it, expect, beforeEach, afterEach, vi, mock } from 'bun:test'
 // renderHook requires DOM (jsdom/happydom) which is not configured for bun:test
 const noDOM = typeof globalThis.document === 'undefined';
 
-mock.module('../../services/bc', () => ({
-  getProcesses: vi.fn(),
-  getProcessLogs: vi.fn(),
-}));
+if (!noDOM) {
+  mock.module('../../services/bc', () => ({
+    getProcesses: vi.fn(),
+    getProcessLogs: vi.fn(),
+  }));
+}
 
-import { renderHook, act } from '@testing-library/react';
+import { act } from 'react';
+import { renderHook } from '@testing-library/react';
 import * as bcService from '../../services/bc';
 
 // useProcesses hook is not yet implemented;

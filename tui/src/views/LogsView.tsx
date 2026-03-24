@@ -22,8 +22,7 @@ import { POLL_INTERVALS } from '../constants/timings';
 import type { LogSeverity } from '../hooks/useLogs';
 import type { LogEntry } from '../types';
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface -- LogsView has no props currently
-interface LogsViewProps {}
+type LogsViewProps = Record<string, never>;
 
 type TimeFilter = '1h' | '6h' | '24h' | 'all';
 

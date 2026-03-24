@@ -10,7 +10,7 @@ import { describe, expect, test } from 'bun:test';
  * Mirrors the implementation in WorktreesView.tsx
  */
 function formatPath(fullPath: string): string {
-  const match = fullPath.match(/\.bc\/worktrees\/.+$/);
+  const match = /\.bc\/worktrees\/.+$/.exec(fullPath);
   return match ? match[0] : fullPath;
 }
 
