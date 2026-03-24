@@ -311,19 +311,21 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	args = append(args, "-v", hostRoot+":/workspace", "-w", containerWorkdir)
 
 	// Mount 2: Persistent Claude state (~/.claude/ dir)
-	volumeDir := filepath.Join(b.hostWorkspacePath, ".bc", "agents", name, "claude")
-	if err := os.MkdirAll(volumeDir, 0750); err != nil {
+	// Use local (container) path for mkdir, host path for -v mount.
+	localAgentDir := filepath.Join(b.workspacePath, ".bc", "agents", name)
+	hostAgentDir := filepath.Join(hostRoot, ".bc", "agents", name)
+	if err := os.MkdirAll(filepath.Join(localAgentDir, "claude"), 0750); err != nil {
 		log.Warn("failed to create agent volume dir", "agent", name, "error", err)
 	} else {
-		args = append(args, "-v", volumeDir+":/home/agent/.claude")
+		args = append(args, "-v", filepath.Join(hostAgentDir, "claude")+":/home/agent/.claude")
 	}
 
 	// Mount 3: ~/.claude.json (app config with oauthAccount — needed for auth persistence)
-	claudeJSON := filepath.Join(b.hostWorkspacePath, ".bc", "agents", name, "claude.json")
-	if _, statErr := os.Stat(claudeJSON); os.IsNotExist(statErr) {
-		_ = os.WriteFile(claudeJSON, []byte("{}"), 0600) //nolint:errcheck // best-effort
+	localClaudeJSON := filepath.Join(localAgentDir, "claude.json")
+	if _, statErr := os.Stat(localClaudeJSON); os.IsNotExist(statErr) {
+		_ = os.WriteFile(localClaudeJSON, []byte("{}"), 0600) //nolint:errcheck // best-effort
 	}
-	args = append(args, "-v", claudeJSON+":/home/agent/.claude.json")
+	args = append(args, "-v", filepath.Join(hostAgentDir, "claude.json")+":/home/agent/.claude.json")
 
 	// Extra mounts from workspace config (e.g., shared caches, tool binaries).
 	// Validate each mount source to prevent arbitrary host filesystem access.
@@ -337,7 +339,7 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	// Pre-seed Claude settings to skip interactive theme selection prompt.
 	// Claude Code shows an interactive theme picker on first run when no
 	// settings exist, which blocks headless Docker agents indefinitely.
-	if err := SeedClaudeSettings(volumeDir); err != nil {
+	if err := SeedClaudeSettings(filepath.Join(localAgentDir, "claude")); err != nil {
 		log.Warn("failed to seed claude settings", "agent", name, "error", err)
 	}
 

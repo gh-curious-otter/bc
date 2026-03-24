@@ -74,11 +74,10 @@ func (p *ClaudeProvider) AdjustSessionCommand(command string) string {
 	return command
 }
 
-// AdjustContainerCommand wraps the command in a tmux session inside the container.
-// SendKeys, Capture, and AttachCmd all rely on tmux being present.
-// Session name uses BC_WORKTREE_NAME (bc-<ws>-<agent>) for consistency.
+// AdjustContainerCommand wraps in a tmux session for Docker.
+// Uses double quotes so bash expands $BC_WORKTREE_NAME for the session name.
 func (p *ClaudeProvider) AdjustContainerCommand(command string) string {
-	return fmt.Sprintf(`tmux new-session -s "$BC_WORKTREE_NAME" '%s'`, command)
+	return fmt.Sprintf(`tmux new-session -s "$BC_WORKTREE_NAME" "%s"`, command)
 }
 
 // DockerImage returns empty to use default convention.
