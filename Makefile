@@ -166,11 +166,11 @@ build-docker-agents: build-docker-agent-base ## Build all agent images
 # Test
 # =============================================================================
 
-test-go: ## Run Go tests with race detector
-	$(GO) test -race ./...
+test-go: ## Run Go tests with race detector (excludes Docker integration tests)
+	$(GO) test -race -timeout 300s $$($(GO) list ./... | grep -v -F "github.com/gh-curious-otter/bc/pkg/container" | grep -v -F "github.com/gh-curious-otter/bc/pkg/daemon")
 
 test-go-fast: ## Run Go tests excluding slow packages
-	$(GO) test -race $$($(GO) list ./... | grep -v -F "github.com/rpuneet/bc/internal/cmd")
+	$(GO) test -race -timeout 300s $$($(GO) list ./... | grep -v -F "github.com/gh-curious-otter/bc/internal/cmd")
 
 test-ts: test-tui test-web test-landing ## Run all TS tests
 
