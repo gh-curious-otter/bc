@@ -51,5 +51,5 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
     CMD curl -sf http://localhost:9374/health
 
 WORKDIR /workspace
-ENTRYPOINT ["bash", "-c", "tmux start-server && exec bcd \"$@\"", "--"]
+ENTRYPOINT ["bash", "-c", "tmux new-session -d -s _bc_init 'sleep infinity' && exec bcd \"$@\"", "--"]
 CMD ["--addr", "0.0.0.0:9374", "--workspace", "/workspace"]
