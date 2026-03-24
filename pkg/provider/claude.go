@@ -74,14 +74,11 @@ func (p *ClaudeProvider) AdjustSessionCommand(command string) string {
 	return command
 }
 
-// AdjustContainerCommand wraps the command in an explicit tmux session for Docker.
-// bc's container.SendKeys uses `docker exec tmux send-keys` which requires a tmux
-// session inside the container. We create it ourselves instead of using Claude's
-// --tmux flag (which requires --worktree).
+// AdjustContainerCommand wraps the command in a tmux session inside the container.
+// SendKeys, Capture, and AttachCmd all rely on tmux being present.
+// The session name uses BC_AGENT_ID so it matches the agent naming convention.
 func (p *ClaudeProvider) AdjustContainerCommand(command string) string {
-	// Create a named tmux session and run claude inside it.
-	// The session name "main" is used by container.Backend.tmuxTarget().
-	return fmt.Sprintf("tmux new-session -d -s main %q && sleep infinity", command)
+	return fmt.Sprintf(`tmux new-session -d -s "${BC_AGENT_ID:-main}" bash -c '%s' && tail -f /dev/null`, command)
 }
 
 // DockerImage returns empty to use default convention.
