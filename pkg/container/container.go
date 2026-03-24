@@ -293,14 +293,22 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	// Ensure host.docker.internal resolves on Linux (macOS/Windows get this automatically)
 	args = append(args, "--add-host=host.docker.internal:host-gateway")
 
-	// Mount 1: Project workspace — use host path for Docker-in-Docker
-	hostDir := dir
-	if b.hostWorkspacePath != "" && b.hostWorkspacePath != b.workspacePath {
-		hostDir = b.hostWorkspacePath
+	// Mount 1: Project workspace — mount the full workspace root so git
+	// worktrees can access the shared .git directory. Set the container's
+	// working directory to the worktree subdirectory if dir is a subpath.
+	hostRoot := b.hostWorkspacePath
+	if hostRoot == "" {
+		hostRoot = b.workspacePath
 	}
-	if hostDir != "" {
-		args = append(args, "-v", hostDir+":/workspace")
+	containerWorkdir := "/workspace"
+	if dir != b.workspacePath {
+		// dir is a worktree subpath — compute the container-relative path
+		rel, relErr := filepath.Rel(b.workspacePath, dir)
+		if relErr == nil && !strings.HasPrefix(rel, "..") {
+			containerWorkdir = "/workspace/" + rel
+		}
 	}
+	args = append(args, "-v", hostRoot+":/workspace", "-w", containerWorkdir)
 
 	// Mount 2: Persistent Claude state (~/.claude/ dir)
 	volumeDir := filepath.Join(b.hostWorkspacePath, ".bc", "agents", name, "claude")
