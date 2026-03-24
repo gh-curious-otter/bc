@@ -43,11 +43,10 @@ type Provider interface {
 
 // CommandOpts configures how a provider builds its command.
 type CommandOpts struct {
-	AgentName     string
-	WorkspaceName string
-	SessionID     string
-	Docker        bool
-	Resume        bool
+	AgentName string
+	SessionID string
+	Docker    bool
+	Resume    bool
 }
 
 // ContainerCustomizer is optionally implemented by providers needing

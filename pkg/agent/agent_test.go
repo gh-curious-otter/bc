@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -15,6 +16,7 @@ import (
 	"github.com/rpuneet/bc/pkg/runtime"
 	"github.com/rpuneet/bc/pkg/tmux"
 	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/bc/pkg/worktree"
 )
 
 func TestMain(m *testing.M) {
@@ -32,11 +34,47 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// initGitRepo initializes a bare-minimum git repo in dir so worktree operations work.
+func initGitRepo(t *testing.T, dir string) {
+	t.Helper()
+	ctx := context.Background()
+	for _, args := range [][]string{
+		{"git", "-C", dir, "init"},
+		{"git", "-C", dir, "config", "user.email", "test@test.com"},
+		{"git", "-C", dir, "config", "user.name", "Test"},
+	} {
+		//nolint:gosec // test helper
+		cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git init setup (%v): %s: %v", args, out, err)
+		}
+	}
+	// Create an initial commit so worktree add works
+	dummy := filepath.Join(dir, ".gitkeep")
+	if err := os.WriteFile(dummy, []byte(""), 0600); err != nil {
+		t.Fatalf("write .gitkeep: %v", err)
+	}
+	for _, args := range [][]string{
+		{"git", "-C", dir, "add", ".gitkeep"},
+		{"git", "-C", dir, "commit", "-m", "init"},
+	} {
+		//nolint:gosec // test helper
+		cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git commit setup (%v): %s: %v", args, out, err)
+		}
+	}
+}
+
 // newTestManager creates a Manager with a unique tmux prefix and temp state dir.
 // The tmux manager uses a prefix that won't match any real sessions.
 func newTestManager(t *testing.T) *Manager {
 	t.Helper()
 	dir := t.TempDir()
+
+	// Initialize a git repo so worktree operations work
+	initGitRepo(t, dir)
+
 	store, err := NewSQLiteStore(filepath.Join(dir, "state.db"))
 	if err != nil {
 		t.Fatalf("NewSQLiteStore: %v", err)
@@ -66,6 +104,8 @@ func newTestManager(t *testing.T) *Manager {
 		stateDir:       dir,
 		store:          store,
 		agentCmd:       "/bin/true",
+		workspacePath:  dir,
+		worktreeMgr:    worktree.NewManager(dir),
 	}
 }
 
@@ -2602,9 +2642,8 @@ func TestClaudeBuildCommand(t *testing.T) {
 		opts     provider.CommandOpts
 	}{
 		{"no agent", "claude --dangerously-skip-permissions", provider.CommandOpts{}},
-		{"with agent", "claude --dangerously-skip-permissions -w bc-eng-01", provider.CommandOpts{AgentName: "eng-01"}},
-		{"root agent", "claude --dangerously-skip-permissions -w bc-root", provider.CommandOpts{AgentName: "root"}},
-		{"with workspace", "claude --dangerously-skip-permissions -w bc-myws-eng-01", provider.CommandOpts{AgentName: "eng-01", WorkspaceName: "myws"}},
+		{"with agent", "claude --dangerously-skip-permissions", provider.CommandOpts{AgentName: "eng-01"}},
+		{"root agent", "claude --dangerously-skip-permissions", provider.CommandOpts{AgentName: "root"}},
 	}
 
 	for _, tc := range tests {
@@ -3287,6 +3326,10 @@ func newTestManagerWithProvider(t *testing.T, p provider.Provider) *Manager {
 	reg := provider.NewRegistry()
 	reg.Register(p)
 	dir := t.TempDir()
+
+	// Initialize a git repo so worktree operations work
+	initGitRepo(t, dir)
+
 	be := runtime.NewTmuxBackend(tmux.NewManager(fmt.Sprintf("bctest-%d-", time.Now().UnixNano())))
 
 	// Create role files for test roles so role existence validation passes.
@@ -3311,6 +3354,8 @@ func newTestManagerWithProvider(t *testing.T, p provider.Provider) *Manager {
 		providerRegistry: reg,
 		stateDir:         dir,
 		agentCmd:         "/bin/true",
+		workspacePath:    dir,
+		worktreeMgr:      worktree.NewManager(dir),
 	}
 }
 
