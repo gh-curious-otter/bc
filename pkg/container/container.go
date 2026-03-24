@@ -310,6 +310,13 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		args = append(args, "-v", volumeDir+":/home/agent/.claude")
 	}
 
+	// Mount 3: ~/.claude.json (app config with oauthAccount — needed for auth persistence)
+	claudeJSON := filepath.Join(b.hostWorkspacePath, ".bc", "agents", name, "claude.json")
+	if _, statErr := os.Stat(claudeJSON); os.IsNotExist(statErr) {
+		_ = os.WriteFile(claudeJSON, []byte("{}"), 0600) //nolint:errcheck // best-effort
+	}
+	args = append(args, "-v", claudeJSON+":/home/agent/.claude.json")
+
 	// Extra mounts from workspace config (e.g., shared caches, tool binaries).
 	// Validate each mount source to prevent arbitrary host filesystem access.
 	for _, mount := range b.cfg.ExtraMounts {
