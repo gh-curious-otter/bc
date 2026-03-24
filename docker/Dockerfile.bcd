@@ -32,8 +32,15 @@ RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /bcd ./cmd/bcd
 FROM ubuntu:24.04
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        ca-certificates tmux git docker.io curl sqlite3 && \
+        ca-certificates tmux git docker.io curl sqlite3 jq && \
     rm -rf /var/lib/apt/lists/*
+
+# Install Claude Code so bcd can run tmux agents inside this container
+SHELL ["/bin/bash", "-c"]
+RUN curl -fsSL https://claude.ai/install.sh | bash && \
+    cp /root/.local/share/claude/versions/* /usr/local/bin/claude && \
+    chmod +x /usr/local/bin/claude && \
+    rm -rf /root/.local/share/claude /root/.claude
 
 COPY --from=go /bcd /usr/local/bin/bcd
 
