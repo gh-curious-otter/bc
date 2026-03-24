@@ -59,11 +59,12 @@ type ContainerCustomizer interface {
 }
 
 // SessionCustomizer is optionally implemented by providers that need to
-// adjust their command for headless execution in any session backend
-// (tmux or Docker). This is checked before ContainerCustomizer.
+// adjust their command for headless execution in tmux or Docker.
 type SessionCustomizer interface {
-	// AdjustSessionCommand modifies the command for headless session execution.
+	// AdjustSessionCommand modifies the command for native tmux sessions.
 	AdjustSessionCommand(command string) string
+	// AdjustContainerCommand modifies the command for Docker container execution.
+	AdjustContainerCommand(command string) string
 }
 
 // SessionResumer is optionally implemented by providers that support resuming
