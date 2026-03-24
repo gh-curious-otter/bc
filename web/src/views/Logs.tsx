@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, Fragment } from "react";
 import { api } from "../api/client";
 import type { Agent } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
@@ -18,6 +18,38 @@ export function Logs() {
   const [agentFilter, setAgentFilter] = useState("");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [streamedLogs, setStreamedLogs] = useState<LogEntry[]>([]);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const toggleRow = (key: string) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const formatJSON = (msg: string): string => {
+    try {
+      return JSON.stringify(JSON.parse(msg), null, 2);
+    } catch {
+      return msg;
+    }
+  };
+
+  const summarize = (msg: string): string => {
+    try {
+      const obj = JSON.parse(msg);
+      const parts: string[] = [];
+      if (obj.event) parts.push(obj.event);
+      if (obj.tool_name) parts.push(obj.tool_name);
+      if (obj.task) parts.push(obj.task);
+      else if (obj.command) parts.push(obj.command);
+      return parts.join(" - ") || msg.slice(0, 80);
+    } catch {
+      return msg.slice(0, 80);
+    }
+  };
   const { subscribe } = useWebSocket();
   const bottomRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -168,29 +200,52 @@ export function Logs() {
                 </tr>
               </thead>
               <tbody>
-                {allLogs.map((entry, i) => (
-                  <tr
-                    key={entry.id || `stream-${i}`}
-                    className="border-b border-bc-border/50"
-                  >
-                    <td className="px-4 py-2 text-bc-muted whitespace-nowrap">
-                      {entry.created_at
-                        ? new Date(entry.created_at).toLocaleTimeString()
-                        : "\u2014"}
-                    </td>
-                    <td className="px-4 py-2">
-                      <span className="text-xs px-2 py-0.5 rounded bg-bc-border text-bc-muted">
-                        {entry.type}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 font-medium">
-                      {entry.agent || "\u2014"}
-                    </td>
-                    <td className="px-4 py-2 text-bc-muted font-mono text-xs max-w-lg truncate" title={entry.message || ""}>
-                      {entry.message || "\u2014"}
-                    </td>
-                  </tr>
-                ))}
+                {allLogs.map((entry, i) => {
+                  const rowKey = String(entry.id || `stream-${i}`);
+                  const isExpanded = expandedRows.has(rowKey);
+                  const isJSON = entry.message?.startsWith("{");
+                  return (
+                    <Fragment key={rowKey}>
+                      <tr
+                        className="border-b border-bc-border/50 cursor-pointer hover:bg-bc-surface/50"
+                        onClick={() => entry.message && toggleRow(rowKey)}
+                      >
+                        <td className="px-4 py-2 text-bc-muted whitespace-nowrap">
+                          {entry.created_at
+                            ? new Date(entry.created_at).toLocaleTimeString()
+                            : "\u2014"}
+                        </td>
+                        <td className="px-4 py-2">
+                          <span className="text-xs px-2 py-0.5 rounded bg-bc-border text-bc-muted">
+                            {entry.type}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 font-medium">
+                          {entry.agent || "\u2014"}
+                        </td>
+                        <td className="px-4 py-2 text-bc-muted text-xs">
+                          <span className="flex items-center gap-1">
+                            {isJSON && (
+                              <span className="text-bc-muted/50 text-[10px]">
+                                {isExpanded ? "\u25BC" : "\u25B6"}
+                              </span>
+                            )}
+                            {isJSON ? summarize(entry.message!) : (entry.message || "\u2014")}
+                          </span>
+                        </td>
+                      </tr>
+                      {isExpanded && entry.message && (
+                        <tr className="border-b border-bc-border/50">
+                          <td colSpan={4} className="px-4 py-2 bg-bc-surface">
+                            <pre className="text-xs font-mono text-bc-muted whitespace-pre-wrap overflow-x-auto max-h-64 overflow-y-auto">
+                              {formatJSON(entry.message)}
+                            </pre>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
             <div ref={bottomRef} />
