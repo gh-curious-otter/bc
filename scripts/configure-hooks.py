@@ -64,10 +64,8 @@ HOOKS = {
         "state": "idle",
         "extract": """'{"event":"Stop","state":"idle","task":"Turn complete"}'""",
     },
-    "StopFailure": {
-        "state": "error",
-        "extract": """$(echo "$HOOK_INPUT" | jq -c '{event:"StopFailure",state:"error",task:"API error",error:.error}')""",
-    },
+    # StopFailure is NOT a valid Claude Code hook key — omitted intentionally.
+    # See invalidHookKeys in pkg/agent/hooks.go.
 
     # ── Notifications ──
     "Notification": {
