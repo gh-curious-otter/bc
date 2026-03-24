@@ -50,7 +50,7 @@ EXPOSE 9374
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
     CMD curl -sf http://localhost:9374/health
 
-RUN git config --global --add safe.directory '*'
+RUN git config --global --add safe.directory /workspace
 
 WORKDIR /workspace
 ENTRYPOINT ["bash", "-c", "tmux new-session -d -s _bc_init 'sleep infinity' && exec bcd \"$@\"", "--"]
