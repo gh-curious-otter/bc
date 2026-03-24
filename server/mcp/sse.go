@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -167,7 +168,7 @@ func (b *SSEBroker) handleSSE(w http.ResponseWriter, r *http.Request) {
 	// know which agent is the caller (used by send_message for sender).
 	endpoint := b.messageEndpoint
 	if agentID := r.URL.Query().Get("agent"); agentID != "" {
-		endpoint += "?agent=" + agentID
+		endpoint += "?agent=" + url.QueryEscape(agentID)
 	}
 	// Send endpoint event so client knows where to POST
 	fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", endpoint) //nolint:errcheck // writing to response

@@ -87,7 +87,7 @@ func TestPath(t *testing.T) {
 	m := NewManager(dir)
 
 	got := m.Path("eng-01")
-	want := filepath.Join(dir, ".bc", "agents", "eng-01", "worktree")
+	want := filepath.Join(dir, ".bc", "agents", "eng-01", "bc-"+filepath.Base(dir)+"-eng-01")
 
 	if got != want {
 		t.Errorf("Path() = %q, want %q", got, want)

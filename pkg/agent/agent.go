@@ -906,9 +906,8 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		var wtErr error
 		wtDir, wtErr = m.worktreeMgr.Create(ctx, name)
 		if wtErr != nil {
-			// fall back to workspace root
-			log.Warn("failed to create worktree for restart", "agent", name, "error", wtErr)
-			wtDir = wsPath
+			agentLock.Unlock()
+			return nil, fmt.Errorf("failed to create worktree for agent %s: %w", name, wtErr)
 		} else {
 			existing.WorktreeDir = wtDir
 		}
@@ -917,7 +916,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	// Write hook settings and role files to worktree (regenerate on every start
 	// so config changes like MCP URLs take effect without manual intervention).
 	if err := WriteWorkspaceHookSettings(wtDir); err != nil {
-		log.Debug("failed to write hook settings", "dir", wtDir, "error", err)
+		log.Error("failed to write hook settings", "dir", wtDir, "error", err)
 	}
 	if setupErr := SetupAgentFromRoleWithRuntime(wsPath, name, string(existing.Role), wtDir, agentRuntime); setupErr != nil {
 		log.Warn("role setup failed on restart", "agent", name, "error", setupErr)
@@ -1101,7 +1100,9 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	agent.WorktreeDir = wtDir
 
 	// Ensure Claude home dir exists
-	_ = m.worktreeMgr.EnsureClaudeDir(name)
+	if claudeErr := m.worktreeMgr.EnsureClaudeDir(name); claudeErr != nil {
+		log.Warn("failed to ensure Claude dir", "agent", name, "error", claudeErr)
+	}
 
 	// Write hook settings to the worktree
 	if err := WriteWorkspaceHookSettings(wtDir); err != nil {
@@ -1111,6 +1112,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	// Write role files (CLAUDE.md, .mcp.json, etc.) to the worktree
 	if setupErr := SetupAgentFromRoleWithRuntime(wsPath, name, string(role), wtDir, agentRuntime); setupErr != nil {
 		log.Warn("role setup failed", "agent", name, "error", setupErr)
+		agent.Task = fmt.Sprintf("role setup failed: %v", setupErr)
 	}
 
 	// Create session IN the worktree directory
@@ -1569,11 +1571,26 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 		// Non-fatal — session may already be dead (agent is stopped)
 	}
 
-	// Remove old worktree and create new one with the new name
-	_ = m.worktreeMgr.Remove(ctx, oldName)
-	newWorktreeDir, wtErr := m.worktreeMgr.Create(ctx, newName)
-	if wtErr != nil {
-		log.Warn("rename: failed to create worktree for new name", "error", wtErr)
+	// Move worktree directory to preserve content instead of Remove+Create
+	oldPath := m.worktreeMgr.Path(oldName)
+	newPath := m.worktreeMgr.Path(newName)
+	var newWorktreeDir string
+	if err := os.MkdirAll(filepath.Dir(newPath), 0750); err != nil {
+		log.Warn("rename: failed to create new agent dir", "error", err)
+	}
+	if err := os.Rename(oldPath, newPath); err != nil {
+		log.Warn("rename: failed to move worktree", "error", err)
+		// Fall back to create new
+		_ = m.worktreeMgr.Remove(ctx, oldName)
+		newPath2, wtErr := m.worktreeMgr.Create(ctx, newName)
+		if wtErr != nil {
+			log.Warn("rename: failed to create worktree for new name", "error", wtErr)
+		}
+		if newPath2 != "" {
+			newWorktreeDir = newPath2
+		}
+	} else {
+		newWorktreeDir = newPath
 	}
 
 	// Rename log file
@@ -2155,8 +2172,18 @@ func (m *Manager) enforceRootSingleton(_ string) error {
 
 // bcdAddrForRuntime returns the bcd server address for the given runtime.
 // Docker containers reach the host via host.docker.internal.
-func bcdAddrForRuntime(runtime string) string {
-	if runtime == "docker" {
+// If BC_BCD_ADDR is set in the environment, it is used as the base address
+// (with host.docker.internal substituted for Docker runtimes).
+func bcdAddrForRuntime(rt string) string {
+	if addr := os.Getenv("BC_BCD_ADDR"); addr != "" {
+		if rt == "docker" {
+			// Replace localhost/127.0.0.1 with host.docker.internal for Docker
+			addr = strings.ReplaceAll(addr, "127.0.0.1", "host.docker.internal")
+			addr = strings.ReplaceAll(addr, "localhost", "host.docker.internal")
+		}
+		return addr
+	}
+	if rt == "docker" {
 		return "http://host.docker.internal:9374"
 	}
 	return "http://127.0.0.1:9374"

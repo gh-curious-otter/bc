@@ -61,27 +61,35 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	fmt.Printf("Starting bc in %s\n\n", ws.RootDir)
 
 	// 1. bc-sql — persistent volume for Postgres data
-	dockerRun(ctx, "bc-sql", []string{
+	if err := dockerRun(ctx, "bc-sql", []string{
 		"-p", "5432:5432",
 		"-e", "POSTGRES_PASSWORD=bc",
 		"-v", "bc-sql-data:/var/lib/postgresql/data",
 		"--restart", "always",
 		"bc-bcsql:latest",
-	})
+	}); err != nil {
+		return fmt.Errorf("bc-sql failed to start: %w", err)
+	}
 
 	// 2. bc-stats — persistent volume for TimescaleDB data
-	dockerRun(ctx, "bc-stats", []string{
+	if err := dockerRun(ctx, "bc-stats", []string{
 		"-p", "5433:5432",
 		"-e", "POSTGRES_PASSWORD=bc",
 		"-v", "bc-stats-data:/var/lib/postgresql/data",
 		"--restart", "always",
 		"bc-bcstats:latest",
-	})
+	}); err != nil {
+		return fmt.Errorf("bc-stats failed to start: %w", err)
+	}
 
 	// 3. Wait for databases
 	fmt.Print("  Waiting for databases... ")
-	waitPG(ctx, "bc-sql", 30*time.Second)
-	waitPG(ctx, "bc-stats", 30*time.Second)
+	if err := waitPG(ctx, "bc-sql", 30*time.Second); err != nil {
+		return fmt.Errorf("bc-sql not ready: %w", err)
+	}
+	if err := waitPG(ctx, "bc-stats", 30*time.Second); err != nil {
+		return fmt.Errorf("bc-stats not ready: %w", err)
+	}
 	fmt.Println(ui.GreenText("ready"))
 
 	// 4. bc-<id>-daemon with docker.sock + workspace mount
@@ -104,7 +112,9 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		"--addr", "0.0.0.0:9374",
 		"--workspace", "/workspace",
 	)
-	dockerRun(ctx, daemonName, daemonArgs)
+	if err := dockerRun(ctx, daemonName, daemonArgs); err != nil {
+		fmt.Printf("  %s daemon failed to start: %v\n", ui.YellowText("warning"), err)
+	}
 
 	// 5. Wait for bcd
 	addr := fmt.Sprintf("127.0.0.1:%s", upPort)
@@ -126,13 +136,13 @@ func runUp(cmd *cobra.Command, _ []string) error {
 }
 
 // dockerRun starts a container if not already running.
-func dockerRun(ctx context.Context, name string, args []string) {
+func dockerRun(ctx context.Context, name string, args []string) error {
 	// Check if already running
 	//nolint:gosec // trusted
 	out, _ := exec.CommandContext(ctx, "docker", "inspect", "-f", "{{.State.Running}}", name).Output()
 	if strings.TrimSpace(string(out)) == "true" {
 		fmt.Printf("  %s %s (already running)\n", ui.GreenText("ok"), name)
-		return
+		return nil
 	}
 
 	// Remove stale container
@@ -147,25 +157,27 @@ func dockerRun(ctx context.Context, name string, args []string) {
 	if output, err := cmd.CombinedOutput(); err != nil {
 		fmt.Println(ui.YellowText(fmt.Sprintf("failed (%v)", err)))
 		log.Debug("docker run failed", "name", name, "output", string(output))
-		return
+		return fmt.Errorf("container %s: %w", name, err)
 	}
 	fmt.Println(ui.GreenText("started"))
+	return nil
 }
 
 // waitPG polls pg_isready inside a container.
-func waitPG(ctx context.Context, name string, timeout time.Duration) {
+func waitPG(ctx context.Context, name string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		//nolint:gosec // trusted
 		if exec.CommandContext(ctx, "docker", "exec", name, "pg_isready", "-U", "bc").Run() == nil {
-			return
+			return nil
 		}
 		select {
 		case <-ctx.Done():
-			return
+			return ctx.Err()
 		case <-time.After(time.Second):
 		}
 	}
+	return fmt.Errorf("timeout waiting for %s", name)
 }
 
 // waitHTTP polls a health endpoint.

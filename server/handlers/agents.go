@@ -13,6 +13,7 @@ import (
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/cost"
 	"github.com/rpuneet/bc/pkg/events"
+	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/workspace"
 	"github.com/rpuneet/bc/server/ws"
 )
@@ -271,7 +272,8 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 
 		if hasState {
 			if err := h.svc.Manager().UpdateAgentState(name, targetState, task); err != nil {
-				writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skipped": true})
+				log.Debug("hook state update skipped", "agent", name, "error", err)
+				writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skipped": true, "reason": err.Error()})
 				return
 			}
 		}
