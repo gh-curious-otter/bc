@@ -198,7 +198,7 @@ func parseSessionFile(agentName, path string) ([]Entry, error) {
 
 		ts, _ := time.Parse(time.RFC3339Nano, evt.Timestamp)
 		if ts.IsZero() {
-			ts = time.Now()
+			continue // skip entries with unparseable timestamps
 		}
 
 		entries = append(entries, Entry{

@@ -463,7 +463,7 @@ func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.A
 					if tokenErr != nil || len(entries) == 0 {
 						continue
 					}
-					var latestTS time.Time
+					var latestSuccess time.Time
 					for _, e := range entries {
 						if err := ss.RecordToken(ctx, bcstats.TokenMetric{
 							Time:         e.Timestamp,
@@ -475,13 +475,14 @@ func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.A
 							CacheCreate:  e.CacheCreate,
 						}); err != nil {
 							log.Debug("stats: record token metric", "agent", agentName, "error", err)
+							continue // don't advance watermark past failed inserts
 						}
-						if e.Timestamp.After(latestTS) {
-							latestTS = e.Timestamp
+						if e.Timestamp.After(latestSuccess) {
+							latestSuccess = e.Timestamp
 						}
 					}
-					if !latestTS.IsZero() {
-						tokenWatermarks[agentName] = latestTS
+					if !latestSuccess.IsZero() {
+						tokenWatermarks[agentName] = latestSuccess
 					}
 				}
 			}
