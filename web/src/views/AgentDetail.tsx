@@ -123,7 +123,6 @@ function OverviewTab({ agent }: { agent: Agent }) {
             value={<StatusBadge status={agent.state} />}
           />
           <MetadataRow label="Tool" value={agent.tool || "\u2014"} />
-          <MetadataRow label="Team" value={agent.team || "\u2014"} />
         </div>
       </div>
 
@@ -184,7 +183,6 @@ function RoleTab({ agent }: { agent: Agent }) {
       <div className="rounded border border-bc-border bg-bc-surface p-4">
         <MetadataRow label="Role" value={<RoleBadge role={agent.role} />} />
         <MetadataRow label="Tool" value={agent.tool || "\u2014"} />
-        <MetadataRow label="Team" value={agent.team || "\u2014"} />
         <MetadataRow label="Parent" value={agent.parent_id || "\u2014"} />
         <MetadataRow
           label="Children"

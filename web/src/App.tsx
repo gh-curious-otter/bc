@@ -48,12 +48,6 @@ const Workspace = lazy(() =>
 const Settings = lazy(() =>
   import("./views/Settings").then((m) => ({ default: m.Settings })),
 );
-const Daemons = lazy(() =>
-  import("./views/Daemons").then((m) => ({ default: m.Daemons })),
-);
-const Teams = lazy(() =>
-  import("./views/Teams").then((m) => ({ default: m.Teams })),
-);
 
 function Loading() {
   return <div className="p-6 text-bc-muted">Loading...</div>;
@@ -224,26 +218,6 @@ export function App() {
                   <Suspense fallback={<Loading />}>
                     <ErrorBoundary>
                       <Settings />
-                    </ErrorBoundary>
-                  </Suspense>
-                }
-              />
-              <Route
-                path="daemons"
-                element={
-                  <Suspense fallback={<Loading />}>
-                    <ErrorBoundary>
-                      <Daemons />
-                    </ErrorBoundary>
-                  </Suspense>
-                }
-              />
-              <Route
-                path="teams"
-                element={
-                  <Suspense fallback={<Loading />}>
-                    <ErrorBoundary>
-                      <Teams />
                     </ErrorBoundary>
                   </Suspense>
                 }

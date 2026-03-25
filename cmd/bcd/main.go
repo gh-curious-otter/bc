@@ -41,7 +41,6 @@ import (
 	"github.com/gh-curious-otter/bc/pkg/provider"
 	bcsecret "github.com/gh-curious-otter/bc/pkg/secret"
 	bcstats "github.com/gh-curious-otter/bc/pkg/stats"
-	bcteam "github.com/gh-curious-otter/bc/pkg/team"
 	bctoken "github.com/gh-curious-otter/bc/pkg/token"
 	bctool "github.com/gh-curious-otter/bc/pkg/tool"
 	bcworkspace "github.com/gh-curious-otter/bc/pkg/workspace"
@@ -213,8 +212,6 @@ func run(addr, wsRoot, corsOrigin string) error {
 		}
 	}
 
-	teamStore := bcteam.NewStore(ws.RootDir)
-
 	// Gateway manager for external messaging platforms (Telegram, Discord, Slack).
 	var gwManager *bcgateway.Manager
 	{
@@ -293,7 +290,6 @@ func run(addr, wsRoot, corsOrigin string) error {
 		Tools:        toolStore,
 		Stats:        statsStore,
 		EventLog:     eventLog,
-		Teams:        teamStore,
 		WS:           ws,
 		Gateway:      gwManager,
 	}

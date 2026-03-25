@@ -22,7 +22,6 @@ export interface Agent {
   updated_at: string;
   stopped_at?: string;
   task?: string;
-  team?: string;
   session?: string;
   session_id?: string;
   parent_id?: string;
@@ -352,30 +351,6 @@ export interface SettingsConfig {
   Storage: { SQLitePath: string };
 }
 
-export interface Team {
-  name: string;
-  description: string;
-  lead: string;
-  members: string[];
-}
-
-export interface Daemon {
-  name: string;
-  runtime: string;
-  cmd: string;
-  image: string;
-  container_id: string;
-  restart: string;
-  status: string;
-  ports: string[];
-  volumes: string[];
-  env: string[];
-  pid: number;
-  created_at: string;
-  started_at: string;
-  stopped_at: string | null;
-}
-
 export const api = {
   listAgents: () => request<Agent[]>("/agents"),
   getAgent: (name: string) =>
@@ -600,22 +575,6 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(patch),
     }),
-
-  listDaemons: () => request<Daemon[]>("/daemons"),
-  stopDaemon: (name: string) =>
-    request<{ status: string }>(`/daemons/${encodeURIComponent(name)}/stop`, {
-      method: "POST",
-    }),
-  restartDaemon: (name: string) =>
-    request<Daemon>(`/daemons/${encodeURIComponent(name)}/restart`, {
-      method: "POST",
-    }),
-  removeDaemon: (name: string) =>
-    request<void>(`/daemons/${encodeURIComponent(name)}`, { method: "DELETE" }),
-
-  listTeams: () => request<Team[]>("/teams"),
-  getTeam: (name: string) =>
-    request<Team>(`/teams/${encodeURIComponent(name)}`),
 
   addChannelMember: (channelName: string, agentName: string) =>
     request<void>(`/channels/${encodeURIComponent(channelName)}/members`, {
