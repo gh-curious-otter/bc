@@ -121,15 +121,27 @@ func (a *Adapter) Health(_ context.Context) error {
 
 // discoverChannels lists channels the bot is a member of.
 func (a *Adapter) discoverChannels(ctx context.Context) error {
-	params := &slack.GetConversationsParameters{
-		Types:           []string{"public_channel", "private_channel"},
+	// Use GetConversationsForUser to list channels the bot is in
+	params := &slack.GetConversationsForUserParameters{
+		UserID:          a.botUserID,
+		Types:           []string{"public_channel"},
 		ExcludeArchived: true,
 		Limit:           200,
 	}
 
-	channels, _, err := a.api.GetConversationsContext(ctx, params)
+	channels, _, err := a.api.GetConversationsForUserContext(ctx, params)
 	if err != nil {
-		return fmt.Errorf("list conversations: %w", err)
+		// Fallback: try listing all public channels
+		log.Warn("slack: GetConversationsForUser failed, trying GetConversations", "error", err)
+		listParams := &slack.GetConversationsParameters{
+			Types:           []string{"public_channel"},
+			ExcludeArchived: true,
+			Limit:           200,
+		}
+		channels, _, err = a.api.GetConversationsContext(ctx, listParams)
+		if err != nil {
+			return fmt.Errorf("list conversations: %w", err)
+		}
 	}
 
 	a.chatMu.Lock()
@@ -164,6 +176,7 @@ func (a *Adapter) processEvent(sm *socketmode.Client, evt socketmode.Event) {
 	case socketmode.EventTypeEventsAPI:
 		eventsAPIEvent, ok := evt.Data.(slackevents.EventsAPIEvent)
 		if !ok {
+			log.Warn("slack: failed to cast EventsAPI event")
 			return
 		}
 		sm.Ack(*evt.Request)
@@ -178,7 +191,11 @@ func (a *Adapter) processEvent(sm *socketmode.Client, evt socketmode.Event) {
 	case socketmode.EventTypeConnectionError:
 		log.Warn("slack: Socket Mode connection error")
 
+	case socketmode.EventTypeHello:
+		log.Info("slack: Socket Mode hello received")
+
 	default:
+		log.Info("slack: unhandled event type", "type", evt.Type)
 		// Acknowledge unknown events to prevent retries
 		if evt.Request != nil {
 			sm.Ack(*evt.Request)

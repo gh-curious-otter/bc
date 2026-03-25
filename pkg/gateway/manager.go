@@ -75,13 +75,17 @@ func (m *Manager) Start(ctx context.Context) error {
 		m.mu.Unlock()
 	}
 
-	// Start all adapters in goroutines
+	// Start all adapters in goroutines, each with a platform-tagged callback
 	var wg sync.WaitGroup
 	for _, a := range adapters {
 		wg.Add(1)
 		go func(adapter Adapter) {
 			defer wg.Done()
-			if err := adapter.Start(ctx, m.handleInbound); err != nil && ctx.Err() == nil {
+			platformName := adapter.Name()
+			callback := func(msg InboundMessage) {
+				m.handleInboundFromPlatform(platformName, msg)
+			}
+			if err := adapter.Start(ctx, callback); err != nil && ctx.Err() == nil {
 				log.Error("gateway: adapter stopped with error", "adapter", adapter.Name(), "error", err)
 			}
 		}(a)
@@ -138,10 +142,9 @@ func (m *Manager) ExternalChannels() []string {
 	return names
 }
 
-// handleInbound processes a message from an external platform into bc.
-func (m *Manager) handleInbound(msg InboundMessage) {
-	// Build the bc channel name: "telegram:group_name"
-	// Find which adapter this came from
+// handleInboundFromPlatform processes a message from a specific external platform into bc.
+func (m *Manager) handleInboundFromPlatform(platform string, msg InboundMessage) {
+	// Find existing mapping for this channel ID
 	m.mu.RLock()
 	var bcChannel string
 	for name, route := range m.channelMap {
@@ -153,35 +156,23 @@ func (m *Manager) handleInbound(msg InboundMessage) {
 	m.mu.RUnlock()
 
 	if bcChannel == "" {
-		// Channel not mapped yet — try to add it dynamically
-		// Use the channel name from the message
-		if msg.ChannelName != "" {
-			for _, a := range m.adapters {
-				bcChannel = a.Name() + ":" + sanitizeChannelName(msg.ChannelName)
-				m.mu.Lock()
-				m.channelMap[bcChannel] = channelRoute{
-					Platform:  a.Name(),
-					ChannelID: msg.ChannelID,
-					Adapter:   a,
-				}
-				m.mu.Unlock()
-				log.Info("gateway: dynamically mapped channel", "bc_channel", bcChannel, "platform_id", msg.ChannelID)
-				break
-			}
+		// Channel not mapped yet — add it dynamically using the platform name
+		channelName := msg.ChannelName
+		if channelName == "" {
+			channelName = msg.ChannelID
 		}
-		if bcChannel == "" {
-			log.Warn("gateway: unmapped inbound message", "channel_id", msg.ChannelID)
-			return
-		}
-	}
+		bcChannel = platform + ":" + sanitizeChannelName(channelName)
 
-	// Determine platform from channel route
-	m.mu.RLock()
-	platform := "gateway"
-	if route, ok := m.channelMap[bcChannel]; ok {
-		platform = route.Platform
+		m.mu.Lock()
+		adapter := m.adapters[platform]
+		m.channelMap[bcChannel] = channelRoute{
+			Platform:  platform,
+			ChannelID: msg.ChannelID,
+			Adapter:   adapter,
+		}
+		m.mu.Unlock()
+		log.Info("gateway: dynamically mapped channel", "bc_channel", bcChannel, "platform", platform, "platform_id", msg.ChannelID)
 	}
-	m.mu.RUnlock()
 
 	sender := fmt.Sprintf("[%s] %s", platform, msg.Sender)
 	if m.onInbound != nil {
