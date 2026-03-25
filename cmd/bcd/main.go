@@ -33,6 +33,8 @@ import (
 	bccron "github.com/gh-curious-otter/bc/pkg/cron"
 	bcevents "github.com/gh-curious-otter/bc/pkg/events"
 	bcgateway "github.com/gh-curious-otter/bc/pkg/gateway"
+	bcdiscord "github.com/gh-curious-otter/bc/pkg/gateway/discord"
+	bcslack "github.com/gh-curious-otter/bc/pkg/gateway/slack"
 	bctelegram "github.com/gh-curious-otter/bc/pkg/gateway/telegram"
 	"github.com/gh-curious-otter/bc/pkg/log"
 	bcmcp "github.com/gh-curious-otter/bc/pkg/mcp"
@@ -214,45 +216,67 @@ func run(addr, wsRoot, corsOrigin string) error {
 
 	// Gateway manager for external messaging platforms (Telegram, Discord, Slack).
 	var gwManager *bcgateway.Manager
-	if cfg := ws.Config.Gateways.Telegram; cfg != nil && cfg.Enabled && cfg.BotToken != "" {
-		gwManager = bcgateway.NewManager()
+	{
+		gw := ws.Config.Gateways
+		hasAdapters := false
 
-		// Create telegram adapter
-		tgAdapter := bctelegram.New(cfg.BotToken, cfg.Mode)
-
-		// Discover existing groups via a quick getUpdates
-		if err := tgAdapter.DiscoverViaUpdate(); err != nil {
-			log.Warn("telegram: discovery failed", "error", err)
+		// Check if any gateway is enabled
+		if (gw.Telegram != nil && gw.Telegram.Enabled && gw.Telegram.BotToken != "") ||
+			(gw.Discord != nil && gw.Discord.Enabled && gw.Discord.BotToken != "") ||
+			(gw.Slack != nil && gw.Slack.Enabled && gw.Slack.BotToken != "") {
+			gwManager = bcgateway.NewManager()
 		}
 
-		gwManager.Register(tgAdapter)
+		// Telegram adapter
+		if gwManager != nil && gw.Telegram != nil && gw.Telegram.Enabled && gw.Telegram.BotToken != "" {
+			tgAdapter := bctelegram.New(gw.Telegram.BotToken, gw.Telegram.Mode)
+			if err := tgAdapter.DiscoverViaUpdate(); err != nil {
+				log.Warn("telegram: discovery failed", "error", err)
+			}
+			gwManager.Register(tgAdapter)
+			hasAdapters = true
+			log.Info("gateway: telegram adapter registered")
+		}
 
-		// Set inbound handler: store message in channel service + trigger OnMessage
-		if channelSvc != nil {
+		// Discord adapter
+		if gwManager != nil && gw.Discord != nil && gw.Discord.Enabled && gw.Discord.BotToken != "" {
+			dcAdapter := bcdiscord.New(gw.Discord.BotToken)
+			gwManager.Register(dcAdapter)
+			hasAdapters = true
+			log.Info("gateway: discord adapter registered")
+		}
+
+		// Slack adapter (Socket Mode)
+		if gwManager != nil && gw.Slack != nil && gw.Slack.Enabled && gw.Slack.BotToken != "" && gw.Slack.AppToken != "" {
+			slAdapter := bcslack.New(gw.Slack.BotToken, gw.Slack.AppToken)
+			gwManager.Register(slAdapter)
+			hasAdapters = true
+			log.Info("gateway: slack adapter registered")
+		}
+
+		// Wire inbound handler and start
+		if gwManager != nil && hasAdapters && channelSvc != nil {
 			gwManager.SetInboundHandler(func(bcChannel, sender, content string) {
 				// Auto-create the channel if it doesn't exist
 				if _, err := channelSvc.Get(context.Background(), bcChannel); err != nil {
 					if _, createErr := channelSvc.Create(context.Background(), bcchannel.CreateChannelReq{
 						Name:        bcChannel,
-						Description: "Telegram gateway channel",
+						Description: "Gateway channel",
 					}); createErr != nil {
 						log.Warn("gateway: failed to auto-create channel", "channel", bcChannel, "error", createErr)
 					}
 				}
-				// Store the inbound message in the channel
 				if _, err := channelSvc.Send(context.Background(), bcChannel, sender, content); err != nil {
 					log.Warn("gateway: failed to store inbound message", "channel", bcChannel, "error", err)
 				}
 			})
-		}
 
-		// Start gateway in background
-		go func() {
-			if err := gwManager.Start(ctx); err != nil && ctx.Err() == nil {
-				log.Error("gateway manager stopped", "error", err)
-			}
-		}()
-		log.Info("gateway: telegram adapter registered")
+			go func() {
+				if err := gwManager.Start(ctx); err != nil && ctx.Err() == nil {
+					log.Error("gateway manager stopped", "error", err)
+				}
+			}()
+		}
 	}
 
 	svc := server.Services{

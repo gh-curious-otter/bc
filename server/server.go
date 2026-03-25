@@ -153,8 +153,10 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		svc.Channels.OnMessage = func(ch, sender, content string) {
 			// Route outbound to gateway if this is a gateway channel
 			if svc.Gateway != nil && svc.Gateway.IsGatewayChannel(ch) {
-				// Don't re-send messages that came FROM the gateway (indicated by [telegram] prefix)
-				if !strings.HasPrefix(sender, "[telegram]") {
+				// Don't re-send messages that came FROM the gateway (indicated by [platform] prefix)
+				if !strings.HasPrefix(sender, "[telegram]") &&
+					!strings.HasPrefix(sender, "[discord]") &&
+					!strings.HasPrefix(sender, "[slack]") {
 					if _, err := svc.Gateway.Send(context.Background(), ch, sender, content); err != nil {
 						log.Warn("gateway outbound failed", "channel", ch, "error", err)
 					}

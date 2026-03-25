@@ -175,7 +175,15 @@ func (m *Manager) handleInbound(msg InboundMessage) {
 		}
 	}
 
-	sender := fmt.Sprintf("[telegram] %s", msg.Sender)
+	// Determine platform from channel route
+	m.mu.RLock()
+	platform := "gateway"
+	if route, ok := m.channelMap[bcChannel]; ok {
+		platform = route.Platform
+	}
+	m.mu.RUnlock()
+
+	sender := fmt.Sprintf("[%s] %s", platform, msg.Sender)
 	if m.onInbound != nil {
 		m.onInbound(bcChannel, sender, msg.Content)
 	}
