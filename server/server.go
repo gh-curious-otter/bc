@@ -18,6 +18,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gh-curious-otter/bc/pkg/agent"
@@ -25,6 +26,7 @@ import (
 	"github.com/gh-curious-otter/bc/pkg/cost"
 	"github.com/gh-curious-otter/bc/pkg/cron"
 	"github.com/gh-curious-otter/bc/pkg/events"
+	"github.com/gh-curious-otter/bc/pkg/gateway"
 	"github.com/gh-curious-otter/bc/pkg/log"
 	"github.com/gh-curious-otter/bc/pkg/mcp"
 	"github.com/gh-curious-otter/bc/pkg/secret"
@@ -72,6 +74,7 @@ type Services struct {
 	Stats        *stats.Store
 	EventLog     events.EventStore
 	WS           *workspace.Workspace
+	Gateway      *gateway.Manager
 }
 
 // Server is the bcd HTTP server.
@@ -148,6 +151,15 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	if svc.Channels != nil {
 		svc.Channels.OnMessage = func(ch, sender, content string) {
+			// Route outbound to gateway if this is a gateway channel
+			if svc.Gateway != nil && svc.Gateway.IsGatewayChannel(ch) {
+				// Don't re-send messages that came FROM the gateway (indicated by [telegram] prefix)
+				if !strings.HasPrefix(sender, "[telegram]") {
+					if _, err := svc.Gateway.Send(context.Background(), ch, sender, content); err != nil {
+						log.Warn("gateway outbound failed", "channel", ch, "error", err)
+					}
+				}
+			}
 			// Publish SSE event for web UI (non-blocking)
 			if hub != nil {
 				hub.Publish("channel.message", map[string]any{
@@ -223,6 +235,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	if svc.Teams != nil {
 		handlers.NewTeamHandler(svc.Teams).Register(mux)
+	}
+	if svc.Gateway != nil {
+		handlers.NewGatewayHandler(svc.Gateway).Register(mux)
 	}
 	if svc.WS != nil {
 		handlers.NewRolesHandler(svc.WS).Register(mux)

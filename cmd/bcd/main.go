@@ -32,6 +32,8 @@ import (
 	bccost "github.com/gh-curious-otter/bc/pkg/cost"
 	bccron "github.com/gh-curious-otter/bc/pkg/cron"
 	bcevents "github.com/gh-curious-otter/bc/pkg/events"
+	bcgateway "github.com/gh-curious-otter/bc/pkg/gateway"
+	bctelegram "github.com/gh-curious-otter/bc/pkg/gateway/telegram"
 	"github.com/gh-curious-otter/bc/pkg/log"
 	bcmcp "github.com/gh-curious-otter/bc/pkg/mcp"
 	"github.com/gh-curious-otter/bc/pkg/provider"
@@ -210,6 +212,49 @@ func run(addr, wsRoot, corsOrigin string) error {
 
 	teamStore := bcteam.NewStore(ws.RootDir)
 
+	// Gateway manager for external messaging platforms (Telegram, Discord, Slack).
+	var gwManager *bcgateway.Manager
+	if cfg := ws.Config.Gateways.Telegram; cfg != nil && cfg.Enabled && cfg.BotToken != "" {
+		gwManager = bcgateway.NewManager()
+
+		// Create telegram adapter
+		tgAdapter := bctelegram.New(cfg.BotToken, cfg.Mode)
+
+		// Discover existing groups via a quick getUpdates
+		if err := tgAdapter.DiscoverViaUpdate(); err != nil {
+			log.Warn("telegram: discovery failed", "error", err)
+		}
+
+		gwManager.Register(tgAdapter)
+
+		// Set inbound handler: store message in channel service + trigger OnMessage
+		if channelSvc != nil {
+			gwManager.SetInboundHandler(func(bcChannel, sender, content string) {
+				// Auto-create the channel if it doesn't exist
+				if _, err := channelSvc.Get(context.Background(), bcChannel); err != nil {
+					if _, createErr := channelSvc.Create(context.Background(), bcchannel.CreateChannelReq{
+						Name:        bcChannel,
+						Description: "Telegram gateway channel",
+					}); createErr != nil {
+						log.Warn("gateway: failed to auto-create channel", "channel", bcChannel, "error", createErr)
+					}
+				}
+				// Store the inbound message in the channel
+				if _, err := channelSvc.Send(context.Background(), bcChannel, sender, content); err != nil {
+					log.Warn("gateway: failed to store inbound message", "channel", bcChannel, "error", err)
+				}
+			})
+		}
+
+		// Start gateway in background
+		go func() {
+			if err := gwManager.Start(ctx); err != nil && ctx.Err() == nil {
+				log.Error("gateway manager stopped", "error", err)
+			}
+		}()
+		log.Info("gateway: telegram adapter registered")
+	}
+
 	svc := server.Services{
 		Agents:       agentSvc,
 		Channels:     channelSvc,
@@ -223,6 +268,7 @@ func run(addr, wsRoot, corsOrigin string) error {
 		EventLog:     eventLog,
 		Teams:        teamStore,
 		WS:           ws,
+		Gateway:      gwManager,
 	}
 
 	cfg := server.DefaultConfig()

@@ -21,6 +21,7 @@ type Config struct {
 	Services    ServicesConfig    `toml:"services"`
 	Env         map[string]string `toml:"env"`
 	Providers   ProvidersConfig   `toml:"providers"`
+	Gateways    GatewaysConfig    `toml:"gateways"`
 	TUI         TUIConfig         `toml:"tui"`
 	User        UserConfig        `toml:"user"`
 	Workspace   WorkspaceConfig   `toml:"workspace"`
@@ -31,6 +32,18 @@ type Config struct {
 	Runtime     RuntimeConfig     `toml:"runtime"`
 	Scheduler   SchedulerConfig   `toml:"scheduler"`
 	Performance PerformanceConfig `toml:"performance"`
+}
+
+// GatewaysConfig configures external messaging platform integrations.
+type GatewaysConfig struct {
+	Telegram *TelegramGatewayConfig `toml:"telegram,omitempty"`
+}
+
+// TelegramGatewayConfig configures the Telegram gateway adapter.
+type TelegramGatewayConfig struct {
+	BotToken string `toml:"bot_token"`
+	Mode     string `toml:"mode"`    // "polling" (default) or "webhook"
+	Enabled  bool   `toml:"enabled"`
 }
 
 // RosterConfig defines the team roster: agents that bc ws up will start.

@@ -10,9 +10,9 @@ import (
 	"time"
 )
 
-// channelNameRegex matches valid channel names: alphanumeric, hyphens, underscores,
+// channelNameRegex matches valid channel names: alphanumeric, hyphens, underscores, colons (for gateway channels like telegram:marketing),
 // must start with an alphanumeric character.
-var channelNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
+var channelNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_:-]*$`)
 
 // ErrChannelExists is returned when attempting to create a channel that already exists.
 var ErrChannelExists = errors.New("channel already exists")
