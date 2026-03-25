@@ -6,6 +6,7 @@ import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { StatusBadge } from "../components/StatusBadge";
 import { StatsTab as StatsTabComponent } from "../components/StatsTab";
+import { WebTerminal } from "../components/WebTerminal";
 
 /** Strip ANSI escape sequences from a string. */
 function stripAnsi(s: string): string {
@@ -52,13 +53,14 @@ function formatTime(t?: string): string {
 
 /* ───────────────────────── Tab types ───────────────────────── */
 
-type Tab = "logs" | "overview" | "stats" | "role";
+type Tab = "logs" | "terminal" | "overview" | "stats" | "role";
 
 const TABS: { key: Tab; label: string; shortcut: string }[] = [
   { key: "logs", label: "Logs", shortcut: "1" },
-  { key: "overview", label: "Overview", shortcut: "2" },
-  { key: "stats", label: "Stats", shortcut: "3" },
-  { key: "role", label: "Role", shortcut: "4" },
+  { key: "terminal", label: "Terminal", shortcut: "2" },
+  { key: "overview", label: "Overview", shortcut: "3" },
+  { key: "stats", label: "Stats", shortcut: "4" },
+  { key: "role", label: "Role", shortcut: "5" },
 ];
 
 /* ───────────────────────── Tab content ───────────────────────── */
@@ -380,6 +382,22 @@ export function AgentDetail() {
         {/* Tab content */}
         {activeTab === "logs" && (
           <LogsTab outputLines={outputLines} outputRef={outputRef} />
+        )}
+        {activeTab === "terminal" && (
+          <div className="space-y-2">
+            <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
+              Interactive Terminal
+            </h2>
+            {agent.state === "stopped" || agent.state === "error" ? (
+              <div className="rounded border border-bc-border bg-bc-surface p-4 text-bc-muted text-sm">
+                Agent is not active. Start the agent to attach to its terminal.
+              </div>
+            ) : (
+              <div className="h-[60vh]">
+                <WebTerminal agentName={agent.name} />
+              </div>
+            )}
+          </div>
         )}
         {activeTab === "overview" && <OverviewTab agent={agent} />}
         {activeTab === "stats" && <StatsTab agent={agent} />}

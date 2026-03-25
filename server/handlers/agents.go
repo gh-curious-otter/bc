@@ -20,17 +20,18 @@ import (
 
 // AgentHandler handles /api/agents routes.
 type AgentHandler struct {
-	svc    *agent.AgentService
-	costs  *cost.Store
-	ws     *workspace.Workspace
-	hub    *ws.Hub
-	events events.EventStore
+	svc      *agent.AgentService
+	costs    *cost.Store
+	ws       *workspace.Workspace
+	hub      *ws.Hub
+	events   events.EventStore
+	terminal *TerminalHandler
 }
 
 // NewAgentHandler creates an AgentHandler.
 // costs, ws, hub, and eventStore may be nil; enrichment fields will be omitted when unavailable.
 func NewAgentHandler(svc *agent.AgentService, costs *cost.Store, ws *workspace.Workspace, hub *ws.Hub) *AgentHandler {
-	return &AgentHandler{svc: svc, costs: costs, ws: ws, hub: hub}
+	return &AgentHandler{svc: svc, costs: costs, ws: ws, hub: hub, terminal: NewTerminalHandler(svc)}
 }
 
 // SetEventStore sets the event store for persisting hook events.
@@ -389,6 +390,9 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 
 	case r.Method == http.MethodGet && action == "output":
 		h.streamOutput(w, r, name)
+
+	case r.Method == http.MethodGet && action == "terminal":
+		h.terminal.HandleTerminal(w, r, name)
 
 	default:
 		httpError(w, "not found", http.StatusNotFound)
