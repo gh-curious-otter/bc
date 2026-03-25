@@ -25,6 +25,8 @@ type Adapter struct {
 	chatMu    sync.RWMutex
 	// channelMap maps channel_id → channel name
 	channelMap map[string]string
+	// userCache maps user_id → display name
+	userCache map[string]string
 }
 
 var _ gateway.Adapter = (*Adapter)(nil)
@@ -35,6 +37,7 @@ func New(botToken, appToken string) *Adapter {
 		botToken:   botToken,
 		appToken:   appToken,
 		channelMap: make(map[string]string),
+		userCache:  make(map[string]string),
 	}
 }
 
@@ -248,14 +251,27 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent) {
 		}
 	}
 
-	// Resolve user name
+	// Resolve user name — cache lookups to avoid repeated API calls
 	sender := ev.User
 	if a.api != nil {
-		if userInfo, err := a.api.GetUserInfo(ev.User); err == nil {
+		a.chatMu.RLock()
+		cachedName, cached := a.userCache[ev.User]
+		a.chatMu.RUnlock()
+		if cached {
+			sender = cachedName
+		} else if userInfo, err := a.api.GetUserInfo(ev.User); err == nil {
 			sender = userInfo.RealName
 			if sender == "" {
 				sender = userInfo.Name
 			}
+			a.chatMu.Lock()
+			if a.userCache == nil {
+				a.userCache = make(map[string]string)
+			}
+			a.userCache[ev.User] = sender
+			a.chatMu.Unlock()
+		} else {
+			log.Warn("slack: failed to resolve user", "user_id", ev.User, "error", err)
 		}
 	}
 
