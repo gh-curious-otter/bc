@@ -161,7 +161,7 @@ func Gzip(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if isSSERequest(r) {
+		if isSSERequest(r) || isWebSocketRequest(r) {
 			next.ServeHTTP(w, r)
 			return
 		}

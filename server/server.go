@@ -147,6 +147,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		if svc.EventLog != nil {
 			ah.SetEventStore(svc.EventLog)
 		}
+		ah.SetTerminalHandler(handlers.NewTerminalHandler(svc.Agents, cfg.CORSOrigin))
 		ah.Register(mux)
 	}
 	if svc.Channels != nil {
