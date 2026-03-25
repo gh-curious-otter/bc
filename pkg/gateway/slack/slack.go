@@ -287,16 +287,9 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent) {
 	log.Info("slack: received message",
 		"channel", channelName,
 		"sender", sender,
-		"content", truncate(content, 50))
+		"content", gateway.Truncate(content, 50))
 
 	if a.onMessage != nil {
 		a.onMessage(msg)
 	}
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "..."
 }

@@ -112,7 +112,7 @@ func (a *Adapter) Start(ctx context.Context, onMessage func(gateway.InboundMessa
 			log.Info("telegram: received message",
 				"chat", chatTitle,
 				"sender", sender,
-				"content", truncate(content, 50))
+				"content", gateway.Truncate(content, 50))
 
 			if onMessage != nil {
 				onMessage(msg)
@@ -194,7 +194,7 @@ func (a *Adapter) DiscoverViaUpdate() error {
 	}
 
 	for _, update := range updates {
-		if update.Message != nil && update.Message.Chat.IsGroup() || (update.Message != nil && update.Message.Chat.IsSuperGroup()) {
+		if update.Message != nil && (update.Message.Chat.IsGroup() || update.Message.Chat.IsSuperGroup()) {
 			chatID := update.Message.Chat.ID
 			chatTitle := update.Message.Chat.Title
 			if chatTitle != "" {
@@ -222,11 +222,4 @@ func escapeHTML(s string) string {
 	s = strings.ReplaceAll(s, "<", "&lt;")
 	s = strings.ReplaceAll(s, ">", "&gt;")
 	return s
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "..."
 }

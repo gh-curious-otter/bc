@@ -257,16 +257,18 @@ func run(addr, wsRoot, corsOrigin string) error {
 		// Wire inbound handler and start
 		if gwManager != nil && hasAdapters && channelSvc != nil {
 			gwManager.SetInboundHandler(func(bcChannel, sender, content string) {
+				reqCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
 				// Auto-create the channel if it doesn't exist
-				if _, err := channelSvc.Get(context.Background(), bcChannel); err != nil {
-					if _, createErr := channelSvc.Create(context.Background(), bcchannel.CreateChannelReq{
+				if _, err := channelSvc.Get(reqCtx, bcChannel); err != nil {
+					if _, createErr := channelSvc.Create(reqCtx, bcchannel.CreateChannelReq{
 						Name:        bcChannel,
 						Description: "Gateway channel",
 					}); createErr != nil {
 						log.Warn("gateway: failed to auto-create channel", "channel", bcChannel, "error", createErr)
 					}
 				}
-				if _, err := channelSvc.Send(context.Background(), bcChannel, sender, content); err != nil {
+				if _, err := channelSvc.Send(reqCtx, bcChannel, sender, content); err != nil {
 					log.Warn("gateway: failed to store inbound message", "channel", bcChannel, "error", err)
 				}
 			})

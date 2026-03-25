@@ -4,7 +4,6 @@ package discord
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/bwmarrin/discordgo"
@@ -180,28 +179,9 @@ func (a *Adapter) handleMessage(s *discordgo.Session, m *discordgo.MessageCreate
 	log.Info("discord: received message",
 		"channel", channelName,
 		"sender", sender,
-		"content", truncate(content, 50))
+		"content", gateway.Truncate(content, 50))
 
 	if a.onMessage != nil {
 		a.onMessage(msg)
 	}
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "..."
-}
-
-// escapeMarkdown escapes Discord markdown special characters.
-func escapeMarkdown(s string) string { //nolint:unused // available for future use
-	replacer := strings.NewReplacer(
-		"*", "\\*",
-		"_", "\\_",
-		"~", "\\~",
-		"`", "\\`",
-		"|", "\\|",
-	)
-	return replacer.Replace(s)
 }
