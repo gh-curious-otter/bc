@@ -31,7 +31,6 @@ import (
 	"github.com/gh-curious-otter/bc/pkg/mcp"
 	"github.com/gh-curious-otter/bc/pkg/secret"
 	"github.com/gh-curious-otter/bc/pkg/stats"
-	"github.com/gh-curious-otter/bc/pkg/team"
 	"github.com/gh-curious-otter/bc/pkg/tool"
 	"github.com/gh-curious-otter/bc/pkg/workspace"
 	"github.com/gh-curious-otter/bc/server/handlers"
@@ -69,7 +68,6 @@ type Services struct {
 	Cron         *cron.Store
 	Secrets      *secret.Store
 	MCP          *mcp.Store
-	Teams        *team.Store
 	Tools        *tool.Store
 	Stats        *stats.Store
 	EventLog     events.EventStore
@@ -235,9 +233,6 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	if svc.EventLog != nil {
 		handlers.NewEventHandler(svc.EventLog).Register(mux)
-	}
-	if svc.Teams != nil {
-		handlers.NewTeamHandler(svc.Teams).Register(mux)
 	}
 	if svc.Gateway != nil {
 		handlers.NewGatewayHandler(svc.Gateway).Register(mux)

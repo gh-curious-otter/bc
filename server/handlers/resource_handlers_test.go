@@ -16,7 +16,6 @@ import (
 	"github.com/gh-curious-otter/bc/pkg/events"
 	"github.com/gh-curious-otter/bc/pkg/mcp"
 	"github.com/gh-curious-otter/bc/pkg/secret"
-	"github.com/gh-curious-otter/bc/pkg/team"
 	"github.com/gh-curious-otter/bc/pkg/tool"
 	"github.com/gh-curious-otter/bc/pkg/workspace"
 	"github.com/gh-curious-otter/bc/server"
@@ -1604,71 +1603,7 @@ func TestToolHandler_ToolMethodNotAllowed(t *testing.T) {
 	_ = resp.Body.Close()
 }
 
-// --- Team handler tests ---
-
-func TestTeamHandler_ListEmpty(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := team.NewStore(dir)
-
-	ts := buildTestServerWithServices(t, server.Services{Teams: store})
-	defer ts.Close()
-
-	resp := get(t, ts.URL+"/api/teams")
-	defer func() { _ = resp.Body.Close() }()
-	assertStatus(t, resp, http.StatusOK)
-	arr := readJSONArray(t, resp)
-	if len(arr) != 0 {
-		t.Fatalf("expected empty teams, got %d", len(arr))
-	}
-}
-
-func TestTeamHandler_GetNotFound(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := team.NewStore(dir)
-
-	ts := buildTestServerWithServices(t, server.Services{Teams: store})
-	defer ts.Close()
-
-	resp := get(t, ts.URL+"/api/teams/nonexistent")
-	assertStatus(t, resp, http.StatusNotFound)
-	_ = resp.Body.Close()
-}
-
-func TestTeamHandler_MethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := team.NewStore(dir)
-
-	ts := buildTestServerWithServices(t, server.Services{Teams: store})
-	defer ts.Close()
-
-	resp := post(t, ts.URL+"/api/teams", "application/json", `{}`)
-	assertStatus(t, resp, http.StatusMethodNotAllowed)
-	_ = resp.Body.Close()
-}
-
-func TestTeamHandler_EmptyName(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := team.NewStore(dir)
-
-	ts := buildTestServerWithServices(t, server.Services{Teams: store})
-	defer ts.Close()
-
-	resp := get(t, ts.URL+"/api/teams/")
-	assertStatus(t, resp, http.StatusBadRequest)
-	_ = resp.Body.Close()
-}
-
-func TestTeamHandler_ByNameMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := team.NewStore(dir)
-
-	ts := buildTestServerWithServices(t, server.Services{Teams: store})
-	defer ts.Close()
-
-	resp := post(t, ts.URL+"/api/teams/test", "application/json", `{}`)
-	assertStatus(t, resp, http.StatusMethodNotAllowed)
-	_ = resp.Body.Close()
-}
+// --- Event handler tests --- (team handler tests removed)
 
 // --- Event handler tests ---
 
