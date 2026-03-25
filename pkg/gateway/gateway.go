@@ -13,7 +13,7 @@ type Adapter interface {
 	Name() string
 
 	// Start connects to the platform and begins receiving messages.
-	// Calls onMessage for each inbound message. Blocks until ctx is cancelled.
+	// Calls onMessage for each inbound message. Blocks until ctx is canceled.
 	Start(ctx context.Context, onMessage func(InboundMessage)) error
 
 	// Stop gracefully disconnects from the platform.
@@ -31,13 +31,13 @@ type Adapter interface {
 
 // InboundMessage is a normalized message from an external platform.
 type InboundMessage struct {
+	Timestamp   time.Time
 	ChannelID   string
 	ChannelName string
 	Sender      string
 	SenderID    string
 	Content     string
 	MessageID   string
-	Timestamp   time.Time
 }
 
 // ExternalChannel represents a channel/group on an external platform.

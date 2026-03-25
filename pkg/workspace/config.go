@@ -44,7 +44,7 @@ type GatewaysConfig struct {
 // TelegramGatewayConfig configures the Telegram gateway adapter.
 type TelegramGatewayConfig struct {
 	BotToken string `toml:"bot_token"`
-	Mode     string `toml:"mode"`    // "polling" (default) or "webhook"
+	Mode     string `toml:"mode"` // "polling" (default) or "webhook"
 	Enabled  bool   `toml:"enabled"`
 }
 

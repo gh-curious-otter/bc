@@ -16,13 +16,13 @@ import (
 // Adapter implements gateway.Adapter for Discord.
 type Adapter struct {
 	session   *discordgo.Session
-	token     string
 	onMessage func(gateway.InboundMessage)
-	chatMu    sync.RWMutex
 	// guildChannels maps channel_id → channel name
 	guildChannels map[string]string
+	token         string
 	// guildIDs tracks guilds the bot is in
 	guildIDs []string
+	chatMu   sync.RWMutex
 }
 
 var _ gateway.Adapter = (*Adapter)(nil)
@@ -62,7 +62,7 @@ func (a *Adapter) Start(ctx context.Context, onMessage func(gateway.InboundMessa
 	}
 	log.Info("discord: connected", "bot", session.State.User.Username)
 
-	// Block until context is cancelled
+	// Block until context is canceled
 	<-ctx.Done()
 	return session.Close()
 }

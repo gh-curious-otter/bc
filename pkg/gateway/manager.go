@@ -21,9 +21,9 @@ type Manager struct {
 }
 
 type channelRoute struct {
+	Adapter   Adapter
 	Platform  string
 	ChannelID string
-	Adapter   Adapter
 }
 
 // NewManager creates a new gateway manager.

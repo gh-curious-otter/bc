@@ -18,15 +18,15 @@ import (
 type Adapter struct {
 	api       *slack.Client
 	sm        *socketmode.Client
-	botToken  string
-	appToken  string
 	onMessage func(gateway.InboundMessage)
-	botUserID string
-	chatMu    sync.RWMutex
 	// channelMap maps channel_id → channel name
 	channelMap map[string]string
 	// userCache maps user_id → display name
 	userCache map[string]string
+	botToken  string
+	appToken  string
+	botUserID string
+	chatMu    sync.RWMutex
 }
 
 var _ gateway.Adapter = (*Adapter)(nil)
@@ -72,12 +72,12 @@ func (a *Adapter) Start(ctx context.Context, onMessage func(gateway.InboundMessa
 	// Handle events in a goroutine
 	go a.handleEvents(ctx, sm)
 
-	// Run socket mode (blocks until context cancelled)
+	// Run socket mode (blocks until context canceled)
 	return sm.RunContext(ctx)
 }
 
 func (a *Adapter) Stop(_ context.Context) error {
-	// Socket mode client stops when context is cancelled in Start
+	// Socket mode client stops when context is canceled in Start
 	return nil
 }
 
