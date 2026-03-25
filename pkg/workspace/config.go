@@ -21,6 +21,7 @@ type Config struct {
 	Services    ServicesConfig    `toml:"services"`
 	Env         map[string]string `toml:"env"`
 	Providers   ProvidersConfig   `toml:"providers"`
+	Gateways    GatewaysConfig    `toml:"gateways"`
 	TUI         TUIConfig         `toml:"tui"`
 	User        UserConfig        `toml:"user"`
 	Workspace   WorkspaceConfig   `toml:"workspace"`
@@ -31,6 +32,34 @@ type Config struct {
 	Runtime     RuntimeConfig     `toml:"runtime"`
 	Scheduler   SchedulerConfig   `toml:"scheduler"`
 	Performance PerformanceConfig `toml:"performance"`
+}
+
+// GatewaysConfig configures external messaging platform integrations.
+type GatewaysConfig struct {
+	Telegram *TelegramGatewayConfig `toml:"telegram,omitempty"`
+	Discord  *DiscordGatewayConfig  `toml:"discord,omitempty"`
+	Slack    *SlackGatewayConfig    `toml:"slack,omitempty"`
+}
+
+// TelegramGatewayConfig configures the Telegram gateway adapter.
+type TelegramGatewayConfig struct {
+	BotToken string `toml:"bot_token"`
+	Mode     string `toml:"mode"` // "polling" (default) or "webhook"
+	Enabled  bool   `toml:"enabled"`
+}
+
+// DiscordGatewayConfig configures the Discord gateway adapter.
+type DiscordGatewayConfig struct {
+	BotToken string `toml:"bot_token"`
+	Enabled  bool   `toml:"enabled"`
+}
+
+// SlackGatewayConfig configures the Slack gateway adapter.
+type SlackGatewayConfig struct {
+	BotToken string `toml:"bot_token"`
+	AppToken string `toml:"app_token"` // for Socket Mode
+	Mode     string `toml:"mode"`      // "socket" (default) or "events"
+	Enabled  bool   `toml:"enabled"`
 }
 
 // RosterConfig defines the team roster: agents that bc ws up will start.

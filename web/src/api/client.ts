@@ -618,7 +618,7 @@ export const api = {
   addChannelMember: (channelName: string, agentName: string) =>
     request<void>(`/channels/${encodeURIComponent(channelName)}/members`, {
       method: "POST",
-      body: JSON.stringify({ agent: agentName }),
+      body: JSON.stringify({ agent_id: agentName }),
     }),
 
   updateChannel: (name: string, patch: { description?: string }) =>
