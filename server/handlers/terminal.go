@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 	"strings"
@@ -17,29 +18,24 @@ import (
 // TerminalHandler handles /api/agents/:name/terminal WebSocket connections.
 // It bridges the browser to a tmux session via a PTY.
 type TerminalHandler struct {
-	svc      *agent.AgentService
-	upgrader websocket.Upgrader
+	svc        *agent.AgentService
+	corsOrigin string
 }
 
 // NewTerminalHandler creates a TerminalHandler.
-func NewTerminalHandler(svc *agent.AgentService) *TerminalHandler {
+// corsOrigin is the allowed origin for WebSocket connections (empty or "*" allows all).
+func NewTerminalHandler(svc *agent.AgentService, corsOrigin string) *TerminalHandler {
 	return &TerminalHandler{
-		svc: svc,
-		upgrader: websocket.Upgrader{
-			CheckOrigin: func(_ *http.Request) bool { return true },
-		},
+		svc:        svc,
+		corsOrigin: corsOrigin,
 	}
 }
-
-// Register mounts terminal routes on the agent sub-router.
-// This is called from AgentHandler.byName for the "terminal" action.
-// No separate mux registration needed — it's wired through the agent handler.
 
 // HandleTerminal upgrades an HTTP request to a WebSocket and bridges it to a tmux session.
 func (h *TerminalHandler) HandleTerminal(w http.ResponseWriter, r *http.Request, agentName string) {
 	mgr := h.svc.Manager()
 
-	// Verify agent exists and is running
+	// Verify agent exists and is active
 	ag := mgr.GetAgent(agentName)
 	if ag == nil {
 		httpError(w, "agent not found", http.StatusNotFound)
@@ -50,7 +46,7 @@ func (h *TerminalHandler) HandleTerminal(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	// Get the runtime backend and build the attach command
+	// Get the runtime backend and verify session exists
 	rt := mgr.RuntimeForAgent(agentName)
 	if rt == nil {
 		httpError(w, "no runtime backend for agent", http.StatusInternalServerError)
@@ -61,13 +57,15 @@ func (h *TerminalHandler) HandleTerminal(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	// Upgrade to WebSocket
-	conn, err := h.upgrader.Upgrade(w, r, nil)
+	// Upgrade to WebSocket with origin check
+	upgrader := websocket.Upgrader{
+		CheckOrigin: h.checkOrigin,
+	}
+	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Warn("terminal: websocket upgrade failed", "agent", agentName, "error", err)
 		return // Upgrade already sent error response
 	}
-	defer conn.Close()
 
 	// Start tmux attach in a PTY
 	cmd := rt.AttachCmd(r.Context(), agentName)
@@ -77,17 +75,29 @@ func (h *TerminalHandler) HandleTerminal(w http.ResponseWriter, r *http.Request,
 	if err != nil {
 		log.Warn("terminal: pty start failed", "agent", agentName, "error", err)
 		writeWSError(conn, "failed to attach to session")
+		conn.Close()
 		return
 	}
-	defer func() {
-		_ = ptmx.Close()  //nolint:errcheck // best-effort cleanup
-		_ = cmd.Wait()     //nolint:errcheck // process cleanup
-	}()
 
 	// Set initial terminal size
 	_ = pty.Setsize(ptmx, &pty.Winsize{Rows: 24, Cols: 80}) //nolint:errcheck
 
 	log.Info("terminal: attached", "agent", agentName)
+
+	// Use sync.Once to ensure cleanup runs exactly once when either goroutine exits.
+	// This prevents the deadlock where ptmx.Read blocks forever after the WebSocket
+	// disconnects — closing ptmx unblocks the read, and closing conn unblocks ReadMessage.
+	var once sync.Once
+	cleanup := func() {
+		once.Do(func() {
+			_ = conn.Close() //nolint:errcheck
+			_ = ptmx.Close() //nolint:errcheck
+		})
+	}
+	defer func() {
+		cleanup()
+		_ = cmd.Wait() //nolint:errcheck // reap zombie process
+	}()
 
 	var wg sync.WaitGroup
 
@@ -95,6 +105,7 @@ func (h *TerminalHandler) HandleTerminal(w http.ResponseWriter, r *http.Request,
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer cleanup()
 		buf := make([]byte, 4096)
 		for {
 			n, readErr := ptmx.Read(buf)
@@ -113,6 +124,7 @@ func (h *TerminalHandler) HandleTerminal(w http.ResponseWriter, r *http.Request,
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer cleanup()
 		for {
 			msgType, msg, readErr := conn.ReadMessage()
 			if readErr != nil {
@@ -120,7 +132,7 @@ func (h *TerminalHandler) HandleTerminal(w http.ResponseWriter, r *http.Request,
 			}
 			switch msgType {
 			case websocket.TextMessage:
-				// Check for resize control messages: {"type":"resize","cols":80,"rows":24}
+				// Check for resize control messages
 				if len(msg) > 0 && msg[0] == '{' && strings.Contains(string(msg), "resize") {
 					handleResize(ptmx, msg)
 					continue
@@ -137,45 +149,37 @@ func (h *TerminalHandler) HandleTerminal(w http.ResponseWriter, r *http.Request,
 		}
 	}()
 
-	// Wait for either goroutine to exit (connection closed or process ended)
 	wg.Wait()
 	log.Info("terminal: detached", "agent", agentName)
 }
 
-// handleResize parses a resize message and updates the PTY size.
-func handleResize(ptmx *os.File, msg []byte) {
-	// Simple JSON parse without encoding/json to avoid import bloat.
-	// Format: {"type":"resize","cols":80,"rows":24}
-	s := string(msg)
-
-	cols := parseJSONInt(s, "cols")
-	rows := parseJSONInt(s, "rows")
-
-	if cols > 0 && rows > 0 {
-		_ = pty.Setsize(ptmx, &pty.Winsize{ //nolint:errcheck
-			Rows: uint16(rows),
-			Cols: uint16(cols),
-		})
+// checkOrigin validates the WebSocket origin against the configured CORS origin.
+func (h *TerminalHandler) checkOrigin(r *http.Request) bool {
+	if h.corsOrigin == "" || h.corsOrigin == "*" {
+		return true
 	}
+	origin := r.Header.Get("Origin")
+	return origin == "" || origin == h.corsOrigin
 }
 
-// parseJSONInt extracts an integer value for a key from a simple JSON string.
-func parseJSONInt(s, key string) int {
-	idx := strings.Index(s, "\""+key+"\"")
-	if idx < 0 {
-		return 0
+// resizeMsg is the JSON structure for terminal resize messages.
+type resizeMsg struct {
+	Cols int `json:"cols"`
+	Rows int `json:"rows"`
+}
+
+// handleResize parses a resize message and updates the PTY size.
+func handleResize(ptmx *os.File, msg []byte) {
+	var rm resizeMsg
+	if err := json.Unmarshal(msg, &rm); err != nil {
+		return
 	}
-	rest := s[idx+len(key)+3:] // skip past "key":
-	rest = strings.TrimLeft(rest, " :")
-	n := 0
-	for _, c := range rest {
-		if c >= '0' && c <= '9' {
-			n = n*10 + int(c-'0')
-		} else {
-			break
-		}
+	if rm.Cols > 0 && rm.Rows > 0 {
+		_ = pty.Setsize(ptmx, &pty.Winsize{ //nolint:errcheck
+			Rows: uint16(rm.Rows),
+			Cols: uint16(rm.Cols),
+		})
 	}
-	return n
 }
 
 // writeWSError sends an error message over WebSocket before closing.
@@ -186,4 +190,11 @@ func writeWSError(conn *websocket.Conn, msg string) {
 		websocket.FormatCloseMessage(websocket.CloseInternalServerErr, msg),
 		deadline,
 	)
+}
+
+// isWebSocketRequest returns true if the request is a WebSocket upgrade.
+// Used by the Gzip middleware to skip compression for WebSocket connections,
+// since gzip wraps the ResponseWriter and breaks http.Hijacker.
+func isWebSocketRequest(r *http.Request) bool {
+	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
 }

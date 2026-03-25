@@ -31,12 +31,17 @@ type AgentHandler struct {
 // NewAgentHandler creates an AgentHandler.
 // costs, ws, hub, and eventStore may be nil; enrichment fields will be omitted when unavailable.
 func NewAgentHandler(svc *agent.AgentService, costs *cost.Store, ws *workspace.Workspace, hub *ws.Hub) *AgentHandler {
-	return &AgentHandler{svc: svc, costs: costs, ws: ws, hub: hub, terminal: NewTerminalHandler(svc)}
+	return &AgentHandler{svc: svc, costs: costs, ws: ws, hub: hub}
 }
 
 // SetEventStore sets the event store for persisting hook events.
 func (h *AgentHandler) SetEventStore(es events.EventStore) {
 	h.events = es
+}
+
+// SetTerminalHandler sets the terminal handler for WebSocket terminal access.
+func (h *AgentHandler) SetTerminalHandler(th *TerminalHandler) {
+	h.terminal = th
 }
 
 // Register mounts agent routes on mux.
@@ -392,6 +397,10 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		h.streamOutput(w, r, name)
 
 	case r.Method == http.MethodGet && action == "terminal":
+		if h.terminal == nil {
+			httpError(w, "terminal not available", http.StatusNotImplemented)
+			return
+		}
 		h.terminal.HandleTerminal(w, r, name)
 
 	default:
