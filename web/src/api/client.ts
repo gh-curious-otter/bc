@@ -585,6 +585,8 @@ export const api = {
     request<SystemMetricTS[]>(`/system/stats/${metric}${qs(params)}`),
   getAgentStats: (metric: string, params?: Record<string, string>) =>
     request<AgentMetricTS[]>(`/agents/stats/${metric}${qs(params)}`),
+  getAgentStatsLatest: () =>
+    request<AgentMetricTS[]>("/agents/stats/latest"),
   getAgentTokenStats: (params?: Record<string, string>) =>
     request<TokenMetricTS[]>(`/agents/stats/tokens${qs(params)}`),
   getAgentCostStats: (params?: Record<string, string>) =>

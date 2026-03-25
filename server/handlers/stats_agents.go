@@ -8,12 +8,33 @@ import (
 
 // RegisterAgentStats mounts agent stats routes on the mux.
 func (h *StatsHandler) RegisterAgentStats(mux *http.ServeMux) {
+	mux.HandleFunc("/api/agents/stats/latest", h.agentLatest)
 	mux.HandleFunc("/api/agents/stats/cpu", h.agentCPU)
 	mux.HandleFunc("/api/agents/stats/mem", h.agentMem)
 	mux.HandleFunc("/api/agents/stats/disk", h.agentDisk)
 	mux.HandleFunc("/api/agents/stats/net", h.agentNet)
 	mux.HandleFunc("/api/agents/stats/tokens", h.agentTokens)
 	mux.HandleFunc("/api/agents/stats/cost", h.agentCost)
+}
+
+// agentLatest returns the most recent metric sample for each agent.
+func (h *StatsHandler) agentLatest(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	if h.statsStore == nil {
+		writeJSON(w, http.StatusOK, []stats.AgentMetric{})
+		return
+	}
+	metrics, err := h.statsStore.QueryLatestAgentMetrics(r.Context())
+	if err != nil {
+		httpInternalError(w, "query latest agent metrics", err)
+		return
+	}
+	if metrics == nil {
+		metrics = []stats.AgentMetric{}
+	}
+	writeJSON(w, http.StatusOK, metrics)
 }
 
 // parseAgentFilter builds an AgentFilter from the parsed stats query.
