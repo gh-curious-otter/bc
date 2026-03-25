@@ -42,6 +42,7 @@ import (
 	bcsecret "github.com/gh-curious-otter/bc/pkg/secret"
 	bcstats "github.com/gh-curious-otter/bc/pkg/stats"
 	bcteam "github.com/gh-curious-otter/bc/pkg/team"
+	bctoken "github.com/gh-curious-otter/bc/pkg/token"
 	bctool "github.com/gh-curious-otter/bc/pkg/tool"
 	bcworkspace "github.com/gh-curious-otter/bc/pkg/workspace"
 	"github.com/gh-curious-otter/bc/server"
@@ -351,6 +352,9 @@ func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.A
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
+	// Track per-agent watermarks to avoid re-recording token entries.
+	tokenWatermarks := make(map[string]time.Time)
+
 	// Build an agent lookup by name for enriching agent metrics.
 	agentLookup := func() map[string]*bcagent.Agent {
 		if agents == nil {
@@ -447,6 +451,38 @@ func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.A
 						}); err != nil {
 							log.Debug("stats: record channel metric", "channel", ch.Name, "error", err)
 						}
+					}
+				}
+			}
+
+			// ── token metrics from agent JSONL sessions ─────────────
+			if ws != nil {
+				agentsDir := filepath.Join(ws.RootDir, ".bc", "agents")
+				for agentName := range agentsByName {
+					entries, tokenErr := bctoken.CollectAgentSince(agentsDir, agentName, tokenWatermarks[agentName])
+					if tokenErr != nil || len(entries) == 0 {
+						continue
+					}
+					var latestSuccess time.Time
+					for _, e := range entries {
+						if err := ss.RecordToken(ctx, bcstats.TokenMetric{
+							Time:         e.Timestamp,
+							AgentName:    e.AgentName,
+							Model:        e.Model,
+							InputTokens:  e.InputTokens,
+							OutputTokens: e.OutputTokens,
+							CacheRead:    e.CacheRead,
+							CacheCreate:  e.CacheCreate,
+						}); err != nil {
+							log.Debug("stats: record token metric", "agent", agentName, "error", err)
+							continue // don't advance watermark past failed inserts
+						}
+						if e.Timestamp.After(latestSuccess) {
+							latestSuccess = e.Timestamp
+						}
+					}
+					if !latestSuccess.IsZero() {
+						tokenWatermarks[agentName] = latestSuccess
 					}
 				}
 			}

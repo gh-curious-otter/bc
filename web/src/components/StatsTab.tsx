@@ -184,23 +184,23 @@ export function StatsTab({ agent }: { agent: Agent }) {
         </h2>
         <div className="rounded border border-bc-border bg-bc-surface p-4 space-y-2">
           <div className="flex items-start gap-2 py-1.5 border-b border-bc-border/30">
-            <span className="text-bc-muted text-sm w-32 shrink-0">Total Cost</span>
+            <span className="text-bc-muted text-sm w-32 shrink-0">Total Tokens</span>
             <span className="text-sm font-medium">
-              {agent.cost_usd != null ? `$${agent.cost_usd.toFixed(4)}` : "\u2014"}
+              {agent.total_tokens != null && agent.total_tokens > 0
+                ? agent.total_tokens.toLocaleString()
+                : "\u2014"}
             </span>
           </div>
           <div className="flex items-start gap-2 py-1.5 border-b border-bc-border/30">
-            <span className="text-bc-muted text-sm w-32 shrink-0">Total Tokens</span>
+            <span className="text-bc-muted text-sm w-32 shrink-0">Input Tokens</span>
             <span className="text-sm">
-              {agent.total_tokens != null ? agent.total_tokens.toLocaleString() : "\u2014"}
+              {totalInput > 0 ? totalInput.toLocaleString() : "\u2014"}
             </span>
           </div>
           <div className="flex items-start gap-2 py-1.5">
-            <span className="text-bc-muted text-sm w-32 shrink-0">Input / Output</span>
+            <span className="text-bc-muted text-sm w-32 shrink-0">Output Tokens</span>
             <span className="text-sm">
-              {totalInput > 0 || totalOutput > 0
-                ? `${totalInput.toLocaleString()} / ${totalOutput.toLocaleString()}`
-                : "\u2014"}
+              {totalOutput > 0 ? totalOutput.toLocaleString() : "\u2014"}
             </span>
           </div>
         </div>

@@ -414,7 +414,6 @@ export function Agents() {
     "Status",
     "Task",
     "Tokens",
-    "Cost",
     "CPU %",
     "Mem %",
     "MCP",
@@ -505,7 +504,6 @@ export function Agents() {
                 <th className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell">
                   Tokens
                 </th>
-                <th className="px-4 py-2 font-medium text-bc-muted">Cost</th>
                 <th className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell">
                   CPU %
                 </th>
@@ -549,15 +547,8 @@ export function Agents() {
                     </td>
                     <td className="px-4 py-2 hidden md:table-cell">
                       <span className="text-bc-muted">
-                        {a.total_tokens != null
+                        {a.total_tokens != null && a.total_tokens > 0
                           ? a.total_tokens.toLocaleString()
-                          : "\u2014"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2">
-                      <span className="text-bc-muted">
-                        {a.cost_usd != null
-                          ? `$${a.cost_usd.toFixed(4)}`
                           : "\u2014"}
                       </span>
                     </td>

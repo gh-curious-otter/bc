@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/gh-curious-otter/bc/pkg/cost"
 	"github.com/gh-curious-otter/bc/pkg/events"
 	"github.com/gh-curious-otter/bc/pkg/log"
+	"github.com/gh-curious-otter/bc/pkg/token"
 	"github.com/gh-curious-otter/bc/pkg/workspace"
 	"github.com/gh-curious-otter/bc/server/ws"
 )
@@ -132,6 +134,24 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 				if summary, ok := costMap[dtos[i].Name]; ok {
 					dtos[i].TotalCostUSD = summary.TotalCostUSD
 					dtos[i].TotalTokens = summary.TotalTokens
+				}
+			}
+		}
+
+		// Enrich with token usage from agent JSONL session files.
+		if h.ws != nil {
+			agentsDir := filepath.Join(h.ws.RootDir, ".bc", "agents")
+			usages, tokenErr := token.CollectAll(agentsDir)
+			if tokenErr == nil {
+				// Sum per agent across models
+				tokenMap := make(map[string]int64)
+				for _, u := range usages {
+					tokenMap[u.AgentName] += u.TotalTokens
+				}
+				for i := range dtos {
+					if total, ok := tokenMap[dtos[i].Name]; ok && total > 0 {
+						dtos[i].TotalTokens = total
+					}
 				}
 			}
 		}
