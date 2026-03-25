@@ -227,12 +227,25 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent) {
 		return
 	}
 
-	// Resolve channel name
+	// Resolve channel name — try cache first, then API lookup
 	a.chatMu.RLock()
 	channelName, ok := a.channelMap[ev.Channel]
 	a.chatMu.RUnlock()
 	if !ok {
-		channelName = ev.Channel
+		// Lookup via API and cache the result
+		if a.api != nil {
+			if chInfo, err := a.api.GetConversationInfo(&slack.GetConversationInfoInput{
+				ChannelID: ev.Channel,
+			}); err == nil && chInfo != nil {
+				channelName = chInfo.Name
+				a.chatMu.Lock()
+				a.channelMap[ev.Channel] = channelName
+				a.chatMu.Unlock()
+			}
+		}
+		if channelName == "" {
+			channelName = ev.Channel
+		}
 	}
 
 	// Resolve user name
