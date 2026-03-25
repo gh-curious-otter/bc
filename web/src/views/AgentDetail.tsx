@@ -220,19 +220,26 @@ export function AgentDetail() {
     refresh,
   } = usePolling<Agent>(agentFetcher, 3000);
 
-  // Fetch initial output via peek, then stream via SSE
+  // Poll peek output every 2 seconds for reliable updates
   useEffect(() => {
     if (!name) return;
-    api
-      .getAgentPeek(name, 100)
-      .then(({ output }) => {
-        if (output) {
-          setOutputLines(stripAnsi(output).split("\n"));
-        }
-      })
-      .catch(() => {
-        // Peek may fail for stopped agents -- ignore
-      });
+
+    const fetchPeek = () => {
+      api
+        .getAgentPeek(name, 200)
+        .then(({ output }) => {
+          if (output) {
+            setOutputLines(stripAnsi(output).split("\n"));
+          }
+        })
+        .catch(() => {
+          // Peek may fail for stopped agents -- ignore
+        });
+    };
+
+    fetchPeek();
+    const interval = setInterval(fetchPeek, 2000);
+    return () => clearInterval(interval);
   }, [name]);
 
   // Stream live output via SSE
