@@ -541,16 +541,15 @@ type ResolvedRole struct {
 	MCPServers   []string          // Unioned MCP servers from all ancestors
 }
 
-// ResolveRole performs BFS inheritance merge starting from the given role.
-// Child values take priority — parent values are only added if not already present.
-// MCP servers and secrets are unioned; lifecycle prompts use child's if set, else first parent's.
+// ResolveRole loads a role directly from the store. No inheritance — each role
+// is self-contained with all its own MCP servers, secrets, plugins, etc.
 func (rm *RoleManager) ResolveRole(name string) (*ResolvedRole, error) {
 	role, err := rm.LoadRole(name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load role %q: %w", name, err)
 	}
 
-	resolved := &ResolvedRole{
+	return &ResolvedRole{
 		Name:         role.Metadata.Name,
 		Prompt:       role.Prompt,
 		MCPServers:   append([]string{}, role.Metadata.MCPServers...),
@@ -560,119 +559,13 @@ func (rm *RoleManager) ResolveRole(name string) (*ResolvedRole, error) {
 		PromptStart:  role.Metadata.PromptStart,
 		PromptStop:   role.Metadata.PromptStop,
 		PromptDelete: role.Metadata.PromptDelete,
-		Settings:     mergeAnyMaps(nil, role.Metadata.Settings),
-		Commands:     mergeMaps(nil, role.Metadata.Commands),
-		Skills:       mergeMaps(nil, role.Metadata.Skills),
-		Agents:       mergeMaps(nil, role.Metadata.Agents),
-		Rules:        mergeMaps(nil, role.Metadata.Rules),
+		Settings:     role.Metadata.Settings,
+		Commands:     role.Metadata.Commands,
+		Skills:       role.Metadata.Skills,
+		Agents:       role.Metadata.Agents,
+		Rules:        role.Metadata.Rules,
 		Review:       role.Metadata.Review,
-	}
-
-	// BFS through parent roles
-	visited := map[string]bool{name: true}
-	queue := append([]string{}, role.Metadata.ParentRoles...)
-
-	for len(queue) > 0 {
-		parentName := queue[0]
-		queue = queue[1:]
-
-		if visited[parentName] {
-			continue
-		}
-		visited[parentName] = true
-
-		parent, loadErr := rm.LoadRole(parentName)
-		if loadErr != nil {
-			continue // Skip missing parents gracefully
-		}
-
-		// Merge MCP servers — add only if not already present
-		resolved.MCPServers = mergeUnique(resolved.MCPServers, parent.Metadata.MCPServers)
-		// Merge secrets — add only if not already present
-		resolved.Secrets = mergeUnique(resolved.Secrets, parent.Metadata.Secrets)
-		// Merge plugins — add only if not already present
-		resolved.Plugins = mergeUnique(resolved.Plugins, parent.Metadata.Plugins)
-
-		// Lifecycle prompts — use parent's only if child doesn't have one
-		if resolved.PromptCreate == "" {
-			resolved.PromptCreate = parent.Metadata.PromptCreate
-		}
-		if resolved.PromptStart == "" {
-			resolved.PromptStart = parent.Metadata.PromptStart
-		}
-		if resolved.PromptStop == "" {
-			resolved.PromptStop = parent.Metadata.PromptStop
-		}
-		if resolved.PromptDelete == "" {
-			resolved.PromptDelete = parent.Metadata.PromptDelete
-		}
-
-		// Merge map fields — child keys take priority
-		resolved.Settings = mergeAnyMaps(resolved.Settings, parent.Metadata.Settings)
-		resolved.Commands = mergeMaps(resolved.Commands, parent.Metadata.Commands)
-		resolved.Skills = mergeMaps(resolved.Skills, parent.Metadata.Skills)
-		resolved.Agents = mergeMaps(resolved.Agents, parent.Metadata.Agents)
-		resolved.Rules = mergeMaps(resolved.Rules, parent.Metadata.Rules)
-
-		// Review — use parent's only if child doesn't have one
-		if resolved.Review == "" {
-			resolved.Review = parent.Metadata.Review
-		}
-
-		// Enqueue grandparents
-		queue = append(queue, parent.Metadata.ParentRoles...)
-	}
-
-	return resolved, nil
-}
-
-// mergeUnique appends items from src to dst only if they don't already exist in dst.
-func mergeUnique(dst, src []string) []string {
-	seen := make(map[string]bool, len(dst))
-	for _, v := range dst {
-		seen[v] = true
-	}
-	for _, v := range src {
-		if !seen[v] {
-			dst = append(dst, v)
-			seen[v] = true
-		}
-	}
-	return dst
-}
-
-// mergeMaps copies src entries to dst only if the key doesn't already exist in dst.
-// If dst is nil, a new map is created. Returns nil if both are empty/nil.
-func mergeMaps(dst, src map[string]string) map[string]string {
-	if len(src) == 0 {
-		return dst
-	}
-	if dst == nil {
-		dst = make(map[string]string, len(src))
-	}
-	for k, v := range src {
-		if _, exists := dst[k]; !exists {
-			dst[k] = v
-		}
-	}
-	return dst
-}
-
-// mergeAnyMaps copies src entries to dst only if the key doesn't already exist in dst.
-// If dst is nil, a new map is created. Returns nil if both are empty/nil.
-func mergeAnyMaps(dst, src map[string]any) map[string]any {
-	if len(src) == 0 {
-		return dst
-	}
-	if dst == nil {
-		dst = make(map[string]any, len(src))
-	}
-	for k, v := range src {
-		if _, exists := dst[k]; !exists {
-			dst[k] = v
-		}
-	}
-	return dst
+	}, nil
 }
 
 // DeleteRole removes a role by name from the SQL store.
