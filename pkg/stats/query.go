@@ -244,3 +244,32 @@ func (s *Store) queryChannel(ctx context.Context, f ChannelFilter, tr TimeRange)
 	}
 	return result, rows.Err()
 }
+
+// QueryLatestAgentMetrics returns the most recent metric sample for each agent.
+// Used by the agents list table to show current CPU/Mem without N+1 queries.
+func (s *Store) QueryLatestAgentMetrics(ctx context.Context) ([]AgentMetric, error) {
+	query := `SELECT DISTINCT ON (agent_name)
+		time, agent_name, role, tool, runtime, state,
+		cpu_percent, mem_used_bytes, mem_limit_bytes, mem_percent,
+		net_rx_bytes, net_tx_bytes, disk_read_bytes, disk_write_bytes
+	FROM agent_metrics
+	ORDER BY agent_name, time DESC`
+
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("query latest agent metrics: %w", err)
+	}
+	defer rows.Close() //nolint:errcheck
+
+	var result []AgentMetric
+	for rows.Next() {
+		var m AgentMetric
+		if err := rows.Scan(&m.Time, &m.AgentName, &m.Role, &m.Tool, &m.Runtime, &m.State,
+			&m.CPUPercent, &m.MemUsedBytes, &m.MemLimitBytes, &m.MemPercent,
+			&m.NetRxBytes, &m.NetTxBytes, &m.DiskReadBytes, &m.DiskWriteBytes); err != nil {
+			return nil, fmt.Errorf("scan latest agent metric: %w", err)
+		}
+		result = append(result, m)
+	}
+	return result, rows.Err()
+}

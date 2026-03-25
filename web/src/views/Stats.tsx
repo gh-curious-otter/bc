@@ -194,7 +194,7 @@ function AgentCharts({ metrics, summary }: { metrics: AgentMetricTS[]; summary: 
       <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">Agent Metrics</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Chart title="Agent CPU (%)">
-          {barData.length === 0 ? <Empty msg="No agents running" /> : (
+          {barData.length === 0 ? <Empty msg="No agent metrics yet — data appears after ~30s" /> : (
             <ResponsiveContainer width="100%" height={Math.max(120, barData.length * 32)}>
               <BarChart layout="vertical" data={barData} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} horizontal={false} />
@@ -208,7 +208,7 @@ function AgentCharts({ metrics, summary }: { metrics: AgentMetricTS[]; summary: 
         </Chart>
 
         <Chart title="Agent Memory (MB)">
-          {barData.length === 0 ? <Empty msg="No agents running" /> : (
+          {barData.length === 0 ? <Empty msg="No agent metrics yet — data appears after ~30s" /> : (
             <ResponsiveContainer width="100%" height={Math.max(120, barData.length * 32)}>
               <BarChart layout="vertical" data={barData} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} horizontal={false} />

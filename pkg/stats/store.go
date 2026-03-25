@@ -8,6 +8,8 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // Postgres driver via pgx
+
+	"github.com/gh-curious-otter/bc/pkg/log"
 )
 
 // DefaultStatsDSN is the connection string for the bcstats TimescaleDB container.
@@ -62,6 +64,13 @@ func (s *Store) Close() error { return s.db.Close() }
 func (s *Store) DB() *sql.DB { return s.db }
 
 func (s *Store) ensureSchema(ctx context.Context) error {
+	// Detect and migrate stale schemas from older init.sql versions.
+	// If a required column is missing, drop and recreate the table.
+	// Metrics are ephemeral (7-day retention) so data loss is acceptable.
+	if err := s.migrateStaleSchemas(ctx); err != nil {
+		return fmt.Errorf("migrate stale schemas: %w", err)
+	}
+
 	stmts := []string{
 		// System metrics — bc-daemon, bc-sql, bc-stats containers
 		`CREATE TABLE IF NOT EXISTS system_metrics (
@@ -213,4 +222,41 @@ type ChannelMetric struct {
 	MessageCount  int64     `json:"message_count"`
 	MemberCount   int       `json:"member_count"`
 	ReactionCount int64     `json:"reaction_count"`
+}
+
+// migrateStaleSchemas detects tables created by an older init.sql and
+// drops them so ensureSchema can recreate with the correct columns.
+// Each entry checks for a required column that only exists in the new schema.
+func (s *Store) migrateStaleSchemas(ctx context.Context) error {
+	// Map: table → column that must exist in the new schema.
+	checks := []struct {
+		table  string
+		column string
+	}{
+		{"system_metrics", "system_name"},
+		{"agent_metrics", "tool"},
+		{"token_metrics", "cache_read"},
+		{"channel_metrics", "message_count"},
+	}
+
+	for _, c := range checks {
+		var exists bool
+		err := s.db.QueryRowContext(ctx,
+			`SELECT EXISTS (
+				SELECT 1 FROM information_schema.columns
+				WHERE table_name = $1 AND column_name = $2
+			)`, c.table, c.column).Scan(&exists)
+		if err != nil {
+			// Table may not exist yet — that's fine, ensureSchema will create it.
+			continue
+		}
+		if !exists {
+			// Old schema detected — drop and let ensureSchema recreate.
+			log.Warn("stats: migrating stale schema", "table", c.table, "missing_column", c.column)
+			if _, dropErr := s.db.ExecContext(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s CASCADE", c.table)); dropErr != nil {
+				return fmt.Errorf("drop stale table %s: %w", c.table, dropErr)
+			}
+		}
+	}
+	return nil
 }

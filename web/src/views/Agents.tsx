@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { Agent } from "../api/client";
+import type { Agent, AgentMetricTS } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { StatusBadge } from "../components/StatusBadge";
@@ -359,6 +359,25 @@ export function Agents() {
 
   const [peekAgent, setPeekAgent] = useState<string | null>(null);
   const [stoppingAll, setStoppingAll] = useState(false);
+  const [latestStats, setLatestStats] = useState<Record<string, AgentMetricTS>>({});
+
+  // Fetch latest CPU/Mem stats for all agents
+  useEffect(() => {
+    const fetchStats = () => {
+      api.getAgentStatsLatest().then((metrics) => {
+        const map: Record<string, AgentMetricTS> = {};
+        for (const m of metrics) {
+          map[m.agent_name] = m;
+        }
+        setLatestStats(map);
+      }).catch(() => {
+        // Stats unavailable — not critical
+      });
+    };
+    fetchStats();
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleStopAll = async () => {
     setStoppingAll(true);
@@ -542,13 +561,19 @@ export function Agents() {
                           : "\u2014"}
                       </span>
                     </td>
-                    {/* TODO: CPU% and Mem% require per-agent /api/agents/{name}/stats calls (N+1).
-                        Show "\u2014" until a batch stats endpoint exists. */}
                     <td className="px-4 py-2 hidden md:table-cell">
-                      <span className="text-bc-muted">{"\u2014"}</span>
+                      <span className="text-bc-muted">
+                        {latestStats[a.name] != null
+                          ? `${latestStats[a.name]!.cpu_percent.toFixed(1)}%`
+                          : "\u2014"}
+                      </span>
                     </td>
                     <td className="px-4 py-2 hidden md:table-cell">
-                      <span className="text-bc-muted">{"\u2014"}</span>
+                      <span className="text-bc-muted">
+                        {latestStats[a.name] != null
+                          ? `${latestStats[a.name]!.mem_percent.toFixed(1)}%`
+                          : "\u2014"}
+                      </span>
                     </td>
                     <td className="px-4 py-2 hidden md:table-cell">
                       <span className="text-bc-muted">
