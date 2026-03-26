@@ -172,8 +172,35 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 					},
 				})
 			}
-			// Agent delivery via MCP SSE is wired below after MCP server
-			// initialization — see the mcpBroker.SendToAgents call.
+			// Deliver to agent sessions via tmux send-keys.
+			// JSON format gives agents structured context about the message.
+			if svc.Agents != nil {
+				go func() {
+					mentionedAgents, _ := channel.ExtractMentionedAgents(content)
+					payload, _ := json.Marshal(map[string]any{
+						"timestamp": time.Now().UTC().Format(time.RFC3339),
+						"channel":   ch,
+						"sender":    sender,
+						"content":   content,
+						"mentions":  mentionedAgents,
+					})
+					msg := string(payload)
+
+					chDTO, err := svc.Channels.Get(context.Background(), ch)
+					if err != nil {
+						log.Debug("channel send: failed to get channel", "channel", ch, "error", err)
+						return
+					}
+					for _, member := range chDTO.Members {
+						if member == "" || member == sender {
+							continue
+						}
+						if sendErr := svc.Agents.Send(context.Background(), member, msg); sendErr != nil {
+							log.Debug("channel send: delivery failed", "channel", ch, "agent", member, "error", sendErr)
+						}
+					}
+				}()
+			}
 		}
 		handlers.NewChannelHandler(svc.Channels).Register(mux)
 		handlers.NewChannelStatsHandler(svc.Channels).Register(mux)
@@ -223,31 +250,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		if mcpErr != nil {
 			log.Warn("MCP server unavailable", "error", mcpErr)
 		} else {
-			mcpBroker := servermcp.MountOn(mux, mcpSrv, "/mcp")
-
-			// Wire MCP SSE delivery into the OnMessage callback.
-			// When a channel message is stored, push a notification directly
-			// to member agents via the MCP SSE broker — no poller needed.
-			if svc.Channels != nil && mcpBroker != nil {
-				prevOnMessage := svc.Channels.OnMessage
-				svc.Channels.OnMessage = func(ch, sender, content string) {
-					// Call previous OnMessage (gateway routing + web UI hub)
-					if prevOnMessage != nil {
-						prevOnMessage(ch, sender, content)
-					}
-					// Push MCP SSE notification to channel members
-					members, err := svc.Channels.Store().GetMembers(ch)
-					if err != nil || len(members) == 0 {
-						return
-					}
-					memberSet := make(map[string]bool, len(members))
-					for _, m := range members {
-						memberSet[m] = true
-					}
-					notification := servermcp.NewChannelNotification(ch, sender, content, time.Now())
-					mcpBroker.SendToAgents(notification, memberSet)
-				}
-			}
+			servermcp.MountOn(mux, mcpSrv, "/mcp")
 		}
 	}
 
