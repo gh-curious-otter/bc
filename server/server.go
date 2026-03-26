@@ -177,13 +177,17 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 			if svc.Agents != nil {
 				go func() {
 					mentionedAgents, _ := channel.ExtractMentionedAgents(content)
-					payload, _ := json.Marshal(map[string]any{
+					payload, marshalErr := json.Marshal(map[string]any{
 						"timestamp": time.Now().UTC().Format(time.RFC3339),
 						"channel":   ch,
 						"sender":    sender,
 						"content":   content,
 						"mentions":  mentionedAgents,
 					})
+					if marshalErr != nil {
+						log.Warn("channel send: failed to marshal message", "channel", ch, "error", marshalErr)
+						return
+					}
 					msg := string(payload)
 
 					chDTO, err := svc.Channels.Get(context.Background(), ch)
