@@ -148,9 +148,9 @@ func (b *SSEBroker) send(v any) {
 	}
 }
 
-// sendToAgents sends a notification only to clients whose agent name is in the set.
+// SendToAgents sends a notification only to clients whose agent name is in the set.
 // Used for channel-membership-filtered message delivery.
-func (b *SSEBroker) sendToAgents(v any, agents map[string]bool) {
+func (b *SSEBroker) SendToAgents(v any, agents map[string]bool) {
 	if len(agents) == 0 {
 		return
 	}
@@ -230,12 +230,14 @@ func (b *SSEBroker) handleSSE(w http.ResponseWriter, r *http.Request) {
 
 // MountOn registers MCP SSE endpoints on an existing ServeMux under the given prefix.
 // This allows embedding the MCP server into bcd's HTTP server.
-func MountOn(mux *http.ServeMux, srv *Server, prefix string) {
+// Returns the broker so callers can push notifications directly.
+func MountOn(mux *http.ServeMux, srv *Server, prefix string) *SSEBroker {
 	broker := NewSSEBroker()
 	broker.messageEndpoint = prefix + "/message"
 	srv.SetBroker(broker)
 	mux.HandleFunc(prefix+"/sse", broker.handleSSE)
 	mux.HandleFunc(prefix+"/message", srv.HandleSSEMessage(context.Background(), broker))
+	return broker
 }
 
 // LocalhostAddr rewrites a bare ":port" address to "127.0.0.1:port".

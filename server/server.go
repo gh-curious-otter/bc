@@ -172,15 +172,8 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 					},
 				})
 			}
-			// Agent delivery is handled by the MCP SSE notification path:
-			// pollChannelMessages() in server/mcp/server.go polls channels
-			// every 2s for new messages and pushes notifications/message to
-			// all connected MCP clients (agents). This replaces the previous
-			// tmux send-keys approach which required channel membership and
-			// was fragile (terminal interference, buffering issues).
-			//
-			// Messages are persisted to SQLite before OnMessage fires, so
-			// the MCP poller will pick them up on the next tick (~2s delay).
+			// Agent delivery via MCP SSE is wired below after MCP server
+			// initialization — see the mcpBroker.SendToAgents call.
 		}
 		handlers.NewChannelHandler(svc.Channels).Register(mux)
 		handlers.NewChannelStatsHandler(svc.Channels).Register(mux)
@@ -230,7 +223,31 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		if mcpErr != nil {
 			log.Warn("MCP server unavailable", "error", mcpErr)
 		} else {
-			servermcp.MountOn(mux, mcpSrv, "/mcp")
+			mcpBroker := servermcp.MountOn(mux, mcpSrv, "/mcp")
+
+			// Wire MCP SSE delivery into the OnMessage callback.
+			// When a channel message is stored, push a notification directly
+			// to member agents via the MCP SSE broker — no poller needed.
+			if svc.Channels != nil && mcpBroker != nil {
+				prevOnMessage := svc.Channels.OnMessage
+				svc.Channels.OnMessage = func(ch, sender, content string) {
+					// Call previous OnMessage (gateway routing + web UI hub)
+					if prevOnMessage != nil {
+						prevOnMessage(ch, sender, content)
+					}
+					// Push MCP SSE notification to channel members
+					members, err := svc.Channels.Store().GetMembers(ch)
+					if err != nil || len(members) == 0 {
+						return
+					}
+					memberSet := make(map[string]bool, len(members))
+					for _, m := range members {
+						memberSet[m] = true
+					}
+					notification := servermcp.NewChannelNotification(ch, sender, content, time.Now())
+					mcpBroker.SendToAgents(notification, memberSet)
+				}
+			}
 		}
 	}
 

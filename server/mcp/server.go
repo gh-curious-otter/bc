@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gh-curious-otter/bc/pkg/agent"
@@ -35,10 +34,8 @@ type Server struct {
 	chans      *channel.Store
 	chanSvc    *channel.ChannelService
 	costs      *cost.Store
-	broker     *SSEBroker
-	cancelPoll context.CancelFunc
-	version    string
-	pollWg     sync.WaitGroup
+	broker  *SSEBroker
+	version string
 	ownChans   bool
 	ownCosts   bool
 }
@@ -116,10 +113,6 @@ func New(cfg Config) (*Server, error) {
 // Close releases resources held by the server.
 // Only closes stores that the server created itself (not injected ones).
 func (s *Server) Close() error {
-	if s.cancelPoll != nil {
-		s.cancelPoll()
-		s.pollWg.Wait()
-	}
 	if s.ownChans && s.chans != nil {
 		if err := s.chans.Close(); err != nil {
 			return err
@@ -131,111 +124,35 @@ func (s *Server) Close() error {
 	return nil
 }
 
-// SetBroker attaches an SSE broker and starts polling channels for new messages.
-// New messages are pushed as notifications/message to all connected clients.
+// SetBroker attaches an SSE broker for MCP notifications.
+// Message delivery is now handled directly by the OnMessage callback in
+// server.go — no poller needed.
 func (s *Server) SetBroker(broker *SSEBroker) {
 	s.broker = broker
-	ctx, cancel := context.WithCancel(context.Background())
-	s.cancelPoll = cancel
-	s.pollWg.Add(1)
-	go s.pollChannelMessages(ctx)
 }
 
-// channelMessagePayload is the notification payload for new channel messages.
-type channelMessagePayload struct {
+// ChannelMessagePayload is the notification payload for new channel messages.
+type ChannelMessagePayload struct {
 	Time    time.Time `json:"time"`
 	Channel string    `json:"channel"`
 	Sender  string    `json:"sender"`
 	Message string    `json:"message"`
 }
 
-// pollChannelMessages watches all channels for new messages and pushes them
-// as MCP notifications to connected SSE clients.
-func (s *Server) pollChannelMessages(ctx context.Context) {
-	defer s.pollWg.Done()
-
-	// Track the latest message timestamp per channel to detect new messages.
-	// Using timestamps instead of array length avoids breaking when history
-	// is capped (e.g., GetHistory returns last 100 messages).
-	lastSeen := make(map[string]time.Time)
-
-	// Seed with current latest timestamp so we don't replay old history.
-	for _, ch := range s.chans.List() {
-		history, err := s.chans.GetHistory(ch.Name)
-		if err == nil && len(history) > 0 {
-			lastSeen[ch.Name] = history[len(history)-1].Time
-		}
-	}
-
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			s.checkNewMessages(lastSeen)
-		}
-	}
-}
-
-// checkNewMessages checks each channel for messages newer than lastSeen and pushes them.
-func (s *Server) checkNewMessages(lastSeen map[string]time.Time) {
-	for _, ch := range s.chans.List() {
-		history, err := s.chans.GetHistory(ch.Name)
-		if err != nil || len(history) == 0 {
-			continue
-		}
-
-		cutoff := lastSeen[ch.Name]
-
-		// Find new messages (those with timestamp after cutoff)
-		for _, entry := range history {
-			if !entry.Time.After(cutoff) {
-				continue
-			}
-			s.pushMessageNotification(ch.Name, entry.Sender, entry.Message, entry.Time)
-		}
-
-		// Update watermark to latest message
-		lastSeen[ch.Name] = history[len(history)-1].Time
-	}
-}
-
-// pushMessageNotification sends a notifications/message event to SSE clients
-// that are members of the channel. Non-agent clients (web UI) are skipped.
-func (s *Server) pushMessageNotification(ch, sender, message string, t time.Time) {
-	if s.broker == nil {
-		return
-	}
-
-	notification := Notification{
+// NewChannelNotification creates a notifications/message JSON-RPC notification.
+func NewChannelNotification(ch, sender, message string, t time.Time) Notification {
+	return Notification{
 		JSONRPC: "2.0",
 		Method:  "notifications/message",
-		Params: channelMessagePayload{
+		Params: ChannelMessagePayload{
 			Channel: ch,
 			Sender:  sender,
 			Message: message,
 			Time:    t,
 		},
 	}
-
-	// Look up channel members to filter delivery.
-	members, err := s.chans.GetMembers(ch)
-	if err != nil || len(members) == 0 {
-		// No members or error — skip delivery
-		return
-	}
-
-	// Build member set for O(1) lookup
-	memberSet := make(map[string]bool, len(members))
-	for _, m := range members {
-		memberSet[m] = true
-	}
-
-	s.broker.sendToAgents(notification, memberSet)
 }
+
 
 // Handle processes a single JSON-RPC request and returns the response.
 // For notifications (no ID), the returned Response has a nil ID and no result/error set.
