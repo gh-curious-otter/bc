@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState, memo } from "react";
 import { api } from "../api/client";
-import type { Agent } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
 
@@ -64,6 +63,13 @@ function summarizeArgs(evt: HookEvent): string {
     return s.length > 80 ? s.slice(0, 77) + "..." : s;
   }
   return "";
+}
+
+function findLastIdx<T>(arr: T[], pred: (v: T) => boolean): number {
+  for (let i = arr.length - 1; i >= 0; i--) {
+    if (pred(arr[i] as T)) return i;
+  }
+  return -1;
 }
 
 function elapsed(start: number, end?: number): string {
@@ -377,33 +383,23 @@ export function Activity() {
             break;
 
           case "PostToolUse": {
-            // Find matching running tool (last one with same name)
-            const idx = activity.nodes.findLastIndex(
-              (n) => n.toolName === evt.tool_name && n.status === "running",
+            const idx = findLastIdx(activity.nodes,
+              (n: ToolNode) => n.toolName === evt.tool_name && n.status === "running",
             );
             if (idx >= 0) {
-              activity.nodes[idx] = {
-                ...activity.nodes[idx],
-                status: "completed",
-                endTime: Date.now(),
-                fullOutput: evt.tool_response ?? evt.tool_input,
-              };
+              const node = activity.nodes[idx];
+              activity.nodes[idx] = { ...node, status: "completed" as const, endTime: Date.now(), fullOutput: evt.tool_response ?? evt.tool_input } as ToolNode;
             }
             break;
           }
 
           case "PostToolUseFailure": {
-            const idx = activity.nodes.findLastIndex(
-              (n) => n.toolName === evt.tool_name && n.status === "running",
+            const idx = findLastIdx(activity.nodes,
+              (n: ToolNode) => n.toolName === evt.tool_name && n.status === "running",
             );
             if (idx >= 0) {
-              activity.nodes[idx] = {
-                ...activity.nodes[idx],
-                status: "failed",
-                endTime: Date.now(),
-                error: evt.error ?? "Tool execution failed",
-                fullOutput: evt.tool_response ?? evt.tool_input,
-              };
+              const node = activity.nodes[idx];
+              activity.nodes[idx] = { ...node, status: "failed" as const, endTime: Date.now(), error: evt.error ?? "Tool execution failed", fullOutput: evt.tool_response ?? evt.tool_input } as ToolNode;
             }
             break;
           }
@@ -422,16 +418,12 @@ export function Activity() {
             break;
 
           case "SubagentStop": {
-            const idx = activity.nodes.findLastIndex(
-              (n) =>
-                n.toolName.startsWith("Agent:") && n.status === "running",
+            const idx = findLastIdx(activity.nodes,
+              (n: ToolNode) => n.toolName.startsWith("Agent:") && n.status === "running",
             );
             if (idx >= 0) {
-              activity.nodes[idx] = {
-                ...activity.nodes[idx],
-                status: "completed",
-                endTime: Date.now(),
-              };
+              const node = activity.nodes[idx];
+              activity.nodes[idx] = { ...node, status: "completed" as const, endTime: Date.now() } as ToolNode;
             }
             break;
           }
