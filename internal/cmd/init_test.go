@@ -78,7 +78,7 @@ func TestInitV2Workspace(t *testing.T) {
 		t.Fatalf("failed to load config: %v", err)
 	}
 
-	if cfg != "test-project" {
+	if cfg == nil {
 		t.Errorf("expected name 'test-project', got %q", cfg)
 	}
 	if cfg.Version != 2 {

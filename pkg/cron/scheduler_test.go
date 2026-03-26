@@ -56,7 +56,7 @@ func TestScheduler_EnabledJobGetExecuted(t *testing.T) {
 		mu.Lock()
 		execCalls = append(execCalls, command)
 		mu.Unlock()
-		return "ok", nil
+		return nil
 	}
 
 	// Run a single tick.

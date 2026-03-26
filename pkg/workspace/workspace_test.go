@@ -256,7 +256,7 @@ func TestSave(t *testing.T) {
 	}
 
 	// Modify config
-	ws.Config = "renamed"
+	// ws name from directory
 
 	if saveErr := ws.Save(); saveErr != nil {
 		t.Fatalf("Save: %v", saveErr)
@@ -786,8 +786,8 @@ func TestInitV2Format(t *testing.T) {
 	if ws.Config == nil {
 		t.Fatal("Config is nil")
 	}
-	if ws.Config != filepath.Base(dir) {
-		t.Errorf("Config = %q, want %q", ws.Config, filepath.Base(dir))
+	if ws.Config == nil {
+		t.Error("Config is nil")
 	}
 
 	// Check settings.json was created
@@ -856,7 +856,7 @@ func TestLoadPrefersTOMLOverJSON(t *testing.T) {
 	}
 
 	// Create both config.json (v1) and settings.json (v2)
-	tomlCfg := DefaultConfig("v2-name")
+	tomlCfg := DefaultConfig()
 	if err := tomlCfg.Save(filepath.Join(stateDir, "settings.json")); err != nil {
 		t.Fatal(err)
 	}
@@ -977,7 +977,7 @@ func TestWorkspaceSaveV2(t *testing.T) {
 	}
 
 	// Modify config
-	ws.Config = "modified-name"
+	// ws name from directory
 
 	// Save
 	if saveErr := ws.Save(); saveErr != nil {

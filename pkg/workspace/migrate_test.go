@@ -150,7 +150,7 @@ func TestMigrateV1ToV2_DefaultProvider_Claude(t *testing.T) {
 	if cfg.Providers.Default != "claude" {
 		t.Errorf("providers.default = %q, want claude", cfg.Providers.Default)
 	}
-	if cfg.Providers.Claude == nil {
+	if cfg.GetProvider("claude") == nil {
 		t.Error("providers.claude should be set")
 	}
 }
@@ -170,10 +170,10 @@ func TestMigrateV1ToV2_ProvidersMap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
-	if cfg.Providers.Claude == nil {
+	if cfg.GetProvider("claude") == nil {
 		t.Error("providers.claude should be set from Providers map")
 	}
-	if cfg.Providers.Gemini == nil {
+	if cfg.GetProvider("gemini") == nil {
 		t.Error("providers.gemini should be set from Providers map")
 	}
 }
