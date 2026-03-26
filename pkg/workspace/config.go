@@ -184,7 +184,7 @@ func DefaultConfig() Config {
 			Default: "docker",
 			Docker: DockerRuntimeConfig{
 				Image:            "bc-agent:latest",
-				Network:          "bc-net",
+				Network:          "",
 				DockerSocketPath: "/var/run/docker.sock",
 				CPUs:             2,
 				MemoryMB:         4096,
