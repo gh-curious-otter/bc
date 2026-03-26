@@ -79,7 +79,7 @@ func TestInitV2Workspace(t *testing.T) {
 	}
 
 	if cfg == nil {
-		t.Errorf("expected name 'test-project', got %q", cfg)
+		t.Fatal("expected config, got nil")
 	}
 	if cfg.Version != 2 {
 		t.Errorf("expected version 2, got %d", cfg.Version)
