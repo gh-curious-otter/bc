@@ -112,8 +112,8 @@ func (a *AgentsClient) Create(ctx context.Context, req CreateAgentReq) (*AgentIn
 }
 
 // Start starts a stopped agent. resumeID optionally specifies a session ID to resume.
-func (a *AgentsClient) Start(ctx context.Context, name, runtime, resumeID string, fresh bool) (*AgentInfo, error) {
-	body := map[string]any{"runtime": runtime, "fresh": fresh, "resume_id": resumeID}
+func (a *AgentsClient) Start(ctx context.Context, name, runtime, resumeID string) (*AgentInfo, error) {
+	body := map[string]any{"runtime": runtime, "resume_id": resumeID}
 	var info AgentInfo
 	if err := a.client.post(ctx, "/api/agents/"+name+"/start", body, &info); err != nil {
 		return nil, err

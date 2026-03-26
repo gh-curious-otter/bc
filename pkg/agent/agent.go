@@ -711,7 +711,6 @@ type SpawnOptions struct {
 	Runtime   string // override runtime backend ("tmux" or "docker"); empty uses manager default
 	Team      string // optional team assignment
 	SessionID string // Explicit session ID to resume (overrides stored session_id)
-	Fresh     bool   // Force new session (ignore session_id)
 }
 
 // SpawnAgent creates and starts a new agent.
@@ -827,16 +826,13 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	}
 
 	sessionID := existing.SessionID
-	isRealSessionID := len(sessionID) == 36 && sessionID[8] == '-'
-	resume := !opts.Fresh && isRealSessionID
-	if opts.Fresh {
-		existing.SessionID = ""
-		sessionID = ""
-	}
 	if opts.SessionID != "" {
 		sessionID = opts.SessionID
 		existing.SessionID = sessionID
 	}
+	// Resume if a session ID exists (auto-continue previous session)
+	isRealSessionID := len(sessionID) == 36 && sessionID[8] == '-'
+	resume := isRealSessionID
 
 	// Check if existing worktree can be reused for resume (tmux only)
 	agentRuntime := existing.RuntimeBackend
