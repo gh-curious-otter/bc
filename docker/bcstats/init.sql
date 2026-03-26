@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS agent_metrics (
 SELECT create_hypertable('agent_metrics', 'time', if_not_exists => TRUE);
 
 -- Token Metrics — per-agent token consumption from JSONL
+-- UNIQUE constraint makes inserts idempotent across bcd restarts.
 CREATE TABLE IF NOT EXISTS token_metrics (
     time          TIMESTAMPTZ NOT NULL,
     agent_name    TEXT NOT NULL DEFAULT '',
@@ -46,7 +47,8 @@ CREATE TABLE IF NOT EXISTS token_metrics (
     output_tokens BIGINT NOT NULL DEFAULT 0,
     cache_read    BIGINT NOT NULL DEFAULT 0,
     cache_create  BIGINT NOT NULL DEFAULT 0,
-    cost_usd      DOUBLE PRECISION NOT NULL DEFAULT 0
+    cost_usd      DOUBLE PRECISION NOT NULL DEFAULT 0,
+    UNIQUE (time, agent_name, model)
 );
 SELECT create_hypertable('token_metrics', 'time', if_not_exists => TRUE);
 
