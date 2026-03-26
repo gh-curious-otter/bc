@@ -8,6 +8,7 @@ const SIDEBAR_KEY = "bc-sidebar-collapsed";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: "~" },
+  { to: "/activity", label: "Activity", icon: "▶" },
   { to: "/agents", label: "Agents", icon: "A" },
   { to: "/channels", label: "Channels", icon: "C" },
   { to: "/costs", label: "Costs", icon: "$" },
