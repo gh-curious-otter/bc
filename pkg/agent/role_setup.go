@@ -155,14 +155,11 @@ func writeMCPJSON(workspacePath, agentName string, resolved *workspace.ResolvedR
 		if isDocker && entry.URL != "" {
 			entry.URL = rewriteDockerURL(entry.URL)
 		}
-		// Append agent identity to SSE URLs so the MCP server knows the caller.
-		// This is used by send_message to set the correct sender automatically.
+		// Rewrite MCP SSE URL to include agent identity in the path.
+		// /mcp/sse → /mcp/{agentName}/sse
+		// This is permanent — survives config regeneration unlike ?agent= query params.
 		if entry.URL != "" && strings.Contains(entry.URL, "/mcp/sse") {
-			sep := "?"
-			if strings.Contains(entry.URL, "?") {
-				sep = "&"
-			}
-			entry.URL += sep + "agent=" + agentName
+			entry.URL = strings.Replace(entry.URL, "/mcp/sse", "/mcp/"+agentName+"/sse", 1)
 		}
 		if def.Transport == "sse" {
 			entry.Type = "sse"

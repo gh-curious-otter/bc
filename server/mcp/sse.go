@@ -197,11 +197,18 @@ func (b *SSEBroker) handleSSE(w http.ResponseWriter, r *http.Request) {
 	ch := b.subscribe(agentID)
 	defer b.unsubscribe(ch)
 
-	// Include agent identity in the message endpoint URL so tool calls
-	// know which agent is the caller (used by send_message for sender).
+	// Build the message endpoint URL with agent identity.
+	// If the agent connected via /mcp/{agent}/sse, point to /mcp/{agent}/message.
+	// Otherwise fall back to legacy ?agent= query param.
 	endpoint := b.messageEndpoint
 	if agentID != "" {
-		endpoint += "?agent=" + url.QueryEscape(agentID)
+		// Derive agent-scoped message path from the SSE request path.
+		// e.g., /mcp/swift-hawk/sse → /mcp/swift-hawk/message
+		if strings.Contains(r.URL.Path, "/"+agentID+"/sse") {
+			endpoint = strings.Replace(r.URL.Path, "/sse", "/message", 1)
+		} else {
+			endpoint += "?agent=" + url.QueryEscape(agentID)
+		}
 	}
 	// Send endpoint event so client knows where to POST
 	fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", endpoint) //nolint:errcheck // writing to response
@@ -229,14 +236,48 @@ func (b *SSEBroker) handleSSE(w http.ResponseWriter, r *http.Request) {
 }
 
 // MountOn registers MCP SSE endpoints on an existing ServeMux under the given prefix.
-// This allows embedding the MCP server into bcd's HTTP server.
+// Supports both legacy paths (/mcp/sse) and agent-scoped paths (/mcp/{agent}/sse).
 // Returns the broker so callers can push notifications directly.
 func MountOn(mux *http.ServeMux, srv *Server, prefix string) *SSEBroker {
 	broker := NewSSEBroker()
 	broker.messageEndpoint = prefix + "/message"
 	srv.SetBroker(broker)
+
+	// Legacy endpoints (no agent identity — backward compatible)
 	mux.HandleFunc(prefix+"/sse", broker.handleSSE)
 	mux.HandleFunc(prefix+"/message", srv.HandleSSEMessage(context.Background(), broker))
+
+	// Agent-scoped endpoints: /mcp/{agent}/sse and /mcp/{agent}/message
+	// The agent name is extracted from the URL path, not a query param.
+	mux.HandleFunc(prefix+"/", func(w http.ResponseWriter, r *http.Request) {
+		// Parse: prefix + "/{agent}/{action}"
+		remainder := strings.TrimPrefix(r.URL.Path, prefix+"/")
+		parts := strings.SplitN(remainder, "/", 2)
+		if len(parts) != 2 || parts[0] == "" {
+			http.NotFound(w, r)
+			return
+		}
+		agentName := parts[0]
+		action := parts[1]
+
+		switch action {
+		case "sse":
+			// Inject agent name — handleSSE reads from query param,
+			// so set it on the URL to reuse the same handler.
+			q := r.URL.Query()
+			q.Set("agent", agentName)
+			r.URL.RawQuery = q.Encode()
+			broker.handleSSE(w, r)
+		case "message":
+			q := r.URL.Query()
+			q.Set("agent", agentName)
+			r.URL.RawQuery = q.Encode()
+			srv.HandleSSEMessage(context.Background(), broker)(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+
 	return broker
 }
 
