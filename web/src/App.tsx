@@ -5,9 +5,6 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ThemeProvider } from "./context/ThemeContext";
 
 // Lazy-loaded views — each gets its own chunk
-const Activity = lazy(() =>
-  import("./views/Activity").then((m) => ({ default: m.Activity })),
-);
 const Dashboard = lazy(() =>
   import("./views/Dashboard").then((m) => ({ default: m.Dashboard })),
 );
@@ -151,16 +148,6 @@ export function App() {
                   <Suspense fallback={<Loading />}>
                     <ErrorBoundary>
                       <MCP />
-                    </ErrorBoundary>
-                  </Suspense>
-                }
-              />
-              <Route
-                path="activity"
-                element={
-                  <Suspense fallback={<Loading />}>
-                    <ErrorBoundary>
-                      <Activity />
                     </ErrorBoundary>
                   </Suspense>
                 }
