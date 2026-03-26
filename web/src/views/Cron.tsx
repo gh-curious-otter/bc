@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { CronJob, CronLogEntry } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
@@ -149,9 +149,41 @@ function RunDetail({ log }: { log: CronLogEntry }) {
   );
 }
 
-function JobRuns({ name }: { name: string }) {
+function LiveLogs({ name }: { name: string }) {
+  const [output, setOutput] = useState("");
+
+  useEffect(() => {
+    const es = new EventSource(
+      `/api/cron/${encodeURIComponent(name)}/logs/live`,
+    );
+    es.onmessage = (e: MessageEvent) => {
+      setOutput((prev) => prev + (e.data as string));
+    };
+    es.addEventListener("done", () => {
+      es.close();
+    });
+    es.onerror = () => {
+      es.close();
+    };
+    return () => es.close();
+  }, [name]);
+
+  return (
+    <div className="mt-2 rounded border border-bc-border bg-[#0a0a0f] p-3">
+      <div className="flex items-center gap-2 text-xs text-bc-muted mb-2">
+        <span className="inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+        <span>Running — live output</span>
+      </div>
+      <pre className="text-xs text-bc-text/80 whitespace-pre-wrap max-h-64 overflow-y-auto font-mono">
+        {output || "Waiting for output..."}
+      </pre>
+    </div>
+  );
+}
+
+function JobRuns({ name, running }: { name: string; running: boolean }) {
   const fetcher = useCallback(() => api.getCronLogs(name), [name]);
-  const { data: logs, loading } = usePolling(fetcher, 15000);
+  const { data: logs, loading } = usePolling(fetcher, running ? 5000 : 15000);
   const [selectedRun, setSelectedRun] = useState<number | null>(null);
 
   if (loading && !logs) {
@@ -160,7 +192,7 @@ function JobRuns({ name }: { name: string }) {
     );
   }
 
-  if (!logs || logs.length === 0) {
+  if (!logs || (logs.length === 0 && !running)) {
     return (
       <div className="px-6 py-3 text-xs text-bc-muted">
         No runs yet. Job will execute on next scheduled tick.
@@ -169,12 +201,13 @@ function JobRuns({ name }: { name: string }) {
   }
 
   return (
-    <div className="px-6 py-3 space-y-1">
+    <div className="px-6 py-3 space-y-2">
+      {running && <LiveLogs name={name} />}
       <div className="text-xs font-medium text-bc-muted uppercase tracking-wide mb-2">
         Execution History
       </div>
       <div className="max-h-80 overflow-y-auto space-y-1">
-        {logs.map((log: CronLogEntry) => {
+        {(logs ?? []).map((log: CronLogEntry) => {
           const isSelected = selectedRun === log.id;
           return (
             <div key={log.id}>
@@ -382,10 +415,10 @@ export function Cron() {
                     <td className="px-4 py-2">
                       <span
                         className={
-                          j.enabled ? "text-green-400" : "text-bc-muted"
+                          j.running ? "text-blue-400" : j.enabled ? "text-green-400" : "text-bc-muted"
                         }
                       >
-                        {j.enabled ? "enabled" : "disabled"}
+                        {j.running ? "running" : j.enabled ? "enabled" : "disabled"}
                       </span>
                     </td>
                     <td className="px-4 py-2">
@@ -430,7 +463,7 @@ export function Cron() {
                       className="border-b border-bc-border/50 bg-bc-surface/50"
                     >
                       <td colSpan={7} className="p-0">
-                        <JobRuns name={j.name} />
+                        <JobRuns name={j.name} running={j.running} />
                       </td>
                     </tr>
                   )}

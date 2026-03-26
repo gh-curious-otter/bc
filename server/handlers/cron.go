@@ -2,21 +2,26 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gh-curious-otter/bc/pkg/cron"
 )
 
 // CronHandler handles /api/cron routes.
 type CronHandler struct {
-	store *cron.Store
+	store     *cron.Store
+	scheduler *cron.Scheduler
 }
 
 // NewCronHandler creates a CronHandler.
-func NewCronHandler(store *cron.Store) *CronHandler {
-	return &CronHandler{store: store}
+func NewCronHandler(store *cron.Store, scheduler *cron.Scheduler) *CronHandler {
+	return &CronHandler{store: store, scheduler: scheduler}
 }
 
 // Register mounts cron routes on mux.
@@ -35,6 +40,12 @@ func (h *CronHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 		if jobs == nil {
 			jobs = []*cron.Job{}
+		}
+		// Enrich with running state from scheduler
+		if h.scheduler != nil {
+			for _, j := range jobs {
+				j.Running = h.scheduler.IsRunning(j.Name)
+			}
 		}
 		limit, offset := parsePagination(r, 50)
 		if offset >= len(jobs) {
@@ -91,6 +102,8 @@ func (h *CronHandler) byName(w http.ResponseWriter, r *http.Request) {
 		h.run(w, r, name)
 	case "logs":
 		h.logs(w, r, name)
+	case "logs/live":
+		h.liveLogs(w, r, name)
 	default:
 		httpError(w, "not found", http.StatusNotFound)
 	}
@@ -107,6 +120,9 @@ func (h *CronHandler) job(w http.ResponseWriter, r *http.Request, name string) {
 		if job == nil {
 			httpError(w, "cron job not found", http.StatusNotFound)
 			return
+		}
+		if h.scheduler != nil {
+			job.Running = h.scheduler.IsRunning(name)
 		}
 		writeJSON(w, http.StatusOK, job)
 
@@ -174,4 +190,86 @@ func (h *CronHandler) logs(w http.ResponseWriter, r *http.Request, name string) 
 		return
 	}
 	writeJSON(w, http.StatusOK, logs)
+}
+
+// liveLogs streams the live log file for a running cron job via SSE.
+func (h *CronHandler) liveLogs(w http.ResponseWriter, r *http.Request, name string) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	if h.scheduler == nil {
+		httpError(w, "scheduler not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	logPath := h.scheduler.LogFilePath(name)
+	if logPath == "" {
+		httpError(w, "log streaming not available", http.StatusNotImplemented)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		httpError(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	flusher.Flush()
+
+	// Tail the log file, sending new content as SSE events
+	var lastSize int64
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			info, err := os.Stat(logPath)
+			if err != nil {
+				// File doesn't exist yet or job not running
+				if !h.scheduler.IsRunning(name) {
+					// Job finished — send done event and close
+					fmt.Fprintf(w, "event: done\ndata: {}\n\n") //nolint:errcheck
+					flusher.Flush()
+					return
+				}
+				continue
+			}
+
+			currentSize := info.Size()
+			if currentSize <= lastSize {
+				if !h.scheduler.IsRunning(name) {
+					fmt.Fprintf(w, "event: done\ndata: {}\n\n") //nolint:errcheck
+					flusher.Flush()
+					return
+				}
+				continue
+			}
+
+			// Read new content
+			f, openErr := os.Open(logPath) //nolint:gosec
+			if openErr != nil {
+				continue
+			}
+			if _, seekErr := f.Seek(lastSize, io.SeekStart); seekErr != nil {
+				_ = f.Close()
+				continue
+			}
+			newData, readErr := io.ReadAll(f)
+			_ = f.Close()
+			if readErr != nil || len(newData) == 0 {
+				continue
+			}
+			lastSize = currentSize
+
+			// Send as SSE data
+			fmt.Fprintf(w, "data: %s\n\n", strings.ReplaceAll(string(newData), "\n", "\ndata: ")) //nolint:errcheck
+			flusher.Flush()
+		}
+	}
 }

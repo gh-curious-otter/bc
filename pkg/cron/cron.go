@@ -37,6 +37,7 @@ type Job struct {
 	Command   string     `json:"command,omitempty"`
 	RunCount  int        `json:"run_count"`
 	Enabled   bool       `json:"enabled"`
+	Running   bool       `json:"running"`
 }
 
 // LogEntry records one execution of a cron job.
