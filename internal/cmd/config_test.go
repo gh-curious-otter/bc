@@ -221,7 +221,7 @@ func TestConfigValidateInvalid(t *testing.T) {
 
 	// Break the config by setting invalid version
 	configPath := workspace.ConfigPath(projectDir)
-	if err := os.WriteFile(configPath, []byte("[workspace]\nname=\"test\"\nversion=99\n"), 0600); err != nil {
+	if err := os.WriteFile(configPath, []byte(`{"version":99}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 

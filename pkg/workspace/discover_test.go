@@ -50,7 +50,7 @@ func TestIsV2Workspace(t *testing.T) {
 
 	// Create settings.json
 	configPath := filepath.Join(bcDir, "settings.json")
-	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"test\"\n"), 0600); err != nil {
+	if err := os.WriteFile(configPath, []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
 		t.Fatalf("failed to create settings.json: %v", err)
 	}
 
@@ -91,9 +91,7 @@ func TestDiscoverWithScanPath(t *testing.T) {
 
 	// Create minimal config
 	configPath := filepath.Join(bcDir, "settings.json")
-	configContent := `[workspace]
-name = "test-workspace"
-`
+	configContent := `{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`
 	if err := os.WriteFile(configPath, []byte(configContent), 0600); err != nil {
 		t.Fatalf("failed to create config: %v", err)
 	}
@@ -139,7 +137,7 @@ func TestDiscoverSkipsHiddenDirs(t *testing.T) {
 	}
 
 	configPath := filepath.Join(hiddenBcDir, "settings.json")
-	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"hidden\"\n"), 0600); err != nil {
+	if err := os.WriteFile(configPath, []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
 		t.Fatalf("failed to create config: %v", err)
 	}
 
@@ -176,7 +174,7 @@ func TestDiscoverSkipsNodeModules(t *testing.T) {
 	}
 
 	configPath := filepath.Join(nodeBcDir, "settings.json")
-	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"npm-pkg\"\n"), 0600); err != nil {
+	if err := os.WriteFile(configPath, []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
 		t.Fatalf("failed to create config: %v", err)
 	}
 
@@ -257,7 +255,7 @@ func TestDiscoverMaxDepthRespected(t *testing.T) {
 
 	// Create settings.json - workspace will use directory name as fallback
 	configPath := filepath.Join(bcDir, "settings.json")
-	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"deep-ws\"\n"), 0600); err != nil {
+	if err := os.WriteFile(configPath, []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
 		t.Fatalf("failed to create config: %v", err)
 	}
 
@@ -354,7 +352,7 @@ func TestDiscoverMultipleWorkspaces(t *testing.T) {
 			t.Fatalf("failed to create workspace %d: %v", i, err)
 		}
 		configPath := filepath.Join(bcDir, "settings.json")
-		if err := os.WriteFile(configPath, []byte("[workspace]\nname = \""+name+"\"\n"), 0600); err != nil {
+		if err := os.WriteFile(configPath, []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
 			t.Fatalf("failed to create config %d: %v", i, err)
 		}
 	}
@@ -424,7 +422,7 @@ func TestDiscoverAndRegister(t *testing.T) {
 		t.Fatalf("failed to create workspace dir: %v", err)
 	}
 	configPath := filepath.Join(bcDir, "settings.json")
-	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"test-ws\"\n"), 0600); err != nil {
+	if err := os.WriteFile(configPath, []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
 		t.Fatalf("failed to create config: %v", err)
 	}
 
@@ -516,7 +514,7 @@ func TestDiscoverSkipsVendorDir(t *testing.T) {
 	}
 
 	configPath := filepath.Join(vendorBcDir, "settings.json")
-	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"vendor-pkg\"\n"), 0600); err != nil {
+	if err := os.WriteFile(configPath, []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
 		t.Fatalf("failed to create config: %v", err)
 	}
 
@@ -553,7 +551,7 @@ func TestDiscoverSkipsPycacheDir(t *testing.T) {
 	}
 
 	configPath := filepath.Join(pycacheBcDir, "settings.json")
-	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"pycache-pkg\"\n"), 0600); err != nil {
+	if err := os.WriteFile(configPath, []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
 		t.Fatalf("failed to create config: %v", err)
 	}
 
@@ -602,7 +600,7 @@ func TestDiscoverDuplicatePath(t *testing.T) {
 	}
 
 	configPath := filepath.Join(bcDir, "settings.json")
-	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"dup-workspace\"\n"), 0600); err != nil {
+	if err := os.WriteFile(configPath, []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
 		t.Fatalf("failed to create config: %v", err)
 	}
 
@@ -643,7 +641,7 @@ func TestDiscoverIncludeCached(t *testing.T) {
 	if err := os.MkdirAll(bcDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte("[workspace]\nname = \"cached-ws\"\n"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -740,7 +738,7 @@ func TestDiscoverScanHome(t *testing.T) {
 	if err := os.MkdirAll(bcDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte("[workspace]\nname = \"home-ws\"\n"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -778,7 +776,7 @@ func TestDiscoverCachedDeduplication(t *testing.T) {
 	if err := os.MkdirAll(bcDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte("[workspace]\nname = \"dedup-ws\"\n"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 

@@ -44,7 +44,7 @@ func TestIsV2Workspace(t *testing.T) {
 	if err := os.MkdirAll(bcDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte("[workspace]\nname = \"test\"\nversion = 2\n"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 

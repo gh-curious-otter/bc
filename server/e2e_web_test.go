@@ -43,17 +43,7 @@ func newE2EServerWithWebUI(t *testing.T) *e2eServer {
 		t.Fatal(err)
 	}
 
-	cfg := `[workspace]
-name = "e2e-web-test"
-version = 2
-
-[providers]
-default = "gemini"
-
-[providers.gemini]
-command = "echo test"
-enabled = true
-`
+	cfg := `{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`
 	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte(cfg), 0600); err != nil {
 		t.Fatal(err)
 	}

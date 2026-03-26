@@ -163,7 +163,7 @@ func TestAgentCreate_EmptyName(t *testing.T) {
 
 	// Create minimal config
 	configPath := filepath.Join(bcDir, "settings.json")
-	if err := os.WriteFile(configPath, []byte("[workspace]\nname = \"test\"\n"), 0600); err != nil {
+	if err := os.WriteFile(configPath, []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 

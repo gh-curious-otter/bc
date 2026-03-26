@@ -51,17 +51,7 @@ func newE2EServer(t *testing.T) *e2eServer {
 	}
 
 	// Write minimal valid workspace config
-	cfg := `[workspace]
-name = "e2e-test"
-version = 2
-
-[providers]
-default = "gemini"
-
-[providers.gemini]
-command = "echo test"
-enabled = true
-`
+	cfg := `{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`
 	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte(cfg), 0600); err != nil {
 		t.Fatal(err)
 	}

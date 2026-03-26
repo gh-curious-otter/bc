@@ -283,9 +283,7 @@ func TestCheckWorkspace_InvalidConfig(t *testing.T) {
 
 	// Write an invalid config (missing required workspace.name)
 	configPath := filepath.Join(stateDir, "settings.json")
-	if err := os.WriteFile(configPath, []byte(`[workspace]
-version = 2
-`), 0600); err != nil {
+	if err := os.WriteFile(configPath, []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	// Load the bad config directly into ws

@@ -86,17 +86,7 @@ func setupTestWorkspace(t *testing.T) string {
 	// demons directory removed in CLI restructure (#1916)
 	// Create minimal settings.json for v2 workspace detection
 	configPath := filepath.Join(bcDir, "settings.json")
-	configContent := `[workspace]
-name = "test"
-version = 2
-
-[providers]
-default = "claude"
-
-[providers.claude]
-command = "claude"
-enabled = true
-`
+	configContent := `{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`
 	if err := os.WriteFile(configPath, []byte(configContent), 0600); err != nil {
 		t.Fatalf("failed to write settings.json: %v", err)
 	}
