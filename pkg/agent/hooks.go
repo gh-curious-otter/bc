@@ -47,24 +47,19 @@ const (
 )
 
 // hookEventStateMap maps hook events to the target agent state.
-// Events not in this map don't change agent state (they're informational).
+// Only events that represent genuine state transitions are included.
+// Tool-level events (PreToolUse, PostToolUse, etc.) are informational
+// and do NOT change agent state — the agent stays "working" from
+// UserPromptSubmit until Stop/SessionEnd.
 var hookEventStateMap = map[HookEvent]State{
-	HookSessionStart:       StateIdle,
-	HookSessionEnd:         StateStopped,
-	HookUserPromptSubmit:   StateWorking,
-	HookPreToolUse:         StateWorking,
-	HookPostToolUse:        StateIdle,
-	HookPostToolUseFailure: StateWorking,
-	HookPermissionRequest:  StateStuck,
-	HookStop:               StateIdle, // turn complete, not session end
-	HookSubagentStart:      StateWorking,
-	HookSubagentStop:       StateWorking,
-	HookTaskCompleted:      StateDone,
-	HookWorktreeCreate:     StateStarting,
-	HookPreCompact:         StateWorking,
-	HookPostCompact:        StateWorking,
-	HookElicitation:        StateStuck,
-	HookElicitationResult:  StateWorking,
+	HookSessionStart:     StateIdle,
+	HookSessionEnd:       StateStopped,
+	HookUserPromptSubmit: StateWorking,
+	HookPermissionRequest: StateStuck,
+	HookElicitation:       StateStuck,
+	HookElicitationResult: StateWorking,
+	HookStop:              StateIdle,
+	HookTaskCompleted:     StateDone,
 }
 
 // StateForHookEvent returns the target agent State for a hook event.
@@ -79,9 +74,12 @@ func IsKnownEvent(ev HookEvent) bool {
 	if _, ok := hookEventStateMap[ev]; ok {
 		return true
 	}
-	// Informational events that don't change state
+	// Events that are known but don't change agent state (logged for activity tracking)
 	switch ev {
-	case HookNotification, HookTeammateIdle, HookInstructionsLoaded,
+	case HookPreToolUse, HookPostToolUse, HookPostToolUseFailure,
+		HookSubagentStart, HookSubagentStop,
+		HookWorktreeCreate, HookPreCompact, HookPostCompact,
+		HookNotification, HookTeammateIdle, HookInstructionsLoaded,
 		HookConfigChange, HookWorktreeRemove,
 		HookChannelMessage, HookChannelSent, HookAgentMessage, HookCostUpdate:
 		return true
@@ -175,22 +173,22 @@ func WriteWorkspaceHookSettings(workspaceRoot string) error {
 			"SessionStart":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookSessionStart, StateIdle, "Session started")}}}},
 			"SessionEnd":         {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookSessionEnd, StateStopped, "Session ended")}}}},
 			"UserPromptSubmit":   {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookUserPromptSubmit, StateWorking, "Processing prompt...")}}}},
-			"PreToolUse":         {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookPreToolUse, StateWorking, "Running tool")}}}},
-			"PostToolUse":        {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookPostToolUse, StateIdle, "Tool completed")}}}},
-			"PostToolUseFailure": {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookPostToolUseFailure, StateWorking, "Tool failed")}}}},
+			"PreToolUse":         {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookPreToolUse, "", "Running tool")}}}},
+			"PostToolUse":        {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookPostToolUse, "", "Tool completed")}}}},
+			"PostToolUseFailure": {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookPostToolUseFailure, "", "Tool failed")}}}},
 			"PermissionRequest":  {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookPermissionRequest, StateStuck, "Waiting for permission")}}}},
 			"Stop":               {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookStop, StateIdle, "Turn complete")}}}},
 			"Notification":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("Notification", "", "")}}}},
-			"SubagentStart":      {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookSubagentStart, StateWorking, "Subagent started")}}}},
-			"SubagentStop":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookSubagentStop, StateWorking, "Subagent completed")}}}},
+			"SubagentStart":      {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookSubagentStart, "", "Subagent started")}}}},
+			"SubagentStop":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookSubagentStop, "", "Subagent completed")}}}},
 			"TaskCompleted":      {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookTaskCompleted, StateDone, "Task completed")}}}},
 			"TeammateIdle":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("TeammateIdle", "", "")}}}},
 			"InstructionsLoaded": {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("InstructionsLoaded", "", "")}}}},
 			"ConfigChange":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("ConfigChange", "", "")}}}},
-			"WorktreeCreate":     {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookWorktreeCreate, StateStarting, "Creating worktree")}}}},
+			"WorktreeCreate":     {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookWorktreeCreate, "", "Creating worktree")}}}},
 			"WorktreeRemove":     {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("WorktreeRemove", "", "")}}}},
-			"PreCompact":         {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookPreCompact, StateWorking, "Compacting context...")}}}},
-			"PostCompact":        {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookPostCompact, StateWorking, "Context compacted")}}}},
+			"PreCompact":         {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookPreCompact, "", "Compacting context...")}}}},
+			"PostCompact":        {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookPostCompact, "", "Context compacted")}}}},
 			"Elicitation":        {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookElicitation, StateStuck, "MCP input needed")}}}},
 			"ElicitationResult":  {{Hooks: []claudeHook{{Type: "command", Command: hookCmd(HookElicitationResult, StateWorking, "MCP input received")}}}},
 		},
