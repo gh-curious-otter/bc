@@ -289,63 +289,42 @@ function qs(params?: Record<string, string>): string {
 }
 
 export interface SettingsConfig {
-  User: { Nickname: string };
-  TUI: { Theme: string; Mode: string };
-  Runtime: {
-    Backend: string;
-    Docker?: {
-      Image: string;
-      Network: string;
-      ExtraMounts: string[];
-      CPUs: number;
-      MemoryMB: number;
+  version: number;
+  user: { name: string };
+  server: { host: string; port: number; cors_origin: string };
+  runtime: {
+    default: string;
+    docker: {
+      image: string;
+      network: string;
+      docker_socket_path: string;
+      extra_mounts: string[];
+      cpus: number;
+      memory_mb: number;
+    };
+    tmux: {
+      session_prefix: string;
+      history_limit: number;
+      default_shell: string;
     };
   };
-  Providers: {
-    Default: string;
-    Claude?: {
-      Command: string;
-      Enabled: boolean;
-      Env?: Record<string, string>;
-    };
-    Gemini?: {
-      Command: string;
-      Enabled: boolean;
-      Env?: Record<string, string>;
-    };
-    Cursor?: {
-      Command: string;
-      Enabled: boolean;
-      Env?: Record<string, string>;
-    };
-    Codex?: { Command: string; Enabled: boolean; Env?: Record<string, string> };
-    OpenCode?: {
-      Command: string;
-      Enabled: boolean;
-      Env?: Record<string, string>;
-    };
-    OpenClaw?: {
-      Command: string;
-      Enabled: boolean;
-      Env?: Record<string, string>;
-    };
-    Aider?: { Command: string; Enabled: boolean; Env?: Record<string, string> };
+  providers: {
+    default: string;
+    providers: Record<string, { command: string }>;
   };
-  Workspace: { Name: string; Path: string; Version: number };
-  Logs: { Path: string; MaxBytes: number };
-  Env: Record<string, string>;
-  Performance: Record<string, number>;
-  Services: {
-    GitHub?: { Command: string; Enabled: boolean };
-    GitLab?: { Command: string; Enabled: boolean };
-    Jira?: { Command: string; Enabled: boolean };
+  gateways: {
+    telegram?: { enabled: boolean; bot_token: string; mode: string };
+    discord?: { enabled: boolean; bot_token: string };
+    slack?: { enabled: boolean; bot_token: string; app_token: string; mode: string };
   };
-  Roster: {
-    Agents: { Name: string; Role: string; Tool: string; Runtime: string }[];
+  cron: { poll_interval_seconds: number; job_timeout_seconds: number };
+  storage: {
+    default: string;
+    sqlite: { path: string };
+    sql: { host: string; port: number; user: string; password: string; database: string };
   };
-  Server: { Addr: string; CORSOrigin: string };
-  Scheduler: { TickInterval: number; JobTimeout: number };
-  Storage: { SQLitePath: string };
+  logs: { path: string; max_bytes: number };
+  ui: { theme: string; mode: string; default_view: string };
 }
 
 export const api = {
@@ -569,7 +548,7 @@ export const api = {
   getSettings: () => request<SettingsConfig>("/settings"),
   updateSettings: (patch: Record<string, unknown>) =>
     request<SettingsConfig>("/settings", {
-      method: "PUT",
+      method: "PATCH",
       body: JSON.stringify(patch),
     }),
 
