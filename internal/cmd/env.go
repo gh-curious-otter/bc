@@ -16,7 +16,7 @@ or set environment variables on the host / in Docker.`,
 		fmt.Println("Environment variable management has been removed from settings.")
 		fmt.Println("Use 'bc secret set NAME VALUE' for sensitive values,")
 		fmt.Println("or set environment variables on the host / in Docker.")
-		return nil
+		return fmt.Errorf("bc env has been removed; use 'bc secret set NAME VALUE' or host/container env vars")
 	},
 }
 
