@@ -172,46 +172,15 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 					},
 				})
 			}
-			// Deliver to agent tmux/docker sessions asynchronously.
-			// Messages are already persisted to SQLite before OnMessage fires,
-			// so delivery is best-effort — agents can read history on reconnect.
-			if svc.Agents != nil {
-				go func() {
-					formatted := fmt.Sprintf("[bc-mcp][%s][#%s] %s: %s", time.Now().UTC().Format(time.RFC3339), ch, sender, content)
-					chDTO, err := svc.Channels.Get(context.Background(), ch)
-					if err != nil {
-						log.Debug("channel send: failed to get channel", "channel", ch, "error", err)
-						return
-					}
-					// Parse @mentions to filter delivery targets.
-					// If mentions exist, only deliver to mentioned agents.
-					// If no mentions, deliver to all members (backward compat).
-					mentionedAgents, hasAll := channel.ExtractMentionedAgents(content)
-					hasMentions := hasAll || len(mentionedAgents) > 0
-
-					for _, member := range chDTO.Members {
-						if member == sender {
-							continue
-						}
-						// If mentions are present, only deliver to mentioned agents
-						if hasMentions && !channel.ContainsMention(content, member) {
-							continue
-						}
-						// Retry delivery up to 3 times
-						var sendErr error
-						for attempt := 0; attempt < 3; attempt++ {
-							sendErr = svc.Agents.Send(context.Background(), member, formatted)
-							if sendErr == nil {
-								break
-							}
-							time.Sleep(time.Duration(attempt+1) * 200 * time.Millisecond)
-						}
-						if sendErr != nil {
-							log.Warn("channel send: delivery failed after retries", "channel", ch, "agent", member, "error", sendErr)
-						}
-					}
-				}()
-			}
+			// Agent delivery is handled by the MCP SSE notification path:
+			// pollChannelMessages() in server/mcp/server.go polls channels
+			// every 2s for new messages and pushes notifications/message to
+			// all connected MCP clients (agents). This replaces the previous
+			// tmux send-keys approach which required channel membership and
+			// was fragile (terminal interference, buffering issues).
+			//
+			// Messages are persisted to SQLite before OnMessage fires, so
+			// the MCP poller will pick them up on the next tick (~2s delay).
 		}
 		handlers.NewChannelHandler(svc.Channels).Register(mux)
 		handlers.NewChannelStatsHandler(svc.Channels).Register(mux)

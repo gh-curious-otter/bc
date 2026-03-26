@@ -98,22 +98,28 @@ func (s *Server) HandleSSEMessage(ctx context.Context, broker *SSEBroker) http.H
 
 // ─── SSE broker ───────────────────────────────────────────────────────────────
 
+// sseClient tracks a connected SSE client and its agent identity.
+type sseClient struct {
+	ch        chan []byte
+	agentName string // empty for non-agent clients (e.g., web UI)
+}
+
 // SSEBroker fans out SSE messages to all connected clients.
 type SSEBroker struct {
-	clients         map[chan []byte]struct{}
+	clients         map[chan []byte]*sseClient
 	messageEndpoint string
 	mu              sync.Mutex
 }
 
 // NewSSEBroker creates an SSEBroker ready to use.
 func NewSSEBroker() *SSEBroker {
-	return &SSEBroker{clients: make(map[chan []byte]struct{}), messageEndpoint: "/message"}
+	return &SSEBroker{clients: make(map[chan []byte]*sseClient), messageEndpoint: "/message"}
 }
 
-func (b *SSEBroker) subscribe() chan []byte {
+func (b *SSEBroker) subscribe(agentName string) chan []byte {
 	ch := make(chan []byte, 8)
 	b.mu.Lock()
-	b.clients[ch] = struct{}{}
+	b.clients[ch] = &sseClient{ch: ch, agentName: agentName}
 	b.mu.Unlock()
 	return ch
 }
@@ -142,6 +148,32 @@ func (b *SSEBroker) send(v any) {
 	}
 }
 
+// sendToAgents sends a notification only to clients whose agent name is in the set.
+// Used for channel-membership-filtered message delivery.
+func (b *SSEBroker) sendToAgents(v any, agents map[string]bool) {
+	if len(agents) == 0 {
+		return
+	}
+	data, err := json.Marshal(v)
+	if err != nil {
+		return
+	}
+	msg := append([]byte("data: "), data...)
+	msg = append(msg, '\n', '\n')
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for _, client := range b.clients {
+		if client.agentName == "" || !agents[client.agentName] {
+			continue
+		}
+		select {
+		case client.ch <- msg:
+		default:
+		}
+	}
+}
+
 // SSEHandler returns an http.HandlerFunc for the SSE endpoint.
 // Exported so tests in mcp_test can mount it on their own ServeMux.
 func (b *SSEBroker) SSEHandler() http.HandlerFunc {
@@ -161,13 +193,14 @@ func (b *SSEBroker) handleSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	ch := b.subscribe()
+	agentID := r.URL.Query().Get("agent")
+	ch := b.subscribe(agentID)
 	defer b.unsubscribe(ch)
 
 	// Include agent identity in the message endpoint URL so tool calls
 	// know which agent is the caller (used by send_message for sender).
 	endpoint := b.messageEndpoint
-	if agentID := r.URL.Query().Get("agent"); agentID != "" {
+	if agentID != "" {
 		endpoint += "?agent=" + url.QueryEscape(agentID)
 	}
 	// Send endpoint event so client knows where to POST

@@ -203,12 +203,14 @@ func (s *Server) checkNewMessages(lastSeen map[string]time.Time) {
 	}
 }
 
-// pushMessageNotification sends a notifications/message event to all SSE clients.
+// pushMessageNotification sends a notifications/message event to SSE clients
+// that are members of the channel. Non-agent clients (web UI) are skipped.
 func (s *Server) pushMessageNotification(ch, sender, message string, t time.Time) {
 	if s.broker == nil {
 		return
 	}
-	s.broker.send(Notification{
+
+	notification := Notification{
 		JSONRPC: "2.0",
 		Method:  "notifications/message",
 		Params: channelMessagePayload{
@@ -217,7 +219,22 @@ func (s *Server) pushMessageNotification(ch, sender, message string, t time.Time
 			Message: message,
 			Time:    t,
 		},
-	})
+	}
+
+	// Look up channel members to filter delivery.
+	members, err := s.chans.GetMembers(ch)
+	if err != nil || len(members) == 0 {
+		// No members or error — skip delivery
+		return
+	}
+
+	// Build member set for O(1) lookup
+	memberSet := make(map[string]bool, len(members))
+	for _, m := range members {
+		memberSet[m] = true
+	}
+
+	s.broker.sendToAgents(notification, memberSet)
 }
 
 // Handle processes a single JSON-RPC request and returns the response.
