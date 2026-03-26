@@ -148,14 +148,16 @@ func run(addr, wsRoot, corsOrigin string) error {
 	}
 
 	var cronStore *bccron.Store
+	var cronScheduler *bccron.Scheduler
 	if cr, err := bccron.Open(ws.RootDir); err != nil {
 		log.Warn("cron store unavailable", "error", err)
 	} else {
 		cronStore = cr
 		defer cr.Close() //nolint:errcheck // best-effort
 
-		cronSched := bccron.NewScheduler(cr)
-		go cronSched.Run(ctx)
+		cronLogDir := filepath.Join(ws.RootDir, ".bc", "logs", "cron")
+		cronScheduler = bccron.NewScheduler(cr, cronLogDir)
+		go cronScheduler.Run(ctx)
 	}
 
 	var secretStore *bcsecret.Store
@@ -284,7 +286,8 @@ func run(addr, wsRoot, corsOrigin string) error {
 		Channels:     channelSvc,
 		Costs:        costStore,
 		CostImporter: costImporter,
-		Cron:         cronStore,
+		Cron:          cronStore,
+		CronScheduler: cronScheduler,
 		Secrets:      secretStore,
 		MCP:          mcpStore,
 		Tools:        toolStore,

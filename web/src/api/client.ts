@@ -143,10 +143,9 @@ export interface DoctorReport {
 export interface CronJob {
   name: string;
   schedule: string;
-  agent_name: string;
-  prompt: string;
   command: string;
   enabled: boolean;
+  running: boolean;
   run_count: number;
   last_run: string | null;
   next_run: string | null;
@@ -158,9 +157,7 @@ export interface CronLogEntry {
   job_name: string;
   status: string;
   output: string;
-  error: string;
-  started_at: string;
-  finished_at: string;
+  run_at: string;
   duration_ms: number;
 }
 

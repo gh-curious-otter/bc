@@ -65,8 +65,9 @@ type Services struct {
 	Channels     *channel.ChannelService
 	Costs        *cost.Store
 	CostImporter *cost.Importer
-	Cron         *cron.Store
-	Secrets      *secret.Store
+	Cron          *cron.Store
+	CronScheduler *cron.Scheduler
+	Secrets       *secret.Store
 	MCP          *mcp.Store
 	Tools        *tool.Store
 	Stats        *stats.Store
@@ -213,7 +214,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewCostHandler(svc.Costs, svc.CostImporter).Register(mux)
 	}
 	if svc.Cron != nil {
-		handlers.NewCronHandler(svc.Cron).Register(mux)
+		handlers.NewCronHandler(svc.Cron, svc.CronScheduler).Register(mux)
 	}
 	if svc.Secrets != nil {
 		handlers.NewSecretHandler(svc.Secrets).Register(mux)
