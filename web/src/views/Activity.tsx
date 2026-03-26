@@ -1,18 +1,10 @@
 import { useCallback, useEffect, useRef, useState, memo } from "react";
 import { api } from "../api/client";
-import type { Agent, CostSummary, Channel } from "../api/client";
+import type { Agent } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
-import { LoadingSkeleton } from "../components/LoadingSkeleton";
-import { EmptyState } from "../components/EmptyState";
 
 /* ── Types ─────────────────────────────────────────────────────────── */
-
-interface DashData {
-  agents: Agent[];
-  channels: Channel[];
-  costs: CostSummary;
-}
 
 interface ToolNode {
   id: string;
@@ -32,7 +24,6 @@ interface AgentActivity {
   state: string;
   task: string;
   tool: string;
-  role: string;
   tokens: number;
   nodes: ToolNode[];
   collapsed: boolean;
@@ -82,34 +73,6 @@ function elapsed(start: number, end?: number): string {
   return `${(ms / 60_000).toFixed(1)}m`;
 }
 
-/* ── Summary Card ──────────────────────────────────────────────────── */
-
-function SummaryCard({
-  label,
-  value,
-  sub,
-  accent,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  accent?: string;
-}) {
-  return (
-    <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/60 p-4">
-      <p className="text-[11px] text-zinc-500 uppercase tracking-wider font-mono">
-        {label}
-      </p>
-      <p className={`mt-1.5 text-2xl font-bold tabular-nums ${accent ?? "text-zinc-200"}`}>
-        {value}
-      </p>
-      {sub && (
-        <p className="mt-0.5 text-[11px] text-zinc-600 font-mono">{sub}</p>
-      )}
-    </div>
-  );
-}
-
 /* ── State Dots ────────────────────────────────────────────────────── */
 
 function StateDot({ state }: { state: string }) {
@@ -140,18 +103,7 @@ function ToolDot({ status }: { status: ToolNode["status"] }) {
   return <span className="inline-flex h-2 w-2 mt-[5px] shrink-0 rounded-full bg-emerald-500" />;
 }
 
-/* ── Elapsed Timer ─────────────────────────────────────────────────── */
-
-function ElapsedTimer({ start }: { start: number }) {
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 200);
-    return () => clearInterval(id);
-  }, []);
-  return <>{elapsed(start)}</>;
-}
-
-/* ── Tool Node ─────────────────────────────────────────────────────── */
+/* ── Tool Node Component ───────────────────────────────────────────── */
 
 function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
   const [expanded, setExpanded] = useState(false);
@@ -164,18 +116,23 @@ function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
         style={{ paddingLeft: `${indent + 12}px` }}
         onClick={() => setExpanded(!expanded)}
       >
+        {/* Tree connector */}
         <span className="text-zinc-600 text-xs select-none mt-[3px] shrink-0">
           {depth > 0 ? "├─" : ""}
         </span>
+
         <ToolDot status={node.status} />
+
         <span className="font-mono text-[13px] text-zinc-300 font-medium">
           {node.toolName}
         </span>
+
         {node.args && (
           <span className="text-[12px] text-zinc-500 truncate max-w-[400px] font-mono">
             {node.args}
           </span>
         )}
+
         <span className="ml-auto text-[11px] text-zinc-600 tabular-nums shrink-0 font-mono">
           {node.status === "running" ? (
             <ElapsedTimer start={node.startTime} />
@@ -223,7 +180,18 @@ function ToolNodeRow({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
   );
 }
 
-/* ── Agent Activity Card ───────────────────────────────────────────── */
+/* ── Elapsed Timer (re-renders itself) ─────────────────────────────── */
+
+function ElapsedTimer({ start }: { start: number }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 200);
+    return () => clearInterval(id);
+  }, []);
+  return <>{elapsed(start)}</>;
+}
+
+/* ── Agent Card ────────────────────────────────────────────────────── */
 
 const AgentCard = memo(function AgentCard({
   activity,
@@ -235,15 +203,20 @@ const AgentCard = memo(function AgentCard({
   const runningCount = activity.nodes.filter((n) => n.status === "running").length;
 
   return (
-    <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/60 overflow-hidden">
+    <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/60 backdrop-blur-sm overflow-hidden">
+      {/* Header */}
       <button
         type="button"
         onClick={onToggle}
         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors text-left"
       >
         <svg
-          width="12" height="12" viewBox="0 0 12 12" fill="none"
-          stroke="currentColor" strokeWidth="2"
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
           className={`text-zinc-500 transition-transform ${activity.collapsed ? "" : "rotate-90"}`}
         >
           <path d="M4 2l4 4-4 4" />
@@ -256,7 +229,7 @@ const AgentCard = memo(function AgentCard({
         </span>
 
         <span className="text-[11px] text-zinc-600 font-mono">
-          {activity.role}
+          {activity.tool}
         </span>
 
         {activity.task && (
@@ -276,9 +249,13 @@ const AgentCard = memo(function AgentCard({
               {activity.tokens.toLocaleString()} tok
             </span>
           )}
+          <span className="text-[11px] text-zinc-600 font-mono">
+            {activity.nodes.length} events
+          </span>
         </span>
       </button>
 
+      {/* Tool tree */}
       {!activity.collapsed && activity.nodes.length > 0 && (
         <div className="border-t border-zinc-800/60 py-1">
           {activity.nodes.map((node) => (
@@ -296,50 +273,29 @@ const AgentCard = memo(function AgentCard({
   );
 });
 
-/* ── Dashboard ─────────────────────────────────────────────────────── */
+/* ── Main Component ────────────────────────────────────────────────── */
 
-export function Dashboard() {
+export function Activity() {
   const [activities, setActivities] = useState<Map<string, AgentActivity>>(new Map());
   const eventBuffer = useRef<HookEvent[]>([]);
   const { subscribe } = useWebSocket();
 
-  // Fetch dashboard data
-  const fetcher = useCallback(async (): Promise<DashData> => {
-    const [agentsRes, channelsRes, costs] = await Promise.all([
-      api.listAgents(),
-      api.listChannels(),
-      api.getCostSummary(),
-    ]);
-    return { agents: agentsRes, channels: channelsRes, costs };
-  }, []);
-
-  const { data, loading, error, refresh, timedOut } = usePolling(fetcher, 5000);
-
-  // Refresh on agent/cost changes
-  useEffect(() => {
-    const unsubs = [
-      subscribe("agent.state_changed", () => void refresh()),
-      subscribe("agent.created", () => void refresh()),
-      subscribe("agent.stopped", () => void refresh()),
-      subscribe("agent.deleted", () => void refresh()),
-      subscribe("cost.updated", () => void refresh()),
-    ];
-    return () => unsubs.forEach((fn) => fn());
-  }, [subscribe, refresh]);
+  // Fetch agent list for initial state
+  const fetcher = useCallback(() => api.listAgents(), []);
+  const { data: agents } = usePolling(fetcher, 5000);
 
   // Seed activities from agent list
   useEffect(() => {
-    if (!data?.agents) return;
+    if (!agents) return;
     setActivities((prev) => {
       const next = new Map(prev);
-      for (const agent of data.agents) {
+      for (const agent of agents) {
         if (!next.has(agent.name)) {
           next.set(agent.name, {
             name: agent.name,
             state: agent.state,
             task: agent.task ?? "",
             tool: agent.tool,
-            role: agent.role,
             tokens: agent.total_tokens ?? 0,
             nodes: [],
             collapsed: agent.state === "stopped",
@@ -356,9 +312,9 @@ export function Dashboard() {
       }
       return next;
     });
-  }, [data?.agents]);
+  }, [agents]);
 
-  // Process buffered hook events
+  // Process buffered events into activity state
   const flushEvents = useCallback(() => {
     const events = eventBuffer.current.splice(0);
     if (events.length === 0) return;
@@ -371,11 +327,22 @@ export function Dashboard() {
         if (!agentName) continue;
 
         let activity = next.get(agentName) ?? {
-          name: agentName, state: "working", task: "", tool: "", role: "", tokens: 0, nodes: [], collapsed: false,
+          name: agentName,
+          state: "working",
+          task: "",
+          tool: "",
+          tokens: 0,
+          nodes: [],
+          collapsed: false,
         };
+
+        // Clone for immutability
         activity = { ...activity, nodes: [...activity.nodes] };
 
+        // Update task
         if (evt.task) activity.task = evt.task;
+
+        // Track tokens
         if (evt.input_tokens) activity.tokens += evt.input_tokens;
         if (evt.output_tokens) activity.tokens += evt.output_tokens;
 
@@ -383,28 +350,42 @@ export function Dashboard() {
           case "UserPromptSubmit":
             activity.state = "working";
             activity.nodes.push({
-              id: nextId(), toolName: "UserPromptSubmit", args: evt.task ?? "",
-              fullInput: evt.tool_input, fullOutput: null, status: "completed",
-              startTime: Date.now(), endTime: Date.now(), children: [],
+              id: nextId(),
+              toolName: "UserPromptSubmit",
+              args: evt.task ?? "",
+              fullInput: evt.tool_input,
+              fullOutput: null,
+              status: "completed",
+              startTime: Date.now(),
+              endTime: Date.now(),
+              children: [],
             });
             break;
 
           case "PreToolUse":
             activity.state = "working";
             activity.nodes.push({
-              id: nextId(), toolName: evt.tool_name ?? "unknown", args: summarizeArgs(evt),
-              fullInput: evt.tool_input, fullOutput: null, status: "running",
-              startTime: Date.now(), children: [],
+              id: nextId(),
+              toolName: evt.tool_name ?? "unknown",
+              args: summarizeArgs(evt),
+              fullInput: evt.tool_input,
+              fullOutput: null,
+              status: "running",
+              startTime: Date.now(),
+              children: [],
             });
             break;
 
           case "PostToolUse": {
+            // Find matching running tool (last one with same name)
             const idx = activity.nodes.findLastIndex(
               (n) => n.toolName === evt.tool_name && n.status === "running",
             );
             if (idx >= 0) {
               activity.nodes[idx] = {
-                ...activity.nodes[idx], status: "completed", endTime: Date.now(),
+                ...activity.nodes[idx],
+                status: "completed",
+                endTime: Date.now(),
                 fullOutput: evt.tool_response ?? evt.tool_input,
               };
             }
@@ -417,7 +398,9 @@ export function Dashboard() {
             );
             if (idx >= 0) {
               activity.nodes[idx] = {
-                ...activity.nodes[idx], status: "failed", endTime: Date.now(),
+                ...activity.nodes[idx],
+                status: "failed",
+                endTime: Date.now(),
                 error: evt.error ?? "Tool execution failed",
                 fullOutput: evt.tool_response ?? evt.tool_input,
               };
@@ -427,18 +410,28 @@ export function Dashboard() {
 
           case "SubagentStart":
             activity.nodes.push({
-              id: nextId(), toolName: `Agent: ${evt.subagent_id ?? "sub"}`,
-              args: evt.subagent_type ?? "", fullInput: evt.tool_input, fullOutput: null,
-              status: "running", startTime: Date.now(), children: [],
+              id: nextId(),
+              toolName: `Agent: ${evt.subagent_id ?? "sub"}`,
+              args: evt.subagent_type ?? "",
+              fullInput: evt.tool_input,
+              fullOutput: null,
+              status: "running",
+              startTime: Date.now(),
+              children: [],
             });
             break;
 
           case "SubagentStop": {
             const idx = activity.nodes.findLastIndex(
-              (n) => n.toolName.startsWith("Agent:") && n.status === "running",
+              (n) =>
+                n.toolName.startsWith("Agent:") && n.status === "running",
             );
             if (idx >= 0) {
-              activity.nodes[idx] = { ...activity.nodes[idx], status: "completed", endTime: Date.now() };
+              activity.nodes[idx] = {
+                ...activity.nodes[idx],
+                status: "completed",
+                endTime: Date.now(),
+              };
             }
             break;
           }
@@ -447,30 +440,49 @@ export function Dashboard() {
           case "Elicitation":
             activity.state = "stuck";
             activity.nodes.push({
-              id: nextId(), toolName: evt.event, args: evt.tool_name ?? "",
-              fullInput: evt.tool_input, fullOutput: null, status: "running",
-              startTime: Date.now(), children: [],
+              id: nextId(),
+              toolName: evt.event,
+              args: evt.tool_name ?? "",
+              fullInput: evt.tool_input,
+              fullOutput: null,
+              status: "running",
+              startTime: Date.now(),
+              children: [],
             });
             break;
 
-          case "SessionStart": activity.state = "idle"; break;
-          case "SessionEnd": case "Stop": activity.state = "idle"; break;
-          case "TaskCompleted": activity.state = "idle"; break;
+          case "SessionStart":
+            activity.state = "idle";
+            break;
+
+          case "SessionEnd":
+          case "Stop":
+            activity.state = "idle";
+            break;
+
+          case "TaskCompleted":
+            activity.state = "idle";
+            break;
         }
 
+        // Trim to MAX_NODES
         if (activity.nodes.length > MAX_NODES) {
           activity.nodes = activity.nodes.slice(-MAX_NODES);
         }
 
+        // Auto-collapse old completed nodes
         const now = Date.now();
         activity.nodes = activity.nodes.map((n) =>
-          n.status !== "running" && n.endTime && now - n.endTime > AUTO_COLLAPSE_MS
+          n.status !== "running" &&
+          n.endTime &&
+          now - n.endTime > AUTO_COLLAPSE_MS
             ? { ...n, fullInput: undefined, fullOutput: undefined }
             : n,
         );
 
         next.set(agentName, activity);
       }
+
       return next;
     });
   }, []);
@@ -484,8 +496,10 @@ export function Dashboard() {
   // Subscribe to hook events
   useEffect(() => {
     const unsub = subscribe("agent.hook", (wsEvent) => {
-      const d = wsEvent.data as unknown as HookEvent;
-      if (d?.agent) eventBuffer.current.push(d);
+      const data = wsEvent.data as unknown as HookEvent;
+      if (data?.agent) {
+        eventBuffer.current.push(data);
+      }
     });
     return unsub;
   }, [subscribe]);
@@ -493,14 +507,16 @@ export function Dashboard() {
   // Subscribe to state changes
   useEffect(() => {
     const unsub = subscribe("agent.state_changed", (wsEvent) => {
-      const d = wsEvent.data as Record<string, unknown>;
-      const name = d.agent as string;
-      const state = d.state as string;
+      const data = wsEvent.data as Record<string, unknown>;
+      const name = data.agent as string;
+      const state = data.state as string;
       if (name && state) {
         setActivities((prev) => {
           const next = new Map(prev);
           const existing = next.get(name);
-          if (existing) next.set(name, { ...existing, state });
+          if (existing) {
+            next.set(name, { ...existing, state });
+          }
           return next;
         });
       }
@@ -513,50 +529,31 @@ export function Dashboard() {
     setActivities((prev) => {
       const next = new Map(prev);
       const existing = next.get(name);
-      if (existing) next.set(name, { ...existing, collapsed: !existing.collapsed });
+      if (existing) {
+        next.set(name, { ...existing, collapsed: !existing.collapsed });
+      }
       return next;
     });
   }, []);
 
-  // Sort: working first
+  // Sort: working first, then by name
   const sorted = Array.from(activities.values()).sort((a, b) => {
-    const order: Record<string, number> = { working: 0, stuck: 1, idle: 2, stopped: 3, error: 4 };
-    const oa = order[a.state] ?? 5;
-    const ob = order[b.state] ?? 5;
+    const stateOrder: Record<string, number> = {
+      working: 0,
+      stuck: 1,
+      idle: 2,
+      stopped: 3,
+      error: 4,
+    };
+    const oa = stateOrder[a.state] ?? 5;
+    const ob = stateOrder[b.state] ?? 5;
     if (oa !== ob) return oa - ob;
     return a.name.localeCompare(b.name);
   });
 
-  // Loading states
-  if (loading && !data) {
-    return (
-      <div className="p-6 space-y-6">
-        <div className="h-6 w-32 animate-pulse rounded bg-zinc-800/50" />
-        <LoadingSkeleton variant="cards" rows={4} />
-      </div>
-    );
-  }
-  if (timedOut && !data) {
-    return (
-      <div className="p-6">
-        <EmptyState icon="!" title="Dashboard took too long to load"
-          description="The server may be unavailable." actionLabel="Retry" onAction={refresh} />
-      </div>
-    );
-  }
-  if (error && !data) {
-    return (
-      <div className="p-6">
-        <EmptyState icon="!" title="Failed to load dashboard"
-          description={error} actionLabel="Retry" onAction={refresh} />
-      </div>
-    );
-  }
-  if (!data) return null;
-
-  const activeAgents = data.agents.filter((a) => a.state !== "stopped");
-  const workingAgents = data.agents.filter((a) => a.state === "working");
-  const totalTokens = data.agents.reduce((s, a) => s + (a.total_tokens ?? 0), 0);
+  const onlineCount = sorted.filter(
+    (a) => a.state !== "stopped" && a.state !== "error",
+  ).length;
 
   return (
     <div className="min-h-screen bg-[#0a0a0b]">
@@ -565,74 +562,48 @@ export function Dashboard() {
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
             <h1 className="text-[15px] font-semibold text-zinc-200 tracking-tight">
-              Dashboard
+              Activity
             </h1>
-            <span className="text-[11px] text-zinc-600 font-mono">live</span>
+            <span className="text-[11px] text-zinc-600 font-mono">
+              live
+            </span>
           </div>
+
           <div className="flex items-center gap-2">
-            {sorted.filter((a) => a.state !== "stopped").map((a) => (
-              <span key={a.name} className="flex items-center gap-1.5" title={`${a.name}: ${a.state}`}>
-                <StateDot state={a.state} />
-                <span className="text-[11px] text-zinc-500 font-mono hidden sm:inline">{a.name}</span>
-              </span>
-            ))}
+            {sorted
+              .filter((a) => a.state !== "stopped")
+              .map((a) => (
+                <span key={a.name} className="flex items-center gap-1.5" title={a.name}>
+                  <StateDot state={a.state} />
+                  <span className="text-[11px] text-zinc-500 font-mono hidden sm:inline">
+                    {a.name}
+                  </span>
+                </span>
+              ))}
+            <span className="ml-2 text-[11px] text-zinc-600 font-mono tabular-nums">
+              {onlineCount} online
+            </span>
           </div>
         </div>
       </div>
 
-      <div className="p-6 space-y-6 max-w-5xl mx-auto">
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <SummaryCard
-            label="Online"
-            value={String(activeAgents.length)}
-            sub={`${data.agents.length} total`}
-            accent="text-emerald-400"
+      {/* Agent cards */}
+      <div className="p-4 space-y-3 max-w-5xl mx-auto">
+        {sorted.length === 0 && (
+          <div className="text-center py-20">
+            <p className="text-zinc-600 text-sm">No agents detected</p>
+            <p className="text-zinc-700 text-xs mt-1">
+              Start an agent to see live activity
+            </p>
+          </div>
+        )}
+        {sorted.map((activity) => (
+          <AgentCard
+            key={activity.name}
+            activity={activity}
+            onToggle={() => toggleAgent(activity.name)}
           />
-          <SummaryCard
-            label="Working"
-            value={String(workingAgents.length)}
-            accent={workingAgents.length > 0 ? "text-blue-400" : undefined}
-          />
-          <SummaryCard
-            label="Channels"
-            value={String(data.channels.length)}
-          />
-          <SummaryCard
-            label="Tokens"
-            value={totalTokens.toLocaleString()}
-          />
-          <SummaryCard
-            label="Events"
-            value={String(sorted.reduce((s, a) => s + a.nodes.length, 0))}
-            sub="this session"
-          />
-        </div>
-
-        {/* Activity Section */}
-        <section>
-          <h2 className="text-[11px] text-zinc-500 uppercase tracking-wider font-mono mb-3">
-            Live Activity
-          </h2>
-
-          {sorted.length === 0 ? (
-            <EmptyState
-              icon=">"
-              title="No agents detected"
-              description="Start an agent to see live activity"
-            />
-          ) : (
-            <div className="space-y-3">
-              {sorted.map((activity) => (
-                <AgentCard
-                  key={activity.name}
-                  activity={activity}
-                  onToggle={() => toggleAgent(activity.name)}
-                />
-              ))}
-            </div>
-          )}
-        </section>
+        ))}
       </div>
     </div>
   );
