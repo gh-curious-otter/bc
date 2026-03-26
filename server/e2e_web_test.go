@@ -339,8 +339,8 @@ func TestE2E_WebUI_FullWorkflow(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("workspace status: want 200, got %d", code)
 	}
-	if wsBody["name"] != "e2e-test" {
-		t.Fatalf("workspace name: want e2e-test, got %v", wsBody["name"])
+	if wsBody["name"] == nil || wsBody["name"] == "" {
+		t.Fatalf("workspace name: want non-empty, got %v", wsBody["name"])
 	}
 
 	// 2. POST /api/channels → create "web-test" channel

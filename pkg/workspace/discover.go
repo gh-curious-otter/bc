@@ -164,15 +164,10 @@ func scanDir(dir string, maxDepth int, seen map[string]bool, workspaces *[]Disco
 	}
 }
 
-// isV2Workspace checks if a workspace uses v2 (TOML) config.
+// isV2Workspace checks if a workspace uses v2 (JSON) config.
 func isV2Workspace(dir string) bool {
-	// Check settings.toml first, fall back to config.toml (legacy).
-	settingsPath := filepath.Join(dir, ".bc", "settings.toml")
-	if _, err := os.Stat(settingsPath); err == nil {
-		return true
-	}
-	configPath := filepath.Join(dir, ".bc", "config.toml")
-	_, err := os.Stat(configPath)
+	settingsPath := filepath.Join(dir, ".bc", "settings.json")
+	_, err := os.Stat(settingsPath)
 	return err == nil
 }
 

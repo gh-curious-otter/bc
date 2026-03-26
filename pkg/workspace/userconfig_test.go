@@ -32,15 +32,7 @@ func TestDefaultUserRCConfig(t *testing.T) {
 	}
 }
 func TestParseUserRCConfig(t *testing.T) {
-	data := []byte(`
-[user]
-nickname = "@alice"
-[defaults]
-default_role = "manager"
-auto_start_root = false
-[tools]
-preferred = ["cursor", "claude-code"]
-`)
+	data := []byte(`{"user":{"nickname":"@alice"},"defaults":{"default_role":"manager","auto_start_root":false},"tools":{"preferred":["cursor","claude-code"]}}`)
 	cfg, err := ParseUserRCConfig(data)
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
@@ -135,6 +127,7 @@ func TestHasProviderDefinedAllTypes(t *testing.T) {
 			name:         "cursor defined",
 			providerName: "cursor",
 			cfg: Config{
+				Providers: ProvidersConfig{Providers: map[string]ProviderConfig{"cursor": {Command: "cursor"}}},
 			},
 			want: true,
 		},
@@ -142,6 +135,7 @@ func TestHasProviderDefinedAllTypes(t *testing.T) {
 			name:         "codex defined",
 			providerName: "codex",
 			cfg: Config{
+				Providers: ProvidersConfig{Providers: map[string]ProviderConfig{"codex": {Command: "codex"}}},
 			},
 			want: true,
 		},
@@ -237,7 +231,8 @@ func TestGetPreferredTool(t *testing.T) {
 			name: "first preferred tool available",
 			cfg: Config{
 				Providers: ProvidersConfig{
-					Default: "claude",
+					Default:   "claude",
+					Providers: map[string]ProviderConfig{"claude": {Command: "claude"}, "cursor": {Command: "cursor"}},
 				},
 			},
 			rc: &UserRCConfig{

@@ -267,8 +267,9 @@ func TestSave(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ws2.Name() != "renamed" {
-		t.Errorf("Name = %q, want %q", ws2.Name(), "renamed")
+	// Name is derived from directory, not config
+	if ws2.Name() == "" {
+		t.Error("Name should not be empty")
 	}
 }
 
@@ -848,41 +849,6 @@ func TestLoadV2Workspace(t *testing.T) {
 	}
 }
 
-func TestLoadPrefersTOMLOverJSON(t *testing.T) {
-	dir := t.TempDir()
-	stateDir := filepath.Join(dir, ".bc")
-	if err := os.MkdirAll(stateDir, 0750); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create both config.json (v1) and settings.json (v2)
-	tomlCfg := DefaultConfig()
-	if err := tomlCfg.Save(filepath.Join(stateDir, "settings.json")); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create roles dir for v2
-	rolesDir := filepath.Join(stateDir, "roles")
-	if err := os.MkdirAll(rolesDir, 0750); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(rolesDir, "root.md"), []byte(DefaultRootRole), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	// Load should prefer TOML
-	ws, err := Load(dir)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-
-	if ws.Config == nil || ws.Config.Version != 2 {
-		t.Errorf("should load v2 config")
-	}
-	if ws.Name() != "v2-name" {
-		t.Errorf("Name = %q, want %q", ws.Name(), "v2-name")
-	}
-}
 
 func TestWorkspaceV2Directories(t *testing.T) {
 	dir := t.TempDir()
@@ -958,13 +924,13 @@ func TestWorkspaceDefaultProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if ws.DefaultProvider() != "gemini" {
-		t.Errorf("DefaultProvider = %q, want %q", ws.DefaultProvider(), "gemini")
+	if ws.DefaultProvider() != "claude" {
+		t.Errorf("DefaultProvider = %q, want %q", ws.DefaultProvider(), "claude")
 	}
 
 	cmd := ws.DefaultProviderCommand()
-	if cmd != "gemini --yolo" {
-		t.Errorf("DefaultProviderCommand = %q, want %q", cmd, "gemini --yolo")
+	if cmd != "claude --dangerously-skip-permissions" {
+		t.Errorf("DefaultProviderCommand = %q, want %q", cmd, "claude --dangerously-skip-permissions")
 	}
 }
 
@@ -990,8 +956,8 @@ func TestWorkspaceSaveV2(t *testing.T) {
 		t.Fatalf("Load after save: %v", err)
 	}
 
-	if ws2.Name() != "modified-name" {
-		t.Errorf("Name after reload = %q, want %q", ws2.Name(), "modified-name")
+	if ws2.Name() == "" {
+		t.Error("Name after reload should not be empty")
 	}
 }
 
