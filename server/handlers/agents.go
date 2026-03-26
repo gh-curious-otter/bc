@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/cost"
-	"github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/server/ws"
+	"github.com/gh-curious-otter/bc/pkg/agent"
+	"github.com/gh-curious-otter/bc/pkg/cost"
+	"github.com/gh-curious-otter/bc/pkg/events"
+	"github.com/gh-curious-otter/bc/pkg/workspace"
+	"github.com/gh-curious-otter/bc/server/ws"
 )
 
 // AgentHandler handles /api/agents routes.
@@ -286,22 +286,13 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 
-		// Publish the full hook event via SSE for web UI
+		// Publish raw hook JSON via SSE for web UI — same format as event log.
 		if h.hub != nil {
-			h.hub.Publish("agent.hook", map[string]any{
-				"agent":         name,
-				"event":         string(payload.Event),
-				"state":         string(targetState),
-				"task":          task,
-				"tool_name":     payload.ToolName,
-				"command":       payload.Command,
-				"error":         payload.Error,
-				"subagent_id":   payload.SubagentID,
-				"subagent_type": payload.SubagentType,
-				"channel":       payload.Channel,
-				"sender":        payload.Sender,
-				"message":       payload.Message,
-			})
+			var raw map[string]any
+			if err := json.Unmarshal(rawBody, &raw); err == nil {
+				raw["agent"] = name
+				h.hub.Publish("agent.hook", raw)
+			}
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
