@@ -314,22 +314,13 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 
-		// Publish the full hook event via SSE for web UI
+		// Publish raw hook JSON via SSE for web UI — same format as event log.
 		if h.hub != nil {
-			h.hub.Publish("agent.hook", map[string]any{
-				"agent":         name,
-				"event":         string(payload.Event),
-				"state":         string(targetState),
-				"task":          task,
-				"tool_name":     payload.ToolName,
-				"command":       payload.Command,
-				"error":         payload.Error,
-				"subagent_id":   payload.SubagentID,
-				"subagent_type": payload.SubagentType,
-				"channel":       payload.Channel,
-				"sender":        payload.Sender,
-				"message":       payload.Message,
-			})
+			var raw map[string]any
+			if err := json.Unmarshal(rawBody, &raw); err == nil {
+				raw["agent"] = name
+				h.hub.Publish("agent.hook", raw)
+			}
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
