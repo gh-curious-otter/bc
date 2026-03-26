@@ -2189,30 +2189,14 @@ func bcdAddrForRuntime(rt string) string {
 	return "http://127.0.0.1:9374"
 }
 
-// injectEnv merges layered environment variables into the env map.
-// Priority (highest wins): agent env file > provider env > workspace env.
-func injectEnv(env map[string]string, workspacePath, toolName, envFile string) {
-	// 1. Workspace [env] (lowest priority)
-	ws, err := workspace.Load(workspacePath)
-	if err == nil && ws.Config != nil {
-		for k, v := range ws.Config.Env {
-			env[k] = v
-		}
-		// 2. Provider-specific env
-		if toolName != "" {
-			if p := ws.Config.GetProvider(toolName); p != nil {
-				for k, v := range p.Env {
-					env[k] = v
-				}
-			}
-		}
-	}
-	// 3. Agent env file (highest priority)
+// injectEnv merges environment variables from the agent env file
+// and resolves ${secret:NAME} references.
+func injectEnv(env map[string]string, workspacePath, _, envFile string) {
+	// Agent env file
 	if envFile != "" {
 		parseEnvFile(env, envFile)
 	}
-
-	// 4. Resolve ${secret:NAME} references in all env values
+	// Resolve ${secret:NAME} references in all env values
 	resolveSecretRefs(env, workspacePath)
 }
 

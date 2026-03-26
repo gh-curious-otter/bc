@@ -43,18 +43,8 @@ func newE2EServerWithWebUI(t *testing.T) *e2eServer {
 		t.Fatal(err)
 	}
 
-	cfg := `[workspace]
-name = "e2e-web-test"
-version = 2
-
-[providers]
-default = "gemini"
-
-[providers.gemini]
-command = "echo test"
-enabled = true
-`
-	if err := os.WriteFile(filepath.Join(bcDir, "settings.toml"), []byte(cfg), 0600); err != nil {
+	cfg := `{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`
+	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte(cfg), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -349,8 +339,8 @@ func TestE2E_WebUI_FullWorkflow(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("workspace status: want 200, got %d", code)
 	}
-	if wsBody["name"] != "e2e-test" {
-		t.Fatalf("workspace name: want e2e-test, got %v", wsBody["name"])
+	if wsBody["name"] == nil || wsBody["name"] == "" {
+		t.Fatalf("workspace name: want non-empty, got %v", wsBody["name"])
 	}
 
 	// 2. POST /api/channels → create "web-test" channel

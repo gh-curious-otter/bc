@@ -51,18 +51,8 @@ func newE2EServer(t *testing.T) *e2eServer {
 	}
 
 	// Write minimal valid workspace config
-	cfg := `[workspace]
-name = "e2e-test"
-version = 2
-
-[providers]
-default = "gemini"
-
-[providers.gemini]
-command = "echo test"
-enabled = true
-`
-	if err := os.WriteFile(filepath.Join(bcDir, "settings.toml"), []byte(cfg), 0600); err != nil {
+	cfg := `{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`
+	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte(cfg), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -448,8 +438,8 @@ func TestE2E_Workspace_Status(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("want 200, got %d", code)
 	}
-	if body["name"] != "e2e-test" {
-		t.Fatalf("want name=e2e-test, got %v", body["name"])
+	if body["name"] == nil || body["name"] == "" {
+		t.Fatalf("want non-empty name, got %v", body["name"])
 	}
 }
 
@@ -546,28 +536,27 @@ func TestE2E_MCP_SSE_ContentType(t *testing.T) {
 func TestE2E_Settings_PatchUser(t *testing.T) {
 	s := newE2EServer(t)
 
-	code, body := s.patchJSON(t, "/api/settings/user", map[string]string{
-		"Nickname": "@test",
+	code, body := s.patchJSON(t, "/api/settings", map[string]any{
+		"user": map[string]string{"name": "test"},
 	})
 	if code != 200 {
 		t.Fatalf("want 200, got %d: %v", code, body)
 	}
 
-	// The response is the full config — check user section
-	userRaw, ok := body["User"].(map[string]any)
+	userRaw, ok := body["user"].(map[string]any)
 	if !ok {
-		t.Fatalf("expected User section in response, got %v", body)
+		t.Fatalf("expected user section in response, got %v", body)
 	}
-	if userRaw["Nickname"] != "@test" {
-		t.Fatalf("want Nickname=@test, got %v", userRaw["Nickname"])
+	if userRaw["name"] != "test" {
+		t.Fatalf("want name=test, got %v", userRaw["name"])
 	}
 }
 
 func TestE2E_Settings_PatchUnknownSection(t *testing.T) {
 	s := newE2EServer(t)
 
-	code, body := s.patchJSON(t, "/api/settings/nonexistent", map[string]string{
-		"foo": "bar",
+	code, body := s.patchJSON(t, "/api/settings", map[string]any{
+		"nonexistent": map[string]string{"foo": "bar"},
 	})
 	if code != 400 {
 		t.Fatalf("want 400, got %d: %v", code, body)

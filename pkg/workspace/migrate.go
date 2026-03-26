@@ -28,7 +28,7 @@ type V1Config struct {
 type MigrateResult struct {
 	BackupPath     string // Path to backup of old .bc directory
 	AgentFiles     int    // Number of agent state files migrated
-	ConfigMigrated bool   // Whether config.json → settings.toml migration ran
+	ConfigMigrated bool   // Whether config.json → settings.json migration ran
 	ChannelJSON    bool   // Whether channels.json was migrated to SQLite
 }
 
@@ -61,7 +61,7 @@ func LoadV1Config(rootDir string) (*V1Config, error) {
 // Steps performed:
 //  1. Read .bc/config.json
 //  2. Write .bc/config.json.bak (backup)
-//  3. Convert and write .bc/settings.toml (v2 format)
+//  3. Convert and write .bc/settings.json (v2 format)
 //
 // Agent JSON→SQLite and channel JSON→SQLite migrations happen automatically
 // the next time those stores are opened (existing auto-migration in pkg/agent
@@ -101,57 +101,41 @@ func MigrateV1ToV2(rootDir string) (*MigrateResult, error) {
 	if name == "" {
 		name = filepath.Base(absRoot)
 	}
-	v2cfg := DefaultConfig(name)
+	v2cfg := DefaultConfig()
 
 	if v1cfg.Nickname != "" {
 		normalized, err := NormalizeNickname(v1cfg.Nickname)
 		if err == nil {
-			v2cfg.User.Nickname = normalized
+			v2cfg.User.Name = normalized
 		}
 	}
 
 	if v1cfg.Runtime != "" {
-		v2cfg.Runtime.Backend = v1cfg.Runtime
+		v2cfg.Runtime.Default = v1cfg.Runtime
 	}
 
 	// Map v1 provider → v2 ProviderConfig entries.
-	// v1 stored provider commands either in the top-level Command field
-	// (for the default provider) or in the Providers map.
 	providerCmds := buildProviderMap(v1cfg)
 	if len(providerCmds) > 0 {
-		// Set the default provider
 		defaultProv := strings.ToLower(v1cfg.Provider)
 		if defaultProv == "" {
 			defaultProv = firstKey(providerCmds)
 		}
 		v2cfg.Providers.Default = defaultProv
 
+		if v2cfg.Providers.Providers == nil {
+			v2cfg.Providers.Providers = make(map[string]ProviderConfig)
+		}
 		for prov, cmd := range providerCmds {
-			pc := &ProviderConfig{Command: cmd, Enabled: true}
-			switch strings.ToLower(prov) {
-			case "claude":
-				v2cfg.Providers.Claude = pc
-			case "gemini":
-				v2cfg.Providers.Gemini = pc
-			case "cursor":
-				v2cfg.Providers.Cursor = pc
-			case "codex":
-				v2cfg.Providers.Codex = pc
-			case "aider":
-				v2cfg.Providers.Aider = pc
-			case "opencode":
-				v2cfg.Providers.OpenCode = pc
-			case "openclaw":
-				v2cfg.Providers.OpenClaw = pc
-			}
+			v2cfg.Providers.Providers[strings.ToLower(prov)] = ProviderConfig{Command: cmd}
 		}
 	}
 
-	// ── 3. Write settings.toml ─────────────────────────────────────────────────
+	// ── 3. Write settings.json ─────────────────────────────────────────────────
 
-	tomlPath := filepath.Join(stateDir, "settings.toml")
-	if err := v2cfg.Save(tomlPath); err != nil {
-		return nil, fmt.Errorf("write settings.toml: %w", err)
+	jsonPath := filepath.Join(stateDir, "settings.json")
+	if err := v2cfg.Save(jsonPath); err != nil {
+		return nil, fmt.Errorf("write settings.json: %w", err)
 	}
 	result.ConfigMigrated = true
 

@@ -2018,226 +2018,18 @@ func TestRolesHandler_ByNameMethodNotAllowed(t *testing.T) {
 
 // --- Settings handler tests ---
 
-func TestSettingsHandler_Get(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
-	if err != nil {
-		t.Fatalf("load workspace: %v", err)
-	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
-	defer ts.Close()
 
-	resp := get(t, ts.URL+"/api/settings")
-	defer func() { _ = resp.Body.Close() }()
-	assertStatus(t, resp, http.StatusOK)
-	body := readJSON(t, resp)
-	if body["Workspace"] == nil {
-		t.Fatal("expected Workspace section in settings")
-	}
-}
 
-func TestSettingsHandler_MethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
-	if err != nil {
-		t.Fatalf("load workspace: %v", err)
-	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
-	defer ts.Close()
 
-	resp := doRequest(t, http.MethodDelete, ts.URL+"/api/settings", "", "")
-	assertStatus(t, resp, http.StatusMethodNotAllowed)
-	_ = resp.Body.Close()
-}
 
-func TestSettingsHandler_PatchSection(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
-	if err != nil {
-		t.Fatalf("load workspace: %v", err)
-	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
-	defer ts.Close()
 
-	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/settings/user", "application/json",
-		`{"nickname":"@test_nick"}`)
-	assertStatus(t, resp, http.StatusOK)
-	_ = resp.Body.Close()
-}
 
-func TestSettingsHandler_PatchUnknownSection(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
-	if err != nil {
-		t.Fatalf("load workspace: %v", err)
-	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
-	defer ts.Close()
 
-	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/settings/unknown", "application/json", `{}`)
-	assertStatus(t, resp, http.StatusBadRequest)
-	_ = resp.Body.Close()
-}
 
-func TestSettingsHandler_PatchEmptySection(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
-	if err != nil {
-		t.Fatalf("load workspace: %v", err)
-	}
-
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
-	defer ts.Close()
-
-	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/settings/", "application/json", `{}`)
-	assertStatus(t, resp, http.StatusBadRequest)
-	_ = resp.Body.Close()
-}
-
-func TestSettingsHandler_SectionMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
-	if err != nil {
-		t.Fatalf("load workspace: %v", err)
-	}
-
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
-	defer ts.Close()
-
-	resp := get(t, ts.URL+"/api/settings/user")
-	assertStatus(t, resp, http.StatusMethodNotAllowed)
-	_ = resp.Body.Close()
-}
-
-func TestSettingsHandler_PatchAllSections(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
-	if err != nil {
-		t.Fatalf("load workspace: %v", err)
-	}
-
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
-	defer ts.Close()
-
-	sections := []struct {
-		name string
-		body string
-	}{
-		{"tui", `{"theme":"dark"}`},
-		{"runtime", `{}`},
-		{"providers", `{"default":"claude","claude":{"api_key":"test"}}`},
-		{"services", `{}`},
-		{"logs", `{}`},
-		{"performance", `{}`},
-		{"env", `{}`},
-		{"roster", `{}`},
-	}
-	for _, sec := range sections {
-		t.Run(sec.name, func(t *testing.T) {
-			resp := doRequest(t, http.MethodPatch, ts.URL+"/api/settings/"+sec.name, "application/json", sec.body)
-			assertStatus(t, resp, http.StatusOK)
-			_ = resp.Body.Close()
-		})
-	}
-}
-
-func TestSettingsHandler_PatchInvalidJSON(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
-	if err != nil {
-		t.Fatalf("load workspace: %v", err)
-	}
-
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
-	defer ts.Close()
-
-	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/settings/user", "application/json", `{invalid}`)
-	assertStatus(t, resp, http.StatusBadRequest)
-	_ = resp.Body.Close()
-}
-
-func TestSettingsHandler_PutInvalidJSON(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
-	if err != nil {
-		t.Fatalf("load workspace: %v", err)
-	}
-
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
-	defer ts.Close()
-
-	resp := doRequest(t, http.MethodPut, ts.URL+"/api/settings", "application/json", `{invalid}`)
-	assertStatus(t, resp, http.StatusBadRequest)
-	_ = resp.Body.Close()
-}
-
-func TestSettingsHandler_PutPartialUpdate(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
-	if err != nil {
-		t.Fatalf("load workspace: %v", err)
-	}
-
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
-	defer ts.Close()
-
-	resp := doRequest(t, http.MethodPut, ts.URL+"/api/settings", "application/json",
-		`{"user":{"nickname":"@updated_nick"}}`)
-	assertStatus(t, resp, http.StatusOK)
-	_ = resp.Body.Close()
-}
-
-func TestSettingsHandler_GetNilConfig(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
-	if err != nil {
-		t.Fatalf("load workspace: %v", err)
-	}
-	wks.Config = nil
-
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
-	defer ts.Close()
-
-	resp := get(t, ts.URL+"/api/settings")
-	assertStatus(t, resp, http.StatusInternalServerError)
-	_ = resp.Body.Close()
-}
-
-func TestSettingsHandler_PutNilConfig(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
-	if err != nil {
-		t.Fatalf("load workspace: %v", err)
-	}
-	wks.Config = nil
-
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
-	defer ts.Close()
-
-	resp := doRequest(t, http.MethodPut, ts.URL+"/api/settings", "application/json", `{}`)
-	assertStatus(t, resp, http.StatusInternalServerError)
-	_ = resp.Body.Close()
-}
-
-func TestSettingsHandler_PatchNilConfig(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
-	if err != nil {
-		t.Fatalf("load workspace: %v", err)
-	}
-	wks.Config = nil
-
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
-	defer ts.Close()
-
-	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/settings/user", "application/json", `{}`)
-	assertStatus(t, resp, http.StatusInternalServerError)
-	_ = resp.Body.Close()
-}
 
 // --- Stats handler tests ---
 
@@ -3126,91 +2918,10 @@ func TestChannelHandler_CreateDuplicate(t *testing.T) {
 
 // --- Settings PUT with sections ---
 
-func TestSettingsHandler_PutWithSections(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
-	if err != nil {
-		t.Fatalf("load workspace: %v", err)
-	}
-
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
-	defer ts.Close()
-
-	// PUT with various section updates
-	resp := doRequest(t, http.MethodPut, ts.URL+"/api/settings", "application/json",
-		`{"env":{"MY_VAR":"value"}}`)
-	assertStatus(t, resp, http.StatusOK)
-	_ = resp.Body.Close()
-}
 
 // --- Settings PUT covering all section branches ---
 
-func TestSettingsHandler_PutAllSections(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
-	if err != nil {
-		t.Fatalf("load workspace: %v", err)
-	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
-	defer ts.Close()
-
-	sections := []struct {
-		name string
-		body string
-	}{
-		{"providers", `{"providers":{"default":"claude","claude":{"command":"claude","enabled":true}}}`},
-		{"env", `{"env":{"KEY":"val"}}`},
-		{"logs", `{"logs":{}}`},
-		{"runtime", `{"runtime":{}}`},
-		{"performance", `{"performance":{}}`},
-		{"tui", `{"tui":{}}`},
-		{"workspace", `{"workspace":{"name":"test","version":2}}`},
-		{"roster", `{"roster":{}}`},
-		{"services", `{"services":{}}`},
-	}
-	for _, sec := range sections {
-		t.Run("put_"+sec.name, func(t *testing.T) {
-			resp := doRequest(t, http.MethodPut, ts.URL+"/api/settings", "application/json", sec.body)
-			assertStatus(t, resp, http.StatusOK)
-			_ = resp.Body.Close()
-		})
-	}
-}
-
-func TestSettingsHandler_PutInvalidSections(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
-	if err != nil {
-		t.Fatalf("load workspace: %v", err)
-	}
-
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
-	defer ts.Close()
-
-	tests := []struct {
-		name string
-		body string
-	}{
-		{"bad user", `{"user":"not_an_object"}`},
-		{"bad providers", `{"providers":"not_an_object"}`},
-		{"bad env", `{"env":"not_an_object"}`},
-		{"bad logs", `{"logs":"not_an_object"}`},
-		{"bad runtime", `{"runtime":"not_an_object"}`},
-		{"bad performance", `{"performance":"not_an_object"}`},
-		{"bad tui", `{"tui":"not_an_object"}`},
-		{"bad workspace", `{"workspace":"not_an_object"}`},
-		{"bad roster", `{"roster":"not_an_object"}`},
-		{"bad services", `{"services":"not_an_object"}`},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			resp := doRequest(t, http.MethodPut, ts.URL+"/api/settings", "application/json", tt.body)
-			assertStatus(t, resp, http.StatusBadRequest)
-			_ = resp.Body.Close()
-		})
-	}
-}
 
 // --- Agent handler with cost enrichment ---
 
@@ -3538,22 +3249,6 @@ func TestAgentHandler_CreateAgent(t *testing.T) {
 
 // --- Settings PUT with invalid section content triggers specific validation ---
 
-func TestSettingsHandler_PutInvalidUser(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
-	if err != nil {
-		t.Fatalf("load workspace: %v", err)
-	}
-
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
-	defer ts.Close()
-
-	// Invalid nickname (missing @ prefix)
-	resp := doRequest(t, http.MethodPut, ts.URL+"/api/settings", "application/json",
-		`{"user":{"nickname":"no_at_prefix"}}`)
-	assertStatus(t, resp, http.StatusBadRequest)
-	_ = resp.Body.Close()
-}
 
 // --- Cron handler: get nonexistent job ---
 

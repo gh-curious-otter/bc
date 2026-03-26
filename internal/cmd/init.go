@@ -32,7 +32,7 @@ This creates a .bc directory with v2 configuration for managing agents.
 
 v2 workspace structure:
   .bc/
-    settings.toml  # Workspace configuration
+    settings.json  # Workspace configuration
     roles/         # Agent role definitions
       root.md      # Root agent role
     agents/        # Per-agent state files
@@ -61,9 +61,9 @@ func isV1Workspace(dir string) bool {
 	return err == nil
 }
 
-// isV2Workspace checks if a directory has a v2 workspace (settings.toml or config.toml).
+// isV2Workspace checks if a directory has a v2 workspace (settings.json or config.toml).
 func isV2Workspace(dir string) bool {
-	if _, err := os.Stat(filepath.Join(dir, ".bc", "settings.toml")); err == nil {
+	if _, err := os.Stat(filepath.Join(dir, ".bc", "settings.json")); err == nil {
 		return true
 	}
 	configPath := filepath.Join(dir, ".bc", "config.toml")
@@ -140,7 +140,7 @@ func initV2Workspace(rootDir string) error {
 
 	// Create and save v2 config
 	name := filepath.Base(rootDir)
-	cfg := workspace.DefaultConfig(name)
+	cfg := workspace.DefaultConfig()
 	configPath := workspace.ConfigPath(rootDir)
 
 	if err := cfg.Save(configPath); err != nil {
@@ -172,7 +172,7 @@ func initV2Workspace(rootDir string) error {
 	fmt.Printf("Initialized bc v2 workspace in %s\n", rootDir)
 	fmt.Printf("\n")
 	fmt.Printf("  Created:\n")
-	fmt.Printf("    .bc/settings.toml   # Workspace configuration\n")
+	fmt.Printf("    .bc/settings.json   # Workspace configuration\n")
 	fmt.Printf("    .bc/agents/         # Agent state directory\n")
 	fmt.Printf("    .bc/roles/          # Role definitions\n")
 	if created {
@@ -212,7 +212,7 @@ func createDefaultChannels(rootDir string, agentNames []string) {
 }
 
 // getWorkspace finds the current workspace.
-// Supports both v1 (config.json) and v2 (settings.toml) workspaces.
+// Supports both v1 (config.json) and v2 (settings.json) workspaces.
 // Checks BC_WORKSPACE env var first (for agents in worktrees), then walks up directory tree.
 func getWorkspace() (*workspace.Workspace, error) {
 	// Check BC_WORKSPACE first (agents set this to point to main workspace)
@@ -316,7 +316,7 @@ func runInitInteractive(_ *cobra.Command, dir string) error {
 func promptNickname() (string, error) {
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Printf("  Your nickname [%s]: ", workspace.DefaultNickname)
+	fmt.Printf("  Your nickname [%s]: ", "@bc")
 	input, err := reader.ReadString('\n')
 	if err != nil {
 		return "", fmt.Errorf("failed to read input: %w", err)
@@ -329,8 +329,8 @@ func promptNickname() (string, error) {
 	if err != nil {
 		// Show helpful error
 		fmt.Printf("  %s\n", ui.RedText(fmt.Sprintf("Error: %s", err)))
-		fmt.Printf("  Using default: %s\n", workspace.DefaultNickname)
-		return workspace.DefaultNickname, nil
+		fmt.Printf("  Using default: %s\n", "@bc")
+		return "@bc", nil
 	}
 
 	// Show auto-correction if @ was added
@@ -358,8 +358,8 @@ func initV2WorkspaceWithNickname(rootDir string, nickname string) error {
 
 	// Create and save v2 config with nickname
 	name := filepath.Base(rootDir)
-	cfg := workspace.DefaultConfig(name)
-	cfg.User.Nickname = nickname
+	cfg := workspace.DefaultConfig()
+	cfg.User.Name = nickname
 	configPath := workspace.ConfigPath(rootDir)
 
 	if err := cfg.Save(configPath); err != nil {
@@ -393,7 +393,7 @@ func initV2WorkspaceWithNickname(rootDir string, nickname string) error {
 	fmt.Printf("  %s Nickname set to %s\n", ui.GreenText("✓"), nickname)
 	fmt.Println()
 	fmt.Println("  Created:")
-	fmt.Println("    .bc/settings.toml   # Workspace configuration")
+	fmt.Println("    .bc/settings.json   # Workspace configuration")
 	fmt.Println("    .bc/agents/         # Agent state directory")
 	fmt.Println("    .bc/roles/          # Role definitions")
 	if created {

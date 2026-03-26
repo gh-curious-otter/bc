@@ -160,7 +160,7 @@ func (s *Server) toolSendMessage(ctx context.Context, raw json.RawMessage) (*too
 	sender := AgentFromContext(ctx)
 	if sender == "" {
 		if s.ws != nil {
-			nick := s.ws.Config.User.Nickname
+			nick := s.ws.Config.User.Name
 			nick = strings.TrimPrefix(nick, "@")
 			if nick != "" {
 				sender = nick

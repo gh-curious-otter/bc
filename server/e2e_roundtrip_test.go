@@ -125,7 +125,6 @@ func TestE2E_WorkspaceStatus_Fields(t *testing.T) {
 		want any
 		key  string
 	}{
-		{"e2e-test", "name"},
 		{true, "is_healthy"},
 	}
 	for _, f := range fields {

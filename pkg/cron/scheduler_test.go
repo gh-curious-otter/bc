@@ -2,6 +2,7 @@ package cron
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -50,12 +51,12 @@ func TestScheduler_EnabledJobGetExecuted(t *testing.T) {
 	var mu sync.Mutex
 	var execCalls []string
 
-	sched := NewScheduler(store)
-	sched.execFn = func(_ context.Context, command string) (string, error) {
+	sched := NewScheduler(store, t.TempDir())
+	sched.execFn = func(_ context.Context, command string, _ io.Writer) error {
 		mu.Lock()
 		execCalls = append(execCalls, command)
 		mu.Unlock()
-		return "ok", nil
+		return nil
 	}
 
 	// Run a single tick.
@@ -107,12 +108,12 @@ func TestScheduler_DisabledJobsSkipped(t *testing.T) {
 	var mu sync.Mutex
 	var execCalls []string
 
-	sched := NewScheduler(store)
-	sched.execFn = func(_ context.Context, command string) (string, error) {
+	sched := NewScheduler(store, t.TempDir())
+	sched.execFn = func(_ context.Context, command string, _ io.Writer) error {
 		mu.Lock()
 		execCalls = append(execCalls, command)
 		mu.Unlock()
-		return "", nil
+		return nil
 	}
 
 	sched.tick(ctx)
@@ -143,12 +144,12 @@ func TestScheduler_FutureNextRunSkipped(t *testing.T) {
 	var mu sync.Mutex
 	var execCalls []string
 
-	sched := NewScheduler(store)
-	sched.execFn = func(_ context.Context, command string) (string, error) {
+	sched := NewScheduler(store, t.TempDir())
+	sched.execFn = func(_ context.Context, command string, _ io.Writer) error {
 		mu.Lock()
 		execCalls = append(execCalls, command)
 		mu.Unlock()
-		return "", nil
+		return nil
 	}
 
 	sched.tick(ctx)
@@ -164,7 +165,7 @@ func TestScheduler_ContextCancellation(t *testing.T) {
 	store := openTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 
-	sched := NewScheduler(store)
+	sched := NewScheduler(store, t.TempDir())
 	sched.interval = 10 * time.Millisecond
 
 	done := make(chan struct{})

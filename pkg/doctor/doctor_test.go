@@ -185,9 +185,9 @@ func TestCheckWorkspace_ValidStructure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create a valid settings.toml
-	cfg := workspace.DefaultConfig("test-ws")
-	configPath := filepath.Join(stateDir, "settings.toml")
+	// Create a valid settings.json
+	cfg := workspace.DefaultConfig()
+	configPath := filepath.Join(stateDir, "settings.json")
 	if err := cfg.Save(configPath); err != nil {
 		t.Fatal(err)
 	}
@@ -222,8 +222,8 @@ func TestCheckWorkspace_MissingRoles(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(stateDir, "agents"), 0750); err != nil {
 		t.Fatal(err)
 	}
-	cfg := workspace.DefaultConfig("test-ws")
-	configPath := filepath.Join(stateDir, "settings.toml")
+	cfg := workspace.DefaultConfig()
+	configPath := filepath.Join(stateDir, "settings.json")
 	if err := cfg.Save(configPath); err != nil {
 		t.Fatal(err)
 	}
@@ -253,8 +253,8 @@ func TestCheckWorkspace_EmptyRoles(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(stateDir, "agents"), 0750); err != nil {
 		t.Fatal(err)
 	}
-	cfg := workspace.DefaultConfig("test-ws")
-	configPath := filepath.Join(stateDir, "settings.toml")
+	cfg := workspace.DefaultConfig()
+	configPath := filepath.Join(stateDir, "settings.json")
 	if err := cfg.Save(configPath); err != nil {
 		t.Fatal(err)
 	}
@@ -282,10 +282,8 @@ func TestCheckWorkspace_InvalidConfig(t *testing.T) {
 	}
 
 	// Write an invalid config (missing required workspace.name)
-	configPath := filepath.Join(stateDir, "settings.toml")
-	if err := os.WriteFile(configPath, []byte(`[workspace]
-version = 2
-`), 0600); err != nil {
+	configPath := filepath.Join(stateDir, "settings.json")
+	if err := os.WriteFile(configPath, []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	// Load the bad config directly into ws
@@ -296,12 +294,12 @@ version = 2
 
 	var foundConfigFail bool
 	for _, item := range cat.Items {
-		if item.Name == "settings.toml" && item.Severity == SeverityFail {
+		if item.Name == "settings.json" && item.Severity == SeverityFail {
 			foundConfigFail = true
 		}
 	}
 	if !foundConfigFail {
-		t.Error("expected a fail item for invalid settings.toml")
+		t.Error("expected a fail item for invalid settings.json")
 	}
 }
 
@@ -584,8 +582,8 @@ func TestFix_DryRun_NoChanges(t *testing.T) {
 	if err := os.MkdirAll(stateDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	cfg := workspace.DefaultConfig("test-ws")
-	configPath := filepath.Join(stateDir, "settings.toml")
+	cfg := workspace.DefaultConfig()
+	configPath := filepath.Join(stateDir, "settings.json")
 	if err := cfg.Save(configPath); err != nil {
 		t.Fatal(err)
 	}
@@ -626,8 +624,8 @@ func TestFix_WorkspaceDir_Creates(t *testing.T) {
 	if err := os.MkdirAll(stateDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	cfg := workspace.DefaultConfig("test-ws")
-	configPath := filepath.Join(stateDir, "settings.toml")
+	cfg := workspace.DefaultConfig()
+	configPath := filepath.Join(stateDir, "settings.json")
 	if err := cfg.Save(configPath); err != nil {
 		t.Fatal(err)
 	}

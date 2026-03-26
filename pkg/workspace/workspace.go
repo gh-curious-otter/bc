@@ -1,7 +1,7 @@
 // Package workspace provides workspace and project management for bc.
 //
 // A workspace represents a project directory containing bc configuration
-// and agent state in .bc/settings.toml.
+// and agent state in .bc/settings.json.
 //
 // # Basic Usage
 //
@@ -71,9 +71,9 @@ func Init(rootDir string) (*Workspace, error) {
 		log.Warn("failed to copy default prompts", "error", cpErr)
 	}
 
-	cfg := DefaultConfig(filepath.Base(absRoot))
+	cfg := DefaultConfig()
 
-	configPath := filepath.Join(stateDir, "settings.toml")
+	configPath := filepath.Join(stateDir, "settings.json")
 	if saveErr := cfg.Save(configPath); saveErr != nil {
 		return nil, fmt.Errorf("failed to save config: %w", saveErr)
 	}
@@ -92,7 +92,7 @@ func Init(rootDir string) (*Workspace, error) {
 }
 
 // Load loads a workspace from a directory.
-// If only a v1 config.json exists (no settings.toml), Load returns an error
+// If only a v1 config.json exists (no settings.json), Load returns an error
 // wrapping ErrNotV1Workspace so callers can suggest migration.
 func Load(rootDir string) (*Workspace, error) {
 	absRoot, err := filepath.Abs(rootDir)
@@ -102,39 +102,25 @@ func Load(rootDir string) (*Workspace, error) {
 
 	stateDir := filepath.Join(absRoot, ".bc")
 
-	// Check for settings.toml first, fall back to config.toml for migration.
-	tomlPath := filepath.Join(stateDir, "settings.toml")
-	if _, statErr := os.Stat(tomlPath); statErr != nil {
-		// No settings.toml — check for config.toml and auto-migrate.
-		oldPath := filepath.Join(stateDir, "config.toml")
-		if _, oldErr := os.Stat(oldPath); oldErr == nil {
-			if renameErr := os.Rename(oldPath, tomlPath); renameErr != nil {
-				return nil, fmt.Errorf("failed to rename config.toml to settings.toml: %w", renameErr)
-			}
-			log.Info("migrated config.toml → settings.toml", "path", tomlPath)
-		} else {
-			// No settings.toml or config.toml — check for v1 workspace.
-			if _, v1Err := os.Stat(filepath.Join(stateDir, "config.json")); v1Err == nil {
-				return nil, fmt.Errorf("%w: run 'bc workspace migrate' to upgrade", ErrNotV1Workspace)
-			}
-			return nil, fmt.Errorf("not a bc workspace (no .bc/settings.toml found in %s)", absRoot)
+	// Load settings.json.
+	jsonPath := filepath.Join(stateDir, "settings.json")
+	if _, statErr := os.Stat(jsonPath); statErr != nil {
+		// Check for v1 workspace.
+		if _, v1Err := os.Stat(filepath.Join(stateDir, "config.json")); v1Err == nil {
+			return nil, fmt.Errorf("%w: run 'bc workspace migrate' to upgrade", ErrNotV1Workspace)
 		}
+		return nil, fmt.Errorf("not a bc workspace (no .bc/settings.json found in %s)", absRoot)
 	}
 
-	cfg, loadErr := LoadConfig(tomlPath)
+	cfg, loadErr := LoadConfig(jsonPath)
 	if loadErr != nil {
-		return nil, fmt.Errorf("failed to load settings.toml: %w", loadErr)
+		return nil, fmt.Errorf("failed to load settings.json: %w", loadErr)
 	}
 
-	// Backward-compatible version handling: if a settings.toml has version < 2
-	// (written by an older bc release), bump and rewrite it automatically.
-	if cfg.Workspace.Version > 0 && cfg.Workspace.Version < ConfigVersion {
-		cfg.Workspace.Version = ConfigVersion
-		_ = cfg.Save(tomlPath) // best-effort; don't block Load on write error
-	}
+	cfg.FillDefaults()
 
 	if valErr := cfg.Validate(); valErr != nil {
-		return nil, fmt.Errorf("invalid settings.toml: %w", valErr)
+		return nil, fmt.Errorf("invalid settings.json: %w", valErr)
 	}
 
 	rm, closeStore, err := loadRoleManager(stateDir)
@@ -174,7 +160,7 @@ func Find(dir string) (*Workspace, error) {
 
 // Save saves the workspace configuration.
 func (w *Workspace) Save() error {
-	configPath := filepath.Join(w.StateDir(), "settings.toml")
+	configPath := filepath.Join(w.StateDir(), "settings.json")
 	return w.Config.Save(configPath)
 }
 
@@ -349,11 +335,8 @@ func (w *Workspace) DefaultProviderCommand() string {
 	return ""
 }
 
-// Name returns the workspace name.
+// Name returns the workspace name (derived from directory).
 func (w *Workspace) Name() string {
-	if w.Config != nil {
-		return w.Config.Workspace.Name
-	}
 	return filepath.Base(w.RootDir)
 }
 

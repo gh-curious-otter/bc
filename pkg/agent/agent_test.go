@@ -3435,7 +3435,7 @@ func TestGetAgentCommandFromConfig(t *testing.T) {
 			tool: "claude",
 			cfg: &workspace.Config{
 				Providers: workspace.ProvidersConfig{
-					Claude: &workspace.ProviderConfig{Command: "claude --workspace", Enabled: true},
+					Providers: map[string]workspace.ProviderConfig{"claude": {Command: "claude --workspace"}},
 				},
 			},
 			wantCmd: "claude --workspace",

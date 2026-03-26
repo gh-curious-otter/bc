@@ -2,189 +2,151 @@
 package workspace
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
-
-	"github.com/BurntSushi/toml"
 )
 
 // ConfigVersion is the current config schema version.
 const ConfigVersion = 2
 
-// Config represents the TOML-based workspace configuration for bc v2.
-// Field order is optimized by fieldalignment for minimal struct padding.
+// Config represents the JSON-based workspace configuration for bc.
 type Config struct {
-	Services    ServicesConfig    `toml:"services"`
-	Env         map[string]string `toml:"env"`
-	Providers   ProvidersConfig   `toml:"providers"`
-	Gateways    GatewaysConfig    `toml:"gateways"`
-	TUI         TUIConfig         `toml:"tui"`
-	User        UserConfig        `toml:"user"`
-	Workspace   WorkspaceConfig   `toml:"workspace"`
-	Server      ServerConfig      `toml:"server"`
-	Roster      RosterConfig      `toml:"roster"`
-	Logs        LogsConfig        `toml:"logs"`
-	Storage     StorageConfig     `toml:"storage"`
-	Runtime     RuntimeConfig     `toml:"runtime"`
-	Scheduler   SchedulerConfig   `toml:"scheduler"`
-	Performance PerformanceConfig `toml:"performance"`
-}
-
-// GatewaysConfig configures external messaging platform integrations.
-type GatewaysConfig struct {
-	Telegram *TelegramGatewayConfig `toml:"telegram,omitempty"`
-	Discord  *DiscordGatewayConfig  `toml:"discord,omitempty"`
-	Slack    *SlackGatewayConfig    `toml:"slack,omitempty"`
-}
-
-// TelegramGatewayConfig configures the Telegram gateway adapter.
-type TelegramGatewayConfig struct {
-	BotToken string `toml:"bot_token"`
-	Mode     string `toml:"mode"` // "polling" (default) or "webhook"
-	Enabled  bool   `toml:"enabled"`
-}
-
-// DiscordGatewayConfig configures the Discord gateway adapter.
-type DiscordGatewayConfig struct {
-	BotToken string `toml:"bot_token"`
-	Enabled  bool   `toml:"enabled"`
-}
-
-// SlackGatewayConfig configures the Slack gateway adapter.
-type SlackGatewayConfig struct {
-	BotToken string `toml:"bot_token"`
-	AppToken string `toml:"app_token"` // for Socket Mode
-	Mode     string `toml:"mode"`      // "socket" (default) or "events"
-	Enabled  bool   `toml:"enabled"`
-}
-
-// RosterConfig defines the team roster: agents that bc ws up will start.
-type RosterConfig struct {
-	Agents []RosterEntry `toml:"agents"`
-}
-
-// RosterEntry describes a single agent in the workspace roster.
-type RosterEntry struct {
-	Name    string `toml:"name"`    // Agent name
-	Role    string `toml:"role"`    // Role file name (e.g. "feature-dev")
-	Tool    string `toml:"tool"`    // Provider tool (e.g. "claude")
-	Runtime string `toml:"runtime"` // Runtime backend override (optional)
-}
-
-// RuntimeConfig configures the agent session backend.
-type RuntimeConfig struct {
-	Backend string              `toml:"backend"` // "tmux" or "docker" (default)
-	Docker  DockerRuntimeConfig `toml:"docker"`
-}
-
-// DockerRuntimeConfig configures Docker container settings for agents.
-type DockerRuntimeConfig struct {
-	Image       string   `toml:"image"`
-	Network     string   `toml:"network"`
-	ExtraMounts []string `toml:"extra_mounts"`
-	CPUs        float64  `toml:"cpus"`
-	MemoryMB    int64    `toml:"memory_mb"`
-}
-
-// LogsConfig configures persistent session log streaming.
-type LogsConfig struct {
-	Path     string `toml:"path"`
-	MaxBytes int64  `toml:"max_bytes"`
-}
-
-// ServerConfig configures the bcd HTTP server.
-type ServerConfig struct {
-	Addr       string `toml:"addr"`
-	CORSOrigin string `toml:"cors_origin"`
-}
-
-// SchedulerConfig configures the cron/job scheduler.
-type SchedulerConfig struct {
-	TickInterval int `toml:"tick_interval"` // seconds between scheduler ticks
-	JobTimeout   int `toml:"job_timeout"`   // seconds before a job is considered timed out
-}
-
-// StorageConfig configures persistent storage paths.
-type StorageConfig struct {
-	SQLitePath string `toml:"sqlite_path"`
+	User      UserConfig                `json:"user"`
+	Server    ServerConfig              `json:"server"`
+	Providers ProvidersConfig           `json:"providers"`
+	Gateways  GatewaysConfig            `json:"gateways"`
+	Runtime   RuntimeConfig             `json:"runtime"`
+	Cron      CronConfig                `json:"cron"`
+	Storage   StorageConfig             `json:"storage"`
+	Logs      LogsConfig                `json:"logs"`
+	UI        UIConfig                  `json:"ui"`
+	Version   int                       `json:"version"`
 }
 
 // UserConfig holds user identity settings.
 type UserConfig struct {
-	Nickname string `toml:"nickname"` // User's display name for channel messages (e.g., "@puneet")
+	Name string `json:"name"`
 }
 
-// WorkspaceConfig holds core workspace settings.
-type WorkspaceConfig struct {
-	Name    string `toml:"name"`
-	Path    string `toml:"path"`
-	Version int    `toml:"version"`
+// ServerConfig configures the bcd HTTP server.
+type ServerConfig struct {
+	Host       string `json:"host"`
+	Port       int    `json:"port"`
+	CORSOrigin string `json:"cors_origin"`
 }
 
-// ProvidersConfig configures AI agent providers (Claude, Gemini, etc.).
+// Addr returns the host:port string for the server.
+func (s ServerConfig) Addr() string {
+	return fmt.Sprintf("%s:%d", s.Host, s.Port)
+}
+
+// RuntimeConfig configures the agent session backend.
+type RuntimeConfig struct {
+	Default string              `json:"default"` // "tmux" or "docker"
+	Docker  DockerRuntimeConfig `json:"docker"`
+	Tmux    TmuxRuntimeConfig   `json:"tmux"`
+	K8s     json.RawMessage     `json:"k8s,omitempty"` // future
+}
+
+// DockerRuntimeConfig configures Docker container settings for agents.
+type DockerRuntimeConfig struct {
+	Image            string   `json:"image"`
+	Network          string   `json:"network"`
+	DockerSocketPath string   `json:"docker_socket_path"`
+	ExtraMounts      []string `json:"extra_mounts"`
+	CPUs             float64  `json:"cpus"`
+	MemoryMB         int64    `json:"memory_mb"`
+}
+
+// TmuxRuntimeConfig configures tmux session settings.
+type TmuxRuntimeConfig struct {
+	SessionPrefix string `json:"session_prefix"`
+	HistoryLimit  int    `json:"history_limit"`
+	DefaultShell  string `json:"default_shell"`
+}
+
+// ProvidersConfig configures AI agent providers.
 type ProvidersConfig struct {
-	Custom   map[string]ProviderConfig `toml:"-"`                  // Custom providers
-	Claude   *ProviderConfig           `toml:"claude,omitempty"`   // Anthropic Claude Code
-	Gemini   *ProviderConfig           `toml:"gemini,omitempty"`   // Google Gemini
-	Cursor   *ProviderConfig           `toml:"cursor,omitempty"`   // Cursor Agent
-	Codex    *ProviderConfig           `toml:"codex,omitempty"`    // OpenAI Codex
-	OpenCode *ProviderConfig           `toml:"opencode,omitempty"` // OpenCode/Crush
-	OpenClaw *ProviderConfig           `toml:"openclaw,omitempty"` // OpenClaw
-	Aider    *ProviderConfig           `toml:"aider,omitempty"`    // Aider
-	Default  string                    `toml:"default"`            // Default provider for new agents
+	Default   string                    `json:"default"`
+	Providers map[string]ProviderConfig `json:"providers,omitempty"`
 }
 
 // ProviderConfig defines an AI provider's configuration.
 type ProviderConfig struct {
-	Env     map[string]string `toml:"env"`     // Per-provider env vars
-	Command string            `toml:"command"` // Command to launch the provider
-	Enabled bool              `toml:"enabled"` // Whether the provider is enabled
+	Command string `json:"command"`
 }
 
-// ServicesConfig configures external service integrations (GitHub, GitLab, etc.).
-type ServicesConfig struct {
-	GitHub *ServiceConfig `toml:"github,omitempty"` // GitHub CLI integration
-	GitLab *ServiceConfig `toml:"gitlab,omitempty"` // GitLab CLI integration
-	Jira   *ServiceConfig `toml:"jira,omitempty"`   // Jira CLI integration
+// GatewaysConfig configures external messaging platform integrations.
+type GatewaysConfig struct {
+	Telegram *TelegramGatewayConfig `json:"telegram,omitempty"`
+	Discord  *DiscordGatewayConfig  `json:"discord,omitempty"`
+	Slack    *SlackGatewayConfig    `json:"slack,omitempty"`
 }
 
-// ServiceConfig defines an external service integration.
-type ServiceConfig struct {
-	Command string `toml:"command"` // Command to execute (e.g., "gh")
-	Enabled bool   `toml:"enabled"` // Whether the service is enabled
+// TelegramGatewayConfig configures the Telegram gateway adapter.
+type TelegramGatewayConfig struct {
+	BotToken string `json:"bot_token"`
+	Mode     string `json:"mode"`
+	Enabled  bool   `json:"enabled"`
 }
 
-// PerformanceConfig configures TUI polling intervals and cache TTLs.
-// All values are in milliseconds. Minimum poll interval is 500ms.
-type PerformanceConfig struct {
-	// TUI polling intervals (min: 500ms)
-	PollIntervalAgents   int64 `toml:"poll_interval_agents"`   // Agent status updates (default: 2000)
-	PollIntervalChannels int64 `toml:"poll_interval_channels"` // Channel message polling (default: 3000)
-	PollIntervalCosts    int64 `toml:"poll_interval_costs"`    // Cost data refresh (default: 5000)
-	PollIntervalStatus   int64 `toml:"poll_interval_status"`   // Dashboard status (default: 2000)
-	PollIntervalLogs     int64 `toml:"poll_interval_logs"`     // Log viewer refresh (default: 3000)
-	PollIntervalTeams    int64 `toml:"poll_interval_teams"`    // Team data refresh (default: 10000)
-	PollIntervalDemons   int64 `toml:"poll_interval_demons"`   // Scheduled tasks refresh (default: 5000)
-
-	// Cache TTLs
-	CacheTTLTmux     int64 `toml:"cache_ttl_tmux"`     // Tmux session state cache (default: 2000)
-	CacheTTLCommands int64 `toml:"cache_ttl_commands"` // CLI command result cache (default: 5000)
-
-	// Adaptive polling thresholds (for useAdaptivePolling hook)
-	AdaptiveFastInterval   int64 `toml:"adaptive_fast_interval"`   // When agents are actively working (default: 1000)
-	AdaptiveNormalInterval int64 `toml:"adaptive_normal_interval"` // Normal operation (default: 2000)
-	AdaptiveSlowInterval   int64 `toml:"adaptive_slow_interval"`   // Low activity period (default: 4000)
-	AdaptiveMaxInterval    int64 `toml:"adaptive_max_interval"`    // Maximum backoff interval (default: 8000)
+// DiscordGatewayConfig configures the Discord gateway adapter.
+type DiscordGatewayConfig struct {
+	BotToken string `json:"bot_token"`
+	Enabled  bool   `json:"enabled"`
 }
 
-// TUIConfig configures TUI appearance and theming.
-type TUIConfig struct {
-	Theme string `toml:"theme"` // Theme name: "dark", "light", "matrix", "synthwave", "high-contrast"
-	Mode  string `toml:"mode"`  // Color mode: "auto", "dark", "light"
+// SlackGatewayConfig configures the Slack gateway adapter.
+type SlackGatewayConfig struct {
+	BotToken string `json:"bot_token"`
+	AppToken string `json:"app_token"`
+	Mode     string `json:"mode"`
+	Enabled  bool   `json:"enabled"`
+}
+
+// CronConfig configures the cron/job scheduler.
+type CronConfig struct {
+	PollIntervalSeconds int `json:"poll_interval_seconds"`
+	JobTimeoutSeconds   int `json:"job_timeout_seconds"`
+}
+
+// StorageConfig configures persistent storage.
+type StorageConfig struct {
+	Default string              `json:"default"` // "sqlite" or "sql"
+	SQLite  SQLiteStorageConfig `json:"sqlite"`
+	SQL     SQLStorageConfig    `json:"sql"`
+}
+
+// SQLiteStorageConfig configures SQLite storage.
+type SQLiteStorageConfig struct {
+	Path string `json:"path"`
+}
+
+// SQLStorageConfig configures SQL (Postgres/TimescaleDB) storage.
+type SQLStorageConfig struct {
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	User     string `json:"user"`
+	Password string `json:"password"`
+	Database string `json:"database"`
+}
+
+// LogsConfig configures persistent session log streaming.
+type LogsConfig struct {
+	Path     string `json:"path"`
+	MaxBytes int64  `json:"max_bytes"`
+}
+
+// UIConfig configures UI appearance.
+type UIConfig struct {
+	Theme       string `json:"theme"`
+	Mode        string `json:"mode"`
+	DefaultView string `json:"default_view"`
 }
 
 // Valid theme names.
@@ -193,212 +155,196 @@ var ValidThemes = []string{"dark", "light", "matrix", "synthwave", "high-contras
 // Valid theme modes.
 var ValidModes = []string{"auto", "dark", "light"}
 
-// User nickname limits.
-const (
-	NicknameMaxLength = 15 // Maximum nickname length including @ prefix
-)
-
-// DefaultNickname is the default user nickname.
-const DefaultNickname = "@bc"
-
-// Performance limits.
-const (
-	PollIntervalMin = 500   // Minimum poll interval in ms
-	CacheTTLMin     = 100   // Minimum cache TTL in ms
-	CacheTTLMax     = 60000 // Maximum cache TTL in ms (1 minute)
-)
+// User name limits.
+const NameMaxLength = 30
 
 // Validation errors.
 var (
-	ErrMissingWorkspaceName    = errors.New("workspace.name is required")
-	ErrInvalidVersion          = errors.New("workspace.version must be 2")
+	ErrInvalidVersion          = errors.New("version must be 2")
 	ErrMissingDefaultProvider  = errors.New("providers.default is required")
 	ErrDefaultProviderNotFound = errors.New("providers.default references undefined provider")
-	ErrPollIntervalTooLow      = errors.New("poll intervals must be at least 500ms")
-	ErrCacheTTLRange           = errors.New("cache TTL must be between 100ms and 60000ms")
-	ErrInvalidTheme            = errors.New("tui.theme must be one of: dark, light, matrix, synthwave, high-contrast")
-	ErrInvalidThemeMode        = errors.New("tui.mode must be one of: auto, dark, light")
-	ErrNicknameTooLong         = errors.New("user.nickname must be 15 characters or less")
-	ErrNicknameMissingPrefix   = errors.New("user.nickname must start with @")
-	ErrNicknameInvalidChars    = errors.New("user.nickname must contain only letters, numbers, and underscores")
+	ErrInvalidTheme            = errors.New("ui.theme must be one of: dark, light, matrix, synthwave, high-contrast")
+	ErrInvalidThemeMode        = errors.New("ui.mode must be one of: auto, dark, light")
+	ErrNameTooLong             = errors.New("user.name is too long")
 )
 
-// DefaultConfig returns sensible defaults for a new v2 workspace.
-func DefaultConfig(name string) Config {
+// DefaultConfig returns sensible defaults for a new workspace.
+func DefaultConfig() Config {
 	return Config{
-		Workspace: WorkspaceConfig{
-			Name:    name,
-			Version: ConfigVersion,
+		Version: ConfigVersion,
+		User: UserConfig{
+			Name: "",
 		},
-		Providers: ProvidersConfig{
-			Default: "gemini",
-			Claude: &ProviderConfig{
-				Command: "claude --dangerously-skip-permissions",
-				Enabled: true,
-			},
-			Gemini: &ProviderConfig{
-				Command: "gemini --yolo",
-				Enabled: true,
-			},
-		},
-		Env: map[string]string{},
 		Server: ServerConfig{
-			Addr:       "127.0.0.1:9374",
+			Host:       "127.0.0.1",
+			Port:       9374,
 			CORSOrigin: "*",
 		},
-		Scheduler: SchedulerConfig{
-			TickInterval: 60,
-			JobTimeout:   300,
+		Runtime: RuntimeConfig{
+			Default: "docker",
+			Docker: DockerRuntimeConfig{
+				Image:            "bc-agent:latest",
+				Network:          "bc-net",
+				DockerSocketPath: "/var/run/docker.sock",
+				CPUs:             2,
+				MemoryMB:         4096,
+			},
+			Tmux: TmuxRuntimeConfig{
+				SessionPrefix: "bc",
+				HistoryLimit:  10000,
+				DefaultShell:  "/bin/bash",
+			},
+		},
+		Providers: ProvidersConfig{
+			Default: "claude",
+			Providers: map[string]ProviderConfig{
+				"claude": {Command: "claude --dangerously-skip-permissions"},
+				"gemini": {Command: "gemini --yolo"},
+			},
+		},
+		Gateways: GatewaysConfig{},
+		Cron: CronConfig{
+			PollIntervalSeconds: 30,
+			JobTimeoutSeconds:   300,
 		},
 		Storage: StorageConfig{
-			SQLitePath: ".bc/bc.db",
+			Default: "sqlite",
+			SQLite: SQLiteStorageConfig{
+				Path: ".bc",
+			},
+			SQL: SQLStorageConfig{
+				Host:     "localhost",
+				Port:     5432,
+				User:     "bc",
+				Password: "bc",
+				Database: "bc",
+			},
 		},
 		Logs: LogsConfig{
 			Path:     ".bc/logs",
-			MaxBytes: 1048576, // 1MB
+			MaxBytes: 10485760, // 10MB
 		},
-		User: UserConfig{
-			Nickname: DefaultNickname,
-		},
-		Runtime: RuntimeConfig{
-			Backend: "docker",
-		},
-		Performance: PerformanceConfig{
-			PollIntervalAgents:     2000,
-			PollIntervalChannels:   3000,
-			PollIntervalCosts:      5000,
-			PollIntervalStatus:     2000,
-			PollIntervalLogs:       3000,
-			PollIntervalTeams:      10000,
-			PollIntervalDemons:     5000,
-			CacheTTLTmux:           2000,
-			CacheTTLCommands:       5000,
-			AdaptiveFastInterval:   1000,
-			AdaptiveNormalInterval: 2000,
-			AdaptiveSlowInterval:   4000,
-			AdaptiveMaxInterval:    8000,
-		},
-		TUI: TUIConfig{
-			Theme: "dark",
-			Mode:  "auto",
+		UI: UIConfig{
+			Theme:       "dark",
+			Mode:        "auto",
+			DefaultView: "dashboard",
 		},
 	}
 }
 
-// LoadConfig reads and parses a TOML config file.
+// LoadConfig reads and parses a JSON config file.
 func LoadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // path provided by caller
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
-
 	return ParseConfig(data)
 }
 
-// ParseConfig parses TOML data into a Config.
+// ParseConfig parses JSON data into a Config.
 func ParseConfig(data []byte) (*Config, error) {
 	var cfg Config
-	if err := toml.Unmarshal(data, &cfg); err != nil {
+	if err := json.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
-
 	return &cfg, nil
+}
+
+// FillDefaults fills zero-valued fields with defaults.
+// Called after ParseConfig to handle configs from older versions.
+func (c *Config) FillDefaults() {
+	d := DefaultConfig()
+
+	if c.Version == 0 {
+		c.Version = d.Version
+	}
+	if c.Server.Host == "" {
+		c.Server.Host = d.Server.Host
+	}
+	if c.Server.Port == 0 {
+		c.Server.Port = d.Server.Port
+	}
+	if c.Server.CORSOrigin == "" {
+		c.Server.CORSOrigin = d.Server.CORSOrigin
+	}
+	if c.Runtime.Default == "" {
+		c.Runtime.Default = d.Runtime.Default
+	}
+	if c.Runtime.Tmux.SessionPrefix == "" {
+		c.Runtime.Tmux.SessionPrefix = d.Runtime.Tmux.SessionPrefix
+	}
+	if c.Runtime.Tmux.HistoryLimit == 0 {
+		c.Runtime.Tmux.HistoryLimit = d.Runtime.Tmux.HistoryLimit
+	}
+	if c.Runtime.Tmux.DefaultShell == "" {
+		c.Runtime.Tmux.DefaultShell = d.Runtime.Tmux.DefaultShell
+	}
+	if c.Runtime.Docker.DockerSocketPath == "" {
+		c.Runtime.Docker.DockerSocketPath = d.Runtime.Docker.DockerSocketPath
+	}
+	if c.Cron.PollIntervalSeconds == 0 {
+		c.Cron.PollIntervalSeconds = d.Cron.PollIntervalSeconds
+	}
+	if c.Cron.JobTimeoutSeconds == 0 {
+		c.Cron.JobTimeoutSeconds = d.Cron.JobTimeoutSeconds
+	}
+	if c.Storage.Default == "" {
+		c.Storage.Default = d.Storage.Default
+	}
+	if c.Storage.SQLite.Path == "" {
+		c.Storage.SQLite.Path = d.Storage.SQLite.Path
+	}
+	if c.Logs.Path == "" {
+		c.Logs.Path = d.Logs.Path
+	}
+	if c.Logs.MaxBytes == 0 {
+		c.Logs.MaxBytes = d.Logs.MaxBytes
+	}
+	if c.UI.Theme == "" {
+		c.UI.Theme = d.UI.Theme
+	}
+	if c.UI.Mode == "" {
+		c.UI.Mode = d.UI.Mode
+	}
+	if c.UI.DefaultView == "" {
+		c.UI.DefaultView = d.UI.DefaultView
+	}
+	if c.Providers.Default == "" {
+		c.Providers.Default = d.Providers.Default
+	}
 }
 
 // Validate checks the config for required fields and consistency.
 func (c *Config) Validate() error {
-	// Workspace validation
-	if c.Workspace.Name == "" {
-		return ErrMissingWorkspaceName
-	}
-	if c.Workspace.Version != ConfigVersion {
+	if c.Version != ConfigVersion {
 		return ErrInvalidVersion
 	}
-
-	// Providers validation
 	if c.Providers.Default == "" {
 		return ErrMissingDefaultProvider
 	}
-	if !c.HasProviderDefined(c.Providers.Default) && !c.HasServiceDefined(c.Providers.Default) {
+	if !c.HasProviderDefined(c.Providers.Default) {
 		return ErrDefaultProviderNotFound
 	}
-
-	// Performance validation (only validate if non-zero values are set)
-	if err := c.validatePerformance(); err != nil {
+	if err := c.validateUI(); err != nil {
 		return err
 	}
-
-	// TUI validation (only validate if non-empty values are set)
-	if err := c.validateTUI(); err != nil {
-		return err
-	}
-
-	// User validation (only validate if nickname is set)
 	if err := c.validateUser(); err != nil {
 		return err
 	}
-
 	return nil
 }
 
-// validatePerformance validates performance config values.
-// Zero values are acceptable (will use defaults).
-func (c *Config) validatePerformance() error {
-	p := c.Performance
-
-	// Validate poll intervals (must be >= 500ms if set)
-	pollIntervals := []int64{
-		p.PollIntervalAgents, p.PollIntervalChannels, p.PollIntervalCosts,
-		p.PollIntervalStatus, p.PollIntervalLogs, p.PollIntervalTeams,
-		p.PollIntervalDemons,
-	}
-	for _, interval := range pollIntervals {
-		if interval > 0 && interval < PollIntervalMin {
-			return ErrPollIntervalTooLow
-		}
-	}
-
-	// Validate adaptive intervals (must be >= 500ms if set)
-	adaptiveIntervals := []int64{
-		p.AdaptiveFastInterval, p.AdaptiveNormalInterval,
-		p.AdaptiveSlowInterval, p.AdaptiveMaxInterval,
-	}
-	for _, interval := range adaptiveIntervals {
-		if interval > 0 && interval < PollIntervalMin {
-			return ErrPollIntervalTooLow
-		}
-	}
-
-	// Validate cache TTLs
-	cacheTTLs := []int64{p.CacheTTLTmux, p.CacheTTLCommands}
-	for _, ttl := range cacheTTLs {
-		if ttl > 0 && (ttl < CacheTTLMin || ttl > CacheTTLMax) {
-			return ErrCacheTTLRange
-		}
-	}
-
-	return nil
-}
-
-// validateTUI validates TUI config values.
-// Empty values are acceptable (will use defaults).
-func (c *Config) validateTUI() error {
-	t := c.TUI
-
-	// Validate theme (must be one of valid themes if set)
-	if t.Theme != "" && !isValidTheme(t.Theme) {
+// validateUI validates UI config values.
+func (c *Config) validateUI() error {
+	if c.UI.Theme != "" && !isValidTheme(c.UI.Theme) {
 		return ErrInvalidTheme
 	}
-
-	// Validate mode (must be one of valid modes if set)
-	if t.Mode != "" && !isValidMode(t.Mode) {
+	if c.UI.Mode != "" && !isValidMode(c.UI.Mode) {
 		return ErrInvalidThemeMode
 	}
-
 	return nil
 }
 
-// isValidTheme checks if a theme name is valid.
 func isValidTheme(theme string) bool {
 	for _, valid := range ValidThemes {
 		if theme == valid {
@@ -408,7 +354,6 @@ func isValidTheme(theme string) bool {
 	return false
 }
 
-// isValidMode checks if a theme mode is valid.
 func isValidMode(mode string) bool {
 	for _, valid := range ValidModes {
 		if mode == valid {
@@ -419,100 +364,20 @@ func isValidMode(mode string) bool {
 }
 
 // validateUser validates user config values.
-// Empty values are acceptable (will use default @bc).
 func (c *Config) validateUser() error {
-	u := c.User
-
-	// Empty nickname is ok (uses default)
-	if u.Nickname == "" {
-		return nil
+	if len(c.User.Name) > NameMaxLength {
+		return ErrNameTooLong
 	}
-
-	// Validate nickname format
-	return ValidateNickname(u.Nickname)
-}
-
-// nicknameRegex matches valid nickname characters (after @ prefix).
-var nicknameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
-
-// ValidateNickname validates a nickname and returns an error if invalid.
-func ValidateNickname(nickname string) error {
-	// Must start with @
-	if !strings.HasPrefix(nickname, "@") {
-		return ErrNicknameMissingPrefix
-	}
-
-	// Check length
-	if len(nickname) > NicknameMaxLength {
-		return ErrNicknameTooLong
-	}
-
-	// Check characters after @
-	body := nickname[1:]
-	if body == "" || !nicknameRegex.MatchString(body) {
-		return ErrNicknameInvalidChars
-	}
-
 	return nil
-}
-
-// NormalizeNickname ensures a nickname has the @ prefix and is valid.
-// Returns the normalized nickname or an error.
-func NormalizeNickname(nickname string) (string, error) {
-	// Trim whitespace
-	nickname = strings.TrimSpace(nickname)
-
-	// Empty means use default
-	if nickname == "" {
-		return DefaultNickname, nil
-	}
-
-	// Add @ prefix if missing
-	if !strings.HasPrefix(nickname, "@") {
-		nickname = "@" + nickname
-	}
-
-	// Validate
-	if err := ValidateNickname(nickname); err != nil {
-		return "", err
-	}
-
-	return nickname, nil
-}
-
-// providerFieldMap returns a map of provider name to config pointer.
-func (c *Config) providerFieldMap() map[string]*ProviderConfig {
-	return map[string]*ProviderConfig{
-		"claude":   c.Providers.Claude,
-		"gemini":   c.Providers.Gemini,
-		"cursor":   c.Providers.Cursor,
-		"codex":    c.Providers.Codex,
-		"opencode": c.Providers.OpenCode,
-		"openclaw": c.Providers.OpenClaw,
-		"aider":    c.Providers.Aider,
-	}
 }
 
 // GetProvider returns an AI provider's configuration by name.
 func (c *Config) GetProvider(name string) *ProviderConfig {
-	if cfg, ok := c.providerFieldMap()[name]; ok && cfg != nil {
-		return cfg
+	if c.Providers.Providers == nil {
+		return nil
 	}
-	if cfg, ok := c.Providers.Custom[name]; ok {
+	if cfg, ok := c.Providers.Providers[name]; ok {
 		return &cfg
-	}
-	return nil
-}
-
-// GetService returns an external service's configuration by name.
-func (c *Config) GetService(name string) *ServiceConfig {
-	switch name {
-	case "github":
-		return c.Services.GitHub
-	case "gitlab":
-		return c.Services.GitLab
-	case "jira":
-		return c.Services.Jira
 	}
 	return nil
 }
@@ -527,181 +392,99 @@ func (c *Config) HasProviderDefined(name string) bool {
 	return c.GetProvider(name) != nil
 }
 
-// HasServiceDefined checks if an external service is configured.
-func (c *Config) HasServiceDefined(name string) bool {
-	return c.GetService(name) != nil
-}
-
-// ListProviders returns the names of all enabled AI providers.
+// ListProviders returns the names of all configured AI providers.
 func (c *Config) ListProviders() []string {
-	var names []string
-	seen := make(map[string]bool)
-
-	for name, cfg := range c.providerFieldMap() {
-		if cfg != nil && cfg.Enabled {
-			names = append(names, name)
-			seen[name] = true
-		}
+	if c.Providers.Providers == nil {
+		return nil
 	}
-	for name, cfg := range c.Providers.Custom {
-		if cfg.Enabled && !seen[name] {
-			names = append(names, name)
-		}
+	names := make([]string, 0, len(c.Providers.Providers))
+	for name := range c.Providers.Providers {
+		names = append(names, name)
 	}
-
 	return names
 }
 
-// ListServices returns the names of all enabled external services.
-func (c *Config) ListServices() []string {
-	var names []string
-
-	serviceFields := []struct {
-		cfg  *ServiceConfig
-		name string
-	}{
-		{c.Services.GitHub, "github"},
-		{c.Services.GitLab, "gitlab"},
-		{c.Services.Jira, "jira"},
-	}
-	for _, sf := range serviceFields {
-		if sf.cfg != nil && sf.cfg.Enabled {
-			names = append(names, sf.name)
-		}
-	}
-
-	return names
-}
-
-// Save writes the config to a TOML file.
+// Save writes the config to a JSON file atomically (temp+rename).
 func (c *Config) Save(path string) error {
-	// Ensure parent directory exists
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	f, err := os.Create(path) //nolint:gosec // path provided by caller
+	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to create config file: %w", err)
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+	data = append(data, '\n')
+
+	// Write to temp file then rename for crash safety.
+	tmp, err := os.CreateTemp(dir, ".settings-*.json.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temp config: %w", err)
+	}
+	tmpName := tmp.Name()
+
+	success := false
+	defer func() {
+		if !success {
+			_ = os.Remove(tmpName)
+		}
+	}()
+
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("failed to sync config: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("failed to close temp config: %w", err)
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		return fmt.Errorf("failed to rename config: %w", err)
 	}
 
-	encoder := toml.NewEncoder(f)
-	encodeErr := encoder.Encode(c)
-	closeErr := f.Close()
-
-	if encodeErr != nil {
-		return fmt.Errorf("failed to encode config: %w", encodeErr)
-	}
-	if closeErr != nil {
-		return fmt.Errorf("failed to close config file: %w", closeErr)
-	}
-
+	success = true
 	return nil
 }
 
 // ConfigPath returns the standard config file path for a workspace root.
 func ConfigPath(rootDir string) string {
-	return filepath.Join(rootDir, ".bc", "settings.toml")
+	return filepath.Join(rootDir, ".bc", "settings.json")
 }
 
-// UserDefaultsConfig represents user-level defaults from ~/.bcrc.
-// These settings are merged with workspace config, with workspace taking precedence.
-type UserDefaultsConfig struct {
-	User     UserDefaultsUser     `toml:"user"`
-	Defaults UserDefaultsDefaults `toml:"defaults"`
-	Tools    UserDefaultsTools    `toml:"tools"`
-}
+// --- Nickname compatibility (used by channel system) ---
 
-// UserDefaultsUser holds user identity in .bcrc.
-type UserDefaultsUser struct {
-	Nickname string `toml:"nickname"` // Default nickname (e.g., "@alice")
-}
+var nicknameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
 
-// UserDefaultsDefaults holds behavior defaults in .bcrc.
-type UserDefaultsDefaults struct {
-	DefaultRole   string `toml:"default_role"`    // Default role for new agents
-	AutoStartRoot bool   `toml:"auto_start_root"` // Auto-start root agent with bc up
-}
-
-// UserDefaultsTools holds tool preferences in .bcrc.
-type UserDefaultsTools struct {
-	Preferred []string `toml:"preferred"` // Preferred tools in order
-}
-
-// UserDefaultsPath returns the path to the user's .bcrc file.
-func UserDefaultsPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
+// ValidateNickname validates a nickname and returns an error if invalid.
+func ValidateNickname(nickname string) error {
+	if !strings.HasPrefix(nickname, "@") {
+		return fmt.Errorf("nickname must start with @")
 	}
-	return filepath.Join(home, ".bcrc")
-}
-
-// LoadUserDefaults loads the user's ~/.bcrc file if it exists.
-// Returns nil if the file doesn't exist (not an error).
-func LoadUserDefaults() (*UserDefaultsConfig, error) {
-	path := UserDefaultsPath()
-	if path == "" {
-		return nil, nil
+	if len(nickname) > 15 {
+		return fmt.Errorf("nickname must be 15 characters or less")
 	}
-
-	data, err := os.ReadFile(path) //nolint:gosec // user home directory
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to read %s: %w", path, err)
+	body := nickname[1:]
+	if body == "" || !nicknameRegex.MatchString(body) {
+		return fmt.Errorf("nickname must contain only letters, numbers, and underscores")
 	}
-
-	var cfg UserDefaultsConfig
-	if err := toml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse %s: %w", path, err)
-	}
-
-	return &cfg, nil
-}
-
-// MergeUserDefaults merges user defaults into a Config.
-// Workspace config values take precedence over user defaults.
-func MergeUserDefaults(cfg *Config, defaults *UserDefaultsConfig) {
-	if defaults == nil {
-		return
-	}
-
-	// Merge user nickname (only if workspace hasn't set one)
-	if cfg.User.Nickname == "" && defaults.User.Nickname != "" {
-		cfg.User.Nickname = defaults.User.Nickname
-	}
-
-	// Merge provider preference (only if workspace hasn't set a default)
-	if cfg.Providers.Default == "" && len(defaults.Tools.Preferred) > 0 {
-		cfg.Providers.Default = defaults.Tools.Preferred[0]
-	}
-}
-
-// SaveUserDefaults saves user defaults to ~/.bcrc.
-func SaveUserDefaults(defaults *UserDefaultsConfig) error {
-	path := UserDefaultsPath()
-	if path == "" {
-		return errors.New("unable to determine home directory")
-	}
-
-	f, err := os.Create(path) //nolint:gosec // user home directory
-	if err != nil {
-		return fmt.Errorf("failed to create %s: %w", path, err)
-	}
-
-	encoder := toml.NewEncoder(f)
-	encodeErr := encoder.Encode(defaults)
-	closeErr := f.Close()
-
-	if encodeErr != nil {
-		return fmt.Errorf("failed to encode %s: %w", path, encodeErr)
-	}
-	if closeErr != nil {
-		return fmt.Errorf("failed to close %s: %w", path, closeErr)
-	}
-
 	return nil
+}
+
+// NormalizeNickname ensures a nickname has the @ prefix and is valid.
+func NormalizeNickname(nickname string) (string, error) {
+	nickname = strings.TrimSpace(nickname)
+	if nickname == "" {
+		return "@bc", nil
+	}
+	if !strings.HasPrefix(nickname, "@") {
+		nickname = "@" + nickname
+	}
+	if err := ValidateNickname(nickname); err != nil {
+		return "", err
+	}
+	return nickname, nil
 }

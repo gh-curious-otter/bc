@@ -56,13 +56,15 @@ func TestProviderConfigRoundtrip(t *testing.T) {
 	// Build a Config with all providers enabled
 	cfg := workspace.Config{
 		Providers: workspace.ProvidersConfig{
-			Claude:   &workspace.ProviderConfig{Command: "claude --skip", Enabled: true},
-			Gemini:   &workspace.ProviderConfig{Command: "gemini --yolo", Enabled: true},
-			Cursor:   &workspace.ProviderConfig{Command: "cursor --force", Enabled: true},
-			Codex:    &workspace.ProviderConfig{Command: "codex --auto", Enabled: true},
-			OpenCode: &workspace.ProviderConfig{Command: "crush", Enabled: true},
-			OpenClaw: &workspace.ProviderConfig{Command: "openclaw --auto", Enabled: true},
-			Aider:    &workspace.ProviderConfig{Command: "aider --yes", Enabled: true},
+			Providers: map[string]workspace.ProviderConfig{
+				"claude": {Command: "claude --skip"},
+				"gemini": {Command: "gemini --yolo"},
+				"cursor": {Command: "cursor --force"},
+				"codex": {Command: "codex --auto"},
+				"opencode": {Command: "crush"},
+				"openclaw": {Command: "openclaw --auto"},
+				"aider": {Command: "aider --yes"},
+			},
 		},
 	}
 
@@ -100,10 +102,7 @@ func TestGetAgentCommandFromConfig_RealConfigs(t *testing.T) {
 			tool: "claude",
 			cfg: &workspace.Config{
 				Providers: workspace.ProvidersConfig{
-					Claude: &workspace.ProviderConfig{
-						Command: "claude --model opus",
-						Enabled: true,
-					},
+					Providers: map[string]workspace.ProviderConfig{"claude": {Command: "claude --model opus"}},
 				},
 			},
 			wantCmd: "claude --model opus",
@@ -114,10 +113,7 @@ func TestGetAgentCommandFromConfig_RealConfigs(t *testing.T) {
 			tool: "gemini",
 			cfg: &workspace.Config{
 				Providers: workspace.ProvidersConfig{
-					Gemini: &workspace.ProviderConfig{
-						Command: "gemini --safe-mode",
-						Enabled: true,
-					},
+					Providers: map[string]workspace.ProviderConfig{"gemini": {Command: "gemini --safe-mode"}},
 				},
 			},
 			wantCmd: "gemini --safe-mode",
@@ -128,10 +124,7 @@ func TestGetAgentCommandFromConfig_RealConfigs(t *testing.T) {
 			tool: "codex",
 			cfg: &workspace.Config{
 				Providers: workspace.ProvidersConfig{
-					Codex: &workspace.ProviderConfig{
-						Command: "codex --new-flag",
-						Enabled: true,
-					},
+					Providers: map[string]workspace.ProviderConfig{"codex": {Command: "codex --new-flag"}},
 				},
 			},
 			wantCmd: "codex --new-flag",
@@ -167,16 +160,16 @@ func TestGetAgentCommandFromConfig_RealConfigs(t *testing.T) {
 }
 
 func TestConfigProviderRegistrySync(t *testing.T) {
-	// Load settings.toml defaults and verify they match DefaultRegistry
-	cfg := workspace.DefaultConfig("test")
+	// Load settings.json defaults and verify they match DefaultRegistry
+	cfg := workspace.DefaultConfig()
 
 	// Every provider in config should be in the registry
 	configProviders := []struct {
 		cfg  *workspace.ProviderConfig
 		name string
 	}{
-		{cfg.Providers.Claude, "claude"},
-		{cfg.Providers.Gemini, "gemini"},
+		{cfg.GetProvider("claude"), "claude"},
+		{cfg.GetProvider("gemini"), "gemini"},
 	}
 
 	for _, cp := range configProviders {

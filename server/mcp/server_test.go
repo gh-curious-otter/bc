@@ -32,18 +32,8 @@ func makeWorkspace(t *testing.T) string {
 	}
 	// Minimal TOML config satisfying workspace.Load validation:
 	// version = 2 and at least one provider defined.
-	cfg := `[workspace]
-name = "test"
-version = 2
-
-[providers]
-default = "gemini"
-
-[providers.gemini]
-command = "gemini --yolo"
-enabled = true
-`
-	if err := os.WriteFile(filepath.Join(bcDir, "settings.toml"), []byte(cfg), 0600); err != nil {
+	cfg := `{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`
+	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte(cfg), 0600); err != nil {
 		t.Fatal(err)
 	}
 	return dir
