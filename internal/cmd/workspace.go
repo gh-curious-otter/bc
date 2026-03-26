@@ -266,21 +266,13 @@ func init() {
 	rootCmd.AddCommand(workspaceCmd)
 }
 
-func runWorkspaceUp(cmd *cobra.Command, _ []string) error {
-	ws, err := requireWorkspace()
-	if err != nil {
+func runWorkspaceUp(_ *cobra.Command, _ []string) error {
+	if _, err := requireWorkspace(); err != nil {
 		return err
 	}
 
 	// Roster was removed from settings. bc up now requires explicit agent creation.
 	fmt.Println("Roster has been removed from settings. Create agents with 'bc agent create'.")
-	return nil
-
-	// Ensure built-in role files exist before spawning agents.
-	if _, err := ws.RoleManager.EnsureDefaultRoles(); err != nil {
-		return fmt.Errorf("failed to ensure default roles: %w", err)
-	}
-
 	return nil
 }
 
