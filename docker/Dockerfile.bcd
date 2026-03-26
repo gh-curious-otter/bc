@@ -28,12 +28,21 @@ COPY --from=web /app/web/dist /app/server/web/dist
 
 RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /bcd ./cmd/bcd
 
-# Stage 3: Runtime
+# Stage 3: Runtime (includes dev toolchain for cron build jobs)
 FROM ubuntu:24.04
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        ca-certificates tmux git docker.io curl sqlite3 jq && \
+        ca-certificates tmux git docker.io curl sqlite3 jq \
+        make gcc libc6-dev python3 python3-pip unzip && \
     rm -rf /var/lib/apt/lists/*
+
+# Install Go (same version as build stage)
+COPY --from=go /usr/local/go /usr/local/go
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+# Install Bun (for TypeScript builds)
+RUN curl -fsSL https://bun.sh/install | bash && \
+    ln -s /root/.bun/bin/bun /usr/local/bin/bun
 
 # Install Claude Code so bcd can run tmux agents inside this container
 SHELL ["/bin/bash", "-c"]
