@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gh-curious-otter/bc/pkg/log"
@@ -23,12 +22,11 @@ func (r *statusRecorder) WriteHeader(code int) {
 // SSE and MCP long-lived connections are excluded to avoid log spam.
 func RequestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Skip long-lived SSE/MCP connections and WebSocket upgrades.
-		// WebSocket requires http.Hijacker on the ResponseWriter — wrapping
-		// it in statusRecorder breaks the Hijack() call.
-		if strings.HasSuffix(r.URL.Path, "/events") ||
-			strings.HasSuffix(r.URL.Path, "/sse") ||
-			isWebSocketRequest(r) {
+		// Skip SSE, WebSocket, and other streaming endpoints.
+		// statusRecorder wraps ResponseWriter, breaking http.Flusher
+		// (needed by SSE) and http.Hijacker (needed by WebSocket).
+		// Reuse isSSERequest() to stay in sync with Gzip bypass.
+		if isSSERequest(r) || isWebSocketRequest(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
