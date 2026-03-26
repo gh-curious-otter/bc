@@ -170,7 +170,6 @@ backends (tmux vs docker) without changing the agent's identity.
 
 Examples:
   bc agent start eng-01                    # Start stopped agent (resumes session)
-  bc agent start eng-01 --fresh            # Force new session
   bc agent start eng-01 --runtime docker   # Override runtime backend`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAgentStart,
@@ -317,7 +316,6 @@ var (
 	agentCreateEnv     string
 	agentCreateRuntime string
 	agentStartRuntime  string
-	agentStartFresh    bool
 	agentStartResume   string // explicit session ID to resume
 	agentListRole      string
 	agentListStatus    string
@@ -378,7 +376,6 @@ func init() {
 
 	// Start flags
 	agentStartCmd.Flags().StringVar(&agentStartRuntime, "runtime", "", "Runtime backend override: tmux or docker")
-	agentStartCmd.Flags().BoolVar(&agentStartFresh, "fresh", false, "Force new session (ignore saved session)")
 	agentStartCmd.Flags().StringVar(&agentStartResume, "resume", "", "Resume a specific session by ID (e.g. --resume cc78cadf-89ce-4820-ab6e-950afd2b6838)")
 
 	// Sessions flags
@@ -729,17 +726,13 @@ func runAgentShow(cmd *cobra.Command, args []string) error {
 func runAgentStart(cmd *cobra.Command, args []string) error {
 	agentName := args[0]
 
-	if agentStartFresh && agentStartResume != "" {
-		return fmt.Errorf("--fresh and --resume are mutually exclusive")
-	}
-
 	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("Starting %s... ", agentName)
-	a, startErr := c.Agents.Start(cmd.Context(), agentName, agentStartRuntime, agentStartResume, agentStartFresh)
+	a, startErr := c.Agents.Start(cmd.Context(), agentName, agentStartRuntime, agentStartResume)
 	if startErr != nil {
 		fmt.Println("✗")
 		return fmt.Errorf("failed to start %s: %w", agentName, startErr)

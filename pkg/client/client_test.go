@@ -383,7 +383,7 @@ func TestAgents_Start(t *testing.T) {
 	ts := mockServer(t, handler)
 	c := New(ts.URL)
 
-	result, err := c.Agents.Start(context.Background(), "alice", "tmux", "", false)
+	result, err := c.Agents.Start(context.Background(), "alice", "tmux", "")
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}

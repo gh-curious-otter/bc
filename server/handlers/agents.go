@@ -231,7 +231,15 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, toDTO(a))
 
 	case r.Method == http.MethodPost && action == "start":
-		a, err := h.svc.Start(r.Context(), name, agent.StartOptions{})
+		var req struct {
+			Runtime  string `json:"runtime"`
+			ResumeID string `json:"resume_id"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req) //nolint:errcheck // body optional
+		a, err := h.svc.Start(r.Context(), name, agent.StartOptions{
+			Runtime:  req.Runtime,
+			ResumeID: req.ResumeID,
+		})
 		if err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return

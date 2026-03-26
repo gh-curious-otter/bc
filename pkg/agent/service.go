@@ -54,7 +54,6 @@ type CreateOptions struct {
 type StartOptions struct {
 	Runtime  string // Runtime backend override
 	ResumeID string // Explicit session ID to resume
-	Fresh    bool   // Force new session (ignore session_id)
 }
 
 // SessionEntry represents a single session history record.
@@ -200,7 +199,6 @@ func (s *AgentService) Start(ctx context.Context, name string, opts StartOptions
 		Tool:      existing.Tool,
 		EnvFile:   existing.EnvFile,
 		Runtime:   opts.Runtime,
-		Fresh:     opts.Fresh,
 		SessionID: opts.ResumeID,
 	})
 	if err != nil {
