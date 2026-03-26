@@ -158,9 +158,7 @@ export interface CronLogEntry {
   job_name: string;
   status: string;
   output: string;
-  error: string;
-  started_at: string;
-  finished_at: string;
+  run_at: string;
   duration_ms: number;
 }
 

@@ -67,14 +67,14 @@ function CreateJobForm({ onCreated }: { onCreated: () => void }) {
       <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
         New Cron Job
       </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="space-y-1">
           <label className="block text-sm text-bc-text">Name</label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="nightly-review"
+            placeholder="deploy-main"
             className={inputCls}
           />
         </div>
@@ -84,7 +84,7 @@ function CreateJobForm({ onCreated }: { onCreated: () => void }) {
             type="text"
             value={schedule}
             onChange={(e) => setSchedule(e.target.value)}
-            placeholder="0 0 * * *"
+            placeholder="*/10 * * * *"
             className={inputCls}
           />
         </div>
@@ -131,53 +131,87 @@ function CreateJobForm({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-function JobLogs({ name }: { name: string }) {
+function RunDetail({ log }: { log: CronLogEntry }) {
+  return (
+    <div className="mt-2 rounded border border-bc-border bg-bc-bg p-3">
+      <div className="flex items-center gap-4 text-xs text-bc-muted mb-2">
+        <span>Duration: {log.duration_ms}ms</span>
+        <span
+          className={`font-medium ${log.status === "success" ? "text-green-400" : log.status === "failed" ? "text-red-400" : "text-yellow-400"}`}
+        >
+          {log.status}
+        </span>
+      </div>
+      <pre className="text-xs text-bc-text/80 whitespace-pre-wrap max-h-64 overflow-y-auto font-mono bg-[#0a0a0f] rounded p-3">
+        {log.output || "(no output)"}
+      </pre>
+    </div>
+  );
+}
+
+function JobRuns({ name }: { name: string }) {
   const fetcher = useCallback(() => api.getCronLogs(name), [name]);
   const { data: logs, loading } = usePolling(fetcher, 15000);
+  const [selectedRun, setSelectedRun] = useState<number | null>(null);
 
   if (loading && !logs) {
     return (
-      <div className="px-6 py-3 text-xs text-bc-muted">Loading logs...</div>
+      <div className="px-6 py-3 text-xs text-bc-muted">Loading runs...</div>
     );
   }
 
   if (!logs || logs.length === 0) {
     return (
       <div className="px-6 py-3 text-xs text-bc-muted">
-        No execution logs yet.
+        No runs yet. Job will execute on next scheduled tick.
       </div>
     );
   }
 
   return (
-    <div className="px-6 py-3 space-y-2">
+    <div className="px-6 py-3 space-y-1">
       <div className="text-xs font-medium text-bc-muted uppercase tracking-wide mb-2">
-        Execution Logs
+        Execution History
       </div>
-      <div className="max-h-64 overflow-y-auto space-y-1">
-        {logs.map((log: CronLogEntry) => (
-          <div
-            key={log.id}
-            className="flex items-start gap-3 text-xs border-b border-bc-border/30 pb-1"
-          >
-            <span className="text-bc-muted whitespace-nowrap">
-              {new Date(log.started_at).toLocaleString()}
-            </span>
-            <span
-              className={`font-medium ${log.status === "success" ? "text-green-400" : log.status === "failed" ? "text-red-400" : "text-yellow-400"}`}
-            >
-              {log.status}
-            </span>
-            {log.output && (
-              <span
-                className="text-bc-muted truncate flex-1"
-                title={log.output}
+      <div className="max-h-80 overflow-y-auto space-y-1">
+        {logs.map((log: CronLogEntry) => {
+          const isSelected = selectedRun === log.id;
+          return (
+            <div key={log.id}>
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedRun(isSelected ? null : log.id)
+                }
+                className={`w-full flex items-center gap-4 text-xs px-3 py-2 rounded transition-colors text-left ${
+                  isSelected
+                    ? "bg-bc-accent/10 text-bc-accent"
+                    : "hover:bg-bc-surface"
+                }`}
               >
-                {log.output}
-              </span>
-            )}
-          </div>
-        ))}
+                <span className="text-bc-muted whitespace-nowrap w-40">
+                  {log.run_at
+                    ? new Date(log.run_at).toLocaleString()
+                    : "\u2014"}
+                </span>
+                <span
+                  className={`font-medium w-16 ${log.status === "success" ? "text-green-400" : log.status === "failed" ? "text-red-400" : "text-yellow-400"}`}
+                >
+                  {log.status}
+                </span>
+                <span className="text-bc-muted w-16">
+                  {log.duration_ms}ms
+                </span>
+                <span className="text-bc-muted truncate flex-1">
+                  {log.output
+                    ? log.output.split("\n")[0]?.slice(0, 80)
+                    : "(no output)"}
+                </span>
+              </button>
+              {isSelected && <RunDetail log={log} />}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -324,7 +358,6 @@ export function Cron() {
                 <th className="px-4 py-2 font-medium text-bc-muted">
                   Schedule
                 </th>
-                <th className="px-4 py-2 font-medium text-bc-muted">Agent</th>
                 <th className="px-4 py-2 font-medium text-bc-muted">Status</th>
                 <th className="px-4 py-2 font-medium text-bc-muted">Runs</th>
                 <th className="px-4 py-2 font-medium text-bc-muted">
@@ -345,9 +378,6 @@ export function Cron() {
                       <code className="text-xs text-bc-muted">
                         {j.schedule}
                       </code>
-                    </td>
-                    <td className="px-4 py-2">
-                      <span>{j.agent_name || "\u2014"}</span>
                     </td>
                     <td className="px-4 py-2">
                       <span
@@ -384,10 +414,10 @@ export function Cron() {
                             : "text-bc-muted hover:text-bc-fg hover:bg-bc-surface"
                         }`}
                         title={
-                          expandedJob === j.name ? "Hide logs" : "Show logs"
+                          expandedJob === j.name ? "Hide runs" : "Show runs"
                         }
                         aria-label={
-                          expandedJob === j.name ? "Hide logs" : "Show logs"
+                          expandedJob === j.name ? "Hide runs" : "Show runs"
                         }
                       >
                         {expandedJob === j.name ? "\u2296" : "\u2295"}
@@ -396,11 +426,11 @@ export function Cron() {
                   </tr>
                   {expandedJob === j.name && (
                     <tr
-                      key={`${j.name}-logs`}
+                      key={`${j.name}-runs`}
                       className="border-b border-bc-border/50 bg-bc-surface/50"
                     >
-                      <td colSpan={8} className="p-0">
-                        <JobLogs name={j.name} />
+                      <td colSpan={7} className="p-0">
+                        <JobRuns name={j.name} />
                       </td>
                     </tr>
                   )}
